@@ -1,0 +1,109 @@
+name:          unison
+category:      Compiler
+version:       0.1
+license:       MIT
+cabal-version: >= 1.8
+license-file:  LICENSE
+author:        Paul Chiusano 
+maintainer:    Paul Chiusano <paul.chiusano@gmail.com>
+stability:     provisional
+homepage:      https://github.com/pchiusano/unison
+bug-reports:   https://github.com/pchiusano/unison/issues
+copyright:     Copyright (C) 2013 Paul Chiusano and contributros 
+synopsis:      A purely functional language with transparent remote execution 
+description:   - 
+
+build-type:    Custom
+extra-source-files:
+  -- .travis.yml
+  --.vim.custom
+  .gitignore
+  README.markdown
+  CHANGELOG.markdown
+
+data-files:
+
+source-repository head
+  type: git
+  location: git://github.com/pchiusano/unison.git
+
+-- `cabal install --enable-tests -f-doctests` to disable doctest suite
+flag doctests
+  manual: True
+  default: True
+
+-- `cabal install --enable-tests -f-properties` to disable properties suite
+flag properties
+  manual: True
+  default: True
+
+-- `cabal install -foptimized` enables optimizations
+flag optimized
+  manual: True
+  default: False
+
+-- `cabal install -f-repl` to disable compiling the repl
+flag repl
+  manual: True
+  default: True
+
+flag q
+  manual: True
+  default: False
+
+library
+  hs-source-dirs: src
+
+  exposed-modules:
+    Unison
+    Unison.Syntax
+    Unison.Syntax.Term
+
+  build-depends:
+    base                      >= 4       && < 5,
+    prelude-extras            >= 0.3     && < 1,
+    lens                      >= 3.9     && < 4,
+    text                      >= 0.11.2  && < 1
+    -- mtl                       >= 2.1.1   && < 2.2
+
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
+
+  if flag(optimized)
+    ghc-options: -funbox-strict-fields -O2
+
+  if flag(q)
+    ghc-options: -v0
+
+
+executable unison
+  main-is: src/Main.hs
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -v0
+
+  if flag(optimized)
+    ghc-options: -funbox-strict-fields -O2
+
+  build-depends:
+    unison,
+    base                      >= 4       && < 5
+
+-- Verify the properties of lenses with QuickCheck
+test-suite properties
+  type:           exitcode-stdio-1.0
+  main-is:        properties.hs
+  ghc-options:    -w -threaded -rtsopts -with-rtsopts=-N -v0
+  hs-source-dirs: . properties
+  other-modules:
+    Syntax
+
+  if !flag(properties)
+    buildable: False
+  else
+    build-depends:
+      unison,
+      QuickCheck                 >= 2.4,
+      quickcheck-instances       >= 0.3.1,
+      tagged                     >= 0.4.4 && < 1,
+      test-framework             >= 0.6,
+      test-framework-quickcheck2 >= 0.2,
+      test-framework-th          >= 0.2
+

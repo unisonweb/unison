@@ -4,4 +4,6 @@ cabal-dev
 *.hi
 *.chi
 *.chs.h
+*.swp
+tags
 .virthualenv
