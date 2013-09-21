@@ -57,7 +57,10 @@ library
   exposed-modules:
     Unison
     Unison.Syntax
+    Unison.Syntax.DeBruijn
+    Unison.Syntax.Literal
     Unison.Syntax.Term
+    Unison.Syntax.Term.Examples
 
   build-depends:
     base                      >= 4       && < 5,
@@ -84,7 +87,10 @@ executable unison
 
   build-depends:
     unison,
-    base                      >= 4       && < 5
+    base                      >= 4       && < 5,
+    prelude-extras            >= 0.3     && < 1,
+    lens                      >= 3.9     && < 4,
+    text                      >= 0.11.2  && < 1
 
 -- Verify the properties of lenses with QuickCheck
 test-suite properties

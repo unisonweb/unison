@@ -1,4 +1,10 @@
 module Main where
 
+import Unison.Syntax.Term
+import Unison.Syntax.Term.Examples
+
+expr :: Term () ()
+expr = identity
+
 main :: IO ()
-main = putStr "hello world!!"
+main = putStrLn (show expr)
