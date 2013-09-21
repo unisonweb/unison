@@ -7,3 +7,6 @@ data DeBruijn = DeBruijn Int
 succ :: DeBruijn -> DeBruijn
 succ (DeBruijn i) = DeBruijn (i + 1)
 
+bound1 :: DeBruijn
+bound1 = DeBruijn 1
+

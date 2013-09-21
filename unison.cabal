@@ -62,6 +62,9 @@ library
     Unison.Syntax.Term
     Unison.Syntax.Term.Examples
     Unison.Syntax.Type
+    Unison.Syntax.Var
+    Unison.Type.Context
+    Unison.Type.Context.Element
 
   build-depends:
     base                      >= 4       && < 5,
