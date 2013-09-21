@@ -61,6 +61,7 @@ library
     Unison.Syntax.Literal
     Unison.Syntax.Term
     Unison.Syntax.Term.Examples
+    Unison.Syntax.Type
 
   build-depends:
     base                      >= 4       && < 5,

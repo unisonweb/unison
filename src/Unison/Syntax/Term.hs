@@ -28,6 +28,15 @@ abstract1 v = collect go where
   go v2 | v2 == v = Just bind0
   go _ = Nothing
 
+abstract :: Eq v => v -> Term t v -> ([v], Term t v)
+abstract v = collect go where
+  go v2 | v2 == v = ([], bind0)
+  go v2 = ([v2], Var (Right v2))
+
+ap1 :: Term t v -> Term t v -> Maybe (Term t v)
+ap1 (Lam body) t = Just (subst1 body t)
+ap1 _ _ = Nothing
+
 bind0 :: Term t v
 bind0 = Var (Left (DeBruijn 0))
 
