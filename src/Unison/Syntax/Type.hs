@@ -26,7 +26,7 @@ data Type (t :: T) c k v where
   Existential :: Var v -> Type t c k v
   Ann :: Type t c k v -> k -> Type t c k v
   Constrain :: Type t c k v -> c -> Type t c k v
-  Forall :: Type Poly c k v -> Type Poly c k v
+  Forall :: Type Poly c k v -> Type Poly c k v -- | ^ `DeBruijn 1` is bounded by nearest enclosing `Forall`, `DeBruijn 2` by next enclosing `Forall`, etc
 
   -- deriving (Eq,Ord,Show,Read,Functor,Foldable,Traversable)
 deriving instance (Eq c, Eq k, Eq v) => Eq (Type t c k v)
@@ -34,6 +34,7 @@ deriving instance (Ord c, Ord k, Ord v) => Ord (Type t c k v)
 deriving instance (Show c, Show k, Show v) => Show (Type t c k v)
 -- deriving instance (Read c, Read k, Read v) => Read (Type t c k v)
 
+-- need to call this inside out
 abstract1 :: Eq v => v -> Type t c k v -> Maybe (Type t c k v2)
 abstract1 v = collect go where
   go (Right v2) | v2 == v = Just (Universal V.bound1)
@@ -51,6 +52,16 @@ bound1 = Universal V.bound1
 
 closed :: Type t c k v -> Maybe (Type t c k v2)
 closed = collect (const Nothing)
+
+mapVar :: (Var v -> Var v2) -> Type t c k v -> Type t c k v2
+mapVar f e = case e of
+  Unit -> Unit
+  Arrow i o -> Arrow (mapVar f i) (mapVar f o)
+  Universal v -> Universal (f v)
+  Existential v -> Existential (f v)
+  Ann e' t -> Ann (mapVar f e') t
+  Constrain e' t -> Constrain (mapVar f e') t
+  Forall body -> Forall (mapVar f body)
 
 collect :: Applicative f
        => (Either v v -> f (Type t c k v2)) -- `Left` is existential, `Right` is variable

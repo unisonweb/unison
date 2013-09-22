@@ -8,38 +8,43 @@ import Control.Applicative
 import Data.List
 import Unison.Syntax.Type as T hiding (vars)
 import Unison.Syntax.Var as V
+import Unison.Syntax.DeBruijn as D
 import Unison.Type.Context.Element as E
 
 -- | An ordered algorithmic context
-data Context (t :: E.T) sa a v = Context [Element t sa a v]
+-- The next fresh variable
+data Context (t :: E.T) sa a v = Context v [Element t sa a v]
+
+empty :: Context t sa a (Var v)
+empty = Context V.bound1 []
 
 -- | Extend this `Context` by one element
-extend :: Element t sa a v -> Context t sa a v -> Context t sa a v
-extend e (Context ctx) = Context (e : ctx)
+extend :: Element t sa a (Var v) -> Context t sa a (Var v) -> Context t sa a (Var v)
+extend e (Context n ctx) = Context (V.succ n) (e : ctx)
 
 -- | Extend this `Context` with a single universally quantified variable,
--- incrementing the DeBruijn index of all previous variables.
+-- guaranteed to be fresh
 extendUniversal :: Context t sa a (Var v) -> Context t sa a (Var v)
-extendUniversal (Context ctx) =
-  Context (E.Universal V.bound1 : map (fmap V.succ) ctx)
+extendUniversal (Context n ctx) =
+  Context (V.succ n) (E.Universal n : map (fmap V.succ) ctx)
 
 universals :: Context t sa a v -> [v]
-universals (Context ctx) = [v | E.Universal v <- ctx]
+universals (Context _ ctx) = [v | E.Universal v <- ctx]
 
 markers :: Context t sa a v -> [v]
-markers (Context ctx) = [v | Marker v <- ctx]
+markers (Context _ ctx) = [v | Marker v <- ctx]
 
 existentials :: Context t sa a v -> [v]
-existentials (Context ctx) = ctx >>= go where
+existentials (Context _ ctx) = ctx >>= go where
   go (E.Existential v) = [v]
   go (E.Solved v _) = [v]
   go _ = []
 
 solved :: Context t sa a v -> [(v, sa)]
-solved (Context ctx) = [(v, sa) | Solved v sa <- ctx]
+solved (Context _ ctx) = [(v, sa) | Solved v sa <- ctx]
 
 bindings :: Context t sa a v -> [(v, a)]
-bindings (Context ctx) = [(v,a) | E.Ann v a <- ctx]
+bindings (Context _ ctx) = [(v,a) | E.Ann v a <- ctx]
 
 vars :: Context t sa a v -> [v]
 vars = fmap fst . bindings
@@ -53,8 +58,7 @@ wellformedType c t = case t of
   Arrow i o -> wellformedType c i && wellformedType c o
   T.Ann t' _ -> wellformedType c t'
   Constrain t' _ -> wellformedType c t'
-  -- if there are no deletes in middle, may be more efficient to weaken t'
-  Forall t' -> wellformedType (extendUniversal c) t'
+  Forall t' -> wellformedType (extendUniversal c) (mapVar V.succ t')
 
 -- | Check that the context is well formed, namely that
 -- there are no circular variable references, and any types
@@ -62,14 +66,14 @@ wellformedType c t = case t of
 -- wellformed with respect to the prefix of the context
 -- leading up to these elements.
 wellformed :: Eq v => TContext t c k v -> Bool
-wellformed (Context ctx) = all go (zip' ctx) where
+wellformed (Context n ctx) = all go (zip' ctx) where
   go (E.Universal v, ctx') = v `notElem` universals ctx'
   go (E.Existential v, ctx') = v `notElem` existentials ctx'
   go (Solved v sa, ctx') = v `notElem` existentials ctx' && wellformedType ctx' sa
   go (E.Ann v t, ctx') = v `notElem` vars ctx' && wellformedType ctx' t
   go (Marker v, ctx') = v `notElem` vars ctx' && v `notElem` existentials ctx'
   -- zip each element with the remaining elements
-  zip' ctx' = zip ctx' (map Context $ tail (tails ctx'))
+  zip' ctx' = zip ctx' (map (Context n) $ tail (tails ctx'))
 
 substitute :: Eq v => TContext t c k v -> Polytype c k v -> Polytype c k v
 substitute ctx t = case t of
@@ -80,7 +84,13 @@ substitute ctx t = case t of
   T.Ann v k -> T.Ann (substitute ctx v) k
   T.Constrain v c -> T.Constrain (substitute ctx v) c
   T.Forall v -> T.Forall (substitute ctx v) -- not sure this is correct
+  -- prob need to succ when descending into the forall
+  -- basically, need to mirror whatever is done when building up the context
 
+-- data Context t sa a v
+--   Empty :: Context t sa a v
+--   Extend :: Element t sa a v -> Context t sa a v -> Context t sa a v
+--   Bind :: Element t sa a v -> Context t sa a (Maybe v) -> Context t sa a v
 type TContext t c k v = Context t (Polytype c k v) (Monotype c k v) (V.Var v)
 
 type Note = String

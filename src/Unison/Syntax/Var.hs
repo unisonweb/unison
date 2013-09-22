@@ -20,3 +20,6 @@ succ v = v
 
 bound1 :: Var v
 bound1 = Bound (DeBruijn 1)
+
+bound0 :: Var v
+bound0 = Bound (DeBruijn 0)
