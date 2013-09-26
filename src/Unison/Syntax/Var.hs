@@ -18,8 +18,9 @@ succ :: Var v -> Var v
 succ (Bound (DeBruijn i)) = Bound (DeBruijn (i + 1))
 succ v = v
 
+decr :: Var v -> Var v
+decr (Bound (DeBruijn i)) = Bound (DeBruijn (i - 1))
+decr v = v
+
 bound1 :: Var v
 bound1 = Bound (DeBruijn 1)
-
-bound0 :: Var v
-bound0 = Bound (DeBruijn 0)

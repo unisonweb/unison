@@ -82,18 +82,21 @@ collect f = go where
 forall1 :: (forall v . Type t c k v -> Type Poly c k v) -> Type Poly c k v2
 forall1 f = Forall . fromJust . abstract1 () . f $ Universal (Free ())
 
-subst1 :: Type t c k v -> Type t c k v -> Type t c k v
-subst1 = go D.bound1 where
-  go ind body e = case body of
-    Unit -> Unit
-    Arrow i o -> Arrow (go ind i e) (go ind o e)
-    Universal (Bound i) | i == ind -> e
-    Universal _ -> body
-    Existential (Bound i) | i == ind -> e
-    Existential _ -> body
-    Ann body' t -> Ann (go ind body' e) t
-    Constrain body' t -> Constrain (go ind body' e) t
-    Forall body' -> Forall (go (D.succ ind) body' e)
+subst1 :: Eq v => Type t c k v -> Type t c k v -> Type t c k v
+subst1 fn arg = subst fn V.bound1 arg
+
+-- | mnemonic `subst fn var=arg`
+subst :: Eq v => Type t c k v -> Var v -> Type t c k v -> Type t c k v
+subst fn var arg = case fn of
+  Unit -> Unit
+  Arrow i o -> Arrow (subst i var arg) (subst o var arg)
+  Universal v | v == var -> arg
+              | otherwise -> fn
+  Existential v | v == var -> arg
+                | otherwise -> fn
+  Ann fn' t -> Ann (subst fn' var arg) t
+  Constrain fn' t -> Constrain (subst fn' var arg) t
+  Forall fn' -> Forall (subst fn' (V.succ var) arg)
 
 vars :: Type t c k v -> [v]
 vars = getConst . collect (\e -> Const [either id id e])
