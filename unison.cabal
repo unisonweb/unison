@@ -69,6 +69,7 @@ library
   build-depends:
     base                      >= 4       && < 5,
     prelude-extras            >= 0.3     && < 1,
+    containers                >= 0.5     && < 0.6,
     lens                      >= 3.9     && < 4,
     text                      >= 0.11.2  && < 1
     -- mtl                       >= 2.1.1   && < 2.2
