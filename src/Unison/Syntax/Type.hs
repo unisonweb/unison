@@ -11,6 +11,7 @@ module Unison.Syntax.Type where
 
 import Control.Applicative
 import Data.Maybe
+import Data.Traversable
 import Unison.Syntax.Var as V
 import Unison.Syntax.DeBruijn as D
 
@@ -22,71 +23,66 @@ type Polytype = Type Poly
 data Type (t :: T) c k v where
   Unit :: Type t c k v
   Arrow :: Type t c k v -> Type t c k v -> Type t c k v
-  Universal :: Var v -> Type t c k v
-  Existential :: Var v -> Type t c k v
+  Universal :: v -> Type t c k v
+  Existential :: v -> Type t c k v
   Ann :: Type t c k v -> k -> Type t c k v
   Constrain :: Type t c k v -> c -> Type t c k v
-  Forall :: Type Poly c k v -> Type Poly c k v -- | ^ `DeBruijn 1` is bounded by nearest enclosing `Forall`, `DeBruijn 2` by next enclosing `Forall`, etc
+  Forall :: v -> Type Poly c k v -> Type Poly c k v -- | ^ `DeBruijn 1` is bounded by nearest enclosing `Forall`, `DeBruijn 2` by next enclosing `Forall`, etc
 
   -- deriving (Eq,Ord,Show,Read,Functor,Foldable,Traversable)
 deriving instance (Eq c, Eq k, Eq v) => Eq (Type t c k v)
 deriving instance (Ord c, Ord k, Ord v) => Ord (Type t c k v)
 deriving instance (Show c, Show k, Show v) => Show (Type t c k v)
--- deriving instance (Read c, Read k, Read v) => Read (Type t c k v)
+
+trav :: Applicative f => (v -> f v2) -> Type Poly c k v -> f (Type Poly c k v2)
+trav f Unit = pure Unit
+trav f (Arrow i o) = Arrow <$> trav f i <*> trav f o
+trav f (Universal v) = Universal <$> f v
+trav f (Existential v) = Existential <$> f v
+trav f (Ann t k) = Ann <$> trav f t <*> pure k
+trav f (Constrain t c) = Constrain <$> trav f t <*> pure c
+trav f (Forall v fn) = Forall <$> f v <*> trav f fn
+
+monotype :: Type Poly c k v -> Maybe (Monotype c k v)
+monotype Unit = pure Unit
+monotype (Arrow i o) = Arrow <$> monotype i <*> monotype o
+monotype (Universal v) = pure (Universal v)
+monotype (Existential v) = pure (Existential v)
+monotype (Ann t k) = Ann <$> monotype t <*> pure k
+monotype (Constrain t c) = Constrain <$> monotype t <*> pure c
+monotype _ = Nothing
 
 -- need to call this inside out
-abstract1 :: Eq v => v -> Type t c k v -> Maybe (Type t c k v2)
-abstract1 v = collect go where
-  go (Right v2) | v2 == v = Just (Universal V.bound1)
+abstract1 :: Eq v => v -> Type Poly c k v -> Maybe (Type Poly c k (Var v2))
+abstract1 v = trav go where
+  go v2 | v2 == v = Just V.bound1
   go _ = Nothing
 
-abstract :: Eq v => v -> Type t c k v -> ([v], Type t c k v)
-abstract v = collect go where
-  go (Right v2) | v2 == v = ([], (Universal V.bound1))
-  go (Right v2) = ([v2], Universal (Free v2))
-  go (Left v2) = ([v2], Existential (Free v2))
+abstract :: Eq v => Var v
+         -> Type Poly c k (Var v)
+         -> ([Var v], Type Poly c k (Var v))
+abstract v = trav go where
+  go v2 | v2 == v    = ([], V.bound1)
+  go v2 | otherwise  = ([v2], v2)
 
 -- | Type variable which is bound by the nearest enclosing `Forall`
-bound1 :: Type t c k v
+bound1 :: Type t c k (Var v)
 bound1 = Universal V.bound1
 
-closed :: Type t c k v -> Maybe (Type t c k v2)
-closed = collect (const Nothing)
+-- forall1 $ \x -> Arrow x x
+-- forall2
+forall1 :: (forall v . Type t c k v -> Type Poly c k v) -> Type Poly c k (Var v2)
+forall1 f = Forall V.bound1 . fromJust . abstract1 () . f $ Universal ()
 
-mapVar :: (Var v -> Var v2) -> Type t c k v -> Type t c k v2
-mapVar f e = case e of
-  Unit -> Unit
-  Arrow i o -> Arrow (mapVar f i) (mapVar f o)
-  Universal v -> Universal (f v)
-  Existential v -> Existential (f v)
-  Ann e' t -> Ann (mapVar f e') t
-  Constrain e' t -> Constrain (mapVar f e') t
-  Forall body -> Forall (mapVar f body)
-
-collect :: Applicative f
-       => (Either v v -> f (Type t c k v2)) -- `Left` is existential, `Right` is variable
-       -> Type t c k v
-       -> f (Type t c k v2)
-collect f = go where
-  go e = case e of
-    Unit  -> pure Unit
-    Arrow i o -> Arrow <$> go i <*> go o
-    Universal (Free v) -> f (Right v)
-    Universal (Bound ind) -> pure (Universal (Bound ind))
-    Existential (Free v) -> f (Left v)
-    Existential (Bound ind) -> pure (Existential (Bound ind))
-    Ann e' t -> Ann <$> go e' <*> pure t
-    Constrain e' t -> Constrain <$> go e' <*> pure t
-    Forall body -> Forall <$> go body
-
-forall1 :: (forall v . Type t c k v -> Type Poly c k v) -> Type Poly c k v2
-forall1 f = Forall . fromJust . abstract1 () . f $ Universal (Free ())
-
-subst1 :: Eq v => Type t c k v -> Type t c k v -> Type t c k v
+subst1 :: Eq v => Type t c k (Var v) -> Type t c k (Var v) -> Type t c k (Var v)
 subst1 fn arg = subst fn V.bound1 arg
 
 -- | mnemonic `subst fn var=arg`
-subst :: Eq v => Type t c k v -> Var v -> Type t c k v -> Type t c k v
+subst :: Eq v
+      => Type t c k (Var v)
+      -> Var v
+      -> Type t c k (Var v)
+      -> Type t c k (Var v)
 subst fn var arg = case fn of
   Unit -> Unit
   Arrow i o -> Arrow (subst i var arg) (subst o var arg)
@@ -96,7 +92,4 @@ subst fn var arg = case fn of
                 | otherwise -> fn
   Ann fn' t -> Ann (subst fn' var arg) t
   Constrain fn' t -> Constrain (subst fn' var arg) t
-  Forall fn' -> Forall (subst fn' (V.succ var) arg)
-
-vars :: Type t c k v -> [v]
-vars = getConst . collect (\e -> Const [either id id e])
+  Forall v fn' -> Forall v (subst fn' (V.succ var) arg)
