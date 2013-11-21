@@ -8,7 +8,8 @@
 module Unison.Type.Context.Element where
 
 import Control.Lens
-import Data.Foldable
+import qualified Unison.Syntax.Type as T
+import qualified Unison.Syntax.Var as V
 
 -- | Elements of an algorithmic context, indexed by the `T` kind,
 -- which indicates whether the context contains unsolved existentials.
@@ -17,7 +18,7 @@ import Data.Foldable
 -- and the `a` type parameter is the type of other annotations (a `Polytype`).
 data Element sa a v where
   Universal :: v -> Element sa a v            -- | ^ `v` is universally quantified
-  Existential :: v -> Element sa a v -- | ^ `v` existential and unsolved
+  Existential :: v -> Element sa a v          -- | ^ `v` existential and unsolved
   Solved :: v -> sa -> Element sa a v         -- | ^ `v` is solved to some monotype, `sa`
   Ann :: v -> a -> Element sa a v             -- | ^ `v` has type `a`, which may be quantified
   Marker :: v -> Element sa a v               -- | ^ used for scoping somehow
@@ -29,6 +30,18 @@ instance Functor (Element sa a) where
     Solved v sa -> Solved (f v) sa
     Ann v a -> Ann (f v) a
     Marker v -> Marker (f v)
+
+(===) :: Eq v => TElement c k v -> TElement c k v -> Bool
+Existential v === Existential v2 | v == v2 = True
+Universal v === Universal v2 | v == v2 = True
+Marker v === Marker v2 | v == v2 = True
+_ === _ = False
+
+(!==) :: Eq v => TElement c k v -> TElement c k v -> Bool
+e1 !== e2 = not (e1 === e2)
+
+type TElement c k v =
+  Element (T.Monotype c k (V.Var v)) (T.Type c k (V.Var v)) (V.Var v)
 
 _Universal :: Simple Prism (Element sa a v) v
 _Universal = prism Universal go where

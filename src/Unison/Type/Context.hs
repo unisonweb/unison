@@ -26,9 +26,25 @@ type TContext c k v =
 empty :: Context sa a (Var v)
 empty = Context (Bound (DeBruijn 0)) []
 
--- | Extend this `Context` by one element
-extend :: Element sa a (Var v) -> Context sa a (Var v) -> Context sa a (Var v)
-extend e (Context n ctx) = Context (V.decr n) (e : ctx)
+context :: Ord v => [Element sa a (Var v)] -> Context sa a (Var v)
+context xs = let ctx = reverse xs
+                 v = fromMaybe (Bound (DeBruijn 0)) (currentVar ctx)
+             in Context v ctx
+
+append :: Context sa a (Var v) -> Context sa a (Var v) -> Context sa a (Var v)
+append (Context n1 ctx1) (Context n2 ctx2) =
+  let n12 = V.minv n1 n2
+  in Context n12 (ctx2 ++ ctx1)
+
+fresh :: TContext c k v -> Var v
+fresh (Context n _) = V.decr n
+
+fresh' :: Var v -> Var v
+fresh' = V.decr
+
+-- | Add an element onto the end of this `Context`
+extend :: Ord v => Element sa a (Var v) -> Context sa a (Var v) -> Context sa a (Var v)
+extend e ctx = ctx `append` context [e]
 
 -- | Extend this `Context` with a single universally quantified variable,
 -- guaranteed to be fresh
@@ -36,6 +52,13 @@ extendUniversal :: Context sa a (Var v) -> (Var v, Context sa a (Var v))
 extendUniversal (Context n ctx) =
   let v = V.decr n in (v, Context v (E.Universal n : ctx))
 
+-- | Extend this `Context` with a single existentially quantified variable,
+-- guaranteed to be fresh
+extendExistential :: Context sa a (Var v) -> (Var v, Context sa a (Var v))
+extendExistential (Context n ctx) =
+  let v = V.decr n in (v, Context v (E.Universal n : ctx))
+
+-- | Extend this `Context` with a marker variable, guaranteed to be fresh
 extendMarker :: Context sa a (Var v)
              -> (Var v, Context sa a (Var v))
 extendMarker (Context n ctx) =
@@ -46,12 +69,13 @@ retract :: Ord v
         -> Context sa a (Var v)
         -> Context sa a (Var v)
 retract m (Context _ ctx) =
-  let ctx' = tail (dropWhile (isNotMarker m) ctx)
+  let ctx' = tail (dropWhile (go m) ctx)
       n' = fromMaybe (Bound (DeBruijn 0))
                      (currentVar ctx') -- ok to recycle our variable supply
-      isNotMarker (Marker v)      (Marker v2)      | v == v2 = True
-      isNotMarker (E.Universal v) (E.Universal v2) | v == v2 = True
-      isNotMarker _ _                                        = False
+      go (Marker v)      (Marker v2)          | v == v2 = False
+      go (E.Universal v) (E.Universal v2)     | v == v2 = False
+      go (E.Existential v) (E.Existential v2) | v == v2 = False
+      go _ _                                            = True
   in Context n' ctx'
 
 universals :: Context sa a v -> [v]
@@ -68,6 +92,27 @@ existentials (Context _ ctx) = ctx >>= go where
 
 solved :: Context sa a v -> [(v, sa)]
 solved (Context _ ctx) = [(v, sa) | Solved v sa <- ctx]
+
+replace :: Ord v => TElement c k v -> TContext c k v -> TContext c k v -> TContext c k v
+replace e focus ctx = let (l,r) = breakAt e ctx in l `append` focus `append` r
+
+breakAt :: Ord v => TElement c k v -> TContext c k v -> (TContext c k v, TContext c k v)
+breakAt m (Context _ xs) =
+  let (r, l) = break (=== m) xs
+  in (context (drop 1 l), context r)
+
+-- | ordered Γ α β = True <=> Γ[α^][β^]
+ordered :: Ord v => TContext c k v -> V.Var v -> V.Var v -> Bool
+ordered ctx v v2 = v `elem` existentials (retract (E.Existential v2) ctx)
+
+-- | solve (ΓL,α^,ΓR) α τ = (ΓL,α = τ,ΓR)
+-- If the given existential variable exists in the context,
+-- we solve it to the given monotype, otherwise return `Nothing`
+solve :: Ord v => TContext c k v -> V.Var v -> Monotype c k (V.Var v) -> Maybe (TContext c k v)
+solve ctx v t | wellformedType ctxL (getPolytype t) = Just ctx'
+              | otherwise                           = Nothing
+    where (ctxL,ctxR) = breakAt (E.Existential v) ctx
+          ctx' = ctxL `append` context [E.Solved v t] `append` ctxR
 
 bindings :: Context sa a v -> [(v, a)]
 bindings (Context _ ctx) = [(v,a) | E.Ann v a <- ctx]
@@ -146,32 +191,89 @@ subtype :: (Ord v, Show c, Show k, Show v)
         -> Type c k (V.Var v)
         -> Type c k (V.Var v)
         -> Either Note (TContext c k v)
-subtype ctx = go where
-  go Unit Unit = pure ctx
-  go t1@(T.Universal v1) t2@(T.Universal v2)
+subtype ctx = go where -- Rules from figure 9
+  go Unit Unit = pure ctx -- `Unit`
+  go t1@(T.Universal v1) t2@(T.Universal v2) -- `Var`
     | v1 == v2 && wellformedType ctx t1 && wellformedType ctx t2
     = pure ctx
-  go t1@(T.Existential v1) t2@(T.Existential v2)
+  go t1@(T.Existential v1) t2@(T.Existential v2) -- `Exvar`
     | v1 == v2 && wellformedType ctx t1 && wellformedType ctx t2
     = pure ctx
-  go (T.Arrow i1 o1) (T.Arrow i2 o2) = do
+  go (T.Arrow i1 o1) (T.Arrow i2 o2) = do -- `-->`
     ctx' <- subtype ctx i1 i2
     subtype ctx' (apply ctx' o1) (apply ctx' o2)
-  go (T.Forall _ t) t2 =
+  go (T.Forall _ t) t2 = -- `forall (L)`
     let (v, ctx') = extendMarker ctx
         t' = subst1 t (T.Existential v)
     in retract (E.Marker v) <$> subtype ctx' (apply ctx' t') t2
-  go t (T.Forall _ t2) =
+  go t (T.Forall _ t2) = -- `forall (R)`
     let (v, ctx') = extendUniversal ctx
         t2' = subst1 t2 (T.Universal v)
     in retract (E.Universal v) <$> subtype ctx' t t2'
-  go (T.Existential v) t
+  go (T.Existential v) t -- `InstantiateL`
     | v `elem` existentials ctx && S.notMember v (freeVars t) =
     instantiateL ctx v t
+  go t (T.Existential v) -- `InstantiateR`
+    | v `elem` existentials ctx && S.notMember v (freeVars t) =
+    instantiateR ctx t v
   go t1 t2 = Left $ note "not a subtype " ++ show t1 ++ " " ++ show t2
 
-instantiateL :: TContext c k v
+-- | Instantiate the given existential such that it is
+-- a subtype of the given type, updating the context
+-- in the process.
+instantiateL :: Ord v
+             => TContext c k v
              -> Var v
              -> Type c k (V.Var v)
              -> Either Note (TContext c k v)
-instantiateL ctx v t = undefined
+instantiateL ctx v t = case monotype t >>= solve ctx v of
+  Just ctx' -> pure ctx' -- InstLSolve
+  Nothing -> case t of
+    T.Existential v2 | ordered ctx v v2 -> -- InstLReach (both are existential, set v2 = v)
+      maybe (Left $ note "InstLReach failed") pure $
+        solve ctx v2 (Monotype (T.Existential v))
+    T.Arrow i o -> -- InstLArr
+      let i' = fresh ctx
+          o' = fresh' i'
+          s = E.Solved v (Monotype (T.Arrow (T.Existential i') (T.Existential o')))
+      in do
+        ctx' <- instantiateR (replace (E.Existential v) (context [E.Existential o', E.Existential i', s]) ctx)
+                             i
+                             i'
+        instantiateL ctx' o' (apply ctx' o)
+    T.Forall x body -> -- InstLIIL
+      let (v', ctx') = extendUniversal ctx
+      in retract (E.Universal v') <$>
+         instantiateL ctx' v (T.subst body x (T.Universal v'))
+    _ -> Left $ note "could not instantiate left"
+
+-- | Instantiate the given existential such that it is
+-- a subtype of the given type, updating the context
+-- in the process.
+instantiateR :: Ord v
+             => TContext c k v
+             -> Type c k (V.Var v)
+             -> Var v
+             -> Either Note (TContext c k v)
+instantiateR ctx t v = case monotype t >>= solve ctx v of
+  Just ctx' -> pure ctx' -- InstRSolve
+  Nothing -> case t of
+    T.Existential v2 | ordered ctx v v2 -> -- InstRReach (both are existential, set v2 = v)
+      maybe (Left $ note "InstRReach failed") pure $
+        solve ctx v2 (Monotype (T.Existential v))
+    T.Arrow i o -> -- InstRArrow
+      let i' = fresh ctx
+          o' = fresh' i'
+          s = E.Solved v (Monotype (T.Arrow (T.Existential i') (T.Existential o')))
+      in do
+        ctx' <- instantiateL (replace (E.Existential v) (context [E.Existential o', E.Existential i', s]) ctx)
+                             i'
+                             i
+        instantiateR ctx' (apply ctx' o) o'
+    T.Forall x body -> -- InstRAIIL
+      let x' = fresh ctx
+      in retract (E.Marker x') <$>
+        instantiateR (ctx `append` context [E.Marker x', E.Existential x'])
+                     (T.subst body x (T.Existential x'))
+                     v
+    _ -> Left $ note "could not instantiate right"

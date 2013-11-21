@@ -16,6 +16,7 @@ import Unison.Syntax.Var as V
 
 -- constructor is private not exported
 data Monotype c k v = Monotype { getPolytype :: Type c k v }
+deriving instance (Eq c, Eq k, Eq v) => Eq (Monotype c k v)
 
 -- | Types with constraints `c`, free variables in `v` and kind annotations in `k`
 data Type c k v where

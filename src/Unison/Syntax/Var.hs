@@ -22,5 +22,11 @@ decr :: Var v -> Var v
 decr (Bound (DeBruijn i)) = Bound (DeBruijn (i - 1))
 decr v = v
 
+minv :: Var v -> Var v -> Var v
+minv (Bound (DeBruijn i)) (Bound (DeBruijn j)) = Bound (DeBruijn (min i j))
+minv b@(Bound (DeBruijn i)) _ = b
+minv _ b@(Bound (DeBruijn i)) = b
+minv b _ = b
+
 bound1 :: Var v
 bound1 = Bound (DeBruijn 1)
