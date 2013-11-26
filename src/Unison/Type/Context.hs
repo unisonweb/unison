@@ -9,6 +9,8 @@ import Data.List as L
 import Data.Maybe
 import qualified Data.Set as S
 import Unison.Syntax.Type as T
+import qualified Unison.Syntax.Term as Term
+import Unison.Syntax.Term (Term)
 import Unison.Syntax.Var as V
 import Unison.Syntax.DeBruijn as D
 import Unison.Type.Context.Element as E
@@ -179,10 +181,14 @@ apply ctx t = case t of
   T.Constrain v c -> T.Constrain (apply ctx v) c
   T.Forall v t' -> T.Forall v (apply ctx t')
 
-type Note = String
+type Note = [String]
 
 note :: String -> Note
-note = id
+note s = [s]
+
+scope :: String -> Either Note a -> Either Note a
+scope s (Left stack) = Left (s : stack)
+scope s e = e
 
 -- | `subtype ctx t1 t2` returns successfully if `t1` is a subtype of `t2`.
 -- This may have the effect of altering the context.
@@ -216,7 +222,7 @@ subtype ctx = go where -- Rules from figure 9
   go t (T.Existential v) -- `InstantiateR`
     | v `elem` existentials ctx && S.notMember v (freeVars t) =
     instantiateR ctx t v
-  go t1 t2 = Left $ note "not a subtype " ++ show t1 ++ " " ++ show t2
+  go t1 t2 = Left $ note ("not a subtype " ++ show t1 ++ " " ++ show t2)
 
 -- | Instantiate the given existential such that it is
 -- a subtype of the given type, updating the context
@@ -277,3 +283,12 @@ instantiateR ctx t v = case monotype t >>= solve ctx v of
                      (T.subst body x (T.Existential x'))
                      v
     _ -> Left $ note "could not instantiate right"
+
+-- | Check that under the given context, `e` has type `t`,
+-- updating the context in the process
+check :: Ord v
+      => TContext c k v
+      -> Term (Type c k (V.Var v)) v
+      -> Type c k (V.Var v)
+      -> Either Note (TContext c k v)
+check ctx e t = undefined
