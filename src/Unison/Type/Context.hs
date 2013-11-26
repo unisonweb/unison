@@ -292,4 +292,4 @@ check :: (Ord v, Eq k)
       -> Type c k (V.Var v)
       -> Either Note (TContext c k v)
 check ctx _ t | not (wellformedType ctx t) = Left $ note "type not well formed wrt context"
-check ctx _ _ = error "todo"
+-- check ctx = error "todo"
