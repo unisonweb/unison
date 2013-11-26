@@ -31,17 +31,17 @@ instance Functor (Element sa a) where
     Ann v a -> Ann (f v) a
     Marker v -> Marker (f v)
 
-(===) :: Eq v => TElement c k v -> TElement c k v -> Bool
+(===) :: Eq v => TElement l c k v -> TElement l c k v -> Bool
 Existential v === Existential v2 | v == v2 = True
 Universal v === Universal v2 | v == v2 = True
 Marker v === Marker v2 | v == v2 = True
 _ === _ = False
 
-(!==) :: Eq v => TElement c k v -> TElement c k v -> Bool
+(!==) :: Eq v => TElement l c k v -> TElement l c k v -> Bool
 e1 !== e2 = not (e1 === e2)
 
-type TElement c k v =
-  Element (T.Monotype c k (V.Var v)) (T.Type c k (V.Var v)) (V.Var v)
+type TElement l c k v =
+  Element (T.Monotype l c k (V.Var v)) (T.Type l c k (V.Var v)) (V.Var v)
 
 _Universal :: Simple Prism (Element sa a v) v
 _Universal = prism Universal go where
