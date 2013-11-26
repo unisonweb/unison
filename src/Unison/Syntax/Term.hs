@@ -13,41 +13,42 @@ import Unison.Syntax.Literal
 import Unison.Syntax.Var as V
 import Unison.Syntax.DeBruijn as D
 
-type ClosedTerm = forall t v. Term t v
+type ClosedTerm k t = forall v. Term k t v
 
--- | Terms with free variables in `v` and type annotations in `t`
-data Term t v
+-- | Terms with free variables in `v`, type annotations in `t`,
+-- and literals in `k`.
+data Term k t v
   = Var (Var v) -- a variable is either free, or bound
-  | Lit Literal
-  | App (Term t v) (Term t v)
-  | Ann (Term t v) t
-  | Lam (Term t v)
+  | Lit k
+  | App (Term k t v) (Term k t v)
+  | Ann (Term k t v) t
+  | Lam (Term k t v)
   deriving (Eq,Ord,Show,Functor,Foldable,Traversable)
 
-abstract1 :: Eq v => v -> Term t v -> Maybe (Term t v2)
+abstract1 :: Eq v => v -> Term k t v -> Maybe (Term k t v2)
 abstract1 v = collect go where
   go v2 | v2 == v = Just (Var V.bound1)
   go _ = Nothing
 
-abstract :: Eq v => v -> Term t v -> ([v], Term t v)
+abstract :: Eq v => v -> Term k t v -> ([v], Term k t v)
 abstract v = collect go where
   go v2 | v2 == v = ([], Var V.bound1)
   go v2 = ([v2], Var (Free v2))
 
-ap1 :: Term t v -> Term t v -> Maybe (Term t v)
+ap1 :: Term k t v -> Term k t v -> Maybe (Term k t v)
 ap1 (Lam body) t = Just (subst1 body t)
 ap1 _ _ = Nothing
 
-bound1 :: Term t v
+bound1 :: Term k t v
 bound1 = Var V.bound1
 
-closed :: Term t v -> Maybe (Term t v2)
+closed :: Term k t v -> Maybe (Term k t v2)
 closed = traverse (const Nothing)
 
 collect :: Applicative f
-       => (v -> f (Term t v2))
-       -> Term t v
-       -> f (Term t v2)
+       => (v -> f (Term k t v2))
+       -> Term k t v
+       -> f (Term k t v2)
 collect f = go where
   go e = case e of
     Var (Free v) -> f v
@@ -57,10 +58,10 @@ collect f = go where
     Ann e' t -> Ann <$> go e' <*> pure t
     Lam body -> Lam <$> go body
 
-lam1 :: (forall v . Term t v -> Term t v) -> Term t v2
+lam1 :: (forall v . Term k t v -> Term k t v) -> Term k t v2
 lam1 f = Lam . fromJust . abstract1 () . f $ Var (Free ())
 
-subst1 :: Term t v -> Term t v -> Term t v
+subst1 :: Term k t v -> Term k t v -> Term k t v
 subst1 = go D.bound1 where
   go ind body e = case body of
     Var (Bound i) | i == ind -> e
@@ -70,5 +71,5 @@ subst1 = go D.bound1 where
     Ann body' t -> Ann (go ind body' e) t
     Lam body' -> Lam (go (D.succ ind) body' e)
 
-vars :: Term t v -> [v]
+vars :: Term k t v -> [v]
 vars = toList

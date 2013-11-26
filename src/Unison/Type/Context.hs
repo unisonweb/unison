@@ -286,9 +286,10 @@ instantiateR ctx t v = case monotype t >>= solve ctx v of
 
 -- | Check that under the given context, `e` has type `t`,
 -- updating the context in the process
-check :: Ord v
+check :: (Ord v, Eq k)
       => TContext c k v
-      -> Term (Type c k (V.Var v)) v
+      -> Term k (Type c k (V.Var v)) v
       -> Type c k (V.Var v)
       -> Either Note (TContext c k v)
-check ctx e t = undefined
+check ctx _ t | not (wellformedType ctx t) = Left $ note "type not well formed wrt context"
+check ctx _ _ = error "todo"
