@@ -277,11 +277,16 @@ instantiateR ctx t v = case monotype t >>= solve ctx v of
     _ -> Left $ note "could not instantiate right"
 
 -- | Check that under the given context, `e` has type `t`,
--- updating the context in the process
+-- updating the context in the process. Parameterized on
+-- a function for checking whether a literal, `l`, has the
+-- type `l'`.
 check :: (Ord v, Eq k)
-      => TContext l c k v
-      -> Term k (Type l c k (V.Var v)) v
-      -> Type l c k (V.Var v)
-      -> Either Note (TContext l c k v)
-check ctx _ t | not (wellformedType ctx t) = Left $ note "type not well formed wrt context"
--- check ctx = error "todo"
+      => (l -> l' -> Bool)
+      -> TContext l' c k v
+      -> Term l (Type l' c k (V.Var v)) v
+      -> Type l' c k (V.Var v)
+      -> Either Note (TContext l' c k v)
+check checkLit ctx e t | wellformedType ctx t = go e t where
+  go (Term.Lit l) (T.Unit l') | checkLit l l' = pure ctx -- 1I
+  go _ _ = error "todo"
+check _ _ _ _ = Left $ note "type not well formed wrt context"
