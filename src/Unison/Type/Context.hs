@@ -283,10 +283,19 @@ instantiateR ctx t v = case monotype t >>= solve ctx v of
 check :: (Ord v, Eq k)
       => (l -> l' -> Bool)
       -> TContext l' c k v
-      -> Term l (Type l' c k (V.Var v)) v
+      -> Term l (Type l' c k (V.Var v)) (V.Var v)
       -> Type l' c k (V.Var v)
       -> Either Note (TContext l' c k v)
 check checkLit ctx e t | wellformedType ctx t = go e t where
   go (Term.Lit l) (T.Unit l') | checkLit l l' = pure ctx -- 1I
+  go term (T.Forall x body) = -- ForallI
+    let (x', ctx') = extendUniversal ctx
+    in retract (E.Universal x') <$> check checkLit ctx' term (T.subst body x (T.Universal x'))
+  go (Term.Lam body) (T.Arrow i o) = -- =>I
+    let x' = fresh ctx
+        v = Term.Var x'
+        ctx' = extend (E.Ann x' i) ctx
+        body' = Term.subst1 body v
+    in retract (E.Ann x' i) <$> check checkLit ctx' body' o
   go _ _ = error "todo"
 check _ _ _ _ = Left $ note "type not well formed wrt context"

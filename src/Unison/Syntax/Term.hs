@@ -60,6 +60,7 @@ collect f = go where
 lam1 :: (forall v . Term l t v -> Term l t v) -> Term l t (Var v2)
 lam1 f = Lam . fromJust . abstract1 () . f $ Var (Free ())
 
+-- subst1 f x
 subst1 :: Term l t (Var v) -> Term l t (Var v) -> Term l t (Var v)
 subst1 = go D.bound1 where
   go ind body e = case body of
