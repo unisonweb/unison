@@ -120,6 +120,9 @@ solve ctx v t | wellformedType ctxL (getPolytype t) = Just ctx'
 bindings :: Context sa a v -> [(v, a)]
 bindings (Context _ ctx) = [(v,a) | E.Ann v a <- ctx]
 
+lookupType :: Eq v => Context sa a v -> v -> Maybe a
+lookupType ctx v = lookup v (bindings ctx)
+
 vars :: Context sa a v -> [v]
 vars = fmap fst . bindings
 
@@ -297,7 +300,7 @@ check checkLit ctx e t | wellformedType ctx t = go e t where
         ctx' = extend (E.Ann x' i) ctx
         body' = Term.subst1 body v
     in retract (E.Ann x' i) <$> check checkLit ctx' body' o
-  go _ _ = do
+  go _ _ = do -- Sub
     (a, ctx') <- synthesize checkLit ctx e
     subtype ctx' (apply ctx' a) (apply ctx' t)
 check _ _ _ _ = Left $ note "type not well formed wrt context"
@@ -308,5 +311,7 @@ synthesize :: (Ord v, Eq k, Eq l')
            -> TContext l' c k v
            -> Term l (Type l' c k (V.Var v)) (V.Var v)
            -> Either Note (Type l' c k (V.Var v), TContext l' c k v)
-synthesize = error "todo"
+synthesize checkLit ctx e = go e where
+  go (Term.Var v) = error "todo"
+  go _ = error "todo"
 
