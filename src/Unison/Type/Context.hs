@@ -284,34 +284,38 @@ instantiateR ctx t v = case monotype t >>= solve ctx v of
 -- a function for checking whether a literal, `l`, has the
 -- type `l'`.
 check :: (Ord v, Eq k, Eq l')
-      => (l -> l' -> Bool)
+      => (l -> l')
       -> TContext l' c k v
       -> Term l (Type l' c k (V.Var v)) (V.Var v)
       -> Type l' c k (V.Var v)
       -> Either Note (TContext l' c k v)
-check checkLit ctx e t | wellformedType ctx t = go e t where
-  go (Term.Lit l) (T.Unit l') | checkLit l l' = pure ctx -- 1I
+check synthLit ctx e t | wellformedType ctx t = go e t where
+  go (Term.Lit l) (T.Unit l') | synthLit l == l' = pure ctx -- 1I
   go _ (T.Forall x body) = -- ForallI
     let (x', ctx') = extendUniversal ctx
-    in retract (E.Universal x') <$> check checkLit ctx' e (T.subst body x (T.Universal x'))
+    in retract (E.Universal x') <$> check synthLit ctx' e (T.subst body x (T.Universal x'))
   go (Term.Lam body) (T.Arrow i o) = -- =>I
     let x' = fresh ctx
         v = Term.Var x'
         ctx' = extend (E.Ann x' i) ctx
         body' = Term.subst1 body v
-    in retract (E.Ann x' i) <$> check checkLit ctx' body' o
+    in retract (E.Ann x' i) <$> check synthLit ctx' body' o
   go _ _ = do -- Sub
-    (a, ctx') <- synthesize checkLit ctx e
+    (a, ctx') <- synthesize synthLit ctx e
     subtype ctx' (apply ctx' a) (apply ctx' t)
 check _ _ _ _ = Left $ note "type not well formed wrt context"
 
 --
 synthesize :: (Ord v, Eq k, Eq l')
-           => (l -> l' -> Bool)
+           => (l -> l')
            -> TContext l' c k v
            -> Term l (Type l' c k (V.Var v)) (V.Var v)
            -> Either Note (Type l' c k (V.Var v), TContext l' c k v)
-synthesize checkLit ctx e = go e where
-  go (Term.Var v) = error "todo"
+synthesize synthLit ctx e = go e where
+  go (Term.Var v) = case lookupType ctx v of -- Var
+    Nothing -> Left $ note "type not in scope"
+    Just t -> pure (t, ctx)
+  go (Term.Ann e' t) = (,) t <$> check synthLit ctx e' t -- Anno
+  go (Term.Lit l) = pure (T.Unit $ synthLit l, ctx)
   go _ = error "todo"
 
