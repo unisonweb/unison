@@ -281,8 +281,7 @@ instantiateR ctx t v = case monotype t >>= solve ctx v of
 
 -- | Check that under the given context, `e` has type `t`,
 -- updating the context in the process. Parameterized on
--- a function for checking whether a literal, `l`, has the
--- type `l'`.
+-- a function for synthesizing the type of a literal, `l`.
 check :: (Ord v, Eq k, Eq l')
       => (l -> l')
       -> TContext l' c k v
@@ -305,7 +304,9 @@ check synthLit ctx e t | wellformedType ctx t = go e t where
     subtype ctx' (apply ctx' a) (apply ctx' t)
 check _ _ _ _ = Left $ note "type not well formed wrt context"
 
---
+-- | Synthesize the type of the given term, updating the context
+-- in the process. Parameterized on a function for synthesizing
+-- the type of a literal, `l`.
 synthesize :: (Ord v, Eq k, Eq l')
            => (l -> l')
            -> TContext l' c k v
@@ -316,6 +317,21 @@ synthesize synthLit ctx e = go e where
     Nothing -> Left $ note "type not in scope"
     Just t -> pure (t, ctx)
   go (Term.Ann e' t) = (,) t <$> check synthLit ctx e' t -- Anno
-  go (Term.Lit l) = pure (T.Unit $ synthLit l, ctx)
+  go (Term.Lit l) = pure (T.Unit $ synthLit l, ctx) -- 1I=>
+  go (Term.App f arg) = do -- ->E
+    (ft, ctx') <- synthesize synthLit ctx f
+    synthesizeApp synthLit ctx' (apply ctx' ft) arg
+  go _ = error "todo: lambdas"
+
+-- | Synthesize the type of the given term, `arg` given that a function of
+-- the given type `ft` is being applied to `arg`. Update the conext in
+-- the process.
+synthesizeApp :: (Ord v, Eq k, Eq l')
+              => (l -> l')
+              -> TContext l' c k v
+              -> Type l' c k (V.Var v)
+              -> Term l (Type l' c k (V.Var v)) (V.Var v)
+              -> Either Note (Type l' c k (V.Var v), TContext l' c k v)
+synthesizeApp synthLit ctx ft arg = go ft where
   go _ = error "todo"
 
