@@ -42,6 +42,12 @@ append (Context n1 ctx1) (Context n2 ctx2) =
 fresh :: TContext l c k v -> Var v
 fresh (Context n _) = V.decr n
 
+fresh3 :: TContext l c k v -> (Var v, Var v, Var v)
+fresh3 (Context n _) = (a,b,c) where
+  a = V.decr n
+  b = fresh' a
+  c = fresh' b
+
 fresh' :: Var v -> Var v
 fresh' = V.decr
 
@@ -95,6 +101,9 @@ existentials (Context _ ctx) = ctx >>= go where
 
 solved :: Context sa a v -> [(v, sa)]
 solved (Context _ ctx) = [(v, sa) | Solved v sa <- ctx]
+
+unsolved :: Context sa a v -> [v]
+unsolved (Context _ ctx) = [v | E.Existential v <- ctx]
 
 replace :: Ord v => TElement l c k v -> TContext l c k v -> TContext l c k v -> TContext l c k v
 replace e focus ctx = let (l,r) = breakAt e ctx in l `append` focus `append` r
@@ -321,7 +330,24 @@ synthesize synthLit ctx e = go e where
   go (Term.App f arg) = do -- ->E
     (ft, ctx') <- synthesize synthLit ctx f
     synthesizeApp synthLit ctx' (apply ctx' ft) arg
-  go _ = error "todo: lambdas"
+  go (Term.Lam body) =
+    let (arg, i, o) = fresh3 ctx
+        ctxTl = context [E.Marker i, E.Existential i, E.Existential o,
+                         E.Ann arg (T.Existential i)]
+        freshVars = tail $ iterate fresh' o
+    in do
+      (ctx1, ctx2) <- breakAt (E.Marker i) <$>
+        check synthLit (ctx `append` ctxTl)
+                       (Term.subst1 body (Term.Var arg))
+                       (T.Existential o)
+      pure $ let
+        ft = apply ctx2 (T.Arrow (T.Existential i) (T.Existential o))
+        existentials = unsolved ctx2
+        universals = take (length existentials) freshVars
+        ft' = foldr go ft (zip (map T.Universal universals) existentials)
+        go (t,v) typ = T.subst typ v t
+        ft2 = foldr T.Forall ft' universals
+        in (ft2, ctx1)
 
 -- | Synthesize the type of the given term, `arg` given that a function of
 -- the given type `ft` is being applied to `arg`. Update the conext in
