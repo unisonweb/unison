@@ -330,7 +330,7 @@ synthesize synthLit ctx e = go e where
   go (Term.App f arg) = do -- ->E
     (ft, ctx') <- synthesize synthLit ctx f
     synthesizeApp synthLit ctx' (apply ctx' ft) arg
-  go (Term.Lam body) =
+  go (Term.Lam body) = -- ->I=> (Full Damas Milner rule)
     let (arg, i, o) = fresh3 ctx
         ctxTl = context [E.Marker i, E.Existential i, E.Existential o,
                          E.Ann arg (T.Existential i)]
