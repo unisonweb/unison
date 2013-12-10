@@ -359,5 +359,20 @@ synthesizeApp :: (Ord v, Eq k, Eq l')
               -> Term l (Type l' c k (V.Var v)) (V.Var v)
               -> Either Note (Type l' c k (V.Var v), TContext l' c k v)
 synthesizeApp synthLit ctx ft arg = go ft where
-  go _ = error "todo"
+  go (T.Forall x body) = let x' = fresh ctx -- Forall1App
+    in synthesizeApp synthLit
+                     (ctx `append` context [E.Existential x'])
+                     (T.subst body x (T.Existential x'))
+                     arg
+  go (T.Arrow i o) = (,) o <$> check synthLit ctx arg i -- ->App
+  go (T.Existential a) = -- a^App
+    let i = fresh ctx
+        o = fresh' i
+        soln = Monotype (T.Arrow (T.Existential i) (T.Existential o))
+        ctxMid = context [E.Existential o, E.Existential i, E.Solved a soln]
+    in (,) (T.Existential o) <$>
+      check synthLit (replace (E.Existential a) ctxMid ctx)
+                      arg
+                      (T.Existential i)
+  go _ = Left $ note "unable to synthesize type of application"
 
