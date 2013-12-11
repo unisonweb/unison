@@ -17,7 +17,7 @@ type ClosedTerm l t = forall v. Term l t (Var v)
 -- | Terms with free variables in `v`, type annotations in `t`,
 -- and literals in `k`.
 data Term l t v
-  = Var v
+  = Var V.Var
   | Lit l
   | App (Term l t v) (Term l t v)
   | Ann (Term l t v) t
