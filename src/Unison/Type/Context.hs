@@ -21,121 +21,117 @@ import Unison.Type.Note
 -- will be positive, so we don't generally need to worry about
 -- getting accidental collisions when applying a context to
 -- a type
-data Context sa a v = Context v [Element sa a v]
+data Context l c = Context V.Var [Element l c]
 
-type TContext l c k v =
-  Context (Monotype l c k (V.Var v)) (Type l c k (V.Var v)) (V.Var v)
+empty :: Context l c
+empty = Context bound0 []
 
-empty :: Context sa a (Var v)
-empty = Context (Bound (DeBruijn 0)) []
+bound0 = V.decr V.bound1
 
-context :: Ord v => [Element sa a (Var v)] -> Context sa a (Var v)
-context xs = let ctx = reverse xs
-                 v = fromMaybe (Bound (DeBruijn 0)) (currentVar ctx)
-             in Context v ctx
+context :: [Element l c] -> Context l c
+context xs =
+  let ctx = reverse xs
+      v = fromMaybe bound0 (currentVar ctx)
+  in Context v ctx
 
-append :: Context sa a (Var v) -> Context sa a (Var v) -> Context sa a (Var v)
+append :: Context l c -> Context l c -> Context l c
 append (Context n1 ctx1) (Context n2 ctx2) =
   let n12 = V.minv n1 n2
   in Context n12 (ctx2 ++ ctx1)
 
-fresh :: TContext l c k v -> Var v
+fresh :: Context l c -> V.Var
 fresh (Context n _) = V.decr n
 
-fresh3 :: TContext l c k v -> (Var v, Var v, Var v)
+fresh3 :: Context l c -> (V.Var, V.Var, V.Var)
 fresh3 (Context n _) = (a,b,c) where
   a = V.decr n
   b = fresh' a
   c = fresh' b
 
-fresh' :: Var v -> Var v
+fresh' :: V.Var -> V.Var
 fresh' = V.decr
 
 -- | Add an element onto the end of this `Context`
-extend :: Ord v => Element sa a (Var v) -> Context sa a (Var v) -> Context sa a (Var v)
+extend :: Element l c -> Context l c -> Context l c
 extend e ctx = ctx `append` context [e]
 
 -- | Extend this `Context` with a single universally quantified variable,
 -- guaranteed to be fresh
-extendUniversal :: Context sa a (Var v) -> (Var v, Context sa a (Var v))
+extendUniversal :: Context l c -> (V.Var, Context l c)
 extendUniversal (Context n ctx) =
   let v = V.decr n in (v, Context v (E.Universal n : ctx))
 
 -- | Extend this `Context` with a single existentially quantified variable,
 -- guaranteed to be fresh
-extendExistential :: Context sa a (Var v) -> (Var v, Context sa a (Var v))
+extendExistential :: Context l c -> (V.Var, Context l c)
 extendExistential (Context n ctx) =
   let v = V.decr n in (v, Context v (E.Universal n : ctx))
 
 -- | Extend this `Context` with a marker variable, guaranteed to be fresh
-extendMarker :: Context sa a (Var v)
-             -> (Var v, Context sa a (Var v))
+extendMarker :: Context l c -> (V.Var, Context l c)
 extendMarker (Context n ctx) =
   let v = V.decr n in (v, Context v ([E.Existential v, E.Marker v] ++ ctx))
 
-retract :: Ord v
-        => Element sa a (Var v)
-        -> Context sa a (Var v)
-        -> Context sa a (Var v)
+-- | Delete up to and including the given `Element`
+retract :: Element l c -> Context l c -> Context l c
 retract m (Context _ ctx) =
   let ctx' = tail (dropWhile (go m) ctx)
-      n' = fromMaybe (Bound (DeBruijn 0))
-                     (currentVar ctx') -- ok to recycle our variable supply
+      n' = fromMaybe bound0 (currentVar ctx') -- ok to recycle our variable supply
       go (Marker v)      (Marker v2)          | v == v2 = False
       go (E.Universal v) (E.Universal v2)     | v == v2 = False
       go (E.Existential v) (E.Existential v2) | v == v2 = False
       go _ _                                            = True
   in Context n' ctx'
 
-universals :: Context sa a v -> [v]
+universals :: Context l c -> [V.Var]
 universals (Context _ ctx) = [v | E.Universal v <- ctx]
 
-markers :: Context sa a v -> [v]
+markers :: Context l c -> [V.Var]
 markers (Context _ ctx) = [v | Marker v <- ctx]
 
-existentials :: Context sa a v -> [v]
+existentials :: Context l c -> [V.Var]
 existentials (Context _ ctx) = ctx >>= go where
   go (E.Existential v) = [v]
   go (E.Solved v _) = [v]
   go _ = []
 
-solved :: Context sa a v -> [(v, sa)]
+solved :: Context l c -> [(V.Var, Monotype l c)]
 solved (Context _ ctx) = [(v, sa) | Solved v sa <- ctx]
 
-unsolved :: Context sa a v -> [v]
+unsolved :: Context l c -> [V.Var]
 unsolved (Context _ ctx) = [v | E.Existential v <- ctx]
 
-replace :: Ord v => TElement l c k v -> TContext l c k v -> TContext l c k v -> TContext l c k v
+replace :: Element l c -> Context l c -> Context l c -> Context l c
 replace e focus ctx = let (l,r) = breakAt e ctx in l `append` focus `append` r
 
-breakAt :: Ord v => TElement l c k v -> TContext l c k v -> (TContext l c k v, TContext l c k v)
+breakAt :: Element l c -> Context l c -> (Context l c, Context l c)
 breakAt m (Context _ xs) =
   let (r, l) = break (=== m) xs
   in (context (drop 1 l), context r)
 
 -- | ordered Γ α β = True <=> Γ[α^][β^]
-ordered :: Ord v => TContext l c k v -> V.Var v -> V.Var v -> Bool
+ordered :: Context l c -> V.Var -> V.Var -> Bool
 ordered ctx v v2 = v `elem` existentials (retract (E.Existential v2) ctx)
 
 -- | solve (ΓL,α^,ΓR) α τ = (ΓL,α = τ,ΓR)
 -- If the given existential variable exists in the context,
 -- we solve it to the given monotype, otherwise return `Nothing`
-solve :: Ord v => TContext l c k v -> V.Var v -> Monotype l c k (V.Var v) -> Maybe (TContext l c k v)
+solve :: Context l c -> V.Var -> Monotype l c -> Maybe (Context l c)
 solve ctx v t | wellformedType ctxL (getPolytype t) = Just ctx'
               | otherwise                           = Nothing
     where (ctxL,ctxR) = breakAt (E.Existential v) ctx
           ctx' = ctxL `append` context [E.Solved v t] `append` ctxR
 
-bindings :: Context sa a v -> [(v, a)]
+bindings :: Context l c -> [(V.Var, Type l c)]
 bindings (Context _ ctx) = [(v,a) | E.Ann v a <- ctx]
 
-lookupType :: Eq v => Context sa a v -> v -> Maybe a
+lookupType :: Context l c -> V.Var -> Maybe (Type l c)
 lookupType ctx v = lookup v (bindings ctx)
 
-vars :: Context sa a v -> [v]
+vars :: Context l c -> [V.Var]
 vars = fmap fst . bindings
 
-allVars :: [Element sa a v] -> [v]
+allVars :: [Element l c] -> [V.Var]
 allVars ctx = ctx >>= go where
   go (E.Solved v _) = [v]
   go (E.Ann v _) = [v]
@@ -145,12 +141,12 @@ allVars ctx = ctx >>= go where
 
 -- TODO: I suspect this can get away with just examining first few elements
 -- perhaps up to first marker
-currentVar :: Ord v => [Element sa a v] -> Maybe v
+currentVar :: [Element l c] -> Maybe V.Var
 currentVar ctx | L.null ctx  = Nothing
 currentVar ctx | otherwise = Just $ minimum (allVars ctx)
 
 -- | Check that the type is well formed wrt the given `Context`
-wellformedType :: Eq v => Context sa a (V.Var v) -> Type l c k (V.Var v) -> Bool
+wellformedType :: Context l c -> Type l c -> Bool
 wellformedType c t = case t of
   T.Unit _ -> True
   T.Universal v -> v `elem` universals c
@@ -167,7 +163,7 @@ wellformedType c t = case t of
 -- mentioned in either `Ann` or `Solved` elements must be
 -- wellformed with respect to the prefix of the context
 -- leading up to these elements.
-wellformed :: Eq v => TContext l c k v -> Bool
+wellformed :: Context l c -> Bool
 wellformed ctx = all go (zipTail ctx) where
   go (E.Universal v, ctx') = v `notElem` universals ctx'
   go (E.Existential v, ctx') = v `notElem` existentials ctx'
@@ -175,15 +171,12 @@ wellformed ctx = all go (zipTail ctx) where
   go (E.Ann v t, ctx') = v `notElem` vars ctx' && wellformedType ctx' t
   go (Marker v, ctx') = v `notElem` vars ctx' && v `notElem` existentials ctx'
 
-zipTail :: Context sa a v -> [(Element sa a v, Context sa a v)]
+zipTail :: Context l c -> [(Element l c, Context l c)]
 zipTail (Context n ctx) = zip ctx (map (Context n) $ tail (tails ctx))
 
 -- invariant is that both input types will have been fully freshened
 -- before being passed to apply
-apply :: Eq v
-      => Context (Monotype l c k v) a v
-      -> Type l c k v
-      -> Type l c k v
+apply :: Context l c -> Type l c -> Type l c
 apply ctx t = case t of
   T.Universal _ -> t
   T.Unit _ -> t
@@ -196,11 +189,7 @@ apply ctx t = case t of
 
 -- | `subtype ctx t1 t2` returns successfully if `t1` is a subtype of `t2`.
 -- This may have the effect of altering the context.
-subtype :: (Eq l, Ord v)
-        => TContext l c k v
-        -> Type l c k (V.Var v)
-        -> Type l c k (V.Var v)
-        -> Either Note (TContext l c k v)
+subtype :: Eq l => Context l c -> Type l c -> Type l c -> Either Note (Context l c)
 subtype ctx = go where -- Rules from figure 9
   go (Unit l) (Unit l2) | l == l2 = pure ctx -- `Unit`
   go t1@(T.Universal v1) t2@(T.Universal v2) -- `Var`
@@ -231,11 +220,7 @@ subtype ctx = go where -- Rules from figure 9
 -- | Instantiate the given existential such that it is
 -- a subtype of the given type, updating the context
 -- in the process.
-instantiateL :: Ord v
-             => TContext l c k v
-             -> Var v
-             -> Type l c k (V.Var v)
-             -> Either Note (TContext l c k v)
+instantiateL :: Context l c -> V.Var -> Type l c -> Either Note (Context l c)
 instantiateL ctx v t = case monotype t >>= solve ctx v of
   Just ctx' -> pure ctx' -- InstLSolve
   Nothing -> case t of
@@ -260,11 +245,7 @@ instantiateL ctx v t = case monotype t >>= solve ctx v of
 -- | Instantiate the given existential such that it is
 -- a subtype of the given type, updating the context
 -- in the process.
-instantiateR :: Ord v
-             => TContext l c k v
-             -> Type l c k (V.Var v)
-             -> Var v
-             -> Either Note (TContext l c k v)
+instantiateR :: Context l c -> Type l c -> V.Var -> Either Note (Context l c)
 instantiateR ctx t v = case monotype t >>= solve ctx v of
   Just ctx' -> pure ctx' -- InstRSolve
   Nothing -> case t of
@@ -291,12 +272,12 @@ instantiateR ctx t v = case monotype t >>= solve ctx v of
 -- | Check that under the given context, `e` has type `t`,
 -- updating the context in the process. Parameterized on
 -- a function for synthesizing the type of a literal, `l`.
-check :: (Ord v, Eq k, Eq l')
+check :: Eq l'
       => (l -> l')
-      -> TContext l' c k v
-      -> Term l (Type l' c k (V.Var v)) (V.Var v)
-      -> Type l' c k (V.Var v)
-      -> Either Note (TContext l' c k v)
+      -> Context l' c
+      -> Term l (Type l' c)
+      -> Type l' c
+      -> Either Note (Context l' c)
 check synthLit ctx e t | wellformedType ctx t = go e t where
   go (Term.Lit l) (T.Unit l') | synthLit l == l' = pure ctx -- 1I
   go _ (T.Forall x body) = -- ForallI
@@ -316,11 +297,11 @@ check _ _ _ _ = Left $ note "type not well formed wrt context"
 -- | Synthesize the type of the given term, updating the context
 -- in the process. Parameterized on a function for synthesizing
 -- the type of a literal, `l`.
-synthesize :: (Ord v, Eq k, Eq l')
+synthesize :: Eq l'
            => (l -> l')
-           -> TContext l' c k v
-           -> Term l (Type l' c k (V.Var v)) (V.Var v)
-           -> Either Note (Type l' c k (V.Var v), TContext l' c k v)
+           -> Context l' c
+           -> Term l (Type l' c)
+           -> Either Note (Type l' c, Context l' c)
 synthesize synthLit ctx e = go e where
   go (Term.Var v) = case lookupType ctx v of -- Var
     Nothing -> Left $ note "type not in scope"
@@ -352,12 +333,12 @@ synthesize synthLit ctx e = go e where
 -- | Synthesize the type of the given term, `arg` given that a function of
 -- the given type `ft` is being applied to `arg`. Update the conext in
 -- the process.
-synthesizeApp :: (Ord v, Eq k, Eq l')
+synthesizeApp :: Eq l'
               => (l -> l')
-              -> TContext l' c k v
-              -> Type l' c k (V.Var v)
-              -> Term l (Type l' c k (V.Var v)) (V.Var v)
-              -> Either Note (Type l' c k (V.Var v), TContext l' c k v)
+              -> Context l' c
+              -> Type l' c
+              -> Term l (Type l' c)
+              -> Either Note (Type l' c, Context l' c)
 synthesizeApp synthLit ctx ft arg = go ft where
   go (T.Forall x body) = let x' = fresh ctx -- Forall1App
     in synthesizeApp synthLit

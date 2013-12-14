@@ -6,49 +6,41 @@
 module Unison.Syntax.Term where
 
 import Control.Applicative
-import Control.Lens
-import Data.Foldable
 import Data.Maybe
 import Unison.Syntax.Var as V
 import Unison.Syntax.DeBruijn as D
 
-type ClosedTerm l t = forall v. Term l t (Var v)
-
--- | Terms with free variables in `v`, type annotations in `t`,
--- and literals in `k`.
-data Term l t v
+-- | Terms with literals in `l` and type annotations in `t`
+data Term l t
   = Var V.Var
   | Lit l
-  | App (Term l t v) (Term l t v)
-  | Ann (Term l t v) t
-  | Lam (Term l t v)
-  deriving (Eq,Ord,Show,Functor,Foldable,Traversable)
+  | App (Term l t) (Term l t)
+  | Ann (Term l t) t
+  | Lam (Term l t)
+  deriving (Eq,Ord,Show)
 
-abstract1 :: Eq v => v -> Term l t (Var v) -> Maybe (Term l t (Var v2))
+abstract1 :: V.Var -> Term l t -> Maybe (Term l t)
 abstract1 v = collect go where
-  go (V.Free v2) | v2 == v = Just (Var V.bound1)
+  go v2 | v2 == v = Just (Var V.bound1)
   go _ = Nothing
 
-abstract :: Eq v => v -> Term l t (Var v) -> ([v], Term l t (Var v))
+abstract :: V.Var -> Term l t -> ([V.Var], Term l t)
 abstract v = collect go where
-  go (V.Free v2) | v2 == v = ([], Var V.bound1)
-  go (V.Free v2) = ([v2], Var (V.Free v2))
+  go v2 | v2 == v = ([], Var V.bound1)
+  go v2 = ([v2], Var v2)
   go x = ([], Var x)
 
-ap1 :: Term l t (Var v) -> Term l t (Var v) -> Maybe (Term l t (Var v))
+ap1 :: Term l t -> Term l t -> Maybe (Term l t)
 ap1 (Lam body) t = Just (subst1 body t)
 ap1 _ _ = Nothing
 
-bound1 :: Term l t (Var v)
+bound1 :: Term l t
 bound1 = Var V.bound1
 
-closed :: Term l t v -> Maybe (Term l t v2)
-closed = traverse (const Nothing)
-
 collect :: Applicative f
-       => (v -> f (Term l t v2))
-       -> Term l t v
-       -> f (Term l t v2)
+       => (V.Var -> f (Term l t))
+       -> Term l t
+       -> f (Term l t)
 collect f = go where
   go e = case e of
     Var v -> f v
@@ -57,19 +49,20 @@ collect f = go where
     Ann e' t -> Ann <$> go e' <*> pure t
     Lam body -> Lam <$> go body
 
-lam1 :: (forall v . Term l t v -> Term l t v) -> Term l t (Var v2)
-lam1 f = Lam . fromJust . abstract1 () . f $ Var (Free ())
+lam1 :: (Term l t -> Term l t) -> Term l t
+lam1 f = let v = V.decr . V.decr $ V.bound1 -- unused
+         in Lam . fromJust . abstract1 v . f $ Var v
 
 -- subst1 f x
-subst1 :: Term l t (Var v) -> Term l t (Var v) -> Term l t (Var v)
+subst1 :: Term l t -> Term l t -> Term l t
 subst1 = go D.bound1 where
   go ind body e = case body of
-    Var (Bound i) | i == ind -> e
+    Var v | v == ind -> e
     Var _ -> body
     Lit _ -> body
     App f arg -> App (go ind f e) (go ind arg e)
     Ann body' t -> Ann (go ind body' e) t
     Lam body' -> Lam (go (D.succ ind) body' e)
 
-vars :: Term l t v -> [v]
-vars = toList
+vars :: Term l t -> [V.Var]
+vars e = getConst $ collect (\v -> Const [v]) e

@@ -7,7 +7,7 @@ import Unison.Syntax.Term.Examples
 import Unison.Syntax.Type as T
 import Unison.Type.Context as C
 
-expr :: Term () () (Var ())
+expr :: Term () ()
 expr = identity
 
 main :: IO ()
