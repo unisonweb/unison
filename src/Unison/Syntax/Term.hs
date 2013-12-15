@@ -6,9 +6,7 @@
 module Unison.Syntax.Term where
 
 import Control.Applicative
-import Data.Maybe
 import Unison.Syntax.Var as V
-import Unison.Syntax.DeBruijn as D
 
 -- | Terms with literals in `l` and type annotations in `t`
 data Term l t
@@ -19,16 +17,14 @@ data Term l t
   | Lam (Term l t)
   deriving (Eq,Ord,Show)
 
-abstract1 :: V.Var -> Term l t -> Maybe (Term l t)
-abstract1 v = collect go where
-  go v2 | v2 == v = Just (Var V.bound1)
-  go _ = Nothing
-
-abstract :: V.Var -> Term l t -> ([V.Var], Term l t)
-abstract v = collect go where
-  go v2 | v2 == v = ([], Var V.bound1)
-  go v2 = ([v2], Var v2)
-  go x = ([], Var x)
+abstract :: V.Var -> Term l t -> Term l t
+abstract v = go V.bound1 where
+  go _ l@(Lit _) = l
+  go n (App f arg) = App (go n f) (go n arg)
+  go n (Var v')   | v == v'   = Var n
+  go _ x@(Var _) | otherwise = x
+  go n (Ann e t) = Ann (go n e) t
+  go n (Lam body) = Lam (go (V.succ n) body)
 
 ap1 :: Term l t -> Term l t -> Maybe (Term l t)
 ap1 (Lam body) t = Just (subst1 body t)
@@ -50,19 +46,32 @@ collect f = go where
     Lam body -> Lam <$> go body
 
 lam1 :: (Term l t -> Term l t) -> Term l t
-lam1 f = let v = V.decr . V.decr $ V.bound1 -- unused
-         in Lam . fromJust . abstract1 v . f $ Var v
+lam1 f = let v = V.decr V.bound1 -- unused
+         in Lam . abstract v . f $ Var v
+
+lam2 :: (Term l t -> Term l t -> Term l t) -> Term l t
+lam2 f =
+  let v = V.decr V.bound1 -- unused
+      v2 = V.decr v
+  in Lam (abstract v (Lam (abstract v2 $ f (Var v) (Var v2))))
+
+lam3 :: (Term l t -> Term l t -> Term l t -> Term l t) -> Term l t
+lam3 f =
+  let v = V.decr V.bound1 -- unused
+      v2 = V.decr v
+      v3 = V.decr v2
+  in Lam (abstract v (Lam (abstract v2 (Lam (abstract v3 $ f (Var v) (Var v2) (Var v3))))))
 
 -- subst1 f x
 subst1 :: Term l t -> Term l t -> Term l t
-subst1 = go D.bound1 where
+subst1 = go V.bound1 where
   go ind body e = case body of
     Var v | v == ind -> e
     Var _ -> body
     Lit _ -> body
     App f arg -> App (go ind f e) (go ind arg e)
     Ann body' t -> Ann (go ind body' e) t
-    Lam body' -> Lam (go (D.succ ind) body' e)
+    Lam body' -> Lam (go (V.succ ind) body' e)
 
 vars :: Term l t -> [V.Var]
 vars e = getConst $ collect (\v -> Const [v]) e

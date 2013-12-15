@@ -9,9 +9,8 @@
 module Unison.Syntax.Type where
 
 import Control.Applicative
-import Data.Maybe
-import Data.Set as S
-import Unison.Syntax.Var as V
+import qualified Data.Set as S
+import qualified Unison.Syntax.Var as V
 import qualified Unison.Syntax.Kind as K
 
 -- constructor is private not exported
@@ -54,30 +53,45 @@ monotype t = Monotype <$> go t where
   go (Constrain t' c) = Constrain <$> go t' <*> pure c
   go _ = Nothing
 
--- need to call this inside out
-abstract1 :: V.Var -> Type l c -> Maybe (Type l c)
-abstract1 v = trav go where
-  go v2 | v2 == v = Just V.bound1
-  go _ = Nothing
-
-abstract :: V.Var
-         -> Type l c
-         -> ([V.Var], Type l c)
-abstract v = trav go where
-  go v2 | v2 == v    = ([], V.bound1)
-  go v2 | otherwise  = ([v2], v2)
+abstract :: V.Var -> Type l c -> Type l c
+abstract v = go V.bound1 where
+  go _ u@(Unit _) = u
+  go n (Arrow i o) = Arrow (go n i) (go n o)
+  go n (Universal v')    | v == v'   = Universal n
+  go _ u@(Universal _)   | otherwise = u
+  go n (Existential v')  | v == v'   = Existential n
+  go _ e@(Existential _) | otherwise = e
+  go n (Ann t k) = Ann (go n t) k
+  go n (Constrain t c) = Constrain (go n t) c
+  go n (Forall v' fn) = Forall v' (go (V.succ n) fn)
 
 -- | Type variable which is bound by the nearest enclosing `Forall`
 bound1 :: Type l c
 bound1 = Universal V.bound1
 
--- forall1 $ \x -> Arrow x x
--- forall2
--- just use negative values here
+-- | HOAS syntax for `Forall` constructor:
+-- `forall1 $ \x -> Arrow x x`
 forall1 :: (Type l c -> Type l c) -> Type l c
-forall1 f =
-  let unused = V.decr V.bound1
-  in Forall V.bound1 . fromJust . abstract1 unused . f $ Universal unused
+forall1 f = forallN 1 $ \[x] -> f x
+
+-- | HOAS syntax for `Forall` constructor:
+-- `forall2 $ \x y -> Arrow (Arrow x y) (Arrow x y)`
+forall2 :: (Type l c -> Type l c -> Type l c) -> Type l c
+forall2 f = forallN 2 $ \[x,y] -> f x y
+
+-- | HOAS syntax for `Forall` constructor:
+-- `forall2 $ \x y z -> Arrow (Arrow x y z) (Arrow x y z)`
+forall3 :: (Type l c -> Type l c -> Type l c -> Type l c) -> Type l c
+forall3 f = forallN 3 $ \[x,y,z] -> f x y z
+
+-- | HOAS syntax for `Forall` constructor:
+-- `forallN 3 $ \[x,y,z] -> Arrow x (Arrow y z)`
+forallN :: Int -> ([Type l c] -> Type l c) -> Type l c
+forallN n f | n > 0 =
+  let vars = take n (tail $ iterate V.decr V.bound1)
+      inner = f (map Universal vars)
+  in foldr (\v body -> Forall V.bound1 (abstract v body)) inner vars
+forallN n _ | otherwise = error $ "forallN " ++ show n
 
 subst1 :: Type l c -> Type l c -> Type l c
 subst1 fn arg = subst fn V.bound1 arg
@@ -96,7 +110,7 @@ subst fn var arg = case fn of
   Forall v fn' -> Forall v (subst fn' (V.succ var) arg)
 
 -- | The set of unbound variables in this type
-freeVars :: Type l c -> Set V.Var
+freeVars :: Type l c -> S.Set V.Var
 freeVars t = case t of
   Unit _ -> S.empty
   Arrow i o -> S.union (freeVars i) (freeVars o)

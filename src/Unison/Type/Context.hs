@@ -12,7 +12,6 @@ import Unison.Syntax.Type as T
 import qualified Unison.Syntax.Term as Term
 import Unison.Syntax.Term (Term)
 import Unison.Syntax.Var as V
-import Unison.Syntax.DeBruijn as D
 import Unison.Type.Context.Element as E
 import Unison.Type.Note
 
@@ -21,11 +20,12 @@ import Unison.Type.Note
 -- will be positive, so we don't generally need to worry about
 -- getting accidental collisions when applying a context to
 -- a type
-data Context l c = Context V.Var [Element l c]
+data Context l c = Context V.Var [Element l c] deriving Show
 
 empty :: Context l c
 empty = Context bound0 []
 
+bound0 :: V.Var
 bound0 = V.decr V.bound1
 
 context :: [Element l c] -> Context l c
@@ -59,13 +59,13 @@ extend e ctx = ctx `append` context [e]
 -- guaranteed to be fresh
 extendUniversal :: Context l c -> (V.Var, Context l c)
 extendUniversal (Context n ctx) =
-  let v = V.decr n in (v, Context v (E.Universal n : ctx))
+  let v = V.decr n in (v, Context v (E.Universal v : ctx))
 
 -- | Extend this `Context` with a single existentially quantified variable,
 -- guaranteed to be fresh
 extendExistential :: Context l c -> (V.Var, Context l c)
 extendExistential (Context n ctx) =
-  let v = V.decr n in (v, Context v (E.Universal n : ctx))
+  let v = V.decr n in (v, Context v (E.Universal v : ctx))
 
 -- | Extend this `Context` with a marker variable, guaranteed to be fresh
 extendMarker :: Context l c -> (V.Var, Context l c)
@@ -154,9 +154,9 @@ wellformedType c t = case t of
   T.Arrow i o -> wellformedType c i && wellformedType c o
   T.Ann t' _ -> wellformedType c t'
   T.Constrain t' _ -> wellformedType c t'
-  T.Forall _ t' ->
-    let (v,ctx2) = extendUniversal c
-    in wellformedType ctx2 (subst1 t' (T.Universal v))
+  T.Forall v t' ->
+    let (v',ctx2) = extendUniversal c
+    in wellformedType ctx2 (subst t' v (T.Universal v'))
 
 -- | Check that the context is well formed, namely that
 -- there are no circular variable references, and any types
@@ -323,11 +323,11 @@ synthesize synthLit ctx e = go e where
                        (T.Existential o)
       pure $ let
         ft = apply ctx2 (T.Arrow (T.Existential i) (T.Existential o))
-        existentials = unsolved ctx2
-        universals = take (length existentials) freshVars
-        ft' = foldr go ft (zip (map T.Universal universals) existentials)
-        go (t,v) typ = T.subst typ v t
-        ft2 = foldr T.Forall ft' universals
+        existentials' = unsolved ctx2
+        universals' = take (length existentials') freshVars
+        ft' = foldr step ft (zip (map T.Universal universals') existentials')
+        step (t,v) typ = T.subst typ v t
+        ft2 = foldr T.Forall ft' universals'
         in (ft2, ctx1)
 
 -- | Synthesize the type of the given term, `arg` given that a function of
@@ -357,3 +357,6 @@ synthesizeApp synthLit ctx ft arg = go ft where
                       (T.Existential i)
   go _ = Left $ note "unable to synthesize type of application"
 
+synthesizeClosed :: Eq l' => (l -> l') -> Term l (Type l' c) -> Either Note (Type l' c)
+synthesizeClosed synthLit term = go <$> synthesize synthLit (context []) term
+  where go (t, ctx) = apply ctx t

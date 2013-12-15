@@ -6,18 +6,18 @@
 
 module Unison.Syntax.Var where
 
-import Unison.Syntax.DeBruijn
+import Unison.Syntax.Index
 
-type Var = DeBruijn
+type Var = Index
 
 succ :: Var -> Var
-succ (DeBruijn i) = DeBruijn (i + 1)
+succ (I i) = I (i + 1)
 
 decr :: Var -> Var
-decr (DeBruijn i) = DeBruijn (i - 1)
+decr (I i) = I (i - 1)
 
 minv :: Var -> Var -> Var
-minv (DeBruijn i) (DeBruijn j) = DeBruijn (min i j)
+minv (I i) (I j) = I (min i j)
 
 bound1 :: Var
-bound1 = DeBruijn 1
+bound1 = I 1
