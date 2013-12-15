@@ -111,7 +111,7 @@ replace e focus ctx = let (l,r) = breakAt e ctx in l `append` focus `append` r
 breakAt :: Element l c -> Context l c -> (Context l c, Context l c)
 breakAt m (Context _ xs) =
   let (r, l) = break (=== m) xs
-  in (context (drop 1 l), context r)
+  in (context (reverse $ drop 1 l), context $ reverse r)
 
 -- | ordered Γ α β = True <=> Γ[α^][β^]
 ordered :: Context l c -> V.Var -> V.Var -> Bool
@@ -321,18 +321,19 @@ synthesize synthLit ctx e = go e where
                          E.Ann arg (T.Existential i)]
         freshVars = tail $ iterate fresh' o
     in do
-      (ctx1, ctx2) <- breakAt (E.Marker i) <$>
-        check synthLit (ctx `append` ctxTl)
-                       (Term.subst1 body (Term.Var arg))
-                       (T.Existential o)
+      ctx' <- check synthLit (ctx `append` ctxTl)
+                             (Term.subst1 body (Term.Var arg))
+                             (T.Existential o)
       pure $ let
-        ft = traceShow ("ctx2",ctx2) $ apply ctx2 (T.Arrow (T.Existential i) (T.Existential o))
-        existentials' = traceShow ("ctx", ctx1) $ unsolved ctx2
+        (ctx1, ctx2) = breakAt (E.Marker i) ctx'
+        -- unsolved existentials get generalized to universals
+        ft = apply ctx2 (T.Arrow (T.Existential i) (T.Existential o))
+        existentials' = unsolved ctx2
         universals' = take (length existentials') freshVars
         ft' = foldr step ft (zip (map T.Universal universals') existentials')
         step (t,v) typ = T.subst typ v t
-        ft2 = foldr T.Forall ft' universals'
-        in traceShow (length existentials') (ft2, ctx1)
+        ft2 = foldr (\v body' -> Forall V.bound1 (abstract v body')) ft' universals'
+        in (ft2, ctx1)
 
 -- | Synthesize the type of the given term, `arg` given that a function of
 -- the given type `ft` is being applied to `arg`. Update the conext in

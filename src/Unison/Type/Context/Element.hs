@@ -19,6 +19,13 @@ data Element l c where
   Ann :: V.Var -> T.Type l c -> Element l c        -- | ^ `v` has type `a`, which may be quantified
   Marker :: V.Var -> Element l c                   -- | ^ used for scoping
 
+instance (Show l, Show c) => Show (Element l c) where
+  show (Universal v) = show v
+  show (Existential v) = "^"++show v
+  show (Solved v t) = "^"++show v++"="++show t
+  show (Ann v t) = show v++":"++show t
+  show (Marker v) = "|"++show v++"|"
+
 (===) :: Element l c -> Element l c -> Bool
 Existential v === Existential v2 | v == v2 = True
 Universal v   === Universal v2 | v == v2 = True
@@ -53,6 +60,5 @@ _Marker = prism Marker go where
   go (Marker v) = Right v
   go e = Left e
 
-deriving instance (Show l, Show c) => Show (Element l c)
 deriving instance (Ord l, Ord c) => Ord (Element l c)
 deriving instance (Eq l, Eq c) => Eq (Element l c)
