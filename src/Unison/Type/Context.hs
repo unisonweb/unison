@@ -14,13 +14,17 @@ import Unison.Syntax.Term (Term)
 import Unison.Syntax.Var as V
 import Unison.Type.Context.Element as E
 import Unison.Type.Note
+import Debug.Trace
 
 -- | An ordered algorithmic context
 -- Context variables will be negative, while 'normal' DeBruijn
 -- will be positive, so we don't generally need to worry about
 -- getting accidental collisions when applying a context to
 -- a type
-data Context l c = Context V.Var [Element l c] deriving Show
+data Context l c = Context V.Var [Element l c]
+
+instance (Show l, Show c) => Show (Context l c) where
+  show (Context n es) = "Context (" ++ show n ++ ") " ++ show (reverse es)
 
 empty :: Context l c
 empty = Context bound0 []
@@ -272,7 +276,7 @@ instantiateR ctx t v = case monotype t >>= solve ctx v of
 -- | Check that under the given context, `e` has type `t`,
 -- updating the context in the process. Parameterized on
 -- a function for synthesizing the type of a literal, `l`.
-check :: Eq l'
+check :: (Eq l', Show l', Show c)
       => (l -> l')
       -> Context l' c
       -> Term l (Type l' c)
@@ -297,7 +301,7 @@ check _ _ _ _ = Left $ note "type not well formed wrt context"
 -- | Synthesize the type of the given term, updating the context
 -- in the process. Parameterized on a function for synthesizing
 -- the type of a literal, `l`.
-synthesize :: Eq l'
+synthesize :: (Show c, Show l', Eq l')
            => (l -> l')
            -> Context l' c
            -> Term l (Type l' c)
@@ -322,18 +326,18 @@ synthesize synthLit ctx e = go e where
                        (Term.subst1 body (Term.Var arg))
                        (T.Existential o)
       pure $ let
-        ft = apply ctx2 (T.Arrow (T.Existential i) (T.Existential o))
-        existentials' = unsolved ctx2
+        ft = traceShow ("ctx2",ctx2) $ apply ctx2 (T.Arrow (T.Existential i) (T.Existential o))
+        existentials' = traceShow ("ctx", ctx1) $ unsolved ctx2
         universals' = take (length existentials') freshVars
         ft' = foldr step ft (zip (map T.Universal universals') existentials')
         step (t,v) typ = T.subst typ v t
         ft2 = foldr T.Forall ft' universals'
-        in (ft2, ctx1)
+        in traceShow (length existentials') (ft2, ctx1)
 
 -- | Synthesize the type of the given term, `arg` given that a function of
 -- the given type `ft` is being applied to `arg`. Update the conext in
 -- the process.
-synthesizeApp :: Eq l'
+synthesizeApp :: (Eq l', Show l', Show c)
               => (l -> l')
               -> Context l' c
               -> Type l' c
@@ -357,6 +361,7 @@ synthesizeApp synthLit ctx ft arg = go ft where
                       (T.Existential i)
   go _ = Left $ note "unable to synthesize type of application"
 
-synthesizeClosed :: Eq l' => (l -> l') -> Term l (Type l' c) -> Either Note (Type l' c)
+synthesizeClosed :: (Show l', Eq l', Show c)
+                 => (l -> l') -> Term l (Type l' c) -> Either Note (Type l' c)
 synthesizeClosed synthLit term = go <$> synthesize synthLit (context []) term
   where go (t, ctx) = apply ctx t

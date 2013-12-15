@@ -36,4 +36,4 @@ substIdType (Forall v t) = subst t v (T.Universal (V.decr V.bound1))
 main :: IO ()
 -- main = putStrLn . show $ (idType, substIdType idType)
 -- main = putStrLn . showCtx . snd $ extendUniversal C.empty
-main = putStrLn . showType $ C.synthesizeClosed synthLit identityAnn
+main = putStrLn . showType $ C.synthesizeClosed synthLit identity

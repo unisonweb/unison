@@ -17,7 +17,8 @@ import qualified Unison.Syntax.Kind as K
 data Monotype l c = Monotype { getPolytype :: Type l c }
 deriving instance (Eq l, Eq c) => Eq (Monotype l c)
 deriving instance (Ord l, Ord c) => Ord (Monotype l c)
-deriving instance (Show l, Show c) => Show (Monotype l c)
+instance (Show l, Show c) => Show (Monotype l c) where
+  show (Monotype t) = "Monotype (" ++ show t ++ ")"
 
 -- | Types with constraints `c`, free variables in `v` and kind annotations in `k`
 data Type l c
