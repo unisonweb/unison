@@ -193,8 +193,8 @@ apply ctx t = case t of
 
 -- | `subtype ctx t1 t2` returns successfully if `t1` is a subtype of `t2`.
 -- This may have the effect of altering the context.
-subtype :: Eq l => Context l c -> Type l c -> Type l c -> Either Note (Context l c)
-subtype ctx = go where -- Rules from figure 9
+subtype :: (Eq l, Show l, Show c) => Context l c -> Type l c -> Type l c -> Either Note (Context l c)
+subtype ctx tx ty = scope (show tx++" <: "++show ty) (go tx ty) where -- Rules from figure 9
   go (Unit l) (Unit l2) | l == l2 = pure ctx -- `Unit`
   go t1@(T.Universal v1) t2@(T.Universal v2) -- `Var`
     | v1 == v2 && wellformedType ctx t1 && wellformedType ctx t2
@@ -276,13 +276,13 @@ instantiateR ctx t v = case monotype t >>= solve ctx v of
 -- | Check that under the given context, `e` has type `t`,
 -- updating the context in the process. Parameterized on
 -- a function for synthesizing the type of a literal, `l`.
-check :: (Eq l', Show l', Show c)
+check :: (Eq l', Show l', Show l, Show c)
       => (l -> l')
       -> Context l' c
       -> Term l (Type l' c)
       -> Type l' c
       -> Either Note (Context l' c)
-check synthLit ctx e t | wellformedType ctx t = go e t where
+check synthLit ctx e t | wellformedType ctx t = scope ((show e) ++ ": " ++ show t) $ go e t where
   go (Term.Lit l) (T.Unit l') | synthLit l == l' = pure ctx -- 1I
   go _ (T.Forall x body) = -- ForallI
     let (x', ctx') = extendUniversal ctx
@@ -301,12 +301,12 @@ check _ _ _ _ = Left $ note "type not well formed wrt context"
 -- | Synthesize the type of the given term, updating the context
 -- in the process. Parameterized on a function for synthesizing
 -- the type of a literal, `l`.
-synthesize :: (Show c, Show l', Eq l')
+synthesize :: (Show c, Show l', Eq l', Show l)
            => (l -> l')
            -> Context l' c
            -> Term l (Type l' c)
            -> Either Note (Type l' c, Context l' c)
-synthesize synthLit ctx e = go e where
+synthesize synthLit ctx e = scope (show e ++ " =>") $ go e where
   go (Term.Var v) = case lookupType ctx v of -- Var
     Nothing -> Left $ note "type not in scope"
     Just t -> pure (t, ctx)
@@ -338,7 +338,7 @@ synthesize synthLit ctx e = go e where
 -- | Synthesize the type of the given term, `arg` given that a function of
 -- the given type `ft` is being applied to `arg`. Update the conext in
 -- the process.
-synthesizeApp :: (Eq l', Show l', Show c)
+synthesizeApp :: (Eq l', Show l', Show l, Show c)
               => (l -> l')
               -> Context l' c
               -> Type l' c
@@ -362,7 +362,7 @@ synthesizeApp synthLit ctx ft arg = go ft where
                       (T.Existential i)
   go _ = Left $ note "unable to synthesize type of application"
 
-synthesizeClosed :: (Show l', Eq l', Show c)
+synthesizeClosed :: (Show l', Eq l', Show l, Show c)
                  => (l -> l') -> Term l (Type l' c) -> Either Note (Type l' c)
 synthesizeClosed synthLit term = go <$> synthesize synthLit (context []) term
   where go (t, ctx) = apply ctx t

@@ -11,7 +11,7 @@ import Unison.Syntax.Var as V
 expr :: E.Term () a
 expr = identity
 
-identityAnn = E.Ann identity (forall1 $ \x -> x)
+identityAnn = E.Ann identity (forall1 $ \x -> T.Arrow x x)
 -- (subst t' v (T.Universal v'))
 
 unit :: E.Term () a
@@ -36,4 +36,4 @@ substIdType (Forall v t) = subst t v (T.Universal (V.decr V.bound1))
 main :: IO ()
 -- main = putStrLn . show $ (idType, substIdType idType)
 -- main = putStrLn . showCtx . snd $ extendUniversal C.empty
-main = putStrLn . showType $ C.synthesizeClosed synthLit identity
+main = putStrLn . showType $ C.synthesizeClosed synthLit identityAnn
