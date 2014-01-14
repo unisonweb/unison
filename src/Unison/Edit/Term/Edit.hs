@@ -17,4 +17,7 @@ apply f loc e = undefined
 abstract :: P.Path -> E.Term l t -> Maybe (E.Term l t)
 abstract loc e =
   let v = V.decr V.bound1 -- unused
-  in (E.Lam . E.abstract v) <$> P.set (E.Var v) loc e
+  in do
+    arg <- P.at loc e
+    f <- E.Lam . E.abstract v <$> P.set (E.Var v) loc e
+    pure $ E.App f arg
