@@ -21,7 +21,7 @@ abstract :: V.Var -> Term l t -> Term l t
 abstract v = go V.bound1 where
   go _ l@(Lit _) = l
   go n (App f arg) = App (go n f) (go n arg)
-  go n (Var v')   | v == v'   = Var n
+  go n (Var v')  | v == v'   = Var n
   go _ x@(Var _) | otherwise = x
   go n (Ann e t) = Ann (go n e) t
   go n (Lam body) = Lam (go (V.succ n) body)

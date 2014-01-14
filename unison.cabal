@@ -56,6 +56,11 @@ library
 
   exposed-modules:
     Unison
+    Unison.Edit.Term.Action
+    Unison.Edit.Term.Address
+    Unison.Edit.Term.Movement
+    Unison.Edit.Term.Path
+    Unison.Edit.Term.Edit
     Unison.Syntax
     Unison.Syntax.Index
     Unison.Syntax.Literal
