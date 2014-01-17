@@ -75,3 +75,19 @@ subst1 = go V.bound1 where
 
 vars :: Term l t -> [V.Var]
 vars e = getConst $ collect (\v -> Const [v]) e
+
+stripAnn :: Term l t -> (Term l t, Term l t -> Term l t)
+stripAnn (Ann e t) = (e, \e' -> Ann e' t)
+stripAnn e = (e, id)
+
+-- arguments 'f x y z' == '[x, y, z]'
+arguments :: Term l t -> [Term l t]
+arguments (App f x) = arguments f ++ [x]
+arguments _ = []
+
+betaReduce :: Term l t -> Term l t
+betaReduce (App (Lam f) arg) = subst1 f arg
+betaReduce e = e
+
+applyN :: Term l t -> [Term l t] -> Term l t
+applyN f = foldl App f
