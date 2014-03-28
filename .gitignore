@@ -6,5 +6,9 @@ cabal-dev
 *.chs.h
 *.swp
 *.un~
+site/_cache/**
+site/_site/**
+site/site
 tags
+.DS_Store
 .virthualenv

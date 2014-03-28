@@ -1,0 +1,56 @@
+.root-container {
+  max-width: 800px;
+  margin-left: 100px;
+  margin-right: auto;
+}
+
+#header {
+  min-width: 600px;
+  margin-left: 5%;
+  margin-right: 5%;
+}
+
+.horizontal-rule {
+  border-style: solid;
+  border-width: 1px 0 0 0;
+}
+
+.big-vsep {
+  margin-top: 40px;
+  margin-bottom: 40px;
+}
+.huge-vsep {
+  margin-top: 60px;
+  margin-bottom: 60px;
+}
+
+.centered-half {
+  margin-left: 25%
+  margin-right: 25%
+}
+
+.debug-border {
+  border-style: dotted;
+  border-color: red
+}
+.debug-border-2 {
+  border-style: dotted;
+  border-color: green
+}
+.spacer3l {
+  margin-right: 40%;
+  float: left;
+}
+.spacer3r {
+  margin-left: 33%;
+  float: right;
+}
+.center3 {
+  margin-left: auto;
+  margin-right: auto;
+  float: left;
+}
+.spacedl1 {
+  max-height: 10px;
+  margin-left: 10px;
+}
