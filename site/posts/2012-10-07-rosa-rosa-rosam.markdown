@@ -1,6 +1,6 @@
 ---
 title: Rosa Rosa Rosam
-author: Ovidius
+author: <a href="https://twitter.com/pchiusano">Paul</a>
 ---
 
 Suspendisse pharetra ullamcorper sem et auctor. Suspendisse vitae tellus eu

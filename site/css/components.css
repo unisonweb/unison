@@ -54,3 +54,7 @@
   max-height: 10px;
   margin-left: 10px;
 }
+.info {
+  text-align: center;
+  font-style: italic;
+}
