@@ -252,7 +252,7 @@ h6,
 .h4,
 .h5,
 .h6 {
-  font-family: "Abel", inherit;
+  font-family: "Abel";
   text-align: center;
   font-weight: 700;
   line-height: 1.1;
