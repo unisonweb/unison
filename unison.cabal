@@ -9,7 +9,7 @@ maintainer:    Paul Chiusano <paul.chiusano@gmail.com>
 stability:     provisional
 homepage:      https://github.com/pchiusano/unison
 bug-reports:   https://github.com/pchiusano/unison/issues
-copyright:     Copyright (C) 2013 Paul Chiusano and contributros 
+copyright:     Copyright (C) 2013 Paul Chiusano and contributors 
 synopsis:      A purely functional language with transparent remote execution 
 description:   - 
 
@@ -27,11 +27,6 @@ source-repository head
   type: git
   location: git://github.com/pchiusano/unison.git
 
--- `cabal install --enable-tests -f-doctests` to disable doctest suite
-flag doctests
-  manual: True
-  default: True
-
 -- `cabal install --enable-tests -f-properties` to disable properties suite
 flag properties
   manual: True
@@ -42,12 +37,7 @@ flag optimized
   manual: True
   default: False
 
--- `cabal install -f-repl` to disable compiling the repl
-flag repl
-  manual: True
-  default: True
-
-flag q
+flag quiet
   manual: True
   default: False
 
@@ -74,19 +64,21 @@ library
     Unison.Type.Note
 
   build-depends:
-    base                      >= 4       && < 5,
-    prelude-extras            >= 0.3     && < 1,
-    containers                >= 0.5     && < 0.6,
-    lens                      >= 3.9     && < 4,
-    text                      >= 0.11.2  && < 1
-    -- mtl                       >= 2.1.1   && < 2.2
+    base                      >= 4,
+    prelude-extras            >= 0.3,
+    containers                >= 0.5,
+    lens                      >= 4.2, 
+    text                      >= 0.11.2,
+    aeson                     >= 0.7.0.6,
+    -- scientific                < 0.3,
+    mtl                       >= 2.1.1
 
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
 
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
 
-  if flag(q)
+  if flag(quiet)
     ghc-options: -v0
 
 
@@ -99,10 +91,10 @@ executable unison
 
   build-depends:
     unison,
-    base                      >= 4       && < 5,
-    prelude-extras            >= 0.3     && < 1,
-    lens                      >= 3.9     && < 4,
-    text                      >= 0.11.2  && < 1
+    base,
+    prelude-extras,
+    lens,
+    text
 
 -- Verify the properties of lenses with QuickCheck
 test-suite properties

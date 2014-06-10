@@ -10,5 +10,7 @@ site/_cache/**
 site/_site/**
 site/site
 tags
+cabal.sandbox.config
+.cabal-sandbox/**
 .DS_Store
 .virthualenv
