@@ -70,7 +70,6 @@ library
     lens                      >= 4.2, 
     text                      >= 0.11.2,
     aeson                     >= 0.7.0.6,
-    -- scientific                < 0.3,
     mtl                       >= 2.1.1
 
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
@@ -96,12 +95,11 @@ executable unison
     lens,
     text
 
--- Verify the properties of lenses with QuickCheck
 test-suite properties
   type:           exitcode-stdio-1.0
   main-is:        properties.hs
   ghc-options:    -w -threaded -rtsopts -with-rtsopts=-N -v0
-  hs-source-dirs: . properties
+  hs-source-dirs: properties
   other-modules:
     Syntax
 
