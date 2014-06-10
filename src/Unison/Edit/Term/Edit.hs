@@ -26,6 +26,12 @@ abstract loc e =
     f <- E.Lam . E.abstract v <$> P.set (E.Var v) loc e
     pure $ E.App f arg
 
+
+-- data Eval l = Eval {
+--   step :: forall t. l -> Either (Primop l) (E.Term l t),
+--   whnf :: forall t. E.Term l t -> Maybe (E.Term l t), -- fail if expr not closed
+--   hnf :: forall t. E.Term l t -> Maybe (E.Term l t), -- ditto
+-- }
 data Primop l t = Primop !Int ([E.Term l t] -> E.Term l t)
 
 step :: (l -> Either (Primop l t) (E.Term l t))
