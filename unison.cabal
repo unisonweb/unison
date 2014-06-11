@@ -52,13 +52,14 @@ library
     Unison.Edit.Term.Path
     Unison.Edit.Term.Edit
     Unison.Syntax
+    Unison.Syntax.Hash
     Unison.Syntax.Index
+    Unison.Syntax.Kind
     Unison.Syntax.Literal
     Unison.Syntax.Term
     Unison.Syntax.Term.Examples
     Unison.Syntax.Type
     Unison.Syntax.Var
-    Unison.Syntax.Kind
     Unison.Type.Context
     Unison.Type.Context.Element
     Unison.Type.Note
@@ -69,6 +70,7 @@ library
     containers                >= 0.5,
     lens                      >= 4.2, 
     text                      >= 0.11.2,
+    bytestring                ,
     aeson                     >= 0.7.0.6,
     mtl                       >= 2.1.1
 

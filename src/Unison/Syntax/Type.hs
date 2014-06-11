@@ -20,7 +20,7 @@ deriving instance (Ord l, Ord c) => Ord (Monotype l c)
 instance (Show l, Show c) => Show (Monotype l c) where
   show (Monotype t) = show t
 
--- | Types with constraints `c`, free variables in `v` and kind annotations in `k`
+-- | Types with literals in `l` and constraints in `c`
 data Type l c
   = Unit l
   | Arrow (Type l c) (Type l c)
