@@ -51,6 +51,11 @@ library
     Unison.Edit.Term.Movement
     Unison.Edit.Term.Path
     Unison.Edit.Term.Edit
+    Unison.Edit.Layout
+    Unison.Edit.Layout.Style
+    Unison.Node
+    Unison.Node.Panel
+    Unison.Node.Metadata
     Unison.Syntax
     Unison.Syntax.Hash
     Unison.Syntax.Index
@@ -70,6 +75,7 @@ library
     containers                >= 0.5,
     lens                      >= 4.2, 
     text                      >= 0.11.2,
+    blaze-html                >= 0.7.0.0,
     bytestring                ,
     aeson                     >= 0.7.0.6,
     mtl                       >= 2.1.1
