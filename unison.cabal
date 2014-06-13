@@ -51,6 +51,7 @@ library
     Unison.Edit.Term.Movement
     Unison.Edit.Term.Path
     Unison.Edit.Term.Edit
+    Unison.Edit.Type.Path
     Unison.Edit.Layout
     Unison.Edit.Layout.Style
     Unison.Node

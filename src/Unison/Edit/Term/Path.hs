@@ -3,7 +3,10 @@ module Unison.Edit.Term.Path where
 import qualified Unison.Syntax.Term as E
 import Control.Applicative
 
-data E = Fn | Arg | Body
+data E
+  = Fn -- ^ Points at function in a function application
+  | Arg -- ^ Points at the argument of a function application
+  | Body -- ^ Points at the body of a lambda
 
 newtype Path = Path [E]
 
