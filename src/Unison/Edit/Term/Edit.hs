@@ -4,6 +4,7 @@ import Control.Applicative
 import Unison.Edit.Term.Action
 import qualified Unison.Edit.Term.Path as P
 import qualified Unison.Syntax.Term as E
+import qualified Unison.Syntax.Term.Literal as EL
 import qualified Unison.Syntax.Var as V
 
 -- data Edit e = Edit [(Path, Action e)]
@@ -11,14 +12,14 @@ import qualified Unison.Syntax.Var as V
 -- but when applying an edit, have to pick a context
 -- context is just a function, which editing target must be applied to
 
-apply :: (l -> Either (Primop l t) (E.Term l t))
-      -> Action (E.Term l t) -> P.Path -> E.Term l t -> Maybe (E.Term l t)
+apply :: (EL.Literal -> Either Primop E.Term)
+      -> Action E.Term -> P.Path -> E.Term -> Maybe E.Term
 apply expandLit f loc e = go f where
   go Abstract = abstract loc e
   go Step = step expandLit loc e
   go _ = undefined
 
-abstract :: P.Path -> E.Term l t -> Maybe (E.Term l t)
+abstract :: P.Path -> E.Term -> Maybe E.Term
 abstract loc e =
   let v = V.decr V.bound1 -- unused
   in do
@@ -28,16 +29,16 @@ abstract loc e =
 
 
 -- data Eval l = Eval {
---   step :: forall t. l -> Either (Primop l) (E.Term l t),
---   whnf :: forall t. E.Term l t -> Maybe (E.Term l t), -- fail if expr not closed
---   hnf :: forall t. E.Term l t -> Maybe (E.Term l t), -- ditto
+--   step :: forall t. l -> Either (Primop l) Term,
+--   whnf :: forall t. E.Term -> Maybe Term, -- fail if expr not closed
+--   hnf :: forall t. E.Term -> Maybe Term, -- ditto
 -- }
-data Primop l t = Primop !Int ([E.Term l t] -> E.Term l t)
+data Primop = Primop !Int ([E.Term] -> E.Term)
 
-step :: (l -> Either (Primop l t) (E.Term l t))
+step :: (EL.Literal -> Either Primop E.Term)
      -> P.Path
-     -> E.Term l t
-     -> Maybe (E.Term l t)
+     -> E.Term
+     -> Maybe E.Term
 step expandLit loc e = do
   (e', wrap) <- E.stripAnn <$> P.at loc e
   pure . wrap $ case e' of

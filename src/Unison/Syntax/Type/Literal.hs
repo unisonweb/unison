@@ -1,4 +1,4 @@
-module Unison.Language.Type.Literal where
+module Unison.Syntax.Type.Literal where
 
 import Unison.Syntax.Hash as H
 
@@ -8,3 +8,4 @@ data Literal
   | Number
   | String
   | Vector
+  deriving (Eq,Ord,Show)

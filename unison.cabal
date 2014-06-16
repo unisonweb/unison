@@ -52,12 +52,6 @@ library
     Unison.Edit.Term.Path
     Unison.Edit.Term.Edit
     Unison.Edit.Type.Path
-    Unison.Language.Layout
-    Unison.Language.Layout.Style
-    Unison.Language.Term
-    Unison.Language.Term.Literal
-    Unison.Language.Type
-    Unison.Language.Type.Literal
     Unison.Node
     Unison.Node.Implementations.State
     Unison.Node.Metadata
@@ -66,10 +60,10 @@ library
     Unison.Syntax.Hash
     Unison.Syntax.Index
     Unison.Syntax.Kind
-    Unison.Syntax.Literal
     Unison.Syntax.Term
-    Unison.Syntax.Term.Examples
+    Unison.Syntax.Term.Literal
     Unison.Syntax.Type
+    Unison.Syntax.Type.Literal
     Unison.Syntax.Var
     Unison.Type.Context
     Unison.Type.Context.Element

@@ -1,4 +1,4 @@
-module Unison.Language.Term.Literal where
+module Unison.Syntax.Term.Literal where
 
 import Data.Text
 import Data.Vector.Unboxed as V
@@ -9,3 +9,4 @@ data Literal
   | Number Double
   | String Text
   | Vector (V.Vector Double)
+  deriving (Eq,Ord,Show)

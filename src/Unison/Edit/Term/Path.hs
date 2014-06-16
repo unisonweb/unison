@@ -10,7 +10,7 @@ data E
 
 newtype Path = Path [E]
 
-at :: Path -> E.Term l c -> Maybe (E.Term l c)
+at :: Path -> E.Term -> Maybe E.Term
 at (Path [])    e = Just e
 at (Path (h:t)) e = go h e where
   go _ (E.Var _) = Nothing
@@ -21,7 +21,7 @@ at (Path (h:t)) e = go h e where
   go Body (E.Lam body) = at (Path t) body
   go _ _ = Nothing
 
-set :: E.Term l c -> Path -> E.Term l c -> Maybe (E.Term l c)
+set :: E.Term -> Path -> E.Term -> Maybe E.Term
 set e (Path []) _ = Just e
 set e (Path (h:t)) ctx = go h ctx where
   go _ (E.Var _) = Nothing
@@ -32,7 +32,7 @@ set e (Path (h:t)) ctx = go h ctx where
   go Body (E.Lam body) = E.Lam <$> set e (Path t) body
   go _ _ = Nothing
 
-modify :: (E.Term l c -> E.Term l c) -> Path -> E.Term l c -> Maybe (E.Term l c)
+modify :: (E.Term -> E.Term) -> Path -> E.Term -> Maybe E.Term
 modify f loc e = do
   x <- at loc e
   set (f x) loc e

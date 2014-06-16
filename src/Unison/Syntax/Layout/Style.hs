@@ -1,4 +1,4 @@
-module Unison.Language.Layout.Style where
+module Unison.Syntax.Layout.Style where
 
 import Data.Text
 

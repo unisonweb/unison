@@ -6,18 +6,22 @@
 module Unison.Syntax.Term where
 
 import Control.Applicative
+import qualified Data.Text as Txt
 import Unison.Syntax.Var as V
+import qualified Unison.Syntax.Hash as H
+import qualified Unison.Syntax.Type as T
+import qualified Unison.Syntax.Term.Literal as L
 
--- | Terms with literals in `l` and type annotations in `t`
-data Term l t
+-- | Terms in the Unison language
+data Term
   = Var V.Var
-  | Lit l
-  | App (Term l t) (Term l t)
-  | Ann (Term l t) t
-  | Lam (Term l t)
+  | Lit L.Literal
+  | App Term Term
+  | Ann Term T.Type
+  | Lam Term
   deriving (Eq,Ord,Show)
 
-abstract :: V.Var -> Term l t -> Term l t
+abstract :: V.Var -> Term -> Term
 abstract v = go V.bound1 where
   go _ l@(Lit _) = l
   go n (App f arg) = App (go n f) (go n arg)
@@ -26,17 +30,17 @@ abstract v = go V.bound1 where
   go n (Ann e t) = Ann (go n e) t
   go n (Lam body) = Lam (go (V.succ n) body)
 
-ap1 :: Term l t -> Term l t -> Maybe (Term l t)
+ap1 :: Term -> Term -> Maybe Term
 ap1 (Lam body) t = Just (subst1 body t)
 ap1 _ _ = Nothing
 
-bound1 :: Term l t
+bound1 :: Term
 bound1 = Var V.bound1
 
 collect :: Applicative f
-       => (V.Var -> f (Term l t))
-       -> Term l t
-       -> f (Term l t)
+       => (V.Var -> f Term)
+       -> Term
+       -> f Term
 collect f = go where
   go e = case e of
     Var v -> f v
@@ -45,17 +49,17 @@ collect f = go where
     Ann e' t -> Ann <$> go e' <*> pure t
     Lam body -> Lam <$> go body
 
-lam1 :: (Term l t -> Term l t) -> Term l t
+lam1 :: (Term -> Term) -> Term
 lam1 f = let v = V.decr V.bound1 -- unused
          in Lam . abstract v . f $ Var v
 
-lam2 :: (Term l t -> Term l t -> Term l t) -> Term l t
+lam2 :: (Term -> Term -> Term) -> Term
 lam2 f =
   let v = V.decr V.bound1 -- unused
       v2 = V.decr v
   in Lam (abstract v (Lam (abstract v2 $ f (Var v) (Var v2))))
 
-lam3 :: (Term l t -> Term l t -> Term l t -> Term l t) -> Term l t
+lam3 :: (Term -> Term -> Term -> Term) -> Term
 lam3 f =
   let v = V.decr V.bound1 -- unused
       v2 = V.decr v
@@ -63,7 +67,7 @@ lam3 f =
   in Lam (abstract v (Lam (abstract v2 (Lam (abstract v3 $ f (Var v) (Var v2) (Var v3))))))
 
 -- subst1 f x
-subst1 :: Term l t -> Term l t -> Term l t
+subst1 :: Term -> Term -> Term
 subst1 = go V.bound1 where
   go ind body e = case body of
     Var v | v == ind -> e
@@ -73,21 +77,46 @@ subst1 = go V.bound1 where
     Ann body' t -> Ann (go ind body' e) t
     Lam body' -> Lam (go (V.succ ind) body' e)
 
-vars :: Term l t -> [V.Var]
+vars :: Term -> [V.Var]
 vars e = getConst $ collect (\v -> Const [v]) e
 
-stripAnn :: Term l t -> (Term l t, Term l t -> Term l t)
+stripAnn :: Term -> (Term, Term -> Term)
 stripAnn (Ann e t) = (e, \e' -> Ann e' t)
 stripAnn e = (e, id)
 
 -- arguments 'f x y z' == '[x, y, z]'
-arguments :: Term l t -> [Term l t]
+arguments :: Term -> [Term]
 arguments (App f x) = arguments f ++ [x]
 arguments _ = []
 
-betaReduce :: Term l t -> Term l t
+betaReduce :: Term -> Term
 betaReduce (App (Lam f) arg) = subst1 f arg
 betaReduce e = e
 
-applyN :: Term l t -> [Term l t] -> Term l t
+applyN :: Term -> [Term] -> Term
 applyN f = foldl App f
+
+number :: Double -> Term
+number n = Lit (L.Number n)
+
+string :: String -> Term
+string s = Lit (L.String (Txt.pack s))
+
+text :: Txt.Text -> Term
+text s = Lit (L.String s)
+
+-- | Computes the nameless hash of the given term
+hash :: Term -> H.Hash
+hash e = error "todo: Term.hash"
+
+-- | Computes the nameless hash of the given terms, where
+-- the terms may have mutual dependencies
+hashes :: [Term] -> [H.Hash]
+hashes e = error "todo: Term.hashes"
+
+hashLit :: L.Literal -> H.Hash
+hashLit (L.Hash h) = h
+hashLit (L.Number n) = H.zero `H.append` H.hashDouble n
+hashLit (L.String s) = H.one `H.append` H.hashText s
+hashLit (L.Vector vec) = H.two `H.append` go vec where
+  go vec = error "todo: hashLit vector"

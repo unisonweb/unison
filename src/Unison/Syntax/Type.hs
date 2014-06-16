@@ -10,32 +10,28 @@ module Unison.Syntax.Type where
 
 import Control.Applicative
 import qualified Data.Set as S
-import qualified Unison.Syntax.Var as V
+import qualified Unison.Syntax.Hash as H
 import qualified Unison.Syntax.Kind as K
+import qualified Unison.Syntax.Type.Literal as L
+import qualified Unison.Syntax.Var as V
 
 -- constructor is private not exported
-data Monotype l c = Monotype { getPolytype :: Type l c }
-deriving instance (Eq l, Eq c) => Eq (Monotype l c)
-deriving instance (Ord l, Ord c) => Ord (Monotype l c)
-instance (Show l, Show c) => Show (Monotype l c) where
+data Monotype = Monotype { getPolytype :: Type } deriving (Eq,Ord)
+instance Show Monotype where
   show (Monotype t) = show t
 
 -- | Types with literals in `l` and constraints in `c`
-data Type l c
-  = Unit l
-  | Arrow (Type l c) (Type l c)
+data Type
+  = Unit L.Literal
+  | Arrow Type Type
   | Universal V.Var
   | Existential V.Var
-  | Ann (Type l c) K.Kind
-  | Constrain (Type l c) c
-  | Forall V.Var (Type l c) -- | ^ `DeBruijn 1` is bounded by nearest enclosing `Forall`, `DeBruijn 2` by next enclosing `Forall`, etc
+  | Ann Type K.Kind
+  | Constrain Type () -- todo: constraint language
+  | Forall V.Var Type -- ^ `DeBruijn 1` is bounded by nearest enclosing `Forall`, `DeBruijn 2` by next enclosing `Forall`, etc
+  deriving (Eq,Ord,Show)
 
-  -- deriving (Eq,Ord,Show,Read,Functor,Foldable,Traversable)
-deriving instance (Eq l, Eq c) => Eq (Type l c)
-deriving instance (Ord l, Ord c) => Ord (Type l c)
-deriving instance (Show l, Show c) => Show (Type l c)
-
-trav :: Applicative f => (V.Var -> f V.Var) -> Type l c -> f (Type l c)
+trav :: Applicative f => (V.Var -> f V.Var) -> Type -> f Type
 trav _ (Unit l) = pure (Unit l)
 trav f (Arrow i o) = Arrow <$> trav f i <*> trav f o
 trav f (Universal v) = Universal <$> f v
@@ -44,7 +40,7 @@ trav f (Ann t k) = Ann <$> trav f t <*> pure k
 trav f (Constrain t c) = Constrain <$> trav f t <*> pure c
 trav f (Forall v fn) = Forall <$> f v <*> trav f fn
 
-monotype :: Type l c -> Maybe (Monotype l c)
+monotype :: Type -> Maybe Monotype
 monotype t = Monotype <$> go t where
   go (Unit l) = pure (Unit l)
   go (Arrow i o) = Arrow <$> go i <*> go o
@@ -54,7 +50,7 @@ monotype t = Monotype <$> go t where
   go (Constrain t' c) = Constrain <$> go t' <*> pure c
   go _ = Nothing
 
-abstract :: V.Var -> Type l c -> Type l c
+abstract :: V.Var -> Type -> Type
 abstract v = go V.bound1 where
   go _ u@(Unit _) = u
   go n (Arrow i o) = Arrow (go n i) (go n o)
@@ -67,38 +63,38 @@ abstract v = go V.bound1 where
   go n (Forall v' fn) = Forall v' (go (V.succ n) fn)
 
 -- | Type variable which is bound by the nearest enclosing `Forall`
-bound1 :: Type l c
+bound1 :: Type
 bound1 = Universal V.bound1
 
 -- | HOAS syntax for `Forall` constructor:
 -- `forall1 $ \x -> Arrow x x`
-forall1 :: (Type l c -> Type l c) -> Type l c
+forall1 :: (Type -> Type) -> Type
 forall1 f = forallN 1 $ \[x] -> f x
 
 -- | HOAS syntax for `Forall` constructor:
 -- `forall2 $ \x y -> Arrow (Arrow x y) (Arrow x y)`
-forall2 :: (Type l c -> Type l c -> Type l c) -> Type l c
+forall2 :: (Type -> Type -> Type) -> Type
 forall2 f = forallN 2 $ \[x,y] -> f x y
 
 -- | HOAS syntax for `Forall` constructor:
 -- `forall2 $ \x y z -> Arrow (Arrow x y z) (Arrow x y z)`
-forall3 :: (Type l c -> Type l c -> Type l c -> Type l c) -> Type l c
+forall3 :: (Type -> Type -> Type -> Type) -> Type
 forall3 f = forallN 3 $ \[x,y,z] -> f x y z
 
 -- | HOAS syntax for `Forall` constructor:
 -- `forallN 3 $ \[x,y,z] -> Arrow x (Arrow y z)`
-forallN :: Int -> ([Type l c] -> Type l c) -> Type l c
+forallN :: Int -> ([Type] -> Type) -> Type
 forallN n f | n > 0 =
   let vars = take n (tail $ iterate V.decr V.bound1)
       inner = f (map Universal vars)
   in foldr (\v body -> Forall V.bound1 (abstract v body)) inner vars
 forallN n _ | otherwise = error $ "forallN " ++ show n
 
-subst1 :: Type l c -> Type l c -> Type l c
+subst1 :: Type -> Type -> Type
 subst1 fn arg = subst fn V.bound1 arg
 
 -- | mnemonic `subst fn var=arg`
-subst :: Type l c -> V.Var -> Type l c -> Type l c
+subst :: Type -> V.Var -> Type -> Type
 subst fn var arg = case fn of
   Unit l -> Unit l
   Arrow i o -> Arrow (subst i var arg) (subst o var arg)
@@ -111,7 +107,7 @@ subst fn var arg = case fn of
   Forall v fn' -> Forall v (subst fn' (V.succ var) arg)
 
 -- | The set of unbound variables in this type
-freeVars :: Type l c -> S.Set V.Var
+freeVars :: Type -> S.Set V.Var
 freeVars t = case t of
   Unit _ -> S.empty
   Arrow i o -> S.union (freeVars i) (freeVars o)
@@ -120,3 +116,9 @@ freeVars t = case t of
   Ann fn _ -> freeVars fn
   Constrain fn _ -> freeVars fn
   Forall v fn -> S.delete v (freeVars fn)
+
+hash :: Type -> H.Hash
+hash _ = error "todo: Type.hash"
+
+hashes :: [Type] -> H.Hash
+hashes _ = error "todo: Type.hashes"
