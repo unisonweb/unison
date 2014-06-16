@@ -54,6 +54,10 @@ library
     Unison.Edit.Type.Path
     Unison.Language.Layout
     Unison.Language.Layout.Style
+    Unison.Language.Term
+    Unison.Language.Term.Literal
+    Unison.Language.Type
+    Unison.Language.Type.Literal
     Unison.Node
     Unison.Node.Implementations.State
     Unison.Node.Metadata
@@ -72,15 +76,16 @@ library
     Unison.Type.Note
 
   build-depends:
+    aeson                     >= 0.7.0.6,
     base                      >= 4,
-    prelude-extras            >= 0.3,
-    containers                >= 0.5,
-    lens                      >= 4.2, 
-    text                      >= 0.11.2,
     blaze-html                >= 0.7.0.0,
     bytestring                ,
-    aeson                     >= 0.7.0.6,
-    mtl                       >= 2.1.1
+    containers                >= 0.5,
+    lens                      >= 4.2, 
+    mtl                       >= 2.1.1,
+    prelude-extras            >= 0.3,
+    text                      >= 0.11.2,
+    vector                    >= 0.10.11.0
 
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
 
