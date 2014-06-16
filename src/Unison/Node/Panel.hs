@@ -2,7 +2,7 @@ module Unison.Node.Panel where
 
 import qualified Data.Map as M
 import Unison.Node.Metadata as D
-import Unison.Edit.Layout as L
+import Unison.Language.Layout as L
 
 -- | Represents a view of a collection of Unison types in @t@ and
 -- terms in @e@, with hashes of type @k@. This structure can in principle be

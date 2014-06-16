@@ -1,6 +1,6 @@
-module Unison.Edit.Layout where
+module Unison.Language.Layout where
 
-import Unison.Edit.Layout.Style
+import Unison.Language.Layout.Style
 import Data.Text
 
 {-

@@ -52,11 +52,12 @@ library
     Unison.Edit.Term.Path
     Unison.Edit.Term.Edit
     Unison.Edit.Type.Path
-    Unison.Edit.Layout
-    Unison.Edit.Layout.Style
+    Unison.Language.Layout
+    Unison.Language.Layout.Style
     Unison.Node
-    Unison.Node.Panel
+    Unison.Node.Implementations.State
     Unison.Node.Metadata
+    Unison.Node.Panel
     Unison.Syntax
     Unison.Syntax.Hash
     Unison.Syntax.Index
