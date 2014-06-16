@@ -8,9 +8,12 @@ import qualified Unison.Language.Term.Literal as L
 -- | A term in the Unison language
 type Term = ST.Term L.Literal T.Type
 
+-- | Computes the nameless hash of the given term
 hash :: Term -> H.Hash
 hash e = H.term hashLit T.hash e
 
+-- | Computes the nameless hash of the given terms, where
+-- the terms may have mutual dependencies
 hashes :: [Term] -> [H.Hash]
 hashes e = H.terms hashLit T.hash e
 
