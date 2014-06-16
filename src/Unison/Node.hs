@@ -11,9 +11,9 @@ import Unison.Type.Note as N
 
 data Node m k t e = Node {
   -- | Create a new term and provide its metadata
-  createTerm :: e -> M.Metadata k -> m k,
+  createTerm :: e -> M.Metadata k -> m (Either N.Note k),
   -- | Create a new type and provide its metadata
-  createType :: t -> M.Metadata k -> m k,
+  createType :: t -> M.Metadata k -> m (Either N.Note k),
   -- | Lookup the direct dependencies of @k@, optionally limited to the given set
   dependencies :: Maybe (S.Set k) -> k -> m (S.Set k),
   -- | Lookup the set of terms/types depending directly on the given @k@, optionally limited to the given set
@@ -26,8 +26,10 @@ data Node m k t e = Node {
   metadata :: k -> m (Maybe (M.Metadata k)),
   -- | Render the term or type identified by @k@ as a panel--
   panel :: k -> m (Maybe (Panel k t e)),
-  -- | Lookup a term by name, optionally constrained to be of the given type
+  -- | Search for a term, optionally constrained to be of the given type
   search :: Maybe t -> Query -> m [(k, Metadata k)],
+  -- | Search for a term in local scope, optionally constrained to be of the given type
+  searchLocal :: Maybe t -> Query -> m [(e, Metadata k)],
   -- | Lookup the source of the term identified by @k@
   term :: k -> m (Maybe e),
   -- | Lookup the dependencies of @k@, optionally limited to those that intersect the given set
