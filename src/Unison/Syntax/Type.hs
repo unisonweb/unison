@@ -12,7 +12,6 @@ import Control.Applicative
 import qualified Data.Set as S
 import qualified Unison.Syntax.Hash as H
 import qualified Unison.Syntax.Kind as K
-import qualified Unison.Syntax.Type.Literal as L
 import qualified Unison.Syntax.Var as V
 
 -- constructor is private not exported
@@ -20,9 +19,17 @@ data Monotype = Monotype { getPolytype :: Type } deriving (Eq,Ord)
 instance Show Monotype where
   show (Monotype t) = show t
 
--- | Types with literals in `l` and constraints in `c`
+-- | Type literals
+data Literal
+  = Number
+  | String
+  | Vector
+  | Hash H.Hash -- ^ A type literal uniquely defined by some nameless Hash
+  deriving (Eq,Ord,Show)
+
+-- | Types in the Unison language
 data Type
-  = Unit L.Literal
+  = Unit Literal
   | Arrow Type Type
   | Universal V.Var
   | Existential V.Var

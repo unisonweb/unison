@@ -1,5 +1,6 @@
 module Main where
 
+import Control.Monad
 import Unison.Syntax.Term as E
 import Unison.Syntax.Type as T
 import Unison.Type.Context as C
@@ -27,4 +28,4 @@ substIdType (Forall v t) = subst t v (T.Universal (V.decr V.bound1))
 main :: IO ()
 -- main = putStrLn . show $ (idType, substIdType idType)
 -- main = putStrLn . showCtx . snd $ extendUniversal C.empty
-main = putStrLn . showType $ C.synthesizeClosed identityAnn
+main = putStrLn . showType . join $ C.synthesizeClosed (const $ Left (note "fail")) identityAnn

@@ -7,15 +7,23 @@ module Unison.Syntax.Term where
 
 import Control.Applicative
 import qualified Data.Text as Txt
+import qualified Data.Vector.Unboxed as V
 import Unison.Syntax.Var as V
 import qualified Unison.Syntax.Hash as H
 import qualified Unison.Syntax.Type as T
-import qualified Unison.Syntax.Term.Literal as L
+
+-- | Literals in the Unison language
+data Literal
+  = Number Double
+  | String Txt.Text
+  | Vector (V.Vector Double)
+  deriving (Eq,Ord,Show)
 
 -- | Terms in the Unison language
 data Term
   = Var V.Var
-  | Lit L.Literal
+  | Lit Literal
+  | Ref H.Hash
   | App Term Term
   | Ann Term T.Type
   | Lam Term
@@ -24,6 +32,7 @@ data Term
 abstract :: V.Var -> Term -> Term
 abstract v = go V.bound1 where
   go _ l@(Lit _) = l
+  go _ r@(Ref _) = r
   go n (App f arg) = App (go n f) (go n arg)
   go n (Var v')  | v == v'   = Var n
   go _ x@(Var _) | otherwise = x
@@ -44,7 +53,8 @@ collect :: Applicative f
 collect f = go where
   go e = case e of
     Var v -> f v
-    Lit l -> pure (Lit l) -- not clear why can't just recyle LHS
+    Ref h -> pure (Ref h)
+    Lit l -> pure (Lit l)
     App fn arg -> App <$> go fn <*> go arg
     Ann e' t -> Ann <$> go e' <*> pure t
     Lam body -> Lam <$> go body
@@ -72,6 +82,7 @@ subst1 = go V.bound1 where
   go ind body e = case body of
     Var v | v == ind -> e
     Var _ -> body
+    Ref _ -> body
     Lit _ -> body
     App f arg -> App (go ind f e) (go ind arg e)
     Ann body' t -> Ann (go ind body' e) t
@@ -97,26 +108,25 @@ applyN :: Term -> [Term] -> Term
 applyN f = foldl App f
 
 number :: Double -> Term
-number n = Lit (L.Number n)
+number n = Lit (Number n)
 
 string :: String -> Term
-string s = Lit (L.String (Txt.pack s))
+string s = Lit (String (Txt.pack s))
 
 text :: Txt.Text -> Term
-text s = Lit (L.String s)
+text s = Lit (String s)
 
 -- | Computes the nameless hash of the given term
-hash :: Term -> H.Hash
-hash e = error "todo: Term.hash"
+hash :: Term -> H.Digest
+hash _ = error "todo: Term.hash"
 
 -- | Computes the nameless hash of the given terms, where
 -- the terms may have mutual dependencies
 hashes :: [Term] -> [H.Hash]
-hashes e = error "todo: Term.hashes"
+hashes _ = error "todo: Term.hashes"
 
-hashLit :: L.Literal -> H.Hash
-hashLit (L.Hash h) = h
-hashLit (L.Number n) = H.zero `H.append` H.hashDouble n
-hashLit (L.String s) = H.one `H.append` H.hashText s
-hashLit (L.Vector vec) = H.two `H.append` go vec where
-  go vec = error "todo: hashLit vector"
+hashLit :: Literal -> H.Digest
+hashLit (Number n) = H.zero `H.append` H.double n
+hashLit (String s) = H.one `H.append` H.text s
+hashLit (Vector vec) = H.two `H.append` go vec where
+  go _ = error "todo: hashLit vector"

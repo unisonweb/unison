@@ -61,9 +61,7 @@ library
     Unison.Syntax.Index
     Unison.Syntax.Kind
     Unison.Syntax.Term
-    Unison.Syntax.Term.Literal
     Unison.Syntax.Type
-    Unison.Syntax.Type.Literal
     Unison.Syntax.Var
     Unison.Type.Context
     Unison.Type.Context.Element
@@ -71,10 +69,12 @@ library
 
   build-depends:
     aeson                     >= 0.7.0.6,
+    applicative-extras        >= 0.1.8,
     base                      >= 4,
     blaze-html                >= 0.7.0.0,
     bytestring                ,
     containers                >= 0.5,
+    cryptohash                ,
     lens                      >= 4.2, 
     mtl                       >= 2.1.1,
     prelude-extras            >= 0.3,

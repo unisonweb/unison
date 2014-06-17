@@ -2,18 +2,19 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
 
-module Unison.Type.Context where
+-- | The Unison language typechecker
+module Unison.Type.Context (synthesizeClosed) where
 
 import Control.Applicative
+import Control.Applicative.Compose as C
 import Data.List as L
 import Data.Maybe
 import qualified Data.Set as S
 import Unison.Syntax.Type as T
 import qualified Unison.Syntax.Term as Term
 import Unison.Syntax.Term (Term)
-import qualified Unison.Syntax.Type.Literal as TL
-import qualified Unison.Syntax.Term.Literal as EL
 import Unison.Syntax.Var as V
+import qualified Unison.Syntax.Hash as H
 import Unison.Type.Context.Element as E
 import Unison.Type.Note
 
@@ -26,9 +27,6 @@ data Context = Context V.Var [Element]
 
 instance Show Context where
   show (Context n es) = "Context (" ++ show n ++ ") " ++ show (reverse es)
-
-empty :: Context
-empty = Context bound0 []
 
 bound0 :: V.Var
 bound0 = V.decr V.bound1
@@ -66,12 +64,6 @@ extendUniversal :: Context -> (V.Var, Context)
 extendUniversal (Context n ctx) =
   let v = V.decr n in (v, Context v (E.Universal v : ctx))
 
--- | Extend this `Context` with a single existentially quantified variable,
--- guaranteed to be fresh
-extendExistential :: Context -> (V.Var, Context)
-extendExistential (Context n ctx) =
-  let v = V.decr n in (v, Context v (E.Universal v : ctx))
-
 -- | Extend this `Context` with a marker variable, guaranteed to be fresh
 extendMarker :: Context -> (V.Var, Context)
 extendMarker (Context n ctx) =
@@ -90,9 +82,6 @@ retract m (Context _ ctx) =
 
 universals :: Context -> [V.Var]
 universals (Context _ ctx) = [v | E.Universal v <- ctx]
-
-markers :: Context -> [V.Var]
-markers (Context _ ctx) = [v | Marker v <- ctx]
 
 existentials :: Context -> [V.Var]
 existentials (Context _ ctx) = ctx >>= go where
@@ -152,7 +141,7 @@ currentVar ctx | otherwise = Just $ minimum (allVars ctx)
 
 -- | Check that the type is well formed wrt the given `Context`
 wellformedType :: Context -> Type -> Bool
-wellformedType c t = case t of
+wellformedType c t = wellformed c && case t of
   T.Unit _ -> True
   T.Universal v -> v `elem` universals c
   T.Existential v -> v `elem` existentials c
@@ -294,12 +283,11 @@ check ctx e t | wellformedType ctx t = scope ((show e) ++ ": " ++ show t) $ go e
 check _ _ _ = Left $ note "type not well formed wrt context"
 
 -- | Infer the type of a literal
-synthLit :: EL.Literal -> Type
+synthLit :: Term.Literal -> Type
 synthLit lit = T.Unit $ case lit of
-  EL.Hash h   -> TL.Hash h
-  EL.Number _ -> TL.Number
-  EL.String _ -> TL.String
-  EL.Vector _ -> TL.Vector
+  Term.Number _ -> T.Number
+  Term.String _ -> T.String
+  Term.Vector _ -> T.Vector
 
 -- | Synthesize the type of the given term, updating the context
 -- in the process. Parameterized on a function for synthesizing
@@ -309,6 +297,9 @@ synthesize ctx e = scope (show e ++ " =>") $ go e where
   go (Term.Var v) = case lookupType ctx v of -- Var
     Nothing -> Left $ note "type not in scope"
     Just t -> pure (t, ctx)
+  go (Term.Ann (Term.Ref _) t) =
+    pure (t, ctx) -- innermost Ref annotation assumed to be correctly provided by `synthesizeClosed`
+  go (Term.Ref h) = Left . note $ "unannotated reference: " ++ show h
   go (Term.Ann e' t) = (,) t <$> check ctx e' t -- Anno
   go (Term.Lit l) = pure (synthLit l, ctx) -- 1I=>
   go (Term.App f arg) = do -- ->E
@@ -355,6 +346,16 @@ synthesizeApp ctx ft arg = go ft where
                       (T.Existential i)
   go _ = Left $ note "unable to synthesize type of application"
 
-synthesizeClosed :: Term -> Either Note Type
-synthesizeClosed term = go <$> synthesize (context []) term
-  where go (t, ctx) = apply ctx t
+synthesizeClosed :: Applicative f => (H.Hash -> f (Either Note Type)) -> Term -> f (Either Note Type)
+synthesizeClosed synthRef term = synth <$> C.decompose (annotate term)
+  where
+    synth :: Either Note Term -> Either Note Type
+    synth (Left e) = Left e
+    synth (Right a) = go <$> synthesize (context []) a
+    go (t, ctx) = apply ctx t
+    annotate term' = case term' of
+      Term.Ref h -> Term.Ann (Term.Ref h) <$> Compose (synthRef h)
+      Term.App f arg -> Term.App <$> annotate f <*> annotate arg
+      Term.Ann body t -> Term.Ann <$> annotate body <*> pure t
+      Term.Lam body -> Term.Lam <$> annotate body
+      _ -> pure term'

@@ -1,39 +1,49 @@
 module Unison.Syntax.Hash (
-  Hash,
-  append, finalize, hashDouble, hashText,
+  Hash, Digest,
+  append, finalize, double, text, bytes, byte, hashBytes,
   zero, one, two, three) where
 
 import Data.Word (Word8)
 import qualified Data.ByteString as B
 import qualified Data.Text as T
+import qualified Crypto.Hash.SHA3 as H
 
 -- | Hash which uniquely identifies a Unison type or term
 newtype Hash = Hash B.ByteString deriving (Eq,Show,Ord)
 
-append :: Hash -> Hash -> Hash
-append (Hash a) (Hash b) = Hash (B.append a b)
+-- | Buffer type for building up hash values
+newtype Digest = Digest (H.Ctx -> H.Ctx)
 
-hashDouble :: Double -> Hash
-hashDouble = error "todo: hashDouble"
+append :: Digest -> Digest -> Digest
+append (Digest a) (Digest b) = Digest (b . a)
 
-hashText :: T.Text -> Hash
-hashText = error "todo: hashText"
+double :: Double -> Digest
+double = error "todo: hashDouble"
 
-finalize :: Hash -> B.ByteString
-finalize (Hash bs) = bs
+text :: T.Text -> Digest
+text = error "todo: hashText"
 
-word8 :: Word8 -> Hash
-word8 byte = Hash (B.singleton byte)
+hashBytes :: Hash -> B.ByteString
+hashBytes (Hash h) = h
 
-zero :: Hash
-zero = word8 0
+finalize :: Digest -> Hash
+finalize (Digest f) = Hash . H.finalize . f . H.init $ 256
 
-one :: Hash
-one = word8 1
+bytes :: B.ByteString -> Digest
+bytes bs = Digest (\ctx -> H.update ctx bs)
 
-two :: Hash
-two = word8 2
+byte :: Word8 -> Digest
+byte b = bytes (B.singleton b)
 
-three :: Hash
-three = word8 3
+zero :: Digest
+zero = byte 0
+
+one :: Digest
+one = byte 1
+
+two :: Digest
+two = byte 2
+
+three :: Digest
+three = byte 3
 

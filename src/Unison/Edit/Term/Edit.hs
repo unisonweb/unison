@@ -4,7 +4,6 @@ import Control.Applicative
 import Unison.Edit.Term.Action
 import qualified Unison.Edit.Term.Path as P
 import qualified Unison.Syntax.Term as E
-import qualified Unison.Syntax.Term.Literal as EL
 import qualified Unison.Syntax.Var as V
 
 -- data Edit e = Edit [(Path, Action e)]
@@ -12,7 +11,7 @@ import qualified Unison.Syntax.Var as V
 -- but when applying an edit, have to pick a context
 -- context is just a function, which editing target must be applied to
 
-apply :: (EL.Literal -> Either Primop E.Term)
+apply :: (E.Literal -> Either Primop E.Term)
       -> Action E.Term -> P.Path -> E.Term -> Maybe E.Term
 apply expandLit f loc e = go f where
   go Abstract = abstract loc e
@@ -35,7 +34,7 @@ abstract loc e =
 -- }
 data Primop = Primop !Int ([E.Term] -> E.Term)
 
-step :: (EL.Literal -> Either Primop E.Term)
+step :: (E.Literal -> Either Primop E.Term)
      -> P.Path
      -> E.Term
      -> Maybe E.Term
