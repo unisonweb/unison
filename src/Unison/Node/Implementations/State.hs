@@ -24,8 +24,12 @@ data NodeState = NodeState {
 empty :: NodeState
 empty = NodeState M.empty M.empty M.empty
 
-node :: Node (State NodeState) H.Hash T.Type E.Term
-node =
+node :: Monad f
+     => (H.Hash -> Term -> f ()) -> (H.Hash -> f (Maybe Term))
+     -> (H.Hash -> Type -> f ()) -> (H.Hash -> f (Maybe Type))
+     -> (H.Hash -> MD.Metadata H.Hash -> f ()) -> (H.Hash -> f (Maybe (MD.Metadata H.Hash)))
+     -> Node f H.Hash Type Term
+node writeTerm readTerm writeType readType writeMetadata readMetadata =
   let
     createTerm e md = undefined
       {-
