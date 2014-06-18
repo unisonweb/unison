@@ -8,4 +8,4 @@ data Style = Style {
   nameVisible :: Bool,
   showEquals :: Bool,
   style :: Text
-}
+} deriving (Eq,Ord,Show,Read)

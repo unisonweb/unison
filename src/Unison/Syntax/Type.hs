@@ -25,7 +25,7 @@ data Literal
   | String
   | Vector
   | Hash H.Hash -- ^ A type literal uniquely defined by some nameless Hash
-  deriving (Eq,Ord,Show)
+  deriving (Eq,Ord,Show,Read)
 
 -- | Types in the Unison language
 data Type
@@ -36,7 +36,7 @@ data Type
   | Ann Type K.Kind
   | Constrain Type () -- todo: constraint language
   | Forall V.Var Type -- ^ `DeBruijn 1` is bounded by nearest enclosing `Forall`, `DeBruijn 2` by next enclosing `Forall`, etc
-  deriving (Eq,Ord,Show)
+  deriving (Eq,Ord,Show,Read)
 
 trav :: Applicative f => (V.Var -> f V.Var) -> Type -> f Type
 trav _ (Unit l) = pure (Unit l)

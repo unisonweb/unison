@@ -16,3 +16,8 @@ editor backend
 --
 
 -- need path and action type for ADTs
+-- implement node server locally
+
+pretty awesome that an immutable codebase means we only have to
+typecheck a tiny bit of code at a time
+

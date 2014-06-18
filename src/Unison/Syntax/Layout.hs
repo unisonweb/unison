@@ -31,3 +31,4 @@ data Layout k
   | Vertical [Layout k]     -- ^ Vertical flow, each child takes up its preferred space
   | Class Text (Layout k)   -- ^ Attach a "class" attribute to this 'Layout'
   | Id Text (Layout k)      -- ^ Attach an "id" attribute to this 'Layout'
+  deriving (Eq,Ord,Show,Read)

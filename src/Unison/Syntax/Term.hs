@@ -9,6 +9,7 @@ import Control.Applicative
 import qualified Data.Text as Txt
 import qualified Data.Vector.Unboxed as V
 import Unison.Syntax.Var as V
+import qualified Unison.Syntax.Layout as L
 import qualified Unison.Syntax.Hash as H
 import qualified Unison.Syntax.Type as T
 
@@ -17,7 +18,8 @@ data Literal
   = Number Double
   | String Txt.Text
   | Vector (V.Vector Double)
-  deriving (Eq,Ord,Show)
+  | Layout (L.Layout Term)
+  deriving (Eq,Ord,Show,Read)
 
 -- | Terms in the Unison language
 data Term
@@ -27,7 +29,7 @@ data Term
   | App Term Term
   | Ann Term T.Type
   | Lam Term
-  deriving (Eq,Ord,Show)
+  deriving (Eq,Ord,Show,Read)
 
 abstract :: V.Var -> Term -> Term
 abstract v = go V.bound1 where

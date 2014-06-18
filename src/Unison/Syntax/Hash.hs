@@ -9,7 +9,7 @@ import qualified Data.Text as T
 import qualified Crypto.Hash.SHA3 as H
 
 -- | Hash which uniquely identifies a Unison type or term
-newtype Hash = Hash B.ByteString deriving (Eq,Show,Ord)
+newtype Hash = Hash B.ByteString deriving (Eq,Ord,Show,Read)
 
 -- | Buffer type for building up hash values
 newtype Digest = Digest (H.Ctx -> H.Ctx)

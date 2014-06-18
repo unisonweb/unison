@@ -60,6 +60,8 @@ library
     Unison.Syntax.Hash
     Unison.Syntax.Index
     Unison.Syntax.Kind
+    Unison.Syntax.Layout
+    Unison.Syntax.Layout.Style
     Unison.Syntax.Term
     Unison.Syntax.Type
     Unison.Syntax.Var
@@ -81,7 +83,7 @@ library
     text                      >= 0.11.2,
     vector                    >= 0.10.11.0
 
-  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N
 
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
