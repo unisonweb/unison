@@ -15,7 +15,7 @@ data Node m k t e = Node {
   -- | Create a new type and provide its metadata
   createType :: t -> M.Metadata k -> m (Either N.Note k),
   -- | Lookup the direct dependencies of @k@, optionally limited to the given set
-  dependencies :: Maybe (S.Set k) -> k -> m (S.Set k),
+  dependencies :: Maybe (S.Set k) -> k -> m (Maybe (S.Set k)),
   -- | Lookup the set of terms/types depending directly on the given @k@, optionally limited to the given set
   dependents :: Maybe (S.Set k) -> k -> m (S.Set k),
   -- | Modify the given subterm, which may fail

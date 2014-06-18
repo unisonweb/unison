@@ -124,8 +124,11 @@ freeVars t = case t of
   Constrain fn _ -> freeVars fn
   Forall v fn -> S.delete v (freeVars fn)
 
-hash :: Type -> H.Hash
+hash :: Type -> H.Digest
 hash _ = error "todo: Type.hash"
+
+finalizeHash :: Type -> H.Hash
+finalizeHash = H.finalize . hash
 
 hashes :: [Type] -> H.Hash
 hashes _ = error "todo: Type.hashes"

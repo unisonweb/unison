@@ -6,6 +6,7 @@
 module Unison.Syntax.Term where
 
 import Control.Applicative
+import qualified Data.Set as S
 import qualified Data.Text as Txt
 import qualified Data.Vector.Unboxed as V
 import Unison.Syntax.Var as V
@@ -61,6 +62,16 @@ collect f = go where
     App fn arg -> App <$> go fn <*> go arg
     Ann e' t -> Ann <$> go e' <*> pure t
     Lam body -> Lam <$> go body
+
+dependencies :: Term -> S.Set H.Hash
+dependencies e = case e of
+  Ref h -> S.singleton h
+  Con h -> S.singleton h
+  Var _ -> S.empty
+  Lit _ -> S.empty
+  App fn arg -> dependencies fn `S.union` dependencies arg
+  Ann e t -> dependencies e
+  Lam body -> dependencies body
 
 lam1 :: (Term -> Term) -> Term
 lam1 f = let v = V.decr V.bound1 -- unused
@@ -120,6 +131,9 @@ text s = Lit (String s)
 -- | Computes the nameless hash of the given term
 hash :: Term -> H.Digest
 hash _ = error "todo: Term.hash"
+
+finalizeHash :: Term -> H.Hash
+finalizeHash = H.finalize . hash
 
 -- | Computes the nameless hash of the given terms, where
 -- the terms may have mutual dependencies
