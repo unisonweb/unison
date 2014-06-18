@@ -9,7 +9,6 @@ import Control.Applicative
 import qualified Data.Text as Txt
 import qualified Data.Vector.Unboxed as V
 import Unison.Syntax.Var as V
-import qualified Unison.Syntax.Layout as L
 import qualified Unison.Syntax.Hash as H
 import qualified Unison.Syntax.Type as T
 
@@ -18,13 +17,13 @@ data Literal
   = Number Double
   | String Txt.Text
   | Vector (V.Vector Double)
-  | Layout (L.Layout Term)
   deriving (Eq,Ord,Show,Read)
 
 -- | Terms in the Unison language
 data Term
   = Var V.Var
   | Lit Literal
+  | Con H.Hash -- ^ A constructor reference. @Con h `App` ...@ is by definition in normal form
   | Ref H.Hash
   | App Term Term
   | Ann Term T.Type
@@ -35,6 +34,7 @@ abstract :: V.Var -> Term -> Term
 abstract v = go V.bound1 where
   go _ l@(Lit _) = l
   go _ r@(Ref _) = r
+  go _ c@(Con _) = c
   go n (App f arg) = App (go n f) (go n arg)
   go n (Var v')  | v == v'   = Var n
   go _ x@(Var _) | otherwise = x
@@ -56,6 +56,7 @@ collect f = go where
   go e = case e of
     Var v -> f v
     Ref h -> pure (Ref h)
+    Con h -> pure (Con h)
     Lit l -> pure (Lit l)
     App fn arg -> App <$> go fn <*> go arg
     Ann e' t -> Ann <$> go e' <*> pure t
@@ -82,13 +83,11 @@ lam3 f =
 subst1 :: Term -> Term -> Term
 subst1 = go V.bound1 where
   go ind body e = case body of
-    Var v | v == ind -> e
-    Var _ -> body
-    Ref _ -> body
-    Lit _ -> body
     App f arg -> App (go ind f e) (go ind arg e)
     Ann body' t -> Ann (go ind body' e) t
     Lam body' -> Lam (go (V.succ ind) body' e)
+    Var v | v == ind -> e
+    _ -> body
 
 vars :: Term -> [V.Var]
 vars e = getConst $ collect (\v -> Const [v]) e

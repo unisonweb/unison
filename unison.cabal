@@ -61,8 +61,6 @@ library
     Unison.Syntax.Hash
     Unison.Syntax.Index
     Unison.Syntax.Kind
-    Unison.Syntax.Layout
-    Unison.Syntax.Layout.Style
     Unison.Syntax.Term
     Unison.Syntax.Type
     Unison.Syntax.Var

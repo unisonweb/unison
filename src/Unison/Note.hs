@@ -11,7 +11,7 @@ note s = Note [s]
 
 note' :: String -> Maybe a -> Either Note a
 note' s Nothing = Left (note s)
-note' s (Just a) = Right a
+note' _ (Just a) = Right a
 
 scope :: String -> Either Note a -> Either Note a
 scope s (Left (Note stack)) = Left (Note (s : stack))

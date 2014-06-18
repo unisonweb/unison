@@ -7,7 +7,6 @@ import Unison.Syntax.Hash as H
 import Unison.Syntax.Type as T
 import Unison.Syntax.Term as E
 import Unison.Node (Node)
-import qualified Unison.Node as N
 import qualified Unison.Note as Note
 import Unison.Note (Note)
 
@@ -35,20 +34,19 @@ data Store f = Store {
 lookup' :: (Show a, Monad f) => (a -> f (Maybe b)) -> a -> f (Either Note b)
 lookup' f a = liftM (Note.note' missing) (f a) where
   missing = "Could not find: " ++ show a
+
 {-
 node :: Monad f -> Store f -> Node f H.Hash Type Term
 node store =
     createTerm e md =
       let hash = E.hash e
           t =
-      {-
       let hash = E.hash e
           updateTerm s = s { terms = insert hash e (terms s) }
           updateMetadata s = s { terms = insert hash e (terms s) }
       in case synthesizeClosed  modify (updateTerm . updateMetadata)
 
       modify (\s -> s { terms }
--}
     createType = error "todo"
     dependencies = error "todo"
     dependents = error "todo"
@@ -83,4 +81,4 @@ node store =
        typeOf
        typeOfConstructorArg
        updateMetadata
- -}
+-}
