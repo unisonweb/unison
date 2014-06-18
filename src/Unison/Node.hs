@@ -7,7 +7,7 @@ import Unison.Node.Metadata as M
 import Unison.Edit.Term.Action as A
 import Unison.Edit.Term.Path as P
 import Unison.Edit.Type.Path as TP
-import Unison.Type.Note as N
+import Unison.Note as N
 
 data Node m k t e = Node {
   -- | Create a new term and provide its metadata

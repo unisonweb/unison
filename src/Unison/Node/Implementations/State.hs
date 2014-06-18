@@ -8,30 +8,39 @@ import Unison.Syntax.Type as T
 import Unison.Syntax.Term as E
 import Unison.Node (Node)
 import qualified Unison.Node as N
-
--- need to add specific term/type Language
--- can add that to the Syntax package, probably should move Layout type there
--- as well
--- basically just
--- nails down some type signatures for term / type ADTs
+import qualified Unison.Note as Note
+import Unison.Note (Note)
 
 data NodeState = NodeState {
-  terms :: M.Map H.Hash Term,
-  types :: M.Map H.Hash Type,
-  metadata :: M.Map H.Hash (MD.Metadata H.Hash)
+  terms :: M.Map H.Hash Term, -- ^ Maps term hash to source
+  typeOf :: M.Map H.Hash Type, -- ^ Maps term hash to type
+  types :: M.Map H.Hash Type, -- ^ Maps type hash to source
+  metadata :: M.Map H.Hash (MD.Metadata H.Hash) -- ^ Metadata for terms, types
 }
 
 empty :: NodeState
-empty = NodeState M.empty M.empty M.empty
+empty = NodeState M.empty M.empty M.empty M.empty
 
-node :: Monad f
-     => (H.Hash -> Term -> f ()) -> (H.Hash -> f (Maybe Term))
-     -> (H.Hash -> Type -> f ()) -> (H.Hash -> f (Maybe Type))
-     -> (H.Hash -> MD.Metadata H.Hash -> f ()) -> (H.Hash -> f (Maybe (MD.Metadata H.Hash)))
-     -> Node f H.Hash Type Term
-node writeTerm readTerm writeType readType writeMetadata readMetadata =
-  let
-    createTerm e md = undefined
+data Store f = Store {
+  readTerm :: H.Hash -> f (Maybe Term),
+  writeTerm :: H.Hash -> Term -> f (),
+  readType :: H.Hash -> f (Maybe Type),
+  writeType :: H.Hash -> Type -> f (),
+  readTypeOf :: H.Hash -> f (Maybe Type),
+  writeTypeOf :: H.Hash -> Type -> f (),
+  readMetadata :: H.Hash -> f (Maybe (MD.Metadata H.Hash)),
+  writeMetadata :: H.Hash -> MD.Metadata H.Hash -> f ()
+}
+
+lookup' :: (Show a, Monad f) => (a -> f (Maybe b)) -> a -> f (Either Note b)
+lookup' f a = liftM (Note.note' missing) (f a) where
+  missing = "Could not find: " ++ show a
+{-
+node :: Monad f -> Store f -> Node f H.Hash Type Term
+node store =
+    createTerm e md =
+      let hash = E.hash e
+          t =
       {-
       let hash = E.hash e
           updateTerm s = s { terms = insert hash e (terms s) }
@@ -74,3 +83,4 @@ node writeTerm readTerm writeType readType writeMetadata readMetadata =
        typeOf
        typeOfConstructorArg
        updateMetadata
+ -}

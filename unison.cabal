@@ -56,6 +56,7 @@ library
     Unison.Node.Implementations.State
     Unison.Node.Metadata
     Unison.Node.Panel
+    Unison.Note
     Unison.Syntax
     Unison.Syntax.Hash
     Unison.Syntax.Index
@@ -67,7 +68,6 @@ library
     Unison.Syntax.Var
     Unison.Type.Context
     Unison.Type.Context.Element
-    Unison.Type.Note
 
   build-depends:
     aeson                     >= 0.7.0.6,

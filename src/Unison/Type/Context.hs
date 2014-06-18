@@ -16,7 +16,7 @@ import Unison.Syntax.Term (Term)
 import Unison.Syntax.Var as V
 import qualified Unison.Syntax.Hash as H
 import Unison.Type.Context.Element as E
-import Unison.Type.Note
+import Unison.Note
 
 -- | An ordered algorithmic context
 -- Context variables will be negative, while 'normal' DeBruijn

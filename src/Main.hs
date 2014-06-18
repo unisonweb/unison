@@ -4,7 +4,7 @@ import Control.Monad
 import Unison.Syntax.Term as E
 import Unison.Syntax.Type as T
 import Unison.Type.Context as C
-import Unison.Type.Note as N
+import Unison.Note as N
 import Unison.Syntax.Var as V
 
 identity :: E.Term
