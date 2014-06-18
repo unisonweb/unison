@@ -66,6 +66,7 @@ library
     Unison.Syntax.Term
     Unison.Syntax.Type
     Unison.Syntax.Var
+    Unison.Type
     Unison.Type.Context
     Unison.Type.Context.Element
 

@@ -3,7 +3,7 @@
 {-# LANGUAGE KindSignatures #-}
 
 -- | The Unison language typechecker
-module Unison.Type.Context (synthesizeClosed) where
+module Unison.Type.Context (context, subtype, synthesizeClosed) where
 
 import Control.Applicative
 import Control.Applicative.Compose as C
