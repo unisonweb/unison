@@ -70,7 +70,7 @@ dependencies e = case e of
   Var _ -> S.empty
   Lit _ -> S.empty
   App fn arg -> dependencies fn `S.union` dependencies arg
-  Ann e t -> dependencies e
+  Ann e _ -> dependencies e
   Lam body -> dependencies body
 
 lam1 :: (Term -> Term) -> Term
