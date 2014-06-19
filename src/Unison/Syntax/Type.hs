@@ -38,15 +38,6 @@ data Type
   | Forall V.Var Type -- ^ `DeBruijn 1` is bounded by nearest enclosing `Forall`, `DeBruijn 2` by next enclosing `Forall`, etc
   deriving (Eq,Ord,Show,Read)
 
-trav :: Applicative f => (V.Var -> f V.Var) -> Type -> f Type
-trav _ (Unit l) = pure (Unit l)
-trav f (Arrow i o) = Arrow <$> trav f i <*> trav f o
-trav f (Universal v) = Universal <$> f v
-trav f (Existential v) = Existential <$> f v
-trav f (Ann t k) = Ann <$> trav f t <*> pure k
-trav f (Constrain t c) = Constrain <$> trav f t <*> pure c
-trav f (Forall v fn) = Forall <$> f v <*> trav f fn
-
 monotype :: Type -> Maybe Monotype
 monotype t = Monotype <$> go t where
   go (Unit l) = pure (Unit l)
