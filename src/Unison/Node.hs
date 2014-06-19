@@ -43,7 +43,7 @@ data Node m k t e = Node {
   -- | Obtain the type of a constructor argument of a type
   typeOfConstructorArg :: k -> TP.Path -> m (Maybe t),
   -- | Update the metadata associated with the given term or type
-  updateMetadata :: k -> M.Metadata k -> m Bool
+  updateMetadata :: k -> M.Metadata k -> m ()
 
   -- possibly later
   -- editConstructor :: k -> -> A.Action -> m (Either N.Note (k, t)), -- ^ Modify the given type, which may fail

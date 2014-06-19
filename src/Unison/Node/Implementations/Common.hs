@@ -10,6 +10,7 @@ import qualified Unison.Type as Type
 import Unison.Syntax.Hash as H
 import qualified Unison.Syntax.Type as T
 import qualified Unison.Syntax.Term as E
+import qualified Unison.Edit.Term.Path as P
 import Unison.Syntax.Type (Type)
 import Unison.Syntax.Term (Term)
 import Unison.Node as N
@@ -67,17 +68,19 @@ node store =
       return $ S.fromList [x | (x,deps) <- hs', S.member h deps]
     edit = error "todo"
     editType = error "todo"
-    metadata = error "todo"
+    metadata = readMetadata store
     panel = error "todo"
     search = error "todo"
     searchLocal = error "todo"
-    term = error "todo"
+    term = readTerm store
     transitiveDependencies = error "todo"
     transitiveDependents = error "todo"
-    typ = error "todo"
-    typeOf = error "todo"
+    typ = readType store
+    typeOf h p = case p of
+      P.Path [] -> readTypeOf store h
+      P.Path _ -> error "todo: typeOf"
     typeOfConstructorArg = error "todo"
-    updateMetadata = error "todo"
+    updateMetadata = writeMetadata store
   in N.Node
        createTerm
        createType
