@@ -70,15 +70,25 @@ extendMarker (Context n ctx) =
   let v = V.decr n in (v, Context v ([E.Existential v, E.Marker v] ++ ctx))
 
 -- | Delete up to and including the given `Element`
-retract :: Element -> Context -> Context
-retract m (Context _ ctx) =
-  let ctx' = tail (dropWhile (go m) ctx)
-      n' = fromMaybe bound0 (currentVar ctx') -- ok to recycle our variable supply
+-- returns @Nothing@ if the element is not found
+retract :: Element -> Context -> Either Note Context
+retract m c@(Context _ ctx) =
+  let maybeTail [] = Left $ note ("unable to retract: " ++ show m)
+      maybeTail (_:t) = Right t
+      ctx' = maybeTail (dropWhile (go m) ctx)
+      n' = case ctx' of
+        Left _ -> bound0
+        Right c -> fromMaybe bound0 (currentVar c) -- ok to recycle var supply
       go (Marker v)      (Marker v2)          | v == v2 = False
       go (E.Universal v) (E.Universal v2)     | v == v2 = False
       go (E.Existential v) (E.Existential v2) | v == v2 = False
       go _ _                                            = True
-  in Context n' ctx'
+  in scope ("context: "++show c) (Context n' <$> ctx')
+
+retract' :: Element -> Context -> Context
+retract' e ctx = case retract e ctx of
+  Left _ -> context []
+  Right ctx -> ctx
 
 universals :: Context -> [V.Var]
 universals (Context _ ctx) = [v | E.Universal v <- ctx]
@@ -105,7 +115,7 @@ breakAt m (Context _ xs) =
 
 -- | ordered Γ α β = True <=> Γ[α^][β^]
 ordered :: Context -> V.Var -> V.Var -> Bool
-ordered ctx v v2 = v `elem` existentials (retract (E.Existential v2) ctx)
+ordered ctx v v2 = v `elem` existentials (retract' (E.Existential v2) ctx)
 
 -- | solve (ΓL,α^,ΓR) α τ = (ΓL,α = τ,ΓR)
 -- If the given existential variable exists in the context,
@@ -195,14 +205,14 @@ subtype ctx tx ty = scope (show tx++" <: "++show ty) (go tx ty) where -- Rules f
   go (T.Arrow i1 o1) (T.Arrow i2 o2) = do -- `-->`
     ctx' <- subtype ctx i1 i2
     subtype ctx' (apply ctx' o1) (apply ctx' o2)
-  go (T.Forall _ t) t2 = -- `forall (L)`
-    let (v, ctx') = extendMarker ctx
-        t' = subst1 t (T.Existential v)
-    in retract (E.Marker v) <$> subtype ctx' (apply ctx' t') t2
-  go t (T.Forall _ t2) = -- `forall (R)`
-    let (v, ctx') = extendUniversal ctx
-        t2' = subst1 t2 (T.Universal v)
-    in retract (E.Universal v) <$> subtype ctx' t t2'
+  go (T.Forall v t) t2 = -- `forall (L)`
+    let (v', ctx') = extendMarker ctx
+        t' = subst t v (T.Existential v')
+    in subtype ctx' (apply ctx' t') t2 >>= retract (E.Marker v)
+  go t (T.Forall v t2) = -- `forall (R)`
+    let (v', ctx') = extendUniversal ctx
+        t2' = subst t2 v (T.Universal v')
+    in subtype ctx' t t2' >>= retract (E.Universal v)
   go (T.Existential v) t -- `InstantiateL`
     | v `elem` existentials ctx && S.notMember v (freeVars t) =
     instantiateL ctx v t
@@ -232,8 +242,8 @@ instantiateL ctx v t = case monotype t >>= solve ctx v of
         instantiateL ctx' o' (apply ctx' o)
     T.Forall x body -> -- InstLIIL
       let (v', ctx') = extendUniversal ctx
-      in retract (E.Universal v') <$>
-         instantiateL ctx' v (T.subst body x (T.Universal v'))
+      in instantiateL ctx' v (T.subst body x (T.Universal v'))
+         >>= retract (E.Universal v')
     _ -> Left $ note "could not instantiate left"
 
 -- | Instantiate the given existential such that it is
@@ -257,10 +267,11 @@ instantiateR ctx t v = case monotype t >>= solve ctx v of
         instantiateR ctx' (apply ctx' o) o'
     T.Forall x body -> -- InstRAIIL
       let x' = fresh ctx
-      in retract (E.Marker x') <$>
+      in
         instantiateR (ctx `append` context [E.Marker x', E.Existential x'])
                      (T.subst body x (T.Existential x'))
                      v
+        >>= retract (E.Marker x')
     _ -> Left $ note "could not instantiate right"
 
 -- | Check that under the given context, `e` has type `t`,
@@ -270,13 +281,14 @@ check ctx e t | wellformedType ctx t = scope (show e ++ ": " ++ show t) $ go e t
   go (Term.Lit l) _ = subtype ctx (synthLit l) t -- 1I
   go _ (T.Forall x body) = -- ForallI
     let (x', ctx') = extendUniversal ctx
-    in retract (E.Universal x') <$> check ctx' e (T.subst body x (T.Universal x'))
+    in check ctx' e (T.subst body x (T.Universal x'))
+       >>= retract (E.Universal x')
   go (Term.Lam body) (T.Arrow i o) = -- =>I
     let x' = fresh ctx
         v = Term.Var x'
         ctx' = extend (E.Ann x' i) ctx
         body' = Term.subst1 body v
-    in retract (E.Ann x' i) <$> check ctx' body' o
+    in check ctx' body' o >>= retract (E.Ann x' i)
   go _ _ = do -- Sub
     (a, ctx') <- synthesize ctx e
     subtype ctx' (apply ctx' a) (apply ctx' t)
@@ -312,7 +324,6 @@ synthesize ctx e = scope (show e ++ " =>") $ go e where
     let (arg, i, o) = fresh3 ctx
         ctxTl = context [E.Marker i, E.Existential i, E.Existential o,
                          E.Ann arg (T.Existential i)]
-        freshVars = tail $ iterate fresh' o
     in do
       ctx' <- check (ctx `append` ctxTl)
                     (Term.subst1 body (Term.Var arg))
@@ -322,10 +333,8 @@ synthesize ctx e = scope (show e ++ " =>") $ go e where
         -- unsolved existentials get generalized to universals
         ft = apply ctx2 (T.Arrow (T.Existential i) (T.Existential o))
         existentials' = unsolved ctx2
-        universals' = take (length existentials') freshVars
-        ft' = foldr step ft (zip (map T.Universal universals') existentials')
-        step (t,v) typ = T.subst typ v t
-        ft2 = foldr (\v body' -> Forall V.bound1 (abstract v body')) ft' universals'
+        ft2 = foldr gen ft existentials'
+        gen e ft = T.forall1 $ \v -> subst ft e v
         in (ft2, ctx1)
 
 -- | Synthesize the type of the given term, `arg` given that a function of

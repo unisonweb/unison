@@ -29,7 +29,17 @@ data Term
   | App Term Term
   | Ann Term T.Type
   | Lam Term
-  deriving (Eq,Ord,Show,Read)
+  deriving (Eq,Ord)
+
+instance Show Term where
+  show (Var v) = show v
+  show (Ref v) = show v
+  show (Lit l) = show l
+  show (Con h) = show h
+  show (App f x@(App _ _)) = show f ++ "(" ++ show x ++ ")"
+  show (App f x) = show f ++ " " ++ show x
+  show (Ann x t) = "(" ++ show x ++ " : " ++ show t ++ ")"
+  show (Lam body) = "λ."++show body
 
 abstract :: V.Var -> Term -> Term
 abstract v = go V.bound1 where
