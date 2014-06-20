@@ -45,13 +45,13 @@ instance Show Type where
   show (Arrow (Arrow i i2) o) = "(" ++ show i ++ " -> " ++ show i2 ++ ") -> " ++ show o
   show (Arrow i o) = show i ++ " -> " ++ show o
   show (Universal n) = show n
-  show (Existential n) = "^" ++ show n
+  show (Existential n) = "'" ++ show n
   show (Ann t k) = show t ++ ":" ++ show k
   show (Constrain t _) = show t
   show (Forall x (Forall y (Forall z t))) =
-    "∀ " ++ (L.intercalate " " . map show) [x,y,z] ++ ". " ++ show t
-  show (Forall x (Forall y t)) = "∀ " ++ (L.intercalate " " . map show) [x,y] ++ ". " ++ show t
-  show (Forall x t) = "∀ " ++ show x ++ ". " ++ show t
+    "(∀ " ++ (L.intercalate " " . map show) [x,y,z] ++ ". " ++ show t ++ ")"
+  show (Forall x (Forall y t)) = "(∀ " ++ (L.intercalate " " . map show) [x,y] ++ ". " ++ show t++")"
+  show (Forall x t) = "(∀ " ++ show x ++ ". " ++ show t++")"
 
 monotype :: Type -> Maybe Monotype
 monotype t = Monotype <$> go t where

@@ -10,6 +10,12 @@ import Unison.Syntax.Var as V
 identity :: E.Term
 identity = E.lam1 $ \x -> x
 
+constant :: E.Term
+constant = E.lam2 $ \x y -> x
+
+apply :: E.Term
+apply = E.lam2 $ \f x -> f `E.App` x
+
 -- type Any = forall r . (forall a . a -> r) -> r
 
 anyT :: Type

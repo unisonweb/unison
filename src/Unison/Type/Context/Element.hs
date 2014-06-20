@@ -21,9 +21,9 @@ data Element where
 
 instance Show Element where
   show (Universal v) = show v
-  show (Existential v) = "^"++show v
-  show (Solved v t) = "^"++show v++"="++show t
-  show (Ann v t) = show v++":"++show t
+  show (Existential v) = "'"++show v
+  show (Solved v t) = "'"++show v++" = "++show t
+  show (Ann v t) = show v++" : "++show t
   show (Marker v) = "|"++show v++"|"
 
 (===) :: Element -> Element -> Bool

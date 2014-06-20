@@ -26,7 +26,7 @@ import Unison.Note
 data Context = Context V.Var [Element]
 
 instance Show Context where
-  show (Context n es) = "Context (" ++ show n ++ ") " ++ show (reverse es)
+  show (Context n es) = "Γ " ++ show n ++ ".\n  " ++ (intercalate "\n  " . map show) (reverse es)
 
 bound0 :: V.Var
 bound0 = V.decr V.bound1
@@ -70,7 +70,7 @@ extendMarker (Context n ctx) =
   let v = V.decr n in (v, Context v ([E.Existential v, E.Marker v] ++ ctx))
 
 -- | Delete up to and including the given `Element`
--- returns @Nothing@ if the element is not found
+-- returns @Left@ if the element is not found
 retract :: Element -> Context -> Either Note Context
 retract m c@(Context _ ctx) =
   let maybeTail [] = Left $ note ("unable to retract: " ++ show m)
@@ -205,14 +205,15 @@ subtype ctx tx ty = scope (show tx++" <: "++show ty) (go tx ty) where -- Rules f
   go (T.Arrow i1 o1) (T.Arrow i2 o2) = do -- `-->`
     ctx' <- subtype ctx i1 i2
     subtype ctx' (apply ctx' o1) (apply ctx' o2)
-  go (T.Forall v t) t2 = -- `forall (L)`
+  go (T.Forall v t) t2 = scope "forall (L)" $
     let (v', ctx') = extendMarker ctx
         t' = subst t v (T.Existential v')
-    in subtype ctx' (apply ctx' t') t2 >>= retract (E.Marker v)
-  go t (T.Forall v t2) = -- `forall (R)`
+    in scope (show t') $
+       subtype ctx' (apply ctx' t') t2 >>= retract (E.Marker v')
+  go t (T.Forall v t2) = scope "forall (R)" $
     let (v', ctx') = extendUniversal ctx
         t2' = subst t2 v (T.Universal v')
-    in subtype ctx' t t2' >>= retract (E.Universal v)
+    in subtype ctx' t t2' >>= retract (E.Universal v')
   go (T.Existential v) t -- `InstantiateL`
     | v `elem` existentials ctx && S.notMember v (freeVars t) =
     instantiateL ctx v t
@@ -277,7 +278,7 @@ instantiateR ctx t v = case monotype t >>= solve ctx v of
 -- | Check that under the given context, `e` has type `t`,
 -- updating the context in the process.
 check :: Context -> Term -> Type -> Either Note Context
-check ctx e t | wellformedType ctx t = scope (show e ++ ": " ++ show t) $ go e t where
+check ctx e t | wellformedType ctx t = scope (show e ++ " : " ++ show t) $ go e t where
   go (Term.Lit l) _ = subtype ctx (synthLit l) t -- 1I
   go _ (T.Forall x body) = -- ForallI
     let (x', ctx') = extendUniversal ctx
@@ -305,7 +306,7 @@ synthLit lit = T.Unit $ case lit of
 -- in the process. Parameterized on a function for synthesizing
 -- the type of a literal, `l`.
 synthesize :: Context -> Term -> Either Note (Type, Context)
-synthesize ctx e = scope (show e ++ " =>") $ go e where
+synthesize ctx e = scope ("infer: " ++ show e) $ go e where
   go (Term.Var v) = case lookupType ctx v of -- Var
     Nothing -> Left $ note "type not in scope"
     Just t -> pure (t, ctx)
