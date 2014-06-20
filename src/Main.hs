@@ -17,24 +17,11 @@ apply :: E.Term
 apply = E.lam2 $ \f x -> f `E.App` x
 
 -- type Any = forall r . (forall a . a -> r) -> r
-
 anyT :: Type
 anyT = forall1 $ \r -> (forall1 $ \a -> a `T.Arrow` r) `T.Arrow` r
 
-anyE :: Term
-anyE = lam2 $ \x f -> f `E.App` x
-
---
--- Forall x1
---   (Forall x1
---     (Arrow (Universal x1)
---            (Arrow (Arrow (Universal x1) (Universal x2))
---                   (Universal x2)
---            )
---     )
---   )
 expr :: E.Term
-expr = anyE
+expr = identityAnn
 
 identityAnn = E.Ann identity (forall1 $ \x -> T.Arrow x x)
 

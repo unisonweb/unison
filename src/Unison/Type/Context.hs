@@ -75,14 +75,10 @@ retract :: Element -> Context -> Either Note Context
 retract m c@(Context _ ctx) =
   let maybeTail [] = Left $ note ("unable to retract: " ++ show m)
       maybeTail (_:t) = Right t
-      ctx' = maybeTail (dropWhile (go m) ctx)
+      ctx' = maybeTail (dropWhile (/= m) ctx)
       n' = case ctx' of
         Left _ -> bound0
         Right c -> fromMaybe bound0 (currentVar c) -- ok to recycle var supply
-      go (Marker v)      (Marker v2)          | v == v2 = False
-      go (E.Universal v) (E.Universal v2)     | v == v2 = False
-      go (E.Existential v) (E.Existential v2) | v == v2 = False
-      go _ _                                            = True
   in scope ("context: "++show c) (Context n' <$> ctx')
 
 retract' :: Element -> Context -> Context
