@@ -19,9 +19,9 @@ data Node m k t e = Node {
   -- | Lookup the set of terms/types depending directly on the given @k@, optionally limited to the given set
   dependents :: Maybe (S.Set k) -> k -> m (S.Set k),
   -- | Modify the given subterm, which may fail
-  edit :: k -> P.Path -> A.Action k -> m (Either N.Note (k, e)),
+  edit :: k -> P.Path -> A.Action e -> m (Either N.Note (k, e)),
   -- | Modify the given type, which may fail
-  editType :: k -> P.Path -> A.Action k -> m (Either N.Note (k, t)),
+  editType :: k -> P.Path -> A.Action t -> m (Either N.Note (k, t)),
   -- | Access the metadata for the term or type identified by @k@
   metadata :: k -> m (Maybe (M.Metadata k)),
   -- | Render the term or type identified by @k@ as a panel--

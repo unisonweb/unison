@@ -280,11 +280,11 @@ check ctx e t | wellformedType ctx t = scope (show e ++ " : " ++ show t) $ go e 
     let (x', ctx') = extendUniversal ctx
     in check ctx' e (T.subst body x (T.Universal x'))
        >>= retract (E.Universal x')
-  go (Term.Lam body) (T.Arrow i o) = -- =>I
+  go fn@(Term.Lam _ _) (T.Arrow i o) = -- =>I
     let x' = fresh ctx
         v = Term.Var x'
         ctx' = extend (E.Ann x' i) ctx
-        body' = Term.subst1 body v
+        body' = Term.betaReduce (fn `Term.App` v)
     in check ctx' body' o >>= retract (E.Ann x' i)
   go _ _ = do -- Sub
     (a, ctx') <- synthesize ctx e
@@ -317,13 +317,13 @@ synthesize ctx e = scope ("infer: " ++ show e) $ go e where
   go (Term.App f arg) = do -- ->E
     (ft, ctx') <- synthesize ctx f
     synthesizeApp ctx' (apply ctx' ft) arg
-  go (Term.Lam body) = -- ->I=> (Full Damas Milner rule)
+  go fn@(Term.Lam _ _) = -- ->I=> (Full Damas Milner rule)
     let (arg, i, o) = fresh3 ctx
         ctxTl = context [E.Marker i, E.Existential i, E.Existential o,
                          E.Ann arg (T.Existential i)]
     in do
       ctx' <- check (ctx `append` ctxTl)
-                    (Term.subst1 body (Term.Var arg))
+                    (Term.betaReduce $ fn `Term.App` Term.Var arg)
                     (T.Existential o)
       pure $ let
         (ctx1, ctx2) = breakAt (E.Marker i) ctx'
@@ -367,5 +367,5 @@ synthesizeClosed synthRef term = synth <$> C.decompose (annotate term)
       Term.Con h -> Term.Ann (Term.Con h) <$> Compose (synthRef h)
       Term.App f arg -> Term.App <$> annotate f <*> annotate arg
       Term.Ann body t -> Term.Ann <$> annotate body <*> pure t
-      Term.Lam body -> Term.Lam <$> annotate body
+      Term.Lam n body -> Term.Lam n <$> annotate body
       _ -> pure term'

@@ -6,6 +6,7 @@
 module Unison.Syntax.Term where
 
 import Control.Applicative
+import Control.Monad
 import qualified Data.Set as S
 import qualified Data.Text as Txt
 import qualified Data.Vector.Unboxed as V
@@ -28,7 +29,7 @@ data Term
   | Ref H.Hash
   | App Term Term
   | Ann Term T.Type
-  | Lam Term
+  | Lam V.Var Term
   deriving (Eq,Ord)
 
 instance Show Term where
@@ -39,26 +40,40 @@ instance Show Term where
   show (App f x@(App _ _)) = show f ++ "(" ++ show x ++ ")"
   show (App f x) = show f ++ " " ++ show x
   show (Ann x t) = "(" ++ show x ++ " : " ++ show t ++ ")"
-  show (Lam body) = "λ."++show body
+  show (Lam n body) = "(" ++ show n ++ " -> " ++ show body ++ ")"
 
-abstract :: V.Var -> Term -> Term
-abstract v = go V.bound1 where
-  go _ l@(Lit _) = l
-  go _ r@(Ref _) = r
-  go _ c@(Con _) = c
-  go n (App f arg) = App (go n f) (go n arg)
-  go n (Var v')  | v == v'   = Var n
-  go _ x@(Var _) | otherwise = x
-  go n (Ann e t) = Ann (go n e) t
-  go n (Lam body) = Lam (go (V.succ n) body)
+lam1F :: Monad f => (Term -> f Term) -> f Term
+lam1F f = return Lam `ap` n `ap` body
+  where
+    n               = liftM V.succ (maxBV =<< body)
+    body            = f =<< liftM Var n
+    maxBV (App f x) = return max `ap` maxBV f `ap` maxBV x
+    maxBV (Ann x _) = maxBV x
+    maxBV (Lam n _) = return n
+    maxBV _         = return bot
+    bot = V.decr V.bound1
 
-ap1 :: Term -> Term -> Maybe Term
-ap1 (Lam body) t = Just (subst1 body t)
-ap1 _ _ = Nothing
+lam1 :: (Term -> Term) -> Term
+lam1 f = Lam n body
+  where
+    n = V.succ (maxBV body)
+    body = f (Var n)
+    bot = V.decr V.bound1
+    maxBV (Var _) = bot
+    maxBV (Ref _) = bot
+    maxBV (Lit _) = bot
+    maxBV (Con _) = bot
+    maxBV (App f x) = maxBV f `max` maxBV x
+    maxBV (Ann x _) = maxBV x
+    maxBV (Lam n _) = n
 
-bound1 :: Term
-bound1 = Var V.bound1
+lam2 :: (Term -> Term -> Term) -> Term
+lam2 f = lam1 $ \x -> lam1 $ \y -> f x y
 
+lam3 :: (Term -> Term -> Term -> Term) -> Term
+lam3 f = lam1 $ \x -> lam1 $ \y -> lam1 $ \z -> f x y z
+
+{-
 collect :: Applicative f
        => (V.Var -> f Term)
        -> Term
@@ -71,7 +86,8 @@ collect f = go where
     Lit l -> pure (Lit l)
     App fn arg -> App <$> go fn <*> go arg
     Ann e' t -> Ann <$> go e' <*> pure t
-    Lam body -> Lam <$> go body
+    Lam n body -> lam1 $ \x -> Lam n <$> go body
+-}
 
 dependencies :: Term -> S.Set H.Hash
 dependencies e = case e of
@@ -81,37 +97,12 @@ dependencies e = case e of
   Lit _ -> S.empty
   App fn arg -> dependencies fn `S.union` dependencies arg
   Ann e _ -> dependencies e
-  Lam body -> dependencies body
+  Lam _ body -> dependencies body
 
-lam1 :: (Term -> Term) -> Term
-lam1 f = let v = V.decr V.bound1 -- unused
-         in Lam . abstract v . f $ Var v
-
-lam2 :: (Term -> Term -> Term) -> Term
-lam2 f =
-  let v = V.decr V.bound1 -- unused
-      v2 = V.decr v
-  in Lam (abstract v (Lam (abstract v2 $ f (Var v) (Var v2))))
-
-lam3 :: (Term -> Term -> Term -> Term) -> Term
-lam3 f =
-  let v = V.decr V.bound1 -- unused
-      v2 = V.decr v
-      v3 = V.decr v2
-  in Lam (abstract v (Lam (abstract v2 (Lam (abstract v3 $ f (Var v) (Var v2) (Var v3))))))
-
--- subst1 f x
-subst1 :: Term -> Term -> Term
-subst1 = go V.bound1 where
-  go ind body e = case body of
-    App f arg -> App (go ind f e) (go ind arg e)
-    Ann body' t -> Ann (go ind body' e) t
-    Lam body' -> Lam (go (V.succ ind) body' e)
-    Var v | v == ind -> e
-    _ -> body
-
+{-
 vars :: Term -> [V.Var]
 vars e = getConst $ collect (\v -> Const [v]) e
+-}
 
 stripAnn :: Term -> (Term, Term -> Term)
 stripAnn (Ann e t) = (e, \e' -> Ann e' t)
@@ -122,8 +113,17 @@ arguments :: Term -> [Term]
 arguments (App f x) = arguments f ++ [x]
 arguments _ = []
 
+-- | If the outermost term is a function application,
+-- perform substitution of the argument into the body
 betaReduce :: Term -> Term
-betaReduce (App (Lam f) arg) = subst1 f arg
+betaReduce (App (Lam var f) arg) = go f where
+  go :: Term -> Term
+  go body = case body of
+    App f x -> App (go f) (go x)
+    Ann body t -> Ann (go body) t
+    Lam n body -> Lam n (go body)
+    Var v | v == var -> arg
+    _ -> body
 betaReduce e = e
 
 applyN :: Term -> [Term] -> Term

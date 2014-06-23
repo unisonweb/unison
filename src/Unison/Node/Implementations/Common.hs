@@ -66,7 +66,11 @@ node store =
       hs <- hashes store limit
       hs' <- mapM (\h -> liftM ((,) h . fromMaybe S.empty) (dependencies Nothing h)) (S.toList hs)
       return $ S.fromList [x | (x,deps) <- hs', S.member h deps]
-    edit = error "todo"
+    edit k path action = do
+      e <- readTerm store k
+      case e of
+        Nothing -> return . Left $ Note.note ("hash not found: " ++ show k)
+        Just e -> undefined
     editType = error "todo"
     metadata = readMetadata store
     panel = error "todo"
