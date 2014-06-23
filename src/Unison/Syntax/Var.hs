@@ -19,5 +19,8 @@ decr (I i) = I (i - 1)
 minv :: Var -> Var -> Var
 minv (I i) (I j) = I (min i j)
 
+nest :: Var -> Var -> Var
+nest (I i) (I j) = I (i + j)
+
 bound1 :: Var
 bound1 = I 1

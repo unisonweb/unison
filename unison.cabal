@@ -46,11 +46,10 @@ library
 
   exposed-modules:
     Unison
+    Unison.Edit.Term
     Unison.Edit.Term.Action
-    Unison.Edit.Term.Address
-    Unison.Edit.Term.Movement
+    Unison.Edit.Term.Eval
     Unison.Edit.Term.Path
-    Unison.Edit.Term.Edit
     Unison.Edit.Type.Path
     Unison.Node
     Unison.Node.Implementations.Common

@@ -1,6 +1,7 @@
 module Unison.Edit.Term.Path where
 
 import qualified Unison.Syntax.Term as E
+import qualified Unison.Syntax.Var as V
 import Control.Applicative
 
 data E
@@ -22,17 +23,19 @@ at (Path (h:t)) e = go h e where
   go _ _ = Nothing
 
 set :: Path -> E.Term -> E.Term -> Maybe E.Term
-set (Path []) e _ = Just e
-set (Path (h:t)) e ctx = go h ctx where
-  go _ (E.Var _) = Nothing
-  go _ (E.Lit _) = Nothing
-  go Fn (E.App f arg) = (\f' -> E.App f' arg) <$> set (Path t) e f
-  go Arg (E.App f arg) = E.App f <$> set (Path t) e arg
-  go _ (E.Ann x _) = set (Path (h:t)) e x
-  go Body fn@(E.Lam _ _) = E.lam1F $ \x -> set (Path t) e (E.betaReduce fn `E.App` x)
-  go _ _ = Nothing
+set path focus ctx = impl path ctx where
+  maxVar = E.maxV focus
+  impl (Path []) _ = Just focus
+  impl (Path (h:t)) ctx = go h ctx where
+    go _ (E.Var _) = Nothing
+    go _ (E.Lit _) = Nothing
+    go Fn (E.App f arg) = (\f' -> E.App f' arg) <$> impl (Path t) f
+    go Arg (E.App f arg) = E.App f <$> impl (Path t) arg
+    go _ (E.Ann x _) = impl (Path (h:t)) x
+    go Body (E.Lam n body) = E.Lam <$> pure (V.nest n maxVar) <*> impl (Path t) body
+    go _ _ = Nothing
 
-modify :: (E.Term -> E.Term) -> Path -> E.Term -> Maybe E.Term
-modify f loc e = do
+modify :: Path -> (E.Term -> E.Term) -> E.Term -> Maybe E.Term
+modify loc f e = do
   x <- at loc e
   set loc (f x) e

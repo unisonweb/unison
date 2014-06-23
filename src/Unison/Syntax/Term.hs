@@ -5,7 +5,6 @@
 
 module Unison.Syntax.Term where
 
-import Control.Applicative
 import Control.Monad
 import qualified Data.Set as S
 import qualified Data.Text as Txt
@@ -42,30 +41,23 @@ instance Show Term where
   show (Ann x t) = "(" ++ show x ++ " : " ++ show t ++ ")"
   show (Lam n body) = "(" ++ show n ++ " -> " ++ show body ++ ")"
 
-lam1F :: Monad f => (Term -> f Term) -> f Term
-lam1F f = return Lam `ap` n `ap` body
+maxV :: Term -> V.Var
+maxV (App f x) = maxV f `max` maxV x
+maxV (Ann x _) = maxV x
+maxV (Lam n _) = n
+maxV _         = V.decr V.bound1
+
+lam1M :: Monad f => (Term -> f Term) -> f Term
+lam1M f = return Lam `ap` n `ap` body
   where
-    n               = liftM V.succ (maxBV =<< body)
-    body            = f =<< liftM Var n
-    maxBV (App f x) = return max `ap` maxBV f `ap` maxBV x
-    maxBV (Ann x _) = maxBV x
-    maxBV (Lam n _) = return n
-    maxBV _         = return bot
-    bot = V.decr V.bound1
+    n               = liftM (V.succ . maxV) body
+    body            = f =<< (liftM Var n)
 
 lam1 :: (Term -> Term) -> Term
 lam1 f = Lam n body
   where
-    n = V.succ (maxBV body)
+    n = V.succ (maxV body)
     body = f (Var n)
-    bot = V.decr V.bound1
-    maxBV (Var _) = bot
-    maxBV (Ref _) = bot
-    maxBV (Lit _) = bot
-    maxBV (Con _) = bot
-    maxBV (App f x) = maxBV f `max` maxBV x
-    maxBV (Ann x _) = maxBV x
-    maxBV (Lam n _) = n
 
 lam2 :: (Term -> Term -> Term) -> Term
 lam2 f = lam1 $ \x -> lam1 $ \y -> f x y
