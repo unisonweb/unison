@@ -14,6 +14,9 @@ noted = Noted
 noted' :: Functor m => String -> m (Maybe a) -> Noted m a
 noted' ifNothing moa = noted (fmap (maybe (Left (note ifNothing)) Right) moa)
 
+lift :: Functor m => m a -> Noted m a
+lift = Noted . fmap Right
+
 failure :: Applicative m => String -> Noted m a
 failure = Noted . pure . Left . note
 

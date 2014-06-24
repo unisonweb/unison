@@ -43,50 +43,51 @@ data Store f = Store {
 
 lookup' :: (Show a, Monad f) => (a -> f (Maybe b)) -> a -> f (Either Note b)
 lookup' f a = liftM (Note.note' missing) (f a) where
-  missing = "Could not find: " ++ show a
+  missing = "unknown Unison ID: " ++ show a
 
 node :: (Applicative f, Monad f) => Eval f -> Store f -> Node f H.Hash Type Term
 node eval store =
   let
-    createTerm e md =
-      Type.synthesize (lookup' (readTypeOf store)) e >>= \t -> case t of
-        Left e -> return (Left e)
-        Right t -> let h = E.finalizeHash e in do
-          writeTerm store h e
-          writeTypeOf store h t
-          writeMetadata store h md
-          return $ Right h
-    createType t md = let h = T.finalizeHash t in do
+    createTerm e md = do
+      t <- Note.noted $ Type.synthesize (lookup' (readTypeOf store)) e
+      h <- pure $ E.finalizeHash e
+      Note.lift $ do
+        writeTerm store h e
+        writeTypeOf store h t
+        writeMetadata store h md
+        pure h
+    createType t md = let h = T.finalizeHash t in Note.lift $ do
       writeType store h t
       writeMetadata store h md
-      return $ Right h -- todo: kindchecking
+      pure h -- todo: kindchecking
     dependencies limit h = let trim = maybe id S.intersection limit in do
-      e <- readTerm store h
-      return (trim . E.dependencies <$> e)
+      e <- Note.noted' (unknown h) $ readTerm store h
+      pure $ trim (E.dependencies e)
     dependents limit h = do
-      hs <- hashes store limit
-      hs' <- mapM (\h -> liftM ((,) h . fromMaybe S.empty) (dependencies Nothing h)) (S.toList hs)
-      return $ S.fromList [x | (x,deps) <- hs', S.member h deps]
+      hs <- Note.lift $ hashes store limit
+      hs' <- mapM (\h -> (,) h <$> dependencies Nothing h)
+                  (S.toList hs)
+      pure $ S.fromList [x | (x,deps) <- hs', S.member h deps]
     edit k path action = do
-      e <- readTerm store k
-      e' <- case e of
-        Nothing -> return . Left $ Note.note ("hash not found: " ++ show k)
-        Just e -> TE.apply eval path action e
-      pure $ (\e -> (E.finalizeHash e, e)) <$> e'
+      e <- Note.noted' (unknown k) $ readTerm store k
+      e' <- Note.noted $ TE.apply eval path action e
+      h <- pure $ E.finalizeHash e'
+      pure $ (h, e')
     editType = error "todo later"
-    metadata = readMetadata store
+    metadata k = Note.noted' (unknown k) (readMetadata store k)
     panel = error "todo"
     search = error "todo"
     searchLocal = error "todo"
-    term = readTerm store
+    term k = Note.noted' (unknown k) (readTerm store k)
     transitiveDependencies = error "todo"
     transitiveDependents = error "todo"
-    typ = readType store
-    typeOf h p = case p of
+    typ k = Note.noted' (unknown k) (readType store k)
+    typeOf h p = Note.noted' (unknown h) $ case p of
       P.Path [] -> readTypeOf store h
       P.Path _ -> error "todo: typeOf"
     typeOfConstructorArg = error "todo"
-    updateMetadata = writeMetadata store
+    updateMetadata k md = Note.lift (writeMetadata store k md)
+    unknown k = "unknown Unison ID: "++show k
   in N.Node
        createTerm
        createType
