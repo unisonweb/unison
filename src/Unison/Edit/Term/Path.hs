@@ -8,8 +8,9 @@ data E
   = Fn -- ^ Points at function in a function application
   | Arg -- ^ Points at the argument of a function application
   | Body -- ^ Points at the body of a lambda
+  deriving (Eq,Ord,Show)
 
-newtype Path = Path [E]
+newtype Path = Path [E] deriving (Eq,Ord,Show)
 
 at :: Path -> E.Term -> Maybe E.Term
 at (Path [])    e = Just e

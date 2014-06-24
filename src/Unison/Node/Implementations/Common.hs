@@ -11,6 +11,8 @@ import Unison.Syntax.Hash as H
 import qualified Unison.Syntax.Type as T
 import qualified Unison.Syntax.Term as E
 import qualified Unison.Edit.Term.Path as P
+import qualified Unison.Edit.Term as TE
+import Unison.Edit.Term.Eval as Eval
 import Unison.Syntax.Type (Type)
 import Unison.Syntax.Term (Term)
 import Unison.Node as N
@@ -43,8 +45,8 @@ lookup' :: (Show a, Monad f) => (a -> f (Maybe b)) -> a -> f (Either Note b)
 lookup' f a = liftM (Note.note' missing) (f a) where
   missing = "Could not find: " ++ show a
 
-node :: (Applicative f, Monad f) => Store f -> Node f H.Hash Type Term
-node store =
+node :: (Applicative f, Monad f) => Eval f -> Store f -> Node f H.Hash Type Term
+node eval store =
   let
     createTerm e md =
       Type.synthesize (lookup' (readTypeOf store)) e >>= \t ->
@@ -68,9 +70,10 @@ node store =
       return $ S.fromList [x | (x,deps) <- hs', S.member h deps]
     edit k path action = do
       e <- readTerm store k
-      case e of
+      e' <- case e of
         Nothing -> return . Left $ Note.note ("hash not found: " ++ show k)
-        Just e -> undefined
+        Just e -> TE.apply eval path action e
+      pure $ (\e -> (E.finalizeHash e, e)) <$> e'
     editType = error "todo"
     metadata = readMetadata store
     panel = error "todo"
