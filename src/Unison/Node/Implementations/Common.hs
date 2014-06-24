@@ -49,8 +49,7 @@ node :: (Applicative f, Monad f) => Eval f -> Store f -> Node f H.Hash Type Term
 node eval store =
   let
     createTerm e md =
-      Type.synthesize (lookup' (readTypeOf store)) e >>= \t ->
-      case t of
+      Type.synthesize (lookup' (readTypeOf store)) e >>= \t -> case t of
         Left e -> return (Left e)
         Right t -> let h = E.finalizeHash e in do
           writeTerm store h e
@@ -74,7 +73,7 @@ node eval store =
         Nothing -> return . Left $ Note.note ("hash not found: " ++ show k)
         Just e -> TE.apply eval path action e
       pure $ (\e -> (E.finalizeHash e, e)) <$> e'
-    editType = error "todo"
+    editType = error "todo later"
     metadata = readMetadata store
     panel = error "todo"
     search = error "todo"
