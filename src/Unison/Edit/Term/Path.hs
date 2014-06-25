@@ -1,8 +1,9 @@
 module Unison.Edit.Term.Path where
 
+import Control.Applicative
+import Data.Maybe (fromJust)
 import qualified Unison.Syntax.Term as E
 import qualified Unison.Syntax.Var as V
-import Control.Applicative
 
 data E
   = Fn -- ^ Points at function in a function application
@@ -36,7 +37,13 @@ set path focus ctx = impl path ctx where
     go Body (E.Lam n body) = E.Lam <$> pure (V.nest n maxVar) <*> impl (Path t) body
     go _ _ = Nothing
 
+-- | Like 'set', but accepts the new focus within the returned @Maybe@.
+set' :: Path -> E.Term -> Maybe (E.Term -> E.Term)
+set' loc ctx = case at loc ctx of
+  Nothing -> Nothing
+  Just _ -> Just $ \focus -> fromJust (set loc focus ctx) -- safe since `at` proves `loc` valid
+
 modify :: Path -> (E.Term -> E.Term) -> E.Term -> Maybe E.Term
-modify loc f e = do
-  x <- at loc e
-  set loc (f x) e
+modify loc f ctx = do
+  x <- at loc ctx
+  set loc (f x) ctx

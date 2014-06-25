@@ -118,6 +118,12 @@ betaReduce (App (Lam var f) arg) = go f where
     _ -> body
 betaReduce e = e
 
+-- | If the outermost term is a lambda of the form @\x -> f x@,
+-- reduce this to @f@.
+etaReduce :: Term -> Term
+etaReduce (Lam n (App f n')) | Var n == n' = f
+etaReduce e = e
+
 applyN :: Term -> [Term] -> Term
 applyN f = foldl App f
 

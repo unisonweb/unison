@@ -2,7 +2,8 @@ module Unison.Edit.Term.Action where
 
 data Action e
   = Abstract -- Turn target into function parameter
-  | Step -- Beta reduce the target
+  | Beta -- Beta reduce the target
+  | Eta -- Eta reduce the target
   | WHNF -- Simplify target to weak head normal form
   | HNF -- Simplify target to head normal form
   | Apply e -- Replace the target, `e`, with `f e`
