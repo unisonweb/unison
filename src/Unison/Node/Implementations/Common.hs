@@ -1,8 +1,9 @@
 module Unison.Node.Implementations.Common where
 
-import Data.Map as M
+import qualified Data.Map as M
 import qualified Data.Set as S
 import Control.Applicative
+import Control.Monad
 import Unison.Node.Metadata as MD
 import qualified Unison.Type as Type
 import Unison.Syntax.Hash as H
@@ -48,35 +49,57 @@ node eval store =
       writeTypeOf store h t
       writeMetadata store h md
       pure h
+
     createType t md = let h = T.finalizeHash t in do
       writeType store h t
       writeMetadata store h md
       pure h -- todo: kindchecking
+
     dependencies limit h = let trim = maybe id S.intersection limit in do
       e <- readTerm store h
       pure $ trim (E.dependencies e)
+
     dependents limit h = do
       hs <- hashes store limit
       hs' <- mapM (\h -> (,) h <$> dependencies Nothing h)
                   (S.toList hs)
       pure $ S.fromList [x | (x,deps) <- hs', S.member h deps]
+
     edit k path action = do
       e <- readTerm store k
       e' <- TE.apply eval path action e
       pure $ (E.finalizeHash e', e')
+
     editType = error "todo later"
+
     metadata = readMetadata store
+
     panel = error "todo"
-    search = error "todo"
+
+    search t limit query = do
+      hs <- hashes store limit
+      hs' <- case t of
+        Nothing -> pure $ S.toList hs
+        Just t -> filterM (\h -> flip Type.isSubtype t <$> readTypeOf store h) (S.toList hs)
+      mds <- mapM (\h -> (,) h <$> metadata h) hs'
+      pure . M.fromList . filter (\(_,md) -> MD.matches query md) $ mds
+
     searchLocal = error "todo"
+
     term = readTerm store
+
     transitiveDependencies = error "todo"
+
     transitiveDependents = error "todo"
+
     typ = readType store
+
     typeOf h p = case p of
       P.Path [] -> readTypeOf store h
       P.Path _ -> error "todo: typeOf"
+
     typeOfConstructorArg = error "todo"
+
     updateMetadata = writeMetadata store
   in N.Node
        createTerm
