@@ -28,9 +28,10 @@ data Node m k t e = Node {
   panel :: k -> Noted m (Panel k t e),
   -- | Search for a term, optionally constrained to be of the given type
   -- and contained in the given set
-  search :: Maybe t -> (Maybe (S.Set k)) -> Query -> Noted m (Map k (Metadata k)),
-  -- | Search for a term in local scope, optionally constrained to be of the given type
-  searchLocal :: Maybe t -> Query -> Noted m [(e, Metadata k)],
+  search :: Maybe t -> Maybe (S.Set k) -> Query -> Noted m (Map k (Metadata k)),
+  -- | Search for a term in local scope of the given hash,
+  -- optionally constrained to match some type
+  searchLocal :: k -> P.Path -> Maybe t -> Query -> Noted m [(e, Metadata k)],
   -- | Lookup the source of the term identified by @k@
   term :: k -> Noted m e,
   -- | Lookup the dependencies of @k@, optionally limited to those that intersect the given set

@@ -84,7 +84,14 @@ node eval store =
       mds <- mapM (\h -> (,) h <$> metadata h) hs'
       pure . M.fromList . filter (\(_,md) -> MD.matches query md) $ mds
 
-    searchLocal = error "todo"
+    -- searchLocal :: k -> Maybe t -> Query -> Noted m [(e, Metadata k)],
+    searchLocal h path t query = do
+      t <- readTypeOf store h
+      md <- readMetadata store h
+      -- somehow read the type of all local variables from the given t
+      -- what about if we're inside a nested lambda? then we need
+      -- to obtain the type of that lambda
+      undefined
 
     term = readTerm store
 
