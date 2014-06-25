@@ -6,10 +6,16 @@ import Control.Applicative
 
 -- | Hierarchical error message type used throughout Unison
 newtype Note = Note [String]
-newtype Noted m a = Noted { unnoted :: m (Either Note a) }
+
+-- | Monad transformer for adding notes
+newtype Noted m a = Noted { unnote :: m (Either Note a) }
 
 noted :: m (Either Note a) -> Noted m a
 noted = Noted
+
+liftMaybe :: Applicative m => String -> Maybe a -> Noted m a
+liftMaybe msg Nothing = failure msg
+liftMaybe _ (Just a) = pure a
 
 noted' :: Functor m => String -> m (Maybe a) -> Noted m a
 noted' ifNothing moa = noted (fmap (maybe (Left (note ifNothing)) Right) moa)
@@ -20,11 +26,19 @@ lift = Noted . fmap Right
 failure :: Applicative m => String -> Noted m a
 failure = Noted . pure . Left . note
 
+scoped :: Functor m => String -> Noted m a -> Noted m a
+scoped msg inner = Noted $ fmap (scope msg) (unnote inner)
+
+orElse :: Monad m => Noted m a -> Noted m a -> Noted m a
+orElse a b = Noted $ unnote a >>= go
+  where go (Left _) = unnote b
+        go (Right a) = return (Right a)
+
 instance Monad m => Monad (Noted m) where
   return = Noted . return . return
   Noted a >>= f = Noted $ a >>= \e -> case e of
     Left e -> return $ Left e
-    Right a -> unnoted (f a)
+    Right a -> unnote (f a)
 
 instance Functor m => Functor (Noted m) where
   fmap f (Noted a) = Noted $ fmap go a where

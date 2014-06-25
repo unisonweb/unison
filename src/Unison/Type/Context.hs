@@ -6,7 +6,6 @@
 module Unison.Type.Context (context, subtype, synthesizeClosed) where
 
 import Control.Applicative
-import Control.Applicative.Compose as C
 import Data.List as L
 import Data.Maybe
 import qualified Data.Set as S
@@ -16,7 +15,7 @@ import Unison.Syntax.Term (Term)
 import Unison.Syntax.Var as V
 import qualified Unison.Syntax.Hash as H
 import Unison.Type.Context.Element as E
-import Unison.Note
+import Unison.Note as N
 
 -- | An ordered algorithmic context
 -- Context variables will be negative, while 'normal' DeBruijn
@@ -355,16 +354,16 @@ synthesizeApp ctx ft arg = go ft where
                       (T.Existential i)
   go _ = Left $ note "unable to synthesize type of application"
 
-synthesizeClosed :: Applicative f => (H.Hash -> f (Either Note Type)) -> Term -> f (Either Note Type)
-synthesizeClosed synthRef term = synth <$> C.decompose (annotate term)
+synthesizeClosed :: Applicative f => (H.Hash -> Noted f Type) -> Term -> Noted f Type
+synthesizeClosed synthRef term = Noted $ synth <$> N.unnote (annotate term)
   where
     synth :: Either Note Term -> Either Note Type
     synth (Left e) = Left e
     synth (Right a) = go <$> synthesize (context []) a
     go (t, ctx) = apply ctx t
     annotate term' = case term' of
-      Term.Ref h -> Term.Ann (Term.Ref h) <$> Compose (synthRef h)
-      Term.Con h -> Term.Ann (Term.Con h) <$> Compose (synthRef h)
+      Term.Ref h -> Term.Ann (Term.Ref h) <$> synthRef h
+      Term.Con h -> Term.Ann (Term.Con h) <$> synthRef h
       Term.App f arg -> Term.App <$> annotate f <*> annotate arg
       Term.Ann body t -> Term.Ann <$> annotate body <*> pure t
       Term.Lam n body -> Term.Lam n <$> annotate body

@@ -12,28 +12,28 @@ import Unison.Note as N
 -- | Infer the type of a 'Unison.Syntax.Term', using
 -- a function to resolve the type of @Ref@ constructors
 -- contained in that term.
-synthesize :: Applicative f => (H.Hash -> f (Either Note T.Type)) -> E.Term -> f (Either Note T.Type)
+synthesize :: Applicative f => (H.Hash -> Noted f T.Type) -> E.Term -> Noted f T.Type
 synthesize = C.synthesizeClosed
 
 -- | Infer the type of a 'Unison.Syntax.Term', assumed
 -- not to contain any @Ref@ constructors
 synthesize' :: E.Term -> Either Note T.Type
-synthesize' term = join $ synthesize missing term
-  where missing h = pure . Left . N.note $ "unexpected ref: " ++ show h
+synthesize' term = join . N.unnote $ synthesize missing term
+  where missing h = N.failure $ "unexpected ref: " ++ show h
 
 -- | Check whether a term matches a type, using a
 -- function to resolve the type of @Ref@ constructors
--- contained in the term
-check :: Applicative f => (H.Hash -> f (Either Note T.Type)) -> E.Term -> T.Type -> f Bool
-check synth term typ = go <$> synthesize synth (E.Ann term typ)
-  where go (Left _) = False
-        go (Right _) = True
+-- contained in the term. Returns @typ@ if successful,
+-- and a note about typechecking failure otherwise.
+check :: Applicative f => (H.Hash -> Noted f T.Type) -> E.Term -> T.Type -> Noted f T.Type
+check synth term typ = synthesize synth (E.Ann term typ)
 
 -- | Check whether a term, assumed to contain no @Ref@ constructors,
--- matches a given type. Return @Left@ if any references exist.
-check' :: E.Term -> T.Type -> Either Note Bool
-check' term typ = check missing term typ
-  where missing h = Left . N.note $ "unexpected ref: " ++ show h
+-- matches a given type. Return @Left@ if any references exist, or
+-- if typechecking fails.
+check' :: E.Term -> T.Type -> Either Note T.Type
+check' term typ = join . N.unnote $ check missing term typ
+  where missing h = N.failure $ "unexpected ref: " ++ show h
 
 -- | @subtype a b@ is @Right b@ iff any @b -> t@ is well-typed when
 -- given a value of type @a@, and is @Left note@ with information
