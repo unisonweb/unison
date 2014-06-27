@@ -5,11 +5,12 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Unison.Syntax.Type where
 
 import Control.Applicative
+import Control.Lens
 import qualified Data.List as L
 import qualified Data.Set as S
 import qualified Unison.Syntax.Hash as H
@@ -136,3 +137,6 @@ finalizeHash = H.finalize . hash
 
 hashes :: [Type] -> H.Hash
 hashes _ = error "todo: Type.hashes"
+
+makePrisms ''Literal
+makePrisms ''Type

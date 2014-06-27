@@ -47,5 +47,5 @@ subtype t1 t2 = case C.subtype (C.context []) t1 t2 of
 
 isSubtype :: T.Type -> T.Type -> Bool
 isSubtype t1 t2 = case C.subtype (C.context []) t1 t2 of
-  Left e -> False
+  Left _ -> False
   Right _ -> True

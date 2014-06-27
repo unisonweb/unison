@@ -91,6 +91,14 @@ dependencies e = case e of
   Ann e _ -> dependencies e
   Lam _ body -> dependencies body
 
+freeVars :: Term -> S.Set V.Var
+freeVars e = case e of
+  Var v -> S.singleton v
+  App fn arg -> freeVars fn `S.union` freeVars arg
+  Ann e _ -> freeVars e
+  Lam n body -> S.delete n (freeVars body)
+  _ -> S.empty
+
 {-
 vars :: Term -> [V.Var]
 vars e = getConst $ collect (\v -> Const [v]) e
@@ -113,7 +121,8 @@ betaReduce (App (Lam var f) arg) = go f where
   go body = case body of
     App f x -> App (go f) (go x)
     Ann body t -> Ann (go body) t
-    Lam n body -> Lam n (go body)
+    Lam n body | n == var  -> Lam n body -- this lambda shadows var; avoid substituting
+               | otherwise -> Lam n (go body)
     Var v | v == var -> arg
     _ -> body
 betaReduce e = e

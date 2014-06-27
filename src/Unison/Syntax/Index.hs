@@ -1,6 +1,5 @@
 module Unison.Syntax.Index where
 
--- how many scopes out to go to reach the lambda where this is bound
 newtype Index = I Int deriving (Eq,Ord)
 
 instance Show Index where
