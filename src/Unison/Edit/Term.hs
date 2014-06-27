@@ -15,11 +15,12 @@ import Unison.Type (synthesize)
 
 -- | Interpret the given 'Action'
 interpret :: (Applicative f, Monad f)
-      => Eval f -> P.Path -> Action E.Term -> E.Term -> Noted f E.Term
+          => Eval f -> P.Path -> Action E.Term -> E.Term -> Noted f E.Term
 interpret eval loc f ctx = go f where
   go Abstract = abstract loc ctx
   go Eta = eta loc ctx
   go Beta = beta eval loc ctx
+  go LetFloat = fst <$> letFloat loc ctx
   go _ = error "todo: Apply, WHNF, HNF, Apply will have to invoke typechecker"
 
 invalid :: (Show a1, Show a) => a -> a1 -> String
