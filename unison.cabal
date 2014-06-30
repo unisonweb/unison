@@ -55,6 +55,7 @@ library
     Unison.Node.Implementations.Common
     Unison.Node.Metadata
     Unison.Node.Panel
+    Unison.Node.Server
     Unison.Note
     Unison.Syntax
     Unison.Syntax.Hash
@@ -80,6 +81,7 @@ library
     prelude-extras            >= 0.3,
     scotty                    ,
     text                      >= 0.11.2,
+    transformers              ,
     vector                    >= 0.10.11.0
 
   ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N

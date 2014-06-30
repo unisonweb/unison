@@ -33,7 +33,7 @@ data Store f = Store {
   writeTerm :: H.Hash -> Term -> Noted f (),
   readType :: H.Hash -> Noted f Type,
   writeType :: H.Hash -> Type -> Noted f (),
-  readTypeOf :: H.Hash -> Noted f Type,
+  readTypeOf :: H.Hash -> Noted f Type, -- can be removed, defined using readMetadata
   writeTypeOf :: H.Hash -> Type -> Noted f (),
   readMetadata :: H.Hash -> Noted f (MD.Metadata H.Hash),
   writeMetadata :: H.Hash -> MD.Metadata H.Hash -> Noted f ()
