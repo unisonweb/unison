@@ -3,6 +3,7 @@ module Unison.Node.Metadata where
 import Data.Text
 import Data.Map as M
 import Data.Maybe (fromMaybe)
+import Data.Aeson.TH
 import qualified Unison.Syntax.Var as V
 
 data Sort = Type | Term deriving (Eq,Ord,Show)

@@ -50,7 +50,7 @@ beta eval loc ctx = case P.at' loc ctx of
 -- given lambda, assuming that lambda has the annotated type
 locals :: E.Term -> T.Type -> [(V.Var, T.Type)]
 locals (E.Lam n body) (T.Arrow i o) = (n, i) : locals body o
-locals ctx (T.Forall n t) = locals ctx t
+locals ctx (T.Forall _ t) = locals ctx t
 locals _ _ = []
 
 -- | Compute the type of the given subterm, unconstrained as much

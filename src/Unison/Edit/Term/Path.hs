@@ -1,7 +1,6 @@
 module Unison.Edit.Term.Path where
 
 import Control.Applicative
-import Control.Lens (Traversal')
 import Data.Maybe (fromJust)
 import qualified Unison.Syntax.Term as E
 import qualified Unison.Syntax.Var as V

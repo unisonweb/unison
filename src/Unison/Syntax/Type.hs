@@ -11,6 +11,7 @@ module Unison.Syntax.Type where
 
 import Control.Applicative
 import Control.Lens
+import Data.Aeson.TH
 import qualified Data.List as L
 import qualified Data.Set as S
 import qualified Unison.Syntax.Hash as H
@@ -140,3 +141,6 @@ hashes _ = error "todo: Type.hashes"
 
 makePrisms ''Literal
 makePrisms ''Type
+
+deriveJSON defaultOptions ''Literal
+deriveJSON defaultOptions ''Type

@@ -58,7 +58,6 @@ library
     Unison.Note
     Unison.Syntax
     Unison.Syntax.Hash
-    Unison.Syntax.Index
     Unison.Syntax.Kind
     Unison.Syntax.Term
     Unison.Syntax.Type
@@ -71,6 +70,7 @@ library
     aeson                     >= 0.7.0.6,
     applicative-extras        >= 0.1.8,
     base                      >= 4,
+    base64-bytestring         ,
     blaze-html                >= 0.7.0.0,
     bytestring                ,
     containers                >= 0.5,

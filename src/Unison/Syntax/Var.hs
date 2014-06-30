@@ -3,12 +3,17 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Unison.Syntax.Var where
 
-import Unison.Syntax.Index
+import Data.Aeson.TH
 
-type Var = Index
+newtype Var = I Int deriving (Eq,Ord)
+
+instance Show Var where
+  show (I i) | i <= 0    = "t" ++ show (abs i)
+  show (I i) | otherwise = "x" ++ show i
 
 succ :: Var -> Var
 succ (I i) = I (i + 1)
@@ -24,3 +29,5 @@ nest (I i) (I j) = I (i + j)
 
 bound1 :: Var
 bound1 = I 1
+
+deriveJSON defaultOptions ''Var
