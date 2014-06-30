@@ -1,4 +1,5 @@
-module Unison.Edit.Term (admissibleTypeOf, typeOf, interpret, abstract, eta, beta, letFloat) where
+module Unison.Edit.Term (
+  admissibleTypeOf, abstract, beta, eta, interpret, letFloat, locals, typeOf) where
 
 import Control.Applicative
 import qualified Data.Set as S
@@ -6,6 +7,7 @@ import Unison.Edit.Term.Action as A
 import qualified Unison.Edit.Term.Path as P
 import Unison.Edit.Term.Eval as Eval
 import qualified Unison.Syntax.Hash as H
+import qualified Unison.Syntax.Var as V
 import qualified Unison.Note as N
 import Unison.Note (Noted)
 import qualified Unison.Syntax.Term as E
@@ -43,6 +45,13 @@ beta :: Applicative f => Eval f -> P.Path -> E.Term -> Noted f E.Term
 beta eval loc ctx = case P.at' loc ctx of
   Nothing -> N.failure $ invalid loc ctx
   Just (sub,replace) -> replace <$> step eval sub
+
+-- | Return the type of all local variables introduced by the
+-- given lambda, assuming that lambda has the annotated type
+locals :: E.Term -> T.Type -> [(V.Var, T.Type)]
+locals (E.Lam n body) (T.Arrow i o) = (n, i) : locals body o
+locals ctx (T.Forall n t) = locals ctx t
+locals _ _ = []
 
 -- | Compute the type of the given subterm, unconstrained as much
 -- as possible by any local usages of that subterm. For example, in

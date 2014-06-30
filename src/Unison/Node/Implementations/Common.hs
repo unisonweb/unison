@@ -90,14 +90,20 @@ node eval store =
       mds <- mapM (\h -> (,) h <$> metadata h) hs'
       pure . M.fromList . filter (\(_,md) -> MD.matches query md) $ mds
 
-    -- searchLocal :: k -> Maybe t -> Query -> Noted m [(e, Metadata k)],
-    searchLocal h path t query = do
-      t <- readTypeOf store h
-      md <- readMetadata store h
-      -- somehow read the type of all local variables from the given t
-      -- what about if we're inside a nested lambda? then we need
-      -- to obtain the type of that lambda
-      undefined
+    searchLocal h _ typ query =
+      let
+        allowed :: T.Type -> Bool
+        allowed = maybe (const True) (flip Type.isSubtype) typ
+      in do
+        t <- readTypeOf store h
+        ctx <- readTerm store h
+        md <- readMetadata store h
+        locals <- pure .
+                  filter (\(v,lt) -> allowed lt && MD.localMatches v query md) $
+                  TE.locals ctx t
+        pure $ (md, locals)
+      -- todo: if path is non-null, need to read type of all local variables
+      -- introduced in nested lambdas
 
     term =
       readTerm store
@@ -111,7 +117,7 @@ node eval store =
 
     typeOf h loc = case loc of
       P.Path [] -> readTypeOf store h
-      P.Path p -> do
+      P.Path _ -> do
         ctx <- term h
         TE.typeOf (readTypeOf store) loc ctx
 

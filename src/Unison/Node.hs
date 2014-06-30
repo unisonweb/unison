@@ -4,6 +4,7 @@ import Data.Set as S
 import Data.Map as M
 import Unison.Node.Panel
 import Unison.Node.Metadata as MD
+import Unison.Syntax.Var as V
 import Unison.Edit.Term.Action as A
 import Unison.Edit.Term.Path as P
 import Unison.Edit.Type.Path as TP
@@ -33,7 +34,7 @@ data Node m k t e = Node {
   search :: Maybe t -> Maybe (S.Set k) -> Query -> Noted m (Map k (Metadata k)),
   -- | Search for a term in local scope of the given hash,
   -- optionally constrained to match some type
-  searchLocal :: k -> P.Path -> Maybe t -> Query -> Noted m [(e, Metadata k)],
+  searchLocal :: k -> P.Path -> Maybe t -> Query -> Noted m (Metadata k, [(V.Var, t)]),
   -- | Lookup the source of the term identified by @k@
   term :: k -> Noted m e,
   -- | Lookup the dependencies of @k@, optionally limited to those that intersect the given set
