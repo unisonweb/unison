@@ -2,10 +2,12 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Unison.Syntax.Term where
 
 import Control.Monad
+import Data.Aeson.TH
 import qualified Data.Set as S
 import qualified Data.Text as Txt
 import qualified Data.Vector.Unboxed as V
@@ -162,3 +164,6 @@ hashLit (Number n) = H.zero `H.append` H.double n
 hashLit (String s) = H.one `H.append` H.text s
 hashLit (Vector vec) = H.two `H.append` go vec where
   go _ = error "todo: hashLit vector"
+
+deriveJSON defaultOptions ''Literal
+deriveJSON defaultOptions ''Term
