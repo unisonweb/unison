@@ -8,6 +8,7 @@ module Unison.Syntax.Term where
 
 import Control.Monad
 import Data.Aeson.TH
+import qualified Data.Aeson.Encode as JE
 import qualified Data.Set as S
 import qualified Data.Text as Txt
 import qualified Data.Vector.Unboxed as V
@@ -67,22 +68,6 @@ lam2 f = lam1 $ \x -> lam1 $ \y -> f x y
 lam3 :: (Term -> Term -> Term -> Term) -> Term
 lam3 f = lam1 $ \x -> lam1 $ \y -> lam1 $ \z -> f x y z
 
-{-
-collect :: Applicative f
-       => (V.Var -> f Term)
-       -> Term
-       -> f Term
-collect f = go where
-  go e = case e of
-    Var v -> f v
-    Ref h -> pure (Ref h)
-    Con h -> pure (Con h)
-    Lit l -> pure (Lit l)
-    App fn arg -> App <$> go fn <*> go arg
-    Ann e' t -> Ann <$> go e' <*> pure t
-    Lam n body -> lam1 $ \x -> Lam n <$> go body
--}
-
 dependencies :: Term -> S.Set H.Hash
 dependencies e = case e of
   Ref h -> S.singleton h
@@ -100,11 +85,6 @@ freeVars e = case e of
   Ann e _ -> freeVars e
   Lam n body -> S.delete n (freeVars body)
   _ -> S.empty
-
-{-
-vars :: Term -> [V.Var]
-vars e = getConst $ collect (\v -> Const [v]) e
--}
 
 stripAnn :: Term -> (Term, Term -> Term)
 stripAnn (Ann e t) = (e, \e' -> Ann e' t)
@@ -149,7 +129,7 @@ text s = Lit (String s)
 
 -- | Computes the nameless hash of the given term
 hash :: Term -> H.Digest
-hash _ = error "todo: Term.hash"
+hash = H.lazyBytes . JE.encode
 
 finalizeHash :: Term -> H.Hash
 finalizeHash = H.finalize . hash

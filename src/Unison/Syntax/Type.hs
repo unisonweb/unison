@@ -12,6 +12,7 @@ module Unison.Syntax.Type where
 import Control.Applicative
 import Control.Lens
 import Data.Aeson.TH
+import qualified Data.Aeson.Encode as JE
 import qualified Data.List as L
 import qualified Data.Set as S
 import qualified Unison.Syntax.Hash as H
@@ -131,7 +132,7 @@ freeVars t = case t of
   Forall v fn -> S.delete v (freeVars fn)
 
 hash :: Type -> H.Digest
-hash _ = error "todo: Type.hash"
+hash = H.lazyBytes . JE.encode
 
 finalizeHash :: Type -> H.Hash
 finalizeHash = H.finalize . hash

@@ -2,13 +2,14 @@
 
 module Unison.Syntax.Hash (
   Hash, Digest,
-  append, finalize, double, text, bytes, byte, hashBytes,
-  zero, one, two, three) where
+  append, byte, bytes, double, finalize, hashBytes,
+  lazyBytes, text, zero, one, two, three) where
 
 import qualified Data.ByteString.Base64 as Base64
 import Data.Word (Word8)
 import Data.Aeson.TH
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as LB
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Crypto.Hash.SHA3 as H
@@ -37,6 +38,9 @@ finalize (Digest f) =
 
 bytes :: B.ByteString -> Digest
 bytes bs = Digest (\ctx -> H.update ctx bs)
+
+lazyBytes :: LB.ByteString -> Digest
+lazyBytes bs = Digest (\ctx -> H.updates ctx (LB.toChunks bs))
 
 byte :: Word8 -> Digest
 byte b = bytes (B.singleton b)

@@ -1,6 +1,9 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module Unison.Edit.Term.Path where
 
 import Control.Applicative
+import Data.Aeson.TH
 import Data.Maybe (fromJust)
 import qualified Unison.Syntax.Term as E
 import qualified Unison.Syntax.Var as V
@@ -83,3 +86,7 @@ trimToV :: Maybe (V.Var) -> Path -> Path
 trimToV Nothing p = p
 trimToV (Just minv) p | minv == V.bound1 = trimToR Body p
                       | otherwise        = trimToV (Just $ V.decr minv) (drop1R (trimToR Body p))
+
+
+deriveJSON defaultOptions ''E
+deriveJSON defaultOptions ''Path
