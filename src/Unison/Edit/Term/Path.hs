@@ -12,7 +12,7 @@ data E
   | Body -- ^ Points at the body of a lambda
   deriving (Eq,Ord,Show)
 
-newtype Path = Path [E] deriving (Eq,Ord,Show)
+newtype Path = Path { elements :: [E] } deriving (Eq,Ord,Show)
 
 -- | Add an element onto the end of this 'Path'
 extend :: E -> Path -> Path

@@ -42,6 +42,12 @@ data Store f = Store {
 node :: (Applicative f, Monad f) => Eval f -> Store f -> Node f H.Hash Type Term
 node eval store =
   let
+    admissibleTypeOf h loc = case loc of
+      P.Path [] -> readTypeOf store h
+      P.Path _ -> do
+        ctx <- term h
+        TE.admissibleTypeOf (readTypeOf store) loc ctx
+
     createTerm e md = do
       t <- Type.synthesize (readTypeOf store) e
       h <- pure $ E.finalizeHash e
@@ -93,22 +99,27 @@ node eval store =
       -- to obtain the type of that lambda
       undefined
 
-    term = readTerm store
+    term =
+      readTerm store
 
     transitiveDependencies = error "todo"
 
     transitiveDependents = error "todo"
 
-    typ = readType store
+    typ =
+      readType store
 
-    typeOf h p = case p of
+    typeOf h loc = case loc of
       P.Path [] -> readTypeOf store h
-      P.Path _ -> error "todo: typeOf"
+      P.Path p -> do
+        ctx <- term h
+        TE.typeOf (readTypeOf store) loc ctx
 
     typeOfConstructorArg = error "todo"
 
     updateMetadata = writeMetadata store
   in N.Node
+       admissibleTypeOf
        createTerm
        createType
        dependencies

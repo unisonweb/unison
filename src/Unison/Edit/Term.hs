@@ -1,4 +1,4 @@
-module Unison.Edit.Term (interpret, abstract, eta, beta, letFloat) where
+module Unison.Edit.Term (admissibleTypeOf, typeOf, interpret, abstract, eta, beta, letFloat) where
 
 import Control.Applicative
 import qualified Data.Set as S
@@ -48,13 +48,13 @@ beta eval loc ctx = case P.at' loc ctx of
 -- as possible by any local usages of that subterm. For example, in
 -- @\g -> map g [1,2,3]@, @g@ will have a type of @forall r . Int -> r@,
 -- and @map@ will have a type of @forall a b . (a -> b) -> [a] -> [b]@.
-typeAt :: Applicative f
+typeOf :: Applicative f
        => (H.Hash -> Noted f T.Type)
        -> P.Path
        -> E.Term
        -> Noted f T.Type
-typeAt synthLit (P.Path []) ctx = synthesize synthLit ctx
-typeAt synthLit loc ctx = case P.at' loc ctx of
+typeOf synthLit (P.Path []) ctx = synthesize synthLit ctx
+typeOf synthLit loc ctx = case P.at' loc ctx of
   Nothing -> N.failure $ invalid loc ctx
   Just (sub,replace) ->
     let ctx = E.lam1 $ \f -> replace (ksub f)
@@ -77,13 +77,13 @@ typeAt synthLit loc ctx = case P.at' loc ctx of
 -- @e@ is let once in an outer scope, ensuring type information
 -- flows between the usage of @e@ and the call to @f@. We then
 -- read off the type of @e@ from the inferred type of @f@.
-admissibleTypeAt :: Applicative f
+admissibleTypeOf :: Applicative f
                  => (H.Hash -> Noted f T.Type)
                  -> P.Path
                  -> E.Term
                  -> Noted f T.Type
-admissibleTypeAt synthLit (P.Path []) ctx = synthesize synthLit ctx
-admissibleTypeAt synthLit loc ctx = case P.at' loc ctx of
+admissibleTypeOf synthLit (P.Path []) ctx = synthesize synthLit ctx
+admissibleTypeOf synthLit loc ctx = case P.at' loc ctx of
   Nothing -> N.failure $ invalid loc ctx
   Just (sub,replace) ->
     let ctx = (E.lam2 $ \sub f -> replace (ksub sub f)) `E.App` sub
@@ -115,8 +115,13 @@ letFloat loc ctx = case P.at loc ctx of
       free = E.freeVars sub
       minVar = if S.null free then Nothing else Just (S.findMin free)
       trimmedPath = P.trimToV minVar loc
+      remainderPath = P.Path $ drop (length . P.elements $ trimmedPath) (P.elements loc)
+      letBody = do
+        body <- P.at trimmedPath ctx
+        E.lam1 <$> P.set' remainderPath body
     in
       N.liftMaybe (invalid loc ctx) $ do
-        ctx' <- P.modify trimmedPath (\body -> E.lam1 (\x -> body) `E.App` sub) ctx
+        body <- letBody
+        ctx' <- P.set trimmedPath (body `E.App` sub) ctx
         loc' <- pure $ P.extend P.Arg trimmedPath
         pure (ctx', loc')

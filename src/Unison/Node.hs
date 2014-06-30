@@ -10,6 +10,8 @@ import Unison.Edit.Type.Path as TP
 import Unison.Note as N
 
 data Node m k t e = Node {
+  -- | Obtain the type of the given subterm, assuming the path is valid
+  admissibleTypeOf :: k -> P.Path -> Noted m t,
   -- | Create a new term and provide its metadata
   createTerm :: e -> MD.Metadata k -> Noted m k,
   -- | Create a new type and provide its metadata
