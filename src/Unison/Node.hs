@@ -22,7 +22,7 @@ data Node m k t e = Node {
   -- | Lookup the set of terms/types depending directly on the given @k@, optionally limited to the given set
   dependents :: Maybe (S.Set k) -> k -> Noted m (S.Set k),
   -- | Modify the given subterm, which may fail
-  edit :: k -> P.Path -> A.Action e -> Noted m (k, e),
+  editTerm :: k -> P.Path -> A.Action e -> Noted m (k, e),
   -- | Modify the given type, which may fail
   editType :: k -> P.Path -> A.Action t -> Noted m (k, t),
   -- | Access the metadata for the term or type identified by @k@

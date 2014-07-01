@@ -2,7 +2,7 @@
 
 module Unison.Syntax.Hash (
   Hash, Digest,
-  append, byte, bytes, double, finalize, hashBytes,
+  append, base64, byte, bytes, double, finalize, hashBytes,
   lazyBytes, text, zero, one, two, three) where
 
 import qualified Data.ByteString.Base64 as Base64
@@ -28,6 +28,10 @@ double = error "todo: hashDouble"
 
 text :: T.Text -> Digest
 text = error "todo: hashText"
+
+-- | Return the base64 encoding of this 'Hash'
+base64 :: Hash -> T.Text
+base64 (Hash h) = h
 
 hashBytes :: Hash -> B.ByteString
 hashBytes (Hash h) = Base64.decodeLenient (encodeUtf8 h)

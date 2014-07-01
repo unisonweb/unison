@@ -1,6 +1,7 @@
+{-# LANGUAGE TemplateHaskell #-}
 module Unison.Node.Panel where
 
-import qualified Data.Map as M
+import Data.Aeson.TH
 import Unison.Node.Metadata as D
 
 -- | Represents a view of a collection of Unison types in @t@ and
@@ -10,9 +11,11 @@ import Unison.Node.Metadata as D
 -- the server when first rendering a panel.
 data Panel k t e = Panel {
   layout :: e, -- ^ Specifies overall layout of the panel
-  terms :: M.Map k e, -- ^ Term definitions referenced by the layout
-  types :: M.Map k t, -- ^ Type definitions references by the layout
-  metadata :: M.Map k (D.Metadata k), -- ^ The metadata for all hashes used in the layout
-  dependencies :: M.Map k [k], -- ^ The dependencies of each hash, for dataflow-style updating by client
-  layouts :: M.Map k e -- ^ For each cell, the prerendered layout
+  terms :: [(k, e)], -- ^ Term definitions referenced by the layout
+  types :: [(k, t)], -- ^ Type definitions references by the layout
+  metadata :: [(k, D.Metadata k)], -- ^ The metadata for all hashes used in the layout
+  dependencies :: [(k, [k])], -- ^ The dependencies of each hash, for dataflow-style updating by client
+  layouts :: [(k,e)] -- ^ For each cell, the prerendered layout
 }
+
+deriveJSON defaultOptions ''Panel

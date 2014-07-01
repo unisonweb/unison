@@ -31,6 +31,7 @@ data Query = Query Text
 
 -- data Examples k = Examples [(k, k)]
 
-deriveJSON defaultOptions ''Names
-deriveJSON defaultOptions ''Sort
 deriveJSON defaultOptions ''Metadata
+deriveJSON defaultOptions ''Names
+deriveJSON defaultOptions ''Query
+deriveJSON defaultOptions ''Sort

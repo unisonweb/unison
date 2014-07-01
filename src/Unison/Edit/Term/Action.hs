@@ -1,4 +1,7 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module Unison.Edit.Term.Action where
+import Data.Aeson.TH
 
 data Action e
   = Abstract -- Turn target into function parameter
@@ -9,6 +12,7 @@ data Action e
   | HNF -- Simplify target to head normal form
   | Apply e -- Replace the target, `e`, with `f e`
 
+deriveJSON defaultOptions ''Action
 -- combine fst snd
 -- uncurry f = (x,y) -> f x y
 -- x y -> x + y
@@ -55,3 +59,4 @@ Apply f : replace the target, `e` with `f e`
   -------------------
   foo x * bar (f e)
 -}
+
