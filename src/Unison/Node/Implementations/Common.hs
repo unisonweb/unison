@@ -17,24 +17,12 @@ import Unison.Syntax.Term (Term)
 import Unison.Node as N
 import Unison.Note (Noted)
 
-data NodeState = NodeState {
-  terms :: M.Map H.Hash Term, -- ^ Maps term hash to source
-  typeOf :: M.Map H.Hash Type, -- ^ Maps term hash to type
-  types :: M.Map H.Hash Type, -- ^ Maps type hash to source
-  metadata :: M.Map H.Hash (MD.Metadata H.Hash) -- ^ Metadata for terms, types
-}
-
-empty :: NodeState
-empty = NodeState M.empty M.empty M.empty M.empty
-
 data Store f = Store {
   hashes :: Maybe (S.Set H.Hash) -> Noted f (S.Set H.Hash), -- ^ The set of hashes in this store, optionally constrained to intersect the given set
   readTerm :: H.Hash -> Noted f Term,
   writeTerm :: H.Hash -> Term -> Noted f (),
   readType :: H.Hash -> Noted f Type,
   writeType :: H.Hash -> Type -> Noted f (),
-  readTypeOf :: H.Hash -> Noted f Type, -- can be removed, defined using readMetadata
-  writeTypeOf :: H.Hash -> Type -> Noted f (),
   readMetadata :: H.Hash -> Noted f (MD.Metadata H.Hash),
   writeMetadata :: H.Hash -> MD.Metadata H.Hash -> Noted f ()
 }
@@ -42,18 +30,22 @@ data Store f = Store {
 node :: (Applicative f, Monad f) => Eval f -> Store f -> Node f H.Hash Type Term
 node eval store =
   let
+    readTypeOf h = readMetadata store h >>=
+                   \md -> readType store (MD.annotation md)
+
     admissibleTypeOf h loc = case loc of
-      P.Path [] -> readTypeOf store h
+      P.Path [] -> readTypeOf h
       P.Path _ -> do
         ctx <- term h
-        TE.admissibleTypeOf (readTypeOf store) loc ctx
+        TE.admissibleTypeOf readTypeOf loc ctx
 
     createTerm e md = do
-      t <- Type.synthesize (readTypeOf store) e
+      t <- Type.synthesize readTypeOf e
       h <- pure $ E.finalizeHash e
+      ht <- pure $ T.finalizeHash t
       writeTerm store h e
-      writeTypeOf store h t
-      writeMetadata store h md
+      writeType store ht t
+      writeMetadata store h (md { MD.annotation = ht })
       pure h
 
     createType t md = let h = T.finalizeHash t in do
@@ -86,7 +78,7 @@ node eval store =
       hs <- hashes store limit
       hs' <- case t of
         Nothing -> pure $ S.toList hs
-        Just t -> filterM (\h -> flip Type.isSubtype t <$> readTypeOf store h) (S.toList hs)
+        Just t -> filterM (\h -> flip Type.isSubtype t <$> readTypeOf h) (S.toList hs)
       mds <- mapM (\h -> (,) h <$> metadata h) hs'
       pure . M.fromList . filter (\(_,md) -> MD.matches query md) $ mds
 
@@ -95,7 +87,7 @@ node eval store =
         allowed :: T.Type -> Bool
         allowed = maybe (const True) (flip Type.isSubtype) typ
       in do
-        t <- readTypeOf store h
+        t <- readTypeOf h
         ctx <- readTerm store h
         md <- readMetadata store h
         locals <- pure .
@@ -116,10 +108,10 @@ node eval store =
       readType store
 
     typeOf h loc = case loc of
-      P.Path [] -> readTypeOf store h
+      P.Path [] -> readTypeOf h
       P.Path _ -> do
         ctx <- term h
-        TE.typeOf (readTypeOf store) loc ctx
+        TE.typeOf readTypeOf loc ctx
 
     typeOfConstructorArg = error "todo"
 
