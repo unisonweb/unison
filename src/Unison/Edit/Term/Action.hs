@@ -9,7 +9,6 @@ data Action e
   | Eta -- Eta reduce the target
   | LetFloat -- Float the target out to a let binding, as far as possible
   | WHNF -- Simplify target to weak head normal form
-  | HNF -- Simplify target to head normal form
   | Apply e -- Replace the target, `e`, with `f e`
 
 deriveJSON defaultOptions ''Action

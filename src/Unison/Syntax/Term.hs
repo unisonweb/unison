@@ -6,6 +6,7 @@
 
 module Unison.Syntax.Term where
 
+import Control.Applicative
 import Control.Monad
 import Data.Aeson.TH
 import qualified Data.Aeson.Encode as JE
@@ -67,6 +68,15 @@ lam2 f = lam1 $ \x -> lam1 $ \y -> f x y
 
 lam3 :: (Term -> Term -> Term -> Term) -> Term
 lam3 f = lam1 $ \x -> lam1 $ \y -> lam1 $ \z -> f x y z
+
+-- | Convert all 'Ref' constructors to the corresponding term
+link :: Applicative f => (H.Hash -> f Term) -> Term -> f Term
+link env e = case e of
+  Ref h -> env h
+  App fn arg -> App <$> link env fn <*> link env arg
+  Lam n body -> go <$> link env body
+    where go body = lam1 $ \x -> betaReduce (Lam n body `App` x)
+  _ -> pure e
 
 dependencies :: Term -> S.Set H.Hash
 dependencies e = case e of
