@@ -52,7 +52,10 @@ library
     Unison.Edit.Term.Path
     Unison.Edit.Type.Path
     Unison.Node
-    Unison.Node.Implementations.Common
+    Unison.Node.Store
+    Unison.Node.Store.Memory
+    Unison.Node.Store.File
+    Unison.Node.Common
     Unison.Node.Metadata
     Unison.Node.Panel
     Unison.Node.Server
@@ -76,6 +79,8 @@ library
     bytestring                ,
     containers                >= 0.5,
     cryptohash                ,
+    directory                 ,
+    filepath                  ,
     lens                      >= 4.2, 
     mtl                       >= 2.1.1,
     prelude-extras            >= 0.3,

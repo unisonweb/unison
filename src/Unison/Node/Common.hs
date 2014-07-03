@@ -1,4 +1,4 @@
-module Unison.Node.Implementations.Common where
+module Unison.Node.Common (node) where
 
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -15,19 +15,10 @@ import Unison.Edit.Term.Eval as Eval
 import Unison.Syntax.Type (Type)
 import Unison.Syntax.Term (Term)
 import Unison.Node as N
+import Unison.Node.Store
 import Unison.Note (Noted)
 
-data Store f = Store {
-  hashes :: Maybe (S.Set H.Hash) -> Noted f (S.Set H.Hash), -- ^ The set of hashes in this store, optionally constrained to intersect the given set
-  readTerm :: H.Hash -> Noted f Term,
-  writeTerm :: H.Hash -> Term -> Noted f (),
-  readType :: H.Hash -> Noted f Type,
-  writeType :: H.Hash -> Type -> Noted f (),
-  readMetadata :: H.Hash -> Noted f (MD.Metadata H.Hash),
-  writeMetadata :: H.Hash -> MD.Metadata H.Hash -> Noted f ()
-}
-
-node :: (Applicative f, Monad f) => Eval f -> Store f -> Node f H.Hash Type Term
+node :: (Applicative f, Monad f) => Eval f -> Store f  -> Node f H.Hash Type Term
 node eval store =
   let
     readTypeOf h = readMetadata store h >>=
