@@ -4,22 +4,27 @@ import Control.Applicative
 import qualified Data.Set as S
 import Data.Set (Set)
 import Data.Aeson as J
+import qualified Data.Text as T
 import System.FilePath
 import System.Directory
-import Unison.Syntax.Hash
+import Unison.Syntax.Hash as H
 import Unison.Node.Store
 import Unison.Note as N
 
-{-
--- | Create a 'Store' rooted at the given path
+-- | Create a 'Store' rooted at the given path.
+-- This creates directories "/terms", "/types", and "/metadata"
+-- with a file named via the base64 encoding of each 'Hash'
 store :: FilePath -> Store IO
 store root =
   let
-    hashesIn :: FilePath -> Set Hash
+    hashesIn :: FilePath -> Noted IO (Set Hash)
     hashesIn dir = N.lift $
-      S.fromList . (map Hash) <$> getDirectoryContents (joinPath [root, dir])
-    read :: FilePath -> Hash
+      S.fromList . (map (H.fromBase64 . T.pack)) <$>
+        getDirectoryContents (joinPath [root, dir])
+    read :: FromJSON a => FilePath -> Hash -> Noted IO a
     read dir h = undefined
+
+    write :: ToJSON a => FilePath -> Hash -> a -> Noted IO ()
     write dir h v = undefined
 
     hashes limit =
@@ -33,4 +38,3 @@ store root =
     readMetadata = read "metadata"
     writeMetadata = write "metadata"
   in Store hashes readTerm writeTerm readType writeType readMetadata writeMetadata
--}

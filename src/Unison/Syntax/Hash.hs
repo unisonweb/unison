@@ -2,12 +2,13 @@
 
 module Unison.Syntax.Hash (
   Hash, Digest,
-  append, base64, byte, bytes, double, finalize, hashBytes,
+  append, base64, fromBase64, byte, bytes, double, finalize, hashBytes,
   lazyBytes, text, zero, one, two, three) where
 
+import Control.Applicative
+import Data.Aeson
 import qualified Data.ByteString.Base64 as Base64
 import Data.Word (Word8)
-import Data.Aeson.TH
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Text as T
@@ -15,7 +16,7 @@ import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Crypto.Hash.SHA3 as H
 
 -- | Hash which uniquely identifies a Unison type or term
-newtype Hash = Hash T.Text deriving (Eq,Ord,Show,Read)
+newtype Hash = Hash B.ByteString deriving (Eq,Ord,Show,Read)
 
 -- | Buffer type for building up hash values
 newtype Digest = Digest (H.Ctx -> H.Ctx)
@@ -31,14 +32,18 @@ text = error "todo: hashText"
 
 -- | Return the base64 encoding of this 'Hash'
 base64 :: Hash -> T.Text
-base64 (Hash h) = h
+base64 (Hash h) = decodeUtf8 (Base64.encode h)
+
+-- | Produce a 'Hash' from a base64-encoded version of its binary representation
+fromBase64 :: T.Text -> Hash
+fromBase64 = Hash . Base64.decodeLenient . encodeUtf8
 
 hashBytes :: Hash -> B.ByteString
-hashBytes (Hash h) = Base64.decodeLenient (encodeUtf8 h)
+hashBytes (Hash h) = h
 
 finalize :: Digest -> Hash
 finalize (Digest f) =
-  Hash . decodeUtf8 . Base64.encode . H.finalize . f . H.init $ 256
+  Hash . H.finalize . f . H.init $ 256
 
 bytes :: B.ByteString -> Digest
 bytes bs = Digest (\ctx -> H.update ctx bs)
@@ -61,4 +66,8 @@ two = byte 2
 three :: Digest
 three = byte 3
 
-deriveJSON defaultOptions ''Hash
+instance FromJSON Hash where
+  parseJSON j = fromBase64 <$> parseJSON j
+
+instance ToJSON Hash where
+  toJSON h = toJSON (base64 h)
