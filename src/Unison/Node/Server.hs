@@ -48,11 +48,11 @@ server port node = S.scotty port $ do
     (limit, h) <- S.jsonData
     k <- runN $ N.dependents node limit h
     S.json k
-  S.post "/edit-term" $ do
+  S.get "/edit-term" $ do
     (h, loc, a) <- S.jsonData
     (k, e) <- runN $ N.editTerm node h loc a
     S.json (k, e)
-  S.post "/edit-type" $ do
+  S.get "/edit-type" $ do
     (h, loc, a) <- S.jsonData
     (k, e) <- runN $ N.editType node h loc a
     S.json (k, e)
