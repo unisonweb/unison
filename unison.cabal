@@ -49,6 +49,7 @@ library
     Unison.Edit.Term
     Unison.Edit.Term.Action
     Unison.Edit.Term.Eval
+    Unison.Edit.Term.Eval.Interpreter
     Unison.Edit.Term.Path
     Unison.Edit.Type.Path
     Unison.Node
@@ -111,6 +112,18 @@ executable unison
     prelude-extras,
     lens,
     text
+
+executable node
+  main-is: src/Node.hs
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -v0
+
+  if flag(optimized)
+    ghc-options: -funbox-strict-fields -O2
+
+  build-depends:
+    unison,
+    containers,
+    base
 
 test-suite properties
   type:           exitcode-stdio-1.0

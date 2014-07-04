@@ -26,7 +26,7 @@ runN n = liftIO (unnote n) >>= go
   where go (Left e) = S.raise (TL.pack (show e))
         go (Right a) = pure a
 
-server :: Int -> Node IO Hash Term Type -> IO ()
+server :: Int -> Node IO Hash Type Term -> IO ()
 server port node = S.scotty port $ do
   S.get "/admissible-type-of" $ do
     (h, path) <- S.jsonData
