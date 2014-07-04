@@ -70,9 +70,15 @@ lam3 :: (Term -> Term -> Term -> Term) -> Term
 lam3 f = lam1 $ \x -> lam1 $ \y -> lam1 $ \z -> f x y z
 
 -- | Convert all 'Ref' constructors to the corresponding term
-link :: Applicative f => (H.Hash -> f Term) -> Term -> f Term
+link :: (Applicative f, Monad f) => (H.Hash -> f Term) -> Term -> f Term
 link env e = case e of
-  Ref h -> env h
+  -- recursively resolve all references, leaving alone any hashes
+  -- that resolve to themselves, as these are considered primops
+  Ref h -> env h >>= \e -> case e of
+    Ref h' | h == h' -> pure $ Ref h'
+    Con h' | h == h' -> pure $ Con h'
+    e | S.null (dependencies e) -> pure $ e
+    e | otherwise -> link env e
   App fn arg -> App <$> link env fn <*> link env arg
   Lam n body -> go <$> link env body
     where go body = lam1 $ \x -> betaReduce (Lam n body `App` x)
