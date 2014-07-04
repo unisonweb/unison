@@ -18,7 +18,7 @@ import Unison.Node as N
 import Unison.Node.Store
 import Unison.Note (Noted)
 
-node :: (Applicative f, Monad f) => Eval f -> Store f  -> Node f H.Hash Type Term
+node :: (Applicative f, Monad f) => Eval (Noted f) -> Store f  -> Node f H.Hash Type Term
 node eval store =
   let
     readTypeOf h = readMetadata store h >>=

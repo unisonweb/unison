@@ -17,7 +17,7 @@ import Unison.Type (synthesize)
 
 -- | Interpret the given 'Action'
 interpret :: (Applicative f, Monad f)
-          => Eval f
+          => Eval (Noted f)
           -> (H.Hash -> Noted f E.Term)
           -> (H.Hash -> Noted f T.Type)
           -> P.Path -> Action E.Term -> E.Term -> Noted f E.Term
@@ -71,7 +71,7 @@ admissibleTypeOf synthLit loc ctx = case P.at' loc ctx of
 -- | Beta-reduce the target, @(\x -> x+1) p@ becomes @p+1@.
 -- This noops if target is not beta-reducible.
 beta :: Applicative f
-     => Eval f
+     => Eval (Noted f)
      -> (H.Hash -> Noted f E.Term)
      -> P.Path
      -> E.Term
@@ -151,7 +151,7 @@ typeOf synthLit loc ctx = case P.at' loc ctx of
 -- | Evaluate the given location to weak head normal form.
 -- If the location contains any free variables, this noops.
 whnf :: Applicative f
-     => Eval f
+     => Eval (Noted f)
      -> (H.Hash -> Noted f E.Term)
      -> P.Path
      -> E.Term
