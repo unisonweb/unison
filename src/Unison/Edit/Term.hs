@@ -17,16 +17,19 @@ import Unison.Type (synthesize)
 
 -- | Interpret the given 'Action'
 interpret :: (Applicative f, Monad f)
-          => Eval f -> P.Path -> Action E.Term -> E.Term -> Noted f E.Term
-interpret eval loc f ctx = go f where
+          => Eval f
+          -> (H.Hash -> Noted f E.Term)
+          -> (H.Hash -> Noted f T.Type)
+          -> P.Path -> Action E.Term -> E.Term -> Noted f E.Term
+interpret eval readTerm readType loc f ctx = go f where
   go Abstract = abstract loc ctx
   go Eta = eta loc ctx
-  go Beta = beta eval loc ctx
+  go Beta = beta eval readTerm loc ctx
   go LetFloat = fst <$> letFloat loc ctx
-  go WHNF = whnf eval loc ctx
+  go WHNF = whnf eval readTerm loc ctx
   go (Apply e) = case P.modify loc (E.App e) ctx of
     Nothing -> N.failure $ invalid loc ctx
-    Just e -> const e <$> synthesize (Eval.typ eval) e
+    Just e -> const e <$> synthesize readType e
 
 invalid :: (Show a1, Show a) => a -> a1 -> String
 invalid loc ctx = "invalid path " ++ show loc ++ " in:\n" ++ show ctx
@@ -67,10 +70,15 @@ admissibleTypeOf synthLit loc ctx = case P.at' loc ctx of
 
 -- | Beta-reduce the target, @(\x -> x+1) p@ becomes @p+1@.
 -- This noops if target is not beta-reducible.
-beta :: Applicative f => Eval f -> P.Path -> E.Term -> Noted f E.Term
-beta eval loc ctx = case P.at' loc ctx of
+beta :: Applicative f
+     => Eval f
+     -> (H.Hash -> Noted f E.Term)
+     -> P.Path
+     -> E.Term
+     -> Noted f E.Term
+beta eval readTerm loc ctx = case P.at' loc ctx of
   Nothing -> N.failure $ invalid loc ctx
-  Just (sub,replace) -> replace <$> Eval.step eval sub
+  Just (sub,replace) -> replace <$> Eval.step eval readTerm sub
 
 -- | Eta-reduce the target; @\x -> f x@ becomes @f@.
 -- This noops if target is not eta-reducible.
@@ -142,8 +150,13 @@ typeOf synthLit loc ctx = case P.at' loc ctx of
 
 -- | Evaluate the given location to weak head normal form.
 -- If the location contains any free variables, this noops.
-whnf :: Applicative f => Eval f -> P.Path -> E.Term -> Noted f E.Term
-whnf eval loc ctx = case P.at' loc ctx of
+whnf :: Applicative f
+     => Eval f
+     -> (H.Hash -> Noted f E.Term)
+     -> P.Path
+     -> E.Term
+     -> Noted f E.Term
+whnf eval readTerm loc ctx = case P.at' loc ctx of
   Nothing -> N.failure $ invalid loc ctx
-  Just (sub,replace) | S.null (E.freeVars sub) -> replace <$> Eval.whnf eval sub
+  Just (sub,replace) | S.null (E.freeVars sub) -> replace <$> Eval.whnf eval readTerm sub
   Just _             | otherwise               -> pure ctx

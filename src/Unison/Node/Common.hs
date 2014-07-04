@@ -56,7 +56,7 @@ node eval store =
 
     edit k path action = do
       e <- readTerm store k
-      e' <- TE.interpret eval path action e
+      e' <- TE.interpret eval term typ path action e
       pure $ (E.finalizeHash e', e')
 
     editType = error "todo later"
