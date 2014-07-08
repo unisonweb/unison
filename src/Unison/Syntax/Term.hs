@@ -8,9 +8,11 @@ module Unison.Syntax.Term where
 
 import Control.Applicative
 import Control.Monad
+import Control.Monad.Writer
 import Data.Aeson.TH
 import qualified Data.Aeson.Encode as JE
 import qualified Data.Set as S
+import qualified Data.Map as M
 import qualified Data.Text as Txt
 import qualified Data.Vector.Unboxed as V
 import Unison.Syntax.Var as V
@@ -102,6 +104,10 @@ freeVars e = case e of
   Lam n body -> S.delete n (freeVars body)
   _ -> S.empty
 
+isClosed :: Term -> Bool
+isClosed e | S.null (freeVars e) = True
+isClosed _ = False
+
 stripAnn :: Term -> (Term, Term -> Term)
 stripAnn (Ann e t) = (e, \e' -> Ann e' t)
 stripAnn e = (e, id)
@@ -131,6 +137,11 @@ etaReduce :: Term -> Term
 etaReduce (Lam n (App f n')) | Var n == n' = f
 etaReduce e = e
 
+-- | Repeatedly apply eta reduction until reaching fixed point
+etaNormalForm :: Term -> Term
+etaNormalForm (Lam n (App f n')) | Var n == n' = etaNormalForm f
+etaNormalForm e = e
+
 applyN :: Term -> [Term] -> Term
 applyN f = foldl App f
 
@@ -143,9 +154,28 @@ string s = Lit (String (Txt.pack s))
 text :: Txt.Text -> Term
 text s = Lit (String s)
 
+hashCons :: Term -> Writer (M.Map H.Hash Term) Term
+hashCons e =
+  let closedHash = H.finalize . H.lazyBytes . JE.encode
+  in case etaNormalForm e of
+    l@(Lit _) -> let h = closedHash l in tell (M.singleton h l) >> pure (Ref h)
+    c@(Con _) -> pure c
+    r@(Ref _) -> pure r
+    v@(Var _) -> pure v
+    Lam n body -> lam1M $ \x -> hashCons (betaReduce (Lam n body `App` x))
+    Ann e t   -> Ann <$> hashCons e <*> pure t
+    App f x   -> do
+      f' <- hashCons f
+      x' <- hashCons x
+      let
+        e2 = App f' x'
+        h = closedHash e2
+        closed = isClosed f && isClosed x
+        in tell (if closed then M.singleton h e2 else M.empty) >> pure (Ref h)
+
 -- | Computes the nameless hash of the given term
 hash :: Term -> H.Digest
-hash = H.lazyBytes . JE.encode
+hash e = H.lazyBytes . JE.encode . fst . runWriter . hashCons $ e
 
 finalizeHash :: Term -> H.Hash
 finalizeHash = H.finalize . hash
