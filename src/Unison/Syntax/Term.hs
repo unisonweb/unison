@@ -154,24 +154,46 @@ string s = Lit (String (Txt.pack s))
 text :: Txt.Text -> Term
 text s = Lit (String s)
 
-hashCons :: Term -> Writer (M.Map H.Hash Term) Term
-hashCons e =
-  let closedHash = H.finalize . H.lazyBytes . JE.encode
-      save e | isClosed e = let h = closedHash e in tell (M.singleton h e) >> pure (Ref h)
-      save e = pure e
-  in case etaNormalForm e of
-    l@(Lit _) -> save l
-    c@(Con _) -> pure c
-    r@(Ref _) -> pure r
-    v@(Var _) -> pure v
-    Lam n body -> hashCons body >>=
-      \body -> save (lam1 $ \x -> betaReduce (Lam n body `App` x))
-    Ann e t   -> save =<< (Ann <$> hashCons e <*> pure t)
-    App f x   -> save =<< (App <$> hashCons f <*> hashCons x)
+-- | Order a collection of declarations such that no declaration
+-- references hashes declared later in the returned list
+topological :: M.Map H.Hash Term -> [(H.Hash, Term)]
+topological terms = go S.empty (M.keys terms)
+  where
+    keys = M.keysSet terms
+    go seen pending = case pending of
+      [] -> []
+      (h:pending) | S.member h seen -> go seen pending
+      (h:pending) ->
+        let e = maybe (error "unpossible") id $ M.lookup h terms
+            seen' = S.insert h seen
+            new = S.difference (dependencies e `S.intersection` keys) seen'
+            pending' = pending ++ S.toList new
+        in go seen' pending' ++ [(h,e)]
+
+-- | Factor all closed subterms out into separate declarations, and
+-- return a single term which contains 'Ref's into these declarations
+-- The list of subterms are topologically sorted, so terms with
+-- no dependencies appear first in the returned list, followed by
+-- terms which depend on these dependencies
+hashCons :: Term -> ((H.Hash, Term), [(H.Hash,Term)])
+hashCons e = let (e', hs) = runWriter (go e) in ((closedHash e', e'), topological hs)
+  where
+    closedHash = H.finalize . H.lazyBytes . JE.encode
+    save e | isClosed e = let h = closedHash e in tell (M.singleton h e) >> pure (Ref h)
+    save e = pure e
+    go e = case etaNormalForm e of
+      l@(Lit _) -> save l
+      c@(Con _) -> pure c
+      r@(Ref _) -> pure r
+      v@(Var _) -> pure v
+      Lam n body -> go body >>=
+        \body -> save (lam1 $ \x -> betaReduce (Lam n body `App` x))
+      Ann e t   -> save =<< (Ann <$> go e <*> pure t)
+      App f x   -> save =<< (App <$> go f <*> go x)
 
 -- | Computes the nameless hash of the given term
 hash :: Term -> H.Digest
-hash e = H.lazyBytes . JE.encode . fst . runWriter . hashCons $ e
+hash e = H.lazyBytes . JE.encode . fst . fst . hashCons $ e
 
 finalizeHash :: Term -> H.Hash
 finalizeHash = H.finalize . hash

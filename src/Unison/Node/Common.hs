@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Unison.Node.Common (node) where
 
 import qualified Data.Map as M
@@ -32,12 +33,18 @@ node eval store =
 
     createTerm e md = do
       t <- Type.synthesize readTypeOf e
-      h <- pure $ E.finalizeHash e
+      ((h,_), subterms) <- pure $ E.hashCons e
       ht <- pure $ T.finalizeHash t
       writeTerm store h e
       writeType store ht t
       writeMetadata store h (md { MD.annotation = ht })
-      pure h
+      pure h <* mapM_ go subterms where -- declare all subterms extracted via hash-consing
+        go (h,e) = do
+          t <- Type.synthesize readTypeOf e
+          ht <- pure $ T.finalizeHash t
+          writeTerm store h e
+          writeType store ht t
+          writeMetadata store h (MD.syntheticTerm ht)
 
     createType t md = let h = T.finalizeHash t in do
       writeType store h t
