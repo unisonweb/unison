@@ -30,7 +30,7 @@ data Literal
   | String
   | Vector
   | Hash H.Hash -- ^ A type literal uniquely defined by some nameless Hash
-  deriving (Eq,Ord,Show,Read)
+  deriving (Eq,Ord,Show)
 
 -- | Types in the Unison language
 data Type

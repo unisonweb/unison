@@ -2,8 +2,8 @@
 
 module Unison.Syntax.Hash (
   Hash, Digest,
-  append, base64, fromBase64, byte, bytes, double, finalize, hashBytes,
-  lazyBytes, text, zero, one, two, three) where
+  append, base64, fromBase64, byte, bytes, finalize, hashBytes,
+  lazyBytes, zero, one, two, three) where
 
 import Control.Applicative
 import Data.Aeson
@@ -16,19 +16,16 @@ import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Crypto.Hash.SHA3 as H
 
 -- | Hash which uniquely identifies a Unison type or term
-newtype Hash = Hash B.ByteString deriving (Eq,Ord,Show,Read)
+newtype Hash = Hash B.ByteString deriving (Eq,Ord)
+
+instance Show Hash where
+  show h = "#" ++ (take 5 . drop 1 $ show (base64 h))
 
 -- | Buffer type for building up hash values
 newtype Digest = Digest (H.Ctx -> H.Ctx)
 
 append :: Digest -> Digest -> Digest
 append (Digest a) (Digest b) = Digest (b . a)
-
-double :: Double -> Digest
-double = error "todo: hashDouble"
-
-text :: T.Text -> Digest
-text = error "todo: hashText"
 
 -- | Return the base64 encoding of this 'Hash'
 base64 :: Hash -> T.Text

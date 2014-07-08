@@ -24,7 +24,7 @@ data Literal
   = Number Double
   | String Txt.Text
   | Vector (V.Vector Double)
-  deriving (Eq,Ord,Show,Read)
+  deriving (Eq,Ord,Show)
 
 -- | Terms in the Unison language
 data Term
@@ -157,21 +157,17 @@ text s = Lit (String s)
 hashCons :: Term -> Writer (M.Map H.Hash Term) Term
 hashCons e =
   let closedHash = H.finalize . H.lazyBytes . JE.encode
+      save e | isClosed e = let h = closedHash e in tell (M.singleton h e) >> pure (Ref h)
+      save e = pure e
   in case etaNormalForm e of
-    l@(Lit _) -> let h = closedHash l in tell (M.singleton h l) >> pure (Ref h)
+    l@(Lit _) -> save l
     c@(Con _) -> pure c
     r@(Ref _) -> pure r
     v@(Var _) -> pure v
-    Lam n body -> lam1M $ \x -> hashCons (betaReduce (Lam n body `App` x))
-    Ann e t   -> Ann <$> hashCons e <*> pure t
-    App f x   -> do
-      f' <- hashCons f
-      x' <- hashCons x
-      let
-        e2 = App f' x'
-        h = closedHash e2
-        closed = isClosed f && isClosed x
-        in tell (if closed then M.singleton h e2 else M.empty) >> pure (Ref h)
+    Lam n body -> hashCons body >>=
+      \body -> save (lam1 $ \x -> betaReduce (Lam n body `App` x))
+    Ann e t   -> save =<< (Ann <$> hashCons e <*> pure t)
+    App f x   -> save =<< (App <$> hashCons f <*> hashCons x)
 
 -- | Computes the nameless hash of the given term
 hash :: Term -> H.Digest
@@ -184,12 +180,6 @@ finalizeHash = H.finalize . hash
 -- the terms may have mutual dependencies
 hashes :: [Term] -> [H.Hash]
 hashes _ = error "todo: Term.hashes"
-
-hashLit :: Literal -> H.Digest
-hashLit (Number n) = H.zero `H.append` H.double n
-hashLit (String s) = H.one `H.append` H.text s
-hashLit (Vector vec) = H.two `H.append` go vec where
-  go _ = error "todo: hashLit vector"
 
 deriveJSON defaultOptions ''Literal
 deriveJSON defaultOptions ''Term
