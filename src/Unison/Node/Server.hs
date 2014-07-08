@@ -6,15 +6,18 @@ module Unison.Node.Server where
 
 import Control.Applicative
 import Control.Monad.IO.Class
+import qualified Data.ByteString.Lazy as LBS
+import qualified Data.Attoparsec.ByteString as Atto
 import qualified Data.Aeson as J
+import qualified Data.Aeson.Types as JT
+import qualified Data.Aeson.Parser as JP
 import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TLE
 import qualified Data.Map as M
 import qualified Unison.Syntax.Hash as H
 import qualified Unison.Syntax.Term as E
 import qualified Unison.Syntax.Type as T
 import Unison.Syntax.Hash (Hash)
-import Unison.Syntax.Term (Term)
-import Unison.Syntax.Type (Type)
 import Unison.Node (Node)
 import qualified Unison.Node as N
 import Unison.Note (Noted, unnote)
@@ -26,7 +29,17 @@ runN n = liftIO (unnote n) >>= go
   where go (Left e) = S.raise (TL.pack (show e))
         go (Right a) = pure a
 
-server :: Int -> Node IO Hash Type Term -> IO ()
+jsonParam :: J.FromJSON a => TL.Text -> ActionM a
+jsonParam paramName = S.param paramName >>= \paramValue ->
+  let val = Atto.eitherResult
+          . Atto.parse JP.value
+          . LBS.toStrict
+          . TLE.encodeUtf8 $ paramValue
+  in case val >>= JT.parseEither J.parseJSON of
+    Left err -> S.raise (TL.pack err)
+    Right a -> pure a
+
+server :: Int -> Node IO Hash T.Type E.Term -> IO ()
 server port node = S.scotty port $ do
   S.get "/admissible-type-of" $ do
     (h, path) <- S.jsonData
@@ -56,12 +69,12 @@ server port node = S.scotty port $ do
     (h, loc, a) <- S.jsonData
     (k, e) <- runN $ N.editType node h loc a
     S.json (k, e)
-  S.get "/metadata" $ do
-    h <- S.jsonData
+  S.get "/metadata/:hash" $ do
+    h <- jsonParam "hash"
     md <- runN $ N.metadata node h
     S.json md
-  S.get "/panel" $ do
-    h <- S.jsonData
+  S.get "/panel/:hash" $ do
+    h <- jsonParam "hash"
     p <- runN $ N.panel node h
     S.json p
   S.get "/search" $ do
@@ -72,8 +85,8 @@ server port node = S.scotty port $ do
     (h,loc,t,q) <- S.jsonData
     p <- runN $ N.searchLocal node h loc t q
     S.json p
-  S.get "/term" $ do
-    h <- S.jsonData
+  S.get "/term/:hash" $ do
+    h <- jsonParam "hash"
     e <- runN $ N.term node h
     S.json e
   S.get "/transitive-dependencies" $ do
@@ -84,8 +97,8 @@ server port node = S.scotty port $ do
     (limit,h) <- S.jsonData
     s <- runN $ N.transitiveDependents node limit h
     S.json s
-  S.get "/type" $ do
-    h <- S.jsonData
+  S.get "/type/:hash" $ do
+    h <- jsonParam "hash"
     t <- runN $ N.typ node h
     S.json t
   S.get "/type-of" $ do

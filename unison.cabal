@@ -74,6 +74,7 @@ library
   build-depends:
     aeson                     >= 0.7.0.6,
     applicative-extras        >= 0.1.8,
+    attoparsec                ,
     base                      >= 4,
     base64-bytestring         ,
     blaze-html                >= 0.7.0.0,
