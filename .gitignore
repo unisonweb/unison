@@ -6,6 +6,8 @@ cabal-dev
 *.chs.h
 *.swp
 *.un~
+editor/build/**
+editor/cache/**
 site/_cache/**
 site/_site/**
 site/site
