@@ -1,5 +1,6 @@
 module Unison.Parser where
 
+import List as L
 import Either(..)
 import Json as J
 import Dict as M
@@ -118,7 +119,16 @@ number : Parser Float
 number = value >>= \v -> case v of 
   J.Number v -> unit v
   _ -> fail ("not a number: " ++ J.toString "" v)
-  
+
+array : Parser a -> Parser [a] 
+array p = 
+  let parse v = case v of
+    J.Array vs -> case partition (L.map (run p) vs) of
+      ([], results) -> Right results
+      (h :: t, _) -> Left h
+    _ -> Left ["not an array: " ++ J.toString "" v]
+  in { focus = [], parse = parse }
+
 atKey : String -> Parser a -> Parser a
 atKey k p = { p | focus <- Key k :: p.focus }
 
@@ -127,7 +137,16 @@ atIndex ind p = { p | focus <- Index ind :: p.focus }
 
 union : String -> String -> (String -> Parser a) -> Parser a
 union tag contents f = 
-  atKey tag string >>= \t -> atKey contents (f t)
+  let parse v = case v of 
+    J.Object obj -> case M.get tag obj of
+      Nothing -> Left ["invalid key: " ++ tag]
+      Just (J.String t) -> 
+        maybe (Left ["invalid key: " ++ contents]) 
+              (run (f t))
+              (M.get contents obj)
+      Just t -> Left ["invalid tag: " ++ J.toString "" t]
+    _ -> Left ["union applied to non-object: " ++ J.toString "" v]
+  in { focus = [], parse = parse }
 
 union' : (String -> Parser a) -> Parser a
 union' = union "tag" "contents"

@@ -2,7 +2,7 @@ module Unison.Type where
 
 import Unison.Hash as H
 import Unison.Parser as P
-import Unison.Parser ((#), (#|), (>>=), Parser)
+import Unison.Parser (Parser)
 import Unison.Var (I)
 
 data Literal
