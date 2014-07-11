@@ -2,6 +2,7 @@ module Main where
 
 import Unison.Components as U
 import Unison.Term as L
+import Unison.Metadata as MD
 
 import Graphics.Input(..)
 import Graphics.Collage (..)
