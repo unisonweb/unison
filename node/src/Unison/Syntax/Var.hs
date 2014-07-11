@@ -7,7 +7,8 @@
 
 module Unison.Syntax.Var where
 
-import Data.Aeson.TH
+import Control.Applicative
+import Data.Aeson
 
 newtype Var = I Int deriving (Eq,Ord)
 
@@ -30,4 +31,8 @@ nest (I i) (I j) = I (i + j)
 bound1 :: Var
 bound1 = I 1
 
-deriveJSON defaultOptions ''Var
+instance FromJSON Var where
+  parseJSON j = I <$> parseJSON j
+
+instance ToJSON Var where
+  toJSON (I i) = toJSON i

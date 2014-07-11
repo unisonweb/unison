@@ -14,7 +14,7 @@ import qualified Data.Aeson.Encode as JE
 import qualified Data.Set as S
 import qualified Data.Map as M
 import qualified Data.Text as Txt
-import qualified Data.Vector.Unboxed as V
+import qualified Data.Vector as V
 import Unison.Syntax.Var as V
 import qualified Unison.Syntax.Hash as H
 import qualified Unison.Syntax.Type as T
@@ -23,7 +23,7 @@ import qualified Unison.Syntax.Type as T
 data Literal
   = Number Double
   | String Txt.Text
-  | Vector (V.Vector Double)
+  | Vector (V.Vector Term)
   deriving (Eq,Ord,Show)
 
 -- | Terms in the Unison language
