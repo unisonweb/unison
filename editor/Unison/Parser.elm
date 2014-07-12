@@ -6,93 +6,44 @@ import Json as J
 import Dict as M
 
 type Msg = [String]
-
-type P a = J.Value -> Either Msg a
-
-data E = Key String | Index Int
-type Path = [E]
-
-type Parser a = { focus : Path, parse : P a }
-
-safeIndex : Int -> [a] -> Maybe a
-safeIndex i xs = case drop i xs of
-  [] -> Nothing
-  h :: t -> Just h
-
-getPath : Path -> J.Value -> Either Msg J.Value
-getPath p v =
-  let
-    failure loc v = Left [
-      "invalid path: " ++ show p,
-      "remainder: " ++ show loc,
-      "focus: " ++ J.toString "" v
-    ]
-    go loc v = case loc of
-      [] -> Right v
-      Key k :: t -> case v of
-        J.Object obj -> case M.get k obj of
-          Nothing -> failure loc v
-          Just v -> go t v
-        _ -> failure loc v
-      Index i :: t -> case v of
-        J.Array vs -> case safeIndex i vs of
-          Nothing -> failure loc v
-          Just v -> go t v
-        _ -> failure loc v
-  in go p v
+type Parser a = J.Value -> Either Msg a
 
 run : Parser a -> J.Value -> Either Msg a
-run p v = either Left p.parse (getPath p.focus v)
+run p v = p v
 
 unit : a -> Parser a
-unit a = { focus = [], parse = \v -> Right a }
+unit a _ = Right a
 
 value : Parser J.Value
-value = { focus = [], parse = Right }
+value v = Right v
 
 fail : String -> Parser a
-fail msg = { focus = [], parse = \v -> Left [msg] }
+fail msg v = Left [msg]
 
 scope : String -> Parser a -> Parser a
-scope msg p =
-  let focus = p.focus
-      parse v = case p.parse v of
-        Left stack -> Left (msg :: stack)
-        a          -> a
-  in { focus = focus, parse = parse }
+scope msg p v = case run p v of
+  Left stack -> Left (msg :: stack)
+  a          -> a
 
 bind : (a -> Parser b) -> Parser a -> Parser b
-bind f p =
-  let focus = p.focus
-      parse v = case p.parse v of
-        Right a -> run (f a) v
-        Left e -> Left e
-  in { focus = focus, parse = parse }
+bind f p v = case p v of
+  Right a -> run (f a) v
+  Left e -> Left e
 
 infixl 3 >>=
 (>>=) : Parser a -> (a -> Parser b) -> Parser b
 a >>= f = bind f a
 
 map : (a -> b) -> Parser a -> Parser b
-map f p =
-  let parse v = case p.parse v of
-    Left e -> Left e
-    Right a -> Right (f a)
-  in { p | parse <- parse }
+map f p v = case p v of
+  Left e -> Left e
+  Right a -> Right (f a)
 
 lift2 : (a -> b -> c) -> Parser a -> Parser b -> Parser c
-lift2 f a b =
-  let common = a.focus `zip` b.focus
-            |> concatMap (\p -> if fst p == snd p then [fst p] else [])
-      restL = drop (length common) a.focus
-      restR = drop (length common) b.focus
-      parseL v = either Left a.parse (getPath restL v)
-      parseR v = either Left b.parse (getPath restR v)
-      parse v = case (parseL v, parseR v) of
-        (Left e, _) -> Left e
-        (_, Left e) -> Left e
-        (Right a, Right b) -> Right (f a b)
-  in { focus = common, parse = parse }
+lift2 f a b v = case (a v, b v) of
+  (Left e, _) -> Left e
+  (_, Left e) -> Left e
+  (Right a, Right b) -> Right (f a b)
 
 apply : Parser (a -> b) -> Parser a -> Parser b
 apply f a = lift2 (<|) f a
@@ -100,10 +51,6 @@ apply f a = lift2 (<|) f a
 infixl 4 #
 (#) : Parser (a -> b) -> Parser a -> Parser b
 f # a = apply f a
-
-infixl 4 |#
-(|#) : (a -> b) -> Parser a -> Parser b
-f |# a = map f a
 
 string : Parser String
 string = value >>= \v -> case v of
@@ -121,48 +68,47 @@ number = value >>= \v -> case v of
   _ -> fail ("not a number: " ++ J.toString "" v)
 
 array : Parser a -> Parser [a]
-array p =
-  let parse v = case v of
-    J.Array vs -> case partition (L.map (run p) vs) of
-      ([], results) -> Right results
-      (h :: t, _) -> Left h
-    _ -> Left ["not an array: " ++ J.toString "" v]
-  in { focus = [], parse = parse }
+array p v = case v of
+  J.Array vs -> case partition (L.map (run p) vs) of
+    ([], results) -> Right results
+    (h :: t, _) -> Left h
+  _ -> Left ["not an array: " ++ J.toString "" v]
 
 optional : Parser a -> Parser (Maybe a)
-optional p = {
-  focus = p.focus,
-  parse v = case p.parse v of
-    Left err ->
-      case v of J.Null -> Right Nothing
-                _      -> Left err
-    Right a -> Right (Just a)
-  }
+optional p v = case p v of
+  Left err ->
+    case v of J.Null -> Right Nothing
+              _      -> Left err
+  Right a -> Right (Just a)
 
-atKey : String -> Parser a -> Parser a
-atKey k p = { p | focus <- Key k :: p.focus }
+key : String -> Parser J.Value
+key k v = case v of
+  J.Object dict ->
+    let msg = Left ["key not found: " ++ k ++ " in " ++ show dict]
+    in maybe msg Right (M.get k dict)
+  _ -> Left ["cannot lookup key " ++ k ++ " in: " ++ J.toString "" v]
 
-atIndex : Int -> Parser a -> Parser a
-atIndex ind p = { p | focus <- Index ind :: p.focus }
+nest : Parser J.Value -> Parser a -> Parser a
+nest pv p v = case pv v of
+  Left err -> Left err
+  Right v -> p v
+
+index : Int -> Parser J.Value
+index ind v = case v of
+  J.Array vs ->
+    let msg = Left ["index not found: " ++ show ind ++ " in " ++ show vs]
+    in maybe msg Right (safeIndex ind vs)
+  _ -> Left ["cannot lookup index " ++ show ind ++ " in: " ++ J.toString "" v]
 
 union : String -> String -> (String -> Parser a) -> Parser a
 union tag contents f =
-  let parse v = case v of
-    J.Object obj -> case M.get tag obj of
-      Nothing -> Left ["invalid key: " ++ tag]
-      Just (J.String t) ->
-        maybe (Left ["invalid key: " ++ contents])
-              (run (f t))
-              (M.get contents obj)
-      Just t -> Left ["invalid tag: " ++ J.toString "" t]
-    _ -> Left ["union applied to non-object: " ++ J.toString "" v]
-  in { focus = [], parse = parse }
+  nest (key tag) string >>= \t -> nest (key contents) (f t)
 
 union' : (String -> Parser a) -> Parser a
 union' = union "tag" "contents"
 
 product2 : (a -> b -> c) -> Parser a -> Parser b -> Parser c
-product2 f a b = lift2 f (atIndex 0 a) (atIndex 1 b)
+product2 f a b = lift2 f (nest (index 0) a) (nest (index 1) b)
 
 tuple2 : Parser a -> Parser b -> Parser (a,b)
 tuple2 = product2 (,)
@@ -176,11 +122,16 @@ product5 : (a -> b -> c -> d -> e -> f)
         -> Parser f
 product5 f a b c d e =
   unit f
-    # atIndex 0 a
-    # atIndex 1 b
-    # atIndex 2 c
-    # atIndex 3 d
-    # atIndex 4 e
+    # nest (index 0) a
+    # nest (index 1) b
+    # nest (index 2) c
+    # nest (index 3) d
+    # nest (index 4) e
 
 newtyped : (a -> b) -> Parser a -> Parser b
 newtyped f p = union' (\_ -> map f p)
+
+safeIndex : Int -> [a] -> Maybe a
+safeIndex i xs = case drop i xs of
+  [] -> Nothing
+  h :: t -> Just h
