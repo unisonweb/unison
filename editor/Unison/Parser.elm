@@ -14,9 +14,6 @@ run p v = p v
 unit : a -> Parser a
 unit a _ = Right a
 
-value : Parser J.Value
-value v = Right v
-
 fail : String -> Parser a
 fail msg v = Left [msg]
 
@@ -51,6 +48,9 @@ apply f a = lift2 (<|) f a
 infixl 4 #
 (#) : Parser (a -> b) -> Parser a -> Parser b
 f # a = apply f a
+
+value : Parser J.Value
+value v = Right v
 
 string : Parser String
 string = value >>= \v -> case v of
@@ -88,17 +88,17 @@ key k v = case v of
     in maybe msg Right (M.get k dict)
   _ -> Left ["cannot lookup key " ++ k ++ " in: " ++ J.toString "" v]
 
-nest : Parser J.Value -> Parser a -> Parser a
-nest pv p v = case pv v of
-  Left err -> Left err
-  Right v -> p v
-
 index : Int -> Parser J.Value
 index ind v = case v of
   J.Array vs ->
     let msg = Left ["index not found: " ++ show ind ++ " in " ++ show vs]
     in maybe msg Right (safeIndex ind vs)
   _ -> Left ["cannot lookup index " ++ show ind ++ " in: " ++ J.toString "" v]
+
+nest : Parser J.Value -> Parser a -> Parser a
+nest pv p v = case pv v of
+  Left err -> Left err
+  Right v -> p v
 
 union : String -> String -> (String -> Parser a) -> Parser a
 union tag contents f =
