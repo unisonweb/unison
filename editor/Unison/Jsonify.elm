@@ -29,9 +29,15 @@ product2 : (p -> a) -> (p -> b)
         -> Jsonify p
 product2 f1 f2 a b r = J.Array [a (f1 r), b (f2 r)]
 
+tuple2 : Jsonify a -> Jsonify b -> Jsonify (a,b)
+tuple2 a b p = J.Array [a (fst p), b (snd p)]
+
 tag : String -> String -> String -> Jsonify a -> Jsonify a
 tag tagKey contentsKey tagValue j a =
   J.Object (M.fromList [(tagKey, J.String tagValue), (contentsKey, j a)])
 
 tag' : String -> Jsonify a -> Jsonify a
 tag' = tag "tag" "contents"
+
+product0 : Jsonify ()
+product0 _ = J.Array []

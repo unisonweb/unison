@@ -22,7 +22,7 @@ data Term
   | Con Hash
   | Ref Hash
   | App Term Term
-  | Type Term T.Type
+  | Ann Term T.Type
   | Lam I Term
 
 parseLiteral : Parser Literal
@@ -38,7 +38,7 @@ parseTerm = P.union' <| \t ->
      | t == "Con" -> P.map Con H.parse
      | t == "Ref" -> P.map Ref H.parse
      | t == "App" -> P.lift2 App parseTerm parseTerm
-     | t == "Ann" -> P.lift2 Type parseTerm T.parseType
+     | t == "Ann" -> P.lift2 Ann parseTerm T.parseType
      | t == "Lam" -> P.lift2 Lam V.parse parseTerm
 
 jsonifyLiteral l = case l of
@@ -47,4 +47,11 @@ jsonifyLiteral l = case l of
   Vector es -> J.tag' "Vector" (J.array jsonifyTerm) es
 
 jsonifyTerm : Jsonify Term
-jsonifyTerm e = J.null e
+jsonifyTerm e = case e of
+  Var v -> J.tag' "Var" V.jsonify v
+  Lit l -> J.tag' "Lit" jsonifyLiteral l
+  Con h -> J.tag' "Con" H.jsonify h
+  Ref h -> J.tag' "Ref" H.jsonify h
+  App f x -> J.tag' "App" (J.array jsonifyTerm) [f, x]
+  Ann e t -> J.tag' "Ann" (J.tuple2 jsonifyTerm T.jsonifyType) (e, t)
+  Lam n body -> J.tag' "Lam" (J.tuple2 V.jsonify jsonifyTerm) (n, body)
