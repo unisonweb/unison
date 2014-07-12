@@ -1,6 +1,7 @@
 module Unison.Path where
 
-import Unison.Parser as P
+import Unison.Jsonify as J
+import Unison.Jsonify (Jsonify)
 
 data E
   = Fn -- ^ Points at function in a function application
@@ -9,5 +10,11 @@ data E
 
 type Path = [E]
 
--- toJson : Jsonify Path
--- toJson j =
+jsonifyE : Jsonify E
+jsonifyE e = case e of
+  Fn -> J.string "Fn"
+  Arg -> J.string "Arg"
+  Body -> J.string "Body"
+
+jsonify : Jsonify Path
+jsonify = J.array jsonifyE

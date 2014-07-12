@@ -3,12 +3,14 @@ module Main where
 import Unison.Components as U
 import Unison.Term as L
 import Unison.Metadata as MD
+import Unison.Path
+import Unison.Action
 
 import Graphics.Input(..)
 import Graphics.Collage (..)
 
 -- each cell will consist of a single Element
--- 'standard' input boxes not really 
+-- 'standard' input boxes not really
 -- flexible enough, since depending on
 -- scope, are overwriting different region of
 -- syntax tree
@@ -33,18 +35,18 @@ ok = input False
 
 msg : Signal String
 msg =
-  let f x = case x of 
+  let f x = case x of
     True -> "Yep"
     False -> "Nope"
-  in lift f ok.signal 
+  in lift f ok.signal
 
 sq : Element
 sq = collage 50 50 [filled blue (square 30)]
   |> hoverable ok.handle id
 
-scene msg = 
+scene msg =
   flow down [
-    toText msg |> style U.body |> centered, 
+    toText msg |> style U.body |> centered,
     sq
   ]
 

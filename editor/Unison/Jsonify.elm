@@ -17,20 +17,26 @@ null _ = J.Null
 number : Jsonify Float
 number = J.Number
 
+optional : Jsonify a -> Jsonify (Maybe a)
+optional ja oa = maybe J.Null ja oa
+
 boolean : Jsonify Bool
 boolean = J.Boolean
 
 array : Jsonify a -> Jsonify [a]
 array f vs = J.Array (map f vs)
 
-product2 : (p -> a) -> (p -> b)
-        -> Jsonify a
-        -> Jsonify b
-        -> Jsonify p
-product2 f1 f2 a b r = J.Array [a (f1 r), b (f2 r)]
-
 tuple2 : Jsonify a -> Jsonify b -> Jsonify (a,b)
 tuple2 a b p = J.Array [a (fst p), b (snd p)]
+
+tuple5 : Jsonify a
+      -> Jsonify b
+      -> Jsonify c
+      -> Jsonify d
+      -> Jsonify e
+      -> Jsonify (a,b,c,d,e)
+tuple5 ja jb jc jd je p = case p of
+  (a,b,c,d,e) -> J.Array [ja a, jb b, jc c, jd d, je e]
 
 tag : String -> String -> String -> Jsonify a -> Jsonify a
 tag tagKey contentsKey tagValue j a =

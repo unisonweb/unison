@@ -22,14 +22,14 @@ scope msg p v = case run p v of
   Left stack -> Left (msg :: stack)
   a          -> a
 
-bind : (a -> Parser b) -> Parser a -> Parser b
-bind f p v = case p v of
+bind : Parser a -> (a -> Parser b) -> Parser b
+bind p f v = case p v of
   Right a -> run (f a) v
   Left e -> Left e
 
 infixl 3 >>=
 (>>=) : Parser a -> (a -> Parser b) -> Parser b
-a >>= f = bind f a
+a >>= f = bind a f
 
 map : (a -> b) -> Parser a -> Parser b
 map f p v = case p v of
@@ -128,8 +128,8 @@ product5 f a b c d e =
     # nest (index 3) d
     # nest (index 4) e
 
-newtyped : (a -> b) -> Parser a -> Parser b
-newtyped f p = union' (\_ -> map f p)
+newtyped' : (a -> b) -> Parser a -> Parser b
+newtyped' f p = union' (\_ -> map f p)
 
 safeIndex : Int -> [a] -> Maybe a
 safeIndex i xs = case drop i xs of
