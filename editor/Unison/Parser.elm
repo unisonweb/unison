@@ -1,6 +1,7 @@
 module Unison.Parser where
 
 import List as L
+import String as S
 import Either(..)
 import Json as J
 import Dict as M
@@ -8,8 +9,10 @@ import Dict as M
 type Msg = [String]
 type Parser a = J.Value -> Either Msg a
 
-run : Parser a -> J.Value -> Either Msg a
-run p v = p v
+run : Parser a -> J.Value -> Either String a
+run p v = case p v of
+  Left errs -> Left (S.join "\n" errs)
+  Right a -> Right a
 
 unit : a -> Parser a
 unit a _ = Right a
@@ -18,13 +21,13 @@ fail : String -> Parser a
 fail msg v = Left [msg]
 
 scope : String -> Parser a -> Parser a
-scope msg p v = case run p v of
+scope msg p v = case p v of
   Left stack -> Left (msg :: stack)
   a          -> a
 
 bind : Parser a -> (a -> Parser b) -> Parser b
 bind p f v = case p v of
-  Right a -> run (f a) v
+  Right a -> f a v
   Left e -> Left e
 
 infixl 3 >>=
@@ -69,7 +72,7 @@ number = value >>= \v -> case v of
 
 array : Parser a -> Parser [a]
 array p v = case v of
-  J.Array vs -> case partition (L.map (run p) vs) of
+  J.Array vs -> case partition (L.map p vs) of
     ([], results) -> Right results
     (h :: t, _) -> Left h
   _ -> Left ["not an array: " ++ J.toString "" v]

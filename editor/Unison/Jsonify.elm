@@ -5,6 +5,9 @@ import Dict as M
 
 type Jsonify a = a -> J.Value
 
+render : Jsonify a -> a -> String
+render ja a = J.toString "" (ja a)
+
 unit : J.Value -> Jsonify a
 unit v _ = v
 

@@ -5,6 +5,7 @@ import Unison.Term as L
 import Unison.Metadata as MD
 import Unison.Path
 import Unison.Action
+import Unison.Node as N
 
 import Graphics.Input(..)
 import Graphics.Collage (..)
