@@ -5,6 +5,8 @@ import String as S
 import Either(..)
 import Json as J
 import Dict as M
+import Set
+import Set (Set)
 
 type Msg = [String]
 type Parser a = J.Value -> Either Msg a
@@ -69,6 +71,9 @@ number : Parser Float
 number = value >>= \v -> case v of
   J.Number v -> unit v
   _ -> fail ("not a number: " ++ J.toString "" v)
+
+set : Parser comparable -> Parser (Set comparable)
+set p = map Set.fromList (array p)
 
 array : Parser a -> Parser [a]
 array p v = case v of

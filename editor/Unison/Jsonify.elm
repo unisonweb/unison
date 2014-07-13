@@ -2,6 +2,7 @@ module Unison.Jsonify where
 
 import Json as J
 import Dict as M
+import Set as S
 
 type Jsonify a = a -> J.Value
 
@@ -31,6 +32,15 @@ array f vs = J.Array (map f vs)
 
 tuple2 : Jsonify a -> Jsonify b -> Jsonify (a,b)
 tuple2 a b p = J.Array [a (fst p), b (snd p)]
+
+set : Jsonify comparable -> Jsonify (S.Set comparable)
+set a = array a . S.toList
+
+dict : Jsonify comparable -> Jsonify v -> Jsonify (M.Dict comparable v)
+dict k v = array (tuple2 k v) . M.toList
+
+object : Jsonify v -> Jsonify (M.Dict String v)
+object v = J.Object . M.map v
 
 tuple5 : Jsonify a
       -> Jsonify b

@@ -3,13 +3,13 @@ module Unison.Hash where
 import Unison.Parser as P
 import Unison.Jsonify as J
 
-data Hash = Hash String
+type Hash = String
 
-base64 h = case h of
-  Hash s -> s
+base64 : Hash -> String
+base64 h = h
 
 parse : P.Parser Hash
-parse = P.map Hash P.string
+parse = P.string
 
 jsonify : J.Jsonify Hash
-jsonify (Hash s) = J.string s
+jsonify = J.string
