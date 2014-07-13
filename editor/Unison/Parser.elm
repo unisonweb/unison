@@ -72,6 +72,14 @@ number = value >>= \v -> case v of
   J.Number v -> unit v
   _ -> fail ("not a number: " ++ J.toString "" v)
 
+todo : a
+todo = todo
+
+object : Parser v -> Parser (M.Dict String v)
+object v j = case j of
+  J.Object dict -> todo
+  _ -> Left ["not an object: " ++ J.toString "" j]
+
 set : Parser comparable -> Parser (Set comparable)
 set p = map Set.fromList (array p)
 
