@@ -73,5 +73,13 @@ dependencies host params =
       req host params = jsonGet body host "dependencies" params
   in parseResponse (P.set H.parse) <~ Http.send (lift2 req host params)
 
+dependents : Signal Host
+           -> Signal (Maybe (S.Set Hash), Hash)
+           -> Signal (Response (S.Set Hash))
+dependents host params =
+  let body = J.tuple2 (J.optional (J.set H.jsonify)) H.jsonify
+      req host params = jsonGet body host "dependents" params
+  in parseResponse (P.set H.parse) <~ Http.send (lift2 req host params)
+
 undefined : a
 undefined = undefined
