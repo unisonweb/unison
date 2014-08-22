@@ -72,12 +72,9 @@ number = value >>= \v -> case v of
   J.Number v -> unit v
   _ -> fail ("not a number: " ++ J.toString "" v)
 
-todo : a
-todo = todo
-
 object : Parser v -> Parser (M.Dict String v)
 object v j = case j of
-  J.Object dict -> todo
+  J.Object dict -> traverseMap v dict
   _ -> Left ["not an object: " ++ J.toString "" j]
 
 set : Parser comparable -> Parser (Set comparable)
@@ -151,3 +148,14 @@ safeIndex : Int -> [a] -> Maybe a
 safeIndex i xs = case drop i xs of
   [] -> Nothing
   h :: t -> Just h
+
+-- private
+
+traverseMap : (a -> Either e b) -> M.Dict comparable a -> Either e (M.Dict comparable b)
+traverseMap f m =
+  let strength (a, b) = either (Left . id) (Right . (,) a) b
+      eithers = M.map f m |> M.toList |> L.map strength
+  in case partition eithers of
+    (lefts, rights) -> if (isEmpty lefts)
+                       then Right (M.fromList rights)
+                       else Left (head lefts)
