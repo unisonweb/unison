@@ -1,5 +1,5 @@
 WebFontConfig = {
-  google: { families: [ 'Lato::latin' ] }
+  google: { families: [ 'Lato::latin', 'Inconsolata::latin' ] }
 };
 (function() {
   var wf = document.createElement('script');

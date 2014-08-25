@@ -1,6 +1,7 @@
 module Main where
 
-import Unison.Components as U
+import Unison.Styles as S
+import Unison.Layout as UL
 import Unison.Term as L
 import Unison.Metadata as MD
 import Unison.Action
@@ -40,7 +41,7 @@ greenSea = rgb 22 160 133
 
 fieldStyle =
   { padding = { left=8, right=8, top=11, bottom=12 }
-  , outline = { color=midnightBlue, width=uniformly 3, radius=4 }
+  , outline = { color=midnightBlue, width=uniformly 3, radius=0 }
   , highlight = noHighlight
   , style = let t = Text.defaultStyle
             in { t | typeface <- ["Lato", "latin"], height <- Just 16 } }

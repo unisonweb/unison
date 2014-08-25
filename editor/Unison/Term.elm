@@ -1,11 +1,20 @@
 module Unison.Term where
 
+import Dict
+import Dict (Dict)
 import Json
+import Set
+import Set (Set)
 import Graphics.Element as Element
+import Graphics.Input (Handle, hoverable)
+import Text(..)
+import Unison.Styles as Styles
 import Unison.Hash (Hash)
 import Unison.Hash as H
 import Unison.Jsonify as J
 import Unison.Jsonify (Jsonify)
+import Unison.Metadata as Metadata
+import Unison.Metadata (Metadata)
 import Unison.Parser as P
 import Unison.Parser (Parser)
 import Unison.Var (I)
@@ -33,14 +42,26 @@ data E
 
 type Path = [E]
 
-type Depth = Int
+render : Term
+      -> { handle         : Handle (Maybe (k, Path))
+         , key            : k
+         , highlighted    : Set Path
+         , availableWidth : Int
+         , metadata       : Dict k Metadata }
+      -> Element
+render expr env =
+  let
+    msg path b = if b then Just (env.key, reverse path) else Nothing
+    go path cur = case cur of
+      Var n -> style Styles.code (toText (show n))
+            |> leftAligned
+            |> hoverable env.handle (msg path)
+      _ -> todo
+  in todo
 
-innermost = 0
-outer : Depth -> Depth
-outer n = n + 1
-
-render : Maybe Path -> Term -> (Element, (Int,Int) -> Depth -> Path)
-render selected expr = todo
+-- try laying out the term all on one line, then progressively break
+-- need a Map Hash Metadata
+--
 
 todo : a
 todo = todo
