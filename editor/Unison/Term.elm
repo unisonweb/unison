@@ -1,6 +1,7 @@
 module Unison.Term where
 
 import Json
+import Graphics.Element as Element
 import Unison.Hash (Hash)
 import Unison.Hash as H
 import Unison.Jsonify as J
@@ -24,6 +25,25 @@ data Term
   | App Term Term
   | Ann Term T.Type
   | Lam I Term
+
+data E
+  = Fn -- ^ Points at function in a function application
+  | Arg -- ^ Points at the argument of a function application
+  | Body -- ^ Points at the body of a lambda
+
+type Path = [E]
+
+type Depth = Int
+
+innermost = 0
+outer : Depth -> Depth
+outer n = n + 1
+
+render : Maybe Path -> Term -> (Element, (Int,Int) -> Depth -> Path)
+render selected expr = todo
+
+todo : a
+todo = todo
 
 parseLiteral : Parser Literal
 parseLiteral = P.union' <| \t ->
@@ -55,3 +75,12 @@ jsonifyTerm e = case e of
   App f x -> J.tag' "App" (J.array jsonifyTerm) [f, x]
   Ann e t -> J.tag' "Ann" (J.tuple2 jsonifyTerm T.jsonifyType) (e, t)
   Lam n body -> J.tag' "Lam" (J.tuple2 V.jsonify jsonifyTerm) (n, body)
+
+jsonifyE : Jsonify E
+jsonifyE e = case e of
+  Fn -> J.string "Fn"
+  Arg -> J.string "Arg"
+  Body -> J.string "Body"
+
+jsonifyPath : Jsonify Path
+jsonifyPath = J.array jsonifyE
