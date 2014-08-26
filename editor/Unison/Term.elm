@@ -42,29 +42,93 @@ data E
 
 type Path = [E]
 
+{-
+  [ x
+  , y
+  , z
+  , p ]
+
+  foo tl =
+       [ x
+       , y
+       , z ]
+    ++ tl
+
+  foo tl =
+      1
+    + 2
+    + 3
+    + f x
+
+  foo tl =
+    1
+    + 2
+    + 3
+    + f x
+
+-}
+
+
 render : Term -- term to render
       -> { handle         : Handle (Maybe (k, Path))
          , key            : k
          , highlighted    : Set Path
          , availableWidth : Int
-         , metadata       : Dict k Metadata }
+         , metadata       : k -> Metadata }
       -> Element
 render expr env =
   let
+    code s = leftAligned (style Styles.code (toText s))
     msg path b = if b then Just (env.key, reverse path) else Nothing
     -- basically, try calling with breakDepth of zero, then 1, then 2
     -- until it fits in the remaining width
-    go : Int -> Int -> Int -> Path -> Term -> Element
-    go ambientPrec breakDepth remWidth path cur = case cur of
-      Var n -> style Styles.code (toText (show n))
-            |> leftAligned
-            |> hoverable env.handle (msg path)
-      _ -> todo
+    paren : Bool -> Path -> Element -> Element
+    paren parenthesize path e =
+      if parenthesize
+      then let (opening, closing) = (code "(", code ")")
+               topOpen = container (widthOf opening) (heightOf e) topLeft (code "(")
+                            |> hoverable env.handle (msg path)
+
+               bottomClose = container (widthOf closing) (heightOf e) bottomLeft (code ")")
+                            |> hoverable env.handle (msg path)
+           in flow right [topOpen, e, bottomClose]
+      else e
+
+    space = code " "
+    spaces n = code (String.padLeft (n*2) ' ' "")
+
+    indent : Int -> Element -> Element
+    indent level e = flow right [spaces level, e]
+
+    -- prec : Term -> Int
+    -- prec (Hash)
+
+    go : Bool -> Int -> Int -> { path : Path, term : Term }  -> Element
+    go allowBreak ambientPrec level cur =
+      case cur.term of
+        Var n -> hoverable env.handle (msg cur.path) (code (show n))
+        _ -> case break cur.path cur.term of
+          Prefix f args ->
+            let fE = go False 9 level f
+                lines = fE :: map (go False 10 level) args
+                spaceL = spaces level
+                unbroken = flow right [
+                  spaceL,
+                  paren (ambientPrec > 9) cur.path (flow right (intersperse space lines))
+                ]
+            in if not allowBreak || widthOf unbroken + widthOf spaceL < env.availableWidth
+               then flow right [spaceL, unbroken]
+               else flow down <| indent level fE :: map (go True 10 (level + 1)) args
+          _ -> todo
   in todo
 
--- break (f x y z) == (f, [x, y, z])
-break : Term -> (Term, [Term])
-break expr = todo
+data Break a
+  = Prefix a [a]          -- `Prefix f [x,y,z] == f x y z`
+  | Operators a [a]       -- `Operators (+) [x,y,z] == x + y + z`
+  | Bracketed a [a] a  -- `Bracketed (::) [x,y,z] [] == x :: y :: z :: []`
+
+break : Path -> Term -> Break { path : Path, term : Term }
+break path expr = todo
 
 -- try laying out the term all on one line, then progressively break
 -- need a Map Hash Metadata
