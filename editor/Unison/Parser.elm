@@ -47,6 +47,13 @@ lift2 f a b v = case (a v, b v) of
   (_, Left e) -> Left e
   (Right a, Right b) -> Right (f a b)
 
+lift3 : (a -> b -> c -> d) -> Parser a -> Parser b -> Parser c -> Parser d
+lift3 f a b c v = case (a v, b v, c v) of
+  (Left e, _, _) -> Left e
+  (_, Left e, _) -> Left e
+  (_, _, Left e) -> Left e
+  (Right a, Right b, Right c) -> Right (f a b c)
+
 apply : Parser (a -> b) -> Parser a -> Parser b
 apply f a = lift2 (<|) f a
 
@@ -122,6 +129,9 @@ union' = union "tag" "contents"
 
 product2 : (a -> b -> c) -> Parser a -> Parser b -> Parser c
 product2 f a b = lift2 f (nest (index 0) a) (nest (index 1) b)
+
+product3 : (a -> b -> c -> d) -> Parser a -> Parser b -> Parser c -> Parser d
+product3 f a b c = lift3 f (nest (index 0) a) (nest (index 1) b) (nest (index 2) c)
 
 tuple2 : Parser a -> Parser b -> Parser (a,b)
 tuple2 = product2 (,)

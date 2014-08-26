@@ -21,6 +21,9 @@ null _ = J.Null
 number : Jsonify Float
 number = J.Number
 
+int : Jsonify Int
+int n = J.Number (toFloat n)
+
 optional : Jsonify a -> Jsonify (Maybe a)
 optional ja oa = maybe J.Null ja oa
 

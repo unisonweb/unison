@@ -19,9 +19,37 @@ data Metadata = Metadata {
   annotation : H.Hash
 }
 
-data Names = Names [String]
+data Fixity = InfixL | InfixR | Infix | Prefix
+
+type Symbol = { name : String, fixity : Fixity, precedence : Int }
+
+data Names = Names [Symbol]
 
 data Query = Query String
+
+parseFixity : Parser Fixity
+parseFixity = P.bind P.string <| \t ->
+  if | t == "InfixL" -> P.unit InfixL
+     | t == "InfixR" -> P.unit InfixR
+     | t == "Infix"  -> P.unit Infix
+     | t == "Prefix" -> P.unit Prefix
+     | otherwise -> P.fail ("expected {InfixL, InfixR, Infix, Prefix}, got : " ++ t)
+
+jsonifyFixity : Jsonify Fixity
+jsonifyFixity f = case f of
+  InfixL -> J.string "InfixL"
+  InfixR -> J.string "InfixR"
+  Infix -> J.string "Infix"
+  Prefix -> J.string "Prefix"
+
+parseSymbol : Parser Symbol
+parseSymbol =
+  let symbol n f p = { name = n, fixity = f, precedence = p }
+  in P.newtyped' id <| P.product3 symbol P.string parseFixity P.int
+
+jsonifySymbol : Jsonify Symbol
+jsonifySymbol s =
+  J.tag' "Symbol" (J.tuple3 J.string jsonifyFixity J.int) (s.name, s.fixity, s.precedence)
 
 parseSort : Parser Sort
 parseSort = P.bind P.string <| \t ->
@@ -41,10 +69,10 @@ jsonifyQuery : Jsonify Query
 jsonifyQuery (Query q) = J.tag' "Query" J.string q
 
 parseNames : Parser Names
-parseNames = P.newtyped' Names (P.array P.string)
+parseNames = P.newtyped' Names (P.array parseSymbol)
 
 jsonifyNames : Jsonify Names
-jsonifyNames (Names ns) = J.tag' "Names" (J.array J.string) ns
+jsonifyNames (Names ns) = J.tag' "Names" (J.array jsonifySymbol) ns
 
 parseMetadata : Parser Metadata
 parseMetadata =
