@@ -42,7 +42,7 @@ data E
 
 type Path = [E]
 
-render : Term
+render : Term -- term to render
       -> { handle         : Handle (Maybe (k, Path))
          , key            : k
          , highlighted    : Set Path
@@ -52,12 +52,19 @@ render : Term
 render expr env =
   let
     msg path b = if b then Just (env.key, reverse path) else Nothing
-    go path cur = case cur of
+    -- basically, try calling with breakDepth of zero, then 1, then 2
+    -- until it fits in the remaining width
+    go : Int -> Int -> Int -> Path -> Term -> Element
+    go ambientPrec breakDepth remWidth path cur = case cur of
       Var n -> style Styles.code (toText (show n))
             |> leftAligned
             |> hoverable env.handle (msg path)
       _ -> todo
   in todo
+
+-- break (f x y z) == (f, [x, y, z])
+break : Term -> (Term, [Term])
+break expr = todo
 
 -- try laying out the term all on one line, then progressively break
 -- need a Map Hash Metadata
