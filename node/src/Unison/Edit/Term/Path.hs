@@ -5,6 +5,7 @@ module Unison.Edit.Term.Path where
 import Control.Applicative
 import Data.Aeson.TH
 import Data.Maybe (fromJust)
+import Data.Vector ((!?), (//))
 import qualified Unison.Syntax.Term as E
 import qualified Unison.Syntax.Var as V
 
@@ -12,6 +13,7 @@ data E
   = Fn -- ^ Points at function in a function application
   | Arg -- ^ Points at the argument of a function application
   | Body -- ^ Points at the body of a lambda
+  | Index !Int -- ^ Points at the index of a vector
   deriving (Eq,Ord,Show)
 
 newtype Path = Path { elements :: [E] } deriving (Eq,Ord,Show)
@@ -24,6 +26,7 @@ at :: Path -> E.Term -> Maybe E.Term
 at (Path [])    e = Just e
 at (Path (h:t)) e = go h e where
   go _ (E.Var _) = Nothing
+  go (Index i) (E.Lit (E.Vector xs)) = xs !? i >>= at (Path t)
   go _ (E.Lit _) = Nothing
   go Fn (E.App f _) = at (Path t) f
   go Arg (E.App _ x) = at (Path t) x
@@ -40,6 +43,9 @@ visit (Path (h:t)) v e = go h e where
   go Fn (E.App f arg) = E.App <$> visit (Path t) v f <*> pure arg
   go Arg (E.App f arg) = E.App <$> pure f <*> visit (Path t) v arg
   go _ (E.Ann e' typ) = E.Ann <$> visit (Path (h:t)) v e' <*> pure typ
+  go (Index i) e@(E.Lit (E.Vector xs)) = let replace xi = E.Lit (E.Vector (xs // [(i,xi)]))
+                                             sub = xs !? i
+                                         in maybe (pure e) (\sub -> replace <$> visit (Path t) v sub) sub
   go Body (E.Lam n body) = fn <$> visit (Path t) v body
     where fn body = E.lam1 $ \x -> E.betaReduce (E.Lam n body `E.App` x)
   go _ e = pure e
@@ -56,6 +62,8 @@ set path focus ctx = impl path ctx where
   impl (Path []) _ = Just focus
   impl (Path (h:t)) ctx = go h ctx where
     go _ (E.Var _) = Nothing
+    go (Index i) (E.Lit (E.Vector xs)) = let replace xi = E.Lit (E.Vector (xs // [(i,xi)]))
+                                         in replace <$> xs !? i >>= impl (Path t)
     go _ (E.Lit _) = Nothing
     go Fn (E.App f arg) = (\f' -> E.App f' arg) <$> impl (Path t) f
     go Arg (E.App f arg) = E.App f <$> impl (Path t) arg

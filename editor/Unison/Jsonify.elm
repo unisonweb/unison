@@ -33,6 +33,9 @@ boolean = J.Boolean
 array : Jsonify a -> Jsonify [a]
 array f vs = J.Array (map f vs)
 
+emptyArray : Jsonify a
+emptyArray _ = J.Array []
+
 set : Jsonify comparable -> Jsonify (S.Set comparable)
 set a = array a . S.toList
 

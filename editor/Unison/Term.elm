@@ -39,6 +39,7 @@ data E
   = Fn -- ^ Points at function in a function application
   | Arg -- ^ Points at the argument of a function application
   | Body -- ^ Points at the body of a lambda
+  | Index Int -- ^ Points into a `Vector` literal
 
 type Path = [E]
 
@@ -125,7 +126,7 @@ render expr env =
 data Break a
   = Prefix a [a]          -- `Prefix f [x,y,z] == f x y z`
   | Operators a [a]       -- `Operators (+) [x,y,z] == x + y + z`
-  | Bracketed a [a] a  -- `Bracketed (::) [x,y,z] [] == x :: y :: z :: []`
+  | Bracketed [a]         -- `Bracketed [x,y,z] == [x,y,z]`
 
 break : Path -> Term -> Break { path : Path, term : Term }
 break path expr = todo
@@ -143,6 +144,11 @@ parseLiteral = P.union' <| \t ->
      | t == "String" -> P.map String P.string
      | t == "Vector" -> P.map Vector (P.array parseTerm)
 
+jsonifyLiteral l = case l of
+  Number n -> J.tag' "Number" J.number n
+  String s -> J.tag' "String" J.string s
+  Vector es -> J.tag' "Vector" (J.array jsonifyTerm) es
+
 parseTerm : Parser Term
 parseTerm = P.union' <| \t ->
   if | t == "Var" -> P.map Var V.parse
@@ -152,11 +158,6 @@ parseTerm = P.union' <| \t ->
      | t == "App" -> P.lift2 App parseTerm parseTerm
      | t == "Ann" -> P.lift2 Ann parseTerm T.parseType
      | t == "Lam" -> P.lift2 Lam V.parse parseTerm
-
-jsonifyLiteral l = case l of
-  Number n -> J.tag' "Number" J.number n
-  String s -> J.tag' "String" J.string s
-  Vector es -> J.tag' "Vector" (J.array jsonifyTerm) es
 
 jsonifyTerm : Jsonify Term
 jsonifyTerm e = case e of
@@ -170,9 +171,10 @@ jsonifyTerm e = case e of
 
 jsonifyE : Jsonify E
 jsonifyE e = case e of
-  Fn -> J.string "Fn"
-  Arg -> J.string "Arg"
-  Body -> J.string "Body"
+  Fn -> J.tag' "Fn" J.emptyArray ()
+  Arg -> J.tag' "Arg" J.emptyArray ()
+  Body -> J.tag' "Body" J.emptyArray ()
+  Index i -> J.tag' "Index" J.int i
 
 jsonifyPath : Jsonify Path
 jsonifyPath = J.array jsonifyE
