@@ -17,6 +17,7 @@ import Unison.Metadata as Metadata
 import Unison.Metadata (Metadata)
 import Unison.Parser as P
 import Unison.Parser (Parser)
+import Unison.Path (..)
 import Unison.Var (I)
 import Unison.Var as V
 import Unison.Type as T
@@ -34,14 +35,6 @@ data Term
   | App Term Term
   | Ann Term T.Type
   | Lam I Term
-
-data E
-  = Fn -- ^ Points at function in a function application
-  | Arg -- ^ Points at the argument of a function application
-  | Body -- ^ Points at the body of a lambda
-  | Index Int -- ^ Points into a `Vector` literal
-
-type Path = [E]
 
 {-
   [ x
@@ -71,14 +64,35 @@ type Path = [E]
 
 
 render : Term -- term to render
-      -> { handle         : Handle (Maybe (k, Path))
-         , key            : k
+      -> { handle         : Handle (Maybe (Hash, Path))
+         , key            : Hash
          , highlighted    : Set Path
          , availableWidth : Int
-         , metadata       : k -> Metadata }
+         , metadata       : Hash -> Metadata }
       -> Element
 render expr env =
   let
+    go : Bool -> Int -> Int -> { path : Path, term : Term }  -> Element
+    go allowBreak ambientPrec level cur =
+      case cur.term of
+        Var n -> hoverable env.handle (msg cur.path) (code (resolveLocal n))
+        _ -> case break cur.path cur.term of
+          Prefix f args ->
+            let fE = go False 9 level f
+                lines = fE :: map (go False 10 level) args
+                spaceL = spaces level
+                unbroken = flow right [
+                  spaceL,
+                  paren (ambientPrec > 9) cur.path (flow right (intersperse space lines))
+                ]
+            in if not allowBreak || widthOf unbroken + widthOf spaceL < env.availableWidth
+               then flow right [spaceL, unbroken]
+               else flow down <| indent level fE :: map (go True 10 (level + 1)) args
+          _ -> todo
+
+    resolveLocal : I -> String
+    resolveLocal i = todo
+
     code s = leftAligned (style Styles.code (toText s))
     msg path b = if b then Just (env.key, reverse path) else Nothing
     -- basically, try calling with breakDepth of zero, then 1, then 2
@@ -104,29 +118,13 @@ render expr env =
     -- prec : Term -> Int
     -- prec (Hash)
 
-    go : Bool -> Int -> Int -> { path : Path, term : Term }  -> Element
-    go allowBreak ambientPrec level cur =
-      case cur.term of
-        Var n -> hoverable env.handle (msg cur.path) (code (show n))
-        _ -> case break cur.path cur.term of
-          Prefix f args ->
-            let fE = go False 9 level f
-                lines = fE :: map (go False 10 level) args
-                spaceL = spaces level
-                unbroken = flow right [
-                  spaceL,
-                  paren (ambientPrec > 9) cur.path (flow right (intersperse space lines))
-                ]
-            in if not allowBreak || widthOf unbroken + widthOf spaceL < env.availableWidth
-               then flow right [spaceL, unbroken]
-               else flow down <| indent level fE :: map (go True 10 (level + 1)) args
-          _ -> todo
   in todo
 
 data Break a
   = Prefix a [a]          -- `Prefix f [x,y,z] == f x y z`
   | Operators a [a]       -- `Operators (+) [x,y,z] == x + y + z`
   | Bracketed [a]         -- `Bracketed [x,y,z] == [x,y,z]`
+  | Lambda [a] a          -- `Lambda [x,y,z] e == x -> y -> z -> e`
 
 break : Path -> Term -> Break { path : Path, term : Term }
 break path expr = todo
@@ -169,12 +167,3 @@ jsonifyTerm e = case e of
   Ann e t -> J.tag' "Ann" (J.tuple2 jsonifyTerm T.jsonifyType) (e, t)
   Lam n body -> J.tag' "Lam" (J.tuple2 V.jsonify jsonifyTerm) (n, body)
 
-jsonifyE : Jsonify E
-jsonifyE e = case e of
-  Fn -> J.tag' "Fn" J.emptyArray ()
-  Arg -> J.tag' "Arg" J.emptyArray ()
-  Body -> J.tag' "Body" J.emptyArray ()
-  Index i -> J.tag' "Index" J.int i
-
-jsonifyPath : Jsonify Path
-jsonifyPath = J.array jsonifyE

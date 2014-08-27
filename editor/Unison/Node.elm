@@ -14,7 +14,9 @@ import Unison.Hash (Hash)
 import Unison.Metadata as MD
 import Unison.Metadata (Metadata, Query)
 import Unison.Term as E
-import Unison.Term (Term, Path)
+import Unison.Path as Path
+import Unison.Path (Path)
+import Unison.Term (Term)
 import Unison.Type as T
 import Unison.Type (Type)
 import Unison.Jsonify as J
@@ -51,7 +53,7 @@ parseResponse p r = case r of
 
 admissibleTypeOf : Signal Host -> Signal (Hash, Path) -> Signal (Response Type)
 admissibleTypeOf host params =
-  let body = J.tuple2 H.jsonify E.jsonifyPath
+  let body = J.tuple2 H.jsonify Path.jsonifyPath
       req host params = jsonGet body host "admissible-type-of" params
   in parseResponse T.parseType <~ Http.send (lift2 req host params)
 
@@ -87,7 +89,7 @@ editTerm : Signal Host
         -> Signal (Hash, Path, Action)
         -> Signal (Response (Hash, Term))
 editTerm host params =
-  let body = J.tuple3 H.jsonify E.jsonifyPath A.jsonify
+  let body = J.tuple3 H.jsonify Path.jsonifyPath A.jsonify
       req host params = jsonGet body host "edit-term" params
       parse = parseResponse (P.tuple2 H.parse E.parseTerm)
   in parse <~ Http.send (lift2 req host params)
@@ -126,7 +128,7 @@ searchLocal : Signal Host
            -> Signal (Response (Metadata, [(V.I, Type)]))
 searchLocal host params =
   let body = J.tuple4 H.jsonify
-                      E.jsonifyPath
+                      Path.jsonifyPath
                       (J.optional T.jsonifyType)
                       MD.jsonifyQuery
       req host params = jsonGet body host "search-local" params
@@ -164,7 +166,7 @@ typeOf : Signal Host
       -> Signal (Hash, Path)
       -> Signal (Response Type)
 typeOf host params =
-  let body = J.tuple2 H.jsonify E.jsonifyPath
+  let body = J.tuple2 H.jsonify Path.jsonifyPath
       req host params = jsonGet body host "type-of" params
       parse = parseResponse T.parseType
   in parse <~ Http.send (lift2 req host params)

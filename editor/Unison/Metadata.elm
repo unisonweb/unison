@@ -3,6 +3,8 @@ module Unison.Metadata where
 import Dict as M
 import Unison.Jsonify as J
 import Unison.Jsonify (Jsonify)
+import Unison.Path as Path
+import Unison.Path (ComparablePath,Path)
 import Unison.Parser as P
 import Unison.Parser (Parser, (#))
 import Unison.Hash as H
@@ -14,7 +16,7 @@ data Sort = Type | Term
 data Metadata = Metadata {
   sort : Sort,
   names : Names,
-  locals : M.Dict I Names,
+  locals : M.Dict (ComparablePath,I) Names,
   description : Maybe H.Hash,
   annotation : H.Hash
 }
@@ -87,11 +89,12 @@ parseMetadata =
     (P.optional H.parse)
     H.parse
 
-parseLocals : Parser (M.Dict I Names)
-parseLocals = P.map M.fromList (P.array (P.tuple2 V.parse parseNames))
+parseLocals : Parser (M.Dict (ComparablePath,I) Names)
+parseLocals =
+  P.map M.fromList (P.array (P.tuple2 (P.tuple2 Path.parseComparablePath V.parse) parseNames))
 
-jsonifyLocals : Jsonify (M.Dict I Names)
-jsonifyLocals m = J.array (J.tuple2 V.jsonify jsonifyNames) (M.toList m)
+jsonifyLocals : Jsonify (M.Dict (ComparablePath,I) Names)
+jsonifyLocals m = J.array (J.tuple2 (J.tuple2 Path.jsonifyComparablePath V.jsonify) jsonifyNames) (M.toList m)
 
 jsonifyMetadata : Jsonify Metadata
 jsonifyMetadata (Metadata md) = J.tag' "Metadata"
