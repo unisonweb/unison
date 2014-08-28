@@ -68,18 +68,20 @@ render expr env =
             in if not allowBreak || widthOf unbroken < env.availableWidth
                then unbroken
                else flow down <| indent level fE :: map (go True 10 (level + 1)) args
-          OperatorsL prec hd tl ->
-            let f (op,r) l = flow right [ l, space, go False 10 level op, space, go False (prec+1) level r ]
-                unbroken = flow right [spaceL, foldl f (go False prec level hd) tl]
+          Operators leftAssoc prec hd tl ->
+            let f (op,r) l = flow right [ l, space, go False 10 level op, space, go False rprec level r ]
+                unbroken = flow right [spaceL, foldl f (go False lprec level hd) tl]
+                lprec = if leftAssoc then prec else 1+prec
+                rprec = if leftAssoc then 1+prec else prec
                 spaceL = spaces level
                 bf (op,r) l = flow down [
                   l,
-                  flow right [spaceL, go False 10 level op, space, go False (prec+1) level r ]
+                  flow right [spaceL, go False 10 level op, space, go False rprec level r ]
                 ]
             in if not allowBreak || widthOf unbroken < env.availableWidth
                then unbroken
                else let h = hoverable env.handle (msg cur.path) (spaces 2)
-                    in foldl bf (flow right [spaceL, h, go False prec level hd]) tl
+                    in foldl bf (flow right [spaceL, h, go False lprec level hd]) tl
           _ -> todo
 
     code s = leftAligned (style Styles.code (toText s))
@@ -110,8 +112,8 @@ render expr env =
 
 data Break a
   = Prefix a [a]          -- `Prefix f [x,y,z] == f x y z`
-  | OperatorsL Int a [(a,a)] -- `OperatorsL x [(+,y), (+,z)] == (x + y) + z`
-  | OperatorsR Int a [(a,a)] -- `OperatorsR x [(^,y), (^,z)] == x ^ (y ^ z)
+  | Operators Bool Int a [(a,a)] -- `Operators False x [(+,y), (+,z)] == (x + y) + z`
+                                 -- `Operators True x [(^,y), (^,z)] == x ^ (y ^ z)`
   | Bracketed [a]         -- `Bracketed [x,y,z] == [x,y,z]`
   | Lambda [a] a          -- `Lambda [x,y,z] e == x -> y -> z -> e`
 
