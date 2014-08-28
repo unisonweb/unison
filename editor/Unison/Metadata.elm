@@ -23,6 +23,12 @@ data Metadata = Metadata {
   annotation : H.Hash
 }
 
+firstName : String -> Metadata -> String
+firstName ifEmpty (Metadata md) =
+  if isEmpty md.names
+  then ifEmpty
+  else (head md.names).name
+
 resolveLocal : Metadata -> Path -> I -> Symbol
 resolveLocal md p v =
   let ns = localNames md p v

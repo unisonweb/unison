@@ -16,7 +16,7 @@ import Unison.Hash as H
 import Unison.Jsonify as J
 import Unison.Jsonify (Jsonify)
 import Unison.Metadata as Metadata
-import Unison.Metadata (Metadata)
+import Unison.Metadata (Metadata, Fixity)
 import Unison.Parser as P
 import Unison.Parser (Parser)
 import Unison.Path (..)
@@ -48,10 +48,14 @@ render : Term -- term to render
 render expr env =
   let
     md = env.metadata env.key
-    go : Bool -> Int -> Int -> { path : Path, term : Term }  -> Element
+    go : Bool -> Int -> Int -> { path : Path, term : Term } -> Element
     go allowBreak ambientPrec level cur =
       case cur.term of
         Var n -> hoverable env.handle (msg cur.path) (code (Metadata.resolveLocal md cur.path n).name)
+        Ref h -> hoverable env.handle (msg cur.path) (code (Metadata.firstName h (env.metadata h)))
+        Con h -> hoverable env.handle (msg cur.path) (code (Metadata.firstName h (env.metadata h)))
+        Lit (Number n) -> hoverable env.handle (msg cur.path) (code (show n))
+        Lit (String s) -> hoverable env.handle (msg cur.path) (code s)
         _ -> case break md cur.path cur.term of
           Prefix f args ->
             let fE = go False 9 level f
@@ -61,15 +65,26 @@ render expr env =
                   spaceL,
                   paren (ambientPrec > 9) cur.path (flow right (intersperse space lines))
                 ]
-            in if not allowBreak || widthOf unbroken + widthOf spaceL < env.availableWidth
-               then flow right [spaceL, unbroken]
+            in if not allowBreak || widthOf unbroken < env.availableWidth
+               then unbroken
                else flow down <| indent level fE :: map (go True 10 (level + 1)) args
+          OperatorsL prec hd tl ->
+            let f (op,r) l = flow right [ l, space, go False 10 level op, space, go False (prec+1) level r ]
+                unbroken = flow right [spaceL, foldl f (go False prec level hd) tl]
+                spaceL = spaces level
+                bf (op,r) l = flow down [
+                  l,
+                  flow right [spaceL, go False 10 level op, space, go False (prec+1) level r ]
+                ]
+            in if not allowBreak || widthOf unbroken < env.availableWidth
+               then unbroken
+               else let h = hoverable env.handle (msg cur.path) (spaces 2)
+                    in foldl bf (flow right [spaceL, h, go False prec level hd]) tl
           _ -> todo
 
     code s = leftAligned (style Styles.code (toText s))
     msg path b = if b then Just (env.key, path) else Nothing
-    -- basically, try calling with breakDepth of zero, then 1, then 2
-    -- until it fits in the remaining width
+
     paren : Bool -> Path -> Element -> Element
     paren parenthesize path e =
       if parenthesize
@@ -95,7 +110,8 @@ render expr env =
 
 data Break a
   = Prefix a [a]          -- `Prefix f [x,y,z] == f x y z`
-  | Operators a [a]       -- `Operators (+) [x,y,z] == x + y + z`
+  | OperatorsL Int a [(a,a)] -- `OperatorsL x [(+,y), (+,z)] == (x + y) + z`
+  | OperatorsR Int a [(a,a)] -- `OperatorsR x [(^,y), (^,z)] == x ^ (y ^ z)
   | Bracketed [a]         -- `Bracketed [x,y,z] == [x,y,z]`
   | Lambda [a] a          -- `Lambda [x,y,z] e == x -> y -> z -> e`
 
