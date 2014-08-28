@@ -15,25 +15,6 @@ data E
 
 type Path = Array E
 
-type ComparablePath = [Int]
-
-toComparablePath : Path -> ComparablePath
-toComparablePath xs =
-  let f x = case x of
-    Fn -> -3
-    Arg -> -2
-    Body -> -1
-    Index i -> i
-  in map f (Array.toList xs)
-
-fromComparablePath : ComparablePath -> Path
-fromComparablePath xs =
-  let f x = if | x == -1 -> Fn
-               | x == -2 -> Arg
-               | x == -3 -> Body
-               | otherwise -> Index x
-  in Array.fromList (map f xs)
-
 parseE : Parser E
 parseE = P.union' <| \t ->
   if | t == "Fn" -> P.unit Fn
@@ -53,10 +34,3 @@ parsePath = P.map Array.fromList (P.array parseE)
 
 jsonifyPath : Jsonify Path
 jsonifyPath = J.contramap Array.toList (J.array jsonifyE)
-
-parseComparablePath : Parser ComparablePath
-parseComparablePath = P.map toComparablePath parsePath
-
-jsonifyComparablePath : Jsonify ComparablePath
-jsonifyComparablePath = J.array J.int
-

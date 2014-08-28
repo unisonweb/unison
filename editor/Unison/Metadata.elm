@@ -16,7 +16,8 @@ data Sort = Type | Term
 data Metadata = Metadata {
   sort : Sort,
   names : Names,
-  locals : M.Dict (ComparablePath,I) Names,
+  -- for each var, and each scope (which points to a lambda body), what are the names of that var w/in that scope
+  locals : M.Dict I [(Path,Names)],
   description : Maybe H.Hash,
   annotation : H.Hash
 }
@@ -89,12 +90,12 @@ parseMetadata =
     (P.optional H.parse)
     H.parse
 
-parseLocals : Parser (M.Dict (ComparablePath,I) Names)
+parseLocals : Parser (M.Dict I [(Path,Names)])
 parseLocals =
-  P.map M.fromList (P.array (P.tuple2 (P.tuple2 Path.parseComparablePath V.parse) parseNames))
+  P.map M.fromList (P.array (P.tuple2 V.parse (P.array (P.tuple2 Path.parsePath parseNames))))
 
-jsonifyLocals : Jsonify (M.Dict (ComparablePath,I) Names)
-jsonifyLocals m = J.array (J.tuple2 (J.tuple2 Path.jsonifyComparablePath V.jsonify) jsonifyNames) (M.toList m)
+jsonifyLocals : Jsonify (M.Dict I [(Path,Names)])
+jsonifyLocals m = J.array (J.tuple2 V.jsonify (J.array (J.tuple2 Path.jsonifyPath jsonifyNames))) (M.toList m)
 
 jsonifyMetadata : Jsonify Metadata
 jsonifyMetadata (Metadata md) = J.tag' "Metadata"

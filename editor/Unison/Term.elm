@@ -38,33 +38,6 @@ data Term
   | Ann Term T.Type
   | Lam I Term
 
-{-
-  [ x
-  , y
-  , z
-  , p ]
-
-  foo tl =
-       [ x
-       , y
-       , z ]
-    ++ tl
-
-  foo tl =
-      1
-    + 2
-    + 3
-    + f x
-
-  foo tl =
-    1
-    + 2
-    + 3
-    + f x
-
--}
-
-
 render : Term -- term to render
       -> { handle         : Handle (Maybe (Hash, Path))
          , key            : Hash
@@ -130,10 +103,6 @@ data Break a
 
 break : Path -> Term -> Break { path : Path, term : Term }
 break path expr = todo
-
--- try laying out the term all on one line, then progressively break
--- need a Map Hash Metadata
---
 
 todo : a
 todo = todo

@@ -15,7 +15,7 @@ data Metadata k =
   Metadata {
     sort :: Sort,
     names :: Names,
-    locals :: [((P.Path,V.Var), Names)],
+    locals :: [(V.Var, [(P.Path,Names)])],
     description :: Maybe k,
     annotation :: k
   } deriving (Eq,Ord,Show)
@@ -25,9 +25,11 @@ matches (Query txt) (Metadata _ (Names ns) _ _ _) = txt `elem` map name ns
 
 localMatches :: V.Var -> Query -> Metadata k -> Bool
 localMatches v (Query txt) (Metadata _ _ m _ _) =
-  let f ((_,var), Names names) | var == v = map name names
-      f _ = []
-  in txt `elem` (m >>= f)
+  txt `elem` [ name sym | (var, ns) <- m,
+                          var == v,
+                          (_, Names syms) <- ns,
+                          sym <- syms
+             ]
 
 -- | Nameless metadata, contains only the annotation
 synthetic :: Sort -> k -> Metadata k
