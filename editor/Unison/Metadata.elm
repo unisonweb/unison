@@ -1,10 +1,11 @@
 module Unison.Metadata where
 
+import Array
 import Dict as M
 import Unison.Jsonify as J
 import Unison.Jsonify (Jsonify)
 import Unison.Path as Path
-import Unison.Path (ComparablePath,Path)
+import Unison.Path (Path)
 import Unison.Parser as P
 import Unison.Parser (Parser, (#))
 import Unison.Hash as H
@@ -22,11 +23,27 @@ data Metadata = Metadata {
   annotation : H.Hash
 }
 
+resolveLocal : Metadata -> Path -> I -> Symbol
+resolveLocal md p v =
+  let ns = localNames md p v
+  in if isEmpty ns then { name = show v, fixity = Prefix, precedence = 9 }
+     else head ns
+
+localNames : Metadata -> Path -> I -> Names
+localNames (Metadata env) p v =
+  let trimmed = Path.trimToScope p
+  in case M.get v env.locals of
+    Nothing -> []
+    Just psns -> let go (p,ns) acc = case acc of
+                    Nothing -> if p == trimmed then Just ns else Nothing
+                    Just acc -> Just acc
+                 in maybe [] id (foldl go Nothing psns)
+
 data Fixity = InfixL | InfixR | Infix | Prefix
 
 type Symbol = { name : String, fixity : Fixity, precedence : Int }
 
-data Names = Names [Symbol]
+type Names = [Symbol]
 
 data Query = Query String
 
@@ -72,10 +89,10 @@ jsonifyQuery : Jsonify Query
 jsonifyQuery (Query q) = J.tag' "Query" J.string q
 
 parseNames : Parser Names
-parseNames = P.newtyped' Names (P.array parseSymbol)
+parseNames = P.newtyped' id (P.array parseSymbol)
 
 jsonifyNames : Jsonify Names
-jsonifyNames (Names ns) = J.tag' "Names" (J.array jsonifySymbol) ns
+jsonifyNames = J.tag' "Names" (J.array jsonifySymbol)
 
 parseMetadata : Parser Metadata
 parseMetadata =

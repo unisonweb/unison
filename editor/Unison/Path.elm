@@ -15,6 +15,14 @@ data E
 
 type Path = Array E
 
+-- Trim from the right of this path until hitting a `Body` path element.
+-- This is used to normalize paths
+trimToScope : Path -> Path
+trimToScope p =
+  if | Array.length p == 0 -> p
+     | Array.getOrFail (Array.length p - 1) p == Body -> p
+     | otherwise -> trimToScope (Array.slice 0 -1 p)
+
 parseE : Parser E
 parseE = P.union' <| \t ->
   if | t == "Fn" -> P.unit Fn

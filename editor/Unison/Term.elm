@@ -47,11 +47,12 @@ render : Term -- term to render
       -> Element
 render expr env =
   let
+    md = env.metadata env.key
     go : Bool -> Int -> Int -> { path : Path, term : Term }  -> Element
     go allowBreak ambientPrec level cur =
       case cur.term of
-        Var n -> hoverable env.handle (msg cur.path) (code (resolveLocal n))
-        _ -> case break cur.path cur.term of
+        Var n -> hoverable env.handle (msg cur.path) (code (Metadata.resolveLocal md cur.path n).name)
+        _ -> case break md cur.path cur.term of
           Prefix f args ->
             let fE = go False 9 level f
                 lines = fE :: map (go False 10 level) args
@@ -64,9 +65,6 @@ render expr env =
                then flow right [spaceL, unbroken]
                else flow down <| indent level fE :: map (go True 10 (level + 1)) args
           _ -> todo
-
-    resolveLocal : I -> String
-    resolveLocal i = todo
 
     code s = leftAligned (style Styles.code (toText s))
     msg path b = if b then Just (env.key, path) else Nothing
@@ -101,8 +99,8 @@ data Break a
   | Bracketed [a]         -- `Bracketed [x,y,z] == [x,y,z]`
   | Lambda [a] a          -- `Lambda [x,y,z] e == x -> y -> z -> e`
 
-break : Path -> Term -> Break { path : Path, term : Term }
-break path expr = todo
+break : Metadata -> Path -> Term -> Break { path : Path, term : Term }
+break md path expr = todo
 
 todo : a
 todo = todo
