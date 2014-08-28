@@ -1,5 +1,7 @@
 module Unison.Term where
 
+import Array
+import Array (Array)
 import Dict
 import Dict (Dict)
 import Json
@@ -25,7 +27,7 @@ import Unison.Type as T
 data Literal
   = Number Float
   | String String
-  | Vector [Term]
+  | Vector (Array Term)
 
 data Term
   = Var I
@@ -94,7 +96,7 @@ render expr env =
     resolveLocal i = todo
 
     code s = leftAligned (style Styles.code (toText s))
-    msg path b = if b then Just (env.key, reverse path) else Nothing
+    msg path b = if b then Just (env.key, path) else Nothing
     -- basically, try calling with breakDepth of zero, then 1, then 2
     -- until it fits in the remaining width
     paren : Bool -> Path -> Element -> Element
@@ -140,12 +142,12 @@ parseLiteral : Parser Literal
 parseLiteral = P.union' <| \t ->
   if | t == "Number" -> P.map Number P.number
      | t == "String" -> P.map String P.string
-     | t == "Vector" -> P.map Vector (P.array parseTerm)
+     | t == "Vector" -> P.map (Vector . Array.fromList) (P.array parseTerm)
 
 jsonifyLiteral l = case l of
   Number n -> J.tag' "Number" J.number n
   String s -> J.tag' "String" J.string s
-  Vector es -> J.tag' "Vector" (J.array jsonifyTerm) es
+  Vector es -> J.tag' "Vector" (J.contramap Array.toList (J.array jsonifyTerm)) es
 
 parseTerm : Parser Term
 parseTerm = P.union' <| \t ->

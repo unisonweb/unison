@@ -1,5 +1,7 @@
 module Unison.Path where
 
+import Array (Array)
+import Array
 import Unison.Parser (Parser)
 import Unison.Parser as P
 import Unison.Jsonify as J
@@ -11,7 +13,7 @@ data E
   | Body -- ^ Points at the body of a lambda
   | Index Int -- ^ Points into a `Vector` literal
 
-type Path = [E]
+type Path = Array E
 
 type ComparablePath = [Int]
 
@@ -22,7 +24,7 @@ toComparablePath xs =
     Arg -> -2
     Body -> -1
     Index i -> i
-  in map f xs
+  in map f (Array.toList xs)
 
 fromComparablePath : ComparablePath -> Path
 fromComparablePath xs =
@@ -30,7 +32,7 @@ fromComparablePath xs =
                | x == -2 -> Arg
                | x == -3 -> Body
                | otherwise -> Index x
-  in map f xs
+  in Array.fromList (map f xs)
 
 parseE : Parser E
 parseE = P.union' <| \t ->
@@ -47,10 +49,10 @@ jsonifyE e = case e of
   Index i -> J.tag' "Index" J.int i
 
 parsePath : Parser Path
-parsePath = P.array parseE
+parsePath = P.map Array.fromList (P.array parseE)
 
 jsonifyPath : Jsonify Path
-jsonifyPath = J.array jsonifyE
+jsonifyPath = J.contramap Array.toList (J.array jsonifyE)
 
 parseComparablePath : Parser ComparablePath
 parseComparablePath = P.map toComparablePath parsePath

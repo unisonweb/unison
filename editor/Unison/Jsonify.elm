@@ -9,6 +9,9 @@ type Jsonify a = a -> J.Value
 render : Jsonify a -> a -> String
 render ja a = J.toString "" (ja a)
 
+contramap : (a -> b) -> Jsonify b -> Jsonify a
+contramap f j = j . f
+
 unit : J.Value -> Jsonify a
 unit v _ = v
 
