@@ -82,6 +82,29 @@ render expr env =
                then unbroken
                else let h = hoverable env.handle (msg cur.path) (spaces 2)
                     in foldl bf (flow right [spaceL, h, go False lprec level hd]) tl
+          Bracketed es ->
+            let comma = code ", " -- todo, attach an edit here
+                spaceL = spaces level
+                l = hoverable env.handle (msg cur.path) (code "[")
+                r = hoverable env.handle (msg cur.path) (code "]")
+                unbroken = flow right <| [spaceL, l]
+                                      ++ intersperse comma (map (go False 0 level) es)
+                                      ++ [r]
+            in if not allowBreak || widthOf unbroken < env.availableWidth
+            then unbroken
+            else let leadingComma = flow right [spaceL, comma, code " "]
+                     leadingBracket = flow right [spaceL, l, code " "]
+                     trailingBracket = flow right [code " ", r]
+                  in case es of
+                    [] -> flow right [spaceL, l, code " ", r]
+                    h :: [] -> flow right [spaceL, l, go False 0 level h, r]
+                    h :: t -> flow down <|
+                                flow right [leadingBracket, go False 0 level h]
+                                :: map
+                                  (\e -> flow right [leadingComma, go False 0 level e])
+                                  (take (length t - 1) t)
+                                ++ [flow right [leadingComma, go False 0 level (last t), trailingBracket] ]
+
           _ -> todo
 
     code s = leftAligned (style Styles.code (toText s))
@@ -92,10 +115,9 @@ render expr env =
       if parenthesize
       then let (opening, closing) = (code "(", code ")")
                topOpen = container (widthOf opening) (heightOf e) topLeft (code "(")
-                            |> hoverable env.handle (msg path)
-
+                      |> hoverable env.handle (msg path)
                bottomClose = container (widthOf closing) (heightOf e) bottomLeft (code ")")
-                            |> hoverable env.handle (msg path)
+                          |> hoverable env.handle (msg path)
            in flow right [topOpen, e, bottomClose]
       else e
 
