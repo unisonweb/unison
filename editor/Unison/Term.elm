@@ -126,7 +126,12 @@ data Break a
   | Lambda [a] a          -- `Lambda [x,y,z] e == x -> y -> z -> e`
 
 break : Metadata -> Path -> Term -> Break { path : Path, term : Term }
-break md path expr = todo
+break md path expr = case expr of
+  Lit (Vector xs) -> xs
+                  |> Array.indexedMap (\i a -> { path = Array.push (Index i) path, term = a })
+                  |> Array.toList
+                  |> Bracketed
+  _ -> todo
 
 todo : a
 todo = todo
