@@ -15,6 +15,12 @@ data E
 
 type Path = Array E
 
+push : Path -> E -> Path
+push p e = Array.push e p
+
+append : Path -> [E] -> Path
+append p es = Array.append p (Array.fromList es)
+
 -- Trim from the right of this path until hitting a `Body` path element.
 -- This is used to normalize paths
 trimToScope : Path -> Path

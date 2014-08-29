@@ -126,20 +126,39 @@ data Break a
   | Lambda [a] a          -- `Lambda [x,y,z] e == x -> y -> z -> e`
 
 break : Hash -> (Hash -> Metadata) -> Path -> Term -> Break { path : Path, term : Term }
-break hash md path expr = case expr of
-  Lit (Vector xs) -> xs
-                  |> Array.indexedMap (\i a -> { path = Array.push (Index i) path, term = a })
-                  |> Array.toList
-                  |> Bracketed
-  App (App op l) r -> todo
-  App f arg ->
-    -- need to do some sort of check here - what is fixity of `f`
-    -- 1 + 2 + 3 == + `App` (+ `App` 1 `App` 2) `App` 3
-    let go f acc path = case f of
-      App f arg -> go f ({ path = Array.push Arg path, term = arg } :: acc) (Array.push Fn path)
-      _ -> Prefix { path = Array.push Fn path, term = f } acc
-    in go (App f arg) [] path
-  _ -> Prefix { path = path, term = expr } []
+break hash md path expr =
+  let prefix f acc path = case f of
+        App f arg -> prefix f ({ path = path `push` Arg, term = arg } :: acc) (path `push` Fn)
+        _ -> Prefix { path = path, term = f } acc
+      opsL o prec e acc path = case e of
+        App (App op l) r ->
+          if op == o
+          then
+            let hd = (
+              { path = path `append` [Fn,Fn], term = op },
+              { path = path `push` Arg, term = r })
+            in opsL o prec l (hd :: acc) (path `append` [Fn,Arg])
+          else Operators False prec { path = path, term = e} acc
+        _ -> Operators False prec { path = path, term = e } acc
+      opsR o prec e path = case e of
+        App (App op l) r -> case opsR o prec r (path `push` Arg) of
+          Operators _ _ hd tl -> todo
+        _ -> Operators True prec { path = path, term = e } []
+  in case expr of
+    Lit (Vector xs) -> xs
+                    |> Array.indexedMap (\i a -> { path = path `push` Index i, term = a })
+                    |> Array.toList
+                    |> Bracketed
+    App (App op l) r ->
+      let sym = case op of
+        Ref h -> Metadata.firstSymbol h (md h)
+        Con h -> Metadata.firstSymbol h (md h)
+        Var v -> Metadata.resolveLocal (md hash) path v
+      in case sym.fixity of
+        Metadata.Prefix -> prefix (App (App op l) r) [] path -- not an operator chain, fall back
+        Metadata.InfixL -> opsL op sym.precedence (App (App op l) r) [] path -- left associated operator chain
+        Metadata.InfixR -> todo
+    _ -> prefix expr [] path
 
 todo : a
 todo = todo

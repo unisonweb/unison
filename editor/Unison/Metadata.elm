@@ -23,6 +23,11 @@ type Metadata = {
   annotation : H.Hash
 }
 
+firstSymbol : String -> Metadata -> Symbol
+firstSymbol defaultName md = case md.names of
+  [] -> { name = defaultName, fixity = Prefix, precedence = 9 }
+  h :: _ -> h
+
 firstName : String -> Metadata -> String
 firstName ifEmpty md =
   if isEmpty md.names
