@@ -116,9 +116,6 @@ render expr env =
     space2 = codeText "  "
     indentWidth = widthOf space2
 
-    indent : Int -> Element -> Element
-    indent level e = flow right [spaces level, e]
-
   in go True 0 env.availableWidth { path = Array.empty, term = expr }
 
 data Break a
