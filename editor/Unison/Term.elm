@@ -50,7 +50,9 @@ render expr env =
     md = env.metadata env.key
     go : Bool -> Int -> Int -> { path : Path, term : Term } -> Element
     go allowBreak ambientPrec level cur =
-      case cur.term of
+      -- todo : audit placing of spaces, when recursing in unbroken, level must be 0
+      -- also look at paren placement
+      let spaceL = spaces level in spaceL `beside` case cur.term of
         Var n -> hoverable env.handle (msg cur.path) (code (Metadata.resolveLocal md cur.path n).name)
         Ref h -> hoverable env.handle (msg cur.path) (code (Metadata.firstName h (env.metadata h)))
         Con h -> hoverable env.handle (msg cur.path) (code (Metadata.firstName h (env.metadata h)))
@@ -59,53 +61,54 @@ render expr env =
         _ -> case break md cur.path cur.term of
           Prefix f args ->
             let fE = go False 9 level f
-                lines = fE :: map (go False 10 level) args
-                spaceL = spaces level
-                unbroken = flow right [
-                  spaceL,
-                  paren (ambientPrec > 9) cur.path (flow right (intersperse space lines))
-                ]
-            in if not allowBreak || widthOf unbroken < env.availableWidth
+                lines = fE :: map (go False 10 0) args
+                unbroken = paren (ambientPrec > 9) cur.path (flow right (intersperse space lines))
+            in if not allowBreak || widthOf unbroken + widthOf spaceL < env.availableWidth
                then unbroken
                else flow down <| indent level fE :: map (go True 10 (level + 1)) args
           Operators leftAssoc prec hd tl ->
-            let f (op,r) l = flow right [ l, space, go False 10 level op, space, go False rprec level r ]
-                unbroken = flow right [spaceL, foldl f (go False lprec level hd) tl]
+            let f (op,r) l = flow right [ l, space, go False 10 0 op, space, go False rprec 0 r ]
+                unbroken = foldl f (go False lprec 0 hd) tl
                 lprec = if leftAssoc then prec else 1+prec
                 rprec = if leftAssoc then 1+prec else prec
-                spaceL = spaces level
                 bf (op,r) l = flow down [
                   l,
-                  flow right [spaceL, go False 10 level op, space, go False rprec level r ]
+                  flow right [spaceL, go False 10 0 op, space, go False rprec level r ]
                 ]
-            in if not allowBreak || widthOf unbroken < env.availableWidth
+            in if not allowBreak || widthOf unbroken + widthOf spaceL < env.availableWidth
                then unbroken
                else let h = hoverable env.handle (msg cur.path) (spaces 2)
-                    in foldl bf (flow right [spaceL, h, go False lprec level hd]) tl
+                    in foldl bf (flow right [spaceL, h, go True lprec (level+1) hd]) tl
           Bracketed es ->
             let comma = code ", " -- todo, attach an edit here
-                spaceL = spaces level
                 l = hoverable env.handle (msg cur.path) (code "[")
                 r = hoverable env.handle (msg cur.path) (code "]")
                 unbroken = flow right <| [spaceL, l]
-                                      ++ intersperse comma (map (go False 0 level) es)
+                                      ++ intersperse comma (map (go False 0 0) es)
                                       ++ [r]
-            in if not allowBreak || widthOf unbroken < env.availableWidth
+            in if not allowBreak || widthOf unbroken < env.availableWidth || length es < 2
             then unbroken
             else let leadingComma = flow right [spaceL, comma, code " "]
                      leadingBracket = flow right [spaceL, l, code " "]
                      trailingBracket = flow right [code " ", r]
                   in case es of
                     [] -> flow right [spaceL, l, code " ", r]
-                    h :: [] -> flow right [spaceL, l, go False 0 level h, r]
+                    h :: [] -> flow right [spaceL, l, go True 0 (level+1) h, r]
                     h :: t -> flow down <|
-                                flow right [leadingBracket, go False 0 level h]
+                                flow right [leadingBracket, go True 0 (level+1) h]
                                 :: map
-                                  (\e -> flow right [leadingComma, go False 0 level e])
+                                  (\e -> flow right [leadingComma, go True 0 (level+1) e])
                                   (take (length t - 1) t)
-                                ++ [flow right [leadingComma, go False 0 level (last t), trailingBracket] ]
-
-          _ -> todo
+                                ++ [flow right [leadingComma, go True 0 (level+1) (last t), trailingBracket] ]
+          Lambda args body ->
+            let argLayout = flow right <|
+                  spaceL :: intersperse (code " ") (map (go False 0 0) args) ++ [code " → "]
+                unbroken = flow right [argLayout, go False 0 level body]
+                        |> paren (ambientPrec > 0) cur.path
+            in if not allowBreak || widthOf unbroken < env.availableWidth
+               then unbroken
+               else flow down [argLayout, go True 0 (level+1) body]
+                    |> paren (ambientPrec > 0) cur.path
 
     code s = leftAligned (style Styles.code (toText s))
     msg path b = if b then Just (env.key, path) else Nothing
@@ -122,7 +125,8 @@ render expr env =
       else e
 
     space = code " "
-    spaces n = code (String.padLeft (n*2) ' ' "")
+    spaces n =
+      if n <= 0 then empty else code (String.padLeft (n*2) ' ' "")
 
     indent : Int -> Element -> Element
     indent level e = flow right [spaces level, e]
