@@ -57,7 +57,7 @@ render expr env =
         Con h -> hoverable env.handle (msg cur.path) (codeText (Metadata.firstName h (env.metadata h)))
         Lit (Number n) -> hoverable env.handle (msg cur.path) (codeText (show n))
         Lit (String s) -> hoverable env.handle (msg cur.path) (codeText s)
-        _ -> case break md cur.path cur.term of
+        _ -> case break env.key env.metadata cur.path cur.term of
           Prefix f args ->
             let f' = go False 9 availableWidth f
                 lines = f' :: map (go False 10 0) args
@@ -125,13 +125,21 @@ data Break a
   | Bracketed [a]         -- `Bracketed [x,y,z] == [x,y,z]`
   | Lambda [a] a          -- `Lambda [x,y,z] e == x -> y -> z -> e`
 
-break : Metadata -> Path -> Term -> Break { path : Path, term : Term }
-break md path expr = case expr of
+break : Hash -> (Hash -> Metadata) -> Path -> Term -> Break { path : Path, term : Term }
+break hash md path expr = case expr of
   Lit (Vector xs) -> xs
                   |> Array.indexedMap (\i a -> { path = Array.push (Index i) path, term = a })
                   |> Array.toList
                   |> Bracketed
-  _ -> todo
+  App (App op l) r -> todo
+  App f arg ->
+    -- need to do some sort of check here - what is fixity of `f`
+    -- 1 + 2 + 3 == + `App` (+ `App` 1 `App` 2) `App` 3
+    let go f acc path = case f of
+      App f arg -> go f ({ path = Array.push Arg path, term = arg } :: acc) (Array.push Fn path)
+      _ -> Prefix { path = Array.push Fn path, term = f } acc
+    in go (App f arg) [] path
+  _ -> Prefix { path = path, term = expr } []
 
 todo : a
 todo = todo

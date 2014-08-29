@@ -14,7 +14,7 @@ import Unison.Var as V
 
 data Sort = Type | Term
 
-data Metadata = Metadata {
+type Metadata = {
   sort : Sort,
   names : Names,
   -- for each var, and each scope (which points to a lambda body), what are the names of that var w/in that scope
@@ -24,7 +24,7 @@ data Metadata = Metadata {
 }
 
 firstName : String -> Metadata -> String
-firstName ifEmpty (Metadata md) =
+firstName ifEmpty md =
   if isEmpty md.names
   then ifEmpty
   else (head md.names).name
@@ -36,7 +36,7 @@ resolveLocal md p v =
      else head ns
 
 localNames : Metadata -> Path -> I -> Names
-localNames (Metadata env) p v =
+localNames env p v =
   let trimmed = Path.trimToScope p
   in case M.get v env.locals of
     Nothing -> []
@@ -102,11 +102,8 @@ jsonifyNames = J.tag' "Names" (J.array jsonifySymbol)
 
 parseMetadata : Parser Metadata
 parseMetadata =
-  let md s ns ls d a =
-    { sort = s, names = ns, locals = ls,
-      description = d, annotation = a }
-  in P.newtyped' Metadata <| P.product5
-    md
+  P.newtyped' id <| P.product5
+    Metadata
     parseSort
     parseNames
     parseLocals
@@ -121,7 +118,7 @@ jsonifyLocals : Jsonify (M.Dict I [(Path,Names)])
 jsonifyLocals m = J.array (J.tuple2 V.jsonify (J.array (J.tuple2 Path.jsonifyPath jsonifyNames))) (M.toList m)
 
 jsonifyMetadata : Jsonify Metadata
-jsonifyMetadata (Metadata md) = J.tag' "Metadata"
+jsonifyMetadata md = J.tag' "Metadata"
   (J.tuple5
     jsonifySort
     jsonifyNames
