@@ -51,8 +51,6 @@ render expr env =
     md = env.metadata env.key
     go : Bool -> Int -> Int -> { path : Path, term : Term } -> Element
     go allowBreak ambientPrec availableWidth cur =
-      -- todo : audit placing of spaces, when recursing in unbroken, level must be 0
-      -- also look at paren placement
       case cur.term of
         Var n -> hoverable env.handle (msg cur.path) (codeText (Metadata.resolveLocal md cur.path n).name)
         Ref h -> hoverable env.handle (msg cur.path) (codeText (Metadata.firstName h (env.metadata h)))
@@ -121,10 +119,7 @@ render expr env =
     indent : Int -> Element -> Element
     indent level e = flow right [spaces level, e]
 
-    -- prec : Term -> Int
-    -- prec (Hash)
-
-  in todo
+  in go True 0 env.availableWidth { path = Array.empty, term = expr }
 
 data Break a
   = Prefix a [a]          -- `Prefix f [x,y,z] == f x y z`
