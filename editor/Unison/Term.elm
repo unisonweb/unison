@@ -163,6 +163,11 @@ break hash md path expr =
         Metadata.Prefix -> prefix (App (App op l) r) [] path -- not an operator chain, fall back
         Metadata.InfixL -> opsL op sym.precedence (App (App op l) r) [] path -- left associated operator chain
         Metadata.InfixR -> opsR op sym.precedence (App (App op l) r) path
+    Lam v body -> case body of -- audit this
+      Lam _ _ -> case break hash md (path `push` Body) body of
+        Lambda args body2 -> Lambda ({ path = path `push` Body, term = body } :: args) body2
+        _ -> Lambda [{path = path, term = expr }] { path = path `push` Body, term = body }
+      _ -> Lambda [{path = path, term = expr }] { path = path `push` Body, term = body }
     _ -> prefix expr [] path
 
 todo : a
