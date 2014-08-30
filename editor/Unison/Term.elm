@@ -141,8 +141,13 @@ break hash md path expr =
           else Operators False prec { path = path, term = e} acc
         _ -> Operators False prec { path = path, term = e } acc
       opsR o prec e path = case e of
-        App (App op l) r -> case opsR o prec r (path `push` Arg) of
-          Operators _ _ hd tl -> todo
+        App (App op l) r ->
+          if op == o
+          then case opsR o prec r (path `push` Arg) of
+            Operators _ prec hd tl ->
+              let tl' = ({ path = path `append` [Fn,Fn], term = op }, hd) :: tl
+              in Operators True prec { path = path `append` [Fn,Arg], term = l} tl'
+          else Operators True prec { path = path, term = e} []
         _ -> Operators True prec { path = path, term = e } []
   in case expr of
     Lit (Vector xs) -> xs
@@ -157,7 +162,7 @@ break hash md path expr =
       in case sym.fixity of
         Metadata.Prefix -> prefix (App (App op l) r) [] path -- not an operator chain, fall back
         Metadata.InfixL -> opsL op sym.precedence (App (App op l) r) [] path -- left associated operator chain
-        Metadata.InfixR -> todo
+        Metadata.InfixR -> opsR op sym.precedence (App (App op l) r) path
     _ -> prefix expr [] path
 
 todo : a
