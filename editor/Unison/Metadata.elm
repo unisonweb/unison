@@ -23,6 +23,9 @@ type Metadata = {
   annotation : H.Hash
 }
 
+anonymousTerm : Metadata
+anonymousTerm = Metadata Term [] M.empty Nothing "unknown"
+
 firstSymbol : String -> Metadata -> Symbol
 firstSymbol defaultName md = case md.names of
   [] -> { name = defaultName, fixity = Prefix, precedence = 9 }

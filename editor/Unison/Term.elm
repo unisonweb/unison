@@ -7,6 +7,7 @@ import Dict (Dict)
 import Json
 import Set
 import Set (Set)
+import String
 import Graphics.Element as Element
 import Graphics.Input (Handle, hoverable)
 import Text(..)
@@ -27,7 +28,7 @@ import Unison.Type as T
 
 data Literal
   = Number Float
-  | String String
+  | Str String
   | Vector (Array Term)
 
 data Term
@@ -42,26 +43,28 @@ data Term
 render : Term -- term to render
       -> { handle         : Handle (Maybe (Hash, Path))
          , key            : Hash
-         , highlighted    : Set Path
+         , highlighted    : [Path]
          , availableWidth : Int
          , metadata       : Hash -> Metadata }
       -> Element
 render expr env =
   let
     md = env.metadata env.key
+    msg path b = if b then Just (env.key, path) else Nothing
+
     go : Bool -> Int -> Int -> { path : Path, term : Term } -> Element
     go allowBreak ambientPrec availableWidth cur =
       case cur.term of
         Var n -> hoverable env.handle (msg cur.path) (codeText (Metadata.resolveLocal md cur.path n).name)
         Ref h -> hoverable env.handle (msg cur.path) (codeText (Metadata.firstName h (env.metadata h)))
         Con h -> hoverable env.handle (msg cur.path) (codeText (Metadata.firstName h (env.metadata h)))
-        Lit (Number n) -> hoverable env.handle (msg cur.path) (codeText (show n))
-        Lit (String s) -> hoverable env.handle (msg cur.path) (codeText s)
+        Lit (Number n) -> hoverable env.handle (msg cur.path) (codeText (String.show n))
+        Lit (Str s) -> hoverable env.handle (msg cur.path) (codeText s)
         _ -> case break env.key env.metadata cur.path cur.term of
           Prefix f args ->
             let f' = go False 9 availableWidth f
                 lines = f' :: map (go False 10 0) args
-                unbroken = paren (ambientPrec > 9) cur.path (flow right (intersperse space lines))
+                unbroken = paren (ambientPrec > 9) cur.path (flow right (intersperse space lines |> Styles.row))
             in if not allowBreak || widthOf unbroken < availableWidth
                then unbroken
                else let args' = map (go True 10 (availableWidth - indentWidth)) args |> flow down
@@ -96,8 +99,6 @@ render expr env =
                then unbroken
                else flow down [argLayout, space2 `beside` go True 0 (availableWidth - indentWidth) body]
                     |> paren (ambientPrec > 0) cur.path
-
-    msg path b = if b then Just (env.key, path) else Nothing
 
     paren : Bool -> Path -> Element -> Element
     paren parenthesize path e =
@@ -170,18 +171,15 @@ break hash md path expr =
       _ -> Lambda [{path = path, term = expr }] { path = path `push` Body, term = body }
     _ -> prefix expr [] path
 
-todo : a
-todo = todo
-
 parseLiteral : Parser Literal
 parseLiteral = P.union' <| \t ->
   if | t == "Number" -> P.map Number P.number
-     | t == "String" -> P.map String P.string
+     | t == "String" -> P.map Str P.string
      | t == "Vector" -> P.map (Vector . Array.fromList) (P.array parseTerm)
 
 jsonifyLiteral l = case l of
   Number n -> J.tag' "Number" J.number n
-  String s -> J.tag' "String" J.string s
+  Str s -> J.tag' "String" J.string s
   Vector es -> J.tag' "Vector" (J.contramap Array.toList (J.array jsonifyTerm)) es
 
 parseTerm : Parser Term

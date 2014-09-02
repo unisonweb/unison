@@ -1,5 +1,9 @@
 module Main where
 
+import Array
+import Set
+import Unison.Path (Path)
+import Unison.Hash (Hash)
 import Unison.Styles as S
 import Unison.Layout as UL
 import Unison.Term as L
@@ -11,46 +15,25 @@ import Graphics.Input(..)
 import Graphics.Input.Field(..)
 import Window
 
--- each cell will consist of a single Element
--- 'standard' input boxes not really
--- flexible enough, since depending on
--- scope, are overwriting different region of
--- syntax tree
-{-
-source : Term -> Element
+entry : Input (Maybe (Hash,Path))
+entry = input Nothing
 
-idea: have just one input box, at the top
-alternately, place input box above selection,
-with a caret pointing down
+nums : L.Term
+nums = let f x = L.Lit (L.Number (toFloat x))
+       in L.Lit (L.Vector (Array.fromList (map f [0..20])))
 
-f x = [x + 1 + 2 + 3]
-     -------------------
-    |                   |
-     -  ----------------
-      \/
-f x = [x + 1 + 2 + 3]
-need to create an input box
--}
+expr = L.App (L.App (L.Ref "foo") nums) (L.Ref "baz")
 
-entry : Input Content
-entry = input noContent
-
-midnightBlue = rgb 44 62 80
-turquoise = rgb 26 188 156
-greenSea = rgb 22 160 133
-
-fieldStyle =
-  { padding = { left=8, right=8, top=11, bottom=12 }
-  , outline = { color=midnightBlue, width=uniformly 3, radius=0 }
-  , highlight = noHighlight
-  , style = let t = Text.defaultStyle
-            in { t | typeface <- ["Lato", "latin"], height <- Just 16 } }
-
-fld = field fieldStyle
+scene : Int -> (Maybe (Hash,Path)) -> Element
+scene w p =
+  flow down
+    [ S.codeText ("path: " ++ show p)
+    , L.render expr
+      { handle = entry.handle
+      , key = "bar"
+      , highlighted = []
+      , availableWidth = w
+      , metadata h = MD.anonymousTerm } ]
 
 main : Signal Element
-main =
-  let scene (w,h) content = container w h middle (f content)
-      f content = width 100 (fld entry.handle id "" content)
-  in scene <~ Window.dimensions ~ entry.signal
-
+main = scene <~ Window.width ~ entry.signal
