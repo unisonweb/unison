@@ -45,6 +45,13 @@ reselect select l = { l | select <- select }
 select : (k -> Maybe Region) -> Layout k -> Layout k
 select sel l = { l | select <- \k -> maybe (sel k) Just (l.select k) }
 
+nest : k -> Layout k -> Layout k
+nest root l =
+  let sel k = if k == root
+              then Just (Region (Pt 0 0) (E.widthOf l.element) (E.heightOf l.element))
+              else l.select k
+  in { l | select <- sel }
+
 beside : Layout k -> Layout k -> Layout k
 beside l r =
   { element = E.flow right [l.element, r.element]
