@@ -19,7 +19,7 @@ code =
   , line     = Nothing }
 
 codeText : String -> Element
-codeText s = leftAligned (style code (toText s))
+codeText s = leftAligned (style body (toText s))
 
 fill : Color -> Element -> Element
 fill c e = container (widthOf e) (heightOf e)  (topLeftAt (absolute 0) (absolute 0)) e |> color c
@@ -44,6 +44,8 @@ row es = case es of
            cell e = if heightOf e == maxh then e else container (widthOf e) maxh middle e
        in map cell es
 
+bg = white
+
 cell : Element -> Element
 cell = pad 10 2
 
@@ -54,7 +56,7 @@ cells ifEmpty xs =
      then ifEmpty
      else intersperse (spacer 1 (heightOf space) |> color silver) (map cell (row xs))
           |> flow right
-          |> fill white
+          |> fill bg
           |> outline silver
 
 verticalCells : Element -> [Element] -> Element

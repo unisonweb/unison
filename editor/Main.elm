@@ -26,13 +26,13 @@ expr = L.App (L.App (L.Ref "foo") nums) (L.Ref "baz")
 
 scene : Int -> (Maybe (Hash,Path)) -> Element
 scene w p =
-  flow down
+  spacer 50 50 `beside` flow down
     [ S.codeText ("path: " ++ show p)
     , L.render expr
       { handle = entry.handle
       , key = "bar"
       , highlighted = []
-      , availableWidth = w
+      , availableWidth = w - 50
       , metadata h = MD.anonymousTerm } ]
 
 main : Signal Element

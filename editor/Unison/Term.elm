@@ -52,6 +52,7 @@ render expr env =
     md = env.metadata env.key
     msg path b = if b then Just (env.key, path) else Nothing
 
+    -- want hoverable area to be "as large as possible", so attach hoverable listeners to *parents*
     go : Bool -> Int -> Int -> { path : Path, term : Term } -> Element
     go allowBreak ambientPrec availableWidth cur =
       case cur.term of
@@ -67,9 +68,8 @@ render expr env =
                 unbroken = paren (ambientPrec > 9) cur.path (flow right (intersperse space lines |> Styles.row))
             in if not allowBreak || widthOf unbroken < availableWidth
                then unbroken
-               else let args' = map (go True 10 (availableWidth - indentWidth)) args |> flow down
-                    in f' `above` (space2 `beside` args')
-                       |> paren (ambientPrec > 9) cur.path
+               else let args' = map (go True 10 (availableWidth - widthOf f' - widthOf space)) args |> flow down
+                    in flow right [f',space,args'] |> paren (ambientPrec > 9) cur.path
           Operators leftAssoc prec hd tl ->
             let f (op,r) l = flow right [ l, space, go False 10 0 op, space, go False rprec 0 r ]
                 unbroken = foldl f (go False lprec 0 hd) tl |> paren (ambientPrec > 9) cur.path
@@ -86,10 +86,10 @@ render expr env =
                        |> paren (ambientPrec > 9) cur.path
           Bracketed es ->
             let unbroken = Styles.cells (codeText "[]") (map (go False 0 0) es)
-            in if not allowBreak || widthOf unbroken < env.availableWidth || length es < 2
+            in if not allowBreak || widthOf unbroken < availableWidth || length es < 2
             then unbroken
             else Styles.verticalCells unbroken
-                                      (map (go True 0 (availableWidth - 6)) es) -- account for cell border
+                                      (map (go True 0 (availableWidth - 4)) es) -- account for cell border
           Lambda args body ->
             let argLayout = flow right <|
                   intersperse (codeText " ") (map (go False 0 0) args) ++ [codeText " → "]
