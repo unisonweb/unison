@@ -1,56 +1,54 @@
 module Unison.Layout where
 
+import Unison.Trie (Trie)
+import Unison.Trie as T
 import Array
 import Either(..)
 import Graphics.Element as E
-import Graphics.Element (Element)
+import Graphics.Element (Element, Direction)
 
 type Pt = { x : Int, y: Int }
 
 type Region = { topLeftCorner : Pt, width : Int , height : Int }
 
 type Layout k =
-  { element : Element   -- the rendering
-  , at : Pt -> k -- resolve a screen position to a key
-  , select : k -> Maybe Region -- resolve a key to a
+  { element : Element      -- the rendering
+  , at : Pt -> [k]         -- resolve a screen position to a key
+  , select : Trie k Region -- resolve a key to a screen region
   }
 
 mapMaybe : (a -> b) -> Maybe a -> Maybe b
 mapMaybe f = maybe Nothing (Just . f)
 
-pxmap : (k -> k2) -> (k2 -> Maybe k) -> Layout k -> Layout k2
-pxmap to from l =
-  { element = l.element
-  , at k = to (l.at k)
-  , select k2 = case from k2 of
-      Nothing -> Nothing
-      Just k -> l.select k
-  }
-
 empty : Layout k
-empty = { element = E.empty, at _ = todo, select _ = Nothing }
+empty = { element = E.empty, at _ = [], select = T.empty }
 
-element : k -> Element -> Layout k
-element k e =
+element : Element -> Layout k
+element e =
   { element = e
-  , at _ = k
-  , select k2 = if k == k2
-                then Just (Region (Pt 0 0) (widthOf e) (heightOf e))
-                else Nothing
+  , at _ = []
+  , select = T.unit (Region (Pt 0 0) (widthOf e) (heightOf e))
   }
-
-reselect : (k -> Maybe Region) -> Layout k -> Layout k
-reselect select l = { l | select <- select }
-
-select : (k -> Maybe Region) -> Layout k -> Layout k
-select sel l = { l | select <- \k -> maybe (sel k) Just (l.select k) }
 
 nest : k -> Layout k -> Layout k
 nest root l =
-  let sel k = if k == root
+  { l | select <- T.nest root l.select }
+
+-- Add some extra stuff to the given layout
+-- extend : Direction -> [Element] -> Layout k -> Layout k
+-- extend dir extra l = { l | element <- flow dir (l.element :: extra) }
+
+-- container, like extend
+-- nestedContainer
+--
+{-
+nestBeside : k -> [Element] -> Layout k -> Layout k
+nestBeside root extra l =
+  let overall = flow right (l.element :: extra)
+      sel k = if k == root
               then Just (Region (Pt 0 0) (E.widthOf l.element) (E.heightOf l.element))
-              else l.select k
-  in { l | select <- sel }
+              else
+-}
 
 beside : Layout k -> Layout k -> Layout k
 beside l r =
@@ -58,9 +56,8 @@ beside l r =
   , at {x,y} = if x <= E.widthOf l.element
                then l.at (Pt x (min (E.heightOf l.element) y))
                else r.at (Pt (x - E.widthOf l.element) (min (E.heightOf r.element) y))
-  , select k = case l.select k of
-      Nothing -> r.select k
-      o -> o
+  , select = let shift r = { r | topLeftCorner <- Pt (E.widthOf l.element) 0 }
+             in T.merge l.select (T.map shift r.select)
   }
 
 above : Layout k -> Layout k -> Layout k
@@ -69,9 +66,8 @@ above top bot =
   , at {x,y} = if y <= E.heightOf top.element
                then top.at (Pt (min (E.widthOf top.element) x) y)
                else bot.at (Pt (min (E.widthOf bot.element) x) (y - E.heightOf top.element))
-  , select k = case top.select k of
-      Nothing -> bot.select k
-      o -> o
+  , select = let shift r = { r | topLeftCorner <- Pt 0 (E.heightOf top.element) }
+             in T.merge top.select (T.map shift bot.select)
   }
 
 horizontal : [Layout k] -> Layout k
@@ -79,6 +75,18 @@ horizontal = reduceBalanced empty beside
 
 vertical : [Layout k] -> Layout k
 vertical = reduceBalanced empty above
+
+reduceBalanced : a -> (a -> a -> a) -> [a] -> a
+reduceBalanced zero op xs =
+  let go xs =
+    let len = Array.length xs
+    in if | len == 0  -> zero
+          | len == 1  -> Array.getOrFail 0 xs
+          | otherwise -> let mid = floor (toFloat len / 2)
+                         in go (Array.slice 0 mid xs) `op` go (Array.slice mid len xs)
+  in go (Array.fromList xs)
+
+{-
 
 section : k -> Layout k -> [Layout k] -> Layout k
 section root hdr subsections =
@@ -96,16 +104,4 @@ section root hdr subsections =
              else hdr
   in left `beside` col
 
-reduceBalanced : a -> (a -> a -> a) -> [a] -> a
-reduceBalanced zero op xs =
-  let go xs =
-    let len = Array.length xs
-    in if | len == 0  -> zero
-          | len == 1  -> Array.getOrFail 0 xs
-          | otherwise -> let mid = floor (toFloat len / 2)
-                         in go (Array.slice 0 mid xs) `op` go (Array.slice mid len xs)
-  in go (Array.fromList xs)
-
-todo : a
-todo = todo
-
+-}

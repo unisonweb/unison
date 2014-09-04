@@ -11,6 +11,8 @@ import String
 import Graphics.Element as Element
 import Graphics.Input (Handle, hoverable)
 import Text(..)
+import Unison.Layout (Layout)
+import Unison.Layout as L
 import Unison.Styles as Styles
 import Unison.Styles (codeText)
 import Unison.Hash (Hash)
@@ -41,26 +43,25 @@ data Term
   | Lam I Term
 
 render : Term -- term to render
-      -> { handle         : Handle (Maybe (Hash, Path))
-         , key            : Hash
-         , highlighted    : [Path]
+      -> { key            : Hash
          , availableWidth : Int
          , metadata       : Hash -> Metadata }
-      -> Element
+      -> Layout (Hash,Path)
 render expr env =
   let
     md = env.metadata env.key
     msg path b = if b then Just (env.key, path) else Nothing
+    leaf path e = Layout e (\_ -> Just (env.key, path))
 
     -- want hoverable area to be "as large as possible", so attach hoverable listeners to *parents*
-    go : Bool -> Int -> Int -> { path : Path, term : Term } -> Element
-    go allowBreak ambientPrec availableWidth cur =
+    go : Bool -> Int -> Int -> { path : Path, term : Term } -> Layout (Hash,Path)
+    go allowBreak ambientPrec availableWidth cur = L.nest (env.key, cur.path) <|
       case cur.term of
-        Var n -> hoverable env.handle (msg cur.path) (codeText (Metadata.resolveLocal md cur.path n).name)
-        Ref h -> hoverable env.handle (msg cur.path) (codeText (Metadata.firstName h (env.metadata h)))
-        Con h -> hoverable env.handle (msg cur.path) (codeText (Metadata.firstName h (env.metadata h)))
-        Lit (Number n) -> hoverable env.handle (msg cur.path) (codeText (String.show n))
-        Lit (Str s) -> hoverable env.handle (msg cur.path) (codeText s)
+        Var n -> codeText (Metadata.resolveLocal md cur.path n).name
+        Ref h -> codeText (Metadata.firstName h (env.metadata h))
+        Con h -> codeText (Metadata.firstName h (env.metadata h))
+        Lit (Number n) -> codeText (String.show n)
+        Lit (Str s) -> codeText ("\"" ++ s ++ "\"")
         _ -> case break env.key env.metadata cur.path cur.term of
           Prefix f args ->
             let f' = go False 9 availableWidth f
@@ -70,37 +71,37 @@ render expr env =
                then unbroken
                else let args' = map (go True 10 (availableWidth - widthOf f' - widthOf space)) args |> flow down
                     in flow right [f',space,args'] |> paren (ambientPrec > 9) cur.path
-          Operators leftAssoc prec hd tl ->
-            let f (op,r) l = flow right [ l, space, go False 10 0 op, space, go False rprec 0 r ]
-                unbroken = foldl f (go False lprec 0 hd) tl |> paren (ambientPrec > 9) cur.path
-                lprec = if leftAssoc then prec else 1+prec
-                rprec = if leftAssoc then 1+prec else prec
-                bf (op,r) l =
-                  let op' = go False 10 0 op
-                      remWidth = availableWidth - widthOf op' - widthOf space
-                  in l `above` flow right [op', space, go True rprec remWidth r ]
-            in if not allowBreak || widthOf unbroken < availableWidth
-               then unbroken
-               else let h = hoverable env.handle (msg cur.path) (spaces 2)
-                    in foldl bf (go True lprec (availableWidth - indentWidth) hd) tl
-                       |> paren (ambientPrec > 9) cur.path
-          Bracketed es ->
-            let unbroken = Styles.cells (codeText "[]") (map (go False 0 0) es)
-            in if not allowBreak || widthOf unbroken < availableWidth || length es < 2
-            then unbroken
-            else Styles.verticalCells unbroken
-                                      (map (go True 0 (availableWidth - 4)) es) -- account for cell border
-          Lambda args body ->
-            let argLayout = flow right <|
-                  intersperse (codeText " ") (map (go False 0 0) args) ++ [codeText " → "]
-                unbroken = flow right [argLayout, go False 0 0 body]
-                        |> paren (ambientPrec > 0) cur.path
-            in if not allowBreak || widthOf unbroken < availableWidth
-               then unbroken
-               else flow down [argLayout, space2 `beside` go True 0 (availableWidth - indentWidth) body]
-                    |> paren (ambientPrec > 0) cur.path
+          --Operators leftAssoc prec hd tl ->
+          --  let f (op,r) l = flow right [ l, space, go False 10 0 op, space, go False rprec 0 r ]
+          --      unbroken = foldl f (go False lprec 0 hd) tl |> paren (ambientPrec > 9) cur.path
+          --      lprec = if leftAssoc then prec else 1+prec
+          --      rprec = if leftAssoc then 1+prec else prec
+          --      bf (op,r) l =
+          --        let op' = go False 10 0 op
+          --            remWidth = availableWidth - widthOf op' - widthOf space
+          --        in l `above` flow right [op', space, go True rprec remWidth r ]
+          --  in if not allowBreak || widthOf unbroken < availableWidth
+          --     then unbroken
+          --     else let h = hoverable env.handle (msg cur.path) (spaces 2)
+          --          in foldl bf (go True lprec (availableWidth - indentWidth) hd) tl
+          --             |> paren (ambientPrec > 9) cur.path
+          --Bracketed es ->
+          --  let unbroken = Styles.cells (codeText "[]") (map (go False 0 0) es)
+          --  in if not allowBreak || widthOf unbroken < availableWidth || length es < 2
+          --  then unbroken
+          --  else Styles.verticalCells unbroken
+          --                            (map (go True 0 (availableWidth - 4)) es) -- account for cell border
+          --Lambda args body ->
+          --  let argLayout = flow right <|
+          --        intersperse (codeText " ") (map (go False 0 0) args) ++ [codeText " → "]
+          --      unbroken = flow right [argLayout, go False 0 0 body]
+          --              |> paren (ambientPrec > 0) cur.path
+          --  in if not allowBreak || widthOf unbroken < availableWidth
+          --     then unbroken
+          --     else flow down [argLayout, space2 `beside` go True 0 (availableWidth - indentWidth) body]
+          --          |> paren (ambientPrec > 0) cur.path
 
-    paren : Bool -> Path -> Element -> Element
+    paren : Bool -> Element -> Element
     paren parenthesize path e =
       if parenthesize
       then let (opening, closing) = (codeText "(", codeText ")")
