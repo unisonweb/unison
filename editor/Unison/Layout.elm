@@ -69,18 +69,19 @@ render (Layout k layout) = case layout of
   Embed e -> Layout { k | element = e } (Embed e)
 
 {-| Find all regions in the tree whose path is equal to the given path.
-    This assumes that for any two nodes, `p`, and `c` of the `Layout`,
-    where `c` is a child of `p`, `(key p).path` must be a prefix of
-    `(key c).path`.
+    Uses the function `prefixOf` to avoid examining subtrees that
+    cannot contain the given `k`. This assumes that for any two nodes,
+    `p`, and `c` of the `Layout`, where `c` is a child of `p`,
+    `prefixOf (key p).path (key c).path` must be true.
 -}
-region : Layout { tl | element : Element, path : Array k } -> Array k -> [ { tl | region : Region } ]
-region l ks =
+region : (k -> k -> Bool) -> Layout { tl | element : Element, path : k } -> k -> [ { tl | region : Region } ]
+region prefixOf l ks =
   let
     tl : { tl | element : a, path : b } -> tl
     tl r = let r' = { r - element } in { r' - path }
     go origin ks (Layout k layout) =
       if | ks == k.path -> [ tl { k | region = Region origin (E.widthOf k.element) (E.heightOf k.element) } ]
-         | not (startsWith k.path ks) -> [] -- avoid recursing on any subtrees which cannot possibly contain ks
+         | not (k.path `prefixOf` ks) -> [] -- avoid recursing on any subtrees which cannot possibly contain ks
          | otherwise -> case layout of
              Beside left right ->
                go origin ks left ++
@@ -147,14 +148,6 @@ selectableLub rs = case (filter .selectable rs) of
 -- select : Region -> Layout { _ | element : Element } -> (k,Region)
 --
 -- layout : Term -> Layout Path
-
-startsWith : Array a -> Array a -> Bool
-startsWith prefix overall =
-  A.length prefix == 0 ||
-  A.length prefix <= A.length overall &&
-  A.get 0 prefix == A.get 0 overall &&
-  startsWith (A.slice 1 (A.length prefix) prefix)
-             (A.slice 1 (A.length overall) overall)
 
 todo : a
 todo = todo

@@ -1,7 +1,7 @@
 module Unison.Path where
 
 import Array (Array)
-import Array
+import Array as A
 import Unison.Parser (Parser)
 import Unison.Parser as P
 import Unison.Jsonify as J
@@ -16,18 +16,26 @@ data E
 type Path = Array E
 
 push : Path -> E -> Path
-push p e = Array.push e p
+push p e = A.push e p
 
 append : Path -> [E] -> Path
-append p es = Array.append p (Array.fromList es)
+append p es = A.append p (A.fromList es)
 
 -- Trim from the right of this path until hitting a `Body` path element.
 -- This is used to normalize paths
 trimToScope : Path -> Path
 trimToScope p =
-  if | Array.length p == 0 -> p
-     | Array.getOrFail (Array.length p - 1) p == Body -> p
-     | otherwise -> trimToScope (Array.slice 0 -1 p)
+  if | A.length p == 0 -> p
+     | A.getOrFail (A.length p - 1) p == Body -> p
+     | otherwise -> trimToScope (A.slice 0 -1 p)
+
+startsWith : Array a -> Array a -> Bool
+startsWith prefix overall =
+  A.length prefix == 0 ||
+  A.length prefix <= A.length overall &&
+  A.get 0 prefix == A.get 0 overall &&
+  startsWith (A.slice 1 (A.length prefix) prefix)
+             (A.slice 1 (A.length overall) overall)
 
 parseE : Parser E
 parseE = P.union' <| \t ->
@@ -44,7 +52,7 @@ jsonifyE e = case e of
   Index i -> J.tag' "Index" J.int i
 
 parsePath : Parser Path
-parsePath = P.map Array.fromList (P.array parseE)
+parsePath = P.map A.fromList (P.array parseE)
 
 jsonifyPath : Jsonify Path
-jsonifyPath = J.contramap Array.toList (J.array jsonifyE)
+jsonifyPath = J.contramap A.toList (J.array jsonifyE)
