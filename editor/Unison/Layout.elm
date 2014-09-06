@@ -69,10 +69,13 @@ render (Layout k layout) = case layout of
   Embed e -> Layout { k | element = e } (Embed e)
 
 {-| Find all regions in the tree whose path is equal to the given path.
-    Uses the function `prefixOf` to avoid examining subtrees that
-    cannot contain the given `k`. This assumes that for any two nodes,
-    `p`, and `c` of the `Layout`, where `c` is a child of `p`,
-    `prefixOf (key p).path (key c).path` must be true.
+    Relies on the assumption that nodes have paths which prefix paths
+    of their descendents; thus, we can avoid searching any subtree whose
+    path does not at least prefix the target path.
+
+    More precisely: for any two nodes, `p`, and `c` of the `Layout`,
+    where `c` is a descendent of `p`, `prefixOf (key p).path (key c).path`
+    must be true.
 -}
 region : (k -> k -> Bool) -> Layout { tl | element : Element, path : k } -> k -> [ { tl | region : Region } ]
 region prefixOf l ks =
@@ -96,8 +99,8 @@ region prefixOf l ks =
              Embed e -> []
   in go (Pt 0 0) ks l
 
--- Find all keys whose region contains the given point
-at : Layout { tl | path : k, element : Element } -> Pt -> [k]
+{-| Find all keys whose region contains the given point. -}
+at : Layout { tl | path : k, element : Element } -> Pt -> [ { tl | path : k } ]
 at l pt =
   let
     within : Pt -> Int -> Int -> Pt -> Bool
@@ -113,7 +116,7 @@ at l pt =
     go origin (Layout k layout) =
       if not (within origin (E.widthOf k.element) (E.heightOf k.element) pt)
       then []
-      else k.path `distinctCons` case layout of
+      else { k - element } `distinctCons` case layout of
         Beside left right ->
           go origin left ++
           go { origin | x <- origin.x + E.widthOf (key left).element } right
