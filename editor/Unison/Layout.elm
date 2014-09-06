@@ -2,106 +2,164 @@ module Unison.Layout where
 
 import Unison.Trie (Trie)
 import Unison.Trie as T
-import Array
+import Array as A
+import Array (Array)
 import Either(..)
 import Graphics.Element as E
-import Graphics.Element (Element, Direction)
+import Graphics.Element (Direction, Element, Position)
 
 type Pt = { x : Int, y: Int }
 
-type Region = { topLeftCorner : Pt, width : Int , height : Int }
+type Region = { topLeft : Pt, width : Int , height : Int }
 
-type Layout k =
-  { element : Element      -- the rendering
-  , at : Pt -> [k]         -- resolve a screen position to a key
-  , select : Trie k Region -- resolve a key to a screen region
-  }
+data LayoutF r
+  = Beside r r
+  | Above r r
+  | Container { width : Int, height : Int, innerTopLeft : Pt, finish : Element -> Element } r
+  | Embed Element
 
-mapMaybe : (a -> b) -> Maybe a -> Maybe b
-mapMaybe f = maybe Nothing (Just . f)
+data Layout k = Layout k (LayoutF (Layout k))
 
-empty : Layout k
-empty = { element = E.empty, at _ = [], select = T.empty }
+key : Layout k -> k
+key (Layout k _) = k
 
-element : Element -> Layout k
-element e =
-  { element = e
-  , at _ = []
-  , select = T.unit (Region (Pt 0 0) (widthOf e) (heightOf e))
-  }
+embed : k -> Element -> Layout k
+embed k e = Layout k (Embed e)
 
-nest : k -> Layout k -> Layout k
-nest root l =
-  { l | select <- T.nest root l.select }
+empty : k -> Layout k
+empty k = Layout k (Embed E.empty)
 
--- Add some extra stuff to the given layout
--- extend : Direction -> [Element] -> Layout k -> Layout k
--- extend dir extra l = { l | element <- flow dir (l.element :: extra) }
+beside : k -> Layout k -> Layout k -> Layout k
+beside k left right = Layout k (Beside left right)
 
--- container, like extend
--- nestedContainer
---
-{-
-nestBeside : k -> [Element] -> Layout k -> Layout k
-nestBeside root extra l =
-  let overall = flow right (l.element :: extra)
-      sel k = if k == root
-              then Just (Region (Pt 0 0) (E.widthOf l.element) (E.heightOf l.element))
-              else
+above : k -> Layout k -> Layout k -> Layout k
+above k top bot = Layout k (Above top bot)
+
+horizontal : k -> [Layout k] -> Layout k
+horizontal k ls = reduceBalanced (empty k) (beside k) ls
+
+vertical : k -> [Layout k] -> Layout k
+vertical k ls = reduceBalanced (empty k) (above k) ls
+
+container : (Element -> Element) -> k -> Int -> Int -> Pt -> Layout k -> Layout k
+container f k w h pt l =
+  Layout k (Container { width = w, height = h, innerTopLeft = pt, finish = f } l)
+
+float : k -> Int -> Int -> Pt -> Layout k -> Layout k
+float = container id
+
+render : Layout k -> Layout { k | element : Element }
+render (Layout k layout) = case layout of
+  Beside left right ->
+    let rl = render left
+        rr = render right
+        e = (key rl).element `E.beside` (key rr).element
+    in Layout { k | element = e } (Beside rl rr)
+  Above top bot ->
+    let rt = render top
+        rb = render bot
+        e = (key rt).element `E.above` (key rb).element
+    in Layout { k | element = e } (Above rt rb)
+  Container params r ->
+    let rr = render r
+        pos = E.topLeftAt (E.absolute params.innerTopLeft.x)
+                          (E.absolute params.innerTopLeft.y)
+        e = params.finish (E.container params.width params.height pos (key rr).element)
+    in Layout { k | element = e } (Container params rr)
+  Embed e -> Layout { k | element = e } (Embed e)
+
+{-| Find all regions in the tree whose path is equal to the given path.
+    This assumes that for any two nodes, `p`, and `c` of the `Layout`,
+    where `c` is a child of `p`, `(key p).path` must be a prefix of
+    `(key c).path`.
 -}
+region : Layout { tl | element : Element, path : Array k } -> Array k -> [ { tl | region : Region } ]
+region l ks =
+  let
+    tl : { tl | element : a, path : b } -> tl
+    tl r = let r' = { r - element } in { r' - path }
+    go origin ks (Layout k layout) =
+      if | ks == k.path -> [ tl { k | region = Region origin (E.widthOf k.element) (E.heightOf k.element) } ]
+         | not (startsWith k.path ks) -> [] -- avoid recursing on any subtrees which cannot possibly contain ks
+         | otherwise -> case layout of
+             Beside left right ->
+               go origin ks left ++
+               go { origin | x <- origin.x + E.widthOf (key left).element } ks right
+             Above top bot ->
+               go origin ks top ++
+               go { origin | y <- origin.y + E.heightOf (key top).element } ks bot
+             Container params inner ->
+               go { origin | x <- origin.x + params.innerTopLeft.x, y <- origin.y + params.innerTopLeft.y }
+                  ks
+                  inner
+             Embed e -> []
+  in go (Pt 0 0) ks l
 
-beside : Layout k -> Layout k -> Layout k
-beside l r =
-  { element = E.flow right [l.element, r.element]
-  , at {x,y} = if x <= E.widthOf l.element
-               then l.at (Pt x (min (E.heightOf l.element) y))
-               else r.at (Pt (x - E.widthOf l.element) (min (E.heightOf r.element) y))
-  , select = let shift r = { r | topLeftCorner <- Pt (E.widthOf l.element) 0 }
-             in T.merge l.select (T.map shift r.select)
-  }
+-- Find all keys whose region contains the given point
+at : Layout { tl | path : k, element : Element } -> Pt -> [k]
+at l pt =
+  let
+    within : Pt -> Int -> Int -> Pt -> Bool
+    within topLeft w h pt =
+      pt.x >= topLeft.x && pt.x <= topLeft.x + w &&
+      pt.y >= topLeft.y && pt.y <= topLeft.y + h
 
-above : Layout k -> Layout k -> Layout k
-above top bot =
-  { element = E.flow down [top.element, bot.element]
-  , at {x,y} = if y <= E.heightOf top.element
-               then top.at (Pt (min (E.widthOf top.element) x) y)
-               else bot.at (Pt (min (E.widthOf bot.element) x) (y - E.heightOf top.element))
-  , select = let shift r = { r | topLeftCorner <- Pt 0 (E.heightOf top.element) }
-             in T.merge top.select (T.map shift bot.select)
-  }
+    go origin (Layout k layout) =
+      if not (within origin (E.widthOf k.element) (E.heightOf k.element) pt)
+      then []
+      else k.path :: case layout of
+        Beside left right ->
+          go origin left ++
+          go { origin | x <- origin.x + E.widthOf (key left).element } right
+        Above top bot ->
+          go origin top ++
+          go { origin | y <- origin.y + E.heightOf (key top).element } bot
+        Container params inner ->
+          go { origin | x <- origin.x + params.innerTopLeft.x, y <- origin.y + params.innerTopLeft.y }
+             inner
+        Embed e -> []
+  in go (Pt 0 0) l
 
-horizontal : [Layout k] -> Layout k
-horizontal = reduceBalanced empty beside
+lub : Region -> Region -> Region
+lub r1 r2 =
+  let topLeft = Pt (r1.topLeft.x `min` r2.topLeft.x) (r1.topLeft.y `min` r2.topLeft.y)
+      botRight = Pt (r1.topLeft.x + r1.width `max` r2.topLeft.x + r2.width)
+                    (r1.topLeft.y + r1.height `max` r2.topLeft.x + r2.height)
+  in Region topLeft (botRight.x - topLeft.x) (botRight.y - topLeft.y)
 
-vertical : [Layout k] -> Layout k
-vertical = reduceBalanced empty above
+selectableLub : [{ selectable : Bool, region : Region }] -> Maybe Region
+selectableLub rs = case (filter .selectable rs) of
+  [] -> Nothing
+  rh :: rt -> Just (foldl lub rh.region (map .region rt))
+
+-- regionAt : Layout { tl | element : Element } -> Pt ->
+
+-- this:
+-- at : Pt -> Layout { _ | path : k, element : Element } -> k
+-- regionAt : Pt -> Layout { _ | element : Element } -> Region
+-- regionAt : Pt -> Layout { _ | path : k, element : Element } -> (k, Region)
+-- select : Region -> Layout { _ | element : Element } -> (k,Region)
+--
+-- layout : Term -> Layout Path
+
+startsWith : Array a -> Array a -> Bool
+startsWith prefix overall =
+  A.length prefix == 0 ||
+  A.length prefix <= A.length overall &&
+  A.get 0 prefix == A.get 0 overall &&
+  startsWith (A.slice 1 (A.length prefix) prefix)
+             (A.slice 1 (A.length overall) overall)
+
+todo : a
+todo = todo
 
 reduceBalanced : a -> (a -> a -> a) -> [a] -> a
 reduceBalanced zero op xs =
   let go xs =
-    let len = Array.length xs
+    let len = A.length xs
     in if | len == 0  -> zero
-          | len == 1  -> Array.getOrFail 0 xs
+          | len == 1  -> A.getOrFail 0 xs
           | otherwise -> let mid = floor (toFloat len / 2)
-                         in go (Array.slice 0 mid xs) `op` go (Array.slice mid len xs)
-  in go (Array.fromList xs)
+                         in go (A.slice 0 mid xs) `op` go (A.slice mid len xs)
+  in go (A.fromList xs)
 
-{-
-
-section : k -> Layout k -> [Layout k] -> Layout k
-section root hdr subsections =
-  let col = vertical subsections
-      sel k = if k == root
-              then Just (Region (Pt 0 0) (E.widthOf hdr.element + E.widthOf col.element)
-                                         (E.heightOf hdr.element + E.heightOf col.element))
-              else Nothing
-      spacer = E.spacer (E.widthOf hdr.element)
-                        (E.heightOf col.element `max` E.heightOf hdr.element - E.heightOf hdr.element)
-            |> element root
-            |> reselect sel
-      left = if E.heightOf col.element > E.heightOf hdr.element
-             then hdr `above` spacer
-             else hdr
-  in left `beside` col
-
--}
