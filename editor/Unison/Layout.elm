@@ -104,10 +104,15 @@ at l pt =
       pt.x >= topLeft.x && pt.x <= topLeft.x + w &&
       pt.y >= topLeft.y && pt.y <= topLeft.y + h
 
+    distinctCons : a -> [a] -> [a]
+    distinctCons h t = case t of
+      [] -> [h]
+      ht :: tt -> if ht == h then t else h :: t
+
     go origin (Layout k layout) =
       if not (within origin (E.widthOf k.element) (E.heightOf k.element) pt)
       then []
-      else k.path :: case layout of
+      else k.path `distinctCons` case layout of
         Beside left right ->
           go origin left ++
           go { origin | x <- origin.x + E.widthOf (key left).element } right
@@ -118,6 +123,7 @@ at l pt =
           go { origin | x <- origin.x + params.innerTopLeft.x, y <- origin.y + params.innerTopLeft.y }
              inner
         Embed e -> []
+
   in go (Pt 0 0) l
 
 lub : Region -> Region -> Region
