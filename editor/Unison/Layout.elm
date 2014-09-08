@@ -20,6 +20,9 @@ data LayoutF r
 
 data Layout k = Layout k (LayoutF (Layout k))
 
+nest : (k -> Layout k -> Layout k) -> Layout k -> Layout k
+nest f l = f (key l) l
+
 key : Layout k -> k
 key (Layout k _) = k
 
@@ -47,6 +50,12 @@ container f k w h pt l =
 
 float : k -> Int -> Int -> Pt -> Layout k -> Layout k
 float = container id
+
+{-
+outline : k -> Color -> Int -> Layout k -> Layout k
+outline k c thickness l =
+  container (color c) k
+-}
 
 render : Layout k -> Layout { k | element : Element }
 render (Layout k layout) = case layout of
@@ -141,19 +150,6 @@ selectableLub : [{ selectable : Bool, region : Region }] -> Maybe Region
 selectableLub rs = case (filter .selectable rs) of
   [] -> Nothing
   rh :: rt -> Just (foldl lub rh.region (map .region rt))
-
--- regionAt : Layout { tl | element : Element } -> Pt ->
-
--- this:
--- at : Pt -> Layout { _ | path : k, element : Element } -> k
--- regionAt : Pt -> Layout { _ | element : Element } -> Region
--- regionAt : Pt -> Layout { _ | path : k, element : Element } -> (k, Region)
--- select : Region -> Layout { _ | element : Element } -> (k,Region)
---
--- layout : Term -> Layout Path
-
-todo : a
-todo = todo
 
 reduceBalanced : a -> (a -> a -> a) -> [a] -> a
 reduceBalanced zero op xs =
