@@ -88,14 +88,23 @@ fill c e = container (tag e) (widthOf e) (heightOf e) (Pt 0 0) e
 -- roundedOutline : k -> Int -> Color -> Int -> Layout { k | element : Element } -> Layout { k | element : Element }
 -- roundedOutline k cornerRadius c thickness l = todo
 
-row : k -> [Layout k] -> Layout k
-row k ls = case ls of
-  [] -> empty k
+row : [Layout k] -> [Layout k]
+row ls = case ls of
+  [] -> []
   _ -> let maxh = maximum (map heightOf ls)
            cell e = let diff = maxh - heightOf e
                     in if diff == 0 then e
                        else container (tag e) (widthOf e) maxh (Pt 0 (toFloat diff / 2 |> floor)) e
-       in horizontal k (map cell ls)
+       in (map cell ls)
+
+column : [Layout k] -> [Layout k]
+column ls = case ls of
+  [] -> []
+  _ -> let maxw = maximum (map widthOf ls)
+           cell e = let diff = maxw - widthOf e
+                    in if diff == 0 then e
+                       else container (tag e) maxw (heightOf e) (Pt (toFloat diff / 2 |> floor) 0) e
+       in (map cell ls)
 
 -- cell : Layout { k | element : Element } -> Layout { k | element : Element }
 -- cell = nest pad 10 2
