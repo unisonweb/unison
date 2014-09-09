@@ -35,66 +35,67 @@ widthOf l = E.widthOf (element l)
 heightOf : Layout k -> Int
 heightOf l = E.heightOf (element l)
 
-embed : Element -> k -> Layout k
-embed e k = Layout (Embed e) e k
+embed : k -> Element -> Layout k
+embed k e = Layout (Embed e) e k
 
 empty : k -> Layout k
-empty = embed E.empty
+empty k = embed k E.empty
 
-beside : Layout k -> Layout k -> k -> Layout k
-beside left right =
-  Layout (Beside left right) (element left `E.beside` element right)
+beside : k -> Layout k -> Layout k -> Layout k
+beside k left right =
+  Layout (Beside left right) (element left `E.beside` element right) k
 
-above : Layout k -> Layout k -> k -> Layout k
-above top bot =
-  Layout (Above top bot) (element top `E.beside` element bot)
+above : k -> Layout k -> Layout k -> Layout k
+above k top bot =
+  Layout (Above top bot) (element top `E.beside` element bot) k
 
-horizontal : [Layout k] -> k -> Layout k
-horizontal ls k = reduceBalanced (empty k) (\a b -> beside a b k) ls
+horizontal : k -> [Layout k] -> Layout k
+horizontal k ls = reduceBalanced (empty k) (beside k) ls
 
-vertical : [Layout k] -> k -> Layout k
-vertical ls k = reduceBalanced (empty k) (\a b -> above a b k) ls
+vertical : k -> [Layout k] -> Layout k
+vertical k ls = reduceBalanced (empty k) (above k) ls
 
 intersperseHorizontal : Layout k -> [Layout k] -> Layout k
 intersperseHorizontal sep ls =
-  horizontal (intersperse sep ls) (tag sep)
+  horizontal (tag sep) (intersperse sep ls)
 
 intersperseVertical : Layout k -> [Layout k] -> Layout k
 intersperseVertical sep ls =
-  vertical (intersperse sep ls) (tag sep)
+  vertical (tag sep) (intersperse sep ls)
 
-container : Int -> Int -> Pt -> Layout k -> k -> Layout k
-container w h pt l =
+container : k -> Int -> Int -> Pt -> Layout k -> Layout k
+container k w h pt l =
   let pos = E.topLeftAt (E.absolute pt.x) (E.absolute pt.y)
       e   = E.container w h pos (element l)
-  in Layout (Container { width = w, height = h, innerTopLeft = pt } l) e
+  in Layout (Container { width = w, height = h, innerTopLeft = pt } l) e k
 
 pad : Int -> Int -> Layout k -> Layout k
 pad eastWestPad northSouthPad l =
-  container (widthOf l + eastWestPad*2)
+  container (tag l)
+            (widthOf l + eastWestPad*2)
             (heightOf l + northSouthPad*2)
             (Pt eastWestPad northSouthPad)
             l
-            (tag l)
 
 outline : Color -> Int -> Layout k -> Layout k
 outline c thickness l =
   pad thickness thickness l |> transform (color c)
 
 fill : Color -> Layout k -> Layout k
-fill c e = container (widthOf e) (heightOf e) (Pt 0 0) e (tag e) |> transform (color c)
+fill c e = container (tag e) (widthOf e) (heightOf e) (Pt 0 0) e
+        |> transform (color c)
 
 -- roundedOutline : k -> Int -> Color -> Int -> Layout { k | element : Element } -> Layout { k | element : Element }
 -- roundedOutline k cornerRadius c thickness l = todo
 
-row : [Layout k] -> k -> Layout k
-row ls k = case ls of
+row : k -> [Layout k] -> Layout k
+row k ls = case ls of
   [] -> empty k
   _ -> let maxh = maximum (map heightOf ls)
            cell e = let diff = maxh - heightOf e
                     in if diff == 0 then e
-                       else container (widthOf e) maxh (Pt 0 (toFloat diff / 2 |> floor)) e (tag e)
-       in horizontal (map cell ls) k
+                       else container (tag e) (widthOf e) maxh (Pt 0 (toFloat diff / 2 |> floor)) e
+       in horizontal k (map cell ls)
 
 -- cell : Layout { k | element : Element } -> Layout { k | element : Element }
 -- cell = nest pad 10 2

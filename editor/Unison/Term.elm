@@ -72,12 +72,12 @@ render expr env =
     go : Bool -> Int -> Int -> { path : Path, term : Term } -> Layout { hash : Hash, path : Path, selectable : Bool }
     go allowBreak ambientPrec availableWidth cur =
       case cur.term of
-        Var n -> codeText (Metadata.resolveLocal md cur.path n).name `L.embed` tag cur.path
-        Ref h -> codeText (Metadata.firstName h (env.metadata h)) `L.embed` tag cur.path
-        Con h -> codeText (Metadata.firstName h (env.metadata h)) `L.embed` tag cur.path
-        Lit (Number n) -> codeText (String.show n) `L.embed` tag cur.path
-        Lit (Str s) -> codeText ("\"" ++ s ++ "\"") `L.embed` tag cur.path
-        _ -> let space' = L.embed space (tag cur.path) in
+        Var n -> codeText (Metadata.resolveLocal md cur.path n).name |> L.embed (tag cur.path)
+        Ref h -> codeText (Metadata.firstName h (env.metadata h)) |> L.embed (tag cur.path)
+        Con h -> codeText (Metadata.firstName h (env.metadata h)) |> L.embed (tag cur.path)
+        Lit (Number n) -> codeText (String.show n) |> L.embed (tag cur.path)
+        Lit (Str s) -> codeText ("\"" ++ s ++ "\"") |> L.embed (tag cur.path)
+        _ -> let space' = L.embed (tag cur.path) space in
         case break env.key env.metadata cur.path cur.term of
           Prefix f args ->
             let f' = go False 9 availableWidth f
@@ -86,9 +86,8 @@ render expr env =
                         |> L.transform (paren (ambientPrec > 9))
             in if not allowBreak || L.widthOf unbroken < availableWidth
                then unbroken
-               else let args' = L.vertical
-                                  (map (go True 10 (availableWidth - L.widthOf f' - L.widthOf space')) args)
-                                  (tag cur.path)
+               else let args' = map (go True 10 (availableWidth - L.widthOf f' - L.widthOf space')) args
+                             |> L.vertical (tag cur.path)
                     in L.intersperseHorizontal space' [f',args']
                     |> L.transform (paren (ambientPrec > 9))
           Operators leftAssoc prec hd tl ->
@@ -100,23 +99,22 @@ render expr env =
                 bf (op,r) l =
                   let op' = go False 10 0 op
                       remWidth = availableWidth - L.widthOf op' - L.widthOf space'
-                  in todo -- l `above` flow right [op', space', go True rprec remWidth r ]
+                  in L.above (tag cur.path) l <|
+                     L.intersperseHorizontal space' [op', go True rprec remWidth r ]
             in if not allowBreak || L.widthOf unbroken < availableWidth
                then unbroken
                else foldl bf (go True lprec (availableWidth - indentWidth) hd) tl
                     |> L.transform (paren (ambientPrec > 9))
           Lambda args body ->
-            let argLayout = map (go False 0 0) args ++ [L.embed (codeText "→") (tag cur.path)]
+            let argLayout = map (go False 0 0) args ++ [L.embed (tag cur.path) (codeText "→")]
                           |> L.intersperseHorizontal space'
                 unbroken = L.intersperseHorizontal space' [argLayout, go False 0 0 body]
                         |> L.transform (paren (ambientPrec > 0))
             in if not allowBreak || L.widthOf unbroken < availableWidth
                then unbroken
-               else L.vertical [
-                      argLayout,
-                      L.horizontal [ space', space', go True 0 (availableWidth - indentWidth) body]
-                                   (tag cur.path)
-                    ] (tag cur.path)
+               else L.above (tag cur.path)
+                      argLayout
+                      (L.horizontal (tag cur.path) [ space', space', go True 0 (availableWidth - indentWidth) body])
                     |> L.transform (paren (ambientPrec > 0))
   in go True 0 env.availableWidth { path = Array.empty, term = expr }
 {-
