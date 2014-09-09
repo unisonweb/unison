@@ -18,107 +18,83 @@ data LayoutF r
   | Container { width : Int, height : Int, innerTopLeft : Pt } r
   | Embed Element
 
-data Layout k = Layout k (LayoutF (Layout k))
+data Layout k = Layout (LayoutF (Layout k)) Element k
 
-nest : (Layout k -> LayoutF (Layout k)) -> Layout k -> Layout k
-nest f l = Layout (key l) (f l)
+tag : Layout k -> k
+tag (Layout _ _ k) = k
 
-key : Layout k -> k
-key (Layout k _) = k
+element : Layout k -> Element
+element (Layout _ e _) = e
 
-key' : Layout { k | element : Element } -> k
-key' (Layout k _) = { k - element }
+transform : (Element -> Element) -> Layout k -> Layout k
+transform f (Layout l e k) = Layout l (f e) k
 
-value : Layout k -> LayoutF (Layout k)
-value (Layout _ v) = v
-
-rekey : (k -> k) -> Layout k -> Layout k
-rekey f (Layout k l) = Layout (f k) l
-
-element : Layout { k | element : Element } -> Element
-element (Layout k _) = k.element
-
-widthOf : Layout { k | element : Element } -> Int
+widthOf : Layout k -> Int
 widthOf l = E.widthOf (element l)
 
-heightOf : Layout { k | element : Element } -> Int
+heightOf : Layout k -> Int
 heightOf l = E.heightOf (element l)
 
-embed : k -> Element -> Layout { k | element : Element }
-embed k e = Layout { k | element = e } (Embed e)
+embed : Element -> k -> Layout k
+embed e k = Layout (Embed e) e k
 
-empty : k -> Layout { k | element : Element }
-empty k = embed k E.empty
+empty : k -> Layout k
+empty = embed E.empty
 
-beside : k -> Layout { k | element : Element }
-           -> Layout { k | element : Element }
-           -> Layout { k | element : Element }
-beside k left right =
-  let k' = { k | element = (key left).element `E.beside` (key right).element }
-  in Layout k' (Beside left right)
+beside : Layout k -> Layout k -> k -> Layout k
+beside left right =
+  Layout (Beside left right) (element left `E.beside` element right)
 
-above : k -> Layout { k | element : Element }
-          -> Layout { k | element : Element }
-          -> Layout { k | element : Element }
-above k top bot =
-  let k' = { k | element = (key top).element `E.above` (key bot).element }
-  in Layout k' (Above top bot)
+above : Layout k -> Layout k -> k -> Layout k
+above top bot =
+  Layout (Above top bot) (element top `E.beside` element bot)
 
-horizontal : k -> [Layout { k | element : Element }] -> Layout { k | element : Element }
-horizontal k ls = reduceBalanced (empty k) (beside k) ls
+horizontal : [Layout k] -> k -> Layout k
+horizontal ls k = reduceBalanced (empty k) (\a b -> beside a b k) ls
 
-vertical : k -> [Layout { k | element : Element }] -> Layout { k | element : Element }
-vertical k ls = reduceBalanced (empty k) (above k) ls
+vertical : [Layout k] -> k -> Layout k
+vertical ls k = reduceBalanced (empty k) (\a b -> above a b k) ls
 
-intersperseHorizontal : Layout { k | element : Element }
-                     -> [Layout { k | element : Element }]
-                     -> Layout { k | element : Element }
+intersperseHorizontal : Layout k -> [Layout k] -> Layout k
 intersperseHorizontal sep ls =
-  let k = key sep
-  in horizontal { k - element } (intersperse sep ls)
+  horizontal (intersperse sep ls) (tag sep)
 
-intersperseVertical : Layout { k | element : Element }
-                   -> [Layout { k | element : Element }]
-                   -> Layout { k | element : Element }
+intersperseVertical : Layout k -> [Layout k] -> Layout k
 intersperseVertical sep ls =
-  let k = key sep
-  in vertical { k - element } (intersperse sep ls)
+  vertical (intersperse sep ls) (tag sep)
 
-container' : Int -> Int -> Pt -> Layout k -> LayoutF (Layout k)
-container' w h pt = Container { width = w, height = h, innerTopLeft = pt }
-
-container : k -> Int -> Int -> Pt -> Layout { k | element : Element } -> Layout { k | element : Element }
-container k w h pt l =
+container : Int -> Int -> Pt -> Layout k -> k -> Layout k
+container w h pt l =
   let pos = E.topLeftAt (E.absolute pt.x) (E.absolute pt.y)
-      e   = E.container w h pos (key l).element
-  in Layout { k | element = e } (Container { width = w, height = h, innerTopLeft = pt } l)
+      e   = E.container w h pos (element l)
+  in Layout (Container { width = w, height = h, innerTopLeft = pt } l) e
 
-pad : k -> Int -> Int -> Layout { k | element : Element } -> Layout { k | element : Element }
-pad k eastWestPad northSouthPad l =
-  container k (E.widthOf (key l).element + eastWestPad*2)
-              (E.heightOf (key l).element + northSouthPad*2)
-              (Pt eastWestPad northSouthPad)
-              l
+pad : Int -> Int -> Layout k -> Layout k
+pad eastWestPad northSouthPad l =
+  container (widthOf l + eastWestPad*2)
+            (heightOf l + northSouthPad*2)
+            (Pt eastWestPad northSouthPad)
+            l
+            (tag l)
 
-outline : k -> Color -> Int -> Layout { k | element : Element } -> Layout { k | element : Element }
-outline k c thickness l =
-  pad k thickness thickness l |> rekey (\k -> { k | element <- color c k.element })
+outline : Color -> Int -> Layout k -> Layout k
+outline c thickness l =
+  pad thickness thickness l |> transform (color c)
 
--- fill : Color -> Layout k -> Layout k
--- fill c e = container (key' e) (widthOf e) (heightOf e) (Pt 0 0)
--- |> rekey (\r -> { r | element <- color c r.element })
+fill : Color -> Layout k -> Layout k
+fill c e = container (widthOf e) (heightOf e) (Pt 0 0) e (tag e) |> transform (color c)
 
 -- roundedOutline : k -> Int -> Color -> Int -> Layout { k | element : Element } -> Layout { k | element : Element }
 -- roundedOutline k cornerRadius c thickness l = todo
 
-row : k -> [Layout { k | element : Element }] -> Layout { k | element : Element }
-row k ls = case ls of
+row : [Layout k] -> k -> Layout k
+row ls k = case ls of
   [] -> empty k
   _ -> let maxh = maximum (map heightOf ls)
            cell e = let diff = maxh - heightOf e
                     in if diff == 0 then e
-                       else e |> nest (container' (widthOf e) maxh (Pt 0 (toFloat diff / 2 |> floor)))
-       in horizontal k (map cell ls)
+                       else container (widthOf e) maxh (Pt 0 (toFloat diff / 2 |> floor)) e (tag e)
+       in horizontal (map cell ls) k
 
 -- cell : Layout { k | element : Element } -> Layout { k | element : Element }
 -- cell = nest pad 10 2
@@ -150,24 +126,22 @@ row k ls = case ls of
     path does not at least prefix the target path.
 
     More precisely: for any two nodes, `p`, and `c` of the `Layout`,
-    where `c` is a descendent of `p`, `prefixOf (key p).path (key c).path`
+    where `c` is a descendent of `p`, `prefixOf (tag p).path (tag c).path`
     must be true.
 -}
-region : (k -> k -> Bool) -> Layout { tl | element : Element, path : k } -> k -> [ { tl | region : Region } ]
+region : (k -> k -> Bool) -> Layout k -> k -> [(k, Region)]
 region prefixOf l ks =
   let
-    tl : { tl | element : a, path : b } -> tl
-    tl r = let r' = { r - element } in { r' - path }
-    go origin ks (Layout k layout) =
-      if | ks == k.path -> [ tl { k | region = Region origin (E.widthOf k.element) (E.heightOf k.element) } ]
-         | not (k.path `prefixOf` ks) -> [] -- avoid recursing on any subtrees which cannot possibly contain ks
+    go origin ks (Layout layout e k) =
+      if | ks == k -> [ (k, Region origin (E.widthOf e) (E.heightOf e)) ]
+         | not (k `prefixOf` ks) -> [] -- avoid recursing on any subtrees which cannot possibly contain ks
          | otherwise -> case layout of
              Beside left right ->
                go origin ks left ++
-               go { origin | x <- origin.x + E.widthOf (key left).element } ks right
+               go { origin | x <- origin.x + widthOf left } ks right
              Above top bot ->
                go origin ks top ++
-               go { origin | y <- origin.y + E.heightOf (key top).element } ks bot
+               go { origin | y <- origin.y + heightOf top } ks bot
              Container params inner ->
                go { origin | x <- origin.x + params.innerTopLeft.x, y <- origin.y + params.innerTopLeft.y }
                   ks
@@ -175,8 +149,8 @@ region prefixOf l ks =
              Embed e -> []
   in go (Pt 0 0) ks l
 
-{-| Find all keys whose region contains the given point. -}
-at : Layout { tl | path : k, element : Element } -> Pt -> [ { tl | path : k } ]
+{-| Find all tags whose region contains the given point. -}
+at : Layout k -> Pt -> [k]
 at l pt =
   let
     within : Pt -> Int -> Int -> Pt -> Bool
@@ -189,16 +163,16 @@ at l pt =
       [] -> [h]
       ht :: tt -> if ht == h then t else h :: t
 
-    go origin (Layout k layout) =
-      if not (within origin (E.widthOf k.element) (E.heightOf k.element) pt)
+    go origin (Layout layout e k) =
+      if not (within origin (E.widthOf e) (E.heightOf e) pt)
       then []
-      else { k - element } `distinctCons` case layout of
+      else k `distinctCons` case layout of
         Beside left right ->
           go origin left ++
-          go { origin | x <- origin.x + E.widthOf (key left).element } right
+          go { origin | x <- origin.x + widthOf left } right
         Above top bot ->
           go origin top ++
-          go { origin | y <- origin.y + E.heightOf (key top).element } bot
+          go { origin | y <- origin.y + heightOf top } bot
         Container params inner ->
           go { origin | x <- origin.x + params.innerTopLeft.x, y <- origin.y + params.innerTopLeft.y }
              inner
