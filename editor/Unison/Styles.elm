@@ -1,5 +1,9 @@
 module Unison.Styles where
 
+import Graphics.Element as E
+import Unison.Layout (Layout)
+import Unison.Layout as L
+
 body : Style
 body =
   { typeface = [ "Lato", "latin" ]
@@ -20,6 +24,18 @@ code =
 
 codeText : String -> Element
 codeText s = leftAligned (style body (toText s))
+
+cells : k -> Element -> [Layout k] -> Layout k
+cells k ifEmpty ls = case L.row ls of
+  [] -> L.embed k ifEmpty
+  h :: _ -> let vline = L.embed k (E.spacer 1 (L.heightOf h) |> E.color silver)
+            in L.outline silver 1 (L.intersperseHorizontal vline ls)
+
+verticalCells : k -> Element -> [Layout k] -> Layout k
+verticalCells k ifEmpty ls = case L.column ls of
+  [] -> L.embed k ifEmpty
+  h :: _ -> let hline = L.embed k (E.spacer (L.widthOf h) 1 |> E.color silver)
+            in L.outline silver 1 (L.intersperseHorizontal hline ls)
 
 bg = white
 

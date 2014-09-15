@@ -107,7 +107,7 @@ render expr env =
                     |> L.transform (paren (ambientPrec > 9))
           Lambda args body ->
             let argLayout = map (go False 0 0) args ++ [L.embed (tag cur.path) (codeText "→")]
-                          |> L.intersperseHorizontal space'
+                         |> L.intersperseHorizontal space'
                 unbroken = L.intersperseHorizontal space' [argLayout, go False 0 0 body]
                         |> L.transform (paren (ambientPrec > 0))
             in if not allowBreak || L.widthOf unbroken < availableWidth
@@ -116,19 +116,13 @@ render expr env =
                       argLayout
                       (L.horizontal (tag cur.path) [ space', space', go True 0 (availableWidth - indentWidth) body])
                     |> L.transform (paren (ambientPrec > 0))
-  in go True 0 env.availableWidth { path = Array.empty, term = expr }
-{-
           Bracketed es ->
-            let unbroken = Styles.cells (codeText "[]") (map (go False 0 0) es)
-            in if not allowBreak || widthOf unbroken < availableWidth || length es < 2
+            let unbroken = Styles.cells (tag cur.path) (codeText "[]") (map (go False 0 0) es)
+            in if not allowBreak || L.widthOf unbroken < availableWidth || length es < 2
             then unbroken
-            else Styles.verticalCells unbroken
+            else Styles.verticalCells (tag cur.path) (codeText "[]")
                                       (map (go True 0 (availableWidth - 4)) es) -- account for cell border
-
-    space = codeText " "
-
   in go True 0 env.availableWidth { path = Array.empty, term = expr }
--}
 
 data Break a
   = Prefix a [a]          -- `Prefix f [x,y,z] == f x y z`
