@@ -29,11 +29,11 @@ scene : Int -> (Int,Int) -> Element
 scene w (x,y) =
   let layout = E.layout expr { key = "bar", availableWidth = w - 50, metadata h = MD.anonymousTerm }
       dummy = S.codeText "w00t"
-      paths = L.atRanked (Array.length . .path) layout (L.Pt (x-50) (y-100))
+      paths = L.atRanked (Array.length . .path) layout (L.Region (L.Pt (x-48) (y-98)) 2 2)
       isPrefix a b = a.hash == "bar" && Path.startsWith a.path b.path
       region = case paths of
         [] -> Nothing
-        _ -> L.selectableLub .selectable (L.region isPrefix layout (last paths))
+        _ -> L.selectableLub .selectable (L.region isPrefix layout (head (head paths)))
       selection = maybe Element.empty (S.selection layout) region
   in flow down
           [ spacer 50 1 `Element.beside` Element.height 100 (S.codeText ("paths: " ++ show paths))

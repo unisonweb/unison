@@ -134,13 +134,22 @@ region prefixOf l ks =
   in go (Pt 0 0) ks l
 
 {-| Find all tags whose region contains the given point. -}
-at : Layout k -> Pt -> [k]
-at l pt =
+at : Layout k -> Region -> [k]
+at l r =
   let
-    within : Pt -> Int -> Int -> Pt -> Bool
-    within topLeft w h pt =
-      pt.x >= topLeft.x && pt.x <= topLeft.x + w &&
-      pt.y >= topLeft.y && pt.y <= topLeft.y + h
+    bx1 = r.topLeft.x
+    by1 = r.topLeft.y
+    bx2 = bx1 + r.width
+    by2 = by1 + r.height
+
+    -- See http://silentmatt.com/rectangle-intersection/ for why this works
+    intersects : Pt -> Int -> Int -> Bool
+    intersects topLeft w h =
+      let ax1 = topLeft.x
+          ay1 = topLeft.y
+          ax2 = ax1 + w
+          ay2 = ay1 + h
+      in ax1 < bx2 && ax2 > bx1 && ay1 < by2 && ay2 > by1
 
     distinctCons : a -> [a] -> [a]
     distinctCons h t = case t of
@@ -148,7 +157,7 @@ at l pt =
       ht :: tt -> if ht == h then t else h :: t
 
     go origin (Layout layout e k) =
-      if not (within origin (E.widthOf e) (E.heightOf e) pt)
+      if not (intersects origin (E.widthOf e) (E.heightOf e))
       then []
       else k `distinctCons` case layout of
         Beside left right ->
@@ -164,14 +173,21 @@ at l pt =
 
   in go (Pt 0 0) l
 
-{-| Find all tags whose region contains the given point,
-    ordering results by the given ranking function
-    (the highest rank k will be last in the returned list).
+{-| Find all tags whose region intersects the given region,
+    ordering and grouping results by the given ranking function.
+    The first group returned will consist of elements with the
+    highest rank, followed by elements with the next highest rank, etc.
 -}
-atRanked : (k -> Int) -> Layout k -> Pt -> [k]
-atRanked rank l pt =
-  let ks = at l pt ++ at l { pt | x <- pt.x + 1, y <- pt.x + 1 }
-  in sortBy rank ks
+atRanked : (k -> Int) -> Layout k -> Region -> [[k]]
+atRanked rank l r =
+  let f k = (rank k, k)
+      g (i, k) (i2, cur, acc) =
+        if i == i2 then (i2, k :: cur, acc)
+        else            (i, [k], reverse cur :: acc)
+      done (_, cur, acc) = reverse cur :: acc
+  in case map f (at l r) |> sortBy fst of
+    [] -> []
+    (i,k) :: tl -> foldl g (i, [k], []) tl |> done
 
 lub : Region -> Region -> Region
 lub r1 r2 =
