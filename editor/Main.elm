@@ -36,7 +36,7 @@ level =
 scene : Int -> (Int,Int) -> Int -> Element
 scene w (x,y) lvl =
   let layout = E.layout expr { key = "bar", availableWidth = w - 50, metadata h = MD.anonymousTerm }
-      paths = L.atRanked (Array.length . .path) layout (L.Region (L.Pt (x-48) (y-98)) 2 2)
+      paths = L.atRanked (length . .path) layout (L.Region (L.Pt (x-48) (y-98)) 2 2)
       isPrefix a b = a.hash == "bar" && Path.startsWith a.path b.path
       region = case drop (min (length paths - 1) lvl) paths of
         (k :: _) :: _ -> L.selectableLub .selectable (L.region isPrefix layout k)

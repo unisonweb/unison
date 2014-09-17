@@ -15,45 +15,29 @@ data E
   | Body -- ^ Points at the body of a lambda
   | Index Int -- ^ Points into a `Vector` literal
 
-type Path = Array E
+type Path = [E]
 
-push : Path -> E -> Path
-push p e = A.push e p
-
-pop : Path -> Maybe (Path, E)
-pop p =
-  if A.length p == 0 then Nothing
-  else Just (A.slice 0 -1 p, A.getOrFail (A.length p - 1) p)
-
-dropPop : Path -> Path
-dropPop p = maybe p fst (pop p)
+snoc : Path -> E -> Path
+snoc p e = p ++ [e]
 
 append : Path -> [E] -> Path
-append p es = A.append p (A.fromList es)
-
-next : Path -> Stream Path
-next p = case pop p of
-  Nothing -> Stream.Empty
-  Just (init,last) -> case last of
-    Index i -> let tl _ = Stream.Empty
-                   hd _ = push init (Index (i+1))
-               in Stream.Cons hd tl
+append p es = p ++ es
 
 -- Trim from the right of this path until hitting a `Body` path element.
 -- This is used to normalize paths
 trimToScope : Path -> Path
 trimToScope p =
-  if | A.length p == 0 -> p
-     | A.getOrFail (A.length p - 1) p == Body -> p
-     | otherwise -> trimToScope (A.slice 0 -1 p)
+  let go p = case p of
+        [] -> p
+        Body :: t -> reverse p
+        h :: t -> go t
+  in go (reverse p)
 
-startsWith : Array a -> Array a -> Bool
+startsWith : [a] -> [a] -> Bool
 startsWith prefix overall =
-  A.length prefix == 0 ||
-  A.length prefix <= A.length overall &&
-  A.get 0 prefix == A.get 0 overall &&
-  startsWith (A.slice 1 (A.length prefix) prefix)
-             (A.slice 1 (A.length overall) overall)
+  length prefix == 0 ||
+  length prefix <= length overall &&
+  (zip prefix overall |> all (\(a,a2) -> a == a2))
 
 parseE : Parser E
 parseE = P.union' <| \t ->
@@ -70,7 +54,7 @@ jsonifyE e = case e of
   Index i -> J.tag' "Index" J.int i
 
 parsePath : Parser Path
-parsePath = P.map A.fromList (P.array parseE)
+parsePath = P.array parseE
 
 jsonifyPath : Jsonify Path
-jsonifyPath = J.contramap A.toList (J.array jsonifyE)
+jsonifyPath = J.array jsonifyE

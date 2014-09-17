@@ -127,7 +127,7 @@ layout expr env =
             then unbroken
             else Styles.verticalCells (tag cur.path) (codeText "[]")
                                       (map (go True 0 (availableWidth - 4)) es) -- account for cell border
-  in go True 0 env.availableWidth { path = Array.empty, term = expr }
+  in go True 0 env.availableWidth { path = [], term = expr }
 
 data Break a
   = Prefix a [a]          -- `Prefix f [x,y,z] == f x y z`
@@ -139,7 +139,7 @@ data Break a
 break : Hash -> (Hash -> Metadata) -> Path -> Term -> Break { path : Path, term : Term }
 break hash md path expr =
   let prefix f acc path = case f of
-        App f arg -> prefix f ({ path = path `push` Arg, term = arg } :: acc) (path `push` Fn)
+        App f arg -> prefix f ({ path = path `snoc` Arg, term = arg } :: acc) (path `snoc` Fn)
         _ -> Prefix { path = path, term = f } acc
       opsL o prec e acc path = case e of
         App (App op l) r ->
@@ -147,14 +147,14 @@ break hash md path expr =
           then
             let hd = (
               { path = path `append` [Fn,Fn], term = op },
-              { path = path `push` Arg, term = r })
+              { path = path `snoc` Arg, term = r })
             in opsL o prec l (hd :: acc) (path `append` [Fn,Arg])
           else Operators False prec { path = path, term = e} acc
         _ -> Operators False prec { path = path, term = e } acc
       opsR o prec e path = case e of
         App (App op l) r ->
           if op == o
-          then case opsR o prec r (path `push` Arg) of
+          then case opsR o prec r (path `snoc` Arg) of
             Operators _ prec hd tl ->
               let tl' = ({ path = path `append` [Fn,Fn], term = op }, hd) :: tl
               in Operators True prec { path = path `append` [Fn,Arg], term = l} tl'
@@ -162,7 +162,7 @@ break hash md path expr =
         _ -> Operators True prec { path = path, term = e } []
   in case expr of
     Lit (Vector xs) -> xs
-                    |> Array.indexedMap (\i a -> { path = path `push` Index i, term = a })
+                    |> Array.indexedMap (\i a -> { path = path `snoc` Index i, term = a })
                     |> Array.toList
                     |> Bracketed
     App (App op l) r ->
@@ -175,10 +175,10 @@ break hash md path expr =
         Metadata.InfixL -> opsL op sym.precedence (App (App op l) r) [] path -- left associated operator chain
         Metadata.InfixR -> opsR op sym.precedence (App (App op l) r) path
     Lam v body -> case body of -- audit this
-      Lam _ _ -> case break hash md (path `push` Body) body of
-        Lambda args body2 -> Lambda ({ path = path `push` Body, term = body } :: args) body2
-        _ -> Lambda [{path = path, term = expr }] { path = path `push` Body, term = body }
-      _ -> Lambda [{path = path, term = expr }] { path = path `push` Body, term = body }
+      Lam _ _ -> case break hash md (path `snoc` Body) body of
+        Lambda args body2 -> Lambda ({ path = path `snoc` Body, term = body } :: args) body2
+        _ -> Lambda [{path = path, term = expr }] { path = path `snoc` Body, term = body }
+      _ -> Lambda [{path = path, term = expr }] { path = path `snoc` Body, term = body }
     _ -> prefix expr [] path
 
 parseLiteral : Parser Literal
