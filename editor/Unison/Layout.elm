@@ -47,7 +47,7 @@ beside k left right =
 
 above : k -> Layout k -> Layout k -> Layout k
 above k top bot =
-  Layout (Above top bot) (element top `E.beside` element bot) k
+  Layout (Above top bot) (element top `E.above` element bot) k
 
 horizontal : k -> [Layout k] -> Layout k
 horizontal k ls = reduceBalanced (empty k) (beside k) ls
@@ -105,30 +105,6 @@ column ls = case ls of
                     in if diff == 0 then e
                        else container (tag e) maxw (heightOf e) (Pt (toFloat diff / 2 |> floor) 0) e
        in (map cell ls)
-
--- cell : Layout { k | element : Element } -> Layout { k | element : Element }
--- cell = nest pad 10 2
-
---cells : Element -> [Element] -> Element
---cells ifEmpty xs =
---  let space = cell (codeText " ")
---  in if isEmpty xs
---     then ifEmpty
---     else intersperse (spacer 1 (heightOf space) |> color silver) (map cell (row xs))
---          |> flow right
---          |> fill bg
---          |> outline silver
---
---verticalCells : Element -> [Element] -> Element
---verticalCells ifEmpty xs =
---  if isEmpty xs
---  then ifEmpty
---  else let cells = map cell xs
---           maxw = maximum (map widthOf cells) + 1
---       in intersperse (spacer maxw 1 |> color silver) (map cell xs)
---       |> flow down
---       |> fill white
---       |> outline silver
 
 {-| Find all regions in the tree whose path is equal to the given path.
     Relies on the assumption that nodes have paths which prefix paths
@@ -190,6 +166,15 @@ at l pt =
 
   in go (Pt 0 0) l
 
+{-| Find all tags whose region contains the given point,
+    ordering results by the given ranking function
+    (the highest rank k will be last in the returned list).
+-}
+atRanked : (k -> Int) -> Layout k -> Pt -> [k]
+atRanked rank l pt =
+  let ks = at l pt ++ at l { pt | x <- pt.x + 1, y <- pt.x + 1 }
+  in sortBy rank ks
+
 lub : Region -> Region -> Region
 lub r1 r2 =
   let topLeft = Pt (r1.topLeft.x `min` r2.topLeft.x) (r1.topLeft.y `min` r2.topLeft.y)
@@ -197,17 +182,17 @@ lub r1 r2 =
                     (r1.topLeft.y + r1.height `max` r2.topLeft.x + r2.height)
   in Region topLeft (botRight.x - topLeft.x) (botRight.y - topLeft.y)
 
-selectableLub : [{ selectable : Bool, region : Region }] -> Maybe Region
-selectableLub rs = case (filter .selectable rs) of
+selectableLub : (a -> Bool) -> [(a, Region)] -> Maybe Region
+selectableLub f rs = case filter (f . fst) rs of
   [] -> Nothing
-  rh :: rt -> Just (foldl lub rh.region (map .region rt))
+  rh :: rt -> Just (foldl lub (snd rh) (map snd rt))
 
 reduceBalanced : a -> (a -> a -> a) -> [a] -> a
-reduceBalanced zero op xs =
-  let go xs =
-    let len = A.length xs
-    in if | len == 0  -> zero
-          | len == 1  -> A.getOrFail 0 xs
-          | otherwise -> let mid = floor (toFloat len / 2)
-                         in go (A.slice 0 mid xs) `op` go (A.slice mid len xs)
-  in go (A.fromList xs)
+reduceBalanced z op xs =
+  let fixup stack = case stack of
+        (b,n) :: (a,m) :: t -> if n >= m then fixup ((op a b, n+m) :: t)
+                               else (b,n) :: (a,m) :: t
+        _ -> stack
+      finalize stack = foldl op z (map fst stack)
+  in foldl (\a stack -> fixup ((a,1) :: stack)) [] xs
+  |> finalize

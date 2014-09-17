@@ -45,28 +45,33 @@ data Term
 todo : a
 todo = todo
 
--- layout : Term -> Layout Path
-render : Term -- term to render
+layout : Term -- term to render
       -> { key            : Hash
          , availableWidth : Int
          , metadata       : Hash -> Metadata }
       -> Layout { hash : Hash, path : Path, selectable : Bool }
-render expr env =
+layout expr env =
   let
     md = env.metadata env.key
     tag path = { path = path, hash = env.key, selectable = True }
+    utag path = { path = path, hash = env.key, selectable = False }
     space = codeText " "
     spaces n =
       if n <= 0 then empty else codeText (String.padLeft (n*2) ' ' "")
     space2 = codeText "  "
     indentWidth = E.widthOf space2
-    paren : Bool -> Element -> Element
-    paren parenthesize e =
+    paren : Bool -> { path : Path, term : Term }
+         -> Layout { hash : Hash, path : Path, selectable : Bool }
+         -> Layout { hash : Hash, path : Path, selectable : Bool }
+    paren parenthesize cur e =
       if parenthesize
-      then let (opening, closing) = (codeText "(", codeText ")")
-               topOpen = container (widthOf opening) (heightOf e) topLeft (codeText "(")
-               bottomClose = container (widthOf closing) (heightOf e) bottomLeft (codeText ")")
-           in flow right [topOpen, e, bottomClose]
+      then let t = tag cur.path
+               opening = L.embed t (codeText "(")
+               closing = L.embed t (codeText ")")
+               botY = L.heightOf e - L.heightOf closing
+               topOpen = L.container t (L.widthOf opening) (L.heightOf e) (L.Pt 0 0) opening
+               bottomClose = L.container t (L.widthOf opening) (L.heightOf e) (L.Pt 0 botY) closing
+           in L.horizontal t [topOpen, e, bottomClose]
       else e
 
     go : Bool -> Int -> Int -> { path : Path, term : Term } -> Layout { hash : Hash, path : Path, selectable : Bool }
@@ -75,25 +80,25 @@ render expr env =
         Var n -> codeText (Metadata.resolveLocal md cur.path n).name |> L.embed (tag cur.path)
         Ref h -> codeText (Metadata.firstName h (env.metadata h)) |> L.embed (tag cur.path)
         Con h -> codeText (Metadata.firstName h (env.metadata h)) |> L.embed (tag cur.path)
-        Lit (Number n) -> codeText (String.show n) |> L.embed (tag cur.path)
-        Lit (Str s) -> codeText ("\"" ++ s ++ "\"") |> L.embed (tag cur.path)
+        Lit (Number n) -> Styles.numericLiteral (String.show n) |> L.embed (tag cur.path)
+        Lit (Str s) -> Styles.stringLiteral ("\"" ++ s ++ "\"") |> L.embed (tag cur.path)
         _ -> let space' = L.embed (tag cur.path) space in
         case break env.key env.metadata cur.path cur.term of
           Prefix f args ->
             let f' = go False 9 availableWidth f
                 lines = f' :: map (go False 10 0) args
                 unbroken = L.intersperseHorizontal space' lines
-                        |> L.transform (paren (ambientPrec > 9))
+                        |> paren (ambientPrec > 9) cur
             in if not allowBreak || L.widthOf unbroken < availableWidth
                then unbroken
                else let args' = map (go True 10 (availableWidth - L.widthOf f' - L.widthOf space')) args
                              |> L.vertical (tag cur.path)
                     in L.intersperseHorizontal space' [f',args']
-                    |> L.transform (paren (ambientPrec > 9))
+                    |> paren (ambientPrec > 9) cur
           Operators leftAssoc prec hd tl ->
             let f (op,r) l = L.intersperseHorizontal space' [ l, go False 10 0 op, go False rprec 0 r ]
                 unbroken = foldl f (go False lprec 0 hd) tl
-                        |> L.transform (paren (ambientPrec > 9))
+                        |> paren (ambientPrec > 9) cur
                 lprec = if leftAssoc then prec else 1+prec
                 rprec = if leftAssoc then 1+prec else prec
                 bf (op,r) l =
@@ -104,18 +109,18 @@ render expr env =
             in if not allowBreak || L.widthOf unbroken < availableWidth
                then unbroken
                else foldl bf (go True lprec (availableWidth - indentWidth) hd) tl
-                    |> L.transform (paren (ambientPrec > 9))
+                    |> paren (ambientPrec > 9) cur
           Lambda args body ->
             let argLayout = map (go False 0 0) args ++ [L.embed (tag cur.path) (codeText "→")]
                          |> L.intersperseHorizontal space'
                 unbroken = L.intersperseHorizontal space' [argLayout, go False 0 0 body]
-                        |> L.transform (paren (ambientPrec > 0))
+                        |> paren (ambientPrec > 0) cur
             in if not allowBreak || L.widthOf unbroken < availableWidth
                then unbroken
                else L.above (tag cur.path)
                       argLayout
                       (L.horizontal (tag cur.path) [ space', space', go True 0 (availableWidth - indentWidth) body])
-                    |> L.transform (paren (ambientPrec > 0))
+                    |> paren (ambientPrec > 0) cur
           Bracketed es ->
             let unbroken = Styles.cells (tag cur.path) (codeText "[]") (map (go False 0 0) es)
             in if not allowBreak || L.widthOf unbroken < availableWidth || length es < 2

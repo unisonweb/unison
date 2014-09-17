@@ -1,7 +1,7 @@
 module Unison.Styles where
 
 import Graphics.Element as E
-import Unison.Layout (Layout)
+import Unison.Layout (Layout, Region)
 import Unison.Layout as L
 
 body : Style
@@ -23,19 +23,41 @@ code =
   , line     = Nothing }
 
 codeText : String -> Element
-codeText s = leftAligned (style body (toText s))
+codeText s = leftAligned (style code (toText s))
+
+numericLiteral : String -> Element
+numericLiteral s = leftAligned (style { code | color <- belizeHole } (toText s))
+
+stringLiteral : String -> Element
+stringLiteral s = leftAligned (style { code | color <- wisteria } (toText s))
 
 cells : k -> Element -> [Layout k] -> Layout k
-cells k ifEmpty ls = case L.row ls of
-  [] -> L.embed k ifEmpty
+cells k ifEmpty ls = let cs = map (\l -> L.fill bg (L.pad 5 0 l)) (L.row ls) in case cs of
+  [] -> L.outline silver 1 (L.embed k ifEmpty)
   h :: _ -> let vline = L.embed k (E.spacer 1 (L.heightOf h) |> E.color silver)
-            in L.outline silver 1 (L.intersperseHorizontal vline ls)
+            in L.outline silver 1 (L.intersperseHorizontal vline cs)
 
 verticalCells : k -> Element -> [Layout k] -> Layout k
-verticalCells k ifEmpty ls = case L.column ls of
-  [] -> L.embed k ifEmpty
+verticalCells k ifEmpty ls = let cs = map (\l -> L.fill bg (L.pad 5 0 l)) (L.column ls) in case cs of
+  [] -> L.outline silver 1 (L.embed k ifEmpty)
   h :: _ -> let hline = L.embed k (E.spacer (L.widthOf h) 1 |> E.color silver)
-            in L.outline silver 1 (L.intersperseHorizontal hline ls)
+            in L.outline silver 1 (L.intersperseVertical hline cs)
+
+selection : Layout k -> Region -> Element
+selection l r =
+  let
+    linestyle = let d = dotted wetAsphalt in { d | width <- 4.0 }
+    border = spacer r.width r.height |> color asbestos |> opacity 0.2
+  in E.container (L.widthOf l)
+                 (L.heightOf l)
+                 (E.topLeftAt (E.absolute (r.topLeft.x)) (E.absolute (r.topLeft.y)))
+                 border
+
+outline : Color -> Int -> Element -> Element
+outline c thickness e =
+  E.container (E.widthOf e + thickness*2) (E.heightOf e + thickness*2)
+              (E.topLeftAt (E.absolute thickness) (E.absolute thickness)) e
+  |> E.color c
 
 bg = white
 
