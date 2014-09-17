@@ -6,6 +6,8 @@ import Unison.Parser (Parser)
 import Unison.Parser as P
 import Unison.Jsonify as J
 import Unison.Jsonify (Jsonify)
+import Unison.Stream (Stream)
+import Unison.Stream as Stream
 
 data E
   = Fn -- ^ Points at function in a function application
@@ -18,8 +20,24 @@ type Path = Array E
 push : Path -> E -> Path
 push p e = A.push e p
 
+pop : Path -> Maybe (Path, E)
+pop p =
+  if A.length p == 0 then Nothing
+  else Just (A.slice 0 -1 p, A.getOrFail (A.length p - 1) p)
+
+dropPop : Path -> Path
+dropPop p = maybe p fst (pop p)
+
 append : Path -> [E] -> Path
 append p es = A.append p (A.fromList es)
+
+next : Path -> Stream Path
+next p = case pop p of
+  Nothing -> Stream.Empty
+  Just (init,last) -> case last of
+    Index i -> let tl _ = Stream.Empty
+                   hd _ = push init (Index (i+1))
+               in Stream.Cons hd tl
 
 -- Trim from the right of this path until hitting a `Body` path element.
 -- This is used to normalize paths

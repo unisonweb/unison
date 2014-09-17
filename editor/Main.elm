@@ -16,6 +16,7 @@ import Unison.Node as N
 import Graphics.Input(..)
 import Graphics.Input.Field(..)
 import Window
+import Keyboard
 import Mouse
 import Text
 
@@ -25,15 +26,21 @@ nums = let f x = E.Lit (E.Number (toFloat x))
 
 expr = E.App (E.App (E.Ref "foo") nums) (E.App (E.Ref "baz") (E.Lit (E.Str "hello world!")))
 
-scene : Int -> (Int,Int) -> Element
-scene w (x,y) =
+level : Signal Int
+level =
+  let go {x,y} i = if | y == 1 -> i + 1
+                      | y == -1 -> i - 1 `max` 0
+                      | otherwise -> i
+  in Keyboard.arrows |> foldp go 0
+
+scene : Int -> (Int,Int) -> Int -> Element
+scene w (x,y) lvl =
   let layout = E.layout expr { key = "bar", availableWidth = w - 50, metadata h = MD.anonymousTerm }
-      dummy = S.codeText "w00t"
       paths = L.atRanked (Array.length . .path) layout (L.Region (L.Pt (x-48) (y-98)) 2 2)
       isPrefix a b = a.hash == "bar" && Path.startsWith a.path b.path
-      region = case paths of
-        [] -> Nothing
-        _ -> L.selectableLub .selectable (L.region isPrefix layout (head (head paths)))
+      region = case drop (min (length paths - 1) lvl) paths of
+        (k :: _) :: _ -> L.selectableLub .selectable (L.region isPrefix layout k)
+        _ -> Nothing
       selection = maybe Element.empty (S.selection layout) region
   in flow down
           [ spacer 50 1 `Element.beside` Element.height 100 (S.codeText ("paths: " ++ show paths))
@@ -41,4 +48,4 @@ scene w (x,y) =
           ]
 
 main : Signal Element
-main = scene <~ Window.width ~ Mouse.position
+main = scene <~ Window.width ~ Mouse.position ~ level
