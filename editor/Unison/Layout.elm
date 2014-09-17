@@ -1,7 +1,5 @@
 module Unison.Layout where
 
-import Unison.Trie (Trie)
-import Unison.Trie as T
 import Array as A
 import Array (Array)
 import Either(..)
