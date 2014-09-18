@@ -23,6 +23,28 @@ snoc p e = p ++ [e]
 append : Path -> [E] -> Path
 append p es = p ++ es
 
+increment : (Path -> Bool) -> Path -> Path
+increment valid p =
+  let go p = case p of
+    Fn :: tl -> reverse (Arg :: tl)
+    Index i :: tl -> let p' = reverse (Index (i+1) :: tl)
+                     in if valid p' then p' else go tl
+    _ :: tl -> go tl
+    [] -> []
+  in go (reverse p)
+
+decrement : (Path -> Bool) -> Path -> Path
+decrement valid p =
+  let go p = case p of
+    Arg :: tl -> let p1 = reverse (Arg :: Fn :: tl)
+                     p2 = reverse (Fn :: tl)
+                 in if valid p1 then p1 else p2
+    Index i :: tl -> let p' = reverse (Index (i-1) :: tl)
+                     in if valid p' then p' else go tl
+    _ :: tl -> go tl
+    [] -> []
+  in go (reverse p)
+
 -- Trim from the right of this path until hitting a `Body` path element.
 -- This is used to normalize paths
 trimToScope : Path -> Path

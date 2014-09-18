@@ -12,6 +12,13 @@ unfold f s =
   let (h,s') = f s
   in Cons (\_ -> h) (\_ -> unfold f s')
 
+map : (a -> b) -> Stream a -> Stream b
+map f s = case s of
+  Empty -> Empty
+  Cons h t -> let hd _ = f (h ())
+                  tl _ = map f (t ())
+              in Cons hd tl
+
 uncons : Stream a -> Maybe (a, () -> Stream a)
 uncons s = case s of
   Empty -> Nothing

@@ -19,6 +19,7 @@ import Window
 import Keyboard
 import Mouse
 import Text
+import Elmz.Signal as Signals
 
 nums : E.Term
 nums = let f x = E.Lit (E.Number (toFloat x))
@@ -32,6 +33,10 @@ level =
                       | y == -1 -> i - 1 `max` 0
                       | otherwise -> i
   in Keyboard.arrows |> foldp go 0
+
+-- integrate left and right arrows so long as mouse does not move
+-- call increment that many
+-- moving down after moving over should move to the next leaf
 
 scene : Int -> (Int,Int) -> Int -> Element
 scene w (x,y) lvl =

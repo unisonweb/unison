@@ -5,6 +5,7 @@ import Array (Array)
 import Dict
 import Dict (Dict)
 import Json
+import Elmz.Maybe as EM
 import Set
 import Set (Set)
 import String
@@ -44,6 +45,47 @@ data Term
 
 todo : a
 todo = todo
+
+{-| Returns the subterm at the given path, if the path is valid. -}
+at : Path -> Term -> Maybe Term
+at p e = case (p,e) of
+  ([], e) -> Just e
+  (Fn :: t, App f _) -> at t f
+  (Arg :: t, App _ arg) -> at t arg
+  (Body :: t, Lam _ body) -> at t body
+  (Index i :: t, Lit (Vector es)) -> case Array.get i es of
+    Just e -> at t e
+    _ -> Nothing
+  _ -> Nothing
+
+{-| Returns `True` if the path points to a valid subterm -}
+valid : Term -> Path -> Bool
+valid e p = isJust (at p e)
+
+{-| Move path to point to leftmost child, or return `p` unmodified
+    if no such child exists. -}
+down : Term -> Path -> Path
+down e p =
+  let go e = case e of
+    App f x -> p `snoc` Fn
+    Lit (Vector es) -> if Array.length es == 0 then p else p `snoc` Index 0
+    Lam _ _ -> p `snoc` Body
+    _ -> p
+  in maybe p go (at p e)
+
+{-| Move path to point to parent node in "logical" layout. -}
+-- up : Term -> Path -> Path
+-- up e p =
+
+{-| Move the path to its immediate sibling to the right,
+    or return `p` unmodified if no such sibling exists.  -}
+siblingR : Term -> Path -> Path
+siblingR e p = increment (valid e) p
+
+{-| Move the path to its immediate sibling to the right,
+    or return `p` unmodified if no such sibling exists.  -}
+siblingL : Term -> Path -> Path
+siblingL e p = decrement (valid e) p
 
 layout : Term -- term to render
       -> { key            : Hash
