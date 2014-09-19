@@ -74,8 +74,15 @@ down e p =
   in maybe p go (at p e)
 
 {-| Move path to point to parent node in "logical" layout. -}
--- up : Term -> Path -> Path
--- up e p =
+up : Path -> Path
+up p =
+  let go p = case p of
+    [] -> []
+    _ :: Arg :: tl -> reverse (Arg :: tl)
+    Fn :: tl -> go tl
+    Arg :: tl -> go tl
+    _ :: tl -> reverse tl -- Index or Body
+  in go (reverse p)
 
 {-| Move the path to its immediate sibling to the right,
     or return `p` unmodified if no such sibling exists.  -}
