@@ -5,6 +5,11 @@ import List
 pure : a -> Maybe a
 pure = Just
 
+fromMaybe : a -> Maybe a -> a
+fromMaybe a m = case m of
+  Nothing -> a
+  Just a -> a
+
 ap : Maybe (a -> b) -> Maybe a -> Maybe b
 ap f a = case f of
   Just f -> case a of
