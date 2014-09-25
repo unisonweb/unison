@@ -1,5 +1,7 @@
 module Unison.Styles where
 
+import Text (Style)
+import Text as T
 import Graphics.Element as E
 import Unison.Layout (Layout, Region)
 import Unison.Layout as L
@@ -23,13 +25,13 @@ code =
   , line     = Nothing }
 
 codeText : String -> Element
-codeText s = leftAligned (style code (toText s))
+codeText s = leftAligned (T.style code (toText s))
 
 numericLiteral : String -> Element
-numericLiteral s = leftAligned (style { code | color <- belizeHole } (toText s))
+numericLiteral s = leftAligned (T.style { code | color <- belizeHole } (toText s))
 
 stringLiteral : String -> Element
-stringLiteral s = leftAligned (style { code | color <- wisteria } (toText s))
+stringLiteral s = leftAligned (T.style { code | color <- wisteria } (toText s))
 
 cells : k -> Element -> [Layout k] -> Layout k
 cells k ifEmpty ls = let cs = map (\l -> L.fill bg (L.pad 5 0 l)) (L.row ls) in case cs of

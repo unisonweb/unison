@@ -197,7 +197,7 @@ lub r1 r2 =
   in Region topLeft (botRight.x - topLeft.x) (botRight.y - topLeft.y)
 
 selectableLub : (a -> Bool) -> [(a, Region)] -> Maybe Region
-selectableLub f rs = case filter (f . fst) rs of
+selectableLub f rs = case filter (f << fst) rs of
   [] -> Nothing
   rh :: rt -> Just (foldl lub (snd rh) (map snd rt))
 

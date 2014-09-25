@@ -5,6 +5,7 @@ import Array (Array)
 import Dict
 import Dict (Dict)
 import Json
+import Maybe (isJust, maybe)
 import Elmz.Maybe as EM
 import Set
 import Set (Set)
@@ -25,6 +26,7 @@ import Unison.Metadata (Metadata, Fixity)
 import Unison.Parser as P
 import Unison.Parser (Parser)
 import Unison.Path (..)
+import Unison.Path as Path
 import Unison.Var (I)
 import Unison.Var as V
 import Unison.Type as T
@@ -47,7 +49,7 @@ todo : a
 todo = todo
 
 {-| Returns the subterm at the given path, if the path is valid. -}
-at : Path -> Term -> Maybe Term
+at : Path.Path -> Term -> Maybe Term
 at p e = case (p,e) of
   ([], e) -> Just e
   (Fn :: t, App f _) -> at t f
@@ -59,12 +61,12 @@ at p e = case (p,e) of
   _ -> Nothing
 
 {-| Returns `True` if the path points to a valid subterm -}
-valid : Term -> Path -> Bool
+valid : Term -> Path.Path -> Bool
 valid e p = isJust (at p e)
 
 {-| Move path to point to leftmost child, or return `p` unmodified
     if no such child exists. -}
-down : Term -> Path -> Path
+down : Term -> Path.Path -> Path.Path
 down e p =
   let go e = case e of
     App f x -> p `snoc` Fn
@@ -74,7 +76,7 @@ down e p =
   in maybe p go (at p e)
 
 {-| Move path to point to parent node in "logical" layout. -}
-up : Path -> Path
+up : Path.Path -> Path.Path
 up p =
   let go p = case p of
     [] -> []
@@ -86,19 +88,19 @@ up p =
 
 {-| Move the path to its immediate sibling to the right,
     or return `p` unmodified if no such sibling exists.  -}
-siblingR : Term -> Path -> Path
+siblingR : Term -> Path.Path -> Path.Path
 siblingR e p = increment (valid e) p
 
 {-| Move the path to its immediate sibling to the right,
     or return `p` unmodified if no such sibling exists.  -}
-siblingL : Term -> Path -> Path
+siblingL : Term -> Path.Path -> Path.Path
 siblingL e p = decrement (valid e) p
 
 layout : Term -- term to render
       -> { key            : Hash
          , availableWidth : Int
          , metadata       : Hash -> Metadata }
-      -> Layout { hash : Hash, path : Path, selectable : Bool }
+      -> Layout { hash : Hash, path : Path.Path, selectable : Bool }
 layout expr env =
   let
     md = env.metadata env.key
@@ -109,9 +111,9 @@ layout expr env =
       if n <= 0 then empty else codeText (String.padLeft (n*2) ' ' "")
     space2 = codeText "  "
     indentWidth = E.widthOf space2
-    paren : Bool -> { path : Path, term : Term }
-         -> Layout { hash : Hash, path : Path, selectable : Bool }
-         -> Layout { hash : Hash, path : Path, selectable : Bool }
+    paren : Bool -> { path : Path.Path, term : Term }
+         -> Layout { hash : Hash, path : Path.Path, selectable : Bool }
+         -> Layout { hash : Hash, path : Path.Path, selectable : Bool }
     paren parenthesize cur e =
       if parenthesize
       then let t = tag cur.path
@@ -123,7 +125,11 @@ layout expr env =
            in L.horizontal t [topOpen, e, bottomClose]
       else e
 
-    go : Bool -> Int -> Int -> { path : Path, term : Term } -> Layout { hash : Hash, path : Path, selectable : Bool }
+    go : Bool
+      -> Int
+      -> Int
+      -> { path : Path.Path, term : Term }
+      -> Layout { hash : Hash, path : Path.Path, selectable : Bool }
     go allowBreak ambientPrec availableWidth cur =
       case cur.term of
         Var n -> codeText (Metadata.resolveLocal md cur.path n).name |> L.embed (tag cur.path)
@@ -185,7 +191,11 @@ data Break a
   | Bracketed [a]         -- `Bracketed [x,y,z] == [x,y,z]`
   | Lambda [a] a          -- `Lambda [x,y,z] e == x -> y -> z -> e`
 
-break : Hash -> (Hash -> Metadata) -> Path -> Term -> Break { path : Path, term : Term }
+break : Hash
+    -> (Hash -> Metadata)
+    -> Path.Path
+    -> Term
+    -> Break { path : Path.Path, term : Term }
 break hash md path expr =
   let prefix f acc path = case f of
         App f arg -> prefix f ({ path = path `snoc` Arg, term = arg } :: acc) (path `snoc` Fn)
@@ -234,7 +244,7 @@ parseLiteral : Parser Literal
 parseLiteral = P.union' <| \t ->
   if | t == "Number" -> P.map Number P.number
      | t == "String" -> P.map Str P.string
-     | t == "Vector" -> P.map (Vector . Array.fromList) (P.array parseTerm)
+     | t == "Vector" -> P.map (Vector << Array.fromList) (P.array parseTerm)
 
 jsonifyLiteral l = case l of
   Number n -> J.tag' "Number" J.number n

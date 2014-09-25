@@ -20,6 +20,7 @@ import Keyboard
 import Mouse
 import Text
 import Elmz.Signal as Signals
+import Elmz.Maybe
 
 nums : E.Term
 nums = let f x = E.Lit (E.Number (toFloat x))
@@ -27,16 +28,50 @@ nums = let f x = E.Lit (E.Number (toFloat x))
 
 expr = E.App (E.App (E.Ref "foo") nums) (E.App (E.Ref "baz") (E.Lit (E.Str "hello world!")))
 
-level : Signal Int
-level =
-  let go {x,y} i = if | y == 1 -> i + 1
-                      | y == -1 -> i - 1 `max` 0
-                      | otherwise -> i
-  in Keyboard.arrows |> foldp go 0
+resolvedPath : Signal E.Term -> Signal (Maybe Path.Path) -> Signal (Maybe Path.Path)
+resolvedPath e pathUnderPtr =
+  let edit {x,y} e = \p' -> p' |>
+        (if y == 1 then E.up else identity) |>
+        (if y == -1 then E.down e else identity) |>
+        (if x == 1 then E.siblingR e else identity) |>
+        (if x == -1 then E.siblingL e else identity)
+      edits = edit <~ Keyboard.arrows ~ e
+      shifted = Signals.foldpWhen'
+                  (Signals.unchanged Mouse.position)
+                  (\edit p -> Elmz.Maybe.map edit p)
+                  pathUnderPtr
+                  edits
+  in Signals.fromMaybe pathUnderPtr shifted
 
--- integrate left and right arrows so long as mouse does not move
--- call increment that many
--- moving down after moving over should move to the next leaf
+terms : Signal E.Term
+terms = constant expr
+
+layouts : Signal Int
+       -> Signal E.Term
+       -> Signal (L.Layout { hash : Hash, path : Path.Path, selectable : Bool })
+layouts availableWidth terms =
+  let go w e = E.layout e { key = "bar", availableWidth = w, metadata h = MD.anonymousTerm }
+  in go <~ availableWidth ~ terms
+
+leafUnderPtr : Signal (L.Layout { hash : Hash, path : Path.Path, selectable : Bool })
+            -> Signal (Maybe { hash : Hash, path : Path.Path, selectable : Bool })
+leafUnderPtr layout =
+  let go layout (x,y) =
+    let paths = L.atRanked (length << .path) layout (L.Region { x = x, y = y } 2 2)
+    in case paths of
+      (h :: _) :: _ -> Just h
+      _ -> Nothing
+  in go <~ layout ~ Mouse.position
+
+-- pathUnderPtr : Signal (L.Layout { hash : Hash, path : Path, selectable : Bool })
+-- pathUnderPtr
+-- make sole UI state a Term
+-- certain terms are "special"
+
+{-
+highlightRegion : Signal L.Pt -> Signal (Maybe Path) -> Signal (Maybe L.Region)
+highlightRegion topLeft path =
+        isPrefix a b = a.hash == "bar" && Path.startsWith a.path b.path
 
 scene : Int -> (Int,Int) -> Int -> Element
 scene w (x,y) lvl =
@@ -54,3 +89,4 @@ scene w (x,y) lvl =
 
 main : Signal Element
 main = scene <~ Window.width ~ Mouse.position ~ level
+-}

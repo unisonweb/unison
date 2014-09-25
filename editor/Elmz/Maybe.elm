@@ -1,6 +1,7 @@
 module Elmz.Maybe where
 
 import List
+import Maybe as M
 
 pure : a -> Maybe a
 pure = Just
@@ -24,7 +25,7 @@ map f m = case m of
 
 sequence : [Maybe a] -> Maybe [a]
 sequence ms =
-  let j = justs ms
+  let j = List.filterMap identity ms
   in if length j == length ms then Just j else Nothing
 
 traverse : (a -> Maybe b) -> [a] -> Maybe [b]

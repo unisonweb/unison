@@ -1,8 +1,10 @@
 module Unison.Parser where
 
+import Maybe (maybe)
 import List as L
 import String as S
-import Either(..)
+import Either (..)
+import Either as E
 import Json as J
 import Dict as M
 import Set
@@ -89,7 +91,7 @@ set p = map Set.fromList (array p)
 
 array : Parser a -> Parser [a]
 array p v = case v of
-  J.Array vs -> case partition (L.map p vs) of
+  J.Array vs -> case E.partition (L.map p vs) of
     ([], results) -> Right results
     (h :: t, _) -> Left h
   _ -> Left ["not an array: " ++ J.toString "" v]
@@ -163,9 +165,9 @@ safeIndex i xs = case drop i xs of
 
 traverseMap : (a -> Either e b) -> M.Dict comparable a -> Either e (M.Dict comparable b)
 traverseMap f m =
-  let strength (a, b) = either (Left . id) (Right . (,) a) b
+  let strength (a, b) = either (Left << identity) (Right << (,) a) b
       eithers = M.map f m |> M.toList |> L.map strength
-  in case partition eithers of
+  in case E.partition eithers of
     (lefts, rights) -> if (isEmpty lefts)
                        then Right (M.fromList rights)
                        else Left (head lefts)

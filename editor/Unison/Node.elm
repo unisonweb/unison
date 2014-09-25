@@ -2,7 +2,8 @@
 module Unison.Node where
 
 import Dict as M
-import Either (Left, Right, Either)
+import Maybe (maybe)
+import Either (Either(..))
 import Http
 import Http (Request, Response)
 import Json
@@ -51,7 +52,7 @@ parseResponse p r = case r of
   Http.Waiting -> Http.Waiting
   Http.Failure code body -> Http.Failure code body
 
-admissibleTypeOf : Signal Host -> Signal (Hash, Path) -> Signal (Response Type)
+admissibleTypeOf : Signal Host -> Signal (Hash, Path.Path) -> Signal (Response Type)
 admissibleTypeOf host params =
   let body = J.tuple2 H.jsonify Path.jsonifyPath
       req host params = jsonGet body host "admissible-type-of" params
@@ -86,7 +87,7 @@ dependents host params =
   in parseResponse (P.set H.parse) <~ Http.send (lift2 req host params)
 
 editTerm : Signal Host
-        -> Signal (Hash, Path, Action)
+        -> Signal (Hash, Path.Path, Action)
         -> Signal (Response (Hash, Term))
 editTerm host params =
   let body = J.tuple3 H.jsonify Path.jsonifyPath A.jsonify
@@ -124,7 +125,7 @@ search host params =
   in parse <~ Http.send (lift2 req host params)
 
 searchLocal : Signal Host
-           -> Signal (Hash, Path, Maybe Type, Query)
+           -> Signal (Hash, Path.Path, Maybe Type, Query)
            -> Signal (Response (Metadata, [(V.I, Type)]))
 searchLocal host params =
   let body = J.tuple4 H.jsonify
@@ -163,7 +164,7 @@ typ host params =
   in parseResponse T.parseType <~ Http.send (lift2 req host params)
 
 typeOf : Signal Host
-      -> Signal (Hash, Path)
+      -> Signal (Hash, Path.Path)
       -> Signal (Response Type)
 typeOf host params =
   let body = J.tuple2 H.jsonify Path.jsonifyPath
