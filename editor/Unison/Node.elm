@@ -106,12 +106,10 @@ editTerm host params =
   in parse <~ Http.send (lift2 req host params)
 -}
 
-metadata : Signal Host -> Signal Hash -> Signal (Response Metadata)
-metadata host params =
-  let req host params = Http.get (host ++ "/metadata/" ++ J.render H.jsonify params)
-  in parseResponse MD.parseMetadata <~ Http.send (lift2 req host params)
-
--- panel : Signal Host -> Signal Hash -> Signal (Response Panel)
+metadatas : Signal Host -> Signal [Hash] -> Signal (Response (M.Dict Hash Metadata))
+metadatas host params =
+  let req host params = jsonGet (J.array H.jsonify) host "metadata" params
+  in parseResponse (P.object MD.parseMetadata) <~ Http.send (lift2 req host params)
 
 search : Signal Host
       -> Signal (Maybe Type, Maybe (S.Set Hash), Query)
@@ -137,10 +135,10 @@ searchLocal host params =
                        (P.array (P.tuple2 V.parse T.parseType))
   in parseResponse parse <~ Http.send (lift2 req host params)
 
-term : Signal Host -> Signal Hash -> Signal (Response Term)
-term host params =
-  let req host params = Http.get (host ++ "/term/" ++ J.render H.jsonify params)
-  in parseResponse E.parseTerm <~ Http.send (lift2 req host params)
+terms : Signal Host -> Signal [Hash] -> Signal (Response (M.Dict Hash Term))
+terms host params =
+  let req host params = jsonGet (J.array H.jsonify) host "terms" params
+  in parseResponse (P.object E.parseTerm) <~ Http.send (lift2 req host params)
 
 transitiveDependencies : Signal Host
                       -> Signal (Maybe (S.Set Hash), Hash)
