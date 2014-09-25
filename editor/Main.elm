@@ -5,6 +5,8 @@ import Set
 import Graphics.Element as Element
 import Unison.Path (Path)
 import Unison.Path as Path
+import Unison.Scope (Scope)
+import Unison.Scope as Scope
 import Unison.Hash (Hash)
 import Unison.Styles as S
 import Unison.Layout as L
@@ -31,20 +33,21 @@ nums = let f x = E.Lit (E.Number (toFloat x))
 
 expr = E.App (E.App (E.Ref "foo") nums) (E.App (E.Ref "baz") (E.Lit (E.Str "hello world!")))
 
-resolvedPath : Signal E.Term -> Signal (Maybe Path) -> Signal (Maybe Path)
+resolvedPath : Signal E.Term -> Signal (Maybe Path) -> Signal (Maybe Scope)
 resolvedPath e pathUnderPtr =
   let edit {x,y} e =
-        (if y == 1 then E.up else identity) >>
-        (if y == -1 then E.down e else identity) >>
-        (if x == 1 then E.siblingR e else identity) >>
-        (if x == -1 then E.siblingL e else identity)
+        (if y == 1 then Scope.up else identity) >>
+        (if y == -1 then Scope.down e else identity) >>
+        (if x == 1 then Scope.right e else identity) >>
+        (if x == -1 then Scope.left e else identity)
       edits = edit <~ Keyboard.arrows ~ e
+      defaultScope = lift (Maybe.map Scope.scope) pathUnderPtr
       shifted = Signals.foldpBetween'
                   Mouse.position
                   (\edit p -> Maybe.map edit p)
-                  pathUnderPtr
+                  defaultScope
                   edits
-  in Signals.fromMaybe pathUnderPtr shifted
+  in Signals.fromMaybe defaultScope shifted
 
 terms : Signal E.Term
 terms = constant expr
@@ -76,16 +79,16 @@ main =
       leaf : Signal (Maybe Path)
       leaf = lift (Maybe.map .path) (leafUnderPtr rendered)
 
-      path : Signal (Maybe Path)
-      path = resolvedPath terms leaf
+      scope : Signal (Maybe Scope)
+      scope = resolvedPath terms leaf
 
       highlight : Signal (Maybe L.Region)
       highlight =
-        let region layout path = case path of
+        let region layout scope = case scope of
           Nothing -> Nothing
-          Just path -> L.region Path.startsWith .path layout path
-                    |> L.selectableLub .selectable
-        in region <~ rendered ~ path
+          Just scope -> L.region Path.startsWith .path layout scope.focus
+                     |> L.selectableLub .selectable
+        in region <~ rendered ~ scope
 
       highlightLayer : Signal Element
       highlightLayer =
@@ -98,30 +101,5 @@ main =
       scene l selection = Element.layers [L.element l, selection]
   in scene <~ rendered ~ highlightLayer
 
--- pathUnderPtr : Signal (L.Layout { hash : Hash, path : Path, selectable : Bool })
--- pathUnderPtr
 -- make sole UI state a Term
 -- certain terms are "special"
-
-{-
-highlightRegion : Signal L.Pt -> Signal (Maybe Path) -> Signal (Maybe L.Region)
-highlightRegion topLeft path =
-        isPrefix a b = a.hash == "bar" && Path.startsWith a.path b.path
-
-scene : Int -> (Int,Int) -> Int -> Element
-scene w (x,y) lvl =
-  let layout = E.layout expr { key = "bar", availableWidth = w - 50, metadata h = MD.anonymousTerm }
-      paths = L.atRanked (length . .path) layout (L.Region (L.Pt (x-48) (y-98)) 2 2)
-      isPrefix a b = a.hash == "bar" && Path.startsWith a.path b.path
-      region = case drop (min (length paths - 1) lvl) paths of
-        (k :: _) :: _ -> L.selectableLub .selectable (L.region isPrefix layout k)
-        _ -> Nothing
-      selection = maybe Element.empty (S.selection layout) region
-  in flow down
-          [ spacer 50 1 `Element.beside` Element.height 100 (S.codeText ("paths: " ++ show paths))
-          , spacer 50 1 `Element.beside` (Element.layers [L.element layout, selection])
-          ]
-
-main : Signal Element
-main = scene <~ Window.width ~ Mouse.position ~ level
--}

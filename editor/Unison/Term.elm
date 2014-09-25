@@ -93,12 +93,18 @@ up p =
 {-| Move the path to its immediate sibling to the right,
     or return `p` unmodified if no such sibling exists.  -}
 siblingR : Term -> Path -> Path
-siblingR e p = increment (valid e) p
+siblingR e p =
+  let p2 = increment (valid e) p
+  in if decrement (valid e) p2 == p then p2
+     else p
 
 {-| Move the path to its immediate sibling to the right,
     or return `p` unmodified if no such sibling exists.  -}
 siblingL : Term -> Path -> Path
-siblingL e p = decrement (valid e) p
+siblingL e p =
+  let p2 = decrement (valid e) p
+  in if increment (valid e) p2 == p then p2
+     else p
 
 layout : Term -- term to render
       -> { key            : Hash
