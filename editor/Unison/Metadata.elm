@@ -12,6 +12,7 @@ import Unison.Parser (Parser, (#))
 import Unison.Hash as H
 import Unison.Var (I)
 import Unison.Var as V
+type Path = Path.Path -- to avoid conflict with Graphics.Collage.Path
 
 data Sort = Type | Term
 
@@ -19,7 +20,7 @@ type Metadata = {
   sort : Sort,
   names : Names,
   -- for each var, and each scope (which points to a lambda body), what are the names of that var w/in that scope
-  locals : M.Dict I [(Path.Path,Names)],
+  locals : M.Dict I [(Path,Names)],
   description : Maybe H.Hash,
   annotation : H.Hash
 }
@@ -38,13 +39,13 @@ firstName ifEmpty md =
   then ifEmpty
   else (head md.names).name
 
-resolveLocal : Metadata -> Path.Path -> I -> Symbol
+resolveLocal : Metadata -> Path -> I -> Symbol
 resolveLocal md p v =
   let ns = localNames md p v
   in if isEmpty ns then { name = show v, fixity = Prefix, precedence = 9 }
      else head ns
 
-localNames : Metadata -> Path.Path -> I -> Names
+localNames : Metadata -> Path -> I -> Names
 localNames env p v =
   let trimmed = Path.trimToScope p
   in case M.get v env.locals of
@@ -119,11 +120,11 @@ parseMetadata =
     (P.optional H.parse)
     H.parse
 
-parseLocals : Parser (M.Dict I [(Path.Path,Names)])
+parseLocals : Parser (M.Dict I [(Path,Names)])
 parseLocals =
   P.map M.fromList (P.array (P.tuple2 V.parse (P.array (P.tuple2 Path.parsePath parseNames))))
 
-jsonifyLocals : Jsonify (M.Dict I [(Path.Path,Names)])
+jsonifyLocals : Jsonify (M.Dict I [(Path,Names)])
 jsonifyLocals m = J.array (J.tuple2 V.jsonify (J.array (J.tuple2 Path.jsonifyPath jsonifyNames))) (M.toList m)
 
 jsonifyMetadata : Jsonify Metadata

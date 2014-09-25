@@ -22,13 +22,15 @@ import Text
 import Elmz.Signal as Signals
 import Elmz.Maybe
 
+type Path = Path.Path -- to avoid conflict with Graphics.Collage.Path
+
 nums : E.Term
 nums = let f x = E.Lit (E.Number (toFloat x))
        in E.Lit (E.Vector (Array.fromList (map f [0..20])))
 
 expr = E.App (E.App (E.Ref "foo") nums) (E.App (E.Ref "baz") (E.Lit (E.Str "hello world!")))
 
-resolvedPath : Signal E.Term -> Signal (Maybe Path.Path) -> Signal (Maybe Path.Path)
+resolvedPath : Signal E.Term -> Signal (Maybe Path) -> Signal (Maybe Path)
 resolvedPath e pathUnderPtr =
   let edit {x,y} e = \p' -> p' |>
         (if y == 1 then E.up else identity) |>
@@ -48,13 +50,13 @@ terms = constant expr
 
 layouts : Signal Int
        -> Signal E.Term
-       -> Signal (L.Layout { hash : Hash, path : Path.Path, selectable : Bool })
+       -> Signal (L.Layout { hash : Hash, path : Path, selectable : Bool })
 layouts availableWidth terms =
   let go w e = E.layout e { key = "bar", availableWidth = w, metadata h = MD.anonymousTerm }
   in go <~ availableWidth ~ terms
 
-leafUnderPtr : Signal (L.Layout { hash : Hash, path : Path.Path, selectable : Bool })
-            -> Signal (Maybe { hash : Hash, path : Path.Path, selectable : Bool })
+leafUnderPtr : Signal (L.Layout { hash : Hash, path : Path, selectable : Bool })
+            -> Signal (Maybe { hash : Hash, path : Path, selectable : Bool })
 leafUnderPtr layout =
   let go layout (x,y) =
     let paths = L.atRanked (length << .path) layout (L.Region { x = x, y = y } 2 2)
