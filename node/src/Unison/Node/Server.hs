@@ -69,14 +69,10 @@ server port node = S.scotty port $ do
     (h, loc, a) <- S.jsonData
     (k, e) <- runN $ N.editType node h loc a
     S.json (k, e)
-  S.get "/metadata/:hash" $ do
-    h <- jsonParam "hash"
-    md <- runN $ N.metadata node h
+  S.get "/metadatas" $ do
+    hs <- S.jsonData
+    md <- runN $ N.metadatas node hs
     S.json md
-  S.get "/panel/:hash" $ do
-    h <- jsonParam "hash"
-    p <- runN $ N.panel node h
-    S.json p
   S.get "/search" $ do
     (t,limit,q) <- S.jsonData
     p <- runN $ N.search node t limit q
@@ -85,10 +81,10 @@ server port node = S.scotty port $ do
     (h,loc,t,q) <- S.jsonData
     p <- runN $ N.searchLocal node h loc t q
     S.json p
-  S.get "/term/:hash" $ do
-    h <- jsonParam "hash"
-    e <- runN $ N.term node h
-    S.json e
+  S.get "/terms" $ do
+    hs <- S.jsonData
+    r <- runN $ N.terms node hs
+    S.json r
   S.get "/transitive-dependencies" $ do
     (limit,h) <- S.jsonData
     s <- runN $ N.transitiveDependencies node limit h

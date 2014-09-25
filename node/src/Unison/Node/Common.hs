@@ -28,7 +28,7 @@ node eval store =
     admissibleTypeOf h loc = case loc of
       P.Path [] -> readTypeOf h
       P.Path _ -> do
-        ctx <- term h
+        ctx <- readTerm store h
         TE.admissibleTypeOf readTypeOf loc ctx
 
     createTerm e md = do
@@ -63,21 +63,20 @@ node eval store =
 
     edit k path action = do
       e <- readTerm store k
-      e' <- TE.interpret eval term typ path action e
+      e' <- TE.interpret eval (readTerm store) typ path action e
       pure $ (E.finalizeHash e', e')
 
     editType = error "todo later"
 
-    metadata = readMetadata store
-
-    panel = error "todo"
+    metadatas hs =
+      M.fromList <$> sequence (map (\h -> (,) h <$> readMetadata store h) hs)
 
     search t limit query = do
       hs <- hashes store limit
       hs' <- case t of
         Nothing -> pure $ S.toList hs
         Just t -> filterM (\h -> flip Type.isSubtype t <$> readTypeOf h) (S.toList hs)
-      mds <- mapM (\h -> (,) h <$> metadata h) hs'
+      mds <- mapM (\h -> (,) h <$> readMetadata store h) hs'
       pure . M.fromList . filter (\(_,md) -> MD.matches query md) $ mds
 
     searchLocal h _ typ query =
@@ -95,8 +94,8 @@ node eval store =
       -- todo: if path is non-null, need to read type of all local variables
       -- introduced in nested lambdas
 
-    term =
-      readTerm store
+    terms hs =
+      M.fromList <$> sequence (map (\h -> (,) h <$> readTerm store h) hs)
 
     transitiveDependencies = error "todo"
 
@@ -108,7 +107,7 @@ node eval store =
     typeOf h loc = case loc of
       P.Path [] -> readTypeOf h
       P.Path _ -> do
-        ctx <- term h
+        ctx <- readTerm store h
         TE.typeOf readTypeOf loc ctx
 
     typeOfConstructorArg = error "todo"
@@ -122,11 +121,10 @@ node eval store =
        dependents
        edit
        editType
-       metadata
-       panel
+       metadatas
        search
        searchLocal
-       term
+       terms
        transitiveDependencies
        transitiveDependents
        typ

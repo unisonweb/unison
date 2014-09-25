@@ -2,7 +2,6 @@ module Unison.Node where
 
 import Data.Set as S
 import Data.Map as M
-import Unison.Node.Panel
 import Unison.Node.Metadata as MD
 import Unison.Syntax.Var as V
 import Unison.Edit.Term.Action as A
@@ -25,10 +24,8 @@ data Node m k t e = Node {
   editTerm :: k -> P.Path -> A.Action e -> Noted m (k, e),
   -- | Modify the given type, which may fail
   editType :: k -> P.Path -> A.Action t -> Noted m (k, t),
-  -- | Access the metadata for the term or type identified by @k@
-  metadata :: k -> Noted m (MD.Metadata k),
-  -- | Render the term or type identified by @k@ as a panel--
-  panel :: k -> Noted m (Panel k t e),
+  -- | Access the metadata for the term and/or types identified by @k@
+  metadatas :: [k] -> Noted m (Map k (MD.Metadata k)),
   -- | Search for a term, optionally constrained to be of the given type
   -- and contained in the given set
   search :: Maybe t -> Maybe (S.Set k) -> Query -> Noted m (Map k (Metadata k)),
@@ -36,7 +33,7 @@ data Node m k t e = Node {
   -- optionally constrained to match some type
   searchLocal :: k -> P.Path -> Maybe t -> Query -> Noted m (Metadata k, [(V.Var, t)]),
   -- | Lookup the source of the term identified by @k@
-  term :: k -> Noted m e,
+  terms :: [k] -> Noted m (Map k e),
   -- | Lookup the dependencies of @k@, optionally limited to those that intersect the given set
   transitiveDependencies :: Maybe (S.Set k) -> k -> Noted m (S.Set k),
   -- | Lookup the set of terms or types which depend on the given @k@, optionally limited to those that intersect the given set
