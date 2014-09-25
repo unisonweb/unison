@@ -69,11 +69,14 @@ valid e p = isJust (at p e)
     if no such child exists. -}
 down : Term -> Path -> Path
 down e p =
-  let go e = case e of
-    App f x -> p `snoc` Fn
-    Lit (Vector es) -> if Array.length es == 0 then p else p `snoc` Index 0
-    Lam _ _ -> p `snoc` Body
-    _ -> p
+  let apps e = case e of
+        App f x -> apps f + 1
+        _ -> 1
+      go e = case e of
+        App f x -> p `append` repeat (apps f) Fn
+        Lit (Vector es) -> if Array.length es == 0 then p else p `snoc` Index 0
+        Lam _ _ -> p `snoc` Body
+        _ -> p
   in maybe p go (at p e)
 
 {-| Move path to point to parent node in "logical" layout. -}

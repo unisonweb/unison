@@ -113,12 +113,12 @@ column ls = case ls of
     where `c` is a descendent of `p`, `prefixOf (tag p).path (tag c).path`
     must be true.
 -}
-region : (k -> k -> Bool) -> Layout k -> k -> [(k, Region)]
-region prefixOf l ks =
+region : (k -> k -> Bool) -> (a -> k) -> Layout a -> k -> [(a, Region)]
+region prefixOf by l ks =
   let
-    go origin ks (Layout layout e k) =
-      if | ks == k -> [ (k, Region origin (E.widthOf e) (E.heightOf e)) ]
-         | not (k `prefixOf` ks) -> [] -- avoid recursing on any subtrees which cannot possibly contain ks
+    go origin ks (Layout layout e a) =
+      if | ks == by a -> [ (a, Region origin (E.widthOf e) (E.heightOf e)) ]
+         | not (by a `prefixOf` ks) -> [] -- avoid recursing on any subtrees which cannot possibly contain ks
          | otherwise -> case layout of
              Beside left right ->
                go origin ks left ++
