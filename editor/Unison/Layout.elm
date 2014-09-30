@@ -1,6 +1,6 @@
 module Unison.Layout where
 
-import Array as A
+import List
 import Array (Array)
 import Either(..)
 import Graphics.Element as E
@@ -17,6 +17,13 @@ data LayoutF r
   | Embed Element
 
 data Layout k = Layout (LayoutF (Layout k)) Element k
+
+map : (a -> b) -> Layout a -> Layout b
+map f (Layout r e a) = Layout (case r of
+  Beside r r2 -> Beside (map f r) (map f r2)
+  Above r r2 -> Above (map f r) (map f r2)
+  Container dims r -> Container dims (map f r)
+  Embed e -> Embed e) e (f a)
 
 tag : Layout k -> k
 tag (Layout _ _ k) = k
@@ -89,20 +96,20 @@ fill c e = container (tag e) (widthOf e) (heightOf e) (Pt 0 0) e
 row : [Layout k] -> [Layout k]
 row ls = case ls of
   [] -> []
-  _ -> let maxh = maximum (map heightOf ls)
+  _ -> let maxh = maximum (List.map heightOf ls)
            cell e = let diff = maxh - heightOf e
                     in if diff == 0 then e
                        else container (tag e) (widthOf e) maxh (Pt 0 (toFloat diff / 2 |> floor)) e
-       in (map cell ls)
+       in (List.map cell ls)
 
 column : [Layout k] -> [Layout k]
 column ls = case ls of
   [] -> []
-  _ -> let maxw = maximum (map widthOf ls)
+  _ -> let maxw = maximum (List.map widthOf ls)
            cell e = let diff = maxw - widthOf e
                     in if diff == 0 then e
                        else container (tag e) maxw (heightOf e) (Pt (toFloat diff / 2 |> floor) 0) e
-       in (map cell ls)
+       in (List.map cell ls)
 
 {-| Find all regions in the tree whose path is equal to the given path.
     Relies on the assumption that nodes have paths which prefix paths
@@ -185,7 +192,7 @@ atRanked rank l r =
         if i == i2 then (i2, k :: cur, acc)
         else            (i, [k], reverse cur :: acc)
       done (_, cur, acc) = reverse cur :: acc
-  in case map f (at l r) |> sortBy fst of
+  in case List.map f (at l r) |> sortBy fst of
     [] -> []
     (i,k) :: tl -> foldl g (i, [k], []) tl |> done
 
@@ -199,7 +206,7 @@ lub r1 r2 =
 selectableLub : (a -> Bool) -> [(a, Region)] -> Maybe Region
 selectableLub f rs = case filter (f << fst) rs of
   [] -> Nothing
-  rh :: rt -> Just (foldl lub (snd rh) (map snd rt))
+  rh :: rt -> Just (foldl lub (snd rh) (List.map snd rt))
 
 reduceBalanced : a -> (a -> a -> a) -> [a] -> a
 reduceBalanced z op xs =
@@ -207,6 +214,6 @@ reduceBalanced z op xs =
         (b,n) :: (a,m) :: t -> if n >= m then fixup ((op a b, n+m) :: t)
                                else (b,n) :: (a,m) :: t
         _ -> stack
-      finalize stack = foldl op z (map fst stack)
+      finalize stack = foldl op z (List.map fst stack)
   in foldl (\a stack -> fixup ((a,1) :: stack)) [] xs
   |> finalize
