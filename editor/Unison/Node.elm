@@ -16,7 +16,6 @@ import Unison.Metadata as MD
 import Unison.Metadata (Metadata, Query)
 import Unison.Term as E
 import Unison.Path as Path
-import Unison.Path (Path)
 import Unison.Term (Term)
 import Unison.Type as T
 import Unison.Type (Type)
@@ -25,6 +24,7 @@ import Unison.Jsonify (Jsonify)
 import Unison.Parser as P
 import Unison.Parser (Parser)
 import Unison.Var as V
+type Path = Path.Path
 
 type Host = String
 
@@ -52,9 +52,9 @@ parseResponse p r = case r of
   Http.Waiting -> Http.Waiting
   Http.Failure code body -> Http.Failure code body
 
-admissibleTypeOf : Signal Host -> Signal (Hash, Path.Path) -> Signal (Response Type)
+admissibleTypeOf : Signal Host -> Signal (Term, Path.Path) -> Signal (Response Type)
 admissibleTypeOf host params =
-  let body = J.tuple2 H.jsonify Path.jsonifyPath
+  let body = J.tuple2 E.jsonifyTerm Path.jsonifyPath
       req host params = jsonGet body host "admissible-type-of" params
   in parseResponse T.parseType <~ Http.send (lift2 req host params)
 
@@ -87,18 +87,18 @@ dependents host params =
   in parseResponse (P.set H.parse) <~ Http.send (lift2 req host params)
 
 editTerm : Signal Host
-        -> Signal (Hash, Path.Path, Action)
-        -> Signal (Response (Hash, Term))
+        -> Signal (Path, Action, Term)
+        -> Signal (Response Term)
 editTerm host params =
-  let body = J.tuple3 H.jsonify Path.jsonifyPath A.jsonify
+  let body = J.tuple3 Path.jsonifyPath A.jsonify E.jsonifyTerm
       req host params = jsonGet body host "edit-term" params
-      parse = parseResponse (P.tuple2 H.parse E.parseTerm)
+      parse = parseResponse E.parseTerm
   in parse <~ Http.send (lift2 req host params)
 
 {-
 editType : Signal Host
-        -> Signal (Hash, Path, Action)
-        -> Signal (Response (Hash, Term))
+        -> Signal (Path, Action, Type)
+        -> Signal (Response Type)
 editTerm host params =
   let body = J.tuple3 H.jsonify Path.jsonify A.jsonify
       req host params = jsonGet body host "edit-type" params
@@ -156,16 +156,17 @@ transitiveDependents host params =
       req host params = jsonGet body host "transitive-dependents" params
   in parseResponse (P.set H.parse) <~ Http.send (lift2 req host params)
 
-typ : Signal Host -> Signal Hash -> Signal (Response Type)
-typ host params =
-  let req host params = Http.get (host ++ "/type/" ++ J.render H.jsonify params)
-  in parseResponse T.parseType <~ Http.send (lift2 req host params)
+types : Signal Host -> Signal [Hash] -> Signal (Response (M.Dict Hash Type))
+types host params =
+  let body = J.array H.jsonify
+      req host params = jsonGet body host "types" params
+  in parseResponse (P.object T.parseType) <~ Http.send (lift2 req host params)
 
 typeOf : Signal Host
-      -> Signal (Hash, Path.Path)
+      -> Signal (Term, Path)
       -> Signal (Response Type)
 typeOf host params =
-  let body = J.tuple2 H.jsonify Path.jsonifyPath
+  let body = J.tuple2 E.jsonifyTerm Path.jsonifyPath
       req host params = jsonGet body host "type-of" params
       parse = parseResponse T.parseType
   in parse <~ Http.send (lift2 req host params)

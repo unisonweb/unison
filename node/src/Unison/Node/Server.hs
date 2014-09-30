@@ -61,14 +61,14 @@ server port node = S.scotty port $ do
     (limit, h) <- S.jsonData
     k <- runN $ N.dependents node limit h
     S.json k
-  S.get "/edit-term" $ do -- this merely computes the new term and its hash, hence a GET!
-    (h, loc, a) <- S.jsonData
-    (k, e) <- runN $ N.editTerm node h loc a
-    S.json (k, e) -- we might follow this up with a 'create-term', which is a POST
+  S.get "/edit-term" $ do -- this merely computes the new term, hence a GET
+    (loc, a, e) <- S.jsonData
+    e <- runN $ N.editTerm node loc a e
+    S.json e -- we might follow this up with a 'create-term', which is a POST
   S.get "/edit-type" $ do -- this merely computes the new type and its hash, hence a GET!
-    (h, loc, a) <- S.jsonData
-    (k, e) <- runN $ N.editType node h loc a
-    S.json (k, e)
+    (loc, a, t) <- S.jsonData
+    t <- runN $ N.editType node loc a t
+    S.json t
   S.get "/metadatas" $ do
     hs <- S.jsonData
     md <- runN $ N.metadatas node hs
@@ -93,10 +93,10 @@ server port node = S.scotty port $ do
     (limit,h) <- S.jsonData
     s <- runN $ N.transitiveDependents node limit h
     S.json s
-  S.get "/type/:hash" $ do
-    h <- jsonParam "hash"
-    t <- runN $ N.typ node h
-    S.json t
+  S.get "/types" $ do
+    hs <- S.jsonData
+    ts <- runN $ N.types node hs
+    S.json ts
   S.get "/type-of" $ do
     (h,loc) <- S.jsonData
     s <- runN $ N.typeOf node h loc

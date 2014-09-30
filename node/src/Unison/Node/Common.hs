@@ -10,7 +10,6 @@ import qualified Unison.Type as Type
 import Unison.Syntax.Hash as H
 import qualified Unison.Syntax.Type as T
 import qualified Unison.Syntax.Term as E
-import qualified Unison.Edit.Term.Path as P
 import qualified Unison.Edit.Term as TE
 import Unison.Edit.Term.Eval as Eval
 import Unison.Syntax.Type (Type)
@@ -25,11 +24,8 @@ node eval store =
     readTypeOf h = readMetadata store h >>=
                    \md -> readType store (MD.annotation md)
 
-    admissibleTypeOf h loc = case loc of
-      P.Path [] -> readTypeOf h
-      P.Path _ -> do
-        ctx <- readTerm store h
-        TE.admissibleTypeOf readTypeOf loc ctx
+    admissibleTypeOf e loc =
+      TE.admissibleTypeOf readTypeOf loc e
 
     createTerm e md = do
       t <- Type.synthesize readTypeOf e
@@ -61,10 +57,8 @@ node eval store =
                   (S.toList hs)
       pure $ S.fromList [x | (x,deps) <- hs', S.member h deps]
 
-    edit k path action = do
-      e <- readTerm store k
-      e' <- TE.interpret eval (readTerm store) typ path action e
-      pure $ (E.finalizeHash e', e')
+    edit path action e = do
+      TE.interpret eval (readTerm store) (readType store) path action e
 
     editType = error "todo later"
 
@@ -101,14 +95,11 @@ node eval store =
 
     transitiveDependents = error "todo"
 
-    typ =
-      readType store
+    types hs =
+      M.fromList <$> sequence (map (\h -> (,) h <$> readType store h) hs)
 
-    typeOf h loc = case loc of
-      P.Path [] -> readTypeOf h
-      P.Path _ -> do
-        ctx <- readTerm store h
-        TE.typeOf readTypeOf loc ctx
+    typeOf ctx loc =
+      TE.typeOf readTypeOf loc ctx
 
     typeOfConstructorArg = error "todo"
 
@@ -127,7 +118,7 @@ node eval store =
        terms
        transitiveDependencies
        transitiveDependents
-       typ
+       types
        typeOf
        typeOfConstructorArg
        updateMetadata

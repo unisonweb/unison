@@ -11,7 +11,7 @@ import Unison.Note as N
 
 data Node m k t e = Node {
   -- | Obtain the type of the given subterm, assuming the path is valid
-  admissibleTypeOf :: k -> P.Path -> Noted m t,
+  admissibleTypeOf :: e -> P.Path -> Noted m t,
   -- | Create a new term and provide its metadata
   createTerm :: e -> MD.Metadata k -> Noted m k,
   -- | Create a new type and provide its metadata
@@ -21,9 +21,9 @@ data Node m k t e = Node {
   -- | Lookup the set of terms/types depending directly on the given @k@, optionally limited to the given set
   dependents :: Maybe (S.Set k) -> k -> Noted m (S.Set k),
   -- | Modify the given subterm, which may fail
-  editTerm :: k -> P.Path -> A.Action e -> Noted m (k, e),
+  editTerm :: P.Path -> A.Action e -> e -> Noted m e,
   -- | Modify the given type, which may fail
-  editType :: k -> P.Path -> A.Action t -> Noted m (k, t),
+  editType :: P.Path -> A.Action t -> t -> Noted m t,
   -- | Access the metadata for the term and/or types identified by @k@
   metadatas :: [k] -> Noted m (Map k (MD.Metadata k)),
   -- | Search for a term, optionally constrained to be of the given type
@@ -39,9 +39,9 @@ data Node m k t e = Node {
   -- | Lookup the set of terms or types which depend on the given @k@, optionally limited to those that intersect the given set
   transitiveDependents :: Maybe (S.Set k) -> k -> Noted m (S.Set k),
   -- | Lookup the source of the type identified by @k@
-  typ :: k -> Noted m t,
+  types :: [k] -> Noted m (Map k t),
   -- | Obtain the type of the given subterm, assuming the path is valid
-  typeOf :: k -> P.Path -> Noted m t,
+  typeOf :: e -> P.Path -> Noted m t,
   -- | Obtain the type of a constructor argument of a type
   typeOfConstructorArg :: k -> TP.Path -> Noted m t,
   -- | Update the metadata associated with the given term or type
