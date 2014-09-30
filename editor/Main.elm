@@ -52,15 +52,15 @@ resolvedPath e pathUnderPtr =
 terms : Signal E.Term
 terms = constant expr
 
-layout : Int -> E.Term -> L.Layout { hash : Hash, path : Path, selectable : Bool }
+layout : Int -> E.Term -> L.Layout { path : Path, selectable : Bool }
 layout availableWidth term =
   E.layout term { key = "bar"
                 , availableWidth = availableWidth
                 , metadata h = MD.anonymousTerm
                 , overrides x = Nothing }
 
-leafUnderPtr : Signal (L.Layout { hash : Hash, path : Path, selectable : Bool })
-            -> Signal (Maybe { hash : Hash, path : Path, selectable : Bool })
+leafUnderPtr : Signal (L.Layout { path : Path, selectable : Bool })
+            -> Signal (Maybe { path : Path, selectable : Bool })
 leafUnderPtr layout =
   let go layout (x,y) =
     let paths = L.atRanked (length << .path) layout (L.Region { x = x, y = y } 2 2)
@@ -74,7 +74,7 @@ main =
   let terms : Signal E.Term
       terms = constant expr
 
-      rendered : Signal (L.Layout { hash : Hash, path : Path, selectable : Bool })
+      rendered : Signal (L.Layout { path : Path, selectable : Bool })
       rendered = layout <~ Window.width ~ terms
 
       leaf : Signal (Maybe Path)

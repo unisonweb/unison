@@ -107,7 +107,7 @@ siblingL e p =
   in if increment (valid e) p2 == p then p2
      else p
 
-type L = { hash : Hash, path : Path, selectable : Bool }
+type L = { path : Path, selectable : Bool }
 
 layout : Term -- term to render
       -> { key            : Hash
@@ -118,16 +118,14 @@ layout : Term -- term to render
 layout expr env =
   let
     md = env.metadata env.key
-    tag path = { path = path, hash = env.key, selectable = True }
-    utag path = { path = path, hash = env.key, selectable = False }
+    tag path = { path = path, selectable = True }
+    utag path = { path = path, selectable = False }
     space = codeText " "
     spaces n =
       if n <= 0 then empty else codeText (String.padLeft (n*2) ' ' "")
     space2 = codeText "  "
     indentWidth = E.widthOf space2
-    paren : Bool -> { path : Path, term : Term }
-         -> Layout { hash : Hash, path : Path, selectable : Bool }
-         -> Layout { hash : Hash, path : Path, selectable : Bool }
+    paren : Bool -> { path : Path, term : Term } -> Layout L -> Layout L
     paren parenthesize cur e =
       if parenthesize
       then let t = tag cur.path
@@ -143,7 +141,7 @@ layout expr env =
       -> Int
       -> Int
       -> { path : Path, term : Term }
-      -> Layout { hash : Hash, path : Path, selectable : Bool }
+      -> Layout { path : Path, selectable : Bool }
     go allowBreak ambientPrec availableWidth cur =
       case env.overrides cur.path of
         Just l -> l
