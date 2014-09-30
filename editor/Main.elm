@@ -56,7 +56,8 @@ layout : Int -> E.Term -> L.Layout { hash : Hash, path : Path, selectable : Bool
 layout availableWidth term =
   E.layout term { key = "bar"
                 , availableWidth = availableWidth
-                , metadata h = MD.anonymousTerm }
+                , metadata h = MD.anonymousTerm
+                , overrides x = Nothing }
 
 leafUnderPtr : Signal (L.Layout { hash : Hash, path : Path, selectable : Bool })
             -> Signal (Maybe { hash : Hash, path : Path, selectable : Bool })

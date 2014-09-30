@@ -36,6 +36,7 @@ data Literal
   = Number Float
   | Str String
   | Vector (Array Term)
+  | Builtin String
 
 data Term
   = Var I
@@ -106,11 +107,14 @@ siblingL e p =
   in if increment (valid e) p2 == p then p2
      else p
 
+type L = { hash : Hash, path : Path, selectable : Bool }
+
 layout : Term -- term to render
       -> { key            : Hash
          , availableWidth : Int
-         , metadata       : Hash -> Metadata }
-      -> Layout { hash : Hash, path : Path, selectable : Bool }
+         , metadata       : Hash -> Metadata
+         , overrides      : Path -> Maybe (Layout L) }
+      -> Layout L
 layout expr env =
   let
     md = env.metadata env.key
@@ -141,57 +145,61 @@ layout expr env =
       -> { path : Path, term : Term }
       -> Layout { hash : Hash, path : Path, selectable : Bool }
     go allowBreak ambientPrec availableWidth cur =
-      case cur.term of
-        Var n -> codeText (Metadata.resolveLocal md cur.path n).name |> L.embed (tag cur.path)
-        Ref h -> codeText (Metadata.firstName h (env.metadata h)) |> L.embed (tag cur.path)
-        Con h -> codeText (Metadata.firstName h (env.metadata h)) |> L.embed (tag cur.path)
-        Lit (Number n) -> Styles.numericLiteral (String.show n) |> L.embed (tag cur.path)
-        Lit (Str s) -> Styles.stringLiteral ("\"" ++ s ++ "\"") |> L.embed (tag cur.path)
-        _ -> let space' = L.embed (tag cur.path) space in
-        case break env.key env.metadata cur.path cur.term of
-          Prefix f args ->
-            let f' = go False 9 availableWidth f
-                lines = f' :: map (go False 10 0) args
-                unbroken = L.intersperseHorizontal space' lines
-                        |> paren (ambientPrec > 9) cur
-            in if not allowBreak || L.widthOf unbroken < availableWidth
-               then unbroken
-               else let args' = map (go True 10 (availableWidth - L.widthOf f' - L.widthOf space')) args
-                             |> L.vertical (tag cur.path)
-                    in L.intersperseHorizontal space' [f',args']
-                    |> paren (ambientPrec > 9) cur
-          Operators leftAssoc prec hd tl ->
-            let f (op,r) l = L.intersperseHorizontal space' [ l, go False 10 0 op, go False rprec 0 r ]
-                unbroken = foldl f (go False lprec 0 hd) tl
-                        |> paren (ambientPrec > 9) cur
-                lprec = if leftAssoc then prec else 1+prec
-                rprec = if leftAssoc then 1+prec else prec
-                bf (op,r) l =
-                  let op' = go False 10 0 op
-                      remWidth = availableWidth - L.widthOf op' - L.widthOf space'
-                  in L.above (tag cur.path) l <|
-                     L.intersperseHorizontal space' [op', go True rprec remWidth r ]
-            in if not allowBreak || L.widthOf unbroken < availableWidth
-               then unbroken
-               else foldl bf (go True lprec (availableWidth - indentWidth) hd) tl
-                    |> paren (ambientPrec > 9) cur
-          Lambda args body ->
-            let argLayout = map (go False 0 0) args ++ [L.embed (tag cur.path) (codeText "→")]
-                         |> L.intersperseHorizontal space'
-                unbroken = L.intersperseHorizontal space' [argLayout, go False 0 0 body]
-                        |> paren (ambientPrec > 0) cur
-            in if not allowBreak || L.widthOf unbroken < availableWidth
-               then unbroken
-               else L.above (tag cur.path)
-                      argLayout
-                      (L.horizontal (tag cur.path) [ space', space', go True 0 (availableWidth - indentWidth) body])
-                    |> paren (ambientPrec > 0) cur
-          Bracketed es ->
-            let unbroken = Styles.cells (tag cur.path) (codeText "[]") (map (go False 0 0) es)
-            in if not allowBreak || L.widthOf unbroken < availableWidth || length es < 2
-            then unbroken
-            else Styles.verticalCells (tag cur.path) (codeText "[]")
-                                      (map (go True 0 (availableWidth - 4)) es) -- account for cell border
+      case env.overrides cur.path of
+        Just l -> l
+        Nothing -> case cur.term of
+          Var n -> codeText (Metadata.resolveLocal md cur.path n).name |> L.embed (tag cur.path)
+          Ref h -> codeText (Metadata.firstName h (env.metadata h)) |> L.embed (tag cur.path)
+          Con h -> codeText (Metadata.firstName h (env.metadata h)) |> L.embed (tag cur.path)
+          Lit (Number n) -> Styles.numericLiteral (String.show n) |> L.embed (tag cur.path)
+          Lit (Str s) -> Styles.stringLiteral ("\"" ++ s ++ "\"") |> L.embed (tag cur.path)
+          App (App (Lit (Builtin "cell")) x) y -> todo
+          App (App (Lit (Builtin "panel")) x) y -> todo -- need to convert x to a Term -> Term
+          _ -> let space' = L.embed (tag cur.path) space in
+          case break env.key env.metadata cur.path cur.term of
+            Prefix f args ->
+              let f' = go False 9 availableWidth f
+                  lines = f' :: map (go False 10 0) args
+                  unbroken = L.intersperseHorizontal space' lines
+                          |> paren (ambientPrec > 9) cur
+              in if not allowBreak || L.widthOf unbroken < availableWidth
+                 then unbroken
+                 else let args' = map (go True 10 (availableWidth - L.widthOf f' - L.widthOf space')) args
+                               |> L.vertical (tag cur.path)
+                      in L.intersperseHorizontal space' [f',args']
+                      |> paren (ambientPrec > 9) cur
+            Operators leftAssoc prec hd tl ->
+              let f (op,r) l = L.intersperseHorizontal space' [ l, go False 10 0 op, go False rprec 0 r ]
+                  unbroken = foldl f (go False lprec 0 hd) tl
+                          |> paren (ambientPrec > 9) cur
+                  lprec = if leftAssoc then prec else 1+prec
+                  rprec = if leftAssoc then 1+prec else prec
+                  bf (op,r) l =
+                    let op' = go False 10 0 op
+                        remWidth = availableWidth - L.widthOf op' - L.widthOf space'
+                    in L.above (tag cur.path) l <|
+                       L.intersperseHorizontal space' [op', go True rprec remWidth r ]
+              in if not allowBreak || L.widthOf unbroken < availableWidth
+                 then unbroken
+                 else foldl bf (go True lprec (availableWidth - indentWidth) hd) tl
+                      |> paren (ambientPrec > 9) cur
+            Lambda args body ->
+              let argLayout = map (go False 0 0) args ++ [L.embed (tag cur.path) (codeText "→")]
+                           |> L.intersperseHorizontal space'
+                  unbroken = L.intersperseHorizontal space' [argLayout, go False 0 0 body]
+                          |> paren (ambientPrec > 0) cur
+              in if not allowBreak || L.widthOf unbroken < availableWidth
+                 then unbroken
+                 else L.above (tag cur.path)
+                        argLayout
+                        (L.horizontal (tag cur.path) [ space', space', go True 0 (availableWidth - indentWidth) body])
+                      |> paren (ambientPrec > 0) cur
+            Bracketed es ->
+              let unbroken = Styles.cells (tag cur.path) (codeText "[]") (map (go False 0 0) es)
+              in if not allowBreak || L.widthOf unbroken < availableWidth || length es < 2
+              then unbroken
+              else Styles.verticalCells (tag cur.path) (codeText "[]")
+                                        (map (go True 0 (availableWidth - 4)) es) -- account for cell border
   in go True 0 env.availableWidth { path = [], term = expr }
 
 data Break a
@@ -254,12 +262,14 @@ parseLiteral : Parser Literal
 parseLiteral = P.union' <| \t ->
   if | t == "Number" -> P.map Number P.number
      | t == "String" -> P.map Str P.string
+     | t == "Builtin" -> P.map Builtin P.string
      | t == "Vector" -> P.map (Vector << Array.fromList) (P.array parseTerm)
 
 jsonifyLiteral l = case l of
   Number n -> J.tag' "Number" J.number n
   Str s -> J.tag' "String" J.string s
   Vector es -> J.tag' "Vector" (J.contramap Array.toList (J.array jsonifyTerm)) es
+  Builtin s -> J.tag' "Builtin" J.string s
 
 parseTerm : Parser Term
 parseTerm = P.union' <| \t ->
