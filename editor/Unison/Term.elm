@@ -110,14 +110,14 @@ siblingL e p =
 type L = { path : Path, selectable : Bool }
 
 layout : Term -- term to render
-      -> { key            : Hash
+      -> { rootMetadata   : Metadata
          , availableWidth : Int
          , metadata       : Hash -> Metadata
          , overrides      : Path -> Maybe (Layout L) }
       -> Layout L
 layout expr env =
   let
-    md = env.metadata env.key
+    md = env.rootMetadata
     tag path = { path = path, selectable = True }
     utag path = { path = path, selectable = False }
     space = codeText " "
@@ -154,7 +154,7 @@ layout expr env =
           App (App (Lit (Builtin "cell")) x) y -> todo
           App (App (Lit (Builtin "panel")) x) y -> todo -- need to convert x to a Term -> Term
           _ -> let space' = L.embed (tag cur.path) space in
-          case break env.key env.metadata cur.path cur.term of
+          case break env.rootMetadata env.metadata cur.path cur.term of
             Prefix f args ->
               let f' = go False 9 availableWidth f
                   lines = f' :: map (go False 10 0) args
@@ -207,12 +207,12 @@ data Break a
   | Bracketed [a]         -- `Bracketed [x,y,z] == [x,y,z]`
   | Lambda [a] a          -- `Lambda [x,y,z] e == x -> y -> z -> e`
 
-break : Hash
+break : Metadata
     -> (Hash -> Metadata)
     -> Path
     -> Term
     -> Break { path : Path, term : Term }
-break hash md path expr =
+break rootMd md path expr =
   let prefix f acc path = case f of
         App f arg -> prefix f ({ path = path `snoc` Arg, term = arg } :: acc) (path `snoc` Fn)
         _ -> Prefix { path = path, term = f } acc
@@ -244,13 +244,13 @@ break hash md path expr =
       let sym = case op of
         Ref h -> Metadata.firstSymbol h (md h)
         Con h -> Metadata.firstSymbol h (md h)
-        Var v -> Metadata.resolveLocal (md hash) path v
+        Var v -> Metadata.resolveLocal rootMd path v
       in case sym.fixity of
         Metadata.Prefix -> prefix (App (App op l) r) [] path -- not an operator chain, fall back
         Metadata.InfixL -> opsL op sym.precedence (App (App op l) r) [] path -- left associated operator chain
         Metadata.InfixR -> opsR op sym.precedence (App (App op l) r) path
     Lam v body -> case body of -- audit this
-      Lam _ _ -> case break hash md (path `snoc` Body) body of
+      Lam _ _ -> case break rootMd md (path `snoc` Body) body of
         Lambda args body2 -> Lambda ({ path = path `snoc` Body, term = body } :: args) body2
         _ -> Lambda [{path = path, term = expr }] { path = path `snoc` Body, term = body }
       _ -> Lambda [{path = path, term = expr }] { path = path `snoc` Body, term = body }

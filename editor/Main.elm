@@ -54,7 +54,7 @@ terms = constant expr
 
 layout : Int -> E.Term -> L.Layout { path : Path, selectable : Bool }
 layout availableWidth term =
-  E.layout term { key = "bar"
+  E.layout term { rootMetadata = MD.anonymousTerm
                 , availableWidth = availableWidth
                 , metadata h = MD.anonymousTerm
                 , overrides x = Nothing }
