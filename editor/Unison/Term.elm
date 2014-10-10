@@ -47,9 +47,6 @@ data Term
   | Ann Term T.Type
   | Lam I Term
 
-todo : a
-todo = todo
-
 {-| Returns the subterm at the given path, if the path is valid. -}
 at : Path -> Term -> Maybe Term
 at p e = case (p,e) of
@@ -151,8 +148,6 @@ layout expr env =
           Con h -> codeText (Metadata.firstName h (env.metadata h)) |> L.embed (tag cur.path)
           Lit (Number n) -> Styles.numericLiteral (String.show n) |> L.embed (tag cur.path)
           Lit (Str s) -> Styles.stringLiteral ("\"" ++ s ++ "\"") |> L.embed (tag cur.path)
-          App (App (Lit (Builtin "cell")) x) y -> todo
-          App (App (Lit (Builtin "panel")) x) y -> todo -- need to convert x to a Term -> Term
           _ -> let space' = L.embed (tag cur.path) space in
           case break env.rootMetadata env.metadata cur.path cur.term of
             Prefix f args ->

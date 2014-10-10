@@ -2,6 +2,7 @@ module Elmz.Signal where
 
 import Time
 import Elmz.Maybe
+import Maybe
 
 {-| Delay the input `Signal` by one unit. -}
 delay : a -> Signal a -> Signal a
@@ -9,6 +10,30 @@ delay h s =
   let go a {prev,cur} = { cur = prev, prev = a }
   in foldp go { prev = h, cur = h } s
   |> lift .cur
+
+{-| Emit updates to `s` only when it moves outside the current bin,
+    according to the function `within`. Otherwise emit no update but
+    take on the value `Nothing`. -}
+quantize : (a -> r -> Bool) -> Signal r -> Signal a -> Signal (Maybe a)
+quantize within bin s =
+  let f range a = if a `within` range then Nothing else Just a
+  in dropIf Maybe.isNothing Nothing (f <~ bin ~ s)
+
+{-| Only emit updates of `s` when it settles into a steady state with
+    no updates within the period `t`. Useful to avoid propagating updates
+    when a value is changing too rapidly. -}
+steady : Time -> Signal a -> Signal a
+steady t s = sampleOn (since t s |> dropRepeats) s
+
+{-| Repeat updates to a signal after it has remained steady for `t`
+    elapsed time, and only if the current value tests true against `f`. -}
+repeatAfterIf : Time -> number -> (a -> Bool) -> Signal a -> Signal a
+repeatAfterIf time fps f s =
+  let repeatable = lift f s
+      delayedRep = repeatable |> keepIf identity False |> since time |> lift not
+      resetDelay = merge (always False <~ s) delayedRep
+      repeats = fpsWhen fps ((&&) <~ repeatable ~ dropRepeats resetDelay)
+  in sampleOn repeats s
 
 {-| Statefully transform the `a` signal, using `f`. -}
 loop : (a -> s -> (b, s))

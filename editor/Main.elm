@@ -29,18 +29,19 @@ type Path = Path.Path -- to avoid conflict with Graphics.Collage.Path
 
 nums : E.Term
 nums = let f x = E.Lit (E.Number (toFloat x))
-       in E.Lit (E.Vector (Array.fromList (map f [0..20])))
+       in E.Lit (E.Vector (Array.fromList (map f [0..15])))
 
 expr = E.App (E.App (E.Ref "foo") nums) (E.App (E.Ref "baz") (E.Lit (E.Str "hello world!")))
 
 resolvedPath : Signal E.Term -> Signal (Maybe Path) -> Signal (Maybe Scope)
 resolvedPath e pathUnderPtr =
-  let edit {x,y} e =
+  let nonzero {x,y} = x /= 0 || y /= 0
+      edit {x,y} e =
         (if y == 1 then Scope.up else identity) >>
         (if y == -1 then Scope.down e else identity) >>
         (if x == 1 then Scope.right e else identity) >>
         (if x == -1 then Scope.left e else identity)
-      edits = edit <~ Keyboard.arrows ~ e
+      edits = edit <~ (Signals.repeatAfterIf (300*millisecond) 20 nonzero Keyboard.arrows) ~ e
       defaultScope = lift (Maybe.map Scope.scope) pathUnderPtr
       shifted = Signals.foldpBetween'
                   Mouse.position
@@ -75,7 +76,7 @@ main =
       terms = constant expr
 
       rendered : Signal (L.Layout { path : Path, selectable : Bool })
-      rendered = layout <~ Window.width ~ terms
+      rendered = layout <~ (Signals.steady (40 * millisecond) Window.width) ~ terms
 
       leaf : Signal (Maybe Path)
       leaf = lift (Maybe.map .path) (leafUnderPtr rendered)
