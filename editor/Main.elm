@@ -41,7 +41,7 @@ resolvedPath e pathUnderPtr =
         (if y == -1 then Scope.down e else identity) >>
         (if x == 1 then Scope.right e else identity) >>
         (if x == -1 then Scope.left e else identity)
-      edits = edit <~ (Signals.repeatAfterIf (300*millisecond) 20 nonzero Keyboard.arrows) ~ e
+      edits = edit <~ Signals.repeatAfterIf (300*millisecond) 20 nonzero Keyboard.arrows ~ e
       defaultScope = lift (Maybe.map Scope.scope) pathUnderPtr
       shifted = Signals.foldpBetween'
                   Mouse.position
