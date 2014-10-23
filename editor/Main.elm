@@ -9,7 +9,6 @@ import Unison.Scope (Scope)
 import Unison.Scope as Scope
 import Unison.Hash (Hash)
 import Unison.Styles as S
-import Unison.Layout as L
 import Unison.Term as E
 import Unison.Metadata as MD
 import Unison.Action
@@ -22,8 +21,10 @@ import Window
 import Keyboard
 import Mouse
 import Text
+import Elmz.Layout as L
 import Elmz.Signal as Signals
 import Elmz.Maybe
+import Elmz.Distance
 
 type Path = Path.Path -- to avoid conflict with Graphics.Collage.Path
 
@@ -76,7 +77,7 @@ main =
       terms = constant expr
 
       rendered : Signal (L.Layout { path : Path, selectable : Bool })
-      rendered = layout <~ (Signals.steady (40 * millisecond) Window.width) ~ terms
+      rendered = layout <~ Signals.steady (40 * millisecond) Window.width ~ terms
 
       leaf : Signal (Maybe Path)
       leaf = lift (Maybe.map .path) (leafUnderPtr rendered)

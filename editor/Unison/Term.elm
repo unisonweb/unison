@@ -4,32 +4,32 @@ import Array
 import Array (Array)
 import Dict
 import Dict (Dict)
+import Elmz.Layout (Layout)
+import Elmz.Layout as L
+import Elmz.Maybe as EM
+import Graphics.Element as E
+import Graphics.Input (Handle, hoverable)
 import Json
 import Maybe (isJust, maybe)
-import Elmz.Maybe as EM
 import Set
 import Set (Set)
 import String
-import Graphics.Element as E
-import Graphics.Input (Handle, hoverable)
 import Text(..)
-import Unison.Layout (Layout)
-import Unison.Layout as L
-import Unison.Styles as Styles
-import Unison.Styles (codeText)
 import Unison.Hash (Hash)
 import Unison.Hash as H
-import Unison.Jsonify as J
 import Unison.Jsonify (Jsonify)
-import Unison.Metadata as Metadata
+import Unison.Jsonify as J
 import Unison.Metadata (Metadata, Fixity)
-import Unison.Parser as P
+import Unison.Metadata as Metadata
 import Unison.Parser (Parser)
+import Unison.Parser as P
 import Unison.Path (..)
 import Unison.Path as Path
+import Unison.Styles (codeText)
+import Unison.Styles as Styles
+import Unison.Type as T
 import Unison.Var (I)
 import Unison.Var as V
-import Unison.Type as T
 type Path = Path.Path -- to avoid conflict with Graphics.Collage.Path
 
 data Literal
@@ -105,6 +105,61 @@ siblingL e p =
      else p
 
 type L = { path : Path, selectable : Bool }
+
+
+{-|
+
+  Layout proceeds in phases:
+
+  1. Traverse the term, find all panels / cells, and compute hashes for all
+  2. Build mapping from path to hash - for each panel / cell path, what is its hash
+  3. For each panel / cell, compute its dependencies, Dict Hash [Hash]
+
+  At this point, we have a dependency graph for the root panel.
+
+  4. For each panel / cell, if it is marked reactive, as in `cell reactive x`,
+     if `x` is a closed term, add it to list of paths that need evaluation.
+  5. Send all terms needing evaluation to the node. Node replies with a
+     Dict Path Term which editor will splice in.
+     (optimization - evaluate some terms locally when possible)
+
+  At this point, we have a fully resolved term tree.
+
+  6. We traverse the resolved tree, applying special layout forms, and building
+     up an 'overrides' map `Dict Path (Layout L)`.
+     a. This gives us
+  7. Finally, we invoke the regular Term.layout function, passing it the overrides map.
+
+  Can be smarter about how we do updates, avoid needless recomputation.
+
+  cell : (a -> Layout) -> a -> a
+  vflow : [Layout] -> Layout
+  fn : (Layout -> Layout) -> (a -> b) -> Layout
+
+  cell (fn (\x -> vflow [x, hline])) sqrt 23
+
+  panel vflow [panel source 12, panel source "hi", panel reactive #af789de]
+  need to
+  don't do any evaluation during layout, up to user to evaluate beforehand
+  panel vflow (map blah [0..100]) is problematic, doing arbitrary computation at layout time
+  but we have to do this for cases like `panel reactive (2 + 2)`
+
+specialLayout : Path -> Term -> Maybe (Layout L)
+specialLayout at e = case e of
+  -- panel : (a -> Layout) -> a -> Layout
+  App (App (Lit (Builtin "Unison.Layout.Panel")) f) r ->
+    interpretLayout f r
+  -- cell : (a -> Layout) -> a -> a
+  _ -> Nothing
+
+
+interpretLayout : Path -> Term -> Term -> Maybe (Layout L)
+interpretLayout at f e = case f of
+  Lit (Builtin "Unison.Layout.hflow") -> case e of
+  -- panel vflow [panel source 12, panel source "woot"]
+
+-}
+-- use overrides for
 
 layout : Term -- term to render
       -> { rootMetadata   : Metadata

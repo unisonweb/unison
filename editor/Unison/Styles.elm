@@ -3,8 +3,8 @@ module Unison.Styles where
 import Text (Style)
 import Text as T
 import Graphics.Element as E
-import Unison.Layout (Layout, Region)
-import Unison.Layout as L
+import Elmz.Layout (Layout, Region)
+import Elmz.Layout as L
 
 body : Style
 body =
