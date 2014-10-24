@@ -12,7 +12,7 @@ data Distance
   | Max Distance Distance
   | Min Distance Distance
 
-{-| A distance is a denotation for a function that receives the quantum, and
+{-| A distance is denoted by a function that receives the quantum, and
     the maximum distance supported, and returns a distance in centimeters. -}
 centimeters : Distance -> Float -> Float -> Float
 centimeters d quantum dmax = case d of
@@ -24,3 +24,14 @@ centimeters d quantum dmax = case d of
   Fraction k    -> dmax * k
   Max d1 d2     -> centimeters d1 quantum dmax `max` centimeters d2 quantum dmax
   Min d1 d2     -> centimeters d1 quantum dmax `min` centimeters d2 quantum dmax
+
+{-| Convert a `Distance` to a number of pixels (rounding up if inexact),
+    given an available number of pixels and a pixels per inch. -}
+toPixels : Distance -> Int -> Int -> Int
+toPixels d availablePixels pixelsPerInch =
+  let widthInInches = toFloat availablePixels / toFloat pixelsPerInch
+      widthInCm = widthInInches * 2.54
+      pixelCm = widthInCm / toFloat availablePixels
+      cm = centimeters d pixelCm widthInCm
+  in ceiling (cm / pixelCm)
+

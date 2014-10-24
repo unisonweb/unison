@@ -58,6 +58,7 @@ layout : Int -> E.Term -> L.Layout { path : Path, selectable : Bool }
 layout availableWidth term =
   E.layout term { rootMetadata = MD.anonymousTerm
                 , availableWidth = availableWidth
+                , pixelsPerInch = 130 -- todo, get real value from somewhere
                 , metadata h = MD.anonymousTerm
                 , overrides x = Nothing }
 

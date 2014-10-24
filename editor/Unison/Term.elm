@@ -4,11 +4,12 @@ import Array
 import Array (Array)
 import Dict
 import Dict (Dict)
+import Elmz.Distance (Distance)
+import Elmz.Distance as Distance
 import Elmz.Layout (Layout)
 import Elmz.Layout as L
 import Elmz.Maybe as EM
 import Graphics.Element as E
-import Graphics.Input (Handle, hoverable)
 import Json
 import Maybe (isJust, maybe)
 import Set
@@ -30,12 +31,15 @@ import Unison.Styles as Styles
 import Unison.Type as T
 import Unison.Var (I)
 import Unison.Var as V
+import Unison.View as View
+type UView e = View.View e
 type Path = Path.Path -- to avoid conflict with Graphics.Collage.Path
 
 data Literal
   = Number Float
   | Str String
   | Vector (Array Term)
+  | View (UView Term)
   | Builtin String
 
 data Term
@@ -159,11 +163,16 @@ interpretLayout at f e = case f of
   -- panel vflow [panel source 12, panel source "woot"]
 
 -}
+
+todo : a
+todo = todo
+
 -- use overrides for
 
 layout : Term -- term to render
       -> { rootMetadata   : Metadata
          , availableWidth : Int
+         , pixelsPerInch  : Int
          , metadata       : Hash -> Metadata
          , overrides      : Path -> Maybe (Layout L) }
       -> Layout L
@@ -203,6 +212,10 @@ layout expr env =
           Con h -> codeText (Metadata.firstName h (env.metadata h)) |> L.embed (tag cur.path)
           Lit (Number n) -> Styles.numericLiteral (String.show n) |> L.embed (tag cur.path)
           Lit (Str s) -> Styles.stringLiteral ("\"" ++ s ++ "\"") |> L.embed (tag cur.path)
+          App (App (Lit (Builtin "panel")) (Lit (View v))) e -> case v of
+            View.Source d -> let rem = availableWidth `max` Distance.toPixels d availableWidth env.pixelsPerInch
+                             in go True ambientPrec rem { path = cur.path `snoc` Arg, term = e }
+            -- just add other cases here!
           _ -> let space' = L.embed (tag cur.path) space in
           case break env.rootMetadata env.metadata cur.path cur.term of
             Prefix f args ->
