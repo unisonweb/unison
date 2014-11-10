@@ -259,6 +259,7 @@ panel (vertical view) [
   panel (source all) "hello",
   panel (source all) (1 + 23)
 ]
+panel view (panel blah x)
 -}
 
 -- eventually, this should return a list of paths needing evaluation
@@ -273,4 +274,5 @@ builtins env allowBreak availableWidth ambientPrec cur = case cur.term of
       Lit (Str s) -> let t = tag (cur.path `snoc` Arg)
                      in Just (L.embed t (Text.leftAligned (Text.style style (Text.toText s))))
       _ -> Nothing
+    Lit (Builtin "view") -> builtins env allowBreak availableWidth ambientPrec { path = cur.path `snoc` Arg, term = e }
   _ -> Nothing
