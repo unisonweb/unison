@@ -10,6 +10,7 @@ import Unison.Scope as Scope
 import Unison.Hash (Hash)
 import Unison.Styles as S
 import Unison.Term as E
+import Unison.View as V
 import Unison.Metadata as MD
 import Unison.Action
 import Unison.Node as N
@@ -56,7 +57,7 @@ terms = constant expr
 
 layout : Int -> E.Term -> L.Layout { path : Path, selectable : Bool }
 layout availableWidth term =
-  E.layout term { rootMetadata = MD.anonymousTerm
+  V.layout term { rootMetadata = MD.anonymousTerm
                 , availableWidth = availableWidth
                 , pixelsPerInch = 130 -- todo, get real value from somewhere
                 , metadata h = MD.anonymousTerm
@@ -78,7 +79,7 @@ main =
       terms = constant expr
 
       rendered : Signal (L.Layout { path : Path, selectable : Bool })
-      rendered = layout <~ Signals.steady (40 * millisecond) Window.width ~ terms
+      rendered = layout <~ Signals.steady (100 * millisecond) Window.width ~ terms
 
       leaf : Signal (Maybe Path)
       leaf = lift (Maybe.map .path) (leafUnderPtr rendered)

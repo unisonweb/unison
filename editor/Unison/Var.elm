@@ -5,6 +5,9 @@ import Unison.Parser as P
 
 type I = Int
 
+z : I
+z = 0
+
 parse : P.Parser I
 parse = P.int
 

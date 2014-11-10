@@ -23,7 +23,7 @@ quantize within bin s =
     no updates within the period `t`. Useful to avoid propagating updates
     when a value is changing too rapidly. -}
 steady : Time -> Signal a -> Signal a
-steady t s = sampleOn (since t s |> dropRepeats) s
+steady t s = sampleOn (since t s |> dropIf identity False) s
 
 {-| Repeat updates to a signal after it has remained steady for `t`
     elapsed time, and only if the current value tests true against `f`. -}
