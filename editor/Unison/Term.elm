@@ -4,7 +4,7 @@ import Array
 import Array (Array)
 import Dict
 import Dict (Dict)
-import Elmz.Distance (Distance)
+import Elmz.Distance as Distance
 import Elmz.Maybe as EM
 import Json
 import Maybe (isJust, maybe)
@@ -31,7 +31,8 @@ type Path = Path.Path -- to avoid conflict with Graphics.Collage.Path
 data Literal
   = Number Float
   | Str String
-  | Dist Distance
+  | Relative Distance.Relative
+  | Absolute Distance.Absolute
   | Style Text.Style
   | Vector (Array Term)
   | Builtin String

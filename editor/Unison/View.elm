@@ -1,7 +1,6 @@
 module Unison.View (layout, L) where
 
 import Array
-import Elmz.Distance (Distance)
 import Elmz.Distance as Distance
 import Elmz.Layout (Layout)
 import Elmz.Layout as L
@@ -14,6 +13,7 @@ import Unison.Metadata as Metadata
 import Unison.Styles (codeText)
 import Unison.Styles as Styles
 import Unison.Term (..)
+import Unison.Term as Term
 import Unison.Path (..)
 import Unison.Path as Path
 import String
@@ -249,11 +249,14 @@ source : View a
 text : Style -> View String
 textboxt : Alignment -> Distance -> Style -> View String
 reactive : View a -> View a
-fn : (Cell -> Cell) -> View (a -> b)
+fn : (Panel -> Panel) -> View (a -> b)
 horizontal : View [Panel]
+wrap : View [Panel]
 vertical : View [Panel]
 max-width : Distance -> View a -> View a
-container : Distance -> Distance -> (Distance,Distance)
+container : Distance -> Distance -> (Distance,Distance) -> View a ->
+-- set amount of padding size of top,right,bottom,left
+pad : Distance -> Distance -> Distance -> Distance -> View a -> View a
 view : View Panel
 panel : View a -> a -> Panel
 cell : View a -> a -> a
@@ -272,15 +275,16 @@ panel view (panel blah x)
 builtins : Env -> Bool -> Int -> Int -> { term : Term, path : Path } -> Maybe (Layout L)
 builtins env allowBreak availableWidth ambientPrec cur =
   let go v e = let t = tag (cur.path `snoc` Arg) in case v of
+    Lit (Builtin "hide") -> Just (L.empty t)
     Lit (Builtin "view") -> builtins env allowBreak availableWidth ambientPrec { path = cur.path `snoc` Arg, term = e }
-    App (Lit (Builtin "max-width")) (Lit (Dist d)) ->
-      let rem = availableWidth `max` Distance.toPixels d availableWidth env.pixelsPerInch
+    App (Lit (Builtin "max-width")) (Lit (Term.Relative d)) ->
+      let rem = availableWidth `max` Distance.relativePixels d availableWidth env.pixelsPerInch
       in Just (impl env allowBreak ambientPrec rem { path = cur.path `snoc` Arg, term = e })
     Lit (Builtin "source") ->
       Just (impl env allowBreak ambientPrec availableWidth { path = cur.path `snoc` Arg, term = e })
     App (Lit (Builtin "text")) (Lit (Style style)) -> case e of
       Lit (Str s) -> Just (L.embed t (Text.leftAligned (Text.style style (Text.toText s))))
-    App (App (App (Lit (Builtin "textbox")) (Lit (Builtin alignment))) (Lit (Dist d))) (Lit (Style style)) -> case e of
+    App (App (App (Lit (Builtin "textbox")) (Lit (Builtin alignment))) (Lit (Term.Relative d))) (Lit (Style style)) -> case e of
       Lit (Str s) ->
         let f = case alignment of
                   "Text.left"    -> Text.leftAligned
@@ -288,7 +292,7 @@ builtins env allowBreak availableWidth ambientPrec cur =
                   "Text.center"  -> Text.centered
                   "Text.justify" -> Text.justified
             e = f (Text.style style (Text.toText s))
-            rem = availableWidth `max` Distance.toPixels d availableWidth env.pixelsPerInch
+            rem = availableWidth `max` Distance.relativePixels d availableWidth env.pixelsPerInch
             e' = if E.widthOf e > rem then E.width rem e else e
         in Just (L.embed t e')
       _ -> Nothing
@@ -299,6 +303,10 @@ builtins env allowBreak availableWidth ambientPrec cur =
         in Just (L.horizontal (tag (cur.path `snoc` Arg)) (indexedMap f (Array.toList es)))
     Lit (Builtin "horizontal") -> case e of
       Lit (Vector es) -> todo -- more complicated, as we need to do sequencing
+      _ -> Nothing
+    Lit (Builtin "wrap") -> case e of
+      Lit (Vector es) -> todo -- more complicated, as we need to do sequencing
+      _ -> Nothing
   in case cur.term of
     App (App (Lit (Builtin "panel")) v) e -> go v e
     App (App (Lit (Builtin "cell")) v) e -> go v e
