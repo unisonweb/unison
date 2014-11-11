@@ -244,7 +244,12 @@ break rootMd md path expr =
 -- denotes a function a -> Layout
 {-
 
+panel (f p q r) x evaluates x, and any arguments to `f` (p, q, r)
+
 hide : View a
+spacer : Relative -> Absolute -> View ()
+color : Color -> View a -> View a
+rgb : Int -> Int -> Int -> Color
 source : View a
 text : Style -> View String
 textboxt : Alignment -> Distance -> Style -> View String
@@ -255,6 +260,7 @@ wrap : View [Panel]
 vertical : View [Panel]
 max-width : Distance -> View a -> View a
 container : Distance -> Distance -> (Distance,Distance) -> View a ->
+
 -- set amount of padding size of top,right,bottom,left
 pad : Distance -> Distance -> Distance -> Distance -> View a -> View a
 view : View Panel
