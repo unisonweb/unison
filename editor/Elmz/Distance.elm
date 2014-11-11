@@ -1,4 +1,4 @@
-module Elmz.Distance (Absolute, centimeters, Relative, relativePixels) where
+module Elmz.Distance (Absolute, absolutePixels, centimeters, Relative, relativePixels) where
 
 data D d
   = Quantum
@@ -41,3 +41,19 @@ relativePixels d availablePixels pixelsPerInch =
       cm = centimeters d pixelCm widthInCm
   in ceiling (cm / pixelCm)
 
+absoluteCentimeters : Absolute -> Float -> Float
+absoluteCentimeters (Absolute d) quantum = case d of
+  Quantum       -> quantum
+  Centimeters d -> d
+  Scale k d     -> k * absoluteCentimeters d quantum
+  Ceiling d     -> toFloat (ceiling (absoluteCentimeters d quantum  / quantum)) * quantum
+  Floor d       -> toFloat (floor (absoluteCentimeters d quantum  / quantum)) * quantum
+  Max d1 d2     -> absoluteCentimeters d1 quantum  `max` absoluteCentimeters d2 quantum
+  Min d1 d2     -> absoluteCentimeters d1 quantum  `min` absoluteCentimeters d2 quantum
+
+{-| Convert a relative `Distance` to a number of pixels (rounding up if inexact),
+    given a number of pixels per inch. -}
+absolutePixels : Absolute -> Int -> Int
+absolutePixels d pixelsPerInch =
+  let pixelsPerCm = toFloat pixelsPerInch / 2.54
+  in ceiling (absoluteCentimeters d (1.0 / pixelsPerCm))
