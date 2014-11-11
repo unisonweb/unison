@@ -244,22 +244,24 @@ break rootMd md path expr =
 -- denotes a function a -> Layout
 {-
 
-source : Distance -> View a
+hide : View a
+source : View a
 text : Style -> View String
-textboxt-left : Distance -> Style -> View String
-textboxt-right : Distance -> Style -> View String
+textboxt : Alignment -> Distance -> Style -> View String
 reactive : View a -> View a
 fn : (Cell -> Cell) -> View (a -> b)
 horizontal : View [Panel]
 vertical : View [Panel]
+max-width : Distance -> View a -> View a
+container : Distance -> Distance -> (Distance,Distance)
 view : View Panel
 panel : View a -> a -> Panel
 cell : View a -> a -> a
-left, right, centered, justified : Alignment
+Text.{left, right, center, justify} : Alignment
 
-panel (vertical view) [
-  panel (source all) "hello",
-  panel (source all) (1 + 23)
+panel vertical [
+  panel source "hello",
+  panel source (1 + 23)
 ]
 panel view (panel blah x)
 -}
@@ -271,9 +273,11 @@ builtins : Env -> Bool -> Int -> Int -> { term : Term, path : Path } -> Maybe (L
 builtins env allowBreak availableWidth ambientPrec cur =
   let go v e = let t = tag (cur.path `snoc` Arg) in case v of
     Lit (Builtin "view") -> builtins env allowBreak availableWidth ambientPrec { path = cur.path `snoc` Arg, term = e }
-    App (Lit (Builtin "source")) (Lit (Dist d)) ->
+    App (Lit (Builtin "max-width")) (Lit (Dist d)) ->
       let rem = availableWidth `max` Distance.toPixels d availableWidth env.pixelsPerInch
       in Just (impl env allowBreak ambientPrec rem { path = cur.path `snoc` Arg, term = e })
+    Lit (Builtin "source") ->
+      Just (impl env allowBreak ambientPrec availableWidth { path = cur.path `snoc` Arg, term = e })
     App (Lit (Builtin "text")) (Lit (Style style)) -> case e of
       Lit (Str s) -> Just (L.embed t (Text.leftAligned (Text.style style (Text.toText s))))
     App (App (App (Lit (Builtin "textbox")) (Lit (Builtin alignment))) (Lit (Dist d))) (Lit (Style style)) -> case e of
