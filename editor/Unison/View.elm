@@ -283,11 +283,13 @@ builtins env allowBreak availableWidth ambientPrec cur =
   let
     t = tag (cur.path `snoc` Arg)
     go v e = case v of
-      Lit (Builtin "hide") -> Just (L.empty t)
-      Lit (Builtin "view") -> builtins env allowBreak availableWidth ambientPrec { path = cur.path `snoc` Arg, term = e }
       App (Lit (Builtin "fit-width")) (Lit (Term.Relative d)) ->
         let rem = availableWidth `min` Distance.relativePixels d availableWidth env.pixelsPerInch
         in Just (impl env allowBreak ambientPrec rem { path = cur.path `snoc` Arg, term = e })
+      Lit (Builtin "hide") -> Just (L.empty t)
+      Lit (Builtin "horizontal") -> case e of
+        Lit (Vector es) -> todo -- more complicated, as we need to do sequencing
+        _ -> Nothing
       Lit (Builtin "source") ->
         Just (impl env allowBreak ambientPrec availableWidth { path = cur.path `snoc` Arg, term = e })
       App (Lit (Builtin "text")) (Lit (Style style)) -> case e of
@@ -313,9 +315,7 @@ builtins env allowBreak availableWidth ambientPrec cur =
           let f i e = impl env allowBreak ambientPrec availableWidth
                         { path = cur.path `append` [Arg, Path.Index i], term = e }
           in Just (L.horizontal (tag (cur.path `snoc` Arg)) (indexedMap f (Array.toList es)))
-      Lit (Builtin "horizontal") -> case e of
-        Lit (Vector es) -> todo -- more complicated, as we need to do sequencing
-        _ -> Nothing
+      Lit (Builtin "view") -> builtins env allowBreak availableWidth ambientPrec { path = cur.path `snoc` Arg, term = e }
       Lit (Builtin "wrap") -> case e of
         Lit (Vector es) -> todo -- more complicated, as we need to do sequencing
         _ -> Nothing
