@@ -246,7 +246,8 @@ break rootMd md path expr =
 
 source : Distance -> View a
 text : Style -> View String
-textbox : Distance -> Style -> View String
+textboxt-left : Distance -> Style -> View String
+textboxt-right : Distance -> Style -> View String
 reactive : View a -> View a
 fn : (Cell -> Cell) -> View (a -> b)
 horizontal : View [Panel]
@@ -254,6 +255,7 @@ vertical : View [Panel]
 view : View Panel
 panel : View a -> a -> Panel
 cell : View a -> a -> a
+left, right, centered, justified : Alignment
 
 panel (vertical view) [
   panel (source all) "hello",
@@ -266,15 +268,25 @@ panel view (panel blah x)
 -- Flow a = Int -> Layout a
 
 builtins : Env -> Bool -> Int -> Int -> { term : Term, path : Path } -> Maybe (Layout L)
-builtins env allowBreak availableWidth ambientPrec cur = case cur.term of
-  App (App (Lit (Builtin "panel")) v) e -> case v of
+builtins env allowBreak availableWidth ambientPrec cur =
+  let go v e = let t = tag (cur.path `snoc` Arg) in case v of
     Lit (Builtin "view") -> builtins env allowBreak availableWidth ambientPrec { path = cur.path `snoc` Arg, term = e }
     App (Lit (Builtin "source")) (Lit (Dist d)) ->
       let rem = availableWidth `max` Distance.toPixels d availableWidth env.pixelsPerInch
       in Just (impl env allowBreak ambientPrec rem { path = cur.path `snoc` Arg, term = e })
     App (Lit (Builtin "text")) (Lit (Style style)) -> case e of
-      Lit (Str s) -> let t = tag (cur.path `snoc` Arg)
-                     in Just (L.embed t (Text.leftAligned (Text.style style (Text.toText s))))
+      Lit (Str s) -> Just (L.embed t (Text.leftAligned (Text.style style (Text.toText s))))
+    App (App (App (Lit (Builtin "textbox")) (Lit (Builtin alignment))) (Lit (Dist d))) (Lit (Style style)) -> case e of
+      Lit (Str s) ->
+        let f = case alignment of
+                  "Text.left"    -> Text.leftAligned
+                  "Text.right"   -> Text.rightAligned
+                  "Text.center"  -> Text.centered
+                  "Text.justify" -> Text.justified
+            e = f (Text.style style (Text.toText s))
+            rem = availableWidth `max` Distance.toPixels d availableWidth env.pixelsPerInch
+            e' = if E.widthOf e > rem then E.width rem e else e
+        in Just (L.embed t e')
       _ -> Nothing
     Lit (Builtin "vertical") -> case e of
       Lit (Vector es) ->
@@ -283,4 +295,7 @@ builtins env allowBreak availableWidth ambientPrec cur = case cur.term of
         in Just (L.horizontal (tag (cur.path `snoc` Arg)) (indexedMap f (Array.toList es)))
     Lit (Builtin "horizontal") -> case e of
       Lit (Vector es) -> todo -- more complicated, as we need to do sequencing
-  _ -> Nothing
+  in case cur.term of
+    App (App (Lit (Builtin "panel")) v) e -> go v e
+    App (App (Lit (Builtin "cell")) v) e -> go v e
+    _ -> Nothing
