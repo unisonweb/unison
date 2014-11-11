@@ -249,8 +249,8 @@ text : Style -> View String
 textbox : Distance -> Style -> View String
 reactive : View a -> View a
 fn : (Cell -> Cell) -> View (a -> b)
-horizontal : View a -> View [a]
-vertical : View a -> View [a]
+horizontal : View [Panel]
+vertical : View [Panel]
 view : View Panel
 panel : View a -> a -> Panel
 cell : View a -> a -> a
@@ -263,10 +263,12 @@ panel view (panel blah x)
 -}
 
 -- eventually, this should return a list of paths needing evaluation
+-- Flow a = Int -> Layout a
 
 builtins : Env -> Bool -> Int -> Int -> { term : Term, path : Path } -> Maybe (Layout L)
 builtins env allowBreak availableWidth ambientPrec cur = case cur.term of
   App (App (Lit (Builtin "panel")) v) e -> case v of
+    Lit (Builtin "view") -> builtins env allowBreak availableWidth ambientPrec { path = cur.path `snoc` Arg, term = e }
     App (Lit (Builtin "source")) (Lit (Dist d)) ->
       let rem = availableWidth `max` Distance.toPixels d availableWidth env.pixelsPerInch
       in Just (impl env allowBreak ambientPrec rem { path = cur.path `snoc` Arg, term = e })
@@ -274,5 +276,11 @@ builtins env allowBreak availableWidth ambientPrec cur = case cur.term of
       Lit (Str s) -> let t = tag (cur.path `snoc` Arg)
                      in Just (L.embed t (Text.leftAligned (Text.style style (Text.toText s))))
       _ -> Nothing
-    Lit (Builtin "view") -> builtins env allowBreak availableWidth ambientPrec { path = cur.path `snoc` Arg, term = e }
+    Lit (Builtin "vertical") -> case e of
+      Lit (Vector es) ->
+        let f i e = impl env allowBreak ambientPrec availableWidth
+                      { path = cur.path `append` [Arg, Path.Index i], term = e }
+        in Just (L.horizontal (tag (cur.path `snoc` Arg)) (indexedMap f (Array.toList es)))
+    Lit (Builtin "horizontal") -> case e of
+      Lit (Vector es) -> todo -- more complicated, as we need to do sequencing
   _ -> Nothing
