@@ -29,7 +29,8 @@ import Unison.Var as V
 type Path = Path.Path -- to avoid conflict with Graphics.Collage.Path
 
 data Literal
-  = Number Float
+  = Blank
+  | Number Float
   | Str String
   | Relative Distance.Relative
   | Absolute Distance.Absolute
@@ -109,12 +110,14 @@ parseLiteral = P.union' <| \t ->
      | t == "String" -> P.map Str P.string
      | t == "Builtin" -> P.map Builtin P.string
      | t == "Vector" -> P.map (Vector << Array.fromList) (P.array parseTerm)
+     | t == "Blank" -> P.unit Blank
 
 jsonifyLiteral l = case l of
   Number n -> J.tag' "Number" J.number n
   Str s -> J.tag' "String" J.string s
   Vector es -> J.tag' "Vector" (J.contramap Array.toList (J.array jsonifyTerm)) es
   Builtin s -> J.tag' "Builtin" J.string s
+  Blank -> J.tag' "Blank" J.product0 ()
 
 parseTerm : Parser Term
 parseTerm = P.union' <| \t ->

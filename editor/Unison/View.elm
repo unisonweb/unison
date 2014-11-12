@@ -134,6 +134,7 @@ impl env allowBreak ambientPrec availableWidth cur =
       Ref h -> codeText (Metadata.firstName h (env.metadata h)) |> L.embed (tag cur.path)
       Con h -> codeText (Metadata.firstName h (env.metadata h)) |> L.embed (tag cur.path)
       Lit (Builtin s) -> Styles.codeText s |> L.embed (tag cur.path)
+      Lit Blank -> Styles.blank |> L.embed (tag cur.path)
       Lit (Number n) -> Styles.numericLiteral (String.show n) |> L.embed (tag cur.path)
       Lit (Str s) -> Styles.stringLiteral ("\"" ++ s ++ "\"") |> L.embed (tag cur.path)
       _ -> case builtins env allowBreak ambientPrec availableWidth cur of
@@ -295,6 +296,7 @@ builtins env allowBreak availableWidth ambientPrec cur =
       App (Lit (Builtin "View.fit-width")) (Lit (Term.Relative d)) ->
         let rem = availableWidth `min` Distance.relativePixels d availableWidth env.pixelsPerInch
         in Just (impl env allowBreak ambientPrec rem { path = cur.path `snoc` Arg, term = e })
+      App (Lit (Builtin "View.fn1")) (Lam n f) -> todo
       Lit (Builtin "View.hide") -> Just (L.empty t)
       Lit (Builtin "View.horizontal") -> case e of
         Lit (Vector es) -> todo -- more complicated, as we need to do sequencing
@@ -306,7 +308,7 @@ builtins env allowBreak availableWidth ambientPrec cur =
         _ -> Nothing
       Lit (Builtin "View.source") ->
         Just (impl env allowBreak ambientPrec availableWidth { path = cur.path `snoc` Arg, term = e })
-      App (App (Lit (Builtin "spacer")) (Lit (Term.Relative w))) (Lit (Term.Absolute h)) ->
+      App (App (Lit (Builtin "View.spacer")) (Lit (Term.Relative w))) (Lit (Term.Absolute h)) ->
         let w' = availableWidth `min` Distance.relativePixels w availableWidth env.pixelsPerInch
             h' = Distance.absolutePixels h env.pixelsPerInch
         in Just (L.embed t (E.spacer w' h'))
