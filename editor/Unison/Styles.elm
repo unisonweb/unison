@@ -70,7 +70,7 @@ contain e =
   container (E.widthOf e) (E.heightOf e) E.middle e
 
 blank : Element
-blank = outline silver 1 (E.spacer 19 19 |> color bg)
+blank = codeText "_"
 
 bg = white
 
