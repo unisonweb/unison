@@ -287,32 +287,32 @@ builtins env allowBreak availableWidth ambientPrec cur =
   let
     t = tag (cur.path `snoc` Arg)
     go v e = case v of
-      App (Lit (Builtin "color")) c -> case c of
+      App (Lit (Builtin "View.color")) c -> case c of
         App (App (App (App (Lit (Builtin "Color.rgba")) (Lit (Number r))) (Lit (Number g))) (Lit (Number b))) (Lit (Number a)) ->
           let c' = rgba (floor r) (floor g) (floor b) a
           in Just (L.fill c' (impl env allowBreak ambientPrec availableWidth { path = cur.path `snoc` Arg, term = e }))
         _ -> Nothing
-      App (Lit (Builtin "fit-width")) (Lit (Term.Relative d)) ->
+      App (Lit (Builtin "View.fit-width")) (Lit (Term.Relative d)) ->
         let rem = availableWidth `min` Distance.relativePixels d availableWidth env.pixelsPerInch
         in Just (impl env allowBreak ambientPrec rem { path = cur.path `snoc` Arg, term = e })
-      Lit (Builtin "hide") -> Just (L.empty t)
-      Lit (Builtin "horizontal") -> case e of
+      Lit (Builtin "View.hide") -> Just (L.empty t)
+      Lit (Builtin "View.horizontal") -> case e of
         Lit (Vector es) -> todo -- more complicated, as we need to do sequencing
         _ -> Nothing
-      Lit (Builtin "swatch") -> case e of
+      Lit (Builtin "View.swatch") -> case e of
         App (App (App (App (Lit (Builtin "Color.rgba")) (Lit (Number r))) (Lit (Number g))) (Lit (Number b))) (Lit (Number a)) ->
           let c = rgba (floor r) (floor g) (floor b) a
           in Just (L.embed t (Styles.swatch c))
         _ -> Nothing
-      Lit (Builtin "source") ->
+      Lit (Builtin "View.source") ->
         Just (impl env allowBreak ambientPrec availableWidth { path = cur.path `snoc` Arg, term = e })
       App (App (Lit (Builtin "spacer")) (Lit (Term.Relative w))) (Lit (Term.Absolute h)) ->
         let w' = availableWidth `min` Distance.relativePixels w availableWidth env.pixelsPerInch
             h' = Distance.absolutePixels h env.pixelsPerInch
         in Just (L.embed t (E.spacer w' h'))
-      App (Lit (Builtin "text")) (Lit (Style style)) -> case e of
+      App (Lit (Builtin "View.text")) (Lit (Style style)) -> case e of
         Lit (Str s) -> Just (L.embed t (Text.leftAligned (Text.style style (Text.toText s))))
-      App (App (App (Lit (Builtin "textbox")) (Lit (Builtin alignment))) (Lit (Term.Relative d))) (Lit (Style style)) -> case e of
+      App (App (App (Lit (Builtin "View.textbox")) (Lit (Builtin alignment))) (Lit (Term.Relative d))) (Lit (Style style)) -> case e of
         Lit (Str s) ->
           let f = case alignment of
                     "Text.left"    -> Text.leftAligned
@@ -324,16 +324,16 @@ builtins env allowBreak availableWidth ambientPrec cur =
               e' = if E.widthOf e > rem then E.width rem e else e
           in Just (L.embed t e')
         _ -> Nothing
-      Lit (Builtin "vertical") -> case e of
+      Lit (Builtin "View.vertical") -> case e of
         Lit (Vector es) ->
           let f i e = impl env allowBreak ambientPrec availableWidth
                         { path = cur.path `append` [Arg, Path.Index i], term = e }
           in Just (L.horizontal (tag (cur.path `snoc` Arg)) (indexedMap f (Array.toList es)))
-      Lit (Builtin "view") -> builtins env allowBreak availableWidth ambientPrec { path = cur.path `snoc` Arg, term = e }
-      Lit (Builtin "wrap") -> case e of
+      Lit (Builtin "View.id") -> builtins env allowBreak availableWidth ambientPrec { path = cur.path `snoc` Arg, term = e }
+      Lit (Builtin "View.wrap") -> case e of
         Lit (Vector es) -> todo -- more complicated, as we need to do sequencing
         _ -> Nothing
   in case cur.term of
-    App (App (Lit (Builtin "panel")) v) e -> go v e
-    App (App (Lit (Builtin "cell")) v) e -> go v e
+    App (App (Lit (Builtin "View.panel")) v) e -> go v e
+    App (App (Lit (Builtin "View.cell")) v) e -> go v e
     _ -> Nothing

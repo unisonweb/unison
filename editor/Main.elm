@@ -38,10 +38,10 @@ rgbTerm r g b =
   E.App (E.App (E.App (E.App (E.Lit (E.Builtin "Color.rgba")) (E.Lit (E.Number (toFloat r)))) (E.Lit (E.Number (toFloat g)))) (E.Lit (E.Number (toFloat b)))) (E.Lit (E.Number 1.0))
 
 ap = E.App
-expr1 = E.App (E.App (E.Ref "foo") nums) (E.App (E.Ref "baz") (E.Lit (E.Builtin "cell") `ap` E.Lit (E.Builtin "swatch") `ap` rgbTerm 20 28 145))
+expr = E.App (E.App (E.Ref "foo") nums) (E.App (E.Ref "baz") (E.Lit (E.Builtin "View.cell") `ap` E.Lit (E.Builtin "View.swatch") `ap` rgbTerm 230 126 34))
 -- this bombs
 -- expr = E.Ref "uno" `ap` E.Ref "dos" `ap` E.Ref "tres" `ap` E.Ref "quatro" `ap` E.Ref "cinco" `ap` E.Ref "seis" `ap` E.Ref "siete" `ap` E.Ref "ocho"
-expr = E.App (E.App (E.Ref "foo") nums) (E.App (E.Ref "baz") (rgbTerm 20 28 145))
+expr1 = E.App (E.App (E.Ref "foo") nums) (E.App (E.Ref "baz") (rgbTerm 230 126 34))
 
 resolvedPath : Signal E.Term -> Signal (Maybe Path) -> Signal (Maybe Scope)
 resolvedPath e pathUnderPtr =
