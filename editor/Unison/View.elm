@@ -296,7 +296,6 @@ builtins env allowBreak availableWidth ambientPrec cur =
       App (Lit (Builtin "View.fit-width")) (Lit (Term.Relative d)) ->
         let rem = availableWidth `min` Distance.relativePixels d availableWidth env.pixelsPerInch
         in Just (impl env allowBreak ambientPrec rem { path = cur.path `snoc` Arg, term = e })
-      App (Lit (Builtin "View.fn1")) (Lam n f) -> todo
       Lit (Builtin "View.hide") -> Just (L.empty t)
       Lit (Builtin "View.horizontal") -> case e of
         Lit (Vector es) -> todo -- more complicated, as we need to do sequencing
@@ -338,4 +337,9 @@ builtins env allowBreak availableWidth ambientPrec cur =
   in case cur.term of
     App (App (Lit (Builtin "View.panel")) v) e -> go v e
     App (App (Lit (Builtin "View.cell")) v) e -> go v e
+    App (App (App (Lit (Builtin "View.cell")) (App (Lit (Builtin "View.function1")) (Lam arg body))) f) e ->
+      -- can't just substitute e into `f`, since the path will be wrong
+      -- want to make sure that `e` gets the path cur.path `snoc`
+      -- cell (View.fn1 fancy) incr 22
+      todo
     _ -> Nothing
