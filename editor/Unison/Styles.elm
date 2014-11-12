@@ -61,6 +61,14 @@ outline c thickness e =
               (E.topLeftAt (E.absolute thickness) (E.absolute thickness)) e
   |> E.color c
 
+swatch : Color -> Element
+swatch c =
+  outline asbestos 1 (E.color c (contain (codeText " ")))
+
+contain : Element -> Element
+contain e =
+  container (E.widthOf e) (E.heightOf e) E.middle e
+
 bg = white
 
 -- http://flatuicolors.com/

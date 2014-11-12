@@ -25,6 +25,9 @@ type Metadata = {
   annotation : H.Hash
 }
 
+anonymousSymbol : Symbol
+anonymousSymbol = Symbol "anonymousSymbol" Prefix 9
+
 anonymousTerm : Metadata
 anonymousTerm = Metadata Term [] M.empty Nothing "unknown"
 

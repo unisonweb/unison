@@ -133,6 +133,7 @@ impl env allowBreak ambientPrec availableWidth cur =
       Var n -> codeText (Metadata.resolveLocal env.rootMetadata cur.path n).name |> L.embed (tag cur.path)
       Ref h -> codeText (Metadata.firstName h (env.metadata h)) |> L.embed (tag cur.path)
       Con h -> codeText (Metadata.firstName h (env.metadata h)) |> L.embed (tag cur.path)
+      Lit (Builtin s) -> Styles.codeText s |> L.embed (tag cur.path)
       Lit (Number n) -> Styles.numericLiteral (String.show n) |> L.embed (tag cur.path)
       Lit (Str s) -> Styles.stringLiteral ("\"" ++ s ++ "\"") |> L.embed (tag cur.path)
       _ -> case builtins env allowBreak ambientPrec availableWidth cur of
@@ -228,6 +229,7 @@ break rootMd md path expr =
         Ref h -> Metadata.firstSymbol h (md h)
         Con h -> Metadata.firstSymbol h (md h)
         Var v -> Metadata.resolveLocal rootMd path v
+        _ -> Metadata.anonymousSymbol
       in case sym.fixity of
         Metadata.Prefix -> prefix (App (App op l) r) [] path -- not an operator chain, fall back
         Metadata.InfixL -> opsL op sym.precedence (App (App op l) r) [] path -- left associated operator chain
@@ -249,12 +251,14 @@ panel (f p q r) x evaluates x, and any arguments to `f` (p, q, r)
 hide : View a
 spacer : Relative -> Absolute -> View ()
 color : Color -> View Panel
+palette : View Color
 rgb : Int -> Int -> Int -> Color
 source : View a
 text : Style -> View String
 textboxt : Alignment -> Distance -> Style -> View String
 reactive : View a -> View a
 fn : (Panel -> Panel) -> View (a -> b)
+cell (fn f)
 horizontal : View [Panel]
 wrap : View [Panel]
 vertical : View [Panel]
@@ -284,7 +288,7 @@ builtins env allowBreak availableWidth ambientPrec cur =
     t = tag (cur.path `snoc` Arg)
     go v e = case v of
       App (Lit (Builtin "color")) c -> case c of
-        App (App (App (App (Lit (Builtin "rgba")) (Lit (Number r))) (Lit (Number g))) (Lit (Number b))) (Lit (Number a)) ->
+        App (App (App (App (Lit (Builtin "Color.rgba")) (Lit (Number r))) (Lit (Number g))) (Lit (Number b))) (Lit (Number a)) ->
           let c' = rgba (floor r) (floor g) (floor b) a
           in Just (L.fill c' (impl env allowBreak ambientPrec availableWidth { path = cur.path `snoc` Arg, term = e }))
         _ -> Nothing
@@ -294,6 +298,11 @@ builtins env allowBreak availableWidth ambientPrec cur =
       Lit (Builtin "hide") -> Just (L.empty t)
       Lit (Builtin "horizontal") -> case e of
         Lit (Vector es) -> todo -- more complicated, as we need to do sequencing
+        _ -> Nothing
+      Lit (Builtin "swatch") -> case e of
+        App (App (App (App (Lit (Builtin "Color.rgba")) (Lit (Number r))) (Lit (Number g))) (Lit (Number b))) (Lit (Number a)) ->
+          let c = rgba (floor r) (floor g) (floor b) a
+          in Just (L.embed t (Styles.swatch c))
         _ -> Nothing
       Lit (Builtin "source") ->
         Just (impl env allowBreak ambientPrec availableWidth { path = cur.path `snoc` Arg, term = e })
