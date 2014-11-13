@@ -15,6 +15,15 @@ body =
   , italic   = False
   , line     = Nothing }
 
+h1 : Style
+h1 =
+  { typeface = [ "Lato", "latin" ]
+  , height   = Just 72
+  , color    = black
+  , bold     = False
+  , italic   = False
+  , line     = Nothing }
+
 code : Style
 code =
   { typeface = [ "Inconsolata", "monospace", "latin" ]

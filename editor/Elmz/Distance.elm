@@ -1,4 +1,4 @@
-module Elmz.Distance (Absolute, absolutePixels, centimeters, Relative, relativePixels) where
+module Elmz.Distance (Absolute, absolutePixels, centimeters, full, half, Relative, relativePixels) where
 
 data D d
   = Quantum
@@ -16,6 +16,12 @@ data Relative = Fraction Float | Embed (D Relative)
 {-| A data type for absolute real world distances on a a quantized,
     finite segment of the real number line. -}
 data Absolute = Absolute (D Absolute)
+
+full : Relative
+full = Fraction 1.0
+
+half : Relative
+half = Fraction 0.5
 
 {-| A distance is denoted by a function that receives the quantum, and
     the maximum distance supported, and returns a distance in centimeters. -}

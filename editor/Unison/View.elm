@@ -135,8 +135,8 @@ impl env allowBreak ambientPrec availableWidth cur =
       Var n -> codeText (Metadata.resolveLocal env.rootMetadata cur.path n).name |> L.embed (tag cur.path)
       Ref h -> codeText (Metadata.firstName h (env.metadata h)) |> L.embed (tag cur.path)
       Con h -> codeText (Metadata.firstName h (env.metadata h)) |> L.embed (tag cur.path)
+      Blank -> Styles.blank |> L.embed (tag cur.path)
       Lit (Builtin s) -> Styles.codeText s |> L.embed (tag cur.path)
-      Lit Blank -> Styles.blank |> L.embed (tag cur.path)
       Lit (Number n) -> Styles.numericLiteral (String.show n) |> L.embed (tag cur.path)
       Lit (Str s) -> Styles.stringLiteral ("\"" ++ s ++ "\"") |> L.embed (tag cur.path)
       _ -> case builtins env allowBreak ambientPrec availableWidth cur of
