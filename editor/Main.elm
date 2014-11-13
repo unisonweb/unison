@@ -38,7 +38,8 @@ rgbTerm r g b =
   E.App (E.App (E.App (E.App (E.Lit (E.Builtin "Color.rgba")) (E.Lit (E.Number (toFloat r)))) (E.Lit (E.Number (toFloat g)))) (E.Lit (E.Number (toFloat b)))) (E.Lit (E.Number 1.0))
 
 ap = E.App
-expr1 = E.App (E.App (E.Ref "foo") nums) (E.App (E.Ref "baz") (E.Lit (E.Builtin "View.cell") `ap` E.Lit (E.Builtin "View.swatch") `ap` rgbTerm 230 126 34))
+expr = E.App (E.App (E.Ref "foo") nums) (E.App (E.Ref "baz") (E.Lit (E.Builtin "View.cell") `ap` E.Lit (E.Builtin "View.swatch") `ap` rgbTerm 230 126 34))
+-- expr = E.App (E.App (E.Ref "foo") nums) (E.App (E.Ref "baz") (rgbTerm 230 126 34))
 -- this bombs
 -- expr = E.Ref "uno" `ap` E.Ref "dos" `ap` E.Ref "tres" `ap` E.Ref "quatro" `ap` E.Ref "cinco" `ap` E.Ref "seis" `ap` E.Ref "siete" `ap` E.Ref "ocho"
 -- expr = E.App (E.App (E.Ref "foo") nums) (E.App (E.Lit E.Blank) (rgbTerm 230 126 34))
@@ -55,7 +56,7 @@ h1 s = cell (text S.h1) (E.Lit (E.Str s))
 body s = cell (text S.body) (E.Lit (E.Str s))
 full = E.Lit (E.Relative (Distance.full))
 
-expr = cell (function1 (E.Lam 0 (verticalPanel [h1 "Answer to The Ultimate Question of Life, the Universe, and Everything...", body "", E.Var 0])))
+expr1 = cell (function1 (E.Lam 0 (verticalPanel [h1 "The Answer to The Ultimate Question of Life, the Universe, and Everything...", body "", E.Var 0])))
             (E.Ref "answer") `ap`
             (E.Lit (E.Number 42.0))
 
@@ -132,7 +133,8 @@ main =
       scene l selection scope =
         Element.flow down [
           Element.layers [L.element l, selection],
-          S.codeText ("Path: " ++ show scope)
+          Element.spacer 1 100,
+          S.codeText ("Path: " ++ show (Maybe.map .focus scope))
         ]
 
   in scene <~ rendered ~ highlightLayer ~ scope

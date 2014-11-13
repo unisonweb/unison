@@ -18,7 +18,7 @@ body =
 h1 : Style
 h1 =
   { typeface = [ "Lato", "latin" ]
-  , height   = Just 72
+  , height   = Just 60
   , color    = black
   , bold     = False
   , italic   = False
@@ -72,7 +72,7 @@ outline c thickness e =
 
 swatch : Color -> Element
 swatch c =
-  outline black 1 (E.color c (contain (codeText "  ")))
+  flow down [spacer 1 2, outline black 1 (E.color c (spacer 12 12))]
 
 contain : Element -> Element
 contain e =
