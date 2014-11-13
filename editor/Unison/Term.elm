@@ -47,6 +47,58 @@ data Term
   | Ann Term T.Type
   | Lam I Term
 
+data ClosedTerm = ClosedTerm Term
+
+close : Term -> Maybe ClosedTerm
+close e = if unbound e == Set.empty then Just (ClosedTerm e) else Nothing
+
+rename : I -> I -> Term -> Term
+rename from to e = case e of
+  Var i -> if i == from then Var to else e
+  Lit l -> case l of
+    Vector es -> Lit (Vector (Array.map (rename from to) es))
+    _ -> e
+  App f arg -> App (rename from to f) (rename from to arg)
+  Ann e t -> Ann (rename from to e) t
+  Lam n inner -> Lam n (rename from to inner)
+  _ -> e
+
+substitute : Term -> I -> Term -> Term
+substitute body v x = case body of
+  Var i -> if i == v then x else body
+  Lit l -> case l of
+    Vector es -> Lit (Vector (Array.map (\body -> substitute body v x) es))
+    _ -> body
+  App f arg -> App (substitute f v x) (substitute arg v x)
+  Ann e t -> Ann (substitute e v x) t
+  Lam n inner -> if n == v then Lam n inner
+                 else let inner' = substitute inner v x
+                          n' = fresh x `max` n
+                      in (Lam n' (rename n n' (substitute inner v x)))
+  _ -> body
+
+fresh : Term -> I
+fresh e = case e of
+  Lam n _ -> V.succ n
+  Lit l -> case l of
+    Vector es -> Array.map fresh es |> Array.foldl max V.z
+    _ -> V.z
+  App f arg -> max (fresh f) (fresh arg)
+  Ann e _ -> fresh e
+  _ -> V.z
+
+{-| Returns the set of free variables in the given `Term`. -}
+unbound : Term -> Set I
+unbound e = case e of
+  Var i -> Set.singleton i
+  Lit l -> case l of
+    Vector es -> Array.map unbound es |> Array.foldl Set.union Set.empty
+    _ -> Set.empty
+  App f arg -> Set.union (unbound f) (unbound arg)
+  Ann e _ -> unbound e
+  Lam n body -> Set.remove n (unbound body)
+  _ -> Set.empty
+
 {-| Returns the subterm at the given path, if the path is valid. -}
 at : Path -> Term -> Maybe Term
 at p e = case (p,e) of

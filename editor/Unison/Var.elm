@@ -8,6 +8,9 @@ type I = Int
 z : I
 z = 0
 
+succ : I -> I
+succ i = i + 1
+
 parse : P.Parser I
 parse = P.int
 
