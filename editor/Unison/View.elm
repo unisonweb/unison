@@ -7,6 +7,7 @@ import Elmz.Layout as L
 import Elmz.Pattern (Pattern)
 import Elmz.Pattern as Pattern
 import Graphics.Element as E
+import Maybe
 import Unison.Hash (Hash)
 import Unison.Metadata (Metadata, Fixity)
 import Unison.Metadata as Metadata
@@ -130,6 +131,7 @@ impl env allowBreak ambientPrec availableWidth cur =
   case env.overrides cur.path of
     Just l -> l
     Nothing -> case cur.term of
+      Embed l -> l
       Var n -> codeText (Metadata.resolveLocal env.rootMetadata cur.path n).name |> L.embed (tag cur.path)
       Ref h -> codeText (Metadata.firstName h (env.metadata h)) |> L.embed (tag cur.path)
       Con h -> codeText (Metadata.firstName h (env.metadata h)) |> L.embed (tag cur.path)
@@ -236,10 +238,10 @@ break rootMd md path expr =
         Metadata.InfixL -> opsL op sym.precedence (App (App op l) r) [] path -- left associated operator chain
         Metadata.InfixR -> opsR op sym.precedence (App (App op l) r) path
     Lam v body -> case body of -- audit this
-      Lam _ _ -> case break rootMd md (path `snoc` Body) body of
-        Lambda args body2 -> Lambda ({ path = path `snoc` Body, term = body } :: args) body2
-        _ -> Lambda [{path = path, term = expr }] { path = path `snoc` Body, term = body }
-      _ -> Lambda [{path = path, term = expr }] { path = path `snoc` Body, term = body }
+      Lam _ _ -> let trim p = { p | path <- path } in case break rootMd md (path `snoc` Body) body of
+        Lambda args body2 -> Lambda ({ path = path, term = Var v } :: args) body2
+        _ -> Lambda [{path = path, term = Var v }] { path = path `snoc` Body, term = body }
+      _ -> Lambda [{path = path, term = Var v }] { path = path `snoc` Body, term = body }
     _ -> prefix expr [] path
 
 
@@ -329,17 +331,21 @@ builtins env allowBreak availableWidth ambientPrec cur =
         Lit (Vector es) ->
           let f i e = impl env allowBreak ambientPrec availableWidth
                         { path = cur.path `append` [Arg, Path.Index i], term = e }
-          in Just (L.horizontal (tag (cur.path `snoc` Arg)) (indexedMap f (Array.toList es)))
+          in Just (L.vertical (tag (cur.path `snoc` Arg)) (indexedMap f (Array.toList es)))
       Lit (Builtin "View.id") -> builtins env allowBreak availableWidth ambientPrec { path = cur.path `snoc` Arg, term = e }
       Lit (Builtin "View.wrap") -> case e of
         Lit (Vector es) -> todo -- more complicated, as we need to do sequencing
         _ -> Nothing
+      _ -> Nothing
   in case cur.term of
+    App (App (App (Lit (Builtin "View.cell")) (App (Lit (Builtin "View.function1")) (Lam arg body))) f) e ->
+      -- all paths will point to `f` aside from `e`
+      let eview = close (Embed (impl env allowBreak 0 availableWidth { path = cur.path `snoc` Arg, term = e }))
+          fpath = cur.path `append` [Fn,Arg]
+          trim l = if Path.startsWith fpath l.path then { l | path <- cur.path } else l
+          g view = impl env allowBreak ambientPrec availableWidth { path = fpath, term = substitute body arg view }
+                |> L.map trim
+      in Maybe.map g eview
     App (App (Lit (Builtin "View.panel")) v) e -> go v e
     App (App (Lit (Builtin "View.cell")) v) e -> go v e
-    App (App (App (Lit (Builtin "View.cell")) (App (Lit (Builtin "View.function1")) (Lam arg body))) f) e ->
-      -- can't just substitute e into `f`, since the path will be wrong
-      -- want to make sure that `e` gets the path cur.path `snoc`
-      -- cell (View.fn1 fancy) incr 22
-      todo
     _ -> Nothing

@@ -6,6 +6,7 @@ import Dict
 import Dict (Dict)
 import Elmz.Distance as Distance
 import Elmz.Maybe as EM
+import Elmz.Layout (Layout)
 import Json
 import Maybe (isJust, maybe)
 import Set
@@ -46,11 +47,15 @@ data Term
   | App Term Term
   | Ann Term T.Type
   | Lam I Term
+  | Embed (Layout { path : Path, selectable : Bool })
 
 data ClosedTerm = ClosedTerm Term
 
 close : Term -> Maybe ClosedTerm
 close e = if unbound e == Set.empty then Just (ClosedTerm e) else Nothing
+
+unclose : ClosedTerm -> Term
+unclose (ClosedTerm e) = e
 
 rename : I -> I -> Term -> Term
 rename from to e = case e of
@@ -63,19 +68,23 @@ rename from to e = case e of
   Lam n inner -> Lam n (rename from to inner)
   _ -> e
 
-substitute : Term -> I -> Term -> Term
-substitute body v x = case body of
-  Var i -> if i == v then x else body
-  Lit l -> case l of
-    Vector es -> Lit (Vector (Array.map (\body -> substitute body v x) es))
-    _ -> body
-  App f arg -> App (substitute f v x) (substitute arg v x)
-  Ann e t -> Ann (substitute e v x) t
-  Lam n inner -> if n == v then Lam n inner
-                 else let inner' = substitute inner v x
-                          n' = fresh x `max` n
-                      in (Lam n' (rename n n' (substitute inner v x)))
-  _ -> body
+substitute : Term -> I -> ClosedTerm -> Term
+substitute body v x =
+  let freshx = fresh (unclose x)
+      go body = case body of
+        Var i -> if i == v then unclose x else body
+        Lit l -> case l of
+          Vector es -> Lit (Vector (Array.map (\body -> substitute body v x) es))
+          _ -> body
+        App f arg -> App (substitute f v x) (substitute arg v x)
+        Ann e t -> Ann (substitute e v x) t
+        Lam n inner -> if n == v then Lam n inner
+                       else let inner' = substitute inner v x
+                                n' = freshx `max` n
+                            in if n' >= n then (Lam n' (rename n n' (substitute inner v x)))
+                               else Lam n (substitute inner v x)
+        _ -> body
+  in go body
 
 fresh : Term -> I
 fresh e = case e of
@@ -190,4 +199,5 @@ jsonifyTerm e = case e of
   App f x -> J.tag' "App" (J.array jsonifyTerm) [f, x]
   Ann e t -> J.tag' "Ann" (J.tuple2 jsonifyTerm T.jsonifyType) (e, t)
   Lam n body -> J.tag' "Lam" (J.tuple2 V.jsonify jsonifyTerm) (n, body)
+  Embed e -> J.tag' "Embed" J.product0 ()
 

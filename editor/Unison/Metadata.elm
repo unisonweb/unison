@@ -45,7 +45,7 @@ firstName ifEmpty md =
 resolveLocal : Metadata -> Path -> I -> Symbol
 resolveLocal md p v =
   let ns = localNames md p v
-  in if isEmpty ns then { name = show v, fixity = Prefix, precedence = 9 }
+  in if isEmpty ns then { name = "v"++show v, fixity = Prefix, precedence = 9 }
      else head ns
 
 localNames : Metadata -> Path -> I -> Names

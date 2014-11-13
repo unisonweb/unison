@@ -63,7 +63,7 @@ outline c thickness e =
 
 swatch : Color -> Element
 swatch c =
-  outline black 1 (E.color c (contain (codeText " ")))
+  outline black 1 (E.color c (contain (codeText "  ")))
 
 contain : Element -> Element
 contain e =

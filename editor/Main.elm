@@ -41,7 +41,20 @@ ap = E.App
 expr1 = E.App (E.App (E.Ref "foo") nums) (E.App (E.Ref "baz") (E.Lit (E.Builtin "View.cell") `ap` E.Lit (E.Builtin "View.swatch") `ap` rgbTerm 230 126 34))
 -- this bombs
 -- expr = E.Ref "uno" `ap` E.Ref "dos" `ap` E.Ref "tres" `ap` E.Ref "quatro" `ap` E.Ref "cinco" `ap` E.Ref "seis" `ap` E.Ref "siete" `ap` E.Ref "ocho"
-expr = E.App (E.App (E.Ref "foo") nums) (E.App (E.Lit E.Blank) (rgbTerm 230 126 34))
+-- expr = E.App (E.App (E.Ref "foo") nums) (E.App (E.Lit E.Blank) (rgbTerm 230 126 34))
+
+cell f x = E.Lit (E.Builtin "View.cell") `ap` f `ap` x
+panel v e = E.Lit (E.Builtin "View.panel") `ap` v `ap` e
+function1 f = E.Lit (E.Builtin "View.function1") `ap` f
+source e = E.Lit (E.Builtin "View.source") `ap` e
+verticalPanel es = panel (E.Lit (E.Builtin "View.vertical")) (E.Lit (E.Vector (Array.fromList es)))
+string s = E.Lit (E.Str s)
+
+expr = cell (function1 (E.Lam 0 (verticalPanel [string "What is the answer to life, the universe, and everything?", E.Var 0])))
+            (E.Ref "answer") `ap`
+            (E.Lit (E.Number 42.0))
+
+expr3 = (E.Lam 1 (E.Lam 0 expr1))
 
 resolvedPath : Signal E.Term -> Signal (Maybe Path) -> Signal (Maybe Scope)
 resolvedPath e pathUnderPtr =
@@ -110,9 +123,14 @@ main =
           Just region -> S.selection layout region
         in lift2 f rendered highlight
 
-      scene : L.Layout x -> Element -> Element
-      scene l selection = Element.layers [L.element l, selection]
-  in scene <~ rendered ~ highlightLayer
+      scene : L.Layout x -> Element -> Maybe Scope -> Element
+      scene l selection scope =
+        Element.flow down [
+          Element.layers [L.element l, selection],
+          S.codeText ("Path: " ++ show scope)
+        ]
+
+  in scene <~ rendered ~ highlightLayer ~ scope
 
 -- make sole UI state a Term
 -- certain terms are "special"
