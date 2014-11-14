@@ -31,36 +31,34 @@ type Path = Path.Path -- to avoid conflict with Graphics.Collage.Path
 
 nums : E.Term
 nums = let f x = E.Lit (E.Number (toFloat x))
-       in E.Lit (E.Vector (Array.fromList (map f [0..15])))
+       in E.Lit (E.Vector (Array.fromList (map f [0..20])))
 
 rgbTerm : Int -> Int -> Int -> E.Term
 rgbTerm r g b =
-  E.App (E.App (E.App (E.App (E.Lit (E.Builtin "Color.rgba")) (E.Lit (E.Number (toFloat r)))) (E.Lit (E.Number (toFloat g)))) (E.Lit (E.Number (toFloat b)))) (E.Lit (E.Number 1.0))
+  E.App (E.App (E.App (E.App (E.Builtin "Color.rgba") (E.Lit (E.Number (toFloat r)))) (E.Lit (E.Number (toFloat g)))) (E.Lit (E.Number (toFloat b)))) (E.Lit (E.Number 1.0))
 
 ap = E.App
-expr = E.App (E.App (E.Ref "foo") nums) (E.App (E.Ref "baz") (E.Lit (E.Builtin "View.cell") `ap` E.Lit (E.Builtin "View.swatch") `ap` rgbTerm 230 126 34))
+-- expr = E.App (E.App (E.Ref "foo") nums) (E.App (E.Ref "baz") (E.Lit (E.Builtin "View.cell") `ap` E.Lit (E.Builtin "View.swatch") `ap` rgbTerm 230 126 34))
 -- expr = E.App (E.App (E.Ref "foo") nums) (E.App (E.Ref "baz") (rgbTerm 230 126 34))
 -- this bombs
 -- expr = E.Ref "uno" `ap` E.Ref "dos" `ap` E.Ref "tres" `ap` E.Ref "quatro" `ap` E.Ref "cinco" `ap` E.Ref "seis" `ap` E.Ref "siete" `ap` E.Ref "ocho"
--- expr = E.App (E.App (E.Ref "foo") nums) (E.App (E.Lit E.Blank) (rgbTerm 230 126 34))
+-- expr = E.App (E.App (E.Ref "foo") nums) (E.App (E.Ref "baz") (rgbTerm 230 126 34))
 
-cell f x = E.Lit (E.Builtin "View.cell") `ap` f `ap` x
-panel v e = E.Lit (E.Builtin "View.panel") `ap` v `ap` e
-function1 f = E.Lit (E.Builtin "View.function1") `ap` f
-source e = E.Lit (E.Builtin "View.source") `ap` e
-verticalPanel es = panel (E.Lit (E.Builtin "View.vertical")) (E.Lit (E.Vector (Array.fromList es)))
+cell f x = E.Builtin "View.cell" `ap` f `ap` x
+panel v e = E.Builtin "View.panel" `ap` v `ap` e
+function1 f = E.Builtin "View.function1" `ap` f
+source e = E.Builtin "View.source" `ap` e
+verticalPanel es = panel (E.Builtin "View.vertical") (E.Lit (E.Vector (Array.fromList es)))
 string s = E.Lit (E.Str s)
-text s = E.Lit (E.Builtin "View.text") `ap` E.Lit (E.Style s)
-centered s = E.Lit (E.Builtin "View.textbox") `ap` E.Lit (E.Builtin "Text.center") `ap` full `ap` E.Lit (E.Style s)
+text s = E.Builtin "View.text" `ap` E.Lit (E.Style s)
+centered s = E.Builtin "View.textbox" `ap` E.Builtin "Text.center" `ap` full `ap` E.Lit (E.Style s)
 h1 s = cell (text S.h1) (E.Lit (E.Str s))
 body s = cell (text S.body) (E.Lit (E.Str s))
 full = E.Lit (E.Relative (Distance.full))
 
-expr1 = cell (function1 (E.Lam 0 (verticalPanel [h1 "The Answer to The Ultimate Question of Life, the Universe, and Everything...", body "", E.Var 0])))
+expr = cell (function1 (E.Lam 0 (verticalPanel [h1 "The Answer to The Ultimate Question of Life, the Universe, and Everything...", body "", E.Var 0])))
             (E.Ref "answer") `ap`
             (E.Lit (E.Number 42.0))
-
-expr3 = (E.Lam 1 (E.Lam 0 expr1))
 
 resolvedPath : Signal E.Term -> Signal (Maybe Path) -> Signal (Maybe Scope)
 resolvedPath e pathUnderPtr =

@@ -70,7 +70,7 @@ type Env =
 specialLayout : Path -> Term -> Maybe (Layout L)
 specialLayout at e = case e of
   -- panel : (a -> Layout) -> a -> Layout
-  App (App (Lit (Builtin "Unison.Layout.Panel")) f) r ->
+  App (App (Builtin "Unison.Layout.Panel") f) r ->
     interpretLayout f r
   -- cell : (a -> Layout) -> a -> a
   _ -> Nothing
@@ -78,7 +78,7 @@ specialLayout at e = case e of
 
 interpretLayout : Path -> Term -> Term -> Maybe (Layout L)
 interpretLayout at f e = case f of
-  Lit (Builtin "Unison.Layout.hflow") -> case e of
+  Builtin "Unison.Layout.hflow" -> case e of
   -- panel vflow [panel source 12, panel source "woot"]
 
 -}
@@ -136,7 +136,7 @@ impl env allowBreak ambientPrec availableWidth cur =
       Ref h -> codeText (Metadata.firstName h (env.metadata h)) |> L.embed (tag cur.path)
       Con h -> codeText (Metadata.firstName h (env.metadata h)) |> L.embed (tag cur.path)
       Blank -> Styles.blank |> L.embed (tag cur.path)
-      Lit (Builtin s) -> Styles.codeText s |> L.embed (tag cur.path)
+      Builtin s -> Styles.codeText s |> L.embed (tag cur.path)
       Lit (Number n) -> Styles.numericLiteral (String.show n) |> L.embed (tag cur.path)
       Lit (Str s) -> Styles.stringLiteral ("\"" ++ s ++ "\"") |> L.embed (tag cur.path)
       _ -> case builtins env allowBreak ambientPrec availableWidth cur of
@@ -290,32 +290,32 @@ builtins env allowBreak availableWidth ambientPrec cur =
   let
     t = tag (cur.path `snoc` Arg)
     go v e = case v of
-      App (Lit (Builtin "View.color")) c -> case c of
-        App (App (App (App (Lit (Builtin "Color.rgba")) (Lit (Number r))) (Lit (Number g))) (Lit (Number b))) (Lit (Number a)) ->
+      App (Builtin "View.color") c -> case c of
+        App (App (App (App (Builtin "Color.rgba") (Lit (Number r))) (Lit (Number g))) (Lit (Number b))) (Lit (Number a)) ->
           let c' = rgba (floor r) (floor g) (floor b) a
           in Just (L.fill c' (impl env allowBreak ambientPrec availableWidth { path = cur.path `snoc` Arg, term = e }))
         _ -> Nothing
-      App (Lit (Builtin "View.fit-width")) (Lit (Term.Relative d)) ->
+      App (Builtin "View.fit-width") (Lit (Term.Relative d)) ->
         let rem = availableWidth `min` Distance.relativePixels d availableWidth env.pixelsPerInch
         in Just (impl env allowBreak ambientPrec rem { path = cur.path `snoc` Arg, term = e })
-      Lit (Builtin "View.hide") -> Just (L.empty t)
-      Lit (Builtin "View.horizontal") -> case e of
+      Builtin "View.hide" -> Just (L.empty t)
+      Builtin "View.horizontal" -> case e of
         Lit (Vector es) -> todo -- more complicated, as we need to do sequencing
         _ -> Nothing
-      Lit (Builtin "View.swatch") -> case e of
-        App (App (App (App (Lit (Builtin "Color.rgba")) (Lit (Number r))) (Lit (Number g))) (Lit (Number b))) (Lit (Number a)) ->
+      Builtin "View.swatch" -> case e of
+        App (App (App (App (Builtin "Color.rgba") (Lit (Number r))) (Lit (Number g))) (Lit (Number b))) (Lit (Number a)) ->
           let c = rgba (floor r) (floor g) (floor b) a
           in Just (L.embed t (Styles.swatch c))
         _ -> Nothing
-      Lit (Builtin "View.source") ->
+      Builtin "View.source" ->
         Just (impl env allowBreak ambientPrec availableWidth { path = cur.path `snoc` Arg, term = e })
-      App (App (Lit (Builtin "View.spacer")) (Lit (Term.Relative w))) (Lit (Term.Absolute h)) ->
+      App (App (Builtin "View.spacer") (Lit (Term.Relative w))) (Lit (Term.Absolute h)) ->
         let w' = availableWidth `min` Distance.relativePixels w availableWidth env.pixelsPerInch
             h' = Distance.absolutePixels h env.pixelsPerInch
         in Just (L.embed t (E.spacer w' h'))
-      App (Lit (Builtin "View.text")) (Lit (Style style)) -> case e of
+      App (Builtin "View.text") (Lit (Style style)) -> case e of
         Lit (Str s) -> Just (L.embed t (Text.leftAligned (Text.style style (Text.toText s))))
-      App (App (App (Lit (Builtin "View.textbox")) (Lit (Builtin alignment))) (Lit (Term.Relative d))) (Lit (Style style)) -> case e of
+      App (App (App (Builtin "View.textbox") (Builtin alignment)) (Lit (Term.Relative d))) (Lit (Style style)) -> case e of
         Lit (Str s) ->
           let f = case alignment of
                     "Text.left"    -> Text.leftAligned
@@ -327,18 +327,18 @@ builtins env allowBreak availableWidth ambientPrec cur =
               e' = if E.widthOf e > rem then E.width rem e else e
           in Just (L.embed t e')
         _ -> Nothing
-      Lit (Builtin "View.vertical") -> case e of
+      Builtin "View.vertical" -> case e of
         Lit (Vector es) ->
           let f i e = impl env allowBreak ambientPrec availableWidth
                         { path = cur.path `append` [Arg, Path.Index i], term = e }
           in Just (L.vertical (tag (cur.path `snoc` Arg)) (indexedMap f (Array.toList es)))
-      Lit (Builtin "View.id") -> builtins env allowBreak availableWidth ambientPrec { path = cur.path `snoc` Arg, term = e }
-      Lit (Builtin "View.wrap") -> case e of
+      Builtin "View.id" -> builtins env allowBreak availableWidth ambientPrec { path = cur.path `snoc` Arg, term = e }
+      Builtin "View.wrap" -> case e of
         Lit (Vector es) -> todo -- more complicated, as we need to do sequencing
         _ -> Nothing
       _ -> Nothing
   in case cur.term of
-    App (App (App (Lit (Builtin "View.cell")) (App (Lit (Builtin "View.function1")) (Lam arg body))) f) e ->
+    App (App (App (Builtin "View.cell") (App (Builtin "View.function1") (Lam arg body))) f) e ->
       -- all paths will point to `f` aside from `e`
       let eview = close (Embed (impl env allowBreak 0 availableWidth { path = cur.path `snoc` Arg, term = e }))
           fpath = cur.path `append` [Fn,Arg]
@@ -346,6 +346,6 @@ builtins env allowBreak availableWidth ambientPrec cur =
           g view = impl env allowBreak ambientPrec availableWidth { path = fpath, term = substitute body arg view }
                 |> L.map trim
       in Maybe.map g eview
-    App (App (Lit (Builtin "View.panel")) v) e -> go v e
-    App (App (Lit (Builtin "View.cell")) v) e -> go v e
+    App (App (Builtin "View.panel") v) e -> go v e
+    App (App (Builtin "View.cell") v) e -> go v e
     _ -> Nothing
