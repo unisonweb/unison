@@ -59,11 +59,13 @@ selection : Layout k -> Region -> Element
 selection l r =
   let
     linestyle = let d = dotted wetAsphalt in { d | width <- 4.0 }
-    border = spacer r.width r.height |> color asbestos |> opacity 0.2
+    highlight = spacer r.width r.height |> color asbestos |> opacity 0.15
+    n = 1
+    border = outline' asbestos n r.width r.height |> opacity 0.8
   in E.container (L.widthOf l)
                  (L.heightOf l)
                  (E.topLeftAt (E.absolute (r.topLeft.x)) (E.absolute (r.topLeft.y)))
-                 border
+                 (E.layers [highlight, border])
 
 outline : Color -> Int -> Element -> Element
 outline c thickness e =
