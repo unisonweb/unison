@@ -1,7 +1,9 @@
 module Unison.Action where
 
-import Unison.Jsonify as J
-import Unison.Jsonify (Jsonify)
+import Elmz.Json.Encoder as Encoder
+import Elmz.Json.Encoder (Encoder)
+import Elmz.Json.Decoder as Decoder
+import Elmz.Json.Decoder (Decoder)
 import Unison.Term (Term)
 import Unison.Term as E
 
@@ -13,11 +15,11 @@ data Action
   | WHNF -- Simplify target to weak head normal form
   | Apply Term -- Replace the target, `e`, with `f e`
 
-jsonify : Jsonify Action
-jsonify a = case a of
-  Abstract -> J.tag' "Abstract" J.product0 ()
-  Beta -> J.tag' "Beta" J.product0 ()
-  Eta -> J.tag' "Eta" J.product0 ()
-  LetFloat -> J.tag' "LetFloat" J.product0 ()
-  WHNF -> J.tag' "WHNF" J.product0 ()
-  Apply f -> J.tag' "Apply" E.jsonifyTerm f
+encode : Encoder Action
+encode a = case a of
+  Abstract -> Encoder.tag' "Abstract" Encoder.product0 ()
+  Beta -> Encoder.tag' "Beta" Encoder.product0 ()
+  Eta -> Encoder.tag' "Eta" Encoder.product0 ()
+  LetFloat -> Encoder.tag' "LetFloat" Encoder.product0 ()
+  WHNF -> Encoder.tag' "WHNF" Encoder.product0 ()
+  Apply f -> Encoder.tag' "Apply" E.encodeTerm f

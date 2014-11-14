@@ -313,16 +313,18 @@ builtins env allowBreak availableWidth ambientPrec cur =
         let w' = availableWidth `min` Distance.relativePixels w availableWidth env.pixelsPerInch
             h' = Distance.absolutePixels h env.pixelsPerInch
         in Just (L.embed t (E.spacer w' h'))
-      App (Builtin "View.text") (Lit (Style style)) -> case e of
-        Lit (Str s) -> Just (L.embed t (Text.leftAligned (Text.style style (Text.toText s))))
-      App (App (App (Builtin "View.textbox") (Builtin alignment)) (Lit (Term.Relative d))) (Lit (Style style)) -> case e of
+      App (Builtin "View.text") style -> case e of
+        -- todo, actually interpret style
+        Lit (Str s) -> Just (L.embed t (Text.leftAligned (Text.style Text.defaultStyle (Text.toText s))))
+      App (App (App (Builtin "View.textbox") (Builtin alignment)) (Lit (Term.Relative d))) style -> case e of
         Lit (Str s) ->
+          -- todo, actually interpret style
           let f = case alignment of
                     "Text.left"    -> Text.leftAligned
                     "Text.right"   -> Text.rightAligned
                     "Text.center"  -> Text.centered
                     "Text.justify" -> Text.justified
-              e = f (Text.style style (Text.toText s))
+              e = f (Text.style Text.defaultStyle (Text.toText s))
               rem = availableWidth `max` Distance.relativePixels d availableWidth env.pixelsPerInch
               e' = if E.widthOf e > rem then E.width rem e else e
           in Just (L.embed t e')
@@ -349,3 +351,4 @@ builtins env allowBreak availableWidth ambientPrec cur =
     App (App (Builtin "View.panel") v) e -> go v e
     App (App (Builtin "View.cell") v) e -> go v e
     _ -> Nothing
+

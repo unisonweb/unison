@@ -1,7 +1,9 @@
 module Unison.Var where
 
-import Unison.Jsonify as J
-import Unison.Parser as P
+import Elmz.Json.Encoder as Encoder
+import Elmz.Json.Encoder (Encoder)
+import Elmz.Json.Decoder as Decoder
+import Elmz.Json.Decoder (Decoder)
 
 type I = Int
 
@@ -11,8 +13,8 @@ z = 0
 succ : I -> I
 succ i = i + 1
 
-parse : P.Parser I
-parse = P.int
+decode : Decoder I
+decode = Decoder.int
 
-jsonify : J.Jsonify I
-jsonify i = J.number (toFloat i)
+encode : Encoder I
+encode i = Encoder.number (toFloat i)

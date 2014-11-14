@@ -2,13 +2,13 @@ module Unison.Metadata where
 
 import Array
 import Dict as M
+import Elmz.Json.Encoder as Encoder
+import Elmz.Json.Encoder (Encoder)
+import Elmz.Json.Decoder as Decoder
+import Elmz.Json.Decoder (Decoder, (#))
 import Maybe (maybe)
-import Unison.Jsonify as J
-import Unison.Jsonify (Jsonify)
 import Unison.Path as Path
 import Unison.Path (Path)
-import Unison.Parser as P
-import Unison.Parser (Parser, (#))
 import Unison.Hash as H
 import Unison.Var (I)
 import Unison.Var as V
@@ -66,77 +66,77 @@ type Names = [Symbol]
 
 data Query = Query String
 
-parseFixity : Parser Fixity
-parseFixity = P.bind P.string <| \t ->
-  if | t == "InfixL" -> P.unit InfixL
-     | t == "InfixR" -> P.unit InfixR
-     | t == "Infix"  -> P.unit Infix
-     | t == "Prefix" -> P.unit Prefix
-     | otherwise -> P.fail ("expected {InfixL, InfixR, Infix, Prefix}, got : " ++ t)
+decodeFixity : Decoder Fixity
+decodeFixity = Decoder.bind Decoder.string <| \t ->
+  if | t == "InfixL" -> Decoder.unit InfixL
+     | t == "InfixR" -> Decoder.unit InfixR
+     | t == "Infix"  -> Decoder.unit Infix
+     | t == "Prefix" -> Decoder.unit Prefix
+     | otherwise -> Decoder.fail ("expected {InfixL, InfixR, Infix, Prefix}, got : " ++ t)
 
-jsonifyFixity : Jsonify Fixity
-jsonifyFixity f = case f of
-  InfixL -> J.string "InfixL"
-  InfixR -> J.string "InfixR"
-  Infix -> J.string "Infix"
-  Prefix -> J.string "Prefix"
+encodeFixity : Encoder Fixity
+encodeFixity f = case f of
+  InfixL -> Encoder.string "InfixL"
+  InfixR -> Encoder.string "InfixR"
+  Infix -> Encoder.string "Infix"
+  Prefix -> Encoder.string "Prefix"
 
-parseSymbol : Parser Symbol
-parseSymbol =
+decodeSymbol : Decoder Symbol
+decodeSymbol =
   let symbol n f p = { name = n, fixity = f, precedence = p }
-  in P.newtyped' identity <| P.product3 symbol P.string parseFixity P.int
+  in Decoder.newtyped' identity <| Decoder.product3 symbol Decoder.string decodeFixity Decoder.int
 
-jsonifySymbol : Jsonify Symbol
-jsonifySymbol s =
-  J.tag' "Symbol" (J.tuple3 J.string jsonifyFixity J.int) (s.name, s.fixity, s.precedence)
+encodeSymbol : Encoder Symbol
+encodeSymbol s =
+  Encoder.tag' "Symbol" (Encoder.tuple3 Encoder.string encodeFixity Encoder.int) (s.name, s.fixity, s.precedence)
 
-parseSort : Parser Sort
-parseSort = P.bind P.string <| \t ->
-  if | t == "Type" -> P.unit Type
-     | t == "Term" -> P.unit Term
-     | otherwise -> P.fail ("expected {Type, Term}, got : " ++ t)
+decodeSort : Decoder Sort
+decodeSort = Decoder.bind Decoder.string <| \t ->
+  if | t == "Type" -> Decoder.unit Type
+     | t == "Term" -> Decoder.unit Term
+     | otherwise -> Decoder.fail ("expected {Type, Term}, got : " ++ t)
 
-jsonifySort : Jsonify Sort
-jsonifySort s = case s of
-  Type -> J.string "Type"
-  Term -> J.string "Term"
+encodeSort : Encoder Sort
+encodeSort s = case s of
+  Type -> Encoder.string "Type"
+  Term -> Encoder.string "Term"
 
-parseQuery : Parser Query
-parseQuery = P.newtyped' Query P.string
+decodeQuery : Decoder Query
+decodeQuery = Decoder.newtyped' Query Decoder.string
 
-jsonifyQuery : Jsonify Query
-jsonifyQuery (Query q) = J.tag' "Query" J.string q
+encodeQuery : Encoder Query
+encodeQuery (Query q) = Encoder.tag' "Query" Encoder.string q
 
-parseNames : Parser Names
-parseNames = P.newtyped' identity (P.array parseSymbol)
+decodeNames : Decoder Names
+decodeNames = Decoder.newtyped' identity (Decoder.array decodeSymbol)
 
-jsonifyNames : Jsonify Names
-jsonifyNames = J.tag' "Names" (J.array jsonifySymbol)
+encodeNames : Encoder Names
+encodeNames = Encoder.tag' "Names" (Encoder.array encodeSymbol)
 
-parseMetadata : Parser Metadata
-parseMetadata =
-  P.newtyped' identity <| P.product5
+decodeMetadata : Decoder Metadata
+decodeMetadata =
+  Decoder.newtyped' identity <| Decoder.product5
     Metadata
-    parseSort
-    parseNames
-    parseLocals
-    (P.optional H.parse)
-    H.parse
+    decodeSort
+    decodeNames
+    decodeLocals
+    (Decoder.optional H.decode)
+    H.decode
 
-parseLocals : Parser (M.Dict I [(Path,Names)])
-parseLocals =
-  P.map M.fromList (P.array (P.tuple2 V.parse (P.array (P.tuple2 Path.parsePath parseNames))))
+decodeLocals : Decoder (M.Dict I [(Path,Names)])
+decodeLocals =
+  Decoder.map M.fromList (Decoder.array (Decoder.tuple2 V.decode (Decoder.array (Decoder.tuple2 Path.decodePath decodeNames))))
 
-jsonifyLocals : Jsonify (M.Dict I [(Path,Names)])
-jsonifyLocals m = J.array (J.tuple2 V.jsonify (J.array (J.tuple2 Path.jsonifyPath jsonifyNames))) (M.toList m)
+encodeLocals : Encoder (M.Dict I [(Path,Names)])
+encodeLocals m = Encoder.array (Encoder.tuple2 V.encode (Encoder.array (Encoder.tuple2 Path.encodePath encodeNames))) (M.toList m)
 
-jsonifyMetadata : Jsonify Metadata
-jsonifyMetadata md = J.tag' "Metadata"
-  (J.tuple5
-    jsonifySort
-    jsonifyNames
-    jsonifyLocals
-    (J.optional H.jsonify)
-    H.jsonify)
+encodeMetadata : Encoder Metadata
+encodeMetadata md = Encoder.tag' "Metadata"
+  (Encoder.tuple5
+    encodeSort
+    encodeNames
+    encodeLocals
+    (Encoder.optional H.encode)
+    H.encode)
   (md.sort, md.names, md.locals, md.description, md.annotation)
 

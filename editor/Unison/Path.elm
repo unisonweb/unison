@@ -2,10 +2,10 @@ module Unison.Path where
 
 import Array (Array)
 import Array as A
-import Unison.Parser (Parser)
-import Unison.Parser as P
-import Unison.Jsonify as J
-import Unison.Jsonify (Jsonify)
+import Elmz.Json.Encoder as Encoder
+import Elmz.Json.Encoder (Encoder)
+import Elmz.Json.Decoder as Decoder
+import Elmz.Json.Decoder (Decoder)
 import Unison.Stream (Stream)
 import Unison.Stream as Stream
 
@@ -61,22 +61,22 @@ startsWith prefix overall =
   length prefix <= length overall &&
   (zip prefix overall |> all (\(a,a2) -> a == a2))
 
-parseE : Parser E
-parseE = P.union' <| \t ->
-  if | t == "Fn" -> P.unit Fn
-     | t == "Arg" -> P.unit Arg
-     | t == "Body" -> P.unit Body
-     | t == "Index" -> P.map Index P.int
+decodeE : Decoder E
+decodeE = Decoder.union' <| \t ->
+  if | t == "Fn" -> Decoder.unit Fn
+     | t == "Arg" -> Decoder.unit Arg
+     | t == "Body" -> Decoder.unit Body
+     | t == "Index" -> Decoder.map Index Decoder.int
 
-jsonifyE : Jsonify E
-jsonifyE e = case e of
-  Fn -> J.tag' "Fn" J.emptyArray ()
-  Arg -> J.tag' "Arg" J.emptyArray ()
-  Body -> J.tag' "Body" J.emptyArray ()
-  Index i -> J.tag' "Index" J.int i
+encodeE : Encoder E
+encodeE e = case e of
+  Fn -> Encoder.tag' "Fn" Encoder.emptyArray ()
+  Arg -> Encoder.tag' "Arg" Encoder.emptyArray ()
+  Body -> Encoder.tag' "Body" Encoder.emptyArray ()
+  Index i -> Encoder.tag' "Index" Encoder.int i
 
-parsePath : Parser Path
-parsePath = P.array parseE
+decodePath : Decoder Path
+decodePath = Decoder.array decodeE
 
-jsonifyPath : Jsonify Path
-jsonifyPath = J.array jsonifyE
+encodePath : Encoder Path
+encodePath = Encoder.array encodeE

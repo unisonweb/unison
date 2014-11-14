@@ -1,10 +1,10 @@
 module Unison.Type where
 
+import Elmz.Json.Encoder as Encoder
+import Elmz.Json.Encoder (Encoder)
+import Elmz.Json.Decoder as Decoder
+import Elmz.Json.Decoder (Decoder)
 import Unison.Hash as H
-import Unison.Parser as P
-import Unison.Parser (Parser)
-import Unison.Jsonify as J
-import Unison.Jsonify (Jsonify)
 import Unison.Var (I)
 import Unison.Var as V
 
@@ -25,46 +25,46 @@ data Type
 
 data Kind = Star | KArrow Kind Kind
 
-parseKind : Parser Kind
-parseKind = P.union' <| \t ->
-  if | t == "Star" -> P.unit Star
-     | t == "Arrow" -> P.lift2 KArrow parseKind parseKind
+decodeKind : Decoder Kind
+decodeKind = Decoder.union' <| \t ->
+  if | t == "Star" -> Decoder.unit Star
+     | t == "Arrow" -> Decoder.lift2 KArrow decodeKind decodeKind
 
-parseLiteral : Parser Literal
-parseLiteral = P.union' <| \t ->
-  if | t == "Number" -> P.unit Number
-     | t == "String" -> P.unit String
-     | t == "Vector" -> P.unit Vector
-     | t == "Hash" -> P.map Hash H.parse
+decodeLiteral : Decoder Literal
+decodeLiteral = Decoder.union' <| \t ->
+  if | t == "Number" -> Decoder.unit Number
+     | t == "String" -> Decoder.unit String
+     | t == "Vector" -> Decoder.unit Vector
+     | t == "Hash" -> Decoder.map Hash H.decode
 
-parseType : Parser Type
-parseType = P.union' <| \t ->
-  if | t == "Unit" -> P.map Unit parseLiteral
-     | t == "Arrow" -> P.lift2 Arrow parseType parseType
-     | t == "Universal" -> P.map Universal V.parse
-     | t == "Existential" -> P.map Existential V.parse
-     | t == "Kind" -> P.lift2 Ann parseType parseKind
-     | t == "Constrain" -> P.lift2 Constrain parseType (P.unit ())
-     | t == "Forall" -> P.lift2 Forall V.parse parseType
+decodeType : Decoder Type
+decodeType = Decoder.union' <| \t ->
+  if | t == "Unit" -> Decoder.map Unit decodeLiteral
+     | t == "Arrow" -> Decoder.lift2 Arrow decodeType decodeType
+     | t == "Universal" -> Decoder.map Universal V.decode
+     | t == "Existential" -> Decoder.map Existential V.decode
+     | t == "Kind" -> Decoder.lift2 Ann decodeType decodeKind
+     | t == "Constrain" -> Decoder.lift2 Constrain decodeType (Decoder.unit ())
+     | t == "Forall" -> Decoder.lift2 Forall V.decode decodeType
 
-jsonifyKind : Jsonify Kind
-jsonifyKind k = case k of
-  Star -> J.tag' "Star" J.product0 ()
-  KArrow k k2 -> J.tag' "Arrow" (J.array jsonifyKind) [k, k2]
+encodeKind : Encoder Kind
+encodeKind k = case k of
+  Star -> Encoder.tag' "Star" Encoder.product0 ()
+  KArrow k k2 -> Encoder.tag' "Arrow" (Encoder.array encodeKind) [k, k2]
 
-jsonifyLiteral : Jsonify Literal
-jsonifyLiteral l = case l of
-  Number -> J.tag' "Number" J.product0 ()
-  String -> J.tag' "String" J.product0 ()
-  Vector -> J.tag' "Vector" J.product0 ()
-  Hash h -> J.tag' "Hash" H.jsonify h
+encodeLiteral : Encoder Literal
+encodeLiteral l = case l of
+  Number -> Encoder.tag' "Number" Encoder.product0 ()
+  String -> Encoder.tag' "String" Encoder.product0 ()
+  Vector -> Encoder.tag' "Vector" Encoder.product0 ()
+  Hash h -> Encoder.tag' "Hash" H.encode h
 
-jsonifyType : Jsonify Type
-jsonifyType t = case t of
-  Unit l -> J.tag' "Unit" jsonifyLiteral l
-  Arrow i o -> J.tag' "Arrow" (J.array jsonifyType) [i, o]
-  Universal v -> J.tag' "Universal" V.jsonify v
-  Existential v -> J.tag' "Existential" V.jsonify v
-  Ann t k -> J.tag' "Ann" (J.tuple2 jsonifyType jsonifyKind) (t,k)
-  Constrain t c -> J.tag' "Constrain" (J.tuple2 jsonifyType J.product0) (t, ())
-  Forall n t -> J.tag' "Forall" (J.tuple2 V.jsonify jsonifyType) (n, t)
+encodeType : Encoder Type
+encodeType t = case t of
+  Unit l -> Encoder.tag' "Unit" encodeLiteral l
+  Arrow i o -> Encoder.tag' "Arrow" (Encoder.array encodeType) [i, o]
+  Universal v -> Encoder.tag' "Universal" V.encode v
+  Existential v -> Encoder.tag' "Existential" V.encode v
+  Ann t k -> Encoder.tag' "Ann" (Encoder.tuple2 encodeType encodeKind) (t,k)
+  Constrain t c -> Encoder.tag' "Constrain" (Encoder.tuple2 encodeType Encoder.product0) (t, ())
+  Forall n t -> Encoder.tag' "Forall" (Encoder.tuple2 V.encode encodeType) (n, t)

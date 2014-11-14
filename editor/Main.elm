@@ -50,10 +50,10 @@ function1 f = E.Builtin "View.function1" `ap` f
 source e = E.Builtin "View.source" `ap` e
 verticalPanel es = panel (E.Builtin "View.vertical") (E.Lit (E.Vector (Array.fromList es)))
 string s = E.Lit (E.Str s)
-text s = E.Builtin "View.text" `ap` E.Lit (E.Style s)
-centered s = E.Builtin "View.textbox" `ap` E.Builtin "Text.center" `ap` full `ap` E.Lit (E.Style s)
-h1 s = cell (text S.h1) (E.Lit (E.Str s))
-body s = cell (text S.body) (E.Lit (E.Str s))
+text s = E.Builtin "View.text" `ap` s
+centered s = E.Builtin "View.textbox" `ap` E.Builtin "Text.center" `ap` full `ap` s
+h1 s = cell (text E.Blank) (E.Lit (E.Str s))
+body s = cell (text E.Blank) (E.Lit (E.Str s))
 full = E.Lit (E.Relative (Distance.full))
 
 --expr = cell (function1 (E.Lam 0 (verticalPanel [h1 "The Answer to The Ultimate Question of Life, the Universe, and Everything...", body "", E.Var 0])))

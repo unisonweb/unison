@@ -1,4 +1,4 @@
-module Elmz.Distance (Absolute, absolutePixels, centimeters, full, half, Relative, relativePixels) where
+module Elmz.Distance where
 
 data D d
   = Quantum

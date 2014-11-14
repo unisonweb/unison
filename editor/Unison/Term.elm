@@ -7,6 +7,10 @@ import Dict (Dict)
 import Elmz.Distance as Distance
 import Elmz.Maybe as EM
 import Elmz.Layout (Layout)
+import Elmz.Json.Encoder as Encoder
+import Elmz.Json.Encoder (Encoder)
+import Elmz.Json.Decoder as Decoder
+import Elmz.Json.Decoder (Decoder)
 import Json
 import Maybe (isJust, maybe)
 import Set
@@ -16,12 +20,8 @@ import Text(..)
 import Text
 import Unison.Hash (Hash)
 import Unison.Hash as H
-import Unison.Jsonify (Jsonify)
-import Unison.Jsonify as J
 import Unison.Metadata (Metadata, Fixity)
 import Unison.Metadata as Metadata
-import Unison.Parser (Parser)
-import Unison.Parser as P
 import Unison.Path (..)
 import Unison.Path as Path
 import Unison.Type as T
@@ -34,7 +34,6 @@ data Literal
   | Str String
   | Relative Distance.Relative
   | Absolute Distance.Absolute
-  | Style Text.Style
   | Vector (Array Term)
 
 data Term
@@ -165,39 +164,39 @@ siblingL e p =
   in if increment (valid e) p2 == p then p2
      else p
 
-parseLiteral : Parser Literal
-parseLiteral = P.union' <| \t ->
-  if | t == "Number" -> P.map Number P.number
-     | t == "String" -> P.map Str P.string
-     | t == "Vector" -> P.map (Vector << Array.fromList) (P.array parseTerm)
+decodeLiteral : Decoder Literal
+decodeLiteral = Decoder.union' <| \t ->
+  if | t == "Number" -> Decoder.map Number Decoder.number
+     | t == "String" -> Decoder.map Str Decoder.string
+     | t == "Vector" -> Decoder.map (Vector << Array.fromList) (Decoder.array decodeTerm)
 
-jsonifyLiteral l = case l of
-  Number n -> J.tag' "Number" J.number n
-  Str s -> J.tag' "String" J.string s
-  Vector es -> J.tag' "Vector" (J.contramap Array.toList (J.array jsonifyTerm)) es
+encodeLiteral l = case l of
+  Number n -> Encoder.tag' "Number" Encoder.number n
+  Str s -> Encoder.tag' "String" Encoder.string s
+  Vector es -> Encoder.tag' "Vector" (Encoder.contramap Array.toList (Encoder.array encodeTerm)) es
 
-parseTerm : Parser Term
-parseTerm = P.union' <| \t ->
-  if | t == "Var" -> P.map Var V.parse
-     | t == "Lit" -> P.map Lit parseLiteral
-     | t == "Con" -> P.map Con H.parse
-     | t == "Ref" -> P.map Ref H.parse
-     | t == "Builtin" -> P.map Builtin P.string
-     | t == "App" -> P.lift2 App parseTerm parseTerm
-     | t == "Ann" -> P.lift2 Ann parseTerm T.parseType
-     | t == "Lam" -> P.lift2 Lam V.parse parseTerm
-     | t == "Blank" -> P.unit Blank
+decodeTerm : Decoder Term
+decodeTerm = Decoder.union' <| \t ->
+  if | t == "Var" -> Decoder.map Var V.decode
+     | t == "Lit" -> Decoder.map Lit decodeLiteral
+     | t == "Con" -> Decoder.map Con H.decode
+     | t == "Ref" -> Decoder.map Ref H.decode
+     | t == "Builtin" -> Decoder.map Builtin Decoder.string
+     | t == "App" -> Decoder.lift2 App decodeTerm decodeTerm
+     | t == "Ann" -> Decoder.lift2 Ann decodeTerm T.decodeType
+     | t == "Lam" -> Decoder.lift2 Lam V.decode decodeTerm
+     | t == "Blank" -> Decoder.unit Blank
 
-jsonifyTerm : Jsonify Term
-jsonifyTerm e = case e of
-  Blank -> J.tag' "Blank" J.product0 ()
-  Var v -> J.tag' "Var" V.jsonify v
-  Lit l -> J.tag' "Lit" jsonifyLiteral l
-  Con h -> J.tag' "Con" H.jsonify h
-  Ref h -> J.tag' "Ref" H.jsonify h
-  Builtin s -> J.tag' "Builtin" J.string s
-  App f x -> J.tag' "App" (J.array jsonifyTerm) [f, x]
-  Ann e t -> J.tag' "Ann" (J.tuple2 jsonifyTerm T.jsonifyType) (e, t)
-  Lam n body -> J.tag' "Lam" (J.tuple2 V.jsonify jsonifyTerm) (n, body)
-  Embed e -> J.tag' "Embed" J.product0 ()
+encodeTerm : Encoder Term
+encodeTerm e = case e of
+  Blank -> Encoder.tag' "Blank" Encoder.product0 ()
+  Var v -> Encoder.tag' "Var" V.encode v
+  Lit l -> Encoder.tag' "Lit" encodeLiteral l
+  Con h -> Encoder.tag' "Con" H.encode h
+  Ref h -> Encoder.tag' "Ref" H.encode h
+  Builtin s -> Encoder.tag' "Builtin" Encoder.string s
+  App f x -> Encoder.tag' "App" (Encoder.array encodeTerm) [f, x]
+  Ann e t -> Encoder.tag' "Ann" (Encoder.tuple2 encodeTerm T.encodeType) (e, t)
+  Lam n body -> Encoder.tag' "Lam" (Encoder.tuple2 V.encode encodeTerm) (n, body)
+  Embed e -> Encoder.tag' "Embed" Encoder.product0 ()
 

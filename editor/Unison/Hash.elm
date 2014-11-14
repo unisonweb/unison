@@ -1,15 +1,17 @@
 module Unison.Hash where
 
-import Unison.Parser as P
-import Unison.Jsonify as J
+import Elmz.Json.Encoder as Encoder
+import Elmz.Json.Encoder (Encoder)
+import Elmz.Json.Decoder as Decoder
+import Elmz.Json.Decoder (Decoder)
 
 type Hash = String
 
 base64 : Hash -> String
 base64 h = h
 
-parse : P.Parser Hash
-parse = P.string
+decode : Decoder Hash
+decode = Decoder.string
 
-jsonify : J.Jsonify Hash
-jsonify = J.string
+encode : Encoder Hash
+encode = Encoder.string
