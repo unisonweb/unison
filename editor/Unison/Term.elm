@@ -164,11 +164,35 @@ siblingL e p =
   in if increment (valid e) p2 == p then p2
      else p
 
+decodeD : Decoder d -> Decoder (Distance.D d)
+decodeD d = Decoder.union' <| \t ->
+  if | t == "Quantum" -> Decoder.unit Distance.Quantum
+     | t == "Centimeters" -> Decoder.map Distance.Centimeters Decoder.number
+     | t == "Scale" -> Decoder.lift2 Distance.Scale Decoder.number d
+     | t == "Ceiling" -> Decoder.map Distance.Ceiling d
+     | t == "Floor" -> Decoder.map Distance.Floor d
+     | t == "Min" -> Decoder.lift2 Distance.Min d d
+     | t == "Max" -> Decoder.lift2 Distance.Max d d
+
+encodeD : Encoder d -> Encoder (Distance.D d)
+encodeD d e = case e of
+  Distance.Quantum -> Encoder.tag' "Quantum" Encoder.product0 ()
+
+decodeAbsolute : Decoder Distance.Absolute
+decodeAbsolute = Decoder.newtyped' Distance.Absolute (decodeD (\j -> decodeAbsolute j))
+
+decodeRelative : Decoder Distance.Relative
+decodeRelative = Decoder.union' <| \t ->
+  if | t == "Fraction" -> Decoder.map Distance.Fraction Decoder.number
+     | t == "Embed" -> Decoder.map Distance.Embed (decodeD decodeRelative)
+
 decodeLiteral : Decoder Literal
 decodeLiteral = Decoder.union' <| \t ->
   if | t == "Number" -> Decoder.map Number Decoder.number
      | t == "String" -> Decoder.map Str Decoder.string
      | t == "Vector" -> Decoder.map (Vector << Array.fromList) (Decoder.array decodeTerm)
+     | t == "Relative" -> Decoder.map Relative decodeRelative
+     | t == "Absolute" -> Decoder.map Absolute decodeAbsolute
 
 encodeLiteral l = case l of
   Number n -> Encoder.tag' "Number" Encoder.number n
