@@ -3,6 +3,7 @@ module Unison.Styles where
 import Text (Style)
 import Text as T
 import Graphics.Element as E
+import Graphics.Collage as C
 import Elmz.Layout (Layout, Region)
 import Elmz.Layout as L
 
@@ -72,7 +73,15 @@ outline c thickness e =
 
 swatch : Color -> Element
 swatch c =
-  flow down [spacer 1 2, outline black 1 (E.color c (spacer 12 12))]
+  let e = color c (contain (codeText "  "))
+      e2 = outline' black 1 (E.widthOf e) (E.heightOf e)
+  in E.layers [e, e2]
+
+outline' : Color -> Int -> Int -> Int -> Element
+outline' c thickness w h =
+  let s = C.solid c
+      s' = { s | width <- toFloat thickness }
+  in C.collage w h [C.outlined s' (C.rect (toFloat w) (toFloat h))]
 
 contain : Element -> Element
 contain e =
