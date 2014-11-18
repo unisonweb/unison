@@ -65,6 +65,7 @@ library
     Unison.Syntax.Distance
     Unison.Syntax.Hash
     Unison.Syntax.Kind
+    Unison.Syntax.Reference
     Unison.Syntax.Term
     Unison.Syntax.Type
     Unison.Syntax.Var

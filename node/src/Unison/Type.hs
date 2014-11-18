@@ -3,9 +3,7 @@ module Unison.Type where
 
 import Control.Monad
 import Control.Applicative
-import qualified Data.Text as Text
 import qualified Unison.Type.Context as C
-import qualified Unison.Syntax.Hash as H
 import qualified Unison.Syntax.Type as T
 import qualified Unison.Syntax.Term as E
 import Unison.Note as N

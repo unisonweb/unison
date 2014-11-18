@@ -12,7 +12,6 @@ module Unison.Syntax.Type where
 import Control.Applicative
 import Control.Lens
 import Data.Aeson.TH
-import qualified Data.Text as Text
 import qualified Data.Aeson.Encode as JE
 import qualified Data.List as L
 import qualified Data.Set as S
@@ -20,6 +19,7 @@ import Unison.Note as N
 import qualified Unison.Syntax.Hash as H
 import qualified Unison.Syntax.Kind as K
 import qualified Unison.Syntax.Var as V
+import qualified Unison.Syntax.Reference as R
 
 -- constructor is private not exported
 data Monotype = Monotype { getPolytype :: Type } deriving (Eq,Ord)
@@ -27,7 +27,7 @@ instance Show Monotype where
   show (Monotype t) = show t
 
 -- An environment for looking up type references
-type Env f = Either Text.Text H.Hash -> Noted f Type
+type Env f = R.Reference -> Noted f Type
 
 -- | Type literals
 data Literal

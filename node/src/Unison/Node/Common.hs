@@ -1,28 +1,31 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Unison.Node.Common (node) where
 
+import Control.Applicative
+import Control.Monad
+import Unison.Edit.Term.Eval as Eval
+import Unison.Node as N
+import Unison.Node.Metadata as MD
+import Unison.Node.Store
+import Unison.Note (Noted)
+import Unison.Syntax.Hash as H
+import Unison.Syntax.Term (Term)
+import Unison.Syntax.Type (Type)
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Text as Text
-import Control.Applicative
-import Control.Monad
-import Unison.Node.Metadata as MD
-import qualified Unison.Type as Type
-import Unison.Syntax.Hash as H
-import qualified Unison.Syntax.Type as T
-import qualified Unison.Syntax.Term as E
 import qualified Unison.Edit.Term as TE
-import Unison.Edit.Term.Eval as Eval
-import Unison.Syntax.Type (Type)
-import Unison.Syntax.Term (Term)
-import Unison.Node as N
-import Unison.Node.Store
-import Unison.Note (Noted)
+import qualified Unison.Syntax.Reference as R
+import qualified Unison.Syntax.Term as E
+import qualified Unison.Syntax.Type as T
+import qualified Unison.Type as Type
 
 node :: (Applicative f, Monad f) => (Text.Text -> Noted f T.Type) -> Eval (Noted f) -> Store f  -> Node f H.Hash Type Term
 node builtin eval store =
   let
-    env = either builtin readTypeOf
+    env (R.Builtin txt) = builtin txt
+    env (R.Derived h) = readTypeOf h
+
     readTypeOf h = readMetadata store h >>=
                    \md -> readType store (MD.annotation md)
 
@@ -31,7 +34,7 @@ node builtin eval store =
 
     createTerm e md = do
       t <- Type.synthesize env e
-      ((h,_), subterms) <- pure $ E.hashCons e
+      ((R.Derived h,_), subterms) <- pure $ E.hashCons e
       ht <- pure $ T.finalizeHash t
       writeTerm store h e
       writeType store ht t

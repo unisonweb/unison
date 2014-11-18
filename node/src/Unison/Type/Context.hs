@@ -9,13 +9,11 @@ import Control.Applicative
 import Data.Traversable
 import Data.List as L
 import Data.Maybe
-import qualified Data.Text as Text
 import qualified Data.Set as S
 import Unison.Syntax.Type as T
 import qualified Unison.Syntax.Term as Term
 import Unison.Syntax.Term (Term)
 import Unison.Syntax.Var as V
-import qualified Unison.Syntax.Hash as H
 import Unison.Type.Context.Element as E
 import Unison.Note as N
 
@@ -308,15 +306,12 @@ synthesize ctx e = scope ("infer: " ++ show e) $ go e where
     Nothing -> Left $ note "type not in scope"
     Just t -> pure (t, ctx)
   go Term.Blank = pure (T.forall1 $ \x -> x, ctx)
-  go (Term.Ann (Term.Builtin _) t) =
-    pure (t, ctx) -- innermost Builtin annotation assumed to be correctly provided by `synthesizeClosed`
   go (Term.Ann (Term.Ref _) t) =
     pure (t, ctx) -- innermost Ref annotation assumed to be correctly provided by `synthesizeClosed`
   go (Term.Ann (Term.Con _) t) =
     pure (t, ctx) -- innermost Con annotation assumed to be correctly provided by `synthesizeClosed`
   go (Term.Ref h) = Left . note $ "unannotated reference: " ++ show h
   go (Term.Con h) = Left . note $ "unannotated constructor: " ++ show h
-  go (Term.Builtin n) = Left . note $ "unannotated builtin: " ++ show n
   go (Term.Ann e' t) = (,) t <$> check ctx e' t -- Anno
   go (Term.Lit l) = pure (synthLit l, ctx) -- 1I=>
   go (Term.App f arg) = do -- ->E
@@ -368,9 +363,8 @@ synthesizeClosed synthRef term = Noted $ synth <$> N.unnote (annotate term)
     synth (Right a) = go <$> synthesize (context []) a
     go (t, ctx) = apply ctx t
     annotate term' = case term' of
-      Term.Ref h -> Term.Ann (Term.Ref h) <$> synthRef (Right h)
-      Term.Con h -> Term.Ann (Term.Con h) <$> synthRef (Right h)
-      Term.Builtin b -> Term.Ann (Term.Builtin b) <$> synthRef (Left b)
+      Term.Ref h -> Term.Ann (Term.Ref h) <$> synthRef h
+      Term.Con h -> Term.Ann (Term.Con h) <$> synthRef h
       Term.App f arg -> Term.App <$> annotate f <*> annotate arg
       Term.Ann body t -> Term.Ann <$> annotate body <*> pure t
       Term.Lam n body -> Term.Lam n <$> annotate body

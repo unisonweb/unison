@@ -7,11 +7,12 @@ import Unison.Edit.Term.Action as A
 import qualified Unison.Edit.Term.Path as P
 import qualified Unison.Edit.Term.Eval as Eval
 import Unison.Edit.Term.Eval (Eval)
-import qualified Unison.Syntax.Hash as H
 import qualified Unison.Syntax.Var as V
 import qualified Unison.Note as N
 import Unison.Note (Noted)
 import qualified Unison.Syntax.Term as E
+import qualified Unison.Syntax.Hash as H
+import qualified Unison.Syntax.Reference as R
 import qualified Unison.Syntax.Type as T
 import Unison.Type (synthesize)
 

@@ -18,6 +18,7 @@ import qualified Data.Vector as V
 import Unison.Syntax.Var as V
 import qualified Unison.Syntax.Distance as Distance
 import qualified Unison.Syntax.Hash as H
+import qualified Unison.Syntax.Reference as R
 import qualified Unison.Syntax.Type as T
 
 -- | Literals in the Unison language
@@ -34,9 +35,8 @@ data Term
   = Var V.Var
   | Lit Literal
   | Blank -- An expression that has not been filled in, has type `forall a . a`
-  | Con H.Hash -- ^ A constructor reference. @Con h `App` ...@ is by definition in normal form
-  | Ref H.Hash
-  | Builtin Txt.Text
+  | Con R.Reference -- ^ A constructor reference. @Con h `App` ...@ is by definition in normal form
+  | Ref R.Reference
   | App Term Term
   | Ann Term T.Type
   | Lam V.Var Term
@@ -44,7 +44,6 @@ data Term
 
 instance Show Term where
   show Blank = "_"
-  show (Builtin v) = show v
   show (Var v) = show v
   show (Ref v) = show v
   show (Lit l) = show l
@@ -83,9 +82,9 @@ link :: (Applicative f, Monad f) => (H.Hash -> f Term) -> Term -> f Term
 link env e = case e of
   -- recursively resolve all references, leaving alone any hashes
   -- that resolve to themselves, as these are considered primops
-  Ref h -> env h >>= \e -> case e of
-    Ref h' | h == h' -> pure $ Ref h'
-    Con h' | h == h' -> pure $ Con h'
+  Ref (R.Derived h) -> env h >>= \e -> case e of
+    Ref (R.Derived h') | h == h' -> pure $ Ref (R.Derived h')
+    Con (R.Derived h') | h == h' -> pure $ Con (R.Derived h')
     e | S.null (dependencies e) -> pure $ e
     e | otherwise -> link env e
   App fn arg -> App <$> link env fn <*> link env arg
@@ -95,12 +94,13 @@ link env e = case e of
 
 dependencies :: Term -> S.Set H.Hash
 dependencies e = case e of
-  Ref h -> S.singleton h
-  Con h -> S.singleton h
+  Ref (R.Derived h) -> S.singleton h
+  Con (R.Derived h) -> S.singleton h
+  Con _ -> S.empty
+  Ref _ -> S.empty
   Var _ -> S.empty
   Lit _ -> S.empty
   Blank -> S.empty
-  Builtin _ -> S.empty
   App fn arg -> dependencies fn `S.union` dependencies arg
   Ann e _ -> dependencies e
   Lam _ body -> dependencies body
@@ -165,8 +165,8 @@ text s = Lit (String s)
 
 -- | Order a collection of declarations such that no declaration
 -- references hashes declared later in the returned list
-topological :: M.Map H.Hash Term -> [(H.Hash, Term)]
-topological terms = go S.empty (M.keys terms)
+topological :: (Ord h, Ord e) => (e -> S.Set h) -> M.Map h e -> [(h, e)]
+topological dependencies terms = go S.empty (M.keys terms)
   where
     keys = M.keysSet terms
     go seen pending = case pending of
@@ -184,18 +184,21 @@ topological terms = go S.empty (M.keys terms)
 -- The list of subterms are topologically sorted, so terms with
 -- no dependencies appear first in the returned list, followed by
 -- terms which depend on these dependencies
-hashCons :: Term -> ((H.Hash, Term), [(H.Hash,Term)])
-hashCons e = let (e', hs) = runWriter (go e) in ((closedHash e', e'), topological hs)
+hashCons :: Term -> ((R.Reference, Term), [(H.Hash, Term)])
+hashCons e = let (e', hs) = runWriter (go e) in finalize e' hs
   where
+    finalize (Ref r) hs = ((r, Ref r), topological dependencies hs)
+    finalize e hs = ((R.Derived (closedHash e), e), topological dependencies hs)
     closedHash = H.finalize . H.lazyBytes . JE.encode
-    save e | isClosed e = let h = closedHash e in tell (M.singleton h e) >> pure (Ref h)
+    save e | isClosed e = let h = closedHash e in tell (M.singleton h e) >> pure (Ref (R.Derived h))
     save e = pure e
     go e = case etaNormalForm e of
       l@(Lit _) -> save l
+      -- todo, need to hash cons inside the vector
+      -- also need to move Vector out of Lit
       c@(Con _) -> pure c
       r@(Ref _) -> pure r
       v@(Var _) -> pure v
-      b@(Builtin _) -> pure b
       Blank     -> pure Blank
       Lam n body -> go body >>=
         \body -> save (lam1 $ \x -> betaReduce (Lam n body `App` x))

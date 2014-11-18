@@ -10,13 +10,14 @@ import Unison.Edit.Term.Eval
 import Unison.Syntax.Term (Term)
 import qualified Unison.Syntax.Term as E
 import Unison.Syntax.Hash (Hash)
+import qualified Unison.Syntax.Reference as R
 
 -- | A Haskell function accepting 'arity' arguments
 data Primop f =
   Primop { arity :: Int, call :: [Term] -> f Term }
 
 -- | Produce an evaluator from a environment of 'Primop' values
-eval :: (Applicative f, Monad f) => Map Hash (Primop f) -> Eval f
+eval :: (Applicative f, Monad f) => Map R.Reference (Primop f) -> Eval f
 eval env = Eval step whnf
   where
     reduce e@(E.App (E.Lam _ _) _) args =
