@@ -177,6 +177,12 @@ decodeD d = Decoder.union' <| \t ->
 encodeD : Encoder d -> Encoder (Distance.D d)
 encodeD d e = case e of
   Distance.Quantum -> Encoder.tag' "Quantum" Encoder.product0 ()
+  Distance.Centimeters cm -> Encoder.tag' "Centimeters" Encoder.number cm
+  Distance.Scale k dist -> Encoder.tag' "Scale" (Encoder.tuple2 Encoder.number d) (k,dist)
+  Distance.Ceiling dist -> Encoder.tag' "Ceiling" d dist
+  Distance.Floor dist -> Encoder.tag' "Floor" d dist
+  Distance.Max dist1 dist2 -> Encoder.tag' "Max" (Encoder.tuple2 d d) (dist1, dist2)
+  Distance.Min dist1 dist2 -> Encoder.tag' "Min" (Encoder.tuple2 d d) (dist1, dist2)
 
 decodeAbsolute : Decoder Distance.Absolute
 decodeAbsolute = Decoder.newtyped' Distance.Absolute (decodeD (\j -> decodeAbsolute j))
@@ -185,6 +191,14 @@ decodeRelative : Decoder Distance.Relative
 decodeRelative = Decoder.union' <| \t ->
   if | t == "Fraction" -> Decoder.map Distance.Fraction Decoder.number
      | t == "Embed" -> Decoder.map Distance.Embed (decodeD decodeRelative)
+
+encodeAbsolute : Encoder Distance.Absolute
+encodeAbsolute (Distance.Absolute d) = Encoder.tag' "Absolute" (\dist -> encodeD encodeAbsolute dist) d
+
+encodeRelative : Encoder Distance.Relative
+encodeRelative d = case d of
+  Distance.Fraction k -> Encoder.tag' "Fraction" Encoder.number k
+  Distance.Embed d -> Encoder.tag' "Embed" (encodeD encodeRelative) d
 
 decodeLiteral : Decoder Literal
 decodeLiteral = Decoder.union' <| \t ->
