@@ -6,8 +6,10 @@
 module Unison.Type.Context (context, subtype, synthesizeClosed) where
 
 import Control.Applicative
+import Data.Traversable
 import Data.List as L
 import Data.Maybe
+import qualified Data.Text as Text
 import qualified Data.Set as S
 import Unison.Syntax.Type as T
 import qualified Unison.Syntax.Term as Term
@@ -296,21 +298,25 @@ synthLit lit = T.Unit $ case lit of
   Term.Number _ -> T.Number
   Term.String _ -> T.String
   Term.Vector _ -> T.Vector
+  Term.Absolute _ -> T.Absolute
+  Term.Relative _ -> T.Absolute
 
--- | Synthesize the type of the given term, updating the context
--- in the process. Parameterized on a function for synthesizing
--- the type of a literal, `l`.
+-- | Synthesize the type of the given term, updating the context in the process.
 synthesize :: Context -> Term -> Either Note (Type, Context)
 synthesize ctx e = scope ("infer: " ++ show e) $ go e where
   go (Term.Var v) = case lookupType ctx v of -- Var
     Nothing -> Left $ note "type not in scope"
     Just t -> pure (t, ctx)
+  go Term.Blank = pure (T.forall1 $ \x -> x, ctx)
+  go (Term.Ann (Term.Builtin _) t) =
+    pure (t, ctx) -- innermost Builtin annotation assumed to be correctly provided by `synthesizeClosed`
   go (Term.Ann (Term.Ref _) t) =
     pure (t, ctx) -- innermost Ref annotation assumed to be correctly provided by `synthesizeClosed`
   go (Term.Ann (Term.Con _) t) =
     pure (t, ctx) -- innermost Con annotation assumed to be correctly provided by `synthesizeClosed`
   go (Term.Ref h) = Left . note $ "unannotated reference: " ++ show h
   go (Term.Con h) = Left . note $ "unannotated constructor: " ++ show h
+  go (Term.Builtin n) = Left . note $ "unannotated builtin: " ++ show n
   go (Term.Ann e' t) = (,) t <$> check ctx e' t -- Anno
   go (Term.Lit l) = pure (synthLit l, ctx) -- 1I=>
   go (Term.App f arg) = do -- ->E
@@ -354,7 +360,7 @@ synthesizeApp ctx ft arg = go ft where
                       (T.Existential i)
   go _ = Left $ note "unable to synthesize type of application"
 
-synthesizeClosed :: Applicative f => (H.Hash -> Noted f Type) -> Term -> Noted f Type
+synthesizeClosed :: Applicative f => T.Env f -> Term -> Noted f Type
 synthesizeClosed synthRef term = Noted $ synth <$> N.unnote (annotate term)
   where
     synth :: Either Note Term -> Either Note Type
@@ -362,9 +368,11 @@ synthesizeClosed synthRef term = Noted $ synth <$> N.unnote (annotate term)
     synth (Right a) = go <$> synthesize (context []) a
     go (t, ctx) = apply ctx t
     annotate term' = case term' of
-      Term.Ref h -> Term.Ann (Term.Ref h) <$> synthRef h
-      Term.Con h -> Term.Ann (Term.Con h) <$> synthRef h
+      Term.Ref h -> Term.Ann (Term.Ref h) <$> synthRef (Right h)
+      Term.Con h -> Term.Ann (Term.Con h) <$> synthRef (Right h)
+      Term.Builtin b -> Term.Ann (Term.Builtin b) <$> synthRef (Left b)
       Term.App f arg -> Term.App <$> annotate f <*> annotate arg
       Term.Ann body t -> Term.Ann <$> annotate body <*> pure t
       Term.Lam n body -> Term.Lam n <$> annotate body
+      Term.Lit (Term.Vector terms) -> Term.Lit . Term.Vector <$> traverse annotate terms
       _ -> pure term'

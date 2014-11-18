@@ -1,6 +1,7 @@
 module Main where
 
 import qualified Data.Map as M
+import qualified Unison.Note as N
 import qualified Unison.Node.Server as S
 import qualified Unison.Node.Common as C
 import qualified Unison.Node.Store.File as F
@@ -10,5 +11,6 @@ main :: IO ()
 main =
   let store = F.store "store"
       eval = I.eval M.empty
-      node = C.node eval store
+      env b = N.failure ("unknown builtin: " ++ show b)
+      node = C.node env eval store
   in S.server 8080 node

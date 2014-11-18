@@ -24,23 +24,27 @@ import qualified Unison.Syntax.Type as T
 data Literal
   = Number Double
   | String Txt.Text
-  | Vector (V.Vector Term)
   | Relative Distance.Relative
   | Absolute Distance.Absolute
+  | Vector (V.Vector Term)
   deriving (Eq,Ord,Show)
 
 -- | Terms in the Unison language
 data Term
   = Var V.Var
   | Lit Literal
+  | Blank -- An expression that has not been filled in, has type `forall a . a`
   | Con H.Hash -- ^ A constructor reference. @Con h `App` ...@ is by definition in normal form
   | Ref H.Hash
+  | Builtin Txt.Text
   | App Term Term
   | Ann Term T.Type
   | Lam V.Var Term
   deriving (Eq,Ord)
 
 instance Show Term where
+  show Blank = "_"
+  show (Builtin v) = show v
   show (Var v) = show v
   show (Ref v) = show v
   show (Lit l) = show l
@@ -95,6 +99,8 @@ dependencies e = case e of
   Con h -> S.singleton h
   Var _ -> S.empty
   Lit _ -> S.empty
+  Blank -> S.empty
+  Builtin _ -> S.empty
   App fn arg -> dependencies fn `S.union` dependencies arg
   Ann e _ -> dependencies e
   Lam _ body -> dependencies body
@@ -189,6 +195,8 @@ hashCons e = let (e', hs) = runWriter (go e) in ((closedHash e', e'), topologica
       c@(Con _) -> pure c
       r@(Ref _) -> pure r
       v@(Var _) -> pure v
+      b@(Builtin _) -> pure b
+      Blank     -> pure Blank
       Lam n body -> go body >>=
         \body -> save (lam1 $ \x -> betaReduce (Lam n body `App` x))
       Ann e t   -> save =<< (Ann <$> go e <*> pure t)

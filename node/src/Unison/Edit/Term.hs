@@ -19,7 +19,7 @@ import Unison.Type (synthesize)
 interpret :: (Applicative f, Monad f)
           => Eval (Noted f)
           -> (H.Hash -> Noted f E.Term)
-          -> (H.Hash -> Noted f T.Type)
+          -> T.Env f
           -> P.Path -> Action E.Term -> E.Term -> Noted f E.Term
 interpret eval readTerm readType loc f ctx = go f where
   go Abstract = abstract loc ctx
@@ -51,7 +51,7 @@ abstract loc ctx =
 -- flows between the usage of @e@ and the call to @f@. We then
 -- read off the type of @e@ from the inferred type of @f@.
 admissibleTypeOf :: Applicative f
-                 => (H.Hash -> Noted f T.Type)
+                 => T.Env f
                  -> P.Path
                  -> E.Term
                  -> Noted f T.Type
@@ -129,11 +129,7 @@ locals _ _ = []
 -- as possible by any local usages of that subterm. For example, in
 -- @\g -> map g [1,2,3]@, @g@ will have a type of @forall r . Int -> r@,
 -- and @map@ will have a type of @forall a b . (a -> b) -> [a] -> [b]@.
-typeOf :: Applicative f
-       => (H.Hash -> Noted f T.Type)
-       -> P.Path
-       -> E.Term
-       -> Noted f T.Type
+typeOf :: Applicative f => T.Env f -> P.Path -> E.Term -> Noted f T.Type
 typeOf synthLit (P.Path []) ctx = synthesize synthLit ctx
 typeOf synthLit loc ctx = case P.at' loc ctx of
   Nothing -> N.failure $ invalid loc ctx

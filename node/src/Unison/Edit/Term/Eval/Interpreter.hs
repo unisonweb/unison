@@ -6,12 +6,10 @@ import Control.Monad
 import Data.Map (Map)
 import Data.Maybe (fromMaybe)
 import qualified Data.Map as M
-import qualified Data.Set as S
 import Unison.Edit.Term.Eval
 import Unison.Syntax.Term (Term)
 import qualified Unison.Syntax.Term as E
 import Unison.Syntax.Hash (Hash)
-import qualified Unison.Syntax.Hash as H
 
 -- | A Haskell function accepting 'arity' arguments
 data Primop f =

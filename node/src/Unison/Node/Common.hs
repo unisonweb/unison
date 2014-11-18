@@ -3,6 +3,7 @@ module Unison.Node.Common (node) where
 
 import qualified Data.Map as M
 import qualified Data.Set as S
+import qualified Data.Text as Text
 import Control.Applicative
 import Control.Monad
 import Unison.Node.Metadata as MD
@@ -18,17 +19,18 @@ import Unison.Node as N
 import Unison.Node.Store
 import Unison.Note (Noted)
 
-node :: (Applicative f, Monad f) => Eval (Noted f) -> Store f  -> Node f H.Hash Type Term
-node eval store =
+node :: (Applicative f, Monad f) => (Text.Text -> Noted f T.Type) -> Eval (Noted f) -> Store f  -> Node f H.Hash Type Term
+node builtin eval store =
   let
+    env = either builtin readTypeOf
     readTypeOf h = readMetadata store h >>=
                    \md -> readType store (MD.annotation md)
 
     admissibleTypeOf e loc =
-      TE.admissibleTypeOf readTypeOf loc e
+      TE.admissibleTypeOf env loc e
 
     createTerm e md = do
-      t <- Type.synthesize readTypeOf e
+      t <- Type.synthesize env e
       ((h,_), subterms) <- pure $ E.hashCons e
       ht <- pure $ T.finalizeHash t
       writeTerm store h e
@@ -36,7 +38,7 @@ node eval store =
       writeMetadata store h (md { MD.annotation = ht })
       pure h <* mapM_ go subterms where -- declare all subterms extracted via hash-consing
         go (h,e) = do
-          t <- Type.synthesize readTypeOf e
+          t <- Type.synthesize env e
           ht <- pure $ T.finalizeHash t
           writeTerm store h e
           writeType store ht t
@@ -58,7 +60,7 @@ node eval store =
       pure $ S.fromList [x | (x,deps) <- hs', S.member h deps]
 
     edit path action e = do
-      TE.interpret eval (readTerm store) (readType store) path action e
+      TE.interpret eval (readTerm store) env path action e
 
     editType = error "todo later"
 
@@ -99,7 +101,7 @@ node eval store =
       M.fromList <$> sequence (map (\h -> (,) h <$> readType store h) hs)
 
     typeOf ctx loc =
-      TE.typeOf readTypeOf loc ctx
+      TE.typeOf env loc ctx
 
     typeOfConstructorArg = error "todo"
 

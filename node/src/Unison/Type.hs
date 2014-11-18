@@ -3,6 +3,7 @@ module Unison.Type where
 
 import Control.Monad
 import Control.Applicative
+import qualified Data.Text as Text
 import qualified Unison.Type.Context as C
 import qualified Unison.Syntax.Hash as H
 import qualified Unison.Syntax.Type as T
@@ -12,7 +13,7 @@ import Unison.Note as N
 -- | Infer the type of a 'Unison.Syntax.Term', using
 -- a function to resolve the type of @Ref@ constructors
 -- contained in that term.
-synthesize :: Applicative f => (H.Hash -> Noted f T.Type) -> E.Term -> Noted f T.Type
+synthesize :: Applicative f => T.Env f -> E.Term -> Noted f T.Type
 synthesize = C.synthesizeClosed
 
 -- | Infer the type of a 'Unison.Syntax.Term', assumed
@@ -25,7 +26,7 @@ synthesize' term = join . N.unnote $ synthesize missing term
 -- function to resolve the type of @Ref@ constructors
 -- contained in the term. Returns @typ@ if successful,
 -- and a note about typechecking failure otherwise.
-check :: Applicative f => (H.Hash -> Noted f T.Type) -> E.Term -> T.Type -> Noted f T.Type
+check :: Applicative f => T.Env f -> E.Term -> T.Type -> Noted f T.Type
 check synth term typ = synthesize synth (E.Ann term typ)
 
 -- | Check whether a term, assumed to contain no @Ref@ constructors,
