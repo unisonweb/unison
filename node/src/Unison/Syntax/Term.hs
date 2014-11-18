@@ -16,6 +16,7 @@ import qualified Data.Map as M
 import qualified Data.Text as Txt
 import qualified Data.Vector as V
 import Unison.Syntax.Var as V
+import qualified Unison.Syntax.Distance as Distance
 import qualified Unison.Syntax.Hash as H
 import qualified Unison.Syntax.Type as T
 
@@ -24,6 +25,8 @@ data Literal
   = Number Double
   | String Txt.Text
   | Vector (V.Vector Term)
+  | Relative Distance.Relative
+  | Absolute Distance.Absolute
   deriving (Eq,Ord,Show)
 
 -- | Terms in the Unison language

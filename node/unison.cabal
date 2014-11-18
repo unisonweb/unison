@@ -62,6 +62,7 @@ library
     Unison.Node.Server
     Unison.Note
     Unison.Syntax
+    Unison.Syntax.Distance
     Unison.Syntax.Hash
     Unison.Syntax.Kind
     Unison.Syntax.Term
