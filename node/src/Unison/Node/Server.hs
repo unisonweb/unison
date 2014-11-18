@@ -18,6 +18,7 @@ import qualified Unison.Syntax.Hash as H
 import qualified Unison.Syntax.Term as E
 import qualified Unison.Syntax.Type as T
 import Unison.Syntax.Hash (Hash)
+import Unison.Syntax.Reference (Reference)
 import Unison.Node (Node)
 import qualified Unison.Node as N
 import Unison.Note (Noted, unnote)
@@ -39,7 +40,7 @@ jsonParam paramName = S.param paramName >>= \paramValue ->
     Left err -> S.raise (TL.pack err)
     Right a -> pure a
 
-server :: Int -> Node IO Hash T.Type E.Term -> IO ()
+server :: Int -> Node IO Reference T.Type E.Term -> IO ()
 server port node = S.scotty port $ do
   S.get "/admissible-type-of" $ do
     (h, path) <- S.jsonData
@@ -114,3 +115,6 @@ server port node = S.scotty port $ do
 
 instance J.ToJSON a => J.ToJSON (M.Map Hash a) where
   toJSON m = J.toJSON . M.fromList . map (\(h,v) -> (H.base64 h, v)) . M.toList $ m
+
+instance J.ToJSON a => J.ToJSON (M.Map Reference a) where
+  toJSON m = error "todo"
