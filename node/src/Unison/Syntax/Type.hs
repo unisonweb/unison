@@ -36,7 +36,7 @@ data Literal
   | Vector
   | Absolute
   | Relative
-  | Hash H.Hash -- ^ A type literal uniquely defined by some nameless Hash
+  | Ref R.Reference -- ^ A type literal uniquely defined by some nameless Hash
   deriving (Eq,Ord,Show)
 
 -- | Types in the Unison language

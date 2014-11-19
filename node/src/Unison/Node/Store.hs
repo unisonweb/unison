@@ -14,6 +14,6 @@ data Store f = Store {
   writeTerm :: Hash -> Term -> Noted f (),
   readType :: Hash -> Noted f Type,
   writeType :: Hash -> Type -> Noted f (),
-  readMetadata :: Reference -> Noted f (Metadata Hash),
-  writeMetadata :: Reference -> Metadata Hash -> Noted f ()
+  readMetadata :: Reference -> Noted f (Metadata Reference),
+  writeMetadata :: Reference -> Metadata Reference -> Noted f ()
 }

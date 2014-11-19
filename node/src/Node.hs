@@ -11,6 +11,5 @@ main :: IO ()
 main =
   let store = F.store "store"
       eval = I.eval M.empty
-      env b = N.failure ("unknown builtin: " ++ show b)
       node = C.node eval store
   in S.server 8080 node
