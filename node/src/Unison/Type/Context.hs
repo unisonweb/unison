@@ -295,7 +295,6 @@ synthLit :: Term.Literal -> Type
 synthLit lit = T.Unit $ case lit of
   Term.Number _ -> T.Number
   Term.String _ -> T.String
-  Term.Vector _ -> T.Vector
   Term.Absolute _ -> T.Absolute
   Term.Relative _ -> T.Absolute
 
@@ -311,6 +310,7 @@ synthesize ctx e = scope ("infer: " ++ show e) $ go e where
   go (Term.Ref h) = Left . note $ "unannotated reference: " ++ show h
   go (Term.Ann e' t) = (,) t <$> check ctx e' t -- Anno
   go (Term.Lit l) = pure (synthLit l, ctx) -- 1I=>
+  go (Term.Vector v) = pure (T.Unit T.Vector, ctx) -- todo, if vector is empty, return forall a . Vector a, otherwise take lub of elements in vec
   go (Term.App f arg) = do -- ->E
     (ft, ctx') <- synthesize ctx f
     synthesizeApp ctx' (apply ctx' ft) arg
@@ -364,5 +364,5 @@ synthesizeClosed synthRef term = Noted $ synth <$> N.unnote (annotate term)
       Term.App f arg -> Term.App <$> annotate f <*> annotate arg
       Term.Ann body t -> Term.Ann <$> annotate body <*> pure t
       Term.Lam n body -> Term.Lam n <$> annotate body
-      Term.Lit (Term.Vector terms) -> Term.Lit . Term.Vector <$> traverse annotate terms
+      Term.Vector terms -> Term.Vector <$> traverse annotate terms
       _ -> pure term'

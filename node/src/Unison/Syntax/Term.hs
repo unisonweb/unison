@@ -6,6 +6,8 @@
 
 module Unison.Syntax.Term where
 
+import qualified Data.Foldable as Foldable
+import Data.Traversable
 import Control.Applicative
 import Control.Monad
 import Control.Monad.Writer
@@ -27,7 +29,6 @@ data Literal
   | String Txt.Text
   | Relative Distance.Relative
   | Absolute Distance.Absolute
-  | Vector (V.Vector Term)
   deriving (Eq,Ord,Show)
 
 -- | Terms in the Unison language
@@ -38,6 +39,7 @@ data Term
   | Ref R.Reference
   | App Term Term
   | Ann Term T.Type
+  | Vector (V.Vector Term)
   | Lam V.Var Term
   deriving (Eq,Ord)
 
@@ -46,6 +48,7 @@ instance Show Term where
   show (Var v) = show v
   show (Ref v) = show v
   show (Lit l) = show l
+  show (Vector v) = show v
   show (App f x@(App _ _)) = show f ++ "(" ++ show x ++ ")"
   show (App f x) = show f ++ " " ++ show x
   show (Ann x t) = "(" ++ show x ++ " : " ++ show t ++ ")"
@@ -55,6 +58,7 @@ maxV :: Term -> V.Var
 maxV (App f x) = maxV f `max` maxV x
 maxV (Ann x _) = maxV x
 maxV (Lam n _) = n
+maxV (Vector v) | not (V.null v) = Foldable.foldl max (V.decr V.bound1) (fmap maxV v)
 maxV _         = V.decr V.bound1
 
 lam1M :: Monad f => (Term -> f Term) -> f Term
@@ -85,6 +89,7 @@ link env e = case e of
     e | S.null (dependencies e) -> pure $ e
     e | otherwise -> link env e
   App fn arg -> App <$> link env fn <*> link env arg
+  Vector vs -> Vector <$> traverse (link env) vs
   Lam n body -> go <$> link env body
     where go body = lam1 $ \x -> betaReduce (Lam n body `App` x)
   _ -> pure e
@@ -98,6 +103,7 @@ dependencies e = case e of
   Blank -> S.empty
   App fn arg -> dependencies fn `S.union` dependencies arg
   Ann e _ -> dependencies e
+  Vector vs -> Foldable.foldMap dependencies vs
   Lam _ body -> dependencies body
 
 freeVars :: Term -> S.Set V.Var
@@ -106,6 +112,7 @@ freeVars e = case e of
   App fn arg -> freeVars fn `S.union` freeVars arg
   Ann e _ -> freeVars e
   Lam n body -> S.delete n (freeVars body)
+  Vector vs -> Foldable.foldMap freeVars vs
   _ -> S.empty
 
 isClosed :: Term -> Bool
@@ -128,6 +135,7 @@ betaReduce (App (Lam var f) arg) = go f where
   go :: Term -> Term
   go body = case body of
     App f x -> App (go f) (go x)
+    Vector vs -> Vector (fmap go vs)
     Ann body t -> Ann (go body) t
     Lam n body | n == var  -> Lam n body -- this lambda shadows var; avoid substituting
                | otherwise -> Lam n (go body)
@@ -189,8 +197,6 @@ hashCons e = let (e', hs) = runWriter (go e) in finalize e' hs
     save e = pure e
     go e = case etaNormalForm e of
       l@(Lit _) -> save l
-      -- todo, need to hash cons inside the vector
-      -- also need to move Vector out of Lit
       r@(Ref _) -> pure r
       v@(Var _) -> pure v
       Blank     -> pure Blank
@@ -198,6 +204,7 @@ hashCons e = let (e', hs) = runWriter (go e) in finalize e' hs
         \body -> save (lam1 $ \x -> betaReduce (Lam n body `App` x))
       Ann e t   -> save =<< (Ann <$> go e <*> pure t)
       App f x   -> save =<< (App <$> go f <*> go x)
+      Vector vs  -> save =<< (Vector <$> traverse go vs)
 
 -- | Computes the nameless hash of the given term
 hash :: Term -> H.Digest
