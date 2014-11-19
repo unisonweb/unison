@@ -217,10 +217,10 @@ break rootMd md path expr =
           else Operators True prec { path = path, term = e} []
         _ -> Operators True prec { path = path, term = e } []
   in case expr of
-    Lit (Vector xs) -> xs
-                    |> Array.indexedMap (\i a -> { path = path `snoc` Index i, term = a })
-                    |> Array.toList
-                    |> Bracketed
+    Vector xs -> xs
+              |> Array.indexedMap (\i a -> { path = path `snoc` Index i, term = a })
+              |> Array.toList
+              |> Bracketed
     App (App op l) r ->
       let sym = case op of
         Ref h -> Metadata.firstSymbol (R.toString h) (md h)
@@ -293,7 +293,7 @@ builtins env allowBreak availableWidth ambientPrec cur =
         in Just (impl env allowBreak ambientPrec rem { path = cur.path `snoc` Arg, term = e })
       Ref (R.Builtin "View.hide") -> Just (L.empty t)
       Ref (R.Builtin "View.horizontal") -> case e of
-        Lit (Vector es) -> todo -- more complicated, as we need to do sequencing
+        Vector es -> Nothing -- todo more complicated, as we need to do sequencing
         _ -> Nothing
       Ref (R.Builtin "View.swatch") -> case e of
         App (App (App (App (Ref (R.Builtin "Color.rgba")) (Lit (Number r))) (Lit (Number g))) (Lit (Number b))) (Lit (Number a)) ->
@@ -324,13 +324,13 @@ builtins env allowBreak availableWidth ambientPrec cur =
             in Just (L.embed t e')
           _ -> Nothing
       Ref (R.Builtin "View.vertical") -> case e of
-        Lit (Vector es) ->
+        Vector es ->
           let f i e = impl env allowBreak ambientPrec availableWidth
                         { path = cur.path `append` [Arg, Path.Index i], term = e }
           in Just (L.vertical (tag (cur.path `snoc` Arg)) (indexedMap f (Array.toList es)))
       Ref (R.Builtin "View.id") -> builtins env allowBreak availableWidth ambientPrec { path = cur.path `snoc` Arg, term = e }
       Ref (R.Builtin "View.wrap") -> case e of
-        Lit (Vector es) -> todo -- more complicated, as we need to do sequencing
+        Vector es -> Nothing -- todo more complicated, as we need to do sequencing
         _ -> Nothing
       _ -> Nothing
   in case cur.term of

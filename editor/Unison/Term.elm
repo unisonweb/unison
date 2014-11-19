@@ -35,7 +35,6 @@ data Literal
   | Str String
   | Relative Distance.Relative
   | Absolute Distance.Absolute
-  | Vector (Array Term)
 
 data Term
   = Var I
@@ -45,6 +44,7 @@ data Term
   | App Term Term
   | Ann Term T.Type
   | Lam I Term
+  | Vector (Array Term)
   | Embed (Layout { path : Path, selectable : Bool })
 
 data ClosedTerm = ClosedTerm Term
@@ -58,9 +58,8 @@ unclose (ClosedTerm e) = e
 rename : I -> I -> Term -> Term
 rename from to e = case e of
   Var i -> if i == from then Var to else e
-  Lit l -> case l of
-    Vector es -> Lit (Vector (Array.map (rename from to) es))
-    _ -> e
+  Vector es -> Vector (Array.map (rename from to) es)
+  Lit l -> e
   App f arg -> App (rename from to f) (rename from to arg)
   Ann e t -> Ann (rename from to e) t
   Lam n inner -> Lam n (rename from to inner)
@@ -71,9 +70,8 @@ substitute body v x =
   let freshx = fresh (unclose x)
       go body = case body of
         Var i -> if i == v then unclose x else body
-        Lit l -> case l of
-          Vector es -> Lit (Vector (Array.map (\body -> substitute body v x) es))
-          _ -> body
+        Lit l -> body
+        Vector es -> Vector (Array.map (\body -> substitute body v x) es)
         App f arg -> App (substitute f v x) (substitute arg v x)
         Ann e t -> Ann (substitute e v x) t
         Lam n inner -> if n == v then Lam n inner
@@ -87,9 +85,8 @@ substitute body v x =
 fresh : Term -> I
 fresh e = case e of
   Lam n _ -> V.succ n
-  Lit l -> case l of
-    Vector es -> Array.map fresh es |> Array.foldl max V.z
-    _ -> V.z
+  Lit l -> V.z
+  Vector es -> Array.map fresh es |> Array.foldl max V.z
   App f arg -> max (fresh f) (fresh arg)
   Ann e _ -> fresh e
   _ -> V.z
@@ -98,9 +95,8 @@ fresh e = case e of
 unbound : Term -> Set I
 unbound e = case e of
   Var i -> Set.singleton i
-  Lit l -> case l of
-    Vector es -> Array.map unbound es |> Array.foldl Set.union Set.empty
-    _ -> Set.empty
+  Vector es -> Array.map unbound es |> Array.foldl Set.union Set.empty
+  Lit l -> Set.empty
   App f arg -> Set.union (unbound f) (unbound arg)
   Ann e _ -> unbound e
   Lam n body -> Set.remove n (unbound body)
@@ -113,7 +109,7 @@ at p e = case (p,e) of
   (Fn :: t, App f _) -> at t f
   (Arg :: t, App _ arg) -> at t arg
   (Body :: t, Lam _ body) -> at t body
-  (Index i :: t, Lit (Vector es)) -> case Array.get i es of
+  (Index i :: t, Vector es) -> case Array.get i es of
     Just e -> at t e
     _ -> Nothing
   _ -> Nothing
@@ -131,7 +127,7 @@ down e p =
         _ -> 1
       go e = case e of
         App f x -> p `append` repeat (apps f) Fn
-        Lit (Vector es) -> if Array.length es == 0 then p else p `snoc` Index 0
+        Vector es -> if Array.length es == 0 then p else p `snoc` Index 0
         Lam _ _ -> p `snoc` Body
         _ -> p
   in maybe p go (at p e)
@@ -203,19 +199,20 @@ decodeLiteral : Decoder Literal
 decodeLiteral = Decoder.union' <| \t ->
   if | t == "Number" -> Decoder.map Number Decoder.number
      | t == "String" -> Decoder.map Str Decoder.string
-     | t == "Vector" -> Decoder.map (Vector << Array.fromList) (Decoder.array decodeTerm)
      | t == "Relative" -> Decoder.map Relative decodeRelative
      | t == "Absolute" -> Decoder.map Absolute decodeAbsolute
 
 encodeLiteral l = case l of
   Number n -> Encoder.tag' "Number" Encoder.number n
   Str s -> Encoder.tag' "String" Encoder.string s
-  Vector es -> Encoder.tag' "Vector" (Encoder.contramap Array.toList (Encoder.array encodeTerm)) es
+  Absolute a -> Encoder.tag' "Absolute" encodeAbsolute a
+  Relative r -> Encoder.tag' "Relative" encodeRelative r
 
 decodeTerm : Decoder Term
 decodeTerm = Decoder.union' <| \t ->
   if | t == "Var" -> Decoder.map Var V.decode
      | t == "Lit" -> Decoder.map Lit decodeLiteral
+     | t == "Vector" -> Decoder.map (Vector << Array.fromList) (Decoder.array decodeTerm)
      | t == "Ref" -> Decoder.map Ref R.decode
      | t == "App" -> Decoder.lift2 App decodeTerm decodeTerm
      | t == "Ann" -> Decoder.lift2 Ann decodeTerm T.decodeType

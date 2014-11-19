@@ -30,21 +30,22 @@ import Elmz.Distance as Distance
 
 type Path = Path.Path -- to avoid conflict with Graphics.Collage.Path
 
-nums : E.Term
-nums = let f x = E.Lit (E.Number (toFloat x))
-       in E.Lit (E.Vector (Array.fromList (map f [0..20])))
-
 ap = E.App
 builtin s = E.Ref (R.Builtin s)
 derived s = E.Ref (R.Derived s)
 int n = E.Lit (E.Number (toFloat n))
+vec es = E.Vector (Array.fromList es)
+
+nums : E.Term
+nums = vec (map int [0..20])
 
 rgbTerm : Int -> Int -> Int -> E.Term
 rgbTerm r g b =
   builtin "Color.rgba" `ap` int r `ap` int g `ap` int b `ap` int 1
 
 -- expr = E.App (E.App (E.Ref "foo") nums) (E.App (E.Ref "baz") (E.Builtin "View.cell" `ap` E.Builtin "View.swatch" `ap` rgbTerm 230 126 34))
-expr = derived "foo" `ap` nums `ap` (derived "baz" `ap` rgbTerm 230 126 34)
+expr0 = derived "foo" `ap` nums `ap` (derived "baz" `ap` rgbTerm 230 126 34)
+expr = derived "foo" `ap` nums `ap` (derived "baz" `ap` (builtin "View.cell" `ap` builtin "View.swatch" `ap` rgbTerm 230 126 34))
 -- this bombs
 -- expr = E.Ref "uno" `ap` E.Ref "dos" `ap` E.Ref "tres" `ap` E.Ref "quatro" `ap` E.Ref "cinco" `ap` E.Ref "seis" `ap` E.Ref "siete" `ap` E.Ref "ocho"
 -- expr = E.App (E.App (E.Ref "foo") nums) (E.App (E.Ref "baz") (rgbTerm 230 126 34))
@@ -53,7 +54,7 @@ cell f x = builtin "View.cell" `ap` f `ap` x
 panel v e = builtin "View.panel" `ap` v `ap` e
 function1 f = builtin "View.function1" `ap` f
 source e = builtin "View.source" `ap` e
-verticalPanel es = panel (builtin "View.vertical") (E.Lit (E.Vector (Array.fromList es)))
+verticalPanel es = panel (builtin "View.vertical") (vec es)
 string s = E.Lit (E.Str s)
 text s = builtin "View.text" `ap` s
 centered s = builtin "View.textbox" `ap` builtin "Text.center" `ap` full `ap` s
