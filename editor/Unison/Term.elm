@@ -18,6 +18,7 @@ import Set (Set)
 import String
 import Text(..)
 import Text
+import Unison.Reference as R
 import Unison.Hash (Hash)
 import Unison.Hash as H
 import Unison.Metadata (Metadata, Fixity)
@@ -40,9 +41,7 @@ data Term
   = Var I
   | Blank
   | Lit Literal
-  | Con Hash
-  | Ref Hash
-  | Builtin String
+  | Ref R.Reference
   | App Term Term
   | Ann Term T.Type
   | Lam I Term
@@ -217,9 +216,7 @@ decodeTerm : Decoder Term
 decodeTerm = Decoder.union' <| \t ->
   if | t == "Var" -> Decoder.map Var V.decode
      | t == "Lit" -> Decoder.map Lit decodeLiteral
-     | t == "Con" -> Decoder.map Con H.decode
-     | t == "Ref" -> Decoder.map Ref H.decode
-     | t == "Builtin" -> Decoder.map Builtin Decoder.string
+     | t == "Ref" -> Decoder.map Ref R.decode
      | t == "App" -> Decoder.lift2 App decodeTerm decodeTerm
      | t == "Ann" -> Decoder.lift2 Ann decodeTerm T.decodeType
      | t == "Lam" -> Decoder.lift2 Lam V.decode decodeTerm
@@ -230,9 +227,7 @@ encodeTerm e = case e of
   Blank -> Encoder.tag' "Blank" Encoder.product0 ()
   Var v -> Encoder.tag' "Var" V.encode v
   Lit l -> Encoder.tag' "Lit" encodeLiteral l
-  Con h -> Encoder.tag' "Con" H.encode h
-  Ref h -> Encoder.tag' "Ref" H.encode h
-  Builtin s -> Encoder.tag' "Builtin" Encoder.string s
+  Ref h -> Encoder.tag' "Ref" R.encode h
   App f x -> Encoder.tag' "App" (Encoder.array encodeTerm) [f, x]
   Ann e t -> Encoder.tag' "Ann" (Encoder.tuple2 encodeTerm T.encodeType) (e, t)
   Lam n body -> Encoder.tag' "Lam" (Encoder.tuple2 V.encode encodeTerm) (n, body)

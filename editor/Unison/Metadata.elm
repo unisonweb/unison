@@ -7,6 +7,7 @@ import Elmz.Json.Encoder (Encoder)
 import Elmz.Json.Decoder as Decoder
 import Elmz.Json.Decoder (Decoder, (#))
 import Maybe (maybe)
+import Unison.Reference as R
 import Unison.Path as Path
 import Unison.Path (Path)
 import Unison.Hash as H
@@ -21,15 +22,15 @@ type Metadata = {
   names : Names,
   -- for each var, and each scope (which points to a lambda body), what are the names of that var w/in that scope
   locals : M.Dict I [(Path,Names)],
-  description : Maybe H.Hash,
-  annotation : H.Hash
+  description : Maybe R.Reference,
+  annotation : R.Reference
 }
 
 anonymousSymbol : Symbol
 anonymousSymbol = Symbol "anonymousSymbol" Prefix 9
 
 anonymousTerm : Metadata
-anonymousTerm = Metadata Term [] M.empty Nothing "unknown"
+anonymousTerm = Metadata Term [] M.empty Nothing (R.Builtin "unknown type")
 
 firstSymbol : String -> Metadata -> Symbol
 firstSymbol defaultName md = case md.names of
@@ -120,8 +121,8 @@ decodeMetadata =
     decodeSort
     decodeNames
     decodeLocals
-    (Decoder.optional H.decode)
-    H.decode
+    (Decoder.optional R.decode)
+    R.decode
 
 decodeLocals : Decoder (M.Dict I [(Path,Names)])
 decodeLocals =
@@ -136,7 +137,7 @@ encodeMetadata md = Encoder.tag' "Metadata"
     encodeSort
     encodeNames
     encodeLocals
-    (Encoder.optional H.encode)
-    H.encode)
+    (Encoder.optional R.encode)
+    R.encode)
   (md.sort, md.names, md.locals, md.description, md.annotation)
 
