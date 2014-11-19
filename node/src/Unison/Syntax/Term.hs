@@ -35,7 +35,6 @@ data Term
   = Var V.Var
   | Lit Literal
   | Blank -- An expression that has not been filled in, has type `forall a . a`
-  | Con R.Reference -- ^ A constructor reference. @Con h `App` ...@ is by definition in normal form
   | Ref R.Reference
   | App Term Term
   | Ann Term T.Type
@@ -47,7 +46,6 @@ instance Show Term where
   show (Var v) = show v
   show (Ref v) = show v
   show (Lit l) = show l
-  show (Con h) = show h
   show (App f x@(App _ _)) = show f ++ "(" ++ show x ++ ")"
   show (App f x) = show f ++ " " ++ show x
   show (Ann x t) = "(" ++ show x ++ " : " ++ show t ++ ")"
@@ -84,7 +82,6 @@ link env e = case e of
   -- that resolve to themselves, as these are considered primops
   Ref (R.Derived h) -> env h >>= \e -> case e of
     Ref (R.Derived h') | h == h' -> pure $ Ref (R.Derived h')
-    Con (R.Derived h') | h == h' -> pure $ Con (R.Derived h')
     e | S.null (dependencies e) -> pure $ e
     e | otherwise -> link env e
   App fn arg -> App <$> link env fn <*> link env arg
@@ -95,8 +92,6 @@ link env e = case e of
 dependencies :: Term -> S.Set H.Hash
 dependencies e = case e of
   Ref (R.Derived h) -> S.singleton h
-  Con (R.Derived h) -> S.singleton h
-  Con _ -> S.empty
   Ref _ -> S.empty
   Var _ -> S.empty
   Lit _ -> S.empty
@@ -196,7 +191,6 @@ hashCons e = let (e', hs) = runWriter (go e) in finalize e' hs
       l@(Lit _) -> save l
       -- todo, need to hash cons inside the vector
       -- also need to move Vector out of Lit
-      c@(Con _) -> pure c
       r@(Ref _) -> pure r
       v@(Var _) -> pure v
       Blank     -> pure Blank
