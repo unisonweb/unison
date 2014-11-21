@@ -1,0 +1,15 @@
+<html>
+  <head>
+    <script type="text/javascript" src="include/fonts.js"></script>
+    <script type="text/javascript" src="Main.js"></script>
+  </head>
+  <body>
+    <div id="sq-inch" style="width: 1in; height: 1in"></div>
+  </body>
+  <script type="text/javascript"> 
+    var sq = document.getElementById("sq-inch");
+    var ppi = sq.clientHeight
+    sq.parentNode.removeChild(sq);
+    Elm.fullscreen(Elm.Main, { pixelsPerInch : ppi });
+  </script>
+</html>

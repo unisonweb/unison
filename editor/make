@@ -1,1 +1,1 @@
-elm --make Main.elm --scripts include/fonts.js
+elm --only-js --bundle-runtime --make Main.elm --build-dir=.

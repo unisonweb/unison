@@ -28,6 +28,8 @@ import Elmz.Signal as Signals
 import Elmz.Maybe
 import Elmz.Distance as Distance
 
+port pixelsPerInch : Signal Int
+
 type Path = Path.Path -- to avoid conflict with Graphics.Collage.Path
 
 ap = E.App
@@ -86,11 +88,11 @@ resolvedPath e pathUnderPtr =
 terms : Signal E.Term
 terms = constant expr
 
-layout : Int -> E.Term -> L.Layout { path : Path, selectable : Bool }
-layout availableWidth term =
+layout : Int -> Int -> E.Term -> L.Layout { path : Path, selectable : Bool }
+layout availableWidth pixelsPerInch term =
   V.layout term { rootMetadata = MD.anonymousTerm
                 , availableWidth = availableWidth
-                , pixelsPerInch = 130 -- todo, get real value from somewhere
+                , pixelsPerInch = pixelsPerInch
                 , metadata h = MD.anonymousTerm
                 , overrides x = Nothing }
 
@@ -110,7 +112,7 @@ main =
       terms = constant expr
 
       rendered : Signal (L.Layout { path : Path, selectable : Bool })
-      rendered = layout <~ Signals.steady (100 * millisecond) Window.width ~ terms
+      rendered = layout <~ Signals.steady (100 * millisecond) Window.width ~ pixelsPerInch ~ terms
 
       leaf : Signal (Maybe Path)
       leaf = lift (Maybe.map .path) (leafUnderPtr rendered)
@@ -133,15 +135,16 @@ main =
           Just region -> S.selection layout region
         in lift2 f rendered highlight
 
-      scene : L.Layout x -> Element -> Maybe Scope -> Element
-      scene l selection scope =
+      scene : L.Layout x -> Element -> Maybe Scope -> Int -> Element
+      scene l selection scope ppi =
         Element.flow down [
           Element.layers [L.element l, selection],
           Element.spacer 1 100,
+          S.codeText ("pixels per inch: " ++ show ppi),
           S.codeText ("Path: " ++ show (Maybe.map .focus scope))
         ]
 
-  in scene <~ rendered ~ highlightLayer ~ scope
+  in scene <~ rendered ~ highlightLayer ~ scope ~ pixelsPerInch
 
 -- make sole UI state a Term
 -- certain terms are "special"
