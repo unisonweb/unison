@@ -34,8 +34,7 @@ data Literal
   = Number
   | String
   | Vector
-  | Absolute
-  | Relative
+  | Distance
   | Ref R.Reference -- ^ A type literal uniquely defined by some nameless Hash
   deriving (Eq,Ord,Show)
 

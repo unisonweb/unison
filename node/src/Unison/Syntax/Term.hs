@@ -27,8 +27,7 @@ import qualified Unison.Syntax.Type as T
 data Literal
   = Number Double
   | String Txt.Text
-  | Relative Distance.Relative
-  | Absolute Distance.Absolute
+  | Distance Distance.Distance
   deriving (Eq,Ord,Show)
 
 -- | Terms in the Unison language

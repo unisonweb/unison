@@ -295,8 +295,7 @@ synthLit :: Term.Literal -> Type
 synthLit lit = T.Unit $ case lit of
   Term.Number _ -> T.Number
   Term.String _ -> T.String
-  Term.Absolute _ -> T.Absolute
-  Term.Relative _ -> T.Absolute
+  Term.Distance _ -> T.Distance
 
 -- | Synthesize the type of the given term, updating the context in the process.
 synthesize :: Context -> Term -> Either Note (Type, Context)

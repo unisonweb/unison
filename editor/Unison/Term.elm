@@ -33,8 +33,7 @@ type Path = Path.Path -- to avoid conflict with Graphics.Collage.Path
 data Literal
   = Number Float
   | Str String
-  | Relative Distance.Relative
-  | Absolute Distance.Absolute
+  | Distance Distance.Distance
 
 data Term
   = Var I
@@ -159,54 +158,34 @@ siblingL e p =
   in if increment (valid e) p2 == p then p2
      else p
 
-decodeD : Decoder d -> Decoder (Distance.D d)
-decodeD d = Decoder.union' <| \t ->
-  if | t == "Quantum" -> Decoder.unit Distance.Quantum
-     | t == "Centimeters" -> Decoder.map Distance.Centimeters Decoder.number
-     | t == "Scale" -> Decoder.lift2 Distance.Scale Decoder.number d
-     | t == "Ceiling" -> Decoder.map Distance.Ceiling d
-     | t == "Floor" -> Decoder.map Distance.Floor d
-     | t == "Min" -> Decoder.lift2 Distance.Min d d
-     | t == "Max" -> Decoder.lift2 Distance.Max d d
+decodeDistance : Decoder (Distance.Distance)
+decodeDistance = Decoder.union' <| \t ->
+  if | t == "Pixel" -> Decoder.unit Distance.Pixel
+     | t == "Scale" -> Decoder.product2 Distance.Scale Decoder.number decodeDistance
+     | t == "Ceiling" -> Decoder.map Distance.Ceiling decodeDistance
+     | t == "Floor" -> Decoder.map Distance.Floor decodeDistance
+     | t == "Min" -> Decoder.product2 Distance.Min decodeDistance decodeDistance
+     | t == "Max" -> Decoder.product2 Distance.Max decodeDistance decodeDistance
 
-encodeD : Encoder d -> Encoder (Distance.D d)
-encodeD d e = case e of
-  Distance.Quantum -> Encoder.tag' "Quantum" Encoder.product0 ()
-  Distance.Centimeters cm -> Encoder.tag' "Centimeters" Encoder.number cm
-  Distance.Scale k dist -> Encoder.tag' "Scale" (Encoder.tuple2 Encoder.number d) (k,dist)
-  Distance.Ceiling dist -> Encoder.tag' "Ceiling" d dist
-  Distance.Floor dist -> Encoder.tag' "Floor" d dist
-  Distance.Max dist1 dist2 -> Encoder.tag' "Max" (Encoder.tuple2 d d) (dist1, dist2)
-  Distance.Min dist1 dist2 -> Encoder.tag' "Min" (Encoder.tuple2 d d) (dist1, dist2)
-
-decodeAbsolute : Decoder Distance.Absolute
-decodeAbsolute = Decoder.newtyped' Distance.Absolute (decodeD (\j -> decodeAbsolute j))
-
-decodeRelative : Decoder Distance.Relative
-decodeRelative = Decoder.union' <| \t ->
-  if | t == "Fraction" -> Decoder.map Distance.Fraction Decoder.number
-     | t == "Embed" -> Decoder.map Distance.Embed (decodeD decodeRelative)
-
-encodeAbsolute : Encoder Distance.Absolute
-encodeAbsolute (Distance.Absolute d) = Encoder.tag' "Absolute" (\dist -> encodeD encodeAbsolute dist) d
-
-encodeRelative : Encoder Distance.Relative
-encodeRelative d = case d of
-  Distance.Fraction k -> Encoder.tag' "Fraction" Encoder.number k
-  Distance.Embed d -> Encoder.tag' "Embed" (encodeD encodeRelative) d
+encodeDistance : Encoder Distance.Distance
+encodeDistance e = case e of
+  Distance.Pixel -> Encoder.tag' "Pixel" Encoder.product0 ()
+  Distance.Scale k dist -> Encoder.tag' "Scale" (Encoder.tuple2 Encoder.number encodeDistance) (k,dist)
+  Distance.Ceiling dist -> Encoder.tag' "Ceiling" encodeDistance dist
+  Distance.Floor dist -> Encoder.tag' "Floor" encodeDistance dist
+  Distance.Max dist1 dist2 -> Encoder.tag' "Max" (Encoder.tuple2 encodeDistance encodeDistance) (dist1, dist2)
+  Distance.Min dist1 dist2 -> Encoder.tag' "Min" (Encoder.tuple2 encodeDistance encodeDistance) (dist1, dist2)
 
 decodeLiteral : Decoder Literal
 decodeLiteral = Decoder.union' <| \t ->
   if | t == "Number" -> Decoder.map Number Decoder.number
      | t == "String" -> Decoder.map Str Decoder.string
-     | t == "Relative" -> Decoder.map Relative decodeRelative
-     | t == "Absolute" -> Decoder.map Absolute decodeAbsolute
+     | t == "Distance" -> Decoder.map Distance decodeDistance
 
 encodeLiteral l = case l of
   Number n -> Encoder.tag' "Number" Encoder.number n
   Str s -> Encoder.tag' "String" Encoder.string s
-  Absolute a -> Encoder.tag' "Absolute" encodeAbsolute a
-  Relative r -> Encoder.tag' "Relative" encodeRelative r
+  Distance d -> Encoder.tag' "Distance" encodeDistance d
 
 decodeTerm : Decoder Term
 decodeTerm = Decoder.union' <| \t ->
@@ -214,9 +193,9 @@ decodeTerm = Decoder.union' <| \t ->
      | t == "Lit" -> Decoder.map Lit decodeLiteral
      | t == "Vector" -> Decoder.map (Vector << Array.fromList) (Decoder.array decodeTerm)
      | t == "Ref" -> Decoder.map Ref R.decode
-     | t == "App" -> Decoder.lift2 App decodeTerm decodeTerm
-     | t == "Ann" -> Decoder.lift2 Ann decodeTerm T.decodeType
-     | t == "Lam" -> Decoder.lift2 Lam V.decode decodeTerm
+     | t == "App" -> Decoder.product2 App decodeTerm decodeTerm
+     | t == "Ann" -> Decoder.product2 Ann decodeTerm T.decodeType
+     | t == "Lam" -> Decoder.product2 Lam V.decode decodeTerm
      | t == "Blank" -> Decoder.unit Blank
 
 encodeTerm : Encoder Term

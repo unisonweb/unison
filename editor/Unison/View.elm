@@ -27,7 +27,6 @@ type L = { path : Path, selectable : Bool }
 type Env =
   { rootMetadata   : Metadata
   , availableWidth : Int
-  , pixelsPerInch  : Int
   , metadata       : R.Reference -> Metadata
   , overrides      : Path -> Maybe (Layout L) }
 
@@ -288,8 +287,8 @@ builtins env allowBreak availableWidth ambientPrec cur =
           let c' = rgba (floor r) (floor g) (floor b) a
           in Just (L.fill c' (impl env allowBreak ambientPrec availableWidth { path = cur.path `snoc` Arg, term = e }))
         _ -> Nothing
-      App (Ref (R.Builtin "View.fit-width")) (Lit (Term.Relative d)) ->
-        let rem = availableWidth `min` Distance.relativePixels d availableWidth env.pixelsPerInch
+      App (Ref (R.Builtin "View.fit-width")) (Lit (Term.Distance d)) ->
+        let rem = availableWidth `min` floor (Distance.pixels d (toFloat availableWidth))
         in Just (impl env allowBreak ambientPrec rem { path = cur.path `snoc` Arg, term = e })
       Ref (R.Builtin "View.hide") -> Just (L.empty t)
       Ref (R.Builtin "View.horizontal") -> case e of
@@ -302,14 +301,14 @@ builtins env allowBreak availableWidth ambientPrec cur =
         _ -> Nothing
       Ref (R.Builtin "View.source") ->
         Just (impl env allowBreak ambientPrec availableWidth { path = cur.path `snoc` Arg, term = e })
-      App (App (Ref (R.Builtin "View.spacer")) (Lit (Term.Relative w))) (Lit (Term.Absolute h)) ->
-        let w' = availableWidth `min` Distance.relativePixels w availableWidth env.pixelsPerInch
-            h' = Distance.absolutePixels h env.pixelsPerInch
+      App (App (Ref (R.Builtin "View.spacer")) (Lit (Term.Distance w))) (Lit (Term.Number h)) ->
+        let w' = availableWidth `min` floor (Distance.pixels w (toFloat availableWidth))
+            h' = ceiling h
         in Just (L.embed t (E.spacer w' h'))
       App (Ref (R.Builtin "View.text")) style -> case e of
         -- todo, actually interpret style
         Lit (Str s) -> Just (L.embed t (Text.leftAligned (Text.style Text.defaultStyle (Text.toText s))))
-      App (App (App (Ref (R.Builtin "View.textbox")) (Ref (R.Builtin alignment))) (Lit (Term.Relative d))) style ->
+      App (App (App (Ref (R.Builtin "View.textbox")) (Ref (R.Builtin alignment))) (Lit (Term.Distance d))) style ->
         case e of
           Lit (Str s) ->
             -- todo, actually interpret style
@@ -319,7 +318,7 @@ builtins env allowBreak availableWidth ambientPrec cur =
                       "Text.center"  -> Text.centered
                       "Text.justify" -> Text.justified
                 e = f (Text.style Text.defaultStyle (Text.toText s))
-                rem = availableWidth `max` Distance.relativePixels d availableWidth env.pixelsPerInch
+                rem = availableWidth `max` floor (Distance.pixels d (toFloat availableWidth))
                 e' = if E.widthOf e > rem then E.width rem e else e
             in Just (L.embed t e')
           _ -> Nothing
