@@ -4,6 +4,11 @@ import Either(..)
 
 data Moore i o = Moore (i -> Bool) o (i -> Moore i o)
 
+transform : Moore i o -> Signal i -> Signal o
+transform m i =
+  let s i m = step m i
+  in extract <~ foldp s m i
+
 extract : Moore i o -> o
 extract (Moore _ o _) = o
 
