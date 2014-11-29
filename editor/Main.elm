@@ -15,6 +15,7 @@ import Unison.View as V
 import Unison.Metadata as MD
 import Unison.Action
 import Unison.Node as N
+import Unison.Explorer as Explorer
 
 import Graphics.Input(..)
 import Graphics.Input.Field(..)
@@ -26,6 +27,8 @@ import Text
 import Elmz.Layout as L
 import Elmz.Signal as Signals
 import Elmz.Maybe
+import Elmz.Moore as Moore
+import Elmz.Moore (Moore)
 import Elmz.Distance as Distance
 
 type Path = Path.Path -- to avoid conflict with Graphics.Collage.Path
@@ -131,6 +134,20 @@ main =
           Nothing -> Element.empty
           Just region -> S.selection layout region
         in lift2 f rendered highlight
+
+      explorerToggled : Signal Bool
+      explorerToggled =
+        let e = merge Mouse.clicks (lift (always ()) (Signals.ups Keyboard.enter))
+        in Signals.toggle e
+
+      -- Mouse.clicks
+      -- explorer : Signal Element
+      -- explorer : Maybe Scope
+      -- we want the explorer to pop up on click, and stick around until:
+      --   user presses esc (exits with no change)
+      --   enter (accepts and does insert)
+      --   click away (exits with no change)
+      -- while explorer is up, highlight region should not be refreshed
 
       scene : L.Layout x -> Element -> Maybe Scope -> Element
       scene l selection scope =
