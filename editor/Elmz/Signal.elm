@@ -1,13 +1,28 @@
 module Elmz.Signal where
 
-import Time
+import Either
+import Either (Either)
 import Elmz.Maybe
 import Maybe
+import Time
 
 {-| Accumulates into a list using `foldp` during regions where `cond`
     is `True`, otherwise emits the empty list. -}
 accumulateWhen : Signal Bool -> Signal a -> Signal [a]
 accumulateWhen cond a = foldpWhen cond (::) [] a |> lift reverse
+
+{-| Alternate sending `input` through `left` or `right` signal transforms,
+    merging their results. -}
+alternate : (Signal (Maybe a) -> Signal c)
+         -> (Signal (Maybe b) -> Signal c)
+         -> Signal (Either a b)
+         -> Signal c
+alternate left right input =
+  let l = Either.either Just (always Nothing)
+      r = Either.either (always Nothing) Just
+      ls = justs (l <~ input)
+      rs = justs (r <~ input)
+  in merge (left ls) (right rs)
 
 {-| Delay the input `Signal` by one unit. -}
 delay : a -> Signal a -> Signal a
@@ -64,6 +79,10 @@ foldpWhen' cond f z a =
 fromMaybe : Signal a -> Signal (Maybe a) -> Signal a
 fromMaybe = lift2 Elmz.Maybe.fromMaybe
 
+{-| Ignore any events of `Nothing`. -}
+justs : Signal (Maybe a) -> Signal (Maybe a)
+justs s = keepIf Maybe.isJust Nothing s
+
 {-| Statefully transform the `a` signal, using `f`. -}
 loop : (a -> s -> (b, s))
     -> s
@@ -111,3 +130,4 @@ unchanged a = lift not (changed a)
 {-| Only emit when the input signal transitions from `False` to `True`. -}
 ups : Signal Bool -> Signal Bool
 ups s = keepIf identity False s
+

@@ -6,8 +6,16 @@ data Moore i o = Moore (i -> Bool) o (i -> Moore i o)
 
 transform : Moore i o -> Signal i -> Signal o
 transform m i =
-  let s i m = step m i
+  let s i m = if steady m i then m else step m i
   in extract <~ foldp s m i
+
+{-| Unlike `transform`, only emits events when the input transitions to a new state. -}
+transitions : Moore i o -> Signal i -> Signal o
+transitions m i =
+  let s i (m,_) = if steady m i then (m,False) else (step m i,True)
+      states = foldp s (m,True) i
+      changes = lift snd states
+  in keepWhen changes (extract m) ((extract << fst) <~ states)
 
 extract : Moore i o -> o
 extract (Moore _ o _) = o
@@ -20,6 +28,17 @@ steady (Moore same _ _) = same
 
 duplicate : Moore i o -> Moore i (Moore i o)
 duplicate m = Moore (steady m) m (step m >> duplicate)
+
+moore : o -> (i -> Moore i o) -> Moore i o
+moore o k = Moore (always False) o k
+
+{-| A machine which stays in the same state whenever the input matches the predicate. -}
+skips : (i -> Bool) -> Moore i o -> Moore i o
+skips f (Moore same o k) = Moore (\i -> f i || same i) o (k >> skip f)
+
+{-| Like `skips`, but only skips up to the first transition to a new state. -}
+skip : (i -> Bool) -> Moore i o -> Moore i o
+skip f (Moore same o k) = Moore (\i -> f i || same i) o k
 
 contramap : (i0 -> i) -> Moore i o -> Moore i0 o
 contramap f (Moore same o k) = Moore (f >> same) o (f >> k >> contramap f)

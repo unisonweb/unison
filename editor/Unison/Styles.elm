@@ -2,6 +2,7 @@ module Unison.Styles where
 
 import Text (Style)
 import Text as T
+import Graphics.Input.Field as Field
 import Graphics.Element as E
 import Graphics.Collage as C
 import Elmz.Layout (Layout, Region)
@@ -25,6 +26,15 @@ h1 =
   , italic   = False
   , line     = Nothing }
 
+autocomplete : Bool -> Field.Style
+autocomplete ok =
+  { padding = { left = 10, right = 10, top = 5, bottom = 5 }
+  , outline = { color = if ok then turquoise else midnightBlue
+              , width = Field.uniformly 3
+              , radius = 0 }
+  , highlight = Field.noHighlight
+  , style = code }
+
 code : Style
 code =
   { typeface = [ "Inconsolata", "monospace", "latin" ]
@@ -33,6 +43,7 @@ code =
   , bold     = False
   , italic   = False
   , line     = Nothing }
+
 
 codeText : String -> Element
 codeText s = leftAligned (T.style code (toText s))
