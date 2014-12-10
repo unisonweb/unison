@@ -26,10 +26,13 @@ h1 =
   , italic   = False
   , line     = Nothing }
 
+okColor = turquoise
+notOkColor = midnightBlue
+
 autocomplete : Bool -> Field.Style
 autocomplete ok =
   { padding = { left = 10, right = 10, top = 5, bottom = 5 }
-  , outline = { color = if ok then turquoise else midnightBlue
+  , outline = { color = if ok then okColor else notOkColor
               , width = Field.uniformly 3
               , radius = 0 }
   , highlight = Field.noHighlight
@@ -44,6 +47,11 @@ code =
   , italic   = False
   , line     = Nothing }
 
+carotUp : Int -> Color -> Element
+carotUp x c =
+  let r = ceiling (toFloat x * sqrt 2.0)
+  in C.collage r r [ C.rotate (degrees 45) (C.filled c (square (toFloat x))) ]
+  |> E.height (ceiling (toFloat x * sqrt 2.0 / 2.0))
 
 codeText : String -> Element
 codeText s = leftAligned (T.style code (toText s))
@@ -69,7 +77,6 @@ verticalCells k ifEmpty ls = let cs = map (\l -> L.fill bg (L.pad 5 0 l)) (L.col
 selection : Layout k -> Region -> Element
 selection l r =
   let
-    linestyle = let d = dotted wetAsphalt in { d | width <- 4.0 }
     highlight = spacer r.width r.height |> color asbestos |> opacity 0.15
     n = 1
     border = outline' asbestos n r.width r.height |> opacity 0.8
@@ -77,6 +84,11 @@ selection l r =
                  (L.heightOf l)
                  (E.topLeftAt (E.absolute (r.topLeft.x)) (E.absolute (r.topLeft.y)))
                  (E.layers [highlight, border])
+
+highlight : Int -> Int -> Element
+highlight width height =
+  E.layers [ spacer width height |> color asbestos |> opacity 0.15
+           , outline' asbestos 1 width height |> opacity 0.8 ]
 
 outline : Color -> Int -> Element -> Element
 outline c thickness e =
