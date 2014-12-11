@@ -30,6 +30,7 @@ import Elmz.Maybe
 import Elmz.Moore as Moore
 import Elmz.Moore (Moore)
 import Elmz.Distance as Distance
+import Elmz.Movement as Movement
 
 type Path = Path.Path -- to avoid conflict with Graphics.Collage.Path
 
