@@ -60,8 +60,8 @@ repeatD3 : Signal D3 -> Signal D3
 repeatD3 d3 = Signals.repeatAfterIf (300 * Time.millisecond) 20 nonzeroD3 d3
 
 moveD2 : { left : s -> s, right : s -> s, up : s -> s, down : s -> s}
-       -> Signal r -> Signal D2 -> Signal s -> Signal (Maybe s)
-moveD2 mover reset movements base =
+       -> Signal r -> Signal s -> Signal D2 -> Signal (Maybe s)
+moveD2 mover reset base movements =
   let edit (D2 x y) s = s |>
     (if y == Positive then mover.up else identity) |>
     (if y == Negative then mover.down else identity) |>
