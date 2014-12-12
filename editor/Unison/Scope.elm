@@ -1,5 +1,6 @@
 module Unison.Scope where
 
+import Maybe
 import Unison.Path as Path
 
 import Unison.Term (Term)
@@ -36,3 +37,13 @@ right e {focus,ups,downs} =
   let p = Term.siblingR e focus
   in if p == focus then Scope focus ups downs
      else Scope p [] []
+
+movements : { up : (Term, Maybe Scope) -> (Term, Maybe Scope)
+            , down : (Term, Maybe Scope) -> (Term, Maybe Scope)
+            , left : (Term, Maybe Scope) -> (Term, Maybe Scope)
+            , right : (Term, Maybe Scope) -> (Term, Maybe Scope) }
+movements =
+  { up (e,s) = (e, Maybe.map up s)
+  , down (e,s) = (e, Maybe.map (down e) s)
+  , left (e,s) = (e, Maybe.map (left e) s)
+  , right (e,s) = (e, Maybe.map (right e) s) }

@@ -123,6 +123,9 @@ toggle s =
   let t = lift (always True) s
   in xor <~ t ~ delay False t
 
+tuple2 : Signal a -> Signal b -> Signal (a,b)
+tuple2 s s2 = (,) <~ s ~ s2
+
 {-| Spikes `False` for one tick when `a` event fires, otherwise is `True`. -}
 unchanged : Signal a -> Signal Bool
 unchanged a = lift not (changed a)

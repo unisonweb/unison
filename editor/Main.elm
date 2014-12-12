@@ -72,20 +72,12 @@ full = E.Lit (E.Distance (Distance.Fraction 1.0))
 
 resolvedPath : Signal E.Term -> Signal (Maybe Path) -> Signal (Maybe Scope)
 resolvedPath e pathUnderPtr =
-  let nonzero {x,y} = x /= 0 || y /= 0
-      edit {x,y} e =
-        (if y == 1 then Scope.up else identity) >>
-        (if y == -1 then Scope.down e else identity) >>
-        (if x == 1 then Scope.right e else identity) >>
-        (if x == -1 then Scope.left e else identity)
-      edits = edit <~ Signals.repeatAfterIf (300*millisecond) 20 nonzero Keyboard.arrows ~ e
-      defaultScope = lift (Maybe.map Scope.scope) pathUnderPtr
-      shifted = Signals.foldpBetween'
-                  Mouse.position
-                  (\edit p -> Maybe.map edit p)
-                  defaultScope
-                  edits
-  in Signals.fromMaybe defaultScope shifted
+  let defaultScope = lift (Maybe.map Scope.scope) pathUnderPtr
+      shifted = Movement.moveD2 Scope.movements
+                                Mouse.position
+                                (Signals.tuple2 e defaultScope)
+                                (Movement.repeatD2 (Movement.d2' Keyboard.arrows))
+  in Signals.fromMaybe defaultScope (Maybe.map snd <~ shifted)
 
 terms : Signal E.Term
 terms = constant expr
