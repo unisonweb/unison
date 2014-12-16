@@ -1,16 +1,17 @@
 module Elmz.Movement where
 
 import Keyboard
+import Signal ((<~), (~), Signal)
 import Elmz.Signal as Signals
 import Time
 
-data Sign = Zero | Positive | Negative
+type Sign = Zero | Positive | Negative
 -- A movement in one dimension
-data D1 = D1 Sign
+type D1 = D1 Sign
 -- A movement in two dimensions
-data D2 = D2 Sign Sign
+type D2 = D2 Sign Sign
 -- A movement in three dimensions
-data D3 = D3 Sign Sign Sign
+type D3 = D3 Sign Sign Sign
 
 sign : Int -> Sign
 sign i = if | i == 0 -> Zero

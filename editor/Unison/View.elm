@@ -1,11 +1,12 @@
 module Unison.View (layout, L) where
 
 import Array
+import Color
 import Elmz.Distance as Distance
 import Elmz.Layout (Layout)
 import Elmz.Layout as L
-import Elmz.Pattern (Pattern)
-import Elmz.Pattern as Pattern
+import List
+import List ((::))
 import Graphics.Element as E
 import Maybe
 import Unison.Reference as R
@@ -20,11 +21,12 @@ import Unison.Path (..)
 import Unison.Path as Path
 import String
 import Text
-type Path = Path.Path -- to avoid conflict with Graphics.Collage.Path
+type alias E = Path.E
+type alias Path = Path.Path -- to avoid conflict with Graphics.Collage.Path
 
-type L = { path : Path, selectable : Bool }
+type alias L = { path : Path, selectable : Bool }
 
-type Env =
+type alias Env =
   { rootMetadata   : Metadata
   , availableWidth : Int
   , metadata       : R.Reference -> Metadata
@@ -93,7 +95,7 @@ utag path = { path = path, selectable = False }
 
 space = codeText " "
 spaces n =
-  if n <= 0 then empty else codeText (String.padLeft (n*2) ' ' "")
+  if n <= 0 then E.empty else codeText (String.padLeft (n*2) ' ' "")
 space2 = codeText "  "
 
 indentWidth = E.widthOf space2
@@ -130,7 +132,7 @@ impl env allowBreak ambientPrec availableWidth cur =
       Var n -> codeText (Metadata.resolveLocal env.rootMetadata cur.path n).name |> L.embed (tag cur.path)
       Ref h -> codeText (Metadata.firstName (R.toString h) (env.metadata h)) |> L.embed (tag cur.path)
       Blank -> Styles.blank |> L.embed (tag cur.path)
-      Lit (Number n) -> Styles.numericLiteral (String.show n) |> L.embed (tag cur.path)
+      Lit (Number n) -> Styles.numericLiteral (toString n) |> L.embed (tag cur.path)
       Lit (Str s) -> Styles.stringLiteral ("\"" ++ s ++ "\"") |> L.embed (tag cur.path)
       _ -> case builtins env allowBreak ambientPrec availableWidth cur of
         Just l -> l
@@ -138,18 +140,18 @@ impl env allowBreak ambientPrec availableWidth cur =
           case break env.rootMetadata env.metadata cur.path cur.term of
             Prefix f args ->
               let f' = impl env False 9 availableWidth f
-                  lines = f' :: map (impl env False 10 0) args
+                  lines = f' :: List.map (impl env False 10 0) args
                   unbroken = L.intersperseHorizontal space' lines
                           |> paren (ambientPrec > 9) cur
               in if not allowBreak || L.widthOf unbroken < availableWidth
                  then unbroken
-                 else let args' = map (impl env True 10 (availableWidth - L.widthOf f' - L.widthOf space')) args
+                 else let args' = List.map (impl env True 10 (availableWidth - L.widthOf f' - L.widthOf space')) args
                                |> L.vertical (tag cur.path)
                       in L.intersperseHorizontal space' [f',args']
                       |> paren (ambientPrec > 9) cur
             Operators leftAssoc prec hd tl ->
               let f (op,r) l = L.intersperseHorizontal space' [ l, impl env False 10 0 op, impl env False rprec 0 r ]
-                  unbroken = foldl f (impl env False lprec 0 hd) tl
+                  unbroken = List.foldl f (impl env False lprec 0 hd) tl
                           |> paren (ambientPrec > 9) cur
                   lprec = if leftAssoc then prec else 1+prec
                   rprec = if leftAssoc then 1+prec else prec
@@ -160,10 +162,10 @@ impl env allowBreak ambientPrec availableWidth cur =
                        L.intersperseHorizontal space' [op', impl env True rprec remWidth r ]
               in if not allowBreak || L.widthOf unbroken < availableWidth
                  then unbroken
-                 else foldl bf (impl env True lprec (availableWidth - indentWidth) hd) tl
+                 else List.foldl bf (impl env True lprec (availableWidth - indentWidth) hd) tl
                       |> paren (ambientPrec > 9) cur
             Lambda args body ->
-              let argLayout = map (impl env False 0 0) args ++ [L.embed (tag cur.path) (codeText "→")]
+              let argLayout = List.map (impl env False 0 0) args ++ [L.embed (tag cur.path) (codeText "→")]
                            |> L.intersperseHorizontal space'
                   unbroken = L.intersperseHorizontal space' [argLayout, impl env False 0 0 body]
                           |> paren (ambientPrec > 0) cur
@@ -174,18 +176,18 @@ impl env allowBreak ambientPrec availableWidth cur =
                         (L.horizontal (tag cur.path) [ space', space', impl env True 0 (availableWidth - indentWidth) body])
                       |> paren (ambientPrec > 0) cur
             Bracketed es ->
-              let unbroken = Styles.cells (tag cur.path) (codeText "[]") (map (impl env False 0 0) es)
-              in if not allowBreak || L.widthOf unbroken < availableWidth || length es < 2
+              let unbroken = Styles.cells (tag cur.path) (codeText "[]") (List.map (impl env False 0 0) es)
+              in if not allowBreak || L.widthOf unbroken < availableWidth || List.length es < 2
               then unbroken
               else Styles.verticalCells (tag cur.path) (codeText "[]")
-                                        (map (impl env True 0 (availableWidth - 4)) es) -- account for cell border
+                                        (List.map (impl env True 0 (availableWidth - 4)) es) -- account for cell border
 
-data Break a
-  = Prefix a [a]          -- `Prefix f [x,y,z] == f x y z`
-  | Operators Bool Int a [(a,a)] -- `Operators False x [(+,y), (+,z)] == (x + y) + z`
+type Break a
+  = Prefix a (List a)          -- `Prefix f [x,y,z] == f x y z`
+  | Operators Bool Int a (List (a,a)) -- `Operators False x [(+,y), (+,z)] == (x + y) + z`
                                  -- `Operators True x [(^,y), (^,z)] == x ^ (y ^ z)`
-  | Bracketed [a]         -- `Bracketed [x,y,z] == [x,y,z]`
-  | Lambda [a] a          -- `Lambda [x,y,z] e == x -> y -> z -> e`
+  | Bracketed (List a)        -- `Bracketed [x,y,z] == [x,y,z]`
+  | Lambda (List a) a          -- `Lambda [x,y,z] e == x -> y -> z -> e`
 
 break : Metadata
     -> (R.Reference -> Metadata)
@@ -284,7 +286,7 @@ builtins env allowBreak availableWidth ambientPrec cur =
     go v e = case v of
       App (Ref (R.Builtin "View.color")) c -> case c of
         App (App (App (App (Ref (R.Builtin "Color.rgba")) (Lit (Number r))) (Lit (Number g))) (Lit (Number b))) (Lit (Number a)) ->
-          let c' = rgba (floor r) (floor g) (floor b) a
+          let c' = Color.rgba (floor r) (floor g) (floor b) a
           in Just (L.fill c' (impl env allowBreak ambientPrec availableWidth { path = cur.path `snoc` Arg, term = e }))
         _ -> Nothing
       App (Ref (R.Builtin "View.fit-width")) (Lit (Term.Distance d)) ->
@@ -296,7 +298,7 @@ builtins env allowBreak availableWidth ambientPrec cur =
         _ -> Nothing
       Ref (R.Builtin "View.swatch") -> case e of
         App (App (App (App (Ref (R.Builtin "Color.rgba")) (Lit (Number r))) (Lit (Number g))) (Lit (Number b))) (Lit (Number a)) ->
-          let c = rgba (floor r) (floor g) (floor b) a
+          let c = Color.rgba (floor r) (floor g) (floor b) a
           in Just (L.embed t (Styles.swatch c))
         _ -> Nothing
       Ref (R.Builtin "View.source") ->
@@ -307,7 +309,7 @@ builtins env allowBreak availableWidth ambientPrec cur =
         in Just (L.embed t (E.spacer w' h'))
       App (Ref (R.Builtin "View.text")) style -> case e of
         -- todo, actually interpret style
-        Lit (Str s) -> Just (L.embed t (Text.leftAligned (Text.style Text.defaultStyle (Text.toText s))))
+        Lit (Str s) -> Just (L.embed t (Text.leftAligned (Text.style Text.defaultStyle (Text.fromString s))))
       App (App (App (Ref (R.Builtin "View.textbox")) (Ref (R.Builtin alignment))) (Lit (Term.Distance d))) style ->
         case e of
           Lit (Str s) ->
@@ -317,7 +319,7 @@ builtins env allowBreak availableWidth ambientPrec cur =
                       "Text.right"   -> Text.rightAligned
                       "Text.center"  -> Text.centered
                       "Text.justify" -> Text.justified
-                e = f (Text.style Text.defaultStyle (Text.toText s))
+                e = f (Text.style Text.defaultStyle (Text.fromString s))
                 rem = availableWidth `max` floor (Distance.pixels d (toFloat availableWidth))
                 e' = if E.widthOf e > rem then E.width rem e else e
             in Just (L.embed t e')
@@ -326,7 +328,7 @@ builtins env allowBreak availableWidth ambientPrec cur =
         Vector es ->
           let f i e = impl env allowBreak ambientPrec availableWidth
                         { path = cur.path `append` [Arg, Path.Index i], term = e }
-          in Just (L.vertical (tag (cur.path `snoc` Arg)) (indexedMap f (Array.toList es)))
+          in Just (L.vertical (tag (cur.path `snoc` Arg)) (List.indexedMap f (Array.toList es)))
       Ref (R.Builtin "View.id") -> builtins env allowBreak availableWidth ambientPrec { path = cur.path `snoc` Arg, term = e }
       Ref (R.Builtin "View.wrap") -> case e of
         Vector es -> Nothing -- todo more complicated, as we need to do sequencing

@@ -1,49 +1,50 @@
 module Unison.Path where
 
+import List
+import List ((::))
 import Array (Array)
 import Array as A
 import Elmz.Json.Encoder as Encoder
 import Elmz.Json.Encoder (Encoder)
 import Elmz.Json.Decoder as Decoder
-import Elmz.Json.Decoder (Decoder)
-import Unison.Stream (Stream)
-import Unison.Stream as Stream
+import Json.Decode (Decoder)
+import Json.Decode as Decode
 
-data E
+type E
   = Fn -- ^ Points at function in a function application
   | Arg -- ^ Points at the argument of a function application
   | Body -- ^ Points at the body of a lambda
   | Index Int -- ^ Points into a `Vector` literal
 
-type Path = [E]
+type alias Path = List E
 
 snoc : Path -> E -> Path
 snoc p e = p ++ [e]
 
-append : Path -> [E] -> Path
+append : Path -> List E -> Path
 append p es = p ++ es
 
 increment : (Path -> Bool) -> Path -> Path
 increment valid p =
   let go p = case p of
-    Fn :: tl -> reverse (Arg :: tl)
-    Index i :: tl -> let p' = reverse (Index (i+1) :: tl)
+    Fn :: tl -> List.reverse (Arg :: tl)
+    Index i :: tl -> let p' = List.reverse (Index (i+1) :: tl)
                      in if valid p' then p' else go tl
     _ :: tl -> go tl
     [] -> []
-  in go (reverse p)
+  in go (List.reverse p)
 
 decrement : (Path -> Bool) -> Path -> Path
 decrement valid p =
   let go p = case p of
-    Arg :: tl -> let p1 = reverse (Arg :: Fn :: tl)
-                     p2 = reverse (Fn :: tl)
+    Arg :: tl -> let p1 = List.reverse (Arg :: Fn :: tl)
+                     p2 = List.reverse (Fn :: tl)
                  in if valid p1 then p1 else p2
-    Index i :: tl -> let p' = reverse (Index (i-1) :: tl)
+    Index i :: tl -> let p' = List.reverse (Index (i-1) :: tl)
                      in if valid p' then p' else go tl
     _ :: tl -> go tl
     [] -> []
-  in go (reverse p)
+  in go (List.reverse p)
 
 -- Trim from the right of this path until hitting a `Body` path element.
 -- This is used to normalize paths
@@ -51,22 +52,23 @@ trimToScope : Path -> Path
 trimToScope p =
   let go p = case p of
         [] -> p
-        Body :: t -> reverse p
+        Body :: t -> List.reverse p
         h :: t -> go t
-  in go (reverse p)
+  in go (List.reverse p)
 
-startsWith : [a] -> [a] -> Bool
+startsWith : List a -> List a -> Bool
 startsWith prefix overall =
-  length prefix == 0 ||
-  length prefix <= length overall &&
-  (zip prefix overall |> all (\(a,a2) -> a == a2))
+  List.length prefix == 0 ||
+  List.length prefix <= List.length overall &&
+  (List.map2 (,) prefix overall |> List.all (\(a,a2) -> a == a2))
 
 decodeE : Decoder E
 decodeE = Decoder.union' <| \t ->
-  if | t == "Fn" -> Decoder.unit Fn
-     | t == "Arg" -> Decoder.unit Arg
-     | t == "Body" -> Decoder.unit Body
-     | t == "Index" -> Decoder.map Index Decoder.int
+  if | t == "Fn" -> Decode.succeed Fn
+     | t == "Arg" -> Decode.succeed Arg
+     | t == "Body" -> Decode.succeed Body
+     | t == "Index" -> Decode.map Index Decode.int
+     | otherwise -> Decode.fail ("unrecognized element tag: " ++ t)
 
 encodeE : Encoder E
 encodeE e = case e of
@@ -76,7 +78,7 @@ encodeE e = case e of
   Index i -> Encoder.tag' "Index" Encoder.int i
 
 decodePath : Decoder Path
-decodePath = Decoder.array decodeE
+decodePath = Decode.list decodeE
 
 encodePath : Encoder Path
-encodePath = Encoder.array encodeE
+encodePath = Encoder.list encodeE

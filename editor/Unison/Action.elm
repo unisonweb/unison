@@ -7,7 +7,7 @@ import Elmz.Json.Decoder (Decoder)
 import Unison.Term (Term)
 import Unison.Term as E
 
-data Action
+type Action
   = Abstract -- Turn target into function parameter
   | Beta -- Beta reduce the target
   | Eta -- Eta reduce the target

@@ -8,13 +8,13 @@ import Unison.Hash as H
 import Unison.Var (I)
 import Unison.Var as V
 
-data Literal
+type Literal
   = Number
   | String
   | Vector
   | Hash H.Hash
 
-data Type
+type Type
   = Unit Literal
   | Arrow Type Type
   | Universal I
@@ -23,12 +23,12 @@ data Type
   | Constrain Type ()
   | Forall I Type
 
-data Kind = Star | KArrow Kind Kind
+type Kind = Star | KArrow Kind Kind
 
 decodeKind : Decoder Kind
 decodeKind = Decoder.union' <| \t ->
   if | t == "Star" -> Decoder.unit Star
-     | t == "Arrow" -> Decoder.lift2 KArrow decodeKind decodeKind
+     | t == "Arrow" -> Decoder.map2 KArrow decodeKind decodeKind
 
 decodeLiteral : Decoder Literal
 decodeLiteral = Decoder.union' <| \t ->
@@ -40,17 +40,17 @@ decodeLiteral = Decoder.union' <| \t ->
 decodeType : Decoder Type
 decodeType = Decoder.union' <| \t ->
   if | t == "Unit" -> Decoder.map Unit decodeLiteral
-     | t == "Arrow" -> Decoder.lift2 Arrow decodeType decodeType
+     | t == "Arrow" -> Decoder.map2 Arrow decodeType decodeType
      | t == "Universal" -> Decoder.map Universal V.decode
      | t == "Existential" -> Decoder.map Existential V.decode
-     | t == "Kind" -> Decoder.lift2 Ann decodeType decodeKind
-     | t == "Constrain" -> Decoder.lift2 Constrain decodeType (Decoder.unit ())
-     | t == "Forall" -> Decoder.lift2 Forall V.decode decodeType
+     | t == "Kind" -> Decoder.map2 Ann decodeType decodeKind
+     | t == "Constrain" -> Decoder.map2 Constrain decodeType (Decoder.unit ())
+     | t == "Forall" -> Decoder.map2 Forall V.decode decodeType
 
 encodeKind : Encoder Kind
 encodeKind k = case k of
   Star -> Encoder.tag' "Star" Encoder.product0 ()
-  KArrow k k2 -> Encoder.tag' "Arrow" (Encoder.array encodeKind) [k, k2]
+  KArrow k k2 -> Encoder.tag' "Arrow" (Encoder.list encodeKind) [k, k2]
 
 encodeLiteral : Encoder Literal
 encodeLiteral l = case l of
@@ -62,7 +62,7 @@ encodeLiteral l = case l of
 encodeType : Encoder Type
 encodeType t = case t of
   Unit l -> Encoder.tag' "Unit" encodeLiteral l
-  Arrow i o -> Encoder.tag' "Arrow" (Encoder.array encodeType) [i, o]
+  Arrow i o -> Encoder.tag' "Arrow" (Encoder.list encodeType) [i, o]
   Universal v -> Encoder.tag' "Universal" V.encode v
   Existential v -> Encoder.tag' "Existential" V.encode v
   Ann t k -> Encoder.tag' "Ann" (Encoder.tuple2 encodeType encodeKind) (t,k)

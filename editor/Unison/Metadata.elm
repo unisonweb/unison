@@ -6,22 +6,24 @@ import Elmz.Json.Encoder as Encoder
 import Elmz.Json.Encoder (Encoder)
 import Elmz.Json.Decoder as Decoder
 import Elmz.Json.Decoder (Decoder, (#))
-import Maybe (maybe)
+import List
+import Maybe
 import Unison.Reference as R
 import Unison.Path as Path
 import Unison.Path (Path)
 import Unison.Hash as H
 import Unison.Var (I)
 import Unison.Var as V
-type Path = Path.Path -- to avoid conflict with Graphics.Collage.Path
+type alias E = Path.E
+type alias Path = Path.Path -- to avoid conflict with Graphics.Collage.Path
 
-data Sort = Type | Term
+type Sort = Type | Term
 
-type Metadata = {
+type alias Metadata = {
   sort : Sort,
   names : Names,
   -- for each var, and each scope (which points to a lambda body), what are the names of that var w/in that scope
-  locals : M.Dict I [(Path,Names)],
+  locals : M.Dict I (List (Path,Names)),
   description : Maybe R.Reference,
   annotation : R.Reference
 }
@@ -39,15 +41,15 @@ firstSymbol defaultName md = case md.names of
 
 firstName : String -> Metadata -> String
 firstName ifEmpty md =
-  if isEmpty md.names
+  if List.isEmpty md.names
   then ifEmpty
-  else (head md.names).name
+  else (List.head md.names).name
 
 resolveLocal : Metadata -> Path -> I -> Symbol
 resolveLocal md p v =
   let ns = localNames md p v
-  in if isEmpty ns then { name = "v"++show v, fixity = Prefix, precedence = 9 }
-     else head ns
+  in if List.isEmpty ns then { name = "v"++toString v, fixity = Prefix, precedence = 9 }
+     else List.head ns
 
 localNames : Metadata -> Path -> I -> Names
 localNames env p v =
@@ -57,18 +59,18 @@ localNames env p v =
     Just psns -> let go (p,ns) acc = case acc of
                     Nothing -> if p == trimmed then Just ns else Nothing
                     Just acc -> Just acc
-                 in maybe [] identity (foldl go Nothing psns)
+                 in Maybe.withDefault [] (List.foldl go Nothing psns)
 
-data Fixity = InfixL | InfixR | Infix | Prefix
+type Fixity = InfixL | InfixR | Infix | Prefix
 
-type Symbol = { name : String, fixity : Fixity, precedence : Int }
+type alias Symbol = { name : String, fixity : Fixity, precedence : Int }
 
-type Names = [Symbol]
+type alias Names = List Symbol
 
-data Query = Query String
+type Query = Query String
 
 decodeFixity : Decoder Fixity
-decodeFixity = Decoder.bind Decoder.string <| \t ->
+decodeFixity = Decoder.andThen Decoder.string <| \t ->
   if | t == "InfixL" -> Decoder.unit InfixL
      | t == "InfixR" -> Decoder.unit InfixR
      | t == "Infix"  -> Decoder.unit Infix
@@ -92,7 +94,7 @@ encodeSymbol s =
   Encoder.tag' "Symbol" (Encoder.tuple3 Encoder.string encodeFixity Encoder.int) (s.name, s.fixity, s.precedence)
 
 decodeSort : Decoder Sort
-decodeSort = Decoder.bind Decoder.string <| \t ->
+decodeSort = Decoder.andThen Decoder.string <| \t ->
   if | t == "Type" -> Decoder.unit Type
      | t == "Term" -> Decoder.unit Term
      | otherwise -> Decoder.fail ("expected {Type, Term}, got : " ++ t)
@@ -109,10 +111,10 @@ encodeQuery : Encoder Query
 encodeQuery (Query q) = Encoder.tag' "Query" Encoder.string q
 
 decodeNames : Decoder Names
-decodeNames = Decoder.newtyped' identity (Decoder.array decodeSymbol)
+decodeNames = Decoder.newtyped' identity (Decoder.list decodeSymbol)
 
 encodeNames : Encoder Names
-encodeNames = Encoder.tag' "Names" (Encoder.array encodeSymbol)
+encodeNames = Encoder.tag' "Names" (Encoder.list encodeSymbol)
 
 decodeMetadata : Decoder Metadata
 decodeMetadata =
@@ -121,15 +123,15 @@ decodeMetadata =
     decodeSort
     decodeNames
     decodeLocals
-    (Decoder.optional R.decode)
+    (Decoder.maybe R.decode)
     R.decode
 
-decodeLocals : Decoder (M.Dict I [(Path,Names)])
+decodeLocals : Decoder (M.Dict I (List (Path,Names)))
 decodeLocals =
-  Decoder.map M.fromList (Decoder.array (Decoder.tuple2 V.decode (Decoder.array (Decoder.tuple2 Path.decodePath decodeNames))))
+  Decoder.map M.fromList (Decoder.list (Decoder.tuple2 V.decode (Decoder.list (Decoder.tuple2 Path.decodePath decodeNames))))
 
-encodeLocals : Encoder (M.Dict I [(Path,Names)])
-encodeLocals m = Encoder.array (Encoder.tuple2 V.encode (Encoder.array (Encoder.tuple2 Path.encodePath encodeNames))) (M.toList m)
+encodeLocals : Encoder (M.Dict I (List (Path,Names)))
+encodeLocals m = Encoder.list (Encoder.tuple2 V.encode (Encoder.list (Encoder.tuple2 Path.encodePath encodeNames))) (M.toList m)
 
 encodeMetadata : Encoder Metadata
 encodeMetadata md = Encoder.tag' "Metadata"

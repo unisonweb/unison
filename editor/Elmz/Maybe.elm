@@ -23,10 +23,10 @@ map f m = case m of
   Nothing -> Nothing
   Just a -> Just (f a)
 
-sequence : [Maybe a] -> Maybe [a]
+sequence : List (Maybe a) -> Maybe (List a)
 sequence ms =
   let j = List.filterMap identity ms
-  in if length j == length ms then Just j else Nothing
+  in if List.length j == List.length ms then Just j else Nothing
 
-traverse : (a -> Maybe b) -> [a] -> Maybe [b]
+traverse : (a -> Maybe b) -> List a -> Maybe (List b)
 traverse f a = sequence (List.map f a)

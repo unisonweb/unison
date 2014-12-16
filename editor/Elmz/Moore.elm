@@ -1,8 +1,10 @@
 module Elmz.Moore where
 
-import Either(..)
+import Signal
+import Signal ((<~), (~), foldp, Signal)
+import List ((::))
 
-data Moore i o = Moore (i -> Bool) o (i -> Moore i o)
+type Moore i o = Moore (i -> Bool) o (i -> Moore i o)
 
 transform : Moore i o -> Signal i -> Signal o
 transform m i =
@@ -14,8 +16,8 @@ transitions : Moore i o -> Signal i -> Signal o
 transitions m i =
   let s i (m,_) = if steady m i then (m,False) else (step m i,True)
       states = foldp s (m,True) i
-      changes = lift snd states
-  in keepWhen changes (extract m) ((extract << fst) <~ states)
+      changes = Signal.map snd states
+  in Signal.keepWhen changes (extract m) ((extract << fst) <~ states)
 
 extract : Moore i o -> o
 extract (Moore _ o _) = o
@@ -71,24 +73,24 @@ loop (Moore s (b,c) k) =
       step a = loop (k (a,c))
   in Moore same b step
 
-foldEither : (a -> r) -> (b -> r) -> Either a b -> r
-foldEither f1 f2 e = case e of
-  Left a -> f1 a
-  Right b -> f2 b
+foldResult : (a -> r) -> (b -> r) -> Result a b -> r
+foldResult f1 f2 e = case e of
+  Err a -> f1 a
+  Ok b -> f2 b
 
-either : Moore a (Either x y) -> Moore x b -> Moore y b -> Moore a b
+either : Moore a (Result x y) -> Moore x b -> Moore y b -> Moore a b
 either (Moore samei xy ki) left right =
-  let same a = samei a && foldEither (steady left) (steady right) xy
+  let same a = samei a && foldResult (steady left) (steady right) xy
       st a = case xy of
-        Left x -> either (ki a) (step left x) right
-        Right y -> either (ki a) left (step right y)
+        Err x -> either (ki a) (step left x) right
+        Ok y -> either (ki a) left (step right y)
       o = case xy of
-        Left x -> extract left
-        Right y -> extract right
+        Err x -> extract left
+        Ok y -> extract right
   in Moore same o st
 
-{-| Run the first argument until it emits `Left s`, then switch permanently to `f s`. -}
-bind : Moore a (Either s b) -> (s -> Moore a b) -> Moore a b
+{-| Run the first argument until it emits `Err s`, then switch permanently to `f s`. -}
+bind : Moore a (Result s b) -> (s -> Moore a b) -> Moore a b
 bind (Moore same sb k) f = case sb of
-  Left s -> f s
-  Right b -> Moore same b (\a -> bind (k a) f)
+  Err s -> f s
+  Ok b -> Moore same b (\a -> bind (k a) f)

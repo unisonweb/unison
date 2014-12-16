@@ -8,7 +8,7 @@ import String
 import Unison.Hash (Hash)
 import Unison.Hash as H
 
-data Reference
+type Reference
   = Builtin String
   | Derived Hash
 
@@ -16,7 +16,7 @@ decode : Decoder Reference
 decode = Decoder.union' <| \t ->
   if | t == "Builtin" -> Decoder.map Builtin Decoder.string
      | t == "Derived" -> Decoder.map Derived H.decode
-     | otherwise -> Decoder.fail ("unknown tag: " ++ t)
+     | otherwise -> Decoder.fail ("unknown tag while decoding a Reference: " ++ t)
 
 encode : Encoder Reference
 encode r = case r of
@@ -25,8 +25,8 @@ encode r = case r of
 
 toString : Reference -> String
 toString r = case r of
-  Builtin s -> "builtin:" ++ s
-  Derived b -> "derived:" ++ b
+  Builtin s -> "#" ++ s
+  Derived b -> b
 
 fromString : String -> Maybe Reference
 fromString s =

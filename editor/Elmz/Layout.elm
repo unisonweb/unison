@@ -1,22 +1,23 @@
 module Elmz.Layout where
 
 import List
+import List ((::))
 import Array (Array)
-import Either(..)
+import Color (Color)
+import Color
 import Graphics.Element as E
 import Graphics.Element (Direction, Element, Position)
 
-type Pt = { x : Int, y: Int }
+type alias Pt = { x : Int, y: Int }
+type alias Region = { topLeft : Pt, width : Int , height : Int }
 
-type Region = { topLeft : Pt, width : Int , height : Int }
-
-data LayoutF r
+type LayoutF r
   = Beside r r
   | Above r r
   | Container { width : Int, height : Int, innerTopLeft : Pt } r
   | Embed Element
 
-data Layout k = Layout (LayoutF (Layout k)) Element k
+type Layout k = Layout (LayoutF (Layout k)) Element k
 
 map : (a -> b) -> Layout a -> Layout b
 map f (Layout r e a) = Layout (case r of
@@ -54,19 +55,19 @@ above : k -> Layout k -> Layout k -> Layout k
 above k top bot =
   Layout (Above top bot) (element top `E.above` element bot) k
 
-horizontal : k -> [Layout k] -> Layout k
+horizontal : k -> List (Layout k) -> Layout k
 horizontal k ls = reduceBalanced (empty k) (beside k) ls
 
-vertical : k -> [Layout k] -> Layout k
+vertical : k -> List (Layout k) -> Layout k
 vertical k ls = reduceBalanced (empty k) (above k) ls
 
-intersperseHorizontal : Layout k -> [Layout k] -> Layout k
+intersperseHorizontal : Layout k -> List (Layout k) -> Layout k
 intersperseHorizontal sep ls =
-  horizontal (tag sep) (intersperse sep ls)
+  horizontal (tag sep) (List.intersperse sep ls)
 
-intersperseVertical : Layout k -> [Layout k] -> Layout k
+intersperseVertical : Layout k -> List (Layout k) -> Layout k
 intersperseVertical sep ls =
-  vertical (tag sep) (intersperse sep ls)
+  vertical (tag sep) (List.intersperse sep ls)
 
 container : k -> Int -> Int -> Pt -> Layout k -> Layout k
 container k w h pt l =
@@ -84,28 +85,28 @@ pad eastWestPad northSouthPad l =
 
 outline : Color -> Int -> Layout k -> Layout k
 outline c thickness l =
-  pad thickness thickness l |> transform (color c)
+  pad thickness thickness l |> transform (E.color c)
 
 fill : Color -> Layout k -> Layout k
 fill c e = container (tag e) (widthOf e) (heightOf e) (Pt 0 0) e
-        |> transform (color c)
+        |> transform (E.color c)
 
 -- roundedOutline : k -> Int -> Color -> Int -> Layout { k | element : Element } -> Layout { k | element : Element }
 -- roundedOutline k cornerRadius c thickness l = todo
 
-row : [Layout k] -> [Layout k]
+row : List (Layout k) -> List (Layout k)
 row ls = case ls of
   [] -> []
-  _ -> let maxh = maximum (List.map heightOf ls)
+  _ -> let maxh = List.maximum (List.map heightOf ls)
            cell e = let diff = maxh - heightOf e
                     in if diff == 0 then e
                        else container (tag e) (widthOf e) maxh (Pt 0 (toFloat diff / 2 |> floor)) e
        in (List.map cell ls)
 
-column : [Layout k] -> [Layout k]
+column : List (Layout k) -> List (Layout k)
 column ls = case ls of
   [] -> []
-  _ -> let maxw = maximum (List.map widthOf ls)
+  _ -> let maxw = List.maximum (List.map widthOf ls)
            cell e = let diff = maxw - widthOf e
                     in if diff == 0 then e
                        else container (tag e) maxw (heightOf e) (Pt (toFloat diff / 2 |> floor) 0) e
@@ -120,7 +121,7 @@ column ls = case ls of
     where `c` is a descendent of `p`, `prefixOf (tag p).path (tag c).path`
     must be true.
 -}
-region : (k -> k -> Bool) -> (a -> k) -> Layout a -> k -> [(a, Region)]
+region : (k -> k -> Bool) -> (a -> k) -> Layout a -> k -> List (a, Region)
 region prefixOf by l ks =
   let
     go origin ks (Layout layout e a) =
@@ -141,7 +142,7 @@ region prefixOf by l ks =
   in go (Pt 0 0) ks l
 
 {-| Find all tags whose region contains the given point. -}
-at : Layout k -> Region -> [k]
+at : Layout k -> Region -> List k
 at l r =
   let
     bx1 = r.topLeft.x
@@ -158,7 +159,7 @@ at l r =
           ay2 = ay1 + h
       in ax1 < bx2 && ax2 > bx1 && ay1 < by2 && ay2 > by1
 
-    distinctCons : a -> [a] -> [a]
+    distinctCons : a -> List a -> List a
     distinctCons h t = case t of
       [] -> [h]
       ht :: tt -> if ht == h then t else h :: t
@@ -185,16 +186,16 @@ at l r =
     The first group returned will consist of elements with the
     highest rank, followed by elements with the next highest rank, etc.
 -}
-atRanked : (k -> Int) -> Layout k -> Region -> [[k]]
+atRanked : (k -> Int) -> Layout k -> Region -> List (List k)
 atRanked rank l r =
   let f k = (rank k, k)
       g (i, k) (i2, cur, acc) =
         if i == i2 then (i2, k :: cur, acc)
-        else            (i, [k], reverse cur :: acc)
-      done (_, cur, acc) = reverse cur :: acc
-  in case List.map f (at l r) |> sortBy fst of
+        else            (i, [k], List.reverse cur :: acc)
+      done (_, cur, acc) = List.reverse cur :: acc
+  in case List.map f (at l r) |> List.sortBy fst of
     [] -> []
-    (i,k) :: tl -> foldl g (i, [k], []) tl |> done
+    (i,k) :: tl -> List.foldl g (i, [k], []) tl |> done
 
 lub : Region -> Region -> Region
 lub r1 r2 =
@@ -203,17 +204,17 @@ lub r1 r2 =
                     (r1.topLeft.y + r1.height `max` r2.topLeft.x + r2.height)
   in Region topLeft (botRight.x - topLeft.x) (botRight.y - topLeft.y)
 
-selectableLub : (a -> Bool) -> [(a, Region)] -> Maybe Region
-selectableLub f rs = case filter (f << fst) rs of
+selectableLub : (a -> Bool) -> List (a, Region) -> Maybe Region
+selectableLub f rs = case List.filter (f << fst) rs of
   [] -> Nothing
-  rh :: rt -> Just (foldl lub (snd rh) (List.map snd rt))
+  rh :: rt -> Just (List.foldl lub (snd rh) (List.map snd rt))
 
-reduceBalanced : a -> (a -> a -> a) -> [a] -> a
+reduceBalanced : a -> (a -> a -> a) -> List a -> a
 reduceBalanced z op xs =
   let fixup stack = case stack of
         (b,n) :: (a,m) :: t -> if n >= m then fixup ((op a b, n+m) :: t)
                                else (b,n) :: (a,m) :: t
         _ -> stack
-      finalize stack = foldl op z (List.map fst stack)
-  in foldl (\a stack -> fixup ((a,1) :: stack)) [] xs
+      finalize stack = List.foldl op z (List.map fst stack)
+  in List.foldl (\a stack -> fixup ((a,1) :: stack)) [] xs
   |> finalize

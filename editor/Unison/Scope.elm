@@ -1,13 +1,15 @@
 module Unison.Scope where
 
+import List ((::))
 import Maybe
 import Unison.Path as Path
 
 import Unison.Term (Term)
 import Unison.Term as Term
-type Path = Path.Path
+type alias E = Path.E
+type alias Path = Path.Path
 
-type Scope = { focus : Path, ups : [Path], downs : [Path] }
+type alias Scope = { focus : Path, ups : List Path, downs : List Path }
 
 scope : Path -> Scope
 scope focus = Scope focus [] []

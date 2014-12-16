@@ -2,7 +2,7 @@ module Elmz.Distance where
 
 {-| A data type for absolute and relative distances on a quantized,
     finite segment of the real number line. -}
-data Distance
+type Distance
   = Pixel -- the minimum distance
   | Fraction Float
   | Scale Float Distance

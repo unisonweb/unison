@@ -3,6 +3,7 @@ module Main where
 import Array
 import Set
 import Graphics.Element as Element
+import Graphics.Element (Element)
 import Unison.Reference as R
 import Unison.Path (Path)
 import Unison.Path as Path
@@ -17,11 +18,15 @@ import Unison.Action
 import Unison.Node as N
 import Unison.Explorer as Explorer
 
+import Signal
+import Signal ((<~), (~), Signal)
+import Time
 import Graphics.Input(..)
 import Graphics.Input.Field(..)
 import Maybe
 import Window
 import Keyboard
+import List
 import Mouse
 import Text
 import Elmz.Layout as L
@@ -41,7 +46,7 @@ int n = E.Lit (E.Number (toFloat n))
 vec es = E.Vector (Array.fromList es)
 
 nums : E.Term
-nums = vec (map int [0..20])
+nums = vec (List.map int [0..20])
 
 rgbTerm : Int -> Int -> Int -> E.Term
 rgbTerm r g b =
@@ -72,7 +77,7 @@ full = E.Lit (E.Distance (Distance.Fraction 1.0))
 
 resolvedPath : Signal E.Term -> Signal (Maybe Path) -> Signal (Maybe Scope)
 resolvedPath e pathUnderPtr =
-  let defaultScope = lift (Maybe.map Scope.scope) pathUnderPtr
+  let defaultScope = Signal.map (Maybe.map Scope.scope) pathUnderPtr
       shifted = Movement.moveD2 Scope.movements
                                 Mouse.position
                                 (Signals.tuple2 e defaultScope)
@@ -80,7 +85,7 @@ resolvedPath e pathUnderPtr =
   in Signals.fromMaybe defaultScope (Maybe.map snd <~ shifted)
 
 terms : Signal E.Term
-terms = constant expr
+terms = Signal.constant expr
 
 layout : Int -> E.Term -> L.Layout { path : Path, selectable : Bool }
 layout availableWidth term =
@@ -93,7 +98,7 @@ leafUnderPtr : Signal (L.Layout { path : Path, selectable : Bool })
             -> Signal (Maybe { path : Path, selectable : Bool })
 leafUnderPtr layout =
   let go layout (x,y) =
-    let paths = L.atRanked (length << .path) layout (L.Region { x = x, y = y } 2 2)
+    let paths = L.atRanked (List.length << .path) layout (L.Region { x = x, y = y } 2 2)
     in case paths of
       (h :: _) :: _ -> Just h
       _ -> Nothing
@@ -102,13 +107,13 @@ leafUnderPtr layout =
 main : Signal Element
 main =
   let terms : Signal E.Term
-      terms = constant expr
+      terms = Signal.constant expr
 
       rendered : Signal (L.Layout { path : Path, selectable : Bool })
-      rendered = layout <~ Signals.steady (100 * millisecond) Window.width ~ terms
+      rendered = layout <~ Signals.steady (100 * Time.millisecond) Window.width ~ terms
 
       leaf : Signal (Maybe Path)
-      leaf = lift (Maybe.map .path) (leafUnderPtr rendered)
+      leaf = Signal.map (Maybe.map .path) (leafUnderPtr rendered)
 
       scope : Signal (Maybe Scope)
       scope = resolvedPath terms leaf
@@ -126,11 +131,11 @@ main =
         let f layout region = case region of
           Nothing -> Element.empty
           Just region -> S.selection layout region
-        in lift2 f rendered highlight
+        in Signal.map2 f rendered highlight
 
       explorerToggled : Signal Bool
       explorerToggled =
-        let e = merge Mouse.clicks (lift (always ()) (Signals.ups Keyboard.enter))
+        let e = Signal.merge Mouse.clicks (Signal.map (always ()) (Signals.ups Keyboard.enter))
         in Signals.toggle e
 
       -- Mouse.clicks
@@ -144,10 +149,10 @@ main =
 
       scene : L.Layout x -> Element -> Maybe Scope -> Element
       scene l selection scope =
-        Element.flow down [
+        Element.flow Element.down [
           Element.layers [L.element l, selection],
           Element.spacer 1 100,
-          S.codeText ("Path: " ++ show (Maybe.map .focus scope))
+          S.codeText ("Path: " ++ toString (Maybe.map .focus scope))
         ]
 
   in scene <~ rendered ~ highlightLayer ~ scope

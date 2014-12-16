@@ -5,7 +5,7 @@ import Elmz.Json.Encoder (Encoder)
 import Elmz.Json.Decoder as Decoder
 import Elmz.Json.Decoder (Decoder)
 
-type I = Int
+type alias I = Int
 
 z : I
 z = 0
@@ -17,4 +17,4 @@ decode : Decoder I
 decode = Decoder.int
 
 encode : Encoder I
-encode i = Encoder.number (toFloat i)
+encode i = Encoder.float (toFloat i)
