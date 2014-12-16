@@ -37,7 +37,7 @@ import Elmz.Moore (Moore)
 import Elmz.Distance as Distance
 import Elmz.Movement as Movement
 
-type Path = Path.Path -- to avoid conflict with Graphics.Collage.Path
+type alias Path = Path.Path -- to avoid conflict with Graphics.Collage.Path
 
 ap = E.App
 builtin s = E.Ref (R.Builtin s)
