@@ -1,15 +1,16 @@
 module Elmz.Layout where
 
+import Array (Array)
+import Color
+import Color (Color)
+import Graphics.Element (Direction, Element, Position)
+import Graphics.Element as E
 import List
 import List ((::))
-import Array (Array)
-import Color (Color)
-import Color
-import Graphics.Element as E
-import Graphics.Element (Direction, Element, Position)
+import Maybe
 
 type alias Pt = { x : Int, y: Int }
-type alias Region = { topLeft : Pt, width : Int , height : Int }
+type alias Region = { topLeft : Pt, width : Int, height : Int }
 
 type LayoutF r
   = Beside r r
@@ -25,6 +26,20 @@ map f (Layout r e a) = Layout (case r of
   Above r r2 -> Above (map f r) (map f r2)
   Container dims r -> Container dims (map f r)
   Embed e -> Embed e) e (f a)
+
+find : (a -> Bool) -> Layout a -> Maybe a
+find f (Layout r e a) =
+  if f a then Just a
+  else case r of
+    Beside r r2 -> Maybe.oneOf [find f r, find f r2]
+    Above r r2 -> Maybe.oneOf [find f r, find f r2]
+    Container dims r -> find f r
+    Embed e -> Nothing
+
+exists : (a -> Bool) -> Layout a -> Bool
+exists f l = case find f l of
+  Nothing -> False
+  Just _ -> True
 
 tag : Layout k -> k
 tag (Layout _ _ k) = k
@@ -142,6 +157,10 @@ region prefixOf by l ks =
   in go (Pt 0 0) ks l
 
 {-| Find all tags whose region contains the given point. -}
+atPoint : Layout k -> Pt -> List k
+atPoint l xy = at l { topLeft = xy, width = 1, height = 1 }
+
+{-| Find all tags whose region intersects the given region. -}
 at : Layout k -> Region -> List k
 at l r =
   let

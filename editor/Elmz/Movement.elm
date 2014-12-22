@@ -2,6 +2,7 @@ module Elmz.Movement where
 
 import Keyboard
 import Signal ((<~), (~), Signal)
+import Signal
 import Elmz.Signal as Signals
 import Time
 
@@ -20,6 +21,9 @@ sign i = if | i == 0 -> Zero
 
 d1 : Int -> D1
 d1 = sign >> D1
+
+upDown : Signal D1
+upDown = Signal.map (.y >> d1) Keyboard.arrows
 
 d1b : Bool -> D1
 d1b t = D1 (movement1 t)
@@ -59,6 +63,19 @@ repeatD2 d2 = Signals.repeatAfterIf (300 * Time.millisecond) 20 nonzeroD2 d2
 
 repeatD3 : Signal D3 -> Signal D3
 repeatD3 d3 = Signals.repeatAfterIf (300 * Time.millisecond) 20 nonzeroD3 d3
+
+moveD1 : { increment : s -> s, decrement : s -> s }
+      -> Signal r -> Signal s -> Signal D1 -> Signal (Maybe s)
+moveD1 mover reset base movements =
+  let edit (D1 x) s = s |>
+    (if | x == Positive -> mover.increment
+        | x == Negative -> mover.decrement
+        | otherwise -> identity)
+  in Signals.foldpBetween'
+    reset
+    edit
+    base
+    movements
 
 moveD2 : { left : s -> s, right : s -> s, up : s -> s, down : s -> s}
        -> Signal r -> Signal s -> Signal D2 -> Signal (Maybe s)

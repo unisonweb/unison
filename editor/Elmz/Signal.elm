@@ -83,6 +83,9 @@ foldpWhen' cond f z a =
 fromMaybe : Signal a -> Signal (Maybe a) -> Signal a
 fromMaybe = map2 Elmz.Maybe.fromMaybe
 
+flattenMaybe : Signal (Maybe (Maybe a)) -> Signal (Maybe a)
+flattenMaybe s = fromMaybe (constant Nothing) s
+
 {-| Ignore any events of `Nothing`. -}
 justs : Signal (Maybe a) -> Signal (Maybe a)
 justs s = keepIf (Maybe.map (always True) >> Maybe.withDefault False) Nothing s

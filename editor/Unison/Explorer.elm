@@ -1,18 +1,20 @@
 module Unison.Explorer where
 
+import Elmz.Layout (Layout,Region)
+import Elmz.Layout as Layout
 import Elmz.Moore (Moore)
 import Elmz.Moore as M
-import Elmz.Layout as Layout
-import Elmz.Layout (Layout,Region)
-import Elmz.Maybe
-import List
-import List ((::))
+import Elmz.Movement as Movement
+import Elmz.Signal as Signals
 import Graphics.Element (Element)
 import Graphics.Element as E
 import Graphics.Input.Field as Field
 import Keyboard
+import List
+import List ((::))
+import Maybe
+import Mouse
 import Signal
-import Unison.Term (Term)
 import Unison.Styles as Styles
 
 {-|
@@ -36,28 +38,6 @@ While OPEN
 todo : a
 todo = todo
 
-autocomplete : S v -> Layout (Maybe (v,Int))
-autocomplete s =
-  let ok = List.length (s.match s.input.string (List.map snd s.completions)) > 0
-      statusColor = if ok then Styles.okColor else Styles.notOkColor
-      fld = Field.field (Styles.autocomplete ok)
-                        (Signal.send s.searchbox)
-                        s.prompt
-                        s.input
-      insertion = Styles.carotUp 7 statusColor
-      fldWithInsertion = E.flow E.down [E.spacer 1 1, E.flow E.right [E.spacer 8 0, insertion], fld]
-      status = Layout.above Nothing (Layout.embed Nothing s.goal)
-                                    (Layout.embed Nothing s.current)
-      renderCompletion i (e,v) = Layout.embed (Just (v,i)) e
-      box = Layout.above Nothing
-        (Layout.embed Nothing fldWithInsertion)
-        (Styles.verticalCells Nothing E.empty (status :: List.indexedMap renderCompletion s.completions))
-      boxTopLeft = { x = s.focus.topLeft.x, y = s.focus.topLeft.y + s.focus.height }
-      h = boxTopLeft.y + E.heightOf (Layout.element box)
-  in Layout.container Nothing s.overall.width h boxTopLeft box
-
-type Direction = North | South | East | West
-
 type alias S v =
   { isKeyboardOpen : Bool
   , prompt : String
@@ -69,3 +49,45 @@ type alias S v =
   , overall : Region
   , match : String -> List v -> List v
   , completions : List (Element,v) }
+
+listSelection : Signal (Int,Int) -> Signal Movement.D1 -> Signal (Layout (Maybe Int)) -> Signal (Maybe Int)
+listSelection mouse upDown l =
+  let reset = mouse
+      base l (x,y) = case Layout.atPoint l { x = x, y = y } of
+        h :: _ -> (l, h)
+        _ -> (l, Nothing)
+      indexOk ctx i = Layout.exists ((==) i) ctx
+      modify f (ctx,i) =
+        let i' = case i of
+          Nothing -> Nothing
+          Just i -> if indexOk ctx (Just (f i)) then Just (f i) else Just i
+        in (ctx, i')
+      mover = { increment = modify (\i -> i + 1), decrement = modify (\i -> i - 1) }
+  in Movement.moveD1 mover reset (Signal.map2 base l mouse) upDown
+     |> Signal.map (Maybe.map snd)
+     |> Signals.flattenMaybe
+
+autocomplete : S v -> Layout (Maybe Int)
+autocomplete s =
+  let ok = List.length (s.match s.input.string (List.map snd s.completions)) > 0
+      statusColor = if ok then Styles.okColor else Styles.notOkColor
+      fld = Field.field (Styles.autocomplete ok)
+                        (Signal.send s.searchbox)
+                        s.prompt
+                        s.input
+      insertion = Styles.carotUp 7 statusColor
+      fldWithInsertion = E.flow E.down [E.spacer 1 1, E.flow E.right [E.spacer 8 0, insertion], fld]
+      status = Layout.above Nothing (Layout.embed Nothing s.goal)
+                                    (Layout.embed Nothing s.current)
+      renderCompletion i (e,v) = Layout.embed (Just i) e
+      box = Layout.above Nothing
+        (Layout.embed Nothing fldWithInsertion)
+        (Styles.verticalCells Nothing E.empty (status :: List.indexedMap renderCompletion s.completions))
+      boxTopLeft = { x = s.focus.topLeft.x, y = s.focus.topLeft.y + s.focus.height }
+      h = boxTopLeft.y + E.heightOf (Layout.element box)
+  in Layout.container Nothing s.overall.width h boxTopLeft box
+
+type Direction = North | South | East | West
+
+
+
