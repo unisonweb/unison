@@ -36,20 +36,9 @@ While OPEN
 todo : a
 todo = todo
 
---explorer : Moore (S k v) (Element, Maybe (k,v))
---explorer =
---  let s0 = M.moore (E.empty, Nothing) closed
---      closed s = case s.focus of
---        Nothing -> s0
---        Just (k,r) -> opened k r s
---      opened k r s = todo
---  in s0
-
-autocomplete : k -> Region -> S k v -> Layout (Maybe (k,v,Int))
-autocomplete k selectedRegion s =
-  let ok = case s.parse (s.input.string) of
-        Nothing -> False
-        Just v -> List.length (s.match s.input.string [v]) > 0
+autocomplete : S v -> Layout (Maybe (v,Int))
+autocomplete s =
+  let ok = List.length (s.match s.input.string (List.map snd s.completions)) > 0
       statusColor = if ok then Styles.okColor else Styles.notOkColor
       fld = Field.field (Styles.autocomplete ok)
                         (Signal.send s.searchbox)
@@ -59,28 +48,24 @@ autocomplete k selectedRegion s =
       fldWithInsertion = E.flow E.down [E.spacer 1 1, E.flow E.right [E.spacer 8 0, insertion], fld]
       status = Layout.above Nothing (Layout.embed Nothing s.goal)
                                     (Layout.embed Nothing s.current)
-      renderCompletion i (e,v) = Layout.embed (Just (k,v,i)) e
+      renderCompletion i (e,v) = Layout.embed (Just (v,i)) e
       box = Layout.above Nothing
         (Layout.embed Nothing fldWithInsertion)
         (Styles.verticalCells Nothing E.empty (status :: List.indexedMap renderCompletion s.completions))
-      boxTopLeft = { x = selectedRegion.topLeft.x, y = selectedRegion.topLeft.y + selectedRegion.height }
+      boxTopLeft = { x = s.focus.topLeft.x, y = s.focus.topLeft.y + s.focus.height }
       h = boxTopLeft.y + E.heightOf (Layout.element box)
   in Layout.container Nothing s.overall.width h boxTopLeft box
 
 type Direction = North | South | East | West
 
-type alias S k v =
+type alias S v =
   { isKeyboardOpen : Bool
   , prompt : String
   , goal : Element
   , current : Element
   , input : Field.Content
   , searchbox : Signal.Channel Field.Content
-  , parse : String -> Maybe v
-  , focus : Maybe (k, Region)
+  , focus : Region
   , overall : Region
   , match : String -> List v -> List v
   , completions : List (Element,v) }
-
--- define interactivity separate from the explorer
--- so the explorer doesn't get clicks or mouse movements, just worries about outputting a Layout
