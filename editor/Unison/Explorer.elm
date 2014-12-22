@@ -67,6 +67,15 @@ listSelection mouse upDown l =
      |> Signal.map (Maybe.map snd)
      |> Signals.flattenMaybe
 
+highlightSelection : Signal (Layout (Maybe Int)) -> Signal (Maybe Int) -> Signal Element
+highlightSelection l i =
+  let layer l i = case i of
+    Nothing -> E.empty
+    Just i -> case Layout.region (\_ _ -> True) identity l (Just i) of
+      (_, region) :: _ -> Styles.selection l region
+      _ -> E.empty
+  in Signal.map2 layer l i
+
 autocomplete : S v -> Layout (Maybe Int)
 autocomplete s =
   let ok = List.length (s.match s.input.string (List.map snd s.completions)) > 0
