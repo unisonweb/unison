@@ -14,7 +14,9 @@ import List ((::))
 import Maybe
 import Mouse
 import Signal
+import String
 import Unison.Styles as Styles
+import Window
 
 {-|
 
@@ -45,7 +47,7 @@ type alias S v =
   , input : Field.Content
   , searchbox : Signal.Channel Field.Content
   , focus : Region
-  , overall : Region
+  , width : Int
   , completions : List (Element,v)
   , invalidCompletions : List Element }
 
@@ -103,12 +105,11 @@ autocomplete s =
                                                `List.append` invalids))
       boxTopLeft = { x = s.focus.topLeft.x, y = s.focus.topLeft.y + s.focus.height }
       h = boxTopLeft.y + E.heightOf (Layout.element box)
-  in Layout.container Nothing s.overall.width h boxTopLeft box
+  in Layout.container Nothing s.width h boxTopLeft box
 
 explorer : Signal (Int,Int) -> Signal Movement.D1 -> Signal (Maybe (S v)) -> Signal (Maybe (Element, v))
 explorer mouse upDown s =
-  let listChanges = Signals.transitions (Signal.map (Maybe.map .completions) s)
-      base : Signal (Layout (Maybe Int))
+  let base : Signal (Layout (Maybe Int))
       base = Signals.fromMaybe (Signal.constant (Layout.empty (Just 0)))
                                (Signals.justs (Signal.map (Maybe.map autocomplete) s))
       values =
@@ -140,8 +141,36 @@ index i l = case List.drop i l of
   _ -> Nothing
 
 indexOf : (a -> Bool) -> List a -> Maybe Int
-indexOf f l = todo
+indexOf f l = List.indexedMap (\i a -> (i, f a)) l
+           |> List.filterMap (\(i,b) -> if b then Just i else Nothing)
+           |> index 0
 
-blah =
+searchbox : (List v -> String -> List v) -> Signal (List v) -> Signal String -> Signal (List v)
+searchbox match vs s = Signal.map2 match vs s
+
+main =
   let names = ["Alice", "Allison", "Bob", "Burt", "Carol", "Chris", "Dave", "Donna", "Eve", "Frank"]
-  in todo
+      search = Signal.channel Field.noContent
+      searchStrings = Signal.map .string (Signal.subscribe search)
+      values = searchbox (\vs s -> List.filter (String.startsWith s) vs) (Signal.constant names) searchStrings
+      s vs c w =
+        Just
+          { isKeyboardOpen = True
+          , prompt = "Enter a name"
+          , goal = Styles.codeText "Goal: a valid name"
+          , current = Styles.codeText "status"
+          , input = c
+          , searchbox = search
+          , focus = { topLeft = { x = 50, y = 50 }, width = 50, height = 50 }
+          , width = w
+          , completions = List.map (\s -> (Styles.codeText s, s)) vs
+          , invalidCompletions = [] }
+      is = Signal.map3 s values (Signal.subscribe search) Window.width
+      ex = explorer Mouse.position Movement.upDown is
+      scene e = case e of
+        Nothing -> Styles.codeText "empty"
+        Just (e, v) -> E.flow E.down
+          [ e
+          , E.spacer 20 10
+          , "current selection: " ++ toString v |> Styles.codeText ]
+   in Signal.map scene ex
