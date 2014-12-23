@@ -67,7 +67,7 @@ listSelection mouse upDown l =
      |> Signal.map (Maybe.map snd)
      |> Signals.flattenMaybe
 
-highlightSelection : Signal (Layout (Maybe Int)) -> Signal (Maybe Int) -> Signal Element
+highlightSelection : Signal (Layout (Maybe a)) -> Signal (Maybe a) -> Signal Element
 highlightSelection l i =
   let layer l i = case i of
     Nothing -> E.empty
