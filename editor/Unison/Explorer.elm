@@ -47,8 +47,8 @@ type alias S v =
   , searchbox : Signal.Channel Field.Content
   , focus : Region
   , overall : Region
-  , match : String -> List v -> List v
-  , completions : List (Element,v) }
+  , completions : List (Element,v)
+  , invalidCompletions : List Element }
 
 listSelection : Signal (Int,Int) -> Signal Movement.D1 -> Signal (Layout (Maybe Int)) -> Signal (Maybe Int)
 listSelection mouse upDown l =
@@ -78,7 +78,7 @@ highlightSelection l i =
 
 autocomplete : S v -> Layout (Maybe Int)
 autocomplete s =
-  let ok = List.length (s.match s.input.string (List.map snd s.completions)) > 0
+  let ok = not (List.isEmpty s.completions)
       statusColor = if ok then Styles.okColor else Styles.notOkColor
       fld = Field.field (Styles.autocomplete ok)
                         (Signal.send s.searchbox)
@@ -89,9 +89,11 @@ autocomplete s =
       status = Layout.above Nothing (Layout.embed Nothing s.goal)
                                     (Layout.embed Nothing s.current)
       renderCompletion i (e,v) = Layout.embed (Just i) e
+      invalids = List.map (Layout.embed Nothing) s.invalidCompletions
       box = Layout.above Nothing
         (Layout.embed Nothing fldWithInsertion)
-        (Styles.verticalCells Nothing E.empty (status :: List.indexedMap renderCompletion s.completions))
+        (Styles.verticalCells Nothing E.empty (status :: List.indexedMap renderCompletion s.completions
+                                               `List.append` invalids))
       boxTopLeft = { x = s.focus.topLeft.x, y = s.focus.topLeft.y + s.focus.height }
       h = boxTopLeft.y + E.heightOf (Layout.element box)
   in Layout.container Nothing s.overall.width h boxTopLeft box
