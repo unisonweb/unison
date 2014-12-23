@@ -49,21 +49,29 @@ type alias S v =
   , completions : List (Element,v)
   , invalidCompletions : List Element }
 
-listSelection : Signal (Int,Int) -> Signal Movement.D1 -> Signal (Layout (Maybe Int)) -> Signal (Maybe Int)
-listSelection mouse upDown l =
+listSelection : Signal (Int,Int) -> Signal Movement.D1 -> Signal (List v) -> Signal (Layout (Maybe Int)) -> Signal (Maybe Int)
+listSelection mouse upDown values l =
   let reset = mouse
-      base l (x,y) = case Layout.atPoint l { x = x, y = y } of
-        h :: _ -> (l, h)
-        _ -> (l, Nothing)
+      base vprev v l (x,y) = case Layout.atPoint l { x = x, y = y } of
+        h :: _ -> (vprev, v, l, h)
+        _ -> (vprev, v, l, Nothing)
       indexOk ctx i = Layout.exists ((==) i) ctx
-      modify f (ctx,i) =
+      modify f (vprevs, vs, ctx, i) =
         let i' = case i of
-          Nothing -> Nothing
-          Just i -> if indexOk ctx (Just (f i)) then Just (f i) else Just i
-        in (ctx, i')
+              Nothing -> Nothing
+              Just i ->
+                if vs /= vprevs
+                then index i vprevs `Maybe.andThen` \v -> indexOf ((==) v) vs
+                else Just i
+            m i = case i of
+              Nothing -> Nothing
+              Just i -> if indexOk ctx (Just (f i)) then Just (f i) else Just i
+        in (vprevs, vs, ctx, m i')
+      changes = Signal.map2 (/=) (Signals.delay [] values) values |> Signals.ups
+      upDown' = Signal.map2 (\b d -> if b then d else Movement.D1 Movement.Zero) changes upDown
       mover = { increment = modify (\i -> i + 1), decrement = modify (\i -> i - 1) }
-  in Movement.moveD1 mover reset (Signal.map2 base l mouse) upDown
-     |> Signal.map (Maybe.map snd)
+  in Movement.moveD1 mover reset (Signal.map4 base (Signals.delay [] values) values l mouse) upDown'
+     |> Signal.map (Maybe.map (\(_,_,_,i) -> i))
      |> Signals.flattenMaybe
 
 highlightSelection : Signal (Layout (Maybe a)) -> Signal (Maybe a) -> Signal Element
@@ -103,35 +111,36 @@ explorer mouse upDown s =
       base : Signal (Layout (Maybe Int))
       base = Signals.fromMaybe (Signal.constant (Layout.empty (Just 0)))
                                (Signals.justs (Signal.map (Maybe.map autocomplete) s))
+      values =
+        let f s = case s of
+          Nothing -> []
+          Just s -> List.map snd s.completions
+        in Signal.map f s
       selectedIndex : Signal (Maybe Int)
-      selectedIndex = listSelection mouse upDown base
+      selectedIndex = listSelection mouse upDown values base
 
       selectedValue =
-        let f s i = Elmz.Maybe.map2 (\s i -> Maybe.map snd <| safeIndex i s.completions) s i
+        let f s i = Elmz.Maybe.map2 (\s i -> Maybe.map snd <| index i s.completions) s i
                  |> Elmz.Maybe.join
         in Signal.map2 f s selectedIndex
 
-      -- Try to preserve currently selected value even as list of completions changes
-      stickySelectedIndex : Signal (Maybe Int)
-      stickySelectedIndex =
-        -- if the completions list has changed, but mouse/upDown has not
-        let lastValue = Signals.delay Nothing selectedValue
-        in todo
-
       highlight : Signal Element
-      highlight = highlightSelection base stickySelectedIndex
+      highlight = highlightSelection base selectedIndex
       selection' =
         let f ex s i hl =
           i `Maybe.andThen` (\i ->
           s `Maybe.andThen` (\s ->
-            Maybe.map (\(_,v) -> (E.layers [Layout.element ex, hl], v)) (safeIndex i s.completions)))
-        in Signal.map4 f base s stickySelectedIndex highlight
+            Maybe.map (\(_,v) -> (E.layers [Layout.element ex, hl], v)) (index i s.completions)))
+        in Signal.map4 f base s selectedIndex highlight
   in selection'
 
-safeIndex : Int -> List a -> Maybe a
-safeIndex i l = case List.drop i l of
+index : Int -> List a -> Maybe a
+index i l = case List.drop i l of
   h :: _ -> Just h
   _ -> Nothing
+
+indexOf : (a -> Bool) -> List a -> Maybe Int
+indexOf f l = todo
 
 blah =
   let names = ["Alice", "Allison", "Bob", "Burt", "Carol", "Chris", "Dave", "Donna", "Eve", "Frank"]
