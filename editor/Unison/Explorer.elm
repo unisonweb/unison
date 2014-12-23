@@ -2,8 +2,7 @@ module Unison.Explorer where
 
 import Elmz.Layout (Layout,Region)
 import Elmz.Layout as Layout
-import Elmz.Moore (Moore)
-import Elmz.Moore as M
+import Elmz.Maybe
 import Elmz.Movement as Movement
 import Elmz.Signal as Signals
 import Graphics.Element (Element)
@@ -100,19 +99,33 @@ autocomplete s =
 
 explorer : Signal (Int,Int) -> Signal Movement.D1 -> Signal (Maybe (S v)) -> Signal (Maybe (Element, v))
 explorer mouse upDown s =
-  let base : Signal (Layout (Maybe Int))
-      base = Signals.fromMaybe (Signal.constant (Layout.empty Nothing))
+  let listChanges = Signals.transitions (Signal.map (Maybe.map .completions) s)
+      base : Signal (Layout (Maybe Int))
+      base = Signals.fromMaybe (Signal.constant (Layout.empty (Just 0)))
                                (Signals.justs (Signal.map (Maybe.map autocomplete) s))
-      selection : Signal (Maybe Int)
-      selection = listSelection mouse upDown base
+      selectedIndex : Signal (Maybe Int)
+      selectedIndex = listSelection mouse upDown base
+
+      selectedValue =
+        let f s i = Elmz.Maybe.map2 (\s i -> Maybe.map snd <| safeIndex i s.completions) s i
+                 |> Elmz.Maybe.join
+        in Signal.map2 f s selectedIndex
+
+      -- Try to preserve currently selected value even as list of completions changes
+      stickySelectedIndex : Signal (Maybe Int)
+      stickySelectedIndex =
+        -- if the completions list has changed, but mouse/upDown has not
+        let lastValue = Signals.delay Nothing selectedValue
+        in todo
+
       highlight : Signal Element
-      highlight = highlightSelection base selection
+      highlight = highlightSelection base stickySelectedIndex
       selection' =
         let f ex s i hl =
           i `Maybe.andThen` (\i ->
           s `Maybe.andThen` (\s ->
             Maybe.map (\(_,v) -> (E.layers [Layout.element ex, hl], v)) (safeIndex i s.completions)))
-        in Signal.map4 f base s selection highlight
+        in Signal.map4 f base s stickySelectedIndex highlight
   in selection'
 
 safeIndex : Int -> List a -> Maybe a

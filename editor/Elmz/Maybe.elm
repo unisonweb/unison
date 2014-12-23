@@ -18,6 +18,14 @@ ap f a = case f of
     _ -> Nothing
   _ -> Nothing
 
+join : Maybe (Maybe a) -> Maybe a
+join a = case a of
+  Nothing -> Nothing
+  Just a -> a
+
+map2 : (a -> b -> c) -> Maybe a -> Maybe b -> Maybe c
+map2 f a b = pure f `ap` a `ap` b
+
 map : (a -> b) -> Maybe a -> Maybe b
 map f m = case m of
   Nothing -> Nothing

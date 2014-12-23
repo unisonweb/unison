@@ -123,6 +123,18 @@ repeatAfterIf time fps f s =
 steady : Time -> Signal a -> Signal a
 steady t s = sampleOn (Time.since t s |> dropIf identity False) s
 
+transitions : Signal a -> Signal Bool
+transitions = transitionsBy (==)
+
+{-| `True` when the signal emits a value which differs from its previous value
+    according to `same`, `False` otherwise. -}
+transitionsBy : (a -> a -> Bool) -> Signal a -> Signal Bool
+transitionsBy same s =
+  let f prev cur = case prev of
+    Nothing -> True
+    Just prev -> same prev cur
+  in map2 f (delay Nothing (map Just s)) s
+
 {-| Alternate emitting `False` then `True` with each event emitted by `s`,
     starting by emitting `False`. -}
 toggle : Signal a -> Signal Bool
