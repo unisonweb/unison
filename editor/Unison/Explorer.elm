@@ -96,7 +96,28 @@ autocomplete s =
       h = boxTopLeft.y + E.heightOf (Layout.element box)
   in Layout.container Nothing s.overall.width h boxTopLeft box
 
-type Direction = North | South | East | West
+explorer : Signal (Int,Int) -> Signal Movement.D1 -> Signal (Maybe (S v)) -> Signal (Maybe (Element, v))
+explorer mouse upDown s =
+  let base : Signal (Layout (Maybe Int))
+      base = Signals.fromMaybe (Signal.constant (Layout.empty Nothing))
+                               (Signals.justs (Signal.map (Maybe.map autocomplete) s))
+      selection : Signal (Maybe Int)
+      selection = listSelection mouse upDown base
+      highlight : Signal Element
+      highlight = highlightSelection base selection
+      selection' =
+        let f ex s i hl =
+          i `Maybe.andThen` (\i ->
+          s `Maybe.andThen` (\s ->
+            Maybe.map (\(_,v) -> (E.layers [Layout.element ex, hl], v)) (safeIndex i s.completions)))
+        in Signal.map4 f base s selection highlight
+  in selection'
 
+safeIndex : Int -> List a -> Maybe a
+safeIndex i l = case List.drop i l of
+  h :: _ -> Just h
+  _ -> Nothing
 
-
+blah =
+  let names = ["Alice", "Allison", "Bob", "Burt", "Carol", "Chris", "Dave", "Donna", "Eve", "Frank"]
+  in todo
