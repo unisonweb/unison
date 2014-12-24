@@ -34,12 +34,15 @@ h1 =
 okColor = turquoise
 notOkColor = midnightBlue
 
+statusColor : Bool -> Color
+statusColor ok = if ok then okColor else notOkColor
+
 autocomplete : Bool -> Field.Style
 autocomplete ok =
-  { padding = { left = 10, right = 10, top = 5, bottom = 5 }
-  , outline = { color = if ok then okColor else notOkColor
+  { padding = { left = 10, right = 10, top = 13, bottom = 13 }
+  , outline = { color = statusColor ok
               , width = Field.uniformly 3
-              , radius = 0 }
+              , radius = 5 }
   , highlight = Field.noHighlight
   , style = code }
 

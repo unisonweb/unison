@@ -56,7 +56,7 @@ listSelection mouse upDown values l =
   let reset = mouse
       base vprev v l (x,y) = case Layout.atPoint l { x = x, y = y } of
         h :: _ -> (vprev, v, l, h)
-        _ -> (vprev, v, l, Nothing)
+        _ -> (vprev, v, l, Just 0)
       indexOk ctx i = Layout.exists ((==) i) ctx
       modify f (vprevs, vs, ctx, i) =
         let i' = case i of
@@ -88,26 +88,29 @@ highlightSelection l i =
 autocomplete : S v -> Layout (Maybe Int)
 autocomplete s =
   let ok = not (List.isEmpty s.completions)
-      statusColor = if ok then Styles.okColor else Styles.notOkColor
+      statusColor = Styles.statusColor ok
       fld = Field.field (Styles.autocomplete ok)
                         (Signal.send s.searchbox)
                         s.prompt
                         s.input
       insertion = Styles.carotUp 7 statusColor
-      fldWithInsertion = E.flow E.down [E.spacer 1 1, E.flow E.right [E.spacer 8 0, insertion], fld]
       status = Layout.above Nothing (Layout.embed Nothing s.goal)
                                     (Layout.embed Nothing s.current)
       renderCompletion i (e,v) = Layout.embed (Just i) e
       invalids = List.map (Layout.embed Nothing) s.invalidCompletions
+      fldLayout = Layout.embed Nothing fld
+      [top,bot] = Layout.column
+        [ fldLayout
+        , Styles.verticalCells Nothing E.empty (status :: List.indexedMap renderCompletion s.completions
+          `List.append` invalids) ]
       box = Layout.above Nothing
-        (Layout.embed Nothing fldWithInsertion)
-        (Styles.verticalCells Nothing E.empty (status :: List.indexedMap renderCompletion s.completions
-                                               `List.append` invalids))
+        (Layout.embed Nothing (E.beside (E.spacer 14 1) insertion))
+        (Layout.above Nothing top bot)
       boxTopLeft = { x = s.focus.topLeft.x, y = s.focus.topLeft.y + s.focus.height }
-      h = boxTopLeft.y + E.heightOf (Layout.element box)
+      h = boxTopLeft.y + Layout.heightOf box
   in Layout.container Nothing s.width h boxTopLeft box
 
-explorer : Signal (Int,Int) -> Signal Movement.D1 -> Signal (Maybe (S v)) -> Signal (Maybe (Element, v))
+explorer : Signal (Int,Int) -> Signal Movement.D1 -> Signal (Maybe (S v)) -> Signal (Maybe (Element, Maybe v))
 explorer mouse upDown s =
   let base : Signal (Layout (Maybe Int))
       base = Signals.fromMaybe (Signal.constant (Layout.empty (Just 0)))
@@ -127,12 +130,10 @@ explorer mouse upDown s =
 
       highlight : Signal Element
       highlight = highlightSelection base selectedIndex
+
       selection' =
-        let f ex s i hl =
-          i `Maybe.andThen` (\i ->
-          s `Maybe.andThen` (\s ->
-            Maybe.map (\(_,v) -> (E.layers [Layout.element ex, hl], v)) (index i s.completions)))
-        in Signal.map4 f base s selectedIndex highlight
+        let f ex s v hl = Maybe.map (\_ -> (E.layers [Layout.element ex, hl], v)) s
+        in Signal.map4 f base s selectedValue highlight
   in selection'
 
 index : Int -> List a -> Maybe a
