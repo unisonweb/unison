@@ -1,5 +1,6 @@
 module Unison.Explorer where
 
+import Debug
 import Elmz.Layout (Layout,Region)
 import Elmz.Layout as Layout
 import Elmz.Maybe
@@ -13,6 +14,7 @@ import List
 import List ((::))
 import Maybe
 import Mouse
+import Set
 import Signal
 import String
 import Unison.Styles as Styles
@@ -54,27 +56,35 @@ type alias S v =
 listSelection : Signal (Int,Int) -> Signal Movement.D1 -> Signal (List v) -> Signal (Layout (Maybe Int)) -> Signal (Maybe Int)
 listSelection mouse upDown values l =
   let reset = mouse
-      base vprev v l (x,y) = case Layout.atPoint l { x = x, y = y } of
-        h :: _ -> (vprev, v, l, h)
-        _ -> (vprev, v, l, Just 0)
-      indexOk ctx i = Layout.exists ((==) i) ctx
+      base vprev v l (x,y) =
+        let at = Layout.atPoint l { x = x, y = y }
+        in if List.isEmpty at then (vprev, v, l, Just 0)
+           else (vprev, v, l, Debug.watch "mouse-over" <| List.head (List.reverse at))
+      indexOk ctx i = Debug.watch "indexOk" <| Layout.exists ((==) (Debug.watch "indexOk.i" i)) ctx
       modify f (vprevs, vs, ctx, i) =
         let i' = case i of
-              Nothing -> Nothing
-              Just i ->
-                if vs /= vprevs
-                then index i vprevs `Maybe.andThen` \v -> indexOf ((==) v) vs
-                else Just i
+              Nothing -> Just 0
+              Just i -> Just i
+              -- todo: there seems to be a bug where layout gets out of sync with the list
+              -- now just need to figure out how to do this correctly
+                -- if (not (List.isEmpty vs)) && vs /= vprevs
+                -- then index i vprevs `Maybe.andThen` \v -> indexOf ((==) v) vs
+                -- else Just i
             m i = case i of
-              Nothing -> Nothing
+              Nothing -> Just 0
               Just i -> if indexOk ctx (Just (f i)) then Just (f i) else Just i
         in (vprevs, vs, ctx, m i')
-      changes = Signal.map2 (/=) (Signals.delay [] values) values |> Signals.ups
-      upDown' = Signal.map2 (\b d -> if b then d else Movement.D1 Movement.Zero) changes upDown
+      changes = Signals.transitions values
+      upDown' = upDown -- Signal.map2 (\b d -> if b then d else Movement.D1 Movement.Zero) changes upDown
+             |> Signal.map (Debug.watch "upDown")
+      l' = Signal.map (Debug.watchSummary "layout" (Layout.tags >> List.filterMap identity >> Set.fromList)) l
       mover = { increment = modify (\i -> i + 1), decrement = modify (\i -> i - 1) }
-  in Movement.moveD1 mover reset (Signal.map4 base (Signals.delay [] values) values l mouse) upDown'
+      base' = Signal.map4 base (Signals.delay [] values) values l' mouse
+      baseIndex : Signal (Maybe Int)
+      baseIndex = Signal.map (\(_,_,_,i) -> i) base'
+  in Movement.moveD1 mover reset base' upDown'
      |> Signal.map (Maybe.map (\(_,_,_,i) -> i))
-     |> Signals.flattenMaybe
+     |> Signals.fromMaybe baseIndex
 
 highlightSelection : Signal (Layout (Maybe a)) -> Signal (Maybe a) -> Signal Element
 highlightSelection l i =
@@ -107,7 +117,7 @@ autocomplete s =
         (Layout.embed Nothing (E.beside (E.spacer 14 1) insertion))
         (Layout.above Nothing top bot)
       boxTopLeft = { x = s.focus.topLeft.x, y = s.focus.topLeft.y + s.focus.height }
-      h = boxTopLeft.y + Layout.heightOf box
+      h = boxTopLeft.y + Layout.heightOf box + 50
   in Layout.container Nothing s.width h boxTopLeft box
 
 explorer : Signal (Int,Int) -> Signal Movement.D1 -> Signal (Maybe (S v)) -> Signal (Maybe (Element, Maybe v))
@@ -120,13 +130,16 @@ explorer mouse upDown s =
           Nothing -> []
           Just s -> List.map snd s.completions
         in Signal.map f s
+
       selectedIndex : Signal (Maybe Int)
       selectedIndex = listSelection mouse upDown values base
+                   |> Signal.map (Debug.watch "selectedIndex")
 
       selectedValue =
         let f s i = Elmz.Maybe.map2 (\s i -> Maybe.map snd <| index i s.completions) s i
                  |> Elmz.Maybe.join
         in Signal.map2 f s selectedIndex
+           |> Signal.map (Debug.watch "selectedValue")
 
       highlight : Signal Element
       highlight = highlightSelection base selectedIndex
@@ -152,8 +165,10 @@ searchbox match vs s = Signal.map2 match vs s
 main =
   let names = ["Alice", "Allison", "Bob", "Burt", "Carol", "Chris", "Dave", "Donna", "Eve", "Frank"]
       search = Signal.channel Field.noContent
-      searchStrings = Signal.map .string (Signal.subscribe search)
+      searchSub = Signal.subscribe search
+      searchStrings = Signal.map .string searchSub
       values = searchbox (\vs s -> List.filter (String.startsWith s) vs) (Signal.constant names) searchStrings
+            |> Signal.map (Debug.watchSummary "values length" List.length)
       s vs c w =
         Just
           { isKeyboardOpen = True
@@ -166,12 +181,10 @@ main =
           , width = w
           , completions = List.map (\s -> (Styles.codeText s, s)) vs
           , invalidCompletions = [] }
-      is = Signal.map3 s values (Signal.subscribe search) Window.width
-      ex = explorer Mouse.position Movement.upDown is
+      is = Signal.map3 s values searchSub Window.width
+      ex = explorer Mouse.position (Movement.repeatD1 Movement.downUp) is
+      ks = Signal.map (Debug.watch "arrows") Keyboard.arrows
       scene e = case e of
         Nothing -> Styles.codeText "empty"
-        Just (e, v) -> E.flow E.down
-          [ e
-          , E.spacer 20 10
-          , "current selection: " ++ toString v |> Styles.codeText ]
+        Just (e, v) -> e
    in Signal.map scene ex

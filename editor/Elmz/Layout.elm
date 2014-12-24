@@ -36,6 +36,16 @@ find f (Layout r e a) =
     Container dims r -> find f r
     Embed e -> Nothing
 
+filter : (a -> Bool) -> Layout a -> List a
+filter f (Layout r e a) = (::) a <| case r of
+  Beside r r2 -> filter f r `List.append` filter f r2
+  Above r r2 -> filter f r `List.append` filter f r2
+  Container dims r -> filter f r
+  Embed e -> []
+
+tags : Layout a -> List a
+tags = filter (always True)
+
 exists : (a -> Bool) -> Layout a -> Bool
 exists f l = case find f l of
   Nothing -> False

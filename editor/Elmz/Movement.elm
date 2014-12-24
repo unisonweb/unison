@@ -19,11 +19,19 @@ sign i = if | i == 0 -> Zero
             | i < 0 -> Negative
             | i > 0 -> Positive
 
+inverseSign : Int -> Sign
+inverseSign i = sign (-i)
+
 d1 : Int -> D1
 d1 = sign >> D1
 
+{-| Up increments, down decremnts -}
 upDown : Signal D1
 upDown = Signal.map (.y >> d1) Keyboard.arrows
+
+{-| Down increments, up decremnts -}
+downUp : Signal D1
+downUp = Signal.map (.y >> inverseSign >> D1) Keyboard.arrows
 
 d1b : Bool -> D1
 d1b t = D1 (movement1 t)
