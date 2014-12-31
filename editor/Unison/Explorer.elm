@@ -107,13 +107,14 @@ autocomplete s =
       renderCompletion i (e,v) = Layout.embed (Just i) e
       invalids = List.map (Layout.embed Nothing) s.invalidCompletions
       fldLayout = Layout.embed Nothing fld
-      [top,bot] = Layout.column
+      spacer = Layout.embed Nothing (E.spacer 1 7)
+      [top,bot] = Layout.leftAlignedColumn
         [ fldLayout
-        , Styles.verticalCells Nothing E.empty (status :: List.indexedMap renderCompletion s.completions
+        , Styles.explorerCells Nothing (status :: List.indexedMap renderCompletion s.completions
           `List.append` invalids) ]
       box = Layout.above Nothing
         (Layout.embed Nothing (E.beside (E.spacer 14 1) insertion))
-        (Layout.above Nothing top bot)
+        (Layout.above Nothing (Layout.above (Layout.tag top) top spacer) bot)
       boxTopLeft = { x = s.focus.topLeft.x, y = s.focus.topLeft.y + s.focus.height }
       h = boxTopLeft.y + Layout.heightOf box + 50
   in Layout.container Nothing s.width h boxTopLeft box
@@ -171,7 +172,7 @@ main =
         Just
           { isKeyboardOpen = True
           , prompt = "Enter a name"
-          , goal = Styles.codeText "Goal: a valid name"
+          , goal = Styles.codeText "Goal: blah"
           , current = Styles.codeText "status"
           , input = c
           , searchbox = search

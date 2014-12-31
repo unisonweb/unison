@@ -137,6 +137,15 @@ column ls = case ls of
                        else container (tag e) maxw (heightOf e) (Pt (toFloat diff / 2 |> floor) 0) e
        in (List.map cell ls)
 
+leftAlignedColumn : List (Layout k) -> List (Layout k)
+leftAlignedColumn ls = case ls of
+  [] -> []
+  _ -> let maxw = List.maximum (List.map widthOf ls)
+           cell e = let diff = maxw - widthOf e
+                    in if diff == 0 then e
+                       else container (tag e) maxw (heightOf e) (Pt 0 0) e
+       in (List.map cell ls)
+
 {-| Find all regions in the tree whose path is equal to the given path.
     Relies on the assumption that nodes have paths which prefix paths
     of their descendents; thus, we can avoid searching any subtree whose

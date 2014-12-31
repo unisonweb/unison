@@ -82,6 +82,15 @@ verticalCells k ifEmpty ls = let cs = List.map (\l -> L.fill bg (L.pad 5 0 l)) (
   h :: _ -> let hline = L.embed k (E.spacer (L.widthOf h) 1 |> E.color silver)
             in L.outline silver 1 (L.intersperseVertical hline cs)
 
+explorerCells : k -> List (Layout k) -> Layout k
+explorerCells k ls =
+  let cs = List.map (\l -> L.fill bg (L.pad 20 5 l)) (L.leftAlignedColumn ls)
+  in case cs of
+    [] -> L.empty k
+    h :: _ -> let hsep = L.embed k (E.spacer 1 5 |> E.color bg)
+              in L.intersperseVertical hsep cs |>
+                 L.transform (\e -> E.layers [e, outlineOf midnightBlue 6 e])
+
 selection : Layout k -> Region -> Element
 selection l r =
   let
@@ -115,6 +124,9 @@ outline' c thickness w h =
   let s = C.solid c
       s' = { s | width <- toFloat thickness }
   in C.collage w h [C.outlined s' (C.rect (toFloat w) (toFloat h))]
+
+outlineOf : Color -> Int -> Element -> Element
+outlineOf c thickness e = outline' c thickness (E.widthOf e) (E.heightOf e)
 
 contain : Element -> Element
 contain e =
