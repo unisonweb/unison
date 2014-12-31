@@ -72,11 +72,10 @@ listSelection mouse upDown l =
         (Just (x,y), _, _) -> Maybe.withDefault i (Layout.leafAtPoint l (Layout.Pt x y))
         -- if there's a movement up or down, try to apply it to the current index
         (Nothing, Just upDown, _) ->
-          let i' = Maybe.oneOf [Maybe.map (Movement.interpretD1 upDown) i, Just 0]
-              valid = case i' of
-                Nothing -> False
-                Just i2 -> Maybe.withDefault False (Maybe.map (always True) (index i2 (Layout.tags l)))
-          in if valid then i' else i
+          let i' = Maybe.withDefault 0 (Maybe.map (Movement.interpretD1 upDown) i)
+              valid = Maybe.withDefault False (Maybe.map (always True)
+                                              (indexOf ((==) (Just i')) (Layout.tags l)))
+          in if valid then Just i' else i
         -- if the values change, try to update the current index to the same value in the new list
         (Nothing, _, Just values) ->
           let curVal = i `Maybe.andThen` \i2 -> index i2 lastValues
