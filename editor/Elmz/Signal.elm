@@ -1,5 +1,9 @@
 module Elmz.Signal where
 
+import Text
+import Mouse
+-- debugging
+
 import Elmz.Maybe
 import List
 import List ((::))
@@ -158,3 +162,7 @@ unchanged a = map not (changed a)
 ups : Signal Bool -> Signal Bool
 ups s = keepIf identity False s
 
+zip : Signal a -> Signal b -> Signal (a,b)
+zip = map2 (,)
+
+main = Text.plainText << toString <~ changed Mouse.position

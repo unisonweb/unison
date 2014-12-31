@@ -25,6 +25,12 @@ inverseSign i = sign (-i)
 d1 : Int -> D1
 d1 = sign >> D1
 
+interpretD1 : D1 -> Int -> Int
+interpretD1 (D1 d1) i = case d1 of
+  Zero -> i
+  Positive -> i + 1
+  Negative -> i - 1
+
 {-| Up increments, down decremnts -}
 upDown : Signal D1
 upDown = Signal.map (.y >> d1) Keyboard.arrows

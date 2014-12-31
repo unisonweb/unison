@@ -17,6 +17,7 @@ import Mouse
 import Set
 import Signal
 import String
+import Time
 import Unison.Styles as Styles
 import Window
 
@@ -53,38 +54,36 @@ type alias S v =
   , completions : List (Element,v)
   , invalidCompletions : List Element }
 
-listSelection : Signal (Int,Int) -> Signal Movement.D1 -> Signal (List v) -> Signal (Layout (Maybe Int)) -> Signal (Maybe Int)
-listSelection mouse upDown values l =
-  let reset = mouse
-      base vprev v l (x,y) =
-        let at = Layout.atPoint l { x = x, y = y }
-        in if List.isEmpty at then (vprev, v, l, Just 0)
-           else (vprev, v, l, Debug.watch "mouse-over" <| List.head (List.reverse at))
-      indexOk ctx i = Debug.watch "indexOk" <| Layout.exists ((==) (Debug.watch "indexOk.i" i)) ctx
-      modify f (vprevs, vs, ctx, i) =
-        let i' = case i of
-              Nothing -> Just 0
-              Just i -> Just i
-              -- todo: there seems to be a bug where layout gets out of sync with the list
-              -- now just need to figure out how to do this correctly
-                -- if (not (List.isEmpty vs)) && vs /= vprevs
-                -- then index i vprevs `Maybe.andThen` \v -> indexOf ((==) v) vs
-                -- else Just i
-            m i = case i of
-              Nothing -> Just 0
-              Just i -> if indexOk ctx (Just (f i)) then Just (f i) else Just i
-        in (vprevs, vs, ctx, m i')
-      changes = Signals.transitions values
-      upDown' = upDown -- Signal.map2 (\b d -> if b then d else Movement.D1 Movement.Zero) changes upDown
-             |> Signal.map (Debug.watch "upDown")
-      l' = Signal.map (Debug.watchSummary "layout" (Layout.tags >> List.filterMap identity >> Set.fromList)) l
-      mover = { increment = modify (\i -> i + 1), decrement = modify (\i -> i - 1) }
-      base' = Signal.map4 base (Signals.delay [] values) values l' mouse
-      baseIndex : Signal (Maybe Int)
-      baseIndex = Signal.map (\(_,_,_,i) -> i) base'
-  in Movement.moveD1 mover reset base' upDown'
-     |> Signal.map (Maybe.map (\(_,_,_,i) -> i))
-     |> Signals.fromMaybe baseIndex
+listSelection : Signal (Int,Int)
+             -> Signal Movement.D1
+             -> Signal (List v, Layout (Maybe Int))
+             -> Signal (Maybe Int)
+listSelection mouse upDown l =
+  let eupDown = Signals.events upDown
+      values = Signal.map fst l
+      lastValues = Signals.delay [] values
+      evalues = Signals.events values
+      emouse = Signals.events mouse
+      layouts = Signal.map snd l
+      merged = Signal.map5 (,,,,) emouse eupDown lastValues evalues (Signal.map snd l)
+      f (xy, upDown, lastValues, values, l) i = case (xy, upDown, values) of
+        (Nothing, Nothing, Nothing) -> i
+        -- if mouse moves, always resolve to the selection under the cursor, if it exists
+        (Just (x,y), _, _) -> Maybe.withDefault i (Layout.leafAtPoint l (Layout.Pt x y))
+        -- if there's a movement up or down, try to apply it to the current index
+        (Nothing, Just upDown, _) ->
+          let i' = Maybe.oneOf [Maybe.map (Movement.interpretD1 upDown) i, Just 0]
+              valid = case i' of
+                Nothing -> False
+                Just i2 -> Maybe.withDefault False (Maybe.map (always True) (index i2 (Layout.tags l)))
+          in if valid then i' else i
+        -- if the values change, try to update the current index to the same value in the new list
+        (Nothing, _, Just values) ->
+          let curVal = i `Maybe.andThen` \i2 -> index i2 lastValues
+          in case curVal of
+               Nothing -> Just 0
+               Just v -> Maybe.oneOf [indexOf ((==) v) values, Just 0]
+  in Signal.foldp f (Just 0) merged
 
 highlightSelection : Signal (Layout (Maybe a)) -> Signal (Maybe a) -> Signal Element
 highlightSelection l i =
@@ -132,7 +131,7 @@ explorer mouse upDown s =
         in Signal.map f s
 
       selectedIndex : Signal (Maybe Int)
-      selectedIndex = listSelection mouse upDown values base
+      selectedIndex = listSelection mouse upDown (Signals.zip values base)
                    |> Signal.map (Debug.watch "selectedIndex")
 
       selectedValue =

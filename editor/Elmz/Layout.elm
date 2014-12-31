@@ -170,6 +170,16 @@ region prefixOf by l ks =
 atPoint : Layout k -> Pt -> List k
 atPoint l xy = at l { topLeft = xy, width = 1, height = 1 }
 
+{-| Find a leaf in the layout tree whose region intersects the given region. -}
+leafAt : Layout k -> Region -> Maybe k
+leafAt l r = case List.reverse (at l r) of
+  [] -> Nothing
+  h :: _ -> Just h
+
+{-| Find a leaf in the layout tree whose region contains the given point. -}
+leafAtPoint : Layout k -> Pt -> Maybe k
+leafAtPoint l xy = leafAt l { topLeft = xy, width = 1, height = 1 }
+
 {-| Find all tags whose region intersects the given region. -}
 at : Layout k -> Region -> List k
 at l r =
