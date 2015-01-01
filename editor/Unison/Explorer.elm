@@ -54,6 +54,13 @@ type alias S v =
   , completions : List (Element,v)
   , invalidCompletions : List Element }
 
+ignoreUpDown : Signal Field.Content -> Signal Field.Content
+ignoreUpDown s =
+  let f arrows c prevC = if arrows.y /= 0 && c.string == prevC.string then prevC else c
+  in Signal.map3 f (Signal.keepIf (\a -> a.y /= 0) {x = 0, y = 0} Keyboard.arrows)
+                   s
+                   (Signals.delay Field.noContent s)
+
 listSelection : Signal (Int,Int)
              -> Signal Movement.D1
              -> Signal (List v, Layout (Maybe Int))
@@ -164,7 +171,7 @@ searchbox match vs s = Signal.map2 match vs s
 main =
   let names = ["Alice", "Allison", "Bob", "Burt", "Carol", "Chris", "Dave", "Donna", "Eve", "Frank"]
       search = Signal.channel Field.noContent
-      searchSub = Signal.subscribe search
+      searchSub = ignoreUpDown (Signal.subscribe search)
       searchStrings = Signal.map .string searchSub
       values = searchbox (\vs s -> List.filter (String.startsWith s) vs) (Signal.constant names) searchStrings
             |> Signal.map (Debug.watchSummary "values length" List.length)
