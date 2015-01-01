@@ -39,10 +39,11 @@ statusColor ok = if ok then okColor else notOkColor
 
 autocomplete : Bool -> Field.Style
 autocomplete ok =
-  { padding = { left = 10, right = 10, top = 5, bottom = 5 }
+  { padding = let s = Field.defaultStyle
+              in { left = 10, right = 10, top = s.padding.top, bottom = s.padding.bottom }
   , outline = { color = statusColor ok
               , width = Field.uniformly 3
-              , radius = 5 }
+              , radius = 0 }
   , highlight = Field.noHighlight
   , style = code }
 
@@ -92,20 +93,30 @@ explorerCells k ls =
                  L.transform (\e -> E.layers [e, outlineOf midnightBlue 6 e])
 
 selection : Layout k -> Region -> Element
-selection l r =
+selection = selectionLayer highlight
+
+explorerSelection : Layout k -> Region -> Element
+explorerSelection = selectionLayer highlightExplorer
+
+selectionLayer : (Int -> Int -> Element) -> Layout k -> Region -> Element
+selectionLayer highlight l r =
   let
-    highlight = E.spacer r.width r.height |> E.color asbestos |> E.opacity 0.15
+    hl = highlight r.width r.height
     n = 1
     border = outline' asbestos n r.width r.height |> E.opacity 0.8
   in E.container (L.widthOf l)
                  (L.heightOf l)
                  (E.topLeftAt (E.absolute (r.topLeft.x)) (E.absolute (r.topLeft.y)))
-                 (E.layers [highlight, border])
+                 hl
 
 highlight : Int -> Int -> Element
 highlight width height =
   E.layers [ E.spacer width height |> E.color asbestos |> E.opacity 0.15
            , outline' asbestos 1 width height |> E.opacity 0.8 ]
+
+highlightExplorer : Int -> Int -> Element
+highlightExplorer width height =
+  E.spacer width height |> E.color midnightBlue |> E.opacity 0.15
 
 outline : Color -> Int -> Element -> Element
 outline c thickness e =

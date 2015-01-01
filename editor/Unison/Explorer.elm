@@ -96,7 +96,7 @@ highlightSelection l i =
   let layer l i = case i of
     Nothing -> E.empty
     Just i -> case Layout.region (\_ _ -> True) identity l (Just i) of
-      (_, region) :: _ -> Styles.selection l region
+      (_, region) :: _ -> Styles.explorerSelection l region
       _ -> E.empty
   in Signal.map2 layer l i
 
