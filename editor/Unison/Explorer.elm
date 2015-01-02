@@ -87,7 +87,7 @@ listSelection mouse upDown l =
         (Nothing, _, Just values) ->
           let curVal = i `Maybe.andThen` \i2 -> index i2 lastValues
           in case curVal of
-               Nothing -> Just 0
+               Nothing -> i
                Just v -> Maybe.oneOf [indexOf ((==) v) values, Just 0]
   in Signal.foldp f (Just 0) merged
 
