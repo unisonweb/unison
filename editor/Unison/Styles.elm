@@ -40,7 +40,7 @@ statusColor ok = if ok then okColor else notOkColor
 autocomplete : Bool -> Field.Style
 autocomplete ok =
   { padding = let s = Field.defaultStyle
-              in { left = 10, right = 10, top = s.padding.top, bottom = s.padding.bottom }
+              in s.padding -- { left = 10, right = 10, top = s.padding.top, bottom = s.padding.bottom }
   , outline = { color = statusColor ok
               , width = Field.uniformly 3
               , radius = 0 }

@@ -64,7 +64,7 @@ ignoreUpDown s =
 listSelection : Signal (Int,Int)
              -> Signal Movement.D1
              -> Signal (List v, Layout (Maybe Int))
-             -> Signal (Maybe Int)
+             -> Signal Int
 listSelection mouse upDown l =
   let eupDown = Signals.events upDown
       values = Signal.map fst l
@@ -76,28 +76,28 @@ listSelection mouse upDown l =
       f (xy, upDown, lastValues, values, l) i = case (xy, upDown, values) of
         (Nothing, Nothing, Nothing) -> i
         -- if mouse moves, always resolve to the selection under the cursor, if it exists
-        (Just (x,y), _, _) -> Maybe.withDefault i (Layout.leafAtPoint l (Layout.Pt x y))
+        (Just (x,y), _, _) -> Layout.leafAtPoint l (Layout.Pt x y)
+                           |> Elmz.Maybe.join
+                           |> Maybe.withDefault i
         -- if there's a movement up or down, try to apply it to the current index
         (Nothing, Just upDown, _) ->
-          let i' = Maybe.withDefault 0 (Maybe.map (Movement.interpretD1 upDown) i)
+          let i' = Movement.interpretD1 upDown i
               valid = Maybe.withDefault False (Maybe.map (always True)
                                               (indexOf ((==) (Just i')) (Layout.tags l)))
-          in if valid then Just i' else i
+          in if valid then i' else i
         -- if the values change, try to update the current index to the same value in the new list
         (Nothing, _, Just values) ->
-          let curVal = i `Maybe.andThen` \i2 -> index i2 lastValues
+          let curVal = index i lastValues
           in case curVal of
                Nothing -> i
-               Just v -> Maybe.oneOf [indexOf ((==) v) values, Just 0]
-  in Signal.foldp f (Just 0) merged
+               Just v -> Maybe.withDefault 0 (indexOf ((==) v) values)
+  in Signal.foldp f 0 merged
 
-highlightSelection : Signal (Layout (Maybe a)) -> Signal (Maybe a) -> Signal Element
+highlightSelection : Signal (Layout (Maybe a)) -> Signal a -> Signal Element
 highlightSelection l i =
-  let layer l i = case i of
-    Nothing -> E.empty
-    Just i -> case Layout.region (\_ _ -> True) identity l (Just i) of
-      (_, region) :: _ -> Styles.explorerSelection l region
-      _ -> E.empty
+  let layer l i = case Layout.region (\_ _ -> True) identity l (Just i) of
+    (_, region) :: _ -> Styles.explorerSelection l region
+    _ -> E.empty
   in Signal.map2 layer l i
 
 autocomplete : S v -> Layout (Maybe Int)
@@ -137,13 +137,12 @@ explorer mouse upDown s =
           Just s -> List.map snd s.completions
         in Signal.map f s
 
-      selectedIndex : Signal (Maybe Int)
+      selectedIndex : Signal Int
       selectedIndex = listSelection mouse upDown (Signals.zip values base)
                    |> Signal.map (Debug.watch "selectedIndex")
 
       selectedValue =
-        let f s i = Elmz.Maybe.map2 (\s i -> Maybe.map snd <| index i s.completions) s i
-                 |> Elmz.Maybe.join
+        let f s i = s `Maybe.andThen` \s -> Maybe.map snd <| index i s.completions
         in Signal.map2 f s selectedIndex
            |> Signal.map (Debug.watch "selectedValue")
 
