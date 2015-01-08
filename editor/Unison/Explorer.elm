@@ -126,7 +126,12 @@ autocomplete s =
       h = boxTopLeft.y + Layout.heightOf box + 50
   in Layout.container Nothing s.width h boxTopLeft box
 
-explorer : Signal (Int,Int) -> Signal Movement.D1 -> Signal (Maybe (S v)) -> Signal (Maybe (Element, Maybe v))
+-- can foldp over this to use clicks/enter to toggle
+
+explorer : Signal (Int,Int)
+        -> Signal Movement.D1
+        -> Signal (Maybe (S v))
+        -> Signal (Maybe (Element, Maybe v))
 explorer mouse upDown s =
   let base : Signal (Layout (Maybe Int))
       base = Signals.fromMaybe (Signal.constant (Layout.empty (Just 0)))
@@ -152,6 +157,7 @@ explorer mouse upDown s =
       selection' =
         let f ex s v hl = Maybe.map (\_ -> (E.layers [Layout.element ex, hl], v)) s
         in Signal.map4 f base s selectedValue highlight
+
   in selection'
 
 index : Int -> List a -> Maybe a
@@ -174,7 +180,7 @@ main =
       searchStrings = Signal.map .string searchSub
       values = searchbox (\vs s -> List.filter (String.startsWith s) vs) (Signal.constant names) searchStrings
             |> Signal.map (Debug.watchSummary "values length" List.length)
-      s vs c w =
+      s (x,y) vs c w =
         Just
           { isKeyboardOpen = True
           , prompt = ""
@@ -182,11 +188,11 @@ main =
           , current = Styles.codeText "status"
           , input = c
           , searchbox = search
-          , focus = { topLeft = { x = 50, y = 50 }, width = 50, height = 50 }
+          , focus = { topLeft = { x = x, y = y }, width = 5, height = 5 }
           , width = w
           , completions = List.map (\s -> (Styles.codeText s, s)) vs
           , invalidCompletions = [] }
-      is = Signal.map3 s values searchSub Window.width
+      is = Signal.map4 s Signals.clickLocations values searchSub Window.width
       ex = explorer Mouse.position (Movement.repeatD1 Movement.downUp) is
       ks = Signal.map (Debug.watch "arrows") Keyboard.arrows
       scene e = case e of
