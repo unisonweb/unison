@@ -39,6 +39,10 @@ delay h s =
   in foldp go { prev = h, cur = h } s
   |> map .cur
 
+{-| Only emit when the input signal transitions from `True` to `False`. -}
+downs : Signal Bool -> Signal Bool
+downs s = dropIf identity True s
+
 {-| Emit from `t` if `cond` is `True`, otherwise emit from `f`. -}
 choose : Signal Bool -> Signal a -> Signal a -> Signal a
 choose cond t f =
