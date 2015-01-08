@@ -37,6 +37,9 @@ maybe = J.maybe
 decodeString = J.decodeString
 object = J.dict
 
+lazy : (() -> Decoder a) -> Decoder a
+lazy a = J.succeed () `J.andThen` \_ -> a ()
+
 apply : Decoder (a -> b) -> Decoder a -> Decoder b
 apply f a = J.object2 (<|) f a
 

@@ -55,6 +55,9 @@ changed a =
   merge (always False <~ Time.delay 0 a)
         (always True <~ a)
 
+clickLocations : Signal (Int,Int)
+clickLocations = sampleOn Mouse.clicks (map2 always Mouse.position Mouse.clicks)
+
 events : Signal a -> Signal (Maybe a)
 events s =
   let f b a = if b then Just a else Nothing
@@ -112,6 +115,10 @@ loop f s a =
   let go a (_,s) = case f a s of (b,s) -> (Just b, s)
   in fst <~ foldp go (Nothing,s) a
 
+{-| When the input is `False`, convert the signal to `Nothing`. -}
+mask : Signal Bool -> Signal a -> Signal (Maybe a)
+mask = map2 (\b a -> if b then Just a else Nothing)
+
 {-| Emit updates to `s` only when it moves outside the current bin,
     according to the function `within`. Otherwise emit no update but
     take on the value `Nothing`. -}
@@ -148,12 +155,10 @@ transitionsBy same s =
     Just prev -> same prev cur
   in map2 f (delay Nothing (map Just s)) s
 
-{-| Alternate emitting `False` then `True` with each event emitted by `s`,
-    starting by emitting `False`. -}
-toggle : Signal a -> Signal Bool
-toggle s =
-  let t = map (always True) s
-  in xor <~ t ~ delay False t
+{-| Alternate emitting `b` then `not b` with each event emitted by `s`,
+    starting by emitting `b`. -}
+toggle : Bool -> Signal a -> Signal Bool
+toggle b s = foldp (\_ b -> not b) b s
 
 tuple2 : Signal a -> Signal b -> Signal (a,b)
 tuple2 s s2 = (,) <~ s ~ s2
