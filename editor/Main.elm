@@ -94,15 +94,16 @@ layout availableWidth term =
                 , metadata h = MD.anonymousTerm
                 , overrides x = Nothing }
 
-leafUnderPtr : Signal (L.Layout { path : Path, selectable : Bool })
+leafUnderPtr : Signal (Int,Int)
+            -> Signal (L.Layout { path : Path, selectable : Bool })
             -> Signal (Maybe { path : Path, selectable : Bool })
-leafUnderPtr layout =
+leafUnderPtr mouse layout =
   let go layout (x,y) =
     let paths = L.atRanked (List.length << .path) layout (L.Region { x = x, y = y } 2 2)
     in case paths of
       (h :: _) :: _ -> Just h
       _ -> Nothing
-  in go <~ layout ~ Mouse.position
+  in go <~ layout ~ mouse
 
 main : Signal Element
 main =
@@ -112,26 +113,27 @@ main =
       rendered : Signal (L.Layout { path : Path, selectable : Bool })
       rendered = layout <~ Signals.steady (100 * Time.millisecond) Window.width ~ terms
 
-      leaf : Signal (Maybe Path)
-      leaf = Signal.map (Maybe.map .path) (leafUnderPtr rendered)
+      -- todo: leafUnderPtr takes in a mouse signal
+      leaf : Signal (Int,Int) -> Signal (Maybe Path)
+      leaf mouse = Signal.map (Maybe.map .path) (leafUnderPtr mouse rendered)
 
-      scope : Signal (Maybe Scope)
-      scope = resolvedPath terms leaf
+      scope : Signal (Int,Int) -> Signal (Maybe Scope)
+      scope mouse = resolvedPath terms (leaf mouse)
 
-      highlight : Signal (Maybe L.Region)
-      highlight =
+      highlight : Signal (Int,Int) -> Signal (Maybe L.Region)
+      highlight mouse =
         let region layout scope = case scope of
           Nothing -> Nothing
           Just scope -> L.region Path.startsWith .path layout scope.focus
                      |> L.selectableLub .selectable
-        in region <~ rendered ~ scope
+        in region <~ rendered ~ scope mouse
 
-      highlightLayer : Signal Element
-      highlightLayer =
+      highlightLayer : Signal (Int,Int) -> Signal Element
+      highlightLayer mouse =
         let f layout region = case region of
           Nothing -> Element.empty
           Just region -> S.selection layout region
-        in Signal.map2 f rendered highlight
+        in Signal.map2 f rendered (highlight mouse)
 
       --explorerToggled : Signal Bool
       --explorerToggled =
@@ -155,4 +157,4 @@ main =
           S.codeText ("Path: " ++ toString (Maybe.map .focus scope))
         ]
 
-  in scene <~ rendered ~ highlightLayer ~ scope
+  in scene <~ rendered ~ highlightLayer Mouse.position ~ scope Mouse.position
