@@ -133,10 +133,10 @@ main =
           Just region -> S.selection layout region
         in Signal.map2 f rendered highlight
 
-      explorerToggled : Signal Bool
-      explorerToggled =
-        let e = Signal.merge Mouse.clicks (Signal.map (always ()) (Signals.ups Keyboard.enter))
-        in Signals.toggle e
+      --explorerToggled : Signal Bool
+      --explorerToggled =
+      --  let e = Signal.merge Mouse.clicks (Signal.map (always ()) (Signals.ups Keyboard.enter))
+      --  in Signals.toggle e
 
       -- Mouse.clicks
       -- explorer : Signal Element

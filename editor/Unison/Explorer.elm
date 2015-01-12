@@ -8,6 +8,7 @@ import Elmz.Movement as Movement
 import Elmz.Signal as Signals
 import Graphics.Element (Element)
 import Graphics.Element as E
+import Graphics.Input as Input
 import Graphics.Input.Field as Field
 import Keyboard
 import List
@@ -49,6 +50,7 @@ type alias S v =
   , current : Element
   , input : Field.Content
   , searchbox : Signal.Channel Field.Content
+  , active : Signal.Channel Bool
   , focus : Region
   , width : Int
   , completions : List (Element,v)
@@ -100,6 +102,12 @@ highlightSelection l i =
     _ -> E.empty
   in Signal.map2 layer l i
 
+-- type At = Inside | Outside
+-- Layout (Result At Int)
+-- on click we check where we clicked
+-- if Inside, keep the Explorer up
+-- if Outside, close it
+-- basically a foldp
 autocomplete : S v -> Layout (Maybe Int)
 autocomplete s =
   let ok = not (List.isEmpty s.completions)
@@ -122,6 +130,7 @@ autocomplete s =
       box = Layout.above Nothing
         (Layout.embed Nothing (E.beside (E.spacer 14 1) insertion))
         (Layout.above Nothing (Layout.above (Layout.tag top) top' spacer) bot)
+        |> Layout.transform (Input.hoverable (Signal.send s.active))
       boxTopLeft = { x = s.focus.topLeft.x, y = s.focus.topLeft.y + s.focus.height }
       h = boxTopLeft.y + Layout.heightOf box + 50
   in Layout.container Nothing s.width h boxTopLeft box
@@ -176,6 +185,7 @@ searchbox match vs s = Signal.map2 match vs s
 main =
   let names = ["Alice", "Allison", "Bob", "Burt", "Carol", "Chris", "Dave", "Donna", "Eve", "Frank"]
       search = Signal.channel Field.noContent
+      active = Signal.channel False
       searchSub = ignoreUpDown (Signal.subscribe search)
       searchStrings = Signal.map .string searchSub
       values = searchbox (\vs s -> List.filter (String.startsWith s) vs) (Signal.constant names) searchStrings
@@ -188,6 +198,7 @@ main =
           , current = Styles.codeText "status"
           , input = c
           , searchbox = search
+          , active = active
           , focus = { topLeft = { x = x, y = y }, width = 5, height = 5 }
           , width = w
           , completions = List.map (\s -> (Styles.codeText s, s)) vs
