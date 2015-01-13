@@ -22,39 +22,77 @@ import Time
 import Unison.Styles as Styles
 import Window
 
-{-|
-
-While CLOSED, on click/enter, if scope is currently defined, enter state OPEN
-  * generates a popup immediately below the currently selected scope
-  * popup has an input box and a list of search results
-While OPEN
-  * if on tablet/mobile and valid completions is small, avoid showing input box
-    unless user clicks
-  * arrow keys do not manipulate scope, they navigate around the explorer
-    * similar behavior to scope manipulation, mouse movement cancels
-  * clicks outside explorer popup cancel the edit
-  * clicks inside input box handled by input box
-  * hovers inside explorer pop up previews
-  * click/enter of search result exits to CLOSED with a pending edit
-  * display goal type
-  * display current type
--}
-
-todo : a
-todo = todo
-
-type alias S v =
+type alias Model v =
   { isKeyboardOpen : Bool
   , prompt : String
   , goal : Element
   , current : Element
   , input : Field.Content
-  , searchbox : Signal.Channel Field.Content
-  , active : Signal.Channel Bool
+  , searchbox : Field.Content -> Signal.Message -- Signal.Channel Field.Content
+  , active : Bool -> Signal.Message
   , focus : Region
   , width : Int
   , completions : List (Element,v)
   , invalidCompletions : List Element }
+
+view : Model v -> Layout (Maybe Int)
+view s =
+  let ok = not (List.isEmpty s.completions)
+      statusColor = Styles.statusColor ok
+      fld = Field.field (Styles.autocomplete ok)
+                        s.searchbox
+                        s.prompt
+                        s.input
+      insertion = Styles.carotUp 7 statusColor
+      status = Layout.above Nothing (Layout.embed Nothing s.goal)
+                                    (Layout.embed Nothing s.current)
+      renderCompletion i (e,v) = Layout.embed (Just i) e
+      invalids = List.map (Layout.embed Nothing) s.invalidCompletions
+      top = Layout.embed Nothing fld
+      spacer = Layout.embed Nothing (E.spacer 1 7)
+      bot = Styles.explorerCells Nothing <|
+        status :: List.indexedMap renderCompletion s.completions
+        `List.append` invalids
+      top' = Layout.transform (E.width (Layout.widthOf bot)) top
+      box = Layout.above Nothing
+        (Layout.embed Nothing (E.beside (E.spacer 14 1) insertion))
+        (Layout.above Nothing (Layout.above (Layout.tag top) top' spacer) bot)
+        |> Layout.transform (Input.hoverable s.active)
+      boxTopLeft = { x = s.focus.topLeft.x, y = s.focus.topLeft.y + s.focus.height }
+      h = boxTopLeft.y + Layout.heightOf box + 50
+  in Layout.container Nothing s.width h boxTopLeft box
+
+explorer : Signal (Int,Int)
+        -> Signal Movement.D1
+        -> Signal (Maybe (Model v))
+        -> Signal (Maybe (Element, Maybe v))
+explorer mouse upDown s =
+  let base : Signal (Layout (Maybe Int))
+      base = Signals.fromMaybe (Signal.constant (Layout.empty (Just 0)))
+                               (Signals.justs (Signal.map (Maybe.map view) s))
+      values =
+        let f s = case s of
+          Nothing -> []
+          Just s -> List.map snd s.completions
+        in Signal.map f s
+
+      selectedIndex : Signal Int
+      selectedIndex = listSelection mouse upDown (Signals.zip values base)
+                   |> Signal.map (Debug.watch "selectedIndex")
+
+      selectedValue =
+        let f s i = s `Maybe.andThen` \s -> Maybe.map snd <| index i s.completions
+        in Signal.map2 f s selectedIndex
+           |> Signal.map (Debug.watch "selectedValue")
+
+      highlight : Signal Element
+      highlight = highlightSelection base selectedIndex
+
+      selection' =
+        let f ex s v hl = Maybe.map (\_ -> (E.layers [Layout.element ex, hl], v)) s
+        in Signal.map4 f base s selectedValue highlight
+
+  in selection'
 
 ignoreUpDown : Signal Field.Content -> Signal Field.Content
 ignoreUpDown s =
@@ -102,73 +140,6 @@ highlightSelection l i =
     _ -> E.empty
   in Signal.map2 layer l i
 
--- type At = Inside | Outside
--- Layout (Result At Int)
--- on click we check where we clicked
--- if Inside, keep the Explorer up
--- if Outside, close it
--- basically a foldp
-autocomplete : S v -> Layout (Maybe Int)
-autocomplete s =
-  let ok = not (List.isEmpty s.completions)
-      statusColor = Styles.statusColor ok
-      fld = Field.field (Styles.autocomplete ok)
-                        (Signal.send s.searchbox)
-                        s.prompt
-                        s.input
-      insertion = Styles.carotUp 7 statusColor
-      status = Layout.above Nothing (Layout.embed Nothing s.goal)
-                                    (Layout.embed Nothing s.current)
-      renderCompletion i (e,v) = Layout.embed (Just i) e
-      invalids = List.map (Layout.embed Nothing) s.invalidCompletions
-      top = Layout.embed Nothing fld
-      spacer = Layout.embed Nothing (E.spacer 1 7)
-      bot = Styles.explorerCells Nothing <|
-        status :: List.indexedMap renderCompletion s.completions
-        `List.append` invalids
-      top' = Layout.transform (E.width (Layout.widthOf bot)) top
-      box = Layout.above Nothing
-        (Layout.embed Nothing (E.beside (E.spacer 14 1) insertion))
-        (Layout.above Nothing (Layout.above (Layout.tag top) top' spacer) bot)
-        |> Layout.transform (Input.hoverable (Signal.send s.active))
-      boxTopLeft = { x = s.focus.topLeft.x, y = s.focus.topLeft.y + s.focus.height }
-      h = boxTopLeft.y + Layout.heightOf box + 50
-  in Layout.container Nothing s.width h boxTopLeft box
-
--- can foldp over this to use clicks/enter to toggle
-
-explorer : Signal (Int,Int)
-        -> Signal Movement.D1
-        -> Signal (Maybe (S v))
-        -> Signal (Maybe (Element, Maybe v))
-explorer mouse upDown s =
-  let base : Signal (Layout (Maybe Int))
-      base = Signals.fromMaybe (Signal.constant (Layout.empty (Just 0)))
-                               (Signals.justs (Signal.map (Maybe.map autocomplete) s))
-      values =
-        let f s = case s of
-          Nothing -> []
-          Just s -> List.map snd s.completions
-        in Signal.map f s
-
-      selectedIndex : Signal Int
-      selectedIndex = listSelection mouse upDown (Signals.zip values base)
-                   |> Signal.map (Debug.watch "selectedIndex")
-
-      selectedValue =
-        let f s i = s `Maybe.andThen` \s -> Maybe.map snd <| index i s.completions
-        in Signal.map2 f s selectedIndex
-           |> Signal.map (Debug.watch "selectedValue")
-
-      highlight : Signal Element
-      highlight = highlightSelection base selectedIndex
-
-      selection' =
-        let f ex s v hl = Maybe.map (\_ -> (E.layers [Layout.element ex, hl], v)) s
-        in Signal.map4 f base s selectedValue highlight
-
-  in selection'
-
 index : Int -> List a -> Maybe a
 index i l = case List.drop i l of
   h :: _ -> Just h
@@ -197,8 +168,8 @@ main =
           , goal = Styles.codeText ": "
           , current = Styles.codeText "status"
           , input = c
-          , searchbox = search
-          , active = active
+          , searchbox = Signal.send search
+          , active = Signal.send active
           , focus = { topLeft = { x = x, y = y }, width = 5, height = 5 }
           , width = w
           , completions = List.map (\s -> (Styles.codeText s, s)) vs
