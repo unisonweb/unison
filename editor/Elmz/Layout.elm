@@ -12,6 +12,9 @@ import Maybe
 type alias Pt = { x : Int, y: Int }
 type alias Region = { topLeft : Pt, width : Int, height : Int }
 
+bounds : Region -> { width: Int, height : Int }
+bounds r = { width = r.topLeft.x + r.width, height = r.topLeft.y + r.height }
+
 type LayoutF r
   = Beside r r
   | Above r r

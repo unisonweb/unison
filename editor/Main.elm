@@ -21,8 +21,8 @@ import Unison.Explorer as Explorer
 import Signal
 import Signal ((<~), (~), Signal)
 import Time
-import Graphics.Input(..)
-import Graphics.Input.Field(..)
+import Graphics.Input as Input
+import Graphics.Input.Field as Field
 import Maybe
 import Window
 import Keyboard
@@ -38,6 +38,73 @@ import Elmz.Distance as Distance
 import Elmz.Movement as Movement
 
 type alias Path = Path.Path -- to avoid conflict with Graphics.Collage.Path
+
+type alias Model =
+  { term : E.Term
+  , scope : Maybe Scope
+  , explorer : Maybe Explorer.Model }
+  -- current scope and current selection?
+
+main : Signal Element
+main =
+  let search = Signal.channel Field.noContent
+      active = Signal.channel False
+
+      terms : Signal E.Term
+      terms = Signal.constant expr
+
+      rendered : Signal (L.Layout { path : Path, selectable : Bool })
+      rendered = layout <~ Signals.steady (100 * Time.millisecond) Window.width ~ terms
+
+      explorerOpen : Signal Bool
+      explorerOpen = -- due to mouse click, what about keypress? make this a separate event
+        let go ((x,y), active, layout) active =
+              if | active && (x > L.widthOf layout || y > L.heightOf layout) -> False
+                 | active -> True -- click within keeps explorer open
+                 | not active && (x <= L.widthOf layout && y <= L.heightOf layout) -> True
+                 | otherwise -> active
+            clickAt = Signal.sampleOn Mouse.clicks Mouse.position
+        in Signal.foldp go False (Signal.map3 (,,) clickAt (Signal.subscribe active) rendered)
+
+      todo : a
+      todo = List.head []
+
+      -- used for moving the selection in the panel being edited
+      mouseNav = Signal.dropWhen (Signal.subscribe active) (0,0) Mouse.position
+
+      leaf : Signal (Maybe Path)
+      leaf = Signal.map (Maybe.map .path) (leafUnderPtr mouseNav rendered)
+
+      scope : Signal (Maybe Scope)
+      scope = resolvedPath terms leaf
+
+      -- explorerModel : Signal (Explorer.Model E.Term)
+      -- explorerModel = todo
+
+      highlight : Signal (Maybe L.Region)
+      highlight =
+        let region layout scope = case scope of
+          Nothing -> Nothing
+          Just scope -> L.region Path.startsWith .path layout scope.focus
+                     |> L.selectableLub .selectable
+        in region <~ rendered ~ scope
+
+      highlightLayer : Signal Element
+      highlightLayer =
+        let f layout region = case region of
+          Nothing -> Element.empty
+          Just region -> S.selection layout region
+        in Signal.map2 f rendered highlight
+
+      scene : L.Layout x -> Element -> Maybe Scope -> Element
+      scene l selection scope =
+        Element.flow Element.down [
+          Element.layers [L.element l, selection],
+          Element.spacer 1 100,
+          S.codeText ("Path: " ++ toString (Maybe.map .focus scope))
+        ]
+
+  in scene <~ rendered ~ highlightLayer ~ scope
 
 ap = E.App
 builtin s = E.Ref (R.Builtin s)
@@ -105,56 +172,3 @@ leafUnderPtr mouse layout =
       _ -> Nothing
   in go <~ layout ~ mouse
 
-main : Signal Element
-main =
-  let terms : Signal E.Term
-      terms = Signal.constant expr
-
-      rendered : Signal (L.Layout { path : Path, selectable : Bool })
-      rendered = layout <~ Signals.steady (100 * Time.millisecond) Window.width ~ terms
-
-      -- todo: leafUnderPtr takes in a mouse signal
-      leaf : Signal (Int,Int) -> Signal (Maybe Path)
-      leaf mouse = Signal.map (Maybe.map .path) (leafUnderPtr mouse rendered)
-
-      scope : Signal (Int,Int) -> Signal (Maybe Scope)
-      scope mouse = resolvedPath terms (leaf mouse)
-
-      highlight : Signal (Int,Int) -> Signal (Maybe L.Region)
-      highlight mouse =
-        let region layout scope = case scope of
-          Nothing -> Nothing
-          Just scope -> L.region Path.startsWith .path layout scope.focus
-                     |> L.selectableLub .selectable
-        in region <~ rendered ~ scope mouse
-
-      highlightLayer : Signal (Int,Int) -> Signal Element
-      highlightLayer mouse =
-        let f layout region = case region of
-          Nothing -> Element.empty
-          Just region -> S.selection layout region
-        in Signal.map2 f rendered (highlight mouse)
-
-      --explorerToggled : Signal Bool
-      --explorerToggled =
-      --  let e = Signal.merge Mouse.clicks (Signal.map (always ()) (Signals.ups Keyboard.enter))
-      --  in Signals.toggle e
-
-      -- Mouse.clicks
-      -- explorer : Signal Element
-      -- explorer : Maybe Scope
-      -- we want the explorer to pop up on click, and stick around until:
-      --   user presses esc (exits with no change)
-      --   enter (accepts and does insert)
-      --   click away (exits with no change)
-      -- while explorer is up, highlight region should not be refreshed
-
-      scene : L.Layout x -> Element -> Maybe Scope -> Element
-      scene l selection scope =
-        Element.flow Element.down [
-          Element.layers [L.element l, selection],
-          Element.spacer 1 100,
-          S.codeText ("Path: " ++ toString (Maybe.map .focus scope))
-        ]
-
-  in scene <~ rendered ~ highlightLayer Mouse.position ~ scope Mouse.position

@@ -92,20 +92,20 @@ explorerCells k ls =
               in L.intersperseVertical hsep cs |>
                  L.transform (\e -> E.layers [e, outlineOf midnightBlue 6 e])
 
-selection : Layout k -> Region -> Element
-selection = selectionLayer highlight
+selection : Element -> Region -> Element
+selection e = selectionLayer highlight { width = E.widthOf e, height = E.heightOf e }
 
-explorerSelection : Layout k -> Region -> Element
-explorerSelection = selectionLayer highlightExplorer
+explorerSelection : Element -> Region -> Element
+explorerSelection e = selectionLayer highlightExplorer { width = E.widthOf e, height = E.heightOf e }
 
-selectionLayer : (Int -> Int -> Element) -> Layout k -> Region -> Element
+selectionLayer : (Int -> Int -> Element) -> { width : Int, height : Int } -> Region -> Element
 selectionLayer highlight l r =
   let
     hl = highlight r.width r.height
     n = 1
     border = outline' asbestos n r.width r.height |> E.opacity 0.8
-  in E.container (L.widthOf l)
-                 (L.heightOf l)
+  in E.container l.width
+                 l.height
                  (E.topLeftAt (E.absolute (r.topLeft.x)) (E.absolute (r.topLeft.y)))
                  hl
 

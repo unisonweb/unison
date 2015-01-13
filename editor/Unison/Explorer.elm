@@ -1,7 +1,7 @@
 module Unison.Explorer where
 
 import Debug
-import Elmz.Layout (Layout,Region)
+import Elmz.Layout (Layout,Pt,Region)
 import Elmz.Layout as Layout
 import Elmz.Maybe
 import Elmz.Movement as Movement
@@ -15,6 +15,7 @@ import List
 import List ((::))
 import Maybe
 import Mouse
+import Result
 import Set
 import Signal
 import String
@@ -22,33 +23,97 @@ import Time
 import Unison.Styles as Styles
 import Window
 
-type alias Model v =
+type alias Model =
   { isKeyboardOpen : Bool
   , prompt : String
   , goal : Element
   , current : Element
   , input : Field.Content
-  , searchbox : Field.Content -> Signal.Message -- Signal.Channel Field.Content
-  , active : Bool -> Signal.Message
-  , focus : Region
+  , origin : Pt
   , width : Int
-  , completions : List (Element,v)
+  , completions : List Element
+  , selectedIndex : Int -- index into completions
   , invalidCompletions : List Element }
 
-view : Model v -> Layout (Maybe Int)
-view s =
+type alias Action v = Model -> Result (Maybe v) Model
+
+empty : Action v
+empty model = Result.Ok model
+
+move : Movement.D1 -> Action v
+move (Movement.D1 sign) model = case sign of
+  Movement.Zero -> Result.Ok model
+  Movement.Positive ->
+    if model.selectedIndex < List.length model.completions
+    then Result.Ok { model | selectedIndex <- model.selectedIndex + 1 }
+    else Result.Ok model
+  Movement.Negative ->
+    if model.selectedIndex < List.length model.completions
+    then Result.Ok { model | selectedIndex <- model.selectedIndex - 1 }
+    else Result.Ok model
+
+movements : Signal Movement.D1 -> Signal (Action v)
+movements d1s = Signal.map move d1s
+
+completions : Signal (List v) -> Signal (Action v)
+completions values =
+  let vlag = Signals.delay [] values
+      f prev cur model =
+        if prev == cur then Result.Ok model
+        else let prevVal = index model.selectedIndex prev
+             in case prevVal of
+               Nothing -> Result.Ok model
+               Just v -> let ind' = Maybe.withDefault 0 (indexOf ((==) v) cur)
+                         in Result.Ok { model | selectedIndex <- ind' }
+  in Signal.map2 f vlag values
+
+-- a click while the isOpen signal is `False` closes the explorer
+clicks : Signal () -> Signal Bool -> Signal (List v) -> Signal (Action v)
+clicks click isOpen values =
+  let go isOpen values model =
+        if isOpen then Result.Ok model
+        else Result.Err (index model.selectedIndex values)
+  in Signal.sampleOn click (Signal.map2 go isOpen values)
+
+enters : Signal Bool -> Signal (List v) -> Signal (Action v)
+enters enter values =
+  let go enterPressed values model =
+        if enterPressed then Result.Err (index model.selectedIndex values)
+        else Result.Ok model
+  in Signal.sampleOn enter (Signal.map2 go enter values)
+
+actions : Signal Bool
+       -> Signal ()
+       -> Signal (Int,Int)
+       -> Signal Bool
+       -> Signal Movement.D1
+       -> Signal (List v)
+       -> Signal (Action v)
+actions enter click mouse isOpen upDown values =
+  let merge = Signals.mergeWith (\a1 a2 model -> a1 model `Result.andThen` a2)
+  in completions values `merge`
+     movements upDown `merge`
+     clicks click isOpen values `merge`
+     enters enter values
+
+type alias Sink a = a -> Signal.Message
+
+view : Sink Field.Content -> Sink Bool -> Model -> Layout (Maybe Int)
+view searchbox active s =
   let ok = not (List.isEmpty s.completions)
       statusColor = Styles.statusColor ok
       fld = Field.field (Styles.autocomplete ok)
-                        s.searchbox
+                        searchbox
                         s.prompt
                         s.input
       insertion = Styles.carotUp 7 statusColor
       status = Layout.above Nothing (Layout.embed Nothing s.goal)
                                     (Layout.embed Nothing s.current)
-      renderCompletion i (e,v) = Layout.embed (Just i) e
+            |> Layout.transform (Input.clickable (active True))
+      renderCompletion i e = Layout.embed (Just i) (Input.clickable (active False) e)
       invalids = List.map (Layout.embed Nothing) s.invalidCompletions
-      top = Layout.embed Nothing fld
+      top = Layout.embed Nothing (Input.clickable (active True) fld)
+         |> Layout.transform (Input.clickable (active True))
       spacer = Layout.embed Nothing (E.spacer 1 7)
       bot = Styles.explorerCells Nothing <|
         status :: List.indexedMap renderCompletion s.completions
@@ -57,88 +122,9 @@ view s =
       box = Layout.above Nothing
         (Layout.embed Nothing (E.beside (E.spacer 14 1) insertion))
         (Layout.above Nothing (Layout.above (Layout.tag top) top' spacer) bot)
-        |> Layout.transform (Input.hoverable s.active)
-      boxTopLeft = { x = s.focus.topLeft.x, y = s.focus.topLeft.y + s.focus.height }
+      boxTopLeft = s.origin
       h = boxTopLeft.y + Layout.heightOf box + 50
   in Layout.container Nothing s.width h boxTopLeft box
-
-explorer : Signal (Int,Int)
-        -> Signal Movement.D1
-        -> Signal (Maybe (Model v))
-        -> Signal (Maybe (Element, Maybe v))
-explorer mouse upDown s =
-  let base : Signal (Layout (Maybe Int))
-      base = Signals.fromMaybe (Signal.constant (Layout.empty (Just 0)))
-                               (Signals.justs (Signal.map (Maybe.map view) s))
-      values =
-        let f s = case s of
-          Nothing -> []
-          Just s -> List.map snd s.completions
-        in Signal.map f s
-
-      selectedIndex : Signal Int
-      selectedIndex = listSelection mouse upDown (Signals.zip values base)
-                   |> Signal.map (Debug.watch "selectedIndex")
-
-      selectedValue =
-        let f s i = s `Maybe.andThen` \s -> Maybe.map snd <| index i s.completions
-        in Signal.map2 f s selectedIndex
-           |> Signal.map (Debug.watch "selectedValue")
-
-      highlight : Signal Element
-      highlight = highlightSelection base selectedIndex
-
-      selection' =
-        let f ex s v hl = Maybe.map (\_ -> (E.layers [Layout.element ex, hl], v)) s
-        in Signal.map4 f base s selectedValue highlight
-
-  in selection'
-
-ignoreUpDown : Signal Field.Content -> Signal Field.Content
-ignoreUpDown s =
-  let f arrows c prevC = if arrows.y /= 0 && c.string == prevC.string then prevC else c
-  in Signal.map3 f (Signal.keepIf (\a -> a.y /= 0) {x = 0, y = 0} Keyboard.arrows)
-                   s
-                   (Signals.delay Field.noContent s)
-
-listSelection : Signal (Int,Int)
-             -> Signal Movement.D1
-             -> Signal (List v, Layout (Maybe Int))
-             -> Signal Int
-listSelection mouse upDown l =
-  let eupDown = Signals.events upDown
-      values = Signal.map fst l
-      lastValues = Signals.delay [] values
-      evalues = Signals.events values
-      emouse = Signals.events mouse
-      layouts = Signal.map snd l
-      merged = Signal.map5 (,,,,) emouse eupDown lastValues evalues (Signal.map snd l)
-      f (xy, upDown, lastValues, values, l) i = case (xy, upDown, values) of
-        (Nothing, Nothing, Nothing) -> i
-        -- if mouse moves, always resolve to the selection under the cursor, if it exists
-        (Just (x,y), _, _) -> Layout.leafAtPoint l (Layout.Pt x y)
-                           |> Elmz.Maybe.join
-                           |> Maybe.withDefault i
-        -- if there's a movement up or down, try to apply it to the current index
-        (Nothing, Just upDown, _) ->
-          let i' = Movement.interpretD1 upDown i
-              valid = Maybe.withDefault False (Maybe.map (always True)
-                                              (indexOf ((==) (Just i')) (Layout.tags l)))
-          in if valid then i' else i
-        -- if the values change, try to update the current index to the same value in the new list
-        (Nothing, _, Just values) ->
-          let curVal = index i lastValues
-          in case curVal of
-               Nothing -> i
-               Just v -> Maybe.withDefault 0 (indexOf ((==) v) values)
-  in Signal.foldp f 0 merged
-
-highlightSelection : Signal (Layout (Maybe a)) -> Signal a -> Signal Element
-highlightSelection l i =
-  let layer l i = case Layout.region (\_ _ -> True) identity l (Just i) of
-    (_, region) :: _ -> Styles.explorerSelection l region
-    _ -> E.empty
-  in Signal.map2 layer l i
 
 index : Int -> List a -> Maybe a
 index i l = case List.drop i l of
@@ -149,35 +135,3 @@ indexOf : (a -> Bool) -> List a -> Maybe Int
 indexOf f l = List.indexedMap (\i a -> (i, f a)) l
            |> List.filterMap (\(i,b) -> if b then Just i else Nothing)
            |> index 0
-
-searchbox : (List v -> String -> List v) -> Signal (List v) -> Signal String -> Signal (List v)
-searchbox match vs s = Signal.map2 match vs s
-
-main =
-  let names = ["Alice", "Allison", "Bob", "Burt", "Carol", "Chris", "Dave", "Donna", "Eve", "Frank"]
-      search = Signal.channel Field.noContent
-      active = Signal.channel False
-      searchSub = ignoreUpDown (Signal.subscribe search)
-      searchStrings = Signal.map .string searchSub
-      values = searchbox (\vs s -> List.filter (String.startsWith s) vs) (Signal.constant names) searchStrings
-            |> Signal.map (Debug.watchSummary "values length" List.length)
-      s (x,y) vs c w =
-        Just
-          { isKeyboardOpen = True
-          , prompt = ""
-          , goal = Styles.codeText ": "
-          , current = Styles.codeText "status"
-          , input = c
-          , searchbox = Signal.send search
-          , active = Signal.send active
-          , focus = { topLeft = { x = x, y = y }, width = 5, height = 5 }
-          , width = w
-          , completions = List.map (\s -> (Styles.codeText s, s)) vs
-          , invalidCompletions = [] }
-      is = Signal.map4 s Signals.clickLocations values searchSub Window.width
-      ex = explorer Mouse.position (Movement.repeatD1 Movement.downUp) is
-      ks = Signal.map (Debug.watch "arrows") Keyboard.arrows
-      scene e = case e of
-        Nothing -> Styles.codeText "empty"
-        Just (e, v) -> e
-   in Signal.map scene ex

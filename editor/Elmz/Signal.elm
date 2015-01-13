@@ -119,6 +119,23 @@ loop f s a =
 mask : Signal Bool -> Signal a -> Signal (Maybe a)
 mask = map2 (\b a -> if b then Just a else Nothing)
 
+{-| Merge two signals, using the combining function if any events co-occcur. -}
+mergeWith : (a -> a -> a) -> Signal a -> Signal a -> Signal a
+mergeWith resolve left right =
+  let boolLeft  = always True <~ left
+      boolRight = always False <~ right
+      bothUpdated = (/=) <~ merge boolLeft boolRight ~ merge boolRight boolLeft
+      exclusive = dropWhen bothUpdated Nothing (Just <~ merge left right)
+      overlap = keepWhen bothUpdated Nothing (Just <~ map2 resolve left right)
+      combine m1 m2 = case Maybe.oneOf [m1, m2] of
+        Just a -> a
+        Nothing -> List.head [] -- impossible
+  in combine <~ exclusive ~ overlap
+
+{-| Merge two signals, composing the functions if any events co-occcur. -}
+mergeWithBoth : Signal (a -> a) -> Signal (a -> a) -> Signal (a -> a)
+mergeWithBoth = mergeWith (>>)
+
 {-| Emit updates to `s` only when it moves outside the current bin,
     according to the function `within`. Otherwise emit no update but
     take on the value `Nothing`. -}
