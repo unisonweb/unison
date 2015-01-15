@@ -1,41 +1,41 @@
 module Main where
 
 import Array
-import Set
-import Graphics.Element as Element
+import Elmz.Distance as Distance
+import Elmz.Layout as L
+import Elmz.Maybe
+import Elmz.Moore (Moore)
+import Elmz.Moore as Moore
+import Elmz.Movement as Movement
+import Elmz.Selection1D as Selection1D
+import Elmz.Signal as Signals
 import Graphics.Element (Element)
-import Unison.Reference as R
+import Graphics.Element as Element
+import Graphics.Input as Input
+import Graphics.Input.Field as Field
+import Keyboard
+import List
+import Maybe
+import Mouse
+import Set
+import Signal
+import Signal ((<~), (~), Signal)
+import Text
+import Time
+import Unison.Action
+import Unison.Explorer as Explorer
+import Unison.Hash (Hash)
+import Unison.Metadata as MD
+import Unison.Node as N
 import Unison.Path (Path)
 import Unison.Path as Path
+import Unison.Reference as R
 import Unison.Scope (Scope)
 import Unison.Scope as Scope
-import Unison.Hash (Hash)
 import Unison.Styles as S
 import Unison.Term as E
 import Unison.View as V
-import Unison.Metadata as MD
-import Unison.Action
-import Unison.Node as N
-import Unison.Explorer as Explorer
-
-import Signal
-import Signal ((<~), (~), Signal)
-import Time
-import Graphics.Input as Input
-import Graphics.Input.Field as Field
-import Maybe
 import Window
-import Keyboard
-import List
-import Mouse
-import Text
-import Elmz.Layout as L
-import Elmz.Signal as Signals
-import Elmz.Maybe
-import Elmz.Moore as Moore
-import Elmz.Moore (Moore)
-import Elmz.Distance as Distance
-import Elmz.Movement as Movement
 
 type alias Path = Path.Path -- to avoid conflict with Graphics.Collage.Path
 

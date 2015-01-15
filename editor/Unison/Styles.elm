@@ -103,7 +103,6 @@ selectionLayer highlight l r =
   let
     hl = highlight r.width r.height
     n = 1
-    border = outline' asbestos n r.width r.height |> E.opacity 0.8
   in E.container l.width
                  l.height
                  (E.topLeftAt (E.absolute (r.topLeft.x)) (E.absolute (r.topLeft.y)))

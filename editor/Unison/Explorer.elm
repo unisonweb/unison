@@ -29,8 +29,7 @@ type alias Model =
   , goal : Element
   , current : Element
   , input : Field.Content
-  , origin : Pt
-  , width : Int
+  , width : Int -- ditto
   , completions : List Element
   , selectedIndex : Int -- index into completions
   , invalidCompletions : List Element }
@@ -39,6 +38,10 @@ type alias Action v = Model -> Result (Maybe v) Model
 
 empty : Action v
 empty model = Result.Ok model
+
+-- mouse movements - needs the view, can get the Signal Model
+-- from integrating all other events
+-- need to separate the list selection
 
 move : Movement.D1 -> Action v
 move (Movement.D1 sign) model = case sign of
@@ -82,6 +85,10 @@ enters enter values =
         else Result.Ok model
   in Signal.sampleOn enter (Signal.map2 go enter values)
 
+-- may need another Signal Bool input, which lets the explorer be closed 'externally'
+-- or may want a `Signal Pt` which lets origin be moved
+-- todo: can replace all Err with the zero Model, and foldp over this to get our Model states
+
 actions : Signal Bool
        -> Signal ()
        -> Signal (Int,Int)
@@ -98,8 +105,8 @@ actions enter click mouse isOpen upDown values =
 
 type alias Sink a = a -> Signal.Message
 
-view : Sink Field.Content -> Sink Bool -> Model -> Layout (Maybe Int)
-view searchbox active s =
+view : Pt -> Sink Field.Content -> Sink Bool -> Model -> Layout (Maybe Int)
+view origin searchbox active s =
   let ok = not (List.isEmpty s.completions)
       statusColor = Styles.statusColor ok
       fld = Field.field (Styles.autocomplete ok)
@@ -122,7 +129,7 @@ view searchbox active s =
       box = Layout.above Nothing
         (Layout.embed Nothing (E.beside (E.spacer 14 1) insertion))
         (Layout.above Nothing (Layout.above (Layout.tag top) top' spacer) bot)
-      boxTopLeft = s.origin
+      boxTopLeft = origin
       h = boxTopLeft.y + Layout.heightOf box + 50
   in Layout.container Nothing s.width h boxTopLeft box
 

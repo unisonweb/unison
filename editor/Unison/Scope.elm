@@ -36,8 +36,6 @@ view e region scope = case region scope.focus of
                                             (Element.absolute (r.topLeft.y)))
                          (Styles.highlight r.width r.height)
 
-todo = List.head []
-
 actions : Signal Term
        -> Signal (Layout { a | path : Path })
        -> Signal (Int,Int)
