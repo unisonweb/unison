@@ -32,6 +32,10 @@ alternate left right input =
       rs = justs (r <~ input)
   in merge (left ls) (right rs)
 
+{-| Count the number of events in the input signal. -}
+count : Signal a -> Signal Int
+count a = foldp (\_ n -> n + 1) 0 a
+
 {-| Delay the input `Signal` by one unit. -}
 delay : a -> Signal a -> Signal a
 delay h s =

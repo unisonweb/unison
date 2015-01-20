@@ -27,15 +27,15 @@ view highlightLayer layout model =
     Just region -> highlightLayer region
 
 actions : { move : Signal Movement.D1
-          , set : Signal Int
+          , selection : Signal (List v)
           , limit : Signal Int
           , mouse : Signal (Int,Int)
           , layout : Signal (Layout (Result Containment Int)) }
        -> Signal Action
-actions {move,set,limit,mouse,layout} =
+actions {move,selection,limit,mouse,layout} =
   let merge = Signals.mergeWith (>>)
-  in movements move limit `merge`
-     sets set `merge`
+  in selections selection `merge`
+     movements move limit `merge`
      resets mouse layout
 
 resets : Signal (Int,Int) -> Signal (Layout (Result Containment Int)) -> Signal Action
@@ -45,9 +45,6 @@ resets mouse layout =
     _ -> model
   in Signal.sampleOn mouse (Signal.map2 f mouse layout)
 
-sets : Signal Model -> Signal Action
-sets m = Signal.map always m
-
 movements : Signal Movement.D1 -> Signal Int -> Signal Action
 movements d1s limitExclusive =
   let f (Movement.D1 sign) limit model = case sign of
@@ -56,3 +53,26 @@ movements d1s limitExclusive =
     Movement.Zero -> model
   in Signal.sampleOn d1s (Signal.map2 f d1s limitExclusive)
 
+-- If the list we are indexing into changes, try to update the index to
+-- point to whatever the current index points to in the list's previous state
+-- fall back to 0 otherwise
+selections : Signal (List v) -> Signal Action
+selections values =
+  let vlag = Signals.delay [] values
+      f prev cur model =
+        if prev == cur then model
+        else let prevVal = index model prev
+             in case prevVal of
+               Nothing -> model
+               Just v -> Maybe.withDefault 0 (indexOf ((==) v) cur)
+  in Signal.map2 f vlag values
+
+index : Int -> List a -> Maybe a
+index i l = case List.drop i l of
+  h :: _ -> Just h
+  _ -> Nothing
+
+indexOf : (a -> Bool) -> List a -> Maybe Int
+indexOf f l = List.indexedMap (\i a -> (i, f a)) l
+           |> List.filterMap (\(i,b) -> if b then Just i else Nothing)
+           |> index 0

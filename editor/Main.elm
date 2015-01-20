@@ -41,8 +41,8 @@ type alias Path = Path.Path -- to avoid conflict with Graphics.Collage.Path
 
 type alias Model =
   { term : E.Term
-  , scope : Maybe Scope
-  , explorer : Maybe Explorer.Model }
+  , scope : Maybe Scope }
+  -- , explorer : Maybe Explorer.Model }
   -- current scope and current selection?
 
 main : Signal Element

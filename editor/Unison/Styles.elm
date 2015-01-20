@@ -2,6 +2,9 @@ module Unison.Styles where
 
 import Color
 import Color (Color)
+import Easing (Easing)
+import Easing
+import Elmz.Signal as Signals
 import Elmz.Layout (Layout, Region)
 import Elmz.Layout as L
 import Graphics.Input.Field as Field
@@ -10,8 +13,10 @@ import Graphics.Element as E
 import Graphics.Collage as C
 import List
 import List ((::))
+import Signal
 import Text (Style)
 import Text as T
+import Time
 
 body : Style
 body =
@@ -142,6 +147,17 @@ contain : Element -> Element
 contain e =
   E.container (E.widthOf e) (E.heightOf e) E.middle e
 
+spinner : Signal Element
+spinner =
+  let pct n = toFloat (n%30) / 30.0
+      t = Signal.map pct (Signals.count (Time.fps 30))
+      rect = E.color midnightBlue (E.spacer 5 10)
+      sep = E.spacer 1 1
+      render pct = E.flow E.right
+        [ rect, sep
+        , E.opacity (Easing.easeInOutExpo pct) rect ]
+  in Signal.map render t
+
 blank : Element
 blank = codeText "_"
 
@@ -168,3 +184,7 @@ wetAsphalt = Color.rgb 52 73 94
 midnightBlue = Color.rgb 44 62 80
 concrete = Color.rgb 149 165 166
 asbestos = Color.rgb 127 140 141
+
+main =
+  let scene e = E.flow E.down [ E.spacer 1 50, E.flow E.right [ E.spacer 50 1, e]]
+  in Signal.map scene spinner
