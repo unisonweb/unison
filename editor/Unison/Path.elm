@@ -9,6 +9,7 @@ import Elmz.Json.Encoder (Encoder)
 import Elmz.Json.Decoder as Decoder
 import Json.Decode (Decoder)
 import Json.Decode as Decode
+import String
 
 type E
   = Fn -- ^ Points at function in a function application
@@ -17,6 +18,16 @@ type E
   | Index Int -- ^ Points into a `Vector` literal
 
 type alias Path = List E
+type alias Key = String
+
+key : Path -> Key
+key path =
+  let f e = case e of
+        Fn -> "Fn"
+        Arg -> "Arg"
+        Body -> "Body"
+        Index i -> toString i
+  in String.join "," (List.map f path)
 
 snoc : Path -> E -> Path
 snoc p e = p ++ [e]

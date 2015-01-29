@@ -97,19 +97,19 @@ explorerCells k ls =
               in L.intersperseVertical hsep cs |>
                  L.transform (\e -> E.layers [e, outlineOf midnightBlue 6 e])
 
-selection : Element -> Region -> Element
-selection e = selectionLayer highlight { width = E.widthOf e, height = E.heightOf e }
+selection : Region -> Element
+selection = selectionLayer highlight
 
-explorerSelection : Element -> Region -> Element
-explorerSelection e = selectionLayer highlightExplorer { width = E.widthOf e, height = E.heightOf e }
+explorerSelection : Region -> Element
+explorerSelection = selectionLayer highlightExplorer
 
-selectionLayer : (Int -> Int -> Element) -> { width : Int, height : Int } -> Region -> Element
-selectionLayer highlight l r =
+selectionLayer : (Int -> Int -> Element) -> Region -> Element
+selectionLayer highlight r =
   let
     hl = highlight r.width r.height
     n = 1
-  in E.container l.width
-                 l.height
+  in E.container (r.topLeft.x + r.width)
+                 (r.topLeft.y + r.height)
                  (E.topLeftAt (E.absolute (r.topLeft.x)) (E.absolute (r.topLeft.y)))
                  hl
 
@@ -149,8 +149,8 @@ contain e =
 
 spinner : Signal Element
 spinner =
-  let pct n = toFloat (n%30) / 30.0
-      t = Signal.map pct (Signals.count (Time.fps 30))
+  let pct n = toFloat (n%60) / 60.0
+      t = Signal.map pct (Signals.count (Time.fps 60))
       rect = E.color midnightBlue (E.spacer 5 10)
       sep = E.spacer 1 1
       render pct = E.flow E.right

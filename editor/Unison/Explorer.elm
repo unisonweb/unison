@@ -1,7 +1,7 @@
 module Unison.Explorer where
 
 import Debug
-import Elmz.Layout (Layout,Pt,Region)
+import Elmz.Layout (Layout,Pt,Region,Containment(Inside,Outside))
 import Elmz.Layout as Layout
 import Elmz.Maybe
 import Elmz.Movement as Movement
@@ -24,14 +24,6 @@ import Time
 import Unison.Styles as Styles
 import Window
 
--- model for overall editor is
--- Term
--- Maybe Scope.Model
--- Explorer.Model
--- can get a bit fancier with tracking dependencies,
--- result of previous evaluations
--- mapping from paths to hashes
-
 type alias Model = Maybe
   { isKeyboardOpen : Bool
   , prompt : String
@@ -42,9 +34,6 @@ type alias Model = Maybe
 
 type alias Action = Model -> Model
 
--- actions for setting the instructions,
--- completions, invalid completions, input, and keyboard open
-
 zero : Model
 zero = Just
   { isKeyboardOpen = False
@@ -53,6 +42,36 @@ zero = Just
   , instructions = E.empty -- fill with sweet animated GIF
   , completions = []
   , invalidCompletions = [] }
+
+setPrompt : Signal String -> Signal Action
+setPrompt event =
+  let f s model = Maybe.map (\m -> { m | prompt <- s }) model
+  in Signal.map f event
+
+openKeyboard : Signal () -> Signal Action
+openKeyboard event =
+  let f _ model = Maybe.map (\m -> { m | isKeyboardOpen <- True }) model
+  in Signal.map f event
+
+setInput : Signal Field.Content -> Signal Action
+setInput content =
+  let f c model = Maybe.map (\m -> { m | input <- c }) model
+  in Signal.map f content
+
+setInstructions : Signal Element -> Signal Action
+setInstructions e =
+  let f e model = Maybe.map (\m -> { m | instructions <- e }) model
+  in Signal.map f e
+
+setCompletions : Signal (List Element) -> Signal Action
+setCompletions e =
+  let f e model = Maybe.map (\m -> { m | completions <- e }) model
+  in Signal.map f e
+
+setInvalidCompletions : Signal (List Element) -> Signal Action
+setInvalidCompletions e =
+  let f e model = Maybe.map (\m -> { m | invalidCompletions <- e }) model
+  in Signal.map f e
 
 clicks : { tl | click : Signal (), inside : Signal Bool, allowOpen : Signal Bool } -> Signal Action
 clicks {click,inside,allowOpen} =
@@ -68,35 +87,11 @@ enters {down,allowOpen} =
         Just _ -> Nothing
   in Signal.sampleOn down (Signal.map2 f down allowOpen)
 
--- may need another Signal Bool input, which lets the explorer be closed 'externally'
--- or may want a `Signal Pt` which lets origin be moved
--- todo: can replace all Err with the zero Model, and foldp over this to get our Model states
-{-
-actions : { enter : Signal Bool
-          , click : Signal ()
-          , mouse : Signal (Int,Int)
-          , isOpen : Signal Bool
-          , upDown : Signal Movement.D1
-          , completions : Signal
-       -> Signal ()
-       -> Signal (Int,Int)
-       -> Signal Bool
-       -> Signal Movement.D1
-       -> Signal (List v)
-       -> Signal (Action v)
-actions {enter,click,mouse,isOpen,upDown} values =
-  let merge = Signals.mergeWith (\a1 a2 model -> a1 model `Result.andThen` a2)
-  in completions values `merge`
-     movements upDown `merge`
-     clicks click isOpen values `merge`
-     enters enter values
--}
-
 type alias Sink a = a -> Signal.Message
 
-view : Pt -> Sink Field.Content -> Sink Bool -> Model -> Layout (Maybe Int)
+view : Pt -> Sink Field.Content -> Sink Bool -> Model -> Layout (Result Containment Int)
 view origin searchbox active model = case model of
-  Nothing -> Layout.empty Nothing
+  Nothing -> Layout.empty (Result.Err Outside)
   Just s ->
     let ok = not (List.isEmpty s.completions)
         statusColor = Styles.statusColor ok
@@ -105,20 +100,26 @@ view origin searchbox active model = case model of
                           s.prompt
                           s.input
         insertion = Styles.carotUp 7 statusColor
-        status = Layout.embed Nothing s.instructions
+        inside = Result.Err Inside
+        status = Layout.embed inside s.instructions
               |> Layout.transform (Input.clickable (active True))
-        renderCompletion i e = Layout.embed (Just i) (Input.clickable (active False) e)
-        invalids = List.map (Layout.embed Nothing) s.invalidCompletions
-        top = Layout.embed Nothing (Input.clickable (active True) fld)
+        renderCompletion i e = Layout.embed (Result.Ok i)
+                                            (Input.clickable (active False) e)
+        invalids = List.map (Layout.embed inside) s.invalidCompletions
+        top = Layout.embed inside (Input.clickable (active True) fld)
            |> Layout.transform (Input.clickable (active True))
-        spacer = Layout.embed Nothing (E.spacer 1 7)
-        bot = Styles.explorerCells Nothing <|
+        spacer = Layout.embed inside (E.spacer 1 7)
+        bot = Styles.explorerCells inside <|
           status :: List.indexedMap renderCompletion s.completions
           `List.append` invalids
         top' = Layout.transform (E.width (Layout.widthOf bot)) top
-        box = Layout.above Nothing
-          (Layout.embed Nothing (E.beside (E.spacer 14 1) insertion))
-          (Layout.above Nothing (Layout.above (Layout.tag top) top' spacer) bot)
+        box = Layout.above inside
+          (Layout.embed inside (E.beside (E.spacer 14 1) insertion))
+          (Layout.above inside (Layout.above (Layout.tag top) top' spacer) bot)
         boxTopLeft = origin
         h = boxTopLeft.y + Layout.heightOf box + 50
-    in Layout.container Nothing (boxTopLeft.x + Layout.widthOf box) h boxTopLeft box
+    in Layout.container (Result.Err Outside)
+                        (boxTopLeft.x + Layout.widthOf box)
+                        h
+                        boxTopLeft
+                        box
