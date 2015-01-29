@@ -14,27 +14,30 @@ import Unison.Path as Path
 import Unison.Styles as Styles
 import Unison.Term (Term)
 import Unison.Term as Term
+import Unison.View as View
 
 type alias E = Path.E
 type alias Path = Path.Path
 
 type alias Scope = { focus : Path, ups : List Path, downs : List Path }
+type alias Model = Maybe Scope
 
-type alias Action = Scope -> Scope
+type alias Action = Model -> Model
 
 scope : Path -> Scope
 scope focus = Scope focus [] []
 
-view : Term -> (Path -> Maybe Region) -> Scope -> Element
-view e region scope = case region scope.focus of
-  Nothing -> Element.empty
-  Just r ->
-    let bounds = Layout.bounds r
-    in Element.container bounds.width
-                         bounds.height
-                         (Element.topLeftAt (Element.absolute (r.topLeft.x))
-                                            (Element.absolute (r.topLeft.y)))
-                         (Styles.highlight r.width r.height)
+view : { tl | term : Term, layout : Layout View.L } -> Scope -> (Layout View.L, Maybe Region)
+view ctx scope =
+  let highlighted : Maybe Region
+      highlighted = Layout.region Path.startsWith .path ctx.layout scope.focus
+                 |> Layout.selectableLub .selectable
+   in case highlighted of
+        Nothing -> (ctx.layout, highlighted)
+        Just region ->
+          let l = Layout.transform (\e -> Element.layers [e, Styles.selection region])
+                                   ctx.layout
+          in (l, highlighted)
 
 actions : Signal Term
        -> Signal (Layout { a | path : Path })
@@ -51,8 +54,8 @@ resets mouse layout =
   let go (x,y) layout =
     let paths = Layout.atRanked (List.length << .path) layout (Region { x = x, y = y } 2 2)
     in case paths of
-      (h :: _) :: _ -> always (scope h.path)
-      _ -> identity
+      (h :: _) :: _ -> always (Just (scope h.path))
+      _ -> always Nothing
   in Signal.sampleOn mouse (Signal.map2 go mouse layout)
 
 movements : Signal Term -> Signal Movement.D2 -> Signal Action
@@ -65,27 +68,39 @@ movements e d2s =
   in Signal.sampleOn d2s (Signal.map2 go e d2s)
 
 up : Action
-up {focus,ups,downs} = case ups of
-  h :: ups -> Scope h ups (focus :: downs)
-  [] -> let f = Term.up focus
-        in if f == focus then Scope focus ups downs
-           else Scope f [] (focus :: downs)
+up m = case m of
+  Nothing -> Nothing
+  Just {focus,ups,downs} -> Just (case ups of
+    h :: ups -> Scope h ups (focus :: downs)
+    [] -> let f = Term.up focus
+          in if f == focus then Scope focus ups downs
+             else Scope f [] (focus :: downs)
+  )
 
 down : Term -> Action
-down e {focus,ups,downs} = case downs of
-  h :: downs -> Scope h (focus :: ups) downs
-  [] -> let f = Term.down e focus
-        in if f == focus then Scope focus ups downs
-           else Scope f (focus :: ups) []
+down e m = case m of
+  Nothing -> Nothing
+  Just {focus,ups,downs} -> Just (case downs of
+    h :: downs -> Scope h (focus :: ups) downs
+    [] -> let f = Term.down e focus
+          in if f == focus then Scope focus ups downs
+             else Scope f (focus :: ups) []
+  )
 
 left : Term -> Action
-left e {focus,ups,downs} =
-  let p = Term.siblingL e focus
-  in if p == focus then Scope focus ups downs
-     else Scope p [] []
+left e m = case m of
+  Nothing -> Nothing
+  Just {focus,ups,downs} -> Just (
+    let p = Term.siblingL e focus
+    in if p == focus then Scope focus ups downs
+       else Scope p [] []
+  )
 
 right : Term -> Action
-right e {focus,ups,downs} =
-  let p = Term.siblingR e focus
-  in if p == focus then Scope focus ups downs
-     else Scope p [] []
+right e m = case m of
+  Nothing -> Nothing
+  Just {focus,ups,downs} -> Just (
+    let p = Term.siblingR e focus
+    in if p == focus then Scope focus ups downs
+       else Scope p [] []
+  )
