@@ -83,7 +83,15 @@ view ctx model =
                       ctx.explorerActive
                       model.explorer
 
-  in (highlightedTermLayout, explorerLayout)
+      explorerHighlight : Element
+      explorerHighlight =
+        Selection1D.view Styles.explorerSelection explorerLayout model.explorerSelection
+
+      highlightedExplorerLayout : Layout (Result Containment Int)
+      highlightedExplorerLayout =
+        Layout.transform (\e -> Element.layers [e, explorerHighlight]) explorerLayout
+
+  in (highlightedTermLayout, highlightedExplorerLayout)
 --
 -- viewExplorer : Model -> Layout
 -- view : Int -> Term -> Layout View.L
