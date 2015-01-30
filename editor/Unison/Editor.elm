@@ -15,6 +15,7 @@ import List
 import Maybe
 import Result
 import Signal
+import Time
 import Unison.Explorer as Explorer
 import Unison.Hash (Hash)
 import Unison.Metadata as Metadata
@@ -76,7 +77,7 @@ movement d2 model = case model.explorer of
 
 close : Action
 close model =
-  refreshPanel (Layout.widthOf model.layouts.panel) <<
+  refreshPanel Nothing (Layout.widthOf model.layouts.panel) <<
   Maybe.withDefault { model | explorer <- Nothing } <|
   Selection1D.index model.explorerSelection model.explorerValues `Maybe.andThen` \term ->
   model.scope `Maybe.andThen` \scope ->
@@ -86,21 +87,24 @@ close model =
 -- todo: invalidate dependents and overrides if under the edit path
 
 {-| Updates `layouts.panel` and `layouts.panelHighlight` based on a change. -}
-refreshPanel : Int -> Action
-refreshPanel availableWidth model =
+refreshPanel : Maybe (Sink Field.Content) -> Int -> Action
+refreshPanel searchbox availableWidth model =
   let layout = View.layout model.term <|
              { rootMetadata = Metadata.anonymousTerm
              , availableWidth = availableWidth
              , metadata h = Metadata.anonymousTerm
              , overrides x = Nothing }
       layouts = model.layouts
-  in case model.scope of
+      explorerRefresh model = case searchbox of
+        Nothing -> model
+        Just searchbox -> refreshExplorer searchbox availableWidth model
+  in explorerRefresh <| case model.scope of
        Nothing -> { model | layouts <- { layouts | panel <- layout }}
        Just scope ->
          let (panel, highlight) = Scope.view { layout = layout, term = model.term } scope
          in { model | layouts <- { layouts | panel <- panel, panelHighlight <- highlight }}
 
-refreshExplorer : (Field.Content -> Signal.Message) -> Int -> Action
+refreshExplorer : Sink Field.Content -> Int -> Action
 refreshExplorer searchbox availableWidth model =
   let explorerTopLeft : Pt
       explorerTopLeft = case model.layouts.panelHighlight of
@@ -126,27 +130,28 @@ enter model = case model.explorer of
   Nothing -> { model | explorer <- Explorer.zero, explorerValues <- [], explorerSelection <- 0 }
   Just _ -> close model
 
-uber : { clicks : Signal ()
-       , position : Signal (Int,Int)
-       , enters : Signal ()
-       , movements : Signal Movement.D2
-       , channel : Signal.Channel Field.Content
-       , width : Signal Int
-       , model0 : Model }
-    -> Signal (Element, Model)
-uber ctx =
+actions : { clicks : Signal ()
+        , mouse : Signal (Int,Int)
+        , enters : Signal ()
+        , movements : Signal Movement.D2
+        , channel : Signal.Channel Field.Content
+        -- , search : Signal (Field.Content, Term, Path) -> Signal (List Term)
+        , width : Signal Int } -> Signal Action
+actions ctx =
   let content = ignoreUpDown (Signal.subscribe ctx.channel)
-      actions = todo
-      -- problem is that we need the model to construct the view
-      -- need to just move the layouts into the model, this way
-      -- actions have access to the layout
-      -- rule: any state needed by event handlers has to be
-      -- part of the model
-  in todo
+      steadyWidth = Signals.steady (100 * Time.millisecond) ctx.width
+      movementsRepeated = Movement.repeatD2 ctx.movements
+      merge = Signals.mergeWith (>>)
+      clickPositions = Signal.sampleOn ctx.clicks ctx.mouse
+  in Signal.map (always enter) ctx.enters `merge`
+     Signal.map movement movementsRepeated `merge`
+     Signal.map moveMouse ctx.mouse `merge`
+     Signal.map (resize (Just (Signal.send ctx.channel))) steadyWidth
 
-resize : Sink Field.Content -> Int -> Action
+
+resize : Maybe (Sink Field.Content) -> Int -> Action
 resize sink availableWidth =
-  refreshPanel availableWidth >> refreshExplorer sink availableWidth
+  refreshPanel sink availableWidth
 
 -- derived actions handled elsewhere?
 -- can listen for explorer becoming active - this can trigger http request to fetch
