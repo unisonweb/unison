@@ -60,7 +60,13 @@ movement d2 model = case model.explorer of
                 limit = List.length model.explorerValues
             in { model | explorerSelection <- Selection1D.movement d1 limit model.explorerSelection }
 
+enter : Action
+enter model = case model.explorer of
+  Nothing -> { model | explorer <- Explorer.zero, explorerValues <- [], explorerSelection <- 0 }
+  Just _ -> { model | explorer <- Nothing }
+
 -- derived actions handled elsewhere?
+-- can listen for explorer becoming active, and can listen for explorer becoming inactive
 
 view : Context -> Model -> (Layout View.L, Layout (Result Containment Int))
 view ctx model =
