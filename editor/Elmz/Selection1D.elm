@@ -38,20 +38,32 @@ actions {move,selection,limit,mouse,layout} =
      movements move limit `merge`
      resets mouse layout
 
+reset : (Int,Int) -> Layout (Result Containment Int) -> Action
+reset (x,y) layout model = case Layout.leafAtPoint layout (Layout.Pt x y) of
+  Just (Result.Ok i) -> i
+  _ -> model
+
 resets : Signal (Int,Int) -> Signal (Layout (Result Containment Int)) -> Signal Action
 resets mouse layout =
-  let f (x,y) layout model = case Layout.leafAtPoint layout (Layout.Pt x y) of
-    Just (Result.Ok i) -> i
-    _ -> model
-  in Signal.sampleOn mouse (Signal.map2 f mouse layout)
+  Signal.sampleOn mouse (Signal.map2 reset mouse layout)
+
+movement : Movement.D1 -> Int -> Action
+movement (Movement.D1 sign) limitExclusive model = case sign of
+  Movement.Positive -> limitExclusive-1 `min` model+1
+  Movement.Negative -> 0 `max` model-1
+  Movement.Zero -> model
 
 movements : Signal Movement.D1 -> Signal Int -> Signal Action
 movements d1s limitExclusive =
-  let f (Movement.D1 sign) limit model = case sign of
-    Movement.Positive -> limit-1 `min` model+1
-    Movement.Negative -> 0 `max` model-1
-    Movement.Zero -> model
-  in Signal.sampleOn d1s (Signal.map2 f d1s limitExclusive)
+  Signal.sampleOn d1s (Signal.map2 movement d1s limitExclusive)
+
+selection : List v -> List v -> Action
+selection prev cur model =
+  if prev == cur then model
+  else let prevVal = index model prev
+       in case prevVal of
+         Nothing -> model
+         Just v -> Maybe.withDefault 0 (indexOf ((==) v) cur)
 
 -- If the list we are indexing into changes, try to update the index to
 -- point to whatever the current index points to in the list's previous state
@@ -59,13 +71,7 @@ movements d1s limitExclusive =
 selections : Signal (List v) -> Signal Action
 selections values =
   let vlag = Signals.delay [] values
-      f prev cur model =
-        if prev == cur then model
-        else let prevVal = index model prev
-             in case prevVal of
-               Nothing -> model
-               Just v -> Maybe.withDefault 0 (indexOf ((==) v) cur)
-  in Signal.map2 f vlag values
+  in Signal.map2 selection vlag values
 
 index : Int -> List a -> Maybe a
 index i l = case List.drop i l of

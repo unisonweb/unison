@@ -43,49 +43,33 @@ zero = Just
   , completions = []
   , invalidCompletions = [] }
 
-setPrompt : Signal String -> Signal Action
-setPrompt event =
-  let f s model = Maybe.map (\m -> { m | prompt <- s }) model
-  in Signal.map f event
+setPrompt : String -> Action
+setPrompt s = Maybe.map (\m -> { m | prompt <- s })
 
-openKeyboard : Signal () -> Signal Action
-openKeyboard event =
-  let f _ model = Maybe.map (\m -> { m | isKeyboardOpen <- True }) model
-  in Signal.map f event
+setInput : Field.Content -> Action
+setInput content = Maybe.map (\m -> { m | input <- content })
 
-setInput : Signal Field.Content -> Signal Action
-setInput content =
-  let f c model = Maybe.map (\m -> { m | input <- c }) model
-  in Signal.map f content
+openKeyboard : Action
+openKeyboard = Maybe.map (\m -> { m | isKeyboardOpen <- True })
 
-setInstructions : Signal Element -> Signal Action
-setInstructions e =
-  let f e model = Maybe.map (\m -> { m | instructions <- e }) model
-  in Signal.map f e
+setInstructions : Element -> Action
+setInstructions e = Maybe.map (\m -> { m | instructions <- e })
 
-setCompletions : Signal (List Element) -> Signal Action
-setCompletions e =
-  let f e model = Maybe.map (\m -> { m | completions <- e }) model
-  in Signal.map f e
+setCompletions : List Element -> Action
+setCompletions e = Maybe.map (\m -> { m | completions <- e })
 
-setInvalidCompletions : Signal (List Element) -> Signal Action
-setInvalidCompletions e =
-  let f e model = Maybe.map (\m -> { m | invalidCompletions <- e }) model
-  in Signal.map f e
+setInvalidCompletions : List Element -> Action
+setInvalidCompletions e = Maybe.map (\m -> { m | invalidCompletions <- e })
 
-clicks : { tl | click : Signal (), inside : Signal Bool, allowOpen : Signal Bool } -> Signal Action
-clicks {click,inside,allowOpen} =
-  let f inside allowOpen model = case model of
-        Nothing -> if allowOpen then zero else Nothing -- open explorer on click if allowed
-        Just model -> if inside then Just model else Nothing -- close explorer on click outside region
-  in Signal.sampleOn click (Signal.map2 f inside allowOpen)
+click : { inside : Bool, allowOpen : Bool } -> Action
+click {inside, allowOpen} model = case model of
+  Nothing -> if allowOpen then zero else Nothing -- open explorer on click if allowed
+  Just model -> if inside then Just model else Nothing -- close explorer on click outside region
 
-enters : { tl | down : Signal Bool, allowOpen : Signal Bool } -> Signal Action
-enters {down,allowOpen} =
-  let f enterPressed allowOpen model = case model of
-        Nothing -> if allowOpen then zero else Nothing
-        Just _ -> Nothing
-  in Signal.sampleOn down (Signal.map2 f down allowOpen)
+enter : { down : Signal Bool, allowOpen : Bool } -> Action
+enter {down,allowOpen} model = case model of
+    Nothing -> if allowOpen then zero else Nothing
+    Just _ -> Nothing
 
 type alias Sink a = a -> Signal.Message
 

@@ -39,6 +39,24 @@ view ctx scope =
                                    ctx.layout
           in (l, highlighted)
 
+-- sample on movement change
+movement : Term -> Movement.D2 -> Action
+movement e (Movement.D2 upDown leftRight) =
+  (if upDown == Movement.Positive then up else identity) >>
+  (if upDown == Movement.Negative then down e else identity) >>
+  (if leftRight == Movement.Positive then right e else identity) >>
+  (if leftRight == Movement.Negative then left e else identity)
+
+-- sample on mouse position change
+reset : (Int,Int) -> Layout { a | path : Path } -> Action
+reset (x,y) layout =
+  let paths = Layout.atRanked (List.length << .path) layout (Region { x = x, y = y } 2 2)
+  in case paths of
+    (h :: _) :: _ -> always (Just (scope h.path))
+    _ -> always Nothing
+
+-- track information about *when* to update separate from *what* this means
+
 actions : Signal Term
        -> Signal (Layout { a | path : Path })
        -> Signal (Int,Int)
@@ -60,12 +78,7 @@ resets mouse layout =
 
 movements : Signal Term -> Signal Movement.D2 -> Signal Action
 movements e d2s =
-  let go e (Movement.D2 upDown leftRight) =
-    (if upDown == Movement.Positive then up else identity) >>
-    (if upDown == Movement.Negative then down e else identity) >>
-    (if leftRight == Movement.Positive then right e else identity) >>
-    (if leftRight == Movement.Negative then left e else identity)
-  in Signal.sampleOn d2s (Signal.map2 go e d2s)
+  Signal.sampleOn d2s (Signal.map2 movement e d2s)
 
 up : Action
 up m = case m of

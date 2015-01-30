@@ -22,6 +22,15 @@ sign i = if | i == 0 -> Zero
 inverseSign : Int -> Sign
 inverseSign i = sign (-i)
 
+negateD1 : D1 -> D1
+negateD1 (D1 sign) = D1 <| case sign of
+  Zero -> Zero
+  Positive -> Negative
+  Negative -> Positive
+
+xy_y : D2 -> D1
+xy_y (D2 _ y) = D1 y
+
 d1 : Int -> D1
 d1 = sign >> D1
 
