@@ -4,9 +4,11 @@ import Elmz.Layout (Containment(Inside,Outside), Layout, Pt)
 import Elmz.Layout as Layout
 import Elmz.Movement as Movement
 import Elmz.Selection1D as Selection1D
+import Elmz.Signal as Signals
 import Graphics.Element (Element)
 import Graphics.Element as Element
 import Graphics.Input.Field as Field
+import Keyboard
 import List
 import Maybe
 import Result
@@ -62,7 +64,7 @@ movement d2 model = case model.explorer of
             in { model | explorerSelection <- Selection1D.movement d1 limit model.explorerSelection }
 
 close : Action
-close model = Maybe.withDefault model <|
+close model = Maybe.withDefault { model | explorer <- Nothing } <|
   Selection1D.index model.explorerSelection model.explorerValues `Maybe.andThen` \term ->
   model.panel.scope `Maybe.andThen` \scope ->
   Term.set scope.focus model.panel.term term `Maybe.andThen` \t2 ->
@@ -72,6 +74,22 @@ enter : Action
 enter model = case model.explorer of
   Nothing -> { model | explorer <- Explorer.zero, explorerValues <- [], explorerSelection <- 0 }
   Just _ -> close model
+
+uber : { clicks : Signal ()
+       , position : Signal (Int,Int)
+       , enters : Signal ()
+       , movements : Signal Movement.D2
+       , channel : Signal.Channel Field.Content
+       , model0 : Model }
+    -> Signal (Element, Model)
+uber ctx = todo
+
+ignoreUpDown : Signal Field.Content -> Signal Field.Content
+ignoreUpDown s =
+  let f arrows c prevC = if arrows.y /= 0 && c.string == prevC.string then prevC else c
+  in Signal.map3 f (Signal.keepIf (\a -> a.y /= 0) {x = 0, y = 0} Keyboard.arrows)
+                   s
+                   (Signals.delay Field.noContent s)
 
 -- derived actions handled elsewhere?
 -- can listen for explorer becoming active, and can listen for explorer becoming inactive
