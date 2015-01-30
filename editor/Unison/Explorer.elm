@@ -73,8 +73,8 @@ enter {down,allowOpen} model = case model of
 
 type alias Sink a = a -> Signal.Message
 
-view : Pt -> Sink Field.Content -> Sink Bool -> Model -> Layout (Result Containment Int)
-view origin searchbox active model = case model of
+view : Pt -> Sink Field.Content -> Model -> Layout (Result Containment Int)
+view origin searchbox model = case model of
   Nothing -> Layout.empty (Result.Err Outside)
   Just s ->
     let ok = not (List.isEmpty s.completions)
@@ -86,12 +86,9 @@ view origin searchbox active model = case model of
         insertion = Styles.carotUp 7 statusColor
         inside = Result.Err Inside
         status = Layout.embed inside s.instructions
-              |> Layout.transform (Input.clickable (active True))
-        renderCompletion i e = Layout.embed (Result.Ok i)
-                                            (Input.clickable (active False) e)
+        renderCompletion i e = Layout.embed (Result.Ok i) e
         invalids = List.map (Layout.embed inside) s.invalidCompletions
-        top = Layout.embed inside (Input.clickable (active True) fld)
-           |> Layout.transform (Input.clickable (active True))
+        top = Layout.embed inside fld
         spacer = Layout.embed inside (E.spacer 1 7)
         bot = Styles.explorerCells inside <|
           status :: List.indexedMap renderCompletion s.completions

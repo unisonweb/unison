@@ -19,6 +19,14 @@ import Unison.View as View
 type alias E = Path.E
 type alias Path = Path.Path
 
+{- type Scope =
+  Scope { focus : Path
+        , up : Maybe Scope
+        , down : Maybe Scope
+        , left : Maybe Scope
+        , right : Maybe Scope }
+-}
+
 type alias Scope = { focus : Path, ups : List Path, downs : List Path }
 type alias Model = Maybe Scope
 
