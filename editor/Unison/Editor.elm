@@ -125,18 +125,24 @@ refreshExplorer searchbox availableWidth model =
   in let layouts = model.layouts
      in { model | layouts <- { layouts | explorer <- highlightedExplorerLayout } }
 
+resize : Maybe (Sink Field.Content) -> Int -> Action
+resize sink availableWidth =
+  refreshPanel sink availableWidth
+
 enter : Action
 enter model = case model.explorer of
   Nothing -> { model | explorer <- Explorer.zero, explorerValues <- [], explorerSelection <- 0 }
   Just _ -> close model
 
-actions : { clicks : Signal ()
-        , mouse : Signal (Int,Int)
-        , enters : Signal ()
-        , movements : Signal Movement.D2
-        , channel : Signal.Channel Field.Content
-        -- , search : Signal (Field.Content, Term, Path) -> Signal (List Term)
-        , width : Signal Int } -> Signal Action
+type alias Inputs =
+ { clicks : Signal ()
+ , mouse : Signal (Int,Int)
+ , enters : Signal ()
+ , movements : Signal Movement.D2
+ , channel : Signal.Channel Field.Content
+ , width : Signal Int }
+
+actions : Inputs -> Signal Action
 actions ctx =
   let content = ignoreUpDown (Signal.subscribe ctx.channel)
       steadyWidth = Signals.steady (100 * Time.millisecond) ctx.width
@@ -148,18 +154,16 @@ actions ctx =
      Signal.map moveMouse ctx.mouse `merge`
      Signal.map (resize (Just (Signal.send ctx.channel))) steadyWidth
 
+-- type alias Action = Model -> (Maybe Search, Model)
+-- can then get a models : Signal (Model, Maybe Search)
+-- can do search : Signal Search -> Signal (Model -> Model)
+-- and then can just map2 the result of search and models to get final output models!!!
 
-resize : Maybe (Sink Field.Content) -> Int -> Action
-resize sink availableWidth =
-  refreshPanel sink availableWidth
+models : Inputs -> Model -> Signal Model
+models ctx model0 = Signal.foldp (<|) model0 (actions ctx)
 
 -- derived actions handled elsewhere?
 -- can listen for explorer becoming active - this can trigger http request to fetch
-
-type alias Context =
-  { availableWidth : Int
-  , searchbox : Sink Field.Content
-  , explorerActive : Sink Bool }
 
 view : Model -> Element
 view model =
