@@ -8,6 +8,7 @@ import Graphics.Element (Element)
 import Graphics.Element as Element
 import Graphics.Input.Field as Field
 import List
+import Maybe
 import Result
 import Signal
 import Unison.Explorer as Explorer
@@ -39,7 +40,7 @@ click (x,y) layout explorer model = case model.explorer of
     Just node -> { model | explorer <- Explorer.zero, explorerValues <- [], explorerSelection <- 0 }
   Just _ -> case Layout.leafAtPoint explorer (Pt x y) of
     Nothing -> { model | explorer <- Nothing } -- treat this as a close event
-    Just (Result.Ok i) -> { model | explorerSelection <- i, explorer <- Nothing } -- close w/ selection
+    Just (Result.Ok i) -> close { model | explorerSelection <- i } -- close w/ selection
     Just (Result.Err Inside) -> model -- noop click inside explorer
     Just (Result.Err Outside) -> { model | explorer <- Nothing } -- treat this as a close event
 
@@ -60,13 +61,21 @@ movement d2 model = case model.explorer of
                 limit = List.length model.explorerValues
             in { model | explorerSelection <- Selection1D.movement d1 limit model.explorerSelection }
 
+close : Action
+close model = Maybe.withDefault model <|
+  Selection1D.index model.explorerSelection model.explorerValues `Maybe.andThen` \term ->
+  model.panel.scope `Maybe.andThen` \scope ->
+  Term.set scope.focus model.panel.term term `Maybe.andThen` \t2 ->
+  Just { model | panel <- Panel.setTerm t2 model.panel, explorer <- Nothing }
+
 enter : Action
 enter model = case model.explorer of
   Nothing -> { model | explorer <- Explorer.zero, explorerValues <- [], explorerSelection <- 0 }
-  Just _ -> { model | explorer <- Nothing }
+  Just _ -> close model
 
 -- derived actions handled elsewhere?
 -- can listen for explorer becoming active, and can listen for explorer becoming inactive
+-- actually, can just apply directly, since UI constrains
 
 view : Context -> Model -> (Layout View.L, Layout (Result Containment Int))
 view ctx model =

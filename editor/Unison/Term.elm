@@ -114,6 +114,10 @@ at p e = case (p,e) of
     _ -> Nothing
   _ -> Nothing
 
+{-| Sets the given path to `e'`, if the path is valid. -}
+set : Path -> Term -> Term -> Maybe Term
+set p e e' = Nothing -- todo, mimic `at`
+
 {-| Returns `True` if the path points to a valid subterm -}
 valid : Term -> Path -> Bool
 valid e p = case at p e of
