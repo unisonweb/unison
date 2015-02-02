@@ -9,6 +9,7 @@ import Elmz.Moore as Moore
 import Elmz.Movement as Movement
 import Elmz.Selection1D as Selection1D
 import Elmz.Signal as Signals
+import Elmz.Trie
 import Graphics.Element (Element)
 import Graphics.Element as Element
 import Graphics.Input as Input
