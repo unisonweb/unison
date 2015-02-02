@@ -40,36 +40,50 @@ type alias Model =
               , panelHighlight : Maybe Region
               , explorer : Layout (Result Containment Int) } }
 
-type alias Action = Model -> Model
+type alias Request = { term : Term, path : Path, query : Maybe Field.Content }
+
+type alias Action = Model -> (Maybe Request, Model)
+
+request : Model -> (Maybe Request, Model)
+request model = case model.scope of
+  Nothing -> (Nothing, model)
+  Just scope -> (Just
+    { term = model.term
+    , path = scope.focus
+    , query = Maybe.map .input model.explorer }, model)
+
+norequest : Model -> (Maybe Request, Model)
+norequest model = (Nothing, model)
 
 type alias Sink a = a -> Signal.Message
 
 click : (Int,Int) -> Layout View.L -> Layout (Result Containment Int) -> Action
 click (x,y) layout explorer model = case model.explorer of
   Nothing -> case Layout.leafAtPoint layout (Pt x y) of
-    Nothing -> model -- noop, user didn't click on anything!
-    Just node -> { model | explorer <- Explorer.zero, explorerValues <- [], explorerSelection <- 0 }
+    Nothing -> norequest model -- noop, user didn't click on anything!
+    Just node -> request { model | explorer <- Explorer.zero
+                                 , explorerValues <- []
+                                 , explorerSelection <- 0 }
   Just _ -> case Layout.leafAtPoint explorer (Pt x y) of
-    Nothing -> { model | explorer <- Nothing } -- treat this as a close event
+    Nothing -> norequest { model | explorer <- Nothing } -- treat this as a close event
     Just (Result.Ok i) -> close { model | explorerSelection <- i } -- close w/ selection
-    Just (Result.Err Inside) -> model -- noop click inside explorer
-    Just (Result.Err Outside) -> { model | explorer <- Nothing } -- treat this as a close event
+    Just (Result.Err Inside) -> norequest <| model -- noop click inside explorer
+    Just (Result.Err Outside) -> norequest <| { model | explorer <- Nothing } -- treat this as a close event
 
 moveMouse : (Int,Int) -> Action
 moveMouse xy model = case model.explorer of
-  Nothing -> { model | scope <- Scope.reset xy model.layouts.panel model.scope }
+  Nothing -> norequest <| { model | scope <- Scope.reset xy model.layouts.panel model.scope }
   Just _ -> let e = Selection1D.reset xy model.layouts.explorer model.explorerSelection
-            in { model | explorerSelection <- e }
+            in norequest <| { model | explorerSelection <- e }
 
 updateExplorerValues : List Term -> Action
-updateExplorerValues cur model =
+updateExplorerValues cur model = norequest <|
   { model | explorerValues <- cur
           , explorerSelection <- Selection1D.selection model.explorerValues
                                                        cur
                                                        model.explorerSelection }
-
 movement : Movement.D2 -> Action
-movement d2 model = case model.explorer of
+movement d2 model = norequest <| case model.explorer of
   Nothing -> { model | scope <- Scope.movement model.term d2 model.scope }
   Just _ -> let d1 = Movement.negateD1 (Movement.xy_y d2)
                 limit = List.length model.explorerValues
@@ -96,7 +110,7 @@ refreshPanel searchbox availableWidth model =
              , overrides x = Nothing }
       layouts = model.layouts
       explorerRefresh model = case searchbox of
-        Nothing -> model
+        Nothing -> norequest model
         Just searchbox -> refreshExplorer searchbox availableWidth model
   in explorerRefresh <| case model.scope of
        Nothing -> { model | layouts <- { layouts | panel <- layout }}
@@ -123,7 +137,7 @@ refreshExplorer searchbox availableWidth model =
       highlightedExplorerLayout =
         Layout.transform (\e -> Element.layers [e, explorerHighlight]) explorerLayout
   in let layouts = model.layouts
-     in { model | layouts <- { layouts | explorer <- highlightedExplorerLayout } }
+     in norequest { model | layouts <- { layouts | explorer <- highlightedExplorerLayout } }
 
 resize : Maybe (Sink Field.Content) -> Int -> Action
 resize sink availableWidth =
@@ -131,7 +145,7 @@ resize sink availableWidth =
 
 enter : Action
 enter model = case model.explorer of
-  Nothing -> { model | explorer <- Explorer.zero, explorerValues <- [], explorerSelection <- 0 }
+  Nothing -> request { model | explorer <- Explorer.zero, explorerValues <- [], explorerSelection <- 0 }
   Just _ -> close model
 
 type alias Inputs =
@@ -147,20 +161,22 @@ actions ctx =
   let content = ignoreUpDown (Signal.subscribe ctx.channel)
       steadyWidth = Signals.steady (100 * Time.millisecond) ctx.width
       movementsRepeated = Movement.repeatD2 ctx.movements
-      merge = Signals.mergeWith (>>)
+      combine f g model =
+        let (req, m2) = f model
+            (req', m3) = g m2
+        in (Maybe.oneOf [req', req], m3)
+      merge = Signals.mergeWith combine
       clickPositions = Signal.sampleOn ctx.clicks ctx.mouse
   in Signal.map (always enter) ctx.enters `merge`
      Signal.map movement movementsRepeated `merge`
      Signal.map moveMouse ctx.mouse `merge`
      Signal.map (resize (Just (Signal.send ctx.channel))) steadyWidth
 
--- type alias Action = Model -> (Maybe Search, Model)
--- can then get a models : Signal (Model, Maybe Search)
 -- can do search : Signal Search -> Signal (Model -> Model)
 -- and then can just map2 the result of search and models to get final output models!!!
 
-models : Inputs -> Model -> Signal Model
-models ctx model0 = Signal.foldp (<|) model0 (actions ctx)
+-- models : Inputs -> Model -> Signal Model
+-- models ctx model0 = Signal.foldp (<|) model0 (actions ctx)
 
 -- derived actions handled elsewhere?
 -- can listen for explorer becoming active - this can trigger http request to fetch
