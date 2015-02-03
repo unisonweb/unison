@@ -8,6 +8,17 @@ Elm.Native.Execute.make = function(localRuntime) {
     }
     var Signal = Elm.Signal.make(localRuntime);
     
+    function combine(thunk1, thunk2) {
+      return function() {
+        setTimeout(
+          function() { 
+            thunk1(); 
+            setTimeout(thunk2, 0);
+          },
+          0);
+      }
+    }
+
     // schedule : Signal Message -> Signal ()
     function schedule(msgs) {
         var tuple0 = { ctor: "_Tuple0" }; 
@@ -41,6 +52,7 @@ Elm.Native.Execute.make = function(localRuntime) {
 
     return localRuntime.Native.Execute.values = {
         schedule: schedule,
-        complete : complete
+        complete: complete,
+        combine: combine
     };
 };

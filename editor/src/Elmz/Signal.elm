@@ -2,6 +2,7 @@ module Elmz.Signal where
 
 
 -- debugging
+import Debug
 import Elmz.Maybe
 import List
 import List ((::))
@@ -19,6 +20,30 @@ import Time (Time)
     is `True`, otherwise emits the empty list. -}
 accumulateWhen : Signal Bool -> Signal a -> Signal (List a)
 accumulateWhen cond a = foldpWhen cond (::) [] a |> map List.reverse
+
+asyncUpdate : (Signal req -> Signal (Maybe (model -> model)))
+           -> Signal (model -> (model, Maybe req))
+           -> req
+           -> model
+           -> Signal model
+asyncUpdate eval actions req0 model0 =
+  let models = channel model0
+      reqs = channel req0
+      ignore = channel model0
+      responses = eval (subscribe reqs)
+      err = "Unpossible! User interaction and async response event cannot co-occur."
+      update model event = case event of
+        (Nothing, Nothing) -> send ignore model0
+        (Just Nothing, Just action) -> case action model of
+          (model, Nothing) -> send models model
+          (model, Just req) -> send models model `Execute.combine` send reqs req
+        (Just (Just response), Just action) -> Debug.crash err
+        (Just (Just response), Nothing) ->
+          send models (response model)
+      msgs = map2 update (subscribe models) (oneOrBoth responses actions)
+  in sampleOn (subscribe models) <|
+       map2 always (subscribe models)
+                   (Execute.complete msgs)
 
 {-| Alternate sending `input` through `left` or `right` signal transforms,
     merging their results. -}
@@ -119,20 +144,6 @@ loop f s a =
   in map2 always (map fst bs)
                  (Execute.complete (map (\(_,s) -> send chan s) bs))
 
---updateAsync : (Signal req -> Signal (model -> model))
---           -> Signal (model -> (model, Maybe req))
---           -> model
---           -> Signal model
---updateAsync eval actions model =
---  let modelChan = channel model
---      results = foldp
---  in ???
-
--- want a version of `loop` which does generate an event on `s`
--- is it up to caller to check for duplicates on `a`? or do we
--- process synchronously somehow by doing something fancy?
--- cycle : (Signal a -> Signal s -> (Signal b, Signal s)) -> s -> Signal a -> Signal b
-
 {-| When the input is `False`, convert the signal to `Nothing`. -}
 mask : Signal Bool -> Signal a -> Signal (Maybe a)
 mask = map2 (\b a -> if b then Just a else Nothing)
@@ -153,6 +164,18 @@ mergeWith resolve left right =
 {-| Merge two signals, composing the functions if any events co-occcur. -}
 mergeWithBoth : Signal (a -> a) -> Signal (a -> a) -> Signal (a -> a)
 mergeWithBoth = mergeWith (>>)
+
+{-| Merge the two signals. If events co-occur, emits `(Just a, Just b)`,
+otherwise emits `(Just a, Nothing)` or `(Nothing, Just b)`. -}
+oneOrBoth : Signal a -> Signal b -> Signal (Maybe a, Maybe b)
+oneOrBoth a b =
+  let combine a b = case a of
+        (Nothing,_) -> b
+        (Just a,_) -> case b of
+          (_, Nothing) -> (Just a, Nothing)
+          (_, Just b) -> (Just a, Just b)
+  in mergeWith combine (map (\a -> (Just a, Nothing)) a)
+                       (map (\b -> (Nothing, Just b)) b)
 
 {-| Emit updates to `s` only when it moves outside the current bin,
     according to the function `within`. Otherwise emit no update but

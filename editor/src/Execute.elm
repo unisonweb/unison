@@ -5,6 +5,11 @@ module Execute where
 import Native.Execute
 import Signal (Signal, Message)
 
+{-| Combine two messages into one. The first argument will
+be delivered before the second. -}
+combine : Message -> Message -> Message
+combine = Native.Execute.combine
+
 {-| Schedule the input `Message` values for delivery.
 The output signal has same event occurrences as the input signal,
 and there is no guarantee that effects of message delivery will
@@ -14,7 +19,7 @@ Implementation uses `setTimeout(.., 0)` in Javascript to schedule
 delivery of the `Message`.
 -}
 schedule : Signal Message -> Signal ()
-schedule = Native.Messages.schedule
+schedule = Native.Execute.schedule
 
 {-| Schedule the input `Message` values for delivery and wait for
 completion of each delivery. Unlike `schedule`, the output `Signal`
