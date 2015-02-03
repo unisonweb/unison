@@ -57,14 +57,14 @@ norequest model = (Nothing, model)
 
 type alias Sink a = a -> Signal.Message
 
-click : (Int,Int) -> Layout View.L -> Layout (Result Containment Int) -> Action
-click (x,y) layout explorer model = case model.explorer of
-  Nothing -> case Layout.leafAtPoint layout (Pt x y) of
+click : (Int,Int) -> Action
+click (x,y) model = case model.explorer of
+  Nothing -> case Layout.leafAtPoint model.layouts.panel (Pt x y) of
     Nothing -> norequest model -- noop, user didn't click on anything!
     Just node -> request { model | explorer <- Explorer.zero
                                  , explorerValues <- []
                                  , explorerSelection <- 0 }
-  Just _ -> case Layout.leafAtPoint explorer (Pt x y) of
+  Just _ -> case Layout.leafAtPoint model.layouts.explorer (Pt x y) of
     Nothing -> norequest { model | explorer <- Nothing } -- treat this as a close event
     Just (Result.Ok i) -> close { model | explorerSelection <- i } -- close w/ selection
     Just (Result.Err Inside) -> norequest <| model -- noop click inside explorer
@@ -168,6 +168,7 @@ actions ctx =
       merge = Signals.mergeWith combine
       clickPositions = Signal.sampleOn ctx.clicks ctx.mouse
   in Signal.map (always enter) ctx.enters `merge`
+     Signal.map click clickPositions `merge`
      Signal.map movement movementsRepeated `merge`
      Signal.map moveMouse ctx.mouse `merge`
      Signal.map (resize (Just (Signal.send ctx.channel))) steadyWidth
