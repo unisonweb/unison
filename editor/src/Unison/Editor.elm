@@ -149,12 +149,12 @@ enter model = case model.explorer of
   Just _ -> close model
 
 type alias Inputs =
- { clicks : Signal ()
- , mouse : Signal (Int,Int)
- , enters : Signal ()
- , movements : Signal Movement.D2
- , channel : Signal.Channel Field.Content
- , width : Signal Int }
+  { clicks : Signal ()
+  , mouse : Signal (Int,Int)
+  , enters : Signal ()
+  , movements : Signal Movement.D2
+  , channel : Signal.Channel Field.Content
+  , width : Signal Int }
 
 actions : Inputs -> Signal Action
 actions ctx =

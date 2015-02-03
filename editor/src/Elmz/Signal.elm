@@ -7,7 +7,7 @@ import List
 import List ((::))
 import Maybe
 import Lazy
-import Messages
+import Execute
 import Mouse
 import Result
 import Signal (..)
@@ -117,7 +117,16 @@ loop f s a =
   let chan = channel s
       bs = f a (sampleOn a (subscribe chan)) -- Signal (b,s)
   in map2 always (map fst bs)
-                 (Messages.send (map (\(_,s) -> send chan s) bs))
+                 (Execute.complete (map (\(_,s) -> send chan s) bs))
+
+--updateAsync : (Signal req -> Signal (model -> model))
+--           -> Signal (model -> (model, Maybe req))
+--           -> model
+--           -> Signal model
+--updateAsync eval actions model =
+--  let modelChan = channel model
+--      results = foldp
+--  in ???
 
 -- want a version of `loop` which does generate an event on `s`
 -- is it up to caller to check for duplicates on `a`? or do we
