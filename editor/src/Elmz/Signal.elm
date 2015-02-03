@@ -1,17 +1,19 @@
 module Elmz.Signal where
 
-import Text
-import Mouse
--- debugging
 
+-- debugging
 import Elmz.Maybe
 import List
 import List ((::))
 import Maybe
+import Lazy
+import Messages
+import Mouse
 import Result
+import Signal (..)
+import Text
 import Time
 import Time (Time)
-import Signal (..)
 
 {-| Accumulates into a list using `foldp` during regions where `cond`
     is `True`, otherwise emits the empty list. -}
@@ -110,14 +112,17 @@ flattenMaybe s = fromMaybe (constant Nothing) s
 justs : Signal (Maybe a) -> Signal (Maybe a)
 justs s = keepIf (Maybe.map (always True) >> Maybe.withDefault False) Nothing s
 
-{-| Statefully transform the `a` signal, using `f`. -}
-loop : (a -> s -> (b, s))
-    -> s
-    -> Signal a
-    -> Signal (Maybe b)
+loop : (Signal a -> Signal s -> Signal (b,s)) -> s -> Signal a -> Signal b
 loop f s a =
-  let go a (_,s) = case f a s of (b,s) -> (Just b, s)
-  in fst <~ foldp go (Nothing,s) a
+  let chan = channel s
+      bs = f a (sampleOn a (subscribe chan)) -- Signal (b,s)
+  in map2 always (map fst bs)
+                 (Messages.send (map (\(_,s) -> send chan s) bs))
+
+-- want a version of `loop` which does generate an event on `s`
+-- is it up to caller to check for duplicates on `a`? or do we
+-- process synchronously somehow by doing something fancy?
+-- cycle : (Signal a -> Signal s -> (Signal b, Signal s)) -> s -> Signal a -> Signal b
 
 {-| When the input is `False`, convert the signal to `Nothing`. -}
 mask : Signal Bool -> Signal a -> Signal (Maybe a)
@@ -195,4 +200,10 @@ ups s = keepIf identity False s
 zip : Signal a -> Signal b -> Signal (a,b)
 zip = map2 (,)
 
-main = Text.plainText << toString <~ changed Mouse.position
+dumbSum : Signal Int -> Signal Int
+dumbSum a =
+  loop (\a acc -> map2 (+) a acc |> map (\a -> (a,a))) 0 a
+
+main =
+  let c = always 1 <~ Mouse.clicks
+  in Text.plainText << toString <~ dumbSum c
