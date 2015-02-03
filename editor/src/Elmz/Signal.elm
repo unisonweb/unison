@@ -21,8 +21,8 @@ import Time (Time)
 accumulateWhen : Signal Bool -> Signal a -> Signal (List a)
 accumulateWhen cond a = foldpWhen cond (::) [] a |> map List.reverse
 
-asyncUpdate : (Signal req -> Signal (Maybe (model -> model)))
-           -> Signal (model -> (model, Maybe req))
+asyncUpdate : (Signal req -> Signal (model -> model))
+           -> Signal (model -> (Maybe req, model))
            -> req
            -> model
            -> Signal model
@@ -34,12 +34,11 @@ asyncUpdate eval actions req0 model0 =
       err = "Unpossible! User interaction and async response event cannot co-occur."
       update model event = case event of
         (Nothing, Nothing) -> send ignore model0
-        (Just Nothing, Just action) -> case action model of
-          (model, Nothing) -> send models model
-          (model, Just req) -> send models model `Execute.combine` send reqs req
-        (Just (Just response), Just action) -> Debug.crash err
-        (Just (Just response), Nothing) ->
-          send models (response model)
+        (Just response, Just action') -> Debug.crash err
+        (Nothing, Just action) -> case action model of
+          (Nothing, model) -> send models model
+          (Just req, model) -> send models model `Execute.combine` send reqs req
+        (Just response, Nothing) -> send models (response model)
       msgs = map2 update (subscribe models) (oneOrBoth responses actions)
   in sampleOn (subscribe models) <|
        map2 always (subscribe models)

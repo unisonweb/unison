@@ -173,14 +173,13 @@ actions ctx =
      Signal.map moveMouse ctx.mouse `merge`
      Signal.map (resize (Just (Signal.send ctx.channel))) steadyWidth
 
--- can do search : Signal Search -> Signal (Model -> Model)
--- and then can just map2 the result of search and models to get final output models!!!
-
--- models : Inputs -> Model -> Signal Model
--- models ctx model0 = Signal.foldp (<|) model0 (actions ctx)
-
--- derived actions handled elsewhere?
--- can listen for explorer becoming active - this can trigger http request to fetch
+models : Inputs -> (Signal Request -> Signal (Model -> Model)) -> Model -> Signal Model
+models ctx search model0 =
+  Signals.asyncUpdate
+    search
+    (actions ctx)
+    { term = model0.term, path = [], query = Nothing }
+    model0
 
 view : Model -> Element
 view model =
