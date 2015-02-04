@@ -50,6 +50,12 @@ type alias Request = { term : Term, path : Path, query : Maybe Field.Content }
 
 type alias Action = Model -> (Maybe Request, Model)
 
+combine : Action -> Action -> Action
+combine f g model =
+  let (req, m2) = f model
+      (req', m3) = g m2
+  in (Maybe.oneOf [req', req], m3)
+
 model0 : Model
 model0 =
   { term = Term.Blank
@@ -63,10 +69,13 @@ model0 =
   , explorerSelection = 0
   , layouts = { panel = Layout.empty { path = [], selectable = False }
               , panelHighlight = Nothing
-              , explorer = Layout.empty (Result.Err Outside) } }
+              , explorer = explorerLayout0  } }
 
 layout0 : Layout View.L
 layout0 = Layout.empty { path = [], selectable = False }
+
+explorerLayout0 : Layout (Result Containment a)
+explorerLayout0 = Layout.empty (Result.Err Outside)
 
 request : Model -> (Maybe Request, Model)
 request model = case model.scope of
@@ -81,18 +90,20 @@ norequest model = (Nothing, model)
 
 type alias Sink a = a -> Signal.Message
 
-click : (Int,Int) -> Action
-click (x,y) model = case model.explorer of
+click : Sink Field.Content -> (Int,Int) -> Action
+click snk (x,y) model = case model.explorer of
   Nothing -> case Layout.leafAtPoint model.layouts.panel (Pt x y) of
     Nothing -> norequest model -- noop, user didn't click on anything!
-    Just node -> request { model | explorer <- Explorer.zero
-                                 , explorerValues <- []
-                                 , explorerSelection <- 0 }
+    Just node ->
+      let (req, m2) = request { model | explorer <- Explorer.zero
+                                      , explorerValues <- []
+                                      , explorerSelection <- 0 }
+      in (req, snd (refreshExplorer snk m2))
   Just _ -> case Layout.leafAtPoint model.layouts.explorer (Pt x y) of
-    Nothing -> norequest { model | explorer <- Nothing } -- treat this as a close event
+    Nothing -> norequest (closeExplorer model) -- treat this as a close event
     Just (Result.Ok i) -> close { model | explorerSelection <- i } -- close w/ selection
     Just (Result.Err Inside) -> norequest <| model -- noop click inside explorer
-    Just (Result.Err Outside) -> norequest <| { model | explorer <- Nothing } -- treat this as a close event
+    Just (Result.Err Outside) -> norequest <| (closeExplorer model) -- treat this as a close event
 
 moveMouse : (Int,Int) -> Action
 moveMouse xy model = case model.explorer of
@@ -124,13 +135,18 @@ movement d2 model = norequest <| case model.explorer of
                 limit = List.length model.explorerValues
             in { model | explorerSelection <- Selection1D.movement d1 limit model.explorerSelection }
 
+closeExplorer : Model -> Model
+closeExplorer model =
+  let layouts = model.layouts
+  in { model | explorer <- Nothing, layouts <- { layouts | explorer <- explorerLayout0 }}
+
 close : Action
 close model =
-  refreshPanel Nothing << Maybe.withDefault { model | explorer <- Nothing } <|
+  refreshPanel Nothing << Maybe.withDefault (closeExplorer model) <|
   Selection1D.index model.explorerSelection model.explorerValues `Maybe.andThen` \term ->
   model.scope `Maybe.andThen` \scope ->
   Term.set scope.focus model.term term `Maybe.andThen` \t2 ->
-  Just { model | term <- t2, explorer <- Nothing }
+  (Just << closeExplorer) { model | term <- t2 }
 
 -- todo: invalidate dependents and overrides if under the edit path
 
@@ -196,17 +212,13 @@ actions : Inputs -> Signal Action
 actions ctx =
   let content = ignoreUpDown (Signal.subscribe ctx.channel)
       movementsRepeated = Movement.repeatD2 ctx.movements
-      combine f g model =
-        let (req, m2) = f model
-            (req', m3) = g m2
-        in (Maybe.oneOf [req', req], m3)
       merge = Signals.mergeWith combine
       clickPositions = Signal.sampleOn ctx.clicks ctx.mouse
       steadyWidth = Signals.sampleOnMerge Signals.start
                                           (Signals.steady (100 * Time.millisecond) ctx.width)
   in Signal.map (resize (Just (Signal.send ctx.channel))) steadyWidth `merge`
      Signal.map (always enter) ctx.enters `merge`
-     Signal.map click clickPositions `merge`
+     Signal.map (click (Signal.send ctx.channel)) clickPositions `merge`
      Signal.map movement movementsRepeated `merge`
      Signal.map moveMouse ctx.mouse
 

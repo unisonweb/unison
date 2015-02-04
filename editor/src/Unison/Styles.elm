@@ -47,7 +47,7 @@ autocomplete ok =
   { padding = let s = Field.defaultStyle
               in s.padding -- { left = 10, right = 10, top = s.padding.top, bottom = s.padding.bottom }
   , outline = { color = statusColor ok
-              , width = Field.uniformly 3
+              , width = Field.uniformly 4
               , radius = 0 }
   , highlight = Field.noHighlight
   , style = code }
