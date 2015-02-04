@@ -1,12 +1,17 @@
 module Unison.Terms where
 
+import Array
+import Elmz.Distance as Distance
+import List
 import Unison.Term as E
+import Unison.Reference as R
 
 -- helper functions for building terms
 
 ap = E.App
 builtin s = E.Ref (R.Builtin s)
 derived s = E.Ref (R.Derived s)
+str s = E.Lit (E.Str s)
 int n = E.Lit (E.Number (toFloat n))
 vec es = E.Vector (Array.fromList es)
 

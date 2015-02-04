@@ -2,6 +2,7 @@ module Unison.Term where
 
 import Array
 import Array (Array)
+import Debug
 import Dict
 import Dict (Dict)
 import Elmz.Distance as Distance
@@ -116,7 +117,7 @@ at p e = case (p,e) of
 
 {-| Sets the given path to `e'`, if the path is valid. -}
 set : Path -> Term -> Term -> Maybe Term
-set p e e' = Nothing -- todo, mimic `at`
+set p e e' = Debug.crash "todo: Term.set"
 
 {-| Returns `True` if the path points to a valid subterm -}
 valid : Term -> Path -> Bool

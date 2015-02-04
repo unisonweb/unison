@@ -1,5 +1,6 @@
 module Unison.Editor (Model) where
 
+import Debug
 import Elmz.Layout (Containment(Inside,Outside), Layout, Pt, Region)
 import Elmz.Layout as Layout
 import Elmz.Movement as Movement
@@ -13,8 +14,10 @@ import Graphics.Input.Field as Field
 import Keyboard
 import List
 import Maybe
+import Mouse
 import Result
 import Signal
+import String
 import Time
 import Unison.Explorer as Explorer
 import Unison.Hash (Hash)
@@ -25,7 +28,9 @@ import Unison.Scope as Scope
 import Unison.Styles as Styles
 import Unison.Term (Term)
 import Unison.Term as Term
+import Unison.Terms as Terms
 import Unison.View as View
+import Window
 
 type alias Model =
   { term : Term
@@ -43,6 +48,20 @@ type alias Model =
 type alias Request = { term : Term, path : Path, query : Maybe Field.Content }
 
 type alias Action = Model -> (Maybe Request, Model)
+
+model0 : Model
+model0 =
+  { term = Term.Blank
+  , scope = Nothing
+  , dependents = Trie.empty
+  , overrides = Trie.empty
+  , hashes = Trie.empty
+  , explorer = Nothing
+  , explorerValues = []
+  , explorerSelection = 0
+  , layouts = { panel = Layout.empty { path = [], selectable = False }
+              , panelHighlight = Nothing
+              , explorer = Layout.empty (Result.Err Outside) } }
 
 request : Model -> (Maybe Request, Model)
 request model = case model.scope of
@@ -76,8 +95,8 @@ moveMouse xy model = case model.explorer of
   Just _ -> let e = Selection1D.reset xy model.layouts.explorer model.explorerSelection
             in norequest <| { model | explorerSelection <- e }
 
-updateExplorerValues : List Term -> Action
-updateExplorerValues cur model = norequest <|
+updateExplorerValues : List Term -> Model -> Model
+updateExplorerValues cur model =
   { model | explorerValues <- cur
           , explorerSelection <- Selection1D.selection model.explorerValues
                                                        cur
@@ -187,7 +206,7 @@ view model =
                  , Layout.element model.layouts.explorer ]
 
 todo : a
-todo = todo
+todo = Debug.crash "Editor.todo"
 
 ignoreUpDown : Signal Field.Content -> Signal Field.Content
 ignoreUpDown s =
@@ -195,3 +214,29 @@ ignoreUpDown s =
   in Signal.map3 f (Signal.keepIf (\a -> a.y /= 0) {x = 0, y = 0} Keyboard.arrows)
                    s
                    (Signals.delay Field.noContent s)
+
+search : Signal Request -> Signal (Model -> Model)
+search reqs =
+  let possible = ["Alice", "Alicia", "Bob", "Burt", "Carol", "Carolina", "Dave", "Don", "Eve"]
+      matches content = case content of
+        Nothing -> possible
+        Just content -> List.filter (String.contains content.string) possible
+      go req = let possible = matches req.query
+               in updateExplorerValues (List.map Terms.str possible)
+  in Signal.map go reqs
+
+main =
+  let padTop = 10
+      padLeft = 10
+      shift (x,y) = (x+padTop,y+padLeft)
+      shiftE e = Element.spacer 1 padTop `Element.above`
+                   (Element.spacer padLeft 1 `Element.beside` e)
+      inputs = { clicks = Mouse.clicks
+               , mouse = Signal.map shift Mouse.position
+               , enters = Signal.map (always ()) (Signals.ups (Keyboard.enter))
+               , movements = Movement.d2' Keyboard.arrows
+               , channel = Signal.channel Field.noContent
+               , width = Window.width }
+      ms = models inputs search { model0 | term <- Terms.expr0 }
+  in Signal.map (shiftE << view) ms
+
