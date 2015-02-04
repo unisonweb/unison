@@ -1,4 +1,4 @@
-module Unison.Editor (Model) where
+module Unison.Editor where
 
 import Debug
 import Elmz.Layout (Containment(Inside,Outside), Layout, Pt, Region)
@@ -35,6 +35,7 @@ import Window
 type alias Model =
   { term : Term
   , scope : Scope.Model
+  , availableWidth : Maybe Int
   , dependents : Trie Path.E (List Path)
   , overrides : Trie Path.E (Layout View.L)
   , hashes : Trie Path.E Hash
@@ -53,6 +54,7 @@ model0 : Model
 model0 =
   { term = Term.Blank
   , scope = Nothing
+  , availableWidth = Nothing
   , dependents = Trie.empty
   , overrides = Trie.empty
   , hashes = Trie.empty
@@ -62,6 +64,9 @@ model0 =
   , layouts = { panel = Layout.empty { path = [], selectable = False }
               , panelHighlight = Nothing
               , explorer = Layout.empty (Result.Err Outside) } }
+
+layout0 : Layout View.L
+layout0 = Layout.empty { path = [], selectable = False }
 
 request : Model -> (Maybe Request, Model)
 request model = case model.scope of
@@ -110,8 +115,7 @@ movement d2 model = norequest <| case model.explorer of
 
 close : Action
 close model =
-  refreshPanel Nothing (Layout.widthOf model.layouts.panel) <<
-  Maybe.withDefault { model | explorer <- Nothing } <|
+  refreshPanel Nothing << Maybe.withDefault { model | explorer <- Nothing } <|
   Selection1D.index model.explorerSelection model.explorerValues `Maybe.andThen` \term ->
   model.scope `Maybe.andThen` \scope ->
   Term.set scope.focus model.term term `Maybe.andThen` \t2 ->
@@ -120,25 +124,27 @@ close model =
 -- todo: invalidate dependents and overrides if under the edit path
 
 {-| Updates `layouts.panel` and `layouts.panelHighlight` based on a change. -}
-refreshPanel : Maybe (Sink Field.Content) -> Int -> Action
-refreshPanel searchbox availableWidth model =
-  let layout = View.layout model.term <|
-             { rootMetadata = Metadata.anonymousTerm
-             , availableWidth = availableWidth
-             , metadata h = Metadata.anonymousTerm
-             , overrides x = Nothing }
+refreshPanel : Maybe (Sink Field.Content) -> Action
+refreshPanel searchbox model =
+  let layout = case model.availableWidth of
+        Nothing -> layout0
+        Just availableWidth -> View.layout model.term <|
+          { rootMetadata = Metadata.anonymousTerm
+          , availableWidth = availableWidth
+          , metadata h = Metadata.anonymousTerm
+          , overrides x = Nothing }
       layouts = model.layouts
       explorerRefresh model = case searchbox of
         Nothing -> norequest model
-        Just searchbox -> refreshExplorer searchbox availableWidth model
+        Just searchbox -> refreshExplorer searchbox model
   in explorerRefresh <| case model.scope of
        Nothing -> { model | layouts <- { layouts | panel <- layout }}
        Just scope ->
          let (panel, highlight) = Scope.view { layout = layout, term = model.term } scope
          in { model | layouts <- { layouts | panel <- panel, panelHighlight <- highlight }}
 
-refreshExplorer : Sink Field.Content -> Int -> Action
-refreshExplorer searchbox availableWidth model =
+refreshExplorer : Sink Field.Content -> Action
+refreshExplorer searchbox model =
   let explorerTopLeft : Pt
       explorerTopLeft = case model.layouts.panelHighlight of
         Nothing -> Pt 0 0
@@ -159,8 +165,8 @@ refreshExplorer searchbox availableWidth model =
      in norequest { model | layouts <- { layouts | explorer <- highlightedExplorerLayout } }
 
 resize : Maybe (Sink Field.Content) -> Int -> Action
-resize sink availableWidth =
-  refreshPanel sink availableWidth
+resize sink width model =
+  refreshPanel sink { model | availableWidth <- Just width }
 
 enter : Action
 enter model = case model.explorer of
@@ -178,7 +184,6 @@ type alias Inputs =
 actions : Inputs -> Signal Action
 actions ctx =
   let content = ignoreUpDown (Signal.subscribe ctx.channel)
-      steadyWidth = Signals.steady (100 * Time.millisecond) ctx.width
       movementsRepeated = Movement.repeatD2 ctx.movements
       combine f g model =
         let (req, m2) = f model
@@ -186,11 +191,13 @@ actions ctx =
         in (Maybe.oneOf [req', req], m3)
       merge = Signals.mergeWith combine
       clickPositions = Signal.sampleOn ctx.clicks ctx.mouse
-  in Signal.map (always enter) ctx.enters `merge`
+      steadyWidth = Signals.sampleOnMerge Signals.start
+                                          (Signals.steady (100 * Time.millisecond) ctx.width)
+  in Signal.map (resize (Just (Signal.send ctx.channel))) steadyWidth `merge`
+     Signal.map (always enter) ctx.enters `merge`
      Signal.map click clickPositions `merge`
      Signal.map movement movementsRepeated `merge`
-     Signal.map moveMouse ctx.mouse `merge`
-     Signal.map (resize (Just (Signal.send ctx.channel))) steadyWidth
+     Signal.map moveMouse ctx.mouse
 
 models : Inputs -> (Signal Request -> Signal (Model -> Model)) -> Model -> Signal Model
 models ctx search model0 =
@@ -202,11 +209,9 @@ models ctx search model0 =
 
 view : Model -> Element
 view model =
-  Element.layers [ Layout.element model.layouts.panel
-                 , Layout.element model.layouts.explorer ]
-
-todo : a
-todo = Debug.crash "Editor.todo"
+  let m = model
+  in Element.layers [ Layout.element m.layouts.panel
+                    , Layout.element m.layouts.explorer ]
 
 ignoreUpDown : Signal Field.Content -> Signal Field.Content
 ignoreUpDown s =
@@ -223,7 +228,7 @@ search reqs =
         Just content -> List.filter (String.contains content.string) possible
       go req = let possible = matches req.query
                in updateExplorerValues (List.map Terms.str possible)
-  in Signal.map go reqs
+  in Signal.constant identity -- Time.delay (100 * Time.millisecond) (Signal.map go reqs)
 
 main =
   let padTop = 10
@@ -237,6 +242,11 @@ main =
                , movements = Movement.d2' Keyboard.arrows
                , channel = Signal.channel Field.noContent
                , width = Window.width }
-      ms = models inputs search { model0 | term <- Terms.expr0 }
+      ignoreReqs actions =
+        let ignore action model = snd (action model)
+        in Signal.map ignore actions
+      -- ms = models inputs search { model0 | term <- Terms.expr0 }
+      ms = Signal.foldp (<|) { model0 | term <- Terms.expr0 } (ignoreReqs (actions inputs))
+      -- ms = Signal.constant { model0 | term <- Terms.expr0 }
   in Signal.map (shiftE << view) ms
 

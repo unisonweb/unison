@@ -32,12 +32,15 @@ asyncUpdate eval actions req0 model0 =
       ignore = channel model0
       responses = eval (subscribe reqs)
       err = "Unpossible! User interaction and async response event cannot co-occur."
+      process model action = case action model of
+        (Nothing, model) -> send models model
+        (Just req, model) -> send models model `Execute.combine` send reqs req
       update model event = case event of
         (Nothing, Nothing) -> send ignore model0
-        (Just response, Just action') -> Debug.crash err
-        (Nothing, Just action) -> case action model of
-          (Nothing, model) -> send models model
-          (Just req, model) -> send models model `Execute.combine` send reqs req
+        (Just response, Just action) ->
+          let model' = response model
+          in send models model' `Execute.combine` process model' action
+        (Nothing, Just action) -> process model action
         (Just response, Nothing) -> send models (response model)
       msgs = map2 update (subscribe models) (oneOrBoth responses actions)
   in sampleOn (subscribe models) <|
@@ -176,6 +179,10 @@ oneOrBoth a b =
   in mergeWith combine (map (\a -> (Just a, Nothing)) a)
                        (map (\b -> (Nothing, Just b)) b)
 
+{-| A signal which emits a single event after a specified time. -}
+pulse : Time -> Signal ()
+pulse time = Time.delay time start
+
 {-| Emit updates to `s` only when it moves outside the current bin,
     according to the function `within`. Otherwise emit no update but
     take on the value `Nothing`. -}
@@ -194,11 +201,22 @@ repeatAfterIf time fps f s =
       repeats = Time.fpsWhen fps ((&&) <~ repeatable ~ dropRepeats resetDelay)
   in sampleOn repeats s
 
+{-| A signal which emits a single event on or immediately after program start. -}
+start : Signal ()
+start = Time.fps 10
+     |> count
+     |> keepIf (\n -> n < 2) 0
+     |> map (always ())
+
 {-| Only emit updates of `s` when it settles into a steady state with
     no updates within the period `t`. Useful to avoid propagating updates
     when a value is changing too rapidly. -}
 steady : Time -> Signal a -> Signal a
 steady t s = sampleOn (Time.since t s |> dropIf identity False) s
+
+{-| Like `sampleOn`, but the output signal refreshes whenever either signal updates. -}
+sampleOnMerge : Signal a -> Signal b -> Signal b
+sampleOnMerge a b = map2 always b a
 
 transitions : Signal a -> Signal Bool
 transitions = transitionsBy (==)

@@ -31,4 +31,4 @@ there aren't any guarantees about exact ordering of updates,
 especially with regard to other events in the signal graph.
 -}
 complete : Signal Message -> Signal ()
-complete = Native.Messages.complete
+complete = Native.Execute.complete
