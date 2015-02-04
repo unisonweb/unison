@@ -78,15 +78,15 @@ stringLiteral s = T.leftAligned (T.style { code | color <- wisteria } (T.fromStr
 
 cells : k -> Element -> List (Layout k) -> Layout k
 cells k ifEmpty ls = let cs = List.map (\l -> L.fill bg (L.pad 5 0 l)) (L.row ls) in case cs of
-  [] -> L.outline silver 1 (L.embed k ifEmpty)
-  h :: _ -> let vline = L.embed k (E.spacer 1 (L.heightOf h) |> E.color silver)
-            in L.outline silver 1 (L.intersperseHorizontal vline cs)
+  [] -> L.outline clouds 1 (L.embed k ifEmpty)
+  h :: _ -> let vline = L.embed k (E.spacer 1 (L.heightOf h) |> E.color clouds)
+            in L.outline clouds 1 (L.intersperseHorizontal vline cs)
 
 verticalCells : k -> Element -> List (Layout k) -> Layout k
 verticalCells k ifEmpty ls = let cs = List.map (\l -> L.fill bg (L.pad 5 0 l)) (L.column ls) in case cs of
-  [] -> L.outline silver 1 (L.embed k ifEmpty)
-  h :: _ -> let hline = L.embed k (E.spacer (L.widthOf h) 1 |> E.color silver)
-            in L.outline silver 1 (L.intersperseVertical hline cs)
+  [] -> L.outline clouds 1 (L.embed k ifEmpty)
+  h :: _ -> let hline = L.embed k (E.spacer (L.widthOf h) 1 |> E.color clouds)
+            in L.outline clouds 1 (L.intersperseVertical hline cs)
 
 explorerCells : k -> List (Layout k) -> Layout k
 explorerCells k ls =
@@ -98,7 +98,13 @@ explorerCells k ls =
                  L.transform (\e -> E.layers [e, outlineOf midnightBlue 6 e])
 
 selection : Region -> Element
-selection = selectionLayer highlight
+selection r =
+  let n = 8
+  in E.container (r.topLeft.x + r.width + 2*n)
+                 (r.topLeft.y + r.height + 2*n)
+                 (E.topLeftAt (E.absolute (r.topLeft.x - n)) (E.absolute (r.topLeft.y - n)))
+                 (outline' midnightBlue n (r.width + n*2) (r.height + n*2) |> E.opacity 0.25)
+  -- selectionLayer highlight
 
 explorerSelection : Region -> Element
 explorerSelection = selectionLayer highlightExplorer

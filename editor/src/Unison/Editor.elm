@@ -96,7 +96,13 @@ click (x,y) model = case model.explorer of
 
 moveMouse : (Int,Int) -> Action
 moveMouse xy model = case model.explorer of
-  Nothing -> norequest <| { model | scope <- Scope.reset xy model.layouts.panel model.scope }
+  Nothing ->
+    let scope = Scope.reset xy model.layouts.panel model.scope
+        layouts = model.layouts
+        highlight : Maybe Region
+        highlight = Maybe.andThen scope (Scope.view model.layouts.panel)
+        layouts' = { layouts | panelHighlight <- highlight }
+    in norequest <| { model | scope <- scope, layouts <- layouts' }
   Just _ -> let e = Selection1D.reset xy model.layouts.explorer model.explorerSelection
             in norequest <| { model | explorerSelection <- e }
 
@@ -108,7 +114,12 @@ updateExplorerValues cur model =
                                                        model.explorerSelection }
 movement : Movement.D2 -> Action
 movement d2 model = norequest <| case model.explorer of
-  Nothing -> { model | scope <- Scope.movement model.term d2 model.scope }
+  Nothing ->
+    let scope = Scope.movement model.term d2 model.scope
+        highlight : Maybe Region
+        highlight = Maybe.andThen scope (Scope.view model.layouts.panel)
+        layouts = model.layouts
+    in { model | scope <- scope, layouts <- { layouts | panelHighlight <- highlight }}
   Just _ -> let d1 = Movement.negateD1 (Movement.xy_y d2)
                 limit = List.length model.explorerValues
             in { model | explorerSelection <- Selection1D.movement d1 limit model.explorerSelection }
@@ -140,8 +151,8 @@ refreshPanel searchbox model =
   in explorerRefresh <| case model.scope of
        Nothing -> { model | layouts <- { layouts | panel <- layout }}
        Just scope ->
-         let (panel, highlight) = Scope.view { layout = layout, term = model.term } scope
-         in { model | layouts <- { layouts | panel <- panel, panelHighlight <- highlight }}
+         let highlight = Scope.view layout scope
+         in { model | layouts <- { layouts | panel <- layout, panelHighlight <- highlight }}
 
 refreshExplorer : Sink Field.Content -> Action
 refreshExplorer searchbox model =
@@ -207,11 +218,16 @@ models ctx search model0 =
     { term = model0.term, path = [], query = Nothing }
     model0
 
-view : Model -> Element
-view model =
-  let m = model
-  in Element.layers [ Layout.element m.layouts.panel
-                    , Layout.element m.layouts.explorer ]
+view : (Int,Int) -> Model -> Element
+view origin model =
+  let shift e = Element.spacer 1 (snd origin) `Element.above`
+                   (Element.spacer (fst origin) 1 `Element.beside` e)
+      highlight = case model.layouts.panelHighlight of
+        Nothing -> Element.empty
+        Just region -> Styles.selection (Layout.offset origin region)
+  in Element.layers [ shift <| Layout.element model.layouts.panel
+                    , highlight
+                    , shift <| Layout.element model.layouts.explorer ]
 
 ignoreUpDown : Signal Field.Content -> Signal Field.Content
 ignoreUpDown s =
@@ -231,15 +247,13 @@ search reqs =
   in Signal.constant identity -- Time.delay (100 * Time.millisecond) (Signal.map go reqs)
 
 main =
-  let padTop = 10
-      padLeft = 10
-      shift (x,y) = (x+padTop,y+padLeft)
-      shiftE e = Element.spacer 1 padTop `Element.above`
-                   (Element.spacer padLeft 1 `Element.beside` e)
+  let origin = (15,15)
+      shift (x,y) = (x - fst origin, y - snd origin)
       inputs = { clicks = Mouse.clicks
                , mouse = Signal.map shift Mouse.position
                , enters = Signal.map (always ()) (Signals.ups (Keyboard.enter))
                , movements = Movement.d2' Keyboard.arrows
+                          |> Signal.map (Debug.watch "direction")
                , channel = Signal.channel Field.noContent
                , width = Window.width }
       ignoreReqs actions =
@@ -247,6 +261,10 @@ main =
         in Signal.map ignore actions
       -- ms = models inputs search { model0 | term <- Terms.expr0 }
       ms = Signal.foldp (<|) { model0 | term <- Terms.expr0 } (ignoreReqs (actions inputs))
+      debug model =
+        let summary model = model.scope
+        in Debug.watchSummary "scope" summary model
+      ms' = Signal.map debug ms
       -- ms = Signal.constant { model0 | term <- Terms.expr0 }
-  in Signal.map (shiftE << view) ms
+  in Signal.map (view origin) ms'
 

@@ -35,21 +35,14 @@ type alias Action = Model -> Model
 scope : Path -> Scope
 scope focus = Scope focus [] []
 
-view : { tl | term : Term, layout : Layout View.L } -> Scope -> (Layout View.L, Maybe Region)
-view ctx scope =
-  let highlighted : Maybe Region
-      highlighted = Layout.region Path.startsWith .path ctx.layout scope.focus
-                 |> Layout.selectableLub .selectable
-   in case highlighted of
-        Nothing -> (ctx.layout, highlighted)
-        Just region ->
-          let l = Layout.transform (\e -> Element.layers [e, Styles.selection region])
-                                   ctx.layout
-          in (l, highlighted)
+view : Layout View.L -> Scope -> Maybe Region
+view layout scope =
+   Layout.region Path.startsWith .path layout scope.focus
+   |> Layout.selectableLub .selectable
 
 -- sample on movement change
 movement : Term -> Movement.D2 -> Action
-movement e (Movement.D2 upDown leftRight) =
+movement e (Movement.D2 leftRight upDown) =
   (if upDown == Movement.Positive then up else identity) >>
   (if upDown == Movement.Negative then down e else identity) >>
   (if leftRight == Movement.Positive then right e else identity) >>

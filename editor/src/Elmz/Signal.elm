@@ -203,10 +203,11 @@ repeatAfterIf time fps f s =
 
 {-| A signal which emits a single event on or immediately after program start. -}
 start : Signal ()
-start = Time.fps 10
-     |> count
-     |> keepIf (\n -> n < 2) 0
-     |> map (always ())
+start =
+  let chan = channel ()
+      msg = send chan ()
+  in sampleOn (subscribe chan)
+              (map2 always (constant ()) (Execute.schedule (constant msg)))
 
 {-| Only emit updates of `s` when it settles into a steady state with
     no updates within the period `t`. Useful to avoid propagating updates
