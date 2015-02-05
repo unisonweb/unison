@@ -173,9 +173,9 @@ refreshPanel searchbox model =
 refreshExplorer : Sink Field.Content -> Action
 refreshExplorer searchbox model =
   let explorerTopLeft : Pt
-      explorerTopLeft = case model.layouts.panelHighlight of
+      explorerTopLeft = Debug.watch "ex:topLeft" <| case model.layouts.panelHighlight of
         Nothing -> Pt 0 0
-        Just region -> { x = region.topLeft.x, y = region.topLeft.y + region.height }
+        Just region -> { x = region.topLeft.x - 6, y = region.topLeft.y + region.height + 6 }
 
       -- todo: use available width
       explorerLayout : Layout (Result Containment Int)
@@ -195,9 +195,13 @@ resize : Maybe (Sink Field.Content) -> Int -> Action
 resize sink width model =
   refreshPanel sink { model | availableWidth <- Just width }
 
-enter : Action
-enter model = case model.explorer of
-  Nothing -> request { model | explorer <- Explorer.zero, explorerValues <- [], explorerSelection <- 0 }
+enter : Sink Field.Content -> Action
+enter snk model = case model.explorer of
+  Nothing ->
+    let (req, m2) = request { model | explorer <- Explorer.zero
+                                    , explorerValues <- []
+                                    , explorerSelection <- 0 }
+    in (req, snd (refreshExplorer snk m2))
   Just _ -> close model
 
 type alias Inputs =
@@ -214,11 +218,12 @@ actions ctx =
       movementsRepeated = Movement.repeatD2 ctx.movements
       merge = Signals.mergeWith combine
       clickPositions = Signal.sampleOn ctx.clicks ctx.mouse
+      snk = Signal.send ctx.channel
       steadyWidth = Signals.sampleOnMerge Signals.start
                                           (Signals.steady (100 * Time.millisecond) ctx.width)
-  in Signal.map (resize (Just (Signal.send ctx.channel))) steadyWidth `merge`
-     Signal.map (always enter) ctx.enters `merge`
-     Signal.map (click (Signal.send ctx.channel)) clickPositions `merge`
+  in Signal.map (resize (Just snk)) steadyWidth `merge`
+     Signal.map (always (enter snk)) ctx.enters `merge`
+     Signal.map (click snk) clickPositions `merge`
      Signal.map movement movementsRepeated `merge`
      Signal.map moveMouse ctx.mouse
 
@@ -236,7 +241,7 @@ view origin model =
                    (Element.spacer (fst origin) 1 `Element.beside` e)
       highlight = case model.layouts.panelHighlight of
         Nothing -> Element.empty
-        Just region -> Styles.selection (Layout.offset origin region)
+        Just region -> Styles.selection (Debug.watch "sel" <| Layout.offset origin region)
   in Element.layers [ shift <| Layout.element model.layouts.panel
                     , highlight
                     , shift <| Layout.element model.layouts.explorer ]

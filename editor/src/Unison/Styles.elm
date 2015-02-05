@@ -36,7 +36,7 @@ h1 =
   , italic   = False
   , line     = Nothing }
 
-okColor = midnightBlue
+okColor = silver
 notOkColor = alizarin
 
 statusColor : Bool -> Color
@@ -61,11 +61,20 @@ code =
   , italic   = False
   , line     = Nothing }
 
+chain1 : Int -> Color -> Element
+chain1 x c =
+  let block = E.spacer x x |> E.color c
+      sep = E.spacer 1 1
+  in E.flow E.down [ sep, block, sep ]
+
 carotUp : Int -> Color -> Element
 carotUp x c =
-  let r = ceiling (toFloat x * sqrt 2.0)
-  in C.collage r r [ C.rotate (degrees 45) (C.filled c (C.square (toFloat x))) ]
-  |> E.height (ceiling (toFloat x * sqrt 2.0 / 2.0))
+  let block = E.spacer x x |> E.color c
+      sep = E.spacer 1 1
+  in E.flow E.down [ sep, block, sep, block, sep, block, sep ]
+  -- let r = ceiling (toFloat x * sqrt 2.0)
+  -- in C.collage r r [ C.rotate (degrees 45) (C.filled c (C.square (toFloat x))) ]
+  -- |> E.height (ceiling (toFloat x * sqrt 2.0 / 2.0))
 
 codeText : String -> Element
 codeText s = T.leftAligned (T.style code (T.fromString s))
@@ -95,15 +104,15 @@ explorerCells k ls =
     [] -> L.empty k
     h :: _ -> let hsep = L.embed k (E.spacer 1 5 |> E.color bg)
               in L.intersperseVertical hsep cs |>
-                 L.transform (\e -> E.layers [e, outlineOf midnightBlue 6 e])
+                 L.transform (\e -> E.layers [e, outlineOf okColor 6 e])
 
 selection : Region -> Element
 selection r =
   let n = 8
-  in E.container (r.topLeft.x + r.width + 2*n)
-                 (r.topLeft.y + r.height + 2*n)
+  in E.container (r.topLeft.x + r.width + 12)
+                 (r.topLeft.y + r.height + 12)
                  (E.topLeftAt (E.absolute (r.topLeft.x - 6)) (E.absolute (r.topLeft.y - 6)))
-                 (outline' silver n (r.width + n + 4) (r.height + n + 4))
+                 (outline' okColor n (r.width + 12) (r.height + 12))
   -- selectionLayer highlight
 
 explorerSelection : Region -> Element

@@ -83,19 +83,19 @@ view origin searchbox model = case model of
                           searchbox
                           s.prompt
                           s.input
-        insertion = Styles.carotUp 7 statusColor
+        insertion = Styles.carotUp 6 statusColor
         inside = Result.Err Inside
         status = Layout.embed inside s.instructions
         renderCompletion i e = Layout.embed (Result.Ok i) e
         invalids = List.map (Layout.embed inside) s.invalidCompletions
         top = Layout.embed inside fld
-        spacer = Layout.embed inside (E.spacer 1 7)
+        spacer = Layout.embed inside (E.beside (E.spacer 9 1) (Styles.chain1 6 Styles.okColor))
         bot = Styles.explorerCells inside <|
           status :: List.indexedMap renderCompletion s.completions
           `List.append` invalids
         top' = Layout.transform (E.width (Layout.widthOf bot)) top
         box = Layout.above inside
-          (Layout.embed inside (E.beside (E.spacer 14 1) insertion))
+          (Layout.embed inside (E.beside (E.spacer 9 1) insertion))
           (Layout.above inside (Layout.above (Layout.tag top) top' spacer) bot)
         boxTopLeft = origin
         h = boxTopLeft.y + Layout.heightOf box + 50
