@@ -102,8 +102,8 @@ selection r =
   let n = 8
   in E.container (r.topLeft.x + r.width + 2*n)
                  (r.topLeft.y + r.height + 2*n)
-                 (E.topLeftAt (E.absolute (r.topLeft.x - n)) (E.absolute (r.topLeft.y - n)))
-                 (outline' midnightBlue n (r.width + n*2) (r.height + n*2) |> E.opacity 0.25)
+                 (E.topLeftAt (E.absolute (r.topLeft.x - 6)) (E.absolute (r.topLeft.y - 6)))
+                 (outline' silver n (r.width + n + 4) (r.height + n + 4))
   -- selectionLayer highlight
 
 explorerSelection : Region -> Element
