@@ -98,7 +98,7 @@ click snk (x,y) model = case model.explorer of
       let (req, m2) = request { model | explorer <- Explorer.zero
                                       , explorerValues <- []
                                       , explorerSelection <- 0 }
-      in (req, snd (refreshExplorer snk m2))
+      in (req, refreshExplorer snk m2)
   Just _ -> case Layout.leafAtPoint model.layouts.explorer (Pt x y) of
     Nothing -> norequest (closeExplorer model) -- treat this as a close event
     Just (Result.Ok i) -> close { model | explorerSelection <- i } -- close w/ selection
@@ -117,12 +117,14 @@ moveMouse xy model = case model.explorer of
   Just _ -> let e = Selection1D.reset xy model.layouts.explorer model.explorerSelection
             in norequest <| { model | explorerSelection <- e }
 
-updateExplorerValues : List Term -> Model -> Model
-updateExplorerValues cur model =
-  { model | explorerValues <- cur
-          , explorerSelection <- Selection1D.selection model.explorerValues
-                                                       cur
-                                                       model.explorerSelection }
+updateExplorerValues : Sink Field.Content -> List Term -> Model -> Model
+updateExplorerValues searchbox cur model =
+  refreshExplorer searchbox
+    { model | explorerValues <- cur
+            , explorerSelection <- Selection1D.selection model.explorerValues
+                                                         cur
+                                                         model.explorerSelection }
+
 movement : Movement.D2 -> Action
 movement d2 model = norequest <| case model.explorer of
   Nothing ->
@@ -163,23 +165,37 @@ refreshPanel searchbox model =
       layouts = model.layouts
       explorerRefresh model = case searchbox of
         Nothing -> norequest model
-        Just searchbox -> refreshExplorer searchbox model
+        Just searchbox -> norequest (refreshExplorer searchbox model)
   in explorerRefresh <| case model.scope of
        Nothing -> { model | layouts <- { layouts | panel <- layout }}
        Just scope ->
          let highlight = Scope.view layout scope
          in { model | layouts <- { layouts | panel <- layout, panelHighlight <- highlight }}
 
-refreshExplorer : Sink Field.Content -> Action
+refreshExplorer : Sink Field.Content -> Model -> Model
 refreshExplorer searchbox model =
   let explorerTopLeft : Pt
       explorerTopLeft = Debug.watch "ex:topLeft" <| case model.layouts.panelHighlight of
         Nothing -> Pt 0 0
         Just region -> { x = region.topLeft.x - 6, y = region.topLeft.y + region.height + 6 }
 
-      -- todo: use available width
+      availableWidth = (Maybe.withDefault 1000 model.availableWidth - explorerTopLeft.x - 12)
+                       `max` 40
+
+      completions : List Element
+      completions = -- todo: real metadata
+        let show term = Layout.element << View.layout term <|
+          { rootMetadata = Metadata.anonymousTerm
+          , availableWidth = availableWidth
+          , metadata h = Metadata.anonymousTerm
+          , overrides x = Nothing }
+        in List.map show model.explorerValues
+
+      explorer' : Explorer.Model
+      explorer' = model.explorer |> Maybe.map (\e -> { e | completions <- completions })
+
       explorerLayout : Layout (Result Containment Int)
-      explorerLayout = Explorer.view explorerTopLeft searchbox model.explorer
+      explorerLayout = Explorer.view explorerTopLeft searchbox explorer'
 
       explorerHighlight : Element
       explorerHighlight =
@@ -189,7 +205,8 @@ refreshExplorer searchbox model =
       highlightedExplorerLayout =
         Layout.transform (\e -> Element.layers [e, explorerHighlight]) explorerLayout
   in let layouts = model.layouts
-     in norequest { model | layouts <- { layouts | explorer <- highlightedExplorerLayout } }
+     in { model | explorer <- explorer'
+                , layouts <- { layouts | explorer <- highlightedExplorerLayout } }
 
 resize : Maybe (Sink Field.Content) -> Int -> Action
 resize sink width model =
@@ -201,7 +218,7 @@ enter snk model = case model.explorer of
     let (req, m2) = request { model | explorer <- Explorer.zero
                                     , explorerValues <- []
                                     , explorerSelection <- 0 }
-    in (req, snd (refreshExplorer snk m2))
+    in (req, refreshExplorer snk m2)
   Just _ -> close model
 
 type alias Inputs =
@@ -253,15 +270,15 @@ ignoreUpDown s =
                    s
                    (Signals.delay Field.noContent s)
 
-search : Signal Request -> Signal (Model -> Model)
-search reqs =
+search : Sink Field.Content -> Signal Request -> Signal (Model -> Model)
+search searchbox reqs =
   let possible = ["Alice", "Alicia", "Bob", "Burt", "Carol", "Carolina", "Dave", "Don", "Eve"]
       matches content = case content of
         Nothing -> possible
         Just content -> List.filter (String.contains content.string) possible
       go req = let possible = matches req.query
-               in updateExplorerValues (List.map Terms.str possible)
-  in Signal.constant identity -- Time.delay (100 * Time.millisecond) (Signal.map go reqs)
+               in updateExplorerValues searchbox (List.map Terms.str possible)
+  in Time.delay (100 * Time.millisecond) (Signal.map go reqs)
 
 main =
   let origin = (15,15)
@@ -276,10 +293,10 @@ main =
       ignoreReqs actions =
         let ignore action model = snd (action model)
         in Signal.map ignore actions
-      -- ms = models inputs search { model0 | term <- Terms.expr0 }
-      ms = Signal.foldp (<|) { model0 | term <- Terms.expr0 } (ignoreReqs (actions inputs))
+      ms = models inputs (search (Signal.send inputs.channel)) { model0 | term <- Terms.expr0 }
+      -- ms = Signal.foldp (<|) { model0 | term <- Terms.expr0 } (ignoreReqs (actions inputs))
       debug model =
-        let summary model = model.scope
+        let summary model = (model.scope, model.explorerValues)
         in Debug.watchSummary "scope" summary model
       ms' = Signal.map debug ms
       -- ms = Signal.constant { model0 | term <- Terms.expr0 }
