@@ -27,6 +27,13 @@ type LayoutF r
 
 type Layout k = Layout (LayoutF (Layout k)) Element k
 
+pin : (Int,Int) -> k -> Layout k -> Layout k
+pin (x,y) = pinPt (Pt x y)
+
+pinPt : Pt -> k -> Layout k -> Layout k
+pinPt origin k l =
+  container k (origin.x + widthOf l) (origin.y + heightOf l) origin l
+
 map : (a -> b) -> Layout a -> Layout b
 map f (Layout r e a) = Layout (case r of
   Beside r r2 -> Beside (map f r) (map f r2)
