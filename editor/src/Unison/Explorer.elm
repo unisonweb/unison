@@ -46,6 +46,11 @@ zero = Just
 setPrompt : String -> Action
 setPrompt s = Maybe.map (\m -> { m | prompt <- s })
 
+getInputOr : Field.Content -> Model -> Field.Content
+getInputOr default model = case model of
+  Nothing -> default
+  Just model -> model.input
+
 setInput : Field.Content -> Action
 setInput content = Maybe.map (\m -> { m | input <- content })
 
@@ -83,7 +88,8 @@ view origin searchbox model = case model of
                           searchbox
                           s.prompt
                           s.input
-        insertion = Styles.carotUp 6 statusColor
+        fldWidth = (E.widthOf (Styles.codeText s.input.string) + 40) `max` 40
+        insertion = Styles.carotUp 6 Styles.okColor
         inside = Result.Err Inside
         status = Layout.embed inside s.instructions
         renderCompletion i e = Layout.embed (Result.Ok i) e
@@ -93,7 +99,8 @@ view origin searchbox model = case model of
         bot = Styles.explorerCells inside <|
           status :: List.indexedMap renderCompletion s.completions
           `List.append` invalids
-        top' = Layout.transform (E.width (Layout.widthOf bot)) top
+        -- top' = Layout.transform (E.width (Layout.widthOf bot)) top
+        top' = Layout.transform (E.width fldWidth) top
         box = Layout.above inside
           (Layout.embed inside (E.beside (E.spacer 9 1) insertion))
           (Layout.above inside (Layout.above (Layout.tag top) top' spacer) bot)

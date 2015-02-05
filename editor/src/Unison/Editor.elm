@@ -192,8 +192,17 @@ refreshExplorer searchbox model =
           , overrides x = Nothing }
         in List.map show model.explorerValues
 
+      -- todo: pull non-typechecking things that match in
+      invalidCompletions : List Element
+      invalidCompletions = case completions of
+        [] -> let msg = (Explorer.getInputOr Field.noContent model.explorer).string
+              in [ Styles.menuHeaderText "Invalid", Styles.codeText msg ]
+        _ -> []
+
       explorer' : Explorer.Model
-      explorer' = model.explorer |> Maybe.map (\e -> { e | completions <- completions })
+      explorer' = model.explorer |> Maybe.map (\e ->
+        { e | completions <- completions
+            , invalidCompletions <- invalidCompletions })
 
       explorerLayout : Layout (Result Containment Int)
       explorerLayout = Explorer.view explorerTopLeft searchbox explorer'

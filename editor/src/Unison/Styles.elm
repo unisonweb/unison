@@ -36,6 +36,30 @@ h1 =
   , italic   = False
   , line     = Nothing }
 
+code : Style
+code =
+  { typeface = [ "Inconsolata", "monospace", "latin" ]
+  , height   = Just 16
+  , color    = Color.black
+  , bold     = False
+  , italic   = False
+  , line     = Nothing }
+
+menuHeader : Style
+menuHeader =
+  { typeface = [ "Lato", "Futura", "Calibri", "latin" ]
+  , height   = Just 16
+  , color    = Color.black
+  , bold     = True
+  , italic   = False
+  , line     = Nothing }
+
+codeText : String -> Element
+codeText s = T.leftAligned (T.style code (T.fromString s))
+
+menuHeaderText : String -> Element
+menuHeaderText s = T.leftAligned (T.style menuHeader (T.fromString s))
+
 okColor = silver
 notOkColor = alizarin
 
@@ -52,15 +76,6 @@ autocomplete ok =
   , highlight = Field.noHighlight
   , style = code }
 
-code : Style
-code =
-  { typeface = [ "Inconsolata", "monospace", "latin" ]
-  , height   = Just 16
-  , color    = Color.black
-  , bold     = False
-  , italic   = False
-  , line     = Nothing }
-
 chain1 : Int -> Color -> Element
 chain1 x c =
   let block = E.spacer x x |> E.color c
@@ -75,9 +90,6 @@ carotUp x c =
   -- let r = ceiling (toFloat x * sqrt 2.0)
   -- in C.collage r r [ C.rotate (degrees 45) (C.filled c (C.square (toFloat x))) ]
   -- |> E.height (ceiling (toFloat x * sqrt 2.0 / 2.0))
-
-codeText : String -> Element
-codeText s = T.leftAligned (T.style code (T.fromString s))
 
 numericLiteral : String -> Element
 numericLiteral s = T.leftAligned (T.style { code | color <- belizeHole } (T.fromString s))
@@ -103,10 +115,11 @@ explorerCells k ls =
   in case cs of
     [] -> L.empty k
     h :: _ -> let hsep = L.embed k (E.spacer 1 5)
-              in L.intersperseVertical hsep cs |>
-                 L.transform (\e -> E.layers [ E.spacer (E.widthOf e) (E.heightOf e) |> E.color bg
-                                             , e
-                                             , outlineOf okColor 8 e ])
+                  cs' = L.above k (L.intersperseVertical hsep cs) (L.embed k (E.spacer 1 12))
+              in cs'|> L.transform (\e -> E.layers
+                         [ E.spacer (E.widthOf e) (E.heightOf e) |> E.color bg
+                         , e
+                         , outlineOf okColor 8 e ])
 
 selection : Region -> Element
 selection r =
