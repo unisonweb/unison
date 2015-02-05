@@ -104,7 +104,7 @@ explorerCells k ls =
     [] -> L.empty k
     h :: _ -> let hsep = L.embed k (E.spacer 1 5 |> E.color bg)
               in L.intersperseVertical hsep cs |>
-                 L.transform (\e -> E.layers [e, outlineOf okColor 6 e])
+                 L.transform (\e -> E.layers [e, outlineOf okColor 8 e])
 
 selection : Region -> Element
 selection r =

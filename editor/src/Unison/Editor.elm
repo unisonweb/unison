@@ -197,16 +197,9 @@ refreshExplorer searchbox model =
       explorerLayout : Layout (Result Containment Int)
       explorerLayout = Explorer.view explorerTopLeft searchbox explorer'
 
-      explorerHighlight : Element
-      explorerHighlight =
-        Selection1D.view Styles.explorerSelection explorerLayout model.explorerSelection
-
-      highlightedExplorerLayout : Layout (Result Containment Int)
-      highlightedExplorerLayout =
-        Layout.transform (\e -> Element.layers [e, explorerHighlight]) explorerLayout
   in let layouts = model.layouts
      in { model | explorer <- explorer'
-                , layouts <- { layouts | explorer <- highlightedExplorerLayout } }
+                , layouts <- { layouts | explorer <- explorerLayout } }
 
 resize : Maybe (Sink Field.Content) -> Int -> Action
 resize sink width model =
@@ -259,9 +252,19 @@ view origin model =
       highlight = case model.layouts.panelHighlight of
         Nothing -> Element.empty
         Just region -> Styles.selection (Debug.watch "sel" <| Layout.offset origin region)
+
+      explorerHighlight : Element
+      explorerHighlight =
+        Selection1D.view Styles.explorerSelection model.layouts.explorer model.explorerSelection
+
+      highlightedExplorerLayout : Layout (Result Containment Int)
+      highlightedExplorerLayout =
+        Layout.transform (\e -> Element.layers [e, explorerHighlight])
+                         model.layouts.explorer
+
   in Element.layers [ shift <| Layout.element model.layouts.panel
                     , highlight
-                    , shift <| Layout.element model.layouts.explorer ]
+                    , shift <| Layout.element highlightedExplorerLayout ]
 
 ignoreUpDown : Signal Field.Content -> Signal Field.Content
 ignoreUpDown s =
@@ -296,7 +299,7 @@ main =
       ms = models inputs (search (Signal.send inputs.channel)) { model0 | term <- Terms.expr0 }
       -- ms = Signal.foldp (<|) { model0 | term <- Terms.expr0 } (ignoreReqs (actions inputs))
       debug model =
-        let summary model = (model.scope, model.explorerValues)
+        let summary model = (model.scope, model.explorerValues, model.explorerSelection)
         in Debug.watchSummary "scope" summary model
       ms' = Signal.map debug ms
       -- ms = Signal.constant { model0 | term <- Terms.expr0 }
