@@ -42,7 +42,6 @@ view layout scope =
          let btoi b = if b then 1 else 0
          in Path.startsWith l1.path l2.path && btoi l1.selectable <= btoi l2.selectable
    in Layout.region startsWith identity layout { path = scope.focus, selectable = True }
-      |> Debug.watch "Scope.view"
       |> Layout.selectableLub .selectable
 
 -- sample on movement change
