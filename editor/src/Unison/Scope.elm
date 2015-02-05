@@ -1,5 +1,6 @@
 module Unison.Scope where
 
+import Debug
 import Elmz.Layout (Region, Layout)
 import Elmz.Layout as Layout
 import Elmz.Signal as Signals
@@ -37,8 +38,12 @@ scope focus = Scope focus [] []
 
 view : Layout View.L -> Scope -> Maybe Region
 view layout scope =
-   Layout.region Path.startsWith .path layout scope.focus
-   |> Layout.selectableLub .selectable
+   let startsWith l1 l2 =
+         let btoi b = if b then 1 else 0
+         in Path.startsWith l1.path l2.path && btoi l1.selectable <= btoi l2.selectable
+   in Layout.region startsWith identity layout { path = scope.focus, selectable = True }
+      |> Debug.watch "Scope.view"
+      |> Layout.selectableLub .selectable
 
 -- sample on movement change
 movement : Term -> Movement.D2 -> Action

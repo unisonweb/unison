@@ -71,11 +71,11 @@ model0 =
   , explorer = Nothing
   , explorerValues = []
   , explorerSelection = 0
-  , layouts = { panel = Layout.empty { path = [], selectable = False }
+  , layouts = { panel = layout0
               , explorer = explorerLayout0  } }
 
 layout0 : Layout View.L
-layout0 = Layout.empty { path = [], selectable = False }
+layout0 = Layout.empty { path = [], selectable = True }
 
 explorerLayout0 : Layout (Result Containment a)
 explorerLayout0 = Layout.empty (Result.Err Outside)
