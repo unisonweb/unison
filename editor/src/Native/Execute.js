@@ -53,6 +53,7 @@ Elm.Native.Execute.make = function(localRuntime) {
     return localRuntime.Native.Execute.values = {
         schedule: schedule,
         complete: complete,
-        combine: combine
+        combine: combine,
+        noop: function() {}
     };
 };

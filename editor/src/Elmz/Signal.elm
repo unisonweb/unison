@@ -27,25 +27,15 @@ asyncUpdate : (Signal req -> Signal (model -> model))
            -> model
            -> Signal model
 asyncUpdate eval actions req0 model0 =
-  let models = channel model0
-      reqs = channel req0
-      ignore = channel model0
-      responses = eval (subscribe reqs)
-      err = "Unpossible! User interaction and async response event cannot co-occur."
-      process model action = case action model of
-        (Nothing, model) -> send models model
-        (Just req, model) -> send models model `Execute.combine` send reqs req
-      update model event = case event of
-        (Nothing, Nothing) -> send ignore model0
-        (Just response, Just action) ->
-          let model' = response model
-          in send models model' `Execute.combine` process model' action
-        (Nothing, Just action) -> process model action
-        (Just response, Nothing) -> send models (response model)
-      msgs = map2 update (subscribe models) (oneOrBoth responses actions)
-  in sampleOn (subscribe models) <|
-       map2 always (subscribe models)
-                   (Execute.complete msgs)
+  let reqs = channel req0
+      responseActions = map (\f model -> (Nothing, f model)) (eval (subscribe reqs))
+      mergedActions = merge actions responseActions
+      step action (_,model) =
+        let (req, model') = action model
+        in (Maybe.map (send reqs) req, model')
+      modelsWithMsgs = foldp step (Nothing,model0) mergedActions
+      msgs = Execute.schedule (map (Maybe.withDefault Execute.noop) (justs (map fst modelsWithMsgs)))
+  in during (map snd modelsWithMsgs) msgs
 
 {-| Alternate sending `input` through `left` or `right` signal transforms,
     merging their results. -}
@@ -75,6 +65,10 @@ delay h s =
 {-| Only emit when the input signal transitions from `True` to `False`. -}
 downs : Signal Bool -> Signal Bool
 downs s = dropIf identity True s
+
+{-| Evaluate the second signal for its effects, but return the first signal. -}
+during : Signal a -> Signal b -> Signal a
+during a b = map2 always a (sampleOn (constant ()) b)
 
 {-| Emit from `t` if `cond` is `True`, otherwise emit from `f`. -}
 choose : Signal Bool -> Signal a -> Signal a -> Signal a

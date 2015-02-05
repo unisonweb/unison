@@ -5,6 +5,10 @@ module Execute where
 import Native.Execute
 import Signal (Signal, Message)
 
+{-| The message which does nothing. -}
+noop : Message
+noop = Native.Execute.noop
+
 {-| Combine two messages into one. The first argument will
 be delivered before the second. -}
 combine : Message -> Message -> Message
