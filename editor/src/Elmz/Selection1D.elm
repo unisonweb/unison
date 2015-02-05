@@ -49,8 +49,8 @@ resets mouse layout =
 
 movement : Movement.D1 -> Int -> Action
 movement (Movement.D1 sign) limitExclusive model = case sign of
-  Movement.Positive -> limitExclusive-1 `min` model+1
-  Movement.Negative -> 0 `max` model-1
+  Movement.Positive -> (limitExclusive - 1) `min` (model + 1)
+  Movement.Negative -> 0 `max` (model-1)
   Movement.Zero -> model
 
 movements : Signal Movement.D1 -> Signal Int -> Signal Action

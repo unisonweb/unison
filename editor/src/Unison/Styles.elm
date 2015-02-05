@@ -102,9 +102,11 @@ explorerCells k ls =
   let cs = List.map (\l -> L.fill bg (L.pad 20 5 l)) (L.leftAlignedColumn ls)
   in case cs of
     [] -> L.empty k
-    h :: _ -> let hsep = L.embed k (E.spacer 1 5 |> E.color bg)
+    h :: _ -> let hsep = L.embed k (E.spacer 1 5)
               in L.intersperseVertical hsep cs |>
-                 L.transform (\e -> E.layers [e, outlineOf okColor 8 e])
+                 L.transform (\e -> E.layers [ E.spacer (E.widthOf e) (E.heightOf e) |> E.color bg
+                                             , e
+                                             , outlineOf okColor 8 e ])
 
 selection : Region -> Element
 selection r =

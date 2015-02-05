@@ -133,9 +133,10 @@ movement d2 model = norequest <| case model.explorer of
         highlight = Maybe.andThen scope (Scope.view model.layouts.panel)
         layouts = model.layouts
     in { model | scope <- scope, layouts <- { layouts | panelHighlight <- highlight }}
-  Just _ -> let d1 = Movement.negateD1 (Movement.xy_y d2)
+  Just _ -> let d1 = Debug.watch "d1" (Movement.negateD1 (Movement.xy_y d2))
                 limit = List.length model.explorerValues
-            in { model | explorerSelection <- Selection1D.movement d1 limit model.explorerSelection }
+                sel = model.explorerSelection
+            in { model | explorerSelection <- Selection1D.movement d1 limit sel }
 
 closeExplorer : Model -> Model
 closeExplorer model =
@@ -175,7 +176,7 @@ refreshPanel searchbox model =
 refreshExplorer : Sink Field.Content -> Model -> Model
 refreshExplorer searchbox model =
   let explorerTopLeft : Pt
-      explorerTopLeft = Debug.watch "ex:topLeft" <| case model.layouts.panelHighlight of
+      explorerTopLeft = case model.layouts.panelHighlight of
         Nothing -> Pt 0 0
         Just region -> { x = region.topLeft.x - 6, y = region.topLeft.y + region.height + 6 }
 
@@ -251,7 +252,7 @@ view origin model =
                    (Element.spacer (fst origin) 1 `Element.beside` e)
       highlight = case model.layouts.panelHighlight of
         Nothing -> Element.empty
-        Just region -> Styles.selection (Debug.watch "sel" <| Layout.offset origin region)
+        Just region -> Styles.selection (Layout.offset origin region)
 
       explorerHighlight : Element
       explorerHighlight =
@@ -299,7 +300,7 @@ main =
       ms = models inputs (search (Signal.send inputs.channel)) { model0 | term <- Terms.expr0 }
       -- ms = Signal.foldp (<|) { model0 | term <- Terms.expr0 } (ignoreReqs (actions inputs))
       debug model =
-        let summary model = (model.scope, model.explorerValues, model.explorerSelection)
+        let summary model = (model.explorerValues, model.explorerSelection)
         in Debug.watchSummary "scope" summary model
       ms' = Signal.map debug ms
       -- ms = Signal.constant { model0 | term <- Terms.expr0 }
