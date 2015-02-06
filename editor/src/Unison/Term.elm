@@ -170,9 +170,10 @@ up p =
   let go p = case p of
     [] -> []
     _ :: Arg :: tl -> List.reverse (Arg :: tl)
+    _ :: Index i :: tl -> List.reverse (Index i :: tl)
     Fn :: tl -> go tl
     Arg :: tl -> go tl
-    _ :: tl -> List.reverse tl -- Index or Body
+    _ :: tl -> List.reverse tl
   in go (List.reverse p)
 
 {-| Move the path to its immediate sibling to the right,
