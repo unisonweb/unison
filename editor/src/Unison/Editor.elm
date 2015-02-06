@@ -166,17 +166,17 @@ openExplorer searchbox model =
 
 setSearchbox : Sink Field.Content -> (Int,Int) -> Bool -> Field.Content -> Action
 setSearchbox sink origin modifier content model =
-  let ex = Debug.watch "model.explorer" model.explorer
+  let ex = model.explorer
   in if String.endsWith " " content.string && (not (List.isEmpty model.explorerValues))
      then model |> close origin
-                |> (if Debug.watch "modifier" modifier then apply origin
+                |> (if modifier then apply origin
                     else movement (Movement.D2 Movement.Positive Movement.Zero))
                 |> refreshPanel Nothing origin
                 |> openExplorer sink
      else norequest <| refreshExplorer sink { model | explorer <- Explorer.setInput content ex }
 
 apply : (Int,Int) -> Model -> Model
-apply origin model = Debug.watchSummary "apply" (always 9) <| case model.scope of
+apply origin model = case model.scope of
   Nothing -> model
   Just scope -> Maybe.withDefault model <|
     Term.at scope.focus model.term `Maybe.andThen`
@@ -318,7 +318,8 @@ view model =
 ignoreUpDown : Signal Field.Content -> Signal Field.Content
 ignoreUpDown s =
   let f arrows c prevC = if arrows.y /= 0 && c.string == prevC.string then prevC else c
-  in Signal.map3 f (Signal.keepIf (\a -> a.y /= 0) {x = 0, y = 0} Keyboard.arrows)
+  in Signal.dropRepeats <|
+     Signal.map3 f (Signal.keepIf (\a -> a.y /= 0) {x = 0, y = 0} Keyboard.arrows)
                    s
                    (Signals.delay Field.noContent s)
 
@@ -329,7 +330,6 @@ search searchbox queries reqs =
       matches query = List.filter (containsNocase query) possible
       go _ _ model = -- our logic is pure, ignore the request
         let possible = matches (Explorer.getInputOr Field.noContent model.explorer).string
-                    |> Debug.watch "possible"
         in updateExplorerValues searchbox (List.map Terms.str possible) model
   in Time.delay (200 * Time.millisecond) (Signal.map2 go queries reqs)
 
@@ -344,10 +344,9 @@ main =
                , modifier = Keyboard.shift
                , deletes = Signal.map (always ()) (Signals.ups (Keyboard.isDown 68))
                , movements = Movement.d2' Keyboard.arrows
-                          |> Debug.watch "d2"
                , searchbox = Signal.channel Field.noContent
                , width = Window.width }
-      queries = Signal.map (always ()) (Signal.subscribe inputs.searchbox)
+      queries = Signal.map (always ()) (ignoreUpDown (Signal.subscribe inputs.searchbox))
       ignoreReqs actions =
         let ignore action model = snd (action model)
         in Signal.map ignore actions
@@ -356,8 +355,8 @@ main =
                   { model0 | term <- Terms.expr0 }
       -- ms = Signal.foldp (<|) { model0 | term <- Terms.expr0 } (ignoreReqs (actions inputs))
       debug model =
-        let summary model = (model.explorerValues, model.explorerSelection)
-        in Debug.watchSummary "scope" summary model
+        let summary model = model.explorer
+        in Debug.watchSummary "model" summary model
       ms' = Signal.map debug ms
       -- ms = Signal.constant { model0 | term <- Terms.expr0 }
   in Signal.map view ms'
