@@ -127,6 +127,23 @@ set p e e' = let ap = EM.ap in case (p,e) of
     _ -> Nothing
   _ -> Nothing
 
+delete : Path -> Term -> Maybe Term
+delete p e =
+  let ap = EM.ap
+      orElse m1 m2 = Maybe.oneOf [m1,m2]
+      go p e = case (p,e) of
+        ([], e) -> Nothing
+        (Fn :: t, App f arg) -> Just App `ap` go t f `ap` Just arg `orElse` Just arg
+        (Arg :: t, App f arg) -> Just (App f) `ap` go t arg `orElse` Just f
+        (Body :: t, Lam n body) -> Just (Lam n) `ap` go t body
+        (Index i :: t, Vector es) -> case Array.get i es of
+          Just e -> Maybe.map (\e -> Vector (Array.set i e es)) (go t e) `orElse`
+                    Just (Vector (Array.slice 0 i es `Array.append`
+                                  Array.slice (i+1) (Array.length es) es))
+          _ -> Nothing
+        _ -> Nothing
+  in if valid e p then go p e else Nothing
+
 {-| Returns `True` if the path points to a valid subterm -}
 valid : Term -> Path -> Bool
 valid e p = case at p e of

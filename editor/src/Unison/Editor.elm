@@ -98,16 +98,12 @@ click : Sink Field.Content -> (Int,Int) -> (Int,Int) -> Action
 click searchbox origin (x,y) model = case model.explorer of
   Nothing -> case Layout.leafAtPoint model.layouts.panel (Pt x y) of
     Nothing -> norequest model -- noop, user didn't click on anything!
-    Just node ->
-      let (req, m2) = request { model | explorer <- Explorer.zero
-                                      , explorerValues <- []
-                                      , explorerSelection <- 0 }
-      in (req, refreshExplorer searchbox m2)
+    Just node -> openExplorer searchbox model
   Just _ -> case Layout.leafAtPoint model.layouts.explorer (Pt x y) of
     Nothing -> norequest (closeExplorer model) -- treat this as a close event
-    Just (Result.Ok i) -> close origin { model | explorerSelection <- i } -- close w/ selection
-    Just (Result.Err Inside) -> norequest <| model -- noop click inside explorer
-    Just (Result.Err Outside) -> norequest <| (closeExplorer model) -- treat this as a close event
+    Just (Result.Ok i) -> norequest (close origin { model | explorerSelection <- i }) -- close w/ selection
+    Just (Result.Err Inside) -> norequest model -- noop click inside explorer
+    Just (Result.Err Outside) -> norequest (closeExplorer model) -- treat this as a close event
 
 moveMouse : (Int,Int) -> Action
 moveMouse xy model = case model.explorer of
@@ -125,8 +121,8 @@ updateExplorerValues searchbox cur model =
                                                          cur
                                                          model.explorerSelection }
 
-movement : Movement.D2 -> Action
-movement d2 model = norequest <| case model.explorer of
+movement : Movement.D2 -> Model -> Model
+movement d2 model = case model.explorer of
   Nothing ->
     let scope = Scope.movement model.term d2 model.scope
     in { model | scope <- scope }
@@ -135,28 +131,55 @@ movement d2 model = norequest <| case model.explorer of
                 sel = model.explorerSelection
             in { model | explorerSelection <- Selection1D.movement d1 limit sel }
 
+delete : (Int,Int) -> Model -> Model
+delete origin model = case model.explorer of
+  Nothing -> case model.scope of
+    Nothing -> model
+    Just scope -> case Term.delete scope.focus model.term of
+      Nothing -> model
+      Just term -> refreshPanel Nothing origin
+                     { model | term <- term
+                             , scope <- Just { scope | focus <- List.drop 1 scope.focus } }
+  Just _ -> model
+
 closeExplorer : Model -> Model
 closeExplorer model =
   let layouts = model.layouts
   in { model | explorer <- Nothing, layouts <- { layouts | explorer <- explorerLayout0 }}
 
-close : (Int,Int) -> Action
+close : (Int,Int) -> Model -> Model
 close origin model =
   refreshPanel Nothing origin << Maybe.withDefault (closeExplorer model) <|
-  Selection1D.index model.explorerSelection model.explorerValues `Maybe.andThen` \term ->
-  model.scope `Maybe.andThen` \scope ->
-  Term.set scope.focus model.term term `Maybe.andThen` \t2 ->
-  (Just << closeExplorer) { model | term <- t2 }
+  Selection1D.index model.explorerSelection model.explorerValues `Maybe.andThen`
+    \term -> model.scope `Maybe.andThen`
+    \scope -> Term.set scope.focus model.term term `Maybe.andThen`
+    \t2 -> (Just << closeExplorer) { model | term <- t2 }
+
+openExplorer : Sink Field.Content -> Action
+openExplorer searchbox model =
+  let (req, m2) = request { model | explorer <- Explorer.zero
+                                  , explorerValues <- []
+                                  , explorerSelection <- 0 }
+  in (req, refreshExplorer searchbox m2)
 
 -- todo: invalidate dependents and overrides if under the edit path
 
-setSearchbox : Sink Field.Content -> Field.Content -> Action
-setSearchbox sink content model =
+setSearchbox : Sink Field.Content -> (Int,Int) -> Field.Content -> Action
+setSearchbox sink origin content model =
   let ex = Debug.watch "model.explorer" model.explorer
-  in norequest <| refreshExplorer sink { model | explorer <- Explorer.setInput content ex }
+  in if String.endsWith " " content.string && (not (List.isEmpty model.explorerValues))
+     then model |> close origin
+                |> movement (Movement.D2 Movement.Positive Movement.Zero)
+                |> openExplorer sink
+     else norequest <| refreshExplorer sink { model | explorer <- Explorer.setInput content ex }
+  -- todo - check if paren pushed in model
+  -- check for open paren -- update model and view if so
+  -- check for trailing space -- interpret as movement right or movement down+right if paren present
+
+-- f (g x y)
 
 {-| Updates `layouts.panel` and `layouts.panelHighlight` based on a change. -}
-refreshPanel : Maybe (Sink Field.Content) -> (Int,Int) -> Action
+refreshPanel : Maybe (Sink Field.Content) -> (Int,Int) -> Model -> Model
 refreshPanel searchbox origin model =
   let layout = pin origin <| case model.availableWidth of
         Nothing -> layout0
@@ -166,9 +189,9 @@ refreshPanel searchbox origin model =
           , metadata h = Metadata.anonymousTerm
           , overrides x = Nothing }
       layouts = model.layouts
-      explorerRefresh model = case searchbox of
-        Nothing -> norequest model
-        Just searchbox -> norequest (refreshExplorer searchbox model)
+      explorerRefresh = case searchbox of
+        Nothing -> identity
+        Just searchbox -> refreshExplorer searchbox
   in explorerRefresh <| case model.scope of
        Nothing -> { model | layouts <- { layouts | panel <- layout }}
        Just scope -> { model | layouts <- { layouts | panel <- layout }}
@@ -211,7 +234,7 @@ refreshExplorer searchbox model =
      in { model | explorer <- explorer'
                 , layouts <- { layouts | explorer <- explorerLayout } }
 
-resize : Maybe (Sink Field.Content) -> (Int,Int) -> Int -> Action
+resize : Maybe (Sink Field.Content) -> (Int,Int) -> Int -> Model -> Model
 resize sink origin width model =
   refreshPanel sink origin { model | availableWidth <- Just width }
 
@@ -222,13 +245,14 @@ enter snk origin model = case model.explorer of
                                     , explorerValues <- []
                                     , explorerSelection <- 0 }
     in (req, refreshExplorer snk m2)
-  Just _ -> close origin model
+  Just _ -> norequest (close origin model)
 
 type alias Inputs =
   { origin : (Int,Int)
   , clicks : Signal ()
   , mouse : Signal (Int,Int)
   , enters : Signal ()
+  , deletes : Signal ()
   , movements : Signal Movement.D2
   , searchbox : Signal.Channel Field.Content
   , width : Signal Int }
@@ -244,11 +268,17 @@ actions ctx =
       searchbox = Signal.send ctx.searchbox
       steadyWidth = Signals.sampleOnMerge Signals.start
                                           (Signals.steady (100 * Time.millisecond) ctx.width)
-  in Signal.map movement movementsRepeated `merge`
-     Signal.map (resize (Just searchbox) ctx.origin) steadyWidth `merge`
+      movementf : Movement.D2 -> Action
+      movementf d model = movement d model |> norequest
+      resizef : Int -> Action
+      resizef w model = resize (Just searchbox) ctx.origin w model |> norequest
+      deletef origin _ model = delete origin model |> norequest
+  in Signal.map movementf movementsRepeated `merge`
+     Signal.map resizef steadyWidth `merge`
+     Signal.map (deletef ctx.origin) ctx.deletes `merge`
      Signal.map (always (enter searchbox ctx.origin)) ctx.enters `merge`
      Signal.map moveMouse ctx.mouse `merge`
-     Signal.map (setSearchbox searchbox) content `merge`
+     Signal.map (setSearchbox searchbox ctx.origin) content `merge`
      Signal.map (click searchbox ctx.origin) clickPositions
 
 models : Inputs -> (Signal Request -> Signal (Model -> Model)) -> Model -> Signal Model
@@ -293,7 +323,9 @@ search searchbox queries reqs =
         let possible = matches (Explorer.getInputOr Field.noContent model.explorer).string
                     |> Debug.watch "possible"
         in updateExplorerValues searchbox (List.map Terms.str possible) model
-  in Time.delay (300 * Time.millisecond) (Signal.map2 go queries reqs)
+  in Time.delay (200 * Time.millisecond) (Signal.map2 go queries reqs)
+
+-- need to hook into the Signal Field.Content associated with the model
 
 main =
   let origin = (15,15)
@@ -301,6 +333,7 @@ main =
                , clicks = Mouse.clicks
                , mouse = Mouse.position
                , enters = Signal.map (always ()) (Signals.ups (Keyboard.enter))
+               , deletes = Signal.map (always ()) (Signals.ups (Keyboard.isDown 68))
                , movements = Movement.d2' Keyboard.arrows
                           |> Debug.watch "d2"
                , searchbox = Signal.channel Field.noContent
