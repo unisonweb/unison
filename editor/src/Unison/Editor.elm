@@ -164,19 +164,25 @@ openExplorer searchbox model =
 
 -- todo: invalidate dependents and overrides if under the edit path
 
-setSearchbox : Sink Field.Content -> (Int,Int) -> Field.Content -> Action
-setSearchbox sink origin content model =
+setSearchbox : Sink Field.Content -> (Int,Int) -> Bool -> Field.Content -> Action
+setSearchbox sink origin modifier content model =
   let ex = Debug.watch "model.explorer" model.explorer
   in if String.endsWith " " content.string && (not (List.isEmpty model.explorerValues))
      then model |> close origin
-                |> movement (Movement.D2 Movement.Positive Movement.Zero)
+                |> (if Debug.watch "modifier" modifier then apply origin
+                    else movement (Movement.D2 Movement.Positive Movement.Zero))
+                |> refreshPanel Nothing origin
                 |> openExplorer sink
      else norequest <| refreshExplorer sink { model | explorer <- Explorer.setInput content ex }
-  -- todo - check if paren pushed in model
-  -- check for open paren -- update model and view if so
-  -- check for trailing space -- interpret as movement right or movement down+right if paren present
 
--- f (g x y)
+apply : (Int,Int) -> Model -> Model
+apply origin model = Debug.watchSummary "apply" (always 9) <| case model.scope of
+  Nothing -> model
+  Just scope -> Maybe.withDefault model <|
+    Term.at scope.focus model.term `Maybe.andThen`
+      \focus -> Term.set scope.focus model.term (Term.App focus Term.Blank) `Maybe.andThen`
+      \term -> let scope' = Scope.scope (scope.focus `Path.snoc` Path.Arg)
+               in Just { model | term <- term, scope <- Just scope' }
 
 {-| Updates `layouts.panel` and `layouts.panelHighlight` based on a change. -}
 refreshPanel : Maybe (Sink Field.Content) -> (Int,Int) -> Model -> Model
@@ -253,6 +259,7 @@ type alias Inputs =
   , mouse : Signal (Int,Int)
   , enters : Signal ()
   , deletes : Signal ()
+  , modifier : Signal Bool
   , movements : Signal Movement.D2
   , searchbox : Signal.Channel Field.Content
   , width : Signal Int }
@@ -278,7 +285,7 @@ actions ctx =
      Signal.map (deletef ctx.origin) ctx.deletes `merge`
      Signal.map (always (enter searchbox ctx.origin)) ctx.enters `merge`
      Signal.map moveMouse ctx.mouse `merge`
-     Signal.map (setSearchbox searchbox ctx.origin) content `merge`
+     Signals.map2r (setSearchbox searchbox ctx.origin) ctx.modifier content `merge`
      Signal.map (click searchbox ctx.origin) clickPositions
 
 models : Inputs -> (Signal Request -> Signal (Model -> Model)) -> Model -> Signal Model
@@ -317,8 +324,9 @@ ignoreUpDown s =
 
 search : Sink Field.Content -> Signal () -> Signal Request -> Signal (Model -> Model)
 search searchbox queries reqs =
-  let possible = ["Alice", "Alicia", "Bob", "Burt", "Carol", "Carolina", "Dave", "Don", "Eve"]
-      matches query = List.filter (String.contains query) possible
+  let containsNocase sub overall = String.contains (String.toLower sub) (String.toLower overall)
+      possible = ["Alice", "Alicia", "Bob", "Burt", "Carol", "Carolina", "Dave", "Don", "Eve"]
+      matches query = List.filter (containsNocase query) possible
       go _ _ model = -- our logic is pure, ignore the request
         let possible = matches (Explorer.getInputOr Field.noContent model.explorer).string
                     |> Debug.watch "possible"
@@ -333,6 +341,7 @@ main =
                , clicks = Mouse.clicks
                , mouse = Mouse.position
                , enters = Signal.map (always ()) (Signals.ups (Keyboard.enter))
+               , modifier = Keyboard.shift
                , deletes = Signal.map (always ()) (Signals.ups (Keyboard.isDown 68))
                , movements = Movement.d2' Keyboard.arrows
                           |> Debug.watch "d2"

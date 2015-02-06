@@ -140,6 +140,9 @@ loop f s a =
   in map2 always (map fst bs)
                  (Execute.complete (map (\(_,s) -> send chan s) bs))
 
+map2r : (a -> b -> c) -> Signal a -> Signal b -> Signal c
+map2r f a b = sampleOn b (map2 f a b)
+
 {-| When the input is `False`, convert the signal to `Nothing`. -}
 mask : Signal Bool -> Signal a -> Signal (Maybe a)
 mask = map2 (\b a -> if b then Just a else Nothing)
