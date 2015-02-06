@@ -117,7 +117,15 @@ at p e = case (p,e) of
 
 {-| Sets the given path to `e'`, if the path is valid. -}
 set : Path -> Term -> Term -> Maybe Term
-set p e e' = Debug.crash "todo: Term.set"
+set p e e' = let ap = EM.ap in case (p,e) of
+  ([], e) -> Just e'
+  (Fn :: t, App f arg) -> Just App `ap` set t f e' `ap` Just arg
+  (Arg :: t, App f arg) -> Just (App f) `ap` set t arg e'
+  (Body :: t, Lam n body) -> Just (Lam n) `ap` set t body e'
+  (Index i :: t, Vector es) -> case Array.get i es of
+    Just e -> Maybe.map (\e -> Vector (Array.set i e es)) (set t e e')
+    _ -> Nothing
+  _ -> Nothing
 
 {-| Returns `True` if the path points to a valid subterm -}
 valid : Term -> Path -> Bool
