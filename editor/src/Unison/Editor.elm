@@ -285,14 +285,15 @@ ignoreUpDown s =
                    s
                    (Signals.delay Field.noContent s)
 
-search : Sink Field.Content -> Signal String -> Signal Request -> Signal (Model -> Model)
+search : Sink Field.Content -> Signal () -> Signal Request -> Signal (Model -> Model)
 search searchbox queries reqs =
   let possible = ["Alice", "Alicia", "Bob", "Burt", "Carol", "Carolina", "Dave", "Don", "Eve"]
       matches query = List.filter (String.contains query) possible
-      go query req = -- ignore req
-        let possible = matches query |> Debug.watch "possible"
-        in updateExplorerValues searchbox (List.map Terms.str possible)
-  in Time.delay (100 * Time.millisecond) (Signal.map2 go queries reqs)
+      go _ _ model = -- our logic is pure, ignore the request
+        let possible = matches (Explorer.getInputOr Field.noContent model.explorer).string
+                    |> Debug.watch "possible"
+        in updateExplorerValues searchbox (List.map Terms.str possible) model
+  in Time.delay (300 * Time.millisecond) (Signal.map2 go queries reqs)
 
 main =
   let origin = (15,15)
@@ -304,7 +305,7 @@ main =
                           |> Debug.watch "d2"
                , searchbox = Signal.channel Field.noContent
                , width = Window.width }
-      queries = Signal.map .string (Signal.subscribe inputs.searchbox)
+      queries = Signal.map (always ()) (Signal.subscribe inputs.searchbox)
       ignoreReqs actions =
         let ignore action model = snd (action model)
         in Signal.map ignore actions

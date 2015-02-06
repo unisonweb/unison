@@ -88,7 +88,6 @@ view origin searchbox model = case model of
                           searchbox
                           s.prompt
                           s.input
-        fldWidth = (E.widthOf (Styles.codeText s.input.string) + 40) `max` 40
         insertion = Styles.carotUp 6 Styles.okColor
         inside = Result.Err Inside
         status = Layout.embed inside s.instructions
@@ -99,6 +98,7 @@ view origin searchbox model = case model of
         bot = Styles.explorerCells inside <|
           status :: List.indexedMap renderCompletion s.completions
           `List.append` invalids
+        fldWidth = (E.widthOf (Styles.codeText s.input.string) + 40) `max` 40
         -- top' = Layout.transform (E.width (Layout.widthOf bot)) top
         top' = Layout.transform (E.width fldWidth) top
         box = Layout.above inside
