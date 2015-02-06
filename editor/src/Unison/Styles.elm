@@ -84,12 +84,13 @@ chain1 x c =
 
 carotUp : Int -> Color -> Element
 carotUp x c =
-  let block = E.spacer x x |> E.color c
-      sep = E.spacer 1 1
-  in E.flow E.down [ sep, block, sep, block, sep, block, sep ]
-  -- let r = ceiling (toFloat x * sqrt 2.0)
-  -- in C.collage r r [ C.rotate (degrees 45) (C.filled c (C.square (toFloat x))) ]
-  -- |> E.height (ceiling (toFloat x * sqrt 2.0 / 2.0))
+  --let block = E.spacer x x |> E.color c
+  --    sep = E.spacer 1 1
+  --in E.flow E.down [ sep, block, sep, block, sep, block, sep ]
+  let r = ceiling (toFloat x * sqrt 2.0)
+  in C.collage r r [ C.rotate (degrees 45) (C.filled c (C.square (toFloat x))) ]
+     |> E.height (ceiling (toFloat x * sqrt 2.0 / 2.0))
+     |> E.above (E.spacer 1 13)
 
 numericLiteral : String -> Element
 numericLiteral s = T.leftAligned (T.style { code | color <- belizeHole } (T.fromString s))
@@ -109,8 +110,8 @@ verticalCells k ifEmpty ls = let cs = List.map (\l -> L.fill bg (L.pad 5 0 l)) (
   h :: _ -> let hline = L.embed k (E.spacer (L.widthOf h) 1 |> E.color clouds)
             in L.outline clouds 1 (L.intersperseVertical hline cs)
 
-explorerCells : k -> List (Layout k) -> Layout k
-explorerCells k ls =
+explorerCells : Color -> k -> List (Layout k) -> Layout k
+explorerCells color k ls =
   let cs = List.map (\l -> L.fill bg (L.pad 20 5 l)) (L.leftAlignedColumn ls)
   in case cs of
     [] -> L.empty k
@@ -119,7 +120,7 @@ explorerCells k ls =
               in cs'|> L.transform (\e -> E.layers
                          [ E.spacer (E.widthOf e) (E.heightOf e) |> E.color bg
                          , e
-                         , outlineOf okColor 8 e ])
+                         , outlineOf color 8 e ])
 
 selection : Region -> Element
 selection r =

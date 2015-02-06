@@ -88,17 +88,19 @@ view origin searchbox model = case model of
                           searchbox
                           s.prompt
                           s.input
-        insertion = Styles.carotUp 6 Styles.okColor
+        insertion = Styles.carotUp 6 statusColor
         inside = Result.Err Inside
         status = Layout.embed inside s.instructions
         renderCompletion i e = Layout.embed (Result.Ok i) e
         invalids = List.map (Layout.embed inside) s.invalidCompletions
         top = Layout.embed inside fld
-        spacer = Layout.embed inside (E.beside (E.spacer 9 1) (Styles.chain1 6 Styles.okColor))
-        bot = Styles.explorerCells inside <|
+        spacer = Layout.embed inside (E.spacer 1 6)
+        -- spacer = Layout.embed inside (E.beside (E.spacer 9 1) (Styles.chain1 6 Styles.okColor))
+        bot = Styles.explorerCells statusColor inside <|
           status :: List.indexedMap renderCompletion s.completions
           `List.append` invalids
-        fldWidth = (E.widthOf (Styles.codeText s.input.string) + 40) `max` 40
+        fldWidth = Layout.widthOf bot `max` 40
+        -- -- (E.widthOf (Styles.codeText s.input.string) + 40) `max` 40
         -- top' = Layout.transform (E.width (Layout.widthOf bot)) top
         top' = Layout.transform (E.width fldWidth) top
         box = Layout.above inside
