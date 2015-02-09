@@ -46,7 +46,7 @@ type alias Model =
   , layouts : { panel : Layout View.L
               , explorer : Layout (Result Containment Int) } }
 
-type alias Request = { term : Term, path : Path }
+type alias Request = { term : Term, path : Path, query : Maybe String }
 
 type alias Action = Model -> (Maybe Request, Model)
 
@@ -88,7 +88,9 @@ panelHighlight model =
 request : Model -> (Maybe Request, Model)
 request model = case model.scope of
   Nothing -> (Nothing, model)
-  Just scope -> (Just { term = model.term, path = scope.focus }, model)
+  Just scope ->
+    let query = Maybe.map (.input >> .string) model.explorer
+    in (Just { term = model.term, path = scope.focus, query = query }, model)
 
 norequest : Model -> (Maybe Request, Model)
 norequest model = (Nothing, model)
@@ -294,7 +296,7 @@ models ctx search model0 =
   Signals.asyncUpdate
     search
     (actions ctx)
-    { term = model0.term, path = [] }
+    { term = model0.term, path = [], query = Nothing }
     model0
 
 view : Model -> Element
