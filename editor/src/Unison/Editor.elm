@@ -19,6 +19,7 @@ import Result
 import Signal
 import String
 import Time
+import Touch
 import Unison.Explorer as Explorer
 import Unison.Hash (Hash)
 import Unison.Metadata as Metadata
@@ -338,8 +339,8 @@ search searchbox queries reqs =
 main =
   let origin = (15,15)
       inputs = { origin = origin
-               , clicks = Mouse.clicks
-               , mouse = Mouse.position
+               , clicks = Mouse.clicks `Signal.merge` (Signals.doubleWithin Time.second Touch.taps)
+               , mouse = Mouse.position `Signal.merge` (Signal.map (\{x,y} -> (x,y)) Touch.taps)
                , enters = Signal.map (always ()) (Signals.ups (Keyboard.enter))
                , modifier = Keyboard.shift
                , deletes = Signal.map (always ()) (Signals.ups (Keyboard.isDown 68))

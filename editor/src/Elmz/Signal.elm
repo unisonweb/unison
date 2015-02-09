@@ -66,6 +66,17 @@ delay h s =
 downs : Signal Bool -> Signal Bool
 downs s = dropIf identity True s
 
+{-| Emits an event whenever there are two events that occur within `within` time of each other. -}
+doubleWithin : Time -> Signal s -> Signal ()
+doubleWithin within s =
+  let ts = map fst (Time.timestamp s)
+      f t1 t2 = case t1 of
+        Nothing -> False
+        Just t1 -> if t2 - t1 < within then True else False
+  in map2 f (delay Nothing (map Just ts)) ts
+     |> keepIf identity False
+     |> map (always ())
+
 {-| Evaluate the second signal for its effects, but return the first signal. -}
 during : Signal a -> Signal b -> Signal a
 during a b = map2 always a (sampleOn (constant ()) b)
