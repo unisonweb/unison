@@ -75,12 +75,8 @@ server port node = S.scotty port $ do
     md <- runN $ N.metadatas node hs
     S.json md
   S.get "/search" $ do
-    (t,limit,q) <- S.jsonData
-    p <- runN $ N.search node t limit q
-    S.json p
-  S.get "/search-local" $ do
-    (h,loc,t,q) <- S.jsonData
-    p <- runN $ N.searchLocal node h loc t q
+    (t,q) <- S.jsonData
+    p <- runN $ N.search node t q
     S.json p
   S.get "/terms" $ do
     hs <- S.jsonData

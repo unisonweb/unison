@@ -3,11 +3,10 @@ module Unison.Node where
 import Data.Set as S
 import Data.Map as M
 import Unison.Node.Metadata as MD
-import Unison.Syntax.Var as V
 import Unison.Edit.Term.Action as A
 import Unison.Edit.Term.Path as P
 import Unison.Edit.Type.Path as TP
-import Unison.Note as N
+import Unison.Note (Noted)
 
 data Node m k t e = Node {
   -- | Obtain the type of the given subterm, assuming the path is valid
@@ -27,11 +26,7 @@ data Node m k t e = Node {
   -- | Access the metadata for the term and/or types identified by @k@
   metadatas :: [k] -> Noted m (Map k (MD.Metadata k)),
   -- | Search for a term, optionally constrained to be of the given type
-  -- and contained in the given set
-  search :: Maybe t -> Maybe (S.Set k) -> Query -> Noted m (Map k (Metadata k)),
-  -- | Search for a term in local scope of the given hash,
-  -- optionally constrained to match some type
-  searchLocal :: k -> P.Path -> Maybe t -> Query -> Noted m (Metadata k, [(V.Var, t)]),
+  search :: Maybe t -> Query -> Noted m [e],
   -- | Lookup the source of the term identified by @k@
   terms :: [k] -> Noted m (Map k e),
   -- | Lookup the dependencies of @k@, optionally limited to those that intersect the given set

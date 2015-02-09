@@ -64,33 +64,18 @@ node eval store =
     edit path action e = do
       TE.interpret eval (readTerm store) readTypeOf path action e
 
-    editType = error "todo later"
+    editType = error "Common.editType.todo"
 
     metadatas hs =
       M.fromList <$> sequence (map (\h -> (,) h <$> readMetadata store h) hs)
 
-    search t limit query = do
-      hs <- hashes store limit
+    search t query = do
+      hs <- hashes store Nothing
       hs' <- case t of
         Nothing -> pure $ S.toList hs
         Just t -> filterM (\h -> flip Type.isSubtype t <$> readTypeOf h) (S.toList hs)
       mds <- mapM (\h -> (,) h <$> readMetadata store h) hs'
-      pure . M.fromList . filter (\(_,md) -> MD.matches query md) $ mds
-
-    searchLocal h _ typ query =
-      let
-        allowed :: T.Type -> Bool
-        allowed = maybe (const True) (flip Type.isSubtype) typ
-      in do
-        t <- readTypeOf h
-        ctx <- readTermRef h -- todo, get rid of `Con`?
-        md <- readMetadata store h
-        locals <- pure .
-                  filter (\(v,lt) -> allowed lt && MD.localMatches v query md) $
-                  TE.locals ctx t
-        pure $ (md, locals)
-      -- todo: if path is non-null, need to read type of all local variables
-      -- introduced in nested lambdas
+      pure . map (\(h,_) -> E.Ref h) . filter (\(_,md) -> MD.matches query md) $ mds
 
     readTermRef (R.Derived h) = readTerm store h
     readTermRef r = pure (E.Ref r)
@@ -121,7 +106,6 @@ node eval store =
        editType
        metadatas
        search
-       searchLocal
        terms
        transitiveDependencies
        transitiveDependents

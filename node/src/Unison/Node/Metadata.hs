@@ -4,7 +4,6 @@ module Unison.Node.Metadata where
 import Data.Text (Text)
 -- import Data.Map as M
 import Data.Aeson.TH
-import qualified Unison.Syntax.Var as V
 import qualified Unison.Edit.Term.Path as P
 
 data Sort = Type | Term deriving (Eq,Ord,Show)
@@ -15,7 +14,7 @@ data Metadata k =
   Metadata {
     sort :: Sort,
     names :: Names,
-    locals :: [(V.Var, [(P.Path,Names)])],
+    locals :: [(P.Path, Symbol)],
     description :: Maybe k,
     annotation :: k
   } deriving (Eq,Ord,Show)
@@ -23,6 +22,7 @@ data Metadata k =
 matches :: Query -> Metadata k -> Bool
 matches (Query txt) (Metadata _ (Names ns) _ _ _) = txt `elem` map name ns
 
+{-
 localMatches :: V.Var -> Query -> Metadata k -> Bool
 localMatches v (Query txt) (Metadata _ _ m _ _) =
   txt `elem` [ name sym | (var, ns) <- m,
@@ -30,6 +30,7 @@ localMatches v (Query txt) (Metadata _ _ m _ _) =
                           (_, Names syms) <- ns,
                           sym <- syms
              ]
+-}
 
 -- | Nameless metadata, contains only the annotation
 synthetic :: Sort -> k -> Metadata k
