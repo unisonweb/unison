@@ -28,9 +28,9 @@ type alias Model = Maybe
   { isKeyboardOpen : Bool
   , prompt : String
   , input : Field.Content
-  , instructions : Element
+  , above : Element
   , completions : List Element
-  , invalidCompletions : List Element }
+  , below : Element }
 
 type alias Action = Model -> Model
 
@@ -39,9 +39,9 @@ zero = Just
   { isKeyboardOpen = False
   , prompt = ""
   , input = Field.noContent
-  , instructions = E.empty -- fill with sweet animated GIF
+  , above = E.empty -- todo: fill with sweet animated GIF
   , completions = []
-  , invalidCompletions = [] }
+  , below = E.empty }
 
 setPrompt : String -> Action
 setPrompt s = Maybe.map (\m -> { m | prompt <- s })
@@ -57,24 +57,14 @@ setInput content = Maybe.map (\m -> { m | input <- content })
 openKeyboard : Action
 openKeyboard = Maybe.map (\m -> { m | isKeyboardOpen <- True })
 
-setInstructions : Element -> Action
-setInstructions e = Maybe.map (\m -> { m | instructions <- e })
+setAbove : Element -> Action
+setAbove e = Maybe.map (\m -> { m | above <- e })
 
 setCompletions : List Element -> Action
 setCompletions e = Maybe.map (\m -> { m | completions <- e })
 
-setInvalidCompletions : List Element -> Action
-setInvalidCompletions e = Maybe.map (\m -> { m | invalidCompletions <- e })
-
-click : { inside : Bool, allowOpen : Bool } -> Action
-click {inside, allowOpen} model = case model of
-  Nothing -> if allowOpen then zero else Nothing -- open explorer on click if allowed
-  Just model -> if inside then Just model else Nothing -- close explorer on click outside region
-
-enter : { down : Signal Bool, allowOpen : Bool } -> Action
-enter {down,allowOpen} model = case model of
-    Nothing -> if allowOpen then zero else Nothing
-    Just _ -> Nothing
+setBelow : Element -> Action
+setBelow e = Maybe.map (\m -> { m | below <- e })
 
 type alias Sink a = a -> Signal.Message
 
@@ -84,28 +74,19 @@ view origin searchbox model = case model of
   Just s ->
     let ok = not (List.isEmpty s.completions)
         statusColor = Styles.statusColor ok
-        fld = Field.field (Styles.autocomplete ok)
-                          searchbox
-                          s.prompt
-                          s.input
-        insertion = Styles.carotUp 6 statusColor
+        fld = Field.field (Styles.autocomplete ok) searchbox s.prompt s.input
+        completions = List.indexedMap (\i e -> Layout.embed (Result.Ok i) e) s.completions
         inside = Result.Err Inside
-        status = Layout.embed inside s.instructions
-        renderCompletion i e = Layout.embed (Result.Ok i) e
-        invalids = List.map (Layout.embed inside) s.invalidCompletions
-        top = Layout.embed inside fld
-        spacer = Layout.embed inside (E.spacer 1 6)
-        -- spacer = Layout.embed inside (E.beside (E.spacer 9 1) (Styles.chain1 6 Styles.okColor))
-        bot = Styles.explorerCells statusColor inside <|
-          status :: List.indexedMap renderCompletion s.completions
-          `List.append` invalids
-        fldWidth = Layout.widthOf bot `max` 40
-        -- -- (E.widthOf (Styles.codeText s.input.string) + 40) `max` 40
-        -- top' = Layout.transform (E.width (Layout.widthOf bot)) top
-        top' = Layout.transform (E.width fldWidth) top
-        box = Layout.above inside
-          (Layout.embed inside (E.beside (E.spacer 9 1) insertion))
-          (Layout.above inside (Layout.above (Layout.tag top) top' spacer) bot)
+        bottom = Styles.explorerOutline statusColor <|
+          Layout.vertical inside
+            [ Layout.embed inside s.above
+            , Styles.explorerCells inside completions
+            , Layout.embed inside s.below ]
+        box = Layout.vertical inside
+          [ Layout.embed inside (E.flow E.right [E.spacer 9 1, Styles.carotUp 6 statusColor])
+          , Layout.embed inside (E.width (Layout.widthOf bottom `max` 60) fld)
+          , Layout.embed inside (E.spacer 1 6)
+          , bottom ]
         boxTopLeft = origin
         h = boxTopLeft.y + Layout.heightOf box + 50
     in Layout.container (Result.Err Outside)

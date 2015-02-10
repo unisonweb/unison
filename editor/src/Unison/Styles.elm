@@ -60,7 +60,7 @@ codeText s = T.leftAligned (T.style code (T.fromString s))
 menuHeaderText : String -> Element
 menuHeaderText s = T.leftAligned (T.style menuHeader (T.fromString s))
 
-okColor = silver
+okColor = midnightBlueA 0.4
 notOkColor = alizarin
 
 statusColor : Bool -> Color
@@ -110,17 +110,20 @@ verticalCells k ifEmpty ls = let cs = List.map (\l -> L.fill bg (L.pad 5 0 l)) (
   h :: _ -> let hline = L.embed k (E.spacer (L.widthOf h) 1 |> E.color clouds)
             in L.outline clouds 1 (L.intersperseVertical hline cs)
 
-explorerCells : Color -> k -> List (Layout k) -> Layout k
-explorerCells color k ls =
-  let cs = List.map (\l -> L.fill bg (L.pad 20 5 l)) (L.leftAlignedColumn ls)
+explorerCells : k -> List (Layout k) -> Layout k
+explorerCells k ls =
+  let cs = List.map (\l -> L.fill bg (L.pad 20 5 l)) (L.column ls)
   in case cs of
     [] -> L.empty k
     h :: _ -> let hsep = L.embed k (E.spacer 1 5)
-                  cs' = L.above k (L.intersperseVertical hsep cs) (L.embed k (E.spacer 1 12))
-              in cs'|> L.transform (\e -> E.layers
-                         [ E.spacer (E.widthOf e) (E.heightOf e) |> E.color bg
-                         , e
-                         , outlineOf color 8 e ])
+              in L.intersperseVertical hsep cs
+
+explorerOutline : Color -> Layout k -> Layout k
+explorerOutline color e =
+  e |> L.transform (\e -> E.layers
+         [ E.spacer (E.widthOf e) (E.heightOf e) |> E.color bg
+         , e
+         , outlineOf color 8 e ])
 
 selection : Region -> Element
 selection r =
@@ -213,6 +216,7 @@ clouds = Color.rgb 236 240 241
 silver = Color.rgb 189 195 199
 wetAsphalt = Color.rgb 52 73 94
 midnightBlue = Color.rgb 44 62 80
+midnightBlueA alpha = Color.rgba 44 62 80 alpha
 concrete = Color.rgb 149 165 166
 asbestos = Color.rgb 127 140 141
 
