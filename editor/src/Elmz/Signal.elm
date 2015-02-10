@@ -21,15 +21,14 @@ import Time (Time)
 accumulateWhen : Signal Bool -> Signal a -> Signal (List a)
 accumulateWhen cond a = foldpWhen cond (::) [] a |> map List.reverse
 
-asyncUpdate : (Signal req -> Signal (model -> model))
+asyncUpdate : (Signal req -> Signal (model -> (Maybe req, model)))
            -> Signal (model -> (Maybe req, model))
            -> req
            -> model
            -> Signal model
-asyncUpdate eval actions req0 model0 =
+asyncUpdate responseActions actions req0 model0 =
   let reqs = channel req0
-      responseActions = map (\f model -> (Nothing, f model)) (eval (subscribe reqs))
-      mergedActions = merge actions responseActions
+      mergedActions = merge actions (responseActions (subscribe reqs))
       step action (_,model) =
         let (req, model') = action model
         in (Maybe.map (send reqs) req, model')

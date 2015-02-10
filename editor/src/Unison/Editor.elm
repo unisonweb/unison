@@ -284,7 +284,7 @@ actions ctx =
      Signals.map2r (setSearchbox searchbox ctx.origin) ctx.modifier content `merge`
      Signal.map (click searchbox ctx.origin) clickPositions
 
-models : Inputs -> (Signal Request -> Signal (Model -> Model)) -> Model -> Signal Model
+models : Inputs -> (Signal Request -> Signal Action) -> Model -> Signal Model
 models ctx search model0 =
   Signals.asyncUpdate
     search
@@ -319,15 +319,19 @@ ignoreUpDown s =
                    s
                    (Signals.delay Field.noContent s)
 
-search : Sink Field.Content -> Signal Request -> Signal (Model -> Model)
+search : Sink Field.Content -> Signal Request -> Signal Action
 search searchbox reqs =
   let containsNocase sub overall = String.contains (String.toLower sub) (String.toLower overall)
       possible = ["Alice", "Alicia", "Bob", "Burt", "Carol", "Carolina", "Dave", "Don", "Eve"]
       matches query = List.filter (containsNocase query) possible
       go _ model = -- our logic is pure, ignore the request
         let possible = matches (Explorer.getInputOr Field.noContent model.explorer).string
-        in updateExplorerValues searchbox (List.map Terms.str possible) model
+        in norequest (updateExplorerValues searchbox (List.map Terms.str possible) model)
   in Time.delay (200 * Time.millisecond) (Signal.map go reqs)
+
+
+-- type alias Request = { term : Term, path : Path, query : Maybe String }
+-- search2 : Sink Field.Content -> Signal Request -> Signal (Model -> Model)
 
 -- need to hook into the Signal Field.Content associated with the model
 
