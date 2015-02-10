@@ -27,6 +27,8 @@ data Node m k t e = Node {
   metadatas :: [k] -> Noted m (Map k (MD.Metadata k)),
   -- | Search for a term, optionally constrained to be of the given type
   search :: Maybe t -> Query -> Noted m [e],
+  -- | Search for a term of the given type in local scope
+  searchLocal :: k -> t -> Noted m [e],
   -- | Lookup the source of the term identified by @k@
   terms :: [k] -> Noted m (Map k e),
   -- | Lookup the dependencies of @k@, optionally limited to those that intersect the given set
