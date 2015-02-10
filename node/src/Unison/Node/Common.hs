@@ -77,7 +77,7 @@ node eval store =
       mds <- mapM (\h -> (,) h <$> readMetadata store h) hs'
       pure . map (\(h,_) -> E.Ref h) . filter (\(_,md) -> MD.matches query md) $ mds
 
-    searchLocal h t = pure [] -- todo, actually use `h` and `t` here
+    searchLocal h path t = pure [] -- todo: implement
 
     readTermRef (R.Derived h) = readTerm store h
     readTermRef r = pure (E.Ref r)

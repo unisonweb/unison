@@ -121,10 +121,10 @@ search host params =
   in decode <~ Http.send (Signal.map2 req host params)
 
 searchLocal : Signal Host
-           -> Signal (Hash, Type)
+           -> Signal (Hash, Path, Maybe Type)
            -> Signal (Response (List Term))
 searchLocal host params =
-  let body = Encoder.tuple2 H.encode T.encodeType
+  let body = Encoder.tuple3 H.encode Path.encodePath (Encoder.optional T.encodeType)
       req host params = jsonGet body host "search-local" params
       decode = Decoder.list E.decodeTerm
   in decodeResponse decode <~ Http.send (Signal.map2 req host params)
