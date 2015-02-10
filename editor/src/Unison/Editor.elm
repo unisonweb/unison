@@ -177,7 +177,7 @@ setSearchbox sink origin modifier content model =
                     else movement (Movement.D2 Movement.Positive Movement.Zero))
                 |> refreshPanel Nothing origin
                 |> openExplorer sink
-     else norequest <| refreshExplorer sink { model | explorer <- Explorer.setInput content ex }
+     else request <| refreshExplorer sink { model | explorer <- Explorer.setInput content ex }
 
 apply : (Int,Int) -> Model -> Model
 apply origin model = case model.scope of
@@ -327,15 +327,15 @@ ignoreUpDown s =
                    s
                    (Signals.delay Field.noContent s)
 
-search : Sink Field.Content -> Signal () -> Signal Request -> Signal (Model -> Model)
-search searchbox queries reqs =
+search : Sink Field.Content -> Signal Request -> Signal (Model -> Model)
+search searchbox reqs =
   let containsNocase sub overall = String.contains (String.toLower sub) (String.toLower overall)
       possible = ["Alice", "Alicia", "Bob", "Burt", "Carol", "Carolina", "Dave", "Don", "Eve"]
       matches query = List.filter (containsNocase query) possible
-      go _ _ model = -- our logic is pure, ignore the request
+      go _ model = -- our logic is pure, ignore the request
         let possible = matches (Explorer.getInputOr Field.noContent model.explorer).string
         in updateExplorerValues searchbox (List.map Terms.str possible) model
-  in Time.delay (200 * Time.millisecond) (Signal.map2 go queries reqs)
+  in Time.delay (200 * Time.millisecond) (Signal.map go reqs)
 
 -- need to hook into the Signal Field.Content associated with the model
 
@@ -350,18 +350,15 @@ main =
                , movements = Movement.d2' Keyboard.arrows
                , searchbox = Signal.channel Field.noContent
                , width = Window.width }
-      queries = Signal.map (always ()) (ignoreUpDown (Signal.subscribe inputs.searchbox))
+      -- queries = Signal.map (always ()) (ignoreUpDown (Signal.subscribe inputs.searchbox))
       ignoreReqs actions =
         let ignore action model = snd (action model)
         in Signal.map ignore actions
       ms = models inputs
-                  (search (Signal.send inputs.searchbox) queries)
+                  (search (Signal.send inputs.searchbox))
                   { model0 | term <- Terms.expr0 }
-      -- ms = Signal.foldp (<|) { model0 | term <- Terms.expr0 } (ignoreReqs (actions inputs))
       debug model =
         let summary model = model.explorer
         in Debug.watchSummary "model" summary model
       ms' = Signal.map debug ms
-      -- ms = Signal.constant { model0 | term <- Terms.expr0 }
   in Signal.map view ms'
-
