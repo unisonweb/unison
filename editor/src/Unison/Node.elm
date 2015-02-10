@@ -111,27 +111,22 @@ metadatas host params =
   in decodeResponse (Decoder.object MD.decodeMetadata) <~ Http.send (Signal.map2 req host params)
 
 search : Signal Host
-      -> Signal (Maybe Type, Maybe (S.Set Hash), Query)
-      -> Signal (Response (M.Dict Hash Metadata))
+      -> Signal (Maybe Type, Query)
+      -> Signal (Response (List Term))
 search host params =
-  let body = Encoder.tuple3 (Encoder.optional T.encodeType)
-                      (Encoder.optional (Encoder.set H.encode))
-                      MD.encodeQuery
+  let body = Encoder.tuple2 (Encoder.optional T.encodeType)
+                            MD.encodeQuery
       req host params = jsonGet body host "search" params
-      decode = decodeResponse (Decoder.object MD.decodeMetadata)
+      decode = decodeResponse (Decoder.list E.decodeTerm)
   in decode <~ Http.send (Signal.map2 req host params)
 
 searchLocal : Signal Host
-           -> Signal (Hash, Path.Path, Maybe Type, Query)
-           -> Signal (Response (Metadata, List ((V.I, Type))))
+           -> Signal (Hash, Type)
+           -> Signal (Response (List Term))
 searchLocal host params =
-  let body = Encoder.tuple4 H.encode
-                      Path.encodePath
-                      (Encoder.optional T.encodeType)
-                      MD.encodeQuery
+  let body = Encoder.tuple2 H.encode T.encodeType
       req host params = jsonGet body host "search-local" params
-      decode = Decoder.tuple2 MD.decodeMetadata
-                       (Decoder.list (Decoder.tuple2 V.decode T.decodeType))
+      decode = Decoder.list E.decodeTerm
   in decodeResponse decode <~ Http.send (Signal.map2 req host params)
 
 terms : Signal Host -> Signal (List Hash) -> Signal (Response (M.Dict Hash Term))

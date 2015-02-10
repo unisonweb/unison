@@ -23,6 +23,7 @@ import Touch
 import Unison.Explorer as Explorer
 import Unison.Hash (Hash)
 import Unison.Metadata as Metadata
+import Unison.Node as Node
 import Unison.Path (Path)
 import Unison.Path as Path
 import Unison.Scope as Scope
