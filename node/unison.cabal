@@ -85,6 +85,7 @@ library
     cryptohash                ,
     directory                 ,
     filepath                  ,
+    http-types                ,
     lens                      >= 4.2, 
     mtl                       >= 2.1.1,
     prelude-extras            >= 0.3,

@@ -11,6 +11,7 @@ import Elmz.Trie as Trie
 import Graphics.Element (Element)
 import Graphics.Element as Element
 import Graphics.Input.Field as Field
+import Http
 import Keyboard
 import List
 import Maybe
@@ -31,12 +32,16 @@ import Unison.Styles as Styles
 import Unison.Term (Term)
 import Unison.Term as Term
 import Unison.Terms as Terms
+import Unison.Type (Type)
+import Unison.Type as Type
 import Unison.View as View
 import Window
 
 type alias Model =
   { term : Term
   , scope : Scope.Model
+  , goalType : Type
+  , currentType : Type
   , availableWidth : Maybe Int
   , dependents : Trie Path.E (List Path)
   , overrides : Trie Path.E (Layout View.L)
@@ -44,6 +49,7 @@ type alias Model =
   , explorer : Explorer.Model
   , explorerValues : List Term
   , explorerSelection : Selection1D.Model
+  , errors : List String
   , layouts : { panel : Layout View.L
               , explorer : Layout (Result Containment Int) } }
 
@@ -66,6 +72,8 @@ model0 : Model
 model0 =
   { term = Term.Blank
   , scope = Nothing
+  , goalType = Type.all
+  , currentType = Type.all
   , availableWidth = Nothing
   , dependents = Trie.empty
   , overrides = Trie.empty
@@ -73,6 +81,7 @@ model0 =
   , explorer = Nothing
   , explorerValues = []
   , explorerSelection = 0
+  , errors = []
   , layouts = { panel = layout0
               , explorer = explorerLayout0  } }
 
@@ -166,6 +175,10 @@ openExplorer searchbox model =
                                   , explorerSelection <- 0 }
   in (req, refreshExplorer searchbox m2)
 
+pushError : String -> Model -> Model
+pushError msg model =
+  { model | errors <- msg :: List.take 5 model.errors }
+
 -- todo: invalidate dependents and overrides if under the edit path
 
 setSearchbox : Sink Field.Content -> (Int,Int) -> Bool -> Field.Content -> Action
@@ -225,9 +238,12 @@ refreshExplorer searchbox model =
           , overrides x = Nothing }
         in List.map show model.explorerValues
 
+      aboveMsg = "Allowed: " ++ toString model.goalType ++ "\n" ++
+                 "Current: " ++ toString model.currentType
       explorer' : Explorer.Model
       explorer' = model.explorer |> Maybe.map (\e ->
-        { e | completions <- completions })
+        { e | completions <- completions
+            , above <- Styles.codeText aboveMsg })
 
       explorerLayout : Layout (Result Containment Int)
       explorerLayout = Explorer.view explorerTopLeft searchbox explorer'
@@ -329,9 +345,24 @@ search searchbox reqs =
         in norequest (updateExplorerValues searchbox (List.map Terms.str possible) model)
   in Time.delay (200 * Time.millisecond) (Signal.map go reqs)
 
+host : Signal Node.Host
+host = Signal.constant "http://localhost:8080"
 
 -- type alias Request = { term : Term, path : Path, query : Maybe String }
--- search2 : Sink Field.Content -> Signal Request -> Signal (Model -> Model)
+search2 : Sink Field.Content -> Signal Request -> Signal Action
+search2 searchbox reqs =
+  let req r = (r.term, r.path)
+      goal resp model = norequest << refreshExplorer searchbox <| case resp of
+        Http.Success t -> { model | goalType <- t }
+        Http.Waiting -> model
+        Http.Failure code msg -> pushError msg model
+      current resp model = norequest << refreshExplorer searchbox <| case resp of
+        Http.Success t -> { model | currentType <- t }
+        Http.Waiting -> model
+        Http.Failure code msg -> pushError msg model
+      goalTypes = Node.admissibleTypeOf host (Signal.map req reqs) |> Signal.map goal
+      currentTypes = Node.typeOf host (Signal.map req reqs) |> Signal.map current
+  in Signal.merge goalTypes currentTypes
 
 -- need to hook into the Signal Field.Content associated with the model
 
@@ -351,8 +382,8 @@ main =
         let ignore action model = snd (action model)
         in Signal.map ignore actions
       ms = models inputs
-                  (search (Signal.send inputs.searchbox))
-                  { model0 | term <- Terms.expr0 }
+                  (search2 (Signal.send inputs.searchbox))
+                  { model0 | term <- Terms.int 42 }
       debug model =
         let summary model = model.explorer
         in Debug.watchSummary "model" summary model

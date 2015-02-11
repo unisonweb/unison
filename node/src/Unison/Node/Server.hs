@@ -14,6 +14,7 @@ import qualified Data.Aeson.Parser as JP
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TLE
 import qualified Data.Map as M
+import Network.HTTP.Types.Method (StdMethod(OPTIONS))
 import qualified Unison.Syntax.Hash as H
 import qualified Unison.Syntax.Term as E
 import qualified Unison.Syntax.Type as T
@@ -40,9 +41,23 @@ jsonParam paramName = S.param paramName >>= \paramValue ->
     Left err -> S.raise (TL.pack err)
     Right a -> pure a
 
+originPolicy :: ActionM ()
+originPolicy =
+  S.addHeader "Access-Control-Allow-Origin" "*"
+
+originOptions :: ActionM ()
+originOptions = do
+  S.addHeader "Access-Control-Allow-Origin" "*"
+  S.addHeader "Access-Control-Allow-Methods" "GET, POST"
+  S.addHeader "Access-Control-Allow-Headers" "Content-Type"
+
+route :: ActionM () -> ActionM ()
+route action = originPolicy *> action
+
 server :: Int -> Node IO Reference T.Type E.Term -> IO ()
 server port node = S.scotty port $ do
-  S.get "/admissible-type-of" $ do
+  S.addroute OPTIONS (S.regex ".*") $ originOptions
+  S.get "/admissible-type-of" . route $ do
     (h, path) <- S.jsonData
     t <- runN $ N.admissibleTypeOf node h path
     S.json t
@@ -98,7 +113,7 @@ server port node = S.scotty port $ do
     hs <- S.jsonData
     ts <- runN $ N.types node hs
     S.json ts
-  S.get "/type-of" $ do
+  S.get "/type-of" . route $ do
     (h,loc) <- S.jsonData
     s <- runN $ N.typeOf node h loc
     S.json s
@@ -106,6 +121,7 @@ server port node = S.scotty port $ do
     (h,md) <- S.jsonData
     s <- runN $ N.updateMetadata node h md
     S.json s
+  S.defaultHandler $ \msg -> originPolicy *> S.raise msg
   {-
   S.get "/type-of-constructor-argument" $ do
     (h,loc) <- S.jsonData

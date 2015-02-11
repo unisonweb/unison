@@ -23,6 +23,9 @@ type Type
   | Constrain Type ()
   | Forall I Type
 
+all : Type
+all = Forall 0 (Universal 0)
+
 type Kind = Star | KArrow Kind Kind
 
 decodeKind : Decoder Kind

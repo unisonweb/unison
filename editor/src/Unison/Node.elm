@@ -40,7 +40,7 @@ jsonPost = jsonRequest "POST"
 
 jsonRequest : String -> Encoder a -> Host -> String -> a -> Request String
 jsonRequest verb ja host path a =
-  Http.request verb (host ++ "/" ++ path) (Encoder.render ja a) []
+  Http.request verb (host ++ "/" ++ path) (Encoder.render ja a) [("Content-Type", "application/json")]
 
 decodeResponse : Decoder a -> Response String -> Response a
 decodeResponse p r = case r of
