@@ -21,6 +21,7 @@ import Signal
 import String
 import Time
 import Touch
+import Unison.Action as Action
 import Unison.Explorer as Explorer
 import Unison.Hash (Hash)
 import Unison.Metadata as Metadata
@@ -56,10 +57,11 @@ type alias Model =
 type alias Request = { term : Term, path : Path, query : Maybe String }
 
 type Req
-  = Edit Term Path
-  | Accept Term Path Term
-  | Search Type String
-  | Act
+  = Open Term Path -- obtain the current and admissible type and local completions
+  | Search Type String -- global search for a given type
+  | Declare Term
+  | Edit Term Path Action.Action
+  | Metadatas (List Hash)
 
 type alias Action = Model -> (Maybe Request, Model)
 
