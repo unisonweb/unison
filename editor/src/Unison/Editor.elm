@@ -40,7 +40,7 @@ import Window
 type alias Model =
   { term : Term
   , scope : Scope.Model
-  , goalType : Type
+  , admissibleType : Type
   , currentType : Type
   , availableWidth : Maybe Int
   , dependents : Trie Path.E (List Path)
@@ -54,6 +54,12 @@ type alias Model =
               , explorer : Layout (Result Containment Int) } }
 
 type alias Request = { term : Term, path : Path, query : Maybe String }
+
+type Req
+  = Edit Term Path
+  | Accept Term Path Term
+  | Search Type String
+  | Act
 
 type alias Action = Model -> (Maybe Request, Model)
 
@@ -72,7 +78,7 @@ model0 : Model
 model0 =
   { term = Term.Blank
   , scope = Nothing
-  , goalType = Type.all
+  , admissibleType = Type.all
   , currentType = Type.all
   , availableWidth = Nothing
   , dependents = Trie.empty
@@ -238,7 +244,7 @@ refreshExplorer searchbox model =
           , overrides x = Nothing }
         in List.map show model.explorerValues
 
-      aboveMsg = "Allowed: " ++ toString model.goalType ++ "\n" ++
+      aboveMsg = "Allowed: " ++ toString model.admissibleType ++ "\n" ++
                  "Current: " ++ toString model.currentType
       explorer' : Explorer.Model
       explorer' = model.explorer |> Maybe.map (\e ->
@@ -352,17 +358,17 @@ host = Signal.constant "http://localhost:8080"
 search2 : Sink Field.Content -> Signal Request -> Signal Action
 search2 searchbox reqs =
   let req r = (r.term, r.path)
-      goal resp model = norequest << refreshExplorer searchbox <| case resp of
-        Http.Success t -> { model | goalType <- t }
+      admissible resp model = norequest << refreshExplorer searchbox <| case resp of
+        Http.Success t -> { model | admissibleType <- t }
         Http.Waiting -> model
         Http.Failure code msg -> pushError msg model
       current resp model = norequest << refreshExplorer searchbox <| case resp of
         Http.Success t -> { model | currentType <- t }
         Http.Waiting -> model
         Http.Failure code msg -> pushError msg model
-      goalTypes = Node.admissibleTypeOf host (Signal.map req reqs) |> Signal.map goal
+      admissibleTypes = Node.admissibleTypeOf host (Signal.map req reqs) |> Signal.map admissible
       currentTypes = Node.typeOf host (Signal.map req reqs) |> Signal.map current
-  in Signal.merge goalTypes currentTypes
+  in Signal.merge admissibleTypes currentTypes
 
 -- need to hook into the Signal Field.Content associated with the model
 

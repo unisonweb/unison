@@ -20,9 +20,9 @@ data Node m k t e = Node {
   -- | Lookup the set of terms/types depending directly on the given @k@, optionally limited to the given set
   dependents :: Maybe (S.Set k) -> k -> Noted m (S.Set k),
   -- | Modify the given subterm, which may fail
-  editTerm :: P.Path -> A.Action e -> e -> Noted m e,
+  editTerm :: P.Path -> A.Action -> e -> Noted m e,
   -- | Modify the given type, which may fail
-  editType :: P.Path -> A.Action t -> t -> Noted m t,
+  editType :: P.Path -> A.Action -> t -> Noted m t,
   -- | Access the metadata for the term and/or types identified by @k@
   metadatas :: [k] -> Noted m (Map k (MD.Metadata k)),
   -- | Search for a term, optionally constrained to be of the given type

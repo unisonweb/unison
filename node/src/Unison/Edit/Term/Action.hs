@@ -3,13 +3,12 @@
 module Unison.Edit.Term.Action where
 import Data.Aeson.TH
 
-data Action e
+data Action
   = Abstract -- Turn target into function parameter
-  | Beta -- Beta reduce the target
+  | Step -- Beta reduce the target
   | Eta -- Eta reduce the target
   | LetFloat -- Float the target out to a let binding, as far as possible
   | WHNF -- Simplify target to weak head normal form
-  | Apply e -- Replace the target, `e`, with `f e`
 
 deriveJSON defaultOptions ''Action
 -- combine fst snd

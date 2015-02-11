@@ -1,5 +1,5 @@
 module Unison.Edit.Term (
-  admissibleTypeOf, abstract, beta, eta, interpret, letFloat, locals, typeOf) where
+  admissibleTypeOf, abstract, step, eta, interpret, letFloat, locals, typeOf) where
 
 import Control.Applicative
 import qualified Data.Set as S
@@ -12,7 +12,6 @@ import qualified Unison.Note as N
 import Unison.Note (Noted)
 import qualified Unison.Syntax.Term as E
 import qualified Unison.Syntax.Hash as H
-import qualified Unison.Syntax.Reference as R
 import qualified Unison.Syntax.Type as T
 import Unison.Type (synthesize)
 
@@ -20,23 +19,23 @@ import Unison.Type (synthesize)
 interpret :: (Applicative f, Monad f)
           => Eval (Noted f)
           -> (H.Hash -> Noted f E.Term)
-          -> T.Env f
-          -> P.Path -> Action E.Term -> E.Term -> Noted f E.Term
-interpret eval readTerm readType loc f ctx = go f where
+          -> P.Path -> Action -> E.Term -> Noted f E.Term
+interpret eval readTerm loc f ctx = go f where
   go Abstract = abstract loc ctx
   go Eta = eta loc ctx
-  go Beta = beta eval readTerm loc ctx
+  go Step = step eval readTerm loc ctx
   go LetFloat = fst <$> letFloat loc ctx
   go WHNF = whnf eval readTerm loc ctx
-  go (Apply e) = case P.modify loc (E.App e) ctx of
-    Nothing -> N.failure $ invalid loc ctx
-    Just e -> const e <$> synthesize readType e
 
 invalid :: (Show a1, Show a) => a -> a1 -> String
 invalid loc ctx = "invalid path " ++ show loc ++ " in:\n" ++ show ctx
 
 -- | Pull the given path location in the term out into the outermost
 -- function parameter
+-- abstract f [[42]] => (\x -> f x) 42
+-- abstract (\f x -> [[g x + 1]] * 42) => (\gx1 -> (\f x -> gx x * 42)) (\x -> g x + 1)
+-- todo: if the location references any free variables, make these
+-- function parameters of the
 abstract :: Applicative f => P.Path -> E.Term -> Noted f E.Term
 abstract loc ctx =
   N.liftMaybe (invalid loc ctx) $ E.lam1 <$> P.set' loc ctx
@@ -65,13 +64,13 @@ admissibleTypeOf synthLit loc ctx = case P.at' loc ctx of
 
 -- | Beta-reduce the target, @(\x -> x+1) p@ becomes @p+1@.
 -- This noops if target is not beta-reducible.
-beta :: Applicative f
+step :: Applicative f
      => Eval (Noted f)
      -> (H.Hash -> Noted f E.Term)
      -> P.Path
      -> E.Term
      -> Noted f E.Term
-beta eval readTerm loc ctx = case P.at' loc ctx of
+step eval readTerm loc ctx = case P.at' loc ctx of
   Nothing -> N.failure $ invalid loc ctx
   Just (sub,replace) -> replace <$> Eval.step eval readTerm sub
 
