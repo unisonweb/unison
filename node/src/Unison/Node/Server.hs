@@ -61,7 +61,7 @@ route action = do
 server :: Int -> Node IO Reference T.Type E.Term -> IO ()
 server port node = S.scotty port $ do
   S.addroute OPTIONS (S.regex ".*") $ originOptions
-  S.get "/admissible-type-of" . route $ do
+  S.post "/admissible-type-of" . route $ do
     (h, path) <- S.jsonData
     t <- runN $ N.admissibleTypeOf node h path
     S.json t
@@ -117,7 +117,7 @@ server port node = S.scotty port $ do
     hs <- S.jsonData
     ts <- runN $ N.types node hs
     S.json ts
-  S.get "/type-of" . route $ do
+  S.post "/type-of" . route $ do
     (h,loc) <- S.jsonData
     s <- runN $ N.typeOf node h loc
     S.json s

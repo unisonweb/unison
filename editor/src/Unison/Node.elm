@@ -54,7 +54,7 @@ decodeResponse p r = case r of
 admissibleTypeOf : Signal Host -> Signal (Term, Path.Path) -> Signal (Response Type)
 admissibleTypeOf host params =
   let body = Encoder.tuple2 E.encodeTerm Path.encodePath
-      req host params = jsonGet body host "admissible-type-of" params
+      req host params = jsonPost body host "admissible-type-of" params
   in decodeResponse T.decodeType <~ Http.send (Signal.map2 req host params)
 
 createTerm : Signal Host -> Signal (Term, Metadata) -> Signal (Response Hash)
@@ -161,7 +161,7 @@ typeOf : Signal Host
       -> Signal (Response Type)
 typeOf host params =
   let body = Encoder.tuple2 E.encodeTerm Path.encodePath
-      req host params = jsonGet body host "type-of" params
+      req host params = jsonPost body host "type-of" params
       decode = decodeResponse T.decodeType
   in decode <~ Http.send (Signal.map2 req host params)
 
