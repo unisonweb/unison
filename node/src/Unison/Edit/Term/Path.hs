@@ -1,8 +1,12 @@
+{-# OPTIONS_GHC -ddump-splices #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Edit.Term.Path where
 
 import Control.Applicative
+import Data.Text.Internal (Text)
+import Data.Aeson as A
 import Data.Aeson.TH
 import Data.Maybe (fromJust)
 import Data.Vector ((!?), (//))
@@ -16,7 +20,10 @@ data E
   | Index !Int -- ^ Points at the index of a vector
   deriving (Eq,Ord,Show)
 
-newtype Path = Path { elements :: [E] } deriving (Eq,Ord,Show)
+newtype Path = Path [E] deriving (Eq,Ord,Show)
+
+elements :: Path -> [E]
+elements (Path e) = e
 
 -- | Add an element onto the end of this 'Path'
 extend :: E -> Path -> Path
@@ -95,6 +102,11 @@ trimToV Nothing p = p
 trimToV (Just minv) p | minv == V.bound1 = trimToR Body p
                       | otherwise        = trimToV (Just $ V.decr minv) (drop1R (trimToR Body p))
 
-
 deriveJSON defaultOptions ''E
-deriveJSON defaultOptions ''Path
+
+instance A.FromJSON Path where
+  parseJSON (Object o) = Path <$> o .: "contents"
+  parseJSON j = fail $ "Path.parseJSON expected Object, got: " ++ show j
+
+instance A.ToJSON Path where
+  toJSON (Path es) = object [ "tag" .= ("Path" :: Text), "contents" .= es ]

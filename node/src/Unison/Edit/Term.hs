@@ -47,24 +47,18 @@ abstract loc ctx =
 -- @Int -> String@, etc could all be substituted for @g@.
 --
 -- Algorithm works by replacing the subterm, @e@ with
--- @const e (f e)@, where @f@ is a fresh function parameter and
--- @e@ is let once in an outer scope, ensuring type information
--- flows between the usage of @e@ and the call to @f@. We then
+-- @(f e)@, where @f@ is a fresh function parameter. We then
 -- read off the type of @e@ from the inferred type of @f@.
 admissibleTypeOf :: Applicative f
                  => T.Env f
                  -> P.Path
                  -> E.Term
                  -> Noted f T.Type
-admissibleTypeOf synthLit (P.Path []) ctx = synthesize synthLit ctx
 admissibleTypeOf synthLit loc ctx = case P.at' loc ctx of
   Nothing -> N.failure $ invalid loc ctx
   Just (sub,replace) ->
-    let ctx = (E.lam2 $ \sub f -> replace (ksub sub f)) `E.App` sub
-        -- we annotate `f` as returning `Number` so as not to introduce
-        -- any new quantified variables in the inferred type
-        ksub sub f = E.lam2 (\x _ -> x) `E.App` sub `E.App` (f `E.App` sub `E.Ann` T.Unit T.Number)
-        go (T.Arrow (T.Arrow tsub _) _) = tsub
+    let ctx = E.lam1 $ \f -> replace (f `E.App` sub)
+        go (T.Arrow (T.Arrow _ tsub) _) = tsub
         go (T.Forall n t) = T.Forall n (go t)
         go _ = error "impossible, f had better be a function"
     in go <$> synthesize synthLit ctx

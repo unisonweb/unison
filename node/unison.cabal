@@ -89,7 +89,7 @@ library
     lens                      >= 4.2, 
     mtl                       >= 2.1.1,
     prelude-extras            >= 0.3,
-    scotty                    ,
+    scotty                    == 0.9.1,
     text                      >= 0.11.2,
     transformers              ,
     vector                    >= 0.10.11.0
