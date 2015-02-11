@@ -9,7 +9,7 @@ import Set as S
 type alias Encoder a = a -> J.Value
 
 render : Encoder a -> a -> String
-render ja a = J.encode 2 (ja a)
+render ja a = J.encode 0 (ja a)
 
 contramap : (a -> b) -> Encoder b -> Encoder a
 contramap f j = j << f

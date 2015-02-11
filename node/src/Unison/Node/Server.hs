@@ -52,7 +52,11 @@ originOptions = do
   S.addHeader "Access-Control-Allow-Headers" "Content-Type"
 
 route :: ActionM () -> ActionM ()
-route action = originPolicy *> action
+route action = do
+  originPolicy
+  body <- S.body
+  liftIO (putStrLn ("request body\n" ++ show body))
+  action
 
 server :: Int -> Node IO Reference T.Type E.Term -> IO ()
 server port node = S.scotty port $ do
