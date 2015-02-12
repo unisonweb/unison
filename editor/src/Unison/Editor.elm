@@ -67,9 +67,11 @@ explorerValues model =
               in i.localMatches search ++ Elmz.Result.merge (i.globalMatches search)
   in Maybe.withDefault [] (Elmz.Maybe.map2 f model.explorer model.explorerInfo)
 
-type alias Request = { term : Term, path : Path, query : Maybe String }
+explorerInput : Model -> String
+explorerInput model =
+  Elmz.Maybe.maybe "" (.input >> .string) model.explorer
 
-type Req
+type Request
   = Open Term Path -- obtain the current and admissible type and local completions
   | Search Type String -- global search for a given type
   | Declare Term
@@ -114,12 +116,10 @@ panelHighlight : Model -> Maybe Region
 panelHighlight model =
   Maybe.andThen model.scope (Scope.view model.layouts.panel)
 
-request : Model -> (Maybe Request, Model)
-request model = case model.scope of
+openRequest : Model -> (Maybe Request, Model)
+openRequest model = case model.scope of
   Nothing -> (Nothing, model)
-  Just scope ->
-    let query = Maybe.map (.input >> .string) model.explorer
-    in (Just { term = model.term, path = scope.focus, query = query }, model)
+  Just scope -> (Just (Open model.term scope.focus), model)
 
 norequest : Model -> (Maybe Request, Model)
 norequest model = (Nothing, model)
@@ -192,9 +192,9 @@ close origin model =
 
 openExplorer : Sink Field.Content -> Action
 openExplorer searchbox model =
-  let (req, m2) = request { model | explorer <- Explorer.zero
-                                  , explorerInfo <- Nothing
-                                  , explorerSelection <- 0 }
+  let (req, m2) = openRequest { model | explorer <- Explorer.zero
+                                      , explorerInfo <- Nothing
+                                      , explorerSelection <- 0 }
   in (req, refreshExplorer searchbox m2)
 
 pushError : String -> Model -> Model
@@ -205,14 +205,19 @@ pushError msg model =
 
 setSearchbox : Sink Field.Content -> (Int,Int) -> Bool -> Field.Content -> Action
 setSearchbox sink origin modifier content model =
-  let ex = model.explorer
+  let model' = { model | explorer <- Explorer.setInput content model.explorer }
   in if String.endsWith " " content.string && (not (List.isEmpty (explorerValues model)))
      then model |> close origin
                 |> (if modifier then apply origin
                     else movement (Movement.D2 Movement.Positive Movement.Zero))
                 |> refreshPanel Nothing origin
                 |> openExplorer sink
-     else request <| refreshExplorer sink { model | explorer <- Explorer.setInput content ex }
+     else case model.explorerInfo of
+            Nothing -> norequest <| refreshExplorer sink model'
+            Just info -> case info.globalMatches (explorerInput model) of
+              Result.Err terms -> (Just (Search info.admissibleType content.string),
+                                   refreshExplorer sink model')
+              Result.Ok terms -> norequest model'
 
 apply : (Int,Int) -> Model -> Model
 apply origin model = case model.scope of
@@ -286,9 +291,9 @@ resize sink origin width model =
 enter : Sink Field.Content -> (Int,Int) -> Action
 enter snk origin model = case model.explorer of
   Nothing ->
-    let (req, m2) = request { model | explorer <- Explorer.zero
-                                    , explorerInfo <- Nothing
-                                    , explorerSelection <- 0 }
+    let (req, m2) = openRequest { model | explorer <- Explorer.zero
+                                        , explorerInfo <- Nothing
+                                        , explorerSelection <- 0 }
     in (req, refreshExplorer snk m2)
   Just _ -> norequest (close origin model)
 
@@ -332,7 +337,7 @@ models ctx search model0 =
   Signals.asyncUpdate
     search
     (actions ctx)
-    { term = model0.term, path = [], query = Nothing }
+    (Open model0.term [])
     model0
 
 view : Model -> Element
