@@ -3,7 +3,9 @@ module Unison.Editor where
 import Debug
 import Elmz.Layout (Containment(Inside,Outside), Layout, Pt, Region)
 import Elmz.Layout as Layout
+import Elmz.Maybe
 import Elmz.Movement as Movement
+import Elmz.Result
 import Elmz.Selection1D as Selection1D
 import Elmz.Signal as Signals
 import Elmz.Trie (Trie)
@@ -41,18 +43,29 @@ import Window
 type alias Model =
   { term : Term
   , scope : Scope.Model
-  , admissibleType : Type
-  , currentType : Type
   , availableWidth : Maybe Int
   , dependents : Trie Path.E (List Path)
   , overrides : Trie Path.E (Layout View.L)
   , hashes : Trie Path.E Hash
   , explorer : Explorer.Model
-  , explorerValues : List Term
   , explorerSelection : Selection1D.Model
-  , errors : List String
+  , explorerInfo : Maybe
+     { admissibleType : Type
+     , currentType : Type
+     , locals : List Term -- local terms
+     -- local terms whose type matches admissibleType and the search string
+     , localMatches : String -> List Term
+     -- some search strings may require another server request
+     , globalMatches : String -> Result (List Term) (List Term) }
   , layouts : { panel : Layout View.L
-              , explorer : Layout (Result Containment Int) } }
+              , explorer : Layout (Result Containment Int) }
+  , errors : List String }
+
+explorerValues : Model -> List Term
+explorerValues model =
+  let f e i = let search = e.input.string
+              in i.localMatches search ++ Elmz.Result.merge (i.globalMatches search)
+  in Maybe.withDefault [] (Elmz.Maybe.map2 f model.explorer model.explorerInfo)
 
 type alias Request = { term : Term, path : Path, query : Maybe String }
 
@@ -80,14 +93,12 @@ model0 : Model
 model0 =
   { term = Term.Blank
   , scope = Nothing
-  , admissibleType = Type.all
-  , currentType = Type.all
   , availableWidth = Nothing
   , dependents = Trie.empty
   , overrides = Trie.empty
   , hashes = Trie.empty
   , explorer = Nothing
-  , explorerValues = []
+  , explorerInfo = Nothing
   , explorerSelection = 0
   , errors = []
   , layouts = { panel = layout0
@@ -134,13 +145,15 @@ moveMouse xy model = case model.explorer of
   Just _ -> let e = Selection1D.reset xy model.layouts.explorer model.explorerSelection
             in norequest <| { model | explorerSelection <- e }
 
+{-
 updateExplorerValues : Sink Field.Content -> List Term -> Model -> Model
 updateExplorerValues searchbox cur model =
   refreshExplorer searchbox
     { model | explorerValues <- cur
-            , explorerSelection <- Selection1D.selection model.explorerValues
+            , explorerSelection <- Selection1D.selection model.explorerInfo.matches
                                                          cur
                                                          model.explorerSelection }
+-}
 
 movement : Movement.D2 -> Model -> Model
 movement d2 model = case model.explorer of
@@ -148,7 +161,8 @@ movement d2 model = case model.explorer of
     let scope = Scope.movement model.term d2 model.scope
     in { model | scope <- scope }
   Just _ -> let d1 = Movement.negateD1 (Movement.xy_y d2)
-                limit = List.length model.explorerValues
+                search = Elmz.Maybe.maybe "" (\e -> e.input.string) model.explorer
+                limit = List.length (explorerValues model)
                 sel = model.explorerSelection
             in { model | explorerSelection <- Selection1D.movement d1 limit sel }
 
@@ -171,7 +185,7 @@ closeExplorer model =
 close : (Int,Int) -> Model -> Model
 close origin model =
   refreshPanel Nothing origin << Maybe.withDefault (closeExplorer model) <|
-  Selection1D.index model.explorerSelection model.explorerValues `Maybe.andThen`
+  Selection1D.index model.explorerSelection (explorerValues model) `Maybe.andThen`
     \term -> model.scope `Maybe.andThen`
     \scope -> Term.set scope.focus model.term term `Maybe.andThen`
     \t2 -> (Just << closeExplorer) { model | term <- t2 }
@@ -179,7 +193,7 @@ close origin model =
 openExplorer : Sink Field.Content -> Action
 openExplorer searchbox model =
   let (req, m2) = request { model | explorer <- Explorer.zero
-                                  , explorerValues <- []
+                                  , explorerInfo <- Nothing
                                   , explorerSelection <- 0 }
   in (req, refreshExplorer searchbox m2)
 
@@ -192,7 +206,7 @@ pushError msg model =
 setSearchbox : Sink Field.Content -> (Int,Int) -> Bool -> Field.Content -> Action
 setSearchbox sink origin modifier content model =
   let ex = model.explorer
-  in if String.endsWith " " content.string && (not (List.isEmpty model.explorerValues))
+  in if String.endsWith " " content.string && (not (List.isEmpty (explorerValues model)))
      then model |> close origin
                 |> (if modifier then apply origin
                     else movement (Movement.D2 Movement.Positive Movement.Zero))
@@ -228,37 +242,42 @@ refreshPanel searchbox origin model =
        Just scope -> { model | layouts <- { layouts | panel <- layout }}
 
 refreshExplorer : Sink Field.Content -> Model -> Model
-refreshExplorer searchbox model =
-  let explorerTopLeft : Pt
-      explorerTopLeft = case panelHighlight model of
-        Nothing -> Pt 0 0
-        Just region -> { x = region.topLeft.x - 6, y = region.topLeft.y + region.height + 6 }
+refreshExplorer searchbox model = case model.explorerInfo of
+  Nothing -> model
+  Just explorerInfo ->
+    let explorerTopLeft : Pt
+        explorerTopLeft = case panelHighlight model of
+          Nothing -> Pt 0 0
+          Just region -> { x = region.topLeft.x - 6, y = region.topLeft.y + region.height + 6 }
 
-      availableWidth = (Maybe.withDefault 1000 model.availableWidth - explorerTopLeft.x - 12)
-                       `max` 40
+        availableWidth = (Maybe.withDefault 1000 model.availableWidth - explorerTopLeft.x - 12)
+                         `max` 40
 
-      completions : List Element
-      completions = -- todo: real metadata
-        let show term = Layout.element << View.layout term <|
-          { rootMetadata = Metadata.anonymousTerm
-          , availableWidth = availableWidth
-          , metadata h = Metadata.anonymousTerm
-          , overrides x = Nothing }
-        in List.map show model.explorerValues
+        rootMetadata = Metadata.anonymousTerm
+        metadata h = Metadata.anonymousTerm
 
-      aboveMsg = "Allowed: " ++ toString model.admissibleType ++ "\n" ++
-                 "Current: " ++ toString model.currentType
-      explorer' : Explorer.Model
-      explorer' = model.explorer |> Maybe.map (\e ->
-        { e | completions <- completions
-            , above <- Styles.codeText aboveMsg })
+        completions : List Element
+        completions = -- todo: real metadata
+          let show term = Layout.element << View.layout term <|
+            { rootMetadata = Metadata.anonymousTerm
+            , availableWidth = availableWidth
+            , metadata = metadata
+            , overrides x = Nothing }
+          in List.map show (explorerValues model)
 
-      explorerLayout : Layout (Result Containment Int)
-      explorerLayout = Explorer.view explorerTopLeft searchbox explorer'
+        aboveMsg = "Allowed: " ++ toString explorerInfo.admissibleType ++ "\n" ++
+                   "Current: " ++ toString explorerInfo.currentType
+        explorer' : Explorer.Model
+        explorer' = model.explorer |> Maybe.map (\e ->
+          { e | completions <- completions
+              , above <- Styles.codeText aboveMsg })
 
-  in let layouts = model.layouts
-     in { model | explorer <- explorer'
-                , layouts <- { layouts | explorer <- explorerLayout } }
+        explorerLayout : Layout (Result Containment Int)
+        explorerLayout = Explorer.view explorerTopLeft searchbox explorer'
+
+    in let layouts = model.layouts
+       in { model | explorer <- explorer'
+                  , layouts <- { layouts | explorer <- explorerLayout } }
 
 resize : Maybe (Sink Field.Content) -> (Int,Int) -> Int -> Model -> Model
 resize sink origin width model =
@@ -268,7 +287,7 @@ enter : Sink Field.Content -> (Int,Int) -> Action
 enter snk origin model = case model.explorer of
   Nothing ->
     let (req, m2) = request { model | explorer <- Explorer.zero
-                                    , explorerValues <- []
+                                    , explorerInfo <- Nothing
                                     , explorerSelection <- 0 }
     in (req, refreshExplorer snk m2)
   Just _ -> norequest (close origin model)
@@ -343,6 +362,7 @@ ignoreUpDown s =
                    s
                    (Signals.delay Field.noContent s)
 
+{-
 search : Sink Field.Content -> Signal Request -> Signal Action
 search searchbox reqs =
   let containsNocase sub overall = String.contains (String.toLower sub) (String.toLower overall)
@@ -352,6 +372,7 @@ search searchbox reqs =
         let possible = matches (Explorer.getInputOr Field.noContent model.explorer).string
         in norequest (updateExplorerValues searchbox (List.map Terms.str possible) model)
   in Time.delay (200 * Time.millisecond) (Signal.map go reqs)
+-}
 
 host : Signal Node.Host
 host = Signal.constant "http://localhost:8080"
@@ -359,18 +380,19 @@ host = Signal.constant "http://localhost:8080"
 -- type alias Request = { term : Term, path : Path, query : Maybe String }
 search2 : Sink Field.Content -> Signal Request -> Signal Action
 search2 searchbox reqs =
-  let req r = (r.term, r.path)
-      admissible resp model = norequest << refreshExplorer searchbox <| case resp of
-        Http.Success t -> { model | admissibleType <- t }
-        Http.Waiting -> model
-        Http.Failure code msg -> pushError msg model
-      current resp model = norequest << refreshExplorer searchbox <| case resp of
-        Http.Success t -> { model | currentType <- t }
-        Http.Waiting -> model
-        Http.Failure code msg -> pushError msg model
-      admissibleTypes = Node.admissibleTypeOf host (Signal.map req reqs) |> Signal.map admissible
-      currentTypes = Node.typeOf host (Signal.map req reqs) |> Signal.map current
-  in Signal.merge admissibleTypes currentTypes
+  Time.delay 0 (Signal.constant (\model -> norequest model))
+  --let req r = (r.term, r.path)
+  --    admissible resp model = norequest << refreshExplorer searchbox <| case resp of
+  --      Http.Success t -> { model | admissibleType <- t }
+  --      Http.Waiting -> model
+  --      Http.Failure code msg -> pushError msg model
+  --    current resp model = norequest << refreshExplorer searchbox <| case resp of
+  --      Http.Success t -> { model | currentType <- t }
+  --      Http.Waiting -> model
+  --      Http.Failure code msg -> pushError msg model
+  --    admissibleTypes = Node.admissibleTypeOf host (Signal.map req reqs) |> Signal.map admissible
+  --    currentTypes = Node.typeOf host (Signal.map req reqs) |> Signal.map current
+  --in Signal.merge admissibleTypes currentTypes
 
 -- need to hook into the Signal Field.Content associated with the model
 

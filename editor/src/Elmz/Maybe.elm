@@ -6,6 +6,11 @@ import Maybe as M
 pure : a -> Maybe a
 pure = Just
 
+maybe : r -> (a -> r) -> Maybe a -> r
+maybe nothing just a = case a of
+  Nothing -> nothing
+  Just a -> just a
+
 fromMaybe : a -> Maybe a -> a
 fromMaybe a m = case m of
   Nothing -> a
