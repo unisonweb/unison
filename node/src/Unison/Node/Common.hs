@@ -69,6 +69,9 @@ node eval store =
     metadatas hs =
       M.fromList <$> sequence (map (\h -> (,) h <$> readMetadata store h) hs)
 
+    open e path =
+      error "Common.open.todo"
+
     search t query = do
       hs <- hashes store Nothing
       hs' <- case t of
@@ -107,6 +110,7 @@ node eval store =
        edit
        editType
        metadatas
+       open
        search
        searchLocal
        terms

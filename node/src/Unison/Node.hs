@@ -25,6 +25,9 @@ data Node m k t e = Node {
   editType :: P.Path -> A.Action -> t -> Noted m t,
   -- | Access the metadata for the term and/or types identified by @k@
   metadatas :: [k] -> Noted m (Map k (MD.Metadata k)),
+  -- | Open the given location for editing;
+  -- returns the current type, admissible type, local vars, matching local expressions
+  open :: e -> P.Path -> Noted m (t, t, [e], [e]),
   -- | Search for a term, optionally constrained to be of the given type
   search :: Maybe t -> Query -> Noted m [e],
   -- | Search for a term of the given type in local scope
