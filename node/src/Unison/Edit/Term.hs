@@ -1,7 +1,8 @@
 module Unison.Edit.Term (
-  admissibleTypeOf, abstract, step, eta, interpret, letFloat, locals, typeOf) where
+  admissibleTypeOf, abstract, applications, step, eta, interpret, letFloat, locals, typeOf) where
 
 import Control.Applicative
+import Data.Traversable
 import qualified Data.Set as S
 import Unison.Edit.Term.Action as A
 import qualified Unison.Edit.Term.Path as P
@@ -112,12 +113,43 @@ letFloat loc ctx = case P.at loc ctx of
         loc' <- pure $ P.extend P.Arg trimmedPath
         pure (ctx', loc')
 
--- | Return the type of all local variables introduced by the
--- given lambda, assuming that lambda has the annotated type
-locals :: E.Term -> T.Type -> [(V.Var, T.Type)]
-locals (E.Lam n body) (T.Arrow i o) = (n, i) : locals body o
-locals ctx (T.Forall _ t) = locals ctx t
-locals _ _ = []
+-- | Return the type of all local variables in scope at the given location
+locals :: Applicative f => T.Env f -> P.Path -> E.Term -> Noted f [(V.Var, T.Type)]
+locals synthLit path ctx | E.isClosed ctx = pushDown <$> lambdaTypes
+  where
+    pointsToLambda path = case P.at path ctx of
+      Just (E.Lam _ _) -> True
+      _ -> False
+
+    lambdas :: [P.Path]
+    lambdas = filter pointsToLambda (P.prefixes path)
+
+    notedAt path expr = maybe (N.failure "invalid path") pure (P.at path expr)
+
+    lambdaTypes = traverse t lambdas
+      where t path = liftA2 extract (notedAt path ctx) (typeOf synthLit path ctx)
+
+    -- not sure about this impl, or if it matters
+    -- we prefer type information obtained higher in the syntax tree
+    pushDown :: [[(V.Var, T.Type)]] -> [(V.Var, T.Type)]
+    pushDown [] = []
+    pushDown (env0 : tl) = env0 ++ pushDown (drop (length env0) tl)
+
+    extract :: E.Term -> T.Type -> [(V.Var, T.Type)]
+    extract (E.Lam n body) (T.Arrow i o) = (n, i) : extract body o
+    extract ctx (T.Forall _ t) = extract ctx t
+    extract _ _ = []
+locals _ _ ctx =
+  N.failure $ "Term.locals: term contains free variables - " ++ show (E.freeVars ctx)
+
+-- | Produce `e`, `e _`, `e _ _`, `e _ _ _` and so on,
+-- until the result is no longer a function type
+applications :: E.Term -> T.Type -> [E.Term]
+applications e t = e : go e t
+  where
+    go e (T.Forall _ t) = go e t
+    go e (T.Arrow _ t) = let e' = E.App e E.Blank in go e' t
+    go _ _ = []
 
 -- | Compute the type of the given subterm, unconstrained as much
 -- as possible by any local usages of that subterm. For example, in

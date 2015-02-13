@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -ddump-splices #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -25,6 +24,11 @@ newtype Path = Path [E] deriving (Eq,Ord,Show)
 elements :: Path -> [E]
 elements (Path e) = e
 
+prefixes :: Path -> [Path]
+prefixes (Path p) = map Path (go p)
+  where go :: [a] -> [[a]]
+        go as = map reverse (scanl (flip (:)) [] as)
+
 -- | Add an element onto the end of this 'Path'
 extend :: E -> Path -> Path
 extend e (Path p) = Path (p ++ [e])
@@ -40,6 +44,18 @@ at (Path (h:t)) e = go h e where
   go _ (E.Ann e' _) = at (Path (h:t)) e'
   go Body (E.Lam _ body) = at (Path t) body
   go _ _ = Nothing
+
+along :: Path -> E.Term -> [E.Term]
+along (Path path) e = go path e
+  where go [] e = [e]
+        go (Fn:path) e@(E.App f _) = e : go path f
+        go (Arg:path) e@(E.App _ arg) = e : go path arg
+        go (Body:path) e@(E.Lam _ body) = e : go path body
+        go (Index i:path) e@(E.Vector xs) = e : maybe [] (go path) (xs !? i)
+        go _ _ = []
+
+valid :: Path -> E.Term -> Bool
+valid p e = maybe False (const True) (at p e)
 
 -- | If the given @Path@ points to a valid subterm, we replace
 -- that subterm @e@ with @v e@ and sequence the @Applicative@ effects

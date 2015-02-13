@@ -86,7 +86,7 @@ library
     directory                 ,
     filepath                  ,
     http-types                ,
-    lens                      >= 4.2, 
+    lens                      >= 4.7,
     mtl                       >= 2.1.1,
     prelude-extras            >= 0.3,
     scotty                    == 0.9.1,

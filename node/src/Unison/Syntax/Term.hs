@@ -9,6 +9,7 @@ module Unison.Syntax.Term where
 import qualified Data.Foldable as Foldable
 import Data.Traversable
 import Control.Applicative
+import Control.Lens.TH
 import Control.Monad
 import Control.Monad.Writer
 import Data.Aeson.TH
@@ -219,3 +220,5 @@ hashes _ = error "todo: Term.hashes"
 
 deriveJSON defaultOptions ''Literal
 deriveJSON defaultOptions ''Term
+
+makePrisms ''Term

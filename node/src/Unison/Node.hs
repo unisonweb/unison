@@ -26,12 +26,14 @@ data Node m k t e = Node {
   -- | Access the metadata for the term and/or types identified by @k@
   metadatas :: [k] -> Noted m (Map k (MD.Metadata k)),
   -- | Open the given location for editing;
-  -- returns the current type, admissible type, local vars, matching local expressions
-  open :: e -> P.Path -> Noted m (t, t, [e], [e]),
+  -- returns ( current type
+  --         , admissible type
+  --         , local vars
+  --         , matching local applications
+  --         , matching local expressions )
+  openEdit :: e -> P.Path -> Noted m (t, t, [e], [Int], [e]),
   -- | Search for a term, optionally constrained to be of the given type
   search :: Maybe t -> Query -> Noted m [e],
-  -- | Search for a term of the given type in local scope
-  searchLocal :: k -> P.Path -> Maybe t -> Noted m [e],
   -- | Lookup the source of the term identified by @k@
   terms :: [k] -> Noted m (Map k e),
   -- | Lookup the dependencies of @k@, optionally limited to those that intersect the given set

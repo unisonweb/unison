@@ -34,16 +34,19 @@ check' :: E.Term -> T.Type -> Either Note T.Type
 check' term typ = join . N.unnote $ check missing term typ
   where missing h = N.failure $ "unexpected ref: " ++ show h
 
--- | @subtype a b@ is @Right b@ iff any @b -> t@ is well-typed when
--- given a value of type @a@, and is @Left note@ with information
+-- | @subtype a b@ is @Right b@ iff @f x@ is well-typed given
+-- @x : a@ and @f : b -> t@. That is, if a value of type `a`
+-- can be passed to a function expecting a `b`, then `subtype a b`
+-- returns `Right b`. This function returns @Left note@ with information
 -- about the reason for subtyping failure otherwise.
--- Example: the identity function, of type @forall a. a -> a@,
--- is a subtype of @Int -> Int@.
+--
+-- Example: @subtype (forall a. a -> a) (Int -> Int)@ returns @Right (Int -> Int)@.
 subtype :: T.Type -> T.Type -> Either Note T.Type
 subtype t1 t2 = case C.subtype (C.context []) t1 t2 of
   Left e -> Left e
   Right _ -> Right t2
 
+-- | Returns true if @subtype t1 t2@ returns @Right@, false otherwise
 isSubtype :: T.Type -> T.Type -> Bool
 isSubtype t1 t2 = case C.subtype (C.context []) t1 t2 of
   Left _ -> False

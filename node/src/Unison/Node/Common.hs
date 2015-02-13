@@ -4,10 +4,12 @@ module Unison.Node.Common (node) where
 import Control.Applicative
 import Control.Monad
 import Unison.Edit.Term.Eval as Eval
+import Unison.Edit.Term.Path as Path
 import Unison.Node as N
 import Unison.Node.Metadata as MD
 import Unison.Node.Store
 import Unison.Note (Noted)
+import qualified Unison.Note as Note
 import Unison.Syntax.Term (Term)
 import Unison.Syntax.Type (Type)
 import qualified Data.Map as M
@@ -69,8 +71,17 @@ node eval store =
     metadatas hs =
       M.fromList <$> sequence (map (\h -> (,) h <$> readMetadata store h) hs)
 
-    open e path =
-      error "Common.open.todo"
+    openEdit e loc = do
+      current <- TE.typeOf readTypeOf loc e
+      admissible <- TE.admissibleTypeOf readTypeOf loc e
+      locals <- TE.locals readTypeOf loc e
+      annotatedLocals <- pure $ map (\(v,t) -> E.Var v `E.Ann` t) locals
+      let f e = (const True <$> Type.check readTypeOf e admissible) `Note.orElse` pure False
+      let fi (e,_) = f e
+      let currentApplies = maybe [] (\e -> TE.applications e admissible) (Path.at loc e) `zip` [0..]
+      matchingCurrentApplies <- map snd <$> filterM fi currentApplies
+      matchingLocals <- filterM f (locals >>= (\(v,t) -> TE.applications (E.Var v) t))
+      pure (current, admissible, annotatedLocals, matchingCurrentApplies, matchingLocals)
 
     search t query = do
       hs <- hashes store Nothing
@@ -79,8 +90,6 @@ node eval store =
         Just t -> filterM (\h -> flip Type.isSubtype t <$> readTypeOf h) (S.toList hs)
       mds <- mapM (\h -> (,) h <$> readMetadata store h) hs'
       pure . map (\(h,_) -> E.Ref h) . filter (\(_,md) -> MD.matches query md) $ mds
-
-    searchLocal h path t = pure [] -- todo: implement
 
     readTermRef (R.Derived h) = readTerm store h
     readTermRef r = pure (E.Ref r)
@@ -110,9 +119,8 @@ node eval store =
        edit
        editType
        metadatas
-       open
+       openEdit
        search
-       searchLocal
        terms
        transitiveDependencies
        transitiveDependents

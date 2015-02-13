@@ -285,6 +285,7 @@ check ctx e t | wellformedType ctx t = scope (show e ++ " : " ++ show t) $ go e 
         ctx' = extend (E.Ann x' i) ctx
         body' = Term.betaReduce (fn `Term.App` v)
     in check ctx' body' o >>= retract (E.Ann x' i)
+  -- go Term.Blank _ = Right ctx -- possible hack to workaround lack of impredicative instantiation
   go _ _ = do -- Sub
     (a, ctx') <- synthesize ctx e
     subtype ctx' (apply ctx' a) (apply ctx' t)
