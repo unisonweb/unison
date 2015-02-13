@@ -110,6 +110,27 @@ metadatas host params =
   let req host params = jsonGet (Encoder.list H.encode) host "metadata" params
   in decodeResponse (Decoder.object MD.decodeMetadata) <~ Http.send (Signal.map2 req host params)
 
+type alias OpenEdit =
+  { current : Type
+  , admissible : Type
+  , locals : List Term
+  , focalApplications : List Int
+  , wellTypedLocals : List Term }
+
+openEdit : Signal Host
+        -> Signal (Term, Path)
+        -> Signal (Response OpenEdit)
+openEdit host params =
+  let body = Encoder.tuple2 E.encodeTerm Path.encodePath
+      req host params = jsonPost body host "open-edit" params
+      decode = Decoder.product5 OpenEdit
+                 T.decodeType
+                 T.decodeType
+                 (Decoder.list E.decodeTerm)
+                 (Decoder.list Decoder.int)
+                 (Decoder.list E.decodeTerm)
+  in decodeResponse decode <~ Http.send (Signal.map2 req host params)
+
 search : Signal Host
       -> Signal (Maybe Type, Query)
       -> Signal (Response (List Term))
@@ -119,15 +140,6 @@ search host params =
       req host params = jsonGet body host "search" params
       decode = decodeResponse (Decoder.list E.decodeTerm)
   in decode <~ Http.send (Signal.map2 req host params)
-
-searchLocal : Signal Host
-           -> Signal (Hash, Path, Maybe Type)
-           -> Signal (Response (List Term))
-searchLocal host params =
-  let body = Encoder.tuple3 H.encode Path.encodePath (Encoder.optional T.encodeType)
-      req host params = jsonGet body host "search-local" params
-      decode = Decoder.list E.decodeTerm
-  in decodeResponse decode <~ Http.send (Signal.map2 req host params)
 
 terms : Signal Host -> Signal (List Hash) -> Signal (Response (M.Dict Hash Term))
 terms host params =

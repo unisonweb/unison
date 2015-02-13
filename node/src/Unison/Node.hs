@@ -29,8 +29,8 @@ data Node m k t e = Node {
   -- returns ( current type
   --         , admissible type
   --         , local vars
-  --         , matching local applications
-  --         , matching local expressions )
+  --         , well-typed applications of focus
+  --         , well-typed expressions involving local vars )
   openEdit :: e -> P.Path -> Noted m (t, t, [e], [Int], [e]),
   -- | Search for a term, optionally constrained to be of the given type
   search :: Maybe t -> Query -> Noted m [e],
