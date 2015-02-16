@@ -72,17 +72,17 @@ metadatas host = Request.post host "metadatas"
   (Encoder.list H.encode)
   (Decoder.object MD.decodeMetadata)
 
-type alias OpenEdit =
+type alias LocalInfo =
   { current : Type
   , admissible : Type
   , locals : List Term
   , localApplications : List Int
   , wellTypedLocals : List Term }
 
-openEdit : Host -> Request (Term, Path) OpenEdit
+openEdit : Host -> Request (Term, Path) LocalInfo
 openEdit host = Request.post host "open-edit"
   (Encoder.tuple2 E.encodeTerm Path.encodePath)
-  (Decoder.product5 OpenEdit
+  (Decoder.product5 LocalInfo
     T.decodeType
     T.decodeType
     (Decoder.list E.decodeTerm)

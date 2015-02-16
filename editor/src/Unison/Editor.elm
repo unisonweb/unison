@@ -1,6 +1,8 @@
 module Unison.Editor where
 
 import Debug
+import Dict
+import Dict (Dict)
 import Elmz.Json.Request as JR
 import Elmz.Layout (Containment(Inside,Outside), Layout, Pt, Region)
 import Elmz.Layout as Layout
@@ -27,6 +29,7 @@ import Touch
 import Unison.Action as Action
 import Unison.Explorer as Explorer
 import Unison.Hash (Hash)
+import Unison.Metadata (Metadata)
 import Unison.Metadata as Metadata
 import Unison.Node as Node
 import Unison.Path (Path)
@@ -44,20 +47,15 @@ import Window
 type alias Model =
   { term : Term
   , scope : Scope.Model
+  , localInfo : Maybe Node.LocalInfo
+  , globalMatches : String -> Result (List Term) (List Term)
+  , metadata : Dict Hash Metadata
   , availableWidth : Maybe Int
   , dependents : Trie Path.E (List Path)
   , overrides : Trie Path.E (Layout View.L)
   , hashes : Trie Path.E Hash
   , explorer : Explorer.Model
   , explorerSelection : Selection1D.Model
-  , explorerInfo : Maybe
-     { admissibleType : Type
-     , currentType : Type
-     , locals : List Term -- local terms
-     -- local terms whose type matches admissibleType and the search string
-     , localMatches : String -> List Term
-     -- some search strings may require another server request
-     , globalMatches : String -> Result (List Term) (List Term) }
   , layouts : { panel : Layout View.L
               , explorer : Layout (Result Containment Int) }
   , errors : List String }
@@ -65,8 +63,9 @@ type alias Model =
 explorerValues : Model -> List Term
 explorerValues model =
   let f e i = let search = e.input.string
-              in i.localMatches search ++ Elmz.Result.merge (i.globalMatches search)
-  in Maybe.withDefault [] (Elmz.Maybe.map2 f model.explorer model.explorerInfo)
+              -- todo, use search string to filter wellTypedLocals
+              in i.wellTypedLocals ++ Elmz.Result.merge (model.globalMatches search)
+  in Maybe.withDefault [] (Elmz.Maybe.map2 f model.explorer model.localInfo)
 
 explorerInput : Model -> String
 explorerInput model =
@@ -96,12 +95,14 @@ model0 : Model
 model0 =
   { term = Term.Blank
   , scope = Nothing
+  , localInfo = Nothing
+  , globalMatches s = Result.Err []
+  , metadata = Dict.empty
   , availableWidth = Nothing
   , dependents = Trie.empty
   , overrides = Trie.empty
   , hashes = Trie.empty
   , explorer = Nothing
-  , explorerInfo = Nothing
   , explorerSelection = 0
   , errors = []
   , layouts = { panel = layout0
@@ -161,11 +162,11 @@ movement d2 model = case model.explorer of
   Nothing ->
     let scope = Scope.movement model.term d2 model.scope
     in { model | scope <- scope }
-  Just _ -> let d1 = Movement.negateD1 (Movement.xy_y d2)
-                search = Elmz.Maybe.maybe "" (\e -> e.input.string) model.explorer
-                limit = List.length (explorerValues model)
-                sel = model.explorerSelection
-            in { model | explorerSelection <- Selection1D.movement d1 limit sel }
+  Just ex -> let d1 = Movement.negateD1 (Movement.xy_y d2)
+                 search = Elmz.Maybe.maybe "" (\e -> e.input.string) model.explorer
+                 limit = List.length ex.completions
+                 sel = model.explorerSelection
+             in { model | explorerSelection <- Selection1D.movement d1 limit sel }
 
 delete : (Int,Int) -> Model -> Model
 delete origin model = case model.explorer of
@@ -194,7 +195,7 @@ close origin model =
 openExplorer : Sink Field.Content -> Action
 openExplorer searchbox model =
   let (req, m2) = openRequest { model | explorer <- Explorer.zero
-                                      , explorerInfo <- Nothing
+                                      , localInfo <- Nothing
                                       , explorerSelection <- 0 }
   in (req, refreshExplorer searchbox m2)
 
@@ -213,10 +214,10 @@ setSearchbox sink origin modifier content model =
                     else movement (Movement.D2 Movement.Positive Movement.Zero))
                 |> refreshPanel Nothing origin
                 |> openExplorer sink
-     else case model.explorerInfo of
+     else case model.localInfo of
             Nothing -> norequest <| refreshExplorer sink model'
-            Just info -> case info.globalMatches (explorerInput model) of
-              Result.Err terms -> (Just (Search info.admissibleType content.string),
+            Just info -> case model.globalMatches (explorerInput model) of
+              Result.Err terms -> (Just (Search info.admissible content.string),
                                    refreshExplorer sink model')
               Result.Ok terms -> norequest model'
 
@@ -248,9 +249,9 @@ refreshPanel searchbox origin model =
        Just scope -> { model | layouts <- { layouts | panel <- layout }}
 
 refreshExplorer : Sink Field.Content -> Model -> Model
-refreshExplorer searchbox model = case model.explorerInfo of
+refreshExplorer searchbox model = case model.localInfo of
   Nothing -> model
-  Just explorerInfo ->
+  Just localInfo ->
     let explorerTopLeft : Pt
         explorerTopLeft = case panelHighlight model of
           Nothing -> Pt 0 0
@@ -271,8 +272,8 @@ refreshExplorer searchbox model = case model.explorerInfo of
             , overrides x = Nothing }
           in List.map show (explorerValues model)
 
-        aboveMsg = "Allowed: " ++ toString explorerInfo.admissibleType ++ "\n" ++
-                   "Current: " ++ toString explorerInfo.currentType
+        aboveMsg = "Allowed: " ++ toString localInfo.admissible ++ "\n" ++
+                   "Current: " ++ toString localInfo.current
         explorer' : Explorer.Model
         explorer' = model.explorer |> Maybe.map (\e ->
           { e | completions <- completions
@@ -293,7 +294,8 @@ enter : Sink Field.Content -> (Int,Int) -> Action
 enter snk origin model = case model.explorer of
   Nothing ->
     let (req, m2) = openRequest { model | explorer <- Explorer.zero
-                                        , explorerInfo <- Nothing
+                                        , localInfo <- Nothing
+                                        , globalMatches <- \s -> Result.Err []
                                         , explorerSelection <- 0 }
     in (req, refreshExplorer snk m2)
   Just _ -> norequest (close origin model)
@@ -369,13 +371,6 @@ ignoreUpDown s =
                    (Signals.delay Field.noContent s)
 
 host = "http://localhost:8080"
-
-type alias OpenEdit =
-  { current : Type
-  , admissible : Type
-  , locals : List Term
-  , localApplications : List Int
-  , wellTypedLocals : List Term }
 
 search2 : Sink Field.Content -> Signal Request -> Signal Action
 search2 searchbox reqs =
