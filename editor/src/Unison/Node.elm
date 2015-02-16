@@ -7,8 +7,8 @@ import Elmz.Json.Encoder as Encoder
 import Elmz.Json.Encoder (Encoder)
 import Elmz.Json.Decoder as Decoder
 import Elmz.Json.Decoder (Decoder)
-import Http
-import Http (Request, Response)
+import Elmz.Json.Request (Request)
+import Elmz.Json.Request as Request
 import Set as S
 import Signal
 import Signal ((<~),(~),Signal)
@@ -32,83 +32,45 @@ type alias Host = String
 -- which just echos the the previous value
 -- and a Signal String of error messages
 
-jsonGet : Encoder a -> Host -> String -> a -> Request String
-jsonGet = jsonRequest "GET"
+admissibleTypeOf : Host -> Request (Term, Path.Path) Type
+admissibleTypeOf host = Request.post host "admissible-type-of"
+  (Encoder.tuple2 E.encodeTerm Path.encodePath)
+  T.decodeType
 
-jsonPost : Encoder a -> Host -> String -> a -> Request String
-jsonPost = jsonRequest "POST"
+createTerm : Host -> Request (Term, Metadata) Hash
+createTerm host = Request.post host "create-term"
+  (Encoder.tuple2 E.encodeTerm MD.encodeMetadata)
+  H.decode
 
-jsonRequest : String -> Encoder a -> Host -> String -> a -> Request String
-jsonRequest verb ja host path a =
-  Http.request verb (host ++ "/" ++ path) (Encoder.render ja a) [("Content-Type", "application/json")]
+createType : Host -> Request (Type, Metadata) Hash
+createType host = Request.post host "create-type"
+  (Encoder.tuple2 T.encodeType MD.encodeMetadata)
+  H.decode
 
-decodeResponse : Decoder a -> Response String -> Response a
-decodeResponse p r = case r of
-  Http.Success body ->
-    case Decoder.decodeString p body of
-      Err err -> Http.Failure 0 err
-      Ok a -> Http.Success a
-  Http.Waiting -> Http.Waiting
-  Http.Failure code body -> Http.Failure code body
+dependencies : Host -> Request (Maybe (S.Set Hash), Hash) (S.Set Hash)
+dependencies host = Request.post host "dependencies"
+  (Encoder.tuple2 (Encoder.optional (Encoder.set H.encode)) H.encode)
+  (Decoder.set H.decode)
 
-admissibleTypeOf : Signal Host -> Signal (Term, Path.Path) -> Signal (Response Type)
-admissibleTypeOf host params =
-  let body = Encoder.tuple2 E.encodeTerm Path.encodePath
-      req host params = jsonPost body host "admissible-type-of" params
-  in decodeResponse T.decodeType <~ Http.send (Signal.map2 req host params)
+dependents : Host -> Request (Maybe (S.Set Hash), Hash) (S.Set Hash)
+dependents host = Request.post host "dependents"
+  (Encoder.tuple2 (Encoder.optional (Encoder.set H.encode)) H.encode)
+  (Decoder.set H.decode)
 
-createTerm : Signal Host -> Signal (Term, Metadata) -> Signal (Response Hash)
-createTerm host params =
-  let body = Encoder.tuple2 E.encodeTerm MD.encodeMetadata
-      req host params = jsonPost body host "create-term" params
-  in decodeResponse H.decode <~ Http.send (Signal.map2 req host params)
+editTerm : Host -> Request (Path, Action, Term) Term
+editTerm host = Request.post host "edit-term"
+  (Encoder.tuple3 Path.encodePath A.encode E.encodeTerm)
+  E.decodeTerm
 
-createType : Signal Host -> Signal (Type, Metadata) -> Signal (Response Hash)
-createType host params =
-  let body = Encoder.tuple2 T.encodeType MD.encodeMetadata
-      req host params = jsonPost body host "create-type" params
-  in decodeResponse H.decode <~ Http.send (Signal.map2 req host params)
+editType : Host -> Request (Path, Action, Type) Type
+editType host = Request.post host "edit-type"
+  (Encoder.tuple3 Path.encodePath A.encode T.encodeType)
+  T.decodeType
 
-dependencies : Signal Host
-            -> Signal (Maybe (S.Set Hash), Hash)
-            -> Signal (Response (S.Set Hash))
-dependencies host params =
-  let body = Encoder.tuple2 (Encoder.optional (Encoder.set H.encode)) H.encode
-      req host params = jsonGet body host "dependencies" params
-  in decodeResponse (Decoder.set H.decode) <~ Http.send (Signal.map2 req host params)
-
-dependents : Signal Host
-          -> Signal (Maybe (S.Set Hash), Hash)
-          -> Signal (Response (S.Set Hash))
-dependents host params =
-  let body = Encoder.tuple2 (Encoder.optional (Encoder.set H.encode)) H.encode
-      req host params = jsonGet body host "dependents" params
-  in decodeResponse (Decoder.set H.decode) <~ Http.send (Signal.map2 req host params)
-
-editTerm : Signal Host
-        -> Signal (Path, Action, Term)
-        -> Signal (Response Term)
-editTerm host params =
-  let body = Encoder.tuple3 Path.encodePath A.encode E.encodeTerm
-      req host params = jsonGet body host "edit-term" params
-      decode = decodeResponse E.decodeTerm
-  in decode <~ Http.send (Signal.map2 req host params)
-
-{-
-editType : Signal Host
-        -> Signal (Path, Action, Type)
-        -> Signal (Response Type)
-editTerm host params =
-  let body = Encoder.tuple3 H.encode Path.encode A.encode
-      req host params = jsonGet body host "edit-type" params
-      decode = decodeResponse (Decoder.tuple2 H.decode E.decodeTerm)
-  in decode <~ Http.send (Signal.map2 req host params)
--}
-
-metadatas : Signal Host -> Signal (List Hash) -> Signal (Response (M.Dict Hash Metadata))
-metadatas host params =
-  let req host params = jsonGet (Encoder.list H.encode) host "metadata" params
-  in decodeResponse (Decoder.object MD.decodeMetadata) <~ Http.send (Signal.map2 req host params)
+metadatas : Host -> Request (List Hash) (M.Dict Hash Metadata)
+metadatas host = Request.post host "metadatas"
+  (Encoder.list H.encode)
+  (Decoder.object MD.decodeMetadata)
 
 type alias OpenEdit =
   { current : Type
@@ -117,74 +79,47 @@ type alias OpenEdit =
   , focalApplications : List Int
   , wellTypedLocals : List Term }
 
-openEdit : Signal Host
-        -> Signal (Term, Path)
-        -> Signal (Response OpenEdit)
-openEdit host params =
-  let body = Encoder.tuple2 E.encodeTerm Path.encodePath
-      req host params = jsonPost body host "open-edit" params
-      decode = Decoder.product5 OpenEdit
-                 T.decodeType
-                 T.decodeType
-                 (Decoder.list E.decodeTerm)
-                 (Decoder.list Decoder.int)
-                 (Decoder.list E.decodeTerm)
-  in decodeResponse decode <~ Http.send (Signal.map2 req host params)
+openEdit : Host -> Request (Term, Path) OpenEdit
+openEdit host = Request.post host "open-edit"
+  (Encoder.tuple2 E.encodeTerm Path.encodePath)
+  (Decoder.product5 OpenEdit
+    T.decodeType
+    T.decodeType
+    (Decoder.list E.decodeTerm)
+    (Decoder.list Decoder.int)
+    (Decoder.list E.decodeTerm))
 
-search : Signal Host
-      -> Signal (Maybe Type, Query)
-      -> Signal (Response (List Term))
-search host params =
-  let body = Encoder.tuple2 (Encoder.optional T.encodeType)
-                            MD.encodeQuery
-      req host params = jsonGet body host "search" params
-      decode = decodeResponse (Decoder.list E.decodeTerm)
-  in decode <~ Http.send (Signal.map2 req host params)
+search : Host -> Request (Maybe Type, Query) (List Term)
+search host = Request.post host "search"
+  (Encoder.tuple2 (Encoder.optional T.encodeType) MD.encodeQuery)
+  (Decoder.list E.decodeTerm)
 
-terms : Signal Host -> Signal (List Hash) -> Signal (Response (M.Dict Hash Term))
-terms host params =
-  let req host params = jsonGet (Encoder.list H.encode) host "terms" params
-  in decodeResponse (Decoder.object E.decodeTerm) <~ Http.send (Signal.map2 req host params)
+terms : Host -> Request (List Hash) (M.Dict Hash Term)
+terms host = Request.post host "terms"
+  (Encoder.list H.encode)
+  (Decoder.object E.decodeTerm)
 
-transitiveDependencies : Signal Host
-                      -> Signal (Maybe (S.Set Hash), Hash)
-                      -> Signal (Response (S.Set Hash))
-transitiveDependencies host params =
-  let body = Encoder.tuple2 (Encoder.optional (Encoder.set H.encode)) H.encode
-      req host params = jsonGet body host "transitive-dependencies" params
-  in decodeResponse (Decoder.set H.decode) <~ Http.send (Signal.map2 req host params)
+transitiveDependencies : Host -> Request (Maybe (S.Set Hash), Hash) (S.Set Hash)
+transitiveDependencies host = Request.post host "transitive-dependencies"
+  (Encoder.tuple2 (Encoder.optional (Encoder.set H.encode)) H.encode)
+  (Decoder.set H.decode)
 
-transitiveDependents : Signal Host
-                    -> Signal (Maybe (S.Set Hash), Hash)
-                    -> Signal (Response (S.Set Hash))
-transitiveDependents host params =
-  let body = Encoder.tuple2 (Encoder.optional (Encoder.set H.encode)) H.encode
-      req host params = jsonGet body host "transitive-dependents" params
-  in decodeResponse (Decoder.set H.decode) <~ Http.send (Signal.map2 req host params)
+transitiveDependents : Host -> Request (Maybe (S.Set Hash), Hash) (S.Set Hash)
+transitiveDependents host = Request.post host "transitive-dependents"
+  (Encoder.tuple2 (Encoder.optional (Encoder.set H.encode)) H.encode)
+  (Decoder.set H.decode)
 
-types : Signal Host -> Signal (List Hash) -> Signal (Response (M.Dict Hash Type))
-types host params =
-  let body = Encoder.list H.encode
-      req host params = jsonGet body host "types" params
-  in decodeResponse (Decoder.object T.decodeType) <~ Http.send (Signal.map2 req host params)
+typeOf : Host -> Request (Term, Path) Type
+typeOf host = Request.post host "type-of"
+  (Encoder.tuple2 E.encodeTerm Path.encodePath)
+  T.decodeType
 
-typeOf : Signal Host
-      -> Signal (Term, Path)
-      -> Signal (Response Type)
-typeOf host params =
-  let body = Encoder.tuple2 E.encodeTerm Path.encodePath
-      req host params = jsonPost body host "type-of" params
-      decode = decodeResponse T.decodeType
-  in decode <~ Http.send (Signal.map2 req host params)
+types : Host -> Request (List Hash) (M.Dict Hash Type)
+types host = Request.post host "types"
+  (Encoder.list H.encode)
+  (Decoder.object T.decodeType)
 
-updateMetadata : Signal Host
-              -> Signal (Hash, Metadata)
-              -> Signal (Response ())
-updateMetadata host params =
-  let body = Encoder.tuple2 H.encode MD.encodeMetadata
-      req host params = jsonPost body host "update-metadata" params
-      decode = decodeResponse (Decoder.unit ())
-  in decode <~ Http.send (Signal.map2 req host params)
-
-undefined : a
-undefined = undefined
+updateMetadata : Host -> Request (Hash, Metadata) ()
+updateMetadata host = Request.post host "update-metadata"
+  (Encoder.tuple2 H.encode MD.encodeMetadata)
+  (Decoder.unit ())
