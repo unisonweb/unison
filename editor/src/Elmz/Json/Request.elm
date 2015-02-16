@@ -9,6 +9,7 @@ import Http
 import Maybe
 import Result
 import Signal
+import Time
 
 type alias Request a b =
   { encoder : a -> Http.Request String
@@ -16,6 +17,8 @@ type alias Request a b =
 
 type alias Host = String
 type alias Path = String
+
+type Status e = Inactive | Waiting | Failed e
 
 post : Host -> Path -> Encoder a -> Decoder b -> Request a b
 post host path e d = Request (jsonPost e host path) d
@@ -26,12 +29,20 @@ map f r = { r | decoder <- Decoder.map f r.decoder }
 to : Request a b -> (b -> c) -> Request a c
 to r f = map f r
 
-send : Signal a -> Request a b -> Signal (Maybe (Result String b))
-send a r =
-  Http.send (Signal.map r.encoder a)
-  |> Signal.map (decodeResponse r.decoder)
-  |> Signals.events
-  |> Signal.map (Maybe.withDefault Nothing)
+send : Signal (Maybe a) -> Request a b -> Signal (Result (Status String) b)
+send ma r =
+  let a = Signals.justs ma |> Signal.map (\(Just a) -> a)
+      waitings = Signal.map (always (Result.Err Waiting)) a
+      results = Http.send (Signal.map r.encoder a) |> Signal.map (decodeResponse r.decoder)
+      inactives = Signal.map (always (Result.Err Inactive)) (Time.delay 0 results)
+  in results `Signal.merge` inactives `Signal.merge` waitings
+
+isWaiting : Signal (Result (Status String) a) -> Signal Bool
+isWaiting results =
+  let f r = case r of
+              Result.Err Waiting -> True
+              _ -> False
+  in Signal.map f results
 
 jsonGet : Encoder a -> Host -> String -> a -> Http.Request String
 jsonGet = jsonRequest "GET"
@@ -43,8 +54,9 @@ jsonRequest : String -> Encoder a -> Host -> String -> a -> Http.Request String
 jsonRequest verb ja host path a =
   Http.request verb (host ++ "/" ++ path) (Encoder.render ja a) [("Content-Type", "application/json")]
 
-decodeResponse : Decoder a -> Http.Response String -> Maybe (Result String a)
+decodeResponse : Decoder a -> Http.Response String -> Result (Status String) a
 decodeResponse p r = case r of
-  Http.Success body -> Just (Decoder.decodeString p body)
-  Http.Waiting -> Nothing
-  Http.Failure code body -> Just (Result.Err <| "error " ++ toString code ++ "\n" ++ body)
+  Http.Success body -> case Decoder.decodeString p body of
+    Result.Err e -> Result.Err (Failed e)
+  Http.Waiting -> Result.Err Waiting
+  Http.Failure code body -> Result.Err <| Failed ("error " ++ toString code ++ "\n" ++ body)
