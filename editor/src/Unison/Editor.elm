@@ -1,6 +1,7 @@
 module Unison.Editor where
 
 import Debug
+import Elmz.Json.Request as JR
 import Elmz.Layout (Containment(Inside,Outside), Layout, Pt, Region)
 import Elmz.Layout as Layout
 import Elmz.Maybe
@@ -75,7 +76,7 @@ type Request
   = Open Term Path -- obtain the current and admissible type and local completions
   | Search Type String -- global search for a given type
   | Declare Term
-  | Edit Term Path Action.Action
+  | Edit Path Action.Action Term
   | Metadatas (List Hash)
 
 type alias Action = Model -> (Maybe Request, Model)
@@ -367,39 +368,37 @@ ignoreUpDown s =
                    s
                    (Signals.delay Field.noContent s)
 
-{-
-search : Sink Field.Content -> Signal Request -> Signal Action
-search searchbox reqs =
-  let containsNocase sub overall = String.contains (String.toLower sub) (String.toLower overall)
-      possible = ["Alice", "Alicia", "Bob", "Burt", "Carol", "Carolina", "Dave", "Don", "Eve"]
-      matches query = List.filter (containsNocase query) possible
-      go _ model = -- our logic is pure, ignore the request
-        let possible = matches (Explorer.getInputOr Field.noContent model.explorer).string
-        in norequest (updateExplorerValues searchbox (List.map Terms.str possible) model)
-  in Time.delay (200 * Time.millisecond) (Signal.map go reqs)
--}
+host = "http://localhost:8080"
 
-host : Signal Node.Host
-host = Signal.constant "http://localhost:8080"
+type alias OpenEdit =
+  { current : Type
+  , admissible : Type
+  , locals : List Term
+  , localApplications : List Int
+  , wellTypedLocals : List Term }
 
--- type alias Request = { term : Term, path : Path, query : Maybe String }
 search2 : Sink Field.Content -> Signal Request -> Signal Action
 search2 searchbox reqs =
-  Time.delay 0 (Signal.constant (\model -> norequest model))
-  --let req r = (r.term, r.path)
-  --    admissible resp model = norequest << refreshExplorer searchbox <| case resp of
-  --      Http.Success t -> { model | admissibleType <- t }
-  --      Http.Waiting -> model
-  --      Http.Failure code msg -> pushError msg model
-  --    current resp model = norequest << refreshExplorer searchbox <| case resp of
-  --      Http.Success t -> { model | currentType <- t }
-  --      Http.Waiting -> model
-  --      Http.Failure code msg -> pushError msg model
-  --    admissibleTypes = Node.admissibleTypeOf host (Signal.map req reqs) |> Signal.map admissible
-  --    currentTypes = Node.typeOf host (Signal.map req reqs) |> Signal.map current
-  --in Signal.merge admissibleTypes currentTypes
+  let openEdit r = case r of
+        Open term path -> Just (term,path)
+        _ -> Nothing
+      openEdit' =
+        let go oe model = List.head []
+        in Signal.map openEdit reqs |> JR.send (Node.openEdit host `JR.to` go)
+      search r = case r of
+        Search typ query -> Just (typ,query)
+        _ -> Nothing
+      declare r = case r of
+        Declare term -> Just term
+        _ -> Nothing
+      edit r = case r of
+        Edit path action term -> Just (path,action,term)
+        _ -> Nothing
+      metadatas r = case r of
+        Metadatas hs -> Just hs
+        _ -> Nothing
 
--- need to hook into the Signal Field.Content associated with the model
+  in List.head []
 
 main =
   let origin = (15,15)

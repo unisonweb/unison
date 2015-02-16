@@ -76,7 +76,7 @@ type alias OpenEdit =
   { current : Type
   , admissible : Type
   , locals : List Term
-  , focalApplications : List Int
+  , localApplications : List Int
   , wellTypedLocals : List Term }
 
 openEdit : Host -> Request (Term, Path) OpenEdit
