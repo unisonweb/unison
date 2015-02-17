@@ -22,7 +22,6 @@ type Sort = Type | Term
 type alias Metadata = {
   sort : Sort,
   names : Names,
-  -- for each var, and each scope (which points to a lambda body), what are the names of that var w/in that scope
   locals : List (Path, Symbol),
   description : Maybe R.Reference,
   annotation : R.Reference
@@ -33,6 +32,10 @@ anonymousSymbol = Symbol "anonymousSymbol" Prefix 9
 
 anonymousTerm : Metadata
 anonymousTerm = Metadata Term [] [] Nothing (R.Builtin "unknown type")
+
+defaultMetadata : R.Reference -> Metadata
+defaultMetadata s =
+  Metadata Term [Symbol (R.toString s) Prefix 9] [] Nothing (R.Builtin "?")
 
 firstSymbol : String -> Metadata -> Symbol
 firstSymbol defaultName md = case md.names of
