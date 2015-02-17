@@ -61,7 +61,7 @@ type alias Model =
   , explorerSelection : Selection1D.Model
   , layouts : { panel : Layout View.L
               , explorer : Layout (Result Containment Int) }
-  , errors : List String }
+  , status : JR.Status String }
 
 viewEnv : Model -> View.Env
 viewEnv model =
@@ -96,11 +96,11 @@ keyedCompletions model =
     in List.map format regulars
   in Maybe.withDefault [] (Elmz.Maybe.map3 f model.explorer model.localInfo model.scope)
 
-explorerValues : Model -> List Term
-explorerValues model =
+filteredCompletions : Model -> List (Term,Element)
+filteredCompletions model =
   let search = Maybe.withDefault "" (Maybe.map (.input >> .string) (model.explorer))
   in List.filter (\(k,_,_) -> String.contains search k) (keyedCompletions model)
-     |> List.map (\(_,e,_) -> e)
+     |> List.map (\(_,e,l) -> (e,l))
 
 explorerInput : Model -> String
 explorerInput model =
@@ -140,7 +140,7 @@ model0 =
   , hashes = Trie.empty
   , explorer = Nothing
   , explorerSelection = 0
-  , errors = []
+  , status = JR.Inactive
   , layouts = { panel = layout0
               , explorer = explorerLayout0  } }
 
@@ -223,7 +223,7 @@ closeExplorer model =
 close : (Int,Int) -> Model -> Model
 close origin model =
   refreshPanel Nothing origin << Maybe.withDefault (closeExplorer model) <|
-  Selection1D.index model.explorerSelection (explorerValues model) `Maybe.andThen`
+  Selection1D.index model.explorerSelection (List.map fst (filteredCompletions model)) `Maybe.andThen`
     \term -> model.scope `Maybe.andThen`
     \scope -> Term.set scope.focus model.term term `Maybe.andThen`
     \t2 -> (Just << closeExplorer) { model | term <- t2 }
@@ -235,16 +235,12 @@ openExplorer searchbox model =
                                       , explorerSelection <- 0 }
   in (req, refreshExplorer searchbox m2)
 
-pushError : String -> Model -> Model
-pushError msg model =
-  { model | errors <- msg :: List.take 5 model.errors }
-
 -- todo: invalidate dependents and overrides if under the edit path
 
 setSearchbox : Sink Field.Content -> (Int,Int) -> Bool -> Field.Content -> Action
 setSearchbox sink origin modifier content model =
   let model' = { model | explorer <- Explorer.setInput content model.explorer }
-  in if String.endsWith " " content.string && (not (List.isEmpty (explorerValues model)))
+  in if String.endsWith " " content.string && (not (List.isEmpty (filteredCompletions model)))
      then model |> close origin
                 |> (if modifier then apply origin
                     else movement (Movement.D2 Movement.Positive Movement.Zero))
@@ -294,24 +290,10 @@ refreshExplorer searchbox model = case model.localInfo of
           Nothing -> Pt 0 0
           Just region -> { x = region.topLeft.x - 6, y = region.topLeft.y + region.height + 6 }
 
-        availableWidth = (Maybe.withDefault 1000 model.availableWidth - explorerTopLeft.x - 12)
-                         `max` 40
-
-        rootMetadata = Metadata.anonymousTerm
-        metadata h = Metadata.anonymousTerm
-
         completions : List Element
-        completions = -- todo: real metadata
-          let show term = Layout.element << View.layout term <|
-            { rootMetadata = Metadata.anonymousTerm
-            , availableWidth = availableWidth
-            , metadata = metadata
-            , overrides x = Nothing
-            , overall = term }
-          in List.map show (explorerValues model)
+        completions = List.map snd (filteredCompletions model)
 
-        aboveMsg = "Allowed: " ++ toString localInfo.admissible ++ "\n" ++
-                   "Current: " ++ toString localInfo.current
+        aboveMsg = toString localInfo
         explorer' : Explorer.Model
         explorer' = model.explorer |> Maybe.map (\e ->
           { e | completions <- completions
@@ -409,6 +391,11 @@ ignoreUpDown s =
                    (Signals.delay Field.noContent s)
 
 host = "http://localhost:8080"
+
+withStatus : Result (JR.Status String) Action -> Action
+withStatus r = case r of
+  Result.Err status -> \model -> norequest { model | status <- status }
+  Result.Ok action -> action
 
 search2 : Sink Field.Content -> Signal Request -> Signal Action
 search2 searchbox reqs =
