@@ -60,12 +60,18 @@ type alias Model =
               , explorer : Layout (Result Containment Int) }
   , errors : List String }
 
+keyedCompletions : Model -> List (String,Term,Element)
+keyedCompletions model = Debug.crash "woot"
+--   let f e i = let search = e.input.string
+--              -- todo, use search string to filter wellTypedLocals
+--               in i.wellTypedLocals ++ Elmz.Result.merge (model.globalMatches search)
+--  in Maybe.withDefault [] (Elmz.Maybe.map2 f model.explorer model.localInfo)
+
 explorerValues : Model -> List Term
 explorerValues model =
-  let f e i = let search = e.input.string
-              -- todo, use search string to filter wellTypedLocals
-              in i.wellTypedLocals ++ Elmz.Result.merge (model.globalMatches search)
-  in Maybe.withDefault [] (Elmz.Maybe.map2 f model.explorer model.localInfo)
+  let search = Maybe.withDefault "" (Maybe.map (.input >> .string) (model.explorer))
+  in List.filter (\(k,_,_) -> String.contains search k) (keyedCompletions model)
+     |> List.map (\(_,e,_) -> e)
 
 explorerInput : Model -> String
 explorerInput model =
