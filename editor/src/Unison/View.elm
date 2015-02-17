@@ -2,6 +2,7 @@ module Unison.View (layout, L) where
 
 import Array
 import Color
+import Debug
 import Elmz.Distance as Distance
 import Elmz.Layout (Layout)
 import Elmz.Layout as L
@@ -30,7 +31,30 @@ type alias Env =
   { rootMetadata   : Metadata
   , availableWidth : Int
   , metadata       : R.Reference -> Metadata
-  , overrides      : Path -> Maybe (Layout L) }
+  , overrides      : Path -> Maybe (Layout L)
+  , overall        : Term }
+
+resolveLocal : String -> Metadata -> Path -> Term -> Metadata.Symbol
+resolveLocal notfound md p e =
+  let sym = Metadata.anonymousSymbol
+  in (boundAt p e `Maybe.andThen` Metadata.localSymbol md) |>
+     Maybe.withDefault { sym | name <- notfound }
+
+key : Env -> { path : Path, term : Term } -> String
+key env cur = case cur.term of
+  Blank -> "_"
+  Var v -> (resolveLocal ("v"++toString v) env.rootMetadata cur.path env.overall).name
+  Lit (Number n) -> toString n
+  Lit (Str s) -> "\"" ++ toString s ++ "\""
+  Lit (Distance d) -> toString d
+  Ref r -> Metadata.firstName "anonymous" (env.metadata r)
+  App f arg -> key env { path = cur.path `snoc` Fn, term = f } ++
+               key env { path = cur.path `snoc` Arg, term = arg }
+  Ann e t -> key env { cur | term <- e }
+  Vector terms ->
+    let ki i term = key env { path = cur.path `snoc` Index i, term = term }
+    in "[" ++ String.join "," (Array.toList (Array.indexedMap ki terms)) ++ "]"
+  Lam v body -> key env { path = cur.path `snoc` Body, term = body }
 
 {-|
 
@@ -129,7 +153,8 @@ impl env allowBreak ambientPrec availableWidth cur =
     Just l -> l
     Nothing -> case cur.term of
       Embed l -> l
-      Var n -> codeText (Metadata.resolveLocal env.rootMetadata cur.path n).name |> L.embed (tag cur.path)
+      Var n -> codeText (resolveLocal ("v"++toString n) env.rootMetadata cur.path env.overall).name
+            |> L.embed (tag cur.path)
       Ref h -> codeText (Metadata.firstName (R.toString h) (env.metadata h)) |> L.embed (tag cur.path)
       Blank -> Styles.blank |> L.embed (tag cur.path)
       Lit (Number n) -> Styles.numericLiteral (toString n) |> L.embed (tag cur.path)
@@ -137,7 +162,7 @@ impl env allowBreak ambientPrec availableWidth cur =
       _ -> case builtins env allowBreak ambientPrec availableWidth cur of
         Just l -> l
         Nothing -> let space' = L.embed (tag cur.path) space in
-          case break env.rootMetadata env.metadata cur.path cur.term of
+          case break env env.rootMetadata env.metadata cur.path cur.term of
             Prefix f args ->
               let f' = impl env False 9 availableWidth f
                   lines = f' :: List.map (impl env False 10 0) args
@@ -189,12 +214,13 @@ type Break a
   | Bracketed (List a)        -- `Bracketed [x,y,z] == [x,y,z]`
   | Lambda (List a) a          -- `Lambda [x,y,z] e == x -> y -> z -> e`
 
-break : Metadata
+break : Env
+    -> Metadata
     -> (R.Reference -> Metadata)
     -> Path
     -> Term
     -> Break { path : Path, term : Term }
-break rootMd md path expr =
+break env rootMd md path expr =
   let prefix f acc path = case f of
         App f arg -> prefix f ({ path = path `snoc` Arg, term = arg } :: acc) (path `snoc` Fn)
         _ -> Prefix { path = path, term = f } acc
@@ -225,14 +251,14 @@ break rootMd md path expr =
     App (App op l) r ->
       let sym = case op of
         Ref h -> Metadata.firstSymbol (R.toString h) (md h)
-        Var v -> Metadata.resolveLocal rootMd path v
+        Var v -> resolveLocal ("v"++toString v) rootMd path env.overall
         _ -> Metadata.anonymousSymbol
       in case sym.fixity of
         Metadata.Prefix -> prefix (App (App op l) r) [] path -- not an operator chain, fall back
         Metadata.InfixL -> opsL op sym.precedence (App (App op l) r) [] path -- left associated operator chain
         Metadata.InfixR -> opsR op sym.precedence (App (App op l) r) path
     Lam v body -> case body of -- audit this
-      Lam _ _ -> let trim p = { p | path <- path } in case break rootMd md (path `snoc` Body) body of
+      Lam _ _ -> let trim p = { p | path <- path } in case break env rootMd md (path `snoc` Body) body of
         Lambda args body2 -> Lambda ({ path = path, term = Var v } :: args) body2
         _ -> Lambda [{path = path, term = Var v }] { path = path `snoc` Body, term = body }
       _ -> Lambda [{path = path, term = Var v }] { path = path `snoc` Body, term = body }

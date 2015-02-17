@@ -23,7 +23,7 @@ type alias Metadata = {
   sort : Sort,
   names : Names,
   -- for each var, and each scope (which points to a lambda body), what are the names of that var w/in that scope
-  locals : M.Dict I (List (Path,Names)),
+  locals : List (Path, Symbol),
   description : Maybe R.Reference,
   annotation : R.Reference
 }
@@ -32,7 +32,7 @@ anonymousSymbol : Symbol
 anonymousSymbol = Symbol "anonymousSymbol" Prefix 9
 
 anonymousTerm : Metadata
-anonymousTerm = Metadata Term [] M.empty Nothing (R.Builtin "unknown type")
+anonymousTerm = Metadata Term [] [] Nothing (R.Builtin "unknown type")
 
 firstSymbol : String -> Metadata -> Symbol
 firstSymbol defaultName md = case md.names of
@@ -45,21 +45,12 @@ firstName ifEmpty md =
   then ifEmpty
   else (List.head md.names).name
 
-resolveLocal : Metadata -> Path -> I -> Symbol
-resolveLocal md p v =
-  let ns = localNames md p v
-  in if List.isEmpty ns then { name = "v"++toString v, fixity = Prefix, precedence = 9 }
-     else List.head ns
-
-localNames : Metadata -> Path -> I -> Names
-localNames env p v =
+localSymbol : Metadata -> Path -> Maybe Symbol
+localSymbol env p =
   let trimmed = Path.trimToScope p
-  in case M.get v env.locals of
-    Nothing -> []
-    Just psns -> let go (p,ns) acc = case acc of
-                    Nothing -> if p == trimmed then Just ns else Nothing
-                    Just acc -> Just acc
-                 in Maybe.withDefault [] (List.foldl go Nothing psns)
+  in case List.filter (\(p',sym) -> p == p') env.locals of
+    [] -> Nothing
+    (_,s) :: _ -> Just s
 
 type Fixity = InfixL | InfixR | Infix | Prefix
 
@@ -126,12 +117,12 @@ decodeMetadata =
     (Decoder.maybe R.decode)
     R.decode
 
-decodeLocals : Decoder (M.Dict I (List (Path,Names)))
+decodeLocals : Decoder (List (Path,Symbol))
 decodeLocals =
-  Decoder.map M.fromList (Decoder.list (Decoder.tuple2 V.decode (Decoder.list (Decoder.tuple2 Path.decodePath decodeNames))))
+  Decoder.list (Decoder.tuple2 Path.decodePath decodeSymbol)
 
-encodeLocals : Encoder (M.Dict I (List (Path,Names)))
-encodeLocals m = Encoder.list (Encoder.tuple2 V.encode (Encoder.list (Encoder.tuple2 Path.encodePath encodeNames))) (M.toList m)
+encodeLocals : Encoder (List (Path,Symbol))
+encodeLocals = Encoder.list (Encoder.tuple2 Path.encodePath encodeSymbol)
 
 encodeMetadata : Encoder Metadata
 encodeMetadata md = Encoder.tag' "Metadata"

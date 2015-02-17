@@ -144,6 +144,29 @@ delete p e =
         _ -> Nothing
   in if valid e p then go p e else Nothing
 
+{-| If the given `Path` points to a `Var`, returns the path where that var is bound. -}
+boundAt : Path -> Term -> Maybe Path
+boundAt path e = case at path e of
+  Just (Var n) ->
+    let go rem e = case e of
+      Lam n2 body ->
+        if n == n2
+        then List.reverse path
+             |> List.drop (List.length path - List.length rem)
+             |> List.reverse
+             |> Just
+        else case rem of
+          hd :: rem -> case (hd,e) of
+            (_, Ann e _) -> go (hd :: rem) e
+            (Fn,App e _) -> go rem e
+            (Arg,App _ e) -> go rem e
+            (Body,Lam _ e) -> go rem e
+            (Index i,Vector es) -> Array.get i es `Maybe.andThen` go rem
+            _ -> Nothing
+          [] -> Nothing
+    in go path e
+  _ -> Nothing
+
 {-| Returns `True` if the path points to a valid subterm -}
 valid : Term -> Path -> Bool
 valid e p = case at p e of

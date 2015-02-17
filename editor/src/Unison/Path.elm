@@ -1,14 +1,15 @@
 module Unison.Path where
 
-import List
-import List ((::))
 import Array (Array)
 import Array as A
-import Elmz.Json.Encoder as Encoder
-import Elmz.Json.Encoder (Encoder)
+import Debug
 import Elmz.Json.Decoder as Decoder
+import Elmz.Json.Encoder (Encoder)
+import Elmz.Json.Encoder as Encoder
 import Json.Decode (Decoder)
 import Json.Decode as Decode
+import List
+import List ((::))
 import String
 
 type E

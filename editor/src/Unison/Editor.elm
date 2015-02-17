@@ -239,7 +239,8 @@ refreshPanel searchbox origin model =
           { rootMetadata = Metadata.anonymousTerm
           , availableWidth = availableWidth - fst origin
           , metadata h = Metadata.anonymousTerm
-          , overrides x = Nothing }
+          , overrides x = Nothing
+          , overall = model.term }
       layouts = model.layouts
       explorerRefresh = case searchbox of
         Nothing -> identity
@@ -269,7 +270,8 @@ refreshExplorer searchbox model = case model.localInfo of
             { rootMetadata = Metadata.anonymousTerm
             , availableWidth = availableWidth
             , metadata = metadata
-            , overrides x = Nothing }
+            , overrides x = Nothing
+            , overall = term }
           in List.map show (explorerValues model)
 
         aboveMsg = "Allowed: " ++ toString localInfo.admissible ++ "\n" ++
