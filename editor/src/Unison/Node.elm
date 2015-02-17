@@ -67,11 +67,6 @@ editType host = Request.post host "edit-type"
   (Encoder.tuple3 Path.encodePath A.encode T.encodeType)
   T.decodeType
 
-metadatas : Host -> Request (List Hash) (M.Dict Hash Metadata)
-metadatas host = Request.post host "metadatas"
-  (Encoder.list H.encode)
-  (Decoder.object MD.decodeMetadata)
-
 type alias LocalInfo =
   { current : Type
   , admissible : Type
@@ -79,8 +74,8 @@ type alias LocalInfo =
   , localApplications : List Int
   , wellTypedLocals : List Term }
 
-openEdit : Host -> Request (Term, Path) LocalInfo
-openEdit host = Request.post host "open-edit"
+localInfo : Host -> Request (Term, Path) LocalInfo
+localInfo host = Request.post host "local-info"
   (Encoder.tuple2 E.encodeTerm Path.encodePath)
   (Decoder.product5 LocalInfo
     T.decodeType
@@ -88,6 +83,11 @@ openEdit host = Request.post host "open-edit"
     (Decoder.list E.decodeTerm)
     (Decoder.list Decoder.int)
     (Decoder.list E.decodeTerm))
+
+metadatas : Host -> Request (List Hash) (M.Dict Hash Metadata)
+metadatas host = Request.post host "metadatas"
+  (Encoder.list H.encode)
+  (Decoder.object MD.decodeMetadata)
 
 search : Host -> Request (Maybe Type, Query) (List Term)
 search host = Request.post host "search"

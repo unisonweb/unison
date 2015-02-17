@@ -71,7 +71,7 @@ node eval store =
     metadatas hs =
       M.fromList <$> sequence (map (\h -> (,) h <$> readMetadata store h) hs)
 
-    openEdit e loc = do
+    localInfo e loc = do
       current <- TE.typeOf readTypeOf loc e
       admissible <- TE.admissibleTypeOf readTypeOf loc e
       locals <- TE.locals readTypeOf loc e
@@ -121,8 +121,8 @@ node eval store =
        dependents
        edit
        editType
+       localInfo
        metadatas
-       openEdit
        search
        terms
        transitiveDependencies

@@ -54,80 +54,81 @@ originOptions = do
 route :: ActionM () -> ActionM ()
 route action = do
   originPolicy
-  body <- S.body
-  liftIO (putStrLn ("request body\n" ++ show body))
   action
+
+postRoute :: S.RoutePattern -> ActionM () -> S.ScottyM ()
+postRoute s action = S.post s (route action)
 
 server :: Int -> Node IO Reference T.Type E.Term -> IO ()
 server port node = S.scotty port $ do
   S.addroute OPTIONS (S.regex ".*") $ originOptions
-  S.post "/admissible-type-of" . route $ do
+  postRoute "/admissible-type-of" $ do
     (h, path) <- S.jsonData
     t <- runN $ N.admissibleTypeOf node h path
     S.json t
-  S.post "/create-term" $ do
+  postRoute "/create-term" $ do
     (e, md) <- S.jsonData
     k <- runN $ N.createTerm node e md
     S.json k
-  S.post "/create-type" $ do
+  postRoute "/create-type" $ do
     (t, md) <- S.jsonData
     k <- runN $ N.createType node t md
     S.json k
-  S.get "/dependencies" $ do
+  postRoute "/dependencies" $ do
     (limit, h) <- S.jsonData
     k <- runN $ N.dependencies node limit h
     S.json k
-  S.get "/dependents" $ do
+  postRoute "/dependents" $ do
     (limit, h) <- S.jsonData
     k <- runN $ N.dependents node limit h
     S.json k
-  S.get "/edit-term" $ do -- this merely computes the new term, hence a GET
+  postRoute "/edit-term" $ do -- this merely computes the new term, hence a GET
     (loc, a, e) <- S.jsonData
     e <- runN $ N.editTerm node loc a e
     S.json e -- we might follow this up with a 'create-term', which is a POST
-  S.get "/edit-type" $ do -- this merely computes the new type and its hash, hence a GET!
+  postRoute "/edit-type" $ do -- this merely computes the new type and its hash, hence a GET!
     (loc, a, t) <- S.jsonData
     t <- runN $ N.editType node loc a t
     S.json t
-  S.get "/metadatas" $ do
+  postRoute "/local-info" $ do
+    (e, path) <- S.jsonData
+    t <- runN $ N.localInfo node e path
+    S.json t
+  postRoute "/metadatas" $ do
     hs <- S.jsonData
     md <- runN $ N.metadatas node hs
     S.json md
-  S.post "/open-edit" . route $ do
-    (e, path) <- S.jsonData
-    t <- runN $ N.openEdit node e path
-    S.json t
-  S.get "/search" $ do
+  postRoute "/search" $ do
     (t,q) <- S.jsonData
     es <- runN $ N.search node t q
     S.json es
-  S.get "/terms" $ do
+  postRoute "/terms" $ do
     hs <- S.jsonData
     r <- runN $ N.terms node hs
     S.json r
-  S.get "/transitive-dependencies" $ do
+  postRoute "/transitive-dependencies" $ do
     (limit,h) <- S.jsonData
     s <- runN $ N.transitiveDependencies node limit h
     S.json s
-  S.get "/transitive-dependents" $ do
+  postRoute "/transitive-dependents" $ do
     (limit,h) <- S.jsonData
     s <- runN $ N.transitiveDependents node limit h
     S.json s
-  S.get "/types" $ do
+  postRoute "/types" $ do
     hs <- S.jsonData
     ts <- runN $ N.types node hs
     S.json ts
-  S.post "/type-of" . route $ do
+  postRoute "/type-of" . route $ do
     (h,loc) <- S.jsonData
     s <- runN $ N.typeOf node h loc
     S.json s
-  S.post "/update-metadata" $ do
+  postRoute "/update-metadata" $ do
     (h,md) <- S.jsonData
     s <- runN $ N.updateMetadata node h md
     S.json s
   S.defaultHandler $ \msg -> originPolicy *> S.raise msg
   {-
-  S.get "/type-of-constructor-argument" $ do
+  postRoute "/type-of-constructor-argument" $ do
     (h,loc) <- S.jsonData
     s <- runN $ N.typeOf node h loc
     S.json s

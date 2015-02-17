@@ -23,15 +23,14 @@ data Node m k t e = Node {
   editTerm :: P.Path -> A.Action -> e -> Noted m e,
   -- | Modify the given type, which may fail
   editType :: P.Path -> A.Action -> t -> Noted m t,
+  -- | Returns ( current type
+  --           , admissible type
+  --           , local vars
+  --           , well-typed applications of focus
+  --           , well-typed expressions involving local vars )
+  localInfo :: e -> P.Path -> Noted m (t, t, [e], [Int], [e]),
   -- | Access the metadata for the term and/or types identified by @k@
   metadatas :: [k] -> Noted m (Map k (MD.Metadata k)),
-  -- | Open the given location for editing;
-  -- returns ( current type
-  --         , admissible type
-  --         , local vars
-  --         , well-typed applications of focus
-  --         , well-typed expressions involving local vars )
-  openEdit :: e -> P.Path -> Noted m (t, t, [e], [Int], [e]),
   -- | Search for a term, optionally constrained to be of the given type
   search :: Maybe t -> Query -> Noted m [e],
   -- | Lookup the source of the term identified by @k@

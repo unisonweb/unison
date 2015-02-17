@@ -417,7 +417,7 @@ search2 searchbox reqs =
         _ -> Nothing
       openEdit' =
         let go oe model = List.head []
-        in Signal.map openEdit reqs |> JR.send (Node.openEdit host `JR.to` go)
+        in Signal.map openEdit reqs |> JR.send (Node.localInfo host `JR.to` go)
       search r = case r of
         Search typ query -> Just (typ,query)
         _ -> Nothing
