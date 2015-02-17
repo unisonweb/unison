@@ -1,4 +1,4 @@
-module Unison.View (layout, L) where
+module Unison.View (Env, key, layout, L) where
 
 import Array
 import Color
@@ -40,7 +40,9 @@ resolveLocal notfound md p e =
   in (boundAt p e `Maybe.andThen` Metadata.localSymbol md) |>
      Maybe.withDefault { sym | name <- notfound }
 
-key : Env -> { path : Path, term : Term } -> String
+key : { tl | rootMetadata : Metadata, metadata : R.Reference -> Metadata, overall : Term }
+   -> { path : Path, term : Term }
+   -> String
 key env cur = case cur.term of
   Blank -> "_"
   Var v -> (resolveLocal ("v"++toString v) env.rootMetadata cur.path env.overall).name

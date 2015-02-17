@@ -31,6 +31,9 @@ join a = case a of
 map2 : (a -> b -> c) -> Maybe a -> Maybe b -> Maybe c
 map2 f a b = pure f `ap` a `ap` b
 
+map3 : (a -> b -> c -> d) -> Maybe a -> Maybe b -> Maybe c -> Maybe d
+map3 f a b c = pure f `ap` a `ap` b `ap` c
+
 map : (a -> b) -> Maybe a -> Maybe b
 map f m = case m of
   Nothing -> Nothing

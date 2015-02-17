@@ -92,6 +92,9 @@ carotUp x c =
      |> E.height (ceiling (toFloat x * sqrt 2.0 / 2.0))
      |> E.above (E.spacer 1 13)
 
+currentSymbol : Element
+currentSymbol = outline' okColor 8 16 16
+
 numericLiteral : String -> Element
 numericLiteral s = T.leftAligned (T.style { code | color <- belizeHole } (T.fromString s))
 

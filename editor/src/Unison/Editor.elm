@@ -29,6 +29,8 @@ import Touch
 import Unison.Action as Action
 import Unison.Explorer as Explorer
 import Unison.Hash (Hash)
+import Unison.Reference (Reference)
+import Unison.Reference as Reference
 import Unison.Metadata (Metadata)
 import Unison.Metadata as Metadata
 import Unison.Node as Node
@@ -49,7 +51,8 @@ type alias Model =
   , scope : Scope.Model
   , localInfo : Maybe Node.LocalInfo
   , globalMatches : String -> Result (List Term) (List Term)
-  , metadata : Dict Hash Metadata
+  , rootMetadata : Metadata
+  , metadata : Reference -> Metadata
   , availableWidth : Maybe Int
   , dependents : Trie Path.E (List Path)
   , overrides : Trie Path.E (Layout View.L)
@@ -60,12 +63,38 @@ type alias Model =
               , explorer : Layout (Result Containment Int) }
   , errors : List String }
 
+viewEnv : Model -> View.Env
+viewEnv model =
+  let explorerTopLeft : Pt
+      explorerTopLeft = case panelHighlight model of
+        Nothing -> Pt 0 0
+        Just region -> { x = region.topLeft.x - 6, y = region.topLeft.y + region.height + 6 }
+  in { rootMetadata = model.rootMetadata
+     , metadata = model.metadata
+     , availableWidth = (Maybe.withDefault 1000 model.availableWidth - explorerTopLeft.x - 12) `max` 40
+     , overrides path = Trie.lookup path model.overrides
+     , overall = model.term }
+
 keyedCompletions : Model -> List (String,Term,Element)
-keyedCompletions model = Debug.crash "woot"
---   let f e i = let search = e.input.string
---              -- todo, use search string to filter wellTypedLocals
---               in i.wellTypedLocals ++ Elmz.Result.merge (model.globalMatches search)
---  in Maybe.withDefault [] (Elmz.Maybe.map2 f model.explorer model.localInfo)
+keyedCompletions model =
+  let f e i scope =
+    let search = e.input.string
+        env = viewEnv model
+        render term = Layout.element (View.layout term (viewEnv model))
+        regulars = i.wellTypedLocals ++ Elmz.Result.merge (model.globalMatches search)
+        key e = View.key { model | overall = model.term } { path = scope.focus, term = model.term }
+        format e = (key e, e, render e)
+        box = Term.Embed (Layout.embed { path = [], selectable = False } Styles.currentSymbol)
+        appBlanks n e = if n <= 0 then e else appBlanks (n-1) (Term.App e Term.Blank)
+        showAppBlanks n e =
+          let go n e = if n <= 0 then e else go (n-1) (Term.App e box)
+          in render (go n e)
+        la cur n = (toString i, appBlanks n cur, showAppBlanks n cur)
+        currentApps = case Term.at scope.focus model.term of
+          Nothing -> []
+          Just cur -> List.map (la cur) i.localApplications
+    in List.map format regulars
+  in Maybe.withDefault [] (Elmz.Maybe.map3 f model.explorer model.localInfo model.scope)
 
 explorerValues : Model -> List Term
 explorerValues model =
@@ -103,7 +132,8 @@ model0 =
   , scope = Nothing
   , localInfo = Nothing
   , globalMatches s = Result.Err []
-  , metadata = Dict.empty
+  , rootMetadata = Metadata.anonymousTerm
+  , metadata r = Metadata.anonymousTerm
   , availableWidth = Nothing
   , dependents = Trie.empty
   , overrides = Trie.empty
