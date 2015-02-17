@@ -79,7 +79,10 @@ node eval store =
       let f e = (const True <$> Type.check readTypeOf e admissible) `Note.orElse` pure False
       let fi (e,_) = f e
       let currentApplies = maybe [] (\e -> TE.applications e admissible) (Path.at loc e) `zip` [0..]
-      matchingCurrentApplies <- map snd <$> filterM fi currentApplies
+      matchingCurrentApplies <- case Path.at loc e of
+        -- if we're pointing to a Var, matchingCurrentApplies is redundant with `matchingLocals`
+        Just (E.Var _) -> pure []
+        _ -> map snd <$> filterM fi currentApplies
       matchingLocals <- filterM f (locals >>= (\(v,t) -> TE.applications (E.Var v) t))
       pure (current, admissible, annotatedLocals, matchingCurrentApplies, matchingLocals)
 
