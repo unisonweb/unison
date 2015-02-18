@@ -404,7 +404,8 @@ withStatus r = case r of
   Result.Err status -> \model ->
     let f s = case status of
                 JR.Inactive -> List.drop 1 s
-                _ -> status :: s
+                JR.Waiting -> status :: s
+                JR.Failed e -> let l = Debug.log e () in status :: s
     in norequest { model | status <- f model.status }
   Result.Ok action -> action
 
@@ -413,34 +414,35 @@ search2 searchbox origin reqs =
   let openEdit r = case r of
         Open term path -> Just (term,path)
         _ -> Nothing
-      --openEdit' =
-      --  let go oe model = norequest (refreshExplorer searchbox { model | localInfo <- Just oe })
-      --  in Signal.map openEdit reqs
-      --     |> JR.send (Node.localInfo host `JR.to` go) (model0.term, [])
-      --     |> Signal.map withStatus
-      --search r = case r of
-      --  Search typ query -> Just (typ,query)
-      --  _ -> Nothing
-      --declare r = case r of
-      --  Declare term -> Just term
-      --  _ -> Nothing
-      --edit r = case r of
-      --  -- todo: reroot the request to point to tightest bound term
-      --  Edit rootPath relPath action term -> Just (rootPath,relPath,action,term)
-      --  _ -> Nothing
-      --edit' =
-      --  let go (path,old,new) model = case Term.at path model.term of
-      --        Nothing -> norequest model
-      --        Just old' ->
-      --          if old == old'
-      --          then case Term.set path model.term new of
-      --                 Just term -> let m2 = { model | term <- term }
-      --                              in norequest (refreshPanel (Just searchbox) origin m2)
-      --                 Nothing -> norequest model
-      --          else norequest model
-      --  in Signal.map edit reqs
-      --     |> JR.send (Node.editTerm host `JR.to` go) ([],[],Action.Noop,model0.term)
-      --     |> Signal.map withStatus
+      openEdit' =
+        let go oe model =
+          norequest (refreshExplorer searchbox { model | localInfo <- Just (Debug.log "info" oe) })
+        in Signal.map openEdit reqs
+           |> JR.send (Node.localInfo host `JR.to` go) (model0.term, [])
+           |> Signal.map withStatus
+      search r = case r of
+        Search typ query -> Just (typ,query)
+        _ -> Nothing
+      declare r = case r of
+        Declare term -> Just term
+        _ -> Nothing
+      edit r = case r of
+        -- todo: reroot the request to point to tightest bound term
+        Edit rootPath relPath action term -> Just (rootPath,relPath,action,term)
+        _ -> Nothing
+      edit' =
+        let go (path,old,new) model = case Term.at path model.term of
+              Nothing -> norequest model
+              Just old' ->
+                if old == old'
+                then case Term.set path model.term new of
+                       Just term -> let m2 = { model | term <- term }
+                                    in norequest (refreshPanel (Just searchbox) origin m2)
+                       Nothing -> norequest model
+                else norequest model
+        in Signal.map edit reqs
+           |> JR.send (Node.editTerm host `JR.to` go) ([],[],Action.Noop,model0.term)
+           |> Signal.map withStatus
       metadatas r = case r of
         Metadatas rs -> Just rs
         _ -> Nothing
@@ -453,7 +455,7 @@ search2 searchbox origin reqs =
            |> JR.send (Node.metadatas host `JR.to` go) []
            |> Signal.map withStatus
       noop model = norequest model
-  in Signal.constant noop-- openEdit' `Signal.merge` metadatas' `Signal.merge` edit'
+  in openEdit' `Signal.merge` metadatas' `Signal.merge` edit'
 
 main =
   let origin = (15,15)
@@ -474,7 +476,7 @@ main =
                   (search2 (Signal.send inputs.searchbox) origin)
                   { model0 | term <- Terms.int 42 }
       debug model =
-        let summary model = model.explorer
-        in Debug.watchSummary "model" summary model
+        model |> Debug.watchSummary "explorer" .explorer
+              |> Debug.watchSummary "status" .status
       ms' = Signal.map debug ms
   in Signal.map view ms'

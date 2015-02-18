@@ -31,7 +31,7 @@ type Kind = Star | KArrow Kind Kind
 decodeKind : Decoder Kind
 decodeKind = Decoder.union' <| \t ->
   if | t == "Star" -> Decoder.unit Star
-     | t == "Arrow" -> Decoder.map2 KArrow decodeKind decodeKind
+     | t == "Arrow" -> Decoder.product2 KArrow decodeKind decodeKind
 
 decodeLiteral : Decoder Literal
 decodeLiteral = Decoder.union' <| \t ->
@@ -43,12 +43,12 @@ decodeLiteral = Decoder.union' <| \t ->
 decodeType : Decoder Type
 decodeType = Decoder.union' <| \t ->
   if | t == "Unit" -> Decoder.map Unit decodeLiteral
-     | t == "Arrow" -> Decoder.map2 Arrow decodeType decodeType
+     | t == "Arrow" -> Decoder.product2 Arrow decodeType decodeType
      | t == "Universal" -> Decoder.map Universal V.decode
      | t == "Existential" -> Decoder.map Existential V.decode
-     | t == "Kind" -> Decoder.map2 Ann decodeType decodeKind
-     | t == "Constrain" -> Decoder.map2 Constrain decodeType (Decoder.unit ())
-     | t == "Forall" -> Decoder.map2 Forall V.decode decodeType
+     | t == "Kind" -> Decoder.product2 Ann decodeType decodeKind
+     | t == "Constrain" -> Decoder.product2 Constrain decodeType (Decoder.unit ())
+     | t == "Forall" -> Decoder.product2 Forall V.decode decodeType
 
 encodeKind : Encoder Kind
 encodeKind k = case k of

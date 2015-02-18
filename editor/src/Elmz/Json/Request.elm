@@ -58,5 +58,6 @@ decodeResponse : Decoder a -> Http.Response String -> Result (Status String) a
 decodeResponse p r = case r of
   Http.Success body -> case Decoder.decodeString p body of
     Result.Err e -> Result.Err (Failed e)
+    Result.Ok a -> Result.Ok a
   Http.Waiting -> Result.Err Waiting
   Http.Failure code body -> Result.Err <| Failed ("error " ++ toString code ++ "\n" ++ body)
