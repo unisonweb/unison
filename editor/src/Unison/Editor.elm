@@ -52,7 +52,7 @@ type alias Model =
   , localInfo : Maybe Node.LocalInfo
   , globalMatches : String -> Result (List Term) (List Term)
   , rootMetadata : Metadata
-  , metadata : Reference -> Metadata
+  , metadata : Reference -> Maybe Metadata
   , availableWidth : Maybe Int
   , dependents : Trie Path.E (List Path)
   , overrides : Trie Path.E (Layout View.L)
@@ -63,14 +63,16 @@ type alias Model =
               , explorer : Layout (Result Containment Int) }
   , status : JR.Status String }
 
-viewEnv : Model -> View.Env
-viewEnv model =
-  let explorerTopLeft : Pt
-      explorerTopLeft = case panelHighlight model of
+metadata : Model -> Reference -> Metadata
+metadata model r = Maybe.withDefault (Metadata.defaultMetadata r) (model.metadata r)
+
+explorerViewEnv : Model -> View.Env
+explorerViewEnv model =
+  let explorerTopLeft = case panelHighlight model of
         Nothing -> Pt 0 0
         Just region -> { x = region.topLeft.x - 6, y = region.topLeft.y + region.height + 6 }
   in { rootMetadata = model.rootMetadata
-     , metadata = model.metadata
+     , metadata = metadata model
      , availableWidth = (Maybe.withDefault 1000 model.availableWidth - explorerTopLeft.x - 12) `max` 40
      , overrides path = Trie.lookup path model.overrides
      , overall = model.term }
@@ -79,10 +81,12 @@ keyedCompletions : Model -> List (String,Term,Element)
 keyedCompletions model =
   let f e i scope =
     let search = e.input.string
-        env = viewEnv model
-        render term = Layout.element (View.layout term (viewEnv model))
+        env = explorerViewEnv model
+        render expr = Layout.element (View.layout expr (explorerViewEnv model))
         regulars = i.wellTypedLocals ++ Elmz.Result.merge (model.globalMatches search)
-        key e = View.key { model | overall = model.term } { path = scope.focus, term = model.term }
+        key e = View.key
+          { metadata = metadata model, rootMetadata = model.rootMetadata, overall = model.term }
+          { path = scope.focus, term = model.term }
         format e = (key e, e, render e)
         box = Term.Embed (Layout.embed { path = [], selectable = False } Styles.currentSymbol)
         appBlanks n e = if n <= 0 then e else appBlanks (n-1) (Term.App e Term.Blank)
@@ -133,7 +137,7 @@ model0 =
   , localInfo = Nothing
   , globalMatches s = Result.Err []
   , rootMetadata = Metadata.anonymousTerm
-  , metadata r = Metadata.anonymousTerm
+  , metadata r = Nothing
   , availableWidth = Nothing
   , dependents = Trie.empty
   , overrides = Trie.empty
@@ -268,9 +272,9 @@ refreshPanel searchbox origin model =
   let layout = pin origin <| case model.availableWidth of
         Nothing -> layout0
         Just availableWidth -> View.layout model.term <|
-          { rootMetadata = Metadata.anonymousTerm
+          { rootMetadata = model.rootMetadata
           , availableWidth = availableWidth - fst origin
-          , metadata h = Metadata.anonymousTerm
+          , metadata = metadata model
           , overrides x = Nothing
           , overall = model.term }
       layouts = model.layouts
@@ -397,14 +401,20 @@ withStatus r = case r of
   Result.Err status -> \model -> norequest { model | status <- status }
   Result.Ok action -> action
 
+{-| Gathers up any references which aren't -}
+-- fetchMetadata : Action
+-- fetchMetadata = List.head []
+
 search2 : Sink Field.Content -> Signal Request -> Signal Action
 search2 searchbox reqs =
   let openEdit r = case r of
         Open term path -> Just (term,path)
         _ -> Nothing
       openEdit' =
-        let go oe model = List.head []
-        in Signal.map openEdit reqs |> JR.send (Node.localInfo host `JR.to` go)
+        let go oe model = norequest (refreshExplorer searchbox { model | localInfo <- Just oe })
+        in Signal.map openEdit reqs
+           |> JR.send (Node.localInfo host `JR.to` go)
+           |> Signal.map withStatus
       search r = case r of
         Search typ query -> Just (typ,query)
         _ -> Nothing
@@ -417,8 +427,7 @@ search2 searchbox reqs =
       metadatas r = case r of
         Metadatas hs -> Just hs
         _ -> Nothing
-
-  in List.head []
+  in openEdit'
 
 main =
   let origin = (15,15)
