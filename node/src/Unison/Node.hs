@@ -20,7 +20,7 @@ data Node m k t e = Node {
   -- | Lookup the set of terms/types depending directly on the given @k@, optionally limited to the given set
   dependents :: Maybe (S.Set k) -> k -> Noted m (S.Set k),
   -- | Modify the given subterm, which may fail
-  editTerm :: P.Path -> A.Action -> e -> Noted m e,
+  editTerm :: P.Path -> P.Path -> A.Action -> e -> Noted m (P.Path,e,e),
   -- | Modify the given type, which may fail
   editType :: P.Path -> A.Action -> t -> Noted m t,
   -- | Returns ( current type

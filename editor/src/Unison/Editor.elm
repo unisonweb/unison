@@ -61,7 +61,7 @@ type alias Model =
   , explorerSelection : Selection1D.Model
   , layouts : { panel : Layout View.L
               , explorer : Layout (Result Containment Int) }
-  , status : JR.Status String }
+  , status : List (JR.Status String) }
 
 model0 : Model
 model0 =
@@ -77,7 +77,7 @@ model0 =
   , hashes = Trie.empty
   , explorer = Nothing
   , explorerSelection = 0
-  , status = JR.Inactive
+  , status = [JR.Inactive]
   , layouts = { panel = layout0
               , explorer = explorerLayout0  } }
 
@@ -140,8 +140,8 @@ type Request
   = Open Term Path -- obtain the current and admissible type and local completions
   | Search Type String -- global search for a given type
   | Declare Term
-  | Edit Path Action.Action Term
-  | Metadatas (List Hash)
+  | Edit Path Path Action.Action Term
+  | Metadatas (List Reference)
 
 type alias Action = Model -> (Maybe Request, Model)
 
@@ -163,6 +163,7 @@ panelHighlight model =
 openRequest : Model -> (Maybe Request, Model)
 openRequest model = case model.scope of
   Nothing -> (Nothing, model)
+  -- todo: can trim path to be with respect to nearest closed term
   Just scope -> (Just (Open model.term scope.focus), model)
 
 norequest : Model -> (Maybe Request, Model)
@@ -400,15 +401,12 @@ host = "http://localhost:8080"
 
 withStatus : Result (JR.Status String) Action -> Action
 withStatus r = case r of
-  Result.Err status -> \model -> norequest { model | status <- status }
-  Result.Ok action -> action
+  Result.Err status -> \model -> norequest { model | status <- status :: model.status }
+  Result.Ok action -> \model ->
+    action { model | status <- List.drop 1 model.status }
 
-{-| Gathers up any references which aren't -}
--- fetchMetadata : Action
--- fetchMetadata = List.head []
-
-search2 : Sink Field.Content -> Signal Request -> Signal Action
-search2 searchbox reqs =
+search2 : Sink Field.Content -> (Int,Int) -> Signal Request -> Signal Action
+search2 searchbox origin reqs =
   let openEdit r = case r of
         Open term path -> Just (term,path)
         _ -> Nothing
@@ -424,12 +422,34 @@ search2 searchbox reqs =
         Declare term -> Just term
         _ -> Nothing
       edit r = case r of
-        Edit path action term -> Just (path,action,term)
+        -- todo: reroot the request to point to tightest bound term
+        Edit rootPath relPath action term -> Just (rootPath,relPath,action,term)
         _ -> Nothing
+      edit' =
+        let go (path,old,new) model = case Term.at path model.term of
+              Nothing -> norequest model
+              Just old' ->
+                if old == old'
+                then case Term.set path model.term new of
+                       Just term -> let m2 = { model | term <- term }
+                                    in norequest (refreshPanel (Just searchbox) origin m2)
+                       Nothing -> norequest model
+                else norequest model
+        in Signal.map edit reqs
+           |> JR.send (Node.editTerm host `JR.to` go)
+           |> Signal.map withStatus
       metadatas r = case r of
-        Metadatas hs -> Just hs
+        Metadatas rs -> Just rs
         _ -> Nothing
-  in openEdit'
+      metadatas' =
+        let go mds model =
+              { model | metadata <- Dict.union mds model.metadata }
+              |> refreshPanel (Just searchbox) origin
+              |> norequest
+        in Signal.map metadatas reqs
+           |> JR.send (Node.metadatas host `JR.to` go)
+           |> Signal.map withStatus
+  in openEdit' `Signal.merge` metadatas'
 
 main =
   let origin = (15,15)
@@ -447,7 +467,7 @@ main =
         let ignore action model = snd (action model)
         in Signal.map ignore actions
       ms = models inputs
-                  (search2 (Signal.send inputs.searchbox))
+                  (search2 (Signal.send inputs.searchbox) origin)
                   { model0 | term <- Terms.int 42 }
       debug model =
         let summary model = model.explorer

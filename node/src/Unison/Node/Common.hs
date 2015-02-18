@@ -63,8 +63,8 @@ node eval store =
                   (S.toList hs)
       pure $ S.fromList [x | (x,deps) <- hs', S.member h deps]
 
-    edit path action e = do
-      TE.interpret eval (readTerm store) path action e
+    edit rootPath path action e =
+      (\e' -> (rootPath,e,e')) <$> TE.interpret eval (readTerm store) path action e
 
     editType = error "Common.editType.todo"
 

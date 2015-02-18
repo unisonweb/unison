@@ -57,10 +57,10 @@ dependents host = Request.post host "dependents"
   (Encoder.tuple2 (Encoder.optional (Encoder.list Reference.encode)) Reference.encode)
   (Decoder.list Reference.decode)
 
-editTerm : Host -> Request (Path, Action, Term) Term
+editTerm : Host -> Request (Path, Path, Action, Term) (Path,Term,Term)
 editTerm host = Request.post host "edit-term"
-  (Encoder.tuple3 Path.encodePath A.encode E.encodeTerm)
-  E.decodeTerm
+  (Encoder.tuple4 Path.encodePath Path.encodePath A.encode E.encodeTerm)
+  (Decoder.tuple3 Path.decodePath E.decodeTerm E.decodeTerm)
 
 editType : Host -> Request (Path, Action, Type) Type
 editType host = Request.post host "edit-type"
