@@ -52,7 +52,7 @@ type alias Model =
   , localInfo : Maybe Node.LocalInfo
   , globalMatches : String -> Result (List Term) (List Term)
   , rootMetadata : Metadata
-  , metadata : Reference -> Maybe Metadata
+  , metadata : Dict Reference.Key Metadata
   , availableWidth : Maybe Int
   , dependents : Trie Path.E (List Path)
   , overrides : Trie Path.E (Layout View.L)
@@ -63,8 +63,34 @@ type alias Model =
               , explorer : Layout (Result Containment Int) }
   , status : JR.Status String }
 
+model0 : Model
+model0 =
+  { term = Term.Blank
+  , scope = Nothing
+  , localInfo = Nothing
+  , globalMatches s = Result.Err []
+  , rootMetadata = Metadata.anonymousTerm
+  , metadata = Dict.empty
+  , availableWidth = Nothing
+  , dependents = Trie.empty
+  , overrides = Trie.empty
+  , hashes = Trie.empty
+  , explorer = Nothing
+  , explorerSelection = 0
+  , status = JR.Inactive
+  , layouts = { panel = layout0
+              , explorer = explorerLayout0  } }
+
+layout0 : Layout View.L
+layout0 = Layout.empty { path = [], selectable = True }
+
+explorerLayout0 : Layout (Result Containment a)
+explorerLayout0 = Layout.empty (Result.Err Outside)
+
 metadata : Model -> Reference -> Metadata
-metadata model r = Maybe.withDefault (Metadata.defaultMetadata r) (model.metadata r)
+metadata model r =
+  Maybe.withDefault (Metadata.defaultMetadata r)
+                    (Dict.get (Reference.toKey r) model.metadata)
 
 explorerViewEnv : Model -> View.Env
 explorerViewEnv model =
@@ -129,30 +155,6 @@ pin : (Int,Int) -> Layout View.L -> Layout View.L
 pin origin l =
   let t = Layout.tag l
   in Layout.pin origin { t | selectable <- False } l
-
-model0 : Model
-model0 =
-  { term = Term.Blank
-  , scope = Nothing
-  , localInfo = Nothing
-  , globalMatches s = Result.Err []
-  , rootMetadata = Metadata.anonymousTerm
-  , metadata r = Nothing
-  , availableWidth = Nothing
-  , dependents = Trie.empty
-  , overrides = Trie.empty
-  , hashes = Trie.empty
-  , explorer = Nothing
-  , explorerSelection = 0
-  , status = JR.Inactive
-  , layouts = { panel = layout0
-              , explorer = explorerLayout0  } }
-
-layout0 : Layout View.L
-layout0 = Layout.empty { path = [], selectable = True }
-
-explorerLayout0 : Layout (Result Containment a)
-explorerLayout0 = Layout.empty (Result.Err Outside)
 
 panelHighlight : Model -> Maybe Region
 panelHighlight model =

@@ -35,7 +35,7 @@ anonymousTerm = Metadata Term [] [] Nothing (R.Builtin "unknown type")
 
 defaultMetadata : R.Reference -> Metadata
 defaultMetadata s =
-  Metadata Term [Symbol (R.toString s) Prefix 9] [] Nothing (R.Builtin "?")
+  Metadata Term [Symbol (R.toKey s) Prefix 9] [] Nothing (R.Builtin "?")
 
 firstSymbol : String -> Metadata -> Symbol
 firstSymbol defaultName md = case md.names of

@@ -14,12 +14,12 @@ import Signal
 import Signal ((<~),(~),Signal)
 import Unison.Action as A
 import Unison.Action (Action)
-import Unison.Hash as H
-import Unison.Hash (Hash)
 import Unison.Metadata as MD
 import Unison.Metadata (Metadata, Query)
 import Unison.Term as E
 import Unison.Path as Path
+import Unison.Reference as Reference
+import Unison.Reference (Reference)
 import Unison.Term (Term)
 import Unison.Type as T
 import Unison.Type (Type)
@@ -37,25 +37,25 @@ admissibleTypeOf host = Request.post host "admissible-type-of"
   (Encoder.tuple2 E.encodeTerm Path.encodePath)
   T.decodeType
 
-createTerm : Host -> Request (Term, Metadata) Hash
+createTerm : Host -> Request (Term, Metadata) Reference
 createTerm host = Request.post host "create-term"
   (Encoder.tuple2 E.encodeTerm MD.encodeMetadata)
-  H.decode
+  Reference.decode
 
-createType : Host -> Request (Type, Metadata) Hash
+createType : Host -> Request (Type, Metadata) Reference
 createType host = Request.post host "create-type"
   (Encoder.tuple2 T.encodeType MD.encodeMetadata)
-  H.decode
+  Reference.decode
 
-dependencies : Host -> Request (Maybe (S.Set Hash), Hash) (S.Set Hash)
+dependencies : Host -> Request (Maybe (List Reference), Reference) (List Reference)
 dependencies host = Request.post host "dependencies"
-  (Encoder.tuple2 (Encoder.optional (Encoder.set H.encode)) H.encode)
-  (Decoder.set H.decode)
+  (Encoder.tuple2 (Encoder.optional (Encoder.list Reference.encode)) Reference.encode)
+  (Decoder.list Reference.decode)
 
-dependents : Host -> Request (Maybe (S.Set Hash), Hash) (S.Set Hash)
+dependents : Host -> Request (Maybe (List Reference), Reference) (List Reference)
 dependents host = Request.post host "dependents"
-  (Encoder.tuple2 (Encoder.optional (Encoder.set H.encode)) H.encode)
-  (Decoder.set H.decode)
+  (Encoder.tuple2 (Encoder.optional (Encoder.list Reference.encode)) Reference.encode)
+  (Decoder.list Reference.decode)
 
 editTerm : Host -> Request (Path, Action, Term) Term
 editTerm host = Request.post host "edit-term"
@@ -84,42 +84,42 @@ localInfo host = Request.post host "local-info"
     (Decoder.list Decoder.int)
     (Decoder.list E.decodeTerm))
 
-metadatas : Host -> Request (List Hash) (M.Dict Hash Metadata)
+metadatas : Host -> Request (List Reference) (M.Dict Reference.Key Metadata)
 metadatas host = Request.post host "metadatas"
-  (Encoder.list H.encode)
-  (Decoder.object MD.decodeMetadata)
+  (Encoder.list Reference.encode)
+  (Reference.decodeMap MD.decodeMetadata)
 
 search : Host -> Request (Maybe Type, Query) (List Term)
 search host = Request.post host "search"
   (Encoder.tuple2 (Encoder.optional T.encodeType) MD.encodeQuery)
   (Decoder.list E.decodeTerm)
 
-terms : Host -> Request (List Hash) (M.Dict Hash Term)
+terms : Host -> Request (List Reference) (M.Dict Reference.Key Term)
 terms host = Request.post host "terms"
-  (Encoder.list H.encode)
-  (Decoder.object E.decodeTerm)
+  (Encoder.list Reference.encode)
+  (Reference.decodeMap E.decodeTerm)
 
-transitiveDependencies : Host -> Request (Maybe (S.Set Hash), Hash) (S.Set Hash)
+transitiveDependencies : Host -> Request (Maybe (List Reference), Reference) (List Reference)
 transitiveDependencies host = Request.post host "transitive-dependencies"
-  (Encoder.tuple2 (Encoder.optional (Encoder.set H.encode)) H.encode)
-  (Decoder.set H.decode)
+  (Encoder.tuple2 (Encoder.optional (Encoder.list Reference.encode)) Reference.encode)
+  (Decoder.list Reference.decode)
 
-transitiveDependents : Host -> Request (Maybe (S.Set Hash), Hash) (S.Set Hash)
+transitiveDependents : Host -> Request (Maybe (List Reference), Reference) (List Reference)
 transitiveDependents host = Request.post host "transitive-dependents"
-  (Encoder.tuple2 (Encoder.optional (Encoder.set H.encode)) H.encode)
-  (Decoder.set H.decode)
+  (Encoder.tuple2 (Encoder.optional (Encoder.list Reference.encode)) Reference.encode)
+  (Decoder.list Reference.decode)
 
 typeOf : Host -> Request (Term, Path) Type
 typeOf host = Request.post host "type-of"
   (Encoder.tuple2 E.encodeTerm Path.encodePath)
   T.decodeType
 
-types : Host -> Request (List Hash) (M.Dict Hash Type)
+types : Host -> Request (List Reference) (M.Dict Reference.Key Type)
 types host = Request.post host "types"
-  (Encoder.list H.encode)
-  (Decoder.object T.decodeType)
+  (Encoder.list Reference.encode)
+  (Reference.decodeMap T.decodeType)
 
-updateMetadata : Host -> Request (Hash, Metadata) ()
+updateMetadata : Host -> Request (Reference, Metadata) ()
 updateMetadata host = Request.post host "update-metadata"
-  (Encoder.tuple2 H.encode MD.encodeMetadata)
+  (Encoder.tuple2 Reference.encode MD.encodeMetadata)
   (Decoder.unit ())

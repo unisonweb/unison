@@ -157,7 +157,7 @@ impl env allowBreak ambientPrec availableWidth cur =
       Embed l -> l
       Var n -> codeText (resolveLocal ("v"++toString n) env.rootMetadata cur.path env.overall).name
             |> L.embed (tag cur.path)
-      Ref h -> codeText (Metadata.firstName (R.toString h) (env.metadata h)) |> L.embed (tag cur.path)
+      Ref h -> codeText (Metadata.firstName (R.toKey h) (env.metadata h)) |> L.embed (tag cur.path)
       Blank -> Styles.blank |> L.embed (tag cur.path)
       Lit (Number n) -> Styles.numericLiteral (toString n) |> L.embed (tag cur.path)
       Lit (Str s) -> Styles.stringLiteral ("\"" ++ s ++ "\"") |> L.embed (tag cur.path)
@@ -252,7 +252,7 @@ break env rootMd md path expr =
               |> Bracketed
     App (App op l) r ->
       let sym = case op of
-        Ref h -> Metadata.firstSymbol (R.toString h) (md h)
+        Ref h -> Metadata.firstSymbol (R.toKey h) (md h)
         Var v -> resolveLocal ("v"++toString v) rootMd path env.overall
         _ -> Metadata.anonymousSymbol
       in case sym.fixity of

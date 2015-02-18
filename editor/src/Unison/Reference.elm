@@ -1,9 +1,12 @@
 module Unison.Reference where
 
+import Dict (Dict)
+import Dict
 import Elmz.Json.Encoder as Encoder
 import Elmz.Json.Encoder (Encoder)
 import Elmz.Json.Decoder as Decoder
 import Elmz.Json.Decoder (Decoder)
+import List
 import String
 import Unison.Hash (Hash)
 import Unison.Hash as H
@@ -11,6 +14,8 @@ import Unison.Hash as H
 type Reference
   = Builtin String
   | Derived Hash
+
+type alias Key = String
 
 decode : Decoder Reference
 decode = Decoder.union' <| \t ->
@@ -23,13 +28,12 @@ encode r = case r of
   Builtin b -> Encoder.tag' "Builtin" Encoder.string b
   Derived h -> Encoder.tag' "Derived" H.encode h
 
-toString : Reference -> String
-toString r = case r of
-  Builtin s -> "#" ++ s
-  Derived b -> b
+decodeMap : Decoder v -> Decoder (Dict Key v)
+decodeMap v =
+  Decoder.list (Decoder.tuple2 decode v)
+  |> Decoder.map (\kvs -> Dict.fromList (List.map (\(k,v) -> (toKey k,v)) kvs))
 
-fromString : String -> Maybe Reference
-fromString s =
-  if | String.startsWith "builtin:" s -> Just (Builtin (String.dropLeft (String.length "builtin:") s))
-     | String.startsWith "derived:" s -> Just (Derived (String.dropLeft (String.length "derived:") s))
-     | otherwise -> Nothing
+toKey : Reference -> Key
+toKey r = case r of
+  Builtin s -> s
+  Derived b -> "#" ++ b
