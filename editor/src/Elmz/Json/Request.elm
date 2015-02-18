@@ -29,9 +29,9 @@ map f r = { r | decoder <- Decoder.map f r.decoder }
 to : Request a b -> (b -> c) -> Request a c
 to r f = map f r
 
-send : Request a b -> Signal (Maybe a) -> Signal (Result (Status String) b)
-send r ma =
-  let a = Signals.justs ma |> Signal.map (\(Just a) -> a)
+send : Request a b -> a -> Signal (Maybe a) -> Signal (Result (Status String) b)
+send r az ma =
+  let a = Signals.justs ma |> Signal.map (Maybe.withDefault az)
       waitings = Signal.map (always (Result.Err Waiting)) a
       results = Http.send (Signal.map r.encoder a) |> Signal.map (decodeResponse r.decoder)
       inactives = Signal.map (always (Result.Err Inactive)) (Time.delay 0 results)

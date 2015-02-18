@@ -9,6 +9,7 @@ data Action
   | Eta -- Eta reduce the target
   | LetFloat -- Float the target out to a let binding, as far as possible
   | WHNF -- Simplify target to weak head normal form
+  | Noop -- Do nothing to the target
 
 deriveJSON defaultOptions ''Action
 -- combine fst snd

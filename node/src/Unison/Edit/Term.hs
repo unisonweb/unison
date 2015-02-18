@@ -27,6 +27,7 @@ interpret eval readTerm loc f ctx = go f where
   go Step = step eval readTerm loc ctx
   go LetFloat = fst <$> letFloat loc ctx
   go WHNF = whnf eval readTerm loc ctx
+  go Noop = pure ctx
 
 invalid :: (Show a1, Show a) => a -> a1 -> String
 invalid loc ctx = "invalid path " ++ show loc ++ " in:\n" ++ show ctx

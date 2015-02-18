@@ -401,43 +401,46 @@ host = "http://localhost:8080"
 
 withStatus : Result (JR.Status String) Action -> Action
 withStatus r = case r of
-  Result.Err status -> \model -> norequest { model | status <- status :: model.status }
-  Result.Ok action -> \model ->
-    action { model | status <- List.drop 1 model.status }
+  Result.Err status -> \model ->
+    let f s = case status of
+                JR.Inactive -> List.drop 1 s
+                _ -> status :: s
+    in norequest { model | status <- f model.status }
+  Result.Ok action -> action
 
 search2 : Sink Field.Content -> (Int,Int) -> Signal Request -> Signal Action
 search2 searchbox origin reqs =
   let openEdit r = case r of
         Open term path -> Just (term,path)
         _ -> Nothing
-      openEdit' =
-        let go oe model = norequest (refreshExplorer searchbox { model | localInfo <- Just oe })
-        in Signal.map openEdit reqs
-           |> JR.send (Node.localInfo host `JR.to` go)
-           |> Signal.map withStatus
-      search r = case r of
-        Search typ query -> Just (typ,query)
-        _ -> Nothing
-      declare r = case r of
-        Declare term -> Just term
-        _ -> Nothing
-      edit r = case r of
-        -- todo: reroot the request to point to tightest bound term
-        Edit rootPath relPath action term -> Just (rootPath,relPath,action,term)
-        _ -> Nothing
-      edit' =
-        let go (path,old,new) model = case Term.at path model.term of
-              Nothing -> norequest model
-              Just old' ->
-                if old == old'
-                then case Term.set path model.term new of
-                       Just term -> let m2 = { model | term <- term }
-                                    in norequest (refreshPanel (Just searchbox) origin m2)
-                       Nothing -> norequest model
-                else norequest model
-        in Signal.map edit reqs
-           |> JR.send (Node.editTerm host `JR.to` go)
-           |> Signal.map withStatus
+      --openEdit' =
+      --  let go oe model = norequest (refreshExplorer searchbox { model | localInfo <- Just oe })
+      --  in Signal.map openEdit reqs
+      --     |> JR.send (Node.localInfo host `JR.to` go) (model0.term, [])
+      --     |> Signal.map withStatus
+      --search r = case r of
+      --  Search typ query -> Just (typ,query)
+      --  _ -> Nothing
+      --declare r = case r of
+      --  Declare term -> Just term
+      --  _ -> Nothing
+      --edit r = case r of
+      --  -- todo: reroot the request to point to tightest bound term
+      --  Edit rootPath relPath action term -> Just (rootPath,relPath,action,term)
+      --  _ -> Nothing
+      --edit' =
+      --  let go (path,old,new) model = case Term.at path model.term of
+      --        Nothing -> norequest model
+      --        Just old' ->
+      --          if old == old'
+      --          then case Term.set path model.term new of
+      --                 Just term -> let m2 = { model | term <- term }
+      --                              in norequest (refreshPanel (Just searchbox) origin m2)
+      --                 Nothing -> norequest model
+      --          else norequest model
+      --  in Signal.map edit reqs
+      --     |> JR.send (Node.editTerm host `JR.to` go) ([],[],Action.Noop,model0.term)
+      --     |> Signal.map withStatus
       metadatas r = case r of
         Metadatas rs -> Just rs
         _ -> Nothing
@@ -447,9 +450,10 @@ search2 searchbox origin reqs =
               |> refreshPanel (Just searchbox) origin
               |> norequest
         in Signal.map metadatas reqs
-           |> JR.send (Node.metadatas host `JR.to` go)
+           |> JR.send (Node.metadatas host `JR.to` go) []
            |> Signal.map withStatus
-  in openEdit' `Signal.merge` metadatas'
+      noop model = norequest model
+  in Signal.constant noop-- openEdit' `Signal.merge` metadatas' `Signal.merge` edit'
 
 main =
   let origin = (15,15)

@@ -13,11 +13,13 @@ type Action
   | Eta -- Eta reduce the target
   | LetFloat -- Float the target out to a let binding, as far as possible
   | WHNF -- Simplify target to weak head normal form
+  | Noop -- Do nothing to the target
 
 encode : Encoder Action
 encode a = case a of
-  Abstract -> Encoder.tag' "Abstract" Encoder.product0 ()
-  Step -> Encoder.tag' "Step" Encoder.product0 ()
-  Eta -> Encoder.tag' "Eta" Encoder.product0 ()
-  LetFloat -> Encoder.tag' "LetFloat" Encoder.product0 ()
-  WHNF -> Encoder.tag' "WHNF" Encoder.product0 ()
+  Abstract -> Encoder.string "Abstract"
+  Step -> Encoder.string "Step"
+  Eta -> Encoder.string "Eta"
+  LetFloat -> Encoder.string "LetFloat"
+  WHNF -> Encoder.string "WHNF"
+  Noop -> Encoder.string "Noop"
