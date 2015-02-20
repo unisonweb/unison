@@ -299,12 +299,21 @@ refreshExplorer searchbox model = case model.localInfo of
 
         completions : List Element
         completions = List.map snd (filteredCompletions model)
+        viewEnv = explorerViewEnv model
+        pad e = let s = Element.spacer 10 1
+                in Element.flow Element.right [s, e, s]
+        render expr = pad (Layout.element (View.layout expr viewEnv))
 
-        aboveMsg = toString localInfo
+        above = Element.flow Element.down <|
+          [ Element.spacer 1 5
+          , pad <| Styles.codeText (": " ++ Type.key { metadata = metadata model } localInfo.current)
+          , pad <| Styles.codeText (Type.key { metadata = metadata model } localInfo.admissible)
+          , Element.spacer 1 5 ] ++
+          List.map render localInfo.locals ++ [ Element.spacer 1 5 ]
+
         explorer' : Explorer.Model
         explorer' = model.explorer |> Maybe.map (\e ->
-          { e | completions <- completions
-              , above <- Styles.codeText aboveMsg })
+          { e | completions <- completions, above <- above })
 
         explorerLayout : Layout (Result Containment Int)
         explorerLayout = Explorer.view explorerTopLeft searchbox explorer'
@@ -474,7 +483,7 @@ main =
         in Signal.map ignore actions
       ms = models inputs
                   (search2 (Signal.send inputs.searchbox) origin)
-                  { model0 | term <- Terms.int 42 }
+                  { model0 | term <- Term.Lam 1 (Term.Var 1) }
       debug model =
         model |> Debug.watchSummary "explorer" .explorer
               |> Debug.watchSummary "status" .status

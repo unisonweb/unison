@@ -18,6 +18,7 @@ import Unison.Styles (codeText)
 import Unison.Styles as Styles
 import Unison.Term (..)
 import Unison.Term as Term
+import Unison.Type as Type
 import Unison.Path (..)
 import Unison.Path as Path
 import String
@@ -161,6 +162,10 @@ impl env allowBreak ambientPrec availableWidth cur =
       Blank -> Styles.blank |> L.embed (tag cur.path)
       Lit (Number n) -> Styles.numericLiteral (toString n) |> L.embed (tag cur.path)
       Lit (Str s) -> Styles.stringLiteral ("\"" ++ s ++ "\"") |> L.embed (tag cur.path)
+      Ann e t -> let ann = Styles.codeText (" : " ++ Type.key env t)
+                 in L.beside (tag cur.path)
+                             (impl env allowBreak 9 (availableWidth - E.widthOf ann) { cur | term <- e })
+                             (L.embed (tag cur.path) ann)
       _ -> case builtins env allowBreak ambientPrec availableWidth cur of
         Just l -> l
         Nothing -> let space' = L.embed (tag cur.path) space in

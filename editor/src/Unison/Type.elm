@@ -1,10 +1,15 @@
 module Unison.Type where
 
-import Elmz.Json.Encoder as Encoder
-import Elmz.Json.Encoder (Encoder)
-import Elmz.Json.Decoder as Decoder
 import Elmz.Json.Decoder (Decoder)
-import Unison.Hash as H
+import Elmz.Json.Decoder as Decoder
+import Elmz.Json.Encoder (Encoder)
+import Elmz.Json.Encoder as Encoder
+import List
+import String
+import Unison.Metadata (Metadata)
+import Unison.Metadata as Metadata
+import Unison.Reference (Reference)
+import Unison.Reference as Reference
 import Unison.Var (I)
 import Unison.Var as V
 
@@ -12,7 +17,8 @@ type Literal
   = Number
   | String
   | Vector
-  | Hash H.Hash
+  | Distance
+  | Ref Reference
 
 type Type
   = Unit Literal
@@ -28,6 +34,27 @@ all = Forall 0 (Universal 0)
 
 type Kind = Star | KArrow Kind Kind
 
+-- todo: beef up to actually get proper type variable names
+key : { tl | metadata : Reference -> Metadata }
+   -> Type
+   -> String
+key env cur = case cur of
+  Unit lit -> case lit of
+    Ref r -> Metadata.firstName (Reference.toKey r) (env.metadata r)
+    _ -> toString lit
+  Universal v -> "t"++toString v
+  Existential v -> "t"++toString v++"'"
+  Arrow i o -> case i of
+    Arrow _ _ -> "(" ++ key env i ++ ") → " ++ key env o
+    _ -> key env i ++ " → " ++ key env o
+  Forall v body ->
+    let go v = case v of
+          Forall v body -> let (vs,inner) = go body in (v :: vs, inner)
+          _ -> ([], v)
+    in case go cur of
+         (vs,body) -> "∀ " ++ String.join " " (List.map (key env << Universal) vs)
+                   ++ ". " ++ key env body
+
 decodeKind : Decoder Kind
 decodeKind = Decoder.union' <| \t ->
   if | t == "Star" -> Decoder.unit Star
@@ -38,7 +65,8 @@ decodeLiteral = Decoder.union' <| \t ->
   if | t == "Number" -> Decoder.unit Number
      | t == "String" -> Decoder.unit String
      | t == "Vector" -> Decoder.unit Vector
-     | t == "Hash" -> Decoder.map Hash H.decode
+     | t == "Distance" -> Decoder.unit Distance
+     | t == "Ref" -> Decoder.map Ref Reference.decode
 
 decodeType : Decoder Type
 decodeType = Decoder.union' <| \t ->
@@ -60,7 +88,7 @@ encodeLiteral l = case l of
   Number -> Encoder.tag' "Number" Encoder.product0 ()
   String -> Encoder.tag' "String" Encoder.product0 ()
   Vector -> Encoder.tag' "Vector" Encoder.product0 ()
-  Hash h -> Encoder.tag' "Hash" H.encode h
+  Ref r -> Encoder.tag' "Ref" Reference.encode r
 
 encodeType : Encoder Type
 encodeType t = case t of

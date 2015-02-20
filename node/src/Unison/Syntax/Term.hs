@@ -8,6 +8,7 @@ module Unison.Syntax.Term where
 
 import qualified Data.Foldable as Foldable
 import Data.Traversable
+import Data.List as List
 import Control.Applicative
 import Control.Lens.TH
 import Control.Monad
@@ -49,10 +50,15 @@ instance Show Term where
   show (Ref v) = show v
   show (Lit l) = show l
   show (Vector v) = show v
-  show (App f x@(App _ _)) = show f ++ "(" ++ show x ++ ")"
+  show (App f x@(App _ _)) = show f ++ " (" ++ show x ++ ")"
   show (App f x) = show f ++ " " ++ show x
   show (Ann x t) = "(" ++ show x ++ " : " ++ show t ++ ")"
-  show (Lam n body) = "(" ++ show n ++ " -> " ++ show body ++ ")"
+  show lam@(Lam _ _) = "(" ++ List.intercalate " " (map show vs) ++ " → " ++ show inner ++ ")"
+    where
+      (vs,inner) = go lam
+      go v = case v of
+        Lam n body -> let (vs,inner) = go body in (Var n : vs, inner)
+        _ -> ([], v)
 
 maxV :: Term -> V.Var
 maxV (App f x) = maxV f `max` maxV x
