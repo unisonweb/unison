@@ -116,7 +116,8 @@ letFloat loc ctx = case P.at loc ctx of
 
 -- | Return the type of all local variables in scope at the given location
 locals :: Applicative f => T.Env f -> P.Path -> E.Term -> Noted f [(V.Var, T.Type)]
-locals synthLit path ctx | E.isClosed ctx = pushDown <$> lambdaTypes
+locals synthLit path ctx | E.isClosed ctx =
+  N.scoped ("locals@"++show path ++ " " ++ show ctx) (pushDown <$> lambdaTypes)
   where
     pointsToLambda path = case P.at path ctx of
       Just (E.Lam _ _) -> True
@@ -157,15 +158,17 @@ applications e t = e : go e t
 -- @\g -> map g [1,2,3]@, @g@ will have a type of @forall r . Int -> r@,
 -- and @map@ will have a type of @forall a b . (a -> b) -> [a] -> [b]@.
 typeOf :: Applicative f => T.Env f -> P.Path -> E.Term -> Noted f T.Type
-typeOf synthLit (P.Path []) ctx = synthesize synthLit ctx
-typeOf synthLit loc ctx = case P.at' loc ctx of
+typeOf synthLit (P.Path []) ctx = N.scoped ("typeOf: " ++ show ctx) $ synthesize synthLit ctx
+typeOf synthLit loc ctx = N.scoped ("typeOf@"++show loc ++ " " ++ show ctx) $ case P.at' loc ctx of
   Nothing -> N.failure $ invalid loc ctx
   Just (sub,replace) ->
-    let ctx = E.lam1 $ \f -> replace (ksub f)
+    let sub' = E.weaken V.bound1 sub
+        ctx = E.lam1 $ \f -> replace (ksub f)
         -- we annotate `f` as returning `Number` so as not to introduce
         -- any new quantified variables in the inferred type
         -- copy the subtree so type is unconstrained by local usage
-        ksub f = E.lam2 (\x _ -> x) `E.App` sub `E.App` (f `E.App` sub `E.Ann` T.Unit T.Number)
+        -- problem is that sub may contain variables that need freshening
+        ksub f = E.lam2 (\x _ -> x) `E.App` sub' `E.App` (f `E.App` sub `E.Ann` T.Unit T.Number)
         go (T.Arrow (T.Arrow tsub _) _) = tsub
         go (T.Forall n t) = T.Forall n (go t)
         go _ = error "impossible, f had better be a function"

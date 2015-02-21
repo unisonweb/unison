@@ -481,9 +481,10 @@ main =
       ignoreReqs actions =
         let ignore action model = snd (action model)
         in Signal.map ignore actions
+      expr = Term.Lam 2 (Term.Lam 1 (Term.App (Term.Var 2) (Term.Var 1)))
       ms = models inputs
                   (search2 (Signal.send inputs.searchbox) origin)
-                  { model0 | term <- Term.Lam 1 (Term.Var 1) }
+                  { model0 | term <- expr }
       debug model =
         model |> Debug.watchSummary "explorer" .explorer
               |> Debug.watchSummary "status" .status

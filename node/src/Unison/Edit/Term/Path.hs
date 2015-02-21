@@ -5,6 +5,7 @@ module Unison.Edit.Term.Path where
 
 import Control.Applicative
 import Data.Text.Internal (Text)
+import qualified Data.Set as Set
 import Data.Aeson as A
 import Data.Aeson.TH
 import Data.Maybe (fromJust)
@@ -19,7 +20,10 @@ data E
   | Index !Int -- ^ Points at the index of a vector
   deriving (Eq,Ord,Show)
 
-newtype Path = Path [E] deriving (Eq,Ord,Show)
+newtype Path = Path [E] deriving (Eq,Ord)
+
+instance Show Path where
+  show (Path es) = show es
 
 elements :: Path -> [E]
 elements (Path e) = e
@@ -54,6 +58,9 @@ along (Path path) e = go path e
         go (Index i:path) e@(E.Vector xs) = e : maybe [] (go path) (xs !? i)
         go _ _ = []
 
+varsAlong :: Path -> E.Term -> [V.Var]
+varsAlong p e = [ n | E.Lam n _ <- along p e ]
+
 valid :: Path -> E.Term -> Bool
 valid p e = maybe False (const True) (at p e)
 
@@ -81,17 +88,16 @@ at' loc ctx = case at loc ctx of
 
 set :: Path -> E.Term -> E.Term -> Maybe E.Term
 set path focus ctx = impl path ctx where
-  maxVar = E.maxV focus
   impl (Path []) _ = Just focus
   impl (Path (h:t)) ctx = go h ctx where
     go _ (E.Var _) = Nothing
     go (Index i) (E.Vector xs) = let replace xi = E.Vector (xs // [(i,xi)])
                                  in replace <$> xs !? i >>= impl (Path t)
     go _ (E.Lit _) = Nothing
-    go Fn (E.App f arg) = (\f' -> E.App f' arg) <$> impl (Path t) f
+    go Fn (E.App f arg) = E.App <$> impl (Path t) f <*> pure arg
     go Arg (E.App f arg) = E.App f <$> impl (Path t) arg
     go _ (E.Ann x _) = impl (Path (h:t)) x
-    go Body (E.Lam n body) = E.Lam <$> pure (V.nest n maxVar) <*> impl (Path t) body
+    go Body (E.Lam n body) = E.Lam n <$> impl (Path t) body
     go _ _ = Nothing
 
 -- | Like 'set', but accepts the new focus within the returned @Maybe@.

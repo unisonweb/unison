@@ -7,6 +7,7 @@
 module Unison.Syntax.Term where
 
 import qualified Data.Foldable as Foldable
+import Data.Maybe
 import Data.Traversable
 import Data.List as List
 import Control.Applicative
@@ -120,6 +121,18 @@ freeVars e = case e of
   Lam n body -> S.delete n (freeVars body)
   Vector vs -> Foldable.foldMap freeVars vs
   _ -> S.empty
+
+substitute :: (V.Var -> Maybe Term) -> Term -> Term
+substitute env e = go S.empty e where
+  go bound e = case e of
+    Var v -> if S.member v bound then e else fromMaybe e (env v)
+    App fn arg -> App (go bound fn) (go bound arg)
+    Vector vs -> Vector (fmap (go bound) vs)
+    Lam n body -> Lam n (go (S.insert n bound) body)
+    _ -> e
+
+weaken :: V.Var -> Term -> Term
+weaken v e = substitute (\v' -> Just (Var (V.nest v v'))) e
 
 isClosed :: Term -> Bool
 isClosed e | S.null (freeVars e) = True
