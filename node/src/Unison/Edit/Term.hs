@@ -62,7 +62,7 @@ admissibleTypeOf synthLit loc ctx = case P.at' loc ctx of
         go (T.Arrow (T.Arrow _ tsub) _) = tsub
         go (T.Forall n t) = T.Forall n (go t)
         go _ = error "impossible, f had better be a function"
-    in go <$> synthesize synthLit ctx
+    in (T.gc . go) <$> synthesize synthLit ctx
 
 -- | Beta-reduce the target, @(\x -> x+1) p@ becomes @p+1@.
 -- This noops if target is not beta-reducible.
@@ -117,7 +117,7 @@ letFloat loc ctx = case P.at loc ctx of
 -- | Return the type of all local variables in scope at the given location
 locals :: Applicative f => T.Env f -> P.Path -> E.Term -> Noted f [(V.Var, T.Type)]
 locals synthLit path ctx | E.isClosed ctx =
-  N.scoped ("locals@"++show path ++ " " ++ show ctx) (pushDown <$> lambdaTypes)
+  N.scoped ("locals@"++show path ++ " " ++ show ctx) (filterInScope . pushDown <$> lambdaTypes)
   where
     pointsToLambda path = case P.at path ctx of
       Just (E.Lam _ _) -> True
@@ -141,6 +141,10 @@ locals synthLit path ctx | E.isClosed ctx =
     extract (E.Lam n body) (T.Arrow i o) = (n, i) : extract body o
     extract ctx (T.Forall _ t) = extract ctx t
     extract _ _ = []
+
+    filterInScope :: [(V.Var,T.Type)] -> [(V.Var,T.Type)]
+    filterInScope locals = filter (\(v,_) -> S.member v inScope) locals
+      where inScope = S.fromList (P.inScopeAt path ctx)
 locals _ _ ctx =
   N.failure $ "Term.locals: term contains free variables - " ++ show (E.freeVars ctx)
 
@@ -172,7 +176,7 @@ typeOf synthLit loc ctx = N.scoped ("typeOf@"++show loc ++ " " ++ show ctx) $ ca
         go (T.Arrow (T.Arrow tsub _) _) = tsub
         go (T.Forall n t) = T.Forall n (go t)
         go _ = error "impossible, f had better be a function"
-    in go <$> synthesize synthLit ctx
+    in (T.gc . go) <$> synthesize synthLit ctx
 
 -- | Evaluate the given location to weak head normal form.
 -- If the location contains any free variables, this noops.

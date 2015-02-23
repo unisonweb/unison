@@ -5,7 +5,7 @@ module Unison.Edit.Term.Path where
 
 import Control.Applicative
 import Data.Text.Internal (Text)
-import qualified Data.Set as Set
+import Data.Foldable
 import Data.Aeson as A
 import Data.Aeson.TH
 import Data.Maybe (fromJust)
@@ -58,9 +58,6 @@ along (Path path) e = go path e
         go (Index i:path) e@(E.Vector xs) = e : maybe [] (go path) (xs !? i)
         go _ _ = []
 
-varsAlong :: Path -> E.Term -> [V.Var]
-varsAlong p e = [ n | E.Lam n _ <- along p e ]
-
 valid :: Path -> E.Term -> Bool
 valid p e = maybe False (const True) (at p e)
 
@@ -85,6 +82,14 @@ at' :: Path -> E.Term -> Maybe (E.Term, E.Term -> E.Term)
 at' loc ctx = case at loc ctx of
   Nothing -> Nothing
   Just focus -> Just (focus, \focus -> fromJust (set loc focus ctx)) -- safe since `at` proves `loc` valid
+
+-- | Returns the list of variables in scope at the given path
+inScopeAt :: Path -> E.Term -> [V.Var]
+inScopeAt p e =
+  let vars = map f (along p e)
+      f (E.Lam n _) = Just n
+      f _ = Nothing
+  in drop 1 (reverse vars) >>= toList
 
 set :: Path -> E.Term -> E.Term -> Maybe E.Term
 set path focus ctx = impl path ctx where

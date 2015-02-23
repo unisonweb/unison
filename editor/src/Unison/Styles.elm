@@ -93,7 +93,7 @@ carotUp x c =
      |> E.above (E.spacer 1 13)
 
 currentSymbol : Element
-currentSymbol = outline' okColor 8 16 16
+currentSymbol = outline' okColor 6 16 16
 
 numericLiteral : String -> Element
 numericLiteral s = T.leftAligned (T.style { code | color <- belizeHole } (T.fromString s))

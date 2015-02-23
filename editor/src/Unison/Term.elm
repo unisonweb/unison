@@ -127,6 +127,10 @@ set p e e' = let ap = EM.ap in case (p,e) of
     _ -> Nothing
   _ -> Nothing
 
+{-| Sets the given path to `e'`, if the path is valid, otherwise returns `ctx`. -}
+trySet : Path -> Term -> Term -> Term
+trySet p e ctx = Maybe.withDefault ctx (set p e ctx)
+
 delete : Path -> Term -> Maybe Term
 delete p e =
   let ap = EM.ap

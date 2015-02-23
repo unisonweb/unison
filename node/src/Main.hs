@@ -10,6 +10,8 @@ import Unison.Syntax.Var as V
 identity :: E.Term
 identity = E.lam1 $ \x -> x
 
+(@) = E.App
+
 constant :: E.Term
 constant = E.lam2 $ \x y -> x
 
@@ -20,6 +22,7 @@ apply = E.lam2 $ \f x -> f `E.App` x
 anyT :: Type
 anyT = forall1 $ \r -> (forall1 $ \a -> a `T.Arrow` r) `T.Arrow` r
 
+-- (x4 x3 → (x2 x1 → x2) x1 (x4 x1 : Number))
 expr :: E.Term
 expr = identityAnn
 

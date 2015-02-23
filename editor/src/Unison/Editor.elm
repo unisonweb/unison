@@ -109,21 +109,26 @@ keyedCompletions model =
     let search = e.input.string
         env = explorerViewEnv model
         render expr = Layout.element (View.layout expr (explorerViewEnv model))
-        regulars = i.wellTypedLocals ++ Elmz.Result.merge (model.globalMatches search)
-        key e = View.key
-          { metadata = metadata model, rootMetadata = model.rootMetadata, overall = model.term }
-          { path = scope.focus, term = model.term }
+        regulars = Debug.log "regulars"
+          (i.wellTypedLocals ++ Elmz.Result.merge (model.globalMatches search))
+        key e =
+          let ctx = Term.trySet scope.focus e model.term
+          in View.key
+            { metadata = metadata model, rootMetadata = model.rootMetadata, overall = ctx }
+            { path = scope.focus, term = e }
         format e = (key e, e, render e)
         box = Term.Embed (Layout.embed { path = [], selectable = False } Styles.currentSymbol)
         appBlanks n e = if n <= 0 then e else appBlanks (n-1) (Term.App e Term.Blank)
         showAppBlanks n e =
           let go n e = if n <= 0 then e else go (n-1) (Term.App e box)
           in render (go n e)
-        la cur n = (toString i, appBlanks n cur, showAppBlanks n cur)
-        currentApps = case Term.at scope.focus model.term of
+        la cur n = (String.padLeft (n+1) '.' "", appBlanks n cur, showAppBlanks n cur)
+        currentApps = Debug.log "currentApps" <| case Term.at scope.focus model.term of
           Nothing -> []
           Just cur -> List.map (la cur) i.localApplications
-    in List.map format regulars
+        ks = Debug.log "keys" (List.map (\(k,_,_) -> k) results)
+        results = currentApps ++ List.map format regulars
+    in results
   in Maybe.withDefault [] (Elmz.Maybe.map3 f model.explorer model.localInfo model.scope)
 
 filteredCompletions : Model -> List (Term,Element)
@@ -303,12 +308,14 @@ refreshExplorer searchbox model = case model.localInfo of
         pad e = let s = Element.spacer 10 1
                 in Element.flow Element.right [s, e, s]
         render expr = pad (Layout.element (View.layout expr viewEnv))
-
+        currentType = Element.flow Element.right
+          [ Styles.currentSymbol
+          , Styles.codeText (" : " ++ Type.key { metadata = metadata model } localInfo.current) ]
         above = Element.flow Element.down <|
           [ Element.spacer 1 5
-          , pad <| Styles.codeText (": " ++ Type.key { metadata = metadata model } localInfo.current)
           , pad <| Styles.codeText (Type.key { metadata = metadata model } localInfo.admissible)
-          , Element.spacer 1 5 ] ++
+          , Element.spacer 1 5
+          , pad currentType ] ++
           List.map render localInfo.locals ++ [ Element.spacer 1 5 ]
 
         explorer' : Explorer.Model
@@ -481,7 +488,7 @@ main =
       ignoreReqs actions =
         let ignore action model = snd (action model)
         in Signal.map ignore actions
-      expr = Term.Lam 2 (Term.Lam 1 (Term.App (Term.Var 2) (Term.Var 1)))
+      expr = (Term.Lam 1 (Terms.int 42))
       ms = models inputs
                   (search2 (Signal.send inputs.searchbox) origin)
                   { model0 | term <- expr }

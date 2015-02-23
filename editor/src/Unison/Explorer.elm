@@ -75,7 +75,9 @@ view origin searchbox model = case model of
     let ok = not (List.isEmpty s.completions)
         statusColor = Styles.statusColor ok
         fld = Field.field (Styles.autocomplete ok) searchbox s.prompt s.input
-        completions = List.indexedMap (\i e -> Layout.embed (Result.Ok i) e) s.completions
+        completions =
+          let fit e = E.width (E.widthOf s.above `max` E.widthOf e) e
+          in List.indexedMap (\i e -> Layout.embed (Result.Ok i) (fit e)) s.completions
         inside = Result.Err Inside
         bottom = Styles.explorerOutline statusColor <|
           Layout.vertical inside

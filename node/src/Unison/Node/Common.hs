@@ -76,7 +76,7 @@ node eval store =
       admissible <- TE.admissibleTypeOf readTypeOf loc e
       locals <- TE.locals readTypeOf loc e
       annotatedLocals <- pure $ map (\(v,t) -> E.Var v `E.Ann` t) locals
-      let f e = (const True <$> Type.check readTypeOf e admissible) `Note.orElse` pure False
+      let f focus = maybe (pure False) (\e -> Type.wellTyped readTypeOf e) (Path.set loc focus e)
       let fi (e,_) = f e
       let currentApplies = maybe [] (\e -> TE.applications e admissible) (Path.at loc e) `zip` [0..]
       matchingCurrentApplies <- case Path.at loc e of

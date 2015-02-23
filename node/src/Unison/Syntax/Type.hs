@@ -137,6 +137,16 @@ freeVars t = case t of
   Constrain fn _ -> freeVars fn
   Forall v fn -> S.delete v (freeVars fn)
 
+-- | Remove any stray quantifiers
+gc :: Type -> Type
+gc t = go (relevant t) t
+  where
+    relevant (Forall _ t) = relevant t
+    relevant t = freeVars t
+    go relevant (Forall v body) | S.member v relevant = Forall v (go relevant body)
+    go relevant (Forall v body) | otherwise = go relevant body
+    go _ t = t
+
 hash :: Type -> H.Digest
 hash = H.lazyBytes . JE.encode
 

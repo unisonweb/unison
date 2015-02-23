@@ -34,6 +34,18 @@ check' :: E.Term -> T.Type -> Either Note T.Type
 check' term typ = join . N.unnote $ check missing term typ
   where missing h = N.failure $ "unexpected ref: " ++ show h
 
+-- | Check whether a term's synthesized type is a supertype of the
+-- given `admissibleTyp`. This is the contravariant version of `check`, so
+-- for instance `admissible 42 (forall a . a)` is `True`, since a term of
+-- type `forall a . a` can be substituted for `42`.
+admissible :: Applicative f => T.Env f -> E.Term -> T.Type -> Noted f Bool
+admissible synth term admissibleTyp = f <$> synthesize synth term
+  where f t = either (const False) (const True) (subtype admissibleTyp t)
+
+-- | Returns `True` if the expression is well-typed, `False` otherwise
+wellTyped :: (Monad f, Applicative f) => T.Env f -> E.Term -> Noted f Bool
+wellTyped synth term = (const True <$> synthesize synth term) `N.orElse` pure False
+
 -- | @subtype a b@ is @Right b@ iff @f x@ is well-typed given
 -- @x : a@ and @f : b -> t@. That is, if a value of type `a`
 -- can be passed to a function expecting a `b`, then `subtype a b`
