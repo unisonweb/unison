@@ -76,7 +76,7 @@ view origin searchbox model = case model of
         statusColor = Styles.statusColor ok
         fld = Field.field (Styles.autocomplete ok) searchbox s.prompt s.input
         completions =
-          let fit e = E.width (E.widthOf s.above `max` E.widthOf e) e
+          let fit e = E.width (E.widthOf s.above - 12 `max` E.widthOf e) e
           in List.indexedMap (\i e -> Layout.embed (Result.Ok i) (fit e)) s.completions
         inside = Result.Err Inside
         bottom = Styles.explorerOutline statusColor <|
@@ -86,7 +86,7 @@ view origin searchbox model = case model of
             , Layout.embed inside s.below ]
         box = Layout.vertical inside
           [ Layout.embed inside (E.flow E.right [E.spacer 9 1, Styles.carotUp 6 statusColor])
-          , Layout.embed inside (E.width (Layout.widthOf bottom `max` 60) fld)
+          , Layout.embed inside (E.width (Layout.widthOf bottom) fld)
           , Layout.embed inside (E.spacer 1 6)
           , bottom ]
         boxTopLeft = origin

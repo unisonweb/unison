@@ -103,6 +103,12 @@ explorerViewEnv model =
      , overrides path = Trie.lookup path model.overrides
      , overall = model.term }
 
+focus : Model -> Maybe Term
+focus model = model.scope `Maybe.andThen` \scope -> Term.at scope.focus model.term
+
+focusOr : Term -> Model -> Term
+focusOr e model = Maybe.withDefault e (focus model)
+
 keyedCompletions : Model -> List (String,Term,Element)
 keyedCompletions model =
   let f e i scope =
@@ -118,14 +124,12 @@ keyedCompletions model =
             { path = scope.focus, term = e }
         format e = (key e, e, render e)
         box = Term.Embed (Layout.embed { path = [], selectable = False } Styles.currentSymbol)
-        appBlanks n e = if n <= 0 then e else appBlanks (n-1) (Term.App e Term.Blank)
-        showAppBlanks n e =
-          let go n e = if n <= 0 then e else go (n-1) (Term.App e box)
-          in render (go n e)
-        la cur n = (String.padLeft (n+1) '.' "", appBlanks n cur, showAppBlanks n cur)
+        appBlanks n e = List.foldl (\_ cur -> Term.App cur Term.Blank) e [0 .. n]
+        showAppBlanks n = render (List.foldl (\_ box -> Term.App box Term.Blank) box [0 .. n])
+        la cur n = (String.padLeft (n+1) '.' "", appBlanks n cur, showAppBlanks n)
         currentApps = Debug.log "currentApps" <| case Term.at scope.focus model.term of
           Nothing -> []
-          Just cur -> List.map (la cur) i.localApplications
+          Just cur -> (".", cur, Styles.currentSymbol) :: List.map (la cur) i.localApplications
         ks = Debug.log "keys" (List.map (\(k,_,_) -> k) results)
         results = currentApps ++ List.map format regulars
     in results
@@ -311,12 +315,17 @@ refreshExplorer searchbox model = case model.localInfo of
         currentType = Element.flow Element.right
           [ Styles.currentSymbol
           , Styles.codeText (" : " ++ Type.key { metadata = metadata model } localInfo.current) ]
-        above = Element.flow Element.down <|
-          [ Element.spacer 1 5
-          , pad <| Styles.codeText (Type.key { metadata = metadata model } localInfo.admissible)
-          , Element.spacer 1 5
+        above0 = Element.flow Element.down <|
+          [ Element.spacer 1 10
+          , pad <| Styles.boldCodeText (Type.key { metadata = metadata model } localInfo.admissible)
+          , Element.spacer 1 12
           , pad currentType ] ++
-          List.map render localInfo.locals ++ [ Element.spacer 1 5 ]
+          List.map render localInfo.locals
+        above = Element.flow Element.down
+          [ above0
+          , Element.spacer 1 10
+          , Styles.menuSeparator (Element.widthOf above0)
+          , Element.spacer 1 10 ]
 
         explorer' : Explorer.Model
         explorer' = model.explorer |> Maybe.map (\e ->

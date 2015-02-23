@@ -78,7 +78,7 @@ node eval store =
       annotatedLocals <- pure $ map (\(v,t) -> E.Var v `E.Ann` t) locals
       let f focus = maybe (pure False) (\e -> Type.wellTyped readTypeOf e) (Path.set loc focus e)
       let fi (e,_) = f e
-      let currentApplies = maybe [] (\e -> TE.applications e admissible) (Path.at loc e) `zip` [0..]
+      let currentApplies = maybe [] (\e -> drop 1 (TE.applications e admissible)) (Path.at loc e) `zip` [0..]
       matchingCurrentApplies <- case Path.at loc e of
         -- if we're pointing to a Var, matchingCurrentApplies is redundant with `matchingLocals`
         Just (E.Var _) -> pure []

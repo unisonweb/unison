@@ -122,6 +122,14 @@ pad eastWestPad northSouthPad l =
             (Pt eastWestPad northSouthPad)
             l
 
+pad' : { left : Int, right : Int, top : Int, bottom : Int } -> Layout k -> Layout k
+pad' padding l =
+  container (tag l)
+            (widthOf l + padding.left + padding.right)
+            (heightOf l + padding.top + padding.bottom)
+            (Pt padding.left padding.top)
+            l
+
 outline : Color -> Int -> Layout k -> Layout k
 outline c thickness l =
   pad thickness thickness l |> transform (E.color c)

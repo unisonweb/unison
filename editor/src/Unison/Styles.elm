@@ -57,8 +57,19 @@ menuHeader =
 codeText : String -> Element
 codeText s = T.leftAligned (T.style code (T.fromString s))
 
+boldCodeText : String -> Element
+boldCodeText s = T.leftAligned (T.style { code | bold <- True } (T.fromString s))
+
+centeredCodeText : String -> Element
+centeredCodeText s = T.centered (T.style code (T.fromString s))
+
 menuHeaderText : String -> Element
 menuHeaderText s = T.leftAligned (T.style menuHeader (T.fromString s))
+
+menuSeparator : Int -> Element
+menuSeparator width =
+  let line = E.spacer (width - 20) 1 |> E.color clouds
+  in E.flow E.right [E.spacer 10 1, line, E.spacer 10 1]
 
 okColor = midnightBlueA 0.4
 notOkColor = alizarin
@@ -115,7 +126,11 @@ verticalCells k ifEmpty ls = let cs = List.map (\l -> L.fill bg (L.pad 5 0 l)) (
 
 explorerCells : k -> List (Layout k) -> Layout k
 explorerCells k ls =
-  let cs = List.map (\l -> L.fill bg (L.pad 20 5 l)) (L.column ls)
+  let last l = L.fill bg (L.pad' { left = 10, right = 5, top = 6, bottom = 8 } l)
+      col = L.leftAlignedColumn ls
+      fmt l = L.fill bg (L.pad' { left = 10, right = 5, top = 6, bottom = 6 } l)
+      cs = List.map fmt (List.take (List.length col - 1) col) ++
+           List.map last (List.drop (List.length col - 1) col)
   in case cs of
     [] -> L.empty k
     h :: _ -> let hsep = L.embed k (E.spacer 1 5)
