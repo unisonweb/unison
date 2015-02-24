@@ -166,7 +166,7 @@ typeOf synthLit (P.Path []) ctx = N.scoped ("typeOf: " ++ show ctx) $ synthesize
 typeOf synthLit loc ctx = N.scoped ("typeOf@"++show loc ++ " " ++ show ctx) $ case P.at' loc ctx of
   Nothing -> N.failure $ invalid loc ctx
   Just (sub,replace) ->
-    let sub' = E.weaken V.bound1 sub
+    let sub' = sub
         ctx = E.lam1 $ \f -> replace (ksub f)
         -- we annotate `f` as returning `Number` so as not to introduce
         -- any new quantified variables in the inferred type
