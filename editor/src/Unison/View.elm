@@ -21,6 +21,7 @@ import Unison.Term as Term
 import Unison.Type as Type
 import Unison.Path (..)
 import Unison.Path as Path
+import Unison.Var as V
 import String
 import Text
 type alias E = Path.E
@@ -57,7 +58,7 @@ key env cur = case cur.term of
   Vector terms ->
     let ki i term = key env { path = cur.path `snoc` Index i, term = term }
     in "[" ++ String.join "," (Array.toList (Array.indexedMap ki terms)) ++ "]"
-  Lam v body -> key env { path = cur.path `snoc` Body, term = body }
+  Lam body -> key env { path = cur.path `snoc` Body, term = body }
 
 {-|
 
@@ -264,11 +265,14 @@ break env rootMd md path expr =
         Metadata.Prefix -> prefix (App (App op l) r) [] path -- not an operator chain, fall back
         Metadata.InfixL -> opsL op sym.precedence (App (App op l) r) [] path -- left associated operator chain
         Metadata.InfixR -> opsR op sym.precedence (App (App op l) r) path
-    Lam v body -> case body of -- audit this
-      Lam _ _ -> let trim p = { p | path <- path } in case break env rootMd md (path `snoc` Body) body of
-        Lambda args body2 -> Lambda ({ path = path, term = Var v } :: args) body2
-        _ -> Lambda [{path = path, term = Var v }] { path = path `snoc` Body, term = body }
-      _ -> Lambda [{path = path, term = Var v }] { path = path `snoc` Body, term = body }
+    Lam body -> case body of -- audit this
+      Lam _ ->
+        let v = V.bound1
+            trim p = { p | path <- path }
+        in case break env rootMd md (path `snoc` Body) body of
+          Lambda args body2 -> Lambda ({ path = path, term = Var v } :: args) body2
+          _ -> Lambda [{path = path, term = Var v }] { path = path `snoc` Body, term = body }
+      _ -> Lambda [{path = path, term = Var V.bound1 }] { path = path `snoc` Body, term = body }
     _ -> prefix expr [] path
 
 
@@ -368,13 +372,14 @@ builtins env allowBreak availableWidth ambientPrec cur =
         _ -> Nothing
       _ -> Nothing
   in case cur.term of
-    App (App (App (Ref (R.Builtin "View.cell")) (App (Ref (R.Builtin "View.function1")) (Lam arg body))) f) e ->
+    App (App (App (Ref (R.Builtin "View.cell")) (App (Ref (R.Builtin "View.function1")) (Lam body))) f) e ->
       -- all paths will point to `f` aside from `e`
       let eview = close (Embed (impl env allowBreak 0 availableWidth { path = cur.path `snoc` Arg, term = e }))
           fpath = cur.path `append` [Fn,Arg]
           trim l = if Path.startsWith fpath l.path then { l | path <- cur.path } else l
-          g view = impl env allowBreak ambientPrec availableWidth { path = fpath, term = substitute body arg view }
-                |> L.map trim
+          g view = impl env allowBreak ambientPrec availableWidth
+                   { path = fpath, term = betaReduce (App (Lam body) (unclose view)) }
+                   |> L.map trim
       in Maybe.map g eview
     App (App (Ref (R.Builtin "View.panel")) v) e -> go v e
     App (App (Ref (R.Builtin "View.cell")) v) e -> go v e

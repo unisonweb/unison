@@ -497,7 +497,7 @@ main =
       ignoreReqs actions =
         let ignore action model = snd (action model)
         in Signal.map ignore actions
-      expr = (Term.Lam 1 (Terms.int 42))
+      expr = (Term.Lam (Terms.int 42))
       ms = models inputs
                   (search2 (Signal.send inputs.searchbox) origin)
                   { model0 | term <- expr }

@@ -44,64 +44,41 @@ type Term
   | Ref R.Reference
   | App Term Term
   | Ann Term T.Type
-  | Lam I Term
+  | Lam Term
   | Vector (Array Term)
   | Embed (Layout { path : Path, selectable : Bool })
 
 type ClosedTerm = ClosedTerm Term
 
 close : Term -> Maybe ClosedTerm
-close e = if unbound e == Set.empty then Just (ClosedTerm e) else Nothing
+close e = if isClosed e then Just (ClosedTerm e) else Nothing
+
+isClosed : Term -> Bool
+isClosed e =
+  let go depth e = case e of
+        Var i -> i < depth
+        App f x -> go depth f || go depth x
+        Ann e _ -> go depth e
+        Lam body -> go (V.succ depth) body
+        Vector vs -> List.all (go depth) (Array.toList vs)
+        _ -> True
+  in go V.bound1 e
 
 unclose : ClosedTerm -> Term
 unclose (ClosedTerm e) = e
 
-rename : I -> I -> Term -> Term
-rename from to e = case e of
-  Var i -> if i == from then Var to else e
-  Vector es -> Vector (Array.map (rename from to) es)
-  Lit l -> e
-  App f arg -> App (rename from to f) (rename from to arg)
-  Ann e t -> Ann (rename from to e) t
-  Lam n inner -> Lam n (rename from to inner)
-  _ -> e
-
-substitute : Term -> I -> ClosedTerm -> Term
-substitute body v x =
-  let freshx = fresh (unclose x)
-      go body = case body of
-        Var i -> if i == v then unclose x else body
-        Lit l -> body
-        Vector es -> Vector (Array.map (\body -> substitute body v x) es)
-        App f arg -> App (substitute f v x) (substitute arg v x)
-        Ann e t -> Ann (substitute e v x) t
-        Lam n inner -> if n == v then Lam n inner
-                       else let inner' = substitute inner v x
-                                n' = freshx `max` n
-                            in if n' >= n then (Lam n' (substitute (rename n n' inner) v x))
-                               else Lam n (substitute inner v x)
-        _ -> body
-  in go body
-
-fresh : Term -> I
-fresh e = case e of
-  Lam n _ -> V.succ n
-  Lit l -> V.z
-  Vector es -> Array.map fresh es |> Array.foldl max V.z
-  App f arg -> max (fresh f) (fresh arg)
-  Ann e _ -> fresh e
-  _ -> V.z
-
-{-| Returns the set of free variables in the given `Term`. -}
-unbound : Term -> Set I
-unbound e = case e of
-  Var i -> Set.singleton i
-  Vector es -> Array.map unbound es |> Array.foldl Set.union Set.empty
-  Lit l -> Set.empty
-  App f arg -> Set.union (unbound f) (unbound arg)
-  Ann e _ -> unbound e
-  Lam n body -> Set.remove n (unbound body)
-  _ -> Set.empty
+betaReduce : Term -> Term
+betaReduce e =
+  let go depth arg body = case body of
+    App f x -> App (go depth arg f) (go depth arg x)
+    Vector vs -> Vector (Array.map (go depth arg) vs)
+    Ann body t -> Ann (go depth arg body) t
+    Lam body -> Lam (go (V.succ depth) arg body)
+    Var v -> if v == depth then arg else Var v
+    _ -> body
+  in case e of
+    App (Lam f) arg -> go V.bound1 f arg
+    _ -> e
 
 {-| Returns the subterm at the given path, if the path is valid. -}
 at : Path -> Term -> Maybe Term
@@ -109,7 +86,7 @@ at p e = case (p,e) of
   ([], e) -> Just e
   (Fn :: t, App f _) -> at t f
   (Arg :: t, App _ arg) -> at t arg
-  (Body :: t, Lam _ body) -> at t body
+  (Body :: t, Lam body) -> at t body
   (Index i :: t, Vector es) -> case Array.get i es of
     Just e -> at t e
     _ -> Nothing
@@ -121,7 +98,7 @@ set p e e' = let ap = EM.ap in case (p,e) of
   ([], e) -> Just e'
   (Fn :: t, App f arg) -> Just App `ap` set t f e' `ap` Just arg
   (Arg :: t, App f arg) -> Just (App f) `ap` set t arg e'
-  (Body :: t, Lam n body) -> Just (Lam n) `ap` set t body e'
+  (Body :: t, Lam body) -> Just Lam `ap` set t body e'
   (Index i :: t, Vector es) -> case Array.get i es of
     Just e -> Maybe.map (\e -> Vector (Array.set i e es)) (set t e e')
     _ -> Nothing
@@ -139,7 +116,7 @@ delete p e =
         ([], e) -> Nothing
         (Fn :: t, App f arg) -> Just App `ap` go t f `ap` Just arg `orElse` Just arg
         (Arg :: t, App f arg) -> Just (App f) `ap` go t arg `orElse` Just f
-        (Body :: t, Lam n body) -> Just (Lam n) `ap` go t body
+        (Body :: t, Lam body) -> Just Lam `ap` go t body
         (Index i :: t, Vector es) -> case Array.get i es of
           Just e -> Maybe.map (\e -> Vector (Array.set i e es)) (go t e) `orElse`
                     Just (Vector (Array.slice 0 i es `Array.append`
@@ -150,26 +127,7 @@ delete p e =
 
 {-| If the given `Path` points to a `Var`, returns the path where that var is bound. -}
 boundAt : Path -> Term -> Maybe Path
-boundAt path e = case at path e of
-  Just (Var n) ->
-    let go rem e = case e of
-      Lam n2 body ->
-        if n == n2
-        then List.reverse path
-             |> List.drop (List.length path - List.length rem)
-             |> List.reverse
-             |> Just
-        else case rem of
-          hd :: rem -> case (hd,e) of
-            (_, Ann e _) -> go (hd :: rem) e
-            (Fn,App e _) -> go rem e
-            (Arg,App _ e) -> go rem e
-            (Body,Lam _ e) -> go rem e
-            (Index i,Vector es) -> Array.get i es `Maybe.andThen` go rem
-            _ -> Nothing
-          [] -> Nothing
-    in go path e
-  _ -> Nothing
+boundAt path e = Debug.crash "boundAt"
 
 {-| Returns `True` if the path points to a valid subterm -}
 valid : Term -> Path -> Bool
@@ -187,7 +145,7 @@ down e p =
       go e = case e of
         App f x -> p `append` List.repeat (apps f) Fn
         Vector es -> if Array.length es == 0 then p else p `snoc` Index 0
-        Lam _ _ -> p `snoc` Body
+        Lam _ -> p `snoc` Body
         _ -> p
   in Maybe.withDefault p (Maybe.map go (at p e))
 
@@ -256,7 +214,7 @@ decodeTerm = Decoder.union' <| \t ->
      | t == "Ref" -> Decoder.map Ref R.decode
      | t == "App" -> Decoder.product2 App decodeTerm decodeTerm
      | t == "Ann" -> Decoder.product2 Ann decodeTerm T.decodeType
-     | t == "Lam" -> Decoder.product2 Lam V.decode decodeTerm
+     | t == "Lam" -> Decoder.map Lam decodeTerm
      | t == "Blank" -> Decoder.unit Blank
 
 encodeTerm : Encoder Term
@@ -267,6 +225,6 @@ encodeTerm e = case e of
   Ref h -> Encoder.tag' "Ref" R.encode h
   App f x -> Encoder.tag' "App" (Encoder.list encodeTerm) [f, x]
   Ann e t -> Encoder.tag' "Ann" (Encoder.tuple2 encodeTerm T.encodeType) (e, t)
-  Lam n body -> Encoder.tag' "Lam" (Encoder.tuple2 V.encode encodeTerm) (n, body)
+  Lam body -> Encoder.tag' "Lam" encodeTerm body
   Embed e -> Encoder.tag' "Embed" Encoder.product0 ()
 

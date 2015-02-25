@@ -7,8 +7,8 @@ import Elmz.Json.Decoder (Decoder)
 
 type alias I = Int
 
-z : I
-z = 0
+bound1 : I
+bound1 = 1
 
 succ : I -> I
 succ i = i + 1
