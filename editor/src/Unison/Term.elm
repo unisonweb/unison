@@ -127,7 +127,7 @@ delete p e =
 
 {-| If the given `Path` points to a `Var`, returns the path where that var is bound. -}
 boundAt : Path -> Term -> Maybe Path
-boundAt path e = Debug.crash "boundAt"
+boundAt path e = Just [] -- Debug.crash "boundAt"
 
 {-| Returns `True` if the path points to a valid subterm -}
 valid : Term -> Path -> Bool
