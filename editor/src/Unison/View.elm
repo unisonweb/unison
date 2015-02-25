@@ -39,7 +39,7 @@ type alias Env =
 type alias Cur =
   { path : Path
   , term : Term
-  , boundAt : V.I -> Path }
+  , boundAt : Path -> V.I -> Path }
 
 resolveLocal : String -> Metadata -> Path -> Metadata.Symbol
 resolveLocal prefix md p = case Metadata.localSymbol md p of
@@ -49,17 +49,17 @@ resolveLocal prefix md p = case Metadata.localSymbol md p of
     in { sym | name <- prefix ++ toString depth }
   Just sym -> sym
 
-weakenBoundAt : Path -> (V.I -> Path) -> V.I -> Path
-weakenBoundAt path boundAt v =
-  if v == V.bound1 then path
-  else boundAt (V.decr v)
+weakenBoundAt : (Path -> V.I -> Path) -> Path -> V.I -> Path
+weakenBoundAt boundAt path v = Debug.log ("boundAt " ++ toString path ++ " " ++ toString v) <|
+  if v == V.bound1 then Path.trimThroughScope path
+  else boundAt (Path.trimThroughScope path) (V.decr v)
 
 key : { tl | rootMetadata : Metadata, metadata : R.Reference -> Metadata, overall : Term }
    -> Cur
    -> String
 key env cur = case cur.term of
   Blank -> "_"
-  Var v -> (resolveLocal "v" env.rootMetadata (cur.boundAt v)).name
+  Var v -> (resolveLocal "v" env.rootMetadata (cur.boundAt cur.path v)).name
   Lit (Number n) -> toString n
   Lit (Str s) -> "\"" ++ toString s ++ "\""
   Lit (Distance d) -> toString d
@@ -72,7 +72,7 @@ key env cur = case cur.term of
     in "[" ++ String.join "," (Array.toList (Array.indexedMap ki terms)) ++ "]"
   Lam body -> key env { path = cur.path `snoc` Body
                       , term = body
-                      , boundAt = weakenBoundAt cur.path cur.boundAt }
+                      , boundAt = weakenBoundAt cur.boundAt }
 
 {-|
 
@@ -158,7 +158,7 @@ layout : Term -- term to render
       -> Env
       -> Layout L
 layout expr env =
-  impl env True 0 env.availableWidth { path = [], term = expr, boundAt v = [] }
+  impl env True 0 env.availableWidth { path = [], term = expr, boundAt _ v = [] }
 
 impl : Env
     -> Bool
@@ -171,7 +171,7 @@ impl env allowBreak ambientPrec availableWidth cur =
     Just l -> l
     Nothing -> case cur.term of
       Embed l -> l
-      Var v -> codeText (resolveLocal "v" env.rootMetadata (cur.boundAt v)).name
+      Var v -> codeText (resolveLocal "v" env.rootMetadata (cur.boundAt cur.path v)).name
             |> L.embed (tag cur.path)
       Ref h -> codeText (Metadata.firstName (R.toKey h) (env.metadata h)) |> L.embed (tag cur.path)
       Blank -> Styles.blank |> L.embed (tag cur.path)
@@ -179,8 +179,31 @@ impl env allowBreak ambientPrec availableWidth cur =
       Lit (Str s) -> Styles.stringLiteral ("\"" ++ s ++ "\"") |> L.embed (tag cur.path)
       Ann e t -> let ann = Styles.codeText (" : " ++ Type.key env t)
                  in L.beside (tag cur.path)
-                             (impl env allowBreak 9 (availableWidth - E.widthOf ann) { cur | term <- e })
+                             (impl env allowBreak 9 (availableWidth - E.widthOf ann)
+                               { cur | term <- e })
                              (L.embed (tag cur.path) ann)
+      Lam body ->
+        let space' = L.embed (tag cur.path) space
+            arg = codeText (resolveLocal "v" env.rootMetadata cur.path).name
+               |> L.embed (tag cur.path)
+            argLayout = [arg, L.embed (tag cur.path) (codeText "→")]
+                     |> L.intersperseHorizontal space'
+            weakened = weakenBoundAt cur.boundAt
+            cur' = { cur | boundAt <- weakenBoundAt cur.boundAt
+                         , term <- body
+                         , path <- cur.path `snoc` Body }
+            unbroken = [argLayout, impl env False 0 0 cur' ]
+                    |> L.intersperseHorizontal space'
+                    |> paren (ambientPrec > 0) cur
+        in if not allowBreak || L.widthOf unbroken < availableWidth
+           then unbroken
+           else L.above (tag cur.path)
+                  argLayout
+                  (L.horizontal (tag cur.path)
+                    [ space'
+                    , space'
+                    , impl env True 0 (availableWidth - indentWidth) cur' ])
+                |> paren (ambientPrec > 0) cur
       _ -> case builtins env allowBreak ambientPrec availableWidth cur of
         Just l -> l
         Nothing -> let space' = L.embed (tag cur.path) space in
@@ -211,17 +234,6 @@ impl env allowBreak ambientPrec availableWidth cur =
                  then unbroken
                  else List.foldl bf (impl env True lprec (availableWidth - indentWidth) hd) tl
                       |> paren (ambientPrec > 9) cur
-            Lambda args body ->
-              let argLayout = List.map (impl env False 0 0) args ++ [L.embed (tag cur.path) (codeText "→")]
-                           |> L.intersperseHorizontal space'
-                  unbroken = L.intersperseHorizontal space' [argLayout, impl env False 0 0 body]
-                          |> paren (ambientPrec > 0) cur
-              in if not allowBreak || L.widthOf unbroken < availableWidth
-                 then unbroken
-                 else L.above (tag cur.path)
-                        argLayout
-                        (L.horizontal (tag cur.path) [ space', space', impl env True 0 (availableWidth - indentWidth) body])
-                      |> paren (ambientPrec > 0) cur
             Bracketed es ->
               let unbroken = Styles.cells (tag cur.path) (codeText "[]") (List.map (impl env False 0 0) es)
               in if not allowBreak || L.widthOf unbroken < availableWidth || List.length es < 2
@@ -269,23 +281,12 @@ break env cur =
     App (App op l) r ->
       let sym = case op of
         Ref h -> Metadata.firstSymbol (R.toKey h) (env.metadata h)
-        Var v -> resolveLocal "v" env.rootMetadata (cur.boundAt v)
+        Var v -> resolveLocal "v" env.rootMetadata (cur.boundAt cur.path v)
         _ -> Metadata.anonymousSymbol
       in case sym.fixity of
         Metadata.Prefix -> prefix (App (App op l) r) [] cur.path -- not an operator chain, fall back
         Metadata.InfixL -> opsL op sym.precedence (App (App op l) r) [] cur.path -- left associated operator chain
         Metadata.InfixR -> opsR op sym.precedence (App (App op l) r) cur.path
-    Lam body ->  -- audit this
-      let v = V.bound1
-          cur' = { cur | path <- cur.path `snoc` Body
-                       , term <- body
-                       , boundAt <- weakenBoundAt cur.path cur.boundAt }
-      in case body of
-        Lam _ ->
-          case break env cur' of
-            Lambda args body2 -> Lambda ({ cur | term <- Var v } :: args) body2
-            _ -> Lambda [{ cur | term <- Var v }] cur'
-        _ -> Lambda [{ cur | term <- Var v }] cur'
     _ -> prefix cur.term [] cur.path
 
 -- denotes a function a -> Layout

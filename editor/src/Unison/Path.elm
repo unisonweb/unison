@@ -68,6 +68,14 @@ trimToScope p =
         h :: t -> go t
   in go (List.reverse p)
 
+trimThroughScope : Path -> Path
+trimThroughScope p =
+  let go p = case p of
+        [] -> p
+        Body :: t -> List.reverse t
+        h :: t -> go t
+  in go (List.reverse p)
+
 startsWith : List a -> List a -> Bool
 startsWith prefix overall =
   List.length prefix == 0 ||

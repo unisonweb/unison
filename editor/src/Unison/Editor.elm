@@ -121,7 +121,7 @@ keyedCompletions model =
           let ctx = Term.trySet scope.focus e model.term
           in View.key
             { metadata = metadata model, rootMetadata = model.rootMetadata, overall = ctx }
-            { path = scope.focus, term = e, boundAt v = [] }
+            { path = scope.focus, term = e, boundAt _ v = [] }
         format e = (key e, e, render e)
         box = Term.Embed (Layout.embed { path = [], selectable = False } Styles.currentSymbol)
         appBlanks n e = List.foldl (\_ cur -> Term.App cur Term.Blank) e [0 .. n]
@@ -497,7 +497,8 @@ main =
       ignoreReqs actions =
         let ignore action model = snd (action model)
         in Signal.map ignore actions
-      expr = (Term.Lam (Terms.int 42))
+      expr = Term.Lam (Term.Lam (Term.Var 2))
+      -- expr = (Term.Lam (Terms.int 42))
       ms = models inputs
                   (search2 (Signal.send inputs.searchbox) origin)
                   { model0 | term <- expr }
