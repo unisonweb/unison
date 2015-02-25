@@ -121,7 +121,7 @@ keyedCompletions model =
           let ctx = Term.trySet scope.focus e model.term
           in View.key
             { metadata = metadata model, rootMetadata = model.rootMetadata, overall = ctx }
-            { path = scope.focus, term = e }
+            { path = scope.focus, term = e, boundAt v = [] }
         format e = (key e, e, render e)
         box = Term.Embed (Layout.embed { path = [], selectable = False } Styles.currentSymbol)
         appBlanks n e = List.foldl (\_ cur -> Term.App cur Term.Blank) e [0 .. n]

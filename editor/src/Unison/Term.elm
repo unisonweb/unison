@@ -125,10 +125,6 @@ delete p e =
         _ -> Nothing
   in if valid e p then go p e else Nothing
 
-{-| If the given `Path` points to a `Var`, returns the path where that var is bound. -}
-boundAt : Path -> Term -> Maybe Path
-boundAt path e = Just [] -- Debug.crash "boundAt"
-
 {-| Returns `True` if the path points to a valid subterm -}
 valid : Term -> Path -> Bool
 valid e p = case at p e of

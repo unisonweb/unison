@@ -13,6 +13,9 @@ bound1 = 1
 succ : I -> I
 succ i = i + 1
 
+decr : I -> I
+decr i = (i - 1) `max` 0
+
 decode : Decoder I
 decode = Decoder.int
 

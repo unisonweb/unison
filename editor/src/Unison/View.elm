@@ -36,29 +36,43 @@ type alias Env =
   , overrides      : Path -> Maybe (Layout L)
   , overall        : Term }
 
-resolveLocal : String -> Metadata -> Path -> Term -> Metadata.Symbol
-resolveLocal notfound md p e =
-  let sym = Metadata.anonymousSymbol
-  in (boundAt p e `Maybe.andThen` Metadata.localSymbol md) |>
-     Maybe.withDefault { sym | name <- notfound }
+type alias Cur =
+  { path : Path
+  , term : Term
+  , boundAt : V.I -> Path }
+
+resolveLocal : String -> Metadata -> Path -> Metadata.Symbol
+resolveLocal prefix md p = case Metadata.localSymbol md p of
+  Nothing ->
+    let sym = Metadata.anonymousSymbol
+        depth = List.length (List.filter ((==) Path.Body) p) + 1
+    in { sym | name <- prefix ++ toString depth }
+  Just sym -> sym
+
+weakenBoundAt : Path -> (V.I -> Path) -> V.I -> Path
+weakenBoundAt path boundAt v =
+  if v == V.bound1 then path
+  else boundAt (V.decr v)
 
 key : { tl | rootMetadata : Metadata, metadata : R.Reference -> Metadata, overall : Term }
-   -> { path : Path, term : Term }
+   -> Cur
    -> String
 key env cur = case cur.term of
   Blank -> "_"
-  Var v -> (resolveLocal ("v"++toString v) env.rootMetadata cur.path env.overall).name
+  Var v -> (resolveLocal "v" env.rootMetadata (cur.boundAt v)).name
   Lit (Number n) -> toString n
   Lit (Str s) -> "\"" ++ toString s ++ "\""
   Lit (Distance d) -> toString d
   Ref r -> Metadata.firstName "anonymous" (env.metadata r)
-  App f arg -> key env { path = cur.path `snoc` Fn, term = f } ++
-               key env { path = cur.path `snoc` Arg, term = arg }
+  App f arg -> key env { cur | path <- cur.path `snoc` Fn, term <- f } ++
+               key env { cur | path <- cur.path `snoc` Arg, term <- arg }
   Ann e t -> key env { cur | term <- e }
   Vector terms ->
-    let ki i term = key env { path = cur.path `snoc` Index i, term = term }
+    let ki i term = key env { cur | path <- cur.path `snoc` Index i, term <- term }
     in "[" ++ String.join "," (Array.toList (Array.indexedMap ki terms)) ++ "]"
-  Lam body -> key env { path = cur.path `snoc` Body, term = body }
+  Lam body -> key env { path = cur.path `snoc` Body
+                      , term = body
+                      , boundAt = weakenBoundAt cur.path cur.boundAt }
 
 {-|
 
@@ -128,7 +142,7 @@ space2 = codeText "  "
 
 indentWidth = E.widthOf space2
 
-paren : Bool -> { path : Path, term : Term } -> Layout L -> Layout L
+paren : Bool -> Cur -> Layout L -> Layout L
 paren parenthesize cur e =
   if parenthesize
   then let t = tag cur.path
@@ -144,20 +158,20 @@ layout : Term -- term to render
       -> Env
       -> Layout L
 layout expr env =
-  impl env True 0 env.availableWidth { path = [], term = expr }
+  impl env True 0 env.availableWidth { path = [], term = expr, boundAt v = [] }
 
 impl : Env
     -> Bool
     -> Int
     -> Int
-    -> { path : Path, term : Term }
+    -> Cur
     -> Layout { path : Path, selectable : Bool }
 impl env allowBreak ambientPrec availableWidth cur =
   case env.overrides cur.path of
     Just l -> l
     Nothing -> case cur.term of
       Embed l -> l
-      Var n -> codeText (resolveLocal ("v"++toString n) env.rootMetadata cur.path env.overall).name
+      Var v -> codeText (resolveLocal "v" env.rootMetadata (cur.boundAt v)).name
             |> L.embed (tag cur.path)
       Ref h -> codeText (Metadata.firstName (R.toKey h) (env.metadata h)) |> L.embed (tag cur.path)
       Blank -> Styles.blank |> L.embed (tag cur.path)
@@ -170,7 +184,7 @@ impl env allowBreak ambientPrec availableWidth cur =
       _ -> case builtins env allowBreak ambientPrec availableWidth cur of
         Just l -> l
         Nothing -> let space' = L.embed (tag cur.path) space in
-          case break env env.rootMetadata env.metadata cur.path cur.term of
+          case break env cur of
             Prefix f args ->
               let f' = impl env False 9 availableWidth f
                   lines = f' :: List.map (impl env False 10 0) args
@@ -222,60 +236,57 @@ type Break a
   | Bracketed (List a)        -- `Bracketed [x,y,z] == [x,y,z]`
   | Lambda (List a) a          -- `Lambda [x,y,z] e == x -> y -> z -> e`
 
-break : Env
-    -> Metadata
-    -> (R.Reference -> Metadata)
-    -> Path
-    -> Term
-    -> Break { path : Path, term : Term }
-break env rootMd md path expr =
+break : Env -> Cur -> Break Cur
+break env cur =
   let prefix f acc path = case f of
-        App f arg -> prefix f ({ path = path `snoc` Arg, term = arg } :: acc) (path `snoc` Fn)
-        _ -> Prefix { path = path, term = f } acc
+        App f arg -> prefix f ({ cur | path <- path `snoc` Arg, term <- arg } :: acc)
+                              (path `snoc` Fn)
+        _ -> Prefix { cur | path <- path, term <- f } acc
       opsL o prec e acc path = case e of
         App (App op l) r ->
           if op == o
           then
             let hd = (
-              { path = path `append` [Fn,Fn], term = op },
-              { path = path `snoc` Arg, term = r })
+              { cur | path <- path `append` [Fn,Fn], term <- op },
+              { cur | path <- path `snoc` Arg, term <- r })
             in opsL o prec l (hd :: acc) (path `append` [Fn,Arg])
-          else Operators False prec { path = path, term = e} acc
-        _ -> Operators False prec { path = path, term = e } acc
+          else Operators False prec { cur | path <- path, term <- e } acc
+        _ -> Operators False prec { cur | path <- path, term <- e } acc
       opsR o prec e path = case e of
         App (App op l) r ->
           if op == o
           then case opsR o prec r (path `snoc` Arg) of
             Operators _ prec hd tl ->
-              let tl' = ({ path = path `append` [Fn,Fn], term = op }, hd) :: tl
-              in Operators True prec { path = path `append` [Fn,Arg], term = l} tl'
-          else Operators True prec { path = path, term = e} []
-        _ -> Operators True prec { path = path, term = e } []
-  in case expr of
+              let tl' = ({ cur | path <- path `append` [Fn,Fn], term <- op }, hd) :: tl
+              in Operators True prec { cur | path <- path `append` [Fn,Arg], term <- l } tl'
+          else Operators True prec { cur | path <- path, term <- e } []
+        _ -> Operators True prec { cur | path <- path, term <- e } []
+  in case cur.term of
     Vector xs -> xs
-              |> Array.indexedMap (\i a -> { path = path `snoc` Index i, term = a })
+              |> Array.indexedMap (\i a -> { cur | path <- cur.path `snoc` Index i, term <- a })
               |> Array.toList
               |> Bracketed
     App (App op l) r ->
       let sym = case op of
-        Ref h -> Metadata.firstSymbol (R.toKey h) (md h)
-        Var v -> resolveLocal ("v"++toString v) rootMd path env.overall
+        Ref h -> Metadata.firstSymbol (R.toKey h) (env.metadata h)
+        Var v -> resolveLocal "v" env.rootMetadata (cur.boundAt v)
         _ -> Metadata.anonymousSymbol
       in case sym.fixity of
-        Metadata.Prefix -> prefix (App (App op l) r) [] path -- not an operator chain, fall back
-        Metadata.InfixL -> opsL op sym.precedence (App (App op l) r) [] path -- left associated operator chain
-        Metadata.InfixR -> opsR op sym.precedence (App (App op l) r) path
-    Lam body -> case body of -- audit this
-      Lam _ ->
-        let v = V.bound1
-            trim p = { p | path <- path }
-        in case break env rootMd md (path `snoc` Body) body of
-          Lambda args body2 -> Lambda ({ path = path, term = Var v } :: args) body2
-          _ -> Lambda [{path = path, term = Var v }] { path = path `snoc` Body, term = body }
-      _ -> Lambda [{path = path, term = Var V.bound1 }] { path = path `snoc` Body, term = body }
-    _ -> prefix expr [] path
-
-
+        Metadata.Prefix -> prefix (App (App op l) r) [] cur.path -- not an operator chain, fall back
+        Metadata.InfixL -> opsL op sym.precedence (App (App op l) r) [] cur.path -- left associated operator chain
+        Metadata.InfixR -> opsR op sym.precedence (App (App op l) r) cur.path
+    Lam body ->  -- audit this
+      let v = V.bound1
+          cur' = { cur | path <- cur.path `snoc` Body
+                       , term <- body
+                       , boundAt <- weakenBoundAt cur.path cur.boundAt }
+      in case body of
+        Lam _ ->
+          case break env cur' of
+            Lambda args body2 -> Lambda ({ cur | term <- Var v } :: args) body2
+            _ -> Lambda [{ cur | term <- Var v }] cur'
+        _ -> Lambda [{ cur | term <- Var v }] cur'
+    _ -> prefix cur.term [] cur.path
 
 -- denotes a function a -> Layout
 {-
@@ -316,7 +327,7 @@ panel view (panel blah x)
 -- eventually, this should return a list of paths needing evaluation
 -- Flow a = Int -> Layout a
 
-builtins : Env -> Bool -> Int -> Int -> { term : Term, path : Path } -> Maybe (Layout L)
+builtins : Env -> Bool -> Int -> Int -> Cur -> Maybe (Layout L)
 builtins env allowBreak availableWidth ambientPrec cur =
   let
     t = tag (cur.path `snoc` Arg)
@@ -324,11 +335,14 @@ builtins env allowBreak availableWidth ambientPrec cur =
       App (Ref (R.Builtin "View.color")) c -> case c of
         App (App (App (App (Ref (R.Builtin "Color.rgba")) (Lit (Number r))) (Lit (Number g))) (Lit (Number b))) (Lit (Number a)) ->
           let c' = Color.rgba (floor r) (floor g) (floor b) a
-          in Just (L.fill c' (impl env allowBreak ambientPrec availableWidth { path = cur.path `snoc` Arg, term = e }))
+          in impl env allowBreak ambientPrec availableWidth
+             { cur | path <- cur.path `snoc` Arg, term <- e }
+             |> L.fill c' >> Just
         _ -> Nothing
       App (Ref (R.Builtin "View.fit-width")) (Lit (Term.Distance d)) ->
         let rem = availableWidth `min` floor (Distance.pixels d (toFloat availableWidth))
-        in Just (impl env allowBreak ambientPrec rem { path = cur.path `snoc` Arg, term = e })
+        in Just (impl env allowBreak ambientPrec rem
+                 { cur | path <- cur.path `snoc` Arg, term <- e })
       Ref (R.Builtin "View.hide") -> Just (L.empty t)
       Ref (R.Builtin "View.horizontal") -> case e of
         Vector es -> Nothing -- todo more complicated, as we need to do sequencing
@@ -339,7 +353,8 @@ builtins env allowBreak availableWidth ambientPrec cur =
           in Just (L.embed t (Styles.swatch c))
         _ -> Nothing
       Ref (R.Builtin "View.source") ->
-        Just (impl env allowBreak ambientPrec availableWidth { path = cur.path `snoc` Arg, term = e })
+        Just (impl env allowBreak ambientPrec availableWidth
+              { cur | path <- cur.path `snoc` Arg, term <- e })
       App (App (Ref (R.Builtin "View.spacer")) (Lit (Term.Distance w))) (Lit (Term.Number h)) ->
         let w' = availableWidth `min` floor (Distance.pixels w (toFloat availableWidth))
             h' = ceiling h
@@ -364,9 +379,10 @@ builtins env allowBreak availableWidth ambientPrec cur =
       Ref (R.Builtin "View.vertical") -> case e of
         Vector es ->
           let f i e = impl env allowBreak ambientPrec availableWidth
-                        { path = cur.path `append` [Arg, Path.Index i], term = e }
+                      { cur | path <- cur.path `append` [Arg, Path.Index i], term <- e }
           in Just (L.vertical (tag (cur.path `snoc` Arg)) (List.indexedMap f (Array.toList es)))
-      Ref (R.Builtin "View.id") -> builtins env allowBreak availableWidth ambientPrec { path = cur.path `snoc` Arg, term = e }
+      Ref (R.Builtin "View.id") -> builtins env allowBreak availableWidth ambientPrec
+                                   { cur | path <- cur.path `snoc` Arg, term <- e }
       Ref (R.Builtin "View.wrap") -> case e of
         Vector es -> Nothing -- todo more complicated, as we need to do sequencing
         _ -> Nothing
@@ -374,11 +390,13 @@ builtins env allowBreak availableWidth ambientPrec cur =
   in case cur.term of
     App (App (App (Ref (R.Builtin "View.cell")) (App (Ref (R.Builtin "View.function1")) (Lam body))) f) e ->
       -- all paths will point to `f` aside from `e`
-      let eview = close (Embed (impl env allowBreak 0 availableWidth { path = cur.path `snoc` Arg, term = e }))
+      let eview = impl env allowBreak 0 availableWidth
+                  { cur | path <- cur.path `snoc` Arg, term <- e }
+                  |> Embed >> close
           fpath = cur.path `append` [Fn,Arg]
           trim l = if Path.startsWith fpath l.path then { l | path <- cur.path } else l
           g view = impl env allowBreak ambientPrec availableWidth
-                   { path = fpath, term = betaReduce (App (Lam body) (unclose view)) }
+                   { cur | path <- fpath, term <- betaReduce (App (Lam body) (unclose view)) }
                    |> L.map trim
       in Maybe.map g eview
     App (App (Ref (R.Builtin "View.panel")) v) e -> go v e
