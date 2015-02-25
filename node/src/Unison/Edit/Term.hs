@@ -39,8 +39,7 @@ invalid loc ctx = "invalid path " ++ show loc ++ " in:\n" ++ show ctx
 -- todo: if the location references any free variables, make these
 -- function parameters of the
 abstract :: Applicative f => P.Path -> E.Term -> Noted f E.Term
-abstract loc ctx =
-  N.liftMaybe (invalid loc ctx) $ E.lam1 <$> P.set' loc ctx
+abstract loc ctx = N.failure "todo: Edit.Term.abstract"
 
 -- | Compute the allowed type of a replacement for a given subterm.
 -- Example, in @\g -> map g [1,2,3]@, @g@ has an admissible type of
@@ -55,11 +54,10 @@ admissibleTypeOf :: Applicative f
                  -> P.Path
                  -> E.Term
                  -> Noted f T.Type
-admissibleTypeOf synthLit loc ctx = case P.at' loc ctx of
+admissibleTypeOf synthLit loc ctx = case P.introduceAt1' loc E.app ctx of
   Nothing -> N.failure $ invalid loc ctx
-  Just (sub,replace) ->
-    let ctx = E.lam1 $ \f -> replace (f `E.App` sub)
-        go (T.Arrow (T.Arrow _ tsub) _) = tsub
+  Just ctx ->
+    let go (T.Arrow (T.Arrow _ tsub) _) = tsub
         go (T.Forall n t) = T.Forall n (go t)
         go _ = error "impossible, f had better be a function"
     in (T.gc . go) <$> synthesize synthLit ctx
@@ -96,31 +94,34 @@ eta loc ctx =
 -- This function returns a path to the floated subexpression (@42@ and @f x@ in
 -- the above examples.)
 letFloat :: Applicative f => P.Path -> E.Term -> Noted f (E.Term, P.Path)
-letFloat loc ctx = case P.at loc ctx of
-  Nothing  -> N.failure $ invalid loc ctx
-  Just sub ->
-    let
-      free = E.freeVars sub
-      minVar = if S.null free then Nothing else Just (S.findMin free)
-      trimmedPath = P.trimToV minVar loc
-      remainderPath = P.Path $ drop (length . P.elements $ trimmedPath) (P.elements loc)
-      letBody = do
-        body <- P.at trimmedPath ctx
-        E.lam1 <$> P.set' remainderPath body
-    in
-      N.liftMaybe (invalid loc ctx) $ do
-        body <- letBody
-        ctx' <- P.set trimmedPath (body `E.App` sub) ctx
-        loc' <- pure $ P.extend P.Arg trimmedPath
-        pure (ctx', loc')
+letFloat loc ctx = N.failure "Term.letFloat todo"
+
+--case P.at loc ctx of
+--  Nothing  -> N.failure $ invalid loc ctx
+--  Just sub ->
+--    let
+--      free = E.freeVars sub
+--      minVar = if S.null free then Nothing else Just (S.findMin free)
+--      trimmedPath = P.trimToV minVar loc
+--      remainderPath = P.Path $ drop (length . P.elements $ trimmedPath) (P.elements loc)
+--      letBody = do
+--        body <- P.at trimmedPath ctx
+--        E.lam1 <$> P.set' remainderPath body
+--    in
+--      N.liftMaybe (invalid loc ctx) $ do
+--        body <- letBody
+--        ctx' <- P.set trimmedPath (body `E.App` sub) ctx
+--        loc' <- pure $ P.extend P.Arg trimmedPath
+--        pure (ctx', loc')
 
 -- | Return the type of all local variables in scope at the given location
 locals :: Applicative f => T.Env f -> P.Path -> E.Term -> Noted f [(V.Var, T.Type)]
 locals synthLit path ctx | E.isClosed ctx =
-  N.scoped ("locals@"++show path ++ " " ++ show ctx) (filterInScope . pushDown <$> lambdaTypes)
+  N.scoped ("locals@"++show path ++ " " ++ show ctx)
+           (filterInScope . label . pushDown <$> lambdaTypes)
   where
     pointsToLambda path = case P.at path ctx of
-      Just (E.Lam _ _) -> True
+      Just (E.Lam _) -> True
       _ -> False
 
     lambdas :: [P.Path]
@@ -133,12 +134,16 @@ locals synthLit path ctx | E.isClosed ctx =
 
     -- not sure about this impl, or if it matters
     -- we prefer type information obtained higher in the syntax tree
-    pushDown :: [[(V.Var, T.Type)]] -> [(V.Var, T.Type)]
+    pushDown :: [[T.Type]] -> [T.Type]
     pushDown [] = []
     pushDown (env0 : tl) = env0 ++ pushDown (drop (length env0) tl)
 
-    extract :: E.Term -> T.Type -> [(V.Var, T.Type)]
-    extract (E.Lam n body) (T.Arrow i o) = (n, i) : extract body o
+    -- todo, not sure this is correct
+    label :: [T.Type] -> [(V.Var,T.Type)]
+    label ts = iterate V.succ V.bound1 `zip` reverse ts
+
+    extract :: E.Term -> T.Type -> [T.Type]
+    extract (E.Lam body) (T.Arrow i o) = i : extract body o
     extract ctx (T.Forall _ t) = extract ctx t
     extract _ _ = []
 
@@ -146,7 +151,7 @@ locals synthLit path ctx | E.isClosed ctx =
     filterInScope locals = filter (\(v,_) -> S.member v inScope) locals
       where inScope = S.fromList (P.inScopeAt path ctx)
 locals _ _ ctx =
-  N.failure $ "Term.locals: term contains free variables - " ++ show (E.freeVars ctx)
+  N.failure $ "Term.locals: term contains free variables - " ++ show ctx
 
 -- | Produce `e`, `e _`, `e _ _`, `e _ _ _` and so on,
 -- until the result is no longer a function type
@@ -163,20 +168,19 @@ applications e t = e : go e t
 -- and @map@ will have a type of @forall a b . (a -> b) -> [a] -> [b]@.
 typeOf :: Applicative f => T.Env f -> P.Path -> E.Term -> Noted f T.Type
 typeOf synthLit (P.Path []) ctx = N.scoped ("typeOf: " ++ show ctx) $ synthesize synthLit ctx
-typeOf synthLit loc ctx = N.scoped ("typeOf@"++show loc ++ " " ++ show ctx) $ case P.at' loc ctx of
-  Nothing -> N.failure $ invalid loc ctx
-  Just (sub,replace) ->
-    let sub' = sub
-        ctx = E.lam1 $ \f -> replace (ksub f)
-        -- we annotate `f` as returning `Number` so as not to introduce
-        -- any new quantified variables in the inferred type
-        -- copy the subtree so type is unconstrained by local usage
-        -- problem is that sub may contain variables that need freshening
-        ksub f = E.lam2 (\x _ -> x) `E.App` sub' `E.App` (f `E.App` sub `E.Ann` T.Unit T.Number)
-        go (T.Arrow (T.Arrow tsub _) _) = tsub
-        go (T.Forall n t) = T.Forall n (go t)
-        go _ = error "impossible, f had better be a function"
-    in (T.gc . go) <$> synthesize synthLit ctx
+typeOf synthLit loc ctx = N.scoped ("typeOf@"++show loc ++ " " ++ show ctx) $
+  case P.introduceAt1' loc replace ctx of
+    Nothing -> N.failure $ invalid loc ctx
+    Just ctx -> T.gc . extract <$> synthesize synthLit ctx
+  where
+    extract (T.Arrow (T.Arrow tsub _) _) = tsub
+    extract (T.Forall n t) = T.Forall n (extract t)
+    extract _ = error "impossible, f had better be a function"
+    k = E.lam (E.lam (E.weaken E.var)) -- `\x y -> x`, in debruijn notation
+    replace f focus =
+      -- annotate `f` as returning `Number` just so no new quantifiers are
+      -- introduced in the inferred type
+      k `E.app` focus `E.app` (f `E.app` focus `E.ann` T.Unit T.Number)
 
 -- | Evaluate the given location to weak head normal form.
 -- If the location contains any free variables, this noops.
@@ -188,5 +192,5 @@ whnf :: Applicative f
      -> Noted f E.Term
 whnf eval readTerm loc ctx = case P.at' loc ctx of
   Nothing -> N.failure $ invalid loc ctx
-  Just (sub,replace) | S.null (E.freeVars sub) -> replace <$> Eval.whnf eval readTerm sub
-  Just _             | otherwise               -> pure ctx
+  Just (sub,replace) | E.isClosed sub -> replace <$> Eval.whnf eval readTerm sub
+  Just _             | otherwise      -> pure ctx

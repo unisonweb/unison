@@ -1,5 +1,6 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Unison.Edit.Term.Path where
 
@@ -46,7 +47,7 @@ at (Path (h:t)) e = go h e where
   go Fn (E.App f _) = at (Path t) f
   go Arg (E.App _ x) = at (Path t) x
   go _ (E.Ann e' _) = at (Path (h:t)) e'
-  go Body (E.Lam _ body) = at (Path t) body
+  go Body (E.Lam body) = at (Path t) body
   go _ _ = Nothing
 
 along :: Path -> E.Term -> [E.Term]
@@ -54,28 +55,12 @@ along (Path path) e = go path e
   where go [] e = [e]
         go (Fn:path) e@(E.App f _) = e : go path f
         go (Arg:path) e@(E.App _ arg) = e : go path arg
-        go (Body:path) e@(E.Lam _ body) = e : go path body
+        go (Body:path) e@(E.Lam body) = e : go path body
         go (Index i:path) e@(E.Vector xs) = e : maybe [] (go path) (xs !? i)
         go _ _ = []
 
 valid :: Path -> E.Term -> Bool
 valid p e = maybe False (const True) (at p e)
-
--- | If the given @Path@ points to a valid subterm, we replace
--- that subterm @e@ with @v e@ and sequence the @Applicative@ effects
--- visit :: Path -> Traversal' E.Term E.Term
-visit :: Applicative f => Path -> (E.Term -> f E.Term) -> E.Term -> f E.Term
-visit (Path []) v e = v e
-visit (Path (h:t)) v e = go h e where
-  go Fn (E.App f arg) = E.App <$> visit (Path t) v f <*> pure arg
-  go Arg (E.App f arg) = E.App <$> pure f <*> visit (Path t) v arg
-  go _ (E.Ann e' typ) = E.Ann <$> visit (Path (h:t)) v e' <*> pure typ
-  go (Index i) e@(E.Vector xs) = let replace xi = E.Vector (xs // [(i,xi)])
-                                     sub = xs !? i
-                                 in maybe (pure e) (\sub -> replace <$> visit (Path t) v sub) sub
-  go Body (E.Lam n body) = fn <$> visit (Path t) v body
-    where fn body = E.lam1 $ \x -> E.betaReduce (E.Lam n body `E.App` x)
-  go _ e = pure e
 
 -- | Like 'at', but returns a function which may be used to modify the focus
 at' :: Path -> E.Term -> Maybe (E.Term, E.Term -> E.Term)
@@ -87,9 +72,10 @@ at' loc ctx = case at loc ctx of
 inScopeAt :: Path -> E.Term -> [V.Var]
 inScopeAt p e =
   let vars = map f (along p e)
-      f (E.Lam n _) = Just n
+      f (E.Lam _) = Just ()
       f _ = Nothing
-  in drop 1 (reverse vars) >>= toList
+      n = length (drop 1 (reverse vars) >>= toList)
+  in take n (iterate V.succ V.bound1)
 
 set :: Path -> E.Term -> E.Term -> Maybe E.Term
 set path focus ctx = impl path ctx where
@@ -102,7 +88,7 @@ set path focus ctx = impl path ctx where
     go Fn (E.App f arg) = E.App <$> impl (Path t) f <*> pure arg
     go Arg (E.App f arg) = E.App f <$> impl (Path t) arg
     go _ (E.Ann x _) = impl (Path (h:t)) x
-    go Body (E.Lam n body) = E.Lam n <$> impl (Path t) body
+    go Body (E.Lam body) = E.Lam <$> impl (Path t) body
     go _ _ = Nothing
 
 -- | Like 'set', but accepts the new focus within the returned @Maybe@.
@@ -113,6 +99,34 @@ modify :: Path -> (E.Term -> E.Term) -> E.Term -> Maybe E.Term
 modify loc f ctx = do
   x <- at loc ctx
   set loc (f x) ctx
+
+freeAt :: Path -> V.Var
+freeAt path =
+  let used = length [ Body | Body <- elements path ]
+      vars = iterate V.succ V.bound1
+  in head (drop used vars)
+
+-- | @introduceAt1 path (\var focus -> ...) ctx@ introduces a
+-- new free variable at the given path and makes some edit to
+-- the focus using this variable and the current focus.
+introduceAt1 :: Path
+             -> (forall e . E.Scoped e -> E.Scoped e -> E.Scoped e)
+             -> E.Scoped a
+             -> Maybe (E.Scoped (Maybe a))
+introduceAt1 path f ctx = do
+  focus <- E.Scoped <$> at path (E.unscope ctx)
+  focus' <- pure (f (E.Scoped (E.Var (freeAt path))) focus)
+  E.Scoped <$> set path (E.unscope focus') (E.unscope ctx)
+
+-- | Like @introduceAt1@, but takes raw terms, and returns a lambda term
+introduceAt1' :: Path
+             -> (forall e . E.Scoped e -> E.Scoped e -> E.Scoped e)
+             -> E.Term
+             -> Maybe E.Term
+introduceAt1' path f ctx = do
+  ctx' <- E.scoped ctx
+  body <- introduceAt1 path f ctx'
+  pure (E.unscope (E.lam body))
 
 -- | Drop from the right of this 'Path' until reaching the given element
 trimToR :: E -> Path -> Path

@@ -279,7 +279,7 @@ check ctx e t | wellformedType ctx t = scope (show e ++ " : " ++ show t) $ go e 
     let (x', ctx') = extendUniversal ctx
     in check ctx' e (T.subst body x (T.Universal x'))
        >>= retract (E.Universal x')
-  go fn@(Term.Lam _ _) (T.Arrow i o) = -- =>I
+  go fn@(Term.Lam _) (T.Arrow i o) = -- =>I
     let x' = fresh ctx
         v = Term.Var x'
         ctx' = extend (E.Ann x' i) ctx
@@ -314,7 +314,7 @@ synthesize ctx e = scope ("infer: " ++ show e) $ go e where
   go (Term.App f arg) = do -- ->E
     (ft, ctx') <- synthesize ctx f
     synthesizeApp ctx' (apply ctx' ft) arg
-  go fn@(Term.Lam _ _) = -- ->I=> (Full Damas Milner rule)
+  go fn@(Term.Lam _) = -- ->I=> (Full Damas Milner rule)
     let (arg, i, o) = fresh3 ctx
         ctxTl = context [E.Marker i, E.Existential i, E.Existential o,
                          E.Ann arg (T.Existential i)]
@@ -363,6 +363,6 @@ synthesizeClosed synthRef term = Noted $ synth <$> N.unnote (annotate term)
       Term.Ref h -> Term.Ann (Term.Ref h) <$> synthRef h
       Term.App f arg -> Term.App <$> annotate f <*> annotate arg
       Term.Ann body t -> Term.Ann <$> annotate body <*> pure t
-      Term.Lam n body -> Term.Lam n <$> annotate body
+      Term.Lam body -> Term.Lam <$> annotate body
       Term.Vector terms -> Term.Vector <$> traverse annotate terms
       _ -> pure term'

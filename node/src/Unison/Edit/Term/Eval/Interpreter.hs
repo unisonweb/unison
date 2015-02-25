@@ -20,7 +20,7 @@ data Primop f =
 eval :: (Applicative f, Monad f) => Map R.Reference (Primop f) -> Eval f
 eval env = Eval step whnf
   where
-    reduce e@(E.App (E.Lam _ _) _) args =
+    reduce e@(E.App (E.Lam _) _) args =
       return $ Just (foldl E.App (E.betaReduce e) args)
     reduce (E.App (E.Ref h) x) args = case M.lookup h env of
       Nothing -> return Nothing

@@ -8,15 +8,13 @@ import Unison.Note as N
 import Unison.Syntax.Var as V
 
 identity :: E.Term
-identity = E.lam1 $ \x -> x
-
-(@) = E.App
+identity = E.unscope (E.lam E.var)
 
 constant :: E.Term
-constant = E.lam2 $ \x y -> x
+constant = E.unscope (E.lam (E.lam (E.weaken E.var)))
 
 apply :: E.Term
-apply = E.lam2 $ \f x -> f `E.App` x
+apply = E.unscope (E.lam (E.lam (E.weaken E.var `E.app` E.var)))
 
 -- type Any = forall r . (forall a . a -> r) -> r
 anyT :: Type
