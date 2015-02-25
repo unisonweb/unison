@@ -1,4 +1,4 @@
-module Unison.View (Env, key, layout, L) where
+module Unison.View (Env, key, layout, layout', L) where
 
 import Array
 import Color
@@ -160,6 +160,9 @@ layout : Term -- term to render
 layout expr env =
   impl env True 0 env.availableWidth { path = [], term = expr, boundAt _ v = [] }
 
+layout' : Env -> Cur -> Layout L
+layout' env cur = impl env True 0 env.availableWidth cur
+
 impl : Env
     -> Bool
     -> Int
@@ -186,13 +189,17 @@ impl env allowBreak ambientPrec availableWidth cur =
         let space' = L.embed (tag cur.path) space
             arg = codeText (resolveLocal "v" env.rootMetadata cur.path).name
                |> L.embed (tag cur.path)
-            argLayout = [arg, L.embed (tag cur.path) (codeText "→")]
+            nested = case body of
+              Lam _ -> True
+              _ -> False
+            argLayout = [arg]
+                     ++ (if nested then [] else [L.embed (tag cur.path) (codeText "→")])
                      |> L.intersperseHorizontal space'
             weakened = weakenBoundAt cur.boundAt
             cur' = { cur | boundAt <- weakenBoundAt cur.boundAt
                          , term <- body
                          , path <- cur.path `snoc` Body }
-            unbroken = [argLayout, impl env False 0 0 cur' ]
+            unbroken = [ argLayout, impl env False 0 0 cur' ]
                     |> L.intersperseHorizontal space'
                     |> paren (ambientPrec > 0) cur
         in if not allowBreak || L.widthOf unbroken < availableWidth

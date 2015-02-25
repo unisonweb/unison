@@ -44,6 +44,7 @@ import Unison.Terms as Terms
 import Unison.Type (Type)
 import Unison.Type as Type
 import Unison.View as View
+import Unison.Var as Var
 import Window
 
 type alias Model =
@@ -114,14 +115,16 @@ keyedCompletions model =
   let f e i scope =
     let search = e.input.string
         env = explorerViewEnv model
-        render expr = Layout.element (View.layout expr (explorerViewEnv model))
+        render expr = Layout.element <|
+          View.layout' (explorerViewEnv model)
+                       { path = scope.focus, term = expr, boundAt = Path.boundAt }
         regulars = Debug.log "regulars"
           (i.wellTypedLocals ++ Elmz.Result.merge (model.globalMatches search))
         key e =
           let ctx = Term.trySet scope.focus e model.term
           in View.key
             { metadata = metadata model, rootMetadata = model.rootMetadata, overall = ctx }
-            { path = scope.focus, term = e, boundAt _ v = [] }
+            { path = scope.focus, term = e, boundAt = Path.boundAt }
         format e = (key e, e, render e)
         box = Term.Embed (Layout.embed { path = [], selectable = False } Styles.currentSymbol)
         appBlanks n e = List.foldl (\_ cur -> Term.App cur Term.Blank) e [0 .. n]
@@ -309,9 +312,13 @@ refreshExplorer searchbox model = case model.localInfo of
         completions : List Element
         completions = List.map snd (filteredCompletions model)
         viewEnv = explorerViewEnv model
+        path = Maybe.withDefault [] (Maybe.map .focus model.scope)
         pad e = let s = Element.spacer 10 1
                 in Element.flow Element.right [s, e, s]
-        render expr = pad (Layout.element (View.layout expr viewEnv))
+        render expr = View.layout'
+                        viewEnv
+                        { term = expr, path = path, boundAt = Path.boundAt }
+                   |> Layout.element >> pad
         currentType = Element.flow Element.right
           [ Styles.currentSymbol
           , Styles.codeText (" : " ++ Type.key { metadata = metadata model } localInfo.current) ]

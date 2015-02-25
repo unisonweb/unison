@@ -11,6 +11,7 @@ import Json.Decode as Decode
 import List
 import List ((::))
 import String
+import Unison.Var as Var
 
 type E
   = Fn -- ^ Points at function in a function application
@@ -75,6 +76,13 @@ trimThroughScope p =
         Body :: t -> List.reverse t
         h :: t -> go t
   in go (List.reverse p)
+
+{-| Given a `Path` pointing to the given `Var`, return the `Path`
+    where that variable is bound, assuming debruijn indexing. -}
+boundAt : Path -> Var.I -> Path
+boundAt path v =
+  if v == Var.bound1 then trimThroughScope path
+  else boundAt (trimThroughScope path) (Var.decr v)
 
 startsWith : List a -> List a -> Bool
 startsWith prefix overall =
