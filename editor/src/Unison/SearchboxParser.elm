@@ -43,7 +43,7 @@ spaces : Parser ()
 spaces = () <$ Parser.some (Parser.satisfy ((==) ' '))
 
 literal : Parser Term.Literal
-literal = Parser.choice [ distance, int, float, string, openString ]
+literal = Parser.choice [ distance, float, int, string, openString ]
 
 int : Parser Term.Literal
 int = Parser.map (Term.Number << toFloat) Parser.Number.integer
