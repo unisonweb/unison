@@ -123,10 +123,11 @@ keyedCompletions model =
                        { path = scope.focus, term = expr, boundAt = Path.boundAt }
         lits = case (Debug.log "model.literal" model.literal) of
           Nothing -> []
-          Just lit -> if Term.checkLiteral lit i.admissible then [Term.Lit lit]
+          Just lit -> if Term.checkLiteral lit i.admissible
+                      then [(e.input.string, Term.Lit lit, render (Term.Lit lit))]
                       else []
         regulars = Debug.log "regulars" <|
-          lits ++ i.wellTypedLocals ++ Elmz.Result.merge (model.globalMatches search)
+          i.wellTypedLocals ++ Elmz.Result.merge (model.globalMatches search)
         key e =
           let ctx = Term.trySet scope.focus e model.term
           in View.key
@@ -141,7 +142,9 @@ keyedCompletions model =
           Nothing -> []
           Just cur -> (".", cur, Styles.currentSymbol) :: List.map (la cur) i.localApplications
         ks = Debug.log "keys" (List.map (\(k,_,_) -> k) results)
-        results = currentApps ++ List.map format regulars
+        results = currentApps
+               ++ List.map format regulars
+               ++ lits
     in results
   in Maybe.withDefault [] (Elmz.Maybe.map3 f model.explorer model.localInfo model.scope)
 
