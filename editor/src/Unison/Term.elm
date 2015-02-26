@@ -67,6 +67,15 @@ isClosed e =
 unclose : ClosedTerm -> Term
 unclose (ClosedTerm e) = e
 
+checkLiteral : Literal -> T.Type -> Bool
+checkLiteral lit admissible = case (lit,admissible) of
+  -- weird parser bug prevents use of T.Unit T.Distance as a pattern
+  (Distance _, T.Unit d) -> d == T.Distance
+  (Str _, T.Unit s) -> s == T.Distance
+  (Number _, T.Unit n) -> n == T.Number
+  (_, T.Forall n (T.Universal n')) -> if n == n' then True else False
+  _ -> False
+
 betaReduce : Term -> Term
 betaReduce e =
   let go depth arg body = case body of

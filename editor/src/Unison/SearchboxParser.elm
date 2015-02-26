@@ -1,5 +1,6 @@
 module Unison.SearchboxParser where
 
+import Debug
 import Elmz.Distance as Distance
 import Elmz.Distance (Distance)
 import List
@@ -12,7 +13,7 @@ import Unison.Term (Term)
 import String
 import Set
 
-parser : { literal : Term -> a
+parser : { literal : Term.Literal -> a
          , query : String -> a
          , combine : a -> Char -> a }
       -> Parser a
@@ -22,12 +23,12 @@ parser env =
       any = Parser.satisfy (always True)
   in Parser.choice
     [ env.combine <$> (lit <* spaces) <*> any
-    , lit
+    , Parser.map (Debug.log "lit") lit
     , env.combine <$> (q <* spaces) <*> any
-    , q ]
+    , Parser.map (Debug.log "q") q ]
 
 parse :
-  { literal : Term -> a
+  { literal : Term.Literal -> a
   , query : String -> a
   , combine : a -> Char -> a }
   -> String -> Result String a
@@ -41,25 +42,28 @@ operator =
 spaces : Parser ()
 spaces = () <$ Parser.some (Parser.satisfy ((==) ' '))
 
-literal : Parser Term
-literal = Parser.choice [ distance, float, string, openString ]
+literal : Parser Term.Literal
+literal = Parser.choice [ distance, int, float, string, openString ]
 
-float : Parser Term
-float = Parser.map (Term.Lit << Term.Number) Parser.Number.float
+int : Parser Term.Literal
+int = Parser.map (Term.Number << toFloat) Parser.Number.integer
 
-string : Parser Term
+float : Parser Term.Literal
+float = Parser.map Term.Number Parser.Number.float
+
+string : Parser Term.Literal
 string = Parser.Char.between quote quote (until quote)
-      |> Parser.map (Term.Lit << Term.Str)
+      |> Parser.map Term.Str
 
-openString : Parser Term
+openString : Parser Term.Literal
 openString =
   Parser.symbol quote `Parser.andThen` \_ -> until quote
-  |> Parser.map (Term.Lit << Term.Str)
+  |> Parser.map Term.Str
 
-distance : Parser Term
+distance : Parser Term.Literal
 distance =
   Parser.choice [ pixels, fraction ]
-  |> Parser.map (Term.Lit << Term.Distance)
+  |> Parser.map Term.Distance
 
 pixels : Parser Distance
 pixels =

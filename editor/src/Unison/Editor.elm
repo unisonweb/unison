@@ -61,7 +61,7 @@ type alias Model =
   , hashes : Trie Path.E Hash
   , explorer : Explorer.Model
   , explorerSelection : Selection1D.Model
-  , literal : Maybe Term -- a literal parsed from the current searchbox
+  , literal : Maybe Term.Literal -- a literal parsed from the current searchbox
   , layouts : { panel : Layout View.L
               , explorer : Layout (Result Containment Int) }
   , status : List (JR.Status String) }
@@ -121,8 +121,12 @@ keyedCompletions model =
         render expr = Layout.element <|
           View.layout' (explorerViewEnv model)
                        { path = scope.focus, term = expr, boundAt = Path.boundAt }
-        regulars = Debug.log "regulars"
-          (i.wellTypedLocals ++ Elmz.Result.merge (model.globalMatches search))
+        lits = case (Debug.log "model.literal" model.literal) of
+          Nothing -> []
+          Just lit -> if Term.checkLiteral lit i.admissible then [Term.Lit lit]
+                      else []
+        regulars = Debug.log "regulars" <|
+          lits ++ i.wellTypedLocals ++ Elmz.Result.merge (model.globalMatches search)
         key e =
           let ctx = Term.trySet scope.focus e model.term
           in View.key
@@ -144,7 +148,7 @@ keyedCompletions model =
 filteredCompletions : Model -> List (Term,Element)
 filteredCompletions model =
   let search = Maybe.withDefault "" (Maybe.map (.input >> .string) (model.explorer))
-  in List.filter (\(k,_,_) -> String.contains search k) (keyedCompletions model)
+  in List.filter (\(k,_,_) -> String.contains (String.trim search) k) (keyedCompletions model)
      |> List.map (\(_,e,l) -> (e,l))
 
 explorerInput : Model -> String
@@ -230,7 +234,9 @@ delete origin model = case model.explorer of
 closeExplorer : Model -> Model
 closeExplorer model =
   let layouts = model.layouts
-  in { model | explorer <- Nothing, layouts <- { layouts | explorer <- explorerLayout0 }}
+  in { model | explorer <- Nothing
+             , layouts <- { layouts | explorer <- explorerLayout0 }
+             , literal <- Nothing }
 
 close : (Int,Int) -> Model -> Model
 close origin model =
@@ -251,20 +257,26 @@ openExplorer searchbox model =
 
 setSearchbox : Sink Field.Content -> (Int,Int) -> Bool -> Field.Content -> Action
 setSearchbox sink origin modifier content model =
-  let model' = { model | explorer <- Explorer.setInput content model.explorer }
+  let model' = { model | explorer <- Explorer.setInput content model.explorer
+                       , literal <- Nothing }
       seq : Action -> Char -> Action
-      seq action op model = Debug.crash "todo"
-      literal e model = norequest (refreshExplorer sink { model | literal <- Just e })
+      seq action op model =
+        action model
+      literal e model =
+        norequest (refreshExplorer sink { model | literal <- Just e })
       query string model = case model.localInfo of
         Nothing -> norequest <| refreshExplorer sink model
         Just info -> case model.globalMatches (explorerInput model) of
           Result.Err terms -> (Just (Search info.admissible content.string),
                                refreshExplorer sink model)
-          Result.Ok terms -> norequest model
+          Result.Ok terms -> norequest (refreshExplorer sink model)
       env = { literal = literal, query = query, combine = seq }
   in case SearchboxParser.parse env content.string of
-       Result.Err _ -> norequest model'
-       Result.Ok action -> action model'
+       Result.Err msg -> norequest model'
+       Result.Ok action ->
+         let r = action model'
+             x = Debug.log "parse succeeded" (snd r).literal
+         in r
 
   --if String.endsWith " " content.string && (not (List.isEmpty (filteredCompletions model)))
   --   then model |> close origin
