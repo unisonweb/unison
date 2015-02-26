@@ -7,7 +7,6 @@ import Elmz.Maybe
 import List
 import List ((::))
 import Maybe
-import Lazy
 import Execute
 import Mouse
 import Result

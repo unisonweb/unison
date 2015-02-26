@@ -28,14 +28,15 @@ import Time
 import Touch
 import Unison.Action as Action
 import Unison.Explorer as Explorer
+import Unison.SearchboxParser as SearchboxParser
 import Unison.Hash (Hash)
-import Unison.Reference (Reference)
-import Unison.Reference as Reference
 import Unison.Metadata (Metadata)
 import Unison.Metadata as Metadata
 import Unison.Node as Node
 import Unison.Path (Path)
 import Unison.Path as Path
+import Unison.Reference (Reference)
+import Unison.Reference as Reference
 import Unison.Scope as Scope
 import Unison.Styles as Styles
 import Unison.Term (Term)
@@ -43,8 +44,8 @@ import Unison.Term as Term
 import Unison.Terms as Terms
 import Unison.Type (Type)
 import Unison.Type as Type
-import Unison.View as View
 import Unison.Var as Var
+import Unison.View as View
 import Window
 
 type alias Model =
@@ -60,6 +61,7 @@ type alias Model =
   , hashes : Trie Path.E Hash
   , explorer : Explorer.Model
   , explorerSelection : Selection1D.Model
+  , literal : Maybe Term -- a literal parsed from the current searchbox
   , layouts : { panel : Layout View.L
               , explorer : Layout (Result Containment Int) }
   , status : List (JR.Status String) }
@@ -78,6 +80,7 @@ model0 =
   , hashes = Trie.empty
   , explorer = Nothing
   , explorerSelection = 0
+  , literal = Nothing
   , status = [JR.Inactive]
   , layouts = { panel = layout0
               , explorer = explorerLayout0  } }
@@ -202,16 +205,6 @@ moveMouse xy model = case model.explorer of
   Just _ -> let e = Selection1D.reset xy model.layouts.explorer model.explorerSelection
             in norequest <| { model | explorerSelection <- e }
 
-{-
-updateExplorerValues : Sink Field.Content -> List Term -> Model -> Model
-updateExplorerValues searchbox cur model =
-  refreshExplorer searchbox
-    { model | explorerValues <- cur
-            , explorerSelection <- Selection1D.selection model.explorerInfo.matches
-                                                         cur
-                                                         model.explorerSelection }
--}
-
 movement : Movement.D2 -> Model -> Model
 movement d2 model = case model.explorer of
   Nothing ->
@@ -259,18 +252,27 @@ openExplorer searchbox model =
 setSearchbox : Sink Field.Content -> (Int,Int) -> Bool -> Field.Content -> Action
 setSearchbox sink origin modifier content model =
   let model' = { model | explorer <- Explorer.setInput content model.explorer }
-  in if String.endsWith " " content.string && (not (List.isEmpty (filteredCompletions model)))
-     then model |> close origin
-                |> (if modifier then apply origin
-                    else movement (Movement.D2 Movement.Positive Movement.Zero))
-                |> refreshPanel Nothing origin
-                |> openExplorer sink
-     else case model.localInfo of
-            Nothing -> norequest <| refreshExplorer sink model'
-            Just info -> case model.globalMatches (explorerInput model) of
-              Result.Err terms -> (Just (Search info.admissible content.string),
-                                   refreshExplorer sink model')
-              Result.Ok terms -> norequest model'
+      seq : Action -> Char -> Action
+      seq action op model = Debug.crash "todo"
+      literal e model = norequest (refreshExplorer sink { model | literal <- Just e })
+      query string model = case model.localInfo of
+        Nothing -> norequest <| refreshExplorer sink model
+        Just info -> case model.globalMatches (explorerInput model) of
+          Result.Err terms -> (Just (Search info.admissible content.string),
+                               refreshExplorer sink model)
+          Result.Ok terms -> norequest model
+      env = { literal = literal, query = query, combine = seq }
+  in case SearchboxParser.parse env content.string of
+       Result.Err _ -> norequest model'
+       Result.Ok action -> action model'
+
+  --if String.endsWith " " content.string && (not (List.isEmpty (filteredCompletions model)))
+  --   then model |> close origin
+  --              |> (if modifier then apply origin
+  --                  else movement (Movement.D2 Movement.Positive Movement.Zero))
+  --              |> refreshPanel Nothing origin
+  --              |> openExplorer sink
+  --   else
 
 apply : (Int,Int) -> Model -> Model
 apply origin model = case model.scope of

@@ -11,6 +11,6 @@
     "dependencies": {
         "elm-lang/core" : "1.0.0 <= v < 2.0.0",
         "Dandandan/Easing" : "1.0.1 <= v < 2.0.0",
-        "maxsnew/lazy" : "1.0.0 <= v < 2.0.0"
+        "Dandandan/parser" : "5.0.1 <= v < 6.0.0"
     }
 }
