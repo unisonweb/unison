@@ -26,7 +26,7 @@ eval env = Eval whnf step
   where
     reduce (E.Lam _) [] = return Nothing
     reduce e@(E.Lam _) (arg1:args) =
-      return $ let r = watch "reduced" $ E.betaReduce (E.App e arg1)
+      return $ let r = watch "reduced" $ E.betaReduce' (E.App e arg1)
                in Just (foldl E.App r args)
     reduce (E.App (E.Ref h) x) args = case M.lookup h env of
       Nothing -> return Nothing

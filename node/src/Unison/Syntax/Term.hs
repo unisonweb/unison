@@ -153,7 +153,19 @@ arguments _ = []
 -- | If the outermost term is a function application,
 -- perform substitution of the argument into the body
 betaReduce :: Term -> Term
-betaReduce (App (Lam f) arg) = go V.bound1 arg f where
+betaReduce (App (Lam f) arg) = go V.bound1 f where
+  go depth body = case body of
+    App f x -> App (go depth f) (go depth x)
+    Vector vs -> Vector (fmap (go depth) vs)
+    Ann body t -> Ann (go depth body) t
+    Lam body -> Lam (go (V.succ depth) body)
+    Var v | v == depth -> arg
+    _ -> body
+betaReduce e = e
+
+-- | Like `betaReduce`, but weakens the argument when walking under lambda
+betaReduce' :: Term -> Term
+betaReduce' (App (Lam f) arg) = go V.bound1 arg f where
   closed = isClosed arg
   weaken' arg = if closed then arg else unscope (weaken (Scoped arg))
   go depth arg body = case body of
@@ -164,7 +176,7 @@ betaReduce (App (Lam f) arg) = go V.bound1 arg f where
     Lam body -> Lam (go (V.succ depth) body (weaken' arg))
     Var v | v == depth -> arg
     _ -> body
-betaReduce e = e
+betaReduce' e = e
 
 -- | If the outermost term is a lambda of the form @\x -> f x@,
 -- reduce this to @f@.
