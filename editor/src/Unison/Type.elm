@@ -55,6 +55,14 @@ key env cur = case cur of
          (vs,body) -> "∀ " ++ String.join " " (List.map (key env << Universal) vs)
                    ++ ". " ++ key env body
 
+isFunction : Type -> Bool
+isFunction t = case t of
+  Arrow _ _ -> True
+  Forall _ body -> isFunction body
+  Ann t _ -> isFunction t
+  Constrain t _ -> isFunction t
+  _ -> False
+
 decodeKind : Decoder Kind
 decodeKind = Decoder.union' <| \t ->
   if | t == "Star" -> Decoder.unit Star

@@ -155,6 +155,11 @@ filteredCompletions model =
   in List.filter (\(k,_,_) -> String.contains (String.trim search) k) (keyedCompletions model)
      |> List.map (\(_,e,l) -> (e,l))
 
+allowApplication : Model -> Bool
+allowApplication model = case model.localInfo of
+  Nothing -> False
+  Just info -> Type.isFunction info.admissible
+
 explorerInput : Model -> String
 explorerInput model =
   Elmz.Maybe.maybe "" (.input >> .string) model.explorer
@@ -213,11 +218,14 @@ moveMouse xy model = case model.explorer of
   Just _ -> let e = Selection1D.reset xy model.layouts.explorer model.explorerSelection
             in norequest <| { model | explorerSelection <- e }
 
+scopeMovement : Movement.D2 -> Model -> Model
+scopeMovement d2 model =
+  let scope = Scope.movement model.term d2 model.scope
+  in { model | scope <- scope }
+
 movement : Movement.D2 -> Model -> Model
 movement d2 model = case model.explorer of
-  Nothing ->
-    let scope = Scope.movement model.term d2 model.scope
-    in { model | scope <- scope }
+  Nothing -> scopeMovement d2 model
   Just ex -> let d1 = Movement.negateD1 (Movement.xy_y d2)
                  search = Elmz.Maybe.maybe "" (\e -> e.input.string) model.explorer
                  limit = List.length ex.completions
@@ -235,6 +243,18 @@ delete origin model = case model.explorer of
                              , scope <- Just { scope | focus <- List.drop 1 scope.focus } }
   Just _ -> model
 
+preapply : (Int,Int) -> Model -> Model
+preapply origin model = case model.explorer of
+  Nothing -> case model.scope of
+    Nothing -> model
+    Just scope -> case Term.modify scope.focus (\e -> Term.App Term.Blank e) model.term of
+      Nothing -> model
+      Just term -> { model | term <- term }
+                |> clearScopeHistory
+                |> scopeMovement (Movement.D2 Movement.Zero Movement.Negative)
+                |> refreshPanel Nothing origin
+  Just _ -> model
+
 closeExplorer : Model -> Model
 closeExplorer model =
   let layouts = model.layouts
@@ -244,11 +264,17 @@ closeExplorer model =
 
 close : (Int,Int) -> Model -> Model
 close origin model =
-  refreshPanel Nothing origin << Maybe.withDefault (closeExplorer model) <|
-  Selection1D.index model.explorerSelection (List.map fst (filteredCompletions model)) `Maybe.andThen`
+  accept model
+  |> closeExplorer >> refreshPanel Nothing origin
+
+{-| Sets the current focus to the current explorer selection. -}
+accept : Model -> Model
+accept model = Maybe.withDefault model <|
+  Selection1D.index model.explorerSelection
+                    (List.map fst (filteredCompletions model)) `Maybe.andThen`
     \term -> model.scope `Maybe.andThen`
     \scope -> Term.set scope.focus model.term term `Maybe.andThen`
-    \t2 -> (Just << closeExplorer) { model | term <- t2 }
+    \t2 -> Just { model | term <- t2 }
 
 openExplorer : Sink Field.Content -> Action
 openExplorer = openExplorerWith Field.noContent
@@ -279,13 +305,17 @@ clearScopeHistory model = case model.scope of
 
 setSearchbox : Sink Field.Content -> (Int,Int) -> Bool -> Field.Content -> Action
 setSearchbox sink origin modifier content model =
-  let model' = { model | explorer <- Explorer.setInput content model.explorer }
+  let content' = case List.reverse (String.toList content.string) of
+        ' ' :: ' ' :: _ -> content
+        _ :: ' ' :: _ -> { content | string <- String.dropRight 2 content.string }
+        _ -> content
+      model' = { model | explorer <- Explorer.setInput content' model.explorer }
       trimArg scope model =
         { model | scope <- Debug.log "trimArg" (Just (Scope.scope (Path.trimArg scope.focus))) }
 
       leftover s =
         let z = Field.noContent
-        in { z | string <- s }
+        in { string = s, selection = Field.Selection 1 1 Field.Forward }
 
       seq : Action -> Char -> Action
       seq action op model =
@@ -296,20 +326,36 @@ setSearchbox sink origin modifier content model =
           Nothing -> action model
           Just scope ->
             if | Set.member op ops ->
-               snd (action model)
-                 |> close origin
-                 -- something screwy in here, appears path is invalid after trimming
-                 |> (if (Debug.log "rightmost?" <| Path.isRightmostArg scope.focus)
-                     then trimArg scope
-                     else identity)
-                 |> modifyFocus (\e -> Term.App (Term.App Term.Blank e) Term.Blank)
-                 |> clearScopeHistory
-                 |> movement (Movement.D2 Movement.Zero Movement.Negative)
+                 snd (action model)
+                   |> accept
+                   |> (if Path.isRightmostArg scope.focus
+                       then trimArg scope
+                       else identity)
+                   |> modifyFocus (\e -> Term.App (Term.App Term.Blank e) Term.Blank)
+                   |> clearScopeHistory
+                   |> scopeMovement (Movement.D2 Movement.Zero Movement.Negative)
+                   |> refreshPanel Nothing origin
+                   |> openExplorerWith (leftover (String.fromChar op)) sink
+               | op == ' ' ->
+                 snd (action model)
+                 |> accept
+                 |> scopeMovement (Movement.D2 Movement.Positive Movement.Zero)
                  |> refreshPanel Nothing origin
-                 |> openExplorerWith (leftover (String.fromChar op)) sink
-               | op == ' ' -> action model
-               | otherwise -> action model
-
+                 |> openExplorer sink
+               | allowApplication model ->
+                 snd (action model)
+                   |> accept
+                   |> (if Path.isRightmostArg scope.focus
+                       then trimArg scope
+                       else identity)
+                   |> modifyFocus (\e -> Term.App e Term.Blank)
+                   |> clearScopeHistory
+                   |> scopeMovement (Movement.D2 Movement.Zero Movement.Negative)
+                   |> scopeMovement (Movement.D2 Movement.Positive Movement.Zero)
+                   |> refreshPanel Nothing origin
+                   |> openExplorerWith (leftover (String.fromChar op)) sink
+               | otherwise -> let ex = Explorer.setInput content model.explorer
+                              in action { model | explorer <- ex }
       literal e model =
         norequest (refreshExplorer sink { model | literal <- Just e })
       query string model = case model.localInfo of
@@ -427,7 +473,8 @@ type alias Inputs =
   , mouse : Signal (Int,Int)
   , enters : Signal ()
   , deletes : Signal ()
-  , modifier : Signal Bool
+  , preapplies : Signal ()
+  , modifier : Signal Bool -- generally shift
   , movements : Signal Movement.D2
   , searchbox : Signal.Channel Field.Content
   , width : Signal Int }
@@ -448,9 +495,11 @@ actions ctx =
       resizef : Int -> Action
       resizef w model = resize (Just searchbox) ctx.origin w model |> norequest
       deletef origin _ model = delete origin model |> norequest
+      preapplyf origin _ model = preapply origin model |> norequest
   in Signal.map movementf movementsRepeated `merge`
      Signal.map resizef steadyWidth `merge`
      Signal.map (deletef ctx.origin) ctx.deletes `merge`
+     Signal.map (preapplyf ctx.origin) ctx.preapplies `merge`
      Signal.map (always (enter searchbox ctx.origin)) ctx.enters `merge`
      Signal.map moveMouse ctx.mouse `merge`
      Signals.map2r (setSearchbox searchbox ctx.origin) ctx.modifier content `merge`
@@ -559,6 +608,7 @@ main =
                , enters = Signal.map (always ()) (Signals.ups (Keyboard.enter))
                , modifier = Keyboard.shift
                , deletes = Signal.map (always ()) (Signals.ups (Keyboard.isDown 68))
+               , preapplies = Signal.map (always ()) (Signals.ups (Keyboard.isDown 65))
                , movements = Movement.d2' Keyboard.arrows
                , searchbox = Signal.channel Field.noContent
                , width = Window.width }

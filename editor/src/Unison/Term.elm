@@ -164,6 +164,7 @@ up : Path -> Path
 up p =
   let go p = case p of
     [] -> []
+    _ :: Body :: tl -> List.reverse (Body :: tl)
     _ :: Arg :: tl -> List.reverse (Arg :: tl)
     _ :: Index i :: tl -> List.reverse (Index i :: tl)
     Fn :: tl -> go tl
