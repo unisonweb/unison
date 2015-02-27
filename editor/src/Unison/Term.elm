@@ -113,6 +113,11 @@ set p e e' = let ap = EM.ap in case (p,e) of
     _ -> Nothing
   _ -> Nothing
 
+{-| Modify the term at the given location, if valid. -}
+modify : Path -> (Term -> Term) -> Term -> Maybe Term
+modify path f e =
+  at path e `Maybe.andThen` \focus -> set path e (f focus)
+
 {-| Sets the given path to `e'`, if the path is valid, otherwise returns `ctx`. -}
 trySet : Path -> Term -> Term -> Term
 trySet p e ctx = Maybe.withDefault ctx (set p e ctx)

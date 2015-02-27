@@ -59,6 +59,17 @@ decrement valid p =
     [] -> []
   in go (List.reverse p)
 
+isRightmostArg : Path -> Bool
+isRightmostArg p = case List.reverse p of
+  Fn :: _ -> False
+  Arg :: Fn :: _ -> False
+  _ -> True
+
+trimArg : Path -> Path
+trimArg p = case List.reverse p of
+  Arg :: tl -> List.reverse tl
+  _ -> p
+
 -- Trim from the right of this path until hitting a `Body` path element.
 -- This is used to normalize paths
 trimToScope : Path -> Path

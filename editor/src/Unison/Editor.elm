@@ -22,6 +22,7 @@ import List
 import Maybe
 import Mouse
 import Result
+import Set
 import Signal
 import String
 import Time
@@ -250,21 +251,65 @@ close origin model =
     \t2 -> (Just << closeExplorer) { model | term <- t2 }
 
 openExplorer : Sink Field.Content -> Action
-openExplorer searchbox model =
-  let (req, m2) = openRequest { model | explorer <- Explorer.zero
+openExplorer = openExplorerWith Field.noContent
+
+openExplorerWith : Field.Content -> Sink Field.Content -> Action
+openExplorerWith content searchbox model =
+  let zero = Maybe.map (\z -> { z | input <- content }) Explorer.zero
+      (req, m2) = openRequest { model | explorer <- zero
                                       , localInfo <- Nothing
-                                      , explorerSelection <- 0 }
+                                      , explorerSelection <- 0
+                                      , literal <- Nothing }
   in (req, refreshExplorer searchbox m2)
 
 -- todo: invalidate dependents and overrides if under the edit path
 
+ops = Set.fromList (String.toList "!@#$%^&*-+|\\;.></`~")
+
+modifyFocus : (Term -> Term) -> Model -> Model
+modifyFocus f model = Maybe.withDefault model <|
+  model.scope `Maybe.andThen`
+    \scope -> Term.modify scope.focus f model.term `Maybe.andThen`
+    \term -> Just { model | term <- term }
+
+clearScopeHistory : Model -> Model
+clearScopeHistory model = case model.scope of
+  Nothing -> model
+  Just scope -> { model | scope <- Just (Scope.scope scope.focus) }
+
 setSearchbox : Sink Field.Content -> (Int,Int) -> Bool -> Field.Content -> Action
 setSearchbox sink origin modifier content model =
-  let model' = { model | explorer <- Explorer.setInput content model.explorer
-                       , literal <- Nothing }
+  let model' = { model | explorer <- Explorer.setInput content model.explorer }
+      trimArg scope model =
+        { model | scope <- Debug.log "trimArg" (Just (Scope.scope (Path.trimArg scope.focus))) }
+
+      leftover s =
+        let z = Field.noContent
+        in { z | string <- s }
+
       seq : Action -> Char -> Action
       seq action op model =
-        action model
+        if List.isEmpty (filteredCompletions model) then
+          let u = Debug.log "no valid completions" ()
+          in action model
+        else case model.scope of
+          Nothing -> action model
+          Just scope ->
+            if | Set.member op ops ->
+               snd (action model)
+                 |> close origin
+                 -- something screwy in here, appears path is invalid after trimming
+                 |> (if (Debug.log "rightmost?" <| Path.isRightmostArg scope.focus)
+                     then trimArg scope
+                     else identity)
+                 |> modifyFocus (\e -> Term.App (Term.App Term.Blank e) Term.Blank)
+                 |> clearScopeHistory
+                 |> movement (Movement.D2 Movement.Zero Movement.Negative)
+                 |> refreshPanel Nothing origin
+                 |> openExplorerWith (leftover (String.fromChar op)) sink
+               | op == ' ' -> action model
+               | otherwise -> action model
+
       literal e model =
         norequest (refreshExplorer sink { model | literal <- Just e })
       query string model = case model.localInfo of

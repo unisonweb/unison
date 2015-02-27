@@ -22,10 +22,12 @@ parser env =
       q = Parser.map env.query (until ' ')
       any = Parser.satisfy (always True)
   in Parser.choice
-    [ env.combine <$> (lit <* spaces) <*> any
-    , Parser.map (Debug.log "lit") lit
-    , env.combine <$> (q <* spaces) <*> any
-    , Parser.map (Debug.log "q") q ]
+    [ env.combine <$> (lit <* space) <*> any
+    , lit
+    , env.combine <$> (q <* space) <*> any
+    , q ]
+
+space = Parser.satisfy ((==) ' ')
 
 parse :
   { literal : Term.Literal -> a
