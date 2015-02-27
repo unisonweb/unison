@@ -315,7 +315,9 @@ setSearchbox : Sink Field.Content -> (Int,Int) -> Bool -> Field.Content -> Actio
 setSearchbox sink origin modifier content model =
   let content' = case List.reverse (String.toList content.string) of
         ' ' :: ' ' :: _ -> content
-        _ :: ' ' :: _ -> { content | string <- String.dropRight 2 content.string }
+        _ :: ' ' :: _ -> if String.left 1 content.string == "\""
+                         then content
+                         else { content | string <- String.dropRight 2 content.string }
         _ -> content
       model' = { model | explorer <- Explorer.setInput content' model.explorer }
       trimArg scope model =
