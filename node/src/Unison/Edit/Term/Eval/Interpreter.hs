@@ -3,6 +3,7 @@ module Unison.Edit.Term.Eval.Interpreter where
 
 import Control.Applicative
 import Control.Monad
+import Debug.Trace
 import Data.Map (Map)
 import Data.Maybe (fromMaybe)
 import qualified Data.Map as M
@@ -16,12 +17,17 @@ import qualified Unison.Syntax.Reference as R
 data Primop f =
   Primop { arity :: Int, call :: [Term] -> f Term }
 
+watch :: Show a => String -> a -> a
+watch msg a = trace (msg ++ ": " ++ show a) a
+
 -- | Produce an evaluator from a environment of 'Primop' values
 eval :: (Applicative f, Monad f) => Map R.Reference (Primop f) -> Eval f
-eval env = Eval step whnf
+eval env = Eval whnf step
   where
-    reduce e@(E.App (E.Lam _) _) args =
-      return $ Just (foldl E.App (E.betaReduce e) args)
+    reduce (E.Lam _) [] = return Nothing
+    reduce e@(E.Lam _) (arg1:args) =
+      return $ let r = watch "reduced" $ E.betaReduce (E.App e arg1)
+               in Just (foldl E.App r args)
     reduce (E.App (E.Ref h) x) args = case M.lookup h env of
       Nothing -> return Nothing
       Just op | length (x:args) >= arity op ->
@@ -29,11 +35,13 @@ eval env = Eval step whnf
           return . Just $ foldl E.App e (drop (arity op) (x:args))
       Just _ | otherwise -> return Nothing
     reduce (E.App f x) args = reduce f (x:args)
-    reduce _ _ = return $ Nothing
+    reduce _ _ = return Nothing
 
     step resolveRef e = case e of
-      E.App f x -> E.link resolveRef f >>= \f ->
-        liftM (fromMaybe (E.App f x)) (reduce f [x])
+      E.App f x -> do
+        f' <- E.link resolveRef f
+        e' <- reduce f' [x]
+        maybe (return e) return e'
       _ -> return e
 
     whnf resolveRef e = case e of

@@ -46,6 +46,8 @@ instance Show Term where
   show Blank = "_"
   show (Var v) = show v
   show (Ref v) = show v
+  show (Lit (Number d)) = show d
+  show (Lit (String s)) = show s
   show (Lit l) = show l
   show (Vector v) = show v
   show (App f x@(App _ _)) = show f ++ " (" ++ show x ++ ")"
@@ -151,12 +153,15 @@ arguments _ = []
 -- | If the outermost term is a function application,
 -- perform substitution of the argument into the body
 betaReduce :: Term -> Term
-betaReduce (App (Lam f) arg) = go V.bound1 f where
-  go depth body = case body of
-    App f x -> App (go depth f) (go depth x)
-    Vector vs -> Vector (fmap (go depth) vs)
-    Ann body t -> Ann (go depth body) t
-    Lam body -> Lam (go (V.succ depth) body)
+betaReduce (App (Lam f) arg) = go V.bound1 arg f where
+  closed = isClosed arg
+  weaken' arg = if closed then arg else unscope (weaken (Scoped arg))
+  go depth arg body = case body of
+    App f x -> App (go depth arg f) (go depth arg x)
+    Vector vs -> Vector (fmap (go depth arg) vs)
+    Ann body t -> Ann (go depth arg body) t
+    -- if arg has free variables, we weaken them when walking under lambda
+    Lam body -> Lam (go (V.succ depth) body (weaken' arg))
     Var v | v == depth -> arg
     _ -> body
 betaReduce e = e

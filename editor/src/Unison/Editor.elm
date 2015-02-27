@@ -255,6 +255,14 @@ preapply origin model = case model.explorer of
                 |> refreshPanel Nothing origin
   Just _ -> model
 
+edit : Action.Action -> Action
+edit a model = case model.explorer of
+  Nothing -> case model.scope of
+    -- todo - can do edit with respect to narrowest closed scope
+    Just scope -> (Just (Edit [] scope.focus a model.term), model)
+    Nothing -> norequest model
+  Just _ -> norequest model -- ignore actions while explorer is open
+
 closeExplorer : Model -> Model
 closeExplorer model =
   let layouts = model.layouts
@@ -472,6 +480,7 @@ type alias Inputs =
   , clicks : Signal ()
   , mouse : Signal (Int,Int)
   , enters : Signal ()
+  , edits : Signal Action.Action
   , deletes : Signal ()
   , preapplies : Signal ()
   , modifier : Signal Bool -- generally shift
@@ -500,6 +509,7 @@ actions ctx =
      Signal.map resizef steadyWidth `merge`
      Signal.map (deletef ctx.origin) ctx.deletes `merge`
      Signal.map (preapplyf ctx.origin) ctx.preapplies `merge`
+     Signal.map edit ctx.edits `merge`
      Signal.map (always (enter searchbox ctx.origin)) ctx.enters `merge`
      Signal.map moveMouse ctx.mouse `merge`
      Signals.map2r (setSearchbox searchbox ctx.origin) ctx.modifier content `merge`
@@ -602,13 +612,19 @@ search2 searchbox origin reqs =
 
 main =
   let origin = (15,15)
+      keyEvent code = Signal.map (always ()) (Signals.ups (Keyboard.isDown code))
+      keyEventAs k code = Signal.map (always k) (Signals.ups (Keyboard.isDown code))
+
       inputs = { origin = origin
                , clicks = Mouse.clicks `Signal.merge` (Signals.doubleWithin Time.second Touch.taps)
                , mouse = Mouse.position `Signal.merge` (Signal.map (\{x,y} -> (x,y)) Touch.taps)
                , enters = Signal.map (always ()) (Signals.ups (Keyboard.enter))
                , modifier = Keyboard.shift
-               , deletes = Signal.map (always ()) (Signals.ups (Keyboard.isDown 68))
-               , preapplies = Signal.map (always ()) (Signals.ups (Keyboard.isDown 65))
+               , edits = keyEventAs Action.Step 83 `Signal.merge` -- [s]tep
+                         keyEventAs Action.WHNF 69 `Signal.merge` -- [e]valuate
+                         keyEventAs Action.Eta 82 -- eta [r]educe
+               , deletes = keyEvent 68
+               , preapplies = keyEvent 65
                , movements = Movement.d2' Keyboard.arrows
                , searchbox = Signal.channel Field.noContent
                , width = Window.width }
@@ -616,7 +632,8 @@ main =
       ignoreReqs actions =
         let ignore action model = snd (action model)
         in Signal.map ignore actions
-      expr = Term.Lam (Term.Lam (Term.Var 2))
+      ap = Term.App
+      expr = Term.Lam (Term.Lam (Term.Var 2)) `ap` Terms.int 42 `ap` Terms.str "hello"
       -- expr = (Term.Lam (Terms.int 42))
       ms = models inputs
                   (search2 (Signal.send inputs.searchbox) origin)
