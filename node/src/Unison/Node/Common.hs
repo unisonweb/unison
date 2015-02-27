@@ -2,6 +2,7 @@
 module Unison.Node.Common (node) where
 
 import Control.Applicative
+import Data.Traversable (traverse)
 import Control.Monad
 import Unison.Edit.Term.Eval as Eval
 import Unison.Edit.Term.Path as Path
@@ -86,13 +87,24 @@ node eval store =
       matchingLocals <- filterM f (locals >>= (\(v,t) -> TE.applications (E.Var v) t))
       pure (current, admissible, annotatedLocals, matchingCurrentApplies, matchingLocals)
 
-    search t query = do
+    search limit query admissible = do
+      let typeOk e = maybe (pure True) (\t -> Type.admissible readTypeOf e t) admissible
+      let elaborate h = (\t -> TE.applications (E.Ref h) t) <$> readTypeOf h
+      let queryOk e = do mds <- traverse (readMetadata store) (S.toList (E.dependencies' e))
+                         pure $ any (MD.matches query) mds
+      let trim rs = (take limit rs, length (drop limit rs))
       hs <- hashes store Nothing
-      hs' <- case t of
-        Nothing -> pure $ S.toList hs
-        Just t -> filterM (\h -> flip Type.isSubtype t <$> readTypeOf h) (S.toList hs)
-      mds <- mapM (\h -> (,) h <$> readMetadata store h) hs'
-      pure . map (\(h,_) -> E.Ref h) . filter (\(_,md) -> MD.matches query md) $ mds
+      tmatches <- do es <- traverse elaborate (S.toList hs)
+                     filterM typeOk (join es)
+      qmatches <- filterM queryOk tmatches
+      qmatches' <- filterM queryOk (map E.Ref (S.toList hs))
+      mds <- mapM (\h -> (,) h <$> readMetadata store h)
+                  (S.toList (S.unions (map E.dependencies' qmatches)))
+      pure $ SearchResults
+        mds
+        (trim qmatches)
+        (trim qmatches')
+        (MD.queryPositions query)
 
     readTermRef (R.Derived h) = readTerm store h
     readTermRef r = pure (E.Ref r)

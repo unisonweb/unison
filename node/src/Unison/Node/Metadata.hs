@@ -2,6 +2,7 @@
 module Unison.Node.Metadata where
 
 import Data.Text (Text)
+import qualified Data.Text as Text
 -- import Data.Map as M
 import Data.Aeson.TH
 import qualified Unison.Edit.Term.Path as P
@@ -43,6 +44,9 @@ syntheticTerm = synthetic Term
 data Names = Names [Symbol] deriving (Eq,Ord,Show)
 
 data Query = Query Text
+
+queryPositions :: Query -> [Int]
+queryPositions (Query q) = [0 .. (Text.length q - 1)]
 
 -- data Examples k = Examples [(k, k)]
 

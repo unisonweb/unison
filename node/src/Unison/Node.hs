@@ -1,5 +1,8 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module Unison.Node where
 
+import Data.Aeson.TH
 import Data.Set as S
 import Data.Map as M
 import Unison.Node.Metadata as MD
@@ -7,6 +10,15 @@ import Unison.Edit.Term.Action as A
 import Unison.Edit.Term.Path as P
 import Unison.Edit.Type.Path as TP
 import Unison.Note (Noted)
+
+data SearchResults k t e =
+  SearchResults
+    { references :: [(k, Metadata k)]
+    , matches :: ([e], Int)
+    , queryMatches :: ([e], Int)
+    , positionsExamined :: [Int] }
+
+deriveJSON defaultOptions ''SearchResults
 
 data Node m k t e = Node {
   -- | Obtain the type of the given subterm, assuming the path is valid
@@ -32,7 +44,7 @@ data Node m k t e = Node {
   -- | Access the metadata for the term and/or types identified by @k@
   metadatas :: [k] -> Noted m (Map k (MD.Metadata k)),
   -- | Search for a term, optionally constrained to be of the given type
-  search :: Maybe t -> Query -> Noted m [e],
+  search :: Int -> Query -> Maybe t -> Noted m (SearchResults k t e),
   -- | Lookup the source of the term identified by @k@
   terms :: [k] -> Noted m (Map k e),
   -- | Lookup the dependencies of @k@, optionally limited to those that intersect the given set

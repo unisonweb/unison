@@ -74,17 +74,19 @@ link env e = case e of
   Lam body -> Lam <$> link env body
   _ -> pure e
 
-dependencies :: Term -> S.Set H.Hash
-dependencies e = case e of
-  Ref (R.Derived h) -> S.singleton h
-  Ref _ -> S.empty
+dependencies' :: Term -> S.Set R.Reference
+dependencies' e = case e of
+  Ref r -> S.singleton r
   Var _ -> S.empty
   Lit _ -> S.empty
   Blank -> S.empty
-  App fn arg -> dependencies fn `S.union` dependencies arg
-  Ann e _ -> dependencies e
-  Vector vs -> Foldable.foldMap dependencies vs
-  Lam body -> dependencies body
+  App fn arg -> dependencies' fn `S.union` dependencies' arg
+  Ann e _ -> dependencies' e
+  Vector vs -> Foldable.foldMap dependencies' vs
+  Lam body -> dependencies' body
+
+dependencies :: Term -> S.Set H.Hash
+dependencies e = S.fromList [ h | R.Derived h <- S.toList (dependencies' e) ]
 
 isClosed :: Term -> Bool
 isClosed e = go V.bound1 e
