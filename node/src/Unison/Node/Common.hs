@@ -98,12 +98,16 @@ node eval store =
                      filterM typeOk (join es)
       qmatches <- filterM queryOk tmatches
       qmatches' <- filterM queryOk (map E.Ref (S.toList hs))
+      illtypedQmatches <-
+        -- return type annotated versions of ill-typed terms
+        let terms = S.toList (S.difference (S.fromList qmatches') (S.fromList qmatches))
+        in zipWith E.Ann terms <$> traverse (Type.synthesize readTypeOf) terms
       mds <- mapM (\h -> (,) h <$> readMetadata store h)
                   (S.toList (S.unions (map E.dependencies' qmatches)))
       pure $ SearchResults
         mds
         (trim qmatches)
-        (trim qmatches')
+        (trim illtypedQmatches)
         (MD.queryPositions query)
 
     readTermRef (R.Derived h) = readTerm store h

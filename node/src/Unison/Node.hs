@@ -15,7 +15,7 @@ data SearchResults k t e =
   SearchResults
     { references :: [(k, Metadata k)]
     , matches :: ([e], Int)
-    , queryMatches :: ([e], Int)
+    , illTypedMatches :: ([e], Int)
     , positionsExamined :: [Int] }
 
 deriveJSON defaultOptions ''SearchResults
