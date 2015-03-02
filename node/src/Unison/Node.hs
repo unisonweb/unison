@@ -11,6 +11,12 @@ import Unison.Edit.Term.Path as P
 import Unison.Edit.Type.Path as TP
 import Unison.Note (Noted)
 
+-- | The results of a search.
+-- On client, only need to repeat the query if we modify a character
+-- at one of the examined positions OR if we add a character to a search
+-- that previously returned incomplete results. Appending characters to a
+-- search that returned complete results just filters down the set and
+-- can be done client-side, assuming the client has the full result set.
 data SearchResults k t e =
   SearchResults
     { references :: [(k, Metadata k)]

@@ -33,8 +33,7 @@ type alias Env =
   { rootMetadata   : Metadata
   , availableWidth : Int
   , metadata       : R.Reference -> Metadata
-  , overrides      : Path -> Maybe (Layout L)
-  , overall        : Term }
+  , overrides      : Path -> Maybe (Layout L) }
 
 type alias Cur =
   { path : Path
@@ -54,7 +53,7 @@ weakenBoundAt boundAt path v = Debug.log ("boundAt " ++ toString path ++ " " ++ 
   if v == V.bound1 then Path.trimThroughScope path
   else boundAt (Path.trimThroughScope path) (V.decr v)
 
-key : { tl | rootMetadata : Metadata, metadata : R.Reference -> Metadata, overall : Term }
+key : { tl | rootMetadata : Metadata, metadata : R.Reference -> Metadata }
    -> Cur
    -> String
 key env cur = case cur.term of

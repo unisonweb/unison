@@ -53,7 +53,7 @@ type alias Model =
   { term : Term
   , scope : Scope.Model
   , localInfo : Maybe Node.LocalInfo
-  , globalMatches : String -> Result (List Term) (List Term)
+  , searchResults : Maybe Node.SearchResults
   , rootMetadata : Metadata
   , metadata : Dict Reference.Key Metadata
   , availableWidth : Maybe Int
@@ -72,7 +72,7 @@ model0 =
   { term = Term.Blank
   , scope = Nothing
   , localInfo = Nothing
-  , globalMatches s = Result.Err []
+  , searchResults = Nothing
   , rootMetadata = Metadata.anonymousTerm
   , metadata = Dict.empty
   , availableWidth = Nothing
@@ -105,46 +105,66 @@ explorerViewEnv model =
   in { rootMetadata = model.rootMetadata
      , metadata = metadata model
      , availableWidth = (Maybe.withDefault 1000 model.availableWidth - explorerTopLeft.x - 12) `max` 40
-     , overrides path = Trie.lookup path model.overrides
-     , overall = model.term }
+     , overrides path = Trie.lookup path model.overrides }
 
 focus : Model -> Maybe Term
 focus model = model.scope `Maybe.andThen` \scope -> Term.at scope.focus model.term
 
+focus' : Model -> Maybe Path
+focus' model = Maybe.map .focus model.scope
+
 focusOr : Term -> Model -> Term
 focusOr e model = Maybe.withDefault e (focus model)
+
+focusOr' : Path -> Model -> Path
+focusOr' p model = Maybe.withDefault p (focus' model)
+
+keyedSearchMatches : Model -> List (String,Term,Element)
+keyedSearchMatches model = case model.searchResults of
+  Nothing -> []
+  Just results -> List.map (searchEntry model) (fst results.matches)
+
+keyedSearchIllTypedMatches : Model -> List (String,Term,Element)
+keyedSearchIllTypedMatches model = case model.searchResults of
+  Nothing -> []
+  Just results -> List.map (searchEntry model) (fst results.illTypedMatches)
+
+searchKey : Model -> Term -> String
+searchKey model e = View.key
+  { metadata = metadata model, rootMetadata = model.rootMetadata }
+  { path = focusOr' [] model, term = e, boundAt = Path.boundAt }
+
+renderExplorerEntry : Model -> Term -> Element
+renderExplorerEntry model e = Layout.element <|
+  View.layout' (explorerViewEnv model)
+               { path = focusOr' [] model, term = e, boundAt = Path.boundAt }
+
+searchEntry : Model -> Term -> (String,Term,Element)
+searchEntry model e = (searchKey model e, e, renderExplorerEntry model e)
 
 keyedCompletions : Model -> List (String,Term,Element)
 keyedCompletions model =
   let f e i scope =
-    let search = e.input.string
-        env = explorerViewEnv model
-        render expr = Layout.element <|
-          View.layout' (explorerViewEnv model)
-                       { path = scope.focus, term = expr, boundAt = Path.boundAt }
+    let env = explorerViewEnv model
         lits = case (Debug.log "model.literal" model.literal) of
           Nothing -> []
-          Just lit -> if Term.checkLiteral lit i.admissible
-                      then [(e.input.string, Term.Lit lit, render (Term.Lit lit))]
-                      else []
-        regulars = Debug.log "regulars" <|
-          i.wellTypedLocals ++ Elmz.Result.merge (model.globalMatches search)
-        key e =
-          let ctx = Term.trySet scope.focus e model.term
-          in View.key
-            { metadata = metadata model, rootMetadata = model.rootMetadata, overall = ctx }
-            { path = scope.focus, term = e, boundAt = Path.boundAt }
-        format e = (key e, e, render e)
+          Just lit ->
+            if Term.checkLiteral lit i.admissible
+            then [(e.input.string, Term.Lit lit, renderExplorerEntry model (Term.Lit lit))]
+            else []
+        regulars = Debug.log "regulars" <| i.wellTypedLocals
         box = Term.Embed (Layout.embed { path = [], selectable = False } Styles.currentSymbol)
         appBlanks n e = List.foldl (\_ cur -> Term.App cur Term.Blank) e [0 .. n]
-        showAppBlanks n = render (List.foldl (\_ box -> Term.App box Term.Blank) box [0 .. n])
+        showAppBlanks n = renderExplorerEntry model
+                          (List.foldl (\_ box -> Term.App box Term.Blank) box [0 .. n])
         la cur n = (String.padLeft (n+1) '.' "", appBlanks n cur, showAppBlanks n)
         currentApps = Debug.log "currentApps" <| case Term.at scope.focus model.term of
           Nothing -> []
           Just cur -> (".", cur, Styles.currentSymbol) :: List.map (la cur) i.localApplications
         ks = Debug.log "keys" (List.map (\(k,_,_) -> k) results)
         results = currentApps
-               ++ List.map format regulars
+               ++ List.map (searchEntry model) regulars
+               ++ keyedSearchMatches model
                ++ lits
     in results
   in Maybe.withDefault [] (Elmz.Maybe.map3 f model.explorer model.localInfo model.scope)
@@ -368,12 +388,26 @@ setSearchbox sink origin modifier content model =
                               in action { model | explorer <- ex }
       literal e model =
         norequest (refreshExplorer sink { model | literal <- Just e })
-      query string model = case model.localInfo of
-        Nothing -> norequest <| refreshExplorer sink model
-        Just info -> case model.globalMatches (explorerInput model) of
-          Result.Err terms -> (Just (Search info.admissible content.string),
-                               refreshExplorer sink model)
-          Result.Ok terms -> norequest (refreshExplorer sink model)
+      query string model' = case model.searchResults of
+        Nothing -> norequest <| refreshExplorer sink model'
+        Just results ->
+          let oldQuery = explorerInput model -- not model'
+              newQuery = explorerInput model'
+              complete = Node.areResultsComplete results
+              compareIndex i =
+                let sub = String.dropLeft i << String.left 1
+                in sub oldQuery == sub newQuery
+              -- we don't repeat the search if we've added characters to
+              -- a previous search that returned complete results, OR
+              -- if we modify any positions that weren't examined to
+              -- produce the results
+              ok = (complete && String.startsWith oldQuery newQuery) ||
+                   (List.all compareIndex results.positionsExamined)
+              req = if ok then Nothing
+                    else case model'.localInfo of
+                           Nothing -> Nothing
+                           Just info -> Just (Search info.admissible content.string)
+          in (req, refreshExplorer sink model')
       env = { literal = literal, query = query, combine = seq }
   in case SearchboxParser.parse env content.string of
        Result.Err msg -> norequest model'
@@ -381,14 +415,6 @@ setSearchbox sink origin modifier content model =
          let r = action model'
              x = Debug.log "parse succeeded" (snd r).literal
          in r
-
-  --if String.endsWith " " content.string && (not (List.isEmpty (filteredCompletions model)))
-  --   then model |> close origin
-  --              |> (if modifier then apply origin
-  --                  else movement (Movement.D2 Movement.Positive Movement.Zero))
-  --              |> refreshPanel Nothing origin
-  --              |> openExplorer sink
-  --   else
 
 apply : (Int,Int) -> Model -> Model
 apply origin model = case model.scope of
@@ -408,8 +434,7 @@ refreshPanel searchbox origin model =
           { rootMetadata = model.rootMetadata
           , availableWidth = availableWidth - fst origin
           , metadata = metadata model
-          , overrides x = Nothing
-          , overall = model.term }
+          , overrides x = Nothing }
       layouts = model.layouts
       explorerRefresh = case searchbox of
         Nothing -> identity
@@ -472,7 +497,7 @@ enter snk origin model = case model.explorer of
   Nothing ->
     let (req, m2) = openRequest { model | explorer <- Explorer.zero
                                         , localInfo <- Nothing
-                                        , globalMatches <- \s -> Result.Err []
+                                        , searchResults <- Nothing
                                         , explorerSelection <- 0 }
     in (req, refreshExplorer snk m2)
   Just _ -> norequest (close origin model)

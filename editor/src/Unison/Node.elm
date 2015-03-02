@@ -91,6 +91,11 @@ type alias SearchResults =
   , illTypedMatches : (List Term, Int)
   , positionsExamined : List Int }
 
+areResultsComplete : SearchResults -> Bool
+areResultsComplete results =
+  snd results.illTypedMatches == 0 &&
+  snd results.matches == 0
+
 search : Host -> Request (Maybe Type, Query) SearchResults
 search host = Request.post host "search"
   (Encoder.tuple2 (Encoder.optional T.encodeType) MD.encodeQuery)
