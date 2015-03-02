@@ -198,7 +198,7 @@ explorerInput model =
 
 type Request
   = Open Term Path -- obtain the current and admissible type and local completions
-  | Search (Maybe Type) Metadata.Query -- global search for a given type
+  | Search Int (Maybe Type) Metadata.Query -- global search for a given type
   | Declare Term
   | Edit Path Path Action.Action Term
   | Metadatas (List Reference)
@@ -418,7 +418,8 @@ setSearchbox sink origin modifier content model =
               req = if ok then Nothing
                     else case model'.localInfo of
                            Nothing -> Nothing
-                           Just info -> Just (Search (Just info.admissible)
+                           Just info -> Just (Search 10
+                                                     (Just info.admissible)
                                                      (Metadata.Query content.string))
           in (req, refreshExplorer sink model')
       env = { literal = literal, query = query, combine = seq }
@@ -621,7 +622,7 @@ search2 searchbox origin reqs =
            |> JR.send (Node.localInfo host `JR.to` go) (model0.term, [])
            |> Signal.map withStatus
       search r = case r of
-        Search typ query -> Just (typ,query)
+        Search limit typ query -> Just (limit,query,typ)
         _ -> Nothing
       search' =
         let go results model =
@@ -630,7 +631,7 @@ search2 searchbox origin reqs =
              |> refreshExplorer searchbox
              |> norequest
         in Signal.map search reqs
-           |> JR.send (Node.search host `JR.to` go) (Nothing, Metadata.Query "--")
+           |> JR.send (Node.search host `JR.to` go) (0, Metadata.Query "blah", Nothing)
            |> Signal.map withStatus
       declare r = case r of
         Declare term -> Just term

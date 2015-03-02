@@ -99,10 +99,10 @@ encodeSort s = case s of
   Term -> Encoder.string "Term"
 
 decodeQuery : Decoder Query
-decodeQuery = Decoder.newtyped' Query Decoder.string
+decodeQuery = Decoder.map Query Decoder.string
 
 encodeQuery : Encoder Query
-encodeQuery (Query q) = Encoder.tag' "Query" Encoder.string q
+encodeQuery (Query q) = Encoder.string q
 
 decodeNames : Decoder Names
 decodeNames = Decoder.newtyped' identity (Decoder.list decodeSymbol)

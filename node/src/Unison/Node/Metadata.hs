@@ -1,10 +1,12 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Unison.Node.Metadata where
 
+import Control.Applicative
 import Data.Text (Text)
 import qualified Data.Text as Text
 -- import Data.Map as M
 import Data.Aeson.TH
+import Data.Aeson
 import qualified Unison.Edit.Term.Path as P
 
 data Sort = Type | Term deriving (Eq,Ord,Show)
@@ -48,11 +50,16 @@ data Query = Query Text
 queryPositions :: Query -> [Int]
 queryPositions (Query q) = [0 .. (Text.length q - 1)]
 
+instance ToJSON Query where
+  toJSON (Query q) = toJSON q
+
+instance FromJSON Query where
+  parseJSON v = Query <$> parseJSON v
+
 -- data Examples k = Examples [(k, k)]
 
 deriveJSON defaultOptions ''Fixity
 deriveJSON defaultOptions ''Symbol
 deriveJSON defaultOptions ''Metadata
 deriveJSON defaultOptions ''Names
-deriveJSON defaultOptions ''Query
 deriveJSON defaultOptions ''Sort
