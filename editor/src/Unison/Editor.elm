@@ -124,8 +124,8 @@ keyedSearchMatches model = case model.searchResults of
   Nothing -> []
   Just results -> List.map (searchEntry model) (fst results.matches)
 
-keyedSearchIllTypedMatches : Model -> List (String,Term,Element)
-keyedSearchIllTypedMatches model = case model.searchResults of
+keyedSearchNonmatches : Model -> List (String,Term,Element)
+keyedSearchNonmatches model = case model.searchResults of
   Nothing -> []
   Just results -> List.map (searchEntry model) (fst results.illTypedMatches)
 
@@ -173,6 +173,13 @@ filteredCompletions : Model -> List (Term,Element)
 filteredCompletions model =
   let search = Maybe.withDefault "" (Maybe.map (.input >> .string) (model.explorer))
   in List.filter (\(k,_,_) -> String.contains (String.trim search) k) (keyedCompletions model)
+     |> List.map (\(_,e,l) -> (e,l))
+
+filteredInvalidCompletions : Model -> List (Term,Element)
+filteredInvalidCompletions model =
+  let search = Maybe.withDefault "" (Maybe.map (.input >> .string) (model.explorer))
+  in List.filter (\(k,_,_) -> String.contains (String.trim search) k)
+                 (keyedSearchNonmatches model)
      |> List.map (\(_,e,l) -> (e,l))
 
 allowApplication : Model -> Bool
@@ -452,8 +459,8 @@ refreshExplorer searchbox model = case model.localInfo of
           Nothing -> Pt 0 0
           Just region -> { x = region.topLeft.x - 6, y = region.topLeft.y + region.height + 6 }
 
-        completions : List Element
         completions = List.map snd (filteredCompletions model)
+        invalidCompletions = List.map snd (filteredInvalidCompletions model)
         viewEnv = explorerViewEnv model
         path = Maybe.withDefault [] (Maybe.map .focus model.scope)
         pad e = let s = Element.spacer 10 1
@@ -476,10 +483,17 @@ refreshExplorer searchbox model = case model.localInfo of
           , Element.spacer 1 10
           , Styles.menuSeparator (Element.widthOf above0)
           , Element.spacer 1 10 ]
+        sep = [ Element.spacer 1 10
+              , Styles.menuSeparator (Element.widthOf above0)
+              , Element.spacer 1 10 ]
+        below = -- only shown if no valid completions
+          if List.isEmpty completions
+          then Element.flow Element.down (sep ++ invalidCompletions)
+          else Element.empty
 
         explorer' : Explorer.Model
         explorer' = model.explorer |> Maybe.map (\e ->
-          { e | completions <- completions, above <- above })
+          { e | completions <- completions, above <- above, below <- below })
 
         explorerLayout : Layout (Result Containment Int)
         explorerLayout = Explorer.view explorerTopLeft searchbox explorer'
