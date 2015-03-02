@@ -97,6 +97,11 @@ metadata model r =
   Maybe.withDefault (Metadata.defaultMetadata r)
                     (Dict.get (Reference.toKey r) model.metadata)
 
+incorporateMetadata : List (Reference.Key, Metadata) -> Model -> Model
+incorporateMetadata kvs model =
+  let metadata' = List.foldl (\(k,v) dict -> Dict.insert k v dict) model.metadata kvs
+  in { model | metadata <- metadata' }
+
 explorerViewEnv : Model -> View.Env
 explorerViewEnv model =
   let explorerTopLeft = case panelHighlight model of
@@ -193,7 +198,7 @@ explorerInput model =
 
 type Request
   = Open Term Path -- obtain the current and admissible type and local completions
-  | Search Type String -- global search for a given type
+  | Search (Maybe Type) Metadata.Query -- global search for a given type
   | Declare Term
   | Edit Path Path Action.Action Term
   | Metadatas (List Reference)
@@ -413,7 +418,8 @@ setSearchbox sink origin modifier content model =
               req = if ok then Nothing
                     else case model'.localInfo of
                            Nothing -> Nothing
-                           Just info -> Just (Search info.admissible content.string)
+                           Just info -> Just (Search (Just info.admissible)
+                                                     (Metadata.Query content.string))
           in (req, refreshExplorer sink model')
       env = { literal = literal, query = query, combine = seq }
   in case SearchboxParser.parse env content.string of
@@ -617,6 +623,15 @@ search2 searchbox origin reqs =
       search r = case r of
         Search typ query -> Just (typ,query)
         _ -> Nothing
+      search' =
+        let go results model =
+             { model | searchResults <- Just results }
+             |> incorporateMetadata results.references
+             |> refreshExplorer searchbox
+             |> norequest
+        in Signal.map search reqs
+           |> JR.send (Node.search host `JR.to` go) (Nothing, Metadata.Query "--")
+           |> Signal.map withStatus
       declare r = case r of
         Declare term -> Just term
         _ -> Nothing
@@ -649,7 +664,7 @@ search2 searchbox origin reqs =
            |> JR.send (Node.metadatas host `JR.to` go) []
            |> Signal.map withStatus
       noop model = norequest model
-  in openEdit' `Signal.merge` metadatas' `Signal.merge` edit'
+  in openEdit' `Signal.merge` metadatas' `Signal.merge` edit' `Signal.merge` search'
 
 main =
   let origin = (15,15)
