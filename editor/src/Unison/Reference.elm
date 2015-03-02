@@ -28,10 +28,15 @@ encode r = case r of
   Builtin b -> Encoder.tag' "Builtin" Encoder.string b
   Derived h -> Encoder.tag' "Derived" H.encode h
 
+
+decodeAssociationList : Decoder v -> Decoder (List (Key, v))
+decodeAssociationList v =
+  Decoder.list (Decoder.tuple2 decode v)
+  |> Decoder.map (\kvs -> List.map (\(k,v) -> (toKey k,v)) kvs)
+
 decodeMap : Decoder v -> Decoder (Dict Key v)
 decodeMap v =
-  Decoder.list (Decoder.tuple2 decode v)
-  |> Decoder.map (\kvs -> Dict.fromList (List.map (\(k,v) -> (toKey k,v)) kvs))
+  decodeAssociationList v |> Decoder.map Dict.fromList
 
 toKey : Reference -> Key
 toKey r = case r of

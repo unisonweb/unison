@@ -28,10 +28,6 @@ type alias Path = Path.Path
 
 type alias Host = String
 
--- split a Signal (Response a) into two streams, Signal a
--- which just echos the the previous value
--- and a Signal String of error messages
-
 admissibleTypeOf : Host -> Request (Term, Path.Path) Type
 admissibleTypeOf host = Request.post host "admissible-type-of"
   (Encoder.tuple2 E.encodeTerm Path.encodePath)
@@ -89,10 +85,20 @@ metadatas host = Request.post host "metadatas"
   (Encoder.list Reference.encode)
   (Reference.decodeMap MD.decodeMetadata)
 
-search : Host -> Request (Maybe Type, Query) (List Term)
+type alias SearchResults =
+  { references : List (Reference.Key, Metadata)
+  , matches : (List Term, Int)
+  , illTypedMatches : (List Term, Int)
+  , positionsExamined : List Int }
+
+search : Host -> Request (Maybe Type, Query) SearchResults
 search host = Request.post host "search"
   (Encoder.tuple2 (Encoder.optional T.encodeType) MD.encodeQuery)
-  (Decoder.list E.decodeTerm)
+  (Decoder.map4 SearchResults
+    (Decoder.at ["references"] <| Reference.decodeAssociationList MD.decodeMetadata)
+    (Decoder.at ["matches"] <| Decoder.tuple2 (Decoder.list E.decodeTerm) Decoder.int)
+    (Decoder.at ["illTypedMatches"] <| Decoder.tuple2 (Decoder.list E.decodeTerm) Decoder.int)
+    (Decoder.at ["positionsExamined"] <| Decoder.list Decoder.int))
 
 terms : Host -> Request (List Reference) (M.Dict Reference.Key Term)
 terms host = Request.post host "terms"
