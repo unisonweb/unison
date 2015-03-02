@@ -47,6 +47,9 @@ data Names = Names [Symbol] deriving (Eq,Ord,Show)
 
 data Query = Query Text
 
+instance Show Query where
+  show (Query q) = show q
+
 queryPositions :: Query -> [Int]
 queryPositions (Query q) = [0 .. (Text.length q - 1)]
 

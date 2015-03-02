@@ -22,7 +22,8 @@ store root =
   let
     hashesIn :: (String -> Reference) -> FilePath -> Noted IO (Set Reference)
     hashesIn f dir = N.lift $
-      S.fromList . (map (f . reverse . drop 5 . reverse)) <$> -- strip out .json
+      -- the `drop 2` strips out '.' and '..', gak
+      S.fromList . (map (f . reverse . drop 5 . reverse) . drop 2) <$> -- strip out .json
         getDirectoryContents (joinPath [root, dir])
 
     n :: Either String a -> Either Note a
