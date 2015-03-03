@@ -119,7 +119,7 @@ executable unison
 
 executable node
   main-is: src/Node.hs
-  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -v0
+  ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N -v0
 
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
