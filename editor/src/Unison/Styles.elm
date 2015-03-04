@@ -126,9 +126,9 @@ verticalCells k ifEmpty ls = let cs = List.map (\l -> L.fill bg (L.pad 5 0 l)) (
 
 explorerCells : k -> List (Layout k) -> Layout k
 explorerCells k ls =
-  let last l = L.fill bg (L.pad' { left = 10, right = 5, top = 6, bottom = 8 } l)
+  let last l = L.fill bg (L.pad' { left = 10, right = 10, top = 6, bottom = 8 } l)
       col = L.leftAlignedColumn ls
-      fmt l = L.fill bg (L.pad' { left = 10, right = 5, top = 6, bottom = 6 } l)
+      fmt l = L.fill bg (L.pad' { left = 10, right = 10, top = 6, bottom = 6 } l)
       cs = List.map fmt (List.take (List.length col - 1) col) ++
            List.map last (List.drop (List.length col - 1) col)
   in case cs of
