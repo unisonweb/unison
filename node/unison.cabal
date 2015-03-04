@@ -126,6 +126,7 @@ executable node
 
   build-depends:
     unison,
+    text,
     containers,
     base
 

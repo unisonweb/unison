@@ -419,7 +419,7 @@ setSearchbox sink origin modifier content model =
               req = if ok then Nothing
                     else case model'.localInfo of
                            Nothing -> Nothing
-                           Just info -> Just (Search 10
+                           Just info -> Just (Search 5
                                                      (Just info.admissible)
                                                      (Metadata.Query content.string))
           in (req, refreshExplorer sink model')
@@ -616,7 +616,7 @@ search2 searchbox origin reqs =
       openEdit' =
         let mkreq model info = case model.searchResults of
               Just _ -> Nothing
-              Nothing -> Just (Search 10 (Just info.admissible)
+              Nothing -> Just (Search 5 (Just info.admissible)
                               (Metadata.Query (explorerInput model)))
             go info model =
               ( mkreq model info

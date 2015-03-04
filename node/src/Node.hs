@@ -4,6 +4,8 @@
 module Main where
 
 import Control.Applicative
+import Data.Monoid
+import Data.Text (Text)
 import Unison.Edit.Term.Eval (Eval)
 import Unison.Node (Node)
 import qualified Unison.Node as Node
@@ -35,32 +37,48 @@ numeric2 sym f = I.Primop 2 $ \xs -> case xs of
       (x,y) -> sym `Term.App` x `Term.App` y
   _ -> error "unpossible"
 
+string2 :: Term -> (Text -> Text -> Text) -> I.Primop (N.Noted IO)
+string2 sym f = I.Primop 2 $ \xs -> case xs of
+  [x,y] -> do
+    xr <- whnf x
+    yr <- whnf y
+    pure $ case (xr, yr) of
+      (Term.Lit (Term.String x), Term.Lit (Term.String y)) -> Term.Lit (Term.String (f x y))
+      (x,y) -> sym `Term.App` x `Term.App` y
+  _ -> error "unpossible"
+
 builtins :: [(R.Reference, I.Primop (N.Noted IO), Type)]
 builtins =
   [ let r = R.Builtin "Number.plus" in (r, numeric2 (Term.Ref r) (+), t)
   , let r = R.Builtin "Number.minus" in (r, numeric2 (Term.Ref r) (-), t)
   , let r = R.Builtin "Number.times" in (r, numeric2 (Term.Ref r) (*), t)
-  , let r = R.Builtin "Number.divide" in (r, numeric2 (Term.Ref r) (/), t) ]
+  , let r = R.Builtin "Number.divide" in (r, numeric2 (Term.Ref r) (/), t)
+  , let r = R.Builtin "Text.append" in (r, string2 (Term.Ref r) mappend, st) ]
   where t = numopTyp
+        st = strOpTyp
 
+str = Type.Unit Type.String
 num = Type.Unit Type.Number
 arr = Type.Arrow
 numopTyp = num `arr` (num `arr` num)
+strOpTyp = str `arr` (str `arr` str)
 
 builtinMetadatas :: Node IO R.Reference Type Term -> N.Noted IO ()
 builtinMetadatas node = do
-  Node.updateMetadata node (R.Builtin "Number.plus") (md 4 "+")
-  Node.updateMetadata node (R.Builtin "Number.minus") (md 4 "-")
-  Node.updateMetadata node (R.Builtin "Number.times") (md 5 "*")
-  Node.updateMetadata node (R.Builtin "Number.divide") (md 5 "/")
-  Store.annotateTerm store (R.Builtin "Number.plus") numopTyp
-  Store.annotateTerm store (R.Builtin "Number.minus") numopTyp
-  Store.annotateTerm store (R.Builtin "Number.times") numopTyp
-  Store.annotateTerm store (R.Builtin "Number.divide") numopTyp
-  where md n s = Metadata Metadata.Term
-                      (Metadata.Names [Metadata.Symbol s Metadata.InfixL n ])
-                      []
-                      Nothing
+  Node.updateMetadata node (R.Builtin "Number.plus") (opl 4 "+")
+  Node.updateMetadata node (R.Builtin "Number.minus") (opl 4 "-")
+  Node.updateMetadata node (R.Builtin "Number.times") (opl 5 "*")
+  Node.updateMetadata node (R.Builtin "Number.divide") (opl 5 "/")
+  Node.updateMetadata node (R.Builtin "Text.append") (opp "append")
+  mapM_ (\(r,_,t) -> Store.annotateTerm store r t) builtins
+  where opl n s = Metadata Metadata.Term
+                           (Metadata.Names [Metadata.Symbol s Metadata.InfixL n ])
+                           []
+                           Nothing
+        opp s = Metadata Metadata.Term
+                         (Metadata.Names [Metadata.Symbol s Metadata.Prefix 9])
+                         []
+                         Nothing
 
 store :: Store IO
 store = F.store "store"

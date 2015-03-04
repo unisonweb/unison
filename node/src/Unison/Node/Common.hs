@@ -88,7 +88,7 @@ node eval store =
       let trim rs = (take limit rs, length (drop limit rs))
       hs <- hashes store Nothing
       tmatches <- do es <- traverse elaborate (S.toList hs)
-                     filterM typeOk (join es)
+                     filterM typeOk (join (take limit es))
       qmatches <- filterM queryOk tmatches
       qmatches' <- filterM queryOk (map E.Ref (S.toList hs))
       illtypedQmatches <-
@@ -99,7 +99,7 @@ node eval store =
                   (S.toList (S.unions (map E.dependencies' qmatches)))
       pure $ SearchResults
         mds
-        (trim qmatches)
+        (qmatches, length (drop limit qmatches))
         (trim illtypedQmatches)
         (MD.queryPositions query)
 
