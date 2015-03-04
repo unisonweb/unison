@@ -18,12 +18,11 @@ data Metadata k =
     sort :: Sort,
     names :: Names,
     locals :: [(P.Path, Symbol)],
-    description :: Maybe k,
-    annotation :: k
+    description :: Maybe k
   } deriving (Eq,Ord,Show)
 
 matches :: Query -> Metadata k -> Bool
-matches (Query txt) (Metadata _ (Names ns) _ _ _) = txt `elem` map name ns
+matches (Query txt) (Metadata _ (Names ns) _ _) = txt `elem` map name ns
 
 {-
 localMatches :: V.Var -> Query -> Metadata k -> Bool
@@ -36,11 +35,11 @@ localMatches v (Query txt) (Metadata _ _ m _ _) =
 -}
 
 -- | Nameless metadata, contains only the annotation
-synthetic :: Sort -> k -> Metadata k
-synthetic t ann = Metadata t (Names []) [] Nothing ann
+synthetic :: Sort -> Metadata k
+synthetic t = Metadata t (Names []) [] Nothing
 
 -- | Nameless term metadata, containing only the type annotation
-syntheticTerm :: k -> Metadata k
+syntheticTerm :: Metadata k
 syntheticTerm = synthetic Term
 
 data Names = Names [Symbol] deriving (Eq,Ord,Show)

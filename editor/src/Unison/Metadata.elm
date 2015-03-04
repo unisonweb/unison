@@ -23,8 +23,7 @@ type alias Metadata = {
   sort : Sort,
   names : Names,
   locals : List (Path, Symbol),
-  description : Maybe R.Reference,
-  annotation : R.Reference
+  description : Maybe R.Reference
 }
 
 anonymousSymbol : Symbol

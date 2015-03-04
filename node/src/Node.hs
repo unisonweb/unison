@@ -30,7 +30,7 @@ numeric2 sym f = I.Primop 2 $ \xs -> case xs of
   [x,y] -> do
     xr <- whnf x
     yr <- whnf y
-    pure $ case (x,y) of
+    pure $ case (xr, yr) of
       (Term.Lit (Term.Number x), Term.Lit (Term.Number y)) -> Term.Lit (Term.Number (x + y))
       (x,y) -> sym `Term.App` x `Term.App` y
   _ -> error "unpossible"
@@ -52,7 +52,6 @@ builtinMetadatas node = do
                       (Metadata.Names [Metadata.Symbol "+" Metadata.InfixL 4 ])
                       []
                       Nothing
-                      (error "need to add second type parameter to Metadata")
 
 store :: Store IO
 store = F.store "store"

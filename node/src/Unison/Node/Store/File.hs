@@ -57,8 +57,12 @@ store root =
 
     readTerm = read' "terms"
     writeTerm = write' "terms"
-    readType = read' "types"
-    writeType = write' "types"
+
+    typeOfTerm (R.Derived h) = read' "type-of" h
+    typeOfTerm (R.Builtin b) = read id "builtin-type-of" b
+
+    annotateTerm (R.Derived h) = write' "type-of" h
+    annotateTerm (R.Builtin b) = write id "builtin-type-of" b
 
     readMetadata (R.Derived h) = read' "metadata" h
     readMetadata (R.Builtin b) = read id "builtin-metadata" b
@@ -66,4 +70,4 @@ store root =
     writeMetadata (R.Derived h) = write' "metadata" h
     writeMetadata (R.Builtin b) = write id "builtin-metadata" b
 
-  in Store hashes readTerm writeTerm readType writeType readMetadata writeMetadata
+  in Store hashes readTerm writeTerm typeOfTerm annotateTerm readMetadata writeMetadata

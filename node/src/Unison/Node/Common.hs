@@ -24,11 +24,7 @@ import qualified Unison.Type as Type
 node :: (Applicative f, Monad f) => Eval (Noted f) -> Store f  -> Node f R.Reference Type Term
 node eval store =
   let
-    readTypeOf h = do
-      md <- readMetadata store h
-      case MD.annotation md of
-        R.Derived h -> readType store h
-        b@(R.Builtin _) -> pure (T.Unit (T.Ref b))
+    readTypeOf = typeOfTerm store
 
     admissibleTypeOf e loc =
       TE.admissibleTypeOf readTypeOf loc e
@@ -36,22 +32,16 @@ node eval store =
     createTerm e md = do
       t <- Type.synthesize readTypeOf e
       ((R.Derived h,_), subterms) <- pure $ E.hashCons e
-      ht <- pure $ T.finalizeHash t
       writeTerm store h e
-      writeType store ht t
-      writeMetadata store (R.Derived h) (md { MD.annotation = R.Derived ht })
+      writeMetadata store (R.Derived h) md
+      annotateTerm store (R.Derived h) t
       pure (R.Derived h) <* mapM_ go subterms where -- declare all subterms extracted via hash-consing
         go (h,e) = do
           t <- Type.synthesize readTypeOf e
-          ht <- pure $ T.finalizeHash t
           writeTerm store h e
-          writeType store ht t
-          writeMetadata store (R.Derived h) (MD.syntheticTerm (R.Derived ht))
+          annotateTerm store (R.Derived h) t
 
-    createType t md = let h = T.finalizeHash t in do
-      writeType store h t
-      writeMetadata store (R.Derived h) md
-      pure (R.Derived h) -- todo: kindchecking
+    createType _ _ = error "todo - createType"
 
     dependencies _ (R.Builtin _) = pure S.empty
     dependencies limit (R.Derived h) = let trim = maybe id S.intersection limit in do
