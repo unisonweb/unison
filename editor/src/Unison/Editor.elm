@@ -151,22 +151,22 @@ keyedCompletions : Model -> List (String,Term,Element)
 keyedCompletions model =
   let f e i scope =
     let env = explorerViewEnv model
-        lits = case (Debug.log "model.literal" model.literal) of
+        lits = case model.literal of
           Nothing -> []
           Just lit ->
             if Term.checkLiteral lit i.admissible
             then [(e.input.string, Term.Lit lit, renderExplorerEntry model (Term.Lit lit))]
             else []
-        regulars = Debug.log "regulars" <| i.wellTypedLocals
+        regulars = i.wellTypedLocals
         box = Term.Embed (Layout.embed { path = [], selectable = False } Styles.currentSymbol)
         appBlanks n e = List.foldl (\_ cur -> Term.App cur Term.Blank) e [0 .. n]
         showAppBlanks n = renderExplorerEntry model
                           (List.foldl (\_ box -> Term.App box Term.Blank) box [0 .. n])
         la cur n = (String.padLeft (n+1) '.' "", appBlanks n cur, showAppBlanks n)
-        currentApps = Debug.log "currentApps" <| case Term.at scope.focus model.term of
+        currentApps = case Term.at scope.focus model.term of
           Nothing -> []
           Just cur -> (".", cur, Styles.currentSymbol) :: List.map (la cur) i.localApplications
-        ks = Debug.log "keys" (List.map (\(k,_,_) -> k) results)
+        ks = List.map (\(k,_,_) -> k results)
         results = currentApps
                ++ List.map (searchEntry model) regulars
                ++ keyedSearchMatches model
@@ -353,7 +353,7 @@ setSearchbox sink origin modifier content model =
         _ -> content
       model' = { model | explorer <- Explorer.setInput content' model.explorer }
       trimArg scope model =
-        { model | scope <- Debug.log "trimArg" (Just (Scope.scope (Path.trimArg scope.focus))) }
+        { model | scope <- Just (Scope.scope (Path.trimArg scope.focus)) }
 
       leftover s =
         let z = Field.noContent
@@ -361,9 +361,8 @@ setSearchbox sink origin modifier content model =
 
       seq : Action -> Char -> Action
       seq action op model =
-        if List.isEmpty (filteredCompletions model) then
-          let u = Debug.log "no valid completions" ()
-          in action model
+        if List.isEmpty (filteredCompletions model)
+        then action model
         else case model.scope of
           Nothing -> action model
           Just scope ->
@@ -413,7 +412,8 @@ setSearchbox sink origin modifier content model =
               -- a previous search that returned complete results, OR
               -- if we modify any positions that weren't examined to
               -- produce the results
-              ok = (complete && String.startsWith oldQuery newQuery) ||
+              ok = Debug.log "ok" <|
+                   (complete && String.startsWith oldQuery newQuery) ||
                    (List.all compareIndex results.positionsExamined)
               req = if ok then Nothing
                     else case model'.localInfo of
@@ -425,10 +425,7 @@ setSearchbox sink origin modifier content model =
       env = { literal = literal, query = query, combine = seq }
   in case SearchboxParser.parse env content.string of
        Result.Err msg -> norequest model'
-       Result.Ok action ->
-         let r = action model'
-             x = Debug.log "parse succeeded" (snd r).literal
-         in r
+       Result.Ok action -> action model'
 
 apply : (Int,Int) -> Model -> Model
 apply origin model = case model.scope of
@@ -494,7 +491,7 @@ refreshExplorer searchbox model = case model.localInfo of
               , Styles.menuSeparator (Element.widthOf above0)
               , Element.spacer 1 10 ]
         below = -- only shown if no valid completions
-          if List.isEmpty completions
+          if List.isEmpty completions && not (List.isEmpty invalidCompletions)
           then Element.flow Element.down (sep ++ invalidCompletions)
           else Element.empty
 
@@ -617,7 +614,7 @@ search2 searchbox origin reqs =
         _ -> Nothing
       openEdit' =
         let go oe model =
-          norequest (refreshExplorer searchbox { model | localInfo <- Just (Debug.log "info" oe) })
+          norequest (refreshExplorer searchbox { model | localInfo <- Just oe })
         in Signal.map openEdit reqs
            |> JR.send (Node.localInfo host `JR.to` go) (model0.term, [])
            |> Signal.map withStatus

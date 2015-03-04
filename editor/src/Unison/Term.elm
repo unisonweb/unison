@@ -2,7 +2,6 @@ module Unison.Term where
 
 import Array
 import Array (Array)
-import Debug
 import Dict
 import Dict (Dict)
 import Elmz.Distance as Distance

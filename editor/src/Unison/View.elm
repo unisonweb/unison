@@ -49,7 +49,7 @@ resolveLocal prefix md p = case Metadata.localSymbol md p of
   Just sym -> sym
 
 weakenBoundAt : (Path -> V.I -> Path) -> Path -> V.I -> Path
-weakenBoundAt boundAt path v = Debug.log ("boundAt " ++ toString path ++ " " ++ toString v) <|
+weakenBoundAt boundAt path v =
   if v == V.bound1 then Path.trimThroughScope path
   else boundAt (Path.trimThroughScope path) (V.decr v)
 

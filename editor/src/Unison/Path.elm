@@ -2,7 +2,6 @@ module Unison.Path where
 
 import Array (Array)
 import Array as A
-import Debug
 import Elmz.Json.Decoder as Decoder
 import Elmz.Json.Encoder (Encoder)
 import Elmz.Json.Encoder as Encoder
