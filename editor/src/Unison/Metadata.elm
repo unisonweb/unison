@@ -80,11 +80,17 @@ encodeFixity f = case f of
 decodeSymbol : Decoder Symbol
 decodeSymbol =
   let symbol n f p = { name = n, fixity = f, precedence = p }
-  in Decoder.newtyped' identity <| Decoder.product3 symbol Decoder.string decodeFixity Decoder.int
+  in Decoder.map3 Symbol
+       (Decoder.at ["name"] Decoder.string)
+       (Decoder.at ["fixity"] decodeFixity)
+       (Decoder.at ["precedence"] Decoder.int)
 
 encodeSymbol : Encoder Symbol
 encodeSymbol s =
-  Encoder.tag' "Symbol" (Encoder.tuple3 Encoder.string encodeFixity Encoder.int) (s.name, s.fixity, s.precedence)
+  Encoder.object3 ("name", Encoder.string)
+                  ("fixity", encodeFixity)
+                  ("precedence", Encoder.int)
+                  (s.name, s.fixity, s.precedence)
 
 decodeSort : Decoder Sort
 decodeSort = Decoder.andThen Decoder.string <| \t ->
@@ -104,19 +110,18 @@ encodeQuery : Encoder Query
 encodeQuery (Query q) = Encoder.string q
 
 decodeNames : Decoder Names
-decodeNames = Decoder.newtyped' identity (Decoder.list decodeSymbol)
+decodeNames = Decoder.list decodeSymbol
 
 encodeNames : Encoder Names
-encodeNames = Encoder.tag' "Names" (Encoder.list encodeSymbol)
+encodeNames = Encoder.list encodeSymbol
 
 decodeMetadata : Decoder Metadata
 decodeMetadata =
-  Decoder.newtyped' identity <| Decoder.product4
-    Metadata
-    decodeSort
-    decodeNames
-    decodeLocals
-    (Decoder.maybe R.decode)
+  Decoder.map4 Metadata
+    (Decoder.at ["sort"] decodeSort)
+    (Decoder.at ["names"] decodeNames)
+    (Decoder.at ["locals"] decodeLocals)
+    (Decoder.at ["description"] (Decoder.maybe R.decode))
 
 decodeLocals : Decoder (List (Path,Symbol))
 decodeLocals =
@@ -126,10 +131,9 @@ encodeLocals : Encoder (List (Path,Symbol))
 encodeLocals = Encoder.list (Encoder.tuple2 Path.encodePath encodeSymbol)
 
 encodeMetadata : Encoder Metadata
-encodeMetadata md = Encoder.tag' "Metadata"
-  (Encoder.tuple4
-    encodeSort
-    encodeNames
-    encodeLocals
-    (Encoder.optional R.encode))
+encodeMetadata md = Encoder.object4
+  ("sort", encodeSort)
+  ("names", encodeNames)
+  ("locals", encodeLocals)
+  ("description", (Encoder.optional R.encode))
   (md.sort, md.names, md.locals, md.description)

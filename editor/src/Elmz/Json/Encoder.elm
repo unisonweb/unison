@@ -51,6 +51,27 @@ object : Encoder v -> Encoder (M.Dict String v)
 object v =
   M.map (\k val -> v val) >> M.toList >> J.object
 
+object2 : (String, Encoder v1)
+       -> (String, Encoder v2)
+       -> Encoder (v1,v2)
+object2 (k1,e) (k2,e2) (v1,v2) =
+  J.object [(k1, e v1), (k2, e2 v2)]
+
+object3 : (String, Encoder v1)
+       -> (String, Encoder v2)
+       -> (String, Encoder v3)
+       -> Encoder (v1,v2,v3)
+object3 (k1,e) (k2,e2) (k3,e3) (v1,v2,v3) =
+  J.object [(k1, e v1), (k2, e2 v2), (k3, e3 v3)]
+
+object4 : (String, Encoder v1)
+       -> (String, Encoder v2)
+       -> (String, Encoder v3)
+       -> (String, Encoder v4)
+       -> Encoder (v1,v2,v3,v4)
+object4 (k1,e) (k2,e2) (k3,e3) (k4, e4) (v1,v2,v3,v4) =
+  J.object [(k1, e v1), (k2, e2 v2), (k3, e3 v3), (k4, e4 v4)]
+
 tuple1 : Encoder a -> Encoder a
 tuple1 ea a = J.list [ea a]
 

@@ -45,7 +45,7 @@ builtins =
 
 num = Type.Unit Type.Number
 arr = Type.Arrow
-numopTyp = num `arr` num `arr` num
+numopTyp = num `arr` (num `arr` num)
 
 builtinMetadatas :: Node IO R.Reference Type Term -> N.Noted IO ()
 builtinMetadatas node = do
