@@ -49,10 +49,16 @@ numopTyp = num `arr` (num `arr` num)
 
 builtinMetadatas :: Node IO R.Reference Type Term -> N.Noted IO ()
 builtinMetadatas node = do
-  Node.updateMetadata node (R.Builtin "Number.plus") md
+  Node.updateMetadata node (R.Builtin "Number.plus") (md 4 "+")
+  Node.updateMetadata node (R.Builtin "Number.minus") (md 4 "-")
+  Node.updateMetadata node (R.Builtin "Number.times") (md 5 "*")
+  Node.updateMetadata node (R.Builtin "Number.divide") (md 5 "/")
   Store.annotateTerm store (R.Builtin "Number.plus") numopTyp
-  where md = Metadata Metadata.Term
-                      (Metadata.Names [Metadata.Symbol "+" Metadata.InfixL 4 ])
+  Store.annotateTerm store (R.Builtin "Number.minus") numopTyp
+  Store.annotateTerm store (R.Builtin "Number.times") numopTyp
+  Store.annotateTerm store (R.Builtin "Number.divide") numopTyp
+  where md n s = Metadata Metadata.Term
+                      (Metadata.Names [Metadata.Symbol s Metadata.InfixL n ])
                       []
                       Nothing
 
