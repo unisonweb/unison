@@ -31,7 +31,7 @@ numeric2 sym f = I.Primop 2 $ \xs -> case xs of
     xr <- whnf x
     yr <- whnf y
     pure $ case (xr, yr) of
-      (Term.Lit (Term.Number x), Term.Lit (Term.Number y)) -> Term.Lit (Term.Number (x + y))
+      (Term.Lit (Term.Number x), Term.Lit (Term.Number y)) -> Term.Lit (Term.Number (f x y))
       (x,y) -> sym `Term.App` x `Term.App` y
   _ -> error "unpossible"
 
