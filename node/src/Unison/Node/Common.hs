@@ -99,7 +99,7 @@ node eval store =
                   (S.toList (S.unions (map E.dependencies' qmatches)))
       pure $ SearchResults
         mds
-        (qmatches, length (drop limit qmatches))
+        (trim qmatches)
         (trim illtypedQmatches)
         (MD.queryPositions query)
 

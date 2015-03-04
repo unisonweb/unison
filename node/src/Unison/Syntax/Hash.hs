@@ -13,7 +13,7 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
-import qualified Crypto.Hash.SHA3 as H
+import qualified Crypto.Hash as H
 
 -- | Hash which uniquely identifies a Unison type or term
 newtype Hash = Hash B.ByteString deriving (Eq,Ord)
@@ -22,7 +22,7 @@ instance Show Hash where
   show h = "#" ++ (take 5 . drop 1 $ show (base64 h))
 
 -- | Buffer type for building up hash values
-newtype Digest = Digest (H.Ctx -> H.Ctx)
+newtype Digest = Digest (H.Context H.SHA3_512 -> H.Context H.SHA3_512)
 
 append :: Digest -> Digest -> Digest
 append (Digest a) (Digest b) = Digest (b . a)
@@ -40,13 +40,13 @@ hashBytes (Hash h) = h
 
 finalize :: Digest -> Hash
 finalize (Digest f) =
-  Hash . H.finalize . f . H.init $ 256
+  Hash . H.digestToByteString . H.hashFinalize . f $ H.hashInit
 
 bytes :: B.ByteString -> Digest
-bytes bs = Digest (\ctx -> H.update ctx bs)
+bytes bs = Digest (\ctx -> H.hashUpdate ctx bs)
 
 lazyBytes :: LB.ByteString -> Digest
-lazyBytes bs = Digest (\ctx -> H.updates ctx (LB.toChunks bs))
+lazyBytes bs = Digest (\ctx -> H.hashUpdates ctx (LB.toChunks bs))
 
 byte :: Word8 -> Digest
 byte b = bytes (B.singleton b)

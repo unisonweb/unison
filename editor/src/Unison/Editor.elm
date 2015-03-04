@@ -100,6 +100,7 @@ metadata model r =
 incorporateMetadata : List (Reference.Key, Metadata) -> Model -> Model
 incorporateMetadata kvs model =
   let metadata' = List.foldl (\(k,v) dict -> Dict.insert k v dict) model.metadata kvs
+      keys = Debug.log "known-keys" (Dict.keys metadata')
   in { model | metadata <- metadata' }
 
 explorerViewEnv : Model -> View.Env
@@ -166,7 +167,7 @@ keyedCompletions model =
         currentApps = case Term.at scope.focus model.term of
           Nothing -> []
           Just cur -> (".", cur, Styles.currentSymbol) :: List.map (la cur) i.localApplications
-        ks = List.map (\(k,_,_) -> k results)
+        ks = Debug.log "keys" (List.map (\(k,_,_) -> k) results)
         results = currentApps
                ++ List.map (searchEntry model) regulars
                ++ keyedSearchMatches model
@@ -405,7 +406,7 @@ setSearchbox sink origin modifier content model =
         Just results ->
           let oldQuery = explorerInput model -- not model'
               newQuery = explorerInput model'
-              complete = Node.areResultsComplete results
+              complete = Debug.log "complete" (Node.areResultsComplete results)
               compareIndex i =
                 let sub = String.dropLeft i << String.left 1
                 in sub oldQuery == sub newQuery
@@ -415,7 +416,9 @@ setSearchbox sink origin modifier content model =
               -- produce the results
               ok = Debug.log "ok" <|
                    (complete && String.startsWith oldQuery newQuery) ||
-                   (List.all compareIndex results.positionsExamined)
+                   (let examined = Set.fromList (results.positionsExamined) `Set.union`
+                                   Set.fromList [0 .. String.length newQuery - 1]
+                    in List.all compareIndex (Set.toList examined))
               req = if ok then Nothing
                     else case model'.localInfo of
                            Nothing -> Nothing

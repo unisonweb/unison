@@ -39,8 +39,11 @@ check' term typ = join . N.unnote $ check missing term typ
 -- for instance `admissible 42 (forall a . a)` is `True`, since a term of
 -- type `forall a . a` can be substituted for `42`.
 admissible :: Applicative f => T.Env f -> E.Term -> T.Type -> Noted f Bool
-admissible synth term admissibleTyp = f <$> synthesize synth term
-  where f t = either (const False) (const True) (subtype admissibleTyp t)
+admissible synth term admissibleTyp =
+  -- todo: this is a total hack, figure out nicer solution
+  if admissibleTyp == T.forall1 id then pure True
+  else f <$> synthesize synth term
+       where f t = either (const False) (const True) (subtype admissibleTyp t)
 
 -- | Returns `True` if the expression is well-typed, `False` otherwise
 wellTyped :: (Monad f, Applicative f) => T.Env f -> E.Term -> Noted f Bool

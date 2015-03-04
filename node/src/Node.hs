@@ -26,6 +26,7 @@ import qualified Unison.Note as N
 import qualified Unison.Syntax.Reference as R
 import qualified Unison.Syntax.Term as Term
 import qualified Unison.Syntax.Type as Type
+import qualified Unison.Syntax.Var as Var
 
 numeric2 :: Term -> (Double -> Double -> Double) -> I.Primop (N.Noted IO)
 numeric2 sym f = I.Primop 2 $ \xs -> case xs of
@@ -69,16 +70,17 @@ builtinMetadatas node = do
   Node.updateMetadata node (R.Builtin "Number.minus") (opl 4 "-")
   Node.updateMetadata node (R.Builtin "Number.times") (opl 5 "*")
   Node.updateMetadata node (R.Builtin "Number.divide") (opl 5 "/")
-  Node.updateMetadata node (R.Builtin "Text.append") (opp "append")
+  Node.updateMetadata node (R.Builtin "Text.append") (prefix "append")
+  _ <- Node.createTerm node (Term.Lam (Term.Var Var.bound1)) (prefix "identity")
   mapM_ (\(r,_,t) -> Store.annotateTerm store r t) builtins
   where opl n s = Metadata Metadata.Term
                            (Metadata.Names [Metadata.Symbol s Metadata.InfixL n ])
                            []
                            Nothing
-        opp s = Metadata Metadata.Term
-                         (Metadata.Names [Metadata.Symbol s Metadata.Prefix 9])
-                         []
-                         Nothing
+        prefix s = Metadata Metadata.Term
+                            (Metadata.Names [Metadata.Symbol s Metadata.Prefix 9])
+                            []
+                            Nothing
 
 store :: Store IO
 store = F.store "store"

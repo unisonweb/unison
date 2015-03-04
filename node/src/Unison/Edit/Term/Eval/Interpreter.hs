@@ -42,6 +42,7 @@ eval env = Eval whnf step
         f' <- E.link resolveRef f
         e' <- reduce f' [x]
         maybe (return e) return e'
+      E.Ref h -> E.link resolveRef (E.Ref h)
       _ -> return e
 
     whnf resolveRef e = case e of
