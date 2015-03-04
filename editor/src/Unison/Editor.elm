@@ -315,7 +315,7 @@ accept model = Maybe.withDefault model <|
                     (List.map fst (filteredCompletions model)) `Maybe.andThen`
     \term -> model.scope `Maybe.andThen`
     \scope -> Term.set scope.focus model.term term `Maybe.andThen`
-    \t2 -> Just { model | term <- t2 }
+    \t2 -> Just <| clearScopeHistory { model | term <- t2 }
 
 openExplorer : Sink Field.Content -> Action
 openExplorer = openExplorerWith Field.noContent
@@ -438,7 +438,10 @@ apply origin model = case model.scope of
     Term.at scope.focus model.term `Maybe.andThen`
       \focus -> Term.set scope.focus model.term (Term.App focus Term.Blank) `Maybe.andThen`
       \term -> let scope' = Scope.scope (scope.focus `Path.snoc` Path.Arg)
-               in Just { model | term <- term, scope <- Just scope' }
+               in Just { model | term <- term
+                               , scope <- Just scope'
+                               , localInfo <- Nothing
+                               , searchResults <- Nothing }
 
 {-| Updates `layouts.panel` and `layouts.panelHighlight` based on a change. -}
 refreshPanel : Maybe (Sink Field.Content) -> (Int,Int) -> Model -> Model
