@@ -41,13 +41,16 @@ builtins =
   , let r = R.Builtin "Number.minus" in (r, numeric2 (Term.Ref r) (-), t)
   , let r = R.Builtin "Number.times" in (r, numeric2 (Term.Ref r) (*), t)
   , let r = R.Builtin "Number.divide" in (r, numeric2 (Term.Ref r) (/), t) ]
-  where num = Type.Unit Type.Number
-        arr = Type.Arrow
-        t = num `arr` num `arr` num
+  where t = numopTyp
+
+num = Type.Unit Type.Number
+arr = Type.Arrow
+numopTyp = num `arr` num `arr` num
 
 builtinMetadatas :: Node IO R.Reference Type Term -> N.Noted IO ()
 builtinMetadatas node = do
   Node.updateMetadata node (R.Builtin "Number.plus") md
+  Store.annotateTerm store (R.Builtin "Number.plus") numopTyp
   where md = Metadata Metadata.Term
                       (Metadata.Names [Metadata.Symbol "+" Metadata.InfixL 4 ])
                       []
