@@ -38,22 +38,25 @@ type Kind = Star | KArrow Kind Kind
 key : { tl | metadata : Reference -> Metadata }
    -> Type
    -> String
-key env cur = case cur of
-  Unit lit -> case lit of
-    Ref r -> Metadata.firstName (Reference.toKey r) (env.metadata r)
-    _ -> toString lit
-  Universal v -> "t"++toString v
-  Existential v -> "t"++toString v++"'"
-  Arrow i o -> case i of
-    Arrow _ _ -> "(" ++ key env i ++ ") → " ++ key env o
-    _ -> key env i ++ " → " ++ key env o
-  Forall v body ->
-    let go v = case v of
-          Forall v body -> let (vs,inner) = go body in (v :: vs, inner)
-          _ -> ([], v)
-    in case go cur of
-         (vs,body) -> "∀ " ++ String.join " " (List.map (key env << Universal) vs)
-                   ++ ". " ++ key env body
+key env cur =
+  let go top cur = case cur of
+    Unit lit -> case lit of
+      Ref r -> Metadata.firstName (Reference.toKey r) (env.metadata r)
+      _ -> toString lit
+    Universal v -> "t"++toString v
+    Existential v -> "t"++toString v++"'"
+    Arrow i o -> case i of
+      Arrow _ _ -> "(" ++ go False i ++ ") → " ++ go False o
+      _ -> go False i ++ " → " ++ go False o
+    Forall v body ->
+      if top then go True body
+      else let extract v = case v of -- higher rank, show the quantifier introduction
+             Forall v body -> let (vs,inner) = extract body in (v :: vs, inner)
+             _ -> ([], v)
+           in case extract cur of
+             (vs,body) -> "∀ " ++ String.join " " (List.map (go False << Universal) vs)
+                       ++ ". " ++ go False body
+  in go True cur
 
 isFunction : Type -> Bool
 isFunction t = case t of
