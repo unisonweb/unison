@@ -30,11 +30,11 @@ anonymousSymbol : Symbol
 anonymousSymbol = Symbol "anonymousSymbol" Prefix 9
 
 anonymousTerm : Metadata
-anonymousTerm = Metadata Term [] [] Nothing (R.Builtin "unknown type")
+anonymousTerm = Metadata Term [] [] Nothing
 
 defaultMetadata : R.Reference -> Metadata
 defaultMetadata s =
-  Metadata Term [Symbol (R.toKey s) Prefix 9] [] Nothing (R.Builtin "?")
+  Metadata Term [Symbol (R.toKey s) Prefix 9] [] Nothing
 
 firstSymbol : String -> Metadata -> Symbol
 firstSymbol defaultName md = case md.names of
@@ -111,13 +111,12 @@ encodeNames = Encoder.tag' "Names" (Encoder.list encodeSymbol)
 
 decodeMetadata : Decoder Metadata
 decodeMetadata =
-  Decoder.newtyped' identity <| Decoder.product5
+  Decoder.newtyped' identity <| Decoder.product4
     Metadata
     decodeSort
     decodeNames
     decodeLocals
     (Decoder.maybe R.decode)
-    R.decode
 
 decodeLocals : Decoder (List (Path,Symbol))
 decodeLocals =
@@ -128,11 +127,9 @@ encodeLocals = Encoder.list (Encoder.tuple2 Path.encodePath encodeSymbol)
 
 encodeMetadata : Encoder Metadata
 encodeMetadata md = Encoder.tag' "Metadata"
-  (Encoder.tuple5
+  (Encoder.tuple4
     encodeSort
     encodeNames
     encodeLocals
-    (Encoder.optional R.encode)
-    R.encode)
-  (md.sort, md.names, md.locals, md.description, md.annotation)
-
+    (Encoder.optional R.encode))
+  (md.sort, md.names, md.locals, md.description)
