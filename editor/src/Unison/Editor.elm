@@ -324,6 +324,7 @@ openExplorerWith content searchbox model =
   let zero = Maybe.map (\z -> { z | input <- content }) Explorer.zero
       (req, m2) = openRequest { model | explorer <- zero
                                       , localInfo <- Nothing
+                                      , searchResults <- Nothing
                                       , explorerSelection <- 0
                                       , literal <- Nothing }
   in (req, refreshExplorer searchbox m2)
@@ -399,8 +400,8 @@ setSearchbox sink origin modifier content model =
                               in action { model | explorer <- ex }
       literal e model =
         norequest (refreshExplorer sink { model | literal <- Just e })
-      query string model' = case model.searchResults of
-        Nothing -> norequest <| refreshExplorer sink model'
+      query string model' = case (Debug.log "model.searchResults" model.searchResults) of
+        Nothing -> norequest (refreshExplorer sink model')
         Just results ->
           let oldQuery = explorerInput model -- not model'
               newQuery = explorerInput model'
@@ -613,8 +614,14 @@ search2 searchbox origin reqs =
         Open term path -> Just (term,path)
         _ -> Nothing
       openEdit' =
-        let go oe model =
-          norequest (refreshExplorer searchbox { model | localInfo <- Just oe })
+        let mkreq model info = case model.searchResults of
+              Just _ -> Nothing
+              Nothing -> Just (Search 10 (Just info.admissible)
+                              (Metadata.Query (explorerInput model)))
+            go info model =
+              ( mkreq model info
+              , refreshExplorer searchbox { model | localInfo <- Just info }
+              )
         in Signal.map openEdit reqs
            |> JR.send (Node.localInfo host `JR.to` go) (model0.term, [])
            |> Signal.map withStatus
