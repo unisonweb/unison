@@ -22,7 +22,8 @@ data Metadata k =
   } deriving (Eq,Ord,Show)
 
 matches :: Query -> Metadata k -> Bool
-matches (Query txt) (Metadata _ (Names ns) _ _) = txt `elem` map name ns
+matches (Query txt) (Metadata _ (Names ns) _ _) =
+  any (Text.isPrefixOf txt) (map name ns)
 
 {-
 localMatches :: V.Var -> Query -> Metadata k -> Bool

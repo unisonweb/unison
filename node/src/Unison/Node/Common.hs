@@ -3,6 +3,7 @@ module Unison.Node.Common (node) where
 
 import Control.Applicative
 import Data.Traversable (traverse)
+import Debug.Trace
 import Control.Monad
 import Unison.Edit.Term.Eval as Eval
 import Unison.Edit.Term.Path as Path
@@ -20,6 +21,8 @@ import qualified Unison.Syntax.Reference as R
 import qualified Unison.Syntax.Term as E
 import qualified Unison.Syntax.Type as T
 import qualified Unison.Type as Type
+
+watch msg a = trace (msg ++ " : " ++ show a) a
 
 node :: (Applicative f, Monad f) => Eval (Noted f) -> Store f  -> Node f R.Reference Type Term
 node eval store =

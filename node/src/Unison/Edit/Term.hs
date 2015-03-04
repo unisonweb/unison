@@ -159,7 +159,7 @@ applications :: E.Term -> T.Type -> [E.Term]
 applications e t = e : go e t
   where
     go e (T.Forall _ t) = go e t
-    go e (T.Arrow _ t) = let e' = E.App e E.Blank in go e' t
+    go e (T.Arrow _ t) = let e' = E.App e E.Blank in e' : go e' t
     go _ _ = []
 
 -- | Compute the type of the given subterm, unconstrained as much
