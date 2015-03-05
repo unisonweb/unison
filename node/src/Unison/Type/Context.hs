@@ -291,6 +291,25 @@ check ctx e t | wellformedType ctx t = scope (show e ++ " : " ++ show t) $ go e 
     subtype ctx' (apply ctx' a) (apply ctx' t)
 check _ _ _ = Left $ note "type not well formed wrt context"
 
+admissible :: Context -> Term -> Type -> Either Note Context
+admissible ctx e t | wellformedType ctx t = scope (show e ++ " : " ++ show t) $ go e t where
+  go (Term.Lit l) _ = subtype ctx t (synthLit l) -- 1I
+  go _ (T.Forall x body) = -- ForallI
+    let (x', ctx') = extendUniversal ctx
+    in admissible ctx' e (T.subst body x (T.Universal x'))
+       >>= retract (E.Universal x')
+  go fn@(Term.Lam _) (T.Arrow i o) = -- =>I
+    let x' = fresh ctx
+        v = Term.Var x'
+        ctx' = extend (E.Ann x' i) ctx
+        body' = Term.betaReduce (fn `Term.App` v)
+    in admissible ctx' body' o >>= retract (E.Ann x' i)
+  -- go Term.Blank _ = Right ctx -- possible hack to workaround lack of impredicative instantiation
+  go _ _ = do -- Sub
+    (a, ctx') <- synthesize ctx e
+    subtype ctx' (apply ctx' t) (apply ctx' a)
+admissible _ _ _ = Left $ note "type not well formed wrt context"
+
 -- | Infer the type of a literal
 synthLit :: Term.Literal -> Type
 synthLit lit = T.Unit $ case lit of
@@ -352,17 +371,19 @@ synthesizeApp ctx ft arg = go ft where
                       (T.Existential i)
   go _ = Left $ note "unable to synthesize type of application"
 
+annotateRefs :: Applicative f => T.Env f -> Term -> Noted f Term
+annotateRefs synth term' = case term' of
+  Term.Ref h -> Term.Ann (Term.Ref h) <$> synth h
+  Term.App f arg -> Term.App <$> annotateRefs synth f <*> annotateRefs synth arg
+  Term.Ann body t -> Term.Ann <$> annotateRefs synth body <*> pure t
+  Term.Lam body -> Term.Lam <$> annotateRefs synth body
+  Term.Vector terms -> Term.Vector <$> traverse (annotateRefs synth) terms
+  _ -> pure term'
+
 synthesizeClosed :: Applicative f => T.Env f -> Term -> Noted f Type
-synthesizeClosed synthRef term = Noted $ synth <$> N.unnote (annotate term)
+synthesizeClosed synthRef term = Noted $ synth <$> N.unnote (annotateRefs synthRef term)
   where
     synth :: Either Note Term -> Either Note Type
     synth (Left e) = Left e
     synth (Right a) = go <$> synthesize (context []) a
     go (t, ctx) = apply ctx t
-    annotate term' = case term' of
-      Term.Ref h -> Term.Ann (Term.Ref h) <$> synthRef h
-      Term.App f arg -> Term.App <$> annotate f <*> annotate arg
-      Term.Ann body t -> Term.Ann <$> annotate body <*> pure t
-      Term.Lam body -> Term.Lam <$> annotate body
-      Term.Vector terms -> Term.Vector <$> traverse annotate terms
-      _ -> pure term'
