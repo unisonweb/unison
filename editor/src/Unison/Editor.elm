@@ -362,8 +362,7 @@ setSearchbox sink origin modifier content model =
                          then content
                          else { content | string <- String.dropRight 2 content.string }
         _ -> content
-      model' = { model | explorer <- Explorer.setInput content' model.explorer
-                       , literal <- Nothing }
+      model' = { model | explorer <- Explorer.setInput content' model.explorer }
       trimArg scope model =
         { model | scope <- Just (Scope.scope (Path.trimArg scope.focus)) }
 

@@ -89,7 +89,7 @@ node eval store =
         queryOk e = do mds <- traverse (readMetadata store) (S.toList (E.dependencies' e))
                        pure $ any (MD.matches query) mds
         trim rs =
-          let rs' = sortBy (comparing fst) (map (\e -> (negate (E.countBlanks e), e)) rs)
+          let rs' = sortBy (comparing fst) (map (\e -> (E.countBlanks e, e)) rs)
           in (map snd (take limit rs'), length (drop limit rs'))
       in
       do
