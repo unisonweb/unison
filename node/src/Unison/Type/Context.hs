@@ -243,7 +243,7 @@ instantiateL ctx v t = case monotype t >>= solve ctx v of
     _ -> Left $ note "could not instantiate left"
 
 -- | Instantiate the given existential such that it is
--- a subtype of the given type, updating the context
+-- a supertype of the given type, updating the context
 -- in the process.
 instantiateR :: Context -> Type -> V.Var -> Either Note Context
 instantiateR ctx t v = case monotype t >>= solve ctx v of
