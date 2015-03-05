@@ -101,6 +101,15 @@ isClosed e = go V.bound1 e
       Vector vs -> Foldable.all (go depth) vs
       Lam body -> go (V.succ depth) body
 
+countBlanks :: Term -> Int
+countBlanks e = case e of
+  Blank -> 1
+  App fn arg -> countBlanks fn + countBlanks arg
+  Ann e _ -> countBlanks e
+  Vector vs -> Foldable.foldl (+) 0 (fmap countBlanks vs)
+  Lam body -> countBlanks body
+  _ -> 0
+
 {-
 freeVars :: Term -> S.Set V.Var
 freeVars e = case e of

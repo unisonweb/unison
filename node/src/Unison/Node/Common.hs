@@ -3,6 +3,8 @@ module Unison.Node.Common (node) where
 
 import Control.Applicative
 import Data.Traversable (traverse)
+import Data.List
+import Data.Ord
 import Debug.Trace
 import Control.Monad
 import Unison.Edit.Term.Eval as Eval
@@ -80,28 +82,33 @@ node eval store =
       matchingLocals <- filterM f (locals >>= (\(v,t) -> TE.applications (E.Var v) t))
       pure (current, admissible, annotatedLocals, matchingCurrentApplies, matchingLocals)
 
-    search limit query admissible = do
-      let typeOk e = maybe (pure True) (\t -> Type.admissible readTypeOf e t) admissible
-      let elaborate h = (\t -> TE.applications (E.Ref h) t) <$> readTypeOf h
-      let queryOk e = do mds <- traverse (readMetadata store) (S.toList (E.dependencies' e))
-                         pure $ any (MD.matches query) mds
-      let trim rs = (take limit rs, length (drop limit rs))
-      hs <- hashes store Nothing
-      tmatches <- do es <- traverse elaborate (S.toList hs)
-                     filterM typeOk (join (take limit es))
-      qmatches <- filterM queryOk tmatches
-      qmatches' <- filterM queryOk (map E.Ref (S.toList hs))
-      illtypedQmatches <-
-        -- return type annotated versions of ill-typed terms
-        let terms = S.toList (S.difference (S.fromList qmatches') (S.fromList qmatches))
-        in zipWith E.Ann terms <$> traverse (Type.synthesize readTypeOf) terms
-      mds <- mapM (\h -> (,) h <$> readMetadata store h)
-                  (S.toList (S.unions (map E.dependencies' qmatches)))
-      pure $ SearchResults
-        mds
-        (trim qmatches)
-        (trim illtypedQmatches)
-        (MD.queryPositions query)
+    search limit query admissible =
+      let
+        typeOk e = maybe (pure True) (\t -> Type.admissible readTypeOf e t) admissible
+        elaborate h = (\t -> TE.applications (E.Ref h) t) <$> readTypeOf h
+        queryOk e = do mds <- traverse (readMetadata store) (S.toList (E.dependencies' e))
+                       pure $ any (MD.matches query) mds
+        trim rs =
+          let rs' = sortBy (comparing fst) (map (\e -> (negate (E.countBlanks e), e)) rs)
+          in (map snd (take limit rs'), length (drop limit rs'))
+      in
+      do
+        hs <- hashes store Nothing
+        tmatches <- do es <- traverse elaborate (S.toList hs)
+                       watch "search.tmatches\n" <$> filterM typeOk (join es)
+        qmatches <- filterM queryOk tmatches
+        qmatches' <- filterM queryOk (map E.Ref (S.toList hs))
+        illtypedQmatches <-
+          -- return type annotated versions of ill-typed terms
+          let terms = S.toList (S.difference (S.fromList qmatches') (S.fromList qmatches))
+          in zipWith E.Ann terms <$> traverse (Type.synthesize readTypeOf) terms
+        mds <- mapM (\h -> (,) h <$> readMetadata store h)
+                    (S.toList (S.unions (map E.dependencies' qmatches)))
+        pure $ SearchResults
+          mds
+          (trim qmatches)
+          (trim illtypedQmatches)
+          (MD.queryPositions query)
 
     readTermRef (R.Derived h) = readTerm store h
     readTermRef r = pure (E.Ref r)
