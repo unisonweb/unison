@@ -407,18 +407,14 @@ setSearchbox sink origin modifier content model =
           let oldQuery = explorerInput model -- not model'
               newQuery = explorerInput model'
               complete = Debug.log "complete" (Node.areResultsComplete results)
-              compareIndex i =
-                let sub = String.dropLeft i << String.left 1
-                in sub oldQuery == sub newQuery
-              -- we don't repeat the search if we've added characters to
-              -- a previous search that returned complete results, OR
-              -- if we modify any positions that weren't examined to
-              -- produce the results
+              -- Don't repeat the search unless necessary
+              lastExamined = List.maximum (-1 :: results.positionsExamined)
               ok = Debug.log "ok" <|
+                   -- we've added characters to search with complete results
                    (complete && String.startsWith oldQuery newQuery) ||
-                   (let examined = Set.fromList (results.positionsExamined) `Set.union`
-                                   Set.fromList [0 .. String.length newQuery - 1]
-                    in List.all compareIndex (Set.toList examined))
+                   -- we've deleted characters, but not past where we have complete results
+                   (complete && String.startsWith newQuery oldQuery
+                             && lastExamined < String.length newQuery)
               req = if ok then Nothing
                     else case model'.localInfo of
                            Nothing -> Nothing
@@ -489,18 +485,16 @@ refreshExplorer searchbox model = case model.localInfo of
           , Element.spacer 1 12
           , pad currentType ] ++
           List.map render localInfo.locals
+        below = -- only shown if no valid completions
+          if List.isEmpty completions && not (List.isEmpty invalidCompletions)
+          then Layout.element <|
+               Styles.explorerCells () (List.map (Layout.embed ()) invalidCompletions)
+          else Element.empty
         above = Element.flow Element.down
           [ above0
           , Element.spacer 1 10
-          , Styles.menuSeparator (Element.widthOf above0)
-          , Element.spacer 1 10 ]
-        sep = [ Element.spacer 1 10
-              , Styles.menuSeparator (Element.widthOf above0)
-              , Element.spacer 1 10 ]
-        below = -- only shown if no valid completions
-          if List.isEmpty completions && not (List.isEmpty invalidCompletions)
-          then Element.flow Element.down (sep ++ invalidCompletions)
-          else Element.empty
+          , Styles.menuSeparator (Element.widthOf above0 `max` Element.widthOf below)
+          , Element.spacer 1 5 ]
 
         explorer' : Explorer.Model
         explorer' = model.explorer |> Maybe.map (\e ->

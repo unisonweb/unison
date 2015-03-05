@@ -103,7 +103,7 @@ node eval store =
           let terms = S.toList (S.difference (S.fromList qmatches') (S.fromList qmatches))
           in zipWith E.Ann terms <$> traverse (Type.synthesize readTypeOf) terms
         mds <- mapM (\h -> (,) h <$> readMetadata store h)
-                    (S.toList (S.unions (map E.dependencies' qmatches)))
+                    (S.toList (S.unions (map E.dependencies' (illtypedQmatches ++ qmatches))))
         pure $ SearchResults
           mds
           (trim qmatches)
