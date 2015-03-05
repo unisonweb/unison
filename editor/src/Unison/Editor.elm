@@ -184,8 +184,17 @@ filteredCompletions model =
 filteredInvalidCompletions : Model -> List (Term,Element)
 filteredInvalidCompletions model =
   let search = Maybe.withDefault "" (Maybe.map (.input >> .string) (model.explorer))
+      check lit = case model.localInfo of
+        Nothing -> False
+        Just t -> Term.checkLiteral lit t.admissible
+      lits = case model.literal of
+        Nothing -> []
+        Just lit ->
+          if not (check lit)
+          then [(explorerInput model, Term.Lit lit, renderExplorerEntry model (Term.Lit lit))]
+          else []
   in List.filter (\(k,_,_) -> String.contains (String.trim search) k)
-                 (keyedSearchNonmatches model)
+                 (lits ++ keyedSearchNonmatches model)
      |> List.map (\(_,e,l) -> (e,l))
 
 allowApplication : Model -> Bool
@@ -353,7 +362,8 @@ setSearchbox sink origin modifier content model =
                          then content
                          else { content | string <- String.dropRight 2 content.string }
         _ -> content
-      model' = { model | explorer <- Explorer.setInput content' model.explorer }
+      model' = { model | explorer <- Explorer.setInput content' model.explorer
+                       , literal <- Nothing }
       trimArg scope model =
         { model | scope <- Just (Scope.scope (Path.trimArg scope.focus)) }
 
@@ -490,11 +500,12 @@ refreshExplorer searchbox model = case model.localInfo of
           then Layout.element <|
                Styles.explorerCells () (List.map (Layout.embed ()) invalidCompletions)
           else Element.empty
-        above = Element.flow Element.down
+        above = Element.flow Element.down <|
           [ above0
-          , Element.spacer 1 10
-          , Styles.menuSeparator (Element.widthOf above0 `max` Element.widthOf below)
-          , Element.spacer 1 5 ]
+          , Element.spacer 1 10 ] ++
+          (if below == Element.empty then [Element.empty]
+           else [ Styles.menuSeparator (Element.widthOf above0 `max` Element.widthOf below)
+                , Element.spacer 1 5 ])
 
         explorer' : Explorer.Model
         explorer' = model.explorer |> Maybe.map (\e ->
