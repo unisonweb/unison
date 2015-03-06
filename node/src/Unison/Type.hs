@@ -1,11 +1,13 @@
 -- | This module is the primary interface to the Unison typechecker
 module Unison.Type where
 
+import Debug.Trace
 import Control.Monad
 import Control.Applicative
 import qualified Unison.Type.Context as C
 import qualified Unison.Syntax.Type as T
 import qualified Unison.Syntax.Term as E
+import qualified Unison.Syntax.Var as V
 import Unison.Note as N
 
 -- | Infer the type of a 'Unison.Syntax.Term', using
@@ -34,16 +36,7 @@ check' :: E.Term -> T.Type -> Either Note T.Type
 check' term typ = join . N.unnote $ check missing term typ
   where missing h = N.failure $ "unexpected ref: " ++ show h
 
--- | Check whether a term's synthesized type is a supertype of the
--- given `admissibleTyp`. This is the contravariant version of `check`, so
--- for instance `admissible 42 (forall a . a)` is `True`, since a term of
--- type `forall a . a` can be substituted for `42`.
-admissible :: Applicative f => T.Env f -> E.Term -> T.Type -> Noted f Bool
-admissible synth term admissibleTyp =
-  -- todo: this is a total hack, figure out nicer solution
-  if admissibleTyp == T.forall1 id then pure True
-  else f <$> synthesize synth term
-       where f t = either (const False) (const True) (subtype admissibleTyp t)
+watch msg a = trace (msg ++ show a) a
 
 -- | Returns `True` if the expression is well-typed, `False` otherwise
 wellTyped :: (Monad f, Applicative f) => T.Env f -> E.Term -> Noted f Bool

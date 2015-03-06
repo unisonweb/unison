@@ -99,8 +99,8 @@ server port node = S.scotty port $ do
     md <- runN $ N.metadatas node hs
     S.json md
   postRoute "/search" $ do
-    (limit,q,t) <- S.jsonData
-    es <- runN $ N.search node limit q t
+    (e,path,limit,q,t) <- S.jsonData
+    es <- runN $ N.search node e path limit q t
     S.json es
   postRoute "/terms" $ do
     hs <- S.jsonData

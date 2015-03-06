@@ -50,7 +50,7 @@ data Node m k t e = Node {
   -- | Access the metadata for the term and/or types identified by @k@
   metadatas :: [k] -> Noted m (Map k (MD.Metadata k)),
   -- | Search for a term, optionally constrained to be of the given type
-  search :: Int -> Query -> Maybe t -> Noted m (SearchResults k t e),
+  search :: e -> P.Path -> Int -> Query -> Maybe t -> Noted m (SearchResults k t e),
   -- | Lookup the source of the term identified by @k@
   terms :: [k] -> Noted m (Map k e),
   -- | Lookup the dependencies of @k@, optionally limited to those that intersect the given set

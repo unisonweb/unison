@@ -96,9 +96,12 @@ areResultsComplete results =
   snd results.illTypedMatches == 0 &&
   snd results.matches == 0
 
-search : Host -> Request (Int, Query, Maybe Type) SearchResults
+search : Host -> Request (Term, Path, Int, Query, Maybe Type) SearchResults
 search host = Request.post host "search"
-  (Encoder.tuple3 Encoder.int MD.encodeQuery (Encoder.optional T.encodeType))
+  (Encoder.tuple5 E.encodeTerm
+                  Path.encodePath
+                  Encoder.int
+                  MD.encodeQuery (Encoder.optional T.encodeType))
   (Decoder.map4 SearchResults
     (Decoder.at ["references"] <| Reference.decodeAssociationList MD.decodeMetadata)
     (Decoder.at ["matches"] <| Decoder.tuple2 (Decoder.list E.decodeTerm) Decoder.int)

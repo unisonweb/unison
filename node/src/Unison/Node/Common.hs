@@ -82,9 +82,11 @@ node eval store =
       matchingLocals <- filterM f (locals >>= (\(v,t) -> TE.applications (E.Var v) t))
       pure (current, admissible, annotatedLocals, matchingCurrentApplies, matchingLocals)
 
-    search limit query admissible =
+    search e loc limit query admissible =
       let
-        typeOk e = maybe (pure True) (\t -> Type.admissible readTypeOf e t) admissible
+        typeOk focus = maybe (pure False)
+                             (\e -> Type.wellTyped readTypeOf e)
+                             (Path.set loc focus e)
         elaborate h = (\t -> TE.applications (E.Ref h) t) <$> readTypeOf h
         queryOk e = do mds <- traverse (readMetadata store) (S.toList (E.dependencies' e))
                        pure $ any (MD.matches query) mds

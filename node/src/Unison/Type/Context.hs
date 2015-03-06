@@ -275,7 +275,7 @@ instantiateR ctx t v = case monotype t >>= solve ctx v of
 check :: Context -> Term -> Type -> Either Note Context
 check ctx e t | wellformedType ctx t = scope (show e ++ " : " ++ show t) $ go e t where
   go (Term.Lit l) _ = subtype ctx (synthLit l) t -- 1I
-  go _ (T.Forall x body) = -- ForallI
+  go _ (T.Forall x body) = -- ForallI -- this is key, use existential
     let (x', ctx') = extendUniversal ctx
     in check ctx' e (T.subst body x (T.Universal x'))
        >>= retract (E.Universal x')
@@ -290,25 +290,6 @@ check ctx e t | wellformedType ctx t = scope (show e ++ " : " ++ show t) $ go e 
     (a, ctx') <- synthesize ctx e
     subtype ctx' (apply ctx' a) (apply ctx' t)
 check _ _ _ = Left $ note "type not well formed wrt context"
-
-admissible :: Context -> Term -> Type -> Either Note Context
-admissible ctx e t | wellformedType ctx t = scope (show e ++ " : " ++ show t) $ go e t where
-  go (Term.Lit l) _ = subtype ctx t (synthLit l) -- 1I
-  go _ (T.Forall x body) = -- ForallI
-    let (x', ctx') = extendUniversal ctx
-    in admissible ctx' e (T.subst body x (T.Universal x'))
-       >>= retract (E.Universal x')
-  go fn@(Term.Lam _) (T.Arrow i o) = -- =>I
-    let x' = fresh ctx
-        v = Term.Var x'
-        ctx' = extend (E.Ann x' i) ctx
-        body' = Term.betaReduce (fn `Term.App` v)
-    in admissible ctx' body' o >>= retract (E.Ann x' i)
-  -- go Term.Blank _ = Right ctx -- possible hack to workaround lack of impredicative instantiation
-  go _ _ = do -- Sub
-    (a, ctx') <- synthesize ctx e
-    subtype ctx' (apply ctx' t) (apply ctx' a)
-admissible _ _ _ = Left $ note "type not well formed wrt context"
 
 -- | Infer the type of a literal
 synthLit :: Term.Literal -> Type

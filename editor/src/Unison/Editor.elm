@@ -208,7 +208,7 @@ explorerInput model =
 
 type Request
   = Open Term Path -- obtain the current and admissible type and local completions
-  | Search Int (Maybe Type) Metadata.Query -- global search for a given type
+  | Search Term Path Int (Maybe Type) Metadata.Query -- global search for a given type
   | Declare Term
   | Edit Path Path Action.Action Term
   | Metadatas (List Reference)
@@ -425,11 +425,12 @@ setSearchbox sink origin modifier content model =
                    (complete && String.startsWith newQuery oldQuery
                              && lastExamined < String.length newQuery)
               req = if ok then Nothing
-                    else case model'.localInfo of
-                           Nothing -> Nothing
-                           Just info -> Just (Search 5
-                                                     (Just info.admissible)
-                                                     (Metadata.Query content.string))
+                    else model'.localInfo `Maybe.andThen`
+                         \info -> model'.scope `Maybe.andThen`
+                         \scope -> let (_,e,p) = Term.narrow model.term scope.focus
+                                   in Just (Search e p 5
+                                                       (Just info.admissible)
+                                                       (Metadata.Query content.string))
           in (req, refreshExplorer sink model')
       env = { literal = literal, query = query, combine = seq }
   in case SearchboxParser.parse env content.string of
@@ -626,8 +627,11 @@ search2 searchbox origin reqs =
       openEdit' =
         let mkreq model info = case model.searchResults of
               Just _ -> Nothing
-              Nothing -> Just (Search 5 (Just info.admissible)
-                              (Metadata.Query (explorerInput model)))
+              Nothing ->
+                let s scope = let (_,e,p) = Term.narrow model.term scope.focus
+                                  mdq = Metadata.Query (explorerInput model)
+                              in Search e p 5 (Just info.admissible) mdq
+                in Maybe.map s model.scope
             go info model =
               ( mkreq model info
               , refreshExplorer searchbox { model | localInfo <- Just info }
@@ -636,7 +640,7 @@ search2 searchbox origin reqs =
            |> JR.send (Node.localInfo host `JR.to` go) (model0.term, [])
            |> Signal.map withStatus
       search r = case r of
-        Search limit typ query -> Just (limit,query,typ)
+        Search term path limit typ query -> Just (term,path,limit,query,typ)
         _ -> Nothing
       search' =
         let go results model =
@@ -645,7 +649,7 @@ search2 searchbox origin reqs =
              |> refreshExplorer searchbox
              |> norequest
         in Signal.map search reqs
-           |> JR.send (Node.search host `JR.to` go) (0, Metadata.Query "blah", Nothing)
+           |> JR.send (Node.search host `JR.to` go) (Term.Blank, [], 0, Metadata.Query "blah", Nothing)
            |> Signal.map withStatus
       declare r = case r of
         Declare term -> Just term

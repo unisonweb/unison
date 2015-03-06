@@ -112,6 +112,15 @@ set p e e' = let ap = EM.ap in case (p,e) of
     _ -> Nothing
   _ -> Nothing
 
+{-| Returns the `(locOuter,inner,locInner)` with maximum length of
+`locInner` such that `at locInner inner == at loc e`,
+`locOuter ++ locInner == loc`, and `inner` has no free variables.
+That is, we modify the path to be relative to the nearest closed
+term, rather than from the root.
+-}
+narrow : Term -> Path -> (Path,Term,Path)
+narrow e loc = ([],e,loc) -- todo
+
 {-| Modify the term at the given location, if valid. -}
 modify : Path -> (Term -> Term) -> Term -> Maybe Term
 modify path f e =
