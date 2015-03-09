@@ -503,7 +503,7 @@ refreshExplorer searchbox model = case model.localInfo of
         above = Element.flow Element.down <|
           [ above0
           , Element.spacer 1 10 ] ++
-          (if below == Element.empty then [Element.empty]
+          (if below == Element.empty && List.isEmpty completions then []
            else [ Styles.menuSeparator (Element.widthOf above0 `max` Element.widthOf below)
                 , Element.spacer 1 5 ])
 
