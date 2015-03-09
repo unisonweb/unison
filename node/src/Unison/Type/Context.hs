@@ -343,16 +343,16 @@ synthesize ctx e = scope ("infer: " ++ show e) $ go e where
     let e = fresh ctx
         ctxTl = context [E.Marker e, E.Existential e]
         step term ctx = check ctx term (T.Existential e)
-    in Foldable.foldrM step (ctx `append` ctxTl) v >>= \ctx' ->
-      pure $
-        let
-          (ctx1, ctx2) = breakAt (E.Marker e) ctx'
-          -- unsolved existentials get generalized to universals
-          vt = apply ctx2 (T.Unit T.Vector `T.App` T.Existential e)
-          existentials' = unsolved ctx2
-          vt2 = foldr gen vt existentials'
-          gen e vt = T.forall1 $ \v -> subst vt e v
-        in (vt2, ctx1)
+    in Foldable.foldrM step (ctx `append` ctxTl) v >>=
+       \ctx' -> pure $
+         let
+           (ctx1, ctx2) = breakAt (E.Marker e) ctx'
+           -- unsolved existentials get generalized to universals
+           vt = apply ctx2 (T.Unit T.Vector `T.App` T.Existential e)
+           existentials' = unsolved ctx2
+           vt2 = foldr gen vt existentials'
+           gen e vt = T.forall1 $ \v -> subst vt e v
+         in (vt2, ctx1)
   go fn@(Term.Lam _) = -- ->I=> (Full Damas Milner rule)
     let (arg, i, o) = fresh3 ctx
         ctxTl = context [E.Marker i, E.Existential i, E.Existential o,
