@@ -4,6 +4,7 @@
 module Main where
 
 import Control.Applicative
+import Data.List
 import Data.Monoid
 import Data.Text (Text)
 import Unison.Edit.Term.Eval (Eval)
@@ -48,45 +49,51 @@ string2 sym f = I.Primop 2 $ \xs -> case xs of
       (x,y) -> sym `Term.App` x `Term.App` y
   _ -> error "unpossible"
 
-builtins :: [(R.Reference, I.Primop (N.Noted IO), Type)]
+builtins :: [(R.Reference, I.Primop (N.Noted IO), Type, Metadata R.Reference)]
 builtins =
-  [ let r = R.Builtin "Number.plus" in (r, numeric2 (Term.Ref r) (+), t)
-  , let r = R.Builtin "Number.minus" in (r, numeric2 (Term.Ref r) (-), t)
-  , let r = R.Builtin "Number.times" in (r, numeric2 (Term.Ref r) (*), t)
-  , let r = R.Builtin "Number.divide" in (r, numeric2 (Term.Ref r) (/), t)
-  , let r = R.Builtin "Text.append" in (r, string2 (Term.Ref r) mappend, st) ]
-  where t = numopTyp
-        st = strOpTyp
+  [ let r = R.Builtin "Number.plus"
+    in (r, numeric2 (Term.Ref r) (+), numOpTyp, opl 4 "+")
+  , let r = R.Builtin "Number.minus"
+    in (r, numeric2 (Term.Ref r) (-), numOpTyp, opl 4 "-")
+  , let r = R.Builtin "Number.times"
+    in (r, numeric2 (Term.Ref r) (*), numOpTyp, opl 5 "*")
+  , let r = R.Builtin "Number.divide"
+    in (r, numeric2 (Term.Ref r) (/), numOpTyp, opl 5 "/")
+  , let r = R.Builtin "Text.append"
+    in (r, string2 (Term.Ref r) mappend, strOpTyp, prefix "append")
+  -- , let r = R.Builtin "View.cell"
+  --       t = error "todo.view.cell"
+  --   in (r, nf r 2, T.forall1 $ \a -> )
+  ]
+  where
+    str = Type.Unit Type.String
+    num = Type.Unit Type.Number
+    arr = Type.Arrow
+    numOpTyp = num `arr` (num `arr` num)
+    strOpTyp = str `arr` (str `arr` str)
+    st = strOpTyp
+    nf r n = I.Primop n $ pure . foldl' Term.App (Term.Ref r)
 
-str = Type.Unit Type.String
-num = Type.Unit Type.Number
-arr = Type.Arrow
-numopTyp = num `arr` (num `arr` num)
-strOpTyp = str `arr` (str `arr` str)
+opl n s = Metadata Metadata.Term
+                   (Metadata.Names [Metadata.Symbol s Metadata.InfixL n ])
+                   []
+                   Nothing
+prefix s = Metadata Metadata.Term
+                    (Metadata.Names [Metadata.Symbol s Metadata.Prefix 9])
+                    []
+                    Nothing
 
 builtinMetadatas :: Node IO R.Reference Type Term -> N.Noted IO ()
 builtinMetadatas node = do
-  Node.updateMetadata node (R.Builtin "Number.plus") (opl 4 "+")
-  Node.updateMetadata node (R.Builtin "Number.minus") (opl 4 "-")
-  Node.updateMetadata node (R.Builtin "Number.times") (opl 5 "*")
-  Node.updateMetadata node (R.Builtin "Number.divide") (opl 5 "/")
-  Node.updateMetadata node (R.Builtin "Text.append") (prefix "append")
   _ <- Node.createTerm node (Term.Lam (Term.Var Var.bound1)) (prefix "identity")
-  mapM_ (\(r,_,t) -> Store.annotateTerm store r t) builtins
-  where opl n s = Metadata Metadata.Term
-                           (Metadata.Names [Metadata.Symbol s Metadata.InfixL n ])
-                           []
-                           Nothing
-        prefix s = Metadata Metadata.Term
-                            (Metadata.Names [Metadata.Symbol s Metadata.Prefix 9])
-                            []
-                            Nothing
+  mapM_ (\(r,_,t,md) -> Node.updateMetadata node r md *> Store.annotateTerm store r t)
+        builtins
 
 store :: Store IO
 store = F.store "store"
 
 eval :: Eval (N.Noted IO)
-eval = I.eval (M.fromList $ map (\(k,v,_) -> (k,v)) builtins)
+eval = I.eval (M.fromList $ map (\(k,v,_,_) -> (k,v)) builtins)
 
 readTerm :: Hash -> N.Noted IO Term
 readTerm h = Store.readTerm store h
