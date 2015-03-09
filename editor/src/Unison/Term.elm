@@ -30,7 +30,6 @@ import Unison.Type as T
 import Unison.Var (I)
 import Unison.Var as V
 type alias E = Path.E
-type alias Path = Path.Path -- to avoid conflict with Graphics.Collage.Path
 
 type Literal
   = Number Float

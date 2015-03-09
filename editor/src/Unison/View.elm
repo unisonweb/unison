@@ -27,7 +27,6 @@ import Unison.Var as V
 import String
 import Text
 type alias E = Path.E
-type alias Path = Path.Path -- to avoid conflict with Graphics.Collage.Path
 
 type alias L = { path : Path, selectable : Bool }
 
@@ -245,13 +244,14 @@ impl env allowBreak ambientPrec availableWidth cur =
                  else List.foldl bf (impl env True lprec (availableWidth - indentWidth) hd) tl
                       |> paren (ambientPrec > 9) cur
             Bracketed es ->
-              -- todo fixme
-              -- let unbroken = Styles.cells (tag cur.path) (codeText "[]") (List.map (impl env False 0 0) es)
-              let unbroken = Styles.cells (tag cur.path) (codeText "[]") []
+              let unbroken = Styles.cells
+                    (tag cur.path)
+                    (codeText "[]")
+                    (List.map (impl env False 0 0) es)
               in if not allowBreak || L.widthOf unbroken < availableWidth || List.length es < 2
               then unbroken
               else Styles.verticalCells (tag cur.path) (codeText "[]")
-                                        [] -- todo (List.map (impl env True 0 (availableWidth - 4)) es) -- account for cell border
+                                        (List.map (impl env True 0 (availableWidth - 4)) es) -- account for cell border
 
 type Break a
   = Prefix a (List a)          -- `Prefix f [x,y,z] == f x y z`
@@ -286,9 +286,8 @@ break env cur =
           else Operators True prec { cur | path <- path, term <- e } []
         _ -> Operators True prec { cur | path <- path, term <- e } []
   in case cur.term of
-    Vector xs -> xs
-              |> Array.indexedMap (\i a -> { cur | path <- cur.path `snoc` Index i, term <- a })
-              |> Array.toList
+    Vector xs -> Array.toList xs
+              |> List.indexedMap (\i a -> { cur | path <- cur.path `snoc` Index i, term <- a })
               |> Bracketed
     App (App op l) r ->
       let sym = case op of
