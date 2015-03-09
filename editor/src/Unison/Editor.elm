@@ -457,7 +457,9 @@ refreshPanel searchbox origin model =
         { rootMetadata = model.rootMetadata
         , availableWidth = availableWidth - fst origin
         , metadata = metadata model
-        , overrides path = Trie.lookup path model.overrides
+        , overrides p =
+            let u = Debug.log "overrides p" p
+            in Trie.lookup p model.overrides
         , raw = Trie.empty }
       overrideFocus env availableWidth = Maybe.withDefault (env availableWidth) <|
         model.scope `Maybe.andThen`
@@ -717,7 +719,8 @@ main =
         in Signal.map ignore actions
       ap = Term.App
       expr =
-        Term.Lam (Term.Lam (Term.Var 1) `ap` Term.Lam (Term.Var 2))
+        Terms.vec []
+      --  Term.Lam (Term.Lam (Term.Var 1) `ap` Term.Lam (Term.Var 2))
       -- Terms.swatch
       -- expr = Term.Lam (Term.Lam (Term.Var 2)) `ap` Terms.int 42 `ap` Terms.str "hello"
       -- expr = (Term.Lam (Terms.int 42))

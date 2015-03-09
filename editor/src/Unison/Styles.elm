@@ -114,7 +114,7 @@ stringLiteral s = T.leftAligned (T.style { code | color <- wisteria } (T.fromStr
 
 cells : k -> Element -> List (Layout k) -> Layout k
 cells k ifEmpty ls = let cs = List.map (\l -> L.fill bg (L.pad 5 0 l)) (L.row ls) in case cs of
-  [] -> L.outline clouds 1 (L.embed k ifEmpty)
+  [] -> L.fill bg (L.embed k ifEmpty)
   h :: _ -> let vline = L.embed k (E.spacer 1 (L.heightOf h) |> E.color clouds)
             in L.outline clouds 1 (L.intersperseHorizontal vline cs)
 

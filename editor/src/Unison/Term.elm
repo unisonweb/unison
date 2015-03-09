@@ -2,6 +2,7 @@ module Unison.Term where
 
 import Array
 import Array (Array)
+import Debug
 import Dict
 import Dict (Dict)
 import Elmz.Distance as Distance
@@ -246,4 +247,4 @@ encodeTerm e = case e of
   Ann e t -> Encoder.tag' "Ann" (Encoder.tuple2 encodeTerm T.encodeType) (e, t)
   Lam body -> Encoder.tag' "Lam" encodeTerm body
   Embed e -> Encoder.tag' "Embed" Encoder.product0 ()
-
+  Vector es -> Encoder.tag' "Vector" (Encoder.list encodeTerm) (Array.toList es)

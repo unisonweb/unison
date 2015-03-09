@@ -245,11 +245,13 @@ impl env allowBreak ambientPrec availableWidth cur =
                  else List.foldl bf (impl env True lprec (availableWidth - indentWidth) hd) tl
                       |> paren (ambientPrec > 9) cur
             Bracketed es ->
-              let unbroken = Styles.cells (tag cur.path) (codeText "[]") (List.map (impl env False 0 0) es)
+              -- todo fixme
+              -- let unbroken = Styles.cells (tag cur.path) (codeText "[]") (List.map (impl env False 0 0) es)
+              let unbroken = Styles.cells (tag cur.path) (codeText "[]") []
               in if not allowBreak || L.widthOf unbroken < availableWidth || List.length es < 2
               then unbroken
               else Styles.verticalCells (tag cur.path) (codeText "[]")
-                                        (List.map (impl env True 0 (availableWidth - 4)) es) -- account for cell border
+                                        [] -- todo (List.map (impl env True 0 (availableWidth - 4)) es) -- account for cell border
 
 type Break a
   = Prefix a (List a)          -- `Prefix f [x,y,z] == f x y z`

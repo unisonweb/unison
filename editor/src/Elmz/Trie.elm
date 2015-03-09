@@ -1,7 +1,6 @@
 module Elmz.Trie where
 
 import List
-import List ((::))
 
 type Trie k v = Trie (Maybe v) (List (k, Trie k v))
 
