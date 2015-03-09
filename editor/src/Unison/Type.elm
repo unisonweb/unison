@@ -23,6 +23,7 @@ type Literal
 type Type
   = Unit Literal
   | Arrow Type Type
+  | App Type Type
   | Universal I
   | Existential I
   | Ann Type Kind
@@ -39,24 +40,27 @@ key : { tl | metadata : Reference -> Metadata }
    -> Type
    -> String
 key env cur =
-  let go top cur = case cur of
-    Unit lit -> case lit of
-      Ref r -> Metadata.firstName (Reference.toKey r) (env.metadata r)
-      _ -> toString lit
-    Universal v -> "t"++toString v
-    Existential v -> "t"++toString v++"'"
-    Arrow i o -> case i of
-      Arrow _ _ -> "(" ++ go False i ++ ") → " ++ go False o
-      _ -> go False i ++ " → " ++ go False o
-    Forall v body ->
-      if top then go True body
-      else let extract v = case v of -- higher rank, show the quantifier introduction
-             Forall v body -> let (vs,inner) = extract body in (v :: vs, inner)
-             _ -> ([], v)
-           in case extract cur of
-             (vs,body) -> "∀ " ++ String.join " " (List.map (go False << Universal) vs)
-                       ++ ". " ++ go False body
-  in go True cur
+  let
+    paren : Int -> Int -> String -> String
+    paren cur ambient s = if cur < ambient then "(" ++ s ++ ")" else s
+    go top prec cur = case cur of
+      Unit lit -> case lit of
+        Ref r -> Metadata.firstName (Reference.toKey r) (env.metadata r)
+        _ -> toString lit
+      Universal v -> "t"++toString v
+      Existential v -> "t"++toString v++"'"
+      Arrow i o -> paren 0 prec (go False (prec+1) i ++ " → " ++ go top prec o)
+      App x y -> paren 9 prec (go top 9 x ++ " " ++ go top 10 y)
+      Forall v body ->
+        if top then go True prec body
+        else let extract v = case v of -- higher rank, show the quantifier introduction
+               Forall v body -> let (vs,inner) = extract body in (v :: vs, inner)
+               _ -> ([], v)
+             in case extract cur of
+               (vs,body) -> "∀ " ++ String.join " " (List.map (go False 0 << Universal) vs)
+                         ++ ". " ++ go False prec body
+                         |> paren 9 prec
+  in go True 0 cur
 
 isFunction : Type -> Bool
 isFunction t = case t of
@@ -83,6 +87,7 @@ decodeType : Decoder Type
 decodeType = Decoder.union' <| \t ->
   if | t == "Unit" -> Decoder.map Unit decodeLiteral
      | t == "Arrow" -> Decoder.product2 Arrow decodeType decodeType
+     | t == "App" -> Decoder.product2 App decodeType decodeType
      | t == "Universal" -> Decoder.map Universal V.decode
      | t == "Existential" -> Decoder.map Existential V.decode
      | t == "Kind" -> Decoder.product2 Ann decodeType decodeKind
@@ -105,6 +110,7 @@ encodeType : Encoder Type
 encodeType t = case t of
   Unit l -> Encoder.tag' "Unit" encodeLiteral l
   Arrow i o -> Encoder.tag' "Arrow" (Encoder.list encodeType) [i, o]
+  App x y -> Encoder.tag' "App" (Encoder.list encodeType) [x, y]
   Universal v -> Encoder.tag' "Universal" V.encode v
   Existential v -> Encoder.tag' "Existential" V.encode v
   Ann t k -> Encoder.tag' "Ann" (Encoder.tuple2 encodeType encodeKind) (t,k)
