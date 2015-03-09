@@ -7,6 +7,7 @@ module Unison.Type.Context (context, subtype, synthesizeClosed) where
 
 import Control.Applicative
 import Data.Traversable
+import qualified Data.Foldable as Foldable
 import Data.List as L
 import Data.Maybe
 import qualified Data.Set as S
@@ -152,6 +153,7 @@ wellformedType c t = wellformed c && case t of
   T.Existential v -> v `elem` existentials c
   T.Arrow i o -> wellformedType c i && wellformedType c o
   T.Ann t' _ -> wellformedType c t'
+  T.App x y -> wellformedType c x && wellformedType c y
   T.Constrain t' _ -> wellformedType c t'
   T.Forall v t' ->
     let (v',ctx2) = extendUniversal c
@@ -182,6 +184,7 @@ apply ctx t = case t of
   T.Existential v ->
     maybe t (\(Monotype t') -> apply ctx t') (lookup v (solved ctx))
   T.Arrow i o -> T.Arrow (apply ctx i) (apply ctx o)
+  T.App x y -> T.App (apply ctx x) (apply ctx y)
   T.Ann v k -> T.Ann (apply ctx v) k
   T.Constrain v c -> T.Constrain (apply ctx v) c
   T.Forall v t' -> T.Forall v (apply ctx t')
@@ -200,6 +203,9 @@ subtype ctx tx ty = scope (show tx++" <: "++show ty) (go tx ty) where -- Rules f
   go (T.Arrow i1 o1) (T.Arrow i2 o2) = do -- `-->`
     ctx' <- subtype ctx i1 i2
     subtype ctx' (apply ctx' o1) (apply ctx' o2)
+  go (T.App x1 y1) (T.App x2 y2) = do -- analogue of `-->`
+    ctx' <- subtype ctx x1 x2
+    subtype ctx' (apply ctx' y1) (apply ctx' y2)
   go (T.Forall v t) t2 = scope "forall (L)" $
     let (v', ctx') = extendMarker ctx
         t' = subst t v (T.Existential v')
@@ -236,6 +242,16 @@ instantiateL ctx v t = case monotype t >>= solve ctx v of
                              i
                              i'
         instantiateL ctx' o' (apply ctx' o)
+    T.App x y -> -- analogue of InstLArr
+      let x' = fresh ctx
+          y' = fresh' x'
+          s = E.Solved v (Monotype (T.App (T.Existential x') (T.Existential y')))
+          ctx0 = replace (E.Existential v)
+                         (context [E.Existential y', E.Existential x', s])
+                         ctx
+      in do
+        ctx' <- instantiateL ctx0 x' (apply ctx0 x)
+        instantiateL ctx' y' (apply ctx' y)
     T.Forall x body -> -- InstLIIL
       let (v', ctx') = extendUniversal ctx
       in instantiateL ctx' v (T.subst body x (T.Universal v'))
@@ -261,6 +277,16 @@ instantiateR ctx t v = case monotype t >>= solve ctx v of
                              i'
                              i
         instantiateR ctx' (apply ctx' o) o'
+    T.App x y -> -- analogue of InstRArr
+      let x' = fresh ctx
+          y' = fresh' x'
+          s = E.Solved v (Monotype (T.App (T.Existential x') (T.Existential y')))
+          ctx0 = replace (E.Existential v)
+                         (context [E.Existential y', E.Existential x', s])
+                         ctx
+      in do
+        ctx' <- instantiateR ctx0 (apply ctx0 x) x'
+        instantiateR ctx' (apply ctx' y) y'
     T.Forall x body -> -- InstRAIIL
       let x' = fresh ctx
       in
@@ -310,10 +336,23 @@ synthesize ctx e = scope ("infer: " ++ show e) $ go e where
   go (Term.Ref h) = Left . note $ "unannotated reference: " ++ show h
   go (Term.Ann e' t) = (,) t <$> check ctx e' t -- Anno
   go (Term.Lit l) = pure (synthLit l, ctx) -- 1I=>
-  go (Term.Vector v) = pure (T.Unit T.Vector, ctx) -- todo, if vector is empty, return forall a . Vector a, otherwise take lub of elements in vec
   go (Term.App f arg) = do -- ->E
     (ft, ctx') <- synthesize ctx f
     synthesizeApp ctx' (apply ctx' ft) arg
+  go (Term.Vector v) =
+    let e = fresh ctx
+        ctxTl = context [E.Marker e, E.Existential e]
+        step term ctx = check ctx term (T.Existential e)
+    in Foldable.foldrM step (ctx `append` ctxTl) v >>= \ctx' ->
+      pure $
+        let
+          (ctx1, ctx2) = breakAt (E.Marker e) ctx'
+          -- unsolved existentials get generalized to universals
+          vt = apply ctx2 (T.Unit T.Vector `T.App` T.Existential e)
+          existentials' = unsolved ctx2
+          vt2 = foldr gen vt existentials'
+          gen e vt = T.forall1 $ \v -> subst vt e v
+        in (vt2, ctx1)
   go fn@(Term.Lam _) = -- ->I=> (Full Damas Milner rule)
     let (arg, i, o) = fresh3 ctx
         ctxTl = context [E.Marker i, E.Existential i, E.Existential o,

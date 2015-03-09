@@ -82,7 +82,7 @@ node eval store =
       matchingLocals <- filterM f (locals >>= (\(v,t) -> TE.applications (E.Var v) t))
       pure (current, admissible, annotatedLocals, matchingCurrentApplies, matchingLocals)
 
-    search e loc limit query admissible =
+    search e loc limit query _ =
       let
         typeOk focus = maybe (pure False)
                              (\e -> Type.wellTyped readTypeOf e)

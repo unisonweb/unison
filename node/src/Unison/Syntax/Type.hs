@@ -45,8 +45,9 @@ data Type
   | Universal V.Var
   | Existential V.Var
   | Ann Type K.Kind
+  | App Type Type
   | Constrain Type () -- todo: constraint language
-  | Forall V.Var Type -- ^ `DeBruijn 1` is bounded by nearest enclosing `Forall`, `DeBruijn 2` by next enclosing `Forall`, etc
+  | Forall V.Var Type
   deriving (Eq,Ord)
 
 instance Show Type where
@@ -56,6 +57,7 @@ instance Show Type where
   show (Universal n) = show n
   show (Existential n) = "'" ++ show n
   show (Ann t k) = show t ++ ":" ++ show k
+  show (App f arg) = "(" ++ show f ++ " " ++ show arg ++ ")"
   show (Constrain t _) = show t
   show (Forall x (Forall y (Forall z t))) =
     "(∀ " ++ (L.intercalate " " . map show) [x,y,z] ++ ". " ++ show t ++ ")"
@@ -79,6 +81,7 @@ maxV t = go t where
   go (Existential _) = bot
   go (Arrow i o) = go i `max` go o
   go (Ann t _) = go t
+  go (App f arg) = go f `max` go arg
   go (Constrain t _) = go t
   go (Forall n _) = n
   bot = V.decr V.bound1
@@ -123,6 +126,7 @@ subst fn var arg = case fn of
   Existential v | v == var -> arg
                 | otherwise -> fn
   Ann fn' t -> Ann (subst fn' var arg) t
+  App x y -> App (subst x var arg) (subst y var arg)
   Constrain fn' t -> Constrain (subst fn' var arg) t
   Forall v fn' -> Forall v (subst fn' var arg)
 
@@ -134,6 +138,7 @@ freeVars t = case t of
   Universal v -> S.singleton v
   Existential v -> S.singleton v
   Ann fn _ -> freeVars fn
+  App x y -> S.union (freeVars x) (freeVars y)
   Constrain fn _ -> freeVars fn
   Forall v fn -> S.delete v (freeVars fn)
 
