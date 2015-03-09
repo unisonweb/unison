@@ -58,7 +58,7 @@ type alias Model =
   , metadata : Dict Reference.Key Metadata
   , availableWidth : Maybe Int
   , dependents : Trie Path.E (List Path)
-  , overrides : Trie Path.E (Layout View.L)
+  , overrides : Trie Path.E Term
   , hashes : Trie Path.E Hash
   , explorer : Explorer.Model
   , explorerSelection : Selection1D.Model
@@ -111,7 +111,8 @@ explorerViewEnv model =
   in { rootMetadata = model.rootMetadata
      , metadata = metadata model
      , availableWidth = (Maybe.withDefault 1000 model.availableWidth - explorerTopLeft.x - 12) `max` 40
-     , overrides path = Trie.lookup path model.overrides }
+     , overrides path = Nothing
+     , raw = Trie.empty }
 
 focus : Model -> Maybe Term
 focus model = model.scope `Maybe.andThen` \scope -> Term.at scope.focus model.term
@@ -452,13 +453,20 @@ apply origin model = case model.scope of
 {-| Updates `layouts.panel` and `layouts.panelHighlight` based on a change. -}
 refreshPanel : Maybe (Sink Field.Content) -> (Int,Int) -> Model -> Model
 refreshPanel searchbox origin model =
-  let layout = pin origin <| case model.availableWidth of
+  let env availableWidth =
+        { rootMetadata = model.rootMetadata
+        , availableWidth = availableWidth - fst origin
+        , metadata = metadata model
+        , overrides path = Trie.lookup path model.overrides
+        , raw = Trie.empty }
+      overrideFocus env availableWidth = Maybe.withDefault (env availableWidth) <|
+        model.scope `Maybe.andThen`
+          \scope -> model.explorer `Maybe.andThen`
+          \_     -> let env0 = env availableWidth
+                    in Just { env0 | raw <- Trie.insert scope.focus () env0.raw }
+      layout = pin origin <| case model.availableWidth of
         Nothing -> layout0
-        Just availableWidth -> View.layout model.term <|
-          { rootMetadata = model.rootMetadata
-          , availableWidth = availableWidth - fst origin
-          , metadata = metadata model
-          , overrides x = Nothing }
+        Just availableWidth -> View.layout model.term (overrideFocus env availableWidth)
       layouts = model.layouts
       explorerRefresh = case searchbox of
         Nothing -> identity
@@ -708,8 +716,9 @@ main =
         let ignore action model = snd (action model)
         in Signal.map ignore actions
       ap = Term.App
-      -- x -> (y -> y) (_ -> x)
-      expr = Term.Lam (Term.Lam (Term.Var 1) `ap` Term.Lam (Term.Var 2))
+      expr =
+        Term.Lam (Term.Lam (Term.Var 1) `ap` Term.Lam (Term.Var 2))
+      -- Terms.swatch
       -- expr = Term.Lam (Term.Lam (Term.Var 2)) `ap` Terms.int 42 `ap` Terms.str "hello"
       -- expr = (Term.Lam (Terms.int 42))
       ms = models inputs

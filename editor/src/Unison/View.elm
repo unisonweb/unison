@@ -6,6 +6,8 @@ import Debug
 import Elmz.Distance as Distance
 import Elmz.Layout (Layout)
 import Elmz.Layout as L
+import Elmz.Trie as Trie
+import Elmz.Trie (Trie)
 import List
 import List ((::))
 import Graphics.Element as E
@@ -33,7 +35,9 @@ type alias Env =
   { rootMetadata   : Metadata
   , availableWidth : Int
   , metadata       : R.Reference -> Metadata
-  , overrides      : Path -> Maybe (Layout L) }
+  , overrides      : Path -> Maybe Term
+  , raw            : Trie E () -- whether a path should be displayed as raw source
+  }
 
 type alias Cur =
   { path : Path
@@ -170,7 +174,7 @@ impl : Env
     -> Layout { path : Path, selectable : Bool }
 impl env allowBreak ambientPrec availableWidth cur =
   case env.overrides cur.path of
-    Just l -> l
+    Just l -> impl env allowBreak ambientPrec availableWidth { cur | term <- l }
     Nothing -> case cur.term of
       Embed l -> l
       Var v -> codeText (resolveLocal "v" env.rootMetadata (cur.boundAt cur.path v)).name
@@ -210,9 +214,9 @@ impl env allowBreak ambientPrec availableWidth cur =
                     , space'
                     , impl env True 0 (availableWidth - indentWidth) cur' ])
                 |> paren (ambientPrec > 0) cur
-      _ -> case builtins env allowBreak ambientPrec availableWidth cur of
-        Just l -> l
-        Nothing -> let space' = L.embed (tag cur.path) space in
+      _ -> case (Trie.lookup cur.path env.raw, builtins env allowBreak ambientPrec availableWidth cur) of
+        (Nothing, Just l) -> l
+        _ -> let space' = L.embed (tag cur.path) space in
           case break env cur of
             Prefix f args ->
               let f' = impl env False 9 availableWidth f

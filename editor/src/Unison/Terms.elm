@@ -25,6 +25,8 @@ rgbTerm : Int -> Int -> Int -> E.Term
 rgbTerm r g b =
   builtin "Color.rgba" `ap` int r `ap` int g `ap` int b `ap` int 1
 
+swatch = builtin "View.cell" `ap` builtin "View.swatch" `ap` rgbTerm 230 126 34
+
 -- expr = E.App (E.App (E.Ref "foo") nums) (E.App (E.Ref "baz") (E.Builtin "View.cell" `ap` E.Builtin "View.swatch" `ap` rgbTerm 230 126 34))
 expr0 = derived "foo" `ap` names `ap` (derived "baz" `ap` int 230 `ap` int 126)
 expr = derived "foo" `ap` nums `ap` (derived "baz" `ap` (builtin "View.cell" `ap` builtin "View.swatch" `ap` rgbTerm 230 126 34))
