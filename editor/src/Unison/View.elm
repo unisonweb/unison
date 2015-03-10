@@ -312,7 +312,7 @@ palette : View Color
 rgb : Int -> Int -> Int -> Color
 source : View a
 text : Style -> View String
-textboxt : Alignment -> Distance -> Style -> View String
+textbox : Alignment -> Distance -> Style -> View String
 reactive : View a -> View a
 fn : (Panel -> Panel) -> View (a -> b)
 cell (fn f)
@@ -329,9 +329,9 @@ panel : View a -> a -> Panel
 cell : View a -> a -> a
 Text.{left, right, center, justify} : Alignment
 
-panel vertical [
-  panel source "hello",
-  panel source (1 + 23)
+cell vertical [
+  cell source "hello",
+  cell source (1 + 23)
 ]
 panel view (panel blah x)
 -}
@@ -393,14 +393,14 @@ builtins env allowBreak availableWidth ambientPrec cur =
           let f i e = impl env allowBreak ambientPrec availableWidth
                       { cur | path <- cur.path `append` [Arg, Path.Index i], term <- e }
           in Just (L.vertical (tag (cur.path `snoc` Arg)) (List.indexedMap f (Array.toList es)))
-      Ref (R.Builtin "View.id") -> builtins env allowBreak availableWidth ambientPrec
+      Ref (R.Builtin "View.embed") -> builtins env allowBreak availableWidth ambientPrec
                                    { cur | path <- cur.path `snoc` Arg, term <- e }
       Ref (R.Builtin "View.wrap") -> case e of
         Vector es -> Nothing -- todo more complicated, as we need to do sequencing
         _ -> Nothing
       _ -> Nothing
   in case cur.term of
-    App (App (App (Ref (R.Builtin "View.cell")) (App (Ref (R.Builtin "View.function1")) (Lam body))) f) e ->
+    App (App (App (Ref (R.Builtin "View.view")) (App (Ref (R.Builtin "View.function1")) (Lam body))) f) e ->
       -- all paths will point to `f` aside from `e`
       let eview = impl env allowBreak 0 availableWidth
                   { cur | path <- cur.path `snoc` Arg, term <- e }
@@ -411,7 +411,7 @@ builtins env allowBreak availableWidth ambientPrec cur =
                    { cur | path <- fpath, term <- betaReduce (App (Lam body) (unclose view)) }
                    |> L.map trim
       in Maybe.map g eview
-    App (App (Ref (R.Builtin "View.panel")) v) e -> go v e
     App (App (Ref (R.Builtin "View.cell")) v) e -> go v e
+    App (App (Ref (R.Builtin "View.view")) v) e -> go v e
     _ -> Nothing
 

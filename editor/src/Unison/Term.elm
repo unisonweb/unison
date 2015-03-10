@@ -79,7 +79,7 @@ betaReduce : Term -> Term
 betaReduce e =
   let go depth arg body = case body of
     App f x -> App (go depth arg f) (go depth arg x)
-    Vector vs -> Vector (Array.map (go depth arg) vs)
+    Vector vs -> Vector (Array.fromList (List.map (go depth arg) (Array.toList vs)))
     Ann body t -> Ann (go depth arg body) t
     Lam body -> Lam (go (V.succ depth) arg body)
     Var v -> if v == depth then arg else Var v

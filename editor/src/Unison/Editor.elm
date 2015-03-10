@@ -246,7 +246,7 @@ click : Sink Field.Content -> (Int,Int) -> (Int,Int) -> Action
 click searchbox origin (x,y) model = case model.explorer of
   Nothing -> case Layout.leafAtPoint model.layouts.panel (Pt x y) of
     Nothing -> norequest model -- noop, user didn't click on anything!
-    Just node -> openExplorer searchbox model
+    Just node -> openExplorer searchbox origin model
   Just _ -> case Layout.leafAtPoint model.layouts.explorer (Pt x y) of
     Nothing -> norequest (closeExplorer model) -- treat this as a close event
     Just (Result.Ok i) -> norequest (close origin { model | explorerSelection <- i }) -- close w/ selection
@@ -327,18 +327,20 @@ accept model = Maybe.withDefault model <|
     \scope -> Term.set scope.focus model.term term `Maybe.andThen`
     \t2 -> Just <| clearScopeHistory { model | term <- t2 }
 
-openExplorer : Sink Field.Content -> Action
+openExplorer : Sink Field.Content -> (Int,Int) -> Action
 openExplorer = openExplorerWith Field.noContent
 
-openExplorerWith : Field.Content -> Sink Field.Content -> Action
-openExplorerWith content searchbox model =
+openExplorerWith : Field.Content -> Sink Field.Content -> (Int,Int) -> Action
+openExplorerWith content searchbox origin model =
   let zero = Maybe.map (\z -> { z | input <- content }) Explorer.zero
-      (req, m2) = openRequest { model | explorer <- zero
-                                      , localInfo <- Nothing
-                                      , searchResults <- Nothing
-                                      , explorerSelection <- 0
-                                      , literal <- Nothing }
-  in (req, refreshExplorer searchbox m2)
+      m2 = refreshPanel Nothing origin
+             { model | explorer <- zero
+                     , localInfo <- Nothing
+                     , searchResults <- Nothing
+                     , explorerSelection <- 0
+                     , literal <- Nothing }
+      (req, m2') = openRequest m2
+  in (req, refreshExplorer searchbox m2')
 
 -- todo: invalidate dependents and overrides if under the edit path
 
@@ -388,13 +390,12 @@ setSearchbox sink origin modifier content model =
                    |> clearScopeHistory
                    |> scopeMovement (Movement.D2 Movement.Zero Movement.Negative)
                    |> refreshPanel Nothing origin
-                   |> openExplorerWith (leftover (String.fromChar op)) sink
+                   |> openExplorerWith (leftover (String.fromChar op)) sink origin
                | op == ' ' ->
                  snd (action model)
                  |> accept
                  |> scopeMovement (Movement.D2 Movement.Positive Movement.Zero)
-                 |> refreshPanel Nothing origin
-                 |> openExplorer sink
+                 |> openExplorer sink origin
                | allowApplication model ->
                  snd (action model)
                    |> accept
@@ -405,8 +406,7 @@ setSearchbox sink origin modifier content model =
                    |> clearScopeHistory
                    |> scopeMovement (Movement.D2 Movement.Zero Movement.Negative)
                    |> scopeMovement (Movement.D2 Movement.Positive Movement.Zero)
-                   |> refreshPanel Nothing origin
-                   |> openExplorerWith (leftover (String.fromChar op)) sink
+                   |> openExplorerWith (leftover (String.fromChar op)) sink origin
                | otherwise -> let ex = Explorer.setInput content model.explorer
                               in action { model | explorer <- ex }
       literal e model =
@@ -457,15 +457,13 @@ refreshPanel searchbox origin model =
         { rootMetadata = model.rootMetadata
         , availableWidth = availableWidth - fst origin
         , metadata = metadata model
-        , overrides p =
-            let u = Debug.log "overrides p" p
-            in Trie.lookup p model.overrides
+        , overrides p = Trie.lookup p model.overrides
         , raw = Trie.empty }
       overrideFocus env availableWidth = Maybe.withDefault (env availableWidth) <|
         model.scope `Maybe.andThen`
           \scope -> model.explorer `Maybe.andThen`
           \_     -> let env0 = env availableWidth
-                    in Just { env0 | raw <- Trie.insert scope.focus () env0.raw }
+                    in Just { env0 | raw <- Debug.log "raw" (Trie.insert scope.focus () env0.raw )}
       layout = pin origin <| case model.availableWidth of
         Nothing -> layout0
         Just availableWidth -> View.layout model.term (overrideFocus env availableWidth)
@@ -727,8 +725,8 @@ main =
       ms = models inputs
                   (search2 (Signal.send inputs.searchbox) origin)
                   { model0 | term <- expr }
-      debug model =
-        model |> Debug.watchSummary "explorer" .explorer
-              |> Debug.watchSummary "status" .status
+      debug model = case model.scope of
+        Nothing -> model
+        Just scope -> let u = Debug.log "focus" scope.focus in model
       ms' = Signal.map debug ms
   in Signal.map view ms'
