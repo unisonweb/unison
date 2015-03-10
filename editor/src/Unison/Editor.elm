@@ -217,6 +217,12 @@ type Request
 
 type alias Action = Model -> (Maybe Request, Model)
 
+refreshEvaluations : Action
+refreshEvaluations model =
+  let go path = Maybe.map ((,) path) (Term.at (path `Path.snoc` Path.Arg) model.term)
+      paths = Trie.keys (View.reactivePaths model.term)
+  in (Just (Evaluations (List.filterMap go paths)), model)
+
 combine : Action -> Action -> Action
 combine f g model =
   let (req, m2) = f model
@@ -461,7 +467,9 @@ refreshPanel searchbox origin model =
         { rootMetadata = model.rootMetadata
         , availableWidth = availableWidth - fst origin
         , metadata = metadata model
-        , overrides p = Trie.lookup p model.evaluations
+        , overrides p = case model.raw of
+            Nothing -> Trie.lookup p model.evaluations
+            Just p' -> if p == p' then Nothing else Trie.lookup p model.evaluations
         , raw = case model.raw of Nothing -> Trie.empty
                                   Just p -> Trie.insert p () Trie.empty }
       layout = pin origin <| case model.availableWidth of
@@ -538,7 +546,7 @@ enter snk origin model = case model.explorer of
                                         , searchResults <- Nothing
                                         , explorerSelection <- 0 }
     in (req, refreshExplorer snk m2)
-  Just _ -> norequest (close origin model)
+  Just _ -> refreshEvaluations (close origin model)
 
 viewToggle : (Int,Int) -> Model -> Model
 viewToggle origin model = case model.explorer of
@@ -701,14 +709,16 @@ search2 searchbox origin reqs =
         Evaluations es -> Just es
         _ -> Nothing
       evaluations' =
-        let set model (path,old,new) cur = case Term.at path model.term of
+        let set model (path,old,new) cur = case Term.at (path `Path.snoc` Path.Arg) model.term of
               Nothing -> cur
               Just old' -> if old == old'
                            then Trie.insert path new cur
                            else cur
             go es model =
-              -- todo, don't start with Trie.empty once doing proper dep tracking
-              norequest { model | evaluations <- List.foldl (set model) Trie.empty es }
+              let u = Debug.log "got response" es
+              in -- todo, don't start with Trie.empty once doing proper dep tracking
+                norequest << refreshPanel (Just searchbox) origin <|
+                  { model | evaluations <- List.foldl (set model) Trie.empty es }
         in Signal.map evaluations reqs
            |> JR.send (Node.evaluateTerms host `JR.to` go) []
            |> Signal.map withStatus

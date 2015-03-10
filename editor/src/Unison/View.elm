@@ -1,4 +1,4 @@
-module Unison.View (Env, key, layout, layout', L) where
+module Unison.View (Env, key, layout, layout', L, reactivePaths) where
 
 import Array
 import Color
@@ -173,7 +173,12 @@ impl : Env
     -> Layout { path : Path, selectable : Bool }
 impl env allowBreak ambientPrec availableWidth cur =
   case env.overrides cur.path of
-    Just l -> impl env allowBreak ambientPrec availableWidth { cur | term <- l }
+    Just l -> let o p = if p == cur.path then Nothing else env.overrides p
+              in impl { env | overrides <- o }
+                      allowBreak
+                      ambientPrec
+                      availableWidth
+                      { cur | term <- l }
     Nothing -> case cur.term of
       Embed l -> l
       Var v -> codeText (resolveLocal "v" env.rootMetadata (cur.boundAt cur.path v)).name

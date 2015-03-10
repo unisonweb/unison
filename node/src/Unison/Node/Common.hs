@@ -65,12 +65,8 @@ node eval store =
 
     editType = error "Common.editType.todo"
 
-    evaluateTerms es = join <$> traverse go es
-      where go (path,e) =
-              maybe (pure [])
-                    (\e -> (\e' -> [(path,e,e')]) <$>
-                           (Eval.whnf eval (readTerm store) e))
-                    (Path.at path e)
+    evaluateTerms es = traverse go es
+      where go (path,e) = (\e' -> (path,e,e')) <$> Eval.whnf eval (readTerm store) e
 
     metadatas hs =
       M.fromList <$> sequence (map (\h -> (,) h <$> readMetadata store h) hs)

@@ -19,6 +19,9 @@ set v (Trie _ cs) = Trie (Just v) cs
 
 mergeDisjoint : Trie k v -> Trie k v -> Trie k v
 mergeDisjoint (Trie v1 t1) (Trie v2 t2) =
+--   if | Trie v2 t2 == empty -> Trie v1 t1
+--      | Trie v1 t1 == empty -> Trie v2 t2
+--      | otherwise ->
   Trie (Maybe.oneOf [v1,v2]) (t1 ++ t2)
 
 insert : List k -> v -> Trie k v -> Trie k v
@@ -49,6 +52,9 @@ contains k t = case lookup k t of
   Just _ -> True
 
 keys : Trie k v -> List (List k)
-keys (Trie _ cs) =
+keys (Trie v cs) =
   let f (k,t) = List.map ((::) k) (keys t)
-  in List.concatMap f cs
+      addroot = case v of
+        Nothing -> identity
+        Just _ -> \tl -> [] :: tl
+  in addroot (List.concatMap f cs)
