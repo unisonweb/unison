@@ -57,8 +57,7 @@ type alias Model =
   , rootMetadata : Metadata
   , metadata : Dict Reference.Key Metadata
   , availableWidth : Maybe Int
-  , dependents : Trie Path.E (List Path)
-  , overrides : Trie Path.E Term
+  , evaluations : Trie Path.E Term
   , raw : Maybe Path
   , hashes : Trie Path.E Hash
   , explorer : Explorer.Model
@@ -77,8 +76,7 @@ model0 =
   , rootMetadata = Metadata.anonymousTerm
   , metadata = Dict.empty
   , availableWidth = Nothing
-  , dependents = Trie.empty
-  , overrides = Trie.empty
+  , evaluations = Trie.empty
   , raw = Nothing
   , hashes = Trie.empty
   , explorer = Nothing
@@ -349,8 +347,6 @@ openExplorerWith content searchbox model =
                 , literal <- Nothing }
   in (req, refreshExplorer searchbox m2)
 
--- todo: invalidate dependents and overrides if under the edit path
-
 ops = Set.fromList (String.toList "!@#$%^&*-+|\\;.></`~")
 
 modifyFocus : (Term -> Term) -> Model -> Model
@@ -466,7 +462,7 @@ refreshPanel searchbox origin model =
         { rootMetadata = model.rootMetadata
         , availableWidth = availableWidth - fst origin
         , metadata = metadata model
-        , overrides p = Trie.lookup p model.overrides
+        , overrides p = Trie.lookup p model.evaluations
         , raw = case model.raw of Nothing -> Trie.empty
                                   Just p -> Trie.insert p () Trie.empty }
       layout = pin origin <| case model.availableWidth of

@@ -12,6 +12,8 @@ import Elmz.Json.Encoder (Encoder)
 import Elmz.Json.Encoder as Encoder
 import Elmz.Json.Decoder (Decoder)
 import Elmz.Json.Decoder as Decoder
+import Elmz.Trie (Trie)
+import Elmz.Trie as Trie
 import List
 import List ((::))
 import Maybe
@@ -201,6 +203,18 @@ trimTo goal e path =
   if | Maybe.withDefault False (Maybe.map goal (at path e)) -> Just path
      | path == [] -> Nothing
      | otherwise -> trimTo goal e (up path)
+
+{-| Return all paths into the term for which the focus matches the predicate. -}
+matchingPaths : (Term -> Bool) -> Term -> Trie Path.E ()
+matchingPaths ok e = (if ok e then Trie.set () else identity) <| case e of
+  App f arg -> Trie.cons Path.Fn (matchingPaths ok f) `Trie.mergeDisjoint`
+               Trie.cons Path.Arg (matchingPaths ok arg)
+  Vector es -> Array.toList es
+            |> List.indexedMap (\i e -> Trie.cons (Path.Index i) (matchingPaths ok e))
+            |> List.foldr Trie.mergeDisjoint Trie.empty
+  Ann e _ -> matchingPaths ok e
+  Lam body -> Trie.cons Path.Body (matchingPaths ok body)
+  _ -> Trie.empty
 
 decodeDistance : Decoder (Distance.Distance)
 decodeDistance = Decoder.union' <| \t ->

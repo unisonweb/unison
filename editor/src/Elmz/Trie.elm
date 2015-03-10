@@ -1,11 +1,25 @@
 module Elmz.Trie where
 
 import List
+import Maybe
 
 type Trie k v = Trie (Maybe v) (List (k, Trie k v))
 
 empty : Trie k v
 empty = Trie Nothing []
+
+leaf : v -> Trie k v
+leaf v = Trie (Just v) []
+
+cons : k -> Trie k v -> Trie k v
+cons hd t = Trie Nothing [(hd, t)]
+
+set : v -> Trie k v -> Trie k v
+set v (Trie _ cs) = Trie (Just v) cs
+
+mergeDisjoint : Trie k v -> Trie k v -> Trie k v
+mergeDisjoint (Trie v1 t1) (Trie v2 t2) =
+  Trie (Maybe.oneOf [v1,v2]) (t1 ++ t2)
 
 insert : List k -> v -> Trie k v -> Trie k v
 insert k v (Trie v0 children) = case k of
