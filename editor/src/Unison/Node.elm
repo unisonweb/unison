@@ -63,6 +63,11 @@ editType host = Request.post host "edit-type"
   (Encoder.tuple3 Path.encodePath A.encode T.encodeType)
   T.decodeType
 
+evaluateTerms : Host -> Request (List (Path, Term)) (List (Path,Term,Term))
+evaluateTerms host = Request.post host "evaluate-terms"
+  (Encoder.list (Encoder.tuple2 Path.encodePath E.encodeTerm))
+  (Decoder.list (Decoder.tuple3 Path.decodePath E.decodeTerm E.decodeTerm))
+
 type alias LocalInfo =
   { current : Type
   , admissible : Type

@@ -3,6 +3,7 @@ module Unison.Node.Common (node) where
 
 import Control.Applicative
 import Data.Traversable (traverse)
+import qualified Data.Foldable as Foldable
 import Data.List
 import Data.Ord
 import Debug.Trace
@@ -63,6 +64,13 @@ node eval store =
       (\e' -> (rootPath,e,e')) <$> TE.interpret eval (readTerm store) path action e
 
     editType = error "Common.editType.todo"
+
+    evaluateTerms es = join <$> traverse go es
+      where go (path,e) =
+              maybe (pure [])
+                    (\e -> (\e' -> [(path,e,e')]) <$>
+                           (Eval.whnf eval (readTerm store) e))
+                    (Path.at path e)
 
     metadatas hs =
       M.fromList <$> sequence (map (\h -> (,) h <$> readMetadata store h) hs)
@@ -139,6 +147,7 @@ node eval store =
        dependents
        edit
        editType
+       evaluateTerms
        localInfo
        metadatas
        search

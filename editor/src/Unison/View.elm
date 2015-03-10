@@ -415,3 +415,11 @@ builtins env allowBreak availableWidth ambientPrec cur =
     App (App (Ref (R.Builtin "View.view")) v) e -> go v e
     _ -> Nothing
 
+reactivePaths : Term -> Trie Path.E ()
+reactivePaths e =
+  let ok e = case e of
+    App (App (Ref (R.Builtin "View.cell")) (App (Ref (R.Builtin "View.reactive")) v)) e -> True
+    App (App (Ref (R.Builtin "View.view")) (App (Ref (R.Builtin "View.reactive")) v)) e -> True
+    _ -> False
+  in Term.matchingPaths ok e
+

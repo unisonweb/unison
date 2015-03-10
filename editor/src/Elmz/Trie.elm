@@ -47,3 +47,8 @@ contains : List k -> Trie k v -> Bool
 contains k t = case lookup k t of
   Nothing -> False
   Just _ -> True
+
+keys : Trie k v -> List (List k)
+keys (Trie _ cs) =
+  let f (k,t) = List.map ((::) k) (keys t)
+  in List.concatMap f cs

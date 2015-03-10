@@ -212,6 +212,7 @@ type Request
   | Search Term Path Int (Maybe Type) Metadata.Query -- global search for a given type
   | Declare Term
   | Edit Path Path Action.Action Term
+  | Evaluations (List (Path, Term))
   | Metadatas (List Reference)
 
 type alias Action = Model -> (Maybe Request, Model)
@@ -329,9 +330,7 @@ accept : Model -> Model
 accept model = Maybe.withDefault model <|
   Selection1D.index model.explorerSelection
                     (List.map fst (filteredCompletions model)) `Maybe.andThen`
-    \term -> model.scope `Maybe.andThen`
-    \scope -> Term.set scope.focus model.term term `Maybe.andThen`
-    \t2 -> Just <| clearScopeHistory { model | term <- t2 }
+    \term -> Just (clearScopeHistory (modifyFocus (always term) model))
 
 openExplorer : Sink Field.Content -> Action
 openExplorer = openExplorerWith Field.noContent
@@ -697,6 +696,22 @@ search2 searchbox origin reqs =
         in Signal.map edit reqs
            |> JR.send (Node.editTerm host `JR.to` go) ([],[],Action.Noop,model0.term)
            |> Signal.map withStatus
+      evaluations r = case r of
+        -- todo: reroot the request to point to tightest bound term
+        Evaluations es -> Just es
+        _ -> Nothing
+      evaluations' =
+        let set model (path,old,new) cur = case Term.at path model.term of
+              Nothing -> cur
+              Just old' -> if old == old'
+                           then Trie.insert path new cur
+                           else cur
+            go es model =
+              -- todo, don't start with Trie.empty once doing proper dep tracking
+              norequest { model | evaluations <- List.foldl (set model) Trie.empty es }
+        in Signal.map evaluations reqs
+           |> JR.send (Node.evaluateTerms host `JR.to` go) []
+           |> Signal.map withStatus
       metadatas r = case r of
         Metadatas rs -> Just rs
         _ -> Nothing
@@ -709,7 +724,11 @@ search2 searchbox origin reqs =
            |> JR.send (Node.metadatas host `JR.to` go) []
            |> Signal.map withStatus
       noop model = norequest model
-  in openEdit' `Signal.merge` metadatas' `Signal.merge` edit' `Signal.merge` search'
+  in openEdit' `Signal.merge`
+     metadatas' `Signal.merge`
+     edit' `Signal.merge`
+     search' `Signal.merge`
+     evaluations'
 
 main =
   let origin = (15,15)

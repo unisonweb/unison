@@ -37,15 +37,20 @@ data Node m k t e = Node {
   dependencies :: Maybe (S.Set k) -> k -> Noted m (S.Set k),
   -- | Lookup the set of terms/types depending directly on the given @k@, optionally limited to the given set
   dependents :: Maybe (S.Set k) -> k -> Noted m (S.Set k),
-  -- | Modify the given subterm, which may fail
+  -- | Modify the given subterm, which may fail. First argument is the root path.
+  -- Second argument is path relative to the root.
+  -- Returns (root path, original e, edited e)
   editTerm :: P.Path -> P.Path -> A.Action -> e -> Noted m (P.Path,e,e),
   -- | Modify the given type, which may fail
   editType :: P.Path -> A.Action -> t -> Noted m t,
+  -- Evaluate all terms, returning a list of (path, original e, evaluated e)
+  evaluateTerms :: [(P.Path, e)] -> Noted m [(P.Path,e,e)],
   -- | Returns ( current type
   --           , admissible type
   --           , local vars
   --           , well-typed applications of focus
   --           , well-typed expressions involving local vars )
+  -- | Modify the given subterm, which may fail. First argument is the root path.
   localInfo :: e -> P.Path -> Noted m (t, t, [e], [Int], [e]),
   -- | Access the metadata for the term and/or types identified by @k@
   metadatas :: [k] -> Noted m (Map k (MD.Metadata k)),

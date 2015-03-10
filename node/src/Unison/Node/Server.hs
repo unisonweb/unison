@@ -90,6 +90,10 @@ server port node = S.scotty port $ do
     (loc, a, t) <- S.jsonData
     t <- runN $ N.editType node loc a t
     S.json t
+  postRoute "/evaluate-terms" $ do
+    es <- S.jsonData
+    e <- runN $ N.evaluateTerms node es
+    S.json e
   postRoute "/local-info" $ do
     (e, path) <- S.jsonData
     t <- runN $ N.localInfo node e path
