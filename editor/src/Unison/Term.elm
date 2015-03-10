@@ -196,6 +196,12 @@ siblingL e p =
   in if increment (valid e) p2 == p then p2
      else p
 
+trimTo : (Term -> Bool) -> Term -> Path -> Maybe Path
+trimTo goal e path =
+  if | Maybe.withDefault False (Maybe.map goal (at path e)) -> Just path
+     | path == [] -> Nothing
+     | otherwise -> trimTo goal e (up path)
+
 decodeDistance : Decoder (Distance.Distance)
 decodeDistance = Decoder.union' <| \t ->
   if | t == "Pixel" -> Decoder.unit Distance.Pixel

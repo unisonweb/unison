@@ -59,6 +59,7 @@ type alias Model =
   , availableWidth : Maybe Int
   , dependents : Trie Path.E (List Path)
   , overrides : Trie Path.E Term
+  , raw : Maybe Path
   , hashes : Trie Path.E Hash
   , explorer : Explorer.Model
   , explorerSelection : Selection1D.Model
@@ -78,6 +79,7 @@ model0 =
   , availableWidth = Nothing
   , dependents = Trie.empty
   , overrides = Trie.empty
+  , raw = Nothing
   , hashes = Trie.empty
   , explorer = Nothing
   , explorerSelection = 0
@@ -246,25 +248,31 @@ click : Sink Field.Content -> (Int,Int) -> (Int,Int) -> Action
 click searchbox origin (x,y) model = case model.explorer of
   Nothing -> case Layout.leafAtPoint model.layouts.panel (Pt x y) of
     Nothing -> norequest model -- noop, user didn't click on anything!
-    Just node -> openExplorer searchbox origin model
+    Just node -> openExplorer searchbox model
   Just _ -> case Layout.leafAtPoint model.layouts.explorer (Pt x y) of
     Nothing -> norequest (closeExplorer model) -- treat this as a close event
     Just (Result.Ok i) -> norequest (close origin { model | explorerSelection <- i }) -- close w/ selection
     Just (Result.Err Inside) -> norequest model -- noop click inside explorer
     Just (Result.Err Outside) -> norequest (closeExplorer model) -- treat this as a close event
 
+setScope : Scope.Model -> Model -> Model
+setScope scope model = case (scope, model.raw) of
+  (Just scope, Just rawPath) ->
+    if Path.startsWith rawPath scope.focus
+    then { model | scope <- Just scope, raw <- Just rawPath }
+    else { model | scope <- Just scope, raw <- Nothing }
+  _ -> { model | scope <- scope, raw <- Nothing }
+
 moveMouse : (Int,Int) -> Action
 moveMouse xy model = case model.explorer of
   Nothing ->
     let scope = Scope.reset xy model.layouts.panel model.scope
-    in norequest <| { model | scope <- scope }
+    in norequest <| setScope scope model
   Just _ -> let e = Selection1D.reset xy model.layouts.explorer model.explorerSelection
             in norequest <| { model | explorerSelection <- e }
 
 scopeMovement : Movement.D2 -> Model -> Model
-scopeMovement d2 model =
-  let scope = Scope.movement model.term d2 model.scope
-  in { model | scope <- scope }
+scopeMovement d2 model = setScope (Scope.movement model.term d2 model.scope) model
 
 movement : Movement.D2 -> Model -> Model
 movement d2 model = case model.explorer of
@@ -327,20 +335,19 @@ accept model = Maybe.withDefault model <|
     \scope -> Term.set scope.focus model.term term `Maybe.andThen`
     \t2 -> Just <| clearScopeHistory { model | term <- t2 }
 
-openExplorer : Sink Field.Content -> (Int,Int) -> Action
+openExplorer : Sink Field.Content -> Action
 openExplorer = openExplorerWith Field.noContent
 
-openExplorerWith : Field.Content -> Sink Field.Content -> (Int,Int) -> Action
-openExplorerWith content searchbox origin model =
+openExplorerWith : Field.Content -> Sink Field.Content -> Action
+openExplorerWith content searchbox model =
   let zero = Maybe.map (\z -> { z | input <- content }) Explorer.zero
-      m2 = refreshPanel Nothing origin
-             { model | explorer <- zero
-                     , localInfo <- Nothing
-                     , searchResults <- Nothing
-                     , explorerSelection <- 0
-                     , literal <- Nothing }
-      (req, m2') = openRequest m2
-  in (req, refreshExplorer searchbox m2')
+      (req, m2) = openRequest
+        { model | explorer <- zero
+                , localInfo <- Nothing
+                , searchResults <- Nothing
+                , explorerSelection <- 0
+                , literal <- Nothing }
+  in (req, refreshExplorer searchbox m2)
 
 -- todo: invalidate dependents and overrides if under the edit path
 
@@ -390,12 +397,13 @@ setSearchbox sink origin modifier content model =
                    |> clearScopeHistory
                    |> scopeMovement (Movement.D2 Movement.Zero Movement.Negative)
                    |> refreshPanel Nothing origin
-                   |> openExplorerWith (leftover (String.fromChar op)) sink origin
+                   |> openExplorerWith (leftover (String.fromChar op)) sink
                | op == ' ' ->
                  snd (action model)
                  |> accept
                  |> scopeMovement (Movement.D2 Movement.Positive Movement.Zero)
-                 |> openExplorer sink origin
+                 |> refreshPanel Nothing origin
+                 |> openExplorer sink
                | allowApplication model ->
                  snd (action model)
                    |> accept
@@ -406,7 +414,8 @@ setSearchbox sink origin modifier content model =
                    |> clearScopeHistory
                    |> scopeMovement (Movement.D2 Movement.Zero Movement.Negative)
                    |> scopeMovement (Movement.D2 Movement.Positive Movement.Zero)
-                   |> openExplorerWith (leftover (String.fromChar op)) sink origin
+                   |> refreshPanel Nothing origin
+                   |> openExplorerWith (leftover (String.fromChar op)) sink
                | otherwise -> let ex = Explorer.setInput content model.explorer
                               in action { model | explorer <- ex }
       literal e model =
@@ -458,15 +467,11 @@ refreshPanel searchbox origin model =
         , availableWidth = availableWidth - fst origin
         , metadata = metadata model
         , overrides p = Trie.lookup p model.overrides
-        , raw = Trie.empty }
-      overrideFocus env availableWidth = Maybe.withDefault (env availableWidth) <|
-        model.scope `Maybe.andThen`
-          \scope -> model.explorer `Maybe.andThen`
-          \_     -> let env0 = env availableWidth
-                    in Just { env0 | raw <- Debug.log "raw" (Trie.insert scope.focus () env0.raw )}
+        , raw = case model.raw of Nothing -> Trie.empty
+                                  Just p -> Trie.insert p () Trie.empty }
       layout = pin origin <| case model.availableWidth of
         Nothing -> layout0
-        Just availableWidth -> View.layout model.term (overrideFocus env availableWidth)
+        Just availableWidth -> View.layout model.term (env availableWidth)
       layouts = model.layouts
       explorerRefresh = case searchbox of
         Nothing -> identity
@@ -540,6 +545,21 @@ enter snk origin model = case model.explorer of
     in (req, refreshExplorer snk m2)
   Just _ -> norequest (close origin model)
 
+viewToggle : (Int,Int) -> Model -> Model
+viewToggle origin model = case model.explorer of
+  -- this function is hideous
+  Just _ -> model
+  Nothing -> case model.scope of
+    Nothing -> model
+    Just scope -> case model.raw of
+      Nothing ->
+        let goal e = case e of
+          Term.App (Term.App (Term.Ref (Reference.Builtin "View.cell")) v) e -> True
+          Term.App (Term.App (Term.Ref (Reference.Builtin "View.view")) v) e -> True
+          _ -> False
+        in refreshPanel Nothing origin { model | raw <- Term.trimTo goal model.term scope.focus }
+      Just _ -> refreshPanel Nothing origin { model | raw <- Nothing }
+
 type alias Inputs =
   { origin : (Int,Int)
   , clicks : Signal ()
@@ -548,6 +568,7 @@ type alias Inputs =
   , edits : Signal Action.Action
   , deletes : Signal ()
   , preapplies : Signal ()
+  , viewToggles : Signal ()
   , modifier : Signal Bool -- generally shift
   , movements : Signal Movement.D2
   , searchbox : Signal.Channel Field.Content
@@ -576,6 +597,7 @@ actions ctx =
      Signal.map (preapplyf ctx.origin) ctx.preapplies `merge`
      Signal.map edit ctx.edits `merge`
      Signal.map (always (enter searchbox ctx.origin)) ctx.enters `merge`
+     Signal.map (always (viewToggle ctx.origin >> norequest)) ctx.viewToggles `merge`
      Signal.map moveMouse ctx.mouse `merge`
      Signals.map2r (setSearchbox searchbox ctx.origin) ctx.modifier content `merge`
      Signal.map (click searchbox ctx.origin) clickPositions
@@ -708,6 +730,7 @@ main =
                          keyEventAs Action.Eta 82 -- eta [r]educe
                , deletes = keyEvent 68
                , preapplies = keyEvent 65
+               , viewToggles = keyEvent 86 -- [v]iew toggle
                , movements = Movement.d2' Keyboard.arrows
                , searchbox = Signal.channel Field.noContent
                , width = Window.width }
@@ -727,6 +750,8 @@ main =
                   { model0 | term <- expr }
       debug model = case model.scope of
         Nothing -> model
-        Just scope -> let u = Debug.log "focus" scope.focus in model
+        Just scope -> let u = Debug.log "focus" scope.focus
+                          u2 = Debug.log "raw" model.raw
+                      in model
       ms' = Signal.map debug ms
   in Signal.map view ms'
