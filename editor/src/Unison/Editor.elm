@@ -221,7 +221,8 @@ refreshEvaluations : Action
 refreshEvaluations model =
   let go path = Maybe.map ((,) path) (Term.at (path `Path.snoc` Path.Arg) model.term)
       paths = Trie.keys (View.reactivePaths model.term)
-  in (Just (Evaluations (List.filterMap go paths)), model)
+  in if List.isEmpty paths then norequest model
+     else (Just (Evaluations (List.filterMap go paths)), model)
 
 combine : Action -> Action -> Action
 combine f g model =
