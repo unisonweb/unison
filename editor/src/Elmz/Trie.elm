@@ -19,10 +19,9 @@ set v (Trie _ cs) = Trie (Just v) cs
 
 mergeDisjoint : Trie k v -> Trie k v -> Trie k v
 mergeDisjoint (Trie v1 t1) (Trie v2 t2) =
---   if | Trie v2 t2 == empty -> Trie v1 t1
---      | Trie v1 t1 == empty -> Trie v2 t2
---      | otherwise ->
-  Trie (Maybe.oneOf [v1,v2]) (t1 ++ t2)
+   if | Trie v2 t2 == empty -> Trie v1 t1
+      | Trie v1 t1 == empty -> Trie v2 t2
+      | otherwise -> Trie (Maybe.oneOf [v1,v2]) (t1 ++ t2)
 
 insert : List k -> v -> Trie k v -> Trie k v
 insert k v (Trie v0 children) = case k of
