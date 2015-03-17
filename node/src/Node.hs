@@ -7,6 +7,7 @@ import Control.Applicative
 import Data.List
 import Data.Monoid
 import Data.Text (Text)
+import Data.Traversable
 import Unison.Edit.Term.Eval (Eval)
 import Unison.Node (Node)
 import qualified Unison.Node as Node
@@ -55,7 +56,7 @@ builtins =
     in (r, Nothing, unitT, prefix "()")
 
   , let r = R.Builtin "Color.rgba"
-    in (r, Nothing, num `arr` (num `arr` (num `arr` (num `arr` colorT))), prefix "rgba")
+    in (r, strict r 4, num `arr` (num `arr` (num `arr` (num `arr` colorT))), prefix "rgba")
 
   , let r = R.Builtin "Number.plus"
     in (r, Just (numeric2 (Term.Ref r) (+)), numOpTyp, opl 4 "+")
@@ -78,13 +79,13 @@ builtins =
     in (r, Nothing, alignmentT, prefixes ["center", "Text"])
 
   , let r = R.Builtin "View.cell"
-    in (r, Nothing, Type.forall1 $ \a -> view a `arr` (a `arr` cellT), prefix "cell")
+    in (r, strict r 2, Type.forall1 $ \a -> view a `arr` (a `arr` cellT), prefix "cell")
   , let r = R.Builtin "View.color"
     in (r, Nothing, colorT `arr` view cellT, prefix "color")
   , let r = R.Builtin "View.embed"
     in (r, Nothing, view cellT, prefix "embed")
   , let r = R.Builtin "View.fit-width"
-    in (r, Nothing, Type.forall1 $ \a -> distanceT `arr` view a, prefix "fit-width")
+    in (r, strict r 1, Type.forall1 $ \a -> distanceT `arr` view a, prefix "fit-width")
   , let r = R.Builtin "View.function1"
     in ( r
        , Nothing
@@ -95,21 +96,21 @@ builtins =
   , let r = R.Builtin "View.horizontal"
     in (r, Nothing, view (vec cellT), prefix "horizontal")
   , let r = R.Builtin "View.reactive"
-    in (r, Nothing, Type.forall1 $ \a -> view a `arr` view a, prefix "reactive")
+    in (r, Nothing, Type.forall1 view, prefix "reactive")
   , let r = R.Builtin "View.source"
-    in (r, Nothing, Type.forall1 $ \a -> view a, prefix "source")
+    in (r, Nothing, Type.forall1 view, prefix "source")
   , let r = R.Builtin "View.spacer"
-    in (r, Nothing, distanceT `arr` (num `arr` view unitT), prefix "spacer")
+    in (r, strict r 1, distanceT `arr` (num `arr` view unitT), prefix "spacer")
   , let r = R.Builtin "View.swatch"
     in (r, Nothing, view colorT, prefix "swatch")
   , let r = R.Builtin "View.text"
-    in (r, Nothing, styleT `arr` view str, prefix "text")
+    in (r, strict r 1, styleT `arr` view str, prefix "text")
   , let r = R.Builtin "View.textbox"
-    in (r, Nothing, alignmentT `arr` (distanceT `arr` (styleT `arr` view str)), prefix "textbox")
+    in (r, strict r 2, alignmentT `arr` (distanceT `arr` (styleT `arr` view str)), prefix "textbox")
   , let r = R.Builtin "View.vertical"
     in (r, Nothing, view (vec cellT), prefix "vertical")
   , let r = R.Builtin "View.view"
-    in (r, Nothing, Type.forall1 $ \a -> view a `arr` (a `arr` a), prefix "view")
+    in (r, strict r 1, Type.forall1 $ \a -> view a `arr` (a `arr` a), prefix "view")
   ]
   where
     alignmentT = Type.Unit (Type.Ref (R.Builtin "Alignment"))
@@ -126,6 +127,10 @@ builtins =
     unitT = Type.Unit (Type.Ref (R.Builtin "Unit"))
     vec a = Type.App (Type.Unit Type.Vector) a
     view a = Type.App (Type.Unit (Type.Ref (R.Builtin "View"))) a
+    strict r n = Just (I.Primop n f)
+      where f args = reapply <$> traverse whnf (take n args)
+                     where reapply args' = Term.Ref r `apps` args' `apps` drop n args
+            apps f args = foldl Term.App f args
 
 opl n s = Metadata Metadata.Term
                    (Metadata.Names [Metadata.Symbol s Metadata.InfixL n ])
