@@ -6,6 +6,7 @@ import Dict (Dict)
 import Elmz.Json.Request as JR
 import Elmz.Layout (Containment(Inside,Outside), Layout, Pt, Region)
 import Elmz.Layout as Layout
+import Elmz.List
 import Elmz.Maybe
 import Elmz.Movement as Movement
 import Elmz.Result
@@ -58,7 +59,7 @@ type alias Model =
   , metadata : Dict Reference.Key Metadata
   , availableWidth : Maybe Int
   , evaluations : Trie Path.E Term
-  , raw : Maybe Path
+  , raw : Bool
   , hashes : Trie Path.E Hash
   , explorer : Explorer.Model
   , explorerSelection : Selection1D.Model
@@ -77,7 +78,7 @@ model0 =
   , metadata = Dict.empty
   , availableWidth = Nothing
   , evaluations = Trie.empty
-  , raw = Nothing
+  , raw = False
   , hashes = Trie.empty
   , explorer = Nothing
   , explorerSelection = 0
@@ -262,12 +263,7 @@ click searchbox origin (x,y) model = case model.explorer of
     Just (Result.Err Outside) -> norequest (closeExplorer model) -- treat this as a close event
 
 setScope : Scope.Model -> Model -> Model
-setScope scope model = case (scope, model.raw) of
-  (Just scope, Just rawPath) ->
-    if Path.startsWith rawPath scope.focus
-    then { model | scope <- Just scope, raw <- Just rawPath }
-    else { model | scope <- Just scope, raw <- Nothing }
-  _ -> { model | scope <- scope, raw <- Nothing }
+setScope scope model = { model | scope <- scope }
 
 moveMouse : (Int,Int) -> Action
 moveMouse xy model = case model.explorer of
@@ -337,7 +333,7 @@ accept : Model -> Model
 accept model = Maybe.withDefault model <|
   Selection1D.index model.explorerSelection
                     (List.map fst (filteredCompletions model)) `Maybe.andThen`
-    \term -> Just (clearScopeHistory (modifyFocus (always term) model))
+    \term -> Just (clearEvaluations << clearScopeHistory << modifyFocus (always term) <| model)
 
 openExplorer : Sink Field.Content -> Action
 openExplorer = openExplorerWith Field.noContent
@@ -360,6 +356,9 @@ modifyFocus f model = Maybe.withDefault model <|
   model.scope `Maybe.andThen`
     \scope -> Term.modify scope.focus f model.term `Maybe.andThen`
     \term -> Just { model | term <- term }
+
+clearEvaluations : Model -> Model
+clearEvaluations model = { model | evaluations <- Trie.empty }
 
 clearScopeHistory : Model -> Model
 clearScopeHistory model = case model.scope of
@@ -468,11 +467,15 @@ refreshPanel searchbox origin model =
         { rootMetadata = model.rootMetadata
         , availableWidth = availableWidth - fst origin
         , metadata = metadata model
-        , overrides p = case model.raw of
-            Nothing -> Trie.lookup p model.evaluations
-            Just p' -> if p == p' then Nothing else Trie.lookup p model.evaluations
-        , raw = case model.raw of Nothing -> Trie.empty
-                                  Just p -> Trie.insert p () Trie.empty }
+        , overrides p =
+            if model.raw then Nothing
+            else Trie.lookup p model.evaluations
+        , raw = if not model.raw then Trie.empty
+                else case model.scope of
+                       Nothing -> Trie.insert [] () Trie.empty
+                       Just scope -> List.foldl (\p t -> Trie.insert p () t)
+                                                Trie.empty
+                                                (Elmz.List.prefixes scope.focus) }
       layout = pin origin <| case model.availableWidth of
         Nothing -> layout0
         Just availableWidth -> View.layout model.term (env availableWidth)
@@ -551,18 +554,8 @@ enter snk origin model = case model.explorer of
 
 viewToggle : (Int,Int) -> Model -> Model
 viewToggle origin model = case model.explorer of
-  -- this function is hideous
   Just _ -> model
-  Nothing -> case model.scope of
-    Nothing -> model
-    Just scope -> case model.raw of
-      Nothing ->
-        let goal e = case e of
-          Term.App (Term.App (Term.Ref (Reference.Builtin "View.cell")) v) e -> True
-          Term.App (Term.App (Term.Ref (Reference.Builtin "View.view")) v) e -> True
-          _ -> False
-        in refreshPanel Nothing origin { model | raw <- Term.trimTo goal model.term scope.focus }
-      Just _ -> refreshPanel Nothing origin { model | raw <- Nothing }
+  Nothing -> refreshPanel Nothing origin { model | raw <- not model.raw }
 
 type alias Inputs =
   { origin : (Int,Int)
