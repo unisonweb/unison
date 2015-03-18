@@ -101,7 +101,7 @@ metadata model r =
 incorporateMetadata : List (Reference.Key, Metadata) -> Model -> Model
 incorporateMetadata kvs model =
   let metadata' = List.foldl (\(k,v) dict -> Dict.insert k v dict) model.metadata kvs
-      keys = Debug.log "known-keys" (Dict.keys metadata')
+      keys = Dict.keys metadata'
   in { model | metadata <- metadata' }
 
 explorerViewEnv : Model -> View.Env
@@ -169,7 +169,7 @@ keyedCompletions model =
         currentApps = case Term.at scope.focus model.term of
           Nothing -> []
           Just cur -> (".", cur, Styles.currentSymbol) :: List.map (la cur) i.localApplications
-        ks = Debug.log "keys" (List.map (\(k,_,_) -> k) results)
+        ks = List.map (\(k,_,_) -> k) results
         results = currentApps
                ++ List.map (searchEntry model) regulars
                ++ keyedSearchMatches model
@@ -421,16 +421,15 @@ setSearchbox sink origin modifier content model =
                               in action { model | explorer <- ex }
       literal e model =
         norequest (refreshExplorer sink { model | literal <- Just e })
-      query string model' = case (Debug.log "model.searchResults" model.searchResults) of
+      query string model' = case model.searchResults of
         Nothing -> norequest (refreshExplorer sink model')
         Just results ->
           let oldQuery = explorerInput model -- not model'
               newQuery = explorerInput model'
-              complete = Debug.log "complete" (Node.areResultsComplete results)
+              complete = Node.areResultsComplete results
               -- Don't repeat the search unless necessary
               lastExamined = List.maximum (-1 :: results.positionsExamined)
-              ok = Debug.log "ok" <|
-                   -- we've added characters to search with complete results
+              ok = -- we've added characters to search with complete results
                    (complete && String.startsWith oldQuery newQuery) ||
                    -- we've deleted characters, but not past where we have complete results
                    (complete && String.startsWith newQuery oldQuery
@@ -768,8 +767,8 @@ main =
                   { model0 | term <- expr }
       debug model = case model.scope of
         Nothing -> model
-        Just scope -> let u = Debug.log "focus" scope.focus
-                          u2 = Debug.log "raw" model.raw
+        Just scope -> let u = () -- Debug.log "focus" scope.focus
+                          u2 = () -- Debug.log "raw" model.raw
                       in model
       ms' = Signal.map debug ms
   in Signal.map view ms'
