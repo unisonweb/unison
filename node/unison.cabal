@@ -125,10 +125,11 @@ executable node
     ghc-options: -funbox-strict-fields -O2
 
   build-depends:
-    unison,
-    text,
+    base,
     containers,
-    base
+    text,
+    unison,
+    vector
 
 test-suite properties
   type:           exitcode-stdio-1.0

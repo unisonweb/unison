@@ -206,15 +206,25 @@ trimTo goal e path =
 
 {-| Return all paths into the term for which the focus matches the predicate. -}
 matchingPaths : (Term -> Bool) -> Term -> Trie Path.E ()
-matchingPaths ok e = (if ok e then Trie.set () else identity) <| case e of
-  App f arg -> Trie.cons Path.Fn (matchingPaths ok f) `Trie.mergeDisjoint`
-               Trie.cons Path.Arg (matchingPaths ok arg)
-  Vector es -> Array.toList es
-            |> List.indexedMap (\i e -> Trie.cons (Path.Index i) (matchingPaths ok e))
-            |> List.foldr Trie.mergeDisjoint Trie.empty
-  Ann e _ -> matchingPaths ok e
-  Lam body -> Trie.cons Path.Body (matchingPaths ok body)
-  _ -> Trie.empty
+matchingPaths ok =
+  let ok' e = if ok e then Just () else Nothing
+  in collectPaths ok'
+
+{-| Extract information from all paths for which `ok` returns `Just`. -}
+collectPaths : (Term -> Maybe a) -> Term -> Trie Path.E a
+collectPaths ok e =
+  let add = case ok e of
+    Just a -> Trie.set a
+    Nothing -> identity
+  in add <| case e of
+    App f arg -> Trie.cons Path.Fn (collectPaths ok f) `Trie.mergeDisjoint`
+                 Trie.cons Path.Arg (collectPaths ok arg)
+    Vector es -> Array.toList es
+              |> List.indexedMap (\i e -> Trie.cons (Path.Index i) (collectPaths ok e))
+              |> List.foldr Trie.mergeDisjoint Trie.empty
+    Ann e _ -> collectPaths ok e
+    Lam body -> Trie.cons Path.Body (collectPaths ok body)
+    _ -> Trie.empty
 
 decodeDistance : Decoder (Distance.Distance)
 decodeDistance = Decoder.union' <| \t ->

@@ -8,6 +8,7 @@ import Data.List
 import Data.Monoid
 import Data.Text (Text)
 import Data.Traversable
+import qualified Data.Vector as Vector
 import Unison.Edit.Term.Eval (Eval)
 import Unison.Node (Node)
 import qualified Unison.Node as Node
@@ -58,6 +59,16 @@ builtins =
   , let r = R.Builtin "Color.rgba"
     in (r, strict r 4, num `arr` (num `arr` (num `arr` (num `arr` colorT))), prefix "rgba")
 
+  , let r = R.Builtin "Fixity.Prefix"
+    in (r, Nothing, fixityT, prefix "Prefix")
+  , let r = R.Builtin "Fixity.InfixL"
+    in (r, Nothing, fixityT, prefix "InfixL")
+  , let r = R.Builtin "Fixity.InfixR"
+    in (r, Nothing, fixityT, prefix "InfixR")
+
+  , let r = R.Builtin "Metadata.metadata"
+    in (r, strict r 2, vec symbolT `arr` (str `arr` metadataT), prefix "metadata")
+
   , let r = R.Builtin "Number.plus"
     in (r, Just (numeric2 (Term.Ref r) (+)), numOpTyp, opl 4 "+")
   , let r = R.Builtin "Number.minus"
@@ -67,8 +78,11 @@ builtins =
   , let r = R.Builtin "Number.divide"
     in (r, Just (numeric2 (Term.Ref r) (/)), numOpTyp, opl 5 "/")
 
-  , let r = R.Builtin "Text.append"
-    in (r, Just (string2 (Term.Ref r) mappend), strOpTyp, prefixes ["append", "Text"])
+  , let r = R.Builtin "Symbol.Symbol"
+    in (r, Nothing, str `arr` (fixityT `arr` (num `arr` symbolT)), prefix "Symbol")
+
+  , let r = R.Builtin "Text.concatenate"
+    in (r, Just (string2 (Term.Ref r) mappend), strOpTyp, prefixes ["concatenate", "Text"])
   , let r = R.Builtin "Text.left"
     in (r, Nothing, alignmentT, prefixes ["left", "Text"])
   , let r = R.Builtin "Text.right"
@@ -76,12 +90,56 @@ builtins =
   , let r = R.Builtin "Text.center"
     in (r, Nothing, alignmentT, prefixes ["center", "Text"])
   , let r = R.Builtin "Text.justify"
-    in (r, Nothing, alignmentT, prefixes ["center", "Text"])
+    in (r, Nothing, alignmentT, prefixes ["justify", "Text"])
+
+  , let r = R.Builtin "Vector.append"
+        op [last,init] = do
+          initr <- whnf init
+          pure $ case initr of
+            Term.Vector init -> Term.Vector (Vector.snoc init last)
+            init -> Term.Ref r `Term.App` last `Term.App` init
+        op _ = fail "Vector.append unpossible"
+    in (r, Just (I.Primop 2 op), Type.forall1 $ \a -> a `arr` (vec a `arr` vec a), prefix "append")
+  , let r = R.Builtin "Vector.concatenate"
+        op [a,b] = do
+          ar <- whnf a
+          br <- whnf b
+          pure $ case (a,b) of
+            (Term.Vector a, Term.Vector b) -> Term.Vector (a `mappend` b)
+            (a,b) -> Term.Ref r `Term.App` a `Term.App` b
+        op _ = fail "Vector.concatenate unpossible"
+    in (r, Just (I.Primop 2 op), Type.forall1 $ \a -> vec a `arr` (vec a `arr` vec a), prefix "concatenate")
+  , let r = R.Builtin "Vector.empty"
+        op [] = pure $ Term.Vector mempty
+        op _ = fail "Vector.empty unpossible"
+    in (r, Just (I.Primop 0 op), Type.forall1 vec, prefix "empty")
+  , let r = R.Builtin "Vector.map"
+        op [f,vec] = do
+          vecr <- whnf vec
+          pure $ case vecr of
+            Term.Vector vs -> Term.Vector (fmap (Term.App f) vs)
+            _ -> Term.Ref r `Term.App` vecr
+        op _ = fail "Vector.map unpossible"
+    in (r, Just (I.Primop 2 op), Type.forall2 $ \a b -> (a `arr` b) `arr` (vec a `arr` vec b), prefix "map")
+  , let r = R.Builtin "Vector.prepend"
+        op [hd,tl] = do
+          tlr <- whnf tl
+          pure $ case tlr of
+            Term.Vector tl -> Term.Vector (Vector.cons hd tl)
+            tl -> Term.Ref r `Term.App` hd `Term.App` tl
+        op _ = fail "Vector.prepend unpossible"
+    in (r, Just (I.Primop 2 op), Type.forall1 $ \a -> a `arr` (vec a `arr` vec a), prefix "prepend")
+  , let r = R.Builtin "Vector.single"
+        op [hd] = pure $ Term.Vector (pure hd)
+        op _ = fail "Vector.single unpossible"
+    in (r, Just (I.Primop 1 op), Type.forall1 $ \a -> a `arr` vec a, prefix "single")
 
   , let r = R.Builtin "View.cell"
     in (r, strict r 2, Type.forall1 $ \a -> view a `arr` (a `arr` cellT), prefix "cell")
   , let r = R.Builtin "View.color"
     in (r, Nothing, colorT `arr` view cellT, prefix "color")
+  , let r = R.Builtin "View.declare"
+    in (r, strict r 1, Type.forall1 $ \a -> str `arr` (a `arr` cellT), prefix "declare")
   , let r = R.Builtin "View.embed"
     in (r, Nothing, view cellT, prefix "embed")
   , let r = R.Builtin "View.fit-width"
@@ -113,7 +171,10 @@ builtins =
     in (r, strict r 1, Type.forall1 $ \a -> view a `arr` (a `arr` a), prefix "view")
   ]
   where
+    fixityT = Type.Unit (Type.Ref (R.Builtin "Fixity"))
+    symbolT = Type.Unit (Type.Ref (R.Builtin "Symbol"))
     alignmentT = Type.Unit (Type.Ref (R.Builtin "Alignment"))
+    metadataT = Type.Unit (Type.Ref (R.Builtin "Metadata"))
     arr = Type.Arrow
     cellT = Type.Unit (Type.Ref (R.Builtin "Cell"))
     colorT = Type.Unit (Type.Ref (R.Builtin "Color"))

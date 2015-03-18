@@ -765,8 +765,7 @@ main =
         let ignore action model = snd (action model)
         in Signal.map ignore actions
       ap = Term.App
-      expr =
-        Terms.vec []
+      expr = Term.Blank
       --  Term.Lam (Term.Lam (Term.Var 1) `ap` Term.Lam (Term.Var 2))
       -- Terms.swatch
       -- expr = Term.Lam (Term.Lam (Term.Var 2)) `ap` Terms.int 42 `ap` Terms.str "hello"

@@ -398,6 +398,7 @@ builtins env allowBreak availableWidth ambientPrec cur =
           let f i e = impl env allowBreak ambientPrec availableWidth
                       { cur | path <- cur.path `append` [Arg, Path.Index i], term <- e }
           in Just (L.vertical (tag (cur.path `snoc` Arg)) (List.indexedMap f (Array.toList es)))
+        _ -> Nothing
       Ref (R.Builtin "View.embed") -> builtins env allowBreak availableWidth ambientPrec
                                    { cur | path <- cur.path `snoc` Arg, term <- e }
       Ref (R.Builtin "View.wrap") -> case e of
@@ -428,3 +429,9 @@ reactivePaths e =
     _ -> False
   in Term.matchingPaths ok e
 
+declaredPaths : Term -> Trie Path.E String
+declaredPaths e =
+  let ok e = case e of
+    App (App (Ref (R.Builtin "View.declare")) (Lit (Str s))) e -> Just s
+    _ -> Nothing
+  in Term.collectPaths ok e

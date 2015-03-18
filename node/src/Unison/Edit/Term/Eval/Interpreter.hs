@@ -24,15 +24,16 @@ watch msg a = trace (msg ++ ": " ++ show a) a
 eval :: (Applicative f, Monad f) => Map R.Reference (Primop f) -> Eval f
 eval env = Eval whnf step
   where
+    reduce x args | trace ("reduce:" ++ show (x:args)) False = undefined
     reduce (E.Lam _) [] = return Nothing
     reduce e@(E.Lam _) (arg1:args) =
       return $ let r = watch "reduced" $ E.betaReduce' (E.App e arg1)
                in Just (foldl E.App r args)
-    reduce (E.App (E.Ref h) x) args = case M.lookup h env of
+    reduce (E.Ref h) args = case M.lookup h env of
       Nothing -> return Nothing
-      Just op | length (x:args) >= arity op ->
-        call op (take (arity op) (x:args)) >>= \e ->
-          return . Just $ foldl E.App e (drop (arity op) (x:args))
+      Just op | length args >= arity op ->
+        call op (take (arity op) args) >>= \e ->
+          return . Just $ foldl E.App e (drop (arity op) args)
       Just _ | otherwise -> return Nothing
     reduce (E.App f x) args = reduce f (x:args)
     reduce _ _ = return Nothing
@@ -42,7 +43,10 @@ eval env = Eval whnf step
         f' <- E.link resolveRef f
         e' <- reduce f' [x]
         maybe (return e) return e'
-      E.Ref h -> E.link resolveRef (E.Ref h)
+      E.Ref h -> do
+        f <- E.link resolveRef (E.Ref h)
+        e <- reduce f []
+        maybe (return f) return e
       _ -> return e
 
     whnf resolveRef e = case e of

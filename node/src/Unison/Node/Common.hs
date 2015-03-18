@@ -101,7 +101,7 @@ node eval store =
       do
         hs <- hashes store Nothing
         tmatches <- do es <- traverse elaborate (S.toList hs)
-                       watch "search.tmatches\n" <$> filterM typeOk (join es)
+                       filterM typeOk (join es)
         qmatches <- filterM queryOk tmatches
         qmatches' <- filterM queryOk (map E.Ref (S.toList hs))
         illtypedQmatches <-
