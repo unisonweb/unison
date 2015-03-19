@@ -52,8 +52,11 @@ unit : o -> Moore i o
 unit o = Moore (always True) o (always (unit o))
 
 map2 : (o1 -> o2 -> o3) -> Moore i o1 -> Moore i o2 -> Moore i o3
-map2 f (Moore same1 o1 k1) (Moore same2 o2 k2) =
-  Moore (\i -> same1 i && same2 i) (f o1 o2) (\i -> map2 f (k1 i) (k2 i))
+map2 f ((Moore same1 o1 k1) as m1) ((Moore same2 o2 k2) as m2) =
+  Moore (\i -> same1 i && same2 i)
+        (f o1 o2)
+        (\i -> map2 f (if same1 i then m1 else k1 i)
+                      (if same2 i then m2 else k2 i))
 
 ap : Moore i (a -> b) -> Moore i a -> Moore i b
 ap = map2 (<|)
