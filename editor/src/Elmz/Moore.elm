@@ -36,7 +36,7 @@ moore o k = Moore (always False) o k
 
 {-| A machine which stays in the same state whenever the input matches the predicate. -}
 skips : (i -> Bool) -> Moore i o -> Moore i o
-skips f (Moore same o k) = Moore (\i -> f i || same i) o (k >> skip f)
+skips f (Moore same o k) = Moore (\i -> f i || same i) o (k >> skips f)
 
 {-| Like `skips`, but only skips up to the first transition to a new state. -}
 skip : (i -> Bool) -> Moore i o -> Moore i o
@@ -64,11 +64,43 @@ ap = map2 (<|)
 emit : o -> Moore i o -> Moore i o
 emit oz (Moore same o k) = Moore same oz (k >> emit o)
 
+echo : o -> Moore o o
+echo o = moore o echo
+
+echo' : Moore (Maybe a) (Maybe a)
+echo' = echo Nothing
+
+dropRepeats : o -> Moore o o
+dropRepeats prev = Moore ((==) prev) prev dropRepeats
+
+changesBy : (a -> a -> Maybe b) -> Moore a (Maybe b)
+changesBy f =
+  let prev = contramap Just (emit Nothing echo')
+      cur = contramap Just echo'
+      g prev cur = case (prev,cur) of
+        (Just a, Just a2) -> f a a2
+        _ -> Nothing
+  in map2 g prev cur
+
 pipe : Moore a b -> Moore b c -> Moore a c
 pipe (Moore same1 b k1) (Moore same2 c k2) =
   let step a = k1 a `pipe` k2 b
       same a = same1 a && same2 b
   in Moore same c step
+
+split : Moore a b -> Moore a (b,b)
+split = map (\b -> (b,b))
+
+pipe1 : Moore a (b,c) -> Moore b b2 -> Moore a (b2,c)
+pipe1 (Moore same1 (b,c) k1) (Moore same2 b2 k2) =
+  let step a = k1 a `pipe1` k2 b
+      same a = same1 a && same2 b
+  in Moore same (b2,c) step
+
+pipe2 : Moore a (b,c) -> Moore c c2 -> Moore a (b,c2)
+pipe2 i c =
+  let swap (a,b) = (b,a)
+  in map swap (pipe1 (map swap i) c)
 
 loop : Moore (a,c) (b,c) -> Moore a b
 loop (Moore s (b,c) k) =
@@ -91,6 +123,16 @@ either (Moore samei xy ki) left right =
         Err x -> extract left
         Ok y -> extract right
   in Moore same o st
+
+focus : (a -> Maybe b) -> Moore b c -> Moore a c
+focus f ((Moore same o k) as m) =
+  let same' a = case f a of
+        Nothing -> True
+        Just _ -> True
+      k' a = case f a of
+        Nothing -> focus f m
+        Just b -> focus f (k b)
+  in Moore same' o k'
 
 {-| Run the first argument until it emits `Err s`, then switch permanently to `f s`. -}
 bind : Moore a (Result s b) -> (s -> Moore a b) -> Moore a b
