@@ -3,75 +3,63 @@ module Elmz.Moore where
 import Signal
 import Signal ((<~), (~), foldp, Signal)
 import List ((::))
+import Maybe
 
-type Moore i o = Moore (i -> Bool) o (i -> Moore i o)
-
-transform : Moore i o -> Signal i -> Signal o
-transform m i =
-  let s i m = if steady m i then m else step m i
-  in extract <~ foldp s m i
-
-{-| Unlike `transform`, only emits events when the input transitions to a new state. -}
-transitions : Moore i o -> Signal i -> Signal o
-transitions m i =
-  let s i (m,_) = if steady m i then (m,False) else (step m i,True)
-      states = foldp s (m,True) i
-      changes = Signal.map snd states
-  in Signal.keepWhen changes (extract m) ((extract << fst) <~ states)
+type Moore i o = Moore o (i -> Maybe (Moore i o))
 
 extract : Moore i o -> o
-extract (Moore _ o _) = o
+extract (Moore o _) = o
 
-step : Moore i o -> (i -> Moore i o)
-step (Moore _ _ k) = k
-
-steady : Moore i o -> i -> Bool
-steady (Moore same _ _) = same
+step : Moore i o -> (i -> Maybe (Moore i o))
+step (Moore _ k) = k
 
 duplicate : Moore i o -> Moore i (Moore i o)
-duplicate m = Moore (steady m) m (step m >> duplicate)
+duplicate m = Moore m (\i -> Maybe.map duplicate (step m i))
 
 moore : o -> (i -> Moore i o) -> Moore i o
-moore o k = Moore (always False) o k
-
-{-| A machine which stays in the same state whenever the input matches the predicate. -}
-skips : (i -> Bool) -> Moore i o -> Moore i o
-skips f (Moore same o k) = Moore (\i -> f i || same i) o (k >> skips f)
-
-{-| Like `skips`, but only skips up to the first transition to a new state. -}
-skip : (i -> Bool) -> Moore i o -> Moore i o
-skip f (Moore same o k) = Moore (\i -> f i || same i) o k
+moore o k = Moore o (k >> Just)
 
 contramap : (i0 -> i) -> Moore i o -> Moore i0 o
-contramap f (Moore same o k) = Moore (f >> same) o (f >> k >> contramap f)
+contramap f (Moore o k) = Moore o (\i -> Maybe.map (contramap f) (k (f i)))
 
 map : (o -> o2) -> Moore i o -> Moore i o2
-map f (Moore same o k) = Moore same (f o) (k >> map f)
+map f (Moore o k) = Moore (f o) (\i -> Maybe.map (map f) (k i))
 
 unit : o -> Moore i o
-unit o = Moore (always True) o (always (unit o))
+unit o = Moore o (always Nothing)
 
 map2 : (o1 -> o2 -> o3) -> Moore i o1 -> Moore i o2 -> Moore i o3
-map2 f ((Moore same1 o1 k1) as m1) ((Moore same2 o2 k2) as m2) =
-  Moore (\i -> same1 i && same2 i)
-        (f o1 o2)
-        (\i -> map2 f (if same1 i then m1 else k1 i)
-                      (if same2 i then m2 else k2 i))
+map2 f ((Moore o1 k1) as m1) ((Moore o2 k2) as m2) =
+  Moore (f o1 o2)
+        (\i -> case (k1 i, k2 i) of
+          (Nothing, Nothing) -> Nothing
+          (m1', m2') -> Just <|
+            map2 f (Maybe.withDefault m1 m1')
+                   (Maybe.withDefault m2 m2'))
 
 ap : Moore i (a -> b) -> Moore i a -> Moore i b
 ap = map2 (<|)
 
 emit : o -> Moore i o -> Moore i o
-emit oz (Moore same o k) = Moore same oz (k >> emit o)
-
-withInput : i -> Moore i o -> Moore i (i,o)
-withInput i0 m = map2 (,) (echo i0) m
+emit oz (Moore o k) = Moore oz (\i -> Maybe.map (emit o) (k i))
 
 echo : o -> Moore o o
 echo o = moore o echo
 
 echo' : Moore (Maybe a) (Maybe a)
 echo' = echo Nothing
+
+pipe : Moore a b -> Moore b c -> Moore a c
+pipe (Moore b k1) (Moore c k2) =
+  let step a = k1 a `Maybe.andThen` \m1 -> Maybe.map (pipe m1) (k2 b)
+  in Moore c step
+
+split : Moore a b -> Moore a (b,b)
+split = map (\b -> (b,b))
+
+{-
+withInput : i -> Moore i o -> Moore i (i,o)
+withInput i0 m = map2 (,) (echo i0) m
 
 dropRepeats : o -> Moore o o
 dropRepeats prev = Moore ((==) prev) prev dropRepeats
@@ -84,15 +72,6 @@ changesBy f =
         (Just a, Just a2) -> f a a2
         _ -> Nothing
   in map2 g prev cur
-
-pipe : Moore a b -> Moore b c -> Moore a c
-pipe (Moore same1 b k1) (Moore same2 c k2) =
-  let step a = k1 a `pipe` k2 b
-      same a = same1 a && same2 b
-  in Moore same c step
-
-split : Moore a b -> Moore a (b,b)
-split = map (\b -> (b,b))
 
 pipe1 : Moore a (b,c) -> Moore b b2 -> Moore a (b2,c)
 pipe1 (Moore same1 (b,c) k1) (Moore same2 b2 k2) =
@@ -142,3 +121,18 @@ bind : Moore a (Result s b) -> (s -> Moore a b) -> Moore a b
 bind (Moore same sb k) f = case sb of
   Err s -> f s
   Ok b -> Moore same b (\a -> bind (k a) f)
+
+transform : Moore i o -> Signal i -> Signal o
+transform m i =
+  let s i m = if steady m i then m else step m i
+  in extract <~ foldp s m i
+
+{-| Unlike `transform`, only emits events when the input transitions to a new state. -}
+transitions : Moore i o -> Signal i -> Signal o
+transitions m i =
+  let s i (m,_) = if steady m i then (m,False) else (step m i,True)
+      states = foldp s (m,True) i
+      changes = Signal.map snd states
+  in Signal.keepWhen changes (extract m) ((extract << fst) <~ states)
+
+-}
