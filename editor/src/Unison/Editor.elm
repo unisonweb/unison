@@ -1,8 +1,11 @@
 module Unison.Editor where
 
 import Debug
+import Elmz.Layout (Containment(Inside,Outside), Layout, Pt, Region)
+import Elmz.Layout as Layout
 import Elmz.Moore (Moore)
 import Elmz.Moore as M
+import Elmz.Mealy (Mealy)
 import Graphics.Element (Element)
 import Graphics.Element as Element
 import Unison.Action as Action
@@ -60,27 +63,54 @@ accepts =
         _ -> Nothing
   in M.changesBy f
 
+-- switch to Mealy
+
 editor : Term -> Moore (Either Input Response) (Element, List Request)
 editor t0 =
   let
-    terms : Moore (Path, Term -> Term) Term
-    terms = term t0
+    term' : Moore (Path, Term -> Term) Term
+    term' = term t0
+
+    viewEnv0 : View.Env
+    viewEnv0 = todo
+
+    termWithLayout : Moore (View.Env, (Path, Term -> Term)) (Term, Layout View.L)
+    termWithLayout = todo
+      --let ts : Moore (View.Env, (Path, Term -> Term)) Term
+      --    ts = M.contramap snd term'
+      --    ts' : Moore (View.Env, (Path, Term -> Term)) (View.Env, Term)
+      --    ts' = M.withInput (viewEnv0, [], identity) ts
+      --       |> M.map (\((env,_,_), t) -> (env,t))
+      --in M.split ts' `M.pipe2` layoutTerm
+      --   |> M.map (\((_,t), l) -> (t,l))
   in
-    Debug.crash "todo"
+    todo
+
+--
+viewEnv : Moore Response View.Env
+viewEnv = todo --
 
 term : Term -> Moore (Path, Term -> Term) Term
 term t0 = editable Term.modify t0
 
-selection : Moore (Input, Term) Path
-selection = Debug.crash "todo"
+todo = Debug.crash "todo"
+
+layoutTerm : Moore (View.Env, Term) (Layout View.L)
+layoutTerm = todo
+
+selection : Moore (Input, (Layout View.L, Term)) Path
+selection = todo
+
+highlightLayer : Moore (Path, Layout View.L) Element
+highlightLayer = todo
 
 editable : (k -> (v -> v) -> kvs -> Maybe kvs)
         -> kvs
         -> Moore (k, v -> v) kvs
-editable _ _ = Debug.crash "todo"
+editable _ _ = todo
 
 explorer : Moore (Either Input Response) (Element, List Request, Mode (Term -> Term))
-explorer = Debug.crash "todo"
+explorer = todo
 
 {-
 Moore (Input, Response) (Element, Request)

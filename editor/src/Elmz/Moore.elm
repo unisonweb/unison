@@ -64,6 +64,9 @@ ap = map2 (<|)
 emit : o -> Moore i o -> Moore i o
 emit oz (Moore same o k) = Moore same oz (k >> emit o)
 
+withInput : i -> Moore i o -> Moore i (i,o)
+withInput i0 m = map2 (,) (echo i0) m
+
 echo : o -> Moore o o
 echo o = moore o echo
 
