@@ -4,7 +4,8 @@ import Debug
 import Elmz.Layout (Containment(Inside,Outside), Layout, Pt, Region)
 import Elmz.Layout as Layout
 import Elmz.Moore (Moore)
-import Elmz.Moore as M
+import Elmz.Moore as Moore
+import Elmz.Mealy as M
 import Elmz.Mealy (Mealy)
 import Graphics.Element (Element)
 import Graphics.Element as Element
@@ -54,40 +55,36 @@ type Mode a
 
 type alias Either a b = Result a b
 
--- todo - implement this
-
-accepts : Moore (Mode a) (Maybe a)
+accepts : Mealy (Mode a) (Maybe a)
 accepts =
   let f prev cur = case (prev,cur) of
         (Open a, Closed) -> Just a
         _ -> Nothing
   in M.changesBy f
 
--- switch to Mealy
-
 editor : Term -> Moore (Either Input Response) (Element, List Request)
 editor t0 =
   let
-    term' : Moore (Path, Term -> Term) Term
-    term' = term t0
+    term' : Mealy (Path, Term -> Term) Term
+    term' = Moore.feed (term t0)
 
-    viewEnv0 : View.Env
-    viewEnv0 = todo
+    termWithLayout : Mealy (View.Env, (Path, Term -> Term)) (Term, Layout View.L)
+    termWithLayout =
+      let f (env, term) = (term, View.layout term env)
+      in M.map f (M.second term')
 
-    termWithLayout : Moore (View.Env, (Path, Term -> Term)) (Term, Layout View.L)
-    termWithLayout = todo
-      --let ts : Moore (View.Env, (Path, Term -> Term)) Term
-      --    ts = M.contramap snd term'
-      --    ts' : Moore (View.Env, (Path, Term -> Term)) (View.Env, Term)
-      --    ts' = M.withInput (viewEnv0, [], identity) ts
-      --       |> M.map (\((env,_,_), t) -> (env,t))
-      --in M.split ts' `M.pipe2` layoutTerm
-      --   |> M.map (\((_,t), l) -> (t,l))
+    termWithLayout' : Mealy (Response, (Path, Term -> Term)) (Term, Layout View.L)
+    termWithLayout' =
+      M.first viewEnv `M.pipe` termWithLayout
+    -- explorer : Mealy (Either Input Response) (Element, List Request, Mode (Term -> Term))
+
+    -- highlightedTermWithLayout : Mealy (View.Env, (Path, Term -> Term), )
   in
     todo
 
+    -- term = { loc : Path, action : Term -> Term, term : Term } -> Term
 --
-viewEnv : Moore Response View.Env
+viewEnv : Mealy Response View.Env
 viewEnv = todo --
 
 term : Term -> Moore (Path, Term -> Term) Term
@@ -95,13 +92,10 @@ term t0 = editable Term.modify t0
 
 todo = Debug.crash "todo"
 
-layoutTerm : Moore (View.Env, Term) (Layout View.L)
-layoutTerm = todo
-
-selection : Moore (Input, (Layout View.L, Term)) Path
+selection : Moore (Input, (Term, Layout View.L)) (Maybe Path)
 selection = todo
 
-highlightLayer : Moore (Path, Layout View.L) Element
+highlightLayer : Mealy (Maybe Path, Layout View.L) Element
 highlightLayer = todo
 
 editable : (k -> (v -> v) -> kvs -> Maybe kvs)
@@ -109,7 +103,7 @@ editable : (k -> (v -> v) -> kvs -> Maybe kvs)
         -> Moore (k, v -> v) kvs
 editable _ _ = todo
 
-explorer : Moore (Either Input Response) (Element, List Request, Mode (Term -> Term))
+explorer : Mealy (Either Input Response) (Element, List Request, Mode (Term -> Term))
 explorer = todo
 
 {-
