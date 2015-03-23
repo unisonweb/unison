@@ -86,6 +86,21 @@ split = map (\b -> (b,b))
 step : Moore i o -> i -> Maybe (Moore i o)
 step (Moore _ k) = k
 
+transform : Moore i o -> Signal i -> Signal o
+transform m i =
+  let s i m = feed m i
+  in extract <~ foldp s m i
+
+{-| Unlike `transform`, only emits events when the input transitions to a new state. -}
+transitions : Moore i o -> Signal i -> Signal o
+transitions m i =
+  let s i (m,_) = case step m i of
+        Nothing -> (m, False)
+        Just m2 -> (m2, True)
+      states = foldp s (m, True) i
+      changes = Signal.map snd states
+  in Signal.keepWhen changes (extract m) ((extract << fst) <~ states)
+
 unit : o -> Moore i o
 unit o = Moore o (always Nothing)
 
@@ -117,18 +132,5 @@ bind : Moore a (Result s b) -> (s -> Moore a b) -> Moore a b
 bind (Moore same sb k) f = case sb of
   Err s -> f s
   Ok b -> Moore same b (\a -> bind (k a) f)
-
-transform : Moore i o -> Signal i -> Signal o
-transform m i =
-  let s i m = if steady m i then m else step m i
-  in extract <~ foldp s m i
-
-{-| Unlike `transform`, only emits events when the input transitions to a new state. -}
-transitions : Moore i o -> Signal i -> Signal o
-transitions m i =
-  let s i (m,_) = if steady m i then (m,False) else (step m i,True)
-      states = foldp s (m,True) i
-      changes = Signal.map snd states
-  in Signal.keepWhen changes (extract m) ((extract << fst) <~ states)
 
 -}
