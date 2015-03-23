@@ -3,11 +3,15 @@ module Elmz.Mealy where
 import Debug
 import Elmz.Moore (Moore)
 import Elmz.Moore as M
+import Maybe
 
 type alias Mealy i o = i -> Moore i o
 
 ap : Mealy i (a -> b) -> Mealy i a -> Mealy i b
 ap = map2 (<|)
+
+both : Mealy a1 b1 -> Mealy a2 b2 -> Mealy (a1,a2) (b1,b2)
+both m1 m2 = first m1 `pipe` second m2
 
 changesBy : (a -> a -> Maybe b) -> Mealy a (Maybe b)
 changesBy f = M.feed (M.changesBy f)
@@ -17,6 +21,10 @@ delay a0 a = moore a0 (delay a)
 
 echo : Mealy a a
 echo = lift identity
+
+focus : (a -> Maybe b) -> b -> Mealy b c -> Mealy a c
+focus f b m a =
+  M.focus f (m (Maybe.withDefault b (f a)))
 
 first : Mealy a b -> Mealy (a,c) (b,c)
 first m (a,c) =
@@ -42,6 +50,9 @@ mealy = identity
 
 moore : o -> Mealy i o -> Moore i o
 moore = M.moore
+
+peek : Mealy a b -> Mealy a (a,b)
+peek m = map2 (,) echo m
 
 pipe : Mealy a b -> Mealy b c -> Mealy a c
 pipe ab bc a =
