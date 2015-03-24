@@ -13,7 +13,7 @@ import Unison.Term (Term)
 import String
 import Set
 
-parser : { literal : Term.Literal -> a
+parser : { literal : Term -> a
          , query : String -> a
          , combine : a -> Char -> a }
       -> Parser a
@@ -30,11 +30,14 @@ parser env =
 space = Parser.satisfy ((==) ' ')
 
 parse :
-  { literal : Term.Literal -> a
+  { literal : Term -> a
   , query : String -> a
   , combine : a -> Char -> a }
   -> String -> Result String a
 parse env = Parser.parse (parser env)
+
+parseTerm : String -> Result String Term
+parseTerm = Parser.parse literal
 
 operator : Parser Char
 operator =
@@ -44,28 +47,32 @@ operator =
 spaces : Parser ()
 spaces = () <$ Parser.some (Parser.satisfy ((==) ' '))
 
-literal : Parser Term.Literal
-literal = Parser.choice [ distance, float, int, string, openString ]
+literal : Parser Term
+literal =
+  Parser.choice [ blank, distance, float, int, string, openString ]
 
-int : Parser Term.Literal
-int = Parser.map (Term.Number << toFloat) Parser.Number.integer
+blank : Parser Term
+blank = Parser.map (always Term.Blank) (Parser.symbol '_')
 
-float : Parser Term.Literal
-float = Parser.map Term.Number Parser.Number.float
+int : Parser Term
+int = Parser.map (Term.Lit << Term.Number << toFloat) Parser.Number.integer
 
-string : Parser Term.Literal
+float : Parser Term
+float = Parser.map (Term.Lit << Term.Number) Parser.Number.float
+
+string : Parser Term
 string = Parser.Char.between quote quote (until quote)
-      |> Parser.map Term.Str
+      |> Parser.map (Term.Lit << Term.Str)
 
-openString : Parser Term.Literal
+openString : Parser Term
 openString =
   Parser.symbol quote `Parser.andThen` \_ -> until quote
-  |> Parser.map Term.Str
+  |> Parser.map (Term.Lit << Term.Str)
 
-distance : Parser Term.Literal
+distance : Parser Term
 distance =
   Parser.choice [ pixels, fraction ]
-  |> Parser.map Term.Distance
+  |> Parser.map (Term.Lit << Term.Distance)
 
 pixels : Parser Distance
 pixels =

@@ -68,12 +68,13 @@ isClosed e =
 unclose : ClosedTerm -> Term
 unclose (ClosedTerm e) = e
 
-checkLiteral : Literal -> T.Type -> Bool
+checkLiteral : Term -> T.Type -> Bool
 checkLiteral lit admissible = case (lit,admissible) of
+  (Blank, _) -> True
   -- weird parser bug prevents use of T.Unit T.Distance as a pattern
-  (Distance _, T.Unit d) -> d == T.Distance
-  (Str _, T.Unit s) -> s == T.String
-  (Number _, T.Unit n) -> n == T.Number
+  (Lit (Distance _), T.Unit d) -> d == T.Distance
+  (Lit (Str _), T.Unit s) -> s == T.String
+  (Lit (Number _), T.Unit n) -> n == T.Number
   (_, T.Forall n (T.Universal n')) -> if n == n' then True else False
   _ -> False
 

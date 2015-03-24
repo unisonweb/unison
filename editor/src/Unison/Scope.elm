@@ -53,37 +53,12 @@ movement e (Movement.D2 leftRight upDown) =
   (if leftRight == Movement.Negative then left e else identity)
 
 -- sample on mouse position change
-reset : (Int,Int) -> Layout { a | path : Path } -> Action
-reset (x,y) layout =
+mouse : (Int,Int) -> Layout { a | path : Path } -> Action
+mouse (x,y) layout =
   let paths = Layout.atRanked (List.length << .path) layout (Region { x = x, y = y } 2 2)
   in case paths of
     (h :: _) :: _ -> always (Just (scope h.path))
     _ -> always Nothing
-
--- track information about *when* to update separate from *what* this means
-
-actions : Signal Term
-       -> Signal (Layout { a | path : Path })
-       -> Signal (Int,Int)
-       -> Signal Movement.D2
-       -> Signal Action
-actions e layout mouse movement =
-  Signals.mergeWithBoth
-    (resets mouse layout)
-    (movements e movement)
-
-resets : Signal (Int,Int) -> Signal (Layout { a | path : Path }) -> Signal Action
-resets mouse layout =
-  let go (x,y) layout =
-    let paths = Layout.atRanked (List.length << .path) layout (Region { x = x, y = y } 2 2)
-    in case paths of
-      (h :: _) :: _ -> always (Just (scope h.path))
-      _ -> always Nothing
-  in Signal.sampleOn mouse (Signal.map2 go mouse layout)
-
-movements : Signal Term -> Signal Movement.D2 -> Signal Action
-movements e d2s =
-  Signal.sampleOn d2s (Signal.map2 movement e d2s)
 
 up : Action
 up m = case m of

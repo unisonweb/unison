@@ -1,4 +1,4 @@
-module Unison.View (Env, key, layout, layout', L, reactivePaths) where
+module Unison.View (Env, key, layout, layout', literalKey, L, reactivePaths) where
 
 import Array
 import Color
@@ -55,6 +55,14 @@ weakenBoundAt : (Path -> V.I -> Path) -> Path -> V.I -> Path
 weakenBoundAt boundAt path v =
   if v == V.bound1 then Path.trimThroughScope path
   else boundAt (Path.trimThroughScope path) (V.decr v)
+
+literalKey : Term -> Maybe String
+literalKey e = case e of
+  Lit (Number n) -> Just <| toString n
+  Lit (Str s) -> Just <| "\"" ++ toString s ++ "\""
+  Lit (Distance d) -> Just <| toString d
+  Blank -> Just "_"
+  _ -> Nothing
 
 key : { tl | rootMetadata : Metadata, metadata : R.Reference -> Metadata }
    -> Cur

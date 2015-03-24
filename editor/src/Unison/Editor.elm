@@ -3,14 +3,18 @@ module Unison.Editor where
 import Debug
 import Elmz.Layout (Containment(Inside,Outside), Layout, Pt, Region)
 import Elmz.Layout as Layout
-import Elmz.Moore (Moore)
-import Elmz.Moore as Moore
 import Elmz.Mealy as M
 import Elmz.Mealy (Mealy)
+import Elmz.Moore (Moore)
+import Elmz.Moore as Moore
+import Elmz.Movement as Movement
 import Graphics.Element (Element)
 import Graphics.Element as Element
+import Graphics.Input.Field as Field
+import Signal
 import Unison.Action as Action
 import Unison.Explorer as Explorer
+import Unison.EditableTerm as EditableTerm
 import Unison.SearchboxParser as SearchboxParser
 import Unison.Hash (Hash)
 import Unison.Metadata (Metadata)
@@ -24,17 +28,28 @@ import Unison.Scope as Scope
 import Unison.Styles as Styles
 import Unison.Term (Term)
 import Unison.Term as Term
+import Unison.TermExplorer as TermExplorer
 import Unison.Terms as Terms
 import Unison.Type (Type)
 import Unison.Type as Type
 import Unison.Var as Var
 import Unison.View as View
 
-type Input
-  = Keys (List Int)
-  | Tap Bool
-  | Click Bool
-  | Cursor (Int,Int)
+type alias Inputs =
+  { origin : (Int,Int)
+  , clicks : Signal ()
+  , mouse : Signal (Int,Int)
+  , enters : Signal ()
+  , edits : Signal Action.Action
+  , deletes : Signal ()
+  , preapplies : Signal ()
+  , viewToggles : Signal ()
+  , modifier : Signal Bool -- generally shift
+  , movements : Signal Movement.D2
+  , searchbox : Signal.Channel Field.Content
+  , explorerHasFocus : Signal.Channel Bool
+  , responses : Signal Response
+  , width : Signal Int }
 
 type Request
   = LocalRequest Term Path -- obtain the current and admissible type and local completions
@@ -62,20 +77,36 @@ accepts =
         _ -> Nothing
   in M.changesBy f
 
-editor : Term -> Moore (Either Input Response) (Element, List Request)
-editor t0 =
+editor : Term -> Inputs -> Signal (Element, List Request)
+editor t0 env =
   let
-    term' : Mealy (Path, Term -> Term) Term
-    term' = Moore.feed (term t0)
+    -- explorerHasFocus : Signal.Channel Bool
+    explorerOpen : Signal Bool
+    explorerOpen =
+      -- a click outside the explorer region closes if open
+      -- a click inside noops if not pointing to valid completion
+      -- a click inside noops
+      todo
 
-    termWithLayout : Mealy (View.Env, (Path, Term -> Term)) (Term, Layout View.L)
-    termWithLayout =
-      let f (env, term) = (term, View.layout term env)
-      in M.map f (M.second term')
+    -- Moore (Maybe Movement.D2, Maybe (Int,Int), Layout.L) Foo
+    -- still have a loop due to path resolution depending
+    -- on the current layout and the input mode
+    -- EVERYTHING depends on the current layout
+    --
+    term' : Moore (Path, Term -> Term) Term
+    term' = term t0
 
-    termWithLayout' : Mealy (Response, (Path, Term -> Term)) (Term, Layout View.L)
-    termWithLayout' =
-      M.first viewEnv `M.pipe` termWithLayout
+    viewEnv' : Signal Response -> Signal View.Env
+    viewEnv' = Moore.transform viewEnv
+
+    {-
+    layout' : Signal Response
+           -> Signal Path
+           -> Signal (Maybe (Term -> Term))
+           -> Signal (Layout View.L)
+    layout' r p =
+    -}
+
     -- explorer : Mealy (Either Input Response) (Element, List Request, Mode (Term -> Term))
 
     -- highlightedTermWithLayout : Mealy (View.Env, (Path, Term -> Term), )
@@ -84,7 +115,7 @@ editor t0 =
 
     -- term = { loc : Path, action : Term -> Term, term : Term } -> Term
 --
-viewEnv : Mealy Response View.Env
+viewEnv : Moore Response View.Env
 viewEnv = todo --
 
 term : Term -> Moore (Path, Term -> Term) Term
@@ -92,50 +123,8 @@ term t0 = editable Term.modify t0
 
 todo = Debug.crash "todo"
 
-selection : Moore (Input, (Term, Layout View.L)) (Maybe Path)
-selection = todo
-
-highlightLayer : Mealy (Maybe Path, Layout View.L) Element
-highlightLayer = todo
-
 editable : (k -> (v -> v) -> kvs -> Maybe kvs)
         -> kvs
         -> Moore (k, v -> v) kvs
 editable _ _ = todo
 
-explorer : Mealy (Either Input Response) (Element, List Request, Mode (Term -> Term))
-explorer = todo
-
-{-
-Moore (Input, Response) (Element, Request)
-
-output of a Moore can't be an Action/Update, as this doesn't play well
-with using `map2` and leads to duplicate updates
-
-output of a moore should always just be the new state, not a transition
-input can be some description of a transition
-`editable` has this property, as does `selection`
-explorer does not
-
-
-type Out a
-  = Accept a
-  | Cancel
-  | Hold
-
-type ExplorerInfo
-  = Local Node.LocalInfo
-  | Global Node.SearchResults
-
--- metadata?
--- up to someone else to detect transition from Open to Closed
--- and act on the last `Open` value
-explorer : Moore (Either Input ExplorerInfo) (Element, Maybe Request, Mode (Term -> Term))
-
-switch : Moore i (Either a b) -> Moore a o -> Moore b o -> Moore i o
-
-modal : (a -> Maybe m) -> Moore (i,r) a -> Moore (i,m) (Mode r) -> Moore i a
-
-latest : b -> (a -> Maybe b) -> Moore a b
-
--}
