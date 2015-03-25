@@ -78,7 +78,7 @@ view origin searchbox model = case model of
         completions =
           let fit e = E.width ((E.widthOf s.above - 12) `max`
                                E.widthOf e `max`
-                               E.widthOf s.below - 12)
+                               (E.widthOf s.below - 12))
                               e
           in List.indexedMap (\i e -> Layout.embed (Result.Ok i) (fit e)) s.completions
         inside = Result.Err Inside
