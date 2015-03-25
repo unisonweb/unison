@@ -25,6 +25,15 @@ contramap f (Moore o k) = Moore o (\i -> Maybe.map (contramap f) (k (f i)))
 duplicate : Moore i o -> Moore i (Moore i o)
 duplicate m = Moore m (\i -> Maybe.map duplicate (step m i))
 
+echo : o -> Moore o o
+echo o = moore o echo
+
+echo' : Moore (Maybe a) (Maybe a)
+echo' = echo Nothing
+
+emit : o -> Moore i o -> Moore i o
+emit oz (Moore o k) = Moore oz (\i -> Maybe.map (emit o) (k i))
+
 extract : Moore i o -> o
 extract (Moore o _) = o
 
@@ -55,15 +64,6 @@ moore o k = Moore o (k >> Just)
 
 map : (o -> o2) -> Moore i o -> Moore i o2
 map f (Moore o k) = Moore (f o) (\i -> Maybe.map (map f) (k i))
-
-echo : o -> Moore o o
-echo o = moore o echo
-
-echo' : Moore (Maybe a) (Maybe a)
-echo' = echo Nothing
-
-emit : o -> Moore i o -> Moore i o
-emit oz (Moore o k) = Moore oz (\i -> Maybe.map (emit o) (k i))
 
 pipe : Moore a b -> Moore b c -> Moore a c
 pipe (Moore b k1) (Moore c k2) =
