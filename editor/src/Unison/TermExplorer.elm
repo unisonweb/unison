@@ -1,6 +1,8 @@
 module Unison.TermExplorer where
 
 import Debug
+import Dict (Dict)
+import Dict as Dict
 import Elmz.Moore (Moore(..))
 import Elmz.Moore as M
 import Elmz.Layout as Layout
@@ -80,14 +82,22 @@ model searchbox =
             layout' = layout env (path focus) searchbox info (lits ++ locals) content
             vw = Layout.element layout'
         in Moore { selection = Nothing, request = Just req, view = vw }
-                 (search focus content info lits locals [] layout')
+                 (search focus content env info lits locals [] layout')
       _ -> Nothing
 
-    search focus content info lits localCompletions searchCompletions layout e = case e of
-      SearchResults results -> Nothing
+    search focus content env info lits localCompletions searchCompletions layout' e = case e of
+      SearchResults results -> Just <|
+        let
+          searchCompletions' = processSearchResults results
+          layout'' = layout env (path focus) searchbox info (lits ++ localCompletions ++ searchCompletions') content
+        in Moore { selection = Nothing, request = Nothing, view = Layout.element layout'' } <|
+           search focus content env info lits localCompletions searchCompletions' layout''
       _ -> Nothing
 
   in Moore { selection = Nothing, request = Nothing, view = Element.empty } closed
+
+processSearchResults : Node.SearchResults -> List (String, Element, Maybe Term)
+processSearchResults results = [] -- todo
 
 parseSearchbox : Type -> String -> List (String, Element, Maybe Term)
 parseSearchbox admissible s =
