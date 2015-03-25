@@ -1,7 +1,8 @@
 module Unison.TermExplorer where
 
 import Debug
-import Elmz.Moore (Moore)
+import Elmz.Moore (Moore(..))
+import Elmz.Moore as M
 import Elmz.Layout as Layout
 import Elmz.Layout (Layout)
 import Elmz.Movement as Movement
@@ -26,27 +27,145 @@ import Unison.Type as Type
 import Unison.Type (Type)
 import Unison.View as View
 
-{-
 type alias LocalFocus =
   { rootTerm : Term
   , pathToClosedSubterm : Path
   , closedSubterm : Term
   , pathFromClosedSubterm : Path }
 
+path : LocalFocus -> Path
+path focus = focus.pathToClosedSubterm ++ focus.pathFromClosedSubterm
+
 type Event
-  = Open LocalFocus
+  = Open LocalFocus Field.Content View.Env
   | Move Movement.D1
   | Mouse (Int,Int)
   | Click (Int,Int)
   | SearchResults Node.SearchResults
-  | LocalInfo Node.LocalInfo
+  | LocalInfoResults Node.LocalInfo
   | FieldContent Field.Content
+  | Env View.Env
 
-type alias Model' =
-  Moore Event { selection : Maybe Term
+type alias Model =
+  Moore Event { selection : Maybe (LocalFocus, Term)
               , view : Element
               , request : Maybe Request }
--}
+
+type Request
+  = LocalInfo LocalFocus
+  | Search (Term, Path, Int, Metadata.Query, Maybe Type)
+
+model : (Field.Content -> Signal.Message) -> Model
+model searchbox =
+  let
+    closed e = case e of
+      Open focus content env -> Just <|
+        let f = viewField searchbox False content Nothing
+        in Moore { selection = Nothing, request = Just (LocalInfo focus), view = f } (initialize focus content env)
+      _ -> Nothing
+
+    initialize focus content env e = case e of
+      LocalInfoResults info -> Just <|
+        let req = Search ( focus.closedSubterm
+                         , focus.pathFromClosedSubterm
+                         , 7
+                         , Metadata.Query content.string
+                         , Just info.admissible )
+            la cur n = (String.padLeft (n+1) '.' "", showAppBlanks env (path focus) n, Just (appBlanks n cur))
+            currentApps = case Term.at focus.pathFromClosedSubterm focus.closedSubterm of
+              Nothing -> []
+              Just cur -> List.map (la cur) info.localApplications
+            locals = currentApps ++ List.map (searchEntry True env (path focus)) info.wellTypedLocals
+            lits = parseSearchbox info.admissible content.string
+            layout' = layout env (path focus) searchbox info (lits ++ locals) content
+            vw = Layout.element layout'
+        in Moore { selection = Nothing, request = Just req, view = vw }
+                 (search focus content info lits locals [] layout')
+      _ -> Nothing
+
+    search focus content info lits localCompletions searchCompletions layout e = case e of
+      SearchResults results -> Nothing
+      _ -> Nothing
+
+  in Moore { selection = Nothing, request = Nothing, view = Element.empty } closed
+
+parseSearchbox : Type -> String -> List (String, Element, Maybe Term)
+parseSearchbox admissible s =
+  case SearchboxParser.parseTerm s of
+    Result.Err _   -> [(s, Styles.codeText s, Nothing )]
+    Result.Ok term -> case View.literalKey term of
+      Just k ->
+        let edit = if Term.checkLiteral term admissible then Just term else Nothing
+        in [(s, Styles.codeText k, edit)]
+      Nothing -> Debug.crash "unpossible"
+
+layout : View.Env -> Path -> (Field.Content -> Signal.Message) -> Node.LocalInfo
+      -> List (String,Element,Maybe Term)
+      -> Field.Content
+      -> Layout (Maybe Int)
+layout viewEnv path searchbox info keyedCompletions content =
+  let
+    valids = validCompletions keyedCompletions
+    invalids = invalidCompletions keyedCompletions
+    ok = not (List.isEmpty valids)
+    above : Element
+    above = Element.flow Element.down <|
+      [ Element.spacer 1 10
+      , pad << Styles.boldCodeText <| Type.key { metadata = viewEnv.metadata } info.admissible
+      , Element.spacer 1 12
+      , pad <| Styles.currentSymbol `Element.beside`
+               Styles.codeText (" : " ++ Type.key { metadata = viewEnv.metadata } info.current)
+      ]
+      ++ List.map (renderTerm viewEnv path) info.locals
+      ++ [ Element.spacer 1 10 ]
+    fit e = Element.width ((Element.widthOf above - 12) `max` (Element.widthOf e)) e
+    renderedValids = List.indexedMap (\i ((_,e),_) -> Layout.embed (Just i) (fit e)) valids
+    renderedInvalids = List.map (\(_,e) -> Layout.embed Nothing (fit e)) invalids
+    sep = Layout.embed Nothing (Styles.menuSeparator (Element.widthOf above `max` Layout.widthOf below))
+    below : Layout (Maybe Int)
+    below =
+      let cells = if List.isEmpty valids && not (List.isEmpty invalids)
+                  then Styles.explorerCells Nothing renderedInvalids
+                  else Styles.explorerCells Nothing renderedValids
+      in if List.isEmpty valids && List.isEmpty invalids then Layout.empty Nothing
+         else Layout.vertical Nothing [sep, Layout.embed Nothing (Element.spacer 1 5), cells]
+    resultsBox = Styles.explorerOutline (Styles.statusColor ok) <|
+      Layout.above Nothing (Layout.embed Nothing above) below
+    inputBox = Layout.vertical Nothing
+      [ Layout.embed Nothing (viewField searchbox ok content (Just (Layout.widthOf resultsBox)))
+      , Layout.embed Nothing (Element.spacer 1 10) ]
+  in
+    Layout.above Nothing inputBox resultsBox
+
+viewField : (Field.Content -> Signal.Message) -> Bool -> Field.Content -> Maybe Int -> Element
+viewField searchbox ok content w =
+  Element.flow Element.down
+    [ Element.spacer 1 15
+    , Element.spacer 9 1 `Element.beside` Styles.carotUp 6 (Styles.statusColor ok)
+    , Maybe.withDefault identity (Maybe.map Element.width w) <|
+        Field.field (Styles.autocomplete ok)
+                     searchbox
+                     ""
+                     content
+    , Element.spacer 1 10 ]
+
+validCompletions : List (String,Element,Maybe Term) -> List ((String, Element), Term)
+validCompletions entries =
+  List.filterMap (\(x,y,z) -> Maybe.map (\z -> ((x,y),z)) z) entries
+
+invalidCompletions : List (String,Element,Maybe Term) -> List (String, Element)
+invalidCompletions entries =
+  let f (x,y,f) = case f of
+    Nothing -> Just (x,y)
+    Just _ -> Nothing
+  in List.filterMap f entries
+
+{-
+type Model
+  = Initializing S0
+  | Ready S1
+  | Searching S1
+  | Closed
 
 type alias S0 =
   { path : Path
@@ -79,11 +198,6 @@ type Model
   | Ready S1
   | Searching S1
   | Closed
-
-type Request
-  = Open (Term, Path)
-  | Search (Term, Path, Int, Metadata.Query, Maybe Type)
-  | Noop
 
 type Response
   = LocalInfo Node.LocalInfo
@@ -190,19 +304,6 @@ s1 model = case model of
 admissible : Model -> Maybe Type
 admissible model = Maybe.map (\s1 -> s1.info.admissible) (s1 model)
 
-parseSearchbox : Model -> List (String, Element, Maybe Term)
-parseSearchbox model = let s = inputString model
-  in case SearchboxParser.parseTerm s of
-    Result.Err _   -> [(s, Styles.codeText s, Nothing )]
-    Result.Ok term -> case View.literalKey term of
-      Just k ->
-        let
-          edit = admissible model `Maybe.andThen`
-            \typ -> if Term.checkLiteral term typ then Just term
-                    else Nothing
-        in [(inputString model, Styles.codeText k, edit)]
-      Nothing -> Debug.crash "unpossible"
-
 keyedCompletions : Model -> List (String, Element, Maybe Term)
 keyedCompletions model = parseSearchbox model ++ case s1 model of
   Nothing -> []
@@ -215,12 +316,7 @@ validCompletions' entries =
 validCompletions : Model -> List ((String, Element), Term)
 validCompletions model = validCompletions' (keyedCompletions model)
 
-invalidCompletions : Model -> List (String, Element)
-invalidCompletions model =
-  let f (x,y,f) = case f of
-    Nothing -> Just (x,y)
-    Just _ -> Nothing
-  in List.filterMap f (keyedCompletions model)
+-}
 
 box = Term.Embed (Layout.embed { path = [], selectable = False } Styles.currentSymbol)
 appBlanks n e = List.foldl (\_ cur -> Term.App cur Term.Blank) e [1 .. n]
