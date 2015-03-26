@@ -17,10 +17,11 @@ import Result
 import Signal
 import String
 import Unison.Metadata as Metadata
-import Unison.Metadata (Query)
+import Unison.Metadata (Metadata,Query)
 import Unison.Node as Node
 import Unison.Path as Path
 import Unison.Path (Path)
+import Unison.Reference (Reference)
 import Unison.SearchboxParser as SearchboxParser
 import Unison.Styles as Styles
 import Unison.Term as Term
@@ -39,7 +40,7 @@ path : LocalFocus -> Path
 path focus = focus.pathToClosedSubterm ++ focus.pathFromClosedSubterm
 
 type Event
-  = Open LocalFocus Field.Content View.Env
+  = Open View.Env LocalFocus Field.Content
   | Move Movement.D1
   | Mouse (Int,Int)
   | Click (Int,Int)
@@ -57,16 +58,24 @@ type Request
   = LocalInfo LocalFocus
   | Search (Term, Path, Int, Metadata.Query, Maybe Type)
 
+type alias Completions =
+  { literals : List (String,Element,Maybe Term)
+  , locals : List (String,Element,Maybe Term)
+  , searchResults : List (String,Element,Maybe Term) }
+
+allCompletions : Completions -> List (String,Element,Maybe Term)
+allCompletions c = c.literals ++ c.locals ++ c.searchResults
+
 model : (Field.Content -> Signal.Message) -> Model
 model searchbox =
   let
     closed e = case e of
-      Open focus content env -> Just <|
+      Open env focus content -> Just <|
         let f = viewField searchbox False content Nothing
-        in Moore { selection = Nothing, request = Just (LocalInfo focus), view = f } (initialize focus content env)
+        in Moore { selection = Nothing, request = Just (LocalInfo focus), view = f } (initialize env focus content)
       _ -> Nothing
 
-    initialize focus content env e = case e of
+    initialize env focus content e = case e of
       LocalInfoResults info -> Just <|
         let req = Search ( focus.closedSubterm
                          , focus.pathFromClosedSubterm
@@ -77,21 +86,25 @@ model searchbox =
             currentApps = case Term.at focus.pathFromClosedSubterm focus.closedSubterm of
               Nothing -> []
               Just cur -> List.map (la cur) info.localApplications
-            locals = currentApps ++ List.map (searchEntry True env (path focus)) info.wellTypedLocals
-            lits = parseSearchbox info.admissible content.string
-            layout' = layout env (path focus) searchbox info (lits ++ locals) content
+            completions =
+              { locals = currentApps ++ List.map (searchEntry True env (path focus)) info.wellTypedLocals
+              , literals = parseSearchbox info.admissible content.string
+              , searchResults = [] }
+            infoLayout' = infoLayout env (path focus) info
+            layout' = layout env.metadata (path focus) searchbox (allCompletions completions) content infoLayout'
             vw = Layout.element layout'
         in Moore { selection = Nothing, request = Just req, view = vw }
-                 (search focus content env info lits locals [] layout')
+                 (search env.metadata focus completions content infoLayout' layout')
       _ -> Nothing
 
-    search focus content env info lits localCompletions searchCompletions layout' e = case e of
+    search metadata focus completions content infoLayout layout' e = case e of
       SearchResults results -> Just <|
         let
-          searchCompletions' = processSearchResults results
-          layout'' = layout env (path focus) searchbox info (lits ++ localCompletions ++ searchCompletions') content
+          completions' = { completions | searchResults <- processSearchResults results }
+          layout'' = layout metadata (path focus) searchbox (allCompletions completions') content infoLayout
         in Moore { selection = Nothing, request = Nothing, view = Layout.element layout'' } <|
-           search focus content env info lits localCompletions searchCompletions' layout''
+           search metadata focus completions' content infoLayout layout''
+      Move d1 -> Nothing
       _ -> Nothing
 
   in Moore { selection = Nothing, request = Nothing, view = Element.empty } closed
@@ -109,25 +122,30 @@ parseSearchbox admissible s =
         in [(s, Styles.codeText k, edit)]
       Nothing -> Debug.crash "unpossible"
 
-layout : View.Env -> Path -> (Field.Content -> Signal.Message) -> Node.LocalInfo
+infoLayout : View.Env -> Path -> Node.LocalInfo -> Element
+infoLayout viewEnv path info = Element.flow Element.down <|
+  [ Element.spacer 1 10
+  , pad << Styles.boldCodeText <| Type.key { metadata = viewEnv.metadata } info.admissible
+  , Element.spacer 1 12
+  , pad <| Styles.currentSymbol `Element.beside`
+           Styles.codeText (" : " ++ Type.key { metadata = viewEnv.metadata } info.current)
+  ]
+  ++ List.map (renderTerm viewEnv path) info.locals
+  ++ [ Element.spacer 1 10 ]
+
+layout : (Reference -> Metadata)
+      -> Path
+      -> (Field.Content -> Signal.Message)
       -> List (String,Element,Maybe Term)
       -> Field.Content
+      -> Element
       -> Layout (Maybe Int)
-layout viewEnv path searchbox info keyedCompletions content =
+layout md path searchbox keyedCompletions content infoLayout =
   let
+    above = infoLayout
     valids = validCompletions keyedCompletions
     invalids = invalidCompletions keyedCompletions
     ok = not (List.isEmpty valids)
-    above : Element
-    above = Element.flow Element.down <|
-      [ Element.spacer 1 10
-      , pad << Styles.boldCodeText <| Type.key { metadata = viewEnv.metadata } info.admissible
-      , Element.spacer 1 12
-      , pad <| Styles.currentSymbol `Element.beside`
-               Styles.codeText (" : " ++ Type.key { metadata = viewEnv.metadata } info.current)
-      ]
-      ++ List.map (renderTerm viewEnv path) info.locals
-      ++ [ Element.spacer 1 10 ]
     fit e = Element.width ((Element.widthOf above - 12) `max` (Element.widthOf e)) e
     renderedValids = List.indexedMap (\i ((_,e),_) -> Layout.embed (Just i) (fit e)) valids
     renderedInvalids = List.map (\(_,e) -> Layout.embed Nothing (fit e)) invalids
