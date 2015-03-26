@@ -22,6 +22,7 @@ import Unison.Metadata (Metadata,Query)
 import Unison.Node as Node
 import Unison.Path as Path
 import Unison.Path (Path)
+import Unison.Reference as Reference
 import Unison.Reference (Reference)
 import Unison.SearchboxParser as SearchboxParser
 import Unison.Styles as Styles
@@ -107,10 +108,15 @@ model searchbox =
     search metadata focus completions sel content infoLayout layout' e = case e of
       SearchResults results -> Just <|
         let
-          completions' = { completions | searchResults <- processSearchResults results }
-          (sel', layout'') = layout metadata (path focus) searchbox (allCompletions completions') sel content infoLayout
+          searchCompletions = processSearchResults results
+          dict = Dict.fromList results.references
+          metadata' r = case Dict.get (Reference.toKey r) dict of
+            Nothing -> metadata r
+            Just md -> md
+          completions' = { completions | searchResults <- searchCompletions }
+          (sel', layout'') = layout metadata' (path focus) searchbox (allCompletions completions') sel content infoLayout
         in Moore { selection = Nothing, request = Nothing, view = Layout.element layout'' } <|
-           search metadata focus completions' sel' content infoLayout layout''
+           search metadata' focus completions' sel' content infoLayout layout''
       Navigate nav -> Moore.step sel nav `Maybe.andThen` \sel -> Just <|
         let (sel'', layout'') = layout metadata (path focus) searchbox (allCompletions completions) sel content infoLayout
         in Moore { selection = Nothing, request = Nothing, view = Layout.element layout'' } <|
