@@ -9,6 +9,7 @@ import Elmz.Layout as Layout
 import Elmz.Layout (Layout)
 import Elmz.Movement as Movement
 import Elmz.Selection1D as Selection1D
+import Elmz.Matcher as Matcher
 import Graphics.Element as Element
 import Graphics.Element (Element)
 import Graphics.Input.Field as Field
