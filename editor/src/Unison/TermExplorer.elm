@@ -4,10 +4,11 @@ import Debug
 import Dict (Dict)
 import Dict as Dict
 import Elmz.Moore (Moore(..))
-import Elmz.Moore as M
+import Elmz.Moore as Moore
 import Elmz.Layout as Layout
 import Elmz.Layout (Layout)
 import Elmz.Movement as Movement
+import Elmz.Selection1D as Selection1D
 import Graphics.Element as Element
 import Graphics.Element (Element)
 import Graphics.Input.Field as Field
@@ -41,8 +42,7 @@ path focus = focus.pathToClosedSubterm ++ focus.pathFromClosedSubterm
 
 type Event
   = Open View.Env LocalFocus Field.Content
-  | Move Movement.D1
-  | Mouse (Int,Int)
+  | Navigate (Selection1D.Event Term)
   | Click (Int,Int)
   | SearchResults Node.SearchResults
   | LocalInfoResults Node.LocalInfo
@@ -82,6 +82,7 @@ model searchbox =
                          , 7
                          , Metadata.Query content.string
                          , Just info.admissible )
+            sel = Selection1D.model
             la cur n = (String.padLeft (n+1) '.' "", showAppBlanks env (path focus) n, Just (appBlanks n cur))
             currentApps = case Term.at focus.pathFromClosedSubterm focus.closedSubterm of
               Nothing -> []
@@ -91,20 +92,29 @@ model searchbox =
               , literals = parseSearchbox info.admissible content.string
               , searchResults = [] }
             infoLayout' = infoLayout env (path focus) info
-            layout' = layout env.metadata (path focus) searchbox (allCompletions completions) content infoLayout'
+            (sel, layout') = layout env.metadata
+                                     (path focus)
+                                     searchbox
+                                     (allCompletions completions)
+                                     Selection1D.model
+                                     content
+                                     infoLayout'
             vw = Layout.element layout'
         in Moore { selection = Nothing, request = Just req, view = vw }
-                 (search env.metadata focus completions content infoLayout' layout')
+                 (search env.metadata focus completions sel content infoLayout' layout')
       _ -> Nothing
 
-    search metadata focus completions content infoLayout layout' e = case e of
+    search metadata focus completions sel content infoLayout layout' e = case e of
       SearchResults results -> Just <|
         let
           completions' = { completions | searchResults <- processSearchResults results }
-          layout'' = layout metadata (path focus) searchbox (allCompletions completions') content infoLayout
+          (sel', layout'') = layout metadata (path focus) searchbox (allCompletions completions') sel content infoLayout
         in Moore { selection = Nothing, request = Nothing, view = Layout.element layout'' } <|
-           search metadata focus completions' content infoLayout layout''
-      Move d1 -> Nothing
+           search metadata focus completions' sel' content infoLayout layout''
+      Navigate nav -> Moore.step sel nav `Maybe.andThen` \sel -> Just <|
+        let (sel'', layout'') = layout metadata (path focus) searchbox (allCompletions completions) sel content infoLayout
+        in Moore { selection = Nothing, request = Nothing, view = Layout.element layout'' } <|
+           search metadata focus completions sel'' content infoLayout layout''
       _ -> Nothing
 
   in Moore { selection = Nothing, request = Nothing, view = Element.empty } closed
@@ -137,10 +147,11 @@ layout : (Reference -> Metadata)
       -> Path
       -> (Field.Content -> Signal.Message)
       -> List (String,Element,Maybe Term)
+      -> Selection1D.Model Term
       -> Field.Content
       -> Element
-      -> Layout (Maybe Int)
-layout md path searchbox keyedCompletions content infoLayout =
+      -> (Selection1D.Model Term, Layout (Maybe Int))
+layout md path searchbox keyedCompletions sel content infoLayout =
   let
     above = infoLayout
     valids = validCompletions keyedCompletions
@@ -162,8 +173,14 @@ layout md path searchbox keyedCompletions content infoLayout =
     inputBox = Layout.vertical Nothing
       [ Layout.embed Nothing (viewField searchbox ok content (Just (Layout.widthOf resultsBox)))
       , Layout.embed Nothing (Element.spacer 1 10) ]
+    result = Layout.above Nothing inputBox resultsBox
+    sel' = Moore.feeds sel [ Selection1D.View result, Selection1D.Values (List.map snd valids) ]
+    hl e = case fst (Moore.extract sel') of
+      Nothing -> e
+      Just region -> Element.layers [e, Styles.explorerSelection region]
+    result' = Layout.transform hl result
   in
-    Layout.above Nothing inputBox resultsBox
+    (sel', result')
 
 viewField : (Field.Content -> Signal.Message) -> Bool -> Field.Content -> Maybe Int -> Element
 viewField searchbox ok content w =

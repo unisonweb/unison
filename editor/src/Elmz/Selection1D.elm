@@ -18,7 +18,7 @@ type Event v
   = Move Movement.D1 -- Movement of the selection up or down
   | Mouse (Int,Int) -- Movement of the mouse
   | View (Layout (Maybe Int)) -- A change to the layout
-  | Elements (List v) -- A change to the underlying list
+  | Values (List v) -- A change to the underlying list
 
 type alias Model v = Moore (Event v) (Maybe Region, Maybe Int)
 
@@ -26,7 +26,7 @@ model : Model v
 model =
   let
     novalues e = case e of
-      Elements vs -> if List.isEmpty vs then Nothing
+      Values vs -> if List.isEmpty vs then Nothing
                      else Just (Moore (Nothing, Just 0) (at 0 vs))
       _ -> Nothing
 
@@ -47,12 +47,13 @@ model =
           if ind == index' then Nothing
           else Just <| Moore (region index' layout, Just index') (interactive index' values layout)
       View layout -> Just <|
-        Moore (region ind layout, Nothing) (interactive ind values layout)
+        let r = region ind layout
+        in Moore (r, Maybe.map (always ind) r) (interactive ind values layout)
       Mouse (x,y) -> Layout.leafAtPoint layout (Layout.Pt x y) `Maybe.andThen`
         \i -> i `Maybe.andThen` -- Layout.leafAtPoint returns a Maybe, unwrap that
         \i -> if i == ind then Nothing
               else Just (Moore (region i layout, Just i) (interactive i values layout))
-      Elements values' -> case index ind values of
+      Values values' -> if values' == values then Nothing else case index ind values of
         Nothing -> Just state0
         Just v ->
           let ind' = Maybe.withDefault 0 (indexOf ((==) v) values')

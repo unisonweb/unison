@@ -40,6 +40,11 @@ extract (Moore o _) = o
 feed : Moore i o -> i -> Moore i o
 feed ((Moore _ k) as m) i = Maybe.withDefault m (k i)
 
+feeds : Moore i o -> List i -> Moore i o
+feeds m i = case i of
+  [] -> m
+  h :: t -> feeds (feed m h) t
+
 focus : (a -> Maybe b) -> Moore b c -> Moore a c
 focus f ((Moore o k) as m) =
   let k' a = f a `Maybe.andThen` \b -> Maybe.map (focus f) (k b)
