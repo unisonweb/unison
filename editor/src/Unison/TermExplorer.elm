@@ -105,25 +105,25 @@ model searchbox =
                                      infoLayout'
             vw = Layout.element layout'
         in Moore { selection = Nothing, request = Just req, view = vw }
-                 (search info.admissible env.metadata focus completions sel content infoLayout' layout')
+                 (search info.admissible env focus completions sel content infoLayout' layout')
       _ -> Nothing
 
-    search admissible metadata focus completions sel content infoLayout layout' e = case e of
+    search admissible env focus completions sel content infoLayout layout' e = case e of
       SearchResults results -> Just <|
         let
-          completions' = processSearchResults results completions content.string
+          completions' = processSearchResults env results completions content.string
           dict = Dict.fromList results.references
           metadata' r = case Dict.get (Reference.toKey r) dict of
-            Nothing -> metadata r
+            Nothing -> env.metadata r
             Just md -> md
           matches = Moore.extract completions'.results |> .matches
           (sel', layout'') = layout metadata' (path focus) searchbox matches sel content infoLayout
         in Moore { selection = Nothing, request = Nothing, view = Layout.element layout'' } <|
-           search admissible metadata' focus completions' sel' content infoLayout layout''
+           search admissible { env | metadata <- metadata' } focus completions' sel' content infoLayout layout''
       Navigate nav -> Moore.step sel nav `Maybe.andThen` \sel -> Just <|
-        let (sel'', layout'') = layout metadata (path focus) searchbox (allCompletions completions) sel content infoLayout
+        let (sel'', layout'') = layout env.metadata (path focus) searchbox (allCompletions completions) sel content infoLayout
         in Moore { selection = Nothing, request = Nothing, view = Layout.element layout'' } <|
-           search admissible metadata focus completions sel'' content infoLayout layout''
+           search admissible env focus completions sel'' content infoLayout layout''
       Accept ->
         let valids = validCompletions (.matches << Moore.extract <| completions.results)
         in Maybe.withDefault (Just state0) ( (Moore.extract sel |> snd) `Maybe.andThen`
@@ -133,16 +133,17 @@ model searchbox =
               closed
            ))
       Click xy ->
-        case search admissible metadata focus completions sel content infoLayout layout' (Navigate (Selection1D.Mouse xy)) of
-          Nothing -> search admissible metadata focus completions sel content infoLayout layout' Accept
+        case search admissible env focus completions sel content infoLayout layout' (Navigate (Selection1D.Mouse xy)) of
+          Nothing -> search admissible env focus completions sel content infoLayout layout' Accept
           Just m -> Moore.step m Accept
-      FieldContent content -> Just <|
+      FieldContent content -> Just <| case { completions | literals <- parseSearchbox admissible content.string } of
+        completions ->
         let
           q = Matcher.Query { string = content.string, values = completions.literals ++ completions.locals }
           results = Moore.feed completions.results q
           matches = Moore.extract results |> .matches
           completions' = { completions | results <- results }
-          (sel', layout'') = layout metadata (path focus) searchbox matches sel content infoLayout
+          (sel', layout'') = layout env.metadata (path focus) searchbox matches sel content infoLayout
           req = Maybe.map mkquery (Moore.extract results |> .query)
           mkquery q = Search ( focus.closedSubterm
                              , focus.pathFromClosedSubterm
@@ -151,16 +152,23 @@ model searchbox =
                              , Just admissible )
         in
           Moore { selection = Nothing, request = req, view = Layout.element layout'' }
-          (search admissible metadata focus completions' sel' content infoLayout layout'')
+          (search admissible env focus completions' sel' content infoLayout layout'')
       _ -> Nothing
 
     match s (k,_,_) = String.startsWith (String.toLower k) (String.toLower s)
     state0 = Moore { selection = Nothing, request = Nothing, view = Element.empty } closed
   in state0
 
-processSearchResults : Node.SearchResults -> Completions -> String -> Completions
-processSearchResults results cs query =
-  Debug.crash "todo"
+processSearchResults : View.Env -> Node.SearchResults -> Completions -> String -> Completions
+processSearchResults env results cs query =
+  let valids = List.map (searchEntry True env []) (fst results.matches)
+      invalids = List.map (searchEntry False env []) (fst results.illTypedMatches)
+      msg = Matcher.Results
+        { query = results.query, positionsExamined = results.positionsExamined
+        , additionalResults = snd results.matches + snd results.illTypedMatches
+        , values = valids ++ invalids }
+      msg2 = Matcher.Query { string = query, values = cs.literals ++ cs.locals }
+  in { cs | results <- Moore.feeds cs.results [ msg, msg2 ]  }
 
 parseSearchbox : Type -> String -> List (String, Element, Maybe Term)
 parseSearchbox admissible s =
@@ -244,164 +252,6 @@ invalidCompletions entries =
     Nothing -> Just (x,y)
     Just _ -> Nothing
   in List.filterMap f entries
-
-{-
-type Model
-  = Initializing S0
-  | Ready S1
-  | Searching S1
-  | Closed
-
-type alias S0 =
-  { path : Path
-  , term : Term
-  , isKeyboardOpen : Bool
-  , prompt : String
-  , content : Field.Content
-  -- does not include the layout of the input field
-  , layout : Layout (Maybe Int) }
-
-s00 : S0
-s00 =
-  { path = []
-  , term = Term.Blank
-  , isKeyboardOpen = True
-  , prompt = ""
-  , content = Field.noContent
-  , layout = Layout.embed Nothing Element.empty }
-
-type alias S1 =
-  { info : Node.LocalInfo
-  -- includes invalid completions (which have `Nothing` as edit function)
-  , localCompletions : List (String, Element, Maybe Term)
-  -- Moore (Either SearchResults String) (List (String,Element,Maybe Term), Maybe Request)
-  , searchCompletions : List (String, Element, Maybe Term)
-  , s0 : S0 }
-
-type Model
-  = Initializing S0
-  | Ready S1
-  | Searching S1
-  | Closed
-
-type Response
-  = LocalInfo Node.LocalInfo
-  | SearchResults Node.SearchResults
-
--- Open the explorer at the given location
-openAt : Term -> Path -> Model -> (Model, Request)
-openAt term path _ =
-  (Initializing { s00 | path <- path, term <- term }, Open (term,path))
-
--- Provide `LocalInfo` to the explorer
-localInfo : View.Env -> Node.LocalInfo -> Model -> (Model, Request)
-localInfo viewEnv info model = case model of
-  Initializing s0 ->
-    let search = Search (s0.term, s0.path, 7, Metadata.Query s0.content.string, Just info.admissible)
-        la cur n = (String.padLeft (n+1) '.' "", showAppBlanks viewEnv s0.path n, Just (appBlanks n cur))
-        currentApps = case Term.at s0.path s0.term of
-          Nothing -> []
-          Just cur -> List.map (la cur) info.localApplications
-        completions = currentApps ++ List.map (searchEntry True viewEnv s0.path) info.wellTypedLocals
-    in (Searching { info = info, localCompletions = completions, searchCompletions = [], s0 = s0 }, search)
-  _ -> (model, Noop)
-
--- searchResults : Node.SearchResults ->
--- mouse : (Int,Int)
--- content : Field.Content ->
-
-layout : View.Env -> (Field.Content -> Signal.Message) -> Model -> Layout (Maybe Int)
-layout viewEnv searchbox model =
-  let
-    valids = validCompletions model
-    invalids = invalidCompletions model
-    ok = not (List.isEmpty valids)
-    fld s w = Layout.embed Nothing <| Element.flow Element.down
-        [ Element.spacer 1 15
-        , Element.spacer 9 1 `Element.beside` Styles.carotUp 6 (Styles.statusColor ok)
-        , Maybe.withDefault identity (Maybe.map Element.width w) <|
-             Field.field (Styles.autocomplete ok)
-                         searchbox
-                         s.prompt
-                         s.content
-        , Element.spacer 1 10 ]
-    bottom : S1 -> Layout (Maybe Int)
-    bottom s =
-      let
-        above : Element
-        above = Element.flow Element.down <|
-          [ Element.spacer 1 10
-          , pad << Styles.boldCodeText <|
-              Type.key { metadata = viewEnv.metadata } s.info.admissible
-          , Element.spacer 1 12
-          , pad <| Styles.currentSymbol `Element.beside`
-                   Styles.codeText (" : " ++ Type.key { metadata = viewEnv.metadata } s.info.current)
-          ]
-          ++ List.map (renderTerm viewEnv (path model)) s.info.locals
-          ++ [ Element.spacer 1 10 ]
-        fit e = Element.width ((Element.widthOf above - 12) `max` (Element.widthOf e)) e
-        renderedValids = List.indexedMap (\i ((_,e),_) -> Layout.embed (Just i) (fit e)) valids
-        renderedInvalids = List.map (\(_,e) -> Layout.embed Nothing (fit e)) invalids
-        sep = Layout.embed Nothing (Styles.menuSeparator (Element.widthOf above `max` Layout.widthOf below))
-        below : Layout (Maybe Int)
-        below =
-          let cells = if List.isEmpty valids && not (List.isEmpty invalids)
-                      then Styles.explorerCells Nothing renderedInvalids
-                      else Styles.explorerCells Nothing renderedValids
-          in if List.isEmpty valids && List.isEmpty invalids then Layout.empty Nothing
-             else Layout.vertical Nothing [sep, Layout.embed Nothing (Element.spacer 1 5), cells]
-      in
-        Styles.explorerOutline (Styles.statusColor ok) <|
-        Layout.above
-          Nothing
-          (Layout.embed Nothing above)
-          below
-  in
-    case model of
-      Initializing s -> fld s Nothing
-      Ready s1 ->
-        let b = bottom s1
-        in Layout.above Nothing (fld s1.s0 (Just (Layout.widthOf b))) b
-      Searching s1 -> -- todo: spinner or color change to indicate loading
-        let b = bottom s1
-        in Layout.above Nothing (fld s1.s0 (Just (Layout.widthOf b))) b
-      Closed -> Layout.empty Nothing
-
-inputString model = case model of
-  Closed -> ""
-  Initializing s -> s.content.string
-  Ready s -> s.s0.content.string
-  Searching s -> s.s0.content.string
-
-path : Model -> Path
-path model = case model of
-  Closed -> []
-  Initializing s -> s.path
-  Ready s -> s.s0.path
-  Searching s -> s.s0.path
-
-s1 : Model -> Maybe S1
-s1 model = case model of
-  Ready s1 -> Just s1
-  Searching s1 -> Just s1
-  _ -> Nothing
-
-admissible : Model -> Maybe Type
-admissible model = Maybe.map (\s1 -> s1.info.admissible) (s1 model)
-
-keyedCompletions : Model -> List (String, Element, Maybe Term)
-keyedCompletions model = parseSearchbox model ++ case s1 model of
-  Nothing -> []
-  Just s1 -> s1.localCompletions ++ s1.searchCompletions
-
-validCompletions' : List (x, y, Maybe z) -> List ((x,y),z)
-validCompletions' entries =
-  List.filterMap (\(x,y,z) -> Maybe.map (\z -> ((x, y),z)) z) entries
-
-validCompletions : Model -> List ((String, Element), Term)
-validCompletions model = validCompletions' (keyedCompletions model)
-
--}
 
 box = Term.Embed (Layout.embed { path = [], selectable = False } Styles.currentSymbol)
 appBlanks n e = List.foldl (\_ cur -> Term.App cur Term.Blank) e [1 .. n]
