@@ -9,8 +9,8 @@ type alias Q a = { string : String, values : List a }
 
 type Event a
   = Query (Q a)
-  | Results { query : Q a
-            , results : List a
+  | Results { query : String
+            , values : List a
             , additionalResults : Int
             , positionsExamined : List Int }
 
@@ -23,27 +23,30 @@ model matches =
     empty e = case e of
       Query q -> Just <|
         let o = { matches = List.filter (matches q.string) q.values, query = Just q.string }
-        in Moore o (nonempty (missingResults q))
+        in Moore o (waiting q)
       _ -> Nothing
 
-    nonempty r e = Just <| case e of
+    waiting q e = Just <| case e of
+      Query q -> Moore { matches = List.filter (matches q.string) q.values, query = Nothing } (waiting q)
+      Results r ->
+        Moore { matches = List.filter (matches q.string) (q.values ++ r.values), query = Nothing }
+        (hasresults r)
+
+    hasresults r e = Just <| case e of
+      Results r -> Moore { matches = List.filter (matches r.query) r.values, query = Nothing }
+                   (hasresults r)
       Query q ->
         let
-          r' = { r | query <- q }
-          o = out r'
+          out = List.filter (matches q.string) (q.values ++ r.values)
           -- tricky part is determining whether we need to do another search
           full = r.additionalResults <= 0
           lastExamined = List.maximum (-1 :: r.positionsExamined)
           ok = -- we've added characters to a search with all results
-             (full && String.startsWith r.query.string q.string) ||
+             (full && String.startsWith r.query q.string) ||
              -- we've deleted characters, but not past where we have complete results
-             (full && String.startsWith q.string r.query.string && lastExamined < String.length q.string)
+             (full && String.startsWith q.string r.query && lastExamined < String.length q.string)
         in
-          Moore { o | query <- if ok then Nothing else Just q.string }
-                (nonempty (if ok then r' else missingResults q))
-      Results r' -> Moore (out r') (nonempty r')
-
-    missingResults q = { query = q, results = [], additionalResults = 0, positionsExamined = [] }
-    out r = { matches = List.filter (matches r.query.string) (r.query.values ++ r.results), query = Nothing }
+          Moore { matches = out, query = if ok then Nothing else Just q.string }
+                (if ok then hasresults r else waiting q)
   in
     Moore { matches = [], query = Nothing } empty

@@ -60,7 +60,7 @@ type alias Symbol = { name : String, fixity : Fixity, precedence : Int }
 
 type alias Names = List Symbol
 
-type Query = Query String
+type alias Query = String
 
 decodeFixity : Decoder Fixity
 decodeFixity = Decoder.andThen Decoder.string <| \t ->
@@ -104,10 +104,10 @@ encodeSort s = case s of
   Term -> Encoder.string "Term"
 
 decodeQuery : Decoder Query
-decodeQuery = Decoder.map Query Decoder.string
+decodeQuery = Decoder.string
 
 encodeQuery : Encoder Query
-encodeQuery (Query q) = Encoder.string q
+encodeQuery = Encoder.string
 
 decodeNames : Decoder Names
 decodeNames = Decoder.list decodeSymbol

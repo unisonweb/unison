@@ -63,10 +63,10 @@ type Request
 type alias Completions =
   { literals : List (String,Element,Maybe Term)
   , locals : List (String,Element,Maybe Term)
-  , searchResults : List (String,Element,Maybe Term) }
+  , searchResults : Matcher.Model (String,Element,Maybe Term) }
 
 allCompletions : Completions -> List (String,Element,Maybe Term)
-allCompletions c = c.literals ++ c.locals ++ c.searchResults
+allCompletions c = c.literals ++ c.locals ++ ((Moore.extract c.searchResults).matches)
 
 model : (Field.Content -> Signal.Message) -> Model
 model searchbox =
@@ -82,7 +82,7 @@ model searchbox =
         let req = Search ( focus.closedSubterm
                          , focus.pathFromClosedSubterm
                          , 7
-                         , Metadata.Query content.string
+                         , content.string
                          , Just info.admissible )
             sel = Selection1D.model
             la cur n = (String.padLeft (n+1) '.' "", showAppBlanks env (path focus) n, Just (appBlanks n cur))
@@ -92,7 +92,7 @@ model searchbox =
             completions =
               { locals = currentApps ++ List.map (searchEntry True env (path focus)) info.wellTypedLocals
               , literals = parseSearchbox info.admissible content.string
-              , searchResults = [] }
+              , searchResults = Matcher.model match }
             infoLayout' = infoLayout env (path focus) info
             (sel, layout') = layout env.metadata
                                      (path focus)
@@ -109,13 +109,13 @@ model searchbox =
     search metadata focus completions sel content infoLayout layout' e = case e of
       SearchResults results -> Just <|
         let
-          searchCompletions = processSearchResults results
+          completions' = processSearchResults results completions content.string
           dict = Dict.fromList results.references
           metadata' r = case Dict.get (Reference.toKey r) dict of
             Nothing -> metadata r
             Just md -> md
-          completions' = { completions | searchResults <- searchCompletions }
-          (sel', layout'') = layout metadata' (path focus) searchbox (allCompletions completions') sel content infoLayout
+          keyedCompletions = Moore.extract completions'.searchResults |> .matches
+          (sel', layout'') = layout metadata' (path focus) searchbox keyedCompletions sel content infoLayout
         in Moore { selection = Nothing, request = Nothing, view = Layout.element layout'' } <|
            search metadata' focus completions' sel' content infoLayout layout''
       Navigate nav -> Moore.step sel nav `Maybe.andThen` \sel -> Just <|
@@ -124,10 +124,13 @@ model searchbox =
            search metadata focus completions sel'' content infoLayout layout''
       _ -> Nothing
 
+    match s (k,_,_) = String.startsWith (String.toLower k) (String.toLower s)
+
   in Moore { selection = Nothing, request = Nothing, view = Element.empty } closed
 
-processSearchResults : Node.SearchResults -> List (String, Element, Maybe Term)
-processSearchResults results = [] -- todo
+processSearchResults : Node.SearchResults -> Completions -> String -> Completions
+processSearchResults results cs query =
+  Debug.crash "todo"
 
 parseSearchbox : Type -> String -> List (String, Element, Maybe Term)
 parseSearchbox admissible s =

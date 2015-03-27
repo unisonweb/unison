@@ -91,7 +91,8 @@ metadatas host = Request.post host "metadatas"
   (Reference.decodeMap MD.decodeMetadata)
 
 type alias SearchResults =
-  { references : List (Reference.Key, Metadata)
+  { query : Query
+  , references : List (Reference.Key, Metadata)
   , matches : (List Term, Int)
   , illTypedMatches : (List Term, Int)
   , positionsExamined : List Int }
@@ -107,7 +108,8 @@ search host = Request.post host "search"
                   Path.encodePath
                   Encoder.int
                   MD.encodeQuery (Encoder.optional T.encodeType))
-  (Decoder.map4 SearchResults
+  (Decoder.map5 SearchResults
+    (Decoder.at ["query"] <| MD.decodeQuery)
     (Decoder.at ["references"] <| Reference.decodeAssociationList MD.decodeMetadata)
     (Decoder.at ["matches"] <| Decoder.tuple2 (Decoder.list E.decodeTerm) Decoder.int)
     (Decoder.at ["illTypedMatches"] <| Decoder.tuple2 (Decoder.list E.decodeTerm) Decoder.int)
