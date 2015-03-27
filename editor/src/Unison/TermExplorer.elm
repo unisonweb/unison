@@ -45,11 +45,11 @@ path focus = focus.pathToClosedSubterm ++ focus.pathFromClosedSubterm
 type Event
   = Open View.Env LocalFocus Field.Content
   | Navigate (Selection1D.Event Term)
+  | Accept
   | Click (Int,Int)
   | SearchResults Node.SearchResults
   | LocalInfoResults Node.LocalInfo
   | FieldContent Field.Content
-  | Env View.Env
 
 type alias Model =
   Moore Event { selection : Maybe (LocalFocus, Term)
@@ -63,10 +63,12 @@ type Request
 type alias Completions =
   { literals : List (String,Element,Maybe Term)
   , locals : List (String,Element,Maybe Term)
-  , searchResults : Matcher.Model (String,Element,Maybe Term) }
+  , results : Matcher.Model (String,Element,Maybe Term) }
 
 allCompletions : Completions -> List (String,Element,Maybe Term)
-allCompletions c = c.literals ++ c.locals ++ ((Moore.extract c.searchResults).matches)
+allCompletions c =
+  c.results `Moore.feed` (Matcher.Query { string = "", values = c.literals ++ c.locals })
+  |> Moore.extract |> .matches
 
 model : (Field.Content -> Signal.Message) -> Model
 model searchbox =
@@ -92,7 +94,7 @@ model searchbox =
             completions =
               { locals = currentApps ++ List.map (searchEntry True env (path focus)) info.wellTypedLocals
               , literals = parseSearchbox info.admissible content.string
-              , searchResults = Matcher.model match }
+              , results = Matcher.model match }
             infoLayout' = infoLayout env (path focus) info
             (sel, layout') = layout env.metadata
                                      (path focus)
@@ -103,10 +105,10 @@ model searchbox =
                                      infoLayout'
             vw = Layout.element layout'
         in Moore { selection = Nothing, request = Just req, view = vw }
-                 (search env.metadata focus completions sel content infoLayout' layout')
+                 (search info.admissible env.metadata focus completions sel content infoLayout' layout')
       _ -> Nothing
 
-    search metadata focus completions sel content infoLayout layout' e = case e of
+    search admissible metadata focus completions sel content infoLayout layout' e = case e of
       SearchResults results -> Just <|
         let
           completions' = processSearchResults results completions content.string
@@ -114,19 +116,47 @@ model searchbox =
           metadata' r = case Dict.get (Reference.toKey r) dict of
             Nothing -> metadata r
             Just md -> md
-          keyedCompletions = Moore.extract completions'.searchResults |> .matches
-          (sel', layout'') = layout metadata' (path focus) searchbox keyedCompletions sel content infoLayout
+          matches = Moore.extract completions'.results |> .matches
+          (sel', layout'') = layout metadata' (path focus) searchbox matches sel content infoLayout
         in Moore { selection = Nothing, request = Nothing, view = Layout.element layout'' } <|
-           search metadata' focus completions' sel' content infoLayout layout''
+           search admissible metadata' focus completions' sel' content infoLayout layout''
       Navigate nav -> Moore.step sel nav `Maybe.andThen` \sel -> Just <|
         let (sel'', layout'') = layout metadata (path focus) searchbox (allCompletions completions) sel content infoLayout
         in Moore { selection = Nothing, request = Nothing, view = Layout.element layout'' } <|
-           search metadata focus completions sel'' content infoLayout layout''
+           search admissible metadata focus completions sel'' content infoLayout layout''
+      Accept ->
+        let valids = validCompletions (.matches << Moore.extract <| completions.results)
+        in Maybe.withDefault (Just state0) ( (Moore.extract sel |> snd) `Maybe.andThen`
+            \i -> Selection1D.index i valids `Maybe.andThen`
+            \(_,term) -> (Just << Just) (
+              Moore { selection = Just (focus, term), request = Nothing, view = Element.empty }
+              closed
+           ))
+      Click xy ->
+        case search admissible metadata focus completions sel content infoLayout layout' (Navigate (Selection1D.Mouse xy)) of
+          Nothing -> search admissible metadata focus completions sel content infoLayout layout' Accept
+          Just m -> Moore.step m Accept
+      FieldContent content -> Just <|
+        let
+          q = Matcher.Query { string = content.string, values = completions.literals ++ completions.locals }
+          results = Moore.feed completions.results q
+          matches = Moore.extract results |> .matches
+          completions' = { completions | results <- results }
+          (sel', layout'') = layout metadata (path focus) searchbox matches sel content infoLayout
+          req = Maybe.map mkquery (Moore.extract results |> .query)
+          mkquery q = Search ( focus.closedSubterm
+                             , focus.pathFromClosedSubterm
+                             , 7
+                             , q
+                             , Just admissible )
+        in
+          Moore { selection = Nothing, request = req, view = Layout.element layout'' }
+          (search admissible metadata focus completions' sel' content infoLayout layout'')
       _ -> Nothing
 
     match s (k,_,_) = String.startsWith (String.toLower k) (String.toLower s)
-
-  in Moore { selection = Nothing, request = Nothing, view = Element.empty } closed
+    state0 = Moore { selection = Nothing, request = Nothing, view = Element.empty } closed
+  in state0
 
 processSearchResults : Node.SearchResults -> Completions -> String -> Completions
 processSearchResults results cs query =
