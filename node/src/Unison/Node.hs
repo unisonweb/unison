@@ -19,7 +19,8 @@ import Unison.Note (Noted)
 -- can be done client-side, assuming the client has the full result set.
 data SearchResults k t e =
   SearchResults
-    { references :: [(k, Metadata k)]
+    { query :: MD.Query
+    , references :: [(k, Metadata k)]
     , matches :: ([e], Int)
     , illTypedMatches :: ([e], Int)
     , positionsExamined :: [Int] }

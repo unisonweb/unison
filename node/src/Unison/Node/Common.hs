@@ -111,6 +111,7 @@ node eval store =
         mds <- mapM (\h -> (,) h <$> readMetadata store h)
                     (S.toList (S.unions (map E.dependencies' (illtypedQmatches ++ qmatches))))
         pure $ SearchResults
+          query
           mds
           (trim qmatches)
           (trim illtypedQmatches)
