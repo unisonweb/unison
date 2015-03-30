@@ -2,6 +2,8 @@ module Unison.EditableTerm where
 
 import Elmz.Layout as Layout
 import Elmz.Layout (Layout)
+import Elmz.Moore (Moore(..))
+import Elmz.Moore as Moore
 import Elmz.Movement as Movement
 import Elmz.Trie as Trie
 import Elmz.Trie (Trie)
@@ -16,38 +18,48 @@ import Unison.Term as Term
 import Unison.Term (Term)
 import Unison.View as View
 
-type alias Model =
+type Event
+  = Mouse (Int,Int)
+  | Movement Movement.D2
+  | Modify (Term -> Term)
+  | Env View.Env
+
+type alias Out =
   { term : Term
   , layout : Layout View.L
-  , scope : Scope.Model }
+  , scope : Scope.Model
+  , dirtyPaths : Trie Path.E () }
 
-type alias Action = Model -> Model
+out : Term -> Layout View.L -> Scope.Model -> Out
+out term layout scope = Out term layout scope Trie.empty
 
-view : Model -> Element
-view model = case Maybe.andThen model.scope (Scope.view model.layout) of
-  Nothing -> Layout.element model.layout
-  Just region ->
-    Element.layers [ Layout.element model.layout
-                   , Styles.selection region ]
+type alias Model = Moore Event Out
 
-mouse : (Int,Int) -> Action
-mouse xy model =
-  { model | scope <- Scope.mouse xy model.layout model.scope }
-
-movement : Movement.D2 -> Action
-movement d2 model =
-  { model | scope <- Scope.movement model.term d2 model.scope }
-
--- Returns the new model, and a set of paths that now need reevaluation
-modify : View.Env -> Path -> (Term -> Term) -> Model -> (Model, Trie Path.E ())
-modify env path f model = case Term.modify path f model.term of
-  Nothing -> (model, Trie.empty)
-  Just term ->
-    let
-      model' = { model | term <- term
-                       , layout <- View.layout term env
-                       , scope <- Just (Scope.scope path) }
-      -- todo: be less pessimistic here
-      dirty = View.reactivePaths term
-    in
-      (model', dirty)
+model : View.Env -> Term -> Model
+model env term =
+  let
+    next env s e = case e of
+      Mouse xy -> case Scope.mouse xy s.layout Nothing of
+        scope -> let s' = { s | scope <- scope }
+                 in Just <| Moore s' (next env s')
+      Movement d2 -> case Scope.movement s.term d2 s.scope of
+        scope -> let s' = { s | scope <- scope }
+                 in Just <| Moore s' (next env s')
+      Modify f -> s.scope `Maybe.andThen`
+        \scope -> Term.modify scope.focus f s.term `Maybe.andThen`
+        \term ->
+          let o = { term = term
+                  , layout = View.layout s.term env
+                  , scope = Just (Scope.scope scope.focus)
+                  -- todo, can be less pessimistic here
+                  , dirtyPaths = View.reactivePaths term }
+          in Just (Moore o (next env { o | dirtyPaths <- Trie.empty }))
+      Env env -> Just (Moore s (next env s))
+    highlight o = Maybe.withDefault o <| o.scope `Maybe.andThen`
+      \scope -> Scope.view o.layout scope `Maybe.andThen`
+      \region ->
+        let f e = Element.layers [e, Styles.selection region]
+        in Just { o | layout <- Layout.transform f o.layout }
+  in
+    let s0 = out term (View.layout term env) (Just (Scope.scope []))
+    in Moore s0 (next env s0) |> Moore.map highlight
