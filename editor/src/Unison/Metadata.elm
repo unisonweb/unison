@@ -1,11 +1,13 @@
 module Unison.Metadata where
 
 import Array
-import Dict as M
+import Dict
 import Elmz.Json.Encoder as Encoder
 import Elmz.Json.Encoder (Encoder)
 import Elmz.Json.Decoder as Decoder
 import Elmz.Json.Decoder (Decoder, (#))
+import Elmz.Moore (Moore(..))
+import Elmz.Moore as Moore
 import List
 import Maybe
 import Unison.Reference as R
@@ -25,6 +27,15 @@ type alias Metadata = {
   locals : List (Path, Symbol),
   description : Maybe R.Reference
 }
+
+type alias Event = List (R.Key, Metadata)
+
+cache : Moore Event (R.Reference -> Metadata)
+cache =
+  let go acc entries = let acc' = Dict.fromList entries `Dict.union` acc
+                       in Just <| Moore acc' (go acc')
+  in Moore Dict.empty (go Dict.empty)
+     |> Moore.map (\dict r -> Maybe.withDefault (defaultMetadata r) (Dict.get (R.toKey r) dict))
 
 anonymousSymbol : Symbol
 anonymousSymbol = Symbol "anonymousSymbol" Prefix 9

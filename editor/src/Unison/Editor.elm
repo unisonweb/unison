@@ -3,14 +3,13 @@ module Unison.Editor where
 import Debug
 import Elmz.Layout (Containment(Inside,Outside), Layout, Pt, Region)
 import Elmz.Layout as Layout
-import Elmz.Mealy as M
-import Elmz.Mealy (Mealy)
-import Elmz.Moore (Moore)
+import Elmz.Moore (Moore(..))
 import Elmz.Moore as Moore
 import Elmz.Movement as Movement
 import Graphics.Element (Element)
 import Graphics.Element as Element
 import Graphics.Input.Field as Field
+import Maybe
 import Signal
 import Unison.Action as Action
 import Unison.Explorer as Explorer
@@ -35,96 +34,75 @@ import Unison.Type as Type
 import Unison.Var as Var
 import Unison.View as View
 
-type alias Inputs =
-  { origin : (Int,Int)
-  , clicks : Signal ()
-  , mouse : Signal (Int,Int)
-  , enters : Signal ()
-  , edits : Signal Action.Action
-  , deletes : Signal ()
-  , preapplies : Signal ()
-  , viewToggles : Signal ()
-  , modifier : Signal Bool -- generally shift
-  , movements : Signal Movement.D2
-  , searchbox : Signal.Channel Field.Content
-  , explorerHasFocus : Signal.Channel Bool
-  , responses : Signal Response
-  , width : Signal Int }
+type Event
+  = Click (Int,Int)
+  | Mouse (Int,Int)
+  | Movement Movement.D2
+  | Width Int
+  | Act Action.Action
+  | Enter
+  | Delete
+  | Preapply
+  | ViewToggle
+  | SearchResults Node.SearchResults
+  | LocalInfoResults Node.LocalInfo
+  | FieldContent Field.Content
 
 type Request
-  = LocalRequest Term Path -- obtain the current and admissible type and local completions
-  | Search Term Path Int (Maybe Type) Metadata.Query -- global search for a given type
+  = ExplorerRequest TermExplorer.Request
+  | EditRequest TermExplorer.LocalFocus Action.Action
   | Declare Term
-  | Edit Path Path Action.Action Term
   | Evaluations (List (Path, Term))
   | Metadatas (List Reference)
 
-type Response
-  = LocalResponse Node.LocalInfo
-  | SearchResults Node.SearchResults
+type alias Out = { term : Term, view : Element, request : Maybe Request }
 
-type Mode a
-  = Open a
-  | Closed
-  | Cancelled
+type alias Model = Moore Event Out
+type alias Sink a = a -> Signal.Message
 
-type alias Either a b = Result a b
-
-accepts : Mealy (Mode a) (Maybe a)
-accepts =
-  let f prev cur = case (prev,cur) of
-        (Open a, Closed) -> Just a
-        _ -> Nothing
-  in M.changesBy f
-
-editor : Term -> Inputs -> Signal (Element, List Request)
-editor t0 env =
+model : Sink Field.Content -> Term -> Model
+model sink term0 =
   let
-    -- explorerHasFocus : Signal.Channel Bool
-    explorerOpen : Signal Bool
-    explorerOpen =
-      -- a click outside the explorer region closes if open
-      -- a click inside noops if not pointing to valid completion
-      -- a click inside noops
-      todo
+    out term = { term = Moore.extract term |> .term
+               , view = Moore.extract term |> .layout |> Layout.element
+               , request = Nothing }
+    toOpen mds term explorer scope =
+      let
+        focus = TermExplorer.localFocus scope.focus (Moore.extract term |> .term)
+        env = View.env0 -- todo, then build this properly from the local names of the term + mds
+        ex = Moore.feed explorer (TermExplorer.Open env focus Field.noContent)
+        o = let r = out term in { r | request <- Maybe.map ExplorerRequest (Moore.extract ex |> .request) }
+      in
+        Moore o (exploreropen mds term ex)
 
-    -- Moore (Maybe Movement.D2, Maybe (Int,Int), Layout.L) Foo
-    -- still have a loop due to path resolution depending
-    -- on the current layout and the input mode
-    -- EVERYTHING depends on the current layout
-    --
-    term' : Moore (Path, Term -> Term) Term
-    term' = term t0
-
-    viewEnv' : Signal Response -> Signal View.Env
-    viewEnv' = Moore.transform viewEnv
-
-    {-
-    layout' : Signal Response
-           -> Signal Path
-           -> Signal (Maybe (Term -> Term))
-           -> Signal (Layout View.L)
-    layout' r p =
-    -}
-
-    -- explorer : Mealy (Either Input Response) (Element, List Request, Mode (Term -> Term))
-
-    -- highlightedTermWithLayout : Mealy (View.Env, (Path, Term -> Term), )
+    explorerclosed mds term explorer e = case e of
+      -- these trigger a state change
+      Click xy -> case Moore.feed term (EditableTerm.Mouse xy) of
+        term -> (Moore.extract term |> .scope) `Maybe.andThen` \scope -> Just (toOpen mds term explorer scope)
+      Enter -> (Moore.extract term |> .scope) `Maybe.andThen` \scope -> Just (toOpen mds term explorer scope)
+      Mouse xy -> Moore.step term (EditableTerm.Mouse xy) `Maybe.andThen` \term ->
+        Just <| Moore (out term) (explorerclosed mds term explorer)
+      Preapply -> Moore.step term (EditableTerm.Modify (Term.App Term.Blank)) `Maybe.andThen` \term ->
+        Just <| Moore (out term) (explorerclosed mds term explorer)
+      Act action -> (Moore.extract term |> .scope) `Maybe.andThen` \scope ->
+        let
+          focus = TermExplorer.localFocus scope.focus (Moore.extract term |> .term)
+          r = out term
+          o = { r | request <- Just (EditRequest focus action) }
+        in
+          Just <| Moore o (explorerclosed mds term explorer)
+      -- Width w -> todo
+      _ -> Nothing
+    exploreropen mds term explorer e = Nothing
   in
-    todo
+    let
+      terms0 = EditableTerm.model View.env0 term0
+      explorer0 = TermExplorer.model sink
+    in
+      Moore (out terms0) (explorerclosed Metadata.cache terms0 explorer0)
 
-    -- term = { loc : Path, action : Term -> Term, term : Term } -> Term
---
-viewEnv : Moore Response View.Env
-viewEnv = todo --
+focusOpen : Event -> Maybe TermExplorer.Event
+focusOpen _ = Nothing
 
-term : Term -> Moore (Path, Term -> Term) Term
-term t0 = editable Term.modify t0
-
-todo = Debug.crash "todo"
-
-editable : (k -> (v -> v) -> kvs -> Maybe kvs)
-        -> kvs
-        -> Moore (k, v -> v) kvs
-editable _ _ = todo
-
+focusClosed : Event -> Maybe EditableTerm.Event
+focusClosed _ = Nothing

@@ -1,4 +1,4 @@
-module Unison.View (Env, key, layout, layout', literalKey, L, reactivePaths) where
+module Unison.View (Env, env0, key, layout, layout', literalKey, L, reactivePaths) where
 
 import Array
 import Color
@@ -6,6 +6,8 @@ import Debug
 import Elmz.Distance as Distance
 import Elmz.Layout (Layout)
 import Elmz.Layout as L
+import Elmz.Moore (Moore(..))
+import Elmz.Moore as Moore
 import Elmz.Trie as Trie
 import Elmz.Trie (Trie)
 import List
@@ -37,6 +39,14 @@ type alias Env =
   , overrides      : Path -> Maybe Term
   , raw            : Trie E () -- whether a path should be displayed as raw source
   }
+
+env0 : Env
+env0 =
+  { rootMetadata = Metadata.anonymousTerm
+  , availableWidth = 1024
+  , metadata = Metadata.defaultMetadata
+  , overrides = always Nothing
+  , raw = Trie.empty }
 
 type alias Cur =
   { path : Path

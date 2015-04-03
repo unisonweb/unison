@@ -18,6 +18,9 @@ import Unison.Term as Term
 import Unison.Term (Term)
 import Unison.View as View
 
+-- todo: make EditableTerm responsible for maintaining local names
+-- and just have it receive the Reference -> Metadata externally
+
 type Event
   = Mouse (Int,Int)
   | Movement Movement.D2

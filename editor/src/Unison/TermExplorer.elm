@@ -39,6 +39,14 @@ type alias LocalFocus =
   , closedSubterm : Term
   , pathFromClosedSubterm : Path }
 
+localFocus : Path -> Term -> LocalFocus
+localFocus path rootTerm =
+  -- todo: tighten path to closed subterm
+  { rootTerm = rootTerm
+  , pathToClosedSubterm = []
+  , closedSubterm = rootTerm
+  , pathFromClosedSubterm = path }
+
 path : LocalFocus -> Path
 path focus = focus.pathToClosedSubterm ++ focus.pathFromClosedSubterm
 
