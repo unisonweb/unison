@@ -33,8 +33,7 @@ type alias E = Path.E
 type alias L = { path : Path, selectable : Bool }
 
 type alias Env =
-  { rootMetadata   : Metadata
-  , availableWidth : Int
+  { availableWidth : Int
   , metadata       : R.Reference -> Metadata
   , overrides      : Path -> Maybe Term
   , raw            : Trie E () -- whether a path should be displayed as raw source
@@ -42,29 +41,12 @@ type alias Env =
 
 env0 : Env
 env0 =
-  { rootMetadata = Metadata.anonymousTerm
-  , availableWidth = 1024
+  { availableWidth = 1024
   , metadata = Metadata.defaultMetadata
   , overrides = always Nothing
   , raw = Trie.empty }
 
-type alias Cur =
-  { path : Path
-  , term : Term
-  , boundAt : Path -> V.I -> Path }
-
-resolveLocal : String -> Metadata -> Path -> Metadata.Symbol
-resolveLocal prefix md p = case Metadata.localSymbol md p of
-  Nothing ->
-    let sym = Metadata.anonymousSymbol
-        depth = List.length (List.filter ((==) Path.Body) p) + 1
-    in { sym | name <- prefix ++ toString depth }
-  Just sym -> sym
-
-weakenBoundAt : (Path -> V.I -> Path) -> Path -> V.I -> Path
-weakenBoundAt boundAt path v =
-  if v == V.bound1 then Path.trimThroughScope path
-  else boundAt (Path.trimThroughScope path) (V.decr v)
+type alias Cur = { path : Path, term : Term }
 
 literalKey : Term -> Maybe String
 literalKey e = case e of
@@ -74,12 +56,12 @@ literalKey e = case e of
   Blank -> Just "_"
   _ -> Nothing
 
-key : { tl | rootMetadata : Metadata, metadata : R.Reference -> Metadata }
+key : { tl | metadata : R.Reference -> Metadata }
    -> Cur
    -> String
 key env cur = case cur.term of
   Blank -> "_"
-  Var v -> (resolveLocal "v" env.rootMetadata (cur.boundAt cur.path v)).name
+  Var v -> "v" ++ toString v
   Lit (Number n) -> toString n
   Lit (Str s) -> "\"" ++ toString s ++ "\""
   Lit (Distance d) -> toString d
@@ -91,66 +73,10 @@ key env cur = case cur.term of
     let ki i term = key env { cur | path <- cur.path `snoc` Index i, term <- term }
     in "[" ++ String.join "," (Array.toList (Array.indexedMap ki terms)) ++ "]"
   Lam body -> key env { path = cur.path `snoc` Body
-                      , term = body
-                      , boundAt = weakenBoundAt cur.boundAt }
-
-{-|
-
-  Layout proceeds in phases:
-
-  1. Traverse the term, find all panels / cells, and compute hashes for all
-  2. Build mapping from path to hash - for each panel / cell path, what is its hash
-  3. For each panel / cell, compute its dependencies, Dict Hash [Hash]
-
-  At this point, we have a dependency graph for the root panel.
-
-  4. For each panel / cell, if it is marked reactive, as in `cell reactive x`,
-     if `x` is a closed term, add it to list of paths that need evaluation.
-  5. Send all terms needing evaluation to the node. Node replies with a
-     Dict Path Term which editor will splice in.
-     (optimization - evaluate some terms locally when possible)
-
-  At this point, we have a fully resolved term tree.
-
-  6. We traverse the resolved tree, applying special layout forms, and building
-     up an 'overrides' map `Dict Path (Layout L)`.
-     a. This gives us
-  7. Finally, we invoke the regular Term.layout function, passing it the overrides map.
-
-  Can be smarter about how we do updates, avoid needless recomputation.
-
-  cell : (a -> Layout) -> a -> a
-  vflow : [Layout] -> Layout
-  fn : (Layout -> Layout) -> (a -> b) -> Layout
-
-  cell (fn (\x -> vflow [x, hline])) sqrt 23
-
-  panel vflow [panel source 12, panel source "hi", panel reactive #af789de]
-  need to
-  don't do any evaluation during layout, up to user to evaluate beforehand
-  panel vflow (map blah [0..100]) is problematic, doing arbitrary computation at layout time
-  but we have to do this for cases like `panel reactive (2 + 2)`
-
-specialLayout : Path -> Term -> Maybe (Layout L)
-specialLayout at e = case e of
-  -- panel : (a -> Layout) -> a -> Layout
-  App (App (Builtin "Unison.Layout.Panel") f) r ->
-    interpretLayout f r
-  -- cell : (a -> Layout) -> a -> a
-  _ -> Nothing
-
-
-interpretLayout : Path -> Term -> Term -> Maybe (Layout L)
-interpretLayout at f e = case f of
-  Builtin "Unison.Layout.hflow" -> case e of
-  -- panel vflow [panel source 12, panel source "woot"]
-
--}
+                      , term = body }
 
 todo : a
 todo = todo
-
--- use overrides for
 
 tag path = { path = path, selectable = True }
 utag path = { path = path, selectable = False }
@@ -178,7 +104,7 @@ layout : Term -- term to render
       -> Env
       -> Layout L
 layout expr env =
-  impl env True 0 env.availableWidth { path = [], term = expr, boundAt _ v = [] }
+  impl env True 0 env.availableWidth { path = [], term = expr }
 
 layout' : Env -> Cur -> Layout L
 layout' env cur = impl env True 0 env.availableWidth cur
@@ -199,8 +125,7 @@ impl env allowBreak ambientPrec availableWidth cur =
                       { cur | term <- l }
     Nothing -> case cur.term of
       Embed l -> l
-      Var v -> codeText (resolveLocal "v" env.rootMetadata (cur.boundAt cur.path v)).name
-            |> L.embed (tag cur.path)
+      Var v -> codeText ("v" ++ toString v) |> L.embed (tag cur.path)
       Ref h -> codeText (Metadata.firstName (R.toKey h) (env.metadata h)) |> L.embed (tag cur.path)
       Blank -> Styles.blank |> L.embed (tag cur.path)
       Lit (Number n) -> Styles.numericLiteral (toString n) |> L.embed (tag cur.path)
@@ -212,18 +137,14 @@ impl env allowBreak ambientPrec availableWidth cur =
                              (L.embed (tag cur.path) ann)
       Lam body ->
         let space' = L.embed (tag cur.path) space
-            arg = codeText (resolveLocal "v" env.rootMetadata cur.path).name
-               |> L.embed (tag cur.path)
+            arg = codeText ("v" ++ toString (lambdaDepth cur.path)) |> L.embed (tag cur.path)
             nested = case body of
               Lam _ -> True
               _ -> False
             argLayout = [arg]
                      ++ (if nested then [] else [L.embed (tag cur.path) (codeText "→")])
                      |> L.intersperseHorizontal space'
-            weakened = weakenBoundAt cur.boundAt
-            cur' = { cur | boundAt <- weakenBoundAt cur.boundAt
-                         , term <- body
-                         , path <- cur.path `snoc` Body }
+            cur' = { cur | term <- body, path <- cur.path `snoc` Body }
             unbroken = [ argLayout, impl env False 0 0 cur' ]
                     |> L.intersperseHorizontal space'
                     |> paren (ambientPrec > 0) cur
@@ -315,7 +236,7 @@ break env cur =
     App (App op l) r ->
       let sym = case op of
         Ref h -> Metadata.firstSymbol (R.toKey h) (env.metadata h)
-        Var v -> resolveLocal "v" env.rootMetadata (cur.boundAt cur.path v)
+        Var v -> Metadata.prefixSymbol ("v" ++ toString v)
         _ -> Metadata.anonymousSymbol
       in case sym.fixity of
         Metadata.Prefix -> prefix (App (App op l) r) [] cur.path -- not an operator chain, fall back

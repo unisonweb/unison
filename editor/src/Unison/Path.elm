@@ -69,6 +69,12 @@ trimArg p = case List.reverse p of
   Arg :: tl -> List.reverse tl
   _ -> p
 
+lambdaDepth : Path -> Int
+lambdaDepth p = case p of
+  [] -> 0
+  Body :: tl -> 1 + lambdaDepth tl
+  _ :: tl -> lambdaDepth tl
+
 -- Trim from the right of this path until hitting a `Body` path element.
 -- This is used to normalize paths
 trimToScope : Path -> Path
@@ -86,13 +92,6 @@ trimThroughScope p =
         Body :: t -> List.reverse t
         h :: t -> go t
   in go (List.reverse p)
-
-{-| Given a `Path` pointing to the given `Var`, return the `Path`
-    where that variable is bound, assuming debruijn indexing. -}
-boundAt : Path -> Var.I -> Path
-boundAt path v =
-  if v == Var.bound1 then trimThroughScope path
-  else boundAt (trimThroughScope path) (Var.decr v)
 
 startsWith : List a -> List a -> Bool
 startsWith prefix overall =

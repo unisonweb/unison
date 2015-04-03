@@ -40,6 +40,9 @@ cache =
 anonymousSymbol : Symbol
 anonymousSymbol = Symbol "anonymousSymbol" Prefix 9
 
+prefixSymbol : String -> Symbol
+prefixSymbol name = Symbol name Prefix 9
+
 anonymousTerm : Metadata
 anonymousTerm = Metadata Term [] [] Nothing
 

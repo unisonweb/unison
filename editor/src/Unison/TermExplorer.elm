@@ -268,11 +268,11 @@ showAppBlanks viewEnv path n = renderTerm viewEnv path (appBlanks n box)
 
 searchKey : View.Env -> Path -> Term -> String
 searchKey viewEnv path e =
-  View.key viewEnv { path = path, term = e, boundAt = Path.boundAt }
+  View.key viewEnv { path = path, term = e }
 
 renderExplorerEntry : View.Env -> Path -> Term -> Element
 renderExplorerEntry viewEnv path e = Layout.element <|
-  View.layout' viewEnv { path = path, term = e, boundAt = Path.boundAt }
+  View.layout' viewEnv { path = path, term = e }
 
 searchEntry : Bool -> View.Env -> Path -> Term -> (String,Element,Maybe Term)
 searchEntry valid viewEnv path e =
@@ -283,4 +283,4 @@ localCompletions viewEnv info = Debug.crash "todo"
 
 pad e = let s = Element.spacer 10 1 in Element.flow Element.right [s, e, s]
 renderTerm viewEnv path expr = pad << Layout.element <|
-  View.layout' viewEnv { term = expr, path = path, boundAt = Path.boundAt }
+  View.layout' viewEnv { term = expr, path = path }
