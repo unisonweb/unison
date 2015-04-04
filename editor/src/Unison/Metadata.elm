@@ -21,12 +21,10 @@ type alias Path = Path.Path -- to avoid conflict with Graphics.Collage.Path
 
 type Sort = Type | Term
 
-type alias Metadata = {
-  sort : Sort,
-  names : Names,
-  locals : List (Path, Symbol),
-  description : Maybe R.Reference
-}
+type alias Metadata =
+  { sort : Sort
+  , names : Names
+  , description : Maybe R.Reference }
 
 type alias Event = List (R.Key, Metadata)
 
@@ -44,11 +42,11 @@ prefixSymbol : String -> Symbol
 prefixSymbol name = Symbol name Prefix 9
 
 anonymousTerm : Metadata
-anonymousTerm = Metadata Term [] [] Nothing
+anonymousTerm = Metadata Term [] Nothing
 
 defaultMetadata : R.Reference -> Metadata
 defaultMetadata s =
-  Metadata Term [Symbol (R.toKey s) Prefix 9] [] Nothing
+  Metadata Term [prefixSymbol (R.toKey s)] Nothing
 
 firstSymbol : String -> Metadata -> Symbol
 firstSymbol defaultName md = case md.names of
@@ -60,13 +58,6 @@ firstName ifEmpty md =
   if List.isEmpty md.names
   then ifEmpty
   else (List.head md.names).name
-
-localSymbol : Metadata -> Path -> Maybe Symbol
-localSymbol env p =
-  let trimmed = Path.trimToScope p
-  in case List.filter (\(p',sym) -> p == p') env.locals of
-    [] -> Nothing
-    (_,s) :: _ -> Just s
 
 type Fixity = InfixL | InfixR | Infix | Prefix
 
@@ -131,23 +122,14 @@ encodeNames = Encoder.list encodeSymbol
 
 decodeMetadata : Decoder Metadata
 decodeMetadata =
-  Decoder.map4 Metadata
+  Decoder.map3 Metadata
     (Decoder.at ["sort"] decodeSort)
     (Decoder.at ["names"] decodeNames)
-    (Decoder.at ["locals"] decodeLocals)
     (Decoder.at ["description"] (Decoder.maybe R.decode))
 
-decodeLocals : Decoder (List (Path,Symbol))
-decodeLocals =
-  Decoder.list (Decoder.tuple2 Path.decodePath decodeSymbol)
-
-encodeLocals : Encoder (List (Path,Symbol))
-encodeLocals = Encoder.list (Encoder.tuple2 Path.encodePath encodeSymbol)
-
 encodeMetadata : Encoder Metadata
-encodeMetadata md = Encoder.object4
+encodeMetadata md = Encoder.object3
   ("sort", encodeSort)
   ("names", encodeNames)
-  ("locals", encodeLocals)
   ("description", (Encoder.optional R.encode))
-  (md.sort, md.names, md.locals, md.description)
+  (md.sort, md.names, md.description)
