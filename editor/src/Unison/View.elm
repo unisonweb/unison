@@ -36,7 +36,7 @@ type alias Env =
   { availableWidth : Int
   , metadata       : R.Reference -> Metadata
   , overrides      : Path -> Maybe Term
-  , raw            : Trie E () -- whether a path should be displayed as raw source
+  , raw            : Maybe Path
   }
 
 env0 : Env
@@ -44,7 +44,7 @@ env0 =
   { availableWidth = 1024
   , metadata = Metadata.defaultMetadata
   , overrides = always Nothing
-  , raw = Trie.empty }
+  , raw = Nothing }
 
 type alias Cur = { path : Path, term : Term }
 
@@ -157,8 +157,9 @@ impl env allowBreak ambientPrec availableWidth cur =
                     , space'
                     , impl env True 0 (availableWidth - indentWidth) cur' ])
                 |> paren (ambientPrec > 0) cur
-      _ -> case (Trie.lookup cur.path env.raw, builtins env allowBreak ambientPrec availableWidth cur) of
-        (Nothing, Just l) -> l
+      _ -> case (Maybe.withDefault False <| Maybe.map (Path.startsWith cur.path) env.raw,
+                 builtins env allowBreak ambientPrec availableWidth cur) of
+        (True, Just l) -> l
         _ -> let space' = L.embed (tag cur.path) space in
           case break env cur of
             Prefix f args ->

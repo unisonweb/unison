@@ -8,6 +8,11 @@ type Trie k v = Trie (Maybe v) (List (k, Trie k v))
 empty : Trie k v
 empty = Trie Nothing []
 
+isEmpty : Trie k v -> Bool
+isEmpty t = case t of
+  Trie Nothing [] -> True
+  _ -> False
+
 leaf : v -> Trie k v
 leaf v = Trie (Just v) []
 
@@ -22,6 +27,9 @@ mergeDisjoint (Trie v1 t1) (Trie v2 t2) =
    if | Trie v2 t2 == empty -> Trie v1 t1
       | Trie v1 t1 == empty -> Trie v2 t2
       | otherwise -> Trie (Maybe.oneOf [v1,v2]) (t1 ++ t2)
+
+fromList : List (List k, v) -> Trie k v
+fromList kvs = List.foldl (\(k,v) acc -> insert k v acc) empty kvs
 
 insert : List k -> v -> Trie k v -> Trie k v
 insert k v (Trie v0 children) = case k of
@@ -38,6 +46,14 @@ lookup k (Trie v children) = case k of
             in case List.filterMap f children of
                  child :: _ -> lookup t child
                  []     -> Nothing
+
+deleteSubtree : List k -> Trie k v -> Trie k v
+deleteSubtree k (Trie v children) = case k of
+  [] -> empty
+  h :: [] -> let f2 (k,child) = if k == h then Nothing else Just (k, child)
+             in Trie v (List.filterMap f2 children)
+  h :: t -> let f2 (k,child) = if k == h then (k, deleteSubtree t child) else (k, child)
+            in Trie v (List.map f2 children)
 
 delete : List k -> Trie k v -> Trie k v
 delete k (Trie v children) = case k of

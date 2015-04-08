@@ -67,6 +67,7 @@ model sink term0 =
                , view = Moore.extract term |> .layout |> Layout.element
                , request = Nothing }
     toOpen mds term explorer scope =
+      -- todo: need to store width, overrides, and raw toggle as well
       let
         focus = TermExplorer.localFocus scope.focus (Moore.extract term |> .term)
         env = View.env0 -- todo, then build this properly from the local names of the term + mds
@@ -80,6 +81,7 @@ model sink term0 =
       Click xy -> case Moore.feed term (EditableTerm.Mouse xy) of
         term -> (Moore.extract term |> .scope) `Maybe.andThen` \scope -> Just (toOpen mds term explorer scope)
       Enter -> (Moore.extract term |> .scope) `Maybe.andThen` \scope -> Just (toOpen mds term explorer scope)
+      -- these dont
       Mouse xy -> Moore.step term (EditableTerm.Mouse xy) `Maybe.andThen` \term ->
         Just <| Moore (out term) (explorerclosed mds term explorer)
       Preapply -> Moore.step term (EditableTerm.Modify (Term.App Term.Blank)) `Maybe.andThen` \term ->
@@ -96,7 +98,7 @@ model sink term0 =
     exploreropen mds term explorer e = Nothing
   in
     let
-      terms0 = EditableTerm.model View.env0 term0
+      terms0 = EditableTerm.model term0
       explorer0 = TermExplorer.model sink
     in
       Moore (out terms0) (explorerclosed Metadata.cache terms0 explorer0)
