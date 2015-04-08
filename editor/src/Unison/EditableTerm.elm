@@ -1,7 +1,7 @@
 module Unison.EditableTerm where
 
 import Elmz.Layout as Layout
-import Elmz.Layout (Layout)
+import Elmz.Layout (Layout,Region)
 import Elmz.Moore (Moore(..))
 import Elmz.Moore as Moore
 import Elmz.Movement as Movement
@@ -22,9 +22,6 @@ import Unison.Term as Term
 import Unison.Term (Term)
 import Unison.View as View
 
--- todo: make EditableTerm responsible for maintaining local names
--- and just have it receive the Reference -> Metadata externally
-
 type Event
   = Mouse (Int,Int)
   | Movement Movement.D2
@@ -38,12 +35,19 @@ type alias Out =
   { term : Term
   , layout : Layout View.L
   , scope : Scope.Model
-  , dirtyPaths : Trie Path.E () }
+  , dirtyPaths : Trie Path.E ()
+  , selection : Maybe Region }
 
 out : Term -> Layout View.L -> Scope.Model -> Out
-out term layout scope = Out term layout scope Trie.empty
+out term layout scope = Out term layout scope Trie.empty Nothing
 
-type alias Model = Moore Event Out
+type alias Model =
+  Moore Event
+  { term : Term
+  , layout : Layout View.L
+  , scope : Scope.Model
+  , dirtyPaths : Trie Path.E ()
+  , selection : Maybe Region }
 
 model : Term -> Model
 model term =
@@ -59,7 +63,8 @@ model term =
                   , raw = if raw then Maybe.map .focus s.scope else Nothing }
         in { s | layout <- l }
 
-    next : Maybe Int -> (Reference -> Metadata) -> Bool -> Trie Path.E Term -> Out -> Event -> Maybe Model
+    next : Maybe Int -> (Reference -> Metadata) -> Bool -> Trie Path.E Term -> Out -> Event
+        -> Maybe (Moore Event Out)
     next w md raw evals s e = case e of
       Metadata md ->
         let s' = refresh w md raw evals s
@@ -93,15 +98,17 @@ model term =
           let
              evals' = Trie.deleteSubtree scope.focus evals
              s' = refresh w md raw evals' { s | term <- term
-                                             , dirtyPaths <- View.reactivePaths term
-                                             , scope <- Just (Scope.scope scope.focus) }
+                                              , dirtyPaths <- View.reactivePaths term
+                                              , scope <- Just (Scope.scope scope.focus) }
           in
             Just <| Moore s' (next w md raw evals' { s' | dirtyPaths <- Trie.empty })
-    highlight o = Maybe.withDefault o <| o.scope `Maybe.andThen`
-      \scope -> Scope.view o.layout scope `Maybe.andThen`
-      \region ->
-        let f e = Element.layers [e, Styles.selection region]
-        in Just { o | layout <- Layout.transform f o.layout }
+    highlight o = Maybe.withDefault { o | selection <- Nothing } <|
+      o.scope `Maybe.andThen`
+        \scope -> Scope.view o.layout scope `Maybe.andThen`
+        \region ->
+          let f e = Element.layers [e, Styles.selection region]
+          in Just { o | selection <- Just region, layout <- Layout.transform f o.layout }
   in
     let s0 = out term (Layout.empty { path = [], selectable = False }) (Just (Scope.scope []))
-    in Moore s0 (next Nothing Metadata.defaultMetadata False Trie.empty s0) |> Moore.map highlight
+    in Moore s0 (next Nothing Metadata.defaultMetadata False Trie.empty s0)
+       |> Moore.map highlight

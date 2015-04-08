@@ -44,6 +44,7 @@ type Event
   | Delete
   | Preapply
   | ViewToggle
+  | EvaluationResults (List { path : Path, old : Term, new : Term })
   | SearchResults Node.SearchResults
   | LocalInfoResults Node.LocalInfo
   | FieldContent Field.Content
