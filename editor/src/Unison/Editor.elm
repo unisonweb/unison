@@ -71,28 +71,33 @@ model sink term0 =
     toOpen mds term explorer scope =
       let
         focus = TermExplorer.localFocus scope.focus (Moore.extract term |> .term)
-        env = { availableWidth = Maybe.withDefault 1000 (Moore.extract term |> .availableWidth)
+        env = { availableWidth = 500 -- could also compute based on term available width
               , metadata = Moore.extract mds
               , overrides = always Nothing
               , raw = Nothing }
         ex = Moore.feed explorer (TermExplorer.Open env focus Field.noContent)
-        o = let r = out term in { r | request <- Maybe.map ExplorerRequest (Moore.extract ex |> .request) }
+        term' = Moore.feed term { event = Nothing, explorerOpen = True }
+        o = let r = out term' in { r | request <- Maybe.map ExplorerRequest (Moore.extract ex |> .request) }
       in
-        Moore o (exploreropen mds term ex)
+        Moore o (exploreropen mds term' ex)
+
+    feed b m e = Moore.feed m { event = Just e, explorerOpen = b }
+    step b m e = Moore.step m { event = Just e, explorerOpen = b }
+    (feedX, feed0, stepX, step0) = (feed False, feed True, step False, step True)
 
     explorerclosed mds term explorer e = case e of
       -- these trigger a state change
-      Click xy -> case Moore.feed term (EditableTerm.Mouse xy) of
+      Click xy -> case feedX term (EditableTerm.Mouse xy) of
         term -> (Moore.extract term |> .scope) `Maybe.andThen` \scope -> Just (toOpen mds term explorer scope)
       Enter -> (Moore.extract term |> .scope) `Maybe.andThen` \scope -> Just (toOpen mds term explorer scope)
       -- these dont
-      Mouse xy -> Moore.step term (EditableTerm.Mouse xy) `Maybe.andThen` \term ->
+      Mouse xy -> stepX term (EditableTerm.Mouse xy) `Maybe.andThen` \term ->
         Just <| Moore (out term) (explorerclosed mds term explorer)
-      Movement d2 -> Moore.step term (EditableTerm.Movement d2) `Maybe.andThen` \term ->
+      Movement d2 -> stepX term (EditableTerm.Movement d2) `Maybe.andThen` \term ->
         Just <| Moore (out term) (explorerclosed mds term explorer)
-      Preapply -> Moore.step term (EditableTerm.Modify (Term.App Term.Blank)) `Maybe.andThen` \term ->
+      Preapply -> stepX term (EditableTerm.Modify (Term.App Term.Blank)) `Maybe.andThen` \term ->
         Just <| Moore (out term) (explorerclosed mds term explorer)
-      Replace r -> Moore.step term (EditableTerm.Replace r) `Maybe.andThen` \term ->
+      Replace r -> stepX term (EditableTerm.Replace r) `Maybe.andThen` \term ->
         Just <| Moore (out term) (explorerclosed mds term explorer)
       Act action -> (Moore.extract term |> .scope) `Maybe.andThen` \scope ->
         let
@@ -102,7 +107,7 @@ model sink term0 =
         in
           Just <| Moore o (explorerclosed mds term explorer)
       Width w -> Maybe.map (\term -> Moore (out term) (explorerclosed mds term explorer))
-                           (Moore.step term (EditableTerm.AvailableWidth w))
+                           (stepX term (EditableTerm.AvailableWidth w))
       _ -> Nothing
     exploreropen mds term explorer e = case e of
       -- these can trigger a state change
