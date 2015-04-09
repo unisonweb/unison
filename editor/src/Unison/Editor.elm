@@ -65,9 +65,14 @@ type alias Sink a = a -> Signal.Message
 model : Sink Field.Content -> Term -> Model
 model sink term0 =
   let
-    out term = { term = Moore.extract term |> .term
-               , view = Moore.extract term |> .layout |> Layout.element
-               , request = Nothing }
+    offset term e = case Moore.extract term |> .selection of
+      Nothing -> Element.empty
+      Just region -> Styles.padNW region.topLeft.x region.topLeft.y e
+    out term explorer =
+      { term = Moore.extract term |> .term
+      , view = Element.layers [ Moore.extract term |> .layout |> Layout.element
+                              , offset term (Moore.extract explorer |> .view) ]
+      , request = Nothing }
     toOpen mds term explorer scope =
       let
         focus = TermExplorer.localFocus scope.focus (Moore.extract term |> .term)
@@ -77,7 +82,7 @@ model sink term0 =
               , raw = Nothing }
         ex = Moore.feed explorer (TermExplorer.Open env focus Field.noContent)
         term' = Moore.feed term { event = Nothing, explorerOpen = True }
-        o = let r = out term' in { r | request <- Maybe.map ExplorerRequest (Moore.extract ex |> .request) }
+        o = let r = out term' ex in { r | request <- Maybe.map ExplorerRequest (Moore.extract ex |> .request) }
       in
         Moore o (exploreropen mds term' ex)
 
@@ -92,21 +97,21 @@ model sink term0 =
       Enter -> (Moore.extract term |> .scope) `Maybe.andThen` \scope -> Just (toOpen mds term explorer scope)
       -- these dont
       Mouse xy -> stepX term (EditableTerm.Mouse xy) `Maybe.andThen` \term ->
-        Just <| Moore (out term) (explorerclosed mds term explorer)
+        Just <| Moore (out term explorer) (explorerclosed mds term explorer)
       Movement d2 -> stepX term (EditableTerm.Movement d2) `Maybe.andThen` \term ->
-        Just <| Moore (out term) (explorerclosed mds term explorer)
+        Just <| Moore (out term explorer) (explorerclosed mds term explorer)
       Preapply -> stepX term (EditableTerm.Modify (Term.App Term.Blank)) `Maybe.andThen` \term ->
-        Just <| Moore (out term) (explorerclosed mds term explorer)
+        Just <| Moore (out term explorer) (explorerclosed mds term explorer)
       Replace r -> stepX term (EditableTerm.Replace r) `Maybe.andThen` \term ->
-        Just <| Moore (out term) (explorerclosed mds term explorer)
+        Just <| Moore (out term explorer) (explorerclosed mds term explorer)
       Act action -> (Moore.extract term |> .scope) `Maybe.andThen` \scope ->
         let
           focus = TermExplorer.localFocus scope.focus (Moore.extract term |> .term)
-          r = out term
+          r = out term explorer
           o = { r | request <- Just (EditRequest focus action) }
         in
           Just <| Moore o (explorerclosed mds term explorer)
-      Width w -> Maybe.map (\term -> Moore (out term) (explorerclosed mds term explorer))
+      Width w -> Maybe.map (\term -> Moore (out term explorer) (explorerclosed mds term explorer))
                            (stepX term (EditableTerm.AvailableWidth w))
       _ -> Nothing
     exploreropen mds term explorer e = case e of
@@ -126,7 +131,7 @@ model sink term0 =
       terms0 = EditableTerm.model term0
       explorer0 = TermExplorer.model sink
     in
-      Moore (out terms0) (explorerclosed Metadata.cache terms0 explorer0)
+      Moore (out terms0 explorer0) (explorerclosed Metadata.cache terms0 explorer0)
 
 focusOpen : Event -> Maybe TermExplorer.Event
 focusOpen _ = Nothing

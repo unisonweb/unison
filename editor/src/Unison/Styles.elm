@@ -18,6 +18,13 @@ import Text (Style)
 import Text as T
 import Time
 
+padNW : Int -> Int -> Element -> Element
+padNW padLeft padAbove e =
+  E.container (E.widthOf e + padLeft)
+              (E.heightOf e + padAbove)
+              (E.topLeftAt (E.absolute padLeft) (E.absolute padAbove))
+              e
+
 body : Style
 body =
   { typeface = [ "Lato", "latin" ]
