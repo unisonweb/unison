@@ -6,6 +6,7 @@ import Elmz.Layout as Layout
 import Elmz.Moore (Moore(..))
 import Elmz.Moore as Moore
 import Elmz.Movement as Movement
+import Elmz.Selection1D as Selection1D
 import Graphics.Element (Element)
 import Graphics.Element as Element
 import Graphics.Input.Field as Field
@@ -67,7 +68,10 @@ model sink term0 =
   let
     offset term e = case Moore.extract term |> .selection of
       Nothing -> Element.empty
-      Just region -> Styles.padNW region.topLeft.x region.topLeft.y e
+      Just region -> Styles.padNW region.topLeft.x (region.topLeft.y + region.height) e
+    explorerXY term (x,y) = case Moore.extract term |> .selection of
+      Nothing -> (x,y)
+      Just region -> (x - region.topLeft.x, y - (region.topLeft.y + region.height))
     out term explorer =
       { term = Moore.extract term |> .term
       , view = Element.layers [ Moore.extract term |> .layout |> Layout.element
@@ -120,11 +124,16 @@ model sink term0 =
       Enter -> Nothing
       FieldContent content -> Nothing
       -- these cannot
-      Mouse xy -> Nothing
-      Width w -> Nothing
+      Mouse xy -> let xy' = explorerXY term xy
+                  in Moore.step explorer (TermExplorer.Navigate (Selection1D.Mouse xy')) `Maybe.andThen`
+                     \explorer -> Just <| Moore (out term explorer) (exploreropen mds term explorer)
+      Width w -> Maybe.map (\term -> Moore (out term explorer) (exploreropen mds term explorer))
+                           (stepX term (EditableTerm.AvailableWidth w))
       SearchResults results -> Nothing
       LocalInfoResults results -> Nothing
-      Movement d2 -> Nothing
+      Movement d2 -> let d1 = Movement.negateD1 << Movement.xy_y <| d2
+                     in Moore.step explorer (TermExplorer.Navigate (Selection1D.Move d1)) `Maybe.andThen`
+                        \explorer -> Just <| Moore (out term explorer) (exploreropen mds term explorer)
       _ -> Nothing
   in
     let
