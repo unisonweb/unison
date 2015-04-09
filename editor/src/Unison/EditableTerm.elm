@@ -29,6 +29,7 @@ type Event
   | AvailableWidth Int
   | Metadata (Reference -> Metadata)
   | Evaluations (List { path : Path, old : Term, new : Term })
+  | Replace { path : Path, old : Term, new : Term }
   | ToggleRaw
 
 type alias Out =
@@ -77,6 +78,11 @@ model term =
       ToggleRaw ->
         let s' = refresh md (not raw) evals s
         in Just <| Moore s' (next md (not raw) evals s')
+      Replace r -> if Term.at r.path s.term == Just r.old
+                   then Term.set r.path r.new s.term `Maybe.andThen`
+                        \term -> let s' = refresh md raw evals { s | term <- term }
+                                 in Just <| Moore s' (next md raw evals s')
+                   else Nothing
       Evaluations es ->
         let
           f e = if Term.at e.path s.term == Just e.old then Just (e.path, e.new) else Nothing
@@ -100,8 +106,8 @@ model term =
           let
              evals' = Trie.deleteSubtree scope.focus evals
              s' = refresh md raw evals' { s | term <- term
-                                              , dirtyPaths <- View.reactivePaths term
-                                              , scope <- Just (Scope.scope scope.focus) }
+                                            , dirtyPaths <- View.reactivePaths term
+                                            , scope <- Just (Scope.scope scope.focus) }
           in
             Just <| Moore s' (next md raw evals' { s' | dirtyPaths <- Trie.empty })
     highlight o = Maybe.withDefault { o | selection <- Nothing } <|

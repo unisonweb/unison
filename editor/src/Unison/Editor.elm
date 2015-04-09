@@ -35,19 +35,20 @@ import Unison.Var as Var
 import Unison.View as View
 
 type Event
-  = Click (Int,Int)
+  = Act Action.Action
+  | Click (Int,Int)
+  | Delete
+  | Enter
+  | EvaluationResults (List { path : Path, old : Term, new : Term })
+  | FieldContent Field.Content
+  | LocalInfoResults Node.LocalInfo
   | Mouse (Int,Int)
   | Movement Movement.D2
-  | Width Int
-  | Act Action.Action
-  | Enter
-  | Delete
   | Preapply
-  | ViewToggle
-  | EvaluationResults (List { path : Path, old : Term, new : Term })
+  | Replace { path : Path, old : Term, new : Term }
   | SearchResults Node.SearchResults
-  | LocalInfoResults Node.LocalInfo
-  | FieldContent Field.Content
+  | ViewToggle
+  | Width Int
 
 type Request
   = ExplorerRequest TermExplorer.Request
@@ -68,10 +69,12 @@ model sink term0 =
                , view = Moore.extract term |> .layout |> Layout.element
                , request = Nothing }
     toOpen mds term explorer scope =
-      -- todo: need to store width, overrides, and raw toggle as well
       let
         focus = TermExplorer.localFocus scope.focus (Moore.extract term |> .term)
-        env = View.env0 -- todo, then build this properly from the local names of the term + mds
+        env = { availableWidth = Maybe.withDefault 1000 (Moore.extract term |> .availableWidth)
+              , metadata = Moore.extract mds
+              , overrides = always Nothing
+              , raw = Nothing }
         ex = Moore.feed explorer (TermExplorer.Open env focus Field.noContent)
         o = let r = out term in { r | request <- Maybe.map ExplorerRequest (Moore.extract ex |> .request) }
       in
@@ -85,7 +88,11 @@ model sink term0 =
       -- these dont
       Mouse xy -> Moore.step term (EditableTerm.Mouse xy) `Maybe.andThen` \term ->
         Just <| Moore (out term) (explorerclosed mds term explorer)
+      Movement d2 -> Moore.step term (EditableTerm.Movement d2) `Maybe.andThen` \term ->
+        Just <| Moore (out term) (explorerclosed mds term explorer)
       Preapply -> Moore.step term (EditableTerm.Modify (Term.App Term.Blank)) `Maybe.andThen` \term ->
+        Just <| Moore (out term) (explorerclosed mds term explorer)
+      Replace r -> Moore.step term (EditableTerm.Replace r) `Maybe.andThen` \term ->
         Just <| Moore (out term) (explorerclosed mds term explorer)
       Act action -> (Moore.extract term |> .scope) `Maybe.andThen` \scope ->
         let
@@ -94,9 +101,21 @@ model sink term0 =
           o = { r | request <- Just (EditRequest focus action) }
         in
           Just <| Moore o (explorerclosed mds term explorer)
-      -- Width w -> todo
+      Width w -> Maybe.map (\term -> Moore (out term) (explorerclosed mds term explorer))
+                           (Moore.step term (EditableTerm.AvailableWidth w))
       _ -> Nothing
-    exploreropen mds term explorer e = Nothing
+    exploreropen mds term explorer e = case e of
+      -- these can trigger a state change
+      Click xy -> Nothing
+      Enter -> Nothing
+      FieldContent content -> Nothing
+      -- these cannot
+      Mouse xy -> Nothing
+      Width w -> Nothing
+      SearchResults results -> Nothing
+      LocalInfoResults results -> Nothing
+      Movement d2 -> Nothing
+      _ -> Nothing
   in
     let
       terms0 = EditableTerm.model term0
