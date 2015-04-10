@@ -128,8 +128,9 @@ model searchbox =
           (sel', layout'') = layout metadata' (path focus) searchbox matches sel content infoLayout
         in Moore { selection = Nothing, request = Nothing, view = Layout.element layout'' } <|
            search admissible { env | metadata <- metadata' } focus completions' sel' content infoLayout layout''
-      Navigate nav -> Moore.step sel nav `Maybe.andThen` \sel -> Just <|
-        let (sel'', layout'') = layout env.metadata (path focus) searchbox (allCompletions completions) sel content infoLayout
+      Navigate nav -> Moore.step sel { event = Just nav, layout = layout' } `Maybe.andThen` \sel -> Just <|
+        let (sel'', layout'') = layout env.metadata (path focus) searchbox (allCompletions completions)
+                                       sel content infoLayout
         in Moore { selection = Nothing, request = Nothing, view = Layout.element layout'' } <|
            search admissible env focus completions sel'' content infoLayout layout''
       Enter ->
@@ -232,7 +233,7 @@ layout md path searchbox keyedCompletions sel content infoLayout =
       [ Layout.embed Nothing (viewField searchbox ok content (Just (Layout.widthOf resultsBox)))
       , Layout.embed Nothing (Element.spacer 1 10) ]
     result = Layout.above Nothing inputBox resultsBox
-    sel' = Moore.feeds sel [ Selection1D.View result, Selection1D.Values (List.map snd valids) ]
+    sel' = Moore.feed sel { layout = result, event = Just (Selection1D.Values (List.map snd valids)) }
     hl e = case fst (Moore.extract sel') of
       Nothing -> e
       Just region -> Element.layers [e, Styles.explorerSelection region]
