@@ -1,6 +1,7 @@
 module Unison.Editor where
 
 import Debug
+import Execute
 import Elmz.Layout (Containment(Inside,Outside), Layout, Pt, Region)
 import Elmz.Layout as Layout
 import Elmz.Moore (Moore(..))
@@ -192,30 +193,44 @@ ignoreUpDown s =
 
 main =
   let
+    host = "http://localhost:8080"
     (offsetX, offsetY) = (10, 10)
     offsetMouse (x,y) = (x-offsetX, y-offsetY)
     searchbox = Signal.channel Field.noContent
     merge = Signal.merge
-    actions : Signal Event
-    actions = Signals.keyEvent (Act Action.Step) 83 `merge` -- [s]tep
-              Signals.keyEvent (Act Action.WHNF) 69 `merge` -- [e]valuate
-              Signals.keyEvent (Act Action.Eta) 82 `merge`  -- eta [r]educe
-              Signals.keyEvent Delete 68 `merge`            -- [d]elete
-              Signals.keyEvent Preapply 65 `merge`          -- pre-[a]pply
-              Signals.keyEvent ViewToggle 86 `merge`        -- [v]iew toggle
-              Signals.keyEvent Enter 13 `merge`             -- <enter>
-              Signal.map Movement (Movement.d2' Keyboard.arrows) `merge`
-              Signal.map Click (Signal.sampleOn Mouse.clicks Mouse.position) `merge`
-              Signal.map (Mouse << offsetMouse) Mouse.position `merge`
-              Signal.map FieldContent (ignoreUpDown (Signal.subscribe searchbox))
-              -- responses
-    inputs : Signal In
-    inputs = Signals.tagEvent actions Window.width
-          |> Signal.map (\(e,w) -> { event = e, availableWidth = w - offsetX })
+
+    reqChan : Signal.Channel (Maybe Request)
+    reqChan = Signal.channel Nothing
+
+    responses : Signal (Maybe Event)
+    responses = Signal.subscribe reqChan
+             |> Debug.crash "todo"
+
+    actions : Signal (Maybe Event)
+    actions =
+      (Signal.map Just <|
+        Signals.keyEvent (Act Action.Step) 83 `merge` -- [s]tep
+        Signals.keyEvent (Act Action.WHNF) 69 `merge` -- [e]valuate
+        Signals.keyEvent (Act Action.Eta) 82 `merge`  -- eta [r]educe
+        Signals.keyEvent Delete 68 `merge`            -- [d]elete
+        Signals.keyEvent Preapply 65 `merge`          -- pre-[a]pply
+        Signals.keyEvent ViewToggle 86 `merge`        -- [v]iew toggle
+        Signals.keyEvent Enter 13 `merge`             -- <enter>
+        Signal.map Movement (Movement.d2' Keyboard.arrows) `merge`
+        Signal.map Click (Signal.sampleOn Mouse.clicks Mouse.position) `merge`
+        Signal.map (Mouse << offsetMouse) Mouse.position `merge`
+        Signal.map FieldContent (ignoreUpDown (Signal.subscribe searchbox))) `merge`
+        responses
+
     term0 = Term.Blank
-    outs = Moore.transform (model (Signal.send searchbox) term0) inputs
+
+    outs : Signal Out
+    outs = Signals.tagEvent actions Window.width
+        |> Signal.map (\(e,w) -> { event = Maybe.withDefault Nothing e, availableWidth = w - offsetX })
+        |> Moore.transform (model (Signal.send searchbox) term0)
+
+    requests = Signals.justs (Signal.map .request outs) |> Signal.map (Signal.send reqChan)
+
     view out = Styles.padNW offsetX offsetY out.view
   in
-    Signal.map view outs
-
-
+    Signal.map view (Signals.during outs (Execute.schedule requests))
