@@ -159,6 +159,10 @@ model sink term0 =
         LocalInfoResults results ->
           Moore.step explorer (TermExplorer.LocalInfoResults results) `Maybe.andThen`
           \explorer -> Just <| Moore (out term explorer) (exploreropen mds term explorer)
+        Replace r ->
+          let msg = { availableWidth = w, event = Just (EditableTerm.Replace r), explorerOpen = True }
+          in Moore.step term msg `Maybe.andThen` \term ->
+             Just <| Moore (out term explorer) (explorerclosed mds term explorer)
         _ -> Nothing
   in
     let
