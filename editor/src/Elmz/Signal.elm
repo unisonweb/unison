@@ -225,6 +225,11 @@ steady t s = sampleOn (Time.since t s |> dropIf identity False) s
 sampleOnMerge : Signal a -> Signal b -> Signal b
 sampleOnMerge a b = map2 always b a
 
+tagEvent : Signal a -> Signal b -> Signal (Maybe a, b)
+tagEvent event behavior =
+  let ae = merge (Just <~ event) (always Nothing <~ behavior)
+  in zip ae behavior
+
 transitions : Signal a -> Signal Bool
 transitions = transitionsBy (==)
 
