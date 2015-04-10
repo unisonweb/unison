@@ -7,10 +7,13 @@ import Elmz.Moore (Moore(..))
 import Elmz.Moore as Moore
 import Elmz.Movement as Movement
 import Elmz.Selection1D as Selection1D
+import Elmz.Signal as Signals
 import Graphics.Element (Element)
 import Graphics.Element as Element
 import Graphics.Input.Field as Field
 import Maybe
+import Mouse
+import Keyboard
 import Signal
 import Unison.Action as Action
 import Unison.Explorer as Explorer
@@ -34,6 +37,7 @@ import Unison.Type (Type)
 import Unison.Type as Type
 import Unison.Var as Var
 import Unison.View as View
+import Window
 
 type Event
   = Act Action.Action
@@ -179,5 +183,39 @@ model sink term0 =
       explorer0 = TermExplorer.model sink
     in
       Moore (out terms0 explorer0) (explorerclosed Metadata.cache terms0 explorer0)
+
+ignoreUpDown : Signal Field.Content -> Signal Field.Content
+ignoreUpDown s =
+  let k = Signal.sampleOn (Signal.keepIf (\a -> a.y /= 0) {x = 0, y = 0} Keyboard.arrows)
+                          (Signals.delay Field.noContent s)
+  in Signal.merge k s
+
+main =
+  let
+    (offsetX, offsetY) = (10, 10)
+    offsetMouse (x,y) = (x-offsetX, y-offsetY)
+    searchbox = Signal.channel Field.noContent
+    merge = Signal.merge
+    actions : Signal Event
+    actions = Signals.keyEvent (Act Action.Step) 83 `merge` -- [s]tep
+              Signals.keyEvent (Act Action.WHNF) 69 `merge` -- [e]valuate
+              Signals.keyEvent (Act Action.Eta) 82 `merge`  -- eta [r]educe
+              Signals.keyEvent Delete 68 `merge`            -- [d]elete
+              Signals.keyEvent Preapply 65 `merge`          -- pre-[a]pply
+              Signals.keyEvent ViewToggle 86 `merge`        -- [v]iew toggle
+              Signals.keyEvent Enter 13 `merge`             -- <enter>
+              Signal.map Movement (Movement.d2' Keyboard.arrows) `merge`
+              Signal.map Click (Signal.sampleOn Mouse.clicks Mouse.position) `merge`
+              Signal.map (Mouse << offsetMouse) Mouse.position `merge`
+              Signal.map FieldContent (ignoreUpDown (Signal.subscribe searchbox))
+              -- responses
+    inputs : Signal In
+    inputs = Signals.tagEvent actions Window.width
+          |> Signal.map (\(e,w) -> { event = e, availableWidth = w - offsetX })
+    term0 = Term.Blank
+    outs = Moore.transform (model (Signal.send searchbox) term0) inputs
+    view out = Styles.padNW offsetX offsetY out.view
+  in
+    Signal.map view outs
 
 

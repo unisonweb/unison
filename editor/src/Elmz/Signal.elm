@@ -1,15 +1,16 @@
 module Elmz.Signal where
 
-
 -- debugging
 import Debug
 import Elmz.Maybe
+import Keyboard
 import List
 import List ((::))
 import Maybe
 import Execute
 import Mouse
 import Result
+import Set
 import Signal (..)
 import Text
 import Time
@@ -141,6 +142,21 @@ flattenMaybe s = fromMaybe (constant Nothing) s
 {-| Ignore any events of `Nothing`. -}
 justs : Signal (Maybe a) -> Signal (Maybe a)
 justs s = keepIf (Maybe.map (always True) >> Maybe.withDefault False) Nothing s
+
+{-| Event which fires with the given `a` whenever the keycode is pressed down. -}
+keyEvent : a -> Int -> Signal a
+keyEvent k code = map (always k) (ups (Keyboard.isDown code))
+
+{-| Event which fires with the given `a` whenever the keycodes are simultaneously pressed down. -}
+keyChordEvent : a -> List Keyboard.KeyCode -> Signal a
+keyChordEvent k codes =
+  let
+    hazTehCodez : List Keyboard.KeyCode -> Bool
+    hazTehCodez pressed =
+      let pressed' = Set.fromList pressed
+      in List.all (\k -> Set.member k pressed') codes
+  in
+    map (always k) (ups (map hazTehCodez Keyboard.keysDown))
 
 loop : (Signal a -> Signal s -> Signal (b,s)) -> s -> Signal a -> Signal b
 loop f s a =
