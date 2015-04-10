@@ -19,8 +19,9 @@ type Event v
   | Mouse (Int,Int) -- Movement of the mouse
   | Values (List v) -- A change to the underlying list
 
+type alias Out = { region : Maybe Region, index : Maybe Int }
 type alias In v = { event : Maybe (Event v), layout : Layout (Maybe Int) }
-type alias Model v = Moore (In v) (Maybe Region, Maybe Int)
+type alias Model v = Moore (In v) Out
 
 model : Model v
 model =
@@ -57,7 +58,7 @@ model =
     region index layout =
       Layout.selectableLub (always True)
                            (Layout.region (<=) (Maybe.withDefault (-1)) layout index)
-  in state0
+  in state0 |> Moore.map ((\(r,l) -> Out r l))
 
 index : Int -> List a -> Maybe a
 index i l = case List.drop i l of

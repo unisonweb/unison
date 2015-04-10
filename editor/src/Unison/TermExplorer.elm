@@ -135,18 +135,20 @@ model searchbox =
            search admissible env focus completions sel'' content infoLayout layout''
       Enter ->
         let valids = validCompletions (.matches << Moore.extract <| completions.results)
-        in Maybe.withDefault (Just state0) ( (Moore.extract sel |> snd) `Maybe.andThen`
+        in Maybe.withDefault (Just state0) ( (Moore.extract sel |> .index) `Maybe.andThen`
             \i -> Selection1D.index i valids `Maybe.andThen`
             \(_,term) -> (Just << Just) (
               Moore { selection = Just (focus, term), request = Nothing, view = Element.empty }
               closed
            ))
-      Click xy ->
-            case search admissible env focus completions sel content infoLayout layout'
-                 (Navigate (Selection1D.Mouse xy))
-            of
-              Nothing -> search admissible env focus completions sel content infoLayout layout' Enter
-              Just m -> Moore.step m Enter
+      Click xy -> case Moore.feed sel { event = Just (Selection1D.Mouse xy), layout = layout' } of
+        sel -> case Moore.extract sel |> .index of
+          -- click on unselectable region is a noop
+          Nothing -> Just <|
+            Moore { selection = Nothing, request = Nothing, view = Layout.element layout' }
+                  (search admissible env focus completions sel content infoLayout layout')
+          -- if click is on a selectable region, we accept it
+          Just _ -> search admissible env focus completions sel content infoLayout layout' Enter
       FieldContent content -> Just <| case { completions | literals <- parseSearchbox admissible content.string } of
         completions ->
         let
@@ -234,7 +236,7 @@ layout md path searchbox keyedCompletions sel content infoLayout =
       , Layout.embed Nothing (Element.spacer 1 10) ]
     result = Layout.above Nothing inputBox resultsBox
     sel' = Moore.feed sel { layout = result, event = Just (Selection1D.Values (List.map snd valids)) }
-    hl e = case fst (Moore.extract sel') of
+    hl e = case Moore.extract sel' |> .region of
       Nothing -> e
       Just region -> Element.layers [e, Styles.explorerSelection region]
     result' = Layout.transform hl result
