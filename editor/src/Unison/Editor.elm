@@ -76,7 +76,7 @@ model sink term0 =
       { term = Moore.extract term |> .term
       , view = Element.layers [ Moore.extract term |> .layout |> Layout.element
                               , offset term (Moore.extract explorer |> .view) ]
-      , request = Nothing }
+      , request = Maybe.map ExplorerRequest (Moore.extract explorer |> .request) }
     toOpen mds term explorer scope =
       let
         focus = TermExplorer.localFocus scope.focus (Moore.extract term |> .term)
@@ -118,18 +118,26 @@ model sink term0 =
       Width w -> Maybe.map (\term -> Moore (out term explorer) (explorerclosed mds term explorer))
                            (stepX term (EditableTerm.AvailableWidth w))
       _ -> Nothing
+
+    ex0 = TermExplorer.model sink
+    tryAccept mds term explorer = explorer `Maybe.andThen`
+      \explorer -> case Moore.extract explorer |> .selection of
+        Nothing -> Just <| Moore (out term explorer) (exploreropen mds term explorer)
+        Just (loc,replacement) ->
+          let term' = Moore.feed term { event = Just (EditableTerm.Modify (always replacement))
+                                      , explorerOpen = True }
+          in Just <| Moore (out term' explorer) (explorerclosed mds term' ex0)
+
     exploreropen mds term explorer e = case e of
       -- these can trigger a state change
       Click xy ->
         let (x,y) = explorerXY term xy
             eview = Moore.extract explorer |> .view
         in if x < 0 || y < 0 || x > Element.widthOf eview || y > Element.heightOf eview
-           then let ex = TermExplorer.model sink
-                in Just <| Moore (out term ex) (explorerclosed mds term ex)
-           else Moore.step explorer (TermExplorer.Click (x,y)) `Maybe.andThen`
-                \explorer -> Nothing
-      Enter -> Nothing
-      FieldContent content -> Nothing
+           then Just <| Moore (out term ex0) (explorerclosed mds term ex0)
+           else tryAccept mds term (Moore.step explorer (TermExplorer.Click (x,y)))
+      Enter -> tryAccept mds term (Moore.step explorer TermExplorer.Enter)
+      FieldContent content -> tryAccept mds term (Moore.step explorer (TermExplorer.FieldContent content))
       -- these cannot
       Mouse xy ->
         let xy' = explorerXY term xy
@@ -155,9 +163,3 @@ model sink term0 =
       explorer0 = TermExplorer.model sink
     in
       Moore (out terms0 explorer0) (explorerclosed Metadata.cache terms0 explorer0)
-
-focusOpen : Event -> Maybe TermExplorer.Event
-focusOpen _ = Nothing
-
-focusClosed : Event -> Maybe EditableTerm.Event
-focusClosed _ = Nothing
