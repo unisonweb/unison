@@ -53,7 +53,7 @@ path focus = focus.pathToClosedSubterm ++ focus.pathFromClosedSubterm
 type Event
   = Open View.Env LocalFocus Field.Content
   | Navigate (Selection1D.Event Term)
-  | Accept
+  | Enter
   | Click (Int,Int)
   | SearchResults Node.SearchResults
   | LocalInfoResults Node.LocalInfo
@@ -132,7 +132,7 @@ model searchbox =
         let (sel'', layout'') = layout env.metadata (path focus) searchbox (allCompletions completions) sel content infoLayout
         in Moore { selection = Nothing, request = Nothing, view = Layout.element layout'' } <|
            search admissible env focus completions sel'' content infoLayout layout''
-      Accept ->
+      Enter ->
         let valids = validCompletions (.matches << Moore.extract <| completions.results)
         in Maybe.withDefault (Just state0) ( (Moore.extract sel |> snd) `Maybe.andThen`
             \i -> Selection1D.index i valids `Maybe.andThen`
@@ -141,9 +141,11 @@ model searchbox =
               closed
            ))
       Click xy ->
-        case search admissible env focus completions sel content infoLayout layout' (Navigate (Selection1D.Mouse xy)) of
-          Nothing -> search admissible env focus completions sel content infoLayout layout' Accept
-          Just m -> Moore.step m Accept
+            case search admissible env focus completions sel content infoLayout layout'
+                 (Navigate (Selection1D.Mouse xy))
+            of
+              Nothing -> search admissible env focus completions sel content infoLayout layout' Enter
+              Just m -> Moore.step m Enter
       FieldContent content -> Just <| case { completions | literals <- parseSearchbox admissible content.string } of
         completions ->
         let

@@ -13,6 +13,9 @@ type alias Pt = { x : Int, y: Int }
 type alias Region = { topLeft : Pt, width : Int, height : Int }
 type Containment = Inside | Outside
 
+ptFromPair : (Int,Int) -> Pt
+ptFromPair (x,y) = Pt x y
+
 offset : (Int,Int) -> Region -> Region
 offset (x,y) region = { region | topLeft <- Pt (x+region.topLeft.x) (y+region.topLeft.y) }
 

@@ -120,20 +120,34 @@ model sink term0 =
       _ -> Nothing
     exploreropen mds term explorer e = case e of
       -- these can trigger a state change
-      Click xy -> Nothing
+      Click xy ->
+        let (x,y) = explorerXY term xy
+            eview = Moore.extract explorer |> .view
+        in if x < 0 || y < 0 || x > Element.widthOf eview || y > Element.heightOf eview
+           then let ex = TermExplorer.model sink
+                in Just <| Moore (out term ex) (explorerclosed mds term ex)
+           else Moore.step explorer (TermExplorer.Click (x,y)) `Maybe.andThen`
+                \explorer -> Nothing
       Enter -> Nothing
       FieldContent content -> Nothing
       -- these cannot
-      Mouse xy -> let xy' = explorerXY term xy
-                  in Moore.step explorer (TermExplorer.Navigate (Selection1D.Mouse xy')) `Maybe.andThen`
-                     \explorer -> Just <| Moore (out term explorer) (exploreropen mds term explorer)
-      Width w -> Maybe.map (\term -> Moore (out term explorer) (exploreropen mds term explorer))
-                           (stepX term (EditableTerm.AvailableWidth w))
-      SearchResults results -> Nothing
-      LocalInfoResults results -> Nothing
-      Movement d2 -> let d1 = Movement.negateD1 << Movement.xy_y <| d2
-                     in Moore.step explorer (TermExplorer.Navigate (Selection1D.Move d1)) `Maybe.andThen`
-                        \explorer -> Just <| Moore (out term explorer) (exploreropen mds term explorer)
+      Mouse xy ->
+        let xy' = explorerXY term xy
+        in Moore.step explorer (TermExplorer.Navigate (Selection1D.Mouse xy')) `Maybe.andThen`
+           \explorer -> Just <| Moore (out term explorer) (exploreropen mds term explorer)
+      Width w ->
+        Maybe.map (\term -> Moore (out term explorer) (exploreropen mds term explorer))
+                  (stepX term (EditableTerm.AvailableWidth w))
+      Movement d2 ->
+        let d1 = Movement.negateD1 << Movement.xy_y <| d2
+        in Moore.step explorer (TermExplorer.Navigate (Selection1D.Move d1)) `Maybe.andThen`
+           \explorer -> Just <| Moore (out term explorer) (exploreropen mds term explorer)
+      SearchResults results ->
+        Moore.step explorer (TermExplorer.SearchResults results) `Maybe.andThen`
+        \explorer -> Just <| Moore (out term explorer) (exploreropen mds term explorer)
+      LocalInfoResults results ->
+        Moore.step explorer (TermExplorer.LocalInfoResults results) `Maybe.andThen`
+        \explorer -> Just <| Moore (out term explorer) (exploreropen mds term explorer)
       _ -> Nothing
   in
     let
