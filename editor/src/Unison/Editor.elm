@@ -49,7 +49,6 @@ type Event
   | Replace { path : Path, old : Term, new : Term }
   | SearchResults Node.SearchResults
   | ViewToggle
-  | Width Int
 
 type Request
   = ExplorerRequest TermExplorer.Request
