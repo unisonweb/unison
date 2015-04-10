@@ -221,14 +221,14 @@ layout md path searchbox keyedCompletions sel content infoLayout =
     fit e = Element.width ((Element.widthOf above - 12) `max` (Element.widthOf e)) e
     renderedValids = List.indexedMap (\i ((_,e),_) -> Layout.embed (Just i) (fit e)) valids
     renderedInvalids = List.map (\(_,e) -> Layout.embed Nothing (fit e)) invalids
-    sep = Layout.embed Nothing (Styles.menuSeparator (Element.widthOf above `max` Layout.widthOf below))
+    cells = if List.isEmpty valids && not (List.isEmpty invalids)
+            then Styles.explorerCells Nothing renderedInvalids
+            else Styles.explorerCells Nothing renderedValids
+    sep = Layout.embed Nothing (Styles.menuSeparator (Element.widthOf above `max` Layout.widthOf cells))
     below : Layout (Maybe Int)
     below =
-      let cells = if List.isEmpty valids && not (List.isEmpty invalids)
-                  then Styles.explorerCells Nothing renderedInvalids
-                  else Styles.explorerCells Nothing renderedValids
-      in if List.isEmpty valids && List.isEmpty invalids then Layout.empty Nothing
-         else Layout.vertical Nothing [sep, Layout.embed Nothing (Element.spacer 1 5), cells]
+      if List.isEmpty valids && List.isEmpty invalids then Layout.empty Nothing
+      else Layout.vertical Nothing [sep, Layout.embed Nothing (Element.spacer 1 5), cells]
     resultsBox = Styles.explorerOutline (Styles.statusColor ok) <|
       Layout.above Nothing (Layout.embed Nothing above) below
     inputBox = Layout.vertical Nothing
