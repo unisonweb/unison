@@ -53,20 +53,22 @@ dependents host = Request.post host "dependents"
   (Encoder.tuple2 (Encoder.optional (Encoder.list Reference.encode)) Reference.encode)
   (Decoder.list Reference.decode)
 
-editTerm : Host -> Request (Path, Path, Action, Term) (Path,Term,Term)
+type alias Replacement = { path : Path, old : Term, new : Term }
+
+editTerm : Host -> Request (Path, Path, Action, Term) Replacement
 editTerm host = Request.post host "edit-term"
   (Encoder.tuple4 Path.encodePath Path.encodePath A.encode E.encodeTerm)
-  (Decoder.tuple3 Path.decodePath E.decodeTerm E.decodeTerm)
+  (Decoder.product3 Replacement Path.decodePath E.decodeTerm E.decodeTerm)
 
 editType : Host -> Request (Path, Action, Type) Type
 editType host = Request.post host "edit-type"
   (Encoder.tuple3 Path.encodePath A.encode T.encodeType)
   T.decodeType
 
-evaluateTerms : Host -> Request (List (Path, Term)) (List (Path,Term,Term))
+evaluateTerms : Host -> Request (List (Path, Term)) (List Replacement)
 evaluateTerms host = Request.post host "evaluate-terms"
   (Encoder.list (Encoder.tuple2 Path.encodePath E.encodeTerm))
-  (Decoder.list (Decoder.tuple3 Path.decodePath E.decodeTerm E.decodeTerm))
+  (Decoder.list (Decoder.product3 Replacement Path.decodePath E.decodeTerm E.decodeTerm))
 
 type alias LocalInfo =
   { current : Type
@@ -85,10 +87,10 @@ localInfo host = Request.post host "local-info"
     (Decoder.list Decoder.int)
     (Decoder.list E.decodeTerm))
 
-metadatas : Host -> Request (List Reference) (M.Dict Reference.Key Metadata)
+metadatas : Host -> Request (List Reference) (List (Reference.Key, Metadata))
 metadatas host = Request.post host "metadatas"
   (Encoder.list Reference.encode)
-  (Reference.decodeMap MD.decodeMetadata)
+  (Reference.decodeAssociationList MD.decodeMetadata)
 
 type alias SearchResults =
   { query : Query

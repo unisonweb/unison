@@ -28,7 +28,6 @@ encode r = case r of
   Builtin b -> Encoder.tag' "Builtin" Encoder.string b
   Derived h -> Encoder.tag' "Derived" H.encode h
 
-
 decodeAssociationList : Decoder v -> Decoder (List (Key, v))
 decodeAssociationList v =
   Decoder.list (Decoder.tuple2 decode v)

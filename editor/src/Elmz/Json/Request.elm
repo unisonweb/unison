@@ -23,6 +23,9 @@ type Status e = Inactive | Waiting | Failed e
 post : Host -> Path -> Encoder a -> Decoder b -> Request a b
 post host path e d = Request (jsonPost e host path) d
 
+contramap : (a0 -> a) -> Request a b -> Request a0 b
+contramap f r = { r | encoder <- r.encoder << f }
+
 map : (b -> c) -> Request a b -> Request a c
 map f r = { r | decoder <- Decoder.map f r.decoder }
 

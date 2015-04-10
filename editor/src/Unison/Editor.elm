@@ -2,6 +2,7 @@ module Unison.Editor where
 
 import Debug
 import Execute
+import Elmz.Json.Request as JR
 import Elmz.Layout (Containment(Inside,Outside), Layout, Pt, Region)
 import Elmz.Layout as Layout
 import Elmz.Moore (Moore(..))
@@ -15,6 +16,7 @@ import Graphics.Input.Field as Field
 import Maybe
 import Mouse
 import Keyboard
+import Result
 import Signal
 import Unison.Action as Action
 import Unison.Explorer as Explorer
@@ -195,16 +197,65 @@ main =
   let
     host = "http://localhost:8080"
     (offsetX, offsetY) = (10, 10)
-    offsetMouse (x,y) = (x-offsetX, y-offsetY)
+    offsetMouse (x,y) = (x - offsetX, y - offsetY)
     searchbox = Signal.channel Field.noContent
     merge = Signal.merge
 
     reqChan : Signal.Channel (Maybe Request)
     reqChan = Signal.channel Nothing
 
+  --| Declare Term
     responses : Signal (Maybe Event)
-    responses = Signal.subscribe reqChan
-             |> Debug.crash "todo"
+    responses =
+      let
+        reqs = Signal.subscribe reqChan
+
+        evaluations =
+          let
+            match r = case r of
+              Just (Evaluations es) -> Just es
+              _ -> Nothing
+          in JR.send (Node.evaluateTerms host `JR.to` EvaluationResults) [] (Signal.map match reqs) |> Signal.map raise
+
+        edits =
+          let
+            z = ([], [], Action.Noop, Term.Blank) -- bogus initial edit
+            match r = case r of
+              Just (EditRequest focus action) ->
+                Just (focus.pathToClosedSubterm, focus.pathFromClosedSubterm, action, focus.closedSubterm)
+              _ -> Nothing
+          in JR.send (Node.editTerm host `JR.to` Replace) z (Signal.map match reqs) |> Signal.map raise
+
+        localInfos =
+          let
+            match r = case r of
+              Just (ExplorerRequest (TermExplorer.LocalInfo focus)) -> Just (focus.closedSubterm, focus.pathFromClosedSubterm)
+              _ -> Nothing
+          in JR.send (Node.localInfo host `JR.to` LocalInfoResults) (Term.Blank, []) (Signal.map match reqs) |> Signal.map raise
+
+        metadatas =
+          let
+            match r = case r of
+              Just (Metadatas refs) -> Just refs
+              _ -> Nothing
+          in JR.send (Node.metadatas host `JR.to` MetadataResults) [] (Signal.map match reqs) |> Signal.map raise
+
+        searches =
+          let
+            z = (Term.Blank, [], 1, "@#$@#", Nothing) -- bogus initial search
+            match r = case r of
+              Just (ExplorerRequest (TermExplorer.Search args)) -> Just args
+              _ -> Nothing
+          in JR.send (Node.search host `JR.to` SearchResults) z (Signal.map match reqs)
+             |> Signal.map raise
+
+        raise : Result (JR.Status String) Event -> Maybe Event
+        raise r = case r of
+          Result.Err _ -> Nothing -- todo, pass this along somehow
+          Result.Ok e -> Just e
+
+      in
+        evaluations `merge` edits `merge` localInfos `merge` metadatas `merge` searches
 
     actions : Signal (Maybe Event)
     actions =
