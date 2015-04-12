@@ -71,6 +71,9 @@ type alias Out = { term : Term, view : Element, request : Maybe Request }
 type alias Model = Moore In Out
 type alias Sink a = a -> Signal.Message
 
+moveDown : In -> In
+moveDown i = { i | event <- Just (Movement (Movement.D2 Movement.Zero Movement.Negative)) }
+
 model : Sink Field.Content -> Term -> Model
 model sink term0 =
   let
@@ -117,7 +120,9 @@ model sink term0 =
         Movement d2 -> stepX e.topLeft w md term (EditableTerm.Movement d2) `Maybe.andThen` \term ->
           Just <| Moore (out term explorer) (explorerclosed mds term explorer)
         Preapply -> stepX e.topLeft w md term (EditableTerm.Modify (Term.App Term.Blank)) `Maybe.andThen` \term ->
-          Just <| Moore (out term explorer) (explorerclosed mds term explorer)
+          Moore (out term explorer) (explorerclosed mds term explorer)
+          `Moore.feed` moveDown e -- moves cursor to point to newly created blank
+          |> Just
         Replace r -> stepX e.topLeft w md term (EditableTerm.Replace r) `Maybe.andThen` \term ->
           Just <| Moore (out term explorer) (explorerclosed mds term explorer)
         MetadataResults refs -> case Moore.feed mds refs of
