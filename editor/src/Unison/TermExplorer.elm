@@ -73,10 +73,11 @@ type alias Completions =
   , locals : List (String,Element,Maybe Term)
   , results : Matcher.Model (String,Element,Maybe Term) }
 
-allCompletions : Completions -> List (String,Element,Maybe Term)
-allCompletions c =
-  c.results `Moore.feed` (Matcher.Query { string = "", values = c.literals ++ c.locals })
-  |> Moore.extract |> .matches
+allCompletions : String -> Completions -> List (String,Element,Maybe Term)
+allCompletions q c =
+  let u = Debug.log "completions" c
+  in c.results `Moore.feed` (Matcher.Query { string = q, values = c.literals ++ c.locals })
+     |> Moore.extract |> .matches
 
 model : (Field.Content -> Signal.Message) -> Model
 model searchbox =
@@ -107,7 +108,7 @@ model searchbox =
             (sel, layout') = layout env.metadata
                                      (path focus)
                                      searchbox
-                                     (allCompletions completions)
+                                     (allCompletions content.string completions)
                                      Selection1D.model
                                      content
                                      infoLayout'
@@ -129,7 +130,8 @@ model searchbox =
         in Moore { selection = Nothing, request = Nothing, view = Layout.element layout'' } <|
            search admissible { env | metadata <- metadata' } focus completions' sel' content infoLayout layout''
       Navigate nav -> Moore.step sel { event = Just nav, layout = layout' } `Maybe.andThen` \sel -> Just <|
-        let (sel'', layout'') = layout env.metadata (path focus) searchbox (allCompletions completions)
+        let (sel'', layout'') = layout env.metadata (path focus) searchbox
+                                       (allCompletions content.string completions)
                                        sel content infoLayout
         in Moore { selection = Nothing, request = Nothing, view = Layout.element layout'' } <|
            search admissible env focus completions sel'' content infoLayout layout''
@@ -169,7 +171,8 @@ model searchbox =
           (search admissible env focus completions' sel' content infoLayout layout'')
       _ -> Nothing
 
-    match s (k,_,_) = String.startsWith (String.toLower k) (String.toLower s)
+    match s (k,_,_) =
+      String.startsWith (String.toLower s) (String.toLower k)
     state0 = Moore { selection = Nothing, request = Nothing, view = Element.empty } closed
   in state0
 
@@ -215,6 +218,7 @@ layout : (Reference -> Metadata)
       -> (Selection1D.Model Term, Layout (Maybe Int))
 layout md path searchbox keyedCompletions sel content infoLayout =
   let
+    u = Debug.log "keyedCompletions" (List.map (\(k,_,_) -> k) keyedCompletions)
     above = infoLayout
     valids = validCompletions keyedCompletions
     invalids = invalidCompletions keyedCompletions

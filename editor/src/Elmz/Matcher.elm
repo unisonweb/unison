@@ -5,10 +5,8 @@ import Elmz.Moore (Moore(..))
 import List
 import String
 
-type alias Q a = { string : String, values : List a }
-
 type Event a
-  = Query (Q a)
+  = Query { string : String, values : List a }
   | Results { query : String
             , values : List a
             , additionalResults : Int
