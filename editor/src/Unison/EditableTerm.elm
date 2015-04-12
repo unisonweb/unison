@@ -44,14 +44,15 @@ type alias In =
   { event : Maybe Event
   , explorerOpen : Bool
   , availableWidth : Int
-  , metadata : Reference -> Metadata }
+  , metadata : Reference -> Metadata
+  , topLeft : (Int,Int) }
 
 type alias Model = Moore In Out
 
 model : Term -> Model
 model term =
   let
-    refresh : { tl | explorerOpen : Bool, availableWidth : Int, metadata : Reference -> Metadata }
+    refresh : { tl | explorerOpen : Bool, availableWidth : Int, metadata : Reference -> Metadata, topLeft : (Int,Int) }
            -> Bool -> Trie Path.E Term -> Out -> Out
     refresh env raw evals s =
       let
@@ -66,6 +67,7 @@ model term =
                 , metadata = env.metadata
                 , overrides p = Trie.lookup p evals'
                 , raw = if raw then Maybe.map .focus s.scope else Nothing }
+         |> Layout.pin env.topLeft View.l0
       in { s | layout <- l }
 
     next : Bool -> Trie Path.E Term -> Out -> In -> Maybe (Moore In Out)

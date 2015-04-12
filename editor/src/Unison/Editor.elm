@@ -65,7 +65,7 @@ type Request
   | Evaluations (List (Path, Term))
   | Metadatas (List Reference)
 
-type alias In = { event : Maybe Event, availableWidth : Int }
+type alias In = { event : Maybe Event, availableWidth : Int, topLeft : (Int,Int) }
 type alias Out = { term : Term, view : Element, request : Maybe Request }
 
 type alias Model = Moore In Out
@@ -85,7 +85,7 @@ model sink term0 =
       , view = Element.layers [ Moore.extract term |> .layout |> Layout.element
                               , offset term (Moore.extract explorer |> .view) ]
       , request = Maybe.map ExplorerRequest (Moore.extract explorer |> .request) }
-    toOpen w mds term explorer scope =
+    toOpen pt w mds term explorer scope =
       let
         focus = TermExplorer.localFocus scope.focus (Moore.extract term |> .term)
         env = { availableWidth = 500 -- could also compute based on term available width
@@ -94,31 +94,31 @@ model sink term0 =
               , raw = Nothing }
         ex = Moore.feed explorer (TermExplorer.Open env focus Field.noContent)
         term' = Moore.feed term { event = Nothing, explorerOpen = True
-                                , availableWidth = w, metadata = env.metadata }
+                                , availableWidth = w, metadata = env.metadata, topLeft = pt }
         o = let r = out term' ex in { r | request <- Maybe.map ExplorerRequest (Moore.extract ex |> .request) }
       in
         Moore o (exploreropen mds term' ex)
 
-    feedX w md m e = Moore.feed m { event = Just e, explorerOpen = False, availableWidth = w, metadata = md }
-    stepX w md m e = Moore.step m { event = Just e, explorerOpen = False, availableWidth = w, metadata = md }
+    feedX pt w md m e = Moore.feed m { event = Just e, explorerOpen = False, availableWidth = w, metadata = md, topLeft = pt }
+    stepX pt w md m e = Moore.step m { event = Just e, explorerOpen = False, availableWidth = w, metadata = md, topLeft = pt }
 
     explorerclosed mds term explorer e = case (e.event, e.availableWidth, Moore.extract mds) of
       (Nothing,w,md) -> Maybe.map
         (\term -> Moore (out term explorer) (explorerclosed mds term explorer))
-        (Moore.step term { event = Nothing, explorerOpen = False, availableWidth = w, metadata = md })
+        (Moore.step term { event = Nothing, explorerOpen = False, availableWidth = w, metadata = md, topLeft = e.topLeft })
       (Just event,w,md) -> case event of
         -- these trigger a state change
-        Click xy -> case feedX w md term (EditableTerm.Mouse xy) of
-          term -> (Moore.extract term |> .scope) `Maybe.andThen` \scope -> Just (toOpen w mds term explorer scope)
-        Enter -> (Moore.extract term |> .scope) `Maybe.andThen` \scope -> Just (toOpen w mds term explorer scope)
+        Click xy -> case feedX e.topLeft w md term (EditableTerm.Mouse xy) of
+          term -> (Moore.extract term |> .scope) `Maybe.andThen` \scope -> Just (toOpen e.topLeft w mds term explorer scope)
+        Enter -> (Moore.extract term |> .scope) `Maybe.andThen` \scope -> Just (toOpen e.topLeft w mds term explorer scope)
         -- these dont
-        Mouse xy -> stepX w md term (EditableTerm.Mouse xy) `Maybe.andThen` \term ->
+        Mouse xy -> stepX e.topLeft w md term (EditableTerm.Mouse xy) `Maybe.andThen` \term ->
           Just <| Moore (out term explorer) (explorerclosed mds term explorer)
-        Movement d2 -> stepX w md term (EditableTerm.Movement d2) `Maybe.andThen` \term ->
+        Movement d2 -> stepX e.topLeft w md term (EditableTerm.Movement d2) `Maybe.andThen` \term ->
           Just <| Moore (out term explorer) (explorerclosed mds term explorer)
-        Preapply -> stepX w md term (EditableTerm.Modify (Term.App Term.Blank)) `Maybe.andThen` \term ->
+        Preapply -> stepX e.topLeft w md term (EditableTerm.Modify (Term.App Term.Blank)) `Maybe.andThen` \term ->
           Just <| Moore (out term explorer) (explorerclosed mds term explorer)
-        Replace r -> stepX w md term (EditableTerm.Replace r) `Maybe.andThen` \term ->
+        Replace r -> stepX e.topLeft w md term (EditableTerm.Replace r) `Maybe.andThen` \term ->
           Just <| Moore (out term explorer) (explorerclosed mds term explorer)
         MetadataResults refs -> case Moore.feed mds refs of
           mds -> Just <| Moore (out term explorer) (explorerclosed mds term explorer)
@@ -132,21 +132,22 @@ model sink term0 =
         _ -> Nothing
 
     ex0 = TermExplorer.model sink
-    tryAccept w mds term explorer = explorer `Maybe.andThen`
+    tryAccept pt w mds term explorer = explorer `Maybe.andThen`
       \explorer -> case Moore.extract explorer |> .selection of
         Nothing -> Just <| Moore (out term explorer) (exploreropen mds term explorer)
         Just (loc,replacement) ->
           let term' = Moore.feed term { event = Just (EditableTerm.Modify (always replacement))
                                       , explorerOpen = True
                                       , availableWidth = w
-                                      , metadata = Moore.extract mds }
+                                      , metadata = Moore.extract mds
+                                      , topLeft = pt }
           in Just <| Moore (out term' explorer) (explorerclosed mds term' ex0)
 
     exploreropen mds term explorer e = case (e.event,e.availableWidth) of
       (Nothing,w) -> Maybe.map
         (\term -> Moore (out term explorer) (exploreropen mds term explorer))
         (Moore.step term { event = Nothing, explorerOpen = True
-                         , availableWidth = w, metadata = Moore.extract mds })
+                         , availableWidth = w, metadata = Moore.extract mds, topLeft = e.topLeft })
       (Just event,w) -> case event of
         -- these can trigger a state change
         Click xy ->
@@ -154,9 +155,9 @@ model sink term0 =
               eview = Moore.extract explorer |> .view
           in if x < 0 || y < 0 || x > Element.widthOf eview || y > Element.heightOf eview
              then Just <| Moore (out term ex0) (explorerclosed mds term ex0)
-             else tryAccept w mds term (Moore.step explorer (TermExplorer.Click (x,y)))
-        Enter -> tryAccept w mds term (Moore.step explorer TermExplorer.Enter)
-        FieldContent content -> tryAccept w mds term (Moore.step explorer (TermExplorer.FieldContent content))
+             else tryAccept e.topLeft w mds term (Moore.step explorer (TermExplorer.Click (x,y)))
+        Enter -> tryAccept e.topLeft w mds term (Moore.step explorer TermExplorer.Enter)
+        FieldContent content -> tryAccept e.topLeft w mds term (Moore.step explorer (TermExplorer.FieldContent content))
         -- these cannot
         Mouse xy ->
           let xy' = explorerXY term xy
@@ -176,7 +177,7 @@ model sink term0 =
           \explorer -> Just <| Moore (out term explorer) (exploreropen mds term explorer)
         Replace r ->
           let msg = { availableWidth = w, event = Just (EditableTerm.Replace r)
-                    , explorerOpen = True, metadata = Moore.extract mds }
+                    , explorerOpen = True, metadata = Moore.extract mds, topLeft = e.topLeft }
           in Moore.step term msg `Maybe.andThen` \term ->
              Just <| Moore (out term explorer) (explorerclosed mds term explorer)
         _ -> Nothing
@@ -196,8 +197,6 @@ ignoreUpDown s =
 main =
   let
     host = "http://localhost:8080"
-    (offsetX, offsetY) = (10, 10)
-    offsetMouse (x,y) = (x - offsetX, y - offsetY)
     searchbox = Signal.channel Field.noContent
     merge = Signal.merge
 
@@ -269,7 +268,7 @@ main =
         Signals.keyEvent Enter 13 `merge`             -- <enter>
         Signal.map Movement (Movement.d2' Keyboard.arrows) `merge`
         Signal.map Click (Signal.sampleOn Mouse.clicks Mouse.position) `merge`
-        Signal.map (Mouse << offsetMouse) Mouse.position `merge`
+        Signal.map Mouse Mouse.position `merge`
         Signal.map FieldContent (ignoreUpDown (Signal.subscribe searchbox))) `merge`
         responses
 
@@ -277,11 +276,9 @@ main =
 
     outs : Signal Out
     outs = Signals.tagEvent actions Window.width
-        |> Signal.map (\(e,w) -> { event = Maybe.withDefault Nothing e, availableWidth = w - offsetX })
+        |> Signal.map (\(e,w) -> { event = Maybe.withDefault Nothing e, availableWidth = w, topLeft = (15,15) })
         |> Moore.transform (model (Signal.send searchbox) term0)
 
     requests = Signals.justs (Signal.map .request outs) |> Signal.map (Signal.send reqChan)
-
-    view out = Styles.padNW offsetX offsetY out.view
   in
-    Signal.map view (Signals.during outs (Execute.schedule requests))
+    Signal.map .view (Signals.during outs (Execute.schedule requests))

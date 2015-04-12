@@ -229,11 +229,11 @@ layout md path searchbox keyedCompletions sel content infoLayout =
     below =
       if List.isEmpty valids && List.isEmpty invalids then Layout.empty Nothing
       else Layout.vertical Nothing [sep, Layout.embed Nothing (Element.spacer 1 5), cells]
-    resultsBox = Styles.explorerOutline (Styles.statusColor ok) <|
+    resultsBox =
       Layout.above Nothing (Layout.embed Nothing above) below
-    inputBox = Layout.vertical Nothing
-      [ Layout.embed Nothing (viewField searchbox ok content (Just (Layout.widthOf resultsBox)))
-      , Layout.embed Nothing (Element.spacer 1 10) ]
+      |> Styles.explorerOutline (Styles.statusColor ok)
+      |> Layout.transform (\e -> Element.flow Element.right [e])
+    inputBox = Layout.embed Nothing (viewField searchbox ok content (Just (Layout.widthOf resultsBox)))
     result = Layout.above Nothing inputBox resultsBox
     sel' = Moore.feed sel { layout = result, event = Just (Selection1D.Values (List.map snd valids)) }
     hl e = case Moore.extract sel' |> .region of
@@ -253,7 +253,7 @@ viewField searchbox ok content w =
                      searchbox
                      ""
                      content
-    , Element.spacer 1 10 ]
+    , Element.spacer 1 5 ]
 
 validCompletions : List (String,Element,Maybe Term) -> List ((String, Element), Term)
 validCompletions entries =

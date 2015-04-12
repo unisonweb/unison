@@ -1,4 +1,4 @@
-module Unison.View (Env, env0, key, layout, layout', literalKey, L, reactivePaths) where
+module Unison.View (Env, env0, key, l0, layout, layout', literalKey, L, reactivePaths) where
 
 import Array
 import Color
@@ -31,6 +31,9 @@ import Text
 type alias E = Path.E
 
 type alias L = { path : Path, selectable : Bool }
+
+l0 : L
+l0 = { path = [], selectable = False }
 
 type alias Env =
   { availableWidth : Int
