@@ -234,14 +234,15 @@ layout md path searchbox keyedCompletions sel content infoLayout =
       Layout.above Nothing (Layout.embed Nothing above) below
       |> Styles.explorerOutline (Styles.statusColor ok)
     inputBox = Layout.embed Nothing (viewField searchbox ok content (Just (Layout.widthOf resultsBox)))
-    result = Layout.above Nothing inputBox resultsBox
-    sel' = Moore.feed sel { layout = result, event = Just (Selection1D.Values (List.map snd valids)) }
+    sel' = Moore.feed sel { layout = resultsBox, event = Just (Selection1D.Values (List.map snd valids)) }
+    -- NB: careful to apply the highlight just to the results box, otherwise focus is stolen
+    -- whenever the results box updates, see https://github.com/elm-lang/core/issues/3
     hl e = case Moore.extract sel' |> .region of
       Nothing -> e
       Just region -> Element.layers [e, Styles.explorerSelection region]
-    result' = Layout.transform hl result
+    result = Layout.above Nothing inputBox (Layout.transform hl resultsBox)
   in
-    (sel', result')
+    (sel', result)
 
 viewField : (Field.Content -> Signal.Message) -> Bool -> Field.Content -> Maybe Int -> Element
 viewField searchbox ok content w =
