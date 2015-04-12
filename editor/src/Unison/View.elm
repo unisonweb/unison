@@ -54,7 +54,7 @@ type alias Cur = { path : Path, term : Term }
 literalKey : Term -> Maybe String
 literalKey e = case e of
   Lit (Number n) -> Just <| toString n
-  Lit (Str s) -> Just <| "\"" ++ toString s ++ "\""
+  Lit (Str s) -> Just <| toString s
   Lit (Distance d) -> Just <| toString d
   Blank -> Just "_"
   _ -> Nothing
