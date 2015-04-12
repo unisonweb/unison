@@ -148,7 +148,8 @@ model searchbox =
             Moore { selection = Nothing, request = Nothing, view = Layout.element layout' }
                   (search admissible env focus completions sel content infoLayout layout')
           -- if click is on a selectable region, we accept it
-          Just _ -> search admissible env focus completions sel content infoLayout layout' Enter
+          Just _ -> Layout.leafAtPoint layout' (Layout.ptFromPair xy) `Maybe.andThen` \i -> i `Maybe.andThen` \_ ->
+            search admissible env focus completions sel content infoLayout layout' Enter
       FieldContent content -> Just <| case { completions | literals <- parseSearchbox admissible content.string } of
         completions ->
         let
