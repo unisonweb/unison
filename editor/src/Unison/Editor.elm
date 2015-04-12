@@ -161,8 +161,13 @@ model sink term0 =
           in if x < 0 || y < 0 || x > Element.widthOf eview || y > Element.heightOf eview
              then Just <| Moore (out term ex0) (explorerclosed mds term ex0)
              else tryAccept e.topLeft w mds term (Moore.step explorer (TermExplorer.Click (x,y)))
-        Enter -> tryAccept e.topLeft w mds term (Moore.step explorer TermExplorer.Enter)
-        FieldContent content -> tryAccept e.topLeft w mds term (Moore.step explorer (TermExplorer.FieldContent content))
+        Enter -> case Moore.feed explorer TermExplorer.Enter of
+          explorer -> case Moore.extract explorer |> .selection of
+            -- treat Enter as a cancel event if no valid selection
+            Nothing -> Just <| Moore (out term ex0) (explorerclosed mds term ex0)
+            Just _ -> tryAccept e.topLeft w mds term (Just explorer)
+        FieldContent content ->
+          tryAccept e.topLeft w mds term (Moore.step explorer (TermExplorer.FieldContent content))
         -- these cannot
         Mouse xy ->
           let xy' = explorerXY term xy
