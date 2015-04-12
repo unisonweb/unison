@@ -154,7 +154,8 @@ selection : Region -> Element
 selection r =
   E.container (r.topLeft.x + r.width + selectionBorderWidth * 2)
               (r.topLeft.y + r.height + selectionBorderWidth * 2)
-              (E.topLeftAt (E.absolute (r.topLeft.x - selectionBorderWidth)) (E.absolute (r.topLeft.y - selectionBorderWidth)))
+              -- todo: figure out why not vertically centered without -1 here
+              (E.topLeftAt (E.absolute (r.topLeft.x - selectionBorderWidth)) (E.absolute (r.topLeft.y - selectionBorderWidth - 1)))
               (outline' okColor selectionBorderWidth (r.width + selectionBorderWidth * 2) (r.height + selectionBorderWidth * 2))
 
 explorerSelection : Region -> Element
