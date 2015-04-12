@@ -76,10 +76,10 @@ model sink term0 =
   let
     offset term e = case Moore.extract term |> .selection of
       Nothing -> Element.empty
-      Just region -> Styles.padNW region.topLeft.x (region.topLeft.y + region.height) e
+      Just region -> Styles.padNW (region.topLeft.x - Styles.selectionBorderWidth) (region.topLeft.y + region.height) e
     explorerXY term (x,y) = case Moore.extract term |> .selection of
       Nothing -> (x,y)
-      Just region -> (x - region.topLeft.x, y - (region.topLeft.y + region.height))
+      Just region -> (x - region.topLeft.x - Styles.selectionBorderWidth, y - (region.topLeft.y + region.height))
     out term explorer =
       { term = Moore.extract term |> .term
       , view = Element.layers [ Moore.extract term |> .layout |> Layout.element
@@ -276,7 +276,7 @@ main =
 
     outs : Signal Out
     outs = Signals.tagEvent actions Window.width
-        |> Signal.map (\(e,w) -> { event = Maybe.withDefault Nothing e, availableWidth = w, topLeft = (15,15) })
+        |> Signal.map (\(e,w) -> { event = Maybe.withDefault Nothing e, availableWidth = w, topLeft = (16,16) })
         |> Moore.transform (model (Signal.send searchbox) term0)
 
     requests = Signals.justs (Signal.map .request outs) |> Signal.map (Signal.send reqChan)

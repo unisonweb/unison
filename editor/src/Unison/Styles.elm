@@ -102,9 +102,6 @@ chain1 x c =
 
 carotUp : Int -> Color -> Element
 carotUp x c =
-  --let block = E.spacer x x |> E.color c
-  --    sep = E.spacer 1 1
-  --in E.flow E.down [ sep, block, sep, block, sep, block, sep ]
   let r = ceiling (toFloat x * sqrt 2.0)
   in C.collage r r [ C.rotate (degrees 45) (C.filled c (C.square (toFloat x))) ]
      |> E.height (ceiling (toFloat x * sqrt 2.0 / 2.0))
@@ -148,16 +145,17 @@ explorerOutline color e =
   e |> L.transform (\e -> E.layers
          [ E.spacer (E.widthOf e) (E.heightOf e) |> E.color bg
          , e
-         , outlineOf color 8 e ])
+         , outlineOf color selectionBorderWidth e ])
+
+selectionBorderWidth : Int
+selectionBorderWidth = 8
 
 selection : Region -> Element
 selection r =
-  let n = 8
-  in E.container (r.topLeft.x + r.width + 12)
-                 (r.topLeft.y + r.height + 12)
-                 (E.topLeftAt (E.absolute (r.topLeft.x - 6)) (E.absolute (r.topLeft.y - 6)))
-                 (outline' okColor n (r.width + 12) (r.height + 12))
-  -- selectionLayer highlight
+  E.container (r.topLeft.x + r.width + selectionBorderWidth * 2)
+              (r.topLeft.y + r.height + selectionBorderWidth * 2)
+              (E.topLeftAt (E.absolute (r.topLeft.x - selectionBorderWidth)) (E.absolute (r.topLeft.y - selectionBorderWidth)))
+              (outline' okColor selectionBorderWidth (r.width + selectionBorderWidth * 2) (r.height + selectionBorderWidth * 2))
 
 explorerSelection : Region -> Element
 explorerSelection = selectionLayer highlightExplorer

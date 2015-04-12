@@ -232,7 +232,6 @@ layout md path searchbox keyedCompletions sel content infoLayout =
     resultsBox =
       Layout.above Nothing (Layout.embed Nothing above) below
       |> Styles.explorerOutline (Styles.statusColor ok)
-      |> Layout.transform (\e -> Element.flow Element.right [e])
     inputBox = Layout.embed Nothing (viewField searchbox ok content (Just (Layout.widthOf resultsBox)))
     result = Layout.above Nothing inputBox resultsBox
     sel' = Moore.feed sel { layout = result, event = Just (Selection1D.Values (List.map snd valids)) }
