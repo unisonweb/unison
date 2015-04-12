@@ -1,5 +1,6 @@
 module Elmz.Matcher where
 
+import Debug
 import Elmz.Moore as Moore
 import Elmz.Moore (Moore(..))
 import List
@@ -39,7 +40,10 @@ model matches =
           -- tricky part is determining whether we need to do another search
           full = r.additionalResults <= 0
           lastExamined = List.maximum (-1 :: r.positionsExamined)
-          ok = -- we've added characters to a search with all results
+          ok = Debug.log ("ok " ++ r.query ++ " " ++ q.string) <|
+             -- we already have results for this query
+             r.query == q.string ||
+              -- we've added characters to a search with all results
              (full && String.startsWith r.query q.string) ||
              -- we've deleted characters, but not past where we have complete results
              (full && String.startsWith q.string r.query && lastExamined < String.length q.string)

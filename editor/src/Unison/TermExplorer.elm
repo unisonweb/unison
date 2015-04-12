@@ -75,7 +75,7 @@ type alias Completions =
 
 allCompletions : String -> Completions -> List (String,Element,Maybe Term)
 allCompletions q c =
-  let u = Debug.log "completions" c
+  let u = 42-- Debug.log "completions" c
   in c.results `Moore.feed` (Matcher.Query { string = q, values = c.literals ++ c.locals })
      |> Moore.extract |> .matches
 
@@ -271,10 +271,10 @@ invalidCompletions entries =
     Just _ -> Nothing
   in List.filterMap f entries
 
-box = Term.Embed (Layout.embed { path = [], selectable = False } Styles.currentSymbol)
+box p = Term.Embed (Layout.embed { path = p, selectable = False } Styles.currentSymbol)
 appBlanks n e = List.foldl (\_ cur -> Term.App cur Term.Blank) e [1 .. n]
 
-showAppBlanks viewEnv path n = renderTerm viewEnv path (appBlanks n box)
+showAppBlanks viewEnv path n = renderTerm viewEnv path (appBlanks n (box path))
 
 searchKey : View.Env -> Path -> Term -> String
 searchKey viewEnv path e =
