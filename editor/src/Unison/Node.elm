@@ -71,7 +71,8 @@ evaluateTerms host = Request.post host "evaluate-terms"
   (Decoder.list (Decoder.product3 Replacement Path.decodePath E.decodeTerm E.decodeTerm))
 
 type alias LocalInfo =
-  { current : Type
+  { subterm : Term
+  , current : Type
   , admissible : Type
   , locals : List Term
   , localApplications : List Int
@@ -80,7 +81,8 @@ type alias LocalInfo =
 localInfo : Host -> Request (Term, Path) LocalInfo
 localInfo host = Request.post host "local-info"
   (Encoder.tuple2 E.encodeTerm Path.encodePath)
-  (Decoder.product5 LocalInfo
+  (Decoder.product6 LocalInfo
+    E.decodeTerm
     T.decodeType
     T.decodeType
     (Decoder.list E.decodeTerm)

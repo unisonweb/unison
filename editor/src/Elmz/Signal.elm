@@ -205,6 +205,13 @@ oneOrBoth a b =
 pulse : Time -> Signal ()
 pulse time = Time.delay time start
 
+{-| Replace the first occurence of the input signal with `a`. -}
+replaceFirst : a -> Signal a -> Signal a
+replaceFirst a0 s =
+  let first = delay True (map (always False) s)
+      f replace a = if replace then Debug.log ("replacing " ++ toString a) a0 else a
+  in map2 f first s
+
 {-| Emit updates to `s` only when it moves outside the current bin,
     according to the function `within`. Otherwise emit no update but
     take on the value `Nothing`. -}
@@ -276,11 +283,3 @@ ups s = keepIf identity False s
 
 zip : Signal a -> Signal b -> Signal (a,b)
 zip = map2 (,)
-
-dumbSum : Signal Int -> Signal Int
-dumbSum a =
-  loop (\a acc -> map2 (+) a acc |> map (\a -> (a,a))) 0 a
-
-main =
-  let c = always 1 <~ Mouse.clicks
-  in Text.plainText << toString <~ dumbSum c

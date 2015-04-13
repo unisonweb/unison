@@ -83,8 +83,9 @@ node eval store =
         -- if we're pointing to a Var, matchingCurrentApplies is redundant with `matchingLocals`
         Just (E.Var _) -> pure []
         _ -> map snd <$> filterM fi currentApplies
+      subterm <- maybe (fail "invalid path") pure (Path.at loc e)
       matchingLocals <- filterM f (locals >>= (\(v,t) -> TE.applications (E.Var v) t))
-      pure (current, admissible, annotatedLocals, matchingCurrentApplies, matchingLocals)
+      pure (subterm, current, admissible, annotatedLocals, matchingCurrentApplies, matchingLocals)
 
     search e loc limit query _ =
       let

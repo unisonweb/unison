@@ -49,6 +49,11 @@ type alias In =
 
 type alias Model = Moore In Out
 
+subterm : Model -> Maybe Term
+subterm m =
+  let out = Moore.extract m
+  in out.scope `Maybe.andThen` \scope -> Term.at scope.focus out.term
+
 model : Term -> Model
 model term =
   let

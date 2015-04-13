@@ -22,7 +22,7 @@ model matches =
     empty e = case e of
       Query q -> Just <|
         let o = { matches = List.filter (matches q.string) q.values, query = Just q.string }
-        in Moore o (waiting q)
+        in Moore.spike o { o | query <- Nothing } (waiting q)
       _ -> Nothing
 
     waiting q e = Just <| case e of
@@ -40,7 +40,7 @@ model matches =
           -- tricky part is determining whether we need to do another search
           full = r.additionalResults <= 0
           lastExamined = List.maximum (-1 :: r.positionsExamined)
-          ok = Debug.log ("ok " ++ r.query ++ " " ++ q.string) <|
+          ok =
              -- we already have results for this query
              r.query == q.string ||
               -- we've added characters to a search with all results
@@ -48,7 +48,8 @@ model matches =
              -- we've deleted characters, but not past where we have complete results
              (full && String.startsWith q.string r.query && lastExamined < String.length q.string)
         in
-          Moore { matches = out, query = if ok then Nothing else Just q.string }
-                (if ok then hasresults r else waiting q)
+          Moore.spike { matches = out, query = if ok then Nothing else Just q.string }
+                      { matches = out, query = Nothing }
+                      (if ok then hasresults r else waiting q)
   in
     Moore { matches = [], query = Nothing } empty

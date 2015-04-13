@@ -29,6 +29,7 @@ product2 = J.tuple2
 product3 = J.tuple3
 product4 = J.tuple4
 product5 = J.tuple5
+product6 = J.tuple6
 tuple2 = J.tuple2 (,)
 tuple3 = J.tuple3 (,,)
 tuple4 = J.tuple4 (,,,)

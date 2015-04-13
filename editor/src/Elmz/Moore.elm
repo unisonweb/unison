@@ -75,6 +75,9 @@ pipe (Moore b k1) (Moore c k2) =
   let step a = k1 a `Maybe.andThen` \m1 -> Maybe.map (pipe m1) (k2 b)
   in Moore c step
 
+pipe' : Moore a b -> (b -> Moore b c) -> Moore a c
+pipe' m1 f = pipe m1 (f (extract m1))
+
 pipe1 : Moore a (b,c) -> Moore b b2 -> Moore a (b2,c)
 pipe1 (Moore (b,c) k1) (Moore b2 k2) =
   let step a = k1 a `Maybe.andThen` \m1 -> Maybe.map (pipe1 m1) (k2 b)
@@ -84,6 +87,11 @@ pipe2 : Moore a (b,c) -> Moore c c2 -> Moore a (b,c2)
 pipe2 i c =
   let swap (a,b) = (b,a)
   in map swap (pipe1 (map swap i) c)
+
+spike : b -> b -> (a -> Maybe (Moore a b)) -> Moore a b
+spike b bquiet k1 =
+  let k a = Maybe.oneOf [k1 a, Just (Moore bquiet k1)]
+  in Moore b k
 
 split : Moore a b -> Moore a (b,b)
 split = map (\b -> (b,b))

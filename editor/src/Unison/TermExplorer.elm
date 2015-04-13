@@ -60,9 +60,10 @@ type Event
   | FieldContent Field.Content
 
 type alias Model =
-  Moore Event { selection : Maybe (LocalFocus, Term)
-              , view : Element
-              , request : Maybe Request }
+  Moore Event
+        { selection : Maybe (LocalFocus, Term)
+        , view : Element
+        , request : Maybe Request }
 
 type Request
   = LocalInfo LocalFocus
@@ -75,45 +76,56 @@ type alias Completions =
 
 allCompletions : String -> Completions -> List (String,Element,Maybe Term)
 allCompletions q c =
-  let u = 42-- Debug.log "completions" c
-  in c.results `Moore.feed` (Matcher.Query { string = q, values = c.literals ++ c.locals })
-     |> Moore.extract |> .matches
+  c.results `Moore.feed` (Matcher.Query { string = q, values = c.literals ++ c.locals })
+  |> Moore.extract |> .matches
 
 model : (Field.Content -> Signal.Message) -> Model
 model searchbox =
   let
+    loadingField content =
+      let x = Styles.codeText content.string
+          w = Element.widthOf x + 20
+      in viewField searchbox False content (Just (30 `max` w))
+
     closed e = case e of
       Open env focus content -> Just <|
-        let f = viewField searchbox False content Nothing
-        in Moore { selection = Nothing, request = Just (LocalInfo focus), view = f } (initialize env focus content)
+        let v = loadingField content
+        in Moore.spike { selection = Nothing, request = Just (LocalInfo focus), view = v }
+                       { selection = Nothing, request = Nothing, view = v }
+                       (initialize env focus content)
       _ -> Nothing
 
     initialize env focus content e = case e of
-      LocalInfoResults info -> Just <|
-        let req = Search ( focus.closedSubterm
-                         , focus.pathFromClosedSubterm
-                         , 7
-                         , content.string
-                         , Just info.admissible )
-            la cur n = (String.padLeft (n+1) '.' "", showAppBlanks env (path focus) n, Just (appBlanks n cur))
-            currentApps = case Term.at focus.pathFromClosedSubterm focus.closedSubterm of
-              Nothing -> []
-              Just cur -> List.map (la cur) info.localApplications
-            completions =
-              { locals = currentApps ++ List.map (searchEntry True env (path focus)) info.wellTypedLocals
-              , literals = parseSearchbox info.admissible content.string
-              , results = Matcher.model match }
-            infoLayout' = infoLayout env (path focus) info
-            (sel, layout') = layout env.metadata
-                                     (path focus)
-                                     searchbox
-                                     (allCompletions content.string completions)
-                                     Selection1D.model
-                                     content
-                                     infoLayout'
-            vw = Layout.element layout'
-        in Moore { selection = Nothing, request = Just req, view = vw }
-                 (search info.admissible env focus completions sel content infoLayout' layout')
+      LocalInfoResults info ->
+        if Just info.subterm /= Term.at focus.pathFromClosedSubterm focus.closedSubterm then Nothing
+        else Just <|
+          let req = Search ( focus.closedSubterm
+                           , focus.pathFromClosedSubterm
+                           , 7
+                           , content.string
+                           , Just info.admissible )
+              la cur n = (String.padLeft (n+1) '.' "", showAppBlanks env (path focus) n, Just (appBlanks n cur))
+              currentApps = case Term.at focus.pathFromClosedSubterm focus.closedSubterm of
+                Nothing -> []
+                Just cur -> List.map (la cur) info.localApplications
+              completions =
+                { locals = currentApps ++ List.map (searchEntry True env (path focus)) info.wellTypedLocals
+                , literals = parseSearchbox info.admissible content.string
+                , results = Matcher.model match }
+              infoLayout' = infoLayout env (path focus) info
+              (sel, layout') = layout env.metadata
+                                       (path focus)
+                                       searchbox
+                                       (allCompletions content.string completions)
+                                       Selection1D.model
+                                       content
+                                       infoLayout'
+              vw = Layout.element layout'
+          in Moore.spike { selection = Nothing, request = Just req, view = vw }
+                         { selection = Nothing, request = Nothing, view = vw }
+                         (search info.admissible env focus completions sel content infoLayout' layout')
+      FieldContent content -> Just <|
+        Moore { selection = Nothing, request = Nothing, view = loadingField content } (initialize env focus content)
       _ -> Nothing
 
     search admissible env focus completions sel content infoLayout layout' e = case e of
@@ -167,8 +179,9 @@ model searchbox =
                              , q
                              , Just admissible )
         in
-          Moore { selection = Nothing, request = req, view = Layout.element layout'' }
-          (search admissible env focus completions' sel' content infoLayout layout'')
+          Moore.spike { selection = Nothing, request = req, view = Layout.element layout'' }
+                      { selection = Nothing, request = Nothing, view = Layout.element layout'' }
+                      (search admissible env focus completions' sel' content infoLayout layout'')
       _ -> Nothing
 
     match s (k,_,_) =
@@ -218,7 +231,6 @@ layout : (Reference -> Metadata)
       -> (Selection1D.Model Term, Layout (Maybe Int))
 layout md path searchbox keyedCompletions sel content infoLayout =
   let
-    u = Debug.log "keyedCompletions" (List.map (\(k,_,_) -> k) keyedCompletions)
     above = infoLayout
     valids = validCompletions keyedCompletions
     invalids = invalidCompletions keyedCompletions

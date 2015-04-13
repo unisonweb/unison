@@ -46,13 +46,14 @@ data Node m k t e = Node {
   editType :: P.Path -> A.Action -> t -> Noted m t,
   -- Evaluate all terms, returning a list of (path, original e, evaluated e)
   evaluateTerms :: [(P.Path, e)] -> Noted m [(P.Path,e,e)],
-  -- | Returns ( current type
+  -- | Returns ( subterm at the given path
+  --           , current type
   --           , admissible type
   --           , local vars
   --           , well-typed applications of focus
   --           , well-typed expressions involving local vars )
   -- | Modify the given subterm, which may fail. First argument is the root path.
-  localInfo :: e -> P.Path -> Noted m (t, t, [e], [Int], [e]),
+  localInfo :: e -> P.Path -> Noted m (e, t, t, [e], [Int], [e]),
   -- | Access the metadata for the term and/or types identified by @k@
   metadatas :: [k] -> Noted m (Map k (MD.Metadata k)),
   -- | Search for a term, optionally constrained to be of the given type

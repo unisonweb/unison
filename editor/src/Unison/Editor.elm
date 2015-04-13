@@ -146,7 +146,7 @@ model sink term0 =
                                       , availableWidth = w
                                       , metadata = Moore.extract mds
                                       , topLeft = pt }
-          in Just <| Moore (out term' explorer) (explorerclosed mds term' ex0)
+          in Just <| Moore (out term' ex0) (explorerclosed mds term' ex0)
 
     exploreropen mds term explorer e = case (e.event,e.availableWidth) of
       (Nothing,w) -> Maybe.map
@@ -237,10 +237,13 @@ main =
 
         localInfos =
           let
+            z = (Term.Lit (Term.Str "woot"), [])
             match r = case r of
-              Just (ExplorerRequest (TermExplorer.LocalInfo focus)) -> Just (focus.closedSubterm, focus.pathFromClosedSubterm)
+              Just (ExplorerRequest (TermExplorer.LocalInfo focus)) ->
+                Just (focus.closedSubterm, focus.pathFromClosedSubterm)
               _ -> Nothing
-          in JR.send (Node.localInfo host `JR.to` LocalInfoResults) (Term.Blank, []) (Signal.map match reqs) |> Signal.map raise
+          in JR.send (Node.localInfo host `JR.to` LocalInfoResults) z (Signal.map match reqs)
+             |> Signal.map raise
 
         metadatas =
           let
@@ -282,7 +285,7 @@ main =
         Signal.map FieldContent (ignoreUpDown (Signal.subscribe searchbox))) `merge`
         responses
 
-    term0 = Term.Blank
+    term0 = Term.Lit (Term.Number 42)
 
     outs : Signal Out
     outs = Signals.tagEvent actions Window.width
