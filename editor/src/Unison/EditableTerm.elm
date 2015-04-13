@@ -1,5 +1,6 @@
 module Unison.EditableTerm where
 
+import Debug
 import Elmz.Layout as Layout
 import Elmz.Layout (Layout,Region)
 import Elmz.Moore (Moore(..))

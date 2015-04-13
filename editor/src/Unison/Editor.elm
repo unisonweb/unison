@@ -123,6 +123,8 @@ model sink term0 =
           Moore (out term explorer) (explorerclosed mds term explorer)
           `Moore.feed` moveDown e -- moves cursor to point to newly created blank
           |> Just
+        ViewToggle -> stepX e.topLeft w md term EditableTerm.ToggleRaw `Maybe.andThen` \term ->
+          Just <| Moore (out term explorer) (explorerclosed mds term explorer)
         Replace r -> stepX e.topLeft w md term (EditableTerm.Replace r) `Maybe.andThen` \term ->
           Just <| Moore (out term explorer) (explorerclosed mds term explorer)
         MetadataResults refs -> case Moore.feed mds refs of

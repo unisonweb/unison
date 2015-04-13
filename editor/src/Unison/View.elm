@@ -160,7 +160,7 @@ impl env allowBreak ambientPrec availableWidth cur =
                     , space'
                     , impl env True 0 (availableWidth - indentWidth) cur' ])
                 |> paren (ambientPrec > 0) cur
-      _ -> case (Maybe.withDefault False <| Maybe.map (Path.startsWith cur.path) env.raw,
+      _ -> case (Maybe.withDefault True <| Maybe.map (\p -> not (Path.startsWith cur.path p)) env.raw,
                  builtins env allowBreak ambientPrec availableWidth cur) of
         (True, Just l) -> l
         _ -> let space' = L.embed (tag cur.path) space in
