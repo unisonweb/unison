@@ -276,7 +276,7 @@ main =
         Signals.keyEvent Preapply 65 `merge`          -- pre-[a]pply
         Signals.keyEvent ViewToggle 86 `merge`        -- [v]iew toggle
         Signals.keyEvent Enter 13 `merge`             -- <enter>
-        Signal.map Movement (Movement.d2' Keyboard.arrows) `merge`
+        Signal.map Movement (Movement.repeatD2 <| Movement.d2' Keyboard.arrows) `merge`
         Signal.map Click (Signal.sampleOn Mouse.clicks Mouse.position) `merge`
         Signal.map Mouse Mouse.position `merge`
         Signal.map FieldContent (ignoreUpDown (Signal.subscribe searchbox))) `merge`
