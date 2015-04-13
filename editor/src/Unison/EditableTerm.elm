@@ -85,7 +85,7 @@ model term =
           let s' = refresh e (not raw) evals s
           in Just <| Moore s' (next (not raw) evals s')
         Replace r -> if Term.at r.path s.term == Just r.old
-                     then Term.set r.path r.new s.term `Maybe.andThen`
+                     then Term.modify r.path (always r.new) s.term `Maybe.andThen`
                           \term -> let s' = refresh e raw evals
                                             { s | term <- term }
                                    in Just <| Moore s' (next raw evals s')
