@@ -95,7 +95,6 @@ model searchbox =
                          , 7
                          , content.string
                          , Just info.admissible )
-            sel = Selection1D.model
             la cur n = (String.padLeft (n+1) '.' "", showAppBlanks env (path focus) n, Just (appBlanks n cur))
             currentApps = case Term.at focus.pathFromClosedSubterm focus.closedSubterm of
               Nothing -> []
@@ -129,12 +128,13 @@ model searchbox =
           (sel', layout'') = layout metadata' (path focus) searchbox matches sel content infoLayout
         in Moore { selection = Nothing, request = Nothing, view = Layout.element layout'' } <|
            search admissible { env | metadata <- metadata' } focus completions' sel' content infoLayout layout''
-      Navigate nav -> Moore.step sel { event = Just nav, layout = layout' } `Maybe.andThen` \sel -> Just <|
-        let (sel'', layout'') = layout env.metadata (path focus) searchbox
-                                       (allCompletions content.string completions)
-                                       sel content infoLayout
-        in Moore { selection = Nothing, request = Nothing, view = Layout.element layout'' } <|
-           search admissible env focus completions sel'' content infoLayout layout''
+      Navigate nav -> Moore.step sel { event = Just nav, layout = layout' } `Maybe.andThen`
+        \sel -> Just <|
+          let (sel'', layout'') = layout env.metadata (path focus) searchbox
+                                         (allCompletions content.string completions)
+                                         sel content infoLayout
+          in Moore { selection = Nothing, request = Nothing, view = Layout.element layout'' } <|
+             search admissible env focus completions sel'' content infoLayout layout''
       Enter ->
         let valids = validCompletions (.matches << Moore.extract <| completions.results)
         in Maybe.withDefault (Just state0) ( (Moore.extract sel |> .index) `Maybe.andThen`
@@ -239,6 +239,7 @@ layout md path searchbox keyedCompletions sel content infoLayout =
       |> Styles.explorerOutline (Styles.statusColor ok)
     inputBox = Layout.embed Nothing (viewField searchbox ok content (Just (Layout.widthOf resultsBox)))
     sel' = Moore.feed sel { layout = resultsBox, event = Just (Selection1D.Values (List.map snd valids)) }
+           `Moore.feed` { layout = resultsBox, event = Nothing }
     -- NB: careful to apply the highlight just to the results box, otherwise focus is stolen
     -- whenever the results box updates, see https://github.com/elm-lang/core/issues/3
     hl e = case Moore.extract sel' |> .region of

@@ -31,7 +31,7 @@ model =
                           else Just (Moore (Nothing, Just 0) (interactive 0 vs))
       _ -> Nothing
 
-    interactive ind values {event,layout} = let limitExclusive = List.length values - 1 in case event of
+    interactive ind values {event,layout} = let limitExclusive = List.length values in case event of
       Just (Move (Movement.D1 sign)) ->
         let
           index' = case sign of
