@@ -84,10 +84,13 @@ model sink term0 =
       Nothing -> (x,y)
       Just region -> (x - region.topLeft.x - Styles.selectionBorderWidth, y - (region.topLeft.y + region.height))
     out term explorer =
-      { term = Moore.extract term |> .term
-      , view = Element.layers [ Moore.extract term |> .layout |> Layout.element
-                              , offset term (Moore.extract explorer |> .view) ]
-      , request = Maybe.map ExplorerRequest (Moore.extract explorer |> .request) }
+      let req = Maybe.map ExplorerRequest (Moore.extract explorer |> .request)
+      in
+        { term = Moore.extract term |> .term
+        , view = Element.layers [ Moore.extract term |> .layout |> Layout.element
+                                , offset term (Moore.extract explorer |> .view) ]
+        , request = req }
+
     toOpen pt w mds term explorer scope =
       let
         focus = TermExplorer.localFocus scope.focus (Moore.extract term |> .term)
@@ -100,14 +103,14 @@ model sink term0 =
                                 , availableWidth = w, metadata = env.metadata, topLeft = pt }
         o = let r = out term' ex in { r | request <- Maybe.map ExplorerRequest (Moore.extract ex |> .request) }
       in
-        Moore o (exploreropen mds term' ex)
+        Moore.spike o { o | request <- Nothing } (exploreropen mds term' ex)
 
     feedX pt w md m e = Moore.feed m { event = Just e, explorerOpen = False, availableWidth = w, metadata = md, topLeft = pt }
     stepX pt w md m e = Moore.step m { event = Just e, explorerOpen = False, availableWidth = w, metadata = md, topLeft = pt }
 
     explorerclosed mds term explorer e = case (e.event, e.availableWidth, Moore.extract mds) of
       (Nothing,w,md) -> Maybe.map
-        (\term -> Moore (out term explorer) (explorerclosed mds term explorer))
+        (\term -> let o = out term explorer in Moore { o | request <- Nothing } (explorerclosed mds term explorer))
         (Moore.step term { event = Nothing, explorerOpen = False, availableWidth = w, metadata = md, topLeft = e.topLeft })
       (Just event,w,md) -> case event of
         -- these trigger a state change
@@ -135,7 +138,7 @@ model sink term0 =
             r = out term explorer
             o = { r | request <- Just (EditRequest focus action) }
           in
-            Just <| Moore o (explorerclosed mds term explorer)
+            Just <| Moore.spike o { o | request <- Nothing } (explorerclosed mds term explorer)
         _ -> Nothing
 
     ex0 = TermExplorer.model sink
@@ -144,7 +147,7 @@ model sink term0 =
         Nothing -> Just <| Moore (out term explorer) (exploreropen mds term explorer)
         Just (loc,replacement) ->
           let term' = Moore.feed term { event = Just (EditableTerm.Modify (always replacement))
-                                      , explorerOpen = True
+                                      , explorerOpen = False
                                       , availableWidth = w
                                       , metadata = Moore.extract mds
                                       , topLeft = pt }
@@ -152,7 +155,7 @@ model sink term0 =
 
     exploreropen mds term explorer e = case (e.event,e.availableWidth) of
       (Nothing,w) -> Maybe.map
-        (\term -> Moore (out term explorer) (exploreropen mds term explorer))
+        (\term -> let o = (out term explorer) in Moore { o | request <- Nothing } (exploreropen mds term explorer))
         (Moore.step term { event = Nothing, explorerOpen = True
                          , availableWidth = w, metadata = Moore.extract mds, topLeft = e.topLeft })
       (Just event,w) -> case event of
