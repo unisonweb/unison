@@ -219,7 +219,7 @@ infoLayout viewEnv path info = Element.flow Element.down <|
   , pad <| Styles.currentSymbol `Element.beside`
            Styles.codeText (" : " ++ Type.key { metadata = viewEnv.metadata } info.current)
   ]
-  ++ List.map (renderTerm viewEnv path) info.locals
+  ++ List.map (pad << renderTerm viewEnv path) info.locals
   ++ [ Element.spacer 1 10 ]
 
 layout : (Reference -> Metadata)
@@ -284,10 +284,10 @@ invalidCompletions entries =
     Just _ -> Nothing
   in List.filterMap f entries
 
-box p = Term.Embed (Layout.embed { path = p, selectable = False } Styles.currentSymbol)
+box = Term.Embed (Layout.embed { path = [], selectable = False } Styles.currentSymbol)
 appBlanks n e = List.foldl (\_ cur -> Term.App cur Term.Blank) e [1 .. n]
 
-showAppBlanks viewEnv path n = renderTerm viewEnv path (appBlanks n (box path))
+showAppBlanks viewEnv path n = renderTerm viewEnv path (appBlanks n box)
 
 searchKey : View.Env -> Path -> Term -> String
 searchKey viewEnv path e =
@@ -305,5 +305,5 @@ localCompletions : View.Env -> Node.LocalInfo -> List (String,Element,Maybe (Ter
 localCompletions viewEnv info = Debug.crash "todo"
 
 pad e = let s = Element.spacer 10 1 in Element.flow Element.right [s, e, s]
-renderTerm viewEnv path expr = pad << Layout.element <|
+renderTerm viewEnv path expr = Layout.element <|
   View.layout' viewEnv { term = expr, path = path }
