@@ -28,10 +28,10 @@ model =
   let
     novalues {event,layout} = case event of
       Just (Values vs) -> if List.isEmpty vs then Nothing
-                          else Just (Moore (Nothing, Just 0) (interactive 0 vs))
+                          else Just (Moore (region 0 layout, Just 0) (interactive 0 vs))
       _ -> Nothing
 
-    interactive ind values {event,layout} =
+    interactive ind values ({event,layout} as e) =
       let
         limitExclusive = List.length values
         m2 = event `Maybe.andThen` \event -> case event of
@@ -49,7 +49,7 @@ model =
             \i -> if i == ind then Nothing
                   else Just (Moore (region i layout, Just i) (interactive i values))
           Values values' -> if values' == values then Nothing else case index ind values of
-            Nothing -> Just state0
+            Nothing -> Just (Moore.feed state0 e)
             Just v ->
               let ind' = Maybe.withDefault 0 (indexOf ((==) v) values')
               in if List.isEmpty values'
