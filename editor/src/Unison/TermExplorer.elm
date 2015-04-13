@@ -131,15 +131,16 @@ model searchbox =
     search admissible env focus completions sel content infoLayout layout' e = case e of
       SearchResults results -> Just <|
         let
-          completions' = processSearchResults env results completions content.string
           dict = Dict.fromList results.references
           metadata' r = case Dict.get (Reference.toKey r) dict of
             Nothing -> env.metadata r
             Just md -> md
+          env' = { env | metadata <- metadata' }
+          completions' = processSearchResults env' results completions content.string
           matches = Moore.extract completions'.results |> .matches
           (sel', layout'') = layout metadata' (path focus) searchbox matches sel content infoLayout
         in Moore { selection = Nothing, request = Nothing, view = Layout.element layout'' } <|
-           search admissible { env | metadata <- metadata' } focus completions' sel' content infoLayout layout''
+           search admissible env' focus completions' sel' content infoLayout layout''
       Navigate nav -> Moore.step sel { event = Just nav, layout = layout' } `Maybe.andThen`
         \sel -> Just <|
           let (sel'', layout'') = layout env.metadata (path focus) searchbox
