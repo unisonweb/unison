@@ -31,28 +31,33 @@ model =
                           else Just (Moore (Nothing, Just 0) (interactive 0 vs))
       _ -> Nothing
 
-    interactive ind values {event,layout} = let limitExclusive = List.length values in case event of
-      Just (Move (Movement.D1 sign)) ->
-        let
-          index' = case sign of
-            Movement.Positive -> (limitExclusive - 1) `min` (ind + 1) `max` 0
-            Movement.Negative -> 0 `max` (ind-1)
-            Movement.Zero -> ind
-        in
-          if ind == index' then Nothing
-          else Just <| Moore (region index' layout, Just index') (interactive index' values)
-      Just (Mouse (x,y)) -> Layout.leafAtPoint layout (Layout.Pt x y) `Maybe.andThen`
-        \i -> i `Maybe.andThen` -- Layout.leafAtPoint returns a Maybe, unwrap that
-        \i -> if i == ind then Nothing
-              else Just (Moore (region i layout, Just i) (interactive i values))
-      Just (Values values') -> if values' == values then Nothing else case index ind values of
-        Nothing -> Just state0
-        Just v ->
-          let ind' = Maybe.withDefault 0 (indexOf ((==) v) values')
-          in if List.isEmpty values'
-             then Just state0
-             else Just (Moore (region ind' layout, Just ind') (interactive ind' values'))
-      Nothing -> Just (Moore (region ind layout, Just ind) (interactive ind values))
+    interactive ind values {event,layout} =
+      let
+        limitExclusive = List.length values
+        m2 = event `Maybe.andThen` \event -> case event of
+          Move (Movement.D1 sign) ->
+            let
+              index' = case sign of
+                Movement.Positive -> (limitExclusive - 1) `min` (ind + 1) `max` 0
+                Movement.Negative -> 0 `max` (ind-1)
+                Movement.Zero -> ind
+            in
+              if ind == index' then Nothing
+              else Just <| Moore (region index' layout, Just index') (interactive index' values)
+          Mouse (x,y) -> Layout.leafAtPoint layout (Layout.Pt x y) `Maybe.andThen`
+            \i -> i `Maybe.andThen` -- Layout.leafAtPoint returns a Maybe, unwrap that
+            \i -> if i == ind then Nothing
+                  else Just (Moore (region i layout, Just i) (interactive i values))
+          Values values' -> if values' == values then Nothing else case index ind values of
+            Nothing -> Just state0
+            Just v ->
+              let ind' = Maybe.withDefault 0 (indexOf ((==) v) values')
+              in if List.isEmpty values'
+                 then Just state0
+                 else Just (Moore (region ind' layout, Just ind') (interactive ind' values'))
+      in case m2 of
+        Nothing -> Just (Moore (region ind layout, Just ind) (interactive ind values))
+        Just m2 -> Just m2
 
     state0 = Moore (Nothing,Nothing) novalues
     region index layout =
