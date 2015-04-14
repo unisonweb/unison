@@ -2,27 +2,27 @@
 module Unison.Node.Common (node) where
 
 import Control.Applicative
-import Data.Traversable (traverse)
-import qualified Data.Foldable as Foldable
+import Control.Monad
 import Data.List
 import Data.Ord
+import Data.Traversable (traverse)
 import Debug.Trace
-import Control.Monad
-import Unison.Edit.Term.Eval as Eval
-import Unison.Edit.Term.Path as Path
+import Unison.Eval as Eval
+import Unison.TermPath as Path
+import Unison.Metadata as MD
 import Unison.Node as N
-import Unison.Node.Metadata as MD
 import Unison.Node.Store
 import Unison.Note (Noted)
-import qualified Unison.Note as Note
-import Unison.Syntax.Term (Term)
-import Unison.Syntax.Type (Type)
+import Unison.Term (Term)
+import Unison.Type (Type)
+import qualified Data.Foldable as Foldable
 import qualified Data.Map as M
 import qualified Data.Set as S
-import qualified Unison.Edit.Term as TE
-import qualified Unison.Syntax.Reference as R
-import qualified Unison.Syntax.Term as E
-import qualified Unison.Syntax.Type as T
+import qualified Unison.Note as Note
+import qualified Unison.Reference as R
+import qualified Unison.Term as E
+import qualified Unison.TermEdit as TE
+import qualified Unison.Typechecker as Typechecker
 import qualified Unison.Type as Type
 
 watch msg a = trace (msg ++ " : " ++ show a) a
@@ -36,14 +36,14 @@ node eval store =
       TE.admissibleTypeOf readTypeOf loc e
 
     createTerm e md = do
-      t <- Type.synthesize readTypeOf e
+      t <- Typechecker.synthesize readTypeOf e
       ((R.Derived h,_), subterms) <- pure $ E.hashCons e
       writeTerm store h e
       writeMetadata store (R.Derived h) md
       annotateTerm store (R.Derived h) t
       pure (R.Derived h) <* mapM_ go subterms where -- declare all subterms extracted via hash-consing
         go (h,e) = do
-          t <- Type.synthesize readTypeOf e
+          t <- Typechecker.synthesize readTypeOf e
           writeTerm store h e
           annotateTerm store (R.Derived h) t
 
@@ -76,7 +76,7 @@ node eval store =
       admissible <- TE.admissibleTypeOf readTypeOf loc e
       locals <- TE.locals readTypeOf loc e
       annotatedLocals <- pure $ map (\(v,t) -> E.Var v `E.Ann` t) locals
-      let f focus = maybe (pure False) (\e -> Type.wellTyped readTypeOf e) (Path.set loc focus e)
+      let f focus = maybe (pure False) (\e -> Typechecker.wellTyped readTypeOf e) (Path.set loc focus e)
       let fi (e,_) = f e
       let currentApplies = maybe [] (\e -> TE.applications e admissible) (Path.at loc e) `zip` [0..]
       matchingCurrentApplies <- case Path.at loc e of
@@ -90,7 +90,7 @@ node eval store =
     search e loc limit query _ =
       let
         typeOk focus = maybe (pure False)
-                             (\e -> Type.wellTyped readTypeOf e)
+                             (\e -> Typechecker.wellTyped readTypeOf e)
                              (Path.set loc focus e)
         elaborate h = (\t -> TE.applications (E.Ref h) t) <$> readTypeOf h
         queryOk e = do mds <- traverse (readMetadata store) (S.toList (E.dependencies' e))
@@ -108,7 +108,7 @@ node eval store =
         illtypedQmatches <-
           -- return type annotated versions of ill-typed terms
           let terms = S.toList (S.difference (S.fromList qmatches') (S.fromList qmatches))
-          in zipWith E.Ann terms <$> traverse (Type.synthesize readTypeOf) terms
+          in zipWith E.Ann terms <$> traverse (Typechecker.synthesize readTypeOf) terms
         mds <- mapM (\h -> (,) h <$> readMetadata store h)
                     (S.toList (S.unions (map E.dependencies' (illtypedQmatches ++ qmatches))))
         pure $ SearchResults
@@ -134,8 +134,6 @@ node eval store =
     typeOf ctx loc =
       TE.typeOf readTypeOf loc ctx
 
-    typeOfConstructorArg = error "todo"
-
     updateMetadata = writeMetadata store
   in N.Node
        admissibleTypeOf
@@ -154,5 +152,4 @@ node eval store =
        transitiveDependents
        types
        typeOf
-       typeOfConstructorArg
        updateMetadata

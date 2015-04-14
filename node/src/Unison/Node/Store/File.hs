@@ -1,18 +1,18 @@
 module Unison.Node.Store.File where
 
 import Control.Applicative
-import qualified Data.Set as S
-import Data.Set (Set)
 import Data.Aeson as J
-import qualified Data.Text as T
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as LB
-import System.FilePath
+import Data.Set (Set)
 import System.Directory
-import Unison.Syntax.Hash as H
-import Unison.Syntax.Reference as R
+import System.FilePath
+import Unison.Hash as H
 import Unison.Node.Store
 import Unison.Note as N
+import Unison.Reference as R
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as LB
+import qualified Data.Set as S
+import qualified Data.Text as T
 
 -- | Create a 'Store' rooted at the given path.
 -- This creates directories "/terms", "/types", and "/metadata"

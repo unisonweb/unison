@@ -1,11 +1,11 @@
 module Main where
 
 import Control.Monad
-import Unison.Syntax.Term as E
-import Unison.Syntax.Type as T
-import Unison.Type as Type
+import Unison.Term as E
+import Unison.Type as T
+import Unison.Typechecker as Typechecker
 import Unison.Note as N
-import Unison.Syntax.Var as V
+import Unison.Var as V
 
 identity :: E.Term
 identity = E.unscope (E.lam E.var)
@@ -39,4 +39,4 @@ substIdType (Forall v t) = subst t v (T.Universal (V.decr V.bound1))
 main :: IO ()
 -- main = putStrLn . show $ (idType, substIdType idType)
 -- main = putStrLn . showCtx . snd $ extendUniversal C.empty
-main = putStrLn . showType $ Type.synthesize' expr
+main = putStrLn . showType $ Typechecker.synthesize' expr

@@ -8,28 +8,28 @@ import Data.List
 import Data.Monoid
 import Data.Text (Text)
 import Data.Traversable
-import qualified Data.Vector as Vector
-import Unison.Edit.Term.Eval (Eval)
+import Unison.Eval (Eval)
+import Unison.Hash (Hash)
+import Unison.Metadata (Metadata(..))
 import Unison.Node (Node)
-import qualified Unison.Node as Node
-import Unison.Node.Metadata (Metadata(..))
 import Unison.Node.Store (Store)
-import Unison.Syntax.Hash (Hash)
-import Unison.Syntax.Term (Term)
-import Unison.Syntax.Type (Type)
+import Unison.Term (Term)
+import Unison.Type (Type)
 import qualified Data.Map as M
-import qualified Unison.Edit.Term.Eval as Eval
-import qualified Unison.Edit.Term.Eval.Interpreter as I
+import qualified Data.Vector as Vector
+import qualified Unison.Eval as Eval
+import qualified Unison.Eval.Interpreter as I
+import qualified Unison.Metadata as Metadata
+import qualified Unison.Node as Node
 import qualified Unison.Node.Common as C
-import qualified Unison.Node.Metadata as Metadata
 import qualified Unison.Node.Server as S
 import qualified Unison.Node.Store as Store
 import qualified Unison.Node.Store.File as F
 import qualified Unison.Note as N
-import qualified Unison.Syntax.Reference as R
-import qualified Unison.Syntax.Term as Term
-import qualified Unison.Syntax.Type as Type
-import qualified Unison.Syntax.Var as Var
+import qualified Unison.Reference as R
+import qualified Unison.Term as Term
+import qualified Unison.Type as Type
+import qualified Unison.Var as Var
 
 numeric2 :: Term -> (Double -> Double -> Double) -> I.Primop (N.Noted IO)
 numeric2 sym f = I.Primop 2 $ \xs -> case xs of

@@ -3,21 +3,45 @@
 {-# LANGUAGE KindSignatures #-}
 
 -- | The Unison language typechecker
-module Unison.Type.Context (context, subtype, synthesizeClosed) where
+module Unison.Typechecker.Context (context, subtype, synthesizeClosed) where
 
 import Control.Applicative
-import Data.Traversable
-import qualified Data.Foldable as Foldable
 import Data.List as L
 import Data.Maybe
-import qualified Data.Set as S
-import Unison.Syntax.Type as T
-import qualified Unison.Syntax.Term as Term
-import Unison.Syntax.Term (Term)
-import Unison.Syntax.Var as V
-import Unison.Type.Context.Element as E
+import Data.Traversable
 import Unison.Note as N
+import Unison.Term (Term)
+import Unison.Type (Type, Monotype)
+import Unison.Var as V
+import qualified Data.Foldable as Foldable
+import qualified Data.Set as S
+import qualified Unison.Term as Term
+import qualified Unison.Type as T
 
+-- | Elements of an algorithmic context
+data Element
+  = Universal V.Var         -- | ^ `v` is universally quantified
+  | Existential V.Var       -- | ^ `v` existential and unsolved
+  | Solved V.Var T.Monotype -- | ^ `v` is solved to some monotype
+  | Ann V.Var T.Type        -- | ^ `v` has type `a`, which may be quantified
+  | Marker V.Var            -- | ^ used for scoping
+  deriving (Eq,Ord)
+
+instance Show Element where
+  show (Universal v) = show v
+  show (Existential v) = "'"++show v
+  show (Solved v t) = "'"++show v++" = "++show t
+  show (Ann v t) = show v++" : "++show t
+  show (Marker v) = "|"++show v++"|"
+
+(===) :: Element -> Element -> Bool
+Existential v === Existential v2 | v == v2 = True
+Universal v   === Universal v2 | v == v2 = True
+Marker v      === Marker v2 | v == v2 = True
+_ === _ = False
+
+(!==) :: Element -> Element -> Bool
+e1 !== e2 = not (e1 === e2)
 -- | An ordered algorithmic context
 -- Context variables will be negative, while 'normal' DeBruijn
 -- will be positive, so we don't generally need to worry about
@@ -62,12 +86,12 @@ extend e ctx = ctx `append` context [e]
 -- guaranteed to be fresh
 extendUniversal :: Context -> (V.Var, Context)
 extendUniversal (Context n ctx) =
-  let v = V.decr n in (v, Context v (E.Universal v : ctx))
+  let v = V.decr n in (v, Context v (Universal v : ctx))
 
 -- | Extend this `Context` with a marker variable, guaranteed to be fresh
 extendMarker :: Context -> (V.Var, Context)
 extendMarker (Context n ctx) =
-  let v = V.decr n in (v, Context v ([E.Existential v, E.Marker v] ++ ctx))
+  let v = V.decr n in (v, Context v ([Existential v, Marker v] ++ ctx))
 
 -- | Delete up to and including the given `Element`
 -- returns @Left@ if the element is not found
@@ -87,19 +111,19 @@ retract' e ctx = case retract e ctx of
   Right ctx -> ctx
 
 universals :: Context -> [V.Var]
-universals (Context _ ctx) = [v | E.Universal v <- ctx]
+universals (Context _ ctx) = [v | Universal v <- ctx]
 
 existentials :: Context -> [V.Var]
 existentials (Context _ ctx) = ctx >>= go where
-  go (E.Existential v) = [v]
-  go (E.Solved v _) = [v]
+  go (Existential v) = [v]
+  go (Solved v _) = [v]
   go _ = []
 
 solved :: Context -> [(V.Var, Monotype)]
 solved (Context _ ctx) = [(v, sa) | Solved v sa <- ctx]
 
 unsolved :: Context -> [V.Var]
-unsolved (Context _ ctx) = [v | E.Existential v <- ctx]
+unsolved (Context _ ctx) = [v | Existential v <- ctx]
 
 replace :: Element -> Context -> Context -> Context
 replace e focus ctx = let (l,r) = breakAt e ctx in l `append` focus `append` r
@@ -111,19 +135,19 @@ breakAt m (Context _ xs) =
 
 -- | ordered Γ α β = True <=> Γ[α^][β^]
 ordered :: Context -> V.Var -> V.Var -> Bool
-ordered ctx v v2 = v `elem` existentials (retract' (E.Existential v2) ctx)
+ordered ctx v v2 = v `elem` existentials (retract' (Existential v2) ctx)
 
 -- | solve (ΓL,α^,ΓR) α τ = (ΓL,α = τ,ΓR)
 -- If the given existential variable exists in the context,
 -- we solve it to the given monotype, otherwise return `Nothing`
 solve :: Context -> V.Var -> Monotype -> Maybe Context
-solve ctx v t | wellformedType ctxL (getPolytype t) = Just ctx'
+solve ctx v t | wellformedType ctxL (T.getPolytype t) = Just ctx'
               | otherwise                           = Nothing
-    where (ctxL,ctxR) = breakAt (E.Existential v) ctx
-          ctx' = ctxL `append` context [E.Solved v t] `append` ctxR
+    where (ctxL,ctxR) = breakAt (Existential v) ctx
+          ctx' = ctxL `append` context [Solved v t] `append` ctxR
 
 bindings :: Context -> [(V.Var, Type)]
-bindings (Context _ ctx) = [(v,a) | E.Ann v a <- ctx]
+bindings (Context _ ctx) = [(v,a) | Ann v a <- ctx]
 
 lookupType :: Context -> V.Var -> Maybe Type
 lookupType ctx v = lookup v (bindings ctx)
@@ -133,11 +157,11 @@ vars = fmap fst . bindings
 
 allVars :: [Element] -> [V.Var]
 allVars ctx = ctx >>= go where
-  go (E.Solved v _) = [v]
-  go (E.Ann v _) = [v]
-  go (E.Existential v) = [v]
-  go (E.Universal v) = [v]
-  go (E.Marker v) = [v]
+  go (Solved v _) = [v]
+  go (Ann v _) = [v]
+  go (Existential v) = [v]
+  go (Universal v) = [v]
+  go (Marker v) = [v]
 
 -- TODO: I suspect this can get away with just examining first few elements
 -- perhaps up to first marker
@@ -157,7 +181,7 @@ wellformedType c t = wellformed c && case t of
   T.Constrain t' _ -> wellformedType c t'
   T.Forall v t' ->
     let (v',ctx2) = extendUniversal c
-    in wellformedType ctx2 (subst t' v (T.Universal v'))
+    in wellformedType ctx2 (T.subst t' v (T.Universal v'))
 
 -- | Check that the context is well formed, namely that
 -- there are no circular variable references, and any types
@@ -166,10 +190,10 @@ wellformedType c t = wellformed c && case t of
 -- leading up to these elements.
 wellformed :: Context -> Bool
 wellformed ctx = all go (zipTail ctx) where
-  go (E.Universal v, ctx') = v `notElem` universals ctx'
-  go (E.Existential v, ctx') = v `notElem` existentials ctx'
-  go (Solved v sa, ctx') = v `notElem` existentials ctx' && wellformedType ctx' (getPolytype sa)
-  go (E.Ann v t, ctx') = v `notElem` vars ctx' && wellformedType ctx' t
+  go (Universal v, ctx') = v `notElem` universals ctx'
+  go (Existential v, ctx') = v `notElem` existentials ctx'
+  go (Solved v sa, ctx') = v `notElem` existentials ctx' && wellformedType ctx' (T.getPolytype sa)
+  go (Ann v t, ctx') = v `notElem` vars ctx' && wellformedType ctx' t
   go (Marker v, ctx') = v `notElem` vars ctx' && v `notElem` existentials ctx'
 
 zipTail :: Context -> [(Element, Context)]
@@ -182,7 +206,7 @@ apply ctx t = case t of
   T.Universal _ -> t
   T.Unit _ -> t
   T.Existential v ->
-    maybe t (\(Monotype t') -> apply ctx t') (lookup v (solved ctx))
+    maybe t (\(T.Monotype t') -> apply ctx t') (lookup v (solved ctx))
   T.Arrow i o -> T.Arrow (apply ctx i) (apply ctx o)
   T.App x y -> T.App (apply ctx x) (apply ctx y)
   T.Ann v k -> T.Ann (apply ctx v) k
@@ -193,7 +217,7 @@ apply ctx t = case t of
 -- This may have the effect of altering the context.
 subtype :: Context -> Type -> Type -> Either Note Context
 subtype ctx tx ty = scope (show tx++" <: "++show ty) (go tx ty) where -- Rules from figure 9
-  go (Unit l) (Unit l2) | l == l2 = pure ctx -- `Unit`
+  go (T.Unit l) (T.Unit l2) | l == l2 = pure ctx -- `Unit`
   go t1@(T.Universal v1) t2@(T.Universal v2) -- `Var`
     | v1 == v2 && wellformedType ctx t1 && wellformedType ctx t2
     = pure ctx
@@ -208,18 +232,18 @@ subtype ctx tx ty = scope (show tx++" <: "++show ty) (go tx ty) where -- Rules f
     subtype ctx' (apply ctx' y1) (apply ctx' y2)
   go (T.Forall v t) t2 = scope "forall (L)" $
     let (v', ctx') = extendMarker ctx
-        t' = subst t v (T.Existential v')
+        t' = T.subst t v (T.Existential v')
     in scope (show t') $
-       subtype ctx' (apply ctx' t') t2 >>= retract (E.Marker v')
+       subtype ctx' (apply ctx' t') t2 >>= retract (Marker v')
   go t (T.Forall v t2) = scope "forall (R)" $
     let (v', ctx') = extendUniversal ctx
-        t2' = subst t2 v (T.Universal v')
-    in subtype ctx' t t2' >>= retract (E.Universal v')
+        t2' = T.subst t2 v (T.Universal v')
+    in subtype ctx' t t2' >>= retract (Universal v')
   go (T.Existential v) t -- `InstantiateL`
-    | v `elem` existentials ctx && S.notMember v (freeVars t) =
+    | v `elem` existentials ctx && S.notMember v (T.freeVars t) =
     instantiateL ctx v t
   go t (T.Existential v) -- `InstantiateR`
-    | v `elem` existentials ctx && S.notMember v (freeVars t) =
+    | v `elem` existentials ctx && S.notMember v (T.freeVars t) =
     instantiateR ctx t v
   go _ _ = Left $ note "not a subtype"
 
@@ -227,27 +251,27 @@ subtype ctx tx ty = scope (show tx++" <: "++show ty) (go tx ty) where -- Rules f
 -- a subtype of the given type, updating the context
 -- in the process.
 instantiateL :: Context -> V.Var -> Type -> Either Note Context
-instantiateL ctx v t = case monotype t >>= solve ctx v of
+instantiateL ctx v t = case T.monotype t >>= solve ctx v of
   Just ctx' -> pure ctx' -- InstLSolve
   Nothing -> case t of
     T.Existential v2 | ordered ctx v v2 -> -- InstLReach (both are existential, set v2 = v)
       maybe (Left $ note "InstLReach failed") pure $
-        solve ctx v2 (Monotype (T.Existential v))
+        solve ctx v2 (T.Monotype (T.Existential v))
     T.Arrow i o -> -- InstLArr
       let i' = fresh ctx
           o' = fresh' i'
-          s = E.Solved v (Monotype (T.Arrow (T.Existential i') (T.Existential o')))
+          s = Solved v (T.Monotype (T.Arrow (T.Existential i') (T.Existential o')))
       in do
-        ctx' <- instantiateR (replace (E.Existential v) (context [E.Existential o', E.Existential i', s]) ctx)
+        ctx' <- instantiateR (replace (Existential v) (context [Existential o', Existential i', s]) ctx)
                              i
                              i'
         instantiateL ctx' o' (apply ctx' o)
     T.App x y -> -- analogue of InstLArr
       let x' = fresh ctx
           y' = fresh' x'
-          s = E.Solved v (Monotype (T.App (T.Existential x') (T.Existential y')))
-          ctx0 = replace (E.Existential v)
-                         (context [E.Existential y', E.Existential x', s])
+          s = Solved v (T.Monotype (T.App (T.Existential x') (T.Existential y')))
+          ctx0 = replace (Existential v)
+                         (context [Existential y', Existential x', s])
                          ctx
       in do
         ctx' <- instantiateL ctx0 x' (apply ctx0 x)
@@ -255,34 +279,34 @@ instantiateL ctx v t = case monotype t >>= solve ctx v of
     T.Forall x body -> -- InstLIIL
       let (v', ctx') = extendUniversal ctx
       in instantiateL ctx' v (T.subst body x (T.Universal v'))
-         >>= retract (E.Universal v')
+         >>= retract (Universal v')
     _ -> Left $ note "could not instantiate left"
 
 -- | Instantiate the given existential such that it is
 -- a supertype of the given type, updating the context
 -- in the process.
 instantiateR :: Context -> Type -> V.Var -> Either Note Context
-instantiateR ctx t v = case monotype t >>= solve ctx v of
+instantiateR ctx t v = case T.monotype t >>= solve ctx v of
   Just ctx' -> pure ctx' -- InstRSolve
   Nothing -> case t of
     T.Existential v2 | ordered ctx v v2 -> -- InstRReach (both are existential, set v2 = v)
       maybe (Left $ note "InstRReach failed") pure $
-        solve ctx v2 (Monotype (T.Existential v))
+        solve ctx v2 (T.Monotype (T.Existential v))
     T.Arrow i o -> -- InstRArrow
       let i' = fresh ctx
           o' = fresh' i'
-          s = E.Solved v (Monotype (T.Arrow (T.Existential i') (T.Existential o')))
+          s = Solved v (T.Monotype (T.Arrow (T.Existential i') (T.Existential o')))
       in do
-        ctx' <- instantiateL (replace (E.Existential v) (context [E.Existential o', E.Existential i', s]) ctx)
+        ctx' <- instantiateL (replace (Existential v) (context [Existential o', Existential i', s]) ctx)
                              i'
                              i
         instantiateR ctx' (apply ctx' o) o'
     T.App x y -> -- analogue of InstRArr
       let x' = fresh ctx
           y' = fresh' x'
-          s = E.Solved v (Monotype (T.App (T.Existential x') (T.Existential y')))
-          ctx0 = replace (E.Existential v)
-                         (context [E.Existential y', E.Existential x', s])
+          s = Solved v (T.Monotype (T.App (T.Existential x') (T.Existential y')))
+          ctx0 = replace (Existential v)
+                         (context [Existential y', Existential x', s])
                          ctx
       in do
         ctx' <- instantiateR ctx0 (apply ctx0 x) x'
@@ -290,10 +314,10 @@ instantiateR ctx t v = case monotype t >>= solve ctx v of
     T.Forall x body -> -- InstRAIIL
       let x' = fresh ctx
       in
-        instantiateR (ctx `append` context [E.Marker x', E.Existential x'])
+        instantiateR (ctx `append` context [Marker x', Existential x'])
                      (T.subst body x (T.Existential x'))
                      v
-        >>= retract (E.Marker x')
+        >>= retract (Marker x')
     _ -> Left $ note "could not instantiate right"
 
 -- | Check that under the given context, `e` has type `t`,
@@ -304,13 +328,13 @@ check ctx e t | wellformedType ctx t = scope (show e ++ " : " ++ show t) $ go e 
   go _ (T.Forall x body) = -- ForallI -- this is key, use existential
     let (x', ctx') = extendUniversal ctx
     in check ctx' e (T.subst body x (T.Universal x'))
-       >>= retract (E.Universal x')
+       >>= retract (Universal x')
   go fn@(Term.Lam _) (T.Arrow i o) = -- =>I
     let x' = fresh ctx
         v = Term.Var x'
-        ctx' = extend (E.Ann x' i) ctx
+        ctx' = extend (Ann x' i) ctx
         body' = Term.betaReduce (fn `Term.App` v)
-    in check ctx' body' o >>= retract (E.Ann x' i)
+    in check ctx' body' o >>= retract (Ann x' i)
   -- go Term.Blank _ = Right ctx -- possible hack to workaround lack of impredicative instantiation
   go _ _ = do -- Sub
     (a, ctx') <- synthesize ctx e
@@ -341,33 +365,33 @@ synthesize ctx e = scope ("infer: " ++ show e) $ go e where
     synthesizeApp ctx' (apply ctx' ft) arg
   go (Term.Vector v) =
     let e = fresh ctx
-        ctxTl = context [E.Marker e, E.Existential e]
+        ctxTl = context [Marker e, Existential e]
         step term ctx = check ctx term (T.Existential e)
     in Foldable.foldrM step (ctx `append` ctxTl) v >>=
        \ctx' -> pure $
          let
-           (ctx1, ctx2) = breakAt (E.Marker e) ctx'
+           (ctx1, ctx2) = breakAt (Marker e) ctx'
            -- unsolved existentials get generalized to universals
            vt = apply ctx2 (T.Unit T.Vector `T.App` T.Existential e)
            existentials' = unsolved ctx2
            vt2 = foldr gen vt existentials'
-           gen e vt = T.forall1 $ \v -> subst vt e v
+           gen e vt = T.forall1 $ \v -> T.subst vt e v
          in (vt2, ctx1)
   go fn@(Term.Lam _) = -- ->I=> (Full Damas Milner rule)
     let (arg, i, o) = fresh3 ctx
-        ctxTl = context [E.Marker i, E.Existential i, E.Existential o,
-                         E.Ann arg (T.Existential i)]
+        ctxTl = context [Marker i, Existential i, Existential o,
+                         Ann arg (T.Existential i)]
     in do
       ctx' <- check (ctx `append` ctxTl)
                     (Term.betaReduce $ fn `Term.App` Term.Var arg)
                     (T.Existential o)
       pure $ let
-        (ctx1, ctx2) = breakAt (E.Marker i) ctx'
+        (ctx1, ctx2) = breakAt (Marker i) ctx'
         -- unsolved existentials get generalized to universals
         ft = apply ctx2 (T.Arrow (T.Existential i) (T.Existential o))
         existentials' = unsolved ctx2
         ft2 = foldr gen ft existentials'
-        gen e ft = T.forall1 $ \v -> subst ft e v
+        gen e ft = T.forall1 $ \v -> T.subst ft e v
         in (ft2, ctx1)
 
 -- | Synthesize the type of the given term, `arg` given that a function of
@@ -376,17 +400,17 @@ synthesize ctx e = scope ("infer: " ++ show e) $ go e where
 synthesizeApp :: Context -> Type -> Term -> Either Note (Type, Context)
 synthesizeApp ctx ft arg = go ft where
   go (T.Forall x body) = let x' = fresh ctx -- Forall1App
-    in synthesizeApp (ctx `append` context [E.Existential x'])
+    in synthesizeApp (ctx `append` context [Existential x'])
                      (T.subst body x (T.Existential x'))
                      arg
   go (T.Arrow i o) = (,) o <$> check ctx arg i -- ->App
   go (T.Existential a) = -- a^App
     let i = fresh ctx
         o = fresh' i
-        soln = Monotype (T.Arrow (T.Existential i) (T.Existential o))
-        ctxMid = context [E.Existential o, E.Existential i, E.Solved a soln]
+        soln = T.Monotype (T.Arrow (T.Existential i) (T.Existential o))
+        ctxMid = context [Existential o, Existential i, Solved a soln]
     in (,) (T.Existential o) <$>
-      check (replace (E.Existential a) ctxMid ctx)
+      check (replace (Existential a) ctxMid ctx)
                       arg
                       (T.Existential i)
   go _ = Left $ note "unable to synthesize type of application"

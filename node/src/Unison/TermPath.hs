@@ -2,7 +2,7 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Unison.Edit.Term.Path where
+module Unison.TermPath where
 
 import Control.Applicative
 import Data.Text.Internal (Text)
@@ -11,8 +11,8 @@ import Data.Aeson as A
 import Data.Aeson.TH
 import Data.Maybe (fromJust)
 import Data.Vector ((!?), (//))
-import qualified Unison.Syntax.Term as E
-import qualified Unison.Syntax.Var as V
+import qualified Unison.Term as E
+import qualified Unison.Var as V
 
 data E
   = Fn -- ^ Points at function in a function application

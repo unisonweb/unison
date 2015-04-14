@@ -1,11 +1,11 @@
 module Unison.Node.Store where
 
 import Data.Set (Set)
-import Unison.Syntax.Hash (Hash)
-import Unison.Syntax.Reference (Reference)
-import Unison.Syntax.Type (Type)
-import Unison.Syntax.Term (Term)
-import Unison.Node.Metadata (Metadata)
+import Unison.Hash (Hash)
+import Unison.Reference (Reference)
+import Unison.Type (Type)
+import Unison.Term (Term)
+import Unison.Metadata (Metadata)
 import Unison.Note (Noted)
 
 data Store f = Store {

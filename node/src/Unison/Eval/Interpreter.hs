@@ -1,17 +1,17 @@
 -- | Very simple and inefficient interpreter of Unison terms
-module Unison.Edit.Term.Eval.Interpreter where
+module Unison.Eval.Interpreter where
 
 import Control.Applicative
 import Control.Monad
-import Debug.Trace
 import Data.Map (Map)
 import Data.Maybe (fromMaybe)
+import Debug.Trace
+import Unison.Eval
+import Unison.Hash (Hash)
+import Unison.Term (Term)
 import qualified Data.Map as M
-import Unison.Edit.Term.Eval
-import Unison.Syntax.Term (Term)
-import qualified Unison.Syntax.Term as E
-import Unison.Syntax.Hash (Hash)
-import qualified Unison.Syntax.Reference as R
+import qualified Unison.Reference as R
+import qualified Unison.Term as E
 
 -- | A Haskell function accepting 'arity' arguments
 data Primop f =

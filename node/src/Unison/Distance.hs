@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Unison.Syntax.Distance where
+module Unison.Distance where
 
 import Data.Aeson.TH
 

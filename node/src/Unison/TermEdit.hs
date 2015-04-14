@@ -1,20 +1,32 @@
-module Unison.Edit.Term (
-  admissibleTypeOf, abstract, applications, step, eta, interpret, letFloat, locals, typeOf) where
+{-# LANGUAGE TemplateHaskell #-}
+
+module Unison.TermEdit (
+  Action, admissibleTypeOf, abstract, applications, step, eta, interpret, letFloat, locals, typeOf) where
 
 import Control.Applicative
+import Data.Aeson.TH
 import Data.Traversable
-import qualified Data.Set as S
-import Unison.Edit.Term.Action as A
-import qualified Unison.Edit.Term.Path as P
-import qualified Unison.Edit.Term.Eval as Eval
-import Unison.Edit.Term.Eval (Eval)
-import qualified Unison.Syntax.Var as V
-import qualified Unison.Note as N
+import Unison.Eval (Eval)
 import Unison.Note (Noted)
-import qualified Unison.Syntax.Term as E
-import qualified Unison.Syntax.Hash as H
-import qualified Unison.Syntax.Type as T
-import Unison.Type (synthesize)
+import Unison.Typechecker (synthesize)
+import qualified Data.Set as S
+import qualified Unison.Eval as Eval
+import qualified Unison.TermPath as P
+import qualified Unison.Note as N
+import qualified Unison.Hash as H
+import qualified Unison.Term as E
+import qualified Unison.Type as T
+import qualified Unison.Var as V
+
+data Action
+  = Abstract -- Turn target into function parameter
+  | Step -- Beta reduce the target
+  | Eta -- Eta reduce the target
+  | LetFloat -- Float the target out to a let binding, as far as possible
+  | WHNF -- Simplify target to weak head normal form
+  | Noop -- Do nothing to the target
+
+deriveJSON defaultOptions ''Action
 
 -- | Interpret the given 'Action'
 interpret :: (Applicative f, Monad f)

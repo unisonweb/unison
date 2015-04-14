@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Unison.Syntax.Hash (
+module Unison.Hash (
   Hash, Digest,
   append, base64, fromBase64, byte, bytes, finalize, hashBytes,
   lazyBytes, zero, one, two, three) where

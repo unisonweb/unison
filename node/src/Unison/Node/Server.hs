@@ -6,25 +6,25 @@ module Unison.Node.Server where
 
 import Control.Applicative
 import Control.Monad.IO.Class
-import qualified Data.ByteString.Lazy as LBS
-import qualified Data.Attoparsec.ByteString as Atto
+import Network.HTTP.Types.Method (StdMethod(OPTIONS))
+import Unison.Hash (Hash)
+import Unison.Node (Node)
+import Unison.Note (Noted, unnote)
+import Unison.Reference (Reference)
+import Web.Scotty (ActionM)
 import qualified Data.Aeson as J
-import qualified Data.Aeson.Types as JT
 import qualified Data.Aeson.Parser as JP
+import qualified Data.Aeson.Types as JT
+import qualified Data.Attoparsec.ByteString as Atto
+import qualified Data.ByteString.Lazy as LBS
+import qualified Data.Map as M
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TLE
-import qualified Data.Map as M
-import Network.HTTP.Types.Method (StdMethod(OPTIONS))
-import qualified Unison.Syntax.Hash as H
-import qualified Unison.Syntax.Term as E
-import qualified Unison.Syntax.Type as T
-import Unison.Syntax.Hash (Hash)
-import Unison.Syntax.Reference (Reference)
-import Unison.Node (Node)
+import qualified Unison.Hash as H
 import qualified Unison.Node as N
-import Unison.Note (Noted, unnote)
+import qualified Unison.Term as E
+import qualified Unison.Type as T
 import qualified Web.Scotty as S
-import Web.Scotty (ActionM)
 
 runN :: Noted IO a -> ActionM a
 runN n = liftIO (unnote n) >>= go

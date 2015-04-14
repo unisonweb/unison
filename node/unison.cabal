@@ -45,33 +45,26 @@ library
   hs-source-dirs: src
 
   exposed-modules:
-    Unison
-    Unison.Edit.Term
-    Unison.Edit.Term.Action
-    Unison.Edit.Term.Eval
-    Unison.Edit.Term.Eval.Interpreter
-    Unison.Edit.Term.Path
-    Unison.Edit.Type.Path
+    Unison.Distance
+    Unison.Eval
+    Unison.Eval.Interpreter
+    Unison.Hash
+    Unison.Kind
+    Unison.Metadata
     Unison.Node
     Unison.Node.Store
-    Unison.Node.Store.Memory
     Unison.Node.Store.File
     Unison.Node.Common
-    Unison.Node.Metadata
-    Unison.Node.Panel
     Unison.Node.Server
     Unison.Note
-    Unison.Syntax
-    Unison.Syntax.Distance
-    Unison.Syntax.Hash
-    Unison.Syntax.Kind
-    Unison.Syntax.Reference
-    Unison.Syntax.Term
-    Unison.Syntax.Type
-    Unison.Syntax.Var
+    Unison.Reference
+    Unison.Term
+    Unison.TermEdit
+    Unison.TermPath
     Unison.Type
-    Unison.Type.Context
-    Unison.Type.Context.Element
+    Unison.Typechecker
+    Unison.Typechecker.Context
+    Unison.Var
 
   build-depends:
     aeson                     >= 0.7.0.6,

@@ -4,7 +4,7 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Unison.Syntax.Term where
+module Unison.Term where
 
 import qualified Data.Foldable as Foldable
 import Data.Traversable
@@ -17,11 +17,11 @@ import qualified Data.Set as S
 import qualified Data.Map as M
 import qualified Data.Text as Txt
 import qualified Data.Vector as V
-import Unison.Syntax.Var as V
-import qualified Unison.Syntax.Distance as Distance
-import qualified Unison.Syntax.Hash as H
-import qualified Unison.Syntax.Reference as R
-import qualified Unison.Syntax.Type as T
+import Unison.Var as V
+import qualified Unison.Distance as Distance
+import qualified Unison.Hash as H
+import qualified Unison.Reference as R
+import qualified Unison.Type as T
 
 -- | Literals in the Unison language
 data Literal

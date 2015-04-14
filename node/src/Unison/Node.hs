@@ -5,10 +5,9 @@ module Unison.Node where
 import Data.Aeson.TH
 import Data.Set as S
 import Data.Map as M
-import Unison.Node.Metadata as MD
-import Unison.Edit.Term.Action as A
-import Unison.Edit.Term.Path as P
-import Unison.Edit.Type.Path as TP
+import Unison.Metadata as MD
+import Unison.TermEdit (Action)
+import Unison.TermPath as P
 import Unison.Note (Noted)
 
 -- | The results of a search.
@@ -41,9 +40,9 @@ data Node m k t e = Node {
   -- | Modify the given subterm, which may fail. First argument is the root path.
   -- Second argument is path relative to the root.
   -- Returns (root path, original e, edited e)
-  editTerm :: P.Path -> P.Path -> A.Action -> e -> Noted m (P.Path,e,e),
+  editTerm :: P.Path -> P.Path -> Action -> e -> Noted m (P.Path,e,e),
   -- | Modify the given type, which may fail
-  editType :: P.Path -> A.Action -> t -> Noted m t,
+  editType :: P.Path -> Action -> t -> Noted m t,
   -- Evaluate all terms, returning a list of (path, original e, evaluated e)
   evaluateTerms :: [(P.Path, e)] -> Noted m [(P.Path,e,e)],
   -- | Returns ( subterm at the given path
@@ -68,8 +67,6 @@ data Node m k t e = Node {
   types :: [k] -> Noted m (Map k t),
   -- | Obtain the type of the given subterm, assuming the path is valid
   typeOf :: e -> P.Path -> Noted m t,
-  -- | Obtain the type of a constructor argument of a type
-  typeOfConstructorArg :: k -> TP.Path -> Noted m t,
   -- | Update the metadata associated with the given term or type
   updateMetadata :: k -> MD.Metadata k -> Noted m ()
 

@@ -5,7 +5,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Unison.Syntax.Var where
+module Unison.Var where
 
 import Control.Applicative
 import Data.Aeson
