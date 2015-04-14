@@ -22,7 +22,7 @@ import qualified Unison.Eval.Interpreter as I
 import qualified Unison.Metadata as Metadata
 import qualified Unison.Node as Node
 import qualified Unison.Node.Common as C
-import qualified Unison.Node.Server as S
+import qualified Unison.NodeServer as S
 import qualified Unison.Node.Store as Store
 import qualified Unison.Node.Store.File as F
 import qualified Unison.Note as N

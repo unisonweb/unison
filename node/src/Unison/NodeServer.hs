@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Unison.Node.Server where
+module Unison.NodeServer where
 
 import Control.Applicative
 import Control.Monad.IO.Class
