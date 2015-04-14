@@ -26,9 +26,11 @@ import qualified Unison.Type as T
 -- | Literals in the Unison language
 data Literal
   = Number Double
-  | String Txt.Text
+  | Text Txt.Text
   | Distance Distance.Distance
   deriving (Eq,Ord,Show)
+
+deriveJSON defaultOptions ''Literal
 
 -- | Terms in the Unison language
 data Term
@@ -42,12 +44,15 @@ data Term
   | Lam Term
   deriving (Eq,Ord)
 
+deriveJSON defaultOptions ''Term
+makePrisms ''Term
+
 instance Show Term where
   show Blank = "_"
   show (Var v) = show v
   show (Ref v) = show v
   show (Lit (Number d)) = show d
-  show (Lit (String s)) = show s
+  show (Lit (Text s)) = show s
   show (Lit l) = show l
   show (Vector v) = show v
   show (App f x@(App _ _)) = show f ++ " (" ++ show x ++ ")"
@@ -207,10 +212,10 @@ number :: Double -> Term
 number n = Lit (Number n)
 
 string :: String -> Term
-string s = Lit (String (Txt.pack s))
+string s = Lit (Text (Txt.pack s))
 
 text :: Txt.Text -> Term
-text s = Lit (String s)
+text s = Lit (Text s)
 
 -- | Order a collection of declarations such that no declaration
 -- references hashes declared later in the returned list
@@ -263,7 +268,3 @@ finalizeHash = H.finalize . hash
 hashes :: [Term] -> [H.Hash]
 hashes _ = error "todo: Term.hashes"
 
-deriveJSON defaultOptions ''Literal
-deriveJSON defaultOptions ''Term
-
-makePrisms ''Term

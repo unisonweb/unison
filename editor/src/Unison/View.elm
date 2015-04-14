@@ -54,7 +54,7 @@ type alias Cur = { path : Path, term : Term }
 literalKey : Term -> Maybe String
 literalKey e = case e of
   Lit (Number n) -> Just <| toString n
-  Lit (Str s) -> Just <| toString s
+  Lit (Text s) -> Just <| toString s
   Lit (Distance d) -> Just <| toString d
   Blank -> Just "_"
   _ -> Nothing
@@ -66,7 +66,7 @@ key env cur = case cur.term of
   Blank -> "_"
   Var v -> "v" ++ toString v
   Lit (Number n) -> toString n
-  Lit (Str s) -> "\"" ++ toString s ++ "\""
+  Lit (Text s) -> toString s
   Lit (Distance d) -> toString d
   Ref r -> Metadata.firstName "anonymous" (env.metadata r)
   App f arg -> key env { cur | path <- cur.path `snoc` Fn, term <- f } ++
@@ -132,7 +132,7 @@ impl env allowBreak ambientPrec availableWidth cur =
       Ref h -> codeText (Metadata.firstName (R.toKey h) (env.metadata h)) |> L.embed (tag cur.path)
       Blank -> Styles.blank |> L.embed (tag cur.path)
       Lit (Number n) -> Styles.numericLiteral (toString n) |> L.embed (tag cur.path)
-      Lit (Str s) -> Styles.stringLiteral ("\"" ++ s ++ "\"") |> L.embed (tag cur.path)
+      Lit (Text s) -> Styles.stringLiteral ("\"" ++ s ++ "\"") |> L.embed (tag cur.path)
       Ann e t -> let ann = Styles.codeText (" : " ++ Type.key env t)
                  in L.beside (tag cur.path)
                              (impl env allowBreak 9 (availableWidth - E.widthOf ann)
@@ -321,10 +321,10 @@ builtins env allowBreak availableWidth ambientPrec cur =
         in Just (L.embed t (E.spacer w' h'))
       App (Ref (R.Builtin "View.text")) style -> case e of
         -- todo, actually interpret style
-        Lit (Str s) -> Just (L.embed t (Text.leftAligned (Text.style Text.defaultStyle (Text.fromString s))))
+        Lit (Text s) -> Just (L.embed t (Text.leftAligned (Text.style Text.defaultStyle (Text.fromString s))))
       App (App (App (Ref (R.Builtin "View.textbox")) (Ref (R.Builtin alignment))) (Lit (Term.Distance d))) style ->
         case e of
-          Lit (Str s) ->
+          Lit (Text s) ->
             -- todo, actually interpret style
             let f = case alignment of
                       "Text.left"    -> Text.leftAligned
@@ -375,6 +375,6 @@ reactivePaths e =
 declaredPaths : Term -> Trie Path.E String
 declaredPaths e =
   let ok e = case e of
-    App (App (Ref (R.Builtin "View.declare")) (Lit (Str s))) e -> Just s
+    App (App (Ref (R.Builtin "View.declare")) (Lit (Text s))) e -> Just s
     _ -> Nothing
   in Term.collectPaths ok e

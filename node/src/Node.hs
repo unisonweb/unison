@@ -45,7 +45,7 @@ string2 sym f = I.Primop 2 $ \xs -> case xs of
     xr <- whnf x
     yr <- whnf y
     pure $ case (xr, yr) of
-      (Term.Lit (Term.String x), Term.Lit (Term.String y)) -> Term.Lit (Term.String (f x y))
+      (Term.Lit (Term.Text x), Term.Lit (Term.Text y)) -> Term.Lit (Term.Text (f x y))
       (x,y) -> sym `Term.App` x `Term.App` y
   _ -> error "unpossible"
 
@@ -180,7 +180,7 @@ builtins =
     num = Type.Unit Type.Number
     numOpTyp = num `arr` (num `arr` num)
     styleT = Type.Unit (Type.Ref (R.Builtin "Text.Style"))
-    str = Type.Unit Type.String
+    str = Type.Unit Type.Text
     strOpTyp = str `arr` (str `arr` str)
     unitT = Type.Unit (Type.Ref (R.Builtin "Unit"))
     vec a = Type.App (Type.Unit Type.Vector) a

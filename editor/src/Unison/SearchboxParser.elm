@@ -62,12 +62,12 @@ float = Parser.map (Term.Lit << Term.Number) Parser.Number.float
 
 string : Parser Term
 string = Parser.Char.between quote quote (until quote)
-      |> Parser.map (Term.Lit << Term.Str)
+      |> Parser.map (Term.Lit << Term.Text)
 
 openString : Parser Term
 openString =
   Parser.symbol quote `Parser.andThen` \_ -> until quote
-  |> Parser.map (Term.Lit << Term.Str)
+  |> Parser.map (Term.Lit << Term.Text)
 
 distance : Parser Term
 distance =

@@ -15,7 +15,7 @@ import Unison.Var as V
 
 type Literal
   = Number
-  | String
+  | Text
   | Vector
   | Distance
   | Ref Reference
@@ -78,7 +78,7 @@ decodeKind = Decoder.union' <| \t ->
 decodeLiteral : Decoder Literal
 decodeLiteral = Decoder.union' <| \t ->
   if | t == "Number" -> Decoder.unit Number
-     | t == "String" -> Decoder.unit String
+     | t == "Text" -> Decoder.unit Text
      | t == "Vector" -> Decoder.unit Vector
      | t == "Distance" -> Decoder.unit Distance
      | t == "Ref" -> Decoder.map Ref Reference.decode
@@ -102,7 +102,7 @@ encodeKind k = case k of
 encodeLiteral : Encoder Literal
 encodeLiteral l = case l of
   Number -> Encoder.tag' "Number" Encoder.product0 ()
-  String -> Encoder.tag' "String" Encoder.product0 ()
+  Text -> Encoder.tag' "Text" Encoder.product0 ()
   Vector -> Encoder.tag' "Vector" Encoder.product0 ()
   Distance -> Encoder.tag' "Distance" Encoder.product0 ()
   Ref r -> Encoder.tag' "Ref" Reference.encode r

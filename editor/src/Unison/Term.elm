@@ -20,7 +20,6 @@ import Maybe
 import Set
 import Set (Set)
 import String
-import Text
 import Unison.Reference as R
 import Unison.Hash (Hash)
 import Unison.Hash as H
@@ -35,7 +34,7 @@ type alias E = Path.E
 
 type Literal
   = Number Float
-  | Str String
+  | Text String
   | Distance Distance.Distance
 
 type Term
@@ -73,7 +72,7 @@ checkLiteral lit admissible = case (lit,admissible) of
   (Blank, _) -> True
   -- weird parser bug prevents use of T.Unit T.Distance as a pattern
   (Lit (Distance _), T.Unit d) -> d == T.Distance
-  (Lit (Str _), T.Unit s) -> s == T.String
+  (Lit (Text _), T.Unit s) -> s == T.Text
   (Lit (Number _), T.Unit n) -> n == T.Number
   (_, T.Forall n (T.Universal n')) -> if n == n' then True else False
   _ -> False
@@ -248,12 +247,12 @@ encodeDistance e = case e of
 decodeLiteral : Decoder Literal
 decodeLiteral = Decoder.union' <| \t ->
   if | t == "Number" -> Decoder.map Number Decoder.float
-     | t == "String" -> Decoder.map Str Decoder.string
+     | t == "Text" -> Decoder.map Text Decoder.string
      | t == "Distance" -> Decoder.map Distance decodeDistance
 
 encodeLiteral l = case l of
   Number n -> Encoder.tag' "Number" Encoder.float n
-  Str s -> Encoder.tag' "String" Encoder.string s
+  Text s -> Encoder.tag' "Text" Encoder.string s
   Distance d -> Encoder.tag' "Distance" encodeDistance d
 
 decodeTerm : Decoder Term

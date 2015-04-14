@@ -244,7 +244,7 @@ main =
 
         localInfos =
           let
-            z = (Term.Lit (Term.Str "woot"), [])
+            z = (Term.Lit (Term.Text "@#$!@#"), [])
             match r = case r of
               Just (ExplorerRequest (TermExplorer.LocalInfo focus)) ->
                 Just (focus.closedSubterm, focus.pathFromClosedSubterm)

@@ -345,7 +345,7 @@ check _ _ _ = Left $ note "type not well formed wrt context"
 synthLit :: Term.Literal -> Type
 synthLit lit = T.Unit $ case lit of
   Term.Number _ -> T.Number
-  Term.String _ -> T.String
+  Term.Text _ -> T.Text
   Term.Distance _ -> T.Distance
 
 -- | Synthesize the type of the given term, updating the context in the process.

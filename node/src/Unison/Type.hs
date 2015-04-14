@@ -32,7 +32,7 @@ type Env f = R.Reference -> Noted f Type
 -- | Type literals
 data Literal
   = Number
-  | String
+  | Text
   | Vector
   | Distance
   | Ref R.Reference -- ^ A type literal uniquely defined by some nameless Hash

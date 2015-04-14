@@ -11,7 +11,7 @@ import Unison.Reference as R
 ap = E.App
 builtin s = E.Ref (R.Builtin s)
 derived s = E.Ref (R.Derived s)
-str s = E.Lit (E.Str s)
+str s = E.Lit (E.Text s)
 int n = E.Lit (E.Number (toFloat n))
 vec es = E.Vector (Array.fromList es)
 
@@ -39,9 +39,9 @@ panel v e = builtin "View.panel" `ap` v `ap` e
 function1 f = builtin "View.function1" `ap` f
 source e = builtin "View.source" `ap` e
 verticalPanel es = panel (builtin "View.vertical") (vec es)
-string s = E.Lit (E.Str s)
+string s = E.Lit (E.Text s)
 text s = builtin "View.text" `ap` s
 centered s = builtin "View.textbox" `ap` builtin "Text.center" `ap` full `ap` s
-h1 s = cell (text E.Blank) (E.Lit (E.Str s))
-body s = cell (text E.Blank) (E.Lit (E.Str s))
+h1 s = cell (text E.Blank) (E.Lit (E.Text s))
+body s = cell (text E.Blank) (E.Lit (E.Text s))
 full = E.Lit (E.Distance (Distance.Fraction 1.0))

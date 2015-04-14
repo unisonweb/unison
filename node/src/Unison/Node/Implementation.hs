@@ -6,7 +6,6 @@ import Control.Monad
 import Data.List
 import Data.Ord
 import Data.Traversable (traverse)
-import Debug.Trace
 import Unison.Eval as Eval
 import Unison.TermPath as Path
 import Unison.Metadata as MD
@@ -15,17 +14,12 @@ import Unison.Node.Store
 import Unison.Note (Noted)
 import Unison.Term (Term)
 import Unison.Type (Type)
-import qualified Data.Foldable as Foldable
 import qualified Data.Map as M
 import qualified Data.Set as S
-import qualified Unison.Note as Note
 import qualified Unison.Reference as R
 import qualified Unison.Term as E
 import qualified Unison.TermEdit as TE
 import qualified Unison.Typechecker as Typechecker
-import qualified Unison.Type as Type
-
-watch msg a = trace (msg ++ " : " ++ show a) a
 
 node :: (Applicative f, Monad f) => Eval (Noted f) -> Store f  -> Node f R.Reference Type Term
 node eval store =
