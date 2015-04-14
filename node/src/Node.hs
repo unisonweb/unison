@@ -4,7 +4,6 @@
 module Main where
 
 import Control.Applicative
-import Data.List
 import Data.Monoid
 import Data.Text (Text)
 import Data.Traversable
@@ -21,10 +20,9 @@ import qualified Unison.Eval as Eval
 import qualified Unison.Eval.Interpreter as I
 import qualified Unison.Metadata as Metadata
 import qualified Unison.Node as Node
-import qualified Unison.Node.Common as C
+import qualified Unison.Node.Implementation as C
 import qualified Unison.NodeServer as S
 import qualified Unison.Node.Store as Store
-import qualified Unison.Node.Store.File as F
 import qualified Unison.Note as N
 import qualified Unison.Reference as R
 import qualified Unison.Term as Term
@@ -104,7 +102,7 @@ builtins =
         op [a,b] = do
           ar <- whnf a
           br <- whnf b
-          pure $ case (a,b) of
+          pure $ case (ar,br) of
             (Term.Vector a, Term.Vector b) -> Term.Vector (a `mappend` b)
             (a,b) -> Term.Ref r `Term.App` a `Term.App` b
         op _ = fail "Vector.concatenate unpossible"
@@ -182,7 +180,6 @@ builtins =
     num = Type.Unit Type.Number
     numOpTyp = num `arr` (num `arr` num)
     styleT = Type.Unit (Type.Ref (R.Builtin "Text.Style"))
-    st = strOpTyp
     str = Type.Unit Type.String
     strOpTyp = str `arr` (str `arr` str)
     unitT = Type.Unit (Type.Ref (R.Builtin "Unit"))
@@ -193,13 +190,16 @@ builtins =
                      where reapply args' = Term.Ref r `apps` args' `apps` drop n args
             apps f args = foldl Term.App f args
 
+opl :: Int -> Text -> Metadata k
 opl n s = Metadata Metadata.Term
                    (Metadata.Names [Metadata.Symbol s Metadata.InfixL n ])
                    []
                    Nothing
 
+prefix :: Text -> Metadata k
 prefix s = prefixes [s]
 
+prefixes :: [Text] -> Metadata k
 prefixes s = Metadata Metadata.Term
                     (Metadata.Names (map (\s -> Metadata.Symbol s Metadata.Prefix 9) s))
                     []
@@ -212,7 +212,7 @@ builtinMetadatas node = do
         builtins
 
 store :: Store IO
-store = F.store "store"
+store = Store.store "store"
 
 eval :: Eval (N.Noted IO)
 eval = I.eval (M.fromList [ (k,v) | (k,Just v,_,_) <- builtins ])

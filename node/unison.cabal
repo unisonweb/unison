@@ -53,8 +53,7 @@ library
     Unison.Metadata
     Unison.Node
     Unison.Node.Store
-    Unison.Node.Store.File
-    Unison.Node.Common
+    Unison.Node.Implementation
     Unison.NodeServer
     Unison.Note
     Unison.Reference
