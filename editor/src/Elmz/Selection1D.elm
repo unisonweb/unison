@@ -49,7 +49,7 @@ model =
             \i -> if i == ind then Nothing
                   else Just (Moore (region i layout, Just i) (interactive i values))
           Values values' -> if values' == values then Nothing else case index ind values of
-            Nothing -> Just (Moore.feed state0 e)
+            Nothing -> Just (Moore.feed e state0)
             Just v ->
               let ind' = Maybe.withDefault 0 (indexOf ((==) v) values')
               in if List.isEmpty values'

@@ -76,8 +76,8 @@ type alias Completions =
 
 allCompletions : String -> Completions -> List (String,Element,Maybe Term)
 allCompletions q c =
-  c.results `Moore.feed` (Matcher.Query { string = q, values = c.literals ++ c.locals })
-  |> Moore.extract |> .matches
+  c.results |> Moore.feed (Matcher.Query { string = q, values = c.literals ++ c.locals })
+            |> Moore.extract |> .matches
 
 model : (Field.Content -> Signal.Message) -> Model
 model searchbox =
@@ -141,7 +141,7 @@ model searchbox =
           (sel', layout'') = layout metadata' (path focus) searchbox matches sel content infoLayout
         in Moore { selection = Nothing, request = Nothing, view = Layout.element layout'' } <|
            search admissible env' focus completions' sel' content infoLayout layout''
-      Navigate nav -> Moore.step sel { event = Just nav, layout = layout' } `Maybe.andThen`
+      Navigate nav -> Moore.step { event = Just nav, layout = layout' } sel `Maybe.andThen`
         \sel -> Just <|
           let (sel'', layout'') = layout env.metadata (path focus) searchbox
                                          (allCompletions content.string completions)
@@ -156,7 +156,7 @@ model searchbox =
               Moore { selection = Just (focus, term), request = Nothing, view = Element.empty }
               closed
            ))
-      Click xy -> case Moore.feed sel { event = Just (Selection1D.Mouse xy), layout = layout' } of
+      Click xy -> case Moore.feed { event = Just (Selection1D.Mouse xy), layout = layout' } sel of
         sel -> case Moore.extract sel |> .index of
           -- click on unselectable region is a noop
           Nothing -> Just <|
@@ -169,7 +169,7 @@ model searchbox =
         completions ->
         let
           q = Matcher.Query { string = content.string, values = completions.literals ++ completions.locals }
-          results = Moore.feed completions.results q
+          results = Moore.feed q completions.results
           matches = Moore.extract results |> .matches
           completions' = { completions | results <- results }
           (sel', layout'') = layout env.metadata (path focus) searchbox matches sel content infoLayout
@@ -199,7 +199,7 @@ processSearchResults env results cs query =
         , additionalResults = snd results.matches + snd results.illTypedMatches
         , values = valids ++ invalids }
       msg2 = Matcher.Query { string = query, values = cs.literals ++ cs.locals }
-  in { cs | results <- Moore.feeds cs.results [ msg, msg2 ]  }
+  in { cs | results <- Moore.feeds [ msg, msg2 ] cs.results }
 
 parseSearchbox : Type -> String -> List (String, Element, Maybe Term)
 parseSearchbox admissible s =
@@ -251,7 +251,8 @@ layout md path searchbox keyedCompletions sel content infoLayout =
       Layout.above Nothing (Layout.embed Nothing above) below
       |> Styles.explorerOutline (Styles.statusColor ok)
     inputBox = Layout.embed Nothing (viewField searchbox ok content (Just (Layout.widthOf resultsBox)))
-    sel' = Moore.feed sel { layout = resultsBox, event = Just (Selection1D.Values (List.map snd valids)) }
+    sel' = sel |> Moore.feed { layout = resultsBox
+                             , event = Just (Selection1D.Values (List.map snd valids)) }
     -- NB: careful to apply the highlight just to the results box, otherwise focus is stolen
     -- whenever the results box updates, see https://github.com/elm-lang/core/issues/3
     hl e = case Moore.extract sel' |> .region of

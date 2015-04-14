@@ -98,39 +98,40 @@ model sink term0 =
               , metadata = Moore.extract mds
               , overrides = always Nothing
               , raw = Nothing }
-        ex = Moore.feed explorer (TermExplorer.Open env focus Field.noContent)
-        term' = Moore.feed term { event = Nothing, explorerOpen = True
-                                , availableWidth = w, metadata = env.metadata, topLeft = pt }
+        ex = Moore.feed (TermExplorer.Open env focus Field.noContent) explorer
+        term' = Moore.feed { event = Nothing, explorerOpen = True
+                           , availableWidth = w, metadata = env.metadata, topLeft = pt }
+                           term
         o = let r = out term' ex in { r | request <- Maybe.map ExplorerRequest (Moore.extract ex |> .request) }
       in
         Moore.spike o { o | request <- Nothing } (exploreropen mds term' ex)
 
-    feedX pt w md m e = Moore.feed m { event = Just e, explorerOpen = False, availableWidth = w, metadata = md, topLeft = pt }
-    stepX pt w md m e = Moore.step m { event = Just e, explorerOpen = False, availableWidth = w, metadata = md, topLeft = pt }
+    feedX pt w md e m = Moore.feed { event = Just e, explorerOpen = False, availableWidth = w, metadata = md, topLeft = pt } m
+    stepX pt w md e m = Moore.step { event = Just e, explorerOpen = False, availableWidth = w, metadata = md, topLeft = pt } m
 
     explorerclosed mds term explorer e = case (e.event, e.availableWidth, Moore.extract mds) of
       (Nothing,w,md) -> Maybe.map
         (\term -> let o = out term explorer in Moore { o | request <- Nothing } (explorerclosed mds term explorer))
-        (Moore.step term { event = Nothing, explorerOpen = False, availableWidth = w, metadata = md, topLeft = e.topLeft })
+        (Moore.step { event = Nothing, explorerOpen = False, availableWidth = w, metadata = md, topLeft = e.topLeft } term)
       (Just event,w,md) -> case event of
         -- these trigger a state change
-        Click xy -> case feedX e.topLeft w md term (EditableTerm.Mouse xy) of
+        Click xy -> case feedX e.topLeft w md (EditableTerm.Mouse xy) term of
           term -> (Moore.extract term |> .scope) `Maybe.andThen` \scope -> Just (toOpen e.topLeft w mds term explorer scope)
         Enter -> (Moore.extract term |> .scope) `Maybe.andThen` \scope -> Just (toOpen e.topLeft w mds term explorer scope)
         -- these dont
-        Mouse xy -> stepX e.topLeft w md term (EditableTerm.Mouse xy) `Maybe.andThen` \term ->
+        Mouse xy -> stepX e.topLeft w md (EditableTerm.Mouse xy) term `Maybe.andThen` \term ->
           Just <| Moore (out term explorer) (explorerclosed mds term explorer)
-        Movement d2 -> stepX e.topLeft w md term (EditableTerm.Movement d2) `Maybe.andThen` \term ->
+        Movement d2 -> stepX e.topLeft w md (EditableTerm.Movement d2) term `Maybe.andThen` \term ->
           Just <| Moore (out term explorer) (explorerclosed mds term explorer)
-        Preapply -> stepX e.topLeft w md term (EditableTerm.Modify (Term.App Term.Blank)) `Maybe.andThen` \term ->
+        Preapply -> stepX e.topLeft w md (EditableTerm.Modify (Term.App Term.Blank)) term `Maybe.andThen` \term ->
           Moore (out term explorer) (explorerclosed mds term explorer)
-          `Moore.feed` moveDown e -- moves cursor to point to newly created blank
+          |> Moore.feed (moveDown e) -- moves cursor to point to newly created blank
           |> Just
-        ViewToggle -> stepX e.topLeft w md term EditableTerm.ToggleRaw `Maybe.andThen` \term ->
+        ViewToggle -> stepX e.topLeft w md EditableTerm.ToggleRaw term `Maybe.andThen` \term ->
           Just <| Moore (out term explorer) (explorerclosed mds term explorer)
-        Replace r -> stepX e.topLeft w md term (EditableTerm.Replace r) `Maybe.andThen` \term ->
+        Replace r -> stepX e.topLeft w md (EditableTerm.Replace r) term `Maybe.andThen` \term ->
           Just <| Moore (out term explorer) (explorerclosed mds term explorer)
-        MetadataResults refs -> case Moore.feed mds refs of
+        MetadataResults refs -> case Moore.feed refs mds of
           mds -> Just <| Moore (out term explorer) (explorerclosed mds term explorer)
         Act action -> (Moore.extract term |> .scope) `Maybe.andThen` \scope ->
           let
@@ -146,18 +147,19 @@ model sink term0 =
       \explorer -> case Moore.extract explorer |> .selection of
         Nothing -> Just <| Moore (out term explorer) (exploreropen mds term explorer)
         Just (loc,replacement) ->
-          let term' = Moore.feed term { event = Just (EditableTerm.Modify (always replacement))
-                                      , explorerOpen = False
-                                      , availableWidth = w
-                                      , metadata = Moore.extract mds
-                                      , topLeft = pt }
+          let term' = Moore.feed { event = Just (EditableTerm.Modify (always replacement))
+                                 , explorerOpen = False
+                                 , availableWidth = w
+                                 , metadata = Moore.extract mds
+                                 , topLeft = pt } term
           in Just <| Moore (out term' ex0) (explorerclosed mds term' ex0)
 
     exploreropen mds term explorer e = case (e.event,e.availableWidth) of
       (Nothing,w) -> Maybe.map
         (\term -> let o = (out term explorer) in Moore { o | request <- Nothing } (exploreropen mds term explorer))
-        (Moore.step term { event = Nothing, explorerOpen = True
-                         , availableWidth = w, metadata = Moore.extract mds, topLeft = e.topLeft })
+        (Moore.step { event = Nothing, explorerOpen = True
+                    , availableWidth = w, metadata = Moore.extract mds, topLeft = e.topLeft }
+                    term)
       (Just event,w) -> case event of
         -- these can trigger a state change
         Click xy ->
@@ -165,35 +167,35 @@ model sink term0 =
               eview = Moore.extract explorer |> .view
           in if x < 0 || y < 0 || x > Element.widthOf eview || y > Element.heightOf eview
              then Just <| Moore (out term ex0) (explorerclosed mds term ex0)
-             else tryAccept e.topLeft w mds term (Moore.step explorer (TermExplorer.Click (x,y)))
-        Enter -> case Moore.feed explorer TermExplorer.Enter of
+             else tryAccept e.topLeft w mds term (Moore.step (TermExplorer.Click (x,y)) explorer)
+        Enter -> case Moore.feed TermExplorer.Enter explorer of
           explorer -> case Moore.extract explorer |> .selection of
             -- treat Enter as a cancel event if no valid selection
             Nothing -> Just <| Moore (out term ex0) (explorerclosed mds term ex0)
             Just _ -> tryAccept e.topLeft w mds term (Just explorer)
         FieldContent content ->
-          tryAccept e.topLeft w mds term (Moore.step explorer (TermExplorer.FieldContent content))
+          tryAccept e.topLeft w mds term (Moore.step (TermExplorer.FieldContent content) explorer)
         -- these cannot
         Mouse xy ->
           let xy' = explorerXY term xy
-          in Moore.step explorer (TermExplorer.Navigate (Selection1D.Mouse xy')) `Maybe.andThen`
+          in Moore.step (TermExplorer.Navigate (Selection1D.Mouse xy')) explorer `Maybe.andThen`
              \explorer -> Just <| Moore (out term explorer) (exploreropen mds term explorer)
         Movement d2 ->
           let d1 = Movement.negateD1 << Movement.xy_y <| d2
-          in Moore.step explorer (TermExplorer.Navigate (Selection1D.Move d1)) `Maybe.andThen`
+          in Moore.step (TermExplorer.Navigate (Selection1D.Move d1)) explorer `Maybe.andThen`
              \explorer -> Just <| Moore (out term explorer) (exploreropen mds term explorer)
-        MetadataResults refs -> case Moore.feed mds refs of
+        MetadataResults refs -> case Moore.feed refs mds of
           mds -> Just <| Moore (out term explorer) (exploreropen mds term explorer)
-        SearchResults results -> case Moore.feed mds results.references of
-          mds -> Moore.step explorer (TermExplorer.SearchResults results) `Maybe.andThen`
+        SearchResults results -> case Moore.feed results.references mds of
+          mds -> Moore.step (TermExplorer.SearchResults results) explorer `Maybe.andThen`
                  \explorer -> Just <| Moore (out term explorer) (exploreropen mds term explorer)
         LocalInfoResults results ->
-          Moore.step explorer (TermExplorer.LocalInfoResults results) `Maybe.andThen`
+          Moore.step (TermExplorer.LocalInfoResults results) explorer `Maybe.andThen`
           \explorer -> Just <| Moore (out term explorer) (exploreropen mds term explorer)
         Replace r ->
           let msg = { availableWidth = w, event = Just (EditableTerm.Replace r)
                     , explorerOpen = True, metadata = Moore.extract mds, topLeft = e.topLeft }
-          in Moore.step term msg `Maybe.andThen` \term ->
+          in Moore.step msg term `Maybe.andThen` \term ->
              Just <| Moore (out term explorer) (explorerclosed mds term explorer)
         _ -> Nothing
   in

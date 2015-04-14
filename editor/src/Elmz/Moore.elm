@@ -23,7 +23,7 @@ contramap : (i0 -> i) -> Moore i o -> Moore i0 o
 contramap f (Moore o k) = Moore o (\i -> Maybe.map (contramap f) (k (f i)))
 
 duplicate : Moore i o -> Moore i (Moore i o)
-duplicate m = Moore m (\i -> Maybe.map duplicate (step m i))
+duplicate m = Moore m (\i -> Maybe.map duplicate (step i m))
 
 echo : o -> Moore o o
 echo o = moore o echo
@@ -37,13 +37,13 @@ emit oz (Moore o k) = Moore oz (\i -> Maybe.map (emit o) (k i))
 extract : Moore i o -> o
 extract (Moore o _) = o
 
-feed : Moore i o -> i -> Moore i o
-feed ((Moore _ k) as m) i = Maybe.withDefault m (k i)
+feed : i -> Moore i o -> Moore i o
+feed i ((Moore _ k) as m) = Maybe.withDefault m (k i)
 
-feeds : Moore i o -> List i -> Moore i o
-feeds m i = case i of
+feeds : List i -> Moore i o -> Moore i o
+feeds i m = case i of
   [] -> m
-  h :: t -> feeds (feed m h) t
+  h :: t -> feeds t (feed h m)
 
 focus : (a -> Maybe b) -> Moore b c -> Moore a c
 focus f ((Moore o k) as m) =
@@ -96,18 +96,18 @@ spike b bquiet k1 =
 split : Moore a b -> Moore a (b,b)
 split = map (\b -> (b,b))
 
-step : Moore i o -> i -> Maybe (Moore i o)
-step (Moore _ k) = k
+step : i -> Moore i o -> Maybe (Moore i o)
+step i (Moore _ k) = k i
 
 transform : Moore i o -> Signal i -> Signal o
 transform m i =
-  let s i m = feed m i
+  let s i m = feed i m
   in extract <~ foldp s m i
 
 {-| Unlike `transform`, only emits events when the input transitions to a new state. -}
 transitions : Moore i o -> Signal i -> Signal o
 transitions m i =
-  let s i (m,_) = case step m i of
+  let s i (m,_) = case step i m of
         Nothing -> (m, False)
         Just m2 -> (m2, True)
       states = foldp s (m, True) i

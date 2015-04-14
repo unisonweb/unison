@@ -104,6 +104,7 @@ encodeLiteral l = case l of
   Number -> Encoder.tag' "Number" Encoder.product0 ()
   String -> Encoder.tag' "String" Encoder.product0 ()
   Vector -> Encoder.tag' "Vector" Encoder.product0 ()
+  Distance -> Encoder.tag' "Distance" Encoder.product0 ()
   Ref r -> Encoder.tag' "Ref" Reference.encode r
 
 encodeType : Encoder Type
