@@ -5,12 +5,12 @@ import Control.Applicative
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Text (Text)
+import Unison.Symbol (Symbol)
 import qualified Data.Text as Text
+import qualified Unison.Symbol as Symbol
 import qualified Unison.TermPath as P
 
 data Sort = Type | Term deriving (Eq,Ord,Show)
-data Fixity = InfixL | InfixR | Infix | Prefix deriving (Eq,Ord,Show)
-data Symbol = Symbol { name :: Text, fixity :: Fixity, precedence :: Int } deriving (Eq,Ord,Show)
 
 data Metadata k =
   Metadata {
@@ -22,7 +22,7 @@ data Metadata k =
 
 matches :: Query -> Metadata k -> Bool
 matches (Query txt) (Metadata _ (Names ns) _ _) =
-  any (Text.isPrefixOf txt) (map name ns)
+  any (Text.isPrefixOf txt) (map Symbol.name ns)
 
 -- | Nameless metadata, contains only the annotation
 synthetic :: Sort -> Metadata k
@@ -48,8 +48,6 @@ instance ToJSON Query where
 instance FromJSON Query where
   parseJSON v = Query <$> parseJSON v
 
-deriveJSON defaultOptions ''Fixity
-deriveJSON defaultOptions ''Symbol
 deriveJSON defaultOptions ''Metadata
 deriveJSON defaultOptions ''Names
 deriveJSON defaultOptions ''Sort

@@ -45,6 +45,7 @@ library
   hs-source-dirs: src
 
   exposed-modules:
+    Unison.ABT
     Unison.Distance
     Unison.Eval
     Unison.Eval.Interpreter
@@ -57,6 +58,7 @@ library
     Unison.NodeServer
     Unison.Note
     Unison.Reference
+    Unison.Symbol
     Unison.Term
     Unison.TermEdit
     Unison.TermPath

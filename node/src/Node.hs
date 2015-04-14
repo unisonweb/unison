@@ -21,10 +21,11 @@ import qualified Unison.Eval.Interpreter as I
 import qualified Unison.Metadata as Metadata
 import qualified Unison.Node as Node
 import qualified Unison.Node.Implementation as C
-import qualified Unison.NodeServer as S
 import qualified Unison.Node.Store as Store
+import qualified Unison.NodeServer as S
 import qualified Unison.Note as N
 import qualified Unison.Reference as R
+import qualified Unison.Symbol as Symbol
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 import qualified Unison.Var as Var
@@ -192,7 +193,7 @@ builtins =
 
 opl :: Int -> Text -> Metadata k
 opl n s = Metadata Metadata.Term
-                   (Metadata.Names [Metadata.Symbol s Metadata.InfixL n ])
+                   (Metadata.Names [Symbol.symbol s Symbol.InfixL n ])
                    []
                    Nothing
 
@@ -201,7 +202,7 @@ prefix s = prefixes [s]
 
 prefixes :: [Text] -> Metadata k
 prefixes s = Metadata Metadata.Term
-                    (Metadata.Names (map (\s -> Metadata.Symbol s Metadata.Prefix 9) s))
+                    (Metadata.Names (map (\s -> Symbol.symbol s Symbol.Prefix 9) s))
                     []
                     Nothing
 
