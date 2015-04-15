@@ -13,5 +13,8 @@ symbol n f p = Symbol n 0 f p
 freshen :: Symbol -> Symbol
 freshen (Symbol n i f p) = Symbol n (i+1) f p
 
+prefix :: Text -> Symbol
+prefix name = symbol name Prefix 9
+
 deriveJSON defaultOptions ''Fixity
 deriveJSON defaultOptions ''Symbol

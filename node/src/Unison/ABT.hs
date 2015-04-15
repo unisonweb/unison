@@ -59,14 +59,18 @@ rename old new (Term _ t) = case t of
                 else abs v (rename old new body)
   Tm v -> tm (fmap (rename old new) v)
 
+-- | Produce a variable which is free in both terms
+freshInBoth :: Term f -> Term f -> V -> V
+freshInBoth t1 t2 x = fresh (memberOf (freevars t1) (freevars t2)) x
+  where memberOf s1 s2 v = Set.member v s1 || Set.member v s2
+
 -- | `subst t x body` substitutes `t` for `x` in `body`, avoiding capture
 subst :: (Foldable f, Functor f) => Term f -> V -> Term f -> Term f
 subst t x body = case out body of
   Var v | x == v -> t
   Var v -> var v
   Abs x e -> abs x' e'
-    where memberOf s1 s2 v = Set.member v s1 || Set.member v s2
-          x' = fresh (memberOf (freevars t) (freevars body)) x
+    where x' = freshInBoth t body x
           -- rename x to something that cannot be captured
           e' = if x /= x' then subst t x (rename x x' e)
                else e
@@ -92,6 +96,20 @@ toIntTagged fa k = k (intTag fa) (Foldable.toList fa)
 toTextTagged :: TextTagged f => f a -> (Text -> [a] -> r) -> r
 toTextTagged fa k = k (textTag fa) (Foldable.toList fa)
 
+instance (Functor f, IntTagged f) => Eq (Term f) where
+  -- alpha equivalence, works by renaming any aligned Abs ctors to use a common fresh variable
+  t1 == t2 | Set.null (freevars t1) && Set.null (freevars t2) = go (out t1) (out t2) where
+    go (Var v) (Var v2) | v == v2 = True
+    go (Abs v1 body1) (Abs v2 body2) =
+      if v1 == v2 then go (out body1) (out body2)
+      else let v3 = freshInBoth body1 body2 v1
+           in go (out (rename v1 v3 body1)) (out (rename v2 v3 body2))
+    go (Tm f1) (Tm f2) | intTag f1 == intTag f2 =
+      let (args1, args2) = (map out (Foldable.toList f1), map out (Foldable.toList f2))
+      in length args1 == length args2 && all id (zipWith go args1 args2)
+    go _ _ = False
+  _ == _ = False
+
 instance TextTagged f => ToJSON (Term f) where
   toJSON (Term _ e) = case e of
     Var v -> array [text "Var", toJSON v]
@@ -113,6 +131,8 @@ instance TextTagged f => FromJSON (Term f) where
     where msg t = "unknown tag: " ++ Text.unpack t
 
 -- todo: binary encoder/decoder can work similarly, just using IntTagged
+
+-- hash :: IntTagged f => Term f ->
 
 text :: Text -> Value
 text t = toJSON t
