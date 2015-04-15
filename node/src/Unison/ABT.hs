@@ -102,7 +102,7 @@ instance TextTagged f => FromJSON (Term f) where
   parseJSON j = do
     t <- at0 (J.withText "ABT.tag" pure) j
     case t of
-      _ | t == "Var" -> at 1 (\j -> var <$> parseJSON j) j
+      _ | t == "Var" -> var <$> at 1 parseJSON j
       _ | t == "Abs" -> abs <$> at 1 parseJSON j <*> at 2 parseJSON j
       _ | t == "Tm"  -> tm <$> do
         tag <- at0 (J.withText "ABT.f.tag" pure) j
