@@ -98,17 +98,14 @@ toTextTagged fa k = k (textTag fa) (Foldable.toList fa)
 
 instance (Functor f, IntTagged f) => Eq (Term f) where
   -- alpha equivalence, works by renaming any aligned Abs ctors to use a common fresh variable
-  t1 == t2 | Set.null (freevars t1) && Set.null (freevars t2) = go (out t1) (out t2) where
+  t1 == t2 = go (out t1) (out t2) where
     go (Var v) (Var v2) | v == v2 = True
     go (Abs v1 body1) (Abs v2 body2) =
-      if v1 == v2 then go (out body1) (out body2)
+      if v1 == v2 then body1 == body2
       else let v3 = freshInBoth body1 body2 v1
-           in go (out (rename v1 v3 body1)) (out (rename v2 v3 body2))
-    go (Tm f1) (Tm f2) | intTag f1 == intTag f2 =
-      let (args1, args2) = (map out (Foldable.toList f1), map out (Foldable.toList f2))
-      in length args1 == length args2 && all id (zipWith go args1 args2)
+           in rename v1 v3 body1 == rename v2 v3 body2
+    go (Tm f1) (Tm f2) | intTag f1 == intTag f2 = Foldable.toList f1 == Foldable.toList f2
     go _ _ = False
-  _ == _ = False
 
 instance TextTagged f => ToJSON (Term f) where
   toJSON (Term _ e) = case e of
