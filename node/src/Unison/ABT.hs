@@ -1,5 +1,7 @@
 -- Based on: http://semantic-domain.blogspot.com/2015/03/abstract-binding-trees.html
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Unison.ABT (ABT(..),abs,freevars,into,out,rename,subst,tm,Term,V) where
@@ -9,12 +11,14 @@ import Data.Aeson
 import Data.Foldable (Foldable)
 import Data.Functor.Classes
 import Data.Set (Set)
+import Data.Traversable
 import Prelude hiding (abs)
 import Unison.Symbol (Symbol)
 import qualified Data.Aeson as Aeson
 import qualified Data.Foldable as Foldable
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import qualified Unison.Digest as Digest
 import qualified Unison.JSON as J
 import qualified Unison.Symbol as Symbol
 
@@ -23,7 +27,7 @@ type V = Symbol
 data ABT f a
   = Var V
   | Abs V a
-  | Tm (f a) deriving Functor
+  | Tm (f a) deriving (Functor, Foldable, Traversable)
 
 data Term f = Term { freevars :: Set V, out :: ABT f (Term f) }
 
@@ -100,5 +104,6 @@ instance (Foldable f, J.FromJSON1 f) => FromJSON (Term f) where
 
 -- todo: binary encoder/decoder can work similarly
 
+-- a closed term with zero deps can be hashed directly
 -- hash :: IntTagged f => Term f ->
 

@@ -46,6 +46,7 @@ library
 
   exposed-modules:
     Unison.ABT
+    Unison.Digest
     Unison.Distance
     Unison.Eval
     Unison.Eval.Interpreter
@@ -76,6 +77,8 @@ library
     base64-bytestring         ,
     blaze-html                >= 0.7.0.0,
     bytestring                ,
+    bytes                     >= 0.15,
+    cereal                    ,
     containers                >= 0.5,
     cryptohash                ,
     directory                 ,
