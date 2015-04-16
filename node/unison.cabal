@@ -50,6 +50,7 @@ library
     Unison.Eval
     Unison.Eval.Interpreter
     Unison.Hash
+    Unison.JSON
     Unison.Kind
     Unison.Metadata
     Unison.Node

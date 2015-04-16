@@ -7,19 +7,15 @@ module Unison.ABT (ABT(..),abs,freevars,into,out,rename,subst,tm,Term,V) where
 import Control.Applicative
 import Data.Aeson
 import Data.Foldable (Foldable)
-import Data.Maybe
+import Data.Functor.Classes
 import Data.Set (Set)
-import Data.Text (Text)
-import Data.Traversable
-import Data.Vector ((!?))
 import Prelude hiding (abs)
 import Unison.Symbol (Symbol)
-import qualified Data.Aeson as J
-import qualified Data.Aeson.Types as Aeson
+import qualified Data.Aeson as Aeson
 import qualified Data.Foldable as Foldable
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import qualified Data.Vector as Vector
+import qualified Unison.JSON as J
 import qualified Unison.Symbol as Symbol
 
 type V = Symbol
@@ -76,27 +72,7 @@ subst t x body = case out body of
                else e
   Tm body -> tm (fmap (subst t x) body)
 
--- | Subject to `toIntTagged fa fromIntTagged == Just fa`, which
--- ensures that the `toList` plus the tag is all the information needed
--- to reconstruct any `f a`.
-class Foldable f => IntTagged f where
-  intTag :: f a -> Int
-  fromIntTagged :: Int -> [a] -> Maybe (f a)
-
--- | Subject to `toTextTagged fa fromTextTagged == Just fa`, which
--- ensures that the `toList` plus the tag is all the information needed
--- to reconstruct any `f a`.
-class Foldable f => TextTagged f where
-  textTag :: f a -> Text
-  fromTextTagged :: Text -> [a] -> Maybe (f a)
-
-toIntTagged :: IntTagged f => f a -> (Int -> [a] -> r) -> r
-toIntTagged fa k = k (intTag fa) (Foldable.toList fa)
-
-toTextTagged :: TextTagged f => f a -> (Text -> [a] -> r) -> r
-toTextTagged fa k = k (textTag fa) (Foldable.toList fa)
-
-instance (Functor f, IntTagged f) => Eq (Term f) where
+instance (Foldable f, Functor f, Eq1 f) => Eq (Term f) where
   -- alpha equivalence, works by renaming any aligned Abs ctors to use a common fresh variable
   t1 == t2 = go (out t1) (out t2) where
     go (Var v) (Var v2) | v == v2 = True
@@ -104,44 +80,25 @@ instance (Functor f, IntTagged f) => Eq (Term f) where
       if v1 == v2 then body1 == body2
       else let v3 = freshInBoth body1 body2 v1
            in rename v1 v3 body1 == rename v2 v3 body2
-    go (Tm f1) (Tm f2) | intTag f1 == intTag f2 = Foldable.toList f1 == Foldable.toList f2
+    go (Tm f1) (Tm f2) = eq1 f1 f2
     go _ _ = False
 
-instance TextTagged f => ToJSON (Term f) where
+instance J.ToJSON1 f => ToJSON (Term f) where
   toJSON (Term _ e) = case e of
-    Var v -> array [text "Var", toJSON v]
-    Abs v body -> array [text "Abs", toJSON v, toJSON body]
-    Tm v -> array [text "Tm", toTextTagged v (\tag xs -> array (text tag : map toJSON xs))]
+    Var v -> J.array [J.text "Var", toJSON v]
+    Abs v body -> J.array [J.text "Abs", toJSON v, toJSON body]
+    Tm v -> J.array [J.text "Tm", J.toJSON1 v]
 
-instance TextTagged f => FromJSON (Term f) where
+instance (Foldable f, J.FromJSON1 f) => FromJSON (Term f) where
   parseJSON j = do
-    t <- at0 (J.withText "ABT.tag" pure) j
+    t <- J.at0 (Aeson.withText "ABT.tag" pure) j
     case t of
-      _ | t == "Var" -> var <$> at 1 parseJSON j
-      _ | t == "Abs" -> abs <$> at 1 parseJSON j <*> at 2 parseJSON j
-      _ | t == "Tm"  -> tm <$> do
-        tag <- at0 (J.withText "ABT.f.tag" pure) j
-        args <- Vector.drop 1 <$> at 1 (J.withArray "ABT.f.args" pure) j
-        parsedArgs <- traverse parseJSON args
-        maybe (fail (msg t)) pure (fromTextTagged tag (Vector.toList parsedArgs))
-      _ -> fail (msg t)
-    where msg t = "unknown tag: " ++ Text.unpack t
+      _ | t == "Var" -> var <$> J.at 1 Aeson.parseJSON j
+      _ | t == "Abs" -> abs <$> J.at 1 Aeson.parseJSON j <*> J.at 2 Aeson.parseJSON j
+      _ | t == "Tm"  -> tm <$> J.at 1 J.parseJSON1 j
+      _              -> fail ("unknown tag: " ++ Text.unpack t)
 
--- todo: binary encoder/decoder can work similarly, just using IntTagged
+-- todo: binary encoder/decoder can work similarly
 
 -- hash :: IntTagged f => Term f ->
 
-text :: Text -> Value
-text t = toJSON t
-
-array :: [Value] -> Value
-array = Aeson.Array . Vector.fromList
-
--- | Run the parser on the nth (0-based) subtree, assuming the input is an array
-at :: Int -> (Aeson.Value -> Aeson.Parser a) -> Aeson.Value -> Aeson.Parser a
-at ind parse j = J.withArray "at" k j where
-  k vs = maybe z parse (vs !? 0) where z = fail ("invalid index: " ++ show ind)
-
--- | Run the parser on the 0th subtree, assuming the input is an array
-at0 :: (Aeson.Value -> Aeson.Parser a) -> Aeson.Value -> Aeson.Parser a
-at0 = at 0
