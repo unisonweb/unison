@@ -7,15 +7,18 @@
 module Unison.ABT (ABT(..),abs,freevars,hash,into,out,rename,subst,tm,Term,V) where
 
 import Control.Applicative
-import Data.Aeson
+import Data.Aeson (ToJSON(..),FromJSON(..))
 import Data.Foldable (Foldable)
-import Data.Functor.Classes
+import Data.Functor.Classes (Eq1(..))
 import Data.List
 import Data.Ord
 import Data.Set (Set)
 import Data.Traversable
 import Prelude hiding (abs)
 import Unison.Symbol (Symbol)
+import Data.Bytes.Serial (Serial(..), Serial1(..))
+import qualified Data.Bytes.Put as Put
+import qualified Data.Bytes.Get as Get
 import qualified Data.Aeson as Aeson
 import qualified Data.Foldable as Foldable
 import qualified Data.Set as Set
@@ -23,8 +26,6 @@ import qualified Data.Text as Text
 import qualified Unison.Digest as Digest
 import qualified Unison.JSON as J
 import qualified Unison.Symbol as Symbol
-
--- data Ex a = Ap a a | Lam a |
 
 type V = Symbol
 
@@ -80,36 +81,6 @@ subst t x body = case out body of
                else subst t x e
   Tm body -> tm (fmap (subst t x) body)
 
-instance (Foldable f, Functor f, Eq1 f) => Eq (Term f) where
-  -- alpha equivalence, works by renaming any aligned Abs ctors to use a common fresh variable
-  t1 == t2 = go (out t1) (out t2) where
-    go (Var v) (Var v2) | v == v2 = True
-    go (Abs v1 body1) (Abs v2 body2) =
-      if v1 == v2 then body1 == body2
-      else let v3 = freshInBoth body1 body2 v1
-           in rename v1 v3 body1 == rename v2 v3 body2
-    go (Tm f1) (Tm f2) = eq1 f1 f2
-    go _ _ = False
-
-instance J.ToJSON1 f => ToJSON (Term f) where
-  toJSON (Term _ e) = case e of
-    Var v -> J.array [J.text "Var", toJSON v]
-    Abs v body -> J.array [J.text "Abs", toJSON v, toJSON body]
-    Tm v -> J.array [J.text "Tm", J.toJSON1 v]
-
-instance (Foldable f, J.FromJSON1 f) => FromJSON (Term f) where
-  parseJSON j = do
-    t <- J.at0 (Aeson.withText "ABT.tag" pure) j
-    case t of
-      _ | t == "Var" -> var <$> J.at 1 Aeson.parseJSON j
-      _ | t == "Abs" -> abs <$> J.at 1 Aeson.parseJSON j <*> J.at 2 Aeson.parseJSON j
-      _ | t == "Tm"  -> tm <$> J.at 1 J.parseJSON1 j
-      _              -> fail ("unknown tag: " ++ Text.unpack t)
-
--- todo: binary encoder/decoder can work similarly
-
--- a closed term with zero deps can be hashed directly
-
 data Hash = Hash deriving (Ord,Eq) -- todo
 
 hashInt :: Int -> Hash
@@ -149,3 +120,40 @@ hash' env (Term _ t) = case t of
 
 hash :: (Foldable f, Hash1 f) => Term f -> Hash
 hash t = hash' [] t
+instance (Foldable f, Functor f, Eq1 f) => Eq (Term f) where
+  -- alpha equivalence, works by renaming any aligned Abs ctors to use a common fresh variable
+  t1 == t2 = go (out t1) (out t2) where
+    go (Var v) (Var v2) | v == v2 = True
+    go (Abs v1 body1) (Abs v2 body2) =
+      if v1 == v2 then body1 == body2
+      else let v3 = freshInBoth body1 body2 v1
+           in rename v1 v3 body1 == rename v2 v3 body2
+    go (Tm f1) (Tm f2) = eq1 f1 f2
+    go _ _ = False
+
+instance J.ToJSON1 f => ToJSON (Term f) where
+  toJSON (Term _ e) = case e of
+    Var v -> J.array [J.text "Var", toJSON v]
+    Abs v body -> J.array [J.text "Abs", toJSON v, toJSON body]
+    Tm v -> J.array [J.text "Tm", J.toJSON1 v]
+
+instance (Foldable f, J.FromJSON1 f) => FromJSON (Term f) where
+  parseJSON j = do
+    t <- J.at0 (Aeson.withText "ABT.tag" pure) j
+    case t of
+      _ | t == "Var" -> var <$> J.at 1 Aeson.parseJSON j
+      _ | t == "Abs" -> abs <$> J.at 1 Aeson.parseJSON j <*> J.at 2 Aeson.parseJSON j
+      _ | t == "Tm"  -> tm <$> J.at 1 J.parseJSON1 j
+      _              -> fail ("unknown tag: " ++ Text.unpack t)
+
+instance (Foldable f, Serial1 f) => Serial (Term f) where
+  serialize (Term _ e) = case e of
+    Var v -> Put.putWord8 0 *> serialize v
+    Abs v body -> Put.putWord8 1 *> serialize v *> serialize body
+    Tm v -> Put.putWord8 2 *> serializeWith serialize v
+
+  deserialize = Get.getWord8 >>= \b -> case b of
+    0 -> var <$> deserialize
+    1 -> abs <$> deserialize <*> deserialize
+    2 -> tm <$> deserializeWith deserialize
+    _ -> fail ("unknown byte tag, expected one of {0,1,2}, got: " ++ show b)
