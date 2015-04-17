@@ -3,6 +3,8 @@
 module Unison.Digest
   ( Digest
   , DigestM -- ctor not exported, so easy to change hash fn later
+  , Digestable1(..)
+  , Hash
   , run
   ) where
 
@@ -18,6 +20,21 @@ data PairS a = PairS a !(H.Context H.SHA3_512)
 
 type Digest = DigestM ()
 newtype DigestM a = DigestM { digest :: H.Context H.SHA3_512 -> PairS a }
+
+type Hash = B.ByteString
+
+class Functor f => Digestable1 f where
+  -- | Produce a hash for an `f a`, given a hashing function for `a`.
+  -- The first argument, @s@ can be used by the instance to produce
+  -- a canonical permutation of any sequence of @a@ values, useful
+  -- if the instance contains @a@ values whose order should not affect
+  -- hash results. We can think of @s@ as a sort function using some
+  -- ordering that the instance doesn't have to be aware of.
+  --
+  -- More precisely, @s@ will have the property that for any
+  -- @xs = [x1, x2, .. xN]@, @s@ will produce the same permutation of
+  -- @xs@ for any permutation of @xs@ as input.
+  digest1 :: ([a] -> [a]) -> (a -> Hash) -> f a -> Hash
 
 run :: Digest -> B.ByteString
 run d = case digest d H.hashInit of

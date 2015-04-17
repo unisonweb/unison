@@ -14,15 +14,18 @@ import Data.List
 import Data.Ord
 import Data.Set (Set)
 import Data.Traversable
+import Data.Vector ((!))
 import Prelude hiding (abs)
 import Unison.Symbol (Symbol)
 import Data.Bytes.Serial (Serial(..), Serial1(..))
+import Data.Bytes.VarInt (VarInt(..))
 import qualified Data.Bytes.Put as Put
 import qualified Data.Bytes.Get as Get
 import qualified Data.Aeson as Aeson
 import qualified Data.Foldable as Foldable
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import qualified Data.Vector as Vector
 import qualified Unison.Digest as Digest
 import qualified Unison.JSON as J
 import qualified Unison.Symbol as Symbol
@@ -81,14 +84,8 @@ subst t x body = case out body of
                else subst t x e
   Tm body -> tm (fmap (subst t x) body)
 
-data Hash = Hash deriving (Ord,Eq) -- todo
-
-hashInt :: Int -> Hash
-hashInt i = error "todo"
-
-class Functor f => Hash1 f where
-  hash1 :: ([a] -> [a]) -> (a -> Hash) -> f a -> Hash
-
+-- | Collapse all outer `Abs` ctors to a single `Abs`, by renaming all inner
+-- `Abs` ctors to the name of the outermost `Abs`.
 conflate :: (Functor f, Foldable f) => Term f -> Term f
 conflate (Term _ (Abs v1 (Term _ (Abs v2 body)))) = conflate (abs v1 (rename v2 v1 body))
 conflate t = t
@@ -101,25 +98,31 @@ unabs t = ([], t)
 reabs :: [V] -> Term f -> Term f
 reabs vs t = foldr abs t vs
 
-canonicalizeOrder :: (Foldable f, Hash1 f) => [V] -> [Term f] -> [Term f]
-canonicalizeOrder env ts =
+canonicalPermutation :: (Foldable f, Digest.Digestable1 f) => [V] -> [Term f] -> [Term f]
+canonicalPermutation env ts =
   let
+    permute p xs = case Vector.fromList xs of xs -> map (xs !) p
     conflateds = map (hash' env . conflate) ts
-    -- might want to convert ts to a Vector
-    o = map fst (sortBy (comparing snd) (zip [0 :: Int ..] conflateds))
-    ts' = map (ts !!) o
-    ts'' = map (\t -> let (vs, body) = unabs t in reabs (map (vs!!) o) body) ts'
-  in ts''
+    -- the canonical permutation, which we get by sorting by hash
+    p = map fst (sortBy (comparing snd) (zip [0 :: Int ..] conflateds))
+  in
+    -- apply the canonical permutation to `ts`, then ensure each term introduces
+    -- its vars in the same order as this permutation
+    map (\t -> case unabs t of (vs, body) -> reabs (permute p vs) body)
+        (permute p ts)
 
-hash' :: (Foldable f, Hash1 f) => [V] -> Term f -> Hash
+hash' :: (Foldable f, Digest.Digestable1 f) => [V] -> Term f -> Digest.Hash
 hash' env (Term _ t) = case t of
   Var v -> maybe die hashInt (elemIndex v env)
     where die = error $ "unknown var in environment: " ++ show v
+          -- env not likely to be very big, prefer to encode in one byte if possible
+          hashInt i = Digest.run (serialize (VarInt i))
   Abs v body -> hash' (v:env) body
-  Tm body -> hash1 (canonicalizeOrder env) hash $ body
+  Tm body -> Digest.digest1 (canonicalPermutation env) hash $ body
 
-hash :: (Foldable f, Hash1 f) => Term f -> Hash
+hash :: (Foldable f, Digest.Digestable1 f) => Term f -> Digest.Hash
 hash t = hash' [] t
+
 instance (Foldable f, Functor f, Eq1 f) => Eq (Term f) where
   -- alpha equivalence, works by renaming any aligned Abs ctors to use a common fresh variable
   t1 == t2 = go (out t1) (out t2) where
