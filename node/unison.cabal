@@ -45,6 +45,8 @@ library
   hs-source-dirs: src
 
   exposed-modules:
+    Unison.A_Hash
+    Unison.A_Term
     Unison.ABT
     Unison.Digest
     Unison.Distance
