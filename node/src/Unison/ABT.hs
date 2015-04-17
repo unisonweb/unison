@@ -4,12 +4,14 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.ABT (ABT(..),abs,freevars,into,out,rename,subst,tm,Term,V) where
+module Unison.ABT (ABT(..),abs,freevars,hash,into,out,rename,subst,tm,Term,V) where
 
 import Control.Applicative
 import Data.Aeson
 import Data.Foldable (Foldable)
 import Data.Functor.Classes
+import Data.List
+import Data.Ord
 import Data.Set (Set)
 import Data.Traversable
 import Prelude hiding (abs)
@@ -21,6 +23,8 @@ import qualified Data.Text as Text
 import qualified Unison.Digest as Digest
 import qualified Unison.JSON as J
 import qualified Unison.Symbol as Symbol
+
+-- data Ex a = Ap a a | Lam a |
 
 type V = Symbol
 
@@ -73,7 +77,7 @@ subst t x body = case out body of
     where x' = freshInBoth t body x
           -- rename x to something that cannot be captured
           e' = if x /= x' then subst t x (rename x x' e)
-               else e
+               else subst t x e
   Tm body -> tm (fmap (subst t x) body)
 
 instance (Foldable f, Functor f, Eq1 f) => Eq (Term f) where
@@ -105,5 +109,43 @@ instance (Foldable f, J.FromJSON1 f) => FromJSON (Term f) where
 -- todo: binary encoder/decoder can work similarly
 
 -- a closed term with zero deps can be hashed directly
--- hash :: IntTagged f => Term f ->
 
+data Hash = Hash deriving (Ord,Eq) -- todo
+
+hashInt :: Int -> Hash
+hashInt i = error "todo"
+
+class Functor f => Hash1 f where
+  hash1 :: ([a] -> [a]) -> (a -> Hash) -> f a -> Hash
+
+conflate :: (Functor f, Foldable f) => Term f -> Term f
+conflate (Term _ (Abs v1 (Term _ (Abs v2 body)))) = conflate (abs v1 (rename v2 v1 body))
+conflate t = t
+
+unabs :: Term f -> ([V], Term f)
+unabs (Term _ (Abs hd body)) =
+  let (tl, body') = unabs body in (hd : tl, body')
+unabs t = ([], t)
+
+reabs :: [V] -> Term f -> Term f
+reabs vs t = foldr abs t vs
+
+canonicalizeOrder :: (Foldable f, Hash1 f) => [V] -> [Term f] -> [Term f]
+canonicalizeOrder env ts =
+  let
+    conflateds = map (hash' env . conflate) ts
+    -- might want to convert ts to a Vector
+    o = map fst (sortBy (comparing snd) (zip [0 :: Int ..] conflateds))
+    ts' = map (ts !!) o
+    ts'' = map (\t -> let (vs, body) = unabs t in reabs (map (vs!!) o) body) ts'
+  in ts''
+
+hash' :: (Foldable f, Hash1 f) => [V] -> Term f -> Hash
+hash' env (Term _ t) = case t of
+  Var v -> maybe die hashInt (elemIndex v env)
+    where die = error $ "unknown var in environment: " ++ show v
+  Abs v body -> hash' (v:env) body
+  Tm body -> hash1 (canonicalizeOrder env) hash $ body
+
+hash :: (Foldable f, Hash1 f) => Term f -> Hash
+hash t = hash' [] t
