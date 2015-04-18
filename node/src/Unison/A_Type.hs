@@ -45,7 +45,7 @@ data F a
 
 deriveJSON defaultOptions ''F
 instance Serial1 F
-instance Eq1 F
+instance Eq1 F where eq1 = (==)
 
 -- | Terms are represented as ABTs over the base functor F.
 type Type = ABT.Term F
@@ -65,8 +65,13 @@ forall :: ABT.V -> Type -> Type
 forall v body = ABT.tm (Forall (ABT.abs v body))
 
 instance Digest.Digestable1 F where
-  digest1 s hash e = case e of
+  digest1 _ hash e = case e of
     Lit l -> Digest.run $ Put.putWord8 0 *> serialize l
+    Arrow a b -> Digest.run $ Put.putWord8 1 *> serialize (hash a) *> serialize (hash b)
+    App a b -> Digest.run $ Put.putWord8 2 *> serialize (hash a) *> serialize (hash b)
+    Ann a k -> Digest.run $ Put.putWord8 3 *> serialize (hash a) *> serialize k
+    Constrain a u -> Digest.run $ Put.putWord8 4 *> serialize (hash a) *> serialize u
+    Forall a -> Digest.run $ Put.putWord8 5 *> serialize (hash a)
 
 instance J.ToJSON1 F where
   toJSON1 f = toJSON f

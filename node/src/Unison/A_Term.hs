@@ -4,31 +4,27 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-} -- for a local Serial1 Vector
 
 module Unison.A_Term where
 
 import Control.Applicative
-import Data.Foldable (Foldable)
-import Data.Functor.Classes
-import Data.Traversable
 import Data.Aeson.TH
 import Data.Bytes.Serial
+import Data.Foldable (Foldable, traverse_)
+import Data.Functor.Classes
+import Data.Vector (Vector)
 import GHC.Generics
-import qualified Data.Bytes.Put as Put
 import qualified Data.Aeson as Aeson
-import qualified Unison.Digest as Digest
-import qualified Unison.JSON as J
-import qualified Data.Set as S
-import qualified Data.Map as M
+import qualified Data.Bytes.Put as Put
 import qualified Data.Text as Txt
-import qualified Data.Vector as V
-import Unison.Var as V
-import qualified Unison.Kind as K
-import qualified Unison.Distance as Distance
-import qualified Unison.A_Hash as H
-import qualified Unison.Reference as R
-import qualified Unison.A_Type as T
+import qualified Data.Vector as Vector
 import qualified Unison.ABT as ABT
+import qualified Unison.A_Type as T
+import qualified Unison.Digest as Digest
+import qualified Unison.Distance as Distance
+import qualified Unison.JSON as J
+import qualified Unison.Reference as R
 
 -- | Literals in the Unison language
 data Literal
@@ -47,17 +43,17 @@ data F a
   | Ref R.Reference
   | App a a
   | Ann a T.Type
-  | Vector (V.Vector a)
+  | Vector (Vector a)
   | Lam a
   | LetRec [a] a --
   | Let [a] a    -- no fwd refs allowed
   deriving (Eq,Foldable,Functor,Generic1)
 
-instance Eq1 F
+instance Eq1 F where eq1 = (==)
 instance Serial1 F
-instance Serial1 V.Vector where
-  serializeWith f vs = serializeWith f (V.toList vs)
-  deserializeWith v = V.fromList <$> deserializeWith v
+instance Serial1 Vector where
+  serializeWith f vs = serializeWith f (Vector.toList vs)
+  deserializeWith v = Vector.fromList <$> deserializeWith v
 
 deriveJSON defaultOptions ''F
 
@@ -79,9 +75,9 @@ ann :: Term -> T.Type -> Term
 ann e t = ABT.tm (Ann e t)
 
 vector :: [Term] -> Term
-vector es = ABT.tm (Vector (V.fromList es))
+vector es = ABT.tm (Vector (Vector.fromList es))
 
-vector' :: V.Vector Term -> Term
+vector' :: Vector Term -> Term
 vector' es = ABT.tm (Vector es)
 
 lam :: ABT.V -> Term -> Term
@@ -113,13 +109,18 @@ instance Digest.Digestable1 F where
   digest1 s hash e = case e of
     Lit l -> Digest.run $ Put.putWord8 0 *> serialize l
     Blank -> Digest.run $ Put.putWord8 1
-    Ref r -> Digest.run $ Put.putWord8 2
-  --App a a
-  --Ann a T.Type
-  --Vector (V.Vector a)
-  --Lam a
-  --LetRec [a] a --
-  --Let [a] a    -- no fwd refs allowed
+    Ref r -> Digest.run $ Put.putWord8 2 *> serialize r
+    App a a2 -> Digest.run $ Put.putWord8 3 *> serialize (hash a) *> serialize (hash a2)
+    Ann a t -> Digest.run $ Put.putWord8 4 *> serialize (hash a) *> serialize t
+    Vector as -> Digest.run $ Put.putWord8 5 *> serialize (Vector.length as)
+                                             *> traverse_ (serialize . hash) as
+    Lam a -> Digest.run $ Put.putWord8 6 *> serialize (hash a)
+    -- note: we use `s` to canonicalize the order of `as` before hashing the sequence
+    LetRec as a -> Digest.run $ Put.putWord8 7 *> traverse_ (serialize . hash) (s as)
+                                               *> serialize (hash a)
+    -- here, order is significant, so leave order alone
+    Let as a -> Digest.run $ Put.putWord8 8 *> traverse_ (serialize . hash) as
+                                            *> serialize (hash a)
 
 instance J.ToJSON1 F where
   toJSON1 f = Aeson.toJSON f
