@@ -11,6 +11,7 @@
 module Unison.A_Term where
 
 import Control.Applicative
+import Control.Monad
 import Data.Aeson.TH
 import Data.Bytes.Serial
 import Data.Foldable (Foldable, traverse_)
@@ -154,6 +155,9 @@ focus1 _ _ = Nothing
 at :: Path -> Term -> Maybe Term
 at p t = ABT.at (map focus1 p) t
 
+boundAt :: ABT.V -> Path -> Term -> Maybe Path
+boundAt v path t = error "boundAt todo"
+
 modify :: (Term -> Term) -> Path -> Term -> Maybe Term
 modify f p t = ABT.modify f (map focus1 p) t
 
@@ -163,6 +167,15 @@ focus p t = ABT.focus (map focus1 p) t
 parent :: Path -> Maybe Path
 parent [] = Nothing
 parent p = Just (init p)
+
+bindingAt :: Path -> Term -> Maybe (ABT.V, Term)
+bindingAt [] _ = Nothing
+bindingAt path t = do
+  parentPath <- parent path
+  Let' bs _ _ _ <- at parentPath t
+  Binding i <- pure (last path) -- last is ok since we know path is nonempty
+  guard (i < length bs && i >= 0) -- list indexing is partial for no good reason
+  pure (bs !! i)
 
 -- mostly boring serialization and hashing code below ...
 

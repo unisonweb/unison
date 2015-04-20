@@ -107,9 +107,12 @@ subst t x body = case out body of
 -- to replace that subtree
 type Focus1 f a = f a -> Maybe (a, a -> f a)
 
--- | Extract the subterm a path points to
+-- | Extract the subterm at a given path
 at :: Foldable f => [Focus1 f (Term f)] -> Term f -> Maybe (Term f)
 at path t = fst <$> focus path t
+
+boundAt :: V -> [Focus1 f (Term f)] -> Term f -> Maybe Int
+boundAt v path t = error "todo"
 
 -- | Modify the subterm a path points to
 modify :: Foldable f
