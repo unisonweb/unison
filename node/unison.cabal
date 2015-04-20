@@ -47,6 +47,9 @@ library
   exposed-modules:
     Unison.A_Hash
     Unison.A_Term
+    Unison.A_TermEdit
+    Unison.A_Type
+    Unison.A_Eval
     Unison.ABT
     Unison.Digest
     Unison.Distance

@@ -4,7 +4,7 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.ABT (ABT(..),abs,freevars,hash,into,out,rename,subst,tm,Term,V) where
+module Unison.ABT (ABT(..),abs,at,freevars,hash,into,modify,out,rename,subst,tm,Term,V) where
 
 import Control.Applicative
 import Data.Aeson (ToJSON(..),FromJSON(..))
@@ -84,6 +84,38 @@ subst t x body = case out body of
                else subst t x e
   Tm body -> tm (fmap (subst t x) body)
 
+-- | Extract the subterm a path points to
+at :: [f (Term f) -> Maybe (Term f)] -> Term f -> Maybe (Term f)
+at [] t = Just t
+at path@(hd:tl) t = case out t of
+  Abs _ t -> at path t
+  Var _ -> Nothing
+  Tm ft -> hd ft >>= at tl
+
+-- | Modify the subterm a path points to
+modify :: Foldable f
+       => (Term f -> Term f)
+       -> [f (Term f) -> Maybe (Term f, Term f -> f (Term f))]
+       -> Term f
+       -> Maybe (Term f)
+modify f [] t = Just (f t)
+modify f path@(hd:tl) t = case out t of
+  Abs v t -> abs v <$> modify f path t
+  Var _ -> Nothing
+  Tm ft -> tm <$> (hd ft >>= \(t, replace) -> replace <$> modify f tl t)
+
+hash :: (Foldable f, Digest.Digestable1 f) => Term f -> Digest.Hash
+hash t = hash' [] t
+
+hash' :: (Foldable f, Digest.Digestable1 f) => [V] -> Term f -> Digest.Hash
+hash' env (Term _ t) = case t of
+  Var v -> maybe die hashInt (elemIndex v env)
+    where die = error $ "unknown var in environment: " ++ show v
+          -- env not likely to be very big, prefer to encode in one byte if possible
+          hashInt i = Digest.run (serialize (VarInt i))
+  Abs v body -> hash' (v:env) body
+  Tm body -> Digest.digest1 (canonicalPermutation env) hash $ body
+
 -- | Collapse all outer `Abs` ctors to a single `Abs`, by renaming all inner
 -- `Abs` ctors to the name of the outermost `Abs`.
 conflate :: (Functor f, Foldable f) => Term f -> Term f
@@ -110,18 +142,6 @@ canonicalPermutation env ts =
     -- its vars in the same order as this permutation
     map (\t -> case unabs t of (vs, body) -> reabs (permute p vs) body)
         (permute p ts)
-
-hash' :: (Foldable f, Digest.Digestable1 f) => [V] -> Term f -> Digest.Hash
-hash' env (Term _ t) = case t of
-  Var v -> maybe die hashInt (elemIndex v env)
-    where die = error $ "unknown var in environment: " ++ show v
-          -- env not likely to be very big, prefer to encode in one byte if possible
-          hashInt i = Digest.run (serialize (VarInt i))
-  Abs v body -> hash' (v:env) body
-  Tm body -> Digest.digest1 (canonicalPermutation env) hash $ body
-
-hash :: (Foldable f, Digest.Digestable1 f) => Term f -> Digest.Hash
-hash t = hash' [] t
 
 instance (Foldable f, Functor f, Eq1 f) => Eq (Term f) where
   -- alpha equivalence, works by renaming any aligned Abs ctors to use a common fresh variable

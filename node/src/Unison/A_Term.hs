@@ -13,11 +13,13 @@ import Data.Aeson.TH
 import Data.Bytes.Serial
 import Data.Foldable (Foldable, traverse_)
 import Data.Functor.Classes
-import Data.Vector (Vector)
+import Data.Maybe (listToMaybe)
+import Data.Traversable
+import Data.Vector (Vector, (!?), (//))
 import GHC.Generics
+import Data.Text (Text)
 import qualified Data.Aeson as Aeson
 import qualified Data.Bytes.Put as Put
-import qualified Data.Text as Txt
 import qualified Data.Vector as Vector
 import qualified Unison.ABT as ABT
 import qualified Unison.A_Type as T
@@ -29,12 +31,9 @@ import qualified Unison.Reference as R
 -- | Literals in the Unison language
 data Literal
   = Number Double
-  | Text Txt.Text
+  | Text Text
   | Distance Distance.Distance
   deriving (Eq,Ord,Show,Generic)
-
-deriveJSON defaultOptions ''Literal
-instance Serial Literal
 
 -- | Base functor for terms in the Unison language
 data F a
@@ -45,17 +44,9 @@ data F a
   | Ann a T.Type
   | Vector (Vector a)
   | Lam a
-  | LetRec [a] a --
-  | Let [a] a    -- no fwd refs allowed
+  | LetRec [a] a
+  | Let [a] a
   deriving (Eq,Foldable,Functor,Generic1)
-
-instance Eq1 F where eq1 = (==)
-instance Serial1 F
-instance Serial1 Vector where
-  serializeWith f vs = serializeWith f (Vector.toList vs)
-  deserializeWith v = Vector.fromList <$> deserializeWith v
-
-deriveJSON defaultOptions ''F
 
 -- | Terms are represented as ABTs over the base functor F.
 type Term = ABT.Term F
@@ -105,6 +96,59 @@ let' bindings e =
     intro (ind, (_, e)) = introAll (take ind bindings) e
     introAll bindings e = foldr ABT.abs e (map fst bindings)
 
+-- Paths into terms, represented as lists of @PathElement@
+
+data PathElement
+  = Fn -- ^ Points at function in a function application
+  | Arg -- ^ Points at the argument of a function application
+  | Body -- ^ Points at the body of a lambda or let
+  | Binding !Int -- ^ Points at a particular binding in a let
+  | Index !Int -- ^ Points at the index of a vector
+  deriving (Eq,Ord,Show)
+
+newtype Path = Path [PathElement] deriving (Eq,Ord)
+
+-- | Use a @PathElement@ to compute one step into an @F a@ subexpression
+focus :: PathElement -> F a -> Maybe (a, a -> F a)
+focus Fn (App f x) = Just (f, \f -> App f x)
+focus Arg (App f x) = Just (x, \x -> App f x)
+focus Body (Lam body) = Just (body, Lam)
+focus Body (Let bs body) = Just (body, Let bs)
+focus Body (LetRec bs body) = Just (body, LetRec bs)
+focus (Binding i) (Let bs body) =
+  listToMaybe (drop i bs)
+  >>= \b -> Just (b, \b -> Let (take i bs ++ [b] ++ drop (i+1) bs) body)
+focus (Binding i) (LetRec bs body) =
+  listToMaybe (drop i bs)
+  >>= \b -> Just (b, \b -> LetRec (take i bs ++ [b] ++ drop (i+1) bs) body)
+focus (Index i) (Vector vs) =
+  vs !? i >>= \v -> Just (v, \v -> Vector (vs // [(i,v)]))
+focus _ _ = Nothing
+
+at :: Path -> Term -> Maybe Term
+at (Path p) t = ABT.at (map focus' p) t
+  where focus' e t = fst <$> focus e t
+
+modify :: (Term -> Term) -> Path -> Term -> Maybe Term
+modify f (Path p) t = ABT.modify f (map focus p) t
+
+-- mostly boring serialization and hashing code below ...
+
+instance Show Path where show (Path es) = show es
+
+deriveJSON defaultOptions ''Literal
+instance Serial Literal
+
+instance Eq1 F where eq1 = (==)
+instance Serial1 F
+instance Serial1 Vector where
+  serializeWith f vs = serializeWith f (Vector.toList vs)
+  deserializeWith v = Vector.fromList <$> deserializeWith v
+
+deriveJSON defaultOptions ''F
+instance J.ToJSON1 F where toJSON1 f = Aeson.toJSON f
+instance J.FromJSON1 F where parseJSON1 j = Aeson.parseJSON j
+
 instance Digest.Digestable1 F where
   digest1 s hash e = case e of
     Lit l -> Digest.run $ Put.putWord8 0 *> serialize l
@@ -122,9 +166,11 @@ instance Digest.Digestable1 F where
     Let as a -> Digest.run $ Put.putWord8 8 *> traverse_ (serialize . hash) as
                                             *> serialize (hash a)
 
-instance J.ToJSON1 F where
-  toJSON1 f = Aeson.toJSON f
+deriveJSON defaultOptions ''PathElement
 
-instance J.FromJSON1 F where
-  parseJSON1 j = Aeson.parseJSON j
+instance Aeson.FromJSON Path where
+  parseJSON (Aeson.Array es) = Path . Vector.toList <$> traverse Aeson.parseJSON es
+  parseJSON j = fail $ "Path.parseJSON expected Object, got: " ++ show j
 
+instance Aeson.ToJSON Path where
+  toJSON (Path es) = Aeson.toJSON es
