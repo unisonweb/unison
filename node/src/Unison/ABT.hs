@@ -4,7 +4,7 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.ABT (ABT(..),abs,at,At,freevars,hash,into,modify,out,rename,ReplaceAt,subst,tm,Term,V) where
+module Unison.ABT (ABT(..),abs,at,Focus1,focus,freevars,hash,into,modify,out,rename,subst,tm,Term,V) where
 
 import Control.Applicative
 import Data.Aeson (ToJSON(..),FromJSON(..))
@@ -84,25 +84,32 @@ subst t x body = case out body of
                else subst t x e
   Tm body -> tm (fmap (subst t x) body)
 
-type At f a = f a -> Maybe a
-type ReplaceAt f a = f a -> Maybe (a, a -> f a)
+-- | A single step 'focusing' action, returns the subtree and a function
+-- to replace that subtree
+type Focus1 f a = f a -> Maybe (a, a -> f a)
 
 -- | Extract the subterm a path points to
-at :: [At f (Term f)] -> Term f -> Maybe (Term f)
-at [] t = Just t
-at path@(hd:tl) t = case out t of
-  Abs _ t -> at path t
-  Var _ -> Nothing
-  Tm ft -> hd ft >>= at tl
+at :: Foldable f => [Focus1 f (Term f)] -> Term f -> Maybe (Term f)
+at path t = fst <$> focus path t
 
 -- | Modify the subterm a path points to
 modify :: Foldable f
-       => (Term f -> Term f) -> [ReplaceAt f (Term f)] -> Term f -> Maybe (Term f)
-modify f [] t = Just (f t)
-modify f path@(hd:tl) t = case out t of
-  Abs v t -> abs v <$> modify f path t
+       => (Term f -> Term f) -> [Focus1 f (Term f)] -> Term f -> Maybe (Term f)
+modify f path t = (\(t,replace) -> replace (f t)) <$> focus path t
+
+-- | Focus on a subterm, obtaining the subtree and a function to replace that subtree
+focus :: Foldable f
+      => [Focus1 f (Term f)] -> Term f -> Maybe (Term f, Term f -> Term f)
+focus [] t = Just (t, id)
+focus path@(hd:tl) t = case out t of
   Var _ -> Nothing
-  Tm ft -> tm <$> (hd ft >>= \(t, replace) -> replace <$> modify f tl t)
+  Abs v t ->
+    let f (t,replace) = (t, abs v . replace)
+    in f <$> focus path t
+  Tm ft -> do
+    (_,hreplace) <- hd ft
+    (t,replace) <- focus tl t
+    pure (t, tm . hreplace . replace)
 
 hash :: (Foldable f, Digest.Digestable1 f) => Term f -> Digest.Hash
 hash t = hash' [] t

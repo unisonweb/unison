@@ -15,7 +15,7 @@ import Data.Foldable (Foldable, traverse_)
 import Data.Functor.Classes
 import Data.Maybe (listToMaybe)
 import Data.Traversable
-import Data.Vector (Vector, (!?), (//))
+import Data.Vector (Vector, (!?))
 import GHC.Generics
 import Data.Text (Text)
 import qualified Data.Aeson as Aeson
@@ -109,28 +109,30 @@ data PathElement
 newtype Path = Path [PathElement] deriving (Eq,Ord)
 
 -- | Use a @PathElement@ to compute one step into an @F a@ subexpression
-stepPath :: PathElement -> ABT.ReplaceAt F a
-stepPath Fn (App f x) = Just (f, \f -> App f x)
-stepPath Arg (App f x) = Just (x, \x -> App f x)
-stepPath Body (Lam body) = Just (body, Lam)
-stepPath Body (Let bs body) = Just (body, Let bs)
-stepPath Body (LetRec bs body) = Just (body, LetRec bs)
-stepPath (Binding i) (Let bs body) =
+focus1 :: PathElement -> ABT.Focus1 F a
+focus1 Fn (App f x) = Just (f, \f -> App f x)
+focus1 Arg (App f x) = Just (x, \x -> App f x)
+focus1 Body (Lam body) = Just (body, Lam)
+focus1 Body (Let bs body) = Just (body, Let bs)
+focus1 Body (LetRec bs body) = Just (body, LetRec bs)
+focus1 (Binding i) (Let bs body) =
   listToMaybe (drop i bs)
   >>= \b -> Just (b, \b -> Let (take i bs ++ [b] ++ drop (i+1) bs) body)
-stepPath (Binding i) (LetRec bs body) =
+focus1 (Binding i) (LetRec bs body) =
   listToMaybe (drop i bs)
   >>= \b -> Just (b, \b -> LetRec (take i bs ++ [b] ++ drop (i+1) bs) body)
-stepPath (Index i) (Vector vs) =
-  vs !? i >>= \v -> Just (v, \v -> Vector (vs // [(i,v)]))
-stepPath _ _ = Nothing
+focus1 (Index i) (Vector vs) =
+  vs !? i >>= \v -> Just (v, \v -> Vector (Vector.update vs (Vector.singleton (i,v))))
+focus1 _ _ = Nothing
 
 at :: Path -> Term -> Maybe Term
-at (Path p) t = ABT.at (map stepPath' p) t
-  where stepPath' e t = fst <$> stepPath e t
+at (Path p) t = ABT.at (map focus1 p) t
 
 modify :: (Term -> Term) -> Path -> Term -> Maybe Term
-modify f (Path p) t = ABT.modify f (map stepPath p) t
+modify f (Path p) t = ABT.modify f (map focus1 p) t
+
+focus :: Path -> Term -> Maybe (Term, Term -> Term)
+focus (Path p) t = ABT.focus (map focus1 p) t
 
 -- mostly boring serialization and hashing code below ...
 
