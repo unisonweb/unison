@@ -2,8 +2,10 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-} -- for a local Serial1 Vector
 
 module Unison.A_Term where
@@ -49,6 +51,19 @@ data F a
 
 -- | Terms are represented as ABTs over the base functor F.
 type Term = ABT.Term F
+
+-- nicer pattern syntax
+
+pattern Lit' l <- (ABT.out -> ABT.Tm (Lit l))
+pattern Blank' <- (ABT.out -> ABT.Tm Blank)
+pattern Ref' r <- (ABT.out -> ABT.Tm (Ref r))
+pattern App' f x <- (ABT.out -> ABT.Tm (App f x))
+pattern Ann' x t <- (ABT.out -> ABT.Tm (Ann x t))
+pattern Vector' xs <- (ABT.out -> ABT.Tm (Vector xs))
+pattern Lam' v body <- (ABT.out -> ABT.Tm (Lam (ABT.Term _ (ABT.Abs v body))))
+pattern Let' bs e reconstruct rec <- (unLet -> Just (bs,e,reconstruct,rec))
+pattern LetNonrec' bs e <- Let' bs e _ False
+pattern LetRec' bs e <- Let' bs e _ True
 
 -- some smart constructors
 
@@ -97,10 +112,10 @@ let' bindings e =
 
 -- | Satisfies `unLet (let' bs e)   == Just (bs, e, let')` and
 --             `unLet (letRec bs e) == Just (bs, e, letRec)`
-unLet :: Term -> Maybe ([(ABT.V, Term)], Term, [(ABT.V, Term)] -> Term -> Term)
+unLet :: Term -> Maybe ([(ABT.V, Term)], Term, [(ABT.V, Term)] -> Term -> Term, Bool)
 unLet (ABT.Term _ (ABT.Tm t)) = case t of
-  Let bs e -> case extract bs e of (bs,e) -> Just (bs,e,let')
-  LetRec bs e -> case extract bs e of (bs,e) -> Just (bs,e,letRec)
+  Let bs e -> case extract bs e of (bs,e) -> Just (bs,e,let',False)
+  LetRec bs e -> case extract bs e of (bs,e) -> Just (bs,e,letRec,True)
   _ -> Nothing
   where
     extract bs e = case ABT.unabs e of

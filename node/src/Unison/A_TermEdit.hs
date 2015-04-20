@@ -1,16 +1,19 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Unison.A_TermEdit where
 
 import Control.Applicative
+import Control.Monad
 import GHC.Generics
 import Data.Aeson.TH
 import Data.Bytes.Serial
 import Unison.A_Eval (Eval)
 import Unison.A_Hash (Hash)
 import Unison.Note (Noted)
+import qualified Data.Set as Set
 import qualified Unison.A_Eval as Eval
 import qualified Unison.A_Term as Term
 import qualified Unison.A_Hash as Hash
@@ -24,17 +27,17 @@ import qualified Unison.ABT as ABT
 data Action
   = Abstract -- Turn target into function parameter
   | AbstractLet -- Turn target into let bound expression
-  | MergeLet -- Merge a let block into its parent let block
   | AllowRec -- Turn a let into a let rec
-  | SwapDown -- Swap the target let binding with the subsequent binding
-  | SwapUp -- Swap the target let binding with the previous binding
-  | Inline -- Delete a let binding by inlining its definition into usage sites
+  | EtaReduce -- Eta reduce the target
   | FloatOut -- Float the target binding out one level
+  | Inline -- Delete a let binding by inlining its definition into usage sites
+  | MergeLet -- Merge a let block into its parent let block
+  | Noop -- Do nothing to the target
   | Rename ABT.V -- Rename the target var
   | Step -- Link + beta reduce the target
-  | Eta -- Eta reduce the target
+  | SwapDown -- Swap the target let binding with the subsequent binding
+  | SwapUp -- Swap the target let binding with the previous binding
   | WHNF -- Simplify target to weak head normal form
-  | Noop -- Do nothing to the target
   deriving Generic
 
 -- | Interpret the given 'Action'
@@ -45,6 +48,8 @@ interpret :: (Applicative f, Monad f)
 interpret eval link path action t = case action of
   Abstract -> pure $ abstract path t
   AbstractLet -> pure $ abstractLet path t
+  AllowRec -> pure $ allowRec path t
+  EtaReduce -> pure $ etaReduce path t
   MergeLet -> pure $ mergeLet path t
 
 {- Example:
@@ -72,6 +77,28 @@ abstractLet path t = f <$> Term.focus path t where
     in (path, sub')
 
 {- Example:
+   let x = 1 in x + x
+   ==>
+   {let rec x = 1 in x + x}
+-}
+allowRec :: Term.Path -> Term.Term -> Maybe (Term.Path, Term.Term)
+allowRec path t = do
+  Term.LetNonrec' bs e <- Term.at path t
+  t' <- Term.modify (const (Term.letRec bs e)) path t
+  pure (path, t')
+
+{- Example:
+   { x -> f x }
+   ==>
+   { f }
+-}
+etaReduce :: Term.Path -> Term.Term -> Maybe (Term.Path, Term.Term)
+etaReduce path t = do
+  Term.Lam' v (Term.App' f (ABT.Var' v2)) <- Term.at path t
+  guard (v == v2 && not (Set.member v (ABT.freevars f))) -- make sure vars match and `f` doesn't mention `v`
+  pure (path, f)
+
+{- Example:
    let x = 1 in {let y = 2 in y*y}
    ==>
    {let
@@ -83,8 +110,8 @@ abstractLet path t = f <$> Term.focus path t where
 mergeLet :: Term.Path -> Term.Term -> Maybe (Term.Path, Term.Term)
 mergeLet path t = do
   parentPath <- Term.parent path
-  (innerBindings,e,_) <- Term.at path t >>= Term.unLet
-  (outerBindings,_,let') <- Term.at parentPath t >>= Term.unLet
+  (innerBindings,e,_,_) <- Term.at path t >>= Term.unLet
+  (outerBindings,_,let',_) <- Term.at parentPath t >>= Term.unLet
   (,) parentPath <$> Term.modify
     (const $ let' (outerBindings ++ innerBindings) e)
     parentPath

@@ -3,10 +3,11 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 module Unison.ABT
-  (ABT(..),abs,at,Focus1,focus,freshIn,freshIn',hash,into
-  ,modify,rename,subst,tm,v',unabs,var,var',Term(..),V) where
+  (ABT(..),abs,pattern Abs',at,Focus1,focus,freshIn,freshIn',hash,into
+  ,modify,rename,subst,tm,v',unabs,var,var',Term(..),V,pattern Var') where
 
 import Control.Applicative
 import Data.Aeson (ToJSON(..),FromJSON(..))
@@ -41,6 +42,9 @@ data ABT f a
   | Tm (f a) deriving (Functor, Foldable, Traversable)
 
 data Term f = Term { freevars :: Set V, out :: ABT f (Term f) }
+
+pattern Var' v <- Term _ (Var v)
+pattern Abs' v body <- Term _ (Abs v body)
 
 v' :: Text -> V
 v' = Symbol.prefix
