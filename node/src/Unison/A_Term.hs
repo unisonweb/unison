@@ -14,7 +14,6 @@ import Data.Bytes.Serial
 import Data.Foldable (Foldable, traverse_)
 import Data.Functor.Classes
 import Data.Maybe (listToMaybe)
-import Data.Traversable
 import Data.Vector (Vector, (!?))
 import GHC.Generics
 import Data.Text (Text)
@@ -96,6 +95,18 @@ let' bindings e =
     intro (ind, (_, e)) = introAll (take ind bindings) e
     introAll bindings e = foldr ABT.abs e (map fst bindings)
 
+-- | Satisfies `unLet (let' bs e)   == Just (bs, e, let')` and
+--             `unLet (letRec bs e) == Just (bs, e, letRec)`
+unLet :: Term -> Maybe ([(ABT.V, Term)], Term, [(ABT.V, Term)] -> Term -> Term)
+unLet (ABT.Term _ (ABT.Tm t)) = case t of
+  Let bs e -> case extract bs e of (bs,e) -> Just (bs,e,let')
+  LetRec bs e -> case extract bs e of (bs,e) -> Just (bs,e,letRec)
+  _ -> Nothing
+  where
+    extract bs e = case ABT.unabs e of
+      (vs, e) -> (zip vs (map (snd . ABT.unabs) bs), e)
+unLet _ = Nothing
+
 -- Paths into terms, represented as lists of @PathElement@
 
 data PathElement
@@ -106,7 +117,7 @@ data PathElement
   | Index !Int -- ^ Points at the index of a vector
   deriving (Eq,Ord,Show)
 
-newtype Path = Path [PathElement] deriving (Eq,Ord)
+type Path = [PathElement]
 
 -- | Use a @PathElement@ to compute one step into an @F a@ subexpression
 focus1 :: PathElement -> ABT.Focus1 F a
@@ -126,17 +137,19 @@ focus1 (Index i) (Vector vs) =
 focus1 _ _ = Nothing
 
 at :: Path -> Term -> Maybe Term
-at (Path p) t = ABT.at (map focus1 p) t
+at p t = ABT.at (map focus1 p) t
 
 modify :: (Term -> Term) -> Path -> Term -> Maybe Term
-modify f (Path p) t = ABT.modify f (map focus1 p) t
+modify f p t = ABT.modify f (map focus1 p) t
 
 focus :: Path -> Term -> Maybe (Term, Term -> Term)
-focus (Path p) t = ABT.focus (map focus1 p) t
+focus p t = ABT.focus (map focus1 p) t
+
+parent :: Path -> Maybe Path
+parent [] = Nothing
+parent p = Just (init p)
 
 -- mostly boring serialization and hashing code below ...
-
-instance Show Path where show (Path es) = show es
 
 deriveJSON defaultOptions ''Literal
 instance Serial Literal
@@ -168,10 +181,3 @@ instance Digest.Digestable1 F where
                                             *> serialize (hash a)
 
 deriveJSON defaultOptions ''PathElement
-
-instance Aeson.FromJSON Path where
-  parseJSON (Aeson.Array es) = Path . Vector.toList <$> traverse Aeson.parseJSON es
-  parseJSON j = fail $ "Path.parseJSON expected Object, got: " ++ show j
-
-instance Aeson.ToJSON Path where
-  toJSON (Path es) = Aeson.toJSON es

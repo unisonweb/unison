@@ -4,7 +4,9 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.ABT (ABT(..),abs,at,Focus1,focus,freevars,hash,into,modify,out,rename,subst,tm,Term,V) where
+module Unison.ABT
+  (ABT(..),abs,at,Focus1,focus,freshIn,freshIn',hash,into
+  ,modify,rename,subst,tm,v',unabs,var,var',Term(..),V) where
 
 import Control.Applicative
 import Data.Aeson (ToJSON(..),FromJSON(..))
@@ -14,6 +16,7 @@ import Data.List
 import Data.Ord
 import Data.Set (Set)
 import Data.Traversable
+import Data.Text (Text)
 import Data.Vector ((!))
 import Prelude hiding (abs)
 import Unison.Symbol (Symbol)
@@ -39,8 +42,14 @@ data ABT f a
 
 data Term f = Term { freevars :: Set V, out :: ABT f (Term f) }
 
+v' :: Text -> V
+v' = Symbol.prefix
+
 var :: V -> Term f
 var v = Term (Set.singleton v) (Var v)
+
+var' :: Text -> Term f
+var' v = var (Symbol.prefix v)
 
 abs :: V -> Term f -> Term f
 abs v body = Term (Set.delete v (freevars body)) (Abs v body)
@@ -71,6 +80,12 @@ rename old new (Term _ t) = case t of
 freshInBoth :: Term f -> Term f -> V -> V
 freshInBoth t1 t2 x = fresh (memberOf (freevars t1) (freevars t2)) x
   where memberOf s1 s2 v = Set.member v s1 || Set.member v s2
+
+freshIn :: Term f -> V -> V
+freshIn t = fresh (\v -> Set.member v (freevars t))
+
+freshIn' :: Term f -> Text -> V
+freshIn' t v = freshIn t (Symbol.prefix v)
 
 -- | `subst t x body` substitutes `t` for `x` in `body`, avoiding capture
 subst :: (Foldable f, Functor f) => Term f -> V -> Term f -> Term f
