@@ -4,7 +4,7 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.ABT (ABT(..),abs,at,freevars,hash,into,modify,out,rename,subst,tm,Term,V) where
+module Unison.ABT (ABT(..),abs,at,At,freevars,hash,into,modify,out,rename,ReplaceAt,subst,tm,Term,V) where
 
 import Control.Applicative
 import Data.Aeson (ToJSON(..),FromJSON(..))
@@ -84,8 +84,11 @@ subst t x body = case out body of
                else subst t x e
   Tm body -> tm (fmap (subst t x) body)
 
+type At f a = f a -> Maybe a
+type ReplaceAt f a = f a -> Maybe (a, a -> f a)
+
 -- | Extract the subterm a path points to
-at :: [f (Term f) -> Maybe (Term f)] -> Term f -> Maybe (Term f)
+at :: [At f (Term f)] -> Term f -> Maybe (Term f)
 at [] t = Just t
 at path@(hd:tl) t = case out t of
   Abs _ t -> at path t
@@ -94,10 +97,7 @@ at path@(hd:tl) t = case out t of
 
 -- | Modify the subterm a path points to
 modify :: Foldable f
-       => (Term f -> Term f)
-       -> [f (Term f) -> Maybe (Term f, Term f -> f (Term f))]
-       -> Term f
-       -> Maybe (Term f)
+       => (Term f -> Term f) -> [ReplaceAt f (Term f)] -> Term f -> Maybe (Term f)
 modify f [] t = Just (f t)
 modify f path@(hd:tl) t = case out t of
   Abs v t -> abs v <$> modify f path t

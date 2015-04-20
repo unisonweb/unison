@@ -109,28 +109,28 @@ data PathElement
 newtype Path = Path [PathElement] deriving (Eq,Ord)
 
 -- | Use a @PathElement@ to compute one step into an @F a@ subexpression
-focus :: PathElement -> F a -> Maybe (a, a -> F a)
-focus Fn (App f x) = Just (f, \f -> App f x)
-focus Arg (App f x) = Just (x, \x -> App f x)
-focus Body (Lam body) = Just (body, Lam)
-focus Body (Let bs body) = Just (body, Let bs)
-focus Body (LetRec bs body) = Just (body, LetRec bs)
-focus (Binding i) (Let bs body) =
+stepPath :: PathElement -> ABT.ReplaceAt F a
+stepPath Fn (App f x) = Just (f, \f -> App f x)
+stepPath Arg (App f x) = Just (x, \x -> App f x)
+stepPath Body (Lam body) = Just (body, Lam)
+stepPath Body (Let bs body) = Just (body, Let bs)
+stepPath Body (LetRec bs body) = Just (body, LetRec bs)
+stepPath (Binding i) (Let bs body) =
   listToMaybe (drop i bs)
   >>= \b -> Just (b, \b -> Let (take i bs ++ [b] ++ drop (i+1) bs) body)
-focus (Binding i) (LetRec bs body) =
+stepPath (Binding i) (LetRec bs body) =
   listToMaybe (drop i bs)
   >>= \b -> Just (b, \b -> LetRec (take i bs ++ [b] ++ drop (i+1) bs) body)
-focus (Index i) (Vector vs) =
+stepPath (Index i) (Vector vs) =
   vs !? i >>= \v -> Just (v, \v -> Vector (vs // [(i,v)]))
-focus _ _ = Nothing
+stepPath _ _ = Nothing
 
 at :: Path -> Term -> Maybe Term
-at (Path p) t = ABT.at (map focus' p) t
-  where focus' e t = fst <$> focus e t
+at (Path p) t = ABT.at (map stepPath' p) t
+  where stepPath' e t = fst <$> stepPath e t
 
 modify :: (Term -> Term) -> Path -> Term -> Maybe Term
-modify f (Path p) t = ABT.modify f (map focus p) t
+modify f (Path p) t = ABT.modify f (map stepPath p) t
 
 -- mostly boring serialization and hashing code below ...
 
@@ -159,9 +159,8 @@ instance Digest.Digestable1 F where
     Vector as -> Digest.run $ Put.putWord8 5 *> serialize (Vector.length as)
                                              *> traverse_ (serialize . hash) as
     Lam a -> Digest.run $ Put.putWord8 6 *> serialize (hash a)
-    -- note: we use `s` to canonicalize the order of `as` before hashing the sequence
-    LetRec as a -> Digest.run $ Put.putWord8 7 *> traverse_ (serialize . hash) (s as)
-                                               *> serialize (hash a)
+    -- note: we use `s` to canonicalize the order of `a:as` before hashing the sequence
+    LetRec as a -> Digest.run $ Put.putWord8 7 *> traverse_ (serialize . hash) (s (a:as))
     -- here, order is significant, so leave order alone
     Let as a -> Digest.run $ Put.putWord8 8 *> traverse_ (serialize . hash) as
                                             *> serialize (hash a)
