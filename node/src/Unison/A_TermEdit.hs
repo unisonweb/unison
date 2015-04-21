@@ -86,7 +86,7 @@ abstractLet path t = f <$> Term.focus path t where
 -}
 allowRec :: Term.Path -> Term.Term -> Maybe (Term.Path, Term.Term)
 allowRec path t = do
-  Term.LetNonrec' bs e <- Term.at path t
+  Term.Let' bs e _ False <- Term.at path t
   t' <- Term.modify (const (Term.letRec bs e)) path t
   pure (path, t')
 
@@ -113,8 +113,6 @@ floatLetOut :: Term.Path -> Term.Term -> Maybe (Term.Path, Term.Term)
 floatLetOut path t = do
   parentPath <- Term.parent path >>= Term.parent
   parent <- Term.at parentPath t
-  Term.Let' innerBindings e _ _ <- Term.parent path >>= \path -> Term.at path t
-  (v, body) <- Term.bindingAt path t
   error "todo: floatLetOut finish me"
 
 {- Example:
@@ -141,13 +139,14 @@ floatLamOut _ _ = error "floatLamOut"
 inline :: Term.Path -> Term.Term -> Maybe (Term.Path, Term.Term)
 inline path t = do
   (v,body) <- Term.bindingAt path t
-  guard (not (Set.member v (ABT.freevars body))) -- can't inline recursive functions
-  parentPath <- Term.parent path
-  parent <- Term.at parentPath t
-  case parent of
-    Term.Let' [_] e _ _ -> Just (parentPath, ABT.subst body v e)
-    Term.Let' bs e let' _ -> Just (parentPath, ABT.subst body v (let' (filter (\(v',_) -> v' /= v) bs) e))
-    _ -> Nothing
+  error "todo - inline"
+  --guard (not (Set.member v (ABT.freevars body))) -- can't inline recursive functions
+  --parentPath <- Term.parent path
+  --parent <- Term.at parentPath t
+  --case parent of
+  --  Term.Let' [_] e _ _ -> Just (parentPath, ABT.subst body v e)
+  --  Term.Let' bs e let' _ -> Just (parentPath, ABT.subst body v (let' (filter (\(v',_) -> v' /= v) bs) e))
+  --  _ -> Nothing
 
 {- Example:
    let x = 1 in {let y = 2 in y*y}
@@ -161,10 +160,10 @@ inline path t = do
 mergeLet :: Term.Path -> Term.Term -> Maybe (Term.Path, Term.Term)
 mergeLet path t = do
   parentPath <- Term.parent path
-  (innerBindings,e,_,_) <- Term.at path t >>= Term.unLet
-  (outerBindings,_,let',_) <- Term.at parentPath t >>= Term.unLet
+  (innerBindings,e) <- Term.at path t >>= Term.unLetRec
+  (outerBindings,_) <- Term.at parentPath t >>= Term.unLetRec
   (,) parentPath <$> Term.modify
-    (const $ let' (outerBindings ++ innerBindings) e)
+    (const $ Term.letRec (outerBindings ++ innerBindings) e)
     parentPath
     t
 

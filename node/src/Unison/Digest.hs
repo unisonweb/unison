@@ -25,16 +25,9 @@ type Hash = B.ByteString
 
 class Functor f => Digestable1 f where
   -- | Produce a hash for an `f a`, given a hashing function for `a`.
-  -- The first argument, @s@ can be used by the instance to produce
-  -- a canonical permutation of any sequence of @a@ values, useful
-  -- if the instance contains @a@ values whose order should not affect
-  -- hash results. We can think of @s@ as a sort function using some
-  -- ordering that the instance doesn't have to be aware of.
-  --
-  -- More precisely, @s@ will have the property that for any
-  -- @xs = [x1, x2, .. xN]@, @s@ will produce the same permutation of
-  -- @xs@ for any permutation of @xs@ as input.
-  digest1 :: ([a] -> [a]) -> (a -> Hash) -> f a -> Hash
+  -- The first argument, `hashCycle`, can be used by instances to hash
+  -- `a` values whose order should not affect hash results.
+  digest1 :: ([a] -> DigestM (a -> Hash)) -> (a -> Hash) -> f a -> Digest
 
 run :: Digest -> B.ByteString
 run d = case digest d H.hashInit of

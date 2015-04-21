@@ -11,12 +11,10 @@
 module Unison.A_Term where
 
 import Control.Applicative
-import Control.Monad
 import Data.Aeson.TH
 import Data.Bytes.Serial
 import Data.Foldable (Foldable, traverse_)
 import Data.Functor.Classes
-import Data.Maybe (listToMaybe)
 import Data.Vector (Vector, (!?))
 import GHC.Generics
 import Data.Text (Text)
@@ -46,8 +44,11 @@ data F a
   | Ann a T.Type
   | Vector (Vector a)
   | Lam a
+  -- Invariant: let rec blocks have an outer an IntroLetRec, then an abs introductions for
+  -- each binding, then a LetRec for the bindings themselves
+  | IntroLetRec a
   | LetRec [a] a
-  | Let [a] a
+  | Let a a
   deriving (Eq,Foldable,Functor,Generic1)
 
 -- | Terms are represented as ABTs over the base functor F.
@@ -62,9 +63,9 @@ pattern App' f x <- (ABT.out -> ABT.Tm (App f x))
 pattern Ann' x t <- (ABT.out -> ABT.Tm (Ann x t))
 pattern Vector' xs <- (ABT.out -> ABT.Tm (Vector xs))
 pattern Lam' v body <- (ABT.out -> ABT.Tm (Lam (ABT.Term _ (ABT.Abs v body))))
-pattern Let' bs e reconstruct rec <- (unLet -> Just (bs,e,reconstruct,rec))
-pattern LetNonrec' bs e <- Let' bs e _ False
-pattern LetRec' bs e <- Let' bs e _ True
+pattern Let1' v b e <- (ABT.out -> ABT.Tm (Let b (ABT.Abs' v e)))
+pattern Let' bs e relet rec <- (unLets -> Just (bs,e,relet,rec))
+pattern LetRec' bs e <- (unLetRec -> Just (bs,e))
 
 -- some smart constructors
 
@@ -93,35 +94,44 @@ lam v body = ABT.tm (Lam (ABT.abs v body))
 -- reference any other binding in the block in its body (including itself),
 -- and the output expression may also reference any binding in the block.
 letRec :: [(ABT.V,Term)] -> Term -> Term
-letRec bindings e =
-  ABT.tm (LetRec (map (intro . snd) bindings) (intro e))
+letRec bindings e = ABT.tm (IntroLetRec (foldr ABT.abs z (map fst bindings)))
   where
-    -- each e is wrapped in N abs introductions for each binding in block
-    intro e = foldr ABT.abs e (map fst bindings)
+    z = ABT.tm (LetRec (map snd bindings) e)
 
 -- | Smart constructor for let blocks. Each binding in the block may
 -- reference only previous bindings in the block, not including itself.
 -- The output expression may reference any binding in the block.
 let' :: [(ABT.V,Term)] -> Term -> Term
-let' bindings e =
-  ABT.tm (Let (map intro (zip [0..] bindings)) (introAll bindings e))
+let' bindings e = foldr f e bindings
   where
-    -- each e is wrapped in introduction of all variables declared at a previous
-    -- bindings in the block
-    intro (ind, (_, e)) = introAll (take ind bindings) e
-    introAll bindings e = foldr ABT.abs e (map fst bindings)
+    f (v,b) body = ABT.tm (Let b (ABT.abs v body))
 
--- | Satisfies `unLet (let' bs e)   == Just (bs, e, let')` and
---             `unLet (letRec bs e) == Just (bs, e, letRec)`
-unLet :: Term -> Maybe ([(ABT.V, Term)], Term, [(ABT.V, Term)] -> Term -> Term, Bool)
-unLet (ABT.Term _ (ABT.Tm t)) = case t of
-  Let bs e -> case extract bs e of (bs,e) -> Just (bs,e,let',False)
-  LetRec bs e -> case extract bs e of (bs,e) -> Just (bs,e,letRec,True)
+-- | Satisfies
+--   `unLets (letRec bs e) == Just (bs, e, letRec, True)` and
+--   `unLets (let' bs e) == Just (bs, e, let', False)`
+-- Useful for writing code agnostic to whether a let block is recursive or not.
+unLets :: Term -> Maybe ([(ABT.V,Term)], Term, [(ABT.V,Term)] -> Term -> Term, Bool)
+unLets e =
+  (f letRec True <$> unLetRec e) <|> (f let' False <$> unLet e)
+  where f mkLet rec (bs,e) = (bs,e,mkLet,rec)
+
+-- | Satisfies `unLetRec (letRec bs e) == Just (bs, e)`
+unLetRec :: Term -> Maybe ([(ABT.V, Term)], Term)
+unLetRec (ABT.Term _ (ABT.Tm t)) = case t of
+  IntroLetRec c -> case ABT.unabs c of
+    (vs, ABT.out -> ABT.Tm (LetRec bs e)) | length vs == length bs -> Just (zip vs bs, e)
+    _ -> Nothing
   _ -> Nothing
-  where
-    extract bs e = case ABT.unabs e of
-      (vs, e) -> (zip vs (map (snd . ABT.unabs) bs), e)
-unLet _ = Nothing
+unLetRec _ = Nothing
+
+-- | Satisfies `unLet (let' bs e) == Just (bs, e)`
+unLet :: Term -> Maybe ([(ABT.V, Term)], Term)
+unLet t = fixup (go t) where
+  go (ABT.out -> ABT.Tm (Let b (ABT.Abs' v t))) =
+    case go t of (env,t) -> ((v,b):env, t)
+  go t = ([], t)
+  fixup ([], t) = Nothing
+  fixup bst = Just bst
 
 -- Paths into terms, represented as lists of @PathElement@
 
@@ -137,17 +147,16 @@ type Path = [PathElement]
 
 -- | Use a @PathElement@ to compute one step into an @F a@ subexpression
 focus1 :: PathElement -> ABT.Focus1 F a
+-- focus1 e (IntroLetRec c) = Just (c, )
 focus1 Fn (App f x) = Just (f, \f -> App f x)
 focus1 Arg (App f x) = Just (x, \x -> App f x)
 focus1 Body (Lam body) = Just (body, Lam)
-focus1 Body (Let bs body) = Just (body, Let bs)
+focus1 Body (Let b body) = Just (body, Let b)
 focus1 Body (LetRec bs body) = Just (body, LetRec bs)
-focus1 (Binding i) (Let bs body) =
-  listToMaybe (drop i bs)
-  >>= \b -> Just (b, \b -> Let (take i bs ++ [b] ++ drop (i+1) bs) body)
-focus1 (Binding i) (LetRec bs body) =
-  listToMaybe (drop i bs)
-  >>= \b -> Just (b, \b -> LetRec (take i bs ++ [b] ++ drop (i+1) bs) body)
+focus1 (Binding i) (Let b body) | i <= 0 = Just (b, \b -> Let b body)
+--focus1 (Binding i) (LetRec bs body) =
+--  listToMaybe (drop i bs)
+--  >>= \b -> Just (b, \b -> LetRec (take i bs ++ [b] ++ drop (i+1) bs) body)
 focus1 (Index i) (Vector vs) =
   vs !? i >>= \v -> Just (v, \v -> Vector (Vector.update vs (Vector.singleton (i,v))))
 focus1 _ _ = Nothing
@@ -172,10 +181,8 @@ bindingAt :: Path -> Term -> Maybe (ABT.V, Term)
 bindingAt [] _ = Nothing
 bindingAt path t = do
   parentPath <- parent path
-  Let' bs _ _ _ <- at parentPath t
-  Binding i <- pure (last path) -- last is ok since we know path is nonempty
-  guard (i < length bs && i >= 0) -- list indexing is partial for no good reason
-  pure (bs !! i)
+  Let1' v b body <- at parentPath t
+  pure (v, b)
 
 -- mostly boring serialization and hashing code below ...
 
@@ -193,19 +200,21 @@ instance J.ToJSON1 F where toJSON1 f = Aeson.toJSON f
 instance J.FromJSON1 F where parseJSON1 j = Aeson.parseJSON j
 
 instance Digest.Digestable1 F where
-  digest1 s hash e = case e of
-    Lit l -> Digest.run $ Put.putWord8 0 *> serialize l
-    Blank -> Digest.run $ Put.putWord8 1
-    Ref r -> Digest.run $ Put.putWord8 2 *> serialize r
-    App a a2 -> Digest.run $ Put.putWord8 3 *> serialize (hash a) *> serialize (hash a2)
-    Ann a t -> Digest.run $ Put.putWord8 4 *> serialize (hash a) *> serialize t
-    Vector as -> Digest.run $ Put.putWord8 5 *> serialize (Vector.length as)
-                                             *> traverse_ (serialize . hash) as
-    Lam a -> Digest.run $ Put.putWord8 6 *> serialize (hash a)
-    -- note: we use `s` to canonicalize the order of `a:as` before hashing the sequence
-    LetRec as a -> Digest.run $ Put.putWord8 7 *> traverse_ (serialize . hash) (s (a:as))
-    -- here, order is significant, so leave order alone
-    Let as a -> Digest.run $ Put.putWord8 8 *> traverse_ (serialize . hash) as
-                                            *> serialize (hash a)
+  digest1 hashCycle hash e = case e of
+    Lit l -> Put.putWord8 0 *> serialize l
+    Blank -> Put.putWord8 1
+    Ref r -> Put.putWord8 2 *> serialize r
+    App a a2 -> Put.putWord8 3 *> serialize (hash a) *> serialize (hash a2)
+    Ann a t -> Put.putWord8 4 *> serialize (hash a) *> serialize t
+    Vector as -> Put.putWord8 5 *> serialize (Vector.length as)
+                                *> traverse_ (serialize . hash) as
+    Lam a -> Put.putWord8 6 *> serialize (hash a)
+    -- note: we use `hashCycle` to ensure result is independent of let binding order
+    LetRec as a ->
+      Put.putWord8 7 *> do
+        hash <- hashCycle as
+        serialize (hash a) --
+    -- here, order is significant, so don't use hashCycle
+    Let b a -> Put.putWord8 8 *> serialize (hash b) *> serialize (hash a)
 
 deriveJSON defaultOptions ''PathElement

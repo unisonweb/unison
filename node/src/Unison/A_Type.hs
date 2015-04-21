@@ -66,12 +66,12 @@ forall v body = ABT.tm (Forall (ABT.abs v body))
 
 instance Digest.Digestable1 F where
   digest1 _ hash e = case e of
-    Lit l -> Digest.run $ Put.putWord8 0 *> serialize l
-    Arrow a b -> Digest.run $ Put.putWord8 1 *> serialize (hash a) *> serialize (hash b)
-    App a b -> Digest.run $ Put.putWord8 2 *> serialize (hash a) *> serialize (hash b)
-    Ann a k -> Digest.run $ Put.putWord8 3 *> serialize (hash a) *> serialize k
-    Constrain a u -> Digest.run $ Put.putWord8 4 *> serialize (hash a) *> serialize u
-    Forall a -> Digest.run $ Put.putWord8 5 *> serialize (hash a)
+    Lit l -> Put.putWord8 0 *> serialize l
+    Arrow a b -> Put.putWord8 1 *> serialize (hash a) *> serialize (hash b)
+    App a b -> Put.putWord8 2 *> serialize (hash a) *> serialize (hash b)
+    Ann a k -> Put.putWord8 3 *> serialize (hash a) *> serialize k
+    Constrain a u -> Put.putWord8 4 *> serialize (hash a) *> serialize u
+    Forall a -> Put.putWord8 5 *> serialize (hash a)
 
 instance J.ToJSON1 F where
   toJSON1 f = toJSON f
