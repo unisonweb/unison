@@ -44,9 +44,8 @@ data F a
   | Ann a T.Type
   | Vector (Vector a)
   | Lam a
-  -- Invariant: let rec blocks have an outer an IntroLetRec, then an abs introductions for
-  -- each binding, then a LetRec for the bindings themselves
-  | IntroLetRec a
+  -- Invariant: let rec blocks have an outer ABT.Cycle which introduces as many
+  -- variables as there are bindings
   | LetRec [a] a
   | Let a a
   deriving (Eq,Foldable,Functor,Generic1)
@@ -94,7 +93,8 @@ lam v body = ABT.tm (Lam (ABT.abs v body))
 -- reference any other binding in the block in its body (including itself),
 -- and the output expression may also reference any binding in the block.
 letRec :: [(ABT.V,Term)] -> Term -> Term
-letRec bindings e = ABT.tm (IntroLetRec (foldr ABT.abs z (map fst bindings)))
+letRec [] e = e
+letRec bindings e = ABT.cycle (foldr ABT.abs z (map fst bindings))
   where
     z = ABT.tm (LetRec (map snd bindings) e)
 
@@ -117,11 +117,8 @@ unLets e =
 
 -- | Satisfies `unLetRec (letRec bs e) == Just (bs, e)`
 unLetRec :: Term -> Maybe ([(ABT.V, Term)], Term)
-unLetRec (ABT.Term _ (ABT.Tm t)) = case t of
-  IntroLetRec c -> case ABT.unabs c of
-    (vs, ABT.out -> ABT.Tm (LetRec bs e)) | length vs == length bs -> Just (zip vs bs, e)
-    _ -> Nothing
-  _ -> Nothing
+unLetRec (ABT.Cycle' vs (ABT.Tm' (LetRec bs e)))
+  | length vs == length vs = Just (zip vs bs, e)
 unLetRec _ = Nothing
 
 -- | Satisfies `unLet (let' bs e) == Just (bs, e)`
@@ -213,7 +210,7 @@ instance Digest.Digestable1 F where
     LetRec as a ->
       Put.putWord8 7 *> do
         hash <- hashCycle as
-        serialize (hash a) --
+        serialize (hash a)
     -- here, order is significant, so don't use hashCycle
     Let b a -> Put.putWord8 8 *> serialize (hash b) *> serialize (hash a)
 
