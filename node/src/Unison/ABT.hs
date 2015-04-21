@@ -1,4 +1,5 @@
 -- Based on: http://semantic-domain.blogspot.com/2015/03/abstract-binding-trees.html
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
@@ -14,6 +15,7 @@ import Data.Aeson (ToJSON(..),FromJSON(..))
 import Data.Foldable (Foldable)
 import Data.Functor.Classes (Eq1(..))
 import Data.List hiding (cycle)
+import Data.Maybe
 import Data.Ord
 import Data.Set (Set)
 import Data.Traversable
@@ -121,9 +123,6 @@ type Focus1 f a = f a -> Maybe (a, a -> f a)
 at :: Foldable f => [Focus1 f (Term f)] -> Term f -> Maybe (Term f)
 at path t = fst <$> focus path t
 
-boundAt :: V -> [Focus1 f (Term f)] -> Term f -> Maybe Int
-boundAt v path t = error "todo"
-
 -- | Modify the subterm a path points to
 modify :: Foldable f
        => (Term f -> Term f) -> [Focus1 f (Term f)] -> Term f -> Maybe (Term f)
@@ -145,6 +144,39 @@ focus path@(hd:tl) t = case out t of
     (_,hreplace) <- hd ft
     (t,replace) <- focus tl t
     pure (t, tm . hreplace . replace)
+
+-- | Returns the longest prefix of the path which points to a subterm
+-- in which `v` is not bound.
+introducedAt :: V -> [Focus1 f (Term f)] -> Term f -> Maybe [Focus1 f (Term f)]
+introducedAt v path t = f =<< boundAlong path t where
+  f bs = case dropWhile (\vs -> not (Set.member v vs)) (reverse bs) of
+    [] -> if elem v (fst (unabs t)) then Just [] else Nothing
+    p -> Just (take (length p) path)
+
+-- | Returns the set of variables in scope at the given path, if valid
+boundAt :: [Focus1 f (Term f)] -> Term f -> Maybe (Set V)
+boundAt path t = f =<< boundAlong path t where
+  f [] = Nothing
+  f vs = Just (last vs)
+
+-- | Returns the set of variables in scope at the given path,
+-- or the empty set if path is invalid
+boundAt' :: [Focus1 f (Term f)] -> Term f -> Set V
+boundAt' path t = fromMaybe Set.empty (boundAt path t)
+
+-- | For each element of the input path, the set of variables in scope
+boundAlong :: [Focus1 f (Term f)] -> Term f -> Maybe [Set V]
+boundAlong path t = go Set.empty path t where
+  go _ [] _ = Just []
+  go env path@(hd:tl) t = case out t of
+    Var _ -> Nothing
+    Cycle t -> go env path t
+    Abs v t -> let !env' = Set.insert v env in go env' path t
+    Tm ft -> do
+      (t,_) <- hd ft
+      tl <- go env tl t
+      pure (env : tl)
+
 
 hash :: forall f . (Foldable f, Digest.Digestable1 f) => Term f -> Digest.Hash
 hash t = hash' [] t where

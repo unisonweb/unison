@@ -16,7 +16,6 @@ import Unison.Note (Noted)
 import qualified Data.Set as Set
 import qualified Unison.A_Eval as Eval
 import qualified Unison.A_Term as Term
-import qualified Unison.A_Hash as Hash
 import qualified Unison.ABT as ABT
 
 data Action
@@ -66,7 +65,7 @@ abstract path t = f <$> Term.focus path t where
     let sub' = Term.lam (ABT.freshIn' sub "v") (ABT.var' "v")
                `Term.app`
                sub
-    in (path,sub')
+    in (path, replace sub')
 
 {- Example:
    f {42} x
@@ -77,7 +76,7 @@ abstractLet :: Term.Path -> Term.Term -> Maybe (Term.Path, Term.Term)
 abstractLet path t = f <$> Term.focus path t where
   f (sub,replace) =
     let sub' = Term.let' [(ABT.v' "v", sub)] (ABT.var' "v")
-    in (path, sub')
+    in (path, replace sub')
 
 {- Promotes a nonrecurive let to a let rec. Example:
    let x = 1 in x + x
@@ -110,10 +109,8 @@ floatOut path t = floatLetOut path t <|> floatLamOut path t
    {let y = 2 in f (y*y)}
 -}
 floatLetOut :: Term.Path -> Term.Term -> Maybe (Term.Path, Term.Term)
-floatLetOut path t = do
-  parentPath <- Term.parent path >>= Term.parent
-  parent <- Term.at parentPath t
-  error "todo: floatLetOut finish me"
+floatLetOut path t =
+  error "todo: floatLetOut"
 
 {- Example:
    f ({y -> y*y} 2)
@@ -121,7 +118,7 @@ floatLetOut path t = do
    {y -> f (y*y)} 2
 -}
 floatLamOut :: Term.Path -> Term.Term -> Maybe (Term.Path, Term.Term)
-floatLamOut _ _ = error "floatLamOut"
+floatLamOut path t = error "floatLamOut"
 
 {- Delete a let binding by inlining its definition. Fails if binding is recursive. Examples:
    let {x = 1} in x*x
@@ -140,13 +137,6 @@ inline :: Term.Path -> Term.Term -> Maybe (Term.Path, Term.Term)
 inline path t = do
   (v,body) <- Term.bindingAt path t
   error "todo - inline"
-  --guard (not (Set.member v (ABT.freevars body))) -- can't inline recursive functions
-  --parentPath <- Term.parent path
-  --parent <- Term.at parentPath t
-  --case parent of
-  --  Term.Let' [_] e _ _ -> Just (parentPath, ABT.subst body v e)
-  --  Term.Let' bs e let' _ -> Just (parentPath, ABT.subst body v (let' (filter (\(v',_) -> v' /= v) bs) e))
-  --  _ -> Nothing
 
 {- Example:
    let x = 1 in {let y = 2 in y*y}
@@ -172,7 +162,7 @@ rename :: ABT.V -> Term.Path -> Term.Term -> Maybe (Term.Path, Term.Term)
 rename v2 path t = do
   ABT.Var' v <- Term.at path t
   guard (v /= v2)
-  scope <- Term.boundAt v path t
+  scope <- Term.introducedAt v path t
   (,) scope <$> Term.modify (ABT.subst (ABT.var v2) v) scope t
 
 step :: Applicative f => Eval (Noted f) -> (Hash -> Noted f Term.Term)

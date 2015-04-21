@@ -15,6 +15,7 @@ import Data.Aeson.TH
 import Data.Bytes.Serial
 import Data.Foldable (Foldable, traverse_)
 import Data.Functor.Classes
+import Data.Maybe
 import Data.Vector (Vector, (!?))
 import GHC.Generics
 import Data.Text (Text)
@@ -127,7 +128,7 @@ unLet t = fixup (go t) where
   go (ABT.out -> ABT.Tm (Let b (ABT.Abs' v t))) =
     case go t of (env,t) -> ((v,b):env, t)
   go t = ([], t)
-  fixup ([], t) = Nothing
+  fixup ([], _) = Nothing
   fixup bst = Just bst
 
 -- Paths into terms, represented as lists of @PathElement@
@@ -144,16 +145,15 @@ type Path = [PathElement]
 
 -- | Use a @PathElement@ to compute one step into an @F a@ subexpression
 focus1 :: PathElement -> ABT.Focus1 F a
--- focus1 e (IntroLetRec c) = Just (c, )
 focus1 Fn (App f x) = Just (f, \f -> App f x)
 focus1 Arg (App f x) = Just (x, \x -> App f x)
 focus1 Body (Lam body) = Just (body, Lam)
 focus1 Body (Let b body) = Just (body, Let b)
 focus1 Body (LetRec bs body) = Just (body, LetRec bs)
 focus1 (Binding i) (Let b body) | i <= 0 = Just (b, \b -> Let b body)
---focus1 (Binding i) (LetRec bs body) =
---  listToMaybe (drop i bs)
---  >>= \b -> Just (b, \b -> LetRec (take i bs ++ [b] ++ drop (i+1) bs) body)
+focus1 (Binding i) (LetRec bs body) =
+  listToMaybe (drop i bs)
+  >>= \b -> Just (b, \b -> LetRec (take i bs ++ [b] ++ drop (i+1) bs) body)
 focus1 (Index i) (Vector vs) =
   vs !? i >>= \v -> Just (v, \v -> Vector (Vector.update vs (Vector.singleton (i,v))))
 focus1 _ _ = Nothing
@@ -161,8 +161,12 @@ focus1 _ _ = Nothing
 at :: Path -> Term -> Maybe Term
 at p t = ABT.at (map focus1 p) t
 
-boundAt :: ABT.V -> Path -> Term -> Maybe Path
-boundAt v path t = error "boundAt todo"
+-- | Given a variable and a path, find the longest prefix of the path
+-- which points to a term where the variable is unbound. Example:
+-- `\f -> \x -> f {x}` would return the path pointing to `{\x -> f x}`
+introducedAt :: ABT.V -> Path -> Term -> Maybe Path
+introducedAt v path t = f <$> ABT.introducedAt v (map focus1 path) t where
+  f p = take (length p) path
 
 modify :: (Term -> Term) -> Path -> Term -> Maybe Term
 modify f p t = ABT.modify f (map focus1 p) t
@@ -174,11 +178,14 @@ parent :: Path -> Maybe Path
 parent [] = Nothing
 parent p = Just (init p)
 
+parent' :: Path -> Path
+parent' = fromMaybe [] . parent
+
 bindingAt :: Path -> Term -> Maybe (ABT.V, Term)
 bindingAt [] _ = Nothing
 bindingAt path t = do
   parentPath <- parent path
-  Let1' v b body <- at parentPath t
+  Let1' v b _ <- at parentPath t
   pure (v, b)
 
 -- mostly boring serialization and hashing code below ...
