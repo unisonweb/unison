@@ -66,8 +66,11 @@ freeVars = ABT.freeVars
 
 data Monotype = Monotype { getPolytype :: Type } deriving (Eq,Show)
 
+-- Smart constructor which checks if a `Type` has no `Forall` quantifiers.
 monotype :: Type -> Maybe Monotype
-monotype t = error "todo: monotype"
+monotype t = Monotype <$> ABT.visit isMono t where
+  isMono (Forall' _ _) = Just Nothing
+  isMono _ = Nothing
 
 -- some smart patterns
 pattern Lit' l <- ABT.Tm' (Lit l)
@@ -81,11 +84,11 @@ pattern Universal' v <- ABT.Tm' (Universal (ABT.Var' v))
 
 matchExistential :: ABT.V -> Type -> Bool
 matchExistential v (Existential' x) = x == v
-matchExistential v _ = False
+matchExistential _ _ = False
 
 matchUniversal :: ABT.V -> Type -> Bool
 matchUniversal v (Universal' x) = x == v
-matchUniversal v _ = False
+matchUniversal _ _ = False
 
 -- some smart constructors
 
