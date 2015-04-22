@@ -17,8 +17,9 @@ import Data.Foldable (Foldable, traverse_)
 import Data.Functor.Classes
 import Data.Maybe
 import Data.Vector (Vector, (!?))
-import GHC.Generics
 import Data.Text (Text)
+import Data.Traversable (Traversable)
+import GHC.Generics
 import qualified Data.Aeson as Aeson
 import qualified Data.Bytes.Put as Put
 import qualified Data.Vector as Vector
@@ -49,7 +50,7 @@ data F a
   -- variables as there are bindings
   | LetRec [a] a
   | Let a a
-  deriving (Eq,Foldable,Functor,Generic1,Show)
+  deriving (Eq,Foldable,Functor,Generic1,Show,Traversable)
 
 -- | Terms are represented as ABTs over the base functor F.
 type Term = ABT.Term F
@@ -69,6 +70,9 @@ pattern Let' bs e relet rec <- (unLets -> Just (bs,e,relet,rec))
 pattern LetRec' bs e <- (unLetRec -> Just (bs,e))
 
 -- some smart constructors
+
+ref :: R.Reference -> Term
+ref r = ABT.tm (Ref r)
 
 lit :: Literal -> Term
 lit l = ABT.tm (Lit l)

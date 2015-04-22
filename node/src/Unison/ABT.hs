@@ -121,6 +121,21 @@ replace t f body = go t f body where
                  else go t f e
     Tm body -> tm (fmap (go t f) body)
 
+-- | `visit f t` applies an effectful function to each subtree of
+-- `t` and sequences the results. When `f` returns `Nothing`, `visit`
+-- descends into the children of the current subtree. When `f` returns
+-- `Just t2`, `visit` replaces the current subtree with `t2`. Thus:
+-- `visit (const Nothing) t == pure t` and
+-- `visit (const (Just (pure t2))) t == pure t2`
+visit :: (Traversable f, Applicative g) => (Term f -> Maybe (g (Term f))) -> Term f -> g (Term f)
+visit f t = case f t of
+  Just gt -> gt
+  Nothing -> case out t of
+    Var _ -> pure t
+    Cycle body -> cycle <$> visit f body
+    Abs x e -> abs x <$> visit f e
+    Tm body -> tm <$> traverse (visit f) body
+
 -- | A single step 'focusing' action, returns the subtree and a function
 -- to replace that subtree
 type Focus1 f a = f a -> Maybe (a, a -> f a)

@@ -52,7 +52,7 @@ instance Functor m => Functor (Noted m) where
 
 instance Applicative m => Applicative (Noted m) where
   pure = Noted . pure . pure
-  (Noted f) <*> (Noted a) = Noted $ liftA2 (\f a -> f <*> a) f a
+  (Noted f) <*> (Noted a) = Noted $ liftA2 (<*>) f a
 
 note :: String -> Note
 note s = Note [s]

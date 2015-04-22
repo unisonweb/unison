@@ -2,15 +2,12 @@
 {-# LANGUAGE PatternSynonyms #-}
 
 -- | The Unison language typechecker
-module Unison.Typechecker.A_Context where
--- (context, subtype, synthesizeClosed) where
+module Unison.Typechecker.A_Context (context, subtype, synthesizeClosed) where
 
 import Control.Applicative
 import Data.List
-import Data.Maybe
 import Data.Set (Set)
-import Data.Traversable
-import Unison.Note (Note)
+import Unison.Note (Note,Noted(..))
 import Unison.A_Term (Term)
 import Unison.A_Type (Type, Monotype(..))
 import qualified Unison.ABT as ABT
@@ -76,9 +73,6 @@ usedVars (Context ((_,s) : _)) = s
 extend :: Element -> Context -> Context
 extend e c@(Context ctx) = Context ((e,s'):ctx) where
   s' = Set.insert (varUsedBy e) (usedVars c)
-
-v0 :: ABT.V
-v0 = ABT.v' "#"
 
 context :: [Element] -> Context
 context xs = foldr extend context0 (reverse xs)
@@ -414,21 +408,15 @@ synthesizeApp ctx ft arg = go ft where
                       (Type.existential i)
   go _ = Left $ Note.note "unable to synthesize type of application"
 
-{-
 annotateRefs :: Applicative f => Type.Env f -> Term -> Noted f Term
-annotateRefs synth term' = case term' of
-  Term.Ref h -> Term.Ann (Term.Ref h) <$> synth h
-  Term.App f arg -> Term.App <$> annotateRefs synth f <*> annotateRefs synth arg
-  Term.Ann body t -> Term.Ann <$> annotateRefs synth body <*> pure t
-  Term.Lam body -> Term.Lam <$> annotateRefs synth body
-  Term.Vector terms -> Term.Vector <$> traverse (annotateRefs synth) terms
-  _ -> pure term'
+annotateRefs synth term = ABT.visit f term where
+  f (Term.Ref' h) = Just (Term.ann (Term.ref h) <$> synth h)
+  f _ = Nothing
 
 synthesizeClosed :: Applicative f => Type.Env f -> Term -> Noted f Type
-synthesizeClosed synthRef term = Noted $ synth <$> N.unnote (annotateRefs synthRef term)
+synthesizeClosed synthRef term = Noted $ synth <$> Note.unnote (annotateRefs synthRef term)
   where
     synth :: Either Note Term -> Either Note Type
     synth (Left e) = Left e
     synth (Right a) = go <$> synthesize (context []) a
     go (t, ctx) = apply ctx t
--}
