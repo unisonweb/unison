@@ -10,7 +10,6 @@
 module Unison.A_Type where
 
 import Control.Applicative
-import Data.List
 import Data.Functor.Classes (Eq1(..),Show1(..))
 import Data.Foldable (Foldable)
 import Data.Aeson (toJSON, parseJSON)
@@ -44,6 +43,8 @@ data F a
   | App a a
   | Constrain a () -- todo: constraint language
   | Forall a
+  | Existential a
+  | Universal a
   deriving (Eq,Foldable,Functor,Generic1,Show)
 
 deriveJSON defaultOptions ''F
@@ -64,6 +65,8 @@ pattern Ann' t k <- ABT.Tm' (Ann t k)
 pattern App' f x <- ABT.Tm' (App f x)
 pattern Constrain' t u <- ABT.Tm' (Constrain t u)
 pattern Forall' v body <- ABT.Tm' (Forall (ABT.Abs' v body))
+pattern Existential' v <- ABT.Tm' (Existential (ABT.Var' v))
+pattern Universal' v <- ABT.Tm' (Universal (ABT.Var' v))
 
 -- some smart constructors
 
@@ -73,11 +76,23 @@ lit l = ABT.tm (Lit l)
 app :: Type -> Type -> Type
 app f arg = ABT.tm (App f arg)
 
+arrow :: Type -> Type -> Type
+arrow i o = ABT.tm (Arrow i o)
+
 ann :: Type -> K.Kind -> Type
 ann e t = ABT.tm (Ann e t)
 
 forall :: ABT.V -> Type -> Type
 forall v body = ABT.tm (Forall (ABT.abs v body))
+
+existential :: ABT.V -> Type
+existential v = ABT.tm (Existential (ABT.var v))
+
+universal :: ABT.V -> Type
+universal v = ABT.tm (Universal (ABT.var v))
+
+constrain :: Type -> () -> Type
+constrain t u = ABT.tm (Constrain t u)
 
 instance Digest.Digestable1 F where
   digest1 _ hash e = case e of
@@ -87,6 +102,8 @@ instance Digest.Digestable1 F where
     Ann a k -> Put.putWord8 3 *> serialize (hash a) *> serialize k
     Constrain a u -> Put.putWord8 4 *> serialize (hash a) *> serialize u
     Forall a -> Put.putWord8 5 *> serialize (hash a)
+    Existential v -> Put.putWord8 6 *> serialize (hash v)
+    Universal v -> Put.putWord8 7 *> serialize (hash v)
 
 instance J.ToJSON1 F where
   toJSON1 f = toJSON f

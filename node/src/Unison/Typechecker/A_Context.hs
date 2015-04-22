@@ -153,7 +153,8 @@ zipTail (Context n ctx) = zip ctx (map (Context n) $ tail (tails ctx))
 -- | Check that the type is well formed wrt the given `Context`
 wellformedType :: Context -> Type -> Bool
 wellformedType c t = wellformed c && case t of
-  ABT.Var' v -> v `elem` universals c || v `elem` existentials c
+  Type.Existential' v -> v `elem` existentials c
+  Type.Universal' v -> v `elem` universals c
   Type.Lit' _ -> True
   Type.Arrow' i o -> wellformedType c i && wellformedType c o
   Type.Ann' t' _ -> wellformedType c t'
@@ -162,6 +163,7 @@ wellformedType c t = wellformed c && case t of
   Type.Forall' v t' ->
     let (v',ctx2) = extendUniversal v c
     in wellformedType ctx2 (ABT.subst (ABT.var v') v t')
+  _ -> error $ "Context.wellformedType - ill formed type - " ++ show t
 
 bindings :: Context -> [(ABT.V, Type)]
 bindings (Context _ ctx) = [(v,a) | Ann v a <- ctx]
@@ -181,21 +183,24 @@ solve ctx v t | wellformedType ctxL (Type.getPolytype t) = Just ctx'
     where (ctxL,ctxR) = breakAt (Existential v) ctx
           ctx' = ctxL `append` context [Solved v t] `append` ctxR
 
-{-
--- invariant is that both input types will have been fully freshened
--- before being passed to apply
+-- | Replace any existentials with their solution in the context
 apply :: Context -> Type -> Type
 apply ctx t = case t of
-  Type.Universal _ -> t
-  Type.Unit _ -> t
-  Type.Existential v ->
+  Type.Universal' _ -> t
+  Type.Lit' _ -> t
+  Type.Existential' v ->
     maybe t (\(Type.Monotype t') -> apply ctx t') (lookup v (solved ctx))
-  Type.Arrow i o -> Type.Arrow (apply ctx i) (apply ctx o)
-  Type.App x y -> Type.App (apply ctx x) (apply ctx y)
-  Type.Ann v k -> Type.Ann (apply ctx v) k
-  Type.Constrain v c -> Type.Constrain (apply ctx v) c
-  Type.Forall v t' -> Type.Forall v (apply ctx t')
+  Type.Arrow' i o -> Type.arrow (apply ctx i) (apply ctx o)
+  Type.App' x y -> Type.app (apply ctx x) (apply ctx y)
+  Type.Ann' v k -> Type.ann (apply ctx v) k
+  Type.Constrain' v c -> Type.constrain (apply ctx v) c
+  Type.Forall' v t' -> Type.forall v (apply ctx t')
+  _ -> error $ "Context.apply ill formed type - " ++ show t
 
+-- todo: am here, should figure out what dependencies are among all these fns
+-- uncomment them in order
+
+{-
 -- | `subtype ctx t1 t2` returns successfully if `t1` is a subtype of `t2`.
 -- This may have the effect of altering the context.
 subtype :: Context -> Type -> Type -> Either Note Context
