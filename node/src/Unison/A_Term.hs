@@ -49,13 +49,14 @@ data F a
   -- variables as there are bindings
   | LetRec [a] a
   | Let a a
-  deriving (Eq,Foldable,Functor,Generic1)
+  deriving (Eq,Foldable,Functor,Generic1,Show)
 
 -- | Terms are represented as ABTs over the base functor F.
 type Term = ABT.Term F
 
 -- nicer pattern syntax
 
+pattern Var' v <- ABT.Var' v
 pattern Lit' l <- (ABT.out -> ABT.Tm (Lit l))
 pattern Blank' <- (ABT.out -> ABT.Tm Blank)
 pattern Ref' r <- (ABT.out -> ABT.Tm (Ref r))
@@ -194,6 +195,7 @@ deriveJSON defaultOptions ''Literal
 instance Serial Literal
 
 instance Eq1 F where eq1 = (==)
+instance Show1 F where showsPrec1 = showsPrec
 instance Serial1 F
 instance Serial1 Vector where
   serializeWith f vs = serializeWith f (Vector.toList vs)

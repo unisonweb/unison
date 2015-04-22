@@ -110,7 +110,7 @@ subst t x body = go t x body where
     Cycle body -> cycle (go t x body)
     Abs x e -> abs x' e'
       where x' = freshInBoth t body x
-            -- rename x to something that cannot be captured
+            -- rename x to something that cannot be captured by `t`
             e' = if x /= x' then go t x (rename x x' e)
                  else go t x e
     Tm body -> tm (fmap (go t x) body)

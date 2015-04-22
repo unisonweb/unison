@@ -10,18 +10,19 @@
 module Unison.A_Type where
 
 import Control.Applicative
-import Data.Functor.Classes (Eq1(..),Show1(..))
-import Data.Foldable (Foldable)
 import Data.Aeson (toJSON, parseJSON)
 import Data.Aeson.TH
 import Data.Bytes.Serial
+import Data.Foldable (Foldable)
+import Data.Functor.Classes (Eq1(..),Show1(..))
+import Data.Set (Set)
 import GHC.Generics
 import qualified Data.Bytes.Put as Put
+import qualified Unison.ABT as ABT
 import qualified Unison.Digest as Digest
 import qualified Unison.JSON as J
 import qualified Unison.Kind as K
 import qualified Unison.Reference as R
-import qualified Unison.ABT as ABT
 
 -- | Type literals
 data Literal
@@ -55,8 +56,13 @@ instance Show1 F where showsPrec1 = showsPrec
 -- | Terms are represented as ABTs over the base functor F.
 type Type = ABT.Term F
 
+freeVars :: Type -> Set ABT.V
+freeVars = ABT.freeVars
+
 data Monotype = Monotype { getPolytype :: Type } deriving (Eq,Show)
--- todo: smart constructor for this
+
+monotype :: Type -> Maybe Monotype
+monotype t = error "todo: monotype"
 
 -- some smart patterns
 pattern Lit' l <- ABT.Tm' (Lit l)
