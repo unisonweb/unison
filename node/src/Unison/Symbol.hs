@@ -22,7 +22,7 @@ symbol n f p = Symbol 0 n f p
 -- be distinct from all symbols in the given set. Takes time
 -- logarithmic in the size of the symbol set.
 freshIn :: Set Symbol -> Symbol -> Symbol
-freshIn vs s | Set.null vs = s
+freshIn vs s | Set.notMember s vs = s -- already fresh!
 freshIn vs s@(Symbol i n f p) = case Set.elemAt (Set.size vs - 1) vs of
   Symbol i2 _ _ _ -> if i > i2 then s else Symbol (i2+1) n f p
 
