@@ -13,7 +13,7 @@ module Unison.ABT where
 import Control.Applicative
 import Data.Aeson (ToJSON(..),FromJSON(..))
 import Data.Foldable (Foldable)
-import Data.Functor.Classes (Eq1(..))
+import Data.Functor.Classes (Eq1(..),Show1(..))
 import Data.List hiding (cycle)
 import Data.Maybe
 import Data.Ord
@@ -91,6 +91,12 @@ fresh :: (V -> Bool) -> V -> V
 fresh used v | used v = fresh used (Symbol.freshen v)
 fresh _  v = v
 
+fresh' :: Set V -> V -> V
+fresh' used = fresh (\v -> Set.member v used)
+
+freshNamed' :: Set V -> Text -> V
+freshNamed' used n = fresh' used (v' n)
+
 -- | Produce a variable which is free in both terms
 freshInBoth :: Term f -> Term f -> V -> V
 freshInBoth t1 t2 x = fresh (memberOf (freevars t1) (freevars t2)) x
@@ -104,16 +110,18 @@ freshIn' t v = freshIn t (Symbol.prefix v)
 
 -- | `subst t x body` substitutes `t` for `x` in `body`, avoiding capture
 subst :: (Foldable f, Functor f) => Term f -> V -> Term f -> Term f
-subst t x body = case out body of
-  Var v | x == v -> t
-  Var v -> var v
-  Cycle body -> cycle (subst t x body)
-  Abs x e -> abs x' e'
-    where x' = freshInBoth t body x
-          -- rename x to something that cannot be captured
-          e' = if x /= x' then subst t x (rename x x' e)
-               else subst t x e
-  Tm body -> tm (fmap (subst t x) body)
+subst (Var' v) x body | v == x = body
+subst t x body = go t x body where
+  go t x body = case out body of
+    Var v | x == v -> t
+    Var v -> var v
+    Cycle body -> cycle (go t x body)
+    Abs x e -> abs x' e'
+      where x' = freshInBoth t body x
+            -- rename x to something that cannot be captured
+            e' = if x /= x' then go t x (rename x x' e)
+                 else go t x e
+    Tm body -> tm (fmap (go t x) body)
 
 -- | A single step 'focusing' action, returns the subtree and a function
 -- to replace that subtree
@@ -256,3 +264,10 @@ instance (Foldable f, Serial1 f) => Serial (Term f) where
     2 -> abs <$> deserialize <*> deserialize
     3 -> tm <$> deserializeWith deserialize
     _ -> fail ("unknown byte tag, expected one of {0,1,2}, got: " ++ show b)
+
+instance Show1 f => Show (Term f) where
+  show (Term _ out) = case out of
+    Var v -> show v
+    Cycle body -> show body
+    Abs v body -> "(Abs " ++ show v ++ " " ++ show body ++ ")"
+    Tm f -> "(" ++ showsPrec1 0 f "" ++ ")"

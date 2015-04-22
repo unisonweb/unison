@@ -2,13 +2,16 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.A_Type where
 
 import Control.Applicative
-import Data.Functor.Classes
+import Data.List
+import Data.Functor.Classes (Eq1(..),Show1(..))
 import Data.Foldable (Foldable)
 import Data.Aeson (toJSON, parseJSON)
 import Data.Aeson.TH
@@ -41,14 +44,26 @@ data F a
   | App a a
   | Constrain a () -- todo: constraint language
   | Forall a
-  deriving (Eq,Foldable,Functor,Generic1)
+  deriving (Eq,Foldable,Functor,Generic1,Show)
 
 deriveJSON defaultOptions ''F
 instance Serial1 F
 instance Eq1 F where eq1 = (==)
+instance Show1 F where showsPrec1 = showsPrec
 
 -- | Terms are represented as ABTs over the base functor F.
 type Type = ABT.Term F
+
+data Monotype = Monotype { getPolytype :: Type } deriving (Eq,Show)
+-- todo: smart constructor for this
+
+-- some smart patterns
+pattern Lit' l <- ABT.Tm' (Lit l)
+pattern Arrow' i o <- ABT.Tm' (Arrow i o)
+pattern Ann' t k <- ABT.Tm' (Ann t k)
+pattern App' f x <- ABT.Tm' (App f x)
+pattern Constrain' t u <- ABT.Tm' (Constrain t u)
+pattern Forall' v body <- ABT.Tm' (Forall (ABT.Abs' v body))
 
 -- some smart constructors
 
@@ -78,3 +93,16 @@ instance J.ToJSON1 F where
 
 instance J.FromJSON1 F where
   parseJSON1 j = parseJSON j
+
+--instance Show a => Show (F a) where
+--  show (Lit' l) = show l
+--  show (Arrow' (Arrow' i i2) o) = "(" ++ show i ++ " -> " ++ show i2 ++ ") -> " ++ show o
+--  show (Arrow' i o) = show i ++ " -> " ++ show o
+--  show (ABT.Var' n) = show n
+--  show (Ann' t k) = show t ++ ":" ++ show k
+--  show (App' f arg) = "(" ++ show f ++ " " ++ show arg ++ ")"
+--  show (Constrain' t _) = show t
+--  show (Forall' x (Forall' y (Forall' z t))) =
+--    "(∀ " ++ (intercalate " " . map show) [x,y,z] ++ ". " ++ show t ++ ")"
+--  show (Forall' x (Forall' y t)) = "(∀ " ++ (intercalate " " . map show) [x,y] ++ ". " ++ show t++")"
+--  show (Forall' x t) = "(∀ " ++ show x ++ ". " ++ show t++")"

@@ -50,6 +50,7 @@ library
     Unison.A_TermEdit
     Unison.A_Type
     Unison.A_Eval
+    Unison.Typechecker.A_Context
     Unison.ABT
     Unison.Digest
     Unison.Distance
