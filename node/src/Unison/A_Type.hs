@@ -74,6 +74,14 @@ pattern Forall' v body <- ABT.Tm' (Forall (ABT.Abs' v body))
 pattern Existential' v <- ABT.Tm' (Existential (ABT.Var' v))
 pattern Universal' v <- ABT.Tm' (Universal (ABT.Var' v))
 
+matchExistential :: ABT.V -> Type -> Bool
+matchExistential v (Existential' x) = x == v
+matchExistential v _ = False
+
+matchUniversal :: ABT.V -> Type -> Bool
+matchUniversal v (Universal' x) = x == v
+matchUniversal v _ = False
+
 -- some smart constructors
 
 lit :: Literal -> Type

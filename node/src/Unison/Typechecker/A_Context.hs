@@ -174,9 +174,9 @@ wellformedType c t = wellformed c && case t of
   Type.Ann' t' _ -> wellformedType c t'
   Type.App' x y -> wellformedType c x && wellformedType c y
   Type.Constrain' t' _ -> wellformedType c t'
-  Type.Forall' v t' ->
+  Type.Forall' v t ->
     let (v',ctx2) = extendUniversal v c
-    in wellformedType ctx2 (ABT.subst (ABT.var v') v t')
+    in wellformedType ctx2 (ABT.replace (Type.universal v') (Type.matchUniversal v) t)
   _ -> error $ "Context.wellformedType - ill formed type - " ++ show t
 
 bindings :: Context -> [(ABT.V, Type)]
@@ -231,12 +231,12 @@ subtype ctx tx ty = Note.scope (show tx++" <: "++show ty) (go tx ty) where -- Ru
     subtype ctx' (apply ctx' y1) (apply ctx' y2)
   go (Type.Forall' v t) t2 = Note.scope "forall (L)" $
     let (v', ctx') = extendMarker v ctx
-        t' = ABT.subst (Type.existential v') v t
+        t' = ABT.replace (Type.existential v') (Type.matchUniversal v) t
     in Note.scope (show t') $
        subtype ctx' (apply ctx' t') t2 >>= retract (Marker v')
   go t (Type.Forall' v t2) = Note.scope "forall (R)" $
     let (v', ctx') = extendUniversal v ctx
-        t2' = ABT.subst (Type.universal v') v t2
+        t2' = ABT.replace (Type.universal v') (Type.matchUniversal v) t2
     in subtype ctx' t t2' >>= retract (Universal v')
   go (Type.Existential' v) t -- `InstantiateL`
     | v `elem` existentials ctx && Set.notMember v (Type.freeVars t) =
@@ -277,7 +277,7 @@ instantiateL ctx v t = case Type.monotype t >>= solve ctx v of
         instantiateL ctx' y' (apply ctx' y)
     Type.Forall' x body -> -- InstLIIL
       let (v', ctx') = extendUniversal x ctx
-      in instantiateL ctx' v (ABT.subst (Type.universal v') x body)
+      in instantiateL ctx' v (ABT.replace (Type.universal v') (Type.matchUniversal x) body)
          >>= retract (Universal v')
     _ -> Left $ Note.note "could not instantiate left"
 
@@ -314,7 +314,7 @@ instantiateR ctx t v = case Type.monotype t >>= solve ctx v of
       let x' = fresh (ABT.v' "v") ctx
       in
         instantiateR (ctx `append` context [Marker x', Existential x'])
-                     (ABT.subst (Type.existential x') x body)
+                     (ABT.replace (Type.existential x') (Type.matchUniversal x) body)
                      v
         >>= retract (Marker x')
     _ -> Left $ Note.note "could not instantiate right"
@@ -326,7 +326,7 @@ check ctx e t | wellformedType ctx t = Note.scope (show e ++ " : " ++ show t) $ 
   go (Term.Lit' l) _ = subtype ctx (synthLit l) t -- 1I
   go _ (Type.Forall' x body) = -- ForallI
     let (x', ctx') = extendUniversal x ctx
-    in check ctx' e (ABT.subst (Type.universal x') x body)
+    in check ctx' e (ABT.replace (Type.universal x') (Type.matchUniversal x) body)
        >>= retract (Universal x')
   go (Term.Lam' x body) (Type.Arrow' i o) = -- =>I
     let x' = fresh x ctx
@@ -373,9 +373,7 @@ synthesize ctx e = Note.scope ("infer: " ++ show e) $ go e where
            vt = apply ctx2 (Type.lit Type.Vector `Type.app` Type.existential e)
            existentials' = unsolved ctx2
            vt2 = foldr gen vt existentials'
-           -- todo : need to fix up Existential (universal v) => universal v
-           -- audit all uses of ABT.subst in this file
-           gen e vt = Type.forall e (ABT.subst (Type.universal e) e vt)
+           gen e vt = Type.forall e (ABT.replace (Type.universal e) (Type.matchExistential e) vt)
          in (vt2, ctx1)
   go (Term.Lam' x body) = -- ->I=> (Full Damas Milner rule)
     let (arg, i, o) = fresh3 (ABT.v' "arg") x (ABT.v' "o") ctx
@@ -391,8 +389,7 @@ synthesize ctx e = Note.scope ("infer: " ++ show e) $ go e where
         ft = apply ctx2 (Type.existential i `Type.arrow` Type.existential o)
         existentials' = unsolved ctx2
         ft2 = foldr gen ft existentials'
-        -- todo: fixup
-        gen e ft = Type.forall e (ABT.subst (Type.universal e) e ft)
+        gen e ft = Type.forall e (ABT.replace (Type.universal e) (Type.matchExistential e) ft)
         in (ft2, ctx1)
   go _ = Left . Note.note $ "unknown case in synthesize"
 
@@ -403,7 +400,7 @@ synthesizeApp :: Context -> Type -> Term -> Either Note (Type, Context)
 synthesizeApp ctx ft arg = go ft where
   go (Type.Forall' x body) = let x' = fresh x ctx -- Forall1App
     in synthesizeApp (ctx `append` context [Existential x'])
-                     (ABT.subst (Type.existential x') x body)
+                     (ABT.replace (Type.existential x') (Type.matchUniversal x) body)
                      arg
   go (Type.Arrow' i o) = (,) o <$> check ctx arg i -- ->App
   go (Type.Existential' a) = -- a^App

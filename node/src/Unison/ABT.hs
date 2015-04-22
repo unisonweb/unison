@@ -102,18 +102,24 @@ freshNamed' used n = freshIn' used (v' n)
 
 -- | `subst t x body` substitutes `t` for `x` in `body`, avoiding capture
 subst :: (Foldable f, Functor f) => Term f -> V -> Term f -> Term f
-subst (Var' v) x body | v == x = body
-subst t x body = go t x body where
-  go t x body = case out body of
-    Var v | x == v -> t
+subst t x body = replace t match body where
+  match (Var' v) = x == v
+  match _ = False
+
+-- | `rewrite t f body` substitutes `t` for all maximal (outermost)
+-- subterms matching the predicate `f` in `body`, avoiding capture.
+replace :: (Foldable f, Functor f) => Term f -> (Term f -> Bool) -> Term f -> Term f
+replace t f body = go t f body where
+  go t f body | f body = t
+  go t f body = case out body of
     Var v -> var v
-    Cycle body -> cycle (go t x body)
+    Cycle body -> cycle (go t f body)
     Abs x e -> abs x' e'
       where x' = freshInBoth t body x
             -- rename x to something that cannot be captured by `t`
-            e' = if x /= x' then go t x (rename x x' e)
-                 else go t x e
-    Tm body -> tm (fmap (go t x) body)
+            e' = if x /= x' then go t f (rename x x' e)
+                 else go t f e
+    Tm body -> tm (fmap (go t f) body)
 
 -- | A single step 'focusing' action, returns the subtree and a function
 -- to replace that subtree
