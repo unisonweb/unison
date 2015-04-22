@@ -44,7 +44,7 @@ data ABT f a
   | Abs V a
   | Tm (f a) deriving (Functor, Foldable, Traversable)
 
-data Term f = Term { freevars :: Set V, out :: ABT f (Term f) }
+data Term f = Term { freeVars :: Set V, out :: ABT f (Term f) }
 
 pattern Var' v <- Term _ (Var v)
 pattern Cycle' vs t <- Term _ (Cycle (AbsN' vs t))
@@ -62,14 +62,14 @@ var' :: Text -> Term f
 var' v = var (Symbol.prefix v)
 
 abs :: V -> Term f -> Term f
-abs v body = Term (Set.delete v (freevars body)) (Abs v body)
+abs v body = Term (Set.delete v (freeVars body)) (Abs v body)
 
 tm :: Foldable f => f (Term f) -> Term f
-tm t = Term (Set.unions (fmap freevars (Foldable.toList t)))
+tm t = Term (Set.unions (fmap freeVars (Foldable.toList t)))
             (Tm t)
 
 cycle :: Term f -> Term f
-cycle t = Term (freevars t) (Cycle t)
+cycle t = Term (freeVars t) (Cycle t)
 
 into :: Foldable f => ABT f (Term f) -> Term f
 into abt = case abt of
@@ -87,26 +87,18 @@ rename old new (Term _ t) = case t of
                 else abs v (rename old new body)
   Tm v -> tm (fmap (rename old new) v)
 
-fresh :: (V -> Bool) -> V -> V
-fresh used v | used v = fresh used (Symbol.freshen v)
-fresh _  v = v
-
-fresh' :: Set V -> V -> V
-fresh' used = fresh (\v -> Set.member v used)
-
-freshNamed' :: Set V -> Text -> V
-freshNamed' used n = fresh' used (v' n)
-
 -- | Produce a variable which is free in both terms
 freshInBoth :: Term f -> Term f -> V -> V
-freshInBoth t1 t2 x = fresh (memberOf (freevars t1) (freevars t2)) x
-  where memberOf s1 s2 v = Set.member v s1 || Set.member v s2
+freshInBoth t1 t2 = freshIn t2 . freshIn t1
 
 freshIn :: Term f -> V -> V
-freshIn t = fresh (\v -> Set.member v (freevars t))
+freshIn t = freshIn' (freeVars t)
 
-freshIn' :: Term f -> Text -> V
-freshIn' t v = freshIn t (Symbol.prefix v)
+freshIn' :: Set V -> V -> V
+freshIn' used = Symbol.freshIn used
+
+freshNamed' :: Set V -> Text -> V
+freshNamed' used n = freshIn' used (v' n)
 
 -- | `subst t x body` substitutes `t` for `x` in `body`, avoiding capture
 subst :: (Foldable f, Functor f) => Term f -> V -> Term f -> Term f

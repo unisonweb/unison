@@ -50,34 +50,48 @@ Universal v   === Universal v2 | v == v2 = True
 Marker v      === Marker v2 | v == v2 = True
 _ === _ = False
 
--- | An ordered algorithmic context, with the set of used variables cached
--- Context !Int [Element]
-data Context = Context (Set ABT.V) [Element]
+{- An ordered algorithmic context, stored as a snoc list of
+   elements (the first element of the list represents the last element
+   of the context).
+
+   The set stored along with each element is the set of variables
+   referenced by elements up to and including that element. With
+   this representation, any suffix of the `Context` element list
+   is also a valid context, and a fresh name can be obtained just
+   by inspecting the first set in the list.
+-}
+newtype Context = Context [(Element,Set ABT.V)]
+
+context0 :: Context
+context0 = Context []
 
 instance Show Context where
-  show (Context n es) = "Γ " ++ show n ++ ".\n  " ++ (intercalate "\n  " . map show) (reverse es)
+  show (Context es) = "Γ " ++ (intercalate "\n  " . map show) (reverse es)
+
+usedVars :: Context -> Set ABT.V
+usedVars (Context []) = Set.empty
+usedVars (Context ((_,s) : _)) = s
+
+-- | Add an element onto the end of this `Context`
+extend :: Element -> Context -> Context
+extend e c@(Context ctx) = Context ((e,s'):ctx) where
+  s' = Set.insert (varUsedBy e) (usedVars c)
 
 v0 :: ABT.V
 v0 = ABT.v' "#"
 
 context :: [Element] -> Context
-context xs =
-  let ctx = reverse xs
-  in Context (Set.fromList (map varUsedBy ctx)) ctx
+context xs = foldr extend context0 (reverse xs)
 
 append :: Context -> Context -> Context
-append (Context n1 ctx1) (Context n2 ctx2) =
-  Context (Set.union n1 n2) (ctx2 ++ ctx1)
+append ctxL (Context es) =
+  foldr extend ctxL (map fst (reverse es))
 
 fresh :: ABT.V -> Context -> ABT.V
-fresh v (Context vs _) = ABT.fresh' vs v
+fresh v ctx = ABT.freshIn' (usedVars ctx) v
 
 fresh3 :: ABT.V -> ABT.V -> ABT.V -> Context -> (ABT.V, ABT.V, ABT.V)
 fresh3 va vb vc ctx = (fresh va ctx, fresh vb ctx, fresh vc ctx)
-
--- | Add an element onto the end of this `Context`
-extend :: Element -> Context -> Context
-extend e ctx = ctx `append` context [e]
 
 -- | Extend this `Context` with a single universally quantified variable,
 -- guaranteed to be fresh
@@ -93,14 +107,12 @@ extendMarker v ctx = case fresh v ctx of
 -- | Delete from the end of this context up to and including
 -- the given `Element`. Returns `Left` if the element is not found.
 retract :: Element -> Context -> Either Note Context
-retract m (Context _ ctx) =
+retract m (Context ctx) =
   let maybeTail [] = Left $ Note.note ("unable to retract: " ++ show m)
       maybeTail (_:t) = Right t
-      ctx' = maybeTail (dropWhile (/= m) ctx)
-      vs = case ctx' of
-        Left _ -> Set.empty
-        Right ctx -> Set.fromList (map varUsedBy ctx)
-  in (Context vs <$> ctx')
+  -- note: no need to recompute used variables; any suffix of the
+  -- context snoc list is also a valid context
+  in Context <$> maybeTail (dropWhile (\(e,_) -> e /= m) ctx)
 
 retract' :: Element -> Context -> Context
 retract' e ctx = case retract e ctx of
@@ -108,27 +120,29 @@ retract' e ctx = case retract e ctx of
   Right ctx -> ctx
 
 universals :: Context -> [ABT.V]
-universals (Context _ ctx) = [v | Universal v <- ctx]
+universals (Context ctx) = [v | (Universal v,_) <- ctx]
 
 existentials :: Context -> [ABT.V]
-existentials (Context _ ctx) = ctx >>= go where
-  go (Existential v) = [v]
-  go (Solved v _) = [v]
+existentials (Context ctx) = ctx >>= go where
+  go (Existential v,_) = [v]
+  go (Solved v _,_) = [v]
   go _ = []
 
 solved :: Context -> [(ABT.V, Monotype)]
-solved (Context _ ctx) = [(v, sa) | Solved v sa <- ctx]
+solved (Context ctx) = [(v, sa) | (Solved v sa,_) <- ctx]
 
 unsolved :: Context -> [ABT.V]
-unsolved (Context _ ctx) = [v | Existential v <- ctx]
+unsolved (Context ctx) = [v | (Existential v,_) <- ctx]
 
 replace :: Element -> Context -> Context -> Context
 replace e focus ctx = let (l,r) = breakAt e ctx in l `append` focus `append` r
 
 breakAt :: Element -> Context -> (Context, Context)
-breakAt m (Context _ xs) =
-  let (r, l) = break (=== m) xs
-  in (context (reverse $ drop 1 l), context $ reverse r)
+breakAt m (Context xs) =
+  let (r, l) = break (\(e,_) -> e === m) xs
+  -- l is a suffix of xs and is already a valid context;
+  -- r needs to be rebuilt
+  in (Context (drop 1 l), context . map fst $ reverse r)
 
 -- | ordered Γ α β = True <=> Γ[α^][β^]
 ordered :: Context -> ABT.V -> ABT.V -> Bool
@@ -148,7 +162,7 @@ wellformed ctx = all go (zipTail ctx) where
   go (Marker v, ctx') = v `notElem` vars ctx' && v `notElem` existentials ctx'
 
 zipTail :: Context -> [(Element, Context)]
-zipTail (Context n ctx) = zip ctx (map (Context n) $ tail (tails ctx))
+zipTail (Context ctx) = zip (map fst ctx) (map Context $ tail (tails ctx))
 
 -- | Check that the type is well formed wrt the given `Context`
 wellformedType :: Context -> Type -> Bool
@@ -166,7 +180,7 @@ wellformedType c t = wellformed c && case t of
   _ -> error $ "Context.wellformedType - ill formed type - " ++ show t
 
 bindings :: Context -> [(ABT.V, Type)]
-bindings (Context _ ctx) = [(v,a) | Ann v a <- ctx]
+bindings (Context ctx) = [(v,a) | (Ann v a,_) <- ctx]
 
 lookupType :: Context -> ABT.V -> Maybe Type
 lookupType ctx v = lookup v (bindings ctx)
@@ -178,10 +192,11 @@ vars = fmap fst . bindings
 -- If the given existential variable exists in the context,
 -- we solve it to the given monotype, otherwise return `Nothing`
 solve :: Context -> ABT.V -> Monotype -> Maybe Context
-solve ctx v t | wellformedType ctxL (Type.getPolytype t) = Just ctx'
-              | otherwise                           = Nothing
-    where (ctxL,ctxR) = breakAt (Existential v) ctx
-          ctx' = ctxL `append` context [Solved v t] `append` ctxR
+solve ctx v t
+  | wellformedType ctxL (Type.getPolytype t) = Just ctx'
+  | otherwise                                = Nothing
+  where (ctxL,ctxR) = breakAt (Existential v) ctx
+        ctx' = ctxL `append` context [Solved v t] `append` ctxR
 
 -- | Replace any existentials with their solution in the context
 apply :: Context -> Type -> Type
@@ -196,9 +211,6 @@ apply ctx t = case t of
   Type.Constrain' v c -> Type.constrain (apply ctx v) c
   Type.Forall' v t' -> Type.forall v (apply ctx t')
   _ -> error $ "Context.apply ill formed type - " ++ show t
-
--- todo: am here, should figure out what dependencies are among all these fns
--- uncomment them in order
 
 {-
 -- | `subtype ctx t1 t2` returns successfully if `t1` is a subtype of `t2`.

@@ -4,17 +4,27 @@ module Unison.Symbol where
 import Control.Applicative
 import Data.Aeson.TH
 import Data.Text (Text)
+import Data.Set (Set)
 import Data.Bytes.Serial (Serial(..))
 import Data.Bytes.VarInt
+import qualified Data.Set as Set
 
 data Fixity = InfixL | InfixR | Infix | Prefix deriving (Eq,Ord,Show,Enum)
-data Symbol = Symbol { name :: Text, freshId :: !Int, fixity :: !Fixity, precedence :: !Int } deriving (Eq,Ord,Show)
+
+-- NB: freshId is first field, so given a `Set Symbol`, the max element of
+-- the set will also have the highest `freshId`.
+data Symbol = Symbol { freshId :: !Int, name :: Text, fixity :: !Fixity, precedence :: !Int } deriving (Eq,Ord,Show)
 
 symbol :: Text -> Fixity -> Int -> Symbol
-symbol n f p = Symbol n 0 f p
+symbol n f p = Symbol 0 n f p
 
-freshen :: Symbol -> Symbol
-freshen (Symbol n i f p) = Symbol n (i+1) f p
+-- | Returns a fresh version of the given symbol, guaranteed to
+-- be distinct from all symbols in the given set. Takes time
+-- logarithmic in the size of the symbol set.
+freshIn :: Set Symbol -> Symbol -> Symbol
+freshIn vs s | Set.null vs = s
+freshIn vs s@(Symbol i n f p) = case Set.elemAt (Set.size vs - 1) vs of
+  Symbol i2 _ _ _ -> if i > i2 then s else Symbol (i2+1) n f p
 
 prefix :: Text -> Symbol
 prefix name = symbol name Prefix 9
@@ -24,11 +34,11 @@ instance Serial Fixity where
   deserialize = toEnum . unVarInt <$> deserialize
 
 instance Serial Symbol where
-  serialize (Symbol n i f p) =
-    serialize n *> serialize (VarInt i) *> serialize f *> serialize (VarInt p)
+  serialize (Symbol i n f p) =
+    serialize (VarInt i) *> serialize n *> serialize f *> serialize (VarInt p)
   deserialize =
-    Symbol <$> deserialize
-           <*> (unVarInt <$> deserialize)
+    Symbol <$> (unVarInt <$> deserialize)
+           <*> deserialize
            <*> deserialize
            <*> (unVarInt <$> deserialize)
 

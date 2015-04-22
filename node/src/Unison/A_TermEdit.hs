@@ -62,7 +62,7 @@ interpret eval link path action t = case action of
 abstract :: Term.Path -> Term.Term -> Maybe (Term.Path, Term.Term)
 abstract path t = f <$> Term.focus path t where
   f (sub,replace) =
-    let sub' = Term.lam (ABT.freshIn' sub "v") (ABT.var' "v")
+    let sub' = Term.lam (ABT.freshIn sub (ABT.v' "v")) (ABT.var' "v")
                `Term.app`
                sub
     in (path, replace sub')
@@ -97,7 +97,7 @@ allowRec path t = do
 etaReduce :: Term.Path -> Term.Term -> Maybe (Term.Path, Term.Term)
 etaReduce path t = do
   Term.Lam' v (Term.App' f (ABT.Var' v2)) <- Term.at path t
-  guard (v == v2 && not (Set.member v (ABT.freevars f))) -- make sure vars match and `f` doesn't mention `v`
+  guard (v == v2 && not (Set.member v (ABT.freeVars f))) -- make sure vars match and `f` doesn't mention `v`
   pure (path, f)
 
 floatOut :: Term.Path -> Term.Term -> Maybe (Term.Path, Term.Term)
