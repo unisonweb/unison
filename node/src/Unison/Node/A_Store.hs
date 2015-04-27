@@ -1,0 +1,95 @@
+module Unison.Node.A_Store where
+
+import Control.Applicative
+import Data.Aeson (ToJSON(..),FromJSON(..))
+import Data.Set (Set)
+import Data.Text (Text)
+import System.FilePath ((</>))
+import Unison.A_Hash (Hash)
+import Unison.A_Term (Term)
+import Unison.A_Type (Type)
+import Unison.Metadata (Metadata)
+import Unison.Note (Noted,Note)
+import Unison.A_Reference (Reference)
+import qualified Data.Aeson as Aeson
+import qualified Data.ByteString as ByteString
+import qualified Data.ByteString.Lazy as LazyByteString
+import qualified Data.Set as Set
+import qualified Data.Text as Text
+import qualified System.Directory as Directory
+import qualified System.FilePath as FilePath
+import qualified Unison.A_Hash as Hash
+import qualified Unison.Note as Note
+import qualified Unison.A_Reference as Reference
+
+data Store f = Store {
+  hashes :: Maybe (Set Reference) -> Noted f (Set Reference), -- ^ The set of hashes in this store, optionally constrained to intersect the given set
+  readTerm :: Hash -> Noted f Term,
+  writeTerm :: Hash -> Term -> Noted f (),
+  typeOfTerm :: Reference -> Noted f Type,
+  annotateTerm :: Reference -> Type -> Noted f (),
+  readMetadata :: Reference -> Noted f (Metadata Reference),
+  writeMetadata :: Reference -> Metadata Reference -> Noted f ()
+}
+
+-- | Create a 'Store' rooted at the given path.
+store :: FilePath -> IO (Store IO)
+store root =
+  let
+    hashesIn :: (String -> Reference) -> FilePath -> Noted IO (Set Reference)
+    hashesIn f dir = Note.lift $
+      -- the `drop 2` strips out '.' and '..', gak
+      Set.fromList . (map (f . reverse . drop 5 . reverse) . drop 2) <$> -- strip out .json
+        Directory.getDirectoryContents (root </> dir)
+
+    n :: Either String a -> Either Note a
+    n (Left e) = Left (Note.note e)
+    n (Right a) = Right a
+
+    read :: FromJSON a => (h -> Text) -> FilePath -> h -> Noted IO a
+    read f dir h =
+      let file = FilePath.joinPath [root, dir, Text.unpack (f h) ++ ".json"]
+      in Note.noted $ (n . Aeson.eitherDecodeStrict) <$> ByteString.readFile file
+
+    write :: ToJSON a => (h -> Text) -> FilePath -> h -> a -> Noted IO ()
+    write f dir h v =
+      let file = FilePath.joinPath [root, dir, Text.unpack (f h) ++ ".json"]
+      in Note.lift $ ByteString.writeFile file (LazyByteString.toStrict (Aeson.encode v))
+      -- unfortunate that writeFile takes a strict bytestring
+
+    read' :: FromJSON a => FilePath -> Hash -> Noted IO a
+    read' = read Hash.base64
+
+    write' :: ToJSON a => FilePath -> Hash -> a -> Noted IO ()
+    write' = write Hash.base64
+
+    hashes limit =
+      let r = Reference.Derived . Hash.fromBase64 . Text.pack
+          limitf = maybe id Set.intersection limit
+          union a b c = a `Set.union` b `Set.union` c
+      in liftA3 union (limitf <$> hashesIn r "terms")
+                      (limitf <$> hashesIn r "types")
+                      (limitf <$> hashesIn (Reference.Builtin . Text.pack) "builtin-metadata")
+
+    readTerm = read' "terms"
+    writeTerm = write' "terms"
+
+    typeOfTerm (Reference.Derived h) = read' "type-of" h
+    typeOfTerm (Reference.Builtin b) = read id "builtin-type-of" b
+
+    annotateTerm (Reference.Derived h) = write' "type-of" h
+    annotateTerm (Reference.Builtin b) = write id "builtin-type-of" b
+
+    readMetadata (Reference.Derived h) = read' "metadata" h
+    readMetadata (Reference.Builtin b) = read id "builtin-metadata" b
+
+    writeMetadata (Reference.Derived h) = write' "metadata" h
+    writeMetadata (Reference.Builtin b) = write id "builtin-metadata" b
+
+  in do
+    Directory.createDirectoryIfMissing True (root </> "terms")
+    Directory.createDirectoryIfMissing True (root </> "type-of")
+    Directory.createDirectoryIfMissing True (root </> "builtin-type-of")
+    Directory.createDirectoryIfMissing True (root </> "metadata")
+    Directory.createDirectoryIfMissing True (root </> "builtin-metadata")
+    pure $ Store hashes readTerm writeTerm typeOfTerm annotateTerm readMetadata writeMetadata

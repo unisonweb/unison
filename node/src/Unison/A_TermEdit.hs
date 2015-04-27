@@ -7,16 +7,19 @@ module Unison.A_TermEdit where
 
 import Control.Applicative
 import Control.Monad
-import GHC.Generics
 import Data.Aeson.TH
 import Data.Bytes.Serial
+import GHC.Generics
 import Unison.A_Eval (Eval)
 import Unison.A_Hash (Hash)
+import Unison.A_Term (Term)
+import Unison.A_Type (Type)
 import Unison.Note (Noted)
 import qualified Data.Set as Set
+import qualified Unison.ABT as ABT
 import qualified Unison.A_Eval as Eval
 import qualified Unison.A_Term as Term
-import qualified Unison.ABT as ABT
+import qualified Unison.A_Type as Type
 
 data Action
   = Abstract -- Turn target into function parameter
@@ -178,6 +181,15 @@ whnf eval link path t = case Term.focus path t of
   Nothing -> pure Nothing
   Just (sub, replace) -> fmap f (Eval.whnf eval link sub)
     where f sub = Just (path, replace sub)
+
+-- | Produce `e`, `e _`, `e _ _`, `e _ _ _` and so on,
+-- until the result is no longer a function type
+applications :: Term -> Type -> [Term]
+applications e t = e : go e t
+  where
+    go e (Type.Forall' _ t) = go e t
+    go e (Type.Arrow' _ t) = let e' = Term.app e Term.blank in e' : go e' t
+    go _ _ = []
 
 instance Serial Action
 deriveJSON defaultOptions ''Action

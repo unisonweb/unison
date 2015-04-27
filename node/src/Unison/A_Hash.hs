@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Unison.A_Hash (Hash, base64, fromBase64) where
+module Unison.A_Hash (Hash, base64, fromBase64, fromBytes) where
 
 import Control.Applicative
 import Data.Aeson
@@ -24,6 +24,9 @@ base64 (Hash h) = decodeUtf8 (Base64.encode h)
 -- | Produce a 'Hash' from a base64-encoded version of its binary representation
 fromBase64 :: T.Text -> Hash
 fromBase64 = Hash . Base64.decodeLenient . encodeUtf8
+
+fromBytes :: B.ByteString -> Hash
+fromBytes = Hash
 
 hashBytes :: Hash -> B.ByteString
 hashBytes (Hash h) = h

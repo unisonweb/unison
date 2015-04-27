@@ -62,9 +62,9 @@ postRoute s action = S.post s (route action)
 server :: Int -> Node IO Reference T.Type E.Term -> IO ()
 server port node = S.scotty port $ do
   S.addroute OPTIONS (S.regex ".*") $ originOptions
-  postRoute "/admissible-type-of" $ do
+  postRoute "/admissible-type-at" $ do
     (h, path) <- S.jsonData
-    t <- runN $ N.admissibleTypeOf node h path
+    t <- runN $ N.admissibleTypeAt node h path
     S.json t
   postRoute "/create-term" $ do
     (e, md) <- S.jsonData
@@ -122,9 +122,9 @@ server port node = S.scotty port $ do
     hs <- S.jsonData
     ts <- runN $ N.types node hs
     S.json ts
-  postRoute "/type-of" . route $ do
+  postRoute "/type-at" . route $ do
     (h,loc) <- S.jsonData
-    s <- runN $ N.typeOf node h loc
+    s <- runN $ N.typeAt node h loc
     S.json s
   postRoute "/update-metadata" $ do
     (h,md) <- S.jsonData

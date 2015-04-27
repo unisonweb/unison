@@ -46,6 +46,10 @@ data ABT f a
 
 data Term f = Term { freeVars :: Set V, out :: ABT f (Term f) }
 
+-- | `True` if the term has no free variables, `False` otherwise
+isClosed :: Term f -> Bool
+isClosed t = Set.null (freeVars t)
+
 pattern Var' v <- Term _ (Var v)
 pattern Cycle' vs t <- Term _ (Cycle (AbsN' vs t))
 pattern Abs' v body <- Term _ (Abs v body)
@@ -136,6 +140,14 @@ visit f t = case f t of
     Abs x e -> abs x <$> visit f e
     Tm body -> tm <$> traverse (visit f) body
 
+-- | Apply an effectful function to an ABT tree bottom up, sequencing the results.
+fold :: (Traversable f, Applicative g) => (f (Term f) -> g (f (Term f))) -> Term f -> g (Term f)
+fold f t = case out t of
+  Var _ -> pure t
+  Cycle body -> cycle <$> fold f body
+  Abs x e -> abs x <$> fold f e
+  Tm body -> tm <$> traverse (fold f) body
+
 -- | A single step 'focusing' action, returns the subtree and a function
 -- to replace that subtree
 type Focus1 f a = f a -> Maybe (a, a -> f a)
@@ -197,7 +209,6 @@ boundAlong path t = go Set.empty path t where
       (t,_) <- hd ft
       tl <- go env tl t
       pure (env : tl)
-
 
 hash :: forall f . (Foldable f, Digest.Digestable1 f) => Term f -> Digest.Hash
 hash t = hash' [] t where

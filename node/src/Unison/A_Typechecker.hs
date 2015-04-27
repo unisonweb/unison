@@ -2,17 +2,18 @@
 {-# LANGUAGE PatternSynonyms #-}
 
 -- | This module is the primary interface to the Unison typechecker
-module Unison.A_Typechecker (admissibleTypeAt, synthesize, synthesize', check, check', isSubtype, subtype, typeAt, wellTyped) where
+module Unison.A_Typechecker (admissibleTypeAt, check, check', isSubtype, locals, subtype, synthesize, synthesize', typeAt, wellTyped) where
 
 import Control.Applicative
 import Control.Monad
+import Data.Traversable
 import Unison.A_Type (Type)
 import Unison.A_Term (Term)
 import Unison.Note (Note,Noted)
 import qualified Unison.ABT as ABT
-import qualified Unison.Note as Note
 import qualified Unison.A_Term as Term
 import qualified Unison.A_Type as Type
+import qualified Unison.Note as Note
 import qualified Unison.Typechecker.A_Context as Context
 
 --import Debug.Trace
@@ -60,6 +61,27 @@ typeAt synth loc t = Note.scoped ("typeOf@"++show loc ++ " " ++ show t) $
   in case Term.lam f <$> Term.modify (Term.app (Term.var f)) loc t of
     Nothing -> Note.failure $ invalid loc t
     Just t -> shake <$> synthesize synth t
+
+-- | Return the type of all local variables in scope at the given location
+locals :: Applicative f => Type.Env f -> Term.Path -> Term -> Noted f [(ABT.V, Type)]
+locals synth path ctx | ABT.isClosed ctx =
+  Note.scoped ("locals@"++show path ++ " " ++ show ctx)
+              (zip (map fst lambdas) <$> lambdaTypes)
+  where
+    lambdas :: [(ABT.V, Term.Path)]
+    lambdas = Term.pathPrefixes path >>= \path -> case Term.at path ctx of
+      Just (Term.Lam' v _) -> [(v, path)]
+      _ -> []
+
+    lambdaTypes = traverse t (map snd lambdas)
+      where t path = extract <$> typeAt synth path ctx
+
+    extract :: Type -> Type
+    extract (Type.Arrow' i o) = i
+    extract (Type.Forall' _ t) = extract t
+    extract t = error $ "expecting function type, got " ++ show t
+locals _ _ ctx =
+  Note.failure $ "Term.locals: term contains free variables - " ++ show ctx
 
 -- | Infer the type of a 'Unison.Syntax.Term', using
 -- a function to resolve the type of @Ref@ constructors

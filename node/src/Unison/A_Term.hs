@@ -15,20 +15,27 @@ import Data.Aeson.TH
 import Data.Bytes.Serial
 import Data.Foldable (Foldable, traverse_)
 import Data.Functor.Classes
+import Data.List
 import Data.Maybe
-import Data.Vector (Vector, (!?))
+import Data.Set (Set)
 import Data.Text (Text)
 import Data.Traversable (Traversable)
+import Data.Vector (Vector, (!?))
 import GHC.Generics
+import Unison.A_Hash (Hash)
+import Unison.A_Reference (Reference)
+import qualified Control.Monad.Writer.Strict as Writer
 import qualified Data.Aeson as Aeson
 import qualified Data.Bytes.Put as Put
+import qualified Data.Monoid as Monoid
+import qualified Data.Set as Set
 import qualified Data.Vector as Vector
 import qualified Unison.ABT as ABT
+import qualified Unison.A_Reference as Reference
 import qualified Unison.A_Type as T
 import qualified Unison.Digest as Digest
 import qualified Unison.Distance as Distance
 import qualified Unison.JSON as J
-import qualified Unison.Reference as R
 
 -- | Literals in the Unison language
 data Literal
@@ -41,7 +48,7 @@ data Literal
 data F a
   = Lit Literal
   | Blank -- An expression that has not been filled in, has type `forall a . a`
-  | Ref R.Reference
+  | Ref Reference
   | App a a
   | Ann a T.Type
   | Vector (Vector a)
@@ -77,7 +84,7 @@ freshIn = ABT.freshIn
 var :: ABT.V -> Term
 var = ABT.var
 
-ref :: R.Reference -> Term
+ref :: Reference -> Term
 ref r = ABT.tm (Ref r)
 
 lit :: Literal -> Term
@@ -142,7 +149,18 @@ unLet t = fixup (go t) where
   fixup ([], _) = Nothing
   fixup bst = Just bst
 
--- Paths into terms, represented as lists of @PathElement@
+dependencies' :: Term -> Set Reference
+dependencies' t = Set.fromList . Writer.execWriter $ ABT.fold f t
+  where f t@(Ref r) = Writer.tell [r] *> pure t
+        f t = pure t
+
+dependencies :: Term -> Set Hash
+dependencies e = Set.fromList [ h | Reference.Derived h <- Set.toList (dependencies' e) ]
+
+countBlanks :: Term -> Int
+countBlanks t = Monoid.getSum . Writer.execWriter $ ABT.fold f t
+  where f Blank = Writer.tell (Monoid.Sum 1) *> pure Blank
+        f t = pure t
 
 data PathElement
   = Fn -- ^ Points at function in a function application
@@ -168,6 +186,14 @@ focus1 (Binding i) (LetRec bs body) =
 focus1 (Index i) (Vector vs) =
   vs !? i >>= \v -> Just (v, \v -> Vector (Vector.update vs (Vector.singleton (i,v))))
 focus1 _ _ = Nothing
+
+-- | Return the list of all prefixes of the input path
+pathPrefixes :: Path -> [Path]
+pathPrefixes = inits
+
+-- | Add an element onto the end of this 'Path'
+pathExtend :: PathElement -> Path -> Path
+pathExtend e p = p ++ [e]
 
 at :: Path -> Term -> Maybe Term
 at p t = ABT.at (map focus1 p) t

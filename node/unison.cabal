@@ -51,7 +51,10 @@ library
     Unison.A_Type
     Unison.A_Eval
     Unison.A_Typechecker
+    Unison.A_Node
     Unison.Typechecker.A_Context
+    Unison.Node.A_Store
+    Unison.Node.A_Implementation
     Unison.ABT
     Unison.Digest
     Unison.Distance

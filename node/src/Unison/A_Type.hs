@@ -24,7 +24,7 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Digest as Digest
 import qualified Unison.JSON as J
 import qualified Unison.Kind as K
-import qualified Unison.Reference as R
+import qualified Unison.A_Reference as R
 
 -- | Type literals
 data Literal
