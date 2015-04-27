@@ -1,11 +1,15 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
+
 -- | This module is the primary interface to the Unison typechecker
-module Unison.A_Typechecker (synthesize, synthesize', check, check', wellTyped, subtype, isSubtype) where
+module Unison.A_Typechecker (admissibleTypeAt, synthesize, synthesize', check, check', isSubtype, subtype, typeAt, wellTyped) where
 
 import Control.Applicative
 import Control.Monad
 import Unison.A_Type (Type)
 import Unison.A_Term (Term)
 import Unison.Note (Note,Noted)
+import qualified Unison.ABT as ABT
 import qualified Unison.Note as Note
 import qualified Unison.A_Term as Term
 import qualified Unison.A_Type as Type
@@ -13,6 +17,49 @@ import qualified Unison.Typechecker.A_Context as Context
 
 --import Debug.Trace
 --watch msg a = trace (msg ++ show a) a
+
+invalid :: (Show a1, Show a) => a -> a1 -> String
+invalid loc ctx = "invalid path " ++ show loc ++ " in:\n" ++ show ctx
+
+-- | Compute the allowed type of a replacement for a given subterm.
+-- Example, in @\g -> map g [1,2,3]@, @g@ has an admissible type of
+-- @Int -> r@, where @r@ is an unbound universal type variable, which
+-- means that an @Int -> Bool@, an @Int -> String@, etc could all be
+-- substituted for @g@.
+--
+-- Algorithm works by replacing the subterm, @e@ with
+-- @(f e)@, where @f@ is a fresh function parameter. We then
+-- read off the type of @e@ from the inferred result type of @f@.
+--
+-- Note: the returned type may contain free type variables, since
+-- we strip off any outer foralls.
+admissibleTypeAt :: Applicative f
+                 => Type.Env f
+                 -> Term.Path
+                 -> Term
+                 -> Noted f Type
+admissibleTypeAt synth loc t =
+  let
+    f = Term.freshIn t (ABT.v' "s")
+    shake (Type.Arrow' (Type.Arrow' _ tsub) _) = tsub
+    shake (Type.Forall' _ t) = shake t
+    shake _ = error "impossible, f had better be a function"
+  in case Term.lam f <$> Term.modify (Term.app (Term.var f)) loc t of
+    Nothing -> Note.failure $ invalid loc t
+    Just t -> shake <$> synthesize synth t
+
+-- | Compute the type of the given subterm.
+typeAt :: Applicative f => Type.Env f -> Term.Path -> Term -> Noted f Type
+typeAt synth [] t = Note.scoped ("typeOf: " ++ show t) $ synthesize synth t
+typeAt synth loc t = Note.scoped ("typeOf@"++show loc ++ " " ++ show t) $
+  let
+    f = Term.freshIn t (ABT.v' "t")
+    shake (Type.Arrow' (Type.Arrow' tsub _) _) = tsub
+    shake (Type.Forall' _ t) = shake t
+    shake _ = error "impossible, f had better be a function"
+  in case Term.lam f <$> Term.modify (Term.app (Term.var f)) loc t of
+    Nothing -> Note.failure $ invalid loc t
+    Just t -> shake <$> synthesize synth t
 
 -- | Infer the type of a 'Unison.Syntax.Term', using
 -- a function to resolve the type of @Ref@ constructors

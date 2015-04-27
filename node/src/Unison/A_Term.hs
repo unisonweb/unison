@@ -69,7 +69,13 @@ pattern Let1' v b e <- (ABT.out -> ABT.Tm (Let b (ABT.Abs' v e)))
 pattern Let' bs e relet rec <- (unLets -> Just (bs,e,relet,rec))
 pattern LetRec' bs e <- (unLetRec -> Just (bs,e))
 
+freshIn :: Term -> ABT.V -> ABT.V
+freshIn = ABT.freshIn
+
 -- some smart constructors
+
+var :: ABT.V -> Term
+var = ABT.var
 
 ref :: R.Reference -> Term
 ref r = ABT.tm (Ref r)
