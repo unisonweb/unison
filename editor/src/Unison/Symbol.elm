@@ -7,13 +7,18 @@ import Elmz.Json.Decoder (Decoder)
 
 type Fixity = InfixL | InfixR | Infix | Prefix
 
-type alias Symbol = { name : String, fixity : Fixity, precedence : Int }
+type alias Symbol = { freshId : Int, name : String, fixity : Fixity, precedence : Int }
+
+type alias Key = String
+
+toKey : Symbol -> Key
+toKey = toString
 
 anonymous : Symbol
-anonymous = Symbol "anonymousSymbol" Prefix 9
+anonymous = Symbol 0 "anonymous" Prefix 9
 
 prefix : String -> Symbol
-prefix name = Symbol name Prefix 9
+prefix name = Symbol 0 name Prefix 9
 
 decodeFixity : Decoder Fixity
 decodeFixity = Decoder.andThen Decoder.string <| \t ->
@@ -33,14 +38,16 @@ encodeFixity f = case f of
 decodeSymbol : Decoder Symbol
 decodeSymbol =
   let symbol n f p = { name = n, fixity = f, precedence = p }
-  in Decoder.map3 Symbol
+  in Decoder.map4 Symbol
+       (Decoder.at ["freshId"] Decoder.int)
        (Decoder.at ["name"] Decoder.string)
        (Decoder.at ["fixity"] decodeFixity)
        (Decoder.at ["precedence"] Decoder.int)
 
 encodeSymbol : Encoder Symbol
 encodeSymbol s =
-  Encoder.object3 ("name", Encoder.string)
+  Encoder.object4 ("freshId", Encoder.int)
+                  ("name", Encoder.string)
                   ("fixity", encodeFixity)
                   ("precedence", Encoder.int)
-                  (s.name, s.fixity, s.precedence)
+                  (s.freshId, s.name, s.fixity, s.precedence)

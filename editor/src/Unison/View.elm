@@ -27,7 +27,6 @@ import Unison.Term as Term
 import Unison.Type as Type
 import Unison.Path (..)
 import Unison.Path as Path
-import Unison.Var as V
 import String
 import Text
 type alias E = Path.E
@@ -66,7 +65,7 @@ key : { tl | metadata : R.Reference -> Metadata }
    -> String
 key env cur = case cur.term of
   Blank -> "_"
-  Var v -> "v" ++ toString v
+  Var v -> v.name
   Lit (Number n) -> toString n
   Lit (Text s) -> toString s
   Lit (Distance d) -> toString d
@@ -77,9 +76,9 @@ key env cur = case cur.term of
   Vector terms ->
     let ki i term = key env { cur | path <- cur.path `snoc` Index i, term <- term }
     in "[" ++ String.join "," (Array.toList (Array.indexedMap ki terms)) ++ "]"
-  Lam body -> key env { path = cur.path `snoc` Body
-                      , term = body }
-
+  Lam n body -> n.name ++ " -> " ++
+                key env { path = cur.path `snoc` Body
+                        , term = body }
 todo : a
 todo = todo
 
@@ -140,11 +139,11 @@ impl env allowBreak ambientPrec availableWidth cur =
                              (impl env allowBreak 9 (availableWidth - E.widthOf ann)
                                { cur | term <- e })
                              (L.embed (tag cur.path) ann)
-      Lam body ->
+      Lam n body ->
         let space' = L.embed (tag cur.path) space
-            arg = codeText ("v" ++ toString (lambdaDepth cur.path)) |> L.embed (tag cur.path)
+            arg = codeText (n.name) |> L.embed (tag cur.path)
             nested = case body of
-              Lam _ -> True
+              Lam _ _ -> True
               _ -> False
             argLayout = [arg]
                      ++ (if nested then [] else [L.embed (tag cur.path) (codeText "→")])
@@ -351,7 +350,7 @@ builtins env allowBreak availableWidth ambientPrec cur =
         _ -> Nothing
       _ -> Nothing
   in case cur.term of
-    App (App (App (Ref (R.Builtin "View.view")) (App (Ref (R.Builtin "View.function1")) (Lam body))) f) e ->
+    App (App (App (Ref (R.Builtin "View.view")) (App (Ref (R.Builtin "View.function1")) (Lam n body))) f) e ->
       -- all paths will point to `f` aside from `e`
       let eview = impl env allowBreak 0 availableWidth
                   { cur | path <- cur.path `snoc` Arg, term <- e }
@@ -359,7 +358,7 @@ builtins env allowBreak availableWidth ambientPrec cur =
           fpath = cur.path `append` [Fn,Arg]
           trim l = if Path.startsWith fpath l.path then { l | path <- cur.path } else l
           g view = impl env allowBreak ambientPrec availableWidth
-                   { cur | path <- fpath, term <- betaReduce (App (Lam body) (unclose view)) }
+                   { cur | path <- fpath, term <- betaReduce (App (Lam n body) (unclose view)) }
                    |> L.map trim
       in Maybe.map g eview
     App (App (Ref (R.Builtin "View.cell")) v) e -> go v e

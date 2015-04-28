@@ -38,7 +38,6 @@ import Unison.TermExplorer as TermExplorer
 import Unison.Terms as Terms
 import Unison.Type (Type)
 import Unison.Type as Type
-import Unison.Var as Var
 import Unison.View as View
 import Window
 

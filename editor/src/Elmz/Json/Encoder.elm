@@ -102,5 +102,8 @@ tag tagKey contentsKey tagValue j a =
 tag' : String -> Encoder a -> Encoder a
 tag' = tag "tag" "contents"
 
+tagProduct : String -> Encoder a -> Encoder a
+tagProduct t encoder a = J.list [ J.string t, encoder a ]
+
 product0 : Encoder ()
 product0 _ = J.list []

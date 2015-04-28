@@ -58,6 +58,19 @@ union tag contents f =
 union' : (String -> Decoder a) -> Decoder a
 union' = union "tag" "contents"
 
+-- Extracts a tag from the 0th index of the input, assumed to be an array,
+-- and uses this to pick a decoder to run on the 1st index of the input.
+arrayUnion : (String -> Decoder a) -> Decoder a
+arrayUnion f =
+  product2 always string (unit ()) `andThen` \t ->
+  product2 (\_ a -> a) (unit ()) (f t)
+
+-- Like `arrayUnion`, but for just a single decoder. The tag must match `expected`.
+arrayNewtyped : String -> Decoder a -> Decoder a
+arrayNewtyped expected d =
+  let ok t = if t == expected then d else fail ("expected " ++ expected ++ " got :" ++ t)
+  in arrayUnion ok
+
 newtyped' : (a -> b) -> Decoder a -> Decoder b
 newtyped' f p = union' (\_ -> J.map f p)
 

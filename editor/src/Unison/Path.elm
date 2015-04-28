@@ -10,7 +10,6 @@ import Json.Decode as Decode
 import List
 import List ((::))
 import String
-import Unison.Var as Var
 
 type E
   = Fn -- ^ Points at function in a function application

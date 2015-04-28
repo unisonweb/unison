@@ -11,8 +11,7 @@ import Unison.Metadata as Metadata
 import Unison.Reference (Reference)
 import Unison.Reference as Reference
 import Unison.Symbol (Symbol)
-import Unison.Var (I)
-import Unison.Var as V
+import Unison.Symbol as Symbol
 
 type Literal
   = Number
@@ -22,7 +21,7 @@ type Literal
   | Ref Reference
 
 type Type
-  = Unit Literal
+  = Lit Literal
   | Arrow Type Type
   | App Type Type
   | Universal Symbol
@@ -32,7 +31,7 @@ type Type
   | Forall Symbol Type
 
 all : Type
-all = Forall 0 (Universal 0)
+all = Forall Symbol.anonymous (Universal Symbol.anonymous)
 
 type Kind = Star | KArrow Kind Kind
 
@@ -45,7 +44,7 @@ key env cur =
     paren : Int -> Int -> String -> String
     paren cur ambient s = if cur < ambient then "(" ++ s ++ ")" else s
     go top prec cur = case cur of
-      Unit lit -> case lit of
+      Lit lit -> case lit of
         Ref r -> Metadata.firstName (Reference.toKey r) (env.metadata r)
         _ -> toString lit
       Universal v -> "t"++toString v
@@ -76,6 +75,11 @@ decodeKind = Decoder.union' <| \t ->
   if | t == "Star" -> Decoder.unit Star
      | t == "Arrow" -> Decoder.product2 KArrow decodeKind decodeKind
 
+encodeKind : Encoder Kind
+encodeKind k = case k of
+  Star -> Encoder.tag' "Star" Encoder.product0 ()
+  KArrow k k2 -> Encoder.tag' "Arrow" (Encoder.list encodeKind) [k, k2]
+
 decodeLiteral : Decoder Literal
 decodeLiteral = Decoder.union' <| \t ->
   if | t == "Number" -> Decoder.unit Number
@@ -83,22 +87,6 @@ decodeLiteral = Decoder.union' <| \t ->
      | t == "Vector" -> Decoder.unit Vector
      | t == "Distance" -> Decoder.unit Distance
      | t == "Ref" -> Decoder.map Ref Reference.decode
-
-decodeType : Decoder Type
-decodeType = Decoder.union' <| \t ->
-  if | t == "Unit" -> Decoder.map Unit decodeLiteral
-     | t == "Arrow" -> Decoder.product2 Arrow decodeType decodeType
-     | t == "App" -> Decoder.product2 App decodeType decodeType
-     | t == "Universal" -> Decoder.map Universal V.decode
-     | t == "Existential" -> Decoder.map Existential V.decode
-     | t == "Kind" -> Decoder.product2 Ann decodeType decodeKind
-     | t == "Constrain" -> Decoder.product2 Constrain decodeType (Decoder.unit ())
-     | t == "Forall" -> Decoder.product2 Forall V.decode decodeType
-
-encodeKind : Encoder Kind
-encodeKind k = case k of
-  Star -> Encoder.tag' "Star" Encoder.product0 ()
-  KArrow k k2 -> Encoder.tag' "Arrow" (Encoder.list encodeKind) [k, k2]
 
 encodeLiteral : Encoder Literal
 encodeLiteral l = case l of
@@ -108,13 +96,35 @@ encodeLiteral l = case l of
   Distance -> Encoder.tag' "Distance" Encoder.product0 ()
   Ref r -> Encoder.tag' "Ref" Reference.encode r
 
+decodeType : Decoder Type
+decodeType =
+  Decoder.arrayUnion <| \t ->
+  if t /= "Tm" then Decoder.fail ("decodeType.ABT unknown tag: " ++ t)
+  else Decoder.union' <| \t ->
+    if | t == "Lit" -> Decoder.map Lit decodeLiteral
+       | t == "Arrow" -> Decoder.product2 Arrow decodeType decodeType
+       | t == "App" -> Decoder.product2 App decodeType decodeType
+       | t == "Universal" -> Decoder.arrayNewtyped "Var" (Decoder.map Universal Symbol.decodeSymbol)
+       | t == "Existential" -> Decoder.arrayNewtyped "Var" (Decoder.map Existential Symbol.decodeSymbol)
+       | t == "Kind" -> Decoder.product2 Ann decodeType decodeKind
+       | t == "Constrain" -> Decoder.product2 Constrain decodeType (Decoder.unit ())
+       | t == "Forall" -> Decoder.arrayNewtyped "Abs" (Decoder.product2 Forall Symbol.decodeSymbol decodeType)
+       | otherwise -> Decoder.fail ("decodeType.F unknown tag: " ++ t)
+
 encodeType : Encoder Type
 encodeType t = case t of
-  Unit l -> Encoder.tag' "Unit" encodeLiteral l
-  Arrow i o -> Encoder.tag' "Arrow" (Encoder.list encodeType) [i, o]
-  App x y -> Encoder.tag' "App" (Encoder.list encodeType) [x, y]
-  Universal v -> Encoder.tag' "Universal" V.encode v
-  Existential v -> Encoder.tag' "Existential" V.encode v
-  Ann t k -> Encoder.tag' "Ann" (Encoder.tuple2 encodeType encodeKind) (t,k)
-  Constrain t c -> Encoder.tag' "Constrain" (Encoder.tuple2 encodeType Encoder.product0) (t, ())
-  Forall n t -> Encoder.tag' "Forall" (Encoder.tuple2 V.encode encodeType) (n, t)
+  Forall n t ->
+    Encoder.tagProduct
+      "Tm"
+      (Encoder.tag' "Forall" (Encoder.tagProduct "Abs" (Encoder.tuple2 Symbol.encodeSymbol encodeType)))
+      (n, t)
+  _ -> Encoder.tagProduct "Tm" (\t -> case t of
+    Lit l -> Encoder.tag' "Lit" encodeLiteral l
+    Arrow i o -> Encoder.tag' "Arrow" (Encoder.list encodeType) [i, o]
+    App x y -> Encoder.tag' "App" (Encoder.list encodeType) [x, y]
+    Universal v -> Encoder.tag' "Universal" (Encoder.tagProduct "Var" Symbol.encodeSymbol) v
+    Existential v -> Encoder.tag' "Existential" (Encoder.tagProduct "Var" Symbol.encodeSymbol) v
+    Ann t k -> Encoder.tag' "Ann" (Encoder.tuple2 encodeType encodeKind) (t,k)
+    Constrain t c -> Encoder.tag' "Constrain" (Encoder.tuple2 encodeType Encoder.product0) (t, ())
+  ) t
+

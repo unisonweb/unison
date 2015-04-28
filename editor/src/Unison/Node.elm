@@ -23,7 +23,6 @@ import Unison.Reference (Reference)
 import Unison.Term (Term)
 import Unison.Type as T
 import Unison.Type (Type)
-import Unison.Var as V
 type alias Path = Path.Path
 
 type alias Host = String
@@ -134,10 +133,10 @@ transitiveDependents host = Request.post host "transitive-dependents"
   (Encoder.tuple2 (Encoder.optional (Encoder.list Reference.encode)) Reference.encode)
   (Decoder.list Reference.decode)
 
-typeOf : Host -> Request (Term, Path) Type
-typeOf host = Request.post host "type-of"
-  (Encoder.tuple2 E.encodeTerm Path.encodePath)
-  T.decodeType
+--typeOf : Host -> Request (Term, Path) Type
+--typeOf host = Request.post host "type-of"
+--  (Encoder.tuple2 E.encodeTerm Path.encodePath)
+--  T.decodeType
 
 types : Host -> Request (List Reference) (M.Dict Reference.Key Type)
 types host = Request.post host "types"

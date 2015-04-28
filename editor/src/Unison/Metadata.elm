@@ -16,8 +16,6 @@ import Unison.Path as Path
 import Unison.Reference as R
 import Unison.Symbol (Symbol)
 import Unison.Symbol as Symbol
-import Unison.Var (I)
-import Unison.Var as V
 type alias E = Path.E
 type alias Path = Path.Path -- to avoid conflict with Graphics.Collage.Path
 
@@ -46,7 +44,7 @@ defaultMetadata s =
 
 firstSymbol : String -> Metadata -> Symbol
 firstSymbol defaultName md = case md.names of
-  [] -> { name = defaultName, fixity = Symbol.Prefix, precedence = 9 }
+  [] -> { freshId = 0, name = defaultName, fixity = Symbol.Prefix, precedence = 9 }
   h :: _ -> h
 
 firstName : String -> Metadata -> String
