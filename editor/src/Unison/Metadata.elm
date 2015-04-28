@@ -2,18 +2,20 @@ module Unison.Metadata where
 
 import Array
 import Dict
-import Elmz.Json.Encoder as Encoder
-import Elmz.Json.Encoder (Encoder)
-import Elmz.Json.Decoder as Decoder
 import Elmz.Json.Decoder (Decoder, (#))
+import Elmz.Json.Decoder as Decoder
+import Elmz.Json.Encoder (Encoder)
+import Elmz.Json.Encoder as Encoder
 import Elmz.Moore (Moore(..))
 import Elmz.Moore as Moore
 import List
 import Maybe
-import Unison.Reference as R
-import Unison.Path as Path
-import Unison.Path (Path)
 import Unison.Hash as H
+import Unison.Path (Path)
+import Unison.Path as Path
+import Unison.Reference as R
+import Unison.Symbol (Symbol)
+import Unison.Symbol as Symbol
 import Unison.Var (I)
 import Unison.Var as V
 type alias E = Path.E
@@ -35,22 +37,16 @@ cache =
   in Moore Dict.empty (go Dict.empty)
      |> Moore.map (\dict r -> Maybe.withDefault (defaultMetadata r) (Dict.get (R.toKey r) dict))
 
-anonymousSymbol : Symbol
-anonymousSymbol = Symbol "anonymousSymbol" Prefix 9
-
-prefixSymbol : String -> Symbol
-prefixSymbol name = Symbol name Prefix 9
-
 anonymousTerm : Metadata
 anonymousTerm = Metadata Term [] Nothing
 
 defaultMetadata : R.Reference -> Metadata
 defaultMetadata s =
-  Metadata Term [prefixSymbol (R.toKey s)] Nothing
+  Metadata Term [Symbol.prefix (R.toKey s)] Nothing
 
 firstSymbol : String -> Metadata -> Symbol
 firstSymbol defaultName md = case md.names of
-  [] -> { name = defaultName, fixity = Prefix, precedence = 9 }
+  [] -> { name = defaultName, fixity = Symbol.Prefix, precedence = 9 }
   h :: _ -> h
 
 firstName : String -> Metadata -> String
@@ -59,43 +55,9 @@ firstName ifEmpty md =
   then ifEmpty
   else (List.head md.names).name
 
-type Fixity = InfixL | InfixR | Infix | Prefix
-
-type alias Symbol = { name : String, fixity : Fixity, precedence : Int }
-
 type alias Names = List Symbol
 
 type alias Query = String
-
-decodeFixity : Decoder Fixity
-decodeFixity = Decoder.andThen Decoder.string <| \t ->
-  if | t == "InfixL" -> Decoder.unit InfixL
-     | t == "InfixR" -> Decoder.unit InfixR
-     | t == "Infix"  -> Decoder.unit Infix
-     | t == "Prefix" -> Decoder.unit Prefix
-     | otherwise -> Decoder.fail ("expected {InfixL, InfixR, Infix, Prefix}, got : " ++ t)
-
-encodeFixity : Encoder Fixity
-encodeFixity f = case f of
-  InfixL -> Encoder.string "InfixL"
-  InfixR -> Encoder.string "InfixR"
-  Infix -> Encoder.string "Infix"
-  Prefix -> Encoder.string "Prefix"
-
-decodeSymbol : Decoder Symbol
-decodeSymbol =
-  let symbol n f p = { name = n, fixity = f, precedence = p }
-  in Decoder.map3 Symbol
-       (Decoder.at ["name"] Decoder.string)
-       (Decoder.at ["fixity"] decodeFixity)
-       (Decoder.at ["precedence"] Decoder.int)
-
-encodeSymbol : Encoder Symbol
-encodeSymbol s =
-  Encoder.object3 ("name", Encoder.string)
-                  ("fixity", encodeFixity)
-                  ("precedence", Encoder.int)
-                  (s.name, s.fixity, s.precedence)
 
 decodeSort : Decoder Sort
 decodeSort = Decoder.andThen Decoder.string <| \t ->
@@ -115,10 +77,10 @@ encodeQuery : Encoder Query
 encodeQuery = Encoder.string
 
 decodeNames : Decoder Names
-decodeNames = Decoder.list decodeSymbol
+decodeNames = Decoder.list Symbol.decodeSymbol
 
 encodeNames : Encoder Names
-encodeNames = Encoder.list encodeSymbol
+encodeNames = Encoder.list Symbol.encodeSymbol
 
 decodeMetadata : Decoder Metadata
 decodeMetadata =

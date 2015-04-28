@@ -16,7 +16,9 @@ import Graphics.Element as E
 import Maybe
 import Unison.Reference as R
 import Unison.Hash (Hash)
-import Unison.Metadata (Metadata, Fixity)
+import Unison.Metadata (Metadata)
+import Unison.Symbol (Fixity)
+import Unison.Symbol as Symbol
 import Unison.Metadata as Metadata
 import Unison.Styles (codeText)
 import Unison.Styles as Styles
@@ -240,12 +242,12 @@ break env cur =
     App (App op l) r ->
       let sym = case op of
         Ref h -> Metadata.firstSymbol (R.toKey h) (env.metadata h)
-        Var v -> Metadata.prefixSymbol ("v" ++ toString v)
-        _ -> Metadata.anonymousSymbol
+        Var v -> Symbol.prefix ("v" ++ toString v)
+        _ -> Symbol.anonymous
       in case sym.fixity of
-        Metadata.Prefix -> prefix (App (App op l) r) [] cur.path -- not an operator chain, fall back
-        Metadata.InfixL -> opsL op sym.precedence (App (App op l) r) [] cur.path -- left associated operator chain
-        Metadata.InfixR -> opsR op sym.precedence (App (App op l) r) cur.path
+        Symbol.Prefix -> prefix (App (App op l) r) [] cur.path -- not an operator chain, fall back
+        Symbol.InfixL -> opsL op sym.precedence (App (App op l) r) [] cur.path -- left associated operator chain
+        Symbol.InfixR -> opsR op sym.precedence (App (App op l) r) cur.path
     _ -> prefix cur.term [] cur.path
 
 -- denotes a function a -> Layout

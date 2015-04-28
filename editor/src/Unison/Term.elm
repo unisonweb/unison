@@ -23,7 +23,8 @@ import String
 import Unison.Reference as R
 import Unison.Hash (Hash)
 import Unison.Hash as H
-import Unison.Metadata (Metadata, Fixity)
+import Unison.Metadata (Metadata)
+import Unison.Symbol (Fixity)
 import Unison.Metadata as Metadata
 import Unison.Path (..)
 import Unison.Path as Path
