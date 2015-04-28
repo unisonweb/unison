@@ -60,8 +60,6 @@ node eval store =
         where f Nothing = Nothing
               f (Just (newPath,e')) = Just (rootPath,e,e',newPath)
 
-    editType = error "Common.editType.todo"
-
     evaluateTerms es = traverse go es
       where go (path,e) = (\e' -> (path,e,e')) <$> Eval.whnf eval (Store.readTerm store) e
 
@@ -141,7 +139,6 @@ node eval store =
        dependencies
        dependents
        edit
-       editType
        evaluateTerms
        localInfo
        metadatas
