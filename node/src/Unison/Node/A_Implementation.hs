@@ -54,10 +54,11 @@ node eval store =
                   (Set.toList hs)
       pure $ Set.fromList [x | (x,deps) <- hs', Set.member h deps]
 
-    edit rootPath path action e =
-      f <$> TermEdit.interpret eval (Store.readTerm store) path action e
-      where f Nothing = Nothing
-            f (Just (p,e')) = Just (rootPath,e,e')
+    edit rootPath path action e = case Term.at rootPath e of
+      Nothing -> pure Nothing
+      Just e -> f <$> TermEdit.interpret eval (Store.readTerm store) path action e
+        where f Nothing = Nothing
+              f (Just (newPath,e')) = Just (rootPath,e,e',newPath)
 
     editType = error "Common.editType.todo"
 
@@ -105,7 +106,7 @@ node eval store =
         qmatches' <- filterM queryOk (map Term.ref (Set.toList hs))
         illtypedQmatches <-
           -- return type annotated versions of ill-typed terms
-          let terms = Set.toList (Set.difference (Set.fromList qmatches') (Set.fromList qmatches))
+          let terms = qmatches' `ABT.subtract` qmatches
           in zipWith Term.ann terms <$> traverse (Typechecker.synthesize readTypeOf) terms
         mds <- mapM (\h -> (,) h <$> Store.readMetadata store h)
                     (Set.toList (Set.unions (map Term.dependencies' (illtypedQmatches ++ qmatches))))

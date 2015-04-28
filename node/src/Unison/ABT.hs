@@ -29,6 +29,7 @@ import qualified Data.Bytes.Put as Put
 import qualified Data.Bytes.Get as Get
 import qualified Data.Aeson as Aeson
 import qualified Data.Foldable as Foldable
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
@@ -237,6 +238,17 @@ hash t = hash' [] t where
       env -> Foldable.traverse_ (serialize . hash' env) ts'
           *> pure (hash' env)
   hashCycle env ts = Foldable.traverse_ (serialize . hash' env) ts *> pure (hash' env)
+
+-- | Use the `hash` function to efficiently remove duplicates from the list, preserving order.
+distinct :: (Foldable f, Digest.Digestable1 f) => [Term f] -> [Term f]
+distinct ts = map fst (sortBy (comparing snd) m)
+  where m = Map.elems (Map.fromList (map hash ts `zip` (ts `zip` [0 :: Int .. 1])))
+
+-- | Use the `hash` function to remove elements from `t1s` that exist in `t2s`, preserving order.
+subtract :: (Foldable f, Digest.Digestable1 f) => [Term f] -> [Term f] -> [Term f]
+subtract t1s t2s =
+  let skips = Set.fromList (map hash t2s)
+  in filter (\t -> Set.notMember (hash t) skips) t1s
 
 unabs :: Term f -> ([V], Term f)
 unabs (Term _ (Abs hd body)) =

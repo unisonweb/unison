@@ -41,7 +41,7 @@ data Node m k t e = Node {
   -- | Modify the given subterm, which may fail. First argument is the root path.
   -- Second argument is path relative to the root.
   -- Returns (root path, original e, edited e)
-  editTerm :: Term.Path -> Term.Path -> Action -> e -> Noted m (Maybe (Term.Path,e,e)),
+  editTerm :: Term.Path -> Term.Path -> Action -> e -> Noted m (Maybe (Term.Path,e,e,Term.Path)),
   -- | Modify the given type, which may fail
   editType :: Term.Path -> Action -> t -> Noted m t,
   -- Evaluate all terms, returning a list of (path, original e, evaluated e)
