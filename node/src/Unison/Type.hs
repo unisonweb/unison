@@ -1,33 +1,30 @@
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Type where
 
 import Control.Applicative
-import Control.Lens
+import Data.Aeson (toJSON, parseJSON)
 import Data.Aeson.TH
-import qualified Data.Aeson.Encode as JE
-import qualified Data.List as L
-import qualified Data.Set as S
-import Unison.Note as N
-import qualified Unison.Hash as H
+import Data.Bytes.Serial
+import Data.Foldable (Foldable)
+import Data.Functor.Classes (Eq1(..),Show1(..))
+import Data.Set (Set)
+import Data.Traversable (Traversable)
+import GHC.Generics
+import Unison.Note (Noted)
+import qualified Data.Bytes.Put as Put
+import qualified Unison.ABT as ABT
+import qualified Unison.Digest as Digest
+import qualified Unison.JSON as J
 import qualified Unison.Kind as K
-import qualified Unison.Var as V
 import qualified Unison.Reference as R
-
--- constructor is private not exported
-data Monotype = Monotype { getPolytype :: Type } deriving (Eq,Ord)
-instance Show Monotype where
-  show (Monotype t) = show t
-
--- An environment for looking up type references
-type Env f = R.Reference -> Noted f Type
 
 -- | Type literals
 data Literal
@@ -36,133 +33,115 @@ data Literal
   | Vector
   | Distance
   | Ref R.Reference -- ^ A type literal uniquely defined by some nameless Hash
-  deriving (Eq,Ord,Show)
-
--- | Types in the Unison language
-data Type
-  = Unit Literal
-  | Arrow Type Type
-  | Universal V.Var
-  | Existential V.Var
-  | Ann Type K.Kind
-  | App Type Type
-  | Constrain Type () -- todo: constraint language
-  | Forall V.Var Type
-  deriving (Eq,Ord)
-
-instance Show Type where
-  show (Unit l) = show l
-  show (Arrow (Arrow i i2) o) = "(" ++ show i ++ " -> " ++ show i2 ++ ") -> " ++ show o
-  show (Arrow i o) = show i ++ " -> " ++ show o
-  show (Universal n) = show n
-  show (Existential n) = "'" ++ show n
-  show (Ann t k) = show t ++ ":" ++ show k
-  show (App f arg) = "(" ++ show f ++ " " ++ show arg ++ ")"
-  show (Constrain t _) = show t
-  show (Forall x (Forall y (Forall z t))) =
-    "(∀ " ++ (L.intercalate " " . map show) [x,y,z] ++ ". " ++ show t ++ ")"
-  show (Forall x (Forall y t)) = "(∀ " ++ (L.intercalate " " . map show) [x,y] ++ ". " ++ show t++")"
-  show (Forall x t) = "(∀ " ++ show x ++ ". " ++ show t++")"
-
-monotype :: Type -> Maybe Monotype
-monotype t = Monotype <$> go t where
-  go (Unit l) = pure (Unit l)
-  go (Arrow i o) = Arrow <$> go i <*> go o
-  go (Universal v) = pure (Universal v)
-  go (Existential v) = pure (Existential v)
-  go (Ann t' k) = Ann <$> go t' <*> pure k
-  go (Constrain t' c) = Constrain <$> go t' <*> pure c
-  go _ = Nothing
-
-maxV :: Type -> V.Var
-maxV t = go t where
-  go (Unit _) = bot
-  go (Universal _) = bot
-  go (Existential _) = bot
-  go (Arrow i o) = go i `max` go o
-  go (Ann t _) = go t
-  go (App f arg) = go f `max` go arg
-  go (Constrain t _) = go t
-  go (Forall n _) = n
-  bot = V.decr V.bound1
-
--- | HOAS syntax for `Forall` constructor:
--- `forall1 $ \x -> Arrow x x`
-forall1 :: (Type -> Type) -> Type
-forall1 f = Forall n body where
-  body = f (Universal n)
-  n = V.succ (maxV body)
-
--- | Apply a function underneath a @Forall@
-under :: Type -> Maybe ((Type -> Type) -> Type)
-under (Forall n body) = Just $ \f -> forall1 $ \x -> f (subst body n x)
-under _ = Nothing
-
--- | HOAS syntax for `Forall` constructor,
--- `exists1 $ \x -> Arrow x x`
-exists1 :: (Type -> Type) -> Type
-exists1 f = Forall n body where
-  body = f (Existential n)
-  n = V.succ (maxV body)
-
--- | HOAS syntax for `Forall` constructor:
--- | HOAS syntax for `Forall` constructor:
--- `forall2 $ \x y -> Arrow (Arrow x y) (Arrow x y)`
-forall2 :: (Type -> Type -> Type) -> Type
-forall2 f = forall1 $ \x -> forall1 $ \y -> f x y
-
--- | HOAS syntax for `Forall` constructor:
--- `forall3 $ \x y z -> Arrow (Arrow x y z) (Arrow x y z)`
-forall3 :: (Type -> Type -> Type -> Type) -> Type
-forall3 f = forall1 $ \x -> forall1 $ \y -> forall1 $ \z -> f x y z
-
--- | mnemonic `subst fn var=arg`
-subst :: Type -> V.Var -> Type -> Type
-subst fn var arg = case fn of
-  Unit l -> Unit l
-  Arrow i o -> Arrow (subst i var arg) (subst o var arg)
-  Universal v | v == var -> arg
-              | otherwise -> fn
-  Existential v | v == var -> arg
-                | otherwise -> fn
-  Ann fn' t -> Ann (subst fn' var arg) t
-  App x y -> App (subst x var arg) (subst y var arg)
-  Constrain fn' t -> Constrain (subst fn' var arg) t
-  Forall v fn' -> Forall v (subst fn' var arg)
-
--- | The set of unbound variables in this type
-freeVars :: Type -> S.Set V.Var
-freeVars t = case t of
-  Unit _ -> S.empty
-  Arrow i o -> S.union (freeVars i) (freeVars o)
-  Universal v -> S.singleton v
-  Existential v -> S.singleton v
-  Ann fn _ -> freeVars fn
-  App x y -> S.union (freeVars x) (freeVars y)
-  Constrain fn _ -> freeVars fn
-  Forall v fn -> S.delete v (freeVars fn)
-
--- | Remove any stray quantifiers
-gc :: Type -> Type
-gc t = go (relevant t) t
-  where
-    relevant (Forall _ t) = relevant t
-    relevant t = freeVars t
-    go relevant (Forall v body) | S.member v relevant = Forall v (go relevant body)
-    go relevant (Forall v body) | otherwise = go relevant body
-    go _ t = t
-
-hash :: Type -> H.Digest
-hash = H.lazyBytes . JE.encode
-
-finalizeHash :: Type -> H.Hash
-finalizeHash = H.finalize . hash
-
-hashes :: [Type] -> H.Hash
-hashes _ = error "todo: Type.hashes"
-
-makePrisms ''Literal
-makePrisms ''Type
+  deriving (Eq,Ord,Show,Generic)
 
 deriveJSON defaultOptions ''Literal
-deriveJSON defaultOptions ''Type
+instance Serial Literal
+
+-- | Base functor for types in the Unison language
+data F a
+  = Lit Literal
+  | Arrow a a
+  | Ann a K.Kind
+  | App a a
+  | Constrain a () -- todo: constraint language
+  | Forall a
+  | Existential a
+  | Universal a
+  deriving (Eq,Foldable,Functor,Generic1,Show,Traversable)
+
+deriveJSON defaultOptions ''F
+instance Serial1 F
+instance Eq1 F where eq1 = (==)
+instance Show1 F where showsPrec1 = showsPrec
+
+-- | Terms are represented as ABTs over the base functor F.
+type Type = ABT.Term F
+
+-- An environment for looking up type references
+type Env f = R.Reference -> Noted f Type
+
+freeVars :: Type -> Set ABT.V
+freeVars = ABT.freeVars
+
+data Monotype = Monotype { getPolytype :: Type } deriving (Eq,Show)
+
+-- Smart constructor which checks if a `Type` has no `Forall` quantifiers.
+monotype :: Type -> Maybe Monotype
+monotype t = Monotype <$> ABT.visit isMono t where
+  isMono (Forall' _ _) = Just Nothing
+  isMono _ = Nothing
+
+-- some smart patterns
+pattern Lit' l <- ABT.Tm' (Lit l)
+pattern Arrow' i o <- ABT.Tm' (Arrow i o)
+pattern Ann' t k <- ABT.Tm' (Ann t k)
+pattern App' f x <- ABT.Tm' (App f x)
+pattern Constrain' t u <- ABT.Tm' (Constrain t u)
+pattern Forall' v body <- ABT.Tm' (Forall (ABT.Abs' v body))
+pattern Existential' v <- ABT.Tm' (Existential (ABT.Var' v))
+pattern Universal' v <- ABT.Tm' (Universal (ABT.Var' v))
+
+matchExistential :: ABT.V -> Type -> Bool
+matchExistential v (Existential' x) = x == v
+matchExistential _ _ = False
+
+matchUniversal :: ABT.V -> Type -> Bool
+matchUniversal v (Universal' x) = x == v
+matchUniversal _ _ = False
+
+-- some smart constructors
+
+lit :: Literal -> Type
+lit l = ABT.tm (Lit l)
+
+app :: Type -> Type -> Type
+app f arg = ABT.tm (App f arg)
+
+arrow :: Type -> Type -> Type
+arrow i o = ABT.tm (Arrow i o)
+
+ann :: Type -> K.Kind -> Type
+ann e t = ABT.tm (Ann e t)
+
+forall :: ABT.V -> Type -> Type
+forall v body = ABT.tm (Forall (ABT.abs v body))
+
+existential :: ABT.V -> Type
+existential v = ABT.tm (Existential (ABT.var v))
+
+universal :: ABT.V -> Type
+universal v = ABT.tm (Universal (ABT.var v))
+
+constrain :: Type -> () -> Type
+constrain t u = ABT.tm (Constrain t u)
+
+instance Digest.Digestable1 F where
+  digest1 _ hash e = case e of
+    Lit l -> Put.putWord8 0 *> serialize l
+    Arrow a b -> Put.putWord8 1 *> serialize (hash a) *> serialize (hash b)
+    App a b -> Put.putWord8 2 *> serialize (hash a) *> serialize (hash b)
+    Ann a k -> Put.putWord8 3 *> serialize (hash a) *> serialize k
+    Constrain a u -> Put.putWord8 4 *> serialize (hash a) *> serialize u
+    Forall a -> Put.putWord8 5 *> serialize (hash a)
+    Existential v -> Put.putWord8 6 *> serialize (hash v)
+    Universal v -> Put.putWord8 7 *> serialize (hash v)
+
+instance J.ToJSON1 F where
+  toJSON1 f = toJSON f
+
+instance J.FromJSON1 F where
+  parseJSON1 j = parseJSON j
+
+--instance Show a => Show (F a) where
+--  show (Lit' l) = show l
+--  show (Arrow' (Arrow' i i2) o) = "(" ++ show i ++ " -> " ++ show i2 ++ ") -> " ++ show o
+--  show (Arrow' i o) = show i ++ " -> " ++ show o
+--  show (ABT.Var' n) = show n
+--  show (Ann' t k) = show t ++ ":" ++ show k
+--  show (App' f arg) = "(" ++ show f ++ " " ++ show arg ++ ")"
+--  show (Constrain' t _) = show t
+--  show (Forall' x (Forall' y (Forall' z t))) =
+--    "(∀ " ++ (intercalate " " . map show) [x,y,z] ++ ". " ++ show t ++ ")"
+--  show (Forall' x (Forall' y t)) = "(∀ " ++ (intercalate " " . map show) [x,y] ++ ". " ++ show t++")"
+--  show (Forall' x t) = "(∀ " ++ show x ++ ". " ++ show t++")"

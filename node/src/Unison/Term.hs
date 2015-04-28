@@ -1,270 +1,278 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ViewPatterns #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-} -- for a local Serial1 Vector
 
 module Unison.Term where
 
-import qualified Data.Foldable as Foldable
-import Data.Traversable
 import Control.Applicative
-import Control.Lens.TH
-import Control.Monad.Writer
+import Control.Monad
 import Data.Aeson.TH
-import qualified Data.Aeson.Encode as JE
-import qualified Data.Set as S
-import qualified Data.Map as M
-import qualified Data.Text as Txt
-import qualified Data.Vector as V
-import Unison.Var as V
-import qualified Unison.Distance as Distance
-import qualified Unison.Hash as H
-import qualified Unison.Reference as R
+import Data.Bytes.Serial
+import Data.Foldable (Foldable, traverse_)
+import Data.Functor.Classes
+import Data.List
+import Data.Maybe
+import Data.Set (Set)
+import Data.Text (Text)
+import Data.Traversable (Traversable)
+import Data.Vector (Vector, (!?))
+import GHC.Generics
+import Unison.Hash (Hash)
+import Unison.Reference (Reference)
+import qualified Control.Monad.Writer.Strict as Writer
+import qualified Data.Aeson as Aeson
+import qualified Data.Bytes.Put as Put
+import qualified Data.Monoid as Monoid
+import qualified Data.Set as Set
+import qualified Data.Vector as Vector
+import qualified Unison.ABT as ABT
+import qualified Unison.Reference as Reference
 import qualified Unison.Type as T
+import qualified Unison.Digest as Digest
+import qualified Unison.Distance as Distance
+import qualified Unison.JSON as J
 
 -- | Literals in the Unison language
 data Literal
   = Number Double
-  | Text Txt.Text
+  | Text Text
   | Distance Distance.Distance
-  deriving (Eq,Ord,Show)
+  deriving (Eq,Ord,Show,Generic)
 
-deriveJSON defaultOptions ''Literal
-
--- | Terms in the Unison language
-data Term
-  = Var V.Var
-  | Lit Literal
+-- | Base functor for terms in the Unison language
+data F a
+  = Lit Literal
   | Blank -- An expression that has not been filled in, has type `forall a . a`
-  | Ref R.Reference
-  | App Term Term
-  | Ann Term T.Type
-  | Vector (V.Vector Term)
-  | Lam Term
-  deriving (Eq,Ord)
+  | Ref Reference
+  | App a a
+  | Ann a T.Type
+  | Vector (Vector a)
+  | Lam a
+  -- Invariant: let rec blocks have an outer ABT.Cycle which introduces as many
+  -- variables as there are bindings
+  | LetRec [a] a
+  | Let a a
+  deriving (Eq,Foldable,Functor,Generic1,Show,Traversable)
 
-deriveJSON defaultOptions ''Term
-makePrisms ''Term
+-- | Terms are represented as ABTs over the base functor F.
+type Term = ABT.Term F
 
-instance Show Term where
-  show Blank = "_"
-  show (Var v) = show v
-  show (Ref v) = show v
-  show (Lit (Number d)) = show d
-  show (Lit (Text s)) = show s
-  show (Lit l) = show l
-  show (Vector v) = show v
-  show (App f x@(App _ _)) = show f ++ " (" ++ show x ++ ")"
-  show (App f x) = show f ++ " " ++ show x
-  show (Ann x t) = "(" ++ show x ++ " : " ++ show t ++ ")"
-  show lam@(Lam _) = "(λ. " ++ show inner ++ ")"
-    where
-      inner = go lam
-      go v = case v of
-        Lam body -> go body
-        _ -> v
+-- nicer pattern syntax
 
--- | Convert all 'Ref' constructors to the corresponding term
-link :: (Applicative f, Monad f) => (H.Hash -> f Term) -> Term -> f Term
-link env e = case e of
-  -- recursively resolve all references, leaving alone any hashes
-  -- that resolve to themselves, as these are considered primops
-  Ref (R.Derived h) -> env h >>= \e -> case e of
-    Ref (R.Derived h') | h == h' -> pure $ Ref (R.Derived h')
-    e | S.null (dependencies e) -> pure $ e
-    e | otherwise -> link env e
-  App fn arg -> App <$> link env fn <*> link env arg
-  Vector vs -> Vector <$> traverse (link env) vs
-  Lam body -> Lam <$> link env body
-  _ -> pure e
+pattern Var' v <- ABT.Var' v
+pattern Lit' l <- (ABT.out -> ABT.Tm (Lit l))
+pattern Blank' <- (ABT.out -> ABT.Tm Blank)
+pattern Ref' r <- (ABT.out -> ABT.Tm (Ref r))
+pattern App' f x <- (ABT.out -> ABT.Tm (App f x))
+pattern Ann' x t <- (ABT.out -> ABT.Tm (Ann x t))
+pattern Vector' xs <- (ABT.out -> ABT.Tm (Vector xs))
+pattern Lam' v body <- (ABT.out -> ABT.Tm (Lam (ABT.Term _ (ABT.Abs v body))))
+pattern Let1' v b e <- (ABT.out -> ABT.Tm (Let b (ABT.Abs' v e)))
+pattern Let' bs e relet rec <- (unLets -> Just (bs,e,relet,rec))
+pattern LetRec' bs e <- (unLetRec -> Just (bs,e))
 
-dependencies' :: Term -> S.Set R.Reference
-dependencies' e = case e of
-  Ref r -> S.singleton r
-  Var _ -> S.empty
-  Lit _ -> S.empty
-  Blank -> S.empty
-  App fn arg -> dependencies' fn `S.union` dependencies' arg
-  Ann e _ -> dependencies' e
-  Vector vs -> Foldable.foldMap dependencies' vs
-  Lam body -> dependencies' body
+freshIn :: Term -> ABT.V -> ABT.V
+freshIn = ABT.freshIn
 
-dependencies :: Term -> S.Set H.Hash
-dependencies e = S.fromList [ h | R.Derived h <- S.toList (dependencies' e) ]
+-- some smart constructors
 
-isClosed :: Term -> Bool
-isClosed e = go V.bound1 e
+var :: ABT.V -> Term
+var = ABT.var
+
+ref :: Reference -> Term
+ref r = ABT.tm (Ref r)
+
+lit :: Literal -> Term
+lit l = ABT.tm (Lit l)
+
+blank :: Term
+blank = ABT.tm Blank
+
+app :: Term -> Term -> Term
+app f arg = ABT.tm (App f arg)
+
+ann :: Term -> T.Type -> Term
+ann e t = ABT.tm (Ann e t)
+
+vector :: [Term] -> Term
+vector es = ABT.tm (Vector (Vector.fromList es))
+
+vector' :: Vector Term -> Term
+vector' es = ABT.tm (Vector es)
+
+lam :: ABT.V -> Term -> Term
+lam v body = ABT.tm (Lam (ABT.abs v body))
+
+-- | Smart constructor for let rec blocks. Each binding in the block may
+-- reference any other binding in the block in its body (including itself),
+-- and the output expression may also reference any binding in the block.
+letRec :: [(ABT.V,Term)] -> Term -> Term
+letRec [] e = e
+letRec bindings e = ABT.cycle (foldr ABT.abs z (map fst bindings))
   where
-    go depth e = case e of
-      Lit _ -> True
-      Ref _ -> True
-      Blank -> True
-      Var v -> v < depth
-      App f arg -> go depth f && go depth arg
-      Ann e _ -> go depth e
-      Vector vs -> Foldable.all (go depth) vs
-      Lam body -> go (V.succ depth) body
+    z = ABT.tm (LetRec (map snd bindings) e)
+
+-- | Smart constructor for let blocks. Each binding in the block may
+-- reference only previous bindings in the block, not including itself.
+-- The output expression may reference any binding in the block.
+let' :: [(ABT.V,Term)] -> Term -> Term
+let' bindings e = foldr f e bindings
+  where
+    f (v,b) body = ABT.tm (Let b (ABT.abs v body))
+
+-- | Satisfies
+--   `unLets (letRec bs e) == Just (bs, e, letRec, True)` and
+--   `unLets (let' bs e) == Just (bs, e, let', False)`
+-- Useful for writing code agnostic to whether a let block is recursive or not.
+unLets :: Term -> Maybe ([(ABT.V,Term)], Term, [(ABT.V,Term)] -> Term -> Term, Bool)
+unLets e =
+  (f letRec True <$> unLetRec e) <|> (f let' False <$> unLet e)
+  where f mkLet rec (bs,e) = (bs,e,mkLet,rec)
+
+-- | Satisfies `unLetRec (letRec bs e) == Just (bs, e)`
+unLetRec :: Term -> Maybe ([(ABT.V, Term)], Term)
+unLetRec (ABT.Cycle' vs (ABT.Tm' (LetRec bs e)))
+  | length vs == length vs = Just (zip vs bs, e)
+unLetRec _ = Nothing
+
+-- | Satisfies `unLet (let' bs e) == Just (bs, e)`
+unLet :: Term -> Maybe ([(ABT.V, Term)], Term)
+unLet t = fixup (go t) where
+  go (ABT.out -> ABT.Tm (Let b (ABT.Abs' v t))) =
+    case go t of (env,t) -> ((v,b):env, t)
+  go t = ([], t)
+  fixup ([], _) = Nothing
+  fixup bst = Just bst
+
+dependencies' :: Term -> Set Reference
+dependencies' t = Set.fromList . Writer.execWriter $ ABT.fold f t
+  where f t@(Ref r) = Writer.tell [r] *> pure t
+        f t = pure t
+
+dependencies :: Term -> Set Hash
+dependencies e = Set.fromList [ h | Reference.Derived h <- Set.toList (dependencies' e) ]
 
 countBlanks :: Term -> Int
-countBlanks e = case e of
-  Blank -> 1
-  App fn arg -> countBlanks fn + countBlanks arg
-  Ann e _ -> countBlanks e
-  Vector vs -> Foldable.foldl (+) 0 (fmap countBlanks vs)
-  Lam body -> countBlanks body
-  _ -> 0
+countBlanks t = Monoid.getSum . Writer.execWriter $ ABT.fold f t
+  where f Blank = Writer.tell (Monoid.Sum 1) *> pure Blank
+        f t = pure t
 
-{-
-freeVars :: Term -> S.Set V.Var
-freeVars e = case e of
-  Var v -> S.singleton v
-  App fn arg -> freeVars fn `S.union` freeVars arg
-  Ann e _ -> freeVars e
-  Lam n body -> S.delete n (freeVars body)
-  Vector vs -> Foldable.foldMap freeVars vs
-  _ -> S.empty
--}
+data PathElement
+  = Fn -- ^ Points at function in a function application
+  | Arg -- ^ Points at the argument of a function application
+  | Body -- ^ Points at the body of a lambda or let
+  | Binding !Int -- ^ Points at a particular binding in a let
+  | Index !Int -- ^ Points at the index of a vector
+  deriving (Eq,Ord,Show)
 
-newtype Scoped a = Scoped { unscope :: Term }
+type Path = [PathElement]
 
-scoped :: Term -> Maybe (Scoped a)
-scoped e | isClosed e = Just (Scoped e)
-scoped _ = Nothing
+-- | Use a @PathElement@ to compute one step into an @F a@ subexpression
+focus1 :: PathElement -> ABT.Focus1 F a
+focus1 Fn (App f x) = Just (f, \f -> App f x)
+focus1 Arg (App f x) = Just (x, \x -> App f x)
+focus1 Body (Lam body) = Just (body, Lam)
+focus1 Body (Let b body) = Just (body, Let b)
+focus1 Body (LetRec bs body) = Just (body, LetRec bs)
+focus1 (Binding i) (Let b body) | i <= 0 = Just (b, \b -> Let b body)
+focus1 (Binding i) (LetRec bs body) =
+  listToMaybe (drop i bs)
+  >>= \b -> Just (b, \b -> LetRec (take i bs ++ [b] ++ drop (i+1) bs) body)
+focus1 (Index i) (Vector vs) =
+  vs !? i >>= \v -> Just (v, \v -> Vector (Vector.update vs (Vector.singleton (i,v))))
+focus1 _ _ = Nothing
 
-lam :: Scoped (Maybe a) -> Scoped a
-lam (Scoped body) = Scoped (Lam body)
+-- | Return the list of all prefixes of the input path
+pathPrefixes :: Path -> [Path]
+pathPrefixes = inits
 
-var :: Scoped (Maybe a)
-var = Scoped (Var V.bound1)
+-- | Add an element onto the end of this 'Path'
+pathExtend :: PathElement -> Path -> Path
+pathExtend e p = p ++ [e]
 
-app :: Scoped a -> Scoped a -> Scoped a
-app (Scoped f) (Scoped arg) = Scoped (f `App` arg)
+at :: Path -> Term -> Maybe Term
+at p t = ABT.at (map focus1 p) t
 
-ann :: Scoped a -> T.Type -> Scoped a
-ann (Scoped e) t = Scoped (e `Ann` t)
+-- | Given a variable and a path, find the longest prefix of the path
+-- which points to a term where the variable is unbound. Example:
+-- `\f -> \x -> f {x}` would return the path pointing to `{\x -> f x}`
+introducedAt :: ABT.V -> Path -> Term -> Maybe Path
+introducedAt v path t = f <$> ABT.introducedAt v (map focus1 path) t where
+  f p = take (length p) path
 
-weaken :: Scoped a -> Scoped (Maybe a)
-weaken (Scoped s) = Scoped (go V.bound1 s)
-  where
-    go depth e = case e of
-      Lit _ -> e
-      Ref _ -> e
-      Blank -> e
-      Var v -> if v >= depth then Var (V.succ v) else e
-      App f arg -> App (go depth f) (go depth arg)
-      Ann e t -> Ann (go depth e) t
-      Vector vs -> Vector (fmap (go depth) vs)
-      Lam body -> Lam (go (V.succ depth) body)
+modify :: (Term -> Term) -> Path -> Term -> Maybe Term
+modify f p t = ABT.modify f (map focus1 p) t
 
-stripAnn :: Term -> (Term, Term -> Term)
-stripAnn (Ann e t) = (e, \e' -> Ann e' t)
-stripAnn e = (e, id)
+focus :: Path -> Term -> Maybe (Term, Term -> Term)
+focus p t = ABT.focus (map focus1 p) t
 
--- arguments 'f x y z' == '[x, y, z]'
-arguments :: Term -> [Term]
-arguments (App f x) = arguments f ++ [x]
-arguments _ = []
+parent :: Path -> Maybe Path
+parent [] = Nothing
+parent p = Just (init p)
+
+parent' :: Path -> Path
+parent' = fromMaybe [] . parent
+
+bindingAt :: Path -> Term -> Maybe (ABT.V, Term)
+bindingAt [] _ = Nothing
+bindingAt path t = do
+  parentPath <- parent path
+  Let1' v b _ <- at parentPath t
+  pure (v, b)
+
+-- | Convert all 'Ref' constructors to the corresponding term
+link :: (Applicative f, Monad f) => (Hash -> f Term) -> Term -> f Term
+link env e =
+  let ds = map (\h -> (h, link env =<< env h)) (Set.toList (dependencies e))
+      sub e (h, ft) = replace <$> ft
+        where replace t = ABT.replace t ((==) rt) e
+              rt = ref (Reference.Derived h)
+  in foldM sub e ds
 
 -- | If the outermost term is a function application,
 -- perform substitution of the argument into the body
 betaReduce :: Term -> Term
-betaReduce (App (Lam f) arg) = go V.bound1 f where
-  go depth body = case body of
-    App f x -> App (go depth f) (go depth x)
-    Vector vs -> Vector (fmap (go depth) vs)
-    Ann body t -> Ann (go depth body) t
-    Lam body -> Lam (go (V.succ depth) body)
-    Var v | v == depth -> arg
-    _ -> body
+betaReduce (App' (Lam' n body) arg) = ABT.subst arg n body
 betaReduce e = e
 
--- | Like `betaReduce`, but weakens the argument when walking under lambda
-betaReduce' :: Term -> Term
-betaReduce' (App (Lam f) arg) = go V.bound1 arg f where
-  closed = isClosed arg
-  weaken' arg = if closed then arg else unscope (weaken (Scoped arg))
-  go depth arg body = case body of
-    App f x -> App (go depth arg f) (go depth arg x)
-    Vector vs -> Vector (fmap (go depth arg) vs)
-    Ann body t -> Ann (go depth arg body) t
-    -- if arg has free variables, we weaken them when walking under lambda
-    Lam body -> Lam (go (V.succ depth) body (weaken' arg))
-    Var v | v == depth -> arg
-    _ -> body
-betaReduce' e = e
+-- mostly boring serialization and hashing code below ...
 
--- | If the outermost term is a lambda of the form @\x -> f x@,
--- reduce this to @f@.
-etaReduce :: Term -> Term
-etaReduce (Lam (App f (Var v))) | v == V.bound1 = f
-etaReduce e = e
+deriveJSON defaultOptions ''Literal
+instance Serial Literal
 
--- | Repeatedly apply @etaReduce@ until reaching fixed point.
-etaNormalForm :: Term -> Term
-etaNormalForm (Lam (App f (Var v))) | v == V.bound1 = etaNormalForm f
-etaNormalForm e = e
+instance Eq1 F where eq1 = (==)
+instance Show1 F where showsPrec1 = showsPrec
+instance Serial1 F
+instance Serial1 Vector where
+  serializeWith f vs = serializeWith f (Vector.toList vs)
+  deserializeWith v = Vector.fromList <$> deserializeWith v
 
-applyN :: Term -> [Term] -> Term
-applyN f = foldl App f
+deriveJSON defaultOptions ''F
+instance J.ToJSON1 F where toJSON1 f = Aeson.toJSON f
+instance J.FromJSON1 F where parseJSON1 j = Aeson.parseJSON j
 
-number :: Double -> Term
-number n = Lit (Number n)
+instance Digest.Digestable1 F where
+  digest1 hashCycle hash e = case e of
+    Lit l -> Put.putWord8 0 *> serialize l
+    Blank -> Put.putWord8 1
+    Ref r -> Put.putWord8 2 *> serialize r
+    App a a2 -> Put.putWord8 3 *> serialize (hash a) *> serialize (hash a2)
+    Ann a t -> Put.putWord8 4 *> serialize (hash a) *> serialize t
+    Vector as -> Put.putWord8 5 *> serialize (Vector.length as)
+                                *> traverse_ (serialize . hash) as
+    Lam a -> Put.putWord8 6 *> serialize (hash a)
+    -- note: we use `hashCycle` to ensure result is independent of let binding order
+    LetRec as a ->
+      Put.putWord8 7 *> do
+        hash <- hashCycle as
+        serialize (hash a)
+    -- here, order is significant, so don't use hashCycle
+    Let b a -> Put.putWord8 8 *> serialize (hash b) *> serialize (hash a)
 
-string :: String -> Term
-string s = Lit (Text (Txt.pack s))
-
-text :: Txt.Text -> Term
-text s = Lit (Text s)
-
--- | Order a collection of declarations such that no declaration
--- references hashes declared later in the returned list
-topological :: (Ord h, Ord e) => (e -> S.Set h) -> M.Map h e -> [(h, e)]
-topological dependencies terms = go S.empty (M.keys terms)
-  where
-    keys = M.keysSet terms
-    go seen pending = case pending of
-      [] -> []
-      (h:pending) | S.member h seen -> go seen pending
-      (h:pending) ->
-        let e = maybe (error "unpossible") id $ M.lookup h terms
-            seen' = S.insert h seen
-            new = S.difference (dependencies e `S.intersection` keys) seen'
-            pending' = pending ++ S.toList new
-        in go seen' pending' ++ [(h,e)]
-
--- | Factor all closed subterms out into separate declarations, and
--- return a single term which contains 'Ref's into these declarations
--- The list of subterms are topologically sorted, so terms with
--- no dependencies appear first in the returned list, followed by
--- terms which depend on these dependencies
-hashCons :: Term -> ((R.Reference, Term), [(H.Hash, Term)])
-hashCons e = let (e', hs) = runWriter (go e) in finalize e' hs
-  where
-    finalize (Ref r) hs = ((r, Ref r), topological dependencies hs)
-    finalize e hs = ((R.Derived (closedHash e), e), topological dependencies hs)
-    closedHash = H.finalize . H.lazyBytes . JE.encode
-    save e | isClosed e = let h = closedHash e in tell (M.singleton h e) >> pure (Ref (R.Derived h))
-    save e = pure e
-    go e = case etaNormalForm e of
-      l@(Lit _) -> save l
-      r@(Ref _) -> pure r
-      v@(Var _) -> pure v
-      Blank     -> pure Blank
-      Lam body -> go body >>= (\body -> save (Lam body))
-      Ann e t   -> save =<< (Ann <$> go e <*> pure t)
-      App f x   -> save =<< (App <$> go f <*> go x)
-      Vector vs  -> save =<< (Vector <$> traverse go vs)
-
--- | Computes the nameless hash of the given term
-hash :: Term -> H.Digest
-hash e = H.lazyBytes . JE.encode . fst . fst . hashCons $ e
-
-finalizeHash :: Term -> H.Hash
-finalizeHash = H.finalize . hash
-
--- | Computes the nameless hash of the given terms, where
--- the terms may have mutual dependencies
-hashes :: [Term] -> [H.Hash]
-hashes _ = error "todo: Term.hashes"
-
+deriveJSON defaultOptions ''PathElement

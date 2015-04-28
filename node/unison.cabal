@@ -45,16 +45,6 @@ library
   hs-source-dirs: src
 
   exposed-modules:
-    Unison.A_Hash
-    Unison.A_Term
-    Unison.A_TermEdit
-    Unison.A_Type
-    Unison.A_Eval
-    Unison.A_Typechecker
-    Unison.A_Node
-    Unison.Typechecker.A_Context
-    Unison.Node.A_Store
-    Unison.Node.A_Implementation
     Unison.ABT
     Unison.Digest
     Unison.Distance
@@ -65,15 +55,14 @@ library
     Unison.Kind
     Unison.Metadata
     Unison.Node
-    Unison.Node.Store
     Unison.Node.Implementation
+    Unison.Node.Store
     Unison.NodeServer
     Unison.Note
     Unison.Reference
     Unison.Symbol
     Unison.Term
     Unison.TermEdit
-    Unison.TermPath
     Unison.Type
     Unison.Typechecker
     Unison.Typechecker.Context

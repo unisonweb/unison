@@ -82,14 +82,10 @@ server port node = S.scotty port $ do
     (limit, h) <- S.jsonData
     k <- runN $ N.dependents node limit h
     S.json k
-  postRoute "/edit-term" $ do -- this merely computes the new term, hence a GET
+  postRoute "/edit-term" $ do
     (rootLoc, loc, a, e) <- S.jsonData
     e <- runN $ N.editTerm node rootLoc loc a e
-    S.json e -- we might follow this up with a 'create-term', which is a POST
-  postRoute "/edit-type" $ do -- this merely computes the new type and its hash, hence a GET!
-    (loc, a, t) <- S.jsonData
-    t <- runN $ N.editType node loc a t
-    S.json t
+    S.json e
   postRoute "/evaluate-terms" $ do
     es <- S.jsonData
     e <- runN $ N.evaluateTerms node es

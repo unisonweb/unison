@@ -1,23 +1,26 @@
 module Unison.Node.Store where
 
 import Control.Applicative
-import Data.Aeson as J
+import Data.Aeson (ToJSON(..),FromJSON(..))
 import Data.Set (Set)
-import System.Directory
-import System.FilePath
+import Data.Text (Text)
+import System.FilePath ((</>))
 import Unison.Hash (Hash)
-import Unison.Metadata (Metadata)
-import Unison.Note (Note, Noted)
-import Unison.Reference (Reference)
 import Unison.Term (Term)
 import Unison.Type (Type)
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as LB
-import qualified Data.Set as S
-import qualified Data.Text as T
-import qualified Unison.Hash as H
-import qualified Unison.Note as N
-import qualified Unison.Reference as R
+import Unison.Metadata (Metadata)
+import Unison.Note (Noted,Note)
+import Unison.Reference (Reference)
+import qualified Data.Aeson as Aeson
+import qualified Data.ByteString as ByteString
+import qualified Data.ByteString.Lazy as LazyByteString
+import qualified Data.Set as Set
+import qualified Data.Text as Text
+import qualified System.Directory as Directory
+import qualified System.FilePath as FilePath
+import qualified Unison.Hash as Hash
+import qualified Unison.Note as Note
+import qualified Unison.Reference as Reference
 
 data Store f = Store {
   hashes :: Maybe (Set Reference) -> Noted f (Set Reference), -- ^ The set of hashes in this store, optionally constrained to intersect the given set
@@ -30,59 +33,63 @@ data Store f = Store {
 }
 
 -- | Create a 'Store' rooted at the given path.
--- This creates directories "/terms", "/types", and "/metadata"
--- with a file named via the base64 encoding of each 'Hash'
-store :: FilePath -> Store IO
+store :: FilePath -> IO (Store IO)
 store root =
   let
     hashesIn :: (String -> Reference) -> FilePath -> Noted IO (Set Reference)
-    hashesIn f dir = N.lift $
+    hashesIn f dir = Note.lift $
       -- the `drop 2` strips out '.' and '..', gak
-      S.fromList . (map (f . reverse . drop 5 . reverse) . drop 2) <$> -- strip out .json
-        getDirectoryContents (joinPath [root, dir])
+      Set.fromList . (map (f . reverse . drop 5 . reverse) . drop 2) <$> -- strip out .json
+        Directory.getDirectoryContents (root </> dir)
 
     n :: Either String a -> Either Note a
-    n (Left e) = Left (N.note e)
+    n (Left e) = Left (Note.note e)
     n (Right a) = Right a
 
-    read :: FromJSON a => (h -> T.Text) -> FilePath -> h -> Noted IO a
+    read :: FromJSON a => (h -> Text) -> FilePath -> h -> Noted IO a
     read f dir h =
-      let file = joinPath [root, dir, T.unpack (f h) ++ ".json"]
-      in N.noted $ (n . J.eitherDecodeStrict) <$> B.readFile file
+      let file = FilePath.joinPath [root, dir, Text.unpack (f h) ++ ".json"]
+      in Note.noted $ (n . Aeson.eitherDecodeStrict) <$> ByteString.readFile file
 
-    write :: ToJSON a => (h -> T.Text) -> FilePath -> h -> a -> Noted IO ()
+    write :: ToJSON a => (h -> Text) -> FilePath -> h -> a -> Noted IO ()
     write f dir h v =
-      let file = joinPath [root, dir, T.unpack (f h) ++ ".json"]
-      in N.lift $ B.writeFile file (LB.toStrict (J.encode v))
+      let file = FilePath.joinPath [root, dir, Text.unpack (f h) ++ ".json"]
+      in Note.lift $ ByteString.writeFile file (LazyByteString.toStrict (Aeson.encode v))
       -- unfortunate that writeFile takes a strict bytestring
 
     read' :: FromJSON a => FilePath -> Hash -> Noted IO a
-    read' = read H.base64
+    read' = read Hash.base64
 
     write' :: ToJSON a => FilePath -> Hash -> a -> Noted IO ()
-    write' = write H.base64
+    write' = write Hash.base64
 
     hashes limit =
-      let r = R.Derived . H.fromBase64 . T.pack
-          limitf = maybe id S.intersection limit
-          union a b c = a `S.union` b `S.union` c
+      let r = Reference.Derived . Hash.fromBase64 . Text.pack
+          limitf = maybe id Set.intersection limit
+          union a b c = a `Set.union` b `Set.union` c
       in liftA3 union (limitf <$> hashesIn r "terms")
                       (limitf <$> hashesIn r "types")
-                      (limitf <$> hashesIn (R.Builtin . T.pack) "builtin-metadata")
+                      (limitf <$> hashesIn (Reference.Builtin . Text.pack) "builtin-metadata")
 
     readTerm = read' "terms"
     writeTerm = write' "terms"
 
-    typeOfTerm (R.Derived h) = read' "type-of" h
-    typeOfTerm (R.Builtin b) = read id "builtin-type-of" b
+    typeOfTerm (Reference.Derived h) = read' "type-of" h
+    typeOfTerm (Reference.Builtin b) = read id "builtin-type-of" b
 
-    annotateTerm (R.Derived h) = write' "type-of" h
-    annotateTerm (R.Builtin b) = write id "builtin-type-of" b
+    annotateTerm (Reference.Derived h) = write' "type-of" h
+    annotateTerm (Reference.Builtin b) = write id "builtin-type-of" b
 
-    readMetadata (R.Derived h) = read' "metadata" h
-    readMetadata (R.Builtin b) = read id "builtin-metadata" b
+    readMetadata (Reference.Derived h) = read' "metadata" h
+    readMetadata (Reference.Builtin b) = read id "builtin-metadata" b
 
-    writeMetadata (R.Derived h) = write' "metadata" h
-    writeMetadata (R.Builtin b) = write id "builtin-metadata" b
+    writeMetadata (Reference.Derived h) = write' "metadata" h
+    writeMetadata (Reference.Builtin b) = write id "builtin-metadata" b
 
-  in Store hashes readTerm writeTerm typeOfTerm annotateTerm readMetadata writeMetadata
+  in do
+    Directory.createDirectoryIfMissing True (root </> "terms")
+    Directory.createDirectoryIfMissing True (root </> "type-of")
+    Directory.createDirectoryIfMissing True (root </> "builtin-type-of")
+    Directory.createDirectoryIfMissing True (root </> "metadata")
+    Directory.createDirectoryIfMissing True (root </> "builtin-metadata")
+    pure $ Store hashes readTerm writeTerm typeOfTerm annotateTerm readMetadata writeMetadata

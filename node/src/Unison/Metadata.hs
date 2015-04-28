@@ -8,7 +8,7 @@ import Data.Text (Text)
 import Unison.Symbol (Symbol)
 import qualified Data.Text as Text
 import qualified Unison.Symbol as Symbol
-import qualified Unison.TermPath as P
+import qualified Unison.Term as Term
 
 data Sort = Type | Term deriving (Eq,Ord,Show)
 
@@ -16,7 +16,7 @@ data Metadata k =
   Metadata {
     sort :: Sort,
     names :: Names,
-    locals :: [(P.Path, Symbol)],
+    locals :: [(Term.Path, Symbol)],
     description :: Maybe k
   } deriving (Eq,Ord,Show)
 

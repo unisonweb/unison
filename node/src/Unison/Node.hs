@@ -3,12 +3,13 @@
 module Unison.Node where
 
 import Data.Aeson.TH
-import Data.Set as S
-import Data.Map as M
-import Unison.Metadata as MD
-import Unison.TermEdit (Action)
-import Unison.TermPath as P
+import Data.Set (Set)
+import Data.Map (Map)
 import Unison.Note (Noted)
+import Unison.Metadata (Metadata)
+import Unison.TermEdit (Action)
+import qualified Unison.Term as Term
+import qualified Unison.Metadata as Metadata
 
 -- | The results of a search.
 -- On client, only need to repeat the query if we modify a character
@@ -18,7 +19,7 @@ import Unison.Note (Noted)
 -- can be done client-side, assuming the client has the full result set.
 data SearchResults k t e =
   SearchResults
-    { query :: MD.Query
+    { query :: Metadata.Query
     , references :: [(k, Metadata k)]
     , matches :: ([e], Int)
     , illTypedMatches :: ([e], Int)
@@ -28,23 +29,21 @@ deriveJSON defaultOptions ''SearchResults
 
 data Node m k t e = Node {
   -- | Obtain the type of the given subterm, assuming the path is valid
-  admissibleTypeAt :: e -> P.Path -> Noted m t,
+  admissibleTypeAt :: e -> Term.Path -> Noted m t,
   -- | Create a new term and provide its metadata
-  createTerm :: e -> MD.Metadata k -> Noted m k,
+  createTerm :: e -> Metadata k -> Noted m k,
   -- | Create a new type and provide its metadata
-  createType :: t -> MD.Metadata k -> Noted m k,
+  createType :: t -> Metadata k -> Noted m k,
   -- | Lookup the direct dependencies of @k@, optionally limited to the given set
-  dependencies :: Maybe (S.Set k) -> k -> Noted m (S.Set k),
+  dependencies :: Maybe (Set k) -> k -> Noted m (Set k),
   -- | Lookup the set of terms/types depending directly on the given @k@, optionally limited to the given set
-  dependents :: Maybe (S.Set k) -> k -> Noted m (S.Set k),
+  dependents :: Maybe (Set k) -> k -> Noted m (Set k),
   -- | Modify the given subterm, which may fail. First argument is the root path.
   -- Second argument is path relative to the root.
   -- Returns (root path, original e, edited e)
-  editTerm :: P.Path -> P.Path -> Action -> e -> Noted m (P.Path,e,e),
-  -- | Modify the given type, which may fail
-  editType :: P.Path -> Action -> t -> Noted m t,
+  editTerm :: Term.Path -> Term.Path -> Action -> e -> Noted m (Maybe (Term.Path,e,e,Term.Path)),
   -- Evaluate all terms, returning a list of (path, original e, evaluated e)
-  evaluateTerms :: [(P.Path, e)] -> Noted m [(P.Path,e,e)],
+  evaluateTerms :: [(Term.Path, e)] -> Noted m [(Term.Path,e,e)],
   -- | Returns ( subterm at the given path
   --           , current type
   --           , admissible type
@@ -52,27 +51,24 @@ data Node m k t e = Node {
   --           , well-typed applications of focus
   --           , well-typed expressions involving local vars )
   -- | Modify the given subterm, which may fail. First argument is the root path.
-  localInfo :: e -> P.Path -> Noted m (e, t, t, [e], [Int], [e]),
+  localInfo :: e -> Term.Path -> Noted m (e, t, t, [e], [Int], [e]),
   -- | Access the metadata for the term and/or types identified by @k@
-  metadatas :: [k] -> Noted m (Map k (MD.Metadata k)),
+  metadatas :: [k] -> Noted m (Map k (Metadata k)),
   -- | Search for a term, optionally constrained to be of the given type
-  search :: e -> P.Path -> Int -> Query -> Maybe t -> Noted m (SearchResults k t e),
+  search :: e -> Term.Path -> Int -> Metadata.Query -> Maybe t -> Noted m (SearchResults k t e),
   -- | Lookup the source of the term identified by @k@
   terms :: [k] -> Noted m (Map k e),
   -- | Lookup the dependencies of @k@, optionally limited to those that intersect the given set
-  transitiveDependencies :: Maybe (S.Set k) -> k -> Noted m (S.Set k),
+  transitiveDependencies :: Maybe (Set k) -> k -> Noted m (Set k),
   -- | Lookup the set of terms or types which depend on the given @k@, optionally limited to those that intersect the given set
-  transitiveDependents :: Maybe (S.Set k) -> k -> Noted m (S.Set k),
+  transitiveDependents :: Maybe (Set k) -> k -> Noted m (Set k),
   -- | Lookup the source of the type identified by @k@
   types :: [k] -> Noted m (Map k t),
   -- | Obtain the type of the given subterm, assuming the path is valid
-  typeAt :: e -> P.Path -> Noted m t,
+  typeAt :: e -> Term.Path -> Noted m t,
   -- | Update the metadata associated with the given term or type
-  updateMetadata :: k -> MD.Metadata k -> Noted m ()
-
-  -- possibly later
-  -- editConstructor :: k -> -> A.Action -> m (Either N.Note (k, t)), -- ^ Modify the given type, which may fail
-  -- examples :: k -> m (Maybe [k]), -- ^
+  updateMetadata :: k -> Metadata k -> Noted m ()
 }
+
 
 
