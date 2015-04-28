@@ -274,7 +274,7 @@ instance J.ToJSON1 f => ToJSON (Term f) where
   toJSON (Term _ e) = case e of
     Var v -> J.array [J.text "Var", toJSON v]
     Cycle body -> J.array [J.text "Cycle", toJSON body]
-    Abs v body -> J.array [J.text "Abs", toJSON v, toJSON body]
+    Abs v body -> J.array [J.text "Abs", J.array [toJSON v, toJSON body]]
     Tm v -> J.array [J.text "Tm", J.toJSON1 v]
 
 instance (Foldable f, J.FromJSON1 f) => FromJSON (Term f) where
@@ -283,7 +283,7 @@ instance (Foldable f, J.FromJSON1 f) => FromJSON (Term f) where
     case t of
       _ | t == "Var"   -> var <$> J.at 1 Aeson.parseJSON j
       _ | t == "Cycle" -> cycle <$> J.at 1 Aeson.parseJSON j
-      _ | t == "Abs"   -> abs <$> J.at 1 Aeson.parseJSON j <*> J.at 2 Aeson.parseJSON j
+      _ | t == "Abs"   -> J.at 1 (\j -> abs <$> J.at 0 Aeson.parseJSON j <*> J.at 1 Aeson.parseJSON j) j
       _ | t == "Tm"    -> tm <$> J.at 1 J.parseJSON1 j
       _                -> fail ("unknown tag: " ++ Text.unpack t)
 

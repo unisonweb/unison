@@ -24,7 +24,7 @@ array = Aeson.Array . Vector.fromList
 -- | Run the parser on the nth (0-based) subtree, assuming the input is an array
 at :: Int -> (Aeson.Value -> Aeson.Parser a) -> Aeson.Value -> Aeson.Parser a
 at ind parse j = J.withArray "at" k j where
-  k vs = maybe z parse (vs !? 0) where z = fail ("invalid index: " ++ show ind)
+  k vs = maybe z parse (vs !? ind) where z = fail ("invalid index: " ++ show ind)
 
 -- | Run the parser on the 0th subtree, assuming the input is an array
 at0 :: (Aeson.Value -> Aeson.Parser a) -> Aeson.Value -> Aeson.Parser a
