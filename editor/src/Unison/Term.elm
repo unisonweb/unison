@@ -24,7 +24,7 @@ import Unison.Reference as R
 import Unison.Hash (Hash)
 import Unison.Hash as H
 import Unison.Metadata (Metadata)
-import Unison.Symbol (Fixity)
+import Unison.Symbol (Symbol,Fixity)
 import Unison.Metadata as Metadata
 import Unison.Path (..)
 import Unison.Path as Path
@@ -39,13 +39,13 @@ type Literal
   | Distance Distance.Distance
 
 type Term
-  = Var I
+  = Var Symbol
   | Blank
   | Lit Literal
   | Ref R.Reference
   | App Term Term
   | Ann Term T.Type
-  | Lam Term
+  | Lam Symbol Term
   | Vector (Array Term)
   | Embed (Layout { path : Path, selectable : Bool })
 

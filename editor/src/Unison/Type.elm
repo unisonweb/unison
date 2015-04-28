@@ -10,6 +10,7 @@ import Unison.Metadata (Metadata)
 import Unison.Metadata as Metadata
 import Unison.Reference (Reference)
 import Unison.Reference as Reference
+import Unison.Symbol (Symbol)
 import Unison.Var (I)
 import Unison.Var as V
 
@@ -24,11 +25,11 @@ type Type
   = Unit Literal
   | Arrow Type Type
   | App Type Type
-  | Universal I
-  | Existential I
+  | Universal Symbol
+  | Existential Symbol
   | Ann Type Kind
   | Constrain Type ()
-  | Forall I Type
+  | Forall Symbol Type
 
 all : Type
 all = Forall 0 (Universal 0)
