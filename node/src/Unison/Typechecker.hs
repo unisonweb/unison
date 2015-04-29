@@ -42,7 +42,7 @@ admissibleTypeAt :: Applicative f
 admissibleTypeAt synth loc t =
   let
     f = Term.freshIn t (ABT.v' "s")
-    shake (Type.Arrow' (Type.Arrow' _ tsub) _) = tsub
+    shake (Type.Arrow' (Type.Arrow' _ tsub) _) = Type.generalize tsub
     shake (Type.Forall' _ t) = shake t
     shake _ = error "impossible, f had better be a function"
   in case Term.lam f <$> Term.modify (Term.app (Term.var f)) loc t of
@@ -55,7 +55,7 @@ typeAt synth [] t = Note.scoped ("typeOf: " ++ show t) $ synthesize synth t
 typeAt synth loc t = Note.scoped ("typeOf@"++show loc ++ " " ++ show t) $
   let
     f = Term.freshIn t (ABT.v' "t")
-    shake (Type.Arrow' (Type.Arrow' tsub _) _) = tsub
+    shake (Type.Arrow' (Type.Arrow' tsub _) _) = Type.generalize tsub
     shake (Type.Forall' _ t) = shake t
     shake _ = error "impossible, f had better be a function"
   in case Term.lam f <$> Term.modify (Term.app (Term.var f)) loc t of

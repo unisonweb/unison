@@ -19,7 +19,6 @@ import Keyboard
 import Result
 import Signal
 import Unison.Action as Action
-import Unison.Explorer as Explorer
 import Unison.EditableTerm as EditableTerm
 import Unison.SearchboxParser as SearchboxParser
 import Unison.Hash (Hash)

@@ -12,7 +12,8 @@ type alias Symbol = { freshId : Int, name : String, fixity : Fixity, precedence 
 type alias Key = String
 
 toKey : Symbol -> Key
-toKey = toString
+toKey s = if s.freshId == 0 then s.name
+          else s.name ++ toString s.freshId
 
 anonymous : Symbol
 anonymous = Symbol 0 "anonymous" Prefix 9

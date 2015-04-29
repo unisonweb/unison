@@ -47,8 +47,8 @@ key env cur =
       Lit lit -> case lit of
         Ref r -> Metadata.firstName (Reference.toKey r) (env.metadata r)
         _ -> toString lit
-      Universal v -> "t"++toString v
-      Existential v -> "t"++toString v++"'"
+      Universal v -> Symbol.toKey v
+      Existential v -> "'" ++ Symbol.toKey v
       Arrow i o -> paren 0 prec (go False (prec+1) i ++ " → " ++ go top prec o)
       App x y -> paren 9 prec (go top 9 x ++ " " ++ go top 10 y)
       Forall v body ->

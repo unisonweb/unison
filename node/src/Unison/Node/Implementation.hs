@@ -25,6 +25,17 @@ import qualified Unison.Hash as Hash
 import qualified Unison.Metadata as Metadata
 import qualified Unison.Node.Store as Store
 
+-- debugging stuff
+import Debug.Trace
+import qualified Data.Foldable as Foldable
+import Data.Foldable (Foldable)
+
+watch :: Show a => String -> a -> a
+watch msg a = trace (msg ++ ": " ++ show a) a
+
+watches :: (Foldable f, Show a) => String -> f a -> f a
+watches msg as = trace (msg ++ ":\n" ++ intercalate "\n" (map show (Foldable.toList as)) ++ "\n.") as
+
 node :: (Applicative f, Monad f) => Eval (Noted f) -> Store f -> Node f Reference.Reference Type Term
 node eval store =
   let

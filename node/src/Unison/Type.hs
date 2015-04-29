@@ -21,6 +21,7 @@ import Data.Traversable (Traversable)
 import GHC.Generics
 import Unison.Note (Noted)
 import qualified Data.Bytes.Put as Put
+import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
 import qualified Unison.Digest as Digest
 import qualified Unison.JSON as J
@@ -125,6 +126,10 @@ forall' vs body = foldr forall body (map ABT.v' vs)
 
 constrain :: Type -> () -> Type
 constrain t u = ABT.tm (Constrain t u)
+
+-- | Bind all free variables with an outer `forall`.
+generalize :: Type -> Type
+generalize t = foldr forall t $ Set.toList (ABT.freeVars t)
 
 instance Digest.Digestable1 F where
   digest1 _ hash e = case e of

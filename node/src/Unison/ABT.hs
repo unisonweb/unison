@@ -141,13 +141,14 @@ visit f t = case f t of
     Abs x e -> abs x <$> visit f e
     Tm body -> tm <$> traverse (visit f) body
 
--- | Apply an effectful function to an ABT tree bottom up, sequencing the results.
-fold :: (Traversable f, Applicative g) => (f (Term f) -> g (f (Term f))) -> Term f -> g (Term f)
-fold f t = case out t of
+-- | Apply an effectful function to an ABT tree top down, sequencing the results.
+visit' :: (Traversable f, Applicative g, Monad g)
+       => (f (Term f) -> g (f (Term f))) -> Term f -> g (Term f)
+visit' f t = case out t of
   Var _ -> pure t
-  Cycle body -> cycle <$> fold f body
-  Abs x e -> abs x <$> fold f e
-  Tm body -> tm <$> traverse (fold f) body
+  Cycle body -> cycle <$> visit' f body
+  Abs x e -> abs x <$> visit' f e
+  Tm body -> f body >>= \body -> tm <$> traverse (visit' f) body
 
 -- | A single step 'focusing' action, returns the subtree and a function
 -- to replace that subtree

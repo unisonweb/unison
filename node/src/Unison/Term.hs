@@ -23,6 +23,7 @@ import Data.Text (Text)
 import Data.Traversable (Traversable)
 import Data.Vector (Vector, (!?))
 import GHC.Generics
+import Text.Show
 import Unison.Hash (Hash)
 import Unison.Reference (Reference)
 import qualified Control.Monad.Writer.Strict as Writer
@@ -43,7 +44,7 @@ data Literal
   = Number Double
   | Text Text
   | Distance Distance.Distance
-  deriving (Eq,Ord,Show,Generic)
+  deriving (Eq,Ord,Generic)
 
 -- | Base functor for terms in the Unison language
 data F a
@@ -58,7 +59,7 @@ data F a
   -- variables as there are bindings
   | LetRec [a] a
   | Let a a
-  deriving (Eq,Foldable,Functor,Generic1,Show,Traversable)
+  deriving (Eq,Foldable,Functor,Generic1,Traversable)
 
 -- | Terms are represented as ABTs over the base functor F.
 type Term = ABT.Term F
@@ -159,7 +160,7 @@ unLet t = fixup (go t) where
   fixup bst = Just bst
 
 dependencies' :: Term -> Set Reference
-dependencies' t = Set.fromList . Writer.execWriter $ ABT.fold f t
+dependencies' t = Set.fromList . Writer.execWriter $ ABT.visit' f t
   where f t@(Ref r) = Writer.tell [r] *> pure t
         f t = pure t
 
@@ -167,7 +168,7 @@ dependencies :: Term -> Set Hash
 dependencies e = Set.fromList [ h | Reference.Derived h <- Set.toList (dependencies' e) ]
 
 countBlanks :: Term -> Int
-countBlanks t = Monoid.getSum . Writer.execWriter $ ABT.fold f t
+countBlanks t = Monoid.getSum . Writer.execWriter $ ABT.visit' f t
   where f Blank = Writer.tell (Monoid.Sum 1) *> pure Blank
         f t = pure t
 
@@ -284,3 +285,22 @@ instance Digest.Digestable1 F where
     Let b a -> Put.putWord8 8 *> serialize (hash b) *> serialize (hash a)
 
 deriveJSON defaultOptions ''PathElement
+
+instance Show Literal where
+  show (Text t) = show t
+  show (Number n) = show n
+  show (Distance d) = show d
+
+instance Show a => Show (F a) where
+  showsPrec p fa = go p fa where
+    go _ (Lit l) = showsPrec 0 l
+    go p (Ann t k) =
+      showParen (p > 1) $ showsPrec 0 t <> s":" <> showsPrec 0 k
+    go p (App f x) =
+      showParen (p > 9) $ showsPrec 9 f <> s" " <> showsPrec 10 x
+    go p (Lam body) = showParen (p > 0) (showsPrec 0 body)
+    go p (Vector vs) = showListWith (showsPrec 0) (Vector.toList vs)
+    go p Blank = s"_"
+    go p (Ref r) = showsPrec 0 r
+    (<>) = (.)
+    s = showString
