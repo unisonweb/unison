@@ -52,12 +52,12 @@ dependents host = Request.post host "dependents"
   (Encoder.tuple2 (Encoder.optional (Encoder.list Reference.encode)) Reference.encode)
   (Decoder.list Reference.decode)
 
-type alias Replacement = { path : Path, old : Term, new : Term }
+type alias Replacement = { path : Path, old : Term, new : Term, newPath : Path }
 
 editTerm : Host -> Request (Path, Path, Action, Term) Replacement
 editTerm host = Request.post host "edit-term"
   (Encoder.tuple4 Path.encodePath Path.encodePath A.encode E.encodeTerm)
-  (Decoder.product3 Replacement Path.decodePath E.decodeTerm E.decodeTerm)
+  (Decoder.product4 Replacement Path.decodePath E.decodeTerm E.decodeTerm Path.decodePath)
 
 editType : Host -> Request (Path, Action, Type) Type
 editType host = Request.post host "edit-type"
@@ -67,7 +67,7 @@ editType host = Request.post host "edit-type"
 evaluateTerms : Host -> Request (List (Path, Term)) (List Replacement)
 evaluateTerms host = Request.post host "evaluate-terms"
   (Encoder.list (Encoder.tuple2 Path.encodePath E.encodeTerm))
-  (Decoder.list (Decoder.product3 Replacement Path.decodePath E.decodeTerm E.decodeTerm))
+  (Decoder.list (Decoder.product4 Replacement Path.decodePath E.decodeTerm E.decodeTerm Path.decodePath))
 
 type alias LocalInfo =
   { subterm : Term

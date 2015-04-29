@@ -22,13 +22,14 @@ import Unison.Styles as Styles
 import Unison.Term as Term
 import Unison.Term (Term)
 import Unison.View as View
+import Unison.Node as Node
 
 type Event
   = Mouse (Int,Int)
   | Movement Movement.D2
   | Modify (Term -> Term)
   | Evaluations (List { path : Path, old : Term, new : Term })
-  | Replace { path : Path, old : Term, new : Term }
+  | Replace Node.Replacement
   | ToggleRaw
 
 type alias Out =

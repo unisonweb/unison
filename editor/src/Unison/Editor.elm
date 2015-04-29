@@ -46,13 +46,13 @@ type Event
   | Click (Int,Int)
   | Delete
   | Enter
-  | EvaluationResults (List { path : Path, old : Term, new : Term }) -- todo, but can put this off
+  | EvaluationResults (List Node.Replacement) -- todo, handle this
   | FieldContent Field.Content
   | LocalInfoResults Node.LocalInfo
   | Mouse (Int,Int)
   | Movement Movement.D2
   | Preapply
-  | Replace { path : Path, old : Term, new : Term }
+  | Replace Node.Replacement
   | SearchResults Node.SearchResults
   | MetadataResults (List (Reference.Key, Metadata))
   | ViewToggle
@@ -280,7 +280,7 @@ main =
       (Signal.map Just <|
         Signals.keyEvent (Act Action.Step) 83 `merge` -- [s]tep
         Signals.keyEvent (Act Action.WHNF) 69 `merge` -- [e]valuate
-        Signals.keyEvent (Act Action.Eta) 82 `merge`  -- eta [r]educe
+        Signals.keyEvent (Act Action.EtaReduce) 82 `merge` -- eta [r]educe
         Signals.keyEvent Delete 68 `merge`            -- [d]elete
         Signals.keyEvent Preapply 65 `merge`          -- pre-[a]pply
         Signals.keyEvent ViewToggle 86 `merge`        -- [v]iew toggle

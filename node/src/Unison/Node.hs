@@ -40,7 +40,7 @@ data Node m k t e = Node {
   dependents :: Maybe (Set k) -> k -> Noted m (Set k),
   -- | Modify the given subterm, which may fail. First argument is the root path.
   -- Second argument is path relative to the root.
-  -- Returns (root path, original e, edited e)
+  -- Returns (root path, original e, edited e, new cursor position)
   editTerm :: Term.Path -> Term.Path -> Action -> e -> Noted m (Maybe (Term.Path,e,e,Term.Path)),
   -- Evaluate all terms, returning a list of (path, original e, evaluated e)
   evaluateTerms :: [(Term.Path, e)] -> Noted m [(Term.Path,e,e)],
