@@ -88,6 +88,7 @@ store root =
 
   in do
     Directory.createDirectoryIfMissing True (root </> "terms")
+    Directory.createDirectoryIfMissing True (root </> "types")
     Directory.createDirectoryIfMissing True (root </> "type-of")
     Directory.createDirectoryIfMissing True (root </> "builtin-type-of")
     Directory.createDirectoryIfMissing True (root </> "metadata")

@@ -114,7 +114,7 @@ encodeE e = case e of
   Index i -> Encoder.tag' "Index" Encoder.int i
 
 decodePath : Decoder Path
-decodePath = Decoder.newtyped' identity (Decode.list decodeE)
+decodePath = Decode.list decodeE
 
 encodePath : Encoder Path
-encodePath = Encoder.tag' "Path" (Encoder.list encodeE)
+encodePath = Encoder.list encodeE
