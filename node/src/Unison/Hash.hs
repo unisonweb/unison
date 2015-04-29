@@ -5,7 +5,7 @@ module Unison.Hash (Hash, hashBytes, base64, fromBase64, fromBytes) where
 import Control.Applicative
 import Data.Aeson
 import Data.Bytes.Serial
-import qualified Data.ByteString.Base64 as Base64
+import qualified Data.ByteString.Base64.URL as Base64
 import qualified Data.ByteString as B
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
