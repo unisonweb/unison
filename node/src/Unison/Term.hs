@@ -67,6 +67,8 @@ type Term = ABT.Term F
 
 pattern Var' v <- ABT.Var' v
 pattern Lit' l <- (ABT.out -> ABT.Tm (Lit l))
+pattern Number' n <- Lit' (Number n)
+pattern Text' s <- Lit' (Text s)
 pattern Blank' <- (ABT.out -> ABT.Tm Blank)
 pattern Ref' r <- (ABT.out -> ABT.Tm (Ref r))
 pattern App' f x <- (ABT.out -> ABT.Tm (App f x))
@@ -84,6 +86,9 @@ freshIn = ABT.freshIn
 
 var :: ABT.V -> Term
 var = ABT.var
+
+var' :: Text -> Term
+var' = var . ABT.v'
 
 ref :: Reference -> Term
 ref r = ABT.tm (Ref r)
@@ -108,6 +113,9 @@ vector' es = ABT.tm (Vector es)
 
 lam :: ABT.V -> Term -> Term
 lam v body = ABT.tm (Lam (ABT.abs v body))
+
+lam' :: [Text] -> Term -> Term
+lam' vs body = foldr lam body (map ABT.v' vs)
 
 -- | Smart constructor for let rec blocks. Each binding in the block may
 -- reference any other binding in the block in its body (including itself),

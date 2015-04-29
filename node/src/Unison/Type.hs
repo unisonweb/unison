@@ -16,6 +16,7 @@ import Data.Bytes.Serial
 import Data.Foldable (Foldable)
 import Data.Functor.Classes (Eq1(..),Show1(..))
 import Data.Set (Set)
+import Data.Text (Text)
 import Data.Traversable (Traversable)
 import GHC.Generics
 import Unison.Note (Noted)
@@ -95,6 +96,9 @@ matchUniversal _ _ = False
 lit :: Literal -> Type
 lit l = ABT.tm (Lit l)
 
+ref :: R.Reference -> Type
+ref = lit . Ref
+
 app :: Type -> Type -> Type
 app f arg = ABT.tm (App f arg)
 
@@ -112,6 +116,12 @@ existential v = ABT.tm (Existential (ABT.var v))
 
 universal :: ABT.V -> Type
 universal v = ABT.tm (Universal (ABT.var v))
+
+v' :: Text -> Type
+v' s = universal (ABT.v' s)
+
+forall' :: [Text] -> Type -> Type
+forall' vs body = foldr forall body (map ABT.v' vs)
 
 constrain :: Type -> () -> Type
 constrain t u = ABT.tm (Constrain t u)
