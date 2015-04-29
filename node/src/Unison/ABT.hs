@@ -302,8 +302,9 @@ instance (Foldable f, Serial1 f) => Serial (Term f) where
     _ -> fail ("unknown byte tag, expected one of {0,1,2}, got: " ++ show b)
 
 instance Show1 f => Show (Term f) where
-  show (Term _ out) = case out of
-    Var v -> show v
-    Cycle body -> show body
-    Abs v body -> "(Abs " ++ show v ++ " " ++ show body ++ ")"
-    Tm f -> "(" ++ showsPrec1 0 f "" ++ ")"
+  showsPrec p (Term _ out) = case out of
+    Var v -> showsPrec 0 v
+    Cycle body -> showsPrec p body
+    Abs v body@(Abs' _ _) -> showsPrec 0 v . showString " " . showsPrec p body
+    Abs v body -> showsPrec 0 v . showString ". " . showsPrec p body
+    Tm f -> showsPrec1 0 f

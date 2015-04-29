@@ -34,7 +34,7 @@ data Literal
   | Vector
   | Distance
   | Ref R.Reference -- ^ A type literal uniquely defined by some nameless Hash
-  deriving (Eq,Ord,Show,Generic)
+  deriving (Eq,Ord,Generic)
 
 deriveJSON defaultOptions ''Literal
 instance Serial Literal
@@ -49,7 +49,7 @@ data F a
   | Forall a
   | Existential a
   | Universal a
-  deriving (Eq,Foldable,Functor,Generic1,Show,Traversable)
+  deriving (Eq,Foldable,Functor,Generic1,Traversable)
 
 deriveJSON defaultOptions ''F
 instance Serial1 F
@@ -143,15 +143,27 @@ instance J.ToJSON1 F where
 instance J.FromJSON1 F where
   parseJSON1 j = parseJSON j
 
---instance Show a => Show (F a) where
---  show (Lit' l) = show l
---  show (Arrow' (Arrow' i i2) o) = "(" ++ show i ++ " -> " ++ show i2 ++ ") -> " ++ show o
---  show (Arrow' i o) = show i ++ " -> " ++ show o
---  show (ABT.Var' n) = show n
---  show (Ann' t k) = show t ++ ":" ++ show k
---  show (App' f arg) = "(" ++ show f ++ " " ++ show arg ++ ")"
---  show (Constrain' t _) = show t
---  show (Forall' x (Forall' y (Forall' z t))) =
---    "(∀ " ++ (intercalate " " . map show) [x,y,z] ++ ". " ++ show t ++ ")"
---  show (Forall' x (Forall' y t)) = "(∀ " ++ (intercalate " " . map show) [x,y] ++ ". " ++ show t++")"
---  show (Forall' x t) = "(∀ " ++ show x ++ ". " ++ show t++")"
+instance Show Literal where
+  show Number = "Number"
+  show Text = "Text"
+  show Vector = "Vector"
+  show Distance = "Distance"
+  show (Ref r) = show r
+
+instance Show a => Show (F a) where
+  showsPrec p fa = go p fa where
+    go _ (Lit l) = showsPrec 0 l
+    go p (Arrow i o) =
+      showParen (p > 0) $ showsPrec (p+1) i <> s" -> " <> showsPrec p o
+    go p (Ann t k) =
+      showParen (p > 1) $ showsPrec 0 t <> s":" <> showsPrec 0 k
+    go p (App f x) =
+      showParen (p > 9) $ showsPrec 9 f <> showsPrec 10 x
+    go p (Constrain t _) = showsPrec p t
+    go _ (Universal v) = showsPrec 0 v
+    go _ (Existential v) = s"'" <> showsPrec 0 v
+    go p (Forall body) = case p of
+      0 -> showsPrec p body
+      _ -> showParen True $ s"∀ " <> showsPrec 0 body
+    (<>) = (.)
+    s = showString

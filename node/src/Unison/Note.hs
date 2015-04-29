@@ -12,7 +12,7 @@ newtype Noted m a = Noted { unnote :: m (Either Note a) }
 
 run :: Monad m => Noted m a -> m a
 run (Noted m) = m >>= \e -> case e of
-  Left (Note stack) -> fail (intercalate "\n" stack)
+  Left (Note stack) -> fail ("\n" ++ intercalate "\n" stack)
   Right a -> return a
 
 noted :: m (Either Note a) -> Noted m a

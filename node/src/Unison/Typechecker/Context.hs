@@ -63,7 +63,7 @@ context0 :: Context
 context0 = Context []
 
 instance Show Context where
-  show (Context es) = "Γ " ++ (intercalate "\n  " . map show) (reverse es)
+  show (Context es) = "Γ\n  " ++ (intercalate "\n  " . map (show . fst)) (reverse es)
 
 usedVars :: Context -> Set ABT.V
 usedVars (Context []) = Set.empty
@@ -75,11 +75,11 @@ extend e c@(Context ctx) = Context ((e,s'):ctx) where
   s' = Set.insert (varUsedBy e) (usedVars c)
 
 context :: [Element] -> Context
-context xs = foldr extend context0 (reverse xs)
+context xs = foldl' (flip extend) context0 xs
 
 append :: Context -> Context -> Context
-append ctxL (Context es) =
-  foldr extend ctxL (map fst (reverse es))
+append ctxL (Context es) = foldl' f ctxL (reverse es) where
+  f ctx (e,_) = extend e ctx
 
 fresh :: ABT.V -> Context -> ABT.V
 fresh v ctx = ABT.freshIn' (usedVars ctx) v
@@ -331,7 +331,11 @@ check ctx e t | wellformedType ctx t = Note.scope (show e ++ " : " ++ show t) $ 
   go _ _ = do -- Sub
     (a, ctx') <- synthesize ctx e
     subtype ctx' (apply ctx' a) (apply ctx' t)
-check _ _ _ = Left $ Note.note "type not well formed wrt context"
+check ctx _ t = Note.scope ("context: " ++ show ctx) .
+                Note.scope ("type: " ++ show t) .
+                Note.scope ("context well formed: " ++ show (wellformed ctx)) .
+                Note.scope ("type well formed: " ++ show (wellformedType ctx t))
+                $ Left (Note.note "check failed")
 
 -- | Infer the type of a literal
 synthLit :: Term.Literal -> Type

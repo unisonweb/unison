@@ -8,12 +8,17 @@ import Data.Set (Set)
 import Data.Bytes.Serial (Serial(..))
 import Data.Bytes.VarInt
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 
 data Fixity = InfixL | InfixR | Infix | Prefix deriving (Eq,Ord,Show,Enum)
 
 -- NB: freshId is first field, so given a `Set Symbol`, the max element of
 -- the set will also have the highest `freshId`.
-data Symbol = Symbol { freshId :: !Int, name :: Text, fixity :: !Fixity, precedence :: !Int } deriving (Eq,Ord,Show)
+data Symbol = Symbol { freshId :: !Int, name :: Text, fixity :: !Fixity, precedence :: !Int } deriving (Eq,Ord)
+
+instance Show Symbol where
+  show s | freshId s == 0 = Text.unpack (name s)
+  show s = Text.unpack (name s) ++ show (freshId s)
 
 symbol :: Text -> Fixity -> Int -> Symbol
 symbol n f p = Symbol 0 n f p
