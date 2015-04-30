@@ -176,8 +176,8 @@ focus path@(hd:tl) t = case out t of
     let f (t,replace) = (t, abs v . replace)
     in f <$> focus path t
   Tm ft -> do
-    (_,hreplace) <- hd ft
-    (t,replace) <- focus tl t
+    (sub,hreplace) <- hd ft
+    (t,replace) <- focus tl sub
     pure (t, tm . hreplace . replace)
 
 -- | Returns the longest prefix of the path which points to a subterm
@@ -308,4 +308,4 @@ instance Show1 f => Show (Term f) where
     Cycle body -> showsPrec p body
     Abs v body@(Abs' _ _) -> showsPrec 0 v . showString " " . showsPrec p body
     Abs v body -> showsPrec 0 v . showString ". " . showsPrec p body
-    Tm f -> showsPrec1 0 f
+    Tm f -> showsPrec1 p f

@@ -39,7 +39,7 @@ admissibleTypeAt :: Applicative f
                  -> Term.Path
                  -> Term
                  -> Noted f Type
-admissibleTypeAt synth loc t =
+admissibleTypeAt synth loc t = Note.scoped ("admissibleTypeAt@" ++ show loc ++ " " ++ show t) $
   let
     f = Term.freshIn t (ABT.v' "s")
     shake (Type.Arrow' (Type.Arrow' _ tsub) _) = Type.generalize tsub

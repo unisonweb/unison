@@ -316,7 +316,7 @@ instantiateR ctx t v = case Type.monotype t >>= solve ctx v of
 -- | Check that under the given context, `e` has type `t`,
 -- updating the context in the process.
 check :: Context -> Term -> Type -> Either Note Context
-check ctx e t | wellformedType ctx t = Note.scope (show e ++ " : " ++ show t) $ go e t where
+check ctx e t | wellformedType ctx t = Note.scope ("check: " ++ show e ++ ":   " ++ show t) $ go e t where
   go (Term.Lit' l) _ = subtype ctx (synthLit l) t -- 1I
   go _ (Type.Forall' x body) = -- ForallI
     let (x', ctx') = extendUniversal x ctx

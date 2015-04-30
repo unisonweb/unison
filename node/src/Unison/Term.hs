@@ -103,6 +103,9 @@ blank = ABT.tm Blank
 app :: Term -> Term -> Term
 app f arg = ABT.tm (App f arg)
 
+apps :: Term -> [Term] -> Term
+apps f = foldl' app f
+
 ann :: Term -> T.Type -> Term
 ann e t = ABT.tm (Ann e t)
 
@@ -294,13 +297,13 @@ instance Show Literal where
 instance Show a => Show (F a) where
   showsPrec p fa = go p fa where
     go _ (Lit l) = showsPrec 0 l
-    go p (Ann t k) =
-      showParen (p > 1) $ showsPrec 0 t <> s":" <> showsPrec 0 k
+    go p (Ann t k) = showsPrec p t
+      -- showParen (p > 1) $ showsPrec 0 t <> s":" <> showsPrec 0 k
     go p (App f x) =
       showParen (p > 9) $ showsPrec 9 f <> s" " <> showsPrec 10 x
     go p (Lam body) = showParen (p > 0) (showsPrec 0 body)
-    go p (Vector vs) = showListWith (showsPrec 0) (Vector.toList vs)
-    go p Blank = s"_"
-    go p (Ref r) = showsPrec 0 r
+    go _ (Vector vs) = showListWith (showsPrec 0) (Vector.toList vs)
+    go _ Blank = s"_"
+    go _ (Ref r) = showsPrec 0 r
     (<>) = (.)
     s = showString
