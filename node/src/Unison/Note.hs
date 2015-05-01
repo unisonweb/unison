@@ -41,6 +41,7 @@ orElse a b = Noted $ unnote a >>= go
 
 instance Monad m => Monad (Noted m) where
   return = Noted . return . return
+  fail s = Noted . return . Left . note $ s
   Noted a >>= f = Noted $ a >>= \e -> case e of
     Left e -> return $ Left e
     Right a -> unnote (f a)

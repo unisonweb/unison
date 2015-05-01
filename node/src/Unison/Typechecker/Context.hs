@@ -63,7 +63,12 @@ context0 :: Context
 context0 = Context []
 
 instance Show Context where
-  show (Context es) = "Γ\n  " ++ (intercalate "\n  " . map (show . fst)) (reverse es)
+  show c@(Context es) =
+    "Γ " ++ show (Set.toList (usedVars c)) ++ "\n  "
+         ++ (intercalate "\n  " . map (show . fst)) (reverse es)
+
+-- ctxOK :: Context -> Context
+-- ctxOK ctx = if wellformed ctx then ctx else error $ "not ok: " ++ show ctx
 
 usedVars :: Context -> Set ABT.V
 usedVars (Context []) = Set.empty
@@ -84,8 +89,13 @@ append ctxL (Context es) = foldl' f ctxL (reverse es) where
 fresh :: ABT.V -> Context -> ABT.V
 fresh v ctx = ABT.freshIn' (usedVars ctx) v
 
+fresh2 :: ABT.V -> ABT.V -> Context -> (ABT.V, ABT.V)
+fresh2 va vb ctx = case fresh va ctx of
+  va -> (va, ABT.freshIn' (Set.insert va (usedVars ctx)) vb)
+
 fresh3 :: ABT.V -> ABT.V -> ABT.V -> Context -> (ABT.V, ABT.V, ABT.V)
-fresh3 va vb vc ctx = (fresh va ctx, fresh vb ctx, fresh vc ctx)
+fresh3 va vb vc ctx = case fresh2 va vb ctx of
+  (va, vb) -> (va, vb, ABT.freshIn' (Set.insert va . Set.insert vb $ usedVars ctx) vc)
 
 -- | Extend this `Context` with a single universally quantified variable,
 -- guaranteed to be fresh
@@ -251,8 +261,7 @@ instantiateL ctx v t = case Type.monotype t >>= solve ctx v of
       maybe (Left $ Note.note "InstLReach failed") pure $
         solve ctx v2 (Type.Monotype (Type.existential v))
     Type.Arrow' i o -> -- InstLArr
-      let i' = fresh (ABT.v' "i") ctx
-          o' = fresh (ABT.v' "o") ctx
+      let (i',o') = fresh2 (ABT.v' "i") (ABT.v' "o") ctx
           s = Solved v (Type.Monotype (Type.arrow (Type.existential i') (Type.existential o')))
       in do
         ctx' <- instantiateR (replace (Existential v) (context [Existential o', Existential i', s]) ctx)
@@ -260,8 +269,7 @@ instantiateL ctx v t = case Type.monotype t >>= solve ctx v of
                              i'
         instantiateL ctx' o' (apply ctx' o)
     Type.App' x y -> -- analogue of InstLArr
-      let x' = fresh (ABT.v' "x") ctx
-          y' = fresh (ABT.v' "y") ctx
+      let (x',y') = fresh2 (ABT.v' "x") (ABT.v' "y") ctx
           s = Solved v (Type.Monotype (Type.app (Type.existential x') (Type.existential y')))
           ctx0 = replace (Existential v)
                          (context [Existential y', Existential x', s])
@@ -286,8 +294,7 @@ instantiateR ctx t v = case Type.monotype t >>= solve ctx v of
       maybe (Left $ Note.note "InstRReach failed") pure $
         solve ctx v2 (Type.Monotype (Type.existential v))
     Type.Arrow' i o -> -- InstRArrow
-      let i' = fresh (ABT.v' "i") ctx
-          o' = fresh (ABT.v' "o") ctx
+      let (i',o') = fresh2 (ABT.v' "i") (ABT.v' "o") ctx
           s = Solved v (Type.Monotype (Type.arrow (Type.existential i') (Type.existential o')))
       in do
         ctx' <- instantiateL (replace (Existential v) (context [Existential o', Existential i', s]) ctx)
@@ -295,8 +302,7 @@ instantiateR ctx t v = case Type.monotype t >>= solve ctx v of
                              i
         instantiateR ctx' (apply ctx' o) o'
     Type.App' x y -> -- analogue of InstRArr
-      let x' = fresh (ABT.v' "x") ctx
-          y' = fresh (ABT.v' "y") ctx
+      let (x',y') = fresh2 (ABT.v' "x") (ABT.v' "y") ctx
           s = Solved v (Type.Monotype (Type.app (Type.existential x') (Type.existential y')))
           ctx0 = replace (Existential v)
                          (context [Existential y', Existential x', s])
@@ -331,10 +337,11 @@ check ctx e t | wellformedType ctx t = Note.scope ("check: " ++ show e ++ ":   "
   go _ _ = do -- Sub
     (a, ctx') <- synthesize ctx e
     subtype ctx' (apply ctx' a) (apply ctx' t)
-check ctx _ t = Note.scope ("context: " ++ show ctx) .
+check ctx e t = Note.scope ("context: " ++ show ctx) .
+                Note.scope ("term: " ++ show e) .
                 Note.scope ("type: " ++ show t) .
                 Note.scope ("context well formed: " ++ show (wellformed ctx)) .
-                Note.scope ("type well formed: " ++ show (wellformedType ctx t))
+                Note.scope ("type well formed wrt context: " ++ show (wellformedType ctx t))
                 $ Left (Note.note "check failed")
 
 -- | Infer the type of a literal
@@ -346,7 +353,7 @@ synthLit lit = Type.lit $ case lit of
 
 -- | Synthesize the type of the given term, updating the context in the process.
 synthesize :: Context -> Term -> Either Note (Type, Context)
-synthesize ctx e = Note.scope ("infer: " ++ show e) $ go e where
+synthesize ctx e = Note.scope ("synth: " ++ show e) $ go e where
   go (Term.Var' v) = case lookupType ctx v of -- Var
     Nothing -> Left $ Note.note "type not in scope"
     Just t -> pure (t, ctx)
@@ -402,15 +409,17 @@ synthesizeApp ctx ft arg = go ft where
                      arg
   go (Type.Arrow' i o) = (,) o <$> check ctx arg i -- ->App
   go (Type.Existential' a) = -- a^App
-    let i = fresh a ctx
-        o = fresh (ABT.v' "o") ctx
+    let (i,o) = fresh2 a (ABT.v' "o") ctx
         soln = Monotype (Type.existential i `Type.arrow` Type.existential o)
         ctxMid = context [Existential o, Existential i, Solved a soln]
     in (,) (Type.existential o) <$>
       check (replace (Existential a) ctxMid ctx)
                       arg
                       (Type.existential i)
-  go _ = Left $ Note.note "unable to synthesize type of application"
+  go _ = Left . Note.Note $
+         [ "unable to synthesize type of application"
+         , "function type: " ++ show ft
+         , "arg: " ++ show arg ]
 
 annotateRefs :: Applicative f => Type.Env f -> Term -> Noted f Term
 annotateRefs synth term = ABT.visit f term where

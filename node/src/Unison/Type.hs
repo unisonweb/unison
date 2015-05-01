@@ -66,7 +66,10 @@ type Env f = R.Reference -> Noted f Type
 freeVars :: Type -> Set ABT.V
 freeVars = ABT.freeVars
 
-data Monotype = Monotype { getPolytype :: Type } deriving (Eq,Show)
+data Monotype = Monotype { getPolytype :: Type } deriving (Eq)
+
+instance Show Monotype where
+  show = show . getPolytype
 
 -- Smart constructor which checks if a `Type` has no `Forall` quantifiers.
 monotype :: Type -> Maybe Monotype
@@ -163,7 +166,7 @@ instance Show a => Show (F a) where
     go p (Ann t k) =
       showParen (p > 1) $ showsPrec 0 t <> s":" <> showsPrec 0 k
     go p (App f x) =
-      showParen (p > 9) $ showsPrec 9 f <> showsPrec 10 x
+      showParen (p > 9) $ showsPrec 9 f <> s" " <> showsPrec 10 x
     go p (Constrain t _) = showsPrec p t
     go _ (Universal v) = showsPrec 0 v
     go _ (Existential v) = s"'" <> showsPrec 0 v
