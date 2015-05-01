@@ -333,7 +333,7 @@ check ctx e t | wellformedType ctx t = Note.scope ("check: " ++ show e ++ ":   "
         ctx' = extend (Ann x' i) ctx
         body' = ABT.subst (ABT.var x') x body
     in check ctx' body' o >>= retract (Ann x' i)
-  -- go Term.Blank _ = Right ctx -- possible hack to workaround lack of impredicative instantiation
+  go Term.Blank' _ = Right ctx -- somewhat hacky short circuit; blank checks successfully against all types
   go _ _ = do -- Sub
     (a, ctx') <- synthesize ctx e
     subtype ctx' (apply ctx' a) (apply ctx' t)
