@@ -4,28 +4,27 @@ import Array
 import Color
 import Debug
 import Elmz.Distance as Distance
-import Elmz.Layout (Layout)
+import Elmz.Layout exposing (Layout)
 import Elmz.Layout as L
-import Elmz.Moore (Moore(..))
+import Elmz.Moore exposing (Moore(..))
 import Elmz.Moore as Moore
 import Elmz.Trie as Trie
-import Elmz.Trie (Trie)
+import Elmz.Trie exposing (Trie)
 import List
-import List ((::))
 import Graphics.Element as E
 import Maybe
 import Unison.Reference as R
-import Unison.Hash (Hash)
-import Unison.Metadata (Metadata)
-import Unison.Symbol (Fixity)
+import Unison.Hash exposing (Hash)
+import Unison.Metadata exposing (Metadata)
+import Unison.Symbol exposing (Fixity)
 import Unison.Symbol as Symbol
 import Unison.Metadata as Metadata
-import Unison.Styles (codeText)
+import Unison.Styles exposing (codeText)
 import Unison.Styles as Styles
-import Unison.Term (..)
+import Unison.Term exposing (..)
 import Unison.Term as Term
 import Unison.Type as Type
-import Unison.Path (..)
+import Unison.Path exposing (..)
 import Unison.Path as Path
 import String
 import Text
@@ -322,16 +321,16 @@ builtins env allowBreak availableWidth ambientPrec cur =
         in Just (L.embed t (E.spacer w' h'))
       App (Ref (R.Builtin "View.text")) style -> case e of
         -- todo, actually interpret style
-        Lit (Text s) -> Just (L.embed t (Text.leftAligned (Text.style Text.defaultStyle (Text.fromString s))))
+        Lit (Text s) -> Just (L.embed t (E.leftAligned (Text.style Text.defaultStyle (Text.fromString s))))
       App (App (App (Ref (R.Builtin "View.textbox")) (Ref (R.Builtin alignment))) (Lit (Term.Distance d))) style ->
         case e of
           Lit (Text s) ->
             -- todo, actually interpret style
             let f = case alignment of
-                      "Text.left"    -> Text.leftAligned
-                      "Text.right"   -> Text.rightAligned
-                      "Text.center"  -> Text.centered
-                      "Text.justify" -> Text.justified
+                      "Text.left"    -> E.leftAligned
+                      "Text.right"   -> E.rightAligned
+                      "Text.center"  -> E.centered
+                      "Text.justify" -> E.justified
                 e = f (Text.style Text.defaultStyle (Text.fromString s))
                 rem = availableWidth `max` floor (Distance.pixels d (toFloat availableWidth))
                 e' = if E.widthOf e > rem then E.width rem e else e

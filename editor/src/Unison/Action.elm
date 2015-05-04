@@ -1,10 +1,10 @@
 module Unison.Action where
 
 import Elmz.Json.Encoder as Encoder
-import Elmz.Json.Encoder (Encoder)
+import Elmz.Json.Encoder exposing (Encoder)
 import Elmz.Json.Decoder as Decoder
-import Elmz.Json.Decoder (Decoder)
-import Unison.Symbol (Symbol)
+import Elmz.Json.Decoder exposing (Decoder)
+import Unison.Symbol exposing (Symbol)
 import Unison.Symbol as Symbol
 
 type Action

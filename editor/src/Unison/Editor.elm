@@ -1,16 +1,15 @@
 module Unison.Editor where
 
 import Debug
-import Execute
 import Elmz.Json.Request as JR
-import Elmz.Layout (Containment(Inside,Outside), Layout, Pt, Region)
+import Elmz.Layout exposing (Containment(Inside,Outside), Layout, Pt, Region)
 import Elmz.Layout as Layout
-import Elmz.Moore (Moore(..))
+import Elmz.Moore exposing (Moore(..))
 import Elmz.Moore as Moore
 import Elmz.Movement as Movement
 import Elmz.Selection1D as Selection1D
 import Elmz.Signal as Signals
-import Graphics.Element (Element)
+import Graphics.Element exposing (Element)
 import Graphics.Element as Element
 import Graphics.Input.Field as Field
 import Maybe
@@ -21,21 +20,21 @@ import Signal
 import Unison.Action as Action
 import Unison.EditableTerm as EditableTerm
 import Unison.SearchboxParser as SearchboxParser
-import Unison.Hash (Hash)
-import Unison.Metadata (Metadata)
+import Unison.Hash exposing (Hash)
+import Unison.Metadata exposing (Metadata)
 import Unison.Metadata as Metadata
 import Unison.Node as Node
-import Unison.Path (Path)
+import Unison.Path exposing (Path)
 import Unison.Path as Path
-import Unison.Reference (Reference)
+import Unison.Reference exposing (Reference)
 import Unison.Reference as Reference
 import Unison.Scope as Scope
 import Unison.Styles as Styles
-import Unison.Term (Term)
+import Unison.Term exposing (Term)
 import Unison.Term as Term
 import Unison.TermExplorer as TermExplorer
 import Unison.Terms as Terms
-import Unison.Type (Type)
+import Unison.Type exposing (Type)
 import Unison.Type as Type
 import Unison.View as View
 import Window
@@ -205,7 +204,7 @@ model sink term0 =
 
 ignoreUpDown : Signal Field.Content -> Signal Field.Content
 ignoreUpDown s =
-  let k = Signal.sampleOn (Signal.keepIf (\a -> a.y /= 0) {x = 0, y = 0} Keyboard.arrows)
+  let k = Signal.sampleOn (Signal.filter (\a -> a.y /= 0) {x = 0, y = 0} Keyboard.arrows)
                           (Signals.delay Field.noContent s)
   in Signal.merge k s
 

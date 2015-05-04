@@ -1,33 +1,32 @@
 module Unison.Term where
 
 import Array
-import Array (Array)
+import Array exposing (Array)
 import Debug
 import Dict
-import Dict (Dict)
+import Dict exposing (Dict)
 import Elmz.Distance as Distance
 import Elmz.Maybe as EM
-import Elmz.Layout (Layout)
-import Elmz.Json.Encoder (Encoder)
+import Elmz.Layout exposing (Layout)
+import Elmz.Json.Encoder exposing (Encoder)
 import Elmz.Json.Encoder as Encoder
-import Elmz.Json.Decoder (Decoder)
+import Elmz.Json.Decoder exposing (Decoder)
 import Elmz.Json.Decoder as Decoder
-import Elmz.Trie (Trie)
+import Elmz.Trie exposing (Trie)
 import Elmz.Trie as Trie
 import List
-import List ((::))
 import Maybe
 import Set
-import Set (Set)
+import Set exposing (Set)
 import String
 import Unison.Reference as R
-import Unison.Hash (Hash)
+import Unison.Hash exposing (Hash)
 import Unison.Hash as H
-import Unison.Metadata (Metadata)
-import Unison.Symbol (Symbol,Fixity)
+import Unison.Metadata exposing (Metadata)
+import Unison.Symbol exposing (Symbol,Fixity)
 import Unison.Symbol as Symbol
 import Unison.Metadata as Metadata
-import Unison.Path (..)
+import Unison.Path exposing (..)
 import Unison.Path as Path
 import Unison.Type as T
 type alias E = Path.E

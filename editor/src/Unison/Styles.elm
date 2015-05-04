@@ -1,20 +1,17 @@
 module Unison.Styles where
 
 import Color
-import Color (Color)
-import Easing (Easing)
-import Easing
+import Color exposing (Color)
 import Elmz.Signal as Signals
-import Elmz.Layout (Layout, Region)
+import Elmz.Layout exposing (Layout, Region)
 import Elmz.Layout as L
 import Graphics.Input.Field as Field
-import Graphics.Element (Element)
+import Graphics.Element exposing (Element)
 import Graphics.Element as E
 import Graphics.Collage as C
 import List
-import List ((::))
 import Signal
-import Text (Style)
+import Text exposing (Style)
 import Text as T
 import Time
 
@@ -62,16 +59,16 @@ menuHeader =
   , line     = Nothing }
 
 codeText : String -> Element
-codeText s = T.leftAligned (T.style code (T.fromString s))
+codeText s = E.leftAligned (T.style code (T.fromString s))
 
 boldCodeText : String -> Element
-boldCodeText s = T.leftAligned (T.style { code | bold <- True } (T.fromString s))
+boldCodeText s = E.leftAligned (T.style { code | bold <- True } (T.fromString s))
 
 centeredCodeText : String -> Element
-centeredCodeText s = T.centered (T.style code (T.fromString s))
+centeredCodeText s = E.centered (T.style code (T.fromString s))
 
 menuHeaderText : String -> Element
-menuHeaderText s = T.leftAligned (T.style menuHeader (T.fromString s))
+menuHeaderText s = E.leftAligned (T.style menuHeader (T.fromString s))
 
 menuSeparator : Int -> Element
 menuSeparator width =
@@ -111,10 +108,10 @@ currentSymbol : Element
 currentSymbol = outline' okColor 6 16 16
 
 numericLiteral : String -> Element
-numericLiteral s = T.leftAligned (T.style { code | color <- belizeHole } (T.fromString s))
+numericLiteral s = E.leftAligned (T.style { code | color <- belizeHole } (T.fromString s))
 
 stringLiteral : String -> Element
-stringLiteral s = T.leftAligned (T.style { code | color <- wisteria } (T.fromString s))
+stringLiteral s = E.leftAligned (T.style { code | color <- wisteria } (T.fromString s))
 
 cells : k -> Element -> List (Layout k) -> Layout k
 cells k ifEmpty ls = let cs = List.map (\l -> L.fill bg (L.pad 5 0 l)) (L.row ls) in case cs of
@@ -205,17 +202,6 @@ contain : Element -> Element
 contain e =
   E.container (E.widthOf e) (E.heightOf e) E.middle e
 
-spinner : Signal Element
-spinner =
-  let pct n = toFloat (n%60) / 60.0
-      t = Signal.map pct (Signals.count (Time.fps 60))
-      rect = E.color midnightBlue (E.spacer 5 10)
-      sep = E.spacer 1 1
-      render pct = E.flow E.right
-        [ rect, sep
-        , E.opacity (Easing.easeInOutExpo pct) rect ]
-  in Signal.map render t
-
 blank : Element
 blank = codeText "_"
 
@@ -243,7 +229,3 @@ midnightBlue = Color.rgb 44 62 80
 midnightBlueA alpha = Color.rgba 44 62 80 alpha
 concrete = Color.rgb 149 165 166
 asbestos = Color.rgb 127 140 141
-
-main =
-  let scene e = E.flow E.down [ E.spacer 1 50, E.flow E.right [ E.spacer 50 1, e]]
-  in Signal.map scene spinner

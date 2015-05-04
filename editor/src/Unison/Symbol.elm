@@ -1,9 +1,9 @@
 module Unison.Symbol where
 
 import Elmz.Json.Encoder as Encoder
-import Elmz.Json.Encoder (Encoder)
+import Elmz.Json.Encoder exposing (Encoder)
 import Elmz.Json.Decoder as Decoder
-import Elmz.Json.Decoder (Decoder)
+import Elmz.Json.Decoder exposing (Decoder)
 
 type Fixity = InfixL | InfixR | Infix | Prefix
 

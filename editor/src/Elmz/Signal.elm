@@ -5,36 +5,19 @@ import Debug
 import Elmz.Maybe
 import Keyboard
 import List
-import List ((::))
 import Maybe
-import Execute
 import Mouse
 import Result
-import Set
-import Signal (..)
+import Set exposing (Set)
+import Signal exposing (..)
 import Text
 import Time
-import Time (Time)
+import Time exposing (Time)
 
 {-| Accumulates into a list using `foldp` during regions where `cond`
     is `True`, otherwise emits the empty list. -}
 accumulateWhen : Signal Bool -> Signal a -> Signal (List a)
 accumulateWhen cond a = foldpWhen cond (::) [] a |> map List.reverse
-
-asyncUpdate : (Signal req -> Signal (model -> (Maybe req, model)))
-           -> Signal (model -> (Maybe req, model))
-           -> req
-           -> model
-           -> Signal model
-asyncUpdate responseActions actions req0 model0 =
-  let reqs = channel req0
-      mergedActions = merge actions (responseActions (subscribe reqs))
-      step action (_,model) =
-        let (req, model') = action model
-        in (Maybe.map (send reqs) req, model')
-      modelsWithMsgs = foldp step (Nothing,model0) mergedActions
-      msgs = Execute.schedule (map (Maybe.withDefault Execute.noop) (justs (map fst modelsWithMsgs)))
-  in during (map snd modelsWithMsgs) msgs
 
 {-| Alternate sending `input` through `left` or `right` signal transforms,
     merging their results. -}
@@ -63,7 +46,7 @@ delay h s =
 
 {-| Only emit when the input signal transitions from `True` to `False`. -}
 downs : Signal Bool -> Signal Bool
-downs s = dropIf identity True s
+downs s = filter not True s
 
 {-| Emits an event whenever there are two events that occur within `within` time of each other. -}
 doubleWithin : Time -> Signal s -> Signal ()
@@ -73,7 +56,7 @@ doubleWithin within s =
         Nothing -> False
         Just t1 -> if t2 - t1 < within then True else False
   in map2 f (delay Nothing (map Just ts)) ts
-     |> keepIf identity False
+     |> filter identity False
      |> map (always ())
 
 {-| Evaluate the second signal for its effects, but return the first signal. -}
@@ -141,7 +124,7 @@ flattenMaybe s = fromMaybe (constant Nothing) s
 
 {-| Ignore any events of `Nothing`. -}
 justs : Signal (Maybe a) -> Signal (Maybe a)
-justs s = keepIf (Maybe.map (always True) >> Maybe.withDefault False) Nothing s
+justs s = filter (Maybe.map (always True) >> Maybe.withDefault False) Nothing s
 
 {-| Event which fires with the given `a` whenever the keycode is pressed down. -}
 keyEvent : a -> Int -> Signal a
@@ -151,19 +134,11 @@ keyEvent k code = map (always k) (ups (Keyboard.isDown code))
 keyChordEvent : a -> List Keyboard.KeyCode -> Signal a
 keyChordEvent k codes =
   let
-    hazTehCodez : List Keyboard.KeyCode -> Bool
+    hazTehCodez : Set Keyboard.KeyCode -> Bool
     hazTehCodez pressed =
-      let pressed' = Set.fromList pressed
-      in List.all (\k -> Set.member k pressed') codes
+      List.all (\k -> Set.member k pressed) codes
   in
     map (always k) (ups (map hazTehCodez Keyboard.keysDown))
-
-loop : (Signal a -> Signal s -> Signal (b,s)) -> s -> Signal a -> Signal b
-loop f s a =
-  let chan = channel s
-      bs = f a (sampleOn a (subscribe chan)) -- Signal (b,s)
-  in map2 always (map fst bs)
-                 (Execute.complete (map (\(_,s) -> send chan s) bs))
 
 map2r : (a -> b -> c) -> Signal a -> Signal b -> Signal c
 map2r f a b = sampleOn b (map2 f a b)
@@ -172,39 +147,6 @@ map2r f a b = sampleOn b (map2 f a b)
 mask : Signal Bool -> Signal a -> Signal (Maybe a)
 mask = map2 (\b a -> if b then Just a else Nothing)
 
-{-| Merge two signals, using the combining function if any events co-occcur. -}
-mergeWith : (a -> a -> a) -> Signal a -> Signal a -> Signal a
-mergeWith resolve left right =
-  let boolLeft  = always True <~ left
-      boolRight = always False <~ right
-      bothUpdated = (/=) <~ merge boolLeft boolRight ~ merge boolRight boolLeft
-      exclusive = dropWhen bothUpdated Nothing (Just <~ merge left right)
-      overlap = keepWhen bothUpdated Nothing (Just <~ map2 resolve left right)
-      combine m1 m2 = case Maybe.oneOf [m1, m2] of
-        Just a -> a
-        Nothing -> List.head [] -- impossible
-  in combine <~ exclusive ~ overlap
-
-{-| Merge two signals, composing the functions if any events co-occcur. -}
-mergeWithBoth : Signal (a -> a) -> Signal (a -> a) -> Signal (a -> a)
-mergeWithBoth = mergeWith (>>)
-
-{-| Merge the two signals. If events co-occur, emits `(Just a, Just b)`,
-otherwise emits `(Just a, Nothing)` or `(Nothing, Just b)`. -}
-oneOrBoth : Signal a -> Signal b -> Signal (Maybe a, Maybe b)
-oneOrBoth a b =
-  let combine a b = case a of
-        (Nothing,_) -> b
-        (Just a,_) -> case b of
-          (_, Nothing) -> (Just a, Nothing)
-          (_, Just b) -> (Just a, Just b)
-  in mergeWith combine (map (\a -> (Just a, Nothing)) a)
-                       (map (\b -> (Nothing, Just b)) b)
-
-{-| A signal which emits a single event after a specified time. -}
-pulse : Time -> Signal ()
-pulse time = Time.delay time start
-
 {-| Replace the first occurence of the input signal with `a`. -}
 replaceFirst : a -> Signal a -> Signal a
 replaceFirst a0 s =
@@ -212,37 +154,21 @@ replaceFirst a0 s =
       f replace a = if replace then Debug.log ("replacing " ++ toString a) a0 else a
   in map2 f first s
 
-{-| Emit updates to `s` only when it moves outside the current bin,
-    according to the function `within`. Otherwise emit no update but
-    take on the value `Nothing`. -}
-quantize : (a -> r -> Bool) -> Signal r -> Signal a -> Signal (Maybe a)
-quantize within bin s =
-  let f range a = if a `within` range then Nothing else Just a
-  in dropIf (Maybe.map (always False) >> Maybe.withDefault True) Nothing (f <~ bin ~ s)
-
 {-| Repeat updates to a signal after it has remained steady for `t`
     elapsed time, and only if the current value tests true against `f`. -}
 repeatAfterIf : Time -> number -> (a -> Bool) -> Signal a -> Signal a
 repeatAfterIf time fps f s =
   let repeatable = map f s
-      delayedRep = repeatable |> keepIf identity False |> Time.since time |> map not
+      delayedRep = repeatable |> filter identity False |> Time.since time |> map not
       resetDelay = merge (always False <~ s) delayedRep
       repeats = Time.fpsWhen fps ((&&) <~ repeatable ~ dropRepeats resetDelay)
   in sampleOn repeats s
-
-{-| A signal which emits a single event on or immediately after program start. -}
-start : Signal ()
-start =
-  let chan = channel ()
-      msg = send chan ()
-  in sampleOn (subscribe chan)
-              (map2 always (constant ()) (Execute.schedule (constant msg)))
 
 {-| Only emit updates of `s` when it settles into a steady state with
     no updates within the period `t`. Useful to avoid propagating updates
     when a value is changing too rapidly. -}
 steady : Time -> Signal a -> Signal a
-steady t s = sampleOn (Time.since t s |> dropIf identity False) s
+steady t s = sampleOn (Time.since t s |> filter not False) s
 
 {-| Like `sampleOn`, but the output signal refreshes whenever either signal updates. -}
 sampleOnMerge : Signal a -> Signal b -> Signal b
@@ -279,7 +205,7 @@ unchanged a = map not (changed a)
 
 {-| Only emit when the input signal transitions from `False` to `True`. -}
 ups : Signal Bool -> Signal Bool
-ups s = keepIf identity False s
+ups s = filter identity False s
 
 zip : Signal a -> Signal b -> Signal (a,b)
 zip = map2 (,)

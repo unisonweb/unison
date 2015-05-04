@@ -1,14 +1,14 @@
 module Unison.Reference where
 
-import Dict (Dict)
+import Dict exposing (Dict)
 import Dict
 import Elmz.Json.Encoder as Encoder
-import Elmz.Json.Encoder (Encoder)
+import Elmz.Json.Encoder exposing (Encoder)
 import Elmz.Json.Decoder as Decoder
-import Elmz.Json.Decoder (Decoder)
+import Elmz.Json.Decoder exposing (Decoder)
 import List
 import String
-import Unison.Hash (Hash)
+import Unison.Hash exposing (Hash)
 import Unison.Hash as H
 
 type Reference

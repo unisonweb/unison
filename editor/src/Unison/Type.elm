@@ -1,16 +1,16 @@
 module Unison.Type where
 
-import Elmz.Json.Decoder (Decoder)
+import Elmz.Json.Decoder exposing (Decoder)
 import Elmz.Json.Decoder as Decoder
-import Elmz.Json.Encoder (Encoder)
+import Elmz.Json.Encoder exposing (Encoder)
 import Elmz.Json.Encoder as Encoder
 import List
 import String
-import Unison.Metadata (Metadata)
+import Unison.Metadata exposing (Metadata)
 import Unison.Metadata as Metadata
-import Unison.Reference (Reference)
+import Unison.Reference exposing (Reference)
 import Unison.Reference as Reference
-import Unison.Symbol (Symbol)
+import Unison.Symbol exposing (Symbol)
 import Unison.Symbol as Symbol
 
 type Literal

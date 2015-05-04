@@ -2,10 +2,10 @@ module Elmz.Json.Decoder where
 
 import Dict as M
 import Json.Decode as J
-import Json.Decode (Decoder, andThen)
+import Json.Decode exposing (Decoder, andThen)
 import List
 import Set
-import Set (Set)
+import Set exposing (Set)
 import String as S
 
 type alias Decoder a = J.Decoder a

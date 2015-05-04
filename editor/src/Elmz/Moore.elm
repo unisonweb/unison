@@ -1,8 +1,7 @@
 module Elmz.Moore where
 
 import Signal
-import Signal ((<~), (~), foldp, Signal)
-import List ((::))
+import Signal exposing ((<~), (~), foldp, Signal)
 import Maybe
 
 type Moore i o = Moore o (i -> Maybe (Moore i o))
@@ -104,46 +103,5 @@ transform m i =
   let s i m = feed i m
   in extract <~ foldp s m i
 
-{-| Unlike `transform`, only emits events when the input transitions to a new state. -}
-transitions : Moore i o -> Signal i -> Signal o
-transitions m i =
-  let s i (m,_) = case step i m of
-        Nothing -> (m, False)
-        Just m2 -> (m2, True)
-      states = foldp s (m, True) i
-      changes = Signal.map snd states
-  in Signal.keepWhen changes (extract m) ((extract << fst) <~ states)
-
 unit : o -> Moore i o
 unit o = Moore o (always Nothing)
-
-{-
-withInput : i -> Moore i o -> Moore i (i,o)
-withInput i0 m = map2 (,) (echo i0) m
-
-dropRepeats : o -> Moore o o
-dropRepeats prev = Moore ((==) prev) prev dropRepeats
-
-foldResult : (a -> r) -> (b -> r) -> Result a b -> r
-foldResult f1 f2 e = case e of
-  Err a -> f1 a
-  Ok b -> f2 b
-
-either : Moore a (Result x y) -> Moore x b -> Moore y b -> Moore a b
-either (Moore samei xy ki) left right =
-  let same a = samei a && foldResult (steady left) (steady right) xy
-      st a = case xy of
-        Err x -> either (ki a) (step left x) right
-        Ok y -> either (ki a) left (step right y)
-      o = case xy of
-        Err x -> extract left
-        Ok y -> extract right
-  in Moore same o st
-
-{-| Run the first argument until it emits `Err s`, then switch permanently to `f s`. -}
-bind : Moore a (Result s b) -> (s -> Moore a b) -> Moore a b
-bind (Moore same sb k) f = case sb of
-  Err s -> f s
-  Ok b -> Moore same b (\a -> bind (k a) f)
-
--}

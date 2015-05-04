@@ -4,25 +4,25 @@ module Unison.Node where
 import Dict as M
 import Maybe
 import Elmz.Json.Encoder as Encoder
-import Elmz.Json.Encoder (Encoder)
+import Elmz.Json.Encoder exposing (Encoder)
 import Elmz.Json.Decoder as Decoder
-import Elmz.Json.Decoder (Decoder)
-import Elmz.Json.Request (Request)
+import Elmz.Json.Decoder exposing (Decoder)
+import Elmz.Json.Request exposing (Request)
 import Elmz.Json.Request as Request
 import Set as S
 import Signal
-import Signal ((<~),(~),Signal)
+import Signal exposing ((<~),(~),Signal)
 import Unison.Action as A
-import Unison.Action (Action)
+import Unison.Action exposing (Action)
 import Unison.Metadata as MD
-import Unison.Metadata (Metadata, Query)
+import Unison.Metadata exposing (Metadata, Query)
 import Unison.Term as E
 import Unison.Path as Path
 import Unison.Reference as Reference
-import Unison.Reference (Reference)
-import Unison.Term (Term)
+import Unison.Reference exposing (Reference)
+import Unison.Term exposing (Term)
 import Unison.Type as T
-import Unison.Type (Type)
+import Unison.Type exposing (Type)
 type alias Path = Path.Path
 
 type alias Host = String

@@ -1,17 +1,17 @@
 module Unison.TermExplorer where
 
 import Debug
-import Dict (Dict)
+import Dict exposing (Dict)
 import Dict as Dict
-import Elmz.Moore (Moore(..))
+import Elmz.Moore exposing (Moore(..))
 import Elmz.Moore as Moore
 import Elmz.Layout as Layout
-import Elmz.Layout (Layout)
+import Elmz.Layout exposing (Layout)
 import Elmz.Movement as Movement
 import Elmz.Selection1D as Selection1D
 import Elmz.Matcher as Matcher
 import Graphics.Element as Element
-import Graphics.Element (Element)
+import Graphics.Element exposing (Element)
 import Graphics.Input.Field as Field
 import List
 import Maybe
@@ -19,18 +19,18 @@ import Result
 import Signal
 import String
 import Unison.Metadata as Metadata
-import Unison.Metadata (Metadata,Query)
+import Unison.Metadata exposing (Metadata,Query)
 import Unison.Node as Node
 import Unison.Path as Path
-import Unison.Path (Path)
+import Unison.Path exposing (Path)
 import Unison.Reference as Reference
-import Unison.Reference (Reference)
+import Unison.Reference exposing (Reference)
 import Unison.SearchboxParser as SearchboxParser
 import Unison.Styles as Styles
 import Unison.Term as Term
-import Unison.Term (Term)
+import Unison.Term exposing (Term)
 import Unison.Type as Type
-import Unison.Type (Type)
+import Unison.Type exposing (Type)
 import Unison.View as View
 
 type alias LocalFocus =

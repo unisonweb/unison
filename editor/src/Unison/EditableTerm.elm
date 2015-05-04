@@ -2,25 +2,25 @@ module Unison.EditableTerm where
 
 import Debug
 import Elmz.Layout as Layout
-import Elmz.Layout (Layout,Region)
-import Elmz.Moore (Moore(..))
+import Elmz.Layout exposing (Layout,Region)
+import Elmz.Moore exposing (Moore(..))
 import Elmz.Moore as Moore
 import Elmz.Movement as Movement
 import Elmz.Trie as Trie
-import Elmz.Trie (Trie)
+import Elmz.Trie exposing (Trie)
 import Graphics.Element as Element
-import Graphics.Element (Element)
+import Graphics.Element exposing (Element)
 import List
 import Maybe
 import Unison.Path as Path
-import Unison.Path (Path)
-import Unison.Reference (Reference)
-import Unison.Metadata (Metadata)
+import Unison.Path exposing (Path)
+import Unison.Reference exposing (Reference)
+import Unison.Metadata exposing (Metadata)
 import Unison.Metadata as Metadata
 import Unison.Scope as Scope
 import Unison.Styles as Styles
 import Unison.Term as Term
-import Unison.Term (Term)
+import Unison.Term exposing (Term)
 import Unison.View as View
 import Unison.Node as Node
 

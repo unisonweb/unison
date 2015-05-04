@@ -1,19 +1,18 @@
 module Unison.Scope where
 
 import Debug
-import Elmz.Layout (Region, Layout)
+import Elmz.Layout exposing (Region, Layout)
 import Elmz.Layout as Layout
 import Elmz.Signal as Signals
 import Elmz.Movement as Movement
-import Graphics.Element (Element)
+import Graphics.Element exposing (Element)
 import Graphics.Element as Element
 import List
-import List ((::))
 import Maybe
 import Signal
 import Unison.Path as Path
 import Unison.Styles as Styles
-import Unison.Term (Term)
+import Unison.Term exposing (Term)
 import Unison.Term as Term
 import Unison.View as View
 

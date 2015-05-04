@@ -1,12 +1,11 @@
 module Elmz.Layout where
 
-import Array (Array)
+import Array exposing (Array)
 import Color
-import Color (Color)
-import Graphics.Element (Direction, Element, Position)
+import Color exposing (Color)
+import Graphics.Element exposing (Direction, Element, Position)
 import Graphics.Element as E
 import List
-import List ((::))
 import Maybe
 
 type alias Pt = { x : Int, y: Int }
@@ -147,7 +146,7 @@ fill c e = container (tag e) (widthOf e) (heightOf e) (Pt 0 0) e
 row : List (Layout k) -> List (Layout k)
 row ls = case ls of
   [] -> []
-  _ -> let maxh = List.maximum (List.map heightOf ls)
+  _ -> let maxh = Maybe.withDefault 0 (List.maximum (List.map heightOf ls))
            cell e = let diff = maxh - heightOf e
                     in if diff == 0 then e
                        else container (tag e) (widthOf e) maxh (Pt 0 (toFloat diff / 2 |> floor)) e
@@ -156,7 +155,7 @@ row ls = case ls of
 column : List (Layout k) -> List (Layout k)
 column ls = case ls of
   [] -> []
-  _ -> let maxw = List.maximum (List.map widthOf ls)
+  _ -> let maxw = Maybe.withDefault 0 (List.maximum (List.map widthOf ls))
            cell e = let diff = maxw - widthOf e
                     in if diff == 0 then e
                        else container (tag e) maxw (heightOf e) (Pt (toFloat diff / 2 |> floor) 0) e
@@ -165,7 +164,7 @@ column ls = case ls of
 leftAlignedColumn : List (Layout k) -> List (Layout k)
 leftAlignedColumn ls = case ls of
   [] -> []
-  _ -> let maxw = List.maximum (List.map widthOf ls)
+  _ -> let maxw = Maybe.withDefault 0 (List.maximum (List.map widthOf ls))
            cell e = let diff = maxw - widthOf e
                     in if diff == 0 then e
                        else container (tag e) maxw (heightOf e) (Pt 0 0) e

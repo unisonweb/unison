@@ -1,9 +1,9 @@
 module Unison.Hash where
 
 import Json.Decode as Decode
-import Json.Decode (Decoder)
+import Json.Decode exposing (Decoder)
 import Elmz.Json.Encoder as Encoder
-import Elmz.Json.Encoder (Encoder)
+import Elmz.Json.Encoder exposing (Encoder)
 
 type alias Hash = String
 

@@ -2,19 +2,19 @@ module Unison.Metadata where
 
 import Array
 import Dict
-import Elmz.Json.Decoder (Decoder, (#))
+import Elmz.Json.Decoder exposing (Decoder, (#))
 import Elmz.Json.Decoder as Decoder
-import Elmz.Json.Encoder (Encoder)
+import Elmz.Json.Encoder exposing (Encoder)
 import Elmz.Json.Encoder as Encoder
-import Elmz.Moore (Moore(..))
+import Elmz.Moore exposing (Moore(..))
 import Elmz.Moore as Moore
 import List
 import Maybe
 import Unison.Hash as H
-import Unison.Path (Path)
+import Unison.Path exposing (Path)
 import Unison.Path as Path
 import Unison.Reference as R
-import Unison.Symbol (Symbol)
+import Unison.Symbol exposing (Symbol)
 import Unison.Symbol as Symbol
 type alias E = Path.E
 type alias Path = Path.Path -- to avoid conflict with Graphics.Collage.Path
@@ -49,9 +49,7 @@ firstSymbol defaultName md = case md.names of
 
 firstName : String -> Metadata -> String
 firstName ifEmpty md =
-  if List.isEmpty md.names
-  then ifEmpty
-  else (List.head md.names).name
+  Maybe.withDefault ifEmpty (Maybe.map .name (List.head md.names))
 
 type alias Names = List Symbol
 

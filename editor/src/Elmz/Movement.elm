@@ -1,7 +1,7 @@
 module Elmz.Movement where
 
 import Keyboard
-import Signal ((<~), (~), Signal)
+import Signal exposing ((<~), (~), Signal)
 import Signal
 import Elmz.Signal as Signals
 import Time

@@ -2,7 +2,7 @@ module Elmz.Matcher where
 
 import Debug
 import Elmz.Moore as Moore
-import Elmz.Moore (Moore(..))
+import Elmz.Moore exposing (Moore(..))
 import List
 import String
 
@@ -39,7 +39,7 @@ model matches =
           out = List.filter (matches q.string) (q.values ++ r.values)
           -- tricky part is determining whether we need to do another search
           full = r.additionalResults <= 0
-          lastExamined = List.maximum (-1 :: r.positionsExamined)
+          lastExamined = Maybe.withDefault (-1) (List.maximum r.positionsExamined)
           ok =
              -- we already have results for this query
              r.query == q.string ||
