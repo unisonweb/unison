@@ -153,8 +153,9 @@ model searchbox =
         in Maybe.withDefault (Just state0) ( (Moore.extract sel |> .index) `Maybe.andThen`
             \i -> Selection1D.index i valids `Maybe.andThen`
             \(_,term) -> (Just << Just) (
-              Moore { selection = Just (focus, term), request = Nothing, view = Element.empty }
-              closed
+              Moore.spike { selection = Just (focus, term), request = Nothing, view = Element.empty }
+                          { selection = Nothing, request = Nothing, view = Element.empty }
+                          closed
            ))
       Click xy -> case Moore.feed { event = Just (Selection1D.Mouse xy), layout = layout' } sel of
         sel -> case Moore.extract sel |> .index of
