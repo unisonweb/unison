@@ -1,7 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 
--- | The Unison language typechecker
+-- | The Unison language typechecker, based on:
+-- "Complete and Easy Bidirectional Typechecking for Higher-Rank Polymorphism",
+-- by Dunfield and Krishnaswami
+--
+-- PDF at: https://www.mpi-sws.org/~neelk/bidir.pdf
 module Unison.Typechecker.Context (context, subtype, synthesizeClosed) where
 
 import Control.Applicative
@@ -17,7 +21,7 @@ import qualified Data.Set as Set
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 
--- | Elements of an algorithmic context
+-- | Elements of an ordered algorithmic context
 data Element
   = Universal ABT.V       -- | ^ `v` is universally quantified
   | Existential ABT.V     -- | ^ `v` existential and unsolved
@@ -33,14 +37,6 @@ instance Show Element where
   show (Ann v t) = show v++" : "++show t
   show (Marker v) = "|"++show v++"|"
 
-varUsedBy :: Element -> ABT.V
-varUsedBy e = case e of
-  Existential v -> v
-  Universal v -> v
-  Marker v -> v
-  Ann v _ -> v
-  Solved v _ -> v
-
 (===) :: Element -> Element -> Bool
 Existential v === Existential v2 | v == v2 = True
 Universal v   === Universal v2 | v == v2 = True
@@ -51,14 +47,21 @@ _ === _ = False
    elements (the first element of the list represents the last element
    of the context).
 
-   The set stored along with each element is the set of variables
-   referenced by elements up to and including that element. With
+   The `Info` value stored along with each element is a summary of
+   all values up to and including that element of the context. With
    this representation, any suffix of the `Context` element list
    is also a valid context, and a fresh name can be obtained just
-   by inspecting the first set in the list.
+   by inspecting the first `Info` in the list.
 -}
-newtype Context = Context [(Element,Set ABT.V)]
+newtype Context = Context [(Element, Info)]
 
+data Info = Info { existentialVars :: Set ABT.V -- set of existentials seen so far
+                 , universalVars :: Set ABT.V -- set of universals seen so far
+                 , allVars :: Set ABT.V -- all variables seen so far
+                 , isWellformed :: Bool -- whether the context so far is well-formed
+                 }
+
+-- | The empty context
 context0 :: Context
 context0 = Context []
 
@@ -71,28 +74,54 @@ instance Show Context where
 -- ctxOK ctx = if wellformed ctx then ctx else error $ "not ok: " ++ show ctx
 
 usedVars :: Context -> Set ABT.V
-usedVars (Context []) = Set.empty
-usedVars (Context ((_,s) : _)) = s
+usedVars = allVars . info
 
--- | Add an element onto the end of this `Context`
+-- | Return the `Info` associated with the last element of the context, or the zero `Info`.
+info :: Context -> Info
+info (Context []) = Info Set.empty Set.empty Set.empty True
+info (Context ((_,i):_)) = i
+
+-- | Add an element onto the end of this `Context`. Takes `O(log N)` time,
+-- including updates to the accumulated `Info` value.
 extend :: Element -> Context -> Context
-extend e c@(Context ctx) = Context ((e,s'):ctx) where
-  s' = Set.insert (varUsedBy e) (usedVars c)
+extend e c@(Context ctx) = Context ((e,i'):ctx) where
+  i' = addInfo e (info c)
+  -- see figure 7
+  addInfo e (Info es us vs ok) = case e of
+    -- UvarCtx - ensure no duplicates
+    Universal v -> Info es (Set.insert v us) (Set.insert v vs) (ok && Set.notMember v us)
+    -- EvarCtx - ensure no duplicates, and that this existential is not solved earlier in context
+    Existential v -> Info (Set.insert v es) us (Set.insert v vs) (ok && Set.notMember v es)
+    -- SolvedEvarCtx - ensure `v` is fresh, and the solution is well-formed wrt the context
+    Solved v sa -> Info (Set.insert v es) us (Set.insert v vs) (ok && Set.notMember v es
+                                                                      && wellformedType c (Type.getPolytype sa))
+    -- VarCtx - ensure `v` is fresh, and annotation is well-formed wrt the context
+    Ann v t -> Info es us (Set.insert v vs) (ok && Set.notMember v vs && wellformedType c t)
+    -- MarkerCtx - note that since a Marker is always the first mention of a variable, suffices to
+    -- just check that `v` is not previously mentioned
+    Marker v -> Info es us (Set.insert v vs) (ok && Set.notMember v vs)
 
+-- | Build a context from a list of elements.
 context :: [Element] -> Context
 context xs = foldl' (flip extend) context0 xs
 
+-- | `append c1 c2` adds the elements of `c2` onto the end of `c1`.
 append :: Context -> Context -> Context
-append ctxL (Context es) = foldl' f ctxL (reverse es) where
-  f ctx (e,_) = extend e ctx
+append ctxL (Context es) =
+  -- since `es` is a snoc list, we add it to `ctxL` in reverse order
+  foldl' f ctxL (reverse es) where
+    f ctx (e,_) = extend e ctx
 
+-- Generate a fresh variable of the given name, guaranteed fresh wrt `ctx`.
 fresh :: ABT.V -> Context -> ABT.V
 fresh v ctx = ABT.freshIn' (usedVars ctx) v
 
+-- Generate two fresh variables of the given names, guaranteed fresh wrt `ctx`.
 fresh2 :: ABT.V -> ABT.V -> Context -> (ABT.V, ABT.V)
 fresh2 va vb ctx = case fresh va ctx of
   va -> (va, ABT.freshIn' (Set.insert va (usedVars ctx)) vb)
 
+-- Generate three fresh variables of the given names, guaranteed fresh wrt `ctx`.
 fresh3 :: ABT.V -> ABT.V -> ABT.V -> Context -> (ABT.V, ABT.V, ABT.V)
 fresh3 va vb vc ctx = case fresh2 va vb ctx of
   (va, vb) -> (va, vb, ABT.freshIn' (Set.insert va . Set.insert vb $ usedVars ctx) vc)
@@ -118,19 +147,17 @@ retract m (Context ctx) =
   -- context snoc list is also a valid context
   in Context <$> maybeTail (dropWhile (\(e,_) -> e /= m) ctx)
 
+-- | Like `retract`, but returns the empty context if retracting would remove all elements.
 retract' :: Element -> Context -> Context
 retract' e ctx = case retract e ctx of
   Left _ -> context []
   Right ctx -> ctx
 
-universals :: Context -> [ABT.V]
-universals (Context ctx) = [v | (Universal v,_) <- ctx]
+universals :: Context -> Set ABT.V
+universals = universalVars . info
 
-existentials :: Context -> [ABT.V]
-existentials (Context ctx) = ctx >>= go where
-  go (Existential v,_) = [v]
-  go (Solved v _,_) = [v]
-  go _ = []
+existentials :: Context -> Set ABT.V
+existentials = existentialVars . info
 
 solved :: Context -> [(ABT.V, Monotype)]
 solved (Context ctx) = [(v, sa) | (Solved v sa,_) <- ctx]
@@ -150,29 +177,19 @@ breakAt m (Context xs) =
 
 -- | ordered Γ α β = True <=> Γ[α^][β^]
 ordered :: Context -> ABT.V -> ABT.V -> Bool
-ordered ctx v v2 = v `elem` existentials (retract' (Existential v2) ctx)
+ordered ctx v v2 = Set.member v (existentials (retract' (Existential v2) ctx))
 
--- | Check that the context is well formed, namely that
--- there are no circular variable references, and any types
--- mentioned in either `Ann` or `Solved` elements must be
--- wellformed with respect to the prefix of the context
--- leading up to these elements.
+-- | Check that the context is well formed, see Figure 7 of paper
+-- Since contexts are 'monotonic', we can compute an cache this efficiently
+-- as the context is built up, see implementation of `extend`.
 wellformed :: Context -> Bool
-wellformed ctx = all go (zipTail ctx) where
-  go (Universal v, ctx') = v `notElem` universals ctx'
-  go (Existential v, ctx') = v `notElem` existentials ctx'
-  go (Solved v sa, ctx') = v `notElem` existentials ctx' && wellformedType ctx' (Type.getPolytype sa)
-  go (Ann v t, ctx') = v `notElem` vars ctx' && wellformedType ctx' t
-  go (Marker v, ctx') = v `notElem` vars ctx' && v `notElem` existentials ctx'
+wellformed ctx = isWellformed (info ctx)
 
-zipTail :: Context -> [(Element, Context)]
-zipTail (Context ctx) = zip (map fst ctx) (map Context $ tail (tails ctx))
-
--- | Check that the type is well formed wrt the given `Context`
+-- | Check that the type is well formed wrt the given `Context`, see Figure 7 of paper
 wellformedType :: Context -> Type -> Bool
 wellformedType c t = wellformed c && case t of
-  Type.Existential' v -> v `elem` existentials c
-  Type.Universal' v -> v `elem` universals c
+  Type.Existential' v -> Set.member v (existentials c)
+  Type.Universal' v -> Set.member v (universals c)
   Type.Lit' _ -> True
   Type.Arrow' i o -> wellformedType c i && wellformedType c o
   Type.Ann' t' _ -> wellformedType c t'
@@ -188,9 +205,6 @@ bindings (Context ctx) = [(v,a) | (Ann v a,_) <- ctx]
 
 lookupType :: Context -> ABT.V -> Maybe Type
 lookupType ctx v = lookup v (bindings ctx)
-
-vars :: Context -> [ABT.V]
-vars = fmap fst . bindings
 
 -- | solve (ΓL,α^,ΓR) α τ = (ΓL,α = τ,ΓR)
 -- If the given existential variable exists in the context,
@@ -243,10 +257,10 @@ subtype ctx tx ty = Note.scope (show tx++" <: "++show ty) (go tx ty) where -- Ru
         t2' = ABT.replace (Type.universal v') (Type.matchUniversal v) t2
     in subtype ctx' t t2' >>= retract (Universal v')
   go (Type.Existential' v) t -- `InstantiateL`
-    | v `elem` existentials ctx && Set.notMember v (Type.freeVars t) =
+    | Set.member v (existentials ctx) && Set.notMember v (Type.freeVars t) =
     instantiateL ctx v t
   go t (Type.Existential' v) -- `InstantiateR`
-    | v `elem` existentials ctx && Set.notMember v (Type.freeVars t) =
+    | Set.member v (existentials ctx) && Set.notMember v (Type.freeVars t) =
     instantiateR ctx t v
   go _ _ = Left $ Note.note "not a subtype"
 
