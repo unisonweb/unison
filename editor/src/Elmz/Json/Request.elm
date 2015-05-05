@@ -40,3 +40,11 @@ sendPost : Request a b -> a -> Task Http.Error b
 sendPost r a =
   let out = r.encoder a
   in Http.post r.decoder out.url (Http.string out.body)
+
+posts : Request a b -> Signal (Maybe a) -> Signal (Task Http.Error (Maybe b))
+posts r a =
+  let
+    f a = case a of
+      Nothing -> Task.succeed Nothing
+      Just a -> Task.map Just (sendPost r a)
+  in Signal.map f a
