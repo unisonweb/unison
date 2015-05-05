@@ -27,13 +27,12 @@ map f p s = case p s of
 (<$>) : (a -> b) -> Parser a -> Parser b
 (<$>) = map
 
--- note: implementation not stack safe
 many : Parser a -> Parser (List a)
-many a s = case a s of
-  Err e -> if e.committed then Err e else Ok ([],0)
-  Ok (hd,consumed) -> case many a { s | offset <- s.offset + consumed } of
-    Err e -> Err e
-    Ok (tl,consumedTl) -> Ok (hd :: tl, consumed + consumedTl)
+many a =
+  -- note: implementation not stack safe
+  (a `andThen` \hd -> map ((::) hd) (many a))
+  `or`
+  unit []
 
 some : Parser a -> Parser (List a)
 some a = (::) <$> a <*> many a
@@ -41,8 +40,9 @@ some a = (::) <$> a <*> many a
 andThen : Parser a -> (a -> Parser b) -> Parser b
 andThen p f s = case p s of
   Err e -> Err e
-  Ok (a, consumed) ->
-    (if consumed > 0 then commit else identity) (f a) { s | offset <- s.offset + consumed }
+  Ok (a, consumed) -> case f a { s | offset <- s.offset + consumed } of
+    Err e -> Err e
+    Ok (b, consumedb) -> Ok (b, consumed + consumedb)
 
 commit : Parser a -> Parser a
 commit p s = case p s of
@@ -77,8 +77,10 @@ ap f a = f `andThen` \f -> map f a
 
 satisfy : (Char -> Bool) -> Parser String
 satisfy f s =
-  let sub = String.slice s.offset ((String.length s.string) `max` (s.offset + 1)) s.string
-  in if String.all f sub then Ok (sub, 1) else Err { message = [], committed = False }
+  let sub = String.slice s.offset ((String.length s.string) `min` (s.offset + 1)) s.string
+  in if String.all f sub && s.offset < String.length s.string
+     then Ok (sub, 1)
+     else Err { message = [], committed = False }
 
 symbol : Char -> Parser String
 symbol c = satisfy ((==) c)
@@ -118,6 +120,14 @@ regex r s = let compiled = Regex.regex r in case reset s of
   s -> case List.map .match (Regex.find (Regex.AtMost 1) compiled s.string) of
     [] -> Err { message = [], committed = False }
     hd :: _ -> Ok (hd, String.length hd)
+
+until : Char -> Parser String
+until c =
+  map String.concat (many (satisfy ((/=) c)))
+
+until1 : Char -> Parser String
+until1 c =
+  map String.concat (some (satisfy ((/=) c)))
 
 infixl 4 <*>
 infixl 4 <*

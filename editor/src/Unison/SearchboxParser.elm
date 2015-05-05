@@ -17,7 +17,7 @@ parser : { literal : Term -> a
       -> Parser a
 parser env =
   let lit = Parser.map env.literal literal
-      q = Parser.map env.query (until ' ')
+      q = Parser.map env.query (Parser.until ' ')
       any = Parser.satisfy (always True)
   in Parser.choice
     [ env.combine <$> (lit <* space) <*> any
@@ -59,12 +59,12 @@ float : Parser Term
 float = Parser.map (Term.Lit << Term.Number) (Parser.attempt Parser.float)
 
 string : Parser Term
-string = (Parser.symbol quote *> (until quote) <* Parser.symbol quote)
+string = (Parser.symbol quote *> (Parser.until quote) <* Parser.symbol quote)
       |> Parser.map (Term.Lit << Term.Text)
 
 openString : Parser Term
 openString =
-  Parser.symbol quote `Parser.andThen` \_ -> until quote
+  Parser.symbol quote `Parser.andThen` \_ -> Parser.until quote
   |> Parser.map (Term.Lit << Term.Text)
 
 distance : Parser Term
@@ -85,10 +85,3 @@ fraction = Parser.symbol '1'
 
 quote = '"' -- "
 
-until : Char -> Parser String
-until c =
-  Parser.map String.concat (Parser.many (Parser.satisfy ((/=) c)))
-
-until1 : Char -> Parser String
-until1 c =
-  Parser.map String.concat (Parser.some (Parser.satisfy ((/=) c)))
