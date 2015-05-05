@@ -2,43 +2,43 @@ module Unison.Editor where
 
 import Debug
 import Elmz.Json.Request as JR
-import Elmz.Layout exposing (Containment(Inside,Outside), Layout, Pt, Region)
 import Elmz.Layout as Layout
-import Elmz.Moore exposing (Moore(..))
+import Elmz.Layout exposing (Containment(Inside,Outside), Layout, Pt, Region)
 import Elmz.Moore as Moore
+import Elmz.Moore exposing (Moore(..))
 import Elmz.Movement as Movement
 import Elmz.Selection1D as Selection1D
 import Elmz.Signal as Signals
-import Graphics.Element exposing (Element)
 import Graphics.Element as Element
+import Graphics.Element exposing (Element)
 import Graphics.Input.Field as Field
 import Http
+import Keyboard
 import Maybe
 import Mouse
-import Keyboard
 import Result
 import Signal
+import Task exposing (Task)
 import Unison.Action as Action
 import Unison.EditableTerm as EditableTerm
-import Unison.SearchboxParser as SearchboxParser
 import Unison.Hash exposing (Hash)
-import Unison.Metadata exposing (Metadata)
 import Unison.Metadata as Metadata
+import Unison.Metadata exposing (Metadata)
 import Unison.Node as Node
-import Unison.Path exposing (Path)
 import Unison.Path as Path
-import Unison.Reference exposing (Reference)
+import Unison.Path exposing (Path)
 import Unison.Reference as Reference
+import Unison.Reference exposing (Reference)
 import Unison.Scope as Scope
+import Unison.SearchboxParser as SearchboxParser
 import Unison.Styles as Styles
-import Unison.Term exposing (Term)
 import Unison.Term as Term
+import Unison.Term exposing (Term)
 import Unison.TermExplorer as TermExplorer
 import Unison.Terms as Terms
-import Unison.Type exposing (Type)
 import Unison.Type as Type
+import Unison.Type exposing (Type)
 import Unison.View as View
-import Task exposing (Task)
 import Window
 
 type Event
@@ -213,45 +213,26 @@ ignoreUpDown s =
 responses : String -> Signal (Maybe Request) -> Signal (Task Http.Error (Maybe Event))
 responses host reqs =
   let
-    merge = Signal.merge
-    evaluations =
-      let
-        match r = case r of
-          Just (Evaluations es) -> Just es
-          _ -> Nothing
-      in JR.posts (Node.evaluateTerms host `JR.to` EvaluationResults) (Signal.map match reqs)
-
-    edits =
-      let
-        match r = case r of
-          Just (EditRequest focus action) ->
-            Just (focus.pathToClosedSubterm, focus.pathFromClosedSubterm, action, focus.closedSubterm)
-          _ -> Nothing
-      in JR.posts (Node.editTerm host `JR.to` Replace) (Signal.map match reqs)
-
-    localInfos =
-      let
-        match r = case r of
-          Just (ExplorerRequest (TermExplorer.LocalInfo focus)) ->
-            Just (focus.closedSubterm, focus.pathFromClosedSubterm)
-          _ -> Nothing
-      in JR.posts (Node.localInfo host `JR.to` LocalInfoResults) (Signal.map match reqs)
-
-    metadatas =
-      let
-        match r = case r of
-          Just (Metadatas refs) -> Just refs
-          _ -> Nothing
-      in JR.posts (Node.metadatas host `JR.to` MetadataResults) (Signal.map match reqs)
-
-    searches =
-      let
-        match r = case r of
-          Just (ExplorerRequest (TermExplorer.Search args)) -> Just args
-          _ -> Nothing
-      in JR.posts (Node.search host `JR.to` SearchResults) (Signal.map match reqs)
+    send r = case r of
+      Nothing -> Task.succeed Nothing
+      Just r -> Task.map Just <| case r of
+        Evaluations es -> JR.sendPost
+          (Node.evaluateTerms host `JR.to` EvaluationResults)
+          es
+        EditRequest focus action -> JR.sendPost
+          (Node.editTerm host `JR.to` Replace)
+          (focus.pathToClosedSubterm, focus.pathFromClosedSubterm, action, focus.closedSubterm)
+        ExplorerRequest (TermExplorer.LocalInfo focus) -> JR.sendPost
+          (Node.localInfo host `JR.to` LocalInfoResults)
+          (focus.closedSubterm, focus.pathFromClosedSubterm)
+        ExplorerRequest (TermExplorer.Search args) -> JR.sendPost
+          (Node.search host `JR.to` SearchResults)
+          args
+        Metadatas refs -> JR.sendPost
+          (Node.metadatas host `JR.to` MetadataResults)
+          refs
   in
-    evaluations `merge` edits `merge` localInfos `merge` metadatas `merge` searches
+    Signal.map send reqs
 
 actions : Signal Field.Content -> Signal (Maybe Event) -> Signal (Maybe Event)
 actions searchbox responses = let merge = Signal.merge in
@@ -269,6 +250,8 @@ actions searchbox responses = let merge = Signal.merge in
     Signal.map FieldContent (ignoreUpDown searchbox)) `merge`
     responses
 
+editor : Signal.Mailbox Field.Content -> Signal.Mailbox (Maybe Event) -> Term
+      -> (Signal Element, Signal (Task x ()))
 editor searchbox0 responses0 term0 =
   let
     host = "http://localhost:8080"
@@ -276,14 +259,16 @@ editor searchbox0 responses0 term0 =
     outs = Signals.tagEvent (actions searchbox0.signal responses0.signal) Window.width
         |> Signal.map (\(e,w) -> { event = Maybe.withDefault Nothing e, availableWidth = w, topLeft = (16,16) })
         |> Moore.transform (model (Signal.message searchbox0.address) term0)
-    responseTasks = Signals.justs (Signal.map .request outs)
-                 |> responses host
-                 |> Signal.map f
     f t = Task.toResult t `Task.andThen` \r -> case r of
       Err _ -> Task.succeed () -- todo: some notification of error
       Ok e -> Signal.send responses0.address e
+    tasks = Signals.justs (Signal.map .request outs)
+         |> Signal.map (Debug.log "req")
+         |> responses host
+         |> Signal.map (Task.map (Debug.log "got response"))
+         |> Signal.map f
   in
-    (Signal.map .view outs, responseTasks)
+    (Signal.map .view outs, tasks)
 
 searchbox0 : Signal.Mailbox Field.Content
 searchbox0 = Signal.mailbox Field.noContent
@@ -291,9 +276,9 @@ searchbox0 = Signal.mailbox Field.noContent
 responses0 : Signal.Mailbox (Maybe Event)
 responses0 = Signal.mailbox Nothing
 
-(views0, ts) = editor searchbox0 responses0 Term.Blank
+(views0, tasks) = editor searchbox0 responses0 Term.Blank
 
-port sender : Signal (Task x ())
-port sender = ts
+port runner : Signal (Task x ())
+port runner = tasks
 
 main = views0
