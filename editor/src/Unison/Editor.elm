@@ -210,32 +210,10 @@ ignoreUpDown s =
                           (Signals.delay Field.noContent s)
   in Signal.merge k s
 
-responses : String -> Signal (Maybe Request) -> Signal (Task Http.Error (Maybe Event))
-responses host reqs =
-  let
-    send r = case r of
-      Nothing -> Task.succeed Nothing
-      Just r -> Task.map Just <| case r of
-        Evaluations es -> JR.sendPost
-          (Node.evaluateTerms host `JR.to` EvaluationResults)
-          es
-        EditRequest focus action -> JR.sendPost
-          (Node.editTerm host `JR.to` Replace)
-          (focus.pathToClosedSubterm, focus.pathFromClosedSubterm, action, focus.closedSubterm)
-        ExplorerRequest (TermExplorer.LocalInfo focus) -> JR.sendPost
-          (Node.localInfo host `JR.to` LocalInfoResults)
-          (focus.closedSubterm, focus.pathFromClosedSubterm)
-        ExplorerRequest (TermExplorer.Search args) -> JR.sendPost
-          (Node.search host `JR.to` SearchResults)
-          args
-        Metadatas refs -> JR.sendPost
-          (Node.metadatas host `JR.to` MetadataResults)
-          refs
-  in
-    Signal.map send reqs
-
 actions : Signal Field.Content -> Signal (Maybe Event) -> Signal (Maybe Event)
 actions searchbox responses = let merge = Signal.merge in
+  responses
+  `merge`
   (Signal.map Just <|
     Signals.keyEvent (Act Action.Step) 83 `merge` -- [s]tep
     Signals.keyEvent (Act Action.WHNF) 69 `merge` -- [e]valuate
@@ -244,28 +222,65 @@ actions searchbox responses = let merge = Signal.merge in
     Signals.keyEvent Preapply 65 `merge`          -- pre-[a]pply
     Signals.keyEvent ViewToggle 86 `merge`        -- [v]iew toggle
     Signals.keyEvent Enter 13 `merge`             -- <enter>
-    Signal.map Movement (Movement.repeatD2 <| Movement.d2' Keyboard.arrows) `merge`
+    Signal.map (Movement) (Movement.d2' Keyboard.arrows) `merge`
     Signal.map Click (Signal.sampleOn Mouse.clicks Mouse.position) `merge`
     Signal.map Mouse Mouse.position `merge`
-    Signal.map FieldContent (ignoreUpDown searchbox)) `merge`
-    responses
+    Signal.map FieldContent (ignoreUpDown searchbox))
 
-editor : Signal.Mailbox Field.Content -> Signal.Mailbox (Maybe Event) -> Term
-      -> (Signal Element, Signal (Task x ()))
-editor searchbox0 responses0 term0 =
+responses : String -> Signal (Maybe Request) -> Signal (Task Http.Error (Maybe Event))
+responses host reqs =
+  let
+    send r = case r of
+      Nothing -> Task.succeed Nothing
+      Just r -> case r of
+        Evaluations es -> Task.map Just <| JR.sendPost
+          (Node.evaluateTerms host `JR.to` EvaluationResults)
+          es
+        EditRequest focus action -> Task.map Just <| JR.sendPost
+          (Node.editTerm host `JR.to` Replace)
+          (focus.pathToClosedSubterm, focus.pathFromClosedSubterm, action, focus.closedSubterm)
+        ExplorerRequest (TermExplorer.LocalInfo focus) -> Task.map Just <| JR.sendPost
+          (Node.localInfo host `JR.to` LocalInfoResults)
+          (focus.closedSubterm, focus.pathFromClosedSubterm)
+        ExplorerRequest (TermExplorer.Search args) -> Task.map Just <| JR.sendPost
+            (Node.search host `JR.to` SearchResults)
+            args
+        Metadatas refs -> Task.map Just <| JR.sendPost
+          (Node.metadatas host `JR.to` MetadataResults)
+          refs
+  in
+    Signal.map send reqs
+
+editor searchbox0 responses0 requestResponses0 term0 =
   let
     host = "http://localhost:8080"
     outs : Signal Out
     outs = Signals.tagEvent (actions searchbox0.signal responses0.signal) Window.width
         |> Signal.map (\(e,w) -> { event = Maybe.withDefault Nothing e, availableWidth = w, topLeft = (16,16) })
         |> Moore.transform (model (Signal.message searchbox0.address) term0)
+    send r = case r of
+      Nothing -> Task.succeed Nothing
+      Just r -> case r of
+        Evaluations es -> Task.map Just <| JR.sendPost
+          (Node.evaluateTerms host `JR.to` EvaluationResults)
+          es
+        EditRequest focus action -> Task.map Just <| JR.sendPost
+          (Node.editTerm host `JR.to` Replace)
+          (focus.pathToClosedSubterm, focus.pathFromClosedSubterm, action, focus.closedSubterm)
+        ExplorerRequest (TermExplorer.LocalInfo focus) -> Task.map Just <| JR.sendPost
+          (Node.localInfo host `JR.to` LocalInfoResults)
+          (focus.closedSubterm, focus.pathFromClosedSubterm)
+        ExplorerRequest (TermExplorer.Search args) -> Task.map Just <| JR.sendPost
+          (Node.search host `JR.to` SearchResults)
+          args
+        Metadatas refs -> Task.map Just <| JR.sendPost
+          (Node.metadatas host `JR.to` MetadataResults)
+          refs
     f t = Task.toResult t `Task.andThen` \r -> case r of
-      Err _ -> Task.succeed () -- todo: some notification of error
-      Ok e -> Signal.send responses0.address e
+      Err e -> let u = Debug.log "error" e in Task.succeed () -- todo: some notification of error
+      Ok r -> Signal.send requestResponses0.address r
     tasks = Signals.justs (Signal.map .request outs)
-         |> Signal.map (Debug.log "req")
-         |> responses host
-         |> Signal.map (Task.map (Debug.log "got response"))
+         |> Signal.map send
          |> Signal.map f
   in
     (Signal.map .view outs, tasks)
@@ -273,12 +288,27 @@ editor searchbox0 responses0 term0 =
 searchbox0 : Signal.Mailbox Field.Content
 searchbox0 = Signal.mailbox Field.noContent
 
+requests0 : Signal.Mailbox (Maybe Request)
+requests0 = Signal.mailbox Nothing
+
 responses0 : Signal.Mailbox (Maybe Event)
 responses0 = Signal.mailbox Nothing
 
-(views0, tasks) = editor searchbox0 responses0 Term.Blank
+requestResponses0 : Signal.Mailbox (Maybe Event)
+requestResponses0 = Signal.mailbox Nothing
 
-port runner : Signal (Task x ())
-port runner = tasks
+(views0, tasks) = editor searchbox0 responses0 requestResponses0 Term.Blank
+
+port runner1 : Signal (Task x ())
+port runner1 = tasks
+
+port runner2 : Signal (Task x ())
+port runner2 =
+  let
+    f msg = case msg of
+      Nothing -> Task.succeed ()
+      _ -> Signal.send responses0.address msg
+  in
+    Signal.map f requestResponses0.signal
 
 main = views0

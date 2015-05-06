@@ -1,6 +1,5 @@
 module Elmz.Matcher where
 
-import Debug
 import Elmz.Moore as Moore
 import Elmz.Moore exposing (Moore(..))
 import List
@@ -19,21 +18,21 @@ type alias Model a =
 model : (String -> a -> Bool) -> Model a
 model matches =
   let
-    empty e = case e of
-      Query q -> Just <|
+    empty e = Just <| case e of
+      Query q ->
         let o = { matches = List.filter (matches q.string) q.values, query = Just q.string }
         in Moore.spike o { o | query <- Nothing } (waiting q)
-      _ -> Nothing
+      Results r -> Moore { matches = r.values, query = Nothing } (hasresults r)
 
     waiting q e = Just <| case e of
       Query q -> Moore { matches = List.filter (matches q.string) q.values, query = Nothing } (waiting q)
       Results r ->
         Moore { matches = List.filter (matches q.string) (q.values ++ r.values), query = Nothing }
-        (hasresults r)
+              (hasresults r)
 
     hasresults r e = Just <| case e of
       Results r -> Moore { matches = List.filter (matches r.query) r.values, query = Nothing }
-                   (hasresults r)
+                         (hasresults r)
       Query q ->
         let
           out = List.filter (matches q.string) (q.values ++ r.values)
