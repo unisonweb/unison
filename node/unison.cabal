@@ -88,6 +88,7 @@ library
     scotty                    == 0.9.1,
     text                      >= 0.11.2,
     transformers              ,
+    transformers-compat       ,
     vector                    >= 0.10.11.0
 
   ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N

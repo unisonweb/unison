@@ -1,1 +1,0 @@
-elm --only-js --bundle-runtime --make Main.elm --build-dir=.
