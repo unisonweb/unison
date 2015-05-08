@@ -3,7 +3,7 @@ category:      Compiler
 version:       0.1
 license:       MIT
 cabal-version: >= 1.8
-license-file:  LICENSE
+license-file:  ../LICENSE
 author:        Paul Chiusano 
 maintainer:    Paul Chiusano <paul.chiusano@gmail.com>
 stability:     provisional
@@ -82,7 +82,6 @@ library
     directory                 ,
     filepath                  ,
     http-types                ,
-    lens                      >= 4.7,
     mtl                       >= 2.1.1,
     prelude-extras            >= 0.3,
     scotty                    == 0.9.1,
@@ -111,7 +110,6 @@ executable unison
     unison,
     base,
     prelude-extras,
-    lens,
     text
 
 executable node
