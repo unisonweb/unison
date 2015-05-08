@@ -51,8 +51,8 @@ admissibleTypeAt synth loc t = Note.scoped ("admissibleTypeAt@" ++ show loc ++ "
 
 -- | Compute the type of the given subterm.
 typeAt :: Applicative f => Type.Env f -> Term.Path -> Term -> Noted f Type
-typeAt synth [] t = Note.scoped ("typeOf: " ++ show t) $ synthesize synth t
-typeAt synth loc t = Note.scoped ("typeOf@"++show loc ++ " " ++ show t) $
+typeAt synth [] t = Note.scoped ("typeAt: " ++ show t) $ synthesize synth t
+typeAt synth loc t = Note.scoped ("typeAt@"++show loc ++ " " ++ show t) $
   let
     f = Term.freshIn t (ABT.v' "t")
     shake (Type.Arrow' (Type.Arrow' tsub _) _) = Type.generalize tsub

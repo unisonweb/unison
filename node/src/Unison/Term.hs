@@ -185,12 +185,12 @@ data PathElement
 
 type Path = [PathElement]
 
--- | Use a @PathElement@ to compute one step into an @F a@ subexpression
-focus1 :: PathElement -> ABT.Focus1 F a
+-- | Use a @PathElement@ to compute one step into an @F Term@ subexpression
+focus1 :: PathElement -> ABT.Focus1 F Term
 focus1 Fn (App f x) = Just (f, \f -> App f x)
 focus1 Arg (App f x) = Just (x, \x -> App f x)
-focus1 Body (Lam body) = Just (body, Lam)
-focus1 Body (Let b body) = Just (body, Let b)
+focus1 Body (Lam (ABT.Abs' v body)) = Just (body, Lam . ABT.abs v)
+focus1 Body (Let b (ABT.Abs' v body)) = Just (body, Let b . ABT.abs v)
 focus1 Body (LetRec bs body) = Just (body, LetRec bs)
 focus1 (Binding i) (Let b body) | i <= 0 = Just (b, \b -> Let b body)
 focus1 (Binding i) (LetRec bs body) =
@@ -300,7 +300,7 @@ instance Show a => Show (F a) where
     go p (Ann t k) = showParen (p > 1) $ showsPrec 0 t <> s":" <> showsPrec 0 k
     go p (App f x) =
       showParen (p > 9) $ showsPrec 9 f <> s" " <> showsPrec 10 x
-    go p (Lam body) = showParen (p > 0) (showsPrec 0 body)
+    go p (Lam body) = showParen True (s"λ " <> showsPrec 0 body)
     go _ (Vector vs) = showListWith (showsPrec 0) (Vector.toList vs)
     go _ Blank = s"_"
     go _ (Ref r) = showsPrec 0 r

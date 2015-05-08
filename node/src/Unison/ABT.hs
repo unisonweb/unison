@@ -306,6 +306,5 @@ instance Show1 f => Show (Term f) where
   showsPrec p (Term _ out) = case out of
     Var v -> showsPrec 0 v
     Cycle body -> showsPrec p body
-    Abs v body@(Abs' _ _) -> showsPrec 0 v . showString " " . showsPrec p body
-    Abs v body -> showsPrec 0 v . showString ". " . showsPrec p body
+    Abs v body -> showParen True $ showsPrec 0 v . showString ". " . showsPrec p body
     Tm f -> showsPrec1 p f

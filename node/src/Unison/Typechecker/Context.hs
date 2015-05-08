@@ -410,7 +410,7 @@ synthesize ctx e = Note.scope ("synth: " ++ show e) $ go e where
         ft2 = foldr gen ft existentials'
         gen e ft = Type.forall e (ABT.replace (Type.universal e) (Type.matchExistential e) ft)
         in (ft2, ctx1)
-  go _ = Left . Note.note $ "unknown case in synthesize"
+  go e = Left . Note.note $ "unknown case in synthesize " ++ show e
 
 -- | Synthesize the type of the given term, `arg` given that a function of
 -- the given type `ft` is being applied to `arg`. Update the context in
