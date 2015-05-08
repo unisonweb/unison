@@ -5,7 +5,7 @@ The Unison platform
 
 [Unison](http://unisonweb.org) is a new programming platform, currently under active development. This repo contains the code for the Unison node backend (written in Haskell, found in the folder `node`), and the Unison editor (currently written in Elm, found in the folder `editor`).
 
-Since Unison isn't terribly useful in its current form, the rest of this README will focus on stuff that will be of interest for potential contributors, namely, how to build the code, and a brief tour of the (small but action-packed) codebase. If you're just interested in the project and want to follow along with the progress, [unisonweb.org](http://unisonweb.org) is the place to go.
+Since Unison isn't terribly useful in its current form, the rest of this README will focus on stuff that will be of interest for potential contributors, namely, how to build the code, and a brief tour of the (fairly small but action-packed) codebase. If you're just interested in the project and want to follow along with the progress, [unisonweb.org](http://unisonweb.org) is the place to go, or you can also say hello or lurk [in the chat room](https://gitter.im/unisonweb/platform).
 
 Still here? All right then! Let's get to it.
 
@@ -110,5 +110,54 @@ If instead, you'd rather work from the 'outside in' (or perhaps 'top down'), you
 
 ### A brief code tour of the Unison editor
 
-TODO
+The Unison editor, living in the `/editor` subdirectory, and written in Elm, is also not much code right now:
 
+```
+$ find src -name '*.elm' | xargs wc -l 
+      24 src/Elmz/Distance.elm
+      80 src/Elmz/Json/Decoder.elm
+     109 src/Elmz/Json/Encoder.elm
+      50 src/Elmz/Json/Request.elm
+     292 src/Elmz/Layout.elm
+       8 src/Elmz/List.elm
+      54 src/Elmz/Matcher.elm
+      48 src/Elmz/Maybe.elm
+      83 src/Elmz/Mealy.elm
+     107 src/Elmz/Moore.elm
+     115 src/Elmz/Movement.elm
+     148 src/Elmz/Parser.elm
+       8 src/Elmz/Result.elm
+      76 src/Elmz/Selection1D.elm
+     211 src/Elmz/Signal.elm
+      75 src/Elmz/Trie.elm
+       6 src/Elmz/Void.elm
+      39 src/Unison/Action.elm
+     131 src/Unison/EditableTerm.elm
+     314 src/Unison/Editor.elm
+      17 src/Unison/Hash.elm
+      93 src/Unison/Metadata.elm
+     149 src/Unison/Node.elm
+     119 src/Unison/Path.elm
+      43 src/Unison/Reference.elm
+      98 src/Unison/Scope.elm
+      87 src/Unison/SearchboxParser.elm
+     231 src/Unison/Styles.elm
+      54 src/Unison/Symbol.elm
+     329 src/Unison/Term.elm
+     311 src/Unison/TermExplorer.elm
+      47 src/Unison/Terms.elm
+     130 src/Unison/Type.elm
+     380 src/Unison/View.elm
+    4066 total
+```
+
+Since most of this code will likely be getting a rewrite when moving away Elm, we'll avoid going into too much detail. At a high level:
+
+* The `Elmz` package has various utility modules, not specific to Unison.
+* The `Unison.Editor` module is the main entry point for the editor.
+* Many of the modules in the `Unison` package mirror their counterparts in Haskell. The representation of terms and types is a bit different from the Haskell side. Unfortunately, Elm's type system cannot represent abstract binding trees, so the the JSON encoders/decoders in Elm convert both terms and types to and from simpler, more Elm-friendly represenations.
+* There are a few modules which get used a lot: 
+  * `Elmz.Layout`, which I'm calling an 'annotated layout tree'. It's a pretty simple idea that lets us use regular pure functions to do hit testing, compute selection highlight regions, and so on. There's a description of the technique and some discussion [in this blog post](http://pchiusano.github.io/2014-12-10/wormhole-antipattern.html). The editor uses this in lots of places.
+  * `Elmz.Moore` and `Elmz.Mealy` are pure state machine types, with the minor twist that they may drop events. Most of the components of the editor UI are defined as some `Moore i o`, where `i` will be some type which is the union of all events that component can receive, and where `o` might be a view and some other values to pass along. `Moore` and `Mealy` values can be assembled using various combinators, created with recursion, and fed explicitly. This all works out okay and is pretty simple, but it also requires some manual plumbing.
+
+That's all for now!
