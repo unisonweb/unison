@@ -128,7 +128,7 @@ impl env allowBreak ambientPrec availableWidth cur =
                       { cur | term <- l }
     Nothing -> case cur.term of
       Embed l -> l
-      Var v -> codeText ("v" ++ toString v) |> L.embed (tag cur.path)
+      Var v -> codeText (v.name) |> L.embed (tag cur.path)
       Ref h -> codeText (Metadata.firstName (R.toKey h) (env.metadata h)) |> L.embed (tag cur.path)
       Blank -> Styles.blank |> L.embed (tag cur.path)
       Lit (Number n) -> Styles.numericLiteral (toString n) |> L.embed (tag cur.path)
@@ -247,45 +247,6 @@ break env cur =
         Symbol.InfixL -> opsL op sym.precedence (App (App op l) r) [] cur.path -- left associated operator chain
         Symbol.InfixR -> opsR op sym.precedence (App (App op l) r) cur.path
     _ -> prefix cur.term [] cur.path
-
--- denotes a function a -> Layout
-{-
-
-panel (f p q r) x evaluates x, and any arguments to `f` (p, q, r)
-
-hide : View a
-spacer : Relative -> Absolute -> View ()
-color : Color -> View Panel
-palette : View Color
-rgb : Int -> Int -> Int -> Color
-source : View a
-text : Style -> View String
-textbox : Alignment -> Distance -> Style -> View String
-reactive : View a -> View a
-fn : (Panel -> Panel) -> View (a -> b)
-cell (fn f)
-horizontal : View [Panel]
-wrap : View [Panel]
-vertical : View [Panel]
-fit-width : Distance -> View a -> View a
-container : Distance -> Distance -> (Distance,Distance) -> View a ->
-
--- set amount of padding size of top,right,bottom,left
-pad : Distance -> Distance -> Distance -> Distance -> View a -> View a
-view : View Panel
-panel : View a -> a -> Panel
-cell : View a -> a -> a
-Text.{left, right, center, justify} : Alignment
-
-cell vertical [
-  cell source "hello",
-  cell source (1 + 23)
-]
-panel view (panel blah x)
--}
-
--- eventually, this should return a list of paths needing evaluation
--- Flow a = Int -> Layout a
 
 builtins : Env -> Bool -> Int -> Int -> Cur -> Maybe (Layout L)
 builtins env allowBreak availableWidth ambientPrec cur =
