@@ -86,8 +86,8 @@ into abt = case abt of
 
 -- | renames `old` to `new` in the given term, ignoring subtrees that bind `old`
 rename :: (Foldable f, Functor f) => V -> V -> Term f -> Term f
-rename old new (Term _ t) = case t of
-  Var v -> if v == old then var new else var old
+rename old new t0@(Term _ t) = case t of
+  Var v -> if v == old then var new else t0
   Cycle body -> cycle (rename old new body)
   Abs v body -> if v == old then abs v body
                 else abs v (rename old new body)
