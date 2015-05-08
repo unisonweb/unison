@@ -11,7 +11,10 @@ Still here? All right then! Let's get to it.
 
 ### Build intructions
 
-This assumes you have GHC 7.8.2 or later installed (earlier versions might work fine, I have not tested) and [Elm 0.15 installed](http://elm-lang.org/Install.elm).
+This assumes you have already installed:
+
+* GHC 7.8.2 or later (earlier versions might work fine, I have not tested) and cabal. [Instructions for installing GHC and cabal for various platforms](https://github.com/bitemyapp/learnhaskell/blob/master/install.md). Installing [the Haskell Platform](https://www.haskell.org/platform/) would probably work as well, but I don't really recommend that.
+* [Elm 0.15](http://elm-lang.org/Install.elm)
 
 Then do:
 
