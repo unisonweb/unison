@@ -112,7 +112,7 @@ floatOut path t = floatLetOut path t <|> floatLamOut path t
    {let y = 2 in f (y*y)}
 -}
 floatLetOut :: Term.Path -> Term.Term -> Maybe (Term.Path, Term.Term)
-floatLetOut path t =
+floatLetOut _ _ =
   error "todo: floatLetOut"
 
 {- Example:
@@ -121,7 +121,7 @@ floatLetOut path t =
    {y -> f (y*y)} 2
 -}
 floatLamOut :: Term.Path -> Term.Term -> Maybe (Term.Path, Term.Term)
-floatLamOut path t = error "floatLamOut"
+floatLamOut _ _ = error "floatLamOut"
 
 {- Delete a let binding by inlining its definition. Fails if binding is recursive. Examples:
    let {x = 1} in x*x
@@ -138,7 +138,8 @@ floatLamOut path t = error "floatLamOut"
 -}
 inline :: Term.Path -> Term.Term -> Maybe (Term.Path, Term.Term)
 inline path t = do
-  (v,body) <- Term.bindingAt path t
+  -- (v,body) <- Term.bindingAt path t
+  (_,_) <- Term.bindingAt path t
   error "todo - inline"
 
 {- Example:

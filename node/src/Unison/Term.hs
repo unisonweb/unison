@@ -297,8 +297,7 @@ instance Show Literal where
 instance Show a => Show (F a) where
   showsPrec p fa = go p fa where
     go _ (Lit l) = showsPrec 0 l
-    go p (Ann t k) = showsPrec p t
-      -- showParen (p > 1) $ showsPrec 0 t <> s":" <> showsPrec 0 k
+    go p (Ann t k) = showParen (p > 1) $ showsPrec 0 t <> s":" <> showsPrec 0 k
     go p (App f x) =
       showParen (p > 9) $ showsPrec 9 f <> s" " <> showsPrec 10 x
     go p (Lam body) = showParen (p > 0) (showsPrec 0 body)

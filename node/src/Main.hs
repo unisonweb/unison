@@ -1,4 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
+
+-- rather silly module with temp code for testing typecker
 module Main where
 
 import Control.Applicative
@@ -7,10 +9,6 @@ import Unison.Term as E
 import Unison.Type as T
 import Unison.Typechecker as Typechecker
 import Unison.Reference as R
-
-infixr 1 -->
-(-->) = T.arrow
-numT =  T.lit T.Number
 
 expr :: Term
 expr = e where
@@ -28,9 +26,13 @@ env :: Applicative f => T.Env f
 env r =
   let
     view a = T.app (T.ref (R.Builtin "View")) a
+    infixr 1 -->
+    (-->) = T.arrow
+    numT =  T.lit T.Number
   in pure $ case r of
     Builtin "Color.rgba" -> numT --> numT --> numT --> numT --> T.ref (R.Builtin "Color")
     Builtin "View.view" -> forall' ["a"] $ view (T.v' "a") --> T.v' "a" --> T.v' "a"
+    _ -> error $ "no type for reference " ++ show r
 
 main :: IO ()
 main = putStrLn . showType $ run $ Typechecker.typeAt env [Fn,Fn] expr
