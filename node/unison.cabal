@@ -68,27 +68,27 @@ library
     Unison.Typechecker.Context
 
   build-depends:
-    aeson                     >= 0.7.0.6,
-    applicative-extras        >= 0.1.8,
-    attoparsec                ,
-    base                      >= 4,
-    base64-bytestring         ,
-    blaze-html                >= 0.7.0.0,
-    bytestring                ,
-    bytes                     >= 0.15,
-    cereal                    ,
-    containers                >= 0.5,
-    cryptohash                ,
-    directory                 ,
-    filepath                  ,
-    http-types                ,
-    mtl                       >= 2.1.1,
-    prelude-extras            >= 0.3,
-    scotty                    == 0.9.1,
-    text                      >= 0.11.2,
-    transformers              ,
-    transformers-compat       ,
-    vector                    >= 0.10.11.0
+    aeson,
+    applicative-extras,
+    attoparsec,
+    base,
+    base64-bytestring,
+    blaze-html,
+    bytestring,
+    bytes,
+    cereal,
+    containers,
+    cryptohash,
+    directory,
+    filepath,
+    http-types,
+    mtl,
+    prelude-extras,
+    scotty,
+    text,
+    transformers,
+    transformers-compat,
+    vector
 
   ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N
 
@@ -139,10 +139,9 @@ test-suite properties
   else
     build-depends:
       unison,
-      QuickCheck                 >= 2.4,
-      quickcheck-instances       >= 0.3.1,
-      tagged                     >= 0.4.4 && < 1,
-      test-framework             >= 0.6,
-      test-framework-quickcheck2 >= 0.2,
-      test-framework-th          >= 0.2
-
+      QuickCheck,
+      quickcheck-instances,
+      tagged,
+      test-frameworka,
+      test-framework-quickcheck2,
+      test-framework-th
