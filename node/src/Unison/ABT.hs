@@ -226,7 +226,7 @@ hash t = hash' [] t where
     Cycle (AbsN' vs t) -> hash' (Left vs : env) t
     Cycle t -> hash' env t
     Abs v t -> hash' (Right v : env) t
-    Tm t -> Digest.run (Digest.digest1 (hashCycle env) (hash' env) $ t)
+    Tm t -> Digest.digest1 (hashCycle env) (hash' env) $ t
 
   hashCycle :: [Either [V] V] -> [Term f] -> Digest.DigestM (Term f -> Digest.Hash)
   hashCycle env@(Left cycle : envTl) ts | length cycle == length ts =

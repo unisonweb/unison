@@ -26,8 +26,10 @@ type Hash = B.ByteString
 class Functor f => Digestable1 f where
   -- | Produce a hash for an `f a`, given a hashing function for `a`.
   -- The first argument, `hashCycle`, can be used by instances to hash
-  -- `a` values whose order should not affect hash results.
-  digest1 :: ([a] -> DigestM (a -> Hash)) -> (a -> Hash) -> f a -> Digest
+  -- `a` values whose order should not affect hash results. It returns
+  -- a hashing function that can be used to hash order-dependent `a` values
+  -- at this layer that are not part of the cycle.
+  digest1 :: ([a] -> DigestM (a -> Hash)) -> (a -> Hash) -> f a -> Hash
 
 run :: Digest -> B.ByteString
 run d = case digest d H.hashInit of

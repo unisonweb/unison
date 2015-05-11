@@ -135,7 +135,9 @@ generalize :: Type -> Type
 generalize t = foldr forall t $ Set.toList (ABT.freeVars t)
 
 instance Digest.Digestable1 F where
-  digest1 _ hash e = case e of
+  -- NB: Initial 0 avoids hash collisions with terms, which have different leading byte
+  -- See `Digestable Term.F` in `Unison.Term`.
+  digest1 _ hash e = Digest.run $ Put.putWord8 0 *> case e of
     Lit l -> Put.putWord8 0 *> serialize l
     Arrow a b -> Put.putWord8 1 *> serialize (hash a) *> serialize (hash b)
     App a b -> Put.putWord8 2 *> serialize (hash a) *> serialize (hash b)
