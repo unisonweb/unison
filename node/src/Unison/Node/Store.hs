@@ -37,10 +37,12 @@ store :: FilePath -> IO (Store IO)
 store root =
   let
     hashesIn :: (String -> Reference) -> FilePath -> Noted IO (Set Reference)
-    hashesIn f dir = Note.lift $
-      -- the `drop 2` strips out '.' and '..', gak
-      Set.fromList . (map (f . reverse . drop 5 . reverse) . drop 2) <$> -- strip out .json
-        Directory.getDirectoryContents (root </> dir)
+    hashesIn f dir =
+      let matchJSON path = case FilePath.splitExtension path of
+            (name, ".json") -> Set.singleton (f name)
+            _ -> Set.empty
+      in Note.lift $ Set.unions . map matchJSON
+                  <$> Directory.getDirectoryContents (root </> dir)
 
     n :: Either String a -> Either Note a
     n (Left e) = Left (Note.note e)
