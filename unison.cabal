@@ -41,6 +41,8 @@ flag quiet
   manual: True
   default: False
 
+-- make library src directory shared, then introduce editor and node subdirectories
+-- rename node directory to src, and, rename editor to editor-elm
 library
   hs-source-dirs: src
 
