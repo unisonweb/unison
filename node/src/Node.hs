@@ -3,10 +3,7 @@
 
 module Main where
 
-import Control.Applicative
-import Data.Monoid
 import Data.Text (Text)
-import Data.Traversable
 import Unison.Eval (Eval)
 import Unison.Hash (Hash)
 import Unison.Metadata (Metadata(..))

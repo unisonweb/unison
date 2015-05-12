@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -14,13 +15,12 @@ import Control.Applicative
 import Control.Monad
 import Data.Aeson.TH
 import Data.Bytes.Serial
-import Data.Foldable (Foldable, traverse_)
+import Data.Foldable (traverse_)
 import Data.Functor.Classes
 import Data.List
 import Data.Maybe
 import Data.Set (Set)
 import Data.Text (Text)
-import Data.Traversable (Traversable)
 import Data.Vector (Vector, (!?))
 import GHC.Generics
 import Text.Show
@@ -173,7 +173,7 @@ dependencies e = Set.fromList [ h | Reference.Derived h <- Set.toList (dependenc
 
 countBlanks :: Term -> Int
 countBlanks t = Monoid.getSum . Writer.execWriter $ ABT.visit' f t
-  where f Blank = Writer.tell (Monoid.Sum 1) *> pure Blank
+  where f Blank = Writer.tell (Monoid.Sum (1 :: Int)) *> pure Blank
         f t = pure t
 
 data PathElement
@@ -308,7 +308,7 @@ instance Show a => Show (F a) where
     go p (Ann t k) = showParen (p > 1) $ showsPrec 0 t <> s":" <> showsPrec 0 k
     go p (App f x) =
       showParen (p > 9) $ showsPrec 9 f <> s" " <> showsPrec 10 x
-    go p (Lam body) = showParen True (s"λ " <> showsPrec 0 body)
+    go _ (Lam body) = showParen True (s"λ " <> showsPrec 0 body)
     go _ (Vector vs) = showListWith (showsPrec 0) (Vector.toList vs)
     go _ Blank = s"_"
     go _ (Ref r) = showsPrec 0 r

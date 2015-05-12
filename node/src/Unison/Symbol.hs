@@ -1,7 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Unison.Symbol where
 
-import Control.Applicative
 import Data.Aeson.TH
 import Data.Text (Text)
 import Data.Set (Set)

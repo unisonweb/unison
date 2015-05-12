@@ -2,11 +2,9 @@
 {-# LANGUAGE PatternSynonyms #-}
 module Unison.Node.Implementation (node) where
 
-import Control.Applicative
 import Control.Monad
 import Data.List
 import Data.Ord
-import Data.Traversable (traverse)
 import Unison.Eval as Eval
 import Unison.Node (Node(..))
 import Unison.Term (Term)

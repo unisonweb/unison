@@ -7,8 +7,8 @@ license-file:  ../LICENSE
 author:        Paul Chiusano 
 maintainer:    Paul Chiusano <paul.chiusano@gmail.com>
 stability:     provisional
-homepage:      https://github.com/pchiusano/unison
-bug-reports:   https://github.com/pchiusano/unison/issues
+homepage:      http://unisonweb.org
+bug-reports:   https://github.com/unisonweb/platform/issues
 copyright:     Copyright (C) 2013 Paul Chiusano and contributors 
 synopsis:      A purely functional language with transparent remote execution 
 description:   - 
@@ -25,7 +25,7 @@ data-files:
 
 source-repository head
   type: git
-  location: git://github.com/pchiusano/unison.git
+  location: git://github.com/unisonweb/platform.git
 
 -- `cabal install --enable-tests -f-properties` to disable properties suite
 flag properties

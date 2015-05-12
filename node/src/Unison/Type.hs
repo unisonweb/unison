@@ -9,15 +9,12 @@
 
 module Unison.Type where
 
-import Control.Applicative
 import Data.Aeson (toJSON, parseJSON)
 import Data.Aeson.TH
 import Data.Bytes.Serial
-import Data.Foldable (Foldable)
 import Data.Functor.Classes (Eq1(..),Show1(..))
 import Data.Set (Set)
 import Data.Text (Text)
-import Data.Traversable (Traversable)
 import GHC.Generics
 import Unison.Note (Noted)
 import qualified Data.Bytes.Put as Put

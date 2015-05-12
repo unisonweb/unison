@@ -4,7 +4,6 @@
 
 module Unison.NodeServer where
 
-import Control.Applicative
 import Control.Monad.IO.Class
 import Network.HTTP.Types.Method (StdMethod(OPTIONS))
 import Unison.Hash (Hash)
