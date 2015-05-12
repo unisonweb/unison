@@ -12,7 +12,6 @@ module Unison.ABT where
 
 import Control.Applicative
 import Data.Aeson (ToJSON(..),FromJSON(..))
-import Data.Foldable (Foldable)
 import Data.Functor.Classes (Eq1(..),Show1(..))
 import Data.List hiding (cycle)
 import Data.Maybe
@@ -221,6 +220,7 @@ hash t = hash' [] t where
             lookup (Right v') = v == v'
             ind = findIndex lookup env
             -- env not likely to be very big, prefer to encode in one byte if possible
+            hashInt :: Int -> Digest.Hash
             hashInt i = Digest.run (serialize (VarInt i))
             die = error $ "unknown var in environment: " ++ show v
     Cycle (AbsN' vs t) -> hash' (Left vs : env) t

@@ -13,7 +13,7 @@ Still here? All right then! Let's get to it.
 
 This assumes you have already installed:
 
-* GHC 7.8.2 or later (earlier versions might work fine, I have not tested) and cabal. [Instructions for installing GHC and cabal for various platforms](https://github.com/bitemyapp/learnhaskell/blob/master/install.md). Installing [the Haskell Platform](https://www.haskell.org/platform/) would probably work as well, but I don't really recommend that.
+* GHC 7.10.1 or later (earlier versions may still work, but this project won't be maintained against them) and cabal. [Instructions for installing GHC and cabal for various platforms](https://github.com/bitemyapp/learnhaskell/blob/master/install.md).
 * [Elm 0.15](http://elm-lang.org/Install.elm)
 
 Then do:
@@ -47,7 +47,7 @@ Do you approve of this plan? (y/n) y
 Downloading elm-lang/core
 Downloading evancz/elm-http
 Packages configured successfully!
-Compiled 62 files                                                   
+Compiled 62 files
 Successfully generated elm.js
 $ elm reactor
 Elm Reactor 0.3.1 (Elm Platform 0.15)
@@ -57,8 +57,8 @@ Listening on http://0.0.0.0:8000/
 Now open up a browser and go to `http://0.0.0.0:8000/`. Navigate to `src/Unison/Editor.elm`. You should see the Unison expression editor, initially consisting of a single `_`. You can navigate around with the keyboard or mouse. Use `<Enter>` or a click to open a node for editing. Some other keyboard commands:
 
 * `<Enter>` accepts the current selection in the explorer, and arrow keys or the mouse navigate.
-* When the explorer is closed: 
-    * `'s'` performs linking + 1 beta reduction of the selected expression. 
+* When the explorer is closed:
+    * `'s'` performs linking + 1 beta reduction of the selected expression.
     * `'e'` evaluates the selected expression to weak head normal form.
     * `'a'` wraps the current selection in a function call, initially blank
     * `'v'` switches between the 'raw' and interpreted view
@@ -104,7 +104,7 @@ Under 3k lines total! Obviously, this number is going to go up over time, but ri
 Now, where to begin? Everyone learns differently. You might prefer to read the code 'inside out' (or perhaps 'bottom up'), starting from the core language syntax tree and typechecker, then expanding out to where these get exposed to the outside world. If this route sounds appealing, here's a reasonable path:
 
 * `Unison.Term` is the module containing the definition for Unison language _terms_ and `Unison.Type` is the module containing the definition for Unison language _types_. Eventually, we'll add `Unison.TypeDeclaration`.
-* In both `Term` and `Type`, the same pattern is used. Each defines a 'base functor' type, `F a`, which is nonrecursive, and the actual thing we use is an _abstract binding tree_ over this base functor, an `ABT F`. `ABT` (for 'abstract binding tree') is defined in `Unison.ABT`. If you aren't familiar with abstract binding trees, [here is a nice blog post explaining one formulation of the idea](http://semantic-domain.blogspot.com/2015/03/abstract-binding-trees.html), which inspired the `Unison.ABT` module. A lot of operations on terms and types just delegate to generic `ABT` operations. 
+* In both `Term` and `Type`, the same pattern is used. Each defines a 'base functor' type, `F a`, which is nonrecursive, and the actual thing we use is an _abstract binding tree_ over this base functor, an `ABT F`. `ABT` (for 'abstract binding tree') is defined in `Unison.ABT`. If you aren't familiar with abstract binding trees, [here is a nice blog post explaining one formulation of the idea](http://semantic-domain.blogspot.com/2015/03/abstract-binding-trees.html), which inspired the `Unison.ABT` module. A lot of operations on terms and types just delegate to generic `ABT` operations.
 * The main interface to the typechecker is in `Unison.Typechecker`, and the implementation is in `Unison.Typechecker.Context`. There isn't a lot of code here (under 500 LOC presently), since the typechecking algorithm is pretty simple. Unlike a unification-based typechecker, where the typechecking state is an unordered bag of unification constraints and higher-rank polymorphism is usually bolted on awkwardly later, [Dunfield and Krishnaswami's algorithm](http://www.mpi-sws.org/~neelk/bidir.pdf) keeps the typechecking state as a nicely tidy _ordered context_, represented as a regular list manipulated in a stack-like fashion, and the algorithm handles higher-rank polymorphism very cleanly. They've also [extended this work to include features like GADTs](http://semantic-domain.blogspot.com/2015/03/new-draft-sound-and-complete.html), though this new algorithm hasn't been incorporated into Unison yet.
 * From here, you can move to `Unison.Node`, which defines the interface satisfied by the node, `Unison.Node.Implementation`, containing a simple implementation of that interface, and `Unison.NodeServer`, which just wraps the node API in an HTTP+JSON interface.
 * Lastly, `src/Node.hs` has the code which creates an instance of a `Unison.NodeServer`. The `src/Node.hs` file also has the definition of the current Unison 'standard library'. The node logic is agnostic to the "standard library" chosen, so whatever creates an instance of `Unison.Node` has to supply it with the standard library it should use.
@@ -116,7 +116,7 @@ If instead, you'd rather work from the 'outside in' (or perhaps 'top down'), you
 The Unison editor, living in the `/editor` subdirectory, and written in Elm, is also not much code right now:
 
 ```
-$ find src -name '*.elm' | xargs wc -l 
+$ find src -name '*.elm' | xargs wc -l
       24 src/Elmz/Distance.elm
       80 src/Elmz/Json/Decoder.elm
      109 src/Elmz/Json/Encoder.elm
@@ -159,7 +159,7 @@ Since most of this code will likely be getting a rewrite when moving away Elm, w
 * The `Elmz` package has various utility modules, not specific to Unison.
 * The `Unison.Editor` module is the main entry point for the editor.
 * Many of the modules in the `Unison` package mirror their counterparts in Haskell. The representation of terms and types is a bit different from the Haskell side. Unfortunately, Elm's type system cannot represent abstract binding trees, so the the JSON encoders/decoders in Elm convert both terms and types to and from simpler, more Elm-friendly represenations.
-* There are a few modules which get used a lot: 
+* There are a few modules which get used a lot:
   * `Elmz.Layout`, which I'm calling an 'annotated layout tree'. It's a pretty simple idea that lets us use regular pure functions to do hit testing, compute selection highlight regions, and so on. There's a description of the technique and some discussion [in this blog post](http://pchiusano.github.io/2014-12-10/wormhole-antipattern.html). The editor uses this in lots of places.
   * `Elmz.Moore` and `Elmz.Mealy` are pure state machine types, with the minor twist that they may drop events. Most of the components of the editor UI are defined as some `Moore i o`, where `i` will be some type which is the union of all events that component can receive, and where `o` might be a view and some other values to pass along. `Moore` and `Mealy` values can be assembled using various combinators, created with recursion, and fed explicitly. This all works out okay and is pretty simple, but it also requires some manual plumbing.
 

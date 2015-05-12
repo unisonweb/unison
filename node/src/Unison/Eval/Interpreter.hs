@@ -2,7 +2,6 @@
 -- | Very simple and inefficient interpreter of Unison terms
 module Unison.Eval.Interpreter where
 
-import Control.Applicative
 import Data.Map (Map)
 import Debug.Trace
 import Unison.Eval

@@ -8,7 +8,6 @@
 -- PDF at: https://www.mpi-sws.org/~neelk/bidir.pdf
 module Unison.Typechecker.Context (context, subtype, synthesizeClosed) where
 
-import Control.Applicative
 import Data.List
 import Data.Set (Set)
 import Unison.Note (Note,Noted(..))
