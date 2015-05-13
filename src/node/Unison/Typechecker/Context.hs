@@ -231,6 +231,7 @@ apply ctx t = case t of
 
 -- | `subtype ctx t1 t2` returns successfully if `t1` is a subtype of `t2`.
 -- This may have the effect of altering the context.
+-- see Figure 9
 subtype :: Context -> Type -> Type -> Either Note Context
 subtype ctx tx ty = Note.scope (show tx++" <: "++show ty) (go tx ty) where -- Rules from figure 9
   go (Type.Lit' l) (Type.Lit' l2) | l == l2 = pure ctx -- `Unit`

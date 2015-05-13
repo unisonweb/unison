@@ -3,7 +3,7 @@ category:      Compiler
 version:       0.1
 license:       MIT
 cabal-version: >= 1.8
-license-file:  ../LICENSE
+license-file:  LICENSE
 author:        Paul Chiusano 
 maintainer:    Paul Chiusano <paul.chiusano@gmail.com>
 stability:     provisional
@@ -81,30 +81,35 @@ library
   if flag(quiet)
     ghc-options: -v0
 
-executable dummy
-  main-is: src/Main.hs
-  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -v0
-
-  if flag(optimized)
-    ghc-options: -funbox-strict-fields -O2
-
-  build-depends:
-    unison,
-    base,
-    prelude-extras,
-    text
-
 executable node
-  main-is: src/Node.hs
+  main-is: Node.hs
+  hs-source-dirs: src/node
   ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N -v0
 
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
 
   build-depends:
+    aeson,
+    applicative-extras,
+    attoparsec,
     base,
+    base64-bytestring,
+    blaze-html,
+    bytestring,
+    bytes,
+    cereal,
     containers,
+    cryptohash,
+    directory,
+    filepath,
+    http-types,
+    mtl,
+    prelude-extras,
+    scotty,
     text,
+    transformers,
+    transformers-compat,
     unison,
     vector
 
