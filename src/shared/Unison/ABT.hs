@@ -99,6 +99,12 @@ subst t x body = replace t match body where
   match (Var' v) = x == v
   match _ = False
 
+-- | `substs [(t1,v1), (t2,v2), ...] body` performs multiple simultaneous
+-- substitutions, avoiding capture
+substs :: (Foldable f, Functor f) => [(V, Term f)] -> Term f -> Term f
+substs replacements body = foldr f body replacements where
+  f (v, t) body = subst t v body
+
 -- | `rewrite t f body` substitutes `t` for all maximal (outermost)
 -- subterms matching the predicate `f` in `body`, avoiding capture.
 replace :: (Foldable f, Functor f) => Term f -> (Term f -> Bool) -> Term f -> Term f

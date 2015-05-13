@@ -8,6 +8,7 @@
 -- PDF at: https://www.mpi-sws.org/~neelk/bidir.pdf
 module Unison.Typechecker.Context (context, subtype, synthesizeClosed) where
 
+import Control.Monad
 import Data.List
 import Data.Set (Set)
 import Unison.Note (Note,Noted(..))
@@ -114,6 +115,12 @@ append ctxL (Context es) =
 -- Generate a fresh variable of the given name, guaranteed fresh wrt `ctx`.
 fresh :: ABT.V -> Context -> ABT.V
 fresh v ctx = ABT.freshIn' (usedVars ctx) v
+
+-- Freshen the list of variables with respect to the context
+fresh' :: [ABT.V] -> Context -> [ABT.V]
+fresh' vs ctx = go vs (usedVars ctx) where
+  go [] _ = []
+  go (h:t) used = let h' = ABT.freshIn' used h in h' : go t (Set.insert h' used)
 
 -- Generate two fresh variables of the given names, guaranteed fresh wrt `ctx`.
 fresh2 :: ABT.V -> ABT.V -> Context -> (ABT.V, ABT.V)
@@ -406,6 +413,22 @@ synthesize ctx e = Note.scope ("synth: " ++ show e) $ go e where
            vt2 = foldr gen vt existentials'
            gen e vt = Type.forall e (ABT.replace (Type.universal e) (Type.matchExistential e) vt)
          in (vt2, ctx1)
+  go (Term.LetRec' [] e) = synthesize ctx e
+  go (Term.LetRec' bindings e) = do
+    let vs = fresh' (map fst bindings) ctx
+    let freshen (v, e) = (v, ABT.substs (zip (map fst bindings) (map Term.var vs)) e)
+    bindings <- pure $ map freshen bindings
+    ctx <- case bindings of
+      [] -> fail "impossible"
+      (v1,_) : _ -> pure $ ctx `append` context (Marker v1 : map Existential vs)
+    ctx <- foldM (\ctx (v,binding) -> check ctx binding (Type.existential v)) ctx bindings
+    -- for each binding, lookup its solution, generalize over any unsolved existentials
+    -- to obtain a generalized type for each binding
+    -- retract context up to the marker
+    -- add annotations for each of the bindings to the context
+    -- then synthesize/check the body
+    -- finally pop off all annotations
+    fail "todo synthesize let rec"
   go (Term.Lam' x body) = -- ->I=> (Full Damas Milner rule)
     let (arg, i, o) = fresh3 (ABT.v' "arg") x (ABT.v' "o") ctx
         ctxTl = context [Marker i, Existential i, Existential o,
