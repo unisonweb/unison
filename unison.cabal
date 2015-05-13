@@ -46,31 +46,28 @@ library
 
   exposed-modules:
     Unison.ABT
-    Unison.Digest
+    Unison.Distance
+    Unison.Eval
+    Unison.Hash
     Unison.JSON
+    Unison.Kind
+    Unison.Metadata
+    Unison.Note
+    Unison.Reference
     Unison.Symbol
+    Unison.Term
+    Unison.TermEdit
+    Unison.Type
 
   build-depends:
     aeson,
-    applicative-extras,
-    attoparsec,
     base,
     base64-bytestring,
-    blaze-html,
     bytestring,
-    bytes,
-    cereal,
     containers,
-    cryptohash,
-    directory,
-    filepath,
-    http-types,
     mtl,
-    prelude-extras,
-    scotty,
     text,
     transformers,
-    transformers-compat,
     vector
 
   ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N
@@ -94,10 +91,9 @@ executable node
     applicative-extras,
     attoparsec,
     base,
-    base64-bytestring,
     blaze-html,
-    bytestring,
     bytes,
+    bytestring,
     cereal,
     containers,
     cryptohash,

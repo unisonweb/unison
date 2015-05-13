@@ -8,7 +8,6 @@ module Unison.TermEdit where
 import Control.Applicative
 import Control.Monad
 import Data.Aeson.TH
-import Data.Bytes.Serial
 import GHC.Generics
 import Unison.Eval (Eval)
 import Unison.Hash (Hash)
@@ -192,5 +191,4 @@ applications e t = e : go e t
     go e (Type.Arrow' _ t) = let e' = Term.app e Term.blank in e' : go e' t
     go _ _ = []
 
-instance Serial Action
 deriveJSON defaultOptions ''Action

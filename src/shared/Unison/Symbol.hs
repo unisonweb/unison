@@ -4,8 +4,6 @@ module Unison.Symbol where
 import Data.Aeson.TH
 import Data.Text (Text)
 import Data.Set (Set)
-import Data.Bytes.Serial (Serial(..))
-import Data.Bytes.VarInt
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 
@@ -32,19 +30,6 @@ freshIn vs s@(Symbol i n f p) = case Set.elemAt (Set.size vs - 1) vs of
 
 prefix :: Text -> Symbol
 prefix name = symbol name Prefix 9
-
-instance Serial Fixity where
-  serialize = serialize . VarInt . fromEnum
-  deserialize = toEnum . unVarInt <$> deserialize
-
-instance Serial Symbol where
-  serialize (Symbol i n f p) =
-    serialize (VarInt i) *> serialize n *> serialize f *> serialize (VarInt p)
-  deserialize =
-    Symbol <$> (unVarInt <$> deserialize)
-           <*> deserialize
-           <*> deserialize
-           <*> (unVarInt <$> deserialize)
 
 deriveJSON defaultOptions ''Fixity
 deriveJSON defaultOptions ''Symbol
