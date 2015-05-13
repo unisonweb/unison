@@ -348,6 +348,12 @@ check ctx e t | wellformedType ctx t = Note.scope ("check: " ++ show e ++ ":   "
         body' = ABT.subst (ABT.var x') x body
     in check ctx' body' o >>= retract (Ann x' i)
   go Term.Blank' _ = Right ctx -- somewhat hacky short circuit; blank checks successfully against all types
+  go (Term.Let1' v binding e) t =
+    let v' = fresh v ctx
+    in do
+      (tbinding, ctx') <- synthesize ctx (ABT.subst (ABT.var v') v binding)
+      case extend (Ann v' tbinding) ctx' of
+        ctx' -> check ctx' e t >>= retract (Ann v' tbinding)
   go _ _ = do -- Sub
     (a, ctx') <- synthesize ctx e
     subtype ctx' (apply ctx' a) (apply ctx' t)
@@ -380,6 +386,12 @@ synthesize ctx e = Note.scope ("synth: " ++ show e) $ go e where
   go (Term.App' f arg) = do -- ->E
     (ft, ctx') <- synthesize ctx f
     synthesizeApp ctx' (apply ctx' ft) arg
+  go (Term.Let1' v binding e) = do
+    let v' = fresh v ctx
+    (tbinding, ctx) <- synthesize ctx (ABT.subst (ABT.var v') v binding)
+    (t, ctx) <- synthesize (extend (Ann v' tbinding) ctx) e
+    ctx <- retract (Ann v' tbinding) ctx
+    pure (t, ctx)
   go (Term.Vector' v) =
     let e = fresh (ABT.v' "e") ctx
         ctxTl = context [Marker e, Existential e]
