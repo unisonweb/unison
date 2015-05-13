@@ -3,7 +3,6 @@
 module Unison.Hash (Hash, hashBytes, base64, fromBase64, fromBytes) where
 
 import Data.Aeson
-import Data.Bytes.Serial
 import qualified Data.ByteString.Base64.URL as Base64
 import qualified Data.ByteString as B
 import qualified Data.Text as T
@@ -35,6 +34,3 @@ instance FromJSON Hash where
 instance ToJSON Hash where
   toJSON h = toJSON (base64 h)
 
-instance Serial Hash where
-  serialize (Hash h) = serialize h
-  deserialize = Hash <$> deserialize
