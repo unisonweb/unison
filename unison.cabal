@@ -41,33 +41,14 @@ flag quiet
   manual: True
   default: False
 
--- make library src directory shared, then introduce editor and node subdirectories
--- rename node directory to src, and, rename editor to editor-elm
 library
-  hs-source-dirs: src
+  hs-source-dirs: src/shared
 
   exposed-modules:
     Unison.ABT
     Unison.Digest
-    Unison.Distance
-    Unison.Eval
-    Unison.Eval.Interpreter
-    Unison.Hash
     Unison.JSON
-    Unison.Kind
-    Unison.Metadata
-    Unison.Node
-    Unison.Node.Implementation
-    Unison.Node.Store
-    Unison.NodeServer
-    Unison.Note
-    Unison.Reference
     Unison.Symbol
-    Unison.Term
-    Unison.TermEdit
-    Unison.Type
-    Unison.Typechecker
-    Unison.Typechecker.Context
 
   build-depends:
     aeson,
@@ -100,8 +81,7 @@ library
   if flag(quiet)
     ghc-options: -v0
 
-
-executable unison
+executable dummy
   main-is: src/Main.hs
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -v0
 
