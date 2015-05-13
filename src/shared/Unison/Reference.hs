@@ -5,7 +5,6 @@ module Unison.Reference where
 
 import Data.Aeson.TH
 import GHC.Generics
-import Data.Bytes.Serial
 import qualified Data.Text as Text
 import qualified Unison.Hash as H
 
@@ -16,4 +15,3 @@ instance Show Reference where
   show (Derived h) = show h
 
 deriveJSON defaultOptions ''Reference
-instance Serial Reference

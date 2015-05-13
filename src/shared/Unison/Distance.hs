@@ -3,7 +3,6 @@
 
 module Unison.Distance where
 
-import Data.Bytes.Serial (Serial)
 import Data.Aeson.TH
 import GHC.Generics
 
@@ -18,5 +17,4 @@ data Distance
   | Max Distance Distance
   | Min Distance Distance deriving (Eq,Ord,Show,Generic)
 
-instance Serial Distance
 deriveJSON defaultOptions ''Distance

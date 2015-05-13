@@ -3,7 +3,7 @@ category:      Compiler
 version:       0.1
 license:       MIT
 cabal-version: >= 1.8
-license-file:  ../LICENSE
+license-file:  LICENSE
 author:        Paul Chiusano 
 maintainer:    Paul Chiusano <paul.chiusano@gmail.com>
 stability:     provisional
@@ -42,40 +42,58 @@ flag quiet
   default: False
 
 library
-  hs-source-dirs: src
+  hs-source-dirs: src/shared
 
   exposed-modules:
     Unison.ABT
-    Unison.Digest
     Unison.Distance
     Unison.Eval
-    Unison.Eval.Interpreter
     Unison.Hash
     Unison.JSON
     Unison.Kind
     Unison.Metadata
-    Unison.Node
-    Unison.Node.Implementation
-    Unison.Node.Store
-    Unison.NodeServer
     Unison.Note
     Unison.Reference
     Unison.Symbol
     Unison.Term
     Unison.TermEdit
     Unison.Type
-    Unison.Typechecker
-    Unison.Typechecker.Context
+
+  build-depends:
+    aeson,
+    base,
+    base64-bytestring,
+    bytestring,
+    containers,
+    mtl,
+    text,
+    transformers,
+    vector
+
+  ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N
+
+  if flag(optimized)
+    ghc-options: -funbox-strict-fields -O2
+
+  if flag(quiet)
+    ghc-options: -v0
+
+executable node
+  main-is: Node.hs
+  hs-source-dirs: src/node
+  ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N -v0
+
+  if flag(optimized)
+    ghc-options: -funbox-strict-fields -O2
 
   build-depends:
     aeson,
     applicative-extras,
     attoparsec,
     base,
-    base64-bytestring,
     blaze-html,
-    bytestring,
     bytes,
+    bytestring,
     cereal,
     containers,
     cryptohash,
@@ -88,41 +106,6 @@ library
     text,
     transformers,
     transformers-compat,
-    vector
-
-  ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N
-
-  if flag(optimized)
-    ghc-options: -funbox-strict-fields -O2
-
-  if flag(quiet)
-    ghc-options: -v0
-
-
-executable unison
-  main-is: src/Main.hs
-  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N -v0
-
-  if flag(optimized)
-    ghc-options: -funbox-strict-fields -O2
-
-  build-depends:
-    unison,
-    base,
-    prelude-extras,
-    text
-
-executable node
-  main-is: src/Node.hs
-  ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N -v0
-
-  if flag(optimized)
-    ghc-options: -funbox-strict-fields -O2
-
-  build-depends:
-    base,
-    containers,
-    text,
     unison,
     vector
 

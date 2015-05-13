@@ -11,16 +11,13 @@ module Unison.Type where
 
 import Data.Aeson (toJSON, parseJSON)
 import Data.Aeson.TH
-import Data.Bytes.Serial
 import Data.Functor.Classes (Eq1(..),Show1(..))
 import Data.Set (Set)
 import Data.Text (Text)
 import GHC.Generics
 import Unison.Note (Noted)
-import qualified Data.Bytes.Put as Put
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
-import qualified Unison.Digest as Digest
 import qualified Unison.JSON as J
 import qualified Unison.Kind as K
 import qualified Unison.Reference as R
@@ -35,7 +32,6 @@ data Literal
   deriving (Eq,Ord,Generic)
 
 deriveJSON defaultOptions ''Literal
-instance Serial Literal
 
 -- | Base functor for types in the Unison language
 data F a
@@ -50,7 +46,6 @@ data F a
   deriving (Eq,Foldable,Functor,Generic1,Traversable)
 
 deriveJSON defaultOptions ''F
-instance Serial1 F
 instance Eq1 F where eq1 = (==)
 instance Show1 F where showsPrec1 = showsPrec
 
@@ -130,19 +125,6 @@ constrain t u = ABT.tm (Constrain t u)
 -- | Bind all free variables with an outer `forall`.
 generalize :: Type -> Type
 generalize t = foldr forall t $ Set.toList (ABT.freeVars t)
-
-instance Digest.Digestable1 F where
-  -- NB: Initial 0 avoids hash collisions with terms, which have different leading byte
-  -- See `Digestable Term.F` in `Unison.Term`.
-  digest1 _ hash e = Digest.run $ Put.putWord8 0 *> case e of
-    Lit l -> Put.putWord8 0 *> serialize l
-    Arrow a b -> Put.putWord8 1 *> serialize (hash a) *> serialize (hash b)
-    App a b -> Put.putWord8 2 *> serialize (hash a) *> serialize (hash b)
-    Ann a k -> Put.putWord8 3 *> serialize (hash a) *> serialize k
-    Constrain a u -> Put.putWord8 4 *> serialize (hash a) *> serialize u
-    Forall a -> Put.putWord8 5 *> serialize (hash a)
-    Existential v -> Put.putWord8 6 *> serialize (hash v)
-    Universal v -> Put.putWord8 7 *> serialize (hash v)
 
 instance J.ToJSON1 F where
   toJSON1 f = toJSON f

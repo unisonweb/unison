@@ -8,12 +8,13 @@ import Data.Ord
 import Unison.Eval as Eval
 import Unison.Node (Node(..))
 import Unison.Term (Term)
+import Unison.Term.Extra ()
 import Unison.Type (Type)
 import Unison.Node.Store (Store)
 import Unison.Note (Noted)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Unison.ABT as ABT
+import qualified Unison.ABT.Extra as ABT'
 import qualified Unison.Node as Node
 import qualified Unison.Reference as Reference
 import qualified Unison.Term as Term
@@ -44,7 +45,7 @@ node eval store =
 
     createTerm e md = do
       t <- Typechecker.synthesize readTypeOf e
-      let h = Hash.fromBytes (ABT.hash e)
+      let h = Hash.fromBytes (ABT'.hash e)
       Store.writeTerm store h e
       Store.writeMetadata store (Reference.Derived h) md
       Store.annotateTerm store (Reference.Derived h) t
@@ -113,7 +114,7 @@ node eval store =
         qmatches' <- filterM queryOk (map Term.ref (Set.toList hs))
         illtypedQmatches <-
           -- return type annotated versions of ill-typed terms
-          let terms = qmatches' `ABT.subtract` qmatches
+          let terms = qmatches' `ABT'.subtract` qmatches
           in zipWith Term.ann terms <$> traverse (Typechecker.synthesize readTypeOf) terms
         mds <- mapM (\h -> (,) h <$> Store.readMetadata store h)
                     (Set.toList (Set.unions (map Term.dependencies' (illtypedQmatches ++ qmatches))))
