@@ -3,6 +3,7 @@
 module Unison.TermEdit.Extra where
 
 import Data.Bytes.Serial
+import Unison.Symbol.Extra ()
 import Unison.TermEdit
 
 instance Serial Action

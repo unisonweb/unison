@@ -1,19 +1,19 @@
-name:          unison
+name:          unison-node
 category:      Compiler
 version:       0.1
 license:       MIT
 cabal-version: >= 1.8
-license-file:  LICENSE
+license-file:  ../LICENSE
 author:        Paul Chiusano 
 maintainer:    Paul Chiusano <paul.chiusano@gmail.com>
 stability:     provisional
 homepage:      http://unisonweb.org
 bug-reports:   https://github.com/unisonweb/platform/issues
 copyright:     Copyright (C) 2013 Paul Chiusano and contributors 
-synopsis:      A purely functional language with transparent remote execution 
-description:   - 
+synopsis:      The Unison programming language and platform
+description:   The Unison typechecker and node 
 
-build-type:    Custom
+build-type:    Simple
 extra-source-files:
   -- .travis.yml
   --.vim.custom
@@ -42,32 +42,48 @@ flag quiet
   default: False
 
 library
-  hs-source-dirs: src/shared
+  hs-source-dirs: src
 
   exposed-modules:
-    Unison.ABT
-    Unison.Distance
-    Unison.Eval
-    Unison.Hash
-    Unison.JSON
-    Unison.Kind
-    Unison.Metadata
-    Unison.Note
-    Unison.Reference
-    Unison.Symbol
-    Unison.Term
-    Unison.TermEdit
-    Unison.Type
+    Unison.ABT.Extra
+    Unison.Digest
+    Unison.Distance.Extra
+    Unison.Eval.Interpreter
+    Unison.Hash.Extra
+    Unison.Kind.Extra
+    Unison.Node
+    Unison.Node.Implementation
+    Unison.Node.Store
+    Unison.NodeServer
+    Unison.Reference.Extra
+    Unison.Symbol.Extra
+    Unison.Term.Extra
+    Unison.TermEdit.Extra
+    Unison.Type.Extra
+    Unison.Typechecker
+    Unison.Typechecker.Context
 
   build-depends:
     aeson,
+    applicative-extras,
+    attoparsec,
     base,
-    base64-bytestring,
+    blaze-html,
+    bytes,
     bytestring,
+    cereal,
     containers,
+    cryptohash,
+    directory,
+    filepath,
+    http-types,
     mtl,
+    prelude-extras,
+    scotty,
     text,
     transformers,
+    transformers-compat,
+    unison-shared,
     vector
 
   ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N
@@ -80,7 +96,7 @@ library
 
 executable node
   main-is: Node.hs
-  hs-source-dirs: src/node
+  hs-source-dirs: src
   ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N -v0
 
   if flag(optimized)
@@ -106,7 +122,8 @@ executable node
     text,
     transformers,
     transformers-compat,
-    unison,
+    unison-node,
+    unison-shared,
     vector
 
 test-suite properties
@@ -121,7 +138,7 @@ test-suite properties
     buildable: False
   else
     build-depends:
-      unison,
+      unison-node,
       QuickCheck,
       quickcheck-instances,
       tagged,
