@@ -39,6 +39,10 @@ data Term f = Term { freeVars :: Set V, out :: ABT f (Term f) }
 isClosed :: Term f -> Bool
 isClosed t = Set.null (freeVars t)
 
+-- | `True` if `v` is a member of the set of free variables of `t`
+isFreeIn :: V -> Term f -> Bool
+isFreeIn v t = Set.member v (freeVars t)
+
 pattern Var' v <- Term _ (Var v)
 pattern Cycle' vs t <- Term _ (Cycle (AbsN' vs t))
 pattern Abs' v body <- Term _ (Abs v body)

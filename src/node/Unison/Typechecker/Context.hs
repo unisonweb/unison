@@ -171,6 +171,16 @@ solved (Context ctx) = [(v, sa) | (Solved v sa,_) <- ctx]
 unsolved :: Context -> [ABT.V]
 unsolved (Context ctx) = [v | (Existential v,_) <- ctx]
 
+-- | Apply the context to the input type, then convert any unsolved existentials
+-- to universals.
+generalizeExistentials :: Context -> Type -> Type
+generalizeExistentials ctx t = foldr gen (apply ctx t) (unsolved ctx)
+  where
+    gen e t =
+      if e `ABT.isFreeIn` t
+      then Type.forall e (ABT.replace (Type.universal e) (Type.matchExistential e) t)
+      else t -- don't bother introducing a forall if type variable is unused
+
 replace :: Element -> Context -> Context -> Context
 replace e focus ctx = let (l,r) = breakAt e ctx in l `append` focus `append` r
 
@@ -361,6 +371,18 @@ check ctx e t | wellformedType ctx t = Note.scope ("check: " ++ show e ++ ":   "
       (tbinding, ctx') <- synthesize ctx (ABT.subst (ABT.var v') v binding)
       case extend (Ann v' tbinding) ctx' of
         ctx' -> check ctx' e t >>= retract (Ann v' tbinding)
+  go (Term.LetRec' [] e) t = check ctx e t
+  go (Term.LetRec' bindings e) t = do
+    let vs = fresh' (map fst bindings) ctx
+    let freshen (v, e) = (v, ABT.substs (zip (map fst bindings) (map Term.var vs)) e)
+    v1 <- if null vs then fail "impossible" else pure $ head vs
+    bindings <- pure $ map freshen bindings
+    ctx <- pure $ ctx `append` context (Marker v1 : map Existential vs)
+    ctx <- foldM (\ctx (v,binding) -> check ctx binding (Type.existential v)) ctx bindings
+    let (ctx1, ctx2) = breakAt (Marker v1) ctx
+    let annotations = map (\v -> Ann v (generalizeExistentials ctx2 (Type.existential v))) vs
+    ctx <- check (ctx1 `append` context (Marker v1 : annotations)) e t
+    retract (Marker v1) ctx
   go _ _ = do -- Sub
     (a, ctx') <- synthesize ctx e
     subtype ctx' (apply ctx' a) (apply ctx' t)
@@ -408,27 +430,28 @@ synthesize ctx e = Note.scope ("synth: " ++ show e) $ go e where
          let
            (ctx1, ctx2) = breakAt (Marker e) ctx'
            -- unsolved existentials get generalized to universals
-           vt = apply ctx2 (Type.lit Type.Vector `Type.app` Type.existential e)
-           existentials' = unsolved ctx2
-           vt2 = foldr gen vt existentials'
-           gen e vt = Type.forall e (ABT.replace (Type.universal e) (Type.matchExistential e) vt)
-         in (vt2, ctx1)
+           vt = Type.lit Type.Vector `Type.app` Type.existential e
+         in (generalizeExistentials ctx2 vt, ctx1)
   go (Term.LetRec' [] e) = synthesize ctx e
   go (Term.LetRec' bindings e) = do
+    -- generate a fresh existential variable for each binding
     let vs = fresh' (map fst bindings) ctx
     let freshen (v, e) = (v, ABT.substs (zip (map fst bindings) (map Term.var vs)) e)
+    v1 <- if null vs then fail "impossible" else pure $ head vs
+    -- freshen all the bindings
     bindings <- pure $ map freshen bindings
-    ctx <- case bindings of
-      [] -> fail "impossible"
-      (v1,_) : _ -> pure $ ctx `append` context (Marker v1 : map Existential vs)
+    -- introduce these existentials into the context
+    ctx <- pure $ ctx `append` context (Marker v1 : map Existential vs)
+    -- check each binding against its existential and sequence the resulting contexts
     ctx <- foldM (\ctx (v,binding) -> check ctx binding (Type.existential v)) ctx bindings
-    -- for each binding, lookup its solution, generalize over any unsolved existentials
-    -- to obtain a generalized type for each binding
-    -- retract context up to the marker
-    -- add annotations for each of the bindings to the context
-    -- then synthesize/check the body
-    -- finally pop off all annotations
-    fail "todo synthesize let rec"
+    -- now compute a generalized type for each binding, add these as annotations to the context
+    let (ctx1, ctx2) = breakAt (Marker v1) ctx
+    let annotations = map (\v -> Ann v (generalizeExistentials ctx2 (Type.existential v))) vs
+    -- finally synthesize the type of the body, given these annotations
+    (t, ctx) <- synthesize (ctx1 `append` context (Marker v1 : annotations)) e
+    -- and some final cleanup to restore the context
+    ctx <- retract (Marker v1) ctx
+    pure (t, ctx)
   go (Term.Lam' x body) = -- ->I=> (Full Damas Milner rule)
     let (arg, i, o) = fresh3 (ABT.v' "arg") x (ABT.v' "o") ctx
         ctxTl = context [Marker i, Existential i, Existential o,
@@ -439,12 +462,9 @@ synthesize ctx e = Note.scope ("synth: " ++ show e) $ go e where
                     (Type.existential o)
       pure $ let
         (ctx1, ctx2) = breakAt (Marker i) ctx'
+        ft = Type.existential i `Type.arrow` Type.existential o
         -- unsolved existentials get generalized to universals
-        ft = apply ctx2 (Type.existential i `Type.arrow` Type.existential o)
-        existentials' = unsolved ctx2
-        ft2 = foldr gen ft existentials'
-        gen e ft = Type.forall e (ABT.replace (Type.universal e) (Type.matchExistential e) ft)
-        in (ft2, ctx1)
+        in (generalizeExistentials ctx2 ft, ctx1)
   go e = Left . Note.note $ "unknown case in synthesize " ++ show e
 
 -- | Synthesize the type of the given term, `arg` given that a function of
