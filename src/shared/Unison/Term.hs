@@ -75,8 +75,8 @@ pattern Let1' v b e <- (ABT.out -> ABT.Tm (Let b (ABT.Abs' v e)))
 pattern Let' bs e relet rec <- (unLets -> Just (bs,e,relet,rec))
 pattern LetRec' bs e <- (unLetRec -> Just (bs,e))
 
-freshIn :: Term -> ABT.V -> ABT.V
-freshIn = ABT.freshIn
+fresh :: Term -> ABT.V -> ABT.V
+fresh = ABT.fresh
 
 -- some smart constructors
 

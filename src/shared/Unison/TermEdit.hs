@@ -64,7 +64,7 @@ interpret eval link path action t = case action of
 abstract :: Term.Path -> Term.Term -> Maybe (Term.Path, Term.Term)
 abstract path t = f <$> Term.focus path t where
   f (sub,replace) =
-    let sub' = Term.lam (ABT.freshIn sub (ABT.v' "v")) (ABT.var' "v")
+    let sub' = Term.lam (ABT.fresh sub (ABT.v' "v")) (ABT.var' "v")
                `Term.app`
                sub
     in (path, replace sub')

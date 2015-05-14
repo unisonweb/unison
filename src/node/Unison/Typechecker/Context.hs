@@ -114,23 +114,17 @@ append ctxL (Context es) =
 
 -- Generate a fresh variable of the given name, guaranteed fresh wrt `ctx`.
 fresh :: ABT.V -> Context -> ABT.V
-fresh v ctx = ABT.freshIn' (usedVars ctx) v
-
--- Freshen the list of variables with respect to the context
-fresh' :: [ABT.V] -> Context -> [ABT.V]
-fresh' vs ctx = go vs (usedVars ctx) where
-  go [] _ = []
-  go (h:t) used = let h' = ABT.freshIn' used h in h' : go t (Set.insert h' used)
+fresh v ctx = ABT.fresh' (usedVars ctx) v
 
 -- Generate two fresh variables of the given names, guaranteed fresh wrt `ctx`.
 fresh2 :: ABT.V -> ABT.V -> Context -> (ABT.V, ABT.V)
 fresh2 va vb ctx = case fresh va ctx of
-  va -> (va, ABT.freshIn' (Set.insert va (usedVars ctx)) vb)
+  va -> (va, ABT.fresh' (Set.insert va (usedVars ctx)) vb)
 
 -- Generate three fresh variables of the given names, guaranteed fresh wrt `ctx`.
 fresh3 :: ABT.V -> ABT.V -> ABT.V -> Context -> (ABT.V, ABT.V, ABT.V)
 fresh3 va vb vc ctx = case fresh2 va vb ctx of
-  (va, vb) -> (va, vb, ABT.freshIn' (Set.insert va . Set.insert vb $ usedVars ctx) vc)
+  (va, vb) -> (va, vb, ABT.fresh' (Set.insert va . Set.insert vb $ usedVars ctx) vc)
 
 -- | Extend this `Context` with a single universally quantified variable,
 -- guaranteed to be fresh
@@ -373,16 +367,9 @@ check ctx e t | wellformedType ctx t = Note.scope ("check: " ++ show e ++ ":   "
         ctx' -> check ctx' e t >>= retract (Ann v' tbinding)
   go (Term.LetRec' [] e) t = check ctx e t
   go (Term.LetRec' bindings e) t = do
-    let vs = fresh' (map fst bindings) ctx
-    let freshen (v, e) = (v, ABT.substs (zip (map fst bindings) (map Term.var vs)) e)
-    v1 <- if null vs then fail "impossible" else pure $ head vs
-    bindings <- pure $ map freshen bindings
-    ctx <- pure $ ctx `append` context (Marker v1 : map Existential vs)
-    ctx <- foldM (\ctx (v,binding) -> check ctx binding (Type.existential v)) ctx bindings
-    let (ctx1, ctx2) = breakAt (Marker v1) ctx
-    let annotations = map (\v -> Ann v (generalizeExistentials ctx2 (Type.existential v))) vs
-    ctx <- check (ctx1 `append` context (Marker v1 : annotations)) e t
-    retract (Marker v1) ctx
+    (marker, e, ctx) <- annotateLetRecBindings ctx bindings e
+    ctx <- check ctx e t
+    retract marker ctx
   go _ _ = do -- Sub
     (a, ctx') <- synthesize ctx e
     subtype ctx' (apply ctx' a) (apply ctx' t)
@@ -399,6 +386,39 @@ synthLit lit = Type.lit $ case lit of
   Term.Number _ -> Type.Number
   Term.Text _ -> Type.Text
   Term.Distance _ -> Type.Distance
+
+-- | Synthesize and generalize the type of each binding in a let rec
+-- and return the new context in which all bindings are annotated with
+-- their type. Also returns the freshened version of `body` and a marker
+-- which should be used to retract the context after checking/synthesis
+-- of `body` is complete. See usage in `synthesize` and `check` for `LetRec'` case.
+annotateLetRecBindings :: Context -> [(ABT.V, Term)] -> Term -> Either Note (Element, Term, Context)
+annotateLetRecBindings ctx bindings body = do
+  -- freshen all the term variables `v1, v2 ...` used by each binding `b1, b2 ..`
+  let vs = ABT.freshes' (usedVars ctx) (map fst bindings)
+  let freshen e = ABT.substs (zip (map fst bindings) (map Term.var vs)) e
+  body <- pure $ freshen body
+  bindings <- pure $ map (freshen . snd) bindings
+  -- generate a fresh existential variable `e1, e2 ...` for each binding
+  let es = ABT.freshes' (usedVars ctx `Set.union` Set.fromList vs) vs
+  e1 <- if null vs then fail "impossible" else pure $ head es
+  -- Introduce these existentials into the context and
+  -- annotate each term variable w/ corresponding existential
+  -- [marker e1, 'e1, 'e2, ... v1 : 'e1, v2 : 'e2 ...]
+  ctx <- pure $ ctx `append`
+                context (Marker e1 : map Existential es ++
+                         zipWith Ann vs (map Type.existential es))
+  -- check each `bi` against `ei`; sequencing resulting contexts
+  ctx <- foldM (\ctx (e,binding) -> check ctx binding (Type.existential e))
+               ctx
+               (zip es bindings)
+  -- compute generalized types `gt1, gt2 ...` for each binding `b1, b2...`;
+  -- add annotations `v1 : gt1, v2 : gt2 ...` to the context
+  let (ctx1, ctx2) = breakAt (Marker e1) ctx
+  let gen e = generalizeExistentials ctx2 (Type.existential e)
+  let annotations = zipWith Ann vs (map gen es)
+  let marker = Marker (fresh (ABT.v' "let-rec-marker") ctx1)
+  pure $ (marker, body, ctx1 `append` context (marker : annotations))
 
 -- | Synthesize the type of the given term, updating the context in the process.
 synthesize :: Context -> Term -> Either Note (Type, Context)
@@ -432,25 +452,11 @@ synthesize ctx e = Note.scope ("synth: " ++ show e) $ go e where
            -- unsolved existentials get generalized to universals
            vt = Type.lit Type.Vector `Type.app` Type.existential e
          in (generalizeExistentials ctx2 vt, ctx1)
-  go (Term.LetRec' [] e) = synthesize ctx e
+  go (Term.LetRec' [] body) = synthesize ctx body
   go (Term.LetRec' bindings e) = do
-    -- generate a fresh existential variable for each binding
-    let vs = fresh' (map fst bindings) ctx
-    let freshen (v, e) = (v, ABT.substs (zip (map fst bindings) (map Term.var vs)) e)
-    v1 <- if null vs then fail "impossible" else pure $ head vs
-    -- freshen all the bindings
-    bindings <- pure $ map freshen bindings
-    -- introduce these existentials into the context
-    ctx <- pure $ ctx `append` context (Marker v1 : map Existential vs)
-    -- check each binding against its existential and sequence the resulting contexts
-    ctx <- foldM (\ctx (v,binding) -> check ctx binding (Type.existential v)) ctx bindings
-    -- now compute a generalized type for each binding, add these as annotations to the context
-    let (ctx1, ctx2) = breakAt (Marker v1) ctx
-    let annotations = map (\v -> Ann v (generalizeExistentials ctx2 (Type.existential v))) vs
-    -- finally synthesize the type of the body, given these annotations
-    (t, ctx) <- synthesize (ctx1 `append` context (Marker v1 : annotations)) e
-    -- and some final cleanup to restore the context
-    ctx <- retract (Marker v1) ctx
+    (marker, e, ctx) <- annotateLetRecBindings ctx bindings e
+    (t, ctx) <- synthesize ctx e
+    ctx <- retract marker ctx
     pure (t, ctx)
   go (Term.Lam' x body) = -- ->I=> (Full Damas Milner rule)
     let (arg, i, o) = fresh3 (ABT.v' "arg") x (ABT.v' "o") ctx

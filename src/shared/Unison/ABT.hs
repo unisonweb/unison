@@ -86,16 +86,25 @@ rename old new t0@(Term _ t) = case t of
 
 -- | Produce a variable which is free in both terms
 freshInBoth :: Term f -> Term f -> V -> V
-freshInBoth t1 t2 = freshIn t2 . freshIn t1
+freshInBoth t1 t2 = fresh t2 . fresh t1
 
-freshIn :: Term f -> V -> V
-freshIn t = freshIn' (freeVars t)
+fresh :: Term f -> V -> V
+fresh t = fresh' (freeVars t)
 
-freshIn' :: Set V -> V -> V
-freshIn' used = Symbol.freshIn used
+fresh' :: Set V -> V -> V
+fresh' used = Symbol.freshIn used
+
+freshes :: Term f -> [V] -> [V]
+freshes t = freshes' (freeVars t)
+
+freshes' :: Set V -> [V] -> [V]
+freshes' _ [] = []
+freshes' used (h:t) =
+  let h' = fresh' used h
+  in h' : freshes' (Set.insert h' used) t
 
 freshNamed' :: Set V -> Text -> V
-freshNamed' used n = freshIn' used (v' n)
+freshNamed' used n = fresh' used (v' n)
 
 -- | `subst t x body` substitutes `t` for `x` in `body`, avoiding capture
 subst :: (Foldable f, Functor f) => Term f -> V -> Term f -> Term f
