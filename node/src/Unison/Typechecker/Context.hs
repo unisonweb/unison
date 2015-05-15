@@ -258,15 +258,15 @@ subtype ctx tx ty = Note.scope (show tx++" <: "++show ty) (go tx ty) where -- Ru
   go (Type.App' x1 y1) (Type.App' x2 y2) = do -- analogue of `-->`
     ctx' <- subtype ctx x1 x2
     subtype ctx' (apply ctx' y1) (apply ctx' y2)
+  go t (Type.Forall' v t2) = Note.scope "forall (R)" $
+    let (v', ctx') = extendUniversal v ctx
+        t2' = ABT.replace (Type.universal v') (Type.matchUniversal v) t2
+    in subtype ctx' t t2' >>= retract (Universal v')
   go (Type.Forall' v t) t2 = Note.scope "forall (L)" $
     let (v', ctx') = extendMarker v ctx
         t' = ABT.replace (Type.existential v') (Type.matchUniversal v) t
     in Note.scope (show t') $
        subtype ctx' (apply ctx' t') t2 >>= retract (Marker v')
-  go t (Type.Forall' v t2) = Note.scope "forall (R)" $
-    let (v', ctx') = extendUniversal v ctx
-        t2' = ABT.replace (Type.universal v') (Type.matchUniversal v) t2
-    in subtype ctx' t t2' >>= retract (Universal v')
   go (Type.Existential' v) t -- `InstantiateL`
     | Set.member v (existentials ctx) && Set.notMember v (Type.freeVars t) =
     instantiateL ctx v t

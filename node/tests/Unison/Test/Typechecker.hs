@@ -60,18 +60,18 @@ tests = testGroup "Typechecker"
   , testCase "subtype (3)" $ checkSubtype
       (forall' ["a"] $ T.v' "a")
       (forall' ["a"] $ T.v' "a")
-  , testCase "strong equivalence (type)" $ assertEqual "const"
-      (forall' ["a", "b"] $ T.v' "a" --> T.v' "b" --> T.v' "a")
-      (forall' ["y", "x"] $ T.v' "x" --> T.v' "y" --> T.v' "x")
+  , testCase "strong equivalence (type)" $ assertEqual "types were not equal"
+      (StrongEq (forall' ["a", "b"] $ T.v' "a" --> T.v' "b" --> T.v' "a"))
+      (StrongEq (forall' ["y", "x"] $ T.v' "x" --> T.v' "y" --> T.v' "x"))
+  , testCase "synthesize 42" $ synthesizesAndChecks
+      (E.lit (E.Number 42))
+      (T.lit T.Number)
   , testCase "synthesize/check (x -> x)" $ synthesizesAndChecks
       (lam' ["a"] $ var' "a")
       (forall' ["b"] $ T.v' "b" --> T.v' "b")
   , testCase "synthesize/check (x y -> x)" $ synthesizesAndChecks
       (lam' ["x", "y"] $ var' "x")
       (forall' ["a", "b"] $ T.v' "a" --> T.v' "b" --> T.v' "a")
-  , testCase "synthesize 42" $ synthesizesAndChecks
-      (E.lit (E.Number 42))
-      (T.lit T.Number)
   ]
 
 env :: Applicative f => T.Env f
