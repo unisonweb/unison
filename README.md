@@ -101,60 +101,21 @@ The dependencies are what you'd expect---`shared/` has minimal external dependen
 
 ### A brief code tour of the Haskell code
 
-TODO - out of date, revise
+The Unison Haskell code, which has the language, its typechecker, and the node implementation, is split between `shared/` and `node/`. It's not actually much code right now, only about 3k lines!
 
-The Unison Haskell code, which lives in `src/` is not actually much code right now. Files are spread between `src/shared/` and `src/node/` as mentioned above:
-
-```
-$ find src -name '*.hs' | xargs wc -l
-      39 src/node/Main.hs
-     228 src/node/Node.hs
-      76 src/node/Unison/ABT/Extra.hs
-      66 src/node/Unison/Digest.hs
-       7 src/node/Unison/Distance/Extra.hs
-      54 src/node/Unison/Eval/Interpreter.hs
-       9 src/node/Unison/Hash/Extra.hs
-       8 src/node/Unison/Kind/Extra.hs
-     162 src/node/Unison/Node/Implementation.hs
-      98 src/node/Unison/Node/Store.hs
-      74 src/node/Unison/Node.hs
-     140 src/node/Unison/NodeServer.hs
-      10 src/node/Unison/Reference/Extra.hs
-      20 src/node/Unison/Symbol/Extra.hs
-      48 src/node/Unison/Term/Extra.hs
-       8 src/node/Unison/TermEdit/Extra.hs
-      26 src/node/Unison/Type/Extra.hs
-     449 src/node/Unison/Typechecker/Context.hs
-     130 src/node/Unison/Typechecker.hs
-     245 src/shared/Unison/ABT.hs
-      20 src/shared/Unison/Distance.hs
-       9 src/shared/Unison/Eval.hs
-      36 src/shared/Unison/Hash.hs
-      31 src/shared/Unison/JSON.hs
-      11 src/shared/Unison/Kind.hs
-      52 src/shared/Unison/Metadata.hs
-      77 src/shared/Unison/Note.hs
-      17 src/shared/Unison/Reference.hs
-      35 src/shared/Unison/Symbol.hs
-     281 src/shared/Unison/Term.hs
-     194 src/shared/Unison/TermEdit.hs
-     158 src/shared/Unison/Type.hs
-    2838 total
-```
-
-Under 3k lines total! Obviously, this number is going to go up over time, but right now, it's pretty bite-sized and (hopefully) easy enough to follow. Certainly not of the scale of something like GHC, which clocks in at [over 100k LOC](http://www.aosabook.org/en/ghc.html)!
+Obviously, this number is going to go up over time, but right now, it's pretty bite-sized and (hopefully) easy enough to follow. Certainly not of the scale of something like GHC, which clocks in at [over 135k LOC](http://www.aosabook.org/en/ghc.html)!
 
 One brief note for orientation. Because of the split between `shared/` and `node/`, a module like `Unison.Term` (in `shared/`), which has the basic type and instances for JSON encoding/decoding, has a counterpart in `shared/`, `Unison.Term.Extra` with things like _binary_ serialization or hashing of `Unison.Term` values. Logically, it would be nice to put all functionality in the `Unison.Term` module, but binary serialization and hashing code isn't needed by the editor and we don't want to accidentally compile those libraries and code to JS or rely on tree-shaking to hopefully trim it out. Other `.Extra` modules are analogous.
 
 Now, where to begin? Everyone learns differently. You might prefer to read the code 'inside out' (or perhaps 'bottom up'), starting from the core language syntax tree and typechecker, then expanding out to where these get exposed to the outside world. If this route sounds appealing, here's a reasonable path:
 
-* `Unison.Term` is the module containing the definition for Unison language _terms_ and `Unison.Type` is the module containing the definition for Unison language _types_. Eventually, we'll add `Unison.TypeDeclaration`.
+* `Unison.Term` in `shared/` is the module containing the definition for Unison language _terms_ and `Unison.Type` is the module containing the definition for Unison language _types_. Eventually, we'll add `Unison.TypeDeclaration`.
 * In both `Term` and `Type`, the same pattern is used. Each defines a 'base functor' type, `F a`, which is nonrecursive, and the actual thing we use is an _abstract binding tree_ over this base functor, an `ABT F`. `ABT` (for 'abstract binding tree') is defined in `Unison.ABT`. If you aren't familiar with abstract binding trees, [here is a nice blog post explaining one formulation of the idea](http://semantic-domain.blogspot.com/2015/03/abstract-binding-trees.html), which inspired the `Unison.ABT` module. A lot of operations on terms and types just delegate to generic `ABT` operations. Also see `Unison.ABT.Extra`.
-* The main interface to the typechecker is in `Unison.Typechecker`, and the implementation is in `Unison.Typechecker.Context`. There isn't a lot of code here (under 500 LOC presently), since the typechecking algorithm is pretty simple. Unlike a unification-based typechecker, where the typechecking state is an unordered bag of unification constraints and higher-rank polymorphism is usually bolted on awkwardly later, [Dunfield and Krishnaswami's algorithm](http://www.mpi-sws.org/~neelk/bidir.pdf) keeps the typechecking state as a nicely tidy _ordered context_, represented as a regular list manipulated in a stack-like fashion, and the algorithm handles higher-rank polymorphism very cleanly. They've also [extended this work to include features like GADTs](http://semantic-domain.blogspot.com/2015/03/new-draft-sound-and-complete.html), though this new algorithm hasn't been incorporated into Unison yet.
+* The main interface to the typechecker is in `node/` in `Unison.Typechecker`, and the implementation is in `Unison.Typechecker.Context`. There isn't a lot of code here (about 500 LOC presently), since the typechecking algorithm is pretty simple. Unlike a unification-based typechecker, where the typechecking state is an unordered bag of unification constraints and higher-rank polymorphism is usually bolted on awkwardly later, [Dunfield and Krishnaswami's algorithm](http://www.mpi-sws.org/~neelk/bidir.pdf) keeps the typechecking state as a nicely tidy _ordered context_, represented as a regular list manipulated in a stack-like fashion, and the algorithm handles higher-rank polymorphism very cleanly. They've also [extended this work to include features like GADTs](http://semantic-domain.blogspot.com/2015/03/new-draft-sound-and-complete.html), though this new algorithm hasn't been incorporated into Unison yet.
 * From here, you can move to `Unison.Node`, which defines the interface satisfied by the node, `Unison.Node.Implementation`, containing a simple implementation of that interface, and `Unison.NodeServer`, which just wraps the node API in an HTTP+JSON interface.
-* Lastly, `src/node/Node.hs` has the code which creates an instance of a `Unison.NodeServer`. The `src/node/Node.hs` file also has the definition of the current Unison 'standard library'. The node logic is agnostic to the "standard library" chosen, so whatever creates an instance of `Unison.Node` has to supply it with the standard library it should use.
+* Lastly, `node/src/Node.hs` has the code which creates an instance of a `Unison.NodeServer`. The `src/node/Node.hs` file also has the definition of the current Unison 'standard library'. The node logic is agnostic to the "standard library" chosen, so whatever creates an instance of `Unison.Node` has to supply it with the standard library it should use.
 
-If instead, you'd rather work from the 'outside in' (or perhaps 'top down'), you could start with `Unison.NodeServer` and work your way back the other direction to modules like `Term`, `Type`, and `ABT`. Since the entire point of the node codebase is to expose an API over HTTP, `Unison.NodeServer` will end up referencing directly or indirectly all the code in the node.
+If instead, you'd rather work from the 'outside in' (or perhaps 'top down'), you could start with `Unison.NodeServer` and work your way back the other direction to modules like `Term`, `Type`, and `ABT`. Since the entire point of the node codebase is to expose an API over HTTP, `Unison.NodeServer` will end up referencing directly or indirectly all the code in the node, and all the Unison language and typechecker.
 
 ### A brief code tour of the current Unison editor
 
