@@ -8,6 +8,7 @@ import Unison.Term as E
 import Unison.Type as T
 import Unison.Typechecker as Typechecker
 import Unison.Reference as R
+import qualified Unison.Test.Term as Term
 
 import Test.Tasty
 -- import Test.Tasty.SmallCheck as SC
@@ -52,10 +53,7 @@ synthesizesAndChecks e t =
 
 tests :: TestTree
 tests = testGroup "Typechecker"
-  [ testCase "alpha equivalence (term)" $ assertEqual "identity"
-      (lam' ["a"] $ var' "a")
-      (lam' ["x"] $ var' "x")
-  , testCase "alpha equivalence (type)" $ assertEqual "const"
+  [ testCase "alpha equivalence (type)" $ assertEqual "const"
       (forall' ["a", "b"] $ T.v' "a" --> T.v' "b" --> T.v' "a")
       (forall' ["x", "y"] $ T.v' "x" --> T.v' "y" --> T.v' "x")
   , testCase "subtype (1)" $ checkSubtype
@@ -73,11 +71,11 @@ tests = testGroup "Typechecker"
   , testCase "synthesize/check 42" $ synthesizesAndChecks
       (E.lit (E.Number 42))
       (T.lit T.Number)
-  , testCase "synthesize/check (x -> x)" $ synthesizesAndChecks
-      (lam' ["a"] $ var' "a")
+  , testCase "synthesize/check Term.id" $ synthesizesAndChecks
+      Term.id
       (forall' ["b"] $ T.v' "b" --> T.v' "b")
-  , testCase "synthesize/check (x y -> x)" $ synthesizesAndChecks
-      (lam' ["x", "y"] $ var' "x")
+  , testCase "synthesize/check Term.const" $ synthesizesAndChecks
+      Term.const
       (forall' ["a", "b"] $ T.v' "a" --> T.v' "b" --> T.v' "a")
   , testCase "synthesize/check (let f = (+) in f 1)" $ synthesizesAndChecks
       (let1' [("f", E.ref (R.Builtin "+"))] (var' "f" `E.app` E.num 1))
@@ -85,23 +83,13 @@ tests = testGroup "Typechecker"
   , testCase "synthesize/check (let blank x = _ in blank 1)" $ synthesizesAndChecks
       (let1' [("blank", lam' ["x"] E.blank )] (var' "blank" `E.app` E.num 1))
       (forall' ["a"] $ T.v' "a")
-  , testCase "synthesize/check (let rec fix f = f (fix f) in fix)" $ synthesizesAndChecks
-      (letRec' [("fix", lam' ["f"] $ var' "f" `E.app` (var' "fix" `E.app` var' "f"))] (var' "fix"))
+  , testCase "synthesize/check Term.fix" $ synthesizesAndChecks
+      Term.fix
       (forall' ["a"] $ (T.v' "a" --> T.v' "a") --> T.v' "a")
-  , testCase "synthesize/check (let rec ping x = pong (x + 1); pong x = ping (x - 1) in ping 42)" $ synthesizesAndChecks
-      (letRec'
-        [ ("ping", lam' ["x"] $ var' "pong" `E.app` (plus (var' "x") (E.num 1))),
-          ("pong", lam' ["y"] $ var' "pong" `E.app` (minus (var' "y") (E.num 1)))
-        ]
-        (var' "ping" `E.app` E.num 42))
+  , testCase "synthesize/check Term.pingpong1" $ synthesizesAndChecks
+      Term.pingpong1
       (forall' ["a"] $ T.v' "a")
   ]
-
-plus :: Term -> Term -> Term
-plus a b = E.ref (R.Builtin "+") `E.app` a `E.app` b
-
-minus :: Term -> Term -> Term
-minus a b = E.ref (R.Builtin "-") `E.app` a `E.app` b
 
 env :: Applicative f => T.Env f
 env r =
