@@ -306,7 +306,7 @@ instantiateL ctx v t = case Type.monotype t >>= solve ctx v of
       let (v', ctx') = extendUniversal x ctx
       in instantiateL ctx' v (ABT.replace (Type.universal v') (Type.matchUniversal x) body)
          >>= retract (Universal v')
-    _ -> Left $ Note.note "could not instantiate left"
+    _ -> Left $ Note.note ("could not instantiate left: " ++ show t)
 
 -- | Instantiate the given existential such that it is
 -- a supertype of the given type, updating the context

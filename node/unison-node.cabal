@@ -126,22 +126,21 @@ executable node
     unison-shared,
     vector
 
-test-suite properties
-  type:           exitcode-stdio-1.0
-  main-is:        properties.hs
+executable tests
+  -- type:           exitcode-stdio-1.0
+  main-is:        Suite.hs
   ghc-options:    -w -threaded -rtsopts -with-rtsopts=-N -v0
-  hs-source-dirs: properties
+  hs-source-dirs: tests
   other-modules:
-    Syntax
 
   if !flag(properties)
     buildable: False
   else
     build-depends:
+      base,
+      tasty,
+      tasty-hunit,
+      tasty-smallcheck,
+      tasty-quickcheck,
       unison-node,
-      QuickCheck,
-      quickcheck-instances,
-      tagged,
-      test-frameworka,
-      test-framework-quickcheck2,
-      test-framework-th
+      unison-shared
