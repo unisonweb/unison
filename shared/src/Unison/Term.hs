@@ -75,8 +75,8 @@ pattern Let1' v b e <- (ABT.out -> ABT.Tm (Let b (ABT.Abs' v e)))
 pattern Let' bs e relet rec <- (unLets -> Just (bs,e,relet,rec))
 pattern LetRec' bs e <- (unLetRec -> Just (bs,e))
 
-freshIn :: Term -> ABT.V -> ABT.V
-freshIn = ABT.freshIn
+fresh :: Term -> ABT.V -> ABT.V
+fresh = ABT.fresh
 
 -- some smart constructors
 
@@ -88,6 +88,9 @@ var' = var . ABT.v'
 
 ref :: Reference -> Term
 ref r = ABT.tm (Ref r)
+
+num :: Double -> Term
+num = lit . Number
 
 lit :: Literal -> Term
 lit l = ABT.tm (Lit l)
@@ -125,13 +128,19 @@ letRec bindings e = ABT.cycle (foldr ABT.abs z (map fst bindings))
   where
     z = ABT.tm (LetRec (map snd bindings) e)
 
+letRec' :: [(Text, Term)] -> Term -> Term
+letRec' bs e = letRec [(ABT.v' name, b) | (name,b) <- bs] e
+
 -- | Smart constructor for let blocks. Each binding in the block may
 -- reference only previous bindings in the block, not including itself.
 -- The output expression may reference any binding in the block.
-let' :: [(ABT.V,Term)] -> Term -> Term
-let' bindings e = foldr f e bindings
+let1 :: [(ABT.V,Term)] -> Term -> Term
+let1 bindings e = foldr f e bindings
   where
     f (v,b) body = ABT.tm (Let b (ABT.abs v body))
+
+let1' :: [(Text,Term)] -> Term -> Term
+let1' bs e = let1 [(ABT.v' name, b) | (name,b) <- bs ] e
 
 -- | Satisfies
 --   `unLets (letRec bs e) == Just (bs, e, letRec, True)` and
@@ -139,7 +148,7 @@ let' bindings e = foldr f e bindings
 -- Useful for writing code agnostic to whether a let block is recursive or not.
 unLets :: Term -> Maybe ([(ABT.V,Term)], Term, [(ABT.V,Term)] -> Term -> Term, Bool)
 unLets e =
-  (f letRec True <$> unLetRec e) <|> (f let' False <$> unLet e)
+  (f letRec True <$> unLetRec e) <|> (f let1 False <$> unLet e)
   where f mkLet rec (bs,e) = (bs,e,mkLet,rec)
 
 -- | Satisfies `unLetRec (letRec bs e) == Just (bs, e)`

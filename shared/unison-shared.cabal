@@ -1,0 +1,68 @@
+name:          unison-shared
+category:      Compiler
+version:       0.1
+license:       MIT
+cabal-version: >= 1.8
+license-file:  ../LICENSE
+author:        Paul Chiusano 
+maintainer:    Paul Chiusano <paul.chiusano@gmail.com>
+stability:     provisional
+homepage:      http://unisonweb.org
+bug-reports:   https://github.com/unisonweb/platform/issues
+copyright:     Copyright (C) 2013 Paul Chiusano and contributors 
+synopsis:      The Unison programming language and platform
+description:   Shared code between node and editor
+
+build-type:    Simple
+extra-source-files:
+data-files:
+
+source-repository head
+  type: git
+  location: git://github.com/unisonweb/platform.git
+
+-- `cabal install -foptimized` enables optimizations
+flag optimized
+  manual: True
+  default: False
+
+flag quiet
+  manual: True
+  default: False
+
+library
+  hs-source-dirs: src
+
+  exposed-modules:
+    Unison.ABT
+    Unison.Distance
+    Unison.Eval
+    Unison.Hash
+    Unison.JSON
+    Unison.Kind
+    Unison.Metadata
+    Unison.Note
+    Unison.Reference
+    Unison.Symbol
+    Unison.Term
+    Unison.TermEdit
+    Unison.Type
+
+  build-depends:
+    aeson,
+    base,
+    base64-bytestring,
+    bytestring,
+    containers,
+    mtl,
+    text,
+    transformers,
+    vector
+
+  ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N
+
+  if flag(optimized)
+    ghc-options: -funbox-strict-fields -O2
+
+  if flag(quiet)
+    ghc-options: -v0

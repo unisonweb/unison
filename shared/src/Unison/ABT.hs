@@ -39,6 +39,10 @@ data Term f = Term { freeVars :: Set V, out :: ABT f (Term f) }
 isClosed :: Term f -> Bool
 isClosed t = Set.null (freeVars t)
 
+-- | `True` if `v` is a member of the set of free variables of `t`
+isFreeIn :: V -> Term f -> Bool
+isFreeIn v t = Set.member v (freeVars t)
+
 pattern Var' v <- Term _ (Var v)
 pattern Cycle' vs t <- Term _ (Cycle (AbsN' vs t))
 pattern Abs' v body <- Term _ (Abs v body)
@@ -82,22 +86,37 @@ rename old new t0@(Term _ t) = case t of
 
 -- | Produce a variable which is free in both terms
 freshInBoth :: Term f -> Term f -> V -> V
-freshInBoth t1 t2 = freshIn t2 . freshIn t1
+freshInBoth t1 t2 = fresh t2 . fresh t1
 
-freshIn :: Term f -> V -> V
-freshIn t = freshIn' (freeVars t)
+fresh :: Term f -> V -> V
+fresh t = fresh' (freeVars t)
 
-freshIn' :: Set V -> V -> V
-freshIn' used = Symbol.freshIn used
+fresh' :: Set V -> V -> V
+fresh' used = Symbol.freshIn used
+
+freshes :: Term f -> [V] -> [V]
+freshes t = freshes' (freeVars t)
+
+freshes' :: Set V -> [V] -> [V]
+freshes' _ [] = []
+freshes' used (h:t) =
+  let h' = fresh' used h
+  in h' : freshes' (Set.insert h' used) t
 
 freshNamed' :: Set V -> Text -> V
-freshNamed' used n = freshIn' used (v' n)
+freshNamed' used n = fresh' used (v' n)
 
 -- | `subst t x body` substitutes `t` for `x` in `body`, avoiding capture
 subst :: (Foldable f, Functor f) => Term f -> V -> Term f -> Term f
 subst t x body = replace t match body where
   match (Var' v) = x == v
   match _ = False
+
+-- | `substs [(t1,v1), (t2,v2), ...] body` performs multiple simultaneous
+-- substitutions, avoiding capture
+substs :: (Foldable f, Functor f) => [(V, Term f)] -> Term f -> Term f
+substs replacements body = foldr f body replacements where
+  f (v, t) body = subst t v body
 
 -- | `rewrite t f body` substitutes `t` for all maximal (outermost)
 -- subterms matching the predicate `f` in `body`, avoiding capture.

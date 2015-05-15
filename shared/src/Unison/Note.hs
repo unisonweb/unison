@@ -74,4 +74,3 @@ scopeF s = fmap (scope s)
 
 instance Show Note where
   show (Note stack) = intercalate "\n" stack
-

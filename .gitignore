@@ -8,8 +8,9 @@ cabal-dev
 *.un~
 **/cache/**
 **/build/**
+node/store
 tags
-cabal.sandbox.config
+**cabal.sandbox.config
 .cabal-sandbox/**
 .DS_Store
 .virthualenv

@@ -22,11 +22,25 @@ Then do:
 
 ```
 $ git clone https://github.com/unisonweb/platform.git unisonweb
-$ cabal sandbox init
-$ cabal install
+$ cat SETUP.sh
+#!/bin/sh
+cabal sandbox init
+cd shared
+cabal sandbox init --sandbox ../.cabal-sandbox
+cd ../node
+cabal sandbox init --sandbox ../.cabal-sandbox
+cabal sandbox add-source ../shared
+cabal install --only-dependencies
+cabal build
+```
+
+Once you're convinced `SETUP.sh` doesn't do anything nefarious, you can run it:
+
+```
+$ chmod a+x SETUP.sh
+$ ./SETUP.sh
 $ // wait 20 minutes while half the Haskell ecosystem
 $ // gets downloaded and compiled
-$ cabal build node
 $ ./dist/build/node/node
 Setting phasers to stun... (port 8080) (ctrl-c to quit)
 ```
@@ -74,19 +88,20 @@ First, a bit of orientation. Here's the directory structure:
 
 ```
 editor-elm/
-src/
-  shared/
-  node/
-  editor/
+shared/
+node/
+editor/
 ```
 
-The `editor-elm/` directory is the current Elm implementation of the Unison editor. So what's with the directory structure? Well, Elm is being phased out, and the editor is likely getting a rewrite in Haskell, with the code compiled via [GHCJS](https://github.com/ghcjs/ghcjs). So the `src` directory, which has all Haskell code, has a `shared/` sub-directory (Haskell code that will be shared between the editor and node), a `node/` sub-directory (code specific to the node), and an `editor/` sub-directory (currently empty but will house the Haskell version of the editor).
+The `editor-elm/` directory is the current Elm implementation of the Unison editor. So what's with the directory structure? Well, Elm is being phased out, and the editor is likely getting a rewrite in Haskell, with the code compiled via [GHCJS](https://github.com/ghcjs/ghcjs). The `shared/` directory has Haskell code that will be shared between the editor and node, the `node/` directory has code specific to the node, and `editor/` is currently empty but will house the Haskell version of the editor.
 
 Though the rewrite hasn't happened yet, having a stable directory structure means development can easily proceed concurrently on both the new editor and other stuff like the typechecker, the language, the standard library, etc.
 
-The `unison.cabal` file has the dependencies you'd expect--the unison library maps to the `shared/` directory and has minimal external dependencies, and executables `node` (and later `editor`) depend on `shared`. Thus, it should be very obvious and explicit what code and external dependencies are going to be compiled to JS.
+The dependencies are what you'd expect---`shared/` has minimal external dependencies, and `node/` (and later `editor/`) depend on `shared`. Thus, it should be very obvious and explicit what code and external dependencies are going to be compiled to JS.
 
 ### A brief code tour of the Haskell code
+
+TODO - out of date, revise
 
 The Unison Haskell code, which lives in `src/` is not actually much code right now. Files are spread between `src/shared/` and `src/node/` as mentioned above:
 

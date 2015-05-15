@@ -2,7 +2,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 
 -- | This module is the primary interface to the Unison typechecker
-module Unison.Typechecker (admissibleTypeAt, check, check', isSubtype, locals, subtype, synthesize, synthesize', typeAt, wellTyped) where
+module Unison.Typechecker (admissibleTypeAt, check, check', equals, isSubtype, locals, subtype, synthesize, synthesize', typeAt, wellTyped) where
 
 import Control.Monad
 import Unison.Type (Type)
@@ -39,7 +39,7 @@ admissibleTypeAt :: Applicative f
                  -> Noted f Type
 admissibleTypeAt synth loc t = Note.scoped ("admissibleTypeAt@" ++ show loc ++ " " ++ show t) $
   let
-    f = Term.freshIn t (ABT.v' "s")
+    f = Term.fresh t (ABT.v' "s")
     shake (Type.Arrow' (Type.Arrow' _ tsub) _) = Type.generalize tsub
     shake (Type.Forall' _ t) = shake t
     shake _ = error "impossible, f had better be a function"
@@ -52,7 +52,7 @@ typeAt :: Applicative f => Type.Env f -> Term.Path -> Term -> Noted f Type
 typeAt synth [] t = Note.scoped ("typeAt: " ++ show t) $ synthesize synth t
 typeAt synth loc t = Note.scoped ("typeAt@"++show loc ++ " " ++ show t) $
   let
-    f = Term.freshIn t (ABT.v' "t")
+    f = Term.fresh t (ABT.v' "t")
     shake (Type.Arrow' (Type.Arrow' tsub _) _) = Type.generalize tsub
     shake (Type.Forall' _ t) = shake t
     shake _ = error "impossible, f had better be a function"
@@ -128,3 +128,11 @@ isSubtype :: Type -> Type -> Bool
 isSubtype t1 t2 = case Context.subtype (Context.context []) t1 t2 of
   Left _ -> False
   Right _ -> True
+
+-- | Returns true if the two type are equal, up to alpha equivalence and
+-- order of quantifier introduction. Note that alpha equivalence considers:
+-- `forall b a . a -> b -> a` and
+-- `forall a b . a -> b -> a` to be different types
+equals :: Type -> Type -> Bool
+equals t1 t2 = isSubtype t1 t2 && isSubtype t2 t1
+
