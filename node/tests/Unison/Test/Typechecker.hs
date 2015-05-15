@@ -82,6 +82,9 @@ tests = testGroup "Typechecker"
   , testCase "synthesize/check (let f = (+) in f 1)" $ synthesizesAndChecks
       (let1' [("f", E.ref (R.Builtin "+"))] (var' "f" `E.app` E.num 1))
       (T.lit T.Number --> T.lit T.Number)
+  , testCase "synthesize/check (let blank x = _ in blank 1)" $ synthesizesAndChecks
+      (let1' [("blank", lam' ["x"] E.blank )] (var' "blank" `E.app` E.num 1))
+      (forall' ["a"] $ T.v' "a")
   , testCase "synthesize/check (let rec fix f = f (fix f) in fix)" $ synthesizesAndChecks
       (letRec' [("fix", lam' ["f"] $ var' "f" `E.app` (var' "fix" `E.app` var' "f"))] (var' "fix"))
       (forall' ["a"] $ (T.v' "a" --> T.v' "a") --> T.v' "a")

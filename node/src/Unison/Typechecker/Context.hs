@@ -439,12 +439,6 @@ synthesize ctx e = Note.scope ("synth: " ++ show e) $ go e where
   go (Term.App' f arg) = do -- ->E
     (ft, ctx) <- synthesize ctx f
     synthesizeApp ctx (apply ctx ft) arg
-  go (Term.Let1' v binding e) = do
-    let v' = fresh v ctx
-    (tbinding, ctx) <- synthesize ctx (ABT.subst (ABT.var v') v binding)
-    (t, ctx) <- synthesize (extend (Ann v' tbinding) ctx) e
-    ctx <- retract (Ann v' tbinding) ctx
-    pure (t, ctx)
   go (Term.Vector' v) =
     let e = fresh (ABT.v' "e") ctx
         ctxTl = context [Marker e, Existential e]
@@ -456,6 +450,12 @@ synthesize ctx e = Note.scope ("synth: " ++ show e) $ go e where
            -- unsolved existentials get generalized to universals
            vt = Type.lit Type.Vector `Type.app` Type.existential e
          in (generalizeExistentials ctx2 vt, ctx1)
+  go (Term.Let1' v binding e) = do
+    let v' = fresh v ctx
+    (tbinding, ctx) <- synthesize ctx (ABT.subst (ABT.var v') v binding)
+    (t, ctx) <- synthesize (extend (Ann v' tbinding) ctx) e
+    (ctx, ctx2) <- pure $ breakAt (Ann v' tbinding) ctx
+    pure (generalizeExistentials ctx2 t, ctx)
   go (Term.LetRec' [] body) = synthesize ctx body
   go (Term.LetRec' bindings e) = do
     (marker, e, ctx) <- annotateLetRecBindings ctx bindings e
@@ -511,4 +511,4 @@ synthesizeClosed synthRef term = Noted $ synth <$> Note.unnote (annotateRefs syn
     synth :: Either Note Term -> Either Note Type
     synth (Left e) = Left e
     synth (Right a) = go <$> synthesize (context []) a
-    go (t, ctx) = apply ctx t
+    go (t, ctx) = generalizeExistentials ctx t -- we generalize over any remaining unsolved existentials
