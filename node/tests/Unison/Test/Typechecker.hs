@@ -72,7 +72,23 @@ tests = testGroup "Typechecker"
   , testCase "synthesize/check (x y -> x)" $ synthesizesAndChecks
       (lam' ["x", "y"] $ var' "x")
       (forall' ["a", "b"] $ T.v' "a" --> T.v' "b" --> T.v' "a")
+  , testCase "synthesize/check (let rec fix f = f (fix f) in fix)" $ synthesizesAndChecks
+      (letRec' [("fix", lam' ["f"] $ var' "f" `E.app` (var' "fix" `E.app` var' "f"))] (var' "fix"))
+      (forall' ["a"] $ (T.v' "a" --> T.v' "a") --> T.v' "a")
+  , testCase "synthesize/check (let rec ping x = pong (x + 1); pong x = ping (x - 1) in ping 42)" $ synthesizesAndChecks
+      (letRec'
+        [ ("ping", lam' ["x"] $ var' "pong" `E.app` (plus (var' "x") (E.num 1))),
+          ("pong", lam' ["y"] $ var' "pong" `E.app` (minus (var' "y") (E.num 1)))
+        ]
+        (var' "ping" `E.app` E.num 42))
+      (T.lit T.Number)
   ]
+
+plus :: Term -> Term -> Term
+plus a b = E.ref (R.Builtin "+") `E.app` a `E.app` b
+
+minus :: Term -> Term -> Term
+minus a b = E.ref (R.Builtin "-") `E.app` a `E.app` b
 
 env :: Applicative f => T.Env f
 env r =
@@ -81,6 +97,8 @@ env r =
     numT =  T.lit T.Number
   in pure $ case r of
     Builtin "Color.rgba" -> numT --> numT --> numT --> numT --> T.ref (R.Builtin "Color")
+    Builtin "+" -> numT --> numT --> numT
+    Builtin "-" -> numT --> numT --> numT
     Builtin "View.view" -> forall' ["a"] $ view (T.v' "a") --> T.v' "a" --> T.v' "a"
     _ -> error $ "no type for reference " ++ show r
 

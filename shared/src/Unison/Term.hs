@@ -89,6 +89,9 @@ var' = var . ABT.v'
 ref :: Reference -> Term
 ref r = ABT.tm (Ref r)
 
+num :: Double -> Term
+num = lit . Number
+
 lit :: Literal -> Term
 lit l = ABT.tm (Lit l)
 
@@ -124,6 +127,9 @@ letRec [] e = e
 letRec bindings e = ABT.cycle (foldr ABT.abs z (map fst bindings))
   where
     z = ABT.tm (LetRec (map snd bindings) e)
+
+letRec' :: [(Text, Term)] -> Term -> Term
+letRec' bs e = letRec [(ABT.v' name, b) | (name,b) <- bs] e
 
 -- | Smart constructor for let blocks. Each binding in the block may
 -- reference only previous bindings in the block, not including itself.
