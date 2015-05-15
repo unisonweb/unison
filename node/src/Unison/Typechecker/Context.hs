@@ -21,6 +21,10 @@ import qualified Data.Set as Set
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 
+-- uncomment for debugging
+-- import Debug.Trace
+-- watch msg a = trace (msg ++ ":\n" ++ show a) a
+
 -- | Elements of an ordered algorithmic context
 data Element
   = Universal ABT.V       -- | ^ `v` is universally quantified
@@ -433,8 +437,8 @@ synthesize ctx e = Note.scope ("synth: " ++ show e) $ go e where
   go (Term.Ann' e' t) = (,) t <$> check ctx e' t -- Anno
   go (Term.Lit' l) = pure (synthLit l, ctx) -- 1I=>
   go (Term.App' f arg) = do -- ->E
-    (ft, ctx') <- synthesize ctx f
-    synthesizeApp ctx' (apply ctx' ft) arg
+    (ft, ctx) <- synthesize ctx f
+    synthesizeApp ctx (apply ctx ft) arg
   go (Term.Let1' v binding e) = do
     let v' = fresh v ctx
     (tbinding, ctx) <- synthesize ctx (ABT.subst (ABT.var v') v binding)
@@ -456,8 +460,8 @@ synthesize ctx e = Note.scope ("synth: " ++ show e) $ go e where
   go (Term.LetRec' bindings e) = do
     (marker, e, ctx) <- annotateLetRecBindings ctx bindings e
     (t, ctx) <- synthesize ctx e
-    ctx <- retract marker ctx
-    pure (t, ctx)
+    (ctx, ctx2) <- pure $ breakAt marker ctx
+    pure (generalizeExistentials ctx2 t, ctx)
   go (Term.Lam' x body) = -- ->I=> (Full Damas Milner rule)
     let (arg, i, o) = fresh3 (ABT.v' "arg") x (ABT.v' "o") ctx
         ctxTl = context [Marker i, Existential i, Existential o,

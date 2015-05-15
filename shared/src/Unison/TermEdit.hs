@@ -77,7 +77,7 @@ abstract path t = f <$> Term.focus path t where
 abstractLet :: Term.Path -> Term.Term -> Maybe (Term.Path, Term.Term)
 abstractLet path t = f <$> Term.focus path t where
   f (sub,replace) =
-    let sub' = Term.let' [(ABT.v' "v", sub)] (ABT.var' "v")
+    let sub' = Term.let1 [(ABT.v' "v", sub)] (ABT.var' "v")
     in (path, replace sub')
 
 {- Promotes a nonrecurive let to a let rec. Example:

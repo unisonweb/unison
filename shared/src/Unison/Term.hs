@@ -134,10 +134,13 @@ letRec' bs e = letRec [(ABT.v' name, b) | (name,b) <- bs] e
 -- | Smart constructor for let blocks. Each binding in the block may
 -- reference only previous bindings in the block, not including itself.
 -- The output expression may reference any binding in the block.
-let' :: [(ABT.V,Term)] -> Term -> Term
-let' bindings e = foldr f e bindings
+let1 :: [(ABT.V,Term)] -> Term -> Term
+let1 bindings e = foldr f e bindings
   where
     f (v,b) body = ABT.tm (Let b (ABT.abs v body))
+
+let1' :: [(Text,Term)] -> Term -> Term
+let1' bs e = let1 [(ABT.v' name, b) | (name,b) <- bs ] e
 
 -- | Satisfies
 --   `unLets (letRec bs e) == Just (bs, e, letRec, True)` and
@@ -145,7 +148,7 @@ let' bindings e = foldr f e bindings
 -- Useful for writing code agnostic to whether a let block is recursive or not.
 unLets :: Term -> Maybe ([(ABT.V,Term)], Term, [(ABT.V,Term)] -> Term -> Term, Bool)
 unLets e =
-  (f letRec True <$> unLetRec e) <|> (f let' False <$> unLet e)
+  (f letRec True <$> unLetRec e) <|> (f let1 False <$> unLet e)
   where f mkLet rec (bs,e) = (bs,e,mkLet,rec)
 
 -- | Satisfies `unLetRec (letRec bs e) == Just (bs, e)`

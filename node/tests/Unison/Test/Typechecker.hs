@@ -31,8 +31,8 @@ synthesizes e t =
   in
     handle $ do
       t2 <- (run (Typechecker.synthesize env e)) :: Either Note Type
-      _ <- Typechecker.subtype t t2
       _ <- Typechecker.subtype t2 t
+      _ <- Typechecker.subtype t t2
       pure ()
 
 checks :: Term -> Type -> Assertion
@@ -70,7 +70,7 @@ tests = testGroup "Typechecker"
   , testCase "strong equivalence (type)" $ assertEqual "types were not equal"
       (StrongEq (forall' ["a", "b"] $ T.v' "a" --> T.v' "b" --> T.v' "a"))
       (StrongEq (forall' ["y", "x"] $ T.v' "x" --> T.v' "y" --> T.v' "x"))
-  , testCase "synthesize 42" $ synthesizesAndChecks
+  , testCase "synthesize/check 42" $ synthesizesAndChecks
       (E.lit (E.Number 42))
       (T.lit T.Number)
   , testCase "synthesize/check (x -> x)" $ synthesizesAndChecks
@@ -79,6 +79,9 @@ tests = testGroup "Typechecker"
   , testCase "synthesize/check (x y -> x)" $ synthesizesAndChecks
       (lam' ["x", "y"] $ var' "x")
       (forall' ["a", "b"] $ T.v' "a" --> T.v' "b" --> T.v' "a")
+  , testCase "synthesize/check (let f = (+) in f 1)" $ synthesizesAndChecks
+      (let1' [("f", E.ref (R.Builtin "+"))] (var' "f" `E.app` E.num 1))
+      (T.lit T.Number --> T.lit T.Number)
   , testCase "synthesize/check (let rec fix f = f (fix f) in fix)" $ synthesizesAndChecks
       (letRec' [("fix", lam' ["f"] $ var' "f" `E.app` (var' "fix" `E.app` var' "f"))] (var' "fix"))
       (forall' ["a"] $ (T.v' "a" --> T.v' "a") --> T.v' "a")
@@ -88,7 +91,7 @@ tests = testGroup "Typechecker"
           ("pong", lam' ["y"] $ var' "pong" `E.app` (minus (var' "y") (E.num 1)))
         ]
         (var' "ping" `E.app` E.num 42))
-      (T.lit T.Number)
+      (forall' ["a"] $ T.v' "a")
   ]
 
 plus :: Term -> Term -> Term
