@@ -24,9 +24,16 @@ instance Show StrongEq where show (StrongEq t) = show t
 
 synthesizes :: Term -> Type -> Assertion
 synthesizes e t =
-  case (run (Typechecker.synthesize env e)) :: Either Note Type of
-    Left err -> assertFailure ("synthesis failure: " ++ show err)
-    Right t2 -> assertEqual "synthesis" (StrongEq t) (StrongEq t2)
+  let
+    handle r = case r of
+      Left err -> assertFailure ("synthesis failure: " ++ show err)
+      Right _ -> pure ()
+  in
+    handle $ do
+      t2 <- (run (Typechecker.synthesize env e)) :: Either Note Type
+      _ <- Typechecker.subtype t t2
+      _ <- Typechecker.subtype t2 t
+      pure ()
 
 checks :: Term -> Type -> Assertion
 checks e t =
