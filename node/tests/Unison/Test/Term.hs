@@ -55,6 +55,6 @@ pingpong1 =
 pingpong2 :: Term
 pingpong2 =
   letRec'
-    [ ("pong", lam' ["p"] $ var' "pong" `app` (minus (var' "p") one))
-    , ("ping", lam' ["q"] $ var' "pong" `app` (plus (var' "q") one)) ]
-    (var' "ping" `app` one)
+    [ ("pong1", lam' ["p"] $ var' "pong1" `app` (minus (var' "p") one))
+    , ("ping1", lam' ["q"] $ var' "pong1" `app` (plus (var' "q") one)) ]
+    (var' "ping1" `app` one)
