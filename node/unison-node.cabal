@@ -3,7 +3,7 @@ category:      Compiler
 version:       0.1
 license:       MIT
 cabal-version: >= 1.8
-license-file:  ../LICENSE
+license-file:  LICENSE
 author:        Paul Chiusano 
 maintainer:    Paul Chiusano <paul.chiusano@gmail.com>
 stability:     provisional
@@ -126,8 +126,8 @@ executable node
     unison-shared,
     vector
 
-executable tests
-  -- type:           exitcode-stdio-1.0
+test-suite tests
+  type:           exitcode-stdio-1.0
   main-is:        Suite.hs
   ghc-options:    -w -threaded -rtsopts -with-rtsopts=-N -v0
   hs-source-dirs: tests
