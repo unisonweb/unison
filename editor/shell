@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -eu
+
+DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
+
+. "$DIR/common-setup.sh"
+
+echo "Entering the reflex sandbox..."
+
+nix-shell "$DIR/shell.nix" $NIXOPTS "$@"

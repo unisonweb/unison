@@ -9,6 +9,7 @@
 
 module Unison.Type where
 
+import Control.Applicative
 import Data.Aeson (toJSON, parseJSON)
 import Data.Aeson.TH
 import Data.Functor.Classes (Eq1(..),Show1(..))
