@@ -1,4 +1,4 @@
-name:          unison-shared
+name:          unison-editor
 category:      Compiler
 version:       0.1
 license:       MIT
@@ -11,15 +11,26 @@ homepage:      http://unisonweb.org
 bug-reports:   https://github.com/unisonweb/platform/issues
 copyright:     Copyright (C) 2013 Paul Chiusano and contributors 
 synopsis:      The Unison programming language and platform
-description:   Shared code between node and editor
+description:   The Unison typechecker and node 
 
 build-type:    Simple
 extra-source-files:
+  -- .travis.yml
+  --.vim.custom
+  .gitignore
+  README.markdown
+  CHANGELOG.markdown
+
 data-files:
 
 source-repository head
   type: git
   location: git://github.com/unisonweb/platform.git
+
+-- `cabal install --enable-tests -f-properties` to disable properties suite
+flag properties
+  manual: True
+  default: True
 
 -- `cabal install -foptimized` enables optimizations
 flag optimized
@@ -34,30 +45,13 @@ library
   hs-source-dirs: src
 
   exposed-modules:
-    Unison.ABT
-    Unison.Distance
-    Unison.Eval
-    Unison.Hash
-    Unison.JSON
-    Unison.Kind
-    Unison.Metadata
-    Unison.Note
-    Unison.Reference
-    Unison.Symbol
-    Unison.Term
-    Unison.TermEdit
-    Unison.Type
+    Unison.Woot
 
   build-depends:
-    aeson,
     base,
-    base64-bytestring,
-    bytestring,
-    containers,
-    mtl,
-    text,
-    transformers,
-    vector
+    reflex,
+    reflex-dom,
+    unison-shared
 
   ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N
 
@@ -66,3 +60,18 @@ library
 
   if flag(quiet)
     ghc-options: -v0
+
+executable editor
+  main-is: HelloWorld.hs
+  hs-source-dirs: src
+  ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N -v0
+
+  if flag(optimized)
+    ghc-options: -funbox-strict-fields -O2
+
+  build-depends:
+    base,
+    reflex,
+    reflex-dom,
+    unison-editor,
+    unison-shared
