@@ -5,6 +5,9 @@ DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
 . "$DIR/common-setup.sh"
 
-echo "Entering the reflex sandbox..."
+echo "Entering sandbox..."
+echo "This rather janky script and setup adapted from <https://github.com/ryantrinkle/try-reflex>"
+echo "Do 'cd main' then 'cabal configure --ghcjs' and 'cabal build' as normal"
+echo "Then open dist/build/editor/editor.jsexe/index.html in a browser"
 
 nix-shell "$DIR/shell.nix" $NIXOPTS "$@"

@@ -48,6 +48,7 @@ library
     Unison.Woot
 
   build-depends:
+    base,
     reflex,
     reflex-dom,
     unison-shared
@@ -69,5 +70,8 @@ executable editor
     ghc-options: -funbox-strict-fields -O2
 
   build-depends:
+    base,
+    reflex,
+    reflex-dom,
     unison-editor,
     unison-shared
