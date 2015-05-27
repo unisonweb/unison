@@ -13,9 +13,11 @@ module Unison.Term where
 import Control.Applicative
 import Control.Monad
 import Data.Aeson.TH
+import Data.Foldable
 import Data.Functor.Classes
 import Data.List
 import Data.Maybe
+import Data.Monoid
 import Data.Set (Set)
 import Data.Text (Text)
 import Data.Vector (Vector, (!?))
@@ -41,6 +43,17 @@ data Literal
   | Distance Distance.Distance
   deriving (Eq,Ord,Generic)
 
+data Pattern a = PWild
+               | PVar a
+               | PLit Literal
+               | PProd (Pattern a) (Pattern a)
+               | PInj1 (Pattern a)
+               | PInj2 (Pattern a)
+  deriving (Eq, Ord, Generic, Show, Functor, Foldable, Traversable)
+
+countVars :: Pattern a -> Int
+countVars = getSum . foldMap (Sum . const 1)
+
 -- | Base functor for terms in the Unison language
 data F a
   = Lit Literal
@@ -50,6 +63,10 @@ data F a
   | Ann a T.Type
   | Vector (Vector a)
   | Lam a
+  | Inj1 a
+  | Inj2 a
+  | Pair a a
+  | Case a [(Pattern (), a)]
   -- Invariant: let rec blocks have an outer ABT.Cycle which introduces as many
   -- variables as there are bindings
   | LetRec [a] a
@@ -118,6 +135,10 @@ lam v body = ABT.tm (Lam (ABT.abs v body))
 
 lam' :: [Text] -> Term -> Term
 lam' vs body = foldr lam body (map ABT.v' vs)
+
+case' :: Term -> [(Pattern ABT.V, Term)] -> Term
+case' e cs =
+  ABT.tm . Case e $ map (\(p, b) -> (() <$ p, foldr ABT.abs b $ toList p)) cs
 
 -- | Smart constructor for let rec blocks. Each binding in the block may
 -- reference any other binding in the block in its body (including itself),
@@ -259,7 +280,13 @@ betaReduce e = e
 
 -- mostly boring serialization and hashing code below ...
 
+instance Show Literal where
+  show (Text t) = show t
+  show (Number n) = show n
+  show (Distance d) = show d
+
 deriveJSON defaultOptions ''Literal
+deriveJSON defaultOptions ''Pattern
 
 instance Eq1 F where eq1 = (==)
 instance Show1 F where showsPrec1 = showsPrec
@@ -270,11 +297,6 @@ instance J.FromJSON1 F where parseJSON1 j = Aeson.parseJSON j
 
 
 deriveJSON defaultOptions ''PathElement
-
-instance Show Literal where
-  show (Text t) = show t
-  show (Number n) = show n
-  show (Distance d) = show d
 
 instance Show a => Show (F a) where
   showsPrec p fa = go p fa where

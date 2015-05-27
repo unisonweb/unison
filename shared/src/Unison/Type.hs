@@ -34,14 +34,24 @@ data Literal
 
 deriveJSON defaultOptions ''Literal
 
+data Prop a = Equate a a
+  deriving (Eq, Ord, Show, Read, Foldable, Traversable, Functor, Generic)
+
+deriveJSON defaultOptions ''Prop
+
 -- | Base functor for types in the Unison language
 data F a
   = Lit Literal
   | Arrow a a
+  | Plus a a
+  | Times a a
   | Ann a K.Kind
   | App a a
   | Constrain a () -- todo: constraint language
   | Forall a
+  | Exists a
+  | Implies (Prop a) a
+  | And a (Prop a)
   | Existential a
   | Universal a
   deriving (Eq,Foldable,Functor,Generic1,Traversable)
@@ -73,12 +83,17 @@ monotype t = Monotype <$> ABT.visit isMono t where
 -- some smart patterns
 pattern Lit' l <- ABT.Tm' (Lit l)
 pattern Arrow' i o <- ABT.Tm' (Arrow i o)
+pattern Times' i o <- ABT.Tm' (Times i o)
+pattern Plus' i o <- ABT.Tm' (Plus i o)
 pattern Ann' t k <- ABT.Tm' (Ann t k)
 pattern App' f x <- ABT.Tm' (App f x)
 pattern Constrain' t u <- ABT.Tm' (Constrain t u)
 pattern Forall' v body <- ABT.Tm' (Forall (ABT.Abs' v body))
+pattern Exists' v body <- ABT.Tm' (Exists (ABT.Abs' v body))
 pattern Existential' v <- ABT.Tm' (Existential (ABT.Var' v))
 pattern Universal' v <- ABT.Tm' (Universal (ABT.Var' v))
+pattern Implies' p t <- ABT.Tm' (Implies p t)
+pattern And' t p <- ABT.Tm' (And t p)
 
 matchExistential :: ABT.V -> Type -> Bool
 matchExistential v (Existential' x) = x == v
@@ -102,11 +117,20 @@ app f arg = ABT.tm (App f arg)
 arrow :: Type -> Type -> Type
 arrow i o = ABT.tm (Arrow i o)
 
+plus :: Type -> Type -> Type
+plus l r = ABT.tm (Plus l r)
+
+times :: Type -> Type -> Type
+times l r = ABT.tm (Times l r)
+
 ann :: Type -> K.Kind -> Type
 ann e t = ABT.tm (Ann e t)
 
 forall :: ABT.V -> Type -> Type
 forall v body = ABT.tm (Forall (ABT.abs v body))
+
+exists :: ABT.V -> Type -> Type
+exists v body = ABT.tm (Exists (ABT.abs v body))
 
 existential :: ABT.V -> Type
 existential v = ABT.tm (Existential (ABT.var v))
@@ -120,8 +144,21 @@ v' s = universal (ABT.v' s)
 forall' :: [Text] -> Type -> Type
 forall' vs body = foldr forall body (map ABT.v' vs)
 
+exists' :: [Text] -> Type -> Type
+exists' vs body = foldr exists body (map ABT.v' vs)
+
 constrain :: Type -> () -> Type
 constrain t u = ABT.tm (Constrain t u)
+
+implies :: Prop Type -> Type -> Type
+implies p t = ABT.tm (Implies p t)
+
+and' :: Type -> Prop Type -> Type
+and' t p = ABT.tm (And t p)
+
+equate :: Type -> Type -> Maybe (Prop Type)
+equate t u = eq <$> monotype t <*> monotype u
+ where eq l r = Equate (getPolytype l) (getPolytype r)
 
 -- | Bind all free variables with an outer `forall`.
 generalize :: Type -> Type
