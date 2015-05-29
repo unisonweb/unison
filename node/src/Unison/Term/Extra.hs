@@ -16,7 +16,7 @@ import qualified Unison.Hash as Hash
 import qualified Unison.Reference as Reference
 
 instance Serial Literal
-instance Serial1 Pattern
+instance Serial a => Serial (Pattern a)
 instance Serial1 F
 instance Serial1 Vector where
   serializeWith f vs = serializeWith f (Vector.toList vs)

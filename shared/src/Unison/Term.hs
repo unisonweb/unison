@@ -50,7 +50,7 @@ data Pattern a
   | PProd (Pattern a) (Pattern a)
   | PInj1 (Pattern a)
   | PInj2 (Pattern a)
-  deriving (Eq, Ord, Generic1, Show, Functor, Foldable, Traversable)
+  deriving (Eq, Ord, Generic1, Generic, Show, Functor, Foldable, Traversable)
 
 countVars :: Pattern a -> Int
 countVars = getSum . foldMap (Sum . const 1)
