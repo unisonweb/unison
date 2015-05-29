@@ -10,6 +10,7 @@ import Unison.Type
 
 instance Serial Literal
 instance Serial1 F
+instance Serial1 Prop
 
 instance Digest.Digestable1 F where
   -- NB: Initial 0 avoids hash collisions with terms, which have different leading byte

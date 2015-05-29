@@ -35,9 +35,11 @@ data Literal
 deriveJSON defaultOptions ''Literal
 
 data Prop a = Equate a a
-  deriving (Eq, Ord, Show, Read, Foldable, Traversable, Functor, Generic)
+  deriving (Eq, Ord, Show, Read, Foldable, Traversable, Functor, Generic1)
 
 deriveJSON defaultOptions ''Prop
+instance Eq1 Prop where eq1 = (==)
+instance Show1 Prop where showsPrec1 = showsPrec
 
 -- | Base functor for types in the Unison language
 data F a

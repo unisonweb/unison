@@ -43,13 +43,14 @@ data Literal
   | Distance Distance.Distance
   deriving (Eq,Ord,Generic)
 
-data Pattern a = PWild
-               | PVar a
-               | PLit Literal
-               | PProd (Pattern a) (Pattern a)
-               | PInj1 (Pattern a)
-               | PInj2 (Pattern a)
-  deriving (Eq, Ord, Generic, Show, Functor, Foldable, Traversable)
+data Pattern a
+  = PWild
+  | PVar a
+  | PLit Literal
+  | PProd (Pattern a) (Pattern a)
+  | PInj1 (Pattern a)
+  | PInj2 (Pattern a)
+  deriving (Eq, Ord, Generic1, Show, Functor, Foldable, Traversable)
 
 countVars :: Pattern a -> Int
 countVars = getSum . foldMap (Sum . const 1)
