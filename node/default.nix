@@ -7,9 +7,7 @@
 mkDerivation {
   pname = "unison-node";
   version = "0.1";
-  src = builtins.filterSource
-    (path: type: type != "directory" || (baseNameOf path != ".git" && baseNameOf path != "dist"))
-    ./.;
+  src = ./.;
   isLibrary = true;
   isExecutable = true;
   buildDepends = [

@@ -4,9 +4,7 @@
 mkDerivation {
   pname = "unison-shared";
   version = "0.1";
-  src = builtins.filterSource
-    (path: type: type != "directory" || (baseNameOf path != ".git" && baseNameOf path != "dist"))
-    ./.;
+  src = ./.;
   buildDepends = [
     aeson base base64-bytestring bytestring containers mtl text
     transformers vector
