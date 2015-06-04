@@ -23,4 +23,5 @@ mkDerivation {
   homepage = "http://unisonweb.org";
   description = "The Unison programming language and platform";
   license = stdenv.lib.licenses.mit;
+  doHaddock = false;
 }
