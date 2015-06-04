@@ -9,8 +9,8 @@ let
     importer = self: super: dir: {
       name = "unison-${dir}";
       value = let
-        vanilla = self.callPackage (./. + "/${dir}") {};
         src = unison-src + "/${dir}";
+        vanilla = self.callPackage src {};
         in nixpkgs.haskell-ng.lib.overrideCabal vanilla (_: { inherit src; });
     };
 
