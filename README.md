@@ -3,7 +3,7 @@ The Unison platform
 
 [![Join the chat at https://gitter.im/unisonweb/platform](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/unisonweb/platform?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-[Unison](http://unisonweb.org) is a new programming platform, currently under active development. This repo contains the code for the Unison node backend (written in Haskell, lives in the root directory, with source in `src`), and the Unison editor (currently written in Elm, found in the folder `editor-elm`).
+[Unison](http://unisonweb.org) is a new programming platform, currently under active development. This repo contains the code for the Unison node backend (written in Haskell, lives in the `node` directory, with source in `src`), and the Unison editor (currently written in Elm, found in the folder `editor-elm`).
 
 If you're wondering what the project is about, you can get a glimpse [with this video and post discussing the Unison semantic editor](http://pchiusano.github.io/2015-03-17/unison-update5.html). The editor is just one piece of the overall platform, and  there's updates and more info at [unisonweb.org](http://unisonweb.org) as well as [background posts with additional context](http://pchiusano.io/unison).
 
@@ -41,7 +41,7 @@ $ chmod a+x SETUP.sh
 $ ./SETUP.sh
 $ // wait 20 minutes while half the Haskell ecosystem
 $ // gets downloaded and compiled
-$ ./dist/build/node/node
+$ ./node/dist/build/node/node
 Setting phasers to stun... (port 8080) (ctrl-c to quit)
 ```
 
