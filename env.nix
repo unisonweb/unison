@@ -28,10 +28,10 @@ let
   });
 
   try-reflex = defaultPkgs.fetchFromGitHub {
-    owner = "Ericson2314";
+    owner = "unisonweb";
     repo = "try-reflex";
-    rev = "16d45d152d9110a4da696f2596954b3b0516b93f";
-    sha256 = "0pv4mm2nf5630dvnzxxm9anijgxm3bn2a185klfskrnqk9mgfjga";
+    rev = "ba7437c89ae6f8d9f9267f3e50eac455911a2371";
+    sha256 = "0gpr0203ms1qsxi07mg78c36xwsynlf9ib8k3jb6i3v1k5ggpvr5";
   };
 
   reflexPkgs = import "${try-reflex}/deps" {};
