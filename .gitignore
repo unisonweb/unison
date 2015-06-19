@@ -1,3 +1,4 @@
+# Haskell
 dist
 cabal-dev
 *.o
@@ -12,5 +13,11 @@ node/store
 tags
 **cabal.sandbox.config
 .cabal-sandbox/**
+
+# Nix
+result
+
+# Misc
+*~
 .DS_Store
 .virthualenv
