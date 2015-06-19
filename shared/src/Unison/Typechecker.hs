@@ -4,6 +4,7 @@
 -- | This module is the primary interface to the Unison typechecker
 module Unison.Typechecker (admissibleTypeAt, check, check', equals, isSubtype, locals, subtype, synthesize, synthesize', typeAt, wellTyped) where
 
+import Control.Applicative
 import Control.Monad
 import Unison.Type (Type)
 import Unison.Term (Term)
