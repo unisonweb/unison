@@ -10,7 +10,8 @@ let
       name = "unison-${dir}";
       value = let
         src = unison-src + "/${dir}";
-        vanilla = self.callPackage src {};
+        inputs = { inherit (nixpkgs) stdenv; } // self;
+        vanilla = nixpkgs.stdenv.lib.callPackageWith inputs src {};
         in nixpkgs.haskell-ng.lib.overrideCabal vanilla (_: { inherit src; });
     };
 
@@ -19,12 +20,16 @@ let
         listToAttrs (map (importer self super) dirs);
     };
 
+    brokenOverrideHack = super: dirs: let
+      self = super // (overrider dirs).overrides self super;
+    in self;
+
   in (nixpkgs // {
     # Should be a fixpoint so we can replace original. see nixpkgs #7659
-    unisonPackages.ghc7101 = nixpkgs.reflexPackages.ghc7101.override
-      (overrider [ "editor" "shared" "node" ]);
-    unisonPackages.ghcjs = nixpkgs.reflexPackages.ghcjs.override
-      (overrider [ "editor" "shared" ]);
+    unisonPackages.ghc7101 = brokenOverrideHack nixpkgs.reflexPackages.ghc7101
+      [ "editor" "shared" "node" ];
+    unisonPackages.ghcjs = brokenOverrideHack nixpkgs.reflexPackages.ghcjs
+      [ "editor" "shared" ];
   });
 
   try-reflex = defaultPkgs.fetchFromGitHub {
