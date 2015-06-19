@@ -47,6 +47,8 @@ library
     Unison.Term
     Unison.TermEdit
     Unison.Type
+    Unison.Typechecker
+    Unison.Typechecker.Context
 
   build-depends:
     aeson,

@@ -9,6 +9,7 @@
 module Unison.Typechecker.Context (context, subtype, synthesizeClosed) where
 
 import Control.Monad
+import Control.Applicative
 import Data.List
 import Data.Set (Set)
 import Unison.Note (Note,Noted(..))
@@ -27,12 +28,11 @@ import qualified Unison.Type as Type
 
 -- | Elements of an ordered algorithmic context
 data Element
-  = Universal ABT.V       -- | ^ `v` is universally quantified
-  | Existential ABT.V     -- | ^ `v` existential and unsolved
-  | Solved ABT.V Monotype -- | ^ `v` is solved to some monotype
-  | Ann ABT.V Type        -- | ^ `v` has type `a`, which may be quantified
-  | Marker ABT.V          -- | ^ used for scoping
-  deriving Eq
+  = Universal ABT.V            -- `v` is universally quantified
+  | Existential ABT.V          -- `v` existential and unsolved
+  | Solved ABT.V Monotype      -- `v` is solved to some monotype
+  | Ann ABT.V Type             -- `v` has type `a`, which may be quantified
+  | Marker ABT.V deriving (Eq) -- used for scoping
 
 instance Show Element where
   show (Universal v) = show v

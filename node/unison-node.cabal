@@ -60,8 +60,6 @@ library
     Unison.Term.Extra
     Unison.TermEdit.Extra
     Unison.Type.Extra
-    Unison.Typechecker
-    Unison.Typechecker.Context
 
   build-depends:
     aeson,
