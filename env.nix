@@ -35,8 +35,8 @@ let
   try-reflex = defaultPkgs.fetchFromGitHub {
     owner = "unisonweb";
     repo = "try-reflex";
-    rev = "663b9bef61f4b87f9c3183d28f0efd1be9b91ae8";
-    sha256 = "1bi3ndxyv57f58xxazmln1dyg5agp1pxyinh6n7hn7x6kh9czcp2";
+    rev = "093ff2d20c5a8f677c76b8c92cd6c53e2a4bb510";
+    sha256 = "0a19gbrcgg56h3xfwmddj74jyln6w9f56srl5g9j6m867h0sydjf";
   };
 
   reflexPkgs = import "${try-reflex}/deps" {};
