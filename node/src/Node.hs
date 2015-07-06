@@ -3,6 +3,7 @@
 
 module Main where
 
+import Control.Applicative
 import Data.Text (Text)
 import Unison.Eval (Eval)
 import Unison.Hash (Hash)

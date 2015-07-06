@@ -4,6 +4,7 @@
 -- Various orphan instances and functions that we don't want to appear in client
 module Unison.ABT.Extra where
 
+import Control.Applicative
 import Data.Bytes.Serial (Serial(..), Serial1(..))
 import Data.Bytes.VarInt (VarInt(..))
 import Data.List hiding (cycle)

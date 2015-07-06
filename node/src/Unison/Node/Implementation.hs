@@ -2,6 +2,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 module Unison.Node.Implementation (node) where
 
+import Control.Applicative
 import Control.Monad
 import Data.List
 import Data.Ord

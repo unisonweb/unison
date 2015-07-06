@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Unison.Symbol.Extra where
 
+import Control.Applicative
 import Unison.Symbol
 import Data.Bytes.Serial (Serial(..))
 import Data.Bytes.VarInt
