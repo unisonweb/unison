@@ -12,10 +12,10 @@ module Unison.Type where
 import Control.Applicative
 import Data.Aeson (toJSON, parseJSON)
 import Data.Aeson.TH
-import Data.Functor.Classes (Eq1(..),Show1(..))
 import Data.Set (Set)
 import Data.Text (Text)
 import GHC.Generics
+import Prelude.Extras (Eq1(..),Show1(..))
 import Unison.Note (Noted)
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
@@ -47,7 +47,7 @@ data F a
   deriving (Eq,Foldable,Functor,Generic1,Traversable)
 
 deriveJSON defaultOptions ''F
-instance Eq1 F where eq1 = (==)
+instance Eq1 F where (==#) = (==)
 instance Show1 F where showsPrec1 = showsPrec
 
 -- | Terms are represented as ABTs over the base functor F.

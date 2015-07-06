@@ -11,13 +11,13 @@ module Unison.ABT where
 
 import Control.Applicative
 import Data.Aeson (ToJSON(..),FromJSON(..))
-import Data.Functor.Classes (Eq1(..),Show1(..))
 import Data.List hiding (cycle)
 import Data.Maybe
 import Data.Set (Set)
 import Data.Text (Text)
 import Data.Traversable
 import Prelude hiding (abs,cycle)
+import Prelude.Extras (Eq1(..), Show1(..))
 import Unison.Symbol (Symbol)
 import qualified Data.Aeson as Aeson
 import qualified Data.Foldable as Foldable
@@ -237,7 +237,7 @@ instance (Foldable f, Functor f, Eq1 f) => Eq (Term f) where
       if v1 == v2 then body1 == body2
       else let v3 = freshInBoth body1 body2 v1
            in rename v1 v3 body1 == rename v2 v3 body2
-    go (Tm f1) (Tm f2) = eq1 f1 f2
+    go (Tm f1) (Tm f2) = f1 ==# f2
     go _ _ = False
 
 instance J.ToJSON1 f => ToJSON (Term f) where

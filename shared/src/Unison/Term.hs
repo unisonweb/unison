@@ -13,13 +13,13 @@ module Unison.Term where
 import Control.Applicative
 import Control.Monad
 import Data.Aeson.TH
-import Data.Functor.Classes
 import Data.List
 import Data.Maybe
 import Data.Set (Set)
 import Data.Text (Text)
 import Data.Vector (Vector, (!?))
 import GHC.Generics
+import Prelude.Extras (Eq1(..), Show1(..))
 import Text.Show
 import Unison.Hash (Hash)
 import Unison.Reference (Reference)
@@ -261,7 +261,7 @@ betaReduce e = e
 
 deriveJSON defaultOptions ''Literal
 
-instance Eq1 F where eq1 = (==)
+instance Eq1 F where (==#) = (==)
 instance Show1 F where showsPrec1 = showsPrec
 
 deriveJSON defaultOptions ''F

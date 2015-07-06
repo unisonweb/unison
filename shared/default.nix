@@ -1,5 +1,5 @@
 { mkDerivation, aeson, base, base64-bytestring, bytestring
-, containers, mtl, stdenv, text, transformers, vector
+, containers, mtl, prelude-extras, stdenv, text, transformers, vector
 }:
 mkDerivation {
   pname = "unison-shared";
@@ -7,7 +7,7 @@ mkDerivation {
   src = ./.;
   buildDepends = [
     aeson base base64-bytestring bytestring containers mtl text
-    transformers vector
+    transformers prelude-extras vector
   ];
   homepage = "http://unisonweb.org";
   description = "The Unison programming language and platform";

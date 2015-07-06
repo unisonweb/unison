@@ -57,6 +57,7 @@ library
     bytestring,
     containers,
     mtl,
+    prelude-extras,
     text,
     transformers,
     vector
