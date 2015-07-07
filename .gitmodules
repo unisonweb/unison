@@ -1,9 +1,0 @@
-[submodule "editor/nixpkgs"]
-	path = editor/nixpkgs
-	url = https://github.com/ryantrinkle/nixpkgs.git
-[submodule "editor/reflex"]
-	path = editor/reflex
-	url = https://github.com/ryantrinkle/reflex.git
-[submodule "editor/reflex-dom"]
-	path = editor/reflex-dom
-	url = https://github.com/ryantrinkle/reflex-dom.git
