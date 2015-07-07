@@ -9,7 +9,6 @@
 module Unison.Typechecker.Context (context, subtype, synthesizeClosed) where
 
 import Control.Monad
-import Control.Applicative
 import Data.List
 import Data.Set (Set)
 import Unison.Note (Note,Noted(..))

@@ -9,7 +9,6 @@
 
 module Unison.ABT where
 
-import Control.Applicative
 import Data.Aeson (ToJSON(..),FromJSON(..))
 import Data.List hiding (cycle)
 import Data.Maybe

@@ -1,7 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Unison.Metadata where
 
-import Control.Applicative
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Text (Text)
