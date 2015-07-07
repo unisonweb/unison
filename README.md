@@ -13,41 +13,30 @@ Still here? All right then! Let's get to it.
 
 ### Build intructions
 
-This assumes you have already installed:
-
-* GHC 7.10.1 or later (earlier versions may still work, but this project won't be maintained against them) and cabal. [Instructions for installing GHC and cabal for various platforms](https://github.com/bitemyapp/learnhaskell/blob/master/install.md).
-* [Elm 0.15](http://elm-lang.org/Install.elm)
-
-Then do:
+Building the project is easy. You do not need to have anything set up in advance. Here are complete instructions:
 
 ```
 $ git clone https://github.com/unisonweb/platform.git unisonweb
-$ cat SETUP.sh
-#!/bin/sh
-cabal sandbox init
-cd shared
-cabal sandbox init --sandbox ../.cabal-sandbox
-cd ../node
-cabal sandbox init --sandbox ../.cabal-sandbox
-cabal sandbox add-source ../shared
-cabal install --only-dependencies
-cabal build
-```
-
-Once you're convinced `SETUP.sh` doesn't do anything nefarious, you can run it:
-
-```
-$ chmod a+x SETUP.sh
-$ ./SETUP.sh
-$ // wait 20 minutes while half the Haskell ecosystem
-$ // gets downloaded and compiled
-$ ./node/dist/build/node/node
+$ cd unisonweb
+$ # If you don't have Nix 1.8+ or later (see note below)
+$ ./nix-install.sh
+...
+$ cd node
+$ ./shell.sh
+$ cabal run node # cabal repl, cabal test also work
+Running node...
 Setting phasers to stun... (port 8080) (ctrl-c to quit)
 ```
 
-That last line is a message from [Scotty](https://hackage.haskell.org/package/scotty) telling you that the node HTTP server is running. Leave that running for now.
+Notes:
 
-Next, the _editor_:
+* Unison uses the [Nix package manager](https://nixos.org/nix/) to ensure the project can be built with a consistent, stable set of dependencies. Run `nix-install.sh` if you don't already have nix 1.8 or later installed. Or you can install Nix manually if you like.
+* The first time you do this, Nix to download and install all third-party dependencies, including the right version the Haskell compiler. These will be added to your Nix package manager store and won't conflict with any other versions you might have installed on your system.
+* That last line is a message from [Scotty](https://hackage.haskell.org/package/scotty) telling you that the node HTTP server is running. Leave that running for now.
+* If you're working on `shared` or `editor`, `cd node`, then `./shell.sh`. Then use cabal as normal.
+
+
+Next, the _editor_. For this you'll need to install [Elm 0.15](http://elm-lang.org/Install.elm) first.
 
 ```
 $ cd editor-elm
