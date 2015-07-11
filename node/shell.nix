@@ -1,1 +1,1 @@
-(import ../env.nix).unisonPackages.ghc7101.unison-node.env
+((import ../shell-common.nix) "node" [ "ghc7101" ]).ghc7101
