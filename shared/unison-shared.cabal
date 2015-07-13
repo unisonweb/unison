@@ -36,12 +36,15 @@ library
   exposed-modules:
     Unison.ABT
     Unison.Distance
+    Unison.Doc
     Unison.Eval
     Unison.Hash
     Unison.JSON
     Unison.Kind
+    Unison.Layout
     Unison.Metadata
     Unison.Note
+    Unison.Path
     Unison.Reference
     Unison.Symbol
     Unison.Term
