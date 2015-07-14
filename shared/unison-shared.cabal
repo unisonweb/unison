@@ -41,7 +41,6 @@ library
     Unison.Hash
     Unison.JSON
     Unison.Kind
-    Unison.Layout
     Unison.Metadata
     Unison.Note
     Unison.Path

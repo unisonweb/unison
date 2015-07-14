@@ -13,33 +13,50 @@ module Unison.Doc where
 
 import Control.Monad.State.Strict
 import Data.Functor
-import Unison.Layout (Layout(..))
 import Unison.Path (Path)
-import qualified Unison.Layout as Layout
 import qualified Unison.Path as Path
 
 data D e r
   = Empty
   | Embed e
-  | Line e
+  | Breakable e
+  | Linebreak
   | Append r r
   | Group r
   | Nest e r
 
 -- | A `Doc p e` describes a layout that may be rendered at
--- multiple widths. The `e` parameter is the token type, possibly
--- `String` or `Text`. The `p` parameter is the path type,
+-- multiple widths. The `e` parameter is the type of primitive documents,
+-- possibly `String` or `Text`. The `p` parameter is the path type,
 -- generally a list. Note that the full path corresponding to a
 -- subtree in the document is the concatenation of all paths starting
 -- from the root.
 data Doc p e = Doc p (D e (Doc p e))
+
+data L e r
+  = LEmbed e
+  | LEmpty
+  | LLinebreak
+  | LNest e r
+  | LAppend r r
+
+-- A `Doc` without the nondeterminism. All layout decisions have been fixed.
+data Layout p e = Layout p (L e (Layout p e))
+
+lmapPath :: (p -> p2) -> Layout p e -> Layout p2 e
+lmapPath f (Layout p l) = Layout (f p) $ case l of
+  LEmpty -> LEmpty
+  LLinebreak -> LLinebreak
+  LEmbed e -> LEmbed e
+  LNest e r -> LNest e (lmapPath f r)
+  LAppend a b -> LAppend (lmapPath f a) (lmapPath f b)
 
 -- | Produce a `Layout` which tries to fit in the given width,
 -- assuming that embedded `e` elements have the computed width.
 -- Runs in linear time without backtracking.
 layout :: (e -> Int) -> Int -> Doc p e -> Layout p e
 layout width maxWidth doc =
-  Layout.mapPath fst $ evalState (go (preferredWidth width doc)) (maxWidth, maxWidth)
+  lmapPath fst $ evalState (go (preferredWidth width doc)) (maxWidth, maxWidth)
   where
   go doc = do
     (maxWidth, remainingWidth) <- get
@@ -52,17 +69,18 @@ layout width maxWidth doc =
   -- | Break a document into a list of documents, separated by lines,
   -- respecting the linebreak constraints of the input `Doc`.
   break (Doc p doc) = get >>= \(maxWidth, remainingWidth) -> case doc of
-    Empty -> pure $ Layout p Layout.Empty
-    Embed e -> put (maxWidth, remainingWidth - width e) $> Layout p (Layout.Embed e)
-    Line _ -> put (maxWidth, maxWidth) $> Layout p Layout.Linebreak
-    Append a b -> Layout p <$> (Layout.Append <$> break a <*> break b)
+    Empty -> pure $ Layout p LEmpty
+    Embed e -> put (maxWidth, remainingWidth - width e) $> Layout p (LEmbed e)
+    Breakable _ -> put (maxWidth, maxWidth) $> Layout p LLinebreak
+    Linebreak -> put (maxWidth, maxWidth) $> Layout p LLinebreak
+    Append a b -> Layout p <$> (LAppend <$> break a <*> break b)
     Nest e doc -> do
       case maxWidth == remainingWidth of
         -- we're immediately preceded by newline, insert `e` and indent
         True -> do
           put $ let newMax = maxWidth - width e in (newMax, newMax)
           doc <- break doc
-          return $ Layout p (Layout.Nest e doc)
+          return $ Layout p (LNest e doc)
         -- we're in the middle of a line, ignore `e`
         False -> break doc
     Group doc -> go doc -- we try to avoid breaking subgroups
@@ -70,10 +88,11 @@ layout width maxWidth doc =
 -- | Layout the `Doc` assuming infinite available width
 flow :: Doc p e -> Layout p e
 flow (Doc p doc) = case doc of
-  Empty -> Layout p Layout.Empty
-  Embed e -> Layout p (Layout.Embed e)
-  Line e -> Layout p (Layout.Embed e) -- don't linebreak, it fits
-  Append a b -> Layout p (flow a `Layout.Append` flow b)
+  Empty -> Layout p LEmpty
+  Embed e -> Layout p (LEmbed e)
+  Linebreak -> Layout p LLinebreak
+  Breakable e -> Layout p (LEmbed e) -- don't linebreak, it fits
+  Append a b -> Layout p (flow a `LAppend` flow b)
   Group r -> flow r
   Nest _ r -> flow r
 
@@ -83,7 +102,11 @@ preferredWidth :: (e -> Int) -> Doc p e -> Doc (p,Int) e
 preferredWidth width (Doc p d) = case d of
   Empty -> Doc (p, 0) Empty
   Embed e -> Doc (p, width e) (Embed e)
-  Line e -> Doc (p, width e) (Line e) -- assuming we fit on the line
+  -- Since we just use this to decide whether to break or not,
+  -- as long as `flow` and `break` both interpret `Linebreak` properly,
+  -- a zero width for linebreaks is okay
+  Linebreak -> Doc (p, 0) Linebreak
+  Breakable e -> Doc (p, width e) (Breakable e) -- assuming we fit on the line
   Append left right ->
     let left'@(Doc (_,n) _) = preferredWidth width left
         right'@(Doc (_,m) _) = preferredWidth width right
@@ -133,13 +156,24 @@ group (Doc p d) = Doc p (Group (Doc Path.root d))
 nest :: Path p => e -> Doc p e -> Doc p e
 nest e (Doc p d) = Doc p (Nest e (Doc Path.root d))
 
--- | Output a newline, or the given `e` on the same line if it fits
-line :: Path p => e -> Doc p e
-line e = Doc Path.root (Line e)
+-- | Specify that layout may insert a line break at this point in the document.
+-- If a line break is not inserts, the given `e` is inserted instead.
+breakable :: Path p => e -> Doc p e
+breakable e = breakable' Path.root e
 
--- | Output a newline, or the given `e` on the same line if it fits
-line' :: Path p => p -> e -> Doc p e
-line' p e = Doc p (Line e)
+-- | Like `breakable`, but supply a path to attach to the returned `Doc`.
+breakable' :: Path p => p -> e -> Doc p e
+breakable' p e = Doc p (Breakable e)
+
+-- | Insert a linebreak. Unlike `breakable`, this guarantees we insert
+-- a linebreak at the location in the layout where this `Doc` appears,
+-- whereas `breakable` just specifies that a linebreak _may_ be inserted.
+linebreak :: Path p => Doc p e
+linebreak = linebreak' Path.root
+
+-- | Like `linebreak`, but supply a path to attach to the returned `Doc`.
+linebreak' :: Path p => p -> Doc p e
+linebreak' p = Doc p Linebreak
 
 instance Path p => Monoid (Doc p e) where
   mempty = empty
