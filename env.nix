@@ -1,15 +1,13 @@
 let
   defaultPkgs = import <nixpkgs> {};
 
-  unison-src = defaultPkgs.fetchgitLocal ./.;
-
   # Should be a fixpoint, right now clobbers other `packages.*`. see nixpkgs #7659
   extender = nixpkgs: let
 
     importer = self: super: dir: {
       name = "unison-${dir}";
       value = let
-        src = unison-src + "/${dir}";
+        src = defaultPkgs.fetchgitLocal (./. + "/${dir}");
         inputs = { inherit (nixpkgs) stdenv; } // self;
         vanilla = nixpkgs.stdenv.lib.callPackageWith inputs src {};
         in nixpkgs.haskell-ng.lib.overrideCabal vanilla (_: { inherit src; });
