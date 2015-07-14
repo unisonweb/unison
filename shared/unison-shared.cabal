@@ -58,6 +58,8 @@ library
     base64-bytestring,
     bytestring,
     containers,
+    comonad,
+    free,
     mtl,
     prelude-extras,
     text,
