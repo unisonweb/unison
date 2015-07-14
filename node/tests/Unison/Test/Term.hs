@@ -11,7 +11,7 @@ import Test.Tasty.HUnit
 import qualified Unison.ABT.Extra as ABT
 
 tests :: TestTree
-tests = testGroup "Typechecker"
+tests = testGroup "Term"
   [ testCase "alpha equivalence (term)" $ assertEqual "identity"
      (lam' ["a"] $ var' "a")
      (lam' ["x"] $ var' "x")
