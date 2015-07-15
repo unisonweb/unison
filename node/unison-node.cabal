@@ -56,6 +56,7 @@ library
     Unison.Node.Store
     Unison.NodeServer
     Unison.Reference.Extra
+    Unison.Runtime.Remoting
     Unison.Symbol.Extra
     Unison.Term.Extra
     Unison.TermEdit.Extra
@@ -75,7 +76,9 @@ library
     directory,
     filepath,
     http-types,
+    io-streams,
     mtl,
+    network,
     prelude-extras,
     scotty,
     text,
