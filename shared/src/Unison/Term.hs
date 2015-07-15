@@ -57,8 +57,9 @@ data F a
   deriving (Eq,Foldable,Functor,Generic1,Traversable)
 
 -- | Terms are represented as ABTs over the base functor F.
-type Term = ABT.Term F
+type AnnotatedTerm a = ABT.Term F a
 
+type Term = AnnotatedTerm ()
 -- nicer pattern syntax
 
 pattern Var' v <- ABT.Var' v
@@ -70,7 +71,7 @@ pattern Ref' r <- (ABT.out -> ABT.Tm (Ref r))
 pattern App' f x <- (ABT.out -> ABT.Tm (App f x))
 pattern Ann' x t <- (ABT.out -> ABT.Tm (Ann x t))
 pattern Vector' xs <- (ABT.out -> ABT.Tm (Vector xs))
-pattern Lam' v body <- (ABT.out -> ABT.Tm (Lam (ABT.Term _ (ABT.Abs v body))))
+pattern Lam' v body <- (ABT.out -> ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body))))
 pattern Let1' v b e <- (ABT.out -> ABT.Tm (Let b (ABT.Abs' v e)))
 pattern Let' bs e relet rec <- (unLets -> Just (bs,e,relet,rec))
 pattern LetRec' bs e <- (unLetRec -> Just (bs,e))

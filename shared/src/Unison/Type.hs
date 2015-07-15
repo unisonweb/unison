@@ -50,7 +50,9 @@ instance Eq1 F where (==#) = (==)
 instance Show1 F where showsPrec1 = showsPrec
 
 -- | Terms are represented as ABTs over the base functor F.
-type Type = ABT.Term F
+type Type = ABT.Term F ()
+
+type AnnotatedType a = ABT.Term F a
 
 -- An environment for looking up type references
 type Env f = R.Reference -> Noted f Type
