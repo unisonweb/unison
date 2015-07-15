@@ -1,14 +1,15 @@
 nameRaw: plats: let
   name = "unison-${nameRaw}";
-  nixpkgs = import ./env.nix;
-in with builtins; with nixpkgs.stdenv.lib; let
+  localPkgs = import <nixpkgs> {};
+  unisonPkgs = import ./env.nix;
   addCabalInstall = drv: {
-    buildDepends = drv.buildDepends ++ [ nixpkgs.unisonPackages.ghc7101.cabal-install ];
+    buildDepends = drv.buildDepends ++ [ localPkgs.haskellPackages.cabal-install ];
   };
+in with builtins; with unisonPkgs.nixpkgs.stdenv.lib; let
   f = plat: {
     name = plat;
-    value = (nixpkgs.haskell.lib.overrideCabal
-      (getAttr name (getAttr plat nixpkgs.unisonPackages))
+    value = (unisonPkgs.nixpkgs.haskell.lib.overrideCabal
+      (getAttr name (getAttr plat unisonPkgs))
       addCabalInstall).env;
   };
 

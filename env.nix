@@ -1,16 +1,15 @@
 let
-  defaultPkgs = import <nixpkgs> {};
+  localPkgs = import <nixpkgs> {};
 
-  # Should be a fixpoint, right now clobbers other `packages.*`. see nixpkgs #7659
-  extender = nixpkgs: let
+  makeUnisonPkgSet = reflexPkgs: let
 
     importer = self: super: dir: {
       name = "unison-${dir}";
       value = let
-        src = defaultPkgs.fetchgitLocal (./. + "/${dir}");
-        inputs = { inherit (nixpkgs) stdenv; } // self;
-        vanilla = nixpkgs.stdenv.lib.callPackageWith inputs src {};
-        in nixpkgs.haskell-ng.lib.overrideCabal vanilla (_: { inherit src; });
+        src = localPkgs.fetchgitLocal (./. + "/${dir}");
+        inputs = { inherit (reflexPkgs.nixpkgs) stdenv; } // self;
+        vanilla = reflexPkgs.nixpkgs.stdenv.lib.callPackageWith inputs src {};
+        in reflexPkgs.nixpkgs.haskell-ng.lib.overrideCabal vanilla (_: { inherit src; });
     };
 
     overrider = dirs: {
@@ -22,19 +21,17 @@ let
       self = super // (overrider dirs).overrides self super;
     in self;
 
-  in (nixpkgs // {
-    # Should be a fixpoint so we can replace original. see nixpkgs #7659
-    unisonPackages.ghc7101 = brokenOverrideHack nixpkgs.reflexPackages.ghc7101
-      [ "editor" "shared" "node" ];
-    unisonPackages.ghcjs = brokenOverrideHack nixpkgs.reflexPackages.ghcjs
-      [ "editor" "shared" ];
-  });
-
-  unison-dependencies = defaultPkgs.fetchFromGitHub {
-    owner = "unisonweb";
-    repo = "unison-dependencies";
-    rev = "0882249d91daff85d9d9656802b65d6408eaf5c2";
-    sha256 = "1p9fxkkir5n4w8xhpqnq29ffymyvbsp8b8ali735vvk5nmlp47fz";
+  in {
+    inherit (reflexPkgs) nixpkgs;
+    ghc7101 = brokenOverrideHack reflexPkgs.ghc7101 [ "editor" "shared" "node" ];
+    ghcjs = brokenOverrideHack reflexPkgs.ghcjs [ "editor" "shared" ];
   };
 
-in extender (import "${unison-dependencies}/deps" {})
+  unison-dependencies = localPkgs.fetchFromGitHub {
+    owner = "unisonweb";
+    repo = "unison-dependencies";
+    rev = "80048a76ff35d4ed9f267be7076bec83a193a71f";
+    sha256 = "0cvx1pibbph0lykvd2wwagwgphf8jifmvg405mkxpsxf6nap26wc";
+  };
+
+in makeUnisonPkgSet (import "${unison-dependencies}/deps" {})
