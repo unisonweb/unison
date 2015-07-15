@@ -6,11 +6,29 @@ import Test.Tasty
 -- import Test.Tasty.QuickCheck as QC
 import Test.Tasty.HUnit
 
+fmt :: Int -> Doc String [Int] -> String
+fmt = formatString
+
 tests :: TestTree
 tests = testGroup "Doc"
-  [ testCase "doc1" $ assertEqual "ex1"
-      0 -- todo
-      0
+  [ testCase "fits (1)" $ assertEqual "should fit on one line"
+      "a b c"
+      (fmt 10 (sep' " " ["a", "b", "c"]))
+  , testCase "breaks (1)" $ assertEqual "should break onto 3 lines"
+      "a\nb\nc"
+      (fmt 4 (sep' " " ["a", "b", "c"]))
+  , testCase "fits (2)" $ assertEqual "should fit on one line"
+      "a b c d e"
+      (fmt 9 (sep " " [embed "a", sep' " " ["b", "c", "d"], embed "e"]))
+  , testCase "breaks (2)" $ assertEqual "should break onto 3 lines"
+      "a\nb c d\ne"
+      (fmt 8 (sep " " [embed "a", sep' " " ["b", "c", "d"], embed "e"]))
+  , testCase "breaks (3)" $ assertEqual "should break onto 3 lines with indent"
+      "a\n  b c d\ne"
+      (fmt 8 (sep " " [embed "a", nest "  " $ sep' " " ["b", "c", "d"], embed "e"]))
+  , testCase "fits (3)" $ assertEqual "should break onto 3 lines with indent"
+      "a b c d e"
+      (fmt 9 (sep " " [embed "a", nest "  " $ sep' " " ["b", "c", "d"], embed "e"]))
   ]
 
 main = defaultMain tests

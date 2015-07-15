@@ -225,35 +225,38 @@ render r f l =
     LAppend a b -> go a *> go b
 
 render' :: Renderer' e -> (e0 -> e) -> Layout e0 p -> e
-render' r f l = finish (execState (go l) ([],[]))
+render' r f l = finish (execState (go l) ([],[],True))
   where
-  finish (_, buf) = rconcat r (reverse buf)
+  finish (_, buf, _) = rconcat r (reverse buf)
   col3 p top mid bot = p :< (LAppend (p :< (LAppend (p :< LEmbed top) mid)) (p :< LEmbed bot))
   row3 p left mid right = p :< (LAppend (p :< (LAppend (p :< LEmbed left) mid)) (p :< LEmbed right))
   -- state is (indentation snoc list, token buffer snoc list)
   go (p :< l) = case l of
     LEmpty -> return ()
     LLinebreak -> modify cr where
-      cr (indent, buf) = (indent, rnewline r : buf)
+      cr (indent, buf, _) = (indent, rnewline r : buf, True)
     LEmbed e -> modify g where
       -- we indent if we're the first token on this line
-      g (indent, []) = (indent, f e : indent)
-      g (indent, buf) = (indent, f e : buf)
+      g (indent, buf, True) = (indent, f e : (indent ++ buf), False)
+      g (indent, buf, _) = (indent, f e : buf, False)
     LPad padded -> modify g where
       inner = render' r f (col3 p (top padded)
                                   (row3 p (left padded) (element padded) (right padded))
                                   (bottom padded))
       -- we indent if we're the first token on this line
-      g (indent, []) = (indent, inner : indent)
-      g (indent, buf) = (indent, inner : buf)
+      g (indent, buf, True) = (indent, inner : (indent ++ buf), False)
+      g (indent, buf, _) = (indent, inner : buf, False)
     LNest e r -> do
-      modify (\(i,b) -> (f e : i, b))
+      modify (\(i,b,fst) -> (f e : i, b, fst))
       go r
-      modify (\(i,b) -> (tail i, b))
+      modify (\(i,b,fst) -> (tail i, b, fst))
     LAppend a b -> go a *> go b
 
 renderString :: Layout String p -> String
 renderString = render' (Renderer' concat "\n") id
+
+formatString :: Int -> Doc String p -> String
+formatString availableWidth d = renderString (layout length availableWidth d)
 
 sep :: Path p => e -> [Doc e p] -> Doc e p
 sep _ [] = empty
@@ -262,6 +265,3 @@ sep delim ds = group (foldr1 combine ds)
 
 sep' :: Path p => e -> [e] -> Doc e p
 sep' delim ds = sep delim (map embed ds)
-
-ex = putStrLn . renderString . layout length 10 $
-  (sep' " " ["a", "thre", "bo"] :: Doc String [Int])
