@@ -64,27 +64,26 @@ serve node port = withSocketsDo $ do
   procRequests mastersock = do 
     (connsock, clientaddr) <- accept mastersock
     (i,o) <- Streams.socketToStreams connsock
-    _ <- Concurrent.forkIO $ finally (ourHandler node i o) (close connsock)
+    _ <- Concurrent.forkIO $ finally (messageHandler node i o) (close connsock)
     procRequests mastersock
 
-deserialize :: (Monad m, Serial a) => ByteString -> m a
-deserialize bytes = case runGetS Serial.deserialize bytes of
-  Left err  -> fail $ "expected to read an Int, got error: " ++ err
-  Right len -> pure len
+-- reads an int first that says how long the payload is.
+-- then reads the payload and deserializes it
+deserialize :: Serial a => InputStream ByteString -> IO a
+deserialize i = deserialize' i 4 >>= deserialize' i where
+  deserialize' :: Serial a => InputStream ByteString -> Int -> IO a
+  deserialize' i n = readExactly n i >>= f where
+    f bytes = case runGetS Serial.deserialize bytes of
+      Left err  -> fail $ "expected to read an Int, got error: " ++ err
+      Right len -> pure len
 
-ourHandler :: Node IO Reference Type Term
-           -> InputStream ByteString
-           -> OutputStream ByteString -> IO ()
-ourHandler node i o = do
-  -- read Address length
-  addressLength <- readExactly 4 i >>= deserialize
-  -- read Address data
-  address <- readExactly addressLength i >>= deserialize
-  -- read # bytes
-  msgLength <- readExactly 4 i >>= deserialize
-  -- read that many bytes, deserialize a Message from them. 
-  msg <- readExactly msgLength i >>= deserialize
-  act node address msg
+messageHandler :: Node IO Reference Type Term
+               -> InputStream ByteString
+               -> OutputStream ByteString -> IO ()
+messageHandler node i o = do
+  addr <- deserialize i -- reads the address size first, then the address
+  msg  <- deserialize i -- reads the message size first, then the message
+  act node addr msg
 
 act :: Node IO Reference Type Term -> Address -> Message -> IO ()
 act node addr (Evaluate t) = error "todo"
