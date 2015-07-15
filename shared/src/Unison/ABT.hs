@@ -49,9 +49,9 @@ isFreeIn v t = Set.member v (freeVars t)
 annotate :: a -> Term f a -> Term f a
 annotate a (Term fvs _ out) = Term fvs a out
 
--- | Alter all annotations in this tree using the supplied function.
-mapAnnotations :: Functor f => (a -> b) -> Term f a -> Term f b
-mapAnnotations f (Term fvs a sub) = Term fvs (f a) (fmap (mapAnnotations f) sub)
+-- | Modifies the annotations in this tree
+instance Functor f => Functor (Term f) where
+  fmap f (Term fvs a sub) = Term fvs (f a) (fmap (fmap f) sub)
 
 pattern Var' v <- Term _ _ (Var v)
 pattern Cycle' vs t <- Term _ _ (Cycle (AbsN' vs t))
