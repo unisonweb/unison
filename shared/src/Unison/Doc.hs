@@ -16,6 +16,7 @@ import Control.Comonad.Cofree (Cofree(..)) -- (:<)
 import Control.Comonad (extract)
 import Control.Monad.State.Strict
 import Data.Functor
+import Data.List (intersperse)
 import Unison.Path (Path)
 import qualified Unison.Path as Path
 
@@ -149,6 +150,14 @@ append (p1 :< d1) (p2 :< d2) =
 reroot :: p -> Cofree f p -> Cofree f p
 reroot p (_ :< d) = p :< d
 
+-- | Cons `hd` onto the path of this `Doc`
+sub :: e -> Cofree f [e] -> Cofree f [e]
+sub hd (tl :< d) = (hd : tl) :< d
+
+-- | Append `hd` onto the path of this `Doc`
+sub' :: [e] -> Cofree f [e] -> Cofree f [e]
+sub' hd (tl :< d) = (hd ++ tl) :< d
+
 -- | Make a `Doc` from a token and give it an empty path
 embed :: Path p => e -> Doc e p
 embed e = Path.root :< Embed e
@@ -257,6 +266,13 @@ renderString = render' (Renderer' concat "\n") id
 
 formatString :: Int -> Doc String p -> String
 formatString availableWidth d = renderString (layout length availableWidth d)
+
+docs :: Path p => [Doc e p] -> Doc e p
+docs [] = empty
+docs ds = foldr1 append ds
+
+delimit :: Path p => Doc e p -> [Doc e p] -> Doc e p
+delimit d = docs . intersperse d
 
 sep :: Path p => e -> [Doc e p] -> Doc e p
 sep _ [] = empty
