@@ -205,6 +205,7 @@ layout ref t = go (0 :: Int) t
     Constrain' t _ -> go p t
     Universal' v -> sym v
     Existential' v -> D.embed ("'" `mappend` Symbol.name v)
+    Ann' t k -> go p t -- ignoring kind annotations for now
     Forall' v body -> case p of
       0 -> D.sub Body (go p body)
       _ -> paren True . D.group . D.docs $
