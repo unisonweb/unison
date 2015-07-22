@@ -1,7 +1,8 @@
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -16,11 +17,13 @@ import Data.Text (Text)
 import GHC.Generics
 import Prelude.Extras (Eq1(..),Show1(..))
 import Unison.Note (Noted)
+import Unison.Reference (Reference)
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
+import qualified Unison.Doc as D
 import qualified Unison.JSON as J
 import qualified Unison.Kind as K
-import qualified Unison.Reference as R
+import qualified Unison.Symbol as Symbol
 
 -- | Type literals
 data Literal
@@ -28,7 +31,7 @@ data Literal
   | Text
   | Vector
   | Distance
-  | Ref R.Reference -- ^ A type literal uniquely defined by some nameless Hash
+  | Ref Reference -- ^ A type literal uniquely defined by some nameless Hash
   deriving (Eq,Ord,Generic)
 
 deriveJSON defaultOptions ''Literal
@@ -50,10 +53,12 @@ instance Eq1 F where (==#) = (==)
 instance Show1 F where showsPrec1 = showsPrec
 
 -- | Terms are represented as ABTs over the base functor F.
-type Type = ABT.Term F
+type Type = ABT.Term F ()
+
+type AnnotatedType a = ABT.Term F a
 
 -- An environment for looking up type references
-type Env f = R.Reference -> Noted f Type
+type Env f = Reference -> Noted f Type
 
 freeVars :: Type -> Set ABT.V
 freeVars = ABT.freeVars
@@ -72,12 +77,50 @@ monotype t = Monotype <$> ABT.visit isMono t where
 -- some smart patterns
 pattern Lit' l <- ABT.Tm' (Lit l)
 pattern Arrow' i o <- ABT.Tm' (Arrow i o)
+pattern Arrows' spine <- (unArrows -> Just spine)
+pattern ArrowsP' spine <- (unArrows' -> Just spine)
 pattern Ann' t k <- ABT.Tm' (Ann t k)
 pattern App' f x <- ABT.Tm' (App f x)
+pattern Apps' f args <- (unApps -> Just (f, args))
+pattern AppsP' f args <- (unApps' -> Just (f, args))
 pattern Constrain' t u <- ABT.Tm' (Constrain t u)
 pattern Forall' v body <- ABT.Tm' (Forall (ABT.Abs' v body))
 pattern Existential' v <- ABT.Tm' (Existential (ABT.Var' v))
 pattern Universal' v <- ABT.Tm' (Universal (ABT.Var' v))
+
+unArrows :: Type -> Maybe [Type]
+unArrows t =
+  case go t of [] -> Nothing; l -> Just l
+  where
+    go (Arrow' i o) = i : go o
+    go _ = []
+
+unArrows' :: Type -> Maybe [(Type,Path)]
+unArrows' t = addPaths <$> unArrows t
+  where addPaths ts = ts `zip` arrowPaths (length ts)
+
+unApps :: Type -> Maybe (Type, [Type])
+unApps t = case go t [] of [] -> Nothing; f:args -> Just (f,args)
+  where
+  go (App' i o) acc = go i (o:acc)
+  go fn args = fn:args
+
+unApps' :: Type -> Maybe ((Type,Path), [(Type,Path)])
+unApps' t = addPaths <$> unApps t
+  where
+  addPaths (f,args) = case appPaths (length args) of
+    (fp,ap) -> ((f,fp), args `zip` ap)
+
+appPaths :: Int -> (Path, [Path])
+appPaths numArgs = (fnp, argsp)
+  where
+  fnp = replicate numArgs Fn
+  argsp = take numArgs . drop 1 $ iterate (Fn:) [Arg]
+
+arrowPaths :: Int -> [Path]
+arrowPaths spineLength =
+  (take (spineLength-1) $ iterate (Output:) [Input]) ++
+  [replicate spineLength Output]
 
 matchExistential :: ABT.V -> Type -> Bool
 matchExistential v (Existential' x) = x == v
@@ -92,7 +135,7 @@ matchUniversal _ _ = False
 lit :: Literal -> Type
 lit l = ABT.tm (Lit l)
 
-ref :: R.Reference -> Type
+ref :: Reference -> Type
 ref = lit . Ref
 
 app :: Type -> Type -> Type
@@ -125,6 +168,50 @@ constrain t u = ABT.tm (Constrain t u)
 -- | Bind all free variables with an outer `forall`.
 generalize :: Type -> Type
 generalize t = foldr forall t $ Set.toList (ABT.freeVars t)
+
+data PathElement
+  = Fn -- ^ Points at type in a type application
+  | Arg -- ^ Points at the argument in a type application
+  | Input -- ^ Points at the left of an `Arrow`
+  | Output -- ^ Points at the right of an `Arrow`
+  | Body -- ^ Points at the body of a forall
+  deriving (Eq,Ord)
+
+type Path = [PathElement]
+
+layout :: (Reference -> ABT.V) -> Type -> D.Doc Text Path
+layout ref t = go (0 :: Int) t
+  where
+  (<>) = D.append
+  lit l = case l of
+    Number -> "Number"
+    Text -> "Text"
+    Vector -> "Vector"
+    Distance -> "Distance"
+    Ref r -> Symbol.name (ref r) -- no infix type operators at the moment
+  paren b d =
+    let r = D.root d
+    in if b then D.embed' r "(" <> d <> D.embed' r ")" else d
+  arr = D.breakable " " <> D.embed "→ "
+  sp = D.breakable " "
+  sym v = D.embed (Symbol.name v)
+  go p t = case t of
+    Lit' l -> D.embed (lit l)
+    ArrowsP' spine ->
+      paren (p > 0) . D.group . D.delimit arr $ [ D.sub' p (go 1 s) | (s,p) <- spine ]
+    AppsP' (fn,fnP) args ->
+      paren (p > 9) . D.group . D.docs $
+        [ D.sub' fnP (go 9 fn)
+        , D.breakable " "
+        , D.nest "  " . D.group . D.delimit sp $ [ D.sub' p (go 10 s) | (s,p) <- args ] ]
+    Constrain' t _ -> go p t
+    Universal' v -> sym v
+    Existential' v -> D.embed ("'" `mappend` Symbol.name v)
+    Ann' t k -> go p t -- ignoring kind annotations for now
+    Forall' v body -> case p of
+      0 -> D.sub Body (go p body)
+      _ -> paren True . D.group . D.docs $
+             [D.embed "∀ ", sym v, D.embed ".", sp, D.nest "  " $ D.sub Body (go 0 body)]
 
 instance J.ToJSON1 F where
   toJSON1 f = toJSON f

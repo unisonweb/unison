@@ -2,7 +2,6 @@
 
 module Unison.Term.Extra where
 
-import Control.Applicative
 import Data.Bytes.Serial
 import Data.Vector (Vector)
 import Data.Foldable (traverse_)
