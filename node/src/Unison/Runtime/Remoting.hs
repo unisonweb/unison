@@ -3,6 +3,7 @@
 
 module Unison.Runtime.Remoting where
 
+import Control.Monad
 import Control.Exception.Base (finally)
 import Data.ByteString (ByteString)
 import Data.Bytes.Get (runGetS)
@@ -36,7 +37,7 @@ type Port = Int
 type Host = Text
 
 data Message t =
-   Evaluate t 
+   Evaluate t
  | Result (Either Err t)
  deriving (Generic, Show)
 instance Serial t => Serial (Message t)
@@ -45,14 +46,14 @@ data Address = Address Host Port Channel deriving (Generic, Show)
 instance Serial Address
 
 class Evaluate t env | env -> t where
-  evaluate :: env -> t -> IO (Either Err t) 
+  evaluate :: env -> t -> IO (Either Err t)
 
 serve :: (Show t, Serial t, Evaluate t env)
       => env
       -> Address
       -> IO ()
 serve env localAddr@(Address _ port _) = withSocketsDo $ do
-  addrinfos <- getAddrInfo 
+  addrinfos <- getAddrInfo
     	 	(Just (defaultHints {addrFlags = [AI_PASSIVE]}))
 	  	Nothing (Just $ show port)
   let serveraddr = head addrinfos
@@ -70,7 +71,7 @@ serve env localAddr@(Address _ port _) = withSocketsDo $ do
   where
   -- | Process incoming connection requests
   procRequests :: Socket -> IO ()
-  procRequests mastersock = do 
+  procRequests mastersock = do
     (connsock, clientaddr) <- accept mastersock
     (i,o) <- Streams.socketToStreams connsock
     _ <- Concurrent.forkIO $ finally (messageHandler localAddr env i o) (close connsock)
@@ -112,10 +113,10 @@ data Packet t = Packet Address Channel (Message t)
 
 putPacket :: (Put.MonadPut m, Serial t) => Packet t -> m ()
 putPacket (Packet addr chanTo m) = do
-  Put.putByteString $ Put.runPutS (Serial.serialize addr) 
+  Put.putByteString $ Put.runPutS (Serial.serialize addr)
   Serial.serialize chanTo
   Put.putByteString $ Put.runPutS (Serial.serialize m)
-  
+
 -- reads an int first that says how long the payload is.
 -- then reads the payload and deserializes it
 deserializeLengthEncoded :: Serial a => InputStream ByteString -> IO a
@@ -124,9 +125,9 @@ deserializeLengthEncoded i = deserialize' i 4 >>= deserialize' i where
   deserialize' i n = readExactly n i >>= tryDeserialize "Int"
 
 tryDeserialize :: Serial a => String -> ByteString -> IO a
-tryDeserialize msg bytes = 
+tryDeserialize msg bytes =
   case runGetS Serial.deserialize bytes of
-    Left err  -> fail $ "expected " ++ msg ++ ", got " ++ err 
+    Left err  -> fail $ "expected " ++ msg ++ ", got " ++ err
     Right a -> pure a
 
 deserializeChannel :: InputStream ByteString -> IO Channel
@@ -166,5 +167,12 @@ client host port send = withSocketsDo $ do
   sock <- socket (addrFamily serverAddr) Stream defaultProtocol
   connect sock (addrAddress serverAddr)
   flip finally (sClose sock) $ do
-    (_,o) <- Streams.socketToStreams sock 
+    (_,o) <- Streams.socketToStreams sock
     send o
+
+data DummyEnv = DummyEnv
+data Prog = Prog [String]
+
+instance Evaluate Prog DummyEnv where
+  evaluate _ (Prog s) = return . return . Prog $ [join s]
+
