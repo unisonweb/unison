@@ -176,3 +176,7 @@ data Prog = Prog [String]
 instance Evaluate Prog DummyEnv where
   evaluate _ (Prog s) = return . return . Prog $ [join s]
 
+send :: Serial t => Address -> Packet t -> IO ()
+send (Address host port chan) p =
+  client host port $
+  Streams.write (Just . ByteString.drop 4 $ Put.runPutS (putPacket p))
