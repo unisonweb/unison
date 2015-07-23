@@ -1,5 +1,5 @@
 { mkDerivation, aeson, applicative-extras, attoparsec, base
-, blaze-html, bytes, bytestring, cereal, containers, cryptohash
+, blaze-html, bytes, bytestring, cereal, containers, cryptohash, ctrie
 , directory, filepath, http-types, io-streams, mtl, network, prelude-extras, scotty
 , stdenv, tasty, tasty-hunit, tasty-quickcheck, tasty-smallcheck
 , text, transformers, transformers-compat, unison-shared, vector
@@ -12,7 +12,7 @@ mkDerivation {
   isExecutable = true;
   buildDepends = [
     aeson applicative-extras attoparsec base blaze-html bytes
-    bytestring cereal containers cryptohash directory filepath
+    bytestring cereal containers cryptohash ctrie directory filepath
     http-types io-streams mtl network prelude-extras scotty text transformers
     transformers-compat unison-shared vector
   ];

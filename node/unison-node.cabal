@@ -73,6 +73,7 @@ library
     cereal,
     containers,
     cryptohash,
+    ctrie,
     directory,
     filepath,
     http-types,
