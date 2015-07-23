@@ -1,4 +1,5 @@
  {-# LANGUAGE DeriveGeneric #-}
+ {-# LANGUAGE OverloadedStrings #-}
  {-# LANGUAGE FunctionalDependencies #-}
 
 module Unison.Runtime.Remoting where
@@ -171,8 +172,16 @@ client host port send = withSocketsDo $ do
     send o
 
 data DummyEnv = DummyEnv
-data Prog = Prog [String]
+data Prog = Prog [String] deriving (Show, Generic)
+instance Serial Prog
 
 instance Evaluate Prog DummyEnv where
   evaluate _ (Prog s) = return . return . Prog $ [join s]
 
+main :: IO ()
+main = do
+  putStrLn "Local host: "
+  ip <- getLine
+  let localAddress = Address (Text.pack ip) 8080 0
+  _ <- Concurrent.forkIO $ serve DummyEnv localAddress
+  return ()
