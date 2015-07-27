@@ -11,7 +11,8 @@ Since Unison isn't terribly useful in its current form, the rest of this README 
 
 Still here? All right then! Let's get to it.
 
-### A brief code tour
+A brief code tour
+-----
 
 First, a bit of orientation. Here's the directory structure:
 
@@ -26,37 +27,77 @@ The `editor-elm/` directory is the current Elm implementation of the Unison edit
 
 The dependencies are what you'd expect---`shared/` has minimal external dependencies, and `node/` and `editor/` depend on `shared`. Thus, it should be very obvious and explicit what code and external dependencies are going to be compiled to JS.
 
-### Build intructions
 
-Building the project is easy. You do not need to have anything installed or set up in advance. Here are complete instructions:
+Build instructions
+-----
 
+The only thing one needs to install before-hand is Nix package manager. Nix, in turn, builds both the editor and the node, and all their dependencies, and allows us to pin the versions of each and every one. You do not need to have anything installed or set up in advance.
+
+### Installing Nix
+
+The easiest thing to do is `curl https://nixos.org/nix/install | sh`. If you find [executing unknown scripts from the internet](http://curlpipesh.tumblr.com/) abhorrently insecure, consider the other options presented at [](https://nixos.org/nix). Nix has a few dependencies but they probably came with your system, consult it's website to see them. NixOS can skip this step, of course.
+
+### Cached Binaries (Optional)
+
+Nix caches all builds, and allows one to use another's cached builds instead of building a specific package themselves. By default the official binary cache is used, but to speed things up add `http://zalora-public-nix-cache.s3-website-ap-southeast-1.amazonaws.com/` for Darwin binaries, and `https://ryantrinkle.com:5443` for some of editor's dependencies on all platforms. To do this edit the `binary-caches` field in your nix configuration file (usually `/etc/nix/nix.conf` or `/nix/nix.conf`); URLs are space-separated. NixOS users should instead edit their `/etc/nix/configuration.nix`, as `nix.conf` is generated from that.
+
+### Unison itself
+
+Finally, you need to build node and editor, start node, and navigate to the editor in your browser. You can build these yourself with `nix-build` from the root of the cloned repo:
+```sh
+$ nix-build env.nix -A unisonPackages.ghc<js|7101>.unison-<shared|editor|node>
 ```
+or just run `./build-and-run` which will do everything automatically.
+
+### In Summery
+
+The lazy can just run these (as non-root):
+```sh
+$ curl https://nixos.org/nix/install | sh
+```
+After install completes, you'll see instructions about starting a fresh terminal session or sourcing the given command. Do that, then:
+```sh
 $ git clone https://github.com/unisonweb/platform.git unisonweb
 $ cd unisonweb
-$ # If you don't have Nix 1.8 or later (see note below)
-$ ./install-nix.sh
+$ sudo sed -i /etc/nix/nix.conf -e '/^binary-caches = / s|$| http://zalora-public-nix-cache.s3-website-ap-southeast-1.amazonaws.com/ https://ryantrinkle.com:5443|'
+$ ./build-and-run.sh
 ```
 
-After install completes, you'll see instructions about starting a fresh terminal session or sourcing the given command. Do that, then:
-
+This will print:
 ```
-$ cd node
-$ ./shell.sh
+Running node...
+Setting phasers to stun... (port 8080) (ctrl-c to quit)
+/nix/<hash-and-then-stuff>/index.html
 ```
+That penultimate line is a message from [Scotty](https://hackage.haskell.org/package/scotty) telling you that the node HTTP server is running. The last line is the URL for the (ghcjs) editor.
 
-Each subproject has a `shell.sh` file to download and build any needed dependencies, and drop you into a shell where you can use cabal as normal. So there's `node/shell.nix`, `shared/shell.nix`, and `editor/shell.nix`. You'll see lots of output the first time you run one of these, as they use Nix to download and build dependencies, and you may see some warnings about Haddock documentation that you can ignore. Subsequent launches will be snappy since you'll have all the dependencies in your Nix store.
+You'll see lots of output the first time you run one of these, as Nix needs to download and/or build dependencies, and you may see some warnings about Haddock documentation that you can ignore. Subsequent launches will be snappy since you'll have all the dependencies in your Nix store.
+
+### Development
+
+Nix allows you to just install project's dependencies in a shell, so as to not mess with the rest of the system. First, do `nix-env -iA nixpkgs.haskellPackages.cabal-install` to install the Cabal command-line tool.
+
+Then do one of:
+
+Command                                   | Meaning
+----------------------------------------- | -----
+`cd ./shared; nix-shell --option ghc7101` | Develop shared with ghc
+`cd ./shared; nix-shell --option ghcjs`   | Develop shared with ghcjs
+`cd ./editor; nix-shell --option ghc7101` | Develop shared with ghc
+`cd ./editor; nix-shell --option ghcjs`   | Develop shared with ghcjs
+`cd ./node; nix-shell`                    | Develop node (with ghc)
 
 Once that's done, you'll be in a Nix shell and can use cabal as normal:
 
 ```
-$ cabal run node # cabal repl, cabal test also work
-Running node...
-Setting phasers to stun... (port 8080) (ctrl-c to quit)
+cabal repl # do work
 ```
 
-That last line is a message from [Scotty](https://hackage.haskell.org/package/scotty) telling you that the node HTTP server is running.
+Again, if you haven't run this or `./build-and-run.sh`, before it will take a long time as everything needs to be downloaded and built. Subsequent times will be near-instantaneous as everything is cached.
 
-### A brief code tour of the Haskell code
+
+A brief code tour of the Haskell code
+-----
 
 The Unison Haskell code, which has the language, its typechecker, and the node implementation, is split between `shared/` and `node/`. It's not actually much code right now, only about 3k lines!
 
