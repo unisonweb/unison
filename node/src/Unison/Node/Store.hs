@@ -22,18 +22,20 @@ import qualified Unison.Hash as Hash
 import qualified Unison.Note as Note
 import qualified Unison.Reference as Reference
 
-data Store f = Store {
+-- todo may want to just bind v here
+
+data Store f v = Store {
   hashes :: Maybe (Set Reference) -> Noted f (Set Reference), -- ^ The set of hashes in this store, optionally constrained to intersect the given set
-  readTerm :: Hash -> Noted f Term,
-  writeTerm :: Hash -> Term -> Noted f (),
-  typeOfTerm :: Reference -> Noted f Type,
-  annotateTerm :: Reference -> Type -> Noted f (),
-  readMetadata :: Reference -> Noted f (Metadata Reference),
-  writeMetadata :: Reference -> Metadata Reference -> Noted f ()
+  readTerm :: Hash -> Noted f (Term v),
+  writeTerm :: Hash -> Term v -> Noted f (),
+  typeOfTerm :: Reference -> Noted f (Type v),
+  annotateTerm :: Reference -> Type v -> Noted f (),
+  readMetadata :: Reference -> Noted f (Metadata v Reference),
+  writeMetadata :: Reference -> Metadata v Reference -> Noted f ()
 }
 
 -- | Create a 'Store' rooted at the given path.
-store :: FilePath -> IO (Store IO)
+store :: (Ord v, ToJSON v, FromJSON v) => FilePath -> IO (Store IO v)
 store root =
   let
     hashesIn :: (String -> Reference) -> FilePath -> Noted IO (Set Reference)

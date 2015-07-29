@@ -17,7 +17,7 @@ import qualified Unison.Hash as Hash
 import qualified Unison.Reference as Reference
 
 instance Serial Literal
-instance Serial1 F where
+instance (Serial v, Ord v) => Serial1 (F v) where
   serializeWith f e = case e of
     Lit l -> Put.putWord8 0 *> serialize l
     Blank -> Put.putWord8 1
@@ -44,7 +44,7 @@ instance Serial1 Vector where
   serializeWith f vs = serialize (Vector.length vs) *> traverse_ f vs
   deserializeWith v = deserialize >>= \len -> sequence (Vector.replicate len v)
 
-instance Digest.Digestable1 F where
+instance (Serial v, Ord v) => Digest.Digestable1 (F v) where
   digest1 hashCycle hash e = case e of
     -- References are 'transparent' wrt hash - we return the precomputed hash,
     -- so for example `x = 1 + 1` and `y = x` hash the same. Thus hashing is

@@ -10,23 +10,23 @@ import qualified Unison.Var as Var
 
 data Sort = Type | Term deriving (Eq,Ord,Show)
 
-data Metadata v r =
+data Metadata v h =
   Metadata {
     sort :: Sort,
     names :: Names v,
-    description :: Maybe r
+    description :: Maybe h
   } deriving (Eq,Ord,Show)
 
-matches :: Var v => Query -> Metadata v r -> Bool
+matches :: Var v => Query -> Metadata v h -> Bool
 matches (Query txt) (Metadata _ (Names ns) _) =
   any (Text.isPrefixOf txt) (map Var.name ns)
 
 -- | Nameless metadata, contains only the annotation
-synthetic :: Sort -> Metadata v r
+synthetic :: Sort -> Metadata v h
 synthetic t = Metadata t (Names []) Nothing
 
 -- | Nameless term metadata, containing only the type annotation
-syntheticTerm :: Metadata v r
+syntheticTerm :: Metadata v h
 syntheticTerm = synthetic Term
 
 data Names v = Names [v] deriving (Eq,Ord,Show)
