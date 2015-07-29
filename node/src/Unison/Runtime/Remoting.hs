@@ -178,8 +178,8 @@ instance Serial Prog
 instance Evaluate Prog DummyEnv where
   evaluate _ (Prog s) = return . return . Prog $ [join s]
 
-send :: Serial t => Address -> Packet t -> IO ()
-send (Address host port chan) p =
+sendPacket :: Serial t => Address -> Packet t -> IO ()
+sendPacket (Address host port chan) p =
   client host port $
   Streams.write (Just . ByteString.drop 4 $ Put.runPutS (putPacket p))
 
@@ -187,6 +187,12 @@ main :: IO ()
 main = do
   putStrLn "Local host: "
   ip <- getLine
-  let localAddress = Address (Text.pack ip) 8080 0
+  let localAddress = Address (Text.pack ip) 8081 0
   _ <- Concurrent.forkIO $ serve DummyEnv localAddress
   return ()
+
+sendTestStrings :: Host -> Port -> Channel -> Host -> Port -> [String] -> IO ()
+sendTestStrings localHost localPort channel remoteHost remotePort strings = go where
+  packet = Packet (Address localHost localPort channel) 0 (Evaluate strings)
+  go = sendPacket (Address remoteHost remotePort 0) packet
+
