@@ -8,6 +8,7 @@ import Control.Monad
 import Unison.Type (Type)
 import Unison.Term (Term)
 import Unison.Note (Note,Noted)
+import Unison.Var (Var)
 import qualified Unison.ABT as ABT
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
@@ -32,11 +33,11 @@ invalid loc ctx = "invalid path " ++ show loc ++ " in:\n" ++ show ctx
 --
 -- Note: the returned type may contain free type variables, since
 -- we strip off any outer foralls.
-admissibleTypeAt :: Applicative f
-                 => Type.Env f
+admissibleTypeAt :: (Applicative f, Show v, Var v)
+                 => Type.Env f v
                  -> Term.Path
-                 -> Term
-                 -> Noted f Type
+                 -> Term v
+                 -> Noted f (Type v)
 admissibleTypeAt synth loc t = Note.scoped ("admissibleTypeAt@" ++ show loc ++ " " ++ show t) $
   let
     f = Term.fresh t (ABT.v' "s")
@@ -48,7 +49,7 @@ admissibleTypeAt synth loc t = Note.scoped ("admissibleTypeAt@" ++ show loc ++ "
     Just t -> shake <$> synthesize synth t
 
 -- | Compute the type of the given subterm.
-typeAt :: Applicative f => Type.Env f -> Term.Path -> Term -> Noted f Type
+typeAt :: (Applicative f, Show v, Var v) => Type.Env f v -> Term.Path -> Term v -> Noted f (Type v)
 typeAt synth [] t = Note.scoped ("typeAt: " ++ show t) $ synthesize synth t
 typeAt synth loc t = Note.scoped ("typeAt@"++show loc ++ " " ++ show t) $
   let
@@ -61,12 +62,12 @@ typeAt synth loc t = Note.scoped ("typeAt@"++show loc ++ " " ++ show t) $
     Just t -> shake <$> synthesize synth t
 
 -- | Return the type of all local variables in scope at the given location
-locals :: Applicative f => Type.Env f -> Term.Path -> Term -> Noted f [(ABT.V, Type)]
+locals :: (Applicative f, Show v, Var v) => Type.Env f v -> Term.Path -> Term v -> Noted f [(v, Type v)]
 locals synth path ctx | ABT.isClosed ctx =
   Note.scoped ("locals@"++show path ++ " " ++ show ctx)
               (zip (map fst lambdas) <$> lambdaTypes)
   where
-    lambdas :: [(ABT.V, Term.Path)]
+    -- lambdas :: [(v, Term.Path)]
     lambdas = Term.pathPrefixes path >>= \path -> case Term.at path ctx of
       Just (Term.Lam' v _) -> [(v, path)]
       _ -> []
@@ -74,7 +75,7 @@ locals synth path ctx | ABT.isClosed ctx =
     lambdaTypes = traverse t (map snd lambdas)
       where t path = extract <$> typeAt synth path ctx
 
-    extract :: Type -> Type
+    extract :: Show v => Type v -> Type v
     extract (Type.Arrow' i _) = i
     extract (Type.Forall' _ t) = extract t
     extract t = error $ "expecting function type, got " ++ show t
@@ -84,12 +85,12 @@ locals _ _ ctx =
 -- | Infer the type of a 'Unison.Syntax.Term', using
 -- a function to resolve the type of @Ref@ constructors
 -- contained in that term.
-synthesize :: Applicative f => Type.Env f -> Term -> Noted f Type
+synthesize :: (Applicative f, Show v, Var v) => Type.Env f v -> Term v -> Noted f (Type v)
 synthesize = Context.synthesizeClosed
 
 -- | Infer the type of a 'Unison.Syntax.Term', assumed
 -- not to contain any @Ref@ constructors
-synthesize' :: Term -> Either Note Type
+synthesize' :: (Show v, Var v) => Term v -> Either Note (Type v)
 synthesize' term = join . Note.unnote $ synthesize missing term
   where missing h = Note.failure $ "unexpected ref: " ++ show h
 
@@ -97,18 +98,18 @@ synthesize' term = join . Note.unnote $ synthesize missing term
 -- function to resolve the type of @Ref@ constructors
 -- contained in the term. Returns @typ@ if successful,
 -- and a note about typechecking failure otherwise.
-check :: Applicative f => Type.Env f -> Term -> Type -> Noted f Type
+check :: (Applicative f, Show v, Var v) => Type.Env f v -> Term v -> Type v -> Noted f (Type v)
 check synth term typ = synthesize synth (Term.ann term typ)
 
 -- | Check whether a term, assumed to contain no @Ref@ constructors,
 -- matches a given type. Return @Left@ if any references exist, or
 -- if typechecking fails.
-check' :: Term -> Type -> Either Note Type
+check' :: (Show v, Var v) => Term v -> Type v -> Either Note (Type v)
 check' term typ = join . Note.unnote $ check missing term typ
   where missing h = Note.failure $ "unexpected ref: " ++ show h
 
 -- | Returns `True` if the expression is well-typed, `False` otherwise
-wellTyped :: (Monad f, Applicative f) => Type.Env f -> Term -> Noted f Bool
+wellTyped :: (Monad f, Show v, Var v) => Type.Env f v -> Term v -> Noted f Bool
 wellTyped synth term = (const True <$> synthesize synth term) `Note.orElse` pure False
 
 -- | @subtype a b@ is @Right b@ iff @f x@ is well-typed given
@@ -118,13 +119,13 @@ wellTyped synth term = (const True <$> synthesize synth term) `Note.orElse` pure
 -- about the reason for subtyping failure otherwise.
 --
 -- Example: @subtype (forall a. a -> a) (Int -> Int)@ returns @Right (Int -> Int)@.
-subtype :: Type -> Type -> Either Note Type
+subtype :: (Show v, Var v) => Type v -> Type v -> Either Note (Type v)
 subtype t1 t2 = case Context.subtype (Context.context []) t1 t2 of
   Left e -> Left e
   Right _ -> Right t2
 
 -- | Returns true if @subtype t1 t2@ returns @Right@, false otherwise
-isSubtype :: Type -> Type -> Bool
+isSubtype :: (Show v, Var v) => Type v -> Type v -> Bool
 isSubtype t1 t2 = case Context.subtype (Context.context []) t1 t2 of
   Left _ -> False
   Right _ -> True
@@ -133,6 +134,6 @@ isSubtype t1 t2 = case Context.subtype (Context.context []) t1 t2 of
 -- order of quantifier introduction. Note that alpha equivalence considers:
 -- `forall b a . a -> b -> a` and
 -- `forall a b . a -> b -> a` to be different types
-equals :: Type -> Type -> Bool
+equals :: (Show v, Var v) => Type v -> Type v -> Bool
 equals t1 t2 = isSubtype t1 t2 && isSubtype t2 t1
 

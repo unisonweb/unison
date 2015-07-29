@@ -6,6 +6,7 @@ import qualified Data.Set as Set
 
 class (Eq v, Ord v) => Var v where
   named :: Text -> v
+  name :: v -> Text
   freshIn :: Set v -> v -> v
 
 freshes :: Var v => Set v -> [v] -> [v]

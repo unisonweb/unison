@@ -10,7 +10,7 @@
 
 module Unison.Type where
 
-import Data.Aeson (toJSON, parseJSON)
+import Data.Aeson (ToJSON(..), FromJSON(..))
 import Data.Aeson.TH
 import Data.Set (Set)
 import Data.Text (Text)
@@ -18,12 +18,13 @@ import GHC.Generics
 import Prelude.Extras (Eq1(..),Show1(..))
 import Unison.Note (Noted)
 import Unison.Reference (Reference)
+import Unison.Var (Var)
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
 import qualified Unison.Doc as D
 import qualified Unison.JSON as J
 import qualified Unison.Kind as K
-import qualified Unison.Symbol as Symbol
+import qualified Unison.Var as Var
 
 -- | Type literals
 data Literal
@@ -52,24 +53,25 @@ deriveJSON defaultOptions ''F
 instance Eq1 F where (==#) = (==)
 instance Show1 F where showsPrec1 = showsPrec
 
--- | Terms are represented as ABTs over the base functor F.
-type Type = ABT.Term F ()
+-- | Types are represented as ABTs over the base functor F, with variables in `v`
+type Type v = AnnotatedType v ()
 
-type AnnotatedType a = ABT.Term F a
+-- | Like `Type v`, but with an annotation of type `a` at every level in the tree
+type AnnotatedType v a = ABT.Term F v a
 
 -- An environment for looking up type references
-type Env f = Reference -> Noted f Type
+type Env f v = Reference -> Noted f (Type v)
 
-freeVars :: Type -> Set ABT.V
+freeVars :: Type v -> Set v
 freeVars = ABT.freeVars
 
-data Monotype = Monotype { getPolytype :: Type } deriving (Eq)
+data Monotype v = Monotype { getPolytype :: Type v } deriving (Eq)
 
-instance Show Monotype where
+instance Show v => Show (Monotype v) where
   show = show . getPolytype
 
 -- Smart constructor which checks if a `Type` has no `Forall` quantifiers.
-monotype :: Type -> Maybe Monotype
+monotype :: Ord v => Type v -> Maybe (Monotype v)
 monotype t = Monotype <$> ABT.visit isMono t where
   isMono (Forall' _ _) = Just Nothing
   isMono _ = Nothing
@@ -88,24 +90,24 @@ pattern Forall' v body <- ABT.Tm' (Forall (ABT.Abs' v body))
 pattern Existential' v <- ABT.Tm' (Existential (ABT.Var' v))
 pattern Universal' v <- ABT.Tm' (Universal (ABT.Var' v))
 
-unArrows :: Type -> Maybe [Type]
+unArrows :: Type v -> Maybe [Type v]
 unArrows t =
   case go t of [] -> Nothing; l -> Just l
   where
     go (Arrow' i o) = i : go o
     go _ = []
 
-unArrows' :: Type -> Maybe [(Type,Path)]
+unArrows' :: Type v -> Maybe [(Type v,Path)]
 unArrows' t = addPaths <$> unArrows t
   where addPaths ts = ts `zip` arrowPaths (length ts)
 
-unApps :: Type -> Maybe (Type, [Type])
+unApps :: Type v -> Maybe (Type v, [Type v])
 unApps t = case go t [] of [] -> Nothing; f:args -> Just (f,args)
   where
   go (App' i o) acc = go i (o:acc)
   go fn args = fn:args
 
-unApps' :: Type -> Maybe ((Type,Path), [(Type,Path)])
+unApps' :: Type v -> Maybe ((Type v,Path), [(Type v,Path)])
 unApps' t = addPaths <$> unApps t
   where
   addPaths (f,args) = case appPaths (length args) of
@@ -122,51 +124,51 @@ arrowPaths spineLength =
   (take (spineLength-1) $ iterate (Output:) [Input]) ++
   [replicate spineLength Output]
 
-matchExistential :: ABT.V -> Type -> Bool
+matchExistential :: Eq v => v -> Type v -> Bool
 matchExistential v (Existential' x) = x == v
 matchExistential _ _ = False
 
-matchUniversal :: ABT.V -> Type -> Bool
+matchUniversal :: Eq v => v -> Type v -> Bool
 matchUniversal v (Universal' x) = x == v
 matchUniversal _ _ = False
 
 -- some smart constructors
 
-lit :: Literal -> Type
+lit :: Ord v => Literal -> Type v
 lit l = ABT.tm (Lit l)
 
-ref :: Reference -> Type
+ref :: Ord v => Reference -> Type v
 ref = lit . Ref
 
-app :: Type -> Type -> Type
+app :: Ord v => Type v -> Type v -> Type v
 app f arg = ABT.tm (App f arg)
 
-arrow :: Type -> Type -> Type
+arrow :: Ord v => Type v -> Type v -> Type v
 arrow i o = ABT.tm (Arrow i o)
 
-ann :: Type -> K.Kind -> Type
+ann :: Ord v => Type v -> K.Kind -> Type v
 ann e t = ABT.tm (Ann e t)
 
-forall :: ABT.V -> Type -> Type
+forall :: Ord v => v -> Type v -> Type v
 forall v body = ABT.tm (Forall (ABT.abs v body))
 
-existential :: ABT.V -> Type
+existential :: Ord v => v -> Type v
 existential v = ABT.tm (Existential (ABT.var v))
 
-universal :: ABT.V -> Type
+universal :: Ord v => v -> Type v
 universal v = ABT.tm (Universal (ABT.var v))
 
-v' :: Text -> Type
+v' :: Var v => Text -> Type v
 v' s = universal (ABT.v' s)
 
-forall' :: [Text] -> Type -> Type
+forall' :: Var v => [Text] -> Type v -> Type v
 forall' vs body = foldr forall body (map ABT.v' vs)
 
-constrain :: Type -> () -> Type
+constrain :: Ord v => Type v -> () -> Type v
 constrain t u = ABT.tm (Constrain t u)
 
 -- | Bind all free variables with an outer `forall`.
-generalize :: Type -> Type
+generalize :: Ord v => Type v -> Type v
 generalize t = foldr forall t $ Set.toList (ABT.freeVars t)
 
 data PathElement
@@ -179,7 +181,7 @@ data PathElement
 
 type Path = [PathElement]
 
-layout :: (Reference -> ABT.V) -> Type -> D.Doc Text Path
+layout :: (Var v, ToJSON v) => (Reference -> v) -> Type v -> D.Doc Text Path
 layout ref t = go (0 :: Int) t
   where
   (<>) = D.append
@@ -188,13 +190,13 @@ layout ref t = go (0 :: Int) t
     Text -> "Text"
     Vector -> "Vector"
     Distance -> "Distance"
-    Ref r -> Symbol.name (ref r) -- no infix type operators at the moment
+    Ref r -> Var.name (ref r) -- no infix type operators at the moment
   paren b d =
     let r = D.root d
     in if b then D.embed' r "(" <> d <> D.embed' r ")" else d
   arr = D.breakable " " <> D.embed "→ "
   sp = D.breakable " "
-  sym v = D.embed (Symbol.name v)
+  sym v = D.embed (Var.name v)
   go p t = case t of
     Lit' l -> D.embed (lit l)
     ArrowsP' spine ->
@@ -206,12 +208,13 @@ layout ref t = go (0 :: Int) t
         , D.nest "  " . D.group . D.delimit sp $ [ D.sub' p (go 10 s) | (s,p) <- args ] ]
     Constrain' t _ -> go p t
     Universal' v -> sym v
-    Existential' v -> D.embed ("'" `mappend` Symbol.name v)
-    Ann' t k -> go p t -- ignoring kind annotations for now
+    Existential' v -> D.embed ("'" `mappend` Var.name v)
+    Ann' t _ -> go p t -- ignoring kind annotations for now
     Forall' v body -> case p of
       0 -> D.sub Body (go p body)
       _ -> paren True . D.group . D.docs $
              [D.embed "∀ ", sym v, D.embed ".", sp, D.nest "  " $ D.sub Body (go 0 body)]
+    _ -> error $ "layout match failure on: " ++ show (toJSON t)
 
 instance J.ToJSON1 F where
   toJSON1 f = toJSON f

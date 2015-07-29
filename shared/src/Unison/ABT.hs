@@ -10,7 +10,6 @@
 
 module Unison.ABT where
 
-import Data.Aeson.TH
 import Data.Aeson (ToJSON(..),FromJSON(..))
 import Data.List hiding (cycle)
 import Data.Maybe
@@ -19,7 +18,6 @@ import Data.Text (Text)
 import Data.Traversable
 import Prelude hiding (abs,cycle)
 import Prelude.Extras (Eq1(..), Show1(..))
-import Unison.Symbol (Symbol)
 import Unison.Var (Var)
 import qualified Data.Aeson as Aeson
 import qualified Data.Foldable as Foldable
