@@ -34,7 +34,7 @@ instance Functor Symbol where
 instance Eq (Symbol a) where
   Symbol id1 name1 _ == Symbol id2 name2 _ = id1 == id2 && name1 == name2
 instance Ord (Symbol a) where
-  Symbol id1 name1 _ <= Symbol id2 name2 _ = id1 <= id2 || name1 <= name2
+  Symbol id1 name1 _ `compare` Symbol id2 name2 _ = (id1,name1) `compare` (id2,name2)
 
 instance Show (Symbol (Maybe a)) where
   show s | freshId s == 0 = Text.unpack (name s)

@@ -15,10 +15,11 @@ import Unison.Note (Note,Noted(..))
 import Unison.Term (Term)
 import Unison.Type (Type, Monotype(..))
 import Unison.Var (Var)
-import qualified Unison.ABT as ABT
 import qualified Data.Foldable as Foldable
-import qualified Unison.Note as Note
 import qualified Data.Set as Set
+import qualified Data.Text as Text
+import qualified Unison.ABT as ABT
+import qualified Unison.Note as Note
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 import qualified Unison.Var as Var
@@ -36,11 +37,11 @@ data Element v
   | Marker v deriving (Eq) -- used for scoping
 
 instance Var v => Show (Element v) where
-  show (Universal v) = show (Var.shortName v)
-  show (Existential v) = "'"++show (Var.shortName v)
-  show (Solved v t) = "'"++show (Var.shortName v)++" = "++show t
-  show (Ann v t) = show (Var.shortName v)++" : "++show t
-  show (Marker v) = "|"++show (Var.shortName v)++"|"
+  show (Universal v) = Text.unpack (Var.shortName v)
+  show (Existential v) = "'"++Text.unpack (Var.shortName v)
+  show (Solved v t) = "'"++Text.unpack (Var.shortName v)++" = "++show t
+  show (Ann v t) = Text.unpack (Var.shortName v)++" : "++show t
+  show (Marker v) = "|"++Text.unpack (Var.shortName v)++"|"
 
 (===) :: Eq v => Element v -> Element v -> Bool
 Existential v === Existential v2 | v == v2 = True
@@ -72,9 +73,7 @@ context0 :: Context v
 context0 = Context []
 
 instance Var v => Show (Context v) where
-  show c@(Context es) =
-    "Γ " ++ show (map Var.shortName $ Set.toList (usedVars c)) ++ "\n  "
-         ++ (intercalate "\n  " . map (show . fst)) (reverse es)
+  show (Context es) = "Γ \n" ++ (intercalate "\n  " . map (show . fst)) (reverse es)
 
 -- ctxOK :: Context -> Context
 -- ctxOK ctx = if wellformed ctx then ctx else error $ "not ok: " ++ show ctx
