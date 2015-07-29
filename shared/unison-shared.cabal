@@ -51,6 +51,7 @@ library
     Unison.Type
     Unison.Typechecker
     Unison.Typechecker.Context
+    Unison.Var
 
   build-depends:
     aeson,

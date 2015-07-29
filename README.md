@@ -11,7 +11,8 @@ Since Unison isn't terribly useful in its current form, the rest of this README 
 
 Still here? All right then! Let's get to it.
 
-### A brief code tour
+A brief code tour
+-----
 
 First, a bit of orientation. Here's the directory structure:
 
@@ -22,41 +23,82 @@ editor/
 editor-elm/
 ```
 
-The `editor-elm/` directory is the current Elm implementation of the Unison editor. It's being phased out, in favor of a Unison editor written in Haskell and compiled to Javascript via [GHCJS](https://github.com/ghcjs/ghcjs). Thus, we can share code between the editor and Unison node backend. So what's with the directory structure? . The `shared/` directory has Haskell code that will be shared between the editor and node, the `node/` directory has code specific to the node, and `editor/` is the currently-in-development Haskell version of the editor, which also depends on `shared/`.
+The `editor-elm/` directory is the current Elm implementation of the Unison editor. It's being phased out, in favor of a Unison editor written in Haskell and compiled to Javascript via [GHCJS](https://github.com/ghcjs/ghcjs). By writing the editor in Haskell, we can share code between the editor and Unison node backend. So what's with the directory structure? . The `shared/` directory has Haskell code that will be shared between the editor and node, the `node/` directory has code specific to the node, and `editor/` is the currently-in-development Haskell version of the editor, which also depends on `shared/`.
 
 The dependencies are what you'd expect---`shared/` has minimal external dependencies, and `node/` and `editor/` depend on `shared`. Thus, it should be very obvious and explicit what code and external dependencies are going to be compiled to JS.
 
-### Build intructions
+Build instructions
+-----
 
-Building the project is easy. You do not need to have anything installed or set up in advance. Here are complete instructions:
+A couple notes before getting started:
 
+* If you're on Windows or just prefer to build the code on a known-good VM, use the [Vagrant box setup](#vagrant) after reading through these instructions.
+* If you're on NixOS or just prefer to build all dependencies from source, see the [note below about trusted binary caches](#binary-caches).
+
+### Step 1: Install Nix
+
+The only thing one needs to install beforehand is the [Nix package manager](https://nixos.org/nix/). You don't need to install Haskell, cabal, or anything else. Nix will build the Unison node, editor, and all their dependencies (including GHC), with dependencies pinned by our Nix configuration to "known good" versions. You do not need to have Haskell or cabal installed in advance!
+
+_Note: For people nervous about installing Nix, Nix keeps all packages and binaries in its own directory (generally `/nix`) and the only thing it adds to your path are some commands like `nix-shell`, `nix-build`, and so on, so it won't interfere with any other setup you have on your machine._
+
+The easiest way to install Nix is:
+
+```sh
+$ curl https://nixos.org/nix/install | sh
 ```
+
+_Note: If you are alarmed at the suggestion of [executing unknown scripts from the internet](http://curlpipesh.tumblr.com/), see the other install options [on the Nix website](https://nixos.org/nix)._
+
+### <a id="step-2"></a> Step 2: Build the Unison node
+
+After install completes, you'll see instructions about starting a fresh terminal session. Do that, then:
+
+```sh
 $ git clone https://github.com/unisonweb/platform.git unisonweb
 $ cd unisonweb
-$ # If you don't have Nix 1.8 or later (see note below)
-$ ./install-nix.sh
-```
-
-After install completes, you'll see instructions about starting a fresh terminal session or sourcing the given command. Do that, then:
-
-```
 $ cd node
 $ ./shell.sh
 ```
 
-Each subproject has a `shell.sh` file to download and build any needed dependencies, and drop you into a shell where you can use cabal as normal. So there's `node/shell.nix`, `shared/shell.nix`, and `editor/shell.nix`. You'll see lots of output the first time you run one of these, as they use Nix to download and build dependencies, and you may see some warnings about Haddock documentation that you can ignore. Subsequent launches will be snappy since you'll have all the dependencies in your Nix store.
+The first time you run this, it will take a few minutes as Nix needs to download and/or build dependencies, and you may see some warnings about Haddock documentation that you can ignore. Subsequent launches will be snappy since you'll have all the dependencies in your Nix store.
 
-Once that's done, you'll be in a Nix shell and can use cabal as normal:
+Once this completes, you'll be in a Nix shell with cabal (the Haskell build tool) on your path, properly configured. You can just use it as normal. For instance:
 
+```sh
+cabal build # compile the code
+cabal repl  # start a repl with access to the project
+cabal test  # run the tests
+cabal run   # launch the node server
 ```
-$ cabal run node # cabal repl, cabal test also work
+
+If you do `cabal run`, you'll see a message like:
+
+```sh
 Running node...
 Setting phasers to stun... (port 8080) (ctrl-c to quit)
 ```
 
-That last line is a message from [Scotty](https://hackage.haskell.org/package/scotty) telling you that the node HTTP server is running.
+That message is [Scotty](http://hackage.haskell.org/package/scotty) telling you it's running. That means you're good.
 
-### A brief code tour of the Haskell code
+### Step 3: Build the Unison editor
+
+Just do:
+
+```
+$ cd editor
+$ ./shell.sh
+```
+
+You'll again be put into a shell with access to cabal. The editor uses GHCJS and not all cabal commands are supported, but `cabal build` will compile the Haskell code to JS. Just open the following file in a browser:
+
+```
+editor/dist/build/editor/editor.jsexe/index.html
+```
+
+Note: at the moment, the editor is just "Hello World". Work on the editor is currently ongoing! Check back in a couple months. If you like, [here are instructions for building the legacy Elm-based Unison editor](https://github.com/unisonweb/platform/blob/master/editor-elm/README.md).
+
+A brief code tour of the Haskell code
+-----
 
 The Unison Haskell code, which has the language, its typechecker, and the node implementation, is split between `shared/` and `node/`. It's not actually much code right now, only about 3k lines!
 
@@ -75,3 +117,78 @@ Now, where to begin? Everyone learns differently. You might prefer to read the c
 If instead, you'd rather work from the 'outside in' (or perhaps 'top down'), you could start with `Unison.NodeServer` and work your way back the other direction to modules like `Term`, `Type`, and `ABT`. Since the entire point of the node codebase is to expose an API over HTTP, `Unison.NodeServer` will end up referencing directly or indirectly all the code in the node, and all the Unison language and typechecker.
 
 That's all for now!
+
+### <a id="vagrant"></a> Appendix: Build instructions for Windows users or those who prefer to build code on a VM
+
+NOTE: these instructions don't work just yet.
+
+If you're on Windows and would like to build the project, you can do so using the Vagrant box VM. You can also do this if you just prefer to develop using a VM. If you do this, you can still use your local text editor or IDE of choice for Haskell editing, since the filesystem is shared between the VM and your local machine.
+
+Here are instructions for this route:
+
+* Download and install [Vagrant](https://www.vagrantup.com/).
+* Download and install [VirtualBox](https://www.virtualbox.org/). This is a free VM provider. If you like, you can also pay for [Vagrant+VMWare](https://www.vagrantup.com/vmware), which is supposed to be higher performance.
+
+Once those are done, from the root directory of the project (the same directory as the `Vagrantfile` file), do:
+
+```sh
+$ vagrant up
+... lots of log output as the machine gets set up
+```
+
+Note that depending on your terminal, the log output may be very badly formatted, with carriage returns getting interpreted as newlines. Don't worry about that. Once it completes, you can do:
+
+```
+$ vagrant ssh
+Welcome to Ubuntu 14.04.2 LTS (GNU/Linux 3.13.0-55-generic x86_64)
+
+ * Documentation:  https://help.ubuntu.com/
+
+ System information disabled due to load higher than 1.0
+
+  Get cloud support with Ubuntu Advantage Cloud Guest:
+    http://www.ubuntu.com/business/services/cloud
+
+0 packages can be updated.
+0 updates are security updates.
+
+
+vagrant@vagrant-ubuntu-trusty-64:~$ cd /vagrant/
+vagrant@vagrant-ubuntu-trusty-64:/vagrant$ ls
+build-and-run  editor-elm  node         shell-common.nix
+dist           env.nix     README.md    Vagrantfile
+editor         LICENSE     shared       vagrant-provision.sh
+```
+
+Notice that the `/vagrant` directory on the VM mirrors the root directory of your project. You can edit the code on your local machine, and use the the [usual build instructions on the VM](#step-2) to compile and run the project on the VM!
+
+### <a id="binary-caches"></a> Appendix: Build instructions for NixOS users or those who prefer to build all dependencies from source
+
+Rather than always building from source, Nix will use binary caches for packages you request, if they are available in a 'trusted' cache.
+
+If you're running NixOS, the `shell.sh` scripts won't work, since these scripts supply the additional binary caches via command line flags (which NixOS disallows):
+
+```sh
+$ cat node/shell.sh
+#!/bin/sh
+nix-shell --option extra-binary-caches https://ryantrinkle.com:5443/ -j 8
+
+$ cat editor/shell.sh
+#!/bin/sh
+nix-shell --option extra-binary-caches https://ryantrinkle.com:5443/ -j 8 -A ghcjs
+```
+
+You can do one of two things:
+
+* Just leave off the `--option extra-binary-caches https://ryantrinkle.com:5443` flag. This should still work, but will take a long time (several hours) the first time you do it, since it will be building a huge number of dependencies from source. You can also do this if you prefer to build all dependencies from source.
+* Or, edit your Nix configuration at `/etc/nix/configuration.nix` to add the following binary caches:
+  * https://ryantrinkle.com:5443/
+  * http://zalora-public-nix-cache.s3-website-ap-southeast-1.amazonaws.com/
+
+If you're on an OS other than NixOS, you can also add binary caches to your Nix configuration to avoid having to specify them on the command line like the `shell.sh` files do. To do this, edit your `nix.conf` file (it may not exist yet, in which case create `/nix/nix.conf` or `/etc/nix/nix.conf` dependending on where Nix is installed on your platform) and add the following line:
+
+```
+binary-caches = https://ryantrinkle.com:5443 http://zalora-public-nix-cache.s3-website-ap-southeast-1.amazonaws.com/
+```
+
+The `http://zalora-public-nix-cache.s3-website-ap-southeast-1.amazonaws.com/` has Darwin binaries and `https://ryantrinkle.com:5443` has some of editor's dependencies on all platforms. You can add more caches separated by spaces if you like.

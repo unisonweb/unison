@@ -4,34 +4,32 @@ module Unison.Metadata where
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Text (Text)
-import Unison.Symbol (Symbol)
+import Unison.Var (Var)
 import qualified Data.Text as Text
-import qualified Unison.Symbol as Symbol
-import qualified Unison.Term as Term
+import qualified Unison.Var as Var
 
 data Sort = Type | Term deriving (Eq,Ord,Show)
 
-data Metadata k =
+data Metadata v h =
   Metadata {
     sort :: Sort,
-    names :: Names,
-    locals :: [(Term.Path, Symbol)],
-    description :: Maybe k
+    names :: Names v,
+    description :: Maybe h
   } deriving (Eq,Ord,Show)
 
-matches :: Query -> Metadata k -> Bool
-matches (Query txt) (Metadata _ (Names ns) _ _) =
-  any (Text.isPrefixOf txt) (map Symbol.name ns)
+matches :: Var v => Query -> Metadata v h -> Bool
+matches (Query txt) (Metadata _ (Names ns) _) =
+  any (Text.isPrefixOf txt) (map Var.name ns)
 
 -- | Nameless metadata, contains only the annotation
-synthetic :: Sort -> Metadata k
-synthetic t = Metadata t (Names []) [] Nothing
+synthetic :: Sort -> Metadata v h
+synthetic t = Metadata t (Names []) Nothing
 
 -- | Nameless term metadata, containing only the type annotation
-syntheticTerm :: Metadata k
+syntheticTerm :: Metadata v h
 syntheticTerm = synthetic Term
 
-data Names = Names [Symbol] deriving (Eq,Ord,Show)
+data Names v = Names [v] deriving (Eq,Ord,Show)
 
 data Query = Query Text
 

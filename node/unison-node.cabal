@@ -140,6 +140,7 @@ test-suite tests
   else
     build-depends:
       base,
+      bytes,
       tasty,
       tasty-hunit,
       tasty-smallcheck,

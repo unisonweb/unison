@@ -2,8 +2,8 @@
 {-# LANGUAGE PatternSynonyms #-}
 module Unison.Node.Implementation (node) where
 
-import Control.Applicative
 import Control.Monad
+import Data.Bytes.Serial (Serial)
 import Data.List
 import Data.Ord
 import Unison.Eval as Eval
@@ -13,6 +13,7 @@ import Unison.Term.Extra ()
 import Unison.Type (Type)
 import Unison.Node.Store (Store)
 import Unison.Note (Noted)
+import Unison.Var (Var)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.ABT.Extra as ABT'
@@ -36,7 +37,10 @@ import qualified Unison.Node.Store as Store
 --watches :: (Foldable f, Show a) => String -> f a -> f a
 --watches msg as = trace (msg ++ ":\n" ++ intercalate "\n" (map show (Foldable.toList as)) ++ "\n.") as
 
-node :: (Applicative f, Monad f) => Eval (Noted f) -> Store f -> Node f Reference.Reference Type Term
+node :: (Monad f, Var v, Serial v)
+     => Eval (Noted f) v
+     -> Store f v
+     -> Node f v Reference.Reference (Type v) (Term v)
 node eval store =
   let
     readTypeOf = Store.typeOfTerm store
@@ -160,4 +164,3 @@ node eval store =
        types
        typeAt
        updateMetadata
-

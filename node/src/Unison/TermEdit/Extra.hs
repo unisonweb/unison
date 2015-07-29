@@ -6,4 +6,4 @@ import Data.Bytes.Serial
 import Unison.Symbol.Extra ()
 import Unison.TermEdit
 
-instance Serial Action
+instance Serial v => Serial (Action v)
