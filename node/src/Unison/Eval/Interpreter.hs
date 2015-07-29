@@ -6,25 +6,26 @@ import Data.Map (Map)
 import Debug.Trace
 import Unison.Eval
 import Unison.Term (Term)
+import Unison.Var (Var)
 import qualified Data.Map as M
 import qualified Unison.Reference as R
 import qualified Unison.Term as E
 
 -- | A Haskell function accepting 'arity' arguments
-data Primop f =
-  Primop { arity :: Int, call :: [Term] -> f Term }
+data Primop f v =
+  Primop { arity :: Int, call :: [Term v] -> f (Term v) }
 
 watch :: Show a => String -> a -> a
 watch msg a = trace (msg ++ ": " ++ show a) a
 
 -- | Produce an evaluator from a environment of 'Primop' values
-eval :: (Applicative f, Monad f) => Map R.Reference (Primop f) -> Eval f
+eval :: (Applicative f, Monad f, Var v) => Map R.Reference (Primop f v) -> Eval f v
 eval env = Eval whnf step
   where
-    reduce x args | trace ("reduce:" ++ show (x:args)) False = undefined
+    -- reduce x args | trace ("reduce:" ++ show (x:args)) False = undefined
     reduce (E.Lam' _ _) [] = return Nothing
     reduce e@(E.Lam' _ _) (arg1:args) =
-      return $ let r = watch "reduced" $ E.betaReduce (E.app e arg1)
+      return $ let r = E.betaReduce (E.app e arg1)
                in Just (foldl E.app r args)
     reduce (E.Ref' h) args = case M.lookup h env of
       Nothing -> return Nothing

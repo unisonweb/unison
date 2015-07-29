@@ -5,11 +5,14 @@
 module Unison.NodeServer where
 
 import Control.Monad.IO.Class
+import Data.Aeson (ToJSON, FromJSON)
 import Network.HTTP.Types.Method (StdMethod(OPTIONS))
 import Unison.Hash (Hash)
 import Unison.Node (Node)
 import Unison.Note (Noted, unnote)
 import Unison.Reference (Reference)
+import Unison.Term (Term)
+import Unison.Type (Type)
 import Web.Scotty (ActionM)
 import qualified Data.Aeson as J
 import qualified Data.Aeson.Parser as JP
@@ -58,7 +61,7 @@ route action = do
 postRoute :: S.RoutePattern -> ActionM () -> S.ScottyM ()
 postRoute s action = S.post s (route action)
 
-server :: Int -> Node IO Reference T.Type E.Term -> IO ()
+server :: (Ord v, ToJSON v, FromJSON v) => Int -> Node IO v Reference (Type v) (Term v) -> IO ()
 server port node = S.scotty port $ do
   S.addroute OPTIONS (S.regex ".*") $ originOptions
   postRoute "/admissible-type-at" $ do

@@ -17,7 +17,7 @@ mkDerivation {
     transformers-compat unison-shared vector
   ];
   testDepends = [
-    base tasty tasty-hunit tasty-quickcheck tasty-smallcheck
+    base bytes tasty tasty-hunit tasty-quickcheck tasty-smallcheck
     unison-shared
   ];
   homepage = "http://unisonweb.org";

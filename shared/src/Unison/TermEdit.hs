@@ -14,13 +14,14 @@ import Unison.Hash (Hash)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Note (Noted)
+import Unison.Var (Var)
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
 import qualified Unison.Eval as Eval
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 
-data Action
+data Action v
   = Abstract -- Turn target into function parameter
   | AbstractLet -- Turn target into let bound expression
   | AllowRec -- Turn a let into a let rec
@@ -29,7 +30,7 @@ data Action
   | Inline -- Delete a let binding by inlining its definition into usage sites
   | MergeLet -- Merge a let block into its parent let block
   | Noop -- Do nothing to the target
-  | Rename ABT.V -- Rename the target var
+  | Rename v -- Rename the target var
   | Step -- Link + beta reduce the target
   | SwapDown -- Swap the target let binding with the subsequent binding
   | SwapUp -- Swap the target let binding with the previous binding
@@ -37,10 +38,10 @@ data Action
   deriving Generic
 
 -- | Interpret the given 'Action'
-interpret :: (Applicative f, Monad f)
-          => Eval (Noted f)
-          -> (Hash -> Noted f Term.Term)
-          -> Term.Path -> Action -> Term.Term -> Noted f (Maybe (Term.Path, Term.Term))
+interpret :: (Applicative f, Monad f, Var v)
+          => Eval (Noted f) v
+          -> (Hash -> Noted f (Term v))
+          -> Term.Path -> Action v -> Term v -> Noted f (Maybe (Term.Path, Term v))
 interpret eval link path action t = case action of
   Abstract -> pure $ abstract path t
   AbstractLet -> pure $ abstractLet path t
@@ -61,7 +62,7 @@ interpret eval link path action t = case action of
    ==>
    f {(v -> v) 42}
 -}
-abstract :: Term.Path -> Term.Term -> Maybe (Term.Path, Term.Term)
+abstract :: Var v => Term.Path -> Term v -> Maybe (Term.Path, Term v)
 abstract path t = f <$> Term.focus path t where
   f (sub,replace) =
     let sub' = Term.lam (ABT.fresh sub (ABT.v' "v")) (ABT.var' "v")
@@ -74,7 +75,7 @@ abstract path t = f <$> Term.focus path t where
    ==>
    f {let v = 42 in v} x
 -}
-abstractLet :: Term.Path -> Term.Term -> Maybe (Term.Path, Term.Term)
+abstractLet :: Var v => Term.Path -> Term v -> Maybe (Term.Path, Term v)
 abstractLet path t = f <$> Term.focus path t where
   f (sub,replace) =
     let sub' = Term.let1 [(ABT.v' "v", sub)] (ABT.var' "v")
@@ -85,7 +86,7 @@ abstractLet path t = f <$> Term.focus path t where
    ==>
    {let rec x = 1 in x + x}
 -}
-allowRec :: Term.Path -> Term.Term -> Maybe (Term.Path, Term.Term)
+allowRec :: Ord v => Term.Path -> Term v -> Maybe (Term.Path, Term v)
 allowRec path t = do
   Term.Let' bs e _ False <- Term.at path t
   t' <- Term.modify (const (Term.letRec bs e)) path t
@@ -96,13 +97,13 @@ allowRec path t = do
    ==>
    { f }
 -}
-etaReduce :: Term.Path -> Term.Term -> Maybe (Term.Path, Term.Term)
+etaReduce :: Ord v => Term.Path -> Term v -> Maybe (Term.Path, Term v)
 etaReduce path t = do
   Term.Lam' v (Term.App' f (ABT.Var' v2)) <- Term.at path t
   guard (v == v2 && not (Set.member v (ABT.freeVars f))) -- make sure vars match and `f` doesn't mention `v`
   pure (path, f)
 
-floatOut :: Term.Path -> Term.Term -> Maybe (Term.Path, Term.Term)
+floatOut :: Term.Path -> Term v -> Maybe (Term.Path, Term v)
 floatOut path t = floatLetOut path t <|> floatLamOut path t
 
 {- Moves the target let binding to the parent expression. Example:
@@ -110,7 +111,7 @@ floatOut path t = floatLetOut path t <|> floatLamOut path t
    ==>
    {let y = 2 in f (y*y)}
 -}
-floatLetOut :: Term.Path -> Term.Term -> Maybe (Term.Path, Term.Term)
+floatLetOut :: Term.Path -> Term v -> Maybe (Term.Path, Term v)
 floatLetOut _ _ =
   error "todo: floatLetOut"
 
@@ -119,7 +120,7 @@ floatLetOut _ _ =
    ==>
    {y -> f (y*y)} 2
 -}
-floatLamOut :: Term.Path -> Term.Term -> Maybe (Term.Path, Term.Term)
+floatLamOut :: Term.Path -> Term v -> Maybe (Term.Path, Term v)
 floatLamOut _ _ = error "floatLamOut"
 
 {- Delete a let binding by inlining its definition. Fails if binding is recursive. Examples:
@@ -135,7 +136,7 @@ floatLamOut _ _ = error "floatLamOut"
    ==>
    {let y = 2 in 1*1}
 -}
-inline :: Term.Path -> Term.Term -> Maybe (Term.Path, Term.Term)
+inline :: Ord v => Term.Path -> Term v -> Maybe (Term.Path, Term v)
 inline path t = do
   -- (v,body) <- Term.bindingAt path t
   (_,_) <- Term.bindingAt path t
@@ -150,7 +151,7 @@ inline path t = do
    in
      y*y}
 -}
-mergeLet :: Term.Path -> Term.Term -> Maybe (Term.Path, Term.Term)
+mergeLet :: Ord v => Term.Path -> Term v -> Maybe (Term.Path, Term v)
 mergeLet path t = do
   parentPath <- Term.parent path
   (innerBindings,e) <- Term.at path t >>= Term.unLetRec
@@ -161,22 +162,22 @@ mergeLet path t = do
     t
 
 {- Rename the variable at the target, updating all occurrences. -}
-rename :: ABT.V -> Term.Path -> Term.Term -> Maybe (Term.Path, Term.Term)
+rename :: Var v => v -> Term.Path -> Term v -> Maybe (Term.Path, Term v)
 rename v2 path t = do
   ABT.Var' v <- Term.at path t
   guard (v /= v2)
   scope <- Term.introducedAt v path t
   (,) scope <$> Term.modify (ABT.subst (ABT.var v2) v) scope t
 
-step :: Applicative f => Eval (Noted f) -> (Hash -> Noted f Term.Term)
-     -> Term.Path -> Term.Term -> Noted f (Maybe (Term.Path, Term.Term))
+step :: (Applicative f, Ord v) => Eval (Noted f) v -> (Hash -> Noted f (Term v))
+     -> Term.Path -> Term v -> Noted f (Maybe (Term.Path, Term v))
 step eval link path t = case Term.focus path t of
   Nothing -> pure Nothing
   Just (sub, replace) -> fmap f (Eval.step eval link sub)
     where f sub = Just (path, replace sub)
 
-whnf :: Applicative f => Eval (Noted f) -> (Hash -> Noted f Term.Term)
-     -> Term.Path -> Term.Term -> Noted f (Maybe (Term.Path, Term.Term))
+whnf :: (Applicative f, Ord v) => Eval (Noted f) v -> (Hash -> Noted f (Term v))
+     -> Term.Path -> Term v -> Noted f (Maybe (Term.Path, Term v))
 whnf eval link path t = case Term.focus path t of
   Nothing -> pure Nothing
   Just (sub, replace) -> fmap f (Eval.whnf eval link sub)
@@ -184,7 +185,7 @@ whnf eval link path t = case Term.focus path t of
 
 -- | Produce `e`, `e _`, `e _ _`, `e _ _ _` and so on,
 -- until the result is no longer a function type
-applications :: Term -> Type -> [Term]
+applications :: Ord v => Term v -> Type v -> [Term v]
 applications e t = e : go e t
   where
     go e (Type.Forall' _ t) = go e t

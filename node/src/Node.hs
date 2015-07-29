@@ -1,17 +1,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Main where
 
-import Control.Applicative
 import Data.Text (Text)
-import Unison.Eval (Eval)
-import Unison.Hash (Hash)
+import Data.Bytes.Serial (Serial)
 import Unison.Metadata (Metadata(..))
 import Unison.Node (Node)
 import Unison.Node.Store (Store)
 import Unison.Term (Term)
 import Unison.Type (Type)
+import Unison.Var (Var)
+import Unison.Symbol.Extra ()
 import qualified Data.Map as M
 import qualified Data.Vector as Vector
 import qualified Unison.Eval as Eval
@@ -26,12 +28,13 @@ import qualified Unison.Reference as R
 import qualified Unison.Symbol as Symbol
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
+import qualified Unison.Var as Var
 
 infixr 7 -->
-(-->) :: Type -> Type -> Type
+(-->) :: Ord v => Type v -> Type v -> Type v
 (-->) = Type.arrow
 
-makeNode :: Store IO -> IO (Node IO R.Reference Type Term)
+makeNode :: forall v . (Serial v, Var v) => Store IO v -> IO (Node IO v R.Reference (Type v) (Term v))
 makeNode store =
   let
     builtins =
@@ -153,16 +156,9 @@ makeNode store =
        in (r, strict r 1, Type.forall' ["a"] $ view (v' "a") --> v' "a" --> v' "a", prefix "view")
      ]
 
-    eval :: Eval (N.Noted IO)
     eval = I.eval (M.fromList [ (k,v) | (k,Just v,_,_) <- builtins ])
-
-    readTerm :: Hash -> N.Noted IO Term
     readTerm h = Store.readTerm store h
-
-    whnf :: Term -> N.Noted IO Term
     whnf = Eval.whnf eval readTerm
-
-    node :: Node IO R.Reference Type Term
     node = C.node eval store
 
     v' = Type.v'
@@ -187,14 +183,14 @@ makeNode store =
                      where reapply args' = Term.ref r `apps` args' `apps` drop n args
             apps f args = foldl Term.app f args
 
-    numeric2 :: Term -> (Double -> Double -> Double) -> I.Primop (N.Noted IO)
+    numeric2 :: Term v -> (Double -> Double -> Double) -> I.Primop (N.Noted IO) v
     numeric2 sym f = I.Primop 2 $ \xs -> case xs of
       [x,y] -> g <$> whnf x <*> whnf y
         where g (Term.Number' x) (Term.Number' y) = Term.lit (Term.Number (f x y))
               g x y = sym `Term.app` x `Term.app` y
       _ -> error "unpossible"
 
-    string2 :: Term -> (Text -> Text -> Text) -> I.Primop (N.Noted IO)
+    string2 :: Term v -> (Text -> Text -> Text) -> I.Primop (N.Noted IO) v
     string2 sym f = I.Primop 2 $ \xs -> case xs of
       [x,y] -> g <$> whnf x <*> whnf y
         where g (Term.Text' x) (Term.Text' y) = Term.lit (Term.Text (f x y))
@@ -207,23 +203,20 @@ makeNode store =
           builtins
     pure node
 
-opl :: Int -> Text -> Metadata k
-opl n s = Metadata Metadata.Term
-                   (Metadata.Names [Symbol.symbol s Symbol.InfixL n ])
-                   []
-                   Nothing
+opl :: Var v => Int -> Text -> Metadata v h
+opl prec s = Metadata Metadata.Term
+                      (Metadata.Names [Var.named s])
+                      Nothing
 
-prefix :: Text -> Metadata k
+prefix :: Var v => Text -> Metadata v h
 prefix s = prefixes [s]
 
-prefixes :: [Text] -> Metadata k
+prefixes :: Var v => [Text] -> Metadata v h
 prefixes s = Metadata Metadata.Term
-                    (Metadata.Names (map (\s -> Symbol.symbol s Symbol.Prefix 9) s))
-                    []
-                    Nothing
-
+                      (Metadata.Names (map Var.named s))
+                      Nothing
 main :: IO ()
 main = do
-  store <- Store.store "store"
+  store <- Store.store "store" :: IO (Store IO (Symbol.Symbol (Maybe ())))
   node <- makeNode store
   S.server 8080 node

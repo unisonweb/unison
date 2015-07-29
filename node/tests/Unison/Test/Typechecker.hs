@@ -8,6 +8,8 @@ import Unison.Term as E
 import Unison.Type as T
 import Unison.Typechecker as Typechecker
 import Unison.Reference as R
+import Unison.Symbol (Symbol)
+import Unison.Symbol.Extra ()
 import qualified Unison.Test.Term as Term
 
 import Test.Tasty
@@ -15,15 +17,19 @@ import Test.Tasty
 -- import Test.Tasty.QuickCheck as QC
 import Test.Tasty.HUnit
 
+type TTerm = Term.TTerm
+type TType = Type (Symbol (Maybe ()))
+type TEnv f = T.Env f (Symbol (Maybe ()))
+
 infixr 1 -->
-(-->) :: Type -> Type -> Type
+(-->) :: TType -> TType -> TType
 (-->) = T.arrow
 
-data StrongEq = StrongEq Type
+data StrongEq = StrongEq TType
 instance Eq StrongEq where StrongEq t1 == StrongEq t2 = Typechecker.equals t1 t2
 instance Show StrongEq where show (StrongEq t) = show t
 
-synthesizes :: Term -> Type -> Assertion
+synthesizes :: TTerm -> TType -> Assertion
 synthesizes e t =
   let
     handle r = case r of
@@ -31,23 +37,23 @@ synthesizes e t =
       Right _ -> pure ()
   in
     handle $ do
-      t2 <- (run (Typechecker.synthesize env e)) :: Either Note Type
+      t2 <- (run (Typechecker.synthesize env e)) :: Either Note TType
       _ <- Typechecker.subtype t2 t
       _ <- Typechecker.subtype t t2
       pure ()
 
-checks :: Term -> Type -> Assertion
+checks :: TTerm -> TType -> Assertion
 checks e t =
-  case (run (Typechecker.check env e t)) :: Either Note Type of
+  case (run (Typechecker.check env e t)) :: Either Note TType of
     Left err -> assertFailure ("checking failure: " ++ show err)
     Right t2 -> pure ()
 
-checkSubtype :: Type -> Type -> Assertion
+checkSubtype :: TType -> TType -> Assertion
 checkSubtype t1 t2 = case Typechecker.subtype t1 t2 of
   Left err -> assertFailure ("subtype failure:\n" ++ show err)
   Right t2 -> pure ()
 
-synthesizesAndChecks :: Term -> Type -> Assertion
+synthesizesAndChecks :: TTerm -> TType -> Assertion
 synthesizesAndChecks e t =
   synthesizes e t >> checks e t
 
@@ -91,7 +97,7 @@ tests = testGroup "Typechecker"
       (forall' ["a"] $ T.v' "a")
   ]
 
-env :: Applicative f => T.Env f
+env :: Applicative f => TEnv f
 env r =
   let
     view a = T.app (T.ref (R.Builtin "View")) a
