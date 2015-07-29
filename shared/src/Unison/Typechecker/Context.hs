@@ -21,6 +21,7 @@ import qualified Unison.Note as Note
 import qualified Data.Set as Set
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
+import qualified Unison.Var as Var
 
 -- uncomment for debugging
 -- import Debug.Trace
@@ -34,12 +35,12 @@ data Element v
   | Ann v (Type v)         -- `v` has type `a`, which may be quantified
   | Marker v deriving (Eq) -- used for scoping
 
-instance Show v => Show (Element v) where
-  show (Universal v) = show v
-  show (Existential v) = "'"++show v
-  show (Solved v t) = "'"++show v++" = "++show t
-  show (Ann v t) = show v++" : "++show t
-  show (Marker v) = "|"++show v++"|"
+instance Var v => Show (Element v) where
+  show (Universal v) = show (Var.shortName v)
+  show (Existential v) = "'"++show (Var.shortName v)
+  show (Solved v t) = "'"++show (Var.shortName v)++" = "++show t
+  show (Ann v t) = show (Var.shortName v)++" : "++show t
+  show (Marker v) = "|"++show (Var.shortName v)++"|"
 
 (===) :: Eq v => Element v -> Element v -> Bool
 Existential v === Existential v2 | v == v2 = True
@@ -70,9 +71,9 @@ data Info v =
 context0 :: Context v
 context0 = Context []
 
-instance Show v => Show (Context v) where
+instance Var v => Show (Context v) where
   show c@(Context es) =
-    "Γ " ++ show (Set.toList (usedVars c)) ++ "\n  "
+    "Γ " ++ show (map Var.shortName $ Set.toList (usedVars c)) ++ "\n  "
          ++ (intercalate "\n  " . map (show . fst)) (reverse es)
 
 -- ctxOK :: Context -> Context
@@ -88,7 +89,7 @@ info (Context ((_,i):_)) = i
 
 -- | Add an element onto the end of this `Context`. Takes `O(log N)` time,
 -- including updates to the accumulated `Info` value.
-extend :: (Show v, Var v) => Element v -> Context v -> Context v
+extend :: Var v => Element v -> Context v -> Context v
 extend e c@(Context ctx) = Context ((e,i'):ctx) where
   i' = addInfo e (info c)
   -- see figure 7
@@ -107,11 +108,11 @@ extend e c@(Context ctx) = Context ((e,i'):ctx) where
     Marker v -> Info es us (Set.insert v vs) (ok && Set.notMember v vs)
 
 -- | Build a context from a list of elements.
-context :: (Show v, Var v) => [Element v] -> Context v
+context :: Var v => [Element v] -> Context v
 context xs = foldl' (flip extend) context0 xs
 
 -- | `append c1 c2` adds the elements of `c2` onto the end of `c1`.
-append :: (Show v, Var v) => Context v -> Context v -> Context v
+append :: Var v => Context v -> Context v -> Context v
 append ctxL (Context es) =
   -- since `es` is a snoc list, we add it to `ctxL` in reverse order
   foldl' f ctxL (reverse es) where
@@ -133,18 +134,18 @@ fresh3 va vb vc ctx = case fresh2 va vb ctx of
 
 -- | Extend this `Context` with a single universally quantified variable,
 -- guaranteed to be fresh
-extendUniversal :: (Show v, Var v) => v -> Context v -> (v, Context v)
+extendUniversal :: Var v => v -> Context v -> (v, Context v)
 extendUniversal v ctx = case fresh v ctx of
   v -> (v, extend (Universal v) ctx)
 
 -- | Extend this `Context` with a marker variable, guaranteed to be fresh
-extendMarker :: (Show v, Var v) => v -> Context v -> (v, Context v)
+extendMarker :: Var v => v -> Context v -> (v, Context v)
 extendMarker v ctx = case fresh v ctx of
   v -> (v, ctx `append` context [Marker v, Existential v])
 
 -- | Delete from the end of this context up to and including
 -- the given `Element`. Returns `Left` if the element is not found.
-retract :: (Show v, Var v) => Element v -> Context v -> Either Note (Context v)
+retract :: Var v => Element v -> Context v -> Either Note (Context v)
 retract m (Context ctx) =
   let maybeTail [] = Left $ Note.note ("unable to retract: " ++ show m)
       maybeTail (_:t) = Right t
@@ -153,7 +154,7 @@ retract m (Context ctx) =
   in Context <$> maybeTail (dropWhile (\(e,_) -> e /= m) ctx)
 
 -- | Like `retract`, but returns the empty context if retracting would remove all elements.
-retract' :: (Show v, Var v) => Element v -> Context v -> Context v
+retract' :: Var v => Element v -> Context v -> Context v
 retract' e ctx = case retract e ctx of
   Left _ -> context []
   Right ctx -> ctx
@@ -172,7 +173,7 @@ unsolved (Context ctx) = [v | (Existential v,_) <- ctx]
 
 -- | Apply the context to the input type, then convert any unsolved existentials
 -- to universals.
-generalizeExistentials :: (Show v, Var v) => Context v -> Type v -> Type v
+generalizeExistentials :: Var v => Context v -> Type v -> Type v
 generalizeExistentials ctx t = foldr gen (apply ctx t) (unsolved ctx)
   where
     gen e t =
@@ -180,10 +181,10 @@ generalizeExistentials ctx t = foldr gen (apply ctx t) (unsolved ctx)
       then Type.forall e (ABT.replace (Type.universal e) (Type.matchExistential e) t)
       else t -- don't bother introducing a forall if type variable is unused
 
-replace :: (Show v, Var v) => Element v -> Context v -> Context v -> Context v
+replace :: Var v => Element v -> Context v -> Context v -> Context v
 replace e focus ctx = let (l,r) = breakAt e ctx in l `append` focus `append` r
 
-breakAt :: (Show v, Var v) => Element v -> Context v -> (Context v, Context v)
+breakAt :: Var v => Element v -> Context v -> (Context v, Context v)
 breakAt m (Context xs) =
   let (r, l) = break (\(e,_) -> e === m) xs
   -- l is a suffix of xs and is already a valid context;
@@ -191,7 +192,7 @@ breakAt m (Context xs) =
   in (Context (drop 1 l), context . map fst $ reverse r)
 
 -- | ordered Γ α β = True <=> Γ[α^][β^]
-ordered :: (Show v, Var v) => Context v -> v -> v -> Bool
+ordered :: Var v => Context v -> v -> v -> Bool
 ordered ctx v v2 = Set.member v (existentials (retract' (Existential v2) ctx))
 
 -- | Check that the context is well formed, see Figure 7 of paper
@@ -201,7 +202,7 @@ wellformed :: Context v -> Bool
 wellformed ctx = isWellformed (info ctx)
 
 -- | Check that the type is well formed wrt the given `Context`, see Figure 7 of paper
-wellformedType :: (Show v, Var v) => Context v -> Type v -> Bool
+wellformedType :: Var v => Context v -> Type v -> Bool
 wellformedType c t = wellformed c && case t of
   Type.Existential' v -> Set.member v (existentials c)
   Type.Universal' v -> Set.member v (universals c)
@@ -224,7 +225,7 @@ lookupType ctx v = lookup v (bindings ctx)
 -- | solve (ΓL,α^,ΓR) α τ = (ΓL,α = τ,ΓR)
 -- If the given existential variable exists in the context,
 -- we solve it to the given monotype, otherwise return `Nothing`
-solve :: (Show v, Var v) => Context v -> v -> Monotype v -> Maybe (Context v)
+solve :: Var v => Context v -> v -> Monotype v -> Maybe (Context v)
 solve ctx v t
   | wellformedType ctxL (Type.getPolytype t) = Just ctx'
   | otherwise                                = Nothing
@@ -232,7 +233,7 @@ solve ctx v t
         ctx' = ctxL `append` context [Solved v t] `append` ctxR
 
 -- | Replace any existentials with their solution in the context
-apply :: (Ord v, Show v) => Context v -> Type v -> Type v
+apply :: Var v => Context v -> Type v -> Type v
 apply ctx t = case t of
   Type.Universal' _ -> t
   Type.Lit' _ -> t
@@ -248,7 +249,7 @@ apply ctx t = case t of
 -- | `subtype ctx t1 t2` returns successfully if `t1` is a subtype of `t2`.
 -- This may have the effect of altering the context.
 -- see Figure 9
-subtype :: (Show v, Var v) => Context v -> Type v -> Type v -> Either Note (Context v)
+subtype :: Var v => Context v -> Type v -> Type v -> Either Note (Context v)
 subtype ctx tx ty = Note.scope (show tx++" <: "++show ty) (go tx ty) where -- Rules from figure 9
   go (Type.Lit' l) (Type.Lit' l2) | l == l2 = pure ctx -- `Unit`
   go t1@(Type.Universal' v1) t2@(Type.Universal' v2) -- `Var`
@@ -283,7 +284,7 @@ subtype ctx tx ty = Note.scope (show tx++" <: "++show ty) (go tx ty) where -- Ru
 -- | Instantiate the given existential such that it is
 -- a subtype of the given type, updating the context
 -- in the process.
-instantiateL :: (Var v, Show v) => Context v -> v -> Type v -> Either Note (Context v)
+instantiateL :: Var v => Context v -> v -> Type v -> Either Note (Context v)
 instantiateL ctx v t = case Type.monotype t >>= solve ctx v of
   Just ctx' -> pure ctx' -- InstLSolve
   Nothing -> case t of
@@ -316,7 +317,7 @@ instantiateL ctx v t = case Type.monotype t >>= solve ctx v of
 -- | Instantiate the given existential such that it is
 -- a supertype of the given type, updating the context
 -- in the process.
-instantiateR :: (Show v, Var v) => Context v -> Type v -> v -> Either Note (Context v)
+instantiateR :: Var v => Context v -> Type v -> v -> Either Note (Context v)
 instantiateR ctx t v = case Type.monotype t >>= solve ctx v of
   Just ctx' -> pure ctx' -- InstRSolve
   Nothing -> case t of
@@ -351,7 +352,7 @@ instantiateR ctx t v = case Type.monotype t >>= solve ctx v of
 
 -- | Check that under the given context, `e` has type `t`,
 -- updating the context in the process.
-check :: (Show v, Var v) => Context v -> Term v -> Type v -> Either Note (Context v)
+check :: Var v => Context v -> Term v -> Type v -> Either Note (Context v)
 check ctx e t | wellformedType ctx t = Note.scope ("check: " ++ show e ++ ":   " ++ show t) $ go e t where
   go (Term.Lit' l) _ = subtype ctx (synthLit l) t -- 1I
   go _ (Type.Forall' x body) = -- ForallI
@@ -397,7 +398,7 @@ synthLit lit = Type.lit $ case lit of
 -- their type. Also returns the freshened version of `body` and a marker
 -- which should be used to retract the context after checking/synthesis
 -- of `body` is complete. See usage in `synthesize` and `check` for `LetRec'` case.
-annotateLetRecBindings :: (Show v, Var v) => Context v -> [(v, Term v)] -> Term v -> Either Note (Element v, Term v, Context v)
+annotateLetRecBindings :: Var v => Context v -> [(v, Term v)] -> Term v -> Either Note (Element v, Term v, Context v)
 annotateLetRecBindings ctx bindings body = do
   -- freshen all the term variables `v1, v2 ...` used by each binding `b1, b2 ..`
   let vs = ABT.freshes' (usedVars ctx) (map fst bindings)
@@ -426,7 +427,7 @@ annotateLetRecBindings ctx bindings body = do
   pure $ (marker, body, ctx1 `append` context (marker : annotations))
 
 -- | Synthesize the type of the given term, updating the context in the process.
-synthesize :: (Show v, Var v) => Context v -> Term v -> Either Note (Type v, Context v)
+synthesize :: Var v => Context v -> Term v -> Either Note (Type v, Context v)
 synthesize ctx e = Note.scope ("synth: " ++ show e) $ go e where
   go (Term.Var' v) = case lookupType ctx v of -- Var
     Nothing -> Left $ Note.note "type not in scope"
@@ -481,7 +482,7 @@ synthesize ctx e = Note.scope ("synth: " ++ show e) $ go e where
 -- | Synthesize the type of the given term, `arg` given that a function of
 -- the given type `ft` is being applied to `arg`. Update the context in
 -- the process.
-synthesizeApp :: (Var v, Show v) => Context v -> Type v -> Term v -> Either Note (Type v, Context v)
+synthesizeApp :: Var v => Context v -> Type v -> Term v -> Either Note (Type v, Context v)
 synthesizeApp ctx ft arg = go ft where
   go (Type.Forall' x body) = let x' = fresh x ctx -- Forall1App
     in synthesizeApp (ctx `append` context [Existential x'])
@@ -506,7 +507,7 @@ annotateRefs synth term = ABT.visit f term where
   f (Term.Ref' h) = Just (Term.ann (Term.ref h) <$> synth h)
   f _ = Nothing
 
-synthesizeClosed :: (Applicative f, Show v, Var v) => Type.Env f v -> Term v -> Noted f (Type v)
+synthesizeClosed :: (Applicative f, Var v) => Type.Env f v -> Term v -> Noted f (Type v)
 synthesizeClosed synthRef term = Noted $ synth <$> Note.unnote (annotateRefs synthRef term)
   where
     synth (Left e) = Left e

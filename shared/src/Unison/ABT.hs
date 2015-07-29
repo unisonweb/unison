@@ -298,10 +298,10 @@ instance (Foldable f, J.FromJSON1 f, FromJSON v, Ord v, FromJSON a) => FromJSON 
         _                -> fail ("unknown tag: " ++ Text.unpack t)
     }) j
 
-instance (Show1 f, Show v) => Show (Term f v a) where
+instance (Show1 f, Var v) => Show (Term f v a) where
   -- annotations not shown
   showsPrec p (Term _ _ out) = case out of
-    Var v -> showsPrec 0 v
+    Var v -> showsPrec 0 (Var.shortName v)
     Cycle body -> showsPrec p body
-    Abs v body -> showParen True $ showsPrec 0 v . showString ". " . showsPrec p body
+    Abs v body -> showParen True $ showsPrec 0 (Var.shortName v) . showString ". " . showsPrec p body
     Tm f -> showsPrec1 p f

@@ -267,7 +267,7 @@ betaReduce e = e
 deriveJSON defaultOptions ''Literal
 
 instance Var v => Eq1 (F v) where (==#) = (==)
-instance Show v => Show1 (F v) where showsPrec1 = showsPrec
+instance Var v => Show1 (F v) where showsPrec1 = showsPrec
 
 deriveToJSON defaultOptions ''F
 instance (Ord v, FromJSON v, FromJSON r) => FromJSON (F v r) where
@@ -283,7 +283,7 @@ instance Show Literal where
   show (Number n) = show n
   show (Distance d) = show d
 
-instance (Show v, Show a) => Show (F v a) where
+instance (Var v, Show a) => Show (F v a) where
   showsPrec p fa = go p fa where
     go _ (Lit l) = showsPrec 0 l
     go p (Ann t k) = showParen (p > 1) $ showsPrec 0 t <> s":" <> showsPrec 0 k

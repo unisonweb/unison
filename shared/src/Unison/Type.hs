@@ -67,7 +67,7 @@ freeVars = ABT.freeVars
 
 data Monotype v = Monotype { getPolytype :: Type v } deriving (Eq)
 
-instance Show v => Show (Monotype v) where
+instance Var v => Show (Monotype v) where
   show = show . getPolytype
 
 -- Smart constructor which checks if a `Type` has no `Forall` quantifiers.
