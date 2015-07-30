@@ -28,3 +28,8 @@ instance Eq a => Path [a] where
   extend = (++)
   factor p1 p2 = (take shared p1, (drop shared p1, drop shared p2))
     where shared = length (zipWith (==) p1 p2)
+
+instance Path () where
+  root = ()
+  extend _ _ = ()
+  factor u _ = (u,(u,u))

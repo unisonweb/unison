@@ -179,7 +179,7 @@ nest :: Path p => e -> Doc e p -> Doc e p
 nest e (p :< d) = p :< Nest e (Path.root :< d)
 
 -- | Specify that layout may insert a line break at this point in the document.
--- If a line break is not inserts, the given `e` is inserted instead.
+-- If a line break is not inserted, the given `e` is inserted instead.
 breakable :: Path p => e -> Doc e p
 breakable e = breakable' Path.root e
 
@@ -270,6 +270,9 @@ formatString availableWidth d = renderString (layout length availableWidth d)
 docs :: Path p => [Doc e p] -> Doc e p
 docs [] = empty
 docs ds = foldr1 append ds
+
+embeds :: Path p => [e] -> Doc e p
+embeds = docs . map embed
 
 delimit :: Path p => Doc e p -> [Doc e p] -> Doc e p
 delimit d = docs . intersperse d

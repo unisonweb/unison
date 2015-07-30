@@ -5,6 +5,8 @@ module Unison.Symbol where
 import Data.Aeson.TH
 import Data.Text (Text)
 import Unison.Var (Var(..))
+import Unison.View (View)
+import qualified Unison.View as View
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 
@@ -18,9 +20,10 @@ freshId (Symbol id _ _) = id
 annotation :: Symbol a -> a
 annotation (Symbol _ _ a) = a
 
-instance Var (Symbol (Maybe a)) where
+instance View op => Var (Symbol op) where
   name (Symbol _ n _) = n
-  named n = Symbol 0 n Nothing
+  named n = Symbol 0 n View.prefix
+  clear (Symbol id n _) = Symbol id n View.prefix
   qualifiedName s = name s `Text.append` (Text.pack (show (freshId s)))
   freshIn vs s | Set.null vs = s -- already fresh!
   freshIn vs s | Set.notMember s vs = s -- already fresh!
@@ -36,7 +39,7 @@ instance Eq (Symbol a) where
 instance Ord (Symbol a) where
   Symbol id1 name1 _ `compare` Symbol id2 name2 _ = (id1,name1) `compare` (id2,name2)
 
-instance Show (Symbol (Maybe a)) where
+instance View op => Show (Symbol op) where
   show s | freshId s == 0 = Text.unpack (name s)
   show s = Text.unpack (name s) ++ show (freshId s)
 
