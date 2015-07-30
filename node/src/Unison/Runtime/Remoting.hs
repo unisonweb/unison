@@ -31,7 +31,7 @@ unisonPort = 8097
 
 type Host = String
 
-data Reply = Reply Channel | DontReply deriving (Generic, Show)
+data Reply = Reply Port Channel | DontReply deriving (Generic, Show)
 instance Serial Reply
 
 data Packet t =
@@ -46,9 +46,10 @@ class Evaluate t env | env -> t where
 
 serve :: (Show t, Serial t, Evaluate t env)
       => env
+      -> Port
       -> IO ()
-serve env =
-  TCP.serve (TCP.Host "127.0.0.1") (show unisonPort) go
+serve env port =
+  TCP.serve (TCP.Host "127.0.0.1") (show port) go
   where
   go (clientSocket, remoteAddr) = do
     let remoteHost = SockAddr.showSockAddr remoteAddr
@@ -89,11 +90,11 @@ type Waiting t = CMap Channel (Either Err t)
 
 act :: (Show t, Serial t, Evaluate t env) => Host -> env -> Packet t -> IO ()
 act _ env (Evaluate DontReply t) = evaluate env t >> return ()
-act remoteHost env (Evaluate (Reply chan) t) = do
+act remoteHost env (Evaluate (Reply port chan) t) = do
   e <- evaluate env t
   -- serialize and send back
   let bytes = Put.runPutS (putPacket (Result chan e))
-  client remoteHost unisonPort $ Streams.write (Just bytes)
+  client remoteHost port $ Streams.write (Just bytes)
 act remoteHost _ (Result chan e) = do
   putStrLn $ "from: " ++ show remoteHost
   putStrLn $ "on channel: " ++ show chan
@@ -115,15 +116,17 @@ instance Serial Prog
 instance Evaluate Prog DummyEnv where
   evaluate _ (Prog s) = return . return . Prog $ [join s]
 
-sendPacket :: Serial t => Host -> Packet t -> IO ()
-sendPacket remoteHost p =
-  client remoteHost unisonPort $
+sendPacket :: Serial t => Host -> Port -> Packet t -> IO ()
+sendPacket remoteHost port p =
+  client remoteHost port $
   Streams.write (Just . ByteString.drop 4 $ Put.runPutS (putPacket p))
 
 main :: IO ()
-main = serve DummyEnv
+main = do
+ port <- read <$> getLine
+ serve DummyEnv port
 
-sendTestStrings :: Channel -> Host -> [String] -> IO ()
-sendTestStrings replyChannel remoteHost strings =
-  sendPacket remoteHost (Evaluate (Reply replyChannel) strings)
+sendTestStrings :: Port -> Channel -> Host -> Port -> [String] -> IO ()
+sendTestStrings myPort replyChannel remoteHost remotePort strings =
+  sendPacket remoteHost remotePort (Evaluate (Reply myPort replyChannel) strings)
 
