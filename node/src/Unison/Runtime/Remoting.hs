@@ -1,12 +1,18 @@
  {-# LANGUAGE DeriveGeneric #-}
  {-# LANGUAGE OverloadedStrings #-}
  {-# LANGUAGE FunctionalDependencies #-}
+ {-# LANGUAGE ScopedTypeVariables #-}
 
 module Unison.Runtime.Remoting where
 
 import Control.Monad
+import Debug.Trace
+import Data.Int (Int32, Int64)
 import Data.ByteString (ByteString)
-import Data.Bytes.Get (runGetS)
+import Data.Serialize.Get (Get)
+import Data.Word (Word64)
+import qualified Data.ByteString as BS
+import Data.Bytes.Get (MonadGet)
 import Data.Bytes.Serial (Serial)
 import GHC.Generics
 import System.IO.Streams (InputStream, OutputStream)
@@ -14,6 +20,7 @@ import System.IO.Streams.ByteString (readExactly)
 import qualified Control.Concurrent as Concurrent
 import qualified Control.Concurrent.Map as CMap
 import qualified Data.ByteString as ByteString
+import qualified Data.Bytes.Get as Get
 import qualified Data.Bytes.Put as Put
 import qualified Data.Bytes.Serial as Serial
 import qualified Network.SockAddr as SockAddr -- wtf is with this name?
@@ -61,19 +68,29 @@ serve env port =
 --  * Number of bytes of the packet (32 bit int)
 --  * a `Packet`, serialized via `Serial`
 
-putPacket :: (Put.MonadPut m, Serial t) => Packet t -> m ()
-putPacket p = Put.putByteString $ Put.runPutS (Serial.serialize p)
+traceBS :: String -> ByteString -> ByteString
+traceBS msg b | traceShow (BS.length b) False = undefined
+traceBS msg b = b
+
+putPacket :: forall m t. (Put.MonadPut m, Serial t) => Packet t -> m ()
+putPacket p =
+  Serial.serialize size *> Put.putByteString bs
+  where bs = Put.runPutS (Serial.serialize p)
+        size = fromIntegral (BS.length bs) :: Int32
 
 -- reads an int first that says how long the payload is.
 -- then reads the payload and deserializes it
 deserializeLengthEncoded :: Serial a => String -> InputStream ByteString -> IO a
-deserializeLengthEncoded msg i = deserialize' i 4 >>= deserialize' i where
-  deserialize' :: Serial a => InputStream ByteString -> Int -> IO a
-  deserialize' i n = readExactly n i >>= tryDeserialize msg
+deserializeLengthEncoded msg i = do
+  sizeBytes <- readExactly 4 i
+  sizeInt32 <- tryDeserialize "Int32" (Serial.deserialize :: Get Int32) sizeBytes
+  readExactly (fromIntegral sizeInt32) i >>= tryDeserialize msg Serial.deserialize
 
-tryDeserialize :: Serial a => String -> ByteString -> IO a
-tryDeserialize msg bytes =
-  case runGetS Serial.deserialize bytes of
+-- todo: write a proper version of readExactly that takes an `Word64` or an `Integral`
+
+tryDeserialize :: String -> Get a -> ByteString -> IO a
+tryDeserialize msg get bytes =
+  case Get.runGetS get bytes of
     Left err  -> fail $ "expected " ++ msg ++ ", got " ++ err
     Right a -> pure a
 
@@ -102,7 +119,7 @@ act remoteHost _ (Result chan e) = do
   -- todo, the real thing
 
 -- TCP client, just given an OutputStream
-client :: Host -> Int -> (OutputStream ByteString -> IO ()) -> IO ()
+client :: Host -> Port -> (OutputStream ByteString -> IO ()) -> IO ()
 client host port send =
   TCP.connect host (show port) go where
   go (socket, _) = do
@@ -119,12 +136,14 @@ instance Evaluate Prog DummyEnv where
 sendPacket :: Serial t => Host -> Port -> Packet t -> IO ()
 sendPacket remoteHost port p =
   client remoteHost port $
-  Streams.write (Just . ByteString.drop 4 $ Put.runPutS (putPacket p))
+  Streams.write (Just $ Put.runPutS (putPacket p))
 
 main :: IO ()
 main = do
+ putStr "Enter port number: "
  port <- read <$> getLine
  serve DummyEnv port
+ putStrLn $ "server running on port: " ++ show port
 
 sendTestStrings :: Port -> Channel -> Host -> Port -> [String] -> IO ()
 sendTestStrings myPort replyChannel remoteHost remotePort strings =
