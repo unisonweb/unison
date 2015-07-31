@@ -12,7 +12,7 @@
 
 module Unison.Doc where
 
-import Control.Comonad.Cofree (Cofree(..)) -- (:<)
+import Control.Comonad.Cofree (Cofree(..), unwrap) -- (:<)
 import Control.Comonad (extract)
 import Control.Monad.State.Strict
 import Data.Functor
@@ -135,6 +135,19 @@ preferredWidth width (p :< d) = case d of
 -- | The root path of this document
 root :: Cofree f p -> p
 root (p :< _) = p
+
+-- | The embedded elements of this document
+elements :: Doc e p -> [e]
+elements d = go (unwrap d) [] where
+  one a = (a:)
+  many xs tl = foldr (:) tl xs
+  go (Append d1 d2) = go (unwrap d1) . go (unwrap d2)
+  go (Group d) = go (unwrap d)
+  go (Nest e d) = one e . go (unwrap d)
+  go (Breakable e) = one e
+  go (Embed e) = one e
+  go (Pad (Padded t b l r inner)) = many [t, b, l, r] . go (unwrap inner)
+  go _ = id
 
 -- | The empty document
 empty :: Path p => Doc e p

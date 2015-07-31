@@ -31,18 +31,22 @@ path :: Segment -> [Var]
 path (Slot v _) = [v]
 path _ = []
 
-text :: Text -> Segment
-text = Text
+text :: Text -> Doc Segment [Var]
+text t = D.embed (Text t)
 
-arg0, arg1, arg2, arg3, arg4 :: Precedence -> Segment
-arg0 p = Slot (Arg 0) p
-arg1 p = Slot (Arg 1) p
-arg2 p = Slot (Arg 2) p
-arg3 p = Slot (Arg 3) p
-arg4 p = Slot (Arg 4) p
+toDoc :: Segment -> Doc Segment [Var]
+toDoc t@(Text _) = D.embed t
+toDoc s@(Slot var _) = D.embed' [var] s
 
-name :: Segment
-name = Slot (Arg 0) high
+arg0, arg1, arg2, arg3, arg4 :: Precedence -> Doc Segment [Var]
+arg0 p = toDoc $ Slot (Arg 0) p
+arg1 p = toDoc $ Slot (Arg 1) p
+arg2 p = toDoc $ Slot (Arg 2) p
+arg3 p = toDoc $ Slot (Arg 3) p
+arg4 p = toDoc $ Slot (Arg 4) p
+
+name :: Doc Segment [Var]
+name = toDoc $ Slot (Arg 0) high
 
 -- | The associativity of a binary operator, which controls how / whether
 -- parentheses or other indicators of grouping are displayed in chains
@@ -92,15 +96,14 @@ class View op where
   -- | The precedence of the operator
   precedence :: op -> Precedence
 
--- if_then_else_ == Mixfix [Just "if", Nothing, Just "then", Nothing,
-data Mixfix = Mixfix [Maybe Text]
-
 data Rich =
   Rich
-    !Int
     (Doc Segment [Var])
     (Doc (Maybe Text) ())
     Precedence
+
+mixfix :: Precedence -> [Doc Segment [Var]] -> Rich
+mixfix prec segs = Rich (D.docs segs) unwrapped prec
 
 unwrapped :: Doc (Maybe Text) ()
 unwrapped = D.group (D.embed Nothing)
@@ -109,22 +112,21 @@ parens :: Doc (Maybe Text) ()
 parens = D.docs [D.embed (Just "("), D.embed Nothing, D.embed (Just ")")]
 
 instance View Rich where
-  arity (Rich n _ _ _) = n
-  precedence (Rich _ _ _ p) = p
-  wrapping (Rich _ _ w _) = w
-  layout (Rich _ l _ _) = l
+  arity (Rich l _ _) = maximum $ 0 : [ i | Slot (Arg i) _ <- D.elements l ]
+  precedence (Rich _ _ p) = p
+  wrapping (Rich _ w _) = w
+  layout (Rich l _ _) = l
   prefix =
-    Rich 0 (D.embed' (path name) name) unwrapped high
+    Rich name unwrapped high
   postfix1 prec =
-    Rich 1 (D.embeds [arg1 prec, " ", name]) unwrapped prec
+    Rich (D.docs [arg1 prec, text " ", name]) unwrapped prec
   binary assoc prec =
-    Rich 2 layout unwrapped prec
+    Rich layout unwrapped prec
     where
     deltaL p | assoc == AssociateL || assoc == Associative = p
     deltaL p = increase p
     deltaR p | assoc == AssociateR || assoc == Associative = p
     deltaR p = increase p
     layout = D.docs
-      [ D.embed (arg1 $ deltaL prec), D.breakable " "
-      , D.embeds [name, " ", arg2 $ deltaR prec] ]
-
+      [ arg1 $ deltaL prec, D.breakable " ", name, text " "
+      , arg2 $ deltaR prec ]
