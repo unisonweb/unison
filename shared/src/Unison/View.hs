@@ -8,7 +8,6 @@ import Unison.Doc (Doc)
 import qualified Data.Text as Text
 import qualified Unison.Doc as D
 
-newtype Arity = Arity Int
 newtype Precedence = Precedence Int deriving (Eq,Ord)
 
 high :: Precedence
@@ -90,17 +89,15 @@ class View op where
   -- gets displayed as `prefix`.
   layout :: op -> Doc Segment [Var]
 
-  -- | The embedded `Nothing` is where the layout should be placed.
-  wrapping :: op -> Doc (Maybe Text) ()
-
   -- | The precedence of the operator
   precedence :: op -> Precedence
 
-data Rich =
-  Rich
+data Rich
+  = Rich
     (Doc Segment [Var])
     (Doc (Maybe Text) ())
     Precedence
+  | Terminator (Doc Text ())
 
 mixfix :: Precedence -> [Doc Segment [Var]] -> Rich
 mixfix prec segs = Rich (D.docs segs) unwrapped prec
@@ -113,9 +110,11 @@ parens = D.docs [D.embed (Just "("), D.embed Nothing, D.embed (Just ")")]
 
 instance View Rich where
   arity (Rich l _ _) = maximum $ 0 : [ i | Slot (Arg i) _ <- D.elements l ]
+  arity (Terminator _) = 0
   precedence (Rich _ _ p) = p
-  wrapping (Rich _ w _) = w
+  precedence (Terminator _) = high
   layout (Rich l _ _) = l
+  layout (Terminator l) = D.emap Text (fmap (const []) l)
   prefix =
     Rich name unwrapped high
   postfix1 prec =
@@ -128,5 +127,5 @@ instance View Rich where
     deltaR p | assoc == AssociateR || assoc == Associative = p
     deltaR p = increase p
     layout = D.docs
-      [ arg1 $ deltaL prec, D.breakable " ", name, text " "
-      , arg2 $ deltaR prec ]
+      [ arg1 (deltaL prec), D.breakable " ", name, text " "
+      , arg2 (deltaR prec) ]

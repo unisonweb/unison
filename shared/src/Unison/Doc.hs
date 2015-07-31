@@ -149,6 +149,18 @@ elements d = go (unwrap d) [] where
   go (Pad (Padded t b l r inner)) = many [t, b, l, r] . go (unwrap inner)
   go _ = id
 
+-- | Map over all `e` elements in this `Doc e p`.
+emap :: (e -> e2) -> Doc e p -> Doc e2 p
+emap f (p :< d) = p :< case d of
+  Append d1 d2 -> Append (emap f d1) (emap f d2)
+  Group d -> Group (emap f d)
+  Nest e d -> Nest (f e) (emap f d)
+  Breakable e -> Breakable (f e)
+  Embed e -> Embed (f e)
+  Pad (Padded t b l r inner) -> Pad (Padded (f t) (f b) (f l) (f r) (emap f inner))
+  Linebreak -> Linebreak
+  Empty -> Empty
+
 -- | The empty document
 empty :: Path p => Doc e p
 empty = Path.root :< Empty
