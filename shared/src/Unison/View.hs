@@ -108,6 +108,14 @@ unwrapped = D.group (D.embed Nothing)
 parens :: Doc (Maybe Text) ()
 parens = D.docs [D.embed (Just "("), D.embed Nothing, D.embed (Just ")")]
 
+instance View () where
+  arity _ = 0
+  precedence _ = high
+  layout _ = name
+  prefix = ()
+  postfix1 _ = ()
+  binary _ _ = ()
+
 instance View Rich where
   arity (Rich l _ _) = maximum $ 0 : [ i | Slot (Arg i) _ <- D.elements l ]
   arity (Terminator _) = 0
