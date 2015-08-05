@@ -12,19 +12,25 @@ module Unison.Type where
 
 import Data.Aeson (ToJSON(..), FromJSON(..))
 import Data.Aeson.TH
+import Data.Maybe (fromMaybe)
 import Data.Set (Set)
 import Data.Text (Text)
 import GHC.Generics
 import Prelude.Extras (Eq1(..),Show1(..))
+import Unison.Doc (Doc)
 import Unison.Note (Noted)
 import Unison.Reference (Reference)
+import Unison.Symbol (Symbol(..))
 import Unison.Var (Var)
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.Doc as D
 import qualified Unison.JSON as J
 import qualified Unison.Kind as K
+import qualified Unison.Symbol as Symbol
 import qualified Unison.Var as Var
+import qualified Unison.View as View
 
 -- | Type literals
 data Literal
@@ -87,6 +93,7 @@ pattern Apps' f args <- (unApps -> Just (f, args))
 pattern AppsP' f args <- (unApps' -> Just (f, args))
 pattern Constrain' t u <- ABT.Tm' (Constrain t u)
 pattern Forall' v body <- ABT.Tm' (Forall (ABT.Abs' v body))
+pattern ForallsP' vs body <- (unForalls' -> Just (vs, body))
 pattern Existential' v <- ABT.Tm' (Existential (ABT.Var' v))
 pattern Universal' v <- ABT.Tm' (Universal (ABT.Var' v))
 
@@ -100,6 +107,12 @@ unArrows t =
 unArrows' :: Type v -> Maybe [(Type v,Path)]
 unArrows' t = addPaths <$> unArrows t
   where addPaths ts = ts `zip` arrowPaths (length ts)
+
+unForalls' :: Type v -> Maybe ([(v, Path)], (Type v, Path))
+unForalls' (Forall' v body) = case unForalls' body of
+  Nothing -> Just ([(v, [])], (body, [Body])) -- todo, need a path for forall vars
+  Just (vs, (body,bodyp)) -> Just ((v, []) : vs, (body, Body:bodyp))
+unForalls' _ = Nothing
 
 unApps :: Type v -> Maybe (Type v, [Type v])
 unApps t = case go t [] of [] -> Nothing; f:args -> Just (f,args)
@@ -181,40 +194,57 @@ data PathElement
 
 type Path = [PathElement]
 
-layout :: (Var v, ToJSON v) => (Reference -> v) -> Type v -> D.Doc Text Path
-layout ref t = go (0 :: Int) t
+type ViewableType = Type (Symbol View.Rich)
+
+view :: (Reference -> Symbol View.Rich) -> ViewableType -> Doc Text Path
+view ref t = go no View.low t
   where
+  no = const False
   (<>) = D.append
-  lit l = case l of
-    Number -> "Number"
-    Text -> "Text"
-    Vector -> "Vector"
-    Distance -> "Distance"
-    Ref r -> Var.name (ref r) -- no infix type operators at the moment
   paren b d =
     let r = D.root d
     in if b then D.embed' r "(" <> d <> D.embed' r ")" else d
   arr = D.breakable " " <> D.embed "→ "
   sp = D.breakable " "
   sym v = D.embed (Var.name v)
-  go p t = case t of
-    Lit' l -> D.embed (lit l)
+  op :: ViewableType -> Symbol View.Rich
+  op t = case t of
+    Lit' (Ref r) -> ref r
+    Lit' l -> Symbol.annotate View.prefix . Symbol.prefix . Text.pack . show $ l
+    Universal' v -> v
+    Existential' v -> v
+    _ -> Symbol.annotate View.prefix (Symbol.prefix "")
+  go :: (ViewableType -> Bool) -> View.Precedence -> ViewableType -> Doc Text Path
+  go inChain p t = case t of
     ArrowsP' spine ->
-      paren (p > 0) . D.group . D.delimit arr $ [ D.sub' p (go 1 s) | (s,p) <- spine ]
+      paren (p > View.low) . D.group . D.delimit arr $
+        [ D.sub' p (go no (View.increase View.low) s) | (s,p) <- spine ]
     AppsP' (fn,fnP) args ->
-      paren (p > 9) . D.group . D.docs $
-        [ D.sub' fnP (go 9 fn)
-        , D.breakable " "
-        , D.nest "  " . D.group . D.delimit sp $ [ D.sub' p (go 10 s) | (s,p) <- args ] ]
-    Constrain' t _ -> go p t
+      let
+        Symbol _ name view = op fn
+        (taken, remaining) = splitAt (View.arity view) args
+        fmt (child,path) = (\p -> D.sub' path (go (fn ==) p child), path)
+        applied = fromMaybe unsaturated (View.instantiate view fnP name (map fmt taken))
+        unsaturated = D.sub' fnP $ go no View.high fn
+      in
+        (if inChain fn then id else D.group) $ case remaining of
+          [] -> applied
+          args -> paren (p > View.high) . D.group . D.docs $
+            [ applied, sp
+            , D.nest "  " . D.group . D.delimit sp $
+              [ D.sub' p (go no (View.increase View.high) s) | (s,p) <- args ] ]
+    ForallsP' vs (body,bodyp) ->
+      if p == View.low then D.sub' bodyp (go no p body)
+      else paren True . D.group $
+           D.embed "∀ " <>
+           D.delimit (D.embed " ") (map (sym . fst) vs) <>
+           D.docs [D.embed ".", sp, D.nest "  " $ D.sub' bodyp (go no View.low body)]
+    Constrain' t _ -> go inChain p t
+    Ann' t _ -> go inChain p t -- ignoring kind annotations for now
     Universal' v -> sym v
     Existential' v -> D.embed ("'" `mappend` Var.name v)
-    Ann' t _ -> go p t -- ignoring kind annotations for now
-    Forall' v body -> case p of
-      0 -> D.sub Body (go p body)
-      _ -> paren True . D.group . D.docs $
-             [D.embed "∀ ", sym v, D.embed ".", sp, D.nest "  " $ D.sub Body (go 0 body)]
-    _ -> error $ "layout match failure on: " ++ show (toJSON t)
+    Lit' _ -> D.embed (Var.name $ op t)
+    _ -> error $ "layout match failure"
 
 instance J.ToJSON1 F where
   toJSON1 f = toJSON f

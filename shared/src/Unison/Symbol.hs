@@ -20,6 +20,9 @@ freshId (Symbol id _ _) = id
 annotation :: Symbol a -> a
 annotation (Symbol _ _ a) = a
 
+annotate :: a -> Symbol b -> Symbol a
+annotate a (Symbol id name _) = Symbol id name a
+
 instance View op => Var (Symbol op) where
   name (Symbol _ n _) = n
   named n = Symbol 0 n View.prefix

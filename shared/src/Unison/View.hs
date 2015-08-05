@@ -5,10 +5,15 @@ module Unison.View where
 import Data.String (IsString(..))
 import Data.Text (Text)
 import Unison.Doc (Doc)
+import Unison.Path (Path)
 import qualified Data.Text as Text
 import qualified Unison.Doc as D
+import qualified Unison.Path as Path
 
 newtype Precedence = Precedence Int deriving (Eq,Ord)
+
+low :: Precedence
+low = Precedence 0
 
 high :: Precedence
 high = Precedence 10
@@ -26,25 +31,25 @@ data Segment = Slot Var Precedence | Text Text
 instance IsString Segment where
   fromString s = Text (Text.pack s)
 
-path :: Segment -> [Var]
-path (Slot v _) = [v]
-path _ = []
+path :: Segment -> Maybe Var
+path (Slot v _) = Just v
+path _ = Nothing
 
-text :: Text -> Doc Segment [Var]
+text :: Text -> Doc Segment (Maybe Var)
 text t = D.embed (Text t)
 
-toDoc :: Segment -> Doc Segment [Var]
+toDoc :: Segment -> Doc Segment (Maybe Var)
 toDoc t@(Text _) = D.embed t
-toDoc s@(Slot var _) = D.embed' [var] s
+toDoc s@(Slot var _) = D.embed' (Just var) s
 
-arg0, arg1, arg2, arg3, arg4 :: Precedence -> Doc Segment [Var]
+arg0, arg1, arg2, arg3, arg4 :: Precedence -> Doc Segment (Maybe Var)
 arg0 p = toDoc $ Slot (Arg 0) p
 arg1 p = toDoc $ Slot (Arg 1) p
 arg2 p = toDoc $ Slot (Arg 2) p
 arg3 p = toDoc $ Slot (Arg 3) p
 arg4 p = toDoc $ Slot (Arg 4) p
 
-name :: Doc Segment [Var]
+name :: Doc Segment (Maybe Var)
 name = toDoc $ Slot (Arg 0) high
 
 -- | The associativity of a binary operator, which controls how / whether
@@ -67,8 +72,6 @@ name = toDoc $ Slot (Arg 0) high
 data Associativity = AssociateL | AssociateR | Associative | None deriving (Eq,Ord)
 
 class View op where
-  -- todo, might want to generalize to stuff other than Text
-
   -- | A prefix operator, of arity 0. This is the only arity 0 operator.
   prefix :: op
 
@@ -87,26 +90,15 @@ class View op where
   -- the operator's name, and any arguments captured by its arity.
   -- An unsaturated operator (applied to fewer than `arity` arguments)
   -- gets displayed as `prefix`.
-  layout :: op -> Doc Segment [Var]
+  layout :: op -> Doc Segment (Maybe Var)
 
   -- | The precedence of the operator
   precedence :: op -> Precedence
 
-data Rich
-  = Rich
-    (Doc Segment [Var])
-    (Doc (Maybe Text) ())
-    Precedence
-  | Terminator (Doc Text ())
+data Rich = Rich (Doc Segment (Maybe Var)) Precedence
 
-mixfix :: Precedence -> [Doc Segment [Var]] -> Rich
-mixfix prec segs = Rich (D.docs segs) unwrapped prec
-
-unwrapped :: Doc (Maybe Text) ()
-unwrapped = D.group (D.embed Nothing)
-
-parens :: Doc (Maybe Text) ()
-parens = D.docs [D.embed (Just "("), D.embed Nothing, D.embed (Just ")")]
+mixfix :: Precedence -> [Doc Segment (Maybe Var)] -> Rich
+mixfix prec segs = Rich (D.docs segs) prec
 
 instance View () where
   arity _ = 0
@@ -117,18 +109,13 @@ instance View () where
   binary _ _ = ()
 
 instance View Rich where
-  arity (Rich l _ _) = maximum $ 0 : [ i | Slot (Arg i) _ <- D.elements l ]
-  arity (Terminator _) = 0
-  precedence (Rich _ _ p) = p
-  precedence (Terminator _) = high
-  layout (Rich l _ _) = l
-  layout (Terminator l) = D.emap Text (fmap (const []) l)
-  prefix =
-    Rich name unwrapped high
-  postfix1 prec =
-    Rich (D.docs [arg1 prec, text " ", name]) unwrapped prec
+  arity (Rich l _) = maximum $ 0 : [ i | Slot (Arg i) _ <- D.elements l ]
+  precedence (Rich _ p) = p
+  layout (Rich l _) = l
+  prefix = Rich name high
+  postfix1 prec = Rich (D.docs [arg1 prec, text " ", name]) prec
   binary assoc prec =
-    Rich layout unwrapped prec
+    Rich layout prec
     where
     deltaL p | assoc == AssociateL || assoc == Associative = p
     deltaL p = increase p
@@ -137,3 +124,15 @@ instance View Rich where
     layout = D.docs
       [ arg1 (deltaL prec), D.breakable " ", name, text " "
       , arg2 (deltaR prec) ]
+
+instantiate :: (Path p, View op) => op -> p -> Text -> [(Precedence -> Doc Text p, p)] -> Maybe (Doc Text p)
+instantiate op opP name args | arity op == length args =
+  D.ebind f (fmap g (layout op))
+  where
+  f (Slot (Arg 0) prec) = D.embed name
+  f (Slot (Arg i) prec) = let (a,_) = args !! (i - 1) in a prec
+  f (Text t) = D.embed t
+  g Nothing = Path.root
+  g (Just (Arg 0)) = opP
+  g (Just (Arg i)) = snd $ args !! (i - 1)
+instantiate _ _ _ _ = Nothing

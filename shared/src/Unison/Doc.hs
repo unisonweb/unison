@@ -161,6 +161,27 @@ emap f (p :< d) = p :< case d of
   Linebreak -> Linebreak
   Empty -> Empty
 
+-- | Substitute all `e` elements in this `Doc e p`. The
+-- function must return an `embed e2` when targeting elements
+-- embedded in a `nest` or `pad`, otherwise the substitution fails
+-- with `Nothing`.
+ebind :: (e -> Doc e2 p) -> Doc e p -> Maybe (Doc e2 p)
+ebind f (p :< d) = case d of
+  Embed e -> Just (f e)
+  d -> (p :<) <$> case d of
+    Embed _ -> error "GHC can't figure out this is not possible"
+    Append d1 d2 -> Append <$> ebind f d1 <*> ebind f d2
+    Group d -> Group <$> ebind f d
+    Nest e d -> Nest <$> e2 e <*> ebind f d
+    Breakable e -> Breakable <$> e2 e
+    Pad (Padded t b l r inner) -> Pad <$> (Padded <$> e2 t <*> e2 b <*> e2 l <*> e2 r <*> ebind f inner)
+    Linebreak -> Just Linebreak
+    Empty -> Just Empty
+    where
+    e2 e = case unwrap (f e) of
+      Embed e2 -> Just e2
+      _ -> Nothing
+
 -- | The empty document
 empty :: Path p => Doc e p
 empty = Path.root :< Empty
