@@ -95,10 +95,10 @@ class View op where
   -- | The precedence of the operator
   precedence :: op -> Precedence
 
-data Rich = Rich (Doc Segment (Maybe Var)) Precedence
+data DFO = DFO (Doc Segment (Maybe Var)) Precedence
 
-mixfix :: Precedence -> [Doc Segment (Maybe Var)] -> Rich
-mixfix prec segs = Rich (D.docs segs) prec
+mixfix :: Precedence -> [Doc Segment (Maybe Var)] -> DFO
+mixfix prec segs = DFO (D.docs segs) prec
 
 instance View () where
   arity _ = 0
@@ -108,14 +108,14 @@ instance View () where
   postfix1 _ = ()
   binary _ _ = ()
 
-instance View Rich where
-  arity (Rich l _) = maximum $ 0 : [ i | Slot (Arg i) _ <- D.elements l ]
-  precedence (Rich _ p) = p
-  layout (Rich l _) = l
-  prefix = Rich name high
-  postfix1 prec = Rich (D.docs [arg1 prec, text " ", name]) prec
+instance View DFO where
+  arity (DFO l _) = maximum $ 0 : [ i | Slot (Arg i) _ <- D.elements l ]
+  precedence (DFO _ p) = p
+  layout (DFO l _) = l
+  prefix = DFO name high
+  postfix1 prec = DFO (D.docs [arg1 prec, text " ", name]) prec
   binary assoc prec =
-    Rich layout prec
+    DFO layout prec
     where
     deltaL p | assoc == AssociateL || assoc == Associative = p
     deltaL p = increase p

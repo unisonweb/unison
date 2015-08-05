@@ -194,9 +194,9 @@ data PathElement
 
 type Path = [PathElement]
 
-type ViewableType = Type (Symbol View.Rich)
+type ViewableType = Type (Symbol View.DFO)
 
-view :: (Reference -> Symbol View.Rich) -> ViewableType -> Doc Text Path
+view :: (Reference -> Symbol View.DFO) -> ViewableType -> Doc Text Path
 view ref t = go no View.low t
   where
   no = const False
@@ -207,7 +207,7 @@ view ref t = go no View.low t
   arr = D.breakable " " <> D.embed "→ "
   sp = D.breakable " "
   sym v = D.embed (Var.name v)
-  op :: ViewableType -> Symbol View.Rich
+  op :: ViewableType -> Symbol View.DFO
   op t = case t of
     Lit' (Ref r) -> ref r
     Lit' l -> Symbol.annotate View.prefix . Symbol.prefix . Text.pack . show $ l
