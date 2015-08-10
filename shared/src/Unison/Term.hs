@@ -1,8 +1,9 @@
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -32,12 +33,16 @@ import qualified Control.Monad.Writer.Strict as Writer
 import qualified Data.Aeson as Aeson
 import qualified Data.Monoid as Monoid
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import qualified Unison.ABT as ABT
 import qualified Unison.Distance as Distance
+import qualified Unison.Doc as D
 import qualified Unison.JSON as J
 import qualified Unison.Reference as Reference
+import qualified Unison.Symbol as Symbol
 import qualified Unison.Type as Type
+import qualified Unison.Var as Var
 import qualified Unison.View as View
 
 -- | Literals in the Unison language
@@ -77,10 +82,14 @@ pattern Text' s <- Lit' (Text s)
 pattern Blank' <- (ABT.out -> ABT.Tm Blank)
 pattern Ref' r <- (ABT.out -> ABT.Tm (Ref r))
 pattern App' f x <- (ABT.out -> ABT.Tm (App f x))
+pattern Apps' f args <- (unApps -> Just (f, args))
+pattern AppsP' f args <- (unApps' -> Just (f, args))
 pattern Ann' x t <- (ABT.out -> ABT.Tm (Ann x t))
 pattern Vector' xs <- (ABT.out -> ABT.Tm (Vector xs))
 pattern Lam' v body <- (ABT.out -> ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body))))
+pattern LamsP' vs body <- (unLams' -> Just (vs, body))
 pattern Let1' v b e <- (ABT.out -> ABT.Tm (Let b (ABT.Abs' v e)))
+pattern Lets' bs e <- Let' bs e _ False
 pattern Let' bs e relet rec <- (unLets -> Just (bs,e,relet,rec))
 pattern LetRec' bs e <- (unLetRec -> Just (bs,e))
 
@@ -175,6 +184,30 @@ unLet t = fixup (go t) where
   fixup ([], _) = Nothing
   fixup bst = Just bst
 
+unApps :: Term v -> Maybe (Term v, [Term v])
+unApps t = case go t [] of [] -> Nothing; f:args -> Just (f,args)
+  where
+  go (App' i o) acc = go i (o:acc)
+  go fn args = fn:args
+
+unApps' :: Term v -> Maybe ((Term v,Path), [(Term v,Path)])
+unApps' t = addPaths <$> unApps t
+  where
+  addPaths (f,args) = case appPaths (length args) of
+    (fp,ap) -> ((f,fp), args `zip` ap)
+
+appPaths :: Int -> (Path, [Path])
+appPaths numArgs = (fnp, argsp)
+  where
+  fnp = replicate numArgs Fn
+  argsp = take numArgs . drop 1 $ iterate (Fn:) [Arg]
+
+unLams' :: Term v -> Maybe ([(v, Path)], (Term v, Path))
+unLams' (Lam' v body) = case unLams' body of
+  Nothing -> Just ([(v, [])], (body, [Body])) -- todo, need a path for forall vars
+  Just (vs, (body,bodyp)) -> Just ((v, []) : vs, (body, Body:bodyp))
+unLams' _ = Nothing
+
 dependencies' :: Ord v => Term v -> Set Reference
 dependencies' t = Set.fromList . Writer.execWriter $ ABT.visit' f t
   where f t@(Ref r) = Writer.tell [r] *> pure t
@@ -268,11 +301,60 @@ betaReduce :: Var v => Term v -> Term v
 betaReduce (App' (Lam' n body) arg) = ABT.subst arg n body
 betaReduce e = e
 
-type ViewableTerm = Type (Symbol View.DFO)
+type ViewableTerm = Term (Symbol View.DFO)
 
 view :: (Reference -> Symbol View.DFO) -> ViewableTerm -> Doc Text Path
-view ref t = error "todo" -- go no View.low t where
-  -- go
+view ref t = go no View.low t where
+  no = const False
+  sym v = D.embed (Var.name v)
+  op t = case t of
+    Lit' l -> Symbol.annotate View.prefix . Symbol.prefix . Text.pack . show $ l
+    Var' v -> v
+    _ -> Symbol.annotate View.prefix (Symbol.prefix "")
+  formatBinding :: Path -> Symbol View.DFO -> ViewableTerm -> Doc Text Path
+  formatBinding path name body =
+    -- todo, make this better, so `f = \x -> ...` formats as `f x = ...`
+    D.sub' path $ D.docs [sym name, D.embed " =", D.breakable " ", go no View.low body ]
+  go :: (ViewableTerm -> Bool) -> View.Precedence -> ViewableTerm -> Doc Text Path
+  go inChain p t = case t of
+    Lets' bs e ->
+      let
+        pe = replicate (length bs) Body
+        bps = tail (tails pe)
+        formattedBs = [ formatBinding bp name b | ((name,b), bp) <- bs `zip` bps ]
+      in D.group $ D.docs [D.embed "let", D.breakable " "] `D.append`
+                   D.nest "  " (D.delimit (D.breakable "; ") formattedBs) `D.append`
+                   D.docs [D.embed "in", D.breakable " ", D.sub' pe . D.nest "  " $ go no View.low e ]
+    LetRec' bs e ->
+      let
+        bps = map Binding [0 .. length bs - 1]
+        formattedBs = [ formatBinding [bp] name b | ((name,b), bp) <- bs `zip` bps ]
+      in D.group $ D.docs [D.embed "let rec", D.breakable " "] `D.append`
+                   D.nest "  " (D.delimit (D.breakable "; ") formattedBs) `D.append`
+                   D.docs [D.embed "in", D.breakable " ", D.sub Body . D.nest "  " $ go no View.low e ]
+    AppsP' (fn,fnP) args ->
+      let
+        Symbol.Symbol _ name view = op fn
+        (taken, remaining) = splitAt (View.arity view) args
+        fmt (child,path) = (\p -> D.sub' path (go (fn ==) p child), path)
+        applied = fromMaybe unsaturated (View.instantiate view fnP name (map fmt taken))
+        unsaturated = D.sub' fnP $ go no View.high fn
+      in
+        (if inChain fn then id else D.group) $ case remaining of
+          [] -> applied
+          args -> D.parenthesize (p > View.high) . D.group . D.docs $
+            [ applied, D.breakable " "
+            , D.nest "  " . D.group . D.delimit (D.breakable " ") $
+              [ D.sub' p (go no (View.increase View.high) s) | (s,p) <- args ] ]
+    LamsP' vs (body,bodyp) ->
+      if p == View.low then D.sub' bodyp (go no p body)
+      else D.parenthesize True . D.group $
+           D.delimit (D.embed " ") (map (sym . fst) vs) `D.append`
+           D.docs [D.embed "→", D.breakable " ", D.nest "  " $ D.sub' bodyp (go no View.low body)]
+    Ann' e _ -> D.parenthesize (p /= View.low) $ go inChain p e -- todo ignoring type annotations for now
+    Var' v -> sym v
+    Lit' _ -> D.embed (Var.name $ op t)
+    _ -> error $ "layout match failure"
 
 -- mostly boring serialization code below ...
 
