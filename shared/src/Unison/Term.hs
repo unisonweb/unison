@@ -303,14 +303,17 @@ betaReduce e = e
 
 type ViewableTerm = Term (Symbol View.DFO)
 
+toString :: ViewableTerm -> String
+toString t = D.formatText 80 (view Type.defaultSymbol t)
+
 view :: (Reference -> Symbol View.DFO) -> ViewableTerm -> Doc Text Path
 view ref t = go no View.low t where
   no = const False
   sym v = D.embed (Var.name v)
   op t = case t of
-    Lit' l -> Symbol.annotate View.prefix . Symbol.prefix . Text.pack . show $ l
+    Lit' l -> Symbol.annotate View.prefix . (\r -> Symbol.prefix r :: Symbol ()) . Text.pack . show $ l
     Var' v -> v
-    _ -> Symbol.annotate View.prefix (Symbol.prefix "")
+    _ -> Symbol.annotate View.prefix (Symbol.prefix "" :: Symbol ())
   formatBinding :: Path -> Symbol View.DFO -> ViewableTerm -> Doc Text Path
   formatBinding path name body = case body of
     LamsP' vs (body,bodyp) ->
@@ -355,7 +358,9 @@ view ref t = go no View.low t where
       else D.parenthesize True . D.group $
            D.delimit (D.embed " ") (map (sym . fst) vs) `D.append`
            D.docs [D.embed "→", D.breakable " ", D.nest "  " $ D.sub' bodyp (go no View.low body)]
-    Ann' e _ -> D.parenthesize (p /= View.low) $ go inChain p e -- todo ignoring type annotations for now
+    Ann' e t -> D.group . D.parenthesize (p /= View.low) $
+                D.docs [ go inChain p e, D.embed " :", D.breakable " "
+                       , D.nest "  " $ (\p -> [Annotation p]) <$> Type.view ref t ]
     Var' v -> sym v
     Lit' _ -> D.embed (Var.name $ op t)
     _ -> error $ "layout match failure"

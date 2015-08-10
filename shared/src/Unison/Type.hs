@@ -26,8 +26,10 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.Doc as D
+import qualified Unison.Hash as Hash
 import qualified Unison.JSON as J
 import qualified Unison.Kind as K
+import qualified Unison.Reference as Reference
 import qualified Unison.Symbol as Symbol
 import qualified Unison.Var as Var
 import qualified Unison.View as View
@@ -196,6 +198,15 @@ type Path = [PathElement]
 
 type ViewableType = Type (Symbol View.DFO)
 
+defaultSymbol :: Reference -> Symbol View.DFO
+defaultSymbol (Reference.Builtin t) = Symbol.prefix t
+defaultSymbol (Reference.Derived h) = Symbol.prefix (Text.cons '#' $ short h)
+  where
+  short h = Text.take 8 . Hash.base64 $ h
+
+toString :: ViewableType -> String
+toString t = D.formatText 80 (view defaultSymbol t)
+
 view :: (Reference -> Symbol View.DFO) -> ViewableType -> Doc Text Path
 view ref t = go no View.low t
   where
@@ -204,10 +215,10 @@ view ref t = go no View.low t
   op :: ViewableType -> Symbol View.DFO
   op t = case t of
     Lit' (Ref r) -> ref r
-    Lit' l -> Symbol.annotate View.prefix . Symbol.prefix . Text.pack . show $ l
+    Lit' l -> Symbol.annotate View.prefix . (\r -> Symbol.prefix r :: Symbol ()) . Text.pack . show $ l
     Universal' v -> v
     Existential' v -> v
-    _ -> Symbol.annotate View.prefix (Symbol.prefix "")
+    _ -> Symbol.annotate View.prefix (Symbol.prefix "" :: Symbol ())
   go :: (ViewableType -> Bool) -> View.Precedence -> ViewableType -> Doc Text Path
   go inChain p t = case t of
     ArrowsP' spine ->

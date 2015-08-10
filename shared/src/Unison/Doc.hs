@@ -17,10 +17,12 @@ import Control.Comonad.Cofree (Cofree(..), unwrap) -- (:<)
 import Control.Comonad (extract)
 import Control.Monad.State.Strict
 import Data.Functor
+import Data.Text (Text)
 import Data.List (intersperse)
 import Data.String (IsString)
 import Unison.Path (Path)
 import qualified Unison.Path as Path
+import qualified Data.Text as Text
 
 data Padded e r =
   Padded { top :: e, bottom :: e, left :: e, right :: e, element :: r } deriving Functor
@@ -314,6 +316,10 @@ renderString = render' (Renderer' concat "\n") id
 
 formatString :: Int -> Doc String p -> String
 formatString availableWidth d = renderString (layout length availableWidth d)
+
+formatText :: Int -> Doc Text p -> String
+formatText availableWidth d =
+  formatString availableWidth (emap Text.unpack d)
 
 docs :: Path p => [Doc e p] -> Doc e p
 docs [] = empty

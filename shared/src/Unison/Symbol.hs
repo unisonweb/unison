@@ -46,10 +46,10 @@ instance View op => Show (Symbol op) where
   show s | freshId s == 0 = Text.unpack (name s)
   show s = Text.unpack (name s) ++ show (freshId s)
 
-symbol :: Text -> Symbol ()
-symbol n = Symbol 0 n ()
+symbol :: View op => Text -> Symbol op
+symbol n = Symbol 0 n View.prefix
 
-prefix :: Text -> Symbol ()
+prefix :: View op => Text -> Symbol op
 prefix name = symbol name
 
 deriveJSON defaultOptions ''Symbol
