@@ -49,6 +49,13 @@ isFreeIn v t = Set.member v (freeVars t)
 annotate :: a -> Term f v a -> Term f v a
 annotate a (Term fvs _ out) = Term fvs a out
 
+vmap :: (Functor f, Foldable f, Ord v2) => (v -> v2) -> Term f v a -> Term f v2 a
+vmap f (Term _ a out) = case out of
+  Var v -> annotatedVar a (f v)
+  Tm fa -> tm' a (fmap (vmap f) fa)
+  Cycle r -> cycle' a (vmap f r)
+  Abs v body -> abs' a (f v) (vmap f body)
+
 -- | Modifies the annotations in this tree
 instance Functor f => Functor (Term f v) where
   fmap f (Term fvs a sub) = Term fvs (f a) (fmap (fmap f) sub)
