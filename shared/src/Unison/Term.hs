@@ -312,9 +312,13 @@ view ref t = go no View.low t where
     Var' v -> v
     _ -> Symbol.annotate View.prefix (Symbol.prefix "")
   formatBinding :: Path -> Symbol View.DFO -> ViewableTerm -> Doc Text Path
-  formatBinding path name body =
-    -- todo, make this better, so `f = \x -> ...` formats as `f x = ...`
-    D.sub' path $ D.docs [sym name, D.embed " =", D.breakable " ", go no View.low body ]
+  formatBinding path name body = case body of
+    LamsP' vs (body,bodyp) ->
+      let lhs = fmap fixup $ go no View.low (apps (var name) (map (var . fst) vs))
+          fixup _ = [] -- todo, could use paths to individual variables
+          rhs = D.sub' bodyp $ go no View.low body
+      in D.group . D.sub' path $ D.docs [lhs, D.embed " =", D.breakable " ", D.nest "  " rhs]
+    _ -> D.sub' path $ D.docs [sym name, D.embed " =", D.breakable " ", D.nest "  " $ go no View.low body ]
   go :: (ViewableTerm -> Bool) -> View.Precedence -> ViewableTerm -> Doc Text Path
   go inChain p t = case t of
     Lets' bs e ->
