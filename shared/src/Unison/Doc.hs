@@ -9,6 +9,7 @@
 
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Doc where
 
@@ -17,6 +18,7 @@ import Control.Comonad (extract)
 import Control.Monad.State.Strict
 import Data.Functor
 import Data.List (intersperse)
+import Data.String (IsString)
 import Unison.Path (Path)
 import qualified Unison.Path as Path
 
@@ -330,3 +332,8 @@ sep delim ds = group (foldr1 combine ds)
 
 sep' :: Path p => e -> [e] -> Doc e p
 sep' delim ds = sep delim (map embed ds)
+
+parenthesize :: (IsString s, Path p) => Bool -> Doc s p -> Doc s p
+parenthesize b d =
+  let r = root d
+  in if b then docs [embed' r "(", d, embed' r ")"] else d

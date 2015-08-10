@@ -200,12 +200,6 @@ view :: (Reference -> Symbol View.DFO) -> ViewableType -> Doc Text Path
 view ref t = go no View.low t
   where
   no = const False
-  (<>) = D.append
-  paren b d =
-    let r = D.root d
-    in if b then D.embed' r "(" <> d <> D.embed' r ")" else d
-  arr = D.breakable " " <> D.embed "→ "
-  sp = D.breakable " "
   sym v = D.embed (Var.name v)
   op :: ViewableType -> Symbol View.DFO
   op t = case t of
@@ -217,8 +211,9 @@ view ref t = go no View.low t
   go :: (ViewableType -> Bool) -> View.Precedence -> ViewableType -> Doc Text Path
   go inChain p t = case t of
     ArrowsP' spine ->
-      paren (p > View.low) . D.group . D.delimit arr $
-        [ D.sub' p (go no (View.increase View.low) s) | (s,p) <- spine ]
+      let arr = D.breakable " " `D.append` D.embed "→ "
+      in D.parenthesize (p > View.low) . D.group . D.delimit arr $
+          [ D.sub' p (go no (View.increase View.low) s) | (s,p) <- spine ]
     AppsP' (fn,fnP) args ->
       let
         Symbol _ name view = op fn
@@ -229,16 +224,16 @@ view ref t = go no View.low t
       in
         (if inChain fn then id else D.group) $ case remaining of
           [] -> applied
-          args -> paren (p > View.high) . D.group . D.docs $
-            [ applied, sp
-            , D.nest "  " . D.group . D.delimit sp $
+          args -> D.parenthesize (p > View.high) . D.group . D.docs $
+            [ applied, D.breakable " "
+            , D.nest "  " . D.group . D.delimit (D.breakable " ") $
               [ D.sub' p (go no (View.increase View.high) s) | (s,p) <- args ] ]
     ForallsP' vs (body,bodyp) ->
       if p == View.low then D.sub' bodyp (go no p body)
-      else paren True . D.group $
-           D.embed "∀ " <>
-           D.delimit (D.embed " ") (map (sym . fst) vs) <>
-           D.docs [D.embed ".", sp, D.nest "  " $ D.sub' bodyp (go no View.low body)]
+      else D.parenthesize True . D.group $
+           D.embed "∀ " `D.append`
+           D.delimit (D.embed " ") (map (sym . fst) vs) `D.append`
+           D.docs [D.embed ".", D.breakable " ", D.nest "  " $ D.sub' bodyp (go no View.low body)]
     Constrain' t _ -> go inChain p t
     Ann' t _ -> go inChain p t -- ignoring kind annotations for now
     Universal' v -> sym v
