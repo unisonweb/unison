@@ -22,8 +22,10 @@ import Data.Vector (Vector, (!?))
 import GHC.Generics
 import Prelude.Extras (Eq1(..), Show1(..))
 import Text.Show
+import Unison.Doc (Doc)
 import Unison.Hash (Hash)
 import Unison.Reference (Reference)
+import Unison.Symbol (Symbol)
 import Unison.Type (Type)
 import Unison.Var (Var)
 import qualified Control.Monad.Writer.Strict as Writer
@@ -32,9 +34,11 @@ import qualified Data.Monoid as Monoid
 import qualified Data.Set as Set
 import qualified Data.Vector as Vector
 import qualified Unison.ABT as ABT
-import qualified Unison.Reference as Reference
 import qualified Unison.Distance as Distance
 import qualified Unison.JSON as J
+import qualified Unison.Reference as Reference
+import qualified Unison.Type as Type
+import qualified Unison.View as View
 
 -- | Literals in the Unison language
 data Literal
@@ -190,6 +194,7 @@ data PathElement
   | Body -- ^ Points at the body of a lambda or let
   | Binding !Int -- ^ Points at a particular binding in a let
   | Index !Int -- ^ Points at the index of a vector
+  | Annotation Type.Path -- ^ Points into the type of an `Ann`
   deriving (Eq,Ord,Show)
 
 type Path = [PathElement]
@@ -207,6 +212,7 @@ focus1 (Binding i) (LetRec bs body) =
   >>= \b -> Just (b, \b -> LetRec (take i bs ++ [b] ++ drop (i+1) bs) body)
 focus1 (Index i) (Vector vs) =
   vs !? i >>= \v -> Just (v, \v -> Vector (Vector.update vs (Vector.singleton (i,v))))
+focus1 (Annotation pt) (Ann e t) = Just (e, \e -> Ann e t) -- todo: revisit
 focus1 _ _ = Nothing
 
 -- | Return the list of all prefixes of the input path
@@ -261,6 +267,12 @@ link env e =
 betaReduce :: Var v => Term v -> Term v
 betaReduce (App' (Lam' n body) arg) = ABT.subst arg n body
 betaReduce e = e
+
+type ViewableTerm = Type (Symbol View.DFO)
+
+view :: (Reference -> Symbol View.DFO) -> ViewableTerm -> Doc Text Path
+view ref t = error "todo" -- go no View.low t where
+  -- go
 
 -- mostly boring serialization code below ...
 

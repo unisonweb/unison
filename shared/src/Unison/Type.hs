@@ -190,7 +190,7 @@ data PathElement
   | Input -- ^ Points at the left of an `Arrow`
   | Output -- ^ Points at the right of an `Arrow`
   | Body -- ^ Points at the body of a forall
-  deriving (Eq,Ord)
+  deriving (Eq,Ord,Show)
 
 type Path = [PathElement]
 
@@ -240,6 +240,8 @@ view ref t = go no View.low t
     Existential' v -> D.embed ("'" `mappend` Var.name v)
     Lit' _ -> D.embed (Var.name $ op t)
     _ -> error $ "layout match failure"
+
+deriveJSON defaultOptions ''PathElement
 
 instance J.ToJSON1 F where
   toJSON1 f = toJSON f
