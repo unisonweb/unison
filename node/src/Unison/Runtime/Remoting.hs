@@ -6,6 +6,7 @@
 module Unison.Runtime.Remoting where
 
 import Control.Monad
+import Control.Concurrent (MVar)
 import Debug.Trace
 import Data.Int (Int32, Int64)
 import Data.ByteString (ByteString)
@@ -53,16 +54,17 @@ class Evaluate t env | env -> t where
 
 serve :: (Show t, Serial t, Evaluate t env)
       => env
+      -> Waiting t
       -> Port
       -> IO ()
-serve env port =
+serve env waiting port =
   TCP.serve (TCP.Host "127.0.0.1") (show port) go
   where
   go (clientSocket, remoteAddr) = do
     let remoteHost = SockAddr.showSockAddr remoteAddr
     putStrLn $ "client connected: " ++ remoteHost
     (i,o) <- Streams.socketToStreams clientSocket
-    messageHandler remoteHost env i o
+    messageHandler waiting remoteHost env i o
 
 -- Message Format:
 --  * Number of bytes of the packet (32 bit int)
@@ -94,29 +96,41 @@ tryDeserialize msg get bytes =
     Left err  -> fail $ "expected " ++ msg ++ ", got " ++ err
     Right a -> pure a
 
+type Waiting t = CMap Channel (MVar (Either Err t))
+
 messageHandler :: (Show t, Serial t, Evaluate t env)
-               => Host
+               => Waiting t
+               -> Host
                -> env
                -> InputStream ByteString
                -> OutputStream ByteString -> IO ()
-messageHandler remoteHost env i _ = do
+messageHandler waiting remoteHost env i _ = do
   packet <- deserializeLengthEncoded "packet" i
-  void . Concurrent.forkIO $ act remoteHost env packet
+  void . Concurrent.forkIO $ act waiting remoteHost env packet
 
-type Waiting t = CMap Channel (Either Err t)
-
-act :: (Show t, Serial t, Evaluate t env) => Host -> env -> Packet t -> IO ()
-act _ env (Evaluate DontReply t) = evaluate env t >> return ()
-act remoteHost env (Evaluate (Reply port chan) t) = do
+act :: (Show t, Serial t, Evaluate t env) => Waiting t -> Host -> env -> Packet t -> IO ()
+act _ _ env (Evaluate DontReply t) = evaluate env t >> return ()
+act _ remoteHost env (Evaluate (Reply port chan) t) = do
   e <- evaluate env t
   -- serialize and send back
   let bytes = Put.runPutS (putPacket (Result chan e))
   client remoteHost port $ Streams.write (Just bytes)
-act remoteHost _ (Result chan e) = do
-  putStrLn $ "from: " ++ show remoteHost
-  putStrLn $ "on channel: " ++ show chan
-  putStrLn $ "got: " ++ show e
-  -- todo, the real thing
+act waiting remoteHost _ (Result chan e) = do
+  v <- CMap.lookup chan waiting
+  maybe (return ()) (\mvar -> Concurrent.putMVar mvar e) v
+
+freshChannel :: IO Channel
+freshChannel = pure 7 -- todo, generate a cryptographically secure fresh channel
+
+-- punt on weak references for now
+send :: Serial t => Waiting t -> Host -> Reply -> t -> IO (Either Err t)
+send results remoteHost replyTo expr = do
+  var <- Concurrent.newEmptyMVar
+  chan <- freshChannel
+  CMap.insert chan var results
+  let bytes = Put.runPutS (putPacket (Evaluate replyTo expr))
+  client remoteHost unisonPort (Streams.write (Just bytes))
+  Concurrent.takeMVar var
 
 -- TCP client, just given an OutputStream
 client :: Host -> Port -> (OutputStream ByteString -> IO ()) -> IO ()
@@ -140,10 +154,11 @@ sendPacket remoteHost port p =
 
 main :: IO ()
 main = do
- putStr "Enter port number: "
- port <- read <$> getLine
- serve DummyEnv port
- putStrLn $ "server running on port: " ++ show port
+  waiting <- CMap.empty
+  putStr "Enter port number: "
+  port <- read <$> getLine
+  serve DummyEnv waiting port
+  putStrLn $ "server running on port: " ++ show port
 
 sendTestStrings :: Port -> Channel -> Host -> Port -> [String] -> IO ()
 sendTestStrings myPort replyChannel remoteHost remotePort strings =
