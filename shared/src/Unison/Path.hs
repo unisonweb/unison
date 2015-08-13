@@ -6,6 +6,8 @@
 
 module Unison.Path where
 
+import Control.Applicative
+
 -- | Satisfies:
 --   * `extend root p == p` and `extend p root == p`
 --   * `extend` is associative, `extend (extend p1 p2) p3 == extend p1 (extend p2 p3)`
@@ -23,8 +25,19 @@ class Path p where
 lca :: Path p => p -> p -> p
 lca p p2 = fst (factor p p2)
 
+instance Eq a => Path (Maybe a) where
+  root = Nothing
+  extend = (<|>)
+  factor p1 p2 | p1 == p2 = (p1, (Nothing, Nothing))
+  factor p1 p2 = (Nothing, (p1,p2))
+
 instance Eq a => Path [a] where
   root = []
   extend = (++)
   factor p1 p2 = (take shared p1, (drop shared p1, drop shared p2))
     where shared = length (zipWith (==) p1 p2)
+
+instance Path () where
+  root = ()
+  extend _ _ = ()
+  factor u _ = (u,(u,u))
