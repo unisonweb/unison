@@ -217,6 +217,6 @@ prefixes s = Metadata Metadata.Term
                       Nothing
 main :: IO ()
 main = do
-  store <- Store.store "store" :: IO (Store IO (Symbol.Symbol (Maybe ())))
+  store <- Store.store "store" :: IO (Store IO (Symbol.Symbol ()))
   node <- makeNode store
   S.server 8080 node

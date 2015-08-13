@@ -9,16 +9,20 @@
 
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Doc where
 
-import Control.Comonad.Cofree (Cofree(..)) -- (:<)
+import Control.Comonad.Cofree (Cofree(..), unwrap) -- (:<)
 import Control.Comonad (extract)
 import Control.Monad.State.Strict
 import Data.Functor
+import Data.Text (Text)
 import Data.List (intersperse)
+import Data.String (IsString)
 import Unison.Path (Path)
 import qualified Unison.Path as Path
+import qualified Data.Text as Text
 
 data Padded e r =
   Padded { top :: e, bottom :: e, left :: e, right :: e, element :: r } deriving Functor
@@ -136,6 +140,52 @@ preferredWidth width (p :< d) = case d of
 root :: Cofree f p -> p
 root (p :< _) = p
 
+-- | The embedded elements of this document
+elements :: Doc e p -> [e]
+elements d = go (unwrap d) [] where
+  one a = (a:)
+  many xs tl = foldr (:) tl xs
+  go (Append d1 d2) = go (unwrap d1) . go (unwrap d2)
+  go (Group d) = go (unwrap d)
+  go (Nest e d) = one e . go (unwrap d)
+  go (Breakable e) = one e
+  go (Embed e) = one e
+  go (Pad (Padded t b l r inner)) = many [t, b, l, r] . go (unwrap inner)
+  go _ = id
+
+-- | Map over all `e` elements in this `Doc e p`.
+emap :: (e -> e2) -> Doc e p -> Doc e2 p
+emap f (p :< d) = p :< case d of
+  Append d1 d2 -> Append (emap f d1) (emap f d2)
+  Group d -> Group (emap f d)
+  Nest e d -> Nest (f e) (emap f d)
+  Breakable e -> Breakable (f e)
+  Embed e -> Embed (f e)
+  Pad (Padded t b l r inner) -> Pad (Padded (f t) (f b) (f l) (f r) (emap f inner))
+  Linebreak -> Linebreak
+  Empty -> Empty
+
+-- | Substitute all `e` elements in this `Doc e p`. The
+-- function must return an `embed e2` when targeting elements
+-- embedded in a `nest` or `pad`, otherwise the substitution fails
+-- with `Nothing`.
+ebind :: (e -> Doc e2 p) -> Doc e p -> Maybe (Doc e2 p)
+ebind f (p :< d) = case d of
+  Embed e -> Just (f e)
+  d -> (p :<) <$> case d of
+    Embed _ -> error "GHC can't figure out this is not possible"
+    Append d1 d2 -> Append <$> ebind f d1 <*> ebind f d2
+    Group d -> Group <$> ebind f d
+    Nest e d -> Nest <$> e2 e <*> ebind f d
+    Breakable e -> Breakable <$> e2 e
+    Pad (Padded t b l r inner) -> Pad <$> (Padded <$> e2 t <*> e2 b <*> e2 l <*> e2 r <*> ebind f inner)
+    Linebreak -> Just Linebreak
+    Empty -> Just Empty
+    where
+    e2 e = case unwrap (f e) of
+      Embed e2 -> Just e2
+      _ -> Nothing
+
 -- | The empty document
 empty :: Path p => Doc e p
 empty = Path.root :< Empty
@@ -179,7 +229,7 @@ nest :: Path p => e -> Doc e p -> Doc e p
 nest e (p :< d) = p :< Nest e (Path.root :< d)
 
 -- | Specify that layout may insert a line break at this point in the document.
--- If a line break is not inserts, the given `e` is inserted instead.
+-- If a line break is not inserted, the given `e` is inserted instead.
 breakable :: Path p => e -> Doc e p
 breakable e = breakable' Path.root e
 
@@ -267,9 +317,16 @@ renderString = render' (Renderer' concat "\n") id
 formatString :: Int -> Doc String p -> String
 formatString availableWidth d = renderString (layout length availableWidth d)
 
+formatText :: Int -> Doc Text p -> String
+formatText availableWidth d =
+  formatString availableWidth (emap Text.unpack d)
+
 docs :: Path p => [Doc e p] -> Doc e p
 docs [] = empty
 docs ds = foldr1 append ds
+
+embeds :: Path p => [e] -> Doc e p
+embeds = docs . map embed
 
 delimit :: Path p => Doc e p -> [Doc e p] -> Doc e p
 delimit d = docs . intersperse d
@@ -281,3 +338,8 @@ sep delim ds = group (foldr1 combine ds)
 
 sep' :: Path p => e -> [e] -> Doc e p
 sep' delim ds = sep delim (map embed ds)
+
+parenthesize :: (IsString s, Path p) => Bool -> Doc s p -> Doc s p
+parenthesize b d =
+  let r = root d
+  in if b then docs [embed' r "(", d, embed' r ")"] else d
