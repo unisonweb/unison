@@ -1,7 +1,7 @@
- {-# LANGUAGE DeriveGeneric #-}
- {-# LANGUAGE OverloadedStrings #-}
- {-# LANGUAGE FunctionalDependencies #-}
- {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Unison.Runtime.Remoting where
 
@@ -70,9 +70,9 @@ serve env waiting port =
 --  * Number of bytes of the packet (32 bit int)
 --  * a `Packet`, serialized via `Serial`
 
-traceBS :: String -> ByteString -> ByteString
-traceBS msg b | traceShow (BS.length b) False = undefined
-traceBS msg b = b
+-- traceBS :: String -> ByteString -> ByteString
+-- traceBS msg b | traceShow (BS.length b) False = undefined
+-- traceBS msg b = b
 
 putPacket :: forall m t. (Put.MonadPut m, Serial t) => Packet t -> m ()
 putPacket p =
@@ -119,17 +119,14 @@ act waiting remoteHost _ (Result chan e) = do
   v <- CMap.lookup chan waiting
   maybe (return ()) (\mvar -> Concurrent.putMVar mvar e) v
 
-freshChannel :: IO Channel
-freshChannel = pure 7 -- todo, generate a cryptographically secure fresh channel
-
 -- punt on weak references for now
-send :: Serial t => Waiting t -> Host -> Reply -> t -> IO (Either Err t)
-send results remoteHost replyTo expr = do
+send :: Serial t => Waiting t -> Host -> Port -> Reply -> t -> IO (Either Err t)
+send waiting remoteHost remotePort replyTo expr = do
   var <- Concurrent.newEmptyMVar
-  chan <- freshChannel
-  CMap.insert chan var results
+  let Reply _ chan = replyTo
+  CMap.insert chan var waiting
   let bytes = Put.runPutS (putPacket (Evaluate replyTo expr))
-  client remoteHost unisonPort (Streams.write (Just bytes))
+  client remoteHost remotePort (Streams.write (Just bytes))
   Concurrent.takeMVar var
 
 -- TCP client, just given an OutputStream
@@ -140,27 +137,8 @@ client host port send =
     (_,o) <- Streams.socketToStreams socket
     send o
 
-data DummyEnv = DummyEnv
-data Prog = Prog [String] deriving (Show, Generic)
-instance Serial Prog
-
-instance Evaluate Prog DummyEnv where
-  evaluate _ (Prog s) = return . return . Prog $ [join s]
-
 sendPacket :: Serial t => Host -> Port -> Packet t -> IO ()
 sendPacket remoteHost port p =
   client remoteHost port $
   Streams.write (Just $ Put.runPutS (putPacket p))
-
-main :: IO ()
-main = do
-  waiting <- CMap.empty
-  putStr "Enter port number: "
-  port <- read <$> getLine
-  serve DummyEnv waiting port
-  putStrLn $ "server running on port: " ++ show port
-
-sendTestStrings :: Port -> Channel -> Host -> Port -> [String] -> IO ()
-sendTestStrings myPort replyChannel remoteHost remotePort strings =
-  sendPacket remoteHost remotePort (Evaluate (Reply myPort replyChannel) strings)
 
