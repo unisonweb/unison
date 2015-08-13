@@ -129,7 +129,7 @@ instantiate :: (Path p, View op) => op -> p -> Text -> [(Precedence -> Doc Text 
 instantiate op opP name args | arity op == length args =
   D.ebind f (fmap g (layout op))
   where
-  f (Slot (Arg 0) prec) = D.embed name
+  f (Slot (Arg 0) _) = D.embed name
   f (Slot (Arg i) prec) = let (a,_) = args !! (i - 1) in a prec
   f (Text t) = D.embed t
   g Nothing = Path.root

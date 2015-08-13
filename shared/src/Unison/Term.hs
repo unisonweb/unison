@@ -358,6 +358,13 @@ view ref t = go no View.low t where
       else D.parenthesize True . D.group $
            D.delimit (D.embed " ") (map (sym . fst) vs) `D.append`
            D.docs [D.embed "→", D.breakable " ", D.nest "  " $ D.sub' bodyp (go no View.low body)]
+    Vector' vs ->
+      let
+        fmt v = D.nest "  " $ go no View.low v
+        subs = [ D.sub (Index i) (fmt v) | (v,i) <- Vector.toList vs `zip` [0..] ]
+      in D.group . D.docs $ [ D.embed "[ "
+                            , D.delimit (D.embed "," `D.append` D.breakable " ") subs
+                            , D.embed " ]" ]
     Ann' e t -> D.group . D.parenthesize (p /= View.low) $
                 D.docs [ go no p e, D.embed " :", D.breakable " "
                        , D.nest "  " $ (\p -> [Annotation p]) <$> Type.view ref t ]
