@@ -31,7 +31,7 @@ data DummyEnv = DummyEnv
 newtype Prog = Prog { progStrings :: [String] } deriving (Show, Generic)
 instance Serial Prog
 
-instance Evaluate Prog DummyEnv where
+instance Evaluate DummyEnv Prog where
   evaluate _ (Prog s) = return . return . Prog $ [join s]
 
 {-

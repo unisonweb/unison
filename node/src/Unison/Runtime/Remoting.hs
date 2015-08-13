@@ -49,10 +49,10 @@ data Packet t =
 
 instance Serial t => Serial (Packet t)
 
-class Evaluate t env | env -> t where
+class Evaluate env t | env -> t where
   evaluate :: env -> t -> IO (Either Err t)
 
-serve :: (Show t, Serial t, Evaluate t env)
+serve :: (Show t, Serial t, Evaluate env t)
       => env
       -> Waiting t
       -> Port
@@ -98,7 +98,7 @@ tryDeserialize msg get bytes =
 
 type Waiting t = CMap Channel (MVar (Either Err t))
 
-messageHandler :: (Show t, Serial t, Evaluate t env)
+messageHandler :: (Show t, Serial t, Evaluate env t)
                => Waiting t
                -> Host
                -> env
@@ -108,7 +108,7 @@ messageHandler waiting remoteHost env i _ = do
   packet <- deserializeLengthEncoded "packet" i
   void . Concurrent.forkIO $ act waiting remoteHost env packet
 
-act :: (Show t, Serial t, Evaluate t env) => Waiting t -> Host -> env -> Packet t -> IO ()
+act :: (Show t, Serial t, Evaluate env t) => Waiting t -> Host -> env -> Packet t -> IO ()
 act _ _ env (Evaluate DontReply t) = evaluate env t >> return ()
 act _ remoteHost env (Evaluate (Reply port chan) t) = do
   e <- evaluate env t
