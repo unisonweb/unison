@@ -17,6 +17,7 @@ import Control.Comonad.Cofree (Cofree(..), unwrap) -- (:<)
 import Control.Comonad (extract)
 import Control.Monad.State.Strict
 import Data.Functor
+import Data.Functor.Identity (runIdentity, Identity(..))
 import Data.Text (Text)
 import Data.List (intersperse)
 import Data.String (IsString)
@@ -154,16 +155,20 @@ elements d = go (unwrap d) [] where
   go _ = id
 
 -- | Map over all `e` elements in this `Doc e p`.
+etraverse :: Applicative f => (e -> f e2) -> Doc e p -> f (Doc e2 p)
+etraverse f (p :< d) = (p :<) <$> case d of
+  Append d1 d2 -> Append <$> etraverse f d1 <*> etraverse f d2
+  Group d -> Group <$> etraverse f d
+  Nest e d -> Nest <$> f e <*> etraverse f d
+  Breakable e -> Breakable <$> f e
+  Embed e -> Embed <$> f e
+  Pad (Padded t b l r inner) -> Pad <$> (Padded <$> f t <*> f b <*> f l <*> f r <*> etraverse f inner)
+  Linebreak -> pure Linebreak
+  Empty -> pure Empty
+
+-- | Map over all `e` elements in this `Doc e p`.
 emap :: (e -> e2) -> Doc e p -> Doc e2 p
-emap f (p :< d) = p :< case d of
-  Append d1 d2 -> Append (emap f d1) (emap f d2)
-  Group d -> Group (emap f d)
-  Nest e d -> Nest (f e) (emap f d)
-  Breakable e -> Breakable (f e)
-  Embed e -> Embed (f e)
-  Pad (Padded t b l r inner) -> Pad (Padded (f t) (f b) (f l) (f r) (emap f inner))
-  Linebreak -> Linebreak
-  Empty -> Empty
+emap f = runIdentity . etraverse (Identity . f)
 
 -- | Substitute all `e` elements in this `Doc e p`. The
 -- function must return an `embed e2` when targeting elements
