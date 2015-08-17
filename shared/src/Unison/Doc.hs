@@ -138,6 +138,8 @@ boxed l = go l [] [] [] where
     LLinebreak | null hbuf -> advance hbuf vbuf todo
     LLinebreak -> advance [] (line hbuf : vbuf) todo
 
+-- boundedBoxes :: Path p => (e -> (Width,Height)) -> Layout e p -> Boxed e (p, (X,Y,Width,Height))
+-- will need to assume some alignment for the boxes
 boundedBoxes :: Path p => (e -> (Width,Height)) -> Layout e p -> Boxed e (p, (Width,Height))
 boundedBoxes dims l = bounds dims (boxed l)
 
@@ -148,27 +150,26 @@ boundedBoxes dims l = bounds dims (boxed l)
 --
 -- The point (X 0, Y 0) is assumed to correspond to the top left
 -- corner of the layout.
-at :: Boxed e (p, (Width,Height)) -> (X,Y) -> [p]
-at box = go box []
+at :: Boxed e (p, (X,Y,Width,Height)) -> (X,Y) -> [p]
+at box = go box
   where
-  fw acc ((_,(w,_)) :< _) = Dimensions.plus acc w
-  fh acc ((_,(_,h)) :< _) = Dimensions.plus acc h
-  accBounds f bs = let acc = scanl' f Dimensions.zero bs in acc `zip` (tail acc)
-  within (X x, Y y) (w,h) = Width x <= w && Height y <= h
-  go ((p,region@(w,h)) :< box) stack pt@(x,y) =
+  within (X x0, Y y0) (X x,Y y,Width w,Height h) =
+    x0 >= x && x0 <= x+w && y0 >= y && y0 <= y+h
+  go ((p,region) :< box) pt =
     if not (pt `within` region) then []
     else p : case box of
       BEmpty -> []
       BEmbed _ -> []
-      BFlow Horizontal bs ->
-        take 1 [ (b,bw) | (b,(bw,aw)) <- bs `zip` accBounds fw bs, within pt (aw,h) ]
-        >>= \(b,Width w) -> go b stack (Dimensions.minus x (X w), y)
-      BFlow Vertical bs ->
-        take 1 [ (b,bh) | (b,(bh,ah)) <- bs `zip` accBounds fh bs, within pt (w,ah) ]
-        >>= \(b,Height h) -> go b stack (x, Dimensions.minus y (Y h))
+      BFlow _ bs -> bs >>= \b -> go b pt
 
-regions :: Boxed e (p, (Width,Height)) -> [p] -> [(X,Y,Width,Height)]
-regions box p = error "todo"
+regions :: (Eq p, Path p) => Boxed e (p, (X,Y,Width,Height)) -> [p] -> [(X,Y,Width,Height)]
+regions box p = go box (foldr Path.extend Path.root p) where
+  go ((p,region) :< box) searchp = region : case box of
+    BEmpty -> []
+    BEmbed _ -> []
+    BFlow _ bs -> bs >>= \((p,r) :< box) -> case Path.factor p searchp of
+      (lca, (p,searchp)) | lca /= Path.root -> go ((p,r) :< box) searchp
+      _ -> []
 
 -- | Produce a `Layout` which tries to fit in the given width,
 -- assuming that embedded `e` elements have the computed width.
