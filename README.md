@@ -30,12 +30,13 @@ The dependencies are what you'd expect---`shared/` has minimal external dependen
 Build instructions
 -----
 
-A couple notes before getting started:
+The build instructions are super simple and are explained below. A couple notes before getting started:
 
-* If you're on Windows or just prefer to build the code on a known-good VM, use the [Vagrant box setup](#vagrant) after reading through these instructions.
+* If these instructions don't work for you or are incomplete, please file an issue.
+* If you're on Windows or just prefer to build the code on a known-good VM, use the [Vagrant box setup](#vagrant) after reading through these instructions. If you go this route, you can still use your preferred text editor. The VM will have shared filesystem access to the directory where you've checked out the code.
 * If you're on NixOS or just prefer to build all dependencies from source, see the [note below about trusted binary caches](#binary-caches).
 
-### Step 1: Install Nix
+### <a id="step-1"></a> Step 1: Install Nix
 
 The only thing one needs to install beforehand is the [Nix package manager](https://nixos.org/nix/). You don't need to install Haskell, cabal, or anything else. Nix will build the Unison node, editor, and all their dependencies (including GHC), with dependencies pinned by our Nix configuration to "known good" versions. You do not need to have Haskell or cabal installed in advance!
 
@@ -60,7 +61,7 @@ $ cd node
 $ ./shell.sh
 ```
 
-The first time you run this, it will take a few minutes as Nix needs to download and/or build dependencies, and you may see some warnings about Haddock documentation that you can ignore. Subsequent launches will be snappy since you'll have all the dependencies in your Nix store.
+The first time you run this, it will take about 15 minutes as Nix needs to download and/or build dependencies, and you may see some warnings about Haddock documentation that you can ignore. Subsequent launches will be snappy since you'll have all the dependencies in your Nix store.
 
 Once this completes, you'll be in a Nix shell with cabal (the Haskell build tool) on your path, properly configured. You can just use it as normal. For instance:
 
@@ -80,7 +81,7 @@ Setting phasers to stun... (port 8080) (ctrl-c to quit)
 
 That message is [Scotty](http://hackage.haskell.org/package/scotty) telling you it's running. That means you're good.
 
-### Step 3: Build the Unison editor
+### <a id="step-3"></a> Step 3: Build the Unison editor
 
 Just do:
 
@@ -89,7 +90,7 @@ $ cd editor
 $ ./shell.sh
 ```
 
-You'll again be put into a shell with access to cabal. The editor uses GHCJS and not all cabal commands are supported, but `cabal build` will compile the Haskell code to JS. Just open the following file in a browser:
+You'll again be put into a shell with access to cabal. The editor uses GHCJS and not all cabal commands are supported (notably `cabal repl` does not work), but `cabal build` will compile the Haskell code to JS. Just open the following file in a browser:
 
 ```
 editor/dist/build/editor/editor.jsexe/index.html
@@ -119,8 +120,6 @@ If instead, you'd rather work from the 'outside in' (or perhaps 'top down'), you
 That's all for now!
 
 ### <a id="vagrant"></a> Appendix: Build instructions for Windows users or those who prefer to build code on a VM
-
-NOTE: these instructions don't work just yet.
 
 If you're on Windows and would like to build the project, you can do so using the Vagrant box VM. You can also do this if you just prefer to develop using a VM. If you do this, you can still use your local text editor or IDE of choice for Haskell editing, since the filesystem is shared between the VM and your local machine.
 
