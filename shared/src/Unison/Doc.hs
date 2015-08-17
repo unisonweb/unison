@@ -7,26 +7,33 @@
 -- corresponding to a path, or lookup what path corresponds
 -- to a given location in the layout.
 
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 
 module Unison.Doc where
 
 import Control.Comonad.Cofree (Cofree(..), unwrap) -- (:<)
 import Control.Comonad (extract)
 import Control.Monad.State.Strict
+import Data.Bifunctor
 import Data.Functor
-import Data.Functor.Identity (runIdentity, Identity(..))
-import Data.Text (Text)
-import Data.List (intersperse)
+import Data.List hiding (group)
 import Data.String (IsString)
+import Data.Text (Text)
+import Unison.Dimensions (X(..), Y(..), Width(..), Height(..))
 import Unison.Path (Path)
-import qualified Unison.Path as Path
 import qualified Data.Text as Text
+import qualified Unison.Dimensions as Dimensions
+import qualified Unison.Path as Path
 
 data Padded e r =
-  Padded { top :: e, bottom :: e, left :: e, right :: e, element :: r } deriving Functor
+  Padded { top :: e, bottom :: e, left :: e, right :: e, element :: r }
+  deriving (Functor, Foldable, Traversable)
 
 data D e r
   = Empty
@@ -36,7 +43,7 @@ data D e r
   | Linebreak
   | Group r
   | Nest e r
-  | Append r r deriving Functor
+  | Append r r deriving (Functor, Foldable, Traversable)
 
 -- | A `Doc e p` describes a layout that may be rendered at
 -- multiple widths. The `e` parameter is the type of primitive documents,
@@ -52,15 +59,121 @@ data L e r
   | LPad (Padded e r)
   | LLinebreak
   | LNest e r
-  | LAppend r r deriving Functor
+  | LAppend r r deriving (Functor, Foldable, Traversable)
 
 -- A `Doc` without the nondeterminism. All layout decisions have been fixed.
 type Layout e p = Cofree (L e) p
 
+data Direction = Horizontal | Vertical deriving (Eq,Ord)
+
+data B e r
+  = BEmpty
+  | BEmbed e
+  | BFlow Direction [r] deriving (Functor, Foldable, Traversable)
+
+type Boxed e p = Cofree (B e) p
+
+accumulate :: Functor f => (f b -> b) -> Cofree f a -> Cofree f (a,b)
+accumulate alg (a :< f) = case fmap (accumulate alg) f of
+  f -> (a, alg (fmap (snd . root) f)) :< f
+
+einterpret :: Bifunctor f => (f e e -> e) -> Cofree (f e) p -> e
+einterpret alg (_ :< f) = alg $ second (einterpret alg) f
+
+rewrite :: Functor f => (f (Cofree f a) -> f (Cofree f a)) -> Cofree f a -> Cofree f a
+rewrite alg (a :< f) = a :< fmap (rewrite alg) f
+
+bounds :: (e -> (Width,Height)) -> Boxed e p -> Boxed e (p, (Width,Height))
+bounds dims b = accumulate step b where
+  step BEmpty = zero
+  step (BEmbed e) = dims e
+  step (BFlow Horizontal bs) = foldl' hcombine zero bs
+  step (BFlow Vertical bs) = foldl' vcombine zero bs
+  hcombine (w1,h1) (w2,h2) = (Dimensions.plus w1 w2, h1 `max` h2)
+  vcombine (w1,h1) (w2,h2) = (w1 `max` w2, Dimensions.plus h1 h2)
+  zero = (Dimensions.zero, Dimensions.zero)
+
+flatten :: Boxed e p -> Boxed e p
+flatten b = rewrite step b where
+  step b = case b of
+    BEmpty -> b
+    BEmbed _ -> b
+    BFlow dir bs -> BFlow dir $ bs >>= h where
+      h (_ :< BFlow dir2 bsi) | dir == dir2 = bsi
+      h x = [x]
+
+breduce :: (a -> a -> a) -> a -> [a] -> a
+breduce f z s = done $ foldl' step [] s where
+  step !stack a = fixup ((a, 1 :: Int) : stack)
+  fixup ((a2,n):(a1,m):tl) | m >= n = fixup ((f a1 a2, n+m) : tl)
+  fixup stack = stack
+  done [] = z
+  done stack = foldl1' (\a2 a1 -> f a1 a2) (map fst stack)
+
+boxed :: Path p => Layout e p -> Boxed e p
+boxed l = go l [] [] [] where
+
+  empty = Path.root :< BEmpty
+  line hbuf = breduce beside empty (reverse hbuf)
+  above = combine $ \b1 b2 -> BFlow Horizontal [b1,b2]
+  beside = combine $ \b1 b2 -> BFlow Vertical [b1,b2]
+  combine f (p :< b) (p2 :< b2) = case Path.factor p p2 of
+    (root, (p,p2)) -> root :< f (p :< b) (p2 :< b2)
+
+  bembed e = Path.root :< BEmbed e
+  advance hbuf vbuf todo = go (Path.root :< LEmpty) hbuf vbuf todo
+  go (p :< l) hbuf vbuf todo = case l of
+    LEmpty -> case todo of
+      [] -> breduce above empty (reverse $ line hbuf : vbuf)
+      hd:todo -> go hd hbuf vbuf todo
+    LEmbed e -> advance vbuf ((p :< BEmbed e) : hbuf) todo
+    LNest e r -> let inner = p :< BFlow Horizontal [Path.root :< BEmbed e, boxed r]
+                 in advance (inner:hbuf) vbuf todo
+    LAppend a b -> go a hbuf vbuf (b:todo)
+    LPad (Padded top bot l r e) -> advance (inner : hbuf) vbuf todo where
+      inner = p :< BFlow Horizontal
+        [ bembed l
+        , Path.root :< BFlow Vertical [bembed top, boxed e, bembed bot]
+        , bembed r ]
+    LLinebreak | null hbuf -> advance hbuf vbuf todo
+    LLinebreak -> advance [] (line hbuf : vbuf) todo
+
+boundedBoxes :: Path p => (e -> (Width,Height)) -> Layout e p -> Boxed e (p, (Width,Height))
+boundedBoxes dims l = bounds dims (boxed l)
+
+-- | Compute the list of path segments corresponding to the given point.
+-- Concatenating the full list of segments gives the deepest path into the
+-- structure whose layout region contains the point. Concatenating all but the
+-- last segment yields the parent of the deepest path, and so on.
+--
+-- The point (X 0, Y 0) is assumed to correspond to the top left
+-- corner of the layout.
+at :: Boxed e (p, (Width,Height)) -> (X,Y) -> [p]
+at box = go box []
+  where
+  fw acc ((_,(w,_)) :< _) = Dimensions.plus acc w
+  fh acc ((_,(_,h)) :< _) = Dimensions.plus acc h
+  accBounds f bs = let acc = scanl' f Dimensions.zero bs in acc `zip` (tail acc)
+  within (X x, Y y) (w,h) = Width x <= w && Height y <= h
+  go ((p,region@(w,h)) :< box) stack pt@(x,y) =
+    if not (pt `within` region) then []
+    else p : case box of
+      BEmpty -> []
+      BEmbed _ -> []
+      BFlow Horizontal bs ->
+        take 1 [ (b,bw) | (b,(bw,aw)) <- bs `zip` accBounds fw bs, within pt (aw,h) ]
+        >>= \(b,Width w) -> go b stack (Dimensions.minus x (X w), y)
+      BFlow Vertical bs ->
+        take 1 [ (b,bh) | (b,(bh,ah)) <- bs `zip` accBounds fh bs, within pt (w,ah) ]
+        >>= \(b,Height h) -> go b stack (x, Dimensions.minus y (Y h))
+
+regions :: Boxed e (p, (Width,Height)) -> [p] -> [(X,Y,Width,Height)]
+regions box p = error "todo"
+
 -- | Produce a `Layout` which tries to fit in the given width,
 -- assuming that embedded `e` elements have the computed width.
 -- Runs in linear time without backtracking.
-layout :: (e -> Int) -> Int -> Doc e p -> Layout e p
+layout :: (e -> Width) -> Width -> Doc e p -> Layout e p
 layout width maxWidth doc =
   fmap fst $ evalState (go (preferredWidth width doc)) (maxWidth, maxWidth)
   where
@@ -68,7 +181,7 @@ layout width maxWidth doc =
     (maxWidth, remainingWidth) <- get
     case doc of
       (_,w) :< _ | w <= remainingWidth ->
-        put (maxWidth, remainingWidth - w) $> flow doc
+        put (maxWidth, remainingWidth `Dimensions.minus` w) $> flow doc
       _ :< Group doc -> break doc
       _ -> break doc
 
@@ -76,22 +189,22 @@ layout width maxWidth doc =
   -- respecting the linebreak constraints of the input `Doc`.
   break (p :< doc) = get >>= \(maxWidth, remainingWidth) -> case doc of
     Empty -> pure $ p :< LEmpty
-    Embed e -> put (maxWidth, remainingWidth - width e) $> (p :< LEmbed e)
+    Embed e -> put (maxWidth, remainingWidth `Dimensions.minus` width e) $> (p :< LEmbed e)
     Breakable _ -> put (maxWidth, maxWidth) $> (p :< LLinebreak)
     Linebreak -> put (maxWidth, maxWidth) $> (p :< LLinebreak)
     Append a b -> (:<) p <$> (LAppend <$> break a <*> break b)
     Pad padded ->
-      let borderWidth = width (left padded) + width (right padded)
+      let borderWidth = width (left padded) `Dimensions.plus` width (right padded)
       in do
-        put (maxWidth - borderWidth, remainingWidth - borderWidth)
+        put (maxWidth `Dimensions.minus` borderWidth, remainingWidth `Dimensions.minus` borderWidth)
         inner <- break (element padded)
-        modify (\(_, remainingWidth) -> (maxWidth, remainingWidth - borderWidth))
+        modify (\(_, remainingWidth) -> (maxWidth, remainingWidth `Dimensions.minus` borderWidth))
         return $ p :< LPad (padded { element = inner })
     Nest e doc -> do
       case maxWidth == remainingWidth of
         -- we're immediately preceded by newline, insert `e` and indent
         True -> do
-          put $ let newMax = maxWidth - width e in (newMax, newMax)
+          put $ let newMax = maxWidth `Dimensions.minus` width e in (newMax, newMax)
           doc <- break doc
           return $ p :< LNest e doc
         -- we're in the middle of a line, ignore `e`
@@ -112,24 +225,24 @@ flow (p :< doc) = case doc of
 
 -- | Annotate the document with the preferred width of each subtree,
 -- assuming that embedded elements have the given width function.
-preferredWidth :: (e -> Int) -> Doc e p -> Doc e (p,Int)
+preferredWidth :: (e -> Width) -> Doc e p -> Doc e (p,Width)
 preferredWidth width (p :< d) = case d of
-  Empty -> (p, 0) :< Empty
+  Empty -> (p, Dimensions.zero) :< Empty
   Embed e -> (p, width e) :< Embed e
   Pad padded ->
-    let borderWidth = width (left padded) + width (right padded)
+    let borderWidth = width (left padded) `Dimensions.plus` width (right padded)
         inner = preferredWidth width (element padded)
         innerWidth = snd (root inner)
-    in (p, borderWidth + innerWidth) :< Pad (padded { element = inner })
+    in (p, borderWidth `Dimensions.plus` innerWidth) :< Pad (padded { element = inner })
   -- Since we just use this to decide whether to break or not,
   -- as long as `flow` and `break` both interpret `Linebreak` properly,
   -- a zero width for linebreaks is okay
-  Linebreak -> (p, 0) :< Linebreak
+  Linebreak -> (p, Dimensions.zero) :< Linebreak
   Breakable e -> (p, width e) :< Breakable e -- assuming we fit on the line
   Append left right ->
     let left' = preferredWidth width left
         right' = preferredWidth width right
-    in (p, snd (extract left') + snd (extract right')) :< Append left' right'
+    in (p, snd (extract left') `Dimensions.plus` snd (extract right')) :< Append left' right'
   Group d ->
     let pd@((_,n) :< _) = preferredWidth width d
     in (p, n) :< Group pd
@@ -167,8 +280,8 @@ etraverse f (p :< d) = (p :<) <$> case d of
   Empty -> pure Empty
 
 -- | Map over all `e` elements in this `Doc e p`.
-emap :: (e -> e2) -> Doc e p -> Doc e2 p
-emap f = runIdentity . etraverse (Identity . f)
+emap :: Bifunctor f => (e -> e2) -> Cofree (f e) a -> Cofree (f e2) a
+emap f (p :< r) = p :< first f (second (emap f) r)
 
 -- | Substitute all `e` elements in this `Doc e p`. The
 -- function must return an `embed e2` when targeting elements
@@ -252,77 +365,45 @@ linebreak = linebreak' Path.root
 linebreak' :: Path p => p -> Doc e p
 linebreak' p = p :< Linebreak
 
-data Renderer e =
-  Renderer { rhorizontal :: [e] -> e, rvertical :: [e] -> e }
-
-data Renderer' e =
-  Renderer' { rconcat :: [e] -> e, rnewline :: e }
-
-render :: Renderer e -> (e0 -> e) -> Layout e0 p -> e
-render r f l =
-  finish (execState (go l) ([],[],[]))
+-- | Convert a layout to a list of tokens, using `newline` where the layout
+-- calls for a linebreak.
+tokens :: e -> Layout e p -> [e]
+tokens newline l = finish (execState (go l) ([],[],True))
   where
-  finish (_, vstack, []) = rvertical r (reverse vstack)
-  finish (_, vstack, hbuf) = finish ([], rhorizontal r (reverse hbuf) : vstack, [])
+  finish (_, buf, _) = reverse buf
   col3 p top mid bot = p :< (LAppend (p :< (LAppend (p :< LEmbed top) mid)) (p :< LEmbed bot))
   row3 p left mid right = p :< (LAppend (p :< (LAppend (p :< LEmbed left) mid)) (p :< LEmbed right))
-  -- state is (indentation snoc list, vertical buffer snoc list, current line snoc list)
+  -- state is (indentation snoc list, token buffer snoc list, whether immediately preceded by newline)
+  -- go :: Layout e p -> State ([e],[e],Bool) ()
   go (p :< l) = case l of
     LEmpty -> return ()
     LLinebreak -> modify cr where
-      cr (indent, vstack, hbuf) = (indent, rhorizontal r (reverse hbuf) : vstack, [])
+      cr (indent, buf, _) = (indent, newline : buf, True)
     LEmbed e -> modify g where
       -- we indent if we're the first token on this line
-      g (indent, vstack, []) = (indent, vstack, f e : indent)
-      g (indent, vstack, hbuf) = (indent, vstack, f e : hbuf)
+      g (indent, buf, True) = (indent, e : (indent ++ buf), False)
+      g (indent, buf, _) = (indent, e : buf, False)
     LPad padded -> modify g where
-      inner = render r f (col3 p (top padded)
-                                 (row3 p (left padded) (element padded) (right padded))
-                                 (bottom padded))
+      inner = tokens newline
+        (row3 p (left padded)
+                (col3 p (top padded) (element padded) (bottom padded))
+                (right padded))
       -- we indent if we're the first token on this line
-      g (indent, vstack, []) = (indent, vstack, inner : indent)
-      g (indent, vstack, hbuf) = (indent, vstack, inner : hbuf)
+      g (indent, buf, True) = (indent, reverse inner ++ (indent ++ buf), False)
+      g (indent, buf, _) = (indent, reverse inner ++ buf, False)
     LNest e r -> do
-      modify (\(i,v,h) -> (f e : i, v, h))
+      modify (\(i,b,fst) -> (e : i, b, fst))
       go r
-      modify (\(i,v,h) -> (tail i, v, h))
-    LAppend a b -> go a *> go b
-
-render' :: Renderer' e -> (e0 -> e) -> Layout e0 p -> e
-render' r f l = finish (execState (go l) ([],[],True))
-  where
-  finish (_, buf, _) = rconcat r (reverse buf)
-  col3 p top mid bot = p :< (LAppend (p :< (LAppend (p :< LEmbed top) mid)) (p :< LEmbed bot))
-  row3 p left mid right = p :< (LAppend (p :< (LAppend (p :< LEmbed left) mid)) (p :< LEmbed right))
-  -- state is (indentation snoc list, token buffer snoc list)
-  go (p :< l) = case l of
-    LEmpty -> return ()
-    LLinebreak -> modify cr where
-      cr (indent, buf, _) = (indent, rnewline r : buf, True)
-    LEmbed e -> modify g where
-      -- we indent if we're the first token on this line
-      g (indent, buf, True) = (indent, f e : (indent ++ buf), False)
-      g (indent, buf, _) = (indent, f e : buf, False)
-    LPad padded -> modify g where
-      inner = render' r f (col3 p (top padded)
-                                  (row3 p (left padded) (element padded) (right padded))
-                                  (bottom padded))
-      -- we indent if we're the first token on this line
-      g (indent, buf, True) = (indent, inner : (indent ++ buf), False)
-      g (indent, buf, _) = (indent, inner : buf, False)
-    LNest e r -> do
-      modify (\(i,b,fst) -> (f e : i, b, fst))
-      go r
-      modify (\(i,b,fst) -> (tail i, b, fst))
+      modify (\(i,b,fst) -> (drop 1 i, b, fst))
     LAppend a b -> go a *> go b
 
 renderString :: Layout String p -> String
-renderString = render' (Renderer' concat "\n") id
+renderString l = concat (tokens "\n" l)
 
-formatString :: Int -> Doc String p -> String
-formatString availableWidth d = renderString (layout length availableWidth d)
+formatString :: Width -> Doc String p -> String
+formatString availableWidth d = renderString (layout (Width . fromIntegral . length) availableWidth d)
 
-formatText :: Int -> Doc Text p -> String
+formatText :: Width -> Doc Text p -> String
 formatText availableWidth d =
   formatString availableWidth (emap Text.unpack d)
 
@@ -348,3 +429,28 @@ parenthesize :: (IsString s, Path p) => Bool -> Doc s p -> Doc s p
 parenthesize b d =
   let r = root d
   in if b then docs [embed' r "(", d, embed' r ")"] else d
+
+-- various instances
+
+instance Bifunctor Padded where
+  second = fmap
+  first f (Padded e1 e2 e3 e4 r) = Padded (f e1) (f e2) (f e3) (f e4) r
+
+instance Bifunctor B where
+  second = fmap
+  first f b = case b of
+    BEmpty -> BEmpty
+    BEmbed e -> BEmbed (f e)
+    BFlow dir bs -> BFlow dir bs
+
+instance Bifunctor D where
+  second = fmap
+  first f d = case d of
+    Empty -> Empty
+    Embed e -> Embed (f e)
+    Pad p -> Pad (first f p)
+    Breakable e -> Breakable (f e)
+    Linebreak -> Linebreak
+    Group r -> Group r
+    Nest e r -> Nest (f e) r
+    Append r r2 -> Append r r2

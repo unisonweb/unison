@@ -36,6 +36,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import qualified Unison.ABT as ABT
+import qualified Unison.Dimensions as Dimensions
 import qualified Unison.Distance as Distance
 import qualified Unison.Doc as D
 import qualified Unison.JSON as J
@@ -304,7 +305,7 @@ betaReduce e = e
 type ViewableTerm = Term (Symbol View.DFO)
 
 toString :: ViewableTerm -> String
-toString t = D.formatText 80 (view Type.defaultSymbol t)
+toString t = D.formatText (Dimensions.Width 80) (view Type.defaultSymbol t)
 
 view :: (Reference -> Symbol View.DFO) -> ViewableTerm -> Doc Text Path
 view ref t = go no View.low t where

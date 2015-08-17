@@ -26,6 +26,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.Doc as D
+import qualified Unison.Dimensions as Dimensions
 import qualified Unison.Hash as Hash
 import qualified Unison.JSON as J
 import qualified Unison.Kind as K
@@ -205,7 +206,7 @@ defaultSymbol (Reference.Derived h) = Symbol.prefix (Text.cons '#' $ short h)
   short h = Text.take 8 . Hash.base64 $ h
 
 toString :: ViewableType -> String
-toString t = D.formatText 80 (view defaultSymbol t)
+toString t = D.formatText (Dimensions.Width 80) (view defaultSymbol t)
 
 view :: (Reference -> Symbol View.DFO) -> ViewableType -> Doc Text Path
 view ref t = go no View.low t

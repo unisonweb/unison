@@ -45,12 +45,18 @@ library
   hs-source-dirs: src
 
   exposed-modules:
+    Unison.DocView
+    Unison.UI
     Unison.Woot
 
   build-depends:
     base,
+    ghcjs-dom,
+    ghcjs-base,
     reflex,
     reflex-dom,
+    text,
+    transformers,
     unison-shared
 
   ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N

@@ -35,6 +35,7 @@ library
 
   exposed-modules:
     Unison.ABT
+    Unison.Dimensions
     Unison.Distance
     Unison.Doc
     Unison.Eval
@@ -58,6 +59,7 @@ library
     aeson,
     base,
     base64-bytestring,
+    bifunctors,
     bytestring,
     containers,
     comonad,
