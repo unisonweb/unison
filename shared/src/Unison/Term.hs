@@ -332,14 +332,16 @@ view ref t = go no View.low t where
         formattedBs = [ formatBinding bp name b | ((name,b), bp) <- bs `zip` bps ]
       in D.group $ D.docs [D.embed "let", D.breakable " "] `D.append`
                    D.nest "  " (D.delimit (D.breakable "; ") formattedBs) `D.append`
-                   D.docs [D.embed "in", D.breakable " ", D.sub' pe . D.nest "  " $ go no View.low e ]
+                   D.docs [ D.breakable " ", D.embed "in", D.breakable " "
+                          , D.sub' pe . D.nest "  " $ go no View.low e ]
     LetRec' bs e ->
       let
         bps = map Binding [0 .. length bs - 1]
         formattedBs = [ formatBinding [bp] name b | ((name,b), bp) <- bs `zip` bps ]
       in D.group $ D.docs [D.embed "let rec", D.breakable " "] `D.append`
                    D.nest "  " (D.delimit (D.breakable "; ") formattedBs) `D.append`
-                   D.docs [D.embed "in", D.breakable " ", D.sub Body . D.nest "  " $ go no View.low e ]
+                   D.docs [ D.breakable " ", D.embed "in", D.breakable " "
+                          , D.sub Body . D.nest "  " $ go no View.low e ]
     AppsP' (fn,fnP) args ->
       let
         Symbol.Symbol _ name view = op fn
