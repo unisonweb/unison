@@ -22,6 +22,7 @@ import Control.Comonad (extract)
 import Control.Monad.State.Strict
 import Data.Bifunctor
 import Data.Functor
+import Data.Foldable
 import Data.List hiding (group)
 import Data.String (IsString)
 import Data.Text (Text)
@@ -151,25 +152,24 @@ boundedBoxes dims l = bounds dims (boxed l)
 -- The point (X 0, Y 0) is assumed to correspond to the top left
 -- corner of the layout.
 at :: Boxed e (p, (X,Y,Width,Height)) -> (X,Y) -> [p]
-at box = go box
+at box pt = go box
   where
-  within (X x0, Y y0) (X x,Y y,Width w,Height h) =
-    x0 >= x && x0 <= x+w && y0 >= y && y0 <= y+h
-  go ((p,region) :< box) pt =
-    if not (pt `within` region) then []
-    else p : case box of
-      BEmpty -> []
-      BEmbed _ -> []
-      BFlow _ bs -> bs >>= \b -> go b pt
+  within (X x0, Y y0) (X x,Y y,Width w,Height h) = x0 >= x && x0 <= x+w && y0 >= y && y0 <= y+h
+  go ((p,region) :< box) | not (pt `within` region) = []
+                         | otherwise = p : (toList box >>= go)
 
+-- | Find all regions along the path.
 regions :: (Eq p, Path p) => Boxed e (p, (X,Y,Width,Height)) -> [p] -> [(X,Y,Width,Height)]
-regions box p = go box (foldr Path.extend Path.root p) where
-  go ((p,region) :< box) searchp = region : case box of
-    BEmpty -> []
-    BEmbed _ -> []
-    BFlow _ bs -> bs >>= \((p,r) :< box) -> case Path.factor p searchp of
-      (lca, (p,searchp)) | lca /= Path.root -> go ((p,r) :< box) searchp
-      _ -> []
+regions box@((_,region) :< _) p =
+  region : go (foldr Path.extend Path.root p) box
+  where
+  go searchp ((p,region) :< box) = case Path.factor p searchp of
+    (lca, (p,searchp))
+      -- we need to consume all of p to include it,
+      -- and at least 1 element of searchp
+      | p == Path.root && lca /= Path.root
+      -> region : (toList box >>= go searchp)
+    _ -> []
 
 -- | Produce a `Layout` which tries to fit in the given width,
 -- assuming that embedded `e` elements have the computed width.
