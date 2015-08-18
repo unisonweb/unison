@@ -427,32 +427,69 @@ bounds dims b = go (areas dims b) (Dimensions.zero, Dimensions.zero) where
   leftAlignedV (x, y) areas = map (x,) $
     scanl' (\y (Height h) -> Dimensions.plus y (Y h)) y (map snd areas)
 
--- | Compute the list of path segments corresponding to the given point.
+-- | Compute the list of path segments whose region contains the given point.
+-- See note on `hits`.
+at :: (Path p, Eq p) => Boxed e (p, (X,Y,Width,Height)) -> (X,Y) -> [p]
+at box (x,y) = contains box (x,y,Dimensions.zero,Dimensions.zero)
+
+-- | Compute the list of path segments whose region passes the `hit` function,
+-- which is given the top left and lower right corners of the input region.
 -- Concatenating the full list of segments gives the deepest path into the
 -- structure whose layout region contains the point. Concatenating all but the
 -- last segment yields the parent of the deepest path, and so on.
 --
 -- The point (X 0, Y 0) is assumed to correspond to the top left
 -- corner of the layout.
-at :: Boxed e (p, (X,Y,Width,Height)) -> (X,Y) -> [p]
-at box pt = go box
+hits :: (Path p, Eq p)
+     => ((X,Y) -> (X,Y) -> (X,Y,Width,Height) -> Bool)
+     -> Boxed e (p, (X,Y,Width,Height)) -> (X,Y,Width,Height) -> [p]
+hits hit box (X x,Y y,Width w,Height h) = fixup (go box)
   where
-  within (X x0, Y y0) (X x,Y y,Width w,Height h) = x0 >= x && x0 <= x+w && y0 >= y && y0 <= y+h
-  go ((p,region) :< box) | not (pt `within` region) = []
-                         | otherwise = p : (toList box >>= go)
+  -- only include nonempty path segments, with exception of first
+  fixup xs = take 1 xs ++ filter (Path.root /=) (drop 1 xs)
+  pt1 = (X x, Y y)
+  pt2 = (X (x+w), Y (y+h))
+  go ((p,region) :< box) | hit pt1 pt2 region = p : (toList box >>= go)
+                         | otherwise = []
+
+-- | Compute the list of path segments whose bounding region fully contains
+-- the input region. See note on `hits`. Satisfies `last (regions box (contains box r)) == p`
+contains :: (Path p, Eq p) => Boxed e (p, (X,Y,Width,Height)) -> (X,Y,Width,Height) -> [p]
+contains = hits $ \p1 p2 region ->
+  Dimensions.within p1 region && Dimensions.within p2 region
+
+-- | Compute the list of path segments whose bounding region intersects with
+-- the input region. See note on `hits`.
+intersects :: (Path p, Eq p) => Boxed e (p, (X,Y,Width,Height)) -> (X,Y,Width,Height) -> [p]
+intersects = hits $ \p1 p2 region ->
+  Dimensions.within p1 region || Dimensions.within p2 region
 
 -- | Find all regions along the path.
-regions :: (Eq p, Path p) => Boxed e (p, (X,Y,Width,Height)) -> [p] -> [(X,Y,Width,Height)]
-regions box@((_,region) :< _) p =
-  region : go (foldr Path.extend Path.root p) box
+regions :: (Path p, Eq p) => Boxed e (p, (X,Y,Width,Height)) -> [p] -> [(X,Y,Width,Height)]
+regions box p = go (foldr Path.extend Path.root p) box
   where
-  go searchp ((p,region) :< box) = case Path.factor p searchp of
-    (lca, (p,searchp))
-      -- we need to consume all of p to include it,
-      -- and at least 1 element of searchp
-      | p == Path.root && lca /= Path.root
-      -> region : (toList box >>= go searchp)
-    _ -> []
+  go searchp ((_,region) :< _) | searchp == Path.root = [region]
+  go searchp ((p,region) :< box) =
+    -- bail on this branch if we can't fully consume its path segment
+    -- OR if path segment shares nothing in common w/ query
+    if p' /= Path.root || (p /= Path.root && lca == Path.root) then []
+    -- recurse into nodes whose segment is empty, but don't include their regions in output
+    else (if lca /= Path.root then (region:) else id) (toList box >>= go searchp')
+    where
+    (lca, (p',searchp')) = Path.factor p searchp
+
+-- todo: navigation operators
+-- up, down, left, right are spacial, based on actual layout
+-- expand and contract are based on tree structure induced by paths
+-- up :: Boxed e (p, (X,Y,Width,Height)) -> p -> p
+-- down :: Boxed e (p, (X,Y,Width,Height)) -> p -> p
+-- left :: Boxed e (p, (X,Y,Width,Height)) -> p -> p
+-- right :: Boxed e (p, (X,Y,Width,Height)) -> p -> p
+-- right' :: Boxed e (p, (X,Y,Width,Height)) -> p -> Maybe p
+-- expand :: Boxed e (p, (X,Y,Width,Height)) -> p -> p
+-- expand' :: Boxed e (p, (X,Y,Width,Height)) -> p -> Maybe p
+-- contract :: Boxed e (p, (X,Y,Width,Height)) -> p -> p
+-- contract' :: Boxed e (p, (X,Y,Width,Height)) -> p -> Maybe p
 
 -- various instances
 

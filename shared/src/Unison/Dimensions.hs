@@ -5,6 +5,10 @@ newtype Y = Y Word deriving (Eq,Ord)
 newtype Width = Width Word deriving (Eq,Ord)
 newtype Height = Height Word deriving (Eq,Ord)
 
+within :: (X,Y) -> (X,Y,Width,Height) -> Bool
+within (X x0, Y y0) (X x,Y y,Width w,Height h) =
+  x0 >= x && x0 <= x+w && y0 >= y && y0 <= y+h
+
 class Ord t => Natural t where
   plus :: t -> t -> t
   minus :: t -> t -> t
