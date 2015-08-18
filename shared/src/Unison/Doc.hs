@@ -74,201 +74,6 @@ data B e r
 
 type Boxed e p = Cofree (B e) p
 
-accumulate :: Functor f => (f b -> b) -> Cofree f a -> Cofree f (a,b)
-accumulate alg (a :< f) = case fmap (accumulate alg) f of
-  f -> (a, alg (fmap (snd . root) f)) :< f
-
-einterpret :: Bifunctor f => (f e e -> e) -> Cofree (f e) p -> e
-einterpret alg (_ :< f) = alg $ second (einterpret alg) f
-
-rewrite :: Functor f => (f (Cofree f a) -> f (Cofree f a)) -> Cofree f a -> Cofree f a
-rewrite alg (a :< f) = a :< fmap (rewrite alg) f
-
-flatten :: Boxed e p -> Boxed e p
-flatten b = rewrite step b where
-  step b = case b of
-    BEmpty -> b
-    BEmbed _ -> b
-    BFlow dir bs -> BFlow dir $ bs >>= h where
-      h (_ :< BFlow dir2 bsi) | dir == dir2 = bsi
-      h x = [x]
-
-breduce :: (a -> a -> a) -> a -> [a] -> a
-breduce f z s = done $ foldl' step [] s where
-  step !stack a = fixup ((a, 1 :: Int) : stack)
-  fixup ((a2,n):(a1,m):tl) | m >= n = fixup ((f a1 a2, n+m) : tl)
-  fixup stack = stack
-  done [] = z
-  done stack = foldl1' (\a2 a1 -> f a1 a2) (map fst stack)
-
-boxed :: Path p => Layout e p -> Boxed e p
-boxed l = go l [] [] [] where
-  empty = Path.root :< BEmpty
-  line hbuf = breduce beside empty (reverse hbuf)
-  above = combine $ \b1 b2 -> BFlow Horizontal [b1,b2]
-  beside = combine $ \b1 b2 -> BFlow Vertical [b1,b2]
-  combine f (p :< b) (p2 :< b2) = case Path.factor p p2 of
-    (root, (p,p2)) -> root :< f (p :< b) (p2 :< b2)
-
-  bembed e = Path.root :< BEmbed e
-  advance hbuf vbuf todo = go (Path.root :< LEmpty) hbuf vbuf todo
-  go (p :< l) hbuf vbuf todo = case l of
-    LEmpty -> case todo of
-      [] -> breduce above empty (reverse $ line hbuf : vbuf)
-      hd:todo -> go hd hbuf vbuf todo
-    LEmbed e -> advance vbuf ((p :< BEmbed e) : hbuf) todo
-    LNest e r -> let inner = p :< BFlow Horizontal [Path.root :< BEmbed e, boxed r]
-                 in advance (inner:hbuf) vbuf todo
-    LAppend a b -> go a hbuf vbuf (b:todo)
-    LPad (Padded top bot l r e) -> advance (inner : hbuf) vbuf todo where
-      inner = p :< BFlow Horizontal
-        [ bembed l
-        , Path.root :< BFlow Vertical [bembed top, boxed e, bembed bot]
-        , bembed r ]
-    LLinebreak | null hbuf -> advance hbuf vbuf todo
-    LLinebreak -> advance [] (line hbuf : vbuf) todo
-
--- | Compute the width and height occupied by every node in the layout.
-areas :: (e -> (Width,Height)) -> Boxed e p -> Boxed e (p, (Width,Height))
-areas dims b = accumulate step b where
-  zero = (Dimensions.zero, Dimensions.zero)
-  step BEmpty = zero
-  step (BEmbed e) = dims e
-  step (BFlow Horizontal bs) = foldl' hcombine zero bs
-  step (BFlow Vertical bs) = foldl' vcombine zero bs
-  hcombine (w1,h1) (w2,h2) = (Dimensions.plus w1 w2, h1 `max` h2)
-  vcombine (w1,h1) (w2,h2) = (w1 `max` w2, Dimensions.plus h1 h2)
-
--- | Compute the region of every node in the layout, consisting of a
--- an (x,y,w,h), where (x,y) is the top left corner of the region, and
--- (w,h) are the width and height of the region, respectively. All (x,y)
--- coordinates are relative to the top left of the root `Boxed` passed
--- in, which will always have an (x,y) component of (0,0).
-bounds :: (e -> (Width,Height)) -> Boxed e p -> Boxed e (p, (X,Y,Width,Height))
-bounds dims b = go (areas dims b) (Dimensions.zero, Dimensions.zero) where
-  go ((p,(w,h)) :< box) xy@(x,y) = (p, (x,y,w,h)) :< case box of
-    BEmpty -> BEmpty
-    BEmbed e -> BEmbed e
-    BFlow Horizontal bs -> BFlow Horizontal
-      [ go b pt | (b,pt) <- bs `zip` centerAlignedH xy (map (snd . root) bs) ]
-    BFlow Vertical bs -> BFlow Vertical
-      [ go b pt | (b,pt) <- bs `zip` leftAlignedV xy (map (snd . root) bs) ]
-  -- todo, should support other types of alignment for BFlow rather
-  -- than assuming items are center-aligned for horizontal and left-aligned for vertical
-  centerAlignedH (x, Y y) areas =
-    let Height maxh = maximum (Height 0 : map snd areas)
-        xs = scanl' (\x (Width w) -> Dimensions.plus x (X w)) x (map fst areas)
-    in [(x, Y $ y + ((maxh - h) `quot` 2)) | (x,(_,Height h)) <- xs `zip` areas ]
-  leftAlignedV (x, y) areas = map (x,) $
-    scanl' (\y (Height h) -> Dimensions.plus y (Y h)) y (map snd areas)
-
--- | Compute the list of path segments corresponding to the given point.
--- Concatenating the full list of segments gives the deepest path into the
--- structure whose layout region contains the point. Concatenating all but the
--- last segment yields the parent of the deepest path, and so on.
---
--- The point (X 0, Y 0) is assumed to correspond to the top left
--- corner of the layout.
-at :: Boxed e (p, (X,Y,Width,Height)) -> (X,Y) -> [p]
-at box pt = go box
-  where
-  within (X x0, Y y0) (X x,Y y,Width w,Height h) = x0 >= x && x0 <= x+w && y0 >= y && y0 <= y+h
-  go ((p,region) :< box) | not (pt `within` region) = []
-                         | otherwise = p : (toList box >>= go)
-
--- | Find all regions along the path.
-regions :: (Eq p, Path p) => Boxed e (p, (X,Y,Width,Height)) -> [p] -> [(X,Y,Width,Height)]
-regions box@((_,region) :< _) p =
-  region : go (foldr Path.extend Path.root p) box
-  where
-  go searchp ((p,region) :< box) = case Path.factor p searchp of
-    (lca, (p,searchp))
-      -- we need to consume all of p to include it,
-      -- and at least 1 element of searchp
-      | p == Path.root && lca /= Path.root
-      -> region : (toList box >>= go searchp)
-    _ -> []
-
--- | Produce a `Layout` which tries to fit in the given width,
--- assuming that embedded `e` elements have the computed width.
--- Runs in linear time without backtracking.
-layout :: (e -> Width) -> Width -> Doc e p -> Layout e p
-layout width maxWidth doc =
-  fmap fst $ evalState (go (preferredWidth width doc)) (maxWidth, maxWidth)
-  where
-  go doc = do
-    (maxWidth, remainingWidth) <- get
-    case doc of
-      (_,w) :< _ | w <= remainingWidth ->
-        put (maxWidth, remainingWidth `Dimensions.minus` w) $> flow doc
-      _ :< Group doc -> break doc
-      _ -> break doc
-
-  -- | Break a document into a list of documents, separated by lines,
-  -- respecting the linebreak constraints of the input `Doc`.
-  break (p :< doc) = get >>= \(maxWidth, remainingWidth) -> case doc of
-    Empty -> pure $ p :< LEmpty
-    Embed e -> put (maxWidth, remainingWidth `Dimensions.minus` width e) $> (p :< LEmbed e)
-    Breakable _ -> put (maxWidth, maxWidth) $> (p :< LLinebreak)
-    Linebreak -> put (maxWidth, maxWidth) $> (p :< LLinebreak)
-    Append a b -> (:<) p <$> (LAppend <$> break a <*> break b)
-    Pad padded ->
-      let borderWidth = width (left padded) `Dimensions.plus` width (right padded)
-      in do
-        put (maxWidth `Dimensions.minus` borderWidth, remainingWidth `Dimensions.minus` borderWidth)
-        inner <- break (element padded)
-        modify (\(_, remainingWidth) -> (maxWidth, remainingWidth `Dimensions.minus` borderWidth))
-        return $ p :< LPad (padded { element = inner })
-    Nest e doc -> do
-      case maxWidth == remainingWidth of
-        -- we're immediately preceded by newline, insert `e` and indent
-        True -> do
-          put $ let newMax = maxWidth `Dimensions.minus` width e in (newMax, newMax)
-          doc <- break doc
-          return $ p :< LNest e doc
-        -- we're in the middle of a line, ignore `e`
-        False -> break doc
-    Group doc -> go doc -- we try to avoid breaking subgroups
-
--- | Layout the `Doc` assuming infinite available width
-flow :: Doc e p -> Layout e p
-flow (p :< doc) = case doc of
-  Empty -> p :< LEmpty
-  Embed e -> p :< LEmbed e
-  Pad padded -> p :< LPad (padded { element = flow (element padded) })
-  Linebreak -> p :< LLinebreak
-  Breakable e -> p :< LEmbed e -- don't linebreak, it fits
-  Append a b -> p :< (flow a `LAppend` flow b)
-  Group r -> flow r
-  Nest _ r -> flow r
-
--- | Annotate the document with the preferred width of each subtree,
--- assuming that embedded elements have the given width function.
-preferredWidth :: (e -> Width) -> Doc e p -> Doc e (p,Width)
-preferredWidth width (p :< d) = case d of
-  Empty -> (p, Dimensions.zero) :< Empty
-  Embed e -> (p, width e) :< Embed e
-  Pad padded ->
-    let borderWidth = width (left padded) `Dimensions.plus` width (right padded)
-        inner = preferredWidth width (element padded)
-        innerWidth = snd (root inner)
-    in (p, borderWidth `Dimensions.plus` innerWidth) :< Pad (padded { element = inner })
-  -- Since we just use this to decide whether to break or not,
-  -- as long as `flow` and `break` both interpret `Linebreak` properly,
-  -- a zero width for linebreaks is okay
-  Linebreak -> (p, Dimensions.zero) :< Linebreak
-  Breakable e -> (p, width e) :< Breakable e -- assuming we fit on the line
-  Append left right ->
-    let left' = preferredWidth width left
-        right' = preferredWidth width right
-    in (p, snd (extract left') `Dimensions.plus` snd (extract right')) :< Append left' right'
-  Group d ->
-    let pd@((_,n) :< _) = preferredWidth width d
-    in (p, n) :< Group pd
-  Nest e d -> -- assume it fits, so ignore the `e`
-    let pd@((_,n) :< _) = preferredWidth width d
-    in (p,n) :< Nest e pd
-
 -- | The root path of this document
 root :: Cofree f p -> p
 root (p :< _) = p
@@ -384,38 +189,6 @@ linebreak = linebreak' Path.root
 linebreak' :: Path p => p -> Doc e p
 linebreak' p = p :< Linebreak
 
--- | Convert a layout to a list of tokens, using `newline` where the layout
--- calls for a linebreak.
-tokens :: e -> Layout e p -> [e]
-tokens newline l = finish (execState (go l) ([],[],True))
-  where
-  finish (_, buf, _) = reverse buf
-  col3 p top mid bot = p :< (LAppend (p :< (LAppend (p :< LEmbed top) mid)) (p :< LEmbed bot))
-  row3 p left mid right = p :< (LAppend (p :< (LAppend (p :< LEmbed left) mid)) (p :< LEmbed right))
-  -- state is (indentation snoc list, token buffer snoc list, whether immediately preceded by newline)
-  -- go :: Layout e p -> State ([e],[e],Bool) ()
-  go (p :< l) = case l of
-    LEmpty -> return ()
-    LLinebreak -> modify cr where
-      cr (indent, buf, _) = (indent, newline : buf, True)
-    LEmbed e -> modify g where
-      -- we indent if we're the first token on this line
-      g (indent, buf, True) = (indent, e : (indent ++ buf), False)
-      g (indent, buf, _) = (indent, e : buf, False)
-    LPad padded -> modify g where
-      inner = tokens newline
-        (row3 p (left padded)
-                (col3 p (top padded) (element padded) (bottom padded))
-                (right padded))
-      -- we indent if we're the first token on this line
-      g (indent, buf, True) = (indent, reverse inner ++ (indent ++ buf), False)
-      g (indent, buf, _) = (indent, reverse inner ++ buf, False)
-    LNest e r -> do
-      modify (\(i,b,fst) -> (e : i, b, fst))
-      go r
-      modify (\(i,b,fst) -> (drop 1 i, b, fst))
-    LAppend a b -> go a *> go b
-
 renderString :: Layout String p -> String
 renderString l = concat (tokens "\n" l)
 
@@ -448,6 +221,238 @@ parenthesize :: (IsString s, Path p) => Bool -> Doc s p -> Doc s p
 parenthesize b d =
   let r = root d
   in if b then docs [embed' r "(", d, embed' r ")"] else d
+
+-- various interpreters
+
+accumulate :: Functor f => (f b -> b) -> Cofree f a -> Cofree f (a,b)
+accumulate alg (a :< f) = case fmap (accumulate alg) f of
+  f -> (a, alg (fmap (snd . root) f)) :< f
+
+einterpret :: Bifunctor f => (f e e -> e) -> Cofree (f e) p -> e
+einterpret alg (_ :< f) = alg $ second (einterpret alg) f
+
+rewrite :: Functor f => (f (Cofree f a) -> f (Cofree f a)) -> Cofree f a -> Cofree f a
+rewrite alg (a :< f) = a :< fmap (rewrite alg) f
+
+-- | Produce a `Layout` which tries to fit in the given width,
+-- assuming that embedded `e` elements have the computed width.
+-- Runs in linear time without backtracking.
+layout :: (e -> Width) -> Width -> Doc e p -> Layout e p
+layout width maxWidth doc =
+  fmap fst $ evalState (go (preferredWidth width doc)) (maxWidth, maxWidth)
+  where
+  go doc = do
+    (maxWidth, remainingWidth) <- get
+    case doc of
+      (_,w) :< _ | w <= remainingWidth ->
+        put (maxWidth, remainingWidth `Dimensions.minus` w) $> flow doc
+      _ :< Group doc -> break doc
+      _ -> break doc
+
+  -- | Break a document into a list of documents, separated by lines,
+  -- respecting the linebreak constraints of the input `Doc`.
+  break (p :< doc) = get >>= \(maxWidth, remainingWidth) -> case doc of
+    Empty -> pure $ p :< LEmpty
+    Embed e -> put (maxWidth, remainingWidth `Dimensions.minus` width e) $> (p :< LEmbed e)
+    Breakable _ -> put (maxWidth, maxWidth) $> (p :< LLinebreak)
+    Linebreak -> put (maxWidth, maxWidth) $> (p :< LLinebreak)
+    Append a b -> (:<) p <$> (LAppend <$> break a <*> break b)
+    Pad padded ->
+      let borderWidth = width (left padded) `Dimensions.plus` width (right padded)
+      in do
+        put (maxWidth `Dimensions.minus` borderWidth, remainingWidth `Dimensions.minus` borderWidth)
+        inner <- break (element padded)
+        modify (\(_, remainingWidth) -> (maxWidth, remainingWidth `Dimensions.minus` borderWidth))
+        return $ p :< LPad (padded { element = inner })
+    Nest e doc -> do
+      case maxWidth == remainingWidth of
+        -- we're immediately preceded by newline, insert `e` and indent
+        True -> do
+          put $ let newMax = maxWidth `Dimensions.minus` width e in (newMax, newMax)
+          doc <- break doc
+          return $ p :< LNest e doc
+        -- we're in the middle of a line, ignore `e`
+        False -> break doc
+    Group doc -> go doc -- we try to avoid breaking subgroups
+
+-- | Layout the `Doc` assuming infinite available width
+flow :: Doc e p -> Layout e p
+flow (p :< doc) = case doc of
+  Empty -> p :< LEmpty
+  Embed e -> p :< LEmbed e
+  Pad padded -> p :< LPad (padded { element = flow (element padded) })
+  Linebreak -> p :< LLinebreak
+  Breakable e -> p :< LEmbed e -- don't linebreak, it fits
+  Append a b -> p :< (flow a `LAppend` flow b)
+  Group r -> flow r
+  Nest _ r -> flow r
+
+-- | Annotate the document with the preferred width of each subtree,
+-- assuming that embedded elements have the given width function.
+preferredWidth :: (e -> Width) -> Doc e p -> Doc e (p,Width)
+preferredWidth width (p :< d) = case d of
+  Empty -> (p, Dimensions.zero) :< Empty
+  Embed e -> (p, width e) :< Embed e
+  Pad padded ->
+    let borderWidth = width (left padded) `Dimensions.plus` width (right padded)
+        inner = preferredWidth width (element padded)
+        innerWidth = snd (root inner)
+    in (p, borderWidth `Dimensions.plus` innerWidth) :< Pad (padded { element = inner })
+  -- Since we just use this to decide whether to break or not,
+  -- as long as `flow` and `break` both interpret `Linebreak` properly,
+  -- a zero width for linebreaks is okay
+  Linebreak -> (p, Dimensions.zero) :< Linebreak
+  Breakable e -> (p, width e) :< Breakable e -- assuming we fit on the line
+  Append left right ->
+    let left' = preferredWidth width left
+        right' = preferredWidth width right
+    in (p, snd (extract left') `Dimensions.plus` snd (extract right')) :< Append left' right'
+  Group d ->
+    let pd@((_,n) :< _) = preferredWidth width d
+    in (p, n) :< Group pd
+  Nest e d -> -- assume it fits, so ignore the `e`
+    let pd@((_,n) :< _) = preferredWidth width d
+    in (p,n) :< Nest e pd
+
+-- | Convert a layout to a list of tokens, using `newline` where the layout
+-- calls for a linebreak.
+tokens :: e -> Layout e p -> [e]
+tokens newline l = finish (execState (go l) ([],[],True))
+  where
+  finish (_, buf, _) = reverse buf
+  col3 p top mid bot = p :< (LAppend (p :< (LAppend (p :< LEmbed top) mid)) (p :< LEmbed bot))
+  row3 p left mid right = p :< (LAppend (p :< (LAppend (p :< LEmbed left) mid)) (p :< LEmbed right))
+  -- state is (indentation snoc list, token buffer snoc list, whether immediately preceded by newline)
+  -- go :: Layout e p -> State ([e],[e],Bool) ()
+  go (p :< l) = case l of
+    LEmpty -> return ()
+    LLinebreak -> modify cr where
+      cr (indent, buf, _) = (indent, newline : buf, True)
+    LEmbed e -> modify g where
+      -- we indent if we're the first token on this line
+      g (indent, buf, True) = (indent, e : (indent ++ buf), False)
+      g (indent, buf, _) = (indent, e : buf, False)
+    LPad padded -> modify g where
+      inner = tokens newline
+        (row3 p (left padded)
+                (col3 p (top padded) (element padded) (bottom padded))
+                (right padded))
+      -- we indent if we're the first token on this line
+      g (indent, buf, True) = (indent, reverse inner ++ (indent ++ buf), False)
+      g (indent, buf, _) = (indent, reverse inner ++ buf, False)
+    LNest e r -> do
+      modify (\(i,b,fst) -> (e : i, b, fst))
+      go r
+      modify (\(i,b,fst) -> (drop 1 i, b, fst))
+    LAppend a b -> go a *> go b
+
+-- | Convert a `Layout` to a `Boxed`.
+boxed :: Path p => Layout e p -> Boxed e p
+boxed l = go l [] [] [] where
+  empty = Path.root :< BEmpty
+  line hbuf = foldb beside empty (reverse hbuf)
+  above = combine $ \b1 b2 -> BFlow Horizontal [b1,b2]
+  beside = combine $ \b1 b2 -> BFlow Vertical [b1,b2]
+  combine f (p :< b) (p2 :< b2) = case Path.factor p p2 of
+    (root, (p,p2)) -> root :< f (p :< b) (p2 :< b2)
+
+  bembed e = Path.root :< BEmbed e
+  advance hbuf vbuf todo = go (Path.root :< LEmpty) hbuf vbuf todo
+  go (p :< l) hbuf vbuf todo = case l of
+    LEmpty -> case todo of
+      [] -> foldb above empty (reverse $ line hbuf : vbuf)
+      hd:todo -> go hd hbuf vbuf todo
+    LEmbed e -> advance vbuf ((p :< BEmbed e) : hbuf) todo
+    LNest e r -> let inner = p :< BFlow Horizontal [Path.root :< BEmbed e, boxed r]
+                 in advance (inner:hbuf) vbuf todo
+    LAppend a b -> go a hbuf vbuf (b:todo)
+    LPad (Padded top bot l r e) -> advance (inner : hbuf) vbuf todo where
+      inner = p :< BFlow Horizontal
+        [ bembed l
+        , Path.root :< BFlow Vertical [bembed top, boxed e, bembed bot]
+        , bembed r ]
+    LLinebreak | null hbuf -> advance hbuf vbuf todo
+    LLinebreak -> advance [] (line hbuf : vbuf) todo
+
+-- | Un-nest any `BFlow` elements as much as possible.
+flatten :: Boxed e p -> Boxed e p
+flatten b = rewrite step b where
+  step b = case b of
+    BEmpty -> b
+    BEmbed _ -> b
+    BFlow dir bs -> BFlow dir $ bs >>= h where
+      h (_ :< BFlow dir2 bsi) | dir == dir2 = bsi
+      h x = [x]
+
+-- | Balanced reduction of a list (todo: find better home)
+foldb :: (a -> a -> a) -> a -> [a] -> a
+foldb f z s = done $ foldl' step [] s where
+  step !stack a = fixup ((a, 1 :: Int) : stack)
+  fixup ((a2,n):(a1,m):tl) | m >= n = fixup ((f a1 a2, n+m) : tl)
+  fixup stack = stack
+  done [] = z
+  done stack = foldl1' (\a2 a1 -> f a1 a2) (map fst stack)
+
+-- | Compute the width and height occupied by every node in the layout.
+areas :: (e -> (Width,Height)) -> Boxed e p -> Boxed e (p, (Width,Height))
+areas dims b = accumulate step b where
+  zero = (Dimensions.zero, Dimensions.zero)
+  step BEmpty = zero
+  step (BEmbed e) = dims e
+  step (BFlow Horizontal bs) = foldl' hcombine zero bs
+  step (BFlow Vertical bs) = foldl' vcombine zero bs
+  hcombine (w1,h1) (w2,h2) = (Dimensions.plus w1 w2, h1 `max` h2)
+  vcombine (w1,h1) (w2,h2) = (w1 `max` w2, Dimensions.plus h1 h2)
+
+-- | Compute the region of every node in the layout, consisting of a
+-- an (x,y,w,h), where (x,y) is the top left corner of the region, and
+-- (w,h) are the width and height of the region, respectively. All (x,y)
+-- coordinates are relative to the top left of the root `Boxed` passed
+-- in, which will always have an (x,y) component of (0,0).
+bounds :: (e -> (Width,Height)) -> Boxed e p -> Boxed e (p, (X,Y,Width,Height))
+bounds dims b = go (areas dims b) (Dimensions.zero, Dimensions.zero) where
+  go ((p,(w,h)) :< box) xy@(x,y) = (p, (x,y,w,h)) :< case box of
+    BEmpty -> BEmpty
+    BEmbed e -> BEmbed e
+    BFlow Horizontal bs -> BFlow Horizontal
+      [ go b pt | (b,pt) <- bs `zip` centerAlignedH xy (map (snd . root) bs) ]
+    BFlow Vertical bs -> BFlow Vertical
+      [ go b pt | (b,pt) <- bs `zip` leftAlignedV xy (map (snd . root) bs) ]
+  -- todo, should support other types of alignment for BFlow rather
+  -- than assuming items are center-aligned for horizontal and left-aligned for vertical
+  centerAlignedH (x, Y y) areas =
+    let Height maxh = maximum (Height 0 : map snd areas)
+        xs = scanl' (\x (Width w) -> Dimensions.plus x (X w)) x (map fst areas)
+    in [(x, Y $ y + ((maxh - h) `quot` 2)) | (x,(_,Height h)) <- xs `zip` areas ]
+  leftAlignedV (x, y) areas = map (x,) $
+    scanl' (\y (Height h) -> Dimensions.plus y (Y h)) y (map snd areas)
+
+-- | Compute the list of path segments corresponding to the given point.
+-- Concatenating the full list of segments gives the deepest path into the
+-- structure whose layout region contains the point. Concatenating all but the
+-- last segment yields the parent of the deepest path, and so on.
+--
+-- The point (X 0, Y 0) is assumed to correspond to the top left
+-- corner of the layout.
+at :: Boxed e (p, (X,Y,Width,Height)) -> (X,Y) -> [p]
+at box pt = go box
+  where
+  within (X x0, Y y0) (X x,Y y,Width w,Height h) = x0 >= x && x0 <= x+w && y0 >= y && y0 <= y+h
+  go ((p,region) :< box) | not (pt `within` region) = []
+                         | otherwise = p : (toList box >>= go)
+
+-- | Find all regions along the path.
+regions :: (Eq p, Path p) => Boxed e (p, (X,Y,Width,Height)) -> [p] -> [(X,Y,Width,Height)]
+regions box@((_,region) :< _) p =
+  region : go (foldr Path.extend Path.root p) box
+  where
+  go searchp ((p,region) :< box) = case Path.factor p searchp of
+    (lca, (p,searchp))
+      -- we need to consume all of p to include it,
+      -- and at least 1 element of searchp
+      | p == Path.root && lca /= Path.root
+      -> region : (toList box >>= go searchp)
+    _ -> []
 
 -- various instances
 
