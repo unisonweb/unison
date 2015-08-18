@@ -84,16 +84,6 @@ einterpret alg (_ :< f) = alg $ second (einterpret alg) f
 rewrite :: Functor f => (f (Cofree f a) -> f (Cofree f a)) -> Cofree f a -> Cofree f a
 rewrite alg (a :< f) = a :< fmap (rewrite alg) f
 
-bounds :: (e -> (Width,Height)) -> Boxed e p -> Boxed e (p, (Width,Height))
-bounds dims b = accumulate step b where
-  step BEmpty = zero
-  step (BEmbed e) = dims e
-  step (BFlow Horizontal bs) = foldl' hcombine zero bs
-  step (BFlow Vertical bs) = foldl' vcombine zero bs
-  hcombine (w1,h1) (w2,h2) = (Dimensions.plus w1 w2, h1 `max` h2)
-  vcombine (w1,h1) (w2,h2) = (w1 `max` w2, Dimensions.plus h1 h2)
-  zero = (Dimensions.zero, Dimensions.zero)
-
 flatten :: Boxed e p -> Boxed e p
 flatten b = rewrite step b where
   step b = case b of
@@ -113,7 +103,6 @@ breduce f z s = done $ foldl' step [] s where
 
 boxed :: Path p => Layout e p -> Boxed e p
 boxed l = go l [] [] [] where
-
   empty = Path.root :< BEmpty
   line hbuf = breduce beside empty (reverse hbuf)
   above = combine $ \b1 b2 -> BFlow Horizontal [b1,b2]
@@ -139,10 +128,39 @@ boxed l = go l [] [] [] where
     LLinebreak | null hbuf -> advance hbuf vbuf todo
     LLinebreak -> advance [] (line hbuf : vbuf) todo
 
--- boundedBoxes :: Path p => (e -> (Width,Height)) -> Layout e p -> Boxed e (p, (X,Y,Width,Height))
--- will need to assume some alignment for the boxes
-boundedBoxes :: Path p => (e -> (Width,Height)) -> Layout e p -> Boxed e (p, (Width,Height))
-boundedBoxes dims l = bounds dims (boxed l)
+-- | Compute the width and height occupied by every node in the layout.
+areas :: (e -> (Width,Height)) -> Boxed e p -> Boxed e (p, (Width,Height))
+areas dims b = accumulate step b where
+  zero = (Dimensions.zero, Dimensions.zero)
+  step BEmpty = zero
+  step (BEmbed e) = dims e
+  step (BFlow Horizontal bs) = foldl' hcombine zero bs
+  step (BFlow Vertical bs) = foldl' vcombine zero bs
+  hcombine (w1,h1) (w2,h2) = (Dimensions.plus w1 w2, h1 `max` h2)
+  vcombine (w1,h1) (w2,h2) = (w1 `max` w2, Dimensions.plus h1 h2)
+
+-- | Compute the region of every node in the layout, consisting of a
+-- an (x,y,w,h), where (x,y) is the top left corner of the region, and
+-- (w,h) are the width and height of the region, respectively. All (x,y)
+-- coordinates are relative to the top left of the root `Boxed` passed
+-- in, which will always have an (x,y) component of (0,0).
+bounds :: (e -> (Width,Height)) -> Boxed e p -> Boxed e (p, (X,Y,Width,Height))
+bounds dims b = go (areas dims b) (Dimensions.zero, Dimensions.zero) where
+  go ((p,(w,h)) :< box) xy@(x,y) = (p, (x,y,w,h)) :< case box of
+    BEmpty -> BEmpty
+    BEmbed e -> BEmbed e
+    BFlow Horizontal bs -> BFlow Horizontal
+      [ go b pt | (b,pt) <- bs `zip` centerAlignedH xy (map (snd . root) bs) ]
+    BFlow Vertical bs -> BFlow Vertical
+      [ go b pt | (b,pt) <- bs `zip` leftAlignedV xy (map (snd . root) bs) ]
+  -- todo, should support other types of alignment for BFlow rather
+  -- than assuming items are center-aligned for horizontal and left-aligned for vertical
+  centerAlignedH (x, Y y) areas =
+    let Height maxh = maximum (Height 0 : map snd areas)
+        xs = scanl' (\x (Width w) -> Dimensions.plus x (X w)) x (map fst areas)
+    in [(x, Y $ y + ((maxh - h) `quot` 2)) | (x,(_,Height h)) <- xs `zip` areas ]
+  leftAlignedV (x, y) areas = map (x,) $
+    scanl' (\y (Height h) -> Dimensions.plus y (Y h)) y (map snd areas)
 
 -- | Compute the list of path segments corresponding to the given point.
 -- Concatenating the full list of segments gives the deepest path into the
