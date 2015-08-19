@@ -72,7 +72,7 @@ data B e r
   | BEmbed e
   | BFlow Direction [r] deriving (Functor, Foldable, Traversable)
 
-type Boxed e p = Cofree (B e) p
+type Box e p = Cofree (B e) p
 
 -- | The root path of this document
 root :: Cofree f p -> p
@@ -232,7 +232,7 @@ einterpret :: Bifunctor f => (f e e -> e) -> Cofree (f e) p -> e
 einterpret alg (_ :< f) = alg $ second (einterpret alg) f
 
 rewrite :: Functor f => (f (Cofree f a) -> f (Cofree f a)) -> Cofree f a -> Cofree f a
-rewrite alg (a :< f) = a :< fmap (rewrite alg) f
+rewrite alg (a :< f) = a :< (alg $ fmap (rewrite alg) f)
 
 -- | Produce a `Layout` which tries to fit in the given width,
 -- assuming that embedded `e` elements have the computed width.
@@ -346,9 +346,9 @@ tokens newline l = finish (execState (go l) ([],[],True))
       modify (\(i,b,fst) -> (drop 1 i, b, fst))
     LAppend a b -> go a *> go b
 
--- | Convert a `Layout` to a `Boxed`.
-boxed :: Path p => Layout e p -> Boxed e p
-boxed l = go l [] [] [] where
+-- | Convert a `Layout` to a `Box`.
+box :: Path p => Layout e p -> Box e p
+box l = go l [] [] [] where
   empty = Path.root :< BEmpty
   line hbuf = foldb beside empty (reverse hbuf)
   above = combine $ \b1 b2 -> BFlow Horizontal [b1,b2]
@@ -363,19 +363,19 @@ boxed l = go l [] [] [] where
       [] -> foldb above empty (reverse $ line hbuf : vbuf)
       hd:todo -> go hd hbuf vbuf todo
     LEmbed e -> advance vbuf ((p :< BEmbed e) : hbuf) todo
-    LNest e r -> let inner = p :< BFlow Horizontal [Path.root :< BEmbed e, boxed r]
+    LNest e r -> let inner = p :< BFlow Horizontal [Path.root :< BEmbed e, box r]
                  in advance (inner:hbuf) vbuf todo
     LAppend a b -> go a hbuf vbuf (b:todo)
     LPad (Padded top bot l r e) -> advance (inner : hbuf) vbuf todo where
       inner = p :< BFlow Horizontal
         [ bembed l
-        , Path.root :< BFlow Vertical [bembed top, boxed e, bembed bot]
+        , Path.root :< BFlow Vertical [bembed top, box e, bembed bot]
         , bembed r ]
     LLinebreak | null hbuf -> advance hbuf vbuf todo
     LLinebreak -> advance [] (line hbuf : vbuf) todo
 
 -- | Un-nest any `BFlow` elements as much as possible.
-flatten :: Boxed e p -> Boxed e p
+flatten :: Box e p -> Box e p
 flatten b = rewrite step b where
   step b = case b of
     BEmpty -> b
@@ -394,7 +394,7 @@ foldb f z s = done $ foldl' step [] s where
   done stack = foldl1' (\a2 a1 -> f a1 a2) (map fst stack)
 
 -- | Compute the width and height occupied by every node in the layout.
-areas :: (e -> (Width,Height)) -> Boxed e p -> Boxed e (p, (Width,Height))
+areas :: (e -> (Width,Height)) -> Box e p -> Box e (p, (Width,Height))
 areas dims b = accumulate step b where
   zero = (Dimensions.zero, Dimensions.zero)
   step BEmpty = zero
@@ -407,9 +407,9 @@ areas dims b = accumulate step b where
 -- | Compute the region of every node in the layout, consisting of a
 -- an (x,y,w,h), where (x,y) is the top left corner of the region, and
 -- (w,h) are the width and height of the region, respectively. All (x,y)
--- coordinates are relative to the top left of the root `Boxed` passed
+-- coordinates are relative to the top left of the root `Box` passed
 -- in, which will always have an (x,y) component of (0,0).
-bounds :: (e -> (Width,Height)) -> Boxed e p -> Boxed e (p, (X,Y,Width,Height))
+bounds :: (e -> (Width,Height)) -> Box e p -> Box e (p, (X,Y,Width,Height))
 bounds dims b = go (areas dims b) (Dimensions.zero, Dimensions.zero) where
   go ((p,(w,h)) :< box) xy@(x,y) = (p, (x,y,w,h)) :< case box of
     BEmpty -> BEmpty
@@ -429,7 +429,7 @@ bounds dims b = go (areas dims b) (Dimensions.zero, Dimensions.zero) where
 
 -- | Compute the list of path segments whose region contains the given point.
 -- See note on `hits`.
-at :: (Path p, Eq p) => Boxed e (p, (X,Y,Width,Height)) -> (X,Y) -> [p]
+at :: (Path p, Eq p) => Box e (p, (X,Y,Width,Height)) -> (X,Y) -> [p]
 at box (x,y) = contains box (x,y,Dimensions.zero,Dimensions.zero)
 
 -- | Compute the list of path segments whose region passes the `hit` function,
@@ -442,7 +442,7 @@ at box (x,y) = contains box (x,y,Dimensions.zero,Dimensions.zero)
 -- corner of the layout.
 hits :: (Path p, Eq p)
      => ((X,Y) -> (X,Y) -> (X,Y,Width,Height) -> Bool)
-     -> Boxed e (p, (X,Y,Width,Height)) -> (X,Y,Width,Height) -> [p]
+     -> Box e (p, (X,Y,Width,Height)) -> (X,Y,Width,Height) -> [p]
 hits hit box (X x,Y y,Width w,Height h) = fixup (go box)
   where
   -- only include nonempty path segments, with exception of first
@@ -454,18 +454,18 @@ hits hit box (X x,Y y,Width w,Height h) = fixup (go box)
 
 -- | Compute the list of path segments whose bounding region fully contains
 -- the input region. See note on `hits`. Satisfies `last (regions box (contains box r)) == p`
-contains :: (Path p, Eq p) => Boxed e (p, (X,Y,Width,Height)) -> (X,Y,Width,Height) -> [p]
+contains :: (Path p, Eq p) => Box e (p, (X,Y,Width,Height)) -> (X,Y,Width,Height) -> [p]
 contains = hits $ \p1 p2 region ->
   Dimensions.within p1 region && Dimensions.within p2 region
 
 -- | Compute the list of path segments whose bounding region intersects with
 -- the input region. See note on `hits`.
-intersects :: (Path p, Eq p) => Boxed e (p, (X,Y,Width,Height)) -> (X,Y,Width,Height) -> [p]
+intersects :: (Path p, Eq p) => Box e (p, (X,Y,Width,Height)) -> (X,Y,Width,Height) -> [p]
 intersects = hits $ \p1 p2 region ->
   Dimensions.within p1 region || Dimensions.within p2 region
 
 -- | Find all regions along the path.
-regions :: (Path p, Eq p) => Boxed e (p, (X,Y,Width,Height)) -> [p] -> [(X,Y,Width,Height)]
+regions :: (Path p, Eq p) => Box e (p, (X,Y,Width,Height)) -> [p] -> [(X,Y,Width,Height)]
 regions box p = go (foldr Path.extend Path.root p) box
   where
   go searchp ((_,region) :< _) | searchp == Path.root = [region]
@@ -481,15 +481,15 @@ regions box p = go (foldr Path.extend Path.root p) box
 -- todo: navigation operators
 -- up, down, left, right are spacial, based on actual layout
 -- expand and contract are based on tree structure induced by paths
--- up :: Boxed e (p, (X,Y,Width,Height)) -> p -> p
--- down :: Boxed e (p, (X,Y,Width,Height)) -> p -> p
--- left :: Boxed e (p, (X,Y,Width,Height)) -> p -> p
--- right :: Boxed e (p, (X,Y,Width,Height)) -> p -> p
--- right' :: Boxed e (p, (X,Y,Width,Height)) -> p -> Maybe p
--- expand :: Boxed e (p, (X,Y,Width,Height)) -> p -> p
--- expand' :: Boxed e (p, (X,Y,Width,Height)) -> p -> Maybe p
--- contract :: Boxed e (p, (X,Y,Width,Height)) -> p -> p
--- contract' :: Boxed e (p, (X,Y,Width,Height)) -> p -> Maybe p
+-- up :: Box e (p, (X,Y,Width,Height)) -> p -> p
+-- down :: Box e (p, (X,Y,Width,Height)) -> p -> p
+-- left :: Box e (p, (X,Y,Width,Height)) -> p -> p
+-- right :: Box e (p, (X,Y,Width,Height)) -> p -> p
+-- right' :: Box e (p, (X,Y,Width,Height)) -> p -> Maybe p
+-- expand :: Box e (p, (X,Y,Width,Height)) -> p -> p
+-- expand' :: Box e (p, (X,Y,Width,Height)) -> p -> Maybe p
+-- contract :: Box e (p, (X,Y,Width,Height)) -> p -> p
+-- contract' :: Box e (p, (X,Y,Width,Height)) -> p -> Maybe p
 
 -- various instances
 
