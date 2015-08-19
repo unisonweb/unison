@@ -1,0 +1,36 @@
+.docwidget {
+  font-family: 'Fira Sans', sans-serif;
+  font-size: 14pt;
+}
+
+.hbox {
+  display: -webkit-box;
+  display: -moz-box;
+  display: -ms-flexbox;
+  display: -webkit-flex;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.hitem {
+  flex: none;
+}
+
+.vbox {
+  display: -webkit-box;
+  display: -moz-box;
+  display: -ms-flexbox;
+  display: -webkit-flex;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+
+.vitem {
+  flex: none;
+}

@@ -10,8 +10,6 @@ import qualified Unison.View as View
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 
--- NB: freshId is first field, so given a `Set Symbol`, the max element of
--- the set will also have the highest `freshId`.
 data Symbol a = Symbol !Int Text a
 
 freshId :: Symbol a -> Int

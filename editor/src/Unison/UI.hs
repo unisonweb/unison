@@ -37,7 +37,7 @@ mouseMove' = mouseMove . _el_element
 preferredDimensions :: Element.IsElement e => e -> IO (Width,Height)
 preferredDimensions e = case Element.toElement e of
   e -> do
-    Just (w,h) <- fromJSRef =<< preferredDimsImpl e
+    Just (w,h) <- fromJSRef =<< preferredDimsImpl (Element.toElement e)
     return (Width w, Height h)
 
 #ifdef __GHCJS__
