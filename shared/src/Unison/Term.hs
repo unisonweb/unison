@@ -189,6 +189,7 @@ unApps :: Term v -> Maybe (Term v, [Term v])
 unApps t = case go t [] of [] -> Nothing; f:args -> Just (f,args)
   where
   go (App' i o) acc = go i (o:acc)
+  go fn [] = []
   go fn args = fn:args
 
 unApps' :: Term v -> Maybe ((Term v,Path), [(Term v,Path)])
@@ -366,7 +367,7 @@ view ref t = go no View.low t where
         fmt v = D.nest "  " $ go no View.low v
         subs = [ D.sub (Index i) (fmt v) | (v,i) <- Vector.toList vs `zip` [0..] ]
       in D.group . D.docs $ [ D.embed "[ "
-                            , D.delimit (D.embed "," `D.append` D.breakable " ") subs
+                            , D.delimit (D.breakable ", ") subs
                             , D.embed " ]" ]
     Ann' e t -> D.group . D.parenthesize (p /= View.low) $
                 D.docs [ go no p e, D.embed " :", D.breakable " "

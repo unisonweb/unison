@@ -26,7 +26,7 @@ tests = testGroup "Doc"
   , testCase "breaks (3)" $ assertEqual "should break onto 3 lines with indent"
       "a\n  b c d\ne"
       (fmt 8 (sep " " [embed "a", nest "  " $ sep' " " ["b", "c", "d"], embed "e"]))
-  , testCase "fits (3)" $ assertEqual "should break onto 3 lines with indent"
+  , testCase "fits (3)" $ assertEqual "should fit on one line"
       "a b c d e"
       (fmt 9 (sep " " [embed "a", nest "  " $ sep' " " ["b", "c", "d"], embed "e"]))
   ]
