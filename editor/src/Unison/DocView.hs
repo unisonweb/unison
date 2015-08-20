@@ -30,11 +30,11 @@ data DocView p = DocView
 widget :: (Path p, Eq p, MonadWidget t m) => Width -> Doc Text p -> m (El t, DocView p)
 widget available d =
   let
-    leaf txt = Text.replace " " "-" txt
+    leaf txt = Text.replace " " "&nbsp;" txt
     width (_, (w,_)) = w
     box = Doc.bounds snd . Doc.box . Doc.layout width available <$> Doc.etraverse layout d
     layout txt = do
-      node <- runDom (Dom.el "div" [("class", "docwidget")] [Dom.text (leaf txt)])
+      node <- runDom (Dom.el "div" [("class", "docwidget")] [Dom.raw (leaf txt)])
       (w@(Width w'), h@(Height h')) <- liftIO $ UI.preferredDimensions (Element.castToElement node)
       liftIO $ putStrLn ("preferred (w,h): " ++ show (w',h'))
       pure (txt, (w,h))
@@ -42,7 +42,7 @@ widget available d =
     interpret b = Dom.el "div" [("class","docwidget")] [dom]
       where
       dom = fromMaybe (HTML.hbox []) . Doc.einterpret go $
-              Doc.emap (\(txt,_) -> Just $ Dom.el' "div" [Dom.text (leaf txt)]) b
+              Doc.emap (\(txt,_) -> Just $ Dom.el' "div" [Dom.raw (leaf txt)]) b
       go b = case b of
         Doc.BEmpty -> Nothing
         Doc.BEmbed dom -> dom

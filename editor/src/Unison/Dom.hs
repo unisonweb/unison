@@ -27,6 +27,13 @@ type HTMLElement = HTMLElement.HTMLElement
 unsafeAsHTMLElement :: Node -> HTMLElement
 unsafeAsHTMLElement node = Types.castToHTMLElement node
 
+raw :: Text -> Dom Node
+raw s = Dom $ \doc -> do
+  Just n <- Document.documentCreateElement doc "div"
+  let elem = unsafeAsHTMLElement (Node.toNode n)
+  HTMLElement.htmlElementSetInnerHTML elem s
+  pure $ Node.toNode n
+
 text :: Text -> Dom Node
 text s = Dom $ \doc -> do
   Just n <- Document.documentCreateTextNode doc s

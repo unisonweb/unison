@@ -14,6 +14,6 @@ hbox ds =
 
 vbox :: [Dom Node] -> Dom Node
 vbox ds =
-  el "ul" [("class", "vbox")] $ map item ds
+  el "div" [("class", "vbox")] $ map item ds
   where
   item d = el "div" [("class", "vitem")] [d]
