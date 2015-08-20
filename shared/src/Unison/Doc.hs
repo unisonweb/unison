@@ -147,8 +147,8 @@ sub :: e -> Cofree f [e] -> Cofree f [e]
 sub hd (tl :< d) = (hd : tl) :< d
 
 -- | Append `hd` onto the path of this `Doc`
-sub' :: [e] -> Cofree f [e] -> Cofree f [e]
-sub' hd (tl :< d) = (hd ++ tl) :< d
+sub' :: Path p => p -> Cofree f p -> Cofree f p
+sub' hd (tl :< d) = (Path.extend hd tl) :< d
 
 -- | Make a `Doc` from a token and give it an empty path
 embed :: Path p => e -> Doc e p
@@ -192,8 +192,14 @@ linebreak' p = p :< Linebreak
 renderString :: Layout String p -> String
 renderString l = concat (tokens "\n" l)
 
+stringWidth :: String -> Width
+stringWidth = Width . fromIntegral . length
+
+textWidth :: Text -> Width
+textWidth = Width . fromIntegral . Text.length
+
 formatString :: Width -> Doc String p -> String
-formatString availableWidth d = renderString (layout (Width . fromIntegral . length) availableWidth d)
+formatString availableWidth d = renderString (layout stringWidth availableWidth d)
 
 formatText :: Width -> Doc Text p -> String
 formatText availableWidth d =
@@ -351,8 +357,8 @@ box :: Path p => Layout e p -> Box e p
 box l = go l [] [] [] where
   empty = Path.root :< BEmpty
   line hbuf = foldb beside empty (reverse hbuf)
-  above = combine $ \b1 b2 -> BFlow Horizontal [b1,b2]
-  beside = combine $ \b1 b2 -> BFlow Vertical [b1,b2]
+  above = combine $ \b1 b2 -> BFlow Vertical [b1,b2]
+  beside = combine $ \b1 b2 -> BFlow Horizontal [b1,b2]
   combine f (p :< b) (p2 :< b2) = case Path.factor p p2 of
     (root, (p,p2)) -> root :< f (p :< b) (p2 :< b2)
 
@@ -362,9 +368,10 @@ box l = go l [] [] [] where
     LEmpty -> case todo of
       [] -> foldb above empty (reverse $ line hbuf : vbuf)
       hd:todo -> go hd hbuf vbuf todo
-    LEmbed e -> advance vbuf ((p :< BEmbed e) : hbuf) todo
-    LNest e r -> let inner = p :< BFlow Horizontal [Path.root :< BEmbed e, box r]
-                 in advance (inner:hbuf) vbuf todo
+    LEmbed e -> advance ((p :< BEmbed e) : hbuf) vbuf todo
+    LNest e r ->
+      let inner = p :< BFlow Horizontal [Path.root :< BEmbed e, box r]
+      in advance (inner:hbuf) vbuf todo
     LAppend a b -> go a hbuf vbuf (b:todo)
     LPad (Padded top bot l r e) -> advance (inner : hbuf) vbuf todo where
       inner = p :< BFlow Horizontal
@@ -491,11 +498,39 @@ regions box p = go (foldr Path.extend Path.root p) box
 -- contract :: Box e (p, (X,Y,Width,Height)) -> p -> p
 -- contract' :: Box e (p, (X,Y,Width,Height)) -> p -> Maybe p
 
+-- for debugging
+debugBox :: Show e => Box e p -> String
+debugBox b = formatString (Width 80) doc where
+  doc = einterpret go (emap (embed . show) b)
+  go BEmpty = empty :: Doc String ()
+  go (BEmbed e) = e
+  go (BFlow Horizontal bs) = group $ docs [embed "h[ ", delimit (breakable " ") (map (nest "   ") bs), embed " ]"]
+  go (BFlow Vertical bs) = group $ docs [embed "v[ ", delimit (breakable " ") (map (nest "   ") bs), embed " ]"]
+
+--debugLayout :: Show e => Layout e p -> String
+--debugLayout b = formatString (Width 80) doc where
+--  doc = einterpret go (emap (embed . show) b)
+--  go LEmpty = empty :: Doc String ()
+--  go LLinebreak = embed "<nl>"
+--  go (LEmbed e) = e
+--  go (LNest e r) = group $ docs [embed "nest[", breakable " ", nest "  " e, breakable " ", nest "  " r, embed "]"]
+--  go (LAppend a b) = group $ docs [a, breakable " + ", nest "+  " b]
+
 -- various instances
 
 instance Bifunctor Padded where
   second = fmap
   first f (Padded e1 e2 e3 e4 r) = Padded (f e1) (f e2) (f e3) (f e4) r
+
+instance Bifunctor L where
+  second = fmap
+  first f b = case b of
+    LEmpty -> LEmpty
+    LEmbed e -> LEmbed (f e)
+    LAppend a b -> LAppend a b
+    LLinebreak -> LLinebreak
+    LPad p -> LPad (first f p)
+    LNest e p -> LNest (f e) p
 
 instance Bifunctor B where
   second = fmap
