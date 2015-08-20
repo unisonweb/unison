@@ -395,7 +395,7 @@ flatten b = rewrite step b where
 foldb :: (a -> a -> a) -> a -> [a] -> a
 foldb f z s = done $ foldl' step [] s where
   step !stack a = fixup ((a, 1 :: Int) : stack)
-  fixup ((a2,n):(a1,m):tl) | m >= n = fixup ((f a1 a2, n+m) : tl)
+  fixup ((a2,n):(a1,m):tl) | n >= m = fixup ((f a1 a2, n+m) : tl)
   fixup stack = stack
   done [] = z
   done stack = foldl1' (\a2 a1 -> f a1 a2) (map fst stack)
@@ -507,14 +507,16 @@ debugBox b = formatString (Width 80) doc where
   go (BFlow Horizontal bs) = group $ docs [embed "h[ ", delimit (breakable " ") (map (nest "   ") bs), embed " ]"]
   go (BFlow Vertical bs) = group $ docs [embed "v[ ", delimit (breakable " ") (map (nest "   ") bs), embed " ]"]
 
---debugLayout :: Show e => Layout e p -> String
---debugLayout b = formatString (Width 80) doc where
---  doc = einterpret go (emap (embed . show) b)
---  go LEmpty = empty :: Doc String ()
---  go LLinebreak = embed "<nl>"
---  go (LEmbed e) = e
---  go (LNest e r) = group $ docs [embed "nest[", breakable " ", nest "  " e, breakable " ", nest "  " r, embed "]"]
---  go (LAppend a b) = group $ docs [a, breakable " + ", nest "+  " b]
+debugBoxp :: Show p => Box e p -> String
+debugBoxp b = formatString (Width 80) (go b) where
+  go (p :< BEmpty) = embed (show p) :: Doc String ()
+  go (p :< BEmbed _) = embed (show p)
+  go (p :< BFlow dir bs) = group $ docs [ embed (d dir), embed (show p), embed " [ ", breakable ""
+                                        , delimit (breakable " ") (map (nest "   " . go) bs)
+                                        , breakable " "
+                                        , embed "]"]
+    where d Horizontal = "h "
+          d Vertical = "v "
 
 -- various instances
 
