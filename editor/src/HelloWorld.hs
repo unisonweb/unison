@@ -19,13 +19,13 @@ termDoc = view defaultSymbol term
 
 main :: IO ()
 main = mainWidget $ do
-  el "pre" $ text "some filler text here"
-  el "pre" $ text (toString term)
+  el "pre" $ text "Layout of a single Unison term, with path resolution"
   (e,d) <- DocView.widget (Width 200) termDoc
   mouse <- (mouseMove' e >>= holdDyn (X 0, Y 0))
   el "pre" $ do
     text "mouse: "
     display mouse
-  text "path: "
-  display =<< mapDyn (DocView.at d) mouse
-  pure ()
+  el "pre" $ do
+    text "path: "
+    display =<< mapDyn (DocView.at d) mouse
+    pure ()
