@@ -1,5 +1,5 @@
 { mkDerivation, base, free, ghcjs-dom, ghcjs-base, mtl, reflex, reflex-dom, 
-  stdenv, text, transformers, unison-shared }:
+  semigroups, stdenv, text, transformers, unison-shared }:
 mkDerivation {
   pname = "unison-editor";
   version = "0.1";
@@ -7,7 +7,7 @@ mkDerivation {
   isLibrary = true;
   isExecutable = true;
   buildDepends = [ base free ghcjs-base ghcjs-dom mtl reflex reflex-dom 
-                   text transformers unison-shared ];
+                   semigroups text transformers unison-shared ];
   homepage = "http://unisonweb.org";
   description = "The Unison programming language and platform";
   license = stdenv.lib.licenses.mit;

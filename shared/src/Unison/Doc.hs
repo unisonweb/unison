@@ -32,14 +32,9 @@ import qualified Data.Text as Text
 import qualified Unison.Dimensions as Dimensions
 import qualified Unison.Path as Path
 
-data Padded e r =
-  Padded { top :: e, bottom :: e, left :: e, right :: e, element :: r }
-  deriving (Functor, Foldable, Traversable)
-
 data D e r
   = Empty
   | Embed e
-  | Pad (Padded e r)
   | Breakable e
   | Linebreak
   | Group r
@@ -57,10 +52,10 @@ type Doc e p = Cofree (D e) p
 data L e r
   = LEmpty
   | LEmbed e
-  | LPad (Padded e r)
   | LLinebreak
   | LNest e r
-  | LAppend r r deriving (Functor, Foldable, Traversable)
+  | LAppend r r
+  | LGroup r deriving (Functor, Foldable, Traversable)
 
 -- A `Doc` without the nondeterminism. All layout decisions have been fixed.
 type Layout e p = Cofree (L e) p
@@ -82,13 +77,11 @@ root (p :< _) = p
 elements :: Doc e p -> [e]
 elements d = go (unwrap d) [] where
   one a = (a:)
-  many xs tl = foldr (:) tl xs
   go (Append d1 d2) = go (unwrap d1) . go (unwrap d2)
   go (Group d) = go (unwrap d)
   go (Nest e d) = one e . go (unwrap d)
   go (Breakable e) = one e
   go (Embed e) = one e
-  go (Pad (Padded t b l r inner)) = many [t, b, l, r] . go (unwrap inner)
   go _ = id
 
 -- | Map over all `e` elements in this `Doc e p`.
@@ -99,7 +92,6 @@ etraverse f (p :< d) = (p :<) <$> case d of
   Nest e d -> Nest <$> f e <*> etraverse f d
   Breakable e -> Breakable <$> f e
   Embed e -> Embed <$> f e
-  Pad (Padded t b l r inner) -> Pad <$> (Padded <$> f t <*> f b <*> f l <*> f r <*> etraverse f inner)
   Linebreak -> pure Linebreak
   Empty -> pure Empty
 
@@ -111,16 +103,15 @@ emap f (p :< r) = p :< first f (second (emap f) r)
 -- function must return an `embed e2` when targeting elements
 -- embedded in a `nest` or `pad`, otherwise the substitution fails
 -- with `Nothing`.
-ebind :: (e -> Doc e2 p) -> Doc e p -> Maybe (Doc e2 p)
+ebind :: Path p => (e -> Doc e2 p) -> Doc e p -> Maybe (Doc e2 p)
 ebind f (p :< d) = case d of
-  Embed e -> Just (f e)
+  Embed e -> Just (sub' p $ f e)
   d -> (p :<) <$> case d of
     Embed _ -> error "GHC can't figure out this is not possible"
     Append d1 d2 -> Append <$> ebind f d1 <*> ebind f d2
     Group d -> Group <$> ebind f d
     Nest e d -> Nest <$> e2 e <*> ebind f d
     Breakable e -> Breakable <$> e2 e
-    Pad (Padded t b l r inner) -> Pad <$> (Padded <$> e2 t <*> e2 b <*> e2 l <*> e2 r <*> ebind f inner)
     Linebreak -> Just Linebreak
     Empty -> Just Empty
     where
@@ -252,7 +243,7 @@ layout width maxWidth doc =
     case doc of
       (_,w) :< _ | w <= remainingWidth ->
         put (maxWidth, remainingWidth `Dimensions.minus` w) $> flow doc
-      _ :< Group doc -> break doc
+      p :< Group doc -> (\d -> p :< LGroup d) <$> break doc
       _ -> break doc
 
   -- | Break a document into a list of documents, separated by lines,
@@ -263,13 +254,6 @@ layout width maxWidth doc =
     Breakable _ -> put (maxWidth, maxWidth) $> (p :< LLinebreak)
     Linebreak -> put (maxWidth, maxWidth) $> (p :< LLinebreak)
     Append a b -> (:<) p <$> (LAppend <$> break a <*> break b)
-    Pad padded ->
-      let borderWidth = width (left padded) `Dimensions.plus` width (right padded)
-      in do
-        put (maxWidth `Dimensions.minus` borderWidth, remainingWidth `Dimensions.minus` borderWidth)
-        inner <- break (element padded)
-        modify (\(_, remainingWidth) -> (maxWidth, remainingWidth `Dimensions.minus` borderWidth))
-        return $ p :< LPad (padded { element = inner })
     Nest e doc -> do
       case maxWidth == remainingWidth of
         -- we're immediately preceded by newline, insert `e` and indent
@@ -286,12 +270,11 @@ flow :: Doc e p -> Layout e p
 flow (p :< doc) = case doc of
   Empty -> p :< LEmpty
   Embed e -> p :< LEmbed e
-  Pad padded -> p :< LPad (padded { element = flow (element padded) })
   Linebreak -> p :< LLinebreak
   Breakable e -> p :< LEmbed e -- don't linebreak, it fits
   Append a b -> p :< (flow a `LAppend` flow b)
-  Group r -> flow r
-  Nest _ r -> flow r
+  Group r -> p :< LGroup (flow r)
+  Nest _ r -> p :< LAppend (p :< LEmpty) (flow r)
 
 -- | Annotate the document with the preferred width of each subtree,
 -- assuming that embedded elements have the given width function.
@@ -299,11 +282,6 @@ preferredWidth :: (e -> Width) -> Doc e p -> Doc e (p,Width)
 preferredWidth width (p :< d) = case d of
   Empty -> (p, Dimensions.zero) :< Empty
   Embed e -> (p, width e) :< Embed e
-  Pad padded ->
-    let borderWidth = width (left padded) `Dimensions.plus` width (right padded)
-        inner = preferredWidth width (element padded)
-        innerWidth = snd (root inner)
-    in (p, borderWidth `Dimensions.plus` innerWidth) :< Pad (padded { element = inner })
   -- Since we just use this to decide whether to break or not,
   -- as long as `flow` and `break` both interpret `Linebreak` properly,
   -- a zero width for linebreaks is okay
@@ -331,6 +309,7 @@ tokens newline l = finish (execState (go l) ([],[],True))
   -- state is (indentation snoc list, token buffer snoc list, whether immediately preceded by newline)
   -- go :: Layout e p -> State ([e],[e],Bool) ()
   go (p :< l) = case l of
+    LGroup r -> go r
     LEmpty -> return ()
     LLinebreak -> modify cr where
       cr (indent, buf, _) = (indent, newline : buf, True)
@@ -338,14 +317,6 @@ tokens newline l = finish (execState (go l) ([],[],True))
       -- we indent if we're the first token on this line
       g (indent, buf, True) = (indent, e : (indent ++ buf), False)
       g (indent, buf, _) = (indent, e : buf, False)
-    LPad padded -> modify g where
-      inner = tokens newline
-        (row3 p (left padded)
-                (col3 p (top padded) (element padded) (bottom padded))
-                (right padded))
-      -- we indent if we're the first token on this line
-      g (indent, buf, True) = (indent, reverse inner ++ (indent ++ buf), False)
-      g (indent, buf, _) = (indent, reverse inner ++ buf, False)
     LNest e r -> do
       modify (\(i,b,fst) -> (e : i, b, fst))
       go r
@@ -361,23 +332,21 @@ box l = go l [] [] [] where
   beside = combine $ \b1 b2 -> BFlow Horizontal [b1,b2]
   combine f (p :< b) (p2 :< b2) = case Path.factor p p2 of
     (root, (p,p2)) -> root :< f (p :< b) (p2 :< b2)
-
   bembed e = Path.root :< BEmbed e
+
   advance hbuf vbuf todo = go (Path.root :< LEmpty) hbuf vbuf todo
   go (p :< l) hbuf vbuf todo = case l of
     LEmpty -> case todo of
       [] -> foldb above empty (reverse $ line hbuf : vbuf)
       hd:todo -> go hd hbuf vbuf todo
     LEmbed e -> advance ((p :< BEmbed e) : hbuf) vbuf todo
+    LGroup r@(_ :< LEmbed _) -> go (sub' p r) hbuf vbuf todo
+    LGroup r -> advance (sub' p (box r) : hbuf) vbuf todo
     LNest e r ->
       let inner = p :< BFlow Horizontal [Path.root :< BEmbed e, box r]
       in advance (inner:hbuf) vbuf todo
-    LAppend a b -> go a hbuf vbuf (b:todo)
-    LPad (Padded top bot l r e) -> advance (inner : hbuf) vbuf todo where
-      inner = p :< BFlow Horizontal
-        [ bembed l
-        , Path.root :< BFlow Vertical [bembed top, box e, bembed bot]
-        , bembed r ]
+    LAppend a b -> go (sub' p a) hbuf vbuf (sub' p b : todo)
+    LGroup r -> advance (box r : hbuf) vbuf todo
     LLinebreak | null hbuf -> advance hbuf vbuf todo
     LLinebreak -> advance [] (line hbuf : vbuf) todo
 
@@ -389,6 +358,15 @@ flatten b = rewrite step b where
     BEmbed _ -> b
     BFlow dir bs -> BFlow dir $ bs >>= h where
       h (_ :< BFlow dir2 bsi) | dir == dir2 = bsi
+      h x = [x]
+
+flatten' :: (Eq p, Path p) => Box e p -> Box e p
+flatten' b = rewrite step b where
+  step b = case b of
+    BEmpty -> b
+    BEmbed _ -> b
+    BFlow dir bs -> BFlow dir $ bs >>= h where
+      h (p :< BFlow dir2 bsi) | dir == dir2 && p == Path.root = bsi
       h x = [x]
 
 -- | Balanced reduction of a list (todo: find better home)
@@ -406,10 +384,8 @@ areas dims b = accumulate step b where
   zero = (Dimensions.zero, Dimensions.zero)
   step BEmpty = zero
   step (BEmbed e) = dims e
-  step (BFlow Horizontal bs) = foldl' hcombine zero bs
-  step (BFlow Vertical bs) = foldl' vcombine zero bs
-  hcombine (w1,h1) (w2,h2) = (Dimensions.plus w1 w2, h1 `max` h2)
-  vcombine (w1,h1) (w2,h2) = (w1 `max` w2, Dimensions.plus h1 h2)
+  step (BFlow Horizontal bs) = foldl' Dimensions.hcombine zero bs
+  step (BFlow Vertical bs) = foldl' Dimensions.vcombine zero bs
 
 -- | Compute the region of every node in the layout, consisting of a
 -- an (x,y,w,h), where (x,y) is the top left corner of the region, and
@@ -512,17 +488,27 @@ debugBoxp b = formatString (Width 80) (go b) where
   go (p :< BEmpty) = embed (show p) :: Doc String ()
   go (p :< BEmbed _) = embed (show p)
   go (p :< BFlow dir bs) = group $ docs [ embed (d dir), embed (show p), embed " [ ", breakable ""
-                                        , delimit (breakable " ") (map (nest "   " . go) bs)
+                                        , delimit (breakable " ") (map (nest "  " . go) bs)
                                         , breakable " "
                                         , embed "]"]
     where d Horizontal = "h "
           d Vertical = "v "
 
--- various instances
+debugLayout :: Show p => Layout e p -> [String]
+debugLayout (p :< l) = show p : case l of
+  LAppend a b -> debugLayout a ++ debugLayout b
+  LNest _ r -> debugLayout r
+  LGroup r -> debugLayout r
+  _ -> []
 
-instance Bifunctor Padded where
-  second = fmap
-  first f (Padded e1 e2 e3 e4 r) = Padded (f e1) (f e2) (f e3) (f e4) r
+debugDoc :: Show p => Doc e p -> [String]
+debugDoc (p :< l) = show p : case l of
+  Append a b -> debugDoc a ++ debugDoc b
+  Nest _ r -> debugDoc r
+  Group r -> debugDoc r
+  _ -> []
+
+-- various instances
 
 instance Bifunctor L where
   second = fmap
@@ -531,7 +517,6 @@ instance Bifunctor L where
     LEmbed e -> LEmbed (f e)
     LAppend a b -> LAppend a b
     LLinebreak -> LLinebreak
-    LPad p -> LPad (first f p)
     LNest e p -> LNest (f e) p
 
 instance Bifunctor B where
@@ -546,7 +531,6 @@ instance Bifunctor D where
   first f d = case d of
     Empty -> Empty
     Embed e -> Embed (f e)
-    Pad p -> Pad (first f p)
     Breakable e -> Breakable (f e)
     Linebreak -> Linebreak
     Group r -> Group r

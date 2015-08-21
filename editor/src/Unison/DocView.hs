@@ -6,6 +6,7 @@ module Unison.DocView where
 import Control.Comonad.Cofree (Cofree(..), unwrap) -- (:<)
 import Control.Monad.IO.Class
 import Data.Maybe (fromMaybe)
+import Data.Semigroup ((<>))
 import Data.Text (Text)
 import Data.Word (Word)
 import Reflex.Dom
@@ -16,6 +17,7 @@ import Unison.Path (Path)
 import qualified Data.Text as Text
 import qualified GHCJS.DOM.Document as Document
 import qualified GHCJS.DOM.Element as Element
+import qualified Unison.Dimensions as Dimensions
 import qualified Unison.Doc as Doc
 import qualified Unison.Dom as Dom
 import qualified Unison.HTML as HTML
@@ -35,14 +37,16 @@ widget available d =
     box = Doc.bounds snd . Doc.box . Doc.layout width available <$> Doc.etraverse layout d
     layout txt = do
       node <- runDom (Dom.el "div" [("class", "docwidget")] [Dom.raw (leaf txt)])
-      (w@(Width w'), h@(Height h')) <- liftIO $ UI.preferredDimensions (Element.castToElement node)
-      liftIO $ putStrLn ("preferred (w,h): " ++ show (w',h'))
+      (w,h) <- liftIO $ UI.preferredDimensions (Element.castToElement node)
       pure (txt, (w,h))
     view box = DocView (Doc.at box) (Doc.contains box) (Doc.intersects box) (Doc.regions box)
     interpret b = Dom.el "div" [("class","docwidget")] [dom]
       where
-      dom = fromMaybe (HTML.hbox []) . Doc.einterpret go $
-              Doc.emap (\(txt,_) -> Just $ Dom.el' "div" [Dom.raw (leaf txt)]) b
+      dom = fromMaybe (HTML.hbox []) . Doc.einterpret go $ b'
+      b' = Doc.emap (\(txt, (Width w, Height h)) -> Just $ Dom.el "div" (fixDims w h) [Dom.raw (leaf txt)])
+                    b -- (Doc.rewrite collapse b)
+      fixDims w h = [( "style","width:" <> (Text.pack . show $ w) <> "px;height:" <>
+                     (Text.pack . show $ h) <> "px;")]
       go b = case b of
         Doc.BEmpty -> Nothing
         Doc.BEmbed dom -> dom

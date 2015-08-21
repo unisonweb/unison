@@ -59,6 +59,7 @@ library
     mtl,
     reflex,
     reflex-dom,
+    semigroups,
     text,
     transformers,
     unison-shared
@@ -87,6 +88,7 @@ executable editor
     mtl,
     reflex,
     reflex-dom,
+    semigroups,
     text,
     transformers,
     unison-shared,

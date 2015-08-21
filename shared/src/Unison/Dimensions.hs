@@ -1,13 +1,23 @@
 module Unison.Dimensions where
 
-newtype X = X Word deriving (Eq,Ord)
-newtype Y = Y Word deriving (Eq,Ord)
-newtype Width = Width Word deriving (Eq,Ord)
-newtype Height = Height Word deriving (Eq,Ord)
+import Data.List
+
+newtype X = X Word deriving (Eq,Ord,Show)
+newtype Y = Y Word deriving (Eq,Ord,Show)
+newtype Width = Width Word deriving (Eq,Ord,Show)
+newtype Height = Height Word deriving (Eq,Ord,Show)
 
 within :: (X,Y) -> (X,Y,Width,Height) -> Bool
 within (X x0, Y y0) (X x,Y y,Width w,Height h) =
   x0 >= x && x0 <= x+w && y0 >= y && y0 <= y+h
+
+hcombine, vcombine :: (Width,Height) -> (Width,Height) -> (Width,Height)
+hcombine (w1,h1) (w2,h2) = (plus w1 w2, h1 `max` h2)
+vcombine (w1,h1) (w2,h2) = (w1 `max` w2, plus h1 h2)
+
+hcombines, vcombines :: [(Width,Height)] -> (Width,Height)
+hcombines = foldl' hcombine (Width 0, Height 0)
+vcombines = foldl' vcombine (Width 0, Height 0)
 
 class Ord t => Natural t where
   plus :: t -> t -> t

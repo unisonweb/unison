@@ -133,7 +133,7 @@ appPaths :: Int -> (Path, [Path])
 appPaths numArgs = (fnp, argsp)
   where
   fnp = replicate numArgs Fn
-  argsp = take numArgs . drop 1 $ iterate (Fn:) [Arg]
+  argsp = reverse . take numArgs $ iterate (Fn:) [Arg]
 
 arrowPaths :: Int -> [Path]
 arrowPaths spineLength =

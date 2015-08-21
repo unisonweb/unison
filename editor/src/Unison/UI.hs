@@ -42,7 +42,23 @@ preferredDimensions e = case Element.toElement e of
 
 #ifdef __GHCJS__
 foreign import javascript unsafe
-  "{ var temp = document.createElement('div'); temp.appendChild($1); temp.style.visibility = 'hidden'; temp.style.styleFloat = 'left'; temp.style.cssFloat = 'left'; document.body.appendChild(temp); var style = window.getComputedStyle(temp, null); var w = Math.ceil(style.getPropertyValue('width').slice(0,-2) - 0); var h = Math.ceil(style.getPropertyValue('height').slice(0,-2) - 0); document.body.removeChild(temp); $r = [w, h]; }"
+  "{  var temp = document.pdi234098234; \
+      /* use cached temporary div for performance */ \
+      if (!temp) { \
+        temp = document.createElement('div'); \
+        temp.style.visibility = 'hidden'; \
+        temp.style.styleFloat = 'left'; \
+        temp.style.cssFloat = 'left'; \
+        document.body.appendChild(temp); \
+        document.pdi234098234 = temp; \
+      }; \
+      temp.appendChild($1); \
+      var style = window.getComputedStyle(temp, null); \
+      var w = Math.ceil(style.getPropertyValue('width').slice(0,-2) - 0); \
+      var h = Math.ceil(style.getPropertyValue('height').slice(0,-2) - 0); \
+      temp.removeChild($1); \
+      $r = [w, h]; \
+  }"
   preferredDimsImpl :: Element -> IO (JSRef (Word,Word))
 #else
 preferredDimsImpl = error "preferredDimsImpl: only available from JavaScript"
