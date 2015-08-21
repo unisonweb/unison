@@ -238,6 +238,7 @@ layout :: (e -> Width) -> Width -> Doc e p -> Layout e p
 layout width maxWidth doc =
   fmap fst $ evalState (go (preferredWidth width doc)) (maxWidth, maxWidth)
   where
+  sub p d = p :< LAppend (p :< LEmpty) d
   go doc = do
     (maxWidth, remainingWidth) <- get
     case doc of
@@ -262,8 +263,8 @@ layout width maxWidth doc =
           doc <- break doc
           return $ p :< LNest e doc
         -- we're in the middle of a line, ignore `e`
-        False -> break doc
-    Group doc -> go doc -- we try to avoid breaking subgroups
+        False -> sub p <$> break doc
+    Group doc -> sub p <$> go doc -- we try to avoid breaking subgroups
 
 -- | Layout the `Doc` assuming infinite available width
 flow :: Doc e p -> Layout e p
@@ -413,7 +414,7 @@ bounds dims b = go (areas dims b) (Dimensions.zero, Dimensions.zero) where
 -- | Compute the list of path segments whose region contains the given point.
 -- See note on `hits`.
 at :: (Path p, Eq p) => Box e (p, (X,Y,Width,Height)) -> (X,Y) -> [p]
-at box (x,y) = contains box (x,y,Dimensions.zero,Dimensions.zero)
+at box (x,y) = contains box (x,y,Dimensions.one,Dimensions.one)
 
 -- | Compute the list of path segments whose region passes the `hit` function,
 -- which is given the top left and lower right corners of the input region.
@@ -496,6 +497,8 @@ debugBoxp b = formatString (Width 80) (go b) where
 
 debugLayout :: Show p => Layout e p -> [String]
 debugLayout (p :< l) = show p : case l of
+  LAppend (_ :< LEmpty) b -> debugLayout b
+  LAppend a (_ :< LEmpty) -> debugLayout a
   LAppend a b -> debugLayout a ++ debugLayout b
   LNest _ r -> debugLayout r
   LGroup r -> debugLayout r
@@ -516,6 +519,7 @@ instance Bifunctor L where
     LEmpty -> LEmpty
     LEmbed e -> LEmbed (f e)
     LAppend a b -> LAppend a b
+    LGroup r -> LGroup r
     LLinebreak -> LLinebreak
     LNest e p -> LNest (f e) p
 

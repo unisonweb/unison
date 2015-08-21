@@ -24,12 +24,14 @@ class Ord t => Natural t where
   minus :: t -> t -> t
   half :: t -> t
   zero :: t
+  one :: t
 
 instance Natural Width where
   plus (Width w) (Width w2) = Width (w + w2)
   minus w w2 | w2 >= w = zero
   minus (Width w) (Width w2) = Width (w - w2)
   zero = Width 0
+  one = Width 1
   half (Width w) = Width (w `quot` 2)
 
 instance Natural Height where
@@ -37,6 +39,7 @@ instance Natural Height where
   minus w w2 | w2 >= w = zero
   minus (Height w) (Height w2) = Height (w - w2)
   zero = Height 0
+  one = Height 1
   half (Height h) = Height (h `quot` 2)
 
 instance Natural X where
@@ -44,6 +47,7 @@ instance Natural X where
   minus w w2 | w2 >= w = zero
   minus (X w) (X w2) = X (w - w2)
   zero = X 0
+  one = X 1
   half (X x) = X (x `quot` 2)
 
 instance Natural Y where
@@ -51,6 +55,7 @@ instance Natural Y where
   minus w w2 | w2 >= w = zero
   minus (Y w) (Y w2) = Y (w - w2)
   zero = Y 0
+  one = Y 1
   half (Y y) = Y (y `quot` 2)
 
 instance Monoid Height where
