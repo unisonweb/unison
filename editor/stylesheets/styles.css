@@ -1,8 +1,18 @@
+@font-face {
+    font-family: 'fira-code-regular';
+    src: url('../fonts/fira-code.webfont/fira-code_regular.eot');
+    src: url('../fonts/fira-code.webfont/fira-code_regular.eot?#iefix') format('embedded-opentype'),
+         url('../fonts/fira-code.webfont/fira-code_regular.woff') format('woff'),
+         url('../fonts/fira-code.webfont/fira-code_regular.ttf') format('truetype'),
+         url('../fonts/fira-code.webfont/fira-code_regular.svg#fira-code-regular') format('svg');
+}
+
 .docwidget {
-  /* font-family: 'Fira Sans', sans-serif; */
+  /* font-family: 'Fira Sans', sans-serif;
   /* font-family: 'Lato', sans-serif; */
-  font-family: monospace;
+  font-family: 'fira-code-regular', monospace;
   font-size: 12pt;
+  font-variant-ligatures: common-ligatures;
 }
 
 .hbox {

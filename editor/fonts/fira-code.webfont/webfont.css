@@ -1,0 +1,9 @@
+@font-face {
+    font-family: 'fira-code-regular';
+    src: url('fira-code_regular.eot');
+    src: url('fira-code_regular.eot?#iefix') format('embedded-opentype'),
+         url('fira-code_regular.woff') format('woff'),
+         url('fira-code_regular.ttf') format('truetype'),
+         url('fira-code_regular.svg#fira-code-regular') format('svg');
+}
+
