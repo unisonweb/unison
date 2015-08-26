@@ -27,5 +27,5 @@ main = mainWidget $ do
     display mouse
   el "pre" $ do
     text "path: "
-    display =<< mapDyn (DocView.at d) mouse
+    display =<< mapDyn (concat . DocView.at d) mouse
     pure ()
