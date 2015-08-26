@@ -23,15 +23,14 @@ let
 
   in {
     inherit (reflexPkgs) nixpkgs;
-    ghc7101 = brokenOverrideHack reflexPkgs.ghc7101 [ "editor" "shared" "node" ];
+    ghc7101 = brokenOverrideHack reflexPkgs.ghc [ "editor" "shared" "node" ];
     ghcjs = brokenOverrideHack reflexPkgs.ghcjs [ "editor" "shared" ];
   };
 
-  unison-dependencies = localPkgs.fetchFromGitHub {
-    owner = "unisonweb";
-    repo = "unison-dependencies";
-    rev = "80048a76ff35d4ed9f267be7076bec83a193a71f";
-    sha256 = "0cvx1pibbph0lykvd2wwagwgphf8jifmvg405mkxpsxf6nap26wc";
+  unison-dependencies = localPkgs.fetchgit {
+    url = git://github.com/ryantrinkle/try-reflex;
+    rev = "8eb31fef1969a4298ae7c456713bf31085ade68b";
+    sha256 = "1vr6bxq3fbwwfz46vild29qvjrdfk6za0pcji9vbai7gdjm4j82z";
   };
 
-in makeUnisonPkgSet (import "${unison-dependencies}/deps" {})
+in makeUnisonPkgSet (import "${unison-dependencies}" {})
