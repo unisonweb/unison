@@ -45,7 +45,7 @@ _Note: For people nervous about installing Nix, Nix keeps all packages and binar
 The easiest way to install Nix is:
 
 ```sh
-$ curl https://nixos.org/nix/install | sh
+curl https://nixos.org/nix/install | sh
 ```
 
 _Note: If you are alarmed at the suggestion of [executing unknown scripts from the internet](http://curlpipesh.tumblr.com/), see the other install options [on the Nix website](https://nixos.org/nix)._
@@ -55,10 +55,10 @@ _Note: If you are alarmed at the suggestion of [executing unknown scripts from t
 After install completes, you'll see instructions about starting a fresh terminal session. Do that, then:
 
 ```sh
-$ git clone https://github.com/unisonweb/platform.git unisonweb
-$ cd unisonweb
-$ cd node
-$ ./shell.sh
+git clone https://github.com/unisonweb/platform.git unisonweb
+cd unisonweb
+cd node
+./shell.sh
 ```
 
 The first time you run this, it will take about 15 minutes as Nix needs to download and/or build dependencies, and you may see some warnings about Haddock documentation that you can ignore. Subsequent launches will be snappy since you'll have all the dependencies in your Nix store.
@@ -86,8 +86,8 @@ That message is [Scotty](http://hackage.haskell.org/package/scotty) telling you 
 Just do:
 
 ```
-$ cd editor
-$ ./shell.sh
+cd editor
+./shell.sh
 ```
 
 You'll again be put into a shell with access to cabal. The first time you do this, or anytime you want to rebuild the editor against new dependencies (like changes to `shared`), do `cabal configure --ghcjs`, then `cabal build` as normal.
@@ -133,14 +133,14 @@ Here are instructions for this route:
 Once those are done, from the root directory of the project (the same directory as the `Vagrantfile` file), do:
 
 ```sh
-$ vagrant up
+vagrant up
 ... lots of log output as the machine gets set up
 ```
 
 Note that depending on your terminal, the log output may be very badly formatted, with carriage returns getting interpreted as newlines. Don't worry about that. Once it completes, you can do:
 
 ```
-$ vagrant ssh
+vagrant ssh
 Welcome to Ubuntu 14.04.2 LTS (GNU/Linux 3.13.0-55-generic x86_64)
 
  * Documentation:  https://help.ubuntu.com/
@@ -170,7 +170,7 @@ Rather than always building from source, Nix will use binary caches for packages
 If you're running NixOS, the `shell.sh` scripts won't work, since these scripts supply the additional binary caches via command line flags (which NixOS disallows):
 
 ```sh
-$ cat node/shell.sh
+cat node/shell.sh
 #!/bin/sh
 nix-shell --option extra-binary-caches https://ryantrinkle.com:5443/ -j 8
 
