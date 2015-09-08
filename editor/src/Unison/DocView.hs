@@ -3,21 +3,20 @@
 
 module Unison.DocView where
 
-import Control.Comonad.Cofree (Cofree(..), unwrap) -- (:<)
 import Control.Monad.IO.Class
+import Data.List (intercalate)
 import Data.Maybe (fromMaybe)
 import Data.Semigroup ((<>))
 import Data.Text (Text)
-import Data.Word (Word)
 import Reflex.Dom
-import Unison.Doc (Box, Doc, Layout)
+import Unison.Doc (Doc)
 import Unison.Dom (Dom)
 import Unison.Dimensions (X(..), Y(..), Width(..), Height(..))
 import Unison.Path (Path)
+import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified GHCJS.DOM.Document as Document
 import qualified GHCJS.DOM.Element as Element
-import qualified Unison.Dimensions as Dimensions
 import qualified Unison.Doc as Doc
 import qualified Unison.Dom as Dom
 import qualified Unison.HTML as HTML
@@ -29,7 +28,7 @@ data DocView p = DocView
   , intersects :: (X,Y,Width,Height) -> [p]
   , regions :: [p] -> [(X,Y,Width,Height)] }
 
-widget :: (Path p, Eq p, MonadWidget t m) => Width -> Doc Text p -> m (El t, DocView p)
+widget :: (Path p, Eq p, MonadWidget t m) => Width -> Doc Text p -> m (El t, DocView p, (Width,Height))
 widget available d =
   let
     leaf txt = Text.replace " " "&nbsp;" txt
@@ -60,9 +59,24 @@ widget available d =
                 flexbox Doc.Vertical = HTML.vbox
   in do
     b <- box
+    let (_, (_,_,w,h)) = Doc.root b
     node <- runDom $ interpret (Doc.flatten b)
     e <- el "div" $ unsafePlaceElement (Dom.unsafeAsHTMLElement node)
-    pure $ (e, view b)
+    pure $ (e, view b, (w,h))
+
+selectionLayer :: MonadWidget t m => Height -> (X,Y,Width,Height) -> m ()
+selectionLayer (Height h0) (X x, Y y, Width w, Height h) =
+  let
+    attrs = Map.fromList [("style",style), ("class", "selection-layer")]
+    style = intercalate ";"
+      [ "position:relative"
+      , "width:" ++ show w ++ "px"
+      , "height:" ++ show h ++ "px"
+      , "left:0px"
+      , "top:" ++ show (fromIntegral y - fromIntegral h0 :: Int) ++ "px" ]
+  in do
+    elAttr "div" attrs $ pure ()
+    pure ()
 
 runDom :: MonadWidget t m => Dom a -> m a
 runDom dom = do
