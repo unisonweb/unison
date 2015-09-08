@@ -26,8 +26,8 @@ main = mainWidget $ do
   mouse <- mouseMove' e >>= holdDyn (X 0, Y 0)
   path  <- mapDyn (concat . DocView.at d) mouse
   leafR <- mapDyn (\p -> last $ DocView.regions d [p]) path
-  -- sel <- mapDyn (DocView.selectionLayer h) leafR
-  -- _ <- widgetHold (pure ()) (Dynamic.updated sel)
+  sel <- mapDyn (DocView.selectionLayer h) leafR
+  _ <- widgetHold (pure ()) (Dynamic.updated sel)
   el "pre" $ do
     text "mouse: "
     display mouse

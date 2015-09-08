@@ -72,7 +72,7 @@ selectionLayer (Height h0) (X x, Y y, Width w, Height h) =
       [ "position:relative"
       , "width:" ++ show w ++ "px"
       , "height:" ++ show h ++ "px"
-      , "left:0px"
+      , "left:" ++ show x ++ "px"
       , "top:" ++ show (fromIntegral y - fromIntegral h0 :: Int) ++ "px" ]
   in do
     elAttr "div" attrs $ pure ()
