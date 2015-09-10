@@ -31,16 +31,12 @@ main = mainWidget $ mdo
     display path
     pure ()
   el "pre" $ do
-    text "leaf-region: "
-    display leafRegion
-  el "pre" $ do
-    text "regions: "
-    display regions
+    text "region: "
+    display region
   (e,d,(w,h)) <- DocView.widget (Width 200) termDoc
   mouse <- mouseMove' e >>= holdDyn (X 0, Y 0)
   path  <- mapDyn (concat . DocView.at d) mouse
-  leafRegion <- mapDyn (\p -> DocView.leafRegion d [p]) path
-  regions <- mapDyn (\p -> DocView.regions d [p]) path
-  sel <- mapDyn (DocView.selectionLayer h) leafRegion
+  region <- mapDyn (\p -> DocView.region d [p]) path
+  sel <- mapDyn (DocView.selectionLayer h) region
   _ <- widgetHold (pure ()) (Dynamic.updated sel)
   return ()

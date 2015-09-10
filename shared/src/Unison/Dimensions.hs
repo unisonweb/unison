@@ -6,6 +6,14 @@ newtype X = X Word deriving (Eq,Ord,Show)
 newtype Y = Y Word deriving (Eq,Ord,Show)
 newtype Width = Width Word deriving (Eq,Ord,Show)
 newtype Height = Height Word deriving (Eq,Ord,Show)
+type Region = (X,Y,Width,Height)
+
+centroid :: Region -> (X,Y)
+centroid (X x, Y y, Width w, Height h) = (X $ x + (w `quot` 2), Y $ y + (h `quot` 2))
+
+-- | Manhattan distance between the two points
+manhattan :: (X,Y) -> (X,Y) -> Word
+manhattan (X x1, Y y1) (X x2, Y y2) = (max x1 x2 - min x1 x2) + (max y1 y2 - min y1 y2)
 
 within :: (X,Y) -> (X,Y,Width,Height) -> Bool
 within (X x0, Y y0) (X x,Y y,Width w,Height h) =

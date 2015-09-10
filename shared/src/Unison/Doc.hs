@@ -27,7 +27,7 @@ import Data.List hiding (group)
 import Data.Maybe (fromMaybe)
 import Data.String (IsString)
 import Data.Text (Text)
-import Unison.Dimensions (X(..), Y(..), Width(..), Height(..))
+import Unison.Dimensions (X(..), Y(..), Width(..), Height(..), Region)
 import Unison.Path (Path)
 import qualified Data.Text as Text
 import qualified Unison.Dimensions as Dimensions
@@ -328,12 +328,7 @@ tokens newline l = finish (execState (go l) ([],[],True))
 -- | Convert a `Layout` to a `Box`.
 box :: Path p => Layout e p -> Box e p
 box l = go l [] [] [] where
-  empty = Path.root :< BEmpty
-  line hbuf = foldb beside empty (reverse hbuf)
-  beside = combine $ \b1 b2 -> BFlow Horizontal [b1,b2]
-  combine f (p :< b) (p2 :< b2) = case Path.factor p p2 of
-    (root, (p,p2)) -> root :< f (p :< b) (p2 :< b2)
-
+  line hbuf = Path.root :< BFlow Horizontal (reverse hbuf)
   advance hbuf vbuf todo = go (Path.root :< LEmpty) hbuf vbuf todo
   go (p :< l) hbuf vbuf todo = case l of
     LEmpty -> case todo of
@@ -393,7 +388,7 @@ areas dims b = accumulate step b where
 -- (w,h) are the width and height of the region, respectively. All (x,y)
 -- coordinates are relative to the top left of the root `Box` passed
 -- in, which will always have an (x,y) component of (0,0).
-bounds :: (e -> (Width,Height)) -> Box e p -> Box e (p, (X,Y,Width,Height))
+bounds :: (e -> (Width,Height)) -> Box e p -> Box e (p, Region)
 bounds dims b = go (areas dims b) (Dimensions.zero, Dimensions.zero) where
   go ((p,(w,h)) :< box) xy@(x,y) = (p, (x,y,w,h)) :< case box of
     BEmpty -> BEmpty
@@ -411,78 +406,123 @@ bounds dims b = go (areas dims b) (Dimensions.zero, Dimensions.zero) where
   leftAlignedV (x, y) areas = map (x,) $
     scanl' (\y (Height h) -> Dimensions.plus y (Y h)) y (map snd areas)
 
--- | Compute the list of path segments whose region contains the given point.
+-- | Compute the longest path whose region contains the given point.
 -- See note on `hits`.
-at :: (Path p, Eq p) => Box e (p, (X,Y,Width,Height)) -> (X,Y) -> [p]
+at :: (Path p, Eq p) => Box e (p, Region) -> (X,Y) -> p
 at box (x,y) = contains box (x,y,Dimensions.one,Dimensions.one)
 
--- | Compute the list of path segments whose region passes the `hit` function,
+-- | Compute the longest path whose region passes the `hit` function,
 -- which is given the top left and lower right corners of the input region.
--- Concatenating the full list of segments gives the deepest path into the
--- structure whose layout region contains the point. Concatenating all but the
--- last segment yields the parent of the deepest path, and so on.
 --
 -- The point (X 0, Y 0) is assumed to correspond to the top left
 -- corner of the layout.
 hits :: (Path p, Eq p)
-     => ((X,Y) -> (X,Y) -> (X,Y,Width,Height) -> Bool)
-     -> Box e (p, (X,Y,Width,Height)) -> (X,Y,Width,Height) -> [p]
-hits hit box (X x,Y y,Width w,Height h) = fixup (go box)
+     => ((X,Y) -> (X,Y) -> Region -> Bool)
+     -> Box e (p, Region) -> Region -> p
+hits hit box (X x,Y y,Width w,Height h) = foldr Path.extend Path.root $ go box
   where
   -- only include nonempty path segments, with exception of first
-  fixup xs = take 1 xs ++ filter (Path.root /=) (drop 1 xs)
   pt1 = (X x, Y y)
   pt2 = (X (x+w-1), Y (y+h-1))
   go ((p,region) :< box) | hit pt1 pt2 region = p : (toList box >>= go)
                          | otherwise          = []
 
--- | Compute the list of path segments whose bounding region fully contains
--- the input region. See note on `hits`. Satisfies `last (regions box (contains box r)) == p`
-contains :: (Path p, Eq p) => Box e (p, (X,Y,Width,Height)) -> (X,Y,Width,Height) -> [p]
+-- | Compute the longest path whose bounding region fully contains
+-- the input region. See note on `hits`. Satisfies `region box (contains box r) == r`.
+contains :: (Path p, Eq p) => Box e (p, Region) -> Region -> p
 contains = hits $ \p1 p2 region ->
   Dimensions.within p1 region && Dimensions.within p2 region
 
--- | Compute the list of path segments whose bounding region intersects with
--- the input region. See note on `hits`.
-intersects :: (Path p, Eq p) => Box e (p, (X,Y,Width,Height)) -> (X,Y,Width,Height) -> [p]
-intersects = hits $ \p1 p2 region ->
-  Dimensions.within p1 region || Dimensions.within p2 region
-
--- | Find all regions along the path.
-regions :: (Path p, Eq p) => Box e (p, (X,Y,Width,Height)) -> [p] -> [(X,Y,Width,Height)]
-regions box p = go (foldr Path.extend Path.root p) box
+-- | Find the leaf region (contains no other regions) corresponding to the path
+region :: (Path p, Eq p) => Box e (p, Region) -> p -> Region
+region box path = fromMaybe (snd . root $ box) r
   where
-  go searchp ((_,region) :< _) | searchp == Path.root = [region]
-  go searchp ((p,region) :< box) =
+  rs = possible path box
+  r = find (\r -> contains box r == path) rs
+  possible searchp ((_,region) :< _) | searchp == Path.root = [region]
+  possible searchp ((p,region) :< box) =
     -- bail on this branch if we can't fully consume its path segment
     -- OR if segment nonempty and shares nothing in common w/ query
     if p' /= Path.root || (p /= Path.root && lca == Path.root) then []
-    -- recurse into nodes w/ empty segment, but don't include their regions in output
-    else region : (toList box >>= go searchp')
+    else region : (toList box >>= possible searchp')
     where
     (lca, (p',searchp')) = Path.factor p searchp
 
--- | Find the leaf region (contains no other regions) corresponding to the path
-leafRegion :: (Path p, Eq p) => Box e (p, (X,Y,Width,Height)) -> [p] -> (X,Y,Width,Height)
-leafRegion box p = fromMaybe (snd . root $ box) r
-  where
-  path = join p
-  join = foldr Path.extend Path.root
-  rs = regions box p
-  r = find (\r -> join (contains box r) == path) rs
+up', down', left', right' :: (Eq p, Path p) => Box e (p, Region) -> p -> Maybe p
+up' = navigate' go where
+  go (_,y0,_,_) =
+    let max r1 (_,y,_,_) | y > y0 = r1 -- region below origin, ignore
+        max Nothing r1 = Just r1
+        max (Just (_,y,_,_)) r2@(_,y2,_,_) | y2 > y = Just r2 -- prefer closer to bottom
+        max r1 _ = r1
+    in max
+
+down' = navigate' go where
+  go (_,y0,_,_) =
+    let max r1 (_,y,_,_) | y < y0 = r1 -- region above origin, ignore
+        max Nothing r1 = Just r1
+        max (Just (_,y,_,_)) r2@(_,y2,_,_) | y2 < y = Just r2 -- prefer closer to top
+        max r1 _ = r1
+    in max
+
+left' = navigate' go where
+  go (x0,_,_,_) =
+    let max r1 (x,_,_,_) | x > x0 = r1 -- region to the right of origin, ignore
+        max Nothing r1 = Just r1
+        max (Just (x,_,_,_)) r2@(x2,_,_,_) | x2 > x = Just r2 -- prefer closer to right
+        max r1 _ = r1
+    in max
+
+right' = navigate' go where
+  go (x0,_,_,_) =
+    let max r1 (x,_,_,_) | x < x0 = r1 -- region to the left of origin, ignore
+        max Nothing r1 = Just r1
+        max (Just (x,_,_,_)) r2@(x2,_,_,_) | x2 < x = Just r2 -- prefer closer to left
+        max r1 _ = r1
+    in max
+
+up, down, left, right :: (Eq p, Path p) => Box e (p, Region) -> p -> p
+up box p = fromMaybe p (up' box p)
+down box p = fromMaybe p (down' box p)
+left box p = fromMaybe p (left' box p)
+right box p = fromMaybe p (right' box p)
+
+navigate' :: (Eq p, Path p)
+          => (Region -> Maybe Region -> Region -> Maybe Region)
+          -> Box e (p, Region) -> p -> Maybe p
+navigate' f box p =
+  let
+    origin = region box p
+    leafRegions rs = [ r | r:tl <- init . tails $ rs
+                         , null (takeWhile (r `has`) tl)
+                         , not (origin `has` r) ]
+    leaves = leafRegions $ map snd (preorder box)
+    has super (X x,Y y,Width w,Height h) =
+      Dimensions.within (X x,Y y) super &&
+      Dimensions.within (X $ x+w-1, Y $ y+h-1) super
+  in contains box <$> foldl' (f origin) Nothing leaves
+
+navigate :: (Eq p, Path p)
+         => (Region -> Maybe Region -> Region -> Maybe Region)
+         -> Box e (p, Region) -> p -> p
+navigate f box p = fromMaybe p (navigate' f box p)
+
+-- | Preorder traversal of the annotations of a `Cofree`.
+preorder :: Foldable f => Cofree f p -> [p]
+preorder (p :< f) = p : (toList f >>= preorder)
 
 -- todo: navigation operators
 -- up, down, left, right are spacial, based on actual layout
 -- expand and contract are based on tree structure induced by paths
--- up :: Box e (p, (X,Y,Width,Height)) -> p -> p
--- down :: Box e (p, (X,Y,Width,Height)) -> p -> p
--- left :: Box e (p, (X,Y,Width,Height)) -> p -> p
--- right :: Box e (p, (X,Y,Width,Height)) -> p -> p
--- right' :: Box e (p, (X,Y,Width,Height)) -> p -> Maybe p
--- expand :: Box e (p, (X,Y,Width,Height)) -> p -> p
--- expand' :: Box e (p, (X,Y,Width,Height)) -> p -> Maybe p
--- contract :: Box e (p, (X,Y,Width,Height)) -> p -> p
--- contract' :: Box e (p, (X,Y,Width,Height)) -> p -> Maybe p
+-- up :: Box e (p, Region) -> p -> p
+-- down :: Box e (p, Region) -> p -> p
+-- left :: Box e (p, Region) -> p -> p
+-- right :: Box e (p, Region) -> p -> p
+-- right' :: Box e (p, Region) -> p -> Maybe p
+-- expand :: Box e (p, Region) -> p -> p
+-- expand' :: Box e (p, Region) -> p -> Maybe p
+-- contract :: Box e (p, Region) -> p -> p
+-- contract' :: Box e (p, Region) -> p -> Maybe p
 
 -- for debugging
 debugBox :: Show e => Box e p -> String

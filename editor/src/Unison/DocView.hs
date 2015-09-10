@@ -26,8 +26,7 @@ data DocView p = DocView
   { at :: (X,Y) -> [p]
   , contains :: (X,Y,Width,Height) -> [p]
   , intersects :: (X,Y,Width,Height) -> [p]
-  , leafRegion :: [p] -> (X,Y,Width,Height)
-  , regions :: [p] -> [(X,Y,Width,Height)] }
+  , region :: [p] -> (X,Y,Width,Height) }
 
 widget :: (Show p, Path p, Eq p, MonadWidget t m) => Width -> Doc Text p -> m (El t, DocView p, (Width,Height))
 widget available d =
@@ -45,8 +44,7 @@ widget available d =
     view box = DocView (Doc.at box)
                        (Doc.contains box)
                        (Doc.intersects box)
-                       (Doc.leafRegion box)
-                       (Doc.regions box)
+                       (Doc.region box)
     interpret b = Dom.el "div" [("class","docwidget")] [dom]
       where
       dom = fromMaybe (HTML.hbox []) . Doc.einterpret go $ b'
