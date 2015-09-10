@@ -33,10 +33,21 @@ main = mainWidget $ mdo
   el "pre" $ do
     text "region: "
     display region
-  (e,d,(w,h)) <- DocView.widget (Width 200) termDoc
-  mouse <- mouseMove' e >>= holdDyn (X 0, Y 0)
-  path  <- mapDyn (concat . DocView.at d) mouse
-  region <- mapDyn (\p -> DocView.region d [p]) path
-  sel <- mapDyn (DocView.selectionLayer h) region
-  _ <- widgetHold (pure ()) (Dynamic.updated sel)
+  (body, (mouse,path,region)) <- el' "div" $ do
+    (e,d,(w,h)) <- DocView.widget (Width 200) termDoc
+    mouse <- mouseMove' e >>= holdDyn (X 0, Y 0)
+    path  <- mapDyn (Doc.at d) mouse
+    region <- mapDyn (Doc.region d) path
+    sel <- mapDyn (DocView.selectionLayer h) region
+    _ <- widgetHold (pure ()) (Dynamic.updated sel)
+    return (mouse, path, region)
   return ()
+
+keypress :: Reflex t => El t -> Event t Int
+keypress e = domEvent Keypress e
+
+upKeypress, downKeypress, leftKeypress, rightKeypress :: Reflex t => El t -> Event t Int
+leftKeypress e  = ffilter (== 37) (keypress e)
+upKeypress e    = ffilter (== 38) (keypress e)
+rightKeypress e = ffilter (== 39) (keypress e)
+downKeypress e  = ffilter (== 40) (keypress e)
