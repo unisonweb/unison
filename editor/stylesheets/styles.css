@@ -8,13 +8,16 @@
 }
 
 .selection-layer {
-  background-color: rgba(200,0,0,.25);
+  background-color: rgba(0,0,220,.15);
   z-index: 1;
+  border: 2px solid rgba(50,50,50);
+  border-radius: 4px;
 }
 
 .docwidget {
   /* font-family: 'Fira Sans', sans-serif;
   /* font-family: 'Lato', sans-serif; */
+  cursor: default;
   z-index: 0;
   font-family: 'fira-code-regular', monospace;
   font-size: 12pt;
