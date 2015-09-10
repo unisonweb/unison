@@ -9,7 +9,7 @@ newtype Height = Height Word deriving (Eq,Ord,Show)
 
 within :: (X,Y) -> (X,Y,Width,Height) -> Bool
 within (X x0, Y y0) (X x,Y y,Width w,Height h) =
-  x0 >= x && x0 <= x+w && y0 >= y && y0 <= y+h
+  x0 >= x && x0 < x+w && y0 >= y && y0 < y+h
 
 hcombine, vcombine :: (Width,Height) -> (Width,Height) -> (Width,Height)
 hcombine (w1,h1) (w2,h2) = (plus w1 w2, h1 `max` h2)

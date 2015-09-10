@@ -26,9 +26,10 @@ data DocView p = DocView
   { at :: (X,Y) -> [p]
   , contains :: (X,Y,Width,Height) -> [p]
   , intersects :: (X,Y,Width,Height) -> [p]
+  , leafRegion :: [p] -> (X,Y,Width,Height)
   , regions :: [p] -> [(X,Y,Width,Height)] }
 
-widget :: (Path p, Eq p, MonadWidget t m) => Width -> Doc Text p -> m (El t, DocView p, (Width,Height))
+widget :: (Show p, Path p, Eq p, MonadWidget t m) => Width -> Doc Text p -> m (El t, DocView p, (Width,Height))
 widget available d =
   let
     leaf txt = Text.replace " " "&nbsp;" txt
@@ -41,7 +42,11 @@ widget available d =
       -- http://stackoverflow.com/questions/118241/calculate-text-width-with-javascript/21015393#21015393
       (w,h) <- liftIO $ UI.preferredDimensions (Element.castToElement node)
       pure (txt, (w,h))
-    view box = DocView (Doc.at box) (Doc.contains box) (Doc.intersects box) (Doc.regions box)
+    view box = DocView (Doc.at box)
+                       (Doc.contains box)
+                       (Doc.intersects box)
+                       (Doc.leafRegion box)
+                       (Doc.regions box)
     interpret b = Dom.el "div" [("class","docwidget")] [dom]
       where
       dom = fromMaybe (HTML.hbox []) . Doc.einterpret go $ b'
@@ -59,6 +64,7 @@ widget available d =
                 flexbox Doc.Vertical = HTML.vbox
   in do
     b <- box
+    liftIO . putStrLn $ Doc.debugBoxp b
     let (_, (_,_,w,h)) = Doc.root b
     node <- runDom $ interpret (Doc.flatten b)
     e <- el "div" $ unsafePlaceElement (Dom.unsafeAsHTMLElement node)
@@ -69,11 +75,12 @@ selectionLayer (Height h0) (X x, Y y, Width w, Height h) =
   let
     attrs = Map.fromList [("style",style), ("class", "selection-layer")]
     style = intercalate ";"
-      [ "position:relative"
+      [ "pointer-events:none"
+      , "position:relative"
       , "width:" ++ show w ++ "px"
       , "height:" ++ show h ++ "px"
       , "left:" ++ show x ++ "px"
-      , "top:" ++ show (fromIntegral y - fromIntegral h0 :: Int) ++ "px" ]
+      , "top:" ++ show (fromIntegral y - fromIntegral h0 + 1 :: Int) ++ "px" ]
   in do
     elAttr "div" attrs $ pure ()
     pure ()

@@ -24,6 +24,7 @@ import Data.Bifunctor
 import Data.Functor
 import Data.Foldable
 import Data.List hiding (group)
+import Data.Maybe (fromMaybe)
 import Data.String (IsString)
 import Data.Text (Text)
 import Unison.Dimensions (X(..), Y(..), Width(..), Height(..))
@@ -125,6 +126,8 @@ empty = Path.root :< Empty
 
 -- | Append two documents
 append :: Path p => Doc e p -> Doc e p -> Doc e p
+append d1 (_ :< Empty) = d1
+append (_ :< Empty) d2 = d2
 append (p1 :< d1) (p2 :< d2) =
   case Path.factor p1 p2 of
     (lca, (p1, p2)) -> lca :< ((p1 :< d1) `Append` (p2 :< d2))
@@ -159,7 +162,7 @@ group (p :< d) = p :< Group (Path.root :< d)
 -- | If immediately preceded by a newline, indent the `Doc` by the given element
 -- otherwise ignore the `e` argument.
 nest :: Path p => e -> Doc e p -> Doc e p
-nest e (p :< d) = p :< Nest e (Path.root :< d)
+nest e (p :< d) = Path.root :< Nest e (p :< d)
 
 -- | Specify that layout may insert a line break at this point in the document.
 -- If a line break is not inserted, the given `e` is inserted instead.
@@ -264,7 +267,7 @@ layout width maxWidth doc =
           return $ p :< LNest e doc
         -- we're in the middle of a line, ignore `e`
         False -> sub p <$> break doc
-    Group doc -> sub p <$> go doc -- we try to avoid breaking subgroups
+    Group _ -> go (p :< doc) -- we try to avoid breaking subgroups
 
 -- | Layout the `Doc` assuming infinite available width
 flow :: Doc e p -> Layout e p
@@ -305,11 +308,9 @@ tokens :: e -> Layout e p -> [e]
 tokens newline l = finish (execState (go l) ([],[],True))
   where
   finish (_, buf, _) = reverse buf
-  col3 p top mid bot = p :< (LAppend (p :< (LAppend (p :< LEmbed top) mid)) (p :< LEmbed bot))
-  row3 p left mid right = p :< (LAppend (p :< (LAppend (p :< LEmbed left) mid)) (p :< LEmbed right))
   -- state is (indentation snoc list, token buffer snoc list, whether immediately preceded by newline)
   -- go :: Layout e p -> State ([e],[e],Bool) ()
-  go (p :< l) = case l of
+  go (_ :< l) = case l of
     LGroup r -> go r
     LEmpty -> return ()
     LLinebreak -> modify cr where
@@ -333,7 +334,6 @@ box l = go l [] [] [] where
   beside = combine $ \b1 b2 -> BFlow Horizontal [b1,b2]
   combine f (p :< b) (p2 :< b2) = case Path.factor p p2 of
     (root, (p,p2)) -> root :< f (p :< b) (p2 :< b2)
-  bembed e = Path.root :< BEmbed e
 
   advance hbuf vbuf todo = go (Path.root :< LEmpty) hbuf vbuf todo
   go (p :< l) hbuf vbuf todo = case l of
@@ -342,12 +342,12 @@ box l = go l [] [] [] where
       hd:todo -> go hd hbuf vbuf todo
     LEmbed e -> advance ((p :< BEmbed e) : hbuf) vbuf todo
     LGroup r@(_ :< LEmbed _) -> go (sub' p r) hbuf vbuf todo
+    -- LGroup r -> advance ((p :< BFlow Horizontal [box r]) : hbuf) vbuf todo
     LGroup r -> advance (sub' p (box r) : hbuf) vbuf todo
     LNest e r ->
       let inner = p :< BFlow Horizontal [Path.root :< BEmbed e, box r]
       in advance (inner:hbuf) vbuf todo
     LAppend a b -> go (sub' p a) hbuf vbuf (sub' p b : todo)
-    LGroup r -> advance (box r : hbuf) vbuf todo
     LLinebreak | null hbuf -> advance hbuf vbuf todo
     LLinebreak -> advance [] (line hbuf : vbuf) todo
 
@@ -359,6 +359,7 @@ flatten b = rewrite step b where
     BEmbed _ -> b
     BFlow dir bs -> BFlow dir $ bs >>= h where
       h (_ :< BFlow dir2 bsi) | dir == dir2 = bsi
+      h (_ :< BFlow _ [bsi]) = [bsi]
       h x = [x]
 
 flatten' :: (Eq p, Path p) => Box e p -> Box e p
@@ -432,9 +433,9 @@ hits hit box (X x,Y y,Width w,Height h) = fixup (go box)
   -- only include nonempty path segments, with exception of first
   fixup xs = take 1 xs ++ filter (Path.root /=) (drop 1 xs)
   pt1 = (X x, Y y)
-  pt2 = (X (x+w), Y (y+h))
+  pt2 = (X (x+w-1), Y (y+h-1))
   go ((p,region) :< box) | hit pt1 pt2 region = p : (toList box >>= go)
-                         | otherwise = []
+                         | otherwise          = []
 
 -- | Compute the list of path segments whose bounding region fully contains
 -- the input region. See note on `hits`. Satisfies `last (regions box (contains box r)) == p`
@@ -455,12 +456,41 @@ regions box p = go (foldr Path.extend Path.root p) box
   go searchp ((_,region) :< _) | searchp == Path.root = [region]
   go searchp ((p,region) :< box) =
     -- bail on this branch if we can't fully consume its path segment
-    -- OR if path segment shares nothing in common w/ query
+    -- OR if segment nonempty and shares nothing in common w/ query
     if p' /= Path.root || (p /= Path.root && lca == Path.root) then []
-    -- recurse into nodes whose segment is empty, but don't include their regions in output
-    else (if lca /= Path.root then (region:) else id) (toList box >>= go searchp')
+    -- recurse into nodes w/ empty segment, but don't include their regions in output
+    else region : (toList box >>= go searchp')
     where
     (lca, (p',searchp')) = Path.factor p searchp
+
+-- | Find the leaf region (contains no other regions) corresponding to the path
+leafRegion :: (Path p, Eq p) => Box e (p, (X,Y,Width,Height)) -> [p] -> (X,Y,Width,Height)
+leafRegion box p = fromMaybe (snd . root $ box) r
+  where
+  path = join p
+  join = foldr Path.extend Path.root
+  rs = regions box p
+  r = find (\r -> join (contains box r) == path) rs
+
+-- | Given a list of regions, find the leaf region. If multiple regions
+-- have no children, the smallest bounding region which contains them all
+-- is returned.
+leafRegion' :: [(X,Y,Width,Height)] -> Maybe (X,Y,Width,Height)
+leafRegion' [] = Nothing
+leafRegion' rs =
+  let
+    contains super (X x,Y y,Width w,Height h) =
+      Dimensions.within (X x,Y y) super &&
+      Dimensions.within (X $ x+w, Y $ y+h) super
+    leafRegions = [ r | r:tl <- init . tails $ rs, not (any (contains r) tl) ]
+    combine (X x1, Y y1, Width w1, Height h1)
+            (X x2, Y y2, Width w2, Height h2) =
+      (X x, Y y, Width $ max (x' - x) (x2' - x), Height $ max (y' - y) (y2' - y))
+      where x = min x1 x2
+            y = min y1 y2
+            (x',y') = (x1 + w1, y1 + h1)
+            (x2',y2') = (x2 + w2, y2 + h2)
+  in Just $ foldl1 combine leafRegions
 
 -- todo: navigation operators
 -- up, down, left, right are spacial, based on actual layout

@@ -189,7 +189,7 @@ unApps :: Term v -> Maybe (Term v, [Term v])
 unApps t = case go t [] of [] -> Nothing; f:args -> Just (f,args)
   where
   go (App' i o) acc = go i (o:acc)
-  go fn [] = []
+  go _ [] = []
   go fn args = fn:args
 
 unApps' :: Term v -> Maybe ((Term v,Path), [(Term v,Path)])
@@ -361,14 +361,15 @@ view ref t = go no View.low t where
       if p == View.low then D.sub' bodyp (go no p body)
       else D.parenthesize True . D.group $
            D.delimit (D.embed " ") (map (sym . fst) vs) `D.append`
-           D.docs [D.embed "→", D.breakable " ", D.nest "  " $ D.sub' bodyp (go no View.low body)]
+           D.docs [D.embed "->", D.breakable " ", D.nest "  " $ D.sub' bodyp (go no View.low body)]
     Vector' vs ->
       let
-        fmt v = D.nest "  " $ go no View.low v
-        subs = [ D.sub (Index i) (fmt v) | (v,i) <- Vector.toList vs `zip` [0..] ]
-      in D.group . D.docs $ [ D.embed "[ "
-                            , D.delimit (D.breakable ", ") subs
-                            , D.embed " ]" ]
+        fmt i v = D.nest "  " . D.sub (Index i) $ go no View.low v
+        subs = [ fmt i v | (v,i) <- Vector.toList vs `zip` [0..] ]
+      in D.group . D.docs $
+           [ D.embed "[ "
+           , D.delimit (D.breakable ", ") subs
+           , D.embed " ]" ]
     Ann' e t -> D.group . D.parenthesize (p /= View.low) $
                 D.docs [ go no p e, D.embed " :", D.breakable " "
                        , D.nest "  " $ (\p -> [Annotation p]) <$> Type.view ref t ]
@@ -394,7 +395,9 @@ deriveJSON defaultOptions ''PathElement
 
 instance Show Literal where
   show (Text t) = show t
-  show (Number n) = show n
+  show (Number n) = case floor n of
+    m | fromIntegral m == n -> show (m :: Int)
+    _ -> show n
   show (Distance d) = show d
 
 instance (Var v, Show a) => Show (F v a) where

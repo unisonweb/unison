@@ -9,7 +9,6 @@
 
 .selection-layer {
   background-color: rgba(200,0,0,.25);
-  pointer-events: none;
   z-index: 1;
 }
 
