@@ -330,7 +330,6 @@ box :: Path p => Layout e p -> Box e p
 box l = go l [] [] [] where
   empty = Path.root :< BEmpty
   line hbuf = foldb beside empty (reverse hbuf)
-  above = combine $ \b1 b2 -> BFlow Vertical [b1,b2]
   beside = combine $ \b1 b2 -> BFlow Horizontal [b1,b2]
   combine f (p :< b) (p2 :< b2) = case Path.factor p p2 of
     (root, (p,p2)) -> root :< f (p :< b) (p2 :< b2)
@@ -338,7 +337,7 @@ box l = go l [] [] [] where
   advance hbuf vbuf todo = go (Path.root :< LEmpty) hbuf vbuf todo
   go (p :< l) hbuf vbuf todo = case l of
     LEmpty -> case todo of
-      [] -> foldb above empty (reverse $ line hbuf : vbuf)
+      [] -> Path.root :< BFlow Vertical (reverse $ line hbuf : vbuf)
       hd:todo -> go hd hbuf vbuf todo
     LEmbed e -> advance ((p :< BEmbed e) : hbuf) vbuf todo
     LGroup r@(_ :< LEmbed _) -> go (sub' p r) hbuf vbuf todo
@@ -471,26 +470,6 @@ leafRegion box p = fromMaybe (snd . root $ box) r
   join = foldr Path.extend Path.root
   rs = regions box p
   r = find (\r -> join (contains box r) == path) rs
-
--- | Given a list of regions, find the leaf region. If multiple regions
--- have no children, the smallest bounding region which contains them all
--- is returned.
-leafRegion' :: [(X,Y,Width,Height)] -> Maybe (X,Y,Width,Height)
-leafRegion' [] = Nothing
-leafRegion' rs =
-  let
-    contains super (X x,Y y,Width w,Height h) =
-      Dimensions.within (X x,Y y) super &&
-      Dimensions.within (X $ x+w, Y $ y+h) super
-    leafRegions = [ r | r:tl <- init . tails $ rs, not (any (contains r) tl) ]
-    combine (X x1, Y y1, Width w1, Height h1)
-            (X x2, Y y2, Width w2, Height h2) =
-      (X x, Y y, Width $ max (x' - x) (x2' - x), Height $ max (y' - y) (y2' - y))
-      where x = min x1 x2
-            y = min y1 y2
-            (x',y') = (x1 + w1, y1 + h1)
-            (x2',y2') = (x2 + w2, y2 + h2)
-  in Just $ foldl1 combine leafRegions
 
 -- todo: navigation operators
 -- up, down, left, right are spacial, based on actual layout
