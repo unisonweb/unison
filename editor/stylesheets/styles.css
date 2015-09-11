@@ -10,7 +10,6 @@
 .selection-layer {
   background-color: rgba(0,0,220,.15);
   z-index: 1;
-  border: 2px solid rgba(50,50,50);
   border-radius: 4px;
 }
 

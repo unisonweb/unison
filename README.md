@@ -95,7 +95,7 @@ You'll again be put into a shell with access to cabal. The first time you do thi
 Note: The editor uses GHCJS and not all cabal commands are supported (notably `cabal repl` does not work), but `cabal build` will compile the Haskell code to JS. After a `cabal build`, just open the following file in a browser:
 
 ```
-editor/dist/build/editor/editor.jsexe/index.html
+editor/editor.html
 ```
 
 Note: at the moment, the editor is in its early stages. Work on the editor is currently ongoing! Check back in a couple months. If you like, [here are instructions for building the legacy Elm-based Unison editor](https://github.com/unisonweb/platform/blob/master/editor-elm/README.md).
