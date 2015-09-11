@@ -8,9 +8,26 @@
 }
 
 .selection-layer {
-  background-color: rgba(0,0,220,.15);
+  background-color: rgba(0,0,0,.05);
   z-index: 1;
-  border-radius: 4px;
+  border-radius: 3px;
+  border-right-width: 1px;
+  border-left-width: 1px;
+  border-top-width: 1px;
+  border-bottom-width: 1px;
+  border-style: solid;
+  border-color: rgba(0,0,0,.4);
+  animation-delay: .5s;
+  animation-name: pulse;
+  animation-duration: 1.25s;
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+  animation-timing-function: ease-in;
+}
+
+@keyframes pulse {
+    from { border-color: rgba(0,0,0,.4);}
+    to {border-color: rgba(0,0,0,.08);}
 }
 
 .docwidget {
@@ -20,6 +37,7 @@
   z-index: 0;
   font-family: 'fira-code-regular', monospace;
   font-size: 12pt;
+  padding: 1px;
   font-variant-ligatures: common-ligatures;
 }
 

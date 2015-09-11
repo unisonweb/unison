@@ -34,7 +34,7 @@ main = mainWidget $ mdo
     text "region: "
     display region
   (body, (mouse,path,region)) <- el' "div" $ do
-    (e,d,(w,h)) <- DocView.widget (Width 200) termDoc
+    (e,d,(w,h)) <- DocView.widget (Width 300) termDoc
     mouse <- mouseMove' e >>= holdDyn (X 0, Y 0)
     path  <- mapDyn (Doc.at d) mouse
     region <- mapDyn (Doc.region d) path
