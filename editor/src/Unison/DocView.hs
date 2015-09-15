@@ -8,6 +8,7 @@ import Data.List (intercalate)
 import Data.Maybe (fromMaybe)
 import Data.Semigroup ((<>))
 import Data.Text (Text)
+import Data.These (These(This,That,These))
 import Reflex.Dom
 import Unison.Doc (Doc)
 import Unison.Dom (Dom)
@@ -57,7 +58,13 @@ widget available d =
     let (_, (_,_,w,h)) = Doc.root b
     node <- runDom $ interpret (Doc.flatten b)
     e <- el "div" $ unsafePlaceElement (Dom.unsafeAsHTMLElement node)
-    pure $ (e, Doc.emap (const ()) b, (w,h))
+    mouse <- UI.mouseMove' e >>= holdDyn (X 0, Y 0)
+    let (ups, downs, lefts, rights) = (upKeypress e, downKeypress e, leftKeypress e, rightKeypress e)
+    -- path  <- mapDyn (Doc.at d) mouse
+    -- region <- mapDyn (Doc.region d) path
+    -- sel <- mapDyn (DocView.selectionLayer h) region
+    let b' = Doc.emap (const ()) b
+    pure $ (e, b', (w,h))
 
 selectionLayer :: MonadWidget t m => Height -> (X,Y,Width,Height) -> m ()
 selectionLayer (Height h0) (X x, Y y, Width w, Height h) =
@@ -66,13 +73,27 @@ selectionLayer (Height h0) (X x, Y y, Width w, Height h) =
     style = intercalate ";"
       [ "pointer-events:none"
       , "position:relative"
-      , "width:" ++ show w ++ "px"
-      , "height:" ++ show h ++ "px"
-      , "left:" ++ show x ++ "px"
-      , "top:" ++ show (fromIntegral y - fromIntegral h0 :: Int) ++ "px" ]
+      , "width:" ++ show (w+4) ++ "px"
+      , "height:" ++ show (h+4) ++ "px"
+      , "left:" ++ show (fromIntegral x - 2 `max` 0 :: Int) ++ "px"
+      , "top:" ++ show (fromIntegral y - fromIntegral h0 - 2 :: Int) ++ "px" ]
   in do
     elAttr "div" attrs $ pure ()
     pure ()
+
+keypress :: Reflex t => El t -> Event t Int
+keypress e = domEvent Keypress e
+
+upKeypress, downKeypress, leftKeypress, rightKeypress :: Reflex t => El t -> Event t Int
+leftKeypress e  = ffilter (== 37) (keypress e)
+upKeypress e    = ffilter (== 38) (keypress e)
+rightKeypress e = ffilter (== 39) (keypress e)
+downKeypress e  = ffilter (== 40) (keypress e)
+
+mergeThese :: Reflex t => Event t a -> Event t b -> Event t (These a b)
+mergeThese a b = mergeWith g [fmap This a, fmap That b] where
+  g (This a) (That b) = These a b
+  g _ _ = error "not possible"
 
 runDom :: MonadWidget t m => Dom a -> m a
 runDom dom = do

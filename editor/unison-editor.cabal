@@ -62,6 +62,7 @@ library
     reflex-dom,
     semigroups,
     text,
+    these,
     transformers,
     unison-shared
 
@@ -92,6 +93,7 @@ executable editor
     reflex-dom,
     semigroups,
     text,
+    these,
     transformers,
     unison-shared,
     unison-editor

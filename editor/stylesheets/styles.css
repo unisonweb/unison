@@ -16,17 +16,17 @@
   border-top-width: 1px;
   border-bottom-width: 1px;
   border-style: solid;
-  border-color: rgba(0,0,0,.4);
-  animation-delay: .5s;
+  border-color: rgba(0,0,0,.45);
+  animation-delay: .3s;
   animation-name: pulse;
-  animation-duration: 1.25s;
+  animation-duration: 1.15s;
   animation-iteration-count: infinite;
   animation-direction: alternate;
   animation-timing-function: ease-in;
 }
 
 @keyframes pulse {
-    from { border-color: rgba(0,0,0,.4);}
+    from { border-color: rgba(0,0,0,.45);}
     to {border-color: rgba(0,0,0,.08);}
 }
 
@@ -37,7 +37,6 @@
   z-index: 0;
   font-family: 'fira-code-regular', monospace;
   font-size: 12pt;
-  padding: 1px;
   font-variant-ligatures: common-ligatures;
 }
 

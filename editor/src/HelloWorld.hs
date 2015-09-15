@@ -43,11 +43,3 @@ main = mainWidget $ mdo
     return (mouse, path, region)
   return ()
 
-keypress :: Reflex t => El t -> Event t Int
-keypress e = domEvent Keypress e
-
-upKeypress, downKeypress, leftKeypress, rightKeypress :: Reflex t => El t -> Event t Int
-leftKeypress e  = ffilter (== 37) (keypress e)
-upKeypress e    = ffilter (== 38) (keypress e)
-rightKeypress e = ffilter (== 39) (keypress e)
-downKeypress e  = ffilter (== 40) (keypress e)
