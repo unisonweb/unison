@@ -18,13 +18,15 @@ import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified GHCJS.DOM.Document as Document
 import qualified GHCJS.DOM.Element as Element
+import qualified Reflex.Dynamic as Dynamic
 import qualified Unison.Doc as Doc
 import qualified Unison.Dom as Dom
 import qualified Unison.HTML as HTML
 import qualified Unison.UI as UI
+import qualified Unison.Signals as S
 
 widget :: (Show p, Path p, Eq p, MonadWidget t m)
-       => Width -> Doc Text p -> m (El t, Doc.Box () (p, Region), (Width,Height))
+       => Width -> Doc Text p -> m (El t, (Width,Height))
 widget available d =
   let
     leaf txt = Text.replace " " "&nbsp;" txt
@@ -58,13 +60,18 @@ widget available d =
     let (_, (_,_,w,h)) = Doc.root b
     node <- runDom $ interpret (Doc.flatten b)
     e <- el "div" $ unsafePlaceElement (Dom.unsafeAsHTMLElement node)
-    mouse <- UI.mouseMove' e >>= holdDyn (X 0, Y 0)
-    let (ups, downs, lefts, rights) = (upKeypress e, downKeypress e, leftKeypress e, rightKeypress e)
-    -- path  <- mapDyn (Doc.at d) mouse
-    -- region <- mapDyn (Doc.region d) path
-    -- sel <- mapDyn (DocView.selectionLayer h) region
-    let b' = Doc.emap (const ()) b
-    pure $ (e, b', (w,h))
+    mouse <- UI.mouseMove' e
+    nav <- pure $ mergeWith (.) [
+      const (Doc.up b) <$> (traceEvent "up" $ S.upKeypress e),
+      const (Doc.down b) <$> (traceEvent "down" $ S.downKeypress e),
+      const (Doc.left b) <$> (traceEvent "left" $ S.leftKeypress e),
+      const (Doc.right b) <$> (traceEvent "right" $ S.rightKeypress e),
+      (\pt _ -> Doc.at b pt) <$> (traceEvent "mouse" $ mouse) ]
+    path <- Dynamic.foldDyn ($) (Doc.at b (X 0, Y 0)) nav
+    region <- mapDyn (Doc.region b) path
+    sel <- mapDyn (selectionLayer h) region
+    _ <- widgetHold (pure ()) (Dynamic.updated sel)
+    pure $ (e, (w,h))
 
 selectionLayer :: MonadWidget t m => Height -> (X,Y,Width,Height) -> m ()
 selectionLayer (Height h0) (X x, Y y, Width w, Height h) =
@@ -80,20 +87,6 @@ selectionLayer (Height h0) (X x, Y y, Width w, Height h) =
   in do
     elAttr "div" attrs $ pure ()
     pure ()
-
-keypress :: Reflex t => El t -> Event t Int
-keypress e = domEvent Keypress e
-
-upKeypress, downKeypress, leftKeypress, rightKeypress :: Reflex t => El t -> Event t Int
-leftKeypress e  = ffilter (== 37) (keypress e)
-upKeypress e    = ffilter (== 38) (keypress e)
-rightKeypress e = ffilter (== 39) (keypress e)
-downKeypress e  = ffilter (== 40) (keypress e)
-
-mergeThese :: Reflex t => Event t a -> Event t b -> Event t (These a b)
-mergeThese a b = mergeWith g [fmap This a, fmap That b] where
-  g (This a) (That b) = These a b
-  g _ _ = error "not possible"
 
 runDom :: MonadWidget t m => Dom a -> m a
 runDom dom = do

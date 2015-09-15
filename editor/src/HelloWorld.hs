@@ -22,24 +22,7 @@ term = var' "foo" `app`
 termDoc = view defaultSymbol term
 
 main :: IO ()
-main = mainWidget $ mdo
-  el "pre" $ do
-    text "mouse: "
-    display mouse
-  el "pre" $ do
-    text "path: "
-    display path
-    pure ()
-  el "pre" $ do
-    text "region: "
-    display region
-  (body, (mouse,path,region)) <- el' "div" $ do
-    (e,d,(w,h)) <- DocView.widget (Width 300) termDoc
-    mouse <- mouseMove' e >>= holdDyn (X 0, Y 0)
-    path  <- mapDyn (Doc.at d) mouse
-    region <- mapDyn (Doc.region d) path
-    sel <- mapDyn (DocView.selectionLayer h) region
-    _ <- widgetHold (pure ()) (Dynamic.updated sel)
-    return (mouse, path, region)
+main = mainWidget $ do
+  _ <- el' "div" $ DocView.widget (Width 300) termDoc
   return ()
 
