@@ -409,7 +409,7 @@ bounds dims b = go (areas dims b) (Dimensions.zero, Dimensions.zero) where
 -- | Compute the longest path whose region contains the given point.
 -- See note on `hits`.
 at :: (Path p, Eq p) => Box e (p, Region) -> (X,Y) -> p
-at box (x,y) = contains box (x,y,Dimensions.one,Dimensions.one)
+at box (x,y) = contains box (x,y,Dimensions.zero,Dimensions.zero)
 
 -- | Compute the longest path whose region passes the `hit` function,
 -- which is given the top left and lower right corners of the input region.
@@ -423,7 +423,7 @@ hits hit box (X x,Y y,Width w,Height h) = foldr Path.extend Path.root $ go box
   where
   -- only include nonempty path segments, with exception of first
   pt1 = (X x, Y y)
-  pt2 = (X (x+w-1), Y (y+h-1))
+  pt2 = (X (x+w), Y (y+h))
   go ((p,region) :< box) | hit pt1 pt2 region = p : (toList box >>= go)
                          | otherwise          = []
 
@@ -499,7 +499,7 @@ navigate' f box p =
     leaves = leafRegions $ map snd (preorder box)
     has super (X x,Y y,Width w,Height h) =
       Dimensions.within (X x,Y y) super &&
-      Dimensions.within (X $ x+w-1, Y $ y+h-1) super
+      Dimensions.within (X $ x+w, Y $ y+h) super
   in contains box <$> foldl' (f origin) Nothing leaves
 
 navigate :: (Eq p, Path p)
@@ -510,19 +510,6 @@ navigate f box p = fromMaybe p (navigate' f box p)
 -- | Preorder traversal of the annotations of a `Cofree`.
 preorder :: Foldable f => Cofree f p -> [p]
 preorder (p :< f) = p : (toList f >>= preorder)
-
--- todo: navigation operators
--- up, down, left, right are spacial, based on actual layout
--- expand and contract are based on tree structure induced by paths
--- up :: Box e (p, Region) -> p -> p
--- down :: Box e (p, Region) -> p -> p
--- left :: Box e (p, Region) -> p -> p
--- right :: Box e (p, Region) -> p -> p
--- right' :: Box e (p, Region) -> p -> Maybe p
--- expand :: Box e (p, Region) -> p -> p
--- expand' :: Box e (p, Region) -> p -> Maybe p
--- contract :: Box e (p, Region) -> p -> p
--- contract' :: Box e (p, Region) -> p -> Maybe p
 
 -- for debugging
 debugBox :: Show e => Box e p -> String

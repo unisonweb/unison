@@ -25,6 +25,10 @@
   animation-timing-function: ease-in;
 }
 
+div:focus {
+  outline: none;
+} 
+
 @keyframes pulse {
     from { border-color: rgba(0,0,0,.45);}
     to {border-color: rgba(0,0,0,.08);}

@@ -59,16 +59,19 @@ widget available d =
     liftIO . putStrLn $ Doc.debugBoxp b
     let (_, (_,_,w,h)) = Doc.root b
     node <- runDom $ interpret (Doc.flatten b)
-    e <- el "div" $ unsafePlaceElement (Dom.unsafeAsHTMLElement node)
+    let attrs = Map.fromList [("tabindex","0")]
+    (e,_) <- elAttr' "div" attrs $ unsafePlaceElement (Dom.unsafeAsHTMLElement node)
     mouse <- UI.mouseMove' e
     nav <- pure $ mergeWith (.) [
       const (Doc.up b) <$> (traceEvent "up" $ S.upKeypress e),
       const (Doc.down b) <$> (traceEvent "down" $ S.downKeypress e),
       const (Doc.left b) <$> (traceEvent "left" $ S.leftKeypress e),
       const (Doc.right b) <$> (traceEvent "right" $ S.rightKeypress e),
-      (\pt _ -> Doc.at b pt) <$> (traceEvent "mouse" $ mouse) ]
-    path <- Dynamic.foldDyn ($) (Doc.at b (X 0, Y 0)) nav
-    region <- mapDyn (Doc.region b) path
+      (\pt _ -> Doc.at b pt) <$> mouse ]
+    -- if we are getting mouse events, we should have focus
+    performEvent_ (liftIO . const (Element.elementFocus (_el_element e)) <$> mouse)
+    path <- Dynamic.traceDyn "path" <$> Dynamic.foldDyn ($) (Doc.at b (X 0, Y 0)) nav
+    region <- Dynamic.traceDyn "region" <$> mapDyn (Doc.region b) path
     sel <- mapDyn (selectionLayer h) region
     _ <- widgetHold (pure ()) (Dynamic.updated sel)
     pure $ (e, (w,h))
