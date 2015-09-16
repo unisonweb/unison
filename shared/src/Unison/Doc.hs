@@ -27,7 +27,7 @@ import Data.List hiding (group)
 import Data.Maybe (fromMaybe)
 import Data.String (IsString)
 import Data.Text (Text)
-import Unison.Dimensions (X(..), Y(..), Width(..), Height(..), Region, distance)
+import Unison.Dimensions (X(..), Y(..), Width(..), Height(..), Region)
 import Unison.Path (Path)
 import qualified Data.Text as Text
 import qualified Unison.Dimensions as Dimensions
@@ -449,41 +449,10 @@ region box path = fromMaybe (snd . root $ box) r
     (lca, (p',searchp')) = Path.factor p searchp
 
 up', down', left', right' :: (Eq p, Path p) => Box e (p, Region) -> p -> Maybe p
-up' = navigate' go where
-  go (x0,y0,_,_) =
-    let max r1 (_,y,_,_) | y >= y0 = r1 -- region at/below origin, ignore
-        max Nothing r1 = Just r1
-        max (Just (x1,y1,_,_)) r2@(x2,y2,_,_)
-          | y2 > y1 || y1 == y2 && distance x0 x2 < distance x0 x1 = Just r2 -- break ties by x-dist
-        max r1 _ = r1
-    in max
-
-down' = navigate' go where
-  go (x0,y0,_,_) =
-    let max r1 (_,y,_,_) | y <= y0 = r1 -- region at/above origin, ignore
-        max Nothing r1 = Just r1
-        max (Just (x1,y1,_,_)) r2@(x2,y2,_,_)
-          | y2 < y1 || y1 == y2 && distance x0 x2 < distance x0 x1 = Just r2
-        max r1 _ = r1
-    in max
-
-left' = navigate' go where
-  go (x0,y0,_,_) =
-    let max r1 (x,_,_,_) | x >= x0 = r1 -- region at/right of origin, ignore
-        max Nothing r1 = Just r1
-        max (Just (x1,y1,_,_)) r2@(x2,y2,_,_)
-          | x2 > x1 || x1 == x2 && distance y0 y2 < distance y0 y1 = Just r2
-        max r1 _ = r1
-    in max
-
-right' = navigate' go where
-  go (x0,y0,_,_) =
-    let max r1 (x,_,_,_) | x <= x0 = r1 -- region at/left of origin, ignore
-        max Nothing r1 = Just r1
-        max (Just (x1,y1,_,_)) r2@(x2,y2,_,_)
-          | x2 < x1 || x1 == x2 && distance y0 y2 < distance y0 y1 = Just r2
-        max r1 _ = r1
-    in max
+up'    = navigate' (\dx dy -> dy < 0 && abs dx*2 < abs dy) (\dx dy -> abs dy + 2 * abs dx)
+down'  = navigate' (\dx dy -> dy > 0 && abs dx*2 < abs dy) (\dx dy -> abs dy + 2 * abs dx)
+right' = navigate' (\dx dy -> dx > 0 && abs dy*2 < abs dx) (\dx dy -> abs dx + 2 * abs dy)
+left'  = navigate' (\dx dy -> dx < 0 && abs dy*2 < abs dx) (\dx dy -> abs dx + 2 * abs dy)
 
 up, down, left, right :: (Eq p, Path p) => Box e (p, Region) -> p -> p
 up box p = fromMaybe p (up' box p)
@@ -492,9 +461,10 @@ left box p = fromMaybe p (left' box p)
 right box p = fromMaybe p (right' box p)
 
 navigate' :: (Eq p, Path p)
-          => (Region -> Maybe Region -> Region -> Maybe Region)
+          => (Int -> Int -> Bool)
+          -> (Int -> Int -> Int)
           -> Box e (p, Region) -> p -> Maybe p
-navigate' f box p =
+navigate' allow distance box p =
   let
     origin = region box p
     leafRegions rs = [ r | r:tl <- init . tails $ rs
@@ -504,13 +474,22 @@ navigate' f box p =
     has super (X x,Y y,Width w,Height h) =
       Dimensions.within (X x,Y y) super &&
       Dimensions.within (X $ x+w, Y $ y+h) super
+    f r0 =
+      let
+        (X x0', Y y0') = Dimensions.centroid r0
+        x0 = fromIntegral x0' :: Int
+        y0 = fromIntegral y0' :: Int
+        deltaX r@(X xr, _, _, _) =
+          let (X x, _) = Dimensions.centroid r in fromIntegral x - x0
+        deltaY r@(_, Y yr, _, _) =
+          let (_, Y y) = Dimensions.centroid r in fromIntegral yr - y0
+        max r1 r2 | not (allow (deltaX r2) (deltaY r2)) = r1
+        max Nothing r2 = Just r2
+        max (Just r1) r2 | distance (deltaX r1) (deltaY r1) > distance (deltaX r2) (deltaY r2) = Just r2
+        max r1 _ = r1
+      in max
     resultRegion = foldl' (f origin) Nothing leaves
   in contains box <$> resultRegion
-
-navigate :: (Eq p, Path p)
-         => (Region -> Maybe Region -> Region -> Maybe Region)
-         -> Box e (p, Region) -> p -> p
-navigate f box p = fromMaybe p (navigate' f box p)
 
 -- | Preorder traversal of the annotations of a `Cofree`.
 preorder :: Foldable f => Cofree f p -> [p]
