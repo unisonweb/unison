@@ -34,6 +34,10 @@ class Ord t => Natural t where
   zero :: t
   one :: t
 
+distance :: Natural t => t -> t -> t
+distance t1 t2 | t1 >= t2  = t1 `minus` t2
+               | otherwise = t2 `minus` t1
+
 instance Natural Width where
   plus (Width w) (Width w2) = Width (w + w2)
   minus w w2 | w2 >= w = zero

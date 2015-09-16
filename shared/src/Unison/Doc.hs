@@ -27,7 +27,7 @@ import Data.List hiding (group)
 import Data.Maybe (fromMaybe)
 import Data.String (IsString)
 import Data.Text (Text)
-import Unison.Dimensions (X(..), Y(..), Width(..), Height(..), Region)
+import Unison.Dimensions (X(..), Y(..), Width(..), Height(..), Region, distance)
 import Unison.Path (Path)
 import qualified Data.Text as Text
 import qualified Unison.Dimensions as Dimensions
@@ -450,34 +450,38 @@ region box path = fromMaybe (snd . root $ box) r
 
 up', down', left', right' :: (Eq p, Path p) => Box e (p, Region) -> p -> Maybe p
 up' = navigate' go where
-  go (_,y0,_,_) =
-    let max r1 (_,y,_,_) | y > y0 = r1 -- region below origin, ignore
+  go (x0,y0,_,_) =
+    let max r1 (_,y,_,_) | y >= y0 = r1 -- region at/below origin, ignore
         max Nothing r1 = Just r1
-        max (Just (_,y,_,_)) r2@(_,y2,_,_) | y2 > y = Just r2 -- prefer closer to bottom
+        max (Just (x1,y1,_,_)) r2@(x2,y2,_,_)
+          | y2 > y1 || y1 == y2 && distance x0 x2 < distance x0 x1 = Just r2 -- break ties by x-dist
         max r1 _ = r1
     in max
 
 down' = navigate' go where
-  go (_,y0,_,_) =
-    let max r1 (_,y,_,_) | y < y0 = r1 -- region above origin, ignore
+  go (x0,y0,_,_) =
+    let max r1 (_,y,_,_) | y <= y0 = r1 -- region at/above origin, ignore
         max Nothing r1 = Just r1
-        max (Just (_,y,_,_)) r2@(_,y2,_,_) | y2 < y = Just r2 -- prefer closer to top
+        max (Just (x1,y1,_,_)) r2@(x2,y2,_,_)
+          | y2 < y1 || y1 == y2 && distance x0 x2 < distance x0 x1 = Just r2
         max r1 _ = r1
     in max
 
 left' = navigate' go where
-  go (x0,_,_,_) =
-    let max r1 (x,_,_,_) | x > x0 = r1 -- region to the right of origin, ignore
+  go (x0,y0,_,_) =
+    let max r1 (x,_,_,_) | x >= x0 = r1 -- region at/right of origin, ignore
         max Nothing r1 = Just r1
-        max (Just (x,_,_,_)) r2@(x2,_,_,_) | x2 > x = Just r2 -- prefer closer to right
+        max (Just (x1,y1,_,_)) r2@(x2,y2,_,_)
+          | x2 > x1 || x1 == x2 && distance y0 y2 < distance y0 y1 = Just r2
         max r1 _ = r1
     in max
 
 right' = navigate' go where
-  go (x0,_,_,_) =
-    let max r1 (x,_,_,_) | x < x0 = r1 -- region to the left of origin, ignore
+  go (x0,y0,_,_) =
+    let max r1 (x,_,_,_) | x <= x0 = r1 -- region at/left of origin, ignore
         max Nothing r1 = Just r1
-        max (Just (x,_,_,_)) r2@(x2,_,_,_) | x2 < x = Just r2 -- prefer closer to left
+        max (Just (x1,y1,_,_)) r2@(x2,y2,_,_)
+          | x2 < x1 || x1 == x2 && distance y0 y2 < distance y0 y1 = Just r2
         max r1 _ = r1
     in max
 
@@ -496,11 +500,12 @@ navigate' f box p =
     leafRegions rs = [ r | r:tl <- init . tails $ rs
                          , null (takeWhile (r `has`) tl)
                          , not (origin `has` r) ]
-    leaves = leafRegions $ map snd (preorder box)
+    leaves = leafRegions [ r | (p, r) <- preorder box, p /= Path.root ]
     has super (X x,Y y,Width w,Height h) =
       Dimensions.within (X x,Y y) super &&
       Dimensions.within (X $ x+w, Y $ y+h) super
-  in contains box <$> foldl' (f origin) Nothing leaves
+    resultRegion = foldl' (f origin) Nothing leaves
+  in contains box <$> resultRegion
 
 navigate :: (Eq p, Path p)
          => (Region -> Maybe Region -> Region -> Maybe Region)
