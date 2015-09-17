@@ -32,6 +32,7 @@ import Unison.Path (Path)
 import qualified Data.Text as Text
 import qualified Unison.Dimensions as Dimensions
 import qualified Unison.Path as Path
+import Debug.Trace
 
 data D e r
   = Empty
@@ -421,11 +422,21 @@ hits :: (Path p, Eq p)
      -> Box e (p, Region) -> Region -> p
 hits hit box (X x,Y y,Width w,Height h) = foldr Path.extend Path.root $ go box
   where
-  -- only include nonempty path segments, with exception of first
   pt1 = (X x, Y y)
   pt2 = (X (x+w), Y (y+h))
   go ((p,region) :< box) | hit pt1 pt2 region = p : (toList box >>= go)
                          | otherwise          = []
+
+contains' :: (Path p, Eq p)
+          => Box e (p, Region) -> Region -> [Box e (p, Region)]
+contains' box (X x,Y y,Width w,Height h) = go box
+  where
+  pt1 = (X x, Y y)
+  pt2 = (X (x+w), Y (y+h))
+  hit p1 p2 region = Dimensions.within p1 region && Dimensions.within p2 region
+  go b@((_,region) :< box) | hit pt1 pt2 region = b : (toList box >>= go)
+                           | otherwise          = []
+
 
 -- | Compute the longest path whose bounding region fully contains
 -- the input region. See note on `hits`. Satisfies `region box (contains box r) == r`.
@@ -448,48 +459,68 @@ region box path = fromMaybe (snd . root $ box) r
     where
     (lca, (p',searchp')) = Path.factor p searchp
 
+navigate :: (Path p, Eq p) => Direction -> (Int -> Int) -> Box e (p, Region) -> p -> Maybe p
+navigate dir by box p = do
+  box2 <- nav dir by origin stack
+  r2 <- nearest (leafRegions . leafSegment $ box2)
+  pure $ contains box r2
+  where
+  leafSegment b = [ r | (p,r) <- segment (op dir) b >>= preorder, p /= Path.root ]
+  leafRegions rs = [ r | r:tl <- init . tails $ rs
+                       , null (takeWhile (r `has`) tl)
+                       , not (origin `has` r) ]
+  has super (X x,Y y,Width w,Height h) =
+    Dimensions.within (X x,Y y) super &&
+    Dimensions.within (X $ x+w, Y $ y+h) super
+  origin = region box p
+  (X x0, Y y0) = Dimensions.centroid origin
+  stack = reverse (contains' box origin)
+  op Horizontal = Vertical
+  op Vertical = Horizontal
+  nearest = foldl' max' Nothing
+  dist x y = abs (fromIntegral x0 - fromIntegral x) + abs (fromIntegral y0 - fromIntegral y) :: Int
+  max' Nothing r = Just r
+  max' (Just (X x1, Y y1, Width w1, Height h1)) r2@(X x2, Y y2, Width w2, Height h2)
+    | dist (x2 + (w2 `quot` 2)) (y2 + (h2 `quot` 2))
+    < dist (x1 + (w1 `quot` 2)) (y1 + (h1 `quot` 2)) = Just r2
+  max' r _ = r
+
+  nav :: (Eq p, Path p)
+      => Direction -> (Int -> Int) -> Region -> [Box e (p, Region)] -> Maybe (Box e (p, Region))
+  nav _ _ _ [] = trace "navigation failed" Nothing
+  nav dir by r (((_,r') :< box) : tl) = case box of
+    BEmpty -> nav dir by r' tl
+    BEmbed _ -> nav dir by r' tl
+    BFlow dir' _ | dir /= dir' -> nav dir by r' tl
+    BFlow _ bs -> case elemIndex r (map (snd . root) bs) of
+      Nothing -> error $ "region not contained in parent: " ++ show r ++ "\n"
+                       ++ show (map snd $ preorder =<< bs)
+      Just i -> advance i where
+        advance i = case by i of
+          j | j >= 0 && j < length bs -> -- we can advance at this level
+            -- skip over unselectable stuff
+            if not (any (/= Path.root) (map fst . preorder $ bs !! j)) then advance j
+            else Just (bs !! j)
+          _ -> nav dir by r' tl
+
+  segment :: Direction -> Box e p -> [Box e p]
+  segment dir b@(_ :< box) = case box of
+    BEmpty -> []
+    BEmbed _ -> [b]
+    BFlow dir' bs | dir == dir' -> bs >>= segment dir
+    BFlow _ _ -> [b]
+
 up', down', left', right' :: (Eq p, Path p) => Box e (p, Region) -> p -> Maybe p
-up'    = navigate' (\dx dy -> dy < 0 && abs dx*2 < abs dy) (\dx dy -> abs dy + 2 * abs dx)
-down'  = navigate' (\dx dy -> dy > 0 && abs dx*2 < abs dy) (\dx dy -> abs dy + 2 * abs dx)
-right' = navigate' (\dx dy -> dx > 0 && abs dy*2 < abs dx) (\dx dy -> abs dx + 2 * abs dy)
-left'  = navigate' (\dx dy -> dx < 0 && abs dy*2 < abs dx) (\dx dy -> abs dx + 2 * abs dy)
+up'= navigate Vertical (\i -> i-1)
+down'= navigate Vertical (\i -> i+1)
+right'= navigate Horizontal (\i -> i+1)
+left'= navigate Horizontal (\i -> i-1)
 
 up, down, left, right :: (Eq p, Path p) => Box e (p, Region) -> p -> p
 up box p = fromMaybe p (up' box p)
 down box p = fromMaybe p (down' box p)
 left box p = fromMaybe p (left' box p)
 right box p = fromMaybe p (right' box p)
-
-navigate' :: (Eq p, Path p)
-          => (Int -> Int -> Bool)
-          -> (Int -> Int -> Int)
-          -> Box e (p, Region) -> p -> Maybe p
-navigate' allow distance box p =
-  let
-    origin = region box p
-    leafRegions rs = [ r | r:tl <- init . tails $ rs
-                         , null (takeWhile (r `has`) tl)
-                         , not (origin `has` r) ]
-    leaves = leafRegions [ r | (p, r) <- preorder box, p /= Path.root ]
-    has super (X x,Y y,Width w,Height h) =
-      Dimensions.within (X x,Y y) super &&
-      Dimensions.within (X $ x+w, Y $ y+h) super
-    f r0 =
-      let
-        (X x0', Y y0') = Dimensions.centroid r0
-        x0 = fromIntegral x0' :: Int
-        y0 = fromIntegral y0' :: Int
-        deltaX r@(X xr, _, _, _) =
-          let (X x, _) = Dimensions.centroid r in fromIntegral x - x0
-        deltaY r@(_, Y yr, _, _) =
-          let (_, Y y) = Dimensions.centroid r in fromIntegral yr - y0
-        max r1 r2 | not (allow (deltaX r2) (deltaY r2)) = r1
-        max Nothing r2 = Just r2
-        max (Just r1) r2 | distance (deltaX r1) (deltaY r1) > distance (deltaX r2) (deltaY r2) = Just r2
-        max r1 _ = r1
-      in max
-    resultRegion = foldl' (f origin) Nothing leaves
-  in contains box <$> resultRegion
 
 -- | Preorder traversal of the annotations of a `Cofree`.
 preorder :: Foldable f => Cofree f p -> [p]
