@@ -29,8 +29,8 @@ let
 
   unison-dependencies = localPkgs.fetchgit {
     url = git://github.com/ryantrinkle/try-reflex;
-    rev = "e24d4e7d2a37a770883749e10cad787662f6653f";
-    sha256 = "0xrbb0r583s4mkjqi49m2wqjqvscl1sis1k5j5yn7nr8887429z3";
+    rev = "8eb31fef1969a4298ae7c456713bf31085ade68b";
+    sha256 = "1vr6bxq3fbwwfz46vild29qvjrdfk6za0pcji9vbai7gdjm4j82z";
   };
 
 in makeUnisonPkgSet (import "${unison-dependencies}" {})

@@ -13,7 +13,7 @@ mergeLeft :: Reflex t => Event t a -> Event t b -> Event t (Either a b)
 mergeLeft a b = mergeWith const [fmap Left a, fmap Right b]
 
 keypress :: Reflex t => El t -> Event t Int
-keypress e = domEvent Keydown e
+keypress e = domEvent Keypress e
 
 upKeypress, downKeypress, leftKeypress, rightKeypress :: Reflex t => El t -> Event t Int
 leftKeypress e  = ffilter (== 37) (keypress e)
