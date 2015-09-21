@@ -67,6 +67,15 @@ widget available d =
       const (Doc.down b) <$> (traceEvent "down" $ S.downKeypress e),
       const (Doc.left b) <$> (traceEvent "left" $ S.leftKeypress e),
       const (Doc.right b) <$> (traceEvent "right" $ S.rightKeypress e),
+      const (Doc.up b) <$> (traceEvent "up" $ ffilter (== 107) (S.keypress e)), -- k
+      const (Doc.down b) <$> (traceEvent "down" $ ffilter (== 106) (S.keypress e)), -- j
+      const (Doc.left b) <$> (traceEvent "left" $ ffilter (== 104) (S.keypress e)), -- h
+      const (Doc.right b) <$> (traceEvent "right" $ ffilter (== 108) (S.keypress e)), -- r
+      const (Doc.expand b) <$> (traceEvent "expand" $ ffilter (== 117) (S.keypress e)), -- u
+      const (Doc.contract b) <$> (traceEvent "contract" $ ffilter (== 100) (S.keypress e)), -- d
+      const (Doc.leftmost b) <$> (traceEvent "leftmost" $ ffilter (== 103) (S.keypress e)), -- g
+      const (Doc.rightmost b) <$> (traceEvent "rightmost" $ ffilter (== 59) (S.keypress e)), -- ;
+      const id <$> traceEvent "keypress" (S.keypress e),
       (\pt _ -> Doc.at b pt) <$> mouse ]
     -- if we are getting mouse events, we should have focus
     performEvent_ (liftIO . const (Element.elementFocus (_el_element e)) <$> mouse)

@@ -20,4 +20,3 @@ leftKeypress e  = ffilter (== 37) (keypress e)
 upKeypress e    = ffilter (== 38) (keypress e)
 rightKeypress e = ffilter (== 39) (keypress e)
 downKeypress e  = ffilter (== 40) (keypress e)
-
