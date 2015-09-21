@@ -1,4 +1,4 @@
-module Unison.Node.Store where
+module Unison.Node.FileStore where
 
 import Control.Applicative
 import Data.Aeson (ToJSON(..),FromJSON(..))
@@ -21,18 +21,6 @@ import qualified System.FilePath as FilePath
 import qualified Unison.Hash as Hash
 import qualified Unison.Note as Note
 import qualified Unison.Reference as Reference
-
--- todo may want to just bind v here
-
-data Store f v = Store {
-  hashes :: Maybe (Set Reference) -> Noted f (Set Reference), -- ^ The set of hashes in this store, optionally constrained to intersect the given set
-  readTerm :: Hash -> Noted f (Term v),
-  writeTerm :: Hash -> Term v -> Noted f (),
-  typeOfTerm :: Reference -> Noted f (Type v),
-  annotateTerm :: Reference -> Type v -> Noted f (),
-  readMetadata :: Reference -> Noted f (Metadata v Reference),
-  writeMetadata :: Reference -> Metadata v Reference -> Noted f ()
-}
 
 -- | Create a 'Store' rooted at the given path.
 store :: (Ord v, ToJSON v, FromJSON v) => FilePath -> IO (Store IO v)

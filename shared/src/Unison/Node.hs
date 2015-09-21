@@ -1,47 +1,108 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-module Unison.Node.Implementation (node) where
+{-# LANGUAGE TemplateHaskell #-}
 
+module Unison.Node where
+
+-- import Data.Bytes.Serial (Serial)
 import Control.Monad
-import Data.Bytes.Serial (Serial)
+import Data.Aeson.TH
 import Data.List
+import Data.Map (Map)
 import Data.Ord
+import Data.Set (Set)
 import Unison.Eval as Eval
-import Unison.Node (Node(..))
-import Unison.Term (Term)
-import Unison.Term.Extra ()
-import Unison.Type (Type)
+import Unison.Metadata (Metadata)
 import Unison.Node.Store (Store)
 import Unison.Note (Noted)
+import Unison.Note (Noted)
+import Unison.Reference (Reference)
+import Unison.Term (Term)
+import Unison.TermEdit (Action)
+import Unison.Type (Type)
 import Unison.Var (Var)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Unison.ABT.Extra as ABT'
-import qualified Unison.Node as Node
+import qualified Unison.ABT as ABT
+import qualified Unison.Hash as Hash
+import qualified Unison.Metadata as Metadata
+import qualified Unison.Metadata as Metadata
+import qualified Unison.Node.Store as Store
 import qualified Unison.Reference as Reference
+import qualified Unison.Term as Term
 import qualified Unison.Term as Term
 import qualified Unison.TermEdit as TermEdit
 import qualified Unison.Typechecker as Typechecker
-import qualified Unison.Hash as Hash
-import qualified Unison.Metadata as Metadata
-import qualified Unison.Node.Store as Store
 
--- debugging stuff
---import Debug.Trace
---import qualified Data.Foldable as Foldable
---import Data.Foldable (Foldable)
---
---watch :: Show a => String -> a -> a
---watch msg a = trace (msg ++ ": " ++ show a) a
---
---watches :: (Foldable f, Show a) => String -> f a -> f a
---watches msg as = trace (msg ++ ":\n" ++ intercalate "\n" (map show (Foldable.toList as)) ++ "\n.") as
+-- | The results of a search.
+-- On client, only need to repeat the query if we modify a character
+-- at one of the examined positions OR if we add a character to a search
+-- that previously returned incomplete results. Appending characters to a
+-- search that returned complete results just filters down the set and
+-- can be done client-side, assuming the client has the full result set.
+data SearchResults v h t e =
+  SearchResults
+    { query :: Metadata.Query
+    , references :: [(h, Metadata v h)]
+    , matches :: ([e], Int)
+    , illTypedMatches :: ([e], Int)
+    , positionsExamined :: [Int] }
 
-node :: (Monad f, Var v, Serial v)
+deriveJSON defaultOptions ''SearchResults
+
+-- | The Unison Node API:
+--   * `m` is the monad
+--   * `v` is the type of variables
+--   * `h` is the type of hashes
+--   * `t` is for type
+--   * `e` is for term (pnemonic "expression")
+data Node m v h t e = Node {
+  -- | Obtain the type of the given subterm, assuming the path is valid
+  admissibleTypeAt :: e -> Term.Path -> Noted m t,
+  -- | Create a new term and provide its metadata
+  createTerm :: e -> Metadata v h -> Noted m h,
+  -- | Create a new type and provide its metadata
+  createType :: t -> Metadata v h -> Noted m h,
+  -- | Lookup the direct dependencies of @k@, optionally limited to the given set
+  dependencies :: Maybe (Set h) -> h -> Noted m (Set h),
+  -- | Lookup the set of terms/types depending directly on the given @k@, optionally limited to the given set
+  dependents :: Maybe (Set h) -> h -> Noted m (Set h),
+  -- | Modify the given subterm, which may fail. First argument is the root path.
+  -- Second argument is path relative to the root.
+  -- Returns (root path, original e, edited e, new cursor position)
+  editTerm :: Term.Path -> Term.Path -> Action v -> e -> Noted m (Maybe (Term.Path,e,e,Term.Path)),
+  -- Evaluate all terms, returning a list of (path, original e, evaluated e)
+  evaluateTerms :: [(Term.Path, e)] -> Noted m [(Term.Path,e,e)],
+  -- | Returns ( subterm at the given path
+  --           , current type
+  --           , admissible type
+  --           , local vars
+  --           , well-typed applications of focus
+  --           , well-typed expressions involving local vars )
+  -- | Modify the given subterm, which may fail. First argument is the root path.
+  localInfo :: e -> Term.Path -> Noted m (e, t, t, [e], [Int], [e]),
+  -- | Access the metadata for the term and/or types identified by @k@
+  metadatas :: [h] -> Noted m (Map h (Metadata v h)),
+  -- | Search for a term, optionally constrained to be of the given type
+  search :: e -> Term.Path -> Int -> Metadata.Query -> Maybe t -> Noted m (SearchResults v h t e),
+  -- | Lookup the source of the term identified by @h@
+  terms :: [h] -> Noted m (Map h e),
+  -- | Lookup the dependencies of @h@, optionally limited to those that intersect the given set
+  transitiveDependencies :: Maybe (Set h) -> h -> Noted m (Set h),
+  -- | Lookup the set of terms or types which depend on the given @k@, optionally limited to those that intersect the given set
+  transitiveDependents :: Maybe (Set h) -> h -> Noted m (Set h),
+  -- | Lookup the source of the type identified by @h@
+  types :: [h] -> Noted m (Map h t),
+  -- | Obtain the type of the given subterm, assuming the path is valid
+  typeAt :: e -> Term.Path -> Noted m t,
+  -- | Update the metadata associated with the given term or type
+  updateMetadata :: h -> Metadata v h -> Noted m ()
+}
+
+node :: (Monad f, Var v)
      => Eval (Noted f) v
+     -> (Term v -> Reference)
      -> Store f v
      -> Node f v Reference.Reference (Type v) (Term v)
-node eval store =
+node eval hash store =
   let
     readTypeOf = Store.typeOfTerm store
 
@@ -50,11 +111,14 @@ node eval store =
 
     createTerm e md = do
       t <- Typechecker.synthesize readTypeOf e
-      let h = Hash.fromBytes (ABT'.hash e)
-      Store.writeTerm store h e
-      Store.writeMetadata store (Reference.Derived h) md
-      Store.annotateTerm store (Reference.Derived h) t
-      pure (Reference.Derived h)
+      let r = hash e
+      pure r <* case r of
+        Reference.Builtin _ ->
+          Store.writeMetadata store r md -- can't change builtin types, just metadata
+        Reference.Derived h -> do
+          Store.writeTerm store h e
+          Store.writeMetadata store r md
+          Store.annotateTerm store r t
 
     createType _ _ = error "todo - createType"
 
@@ -119,11 +183,12 @@ node eval store =
         qmatches' <- filterM queryOk (map Term.ref (Set.toList hs))
         illtypedQmatches <-
           -- return type annotated versions of ill-typed terms
-          let terms = qmatches' `ABT'.subtract` qmatches
+          let welltypedRefs = Set.fromList (map hash qmatches)
+              terms = filter (\r -> Set.notMember (hash r) welltypedRefs) qmatches'
           in zipWith Term.ann terms <$> traverse (Typechecker.synthesize readTypeOf) terms
         mds <- mapM (\h -> (,) h <$> Store.readMetadata store h)
                     (Set.toList (Set.unions (map Term.dependencies' (illtypedQmatches ++ qmatches))))
-        pure $ Node.SearchResults
+        pure $ SearchResults
           query
           mds
           (trim qmatches)

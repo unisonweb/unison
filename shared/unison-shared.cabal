@@ -39,11 +39,14 @@ library
     Unison.Distance
     Unison.Doc
     Unison.Eval
+    Unison.Eval.Interpreter
     Unison.Hash
     Unison.JSON
     Unison.Kind
     Unison.Metadata
     Unison.Note
+    Unison.Node
+    Unison.Node.Store
     Unison.Path
     Unison.Reference
     Unison.Symbol
