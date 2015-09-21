@@ -522,6 +522,31 @@ down box p = fromMaybe p (down' box p)
 left box p = fromMaybe p (left' box p)
 right box p = fromMaybe p (right' box p)
 
+leftmost, rightmost :: (Eq p, Path p) => Box e (p, Region) -> p -> p
+leftmost box p = case left' box p of
+  Just p2 | p == p2   -> p2
+          | otherwise -> leftmost box p2
+  Nothing -> p
+
+rightmost box p = case right' box p of
+  Just p2 | p == p2   -> p2
+          | otherwise -> rightmost box p2
+  Nothing -> p
+
+expand :: (Eq p, Path p) => Box e (p, Region) -> p -> p
+expand box p = contains box (region box (Path.parent p))
+
+contract :: (Eq p, Path p) => Box e (p, Region) -> p -> p
+contract box p =
+  let
+    r  = region box p
+    cs = contains' box r
+  in
+    if null cs then p
+    else case [ p | (p, _) <- drop 1 (preorder (last cs)), p /= Path.root ] of
+      [] -> p
+      p : _ -> foldr Path.extend p (map (fst . root) (init cs))
+
 -- | Preorder traversal of the annotations of a `Cofree`.
 preorder :: Foldable f => Cofree f p -> [p]
 preorder (p :< f) = p : (toList f >>= preorder)
