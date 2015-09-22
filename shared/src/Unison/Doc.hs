@@ -492,16 +492,13 @@ navigate dir by box p = do
     BEmpty -> nav dir by r' tl
     BEmbed _ -> nav dir by r' tl
     BFlow dir' _ | dir /= dir' -> nav dir by r' tl
-    BFlow _ bs -> case elemIndex r (map (snd . root) bs) of
-      Nothing -> error $ "region not contained in parent: " ++ show r ++ "\n"
-                       ++ show (map snd $ preorder =<< bs)
-      Just i -> advance i where
-        advance i = case by i of
-          j | j >= 0 && j < length bs -> -- we can advance at this level
-            -- skip over unselectable stuff
-            if not (any (/= Path.root) (map fst . preorder $ bs !! j)) then advance j
-            else Just (bs !! j)
-          _ -> nav dir by r' tl
+    BFlow _ bs -> advance =<< elemIndex r (map (snd . root) bs) where
+      advance i = case by i of
+        j | j >= 0 && j < length bs -> -- we can advance at this level
+          -- skip over unselectable stuff
+          if not (any (/= Path.root) (map fst . preorder $ bs !! j)) then advance j
+          else Just (bs !! j)
+        _ -> nav dir by r' tl
 
   segment :: Direction -> Box e p -> [Box e p]
   segment dir b@(_ :< box) = case box of
@@ -512,7 +509,7 @@ navigate dir by box p = do
 
 up', down', left', right' :: (Eq p, Path p) => Box e (p, Region) -> p -> Maybe p
 up'= navigate Vertical (\i -> i-1)
-down'= navigate Vertical (\i -> i+1)
+down' = navigate Vertical (\i -> i+1)
 right'= navigate Horizontal (\i -> i+1)
 left'= navigate Horizontal (\i -> i-1)
 
