@@ -10,6 +10,7 @@ import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Metadata (Metadata)
 import Unison.Note (Noted,Note)
+import Unison.Node.Store (Store, Store(..))
 import Unison.Reference (Reference)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as ByteString
@@ -23,8 +24,8 @@ import qualified Unison.Note as Note
 import qualified Unison.Reference as Reference
 
 -- | Create a 'Store' rooted at the given path.
-store :: (Ord v, ToJSON v, FromJSON v) => FilePath -> IO (Store IO v)
-store root =
+make :: (Ord v, ToJSON v, FromJSON v) => FilePath -> IO (Store IO v)
+make root =
   let
     hashesIn :: (String -> Reference) -> FilePath -> Noted IO (Set Reference)
     hashesIn f dir =

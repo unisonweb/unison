@@ -24,8 +24,6 @@ import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TLE
 import qualified Unison.Hash as H
 import qualified Unison.Node as N
-import qualified Unison.Term as E
-import qualified Unison.Type as T
 import qualified Web.Scotty as S
 
 runN :: Noted IO a -> ActionM a

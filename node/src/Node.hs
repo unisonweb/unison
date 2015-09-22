@@ -2,23 +2,27 @@
 
 module Main where
 
+import Data.Bytes.Serial (Serial)
 import Unison.Reference (Reference)
 import Unison.Symbol.Extra ()
 import Unison.Term.Extra ()
-import Unison.ABT.Extra as ABT'
+import Unison.Node.Store (Store)
+import Unison.Var (Var)
+import qualified Unison.ABT.Extra as ABT'
+import qualified Unison.Hash as Hash
 import qualified Unison.Node.BasicNode as BasicNode
-import qualified Unison.Node.Store as Store
+import qualified Unison.Node.FileStore as FileStore
 import qualified Unison.NodeServer as NodeServer
 import qualified Unison.Reference as Reference
 import qualified Unison.Symbol as Symbol
 import qualified Unison.Term as Term
 
-hash :: Serial v => Term.Term v -> Reference
+hash :: (Serial v, Var v) => Term.Term v -> Reference
 hash (Term.Ref' r) = r
-hash t = ABT.hash t
+hash t = Reference.Derived (Hash.fromBytes (ABT'.hash t))
 
 main :: IO ()
 main = do
-  store <- Store.store "store" :: IO (Store IO (Symbol.Symbol ()))
+  store <- FileStore.make "store" :: IO (Store IO (Symbol.Symbol ()))
   node <- BasicNode.make hash store
   NodeServer.server 8080 node
