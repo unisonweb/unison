@@ -16,22 +16,28 @@
   border-top-width: 1px;
   border-bottom-width: 1px;
   border-style: solid;
-  border-color: rgba(0,0,0,.45);
+  border-color: rgba(0,0,0,.40);
+  animation-delay: 0s;
+  animation-name: flash;
+  animation-duration: 0.45s;
+  animation-timing-function: ease-in-out;
+  /*
   animation-delay: .3s;
   animation-name: pulse;
   animation-duration: 1.15s;
   animation-iteration-count: infinite;
   animation-direction: alternate;
   animation-timing-function: ease-in;
+  */
 }
 
 div:focus {
   outline: none;
 } 
 
-@keyframes pulse {
-    from { border-color: rgba(0,0,0,.45);}
-    to {border-color: rgba(0,0,0,.08);}
+@keyframes flash {
+    from { border-color: rgba(0,0,0,.08);}
+    to {border-color: rgba(0,0,0,.40);}
 }
 
 .docwidget {
