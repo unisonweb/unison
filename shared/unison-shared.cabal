@@ -44,9 +44,10 @@ library
     Unison.JSON
     Unison.Kind
     Unison.Metadata
-    Unison.Note
     Unison.Node
+    Unison.Node.BasicNode
     Unison.Node.Store
+    Unison.Note
     Unison.Path
     Unison.Reference
     Unison.Symbol

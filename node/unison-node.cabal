@@ -48,12 +48,8 @@ library
     Unison.ABT.Extra
     Unison.Digest
     Unison.Distance.Extra
-    Unison.Eval.Interpreter
     Unison.Hash.Extra
     Unison.Kind.Extra
-    Unison.Node
-    Unison.Node.Implementation
-    Unison.Node.Store
     Unison.NodeServer
     Unison.Reference.Extra
     Unison.Symbol.Extra

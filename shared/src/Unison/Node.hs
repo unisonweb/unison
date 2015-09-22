@@ -13,7 +13,6 @@ import Unison.Eval as Eval
 import Unison.Metadata (Metadata)
 import Unison.Node.Store (Store)
 import Unison.Note (Noted)
-import Unison.Note (Noted)
 import Unison.Reference (Reference)
 import Unison.Term (Term)
 import Unison.TermEdit (Action)
@@ -21,13 +20,9 @@ import Unison.Type (Type)
 import Unison.Var (Var)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Unison.ABT as ABT
-import qualified Unison.Hash as Hash
-import qualified Unison.Metadata as Metadata
 import qualified Unison.Metadata as Metadata
 import qualified Unison.Node.Store as Store
 import qualified Unison.Reference as Reference
-import qualified Unison.Term as Term
 import qualified Unison.Term as Term
 import qualified Unison.TermEdit as TermEdit
 import qualified Unison.Typechecker as Typechecker
