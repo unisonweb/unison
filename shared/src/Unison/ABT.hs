@@ -25,6 +25,7 @@ import Unison.Hashable (Hashable,Hashable1)
 import Unison.Var (Var)
 import qualified Data.Aeson as Aeson
 import qualified Data.Foldable as Foldable
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
@@ -341,6 +342,22 @@ hash t = hash' [] t where
     in case map Right (permute p cycle) ++ envTl of
       env -> (map (hash' env) ts', hash' env)
   hashCycle env ts = (map (hash' env) ts, hash' env)
+
+-- | Use the `hash` function to efficiently remove duplicates from the list, preserving order.
+distinct :: forall f v h a proxy . (Functor f, Hashable1 f, Eq v, Var v, Ord h, Hashable h)
+         => proxy h
+         -> [Term f v a] -> [Term f v a]
+distinct _ ts = map fst (sortBy (comparing snd) m)
+  where m = Map.elems (Map.fromList (hashes `zip` (ts `zip` [0 :: Int .. 1])))
+        hashes = map hash ts :: [h]
+
+-- | Use the `hash` function to remove elements from `t1s` that exist in `t2s`, preserving order.
+subtract :: forall f v h a proxy . (Functor f, Hashable1 f, Eq v, Var v, Ord h, Hashable h)
+         => proxy h
+         -> [Term f v a] -> [Term f v a] -> [Term f v a]
+subtract _ t1s t2s =
+  let skips = Set.fromList (map hash t2s :: [h])
+  in filter (\t -> Set.notMember (hash t) skips) t1s
 
 instance (Show1 f, Var v) => Show (Term f v a) where
   -- annotations not shown
