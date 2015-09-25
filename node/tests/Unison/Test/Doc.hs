@@ -2,12 +2,13 @@ module Unison.Test.Doc where
 
 import Unison.Doc
 import Test.Tasty
+import Unison.Dimensions
 -- import Test.Tasty.SmallCheck as SC
 -- import Test.Tasty.QuickCheck as QC
 import Test.Tasty.HUnit
 
-fmt :: Int -> Doc String [Int] -> String
-fmt = formatString
+fmt :: Word -> Doc String [Int] -> String
+fmt w d = formatString (Width $ fromIntegral w) d
 
 tests :: TestTree
 tests = testGroup "Doc"

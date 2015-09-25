@@ -46,7 +46,6 @@ library
 
   exposed-modules:
     Unison.ABT.Extra
-    Unison.Digest
     Unison.Distance.Extra
     Unison.Hash.Extra
     Unison.Kind.Extra
@@ -65,6 +64,7 @@ library
     blaze-html,
     bytes,
     bytestring,
+    byteable,
     cereal,
     containers,
     cryptohash,
@@ -104,6 +104,7 @@ executable node
     blaze-html,
     bytes,
     bytestring,
+    byteable,
     cereal,
     containers,
     cryptohash,

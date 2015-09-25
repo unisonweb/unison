@@ -18,8 +18,8 @@ import Test.Tasty
 import Test.Tasty.HUnit
 
 type TTerm = Term.TTerm
-type TType = Type (Symbol (Maybe ()))
-type TEnv f = T.Env f (Symbol (Maybe ()))
+type TType = Type (Symbol ())
+type TEnv f = T.Env f (Symbol ())
 
 infixr 1 -->
 (-->) :: TType -> TType -> TType

@@ -6,9 +6,11 @@ import Data.Bytes.Serial (Serial)
 import Unison.Reference (Reference)
 import Unison.Symbol.Extra ()
 import Unison.Term.Extra ()
+import Unison.Hash.Extra ()
 import Unison.Node.Store (Store)
 import Unison.Var (Var)
-import qualified Unison.ABT.Extra as ABT'
+import qualified Unison.Hash
+import qualified Unison.ABT as ABT
 import qualified Unison.Hash as Hash
 import qualified Unison.Node.BasicNode as BasicNode
 import qualified Unison.Node.FileStore as FileStore
@@ -19,7 +21,7 @@ import qualified Unison.Term as Term
 
 hash :: (Serial v, Var v) => Term.Term v -> Reference
 hash (Term.Ref' r) = r
-hash t = Reference.Derived (Hash.fromBytes (ABT'.hash t))
+hash t = Reference.Derived (ABT.hash t)
 
 main :: IO ()
 main = do

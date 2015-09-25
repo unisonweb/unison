@@ -3,6 +3,8 @@ module Unison.Test.Term where
 
 import Unison.Term
 import Unison.Term.Extra ()
+import Unison.Hash.Extra ()
+import Unison.Hash (Hash)
 import Unison.Reference as R
 import Unison.Var (Var)
 import Unison.Symbol (Symbol)
@@ -11,10 +13,13 @@ import Test.Tasty
 -- import Test.Tasty.SmallCheck as SC
 -- import Test.Tasty.QuickCheck as QC
 import Test.Tasty.HUnit
-import qualified Unison.ABT.Extra as ABT
+import qualified Unison.ABT as ABT
 
 -- term for testing
-type TTerm = Term (Symbol (Maybe ()))
+type TTerm = Term (Symbol ())
+
+hash :: TTerm -> Hash
+hash e = ABT.hash e
 
 tests :: TestTree
 tests = testGroup "Term"
@@ -22,8 +27,8 @@ tests = testGroup "Term"
      ((lam' ["a"] $ var' "a") :: TTerm)
       (lam' ["x"] $ var' "x")
   , testCase "hash cycles" $ assertEqual "pingpong"
-     (ABT.hash pingpong1)
-     (ABT.hash pingpong2)
+     (hash pingpong1)
+     (hash pingpong2)
   ]
 
 -- various unison terms, useful for testing
