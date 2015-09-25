@@ -41,6 +41,7 @@ library
     Unison.Eval
     Unison.Eval.Interpreter
     Unison.Hash
+    Unison.Hashable
     Unison.JSON
     Unison.Kind
     Unison.Metadata

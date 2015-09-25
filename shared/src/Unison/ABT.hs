@@ -5,6 +5,7 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -13,16 +14,21 @@ module Unison.ABT where
 import Data.Aeson (ToJSON(..),FromJSON(..))
 import Data.List hiding (cycle)
 import Data.Maybe
+import Data.Ord
 import Data.Set (Set)
 import Data.Text (Text)
 import Data.Traversable
+import Data.Vector ((!))
 import Prelude hiding (abs,cycle)
 import Prelude.Extras (Eq1(..), Show1(..))
+import Unison.Hashable (Hashable,Hashable1)
 import Unison.Var (Var)
 import qualified Data.Aeson as Aeson
 import qualified Data.Foldable as Foldable
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import qualified Data.Vector as Vector
+import qualified Unison.Hashable as Hashable
 import qualified Unison.JSON as J
 import qualified Unison.Var as Var
 
@@ -304,6 +310,37 @@ instance (Foldable f, J.FromJSON1 f, FromJSON v, Ord v, FromJSON a) => FromJSON 
         _ | t == "Tm"    -> tm' ann <$> J.at 1 J.parseJSON1 j
         _                -> fail ("unknown tag: " ++ Text.unpack t)
     }) j
+
+-- | We ignore annotations in the `Term`, as these should never affect the
+-- meaning of the term.
+hash :: forall f v a h . (Functor f, Hashable1 f, Eq v, Var v, Ord h, Hashable h)
+     => Term f v a -> h
+hash t = hash' [] t where
+  hash' :: [Either [v] v] -> Term f v a -> h
+  hash' env (Term _ _ t) = case t of
+    Var v -> maybe die hashInt ind
+      where lookup (Left cycle) = elem v cycle
+            lookup (Right v') = v == v'
+            ind = findIndex lookup env
+            -- env not likely to be very big, prefer to encode in one byte if possible
+            hashInt :: Int -> h
+            hashInt i = Hashable.hash [Hashable.VarInt i]
+            die = error $ "unknown var in environment: " ++ show (Var.name v)
+    Cycle (AbsN' vs t) -> hash' (Left vs : env) t
+    Cycle t -> hash' env t
+    Abs v t -> hash' (Right v : env) t
+    Tm t -> Hashable.hash1 (hashCycle env) (hash' env) $ t
+
+  hashCycle :: [Either [v] v] -> [Term f v a] -> ([h], Term f v a -> h)
+  hashCycle env@(Left cycle : envTl) ts | length cycle == length ts =
+    let
+      permute p xs = case Vector.fromList xs of xs -> map (xs !) p
+      hashed = map (\(i,t) -> ((i,t), hash' env t)) (zip [0..] ts)
+      pt = map fst (sortBy (comparing snd) hashed)
+      (p,ts') = unzip pt
+    in case map Right (permute p cycle) ++ envTl of
+      env -> (map (hash' env) ts', hash' env)
+  hashCycle env ts = (map (hash' env) ts, hash' env)
 
 instance (Show1 f, Var v) => Show (Term f v a) where
   -- annotations not shown
