@@ -113,42 +113,6 @@ make hash store =
            op [hd] = pure $ Term.vector (pure hd)
            op _ = fail "Vector.single unpossible"
        in (r, Just (I.Primop 1 op), Type.forall' ["a"] $ v' "a" --> vec (v' "a"), prefix "single")
-
-     , let r = R.Builtin "View.cell"
-       in (r, strict r 2, Type.forall' ["a"] $ view (v' "a") --> v' "a" --> cellT, prefix "cell")
-     , let r = R.Builtin "View.color"
-       in (r, Nothing, colorT --> view cellT, prefix "color")
-     , let r = R.Builtin "View.declare"
-       in (r, strict r 1, Type.forall' ["a"] $ str --> v' "a" --> cellT, prefix "declare")
-     , let r = R.Builtin "View.embed"
-       in (r, Nothing, view cellT, prefix "embed")
-     , let r = R.Builtin "View.fit-width"
-       in (r, strict r 1, Type.forall' ["a"] $ distanceT --> view (v' "a"), prefix "fit-width")
-     , let r = R.Builtin "View.function1"
-       in ( r
-          , Nothing
-          , Type.forall' ["a","b"] $ (cellT --> cellT) --> view (v' "a" --> v' "b")
-          , prefix "function1" )
-     , let r = R.Builtin "View.hide"
-       in (r, Nothing, Type.forall' ["a"] $ view (v' "a"), prefix "hide")
-     , let r = R.Builtin "View.horizontal"
-       in (r, Nothing, view (vec cellT), prefix "horizontal")
-     , let r = R.Builtin "View.reactive"
-       in (r, Nothing, Type.forall' ["a"] $ view (v' "a"), prefix "reactive")
-     , let r = R.Builtin "View.source"
-       in (r, Nothing, Type.forall' ["a"] $ view (v' "a"), prefix "source")
-     , let r = R.Builtin "View.spacer"
-       in (r, strict r 1, distanceT --> num --> view unitT, prefix "spacer")
-     , let r = R.Builtin "View.swatch"
-       in (r, Nothing, view colorT, prefix "swatch")
-     , let r = R.Builtin "View.text"
-       in (r, strict r 1, styleT --> view str, prefix "text")
-     , let r = R.Builtin "View.textbox"
-       in (r, strict r 2, alignmentT `arr` (distanceT `arr` (styleT `arr` view str)), prefix "textbox")
-     , let r = R.Builtin "View.vertical"
-       in (r, Nothing, view (vec cellT), prefix "vertical")
-     , let r = R.Builtin "View.view"
-       in (r, strict r 1, Type.forall' ["a"] $ view (v' "a") --> v' "a" --> v' "a", prefix "view")
      ]
 
     eval = I.eval (M.fromList [ (k,v) | (k,Just v,_,_) <- builtins ])
@@ -162,17 +126,13 @@ make hash store =
     alignmentT = Type.ref (R.Builtin "Alignment")
     metadataT = Type.ref (R.Builtin "Metadata")
     arr = Type.arrow
-    cellT = Type.ref (R.Builtin "Cell")
     colorT = Type.ref (R.Builtin "Color")
-    distanceT = Type.lit Type.Distance
     num = Type.lit Type.Number
     numOpTyp = num --> num --> num
-    styleT = Type.ref (R.Builtin "Text.Style")
     str = Type.lit Type.Text
     strOpTyp = str `arr` (str `arr` str)
     unitT = Type.ref (R.Builtin "Unit")
     vec a = Type.app (Type.lit Type.Vector) a
-    view a = Type.app (Type.ref (R.Builtin "View")) a
     strict r n = Just (I.Primop n f)
       where f args = reapply <$> traverse whnf (take n args)
                      where reapply args' = Term.ref r `apps` args' `apps` drop n args

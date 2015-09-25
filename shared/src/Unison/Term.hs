@@ -25,6 +25,7 @@ import Prelude.Extras (Eq1(..), Show1(..))
 import Text.Show
 import Unison.Doc (Doc)
 import Unison.Hash (Hash)
+import Unison.Hashable (Hashable, Hashable1)
 import Unison.Reference (Reference)
 import Unison.Symbol (Symbol)
 import Unison.Type (Type)
@@ -37,8 +38,9 @@ import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import qualified Unison.ABT as ABT
 import qualified Unison.Dimensions as Dimensions
-import qualified Unison.Distance as Distance
 import qualified Unison.Doc as D
+import qualified Unison.Hash as Hash
+import qualified Unison.Hashable as Hashable
 import qualified Unison.JSON as J
 import qualified Unison.Reference as Reference
 import qualified Unison.Symbol as Symbol
@@ -50,8 +52,11 @@ import qualified Unison.View as View
 data Literal
   = Number Double
   | Text Text
-  | Distance Distance.Distance
   deriving (Eq,Ord,Generic)
+
+instance Hashable Literal where
+  tokens (Number d) = [Hashable.Tag 0, Hashable.Double d]
+  tokens (Text txt) = [Hashable.Tag 1, Hashable.Text txt]
 
 -- | Base functor for terms in the Unison language
 data F v a
@@ -377,6 +382,35 @@ view ref t = go no View.low t where
     Lit' _ -> D.embed (Var.name $ op t)
     _ -> error $ "layout match failure"
 
+instance Var v => Hashable1 (F v) where
+  hash1 hashCycle hash e =
+    let
+      (tag, hashed, varint) = (Hashable.Tag, Hashable.Hashed, Hashable.VarInt)
+      hashToken :: (Hashable.Hash h, Hashable t) => t -> Hashable.Token h
+      hashToken = Hashable.Hashed . Hashable.hash'
+    in case e of
+      -- So long as `Reference.Derived` ctors are created using the same hashing
+      -- function as is used here, this case ensures that references are 'transparent'
+      -- wrt hash and hashing is unaffected by whether expressions are linked.
+      -- So for example `x = 1 + 1` and `y = x` hash the same.
+      Ref (Reference.Derived h) -> Hashable.fromBytes (Hash.toBytes h)
+      -- Note: start each layer with leading `1` byte, to avoid collisions with
+      -- types, which start each layer with leading `0`. See `Hashable1 Type.F`
+      _ -> Hashable.hash $ tag 1 : case e of
+        Lit l -> [tag 0, hashToken l]
+        Blank -> [tag 1]
+        Ref (Reference.Builtin name) -> [tag 2, hashToken name]
+        Ref (Reference.Derived _) -> error "handled above, but GHC can't figure this out"
+        App a a2 -> [tag 3, hashed (hash a), hashed (hash a2)]
+        Ann a t -> [tag 4, hashed (hash a), hashed (ABT.hash t)]
+        Vector as -> tag 5 : varint (Vector.length as) : map (hashed . hash) (Vector.toList as)
+        Lam a -> [tag 6, hashed (hash a) ]
+        -- note: we use `hashCycle` to ensure result is independent of let binding order
+        LetRec as a -> case hashCycle as of
+          (hs, hash) -> tag 7 : hashed (hash a) : map hashed hs
+        -- here, order is significant, so don't use hashCycle
+        Let b a -> [tag 8, hashed (hash b), hashed (hash a)]
+
 -- mostly boring serialization code below ...
 
 deriveJSON defaultOptions ''Literal
@@ -398,7 +432,6 @@ instance Show Literal where
   show (Number n) = case floor n of
     m | fromIntegral m == n -> show (m :: Int)
     _ -> show n
-  show (Distance d) = show d
 
 instance (Var v, Show a) => Show (F v a) where
   showsPrec p fa = go p fa where

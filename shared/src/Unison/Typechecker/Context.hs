@@ -390,7 +390,6 @@ synthLit :: Ord v => Term.Literal -> Type v
 synthLit lit = Type.lit $ case lit of
   Term.Number _ -> Type.Number
   Term.Text _ -> Type.Text
-  Term.Distance _ -> Type.Distance
 
 -- | Synthesize and generalize the type of each binding in a let rec
 -- and return the new context in which all bindings are annotated with

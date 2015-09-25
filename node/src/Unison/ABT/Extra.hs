@@ -53,17 +53,6 @@ hash t = hash' [] t where
           *> pure (hash' env)
   hashCycle env ts = Foldable.traverse_ (serialize . hash' env) ts *> pure (hash' env)
 
--- | Use the `hash` function to efficiently remove duplicates from the list, preserving order.
-distinct :: (Foldable f, Digest.Digestable1 f, Var v) => [Term f v a] -> [Term f v a]
-distinct ts = map fst (sortBy (comparing snd) m)
-  where m = Map.elems (Map.fromList (map hash ts `zip` (ts `zip` [0 :: Int .. 1])))
-
--- | Use the `hash` function to remove elements from `t1s` that exist in `t2s`, preserving order.
-subtract :: (Foldable f, Digest.Digestable1 f, Var v) => [Term f v a] -> [Term f v a] -> [Term f v a]
-subtract t1s t2s =
-  let skips = Set.fromList (map hash t2s)
-  in filter (\t -> Set.notMember (hash t) skips) t1s
-
 instance (Foldable f, Serial a, Serial v, Ord v, Serial1 f) => Serial (Term f v a) where
   serialize (Term _ a e) = serialize a *> case e of
     Var v -> Put.putWord8 0 *> serialize v
@@ -80,4 +69,3 @@ instance (Foldable f, Serial a, Serial v, Ord v, Serial1 f) => Serial (Term f v 
       2 -> abs' ann <$> deserialize <*> deserialize
       3 -> tm' ann <$> deserializeWith deserialize
       _ -> fail ("unknown byte tag, expected one of {0,1,2}, got: " ++ show b)
-

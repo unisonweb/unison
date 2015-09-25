@@ -1,3 +1,5 @@
+{-# Language FlexibleInstances #-}
+
 module Unison.Hashable where
 
 import Data.Word (Word8)
@@ -12,8 +14,16 @@ data Token h
   | Double !Double
   | Hashed !h
 
-class Hashable h where
+class Hash h where
   hash :: [Token h] -> h
+  fromBytes :: ByteString -> h
+  toBytes :: h -> ByteString
+
+hash' :: (Hash h, Hashable t) => t -> h
+hash' = hash . tokens
+
+class Hashable t where
+  tokens :: Hash h => t -> [Token h]
 
 class Functor f => Hashable1 f where
   -- | Produce a hash for an `f a`, given a hashing function for `a`.
@@ -21,4 +31,16 @@ class Functor f => Hashable1 f where
   -- whose order should not affect hash results. Its second result
   -- can be used to hash order-dependent `a` values at this layer that
   -- are not part of the cycle.
-  hash1 :: Hashable h => ([a] -> ([h], a -> h)) -> (a -> h) -> f a -> h
+  hash1 :: (Ord h, Hash h) => ([a] -> ([h], a -> h)) -> (a -> h) -> f a -> h
+
+instance Hashable () where
+  tokens _ = []
+
+instance Hashable Double where
+  tokens d = [Double d]
+
+instance Hashable Text where
+  tokens s = [Text s]
+
+instance Hashable ByteString where
+  tokens bs = [Bytes bs]

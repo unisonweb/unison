@@ -18,6 +18,7 @@ import Data.Text (Text)
 import GHC.Generics
 import Prelude.Extras (Eq1(..),Show1(..))
 import Unison.Doc (Doc)
+import Unison.Hashable (Hashable, Hashable1)
 import Unison.Note (Noted)
 import Unison.Reference (Reference)
 import Unison.Symbol (Symbol(..))
@@ -25,9 +26,10 @@ import Unison.Var (Var)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
-import qualified Unison.Doc as D
 import qualified Unison.Dimensions as Dimensions
+import qualified Unison.Doc as D
 import qualified Unison.Hash as Hash
+import qualified Unison.Hashable as Hashable
 import qualified Unison.JSON as J
 import qualified Unison.Kind as K
 import qualified Unison.Reference as Reference
@@ -40,7 +42,6 @@ data Literal
   = Number
   | Text
   | Vector
-  | Distance
   | Ref Reference -- ^ A type literal uniquely defined by some nameless Hash
   deriving (Eq,Ord,Generic)
 
@@ -253,6 +254,30 @@ view ref t = go no View.low t
     Lit' _ -> D.embed (Var.name $ op t)
     _ -> error $ "layout match failure"
 
+instance Hashable Literal where
+  tokens l = case l of
+    Number -> [Hashable.Tag 0]
+    Text -> [Hashable.Tag 1]
+    Vector -> [Hashable.Tag 2]
+    Ref (Reference.Builtin name) -> Hashable.Tag 3 : Hashable.tokens name
+    Ref (Reference.Derived h) -> [Hashable.Tag 4, Hashable.Hashed (Hashable.fromBytes (Hash.toBytes h))]
+
+instance Hashable1 F where
+  hash1 _ hash e =
+    let
+      (tag, hashed, varint) = (Hashable.Tag, Hashable.Hashed, Hashable.VarInt)
+      hashToken :: (Hashable.Hash h, Hashable t) => t -> Hashable.Token h
+      hashToken = Hashable.Hashed . Hashable.hash'
+    in Hashable.hash $ tag 0 : case e of
+      Lit l -> [tag 0, hashToken l]
+      Arrow a b -> [tag 1, hashed (hash a), hashed (hash b) ]
+      App a b -> [tag 2, hashed (hash a), hashed (hash b) ]
+      Ann a k -> [tag 3, hashed (hash a), hashToken k ]
+      Constrain a u -> [tag 4, hashed (hash a), hashToken u]
+      Forall a -> [tag 5, hashed (hash a)]
+      Existential v -> [tag 6, hashed (hash v)]
+      Universal v -> [tag 7, hashed (hash v)]
+
 deriveJSON defaultOptions ''PathElement
 
 instance J.ToJSON1 F where
@@ -265,7 +290,6 @@ instance Show Literal where
   show Number = "Number"
   show Text = "Text"
   show Vector = "Vector"
-  show Distance = "Distance"
   show (Ref r) = show r
 
 instance Show a => Show (F a) where

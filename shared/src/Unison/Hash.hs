@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Unison.Hash (Hash, hashBytes, base64, fromBase64, fromBytes) where
+module Unison.Hash (Hash, toBytes, base64, fromBase64, fromBytes) where
 
 import Data.Aeson
 import Data.ByteString (ByteString)
@@ -25,8 +25,8 @@ fromBase64 = Hash . Base64.decodeLenient . encodeUtf8
 fromBytes :: ByteString -> Hash
 fromBytes = Hash
 
-hashBytes :: Hash -> ByteString
-hashBytes (Hash h) = h
+toBytes :: Hash -> ByteString
+toBytes (Hash h) = h
 
 instance FromJSON Hash where
   parseJSON j = fromBase64 <$> parseJSON j
