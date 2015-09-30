@@ -2,7 +2,6 @@
 
 module Main where
 
-import Data.Bytes.Serial (Serial)
 import Unison.Reference (Reference)
 import Unison.Symbol.Extra ()
 import Unison.Term.Extra ()
@@ -10,8 +9,6 @@ import Unison.Hash.Extra ()
 import Unison.Node.Store (Store)
 import Unison.Var (Var)
 import qualified Unison.ABT as ABT
-import qualified Unison.Hash
-import qualified Unison.Hash as Hash
 import qualified Unison.Node.BasicNode as BasicNode
 import qualified Unison.Node.FileStore as FileStore
 import qualified Unison.NodeServer as NodeServer
