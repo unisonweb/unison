@@ -7,6 +7,7 @@
 -- corresponding to a path, or lookup what path corresponds
 -- to a given location in the layout.
 
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DeriveFoldable #-}
@@ -14,12 +15,15 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Unison.Doc where
 
 import Control.Comonad.Cofree (Cofree(..), unwrap) -- (:<)
 import Control.Comonad (extract)
 import Control.Monad.State.Strict
+import Data.Aeson
+import Data.Aeson.TH
 import Data.Bifunctor
 import Data.Functor
 import Data.Foldable
@@ -29,6 +33,7 @@ import Data.String (IsString)
 import Data.Text (Text)
 import Unison.Dimensions (X(..), Y(..), Width(..), Height(..), Region)
 import Unison.Path (Path)
+import qualified Unison.JSON as J
 import qualified Data.Text as Text
 import qualified Unison.Dimensions as Dimensions
 import qualified Unison.Path as Path
@@ -613,3 +618,19 @@ instance Bifunctor D where
     Group r -> Group r
     Nest e r -> Nest (f e) r
     Append r r2 -> Append r r2
+
+-- boring serialization code
+
+deriveToJSON defaultOptions ''D
+instance (FromJSON e, FromJSON r) => FromJSON (D e r) where
+  parseJSON = $(mkParseJSON defaultOptions ''D)
+
+instance (ToJSON e) => J.ToJSON1 (D e) where toJSON1 f = toJSON f
+instance (FromJSON e) => J.FromJSON1 (D e) where parseJSON1 j = parseJSON j
+
+instance (Functor f, ToJSON p, J.ToJSON1 f) => ToJSON (Cofree f p) where
+  toJSON (p :< f) = toJSON [toJSON p, J.toJSON1 f]
+
+instance (FromJSON p, J.FromJSON1 f) => FromJSON (Cofree f p) where
+  parseJSON j = (:<) <$> J.at 0 parseJSON j <*> J.at 1 J.parseJSON1 j
+
