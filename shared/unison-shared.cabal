@@ -48,6 +48,7 @@ library
     Unison.Node
     Unison.Node.BasicNode
     Unison.Node.MemStore
+    Unison.Node.MemNode
     Unison.Node.Store
     Unison.Note
     Unison.Path
@@ -71,6 +72,7 @@ library
     comonad,
     free,
     mtl,
+    murmur-hash,
     prelude-extras,
     text,
     transformers,
