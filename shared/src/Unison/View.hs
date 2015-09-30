@@ -1,7 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Unison.View where
 
+import Data.Aeson.TH
 import Data.String (IsString(..))
 import Data.Text (Text)
 import Unison.Doc (Doc)
@@ -136,3 +138,10 @@ instantiate op opP name args | arity op == length args =
   g (Just (Arg 0)) = opP
   g (Just (Arg i)) = snd $ args !! (i - 1)
 instantiate _ _ _ _ = Nothing
+
+-- boring serialization code
+
+deriveJSON defaultOptions ''Precedence
+deriveJSON defaultOptions ''Var
+deriveJSON defaultOptions ''Segment
+deriveJSON defaultOptions ''DFO
