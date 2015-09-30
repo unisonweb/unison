@@ -18,9 +18,9 @@ run (Noted m) = m >>= \e -> case e of
 noted :: m (Either Note a) -> Noted m a
 noted = Noted
 
-liftMaybe :: Applicative m => String -> Maybe a -> Noted m a
-liftMaybe msg Nothing = failure msg
-liftMaybe _ (Just a) = pure a
+fromMaybe :: Applicative m => String -> Maybe a -> Noted m a
+fromMaybe msg Nothing = failure msg
+fromMaybe _ (Just a) = pure a
 
 noted' :: Functor m => String -> m (Maybe a) -> Noted m a
 noted' ifNothing moa = noted (fmap (maybe (Left (note ifNothing)) Right) moa)

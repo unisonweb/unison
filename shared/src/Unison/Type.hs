@@ -265,7 +265,7 @@ instance Hashable Literal where
 instance Hashable1 F where
   hash1 _ hash e =
     let
-      (tag, hashed, varint) = (Hashable.Tag, Hashable.Hashed, Hashable.VarInt)
+      (tag, hashed) = (Hashable.Tag, Hashable.Hashed)
       hashToken :: (Hashable.Hash h, Hashable t) => t -> Hashable.Token h
       hashToken = Hashable.Hashed . Hashable.hash'
     in Hashable.hash $ tag 0 : case e of
