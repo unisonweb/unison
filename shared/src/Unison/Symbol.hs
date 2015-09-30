@@ -26,8 +26,7 @@ instance View op => Var (Symbol op) where
   named n = Symbol 0 n View.prefix
   clear (Symbol id n _) = Symbol id n View.prefix
   qualifiedName s = name s `Text.append` (Text.pack (show (freshId s)))
-  freshIn vs s | Set.null vs = s -- already fresh!
-  freshIn vs s | Set.notMember s vs = s -- already fresh!
+  freshIn vs s | Set.null vs || Set.notMember s vs = s -- already fresh!
   freshIn vs s@(Symbol i n a) = case Set.elemAt (Set.size vs - 1) vs of
     Symbol i2 _ _ -> if i > i2 then s else Symbol (i2+1) n a
 

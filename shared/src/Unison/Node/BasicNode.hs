@@ -6,9 +6,9 @@ import Data.Text (Text)
 import Unison.Metadata (Metadata(..))
 import Unison.Node (Node)
 import Unison.Node.Store (Store)
+import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
-import Unison.Var (Var)
 import qualified Data.Map as M
 import qualified Data.Vector as Vector
 import qualified Unison.Eval as Eval
@@ -18,18 +18,23 @@ import qualified Unison.Node as Node
 import qualified Unison.Node.Store as Store
 import qualified Unison.Note as N
 import qualified Unison.Reference as R
+import qualified Unison.Symbol as Symbol
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 import qualified Unison.Var as Var
+import qualified Unison.View as View
 
 infixr 7 -->
 (-->) :: Ord v => Type v -> Type v -> Type v
 (-->) = Type.arrow
 
-make :: forall v . Var v
-     => (Term v -> R.Reference)
-     -> Store IO v
-     -> IO (Node IO v R.Reference (Type v) (Term v))
+type Term' = Term (Symbol DFO)
+type DFO = View.DFO
+type V = Symbol DFO
+
+make :: (Term V -> R.Reference)
+     -> Store IO V
+     -> IO (Node IO V R.Reference (Type V) (Term V))
 make hash store =
   let
     builtins =
@@ -39,22 +44,12 @@ make hash store =
      , let r = R.Builtin "Color.rgba"
        in (r, strict r 4, num --> num --> num --> num --> colorT, prefix "rgba")
 
-     , let r = R.Builtin "Fixity.Prefix"
-       in (r, Nothing, fixityT, prefix "Prefix")
-     , let r = R.Builtin "Fixity.InfixL"
-       in (r, Nothing, fixityT, prefix "InfixL")
-     , let r = R.Builtin "Fixity.InfixR"
-       in (r, Nothing, fixityT, prefix "InfixR")
-
-     , let r = R.Builtin "Metadata.metadata"
-       in (r, strict r 2, vec symbolT --> str --> metadataT, prefix "metadata")
-
      , let r = R.Builtin "Number.plus"
-       in (r, Just (numeric2 (Term.ref r) (+)), numOpTyp, opl 4 "+")
+       in (r, Just (numeric2 (Term.ref r) (+)), numOpTyp, assoc 4 "+")
      , let r = R.Builtin "Number.minus"
        in (r, Just (numeric2 (Term.ref r) (-)), numOpTyp, opl 4 "-")
      , let r = R.Builtin "Number.times"
-       in (r, Just (numeric2 (Term.ref r) (*)), numOpTyp, opl 5 "*")
+       in (r, Just (numeric2 (Term.ref r) (*)), numOpTyp, assoc 5 "*")
      , let r = R.Builtin "Number.divide"
        in (r, Just (numeric2 (Term.ref r) (/)), numOpTyp, opl 5 "/")
 
@@ -124,7 +119,6 @@ make hash store =
     fixityT = Type.ref (R.Builtin "Fixity")
     symbolT = Type.ref (R.Builtin "Symbol")
     alignmentT = Type.ref (R.Builtin "Alignment")
-    metadataT = Type.ref (R.Builtin "Metadata")
     arr = Type.arrow
     colorT = Type.ref (R.Builtin "Color")
     num = Type.lit Type.Number
@@ -138,14 +132,14 @@ make hash store =
                      where reapply args' = Term.ref r `apps` args' `apps` drop n args
             apps f args = foldl Term.app f args
 
-    numeric2 :: Term v -> (Double -> Double -> Double) -> I.Primop (N.Noted IO) v
+    numeric2 :: Term V -> (Double -> Double -> Double) -> I.Primop (N.Noted IO) V
     numeric2 sym f = I.Primop 2 $ \xs -> case xs of
       [x,y] -> g <$> whnf x <*> whnf y
         where g (Term.Number' x) (Term.Number' y) = Term.lit (Term.Number (f x y))
               g x y = sym `Term.app` x `Term.app` y
       _ -> error "unpossible"
 
-    string2 :: Term v -> (Text -> Text -> Text) -> I.Primop (N.Noted IO) v
+    string2 :: Term V -> (Text -> Text -> Text) -> I.Primop (N.Noted IO) V
     string2 sym f = I.Primop 2 $ \xs -> case xs of
       [x,y] -> g <$> whnf x <*> whnf y
         where g (Term.Text' x) (Term.Text' y) = Term.lit (Term.Text (f x y))
@@ -158,15 +152,28 @@ make hash store =
           builtins
     pure node
 
-opl :: Var v => Int -> Text -> Metadata v h
-opl _ s = Metadata Metadata.Term
-                   (Metadata.Names [Var.named s])
-                   Nothing
+opl :: Int -> Text -> Metadata V h
+opl p s =
+  let
+    sym :: Symbol DFO
+    sym = Var.named s
+    s' = Symbol.annotate (View.binary View.AssociateL (View.Precedence p)) sym
+  in
+    Metadata Metadata.Term (Metadata.Names [s']) Nothing
 
-prefix :: Var v => Text -> Metadata v h
+assoc :: Int -> Text -> Metadata V h
+assoc p s =
+  let
+    sym :: Symbol DFO
+    sym = Var.named s
+    s' = Symbol.annotate (View.binary View.Associative (View.Precedence p)) sym
+  in
+    Metadata Metadata.Term (Metadata.Names [s']) Nothing
+
+prefix :: Text -> Metadata V h
 prefix s = prefixes [s]
 
-prefixes :: Var v => [Text] -> Metadata v h
+prefixes :: [Text] -> Metadata V h
 prefixes s = Metadata Metadata.Term
                       (Metadata.Names (map Var.named s))
                       Nothing
