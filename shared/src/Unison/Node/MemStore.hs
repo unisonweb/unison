@@ -1,5 +1,6 @@
 module Unison.Node.MemStore (make) where
 
+import Data.Functor
 import Data.Map (Map)
 import Unison.Hash (Hash)
 import Unison.Metadata (Metadata)
@@ -40,7 +41,7 @@ make = store <$> MVar.newMVar (S Map.empty Map.empty Map.empty) where
     unknown :: Show r => String -> r -> String
     unknown msg r = "unknown " ++ msg ++ ": " ++ show r
     set :: MVar.MVar a -> a -> IO ()
-    set v a = MVar.modifyMVar_ v (\_ -> pure a)
+    set v a = void (MVar.swapMVar v a)
 
 withS :: MVar.MVar (S v) -> (S v -> i -> Noted IO o) -> i -> Noted IO o
 withS s f i = Note.lift (MVar.readMVar s) >>= \s -> f s i
