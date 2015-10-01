@@ -28,17 +28,19 @@ make = store <$> MVar.newMVar (S Map.empty Map.empty Map.empty) where
     readTerm s hash =
       Note.fromMaybe (unknown "hash" hash) $ Map.lookup hash (terms' s)
     writeTerm s hash t =
-      Note.lift . MVar.putMVar v $ s { terms' = Map.insert hash t (terms' s) }
+      Note.lift . set v $ s { terms' = Map.insert hash t (terms' s) }
     typeOfTerm s ref =
       Note.fromMaybe (unknown "reference" ref) $ Map.lookup ref (typeOfTerm' s)
     annotateTerm s ref t =
-      Note.lift . MVar.putMVar v $ s { typeOfTerm' = Map.insert ref t (typeOfTerm' s) }
+      Note.lift . set v $ s { typeOfTerm' = Map.insert ref t (typeOfTerm' s) }
     readMetadata s ref =
       Note.fromMaybe (unknown "reference" ref) $ Map.lookup ref (metadata' s)
     writeMetadata s ref md =
-      Note.lift . MVar.putMVar v $ s { metadata' = Map.insert ref md (metadata' s) }
+      Note.lift . set v $ s { metadata' = Map.insert ref md (metadata' s) }
     unknown :: Show r => String -> r -> String
     unknown msg r = "unknown " ++ msg ++ ": " ++ show r
+    set :: MVar.MVar a -> a -> IO ()
+    set v a = MVar.modifyMVar_ v (\_ -> pure a)
 
 withS :: MVar.MVar (S v) -> (S v -> i -> Noted IO o) -> i -> Noted IO o
 withS s f i = Note.lift (MVar.readMVar s) >>= \s -> f s i

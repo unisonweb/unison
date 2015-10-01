@@ -49,7 +49,6 @@ library
     Unison.Dom
     Unison.HTML
     Unison.UI
-    Unison.Woot
 
   build-depends:
     base,
@@ -75,7 +74,7 @@ library
     ghc-options: -v0
 
 executable editor
-  main-is: HelloWorld.hs
+  main-is: Editor.hs
   hs-source-dirs: src
   ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N -v0
 

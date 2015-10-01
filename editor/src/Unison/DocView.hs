@@ -12,7 +12,7 @@ import Data.These (These(This,That,These))
 import Reflex.Dom
 import Unison.Doc (Doc)
 import Unison.Dom (Dom)
-import Unison.Dimensions (X(..), Y(..), Width(..), Height(..), Region)
+import Unison.Dimensions (X(..), Y(..), Width(..), Height(..))
 import Unison.Path (Path)
 import qualified Data.Map as Map
 import qualified Data.Text as Text
@@ -26,7 +26,7 @@ import qualified Unison.UI as UI
 import qualified Unison.Signals as S
 
 widget :: (Show p, Path p, Eq p, MonadWidget t m)
-       => Width -> Doc Text p -> m (El t, (Width,Height))
+       => Width -> Doc Text p -> m (El t, (Width,Height), Dynamic t p)
 widget available d =
   let
     leaf txt = Text.replace " " "&nbsp;" txt
@@ -83,7 +83,7 @@ widget available d =
     region <- Dynamic.traceDyn "region" <$> mapDyn (Doc.region b) path
     sel <- mapDyn (selectionLayer h) region
     _ <- widgetHold (pure ()) (Dynamic.updated sel)
-    pure $ (e, (w,h))
+    pure $ (e, (w,h), path)
 
 selectionLayer :: MonadWidget t m => Height -> (X,Y,Width,Height) -> m ()
 selectionLayer (Height h0) (X x, Y y, Width w, Height h) =
@@ -92,10 +92,10 @@ selectionLayer (Height h0) (X x, Y y, Width w, Height h) =
     style = intercalate ";"
       [ "pointer-events:none"
       , "position:relative"
-      , "width:" ++ show (w+4) ++ "px"
-      , "height:" ++ show (h+4) ++ "px"
-      , "left:" ++ show (fromIntegral x - 2 `max` 0 :: Int) ++ "px"
-      , "top:" ++ show (fromIntegral y - fromIntegral h0 - 2 :: Int) ++ "px" ]
+      , "width:" ++ show (w+6) ++ "px"
+      , "height:" ++ show h ++ "px"
+      , "left:" ++ show (((fromIntegral x :: Int) - 4) `max` 0) ++ "px"
+      , "top:" ++ show (fromIntegral y - fromIntegral h0 - 1 :: Int) ++ "px" ]
   in do
     elAttr "div" attrs $ pure ()
     pure ()
