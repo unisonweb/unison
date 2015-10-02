@@ -73,7 +73,7 @@ context0 :: Context v
 context0 = Context []
 
 instance Var v => Show (Context v) where
-  show (Context es) = "Γ \n" ++ (intercalate "\n  " . map (show . fst)) (reverse es)
+  show (Context es) = "Γ\n  " ++ (intercalate "\n  " . map (show . fst)) (reverse es)
 
 -- ctxOK :: Context -> Context
 -- ctxOK ctx = if wellformed ctx then ctx else error $ "not ok: " ++ show ctx
@@ -225,6 +225,11 @@ lookupType ctx v = lookup v (bindings ctx)
 -- If the given existential variable exists in the context,
 -- we solve it to the given monotype, otherwise return `Nothing`
 solve :: Var v => Context v -> v -> Monotype v -> Maybe (Context v)
+solve ctx v t
+  -- okay to solve something again if it's to an identical type
+  | v `elem` (map fst (solved ctx)) = same =<< lookup v (solved ctx)
+  where same t2 | apply ctx (Type.getPolytype t) == apply ctx (Type.getPolytype t2) = Just ctx
+                | otherwise = Nothing
 solve ctx v t
   | wellformedType ctxL (Type.getPolytype t) = Just ctx'
   | otherwise                                = Nothing
