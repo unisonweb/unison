@@ -2,13 +2,11 @@
 module Unison.Test.Term where
 
 import Unison.Term
-import Unison.Term.Extra ()
-import Unison.Hash.Extra ()
 import Unison.Hash (Hash)
+import Unison.Node.MemNode ()
 import Unison.Reference as R
 import Unison.Var (Var)
 import Unison.Symbol (Symbol)
-import Unison.Symbol.Extra ()
 import Test.Tasty
 -- import Test.Tasty.SmallCheck as SC
 -- import Test.Tasty.QuickCheck as QC

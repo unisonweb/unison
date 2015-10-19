@@ -27,11 +27,6 @@ source-repository head
   type: git
   location: git://github.com/unisonweb/platform.git
 
--- `cabal install --enable-tests -f-properties` to disable properties suite
-flag properties
-  manual: True
-  default: True
-
 -- `cabal install -foptimized` enables optimizations
 flag optimized
   manual: True
@@ -120,23 +115,3 @@ executable node
     unison-node,
     unison-shared,
     vector
-
-test-suite tests
-  type:           exitcode-stdio-1.0
-  main-is:        Suite.hs
-  ghc-options:    -w -threaded -rtsopts -with-rtsopts=-N -v0
-  hs-source-dirs: tests
-  other-modules:
-
-  if !flag(properties)
-    buildable: False
-  else
-    build-depends:
-      base,
-      bytes,
-      tasty,
-      tasty-hunit,
-      tasty-smallcheck,
-      tasty-quickcheck,
-      unison-node,
-      unison-shared

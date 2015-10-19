@@ -16,10 +16,6 @@ mkDerivation {
     http-types mtl prelude-extras scotty text transformers
     transformers-compat unison-shared vector
   ];
-  testDepends = [
-    base bytes tasty tasty-hunit tasty-quickcheck tasty-smallcheck
-    unison-shared
-  ];
   homepage = "http://unisonweb.org";
   description = "The Unison programming language and platform";
   license = stdenv.lib.licenses.mit;

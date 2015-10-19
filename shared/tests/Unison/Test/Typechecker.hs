@@ -3,13 +3,13 @@
 module Unison.Test.Typechecker where
 
 import Control.Applicative
+import Unison.Node.MemNode ()
 import Unison.Note
 import Unison.Term as E
 import Unison.Type as T
 import Unison.Typechecker as Typechecker
 import Unison.Reference as R
 import Unison.Symbol (Symbol)
-import Unison.Symbol.Extra ()
 import qualified Unison.Test.Term as Term
 
 import Test.Tasty

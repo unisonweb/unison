@@ -1,5 +1,7 @@
 { mkDerivation, aeson, base, base64-bytestring, bifunctors, bytestring
-, containers, comonad, free, murmur-hash, mtl, prelude-extras, stdenv, text, transformers, vector
+, containers, comonad, free, murmur-hash, mtl, prelude-extras
+, stdenv, tasty, tasty-hunit, tasty-quickcheck, tasty-smallcheck
+, text, transformers, vector
 }:
 mkDerivation {
   pname = "unison-shared";
@@ -8,6 +10,9 @@ mkDerivation {
   buildDepends = [
     aeson base base64-bytestring bifunctors bytestring containers free 
     murmur-hash mtl text transformers prelude-extras vector
+  ];
+  testDepends = [
+    base tasty tasty-hunit tasty-quickcheck tasty-smallcheck
   ];
   homepage = "http://unisonweb.org";
   description = "The Unison programming language and platform";
