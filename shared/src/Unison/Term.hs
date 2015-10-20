@@ -323,7 +323,8 @@ view ref t = go no View.low t where
   op t = case t of
     Lit' l -> Symbol.annotate View.prefix . (\r -> Symbol.prefix r :: Symbol ()) . Text.pack . show $ l
     Var' v -> v
-    _ -> Symbol.annotate View.prefix (Symbol.prefix "" :: Symbol ())
+    Ref' r -> ref r
+    _ -> Symbol.annotate View.prefix (Symbol.prefix "<unresolved-operator>" :: Symbol ())
   formatBinding :: Path -> Symbol View.DFO -> ViewableTerm -> Doc Text Path
   formatBinding path name body = case body of
     LamsP' vs (body,bodyp) ->
@@ -351,6 +352,14 @@ view ref t = go no View.low t where
                    D.nest "  " (D.delimit (D.breakable "; ") formattedBs) `D.append`
                    D.docs [ D.breakable " ", D.embed "in", D.breakable " "
                           , D.sub Body . D.nest "  " $ go no View.low e ]
+    Vector' vs ->
+      let
+        fmt i v = D.nest "  " . D.sub (Index i) $ go no View.low v
+        subs = [ fmt i v | (v,i) <- Vector.toList vs `zip` [0..] ]
+      in D.group . D.docs $
+           [ D.embed "[ "
+           , D.delimit (D.breakable ", ") subs
+           , D.embed " ]" ]
     AppsP' (fn,fnP) args ->
       let
         Symbol.Symbol _ name view = op fn
@@ -370,14 +379,6 @@ view ref t = go no View.low t where
       else D.parenthesize True . D.group $
            D.delimit (D.embed " ") (map (sym . fst) vs) `D.append`
            D.docs [D.embed "->", D.breakable " ", D.nest "  " $ D.sub' bodyp (go no View.low body)]
-    Vector' vs ->
-      let
-        fmt i v = D.nest "  " . D.sub (Index i) $ go no View.low v
-        subs = [ fmt i v | (v,i) <- Vector.toList vs `zip` [0..] ]
-      in D.group . D.docs $
-           [ D.embed "[ "
-           , D.delimit (D.breakable ", ") subs
-           , D.embed " ]" ]
     Ann' e t -> D.group . D.parenthesize (p /= View.low) $
                 D.docs [ go no p e, D.embed " :", D.breakable " "
                        , D.nest "  " $ (\p -> [Annotation p]) <$> Type.view ref t ]
