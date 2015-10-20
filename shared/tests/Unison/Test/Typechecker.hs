@@ -37,6 +37,22 @@ env node r = do
   (node, _) <- Note.lift node
   Node.typeAt node (E.ref r) mempty
 
+synthesizesAt :: TNode -> E.Path -> TTerm -> TType -> Assertion
+synthesizesAt node path e t = Note.run $ do
+  (node, _) <- Note.lift node
+  t2 <- Node.typeAt node e path
+  _ <- Note.fromEither (Typechecker.subtype t2 t)
+  _ <- Note.fromEither (Typechecker.subtype t t2)
+  pure ()
+
+checksAt :: TNode -> E.Path -> TTerm -> TType -> Assertion
+checksAt node path e t = Note.run . void $
+  Typechecker.synthesize (env node) (E.modify' (\e -> E.ann e t) path e)
+
+synthesizesAndChecksAt :: TNode -> E.Path -> TTerm -> TType -> Assertion
+synthesizesAndChecksAt node path e t =
+  synthesizesAt node path e t >> checksAt node path e t
+
 synthesizes :: TNode -> TTerm -> TType -> Assertion
 synthesizes node e t = Note.run $ do
   t2 <- Typechecker.synthesize (env node) e
@@ -94,9 +110,13 @@ tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Typecheck
   , testCase "synthesize/check Term.pingpong1" $ synthesizesAndChecks node
       Term.pingpong1
       (forall' ["a"] $ T.v' "a")
-  -- , testCase "synthesize/check [1,2,1+1]" $ synthesizesAndChecks
-  --    (vector [E.num 1, E.num 2, E.builtin "Number.plus" `E.app` E.num 1 `E.app` E.num 1])
-  --    (T.Vector `app` T.lit T.Number)
+  , testCase "synthesize/check [1,2,1+1]" $ synthesizesAndChecks node
+      (vector [E.num 1, E.num 2, E.num 1 `Term.plus` E.num 1])
+      (T.lit T.Vector `T.app` T.lit T.Number)
+  , testCase "synthesize/checkAt [1,2,1+1]@[Index 2]" $ synthesizesAndChecksAt node
+      [E.Index 2]
+      (vector [E.num 1, E.num 2, E.num 1 `Term.plus` E.num 1])
+      (T.lit T.Number)
   ]
 
 main :: IO ()

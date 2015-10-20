@@ -279,6 +279,10 @@ introducedAt v path t = f <$> ABT.introducedAt v (map focus1 path) t where
 modify :: Ord v => (Term v -> Term v) -> Path -> Term v -> Maybe (Term v)
 modify f p t = ABT.modify f (map focus1 p) t
 
+-- | Like `modify`, but returns the original `Term` if the path is invalid
+modify' :: Ord v => (Term v -> Term v) -> Path -> Term v -> Term v
+modify' f p t = fromMaybe t (modify f p t)
+
 focus :: Ord v => Path -> Term v -> Maybe (Term v, Term v -> Term v)
 focus p t = ABT.focus (map focus1 p) t
 
