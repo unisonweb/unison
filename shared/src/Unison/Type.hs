@@ -154,6 +154,12 @@ matchUniversal _ _ = False
 lit :: Ord v => Literal -> Type v
 lit l = ABT.tm (Lit l)
 
+vector :: Ord v => Type v
+vector = lit Vector
+
+vectorOf :: Ord v => Type v -> Type v
+vectorOf t = vector `app` t
+
 ref :: Ord v => Reference -> Type v
 ref = lit . Ref
 

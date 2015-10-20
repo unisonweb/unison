@@ -429,6 +429,17 @@ annotateLetRecBindings ctx bindings body = do
   let marker = Marker (fresh (ABT.v' "let-rec-marker") ctx1)
   pure $ (marker, body, ctx1 `append` context (marker : annotations))
 
+-- | For purposes of typechecking, we translate `[x,y,z]` to the term
+-- `Vector.prepend x (Vector.prepend y (Vector.prepend z Vector.empty))`,
+-- where `Vector.prepend : forall a. a -> Vector a -> a` and
+--       `Vector.empty : forall a. Vector a`
+desugarVector :: Var v => [Term v] -> Term v
+desugarVector ts = case ts of
+  [] -> Term.builtin "Vector.empty" `Term.ann` Type.forall' ["a"] va
+  hd : tl -> (Term.builtin "Vector.prepend" `Term.ann` prependT) `Term.app` hd `Term.app` desugarVector tl
+  where prependT = Type.forall' ["a"] (Type.v' "a" `Type.arrow` (va `Type.arrow` va))
+        va = Type.vectorOf (Type.v' "a")
+
 -- | Synthesize the type of the given term, updating the context in the process.
 synthesize :: Var v => Context v -> Term v -> Either Note (Type v, Context v)
 synthesize ctx e = Note.scope ("synth: " ++ show e) $ go e where
@@ -444,17 +455,7 @@ synthesize ctx e = Note.scope ("synth: " ++ show e) $ go e where
   go (Term.App' f arg) = do -- ->E
     (ft, ctx) <- synthesize ctx f
     synthesizeApp ctx (apply ctx ft) arg
-  go (Term.Vector' v) =
-    let e = fresh (ABT.v' "e") ctx
-        ctxTl = context [Marker e, Existential e]
-        step term ctx = check ctx term (Type.existential e)
-    in Foldable.foldrM step (ctx `append` ctxTl) v >>=
-       \ctx' -> pure $
-         let
-           (ctx1, ctx2) = breakAt (Marker e) ctx'
-           -- unsolved existentials get generalized to universals
-           vt = Type.lit Type.Vector `Type.app` Type.existential e
-         in (generalizeExistentials ctx2 vt, ctx1)
+  go (Term.Vector' v) = synthesize ctx (desugarVector (Foldable.toList v))
   go (Term.Let1' v binding e) = do
     let v' = fresh v ctx
     (tbinding, ctx) <- synthesize ctx (ABT.subst (ABT.var v') v binding)

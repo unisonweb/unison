@@ -111,11 +111,11 @@ tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Typecheck
       Term.pingpong1
       (forall' ["a"] $ T.v' "a")
   , testCase "synthesize/check [1,2,1+1]" $ synthesizesAndChecks node
-      (vector [E.num 1, E.num 2, E.num 1 `Term.plus` E.num 1])
+      (E.vector [E.num 1, E.num 2, E.num 1 `Term.plus` E.num 1])
       (T.lit T.Vector `T.app` T.lit T.Number)
   , testCase "synthesize/checkAt [1,2,1+1]@[Index 2]" $ synthesizesAndChecksAt node
       [E.Index 2]
-      (vector [E.num 1, E.num 2, E.num 1 `Term.plus` E.num 1])
+      (E.vector [E.num 1, E.num 2, E.num 1 `Term.plus` E.num 1])
       (T.lit T.Number)
   ]
 
