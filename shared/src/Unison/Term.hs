@@ -113,6 +113,9 @@ var' = var . ABT.v'
 ref :: Ord v => Reference -> Term v
 ref r = ABT.tm (Ref r)
 
+builtin :: Ord v => Text -> Term v
+builtin n = ref (Reference.Builtin n)
+
 num :: Ord v => Double -> Term v
 num = lit . Number
 

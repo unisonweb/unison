@@ -57,8 +57,8 @@ synthesizesAndChecks :: TTerm -> TType -> Assertion
 synthesizesAndChecks e t =
   synthesizes e t >> checks e t
 
-tests :: TestTree
-tests = testGroup "Typechecker"
+tests :: IO TestTree
+tests = pure $ testGroup "Typechecker"
   [ testCase "alpha equivalence (type)" $ assertEqual "const"
       (forall' ["a", "b"] $ T.v' "a" --> T.v' "b" --> T.v' "a")
       (forall' ["x", "y"] $ T.v' "x" --> T.v' "y" --> T.v' "x")
@@ -110,4 +110,4 @@ env r =
     _ -> error $ "no type for reference " ++ show r
 
 main :: IO ()
-main = defaultMain tests
+main = defaultMain =<< tests

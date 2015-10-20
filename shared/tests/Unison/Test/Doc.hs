@@ -10,8 +10,8 @@ import Test.Tasty.HUnit
 fmt :: Word -> Doc String [Int] -> String
 fmt w d = formatString (Width $ fromIntegral w) d
 
-tests :: TestTree
-tests = testGroup "Doc"
+tests :: IO TestTree
+tests = pure $ testGroup "Doc"
   [ testCase "fits (1)" $ assertEqual "should fit on one line"
       "a b c"
       (fmt 10 (sep' " " ["a", "b", "c"]))
@@ -32,4 +32,4 @@ tests = testGroup "Doc"
       (fmt 9 (sep " " [embed "a", nest "  " $ sep' " " ["b", "c", "d"], embed "e"]))
   ]
 
-main = defaultMain tests
+main = defaultMain =<< tests

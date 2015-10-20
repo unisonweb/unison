@@ -12,7 +12,8 @@ mkDerivation {
     murmur-hash mtl text transformers prelude-extras vector
   ];
   testDepends = [
-    base tasty tasty-hunit tasty-quickcheck tasty-smallcheck
+    base containers tasty tasty-hunit tasty-quickcheck tasty-smallcheck
+    transformers
   ];
   homepage = "http://unisonweb.org";
   description = "The Unison programming language and platform";

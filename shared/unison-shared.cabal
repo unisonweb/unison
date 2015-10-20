@@ -94,8 +94,10 @@ test-suite tests
   other-modules:
   build-depends:
     base,
+    containers,
     tasty,
     tasty-hunit,
     tasty-smallcheck,
     tasty-quickcheck,
+    transformers,
     unison-shared
