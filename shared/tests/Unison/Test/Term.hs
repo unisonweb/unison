@@ -23,6 +23,7 @@ import qualified Unison.Metadata as Metadata
 import qualified Unison.Node as Node
 import qualified Unison.Node.MemNode as MemNode
 import qualified Unison.Note as Note
+import qualified Unison.Test.Common as Common
 
 -- term for testing
 type TTerm = Term (Symbol ())
@@ -34,26 +35,19 @@ hash e = ABT.hash e
 dhash :: DTerm -> Hash
 dhash e = ABT.hash e
 
-tests :: IO TestTree
-tests = do
-  node <- MemNode.make
-  symbols <- liftIO . Note.run $
-    Map.fromList . Node.references <$> Node.search node blank [] 1000 (Metadata.Query "") Nothing
-  let firstName (Metadata.Names (n:_)) = n
-  let lookupSymbol ref = maybe (defaultSymbol ref) (firstName . Metadata.names) (Map.lookup ref symbols)
-  let termDoc = view lookupSymbol
-  pure $ testGroup "Term"
+tests :: TestTree
+tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Term"
     [ testCase "alpha equivalence (term)" $ assertEqual "identity"
        ((lam' ["a"] $ var' "a") :: TTerm)
         (lam' ["x"] $ var' "x")
     , testCase "hash cycles" $ assertEqual "pingpong"
        (hash pingpong1)
        (hash pingpong2)
-    , testCase "infix-rendering" $
-      let t = builtin "Number.plus" `app` num 1 `app` num 1 :: DTerm
-      in assertEqual "+"
-           "1 + 1"
-           (Doc.formatText (Width 80) (termDoc t))
+    , testCase "infix-rendering" $ node >>= \(_,symbol) ->
+        let t = builtin "Number.plus" `app` num 1 `app` num 1 :: DTerm
+        in assertEqual "+"
+          "1 + 1"
+          (Doc.formatText (Width 80) (view symbol t))
     ]
 
 -- various unison terms, useful for testing

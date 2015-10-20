@@ -6,12 +6,13 @@ import Unison.Dimensions
 -- import Test.Tasty.SmallCheck as SC
 -- import Test.Tasty.QuickCheck as QC
 import Test.Tasty.HUnit
+import qualified Unison.Test.Common as Common
 
 fmt :: Word -> Doc String [Int] -> String
 fmt w d = formatString (Width $ fromIntegral w) d
 
-tests :: IO TestTree
-tests = pure $ testGroup "Doc"
+tests :: TestTree
+tests = testGroup "Doc"
   [ testCase "fits (1)" $ assertEqual "should fit on one line"
       "a b c"
       (fmt 10 (sep' " " ["a", "b", "c"]))
@@ -32,4 +33,4 @@ tests = pure $ testGroup "Doc"
       (fmt 9 (sep " " [embed "a", nest "  " $ sep' " " ["b", "c", "d"], embed "e"]))
   ]
 
-main = defaultMain =<< tests
+main = defaultMain tests

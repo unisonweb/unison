@@ -11,6 +11,7 @@ import Unison.Typechecker as Typechecker
 import Unison.Reference as R
 import Unison.Symbol (Symbol)
 import qualified Unison.Test.Term as Term
+import qualified Unison.Test.Common as Common
 
 import Test.Tasty
 -- import Test.Tasty.SmallCheck as SC
@@ -57,8 +58,8 @@ synthesizesAndChecks :: TTerm -> TType -> Assertion
 synthesizesAndChecks e t =
   synthesizes e t >> checks e t
 
-tests :: IO TestTree
-tests = pure $ testGroup "Typechecker"
+tests :: TestTree
+tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Typechecker"
   [ testCase "alpha equivalence (type)" $ assertEqual "const"
       (forall' ["a", "b"] $ T.v' "a" --> T.v' "b" --> T.v' "a")
       (forall' ["x", "y"] $ T.v' "x" --> T.v' "y" --> T.v' "x")
@@ -95,6 +96,9 @@ tests = pure $ testGroup "Typechecker"
   , testCase "synthesize/check Term.pingpong1" $ synthesizesAndChecks
       Term.pingpong1
       (forall' ["a"] $ T.v' "a")
+  -- , testCase "synthesize/check [1,2,1+1]" $ synthesizesAndChecks
+  --     (vector [E.num 1, E.num 2, E.builtin "Number.plus" `E.app` E.num 1 `E.app` E.num 1])
+  --    (T.Vector `app` T.lit T.Number)
   ]
 
 env :: Applicative f => TEnv f
@@ -110,4 +114,4 @@ env r =
     _ -> error $ "no type for reference " ++ show r
 
 main :: IO ()
-main = defaultMain =<< tests
+main = defaultMain tests
