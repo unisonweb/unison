@@ -3,24 +3,26 @@
 module Unison.Test.Typechecker where
 
 import Control.Applicative
+import Control.Monad.IO.Class
+import Data.Functor
+import Test.Tasty
+import Test.Tasty.HUnit
 import Unison.Node.MemNode ()
-import Unison.Note
+import Unison.Reference as R
+import Unison.Symbol (Symbol)
 import Unison.Term as E
 import Unison.Type as T
 import Unison.Typechecker as Typechecker
-import Unison.Reference as R
-import Unison.Symbol (Symbol)
-import qualified Unison.Test.Term as Term
+import Unison.View (DFO)
+import qualified Unison.Node as Node
+import qualified Unison.Note as Note
 import qualified Unison.Test.Common as Common
-
-import Test.Tasty
--- import Test.Tasty.SmallCheck as SC
--- import Test.Tasty.QuickCheck as QC
-import Test.Tasty.HUnit
+import qualified Unison.Test.Term as Term
 
 type TTerm = Term.TTerm
-type TType = Type (Symbol ())
-type TEnv f = T.Env f (Symbol ())
+type TType = Type (Symbol DFO)
+type TEnv f = T.Env f (Symbol DFO)
+type TNode = IO Common.TNode
 
 infixr 1 -->
 (-->) :: TType -> TType -> TType
@@ -30,33 +32,29 @@ data StrongEq = StrongEq TType
 instance Eq StrongEq where StrongEq t1 == StrongEq t2 = Typechecker.equals t1 t2
 instance Show StrongEq where show (StrongEq t) = show t
 
-synthesizes :: TTerm -> TType -> Assertion
-synthesizes e t =
-  let
-    handle r = case r of
-      Left err -> assertFailure ("synthesis failure: " ++ show err)
-      Right _ -> pure ()
-  in
-    handle $ do
-      t2 <- (run (Typechecker.synthesize env e)) :: Either Note TType
-      _ <- Typechecker.subtype t2 t
-      _ <- Typechecker.subtype t t2
-      pure ()
+env :: TNode -> TEnv IO
+env node r = do
+  (node, _) <- Note.lift node
+  Node.typeAt node (E.ref r) mempty
 
-checks :: TTerm -> TType -> Assertion
-checks e t =
-  case (run (Typechecker.check env e t)) :: Either Note TType of
-    Left err -> assertFailure ("checking failure: " ++ show err)
-    Right t2 -> pure ()
+synthesizes :: TNode -> TTerm -> TType -> Assertion
+synthesizes node e t = Note.run $ do
+  t2 <- Typechecker.synthesize (env node) e
+  _ <- Note.fromEither (Typechecker.subtype t2 t)
+  _ <- Note.fromEither (Typechecker.subtype t t2)
+  pure ()
+
+checks :: TNode -> TTerm -> TType -> Assertion
+checks node e t = void $ Note.run (Typechecker.check (env node) e t)
 
 checkSubtype :: TType -> TType -> Assertion
 checkSubtype t1 t2 = case Typechecker.subtype t1 t2 of
   Left err -> assertFailure ("subtype failure:\n" ++ show err)
   Right t2 -> pure ()
 
-synthesizesAndChecks :: TTerm -> TType -> Assertion
-synthesizesAndChecks e t =
-  synthesizes e t >> checks e t
+synthesizesAndChecks :: TNode -> TTerm -> TType -> Assertion
+synthesizesAndChecks node e t =
+  synthesizes node e t >> checks node e t
 
 tests :: TestTree
 tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Typechecker"
@@ -75,43 +73,31 @@ tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Typecheck
   , testCase "strong equivalence (type)" $ assertEqual "types were not equal"
       (StrongEq (forall' ["a", "b"] $ T.v' "a" --> T.v' "b" --> T.v' "a"))
       (StrongEq (forall' ["y", "x"] $ T.v' "x" --> T.v' "y" --> T.v' "x"))
-  , testCase "synthesize/check 42" $ synthesizesAndChecks
+  , testCase "synthesize/check 42" $ synthesizesAndChecks node
       (E.lit (E.Number 42))
       (T.lit T.Number)
-  , testCase "synthesize/check Term.id" $ synthesizesAndChecks
+  , testCase "synthesize/check Term.id" $ synthesizesAndChecks node
       Term.id
       (forall' ["b"] $ T.v' "b" --> T.v' "b")
-  , testCase "synthesize/check Term.const" $ synthesizesAndChecks
+  , testCase "synthesize/check Term.const" $ synthesizesAndChecks node
       Term.const
       (forall' ["a", "b"] $ T.v' "a" --> T.v' "b" --> T.v' "a")
-  , testCase "synthesize/check (let f = (+) in f 1)" $ synthesizesAndChecks
-      (let1' [("f", E.ref (R.Builtin "+"))] (var' "f" `E.app` E.num 1))
+  , testCase "synthesize/check (let f = (+) in f 1)" $ synthesizesAndChecks node
+      (let1' [("f", E.builtin "Number.plus")] (var' "f" `E.app` E.num 1))
       (T.lit T.Number --> T.lit T.Number)
-  , testCase "synthesize/check (let blank x = _ in blank 1)" $ synthesizesAndChecks
+  , testCase "synthesize/check (let blank x = _ in blank 1)" $ synthesizesAndChecks node
       (let1' [("blank", lam' ["x"] E.blank )] (var' "blank" `E.app` E.num 1))
       (forall' ["a"] $ T.v' "a")
-  , testCase "synthesize/check Term.fix" $ synthesizesAndChecks
+  , testCase "synthesize/check Term.fix" $ synthesizesAndChecks node
       Term.fix
       (forall' ["a"] $ (T.v' "a" --> T.v' "a") --> T.v' "a")
-  , testCase "synthesize/check Term.pingpong1" $ synthesizesAndChecks
+  , testCase "synthesize/check Term.pingpong1" $ synthesizesAndChecks node
       Term.pingpong1
       (forall' ["a"] $ T.v' "a")
   -- , testCase "synthesize/check [1,2,1+1]" $ synthesizesAndChecks
-  --     (vector [E.num 1, E.num 2, E.builtin "Number.plus" `E.app` E.num 1 `E.app` E.num 1])
+  --    (vector [E.num 1, E.num 2, E.builtin "Number.plus" `E.app` E.num 1 `E.app` E.num 1])
   --    (T.Vector `app` T.lit T.Number)
   ]
-
-env :: Applicative f => TEnv f
-env r =
-  let
-    view a = T.app (T.ref (R.Builtin "View")) a
-    numT =  T.lit T.Number
-  in pure $ case r of
-    Builtin "Color.rgba" -> numT --> numT --> numT --> numT --> T.ref (R.Builtin "Color")
-    Builtin "+" -> numT --> numT --> numT
-    Builtin "-" -> numT --> numT --> numT
-    Builtin "View.view" -> forall' ["a"] $ view (T.v' "a") --> T.v' "a" --> T.v' "a"
-    _ -> error $ "no type for reference " ++ show r
 
 main :: IO ()
 main = defaultMain tests

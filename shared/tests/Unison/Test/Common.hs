@@ -16,8 +16,10 @@ import qualified Unison.Term as Term
 import qualified Unison.View as View
 
 type V = Symbol View.DFO
+-- A Node for testing
+type TNode = (Node IO V Reference (Type V) (Term V), Reference -> V)
 
-node :: IO (Node IO V Reference (Type V) (Term V), Reference -> V)
+node :: IO TNode
 node = do
   node <- MemNode.make
   symbols <- liftIO . Note.run $

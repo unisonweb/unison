@@ -26,14 +26,10 @@ import qualified Unison.Note as Note
 import qualified Unison.Test.Common as Common
 
 -- term for testing
-type TTerm = Term (Symbol ())
-type DTerm = Term (Symbol DFO)
+type TTerm = Term (Symbol DFO)
 
 hash :: TTerm -> Hash
 hash e = ABT.hash e
-
-dhash :: DTerm -> Hash
-dhash e = ABT.hash e
 
 tests :: TestTree
 tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Term"
@@ -44,7 +40,7 @@ tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Term"
        (hash pingpong1)
        (hash pingpong2)
     , testCase "infix-rendering" $ node >>= \(_,symbol) ->
-        let t = builtin "Number.plus" `app` num 1 `app` num 1 :: DTerm
+        let t = num 1 `plus` num 1
         in assertEqual "+"
           "1 + 1"
           (Doc.formatText (Width 80) (view symbol t))
@@ -65,10 +61,10 @@ zero :: TTerm
 zero = num 0
 
 plus :: TTerm -> TTerm -> TTerm
-plus a b = ref (R.Builtin "+") `app` a `app` b
+plus a b = builtin "Number.plus" `app` a `app` b
 
 minus :: TTerm -> TTerm -> TTerm
-minus a b = ref (R.Builtin "-") `app` a `app` b
+minus a b = builtin "Number.minus" `app` a `app` b
 
 fix :: TTerm
 fix = letRec'
