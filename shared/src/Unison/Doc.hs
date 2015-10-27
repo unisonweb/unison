@@ -589,6 +589,13 @@ debugDoc (p :< l) = show p : case l of
   Group r -> debugDoc r
   _ -> []
 
+leafPaths :: Path p => Doc e p -> [p]
+leafPaths (p :< d) = map (Path.extend p) $ case d of
+  Append a b -> leafPaths a ++ leafPaths b
+  Nest _ r -> leafPaths r
+  Group r -> leafPaths r
+  _ -> [Path.root]
+
 -- various instances
 
 instance Bifunctor L where

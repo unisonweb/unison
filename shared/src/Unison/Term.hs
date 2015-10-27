@@ -368,7 +368,7 @@ view ref t = go no View.low t where
       let
         Symbol.Symbol _ name view = op fn
         (taken, remaining) = splitAt (View.arity view) args
-        fmt (child,path) = (\p -> D.sub' path (go (fn ==) p child), path)
+        fmt (child,path) = (\p -> go (fn ==) p child, path)
         applied = fromMaybe unsaturated (View.instantiate view fnP name (map fmt taken))
         unsaturated = D.sub' fnP $ go no View.high fn
       in

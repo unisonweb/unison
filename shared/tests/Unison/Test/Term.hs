@@ -39,11 +39,18 @@ tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Term"
     , testCase "hash cycles" $ assertEqual "pingpong"
        (hash pingpong1)
        (hash pingpong2)
-    , testCase "infix-rendering" $ node >>= \(_,symbol) ->
+    , testCase "infix-rendering (1)" $ node >>= \(_,symbol) ->
         let t = num 1 `plus` num 1
         in assertEqual "+"
           "1 + 1"
           (Doc.formatText (Width 80) (view symbol t))
+    , testCase "infix-rendering (2)" $ node >>= \(_,symbol) ->
+        do
+          t <- pure $ num 1 `plus` num 1
+          let d = view symbol t
+          assertEqual "path sanity check"
+             [Fn,Arg]
+             (head $ Doc.leafPaths d)
     ]
 
 -- various unison terms, useful for testing
