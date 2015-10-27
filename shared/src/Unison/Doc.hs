@@ -486,7 +486,8 @@ navigate dir by box p = do
     Dimensions.within (X $ x+w, Y $ y+h) super
   origin = region box p
   (X x0, Y y0) = Dimensions.centroid origin
-  stack = reverse (contains' box origin)
+  sameRegion ((_,r) :< _) = r == origin
+  stack = (dropWhile sameRegion . reverse . contains' box) origin
   op Horizontal = Vertical
   op Vertical = Horizontal
   nearest = foldl' max' Nothing
@@ -500,20 +501,22 @@ navigate dir by box p = do
   nav :: (Eq p, Path p)
       => Direction -> (Int -> Int) -> Region -> [Box e (p, Region)] -> Maybe (Box e (p, Region))
   nav _ _ _ [] = trace "navigation failed" Nothing
-  nav dir by r (((p,r') :< box) : tl) = case box of
+  nav dir by r (((_,r') :< box) : tl) = case box of
     BEmpty -> nav dir by r' tl
     BEmbed _ -> nav dir by r' tl
-    --BFlow _ [(pi,_) :< box] ->
-    --  -- singleton flows are unwrapped, since `flow dir [x] == x`
-    --  nav dir by r (((Path.extend pi p, r') :< box) : tl)
     BFlow dir' _ | dir /= dir' -> nav dir by r' tl
-    BFlow _ bs -> advance =<< elemIndex r (map (snd . root) bs) where
-      advance i = case by i of
-        j | j >= 0 && j < length bs -> -- we can advance at this level
-          -- skip over unselectable stuff
-          if not (any (/= Path.root) (map fst . preorder $ bs !! j)) then advance j
-          else Just (bs !! j)
-        _ -> nav dir by r' tl
+    BFlow _ bs -> case elemIndex r (map (snd . root) bs) of
+      Nothing -> error $ "region " ++ show r ++ " not found in parent regions: "
+                      ++ show (map (snd.root) bs)
+      Just i ->
+        let
+          advance i = case by i of
+            j | j >= 0 && j < length bs -> -- we can advance at this level
+              -- skip over unselectable stuff
+              if not (any (/= Path.root) (map fst . preorder $ bs !! j)) then advance j
+              else Just (bs !! j)
+            _ -> nav dir by r' tl
+        in advance i
 
   segment :: Direction -> Box e p -> [Box e p]
   segment dir b@(_ :< box) = case box of

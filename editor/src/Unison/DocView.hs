@@ -4,6 +4,7 @@
 module Unison.DocView where
 
 import Control.Monad.IO.Class
+import Control.Comonad.Cofree (Cofree(..), unwrap) -- (:<)
 import Data.List (intercalate)
 import Data.Maybe (fromMaybe)
 import Data.Semigroup ((<>))
@@ -24,6 +25,7 @@ import qualified Unison.Dom as Dom
 import qualified Unison.HTML as HTML
 import qualified Unison.UI as UI
 import qualified Unison.Signals as S
+import qualified Debug.Trace as Trace
 
 widget :: (Show p, Path p, Eq p, MonadWidget t m)
        => Width -> Doc Text p -> m (El t, (Width,Height), Dynamic t p)
@@ -70,7 +72,7 @@ widget available d =
       const (Doc.up b) <$> (traceEvent "up" $ ffilter (== 107) (S.keypress e)), -- k
       const (Doc.down b) <$> (traceEvent "down" $ ffilter (== 106) (S.keypress e)), -- j
       const (Doc.left b) <$> (traceEvent "left" $ ffilter (== 104) (S.keypress e)), -- h
-      const (Doc.right b) <$> (traceEvent "right" $ ffilter (== 108) (S.keypress e)), -- r
+      const (Doc.right b) <$> (traceEvent "right" $ ffilter (== 108) (S.keypress e)), -- l
       const (Doc.expand b) <$> (traceEvent "expand" $ ffilter (== 117) (S.keypress e)), -- u
       const (Doc.contract b) <$> (traceEvent "contract" $ ffilter (== 100) (S.keypress e)), -- d
       const (Doc.leftmost b) <$> (traceEvent "leftmost" $ ffilter (== 103) (S.keypress e)), -- g
@@ -79,11 +81,18 @@ widget available d =
       (\pt _ -> Doc.at b pt) <$> mouse ]
     -- if we are getting mouse events, we should have focus
     performEvent_ (liftIO . const (Element.elementFocus (_el_element e)) <$> mouse)
-    path <- Dynamic.traceDyn "path" <$> Dynamic.foldDyn ($) (Doc.at b (X 0, Y 0)) nav
+    path <-
+      let
+        debug p = Trace.trace
+          ("contains': "++ (show $ wrangle (Doc.contains' b (Doc.region b p))))
+          p
+        wrangle parents = [ (p,r) | ((p,r) :< _) <- parents ]
+      in
+        mapDyn debug =<< Dynamic.foldDyn ($) (Doc.at b (X 0, Y 0)) nav
     region <- Dynamic.traceDyn "region" <$> mapDyn (Doc.region b) path
-    sel <- mapDyn (selectionLayer h) region
+    sel <- (mapDyn (selectionLayer h) region)
     _ <- widgetHold (pure ()) (Dynamic.updated sel)
-    pure $ (e, (w,h), path)
+    pure (e, (w,h), path)
 
 selectionLayer :: MonadWidget t m => Height -> (X,Y,Width,Height) -> m ()
 selectionLayer (Height h0) (X x, Y y, Width w, Height h) =
