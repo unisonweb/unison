@@ -23,8 +23,6 @@ import qualified Unison.Note as Note
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 
-builtin n = ref (Reference.Builtin n)
-
 term = builtin "Vector.concatenate" `app`
          (vector (map num [0..5])) `app`
          (vector ([builtin "Number.plus" `app` num 1 `app` num 1, num 2, num 9]))

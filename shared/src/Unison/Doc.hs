@@ -334,11 +334,14 @@ tokens newline l = finish (execState (go l) ([],[],True))
 -- | Convert a `Layout` to a `Box`.
 box :: Path p => Layout e p -> Box e p
 box l = go l [] [] [] where
-  line hbuf = Path.root :< BFlow Horizontal (reverse hbuf)
+  flow _ p [b] = sub' p b
+  flow _ p [] = p :< BEmpty
+  flow dir p bs = p :< BFlow dir bs
+  line hbuf = flow Horizontal Path.root (reverse hbuf)
   advance hbuf vbuf todo = go (Path.root :< LEmpty) hbuf vbuf todo
   go (p :< l) hbuf vbuf todo = case l of
     LEmpty -> case todo of
-      [] -> Path.root :< BFlow Vertical (reverse $ line hbuf : vbuf)
+      [] -> flow Vertical Path.root (reverse $ line hbuf : vbuf)
       hd:todo -> go hd hbuf vbuf todo
     LEmbed e -> advance ((p :< BEmbed e) : hbuf) vbuf todo
     LGroup r@(_ :< LEmbed _) -> go (sub' p r) hbuf vbuf todo
@@ -429,8 +432,10 @@ hits hit box (X x,Y y,Width w,Height h) = foldr Path.extend Path.root $ go box
   where
   pt1 = (X x, Y y)
   pt2 = (X (x+w), Y (y+h))
-  go ((p,region) :< box) | hit pt1 pt2 region = p : (toList box >>= go)
-                         | otherwise          = []
+  couldContain ((_,region) :< _) = hit pt1 pt2 region
+  go ((p,region) :< box)
+    | hit pt1 pt2 region = p : ((take 1 . filter couldContain . toList) box >>= go)
+    | otherwise          = []
 
 contains' :: (Path p, Eq p)
           => Box e (p, Region) -> Region -> [Box e (p, Region)]
@@ -439,8 +444,10 @@ contains' box (X x,Y y,Width w,Height h) = go box
   pt1 = (X x, Y y)
   pt2 = (X (x+w), Y (y+h))
   hit p1 p2 region = Dimensions.within p1 region && Dimensions.within p2 region
-  go b@((_,region) :< box) | hit pt1 pt2 region = b : (toList box >>= go)
-                           | otherwise          = []
+  couldContain ((_,region) :< _) = hit pt1 pt2 region
+  go b@((_,region) :< box)
+    | hit pt1 pt2 region = b : ((take 1 . filter couldContain . toList) box >>= go)
+    | otherwise          = []
 
 
 -- | Compute the longest path whose bounding region fully contains
@@ -493,9 +500,12 @@ navigate dir by box p = do
   nav :: (Eq p, Path p)
       => Direction -> (Int -> Int) -> Region -> [Box e (p, Region)] -> Maybe (Box e (p, Region))
   nav _ _ _ [] = trace "navigation failed" Nothing
-  nav dir by r (((_,r') :< box) : tl) = case box of
+  nav dir by r (((p,r') :< box) : tl) = case box of
     BEmpty -> nav dir by r' tl
     BEmbed _ -> nav dir by r' tl
+    --BFlow _ [(pi,_) :< box] ->
+    --  -- singleton flows are unwrapped, since `flow dir [x] == x`
+    --  nav dir by r (((Path.extend pi p, r') :< box) : tl)
     BFlow dir' _ | dir /= dir' -> nav dir by r' tl
     BFlow _ bs -> advance =<< elemIndex r (map (snd . root) bs) where
       advance i = case by i of
@@ -536,7 +546,11 @@ rightmost box p = case right' box p of
   Nothing -> p
 
 expand :: (Eq p, Path p) => Box e (p, Region) -> p -> p
-expand box p = contains box (region box (Path.parent p))
+expand box p = case contains box (region box p') of
+  p2 | p' /= Path.root && p2 == Path.root -> expand box p' -- invalid parent path, keep going
+     | otherwise -> p2
+  where
+  p' = Path.parent p
 
 contract :: (Eq p, Path p) => Box e (p, Region) -> p -> p
 contract box p =
