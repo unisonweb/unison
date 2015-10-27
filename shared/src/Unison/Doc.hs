@@ -561,7 +561,7 @@ contract box p =
     if null cs then p
     else case [ p | (p, _) <- drop 1 (preorder (last cs)), p /= Path.root ] of
       [] -> p
-      p : _ -> foldr Path.extend p (map (fst . root) (init cs))
+      p : _ -> foldr Path.extend p (map (fst . root) cs)
 
 -- | Preorder traversal of the annotations of a `Cofree`.
 preorder :: Foldable f => Cofree f p -> [p]
