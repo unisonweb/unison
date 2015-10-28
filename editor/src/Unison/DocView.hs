@@ -35,11 +35,13 @@ widget available d =
     width (_, (w,_)) = w
     box = Doc.bounds snd . Doc.box . Doc.layout width available <$> Doc.etraverse layout d
     layout txt = do
-      node <- runDom (Dom.el "div" [("class", "docwidget")] [Dom.raw (leaf txt)])
+      -- node <- runDom (Dom.el "div" [("class", "docwidget")] [Dom.raw (leaf txt)])
       -- todo, this method of computing preferred dimensions seems pretty slow,
       -- try just using canvas measureText function, see
       -- http://stackoverflow.com/questions/118241/calculate-text-width-with-javascript/21015393#21015393
-      (w,h) <- liftIO $ UI.preferredDimensions (Element.castToElement node)
+      -- (w,h) <- liftIO $ UI.preferredDimensions (Element.castToElement node)
+      -- NB: precomputed 10px per character width, 20px per line height
+      (w,h) <- pure $ (Width (fromIntegral (Text.length txt) * 10), Height 20)
       pure (txt, (w,h))
     interpret b = Dom.el "div" [("class","docwidget")] [dom]
       where
