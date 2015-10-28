@@ -4,7 +4,7 @@
 module Unison.DocView where
 
 import Control.Monad.IO.Class
-import Control.Comonad.Cofree (Cofree(..), unwrap) -- (:<)
+import Control.Comonad.Cofree (Cofree(..)) -- (:<)
 import Data.List (intercalate)
 import Data.Maybe (fromMaybe)
 import Data.Semigroup ((<>))
@@ -90,21 +90,21 @@ widget available d =
       in
         mapDyn debug =<< Dynamic.foldDyn ($) (Doc.at b (X 0, Y 0)) nav
     region <- Dynamic.traceDyn "region" <$> mapDyn (Doc.region b) path
-    sel <- (mapDyn (selectionLayer h) region)
+    sel <- (mapDyn selectionLayer region)
     _ <- widgetHold (pure ()) (Dynamic.updated sel)
     pure (e, (w,h), path)
 
-selectionLayer :: MonadWidget t m => Height -> (X,Y,Width,Height) -> m ()
-selectionLayer (Height h0) (X x, Y y, Width w, Height h) =
+selectionLayer :: MonadWidget t m => (X,Y,Width,Height) -> m ()
+selectionLayer (X x, Y y, Width w, Height h) =
   let
     attrs = Map.fromList [("style",style), ("class", "selection-layer")]
     style = intercalate ";"
       [ "pointer-events:none"
-      , "position:relative"
-      , "width:" ++ show (w+6) ++ "px"
+      , "position:absolute"
+      , "width:" ++ show w ++ "px"
       , "height:" ++ show h ++ "px"
-      , "left:" ++ show (((fromIntegral x :: Int) - 4) `max` 0) ++ "px"
-      , "top:" ++ show (fromIntegral y - fromIntegral h0 - 1 :: Int) ++ "px" ]
+      , "left:" ++ show x ++ "px"
+      , "top:" ++ show y ++ "px" ]
   in do
     elAttr "div" attrs $ pure ()
     pure ()
