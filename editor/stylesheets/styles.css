@@ -18,13 +18,9 @@ blockquote, q { quotes: none; }
 blockquote:before, blockquote:after, q:before, q:after { content: ''; content: none; }
 table { border-collapse: collapse; border-spacing: 0; }
 
-/*
-Note: safari vertical flexbox appears fubar'd; investigate.
-*/
-
-body { line-height: 1.25; }
-
 /* rest of stylesheet below */
+
+body { line-height: 1.3; }
 
 .docwidget {
   cursor: default;
@@ -72,6 +68,7 @@ div:focus {
   display: -webkit-flex;
   display: flex;
   flex-direction: row;
+  -webkit-flex-direction: row; 
   flex-wrap: nowrap;
   justify-content: flex-start;
   align-items: center;
@@ -88,6 +85,7 @@ div:focus {
   display: -webkit-flex;
   display: flex;
   flex-direction: column;
+  -webkit-flex-direction: column; 
   flex-wrap: nowrap;
   justify-content: flex-start;
   align-items: flex-start;
