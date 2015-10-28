@@ -1,16 +1,17 @@
 {-# LANGUAGE CPP, ForeignFunctionInterface, JavaScriptFFI, OverloadedStrings #-}
 
-module Unison.UI (mouseMove, mouseMove', preferredDimensions) where
+module Unison.UI (mouseMove, mouseMove', preferredDimensions, windowKeydown, windowKeyup) where
 
 import Control.Monad.IO.Class
 import Data.Text (Text)
-import GHCJS.DOM.Types (Element)
+import GHCJS.DOM.Types (Element,DOMWindow)
 import GHCJS.Marshal
 import GHCJS.Types (JSRef)
 import Reflex
 import Reflex.Dom
 import Unison.Dimensions (X(..), Y(..), Width(..), Height(..))
 import qualified GHCJS.DOM as DOM
+import qualified GHCJS.DOM.DOMWindow as DOMWindow
 import qualified GHCJS.DOM.Document as Document
 import qualified GHCJS.DOM.Element as Element
 import qualified GHCJS.DOM.EventM as EventM
@@ -30,6 +31,21 @@ mouseMove e = case Element.toElement e of
          e
          Element.elementOnmousemove
          (liftIO . mouseLocal e =<< EventM.event)
+
+askWindow :: (MonadIO m, HasDocument m) => m DOMWindow
+askWindow =  do
+  (Just window) <- askDocument >>= liftIO . Document.documentGetDefaultView
+  return window
+
+windowKeydown :: MonadWidget t m => m (Event t Int)
+windowKeydown = do
+  w <- askWindow
+  wrapDomEvent w DOMWindow.domWindowOnkeydown (liftIO . UIEvent.uiEventGetKeyCode =<< EventM.event)
+
+windowKeyup :: MonadWidget t m => m (Event t Int)
+windowKeyup = do
+  w <- askWindow
+  wrapDomEvent w DOMWindow.domWindowOnkeyup (liftIO . UIEvent.uiEventGetKeyCode =<< EventM.event)
 
 mouseMove' :: MonadWidget t m => El t -> m (Event t (X,Y))
 mouseMove' = mouseMove . _el_element

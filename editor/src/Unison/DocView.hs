@@ -28,8 +28,8 @@ import qualified Unison.Signals as S
 import qualified Debug.Trace as Trace
 
 widget :: (Show p, Path p, Eq p, MonadWidget t m)
-       => Width -> Doc Text p -> m (El t, (Width,Height), Dynamic t p)
-widget available d =
+       => Event t Int -> Width -> Doc Text p -> m (El t, (Width,Height), Dynamic t p)
+widget keydown available d =
   let
     leaf txt = Text.replace " " "&nbsp;" txt
     width (_, (w,_)) = w
@@ -67,22 +67,20 @@ widget available d =
     (e,_) <- elAttr' "div" attrs $ unsafePlaceElement (Dom.unsafeAsHTMLElement node)
     mouse <- UI.mouseMove' e
     nav <- pure $ mergeWith (.) [
-      const (Doc.up b) <$> (traceEvent "up" $ S.upKeypress e),
-      const (Doc.down b) <$> (traceEvent "down" $ S.downKeypress e),
-      const (Doc.left b) <$> (traceEvent "left" $ S.leftKeypress e),
-      const (Doc.right b) <$> (traceEvent "right" $ S.rightKeypress e),
-      const (Doc.up b) <$> (traceEvent "up" $ ffilter (== 107) (S.keypress e)), -- k
-      const (Doc.down b) <$> (traceEvent "down" $ ffilter (== 106) (S.keypress e)), -- j
-      const (Doc.left b) <$> (traceEvent "left" $ ffilter (== 104) (S.keypress e)), -- h
-      const (Doc.right b) <$> (traceEvent "right" $ ffilter (== 108) (S.keypress e)), -- l
-      const (Doc.expand b) <$> (traceEvent "expand" $ ffilter (== 117) (S.keypress e)), -- u
-      const (Doc.contract b) <$> (traceEvent "contract" $ ffilter (== 100) (S.keypress e)), -- d
-      const (Doc.leftmost b) <$> (traceEvent "leftmost" $ ffilter (== 103) (S.keypress e)), -- g
-      const (Doc.rightmost b) <$> (traceEvent "rightmost" $ ffilter (== 59) (S.keypress e)), -- ;
-      const id <$> traceEvent "keypress" (S.keypress e),
+      const (Doc.up b) <$> (traceEvent "up" $ ffilter (== 38) keydown),
+      const (Doc.down b) <$> (traceEvent "down" $ ffilter (== 40) keydown),
+      const (Doc.left b) <$> (traceEvent "left" $ ffilter (== 37) keydown),
+      const (Doc.right b) <$> (traceEvent "right" $ ffilter (== 39) keydown),
+      const (Doc.up b) <$> (traceEvent "up" $ ffilter (== 75) keydown), -- k
+      const (Doc.down b) <$> (traceEvent "down" $ ffilter (== 74) keydown), -- j
+      const (Doc.left b) <$> (traceEvent "left" $ ffilter (== 72) keydown), -- h
+      const (Doc.right b) <$> (traceEvent "right" $ ffilter (== 76) keydown), -- l
+      const (Doc.expand b) <$> (traceEvent "expand" $ ffilter (== 85) keydown), -- u
+      const (Doc.contract b) <$> (traceEvent "contract" $ ffilter (== 68) keydown), -- d
+      const (Doc.leftmost b) <$> (traceEvent "leftmost" $ ffilter (== 71) keydown), -- g
+      const (Doc.rightmost b) <$> (traceEvent "rightmost" $ ffilter (== 186) keydown), -- ;
+      const id <$> traceEvent "keypress" keydown,
       (\pt _ -> Doc.at b pt) <$> mouse ]
-    -- if we are getting mouse events, we should have focus
-    performEvent_ (liftIO . const (Element.elementFocus (_el_element e)) <$> mouse)
     path <-
       let
         debug p = Trace.trace

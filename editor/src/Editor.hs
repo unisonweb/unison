@@ -11,17 +11,18 @@ import Unison.Dimensions (Width(..),X(..),Y(..))
 import Unison.Term
 import Unison.Type (defaultSymbol)
 import Unison.UI (mouseMove')
-import qualified Data.Set as Set
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Reflex.Dynamic as Dynamic
-import qualified Unison.Reference as Reference
 import qualified Unison.DocView as DocView
 import qualified Unison.Metadata as Metadata
 import qualified Unison.Node as Node
 import qualified Unison.Node.MemNode as MemNode
 import qualified Unison.Note as Note
+import qualified Unison.Reference as Reference
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
+import qualified Unison.UI as UI
 
 term = builtin "Vector.concatenate" `app`
          (vector (map num [11..15])) `app`
@@ -33,10 +34,11 @@ main :: IO ()
 main = mainWidget $ do
   node <- liftIO MemNode.make
   symbols <- (liftIO . Note.run . Node.metadatas node . Set.toList . Term.dependencies') term
+  keydown <- UI.windowKeydown
   let firstName (Metadata.Names (n:_)) = n
   let lookupSymbol ref = maybe (defaultSymbol ref) (firstName . Metadata.names) (Map.lookup ref symbols)
   let termDoc = view lookupSymbol term
-  (e, dims, path) <- elAttr "div" (Map.fromList [("class","root")]) $ DocView.widget (Width 300) termDoc
+  (e, dims, path) <- elAttr "div" (Map.fromList [("class","root")]) $ DocView.widget keydown (Width 300) termDoc
   highlightedType <- holdDyn (Type.v' "..") =<< dyn =<< mapDyn (liftIO . Note.run . Node.typeAt node term) path
   el "div" $ do
      text "type: "
