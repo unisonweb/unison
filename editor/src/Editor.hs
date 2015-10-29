@@ -38,7 +38,7 @@ main = mainWidget $ do
   let firstName (Metadata.Names (n:_)) = n
   let lookupSymbol ref = maybe (defaultSymbol ref) (firstName . Metadata.names) (Map.lookup ref symbols)
   let termDoc = view lookupSymbol term
-  (e, dims, path) <- elAttr "div" (Map.fromList [("class","root")]) $ DocView.widget keydown (Width 300) termDoc
+  (e, dims, path) <- elClass "div" "root" $ DocView.widget keydown (Width 300) termDoc
   highlightedType <- holdDyn (Type.v' "..") =<< dyn =<< mapDyn (liftIO . Note.run . Node.typeAt node term) path
   el "div" $ do
      text "type: "

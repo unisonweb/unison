@@ -47,12 +47,14 @@ library
   exposed-modules:
     Unison.DocView
     Unison.Dom
+    Unison.Explorer
     Unison.HTML
     Unison.UI
 
   build-depends:
     base,
     containers,
+    data-default,
     free,
     ghcjs-dom,
     ghcjs-base,
@@ -84,6 +86,7 @@ executable editor
   build-depends:
     base,
     containers,
+    data-default,
     free,
     ghcjs-dom,
     ghcjs-base,

@@ -1,5 +1,6 @@
-{ mkDerivation, base, free, ghcjs-dom, ghcjs-base, mtl, reflex, reflex-dom, 
-  semigroups, stdenv, text, transformers, unison-shared }:
+{ mkDerivation, base, containers, data-default, free, ghcjs-dom, 
+  ghcjs-base, mtl, reflex, reflex-dom, semigroups, stdenv, text, 
+  transformers, unison-shared }:
 mkDerivation {
   pname = "unison-editor";
   version = "0.1";

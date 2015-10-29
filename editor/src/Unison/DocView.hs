@@ -67,10 +67,10 @@ widget keydown available d =
     (e,_) <- elAttr' "div" attrs $ unsafePlaceElement (Dom.unsafeAsHTMLElement node)
     mouse <- UI.mouseMove' e
     nav <- pure $ mergeWith (.) [
-      const (Doc.up b) <$> (traceEvent "up" $ ffilter (== 38) keydown),
-      const (Doc.down b) <$> (traceEvent "down" $ ffilter (== 40) keydown),
-      const (Doc.left b) <$> (traceEvent "left" $ ffilter (== 37) keydown),
-      const (Doc.right b) <$> (traceEvent "right" $ ffilter (== 39) keydown),
+      const (Doc.up b) <$> (traceEvent "up" $ S.upArrow keydown),
+      const (Doc.down b) <$> (traceEvent "down" $ S.downArrow keydown),
+      const (Doc.left b) <$> (traceEvent "left" $ S.leftArrow keydown),
+      const (Doc.right b) <$> (traceEvent "right" $ S.rightArrow keydown),
       const (Doc.up b) <$> (traceEvent "up" $ ffilter (== 75) keydown), -- k
       const (Doc.down b) <$> (traceEvent "down" $ ffilter (== 74) keydown), -- j
       const (Doc.left b) <$> (traceEvent "left" $ ffilter (== 72) keydown), -- h
