@@ -63,8 +63,7 @@ widget keydown available d =
     liftIO . putStrLn $ Doc.debugBoxp b
     let (_, (_,_,w,h)) = Doc.root b
     node <- runDom $ interpret (Doc.flatten b)
-    let attrs = Map.fromList [("tabindex","0")]
-    (e,_) <- elAttr' "div" attrs $ unsafePlaceElement (Dom.unsafeAsHTMLElement node)
+    (e,_) <- el' "div" $ unsafePlaceElement (Dom.unsafeAsHTMLElement node)
     mouse <- UI.mouseMove' e
     nav <- pure $ mergeWith (.) [
       const (Doc.up b) <$> (traceEvent "up" $ S.upArrow keydown),
@@ -79,7 +78,6 @@ widget keydown available d =
       const (Doc.contract b) <$> (traceEvent "contract" $ ffilter (== 68) keydown), -- d
       const (Doc.leftmost b) <$> (traceEvent "leftmost" $ ffilter (== 71) keydown), -- g
       const (Doc.rightmost b) <$> (traceEvent "rightmost" $ ffilter (== 186) keydown), -- ;
-      const id <$> traceEvent "keypress" keydown,
       (\pt _ -> Doc.at b pt) <$> mouse ]
     path <-
       let
@@ -90,7 +88,7 @@ widget keydown available d =
       in
         mapDyn debug =<< Dynamic.foldDyn ($) (Doc.at b (X 0, Y 0)) nav
     region <- Dynamic.traceDyn "region" <$> mapDyn (Doc.region b) path
-    sel <- (mapDyn selectionLayer region)
+    sel <- mapDyn selectionLayer region
     _ <- widgetHold (pure ()) (Dynamic.updated sel)
     pure (e, (w,h), path)
 
