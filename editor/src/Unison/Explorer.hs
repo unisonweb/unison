@@ -13,6 +13,15 @@ import Reflex.Dom
 import Unison.Dimensions (X(..),Y(..))
 import qualified Unison.Signals as Signals
 
+modal :: (MonadWidget t m, Reflex t) => Dynamic t Bool -> a -> m a -> m (Dynamic t a)
+modal switch off on = do
+  initial <- sample (current switch)
+  let choose b = if b then on else pure off
+  widgetHold (choose initial) (fmap choose (updated switch))
+
+joinModal :: (MonadWidget t m, Reflex t) => Dynamic t Bool -> a -> m (Dynamic t a) -> m (Dynamic t a)
+joinModal switch off on = holdDyn off never >>= \off -> joinDyn <$> modal switch off on
+
 explorer :: forall t m k s a . (Reflex t, MonadWidget t m, Eq k, Semigroup s)
          => Event t Int
          -> (s -> String -> Action m s k a)
