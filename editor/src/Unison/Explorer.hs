@@ -15,17 +15,17 @@ import qualified Unison.Signals as Signals
 
 explorer :: forall t m k s a . (Reflex t, MonadWidget t m, Eq k, Semigroup s)
          => Event t Int
-         -> (s -> String -> Action (m s) (k, Bool, m a))
+         -> (s -> String -> Action m s k a)
          -> Event t (m ()) -- loaded asynchronously on open of explorer
          -> Dynamic t s
-         -> m (Dynamic t (Maybe a, s))
+         -> m (Dynamic t s, Event t (Maybe a))
 explorer keydown processQuery topContent s0 = do
   let extractReq a = case a of Request r _ -> Just r; _ -> Nothing
   let validAttrs = "class" =: "explorer valid"
   let invalidAttrs = "class" =: "explorer invalid"
   rec
     attrs <- holdDyn ("class" =: "explorer") (fmap (\l -> if null l then invalidAttrs else validAttrs) valids)
-    (valids, result) <- elDynAttr "div" attrs $ mdo
+    (valids, updatedS, closings) <- elDynAttr "div" attrs $ mdo
       searchbox <- textInput def
       elClass "div" "top-separator" $ pure ()
       _ <- elClass "div" "top-content" $ widgetHold (pure ()) topContent -- todo: perhaps a spinner
@@ -53,7 +53,7 @@ explorer keydown processQuery topContent s0 = do
             let go ks k = fromMaybe 0 (k >>= \k -> elemIndex k ks)
             in pushAlways (\ks -> pure (\_ -> go ks <$> sample currentKey)) (updated keys)
           foldDynM ($) 0 $ mergeWith (\f g x -> g x >>= f) [mouse, up, down, newResults]
-      (selectable, mouseEvent) <- elClass "div" "results" $ do
+      (selectableRegion, (selectable, mouseEvent)) <- elAttr' "div" ("class" =: "results") $ do
         vi <- combineDyn (,) valids selectionIndex
         let c i j = "class" =: (if i == j then "result highlight" else "result")
         let vw (kmas,ind) = traverse (\(ma,i) -> elAttr' "div" (c i ind) ma) (map snd kmas `zip` [(0::Int)..])
@@ -74,16 +74,19 @@ explorer keydown processQuery topContent s0 = do
           view l = elClass "div" "invalid-results" $ void $ traverse (elClass "div" "invalid-results-item") l
         in combineDyn f valids invalids
       selection <- combineDyn safeIndex selectionIndex selectable
-      d <- combineDyn (,) selection s'
-      pure (updated valids, d)
-  pure result
+      keyClosings <- pure $
+        let f a = case a of Cancel -> Just Nothing; Accept a -> Just (Just a); _ -> Nothing
+        in fmapMaybe f actions
+      let mouseClosings = pushAlways (\_ -> sample (current selection)) $ domEvent Click selectableRegion
+      pure (updated valids, s', leftmost [keyClosings, mouseClosings])
+  pure (updatedS, closings)
 
 safeIndex :: Int -> [a] -> Maybe a
 safeIndex i l = if i < length l then Just (l !! i) else Nothing
 
-data Action r a
-  = Request r [a]
-  | Results [a]
+data Action m s k a
+  = Request (m s) [(k, Bool, m a)]
+  | Results [(k, Bool, m a)]
   | Cancel
   | Accept a
 

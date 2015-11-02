@@ -1,8 +1,12 @@
 module Unison.Signals where
 
+import Control.Monad.Fix
 import Data.These
 import Reflex
 import Reflex.Dom
+
+toggle :: (MonadFix m, MonadHold t m, Reflex t) => Bool -> Event t a -> m (Dynamic t Bool)
+toggle initial e = foldDyn (\b _ -> not b) initial (initial <$ e)
 
 mergeThese :: Reflex t => Event t a -> Event t b -> Event t (These a b)
 mergeThese a b = mergeWith g [fmap This a, fmap That b] where
