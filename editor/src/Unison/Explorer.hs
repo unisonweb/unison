@@ -71,7 +71,7 @@ explorer keydown processQuery topContent s0 = do
         els <- mapDyn (map fst) as
         elHovers <- pure $
           let f :: [El t] -> [Event t Int]
-              f els = map (\(el,i) -> i <$ domEvent Mouseover el) (els `zip` [(0::Int)..])
+              f els = map (\(el,i) -> i <$ domEvent Mousemove el) (els `zip` [(0::Int)..])
           in f
         e <- switchPromptly never $ leftmost . elHovers <$> updated els
         pure (selectable, e)
