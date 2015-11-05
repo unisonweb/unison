@@ -40,9 +40,9 @@ explorer keydown processQuery topContent s0 = do
       _ <- elClass "div" "top-content" $ widgetHold (pure ()) topContent -- todo: perhaps a spinner
       s <- sample (current s0)
       s' <- foldDyn (<>) s (updated responses)
-      actions <- pure $
-        pushAlways (\txt -> processQuery <$> sample (current s') <*> pure txt)
-                   (updated $ _textInput_value searchbox)
+      actions <- do
+        t <- Signals.prepend "" (updated $ _textInput_value searchbox)
+        pure $ pushAlways (\txt -> processQuery <$> sample (current s') <*> pure txt) t
       responses <- widgetHold (pure s) $ fmapMaybe extractReq actions
       list <- holdDyn [] $
         let f a = case a of Request _ l -> Just l; Results l -> Just l; _ -> Nothing
@@ -53,7 +53,7 @@ explorer keydown processQuery topContent s0 = do
       rec
         selectionIndex <- do
           let mouse = fmap (\i _ -> pure i) mouseEvent
-          let nav f i l = if f i < length l && f i > 0 then f i else i
+          let nav f i l = if f i < length l && f i >= 0 then f i else i
           let up = fmap (\_ i -> nav (-1+) i <$> sample (current list)) $ Signals.upArrow keydown
           let down = fmap (\_ i -> nav (1+) i <$> sample (current list)) $ Signals.downArrow keydown
           let currentKey = safeIndex <$> current selectionIndex <*> current keys

@@ -99,3 +99,28 @@ executable editor
     transformers,
     unison-shared,
     unison-editor
+
+executable explorer
+  main-is: ExplorerTest.hs
+  hs-source-dirs: src
+  ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N -v0
+
+  if flag(optimized)
+    ghc-options: -funbox-strict-fields -O2
+
+  build-depends:
+    base,
+    containers,
+    data-default,
+    free,
+    ghcjs-dom,
+    ghcjs-base,
+    mtl,
+    reflex,
+    reflex-dom,
+    semigroups,
+    text,
+    these,
+    transformers,
+    unison-shared,
+    unison-editor
