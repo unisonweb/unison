@@ -88,9 +88,8 @@ explorer keydown processQuery topContent s0 = do
       keyClosings <- pure $
         let f a = case a of Cancel -> Just Nothing; Accept a -> Just (Just a); _ -> Nothing
         in fmapMaybe f actions
-      let sampleCurrent _ = sample (current selection)
-      let mouseClosings = pushAlways sampleCurrent $ domEvent Click selectableRegion
-      let enterClosings = pushAlways sampleCurrent $ textInputGetEnter searchbox
+      let mouseClosings = tag (current selection) (domEvent Click selectableRegion)
+      let enterClosings = tag (current selection) (textInputGetEnter searchbox)
       pure (updated valids, s', leftmost [keyClosings, mouseClosings, enterClosings])
   pure (updatedS, closings)
 
