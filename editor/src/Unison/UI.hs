@@ -1,9 +1,11 @@
 {-# LANGUAGE CPP, ForeignFunctionInterface, JavaScriptFFI, OverloadedStrings #-}
 
-module Unison.UI (mouseMove, mouseMove', preferredDimensions, windowKeydown, windowKeyup) where
+module Unison.UI (keepKeyEventIf, mouseMove, mouseMove', preferredDimensions, windowKeydown, windowKeyup) where
 
 import Control.Monad.IO.Class
 import Data.Text (Text)
+import GHCJS.DOM.Element (elementOnkeydown)
+import GHCJS.DOM.EventM (preventDefault)
 import GHCJS.DOM.Types (Element,DOMWindow)
 import GHCJS.Marshal
 import GHCJS.Types (JSRef)
@@ -31,6 +33,12 @@ mouseMove e = case Element.toElement e of
          e
          Element.elementOnmousemove
          (liftIO . mouseLocal e =<< EventM.event)
+
+keepKeyEventIf :: (MonadWidget t m, Reflex t) => (Int -> Bool) -> TextInput t -> m ()
+keepKeyEventIf f input = do
+  let tweak e = e >>= \i -> if f i then pure i else i <$ preventDefault
+  tweakedKeydown <- wrapDomEvent (_textInput_element input) Element.elementOnkeydown (tweak getKeyEvent)
+  performEvent_ (pure () <$ tweakedKeydown)
 
 askWindow :: (MonadIO m, HasDocument m) => m DOMWindow
 askWindow =  do
