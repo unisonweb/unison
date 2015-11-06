@@ -11,6 +11,8 @@ import Data.Maybe
 import Data.Semigroup
 import Reflex.Dom
 import Unison.Dimensions (X(..),Y(..))
+import GHCJS.DOM.EventM (preventDefault)
+import GHCJS.DOM.Element (elementOnkeydown)
 import qualified Unison.Signals as Signals
 
 modal :: (MonadWidget t m, Reflex t) => Dynamic t Bool -> a -> m a -> m (Dynamic t a)
@@ -36,6 +38,11 @@ explorer keydown processQuery topContent s0 = do
     attrs <- holdDyn ("class" =: "explorer") (fmap (\l -> if null l then invalidAttrs else validAttrs) valids)
     (valids, updatedS, closings) <- elDynAttr "div" attrs $ mdo
       searchbox <- textInput def
+      -- disable up/down keyboard events inside of text box; they are used for controlling what item is selected
+      let isArrow i = i == 38 || i == 40
+      let tweak e = e >>= \i -> if isArrow i then i <$ preventDefault else pure i
+      tweakedKeydown <- wrapDomEvent (_textInput_element searchbox) elementOnkeydown (tweak getKeyEvent)
+      performEvent_ (fmap (const (pure ())) tweakedKeydown)
       elClass "div" "top-separator" $ pure ()
       _ <- elClass "div" "top-content" $ widgetHold (pure ()) topContent -- todo: perhaps a spinner
       s <- sample (current s0)
