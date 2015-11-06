@@ -23,6 +23,12 @@ modal switch off on = do
 joinModal :: (MonadWidget t m, Reflex t) => Dynamic t Bool -> a -> m (Dynamic t a) -> m (Dynamic t a)
 joinModal switch off on = holdDyn off never >>= \off -> joinDyn <$> modal switch off on
 
+data Action m s k a
+  = Request (m s) [(k, Bool, m a)] -- `Bool` indicates whether the choice is selectable
+  | Results [(k, Bool, m a)]
+  | Cancel
+  | Accept a
+
 explorer :: forall t m k s a . (Reflex t, MonadWidget t m, Eq k, Semigroup s)
          => Event t Int
          -> (s -> String -> Action m s k a)
@@ -95,11 +101,3 @@ explorer keydown processQuery topContent s0 = do
 
 safeIndex :: Int -> [a] -> Maybe a
 safeIndex i l = if i < length l then Just (l !! i) else Nothing
-
-data Action m s k a
-  = Request (m s) [(k, Bool, m a)]
-  | Results [(k, Bool, m a)]
-  | Cancel
-  | Accept a
-
--- let enter = textInputGetEnter searchbox
