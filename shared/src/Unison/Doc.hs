@@ -43,6 +43,7 @@ data D e r
   = Empty
   | Embed e
   | Breakable e
+  | Fits e
   | Linebreak
   | Group r
   | Nest e r
@@ -62,7 +63,7 @@ data L e r
   | LLinebreak
   | LNest e r
   | LAppend r r
-  | LGroup r deriving (Functor, Foldable, Traversable)
+  | LGroup r deriving (Functor, Foldable, Traversable, Show)
 
 -- A `Doc` without the nondeterminism. All layout decisions have been fixed.
 type Layout e p = Cofree (L e) p
@@ -88,6 +89,7 @@ elements d = go (unwrap d) [] where
   go (Group d) = go (unwrap d)
   go (Nest e d) = one e . go (unwrap d)
   go (Breakable e) = one e
+  go (Fits e) = one e
   go (Embed e) = one e
   go _ = id
 
@@ -98,6 +100,7 @@ etraverse f (p :< d) = (p :<) <$> case d of
   Group d -> Group <$> etraverse f d
   Nest e d -> Nest <$> f e <*> etraverse f d
   Breakable e -> Breakable <$> f e
+  Fits e -> Fits <$> f e
   Embed e -> Embed <$> f e
   Linebreak -> pure Linebreak
   Empty -> pure Empty
@@ -119,6 +122,7 @@ ebind f (p :< d) = case d of
     Group d -> Group <$> ebind f d
     Nest e d -> Nest <$> e2 e <*> ebind f d
     Breakable e -> Breakable <$> e2 e
+    Fits e -> Fits <$> e2 e
     Linebreak -> Just Linebreak
     Empty -> Just Empty
     where
@@ -189,6 +193,14 @@ linebreak = linebreak' Path.root
 linebreak' :: Path p => p -> Doc e p
 linebreak' p = p :< Linebreak
 
+-- | Insert `e` if the current group fits on one line
+fits :: Path p => e -> Doc e p
+fits = fits' Path.root
+
+-- | Like `fits`, but supply a path to attach to the returned `Doc`.
+fits' :: Path p => p -> e -> Doc e p
+fits' p e = p :< Fits e
+
 renderString :: Layout String p -> String
 renderString l = concat (tokens "\n" l)
 
@@ -223,10 +235,11 @@ sep delim ds = group (foldr1 combine ds)
 sep' :: Path p => e -> [e] -> Doc e p
 sep' delim ds = sep delim (map embed ds)
 
+-- | Insert parens if `b` is true and the expression doesn't fit on one line
 parenthesize :: (IsString s, Path p) => Bool -> Doc s p -> Doc s p
 parenthesize b d =
   let r = root d
-  in if b then docs [embed' r "(", d, embed' r ")"] else d
+  in if b then docs [fits' r "(", d, fits' r ")"] else d
 
 -- various interpreters
 
@@ -262,6 +275,7 @@ layout width maxWidth doc =
     Empty -> pure $ p :< LEmpty
     Embed e -> put (maxWidth, remainingWidth `Dimensions.minus` width e) $> (p :< LEmbed e)
     Breakable _ -> put (maxWidth, maxWidth) $> (p :< LLinebreak)
+    Fits _ -> pure (p :< LEmpty)
     Linebreak -> put (maxWidth, maxWidth) $> (p :< LLinebreak)
     Append a b -> (:<) p <$> (LAppend <$> break a <*> break b)
     Nest e doc -> do
@@ -282,6 +296,7 @@ flow (p :< doc) = case doc of
   Embed e -> p :< LEmbed e
   Linebreak -> p :< LLinebreak
   Breakable e -> p :< LEmbed e -- don't linebreak, it fits
+  Fits e -> p :< LEmbed e
   Append a b -> p :< (flow a `LAppend` flow b)
   Group r -> p :< LGroup (flow r)
   Nest _ r -> p :< LAppend (p :< LEmpty) (flow r)
@@ -297,6 +312,7 @@ preferredWidth width (p :< d) = case d of
   -- a zero width for linebreaks is okay
   Linebreak -> (p, Dimensions.zero) :< Linebreak
   Breakable e -> (p, width e) :< Breakable e -- assuming we fit on the line
+  Fits e -> (p, width e) :< Fits e
   Append left right ->
     let left' = preferredWidth width left
         right' = preferredWidth width right
@@ -638,6 +654,7 @@ instance Bifunctor D where
     Empty -> Empty
     Embed e -> Embed (f e)
     Breakable e -> Breakable (f e)
+    Fits e -> Fits (f e)
     Linebreak -> Linebreak
     Group r -> Group r
     Nest e r -> Nest (f e) r
