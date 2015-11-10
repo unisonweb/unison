@@ -20,7 +20,6 @@
 module Unison.Doc where
 
 import Control.Comonad.Cofree (Cofree(..), unwrap) -- (:<)
-import Control.Comonad (extract)
 import Control.Monad.State.Strict
 import Data.Aeson
 import Data.Aeson.TH
@@ -258,35 +257,41 @@ rewrite alg (a :< f) = a :< (alg $ fmap (rewrite alg) f)
 -- Runs in linear time without backtracking.
 layout :: (e -> Width) -> Width -> Doc e p -> Layout e p
 layout width maxWidth doc =
-  fmap fst $ evalState (go (preferredWidth width doc)) (maxWidth, maxWidth)
+  f <$> evalState (go (preferred width doc)) (maxWidth, maxWidth)
   where
+  f (p,_,_) = p
   sub p d = p :< LAppend (p :< LEmpty) d
   go doc = do
     (maxWidth, remainingWidth) <- get
     case doc of
-      (_,w) :< _ | w <= remainingWidth ->
+      (_,w,_) :< _ | w <= remainingWidth ->
         put (maxWidth, remainingWidth `Dimensions.minus` w) $> flow doc
-      p :< Group doc -> (\d -> p :< LGroup d) <$> break doc
-      _ -> break doc
+      p :< Group doc -> (\d -> p :< LGroup d) <$> break' doc
+      _ -> break' doc
 
-  -- | Break a document into a list of documents, separated by lines,
-  -- respecting the linebreak constraints of the input `Doc`.
-  break (p :< doc) = get >>= \(maxWidth, remainingWidth) -> case doc of
+  break' d@((_,_,0) :< _) = break True d
+  break' d = break False d
+  oneline ((_,_,0) :< _) = True
+  oneline _ = False
+
+  -- | Insert one level of linebreaks into the document, respecting constraints
+  break deep (p :< doc) = get >>= \(maxWidth, remainingWidth) -> case doc of
     Empty -> pure $ p :< LEmpty
     Embed e -> put (maxWidth, remainingWidth `Dimensions.minus` width e) $> (p :< LEmbed e)
     Breakable _ -> put (maxWidth, maxWidth) $> (p :< LLinebreak)
     Fits _ -> pure (p :< LEmpty)
     Linebreak -> put (maxWidth, maxWidth) $> (p :< LLinebreak)
-    Append a b -> (:<) p <$> (LAppend <$> break a <*> break b)
+    Append a b -> (:<) p <$> (LAppend <$> break deep a <*> break (deep && oneline a) b)
     Nest e doc -> do
       case maxWidth == remainingWidth of
         -- we're immediately preceded by newline, insert `e` and indent
         True -> do
           put $ let newMax = maxWidth `Dimensions.minus` width e in (newMax, newMax)
-          doc <- break doc
+          doc <- break deep doc
           return $ p :< LNest e doc
         -- we're in the middle of a line, ignore `e`
-        False -> sub p <$> break doc
+        False -> sub p <$> break deep doc
+    Group doc | deep -> (:<) p <$> (LGroup <$> break' doc)
     Group _ -> go (p :< doc) -- we try to avoid breaking subgroups
 
 -- | Layout the `Doc` assuming infinite available width
@@ -302,27 +307,28 @@ flow (p :< doc) = case doc of
   Nest _ r -> p :< LAppend (p :< LEmpty) (flow r)
 
 -- | Annotate the document with the preferred width of each subtree,
+-- and the number of linebreaks each subtree would insert if broken,
 -- assuming that embedded elements have the given width function.
-preferredWidth :: (e -> Width) -> Doc e p -> Doc e (p,Width)
-preferredWidth width (p :< d) = case d of
-  Empty -> (p, Dimensions.zero) :< Empty
-  Embed e -> (p, width e) :< Embed e
+preferred :: (e -> Width) -> Doc e p -> Doc e (p,Width,Word)
+preferred width (p :< d) = case d of
+  Empty -> (p, Dimensions.zero, 0) :< Empty
+  Embed e -> (p, width e, 0) :< Embed e
   -- Since we just use this to decide whether to break or not,
   -- as long as `flow` and `break` both interpret `Linebreak` properly,
   -- a zero width for linebreaks is okay
-  Linebreak -> (p, Dimensions.zero) :< Linebreak
-  Breakable e -> (p, width e) :< Breakable e -- assuming we fit on the line
-  Fits e -> (p, width e) :< Fits e
+  Linebreak -> (p, Dimensions.zero, 1) :< Linebreak
+  Breakable e -> (p, width e, 1) :< Breakable e -- assuming we fit on the line
+  Fits e -> (p, width e, 0) :< Fits e
   Append left right ->
-    let left' = preferredWidth width left
-        right' = preferredWidth width right
-    in (p, snd (extract left') `Dimensions.plus` snd (extract right')) :< Append left' right'
+    let left'@((_,wl,vl) :< _) = preferred width left
+        right'@((_,wr,vr) :< _) = preferred width right
+    in (p, wl `Dimensions.plus` wr, vl + vr) :< Append left' right'
   Group d ->
-    let pd@((_,n) :< _) = preferredWidth width d
-    in (p, n) :< Group pd
+    let pd@((_,n,_) :< _) = preferred width d
+    in (p, n, 0) :< Group pd
   Nest e d -> -- assume it fits, so ignore the `e`
-    let pd@((_,n) :< _) = preferredWidth width d
-    in (p,n) :< Nest e pd
+    let pd@((_,n,v) :< _) = preferred width d
+    in (p,n,v) :< Nest e pd
 
 -- | Convert a layout to a list of tokens, using `newline` where the layout
 -- calls for a linebreak.

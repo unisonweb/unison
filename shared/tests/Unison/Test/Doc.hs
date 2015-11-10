@@ -40,6 +40,9 @@ tests = testGroup "Doc"
   , testCase "parenthesize (3)" $ assertEqual "should break onto two lines with indent and no parens"
       "a\n  b c d"
       (fmt 7 $ parenthesize True (docs [embed "a", breakable " ", nest "  " $ sep' " " ["b", "c", "d"]]))
+  , testCase "parenthesize (4)" $ assertEqual "should break onto two lines with indent and no parens"
+      "a\n  b c d"
+      (fmt 8 $ parenthesize True (sep " " [embed "a", nest "  " $ sep' " " ["b", "c", "d"]]))
   ]
 
 main = defaultMain tests
