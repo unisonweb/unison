@@ -19,11 +19,10 @@ import Data.List
 import Data.Maybe
 import Data.Set (Set)
 import Data.Text (Text)
-import Data.Vector (Vector, (!?))
+import Data.Vector (Vector)
 import GHC.Generics
 import Prelude.Extras (Eq1(..), Show1(..))
 import Text.Show
-import Unison.Doc (Doc)
 import Unison.Hash (Hash)
 import Unison.Hashable (Hashable, Hashable1)
 import Unison.Reference (Reference)
@@ -38,15 +37,10 @@ import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import qualified Unison.ABT as ABT
 import qualified Unison.Dimensions as Dimensions
-import qualified Unison.Doc as D
 import qualified Unison.Hash as Hash
 import qualified Unison.Hashable as Hashable
 import qualified Unison.JSON as J
 import qualified Unison.Reference as Reference
-import qualified Unison.Symbol as Symbol
-import qualified Unison.Type as Type
-import qualified Unison.Var as Var
-import qualified Unison.View as View
 
 -- | Literals in the Unison language
 data Literal
@@ -89,11 +83,9 @@ pattern Blank' <- (ABT.out -> ABT.Tm Blank)
 pattern Ref' r <- (ABT.out -> ABT.Tm (Ref r))
 pattern App' f x <- (ABT.out -> ABT.Tm (App f x))
 pattern Apps' f args <- (unApps -> Just (f, args))
-pattern AppsP' f args <- (unApps' -> Just (f, args))
 pattern Ann' x t <- (ABT.out -> ABT.Tm (Ann x t))
 pattern Vector' xs <- (ABT.out -> ABT.Tm (Vector xs))
 pattern Lam' v body <- (ABT.out -> ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body))))
-pattern LamsP' vs body <- (unLams' -> Just (vs, body))
 pattern Let1' v b e <- (ABT.out -> ABT.Tm (Let b (ABT.Abs' v e)))
 pattern Lets' bs e <- Let' bs e _ False
 pattern Let' bs e relet rec <- (unLets -> Just (bs,e,relet,rec))
@@ -200,24 +192,6 @@ unApps t = case go t [] of [] -> Nothing; f:args -> Just (f,args)
   go _ [] = []
   go fn args = fn:args
 
-unApps' :: Term v -> Maybe ((Term v,Path), [(Term v,Path)])
-unApps' t = addPaths <$> unApps t
-  where
-  addPaths (f,args) = case appPaths (length args) of
-    (fp,ap) -> ((f,fp), args `zip` ap)
-
-appPaths :: Int -> (Path, [Path])
-appPaths numArgs = (fnp, argsp)
-  where
-  fnp = replicate numArgs Fn
-  argsp = reverse . take numArgs $ iterate (Fn:) [Arg]
-
-unLams' :: Term v -> Maybe ([(v, Path)], (Term v, Path))
-unLams' (Lam' v body) = case unLams' body of
-  Nothing -> Just ([(v, [])], (body, [Body])) -- todo, need a path for forall vars
-  Just (vs, (body,bodyp)) -> Just ((v, []) : vs, (body, Body:bodyp))
-unLams' _ = Nothing
-
 dependencies' :: Ord v => Term v -> Set Reference
 dependencies' t = Set.fromList . Writer.execWriter $ ABT.visit' f t
   where f t@(Ref r) = Writer.tell [r] *> pure t
@@ -230,75 +204,6 @@ countBlanks :: Ord v => Term v -> Int
 countBlanks t = Monoid.getSum . Writer.execWriter $ ABT.visit' f t
   where f Blank = Writer.tell (Monoid.Sum (1 :: Int)) *> pure Blank
         f t = pure t
-
-data PathElement
-  = Fn -- ^ Points at function in a function application
-  | Arg -- ^ Points at the argument of a function application
-  | Body -- ^ Points at the body of a lambda or let
-  | Binding !Int -- ^ Points at a particular binding in a let
-  | Index !Int -- ^ Points at the index of a vector
-  | Annotation Type.Path -- ^ Points into the type of an `Ann`
-  deriving (Eq,Ord,Show)
-
-type Path = [PathElement]
-
--- | Use a @PathElement@ to compute one step into an @F Term v@ subexpression
-focus1 :: Ord v => PathElement -> ABT.Focus1 (F v) (Term v)
-focus1 Fn (App f x) = Just (f, \f -> App f x)
-focus1 Arg (App f x) = Just (x, \x -> App f x)
-focus1 Body (Lam (ABT.Abs' v body)) = Just (body, Lam . ABT.abs v)
-focus1 Body (Let b (ABT.Abs' v body)) = Just (body, Let b . ABT.abs v)
-focus1 Body (LetRec bs body) = Just (body, LetRec bs)
-focus1 (Binding i) (Let b body) | i <= 0 = Just (b, \b -> Let b body)
-focus1 (Binding i) (LetRec bs body) =
-  listToMaybe (drop i bs)
-  >>= \b -> Just (b, \b -> LetRec (take i bs ++ [b] ++ drop (i+1) bs) body)
-focus1 (Index i) (Vector vs) =
-  vs !? i >>= \v -> Just (v, \v -> Vector (Vector.update vs (Vector.singleton (i,v))))
-focus1 (Annotation pt) (Ann e t) = Just (e, \e -> Ann e t) -- todo: revisit
-focus1 _ _ = Nothing
-
--- | Return the list of all prefixes of the input path
-pathPrefixes :: Path -> [Path]
-pathPrefixes = inits
-
--- | Add an element onto the end of this 'Path'
-pathExtend :: PathElement -> Path -> Path
-pathExtend e p = p ++ [e]
-
-at :: Ord v => Path -> Term v -> Maybe (Term v)
-at p t = ABT.at (map focus1 p) t
-
--- | Given a variable and a path, find the longest prefix of the path
--- which points to a term where the variable is unbound. Example:
--- `\f -> \x -> f {x}` would return the path pointing to `{\x -> f x}`
-introducedAt :: Ord v => v -> Path -> Term v -> Maybe Path
-introducedAt v path t = f <$> ABT.introducedAt v (map focus1 path) t where
-  f p = take (length p) path
-
-modify :: Ord v => (Term v -> Term v) -> Path -> Term v -> Maybe (Term v)
-modify f p t = ABT.modify f (map focus1 p) t
-
--- | Like `modify`, but returns the original `Term` if the path is invalid
-modify' :: Ord v => (Term v -> Term v) -> Path -> Term v -> Term v
-modify' f p t = fromMaybe t (modify f p t)
-
-focus :: Ord v => Path -> Term v -> Maybe (Term v, Term v -> Term v)
-focus p t = ABT.focus (map focus1 p) t
-
-parent :: Path -> Maybe Path
-parent [] = Nothing
-parent p = Just (init p)
-
-parent' :: Path -> Path
-parent' = fromMaybe [] . parent
-
-bindingAt :: Ord v => Path -> Term v -> Maybe (v, Term v)
-bindingAt [] _ = Nothing
-bindingAt path t = do
-  parentPath <- parent path
-  Let1' v b _ <- at parentPath t
-  pure (v, b)
 
 -- | Convert all 'Ref' constructors to the corresponding term
 link :: (Applicative f, Monad f, Var v) => (Hash -> f (Term v)) -> Term v -> f (Term v)
@@ -314,81 +219,6 @@ link env e =
 betaReduce :: Var v => Term v -> Term v
 betaReduce (App' (Lam' n body) arg) = ABT.subst arg n body
 betaReduce e = e
-
-type ViewableTerm = Term (Symbol View.DFO)
-
-toString :: ViewableTerm -> String
-toString t = D.formatText (Dimensions.Width 80) (view Type.defaultSymbol t)
-
-view :: (Reference -> Symbol View.DFO) -> ViewableTerm -> Doc Text Path
-view ref t = go no View.low t where
-  no = const False
-  sym v = D.embed (Var.name v)
-  op t = case t of
-    Lit' l -> Symbol.annotate View.prefix . (\r -> Symbol.prefix r :: Symbol ()) . Text.pack . show $ l
-    Var' v -> v
-    Ref' r -> ref r
-    _ -> Symbol.annotate View.prefix (Symbol.prefix "<unresolved-operator>" :: Symbol ())
-  formatBinding :: Path -> Symbol View.DFO -> ViewableTerm -> Doc Text Path
-  formatBinding path name body = case body of
-    LamsP' vs (body,bodyp) ->
-      let lhs = fmap fixup $ go no View.low (apps (var name) (map (var . fst) vs))
-          fixup _ = [] -- todo, could use paths to individual variables
-          rhs = D.sub' bodyp $ go no View.low body
-      in D.group . D.sub' path $ D.docs [lhs, D.embed " =", D.breakable " ", D.nest "  " rhs]
-    _ -> D.sub' path $ D.docs [sym name, D.embed " =", D.breakable " ", D.nest "  " $ go no View.low body ]
-  go :: (ViewableTerm -> Bool) -> View.Precedence -> ViewableTerm -> Doc Text Path
-  go inChain p t = case t of
-    Lets' bs e ->
-      let
-        pe = replicate (length bs) Body
-        bps = tail (tails pe)
-        formattedBs = [ formatBinding bp name b | ((name,b), bp) <- bs `zip` bps ]
-      in D.group $ D.docs [D.embed "let", D.breakable " "] `D.append`
-                   D.nest "  " (D.delimit (D.breakable "; ") formattedBs) `D.append`
-                   D.docs [ D.breakable " ", D.embed "in", D.breakable " "
-                          , D.sub' pe . D.nest "  " $ go no View.low e ]
-    LetRec' bs e ->
-      let
-        bps = map Binding [0 .. length bs - 1]
-        formattedBs = [ formatBinding [bp] name b | ((name,b), bp) <- bs `zip` bps ]
-      in D.group $ D.docs [D.embed "let rec", D.breakable " "] `D.append`
-                   D.nest "  " (D.delimit (D.breakable "; ") formattedBs) `D.append`
-                   D.docs [ D.breakable " ", D.embed "in", D.breakable " "
-                          , D.sub Body . D.nest "  " $ go no View.low e ]
-    Vector' vs ->
-      let
-        fmt i v = D.nest "  " . D.sub (Index i) $ go no View.low v
-        subs = [ fmt i v | (v,i) <- Vector.toList vs `zip` [0..] ]
-      in D.group . D.docs $
-           [ D.embed "[ "
-           , D.delimit (D.breakable ", ") subs
-           , D.embed " ]" ]
-    AppsP' (fn,fnP) args ->
-      let
-        Symbol.Symbol _ name view = op fn
-        (taken, remaining) = splitAt (View.arity view) args
-        fmt (child,path) = (\p -> go (fn ==) p child, path)
-        applied = fromMaybe unsaturated (View.instantiate view fnP name (map fmt taken))
-        unsaturated = D.sub' fnP $ go no View.high fn
-      in
-        (if inChain fn then id else D.group) $ case remaining of
-          [] -> applied
-          args -> D.parenthesize (p > View.high) . D.group . D.docs $
-            [ applied, D.breakable " "
-            , D.nest "  " . D.group . D.delimit (D.breakable " ") $
-              [ D.sub' p (go no (View.increase View.high) s) | (s,p) <- args ] ]
-    LamsP' vs (body,bodyp) ->
-      if p == View.low then D.sub' bodyp (go no p body)
-      else D.parenthesize True . D.group $
-           D.delimit (D.embed " ") (map (sym . fst) vs) `D.append`
-           D.docs [D.embed "->", D.breakable " ", D.nest "  " $ D.sub' bodyp (go no View.low body)]
-    Ann' e t -> D.group . D.parenthesize (p /= View.low) $
-                D.docs [ go no p e, D.embed " :", D.breakable " "
-                       , D.nest "  " $ (\p -> [Annotation p]) <$> Type.view ref t ]
-    Var' v -> sym v
-    Lit' _ -> D.embed (Var.name $ op t)
-    _ -> error $ "layout match failure"
 
 instance Var v => Hashable1 (F v) where
   hash1 hashCycle hash e =
@@ -432,8 +262,6 @@ instance (Ord v, FromJSON v, FromJSON r) => FromJSON (F v r) where
 
 instance ToJSON v => J.ToJSON1 (F v) where toJSON1 f = Aeson.toJSON f
 instance (Ord v, FromJSON v) => J.FromJSON1 (F v) where parseJSON1 j = Aeson.parseJSON j
-
-deriveJSON defaultOptions ''PathElement
 
 instance Show Literal where
   show (Text t) = show t

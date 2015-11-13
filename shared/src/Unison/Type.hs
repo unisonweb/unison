@@ -90,14 +90,11 @@ monotype t = Monotype <$> ABT.visit isMono t where
 pattern Lit' l <- ABT.Tm' (Lit l)
 pattern Arrow' i o <- ABT.Tm' (Arrow i o)
 pattern Arrows' spine <- (unArrows -> Just spine)
-pattern ArrowsP' spine <- (unArrows' -> Just spine)
 pattern Ann' t k <- ABT.Tm' (Ann t k)
 pattern App' f x <- ABT.Tm' (App f x)
 pattern Apps' f args <- (unApps -> Just (f, args))
-pattern AppsP' f args <- (unApps' -> Just (f, args))
 pattern Constrain' t u <- ABT.Tm' (Constrain t u)
 pattern Forall' v body <- ABT.Tm' (Forall (ABT.Abs' v body))
-pattern ForallsP' vs body <- (unForalls' -> Just (vs, body))
 pattern Existential' v <- ABT.Tm' (Existential (ABT.Var' v))
 pattern Universal' v <- ABT.Tm' (Universal (ABT.Var' v))
 
@@ -108,38 +105,11 @@ unArrows t =
     go (Arrow' i o) = i : go o
     go _ = []
 
-unArrows' :: Type v -> Maybe [(Type v,Path)]
-unArrows' t = addPaths <$> unArrows t
-  where addPaths ts = ts `zip` arrowPaths (length ts)
-
-unForalls' :: Type v -> Maybe ([(v, Path)], (Type v, Path))
-unForalls' (Forall' v body) = case unForalls' body of
-  Nothing -> Just ([(v, [])], (body, [Body])) -- todo, need a path for forall vars
-  Just (vs, (body,bodyp)) -> Just ((v, []) : vs, (body, Body:bodyp))
-unForalls' _ = Nothing
-
 unApps :: Type v -> Maybe (Type v, [Type v])
 unApps t = case go t [] of [] -> Nothing; f:args -> Just (f,args)
   where
   go (App' i o) acc = go i (o:acc)
   go fn args = fn:args
-
-unApps' :: Type v -> Maybe ((Type v,Path), [(Type v,Path)])
-unApps' t = addPaths <$> unApps t
-  where
-  addPaths (f,args) = case appPaths (length args) of
-    (fp,ap) -> ((f,fp), args `zip` ap)
-
-appPaths :: Int -> (Path, [Path])
-appPaths numArgs = (fnp, argsp)
-  where
-  fnp = replicate numArgs Fn
-  argsp = reverse . take numArgs $ iterate (Fn:) [Arg]
-
-arrowPaths :: Int -> [Path]
-arrowPaths spineLength =
-  (take (spineLength-1) $ iterate (Output:) [Input]) ++
-  [replicate spineLength Output]
 
 matchExistential :: Eq v => v -> Type v -> Bool
 matchExistential v (Existential' x) = x == v
@@ -194,72 +164,6 @@ constrain t u = ABT.tm (Constrain t u)
 generalize :: Ord v => Type v -> Type v
 generalize t = foldr forall t $ Set.toList (ABT.freeVars t)
 
-data PathElement
-  = Fn -- ^ Points at type in a type application
-  | Arg -- ^ Points at the argument in a type application
-  | Input -- ^ Points at the left of an `Arrow`
-  | Output -- ^ Points at the right of an `Arrow`
-  | Body -- ^ Points at the body of a forall
-  deriving (Eq,Ord,Show)
-
-type Path = [PathElement]
-
-type ViewableType = Type (Symbol View.DFO)
-
-defaultSymbol :: Reference -> Symbol View.DFO
-defaultSymbol (Reference.Builtin t) = Symbol.prefix t
-defaultSymbol (Reference.Derived h) = Symbol.prefix (Text.cons '#' $ short h)
-  where
-  short h = Text.take 8 . Hash.base64 $ h
-
-toString :: ViewableType -> String
-toString t = D.formatText (Dimensions.Width 80) (view defaultSymbol t)
-
-view :: (Reference -> Symbol View.DFO) -> ViewableType -> Doc Text Path
-view ref t = go no View.low t
-  where
-  no = const False
-  sym v = D.embed (Var.name v)
-  op :: ViewableType -> Symbol View.DFO
-  op t = case t of
-    Lit' (Ref r) -> ref r
-    Lit' l -> Symbol.annotate View.prefix . (\r -> Symbol.prefix r :: Symbol ()) . Text.pack . show $ l
-    Universal' v -> v
-    Existential' v -> v
-    _ -> Symbol.annotate View.prefix (Symbol.prefix "" :: Symbol ())
-  go :: (ViewableType -> Bool) -> View.Precedence -> ViewableType -> Doc Text Path
-  go inChain p t = case t of
-    ArrowsP' spine ->
-      let arr = D.breakable " " `D.append` D.embed "→ "
-      in D.parenthesize (p > View.low) . D.group . D.delimit arr $
-          [ D.sub' p (go no (View.increase View.low) s) | (s,p) <- spine ]
-    AppsP' (fn,fnP) args ->
-      let
-        Symbol _ name view = op fn
-        (taken, remaining) = splitAt (View.arity view) args
-        fmt (child,path) = (\p -> D.sub' path (go (fn ==) p child), path)
-        applied = fromMaybe unsaturated (View.instantiate view fnP name (map fmt taken))
-        unsaturated = D.sub' fnP $ go no View.high fn
-      in
-        (if inChain fn then id else D.group) $ case remaining of
-          [] -> applied
-          args -> D.parenthesize (p > View.high) . D.group . D.docs $
-            [ applied, D.breakable " "
-            , D.nest "  " . D.group . D.delimit (D.breakable " ") $
-              [ D.sub' p (go no (View.increase View.high) s) | (s,p) <- args ] ]
-    ForallsP' vs (body,bodyp) ->
-      if p == View.low then D.sub' bodyp (go no p body)
-      else D.parenthesize True . D.group $
-           D.embed "∀ " `D.append`
-           D.delimit (D.embed " ") (map (sym . fst) vs) `D.append`
-           D.docs [D.embed ".", D.breakable " ", D.nest "  " $ D.sub' bodyp (go no View.low body)]
-    Constrain' t _ -> go inChain p t
-    Ann' t _ -> go inChain p t -- ignoring kind annotations for now
-    Universal' v -> sym v
-    Existential' v -> D.embed ("'" `mappend` Var.name v)
-    Lit' _ -> D.embed (Var.name $ op t)
-    _ -> error $ "layout match failure"
-
 instance Hashable Literal where
   tokens l = case l of
     Number -> [Hashable.Tag 0]
@@ -283,8 +187,6 @@ instance Hashable1 F where
       Forall a -> [tag 5, hashed (hash a)]
       Existential v -> [tag 6, hashed (hash v)]
       Universal v -> [tag 7, hashed (hash v)]
-
-deriveJSON defaultOptions ''PathElement
 
 instance J.ToJSON1 F where
   toJSON1 f = toJSON f

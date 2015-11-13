@@ -9,6 +9,8 @@ import Unison.Type (Type)
 import Unison.Term (Term)
 import Unison.Note (Note,Noted)
 import Unison.Var (Var)
+import Unison.Paths (Path)
+import qualified Unison.Paths as Paths
 import qualified Unison.ABT as ABT
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
@@ -35,7 +37,7 @@ invalid loc ctx = "invalid path " ++ show loc ++ " in:\n" ++ show ctx
 -- we strip off any outer foralls.
 admissibleTypeAt :: (Applicative f, Var v)
                  => Type.Env f v
-                 -> Term.Path
+                 -> Path
                  -> Term v
                  -> Noted f (Type v)
 admissibleTypeAt synth loc t = Note.scoped ("admissibleTypeAt@" ++ show loc ++ " " ++ show t) $
@@ -44,12 +46,12 @@ admissibleTypeAt synth loc t = Note.scoped ("admissibleTypeAt@" ++ show loc ++ "
     shake (Type.Arrow' (Type.Arrow' _ tsub) _) = Type.generalize tsub
     shake (Type.Forall' _ t) = shake t
     shake _ = error "impossible, f had better be a function"
-  in case Term.lam f <$> Term.modify (Term.app (Term.var f)) loc t of
+  in case Term.lam f <$> Paths.modifyTerm (Term.app (Term.var f)) loc t of
     Nothing -> Note.failure $ invalid loc t
     Just t -> shake <$> synthesize synth t
 
 -- | Compute the type of the given subterm.
-typeAt :: (Applicative f, Var v) => Type.Env f v -> Term.Path -> Term v -> Noted f (Type v)
+typeAt :: (Applicative f, Var v) => Type.Env f v -> Path -> Term v -> Noted f (Type v)
 typeAt synth [] t = Note.scoped ("typeAt: " ++ show t) $ synthesize synth t
 typeAt synth loc t = Note.scoped ("typeAt@"++show loc ++ " " ++ show t) $
   let
@@ -57,18 +59,18 @@ typeAt synth loc t = Note.scoped ("typeAt@"++show loc ++ " " ++ show t) $
     shake (Type.Arrow' (Type.Arrow' tsub _) _) = Type.generalize tsub
     shake (Type.Forall' _ t) = shake t
     shake _ = error "impossible, f had better be a function"
-  in case Term.lam f <$> Term.modify (Term.app (Term.var f)) loc t of
+  in case Term.lam f <$> Paths.modifyTerm (Term.app (Term.var f)) loc t of
     Nothing -> Note.failure $ invalid loc t
     Just t -> shake <$> synthesize synth t
 
 -- | Return the type of all local variables in scope at the given location
-locals :: (Applicative f, Var v) => Type.Env f v -> Term.Path -> Term v -> Noted f [(v, Type v)]
+locals :: (Applicative f, Var v) => Type.Env f v -> Path -> Term v -> Noted f [(v, Type v)]
 locals synth path ctx | ABT.isClosed ctx =
   Note.scoped ("locals@"++show path ++ " " ++ show ctx)
               (zip (map fst lambdas) <$> lambdaTypes)
   where
     -- lambdas :: [(v, Term.Path)]
-    lambdas = Term.pathPrefixes path >>= \path -> case Term.at path ctx of
+    lambdas = Paths.pathPrefixes path >>= \path -> case Paths.atTerm path ctx of
       Just (Term.Lam' v _) -> [(v, path)]
       _ -> []
 

@@ -1,8 +1,12 @@
+{-# Language TemplateHaskell #-}
+
 module Unison.Paths where
 
+import Data.Aeson.TH
 import Unison.Var (Var)
 import Data.Maybe
 import Data.Text (Text)
+import Data.List
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
@@ -12,10 +16,8 @@ import qualified Unison.Term as E
 import qualified Unison.Type as T
 
 data Target v
-  = Term (Term (Symbol v))
-  | Type (Type (Symbol v))
-  | Symbol (Symbol v)
-  | Name Text
+  = Term (Term v)
+  | Type (Type v)
   | Var v
   -- Metadata
 
@@ -24,8 +26,6 @@ data PathElement
   | Arg -- ^ Points at the argument of a function/type application
   | Body -- ^ Points at the body of a lambda, let, or forall
   | Bound -- ^ Points at the symbol bound by a `let`, `lambda` or `forall` binder
-  | NameOf -- ^ Points at the name of the introduced symbol
-  | VarOf -- ^ Points at the `v` contained in a symbol
   | Binding !Int -- ^ Points at a particular binding in a let
   | Index !Int -- ^ Points at the index of a vector
   | Annotation -- ^ Points into the annotation
@@ -42,11 +42,9 @@ focus1 Body (Term (E.Lam' v body)) = Just (Term body, \body -> Term . E.lam v <$
 focus1 Body (Term (E.Let1' v b body)) = Just (Term body, \body -> Term . E.let1 [(v,b)] <$> asTerm body)
 focus1 Body (Term (E.LetRec' bs body)) = Just (Term body, \body -> Term . E.letRec bs <$> asTerm body)
 focus1 Body (Type (T.Forall' v body)) = Just (Type body, \body -> Type . T.forall v <$> asType body)
-focus1 Bound (Term (E.Lam' v body)) = Just (Symbol v, \v -> Term <$> (E.lam <$> asSymbol v <*> pure body))
-focus1 Bound (Term (E.Let1' v b body)) = Just (Symbol v, \v -> (\v -> Term $ E.let1 [(v,b)] body) <$> asSymbol v)
-focus1 Bound (Type (T.Forall' v body)) = Just (Symbol v, \v -> Type <$> (T.forall <$> asSymbol v <*> pure body))
-focus1 NameOf (Symbol (Symbol.Symbol id n a)) = Just (Name n, \n -> (\n -> Symbol (Symbol.Symbol id n a)) <$> asText n)
-focus1 VarOf (Symbol (Symbol.Symbol id n a)) = Just (Var a, \a -> (\a -> Symbol (Symbol.Symbol id n a)) <$> asVar a)
+focus1 Bound (Term (E.Lam' v body)) = Just (Var v, \v -> Term <$> (E.lam <$> asVar v <*> pure body))
+focus1 Bound (Term (E.Let1' v b body)) = Just (Var v, \v -> (\v -> Term $ E.let1 [(v,b)] body) <$> asVar v)
+focus1 Bound (Type (T.Forall' v body)) = Just (Var v, \v -> Type <$> (T.forall <$> asVar v <*> pure body))
 focus1 (Binding i) (Term (E.Let1' v b body)) | i <= 0 = Just (Term b, \b -> (\b -> Term $ E.let1 [(v,b)] body) <$> asTerm b)
 focus1 (Binding i) (Term (E.LetRec' bs body)) =
   listToMaybe (drop i bs)
@@ -68,25 +66,53 @@ focus (hd:tl) t = do
 at :: Var v => Path -> Target v -> Maybe (Target v)
 at path t = fst <$> focus path t
 
+atTerm :: Var v => Path -> Term v -> Maybe (Term v)
+atTerm path t = asTerm =<< at path (Term t)
+
+atType :: Var v => Path -> Type v -> Maybe (Type v)
+atType path t = asType =<< at path (Type t)
+
 modify :: Var v => (Target v -> Target v) -> Path -> Target v -> Maybe (Target v)
 modify f path t = focus path t >>= \(at,set) -> set (f at)
 
-asTerm :: Target v -> Maybe (Term (Symbol v))
+modifyTerm :: Var v => (Term v -> Term v) -> Path -> Term v -> Maybe (Term v)
+modifyTerm f p t = do
+  (at,set) <- focus p (Term t)
+  t <- asTerm at
+  asTerm =<< set (Term $ f t)
+
+modifyType :: Var v => (Type v -> Type v) -> Path -> Type v -> Maybe (Type v)
+modifyType f p t = do
+  (at,set) <- focus p (Type t)
+  t <- asType at
+  asType =<< set (Type $ f t)
+
+-- | Return the list of all prefixes of the input path
+pathPrefixes :: Path -> [Path]
+pathPrefixes = inits
+
+-- | Add an element onto the end of this 'Path'
+pathExtend :: PathElement -> Path -> Path
+pathExtend e p = p ++ [e]
+
+parent :: Path -> Maybe Path
+parent [] = Nothing
+parent p = Just (init p)
+
+parent' :: Path -> Path
+parent' = fromMaybe [] . parent
+
+asTerm :: Target v -> Maybe (Term v)
 asTerm (Term t) = Just t
 asTerm _ = Nothing
 
-asType :: Target v -> Maybe (Type (Symbol v))
+asType :: Target v -> Maybe (Type v)
 asType (Type t) = Just t
 asType _ = Nothing
-
-asSymbol :: Target v -> Maybe (Symbol v)
-asSymbol (Symbol v) = Just v
-asSymbol _ = Nothing
-
-asText :: Target v -> Maybe Text
-asText (Name v) = Just v
-asText _ = Nothing
 
 asVar :: Target v -> Maybe v
 asVar (Var v) = Just v
 asVar _ = Nothing
+
+deriveJSON defaultOptions ''PathElement
+
