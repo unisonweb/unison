@@ -52,6 +52,7 @@ library
     Unison.Node.Store
     Unison.Note
     Unison.Path
+    Unison.Paths
     Unison.Reference
     Unison.Symbol
     Unison.Term
