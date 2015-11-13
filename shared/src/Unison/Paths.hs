@@ -23,7 +23,7 @@ data PathElement
   = Fn -- ^ Points at function in a function/type application
   | Arg -- ^ Points at the argument of a function/type application
   | Body -- ^ Points at the body of a lambda, let, or forall
-  | Introduced -- ^ Points at the symbol introduced by a `let`, `lambda` or `forall` binder
+  | Bound -- ^ Points at the symbol bound by a `let`, `lambda` or `forall` binder
   | NameOf -- ^ Points at the name of the introduced symbol
   | VarOf -- ^ Points at the `v` contained in a symbol
   | Binding !Int -- ^ Points at a particular binding in a let
@@ -42,9 +42,9 @@ focus1 Body (Term (E.Lam' v body)) = Just (Term body, \body -> Term . E.lam v <$
 focus1 Body (Term (E.Let1' v b body)) = Just (Term body, \body -> Term . E.let1 [(v,b)] <$> asTerm body)
 focus1 Body (Term (E.LetRec' bs body)) = Just (Term body, \body -> Term . E.letRec bs <$> asTerm body)
 focus1 Body (Type (T.Forall' v body)) = Just (Type body, \body -> Type . T.forall v <$> asType body)
-focus1 Introduced (Term (E.Lam' v body)) = Just (Symbol v, \v -> Term <$> (E.lam <$> asSymbol v <*> pure body))
-focus1 Introduced (Term (E.Let1' v b body)) = Just (Symbol v, \v -> (\v -> Term $ E.let1 [(v,b)] body) <$> asSymbol v)
-focus1 Introduced (Type (T.Forall' v body)) = Just (Symbol v, \v -> Type <$> (T.forall <$> asSymbol v <*> pure body))
+focus1 Bound (Term (E.Lam' v body)) = Just (Symbol v, \v -> Term <$> (E.lam <$> asSymbol v <*> pure body))
+focus1 Bound (Term (E.Let1' v b body)) = Just (Symbol v, \v -> (\v -> Term $ E.let1 [(v,b)] body) <$> asSymbol v)
+focus1 Bound (Type (T.Forall' v body)) = Just (Symbol v, \v -> Type <$> (T.forall <$> asSymbol v <*> pure body))
 focus1 NameOf (Symbol (Symbol.Symbol id n a)) = Just (Name n, \n -> (\n -> Symbol (Symbol.Symbol id n a)) <$> asText n)
 focus1 VarOf (Symbol (Symbol.Symbol id n a)) = Just (Var a, \a -> (\a -> Symbol (Symbol.Symbol id n a)) <$> asVar a)
 focus1 (Binding i) (Term (E.Let1' v b body)) | i <= 0 = Just (Term b, \b -> (\b -> Term $ E.let1 [(v,b)] body) <$> asTerm b)
