@@ -1,6 +1,7 @@
 module Unison.Paths where
 
 import Unison.Var (Var)
+import Data.Maybe
 import Data.Text (Text)
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
@@ -42,6 +43,17 @@ focus1 Body (Term (E.Let1' v b body)) = Just (Term body, \body -> Term . E.let1 
 focus1 Body (Term (E.LetRec' bs body)) = Just (Term body, \body -> Term . E.letRec bs <$> asTerm body)
 focus1 Body (Type (T.Forall' v body)) = Just (Type body, \body -> Type . T.forall v <$> asType body)
 focus1 Introduced (Term (E.Lam' v body)) = Just (Symbol v, \v -> Term <$> (E.lam <$> asSymbol v <*> pure body))
+focus1 Introduced (Term (E.Let1' v b body)) = Just (Symbol v, \v -> (\v -> Term $ E.let1 [(v,b)] body) <$> asSymbol v)
+focus1 Introduced (Type (T.Forall' v body)) = Just (Symbol v, \v -> Type <$> (T.forall <$> asSymbol v <*> pure body))
+focus1 NameOf (Symbol (Symbol.Symbol id n a)) = Just (Name n, \n -> (\n -> Symbol (Symbol.Symbol id n a)) <$> asText n)
+focus1 VarOf (Symbol (Symbol.Symbol id n a)) = Just (Var a, \a -> (\a -> Symbol (Symbol.Symbol id n a)) <$> asVar a)
+focus1 (Binding i) (Term (E.Let1' v b body)) | i <= 0 = Just (Term b, \b -> (\b -> Term $ E.let1 [(v,b)] body) <$> asTerm b)
+focus1 (Binding i) (Term (E.LetRec' bs body)) =
+  listToMaybe (drop i bs)
+  >>= \(v,b) -> Just (Term b, \b -> (\b -> Term $ E.letRec (take i bs ++ [(v,b)] ++ drop (i+1) bs) body) <$> asTerm b)
+focus1 Annotation (Term (E.Ann' e t)) = Just (Type t, \t -> Term . E.ann e <$> asType t)
+focus1 Input (Type (T.Arrow' i o)) = Just (Type i, \i -> Type <$> (T.arrow <$> asType i <*> pure o))
+focus1 Output (Type (T.Arrow' i o)) = Just (Type o, \o -> Type . T.arrow i <$> asType o)
 focus1 _ _ = Nothing
 
 type Path = [PathElement]
@@ -52,6 +64,12 @@ focus (hd:tl) t = do
   (hdSub, updateHd) <- focus1 hd t
   (tlSub, updateTl) <- focus tl hdSub
   pure (tlSub, \tlSub -> updateHd =<< updateTl tlSub)
+
+at :: Var v => Path -> Target v -> Maybe (Target v)
+at path t = fst <$> focus path t
+
+modify :: Var v => (Target v -> Target v) -> Path -> Target v -> Maybe (Target v)
+modify f path t = focus path t >>= \(at,set) -> set (f at)
 
 asTerm :: Target v -> Maybe (Term (Symbol v))
 asTerm (Term t) = Just t
@@ -64,3 +82,11 @@ asType _ = Nothing
 asSymbol :: Target v -> Maybe (Symbol v)
 asSymbol (Symbol v) = Just v
 asSymbol _ = Nothing
+
+asText :: Target v -> Maybe Text
+asText (Name v) = Just v
+asText _ = Nothing
+
+asVar :: Target v -> Maybe v
+asVar (Var v) = Just v
+asVar _ = Nothing
