@@ -188,13 +188,13 @@ interpret eval link path action t =
 --  Just (sub, replace) -> fmap f (Eval.whnf eval link sub)
 --    where f sub = Just (path, replace sub)
 --
----- | Produce `e`, `e _`, `e _ _`, `e _ _ _` and so on,
----- until the result is no longer a function type
---applications :: Ord v => Term v -> Type v -> [Term v]
---applications e t = e : go e t
---  where
---    go e (Type.Forall' _ t) = go e t
---    go e (Type.Arrow' _ t) = let e' = Term.app e Term.blank in e' : go e' t
---    go _ _ = []
+-- | Produce `e`, `e _`, `e _ _`, `e _ _ _` and so on,
+-- until the result is no longer a function type
+applications :: Ord v => Term v -> Type v -> [Term v]
+applications e t = e : go e t
+  where
+    go e (Type.Forall' _ t) = go e t
+    go e (Type.Arrow' _ t) = let e' = Term.app e Term.blank in e' : go e' t
+    go _ _ = []
 
 deriveJSON defaultOptions ''Action

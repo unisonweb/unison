@@ -13,6 +13,7 @@ import Unison.Eval as Eval
 import Unison.Metadata (Metadata)
 import Unison.Node.Store (Store)
 import Unison.Note (Noted)
+import Unison.Paths (Path)
 import Unison.Reference (Reference)
 import Unison.Term (Term)
 import Unison.TermEdit (Action)
@@ -22,6 +23,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.Metadata as Metadata
 import qualified Unison.Node.Store as Store
+import qualified Unison.Paths as Paths
 import qualified Unison.Reference as Reference
 import qualified Unison.Term as Term
 import qualified Unison.TermEdit as TermEdit
@@ -51,7 +53,7 @@ deriveJSON defaultOptions ''SearchResults
 --   * `e` is for term (pnemonic "expression")
 data Node m v h t e = Node {
   -- | Obtain the type of the given subterm, assuming the path is valid
-  admissibleTypeAt :: e -> Term.Path -> Noted m t,
+  admissibleTypeAt :: e -> Path -> Noted m t,
   -- | Create a new term and provide its metadata
   createTerm :: e -> Metadata v h -> Noted m h,
   -- | Create a new type and provide its metadata
@@ -63,9 +65,9 @@ data Node m v h t e = Node {
   -- | Modify the given subterm, which may fail. First argument is the root path.
   -- Second argument is path relative to the root.
   -- Returns (root path, original e, edited e, new cursor position)
-  editTerm :: Term.Path -> Term.Path -> Action v -> e -> Noted m (Maybe (Term.Path,e,e,Term.Path)),
+  editTerm :: Path -> Path -> Action v -> e -> Noted m (Maybe (Path,e,e,Path)),
   -- Evaluate all terms, returning a list of (path, original e, evaluated e)
-  evaluateTerms :: [(Term.Path, e)] -> Noted m [(Term.Path,e,e)],
+  evaluateTerms :: [(Path, e)] -> Noted m [(Path,e,e)],
   -- | Returns ( subterm at the given path
   --           , current type
   --           , admissible type
@@ -73,11 +75,11 @@ data Node m v h t e = Node {
   --           , well-typed applications of focus
   --           , well-typed expressions involving local vars )
   -- | Modify the given subterm, which may fail. First argument is the root path.
-  localInfo :: e -> Term.Path -> Noted m (e, t, t, [e], [Int], [e]),
+  localInfo :: e -> Path -> Noted m (e, t, t, [e], [Int], [e]),
   -- | Access the metadata for the term and/or types identified by @k@
   metadatas :: [h] -> Noted m (Map h (Metadata v h)),
   -- | Search for a term, optionally constrained to be of the given type
-  search :: e -> Term.Path -> Int -> Metadata.Query -> Maybe t -> Noted m (SearchResults v h t e),
+  search :: e -> Path -> Int -> Metadata.Query -> Maybe t -> Noted m (SearchResults v h t e),
   -- | Lookup the source of the term identified by @h@
   terms :: [h] -> Noted m (Map h e),
   -- | Lookup the dependencies of @h@, optionally limited to those that intersect the given set
@@ -87,7 +89,7 @@ data Node m v h t e = Node {
   -- | Lookup the source of the type identified by @h@
   types :: [h] -> Noted m (Map h t),
   -- | Obtain the type of the given subterm, assuming the path is valid
-  typeAt :: e -> Term.Path -> Noted m t,
+  typeAt :: e -> Path -> Noted m t,
   -- | Update the metadata associated with the given term or type
   updateMetadata :: h -> Metadata v h -> Noted m ()
 }
@@ -128,7 +130,7 @@ node eval hash store =
                   (Set.toList hs)
       pure $ Set.fromList [x | (x,deps) <- hs', Set.member h deps]
 
-    edit rootPath path action e = case Term.at rootPath e of
+    edit rootPath path action e = case Paths.atTerm rootPath e of
       Nothing -> pure Nothing
       Just e -> f <$> TermEdit.interpret eval (Store.readTerm store) path action e
         where f Nothing = Nothing
@@ -147,14 +149,14 @@ node eval hash store =
       annotatedLocals <- pure $ map (\(v,t) -> Term.var v `Term.ann` t) locals
       let f focus = maybe (pure False)
                           (\e -> Typechecker.wellTyped readTypeOf e)
-                          (Term.modify (const focus) loc e)
+                          (Paths.modifyTerm (const focus) loc e)
       let fi (e,_) = f e
-      let currentApplies = maybe [] (\e -> TermEdit.applications e admissible) (Term.at loc e) `zip` [0..]
-      matchingCurrentApplies <- case Term.at loc e of
+      let currentApplies = maybe [] (\e -> TermEdit.applications e admissible) (Paths.atTerm loc e) `zip` [0..]
+      matchingCurrentApplies <- case Paths.atTerm loc e of
         -- if we're pointing to a Var, matchingCurrentApplies is redundant with `matchingLocals`
         Just (Term.Var' _) -> pure []
         _ -> map snd <$> filterM fi currentApplies
-      subterm <- maybe (fail "invalid path") pure (Term.at loc e)
+      subterm <- maybe (fail "invalid path") pure (Paths.atTerm loc e)
       matchingLocals <- filterM f (locals >>= (\(v,t) -> TermEdit.applications (Term.var v) t))
       pure (subterm, current, admissible, annotatedLocals, matchingCurrentApplies, matchingLocals)
 
@@ -162,7 +164,7 @@ node eval hash store =
       let
         typeOk focus = maybe (pure False)
                              (\e -> Typechecker.wellTyped readTypeOf e)
-                             (Term.modify (const focus) loc e)
+                             (Paths.modifyTerm (const focus) loc e)
         elaborate h = (\t -> TermEdit.applications (Term.ref h) t) <$> readTypeOf h
         queryOk e = do mds <- traverse (Store.readMetadata store) (Set.toList (Term.dependencies' e))
                        pure $ any (Metadata.matches query) mds
