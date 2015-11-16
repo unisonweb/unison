@@ -35,7 +35,7 @@ import qualified Unison.Typechecker as Typechecker
 -- that previously returned incomplete results. Appending characters to a
 -- search that returned complete results just filters down the set and
 -- can be done client-side, assuming the client has the full result set.
-data SearchResults v h t e =
+data SearchResults v h e =
   SearchResults
     { query :: Metadata.Query
     , references :: [(h, Metadata v h)]
@@ -79,7 +79,7 @@ data Node m v h t e = Node {
   -- | Access the metadata for the term and/or types identified by @k@
   metadatas :: [h] -> Noted m (Map h (Metadata v h)),
   -- | Search for a term, optionally constrained to be of the given type
-  search :: e -> Path -> Int -> Metadata.Query -> Maybe t -> Noted m (SearchResults v h t e),
+  search :: e -> Path -> Int -> Metadata.Query -> Maybe t -> Noted m (SearchResults v h e),
   -- | Lookup the source of the term identified by @h@
   terms :: [h] -> Noted m (Map h e),
   -- | Lookup the dependencies of @h@, optionally limited to those that intersect the given set
