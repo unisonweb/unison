@@ -31,7 +31,7 @@ data Action m s k a
 
 explorer :: forall t m k s a z. (Reflex t, MonadWidget t m, Eq k, Semigroup s)
          => Event t Int
-         -> (Dynamic t s -> Dynamic t (Maybe z) -> Event t String -> Event t (Action m s k a))
+         -> (Dynamic t s -> Dynamic t (Maybe z) -> Dynamic t String -> m (Event t (Action m s k a)))
          -> Event t (m z) -- loaded asynchronously on open of explorer
          -> Dynamic t s
          -> m (Dynamic t s, Event t (Maybe a))
@@ -50,8 +50,8 @@ explorer keydown processQuery topContent s0 = do
       s <- sample (current s0)
       s' <- foldDyn (<>) s (updated responses)
       actions <- do
-        t <- Signals.prepend "" (updated (_textInput_value searchbox))
-        pure $ processQuery s' z t
+        t <- Signals.prependDyn "" (_textInput_value searchbox)
+        processQuery s' z t
       responses <- widgetHold (pure s) $ fmapMaybe extractReq actions
       list <- holdDyn [] $
         let f a = case a of Request _ l -> Just l; Results l _ -> Just l; _ -> Nothing

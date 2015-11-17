@@ -18,6 +18,11 @@ prepend a e = do
   e0 <- now a
   pure $ leftmost [e0, e]
 
+prependDyn :: (MonadWidget t m, Reflex t) => a -> Dynamic t a -> m (Dynamic t a)
+prependDyn a e = do
+  e0 <- now a
+  holdDyn a (leftmost [e0, updated e])
+
 toggle :: (MonadFix m, MonadHold t m, Reflex t) => Bool -> Event t a -> m (Dynamic t Bool)
 toggle initial e = foldDyn (\b _ -> not b) initial (initial <$ e)
 
