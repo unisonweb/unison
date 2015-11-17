@@ -1,4 +1,5 @@
 {-# Language RecordWildCards #-}
+{-# Language OverloadedStrings #-}
 {-# Language ScopedTypeVariables #-}
 
 module Unison.TermExplorer where
@@ -16,14 +17,22 @@ import Unison.Node (SearchResults)
 import Unison.Node.MemNode (V)
 import Unison.Paths (Target, Path)
 import Unison.Reference (Reference)
+import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Data.Map as Map
+import qualified Data.Text as Text
+import qualified Unison.Dimensions as Dimensions
+import qualified Unison.Doc as Doc
+import qualified Unison.DocView as DocView
 import qualified Unison.Explorer as Explorer
 import qualified Unison.Metadata as Metadata
 import qualified Unison.Paths as Paths
 import qualified Unison.Var as Var
+import qualified Unison.Node as Node
+import qualified Unison.View as View
 import qualified Unison.Views as Views
+import qualified Unison.Term as Term
 
 data S =
   S { metadata :: Map Reference (Metadata V Reference)
@@ -56,8 +65,12 @@ make keydown localInfo s =
     lookupSymbol mds ref = maybe (Views.defaultSymbol ref) (firstName . Metadata.names) (Map.lookup ref mds)
     lookupName mds ref = Var.name (lookupSymbol mds ref)
     processQuery s localInfo txt = do
-      let k localInfo (S {..}) = keyedResults (lookupName metadata) localInfo lastResults
-      keyed <- combineDyn k localInfo s
+      let k (S {..}) = formatSearch (lookupSymbol metadata) path lastResults
+      searches <- mapDyn k s
+      locals <- combineDyn (\S{..} info -> formatLocals (lookupSymbol metadata) path info) s localInfo
+      -- todo - literals and other actions
+      -- todo - figuring when need to make remote requests
+      keyed <- combineDyn (++) locals searches
       let trimEnd = reverse . dropWhile (== ' ') . reverse
       let f possible txt = let txt' = trimEnd txt in filter (isPrefixOf txt' . fst) possible
       filtered <- combineDyn f keyed txt
@@ -66,13 +79,34 @@ make keydown localInfo s =
   in
     Explorer.explorer keydown processQuery localInfo s
 
-keyedResults :: (Reference -> Text)
+formatResult :: MonadWidget t m
+             => (Reference -> Symbol View.DFO) -> Path -> Term V -> a -> (m a -> b) -> (String, b)
+formatResult name path e as w =
+  let doc = Views.term name e
+      txt = Text.unpack . Text.concat $ Doc.tokens "\n" (Doc.flow doc)
+  in (txt, w (as <$ DocView.widget never (Dimensions.Width 300) doc))
+
+formatLocals :: MonadWidget t m
+             => (Reference -> Symbol View.DFO)
+             -> Path
              -> Maybe (LocalInfo (Term V) (Type V))
+             -> [(String, Either (m ()) (m Action))]
+formatLocals name path results = fromMaybe [] $ go <$> results
+  where
+  view n = Term.var' "□" `Term.apps` replicate n Term.blank
+  replace localTerm n = localTerm `Term.apps` replicate n Term.blank
+  go (Node.LocalInfo {..}) =
+    [ formatResult name path e (Replace path e) Right | e <- localVariableApplications ] ++
+    [ formatResult name path (view n) (Replace path (replace localTerm n)) Right | n <- localOverapplications ]
+
+formatSearch :: MonadWidget t m
+             => (Reference -> Symbol View.DFO)
+             -> Path
              -> Maybe (SearchResults V Reference (Term V))
              -> [(String, Either (m ()) (m Action))]
-keyedResults name localInfo results =
-  let
-    replace e path ctx = Paths.modify (const (Paths.Term e)) path ctx
-    go localInfo results = error "todo"
-  in
-    fromMaybe [] $ go <$> localInfo <*> results
+formatSearch name path results = fromMaybe [] $ go <$> results
+  where
+  go (Node.SearchResults {..}) =
+    [ formatResult name path e () Left | e <- fst illTypedMatches ] ++
+    [ formatResult name path e (Replace path e) Right | e <- fst matches ]
+

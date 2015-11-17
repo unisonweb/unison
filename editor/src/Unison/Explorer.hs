@@ -10,7 +10,6 @@ import Data.List
 import Data.Maybe
 import Data.Semigroup
 import Reflex.Dom
-import Unison.Dimensions (X(..),Y(..))
 import qualified Unison.UI as UI
 import qualified Unison.Signals as Signals
 
@@ -27,7 +26,7 @@ data Action m s k a
   = Request (m s) [(k, Either (m ()) (m a))] -- `Bool` indicates whether the choice is selectable
   | Results [(k, Either (m ()) (m a))] Int
   | Cancel
-  | Accept a
+  | Accept (Maybe a)
 
 explorer :: forall t m k s a z. (Reflex t, MonadWidget t m, Eq k, Semigroup s)
          => Event t Int
@@ -93,8 +92,12 @@ explorer keydown processQuery topContent s0 = do
         in combineDyn f valids invalids
       selection <- combineDyn safeIndex selectionIndex selectable
       keyClosings <- pure $
-        let f a = case a of Cancel -> Just Nothing; Accept a -> Just (Just a); _ -> Nothing
-        in fmapMaybe f actions
+        let
+          f a = case a of
+            Cancel -> pure (Just Nothing)
+            Accept a -> Just <$> maybe (sample (current selection)) (pure.Just) a
+            _ -> pure Nothing
+        in push f actions
       let mouseClosings = tag (current selection) (domEvent Click selectableRegion)
       let enterClosings = tag (current selection) (textInputGetEnter searchbox)
       pure (updated valids, s', leftmost [keyClosings, mouseClosings, enterClosings])
