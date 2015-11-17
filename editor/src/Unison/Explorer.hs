@@ -24,15 +24,15 @@ joinModal :: (MonadWidget t m, Reflex t) => Dynamic t Bool -> a -> m (Dynamic t 
 joinModal switch off on = holdDyn off never >>= \off -> joinDyn <$> modal switch off on
 
 data Action m s k a
-  = Request (m s) [(k, Bool, m a)] -- `Bool` indicates whether the choice is selectable
-  | Results [(k, Bool, m a)]
+  = Request (m s) [(k, Either (m ()) (m a))] -- `Bool` indicates whether the choice is selectable
+  | Results [(k, Either (m ()) (m a))] Int
   | Cancel
   | Accept a
 
-explorer :: forall t m k s a . (Reflex t, MonadWidget t m, Eq k, Semigroup s)
+explorer :: forall t m k s a z. (Reflex t, MonadWidget t m, Eq k, Semigroup s)
          => Event t Int
-         -> (s -> String -> Action m s k a)
-         -> Event t (m ()) -- loaded asynchronously on open of explorer
+         -> (Dynamic t s -> Dynamic t (Maybe z) -> Event t String -> Event t (Action m s k a))
+         -> Event t (m z) -- loaded asynchronously on open of explorer
          -> Dynamic t s
          -> m (Dynamic t s, Event t (Maybe a))
 explorer keydown processQuery topContent s0 = do
@@ -45,19 +45,20 @@ explorer keydown processQuery topContent s0 = do
       searchbox <- textInput def
       UI.keepKeyEventIf (\i -> i /= 38 && i /= 40) searchbox -- disable up/down inside searchbox
       elClass "div" "top-separator" $ pure ()
-      _ <- elClass "div" "top-content" $ widgetHold (pure ()) topContent -- todo: perhaps a spinner
+      -- todo, might want to show a spinner or some indicator while we're waiting for results
+      z <- elClass "div" "top-content" $ widgetHold (pure Nothing) (fmap (fmap Just) topContent)
       s <- sample (current s0)
       s' <- foldDyn (<>) s (updated responses)
       actions <- do
-        t <- Signals.prepend "" (updated $ _textInput_value searchbox)
-        pure $ pushAlways (\txt -> processQuery <$> sample (current s') <*> pure txt) t
+        t <- Signals.prepend "" (updated (_textInput_value searchbox))
+        pure $ processQuery s' z t
       responses <- widgetHold (pure s) $ fmapMaybe extractReq actions
       list <- holdDyn [] $
-        let f a = case a of Request _ l -> Just l; Results l -> Just l; _ -> Nothing
+        let f a = case a of Request _ l -> Just l; Results l _ -> Just l; _ -> Nothing
         in fmapMaybe f actions
-      keys <- mapDyn (mapMaybe (\(k,b,_) -> if b then Just k else Nothing)) list
-      valids <- holdDyn [] $ fmap (mapMaybe (\(k,b,v) -> if b then Just (k,v) else Nothing)) (updated list)
-      invalids <- mapDyn (mapMaybe (\(_,b,v) -> if not b then Just v else Nothing)) list
+      keys <- mapDyn (\rs -> [k | (k,Right _) <- rs]) list
+      valids <- holdDyn [] $ fmap (\rs -> [(k,v) | (k, Right v) <- rs]) (updated list)
+      invalids <- mapDyn (\rs -> [(k,v) | (k, Left v) <- rs]) list
       rec
         selectionIndex <- do
           let mouse = fmap (\i _ -> pure i) mouseEvent
@@ -88,7 +89,7 @@ explorer keydown processQuery topContent s0 = do
           f valids invalids
             | null valids && not (null invalids) = elClass "div" "invalid-results" $ view invalids
             | otherwise = pure ()
-          view l = elClass "div" "invalid-results" $ void $ traverse (elClass "div" "invalid-results-item") l
+          view l = void $ traverse (\(_,m) -> elClass "div" "invalid-results-item" m) l
         in combineDyn f valids invalids
       selection <- combineDyn safeIndex selectionIndex selectable
       keyClosings <- pure $

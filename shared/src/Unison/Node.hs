@@ -43,6 +43,15 @@ data SearchResults v h e =
     , illTypedMatches :: ([e], Int)
     , positionsExamined :: [Int] }
 
+data LocalInfo e t =
+  LocalInfo
+    { localTerm :: e
+    , localType :: t
+    , localAdmissibleType :: t
+    , localVariables :: [e]
+    , localOverapplications :: [Int]
+    , localVariableApplications :: [e] }
+
 deriveJSON defaultOptions ''SearchResults
 
 -- | The Unison Node API:
@@ -68,14 +77,8 @@ data Node m v h t e = Node {
   editTerm :: Path -> Path -> Action v -> e -> Noted m (Maybe (Path,e,e,Path)),
   -- Evaluate all terms, returning a list of (path, original e, evaluated e)
   evaluateTerms :: [(Path, e)] -> Noted m [(Path,e,e)],
-  -- | Returns ( subterm at the given path
-  --           , current type
-  --           , admissible type
-  --           , local vars
-  --           , well-typed applications of focus
-  --           , well-typed expressions involving local vars )
-  -- | Modify the given subterm, which may fail. First argument is the root path.
-  localInfo :: e -> Path -> Noted m (e, t, t, [e], [Int], [e]),
+  -- | Return information about local types and and variables in scope
+  localInfo :: e -> Path -> Noted m (LocalInfo e t),
   -- | Access the metadata for the term and/or types identified by @k@
   metadatas :: [h] -> Noted m (Map h (Metadata v h)),
   -- | Search for a term, optionally constrained to be of the given type
@@ -158,7 +161,7 @@ node eval hash store =
         _ -> map snd <$> filterM fi currentApplies
       subterm <- maybe (fail "invalid path") pure (Paths.atTerm loc e)
       matchingLocals <- filterM f (locals >>= (\(v,t) -> TermEdit.applications (Term.var v) t))
-      pure (subterm, current, admissible, annotatedLocals, matchingCurrentApplies, matchingLocals)
+      pure $ LocalInfo subterm current admissible annotatedLocals matchingCurrentApplies matchingLocals
 
     search e loc limit query _ =
       let
