@@ -56,7 +56,7 @@ data Action
 
 make :: (MonadWidget t m, Reflex t)
      => Event t Int
-     -> Event t (m (LocalInfo (Term V) (Type V)))
+     -> Event t (LocalInfo (Term V) (Type V))
      -> Dynamic t S
      -> m (Dynamic t S, Event t (Maybe Action))
 make keydown localInfo s =
@@ -76,8 +76,11 @@ make keydown localInfo s =
       filtered <- combineDyn f keyed txt
       -- todo parse txt and emit accept / cancel / accept-and-advance
       pure $ (\r -> Explorer.Results r 0) <$> updated filtered
+    formatLocalInfo (i@Node.LocalInfo{..}) = i <$ do
+      S {..} <- sample (current s)
+      pure () -- todo, fill in with formatting of current, admissible type, etc
   in
-    Explorer.explorer keydown processQuery localInfo s
+    Explorer.explorer keydown processQuery (fmap formatLocalInfo localInfo) s
 
 formatResult :: MonadWidget t m
              => (Reference -> Symbol View.DFO) -> Path -> Term V -> a -> (m a -> b) -> (String, b)
@@ -109,4 +112,3 @@ formatSearch name path results = fromMaybe [] $ go <$> results
   go (Node.SearchResults {..}) =
     [ formatResult name path e () Left | e <- fst illTypedMatches ] ++
     [ formatResult name path e (Replace path e) Right | e <- fst matches ]
-
