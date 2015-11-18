@@ -48,8 +48,10 @@ library
     Unison.DocView
     Unison.Dom
     Unison.Explorer
-    Unison.TermExplorer
     Unison.HTML
+    Unison.LiteralParser
+    Unison.Parser
+    Unison.TermExplorer
     Unison.UI
 
   build-depends:

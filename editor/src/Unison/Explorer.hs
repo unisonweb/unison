@@ -26,11 +26,11 @@ data Action m s k a
   = Request (m s) [(k, Either (m ()) (m a))] -- `Bool` indicates whether the choice is selectable
   | Results [(k, Either (m ()) (m a))] Int
   | Cancel
-  | Accept (Maybe a)
+  | Accept a
 
 explorer :: forall t m k s a z. (Reflex t, MonadWidget t m, Eq k, Semigroup s)
          => Event t Int
-         -> (Dynamic t s -> Dynamic t (Maybe z) -> Dynamic t String -> m (Event t (Action m s k a)))
+         -> (Dynamic t s -> Dynamic t (Maybe z) -> Dynamic t String -> Behavior t (Maybe a) -> m (Event t (Action m s k a)))
          -> Event t (m z) -- loaded asynchronously on open of explorer
          -> Dynamic t s
          -> m (Dynamic t s, Event t (Maybe a))
@@ -50,7 +50,7 @@ explorer keydown processQuery topContent s0 = do
       s' <- foldDyn (<>) s (updated responses)
       actions <- do
         t <- Signals.prependDyn "" (_textInput_value searchbox)
-        processQuery s' z t
+        processQuery s' z t (current selection)
       responses <- widgetHold (pure s) $ fmapMaybe extractReq actions
       list <- holdDyn [] $
         let f a = case a of Request _ l -> Just l; Results l _ -> Just l; _ -> Nothing
@@ -94,10 +94,10 @@ explorer keydown processQuery topContent s0 = do
       keyClosings <- pure $
         let
           f a = case a of
-            Cancel -> pure (Just Nothing)
-            Accept a -> Just <$> maybe (sample (current selection)) (pure.Just) a
-            _ -> pure Nothing
-        in push f actions
+            Cancel -> Just Nothing
+            Accept a -> Just (Just a)
+            _ -> Nothing
+        in fmapMaybe f actions
       let mouseClosings = tag (current selection) (domEvent Click selectableRegion)
       let enterClosings = tag (current selection) (textInputGetEnter searchbox)
       pure (updated valids, s', leftmost [keyClosings, mouseClosings, enterClosings])
