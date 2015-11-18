@@ -1,7 +1,7 @@
 module Unison.Signals where
 
 import Control.Monad.Fix
-import Data.These
+import Data.These hiding (mergeThese)
 import Reflex
 import Reflex.Dom
 
@@ -33,6 +33,13 @@ mergeThese a b = mergeWith g [fmap This a, fmap That b] where
 
 mergeLeft :: Reflex t => Event t a -> Event t b -> Event t (Either a b)
 mergeLeft a b = mergeWith const [fmap Left a, fmap Right b]
+
+-- | Tags each `a` event with `True` if the `b` event occurs simultaneously
+coincides :: Reflex t => Event t a -> Event t b -> Event t (a, Bool)
+coincides e1 e2 = push g (mergeThese e1 e2) where
+  g (This a) = pure (Just (a, False))
+  g (That _) = pure Nothing
+  g (These a _) = pure (Just (a, True))
 
 upArrow, downArrow, leftArrow, rightArrow :: Reflex t => Event t Int -> Event t Int
 leftArrow = ffilter (== 37)

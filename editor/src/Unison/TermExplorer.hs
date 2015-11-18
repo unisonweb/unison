@@ -5,6 +5,7 @@
 module Unison.TermExplorer where
 
 import Control.Monad
+import Control.Monad.IO.Class
 import Data.Either
 import Data.List
 import Data.Map (Map)
@@ -12,7 +13,7 @@ import Data.Maybe
 import Data.Semigroup
 import Data.Text (Text)
 import Reflex.Dom
-import Unison.Metadata (Metadata)
+import Unison.Metadata (Metadata,Query(..))
 import Unison.Node (Node,SearchResults,LocalInfo)
 import Unison.Node (SearchResults)
 import Unison.Node.MemNode (V)
@@ -30,8 +31,10 @@ import qualified Unison.Explorer as Explorer
 import qualified Unison.LiteralParser as LiteralParser
 import qualified Unison.Metadata as Metadata
 import qualified Unison.Node as Node
+import qualified Unison.Note as Note
 import qualified Unison.Parser as Parser
 import qualified Unison.Paths as Paths
+import qualified Unison.Signals as Signals
 import qualified Unison.Term as Term
 import qualified Unison.Typechecker as Typechecker
 import qualified Unison.Var as Var
@@ -43,7 +46,7 @@ data S =
     , lastResults :: Maybe (SearchResults V Reference (Term V))
     , overallTerm :: Target V
     , path :: Path -- path into `overallTerm`
-    , id :: Int }
+    , nonce :: Int }
 
 instance Semigroup S where
   (S md1 r1 t1 p1 id1) <> (S md2 r2 t2 p2 id2) =
@@ -61,11 +64,12 @@ data Action
   | Eval Path
 
 make :: forall t m . (MonadWidget t m, Reflex t)
-     => Event t Int
+     => Node IO V Reference (Type V) (Term V)
+     -> Event t Int
      -> Event t (LocalInfo (Term V) (Type V))
      -> Dynamic t S
      -> m (Dynamic t S, Event t (Maybe (Action,Advance)))
-make keydown localInfo s =
+make node keydown localInfo s =
   let
     firstName (Metadata.Names (n:_)) = n
     lookupSymbol mds ref = maybe (Views.defaultSymbol ref) (firstName . Metadata.names) (Map.lookup ref mds)
@@ -90,20 +94,46 @@ make keydown localInfo s =
       filtered <- combineDyn f keyed txt
       pure $
         let
-          p (txt, rs) | any (== ';') txt = pure (Just Explorer.Cancel)
-          p (txt, rs) | isSuffixOf "  " txt = fmap k <$> sample selection
-           where k (a,_) = Explorer.Accept (a,True)
-          p (_, rs) = pure (Just (Explorer.Results rs 0)) -- todo: track additional results count, via `S`
-          -- todo - figuring when need to make remote requests
-          -- just sample the current S; if we've got complete results for the last search (and it matches this one)
-          -- we're good, otherwise issue a request if `txt` is currently firing
+          p (txt, (rs,_)) | any (== ';') txt = pure (Just Explorer.Cancel)
+          p (txt, (rs,_)) | isSuffixOf "  " txt = fmap k <$> sample selection
+            where k (a,_) = Explorer.Accept (a,True)
+          p (txt, (rs,textUpdate)) = do
+            s <- sample (current s)
+            req <- pure $ do
+              info <- sample (current localInfo)
+              case Paths.asTerm (overallTerm s) of
+                Nothing -> pure s
+                Just overallTerm -> do
+                  lastResults@Node.SearchResults{..} <- liftIO $
+                    Note.run (Node.search node
+                      overallTerm (path s)
+                      10
+                      (Query (Text.pack txt))
+                      (Node.localAdmissibleType <$> info))
+                  pure $ S (Map.fromList references) (Just lastResults) (Paths.Term overallTerm) (path s) (nonce s + 1)
+            let finish rs n = if textUpdate then Just (Explorer.Request req rs) else Just (Explorer.Results rs n)
+            pure $ case lastResults s of
+              Nothing -> finish rs 0
+              Just results ->
+                if resultsComplete results && isPrefixOf (queryString $ Node.query results) txt
+                then finish rs (additionalResults results)
+                else Just (Explorer.Results rs (additionalResults results))
         in
-        push p $ attachDyn txt (updated filtered)
+        push p $ attachDyn txt (updated filtered `Signals.coincides` updated txt)
     formatLocalInfo (i@Node.LocalInfo{..}) = i <$ do
       S {..} <- sample (current s)
       pure () -- todo, fill in with formatting of current, admissible type, etc
   in
     Explorer.explorer keydown processQuery (fmap formatLocalInfo localInfo) s
+
+queryString :: Query -> String
+queryString (Query s) = Text.unpack s
+
+additionalResults :: Node.SearchResults v h e -> Int
+additionalResults = snd . Node.matches
+
+resultsComplete :: Node.SearchResults v h e -> Bool
+resultsComplete = (==0) . additionalResults
 
 formatResult :: MonadWidget t m
              => (Reference -> Symbol View.DFO) -> Term V -> a -> (m a -> b) -> (String, b)
