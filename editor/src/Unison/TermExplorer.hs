@@ -96,7 +96,7 @@ make node keydown localInfo s =
         let
           p (txt, (rs,_)) | any (== ';') txt = pure (Just Explorer.Cancel)
           p (txt, (rs,_)) | isSuffixOf "  " txt = fmap k <$> sample selection
-            where k (a,_) = Explorer.Accept (a,True)
+            where k (a,_) = Explorer.Accept (a,True) -- ending with two spaces is an accept+advance
           p (txt, (rs,textUpdate)) = do
             s <- sample (current s)
             req <- pure $ do
@@ -105,11 +105,11 @@ make node keydown localInfo s =
                 Nothing -> pure s
                 Just overallTerm -> do
                   lastResults@Node.SearchResults{..} <- liftIO $
-                    Note.run (Node.search node
+                    Note.run $ Node.search node
                       overallTerm (path s)
                       10
                       (Query (Text.pack txt))
-                      (Node.localAdmissibleType <$> info))
+                      (Node.localAdmissibleType <$> info)
                   pure $ S (Map.fromList references) (Just lastResults) (Paths.Term overallTerm) (path s) (nonce s + 1)
             let finish rs n = if textUpdate then Just (Explorer.Request req rs) else Just (Explorer.Results rs n)
             pure $ case lastResults s of
@@ -121,8 +121,14 @@ make node keydown localInfo s =
         in
         push p $ attachDyn txt (updated filtered `Signals.coincides` updated txt)
     formatLocalInfo (i@Node.LocalInfo{..}) = i <$ do
-      S {..} <- sample (current s)
-      pure () -- todo, fill in with formatting of current, admissible type, etc
+      name <- lookupSymbol . metadata <$> sample (current s)
+      let txt doc = text . Text.unpack . Text.concat . Doc.tokens "\n" . Doc.flow $ doc
+      elClass "div" "explorer-local-info" $ do
+        elClass "div" "localType" $ txt (Views.type' name localType)
+        elClass "div" "localAdmissibleType" $ txt (Views.type' name localAdmissibleType)
+        _ <- elClass "div" "localVariables" $
+          traverse (elClass "div" "localVariable" . txt . Views.term name) localVariables
+        pure ()
   in
     Explorer.explorer keydown processQuery (fmap formatLocalInfo localInfo) s
 
