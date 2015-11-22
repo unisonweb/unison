@@ -17,15 +17,28 @@ import Unison.Dimensions (X(..), Y(..), Width(..), Height(..))
 import Unison.Path (Path)
 import qualified Data.Map as Map
 import qualified Data.Text as Text
+import qualified Debug.Trace as Trace
 import qualified GHCJS.DOM.Document as Document
 import qualified GHCJS.DOM.Element as Element
 import qualified Reflex.Dynamic as Dynamic
 import qualified Unison.Doc as Doc
 import qualified Unison.Dom as Dom
 import qualified Unison.HTML as HTML
-import qualified Unison.UI as UI
+import qualified Unison.Path as Path
 import qualified Unison.Signals as S
-import qualified Debug.Trace as Trace
+import qualified Unison.UI as UI
+
+widgets :: (Show p, Path p, Eq p, MonadWidget t m)
+        => Event t Int -> Width -> Dynamic t (Doc Text p)
+        -> m (Dynamic t (Maybe (El t)), Dynamic t (Width,Height), Dynamic t p)
+widgets keydown available docs = do
+  p <- dyn =<< mapDyn (\doc -> widget keydown available doc) docs
+  els <- holdDyn Nothing $ (\(e,_,_) -> Just e) <$> p
+  dims <- holdDyn (Width 0, Height 0) ((\(_,xy,_) -> xy) <$> p)
+  p0 <- S.now Path.root
+  pathsEvent <- switchPromptly p0 ((\(_,_,p) -> updated p) <$> p)
+  paths <- holdDyn Path.root pathsEvent
+  pure (els, dims, paths)
 
 widget :: (Show p, Path p, Eq p, MonadWidget t m)
        => Event t Int -> Width -> Doc Text p -> m (El t, (Width,Height), Dynamic t p)

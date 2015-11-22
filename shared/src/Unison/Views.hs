@@ -4,20 +4,23 @@
 
 module Unison.Views where
 
-import Data.Maybe
 import Data.List
+import Data.Maybe
+import Data.Map (Map)
 import Data.Text (Text)
 import Unison.Doc (Doc)
-import Unison.Type (Type)
-import Unison.Term (Term)
+import Unison.Metadata (Metadata)
 import Unison.Paths (Path)
 import Unison.Reference (Reference)
 import Unison.Symbol (Symbol(..))
+import Unison.Term (Term)
+import Unison.Type (Type)
+import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
-import qualified Unison.Dimensions as Dimensions
 import qualified Unison.Doc as D
 import qualified Unison.Hash as Hash
+import qualified Unison.Metadata as Metadata
 import qualified Unison.Paths as P
 import qualified Unison.Reference as Reference
 import qualified Unison.Symbol as Symbol
@@ -28,6 +31,19 @@ import qualified Unison.View as View
 
 type ViewableTerm = Term (Symbol View.DFO)
 type ViewableType = Type (Symbol View.DFO)
+
+lookupSymbol :: Map Reference (Metadata (Symbol View.DFO) Reference) -> Reference -> Symbol View.DFO
+lookupSymbol mds ref = maybe (defaultSymbol ref) (firstName . Metadata.names) (Map.lookup ref mds)
+  where
+  firstName :: Metadata.Names v -> v
+  firstName (Metadata.Names (n:_)) = n
+  firstName _ = error "empty names"
+
+termMd :: Map Reference (Metadata (Symbol View.DFO) Reference) -> ViewableTerm -> Doc Text Path
+termMd mds = term (lookupSymbol mds)
+
+typeMd :: Map Reference (Metadata (Symbol View.DFO) Reference) -> ViewableType -> Doc Text Path
+typeMd mds = type' (lookupSymbol mds)
 
 term :: (Reference -> Symbol View.DFO) -> ViewableTerm -> Doc Text Path
 term ref t = go no View.low t where

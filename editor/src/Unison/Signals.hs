@@ -41,8 +41,9 @@ coincides e1 e2 = push g (mergeThese e1 e2) where
   g (That _) = pure Nothing
   g (These a _) = pure (Just (a, True))
 
-upArrow, downArrow, leftArrow, rightArrow :: Reflex t => Event t Int -> Event t Int
+enter, upArrow, downArrow, leftArrow, rightArrow :: Reflex t => Event t Int -> Event t Int
 leftArrow = ffilter (== 37)
 upArrow = ffilter (== 38)
 rightArrow = ffilter (== 39)
 downArrow = ffilter (== 40)
+enter = ffilter (== 13)

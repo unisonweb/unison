@@ -24,13 +24,13 @@ nonempty p = Parser $ \s -> case run p s of
   ok -> ok
 
 scope :: String -> Parser a -> Parser a
-scope s p = Parser $ \s -> case run p s of
+scope s p = Parser $ \input -> case run p input of
   Fail e b -> Fail (s:e) b
   ok -> ok
 
 commit :: Parser a -> Parser a
-commit p = Parser $ \s -> case run p s of
-  Fail e b -> Fail e True
+commit p = Parser $ \input -> case run p input of
+  Fail e _ -> Fail e True
   ok -> ok
 
 data Result a
@@ -57,5 +57,5 @@ instance Monad Parser where
 instance MonadPlus Parser where
   mzero = Parser $ \_ -> Fail [] False
   mplus p1 p2 = Parser $ \s -> case run p1 s of
-    Fail e False -> run p2 s
+    Fail _ False -> run p2 s
     ok -> ok

@@ -4,18 +4,15 @@
 
 module Unison.TermExplorer where
 
-import Control.Monad
 import Control.Monad.IO.Class
 import Data.Either
 import Data.List
 import Data.Map (Map)
 import Data.Maybe
 import Data.Semigroup
-import Data.Text (Text)
 import Reflex.Dom
 import Unison.Metadata (Metadata,Query(..))
 import Unison.Node (Node,SearchResults,LocalInfo)
-import Unison.Node (SearchResults)
 import Unison.Node.MemNode (V)
 import Unison.Paths (Target, Path)
 import Unison.Reference (Reference)
@@ -29,7 +26,6 @@ import qualified Unison.Doc as Doc
 import qualified Unison.DocView as DocView
 import qualified Unison.Explorer as Explorer
 import qualified Unison.LiteralParser as LiteralParser
-import qualified Unison.Metadata as Metadata
 import qualified Unison.Node as Node
 import qualified Unison.Note as Note
 import qualified Unison.Parser as Parser
@@ -37,7 +33,6 @@ import qualified Unison.Paths as Paths
 import qualified Unison.Signals as Signals
 import qualified Unison.Term as Term
 import qualified Unison.Typechecker as Typechecker
-import qualified Unison.Var as Var
 import qualified Unison.View as View
 import qualified Unison.Views as Views
 
@@ -71,20 +66,17 @@ make :: forall t m . (MonadWidget t m, Reflex t)
      -> m (Dynamic t S, Event t (Maybe (Action,Advance)))
 make node keydown localInfo s =
   let
-    firstName (Metadata.Names (n:_)) = n
-    lookupSymbol mds ref = maybe (Views.defaultSymbol ref) (firstName . Metadata.names) (Map.lookup ref mds)
-    lookupName mds ref = Var.name (lookupSymbol mds ref)
     parse ((Nothing, _),_) = []
     parse ((Just (Node.LocalInfo{..}), txt),S{..}) = case Parser.run LiteralParser.term txt of
       Parser.Succeed tm n | all (== ' ') (drop n txt) -> do
         if isRight (Typechecker.check' tm localAdmissibleType)
-          then [formatResult (lookupSymbol metadata) tm (Replace path tm, False) Right]
-          else [formatResult (lookupSymbol metadata) tm () Left]
+          then [formatResult (Views.lookupSymbol metadata) tm (Replace path tm, False) Right]
+          else [formatResult (Views.lookupSymbol metadata) tm () Left]
       _ -> []
     processQuery s localInfo txt selection = do
-      let k (S {..}) = formatSearch (lookupSymbol metadata) path lastResults
+      let k (S {..}) = formatSearch (Views.lookupSymbol metadata) path lastResults
       searches <- mapDyn k s
-      locals <- combineDyn (\S{..} info -> formatLocals (lookupSymbol metadata) path info) s localInfo
+      locals <- combineDyn (\S{..} info -> formatLocals (Views.lookupSymbol metadata) path info) s localInfo
       literals0 <- mapDynM (\p -> (,) p <$> sample (current s)) =<< combineDyn (,) localInfo txt
       literals <- mapDyn parse literals0
       -- todo - other actions
@@ -94,8 +86,8 @@ make node keydown localInfo s =
       filtered <- combineDyn f keyed txt
       pure $
         let
-          p (txt, (rs,_)) | any (== ';') txt = pure (Just Explorer.Cancel)
-          p (txt, (rs,_)) | isSuffixOf "  " txt = fmap k <$> sample selection
+          p (txt, (_,_)) | any (== ';') txt = pure (Just Explorer.Cancel)
+          p (txt, (_,_)) | isSuffixOf "  " txt = fmap k <$> sample selection
             where k (a,_) = Explorer.Accept (a,True) -- ending with two spaces is an accept+advance
           p (txt, (rs,textUpdate)) = do
             s <- sample (current s)
@@ -121,7 +113,7 @@ make node keydown localInfo s =
         in
         push p $ attachDyn txt (updated filtered `Signals.coincides` updated txt)
     formatLocalInfo (i@Node.LocalInfo{..}) = i <$ do
-      name <- lookupSymbol . metadata <$> sample (current s)
+      name <- Views.lookupSymbol . metadata <$> sample (current s)
       let txt doc = text . Text.unpack . Text.concat . Doc.tokens "\n" . Doc.flow $ doc
       elClass "div" "explorer-local-info" $ do
         elClass "div" "localType" $ txt (Views.type' name localType)

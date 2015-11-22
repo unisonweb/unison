@@ -53,6 +53,7 @@ data LocalInfo e t =
     , localVariableApplications :: [e] }
 
 deriveJSON defaultOptions ''SearchResults
+deriveJSON defaultOptions ''LocalInfo
 
 -- | The Unison Node API:
 --   * `m` is the monad
