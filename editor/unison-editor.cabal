@@ -42,7 +42,7 @@ flag quiet
   default: False
 
 library
-  hs-source-dirs: src
+  hs-source-dirs: src shared-src
 
   exposed-modules:
     Unison.DocView
@@ -56,19 +56,26 @@ library
 
   build-depends:
     base,
+    aeson,
+    base64-bytestring,
+    bifunctors,
+    bytestring,
+    comonad,
     containers,
     data-default,
     free,
-    ghcjs-dom,
     ghcjs-base,
+    ghcjs-dom,
     mtl,
+    murmur-hash,
+    prelude-extras,
     reflex,
     reflex-dom,
     semigroups,
     text,
     these,
     transformers,
-    unison-shared
+    vector
 
   ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N
 
@@ -80,7 +87,7 @@ library
 
 executable editor
   main-is: Editor.hs
-  hs-source-dirs: src
+  hs-source-dirs: src shared-src
   ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N -v0
 
   if flag(optimized)
@@ -88,24 +95,31 @@ executable editor
 
   build-depends:
     base,
+    aeson,
+    base64-bytestring,
+    bifunctors,
+    bytestring,
+    comonad,
     containers,
     data-default,
     free,
-    ghcjs-dom,
     ghcjs-base,
+    ghcjs-dom,
     mtl,
+    murmur-hash,
+    prelude-extras,
     reflex,
     reflex-dom,
     semigroups,
     text,
     these,
     transformers,
-    unison-shared,
+    vector,
     unison-editor
 
 executable explorer
   main-is: ExplorerTest.hs
-  hs-source-dirs: src
+  hs-source-dirs: src shared-src
   ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N -v0
 
   if flag(optimized)
@@ -113,17 +127,24 @@ executable explorer
 
   build-depends:
     base,
+    aeson,
+    base64-bytestring,
+    bifunctors,
+    bytestring,
+    comonad,
     containers,
     data-default,
     free,
-    ghcjs-dom,
     ghcjs-base,
+    ghcjs-dom,
     mtl,
+    murmur-hash,
+    prelude-extras,
     reflex,
     reflex-dom,
     semigroups,
     text,
     these,
     transformers,
-    unison-shared,
+    vector,
     unison-editor
