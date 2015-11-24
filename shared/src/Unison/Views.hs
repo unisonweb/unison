@@ -114,6 +114,7 @@ term ref t = go no View.low t where
     E.Var' v -> sym v
     E.Lit' _ -> D.embed (Var.name $ op t)
     E.Blank' -> D.embed "_"
+    E.Ref' r -> sym (ref r)
     _ -> error $ "layout match failure " ++ show t
 
 type' :: (Reference -> Symbol View.DFO) -> ViewableType -> Doc Text Path

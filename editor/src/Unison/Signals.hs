@@ -1,10 +1,12 @@
 module Unison.Signals where
 
-import Control.Monad.IO.Class
 import Control.Monad.Fix
+import Control.Monad.IO.Class
+import Data.List
 import Data.These hiding (mergeThese)
 import Reflex
 import Reflex.Dom
+import Unison.Dimensions(X(..),Y(..))
 
 modal :: (MonadWidget t m, Reflex t) => Dynamic t Bool -> a -> m a -> m (Event t a)
 modal on whenOff ma =
@@ -15,6 +17,18 @@ evaluate f actions = performEvent $ fmap (liftIO . f) actions
 
 now :: (MonadWidget t m, Reflex t) => a -> m (Event t a)
 now a = fmap (const a) <$> getPostBuild
+
+offset :: (MonadWidget t m, Reflex t) => Dynamic t (X,Y) -> m a -> m a
+offset topLeft inner = do
+  f <- pure $
+    let
+      style (X x, Y y) = "style" =: intercalate ";"
+        [ "position:absolute"
+        , "left:" ++ show x ++ "px"
+        , "top:" ++ show y ++ "px" ]
+    in style
+  attrs <- mapDyn f topLeft
+  el "div" $ elDynAttr "div" attrs inner
 
 delay :: (MonadHold t m, Reflex t) => a -> Event t a -> m (Event t a)
 delay a e = do

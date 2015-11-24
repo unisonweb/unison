@@ -31,19 +31,20 @@ import qualified Unison.UI as UI
 widgets :: (Show p, Path p, Eq p, MonadWidget t m)
         => Event t Int -> (Event t (X,Y) -> Event t (X,Y))
         -> Width -> Dynamic t (Doc Text p)
-        -> m (Dynamic t (Maybe (El t)), Dynamic t (Width,Height), Dynamic t p)
+        -> m (Dynamic t (Maybe (El t)), Dynamic t (Width,Height), Dynamic t p, Event t (X,Y,Width,Height))
 widgets keydown filterMouse available docs = do
   p <- dyn =<< mapDyn (\doc -> widget keydown filterMouse available doc) docs
-  els <- holdDyn Nothing $ (\(e,_,_) -> Just e) <$> p
-  dims <- holdDyn (Width 0, Height 0) ((\(_,xy,_) -> xy) <$> p)
+  els <- holdDyn Nothing $ (\(e,_,_,_) -> Just e) <$> p
+  dims <- holdDyn (Width 0, Height 0) ((\(_,xy,_,_) -> xy) <$> p)
   p0 <- S.now Path.root
-  pathsEvent <- switchPromptly p0 ((\(_,_,p) -> updated p) <$> p)
+  pathsEvent <- switchPromptly p0 ((\(_,_,p,_) -> updated p) <$> p)
+  regionsEvent <- switchPromptly never ((\(_,_,_,r) -> updated r) <$> p)
   paths <- holdDyn Path.root pathsEvent
-  pure (els, dims, paths)
+  pure (els, dims, paths, regionsEvent)
 
 widget :: (Show p, Path p, Eq p, MonadWidget t m)
        => Event t Int -> (Event t (X,Y) -> Event t (X,Y))
-       -> Width -> Doc Text p -> m (El t, (Width,Height), Dynamic t p)
+       -> Width -> Doc Text p -> m (El t, (Width,Height), Dynamic t p, Dynamic t (X,Y,Width,Height))
 widget keydown filterMouse available d =
   let
     leaf txt = Text.replace " " "&nbsp;" txt
@@ -105,7 +106,7 @@ widget keydown filterMouse available d =
     region <- mapDyn (Doc.region b) path
     sel <- mapDyn selectionLayer region
     _ <- widgetHold (pure ()) (Dynamic.updated sel)
-    pure (e, (w,h), path)
+    pure (e, (w,h), path, region)
 
 selectionLayer :: MonadWidget t m => (X,Y,Width,Height) -> m ()
 selectionLayer (X x, Y y, Width w, Height h) =

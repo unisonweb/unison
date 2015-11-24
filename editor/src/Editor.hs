@@ -10,7 +10,7 @@ import Control.Monad.IO.Class
 import Data.Maybe
 import Reflex
 import Reflex.Dom
-import Unison.Dimensions (Width(..),X(..),Y(..))
+import Unison.Dimensions (Width(..),X(..),Y(..),Height(..))
 import Unison.Term
 import Unison.UI (mouseMove')
 import qualified Data.Map as Map
@@ -72,13 +72,14 @@ termEditor term0 = do
       in
         mapDyn f state
     terms <- holdDyn term0 (fmapMaybe (\TermExplorer.S{..} -> Paths.asTerm overallTerm) (updated state))
-    (e, dims, path) <- elClass "div" "root" $
+    (e, dims, path, highlightRegion) <- elClass "div" "root" $
       DocView.widgets (dropWhen isExplorerOpen' keydown) (dropWhen isExplorerOpen') (Width 400) docs
     info <- do
       let f e p = liftIO . Note.run $ Node.localInfo node e p
       infos <- pure $ pushAlways (\_ -> f <$> sample (current terms) <*> sample (current path)) openEvent
       Signals.evaluate id infos
-    explorerResults <- Signals.modal isExplorerOpen (state,never) $
+    explorerTopLeft <- holdDyn (X 0, Y 0) $ (\(X x, Y y, _, Height h) -> (X x, Y $ y + h)) <$> highlightRegion
+    explorerResults <- Signals.offset explorerTopLeft . Signals.modal isExplorerOpen (state,never) $
                        TermExplorer.make node keydown info state
     state' <- do
       s0 <- sample (current state)

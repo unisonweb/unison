@@ -20,9 +20,12 @@ term =
 digits :: Parser String
 digits = takeWhile Char.isDigit
 
+digits1 :: Parser String
+digits1 = (:) <$> one Char.isDigit <*> digits
+
 floatingPoint :: Parser Double
 floatingPoint = do
-  d <- digits
+  d <- digits1
   rest <- optional (void (char '.') *> digits)
   pure $ read d + fromMaybe 0.0 (read <$> rest)
 

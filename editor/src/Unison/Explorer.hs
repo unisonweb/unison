@@ -5,6 +5,7 @@
 
 module Unison.Explorer where
 
+import Control.Monad.IO.Class
 import Data.Functor
 import Data.List
 import Data.Maybe
@@ -12,6 +13,7 @@ import Data.Semigroup
 import Reflex.Dom
 import qualified Unison.UI as UI
 import qualified Unison.Signals as Signals
+import qualified GHCJS.DOM.Element as Element
 
 modal :: (MonadWidget t m, Reflex t) => Dynamic t Bool -> a -> m a -> m (Dynamic t a)
 modal switch off on = do
@@ -42,6 +44,8 @@ explorer keydown processQuery topContent s0 = do
     attrs <- holdDyn ("class" =: "explorer") (fmap (\l -> if null l then invalidAttrs else validAttrs) valids)
     (valids, updatedS, closings) <- elDynAttr "div" attrs $ mdo
       searchbox <- textInput def
+      grabFocus <- Signals.now (Element.elementFocus (_textInput_element searchbox))
+      _ <- Signals.evaluate id grabFocus
       UI.keepKeyEventIf (\i -> i /= 38 && i /= 40) searchbox -- disable up/down inside searchbox
       elClass "div" "top-separator" $ pure ()
       -- todo, might want to show a spinner or some indicator while we're waiting for results

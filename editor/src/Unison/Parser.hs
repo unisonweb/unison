@@ -13,6 +13,11 @@ string s = Parser $ \input -> if isPrefixOf s input then Succeed s (length s) el
 char :: Char -> Parser Char
 char c = Parser $ \input -> if listToMaybe input == Just c then Succeed c 1 else Fail [] False
 
+one :: (Char -> Bool) -> Parser Char
+one f = Parser $ \s -> case s of
+  (h:_) | f h -> Succeed h 1
+  _ -> Fail [] False
+
 takeWhile :: (Char -> Bool) -> Parser String
 takeWhile f = Parser $ \s ->
   let hd = Prelude.takeWhile f s
