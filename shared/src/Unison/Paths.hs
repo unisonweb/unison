@@ -3,13 +3,15 @@
 module Unison.Paths where
 
 import Data.Aeson.TH
-import Unison.Var (Var)
+import Data.List
 import Data.Maybe
 import Data.Text (Text)
-import Data.List
+import Data.Vector ((//))
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
+import Unison.Var (Var)
+import qualified Data.Vector as Vector
 import qualified Unison.ABT as ABT
 import qualified Unison.Symbol as Symbol
 import qualified Unison.Term as E
@@ -45,6 +47,8 @@ focus1 Body (Type (T.Forall' v body)) = Just (Type body, \body -> Type . T.foral
 focus1 Bound (Term (E.Lam' v body)) = Just (Var v, \v -> Term <$> (E.lam <$> asVar v <*> pure body))
 focus1 Bound (Term (E.Let1' v b body)) = Just (Var v, \v -> (\v -> Term $ E.let1 [(v,b)] body) <$> asVar v)
 focus1 Bound (Type (T.Forall' v body)) = Just (Var v, \v -> Type <$> (T.forall <$> asVar v <*> pure body))
+focus1 (Index i) (Term (E.Vector' vs)) | i < Vector.length vs && i >= 0 =
+  Just (Term (vs `Vector.unsafeIndex` i), \e -> (\e -> Term $ E.vector' $ vs // [(i,e)]) <$> asTerm e)
 focus1 (Binding i) (Term (E.Let1' v b body)) | i <= 0 = Just (Term b, \b -> (\b -> Term $ E.let1 [(v,b)] body) <$> asTerm b)
 focus1 (Binding i) (Term (E.LetRec' bs body)) =
   listToMaybe (drop i bs)

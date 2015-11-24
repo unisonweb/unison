@@ -78,7 +78,6 @@ termEditor term0 = do
       let f e p = liftIO . Note.run $ Node.localInfo node e p
       infos <- pure $ pushAlways (\_ -> f <$> sample (current terms) <*> sample (current path)) openEvent
       Signals.evaluate id infos
-    -- (state', actions) <- TermExplorer.make node (keepWhen isExplorerOpen keydown) info state
     explorerResults <- Signals.modal isExplorerOpen (state,never) $
                        TermExplorer.make node keydown info state
     state' <- do
