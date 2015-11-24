@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE RecursiveDo #-}
 
@@ -42,8 +43,8 @@ keepWhen = gate
 dropWhen :: Reflex t => Behavior t Bool -> Event t a -> Event t a
 dropWhen b = keepWhen (not <$> b)
 
-termEditor :: Term MemNode.V -> IO ()
-termEditor term0 = mainWidget $ do
+termEditor :: (Reflex t, MonadWidget t m) => Term MemNode.V -> m ()
+termEditor term0 = do
   node <- liftIO MemNode.make
   symbols0 <- (liftIO . Note.run . Node.metadatas node . Set.toList . Term.dependencies') term0
   keydown <- UI.windowKeydown
@@ -54,10 +55,12 @@ termEditor term0 = mainWidget $ do
           [ void $ Signals.enter keydown
           , void $ ffilter (== 79) keydown -- [o]pen
           , void $ clickDoc ]
-      in dropWhen isExplorerOpen events
-    isExplorerOpen <- hold False $
+          -- todo: add advance events
+      in dropWhen isExplorerOpen' events
+    isExplorerOpen <- holdDyn False $
       let f p = case p of Just (_, True) -> True; _ -> False
-      in leftmost [ True <$ openEvent, f <$> keepWhen isExplorerOpen actions ]
+      in leftmost [ True <$ openEvent, f <$> keepWhen isExplorerOpen' actions ]
+    let isExplorerOpen' = current isExplorerOpen
     clickDoc <- switchPromptly never (maybe never (domEvent Click) <$> updated e)
     state <- holdDyn (TermExplorer.S symbols0 Nothing (Paths.Term term) [] 0) updatedState
     docs <- id $
@@ -69,11 +72,19 @@ termEditor term0 = mainWidget $ do
       in
         mapDyn f state
     terms <- holdDyn term0 (fmapMaybe (\TermExplorer.S{..} -> Paths.asTerm overallTerm) (updated state))
-    (e, dims, path) <- elClass "div" "root" $ DocView.widgets (dropWhen isExplorerOpen keydown) (Width 400) docs
+    (e, dims, path) <- elClass "div" "root" $ DocView.widgets (dropWhen isExplorerOpen' keydown) (Width 400) docs
     info <- do
-      infos <- combineDyn (\e p -> liftIO . Note.run $ Node.localInfo node e p) terms path
-      dyn infos
-    (state', actions) <- TermExplorer.make node (keepWhen isExplorerOpen keydown) info state
+      let f e p = liftIO . Note.run $ Node.localInfo node e p
+      infos <- pure $ pushAlways (\_ -> f <$> sample (current terms) <*> sample (current path)) openEvent
+      Signals.evaluate id infos
+    -- (state', actions) <- TermExplorer.make node (keepWhen isExplorerOpen keydown) info state
+    explorerResults <- Signals.modal isExplorerOpen (state,never) $
+                       TermExplorer.make node keydown info state
+    state' <- do
+      s0 <- sample (current state)
+      state' <- switchPromptly never (updated . fst <$> explorerResults)
+      holdDyn s0 state'
+    actions <- switchPromptly never (snd <$> explorerResults)
     updatedState <- pure $
       let
         -- todo - interpret advancement
@@ -88,4 +99,4 @@ termEditor term0 = mainWidget $ do
   pure ()
 
 main :: IO ()
-main = termEditor term
+main = mainWidget $ termEditor term

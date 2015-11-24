@@ -1,9 +1,17 @@
 module Unison.Signals where
 
+import Control.Monad.IO.Class
 import Control.Monad.Fix
 import Data.These hiding (mergeThese)
 import Reflex
 import Reflex.Dom
+
+modal :: (MonadWidget t m, Reflex t) => Dynamic t Bool -> a -> m a -> m (Event t a)
+modal on whenOff ma =
+  dyn =<< mapDyn (\b -> if b then ma else pure whenOff) on
+
+evaluate :: (MonadWidget t m, Reflex t) => (a -> IO b) -> Event t a -> m (Event t b)
+evaluate f actions = performEvent $ fmap (liftIO . f) actions
 
 now :: (MonadWidget t m, Reflex t) => a -> m (Event t a)
 now a = fmap (const a) <$> getPostBuild

@@ -73,7 +73,7 @@ widget keydown available d =
                 flexbox Doc.Vertical = HTML.vbox
   in do
     b <- box
-    liftIO . putStrLn $ Doc.debugBoxp b
+    -- liftIO . putStrLn $ Doc.debugBoxp b
     let (_, (_,_,w,h)) = Doc.root b
     node <- runDom $ interpret (Doc.flatten b)
     (e,_) <- el' "div" $ unsafePlaceElement (Dom.unsafeAsHTMLElement node)
@@ -99,8 +99,8 @@ widget keydown available d =
           p
         wrangle parents = [ (p,r) | ((p,r) :< _) <- parents ]
       in
-        mapDyn debug =<< Dynamic.foldDyn ($) (Doc.at b (X 0, Y 0)) nav
-    region <- Dynamic.traceDyn "region" <$> mapDyn (Doc.region b) path
+        Dynamic.foldDyn ($) (Doc.at b (X 0, Y 0)) nav
+    region <- mapDyn (Doc.region b) path
     sel <- mapDyn selectionLayer region
     _ <- widgetHold (pure ()) (Dynamic.updated sel)
     pure (e, (w,h), path)

@@ -113,7 +113,8 @@ term ref t = go no View.low t where
                        , D.nest "  " $ D.sub P.Annotation (type' ref t) ]
     E.Var' v -> sym v
     E.Lit' _ -> D.embed (Var.name $ op t)
-    _ -> error $ "layout match failure"
+    E.Blank' -> D.embed "_"
+    _ -> error $ "layout match failure " ++ show t
 
 type' :: (Reference -> Symbol View.DFO) -> ViewableType -> Doc Text Path
 type' ref t = go no View.low t
