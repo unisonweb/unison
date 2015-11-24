@@ -29,10 +29,11 @@ import qualified Unison.Signals as S
 import qualified Unison.UI as UI
 
 widgets :: (Show p, Path p, Eq p, MonadWidget t m)
-        => Event t Int -> Width -> Dynamic t (Doc Text p)
+        => Event t Int -> (Event t (X,Y) -> Event t (X,Y))
+        -> Width -> Dynamic t (Doc Text p)
         -> m (Dynamic t (Maybe (El t)), Dynamic t (Width,Height), Dynamic t p)
-widgets keydown available docs = do
-  p <- dyn =<< mapDyn (\doc -> widget keydown available doc) docs
+widgets keydown filterMouse available docs = do
+  p <- dyn =<< mapDyn (\doc -> widget keydown filterMouse available doc) docs
   els <- holdDyn Nothing $ (\(e,_,_) -> Just e) <$> p
   dims <- holdDyn (Width 0, Height 0) ((\(_,xy,_) -> xy) <$> p)
   p0 <- S.now Path.root
@@ -41,8 +42,9 @@ widgets keydown available docs = do
   pure (els, dims, paths)
 
 widget :: (Show p, Path p, Eq p, MonadWidget t m)
-       => Event t Int -> Width -> Doc Text p -> m (El t, (Width,Height), Dynamic t p)
-widget keydown available d =
+       => Event t Int -> (Event t (X,Y) -> Event t (X,Y))
+       -> Width -> Doc Text p -> m (El t, (Width,Height), Dynamic t p)
+widget keydown filterMouse available d =
   let
     leaf txt = Text.replace " " "&nbsp;" txt
     width (_, (w,_)) = w
@@ -77,7 +79,7 @@ widget keydown available d =
     let (_, (_,_,w,h)) = Doc.root b
     node <- runDom $ interpret (Doc.flatten b)
     (e,_) <- el' "div" $ unsafePlaceElement (Dom.unsafeAsHTMLElement node)
-    mouse <- UI.mouseMove' e
+    mouse <- filterMouse <$> UI.mouseMove' e
     nav <- pure $ mergeWith (.) [
       const (Doc.up b) <$> (traceEvent "up" $ S.upArrow keydown),
       const (Doc.down b) <$> (traceEvent "down" $ S.downArrow keydown),

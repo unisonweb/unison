@@ -138,7 +138,7 @@ formatResult :: MonadWidget t m
 formatResult name e as w =
   let doc = Views.term name e
       txt = Text.unpack . Text.concat $ Doc.tokens "\n" (Doc.flow doc)
-  in (txt, w (as <$ DocView.widget never (Dimensions.Width 300) doc))
+  in (txt, w (as <$ DocView.widget never (const never) (Dimensions.Width 300) doc))
 
 formatLocals :: MonadWidget t m
              => (Reference -> Symbol View.DFO)

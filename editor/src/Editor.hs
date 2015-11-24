@@ -72,7 +72,8 @@ termEditor term0 = do
       in
         mapDyn f state
     terms <- holdDyn term0 (fmapMaybe (\TermExplorer.S{..} -> Paths.asTerm overallTerm) (updated state))
-    (e, dims, path) <- elClass "div" "root" $ DocView.widgets (dropWhen isExplorerOpen' keydown) (Width 400) docs
+    (e, dims, path) <- elClass "div" "root" $
+      DocView.widgets (dropWhen isExplorerOpen' keydown) (dropWhen isExplorerOpen') (Width 400) docs
     info <- do
       let f e p = liftIO . Note.run $ Node.localInfo node e p
       infos <- pure $ pushAlways (\_ -> f <$> sample (current terms) <*> sample (current path)) openEvent
