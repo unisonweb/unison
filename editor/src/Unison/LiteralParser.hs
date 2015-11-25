@@ -26,7 +26,7 @@ digits1 = (:) <$> one Char.isDigit <*> digits
 floatingPoint :: Parser Double
 floatingPoint = do
   d <- digits1
-  rest <- optional (void (char '.') *> digits)
+  rest <- optional (void (char '.') *> ((++) <$> pure "0." <*> digits1))
   pure $ read d + fromMaybe 0.0 (read <$> rest)
 
 quotedString :: Parser String

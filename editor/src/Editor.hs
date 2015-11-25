@@ -5,6 +5,7 @@
 
 module Main where
 
+import Debug.Trace
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Maybe
@@ -62,7 +63,7 @@ termEditor term0 = do
       in leftmost [ True <$ openEvent, f <$> keepWhen isExplorerOpen' actions ]
     let isExplorerOpen' = current isExplorerOpen
     clickDoc <- switchPromptly never (maybe never (domEvent Click) <$> updated e)
-    state <- holdDyn (TermExplorer.S symbols0 Nothing (Paths.Term term) [] 0) updatedState
+    state <- holdDyn (TermExplorer.S symbols0 Nothing (Paths.Term term) 0) updatedState
     docs <- id $
       let
         f (TermExplorer.S{..}) = case overallTerm of
@@ -76,11 +77,13 @@ termEditor term0 = do
       DocView.widgets (dropWhen isExplorerOpen' keydown) (dropWhen isExplorerOpen') (Width 400) docs
     info <- do
       let f e p = liftIO . Note.run $ Node.localInfo node e p
-      infos <- pure $ pushAlways (\_ -> f <$> sample (current terms) <*> sample (current path)) openEvent
+      infos <- pure $ pushAlways
+        (\_ -> f <$> sample (current terms) <*> ((\p -> traceShow p p) <$> sample (current path)))
+        openEvent
       Signals.evaluate id infos
     explorerTopLeft <- holdDyn (X 0, Y 0) $ (\(X x, Y y, _, Height h) -> (X x, Y $ y + h)) <$> highlightRegion
-    explorerResults <- Signals.offset explorerTopLeft . Signals.modal isExplorerOpen (state,never) $
-                       TermExplorer.make node keydown info state
+    explorerResults <- Signals.offset "explorer-offset" explorerTopLeft . Signals.modal isExplorerOpen (state,never) $
+                       TermExplorer.make node keydown info state path
     state' <- do
       s0 <- sample (current state)
       state' <- switchPromptly never (updated . fst <$> explorerResults)
@@ -91,7 +94,8 @@ termEditor term0 = do
         -- todo - interpret advancement
         f (Just (a, advance)) = case a of
           TermExplorer.Replace p term -> do
-            s <- sample (current state')
+            let msg = "replacing: " ++ show p ++ " with " ++ show term
+            s <- trace msg $ sample (current state')
             pure $ s { TermExplorer.overallTerm = fromMaybe (TermExplorer.overallTerm s) $
                        Paths.modify (Paths.Term . const term) p (TermExplorer.overallTerm s) }
           _ -> error "todo: Eval + Step"

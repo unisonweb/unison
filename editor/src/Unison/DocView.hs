@@ -9,7 +9,6 @@ import Data.List (intercalate)
 import Data.Maybe (fromMaybe)
 import Data.Semigroup ((<>))
 import Data.Text (Text)
-import Data.These (These(This,That,These))
 import Reflex.Dom
 import Unison.Doc (Doc)
 import Unison.Dom (Dom)
@@ -19,7 +18,6 @@ import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Debug.Trace as Trace
 import qualified GHCJS.DOM.Document as Document
-import qualified GHCJS.DOM.Element as Element
 import qualified Reflex.Dynamic as Dynamic
 import qualified Unison.Doc as Doc
 import qualified Unison.Dom as Dom
@@ -36,10 +34,10 @@ widgets keydown filterMouse available docs = do
   p <- dyn =<< mapDyn (\doc -> widget keydown filterMouse available doc) docs
   els <- holdDyn Nothing $ (\(e,_,_,_) -> Just e) <$> p
   dims <- holdDyn (Width 0, Height 0) ((\(_,xy,_,_) -> xy) <$> p)
-  p0 <- S.now Path.root
-  pathsEvent <- switchPromptly p0 ((\(_,_,p,_) -> updated p) <$> p)
+  -- p0 <- S.now Path.root
+  pathsEvent <- switchPromptly never ((\(_,_,p,_) -> updated p) <$> p)
   regionsEvent <- switchPromptly never ((\(_,_,_,r) -> updated r) <$> p)
-  paths <- holdDyn Path.root pathsEvent
+  paths <- traceDyn "paths: " <$> holdDyn Path.root pathsEvent
   pure (els, dims, paths, regionsEvent)
 
 widget :: (Show p, Path p, Eq p, MonadWidget t m)
@@ -102,7 +100,7 @@ widget keydown filterMouse available d =
           p
         wrangle parents = [ (p,r) | ((p,r) :< _) <- parents ]
       in
-        Dynamic.foldDyn ($) (Doc.at b (X 0, Y 0)) nav
+        traceDyn "DocView.path" <$> Dynamic.foldDyn ($) (Doc.at b (X 0, Y 0)) nav
     region <- mapDyn (Doc.region b) path
     sel <- mapDyn selectionLayer region
     _ <- widgetHold (pure ()) (Dynamic.updated sel)

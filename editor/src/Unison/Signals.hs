@@ -18,8 +18,21 @@ evaluate f actions = performEvent $ fmap (liftIO . f) actions
 now :: (MonadWidget t m, Reflex t) => a -> m (Event t a)
 now a = fmap (const a) <$> getPostBuild
 
-offset :: (MonadWidget t m, Reflex t) => Dynamic t (X,Y) -> m a -> m a
-offset topLeft inner = do
+combineDyn3 :: (MonadWidget t m, Reflex t)
+            => (a -> b -> c -> d) -> Dynamic t a -> Dynamic t b -> Dynamic t c -> m (Dynamic t d)
+combineDyn3 f a b c = do
+  ab <- combineDyn (,) a b
+  combineDyn (\(a,b) c -> f a b c) ab c
+
+combineDyn4 :: (MonadWidget t m, Reflex t)
+            => (a -> b -> c -> d -> e) -> Dynamic t a -> Dynamic t b -> Dynamic t c -> Dynamic t d -> m (Dynamic t e)
+combineDyn4 f a b c d = do
+  ab <- combineDyn (,) a b
+  cd <- combineDyn (,) c d
+  combineDyn (\(a,b) (c,d) -> f a b c d) ab cd
+
+offset :: (MonadWidget t m, Reflex t) => String -> Dynamic t (X,Y) -> m a -> m a
+offset class' topLeft inner = do
   f <- pure $
     let
       style (X x, Y y) = "style" =: intercalate ";"
@@ -28,7 +41,7 @@ offset topLeft inner = do
         , "top:" ++ show y ++ "px" ]
     in style
   attrs <- mapDyn f topLeft
-  el "div" $ elDynAttr "div" attrs inner
+  elClass "div" class' $ elDynAttr "div" attrs inner
 
 delay :: (MonadHold t m, Reflex t) => a -> Event t a -> m (Event t a)
 delay a e = do

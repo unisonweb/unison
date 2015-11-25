@@ -56,7 +56,9 @@ instance Alternative Parser where
 instance Monad Parser where
   return a = Parser $ \_ -> Succeed a 0
   Parser p >>= f = Parser $ \s -> case p s of
-    Succeed a n -> run (f a) (drop n s)
+    Succeed a n -> case run (f a) (drop n s) of
+      Succeed b m -> Succeed b (n+m)
+      err -> err
     Fail e b -> Fail e b
 
 instance MonadPlus Parser where
