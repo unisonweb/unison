@@ -6,6 +6,7 @@
 module Main where
 
 import Debug.Trace
+import Data.Semigroup
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Maybe
@@ -22,13 +23,12 @@ import qualified Unison.Metadata as Metadata
 import qualified Unison.Node as Node
 import qualified Unison.Node.MemNode as MemNode
 import qualified Unison.Note as Note
+import qualified Unison.Path as Path
 import qualified Unison.Paths as Paths
-import qualified Unison.Reference as Reference
 import qualified Unison.Signals as Signals
 import qualified Unison.Term as Term
 import qualified Unison.TermExplorer as TermExplorer
 import qualified Unison.TermExplorer as TermExplorer
-import qualified Unison.Type as Type
 import qualified Unison.UI as UI
 import qualified Unison.Views as Views
 
@@ -62,45 +62,44 @@ termEditor term0 = do
       let f p = case p of Just (_, True) -> True; _ -> False
       in leftmost [ True <$ openEvent, f <$> keepWhen isExplorerOpen' actions ]
     let isExplorerOpen' = current isExplorerOpen
-    clickDoc <- switchPromptly never (maybe never (domEvent Click) <$> updated e)
-    state <- holdDyn (TermExplorer.S symbols0 Nothing (Paths.Term term) 0) updatedState
+    clickDoc <- Signals.switch' (maybe never (domEvent Click) <$> updated e)
+    let s0 = (TermExplorer.S symbols0 Nothing 0)
+    state <- foldDyn (<>) s0 state'
     docs <- id $
+      let f term = sample (current state) >>= \(TermExplorer.S{..}) -> pure $ Views.termMd metadata term
+      in mapDynM f terms
+    terms <- id $
       let
-        f (TermExplorer.S{..}) = case overallTerm of
-          Paths.Term term -> Views.termMd metadata term
-          Paths.Type typ -> Views.typeMd metadata typ
-          Paths.Var v -> Views.termMd metadata (Term.var v)
-      in
-        mapDyn f state
-    terms <- holdDyn term0 (fmapMaybe (\TermExplorer.S{..} -> Paths.asTerm overallTerm) (updated state))
-    (e, dims, path, highlightRegion) <- elClass "div" "root" $
-      DocView.widgets (dropWhen isExplorerOpen' keydown) (dropWhen isExplorerOpen') (Width 400) docs
+        -- todo: interpret advance
+        f (Just (a, advance)) oldTerm = case a of
+          TermExplorer.Replace p term ->
+            let msg = "replacing: " ++ show p ++ " with " ++ show term ++ " in\n " ++ show oldTerm
+            in trace msg $ fromMaybe oldTerm $ Paths.modifyTerm (const term) p oldTerm
+          _ -> error "todo: Eval + Step"
+        f _ oldTerm = oldTerm
+      in foldDyn f term0 actions
+    paths <- id $
+      let
+        f (Just (TermExplorer.Replace p _, _)) = pure (Just p)
+        f Nothing = Just <$> sample (current paths) -- refresh the path event on cancel
+        f _ = pure Nothing
+      -- the `guard` breaks a cycle - actions relies on paths
+      in Signals.guard (push f actions) >>= \updates -> holdDyn Path.root (leftmost [paths', updates])
+    (e, dims, paths', highlightRegion) <- elClass "div" "root" $
+      DocView.widgets (dropWhen isExplorerOpen' keydown) (dropWhen isExplorerOpen') paths (Width 400) docs
     info <- do
       let f e p = liftIO . Note.run $ Node.localInfo node e p
       infos <- pure $ pushAlways
-        (\_ -> f <$> sample (current terms) <*> ((\p -> traceShow p p) <$> sample (current path)))
+        (\_ -> f <$> sample (current terms) <*> sample (current paths))
         openEvent
       Signals.evaluate id infos
     explorerTopLeft <- holdDyn (X 0, Y 0) $ (\(X x, Y y, _, Height h) -> (X x, Y $ y + h)) <$> highlightRegion
-    explorerResults <- Signals.offset "explorer-offset" explorerTopLeft . Signals.modal isExplorerOpen (state,never) $
-                       TermExplorer.make node keydown info state path
-    state' <- do
-      s0 <- sample (current state)
-      state' <- switchPromptly never (updated . fst <$> explorerResults)
-      holdDyn s0 state'
-    actions <- switchPromptly never (snd <$> explorerResults)
-    updatedState <- pure $
-      let
-        -- todo - interpret advancement
-        f (Just (a, advance)) = case a of
-          TermExplorer.Replace p term -> do
-            let msg = "replacing: " ++ show p ++ " with " ++ show term
-            s <- trace msg $ sample (current state')
-            pure $ s { TermExplorer.overallTerm = fromMaybe (TermExplorer.overallTerm s) $
-                       Paths.modify (Paths.Term . const term) p (TermExplorer.overallTerm s) }
-          _ -> error "todo: Eval + Step"
-        f _ = sample (current state')
-      in pushAlways f actions
+    explorerResults <- Signals.offset "explorer-offset" explorerTopLeft . Signals.modal isExplorerOpen (never,never) $
+                       TermExplorer.make node keydown info state paths terms
+    state' <- Signals.switch' (fst <$> explorerResults)
+    actions <- Signals.switch' (snd <$> explorerResults)
+    -- causes cycle, because programPathUpdates is used to control current value of paths
+    -- actions <- pure never -- works
   pure ()
 
 main :: IO ()

@@ -15,8 +15,14 @@ modal on whenOff ma =
 evaluate :: (MonadWidget t m, Reflex t) => (a -> IO b) -> Event t a -> m (Event t b)
 evaluate f actions = performEvent $ fmap (liftIO . f) actions
 
+guard :: (MonadWidget t m, Reflex t) => Event t a -> m (Event t a)
+guard e = evaluate pure e
+
 now :: (MonadWidget t m, Reflex t) => a -> m (Event t a)
 now a = fmap (const a) <$> getPostBuild
+
+switch' :: (MonadHold t m, Reflex t) => Event t (Event t a) -> m (Event t a)
+switch' e = switch <$> hold never e
 
 combineDyn3 :: (MonadWidget t m, Reflex t)
             => (a -> b -> c -> d) -> Dynamic t a -> Dynamic t b -> Dynamic t c -> m (Dynamic t d)

@@ -4,7 +4,6 @@
 module Unison.DocView where
 
 import Control.Monad.IO.Class
-import Control.Comonad.Cofree (Cofree(..)) -- (:<)
 import Data.List (intercalate)
 import Data.Maybe (fromMaybe)
 import Data.Semigroup ((<>))
@@ -12,38 +11,35 @@ import Data.Text (Text)
 import Reflex.Dom
 import Unison.Doc (Doc)
 import Unison.Dom (Dom)
-import Unison.Dimensions (X(..), Y(..), Width(..), Height(..))
+import Unison.Dimensions (X(..), Y(..), Width(..), Height(..), Region)
 import Unison.Path (Path)
 import qualified Data.Map as Map
 import qualified Data.Text as Text
-import qualified Debug.Trace as Trace
 import qualified GHCJS.DOM.Document as Document
 import qualified Reflex.Dynamic as Dynamic
 import qualified Unison.Doc as Doc
 import qualified Unison.Dom as Dom
 import qualified Unison.HTML as HTML
-import qualified Unison.Path as Path
 import qualified Unison.Signals as S
 import qualified Unison.UI as UI
 
 widgets :: (Show p, Path p, Eq p, MonadWidget t m)
         => Event t Int -> (Event t (X,Y) -> Event t (X,Y))
+        -> Dynamic t p
         -> Width -> Dynamic t (Doc Text p)
-        -> m (Dynamic t (Maybe (El t)), Dynamic t (Width,Height), Dynamic t p, Event t (X,Y,Width,Height))
-widgets keydown filterMouse available docs = do
-  p <- dyn =<< mapDyn (\doc -> widget keydown filterMouse available doc) docs
+        -> m (Dynamic t (Maybe (El t)), Dynamic t (Width,Height), Event t p, Event t (X,Y,Width,Height))
+widgets keydown filterMouse paths available docs = do
+  p <- dyn =<< mapDyn (\doc -> widget keydown filterMouse paths available doc) docs
   els <- holdDyn Nothing $ (\(e,_,_,_) -> Just e) <$> p
   dims <- holdDyn (Width 0, Height 0) ((\(_,xy,_,_) -> xy) <$> p)
-  -- p0 <- S.now Path.root
-  pathsEvent <- switchPromptly never ((\(_,_,p,_) -> updated p) <$> p)
-  regionsEvent <- switchPromptly never ((\(_,_,_,r) -> updated r) <$> p)
-  paths <- traceDyn "paths: " <$> holdDyn Path.root pathsEvent
-  pure (els, dims, paths, regionsEvent)
+  paths' <- S.switch' ((\(_,_,p,_) -> p) <$> p)
+  regions' <- S.switch' ((\(_,_,_,r) -> updated r) <$> p)
+  pure (els, dims, paths', regions')
 
-widget :: (Show p, Path p, Eq p, MonadWidget t m)
-       => Event t Int -> (Event t (X,Y) -> Event t (X,Y))
-       -> Width -> Doc Text p -> m (El t, (Width,Height), Dynamic t p, Dynamic t (X,Y,Width,Height))
-widget keydown filterMouse available d =
+view :: (MonadWidget t m, Path p)
+     => Width -> Doc Text p
+     -> m (El t, (Width,Height), Doc.Box (Text, (Width, Height)) (p, Region))
+view available d =
   let
     leaf txt = Text.replace " " "&nbsp;" txt
     width (_, (w,_)) = w
@@ -74,37 +70,40 @@ widget keydown filterMouse available d =
                 flexbox Doc.Vertical = HTML.vbox
   in do
     b <- box
-    -- liftIO . putStrLn $ Doc.debugBoxp b
     let (_, (_,_,w,h)) = Doc.root b
     node <- runDom $ interpret (Doc.flatten b)
     (e,_) <- el' "div" $ unsafePlaceElement (Dom.unsafeAsHTMLElement node)
-    mouse <- filterMouse <$> UI.mouseMove' e
-    nav <- pure $ mergeWith (.) [
-      const (Doc.up b) <$> (traceEvent "up" $ S.upArrow keydown),
-      const (Doc.down b) <$> (traceEvent "down" $ S.downArrow keydown),
-      const (Doc.left b) <$> (traceEvent "left" $ S.leftArrow keydown),
-      const (Doc.right b) <$> (traceEvent "right" $ S.rightArrow keydown),
-      const (Doc.up b) <$> (traceEvent "up" $ ffilter (== 75) keydown), -- k
-      const (Doc.down b) <$> (traceEvent "down" $ ffilter (== 74) keydown), -- j
-      const (Doc.left b) <$> (traceEvent "left" $ ffilter (== 72) keydown), -- h
-      const (Doc.right b) <$> (traceEvent "right" $ ffilter (== 76) keydown), -- l
-      const (Doc.expand b) <$> (traceEvent "expand" $ ffilter (== 85) keydown), -- u
-      const (Doc.contract b) <$> (traceEvent "contract" $ ffilter (== 68) keydown), -- d
-      const (Doc.leftmost b) <$> (traceEvent "leftmost" $ ffilter (== 71) keydown), -- g
-      const (Doc.rightmost b) <$> (traceEvent "rightmost" $ ffilter (== 186) keydown), -- ;
-      (\pt _ -> Doc.at b pt) <$> mouse ]
-    path <-
-      let
-        debug p = Trace.trace
-          ("contains': "++ (show $ wrangle (Doc.contains' b (Doc.region b p))))
-          p
-        wrangle parents = [ (p,r) | ((p,r) :< _) <- parents ]
-      in
-        traceDyn "DocView.path" <$> Dynamic.foldDyn ($) (Doc.at b (X 0, Y 0)) nav
-    region <- mapDyn (Doc.region b) path
-    sel <- mapDyn selectionLayer region
-    _ <- widgetHold (pure ()) (Dynamic.updated sel)
-    pure (e, (w,h), path, region)
+    pure (e, (w,h), b)
+
+widget :: (Show p, Path p, Eq p, MonadWidget t m)
+       => Event t Int
+       -> (Event t (X,Y) -> Event t (X,Y))
+       -> Dynamic t p
+       -> Width -> Doc Text p -> m (El t, (Width,Height), Event t p, Dynamic t (X,Y,Width,Height))
+widget keydown filterMouse paths available d = do
+  (e, (w,h), b) <- view available d
+  mouse <- filterMouse <$> UI.mouseMove' e
+  nav <- pure $ mergeWith (.) [
+    const (Doc.up b) <$> (traceEvent "up" $ S.upArrow keydown),
+    const (Doc.down b) <$> (traceEvent "down" $ S.downArrow keydown),
+    const (Doc.left b) <$> (traceEvent "left" $ S.leftArrow keydown),
+    const (Doc.right b) <$> (traceEvent "right" $ S.rightArrow keydown),
+    const (Doc.up b) <$> (traceEvent "up" $ ffilter (== 75) keydown), -- k
+    const (Doc.down b) <$> (traceEvent "down" $ ffilter (== 74) keydown), -- j
+    const (Doc.left b) <$> (traceEvent "left" $ ffilter (== 72) keydown), -- h
+    const (Doc.right b) <$> (traceEvent "right" $ ffilter (== 76) keydown), -- l
+    const (Doc.expand b) <$> (traceEvent "expand" $ ffilter (== 85) keydown), -- u
+    const (Doc.contract b) <$> (traceEvent "contract" $ ffilter (== 68) keydown), -- d
+    const (Doc.leftmost b) <$> (traceEvent "leftmost" $ ffilter (== 71) keydown), -- g
+    const (Doc.rightmost b) <$> (traceEvent "rightmost" $ ffilter (== 186) keydown), -- ;
+    (\pt _ -> Doc.at b pt) <$> mouse ]
+  paths' <- pure $
+    let f update = update <$> sample (current paths)
+    in traceEvent "DocView.path" $ pushAlways f nav
+  region <- mapDyn (Doc.region b) paths
+  sel <- mapDyn selectionLayer region
+  _ <- widgetHold (pure ()) (Dynamic.updated sel)
+  pure (e, (w,h), paths', region)
 
 selectionLayer :: MonadWidget t m => (X,Y,Width,Height) -> m ()
 selectionLayer (X x, Y y, Width w, Height h) =

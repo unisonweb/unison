@@ -5,11 +5,9 @@
 
 module Unison.Explorer where
 
-import Control.Monad.IO.Class
 import Data.Functor
 import Data.List
 import Data.Maybe
-import Data.Semigroup
 import Reflex.Dom
 import qualified Unison.UI as UI
 import qualified Unison.Signals as Signals
@@ -30,13 +28,13 @@ data Action m s k a
   | Cancel
   | Accept a
 
-explorer :: forall t m k s a z. (Reflex t, MonadWidget t m, Eq k, Semigroup s)
+explorer :: forall t m k s a z. (Reflex t, MonadWidget t m, Eq k)
          => Event t Int
          -> (Dynamic t s -> Dynamic t (Maybe z) -> Dynamic t String -> Behavior t (Maybe a) -> m (Event t (Action m s k a)))
          -> Event t (m z) -- loaded asynchronously on open of explorer
          -> Dynamic t s
-         -> m (Dynamic t s, Event t (Maybe a))
-explorer keydown processQuery topContent s0 = do
+         -> m (Event t s, Event t (Maybe a))
+explorer keydown processQuery topContent s' = do
   let extractReq a = case a of Request r _ -> Just r; _ -> Nothing
   let validAttrs = "class" =: "explorer valid"
   let invalidAttrs = "class" =: "explorer invalid"
@@ -50,12 +48,11 @@ explorer keydown processQuery topContent s0 = do
       elClass "div" "top-separator" $ pure ()
       -- todo, might want to show a spinner or some indicator while we're waiting for results
       z <- elClass "div" "top-content" $ widgetHold (pure Nothing) (fmap (fmap Just) topContent)
-      s <- sample (current s0)
-      s' <- foldDyn (<>) s (updated responses)
       actions <- do
         t <- Signals.prependDyn "" (_textInput_value searchbox)
         processQuery s' z t (current selection)
-      responses <- widgetHold (pure s) $ fmapMaybe extractReq actions
+      s0 <- sample (current s')
+      responses <- widgetHold (pure s0) $ fmapMaybe extractReq actions
       list <- holdDyn [] $
         let f a = case a of Request _ l -> Just l; Results l _ -> Just l; _ -> Nothing
         in fmapMaybe f actions
@@ -85,7 +82,7 @@ explorer keydown processQuery topContent s0 = do
           let f :: [El t] -> [Event t Int]
               f els = map (\(el,i) -> i <$ domEvent Mousemove el) (els `zip` [(0::Int)..])
           in f
-        e <- switchPromptly never $ leftmost . elHovers <$> updated els
+        e <- Signals.switch' $ leftmost . elHovers <$> updated els
         pure (selectable, e)
       _ <- dyn =<<
         let
@@ -104,7 +101,7 @@ explorer keydown processQuery topContent s0 = do
         in fmapMaybe f actions
       let mouseClosings = tag (current selection) (domEvent Click selectableRegion)
       let enterClosings = tag (current selection) (textInputGetEnter searchbox)
-      pure (updated valids, s', leftmost [keyClosings, mouseClosings, enterClosings])
+      pure (updated valids, updated responses, leftmost [keyClosings, mouseClosings, enterClosings])
   pure (updatedS, closings)
 
 safeIndex :: Int -> [a] -> Maybe a

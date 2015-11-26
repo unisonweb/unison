@@ -14,7 +14,7 @@ import Reflex.Dom
 import Unison.Metadata (Metadata,Query(..))
 import Unison.Node (Node,SearchResults,LocalInfo)
 import Unison.Node.MemNode (V)
-import Unison.Paths (Target, Path)
+import Unison.Paths (Path)
 import Unison.Reference (Reference)
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
@@ -29,7 +29,6 @@ import qualified Unison.LiteralParser as LiteralParser
 import qualified Unison.Node as Node
 import qualified Unison.Note as Note
 import qualified Unison.Parser as Parser
-import qualified Unison.Paths as Paths
 import qualified Unison.Signals as Signals
 import qualified Unison.Term as Term
 import qualified Unison.Typechecker as Typechecker
@@ -39,14 +38,12 @@ import qualified Unison.Views as Views
 data S =
   S { metadata :: Map Reference (Metadata V Reference)
     , lastResults :: Maybe (SearchResults V Reference (Term V))
-    , overallTerm :: Target V
     , nonce :: Int }
 
 instance Semigroup S where
-  (S md1 r1 t1 id1) <> (S md2 r2 t2 id2) =
+  (S md1 r1 id1) <> (S md2 r2 id2) =
     S (Map.unionWith const md2 md1)
       (if id2 > id1 then r2 else r1)
-      (if id2 > id1 then t2 else t1)
       (id1 `max` id2)
 
 type Advance = Bool
@@ -62,8 +59,9 @@ make :: forall t m . (MonadWidget t m, Reflex t)
      -> Event t (LocalInfo (Term V) (Type V))
      -> Dynamic t S
      -> Dynamic t Path
-     -> m (Dynamic t S, Event t (Maybe (Action,Advance)))
-make node keydown localInfo s path =
+     -> Dynamic t (Term V)
+     -> m (Event t S, Event t (Maybe (Action,Advance)))
+make node keydown localInfo s paths terms =
   let
     parse _ _ Nothing _ = []
     parse lookup path (Just (Node.LocalInfo{..})) txt = case Parser.run LiteralParser.term txt of
@@ -74,11 +72,11 @@ make node keydown localInfo s path =
       _ -> []
     processQuery s localInfo txt selection = do
       let k path (S {..}) = formatSearch (Views.lookupSymbol metadata) path lastResults
-      searches <- combineDyn k path s
+      searches <- combineDyn k paths s
       metadatas <- mapDyn metadata s
       lookupSymbols <- mapDyn Views.lookupSymbol metadatas
-      locals <- Signals.combineDyn3 formatLocals lookupSymbols path localInfo
-      literals <- Signals.combineDyn4 parse lookupSymbols path localInfo txt
+      locals <- Signals.combineDyn3 formatLocals lookupSymbols paths localInfo
+      literals <- Signals.combineDyn4 parse lookupSymbols paths localInfo txt
       -- todo - other actions
       keyed <- mconcatDyn [locals, searches, literals]
       let trimEnd = reverse . dropWhile (== ' ') . reverse
@@ -91,20 +89,18 @@ make node keydown localInfo s path =
             where k (a,_) = Explorer.Accept (a,True) -- ending with two spaces is an accept+advance
           p (txt, (rs,textUpdate)) = do
             s <- sample (current s)
-            currentPath <- sample (current path)
+            term <- sample (current terms)
+            path <- sample (current paths)
             req <- pure $ do
               info <- sample (current localInfo)
-              case Paths.asTerm (overallTerm s) of
-                Nothing -> pure s
-                Just overallTerm -> do
-                  lastResults@Node.SearchResults{..} <- liftIO . Note.run $
-                    Node.search node
-                      overallTerm
-                      currentPath
-                      10
-                      (Query (Text.pack txt))
-                      (Node.localAdmissibleType <$> info)
-                  pure $ S (Map.fromList references) (Just lastResults) (Paths.Term overallTerm) (nonce s + 1)
+              lastResults@Node.SearchResults{..} <- liftIO . Note.run $
+                Node.search node
+                  term
+                  path
+                  10
+                  (Query (Text.pack txt))
+                  (Node.localAdmissibleType <$> info)
+              pure $ S (Map.fromList references) (Just lastResults) (nonce s + 1)
             let finish rs n = if textUpdate then Just (Explorer.Request req rs) else Just (Explorer.Results rs n)
             pure $ case lastResults s of
               Nothing -> finish rs 0
@@ -140,7 +136,7 @@ formatResult :: MonadWidget t m
 formatResult name e as w =
   let doc = Views.term name e
       txt = Text.unpack . Text.concat $ Doc.tokens "\n" (Doc.flow doc)
-  in (txt, w (as <$ DocView.widget never (const never) (Dimensions.Width 300) doc))
+  in (txt, w (as <$ DocView.view (Dimensions.Width 300) doc))
 
 formatLocals :: MonadWidget t m
              => (Reference -> Symbol View.DFO)
