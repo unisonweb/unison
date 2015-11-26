@@ -65,8 +65,9 @@ make node keydown localInfo s paths terms =
   let
     parse _ _ Nothing _ = []
     parse lookup path (Just (Node.LocalInfo{..})) txt = case Parser.run LiteralParser.term txt of
-      Parser.Succeed tm n | all (== ' ') (drop n txt) -> do
-        if isRight (Typechecker.check' tm localAdmissibleType)
+      Parser.Succeed ts n | all (\c -> c == ' ' || c == ',') (drop n txt) ->
+        ts >>= \tm ->
+          if isRight (Typechecker.check' tm localAdmissibleType)
           then [formatResult lookup tm (Replace path tm, False) Right]
           else [formatResult lookup tm () Left]
       _ -> []
