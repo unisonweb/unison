@@ -192,7 +192,8 @@ unArrows :: Type v -> Maybe [Type v]
 unArrows t =
   case go t of [] -> Nothing; l -> Just l
   where
-    go (T.Arrow' i o) = i : go o
+    go (T.Arrow' i o@(T.Arrow' _ _)) = i : go o
+    go (T.Arrow' i o) = i : [o]
     go _ = []
 
 unArrows' :: Type v -> Maybe [(Type v,Path)]

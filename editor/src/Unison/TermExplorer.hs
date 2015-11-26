@@ -113,12 +113,12 @@ make node keydown localInfo s paths terms =
         push p $ attachDyn txt (updated filtered `Signals.coincides` updated txt)
     formatLocalInfo (i@Node.LocalInfo{..}) = i <$ do
       name <- Views.lookupSymbol . metadata <$> sample (current s)
-      let txt doc = text . Text.unpack . Text.concat . Doc.tokens "\n" . Doc.flow $ doc
+      let width = Dimensions.Width 400
       elClass "div" "explorer-local-info" $ do
-        elClass "div" "localType" $ txt (Views.type' name localType)
-        elClass "div" "localAdmissibleType" $ txt (Views.type' name localAdmissibleType)
+        _ <- elClass "div" "localType" $ DocView.view width (Views.type' name localType)
+        _ <- elClass "div" "localAdmissibleType" $ DocView.view width (Views.type' name localAdmissibleType)
         _ <- elClass "div" "localVariables" $
-          traverse (elClass "div" "localVariable" . txt . Views.term name) localVariables
+          traverse (elClass "div" "localVariable" . DocView.view width . Views.term name) localVariables
         pure ()
   in
     Explorer.explorer keydown processQuery (fmap formatLocalInfo localInfo) s

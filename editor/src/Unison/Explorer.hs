@@ -38,16 +38,19 @@ explorer keydown processQuery topContent s' = do
   let extractReq a = case a of Request r _ -> Just r; _ -> Nothing
   let validAttrs = "class" =: "explorer valid"
   let invalidAttrs = "class" =: "explorer invalid"
+  let singleAttrs = "class" =: "explorer one-result"
   rec
-    attrs <- holdDyn ("class" =: "explorer") (fmap (\l -> if null l then invalidAttrs else validAttrs) valids)
+    let pickAttr l = case l of [] -> invalidAttrs; [_] -> singleAttrs; _ -> validAttrs
+    attrs <- holdDyn ("class" =: "explorer") (fmap pickAttr valids)
     (valids, updatedS, closings) <- elDynAttr "div" attrs $ mdo
-      searchbox <- textInput def
+      searchbox <- elClass "div" "explorer-textbox" $ textInput def
       grabFocus <- Signals.now (Element.elementFocus (_textInput_element searchbox))
       _ <- Signals.evaluate id grabFocus
       UI.keepKeyEventIf (\i -> i /= 38 && i /= 40) searchbox -- disable up/down inside searchbox
-      elClass "div" "top-separator" $ pure ()
       -- todo, might want to show a spinner or some indicator while we're waiting for results
-      z <- elClass "div" "top-content" $ widgetHold (pure Nothing) (fmap (fmap Just) topContent)
+      z <- elClass "div" "top-content" $
+        widgetHold (elClass "div" "explorer-placeholder" $ pure Nothing) (fmap (fmap Just) topContent)
+      elClass "div" "top-separator" $ pure ()
       actions <- do
         t <- Signals.prependDyn "" (_textInput_value searchbox)
         processQuery s' z t (current selection)

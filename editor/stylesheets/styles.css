@@ -25,6 +25,7 @@ body { line-height: 1.3; }
 .docwidget {
   cursor: default;
   z-index: 0;
+  color: rgb(80,80,80);
   font-family: 'fira-code-regular', monospace;
   font-size: 12pt;
   font-variant-ligatures: common-ligatures;
@@ -48,18 +49,70 @@ body { line-height: 1.3; }
   animation-timing-function: ease-in-out;
 }
 
+.explorer {
+  background-color: rgba(255,255,255,0.95);
+  width: 300px;
+  border-radius: 6px;
+  border-width: 3px;
+  border-style: solid;
+  border-color: rgba(0,0,0,.4);
+}
+
+.invalid {
+  animation-name: invalid-explorer;
+  animation-delay: 0.15s;
+  animation-duration: 0.45s;
+  animation-timing-function: ease-in-out;
+}
+
+@keyframes invalid-explorer {
+    from { border-color: rgba(0,0,0,.4); }
+    to { border-color: rgba(255,0,0,.7); }
+}
+
+.one-result {
+  border-color: rgba(0,100,75,0.7);
+}
+
 .top-separator {
-  background-color: red;
-  width: 5px;
-  height: 5px;
+  
+}
+
+.explorer-textbox input {
+  font-family: 'fira-code-regular', monospace;
+  font-size: 14pt;
+  background-color: rgba(0,0,0,0);
+  width: 95%;
+  outline: none;
+  padding-bottom: 5px;
+  margin: 5px;
+  border-width: 0px;
+  border-bottom-width: 1px;
+}
+
+.explorer-local-info {
+  margin-left: 5px;
+  margin-right: 5px;
+  margin-bottom: 0px;
+}
+
+.explorer-placeholder {
+}
+
+.localAdmissibleType {
+  font-weight: bold;
 }
 
 .result {
-  margin: 5px;
+  padding: 5px;
+}
+
+.invalid-results-item {
+  padding: 5px;
 }
 
 .highlight {
-  background-color: rgb(100,100,100);
+  background-color: rgb(235,235,235);
 }
 
 div:focus {

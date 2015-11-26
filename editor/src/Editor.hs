@@ -93,7 +93,7 @@ termEditor term0 = do
         (\_ -> f <$> sample (current terms) <*> sample (current paths))
         openEvent
       Signals.evaluate id infos
-    explorerTopLeft <- holdDyn (X 0, Y 0) $ (\(X x, Y y, _, Height h) -> (X x, Y $ y + h)) <$> highlightRegion
+    explorerTopLeft <- holdDyn (X 0, Y 0) $ (\(X x, Y y, _, Height h) -> (X x, Y $ y + h + 20)) <$> highlightRegion
     explorerResults <- Signals.offset "explorer-offset" explorerTopLeft . Signals.modal isExplorerOpen (never,never) $
                        TermExplorer.make node keydown info state paths terms
     state' <- Signals.switch' (fst <$> explorerResults)
