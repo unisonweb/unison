@@ -72,8 +72,10 @@ make node keydown localInfo s paths terms =
           else [formatResult lookup tm () Left]
       _ -> []
     processQuery s localInfo txt selection = do
-      let k path (S {..}) = formatSearch (Views.lookupSymbol metadata) path lastResults
-      searches <- combineDyn k paths s
+      searches <- id $
+        let k (S {..}) = do path <- sample (current paths);
+                            pure $ formatSearch (Views.lookupSymbol metadata) path lastResults
+        in mapDynM k s
       metadatas <- mapDyn metadata s
       lookupSymbols <- mapDyn Views.lookupSymbol metadatas
       locals <- Signals.combineDyn3 formatLocals lookupSymbols paths localInfo
