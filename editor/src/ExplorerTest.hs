@@ -14,20 +14,22 @@ import qualified Unison.UI as UI
 --  | Cancel
 --  | Accept a
 
-narrow :: MonadWidget t m => [String] -> String -> Action m [String] String String
-narrow possible q = Results [(name, True, name <$ text name) | name <- possible, take (length q) name == q]
+-- narrow :: MonadWidget t m => [String] -> String -> Action m [String] String String
+-- narrow possible q = Results [(name, True, name <$ text name) | name <- possible, take (length q) name == q]
 
-main :: IO ()
-main = mainWidget $ mdo
+{-
+main2 :: IO ()
+main2 = mainWidget $ mdo
   keydown <- UI.windowKeydown
   s <- holdDyn ["abra", "alice", "aardvark", "bob", "carol", "dave", "eve", "francis"] (updated s')
   prompt <- S.now (text "please select a name")
   (s', chosen) <- explorer keydown narrow prompt s
   pure ()
+-}
 
---explorer :: forall t m k s a . (Reflex t, MonadWidget t m, Eq k, Semigroup s)
---         => Event t Int
---         -> (s -> String -> Action m s k a)
---         -> Event t (m ()) -- loaded asynchronously on open of explorer
---         -> Dynamic t s
---         -> m (Dynamic t s, Event t (Maybe a))
+main :: IO ()
+main = mainWidget $ mdo
+  keydown <- UI.windowKeydown
+  n <- foldDyn (\a b -> a+b) (0::Int) press
+  press <- pure $ pushAlways (\_ -> (1+) <$> sample (current n)) keydown
+  display n

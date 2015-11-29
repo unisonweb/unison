@@ -15,11 +15,8 @@ import Reflex.Dom
 import Unison.Dimensions (Width(..),X(..),Y(..),Height(..))
 import Unison.Term
 import Unison.UI (mouseMove')
-import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Reflex.Dynamic as Dynamic
 import qualified Unison.DocView as DocView
-import qualified Unison.Metadata as Metadata
 import qualified Unison.Node as Node
 import qualified Unison.Node.MemNode as MemNode
 import qualified Unison.Note as Note
@@ -27,7 +24,6 @@ import qualified Unison.Path as Path
 import qualified Unison.Paths as Paths
 import qualified Unison.Signals as Signals
 import qualified Unison.Term as Term
-import qualified Unison.TermExplorer as TermExplorer
 import qualified Unison.TermExplorer as TermExplorer
 import qualified Unison.UI as UI
 import qualified Unison.Views as Views
@@ -96,10 +92,12 @@ termEditor term0 = do
     explorerTopLeft <- holdDyn (X 0, Y 0) $ (\(X x, Y y, _, Height h) -> (X x, Y $ y + h + 20)) <$> highlightRegion
     explorerResults <- Signals.offset "explorer-offset" explorerTopLeft . Signals.modal isExplorerOpen (never,never) $
                        TermExplorer.make node keydown info state paths terms
-    state' <- Signals.switch' (fst <$> explorerResults)
+    state0' <- Signals.switch' (fst <$> explorerResults)
+    state' <- do
+      actions' <- Signals.guard actions
+      let reset s@TermExplorer.S{..} = s { TermExplorer.lastResults = Nothing, TermExplorer.nonce = nonce+1 }
+      pure $ leftmost [pushAlways (\_ -> reset <$> sample (current state)) actions', state0']
     actions <- Signals.switch' (snd <$> explorerResults)
-    -- causes cycle, because programPathUpdates is used to control current value of paths
-    -- actions <- pure never -- works
   pure ()
 
 main :: IO ()
