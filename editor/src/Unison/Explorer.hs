@@ -22,20 +22,17 @@ modal switch off on = do
 joinModal :: (MonadWidget t m, Reflex t) => Dynamic t Bool -> a -> m (Dynamic t a) -> m (Dynamic t a)
 joinModal switch off on = holdDyn off never >>= \off -> joinDyn <$> modal switch off on
 
-data Action m s k a
-  = Request (m s) [(k, Either (m ()) (m a))] -- `Bool` indicates whether the choice is selectable
-  | Results [(k, Either (m ()) (m a))] Int
+data Action m k a
+  = Results [(k, Either (m ()) (m a))] Int
   | Cancel
   | Accept a
 
-explorer :: forall t m k s a z. (Reflex t, MonadWidget t m, Eq k)
+explorer :: forall t m k s a. (Reflex t, MonadWidget t m, Eq k)
          => Event t Int
-         -> (Dynamic t s -> Dynamic t (Maybe z) -> Dynamic t String -> Behavior t (Maybe a) -> m (Event t (Action m s k a)))
-         -> Event t (m z) -- loaded asynchronously on open of explorer
-         -> Dynamic t s
+         -> (Behavior t s -> Dynamic t String -> Behavior t (Maybe a) -> m (Event t s, Event t (Action m k a)))
+         -> Behavior t s
          -> m (Event t s, Event t (Maybe a))
-explorer keydown processQuery topContent s' = do
-  let extractReq a = case a of Request r _ -> Just r; _ -> Nothing
+explorer keydown processQuery s' = do
   let validAttrs = "class" =: "explorer valid"
   let invalidAttrs = "class" =: "explorer invalid"
   let singleAttrs = "class" =: "explorer one-result"
@@ -47,17 +44,12 @@ explorer keydown processQuery topContent s' = do
       grabFocus <- Signals.now (Element.elementFocus (_textInput_element searchbox))
       _ <- Signals.evaluate id grabFocus
       UI.keepKeyEventIf (\i -> i /= 38 && i /= 40) searchbox -- disable up/down inside searchbox
-      -- todo, might want to show a spinner or some indicator while we're waiting for results
-      z <- elClass "div" "top-content" $
-        widgetHold (elClass "div" "explorer-placeholder" $ pure Nothing) (fmap (fmap Just) topContent)
       elClass "div" "top-separator" $ pure ()
-      actions <- do
+      (responses, actions) <- do
         t <- Signals.prependDyn "" (_textInput_value searchbox)
-        processQuery s' z t (current selection)
-      s0 <- sample (current s')
-      responses <- widgetHold (pure s0) $ fmapMaybe extractReq actions
+        processQuery s' t (current selection)
       list <- holdDyn [] $
-        let f a = case a of Request _ l -> Just l; Results l _ -> Just l; _ -> Nothing
+        let f a = case a of Results l _ -> Just l; _ -> Nothing
         in fmapMaybe f actions
       keys <- mapDyn (\rs -> [k | (k,Right _) <- rs]) list
       valids <- holdDyn [] $ fmap (\rs -> [(k,v) | (k, Right v) <- rs]) (updated list)
@@ -104,7 +96,7 @@ explorer keydown processQuery topContent s' = do
         in fmapMaybe f actions
       let mouseClosings = tag (current selection) (domEvent Click selectableRegion)
       let enterClosings = tag (current selection) (textInputGetEnter searchbox)
-      pure (updated valids, updated responses, leftmost [keyClosings, mouseClosings, enterClosings])
+      pure (updated valids, responses, leftmost [keyClosings, mouseClosings, enterClosings])
   pure (updatedS, closings)
 
 safeIndex :: Int -> [a] -> Maybe a

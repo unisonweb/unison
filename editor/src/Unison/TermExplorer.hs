@@ -1,10 +1,12 @@
+{-# Language RecursiveDo #-}
 {-# Language RecordWildCards #-}
 {-# Language OverloadedStrings #-}
 {-# Language ScopedTypeVariables #-}
 
 module Unison.TermExplorer where
 
-import Control.Monad.IO.Class
+import Debug.Trace
+import Data.Functor
 import Data.Either
 import Data.List
 import Data.Map (Map)
@@ -36,15 +38,10 @@ import qualified Unison.View as View
 import qualified Unison.Views as Views
 
 data S =
-  S { metadata :: Map Reference (Metadata V Reference)
-    , lastResults :: Maybe (SearchResults V Reference (Term V))
-    , nonce :: Int }
+  S { metadata :: Map Reference (Metadata V Reference) }
 
 instance Semigroup S where
-  (S md1 r1 id1) <> (S md2 r2 id2) =
-    S (Map.unionWith const md2 md1)
-      (if id2 > id1 then r2 else r1)
-      (id1 `max` id2)
+  (S md1) <> (S md2) = S (Map.unionWith const md2 md1)
 
 type Advance = Bool
 
@@ -56,13 +53,20 @@ data Action
 make :: forall t m . (MonadWidget t m, Reflex t)
      => Node IO V Reference (Type V) (Term V)
      -> Event t Int
-     -> Event t (LocalInfo (Term V) (Type V))
-     -> Dynamic t S
-     -> Dynamic t Path
-     -> Dynamic t (Term V)
+     -> Behavior t S
+     -> Behavior t Path
+     -> Behavior t (Term V)
      -> m (Event t S, Event t (Maybe (Action,Advance)))
-make node keydown localInfo s paths terms =
+make node keydown s paths terms =
   let
+    formatLocalInfo Node.LocalInfo{..} = do
+      name <- Views.lookupSymbol . metadata <$> sample s
+      let width = Dimensions.Width 400
+      elClass "div" "explorer-local-info" $ do
+        _ <- elClass "div" "localAdmissibleType" $ DocView.view width (Views.type' name localAdmissibleType)
+        _ <- elClass "div" "localVariables" $
+          traverse (elClass "div" "localVariable" . DocView.view width . Views.term name) localVariables
+        pure ()
     parse _ _ Nothing _ = []
     parse lookup path (Just (Node.LocalInfo{..})) txt = case Parser.run LiteralParser.term txt of
       Parser.Succeed ts n | all (\c -> c == ' ' || c == ',') (drop n txt) ->
@@ -71,59 +75,63 @@ make node keydown localInfo s paths terms =
           then [formatResult lookup tm (Replace path tm, False) Right]
           else [formatResult lookup tm () Left]
       _ -> []
-    processQuery s localInfo txt selection = do
-      searches <- id $
-        let k (S {..}) = do path <- sample (current paths);
-                            pure $ formatSearch (Views.lookupSymbol metadata) path lastResults
-        in mapDynM k s
-      metadatas <- mapDyn metadata s
-      lookupSymbols <- mapDyn Views.lookupSymbol metadatas
-      locals <- Signals.combineDyn3 formatLocals lookupSymbols paths localInfo
-      literals <- Signals.combineDyn4 parse lookupSymbols paths localInfo txt
-      -- todo - other actions
-      keyed <- mconcatDyn [locals, searches, literals]
-      let trimEnd = reverse . dropWhile (== ' ') . reverse
-      let f possible txt = let txt' = trimEnd txt in filter (isPrefixOf txt' . fst) possible
-      filtered <- combineDyn f keyed txt
-      pure $
-        let
-          p (txt, (_,_)) | any (== ';') txt = pure (Just Explorer.Cancel)
-          p (txt, (_,_)) | isSuffixOf "  " txt = fmap k <$> sample selection
-            where k (a,_) = Explorer.Accept (a,True) -- ending with two spaces is an accept+advance
-          p (txt, (rs,textUpdate)) = do
-            s <- sample (current s)
-            term <- sample (current terms)
-            path <- sample (current paths)
-            req <- pure $ do
-              info <- sample (current localInfo)
-              lastResults@Node.SearchResults{..} <- liftIO . Note.run $
-                Node.search node
-                  term
-                  path
-                  10
-                  (Query (Text.pack txt))
-                  (Node.localAdmissibleType <$> info)
-              pure $ S (Map.fromList references) (Just lastResults) (nonce s + 1)
-            let finish rs n = if textUpdate then Just (Explorer.Request req rs) else Just (Explorer.Results rs n)
-            pure $ case lastResults s of
-              Nothing -> finish rs 0
-              Just results ->
-                if resultsComplete results && isPrefixOf (queryString $ Node.query results) txt
-                then finish rs (additionalResults results)
-                else Just (Explorer.Results rs (additionalResults results))
-        in
-        push p $ attachDyn txt (updated filtered `Signals.coincides` updated txt)
-    formatLocalInfo (i@Node.LocalInfo{..}) = i <$ do
-      name <- Views.lookupSymbol . metadata <$> sample (current s)
-      let width = Dimensions.Width 400
-      elClass "div" "explorer-local-info" $ do
-        _ <- elClass "div" "localType" $ DocView.view width (Views.type' name localType)
-        _ <- elClass "div" "localAdmissibleType" $ DocView.view width (Views.type' name localAdmissibleType)
-        _ <- elClass "div" "localVariables" $
-          traverse (elClass "div" "localVariable" . DocView.view width . Views.term name) localVariables
-        pure ()
+    processQuery localInfo s txt selection = do
+      -- GHC type inference fail here
+      localInfoB <- Signals.holdMaybe localInfo :: m (Behavior t (Maybe (LocalInfo (Term V) (Type V))))
+      let lookupSymbols = Views.lookupSymbol . metadata <$> s
+      let locals = formatLocals <$> lookupSymbols <*> paths <*> localInfoB
+      literals <- hold [] $
+        let go txt = parse <$> sample lookupSymbols <*> sample paths <*> sample localInfoB <*> pure txt
+        in pushAlways go (updated txt)
+      mdo
+        searchResultE <- id $
+          let
+            f txt = do
+              term <- sample terms; path <- sample paths; info <- sample localInfoB
+              let g info = Node.search node term path 10 (Query (Text.pack txt)) (Just (Node.localAdmissibleType info))
+              pure $ g <$> info
+            searchEvents = push f triggeringTxt
+          in Signals.evaluate Note.run searchEvents
+        searchResultB <- Signals.holdMaybe searchResultE
+        searches <- pure $ formatSearch <$> lookupSymbols <*> paths <*> searchResultB
+        -- text which triggers a refinement to an existing search
+        searchOutstanding <- toggle False (leftmost [void searchResultE])
+        searchTrigger <- id $
+          let
+            ok txt' = do
+              lastResults <- sample searchResultB
+              complete <- fromMaybe False . fmap resultsComplete <$> pure lastResults
+              old <- sample (current txt)
+              alreadyRunning <- sample (current searchOutstanding)
+              pure $ if {-alreadyRunning ||-} complete && isPrefixOf old txt' then Nothing
+                     else (Just ())
+          in do tick <- Signals.after localInfo; pure $ leftmost [tick, push ok (updated txt)]
+        let triggeringTxt = tagDyn txt searchTrigger
+        let debug msg ks = trace (msg ++ ":\n  " ++ intercalate "\n  " (map fst ks)) ks
+        -- todo - other actions
+        keyed <- pure $ (\a b c -> a ++ b ++ c) <$> locals <*> searches <*> literals
+        let trimEnd = reverse . dropWhile (== ' ') . reverse
+        let f possible txt = let txt' = trimEnd txt in filter (isPrefixOf txt' . fst) possible
+        filtered <- pure $ f <$> keyed <*> current txt
+        let outputS = S . Map.fromList . Node.references <$> searchResultE
+        _ <- widgetHold (pure ()) (formatLocalInfo <$> localInfo)
+        ticks <- Signals.guard $ leftmost [void localInfo, void $ updated txt, void searchResultE]
+        pure $
+          let
+            advance (a, _) = (a, True)
+            render _ txt _   | any (== ';') txt = Explorer.Cancel
+            render _ txt sel | isSuffixOf "  " txt = maybe Explorer.Cancel (Explorer.Accept . advance) sel
+            render rs _ _ = Explorer.Results rs 0 -- todo - indicate additional
+            explorerEvents = pushAlways
+              (\_ -> render <$> sample filtered <*> sample (current txt) <*> sample selection)
+              ticks
+          in (outputS, explorerEvents)
   in
-    Explorer.explorer keydown processQuery (fmap formatLocalInfo localInfo) s
+  do
+    localInfo <- do
+      p <- sample paths; t <- sample terms
+      Signals.later (Note.run (Node.localInfo node t p))
+    Explorer.explorer keydown (processQuery localInfo) s
 
 queryString :: Query -> String
 queryString (Query s) = Text.unpack s

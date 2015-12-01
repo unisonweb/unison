@@ -59,8 +59,7 @@ termEditor term0 = do
       in leftmost [ True <$ openEvent, f <$> keepWhen isExplorerOpen' actions ]
     let isExplorerOpen' = current isExplorerOpen
     clickDoc <- Signals.switch' (maybe never (domEvent Click) <$> updated e)
-    let s0 = (TermExplorer.S symbols0 Nothing 0)
-    state <- foldDyn (<>) s0 state'
+    state <- foldDyn (<>) (TermExplorer.S symbols0) state'
     docs <- id $
       let f term = sample (current state) >>= \(TermExplorer.S{..}) -> pure $ Views.termMd metadata term
       in mapDynM f terms
@@ -83,20 +82,10 @@ termEditor term0 = do
       in Signals.guard (push f actions) >>= \updates -> holdDyn Path.root (leftmost [paths', updates])
     (e, dims, paths', highlightRegion) <- elClass "div" "root" $
       DocView.widgets (dropWhen isExplorerOpen' keydown) (dropWhen isExplorerOpen') paths (Width 400) docs
-    info <- do
-      let f e p = liftIO . Note.run $ Node.localInfo node e p
-      infos <- pure $ pushAlways
-        (\_ -> f <$> sample (current terms) <*> sample (current paths))
-        openEvent
-      Signals.evaluate id infos
     explorerTopLeft <- holdDyn (X 0, Y 0) $ (\(X x, Y y, _, Height h) -> (X x, Y $ y + h + 20)) <$> highlightRegion
     explorerResults <- Signals.offset "explorer-offset" explorerTopLeft . Signals.modal isExplorerOpen (never,never) $
-                       TermExplorer.make node keydown info state paths terms
-    state0' <- Signals.switch' (fst <$> explorerResults)
-    state' <- do
-      actions' <- Signals.guard actions
-      let reset s@TermExplorer.S{..} = s { TermExplorer.lastResults = Nothing, TermExplorer.nonce = nonce+1 }
-      pure $ leftmost [pushAlways (\_ -> reset <$> sample (current state)) actions', state0']
+                       TermExplorer.make node keydown (current state) (current paths) (current terms)
+    state' <- Signals.switch' (fst <$> explorerResults)
     actions <- Signals.switch' (snd <$> explorerResults)
   pure ()
 

@@ -18,8 +18,14 @@ evaluate f actions = performEvent $ fmap (liftIO . f) actions
 guard :: (MonadWidget t m, Reflex t) => Event t a -> m (Event t a)
 guard e = evaluate pure e
 
+later :: (MonadWidget t m, Reflex t) => IO a -> m (Event t a)
+later a = evaluate id =<< now a
+
 now :: (MonadWidget t m, Reflex t) => a -> m (Event t a)
 now a = fmap (const a) <$> getPostBuild
+
+holdMaybe :: (MonadWidget t m, Reflex t) => Event t a -> m (Behavior t (Maybe a))
+holdMaybe a = hold Nothing (Just <$> a)
 
 switch' :: (MonadHold t m, Reflex t) => Event t (Event t a) -> m (Event t a)
 switch' e = switch <$> hold never e
@@ -53,6 +59,9 @@ delay :: (MonadHold t m, Reflex t) => a -> Event t a -> m (Event t a)
 delay a e = do
   prev <- hold a e
   pure $ pushAlways (const (sample prev)) e
+
+after :: (MonadWidget t m, Reflex t) => Event t a -> m (Event t ())
+after a = do da <- guard a; pure (() <$ da)
 
 prepend :: (MonadWidget t m, Reflex t) => a -> Event t a -> m (Event t a)
 prepend a e = do
