@@ -148,11 +148,12 @@ formatLocals :: MonadWidget t m
              -> [(String, Either (m ()) (m (Action,Advance)))]
 formatLocals name path results = fromMaybe [] $ go <$> results
   where
-  view n = Term.var' "□" `Term.apps` replicate n Term.blank
+  view localType 0 = Term.var' "□" `Term.ann` localType
+  view _ n = Term.var' "□" `Term.apps` replicate n Term.blank
   replace localTerm n = localTerm `Term.apps` replicate n Term.blank
   go (Node.LocalInfo {..}) =
     [ formatResult name e ((Replace path e),False) Right | e <- localVariableApplications ] ++
-    [ formatResult name (view n) (Replace path (replace localTerm n),False) Right | n <- localOverapplications ]
+    [ formatResult name (view localType n) (Replace path (replace localTerm n),False) Right | n <- localOverapplications ]
 
 formatSearch :: MonadWidget t m
              => (Reference -> Symbol View.DFO)
