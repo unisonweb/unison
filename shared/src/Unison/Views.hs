@@ -215,6 +215,7 @@ unAppst :: Type v -> Maybe (Type v, [Type v])
 unAppst t = case go t [] of [] -> Nothing; f:args -> Just (f,args)
   where
   go (T.App' i o) acc = go i (o:acc)
+  go _ [] = []
   go fn args = fn:args
 
 unAppst' :: Type v -> Maybe ((Type v,Path), [(Type v,Path)])
