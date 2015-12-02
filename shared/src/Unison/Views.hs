@@ -5,7 +5,6 @@
 module Unison.Views where
 
 import Data.List
-import Data.Maybe
 import Data.Map (Map)
 import Data.Text (Text)
 import Unison.Doc (Doc)
@@ -94,12 +93,13 @@ term ref t = go no View.low t where
         Symbol.Symbol _ name view = op fn
         (taken, remaining) = splitAt (View.arity view) args
         fmt (child,path) = (\p -> go (fn ==) p child, path)
-        applied = fromMaybe unsaturated (View.instantiate view fnP name (map fmt taken))
+        applied = maybe unsaturated (D.parenthesize (p > View.precedence view)) $
+                  View.instantiate view fnP name (map fmt taken)
         unsaturated = D.sub' fnP $ go no View.high fn
       in
         (if inChain fn then id else D.group) $ case remaining of
           [] -> applied
-          args -> D.parenthesize (p > View.high) . D.group . D.docs $
+          args -> D.group . D.docs $
             [ applied, D.breakable " "
             , D.nest "  " . D.group . D.delimit (D.breakable " ") $
               [ D.sub' p (go no (View.increase View.high) s) | (s,p) <- args ] ]
@@ -140,12 +140,13 @@ type' ref t = go no View.low t
         Symbol _ name view = op fn
         (taken, remaining) = splitAt (View.arity view) args
         fmt (child,path) = (\p -> D.sub' path (go (fn ==) p child), path)
-        applied = fromMaybe unsaturated (View.instantiate view fnP name (map fmt taken))
+        applied = maybe unsaturated (D.parenthesize (p > View.precedence view))
+                                    (View.instantiate view fnP name (map fmt taken))
         unsaturated = D.sub' fnP $ go no View.high fn
       in
         (if inChain fn then id else D.group) $ case remaining of
           [] -> applied
-          args -> D.parenthesize (p > View.high) . D.group . D.docs $
+          args -> D.group . D.docs $
             [ applied, D.breakable " "
             , D.nest "  " . D.group . D.delimit (D.breakable " ") $
               [ D.sub' p (go no (View.increase View.high) s) | (s,p) <- args ] ]
