@@ -101,18 +101,26 @@ make node keydown s paths terms =
         searchResultB <- Signals.holdMaybe searchResultE
         searches <- pure $ formatSearch <$> lookupSymbols <*> paths <*> searchResultB
         -- text which triggers a refinement to an existing search
-        searchOutstanding <- toggle False (leftmost [void searchResultE])
-        searchTrigger <- id $
+        searchOutstanding <- do
+          let e = void searchResultE
+          tick <- Signals.guard searchTick
+          hold False $ leftmost [False <$ e, True <$ tick]
+        searchTick <- id $
           let
             ok txt' = do
               lastResults <- sample searchResultB
               complete <- fromMaybe False . fmap resultsComplete <$> pure lastResults
-              old <- sample (current txt)
-              alreadyRunning <- sample (current searchOutstanding)
-              pure $ if {-alreadyRunning ||-} complete && isPrefixOf old txt' then Nothing
+              alreadyRunning <- sample searchOutstanding
+              let unQuery (Query q) = Text.unpack q
+              let oldQuery = maybe "" (unQuery . Node.query) lastResults
+              let examined = maybe [] Node.positionsExamined lastResults
+              -- No need to repeat searches if a prior search returned complete
+              -- results and we haven't touched any of the characters used for prior search
+              let untouched = findIndices (uncurry (==)) (oldQuery `zip` txt') == examined
+              pure $ if alreadyRunning || complete && untouched then Nothing
                      else (Just ())
           in do tick <- Signals.after localInfo; pure $ leftmost [tick, push ok (updated txt)]
-        let triggeringTxt = tagDyn txt searchTrigger
+        let triggeringTxt = tagDyn txt searchTick
         -- todo - other actions
         keyed <- pure $ (\a b c -> a ++ b ++ c) <$> locals <*> searches <*> literals
         let trimEnd = reverse . dropWhile (== ' ') . reverse
