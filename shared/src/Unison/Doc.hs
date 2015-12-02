@@ -577,6 +577,11 @@ expand box p = case contains box (region box p') of
   where
   p' = Path.parent p
 
+contract' :: (Eq p, Path p) => Box e (p, Region) -> p -> Maybe p
+contract' box p = case contract box p of
+  p' | p == p' -> Nothing
+  p -> Just p
+
 contract :: (Eq p, Path p) => Box e (p, Region) -> p -> p
 contract box p =
   let
@@ -587,25 +592,6 @@ contract box p =
     else case [ p | (p, _) <- drop 1 (preorder (last cs)), p /= Path.root ] of
       [] -> p
       p : _ -> foldr Path.extend p (map (fst . root) cs)
-
-subbox :: (Eq p, Path p) => p -> Box e p -> Maybe (Box e p)
-subbox p box | p == Path.root = Just box
-subbox p (pb :< box) = case Path.factor pb p of
-  (common, (pb', p)) ->
-    if common == Path.root && pb /= Path.root || pb' /= Path.root then Nothing
-    else case box of
-      BEmpty -> Nothing
-      BEmbed _ -> Nothing
-      BFlow _ bs -> listToMaybe [ b | Just b <- map (subbox p) bs ]
-
-findLeaf :: Path p => (e -> Bool) -> Box e p -> Maybe p
-findLeaf ok (p :< box) = case box of
-  BEmpty -> Nothing
-  BEmbed e -> if ok e then Just p else Nothing
-  BFlow _ bs -> Path.extend p <$> listToMaybe [ p | Just p <- map (findLeaf ok) bs ]
-
-findLeafAt :: (Eq p, Path p) => (e -> Bool) -> p -> Box e p -> Maybe p
-findLeafAt ok p box = subbox p box >>= \box -> Path.extend p <$> findLeaf ok box
 
 -- | Preorder traversal of the annotations of a `Cofree`.
 preorder :: Foldable f => Cofree f p -> [p]

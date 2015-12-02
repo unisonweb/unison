@@ -6,7 +6,6 @@
 module Main where
 
 import qualified Debug.Trace as Trace
-import Control.Applicative
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Maybe
@@ -17,6 +16,7 @@ import Reflex.Dom
 import Unison.Dimensions (Width(..),X(..),Y(..),Height(..),Region)
 import Unison.Doc (Box)
 import Unison.Node.MemNode (V)
+import Unison.Paths (Path)
 import Unison.Term
 import qualified Data.Set as Set
 import qualified Unison.Doc as Doc
@@ -95,11 +95,20 @@ termEditor term0 = do
     actions <- Signals.switch' (snd <$> explorerResults)
   pure ()
 
-advancePath :: (Eq p, Path.Path p) => p -> Box Text (p,Region) -> Term V -> Maybe p
-advancePath p box _ =
-  Doc.findLeafAt (== "_") p (fst <$> box) <|>
-  (Doc.right' box p >>= \p -> Doc.findLeafAt (== "_") p (fst <$> box)) <|>
-  (Doc.down' box p >>= \p -> Doc.findLeafAt (== "_") p (fst <$> box))
+-- | Looks for leftmost, uppermost `Term.blank` relative to the current path.
+advancePath :: Path -> Box Text (Path,Region) -> Term V -> Maybe Path
+advancePath p box term =
+  let
+    leaf p = maybe p leaf (Doc.contract' box p)
+    isBlank p = maybe False (== Term.blank) (Paths.atTerm p term)
+    scanHorizontal _ p | isBlank p = Just p
+    scanHorizontal radius p = maybe (scanVertical radius p) (scanHorizontal radius) (Doc.right' box p)
+    scanVertical 0 _ = Nothing
+    scanVertical radius p = scanHorizontal (radius-1) =<< Doc.down' box p
+    p0 = leaf p
+  in
+    if isBlank p0 && p /= p0 then Just p0
+    else scanHorizontal (3::Int) p0
 
 main :: IO ()
 main = mainWidget $ termEditor term
