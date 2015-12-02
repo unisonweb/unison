@@ -4,12 +4,13 @@
 module Unison.DocView where
 
 import Control.Monad.IO.Class
+import Control.Comonad.Cofree (Cofree ((:<)))
 import Data.List (intercalate)
 import Data.Maybe (fromMaybe)
 import Data.Semigroup ((<>))
 import Data.Text (Text)
 import Reflex.Dom
-import Unison.Doc (Doc)
+import Unison.Doc (Doc,Box)
 import Unison.Dom (Dom)
 import Unison.Dimensions (X(..), Y(..), Width(..), Height(..), Region)
 import Unison.Path (Path)
@@ -20,6 +21,7 @@ import qualified Reflex.Dynamic as Dynamic
 import qualified Unison.Doc as Doc
 import qualified Unison.Dom as Dom
 import qualified Unison.HTML as HTML
+import qualified Unison.Path as Path
 import qualified Unison.Signals as S
 import qualified Unison.UI as UI
 
@@ -27,18 +29,23 @@ widgets :: (Show p, Path p, Eq p, MonadWidget t m)
         => Event t Int -> (Event t (X,Y) -> Event t (X,Y))
         -> Dynamic t p
         -> Width -> Dynamic t (Doc Text p)
-        -> m (Dynamic t (Maybe (El t)), Dynamic t (Width,Height), Event t p, Event t (X,Y,Width,Height))
+        -> m ( Dynamic t (Maybe (El t))
+             , Dynamic t (Width,Height)
+             , Behavior t (Box Text (p,Region))
+             , Event t p
+             , Event t (X,Y,Width,Height) )
 widgets keydown filterMouse paths available docs = do
   p <- dyn =<< mapDyn (\doc -> widget keydown filterMouse paths available doc) docs
-  els <- holdDyn Nothing $ (\(e,_,_,_) -> Just e) <$> p
-  dims <- holdDyn (Width 0, Height 0) ((\(_,xy,_,_) -> xy) <$> p)
-  paths' <- S.switch' ((\(_,_,p,_) -> p) <$> p)
-  regions' <- S.switch' ((\(_,_,_,r) -> updated r) <$> p)
-  pure (els, dims, paths', regions')
+  els <- holdDyn Nothing $ (\(e,_,_,_,_) -> Just e) <$> p
+  dims <- holdDyn (Width 0, Height 0) ((\(_,xy,_,_,_) -> xy) <$> p)
+  paths' <- S.switch' ((\(_,_,_,p,_) -> p) <$> p)
+  regions' <- S.switch' ((\(_,_,_,_,r) -> updated r) <$> p)
+  boxes <- hold ((Path.root, (X 0, Y 0, Width 0, Height 0)) :< Doc.BEmpty) ((\(_,_,b,_,_) -> b) <$> p)
+  pure (els, dims, boxes, paths', regions')
 
 view :: (MonadWidget t m, Path p)
      => Width -> Doc Text p
-     -> m (El t, (Width,Height), Doc.Box (Text, (Width, Height)) (p, Region))
+     -> m (El t, (Width,Height), Box (Text, (Width, Height)) (p, Region))
 view available d =
   let
     leaf txt = Text.replace " " "&nbsp;" txt
@@ -79,10 +86,13 @@ widget :: (Show p, Path p, Eq p, MonadWidget t m)
        => Event t Int
        -> (Event t (X,Y) -> Event t (X,Y))
        -> Dynamic t p
-       -> Width -> Doc Text p -> m (El t, (Width,Height), Event t p, Dynamic t (X,Y,Width,Height))
+       -> Width -> Doc Text p -> m (El t, (Width,Height), Box Text (p,Region), Event t p, Dynamic t (X,Y,Width,Height))
 widget keydown filterMouse paths available d = do
   (e, (w,h), b) <- view available d
-  mouse <- filterMouse <$> UI.mouseMove' e
+  mouse <- do
+    xy <- filterMouse <$> UI.mouseMove' e
+    xy' <- holdDyn (X 0, Y 0) xy
+    pure $ updated (nubDyn xy')
   nav <- pure $ mergeWith (.) [
     const (Doc.up b) <$> (traceEvent "up" $ S.upArrow keydown),
     const (Doc.down b) <$> (traceEvent "down" $ S.downArrow keydown),
@@ -103,7 +113,7 @@ widget keydown filterMouse paths available d = do
   region <- mapDyn (Doc.region b) paths
   sel <- mapDyn selectionLayer region
   _ <- widgetHold (pure ()) (Dynamic.updated sel)
-  pure (e, (w,h), paths', region)
+  pure (e, (w,h), Doc.emap fst b, paths', region)
 
 selectionLayer :: MonadWidget t m => (X,Y,Width,Height) -> m ()
 selectionLayer (X x, Y y, Width w, Height h) =

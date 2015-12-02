@@ -119,7 +119,7 @@ make node keydown s paths terms =
               let untouched = findIndices (uncurry (==)) (oldQuery `zip` txt') == examined
               pure $ if alreadyRunning || complete && untouched then Nothing
                      else (Just ())
-          in do tick <- Signals.after localInfo; pure $ leftmost [tick, push ok (updated txt)]
+          in do tick <- Signals.afterTick localInfo; pure $ leftmost [tick, push ok (updated txt)]
         let triggeringTxt = tagDyn txt searchTick
         -- todo - other actions
         keyed <- pure $ (\a b c -> a ++ b ++ c) <$> locals <*> searches <*> literals

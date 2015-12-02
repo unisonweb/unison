@@ -13,15 +13,6 @@ import qualified Unison.UI as UI
 import qualified Unison.Signals as Signals
 import qualified GHCJS.DOM.Element as Element
 
-modal :: (MonadWidget t m, Reflex t) => Dynamic t Bool -> a -> m a -> m (Dynamic t a)
-modal switch off on = do
-  initial <- sample (current switch)
-  let choose b = if b then on else pure off
-  widgetHold (choose initial) (fmap choose (updated switch))
-
-joinModal :: (MonadWidget t m, Reflex t) => Dynamic t Bool -> a -> m (Dynamic t a) -> m (Dynamic t a)
-joinModal switch off on = holdDyn off never >>= \off -> joinDyn <$> modal switch off on
-
 data Action m k a
   = Results [(k, Either (m ()) (m a))] Int
   | Cancel
@@ -98,6 +89,8 @@ explorer keydown processQuery s' = do
       let enterClosings = tag (current selection) (textInputGetEnter searchbox)
       pure (updated valids, responses, leftmost [keyClosings, mouseClosings, enterClosings])
   pure (updatedS, closings)
+
+
 
 safeIndex :: Int -> [a] -> Maybe a
 safeIndex i l = if i < length l then Just (l !! i) else Nothing
