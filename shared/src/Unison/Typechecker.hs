@@ -2,7 +2,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 
 -- | This module is the primary interface to the Unison typechecker
-module Unison.Typechecker (admissibleTypeAt, check, check', equals, isSubtype, locals, subtype, synthesize, synthesize', typeAt, wellTyped) where
+module Unison.Typechecker (admissibleTypeAt, check, check', checkAdmissible', equals, isSubtype, locals, subtype, synthesize, synthesize', typeAt, wellTyped) where
 
 import Control.Monad
 import Unison.Type (Type)
@@ -32,9 +32,6 @@ invalid loc ctx = "invalid path " ++ show loc ++ " in:\n" ++ show ctx
 -- Algorithm works by replacing the subterm, @e@ with
 -- @(f e)@, where @f@ is a fresh function parameter. We then
 -- read off the type of @e@ from the inferred result type of @f@.
---
--- Note: the returned type may contain free type variables, since
--- we strip off any outer foralls.
 admissibleTypeAt :: (Applicative f, Var v)
                  => Type.Env f v
                  -> Path
@@ -101,7 +98,7 @@ synthesize' term = join . Note.unnote $ synthesize missing term
 -- contained in the term. Returns @typ@ if successful,
 -- and a note about typechecking failure otherwise.
 check :: (Applicative f, Var v) => Type.Env f v -> Term v -> Type v -> Noted f (Type v)
-check synth term typ = synthesize synth (Term.ann term typ)
+check env term typ = synthesize env (Term.ann term typ)
 
 -- | Check whether a term, assumed to contain no @Ref@ constructors,
 -- matches a given type. Return @Left@ if any references exist, or
@@ -109,6 +106,10 @@ check synth term typ = synthesize synth (Term.ann term typ)
 check' :: Var v => Term v -> Type v -> Either Note (Type v)
 check' term typ = join . Note.unnote $ check missing term typ
   where missing h = Note.failure $ "unexpected ref: " ++ show h
+
+-- | `checkAdmissible' e t` tests that `(f : t -> r) e` is well-typed.
+checkAdmissible' :: Var v => Term v -> Type v -> Either Note (Type v)
+checkAdmissible' term typ = synthesize' (Term.blank `Term.ann` (typ `Type.arrow` typ) `Term.app` term)
 
 -- | Returns `True` if the expression is well-typed, `False` otherwise
 wellTyped :: (Monad f, Var v) => Type.Env f v -> Term v -> Noted f Bool

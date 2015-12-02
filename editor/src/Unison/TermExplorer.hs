@@ -33,9 +33,13 @@ import qualified Unison.Note as Note
 import qualified Unison.Parser as Parser
 import qualified Unison.Signals as Signals
 import qualified Unison.Term as Term
+import qualified Unison.Type as Type
 import qualified Unison.Typechecker as Typechecker
 import qualified Unison.View as View
 import qualified Unison.Views as Views
+
+watch :: Show a => String -> a -> a
+watch msg a = traceShow (msg,a) a
 
 data S =
   S { metadata :: Map Reference (Metadata V Reference) }
@@ -63,7 +67,9 @@ make node keydown s paths terms =
       name <- Views.lookupSymbol . metadata <$> sample s
       let width = Dimensions.Width 400
       elClass "div" "explorer-local-info" $ do
-        _ <- elClass "div" "localAdmissibleType" $ DocView.view width (Views.type' name localAdmissibleType)
+        id $
+          if localAdmissibleType == Type.forall' ["a"] (Type.v' "a") then pure ()
+          else void $ elClass "div" "localAdmissibleType" $ DocView.view width (Views.type' name localAdmissibleType)
         _ <- elClass "div" "localVariables" $
           traverse (elClass "div" "localVariable" . DocView.view width . Views.term name) localVariables
         pure ()
@@ -71,7 +77,7 @@ make node keydown s paths terms =
     parse lookup path (Just (Node.LocalInfo{..})) txt = case Parser.run LiteralParser.term txt of
       Parser.Succeed ts n | all (\c -> c == ' ' || c == ',') (drop n txt) ->
         ts >>= \tm ->
-          if isRight (Typechecker.check' tm localAdmissibleType)
+          if isRight (Typechecker.checkAdmissible' tm localAdmissibleType)
           then [formatResult lookup tm (Replace path tm, False) Right]
           else [formatResult lookup tm () Left]
       _ -> []
@@ -107,7 +113,6 @@ make node keydown s paths terms =
                      else (Just ())
           in do tick <- Signals.after localInfo; pure $ leftmost [tick, push ok (updated txt)]
         let triggeringTxt = tagDyn txt searchTrigger
-        let debug msg ks = trace (msg ++ ":\n  " ++ intercalate "\n  " (map fst ks)) ks
         -- todo - other actions
         keyed <- pure $ (\a b c -> a ++ b ++ c) <$> locals <*> searches <*> literals
         let trimEnd = reverse . dropWhile (== ' ') . reverse
