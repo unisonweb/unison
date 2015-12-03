@@ -5,15 +5,11 @@ module Unison.Paths where
 import Data.Aeson.TH
 import Data.List
 import Data.Maybe
-import Data.Text (Text)
 import Data.Vector ((//))
-import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Var (Var)
 import qualified Data.Vector as Vector
-import qualified Unison.ABT as ABT
-import qualified Unison.Symbol as Symbol
 import qualified Unison.Term as E
 import qualified Unison.Type as T
 
@@ -90,6 +86,18 @@ modifyType f p t = do
   (at,set) <- focus p (Type t)
   t <- asType at
   asType =<< set (Type $ f t)
+
+insertTerm :: Var v => Path -> Term v -> Maybe (Term v)
+insertTerm at _ | null at = Nothing
+insertTerm at ctx = do
+  let at' = init at
+  (parent,set) <- focus at' (Term ctx)
+  case parent of
+    Term (E.Vector' vs) -> do
+      i <- listToMaybe [i | Index i <- [last at]]
+      let v2 = E.vector' (Vector.take (i+1) vs `mappend` Vector.singleton E.blank `mappend` Vector.drop (i+1) vs)
+      asTerm =<< set (Term v2)
+    _ -> Nothing -- todo - allow other types of insertions, like \x -> y to \x x2 -> y
 
 -- | Return the list of all prefixes of the input path
 pathPrefixes :: Path -> [Path]

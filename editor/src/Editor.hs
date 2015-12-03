@@ -45,7 +45,8 @@ termEditor term0 = do
   rec
     openEvent <- id $
       let
-        advanced (Just (_,True)) = True
+        advanced (Just (_,TermExplorer.Advance)) = True
+        advanced (Just (_,TermExplorer.Insert)) = True
         advanced _ = False
         events = leftmost
           [ void $ Signals.enter keydown
@@ -66,17 +67,21 @@ termEditor term0 = do
       in mapDynM f terms
     terms <- id $
       let
-        f (Just (a, _)) oldTerm = case a of
+        f (Just (a, nav)) oldTerm = case a of
           TermExplorer.Replace p term ->
-            let msg = "replacing: " ++ show p ++ " with " ++ show term ++ " in\n " ++ show oldTerm
-            in Trace.trace msg $ fromMaybe oldTerm $ Paths.modifyTerm (const term) p oldTerm
+            let
+              msg = "replacing: " ++ show p ++ " with " ++ show term ++ " in\n " ++ show oldTerm
+              insert p t | nav == TermExplorer.Insert = Paths.insertTerm p t
+              insert _ t = Just t
+            in Trace.trace msg $ fromMaybe oldTerm $ insert p =<< Paths.modifyTerm (const term) p oldTerm
           _ -> error "todo: Eval + Step"
         f _ oldTerm = oldTerm
       in foldDyn f term0 actions
     paths <- id $
       let
         a _ = advancePath <$> sample (current paths) <*> sample boxes <*> sample (current terms)
-        ok (Just (_, True)) = a ()
+        ok (Just (_, TermExplorer.Advance)) = a ()
+        ok (Just (_, TermExplorer.Insert)) = a ()
         ok _ = pure Nothing
         f (Just (TermExplorer.Replace p _, _)) = pure (Just p)
         f Nothing = Just <$> sample (current paths) -- refresh the path event on cancel

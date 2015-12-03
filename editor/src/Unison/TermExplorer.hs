@@ -47,7 +47,7 @@ data S =
 instance Semigroup S where
   (S md1) <> (S md2) = S (Map.unionWith const md2 md1)
 
-type Advance = Bool
+data Advance = Still | Advance | Insert deriving (Eq,Ord)
 
 data Action
   = Replace Path (Term V)
@@ -78,7 +78,7 @@ make node keydown s paths terms =
       Parser.Succeed ts n | all (\c -> c == ' ' || c == ',') (drop n txt) ->
         ts >>= \tm ->
           if isRight (Typechecker.checkAdmissible' tm localAdmissibleType)
-          then [formatResult lookup tm (Replace path tm, False) Right]
+          then [formatResult lookup tm (Replace path tm, Still) Right]
           else [formatResult lookup tm () Left]
       _ -> []
     processQuery localInfo s txt selection = do
@@ -131,8 +131,11 @@ make node keydown s paths terms =
         ticks <- Signals.guard $ leftmost [void localInfo, void $ updated txt, void searchResultE]
         pure $
           let
-            advance (a, _) = (a, True)
+            advance (a, _) = (a, Advance)
+            insert (a, _) = (a, Insert)
             render _ txt _   | any (== ';') txt = Explorer.Cancel
+            -- todo: should really verify with typechecker that insertability is valid
+            render _ txt sel | any (== ',') txt = maybe Explorer.Cancel (Explorer.Accept . insert) sel
             render _ txt sel | isSuffixOf "  " txt = maybe Explorer.Cancel (Explorer.Accept . advance) sel
             render rs _ _ = Explorer.Results rs 0 -- todo - indicate additional
             explorerEvents = pushAlways
@@ -173,8 +176,8 @@ formatLocals name path results = fromMaybe [] $ go <$> results
   view _ n = Term.var' "□" `Term.apps` replicate n Term.blank
   replace localTerm n = localTerm `Term.apps` replicate n Term.blank
   go (Node.LocalInfo {..}) =
-    [ formatResult name e ((Replace path e),False) Right | e <- localVariableApplications ] ++
-    [ formatResult name (view localType n) (Replace path (replace localTerm n),False) Right | n <- localOverapplications ]
+    [ formatResult name e ((Replace path e),Still) Right | e <- localVariableApplications ] ++
+    [ formatResult name (view localType n) (Replace path (replace localTerm n),Still) Right | n <- localOverapplications ]
 
 formatSearch :: MonadWidget t m
              => (Reference -> Symbol View.DFO)
@@ -185,4 +188,4 @@ formatSearch name path results = fromMaybe [] $ go <$> results
   where
   go (Node.SearchResults {..}) =
     [ formatResult name e () Left | e <- fst illTypedMatches ] ++
-    [ formatResult name e (Replace path e,False) Right | e <- fst matches ]
+    [ formatResult name e (Replace path e,Still) Right | e <- fst matches ]
