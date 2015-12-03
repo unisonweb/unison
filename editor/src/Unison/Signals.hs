@@ -1,3 +1,5 @@
+{-# Language RecursiveDo #-}
+
 module Unison.Signals where
 
 import Control.Monad.Fix
@@ -45,11 +47,16 @@ evaluate f actions = performEvent $ fmap (liftIO . f) actions
 guard :: (MonadWidget t m, Reflex t) => Event t a -> m (Event t a)
 guard e = evaluate pure e
 
-holdMaybe :: (MonadWidget t m, Reflex t) => Event t a -> m (Behavior t (Maybe a))
+holdMaybe :: (MonadHold t m, Reflex t) => Event t a -> m (Behavior t (Maybe a))
 holdMaybe a = hold Nothing (Just <$> a)
 
 keepWhen :: Reflex t => Behavior t Bool -> Event t a -> Event t a
 keepWhen = gate
+
+keepWhenDyn :: Reflex t => Dynamic t Bool -> Event t a -> Event t a
+keepWhenDyn allow a = fmapMaybe go (attachDyn allow a)
+  where go (False, _) = Nothing
+        go (_, a) = Just a
 
 later :: (MonadWidget t m, Reflex t) => IO a -> m (Event t a)
 later a = evaluate id =<< now a
@@ -96,6 +103,19 @@ switch' e = switch <$> hold never e
 
 toggle :: (MonadFix m, MonadHold t m, Reflex t) => Bool -> Event t a -> m (Dynamic t Bool)
 toggle initial e = foldDyn (\b _ -> not b) initial (initial <$ e)
+
+-- | Emit the most recent `a` event whenever `w` fires. If no `a` event has occurred
+-- since the last firing of `w`, drop the event.
+waitFor :: (MonadWidget t m, Reflex t) => Event t w -> Event t a -> m (Event t a)
+waitFor w a = do
+  w' <- guard w
+  fresh <- holdDyn True $ leftmost [True <$ a, False <$ w, False <$ w']
+  last <- holdDyn Nothing (Just <$> a)
+  pure . fmapMaybe id . tagDyn last . keepWhenDyn fresh $ w
+
+-- | Like `waitFor`, but adds an infinitesimal delay to the output event.
+waitFor' :: (MonadWidget t m, Reflex t) => Event t w -> Event t a -> m (Event t a)
+waitFor' w a = guard =<< waitFor w a
 
 enter, upArrow, downArrow, leftArrow, rightArrow :: Reflex t => Event t Int -> Event t Int
 leftArrow = ffilter (== 37)

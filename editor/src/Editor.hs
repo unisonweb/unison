@@ -53,9 +53,10 @@ termEditor term0 = do
           , void $ clickDoc ]
         event as = leftmost [ as, Signals.dropWhen isExplorerOpen' events ]
       -- hack to ensure actions has a chance to update the layout and new path before reopening
-      in event <$> delay (20/1000) (void $ ffilter advanced actions)
+      in event <$> Signals.waitFor' (updated docs) (void $ ffilter advanced actions)
     isExplorerOpen <- holdDyn False $
       -- todo, might want to pause a bit if the explorer is closed due to an advance event
+      -- okay, so basically, every time there is a `b`, you grab the last `a` value
       leftmost [ True <$ openEvent, Signals.keepWhen isExplorerOpen' (False <$ actions) ]
     let isExplorerOpen' = current isExplorerOpen
     clickDoc <- Signals.switch' (maybe never (domEvent Click) <$> updated e)
@@ -75,17 +76,16 @@ termEditor term0 = do
     paths <- id $
       let
         a _ = advancePath <$> sample (current paths) <*> sample boxes <*> sample (current terms)
-        keyAdvance = push a (traceEvent "advance-keypress" $ void $ ffilter (== 65) keydown) -- [a]dvance
         ok (Just (_, True)) = a ()
         ok _ = pure Nothing
-        explorerAdvance = push ok <$> Signals.guard actions
         f (Just (TermExplorer.Replace p _, _)) = pure (Just p)
         f Nothing = Just <$> sample (current paths) -- refresh the path event on cancel
         f _ = pure Nothing
-        events = leftmost [keyAdvance, paths', push f actions]
       in do
-        e <- explorerAdvance
-        holdDyn Path.root =<< Signals.guard (leftmost [events, e])
+        let keyAdvance = push a (traceEvent "advance-keypress" $ void $ ffilter (== 65) keydown) -- [a]dvance
+        advance <- push ok <$> Signals.waitFor' (updated docs) actions
+        replace <- push f <$> Signals.guard actions
+        holdDyn Path.root $ leftmost [keyAdvance, paths', replace, advance]
     (e, _, boxes, paths', highlightRegion) <- elClass "div" "root" $
       DocView.widgets (Signals.dropWhen isExplorerOpen' keydown) (Signals.dropWhen isExplorerOpen') paths (Width 400) docs
     explorerTopLeft <- holdDyn (X 0, Y 0) $ (\(X x, Y y, _, Height h) -> (X x, Y $ y + h + 20)) <$> highlightRegion
