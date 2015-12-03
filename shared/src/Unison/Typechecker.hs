@@ -108,8 +108,14 @@ check' term typ = join . Note.unnote $ check missing term typ
   where missing h = Note.failure $ "unexpected ref: " ++ show h
 
 -- | `checkAdmissible' e t` tests that `(f : t -> r) e` is well-typed.
+-- If `t` has quantifiers, these are moved outside, so if `t : forall a . a`,
+-- this will check that `(f : forall a . a -> a) e` is well typed.
 checkAdmissible' :: Var v => Term v -> Type v -> Either Note (Type v)
-checkAdmissible' term typ = synthesize' (Term.blank `Term.ann` (typ `Type.arrow` typ) `Term.app` term)
+checkAdmissible' term typ =
+  synthesize' (Term.blank `Term.ann` tweak typ `Term.app` term)
+  where
+    tweak (Type.Forall' v body) = Type.forall v (tweak body)
+    tweak t = t `Type.arrow` t
 
 -- | Returns `True` if the expression is well-typed, `False` otherwise
 wellTyped :: (Monad f, Var v) => Type.Env f v -> Term v -> Noted f Bool
