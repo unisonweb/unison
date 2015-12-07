@@ -124,7 +124,7 @@ make node keydown s paths terms =
         -- todo - other actions
         keyed <- pure $ (\a b c -> a ++ b ++ c) <$> locals <*> searches <*> literals
         let trimEnd = reverse . dropWhile (== ' ') . reverse
-        let f possible txt = let txt' = trimEnd txt in filter (isPrefixOf txt' . fst) possible
+        let f possible txt = let txt' = trimEnd txt in filter (isSubsequenceOf txt' . fst) possible
         filtered <- pure $ f <$> keyed <*> current txt
         let outputS = S . Map.fromList . Node.references <$> searchResultE
         _ <- widgetHold (pure ()) (formatLocalInfo <$> localInfo)

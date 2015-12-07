@@ -87,7 +87,8 @@ termEditor term0 = do
         f Nothing = Just <$> sample (current paths) -- refresh the path event on cancel
         f _ = pure Nothing
       in do
-        let keyAdvance = push a (traceEvent "advance-keypress" $ void $ ffilter (== 65) keydown) -- [a]dvance
+        let keyAdvance = push a (traceEvent "advance-keypress" $ void $ Signals.dropWhen isExplorerOpen' $
+                                ffilter (== 65) keydown) -- [a]dvance
         advance <- push ok <$> Signals.waitFor' (updated docs) actions
         replace <- push f <$> Signals.guard actions
         holdDyn Path.root $ leftmost [keyAdvance, paths', replace, advance]
