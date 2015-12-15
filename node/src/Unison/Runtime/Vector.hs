@@ -1,17 +1,20 @@
 module Unison.Runtime.Vector where
 
-import Data.List hiding (length)
-import Prelude hiding (length)
+import Data.List hiding (init,length)
+import Prelude hiding (init,length)
 import qualified Data.Vector as V
 
 arity :: Int
-arity = 128
+arity = 64
 
 data Vector a =
   Vector { length :: !Int, hd :: !(V.Vector a), tl :: (Vector (V.Vector a)), buf :: !(V.Vector a) }
 
 empty :: Vector a
 empty = Vector 0 V.empty empty V.empty
+
+isEmpty :: Vector a -> Bool
+isEmpty v = length v == 0
 
 snoc :: Vector a -> a -> Vector a
 snoc (Vector n hd tl buf) a =
@@ -26,6 +29,21 @@ unsafeIndex (Vector _ hd tl buf) i = case i of
   _ | i >= V.length hd + length tl * arity -> buf `V.unsafeIndex` (i - (length tl)*arity - V.length hd)
   _ -> case (i - V.length hd) `divMod` arity of
          (bucket,offset) -> tl `unsafeIndex` bucket `V.unsafeIndex` offset
+
+unsafeLast :: Vector a -> a
+unsafeLast v = unsafeIndex v (length v - 1)
+
+-- | Drop the last element from this vector. Returns itself if empty.
+init :: Vector a -> Vector a
+init v@(Vector n hd tl buf) = case V.null buf of
+  False -> Vector (n-1) hd tl (V.init buf)
+  _ | n == V.length hd -> Vector (n-1) V.empty tl (V.init hd)
+  _ | n == 0 -> v
+  _ -> Vector (n-1) hd (init tl) (V.init (unsafeLast tl))
+
+dropRightWhile :: (a -> Bool) -> Vector a -> Vector a
+dropRightWhile f v | isEmpty v || not (f (unsafeLast v)) = v
+dropRightWhile f v = dropRightWhile f (init v)
 
 toList :: Vector a -> [a]
 toList v = map (unsafeIndex v) [0 .. length v - 1]
@@ -44,6 +62,7 @@ instance Ord a => Ord (Vector a) where
 
 instance Monoid (Vector a) where
   mempty = empty
+  mappend (Vector 0 _ _ _) v2 = v2
   mappend v1@(Vector n1 hd1 tl1 buf1) v2@(Vector n2 hd2 tl2 buf2) =
     if V.null buf1 then Vector (n1+n2) hd1 (tl1 `snoc` hd2 `mappend` tl2) buf2
     else foldl' snoc v1 (toList v2)
