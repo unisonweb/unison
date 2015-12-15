@@ -33,6 +33,10 @@ unsafeIndex (Vector _ hd tl buf) i = case i of
 unsafeLast :: Vector a -> a
 unsafeLast v = unsafeIndex v (length v - 1)
 
+last :: Vector a -> Maybe a
+last v | isEmpty v = Nothing
+last v = Just $ unsafeLast v
+
 -- | Drop the last element from this vector. Returns itself if empty.
 init :: Vector a -> Vector a
 init v@(Vector n hd tl buf) = case V.null buf of
