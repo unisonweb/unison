@@ -21,11 +21,13 @@ data Pcbt m p a = Pcbt
   , labels :: [Bool] -> m (Labels p a) }
 
 type Traversal m p a b r = Free (Instruction m p a b) r
+type Bitpath = V.Vector Bool
 
 data Instruction m p a b r where
   Effect :: m x -> Instruction m p a b x
   IsLeaf :: Instruction m p a b Bool
   Ask :: Instruction m p a b (Labels p a)
+  Cursor :: Instruction m p a b Bitpath
   Skip :: Instruction m p a b ()
   Continue :: Instruction m p a b ()
   Emit :: b -> Instruction m p a b ()
@@ -42,12 +44,13 @@ evals a = eval (Effect' a)
 output :: o -> Stream f o
 output o = eval (Output o)
 
-run :: Traversal m p a b r -> V.Vector Bool -> Pcbt m p a -> Stream m b
+run :: Traversal m p a b r -> Bitpath -> Pcbt m p a -> Stream m b
 run f cursor t = case f of
   Pure _ -> pure ()
   Bind req k -> case req of
     Effect m -> evals m >>= (\x -> run (k x) cursor t)
     Ask -> evals (labels t (V.toList cursor)) >>= \ls -> run (k ls) cursor t
+    Cursor -> run (k cursor) cursor t
     IsLeaf -> evals (structure t (V.toList cursor)) >>= \isLeaf -> run (k isLeaf) cursor t
     Emit b -> output b >> run (k ()) cursor t
     Continue -> do
@@ -59,7 +62,7 @@ run f cursor t = case f of
         True -> pure (incr i)
     Skip -> maybe (pure ()) (\cursor -> run (k ()) cursor t) (incr cursor)
 
-incr :: V.Vector Bool -> Maybe (V.Vector Bool)
+incr :: Bitpath -> Maybe Bitpath
 incr i = case V.dropRightWhile id i of
   i | V.isEmpty i -> Nothing
     | otherwise   -> Just (V.init i `V.snoc` True)
