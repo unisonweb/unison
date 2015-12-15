@@ -30,27 +30,34 @@ data Instruction m p a b r where
   Continue :: Instruction m p a b ()
   Emit :: b -> Instruction m p a b ()
 
-run :: Monad m
-    => Traversal m p a b r
-    -> V.Vector Bool
-    -> V.Vector b
-    -> Pcbt m p a
-    -> m (V.Vector b)
-run f cursor acc t = case f of
-  Pure _ -> pure acc
+data Source m b r where
+  Effect' :: m x -> Source m b x
+  Output :: b -> Source m b ()
+
+type Stream f o = Free (Source f o) ()
+
+evals :: f a -> Free (Source f o) a
+evals a = eval (Effect' a)
+
+output :: o -> Stream f o
+output o = eval (Output o)
+
+run :: Traversal m p a b r -> V.Vector Bool -> Pcbt m p a -> Stream m b
+run f cursor t = case f of
+  Pure _ -> pure ()
   Bind req k -> case req of
-    Effect m -> m >>= (\x -> run (k x) cursor acc t)
-    Ask -> labels t (V.toList cursor) >>= \ls -> run (k ls) cursor acc t
-    IsLeaf -> structure t (V.toList cursor) >>= \isLeaf -> run (k isLeaf) cursor acc t
-    Emit b -> run (k ()) cursor (acc `V.snoc` b) t
+    Effect m -> evals m >>= (\x -> run (k x) cursor t)
+    Ask -> evals (labels t (V.toList cursor)) >>= \ls -> run (k ls) cursor t
+    IsLeaf -> evals (structure t (V.toList cursor)) >>= \isLeaf -> run (k isLeaf) cursor t
+    Emit b -> output b >> run (k ()) cursor t
     Continue -> do
       cursor <- advance cursor
-      maybe (pure acc) (\cursor -> run (k ()) cursor acc t) cursor
+      maybe (pure ()) (\cursor -> run (k ()) cursor t) cursor
       where
-      advance i = structure t (V.toList i) >>= \isLeaf -> case isLeaf of
+      advance i = evals (structure t (V.toList i)) >>= \isLeaf -> case isLeaf of
         False -> pure (Just (i `V.snoc` False))
         True -> pure (incr i)
-    Skip -> maybe (pure acc) (\cursor -> run (k ()) cursor acc t) (incr cursor)
+    Skip -> maybe (pure ()) (\cursor -> run (k ()) cursor t) (incr cursor)
 
 incr :: V.Vector Bool -> Maybe (V.Vector Bool)
 incr i = case V.dropRightWhile id i of
