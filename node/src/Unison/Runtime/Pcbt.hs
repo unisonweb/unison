@@ -80,7 +80,7 @@ trim q t = do
       maybe (pure ()) ok p
   case t of
     Pure p -> Pure p
-    Bind req k -> skip >> (eval req >>= k)
+    Bind req k -> skip >> (eval req >>= (trim q . k))
 
 evals :: f a -> Free (Source f o) a
 evals a = eval (Effect' a)
