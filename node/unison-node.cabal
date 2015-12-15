@@ -50,6 +50,7 @@ library
     Unison.Term.Extra
     Unison.TermEdit.Extra
     Unison.Type.Extra
+    Unison.Runtime.Vector
 
   build-depends:
     aeson,
