@@ -11,9 +11,9 @@ import Unison.Node.MemNode ()
 import Unison.Reference as R
 import Unison.Symbol (Symbol)
 import Unison.Term
-import Unison.Type (defaultSymbol)
 import Unison.Var (Var)
 import Unison.View (DFO)
+import Unison.Views (defaultSymbol)
 import Unison.Dimensions (Width(..))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -23,7 +23,9 @@ import qualified Unison.Metadata as Metadata
 import qualified Unison.Node as Node
 import qualified Unison.Node.MemNode as MemNode
 import qualified Unison.Note as Note
+import qualified Unison.Paths as Paths
 import qualified Unison.Test.Common as Common
+import qualified Unison.Views as Views
 
 -- term for testing
 type TTerm = Term (Symbol DFO)
@@ -43,13 +45,13 @@ tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Term"
         let t = num 1 `plus` num 1
         in assertEqual "+"
           "1 + 1"
-          (Doc.formatText (Width 80) (view symbol t))
+          (Doc.formatText (Width 80) (Views.term symbol t))
     , testCase "infix-rendering (2)" $ node >>= \(_,symbol) ->
         do
           t <- pure $ num 1 `plus` num 1
-          let d = view symbol t
+          let d = Views.term symbol t
           assertEqual "path sanity check"
-             [Fn,Arg]
+             [Paths.Fn,Paths.Arg]
              (head $ Doc.leafPaths d)
     ]
 

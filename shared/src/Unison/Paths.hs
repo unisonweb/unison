@@ -81,6 +81,9 @@ modifyTerm f p t = do
   t <- asTerm at
   asTerm =<< set (Term $ f t)
 
+modifyTerm' :: Var v => (Term v -> Term v) -> Path -> Term v -> Term v
+modifyTerm' f p t = fromMaybe t $ modifyTerm f p t
+
 modifyType :: Var v => (Type v -> Type v) -> Path -> Type v -> Maybe (Type v)
 modifyType f p t = do
   (at,set) <- focus p (Type t)

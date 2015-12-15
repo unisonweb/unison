@@ -6,7 +6,8 @@ import Unison.Symbol (Symbol)
 import Unison.Node (Node)
 import Unison.Reference (Reference)
 import Unison.Term (Term)
-import Unison.Type (defaultSymbol,Type)
+import Unison.Type (Type)
+import Unison.Views (defaultSymbol)
 import qualified Data.Map as Map
 import qualified Unison.Metadata as Metadata
 import qualified Unison.Node as Node
