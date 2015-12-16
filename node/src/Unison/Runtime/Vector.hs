@@ -23,6 +23,10 @@ snoc (Vector n hd tl buf) a =
     buf | n == arity-1 -> Vector (n+1) buf tl V.empty
     buf -> Vector (n+1) hd (tl `snoc` buf) V.empty
 
+unsnoc :: Vector a -> Maybe (Vector a, a)
+unsnoc v | isEmpty v = Nothing
+unsnoc v = Just (init v, unsafeLast v)
+
 unsafeIndex :: Vector a -> Int -> a
 unsafeIndex (Vector _ hd tl buf) i = case i of
   _ | i < V.length hd -> hd `V.unsafeIndex` i

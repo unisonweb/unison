@@ -46,36 +46,51 @@ bitMatches Zero False = True
 bitMatches One True = True
 bitMatches _ _ = False
 
+emit :: b -> Traversal m p a b ()
+emit b = eval (Emit b)
+
+-- | Calls `Skip` if current bitpath is `expected`, else noop
 skipFrom :: Bitpath -> Traversal m p a b (Maybe Bitpath)
 skipFrom expected = do
   actual <- eval Cursor
   id $ if actual == expected then eval Skip >> (Just <$> eval Cursor)
        else pure Nothing
 
+-- | Calls `Continue` if current bitpath is `expected`, else noop
 continueFrom :: Bitpath -> Traversal m p a b (Maybe Bitpath)
 continueFrom expected = do
   actual <- eval Cursor
   id $ if actual == expected then eval Continue >> (Just <$> eval Cursor)
        else pure Nothing
 
+-- | Returns the `p` value corresponding to the given `Bitpath`
 pathAt :: Bitpath -> Traversal m p a b (Maybe p)
 pathAt bp = do
   lbls <- eval (Ask bp)
   pure (path <$> lbls)
 
+-- | Returns the current `p` value
 currentPath :: Traversal m p a b (Maybe p)
 currentPath = do
   bp <- eval Cursor
   pathAt bp
 
+-- | The identity traversal; emits all
+identity :: Traversal m p a a r
+identity = do
+  lbls <- eval Cursor >>= \bp -> eval (Ask bp)
+  case lbls of
+    Nothing -> eval Continue >> identity
+    Just lbls -> maybe (pure ()) emit (hit lbls) >> identity
+
+-- | Use `q` to control which branches are skipped
 trim :: (p -> Bit) -> Traversal m p a b r -> Traversal m p a b r
 trim q t = do
   c0 <- eval Cursor
-  skip <- pure $ case V.init c0 of
-    _ | V.isEmpty c0 -> pure ()
-    parent -> do
+  skip <- pure $ case V.unsnoc c0 of
+    Nothing -> pure ()
+    Just (parent, lastBit) -> do
       p <- pathAt parent
-      let lastBit = V.unsafeLast c0
       let ok p = if not (bitMatches (q p) lastBit) then eval Skip else pure ()
       maybe (pure ()) ok p
   case t of
