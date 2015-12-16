@@ -1,5 +1,17 @@
 module Unison.Runtime.Vector where
 
+-- |
+-- Fast sequence type based on skewed array-indexed tries
+-- with large branching factor, `B`.
+--
+-- Asymptotics (assuming vector of size `N`):
+--   O(1) worst-case access to indices [0,B)
+--   O(1) average-case access to indices [N-B,N)
+--   O(log_B(i)) worst-case access to index i
+--   O(1) amortized snoc, O(log_B(N)) worst case
+--
+-- Some inspiration stolen from: http://julesjacobs.github.io/2014/11/11/immutable-vectors-csharp.html
+
 import Data.List hiding (init,length)
 import Prelude hiding (init,length)
 import qualified Data.Vector as V
@@ -17,11 +29,10 @@ isEmpty :: Vector a -> Bool
 isEmpty v = length v == 0
 
 snoc :: Vector a -> a -> Vector a
-snoc (Vector n hd tl buf) a =
-  case buf `V.snoc` a of
-    buf | V.length buf /= arity -> Vector (n+1) hd tl buf
-    buf | n == arity-1 -> Vector (n+1) buf tl V.empty
-    buf -> Vector (n+1) hd (tl `snoc` buf) V.empty
+snoc (Vector n hd tl buf) a = case buf `V.snoc` a of
+  buf | V.length buf /= arity -> Vector (n+1) hd tl buf
+      | n == arity-1          -> Vector (n+1) buf tl V.empty
+      | otherwise             -> Vector (n+1) hd (tl `snoc` buf) V.empty
 
 unsnoc :: Vector a -> Maybe (Vector a, a)
 unsnoc v | isEmpty v = Nothing
@@ -46,8 +57,8 @@ init :: Vector a -> Vector a
 init v@(Vector n hd tl buf) = case V.null buf of
   False -> Vector (n-1) hd tl (V.init buf)
   _ | n == V.length hd -> Vector (n-1) V.empty tl (V.init hd)
-  _ | n == 0 -> v
-  _ -> Vector (n-1) hd (init tl) (V.init (unsafeLast tl))
+  _ | n == 0           -> v
+  _                    -> Vector (n-1) hd (init tl) (V.init (unsafeLast tl))
 
 dropRightWhile :: (a -> Bool) -> Vector a -> Vector a
 dropRightWhile f v | isEmpty v || not (f (unsafeLast v)) = v
