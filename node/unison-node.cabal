@@ -51,6 +51,8 @@ library
     Unison.TermEdit.Extra
     Unison.Type.Extra
     Unison.Runtime.Vector
+    Unison.Runtime.Free
+    Unison.Runtime.Stream
     Unison.Runtime.Pcbt
 
   build-depends:
