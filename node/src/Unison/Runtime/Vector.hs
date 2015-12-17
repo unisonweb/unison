@@ -52,6 +52,10 @@ last :: Vector a -> Maybe a
 last v | isEmpty v = Nothing
 last v = Just $ unsafeLast v
 
+modifyLast :: (a -> a) -> Vector a -> Vector a
+modifyLast f v | isEmpty v = v
+               | otherwise = init v `snoc` f (unsafeLast v)
+
 -- | Drop the last element from this vector. Returns itself if empty.
 init :: Vector a -> Vector a
 init v@(Vector n hd tl buf) = case V.null buf of

@@ -8,35 +8,68 @@
 module Unison.Runtime.Pcbt where
 
 import Control.Monad
+import qualified Data.Map as Map
 import qualified Unison.Runtime.Vector as V
+
+type Bitpath = [Bool]
+type IsBin = Bool
+type Choices p = V.Vector (p, Bool)
 
 data Labels p a = Labels { path :: p, maxPath :: p, hit :: Maybe a }
   deriving (Functor, Foldable, Traversable)
-
-type IsBin = Bool
 
 -- | A binary tree along with a set of labels attached to each node in the tree
 data Pcbt m p a = Pcbt
   { structure :: [Bool] -> m IsBin
   , labels :: [Bool] -> m (Maybe (Labels p a)) }
 
-type Traversal m p a b r = Free (Instruction m p a b) r
-type Bitpath = V.Vector Bool
+data View m p a
+  = View { stream :: Stream m (Choices p, a)
+         , at     :: Choices p -> Free m (Maybe a) }
 
-data Instruction m p a b r where
-  Effect :: m x -> Instruction m p a b x
-  IsLeaf :: Instruction m p a b Bool
-  Ask :: Bitpath -> Instruction m p a b (Maybe (Labels p a))
-  Cursor :: Instruction m p a b Bitpath
-  Skip :: Instruction m p a b ()
-  Continue :: Instruction m p a b ()
-  Emit :: b -> Instruction m p a b ()
+view :: Ord p => Pcbt m p a -> View m p a
+view t = View (stream V.empty) at where
+  stream cursor = do
+    let bp = bitpath cursor
+    isLeaf <- evals (structure t bp)
+    l <- evals (labels t bp)
+    case l of
+      Nothing -> next cursor
+      Just (Labels p _ hit) -> case hit of
+        Nothing -> tryDescend p isLeaf cursor
+        Just a -> emit (cursor, a) >> tryDescend p isLeaf cursor
+  -- Move up until at a 0-branch, then flip to a 1, e.g. [0,0,0,1,1] -> [0,0,1]
+  next cursor = case V.dropRightWhile snd cursor of
+    c | V.isEmpty c -> done
+      | otherwise   -> stream (V.modifyLast (\(p,_) -> (p,True)) c)
+  -- Move down the 0-branch
+  descend p cursor = stream (cursor `V.snoc` (p,False)) -- go down 0 branch
+  tryDescend p isLeaf c = if isLeaf then next c else descend p c
+  done = pure ()
+  at cursor = at' (Map.fromList (V.toList cursor)) V.empty
+  at' query cursor = do
+    l <- eval (labels t (V.toList cursor))
+    case l of
+      Nothing -> pure Nothing
+      Just (Labels path maxPath hit)
+        | Map.null query -> pure hit
+        | maxPath < fst (Map.findMin query) -> pure Nothing
+        | otherwise -> case Map.lookup path query of
+          -- query picks a definite branch
+          Just b -> at' (Map.delete path query) (cursor `V.snoc` b)
+          -- query doesn't say, check both 0-branch and 1-branch
+          Nothing -> at' query (cursor `V.snoc` False) >>= \r -> case r of
+            Just a -> pure (Just a) -- we've got a hit from 0-branch, stop
+            Nothing -> at' query (cursor `V.snoc` True)
 
-data Source m b r where
-  Effect' :: m x -> Source m b x
-  Output :: b -> Source m b ()
+bitpath :: Choices p -> Bitpath
+bitpath c = map snd (V.toList c)
 
-type Stream f o = Free (Source f o) ()
+data StreamF m b r where
+  Effect :: m x -> StreamF m b x
+  Emit :: b -> StreamF m b ()
+
+type Stream m o = Free (StreamF m o) ()
 
 data Bit = Zero | One | Both
 
@@ -46,85 +79,11 @@ bitMatches Zero False = True
 bitMatches One True = True
 bitMatches _ _ = False
 
-emit :: b -> Traversal m p a b ()
-emit b = eval (Emit b)
+evals :: m a -> Free (StreamF m o) a
+evals a = eval (Effect a)
 
--- | Calls `Skip` if current bitpath is `expected`, else noop
-skipFrom :: Bitpath -> Traversal m p a b (Maybe Bitpath)
-skipFrom expected = do
-  actual <- eval Cursor
-  id $ if actual == expected then eval Skip >> (Just <$> eval Cursor)
-       else pure Nothing
-
--- | Calls `Continue` if current bitpath is `expected`, else noop
-continueFrom :: Bitpath -> Traversal m p a b (Maybe Bitpath)
-continueFrom expected = do
-  actual <- eval Cursor
-  id $ if actual == expected then eval Continue >> (Just <$> eval Cursor)
-       else pure Nothing
-
--- | Returns the `p` value corresponding to the given `Bitpath`
-pathAt :: Bitpath -> Traversal m p a b (Maybe p)
-pathAt bp = do
-  lbls <- eval (Ask bp)
-  pure (path <$> lbls)
-
--- | Returns the current `p` value
-currentPath :: Traversal m p a b (Maybe p)
-currentPath = do
-  bp <- eval Cursor
-  pathAt bp
-
--- | The identity traversal; emits all
-identity :: Traversal m p a a r
-identity = do
-  lbls <- eval Cursor >>= \bp -> eval (Ask bp)
-  case lbls of
-    Nothing -> eval Continue >> identity
-    Just lbls -> maybe (pure ()) emit (hit lbls) >> identity
-
--- | Use `q` to control which branches are skipped
-trim :: (p -> Bit) -> Traversal m p a b r -> Traversal m p a b r
-trim q t = do
-  c0 <- eval Cursor
-  skip <- pure $ case V.unsnoc c0 of
-    Nothing -> pure ()
-    Just (parent, lastBit) -> do
-      p <- pathAt parent
-      let ok p = if not (bitMatches (q p) lastBit) then eval Skip else pure ()
-      maybe (pure ()) ok p
-  case t of
-    Pure p -> Pure p
-    Bind req k -> skip >> (eval req >>= (trim q . k))
-
-evals :: f a -> Free (Source f o) a
-evals a = eval (Effect' a)
-
-output :: o -> Stream f o
-output o = eval (Output o)
-
-run :: Traversal m p a b r -> Bitpath -> Pcbt m p a -> Stream m b
-run f cursor t = case f of
-  Pure _ -> pure ()
-  Bind req k -> case req of
-    Effect m -> evals m >>= (\x -> run (k x) cursor t)
-    Ask bp -> evals (labels t (V.toList bp)) >>= \ls -> run (k ls) cursor t
-    Cursor -> run (k cursor) cursor t
-    IsLeaf -> evals (structure t (V.toList cursor)) >>= \isLeaf -> run (k isLeaf) cursor t
-    Emit b -> output b >> run (k ()) cursor t
-    Continue -> do
-      cursor <- advance cursor
-      maybe (pure ()) (\cursor -> run (k ()) cursor t) cursor
-      where
-      advance i = evals (structure t (V.toList i)) >>= \isLeaf -> case isLeaf of
-        False -> pure (Just (i `V.snoc` False))
-        True -> pure (incr i)
-    Skip -> maybe (pure ()) (\cursor -> run (k ()) cursor t) (incr cursor)
-
-incr :: Bitpath -> Maybe Bitpath
-incr i = case V.dropRightWhile id i of
-  i | V.isEmpty i -> Nothing
-    | otherwise   -> Just (V.init i `V.snoc` True)
+emit :: o -> Stream f o
+emit o = eval (Emit o)
 
 data Free f a
   = Pure a
