@@ -12,7 +12,7 @@ import qualified Data.Map as Map
 import qualified Unison.Runtime.Vector as V
 
 type Bitpath = [Bool]
-type IsBin = Bool
+type IsLeaf = Bool
 type Choices p = V.Vector (p, Bool)
 
 data Labels p a = Labels { path :: p, maxPath :: p, hit :: Maybe a }
@@ -20,7 +20,7 @@ data Labels p a = Labels { path :: p, maxPath :: p, hit :: Maybe a }
 
 -- | A binary tree along with a set of labels attached to each node in the tree
 data Pcbt m p a = Pcbt
-  { structure :: [Bool] -> m IsBin
+  { structure :: [Bool] -> m IsLeaf
   , labels :: [Bool] -> m (Maybe (Labels p a)) }
 
 data View m p a
