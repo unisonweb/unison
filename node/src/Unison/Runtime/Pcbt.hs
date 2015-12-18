@@ -25,7 +25,15 @@ data Pcbt m p a = Pcbt
 
 data View m p a
   = View { stream :: Stream m (Choices p, a) ()
-         , at     :: Choices p -> Free m (Maybe a) }
+         , at     :: Choices p -> Free m (Pcbt' p a) }
+
+data Pcbt' p a
+  = Bin' (Maybe a) p (Pcbt' p a) (Pcbt' p a)
+  | Tip' (Maybe a)
+
+bin' :: Maybe a -> p -> Pcbt' p a -> Pcbt' p a -> Pcbt' p a
+bin' hit _ (Tip' Nothing) (Tip' Nothing) = Tip' hit
+bin' hit p l r = Bin' hit p l r
 
 view :: Ord p => Pcbt m p a -> View m p a
 view t = View (stream V.empty) at where
@@ -40,27 +48,29 @@ view t = View (stream V.empty) at where
         Just a -> Stream.emit (cursor, a) `Stream.append` tryDescend p isLeaf cursor
   -- Move up until at a 0-branch, then flip to a 1, e.g. [0,0,0,1,1] -> [0,0,1]
   next cursor = case V.dropRightWhile snd cursor of
-    c | V.isEmpty c -> done
+    c | V.isEmpty c -> pure ()
       | otherwise   -> stream (V.modifyLast (\(p,_) -> (p,True)) c)
   -- Move down the 0-branch
   descend p cursor = stream (cursor `V.snoc` (p,False)) -- go down 0 branch
   tryDescend p isLeaf c = if isLeaf then next c else descend p c
-  done = pure ()
   at cursor = at' (Map.fromList (V.toList cursor)) V.empty
   at' query cursor = do
     l <- Free.eval (labels t (V.toList cursor))
     case l of
-      Nothing -> pure Nothing
+      Nothing -> pure (Tip' Nothing)
       Just (Labels path maxPath hit)
-        | Map.null query -> pure hit
-        | maxPath < fst (Map.findMin query) -> pure Nothing
+        | Map.null query -> pure (Tip' hit)
+        | maxPath < fst (Map.findMin query) -> pure (Tip' hit)
         | otherwise -> case Map.lookup path query of
           -- query picks a definite branch
-          Just b -> at' (Map.delete path query) (cursor `V.snoc` b)
+          Just False ->
+            bin' hit path <$> at' (Map.delete path query) (cursor `V.snoc` False)
+                          <*> pure (Tip' Nothing)
+          Just True ->
+            bin' hit path (Tip' Nothing) <$> at' (Map.delete path query) (cursor `V.snoc` True)
           -- query doesn't say, check both 0-branch and 1-branch
-          Nothing -> at' query (cursor `V.snoc` False) >>= \r -> case r of
-            Just a -> pure (Just a) -- we've got a hit from 0-branch, stop
-            Nothing -> at' query (cursor `V.snoc` True)
+          Nothing -> bin' hit path <$> at' query (cursor `V.snoc` False)
+                                   <*> at' query (cursor `V.snoc` True)
 
 bitpath :: Choices p -> Bitpath
 bitpath c = map snd (V.toList c)
