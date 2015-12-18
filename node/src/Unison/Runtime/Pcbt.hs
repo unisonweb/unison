@@ -4,6 +4,7 @@
 
 module Unison.Runtime.Pcbt where
 
+import Data.Maybe
 import Unison.Runtime.Free (Free)
 import Unison.Runtime.Stream (Stream)
 import qualified Data.Map as Map
@@ -25,7 +26,7 @@ data Pcbt m p a = Pcbt
 
 data View m p a
   = View { stream :: Stream m (Choices p, a) ()
-         , at     :: Choices p -> Free m (Pcbt' p a) }
+         , at     :: V.Vector (p,Bit) -> Free m (Pcbt' p a) }
 
 data Pcbt' p a
   = Bin' (Maybe a) p (Pcbt' p a) (Pcbt' p a)
@@ -61,15 +62,15 @@ view t = View (stream V.empty) at where
       Just (Labels path maxPath hit)
         | Map.null query -> pure (Tip' hit)
         | maxPath < fst (Map.findMin query) -> pure (Tip' hit)
-        | otherwise -> case Map.lookup path query of
+        | otherwise -> case fromMaybe Both $ Map.lookup path query of
           -- query picks a definite branch
-          Just False ->
+          Zero ->
             bin' hit path <$> at' (Map.delete path query) (cursor `V.snoc` False)
                           <*> pure (Tip' Nothing)
-          Just True ->
+          One ->
             bin' hit path (Tip' Nothing) <$> at' (Map.delete path query) (cursor `V.snoc` True)
           -- query doesn't say, check both 0-branch and 1-branch
-          Nothing -> bin' hit path <$> at' query (cursor `V.snoc` False)
+          Both -> bin' hit path <$> at' query (cursor `V.snoc` False)
                                    <*> at' query (cursor `V.snoc` True)
 
 bitpath :: Choices p -> Bitpath
