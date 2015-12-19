@@ -28,6 +28,10 @@ class Path p where
 lca :: Path p => p -> p -> p
 lca p p2 = fst (factor p p2)
 
+-- | `isSubpath p1 p2` is true if `p2 == extend p1 x` for some `x`
+isSubpath :: (Eq p, Path p) => p -> p -> Bool
+isSubpath p1 p2 = lca p1 p2 == p1
+
 instance Eq a => Path (Maybe a) where
   root = Nothing
   extend = (<|>)
