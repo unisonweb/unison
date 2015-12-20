@@ -1,11 +1,16 @@
+{-# Language BangPatterns #-}
 {-# Language DeriveFunctor #-}
 {-# Language DeriveTraversable #-}
 {-# Language DeriveFoldable #-}
 
 module Unison.Runtime.Pcbt where
 
+import Data.List
 import Unison.Runtime.Free (Free)
 import Unison.Runtime.Stream (Stream)
+import Unison.Path (Path)
+import qualified Data.Set as Set
+import qualified Unison.Path as Path
 import qualified Unison.Runtime.Vector as V
 import qualified Unison.Runtime.Stream as Stream
 import qualified Unison.Runtime.Free as Free
@@ -59,6 +64,7 @@ view t = View (stream V.empty) (flip at V.empty) where
       Nothing -> pure (Tip' Nothing)
       Just (Labels path maxPath hit) -> case query cursor path maxPath of
         Nothing -> pure (More' hit)
+        Just Neither -> pure (Tip' Nothing)
         Just Zero -> -- query picks a definite branch
           bin' hit path <$> at query (cursor `V.snoc` (path,False)) <*> pure (Tip' Nothing)
         Just One ->
@@ -66,11 +72,54 @@ view t = View (stream V.empty) (flip at V.empty) where
         Just Both -> -- query doesn't say, check both 0-branch and 1-branch
           bin' hit path <$> at query (cursor `V.snoc` (path,False))
                         <*> at query (cursor `V.snoc` (path,True))
+        Just PreferOne ->
+          at query (cursor `V.snoc` (path,True)) >>= \one -> case one of
+            Tip' Nothing -> bin' hit path <$> at query (cursor `V.snoc` (path,False))
+                                          <*> pure one
+            _ -> pure (bin' hit path (Tip' Nothing) one)
+        Just PreferZero ->
+          at query (cursor `V.snoc` (path,False)) >>= \zero -> case zero of
+            Tip' Nothing -> bin' hit path <$> pure zero
+                                          <*> at query (cursor `V.snoc` (path,False))
+            _ -> pure (bin' hit path zero (Tip' Nothing))
+
+type Sort p = Choices p
+
+limit :: (Ord p, Path p) => Sort p -> Int -> View m p a -> Free m [a]
+limit ord n t = go Set.empty n ord []
+  where
+  combine ord ordTl = foldl' V.snoc ord ordTl
+  go seen n ord ordTl = at t (toQuery seen (combine ord ordTl)) >>= \t' -> case hits t' of
+    hs | V.length hs < n -> case V.unsnoc ord of
+      Nothing -> pure (map snd (V.toList hs))
+      -- if just tried preferring 0-branch for path and got all hits we could,
+      -- don't bother searching that branch again; likewise for 1-branch
+      Just (ord, (p,b)) ->
+        let seen' = Set.union seen (Set.fromList (map fst $ V.toList hs))
+        in (map snd (V.toList hs) ++) <$> go seen' (n - V.length hs) ord ((p, not b) : ordTl)
+    hs -> pure (take n . map snd $ V.toList hs)
+  toQuery seen ord =
+    let
+      search choices _ _ | Set.member choices seen = Just Neither
+      search _ p _ = case find (\(po,_) -> Path.isSubpath po p) (V.toList ord) of
+        Nothing -> Just Both
+        Just (_,b) -> if not b then Just PreferZero else Just PreferOne
+    in search
+
+hits :: Pcbt' p a -> V.Vector (Choices p, a)
+hits t = go V.empty V.empty t where
+  go !acc !cursor (Bin' h p l r) =
+    let acc' = maybe acc (\h -> V.snoc acc (cursor,h)) h
+        cursorl = V.snoc cursor (p, False)
+        cursorr = V.snoc cursor (p, True)
+    in go (go acc' cursorl l) cursorr r
+  go !acc !cursor (Tip' h) = maybe acc (\h -> V.snoc acc (cursor,h)) h
+  go !acc !cursor (More' h) = maybe acc (\h -> V.snoc acc (cursor,h)) h
 
 bitpath :: Choices p -> Bitpath
 bitpath c = map snd (V.toList c)
 
-data Bit = Zero | One | Both
+data Bit = Zero | One | PreferZero | PreferOne | Both | Neither
 
 bitMatches :: Bit -> Bool -> Bool
 bitMatches Both _ = True
