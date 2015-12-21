@@ -7,7 +7,8 @@
 
 module Unison.Runtime.Pcbt where
 
-import Data.List
+import Control.Applicative
+import Data.List hiding (union)
 import Data.Maybe
 import Unison.Runtime.Free (Free)
 import Unison.Runtime.Stream (Stream)
@@ -114,6 +115,18 @@ sort :: (Applicative m, Composite p, Ord (Base p))
 sort ord v = () <$ go ord Open where
   go _ Closed = pure Closed
   go ord seen = sort0 seen ord v >>= go (V.init ord)
+
+union :: (Eq p, Monad m) => View m p a -> View m p a -> View m p a
+union (View v1) (View v2) = View $ do
+  t1 <- v1
+  t2 <- v2
+  case (t1, t2) of
+    (Tip' h1, Tip' h2) -> pure (Tip' (h1 <|> h2))
+    (Bin' h1 p maxP l r, Tip' h2) -> pure (Bin' (h1 <|> h2) p maxP l r)
+    (Tip' h1, Bin' h2 p maxP l r) -> pure (Bin' (h1 <|> h2) p maxP l r)
+    (a@(Bin' h1 p1 maxP1 l1 r1), b@(Bin' h2 p2 maxP2 l2 r2)) ->
+      if p1 == p2 then pure (Bin' (h1 <|> h2) p1 maxP1 (union l1 l2) (union r1 r2))
+      else pure (Bin' h1 p1 maxP2 (union l1 (View (pure a))) (union r1 (View (pure b))))
 
 sort0 :: (Applicative m, Composite p, Ord (Base p))
     => Search -> Sort p -> View m p a -> Stream m (Choices p, a) Search
