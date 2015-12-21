@@ -2,13 +2,17 @@
 {-# Language DeriveFunctor #-}
 {-# Language DeriveTraversable #-}
 {-# Language DeriveFoldable #-}
+{-# Language FlexibleContexts #-}
+{-# Language TypeFamilies #-}
 
 module Unison.Runtime.Pcbt where
 
 import Data.List
+import Data.Maybe
 import Unison.Runtime.Free (Free)
 import Unison.Runtime.Stream (Stream)
 import Unison.Path (Path)
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.Path as Path
 import qualified Unison.Runtime.Vector as V
@@ -27,99 +31,160 @@ data Pcbt m p a = Pcbt
   { structure :: [Bool] -> m IsLeaf
   , labels :: [Bool] -> m (Maybe (Labels p a)) }
 
-data View m p a
-  = View { stream :: Stream m (Choices p, a) ()
-         , at     :: (Choices p -> p -> p -> Maybe Bit) -> Free m (Pcbt' p a) }
+data View m p a = View (m (PcbtF' m p a))
 
-data Pcbt' p a
-  = Bin' (Maybe a) p (Pcbt' p a) (Pcbt' p a)
+data PcbtF' m p a
+  = Bin' (Maybe a) p p (View m p a) (View m p a)
   | Tip' (Maybe a)
-  | More' (Maybe a)
 
-bin' :: Maybe a -> p -> Pcbt' p a -> Pcbt' p a -> Pcbt' p a
-bin' hit _ (Tip' Nothing) (Tip' Nothing) = Tip' hit
-bin' hit p l r = Bin' hit p l r
+viewAt :: Monad m => V.Vector Bool -> Pcbt m p a -> View m p a
+viewAt cursor t = View $ do
+  isLeaf <- structure t (V.toList cursor)
+  l <- labels t (V.toList cursor)
+  case l of
+    Nothing -> pure (Tip' Nothing)
+    Just l -> pure $
+      if isLeaf then Tip' (hit l)
+      else Bin' (hit l) (path l) (maxPath l)
+             (viewAt (cursor `V.snoc` False) t)
+             (viewAt (cursor `V.snoc` True) t)
 
-view :: Ord p => Pcbt m p a -> View m p a
-view t = View (stream V.empty) (flip at V.empty) where
-  stream cursor = do
-    let bp = bitpath cursor
-    isLeaf <- Stream.eval (structure t bp)
-    l <- Stream.eval (labels t bp)
-    case l of
-      Nothing -> next cursor
-      Just (Labels p _ hit) -> case hit of
-        Nothing -> tryDescend p isLeaf cursor
-        Just a -> Stream.emit (cursor, a) `Stream.append` tryDescend p isLeaf cursor
-  -- Move up until at a 0-branch, then flip to a 1, e.g. [0,0,0,1,1] -> [0,0,1]
-  next cursor = case V.dropRightWhile snd cursor of
-    c | V.isEmpty c -> pure ()
-      | otherwise   -> stream (V.modifyLast (\(p,_) -> (p,True)) c)
-  -- Move down the 0-branch
-  descend p cursor = stream (cursor `V.snoc` (p,False)) -- go down 0 branch
-  tryDescend p isLeaf c = if isLeaf then next c else descend p c
-  at query cursor = do
-    l <- Free.eval (labels t (bitpath cursor))
-    case l of
-      Nothing -> pure (Tip' Nothing)
-      Just (Labels path maxPath hit) -> case query cursor path maxPath of
-        Nothing -> pure (More' hit)
-        Just Neither -> pure (Tip' Nothing)
-        Just Zero -> -- query picks a definite branch
-          bin' hit path <$> at query (cursor `V.snoc` (path,False)) <*> pure (Tip' Nothing)
-        Just One ->
-          bin' hit path (Tip' Nothing) <$> at query (cursor `V.snoc` (path,True))
-        Just Both -> -- query doesn't say, check both 0-branch and 1-branch
-          bin' hit path <$> at query (cursor `V.snoc` (path,False))
-                        <*> at query (cursor `V.snoc` (path,True))
-        Just PreferOne ->
-          at query (cursor `V.snoc` (path,True)) >>= \one -> case one of
-            Tip' Nothing -> bin' hit path <$> at query (cursor `V.snoc` (path,False))
-                                          <*> pure one
-            _ -> pure (bin' hit path (Tip' Nothing) one)
-        Just PreferZero ->
-          at query (cursor `V.snoc` (path,False)) >>= \zero -> case zero of
-            Tip' Nothing -> bin' hit path <$> pure zero
-                                          <*> at query (cursor `V.snoc` (path,False))
-            _ -> pure (bin' hit path zero (Tip' Nothing))
+view :: Monad m => Pcbt m p a -> View m p a
+view = viewAt V.empty
 
-type Sort p = Choices p
+stream' :: Choices p -> View m p a -> Stream m (Choices p, a) ()
+stream' c (View mt) = Stream.eval mt >>= \t -> case t of
+  Tip' h -> emits h
+  Bin' h p _ l r -> emits h >> stream' (c `V.snoc` (p,False)) l
+                            >> stream' (c `V.snoc` (p,True) ) r
+  where emits h = maybe (pure ()) (\h -> Stream.emit (c,h)) h
 
-limit :: (Ord p, Path p) => Sort p -> Int -> View m p a -> Free m [a]
-limit ord n t = go Set.empty n ord []
-  where
-  combine ord ordTl = foldl' V.snoc ord ordTl
-  go seen n ord ordTl = at t (toQuery seen (combine ord ordTl)) >>= \t' -> case hits t' of
-    hs | V.length hs < n -> case V.unsnoc ord of
-      Nothing -> pure (map snd (V.toList hs))
-      -- if just tried preferring 0-branch for path and got all hits we could,
-      -- don't bother searching that branch again; likewise for 1-branch
-      Just (ord, (p,b)) ->
-        let seen' = Set.union seen (Set.fromList (map fst $ V.toList hs))
-        in (map snd (V.toList hs) ++) <$> go seen' (n - V.length hs) ord ((p, not b) : ordTl)
-    hs -> pure (take n . map snd $ V.toList hs)
-  toQuery seen ord =
-    let
-      search choices _ _ | Set.member choices seen = Just Neither
-      search _ p _ = case find (\(po,_) -> Path.isSubpath po p) (V.toList ord) of
-        Nothing -> Just Both
-        Just (_,b) -> if not b then Just PreferZero else Just PreferOne
-    in search
+stream :: View m p a -> Stream m a ()
+stream v = Stream.mapEmits snd (stream' V.empty v)
 
-hits :: Pcbt' p a -> V.Vector (Choices p, a)
-hits t = go V.empty V.empty t where
-  go !acc !cursor (Bin' h p l r) =
-    let acc' = maybe acc (\h -> V.snoc acc (cursor,h)) h
-        cursorl = V.snoc cursor (p, False)
-        cursorr = V.snoc cursor (p, True)
-    in go (go acc' cursorl l) cursorr r
-  go !acc !cursor (Tip' h) = maybe acc (\h -> V.snoc acc (cursor,h)) h
-  go !acc !cursor (More' h) = maybe acc (\h -> V.snoc acc (cursor,h)) h
+-- | Composite paths. `Base p` points to a bitvector, and `offset`
+-- picks out bits of this common bitvector.
+class Composite p where
+  type Base p :: *
+  base :: p -> Base p
+  offset :: p -> Int
+  composite :: Base p -> Int -> p
+
+data Search
+  = Branch Search Search
+  | Closed
+  | Open
+
+branch :: Search -> Search -> Search
+branch Closed Closed = Closed
+branch a b = Branch a b
+
+instance Monoid Search where
+  mempty = Open
+  mappend s1 s2 = case (s1,s2) of
+    (Closed,_) -> Closed
+    (_,Closed) -> Closed
+    (Open,s2)  -> s2
+    (s1,Open)  -> s1
+    (Branch l1 r1, Branch l2 r2) -> Branch (l1 `mappend` l2) (r1 `mappend` r2)
+
+close :: Bitpath -> Search -> Search
+close [] _ = Closed
+close (False : bp) s = case s of
+  Open -> branch (close bp Open) Open
+  Branch l r -> branch (close bp l) r
+  Closed -> Closed
+close (True : bp) s = case s of
+  Open -> branch Open (close bp Open)
+  Branch l r -> branch l (close bp r)
+  Closed -> Closed
+
+isClosed :: Bitpath -> Search -> Bool
+isClosed _ Closed = True
+isClosed _ Open = False
+isClosed [] _ = False
+isClosed (False : bp) (Branch l _) = isClosed bp l
+isClosed (True : bp) (Branch _ r) = isClosed bp r
+
+-- | For each bitrange, a choice of ascending (False) or descending (True)
+type Sort p = Choices (Base p, Int, Maybe Int)
+
+sort :: (Applicative m, Composite p, Ord (Base p))
+     => Sort p -> View m p a -> Stream m (Choices p, a) ()
+sort ord v = () <$ go ord Open where
+  go _ Closed = pure Closed
+  go ord seen = sort0 seen ord v >>= go (V.init ord)
+
+sort0 :: (Applicative m, Composite p, Ord (Base p))
+    => Search -> Sort p -> View m p a -> Stream m (Choices p, a) Search
+sort0 seen ord (View v) = go V.empty seen v where
+  queryMap = Map.fromList [ (base, (i,j,b)) | ((base,i,j), b) <- V.toList ord ]
+  query p = case Map.lookup (base p) queryMap of
+    Just (i,j,b) | offset p >= i && offset p < (fromMaybe (offset p + 1) j) ->
+      if b then One else Zero
+    _ -> Both
+  go c seen v = do
+    t <- Stream.eval v
+    let bp = bitpath c
+    case t of
+      _ | isClosed bp seen -> pure seen
+      Tip' h -> emits h >> pure (close bp seen)
+      Bin' h p _ (View l) (View r) -> emits h >> case query p of
+        Zero -> Stream.uncons' (go cl seen l) >>= \e -> case e of
+          Left seen -> close bpr <$> go cr (close bpl seen) r
+          Right (hd, tl) -> Stream.emit hd >> (close bpl <$> tl)
+        One -> Stream.uncons' (go cr seen r) >>= \e -> case e of
+          Left seen -> close bpl <$> go cl (close bpr seen) l
+          Right (hd, tl) -> Stream.emit hd >> (close bpr <$> tl)
+        Both | V.isEmpty ord -> (close bpl <$> go cl seen l) >>= \seen ->
+                                (close bpr <$> go cr seen r)
+        Both -> close bpr . close bpl <$> merge (go cl seen l) (go cr seen r)
+        where
+        (cl,cr) = (c `V.snoc` (p,False), c `V.snoc` (p,True))
+        (bpl,bpr) = (bitpath cl, bitpath cr)
+    where
+    emits h = maybe (pure ()) (\h -> Stream.emit (c,h)) h
+    hitpos pb i j b c = case Map.lookup pb c of
+      Just (offset, b')
+        | b == b' && offset >= i && offset < fromMaybe (offset+1) j -> Just offset
+      _ -> Nothing
+    prefer i _ _ | i >= V.length ord = True
+    prefer i c1 c2 = case V.unsafeIndex ord i of
+      ((pb,i,j), b) -> case (hitpos pb i j b c1, hitpos pb i j b c2) of
+        (Nothing,Nothing) -> prefer (i+1) c1 c2
+        (Nothing,Just _) -> False
+        (Just _, Nothing) -> True
+        (Just pos1, Just pos2) | pos1 < pos2 -> True
+                               | pos2 > pos1 -> False
+                               | otherwise   -> prefer (i+1) c1 c2
+    merge s1 s2 = do
+      e1 <- Stream.uncons' s1
+      e2 <- Stream.uncons' s2
+      let push hd tl = Stream.emit hd >> tl
+      let process c = Map.fromList [ (base p, (offset p, b)) | (p,b) <- V.toList c ]
+      case (e1, e2) of
+        (Left seen1, Left seen2) -> pure (seen1 `mappend` seen2)
+        (Left seen1, Right (hd,tl)) -> Stream.emit hd >> ((`mappend` seen1) <$> tl)
+        (Right (hd,tl), Left seen2) -> Stream.emit hd >> ((`mappend` seen2) <$> tl)
+        (Right (h1,t1), Right (h2,t2)) ->
+          if prefer 0 (process $ fst h1) (process $ fst h2)
+          then Stream.emit h1 >> merge t1 (push h2 t2)
+          else Stream.emit h2 >> merge (push h1 t1) t2
+
+-- | Trim a `View` to only contain branches which may contain results
+-- consistent with the query.
+trim :: Applicative m => (p -> Bit) -> View m p a -> View m p a
+trim query (View mt) = View $ flip fmap mt $ \t -> case t of
+  Tip' h -> Tip' h
+  Bin' h p maxP l r -> case query p of
+    Zero -> Bin' h p maxP (trim query l) (View (pure (Tip' Nothing)))
+    One -> Bin' h p maxP (View (pure (Tip' Nothing))) (trim query r)
+    Both -> Bin' h p maxP (trim query l) (trim query r)
 
 bitpath :: Choices p -> Bitpath
 bitpath c = map snd (V.toList c)
 
-data Bit = Zero | One | PreferZero | PreferOne | Both | Neither
+data Bit = Zero | One | Both deriving (Eq,Ord,Show)
 
 bitMatches :: Bit -> Bool -> Bool
 bitMatches Both _ = True

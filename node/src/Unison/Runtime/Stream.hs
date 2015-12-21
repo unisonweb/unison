@@ -36,6 +36,9 @@ uncons s = case s of
   Free.Bind (Effect fx) k -> Free.eval fx >>= (uncons . k)
   Free.Bind (Emit a) k -> pure (Right (a, k ()))
 
+uncons' :: Stream f a r -> Stream f x (Either r (a, Stream f a r))
+uncons' s = Free.translate (\f -> Effect f) (uncons s)
+
 head :: Stream f a r -> Free f (Maybe a)
 head s = either (const Nothing) (Just . fst) <$> uncons s
 
