@@ -32,11 +32,11 @@ data Pcbt m p a = Pcbt
   { structure :: [Bool] -> m IsLeaf
   , labels :: [Bool] -> m (Maybe (Labels p a)) }
 
-data View m p a = View (m (PcbtF' m p a))
+data View m p a = View (m (PcbtF' m p a)) deriving Functor
 
 data PcbtF' m p a
   = Bin' (Maybe a) p (View m p a) (View m p a)
-  | Tip' (Maybe a)
+  | Tip' (Maybe a) deriving Functor
 
 viewAt :: Monad m => V.Vector Bool -> Pcbt m p a -> View m p a
 viewAt cursor t = View $ do
@@ -108,28 +108,56 @@ isClosed (False : bp) (Branch l _) = isClosed bp l
 isClosed (True : bp) (Branch _ r) = isClosed bp r
 
 -- | For each bitrange, a choice of ascending (False) or descending (True)
-type Sort p = Choices (Base p, Int, Maybe Int)
+type Order p = Choices (Base p, Int, Maybe Int)
+
+union0 :: (Eq p, Monad m)
+       => (View m p a -> View m p a -> View m p a)
+       -> View m p a -> View m p a -> View m p a
+union0 u (View v1) (View v2) = View $ do
+  t1 <- v1
+  t2 <- v2
+  pure $ case (t1, t2) of
+    (Tip' h1, Tip' h2) -> Tip' (h1 <|> h2)
+    (Bin' h1 p l r, Tip' h2) -> Bin' (h1 <|> h2) p l r
+    (Tip' h1, Bin' h2 p l r) -> Bin' (h1 <|> h2) p l r
+    (Bin' h1 p1 l1 r1, b@(Bin' h2 p2 l2 r2))
+      | p1 == p2  -> Bin' (h1 <|> h2) p1 (u l1 l2) (u r1 r2)
+      | otherwise -> Bin' h1 p1 (u l1 (View (pure b))) (u r1 (View (pure b)))
+
+union :: (Eq p, Monad m) => View m p a -> View m p a -> View m p a
+union v1 v2 = union0 union v1 v2
+
+unionz :: (Eq p, Monad m) => View m p a -> View m p a -> View m p a
+unionz v1 v2 = union0 (flip unionz) v1 v2
+
+intersection0 :: (Eq p, Monad m)
+              => (View m p a -> View m p a -> View m p a)
+              -> View m p a -> View m p a -> View m p a
+intersection0 u (View v1) (View v2) = View $ do
+  t1 <- v1
+  t2 <- v2
+  pure $ case (t1, t2) of
+    (Tip' h1, Tip' h2) -> Tip' (h1 <|> h2)
+    (Bin' h1 _ _ _, Tip' h2) -> Tip' (h1 <|> h2)
+    (Tip' h1, Bin' h2 _ _ _) -> Tip' (h1 <|> h2)
+    (Bin' h1 p1 l1 r1, b@(Bin' h2 p2 l2 r2))
+      | p1 == p2  -> Bin' (h1 <|> h2) p1 (u l1 l2) (u r1 r2)
+      | otherwise -> Bin' h1 p1 (u l1 (View (pure b))) (u r1 (View (pure b)))
+
+intersection :: (Eq p, Monad m) => View m p a -> View m p a -> View m p a
+intersection v1 v2 = intersection0 intersection v1 v2
+
+intersectionz :: (Eq p, Monad m) => View m p a -> View m p a -> View m p a
+intersectionz v1 v2 = intersection0 (flip intersectionz) v1 v2
 
 sort :: (Applicative m, Composite p, Ord (Base p))
-     => Sort p -> View m p a -> Stream m (Choices p, a) ()
+     => Order p -> View m p a -> Stream m (Choices p, a) ()
 sort ord v = () <$ go ord Open where
   go _ Closed = pure Closed
   go ord seen = sort0 seen ord v >>= go (V.init ord)
 
-union :: (Eq p, Monad m) => View m p a -> View m p a -> View m p a
-union (View v1) (View v2) = View $ do
-  t1 <- v1
-  t2 <- v2
-  case (t1, t2) of
-    (Tip' h1, Tip' h2) -> pure (Tip' (h1 <|> h2))
-    (Bin' h1 p l r, Tip' h2) -> pure (Bin' (h1 <|> h2) p l r)
-    (Tip' h1, Bin' h2 p l r) -> pure (Bin' (h1 <|> h2) p l r)
-    (a@(Bin' h1 p1 l1 r1), b@(Bin' h2 p2 l2 r2)) ->
-      if p1 == p2 then pure (Bin' (h1 <|> h2) p1 (union l1 l2) (union r1 r2))
-      else pure (Bin' h1 p1 (union l1 (View (pure a))) (union r1 (View (pure b))))
-
 sort0 :: (Applicative m, Composite p, Ord (Base p))
-    => Search -> Sort p -> View m p a -> Stream m (Choices p, a) Search
+    => Search -> Order p -> View m p a -> Stream m (Choices p, a) Search
 sort0 seen ord (View v) = go V.empty seen v where
   queryMap = Map.fromList [ (base, (i,j,b)) | ((base,i,j), b) <- V.toList ord ]
   query p = case Map.lookup (base p) queryMap of
