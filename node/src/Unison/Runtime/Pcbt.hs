@@ -24,7 +24,7 @@ type Bitpath = [Bool]
 type IsLeaf = Bool
 type Choices p = V.Vector (p, Bool)
 
-data Labels p a = Labels { path :: p, maxPath :: p, hit :: Maybe a }
+data Labels p a = Labels { path :: p, hit :: Maybe a }
   deriving (Functor, Foldable, Traversable)
 
 -- | A binary tree along with a set of labels attached to each node in the tree
@@ -35,7 +35,7 @@ data Pcbt m p a = Pcbt
 data View m p a = View (m (PcbtF' m p a))
 
 data PcbtF' m p a
-  = Bin' (Maybe a) p p (View m p a) (View m p a)
+  = Bin' (Maybe a) p (View m p a) (View m p a)
   | Tip' (Maybe a)
 
 viewAt :: Monad m => V.Vector Bool -> Pcbt m p a -> View m p a
@@ -46,7 +46,7 @@ viewAt cursor t = View $ do
     Nothing -> pure (Tip' Nothing)
     Just l -> pure $
       if isLeaf then Tip' (hit l)
-      else Bin' (hit l) (path l) (maxPath l)
+      else Bin' (hit l) (path l)
              (viewAt (cursor `V.snoc` False) t)
              (viewAt (cursor `V.snoc` True) t)
 
@@ -56,7 +56,7 @@ view = viewAt V.empty
 stream' :: Choices p -> View m p a -> Stream m (Choices p, a) ()
 stream' c (View mt) = Stream.eval mt >>= \t -> case t of
   Tip' h -> emits h
-  Bin' h p _ l r -> emits h >> stream' (c `V.snoc` (p,False)) l
+  Bin' h p l r -> emits h >> stream' (c `V.snoc` (p,False)) l
                             >> stream' (c `V.snoc` (p,True) ) r
   where emits h = maybe (pure ()) (\h -> Stream.emit (c,h)) h
 
@@ -122,11 +122,11 @@ union (View v1) (View v2) = View $ do
   t2 <- v2
   case (t1, t2) of
     (Tip' h1, Tip' h2) -> pure (Tip' (h1 <|> h2))
-    (Bin' h1 p maxP l r, Tip' h2) -> pure (Bin' (h1 <|> h2) p maxP l r)
-    (Tip' h1, Bin' h2 p maxP l r) -> pure (Bin' (h1 <|> h2) p maxP l r)
-    (a@(Bin' h1 p1 maxP1 l1 r1), b@(Bin' h2 p2 maxP2 l2 r2)) ->
-      if p1 == p2 then pure (Bin' (h1 <|> h2) p1 maxP1 (union l1 l2) (union r1 r2))
-      else pure (Bin' h1 p1 maxP2 (union l1 (View (pure a))) (union r1 (View (pure b))))
+    (Bin' h1 p l r, Tip' h2) -> pure (Bin' (h1 <|> h2) p l r)
+    (Tip' h1, Bin' h2 p l r) -> pure (Bin' (h1 <|> h2) p l r)
+    (a@(Bin' h1 p1 l1 r1), b@(Bin' h2 p2 l2 r2)) ->
+      if p1 == p2 then pure (Bin' (h1 <|> h2) p1 (union l1 l2) (union r1 r2))
+      else pure (Bin' h1 p1 (union l1 (View (pure a))) (union r1 (View (pure b))))
 
 sort0 :: (Applicative m, Composite p, Ord (Base p))
     => Search -> Sort p -> View m p a -> Stream m (Choices p, a) Search
@@ -142,7 +142,7 @@ sort0 seen ord (View v) = go V.empty seen v where
     case t of
       _ | isClosed bp seen -> pure seen
       Tip' h -> emits h >> pure (close bp seen)
-      Bin' h p _ (View l) (View r) -> emits h >> case query p of
+      Bin' h p (View l) (View r) -> emits h >> case query p of
         Zero -> Stream.uncons' (go cl seen l) >>= \e -> case e of
           Left seen -> close bpr <$> go cr (close bpl seen) r
           Right (hd, tl) -> Stream.emit hd >> (close bpl <$> tl)
@@ -189,10 +189,10 @@ sort0 seen ord (View v) = go V.empty seen v where
 trim :: Applicative m => (p -> Bit) -> View m p a -> View m p a
 trim query (View mt) = View $ flip fmap mt $ \t -> case t of
   Tip' h -> Tip' h
-  Bin' h p maxP l r -> case query p of
-    Zero -> Bin' h p maxP (trim query l) (View (pure (Tip' Nothing)))
-    One -> Bin' h p maxP (View (pure (Tip' Nothing))) (trim query r)
-    Both -> Bin' h p maxP (trim query l) (trim query r)
+  Bin' h p l r -> case query p of
+    Zero -> Bin' h p (trim query l) (View (pure (Tip' Nothing)))
+    One -> Bin' h p (View (pure (Tip' Nothing))) (trim query r)
+    Both -> Bin' h p (trim query l) (trim query r)
 
 bitpath :: Choices p -> Bitpath
 bitpath c = map snd (V.toList c)
