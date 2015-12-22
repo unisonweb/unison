@@ -8,18 +8,12 @@
 module Unison.Runtime.Pcbt where
 
 import Control.Applicative
-import Data.List hiding (union)
 import Data.Maybe
 import Data.Tuple (swap)
-import Unison.Runtime.Free (Free)
 import Unison.Runtime.Stream (Stream)
-import Unison.Path (Path)
 import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Unison.Path as Path
 import qualified Unison.Runtime.Vector as V
 import qualified Unison.Runtime.Stream as Stream
-import qualified Unison.Runtime.Free as Free
 
 type Bitpath = [Bool]
 type IsLeaf = Bool
