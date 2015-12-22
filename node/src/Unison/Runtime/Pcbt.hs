@@ -10,6 +10,7 @@ module Unison.Runtime.Pcbt where
 import Control.Applicative
 import Data.List hiding (union)
 import Data.Maybe
+import Data.Tuple (swap)
 import Unison.Runtime.Free (Free)
 import Unison.Runtime.Stream (Stream)
 import Unison.Path (Path)
@@ -114,8 +115,7 @@ union0 :: (Eq p, Monad m)
        => (View m p a -> View m p a -> View m p a)
        -> View m p a -> View m p a -> View m p a
 union0 u (View v1) (View v2) = View $ do
-  t1 <- v1
-  t2 <- v2
+  t1 <- v1; t2 <- v2
   pure $ case (t1, t2) of
     (Tip' h1, Tip' h2) -> Tip' (h1 <|> h2)
     (Bin' h1 p l r, Tip' h2) -> Bin' (h1 <|> h2) p l r
@@ -134,8 +134,7 @@ intersection0 :: (Eq p, Monad m)
               => (View m p a -> View m p a -> View m p a)
               -> View m p a -> View m p a -> View m p a
 intersection0 u (View v1) (View v2) = View $ do
-  t1 <- v1
-  t2 <- v2
+  t1 <- v1; t2 <- v2
   pure $ case (t1, t2) of
     (Tip' h1, Tip' h2) -> Tip' (h1 <|> h2)
     (Bin' h1 _ _ _, Tip' h2) -> Tip' (h1 <|> h2)
@@ -149,6 +148,28 @@ intersection v1 v2 = intersection0 intersection v1 v2
 
 intersectionz :: (Eq p, Monad m) => View m p a -> View m p a -> View m p a
 intersectionz v1 v2 = intersection0 (flip intersectionz) v1 v2
+
+joinOn0 :: (Eq p, Monad m)
+        => ((p -> Maybe p) -> View m p a -> View m p b -> View m p (a,b))
+        -> (p -> Maybe p) -> View m p a -> View m p b -> View m p (a,b)
+joinOn0 u col (View v1) (View v2) = View $ do
+  t1 <- v1; t2 <- v2
+  pure $ case (t1, t2) of
+    (Tip' Nothing, _) -> Tip' Nothing
+    (_, Tip' Nothing) -> Tip' Nothing
+    (Tip' (Just a), b) -> (,) a <$> b
+    (a, Tip' (Just b)) -> flip (,) b <$> a
+    (Bin' h1 p1 l1 r1, b@(Bin' h2 p2 l2 r2))
+      | col p1 == Just p2 -> Bin' (liftA2 (,) h1 h2) p1 (u col l1 l2) (u col r1 r2)
+      | otherwise -> Bin' Nothing p1 (u col l1 (View (pure b))) (u col r1 (View (pure b)))
+
+joinOn :: (Eq p, Monad m)
+       => (p -> Maybe p) -> View m p a -> View m p b -> View m p (a,b)
+joinOn col v1 v2 = joinOn0 joinOn col v1 v2
+
+joinOnz :: (Eq p, Monad m)
+        => (p -> Maybe p) -> View m p a -> View m p b -> View m p (a,b)
+joinOnz col v1 v2 = joinOn0 (\col v1 v2 -> swap <$> joinOnz col v2 v1) col v1 v2
 
 sort :: (Applicative m, Composite p, Ord (Base p))
      => Order p -> View m p a -> Stream m (Choices p, a) ()
@@ -226,9 +247,3 @@ bitpath :: Choices p -> Bitpath
 bitpath c = map snd (V.toList c)
 
 data Bit = Zero | One | Both deriving (Eq,Ord,Show)
-
-bitMatches :: Bit -> Bool -> Bool
-bitMatches Both _ = True
-bitMatches Zero False = True
-bitMatches One True = True
-bitMatches _ _ = False
