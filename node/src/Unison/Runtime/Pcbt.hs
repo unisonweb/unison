@@ -33,19 +33,18 @@ data PcbtF' m p a
   = Bin' (Maybe a) p (View m p a) (View m p a)
   | Tip' (Maybe a) deriving Functor
 
-viewAt :: Monad m => V.Vector Bool -> Pcbt m p a -> View m p a
-viewAt cursor t = View $ do
-  isLeaf <- structure t (V.toList cursor)
-  l <- labels t (V.toList cursor)
-  case l of
-    Nothing -> pure (Tip' Nothing)
-    Just l -> pure $
+viewAt :: Applicative m => V.Vector Bool -> Pcbt m p a -> View m p a
+viewAt cursor t = View $ liftA2 f (structure t (V.toList cursor)) (labels t (V.toList cursor))
+  where
+  f isLeaf l = case l of
+    Nothing -> Tip' Nothing
+    Just l ->
       if isLeaf then Tip' (hit l)
       else Bin' (hit l) (path l)
              (viewAt (cursor `V.snoc` False) t)
              (viewAt (cursor `V.snoc` True) t)
 
-view :: Monad m => Pcbt m p a -> View m p a
+view :: Applicative m => Pcbt m p a -> View m p a
 view = viewAt V.empty
 
 stream' :: Choices p -> View m p a -> Stream m (Choices p, a) ()
@@ -65,6 +64,11 @@ class Composite p where
   base :: p -> Base p
   offset :: p -> Int
   composite :: Base p -> Int -> p
+
+class Pathed a where
+  type Path a :: *
+  bitAt :: Path a -> a -> Maybe Bit
+  paths :: a -> [Path a]
 
 data Search
   = Branch Search Search
@@ -105,12 +109,11 @@ isClosed (True : bp) (Branch _ r) = isClosed bp r
 -- | For each bitrange, a choice of ascending (False) or descending (True)
 type Order p = Choices (Base p, Int, Maybe Int)
 
-union0 :: (Eq p, Monad m)
+union0 :: (Eq p, Applicative m)
        => (View m p a -> View m p a -> View m p a)
        -> View m p a -> View m p a -> View m p a
-union0 u (View v1) (View v2) = View $ do
-  t1 <- v1; t2 <- v2
-  pure $ case (t1, t2) of
+union0 u (View v1) (View v2) = View $ liftA2 f v1 v2 where
+  f t1 t2 = case (t1, t2) of
     (Tip' h1, Tip' h2) -> Tip' (h1 <|> h2)
     (Bin' h1 p l r, Tip' h2) -> Bin' (h1 <|> h2) p l r
     (Tip' h1, Bin' h2 p l r) -> Bin' (h1 <|> h2) p l r
@@ -118,18 +121,17 @@ union0 u (View v1) (View v2) = View $ do
       | p1 == p2  -> Bin' (h1 <|> h2) p1 (u l1 l2) (u r1 r2)
       | otherwise -> Bin' h1 p1 (u l1 (View (pure b))) (u r1 (View (pure b)))
 
-union :: (Eq p, Monad m) => View m p a -> View m p a -> View m p a
+union :: (Eq p, Applicative m) => View m p a -> View m p a -> View m p a
 union v1 v2 = union0 union v1 v2
 
-unionz :: (Eq p, Monad m) => View m p a -> View m p a -> View m p a
+unionz :: (Eq p, Applicative m) => View m p a -> View m p a -> View m p a
 unionz v1 v2 = union0 (flip unionz) v1 v2
 
-intersection0 :: (Eq p, Monad m)
+intersection0 :: (Eq p, Applicative m)
               => (View m p a -> View m p a -> View m p a)
               -> View m p a -> View m p a -> View m p a
-intersection0 u (View v1) (View v2) = View $ do
-  t1 <- v1; t2 <- v2
-  pure $ case (t1, t2) of
+intersection0 u (View v1) (View v2) = View $ liftA2 f v1 v2 where
+  f t1 t2 = case (t1, t2) of
     (Tip' h1, Tip' h2) -> Tip' (h1 <|> h2)
     (Bin' h1 _ _ _, Tip' h2) -> Tip' (h1 <|> h2)
     (Tip' h1, Bin' h2 _ _ _) -> Tip' (h1 <|> h2)
@@ -137,18 +139,17 @@ intersection0 u (View v1) (View v2) = View $ do
       | p1 == p2  -> Bin' (h1 <|> h2) p1 (u l1 l2) (u r1 r2)
       | otherwise -> Bin' h1 p1 (u l1 (View (pure b))) (u r1 (View (pure b)))
 
-intersection :: (Eq p, Monad m) => View m p a -> View m p a -> View m p a
+intersection :: (Eq p, Applicative m) => View m p a -> View m p a -> View m p a
 intersection v1 v2 = intersection0 intersection v1 v2
 
-intersectionz :: (Eq p, Monad m) => View m p a -> View m p a -> View m p a
+intersectionz :: (Eq p, Applicative m) => View m p a -> View m p a -> View m p a
 intersectionz v1 v2 = intersection0 (flip intersectionz) v1 v2
 
-joinOn0 :: (Eq p, Monad m)
+joinOn0 :: (Eq p, Applicative m)
         => ((p -> Maybe p) -> View m p a -> View m p b -> View m p (a,b))
         -> (p -> Maybe p) -> View m p a -> View m p b -> View m p (a,b)
-joinOn0 u col (View v1) (View v2) = View $ do
-  t1 <- v1; t2 <- v2
-  pure $ case (t1, t2) of
+joinOn0 u col (View v1) (View v2) = View $ liftA2 f v1 v2 where
+  f t1 t2 = case (t1, t2) of
     (Tip' Nothing, _) -> Tip' Nothing
     (_, Tip' Nothing) -> Tip' Nothing
     (Tip' (Just a), b) -> (,) a <$> b
@@ -157,11 +158,11 @@ joinOn0 u col (View v1) (View v2) = View $ do
       | col p1 == Just p2 -> Bin' (liftA2 (,) h1 h2) p1 (u col l1 l2) (u col r1 r2)
       | otherwise -> Bin' Nothing p1 (u col l1 (View (pure b))) (u col r1 (View (pure b)))
 
-joinOn :: (Eq p, Monad m)
+joinOn :: (Eq p, Applicative m)
        => (p -> Maybe p) -> View m p a -> View m p b -> View m p (a,b)
 joinOn col v1 v2 = joinOn0 joinOn col v1 v2
 
-joinOnz :: (Eq p, Monad m)
+joinOnz :: (Eq p, Applicative m)
         => (p -> Maybe p) -> View m p a -> View m p b -> View m p (a,b)
 joinOnz col v1 v2 = joinOn0 (\col v1 v2 -> swap <$> joinOnz col v2 v1) col v1 v2
 
