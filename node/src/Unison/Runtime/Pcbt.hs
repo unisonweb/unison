@@ -123,12 +123,14 @@ alignLevel l r = case (hit' l, hit' r) of
   (Nothing, _) -> (l,r)
   (Just h1, Just h2) -> case differingPath h1 h2 of
     Nothing -> (l,r)
-    Just p -> (tweak l h1, tweak r h2) where
-      tweak t h  = case bitAt p h of
-        Just Zero -> Bin' Nothing p (View (pure t)) (View $ pure (Tip' Nothing))
-        Just One -> Bin' Nothing p (View $ pure (Tip' Nothing)) (View (pure t))
-        Just Both -> Bin' Nothing p (View (pure t)) (View (pure t))
-        Nothing -> error "alignLevel differing path invalid"
+    Just p -> (tweak p l h1, tweak p r h2) where
+
+tweak :: (Applicative m, Pathed a) => Path a -> PcbtF' m (Path a) a1 -> a -> PcbtF' m (Path a) a1
+tweak p t h  = case bitAt p h of
+  Just Zero -> Bin' Nothing p (View (pure t)) (View $ pure (Tip' Nothing))
+  Just One -> Bin' Nothing p (View $ pure (Tip' Nothing)) (View (pure t))
+  Just Both -> Bin' Nothing p (View (pure t)) (View (pure t))
+  Nothing -> error "alignLevel differing path invalid"
 
 union0 :: (Eq p, Applicative m, Pathed a, Path a ~ p)
        => (View m p a -> View m p a -> View m p a)
@@ -177,9 +179,12 @@ joinOn0 u col (View v1) (View v2) = View $ liftA2 f v1 v2 where
     (_, Tip' Nothing) -> Tip' Nothing
     (Tip' (Just a), b) -> (,) a <$> b
     (a, Tip' (Just b)) -> flip (,) b <$> a
-    (Bin' h1 p1 l1 r1, b@(Bin' h2 p2 l2 r2))
+    (a@(Bin' h1 p1 l1 r1), b@(Bin' h2 p2 l2 r2))
       | col p1 == Just p2 -> Bin' (liftA2 (,) h1 h2) p1 (u col l1 l2) (u col r1 r2)
-      | otherwise -> Bin' Nothing p1 (u col l1 (View (pure b))) (u col r1 (View (pure b)))
+      | otherwise -> case h2 >>= (\h -> const h <$> bitAt p2 h) of
+        Nothing -> Bin' Nothing p1 (u col l1 (View (pure b))) (u col r1 (View (pure b)))
+        -- if h2 is defined, and `p1` is a valid path into it, we push `b` down
+        Just h2 -> f a (tweak p1 b h2)
 
 joinOn :: (Eq p, Applicative m, Pathed a, Pathed b, Path a ~ p, Path b ~ p)
        => (p -> Maybe p) -> View m p a -> View m p b -> View m p (a,b)
