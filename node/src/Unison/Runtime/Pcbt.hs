@@ -29,6 +29,10 @@ data Pcbt m p a = Pcbt
 
 data View m p a = View (m (PcbtF' m p a)) deriving Functor
 
+hit' :: PcbtF' m p a -> Maybe a
+hit' (Bin' h _ _ _) = h
+hit' (Tip' h) = h
+
 data PcbtF' m p a
   = Bin' (Maybe a) p (View m p a) (View m p a)
   | Tip' (Maybe a) deriving Functor
@@ -112,16 +116,26 @@ isClosed (True : bp) (Branch _ r) = isClosed bp r
 -- | For each bitrange, a choice of ascending (False) or descending (True)
 type Order p = Choices (Base p, Int, Maybe Int)
 
+alignLevel :: (Eq p, Applicative m, Pathed a, Path a ~ p)
+           => PcbtF' m p a -> PcbtF' m p a -> (PcbtF' m p a, PcbtF' m p a)
+alignLevel l r = case (hit' l, hit' r) of
+  (_, Nothing) -> (l,r)
+  (Nothing, _) -> (l,r)
+  (Just h1, Just h2) -> case differingPath h1 h2 of
+    Nothing -> (l,r)
+    Just p -> (tweak l h1, tweak r h2) where
+      tweak t h  = case bitAt p h of
+        Just Zero -> Bin' Nothing p (View (pure t)) (View $ pure (Tip' Nothing))
+        Just One -> Bin' Nothing p (View $ pure (Tip' Nothing)) (View (pure t))
+        Just Both -> Bin' Nothing p (View (pure t)) (View (pure t))
+        Nothing -> error "alignLevel differing path invalid"
+
 union0 :: (Eq p, Applicative m, Pathed a, Path a ~ p)
        => (View m p a -> View m p a -> View m p a)
        -> View m p a -> View m p a -> View m p a
 union0 u (View v1) (View v2) = View $ liftA2 f v1 v2 where
-  f t1 t2 = case (t1, t2) of
-    (Tip' h1, Tip' Nothing) -> Tip' h1
-    (Tip' Nothing, Tip' h2) -> Tip' h2
-    (l@(Tip' (Just h1)), r@(Tip' (Just h2))) -> case differingPath h1 h2 of
-      Nothing -> Tip' (Just h1)
-      Just p -> Bin' Nothing p (View $ pure l) (View $ pure r)
+  f t1 t2 = case alignLevel t1 t2 of
+    (Tip' h1, Tip' h2) -> Tip' (h1 <|> h2)
     (Bin' h1 p l r, Tip' h2) -> Bin' (h1 <|> h2) p l r
     (Tip' h1, Bin' h2 p l r) -> Bin' (h1 <|> h2) p l r
     (Bin' h1 p1 l1 r1, b@(Bin' h2 p2 l2 r2))
@@ -134,11 +148,11 @@ union v1 v2 = union0 union v1 v2
 unionz :: (Eq p, Applicative m, Pathed a, Path a ~ p) => View m p a -> View m p a -> View m p a
 unionz v1 v2 = union0 (flip unionz) v1 v2
 
-intersection0 :: (Eq p, Applicative m)
+intersection0 :: (Eq p, Applicative m, Pathed a, Path a ~ p)
               => (View m p a -> View m p a -> View m p a)
               -> View m p a -> View m p a -> View m p a
 intersection0 u (View v1) (View v2) = View $ liftA2 f v1 v2 where
-  f t1 t2 = case (t1, t2) of
+  f t1 t2 = case alignLevel t1 t2 of
     (Tip' h1, Tip' h2) -> Tip' (h1 <|> h2)
     (Bin' h1 _ _ _, Tip' h2) -> Tip' (h1 <|> h2)
     (Tip' h1, Bin' h2 _ _ _) -> Tip' (h1 <|> h2)
@@ -146,13 +160,15 @@ intersection0 u (View v1) (View v2) = View $ liftA2 f v1 v2 where
       | p1 == p2  -> Bin' (h1 <|> h2) p1 (u l1 l2) (u r1 r2)
       | otherwise -> Bin' h1 p1 (u l1 (View (pure b))) (u r1 (View (pure b)))
 
-intersection :: (Eq p, Applicative m) => View m p a -> View m p a -> View m p a
+intersection :: (Eq p, Applicative m, Pathed a, Path a ~ p)
+             => View m p a -> View m p a -> View m p a
 intersection v1 v2 = intersection0 intersection v1 v2
 
-intersectionz :: (Eq p, Applicative m) => View m p a -> View m p a -> View m p a
+intersectionz :: (Eq p, Applicative m, Pathed a, Path a ~ p)
+              => View m p a -> View m p a -> View m p a
 intersectionz v1 v2 = intersection0 (flip intersectionz) v1 v2
 
-joinOn0 :: (Eq p, Applicative m)
+joinOn0 :: (Eq p, Applicative m, Pathed a, Pathed b, Path a ~ p, Path b ~ p)
         => ((p -> Maybe p) -> View m p a -> View m p b -> View m p (a,b))
         -> (p -> Maybe p) -> View m p a -> View m p b -> View m p (a,b)
 joinOn0 u col (View v1) (View v2) = View $ liftA2 f v1 v2 where
@@ -165,11 +181,11 @@ joinOn0 u col (View v1) (View v2) = View $ liftA2 f v1 v2 where
       | col p1 == Just p2 -> Bin' (liftA2 (,) h1 h2) p1 (u col l1 l2) (u col r1 r2)
       | otherwise -> Bin' Nothing p1 (u col l1 (View (pure b))) (u col r1 (View (pure b)))
 
-joinOn :: (Eq p, Applicative m)
+joinOn :: (Eq p, Applicative m, Pathed a, Pathed b, Path a ~ p, Path b ~ p)
        => (p -> Maybe p) -> View m p a -> View m p b -> View m p (a,b)
 joinOn col v1 v2 = joinOn0 joinOn col v1 v2
 
-joinOnz :: (Eq p, Applicative m)
+joinOnz :: (Eq p, Applicative m, Pathed a, Pathed b, Path a ~ p, Path b ~ p)
         => (p -> Maybe p) -> View m p a -> View m p b -> View m p (a,b)
 joinOnz col v1 v2 = joinOn0 (\col v1 v2 -> swap <$> joinOnz col v2 v1) col v1 v2
 
