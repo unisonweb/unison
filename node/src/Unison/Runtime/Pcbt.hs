@@ -68,7 +68,10 @@ class Composite p where
 class Pathed a where
   type Path a :: *
   bitAt :: Path a -> a -> Maybe Bit
-  paths :: a -> [Path a]
+  -- | Given `a1`, `a2`, `differingPath a1 a2` finds a `p`
+  -- such that `bitAt p a1 /= bitAt p a2`, or returns `Nothing`
+  -- if no such path exists (which implies `a1` equals `a2`).
+  differingPath :: a -> a -> Maybe (Path a)
 
 data Search
   = Branch Search Search
@@ -109,22 +112,26 @@ isClosed (True : bp) (Branch _ r) = isClosed bp r
 -- | For each bitrange, a choice of ascending (False) or descending (True)
 type Order p = Choices (Base p, Int, Maybe Int)
 
-union0 :: (Eq p, Applicative m)
+union0 :: (Eq p, Applicative m, Pathed a, Path a ~ p)
        => (View m p a -> View m p a -> View m p a)
        -> View m p a -> View m p a -> View m p a
 union0 u (View v1) (View v2) = View $ liftA2 f v1 v2 where
   f t1 t2 = case (t1, t2) of
-    (Tip' h1, Tip' h2) -> Tip' (h1 <|> h2)
+    (Tip' h1, Tip' Nothing) -> Tip' h1
+    (Tip' Nothing, Tip' h2) -> Tip' h2
+    (l@(Tip' (Just h1)), r@(Tip' (Just h2))) -> case differingPath h1 h2 of
+      Nothing -> Tip' (Just h1)
+      Just p -> Bin' Nothing p (View $ pure l) (View $ pure r)
     (Bin' h1 p l r, Tip' h2) -> Bin' (h1 <|> h2) p l r
     (Tip' h1, Bin' h2 p l r) -> Bin' (h1 <|> h2) p l r
     (Bin' h1 p1 l1 r1, b@(Bin' h2 p2 l2 r2))
       | p1 == p2  -> Bin' (h1 <|> h2) p1 (u l1 l2) (u r1 r2)
       | otherwise -> Bin' h1 p1 (u l1 (View (pure b))) (u r1 (View (pure b)))
 
-union :: (Eq p, Applicative m) => View m p a -> View m p a -> View m p a
+union :: (Eq p, Applicative m, Pathed a, Path a ~ p) => View m p a -> View m p a -> View m p a
 union v1 v2 = union0 union v1 v2
 
-unionz :: (Eq p, Applicative m) => View m p a -> View m p a -> View m p a
+unionz :: (Eq p, Applicative m, Pathed a, Path a ~ p) => View m p a -> View m p a -> View m p a
 unionz v1 v2 = union0 (flip unionz) v1 v2
 
 intersection0 :: (Eq p, Applicative m)
