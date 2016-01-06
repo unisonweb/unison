@@ -19,46 +19,24 @@ type Bitpath = [Bool]
 type IsLeaf = Bool
 type Choices p = V.Vector (p, Bool)
 
-data Labels p a = Labels { path :: p, hit :: Maybe a }
-  deriving (Functor, Foldable, Traversable)
+data Pcbt m p a = Pcbt (m (PcbtF' m p a)) deriving Functor
 
--- | A binary tree along with a set of labels attached to each node in the tree
-data Pcbt m p a = Pcbt
-  { structure :: [Bool] -> m IsLeaf
-  , labels :: [Bool] -> m (Maybe (Labels p a)) }
-
-data View m p a = View (m (PcbtF' m p a)) deriving Functor
-
-hit' :: PcbtF' m p a -> Maybe a
-hit' (Bin' h _ _ _) = h
-hit' (Tip' h) = h
+hit :: PcbtF' m p a -> Maybe a
+hit (Bin' h _ _ _) = h
+hit (Tip' h) = h
 
 data PcbtF' m p a
-  = Bin' (Maybe a) p (View m p a) (View m p a)
+  = Bin' (Maybe a) p (Pcbt m p a) (Pcbt m p a)
   | Tip' (Maybe a) deriving Functor
 
-viewAt :: Applicative m => V.Vector Bool -> Pcbt m p a -> View m p a
-viewAt cursor t = View $ liftA2 f (structure t (V.toList cursor)) (labels t (V.toList cursor))
-  where
-  f isLeaf l = case l of
-    Nothing -> Tip' Nothing
-    Just l ->
-      if isLeaf then Tip' (hit l)
-      else Bin' (hit l) (path l)
-             (viewAt (cursor `V.snoc` False) t)
-             (viewAt (cursor `V.snoc` True) t)
-
-view :: Applicative m => Pcbt m p a -> View m p a
-view = viewAt V.empty
-
-stream' :: Choices p -> View m p a -> Stream m (Choices p, a) ()
-stream' c (View mt) = Stream.eval mt >>= \t -> case t of
+stream' :: Choices p -> Pcbt m p a -> Stream m (Choices p, a) ()
+stream' c (Pcbt mt) = Stream.eval mt >>= \t -> case t of
   Tip' h -> emits h
   Bin' h p l r -> emits h >> stream' (c `V.snoc` (p,False)) l
                             >> stream' (c `V.snoc` (p,True) ) r
   where emits h = maybe (pure ()) (\h -> Stream.emit (c,h)) h
 
-stream :: View m p a -> Stream m a ()
+stream :: Pcbt m p a -> Stream m a ()
 stream v = Stream.mapEmits snd (stream' V.empty v)
 
 -- | Composite paths. `Base p` points to a bitvector, and `offset`
@@ -118,7 +96,7 @@ type Order p = Choices (Base p, Int, Maybe Int)
 
 alignLevel :: (Eq p, Applicative m, Pathed a, Path a ~ p)
            => PcbtF' m p a -> PcbtF' m p a -> (PcbtF' m p a, PcbtF' m p a)
-alignLevel l r = case (hit' l, hit' r) of
+alignLevel l r = case (hit l, hit r) of
   (_, Nothing) -> (l,r)
   (Nothing, _) -> (l,r)
   (Just h1, Just h2) -> case differingPath h1 h2 of
@@ -127,53 +105,53 @@ alignLevel l r = case (hit' l, hit' r) of
 
 tweak :: (Applicative m, Pathed a) => Path a -> PcbtF' m (Path a) a1 -> a -> PcbtF' m (Path a) a1
 tweak p t h  = case bitAt p h of
-  Just Zero -> Bin' Nothing p (View (pure t)) (View $ pure (Tip' Nothing))
-  Just One -> Bin' Nothing p (View $ pure (Tip' Nothing)) (View (pure t))
-  Just Both -> Bin' Nothing p (View (pure t)) (View (pure t))
+  Just Zero -> Bin' Nothing p (Pcbt (pure t)) (Pcbt $ pure (Tip' Nothing))
+  Just One -> Bin' Nothing p (Pcbt $ pure (Tip' Nothing)) (Pcbt (pure t))
+  Just Both -> Bin' Nothing p (Pcbt (pure t)) (Pcbt (pure t))
   Nothing -> error "alignLevel differing path invalid"
 
 union0 :: (Eq p, Applicative m, Pathed a, Path a ~ p)
-       => (View m p a -> View m p a -> View m p a)
-       -> View m p a -> View m p a -> View m p a
-union0 u (View v1) (View v2) = View $ liftA2 f v1 v2 where
+       => (Pcbt m p a -> Pcbt m p a -> Pcbt m p a)
+       -> Pcbt m p a -> Pcbt m p a -> Pcbt m p a
+union0 u (Pcbt v1) (Pcbt v2) = Pcbt $ liftA2 f v1 v2 where
   f t1 t2 = case alignLevel t1 t2 of
     (Tip' h1, Tip' h2) -> Tip' (h1 <|> h2)
     (Bin' h1 p l r, Tip' h2) -> Bin' (h1 <|> h2) p l r
     (Tip' h1, Bin' h2 p l r) -> Bin' (h1 <|> h2) p l r
     (Bin' h1 p1 l1 r1, b@(Bin' h2 p2 l2 r2))
       | p1 == p2  -> Bin' (h1 <|> h2) p1 (u l1 l2) (u r1 r2)
-      | otherwise -> Bin' h1 p1 (u l1 (View (pure b))) (u r1 (View (pure b)))
+      | otherwise -> Bin' h1 p1 (u l1 (Pcbt (pure b))) (u r1 (Pcbt (pure b)))
 
-union :: (Eq p, Applicative m, Pathed a, Path a ~ p) => View m p a -> View m p a -> View m p a
+union :: (Eq p, Applicative m, Pathed a, Path a ~ p) => Pcbt m p a -> Pcbt m p a -> Pcbt m p a
 union v1 v2 = union0 union v1 v2
 
-unionz :: (Eq p, Applicative m, Pathed a, Path a ~ p) => View m p a -> View m p a -> View m p a
+unionz :: (Eq p, Applicative m, Pathed a, Path a ~ p) => Pcbt m p a -> Pcbt m p a -> Pcbt m p a
 unionz v1 v2 = union0 (flip unionz) v1 v2
 
 intersection0 :: (Eq p, Applicative m, Pathed a, Path a ~ p)
-              => (View m p a -> View m p a -> View m p a)
-              -> View m p a -> View m p a -> View m p a
-intersection0 u (View v1) (View v2) = View $ liftA2 f v1 v2 where
+              => (Pcbt m p a -> Pcbt m p a -> Pcbt m p a)
+              -> Pcbt m p a -> Pcbt m p a -> Pcbt m p a
+intersection0 u (Pcbt v1) (Pcbt v2) = Pcbt $ liftA2 f v1 v2 where
   f t1 t2 = case alignLevel t1 t2 of
     (Tip' h1, Tip' h2) -> Tip' (h1 <|> h2)
     (Bin' h1 _ _ _, Tip' h2) -> Tip' (h1 <|> h2)
     (Tip' h1, Bin' h2 _ _ _) -> Tip' (h1 <|> h2)
     (Bin' h1 p1 l1 r1, b@(Bin' h2 p2 l2 r2))
       | p1 == p2  -> Bin' (h1 <|> h2) p1 (u l1 l2) (u r1 r2)
-      | otherwise -> Bin' h1 p1 (u l1 (View (pure b))) (u r1 (View (pure b)))
+      | otherwise -> Bin' h1 p1 (u l1 (Pcbt (pure b))) (u r1 (Pcbt (pure b)))
 
 intersection :: (Eq p, Applicative m, Pathed a, Path a ~ p)
-             => View m p a -> View m p a -> View m p a
+             => Pcbt m p a -> Pcbt m p a -> Pcbt m p a
 intersection v1 v2 = intersection0 intersection v1 v2
 
 intersectionz :: (Eq p, Applicative m, Pathed a, Path a ~ p)
-              => View m p a -> View m p a -> View m p a
+              => Pcbt m p a -> Pcbt m p a -> Pcbt m p a
 intersectionz v1 v2 = intersection0 (flip intersectionz) v1 v2
 
 joinOn0 :: (Eq p, Applicative m, Pathed a, Pathed b, Path a ~ p, Path b ~ p)
-        => ((p -> Maybe p) -> View m p a -> View m p b -> View m p (a,b))
-        -> (p -> Maybe p) -> View m p a -> View m p b -> View m p (a,b)
-joinOn0 u col (View v1) (View v2) = View $ liftA2 f v1 v2 where
+        => ((p -> Maybe p) -> Pcbt m p a -> Pcbt m p b -> Pcbt m p (a,b))
+        -> (p -> Maybe p) -> Pcbt m p a -> Pcbt m p b -> Pcbt m p (a,b)
+joinOn0 u col (Pcbt v1) (Pcbt v2) = Pcbt $ liftA2 f v1 v2 where
   f t1 t2 = case (t1, t2) of
     (Tip' Nothing, _) -> Tip' Nothing
     (_, Tip' Nothing) -> Tip' Nothing
@@ -182,27 +160,27 @@ joinOn0 u col (View v1) (View v2) = View $ liftA2 f v1 v2 where
     (a@(Bin' h1 p1 l1 r1), b@(Bin' h2 p2 l2 r2))
       | col p1 == Just p2 -> Bin' (liftA2 (,) h1 h2) p1 (u col l1 l2) (u col r1 r2)
       | otherwise -> case h2 >>= (\h -> const h <$> bitAt p2 h) of
-        Nothing -> Bin' Nothing p1 (u col l1 (View (pure b))) (u col r1 (View (pure b)))
+        Nothing -> Bin' Nothing p1 (u col l1 (Pcbt (pure b))) (u col r1 (Pcbt (pure b)))
         -- if h2 is defined, and `p1` is a valid path into it, we push `b` down
         Just h2 -> f a (tweak p1 b h2)
 
 joinOn :: (Eq p, Applicative m, Pathed a, Pathed b, Path a ~ p, Path b ~ p)
-       => (p -> Maybe p) -> View m p a -> View m p b -> View m p (a,b)
+       => (p -> Maybe p) -> Pcbt m p a -> Pcbt m p b -> Pcbt m p (a,b)
 joinOn col v1 v2 = joinOn0 joinOn col v1 v2
 
 joinOnz :: (Eq p, Applicative m, Pathed a, Pathed b, Path a ~ p, Path b ~ p)
-        => (p -> Maybe p) -> View m p a -> View m p b -> View m p (a,b)
+        => (p -> Maybe p) -> Pcbt m p a -> Pcbt m p b -> Pcbt m p (a,b)
 joinOnz col v1 v2 = joinOn0 (\col v1 v2 -> swap <$> joinOnz col v2 v1) col v1 v2
 
 sort :: (Applicative m, Composite p, Ord (Base p))
-     => Order p -> View m p a -> Stream m (Choices p, a) ()
+     => Order p -> Pcbt m p a -> Stream m (Choices p, a) ()
 sort ord v = () <$ go ord Open where
   go _ Closed = pure Closed
   go ord seen = sort0 seen ord v >>= go (V.init ord)
 
 sort0 :: (Applicative m, Composite p, Ord (Base p))
-    => Search -> Order p -> View m p a -> Stream m (Choices p, a) Search
-sort0 seen ord (View v) = go V.empty seen v where
+    => Search -> Order p -> Pcbt m p a -> Stream m (Choices p, a) Search
+sort0 seen ord (Pcbt v) = go V.empty seen v where
   queryMap = Map.fromList [ (base, (i,j,b)) | ((base,i,j), b) <- V.toList ord ]
   query p = case Map.lookup (base p) queryMap of
     Just (i,j,b) | offset p >= i && offset p < (fromMaybe (offset p + 1) j) ->
@@ -214,7 +192,7 @@ sort0 seen ord (View v) = go V.empty seen v where
     case t of
       _ | isClosed bp seen -> pure seen
       Tip' h -> emits h >> pure (close bp seen)
-      Bin' h p (View l) (View r) -> emits h >> case query p of
+      Bin' h p (Pcbt l) (Pcbt r) -> emits h >> case query p of
         Zero -> Stream.uncons' (go cl seen l) >>= \e -> case e of
           Left seen -> close bpr <$> go cr (close bpl seen) r
           Right (hd, tl) -> Stream.emit hd >> (close bpl <$> tl)
@@ -256,14 +234,14 @@ sort0 seen ord (View v) = go V.empty seen v where
           then Stream.emit h1 >> merge t1 (push h2 t2)
           else Stream.emit h2 >> merge (push h1 t1) t2
 
--- | Trim a `View` to only contain branches which may contain results
+-- | Trim a `Pcbt` to only contain branches which may contain results
 -- consistent with the query.
-trim :: Applicative m => (p -> Bit) -> View m p a -> View m p a
-trim query (View mt) = View $ flip fmap mt $ \t -> case t of
+trim :: Applicative m => (p -> Bit) -> Pcbt m p a -> Pcbt m p a
+trim query (Pcbt mt) = Pcbt $ flip fmap mt $ \t -> case t of
   Tip' h -> Tip' h
   Bin' h p l r -> case query p of
-    Zero -> Bin' h p (trim query l) (View (pure (Tip' Nothing)))
-    One -> Bin' h p (View (pure (Tip' Nothing))) (trim query r)
+    Zero -> Bin' h p (trim query l) (Pcbt (pure (Tip' Nothing)))
+    One -> Bin' h p (Pcbt (pure (Tip' Nothing))) (trim query r)
     Both -> Bin' h p (trim query l) (trim query r)
 
 bitpath :: Choices p -> Bitpath
