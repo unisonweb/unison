@@ -8,12 +8,16 @@
 module Unison.Runtime.Pcbt where
 
 import Control.Applicative
+import Data.List hiding (union)
 import Data.Maybe
 import Data.Tuple (swap)
+import Unison.Runtime.Bits (Bits)
 import Unison.Runtime.Stream (Stream)
+import qualified Data.Set as Set
 import qualified Data.Map as Map
-import qualified Unison.Runtime.Vector as V
+import qualified Unison.Runtime.Bits as Bits
 import qualified Unison.Runtime.Stream as Stream
+import qualified Unison.Runtime.Vector as V
 
 type Bitpath = [Bool]
 type IsLeaf = Bool
@@ -33,14 +37,15 @@ stream' :: Choices p -> Pcbt m p a -> Stream m (Choices p, a) ()
 stream' c (Pcbt mt) = Stream.eval mt >>= \t -> case t of
   Tip' h -> emits h
   Bin' h p l r -> emits h >> stream' (c `V.snoc` (p,False)) l
-                            >> stream' (c `V.snoc` (p,True) ) r
+                          >> stream' (c `V.snoc` (p,True) ) r
   where emits h = maybe (pure ()) (\h -> Stream.emit (c,h)) h
 
 stream :: Pcbt m p a -> Stream m a ()
 stream v = Stream.mapEmits snd (stream' V.empty v)
 
 -- | Composite paths. `Base p` points to a bitvector, and `offset`
--- picks out bits of this common bitvector.
+-- picks out bits of this common bitvector. Should satisfy:
+-- `base (composite b i) == b` and `offset (composite b i) == i`.
 class Composite p where
   type Base p :: *
   base :: p -> Base p
@@ -54,6 +59,41 @@ class Pathed a where
   -- such that `bitAt p a1 /= bitAt p a2`, or returns `Nothing`
   -- if no such path exists (which implies `a1` equals `a2`).
   differingPath :: a -> a -> Maybe (Path a)
+  bitpaths :: Composite (Path a) => a -> Trie (Base (Path a)) Bits
+
+-- track number of hits
+data Trie p v = Trie p !Int v [Trie p v] deriving Functor
+
+mergeTrie :: (Ord p, Monoid v) => Trie p v -> Trie p v -> Trie p v
+mergeTrie (Trie p n v children) (Trie p2 m v2 children2)
+  | p /= p2 = error "Trie paths must align"
+  | otherwise = Trie p (n+m) (mappend v v2) (merge children children2) where
+      merge [] c = c
+      merge c [] = c
+      merge (h1@(Trie p n v cs):t1) (h2@(Trie p2 n2 v2 cs2):t2)
+        | p == p2 = mergeTrie h1 h2 : merge t1 t2
+        | p < p2  = h1 : merge t1 (h2 : t2)
+        | p > p2  = h2 : merge (h1 : t1) t2
+        | otherwise = error "impossible"
+
+fromList :: (Pathed a, Composite (Path a), Ord (Base (Path a)), Applicative f)
+         => [a] -> Pcbt f (Path a) a
+fromList [] = Pcbt $ pure (Tip' Nothing)
+fromList (h:t) = go Set.empty (Bits.mostSignificantBit <$> foldr step (trie h) t) (h:t) where
+  single x = [x]
+  trie h = single <$> bitpaths h
+  step h acc = mergeTrie (trie h) acc
+  miss = Pcbt (pure (Tip' Nothing))
+  find seen t = undefined
+  go _ _ [] = miss
+  go _ _ [x] = Pcbt (pure (Tip' (Just x)))
+  go seen t xs = case find seen t of
+    Nothing -> miss
+    Just p -> Pcbt . pure $ Bin' Nothing p (go seen' t zeros) (go seen' t ones)
+      where
+      seen' = Set.insert (base p) seen
+      zeros = undefined
+      ones = undefined
 
 data Search
   = Branch Search Search

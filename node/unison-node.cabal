@@ -50,10 +50,12 @@ library
     Unison.Term.Extra
     Unison.TermEdit.Extra
     Unison.Type.Extra
-    Unison.Runtime.Vector
+    Unison.Runtime.Bits
     Unison.Runtime.Free
     Unison.Runtime.Stream
     Unison.Runtime.Pcbt
+    Unison.Runtime.Unfold
+    Unison.Runtime.Vector
 
   build-depends:
     aeson,

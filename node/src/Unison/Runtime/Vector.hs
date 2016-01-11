@@ -48,6 +48,9 @@ unsafeIndex (Vector _ hd tl buf) i = case i of
 unsafeLast :: Vector a -> a
 unsafeLast v = unsafeIndex v (length v - 1)
 
+at :: Vector a -> Int -> Maybe a
+at v i = if i <= length v && i >= 0 then Just (unsafeIndex v i) else Nothing
+
 last :: Vector a -> Maybe a
 last v | isEmpty v = Nothing
 last v = Just $ unsafeLast v
