@@ -8,12 +8,10 @@
 module Unison.Runtime.Pcbt where
 
 import Control.Applicative
-import Data.List hiding (union)
 import Data.Maybe
 import Data.Tuple (swap)
 import Unison.Runtime.Bits (Bits, Bit(..))
 import Unison.Runtime.Stream (Stream)
-import qualified Data.Set as Set
 import qualified Data.Map as Map
 import qualified Unison.Runtime.Bits as Bits
 import qualified Unison.Runtime.Stream as Stream
@@ -77,27 +75,26 @@ data Trie p v = Trie p !Int v [Trie p v] deriving Functor
 
 fromList :: (Pathed a, Composite (Path a), Ord (Base (Path a)), Applicative f)
          => [a] -> Pcbt f (Path a) a
-fromList [] = Pcbt $ pure (Tip' Nothing)
-fromList (h:t) = go Set.empty (Bits.mostSignificantBits <$> foldr step (trie h) t) (h:t) where
+fromList as = go (as `zip` map trie as) where
   trie h = pure <$> bitpaths h
-  step h acc = mergeTrie (trie h) acc
   miss = Pcbt (pure (Tip' Nothing))
   value best = maybe (-1) (\(score,_,_) -> score) best
-  finish seen (_, base, offset) = (composite base offset, Set.insert (base,offset) seen)
-  find seen best [] = finish seen <$> best
-  find seen best (Trie _ n _ _ : tl) | value best >= fromIntegral n / 2 = find seen best tl
-  find seen best (Trie p _ msb cs : tl) =
-    case listToMaybe (dropWhile (\(i,_) -> Set.member (p,i) seen) msb) of
-      Just (i,s) | value best < s -> find seen (Just (s, p, i)) (cs ++ tl)
-      _ -> find seen best (cs ++ tl)
-  go _ _ [] = miss
-  go _ _ [x] = Pcbt (pure (Tip' (Just x)))
-  go seen t xs = case find seen Nothing [t] of
+  finish (_, base, offset) = composite base offset
+  find best [] = finish <$> best
+  find best (Trie _ n _ _ : tl) | value best >= fromIntegral n / 2 = find best tl
+  find best (Trie p _ msb cs : tl) = case msb of
+    Just (i,s) | value best < s -> find (Just (s, p, i)) (cs ++ tl)
+    _ -> find best (cs ++ tl)
+  go [] = miss
+  go [(x,_)] = Pcbt (pure (Tip' (Just x)))
+  go ((_,t0):xs) =
+    let t = Bits.mostSignificantBit <$> foldr mergeTrie t0 (map snd xs)
+    in case find Nothing [t] of
     Nothing -> miss
-    Just (p, seen) -> Pcbt . pure $ Bin' Nothing p (go seen t zeros) (go seen t ones)
+    Just p -> Pcbt . pure $ Bin' Nothing p (go zeros) (go ones)
       where
-      zeros = filter (\x -> maybe False (`Bits.matches` False) (bitAt p x)) xs
-      ones = filter (\x -> maybe False (`Bits.matches` True) (bitAt p x)) xs
+      zeros = filter (\(x,_) -> maybe False (`Bits.matches` False) (bitAt p x)) xs
+      ones = filter (\(x,_) -> maybe False (`Bits.matches` True) (bitAt p x)) xs
 
 data Search
   = Branch Search Search

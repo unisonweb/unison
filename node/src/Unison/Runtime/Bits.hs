@@ -44,15 +44,19 @@ score n zeros ones =
   let p0 = zeros / n; p1 = ones / n
   in p0 * (n - zeros) + p1 * (n - ones)
 
-mostSignificantBits :: [Bits] -> [(Int,Score)]
-mostSignificantBits bs = go (ranks (map bitstream bs)) where
-  rank = let n = fromIntegral (length bs) in \(zeros, ones) -> score n zeros ones
-  rankCol = rank . foldl' step (0,0) where
+bitCounts :: [Bits] -> [(Int,Int)]
+bitCounts bs = sums (map bitstream bs) where
+  sumCol = foldl' step (0,0) where
     step (z,o) b = case b of Zero -> (z+1,o); One -> (z,o+1); Both -> (z+1,o+1)
-  ranks [] = []
-  ranks bs =
+  sums [] = []
+  sums bs =
     let (col, bs') = unzip [ (b, tl) | Just (b, tl) <- map U.uncons bs ]
-    in (if null bs' then [] else rankCol col : ranks bs')
+    in (if null bs' then [] else sumCol col : sums bs')
+
+mostSignificantBits :: [Bits] -> [(Int,Score)]
+mostSignificantBits bs = go (map rank $ bitCounts bs) where
+  rank = let n = fromIntegral (length bs)
+         in \(zeros, ones) -> score n (fromIntegral zeros) (fromIntegral ones)
   go ranks = map swap $ sortBy (flip compare) (ranks `zip` [0..])
 
 mostSignificantBit :: [Bits] -> Maybe (Int, Score)
