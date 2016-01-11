@@ -14,6 +14,12 @@ newtype Bits = Bits { bitstream :: Unfold Bit } deriving (Eq,Ord,Show)
 
 data Bit = Zero | One | Both deriving (Eq,Ord,Show)
 
+matches :: Bit -> Bool -> Bool
+matches Both _ = True
+matches Zero False = True
+matches One True = True
+matches _ _ = False
+
 type Score = Double
 
 from01s :: [Int] -> Bits
@@ -30,14 +36,12 @@ toList (Bits bs) = U.toList bs
 
 -- | Achieves maximum value of n/2 when both `zeros` and `ones` are n/2.
 -- As distribution is more skewed toward either bit, score approaches 0.
--- Satisfies: `score n n 0 == 0` and `score n 0 n == 0`.
+-- Satisfies: `score n n 0 == 0`, `score n 0 n == 0`, `score n 0 0 == 0`.
 -- There is a linear penalty if zeros + ones < n. So `score 10 4 4` will
 -- be less than `score 10 5 5`.
 score :: Double -> Double -> Double -> Score
 score n zeros ones =
-  let
-    p0 = zeros / n
-    p1 = ones / n
+  let p0 = zeros / n; p1 = ones / n
   in p0 * (n - zeros) + p1 * (n - ones)
 
 mostSignificantBits :: [Bits] -> [(Int,Score)]

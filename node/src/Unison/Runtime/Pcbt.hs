@@ -11,7 +11,7 @@ import Control.Applicative
 import Data.List hiding (union)
 import Data.Maybe
 import Data.Tuple (swap)
-import Unison.Runtime.Bits (Bits)
+import Unison.Runtime.Bits (Bits, Bit(..))
 import Unison.Runtime.Stream (Stream)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
@@ -61,39 +61,43 @@ class Pathed a where
   differingPath :: a -> a -> Maybe (Path a)
   bitpaths :: Composite (Path a) => a -> Trie (Base (Path a)) Bits
 
--- track number of hits
-data Trie p v = Trie p !Int v [Trie p v] deriving Functor
-
 mergeTrie :: (Ord p, Monoid v) => Trie p v -> Trie p v -> Trie p v
 mergeTrie (Trie p n v children) (Trie p2 m v2 children2)
   | p /= p2 = error "Trie paths must align"
   | otherwise = Trie p (n+m) (mappend v v2) (merge children children2) where
       merge [] c = c
       merge c [] = c
-      merge (h1@(Trie p n v cs):t1) (h2@(Trie p2 n2 v2 cs2):t2)
+      merge (h1@(Trie p _ _ _):t1) (h2@(Trie p2 _ _ _):t2)
         | p == p2 = mergeTrie h1 h2 : merge t1 t2
         | p < p2  = h1 : merge t1 (h2 : t2)
         | p > p2  = h2 : merge (h1 : t1) t2
         | otherwise = error "impossible"
 
+data Trie p v = Trie p !Int v [Trie p v] deriving Functor
+
 fromList :: (Pathed a, Composite (Path a), Ord (Base (Path a)), Applicative f)
          => [a] -> Pcbt f (Path a) a
 fromList [] = Pcbt $ pure (Tip' Nothing)
-fromList (h:t) = go Set.empty (Bits.mostSignificantBit <$> foldr step (trie h) t) (h:t) where
-  single x = [x]
-  trie h = single <$> bitpaths h
+fromList (h:t) = go Set.empty (Bits.mostSignificantBits <$> foldr step (trie h) t) (h:t) where
+  trie h = pure <$> bitpaths h
   step h acc = mergeTrie (trie h) acc
   miss = Pcbt (pure (Tip' Nothing))
-  find seen t = undefined
+  value best = maybe (-1) (\(score,_,_) -> score) best
+  finish seen (_, base, offset) = (composite base offset, Set.insert (base,offset) seen)
+  find seen best [] = finish seen <$> best
+  find seen best (Trie _ n _ _ : tl) | value best >= fromIntegral n / 2 = find seen best tl
+  find seen best (Trie p _ msb cs : tl) =
+    case listToMaybe (dropWhile (\(i,_) -> Set.member (p,i) seen) msb) of
+      Just (i,s) | value best < s -> find seen (Just (s, p, i)) (cs ++ tl)
+      _ -> find seen best (cs ++ tl)
   go _ _ [] = miss
   go _ _ [x] = Pcbt (pure (Tip' (Just x)))
-  go seen t xs = case find seen t of
+  go seen t xs = case find seen Nothing [t] of
     Nothing -> miss
-    Just p -> Pcbt . pure $ Bin' Nothing p (go seen' t zeros) (go seen' t ones)
+    Just (p, seen) -> Pcbt . pure $ Bin' Nothing p (go seen t zeros) (go seen t ones)
       where
-      seen' = Set.insert (base p) seen
-      zeros = undefined
-      ones = undefined
+      zeros = filter (\x -> maybe False (`Bits.matches` False) (bitAt p x)) xs
+      ones = filter (\x -> maybe False (`Bits.matches` True) (bitAt p x)) xs
 
 data Search
   = Branch Search Search
@@ -286,5 +290,3 @@ trim query (Pcbt mt) = Pcbt $ flip fmap mt $ \t -> case t of
 
 bitpath :: Choices p -> Bitpath
 bitpath c = map snd (V.toList c)
-
-data Bit = Zero | One | Both deriving (Eq,Ord,Show)
