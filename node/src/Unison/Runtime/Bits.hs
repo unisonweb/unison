@@ -6,7 +6,6 @@ module Unison.Runtime.Bits where
 
 import Data.Tuple (swap)
 import Data.List
-import Data.Maybe
 import Unison.Runtime.Unfold (Unfold)
 import qualified Unison.Runtime.Unfold as U
 
@@ -44,6 +43,33 @@ score n zeros ones =
   let p0 = zeros / n; p1 = ones / n
   in p0 * (n - zeros) + p1 * (n - ones)
 
+bitCounts' :: (Double -> Double -> Bool) -> [Bit] -> (Double,Double)
+bitCounts' halt bs = go 0 0 bs where
+  go !zeros !ones [] = (zeros, ones)
+  go !zeros !ones (b:bs)
+    | halt zeros ones = (zeros, ones)
+    | otherwise = case b of
+      Zero -> go (zeros + 1) ones bs
+      One -> go zeros (ones + 1) bs
+      Both -> go (zeros + 1) (ones + 1) bs
+
+mostSignificantBit :: [Bits] -> Maybe (Int, Score)
+mostSignificantBit bs = go (Nothing,0) (U.columns (map bitstream bs)) where
+  n = fromIntegral (length bs)
+  lengthGT xs n = not (null (dropWhile (\(_,m) -> m <= n) (xs `zip` [1..])))
+  value = maybe 0 snd
+  rem z o = (n-z) `min` (n-o)
+  maxPossible z o = score n (z `max` o) (m + ((n/2 - m) `min` rem z o)) where
+    m = z `min` o
+  stop best z o | z `max` o > n/2 = maxPossible z o <= best
+  stop _ _ _ = False
+  go (!best,!_) [] = best
+  go (!best,!i) (bs:tl)
+    | not (lengthGT bs (value best * 2)) = best
+    | otherwise = case bitCounts' (stop (value best)) bs of
+      (z,o) -> go (if s > value best then Just (i, s) else best, i + 1) tl
+        where s = score n z o
+
 bitCounts :: [Bits] -> [(Int,Int)]
 bitCounts bs = sums (map bitstream bs) where
   sumCol = foldl' step (0,0) where
@@ -58,9 +84,6 @@ mostSignificantBits bs = go (map rank $ bitCounts bs) where
   rank = let n = fromIntegral (length bs)
          in \(zeros, ones) -> score n (fromIntegral zeros) (fromIntegral ones)
   go ranks = map swap $ sortBy (flip compare) (ranks `zip` [0..])
-
-mostSignificantBit :: [Bits] -> Maybe (Int, Score)
-mostSignificantBit = listToMaybe . mostSignificantBits
 
 sample =
   [ from01s[1,0]

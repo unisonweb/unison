@@ -6,6 +6,7 @@ module Unison.Runtime.Unfold where
 
 import Control.Applicative
 import Control.Monad
+import Data.Maybe
 
 data Unfold a = forall s . Unfold s (s -> Step s a)
 data Step s a = Done | Cons a s | Skip s deriving Functor
@@ -34,6 +35,12 @@ mapState :: (s -> s2) -> Step s a -> Step s2 a
 mapState _ Done = Done
 mapState f (Cons a s) = Cons a (f s)
 mapState f (Skip s) = Skip (f s)
+
+columns :: [Unfold a] -> [[a]]
+columns []   = []
+columns rows = case unzip (catMaybes $ map uncons rows) of
+  ([], []) -> []
+  (hds, rows) -> hds : columns rows
 
 instance Applicative Unfold where
   pure = return
