@@ -10,25 +10,20 @@ import GHCJS.DOM.Window (Window)
 import Reflex
 import Reflex.Dom
 import Unison.Dimensions (X(..), Y(..), Width(..), Height(..))
-import qualified GHCJS.DOM.Window as Window
 import qualified GHCJS.DOM.Document as Document
 import qualified GHCJS.DOM.Element as Element
 import qualified GHCJS.DOM.EventM as EventM
 import qualified GHCJS.DOM.UIEvent as UIEvent
+import qualified GHCJS.DOM.Window as Window
+import qualified Unison.Signals as Signals
 
-{-
-mouseLocal :: UIEvent.IsUIEvent e => Element -> e -> IO (X,Y)
-mouseLocal e event = do
-  x <- UIEvent.getLayerX event
-  y <- UIEvent.getLayerY event
-  ex <- Element.getOffsetLeft e
-  ey <- Element.getOffsetTop e
-  return (X . fromIntegral $ x - floor ex, Y . fromIntegral $ y - floor ey)
--}
-
-mouseMove :: (Reflex t, HasDomEvent t e) => e -> Event t (X,Y)
-mouseMove e =
-  (\(x,y) -> (X $ fromIntegral x, Y $ fromIntegral y)) <$> domEvent Mousemove e
+mouseMove :: (MonadWidget t m, Reflex t) => El t -> m (Event t (X,Y))
+mouseMove e = Signals.evaluate tagOffsets movements where
+  movements = domEvent Mousemove e
+  tagOffsets (x,y) = do
+    ex <- Element.getOffsetLeft (_el_element e)
+    ey <- Element.getOffsetTop (_el_element e)
+    return (X . fromIntegral $ x - floor ex, Y . fromIntegral $ y - floor ey)
 
 keepKeyEventIf :: (MonadWidget t m, Reflex t) => (Int -> Bool) -> TextInput t -> m ()
 keepKeyEventIf f input = do
