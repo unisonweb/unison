@@ -1,0 +1,29 @@
+flags: {}
+
+packages:
+- location: # assume this is your main project
+    git: https://github.com/ryantrinkle/reflex-todomvc.git
+    commit: 9355d48f1fbdd8a5d09289a7d1ff12108e9a8f77 # improved-base
+- location:
+    git: https://github.com/ryantrinkle/reflex.git
+    commit: 784f9f79396ae713a03fc4d81f8a67b75d6ade1c # need a few package bumps not present in hackage release yet
+  extra-dep: true
+- location:
+    git: https://github.com/ryantrinkle/reflex-dom.git
+    commit: a60ae687cdc284a8eb3776fc95aa2adefc51e7ec # hamishmack-master (improved-base compatible)
+  extra-dep: true
+
+resolver: lts-3.10
+
+compiler: ghcjs-0.2.0.20151001_ghc-7.10.2
+compiler-check: match-exact
+setup-info:
+  ghcjs:
+    source:
+      ghcjs-0.2.0.20151001_ghc-7.10.2:
+        url: "https://github.com/fizruk/ghcjs/releases/download/v0.2.0.20151001/ghcjs-0.2.0.20151001.tar.gz"
+
+extra-deps:
+  - ref-tf-0.4
+  - these-0.6.1.0
+  - ghcjs-dom-0.2.2.0 # improved-base compatible with (2015-10-01 ghcjs)

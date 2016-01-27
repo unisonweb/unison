@@ -2,9 +2,7 @@
 
 module Unison.HTML where
 
-import Data.Text (Text)
 import Unison.Dom
-import qualified Data.Text as Text
 
 hbox :: [Dom Node] -> Dom Node
 hbox ds =

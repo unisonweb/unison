@@ -17,6 +17,9 @@ tags
 # Nix
 result
 
+# Stack
+.stack-work
+
 # Misc
 *~
 .DS_Store

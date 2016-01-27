@@ -1,0 +1,21 @@
+flags: {}
+
+packages:
+- reflex-dom/ # package is fetched from github and patched bifunctors bounds for Stackage snapshot compatibility
+- location:
+    git: https://github.com/ryantrinkle/reflex-todomvc.git
+    commit: df632f5cd84c1538f6a2e50060786e66845c4ebe # old-base
+- location:
+    git: https://github.com/ryantrinkle/reflex.git
+    commit: 784f9f79396ae713a03fc4d81f8a67b75d6ade1c # need a few package bumps not present in hackage release yet
+  extra-dep: true
+
+resolver: lts-3.10
+
+compiler: ghcjs-0.1.0.20150924_ghc-7.10.2
+compiler-check: match-exact
+
+extra-deps:
+  - ref-tf-0.4
+  - these-0.6.1.0
+  - ghcjs-dom-0.1.1.3 # last old-base (aka ghcjs-0.1) support
