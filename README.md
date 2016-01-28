@@ -23,7 +23,7 @@ editor/
 editor-elm/
 ```
 
-The `editor-elm/` directory is the current Elm implementation of the Unison editor. It's being phased out, in favor of a Unison editor written in Haskell and compiled to Javascript via [GHCJS](https://github.com/ghcjs/ghcjs). By writing the editor in Haskell, we can share code between the editor and Unison node backend. So what's with the directory structure? . The `shared/` directory has Haskell code that will be shared between the editor and node, the `node/` directory has code specific to the node, and `editor/` is the currently-in-development Haskell version of the editor, which also depends on `shared/`.
+The `shared/` directory has Haskell code that will be shared between the editor and node, the `node/` directory has code specific to the node, and `editor/` is the Unison editor, which also depends on `shared/` but is compiled to Javascript via [GHCJS](https://github.com/ghcjs/ghcjs). By writing the editor in Haskell, we can share code between the editor and Unison node backend. The `editor-elm/` directory is an older Elm implementation of the Unison editor that is being phased out.
 
 The dependencies are what you'd expect---`shared/` has minimal external dependencies, and `node/` and `editor/` depend on `shared`. Thus, it should be very obvious and explicit what code and external dependencies are going to be compiled to JS.
 
