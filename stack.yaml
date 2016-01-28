@@ -1,0 +1,10 @@
+flags: {}
+
+packages:
+- shared
+- node
+
+resolver: lts-3.10
+
+extra-deps:
+  - applicative-extras-0.1.8

@@ -90,7 +90,7 @@ widget :: (Show p, Path p, Eq p, MonadWidget t m)
 widget keydown filterMouse paths available d = do
   (e, (w,h), b) <- view available d
   mouse <- do
-    xy <- filterMouse <$> UI.mouseMove' e
+    xy <- filterMouse <$> UI.mouseMove e
     xy' <- holdDyn (X 0, Y 0) xy
     pure $ updated (nubDyn xy')
   nav <- pure $ mergeWith (.) [

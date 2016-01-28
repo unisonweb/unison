@@ -32,7 +32,7 @@ explorer keydown processQuery s' = do
     attrs <- holdDyn ("class" =: "explorer") (fmap pickAttr valids)
     (valids, updatedS, closings) <- elDynAttr "div" attrs $ mdo
       searchbox <- elClass "div" "explorer-textbox" $ textInput def
-      grabFocus <- Signals.now (Element.elementFocus (_textInput_element searchbox))
+      grabFocus <- Signals.now (Element.focus (_textInput_element searchbox))
       _ <- Signals.evaluate id grabFocus
       UI.keepKeyEventIf (\i -> i /= 38 && i /= 40) searchbox -- disable up/down inside searchbox
       elClass "div" "top-separator" $ pure ()

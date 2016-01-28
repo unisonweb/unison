@@ -1,4 +1,0 @@
-#!/usr/bin/env bash
-
-$(nix-build --option extra-binary-caches https://ryantrinkle.com:5443/ -j 8 env.nix -A ghc7101.unison-node --no-out-link)/bin/node &
-echo The editor is at: file://$(nix-build --option extra-binary-caches https://ryantrinkle.com:5443/ -j 8 env.nix -A ghcjs.unison-editor --no-out-link)/bin/editor.jsexe/index.html

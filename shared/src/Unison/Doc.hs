@@ -27,7 +27,7 @@ import Data.Bifunctor
 import Data.Functor
 import Data.Foldable
 import Data.List hiding (group)
-import Data.Maybe (fromMaybe,listToMaybe)
+import Data.Maybe (fromMaybe)
 import Data.String (IsString)
 import Data.Text (Text)
 import Unison.Dimensions (X(..), Y(..), Width(..), Height(..), Region)

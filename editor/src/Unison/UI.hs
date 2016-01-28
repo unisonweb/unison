@@ -1,62 +1,52 @@
 {-# LANGUAGE CPP, ForeignFunctionInterface, JavaScriptFFI, OverloadedStrings #-}
 
-module Unison.UI (keepKeyEventIf, mouseMove, mouseMove', preferredDimensions, windowKeydown, windowKeyup) where
+module Unison.UI (keepKeyEventIf, mouseMove, preferredDimensions, windowKeydown, windowKeyup) where
 
 import Control.Monad.IO.Class
-import Data.Text (Text)
-import GHCJS.DOM.Element (elementOnkeydown)
-import GHCJS.DOM.EventM (preventDefault)
-import GHCJS.DOM.Types (Element,DOMWindow)
 import GHCJS.Marshal
 import GHCJS.Types (JSRef)
+import GHCJS.DOM.Element (Element)
+import GHCJS.DOM.Window (Window)
 import Reflex
 import Reflex.Dom
 import Unison.Dimensions (X(..), Y(..), Width(..), Height(..))
-import qualified GHCJS.DOM as DOM
-import qualified GHCJS.DOM.DOMWindow as DOMWindow
 import qualified GHCJS.DOM.Document as Document
 import qualified GHCJS.DOM.Element as Element
 import qualified GHCJS.DOM.EventM as EventM
 import qualified GHCJS.DOM.UIEvent as UIEvent
+import qualified GHCJS.DOM.Window as Window
+import qualified Unison.Signals as Signals
 
-mouseLocal :: UIEvent.IsUIEvent e => Element -> e -> IO (X,Y)
-mouseLocal e event = do
-  x <- UIEvent.uiEventGetLayerX event
-  y <- UIEvent.uiEventGetLayerY event
-  ex <- Element.elementGetOffsetLeft e
-  ey <- Element.elementGetOffsetTop e
-  return (X . fromIntegral $ x - floor ex, Y . fromIntegral $ y - floor ey)
-
-mouseMove :: Element.IsElement e => MonadWidget t m => e -> m (Event t (X,Y))
-mouseMove e = case Element.toElement e of
-  e -> wrapDomEvent
-         e
-         Element.elementOnmousemove
-         (liftIO . mouseLocal e =<< EventM.event)
+mouseMove :: (MonadWidget t m, Reflex t) => El t -> m (Event t (X,Y))
+mouseMove e = Signals.evaluate tagOffsets movements where
+  movements = domEvent Mousemove e
+  tagOffsets (x,y) = do
+    ex <- Element.getOffsetLeft (_el_element e)
+    ey <- Element.getOffsetTop (_el_element e)
+    return (X . fromIntegral $ x - floor ex, Y . fromIntegral $ y - floor ey)
 
 keepKeyEventIf :: (MonadWidget t m, Reflex t) => (Int -> Bool) -> TextInput t -> m ()
 keepKeyEventIf f input = do
-  let tweak e = e >>= \i -> if f i then pure i else i <$ preventDefault
-  tweakedKeydown <- wrapDomEvent (_textInput_element input) Element.elementOnkeydown (tweak getKeyEvent)
+  let tweak e = e >>= \i -> if f i then pure i else i <$ EventM.preventDefault
+  tweakedKeydown <- wrapDomEvent (_textInput_element input)
+                                 (\e -> EventM.on e Element.keyDown)
+                                 (tweak getKeyEvent)
   performEvent_ (pure () <$ tweakedKeydown)
 
-askWindow :: (MonadIO m, HasDocument m) => m DOMWindow
+askWindow :: (MonadIO m, HasDocument m) => m Window
 askWindow =  do
-  (Just window) <- askDocument >>= liftIO . Document.documentGetDefaultView
+  (Just window) <- askDocument >>= liftIO . Document.getDefaultView
   return window
 
 windowKeydown :: MonadWidget t m => m (Event t Int)
 windowKeydown = do
   w <- askWindow
-  wrapDomEvent w DOMWindow.domWindowOnkeydown (liftIO . UIEvent.uiEventGetKeyCode =<< EventM.event)
+  wrapDomEvent w (\w -> EventM.on w Window.keyDown) (liftIO . UIEvent.getKeyCode =<< EventM.event)
 
 windowKeyup :: MonadWidget t m => m (Event t Int)
 windowKeyup = do
   w <- askWindow
-  wrapDomEvent w DOMWindow.domWindowOnkeyup (liftIO . UIEvent.uiEventGetKeyCode =<< EventM.event)
-
-mouseMove' :: MonadWidget t m => El t -> m (Event t (X,Y))
-mouseMove' = mouseMove . _el_element
+  wrapDomEvent w (\w -> EventM.on w Window.keyUp) (liftIO . UIEvent.getKeyCode =<< EventM.event)
 
 preferredDimensions :: Element.IsElement e => e -> IO (Width,Height)
 preferredDimensions e = case Element.toElement e of
@@ -83,7 +73,7 @@ foreign import javascript unsafe
       temp.removeChild($1); \
       $r = [w, h]; \
   }"
-  preferredDimsImpl :: Element -> IO (JSRef (Word,Word))
+  preferredDimsImpl :: Element -> IO JSRef
 #else
 preferredDimsImpl = error "preferredDimsImpl: only available from JavaScript"
 #endif
