@@ -40,17 +40,7 @@ $ cd unisonweb
 $ stack build unison-node # build node executable
 ```
 
-Once the `unison-node` executable is built, you can manually run the executable. The location of the executable varies by platform, but you can ask Stack to tell you where it is:
-
-```
-$ stack path --local-install-root
-/Users/pchiusano/Dropbox/projects/unison/.stack-work/install/x86_64-osx/lts-3.10/7.10.2
-
-$ $(stack path --local-install-root)/bin/node
-Setting phasers to stun... (port 8080) (ctrl-c to quit)
-```
-
-alternatively:
+Once the `unison-node` executable is built, you can run it by doing:
 
 ```
 $ stack exec node
