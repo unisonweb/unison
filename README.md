@@ -32,7 +32,7 @@ Build instructions
 
 If these instructions don't work for you or are incomplete, please file an issue.
 
-The build uses [Stack][]. If you don't already have it installed, [follow the install instructions](http://docs.haskellstack.org/en/stable/README.html#how-to-install) for your platform. Once that's done and the `stack` executable is on your path, do:
+The build uses [Stack](http://docs.haskellstack.org/). If you don't already have it installed, [follow the install instructions](http://docs.haskellstack.org/en/stable/README.html#how-to-install) for your platform. Once that's done and the `stack` executable is on your path, do:
 
 ```sh
 $ git clone https://github.com/unisonweb/platform.git unisonweb
@@ -47,6 +47,13 @@ $ stack path --local-install-root
 /Users/pchiusano/Dropbox/projects/unison/.stack-work/install/x86_64-osx/lts-3.10/7.10.2
 
 $ $(stack path --local-install-root)/bin/node
+Setting phasers to stun... (port 8080) (ctrl-c to quit)
+```
+
+alternatively:
+
+```
+$ stack exec node
 Setting phasers to stun... (port 8080) (ctrl-c to quit)
 ```
 
