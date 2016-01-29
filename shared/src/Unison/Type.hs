@@ -119,6 +119,13 @@ matchUniversal :: Eq v => v -> Type v -> Bool
 matchUniversal v (Universal' x) = x == v
 matchUniversal _ _ = False
 
+-- | True if the given type is a function, possibly quantified
+isArrow :: Type v -> Bool
+isArrow (Forall' _ t) = isArrow t
+isArrow (Constrain' t _) = isArrow t
+isArrow (Arrow' _ _) = True
+isArrow _ = False
+
 -- some smart constructors
 
 lit :: Ord v => Literal -> Type v

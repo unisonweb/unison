@@ -1,4 +1,4 @@
-module Unison.LiteralParser where
+module Unison.TermSearchboxParser where
 
 import Control.Monad
 import Control.Applicative
@@ -20,7 +20,10 @@ term =
     , [E.vector [E.blank]] <$ (char '[' *> char '_' *> char ']')
     , [E.vector []] <$ (char '[' *> char ']')
     , [E.vector [E.blank]] <$ (char '[' *> char '_')
-    , [E.vector [], E.vector [E.blank]] <$ char '[' ]
+    , [E.vector [], E.vector [E.blank]] <$ char '['
+    , single <$> letRecIntro
+    , single <$> letIntro
+    , single <$> lambda ]
   where
   single x = [x]
 
@@ -39,3 +42,20 @@ floatingPoint = do
 quotedString :: Parser String
 quotedString = char '\"' *> takeWhile (\c -> c /= '\"') <* optional (char '\"')
 
+lambda :: Parser (Term V)
+lambda = do
+  v <- token identifier <* (optional (char '-') <* optional (char '>'))
+  pure $ E.lam' [Text.pack v] E.blank
+
+letIntro :: Parser (Term V)
+letIntro = do
+  _ <- token (string "let")
+  v <- token identifier <* optional (string "=")
+  pure $ E.let1' [(Text.pack v, E.blank)] E.blank
+
+letRecIntro :: Parser (Term V)
+letRecIntro = do
+  -- matches letr, let-rec, let rec
+  _ <- token (string "let") *> optional (string "-") *> string "r" *> optional (string "ec")
+  v <- token identifier <* optional (string "=")
+  pure $ E.let1' [(Text.pack v, E.blank)] E.blank

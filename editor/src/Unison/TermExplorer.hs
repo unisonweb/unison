@@ -27,7 +27,7 @@ import qualified Unison.Dimensions as Dimensions
 import qualified Unison.Doc as Doc
 import qualified Unison.DocView as DocView
 import qualified Unison.Explorer as Explorer
-import qualified Unison.LiteralParser as LiteralParser
+import qualified Unison.TermSearchboxParser as TermSearchboxParser
 import qualified Unison.Node as Node
 import qualified Unison.Note as Note
 import qualified Unison.Parser as Parser
@@ -69,15 +69,16 @@ make node keydown s paths terms =
       elClass "div" "explorer-local-info" $ do
         id $
           if localAdmissibleType == Type.forall' ["a"] (Type.v' "a") then pure ()
-          else void $ elClass "div" "localAdmissibleType" $ DocView.view width (Views.type' name localAdmissibleType)
+          else void $ elClass "div" "localAdmissibleType" $
+            DocView.view width (Views.type' name localAdmissibleType)
         _ <- elClass "div" "localVariables" $
           traverse (elClass "div" "localVariable" . DocView.view width . Views.term name) localVariables
         pure ()
     parse _ _ Nothing _ = []
-    parse lookup path (Just (Node.LocalInfo{..})) txt = case Parser.run LiteralParser.term txt of
+    parse lookup path (Just (Node.LocalInfo{..})) txt = case Parser.run TermSearchboxParser.term txt of
       Parser.Succeed ts n | all (\c -> c == ' ' || c == ',') (drop n txt) ->
         ts >>= \tm ->
-          if isRight (Typechecker.checkAdmissible' tm localAdmissibleType)
+          if isValid tm localAdmissibleType
           then [formatResult lookup tm (Replace path tm, Still) Right]
           else [formatResult lookup tm () Left]
       _ -> []
@@ -121,8 +122,9 @@ make node keydown s paths terms =
                      else (Just ())
           in do tick <- Signals.afterTick localInfo; pure $ leftmost [tick, push ok (updated txt)]
         let triggeringTxt = tagDyn txt searchTick
-        -- todo - other actions
-        keyed <- pure $ (\a b c -> a ++ b ++ c) <$> locals <*> searches <*> literals
+        keyed <- pure $
+          let combine a b c = let abc = a ++ b ++ c in trace (intercalate ", " $ map fst abc) abc
+          in combine <$> locals <*> searches <*> literals
         let trimEnd = reverse . dropWhile (== ' ') . reverse
         let f possible txt = let txt' = trimEnd txt in filter (isSubsequenceOf txt' . fst) possible
         filtered <- pure $ f <$> keyed <*> current txt
@@ -189,3 +191,13 @@ formatSearch name path results = fromMaybe [] $ go <$> results
   go (Node.SearchResults {..}) =
     [ formatResult name e () Left | e <- fst illTypedMatches ] ++
     [ formatResult name e (Replace path e,Still) Right | e <- fst matches ]
+
+isValid :: Term V -> Type V -> Bool
+isValid e t
+  | isRight (Typechecker.checkAdmissible' e t)        = True
+  -- hacky shortcuts to avoid full typechecking pass
+  | t == Type.forall' ["v"] (Type.v' "v")             = True
+  | e == Term.lam' ["v"] Term.blank && Type.isArrow t = True
+  | e == Term.let1' [("v", Term.blank)] Term.blank    = True
+  | e == Term.letRec' [("v", Term.blank)] Term.blank  = True
+  | otherwise                                         = False

@@ -1,9 +1,12 @@
 module Unison.Parser where
 
-import Control.Monad
 import Control.Applicative
-import Data.List
+import Control.Monad
+import Data.List hiding (takeWhile)
 import Data.Maybe
+import Prelude hiding (takeWhile)
+import qualified Data.Char as Char
+import qualified Prelude
 
 newtype Parser a = Parser { run :: String -> Result a }
 
@@ -18,10 +21,27 @@ one f = Parser $ \s -> case s of
   (h:_) | f h -> Succeed h 1
   _ -> Fail [] False
 
+identifier :: Parser String
+identifier = nonempty (takeWhile ok) where
+  ok '[' = False
+  ok ']' = False
+  ok '}' = False
+  ok '{' = False
+  ok '"' = False
+  ok ' ' = False
+  ok ';' = False
+  ok _   = True
+
+token :: Parser a -> Parser a
+token p = p <* whitespace
+
 takeWhile :: (Char -> Bool) -> Parser String
 takeWhile f = Parser $ \s ->
   let hd = Prelude.takeWhile f s
   in Succeed hd (length hd)
+
+whitespace :: Parser ()
+whitespace = void $ takeWhile Char.isSpace
 
 nonempty :: Parser a -> Parser a
 nonempty p = Parser $ \s -> case run p s of

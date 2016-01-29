@@ -64,7 +64,7 @@ term ref t = go no View.low t where
   go :: (ViewableTerm -> Bool) -> View.Precedence -> ViewableTerm -> Doc Text Path
   go inChain p t = case t of
     E.Lets' bs e ->
-      let
+      let -- todo: paths here are way off, no way to select a binding, or body of binding
         pe = replicate (length bs) P.Body
         bps = tail (tails pe)
         formattedBs = [ formatBinding bp name b | ((name,b), bp) <- bs `zip` bps ]
@@ -104,11 +104,9 @@ term ref t = go no View.low t where
             [ applied, D.breakable " "
             , D.nest "  " . D.group . D.delimit (D.breakable " ") $
               [ D.sub' p (go no (View.increase View.high) s) | (s,p) <- args ] ]
-    LamsP' vs (body,bodyp) ->
-      if p == View.low then D.sub' bodyp (go no p body)
-      else D.parenthesize True . D.group $
-           D.delimit (D.embed " ") (map (sym . fst) vs) `D.append`
-           D.docs [D.embed "->", D.breakable " ", D.nest "  " $ D.sub' bodyp (go no View.low body)]
+    LamsP' vs (body,bodyp) -> D.parenthesize (p /= View.low) . D.group $
+      D.delimit (D.embed " ") (map (sym . fst) vs) `D.append`
+      D.docs [D.embed " ->", D.breakable " ", D.nest "  " $ D.sub' bodyp (go no View.low body)]
     E.Ann' e t -> D.group . D.parenthesize (p /= View.low) $
                 D.docs [ go no p e, D.embed " :", D.breakable " "
                        , D.nest "  " $ D.sub P.Annotation (type' ref t) ]

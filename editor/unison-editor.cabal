@@ -49,9 +49,9 @@ library
     Unison.Dom
     Unison.Explorer
     Unison.HTML
-    Unison.LiteralParser
     Unison.Parser
     Unison.TermExplorer
+    Unison.TermSearchboxParser
     Unison.UI
 
   build-depends:
@@ -87,38 +87,6 @@ library
 
 executable editor
   main-is: Editor.hs
-  hs-source-dirs: src shared-src
-  ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N -v0
-
-  if flag(optimized)
-    ghc-options: -funbox-strict-fields -O2
-
-  build-depends:
-    base,
-    aeson,
-    base64-bytestring,
-    bifunctors,
-    bytestring,
-    comonad,
-    containers,
-    data-default,
-    free,
-    ghcjs-base,
-    ghcjs-dom,
-    mtl,
-    murmur-hash,
-    prelude-extras,
-    reflex,
-    reflex-dom,
-    semigroups,
-    text,
-    these,
-    transformers,
-    vector,
-    unison-editor
-
-executable explorer
-  main-is: ExplorerTest.hs
   hs-source-dirs: src shared-src
   ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N -v0
 

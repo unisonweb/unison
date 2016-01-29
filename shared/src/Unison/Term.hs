@@ -279,5 +279,7 @@ instance (Var v, Show a) => Show (F v a) where
     go _ (Vector vs) = showListWith (showsPrec 0) (Vector.toList vs)
     go _ Blank = s"_"
     go _ (Ref r) = showsPrec 0 r
+    go _ (Let b body) = showParen True (s"let " <> showsPrec 0 b <> s" in " <> showsPrec 0 body)
+    go _ (LetRec bs body) = showParen True (s"let rec" <> showsPrec 0 bs <> s" in " <> showsPrec 0 body)
     (<>) = (.)
     s = showString
