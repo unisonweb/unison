@@ -57,16 +57,18 @@ term ref t = go no View.low t where
   formatBinding path name body = case body of
     LamsP' vs (body,bodyp) ->
       let lhs = fmap fixup $ go no View.low (E.apps (E.var name) (map (E.var . fst) vs))
-          fixup _ = [] -- todo, could use paths to individual variables
+          fixup p = [] -- todo, could use paths to individual variables
           rhs = D.sub' bodyp $ go no View.low body
       in D.group . D.sub' path $ D.docs [lhs, D.embed " =", D.breakable " ", D.nest "  " rhs]
-    _ -> D.sub' path $ D.docs [sym name, D.embed " =", D.breakable " ", D.nest "  " $ go no View.low body ]
+    _ -> D.sub' path $ D.docs [ D.sub P.Bound (sym name), D.embed " =", D.breakable " "
+                              , D.nest "  " $ go no View.low body ]
   go :: (ViewableTerm -> Bool) -> View.Precedence -> ViewableTerm -> Doc Text Path
   go inChain p t = case t of
     E.Lets' bs e ->
-      let -- todo: paths here are way off, no way to select a binding, or body of binding
+      let
+        -- bindings have paths [P.Binding 0], [P.Body, P.Binding 0], [P.Body,P.Body,P.Binding 0], etc
         pe = replicate (length bs) P.Body
-        bps = tail (tails pe)
+        bps = [ replicate n P.Body ++ [P.Binding 0] | n <- [0 .. length bs - 1] ]
         formattedBs = [ formatBinding bp name b | ((name,b), bp) <- bs `zip` bps ]
       in D.group $ D.docs [D.embed "let", D.breakable " "] `D.append`
                    D.nest "  " (D.delimit (D.breakable "; ") formattedBs) `D.append`
@@ -80,7 +82,7 @@ term ref t = go no View.low t where
                    D.nest "  " (D.delimit (D.breakable "; ") formattedBs) `D.append`
                    D.docs [ D.breakable " ", D.embed "in", D.breakable " "
                           , D.sub P.Body . D.nest "  " $ go no View.low e ]
-    E.Vector' vs | Vector.null vs -> D.embed "[]"
+    E.Vector' vs | Vector.null vs -> D.embed "[ ]"
                  | otherwise      ->
       let
         fmt i v = D.nest "  " . D.sub (P.Index i) $ go no View.low v
@@ -139,13 +141,13 @@ type' ref t = go no View.low t
         Symbol _ name view = op fn
         (taken, remaining) = splitAt (View.arity view) args
         fmt (child,path) = (\p -> D.sub' path (go (fn ==) p child), path)
-        applied = maybe unsaturated (D.parenthesize (p > View.precedence view))
-                                    (View.instantiate view fnP name (map fmt taken))
+        applied = maybe unsaturated (D.parenthesize (p > View.precedence view && View.arity view /= 0)) $
+                  View.instantiate view fnP name (map fmt taken)
         unsaturated = D.sub' fnP $ go no View.high fn
       in
         (if inChain fn then id else D.group) $ case remaining of
           [] -> applied
-          args -> D.group . D.docs $
+          args -> D.group . D.parenthesize (p >= View.high) . D.docs $
             [ applied, D.breakable " "
             , D.nest "  " . D.group . D.delimit (D.breakable " ") $
               [ D.sub' p (go no (View.increase View.high) s) | (s,p) <- args ] ]
