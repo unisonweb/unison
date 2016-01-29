@@ -26,7 +26,7 @@ body { line-height: 1.3; }
   cursor: default;
   z-index: 0;
   color: rgb(80,80,80);
-  font-family: 'fira-code-regular', monospace;
+  font-family: 'Fira Code', monospace;
   font-size: 12pt;
   font-variant-ligatures: common-ligatures;
 }
@@ -74,8 +74,9 @@ body { line-height: 1.3; }
 }
 
 .explorer-textbox input {
-  font-family: 'fira-code-regular', monospace;
+  font-family: 'Fira Code', monospace;
   font-size: 14pt;
+  font-variant-ligatures: common-ligatures;
   background-color: rgba(0,0,0,0);
   width: 97%;
   outline: none;
