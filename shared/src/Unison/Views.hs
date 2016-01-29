@@ -80,7 +80,8 @@ term ref t = go no View.low t where
                    D.nest "  " (D.delimit (D.breakable "; ") formattedBs) `D.append`
                    D.docs [ D.breakable " ", D.embed "in", D.breakable " "
                           , D.sub P.Body . D.nest "  " $ go no View.low e ]
-    E.Vector' vs ->
+    E.Vector' vs | Vector.null vs -> D.embed "[]"
+                 | otherwise      ->
       let
         fmt i v = D.nest "  " . D.sub (P.Index i) $ go no View.low v
         subs = [ fmt i v | (v,i) <- Vector.toList vs `zip` [0..] ]
