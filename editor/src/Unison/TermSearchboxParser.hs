@@ -11,6 +11,8 @@ import qualified Data.Char as Char
 import qualified Data.Text as Text
 import qualified Unison.Term as E
 
+import Debug.Trace
+
 term :: Parser [Term V]
 term =
   msum
@@ -21,9 +23,7 @@ term =
     , [E.vector []] <$ (char '[' *> char ']')
     , [E.vector [E.blank]] <$ (char '[' *> char '_')
     , [E.vector [], E.vector [E.blank]] <$ char '['
-    , single <$> letRecIntro
-    , single <$> letIntro
-    , single <$> lambda ]
+    , intro ]
   where
   single x = [x]
 
@@ -42,20 +42,16 @@ floatingPoint = do
 quotedString :: Parser String
 quotedString = char '\"' *> takeWhile (\c -> c /= '\"') <* optional (char '\"')
 
-lambda :: Parser (Term V)
-lambda = do
-  v <- token identifier <* (optional (char '-') <* optional (char '>'))
-  pure $ E.lam' [Text.pack v] E.blank
-
-letIntro :: Parser (Term V)
-letIntro = do
-  _ <- token (string "let")
-  v <- token identifier <* optional (string "=")
-  pure $ E.let1' [(Text.pack v, E.blank)] E.blank
-
-letRecIntro :: Parser (Term V)
-letRecIntro = do
-  -- matches letr, let-rec, let rec
-  _ <- token (string "let") *> optional (string "-") *> string "r" *> optional (string "ec")
-  v <- token identifier <* optional (string "=")
-  pure $ E.let1' [(Text.pack v, E.blank)] E.blank
+intro :: Parser [Term V]
+intro = do
+  v <- token identifier
+  let lam = E.lam' [Text.pack v] E.blank
+  let let' = E.let1' [(Text.pack v, E.blank)] E.blank
+  let letr' = E.letRec' [(Text.pack v, E.blank)] E.blank
+  o <- optional $
+    msum [ lam <$ char '-' <* optional (char '>')
+         , let' <$ char '='
+         , letr' <$ string "r=" ]
+  pure $ case o of
+    Nothing -> [lam, let', letr']
+    Just e -> [e]

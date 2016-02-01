@@ -70,7 +70,7 @@ term ref t = go no View.low t where
         pe = replicate (length bs) P.Body
         bps = [ replicate n P.Body ++ [P.Binding 0] | n <- [0 .. length bs - 1] ]
         formattedBs = [ formatBinding bp name b | ((name,b), bp) <- bs `zip` bps ]
-      in D.group $ D.docs [D.embed "let", D.breakable " "] `D.append`
+      in D.parenthesize (p /= View.low) . D.group $ D.docs [D.embed "let", D.breakable " "] `D.append`
                    D.nest "  " (D.delimit (D.breakable "; ") formattedBs) `D.append`
                    D.docs [ D.breakable " ", D.embed "in", D.breakable " "
                           , D.sub' pe . D.nest "  " $ go no View.low e ]
@@ -78,7 +78,7 @@ term ref t = go no View.low t where
       let
         bps = map P.Binding [0 .. length bs - 1]
         formattedBs = [ formatBinding [bp] name b | ((name,b), bp) <- bs `zip` bps ]
-      in D.group $ D.docs [D.embed "let rec", D.breakable " "] `D.append`
+      in D.parenthesize (p /= View.low) . D.group $ D.docs [D.embed "let rec", D.breakable " "] `D.append`
                    D.nest "  " (D.delimit (D.breakable "; ") formattedBs) `D.append`
                    D.docs [ D.breakable " ", D.embed "in", D.breakable " "
                           , D.sub P.Body . D.nest "  " $ go no View.low e ]
