@@ -27,10 +27,30 @@ The `shared/` directory has Haskell code that will be shared between the editor 
 
 The dependencies are what you'd expect---`shared/` has minimal external dependencies, and `node/` and `editor/` depend on `shared`. Thus, it should be very obvious and explicit what code and external dependencies are going to be compiled to JS.
 
-Build instructions
+Building with Docker
+-----
+The easiest way to compile Unison yourself is to use the provided Dockerfile.
+If you have [Docker set up correctly](https://docs.docker.com/engine/installation/),
+just run
+```sh
+$ git clone https://github.com/unisonweb/platform.git unisonweb
+$ cd unisonweb
+$ docker build -t unisonweb/platform .
+```
+which will take quite a while (~1h) the first time. It's much speedier on subsequent runs.
+When the above command finishes you can start Unison with
+```sh
+$ docker run -it -p 8080:8080 --name unisonweb --rm unisonweb/platform
+Setting phasers to stun... (port 8080) (ctrl-c to quit)
+```
+and then browse to [http://localhost:8080](http://localhost:8080) to open the editor.
+On Mac and Windows replace `localhost` by the IP of your Docker VM.
+
+Building using Stack
 -----
 
 If these instructions don't work for you or are incomplete, please file an issue.
+Also, have a look at the Dockerfile if you are unsure about the steps to perform.
 
 The build uses [Stack](http://docs.haskellstack.org/). If you don't already have it installed, [follow the install instructions](http://docs.haskellstack.org/en/stable/README.html#how-to-install) for your platform. Once that's done and the `stack` executable is on your path, do:
 
@@ -49,7 +69,7 @@ Setting phasers to stun... (port 8080) (ctrl-c to quit)
 
 That last message is [Scotty](http://hackage.haskell.org/package/scotty) telling you it's running. That means you're good.
 
-To build the editor, do: `cd editor` from the root directory, then do `stack build`. The editor is built using GHCJS. The first time you do this, once it's done building, run `make-editor-html`, which will generate an `editor.html` file that you can open up in the browser. You only need to run `make-editor-html` once. After that you can just open or refresh `editor.html` after each `stack build`.
+To build the editor, do: `cd editor` from the root directory, then do `stack build`. The editor is built using GHCJS. You can symlink the generated Javascript files by performing a `ln -s $(stack path --local-install-root)/bin .` in the `editor` directory.
 
 These instructions do not work on Windows as far as I know (this might be fixable, contact me if interested), but if you're on Windows or just prefer to build the code on a known-good VM, use the [Vagrant box setup](#vagrant) after reading through these instructions. If you go this route, you can still use your preferred text editor. The VM will have shared filesystem access to the directory where you've checked out the code.
 
