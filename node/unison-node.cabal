@@ -4,14 +4,14 @@ version:       0.1
 license:       MIT
 cabal-version: >= 1.8
 license-file:  LICENSE
-author:        Paul Chiusano 
+author:        Paul Chiusano
 maintainer:    Paul Chiusano <paul.chiusano@gmail.com>
 stability:     provisional
 homepage:      http://unisonweb.org
 bug-reports:   https://github.com/unisonweb/platform/issues
-copyright:     Copyright (C) 2013 Paul Chiusano and contributors 
+copyright:     Copyright (C) 2013 Paul Chiusano and contributors
 synopsis:      The Unison programming language and platform
-description:   The Unison typechecker and node 
+description:   The Unison typechecker and node
 
 build-type:    Simple
 extra-source-files:
@@ -79,7 +79,9 @@ library
     transformers,
     transformers-compat,
     unison-shared,
-    vector
+    vector,
+    wai-middleware-static,
+    wai-extra
 
   ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N
 
@@ -120,4 +122,6 @@ executable node
     transformers-compat,
     unison-node,
     unison-shared,
-    vector
+    vector,
+    wai-middleware-static,
+    wai-extra

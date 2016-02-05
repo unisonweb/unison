@@ -15,6 +15,6 @@ ADD editor/unison-editor.cabal /opt/unison/editor/unison-editor.cabal
 RUN cd editor && stack build --only-dependencies
 ADD . /opt/unison/
 RUN stack build unison-node
-RUN cd editor && stack build && ./make-editor-html
+RUN cd editor && stack build && ln -s $(stack path --local-install-root)/bin .
 CMD stack exec node
 EXPOSE 8080
