@@ -13,7 +13,6 @@ store
 tags
 **cabal.sandbox.config
 .cabal-sandbox/**
-editor/editor.html
 
 # Stack
 .stack-work
