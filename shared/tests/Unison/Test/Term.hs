@@ -83,9 +83,20 @@ tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Term"
         do
           -- map (x -> _) [1,2,3]
           t <- pure $ builtin "Vector.map" `app` lam' ["x"] blank `app` vector (map num [1,2,3])
-          [(p1,r1)] <- pure $ atPts True node [(5,0)] t
+          [(p1,r1)] <- pure $ atPts False node [(5,0)] t
           assertEqual "p1" [Paths.Fn, Paths.Arg] p1
           assertEqual "r1" (rect 4 0 8 1) r1
+    , testCase "operator chain rendering" $ node >>= \node ->
+        do
+          -- 1 + 2 + 3
+          -- (+) ((+) 1 2) 3
+          -- hmm, each space has a somewhat bogus path
+          let plus x y = builtin "Number.plus" `app` x `app` y
+          t <- pure $ num 1 `plus` num 2 `plus` num 3
+          [(p1,r1),(p2,r2)] <- pure $ atPts True node [(1,0), (2,0)] t
+          assertEqual "p1" [Paths.Fn, Paths.Arg, Paths.Fn, Paths.Arg] p1
+          assertEqual "r1" (rect 0 0 1 1) r1
+          assertEqual "p2" [] p2
     ]
 
 rect :: Int -> Int -> Int -> Int -> (X,Y,Width,Height)
