@@ -14,7 +14,7 @@ import Unison.Term
 import Unison.Var (Var)
 import Unison.View (DFO)
 import Unison.Views (defaultSymbol)
-import Unison.Dimensions (Width(..))
+import Unison.Dimensions (Width(..),Height(..),Region(..),X(..),Y(..))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
@@ -26,12 +26,22 @@ import qualified Unison.Note as Note
 import qualified Unison.Paths as Paths
 import qualified Unison.Test.Common as Common
 import qualified Unison.Views as Views
+import Debug.Trace
 
 -- term for testing
 type TTerm = Term (Symbol DFO)
 
 hash :: TTerm -> Hash
 hash e = ABT.hash e
+
+atPts :: Common.TNode -> [(Int,Int)] -> TTerm -> [(Paths.Path, Region)]
+atPts (_,symbol) pts t = map go pts where
+  go (x,y) = let p = path x y in (p, Doc.region bounds p)
+  doc = Views.term symbol t
+  layout = Doc.layout Doc.textWidth (Width 80) doc
+  bounds = debug $ Doc.bounds (\t -> (Doc.textWidth t, Height 1)) (Doc.box layout)
+  path x y = Doc.at bounds (X (fromIntegral x), Y (fromIntegral y))
+  debug b = trace (Doc.debugBox b ++ "\n\n" ++ Doc.debugBoxp b) b
 
 tests :: TestTree
 tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Term"
@@ -53,7 +63,27 @@ tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Term"
           assertEqual "path sanity check"
              [Paths.Fn,Paths.Arg]
              (head $ Doc.leafPaths d)
+    , testCase "let-rendering (1)" $ node >>= \node ->
+        do
+          -- let xy = 4223 in 42
+          t <- pure $ let1' [("xy", num 4223)] (num 42)
+          [(p1,r1), (p2,r2), (p3,r3), (p4,r4), (p5,r5), (p6,r6)] <- pure $
+            atPts node [(0,0), (1,0), (10,0), (11,0), (5,0), (8,0)] t
+          assertEqual "p1" [] p1
+          assertEqual "p2" [] p2
+          assertEqual "r1" (rect 0 0 19 1) r1
+          assertEqual "p3" [Paths.Binding 0, Paths.Body] p3
+          assertEqual "r3" (rect 9 0 4 1) r3
+          assertEqual "p3 == p4" p3 p4
+          assertEqual "p5" [Paths.Binding 0, Paths.Bound] p5
+          assertEqual "r5" (rect 4 0 2 1) r5
+          assertEqual "p6" [Paths.Binding 0] p6
+          assertEqual "r6" (rect 4 0 9 1) r6
     ]
+
+rect :: Int -> Int -> Int -> Int -> (X,Y,Width,Height)
+rect x y w h =
+  (X (fromIntegral x), Y (fromIntegral y), Width (fromIntegral w), Height (fromIntegral h))
 
 -- various unison terms, useful for testing
 

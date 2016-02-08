@@ -22,7 +22,7 @@ data Target v
 data PathElement
   = Fn -- ^ Points at function in a function/type application
   | Arg -- ^ Points at the argument of a function/type application
-  | Body -- ^ Points at the body of a lambda, let, or forall
+  | Body -- ^ Points at the body of a lambda, let, binding, or forall
   | Bound -- ^ Points at the symbol bound by a `let`, `lambda` or `forall` binder
   | Binding !Int -- ^ Points at a particular binding in a let
   | Index !Int -- ^ Points at the index of a vector
@@ -45,7 +45,9 @@ focus1 Bound (Term (E.Let1' v b body)) = Just (Var v, \v -> (\v -> Term $ E.let1
 focus1 Bound (Type (T.Forall' v body)) = Just (Var v, \v -> Type <$> (T.forall <$> asVar v <*> pure body))
 focus1 (Index i) (Term (E.Vector' vs)) | i < Vector.length vs && i >= 0 =
   Just (Term (vs `Vector.unsafeIndex` i), \e -> (\e -> Term $ E.vector' $ vs // [(i,e)]) <$> asTerm e)
-focus1 (Binding i) (Term (E.Let1' v b body)) | i <= 0 = Just (Term b, \b -> (\b -> Term $ E.let1 [(v,b)] body) <$> asTerm b)
+focus1 (Binding i) (Term (E.Let1' v b body)) | i <= 0 = Just (Term $ E.lam v b, set) where
+  set (Term (E.Lam' v b)) = pure . Term $ E.let1 [(v,b)] body
+  set _ = Nothing
 focus1 (Binding i) (Term (E.LetRec' bs body)) =
   listToMaybe (drop i bs)
   >>= \(v,b) -> Just (Term b, \b -> (\b -> Term $ E.letRec (take i bs ++ [(v,b)] ++ drop (i+1) bs) body) <$> asTerm b)

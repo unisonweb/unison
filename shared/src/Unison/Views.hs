@@ -60,8 +60,9 @@ term ref t = go no View.low t where
           fixup p = [] -- todo, could use paths to individual variables
           rhs = D.sub' bodyp $ go no View.low body
       in D.group . D.sub' path $ D.docs [lhs, D.embed " =", D.breakable " ", D.nest "  " rhs]
-    _ -> D.sub' path $ D.docs [ D.sub P.Bound (sym name), D.embed " =", D.breakable " "
-                              , D.nest "  " $ go no View.low body ]
+    _ -> D.sub' path . D.group . D.docs $
+           [ D.sub P.Bound (sym name), D.embed " =", D.breakable " "
+           , D.nest "  " . D.sub P.Body $ go no View.low body ]
   go :: (ViewableTerm -> Bool) -> View.Precedence -> ViewableTerm -> Doc Text Path
   go inChain p t = case t of
     E.Lets' bs e ->
@@ -70,10 +71,12 @@ term ref t = go no View.low t where
         pe = replicate (length bs) P.Body
         bps = [ replicate n P.Body ++ [P.Binding 0] | n <- [0 .. length bs - 1] ]
         formattedBs = [ formatBinding bp name b | ((name,b), bp) <- bs `zip` bps ]
-      in D.parenthesize (p /= View.low) . D.group $ D.docs [D.embed "let", D.breakable " "] `D.append`
-                   D.nest "  " (D.delimit (D.breakable "; ") formattedBs) `D.append`
-                   D.docs [ D.breakable " ", D.embed "in", D.breakable " "
-                          , D.sub' pe . D.nest "  " $ go no View.low e ]
+      in D.parenthesize (p /= View.low) . D.group $
+           D.docs [D.embed "let", D.breakable " "]
+           `D.append`
+             D.nest "  " (D.delimit (D.breakable "; ") formattedBs) `D.append`
+             D.docs [ D.breakable " ", D.embed "in", D.breakable " "
+                    , D.sub' pe . D.nest "  " $ go no View.low e ]
     E.LetRec' bs e ->
       let
         bps = map P.Binding [0 .. length bs - 1]
