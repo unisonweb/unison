@@ -109,8 +109,8 @@ term ref t = go no View.low t where
             [ applied, D.breakable " "
             , D.nest "  " . D.group . D.delimit (D.breakable " ") $
               [ D.sub' p (go no (View.increase View.high) s) | (s,p) <- args ] ]
-    LamsP' vs (body,bodyp) -> D.parenthesize (p /= View.low) . D.group $
-      D.delimit (D.embed " ") (map (sym . fst) vs) `D.append`
+    LamsP' vs (body,bodyp) -> D.group . D.parenthesize (p /= View.low) $
+      D.delimit (D.embed " ") (map (\(v,p) -> D.sub' p (sym v)) vs) `D.append`
       D.docs [D.embed " ->", D.breakable " ", D.nest "  " $ D.sub' bodyp (go no View.low body)]
     E.Ann' e t -> D.group . D.parenthesize (p /= View.low) $
                 D.docs [ go no p e, D.embed " :", D.breakable " "

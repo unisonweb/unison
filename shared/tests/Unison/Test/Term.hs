@@ -34,14 +34,14 @@ type TTerm = Term (Symbol DFO)
 hash :: TTerm -> Hash
 hash e = ABT.hash e
 
-atPts :: Common.TNode -> [(Int,Int)] -> TTerm -> [(Paths.Path, Region)]
-atPts (_,symbol) pts t = map go pts where
+atPts :: Bool -> Common.TNode -> [(Int,Int)] -> TTerm -> [(Paths.Path, Region)]
+atPts print (_,symbol) pts t = map go pts where
   go (x,y) = let p = path x y in (p, Doc.region bounds p)
   doc = Views.term symbol t
   layout = Doc.layout Doc.textWidth (Width 80) doc
   bounds = debug $ Doc.bounds (\t -> (Doc.textWidth t, Height 1)) (Doc.box layout)
   path x y = Doc.at bounds (X (fromIntegral x), Y (fromIntegral y))
-  debug b = trace (Doc.debugBox b ++ "\n\n" ++ Doc.debugBoxp b) b
+  debug b = if print then trace ("\n" ++ Doc.debugBox b ++ "\n\n" ++ Doc.debugBoxp b) b else b
 
 tests :: TestTree
 tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Term"
@@ -68,7 +68,7 @@ tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Term"
           -- let xy = 4223 in 42
           t <- pure $ let1' [("xy", num 4223)] (num 42)
           [(p1,r1), (p2,r2), (p3,r3), (p4,r4), (p5,r5), (p6,r6)] <- pure $
-            atPts node [(0,0), (1,0), (10,0), (11,0), (5,0), (8,0)] t
+            atPts False node [(0,0), (1,0), (10,0), (11,0), (5,0), (8,0)] t
           assertEqual "p1" [] p1
           assertEqual "p2" [] p2
           assertEqual "r1" (rect 0 0 19 1) r1
@@ -79,6 +79,13 @@ tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Term"
           assertEqual "r5" (rect 4 0 2 1) r5
           assertEqual "p6" [Paths.Binding 0] p6
           assertEqual "r6" (rect 4 0 9 1) r6
+    , testCase "map lambda rendering" $ node >>= \node ->
+        do
+          -- map (x -> _) [1,2,3]
+          t <- pure $ builtin "Vector.map" `app` lam' ["x"] blank `app` vector (map num [1,2,3])
+          [(p1,r1)] <- pure $ atPts True node [(5,0)] t
+          assertEqual "p1" [Paths.Fn, Paths.Arg] p1
+          assertEqual "r1" (rect 4 0 8 1) r1
     ]
 
 rect :: Int -> Int -> Int -> Int -> (X,Y,Width,Height)
