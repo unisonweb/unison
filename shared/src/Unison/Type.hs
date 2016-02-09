@@ -12,7 +12,6 @@ module Unison.Type where
 
 import Data.Aeson (ToJSON(..), FromJSON(..))
 import Data.Aeson.TH
-import Data.Maybe (fromMaybe)
 import Data.Set (Set)
 import Data.Text (Text)
 import GHC.Generics

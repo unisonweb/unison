@@ -5,16 +5,17 @@
 module Unison.Typechecker (admissibleTypeAt, check, check', checkAdmissible', equals, isSubtype, locals, subtype, synthesize, synthesize', typeAt, wellTyped) where
 
 import Control.Monad
-import Unison.Type (Type)
-import Unison.Term (Term)
 import Unison.Note (Note,Noted)
-import Unison.Var (Var)
 import Unison.Paths (Path)
-import qualified Unison.Paths as Paths
+import Unison.Term (Term)
+import Unison.Type (Type)
+import Unison.Var (Var)
+import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
+import qualified Unison.Note as Note
+import qualified Unison.Paths as Paths
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
-import qualified Unison.Note as Note
 import qualified Unison.Typechecker.Context as Context
 
 --import Debug.Trace
@@ -52,32 +53,42 @@ typeAt :: (Applicative f, Var v) => Type.Env f v -> Path -> Term v -> Noted f (T
 typeAt synth [] t = Note.scoped ("typeAt: " ++ show t) $ synthesize synth t
 typeAt synth loc t = Note.scoped ("typeAt@"++show loc ++ " " ++ show t) $
   let
-    f = Term.fresh t (ABT.v' "t")
+    [f, ev] = ABT.freshes t [ABT.v' "t", ABT.v' "e"]
+    remember e =
+      Term.lam ev (also `Term.apps` [ Term.var f `Term.app` Term.var ev, Term.var ev ])
+      `Term.app` e
     shake (Type.Arrow' (Type.Arrow' tsub _) _) = Type.generalize tsub
     shake (Type.Forall' _ t) = shake t
     shake _ = error "impossible, f had better be a function"
-  in case Term.lam f <$> Paths.modifyTerm (Term.app (Term.var f)) loc t of
+  in case Term.lam f <$> Paths.modifyTerm remember loc t of
     Nothing -> Note.failure $ invalid loc t
     Just t -> shake <$> synthesize synth t
+
+-- | The term `x y -> y`.
+also :: Var v => Term v
+also = Term.lam' ["x","y"] (Term.var' "y") -- `Term.ann`
 
 -- | Return the type of all local variables in scope at the given location
 locals :: (Applicative f, Var v) => Type.Env f v -> Path -> Term v -> Noted f [(v, Type v)]
 locals synth path ctx | ABT.isClosed ctx =
   Note.scoped ("locals@"++show path ++ " " ++ show ctx)
-              (zip (map fst lambdas) <$> lambdaTypes)
+              ((zip vars) <$> types)
   where
-    -- lambdas :: [(v, Term.Path)]
-    lambdas = Paths.pathPrefixes path >>= \path -> case Paths.atTerm path ctx of
-      Just (Term.Lam' v _) -> [(v, path)]
-      _ -> []
-
-    lambdaTypes = traverse t (map snd lambdas)
-      where t path = extract <$> typeAt synth path ctx
-
-    extract :: Var v => Type v -> Type v
-    extract (Type.Arrow' i _) = i
+    -- replace focus, x, with `also (f v1 v2 v3 ... vn) x`, then infer type
+    -- of `f` and read off the types of `v1`, `v2`, ...
+    vars' = ABT.bound ctx `Set.difference` maybe Set.empty ABT.bound (Paths.atTerm path ctx)
+    vars = Set.toList vars'
+    usingAllLocals = Term.lam f (Paths.modifyTerm' remember path ctx)
+    [f, ev] = ABT.freshes ctx [ABT.v' "t", ABT.v' "e"]
+    remember e =
+      Term.lam ev (also `Term.apps` [ Term.var f `Term.apps` map Term.var vars, Term.var ev ])
+      `Term.app` e
+    types = extract <$> typeAt synth [] usingAllLocals
+    extract (Type.Arrow' i _) = extract1 i
     extract (Type.Forall' _ t) = extract t
-    extract t = error $ "expecting function type, got " ++ show t
+    extract t = error $ "expected function type, got: " ++ show t
+    extract1 (Type.Arrow' i o) = i : extract1 o
+    extract1 _ = []
 locals _ _ ctx =
   Note.failure $ "Term.locals: term contains free variables - " ++ show ctx
 

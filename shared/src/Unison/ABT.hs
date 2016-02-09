@@ -44,6 +44,18 @@ data ABT f v r
 -- type `v`.
 data Term f v a = Term { freeVars :: Set v, annotation :: a, out :: ABT f v (Term f v a) }
 
+-- | Return the list of all variables bound by this ABT
+bound' :: Foldable f => Term f v a -> [v]
+bound' t = case out t of
+  Abs v t -> v : bound' t
+  Cycle t -> bound' t
+  Tm f -> Foldable.toList f >>= bound'
+  _ -> []
+
+-- | Return the list of all variables bound by this ABT
+bound :: (Ord v, Foldable f) => Term f v a -> Set v
+bound t = Set.fromList (bound' t)
+
 -- | `True` if the term has no free variables, `False` otherwise
 isClosed :: Term f v a -> Bool
 isClosed t = Set.null (freeVars t)
@@ -201,73 +213,6 @@ visit' f t = case out t of
   Abs x e -> abs x <$> visit' f e
   Tm body -> f body >>= \body -> tm <$> traverse (visit' f) body
 
--- | A single step 'focusing' action, returns the subtree and a function
--- to replace that subtree
-type Focus1 f a = f a -> Maybe (a, a -> f a)
-
--- | Extract the subterm at a given path
-at :: (Foldable f, Ord v) => [Focus1 f (Term f v a)] -> Term f v a -> Maybe (Term f v a)
-at path t = fst <$> focus path t
-
--- | Modify the subterm a path points to
-modify :: (Foldable f, Ord v)
-       => (Term f v a -> Term f v a)
-       -> [Focus1 f (Term f v a)]
-       -> Term f v a
-       -> Maybe (Term f v a)
-modify f path t = (\(t,replace) -> replace (f t)) <$> focus path t
-
--- | Focus on a subterm, obtaining the subtree and a function to replace that subtree
-focus :: (Foldable f, Ord v)
-      => [Focus1 f (Term f v a)]
-      -> Term f v a
-      -> Maybe (Term f v a, Term f v a -> Term f v a)
-focus [] t = Just (t, id)
-focus path@(hd:tl) (Term _ ann t) = case t of
-  Var _ -> Nothing
-  Cycle t ->
-    let f (t,replace) = (t, cycle' ann . replace)
-    in f <$> focus path t
-  Abs v t ->
-    let f (t,replace) = (t, abs' ann v . replace)
-    in f <$> focus path t
-  Tm ft -> do
-    (sub,hreplace) <- hd ft
-    (t,replace) <- focus tl sub
-    pure (t, tm' ann . hreplace . replace)
-
--- | Returns the longest prefix of the path which points to a subterm
--- in which `v` is not bound.
-introducedAt :: Ord v => v -> [Focus1 f (Term f v ())] -> Term f v () -> Maybe [Focus1 f (Term f v ())]
-introducedAt v path t = f =<< boundAlong path t where
-  f bs = case dropWhile (\vs -> not (Set.member v vs)) (reverse bs) of
-    [] -> if elem v (fst (unabs t)) then Just [] else Nothing
-    p -> Just (take (length p) path)
-
--- | Returns the set of variables in scope at the given path, if valid
-boundAt :: Ord v => [Focus1 f (Term f v ())] -> Term f v () -> Maybe (Set v)
-boundAt path t = f =<< boundAlong path t where
-  f [] = Nothing
-  f vs = Just (last vs)
-
--- | Returns the set of variables in scope at the given path,
--- or the empty set if path is invalid
-boundAt' :: Ord v => [Focus1 f (Term f v ())] -> Term f v () -> Set v
-boundAt' path t = fromMaybe Set.empty (boundAt path t)
-
--- | For each element of the input path, the set of variables in scope
-boundAlong :: Ord v => [Focus1 f (Term f v ())] -> Term f v () -> Maybe [Set v]
-boundAlong path t = go Set.empty path t where
-  go _ [] _ = Just []
-  go env path@(hd:tl) t = case out t of
-    Var _ -> Nothing
-    Cycle t -> go env path t
-    Abs v t -> let !env' = Set.insert v env in go env' path t
-    Tm ft -> do
-      (t,_) <- hd ft
-      tl <- go env tl t
-      pure (env : tl)
-
 unabs :: Term f v a -> ([v], Term f v a)
 unabs (Term _ _ (Abs hd body)) =
   let (tl, body') = unabs body in (hd : tl, body')
@@ -362,7 +307,7 @@ subtract _ t1s t2s =
 instance (Show1 f, Var v) => Show (Term f v a) where
   -- annotations not shown
   showsPrec p (Term _ _ out) = case out of
-    Var v -> showsPrec 0 (Var.shortName v)
+    Var v -> (Text.unpack (Var.shortName v) ++)
     Cycle body -> showsPrec p body
-    Abs v body -> showParen True $ showsPrec 0 (Var.shortName v) . showString ". " . showsPrec p body
+    Abs v body -> showParen True $ (Text.unpack (Var.shortName v) ++) . showString ". " . showsPrec p body
     Tm f -> showsPrec1 p f

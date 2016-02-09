@@ -100,6 +100,9 @@ tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Typecheck
   , testCase "synthesize/check Term.const" $ synthesizesAndChecks node
       Term.const
       (forall' ["a", "b"] $ T.v' "a" --> T.v' "b" --> T.v' "a")
+  , testCase "synthesize/check (x y -> y)" $ synthesizesAndChecks node
+      (lam' ["x","y"] (var' "y"))
+      (forall' ["a", "b"] $ T.v' "a" --> T.v' "b" --> T.v' "b")
   , testCase "synthesize/check (let f = (+) in f 1)" $ synthesizesAndChecks node
       (let1' [("f", E.builtin "Number.plus")] (var' "f" `E.app` E.num 1))
       (T.lit T.Number --> T.lit T.Number)
@@ -119,6 +122,10 @@ tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Typecheck
       [Paths.Index 2]
       (E.vector [E.num 1, E.num 2, E.num 1 `Term.plus` E.num 1])
       (T.lit T.Number)
+  , testCase "synthesize/checkAt (let x = _ in _)@[Binding 0,Body]" $ synthesizesAndChecksAt node
+      [Paths.Binding 0, Paths.Body]
+      (E.let1' [("x", E.blank)] E.blank)
+      (forall' ["a"] $ T.v' "a")
   ]
 
 main :: IO ()
