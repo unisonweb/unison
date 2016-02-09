@@ -10,7 +10,6 @@ import Unison.Paths (Path)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Var (Var)
-import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
 import qualified Unison.Note as Note
 import qualified Unison.Paths as Paths
@@ -76,8 +75,7 @@ locals synth path ctx | ABT.isClosed ctx =
   where
     -- replace focus, x, with `also (f v1 v2 v3 ... vn) x`, then infer type
     -- of `f` and read off the types of `v1`, `v2`, ...
-    vars' = ABT.bound ctx `Set.difference` maybe Set.empty ABT.bound (Paths.atTerm path ctx)
-    vars = Set.toList vars'
+    vars = Paths.inScopeAtTerm path ctx
     usingAllLocals = Term.lam f (Paths.modifyTerm' remember path ctx)
     [f, ev] = ABT.freshes ctx [ABT.v' "t", ABT.v' "e"]
     remember e =
