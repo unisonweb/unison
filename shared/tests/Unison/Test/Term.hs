@@ -41,7 +41,7 @@ atPts print (_,symbol) pts t = map go pts where
   layout = Doc.layout Doc.textWidth (Width 80) doc
   bounds = debug $ Doc.bounds (\t -> (Doc.textWidth t, Height 1)) (Doc.box layout)
   path x y = Doc.at bounds (X (fromIntegral x), Y (fromIntegral y))
-  debug b = if print then trace ("\n" ++ Doc.debugBox b ++ "\n\n" ++ Doc.debugBoxp b) b else b
+  debug b = if print then trace ("\n" ++ Doc.debugDoc doc ++ "\n\n" ++ Doc.debugBox b ++ "\n\n" ++ Doc.debugBoxp b) b else b
 
 tests :: TestTree
 tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Term"

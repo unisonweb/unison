@@ -4,7 +4,6 @@
 
 module Unison.Views where
 
-import Data.List
 import Data.Map (Map)
 import Data.Text (Text)
 import Unison.Doc (Doc)
@@ -45,7 +44,7 @@ typeMd :: Map Reference (Metadata (Symbol View.DFO) Reference) -> ViewableType -
 typeMd mds = type' (lookupSymbol mds)
 
 term :: (Reference -> Symbol View.DFO) -> ViewableTerm -> Doc Text Path
-term ref t = go no View.low t where
+term ref t = D.group (go no View.low t) where
   no = const False
   sym v = D.embed (Var.name v)
   op t = case t of
@@ -59,9 +58,9 @@ term ref t = go no View.low t where
       let lhs = fmap fixup $ go no View.low (E.apps (E.var name) (map (E.var . fst) vs))
           fixup p = [] -- todo, could use paths to individual variables
           rhs = D.sub' bodyp $ go no View.low body
-      in D.group . D.sub' path $ D.docs [lhs, D.embed " =", D.breakable " ", D.nest "  " rhs]
+      in D.group . D.sub' path $ D.docs [lhs, D.delimiter " =", D.breakable " ", D.nest "  " rhs]
     _ -> D.sub' path . D.group . D.docs $
-           [ D.sub P.Bound (sym name), D.embed " =", D.breakable " "
+           [ D.sub P.Bound (sym name), D.delimiter " =", D.breakable " "
            , D.nest "  " . D.sub P.Body $ go no View.low body ]
   go :: (ViewableTerm -> Bool) -> View.Precedence -> ViewableTerm -> Doc Text Path
   go inChain p t = case t of
@@ -72,34 +71,37 @@ term ref t = go no View.low t where
         bps = [ replicate n P.Body ++ [P.Binding 0] | n <- [0 .. length bs - 1] ]
         formattedBs = [ formatBinding bp name b | ((name,b), bp) <- bs `zip` bps ]
       in D.parenthesize (p /= View.low) . D.group $
-           D.docs [D.embed "let", D.breakable " "]
+           D.docs [D.delimiter "let", D.breakable " "]
            `D.append`
              D.nest "  " (D.delimit (D.breakable "; ") formattedBs) `D.append`
-             D.docs [ D.breakable " ", D.embed "in", D.breakable " "
+             D.docs [ D.breakable " ", D.delimiter "in", D.breakable " "
                     , D.sub' pe . D.nest "  " $ go no View.low e ]
     E.LetRec' bs e ->
       let
         bps = map P.Binding [0 .. length bs - 1]
         formattedBs = [ formatBinding [bp] name b | ((name,b), bp) <- bs `zip` bps ]
-      in D.parenthesize (p /= View.low) . D.group $ D.docs [D.embed "let rec", D.breakable " "] `D.append`
-                   D.nest "  " (D.delimit (D.breakable "; ") formattedBs) `D.append`
-                   D.docs [ D.breakable " ", D.embed "in", D.breakable " "
-                          , D.sub P.Body . D.nest "  " $ go no View.low e ]
+      in D.parenthesize (p /= View.low) . D.group $
+         D.docs [D.delimiter "let rec", D.breakable " "]
+         `D.append`
+           D.nest "  " (D.delimit (D.breakable "; ") formattedBs) `D.append`
+           D.docs [ D.breakable " ", D.delimiter "in", D.breakable " "
+                  , D.sub P.Body . D.nest "  " $ go no View.low e ]
     E.Vector' vs | Vector.null vs -> D.embed "[ ]"
                  | otherwise      ->
       let
         fmt i v = D.nest "  " . D.sub (P.Index i) $ go no View.low v
         subs = [ fmt i v | (v,i) <- Vector.toList vs `zip` [0..] ]
       in D.group . D.docs $
-           [ D.embed "[ "
+           [ D.delimiter "[ "
            , D.delimit (D.breakable ", ") subs
-           , D.embed " ]" ]
+           , D.delimiter " ]" ]
     AppsP' (fn,fnP) args ->
       let
         Symbol.Symbol _ name view = op fn
         (taken, remaining) = splitAt (View.arity view) args
         fmt (child,path) = (\p -> go (fn ==) p child, path)
-        applied = maybe unsaturated (D.parenthesize (p > View.precedence view && View.arity view /= 0)) $
+        paren = p > View.precedence view && View.arity view /= 0
+        applied = maybe unsaturated (D.parenthesize paren) $
                   View.instantiate view fnP name (map fmt taken)
         unsaturated = D.sub' fnP $ go no View.high fn
       in
@@ -110,10 +112,11 @@ term ref t = go no View.low t where
             , D.nest "  " . D.group . D.delimit (D.breakable " ") $
               [ D.sub' p (go no (View.increase View.high) s) | (s,p) <- args ] ]
     LamsP' vs (body,bodyp) -> D.group . D.parenthesize (p /= View.low) $
-      D.delimit (D.embed " ") (map (\(v,p) -> D.sub' p (sym v)) vs) `D.append`
-      D.docs [D.embed " ->", D.breakable " ", D.nest "  " $ D.sub' bodyp (go no View.low body)]
+      D.delimit (D.delimiter " ") (map (\(v,p) -> D.sub' p (sym v)) vs) `D.append`
+      D.docs [ D.delimiter " ->", D.breakable " "
+             , D.nest "  " $ D.sub' bodyp (go no View.low body) ]
     E.Ann' e t -> D.group . D.parenthesize (p /= View.low) $
-                D.docs [ go no p e, D.embed " :", D.breakable " "
+                D.docs [ go no p e, D.delimiter " :", D.breakable " "
                        , D.nest "  " $ D.sub P.Annotation (type' ref t) ]
     E.Var' v -> sym v
     E.Lit' _ -> D.embed (Var.name $ op t)

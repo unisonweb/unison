@@ -16,7 +16,6 @@ import Control.Monad
 import Data.Aeson.TH
 import Data.Aeson (ToJSON, FromJSON)
 import Data.List
-import Data.Maybe
 import Data.Set (Set)
 import Data.Text (Text)
 import Data.Vector (Vector)
@@ -26,17 +25,14 @@ import Text.Show
 import Unison.Hash (Hash)
 import Unison.Hashable (Hashable, Hashable1)
 import Unison.Reference (Reference)
-import Unison.Symbol (Symbol)
 import Unison.Type (Type)
 import Unison.Var (Var)
 import qualified Control.Monad.Writer.Strict as Writer
 import qualified Data.Aeson as Aeson
 import qualified Data.Monoid as Monoid
 import qualified Data.Set as Set
-import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import qualified Unison.ABT as ABT
-import qualified Unison.Dimensions as Dimensions
 import qualified Unison.Hash as Hash
 import qualified Unison.Hashable as Hashable
 import qualified Unison.JSON as J

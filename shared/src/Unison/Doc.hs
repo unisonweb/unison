@@ -38,11 +38,13 @@ import qualified Unison.Dimensions as Dimensions
 import qualified Unison.Path as Path
 import Debug.Trace
 
+type IsDelimiter = Bool
+
 data D e r
   = Empty
-  | Embed e
+  | Embed IsDelimiter e
   | Breakable e
-  | Fits e
+  | Fits IsDelimiter e
   | Linebreak
   | Group r
   | Nest e r
@@ -88,8 +90,8 @@ elements d = go (unwrap d) [] where
   go (Group d) = go (unwrap d)
   go (Nest e d) = one e . go (unwrap d)
   go (Breakable e) = one e
-  go (Fits e) = one e
-  go (Embed e) = one e
+  go (Fits _ e) = one e
+  go (Embed _ e) = one e
   go _ = id
 
 -- | Map over all `e` elements in this `Doc e p`.
@@ -99,8 +101,8 @@ etraverse f (p :< d) = (p :<) <$> case d of
   Group d -> Group <$> etraverse f d
   Nest e d -> Nest <$> f e <*> etraverse f d
   Breakable e -> Breakable <$> f e
-  Fits e -> Fits <$> f e
-  Embed e -> Embed <$> f e
+  Fits b e -> Fits b <$> f e
+  Embed b e -> Embed b <$> f e
   Linebreak -> pure Linebreak
   Empty -> pure Empty
 
@@ -114,19 +116,19 @@ emap f (p :< r) = p :< first f (second (emap f) r)
 -- with `Nothing`.
 ebind :: Path p => (e -> Doc e2 p) -> Doc e p -> Maybe (Doc e2 p)
 ebind f (p :< d) = case d of
-  Embed e -> Just (sub' p $ f e)
+  Embed _ e -> Just (sub' p $ f e)
   d -> (p :<) <$> case d of
-    Embed _ -> error "GHC can't figure out this is not possible"
+    Embed _ _ -> error "GHC can't figure out this is not possible"
     Append d1 d2 -> Append <$> ebind f d1 <*> ebind f d2
     Group d -> Group <$> ebind f d
     Nest e d -> Nest <$> e2 e <*> ebind f d
     Breakable e -> Breakable <$> e2 e
-    Fits e -> Fits <$> e2 e
+    Fits b e -> Fits b <$> e2 e
     Linebreak -> Just Linebreak
     Empty -> Just Empty
     where
     e2 e = case unwrap (f e) of
-      Embed e2 -> Just e2
+      Embed _ e2 -> Just e2
       _ -> Nothing
 
 -- | The empty document
@@ -155,11 +157,21 @@ sub' hd (tl :< d) = (Path.extend hd tl) :< d
 
 -- | Make a `Doc` from a token and give it an empty path
 embed :: Path p => e -> Doc e p
-embed e = Path.root :< Embed e
+embed e = Path.root :< Embed False e
 
 -- | Make a `Doc` from a token and give it the specified path
 embed' :: p -> e -> Doc e p
-embed' p e = p :< Embed e
+embed' p e = p :< Embed False e
+
+-- | Like `embed`, but create a delimiter. Paths of delimiters
+-- are moved to their nearest enclosing group. They are useful
+-- for indicating parts of the layout which should not be selectable,
+-- like arrows, commas, parentheses, and so on.
+delimiter :: Path p => e -> Doc e p
+delimiter e = Path.root :< Embed True e
+
+delimiter' :: p -> e -> Doc e p
+delimiter' p e = p :< Embed True e
 
 -- | Wrap this `Doc` in a group, which constrains all layout
 -- choices in the group to be the same. For instance,
@@ -198,7 +210,15 @@ fits = fits' Path.root
 
 -- | Like `fits`, but supply a path to attach to the returned `Doc`.
 fits' :: Path p => p -> e -> Doc e p
-fits' p e = p :< Fits e
+fits' p e = p :< Fits False e
+
+-- | Insert `e` if the current group fits on one line
+fitsDelimiter :: Path p => e -> Doc e p
+fitsDelimiter = fitsDelimiter' Path.root
+
+-- | Like `fits`, but supply a path to attach to the returned `Doc`.
+fitsDelimiter' :: Path p => p -> e -> Doc e p
+fitsDelimiter' p e = p :< Fits True e
 
 renderString :: Layout String p -> String
 renderString l = concat (tokens "\n" l)
@@ -209,10 +229,10 @@ stringWidth = Width . fromIntegral . length
 textWidth :: Text -> Width
 textWidth = Width . fromIntegral . Text.length
 
-formatString :: Width -> Doc String p -> String
+formatString :: Path p => Width -> Doc String p -> String
 formatString availableWidth d = renderString (layout stringWidth availableWidth d)
 
-formatText :: Width -> Doc Text p -> String
+formatText :: Path p => Width -> Doc Text p -> String
 formatText availableWidth d =
   formatString availableWidth (emap Text.unpack d)
 
@@ -238,7 +258,7 @@ sep' delim ds = sep delim (map embed ds)
 parenthesize :: (IsString s, Path p) => Bool -> Doc s p -> Doc s p
 parenthesize b d =
   let r = root d
-  in if b then docs [fits' r "(", d, fits' r ")"] else d
+  in if b then docs [fitsDelimiter' r "(", d, fitsDelimiter' r ")"] else d
 
 -- various interpreters
 
@@ -255,53 +275,69 @@ rewrite alg (a :< f) = a :< (alg $ fmap (rewrite alg) f)
 -- | Produce a `Layout` which tries to fit in the given width,
 -- assuming that embedded `e` elements have the computed width.
 -- Runs in linear time without backtracking.
-layout :: (e -> Width) -> Width -> Doc e p -> Layout e p
+layout :: Path p => (e -> Width) -> Width -> Doc e p -> Layout e p
 layout width maxWidth doc =
-  f <$> evalState (go (preferred width doc)) (maxWidth, maxWidth)
+  evalState (go id (preferred width doc)) (maxWidth, maxWidth)
   where
-  f (p,_,_) = p
-  sub p d = p :< LAppend (p :< LEmpty) d
-  go doc = do
+  _1 (p,_,_) = p
+  go path doc = do
     (maxWidth, remainingWidth) <- get
     case doc of
       (_,w,_) :< _ | w <= remainingWidth ->
-        put (maxWidth, remainingWidth `Dimensions.minus` w) $> flow doc
-      p :< Group doc -> (\d -> p :< LGroup d) <$> break' doc
-      _ -> break' doc
+        put (maxWidth, remainingWidth `Dimensions.minus` w) $> flow' path (_1 <$> doc)
+      p :< Group doc -> (\d -> path (_1 p) :< LGroup d) <$> break' id doc
+      _ -> break' path doc
 
-  break' d@((_,_,0) :< _) = break True d
-  break' d = break False d
+  break' path d@((_,_,0) :< _) = break path True d
+  break' path d = break path False d
   oneline ((_,_,0) :< _) = True
   oneline _ = False
+  setpath isDelim path (p,_,_) = if isDelim then Path.root else path p
 
   -- | Insert one level of linebreaks into the document, respecting constraints
-  break deep (p :< doc) = get >>= \(maxWidth, remainingWidth) -> case doc of
-    Empty -> pure $ p :< LEmpty
-    Embed e -> put (maxWidth, remainingWidth `Dimensions.minus` width e) $> (p :< LEmbed e)
-    Breakable _ -> put (maxWidth, maxWidth) $> (p :< LLinebreak)
-    Fits _ -> pure (p :< LEmpty)
-    Linebreak -> put (maxWidth, maxWidth) $> (p :< LLinebreak)
-    Append a b -> (:<) p <$> (LAppend <$> break deep a <*> break (deep && oneline a) b)
+  break path deep (p :< doc) = get >>= \(maxWidth, remainingWidth) -> case doc of
+    Empty -> pure $ Path.root :< LEmpty
+    Embed isDelim e -> put (maxWidth, remainingWidth `Dimensions.minus` width e)
+                    $> (setpath isDelim path p :< LEmbed e)
+    Breakable _ -> put (maxWidth, maxWidth) $> (Path.root :< LLinebreak)
+    Fits _ _ -> pure (Path.root :< LEmpty)
+    Linebreak -> put (maxWidth, maxWidth) $> (Path.root :< LLinebreak)
+    Append a b -> (:<) Path.root <$> (
+      LAppend <$> break (Path.extend (_1 p) . path) deep a
+              <*> break (Path.extend (_1 p) . path) (deep && oneline a) b)
     Nest e doc -> do
       case maxWidth == remainingWidth of
         -- we're immediately preceded by newline, insert `e` and indent
         True -> do
           put $ let newMax = maxWidth `Dimensions.minus` width e in (newMax, newMax)
-          doc <- break deep doc
-          return $ p :< LNest e doc
+          doc <- break (Path.extend (_1 p) . path) deep doc
+          return $ Path.root :< LNest e doc
         -- we're in the middle of a line, ignore `e`
-        False -> sub p <$> break deep doc
-    Group doc | deep -> (:<) p <$> (LGroup <$> break' doc)
-    Group _ -> go (p :< doc) -- we try to avoid breaking subgroups
+        False -> break (Path.extend (_1 p) . path) deep doc
+    Group doc | deep -> (:<) (path (_1 p)) <$> (LGroup <$> break' id doc)
+    Group _ -> go path (p :< doc) -- we try to avoid breaking subgroups
+
+-- | Layout the `Doc` assuming infinite available width
+flow' :: Path p => (p -> p) -> Doc e p -> Layout e p
+flow' path (p :< doc) = case doc of
+  Empty -> Path.root :< LEmpty
+  Embed isDelimiter e -> (if isDelimiter then Path.root else path p) :< LEmbed e
+  Linebreak -> Path.root :< LLinebreak
+  Breakable e -> Path.root :< LEmbed e -- don't linebreak, it fits
+  Fits isDelimiter e -> (if isDelimiter then Path.root else path p) :< LEmbed e
+  Append a b -> Path.root :<
+    (flow' (Path.extend p . path) a `LAppend` flow' (Path.extend p . path) b)
+  Group r -> path p :< LGroup (flow' id r)
+  Nest _ r -> flow' (Path.extend p . path) r
 
 -- | Layout the `Doc` assuming infinite available width
 flow :: Doc e p -> Layout e p
 flow (p :< doc) = case doc of
   Empty -> p :< LEmpty
-  Embed e -> p :< LEmbed e
+  Embed _ e -> p :< LEmbed e
   Linebreak -> p :< LLinebreak
   Breakable e -> p :< LEmbed e -- don't linebreak, it fits
-  Fits e -> p :< LEmbed e
+  Fits _ e -> p :< LEmbed e
   Append a b -> p :< (flow a `LAppend` flow b)
   Group r -> p :< LGroup (flow r)
   Nest _ r -> p :< LAppend (p :< LEmpty) (flow r)
@@ -312,13 +348,13 @@ flow (p :< doc) = case doc of
 preferred :: (e -> Width) -> Doc e p -> Doc e (p,Width,Word)
 preferred width (p :< d) = case d of
   Empty -> (p, Dimensions.zero, 0) :< Empty
-  Embed e -> (p, width e, 0) :< Embed e
+  Embed b e -> (p, width e, 0) :< Embed b e
   -- Since we just use this to decide whether to break or not,
   -- as long as `flow` and `break` both interpret `Linebreak` properly,
   -- a zero width for linebreaks is okay
   Linebreak -> (p, Dimensions.zero, 1) :< Linebreak
   Breakable e -> (p, width e, 1) :< Breakable e -- assuming we fit on the line
-  Fits e -> (p, width e, 0) :< Fits e
+  Fits b e -> (p, width e, 0) :< Fits b e
   Append left right ->
     let left'@((_,wl,vl) :< _) = preferred width left
         right'@((_,wr,vr) :< _) = preferred width right
@@ -617,6 +653,26 @@ debugBoxp b = formatString (Width 80) (go b) where
     where d Horizontal = "h "
           d Vertical = "v "
 
+-- for debugging
+debugDoc :: (Show e, Show p) => Doc e p -> String
+debugDoc d = formatString (Width 80) ((go (emap show d)) :: Doc String ()) where
+  go (p :< d) = group . parenthesize True $
+    docs [embed (show p), embed " :<", breakable " ", nest "  " inner]
+    where
+    txt b e = if b then "!"++e else e
+    inner = case d of
+      Empty -> embed "Empty"
+      Embed b e -> embed (txt b e)
+      Breakable e -> docs [embed "Breakable", breakable " ", nest "  " (embed e)]
+      Fits b e -> group $ docs [embed "Fits", breakable " ", nest "  " (embed $ txt b e)]
+      Linebreak -> embed "Linebreak"
+      Group r -> group $ docs [embed "Group", breakable " ", nest "  " (go r)]
+      Nest e r -> group $ docs [ embed "Nest", delimiter " ", embed e, breakable " "
+                               , nest "  " (go r)]
+      Append a b -> group $ docs [
+        embed "Append", breakable " ", nest "  " (go a), breakable " ", nest "  " (go b) ]
+
+
 debugLayout :: Show p => Layout e p -> [String]
 debugLayout (p :< l) = show p : case l of
   LAppend (_ :< LEmpty) b -> debugLayout b
@@ -624,13 +680,6 @@ debugLayout (p :< l) = show p : case l of
   LAppend a b -> debugLayout a ++ debugLayout b
   LNest _ r -> debugLayout r
   LGroup r -> debugLayout r
-  _ -> []
-
-debugDoc :: Show p => Doc e p -> [String]
-debugDoc (p :< l) = show p : case l of
-  Append a b -> debugDoc a ++ debugDoc b
-  Nest _ r -> debugDoc r
-  Group r -> debugDoc r
   _ -> []
 
 leafPaths :: Path p => Doc e p -> [p]
@@ -663,9 +712,9 @@ instance Bifunctor D where
   second = fmap
   first f d = case d of
     Empty -> Empty
-    Embed e -> Embed (f e)
+    Embed b e -> Embed b (f e)
     Breakable e -> Breakable (f e)
-    Fits e -> Fits (f e)
+    Fits b e -> Fits b (f e)
     Linebreak -> Linebreak
     Group r -> Group r
     Nest e r -> Nest (f e) r
