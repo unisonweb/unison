@@ -21,9 +21,10 @@ import qualified Unison.Paths as Paths
 import qualified Unison.Test.Common as Common
 import qualified Unison.Test.Term as Term
 
+type V = Symbol DFO
 type TTerm = Term.TTerm
-type TType = Type (Symbol DFO)
-type TEnv f = T.Env f (Symbol DFO)
+type TType = Type V
+type TEnv f = T.Env f V
 type TNode = IO Common.TNode
 
 infixr 1 -->
@@ -38,6 +39,11 @@ env :: TNode -> TEnv IO
 env node r = do
   (node, _) <- Note.lift node
   Node.typeAt node (E.ref r) mempty
+
+localsAt :: TNode -> Path -> TTerm -> IO [(V, Type V)]
+localsAt node path e = Note.run $ do
+  t2 <- Typechecker.locals (env node) path e
+  pure t2
 
 synthesizesAt :: TNode -> Path -> TTerm -> TType -> Assertion
 synthesizesAt node path e t = Note.run $ do
@@ -125,8 +131,30 @@ tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Typecheck
   , testCase "synthesize/checkAt (let x = _ in _)@[Binding 0,Body]" $ synthesizesAndChecksAt node
       [Paths.Binding 0, Paths.Body]
       (E.let1' [("x", E.blank)] E.blank)
-      (forall' ["a"] $ T.v' "a")
+      unconstrained
+  , testCase "locals (x y -> _ + _)@[Body,Body,Fn,Arg]" $ do
+      let tm = E.lam' ["x","y"] (E.blank `Term.plus` E.blank)
+      [(x,xt), (y,yt)] <- localsAt node [Paths.Body, Paths.Body, Paths.Fn, Paths.Arg] tm
+      assertEqual "xt unconstrainted" unconstrained (T.generalize xt)
+      assertEqual "yt unconstrainted" unconstrained (T.generalize yt)
+  , testCase "locals (let x = _ in _)" $ do
+      let tm = E.let1' [("x", E.blank)] E.blank
+      [(x,xt)] <- localsAt node [Paths.Body] tm
+      [] <- localsAt node [Paths.Binding 0, Paths.Body] tm
+      assertEqual "xt unconstrainted" unconstrained (T.generalize xt)
+  , testCase "locals (let x = _; y = _ in _)@[Body,Body]" $ do
+      let tm = E.let1' [("x", E.blank), ("y", E.blank)] E.blank
+      [(x,xt), (y,yt)] <- localsAt node [Paths.Body, Paths.Body] tm
+      assertEqual "xt unconstrainted" unconstrained (T.generalize xt)
+      assertEqual "yt unconstrainted" unconstrained (T.generalize yt)
+  , testCase "locals (let x = _; y = _ in _)@[Body,Binding 0,Body]" $ do
+      let tm = E.let1' [("x", E.blank), ("y", E.blank)] E.blank
+      [(x,xt)] <- localsAt node [Paths.Body, Paths.Binding 0, Paths.Body] tm
+      assertEqual "xt unconstrainted" unconstrained (T.generalize xt)
   ]
+
+unconstrained :: TType
+unconstrained = forall' ["a"] (T.v' "a")
 
 main :: IO ()
 main = defaultMain tests
