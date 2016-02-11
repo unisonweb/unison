@@ -454,12 +454,12 @@ synthesize ctx e = Note.scope ("synth: " ++ show e) $ go e where
   go (Term.Lit' l) = pure (synthLit l, ctx) -- 1I=>
   go (Term.App' f arg) = do -- ->E
     (ft, ctx) <- synthesize ctx f
-    synthesizeApp ctx (apply ctx ft) arg
+    synthesizeApp ctx (apply ctx (watch "ft" ft)) arg
   go (Term.Vector' v) = synthesize ctx (desugarVector (Foldable.toList v))
   go (Term.Let1' v binding e) = do
+    (tbinding, ctx) <- synthesize ctx binding
     let v' = fresh v ctx
-    (tbinding, ctx) <- synthesize ctx (ABT.subst (ABT.var v') v binding)
-    (t, ctx) <- synthesize (extend (Ann v' tbinding) ctx) e
+    (t, ctx) <- synthesize (extend (Ann v' tbinding) ctx) (ABT.subst (ABT.var v') v e)
     (ctx, ctx2) <- pure $ breakAt (Ann v' tbinding) ctx
     pure (generalizeExistentials ctx2 t, ctx)
   go (Term.LetRec' [] body) = synthesize ctx body
