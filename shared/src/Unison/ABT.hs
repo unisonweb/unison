@@ -59,9 +59,38 @@ instance Var v => Var (V v) where
   freshenId id v = Var.freshenId id <$> v
   clear v = Var.clear <$> v
 
--- type Path f g = forall v a . Term f v a -> Maybe (Term g v a, Term g (V v) a -> Maybe (Term f v a))
--- make this a data type, define id, compose operation, also the capture-avoiding implementation
--- for walking under a path -- absBodyP :: Path f f, absVarP :: Path f f
+data Path f g
+  = Path (forall v a . Var v => Term f v a -> Maybe (Term g v a, Term g (V v) a -> Maybe (Term f (V v) a)))
+
+-- | Focus on a particular path into a term. Invariant of the setter
+-- is that any `Free` variable in the set term should remain free in the
+-- root term (that is, it should not be captured by any enclosing binder)
+focus :: Var v => Path f g -> Term f v a -> Maybe (Term g v a, Term g (V v) a -> Maybe (Term f (V v) a))
+focus (Path p) t = p t
+
+compose :: Path f g -> Path g h -> Path f h
+compose (Path p1) (Path p2) = Path p3 where
+  p3 t = do
+    (get1,set1) <- p1 t
+    (get2,set2) <- p2 get1
+    pure (get2, \i -> set2 i >>= set1)
+
+at :: Var v => Path f g -> Term f v a -> Maybe (Term g v a)
+at p t = fst <$> focus p t
+
+absBodyP :: (Functor f, Foldable f) => Path f f
+absBodyP = Path go where
+  go (Term _ a (Abs v body)) = Just $ (body, set) where
+    -- make sure that free variables of body are not captured by `v`,
+    -- if so, we rename v to something which does not collide
+    set body = Just $
+      if Set.member (Free v) (freeVars body)
+      then let v' = fresh body (Bound v) in abs' a v' (rename (Bound v) v' body)
+      else abs' a (Bound v) body
+  go _ = Nothing
+
+-- absVarP :: Path f f
+-- here :: Path f f -- identity path
 
 -- | Return the list of all variables bound by this ABT
 bound' :: Foldable f => Term f v a -> [v]
