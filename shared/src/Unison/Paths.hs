@@ -1,4 +1,5 @@
 {-# Language TemplateHaskell #-}
+{-# Language ViewPatterns #-}
 
 module Unison.Paths where
 
@@ -41,30 +42,30 @@ focus1 Arg (Term (E.App' fn arg)) =
   Just (Term arg, \arg -> Term <$> (E.app fn <$> asTerm arg), [])
 focus1 Arg (Type (T.App' fn arg)) =
   Just (Type arg, \arg -> Type <$> (T.app fn <$> asType arg), [])
-focus1 Body (Term (E.Lam' v body)) =
+focus1 Body (Term (E.LamNamed' v body)) =
   Just (Term body, \body -> Term . E.lam v <$> asTerm body, [v])
-focus1 Body (Term (E.Let1' v b body)) =
+focus1 Body (Term (E.Let1Named' v b body)) =
   Just (Term body, \body -> Term . E.let1 [(v,b)] <$> asTerm body, [v])
-focus1 Body (Term (E.LetRec' bs body)) =
+focus1 Body (Term (E.LetRecNamed' bs body)) =
   Just (Term body, \body -> Term . E.letRec bs <$> asTerm body, map fst bs)
-focus1 Body (Type (T.Forall' v body)) =
+focus1 Body (Type (T.ForallNamed' v body)) =
   Just (Type body, \body -> Type . T.forall v <$> asType body, [v])
 focus1 Body (Declaration v body) = Just (Term body, \body -> Declaration v <$> asTerm body, [])
 focus1 Bound (Declaration v body) = Just (Var v, \v -> Declaration <$> asVar v <*> pure body, [])
-focus1 Bound (Term (E.Lam' v body)) =
+focus1 Bound (Term (E.LamNamed' v body)) =
   Just (Var v, \v -> Term <$> (E.lam <$> asVar v <*> pure body), [])
-focus1 Bound (Term (E.Let1' v b body)) =
+focus1 Bound (Term (E.Let1Named' v b body)) =
   Just (Var v, \v -> (\v -> Term $ E.let1 [(v,b)] body) <$> asVar v, [])
-focus1 Bound (Type (T.Forall' v body)) =
+focus1 Bound (Type (T.ForallNamed' v body)) =
   Just (Var v, \v -> Type <$> (T.forall <$> asVar v <*> pure body), [])
 focus1 (Index i) (Term (E.Vector' vs)) | i < Vector.length vs && i >= 0 =
   Just (Term (vs `Vector.unsafeIndex` i),
         \e -> (\e -> Term $ E.vector' $ vs // [(i,e)]) <$> asTerm e,
         [])
-focus1 (Binding i) (Term (E.Let1' v b body)) | i <= 0 = Just (Declaration v b, set, []) where
+focus1 (Binding i) (Term (E.Let1Named' v b body)) | i <= 0 = Just (Declaration v b, set, []) where
   set (Declaration v b) = pure . Term $ E.let1 [(v,b)] body
   set _ = Nothing
-focus1 (Binding i) (Term (E.LetRec' bs body)) =
+focus1 (Binding i) (Term (E.LetRecNamed' bs body)) =
   listToMaybe (drop i bs)
   >>= \(v,b) -> Just (Declaration v b, set, map fst bs) where
   set (Declaration v b) = pure . Term $ E.letRec (take i bs ++ [(v,b)] ++ drop (i+1) bs) body

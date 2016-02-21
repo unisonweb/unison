@@ -193,7 +193,7 @@ interpret eval link path action t =
 applications :: Ord v => Term v -> Type v -> [Term v]
 applications e t = e : go e t
   where
-    go e (Type.Forall' _ t) = go e t
+    go e (Type.ForallNamed' _ t) = go e t
     go e (Type.Arrow' _ t) = let e' = Term.app e Term.blank in e' : go e' t
     go _ _ = []
 

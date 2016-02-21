@@ -60,6 +60,7 @@ library
     Unison.Type
     Unison.Typechecker
     Unison.Typechecker.Context
+    Unison.TypeVar
     Unison.Var
     Unison.View
     Unison.Views

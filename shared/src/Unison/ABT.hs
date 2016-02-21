@@ -5,6 +5,7 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -44,6 +45,24 @@ data ABT f v r
 -- type `v`.
 data Term f v a = Term { freeVars :: Set v, annotation :: a, out :: ABT f v (Term f v a) }
 
+data V v = Free v | Bound v deriving (Eq,Ord,Show,Functor)
+
+unvar :: V v -> v
+unvar (Free v) = v
+unvar (Bound v) = v
+
+instance Var v => Var (V v) where
+  named txt = Bound (Var.named txt)
+  name v = Var.name (unvar v)
+  qualifiedName v = Var.qualifiedName (unvar v)
+  freshIn s v = Var.freshIn (Set.map unvar s) <$> v
+  freshenId id v = Var.freshenId id <$> v
+  clear v = Var.clear <$> v
+
+-- type Path f g = forall v a . Term f v a -> Maybe (Term g v a, Term g (V v) a -> Maybe (Term f v a))
+-- make this a data type, define id, compose operation, also the capture-avoiding implementation
+-- for walking under a path -- absBodyP :: Path f f, absVarP :: Path f f
+
 -- | Return the list of all variables bound by this ABT
 bound' :: Foldable f => Term f v a -> [v]
 bound' t = case out t of
@@ -81,7 +100,8 @@ instance Functor f => Functor (Term f v) where
 
 pattern Var' v <- Term _ _ (Var v)
 pattern Cycle' vs t <- Term _ _ (Cycle (AbsN' vs t))
-pattern Abs' v body <- Term _ _ (Abs v body)
+-- pattern Abs' v body <- Term _ _ (Abs v body)
+pattern Abs' subst <- (unabs1 -> Just subst)
 pattern AbsN' vs body <- (unabs -> (vs, body))
 pattern Tm' f <- Term _ _ (Tm f)
 
@@ -155,8 +175,13 @@ freshNamed' :: Var v => Set v -> Text -> v
 freshNamed' used n = fresh' used (v' n)
 
 -- | `subst t x body` substitutes `t` for `x` in `body`, avoiding capture
-subst :: (Foldable f, Functor f, Var v) => Term f v a -> v -> Term f v a -> Term f v a
-subst t x body = replace t match body where
+subst :: (Foldable f, Functor f, Var v) => v -> Term f v a -> Term f v a -> Term f v a
+subst = subst' Set.empty
+
+-- | `subst t x body` substitutes `t` for `x` in `body`, avoiding capture
+-- for all variables not in `capturable`
+subst' :: (Foldable f, Functor f, Var v) => Set v -> v -> Term f v a -> Term f v a -> Term f v a
+subst' capturable x = replace' capturable match where
   match (Var' v) = x == v
   match _ = False
 
@@ -164,25 +189,34 @@ subst t x body = replace t match body where
 -- substitutions, avoiding capture
 substs :: (Foldable f, Functor f, Var v) => [(v, Term f v a)] -> Term f v a -> Term f v a
 substs replacements body = foldr f body replacements where
-  f (v, t) body = subst t v body
+  f (v, t) body = subst v t body
+
+-- | Like `replace`, but allow capture of variables in the given `Set v`.
+replace' :: (Foldable f, Functor f, Var v)
+        => Set v
+        -> (Term f v a -> Bool)
+        -> Term f v a
+        -> Term f v a
+        -> Term f v a
+replace' _ f t body | f body = t
+replace' capturable f t t2@(Term _ ann body) = case body of
+  Var v -> annotatedVar ann v
+  Cycle body -> cycle' ann (replace f t body)
+  Abs x e -> abs' ann x' e'
+    where x' = freshInBoth t t2 x
+          -- rename x to something that cannot be captured by `t`
+          e' = if Set.notMember x capturable && x /= x' then replace f t (rename x x' e)
+               else replace f t e
+  Tm body -> tm' ann (fmap (replace f t) body)
 
 -- | `replace t f body` substitutes `t` for all maximal (outermost)
 -- subterms matching the predicate `f` in `body`, avoiding capture.
 replace :: (Foldable f, Functor f, Var v)
-        => Term f v a
-        -> (Term f v a -> Bool)
+        => (Term f v a -> Bool)
         -> Term f v a
         -> Term f v a
-replace t f body | f body = t
-replace t f t2@(Term _ ann body) = case body of
-  Var v -> annotatedVar ann v
-  Cycle body -> cycle' ann (replace t f body)
-  Abs x e -> abs' ann x' e'
-    where x' = freshInBoth t t2 x
-          -- rename x to something that cannot be captured by `t`
-          e' = if x /= x' then replace t f (rename x x' e)
-               else replace t f e
-  Tm body -> tm' ann (fmap (replace t f) body)
+        -> Term f v a
+replace = replace' Set.empty
 
 -- | `visit f t` applies an effectful function to each subtree of
 -- `t` and sequences the results. When `f` returns `Nothing`, `visit`
@@ -212,6 +246,21 @@ visit' f t = case out t of
   Cycle body -> cycle <$> visit' f body
   Abs x e -> abs x <$> visit' f e
   Tm body -> f body >>= \body -> tm <$> traverse (visit' f) body
+
+type Subst f v a = Set v -> Term f v a -> Term f v a
+type Substs f v a = Set v -> [Term f v a] -> Term f v a
+
+unabs1 :: (Foldable f, Functor f, Var v) => Term f v a -> Maybe (Set v -> Term f v a -> Term f v a)
+unabs1 (Term _ _ (Abs v body)) = Just $ \capturable x -> subst' capturable v x body
+unabs1 _ = Nothing
+
+unabsN :: (Foldable f, Functor f, Var v) => Term f v a -> Maybe (Substs f v a)
+unabsN (Term _ a (Abs v body)) = Just $ \capturable xs -> case xs of
+  [] -> abs' a v body
+  x : xt -> case unabsN body of
+    Just subst -> subst' capturable v x (subst capturable xt)
+    Nothing -> subst' capturable v x body
+unabsN _ = Nothing
 
 unabs :: Term f v a -> ([v], Term f v a)
 unabs (Term _ _ (Abs hd body)) =

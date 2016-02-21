@@ -76,7 +76,7 @@ term ref t = D.group (go no View.low t) where
              D.nest "  " (D.delimit (D.breakable "; ") formattedBs) `D.append`
              D.docs [ D.breakable " ", D.delimiter "in", D.breakable " "
                     , D.sub' pe . D.nest "  " $ go no View.low e ]
-    E.LetRec' bs e ->
+    E.LetRecNamed' bs e ->
       let
         bps = map P.Binding [0 .. length bs - 1]
         formattedBs = [ formatBinding [bp] name b | ((name,b), bp) <- bs `zip` bps ]
@@ -133,8 +133,8 @@ type' ref t = go no View.low t
   op t = case t of
     T.Lit' (T.Ref r) -> ref r
     T.Lit' l -> Symbol.annotate View.prefix . (\r -> Symbol.prefix r :: Symbol ()) . Text.pack . show $ l
-    T.Universal' v -> v
-    T.Existential' v -> v
+    T.Var' v -> v
+    -- todo: allow lambdas, etc, in head position
     _ -> Symbol.annotate View.prefix (Symbol.prefix "" :: Symbol ())
   go :: (ViewableType -> Bool) -> View.Precedence -> ViewableType -> Doc Text Path
   go inChain p t = case t of
@@ -165,8 +165,7 @@ type' ref t = go no View.low t
            D.docs [D.embed ".", D.breakable " ", D.nest "  " $ D.sub' bodyp (go no View.low body)]
     T.Constrain' t _ -> go inChain p t
     T.Ann' t _ -> go inChain p t -- ignoring kind annotations for now
-    T.Universal' v -> sym v
-    T.Existential' v -> D.embed ("'" `mappend` Var.name v)
+    T.Var' v -> sym v
     T.Lit' _ -> D.embed (Var.name $ op t)
     _ -> error $ "layout match failure"
 
@@ -185,7 +184,7 @@ defaultSymbol (Reference.Derived h) = Symbol.prefix (Text.cons '#' $ short h)
   short h = Text.take 8 . Hash.base64 $ h
 
 unLams' :: Term v -> Maybe ([(v, Path)], (Term v, Path))
-unLams' (E.Lam' v body) = case unLams' body of
+unLams' (E.LamNamed' v body) = case unLams' body of
   Nothing -> Just ([(v, [P.Bound])], (body, [P.Body]))
   Just (vs, (body,bodyp)) -> Just ((v, [P.Bound]) : fmap (\(v,tl) -> (v,P.Body:tl)) vs, (body, P.Body:bodyp))
 unLams' _ = Nothing
@@ -214,7 +213,7 @@ arrowPaths spineLength =
   [replicate spineLength P.Output]
 
 unForalls' :: Type v -> Maybe ([(v, Path)], (Type v, Path))
-unForalls' (T.Forall' v body) = case unForalls' body of
+unForalls' (T.ForallNamed' v body) = case unForalls' body of
   Nothing -> Just ([(v, [P.Bound])], (body, [P.Body]))
   Just (vs, (body,bodyp)) -> Just ((v, [P.Bound]) : fmap (\(v,tl) -> (v,P.Body:tl)) vs, (body, P.Body:bodyp))
 unForalls' _ = Nothing

@@ -11,7 +11,6 @@
 
 module Unison.Term where
 
-import Control.Applicative
 import Control.Monad
 import Data.Aeson.TH
 import Data.Aeson (ToJSON, FromJSON)
@@ -81,11 +80,13 @@ pattern App' f x <- (ABT.out -> ABT.Tm (App f x))
 pattern Apps' f args <- (unApps -> Just (f, args))
 pattern Ann' x t <- (ABT.out -> ABT.Tm (Ann x t))
 pattern Vector' xs <- (ABT.out -> ABT.Tm (Vector xs))
-pattern Lam' v body <- (ABT.out -> ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body))))
-pattern Let1' v b e <- (ABT.out -> ABT.Tm (Let b (ABT.Abs' v e)))
-pattern Lets' bs e <- Let' bs e _ False
-pattern Let' bs e relet rec <- (unLets -> Just (bs,e,relet,rec))
-pattern LetRec' bs e <- (unLetRec -> Just (bs,e))
+pattern Lam' subst <- ABT.Tm' (Lam (ABT.Abs' subst))
+pattern LamNamed' v body <- (ABT.out -> ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body))))
+pattern Let1' b subst <- (unLet1 -> Just (b, subst))
+pattern Let1Named' v b e <- (ABT.Tm' (Let b (ABT.out -> ABT.Abs v e)))
+pattern Lets' bs e <- (unLet -> Just (bs, e))
+pattern LetRecNamed' bs e <- (unLetRecNamed -> Just (bs,e))
+pattern LetRec' subst <- (unLetRec -> Just subst)
 
 fresh :: Var v => Term v -> v -> v
 fresh = ABT.fresh
@@ -157,29 +158,31 @@ let1 bindings e = foldr f e bindings
 let1' :: Var v => [(Text,Term v)] -> Term v -> Term v
 let1' bs e = let1 [(ABT.v' name, b) | (name,b) <- bs ] e
 
--- | Satisfies
---   `unLets (letRec bs e) == Just (bs, e, letRec, True)` and
---   `unLets (let' bs e) == Just (bs, e, let', False)`
--- Useful for writing code agnostic to whether a let block is recursive or not.
-unLets :: Ord v => Term v -> Maybe ([(v,Term v)], Term v, [(v,Term v)] -> Term v -> Term v, Bool)
-unLets e =
-  (f letRec True <$> unLetRec e) <|> (f let1 False <$> unLet e)
-  where f mkLet rec (bs,e) = (bs,e,mkLet,rec)
-
--- | Satisfies `unLetRec (letRec bs e) == Just (bs, e)`
-unLetRec :: Term v -> Maybe ([(v, Term v)], Term v)
-unLetRec (ABT.Cycle' vs (ABT.Tm' (LetRec bs e)))
-  | length vs == length vs = Just (zip vs bs, e)
-unLetRec _ = Nothing
+unLet1 :: Var v => Term v -> Maybe (Term v, ABT.Subst (F v) v ())
+unLet1 (ABT.Tm' (Let b (ABT.Abs' subst))) = Just (b, subst)
+unLet1 _ = Nothing
 
 -- | Satisfies `unLet (let' bs e) == Just (bs, e)`
 unLet :: Term v -> Maybe ([(v, Term v)], Term v)
 unLet t = fixup (go t) where
-  go (ABT.out -> ABT.Tm (Let b (ABT.Abs' v t))) =
+  go (ABT.Tm' (Let b (ABT.out -> ABT.Abs v t))) =
     case go t of (env,t) -> ((v,b):env, t)
   go t = ([], t)
   fixup ([], _) = Nothing
   fixup bst = Just bst
+
+-- | Satisfies `unLetRec (letRec bs e) == Just (bs, e)`
+unLetRecNamed :: Term v -> Maybe ([(v, Term v)], Term v)
+unLetRecNamed (ABT.Cycle' vs (ABT.Tm' (LetRec bs e)))
+  | length vs == length vs = Just (zip vs bs, e)
+unLetRecNamed _ = Nothing
+
+unLetRec :: Monad m => Var v => Term v -> Maybe ((v -> m v) -> m ([(v, Term v)], Term v))
+unLetRec (unLetRecNamed -> Just (bs, e)) = Just $ \freshen -> do
+  vs <- sequence [ freshen v | (v,_) <- bs ]
+  let sub = ABT.substs (map fst bs `zip` map ABT.var vs)
+  pure (vs `zip` [ sub b | (_,b) <- bs ], sub e)
+unLetRec _ = Nothing
 
 unApps :: Term v -> Maybe (Term v, [Term v])
 unApps t = case go t [] of [] -> Nothing; f:args -> Just (f,args)
@@ -206,14 +209,14 @@ link :: (Applicative f, Monad f, Var v) => (Hash -> f (Term v)) -> Term v -> f (
 link env e =
   let ds = map (\h -> (h, link env =<< env h)) (Set.toList (dependencies e))
       sub e (h, ft) = replace <$> ft
-        where replace t = ABT.replace t ((==) rt) e
+        where replace t = ABT.replace ((==) rt) t e
               rt = ref (Reference.Derived h)
   in foldM sub e ds
 
 -- | If the outermost term is a function application,
 -- perform substitution of the argument into the body
 betaReduce :: Var v => Term v -> Term v
-betaReduce (App' (Lam' n body) arg) = ABT.subst arg n body
+betaReduce (App' (Lam' f) arg) = f Set.empty arg
 betaReduce e = e
 
 instance Var v => Hashable1 (F v) where

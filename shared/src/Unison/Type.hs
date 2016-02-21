@@ -19,6 +19,7 @@ import Prelude.Extras (Eq1(..),Show1(..))
 import Unison.Hashable (Hashable, Hashable1)
 import Unison.Note (Noted)
 import Unison.Reference (Reference)
+import Unison.TypeVar (TypeVar)
 import Unison.Var (Var)
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
@@ -27,6 +28,7 @@ import qualified Unison.Hashable as Hashable
 import qualified Unison.JSON as J
 import qualified Unison.Kind as K
 import qualified Unison.Reference as Reference
+import qualified Unison.TypeVar as TypeVar
 
 -- | Type literals
 data Literal
@@ -46,8 +48,6 @@ data F a
   | App a a
   | Constrain a () -- todo: constraint language
   | Forall a
-  | Existential a
-  | Universal a
   deriving (Eq,Foldable,Functor,Generic1,Traversable)
 
 deriveJSON defaultOptions ''F
@@ -72,9 +72,9 @@ instance Var v => Show (Monotype v) where
   show = show . getPolytype
 
 -- Smart constructor which checks if a `Type` has no `Forall` quantifiers.
-monotype :: Ord v => Type v -> Maybe (Monotype v)
+monotype :: Var v => Type v -> Maybe (Monotype v)
 monotype t = Monotype <$> ABT.visit isMono t where
-  isMono (Forall' _ _) = Just Nothing
+  isMono (Forall' _) = Just Nothing
   isMono _ = Nothing
 
 -- some smart patterns
@@ -85,9 +85,11 @@ pattern Ann' t k <- ABT.Tm' (Ann t k)
 pattern App' f x <- ABT.Tm' (App f x)
 pattern Apps' f args <- (unApps -> Just (f, args))
 pattern Constrain' t u <- ABT.Tm' (Constrain t u)
-pattern Forall' v body <- ABT.Tm' (Forall (ABT.Abs' v body))
-pattern Existential' v <- ABT.Tm' (Existential (ABT.Var' v))
-pattern Universal' v <- ABT.Tm' (Universal (ABT.Var' v))
+pattern Forall' subst <- ABT.Tm' (Forall (ABT.Abs' subst))
+pattern ForallNamed' v body <- ABT.Tm' (Forall (ABT.out -> ABT.Abs v body))
+pattern Var' v <- ABT.Var' v
+pattern Existential' v <- ABT.Var' (TypeVar.Existential v)
+pattern Universal' v <- ABT.Var' (TypeVar.Universal v)
 
 unArrows :: Type v -> Maybe [Type v]
 unArrows t =
@@ -102,17 +104,17 @@ unApps t = case go t [] of [] -> Nothing; f:args -> Just (f,args)
   go (App' i o) acc = go i (o:acc)
   go fn args = fn:args
 
-matchExistential :: Eq v => v -> Type v -> Bool
+matchExistential :: Eq v => v -> Type (TypeVar v) -> Bool
 matchExistential v (Existential' x) = x == v
 matchExistential _ _ = False
 
-matchUniversal :: Eq v => v -> Type v -> Bool
+matchUniversal :: Eq v => v -> Type (TypeVar v) -> Bool
 matchUniversal v (Universal' x) = x == v
 matchUniversal _ _ = False
 
 -- | True if the given type is a function, possibly quantified
-isArrow :: Type v -> Bool
-isArrow (Forall' _ t) = isArrow t
+isArrow :: Var v => Type v -> Bool
+isArrow f@(Forall' t) = isArrow (t (ABT.freeVars f) (v' "isArrow"))
 isArrow (Constrain' t _) = isArrow t
 isArrow (Arrow' _ _) = True
 isArrow _ = False
@@ -143,14 +145,14 @@ ann e t = ABT.tm (Ann e t)
 forall :: Ord v => v -> Type v -> Type v
 forall v body = ABT.tm (Forall (ABT.abs v body))
 
-existential :: Ord v => v -> Type v
-existential v = ABT.tm (Existential (ABT.var v))
+existential :: Ord v => v -> Type (TypeVar v)
+existential v = ABT.var (TypeVar.Existential v)
 
-universal :: Ord v => v -> Type v
-universal v = ABT.tm (Universal (ABT.var v))
+universal :: Ord v => v -> Type (TypeVar v)
+universal v = ABT.var (TypeVar.Universal v)
 
 v' :: Var v => Text -> Type v
-v' s = universal (ABT.v' s)
+v' s = ABT.var (ABT.v' s)
 
 forall' :: Var v => [Text] -> Type v -> Type v
 forall' vs body = foldr forall body (map ABT.v' vs)
@@ -183,8 +185,6 @@ instance Hashable1 F where
       Ann a k -> [tag 3, hashed (hash a), hashToken k ]
       Constrain a u -> [tag 4, hashed (hash a), hashToken u]
       Forall a -> [tag 5, hashed (hash a)]
-      Existential v -> [tag 6, hashed (hash v)]
-      Universal v -> [tag 7, hashed (hash v)]
 
 instance J.ToJSON1 F where
   toJSON1 f = toJSON f
@@ -208,8 +208,6 @@ instance Show a => Show (F a) where
     go p (App f x) =
       showParen (p > 9) $ showsPrec 9 f <> s" " <> showsPrec 10 x
     go p (Constrain t _) = showsPrec p t
-    go _ (Universal v) = showsPrec 0 v
-    go _ (Existential v) = s"'" <> showsPrec 0 v
     go p (Forall body) = case p of
       0 -> showsPrec p body
       _ -> showParen True $ s"∀ " <> showsPrec 0 body

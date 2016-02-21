@@ -98,7 +98,7 @@ data Node m v h t e = Node {
   updateMetadata :: h -> Metadata v h -> Noted m ()
 }
 
-node :: (Monad f, Var v)
+node :: (Show v, Monad f, Var v)
      => Eval (Noted f) v
      -> (Term v -> Reference)
      -> Store f v
