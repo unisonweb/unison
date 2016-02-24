@@ -68,6 +68,7 @@ vmap :: Ord v2 => (v -> v2) -> AnnotatedTerm v a -> AnnotatedTerm v2 a
 vmap f t = go (ABT.vmap f t) where
   go t = undefined
 
+
 wrapV :: Ord v => AnnotatedTerm v a -> AnnotatedTerm (ABT.V v) a
 wrapV = vmap ABT.Bound
 
@@ -229,7 +230,7 @@ link env e =
 -- | If the outermost term is a function application,
 -- perform substitution of the argument into the body
 betaReduce :: Var v => Term v -> Term v
-betaReduce (App' (Lam' f) arg) = f Set.empty arg
+betaReduce (App' (Lam' f) arg) = ABT.bind f arg
 betaReduce e = e
 
 instance Var v => Hashable1 (F v) where

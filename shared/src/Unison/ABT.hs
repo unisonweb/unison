@@ -241,15 +241,11 @@ freshes' = Var.freshes
 freshNamed' :: Var v => Set v -> Text -> v
 freshNamed' used n = fresh' used (v' n)
 
--- | `subst t x body` substitutes `t` for `x` in `body`, avoiding capture
+-- | `subst v e body` substitutes `e` for `v` in `body`, avoiding capture by
+-- renaming abstractions in `body`
 subst :: (Foldable f, Functor f, Var v) => v -> Term f v a -> Term f v a -> Term f v a
-subst = subst' Set.empty
-
--- | `subst t x body` substitutes `t` for `x` in `body`, avoiding capture
--- for all variables not in `capturable`
-subst' :: (Foldable f, Functor f, Var v) => Set v -> v -> Term f v a -> Term f v a -> Term f v a
-subst' capturable x = replace' capturable match where
-  match (Var' v) = x == v
+subst v = replace match where
+  match (Var' v') = v == v'
   match _ = False
 
 -- | `substs [(t1,v1), (t2,v2), ...] body` performs multiple simultaneous
@@ -258,32 +254,23 @@ substs :: (Foldable f, Functor f, Var v) => [(v, Term f v a)] -> Term f v a -> T
 substs replacements body = foldr f body replacements where
   f (v, t) body = subst v t body
 
--- | Like `replace`, but allow capture of variables in the given `Set v`.
-replace' :: (Foldable f, Functor f, Var v)
-        => Set v
-        -> (Term f v a -> Bool)
-        -> Term f v a
-        -> Term f v a
-        -> Term f v a
-replace' _ f t body | f body = t
-replace' capturable f t t2@(Term _ ann body) = case body of
-  Var v -> annotatedVar ann v
-  Cycle body -> cycle' ann (replace f t body)
-  Abs x e -> abs' ann x' e'
-    where x' = freshInBoth t t2 x
-          -- rename x to something that cannot be captured by `t`
-          e' = if Set.notMember x capturable && x /= x' then replace f t (rename x x' e)
-               else replace f t e
-  Tm body -> tm' ann (fmap (replace f t) body)
-
--- | `replace t f body` substitutes `t` for all maximal (outermost)
+-- | `replace f t body` substitutes `t` for all maximal (outermost)
 -- subterms matching the predicate `f` in `body`, avoiding capture.
 replace :: (Foldable f, Functor f, Var v)
         => (Term f v a -> Bool)
         -> Term f v a
         -> Term f v a
         -> Term f v a
-replace = replace' Set.empty
+replace f t body | f body = t
+replace f t t2@(Term _ ann body) = case body of
+  Var v -> annotatedVar ann v
+  Cycle body -> cycle' ann (replace f t body)
+  Abs x e -> abs' ann x' e'
+    where x' = freshInBoth t t2 x
+          -- rename x to something that cannot be captured by `t`
+          e' = if x /= x' then replace f t (rename x x' e)
+               else replace f t e
+  Tm body -> tm' ann (fmap (replace f t) body)
 
 -- | `visit f t` applies an effectful function to each subtree of
 -- `t` and sequences the results. When `f` returns `Nothing`, `visit`
@@ -314,20 +301,15 @@ visit' f t = case out t of
   Abs x e -> abs x <$> visit' f e
   Tm body -> f body >>= \body -> tm <$> traverse (visit' f) body
 
-type Subst f v a = Set v -> Term f v a -> Term f v a
-type Substs f v a = Set v -> [Term f v a] -> Term f v a
+data Subst f v a =
+  Subst { freshen :: forall m v' . Monad m => (v -> m v') -> m v'
+        , bind    :: Term f v a -> Term f v a }
 
-unabs1 :: (Foldable f, Functor f, Var v) => Term f v a -> Maybe (Set v -> Term f v a -> Term f v a)
-unabs1 (Term _ _ (Abs v body)) = Just $ \capturable x -> subst' capturable v x body
+unabs1 :: (Foldable f, Functor f, Var v) => Term f v a -> Maybe (Subst f v a)
+unabs1 (Term _ a (Abs v body)) = Just (Subst freshen bind) where
+  freshen f = f v
+  bind x = subst v x body
 unabs1 _ = Nothing
-
-unabsN :: (Foldable f, Functor f, Var v) => Term f v a -> Maybe (Substs f v a)
-unabsN (Term _ a (Abs v body)) = Just $ \capturable xs -> case xs of
-  [] -> abs' a v body
-  x : xt -> case unabsN body of
-    Just subst -> subst' capturable v x (subst capturable xt)
-    Nothing -> subst' capturable v x body
-unabsN _ = Nothing
 
 unabs :: Term f v a -> ([v], Term f v a)
 unabs (Term _ _ (Abs hd body)) =

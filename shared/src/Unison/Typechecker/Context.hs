@@ -149,6 +149,9 @@ scope msg (M m) = M (\env -> Note.scope msg (m env))
 freshenVar :: Var v => v -> M v v
 freshenVar v = M (\(Env id ctx) -> Right (Var.freshenId id v, Env (id+1) ctx))
 
+freshenTypeVar :: Var v => TypeVar v -> M v v
+freshenTypeVar v = M (\(Env id ctx) -> Right (Var.freshenId id (TypeVar.underlying v), Env (id+1) ctx))
+
 freshVar :: Var v => M v v
 freshVar = freshenVar (Var.named "v")
 
@@ -238,7 +241,7 @@ wellformedType c t = wellformed c && case t of
   Type.Constrain' t' _ -> wellformedType c t'
   Type.Forall' t ->
     let (v,ctx2) = extendUniversal c
-    in wellformedType ctx2 (t Set.empty (Type.universal v))
+    in wellformedType ctx2 (ABT.bind t (Type.universal v))
   _ -> error $ "Context.wellformedType - ill formed type - " ++ show t
   where
   -- | Extend this `Context` with a single variable, guaranteed fresh
@@ -315,13 +318,13 @@ subtype tx ty = scope (show tx++" <: "++show ty) $
     subtype x1 x2; ctx' <- getContext
     subtype (apply ctx' y1) (apply ctx' y2)
   go _ t (Type.Forall' t2) = scope "forall (R)" $ do
-    v' <- extendUniversal =<< freshVar
-    t2 <- pure $ t2 Set.empty (Type.universal v')
+    v' <- extendUniversal =<< ABT.freshen t2 freshenTypeVar
+    t2 <- pure $ ABT.bind t2 (Type.universal v')
     subtype t t2
     modifyContext (retract (Universal v'))
   go _ (Type.Forall' t) t2 = scope "forall (L)" $ do
-    v <- extendMarker =<< freshVar
-    t <- pure $ t Set.empty (Type.existential v)
+    v <- extendMarker =<< ABT.freshen t freshenTypeVar
+    t <- pure $ ABT.bind t (Type.existential v)
     ctx' <- getContext
     subtype (apply ctx' t) t2
     modifyContext (retract (Marker v))
@@ -358,8 +361,8 @@ instantiateL v t = getContext >>= \ctx -> case Type.monotype t >>= solve ctx v o
       ctx' <- instantiateL x' (apply ctx0 x) >> getContext
       instantiateL y' (apply ctx' y)
     Type.Forall' body -> do -- InstLIIL
-      v <- extendUniversal (ABT.v' "v")
-      instantiateL v (body Set.empty (Type.universal v))
+      v <- extendUniversal =<< ABT.freshen body freshenTypeVar
+      instantiateL v (ABT.bind body (Type.universal v))
       modifyContext (retract (Universal v))
     _ -> fail ("could not instantiate left: " ++ show t)
 
@@ -387,9 +390,9 @@ instantiateR t v = getContext >>= \ctx -> case Type.monotype t >>= solve ctx v o
       ctx <- instantiateR (apply ctx0 x) x' >> getContext
       instantiateR (apply ctx y) y'
     Type.Forall' body -> do -- InstRAIIL
-      x' <- freshVar
+      x' <- ABT.freshen body freshenTypeVar
       setContext $ ctx `append` context [Marker x', Existential x']
-      instantiateR (body Set.empty (Type.existential x')) v
+      instantiateR (ABT.bind body (Type.existential x')) v
       modifyContext (retract (Marker x'))
     _ -> fail "could not instantiate right"
 
@@ -402,19 +405,19 @@ check e t = getContext >>= \ctx -> scope ("check: " ++ show e ++ ":   " ++ show 
       go (Term.Lit' l) _ = subtype (synthLit l) t -- 1I
       go Term.Blank' _ = pure () -- somewhat hacky short circuit; blank checks successfully against all types
       go _ (Type.Forall' body) = do -- ForallI
-        x <- extendUniversal (ABT.v' "x")
-        check e (body Set.empty (Type.universal x))
+        x <- extendUniversal =<< ABT.freshen body freshenTypeVar
+        check e (ABT.bind body (Type.universal x))
         modifyContext $ retract (Universal x)
       go (Term.Lam' body) (Type.Arrow' i o) = do -- =>I
-        x <- freshenVar (ABT.v' "x")
+        x <- ABT.freshen body freshenVar
         modifyContext' (extend (Ann x i))
-        check (body Set.empty (Term.var x)) o
+        check (ABT.bind body (Term.var x)) o
         modifyContext (retract (Ann x i))
       go (Term.Let1' binding e) t = do
-        v <- freshVar
+        v <- ABT.freshen e freshenVar
         tbinding <- synthesize binding
         modifyContext' (extend (Ann v tbinding))
-        check (e Set.empty (Term.var v)) t
+        check (ABT.bind e (Term.var v)) t
         modifyContext (retract (Ann v tbinding))
       go (Term.LetRecNamed' [] e) t = check e t
       go (Term.LetRec' letrec) t = do
@@ -488,9 +491,9 @@ synthesize e = scope ("synth: " ++ show e) $ go e where
   go (Term.Let1' binding e) = do
     -- note: no need to freshen binding, it can't refer to v
     tbinding <- synthesize binding
-    v' <- freshVar
+    v' <- ABT.freshen e freshenVar
     appendContext (context [Ann v' tbinding])
-    t <- synthesize (e Set.empty (Term.var v'))
+    t <- synthesize (ABT.bind e (Term.var v'))
     (ctx, ctx2) <- breakAt (Ann v' tbinding) <$> getContext
     generalizeExistentials ctx2 t <$ setContext ctx
   go (Term.LetRecNamed' [] body) = synthesize body
@@ -500,9 +503,9 @@ synthesize e = scope ("synth: " ++ show e) $ go e where
     (ctx, ctx2) <- breakAt marker <$> getContext
     generalizeExistentials ctx2 t <$ setContext ctx
   go (Term.Lam' body) = do -- ->I=> (Full Damas Milner rule)
-    [arg, i, o] <- replicateM 3 freshVar
+    [arg, i, o] <- sequence [ABT.freshen body freshenVar, freshVar, freshVar]
     appendContext $ context [Marker i, Existential i, Existential o, Ann arg (Type.existential i)]
-    check (body Set.empty (Term.var arg)) (Type.existential o)
+    check (ABT.bind body (Term.var arg)) (Type.existential o)
     (ctx1, ctx2) <- breakAt (Marker i) <$> getContext
     -- unsolved existentials get generalized to universals
     setContext ctx1
@@ -515,9 +518,9 @@ synthesize e = scope ("synth: " ++ show e) $ go e where
 synthesizeApp :: Var v => Type v -> Term v -> M v (Type v)
 synthesizeApp ft arg = go ft where
   go (Type.Forall' body) = do -- Forall1App
-    v <- freshVar
-    modifyContext' (\ctx -> ctx `append` context [Existential v])
-    synthesizeApp (body Set.empty (Type.existential v)) arg
+    v <- ABT.freshen body freshenTypeVar
+    appendContext (context [Existential v])
+    synthesizeApp (ABT.bind body (Type.existential v)) arg
   go (Type.Arrow' i o) = o <$ check arg i -- ->App
   go (Type.Existential' a) = do -- a^App
     [i,o] <- traverse freshenVar [a, ABT.v' "o"]

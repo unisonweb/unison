@@ -10,6 +10,7 @@ import Unison.Term (Term)
 import Unison.Var (Var)
 import qualified Data.Map as M
 import qualified Data.Set as Set
+import qualified Unison.ABT as ABT
 import qualified Unison.Reference as R
 import qualified Unison.Term as E
 
@@ -27,8 +28,8 @@ eval env = Eval whnf step
     -- reduce x args | trace ("reduce:" ++ show (x:args)) False = undefined
     reduce :: Term v -> [Term v] -> f (Maybe (Term v))
     reduce (E.Lam' _) [] = pure Nothing
-    reduce (E.Lam' subst) (arg1:args) =
-      let r = subst Set.empty arg1
+    reduce (E.Lam' f) (arg1:args) =
+      let r = ABT.bind f arg1
       in pure $ Just (foldl E.app r args)
     reduce (E.Ref' h) args = case M.lookup h env of
       Nothing -> pure Nothing

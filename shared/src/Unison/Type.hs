@@ -114,7 +114,7 @@ matchUniversal _ _ = False
 
 -- | True if the given type is a function, possibly quantified
 isArrow :: Var v => Type v -> Bool
-isArrow f@(Forall' t) = isArrow (t (ABT.freeVars f) (v' "isArrow"))
+isArrow f@(ForallNamed' v t) = isArrow t
 isArrow (Constrain' t _) = isArrow t
 isArrow (Arrow' _ _) = True
 isArrow _ = False
