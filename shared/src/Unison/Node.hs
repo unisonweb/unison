@@ -153,7 +153,7 @@ node eval hash store =
       annotatedLocals <- pure $ map (\(v,t) -> Term.var v `Term.ann` t) locals
       let f focus = maybe (pure False)
                           (\e -> Typechecker.wellTyped readTypeOf e)
-                          (Paths.modifyTerm (const focus) loc e)
+                          (Paths.modifyTerm (const (Term.wrapV focus)) loc e)
       let fi (e,_) = f e
       let currentApplies = maybe [] (\e -> TermEdit.applications e admissible) (Paths.atTerm loc e) `zip` [0..]
       matchingCurrentApplies <- case Paths.atTerm loc e of
@@ -168,7 +168,7 @@ node eval hash store =
       let
         typeOk focus = maybe (pure False)
                              (\e -> Typechecker.wellTyped readTypeOf e)
-                             (Paths.modifyTerm (const focus) loc e)
+                             (Paths.modifyTerm (const (Term.wrapV focus)) loc e)
         elaborate h = (\t -> TermEdit.applications (Term.ref h) t) <$> readTypeOf h
         queryOk e = do mds <- traverse (Store.readMetadata store) (Set.toList (Term.dependencies' e))
                        pure $ any (Metadata.matches query) mds

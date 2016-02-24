@@ -68,6 +68,9 @@ vmap :: Ord v2 => (v -> v2) -> AnnotatedTerm v a -> AnnotatedTerm v2 a
 vmap f t = go (ABT.vmap f t) where
   go t = undefined
 
+wrapV :: Ord v => AnnotatedTerm v a -> AnnotatedTerm (ABT.V v) a
+wrapV = vmap ABT.Bound
+
 -- | Like `Term v`, but with an annotation of type `a` at every level in the tree
 type AnnotatedTerm v a = ABT.Term (F v) v a
 -- | Allow type variables and term variables to differ
