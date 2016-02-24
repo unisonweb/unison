@@ -56,17 +56,27 @@ data F v a
   | Ann a (Type v)
   | Vector (Vector a)
   | Lam a
-  -- Invariant: let rec blocks have an outer ABT.Cycle which introduces as many
+  -- Note: let rec blocks have an outer ABT.Cycle which introduces as many
   -- variables as there are bindings
   | LetRec [a] a
+  -- Note: first parameter is the binding, second is the expression which may refer
+  -- to this let bound variable. Constructed as `Let b (abs v e)`
   | Let a a
   deriving (Eq,Foldable,Functor,Generic1,Traversable)
 
+vmap :: Ord v2 => (v -> v2) -> AnnotatedTerm v a -> AnnotatedTerm v2 a
+vmap f t = go (ABT.vmap f t) where
+  go t = undefined
+
 -- | Like `Term v`, but with an annotation of type `a` at every level in the tree
 type AnnotatedTerm v a = ABT.Term (F v) v a
+-- | Allow type variables and term variables to differ
+type AnnotatedTerm' vt v a = ABT.Term (F vt) v a
 
 -- | Terms are represented as ABTs over the base functor F, with variables in `v`
 type Term v = AnnotatedTerm v ()
+-- | Terms with type variables in `vt`, and term variables in `v`
+type Term' vt v = AnnotatedTerm' vt v ()
 
 -- nicer pattern syntax
 

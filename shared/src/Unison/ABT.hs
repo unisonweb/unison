@@ -12,6 +12,7 @@
 
 module Unison.ABT where
 
+import Control.Applicative
 import Data.Aeson (ToJSON(..),FromJSON(..))
 import Data.List hiding (cycle)
 import Data.Maybe
@@ -59,28 +60,41 @@ instance Var v => Var (V v) where
   freshenId id v = Var.freshenId id <$> v
   clear v = Var.clear <$> v
 
-data Path f g
-  = Path (forall v a . Var v => Term f v a -> Maybe (Term g v a, Term g (V v) a -> Maybe (Term f (V v) a)))
+data Path s t a b = Path { focus :: s -> Maybe (a, b -> Maybe t) }
 
--- | Focus on a particular path into a term. Invariant of the setter
--- is that any `Free` variable in the set term should remain free in the
--- root term (that is, it should not be captured by any enclosing binder)
-focus :: Var v => Path f g -> Term f v a -> Maybe (Term g v a, Term g (V v) a -> Maybe (Term f (V v) a))
-focus (Path p) t = p t
+instance Monoid (Path s t a b) where
+  mempty = Path (const Nothing)
+  mappend (Path p1) (Path p2) = Path p3 where
+    p3 s = p1 s <|> p2 s
 
-compose :: Path f g -> Path g h -> Path f h
+type Path' f g = forall a v . Var v => Path (Term f v a) (Term f (V v) a) (Term g v a) (Term g (V v) a)
+
+compose :: Path s t a b -> Path a b a' b' -> Path s t a' b'
 compose (Path p1) (Path p2) = Path p3 where
-  p3 t = do
-    (get1,set1) <- p1 t
+  p3 s = do
+    (get1,set1) <- p1 s
     (get2,set2) <- p2 get1
     pure (get2, \i -> set2 i >>= set1)
 
-at :: Var v => Path f g -> Term f v a -> Maybe (Term g v a)
-at p t = fst <$> focus p t
+at :: Path s t a b -> s -> Maybe a
+at p s = fst <$> focus p s
 
-absBodyP :: (Functor f, Foldable f) => Path f f
-absBodyP = Path go where
-  go (Term _ a (Abs v body)) = Just $ (body, set) where
+modify :: Path s t a b -> (a -> b) -> s -> Maybe t
+modify p f s = focus p s >>= \(get,set) -> set (f get)
+
+wrap :: (Functor f, Foldable f, Var v) => v -> Term f (V v) a -> (V v, Term f (V v) a)
+wrap v t =
+  if Set.member (Free v) (freeVars t)
+  then let v' = fresh t (Bound v) in (v', rename (Bound v) v' t)
+  else (Bound v, t)
+
+wrap' :: (Functor f, Foldable f, Var v)
+      => v -> Term f (V v) a -> (V v -> Term f (V v) a -> c) -> c
+wrap' v t f = uncurry f (wrap v t)
+
+_AbsBody :: (Functor f, Foldable f) => Path' f f
+_AbsBody = Path go where
+  go (Term _ a (Abs v body)) = Just (body, set) where
     -- make sure that free variables of body are not captured by `v`,
     -- if so, we rename v to something which does not collide
     set body = Just $
@@ -89,8 +103,19 @@ absBodyP = Path go where
       else abs' a (Bound v) body
   go _ = Nothing
 
--- absVarP :: Path f f
--- here :: Path f f -- identity path
+_AbsVar :: (Functor f, Foldable f, Var v)
+        => Path (Term f v a) (Term f (V v) a) v v
+_AbsVar = Path go where
+  go (Term _ a (Abs v body)) = Just (v, set) where
+    set v' = Just (vmap Bound $ abs' a v' (rename v v' body))
+  go _ = Nothing
+
+_Tm :: (Foldable f, Functor f, Var v)
+    => Path (Term f v a) (Term f (V v) a) (f (Term f v a)) (f (Term f (V v) a))
+_Tm = Path go where
+  go (Term _ a (Tm body)) = Just (body, set) where
+    set body = Just (tm' a body)
+  go _ = Nothing
 
 -- | Return the list of all variables bound by this ABT
 bound' :: Foldable f => Term f v a -> [v]
@@ -152,6 +177,13 @@ abs = abs' ()
 abs' :: Ord v => a -> v -> Term f v a -> Term f v a
 abs' a v body = Term (Set.delete v (freeVars body)) a (Abs v body)
 
+absr :: (Functor f, Foldable f, Var v) => v -> Term f (V v) () -> Term f (V v) ()
+absr = absr' ()
+
+-- | Rebuild an `abs`, renaming `v` to avoid capturing any `Free v` in `body`.
+absr' :: (Functor f, Foldable f, Var v) => a -> v -> Term f (V v) a -> Term f (V v) a
+absr' a v body = wrap' v body $ \v body -> abs' a v body
+
 tm :: (Foldable f, Ord v) => f (Term f v ()) -> Term f v ()
 tm = tm' ()
 
@@ -164,6 +196,12 @@ cycle = cycle' ()
 
 cycle' :: a -> Term f v a -> Term f v a
 cycle' a t = Term (freeVars t) a (Cycle t)
+
+cycler' :: (Functor f, Foldable f, Var v) => a -> [v] -> Term f (V v) a -> Term f (V v) a
+cycler' a vs t = cycle' a $ foldr (absr' a) t vs
+
+cycler :: (Functor f, Foldable f, Var v) => [v] -> Term f (V v) () -> Term f (V v) ()
+cycler = cycler' ()
 
 into :: (Foldable f, Ord v) => ABT f v (Term f v ()) -> Term f v ()
 into = into' ()
