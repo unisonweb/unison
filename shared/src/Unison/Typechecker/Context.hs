@@ -88,6 +88,8 @@ data Info v =
 context0 :: Context v
 context0 = Context []
 
+env0 = Env 0 context0
+
 instance Var v => Show (Context v) where
   show (Context es) = "Γ\n  " ++ (intercalate "\n  " . map (show . fst)) (reverse es)
 
@@ -551,7 +553,7 @@ annotateRefs synth term = ABT.visit f term where
 synthesizeClosed :: (Monad f, Var v) => Type.Env f v -> Term v -> Noted f (Type v)
 synthesizeClosed synthRef term = do
   term <- annotateRefs synthRef term
-  Note.fromEither $ runM (synthesize term) (Env 0 context0) >>= \(t,env) ->
+  Note.fromEither $ runM (synthesize term) env0 >>= \(t,env) ->
     -- we generalize over any remaining unsolved existentials
     pure $ generalizeExistentials (ctx env) t
 

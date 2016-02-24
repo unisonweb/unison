@@ -42,28 +42,28 @@ data PathElement
   | Output -- ^ Points at the right of an `Arrow`
   deriving (Eq,Ord,Show)
 
-focus1 :: Var v => PathElement -> ABT.Path (Target v) (Target (V v)) (Target v) (Target (V v))
+focus1 :: Var v => PathElement -> ABT.Path (Target v) (Target (V v)) (Target v) (Target (V v)) [v]
 focus1 e = ABT.Path go' where
   go' t = go e t
   w = E.vmap ABT.Bound
   wt = ABT.vmap ABT.Bound
   go Fn (Term (E.App' fn arg)) =
-    Just (Term fn, \fn -> Term <$> (E.app <$> asTerm fn <*> pure (w arg)))
+    Just (Term fn, \fn -> Term <$> (E.app <$> asTerm fn <*> pure (w arg)), [])
   go Fn (Type (T.App' fn arg)) =
-    Just (Type fn, \fn -> Type <$> (T.app <$> asType fn <*> pure (wt arg)))
+    Just (Type fn, \fn -> Type <$> (T.app <$> asType fn <*> pure (wt arg)), [])
   go Arg (Term (E.App' fn arg)) =
-    Just (Term arg, \arg -> Term <$> (E.app (w fn) <$> asTerm arg))
+    Just (Term arg, \arg -> Term <$> (E.app (w fn) <$> asTerm arg), [])
   go Arg (Type (T.App' fn arg)) =
-    Just (Type arg, \arg -> Type <$> (T.app (wt fn) <$> asType arg))
-  go Body (Term (E.LamNamed' v body)) = Just (Term body, \t -> Term . set <$> asTerm t) where
+    Just (Type arg, \arg -> Type <$> (T.app (wt fn) <$> asType arg), [])
+  go Body (Term (E.LamNamed' v body)) = Just (Term body, \t -> Term . set <$> asTerm t, [v]) where
     set body = ABT.tm (E.Lam (ABT.absr v body))
-  go Body (Term (E.Let1Named' v b body)) = Just (Term body, \t -> Term . set <$> asTerm t) where
+  go Body (Term (E.Let1Named' v b body)) = Just (Term body, \t -> Term . set <$> asTerm t, [v]) where
     set body = ABT.tm (E.Let (w b) (ABT.absr v body))
   go p (Term (ABT.Cycle' vs (ABT.Tm' (E.LetRec bs body)))) = case p of
-    Body -> Just (Term body, \body -> Term . set <$> asTerm body) where
+    Body -> Just (Term body, \body -> Term . set <$> asTerm body, vs) where
       set body = ABT.cycler vs (ABT.tm (E.LetRec (map w bs) body))
     Binding i | i >= 0 && i < length bs ->
-      Just (Declaration (vs !! i) (bs !! i), \b -> Term . set <$> asDeclaration b)
+      Just (Declaration (vs !! i) (bs !! i), \b -> Term . set <$> asDeclaration b, vs)
       where
       replace f i a vs = map f (take i vs) ++ [a] ++ map f (drop (i+1) vs)
       set (v,b) =
@@ -72,35 +72,36 @@ focus1 e = ABT.Path go' where
             tm = if v /= v0 then ABT.rename v0 v tm0 else tm
         in ABT.cycler (replace id i (ABT.unvar v) vs) tm
     _ -> Nothing
-  go Body (Type (T.ForallNamed' v body)) = Just (Type body, \t -> Type . set <$> asType t) where
+  go Body (Type (T.ForallNamed' v body)) = Just (Type body, \t -> Type . set <$> asType t, [v]) where
     set body = ABT.tm (T.Forall (ABT.absr v body))
-  go Body (Declaration v body) = Just (Term body, \body -> Declaration (ABT.Bound v) <$> asTerm body)
-  go Bound (Declaration v body) = Just (Var v, \v -> Declaration <$> asVar v <*> pure (w body))
+  go Body (Declaration v body) = Just (Term body, \body -> Declaration (ABT.Bound v) <$> asTerm body, [])
+  go Bound (Declaration v body) = Just (Var v, \v -> Declaration <$> asVar v <*> pure (w body), [])
   go Bound (Term (E.LamNamed' v body)) =
-    Just (Var v, \v -> Term <$> (E.lam <$> asVar v <*> pure (w body)))
+    Just (Var v, \v -> Term <$> (E.lam <$> asVar v <*> pure (w body)), [])
   go Bound (Term (E.Let1Named' v b body)) =
-    Just (Var v, \v -> (\v -> Term $ E.let1 [(v,w b)] (w body)) <$> asVar v)
+    Just (Var v, \v -> (\v -> Term $ E.let1 [(v,w b)] (w body)) <$> asVar v, [])
   go Bound (Type (T.ForallNamed' v body)) =
-    Just (Var v, \v -> Type <$> (T.forall <$> asVar v <*> pure (wt body)))
+    Just (Var v, \v -> Type <$> (T.forall <$> asVar v <*> pure (wt body)), [])
   go (Index i) (Term (E.Vector' vs)) | i < Vector.length vs && i >= 0 =
     Just (Term (vs `Vector.unsafeIndex` i),
-          \e -> (\e -> Term $ E.vector' $ fmap w vs // [(i,e)]) <$> asTerm e)
-  go (Binding i) (Term (E.Let1Named' v b body)) | i <= 0 = Just (Declaration v b, set) where
+          \e -> (\e -> Term $ E.vector' $ fmap w vs // [(i,e)]) <$> asTerm e,
+          [])
+  go (Binding i) (Term (E.Let1Named' v b body)) | i <= 0 = Just (Declaration v b, set, []) where
     set (Declaration v b) = pure . Term $ E.let1 [(v, b)] (w body)
     set _ = Nothing
-  go Annotation (Term (E.Ann' e t)) = Just (Type t, \t -> Term . E.ann (w e) <$> asType t)
-  go Input (Type (T.Arrow' i o)) = Just (Type i, \i -> Type <$> (T.arrow <$> asType i <*> pure (wt o)))
-  go Output (Type (T.Arrow' i o)) = Just (Type o, \o -> Type . T.arrow (wt i) <$> asType o)
+  go Annotation (Term (E.Ann' e t)) = Just (Type t, \t -> Term . E.ann (w e) <$> asType t, [])
+  go Input (Type (T.Arrow' i o)) = Just (Type i, \i -> Type <$> (T.arrow <$> asType i <*> pure (wt o)), [])
+  go Output (Type (T.Arrow' i o)) = Just (Type o, \o -> Type . T.arrow (wt i) <$> asType o, [])
   go _ _ = Nothing
 
 type Path = [PathElement]
 
-focus :: Var v => Path -> Target v -> Maybe (Target v, Target (V v) -> Maybe (Target v))
+focus :: Var v => Path -> Target v -> Maybe (Target v, Target (V v) -> Maybe (Target v), [v])
 focus p t = tweak <$> ABT.focus (foldr ABT.compose mempty (map focus1 p)) t where
-  tweak (get, set) = (get, \t -> vmap ABT.unvar <$> set t)
+  tweak (get, set, vs) = (get, \t -> vmap ABT.unvar <$> set t, vs)
 
 at :: Var v => Path -> Target v -> Maybe (Target v)
-at path t = fst <$> focus path t
+at path t = (\(a,_,_) -> a) <$> focus path t
 
 atTerm :: Var v => Path -> Term v -> Maybe (Term v)
 atTerm path t = asTerm =<< at path (Term t)
@@ -109,11 +110,11 @@ atType :: Var v => Path -> Type v -> Maybe (Type v)
 atType path t = asType =<< at path (Type t)
 
 modify :: Var v => (Target v -> Target (V v)) -> Path -> Target v -> Maybe (Target v)
-modify f path t = focus path t >>= \(at,set) -> set (f at)
+modify f path t = focus path t >>= \(at,set,_) -> set (f at)
 
 modifyTerm :: Var v => (Term v -> Term (V v)) -> Path -> Term v -> Maybe (Term v)
 modifyTerm f p t = do
-  (at,set) <- focus p (Term t)
+  (at,set,_) <- focus p (Term t)
   t <- asTerm at
   asTerm =<< set (Term $ f t)
 
@@ -122,15 +123,24 @@ modifyTerm' f p t = fromMaybe t $ modifyTerm f p t
 
 modifyType :: Var v => (Type v -> Type (V v)) -> Path -> Type v -> Maybe (Type v)
 modifyType f p t = do
-  (at,set) <- focus p (Type t)
+  (at,set,_) <- focus p (Type t)
   t <- asType at
   asType =<< set (Type $ f t)
+
+inScopeAt :: Var v => Path -> Target v -> [v]
+inScopeAt p t = maybe [] (\(_,_,vs) -> vs) (focus p t)
+
+inScopeAtTerm :: Var v => Path -> Term v -> [v]
+inScopeAtTerm p t = inScopeAt p (Term t)
+
+inScopeAtType :: Var v => Path -> Type v -> [v]
+inScopeAtType p t = inScopeAt p (Type t)
 
 insertTerm :: Var v => Path -> Term v -> Maybe (Term v)
 insertTerm at _ | null at = Nothing
 insertTerm at ctx = do
   let at' = init at
-  (parent,set) <- focus at' (Term ctx)
+  (parent,set,_) <- focus at' (Term ctx)
   case parent of
     Term (E.Vector' vs) -> do
       i <- listToMaybe [i | Index i <- [last at]]

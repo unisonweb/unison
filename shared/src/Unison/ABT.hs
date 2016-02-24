@@ -60,27 +60,27 @@ instance Var v => Var (V v) where
   freshenId id v = Var.freshenId id <$> v
   clear v = Var.clear <$> v
 
-data Path s t a b = Path { focus :: s -> Maybe (a, b -> Maybe t) }
+data Path s t a b m = Path { focus :: s -> Maybe (a, b -> Maybe t, m) }
 
-instance Monoid (Path s t a b) where
+instance Monoid (Path s t a b m) where
   mempty = Path (const Nothing)
   mappend (Path p1) (Path p2) = Path p3 where
     p3 s = p1 s <|> p2 s
 
-type Path' f g = forall a v . Var v => Path (Term f v a) (Term f (V v) a) (Term g v a) (Term g (V v) a)
+type Path' f g m = forall a v . Var v => Path (Term f v a) (Term f (V v) a) (Term g v a) (Term g (V v) a) m
 
-compose :: Path s t a b -> Path a b a' b' -> Path s t a' b'
+compose :: Monoid m => Path s t a b m -> Path a b a' b' m -> Path s t a' b' m
 compose (Path p1) (Path p2) = Path p3 where
   p3 s = do
-    (get1,set1) <- p1 s
-    (get2,set2) <- p2 get1
-    pure (get2, \i -> set2 i >>= set1)
+    (get1,set1,m1) <- p1 s
+    (get2,set2,m2) <- p2 get1
+    pure (get2, \i -> set2 i >>= set1, m1 `mappend` m2)
 
-at :: Path s t a b -> s -> Maybe a
-at p s = fst <$> focus p s
+at :: Path s t a b m -> s -> Maybe a
+at p s = (\(a,_,_) -> a) <$> focus p s
 
-modify :: Path s t a b -> (a -> b) -> s -> Maybe t
-modify p f s = focus p s >>= \(get,set) -> set (f get)
+modify' :: Path s t a b m -> (m -> a -> b) -> s -> Maybe t
+modify' p f s = focus p s >>= \(get,set,m) -> set (f m get)
 
 wrap :: (Functor f, Foldable f, Var v) => v -> Term f (V v) a -> (V v, Term f (V v) a)
 wrap v t =
@@ -91,31 +91,6 @@ wrap v t =
 wrap' :: (Functor f, Foldable f, Var v)
       => v -> Term f (V v) a -> (V v -> Term f (V v) a -> c) -> c
 wrap' v t f = uncurry f (wrap v t)
-
-_AbsBody :: (Functor f, Foldable f) => Path' f f
-_AbsBody = Path go where
-  go (Term _ a (Abs v body)) = Just (body, set) where
-    -- make sure that free variables of body are not captured by `v`,
-    -- if so, we rename v to something which does not collide
-    set body = Just $
-      if Set.member (Free v) (freeVars body)
-      then let v' = fresh body (Bound v) in abs' a v' (rename (Bound v) v' body)
-      else abs' a (Bound v) body
-  go _ = Nothing
-
-_AbsVar :: (Functor f, Foldable f, Var v)
-        => Path (Term f v a) (Term f (V v) a) v v
-_AbsVar = Path go where
-  go (Term _ a (Abs v body)) = Just (v, set) where
-    set v' = Just (vmap Bound $ abs' a v' (rename v v' body))
-  go _ = Nothing
-
-_Tm :: (Foldable f, Functor f, Var v)
-    => Path (Term f v a) (Term f (V v) a) (f (Term f v a)) (f (Term f (V v) a))
-_Tm = Path go where
-  go (Term _ a (Tm body)) = Just (body, set) where
-    set body = Just (tm' a body)
-  go _ = Nothing
 
 -- | Return the list of all variables bound by this ABT
 bound' :: Foldable f => Term f v a -> [v]
@@ -306,7 +281,7 @@ data Subst f v a =
         , bind    :: Term f v a -> Term f v a }
 
 unabs1 :: (Foldable f, Functor f, Var v) => Term f v a -> Maybe (Subst f v a)
-unabs1 (Term _ a (Abs v body)) = Just (Subst freshen bind) where
+unabs1 (Term _ _ (Abs v body)) = Just (Subst freshen bind) where
   freshen f = f v
   bind x = subst v x body
 unabs1 _ = Nothing
