@@ -66,8 +66,7 @@ data F v a
 
 vmap :: Ord v2 => (v -> v2) -> AnnotatedTerm v a -> AnnotatedTerm v2 a
 vmap f t = go (ABT.vmap f t) where
-  go t = undefined
-
+  go t = error "!!!!!!!!!!!!!!!!!!!!!"
 
 wrapV :: Ord v => AnnotatedTerm v a -> AnnotatedTerm (ABT.V v) a
 wrapV = vmap ABT.Bound

@@ -9,7 +9,6 @@ import Unison.Eval
 import Unison.Term (Term)
 import Unison.Var (Var)
 import qualified Data.Map as M
-import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
 import qualified Unison.Reference as R
 import qualified Unison.Term as E

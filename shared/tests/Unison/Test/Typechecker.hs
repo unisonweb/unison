@@ -55,7 +55,7 @@ synthesizesAt node path e t = Note.run $ do
 
 checksAt :: TNode -> Path -> TTerm -> TType -> Assertion
 checksAt node path e t = Note.run . void $
-  Typechecker.synthesize (env node) (Paths.modifyTerm' (\e -> E.ann e t) path e)
+  Typechecker.synthesize (env node) (Paths.modifyTerm' (\e -> E.wrapV (E.ann e t)) path e)
 
 synthesizesAndChecksAt :: TNode -> Path -> TTerm -> TType -> Assertion
 synthesizesAndChecksAt node path e t =

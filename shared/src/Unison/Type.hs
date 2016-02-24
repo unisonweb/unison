@@ -63,6 +63,9 @@ type AnnotatedType v a = ABT.Term F v a
 -- An environment for looking up type references
 type Env f v = Reference -> Noted f (Type v)
 
+wrapV :: Ord v => AnnotatedType v a -> AnnotatedType (ABT.V v) a
+wrapV = ABT.vmap ABT.Bound
+
 freeVars :: Type v -> Set v
 freeVars = ABT.freeVars
 

@@ -2,7 +2,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 
 -- | This module is the primary interface to the Unison typechecker
-module Unison.Typechecker (admissibleTypeAt, check, check', checkAdmissible', equals, locals, synthesize, synthesize', typeAt, wellTyped) where
+module Unison.Typechecker (admissibleTypeAt, check, check', checkAdmissible', equals, locals, subtype, isSubtype, synthesize, synthesize', typeAt, wellTyped) where
 
 import Control.Monad
 import Unison.Note (Note,Noted)
