@@ -507,7 +507,8 @@ synthesize e = scope ("synth: " ++ show e) $ go e where
   go (Term.Lam' body) = do -- ->I=> (Full Damas Milner rule)
     [arg, i, o] <- sequence [ABT.freshen body freshenVar, freshVar, freshVar]
     appendContext $ context [Marker i, Existential i, Existential o, Ann arg (Type.existential i)]
-    check (ABT.bind body (Term.var arg)) (Type.existential o)
+    body <- pure $ ABT.bind body (Term.var arg)
+    check body (Type.existential o)
     (ctx1, ctx2) <- breakAt (Marker i) <$> getContext
     -- unsolved existentials get generalized to universals
     setContext ctx1

@@ -240,6 +240,7 @@ replace f t body | f body = t
 replace f t t2@(Term _ ann body) = case body of
   Var v -> annotatedVar ann v
   Cycle body -> cycle' ann (replace f t body)
+  Abs x e | f (annotatedVar ann x) -> abs' ann x e
   Abs x e -> abs' ann x' e'
     where x' = freshInBoth t t2 x
           -- rename x to something that cannot be captured by `t`

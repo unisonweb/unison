@@ -26,6 +26,7 @@ import Unison.Hashable (Hashable, Hashable1)
 import Unison.Reference (Reference)
 import Unison.Type (Type)
 import Unison.Var (Var)
+import Unsafe.Coerce
 import qualified Control.Monad.Writer.Strict as Writer
 import qualified Data.Aeson as Aeson
 import qualified Data.Monoid as Monoid
@@ -66,7 +67,14 @@ data F v a
 
 vmap :: Ord v2 => (v -> v2) -> AnnotatedTerm v a -> AnnotatedTerm v2 a
 vmap f t = go (ABT.vmap f t) where
-  go t = error "!!!!!!!!!!!!!!!!!!!!!"
+  go (ABT.Term fvs a t) = ABT.Term fvs a $ case t of
+    ABT.Abs v t -> ABT.Abs v (go t)
+    ABT.Var v -> ABT.Var v
+    ABT.Cycle t -> ABT.Cycle (go t)
+    ABT.Tm (Ann e t) -> ABT.Tm (Ann (go e) (ABT.vmap f t))
+    -- Safe since `Ann` is only ctor that has embedded `Type v` arg
+    -- otherwise we'd have to manually match on every non-`Ann` ctor
+    ABT.Tm ts -> unsafeCoerce $ ABT.Tm (fmap go ts)
 
 wrapV :: Ord v => AnnotatedTerm v a -> AnnotatedTerm (ABT.V v) a
 wrapV = vmap ABT.Bound
