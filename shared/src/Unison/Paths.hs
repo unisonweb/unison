@@ -97,7 +97,7 @@ focus1 e = ABT.Path go' where
 type Path = [PathElement]
 
 focus :: Var v => Path -> Target v -> Maybe (Target v, Target (V v) -> Maybe (Target v), [v])
-focus p t = tweak <$> ABT.focus (foldr ABT.compose mempty (map focus1 p)) t where
+focus p t = tweak <$> ABT.focus (foldr ABT.compose ABT.here (map focus1 p)) t where
   tweak (get, set, vs) = (get, \t -> vmap ABT.unvar <$> set t, vs)
 
 at :: Var v => Path -> Target v -> Maybe (Target v)

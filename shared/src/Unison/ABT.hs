@@ -62,6 +62,9 @@ instance Var v => Var (V v) where
 
 data Path s t a b m = Path { focus :: s -> Maybe (a, b -> Maybe t, m) }
 
+here :: Monoid m => Path s t s t m
+here = Path $ \s -> Just (s, Just, mempty)
+
 instance Monoid (Path s t a b m) where
   mempty = Path (const Nothing)
   mappend (Path p1) (Path p2) = Path p3 where
