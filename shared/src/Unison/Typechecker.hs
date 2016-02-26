@@ -71,13 +71,13 @@ locals synth path ctx | ABT.isClosed ctx =
     -- replace focus, x, with `let saved = f v1 v2 v3 ... vn in x`,
     -- where `f` is fresh variable, then infer type of `f`, read off the
     -- types of `v1`, `v2`, ...
-    vars = watch "vars:" $ map ABT.Bound (Paths.inScopeAtTerm path ctx)
+    vars = map ABT.Bound (Paths.inScopeAtTerm path ctx)
     f = ABT.v' "f"
     saved = ABT.v' "saved"
     remember e = Term.let1 [(saved, Term.var (ABT.Free f) `Term.apps` map Term.var vars)] (Term.wrapV e)
-    usingAllLocals = watch "root-term: " $ Term.lam f (Paths.modifyTerm' remember path ctx)
+    usingAllLocals = Term.lam f (Paths.modifyTerm' remember path ctx)
     types = if null vars then pure []
-            else extract . watch "root-type: " <$> typeAt synth [] usingAllLocals
+            else extract <$> typeAt synth [] usingAllLocals
     extract (Type.Arrow' i _) = extract1 i
     extract (Type.ForallNamed' _ t) = extract t
     extract t = error $ "expected function type, got: " ++ show t

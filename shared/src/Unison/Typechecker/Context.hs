@@ -93,6 +93,11 @@ env0 = Env 0 context0
 instance Var v => Show (Context v) where
   show (Context es) = "Γ\n  " ++ (intercalate "\n  " . map (show . fst)) (reverse es)
 
+logContext :: Var v => String -> M v ()
+logContext msg = do
+  ctx <- getContext
+  setContext (trace ("\n"++msg ++ ": " ++ show ctx) ctx)
+
 -- ctxOK :: Context -> Context
 -- ctxOK ctx = if wellformed ctx then ctx else error $ "not ok: " ++ show ctx
 
@@ -491,19 +496,24 @@ synthesize e = scope ("synth: " ++ show e) $ go e where
     synthesizeApp (apply ctx ft) arg
   go (Term.Vector' v) = synthesize (desugarVector (Foldable.toList v))
   go (Term.Let1' binding e) = do
-    -- note: no need to freshen binding, it can't refer to v
-    tbinding <- synthesize binding
+    -- literally just convert to a lambda application and call synthesize!
+    -- NB: this misses out on let generalization
+    -- let x = blah p q in foo y <=> (x -> foo y) (blah p q)
     v' <- ABT.freshen e freshenVar
-    appendContext (context [Ann v' tbinding])
-    t <- synthesize (ABT.bind e (Term.var v'))
-    (ctx, ctx2) <- breakAt (Ann v' tbinding) <$> getContext
-    generalizeExistentials ctx2 t <$ setContext ctx
-  go (Term.LetRecNamed' [] body) = synthesize body
-  go (Term.LetRec' letrec) = do
-    (marker, e) <- annotateLetRecBindings letrec
-    t <- synthesize e
-    (ctx, ctx2) <- breakAt marker <$> getContext
-    generalizeExistentials ctx2 t <$ setContext ctx
+    e  <- pure $ ABT.bind e (Term.var v')
+    synthesize (Term.lam v' e `Term.app` binding)
+  --go (Term.Let1' binding e) = do
+  --  -- note: no need to freshen binding, it can't refer to v
+  --  tbinding <- synthesize binding
+  --  v' <- ABT.freshen e freshenVar
+  --  appendContext (context [Ann v' tbinding])
+  --  t <- synthesize (ABT.bind e (Term.var v'))
+  --  pure t
+  --  -- TODO: figure out why this retract sometimes generates invalid contexts,
+  --  -- (ctx, ctx2) <- breakAt (Ann v' tbinding) <$> getContext
+  --  -- as in (f -> let x = (let saved = f in 42) in 1)
+  --  -- removing the retract and generalize 'works' for this example
+  --  -- generalizeExistentials ctx2 t <$ setContext ctx
   go (Term.Lam' body) = do -- ->I=> (Full Damas Milner rule)
     [arg, i, o] <- sequence [ABT.freshen body freshenVar, freshVar, freshVar]
     appendContext $ context [Marker i, Existential i, Existential o, Ann arg (Type.existential i)]
@@ -513,6 +523,12 @@ synthesize e = scope ("synth: " ++ show e) $ go e where
     -- unsolved existentials get generalized to universals
     setContext ctx1
     pure $ generalizeExistentials ctx2 (Type.existential i `Type.arrow` Type.existential o)
+  go (Term.LetRecNamed' [] body) = synthesize body
+  go (Term.LetRec' letrec) = do
+    (marker, e) <- annotateLetRecBindings letrec
+    t <- synthesize e
+    (ctx, ctx2) <- breakAt marker <$> getContext
+    generalizeExistentials ctx2 t <$ setContext ctx
   go e = fail $ "unknown case in synthesize " ++ show e
 
 -- | Synthesize the type of the given term, `arg` given that a function of

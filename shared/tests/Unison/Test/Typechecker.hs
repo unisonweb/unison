@@ -78,7 +78,14 @@ checkSubtype t1 t2 = case Typechecker.subtype t1 t2 of
 
 synthesizesAndChecks :: TNode -> TTerm -> TType -> Assertion
 synthesizesAndChecks node e t =
-  synthesizes node e t -- >> checks node e t
+  synthesizes node e t >> checks node e t
+
+--singleTest = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Typechecker"
+--  [
+--    testCase "synthesize/check (f -> let x = (let saved = f in 42) in 1)" $ synthesizesAndChecks node
+--      (E.lam' ["f"] (E.let1' [("x", E.let1' [("saved", E.var' "f")] (E.num 42))] (E.num 1)))
+--      (T.forall' ["x"] (T.v' "x" --> T.lit T.Number))
+--  ]
 
 tests :: TestTree
 tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Typechecker"
@@ -135,44 +142,58 @@ tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Typecheck
       unconstrained
   -- fails
   , testCase "synthesize/check (f -> let x = (let saved = f in 42) in 1)" $ synthesizesAndChecks node
-      (E.lam' ["fo"] (E.let1' [("xo", E.let1' [("savedo", E.var' "fo")] (E.num 42))] (E.num 1)))
-      -- (E.lam' ["f"] (E.let1' [("x", E.let1' [("saved", E.var' "f")] (E.num 42))] (E.num 1)))
+      (E.lam' ["f"] (E.let1' [("x", E.let1' [("saved", E.var' "f")] (E.num 42))] (E.num 1)))
       (T.forall' ["x"] (T.v' "x" --> T.lit T.Number))
   , testCase "synthesize/check (f -> let x = (b a -> b) 42 f in 1)" $ synthesizesAndChecks node
       (E.lam' ["fo"] (E.let1' [("xo", Term.const `E.apps` [E.num 42, E.var' "fo"])] (E.num 1)))
       -- (E.lam' ["f"] (E.let1' [("x", Term.const `E.apps` [E.num 42, E.var' "f"])] (E.num 1)))
       (T.forall' ["x"] (T.v' "x" --> T.lit T.Number))
   , testCase "synthesize/check (f x y -> (x y -> y) f _ + _)" $ do
-      -- hygene issue, one of these fails, the other succeeds, even though they are the same term
-      -- let also = E.lam' ["p","q"] (E.var' "q")
       let also = E.lam' ["x","y"] (E.var' "y")
       let tm = E.lam' ["f","x","y"] (also `E.apps` [E.var' "f", E.blank `Term.plus` E.blank])
       synthesizesAndChecks node tm $
         T.forall' ["a","b","c"] (T.v' "a" --> T.v' "b" --> T.v' "c" --> T.lit T.Number)
-  --, testCase "locals (x y -> _ + _)@[Body,Body,Fn,Arg]" $ do
-  --    -- hygene issue, one of these fails, the other succeeds, even though they are the same term
-  --    -- let tm = E.lam' ["x","y"] (E.blank `Term.plus` E.blank) -- fails
-  --    let tm = E.lam' ["p","q"] (E.blank `Term.plus` E.blank) -- succeeds
-  --    [(x,xt), (y,yt)] <- localsAt node [Paths.Body, Paths.Body, Paths.Fn, Paths.Arg] tm
-  --    assertEqual "xt unconstrainted" unconstrained (T.generalize xt)
-  --    assertEqual "yt unconstrainted" unconstrained (T.generalize yt)
-  --, testCase "locals (let x = _ in _)" $ do
-  --    let tm = E.let1' [("x", E.blank)] E.blank
-  --    [(x,xt)] <- localsAt node [Paths.Body] tm
-  --    [] <- localsAt node [Paths.Binding 0, Paths.Body] tm
-  --    assertEqual "xt unconstrainted" unconstrained (T.generalize xt)
-  --, testCase "locals (let x = _; y = _ in _)@[Body,Body]" $ do
-  --    let tm = E.let1' [("x", E.blank), ("y", E.blank)] E.blank
-  --    [(x,xt), (y,yt)] <- localsAt node [Paths.Body, Paths.Body] tm
-  --    assertEqual "xt unconstrainted" unconstrained (T.generalize xt)
-  --    assertEqual "yt unconstrainted" unconstrained (T.generalize yt)
-  --, testCase "locals (let x = _; y = _ in _)@[Body,Binding 0,Body]" $ do
-  --    let tm = E.let1' [("x", E.blank), ("y", E.blank)] E.blank
-  --    -- let tm = E.let1' [("x", E.num 42), ("y", E.blank)] E.blank
-  --    -- let tm = E.let1' [("x", E.num 42), ("y", E.num 43)] E.blank
-  --    -- let tm = E.let1' [("x", E.num 42), ("y", E.num 43)] (E.num 4224)
-  --    [(x,xt)] <- localsAt node [Paths.Body, Paths.Binding 0, Paths.Body] tm
-  --    assertEqual "xt unconstrainted" unconstrained (T.generalize xt)
+  , testCase "higher rank checking: (id -> let x = id 42; y = id 'hi' in 23) : (forall a . a -> a) -> Number" $
+      let
+        t = T.forall' ["a"] (T.v' "a") --> T.lit T.Number
+        tm = E.lam' ["id"] (E.let1'
+          [ ("id@Number", E.var' "id" `E.app` E.num 42),
+            ("id@Text", E.var' "id" `E.app` E.text "hi")
+          ] (E.num 43)) `E.ann` t
+      in synthesizesAndChecks node tm t
+  -- Let generalization not implemented yet; this test fails
+  --, testCase "let generalization: let id a = a; x = id 42; y = id 'hi' in 23" $
+  --    let
+  --      tm = E.let1'
+  --        [ ("id", E.lam' ["a"] (E.var' "a") `E.ann` T.forall' ["a"] (T.v' "a")),
+  --          ("id@Number", E.var' "id" `E.app` E.num 42),
+  --          ("id@Text", E.var' "id" `E.app` E.text "hi")
+  --        ] (E.num 43)
+  --    in synthesizesAndChecks node tm $ T.lit T.Number
+  , testCase "locals (x y -> _ + _)@[Body,Body,Fn,Arg]" $ do
+      -- hygene issue, one of these fails, the other succeeds, even though they are the same term
+      -- let tm = E.lam' ["x","y"] (E.blank `Term.plus` E.blank) -- fails
+      let tm = E.lam' ["p","q"] (E.blank `Term.plus` E.blank) -- succeeds
+      [(x,xt), (y,yt)] <- localsAt node [Paths.Body, Paths.Body, Paths.Fn, Paths.Arg] tm
+      assertEqual "xt unconstrainted" unconstrained (T.generalize xt)
+      assertEqual "yt unconstrainted" unconstrained (T.generalize yt)
+  , testCase "locals (let x = _ in _)" $ do
+      let tm = E.let1' [("x", E.blank)] E.blank
+      [(x,xt)] <- localsAt node [Paths.Body] tm
+      [] <- localsAt node [Paths.Binding 0, Paths.Body] tm
+      assertEqual "xt unconstrainted" unconstrained (T.generalize xt)
+  , testCase "locals (let x = _; y = _ in _)@[Body,Body]" $ do
+      let tm = E.let1' [("x", E.blank), ("y", E.blank)] E.blank
+      [(x,xt), (y,yt)] <- localsAt node [Paths.Body, Paths.Body] tm
+      assertEqual "xt unconstrainted" unconstrained (T.generalize xt)
+      assertEqual "yt unconstrainted" unconstrained (T.generalize yt)
+  , testCase "locals (let x = _; y = _ in _)@[Body,Binding 0,Body]" $ do
+      let tm = E.let1' [("x", E.blank), ("y", E.blank)] E.blank
+      -- let tm = E.let1' [("x", E.num 42), ("y", E.blank)] E.blank
+      -- let tm = E.let1' [("x", E.num 42), ("y", E.num 43)] E.blank
+      -- let tm = E.let1' [("x", E.num 42), ("y", E.num 43)] (E.num 4224)
+      [(x,xt)] <- localsAt node [Paths.Body, Paths.Binding 0, Paths.Body] tm
+      assertEqual "xt unconstrainted" unconstrained (T.generalize xt)
   ]
 
 unconstrained :: TType
@@ -180,3 +201,4 @@ unconstrained = forall' ["a"] (T.v' "a")
 
 main :: IO ()
 main = defaultMain tests
+-- main = defaultMain singleTest

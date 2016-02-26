@@ -73,7 +73,7 @@ termEditor term0 = do
               msg = "replacing: " ++ show p ++ " with " ++ show term ++ " in\n " ++ show oldTerm
               insert p t | nav == TermExplorer.Insert = Paths.insertTerm p t
               insert _ t = Just t
-            in Trace.trace msg $ fromMaybe oldTerm $ insert p =<< Paths.modifyTerm (const term) p oldTerm
+            in Trace.trace msg $ fromMaybe oldTerm $ insert p =<< Paths.modifyTerm (const (Term.wrapV term)) p oldTerm
           _ -> error "todo: Eval + Step"
         f _ oldTerm = oldTerm
       in foldDyn f term0 actions

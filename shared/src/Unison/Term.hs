@@ -129,6 +129,9 @@ builtin n = ref (Reference.Builtin n)
 num :: Ord v => Double -> Term v
 num = lit . Number
 
+text :: Ord v => Text -> Term v
+text = lit . Text
+
 lit :: Ord v => Literal -> Term v
 lit l = ABT.tm (Lit l)
 
