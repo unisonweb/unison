@@ -56,6 +56,7 @@ library
     Unison.Runtime.Pcbt
     Unison.Runtime.Unfold
     Unison.Runtime.Vector
+    Unison.Runtime.ResourcePool
 
   build-depends:
     aeson,
@@ -125,3 +126,19 @@ executable node
     vector,
     wai-middleware-static,
     wai-extra
+
+test-suite tests
+  type:           exitcode-stdio-1.0
+  main-is:        Suite.hs
+  ghc-options:    -w -threaded -rtsopts -with-rtsopts=-N -v0
+  hs-source-dirs: tests
+  other-modules:
+  build-depends:
+    base,
+    containers,
+    tasty,
+    tasty-hunit,
+    tasty-smallcheck,
+    tasty-quickcheck,
+    transformers,
+    unison-node
