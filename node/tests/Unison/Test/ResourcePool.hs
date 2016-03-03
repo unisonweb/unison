@@ -4,12 +4,18 @@ import qualified Unison.Runtime.ResourcePool as RP
 import Test.Tasty
 import Test.Tasty.HUnit
 import qualified System.IO.Strict as ST
+import Control.Concurrent
+import Data.Time (UTCTime,getCurrentTime, addUTCTime)
+import qualified Control.Concurrent.MVar as MVar
+import qualified Data.Map as M
 
 type Resource = String
 type Params = String
 
 loadState :: FilePath -> IO String
-loadState p = ST.readFile p
+loadState p = do
+  c <- ST.readFile p
+  length c `seq` return c
 
 saveState :: String -> FilePath -> IO ()
 saveState x p = do
@@ -63,12 +69,46 @@ acquireShouldCacheConnectionTest = do
   didAcquire <- loadState "testacquires"
   assertEqual "r was only acquired once" "p1r" didAcquire
 
+
+tenSecondsAgo :: UTCTime -> UTCTime
+tenSecondsAgo now = addUTCTime (-10) now
+
+inTenSeconds :: UTCTime -> UTCTime
+inTenSeconds now = addUTCTime (10) now
+
+emptyCache now = M.fromList [("p1", ("p1r", now))
+                        , ("p2", ("p2r", tenSecondsAgo now))
+                        , ("p3", ("p3r", inTenSeconds now))
+                        ]
+cleanCacheTest :: Assertion
+cleanCacheTest = do
+  now <- getCurrentTime
+  cache <- MVar.newMVar (emptyCache now)
+  RP.cleanCache cache
+  c <- MVar.takeMVar cache
+  assertEqual "p1 and p2 are cleaned from cache" ["p3"] (M.keys c)
+
+threadGCsResourcesFromCacheTest :: Assertion
+threadGCsResourcesFromCacheTest = do
+  x <- cleanTestFiles
+  pool <- (RP.pool 3 fakeAcquire fakeRelease)
+  (resource, _) <- RP.acquire pool "p1" 1
+  threadDelay 3
+  (r2, _) <- RP.acquire pool "p1" 1
+  didAcquire <- loadState "testacquires"
+  didRelease <- loadState "testreleases"
+
+  assertEqual "r is acquired twice" "p1rp1r" didAcquire
+    >> assertEqual "didn't call release" "" didRelease
+
 tests :: TestTree
 tests = testGroup "Doc"
   [
-    testCase "AcquiresTest" $ correctlyAcquiresTest,
-    testCase "ReleasesTest" $ correctlyReleasesTest,
-    testCase "acquireShouldCacheConnectionTest" $  acquireShouldCacheConnectionTest
-  ]
+    testCase "AcquiresTest" $ correctlyAcquiresTest
+    , testCase "ReleasesTest" $ correctlyReleasesTest
+    , testCase "acquireShouldCacheConnectionTest" $  acquireShouldCacheConnectionTest
+    -- , testCase "threadGCsResourcesFromCacheTest " $  threadGCsResourcesFromCacheTest
+    , testCase "cleanCacheTest" $  cleanCacheTest
+   ]
 
 main = defaultMain tests

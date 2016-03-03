@@ -143,5 +143,6 @@ test-suite tests
     tasty-hunit,
     tasty-smallcheck,
     tasty-quickcheck,
+    time,
     transformers,
     unison-node
