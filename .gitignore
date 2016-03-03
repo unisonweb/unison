@@ -22,3 +22,4 @@ tags
 .DS_Store
 .virthualenv
 .vagrant
+/node/testreleases

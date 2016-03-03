@@ -141,4 +141,5 @@ test-suite tests
     tasty-smallcheck,
     tasty-quickcheck,
     transformers,
-    unison-node
+    unison-node,
+    bytestring 
