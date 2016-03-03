@@ -77,6 +77,7 @@ library
     prelude-extras,
     scotty,
     text,
+    time,
     transformers,
     transformers-compat,
     unison-shared,
@@ -119,6 +120,7 @@ executable node
     prelude-extras,
     scotty,
     text,
+    time,
     transformers,
     transformers-compat,
     unison-node,
@@ -136,10 +138,10 @@ test-suite tests
   build-depends:
     base,
     containers,
+    strict,
     tasty,
     tasty-hunit,
     tasty-smallcheck,
     tasty-quickcheck,
     transformers,
-    unison-node,
-    bytestring 
+    unison-node

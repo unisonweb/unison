@@ -3,48 +3,72 @@ module Unison.Test.ResourcePool where
 import qualified Unison.Runtime.ResourcePool as RP
 import Test.Tasty
 import Test.Tasty.HUnit
-import qualified Data.ByteString.Char8 as BS
-import qualified Data.ByteString as Str
+import qualified System.IO.Strict as ST
 
 type Resource = String
 type Params = String
 
-loadState :: (Read a) => IO a
-loadState = read <$> BS.unpack <$> Str.readFile "testreleases"
+loadState :: FilePath -> IO String
+loadState p = ST.readFile p
 
-saveState :: (Show a) => a -> IO ()
-saveState x = Str.writeFile "testreleases" (BS.pack . show $ x)
+saveState :: String -> FilePath -> IO ()
+saveState x p = do
+  s <- loadState p
+  length s `seq` writeFile p (s++x)
+
+clearState :: FilePath -> IO ()
+clearState p = writeFile p ""
 
 fakeAcquire :: Params -> IO Resource
-fakeAcquire p = return "r1"
+fakeAcquire p = do
+  saveState (p++"r") "testacquires"
+  >> return (p++"r")
+
+cleanTestFiles =
+  clearState "testreleases"
+  >> clearState "testacquires"
 
 fakeRelease :: Resource -> IO ()
 fakeRelease r = do
-  saveState r
-  return ()
+  saveState r "testreleases"
+  >> return ()
 
 correctlyAcquiresTest :: Assertion
 correctlyAcquiresTest = do
-  saveState ""
+  x <- cleanTestFiles
   pool <- (RP.pool 3 fakeAcquire fakeRelease)
-  (resource, _) <- RP.acquire pool "p1"
-  didRelease <- loadState
-  assertEqual "the correct resource is returned" "r1" resource
+  (resource, _) <- RP.acquire pool "p1" 0
+  (r2, _) <- RP.acquire pool "p1" 0
+  didAcquire <- loadState "testacquires"
+  didRelease <- loadState "testreleases"
+
+  assertEqual "the correct resource is returned" "p1r" resource
+    >> assertEqual "r is acquired twice" "p1rp1r" didAcquire
     >> assertEqual "didn't call release" "" didRelease
 
 correctlyReleasesTest :: Assertion
 correctlyReleasesTest = do
-  saveState ""
+  x <- cleanTestFiles
   pool <- (RP.pool 3 fakeAcquire fakeRelease)
-  (_, releaser) <- RP.acquire pool "p1"
-  didRelease <- releaser >> loadState
-  assertEqual "r was released after use" "r1" didRelease
+  (_, releaser) <- RP.acquire pool "p1" 0
+  didRelease <- releaser >> loadState "testreleases"
+  assertEqual "r was released after use" "p1r" didRelease
+
+acquireShouldCacheConnectionTest :: Assertion
+acquireShouldCacheConnectionTest = do
+  x <- cleanTestFiles
+  pool <- (RP.pool 3 fakeAcquire fakeRelease)
+  (r, _) <- RP.acquire pool "p1" 100000 -- 100 seconds
+  (r2, _) <- RP.acquire pool "p1" 100000 -- 100 seconds
+  didAcquire <- loadState "testacquires"
+  assertEqual "r was only acquired once" "p1r" didAcquire
 
 tests :: TestTree
 tests = testGroup "Doc"
   [
     testCase "AcquiresTest" $ correctlyAcquiresTest,
-    testCase "ReleasesTest" $ correctlyReleasesTest
+    testCase "ReleasesTest" $ correctlyReleasesTest,
+    testCase "acquireShouldCacheConnectionTest" $  acquireShouldCacheConnectionTest
   ]
 
 main = defaultMain tests
