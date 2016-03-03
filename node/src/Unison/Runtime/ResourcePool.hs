@@ -11,27 +11,26 @@ data Pool p r = Pool { acquire :: p -> Int -> IO (r, IO ()) }
 
 type Cache p r = MVar.MVar (M.Map p (r, UTCTime, IO ()))
 
-addResourceToMap :: (Ord p) =>  (r -> IO()) -> Cache p r -> p -> r -> Int -> IO ()
-addResourceToMap releaser cache p r wait = do
+addResourceToMap :: (Ord p) =>  (r -> IO()) -> Cache p r -> p -> r -> Int -> Int -> IO ()
+addResourceToMap releaser cache p r wait maxPoolSize = do
   now <- getCurrentTime
   let expiry = addUTCTime (fromIntegral wait) now
   cachemap <- MVar.takeMVar cache
-  newCacheMap <-
-        if wait > 0 then
-          -- add the resource to the cache with the releaser
-          return $ M.insert p (r,expiry, (releaser r)) cachemap
-        else -- immedately release and dont add to cache
-          releaser r >> return cachemap
+  newCacheMap <- if wait > 0 && ((length cachemap) < maxPoolSize) then
+                   -- add the resource to the cache with the releaser
+                   return $ M.insert p (r,expiry, (releaser r)) cachemap
+                 else -- immedately release and dont add to cache
+                   releaser r >> return cachemap
   MVar.putMVar cache newCacheMap
 
-_acquire :: (Ord p) => (p -> IO r) -> (r -> IO()) -> Cache p r -> p -> Int -> IO (r, IO ())
-_acquire acquirer releaser cache p wait = do
+_acquire :: (Ord p) => (p -> IO r) -> (r -> IO()) -> Cache p r -> Int -> p -> Int -> IO (r, IO ())
+_acquire acquirer releaser cache maxPoolSize p wait = do
   cachemap <- MVar.takeMVar cache
   r <- case M.lookup p cachemap of
           Just (r, _, _) -> return r
           Nothing -> acquirer p
   MVar.putMVar cache cachemap
-    >> return (r, (addResourceToMap releaser cache p r wait))
+    >> return (r, (addResourceToMap releaser cache p r wait maxPoolSize))
 
 cleanCache :: (Ord p) => Cache p r -> IO ()
 cleanCache cache = do
@@ -46,7 +45,7 @@ cleanCache cache = do
                                           Nothing -> knrs) emptyKeys cachemap
       newMap = foldr (\(k,_) m -> M.delete k m) cachemap keysNReleasers
   id <- CC.myThreadId
-  putStrLn ("\nthread: " ++ (show id) ++ " found: " ++ (show . length $ keysNReleasers))
+  -- putStrLn ("\nthread: " ++ (show id) ++ " found: " ++ (show . length $ keysNReleasers))
   (sequence $ map snd keysNReleasers)
     >> MVar.putMVar cache newMap
 
@@ -56,11 +55,11 @@ cleanCacheLoop cache =
 pool :: Ord p => Int -> (p -> IO r) -> (r -> IO ()) -> IO (Pool p r)
 pool maxPoolSize acquirer releaser = do
   cache <- MVar.newMVar M.empty
-  return Pool { acquire = _acquire acquirer releaser cache }
+  return Pool { acquire = _acquire acquirer releaser cache maxPoolSize }
 
 poolWithGC :: Ord p => Int -> (p -> IO r) -> (r -> IO ()) -> IO (Pool p r)
 poolWithGC maxPoolSize acquirer releaser = do
   cache <- MVar.newMVar M.empty
   id <- CC.forkIO (cleanCacheLoop cache)
-  putStrLn ("spawing: " ++ (show id))
-  return Pool { acquire = _acquire acquirer releaser cache }
+  -- putStrLn ("spawing: " ++ (show id))
+  return Pool { acquire = _acquire acquirer releaser cache maxPoolSize }

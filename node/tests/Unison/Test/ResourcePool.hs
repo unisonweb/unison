@@ -79,6 +79,17 @@ acquireShouldCacheConnectionTest = do
   assertEqual "r was only acquired once" "p1r" didAcquire
     >> assertEqual "didn't call release" "" didRelease
 
+acquireCannotCacheTooManyConnections :: Assertion
+acquireCannotCacheTooManyConnections = do
+  (pool, ts) <- getPool
+  (r1, releaser1) <- RP.acquire pool "p1" 100000 -- 100 seconds
+  (r2, releaser2) <- RP.acquire pool "p2" 100000 -- 100 seconds
+  (r3, releaser3) <- RP.acquire pool "p3" 100000 -- 100 seconds
+  (r4, releaser4) <- RP.acquire pool "p4" 100000 -- 100 seconds
+  releaser1 >> releaser2 >> releaser3 >> releaser4
+  didRelease <- loadState ts "testreleases"
+  assertEqual "only p4 got released" "p4r" didRelease
+
 tenSecondsAgo :: UTCTime -> UTCTime
 tenSecondsAgo now = addUTCTime (-10) now
 
@@ -106,7 +117,6 @@ cleanCacheShouldReleaseFinalizer = do
   assertEqual "p1 and p2 are cleaned from cache" ["p3"] (M.keys c)
     >> assertEqual "p1 and p2 are released" "p1p2" didRelease
 
-
 getPoolWithGC = do
   state <- MVar.newMVar M.empty
   pool <- cleanTestFiles state
@@ -132,6 +142,7 @@ tests = testGroup "Doc"
     , testCase "acquireShouldCacheConnectionTest" $  acquireShouldCacheConnectionTest
     , testCase "threadGCsResourcesFromCacheTest " $  threadGCsResourcesFromCacheTest
     , testCase "cleanCacheShouldReleaseFinalizer" $  cleanCacheShouldReleaseFinalizer
+    , testCase "acquireCannotCacheTooManyConnections" $  acquireCannotCacheTooManyConnections
    ]
 
 main = defaultMain tests
