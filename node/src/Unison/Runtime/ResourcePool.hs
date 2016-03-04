@@ -34,7 +34,7 @@ _acquire acquirer releaser cache maxPoolSize p wait = do
 
 cleanCache :: (Ord p) => Cache p r -> IO ()
 cleanCache cache = do
-  now <- CC.threadDelay 1 >> getCurrentTime
+  now <- getCurrentTime
   cachemap <- MVar.takeMVar cache
   let emptyKeys = [] :: [(p, IO())]
   let keysNReleasers = M.foldrWithKey (\k _ knrs ->
@@ -45,21 +45,19 @@ cleanCache cache = do
                                           Nothing -> knrs) emptyKeys cachemap
       newMap = foldr (\(k,_) m -> M.delete k m) cachemap keysNReleasers
   id <- CC.myThreadId
-  -- putStrLn ("\nthread: " ++ (show id) ++ " found: " ++ (show . length $ keysNReleasers))
   (sequence $ map snd keysNReleasers)
     >> MVar.putMVar cache newMap
 
 cleanCacheLoop cache =
-  cleanCache cache >> cleanCacheLoop cache
+  cleanCache cache >> CC.threadDelay 1000000 >> cleanCacheLoop cache
 
 pool :: Ord p => Int -> (p -> IO r) -> (r -> IO ()) -> IO (Pool p r)
 pool maxPoolSize acquirer releaser = do
   cache <- MVar.newMVar M.empty
+  id <- CC.forkIO (cleanCacheLoop cache)
   return Pool { acquire = _acquire acquirer releaser cache maxPoolSize }
 
-poolWithGC :: Ord p => Int -> (p -> IO r) -> (r -> IO ()) -> IO (Pool p r)
-poolWithGC maxPoolSize acquirer releaser = do
+poolWithoutGC :: Ord p => Int -> (p -> IO r) -> (r -> IO ()) -> IO (Pool p r)
+poolWithoutGC maxPoolSize acquirer releaser = do
   cache <- MVar.newMVar M.empty
-  id <- CC.forkIO (cleanCacheLoop cache)
-  -- putStrLn ("spawing: " ++ (show id))
   return Pool { acquire = _acquire acquirer releaser cache maxPoolSize }

@@ -6,6 +6,7 @@ import Test.Tasty.HUnit
 import Control.Concurrent
 import Data.Time (UTCTime,getCurrentTime, addUTCTime)
 import qualified Control.Concurrent.MVar as MVar
+import qualified Control.Concurrent as CC
 import qualified Data.Map as M
 
 type Resource = String
@@ -45,7 +46,7 @@ fakeRelease s r = do
 getPool = do
   state <- MVar.newMVar M.empty
   pool <- cleanTestFiles state
-          >> (RP.pool 3 (fakeAcquire state) (fakeRelease state))
+          >> (RP.poolWithoutGC 3 (fakeAcquire state) (fakeRelease state))
   return (pool, state)
 
 correctlyAcquiresTest :: Assertion
@@ -71,8 +72,8 @@ correctlyReleasesTest = do
 acquireShouldCacheConnectionTest :: Assertion
 acquireShouldCacheConnectionTest = do
   (pool, ts) <- getPool
-  (r, releaser1) <- RP.acquire pool "p1" 100000 -- 100 seconds
-  (r2, releaser2) <- releaser1 >> RP.acquire pool "p1" 100000 -- 100 seconds
+  (r, releaser1) <- RP.acquire pool "p1" 1
+  (r2, releaser2) <- releaser1 >> RP.acquire pool "p1" 1
   didAcquire <- releaser2 >> loadState ts "testacquires"
   didRelease <- loadState ts "testreleases"
   -- a 100 second wait would prevent immediate release both times
@@ -82,10 +83,10 @@ acquireShouldCacheConnectionTest = do
 acquireCannotCacheTooManyConnections :: Assertion
 acquireCannotCacheTooManyConnections = do
   (pool, ts) <- getPool
-  (r1, releaser1) <- RP.acquire pool "p1" 100000 -- 100 seconds
-  (r2, releaser2) <- RP.acquire pool "p2" 100000 -- 100 seconds
-  (r3, releaser3) <- RP.acquire pool "p3" 100000 -- 100 seconds
-  (r4, releaser4) <- RP.acquire pool "p4" 100000 -- 100 seconds
+  (r1, releaser1) <- RP.acquire pool "p1" 1
+  (r2, releaser2) <- RP.acquire pool "p2" 1
+  (r3, releaser3) <- RP.acquire pool "p3" 1
+  (r4, releaser4) <- RP.acquire pool "p4" 1
   releaser1 >> releaser2 >> releaser3 >> releaser4
   didRelease <- loadState ts "testreleases"
   assertEqual "only p4 got released" "p4r" didRelease
@@ -120,19 +121,28 @@ cleanCacheShouldReleaseFinalizer = do
 getPoolWithGC = do
   state <- MVar.newMVar M.empty
   pool <- cleanTestFiles state
-          >> (RP.poolWithGC 3 (fakeAcquire state) (fakeRelease state))
+          >> (RP.pool 3 (fakeAcquire state) (fakeRelease state))
   return (pool, state)
+
+delaySeconds μs = threadDelay (1000000 * μs)
 
 threadGCsResourcesFromCacheTest :: Assertion
 threadGCsResourcesFromCacheTest = do
   (pool, ts) <- getPoolWithGC
-  (resource, release1) <- RP.acquire pool "p1" 4
-  didRelease1 <- release1
-                    >> threadDelay 1
+  (_, release1) <- RP.acquire pool "p1" 2
+  didRelease1a <- release1
+                    >> delaySeconds 1
                     >> loadState ts "testreleases"
-  didRelease2 <- threadDelay 5 >> loadState ts "testreleases"
-  assertEqual "didn't immediately release" "" didRelease1
-    >> assertEqual "auto released after 3 seconds" "p1r" didRelease2
+  didRelease1b <- delaySeconds 3 >> loadState ts "testreleases"
+  (_, release2) <- RP.acquire pool "p2" 2
+  didRelease2a <- release2
+                    >> delaySeconds 1
+                    >> loadState ts "testreleases"
+  didRelease2b <- delaySeconds 3 >> loadState ts "testreleases"
+  assertEqual "shouldn't immediately release p1" "" didRelease1a
+    >> assertEqual "auto released p1 after 3 seconds" "p1r" didRelease1b
+    >> assertEqual "shouldn't immediately release p2" "p1r" didRelease2a
+    >> assertEqual "auto released p2 after 3 seconds" "p1rp2r" didRelease2b
 
 tests :: TestTree
 tests = testGroup "Doc"
@@ -140,9 +150,9 @@ tests = testGroup "Doc"
     testCase "AcquiresTest" $ correctlyAcquiresTest
     , testCase "ReleasesTest" $ correctlyReleasesTest
     , testCase "acquireShouldCacheConnectionTest" $  acquireShouldCacheConnectionTest
-    , testCase "threadGCsResourcesFromCacheTest " $  threadGCsResourcesFromCacheTest
     , testCase "cleanCacheShouldReleaseFinalizer" $  cleanCacheShouldReleaseFinalizer
     , testCase "acquireCannotCacheTooManyConnections" $  acquireCannotCacheTooManyConnections
+    , testCase "threadGCsResourcesFromCacheTest " $  threadGCsResourcesFromCacheTest
    ]
 
 main = defaultMain tests
