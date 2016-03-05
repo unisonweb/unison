@@ -144,6 +144,13 @@ threadGCsResourcesFromCacheTest = do
     >> assertEqual "shouldn't immediately release p2" "p1r" didRelease2a
     >> assertEqual "auto released p2 after 3 seconds" "p1rp2r" didRelease2b
 
+getPoolWithCache = do
+  cache <- MVar.newMVar M.empty
+  testState <- MVar.newMVar M.empty
+  pool <- cleanTestFiles testState
+          >> (RP.poolWithoutGC 3 (fakeAcquire testState) (fakeRelease testState))
+  return (pool, testState, cache)
+
 tests :: TestTree
 tests = testGroup "Doc"
   [
@@ -152,7 +159,7 @@ tests = testGroup "Doc"
     , testCase "acquireShouldCacheConnectionTest" $  acquireShouldCacheConnectionTest
     , testCase "cleanCacheShouldReleaseFinalizer" $  cleanCacheShouldReleaseFinalizer
     , testCase "acquireCannotCacheTooManyConnections" $  acquireCannotCacheTooManyConnections
-    , testCase "threadGCsResourcesFromCacheTest " $  threadGCsResourcesFromCacheTest
-   ]
+    , testCase "threadGCsResourcesFromCacheTest" $  threadGCsResourcesFromCacheTest
+    ]
 
 main = defaultMain tests
