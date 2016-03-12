@@ -82,8 +82,8 @@ acquireCannotCacheTooManyConnections = do
   (r2, releaser2) <- RP.acquire pool "p2" 1
   (r3, releaser3) <- RP.acquire pool "p3" 1
   (r4, releaser4) <- RP.acquire pool "p4" 1
-  releaser1 >> releaser2 >> releaser3 >> releaser4
-  didRelease <- loadState ts "testreleases"
+  didRelease <- releaser1 >> releaser2 >> releaser3 >> releaser4
+                >> loadState ts "testreleases"
   assertEqual "only p4 got released" "p4r" didRelease
 
 tenSecondsAgo :: UTCTime -> UTCTime
@@ -115,8 +115,7 @@ cleanCacheShouldReleaseFinalizer = do
 
 getPoolWithGC = do
   state <- MVar.newMVar M.empty
-  pool <- --cleanTestFiles state >>
-          (RP.pool 3 (fakeAcquire state) (fakeRelease state))
+  pool <- (RP.pool 3 (fakeAcquire state) (fakeRelease state))
   return (pool, state)
 
 delaySeconds μs = threadDelay (1000000 * μs)
@@ -142,8 +141,8 @@ threadGCsResourcesFromCacheTest = do
 fakeGetThread :: CC.ThreadId -> IO CC.ThreadId
 fakeGetThread t = return t
 
-aquireIsThreadSpecificTest :: Assertion
-aquireIsThreadSpecificTest = do
+acquireIsThreadSpecificTest :: Assertion
+acquireIsThreadSpecificTest = do
   ts <- MVar.newMVar M.empty
   mVarCache <- MVar.newMVar M.empty
   someOtherThread <- forkIO (putStrLn "")
@@ -159,6 +158,21 @@ aquireIsThreadSpecificTest = do
     >> assertEqual "r is acquired twice" "p1rp1r" didAcquire
     >> assertEqual "two connections are in the map" 2 poolSize
 
+acquireRemovesFromCacheTest :: Assertion
+acquireRemovesFromCacheTest = do
+  (pool, ts) <- getPool
+  (r1, release1) <- RP.acquire pool "p1" 1
+  (r2, _) <- release1 >> RP.acquire pool "p1" 1
+  -- acquire p1 a third time, without releasing r2
+  (r3, _) <-  RP.acquire pool "p1" 1
+  didAcquire <- loadState ts "testacquires"
+  didRelease <- loadState ts "testreleases"
+
+  assertEqual "the correct resource is returned" "p1r" r1
+    >> assertEqual "the correct resource is returned" "p1r" r2
+    >> assertEqual "the correct resource is returned" "p1r" r3
+    >> assertEqual "r is acquired twice" "p1rp1r" didAcquire
+
 tests :: TestTree
 tests = testGroup "Doc"
   [
@@ -168,7 +182,8 @@ tests = testGroup "Doc"
     , testCase "cleanCacheShouldReleaseFinalizer" $  cleanCacheShouldReleaseFinalizer
     , testCase "acquireCannotCacheTooManyConnections" $  acquireCannotCacheTooManyConnections
     , testCase "threadGCsResourcesFromCacheTest" $ threadGCsResourcesFromCacheTest
-    , testCase "aquireIsThreadSpecificTest" $ aquireIsThreadSpecificTest
+    , testCase "acquireIsThreadSpecificTest" $ acquireIsThreadSpecificTest
+    , testCase "acquireRemovesFromCacheTest" $ acquireRemovesFromCacheTest
     ]
 
 main = defaultMain tests

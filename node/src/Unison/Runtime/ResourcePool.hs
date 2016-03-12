@@ -28,10 +28,10 @@ _acquire :: (Ord p) => (p -> IO r) -> (r -> IO()) -> Cache p r -> Int -> IO(CC.T
 _acquire acquirer releaser mVarCache maxPoolSize getThread p wait = do
   threadId <- getThread
   cacheMap <- MVar.takeMVar mVarCache
-  r <- case M.lookup (p,threadId) cacheMap of
-          Just (r, _, _) -> return r
-          Nothing -> acquirer p
-  MVar.putMVar mVarCache cacheMap
+  (newMap, r) <- case M.lookup (p,threadId) cacheMap of
+                  Just (r, _, _) -> return (M.delete (p,threadId) cacheMap, r)
+                  Nothing -> ((,) cacheMap) <$> acquirer p
+  MVar.putMVar mVarCache newMap
     >> return (r, (addResourceToMap releaser mVarCache p r wait maxPoolSize getThread))
 
 cleanCache :: (Ord p) => Cache p r -> IO ()
