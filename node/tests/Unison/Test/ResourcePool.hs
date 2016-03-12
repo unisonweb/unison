@@ -35,18 +35,13 @@ fakeAcquire s p = do
   saveState s "testacquires" (p++"r")
   >> return (p++"r")
 
-cleanTestFiles s =
-  saveState s "testacquires" ""
-  >> saveState s "testacquires" ""
-
 fakeRelease :: TestState -> Resource -> IO ()
 fakeRelease s r = do
   saveState s "testreleases" r
 
 getPool = do
   state <- MVar.newMVar M.empty
-  pool <- cleanTestFiles state
-          >> (RP.poolWithoutGC 3 (fakeAcquire state) (fakeRelease state))
+  pool <- (RP.poolWithoutGC 3 (fakeAcquire state) (fakeRelease state))
   return (pool, state)
 
 correctlyAcquiresTest :: Assertion
@@ -97,31 +92,31 @@ tenSecondsAgo now = addUTCTime (-10) now
 inTenSeconds :: UTCTime -> UTCTime
 inTenSeconds now = addUTCTime (10) now
 
-aThreeFullCache now f1 f2 f3=
-  M.fromList [("p1", ("p1", now, f1))
-             , ("p2", ("p2", tenSecondsAgo now, f2))
-             , ("p3", ("p3", inTenSeconds now, f3))
+aThreeFullCache now threadId f1 f2 f3 =
+  M.fromList [(("p1",threadId), ("p1", now, f1))
+             , (("p2",threadId), ("p2", tenSecondsAgo now, f2))
+             , (("p3",threadId), ("p3", inTenSeconds now, f3))
              ]
 
 cleanCacheShouldReleaseFinalizer :: Assertion
 cleanCacheShouldReleaseFinalizer = do
   (pool, ts) <- getPool
   now <- getCurrentTime
-  cache <- MVar.newMVar (aThreeFullCache now
+  threadId <- CC.myThreadId
+  cache <- MVar.newMVar (aThreeFullCache now threadId
                          (fakeRelease ts "p1")
                          (fakeRelease ts "p2")
                          (fakeRelease ts "p3"))
   RP.cleanCache cache
   c <- MVar.takeMVar cache
   didRelease <- loadState ts "testreleases"
-
-  assertEqual "p1 and p2 are cleaned from cache" ["p3"] (M.keys c)
+  assertEqual "p1 and p2 are cleaned from cache" [("p3",threadId)] (M.keys c)
     >> assertEqual "p1 and p2 are released" "p1p2" didRelease
 
 getPoolWithGC = do
   state <- MVar.newMVar M.empty
-  pool <- cleanTestFiles state
-          >> (RP.pool 3 (fakeAcquire state) (fakeRelease state))
+  pool <- --cleanTestFiles state >>
+          (RP.pool 3 (fakeAcquire state) (fakeRelease state))
   return (pool, state)
 
 delaySeconds μs = threadDelay (1000000 * μs)
@@ -144,12 +139,25 @@ threadGCsResourcesFromCacheTest = do
     >> assertEqual "shouldn't immediately release p2" "p1r" didRelease2a
     >> assertEqual "auto released p2 after 3 seconds" "p1rp2r" didRelease2b
 
-getPoolWithCache = do
-  cache <- MVar.newMVar M.empty
-  testState <- MVar.newMVar M.empty
-  pool <- cleanTestFiles testState
-          >> (RP.poolWithoutGC 3 (fakeAcquire testState) (fakeRelease testState))
-  return (pool, testState, cache)
+fakeGetThread :: CC.ThreadId -> IO CC.ThreadId
+fakeGetThread t = return t
+
+aquireIsThreadSpecificTest :: Assertion
+aquireIsThreadSpecificTest = do
+  ts <- MVar.newMVar M.empty
+  mVarCache <- MVar.newMVar M.empty
+  someOtherThread <- forkIO (putStrLn "")
+  let aquire = RP._acquire (fakeAcquire ts) (fakeRelease ts) mVarCache 3
+  (r1, release1) <- aquire CC.myThreadId "p1" 10
+  (r1b, release1b) <- release1 >> aquire (fakeGetThread someOtherThread) "p1" 10
+  didAcquire <- release1b >> loadState ts "testacquires"
+
+  poolSize <- length <$> MVar.takeMVar mVarCache
+
+  assertEqual "got the correct r" "p1r" r1
+    >> assertEqual "got the correct r" "p1r" r1b
+    >> assertEqual "r is acquired twice" "p1rp1r" didAcquire
+    >> assertEqual "two connections are in the map" 2 poolSize
 
 tests :: TestTree
 tests = testGroup "Doc"
@@ -159,7 +167,8 @@ tests = testGroup "Doc"
     , testCase "acquireShouldCacheConnectionTest" $  acquireShouldCacheConnectionTest
     , testCase "cleanCacheShouldReleaseFinalizer" $  cleanCacheShouldReleaseFinalizer
     , testCase "acquireCannotCacheTooManyConnections" $  acquireCannotCacheTooManyConnections
-    , testCase "threadGCsResourcesFromCacheTest" $  threadGCsResourcesFromCacheTest
+    , testCase "threadGCsResourcesFromCacheTest" $ threadGCsResourcesFromCacheTest
+    , testCase "aquireIsThreadSpecificTest" $ aquireIsThreadSpecificTest
     ]
 
 main = defaultMain tests
