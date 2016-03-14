@@ -40,8 +40,16 @@ takeWhile f = Parser $ \s ->
   let hd = Prelude.takeWhile f s
   in Succeed hd (length hd)
 
+takeWhile1 :: (Char -> Bool) -> Parser String
+takeWhile1 f = takeWhile f >>= \s -> case s of
+  [] -> fail "takeWhile1 empty"
+  _ -> pure s
+
 whitespace :: Parser ()
 whitespace = void $ takeWhile Char.isSpace
+
+whitespace1 :: Parser ()
+whitespace1 = void $ takeWhile1 Char.isSpace
 
 nonempty :: Parser a -> Parser a
 nonempty p = Parser $ \s -> case run p s of

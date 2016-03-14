@@ -1,7 +1,11 @@
+{-# Language OverloadedStrings #-}
+
 module Unison.TermSearchboxParser where
 
-import Control.Monad
+-- todo - convert this module to use predictive, lookahead parser
+
 import Control.Applicative
+import Control.Monad
 import Data.Maybe
 import Prelude hiding (takeWhile)
 import Unison.Node.MemNode (V)
@@ -10,6 +14,7 @@ import Unison.Term (Term)
 import qualified Data.Char as Char
 import qualified Data.Text as Text
 import qualified Unison.Term as E
+import qualified Unison.Var as Var
 
 import Debug.Trace
 
@@ -44,14 +49,15 @@ quotedString = char '\"' *> takeWhile (\c -> c /= '\"') <* optional (char '\"')
 
 intro :: Parser [Term V]
 intro = do
-  v <- token identifier
-  let lam = E.lam' [Text.pack v] E.blank
-  let let' = E.let1' [(Text.pack v, E.blank)] E.blank
-  let letr' = E.letRec' [(Text.pack v, E.blank)] E.blank
+  let sym = (Var.named . Text.pack <$> token identifier) <|> pure (Var.named "_")
+  let lam v = E.lam v E.blank
+  let let' v = E.let1 [(v, E.blank)] E.blank
+  let letr' v = E.letRec [(v, E.blank)] E.blank
   o <- optional $
-    msum [ lam <$ char '-' <* optional (char '>')
-         , let' <$ char '='
-         , letr' <$ string "r=" ]
+    msum [ lam <$> (token (char '\\') *> sym)
+         , letr' <$> (token (string "letr") *> whitespace1 *> sym)
+         , letr' <$> (token (string "let rec") *> whitespace1 *> sym)
+         , let' <$> (token (string "let") *> whitespace1 *> sym) ]
   pure $ case o of
-    Nothing -> [lam, let', letr']
+    Nothing -> []
     Just e -> [e]

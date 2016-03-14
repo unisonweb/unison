@@ -39,7 +39,7 @@ import qualified Unison.View as View
 import qualified Unison.Views as Views
 
 watch :: Show a => String -> a -> a
-watch msg a = traceShow (msg,a) a
+watch msg a = traceShow (msg ++ ": " ++ show a) a
 
 data S =
   S { metadata :: Map Reference (Metadata V Reference) }
@@ -123,11 +123,11 @@ make node keydown s paths terms =
           in do tick <- Signals.afterTick localInfo; pure $ leftmost [tick, push ok (updated txt)]
         let triggeringTxt = tagDyn txt searchTick
         keyed <- pure $
-          let combine a b c = let abc = a ++ b ++ c in trace (intercalate ", " $ map fst abc) abc
-          in combine <$> locals <*> searches <*> literals
+          let combine a b = let abc = a ++ b in trace (intercalate ", " $ map fst abc) abc
+          in combine <$> locals <*> searches
         let trimEnd = reverse . dropWhile (== ' ') . reverse
-        let f possible txt = let txt' = trimEnd txt in filter (isSubsequenceOf txt' . fst) possible
-        filtered <- pure $ f <$> keyed <*> current txt
+        let f possible lits txt = let txt' = trimEnd txt in lits ++ filter (isSubsequenceOf txt' . fst) possible
+        filtered <- pure $ f <$> keyed <*> literals <*> current txt
         let outputS = S . Map.fromList . Node.references <$> searchResultE
         _ <- widgetHold (pure ()) (formatLocalInfo <$> localInfo)
         ticks <- Signals.guard $ leftmost [void localInfo, void $ updated txt, void searchResultE]
@@ -194,10 +194,10 @@ formatSearch name path results = fromMaybe [] $ go <$> results
 
 isValid :: Term V -> Type V -> Bool
 isValid e t
-  | isRight (Typechecker.checkAdmissible' e t)        = True
   -- hacky shortcuts to avoid full typechecking pass
   | t == Type.forall' ["v"] (Type.v' "v")             = True
   | e == Term.lam' ["v"] Term.blank && Type.isArrow t = True
   | e == Term.let1' [("v", Term.blank)] Term.blank    = True
   | e == Term.letRec' [("v", Term.blank)] Term.blank  = True
+  | isRight (Typechecker.checkAdmissible' e t)        = True
   | otherwise                                         = False
