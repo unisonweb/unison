@@ -55,9 +55,9 @@ intro = do
   let letr' v = E.letRec [(v, E.blank)] E.blank
   o <- optional $
     msum [ lam <$> (token (char '\\') *> sym)
-         , letr' <$> (token (string "letr") *> whitespace1 *> sym)
-         , letr' <$> (token (string "let rec") *> whitespace1 *> sym)
-         , let' <$> (token (string "let") *> whitespace1 *> sym) ]
+         , letr' <$> (token (string "letr") *> sym)
+         , letr' <$> (token (string "let rec") *> sym)
+         , let' <$> (token (string "let") *> sym) ]
   pure $ case o of
     Nothing -> []
     Just e -> [e]

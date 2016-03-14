@@ -41,9 +41,10 @@ takeWhile f = Parser $ \s ->
   in Succeed hd (length hd)
 
 takeWhile1 :: (Char -> Bool) -> Parser String
-takeWhile1 f = takeWhile f >>= \s -> case s of
-  [] -> fail "takeWhile1 empty"
-  _ -> pure s
+takeWhile1 f = Parser $ \s ->
+  let hd = Prelude.takeWhile f s
+  in if null hd then Fail ["takeWhile1 empty: " ++ take 20 s] False
+     else Succeed hd (length hd)
 
 whitespace :: Parser ()
 whitespace = void $ takeWhile Char.isSpace
