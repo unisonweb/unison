@@ -65,7 +65,7 @@ make node keydown s paths terms =
   let
     formatLocalInfo Node.LocalInfo{..} = do
       name <- Views.lookupSymbol . metadata <$> sample s
-      let width = Dimensions.Width 400
+      let width = Dimensions.Width 380
       elClass "div" "explorer-local-info" $ do
         id $
           if localAdmissibleType == Type.forall' ["a"] (Type.v' "a") then pure ()
@@ -165,7 +165,7 @@ formatResult :: MonadWidget t m
 formatResult name e as w =
   let doc = Views.term name e
       txt = Text.unpack . Text.concat $ Doc.tokens "\n" (Doc.flow doc)
-  in (txt, w (as <$ DocView.view (Dimensions.Width 300) doc))
+  in (txt, w (as <$ DocView.view (Dimensions.Width 350) doc))
 
 formatLocals :: MonadWidget t m
              => (Reference -> Symbol View.DFO)

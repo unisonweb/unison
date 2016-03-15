@@ -77,6 +77,13 @@ termEditor term0 = do
           _ -> error "todo: Eval + Step"
         f _ oldTerm = oldTerm
       in foldDyn f term0 actions
+    wraps <- pure $ -- typing 'a' replaces current selection, x, with _ x
+      let
+        a _ = f <$> sample (current paths) <*> sample (current terms)
+        f p t = Paths.atTerm p t >>= \t ->
+          pure (Just (TermExplorer.Replace p (Term.blank `Term.app` t), TermExplorer.Advance))
+      in
+        push a (void $ Signals.dropWhen isExplorerOpen' $ ffilter (== 65) keydown)
     paths <- id $
       let
         a _ = advancePath <$> sample (current paths) <*> sample boxes <*> sample (current terms)
@@ -87,18 +94,16 @@ termEditor term0 = do
         f Nothing = Just <$> sample (current paths) -- refresh the path event on cancel
         f _ = pure Nothing
       in do
-        let keyAdvance = push a (traceEvent "advance-keypress" $ void $ Signals.dropWhen isExplorerOpen' $
-                                ffilter (== 65) keydown) -- [a]dvance
         advance <- push ok <$> Signals.waitFor' (updated docs) actions
         replace <- push f <$> Signals.guard actions
-        holdDyn Path.root $ leftmost [keyAdvance, paths', replace, advance]
+        holdDyn Path.root $ leftmost [paths', replace, advance]
     (e, _, boxes, paths', highlightRegion) <- elClass "div" "root" $
       DocView.widgets (Signals.dropWhen isExplorerOpen' keydown) (Signals.dropWhen isExplorerOpen') paths (Width 400) docs
     explorerTopLeft <- holdDyn (X 0, Y 0) $ (\(X x, Y y, _, Height h) -> (X x, Y $ y + h + 20)) <$> highlightRegion
     explorerResults <- Signals.offset "explorer-offset" explorerTopLeft . Signals.modal isExplorerOpen (never,never) $
                        TermExplorer.make node keydown (current state) (current paths) (current terms)
     state' <- Signals.switch' (fst <$> explorerResults)
-    actions <- Signals.switch' (snd <$> explorerResults)
+    actions <- (\a -> leftmost [wraps,a]) <$> Signals.switch' (snd <$> explorerResults)
   pure ()
 
 -- | Looks for leftmost, uppermost `Term.blank` relative to the current path.

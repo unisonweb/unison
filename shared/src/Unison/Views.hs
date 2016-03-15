@@ -51,6 +51,7 @@ term ref t = D.group (go no View.low t) where
     E.Lit' l -> Symbol.annotate View.prefix . (\r -> Symbol.prefix r :: Symbol ()) . Text.pack . show $ l
     E.Var' v -> v
     E.Ref' r -> ref r
+    E.Blank' -> Symbol.annotate View.prefix (Symbol.prefix "_" :: Symbol ())
     _ -> Symbol.annotate View.prefix (Symbol.prefix "<unresolved-operator>" :: Symbol ())
   formatBinding :: Path -> Symbol View.DFO -> ViewableTerm -> Doc Text Path
   formatBinding path name body = case body of
