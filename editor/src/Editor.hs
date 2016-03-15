@@ -110,13 +110,14 @@ termEditor term0 = do
 advancePath :: Path -> Box Text (Path,Region) -> Term V -> Maybe Path
 advancePath p box term =
   let
-    leaf p = maybe p leaf (Doc.contract' box p)
     isBlank p = maybe False (== Term.blank) (Paths.atTerm p term)
     scanHorizontal _ p | isBlank p = Just p
     scanHorizontal radius p = maybe (scanVertical radius p) (scanHorizontal radius) (Doc.right' box p)
     scanVertical 0 _ = Nothing
     scanVertical radius p = scanHorizontal (radius-1) =<< Doc.down' box p
-    p0 = leaf p
+    p' = Doc.contains box (Doc.region box p)
+    p0 = leaf p'
+    leaf p = maybe p leaf (Doc.contract' box p)
   in
     if isBlank p0 && p /= p0 then Just p0
     else scanHorizontal (3::Int) p0
