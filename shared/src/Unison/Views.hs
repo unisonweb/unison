@@ -99,12 +99,14 @@ term ref t = D.group (go no View.low t) where
     AppsP' (fn,fnP) args ->
       let
         Symbol.Symbol _ name view = op fn
-        (taken, remaining) = splitAt (View.arity view) args
+        arity = if length args >= View.arity view then View.arity view else 0
+        (taken, remaining) = splitAt arity args
         fmt (child,path) = (\p -> go (fn ==) p child, path)
         paren = p > View.precedence view && View.arity view /= 0
         applied = maybe unsaturated (D.parenthesize paren) $
                   View.instantiate view fnP name (map fmt taken)
-        unsaturated = D.sub' fnP $ go no View.high fn
+        unsaturated = (if View.arity view /= 0 then D.parenthesize True else id) $
+                      D.sub' fnP $ go no View.high fn
       in
         (if inChain fn then id else D.group) $ case remaining of
           [] -> applied

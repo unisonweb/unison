@@ -56,6 +56,11 @@ tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Term"
         in assertEqual "+"
           "1 + 1"
           (Doc.formatText (Width 80) (Views.term symbol t))
+    , testCase "infix-rendering (unsaturated)" $ node >>= \(_,symbol) ->
+        let t = builtin "Number.plus" `app` blank
+        in assertEqual "+"
+          "(+) _"
+          (Doc.formatText (Width 80) (Views.term symbol t))
     , testCase "infix-rendering (2)" $ node >>= \(_,symbol) ->
         do
           t <- pure $ num 1 `plus` num 1
