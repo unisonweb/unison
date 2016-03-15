@@ -88,6 +88,12 @@ make hash store =
            op [] = pure $ Term.vector mempty
            op _ = fail "Vector.empty unpossible"
        in (r, Just (I.Primop 0 op), Type.forall' ["a"] (vec (v' "a")), prefix "empty")
+     , let r = R.Builtin "Vector.fold-left"
+           op [f,z,vec] = whnf vec >>= \vec -> case vec of
+             Term.Vector' vs -> Vector.foldM (\acc a -> whnf (f `Term.apps` [acc, a])) z vs
+             _ -> pure $ Term.ref r `Term.app` vec
+           op _ = fail "Vector.fold-left unpossible"
+       in (r, Just (I.Primop 3 op), Type.forall' ["a","b"] $ (v' "b" --> v' "a" --> v' "b") --> v' "b" --> vec (v' "a") --> v' "b", prefix "fold-left")
      , let r = R.Builtin "Vector.map"
            op [f,vec] = do
              vecr <- whnf vec
@@ -146,8 +152,24 @@ make hash store =
               g x y = sym `Term.app` x `Term.app` y
       _ -> error "unpossible"
 
+    stub :: Metadata V R.Reference -> Type V -> N.Noted IO ()
+    stub s t = () <$ Node.createTerm node (Term.blank `Term.ann` t) s
+
+    remote v = Type.builtin "Remote" `Type.app` v
+    remote' v = Type.builtin "Remote!" `Type.app` v
+    future v = Type.builtin "Future" `Type.app` v
+    channel v = Type.builtin "Channel" `Type.app` v
+
   in N.run $ do
     _ <- Node.createTerm node (Term.lam' ["a"] (Term.var' "a")) (prefix "identity")
+    stub (prefix "at") $ Type.forall' ["a"] (Type.builtin "Node" --> v' "a" --> remote (v' "a"))
+    stub (prefix "here") $ remote (Type.builtin "Node")
+    stub (prefix "send") $ Type.forall' ["a"] (Type.builtin "Node" --> channel (v' "a") --> v' "a" --> remote' unitT)
+    stub (prefix "channel") $ Type.forall' ["a"] (remote' (v' "a"))
+    stub (prefix "map") $ Type.forall' ["a","b"] ((v' "a" --> v' "b") --> remote (v' "a") --> remote (v' "b"))
+    stub (prefix "map") $ Type.forall' ["a","b"] ((v' "a" --> v' "b") --> remote' (v' "a") --> remote' (v' "b"))
+    stub (prefix "bind") $ Type.forall' ["a","b"] ((v' "a" --> remote (v' "b")) --> remote (v' "a") --> remote (v' "b"))
+    stub (prefix "bind") $ Type.forall' ["a","b"] ((v' "a" --> remote' (v' "b")) --> remote' (v' "a") --> remote' (v' "b"))
     mapM_ (\(r,_,t,md) -> Node.updateMetadata node r md *> Store.annotateTerm store r t)
           builtins
     pure node

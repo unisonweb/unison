@@ -136,6 +136,9 @@ vectorOf t = vector `app` t
 ref :: Ord v => Reference -> Type v
 ref = lit . Ref
 
+builtin :: Ord v => Text -> Type v
+builtin = ref . Reference.Builtin
+
 app :: Ord v => Type v -> Type v -> Type v
 app f arg = ABT.tm (App f arg)
 

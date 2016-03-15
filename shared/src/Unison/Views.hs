@@ -105,8 +105,7 @@ term ref t = D.group (go no View.low t) where
         paren = p > View.precedence view && View.arity view /= 0
         applied = maybe unsaturated (D.parenthesize paren) $
                   View.instantiate view fnP name (map fmt taken)
-        unsaturated = (if View.arity view /= 0 then D.parenthesize True else id) $
-                      D.sub' fnP $ go no View.high fn
+        unsaturated = D.sub' fnP $ go no View.high fn
       in
         (if inChain fn then id else D.group) $ case remaining of
           [] -> applied
@@ -124,7 +123,9 @@ term ref t = D.group (go no View.low t) where
     E.Var' v -> sym v
     E.Lit' _ -> D.embed (Var.name $ op t)
     E.Blank' -> D.embed "_"
-    E.Ref' r -> sym (ref r)
+    E.Ref' r ->
+      let op = ref r
+      in (if View.arity (Symbol.annotation op) /= 0 then D.parenthesize True else id) $ sym op
     _ -> error $ "layout match failure " ++ show t
 
 type' :: (Reference -> Symbol View.DFO) -> ViewableType -> Doc Text Path
