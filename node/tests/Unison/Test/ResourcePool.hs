@@ -174,10 +174,10 @@ acquireRemovesFromCacheTest = do
     >> assertEqual "r is acquired twice" "p1rp1r" didAcquire
 
 tests :: TestTree
-tests = testGroup "Doc"
+tests = testGroup "ResourcePool"
   [
-    testCase "AcquiresTest" $ correctlyAcquiresTest
-    , testCase "ReleasesTest" $ correctlyReleasesTest
+    testCase "correctlyAcquiresTest" $ correctlyAcquiresTest
+    , testCase "correctlyReleasesTest" $ correctlyReleasesTest
     , testCase "acquireShouldCacheConnectionTest" $  acquireShouldCacheConnectionTest
     , testCase "cleanCacheShouldReleaseFinalizer" $  cleanCacheShouldReleaseFinalizer
     , testCase "acquireCannotCacheTooManyConnections" $  acquireCannotCacheTooManyConnections

@@ -11,7 +11,7 @@ data Pool p r = Pool { acquire :: p -> Int -> IO (r, IO ()) }
 type ResourceKey p = (p,CC.ThreadId)
 type Cache p r = MVar.MVar (M.Map (ResourceKey p) (r, UTCTime, IO ()))
 
-addResourceToMap :: (Ord p) =>  (r -> IO()) -> Cache p r -> p -> r -> Int -> Int -> IO(CC.ThreadId) -> IO ()
+addResourceToMap :: Ord p =>  (r -> IO ()) -> Cache p r -> p -> r -> Int -> Int -> IO CC.ThreadId -> IO ()
 addResourceToMap releaser mVarCache p r wait maxPoolSize getThread = do
   now <- getCurrentTime
   threadId <- getThread
@@ -24,7 +24,7 @@ addResourceToMap releaser mVarCache p r wait maxPoolSize getThread = do
                    releaser r >> return cacheMap
   MVar.putMVar mVarCache newCacheMap
 
-_acquire :: (Ord p) => (p -> IO r) -> (r -> IO()) -> Cache p r -> Int -> IO(CC.ThreadId) -> p -> Int -> IO (r, IO ())
+_acquire :: Ord p => (p -> IO r) -> (r -> IO ()) -> Cache p r -> Int -> IO CC.ThreadId -> p -> Int -> IO (r, IO ())
 _acquire acquirer releaser mVarCache maxPoolSize getThread p wait = do
   threadId <- getThread
   cacheMap <- MVar.takeMVar mVarCache
@@ -34,7 +34,7 @@ _acquire acquirer releaser mVarCache maxPoolSize getThread p wait = do
   MVar.putMVar mVarCache newMap
     >> return (r, (addResourceToMap releaser mVarCache p r wait maxPoolSize getThread))
 
-cleanCache :: (Ord p) => Cache p r -> IO ()
+cleanCache :: Ord p => Cache p r -> IO ()
 cleanCache mVarCache = do
   now <- getCurrentTime
   cacheMap <- MVar.takeMVar mVarCache
