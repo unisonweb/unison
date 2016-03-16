@@ -58,7 +58,7 @@ term ref t = D.group (go no View.low t) where
     LamsP' vs (body,bodyp) ->
       let lhs = fmap fixup $ go no View.low (E.apps (E.var name) (map (E.var . fst) vs))
           fixup p = [] -- todo, could use paths to individual variables
-          rhs = D.sub' bodyp $ go no View.low body
+          rhs = D.sub P.Body . D.sub' bodyp $ go no View.low body
       in D.group . D.sub' path $ D.docs [lhs, D.delimiter " =", D.breakable " ", D.nest "  " rhs]
     _ -> D.sub' path . D.group . D.docs $
            [ D.sub P.Bound (sym name), D.delimiter " =", D.breakable " "
