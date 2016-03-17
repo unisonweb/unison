@@ -59,31 +59,34 @@ library
     Unison.Runtime.ResourcePool
 
   build-depends:
-    aeson,
-    applicative-extras,
-    attoparsec,
-    base,
-    blaze-html,
-    bytes,
-    bytestring,
-    byteable,
-    cereal,
-    containers,
-    cryptohash,
-    directory,
-    filepath,
-    http-types,
-    mtl,
-    prelude-extras,
-    scotty,
-    text,
-    time,
-    transformers,
-    transformers-compat,
-    unison-shared,
-    vector,
-    wai-middleware-static,
-    wai-extra
+                  aeson
+                , applicative-extras
+                , attoparsec
+                , base
+                , blaze-html
+                , byteable
+                , bytes
+                , bytestring
+                , cereal
+                , containers
+                , cryptohash
+                , ctrie
+                , directory
+                , filepath
+                , hashable
+                , http-types
+                , mtl
+                , prelude-extras
+                , scotty
+                , stm
+                , text
+                , time
+                , transformers
+                , transformers-compat
+                , unison-shared
+                , vector
+                , wai-extra
+                , wai-middleware-static
 
   ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N
 
@@ -102,32 +105,35 @@ executable node
     ghc-options: -funbox-strict-fields -O2
 
   build-depends:
-    aeson,
-    applicative-extras,
-    attoparsec,
-    base,
-    blaze-html,
-    bytes,
-    bytestring,
-    byteable,
-    cereal,
-    containers,
-    cryptohash,
-    directory,
-    filepath,
-    http-types,
-    mtl,
-    prelude-extras,
-    scotty,
-    text,
-    time,
-    transformers,
-    transformers-compat,
-    unison-node,
-    unison-shared,
-    vector,
-    wai-middleware-static,
-    wai-extra
+                  aeson
+                , applicative-extras
+                , attoparsec
+                , base
+                , blaze-html
+                , byteable
+                , bytes
+                , bytestring
+                , cereal
+                , containers
+                , cryptohash
+                , ctrie
+                , directory
+                , filepath
+                , hashable
+                , http-types
+                , mtl
+                , prelude-extras
+                , scotty
+                , stm
+                , text
+                , time
+                , transformers
+                , transformers-compat
+                , unison-node
+                , unison-shared
+                , vector
+                , wai-extra
+                , wai-middleware-static
 
 test-suite tests
   type:           exitcode-stdio-1.0
@@ -138,6 +144,8 @@ test-suite tests
   build-depends:
     base,
     containers,
+    ctrie,
+    hashable,
     tasty,
     tasty-hunit,
     tasty-smallcheck,
