@@ -69,7 +69,7 @@ Setting phasers to stun... (port 8080) (ctrl-c to quit)
 
 That last message is [Scotty](http://hackage.haskell.org/package/scotty) telling you it's running. That means you're good.
 
-To build the editor, do: `cd editor` from the root directory, then do `stack build`. The editor is built using GHCJS. You can symlink the generated Javascript files by performing a `ln -s $(stack path --local-install-root)/bin .` in the `editor` directory.
+To build the editor, do: `cd editor` from the root directory, then do `stack build`. The editor is built using GHCJS. _After_ `stack build` completes successfully, you can symlink the generated Javascript files by performing a `ln -s $(stack path --local-install-root)/bin .` in the `editor` directory.
 
 These instructions do not work on Windows as far as I know (this might be fixable, contact me if interested), but if you're on Windows or just prefer to build the code on a known-good VM, use the [Vagrant box setup](#vagrant) after reading through these instructions. If you go this route, you can still use your preferred text editor. The VM will have shared filesystem access to the directory where you've checked out the code.
 
