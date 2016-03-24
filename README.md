@@ -55,21 +55,35 @@ Also, have a look at the Dockerfile if you are unsure about the steps to perform
 The build uses [Stack](http://docs.haskellstack.org/). If you don't already have it installed, [follow the install instructions](http://docs.haskellstack.org/en/stable/README.html#how-to-install) for your platform. Once that's done and the `stack` executable is on your path, do:
 
 ```sh
-$ git clone https://github.com/unisonweb/platform.git unisonweb
-$ cd unisonweb
+$ git clone https://github.com/unisonweb/unison.git
+$ cd unison
 $ stack build unison-node # build node executable
 ```
 
-Once the `unison-node` executable is built, you can run it by doing:
-
+To build the editor, do:
+```sh
+$ cd editor
+$ stack build # you may have to run `stack setup` first
 ```
+
+The editor is built using GHCJS. See notes in the appendix if you encounter problems building the editor. _After_ `stack build` completes successfully, you can symlink the generated Javascript files by performing a
+```sh
+$ ln -s $(stack path --local-install-root)/bin .
+```
+
+Then, move back up to the parent directory:
+```sh
+$ cd ..
+```
+
+You can run it by doing:
+
+```sh
 $ stack exec node
 Setting phasers to stun... (port 8080) (ctrl-c to quit)
 ```
 
 That last message is [Scotty](http://hackage.haskell.org/package/scotty) telling you it's running. That means you're good.
-
-To build the editor, do: `cd editor` from the root directory, then do `stack build`. The editor is built using GHCJS. _After_ `stack build` completes successfully, you can symlink the generated Javascript files by performing a `ln -s $(stack path --local-install-root)/bin .` in the `editor` directory.
 
 These instructions do not work on Windows as far as I know (this might be fixable, contact me if interested), but if you're on Windows or just prefer to build the code on a known-good VM, use the [Vagrant box setup](#vagrant) after reading through these instructions. If you go this route, you can still use your preferred text editor. The VM will have shared filesystem access to the directory where you've checked out the code.
 
@@ -94,7 +108,9 @@ If instead, you'd rather work from the 'outside in' (or perhaps 'top down'), you
 
 That's all for now!
 
-### <a id="vagrant"></a> Appendix: Build instructions for Windows users or those who prefer to build code on a VM
+### Appendix
+
+#### <a id="vagrant"></a>Build instructions for Windows users or those who prefer to build code on a VM
 
 If you're on Windows and would like to build the project, you can do so using the Vagrant box VM. You can also do this if you just prefer to develop using a VM. If you do this, you can still use your local text editor or IDE of choice for Haskell editing, since the filesystem is shared between the VM and your local machine.
 
@@ -111,3 +127,29 @@ $ vagrant up
 ```
 
 Once it completes, you can do `vagrant ssh`, then `cd /vagrant`. Notice that the `/vagrant` directory on the VM mirrors the root directory of your project. You can edit the code on your local machine, and use the the usual build instructions on the VM to compile and run the project on the VM!
+
+#### Problems Building the Editor
+
+At least one user has reported problems when building the editor on a machine running Ubuntu 14.04.
+
+1. If you encounter the following error: `Link error: “Cannot find -ltinfo”`, then you'll need to install the `libtinfo-dev` package with:
+    ```sh
+    $ sudo apt-get install libtinfo-dev
+    ```
+
+1. If you encounter an error like the following:
+    ```
+    Unpacking GHCJS into <some-directory> ...Expected a single directory within unpacked <some-tar.gz-file>"
+    ```
+
+    then you need to upgrade `stack` to at least version 1.0.5.
+
+1. If you get an error that contains:
+    ```
+    The program 'happy' version >=1.17 is required but it could not be found.
+    ```
+
+    then you'll need to install `happy`.  [This](https://github.com/commercialhaskell/stack/issues/595) `stack` bug seems to make it impossible to get `stack` to build `happy`.  If this is the case for you, you should be able to install using apt:
+    ```sh
+    $ sudo apt-get install happy
+    ```
