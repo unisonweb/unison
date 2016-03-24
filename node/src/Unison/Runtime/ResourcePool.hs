@@ -13,7 +13,7 @@ data Pool p r = Pool { acquire :: p -> Int -> IO (r, IO ()) }
 
 type ResourceKey p = (p,CC.ThreadId)
 type Cache p r = M.Map (ResourceKey p) (r, UTCTime, IO ())
-type ReaperQueue p = TQ.TQueue (UTCTime, ResourceKey p)
+type ReaperQueue p = TQ.TQueue (ResourceKey p)
 
 incRef :: Num t => t -> (t, ())
 incRef a = (a+1,())
@@ -31,7 +31,7 @@ addResourceToMap release pool p r wait maxPoolSize getThread poolSizeR queue = d
     -- add the resource to the pool with the release
     M.insert key (r, expiry, (release r)) pool
         >> IORef.atomicModifyIORef poolSizeR incRef
-        >> STM.atomically (TQ.writeTQueue queue (expiry, key))
+        >> STM.atomically (TQ.writeTQueue queue key)
     else release r
 
 _acquire :: (Ord p, H.Hashable p) => (p -> IO r) -> (r -> IO ()) -> Cache p r -> Int -> IORef.IORef Int -> ReaperQueue p -> IO CC.ThreadId -> p -> Int -> IO (r, IO ())
@@ -45,27 +45,21 @@ _acquire acquire release pool maxPoolSize poolSizeR queue getThread p wait = do
         Nothing -> acquire p
   return (r, (addResourceToMap release pool p r wait maxPoolSize getThread poolSizeR queue))
 
-cleanPoolIfExpiryValid :: (Ord p, H.Hashable p) => ResourceKey p -> Cache p r -> UTCTime -> IO ()
-cleanPoolIfExpiryValid key pool expiry = do
-  value <- M.lookup key pool
-  case value of
-    Just (_, exp, releaser) ->
-        if exp == expiry then
-          M.delete key pool >> releaser
-        else return ()
-    Nothing -> return ()
-
 cleanPool :: (Ord p, H.Hashable p) => Cache p r -> ReaperQueue p -> IO ()
 cleanPool pool queue = do
-  now <- getCurrentTime
   next <- STM.atomically $ TQ.tryPeekTQueue queue
+  now <- getCurrentTime
   case next of
-    Just (expiry, key) ->
-      if expiry < now then
-        (STM.atomically $ TQ.readTQueue queue)
-           >> cleanPoolIfExpiryValid key pool expiry
-           >> cleanPool pool queue
-        else return ()
+    Just key -> do
+        value <- M.lookup key pool
+        msg <- STM.atomically $ TQ.readTQueue queue
+        case value of
+          Just (_, expiry, releaser) ->
+            if expiry < now then
+              M.delete key pool >> releaser
+                 >> cleanPool pool queue
+            else (STM.atomically $ TQ.writeTQueue queue msg)
+          Nothing -> return ()
     Nothing -> return ()
 
 cleanPoolLoop :: (Ord p, H.Hashable p) => Cache p r -> ReaperQueue p -> IO b

@@ -11,6 +11,7 @@ import qualified Data.IORef as IORef
 import qualified Data.Hashable as H
 import qualified Control.Concurrent.Map as M
 import qualified Control.Concurrent.STM.TQueue as TQ
+import Data.Maybe
 
 type Resource = String
 type Params = String
@@ -100,19 +101,9 @@ aThreeFullCache now threadId f1 f2 f3 =
              , (("p3",threadId), ("p3", inTenSeconds now, f3))
              ]
 
-assertNotFound :: (Eq a, H.Hashable a) => a -> M.Map a b -> Assertion
-assertNotFound k m = do
-  p1 <- M.lookup k m
-  case p1 of
-    Just _ -> assertFailure "Key found"
-    Nothing -> return ()
-assertFound :: (Eq a, H.Hashable a) => a -> M.Map a b -> Assertion
-assertFound k m = do
-  p1 <- M.lookup k m
-  case p1 of
-    Nothing -> assertFailure "Key not found"
-    Just _ -> return ()
-
+-- The reaper queue should only get a notification
+-- of the key that might need to be reaped, it then
+-- checks to see if the expiry has passed
 cleanPoolShouldReleaseFinalizer :: Assertion
 cleanPoolShouldReleaseFinalizer = do
   ts <- M.empty
@@ -125,22 +116,17 @@ cleanPoolShouldReleaseFinalizer = do
                          (fakeRelease ts "p3"))
   let k1 = ("p1", threadId)
   let k2 = ("p2", threadId)
-  STM.atomically $ TQ.writeTQueue q (now, k1)
-                     >> TQ.writeTQueue q (twentySecondsAgo now, k2)
+  let k3 = ("p3", threadId)
+  -- signal all three to reaper queue
+  STM.atomically $ TQ.writeTQueue q k1
+                     >> TQ.writeTQueue q k2
+                     >> TQ.writeTQueue q k3
   RP.cleanPool cache q
-  assertNotFound k1 cache
-  assertFound k2 cache
-  assertFound ("p3", threadId) cache
-  didRelease1 <- loadState ts "testreleases"
-  assertEqual "p1 released" "p1" didRelease1
-  -- send a "matching" expiry
-  STM.atomically $ TQ.writeTQueue q (tenSecondsAgo now, k2)
-  RP.cleanPool cache q
-  assertNotFound k1 cache
-  assertNotFound k2 cache
-  assertFound ("p3", threadId) cache
-  didRelease2 <- loadState ts "testreleases"
-  assertEqual "p1 and p2 are released" "p1p2" didRelease2
+  assertBool "p1 removed" <$> isNothing <$> M.lookup k1 cache
+  assertBool "p2 removed" <$> isNothing <$> M.lookup k2 cache
+  assertBool "p3 still cached" <$> isJust <$> M.lookup k3 cache
+  didRelease <- loadState ts "testreleases"
+  assertEqual "p1 and p2 are released" "p1p2" didRelease
 
 getPoolWithGC = do
   state <- M.empty
@@ -163,9 +149,35 @@ threadGCsResourcesFromPoolTest = do
                     >> loadState ts "testreleases"
   didRelease2b <- delaySeconds 3 >> loadState ts "testreleases"
   assertEqual "shouldn't immediately release p1" "" didRelease1a
-    >> assertEqual "auto released p1 after 3 seconds" "p1r" didRelease1b
+    >> assertEqual "reaper released p1 after 3 seconds" "p1r" didRelease1b
     >> assertEqual "shouldn't immediately release p2" "p1r" didRelease2a
-    >> assertEqual "auto released p2 after 3 seconds" "p1rp2r" didRelease2b
+    >> assertEqual "reaper released p2 after 3 seconds" "p1rp2r" didRelease2b
+
+-- T - Time, p - param, Q - reaper queue, E - Expiry Time, C - Cache
+-- T1:  p1 acquired, released, Q(p1) on queue, C(p1,E16) cached
+-- T2:  reaper awakens, Q(p1) peeked
+--      cache shows C(p1,E16), read and re-enqueue Q(p1)
+-- T3:  p2 acquired, released, Q(p2) on queue, C(p2,E5) cached
+-- T5:  reaper awakens, Q(p2) peeked
+--      cache shows C(p2,E5), read and release
+--      Q(p1) peeked
+--      cache shows C(p1,E16), read and re-enqueue Q(p1)
+-- ...
+-- T16: reaper awakens, Q(p1) peeked
+--      cache shows C(p1, E16), read and release
+threadGCsWillReenqueueFutureReleasesTest :: Assertion
+threadGCsWillReenqueueFutureReleasesTest = do
+  (pool, ts) <- getPoolWithGC
+  (_, release1) <- RP.acquire pool "p1" 16
+  didRelease1 <- release1
+                    >> delaySeconds 3 -- allows the reaper to awake/sleep thrice
+                    >> loadState ts "testreleases"
+  (_, release2) <- RP.acquire pool "p2" 2
+  didRelease2 <- release2
+                    >> delaySeconds 4
+                    >> loadState ts "testreleases"
+  assertEqual "shouldn't immediately release p1" "" didRelease1
+    >> assertEqual "released p2" "p2r" didRelease2
 
 fakeGetThread :: CC.ThreadId -> IO CC.ThreadId
 fakeGetThread t = return t
@@ -193,8 +205,7 @@ acquireRemovesFromPoolTest :: Assertion
 acquireRemovesFromPoolTest = do
   (pool, ts) <- getPool
   (r1, release1) <- RP.acquire pool "p1" 1
-  (r2, _) <- release1 >> RP.acquire pool "p1" 1
-  -- acquire p1 a third time, without releasing r2
+  (r2, _) <- release1 >> RP.acquire pool "p1" 1 -- acquire p1 a third time, without releasing r2
   (r3, _) <-  RP.acquire pool "p1" 1
   didAcquire <- loadState ts "testacquires"
   didRelease <- loadState ts "testreleases"
@@ -213,6 +224,7 @@ tests = testGroup "ResourcePool"
     , testCase "cleanPoolShouldReleaseFinalizer" $  cleanPoolShouldReleaseFinalizer
     , testCase "acquireCannotCacheTooManyConnections" $  acquireCannotCacheTooManyConnections
     , testCase "threadGCsResourcesFromPoolTest" $ threadGCsResourcesFromPoolTest
+    , testCase "threadGCsWillReenqueueFutureReleasesTest" $ threadGCsWillReenqueueFutureReleasesTest
     , testCase "acquireIsThreadSpecificTest" $ acquireIsThreadSpecificTest
     , testCase "acquireRemovesFromPoolTest" $ acquireRemovesFromPoolTest
     ]
