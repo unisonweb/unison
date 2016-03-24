@@ -5,30 +5,28 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Control.Concurrent
 import Data.Time (UTCTime,getCurrentTime, addUTCTime)
-import qualified Control.Concurrent.MVar as MVar
 import qualified Control.Concurrent as CC
-import qualified Data.Map as M
+import qualified Control.Monad.STM as STM
+import qualified Data.IORef as IORef
+import qualified Data.Hashable as H
+import qualified Control.Concurrent.Map as M
+import qualified Control.Concurrent.STM.TQueue as TQ
 
 type Resource = String
 type Params = String
-type TestState = MVar.MVar (M.Map String String)
-
-lookupState :: M.Map String String -> String -> String
-lookupState m k =
-  case (M.lookup k m) of
-    Just s -> s
-    Nothing -> ""
+type TestState = M.Map String String
 
 loadState :: TestState -> String -> IO String
-loadState var k = do
-  m <- MVar.readMVar var
-  return (lookupState m k)
+loadState m k = do
+  x <- M.lookup k m
+  return $ case x of
+              Just s -> s
+              Nothing -> ""
 
 saveState :: TestState -> String -> String -> IO ()
-saveState var k newState = do
-  m <- MVar.takeMVar var
-  let s = lookupState m k
-  MVar.putMVar var (M.insert k (s++newState) m)
+saveState m k newState = do
+  s <- loadState m k
+  M.insert k (s++newState) m
 
 fakeAcquire :: TestState -> Params -> IO Resource
 fakeAcquire s p = do
@@ -40,7 +38,7 @@ fakeRelease s r = do
   saveState s "testreleases" r
 
 getPool = do
-  state <- MVar.newMVar M.empty
+  state <- M.empty
   pool <- (RP.poolWithoutGC 3 (fakeAcquire state) (fakeRelease state))
   return (pool, state)
 
@@ -89,39 +87,70 @@ acquireCannotCacheTooManyConnections = do
 tenSecondsAgo :: UTCTime -> UTCTime
 tenSecondsAgo now = addUTCTime (-10) now
 
+twentySecondsAgo :: UTCTime -> UTCTime
+twentySecondsAgo now = addUTCTime (-20) now
+
 inTenSeconds :: UTCTime -> UTCTime
 inTenSeconds now = addUTCTime (10) now
 
+aThreeFullCache :: UTCTime -> CC.ThreadId -> IO () -> IO () -> IO () -> IO (RP.Cache String String)
 aThreeFullCache now threadId f1 f2 f3 =
   M.fromList [(("p1",threadId), ("p1", now, f1))
              , (("p2",threadId), ("p2", tenSecondsAgo now, f2))
              , (("p3",threadId), ("p3", inTenSeconds now, f3))
              ]
 
-cleanCacheShouldReleaseFinalizer :: Assertion
-cleanCacheShouldReleaseFinalizer = do
-  (pool, ts) <- getPool
+assertNotFound :: (Eq a, H.Hashable a) => a -> M.Map a b -> Assertion
+assertNotFound k m = do
+  p1 <- M.lookup k m
+  case p1 of
+    Just _ -> assertFailure "Key found"
+    Nothing -> return ()
+assertFound :: (Eq a, H.Hashable a) => a -> M.Map a b -> Assertion
+assertFound k m = do
+  p1 <- M.lookup k m
+  case p1 of
+    Nothing -> assertFailure "Key not found"
+    Just _ -> return ()
+
+cleanPoolShouldReleaseFinalizer :: Assertion
+cleanPoolShouldReleaseFinalizer = do
+  ts <- M.empty
   now <- getCurrentTime
   threadId <- CC.myThreadId
-  cache <- MVar.newMVar (aThreeFullCache now threadId
+  q <- STM.atomically TQ.newTQueue
+  cache <- (aThreeFullCache now threadId
                          (fakeRelease ts "p1")
                          (fakeRelease ts "p2")
                          (fakeRelease ts "p3"))
-  RP.cleanCache cache
-  c <- MVar.takeMVar cache
-  didRelease <- loadState ts "testreleases"
-  assertEqual "p1 and p2 are cleaned from cache" [("p3",threadId)] (M.keys c)
-    >> assertEqual "p1 and p2 are released" "p1p2" didRelease
+  let k1 = ("p1", threadId)
+  let k2 = ("p2", threadId)
+  STM.atomically $ TQ.writeTQueue q (now, k1)
+                     >> TQ.writeTQueue q (twentySecondsAgo now, k2)
+  RP.cleanPool cache q
+  assertNotFound k1 cache
+  assertFound k2 cache
+  assertFound ("p3", threadId) cache
+  didRelease1 <- loadState ts "testreleases"
+  assertEqual "p1 released" "p1" didRelease1
+  -- send a "matching" expiry
+  STM.atomically $ TQ.writeTQueue q (tenSecondsAgo now, k2)
+  RP.cleanPool cache q
+  assertNotFound k1 cache
+  assertNotFound k2 cache
+  assertFound ("p3", threadId) cache
+  didRelease2 <- loadState ts "testreleases"
+  assertEqual "p1 and p2 are released" "p1p2" didRelease2
 
 getPoolWithGC = do
-  state <- MVar.newMVar M.empty
+  state <- M.empty
   pool <- (RP.pool 3 (fakeAcquire state) (fakeRelease state))
   return (pool, state)
 
 delaySeconds μs = threadDelay (1000000 * μs)
 
-threadGCsResourcesFromCacheTest :: Assertion
-threadGCsResourcesFromCacheTest = do
+threadGCsResourcesFromPoolTest :: Assertion
+threadGCsResourcesFromPoolTest = do
   (pool, ts) <- getPoolWithGC
   (_, release1) <- RP.acquire pool "p1" 2
   didRelease1a <- release1
@@ -143,23 +172,25 @@ fakeGetThread t = return t
 
 acquireIsThreadSpecificTest :: Assertion
 acquireIsThreadSpecificTest = do
-  ts <- MVar.newMVar M.empty
-  mVarCache <- MVar.newMVar M.empty
+  ps  <- IORef.newIORef 0
+  ts <- M.empty
+  q <- STM.atomically TQ.newTQueue
+  pool <- M.empty
   someOtherThread <- forkIO (putStrLn "")
-  let aquire = RP._acquire (fakeAcquire ts) (fakeRelease ts) mVarCache 3
+  let aquire = RP._acquire (fakeAcquire ts) (fakeRelease ts) pool 3 ps q
   (r1, release1) <- aquire CC.myThreadId "p1" 10
   (r1b, release1b) <- release1 >> aquire (fakeGetThread someOtherThread) "p1" 10
   didAcquire <- release1b >> loadState ts "testacquires"
 
-  poolSize <- length <$> MVar.takeMVar mVarCache
+  poolSize <- IORef.readIORef ps
 
   assertEqual "got the correct r" "p1r" r1
     >> assertEqual "got the correct r" "p1r" r1b
     >> assertEqual "r is acquired twice" "p1rp1r" didAcquire
     >> assertEqual "two connections are in the map" 2 poolSize
 
-acquireRemovesFromCacheTest :: Assertion
-acquireRemovesFromCacheTest = do
+acquireRemovesFromPoolTest :: Assertion
+acquireRemovesFromPoolTest = do
   (pool, ts) <- getPool
   (r1, release1) <- RP.acquire pool "p1" 1
   (r2, _) <- release1 >> RP.acquire pool "p1" 1
@@ -179,11 +210,11 @@ tests = testGroup "ResourcePool"
     testCase "correctlyAcquiresTest" $ correctlyAcquiresTest
     , testCase "correctlyReleasesTest" $ correctlyReleasesTest
     , testCase "acquireShouldCacheConnectionTest" $  acquireShouldCacheConnectionTest
-    , testCase "cleanCacheShouldReleaseFinalizer" $  cleanCacheShouldReleaseFinalizer
+    , testCase "cleanPoolShouldReleaseFinalizer" $  cleanPoolShouldReleaseFinalizer
     , testCase "acquireCannotCacheTooManyConnections" $  acquireCannotCacheTooManyConnections
-    , testCase "threadGCsResourcesFromCacheTest" $ threadGCsResourcesFromCacheTest
+    , testCase "threadGCsResourcesFromPoolTest" $ threadGCsResourcesFromPoolTest
     , testCase "acquireIsThreadSpecificTest" $ acquireIsThreadSpecificTest
-    , testCase "acquireRemovesFromCacheTest" $ acquireRemovesFromCacheTest
+    , testCase "acquireRemovesFromPoolTest" $ acquireRemovesFromPoolTest
     ]
 
 main = defaultMain tests

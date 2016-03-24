@@ -146,6 +146,7 @@ test-suite tests
     containers,
     ctrie,
     hashable,
+    stm,
     tasty,
     tasty-hunit,
     tasty-smallcheck,
