@@ -66,7 +66,7 @@ $ cd editor
 $ stack build # you may have to run `stack setup` first
 ```
 
-The editor is built using GHCJS. See notes in the appendix if you encounter problems building the editor. _After_ `stack build` completes successfully, you can symlink the generated Javascript files by performing a
+The editor is built using GHCJS. If you encounter problems building the editor, [these solutions](#ubuntu-editor-issues) may help. _After_ `stack build` completes successfully, you can symlink the generated Javascript files by performing a
 ```sh
 $ ln -s $(stack path --local-install-root)/bin .
 ```
@@ -128,7 +128,7 @@ $ vagrant up
 
 Once it completes, you can do `vagrant ssh`, then `cd /vagrant`. Notice that the `/vagrant` directory on the VM mirrors the root directory of your project. You can edit the code on your local machine, and use the the usual build instructions on the VM to compile and run the project on the VM!
 
-#### Problems Building the Editor
+#### <a id="ubuntu-editor-issues"></a>Problems Building the Editor - Ubuntu
 
 At least one user has reported problems when building the editor on a machine running Ubuntu 14.04.
 
