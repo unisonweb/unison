@@ -42,7 +42,7 @@ flag quiet
   default: False
 
 library
-  hs-source-dirs: src shared-src
+  hs-source-dirs: src
 
   exposed-modules:
     Unison.DocView
@@ -56,26 +56,19 @@ library
 
   build-depends:
     base,
-    aeson,
-    base64-bytestring,
-    bifunctors,
-    bytestring,
-    comonad,
     containers,
     data-default,
     free,
-    ghcjs-base,
     ghcjs-dom,
+    ghcjs-base,
     mtl,
-    murmur-hash,
-    prelude-extras,
     reflex,
     reflex-dom,
     semigroups,
     text,
     these,
     transformers,
-    vector
+    unison-shared
 
   ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N
 
@@ -87,7 +80,7 @@ library
 
 executable editor
   main-is: Editor.hs
-  hs-source-dirs: src shared-src
+  hs-source-dirs: src
   ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N -v0
 
   if flag(optimized)
@@ -95,24 +88,17 @@ executable editor
 
   build-depends:
     base,
-    aeson,
-    base64-bytestring,
-    bifunctors,
-    bytestring,
-    comonad,
     containers,
     data-default,
     free,
-    ghcjs-base,
     ghcjs-dom,
+    ghcjs-base,
     mtl,
-    murmur-hash,
-    prelude-extras,
     reflex,
     reflex-dom,
     semigroups,
     text,
     these,
     transformers,
-    vector,
+    unison-shared,
     unison-editor
