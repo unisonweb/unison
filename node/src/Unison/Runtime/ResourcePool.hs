@@ -9,18 +9,20 @@ import qualified Control.Monad.STM as STM
 import qualified Data.IORef as IORef
 
 -- acquire returns the resource, and the cleanup action ("finalizer") for that resource
+-- which will be released after a wait time in seconds
 data Pool p r = Pool { acquire :: p -> Int -> IO (r, IO ()) }
 
 type ResourceKey p = (p,CC.ThreadId)
 type Cache p r = M.Map (ResourceKey p) (r, UTCTime, IO ())
 type ReaperQueue p = TQ.TQueue (ResourceKey p)
+type MaxPoolSize = Int
 
 incRef :: Num t => t -> (t, ())
 incRef a = (a+1,())
 decRef :: Num t => t -> (t, ())
 decRef a = (a-1,())
 
-addResourceToMap :: (Ord p, H.Hashable p) =>  (r -> IO ()) -> Cache p r -> p -> r -> Int -> Int -> IO CC.ThreadId -> IORef.IORef Int -> ReaperQueue p -> IO ()
+addResourceToMap :: (Ord p, H.Hashable p) =>  (r -> IO ()) -> Cache p r -> p -> r -> Int -> MaxPoolSize -> IO CC.ThreadId -> IORef.IORef Int -> ReaperQueue p -> IO ()
 addResourceToMap release pool p r wait maxPoolSize getThread poolSizeR queue = do
   now <- getCurrentTime
   poolSize <- IORef.readIORef poolSizeR
@@ -30,11 +32,11 @@ addResourceToMap release pool p r wait maxPoolSize getThread poolSizeR queue = d
   if wait > 0 && (poolSize < maxPoolSize) then
     -- add the resource to the pool with the release
     M.insert key (r, expiry, (release r)) pool
-        >> IORef.atomicModifyIORef poolSizeR incRef
-        >> STM.atomically (TQ.writeTQueue queue key)
+      >> IORef.atomicModifyIORef poolSizeR incRef
+      >> STM.atomically (TQ.writeTQueue queue key)
     else release r
 
-_acquire :: (Ord p, H.Hashable p) => (p -> IO r) -> (r -> IO ()) -> Cache p r -> Int -> IORef.IORef Int -> ReaperQueue p -> IO CC.ThreadId -> p -> Int -> IO (r, IO ())
+_acquire :: (Ord p, H.Hashable p) => (p -> IO r) -> (r -> IO ()) -> Cache p r -> MaxPoolSize -> IORef.IORef Int -> ReaperQueue p -> IO CC.ThreadId -> p -> Int -> IO (r, IO ())
 _acquire acquire release pool maxPoolSize poolSizeR queue getThread p wait = do
   threadId <- getThread
   m <- M.lookup (p,threadId) pool
@@ -51,22 +53,22 @@ cleanPool pool queue = do
   now <- getCurrentTime
   case next of
     Just key -> do
-        value <- M.lookup key pool
-        msg <- STM.atomically $ TQ.readTQueue queue
-        case value of
-          Just (_, expiry, releaser) ->
-            if expiry < now then
-              M.delete key pool >> releaser
-                 >> cleanPool pool queue
-            else (STM.atomically $ TQ.writeTQueue queue msg)
-          Nothing -> return ()
+      value <- M.lookup key pool
+      msg <- STM.atomically $ TQ.readTQueue queue
+      case value of
+        Just (_, expiry, releaser) ->
+          if expiry < now then
+            M.delete key pool >> releaser
+              >> cleanPool pool queue
+          else (STM.atomically $ TQ.writeTQueue queue msg)
+        Nothing -> return ()
     Nothing -> return ()
 
 cleanPoolLoop :: (Ord p, H.Hashable p) => Cache p r -> ReaperQueue p -> IO b
-cleanPoolLoop mVarCache q =
-  cleanPool mVarCache q >> CC.threadDelay 1000000 >> cleanPoolLoop mVarCache q
+cleanPoolLoop cache q =
+  cleanPool cache q >> CC.threadDelay 1000000 >> cleanPoolLoop cache q
 
-pool :: (Ord p, H.Hashable p) => Int -> (p -> IO r) -> (r -> IO ()) -> IO (Pool p r)
+pool :: (Ord p, H.Hashable p) => MaxPoolSize -> (p -> IO r) -> (r -> IO ()) -> IO (Pool p r)
 pool maxPoolSize acquire release = do
   pool <- M.empty
   q <- STM.atomically TQ.newTQueue
@@ -74,7 +76,7 @@ pool maxPoolSize acquire release = do
   _ <- CC.forkIO (cleanPoolLoop pool q)
   return Pool { acquire = _acquire acquire release pool maxPoolSize ps q CC.myThreadId }
 
-poolWithoutGC :: (Ord p, H.Hashable p) => Int -> (p -> IO r) -> (r -> IO ()) -> IO (Pool p r)
+poolWithoutGC :: (Ord p, H.Hashable p) => MaxPoolSize -> (p -> IO r) -> (r -> IO ()) -> IO (Pool p r)
 poolWithoutGC maxPoolSize acquire release = do
   pool <- M.empty
   q <- STM.atomically TQ.newTQueue
