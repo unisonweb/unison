@@ -1,6 +1,6 @@
 module Unison.Runtime.ResourcePool where
 
-import Data.Time (UTCTime, getCurrentTime, addUTCTime)
+import Data.Time (UTCTime, getCurrentTime, addUTCTime, diffUTCTime)
 import qualified Control.Concurrent as CC
 import qualified Control.Concurrent.Map as M
 import qualified Control.Concurrent.STM.TQueue as TQ
@@ -9,8 +9,7 @@ import qualified Control.Monad.STM as STM
 import qualified Data.IORef as IORef
 
 -- acquire returns the resource, and the cleanup action ("finalizer") for that resource
--- which will be released after a wait time in seconds
-data Pool p r = Pool { acquire :: p -> Int -> IO (r, IO ()) }
+data Pool p r = Pool { acquire :: p -> IO (r, IO ()) }
 
 type ResourceKey p = (p,CC.ThreadId)
 type Cache p r = M.Map (ResourceKey p) (r, UTCTime, IO ())
@@ -36,8 +35,8 @@ addResourceToMap release pool p r wait maxPoolSize getThread poolSizeR queue = d
       >> STM.atomically (TQ.writeTQueue queue key)
     else release r
 
-_acquire :: (Ord p, H.Hashable p) => (p -> IO r) -> (r -> IO ()) -> Cache p r -> MaxPoolSize -> IORef.IORef Int -> ReaperQueue p -> IO CC.ThreadId -> p -> Int -> IO (r, IO ())
-_acquire acquire release pool maxPoolSize poolSizeR queue getThread p wait = do
+_acquire :: (Ord p, H.Hashable p) => (p -> IO r) -> (r -> IO ()) -> Cache p r -> Int -> MaxPoolSize -> IORef.IORef Int -> ReaperQueue p -> IO CC.ThreadId -> p -> IO (r, IO ())
+_acquire acquire release pool wait maxPoolSize poolSizeR queue getThread p = do
   threadId <- getThread
   m <- M.lookup (p,threadId) pool
   r <- case m of
@@ -49,36 +48,33 @@ _acquire acquire release pool maxPoolSize poolSizeR queue getThread p wait = do
 
 cleanPool :: (Ord p, H.Hashable p) => Cache p r -> ReaperQueue p -> IO ()
 cleanPool pool queue = do
-  next <- STM.atomically $ TQ.tryPeekTQueue queue
+  key <- STM.atomically $ TQ.peekTQueue queue
   now <- getCurrentTime
-  case next of
-    Just key -> do
-      value <- M.lookup key pool
-      msg <- STM.atomically $ TQ.readTQueue queue
-      case value of
-        Just (_, expiry, releaser) ->
-          if expiry < now then
-            M.delete key pool >> releaser
-              >> cleanPool pool queue
-          else (STM.atomically $ TQ.writeTQueue queue msg)
-        Nothing -> return ()
+  value <- M.lookup key pool
+  case value of
+    Just (_, expiry, releaser) ->
+      if expiry < now then
+        (STM.atomically $ TQ.readTQueue queue)
+          >> M.delete key pool
+          >> releaser
+          >> cleanPool pool queue
+      else
+        let nextExpiry = round ((realToFrac $ diffUTCTime now expiry)::Double)
+        in CC.threadDelay (1000000*nextExpiry)
+             >> cleanPool pool queue
     Nothing -> return ()
 
-cleanPoolLoop :: (Ord p, H.Hashable p) => Cache p r -> ReaperQueue p -> IO b
-cleanPoolLoop cache q =
-  cleanPool cache q >> CC.threadDelay 1000000 >> cleanPoolLoop cache q
-
-pool :: (Ord p, H.Hashable p) => MaxPoolSize -> (p -> IO r) -> (r -> IO ()) -> IO (Pool p r)
-pool maxPoolSize acquire release = do
+pool :: (Ord p, H.Hashable p) => Int -> MaxPoolSize -> (p -> IO r) -> (r -> IO ()) -> IO (Pool p r)
+pool wait maxPoolSize acquire release = do
   pool <- M.empty
   q <- STM.atomically TQ.newTQueue
   ps  <- IORef.newIORef 0
-  _ <- CC.forkIO (cleanPoolLoop pool q)
-  return Pool { acquire = _acquire acquire release pool maxPoolSize ps q CC.myThreadId }
+  _ <- CC.forkIO (cleanPool pool q)
+  return Pool { acquire = _acquire acquire release pool wait maxPoolSize ps q CC.myThreadId }
 
-poolWithoutGC :: (Ord p, H.Hashable p) => MaxPoolSize -> (p -> IO r) -> (r -> IO ()) -> IO (Pool p r)
-poolWithoutGC maxPoolSize acquire release = do
+poolWithoutGC :: (Ord p, H.Hashable p) => Int -> MaxPoolSize -> (p -> IO r) -> (r -> IO ()) -> IO (Pool p r)
+poolWithoutGC wait maxPoolSize acquire release = do
   pool <- M.empty
   q <- STM.atomically TQ.newTQueue
   ps  <- IORef.newIORef 0
-  return Pool { acquire = _acquire acquire release pool maxPoolSize ps q CC.myThreadId }
+  return Pool { acquire = _acquire acquire release pool wait maxPoolSize ps q CC.myThreadId }
