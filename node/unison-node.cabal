@@ -36,6 +36,10 @@ flag quiet
   manual: True
   default: False
 
+flag leveldb
+  manual: True
+  default: False
+
 library
   hs-source-dirs: src
 
@@ -94,6 +98,9 @@ library
     wai-extra,
     wai-middleware-static
 
+  if flag(leveldb)
+    build-depends: exceptions, leveldb-haskell
+
   ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N
 
   if flag(optimized)
@@ -140,6 +147,10 @@ executable node
                 , vector
                 , wai-extra
                 , wai-middleware-static
+
+  if flag(leveldb)
+    build-depends: exceptions, leveldb-haskell
+    cpp-options: -Dleveldb
 
 test-suite tests
   type:           exitcode-stdio-1.0
