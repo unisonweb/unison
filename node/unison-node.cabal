@@ -51,7 +51,10 @@ library
     Unison.NodeServer
     Unison.Reference.Extra
     Unison.Remote.Extra
+    Unison.Runtime.ExtraBuiltins
+    Unison.Runtime.KeyValueStore
     Unison.Runtime.Remote
+    Unison.Runtime.SerializationAndHashing
     Unison.Symbol.Extra
     Unison.Term.Extra
     Unison.TermEdit.Extra
@@ -65,6 +68,7 @@ library
     Unison.Runtime.ResourcePool
 
   build-depends:
+    acid-state,
     aeson,
     applicative-extras,
     attoparsec,
@@ -87,6 +91,8 @@ library
     network,
     network-simple,
     prelude-extras,
+    random,
+    safecopy,
     scotty,
     sockaddr,
     stm,
@@ -119,6 +125,7 @@ executable node
     ghc-options: -funbox-strict-fields -O2
 
   build-depends:
+    acid-state,
     aeson,
     applicative-extras,
     attoparsec,
@@ -138,6 +145,8 @@ executable node
     memory,
     mtl,
     prelude-extras,
+    random,
+    safecopy,
     scotty,
     stm,
     text,
@@ -162,9 +171,11 @@ test-suite tests
   other-modules:
   build-depends:
     base,
+    bytestring,
     containers,
     ctrie,
     hashable,
+    random,
     stm,
     tasty,
     tasty-hunit,
@@ -172,4 +183,5 @@ test-suite tests
     tasty-quickcheck,
     time,
     transformers,
-    unison-node
+    unison-node,
+    unison-shared

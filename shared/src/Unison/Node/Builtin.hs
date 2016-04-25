@@ -47,6 +47,9 @@ extraOps = [ let r = R.Builtin "KeyValue.store"
            ]
 --}
 -- whnf :: (Hash -> m (Term v)) -> Term v -> m (Term v), -- ^ Simplify to weak head normal form
+unitRef :: Ord v => Term v
+unitRef = Term.ref (R.Builtin "()")
+
 makeBuiltins :: WHNFEval -> [Builtin]
 makeBuiltins whnf =
   let

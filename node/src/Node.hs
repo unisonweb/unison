@@ -18,6 +18,7 @@ import qualified Unison.Node.FileStore as FileStore
 #endif
 import qualified Unison.NodeServer as NodeServer
 import qualified Unison.Reference as Reference
+import qualified Unison.Runtime.ExtraBuiltins as EB
 import qualified Unison.Symbol as Symbol
 import qualified Unison.Term as Term
 import qualified Unison.View as View
@@ -36,5 +37,7 @@ store = FileStore.make "store"
 main :: IO ()
 main = do
   store' <- store
-  node <- BasicNode.make hash store' Builtin.makeBuiltins
+  keyValueOps <- EB.makeAPI
+  let makeBuiltins whnf = concat [Builtin.makeBuiltins whnf, keyValueOps whnf]
+  node <- BasicNode.make hash store' makeBuiltins
   NodeServer.server 8080 node

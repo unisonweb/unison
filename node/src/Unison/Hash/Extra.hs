@@ -4,6 +4,8 @@ module Unison.Hash.Extra where
 
 import Data.Bytes.Serial
 import Data.List
+import Data.Word (Word8)
+import System.Random
 import Unison.Hash
 import qualified Crypto.Hash as CH
 import qualified Data.ByteArray as BA
@@ -27,3 +29,13 @@ instance H.Accumulate Hash where
 instance Serial Hash where
   serialize h = serialize (toBytes h)
   deserialize = fromBytes <$> deserialize
+
+instance Random Hash where
+  -- bounds are ignored
+  randomR (lo, hi) gen =
+    let rs = iterate (random . snd) (0, gen)
+        rPairs = take 64 $ tail rs
+        newGen = snd . head $ reverse rPairs
+        bstring = B.pack $ map fst rPairs
+    in (fromBytes bstring, newGen)
+  random = randomR (undefined, undefined)
