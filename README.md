@@ -87,7 +87,7 @@ $ stack exec node
 Setting phasers to stun... (port 8080) (ctrl-c to quit)
 ```
 
-That last message is [Scotty](http://hackage.haskell.org/package/scotty) telling you it's running. That means you're good.
+That last message is [Scotty](http://hackage.haskell.org/package/scotty) telling you it's running. That means you're good. Visit `localhost:8080/` in a browser to see the editor (or just open up `editor/editor.html`).
 
 These instructions do not work on Windows as far as I know (this might be fixable, contact me if interested), but if you're on Windows or just prefer to build the code on a known-good VM, use the [Vagrant box setup](#vagrant) after reading through these instructions. If you go this route, you can still use your preferred text editor. The VM will have shared filesystem access to the directory where you've checked out the code.
 
