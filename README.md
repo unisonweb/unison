@@ -52,11 +52,12 @@ Building using Stack
 If these instructions don't work for you or are incomplete, please file an issue.
 Also, have a look at the Dockerfile if you are unsure about the steps to perform.
 
-The build uses [Stack](http://docs.haskellstack.org/). If you don't already have it installed, [follow the install instructions](http://docs.haskellstack.org/en/stable/README.html#how-to-install) for your platform. Once that's done and the `stack` executable is on your path, do:
+The build uses [Stack](http://docs.haskellstack.org/). If you don't already have it installed, version 1.0.2 or later, [follow the install instructions](http://docs.haskellstack.org/en/stable/README.html#how-to-install) for your platform. Once that's done and the `stack` executable is on your path, do:
 
 ```sh
 $ git clone https://github.com/unisonweb/unison.git
 $ cd unison
+$ stack --version # make sure this returns 1.0.2 or later
 $ stack build unison-node # build node executable
 ```
 
@@ -66,7 +67,10 @@ $ cd editor
 $ stack build # you may have to run `stack setup` first
 ```
 
-The editor is built using GHCJS. If you encounter problems building the editor, [these solutions](#ubuntu-editor-issues) may help. _After_ `stack build` completes successfully, you can symlink the generated Javascript files by performing a
+The editor is built using GHCJS. If you encounter an issue about missing 'happy', you can try installing with `stack install happy`, `cabal install happy` or `sudo apt-get install happy` [if on ubuntu](#ubuntu-editor-issues). Make sure that `happy` ends up on your `$PATH` (try doing `happy --version`; it should report 1.19.5 or later) after install.
+
+_After_ `stack build` completes successfully, you can symlink the generated Javascript files by performing a
+
 ```sh
 $ ln -s $(stack path --local-install-root)/bin .
 ```
