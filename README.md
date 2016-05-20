@@ -63,8 +63,8 @@ $ stack build unison-node # build node executable
 
 To build the editor, do:
 ```sh
-$ cd editor
-$ stack build # you may have to run `stack setup` first
+# you may have to run `stack --stack-yaml editor.yaml setup` first
+$ stack --stack-yaml editor.yaml build
 ```
 
 The editor is built using GHCJS. If you encounter an issue about missing 'happy', you can try installing with `stack install happy`, `cabal install happy` or `sudo apt-get install happy` [if on ubuntu](#ubuntu-editor-issues). Make sure that `happy` ends up on your `$PATH` (try doing `happy --version`; it should report 1.19.5 or later) after install.
@@ -72,12 +72,7 @@ The editor is built using GHCJS. If you encounter an issue about missing 'happy'
 _After_ `stack build` completes successfully, you can symlink the generated Javascript files by performing a
 
 ```sh
-$ ln -s $(stack path --local-install-root)/bin .
-```
-
-Then, move back up to the parent directory:
-```sh
-$ cd ..
+$ ln -s $(stack path --local-install-root)/bin editor
 ```
 
 You can run it by doing:
