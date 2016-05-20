@@ -56,32 +56,37 @@ library
     Unison.Runtime.Pcbt
     Unison.Runtime.Unfold
     Unison.Runtime.Vector
+    Unison.Runtime.ResourcePool
 
   build-depends:
-    aeson,
-    applicative-extras,
-    attoparsec,
-    base,
-    blaze-html,
-    bytes,
-    bytestring,
-    byteable,
-    cereal,
-    containers,
-    cryptohash,
-    directory,
-    filepath,
-    http-types,
-    mtl,
-    prelude-extras,
-    scotty,
-    text,
-    transformers,
-    transformers-compat,
-    unison-shared,
-    vector,
-    wai-middleware-static,
-    wai-extra
+                  aeson
+                , applicative-extras
+                , attoparsec
+                , base
+                , blaze-html
+                , byteable
+                , bytes
+                , bytestring
+                , cereal
+                , containers
+                , cryptohash
+                , ctrie
+                , directory
+                , filepath
+                , hashable
+                , http-types
+                , mtl
+                , prelude-extras
+                , scotty
+                , stm
+                , text
+                , time
+                , transformers
+                , transformers-compat
+                , unison-shared
+                , vector
+                , wai-extra
+                , wai-middleware-static
 
   ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N
 
@@ -100,28 +105,52 @@ executable node
     ghc-options: -funbox-strict-fields -O2
 
   build-depends:
-    aeson,
-    applicative-extras,
-    attoparsec,
+                  aeson
+                , applicative-extras
+                , attoparsec
+                , base
+                , blaze-html
+                , byteable
+                , bytes
+                , bytestring
+                , cereal
+                , containers
+                , cryptohash
+                , ctrie
+                , directory
+                , filepath
+                , hashable
+                , http-types
+                , mtl
+                , prelude-extras
+                , scotty
+                , stm
+                , text
+                , time
+                , transformers
+                , transformers-compat
+                , unison-node
+                , unison-shared
+                , vector
+                , wai-extra
+                , wai-middleware-static
+
+test-suite tests
+  type:           exitcode-stdio-1.0
+  main-is:        Suite.hs
+  ghc-options:    -w -threaded -rtsopts -with-rtsopts=-N -v0
+  hs-source-dirs: tests
+  other-modules:
+  build-depends:
     base,
-    blaze-html,
-    bytes,
-    bytestring,
-    byteable,
-    cereal,
     containers,
-    cryptohash,
-    directory,
-    filepath,
-    http-types,
-    mtl,
-    prelude-extras,
-    scotty,
-    text,
+    ctrie,
+    hashable,
+    stm,
+    tasty,
+    tasty-hunit,
+    tasty-smallcheck,
+    tasty-quickcheck,
+    time,
     transformers,
-    transformers-compat,
-    unison-node,
-    unison-shared,
-    vector,
-    wai-middleware-static,
-    wai-extra
+    unison-node
