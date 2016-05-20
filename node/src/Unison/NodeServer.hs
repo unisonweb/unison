@@ -24,9 +24,9 @@ import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TLE
 import qualified Unison.Hash as H
 import qualified Unison.Node as N
-import qualified Unison.Term as E
-import qualified Unison.Type as T
 import qualified Web.Scotty as S
+import Network.Wai.Middleware.Static
+import Network.Wai.Middleware.RequestLogger
 
 runN :: Noted IO a -> ActionM a
 runN n = liftIO (unnote n) >>= go
@@ -63,6 +63,9 @@ postRoute s action = S.post s (route action)
 
 server :: (Ord v, ToJSON v, FromJSON v) => Int -> Node IO v Reference (Type v) (Term v) -> IO ()
 server port node = S.scotty port $ do
+  S.middleware logStdoutDev
+  S.middleware $ staticPolicy (noDots >-> addBase "./editor")
+  S.get "/" $ S.file "./editor/editor.html"
   S.addroute OPTIONS (S.regex ".*") $ originOptions
   postRoute "/admissible-type-at" $ do
     (h, path) <- S.jsonData

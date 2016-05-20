@@ -4,14 +4,14 @@ version:       0.1
 license:       MIT
 cabal-version: >= 1.8
 license-file:  LICENSE
-author:        Paul Chiusano 
+author:        Paul Chiusano
 maintainer:    Paul Chiusano <paul.chiusano@gmail.com>
 stability:     provisional
 homepage:      http://unisonweb.org
 bug-reports:   https://github.com/unisonweb/platform/issues
-copyright:     Copyright (C) 2013 Paul Chiusano and contributors 
+copyright:     Copyright (C) 2013 Paul Chiusano and contributors
 synopsis:      The Unison programming language and platform
-description:   The Unison typechecker and node 
+description:   The Unison typechecker and node
 
 build-type:    Simple
 extra-source-files:
@@ -27,11 +27,6 @@ source-repository head
   type: git
   location: git://github.com/unisonweb/platform.git
 
--- `cabal install --enable-tests -f-properties` to disable properties suite
-flag properties
-  manual: True
-  default: True
-
 -- `cabal install -foptimized` enables optimizations
 flag optimized
   manual: True
@@ -46,14 +41,9 @@ library
 
   exposed-modules:
     Unison.ABT.Extra
-    Unison.Digest
     Unison.Distance.Extra
-    Unison.Eval.Interpreter
     Unison.Hash.Extra
     Unison.Kind.Extra
-    Unison.Node
-    Unison.Node.Implementation
-    Unison.Node.Store
     Unison.NodeServer
     Unison.Reference.Extra
     Unison.Runtime.Remoting
@@ -62,6 +52,12 @@ library
     Unison.Term.Extra
     Unison.TermEdit.Extra
     Unison.Type.Extra
+    Unison.Runtime.Bits
+    Unison.Runtime.Free
+    Unison.Runtime.Stream
+    Unison.Runtime.Pcbt
+    Unison.Runtime.Unfold
+    Unison.Runtime.Vector
 
   build-depends:
     aeson,
@@ -71,6 +67,7 @@ library
     blaze-html,
     bytes,
     bytestring,
+    byteable,
     cereal,
     containers,
     cryptohash,
@@ -89,7 +86,9 @@ library
     transformers,
     transformers-compat,
     unison-shared,
-    vector
+    vector,
+    wai-middleware-static,
+    wai-extra
 
   ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N
 
@@ -115,6 +114,7 @@ executable node
     blaze-html,
     bytes,
     bytestring,
+    byteable,
     cereal,
     containers,
     cryptohash,
@@ -129,24 +129,6 @@ executable node
     transformers-compat,
     unison-node,
     unison-shared,
-    vector
-
-test-suite tests
-  type:           exitcode-stdio-1.0
-  main-is:        Suite.hs
-  ghc-options:    -w -threaded -rtsopts -with-rtsopts=-N -v0
-  hs-source-dirs: tests
-  other-modules:
-
-  if !flag(properties)
-    buildable: False
-  else
-    build-depends:
-      base,
-      bytes,
-      tasty,
-      tasty-hunit,
-      tasty-smallcheck,
-      tasty-quickcheck,
-      unison-node,
-      unison-shared
+    vector,
+    wai-middleware-static,
+    wai-extra

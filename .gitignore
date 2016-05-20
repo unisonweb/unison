@@ -9,13 +9,13 @@ cabal-dev
 *.un~
 **/cache/**
 **/build/**
-node/store
+store
 tags
 **cabal.sandbox.config
 .cabal-sandbox/**
 
-# Nix
-result
+# Stack
+.stack-work
 
 # Misc
 *~

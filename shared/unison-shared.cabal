@@ -35,15 +35,24 @@ library
 
   exposed-modules:
     Unison.ABT
+    Unison.Dimensions
     Unison.Distance
     Unison.Doc
     Unison.Eval
+    Unison.Eval.Interpreter
     Unison.Hash
+    Unison.Hashable
     Unison.JSON
     Unison.Kind
     Unison.Metadata
+    Unison.Node
+    Unison.Node.BasicNode
+    Unison.Node.MemStore
+    Unison.Node.MemNode
+    Unison.Node.Store
     Unison.Note
     Unison.Path
+    Unison.Paths
     Unison.Reference
     Unison.Symbol
     Unison.Term
@@ -51,18 +60,22 @@ library
     Unison.Type
     Unison.Typechecker
     Unison.Typechecker.Context
+    Unison.TypeVar
     Unison.Var
     Unison.View
+    Unison.Views
 
   build-depends:
     aeson,
     base,
     base64-bytestring,
+    bifunctors,
     bytestring,
     containers,
     comonad,
     free,
     mtl,
+    murmur-hash,
     prelude-extras,
     text,
     transformers,
@@ -75,3 +88,19 @@ library
 
   if flag(quiet)
     ghc-options: -v0
+
+test-suite tests
+  type:           exitcode-stdio-1.0
+  main-is:        Suite.hs
+  ghc-options:    -w -threaded -rtsopts -with-rtsopts=-N -v0
+  hs-source-dirs: tests
+  other-modules:
+  build-depends:
+    base,
+    containers,
+    tasty,
+    tasty-hunit,
+    tasty-smallcheck,
+    tasty-quickcheck,
+    transformers,
+    unison-shared

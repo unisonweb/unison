@@ -1,7 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Unison.View where
 
+import Data.Aeson.TH
 import Data.String (IsString(..))
 import Data.Text (Text)
 import Unison.Doc (Doc)
@@ -35,11 +37,11 @@ path :: Segment -> Maybe Var
 path (Slot v _) = Just v
 path _ = Nothing
 
-text :: Text -> Doc Segment (Maybe Var)
-text t = D.embed (Text t)
+space :: Doc Segment (Maybe Var)
+space = D.delimiter (Text " ")
 
 toDoc :: Segment -> Doc Segment (Maybe Var)
-toDoc t@(Text _) = D.embed t
+toDoc t@(Text _) = D.delimiter t
 toDoc s@(Slot var _) = D.embed' (Just var) s
 
 arg0, arg1, arg2, arg3, arg4 :: Precedence -> Doc Segment (Maybe Var)
@@ -113,7 +115,7 @@ instance View DFO where
   precedence (DFO _ p) = p
   layout (DFO l _) = l
   prefix = DFO name high
-  postfix1 prec = DFO (D.docs [arg1 prec, text " ", name]) prec
+  postfix1 prec = DFO (D.docs [arg1 prec, space, name]) prec
   binary assoc prec =
     DFO layout prec
     where
@@ -122,17 +124,24 @@ instance View DFO where
     deltaR p | assoc == AssociateR || assoc == Associative = p
     deltaR p = increase p
     layout = D.docs
-      [ arg1 (deltaL prec), D.breakable " ", name, text " "
+      [ arg1 (deltaL prec), D.breakable " ", name, space
       , arg2 (deltaR prec) ]
 
 instantiate :: (Path p, View op) => op -> p -> Text -> [(Precedence -> Doc Text p, p)] -> Maybe (Doc Text p)
 instantiate op opP name args | arity op == length args =
   D.ebind f (fmap g (layout op))
   where
-  f (Slot (Arg 0) prec) = D.embed name
+  f (Slot (Arg 0) _) = D.embed name
   f (Slot (Arg i) prec) = let (a,_) = args !! (i - 1) in a prec
-  f (Text t) = D.embed t
+  f (Text t) = D.delimiter t
   g Nothing = Path.root
   g (Just (Arg 0)) = opP
   g (Just (Arg i)) = snd $ args !! (i - 1)
 instantiate _ _ _ _ = Nothing
+
+-- boring serialization code
+
+deriveJSON defaultOptions ''Precedence
+deriveJSON defaultOptions ''Var
+deriveJSON defaultOptions ''Segment
+deriveJSON defaultOptions ''DFO

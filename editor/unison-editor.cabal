@@ -45,12 +45,29 @@ library
   hs-source-dirs: src
 
   exposed-modules:
-    Unison.Woot
+    Unison.DocView
+    Unison.Dom
+    Unison.Explorer
+    Unison.HTML
+    Unison.Parser
+    Unison.TermExplorer
+    Unison.TermSearchboxParser
+    Unison.UI
 
   build-depends:
     base,
+    containers,
+    data-default,
+    free,
+    ghcjs-dom,
+    ghcjs-base,
+    mtl,
     reflex,
     reflex-dom,
+    semigroups,
+    text,
+    these,
+    transformers,
     unison-shared
 
   ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N
@@ -62,7 +79,7 @@ library
     ghc-options: -v0
 
 executable editor
-  main-is: HelloWorld.hs
+  main-is: Editor.hs
   hs-source-dirs: src
   ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N -v0
 
@@ -71,7 +88,17 @@ executable editor
 
   build-depends:
     base,
+    containers,
+    data-default,
+    free,
+    ghcjs-dom,
+    ghcjs-base,
+    mtl,
     reflex,
     reflex-dom,
-    unison-editor,
-    unison-shared
+    semigroups,
+    text,
+    these,
+    transformers,
+    unison-shared,
+    unison-editor

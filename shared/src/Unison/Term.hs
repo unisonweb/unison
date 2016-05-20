@@ -11,46 +11,42 @@
 
 module Unison.Term where
 
-import Control.Applicative
 import Control.Monad
 import Data.Aeson.TH
 import Data.Aeson (ToJSON, FromJSON)
 import Data.List
-import Data.Maybe
 import Data.Set (Set)
 import Data.Text (Text)
-import Data.Vector (Vector, (!?))
+import Data.Vector (Vector)
 import GHC.Generics
 import Prelude.Extras (Eq1(..), Show1(..))
 import Text.Show
-import Unison.Doc (Doc)
 import Unison.Hash (Hash)
+import Unison.Hashable (Hashable, Hashable1)
 import Unison.Reference (Reference)
-import Unison.Symbol (Symbol)
 import Unison.Type (Type)
 import Unison.Var (Var)
+import Unsafe.Coerce
 import qualified Control.Monad.Writer.Strict as Writer
 import qualified Data.Aeson as Aeson
 import qualified Data.Monoid as Monoid
 import qualified Data.Set as Set
-import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import qualified Unison.ABT as ABT
-import qualified Unison.Distance as Distance
-import qualified Unison.Doc as D
+import qualified Unison.Hash as Hash
+import qualified Unison.Hashable as Hashable
 import qualified Unison.JSON as J
 import qualified Unison.Reference as Reference
-import qualified Unison.Symbol as Symbol
-import qualified Unison.Type as Type
-import qualified Unison.Var as Var
-import qualified Unison.View as View
 
 -- | Literals in the Unison language
 data Literal
   = Number Double
   | Text Text
-  | Distance Distance.Distance
   deriving (Eq,Ord,Generic)
+
+instance Hashable Literal where
+  tokens (Number d) = [Hashable.Tag 0, Hashable.Double d]
+  tokens (Text txt) = [Hashable.Tag 1, Hashable.Text txt]
 
 -- | Base functor for terms in the Unison language
 data F v a
@@ -61,17 +57,37 @@ data F v a
   | Ann a (Type v)
   | Vector (Vector a)
   | Lam a
-  -- Invariant: let rec blocks have an outer ABT.Cycle which introduces as many
+  -- Note: let rec blocks have an outer ABT.Cycle which introduces as many
   -- variables as there are bindings
   | LetRec [a] a
+  -- Note: first parameter is the binding, second is the expression which may refer
+  -- to this let bound variable. Constructed as `Let b (abs v e)`
   | Let a a
   deriving (Eq,Foldable,Functor,Generic1,Traversable)
 
+vmap :: Ord v2 => (v -> v2) -> AnnotatedTerm v a -> AnnotatedTerm v2 a
+vmap f t = go (ABT.vmap f t) where
+  go (ABT.Term fvs a t) = ABT.Term fvs a $ case t of
+    ABT.Abs v t -> ABT.Abs v (go t)
+    ABT.Var v -> ABT.Var v
+    ABT.Cycle t -> ABT.Cycle (go t)
+    ABT.Tm (Ann e t) -> ABT.Tm (Ann (go e) (ABT.vmap f t))
+    -- Safe since `Ann` is only ctor that has embedded `Type v` arg
+    -- otherwise we'd have to manually match on every non-`Ann` ctor
+    ABT.Tm ts -> unsafeCoerce $ ABT.Tm (fmap go ts)
+
+wrapV :: Ord v => AnnotatedTerm v a -> AnnotatedTerm (ABT.V v) a
+wrapV = vmap ABT.Bound
+
 -- | Like `Term v`, but with an annotation of type `a` at every level in the tree
 type AnnotatedTerm v a = ABT.Term (F v) v a
+-- | Allow type variables and term variables to differ
+type AnnotatedTerm' vt v a = ABT.Term (F vt) v a
 
 -- | Terms are represented as ABTs over the base functor F, with variables in `v`
 type Term v = AnnotatedTerm v ()
+-- | Terms with type variables in `vt`, and term variables in `v`
+type Term' vt v = AnnotatedTerm' vt v ()
 
 -- nicer pattern syntax
 
@@ -83,15 +99,15 @@ pattern Blank' <- (ABT.out -> ABT.Tm Blank)
 pattern Ref' r <- (ABT.out -> ABT.Tm (Ref r))
 pattern App' f x <- (ABT.out -> ABT.Tm (App f x))
 pattern Apps' f args <- (unApps -> Just (f, args))
-pattern AppsP' f args <- (unApps' -> Just (f, args))
 pattern Ann' x t <- (ABT.out -> ABT.Tm (Ann x t))
 pattern Vector' xs <- (ABT.out -> ABT.Tm (Vector xs))
-pattern Lam' v body <- (ABT.out -> ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body))))
-pattern LamsP' vs body <- (unLams' -> Just (vs, body))
-pattern Let1' v b e <- (ABT.out -> ABT.Tm (Let b (ABT.Abs' v e)))
-pattern Lets' bs e <- Let' bs e _ False
-pattern Let' bs e relet rec <- (unLets -> Just (bs,e,relet,rec))
-pattern LetRec' bs e <- (unLetRec -> Just (bs,e))
+pattern Lam' subst <- ABT.Tm' (Lam (ABT.Abs' subst))
+pattern LamNamed' v body <- (ABT.out -> ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body))))
+pattern Let1' b subst <- (unLet1 -> Just (b, subst))
+pattern Let1Named' v b e <- (ABT.Tm' (Let b (ABT.out -> ABT.Abs v e)))
+pattern Lets' bs e <- (unLet -> Just (bs, e))
+pattern LetRecNamed' bs e <- (unLetRecNamed -> Just (bs,e))
+pattern LetRec' subst <- (unLetRec -> Just subst)
 
 fresh :: Var v => Term v -> v -> v
 fresh = ABT.fresh
@@ -107,8 +123,14 @@ var' = var . ABT.v'
 ref :: Ord v => Reference -> Term v
 ref r = ABT.tm (Ref r)
 
+builtin :: Ord v => Text -> Term v
+builtin n = ref (Reference.Builtin n)
+
 num :: Ord v => Double -> Term v
 num = lit . Number
+
+text :: Ord v => Text -> Term v
+text = lit . Text
 
 lit :: Ord v => Literal -> Term v
 lit l = ABT.tm (Lit l)
@@ -160,53 +182,38 @@ let1 bindings e = foldr f e bindings
 let1' :: Var v => [(Text,Term v)] -> Term v -> Term v
 let1' bs e = let1 [(ABT.v' name, b) | (name,b) <- bs ] e
 
--- | Satisfies
---   `unLets (letRec bs e) == Just (bs, e, letRec, True)` and
---   `unLets (let' bs e) == Just (bs, e, let', False)`
--- Useful for writing code agnostic to whether a let block is recursive or not.
-unLets :: Ord v => Term v -> Maybe ([(v,Term v)], Term v, [(v,Term v)] -> Term v -> Term v, Bool)
-unLets e =
-  (f letRec True <$> unLetRec e) <|> (f let1 False <$> unLet e)
-  where f mkLet rec (bs,e) = (bs,e,mkLet,rec)
-
--- | Satisfies `unLetRec (letRec bs e) == Just (bs, e)`
-unLetRec :: Term v -> Maybe ([(v, Term v)], Term v)
-unLetRec (ABT.Cycle' vs (ABT.Tm' (LetRec bs e)))
-  | length vs == length vs = Just (zip vs bs, e)
-unLetRec _ = Nothing
+unLet1 :: Var v => Term v -> Maybe (Term v, ABT.Subst (F v) v ())
+unLet1 (ABT.Tm' (Let b (ABT.Abs' subst))) = Just (b, subst)
+unLet1 _ = Nothing
 
 -- | Satisfies `unLet (let' bs e) == Just (bs, e)`
 unLet :: Term v -> Maybe ([(v, Term v)], Term v)
 unLet t = fixup (go t) where
-  go (ABT.out -> ABT.Tm (Let b (ABT.Abs' v t))) =
+  go (ABT.Tm' (Let b (ABT.out -> ABT.Abs v t))) =
     case go t of (env,t) -> ((v,b):env, t)
   go t = ([], t)
   fixup ([], _) = Nothing
   fixup bst = Just bst
 
+-- | Satisfies `unLetRec (letRec bs e) == Just (bs, e)`
+unLetRecNamed :: Term v -> Maybe ([(v, Term v)], Term v)
+unLetRecNamed (ABT.Cycle' vs (ABT.Tm' (LetRec bs e)))
+  | length vs == length vs = Just (zip vs bs, e)
+unLetRecNamed _ = Nothing
+
+unLetRec :: Monad m => Var v => Term v -> Maybe ((v -> m v) -> m ([(v, Term v)], Term v))
+unLetRec (unLetRecNamed -> Just (bs, e)) = Just $ \freshen -> do
+  vs <- sequence [ freshen v | (v,_) <- bs ]
+  let sub = ABT.substs (map fst bs `zip` map ABT.var vs)
+  pure (vs `zip` [ sub b | (_,b) <- bs ], sub e)
+unLetRec _ = Nothing
+
 unApps :: Term v -> Maybe (Term v, [Term v])
 unApps t = case go t [] of [] -> Nothing; f:args -> Just (f,args)
   where
   go (App' i o) acc = go i (o:acc)
+  go _ [] = []
   go fn args = fn:args
-
-unApps' :: Term v -> Maybe ((Term v,Path), [(Term v,Path)])
-unApps' t = addPaths <$> unApps t
-  where
-  addPaths (f,args) = case appPaths (length args) of
-    (fp,ap) -> ((f,fp), args `zip` ap)
-
-appPaths :: Int -> (Path, [Path])
-appPaths numArgs = (fnp, argsp)
-  where
-  fnp = replicate numArgs Fn
-  argsp = take numArgs . drop 1 $ iterate (Fn:) [Arg]
-
-unLams' :: Term v -> Maybe ([(v, Path)], (Term v, Path))
-unLams' (Lam' v body) = case unLams' body of
-  Nothing -> Just ([(v, [])], (body, [Body])) -- todo, need a path for forall vars
-  Just (vs, (body,bodyp)) -> Just ((v, []) : vs, (body, Body:bodyp))
-unLams' _ = Nothing
 
 dependencies' :: Ord v => Term v -> Set Reference
 dependencies' t = Set.fromList . Writer.execWriter $ ABT.visit' f t
@@ -221,149 +228,49 @@ countBlanks t = Monoid.getSum . Writer.execWriter $ ABT.visit' f t
   where f Blank = Writer.tell (Monoid.Sum (1 :: Int)) *> pure Blank
         f t = pure t
 
-data PathElement
-  = Fn -- ^ Points at function in a function application
-  | Arg -- ^ Points at the argument of a function application
-  | Body -- ^ Points at the body of a lambda or let
-  | Binding !Int -- ^ Points at a particular binding in a let
-  | Index !Int -- ^ Points at the index of a vector
-  | Annotation Type.Path -- ^ Points into the type of an `Ann`
-  deriving (Eq,Ord,Show)
-
-type Path = [PathElement]
-
--- | Use a @PathElement@ to compute one step into an @F Term v@ subexpression
-focus1 :: Ord v => PathElement -> ABT.Focus1 (F v) (Term v)
-focus1 Fn (App f x) = Just (f, \f -> App f x)
-focus1 Arg (App f x) = Just (x, \x -> App f x)
-focus1 Body (Lam (ABT.Abs' v body)) = Just (body, Lam . ABT.abs v)
-focus1 Body (Let b (ABT.Abs' v body)) = Just (body, Let b . ABT.abs v)
-focus1 Body (LetRec bs body) = Just (body, LetRec bs)
-focus1 (Binding i) (Let b body) | i <= 0 = Just (b, \b -> Let b body)
-focus1 (Binding i) (LetRec bs body) =
-  listToMaybe (drop i bs)
-  >>= \b -> Just (b, \b -> LetRec (take i bs ++ [b] ++ drop (i+1) bs) body)
-focus1 (Index i) (Vector vs) =
-  vs !? i >>= \v -> Just (v, \v -> Vector (Vector.update vs (Vector.singleton (i,v))))
-focus1 (Annotation pt) (Ann e t) = Just (e, \e -> Ann e t) -- todo: revisit
-focus1 _ _ = Nothing
-
--- | Return the list of all prefixes of the input path
-pathPrefixes :: Path -> [Path]
-pathPrefixes = inits
-
--- | Add an element onto the end of this 'Path'
-pathExtend :: PathElement -> Path -> Path
-pathExtend e p = p ++ [e]
-
-at :: Ord v => Path -> Term v -> Maybe (Term v)
-at p t = ABT.at (map focus1 p) t
-
--- | Given a variable and a path, find the longest prefix of the path
--- which points to a term where the variable is unbound. Example:
--- `\f -> \x -> f {x}` would return the path pointing to `{\x -> f x}`
-introducedAt :: Ord v => v -> Path -> Term v -> Maybe Path
-introducedAt v path t = f <$> ABT.introducedAt v (map focus1 path) t where
-  f p = take (length p) path
-
-modify :: Ord v => (Term v -> Term v) -> Path -> Term v -> Maybe (Term v)
-modify f p t = ABT.modify f (map focus1 p) t
-
-focus :: Ord v => Path -> Term v -> Maybe (Term v, Term v -> Term v)
-focus p t = ABT.focus (map focus1 p) t
-
-parent :: Path -> Maybe Path
-parent [] = Nothing
-parent p = Just (init p)
-
-parent' :: Path -> Path
-parent' = fromMaybe [] . parent
-
-bindingAt :: Ord v => Path -> Term v -> Maybe (v, Term v)
-bindingAt [] _ = Nothing
-bindingAt path t = do
-  parentPath <- parent path
-  Let1' v b _ <- at parentPath t
-  pure (v, b)
-
 -- | Convert all 'Ref' constructors to the corresponding term
 link :: (Applicative f, Monad f, Var v) => (Hash -> f (Term v)) -> Term v -> f (Term v)
 link env e =
   let ds = map (\h -> (h, link env =<< env h)) (Set.toList (dependencies e))
       sub e (h, ft) = replace <$> ft
-        where replace t = ABT.replace t ((==) rt) e
+        where replace t = ABT.replace ((==) rt) t e
               rt = ref (Reference.Derived h)
   in foldM sub e ds
 
 -- | If the outermost term is a function application,
 -- perform substitution of the argument into the body
 betaReduce :: Var v => Term v -> Term v
-betaReduce (App' (Lam' n body) arg) = ABT.subst arg n body
+betaReduce (App' (Lam' f) arg) = ABT.bind f arg
 betaReduce e = e
 
-type ViewableTerm = Term (Symbol View.DFO)
-
-toString :: ViewableTerm -> String
-toString t = D.formatText 80 (view Type.defaultSymbol t)
-
-view :: (Reference -> Symbol View.DFO) -> ViewableTerm -> Doc Text Path
-view ref t = go no View.low t where
-  no = const False
-  sym v = D.embed (Var.name v)
-  op t = case t of
-    Lit' l -> Symbol.annotate View.prefix . (\r -> Symbol.prefix r :: Symbol ()) . Text.pack . show $ l
-    Var' v -> v
-    _ -> Symbol.annotate View.prefix (Symbol.prefix "" :: Symbol ())
-  formatBinding :: Path -> Symbol View.DFO -> ViewableTerm -> Doc Text Path
-  formatBinding path name body = case body of
-    LamsP' vs (body,bodyp) ->
-      let lhs = fmap fixup $ go no View.low (apps (var name) (map (var . fst) vs))
-          fixup _ = [] -- todo, could use paths to individual variables
-          rhs = D.sub' bodyp $ go no View.low body
-      in D.group . D.sub' path $ D.docs [lhs, D.embed " =", D.breakable " ", D.nest "  " rhs]
-    _ -> D.sub' path $ D.docs [sym name, D.embed " =", D.breakable " ", D.nest "  " $ go no View.low body ]
-  go :: (ViewableTerm -> Bool) -> View.Precedence -> ViewableTerm -> Doc Text Path
-  go inChain p t = case t of
-    Lets' bs e ->
-      let
-        pe = replicate (length bs) Body
-        bps = tail (tails pe)
-        formattedBs = [ formatBinding bp name b | ((name,b), bp) <- bs `zip` bps ]
-      in D.group $ D.docs [D.embed "let", D.breakable " "] `D.append`
-                   D.nest "  " (D.delimit (D.breakable "; ") formattedBs) `D.append`
-                   D.docs [D.embed "in", D.breakable " ", D.sub' pe . D.nest "  " $ go no View.low e ]
-    LetRec' bs e ->
-      let
-        bps = map Binding [0 .. length bs - 1]
-        formattedBs = [ formatBinding [bp] name b | ((name,b), bp) <- bs `zip` bps ]
-      in D.group $ D.docs [D.embed "let rec", D.breakable " "] `D.append`
-                   D.nest "  " (D.delimit (D.breakable "; ") formattedBs) `D.append`
-                   D.docs [D.embed "in", D.breakable " ", D.sub Body . D.nest "  " $ go no View.low e ]
-    AppsP' (fn,fnP) args ->
-      let
-        Symbol.Symbol _ name view = op fn
-        (taken, remaining) = splitAt (View.arity view) args
-        fmt (child,path) = (\p -> D.sub' path (go (fn ==) p child), path)
-        applied = fromMaybe unsaturated (View.instantiate view fnP name (map fmt taken))
-        unsaturated = D.sub' fnP $ go no View.high fn
-      in
-        (if inChain fn then id else D.group) $ case remaining of
-          [] -> applied
-          args -> D.parenthesize (p > View.high) . D.group . D.docs $
-            [ applied, D.breakable " "
-            , D.nest "  " . D.group . D.delimit (D.breakable " ") $
-              [ D.sub' p (go no (View.increase View.high) s) | (s,p) <- args ] ]
-    LamsP' vs (body,bodyp) ->
-      if p == View.low then D.sub' bodyp (go no p body)
-      else D.parenthesize True . D.group $
-           D.delimit (D.embed " ") (map (sym . fst) vs) `D.append`
-           D.docs [D.embed "→", D.breakable " ", D.nest "  " $ D.sub' bodyp (go no View.low body)]
-    Ann' e t -> D.group . D.parenthesize (p /= View.low) $
-                D.docs [ go no p e, D.embed " :", D.breakable " "
-                       , D.nest "  " $ (\p -> [Annotation p]) <$> Type.view ref t ]
-    Var' v -> sym v
-    Lit' _ -> D.embed (Var.name $ op t)
-    _ -> error $ "layout match failure"
+instance Var v => Hashable1 (F v) where
+  hash1 hashCycle hash e =
+    let
+      (tag, hashed, varint) = (Hashable.Tag, Hashable.Hashed, Hashable.VarInt)
+      hashToken :: (Hashable.Hash h, Hashable t) => t -> Hashable.Token h
+      hashToken = Hashable.Hashed . Hashable.hash'
+    in case e of
+      -- So long as `Reference.Derived` ctors are created using the same hashing
+      -- function as is used here, this case ensures that references are 'transparent'
+      -- wrt hash and hashing is unaffected by whether expressions are linked.
+      -- So for example `x = 1 + 1` and `y = x` hash the same.
+      Ref (Reference.Derived h) -> Hashable.fromBytes (Hash.toBytes h)
+      -- Note: start each layer with leading `1` byte, to avoid collisions with
+      -- types, which start each layer with leading `0`. See `Hashable1 Type.F`
+      _ -> Hashable.hash $ tag 1 : case e of
+        Lit l -> [tag 0, hashToken l]
+        Blank -> [tag 1]
+        Ref (Reference.Builtin name) -> [tag 2, hashToken name]
+        Ref (Reference.Derived _) -> error "handled above, but GHC can't figure this out"
+        App a a2 -> [tag 3, hashed (hash a), hashed (hash a2)]
+        Ann a t -> [tag 4, hashed (hash a), hashed (ABT.hash t)]
+        Vector as -> tag 5 : varint (Vector.length as) : map (hashed . hash) (Vector.toList as)
+        Lam a -> [tag 6, hashed (hash a) ]
+        -- note: we use `hashCycle` to ensure result is independent of let binding order
+        LetRec as a -> case hashCycle as of
+          (hs, hash) -> tag 7 : hashed (hash a) : map hashed hs
+        -- here, order is significant, so don't use hashCycle
+        Let b a -> [tag 8, hashed (hash b), hashed (hash a)]
 
 -- mostly boring serialization code below ...
 
@@ -379,12 +286,11 @@ instance (Ord v, FromJSON v, FromJSON r) => FromJSON (F v r) where
 instance ToJSON v => J.ToJSON1 (F v) where toJSON1 f = Aeson.toJSON f
 instance (Ord v, FromJSON v) => J.FromJSON1 (F v) where parseJSON1 j = Aeson.parseJSON j
 
-deriveJSON defaultOptions ''PathElement
-
 instance Show Literal where
   show (Text t) = show t
-  show (Number n) = show n
-  show (Distance d) = show d
+  show (Number n) = case floor n of
+    m | fromIntegral m == n -> show (m :: Int)
+    _ -> show n
 
 instance (Var v, Show a) => Show (F v a) where
   showsPrec p fa = go p fa where
@@ -396,5 +302,7 @@ instance (Var v, Show a) => Show (F v a) where
     go _ (Vector vs) = showListWith (showsPrec 0) (Vector.toList vs)
     go _ Blank = s"_"
     go _ (Ref r) = showsPrec 0 r
+    go _ (Let b body) = showParen True (s"let " <> showsPrec 0 b <> s" in " <> showsPrec 0 body)
+    go _ (LetRec bs body) = showParen True (s"let rec" <> showsPrec 0 bs <> s" in " <> showsPrec 0 body)
     (<>) = (.)
     s = showString

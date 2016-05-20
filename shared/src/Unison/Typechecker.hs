@@ -2,21 +2,24 @@
 {-# LANGUAGE PatternSynonyms #-}
 
 -- | This module is the primary interface to the Unison typechecker
-module Unison.Typechecker (admissibleTypeAt, check, check', equals, isSubtype, locals, subtype, synthesize, synthesize', typeAt, wellTyped) where
+module Unison.Typechecker (admissibleTypeAt, check, check', checkAdmissible', equals, locals, subtype, isSubtype, synthesize, synthesize', typeAt, wellTyped) where
 
 import Control.Monad
-import Unison.Type (Type)
-import Unison.Term (Term)
 import Unison.Note (Note,Noted)
+import Unison.Paths (Path)
+import Unison.Term (Term)
+import Unison.Type (Type)
 import Unison.Var (Var)
 import qualified Unison.ABT as ABT
+import qualified Unison.Note as Note
+import qualified Unison.Paths as Paths
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
-import qualified Unison.Note as Note
+import qualified Unison.TypeVar as TypeVar
 import qualified Unison.Typechecker.Context as Context
 
---import Debug.Trace
---watch msg a = trace (msg ++ show a) a
+import Debug.Trace
+watch msg a = trace (msg ++ show a) a
 
 invalid :: (Show a1, Show a) => a -> a1 -> String
 invalid loc ctx = "invalid path " ++ show loc ++ " in:\n" ++ show ctx
@@ -30,63 +33,64 @@ invalid loc ctx = "invalid path " ++ show loc ++ " in:\n" ++ show ctx
 -- Algorithm works by replacing the subterm, @e@ with
 -- @(f e)@, where @f@ is a fresh function parameter. We then
 -- read off the type of @e@ from the inferred result type of @f@.
---
--- Note: the returned type may contain free type variables, since
--- we strip off any outer foralls.
-admissibleTypeAt :: (Applicative f, Var v)
+admissibleTypeAt :: (Monad f, Var v)
                  => Type.Env f v
-                 -> Term.Path
+                 -> Path
                  -> Term v
                  -> Noted f (Type v)
 admissibleTypeAt synth loc t = Note.scoped ("admissibleTypeAt@" ++ show loc ++ " " ++ show t) $
   let
-    f = Term.fresh t (ABT.v' "s")
+    f = ABT.v' "f"
     shake (Type.Arrow' (Type.Arrow' _ tsub) _) = Type.generalize tsub
-    shake (Type.Forall' _ t) = shake t
+    shake (Type.ForallNamed' _ t) = shake t
     shake _ = error "impossible, f had better be a function"
-  in case Term.lam f <$> Term.modify (Term.app (Term.var f)) loc t of
+  in case Term.lam f <$> Paths.modifyTerm (\t -> Term.app (Term.var (ABT.Free f)) (Term.wrapV t)) loc t of
     Nothing -> Note.failure $ invalid loc t
     Just t -> shake <$> synthesize synth t
 
 -- | Compute the type of the given subterm.
-typeAt :: (Applicative f, Var v) => Type.Env f v -> Term.Path -> Term v -> Noted f (Type v)
+typeAt :: (Monad f, Var v) => Type.Env f v -> Path -> Term v -> Noted f (Type v)
 typeAt synth [] t = Note.scoped ("typeAt: " ++ show t) $ synthesize synth t
 typeAt synth loc t = Note.scoped ("typeAt@"++show loc ++ " " ++ show t) $
   let
-    f = Term.fresh t (ABT.v' "t")
+    f = ABT.v' "f"
+    remember e = Term.var (ABT.Free f) `Term.app` Term.wrapV e
     shake (Type.Arrow' (Type.Arrow' tsub _) _) = Type.generalize tsub
-    shake (Type.Forall' _ t) = shake t
+    shake (Type.ForallNamed' _ t) = shake t
     shake _ = error "impossible, f had better be a function"
-  in case Term.lam f <$> Term.modify (Term.app (Term.var f)) loc t of
+  in case Term.lam f <$> Paths.modifyTerm remember loc t of
     Nothing -> Note.failure $ invalid loc t
     Just t -> shake <$> synthesize synth t
 
 -- | Return the type of all local variables in scope at the given location
-locals :: (Applicative f, Var v) => Type.Env f v -> Term.Path -> Term v -> Noted f [(v, Type v)]
+locals :: (Show v, Monad f, Var v) => Type.Env f v -> Path -> Term v -> Noted f [(v, Type v)]
 locals synth path ctx | ABT.isClosed ctx =
   Note.scoped ("locals@"++show path ++ " " ++ show ctx)
-              (zip (map fst lambdas) <$> lambdaTypes)
+              ((zip (map ABT.unvar vars)) <$> types)
   where
-    -- lambdas :: [(v, Term.Path)]
-    lambdas = Term.pathPrefixes path >>= \path -> case Term.at path ctx of
-      Just (Term.Lam' v _) -> [(v, path)]
-      _ -> []
-
-    lambdaTypes = traverse t (map snd lambdas)
-      where t path = extract <$> typeAt synth path ctx
-
-    extract :: Var v => Type v -> Type v
-    extract (Type.Arrow' i _) = i
-    extract (Type.Forall' _ t) = extract t
-    extract t = error $ "expecting function type, got " ++ show t
+    -- replace focus, x, with `let saved = f v1 v2 v3 ... vn in x`,
+    -- where `f` is fresh variable, then infer type of `f`, read off the
+    -- types of `v1`, `v2`, ...
+    vars = map ABT.Bound (Paths.inScopeAtTerm path ctx)
+    f = ABT.v' "f"
+    saved = ABT.v' "saved"
+    remember e = Term.let1 [(saved, Term.var (ABT.Free f) `Term.apps` map Term.var vars)] (Term.wrapV e)
+    usingAllLocals = Term.lam f (Paths.modifyTerm' remember path ctx)
+    types = if null vars then pure []
+            else extract <$> typeAt synth [] usingAllLocals
+    extract (Type.Arrow' i _) = extract1 i
+    extract (Type.ForallNamed' _ t) = extract t
+    extract t = error $ "expected function type, got: " ++ show t
+    extract1 (Type.Arrow' i o) = i : extract1 o
+    extract1 _ = []
 locals _ _ ctx =
   Note.failure $ "Term.locals: term contains free variables - " ++ show ctx
 
 -- | Infer the type of a 'Unison.Syntax.Term', using
 -- a function to resolve the type of @Ref@ constructors
 -- contained in that term.
-synthesize :: (Applicative f, Var v) => Type.Env f v -> Term v -> Noted f (Type v)
-synthesize = Context.synthesizeClosed
+synthesize :: (Monad f, Var v) => Type.Env f v -> Term v -> Noted f (Type v)
+synthesize env t = ABT.vmap TypeVar.underlying <$> Context.synthesizeClosed env t
 
 -- | Infer the type of a 'Unison.Syntax.Term', assumed
 -- not to contain any @Ref@ constructors
@@ -98,8 +102,8 @@ synthesize' term = join . Note.unnote $ synthesize missing term
 -- function to resolve the type of @Ref@ constructors
 -- contained in the term. Returns @typ@ if successful,
 -- and a note about typechecking failure otherwise.
-check :: (Applicative f, Var v) => Type.Env f v -> Term v -> Type v -> Noted f (Type v)
-check synth term typ = synthesize synth (Term.ann term typ)
+check :: (Monad f, Var v) => Type.Env f v -> Term v -> Type v -> Noted f (Type v)
+check env term typ = synthesize env (Term.ann term typ)
 
 -- | Check whether a term, assumed to contain no @Ref@ constructors,
 -- matches a given type. Return @Left@ if any references exist, or
@@ -107,6 +111,16 @@ check synth term typ = synthesize synth (Term.ann term typ)
 check' :: Var v => Term v -> Type v -> Either Note (Type v)
 check' term typ = join . Note.unnote $ check missing term typ
   where missing h = Note.failure $ "unexpected ref: " ++ show h
+
+-- | `checkAdmissible' e t` tests that `(f : t -> r) e` is well-typed.
+-- If `t` has quantifiers, these are moved outside, so if `t : forall a . a`,
+-- this will check that `(f : forall a . a -> a) e` is well typed.
+checkAdmissible' :: Var v => Term v -> Type v -> Either Note (Type v)
+checkAdmissible' term typ =
+  synthesize' (Term.blank `Term.ann` tweak typ `Term.app` term)
+  where
+    tweak (Type.ForallNamed' v body) = Type.forall v (tweak body)
+    tweak t = t `Type.arrow` t
 
 -- | Returns `True` if the expression is well-typed, `False` otherwise
 wellTyped :: (Monad f, Var v) => Type.Env f v -> Term v -> Noted f Bool
@@ -120,13 +134,15 @@ wellTyped synth term = (const True <$> synthesize synth term) `Note.orElse` pure
 --
 -- Example: @subtype (forall a. a -> a) (Int -> Int)@ returns @Right (Int -> Int)@.
 subtype :: Var v => Type v -> Type v -> Either Note (Type v)
-subtype t1 t2 = case Context.subtype (Context.context []) t1 t2 of
-  Left e -> Left e
-  Right _ -> Right t2
+subtype t1 t2 =
+  let (t1', t2') = (ABT.vmap TypeVar.Universal t1, ABT.vmap TypeVar.Universal t2)
+  in case Context.runM (Context.subtype t1' t2') Context.env0 of
+    Left e -> Left e
+    Right _ -> Right t2
 
 -- | Returns true if @subtype t1 t2@ returns @Right@, false otherwise
 isSubtype :: Var v => Type v -> Type v -> Bool
-isSubtype t1 t2 = case Context.subtype (Context.context []) t1 t2 of
+isSubtype t1 t2 = case subtype t1 t2 of
   Left _ -> False
   Right _ -> True
 
@@ -136,4 +152,3 @@ isSubtype t1 t2 = case Context.subtype (Context.context []) t1 t2 of
 -- `forall a b . a -> b -> a` to be different types
 equals :: Var v => Type v -> Type v -> Bool
 equals t1 t2 = isSubtype t1 t2 && isSubtype t2 t1
-

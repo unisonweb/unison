@@ -30,6 +30,7 @@ class (Eq v, Ord v) => Var v where
   clear :: v -> v
   qualifiedName :: v -> Text
   freshIn :: Set v -> v -> v
+  freshenId :: Word -> v -> v
 
 shortName :: Var v => v -> Text
 shortName v | named (name v) == v = name v

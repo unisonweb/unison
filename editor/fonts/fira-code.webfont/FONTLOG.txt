@@ -1,0 +1,62 @@
+
+  FONTLOG: Fira Code
+
+  --------------------------------------------
+  Fira Code Regular
+  --------------------------------------------
+
+  This file provides detailed information on the Fira Code 
+  font software.
+  This information should be distributed along with the Fira 
+  Code font and any derivative works.
+  
+  Fira Code Font Information
+  
+  Fira Code is a Fira Mono font extended with a set of 
+  ligatures for common programming multi-character 
+  combinations. This is just a font rendering feature: 
+  underlying code remains ASCII-compatible. This helps to 
+  read and understand code faster. For some frequent 
+  sequences like .. or // ligatures allow us to correct 
+  spacing.
+  
+  ChangeLog
+  
+  12 Jun 2015 (Christoph Haag)
+- created fontforge sources as base to work on GNU/Linux
+- added FONTLOG to .sfdir
+- Mastered Font from Fontforge SFDIR to 
+  UFO,OTF,TTF,EOT,WOFF,SVG
+  
+  26 May 2015 (Nikita Prokopov)
+- Version 0.5
+  
+  25 May 2015 (Nikita Prokopov)
+- Version 0.4
+  
+  11 May 2015 (Nikita Prokopov)
+- Version 0.3: +AH4A@ #? +AD0A:+AD0A +AD0A<
+  
+  7 May 2015 (Nikita Prokopov)
+- Version 0.2.1
+  
+  11 Nov 2014 (Nikita Prokopov)
+- Starting from Fira Mono
+  
+  Acknowledgements
+  
+  If you make modifications be sure to add your name (N), 
+  email (E), web-address (if you have one) (W) and 
+  description (D). This list is in alphabetical order.
+  
+  N: Christoph Haag
+  E: christoph@lafkon.net
+  W: www.lafkon.net
+  D: Transformer
+  
+  N: Nikita Prokopov
+  E: prokopov@gmail.com
+  W: tonsky.me
+  D: Designer/Ligature Maker"
+
+

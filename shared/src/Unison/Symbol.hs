@@ -10,11 +10,9 @@ import qualified Unison.View as View
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 
--- NB: freshId is first field, so given a `Set Symbol`, the max element of
--- the set will also have the highest `freshId`.
-data Symbol a = Symbol !Int Text a
+data Symbol a = Symbol !Word Text a
 
-freshId :: Symbol a -> Int
+freshId :: Symbol a -> Word
 freshId (Symbol id _ _) = id
 
 annotation :: Symbol a -> a
@@ -28,10 +26,10 @@ instance View op => Var (Symbol op) where
   named n = Symbol 0 n View.prefix
   clear (Symbol id n _) = Symbol id n View.prefix
   qualifiedName s = name s `Text.append` (Text.pack (show (freshId s)))
-  freshIn vs s | Set.null vs = s -- already fresh!
-  freshIn vs s | Set.notMember s vs = s -- already fresh!
+  freshIn vs s | Set.null vs || Set.notMember s vs = s -- already fresh!
   freshIn vs s@(Symbol i n a) = case Set.elemAt (Set.size vs - 1) vs of
     Symbol i2 _ _ -> if i > i2 then s else Symbol (i2+1) n a
+  freshenId id (Symbol _ n a) = Symbol id n a
 
 instance Functor Symbol where
   fmap f (Symbol id name a) = Symbol id name (f a)
