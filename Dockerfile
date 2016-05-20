@@ -6,7 +6,7 @@ RUN apt-get update -q && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 ADD stack.yaml /opt/unison/stack.yaml
 RUN stack setup
-ADD editor/stack.yaml /opt/unison/editor/stack.yaml
+ADD editor.yaml /opt/unison/editor/stack.yaml
 RUN cd editor && stack setup
 ADD shared/unison-shared.cabal /opt/unison/shared/unison-shared.cabal
 ADD node/unison-node.cabal /opt/unison/node/unison-node.cabal
