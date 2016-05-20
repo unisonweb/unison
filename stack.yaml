@@ -9,3 +9,4 @@ resolver: lts-3.10
 extra-deps:
   - applicative-extras-0.1.8
   - ctrie-0.1.0.3
+  - sockaddr-0.0.0
