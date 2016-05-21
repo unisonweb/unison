@@ -80,7 +80,7 @@ delaySeconds μs = threadDelay (1000000 * μs)
 
 eventually :: Assertion -> Assertion
 eventually cond = go 1 where
-  go n | n > 32 = cond
+  go n | n > 8 = cond
   go n = cond <|> (delaySeconds n >> go (n*2))
 
 tests :: TestTree
