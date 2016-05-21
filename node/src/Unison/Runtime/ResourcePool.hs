@@ -1,6 +1,7 @@
 module Unison.Runtime.ResourcePool where
 
 import Control.Concurrent.MVar (MVar)
+import Data.Functor
 import Data.Time (UTCTime, getCurrentTime, addUTCTime, diffUTCTime)
 import qualified Control.Concurrent as CC
 import qualified Control.Concurrent.MVar as MVar
@@ -83,7 +84,7 @@ lookupQueue p (Cache count lock m) = do
       pure q
     Just q -> pure q
 
-_acquire :: (Ord p, H.Hashable p)
+_acquire :: (Ord p, H.Hashable p, Show p)
          => (p -> IO r)
          -> (r -> IO ())
          -> Cache p r
@@ -97,44 +98,58 @@ _acquire acquire release cache waitInSeconds maxPoolSize reaper p = do
   avail <- STM.atomically $ TQ.tryReadTQueue q
   (r, release) <- case avail of
     Nothing -> do
+      -- putStrLn $ "nothing available for " ++ show p ++ ", allocating fresh"
       r <- acquire p
       incrementCount cache
       pure (r, release r)
-    Just (r, _, release) -> pure (r, release)
+    Just (r, _, release) -> do
+      -- putStrLn $ "got recycled resource for " ++ show p
+      pure (r, release)
   delayedRelease <- pure $ do
     now <- getCurrentTime
     currentSize <- IORef.readIORef (count cache)
     case currentSize of
       n | n >= maxPoolSize -> release
-        | otherwise        -> STM.atomically $ TQ.writeTQueue q (r, expiry, release)
+        | otherwise        -> do
+          empty <- STM.atomically (TQ.isEmptyTQueue q)
+          -- putStrLn $ "enqueueing for " ++ show p ++ " " ++ show empty
+          STM.atomically $ TQ.writeTQueue q (r, expiry, release)
+          STM.atomically $ TQ.writeTQueue reaper p
           where expiry = addUTCTime (fromIntegral waitInSeconds) now
-  STM.atomically $ TQ.writeTQueue reaper p
   pure (r, delayedRelease)
 
-reaper :: (Ord p, H.Hashable p) => Cache p r -> ReaperQueue p -> IO ()
+reaper :: (Ord p, H.Hashable p, Show p) => Cache p r -> ReaperQueue p -> IO ()
 reaper cache queue = do
   key <- STM.atomically $ TQ.readTQueue queue
-  valueQueue <- lookupQueue key cache
-  value <- STM.atomically $ TQ.tryReadTQueue valueQueue
+  recycleQ <- lookupQueue key cache
   now <- getCurrentTime
+  -- invariant: only consume a value from both `queue` and `recycleQ` if invoking the finalizer
+  value <- STM.atomically $ do
+    value <- TQ.tryPeekTQueue recycleQ
+    case value of
+      Just (_, expiry, _) | expiry <= now -> TQ.readTQueue recycleQ $> ()
+      _ -> pure ()
+    pure value
   case value of
-    Just (_, expiry, releaser) | expiry < now -> do
-      empty <- STM.atomically (TQ.isEmptyTQueue valueQueue)
+    Just (_, expiry, releaser) | expiry <= now -> do
+      empty <- STM.atomically (TQ.isEmptyTQueue recycleQ)
       case empty of
-        True -> deleteQueue key cache
+        True -> pure () -- deleteQueue key cache
         False -> pure ()
       decrementCount cache
+      -- putStrLn $ "releasing resource for: " ++ show key
       releaser
       reaper cache queue
     Just r@(_, expiry, _) -> do
       let nextExpiry = round ((realToFrac $ diffUTCTime now expiry) :: Double)
-      STM.atomically $ TQ.unGetTQueue valueQueue r
       STM.atomically $ TQ.unGetTQueue queue key
       CC.threadDelay (1000000 * nextExpiry)
       reaper cache queue
-    Nothing -> reaper cache queue
+    Nothing -> do
+      -- STM.atomically $ TQ.unGetTQueue queue key -- not sure about this
+      reaper cache queue
 
-make :: (Ord p, H.Hashable p)
+make :: (Ord p, H.Hashable p, Show p)
      => Seconds -> MaxPoolSize -> (p -> IO r) -> (r -> IO ()) -> IO (ResourcePool p r)
 make waitInSeconds maxPoolSize acquire release = do
   ps <- IORef.newIORef 0
