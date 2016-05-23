@@ -38,7 +38,8 @@ makePool maxSize = do
 acquireSequential1 :: Assertion
 acquireSequential1 = do
   (pool, ok) <- makePool 10
-  replicateM_ 100 (RP.acquire pool 42 >>= \(n, release) -> assertEqual "resource not recycled" 0 n >> release)
+  let check n = assertEqual "resource not recycled" 0 n
+  replicateM_ 100 (RP.acquire pool 42 >>= \(n, release) -> check n >> release)
   eventually ok
 
 acquireSequential2 :: Assertion
