@@ -1,19 +1,20 @@
 module Unison.Runtime.ResourcePool where
 
-import Data.Maybe (fromMaybe)
 import Control.Applicative
 import Control.Concurrent.MVar (MVar)
 import Control.Concurrent.STM.TMVar (TMVar)
+import Control.Concurrent.STM.TVar (TVar)
 import Data.Functor
+import Data.Map (Map)
 import Data.Time (UTCTime, getCurrentTime, addUTCTime, diffUTCTime)
 import qualified Control.Concurrent as CC
 import qualified Control.Concurrent.MVar as MVar
-import qualified Control.Concurrent.Map as M
 import qualified Control.Concurrent.STM.TMVar as TMVar
 import qualified Control.Concurrent.STM.TQueue as TQ
+import qualified Control.Concurrent.STM.TVar as TVar
 import qualified Control.Monad.STM as STM
-import qualified Data.Hashable as H
 import qualified Data.IORef as IORef
+import qualified Data.Map as Map
 
 -- | `acquire` returns the resource, and the cleanup action ("finalizer") for that resource
 data ResourcePool p r = ResourcePool { acquire :: p -> IO (r, IO ()) }
@@ -41,8 +42,7 @@ expiration.
 
 data Cache p r =
   Cache { count :: IORef.IORef PoolSize
-        , lock :: MVar () -- used as a lock when allocating new RecycleQueue
-        , recycleQueues :: M.Map p (RecycleQueue r) }
+        , recycleQueues :: TVar (Map p (RecycleQueue r)) }
 
 type RecycleQueue r = TQ.TQueue (TMVar r, CC.ThreadId, IO ())
 type MaxPoolSize = Int
@@ -58,24 +58,21 @@ decrementCount c = IORef.atomicModifyIORef' (count c) (\a -> (a-1, ()))
 getCount :: Cache p r -> IO Int
 getCount c = IORef.readIORef (count c)
 
-lookupQueue :: (Ord p, H.Hashable p) => p -> Cache p r -> IO (RecycleQueue r)
-lookupQueue p (Cache _ lock m) = do
-  q <- M.lookup p m
+lookupQueue :: Ord p => p -> Cache p r -> IO (RecycleQueue r)
+lookupQueue p (Cache _ m) = do
+  q <- Map.lookup p <$> TVar.readTVarIO m
   case q of
     Nothing -> do
-      MVar.takeMVar lock
       q <- STM.atomically TQ.newTQueue
-      M.insert p q m
-      MVar.putMVar lock ()
+      STM.atomically $ TVar.modifyTVar' m (\m -> Map.insert p q m)
       pure q
     Just q -> pure q
 
-recycleOrReacquire :: Show p => (p -> IO r) -> (r -> IO ()) -> Cache p q -> RecycleQueue r -> p -> IO (r, IO ())
+recycleOrReacquire :: (p -> IO r) -> (r -> IO ()) -> Cache p q -> RecycleQueue r -> p -> IO (r, IO ())
 recycleOrReacquire acquire release cache q p = do
   avail <- STM.atomically $ TQ.tryReadTQueue q
   case avail of
     Nothing -> do
-      -- putStrLn $ "nothing available for " ++ show p ++ ", allocating fresh"
       r <- acquire p
       r' <- STM.atomically $ TMVar.newTMVar (Just r)
       pure (r, release r)
@@ -85,17 +82,10 @@ recycleOrReacquire acquire release cache q p = do
       case r' of
         Nothing -> recycleOrReacquire acquire release cache q p
         Just r -> do
-          -- putStrLn $ "got recycled resource for " ++ show p
           CC.killThread id
           pure (r, release')
 
-_acquire :: (Ord p, H.Hashable p, Show p)
-         => (p -> IO r)
-         -> (r -> IO ())
-         -> Cache p r
-         -> Seconds
-         -> MaxPoolSize
-         -> p
+_acquire :: (Ord p) => (p -> IO r) -> (r -> IO ()) -> Cache p r -> Seconds -> MaxPoolSize -> p
          -> IO (r, IO ())
 _acquire acquire release cache waitInSeconds maxPoolSize p = do
   q <- lookupQueue p cache
@@ -105,22 +95,23 @@ _acquire acquire release cache waitInSeconds maxPoolSize p = do
     case currentSize of
       n | n >= maxPoolSize -> release
         | otherwise        -> do
-          empty <- STM.atomically (TQ.isEmptyTQueue q)
-          -- putStrLn $ "enqueueing for " ++ show p ++ " " ++ show empty
           incrementCount cache
           r' <- STM.atomically (TMVar.newTMVar r)
           id <- CC.forkIO $ do
             CC.threadDelay (1000000 * waitInSeconds)
             msg <- STM.atomically $ TMVar.tryTakeTMVar r'
             case msg of Nothing -> pure (); Just _ -> release
+            STM.atomically $ do -- GC empty queues
+              empty <- TQ.isEmptyTQueue q
+              case empty of
+                True -> TVar.modifyTVar' (recycleQueues cache) (Map.delete p)
+                False -> pure ()
           STM.atomically $ TQ.writeTQueue q (r', id, release)
   pure (r, delayedRelease)
 
-make :: (Ord p, H.Hashable p, Show p)
-     => Seconds -> MaxPoolSize -> (p -> IO r) -> (r -> IO ()) -> IO (ResourcePool p r)
+make :: Ord p => Seconds -> MaxPoolSize -> (p -> IO r) -> (r -> IO ()) -> IO (ResourcePool p r)
 make waitInSeconds maxPoolSize acquire release = do
   ps <- IORef.newIORef 0
-  lock <- MVar.newMVar ()
-  recycleQueues <- M.empty
-  let cache = Cache ps lock recycleQueues
+  recycleQueues <- TVar.newTVarIO Map.empty
+  let cache = Cache ps recycleQueues
   pure $ ResourcePool { acquire = _acquire acquire release cache waitInSeconds maxPoolSize }
