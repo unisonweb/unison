@@ -4,7 +4,7 @@ packages:
 - shared
 - node
 
-resolver: lts-3.10
+resolver: lts-5.9
 
 extra-deps:
   - applicative-extras-0.1.8
