@@ -80,6 +80,7 @@ recycleOrReacquire acquire release cache q p = do
       decrementCount cache
       r' <- STM.atomically $ TMVar.tryTakeTMVar r
       case r' of
+        -- a reaper thread has claimed this resource for finalization, keep looking
         Nothing -> recycleOrReacquire acquire release cache q p
         Just r -> do
           CC.killThread id
@@ -99,6 +100,7 @@ _acquire acquire release cache waitInSeconds maxPoolSize p = do
           r' <- STM.atomically (TMVar.newTMVar r)
           id <- CC.forkIO $ do
             CC.threadDelay (1000000 * waitInSeconds)
+            -- if an acquire succeeds at the same time, the TMVar will be empty, so noop
             msg <- STM.atomically $ TMVar.tryTakeTMVar r'
             case msg of Nothing -> pure (); Just _ -> release
             STM.atomically $ do -- GC empty queues
