@@ -23,17 +23,20 @@ one f = Parser $ \s -> case s of
 
 identifier :: Parser String
 identifier = nonempty (takeWhile ok) where
-  ok '[' = False
-  ok ']' = False
-  ok '}' = False
-  ok '{' = False
-  ok '"' = False
-  ok ' ' = False
-  ok ';' = False
-  ok _   = True
+  ok = not . flip elem "[]{}\" ;()"
+
+constrainedIdentifier :: [(String -> Bool)] -> Parser String
+constrainedIdentifier tests = do
+  i <- identifier
+  guard (all ($ i) tests)
+  pure i
 
 token :: Parser a -> Parser a
 token p = p <* whitespace
+
+parenthesized :: Parser a -> Parser a
+parenthesized p =
+  token (char '(') *> p <* token (char ')')
 
 takeWhile :: (Char -> Bool) -> Parser String
 takeWhile f = Parser $ \s ->
@@ -67,9 +70,13 @@ commit p = Parser $ \input -> case run p input of
   Fail e _ -> Fail e True
   ok -> ok
 
+sepBy1 :: Parser a -> Parser b -> Parser [b]
+sepBy1 pa pb = (:) <$> pb <*> many (pa *> pb)
+
 data Result a
   = Fail [String] Bool
   | Succeed a Int
+  deriving (Show)
 
 instance Functor Parser where
   fmap = liftM
