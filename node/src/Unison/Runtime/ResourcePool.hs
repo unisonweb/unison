@@ -6,6 +6,7 @@ import Control.Concurrent.STM.TMVar (TMVar)
 import Control.Concurrent.STM.TVar (TVar)
 import Data.Functor
 import Data.Map (Map)
+import Data.Maybe
 import Data.Time (UTCTime, getCurrentTime, addUTCTime, diffUTCTime)
 import qualified Control.Concurrent as CC
 import qualified Control.Concurrent.MVar as MVar
@@ -32,8 +33,7 @@ The basic logic for `acquire` is:
     preventing multiple threads from accessing the same resource.
 2b. If that fails, acquire a fresh resource.
 3.  The returned finalizer just adds an entry to the recycle queue,
-    for the recycled or newly acquired resource, with a new expiration
-    based a delta plus the time the finalizer is called.
+    for the recycled or newly acquired resource
 
 Thus, multiple resources may be acquired for the same key simultaneously,
 and these resources will be recycled if another acquisition occurs before
@@ -44,10 +44,11 @@ data Cache p r =
   Cache { count :: IORef.IORef PoolSize
         , recycleQueues :: TVar (Map p (RecycleQueue r)) }
 
-type RecycleQueue r = TQ.TQueue (TMVar r, CC.ThreadId, IO ())
+type RecycleQueue r = (TVar QueueSize, TQ.TQueue (TMVar r, CC.ThreadId, IO ()))
 type MaxPoolSize = Int
 type Seconds = Int
 type PoolSize = Int
+type QueueSize = Int
 
 incrementCount :: Cache p r -> IO ()
 incrementCount c = IORef.atomicModifyIORef' (count c) (\a -> (a+1, ()))
@@ -64,12 +65,14 @@ lookupQueue p (Cache _ m) = do
   case q of
     Nothing -> do
       q <- STM.atomically TQ.newTQueue
-      STM.atomically $ TVar.modifyTVar' m (\m -> Map.insert p q m)
-      pure q
+      qSize <- STM.atomically (TVar.newTVar 0)
+      let tweak old = Just $ fromMaybe (qSize,q) old
+      STM.atomically $ TVar.modifyTVar' m (\m -> Map.alter tweak p  m)
+      pure (qSize, q)
     Just q -> pure q
 
 recycleOrReacquire :: (p -> IO r) -> (r -> IO ()) -> Cache p q -> RecycleQueue r -> p -> IO (r, IO ())
-recycleOrReacquire acquire release cache q p = do
+recycleOrReacquire acquire release cache (n,q) p = do
   avail <- STM.atomically $ TQ.tryReadTQueue q
   case avail of
     Nothing -> do
@@ -81,15 +84,16 @@ recycleOrReacquire acquire release cache q p = do
       r' <- STM.atomically $ TMVar.tryTakeTMVar r
       case r' of
         -- a reaper thread has claimed this resource for finalization, keep looking
-        Nothing -> recycleOrReacquire acquire release cache q p
+        Nothing -> recycleOrReacquire acquire release cache (n,q) p
         Just r -> do
+          STM.atomically $ TVar.modifyTVar' n (\n -> n - 1)
           CC.killThread id
           pure (r, release')
 
 _acquire :: (Ord p) => (p -> IO r) -> (r -> IO ()) -> Cache p r -> Seconds -> MaxPoolSize -> p
          -> IO (r, IO ())
 _acquire acquire release cache waitInSeconds maxPoolSize p = do
-  q <- lookupQueue p cache
+  q@(qn,qe) <- lookupQueue p cache
   (r, release) <- recycleOrReacquire acquire release cache q p
   delayedRelease <- pure $ do
     currentSize <- IORef.readIORef (count cache)
@@ -97,18 +101,21 @@ _acquire acquire release cache waitInSeconds maxPoolSize p = do
       n | n >= maxPoolSize -> release
         | otherwise        -> do
           incrementCount cache
+          STM.atomically (TVar.modifyTVar' qn (1+))
           r' <- STM.atomically (TMVar.newTMVar r)
           id <- CC.forkIO $ do
             CC.threadDelay (1000000 * waitInSeconds)
             -- if an acquire succeeds at the same time, the TMVar will be empty, so noop
             msg <- STM.atomically $ TMVar.tryTakeTMVar r'
-            case msg of Nothing -> pure (); Just _ -> release
+            case msg of
+              Nothing -> pure ();
+              Just _ -> release >> STM.atomically (TVar.modifyTVar' qn (\n -> n - 1))
             STM.atomically $ do -- GC empty queues
-              empty <- TQ.isEmptyTQueue q
-              case empty of
+              n <- TVar.readTVar qn
+              case n == 0 of
                 True -> TVar.modifyTVar' (recycleQueues cache) (Map.delete p)
                 False -> pure ()
-          STM.atomically $ TQ.writeTQueue q (r', id, release)
+          STM.atomically $ TQ.writeTQueue qe (r', id, release)
   pure (r, delayedRelease)
 
 make :: Ord p => Seconds -> MaxPoolSize -> (p -> IO r) -> (r -> IO ()) -> IO (ResourcePool p r)
