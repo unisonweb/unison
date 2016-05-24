@@ -67,7 +67,7 @@ lookupQueue p (Cache _ m) = do
       q <- STM.atomically TQ.newTQueue
       qSize <- STM.atomically (TVar.newTVar 0)
       let tweak old = Just $ fromMaybe (qSize,q) old
-      STM.atomically $ TVar.modifyTVar' m (\m -> Map.alter tweak p  m)
+      STM.atomically $ TVar.modifyTVar' m (\m -> Map.alter tweak p m)
       pure (qSize, q)
     Just q -> pure q
 
@@ -108,7 +108,7 @@ _acquire acquire release cache waitInSeconds maxPoolSize p = do
             -- if an acquire succeeds at the same time, the TMVar will be empty, so noop
             msg <- STM.atomically $ TMVar.tryTakeTMVar r'
             case msg of
-              Nothing -> pure ();
+              Nothing -> pure ()
               Just _ -> release >> STM.atomically (TVar.modifyTVar' qn (\n -> n - 1))
             STM.atomically $ do -- GC empty queues
               n <- TVar.readTVar qn
