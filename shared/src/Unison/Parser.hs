@@ -22,8 +22,7 @@ one f = Parser $ \s -> case s of
   _ -> Fail [] False
 
 identifier :: Parser String
-identifier = nonempty (takeWhile ok) where
-  ok = not . flip elem "[]{}\" ;()"
+identifier = takeWhile1 (`notElem` "\" []{};()")
 
 constrainedIdentifier :: [(String -> Bool)] -> Parser String
 constrainedIdentifier tests = do
@@ -34,9 +33,18 @@ constrainedIdentifier tests = do
 token :: Parser a -> Parser a
 token p = p <* whitespace
 
+lineErrorUnless :: String -> Parser a -> Parser a
+lineErrorUnless s p = commit $ Parser $ \input -> case run p input of
+    Fail e b -> Fail (s:m:e) b
+      where m = "near \'" ++ Prelude.takeWhile (/= '\n') input ++ "\'"
+    ok -> ok
+
 parenthesized :: Parser a -> Parser a
-parenthesized p =
-  token (char '(') *> p <* token (char ')')
+parenthesized p = lp *> body <* rp
+  where
+    lp = token (char '(')
+    body = lineErrorUnless "couldn't parse body of parenthesized expression" $ p
+    rp = lineErrorUnless "missing )" $ token (char ')')
 
 takeWhile :: (Char -> Bool) -> Parser String
 takeWhile f = Parser $ \s ->
@@ -71,7 +79,11 @@ commit p = Parser $ \input -> case run p input of
   ok -> ok
 
 sepBy1 :: Parser a -> Parser b -> Parser [b]
-sepBy1 pa pb = (:) <$> pb <*> many (pa *> pb)
+sepBy1 sep pb = (:) <$> pb <*> many (sep *> pb)
+
+toEither :: Result a -> Either [String] a
+toEither (Fail e _) = Left e
+toEither (Succeed a _) = Right a
 
 data Result a
   = Fail [String] Bool

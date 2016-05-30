@@ -2,26 +2,35 @@ module Unison.TermParser where
 
 import Prelude hiding (takeWhile)
 import Unison.Var (Var)
+import qualified Unison.Var as Var
 import Unison.Parser
 import Unison.TypeParser (RefLookup)
 import qualified Unison.TypeParser as TypeParser
 import Unison.Type (Type)
 import Unison.Term (Term, Literal)
+import qualified Unison.ABT as ABT
 import qualified Unison.Term as Term
 import qualified Data.Text as Text
 import Control.Applicative (some, optional, (<|>))
 import Data.Functor (($>))
 import Data.Foldable (asum)
 import Data.Char (isLower, isDigit, isAlpha, isSymbol)
+import Data.Set (Set)
 
-import Unison.Symbol (Symbol)
+import Unison.Symbol (Symbol, Symbol(..))
 import Unison.View (DFO)
+import qualified Unison.View as View
+import Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 
 type MakeParser v = RefLookup -> Parser (Term v)
 
 term :: Var v => MakeParser v
-term l = possiblyAnnotated term2 l
+-- term l = ABT.freeVars (term1 l)
+term = term1
+
+term1 :: Var v => MakeParser v
+term1 l = possiblyAnnotated term2 l
 
 term2 :: Var v => MakeParser v
 term2 l = let_ term3 l <|> term3 l
@@ -123,9 +132,9 @@ let_ rec l = f <$> (let_ *> optional rec_) <*> bindings <* in_ <*> body
   where
     let_ = token (string "let")
     rec_ = token (string "rec") $> ()
-    bindings = sepBy1 (token (char ';')) (letBinding rec l)
-    in_ = token (string "in")
-    body = rec l
+    bindings = lineErrorUnless "error parsing let bindings" $ sepBy1 (token (char ';')) (letBinding rec l)
+    in_ = lineErrorUnless "missing 'in' after bindings in let-expression'" $ token (string "in")
+    body = lineErrorUnless "parse error in body of let-expression" $ rec l
     -- f = maybe Term.let1'
     f :: Var v => Maybe () -> [(Text.Text, Term v)] -> Term v -> Term v
     f Nothing bindings body = Term.let1' bindings body
@@ -151,7 +160,7 @@ lam rec l = Term.lam' <$> vars <* arrow <*> body
     body = rec l
 
 app :: Ord v => MakeParser v -> MakeParser v
-app rec l = f <$> some(rec l)
+app rec l = f <$> some (rec l)
   where
     f (func:args) = Term.apps func args
     f [] = error "'some' shouldn't produce an empty list"
@@ -160,14 +169,50 @@ app rec l = f <$> some(rec l)
 -- a + b :: Int   parses as (a + b) :: Int
 -- a `foo` b   parses as (foo a b)
 operator :: Parser String
-operator = token $ symbols <|> (char '`') *> varName <* char '`'
+operator = token $ symbols <|> ((char '`') *> varName <* char '`')
   where symbols = constrainedIdentifier [ all isSymbol ]
 
--- type V = Symbol DFO
--- foo :: String -> Result (Term V)
--- foo s = run (term l) s
---   where l s = Just (Reference.Builtin $ Text.pack s)
---
--- foo' :: (RefLookup -> Parser (Term V)) -> String -> Result (Term V)
--- foo' p s = run (p l) s
---   where l s = Just (Reference.Builtin $ Text.pack s)
+
+----- temporary stuff
+type V = Symbol DFO
+
+type RefLookup' = Text.Text -> Maybe Reference
+
+resolveAllAsBuiltin :: RefLookup
+resolveAllAsBuiltin s = Just (Reference.Builtin $ Text.pack s)
+
+resolveAllAsBuiltin' :: RefLookup'
+resolveAllAsBuiltin' t = Just (Reference.Builtin t)
+
+parseTermTest :: String -> Result (Term V)
+parseTermTest s = run (term resolveAllAsBuiltin) s
+
+dogCatMouse :: RefLookup
+dogCatMouse s =
+  if (s `elem` ["dog", "cat", "mouse"]) then
+    Just (Reference.Builtin $ Text.pack s)
+  else Nothing
+
+substsTest :: Var v => RefLookup -> MakeParser v -> String -> Either [String] (Term v, Set v)
+substsTest stringToRef p s = (,) <$> term' <*> freeVars'
+  where
+    -- term :: Result (Term v)
+    term = toEither $ run (p stringToRef) s
+    freeVars = ABT.freeVars <$> term
+
+    term' = ABT.substs <$> varTermList <*> term
+    freeVars' = ABT.freeVars <$> term'
+
+    -- varTermList :: Result [(v, Term v)] -- how can I do this?
+    varTermList = foldMap collectRefs <$> freeVars
+
+    varToString :: Var v => v -> String
+    varToString v = Text.unpack (Var.name v)
+
+    collectRefs :: Var v => v -> [(v, Term v)]
+    collectRefs a = case stringToRef (varToString a) of
+      Just r -> [(a, Term.ref r)]
+      Nothing -> []
+
+substsTestV :: RefLookup -> MakeParser V -> String -> Either [String] (Term V, Set V)
+substsTestV = substsTest
