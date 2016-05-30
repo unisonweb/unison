@@ -1,21 +1,20 @@
 module Unison.TypeParser where
 
-import Unison.Var (Var)
-import Unison.Type (Type)
-import Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
-import qualified Unison.Type as Type
--- import qualified Unison.Kind as K
-import Unison.Parser
-import Data.Foldable (asum)
-import qualified Data.Text as Text
-import Data.List (foldl1')
-import Data.Char (isUpper, isLower, isAlpha)
 import Control.Applicative (empty, (<|>), some)
 import Control.Monad (guard)
+import Data.Char (isUpper, isLower, isAlpha)
+import Data.List (foldl1')
+import Data.Foldable (asum)
+import qualified Data.Text as Text
 
+import Unison.Parser
+import Unison.Reference (Reference)
 import Unison.Symbol (Symbol)
+import Unison.Type (Type)
+import Unison.Var (Var)
 import Unison.View (DFO)
+import qualified Unison.Reference as Reference
+import qualified Unison.Type as Type
 
 type RefLookup = (String -> Maybe Reference)
 type MakeParser v = RefLookup -> Parser (Type v)

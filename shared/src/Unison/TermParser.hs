@@ -1,27 +1,28 @@
 module Unison.TermParser where
 
 import Prelude hiding (takeWhile)
-import Unison.Var (Var)
-import qualified Unison.Var as Var
-import Unison.Parser
-import Unison.TypeParser (RefLookup)
-import qualified Unison.TypeParser as TypeParser
-import Unison.Type (Type)
-import Unison.Term (Term, Literal)
-import qualified Unison.ABT as ABT
-import qualified Unison.Term as Term
-import qualified Data.Text as Text
-import Control.Applicative (some, optional, (<|>))
-import Data.Functor (($>))
-import Data.Foldable (asum)
-import Data.Char (isLower, isDigit, isAlpha, isSymbol)
-import Data.Set (Set)
 
-import Unison.Symbol (Symbol, Symbol(..))
-import Unison.View (DFO)
-import qualified Unison.View as View
+import Control.Applicative (some, optional, (<|>))
+import Data.Char (isLower, isDigit, isAlpha, isSymbol)
+import Data.Foldable (asum)
+import Data.Functor (($>))
+import Data.Set (Set)
+import qualified Data.Text as Text
+
+import Unison.Parser
 import Unison.Reference (Reference)
+import Unison.Symbol (Symbol, Symbol(..))
+import Unison.Term (Term, Literal)
+import Unison.Type (Type)
+import Unison.TypeParser (RefLookup)
+import Unison.Var (Var)
+import Unison.View (DFO)
+import qualified Unison.ABT as ABT
 import qualified Unison.Reference as Reference
+import qualified Unison.Term as Term
+import qualified Unison.TypeParser as TypeParser
+import qualified Unison.Var as Var
+import qualified Unison.View as View
 
 type MakeParser v = RefLookup -> Parser (Term v)
 
