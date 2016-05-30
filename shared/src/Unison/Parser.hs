@@ -78,6 +78,12 @@ commit p = Parser $ \input -> case run p input of
   Fail e _ -> Fail e True
   ok -> ok
 
+sepBy :: Parser a -> Parser b -> Parser [b]
+sepBy sep pb = f <$> optional (sepBy1 sep pb)
+  where
+    f Nothing = []
+    f (Just l) = l
+
 sepBy1 :: Parser a -> Parser b -> Parser [b]
 sepBy1 sep pb = (:) <$> pb <*> many (sep *> pb)
 

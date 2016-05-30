@@ -77,9 +77,9 @@ literal lookup =
         Nothing -> empty
         Just ref -> pure (Type.lit (Type.Ref ref))
 
-l :: RefLookup
-l s = Just (Reference.Builtin $ Text.pack s)
-
-type V = Symbol DFO
-foo :: String -> Result (Type V)
-foo s = run (type_ l) s
+-- l :: RefLookup
+-- l s = Just (Reference.Builtin $ Text.pack s)
+--
+-- type V = Symbol DFO
+-- foo :: String -> Result (Type V)
+-- foo s = run (type_ l) s

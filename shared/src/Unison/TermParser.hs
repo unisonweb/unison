@@ -109,11 +109,12 @@ blank :: Ord v => Parser (Term v)
 blank = token (char '_') $> Term.blank
 
 vector :: Ord v => MakeParser v -> MakeParser v
-vector rec l = Term.vector <$> (lbracket *> sepBy1 comma (rec l) <* rbracket)
+vector rec l = Term.vector <$> (lbracket *> elements <* rbracket)
   where
     lbracket = token (char '[')
+    elements = sepBy comma (rec l)
     comma = token (char ',')
-    rbracket = token (char ']')
+    rbracket = lineErrorUnless "syntax error" $ token (char ']')
 
 possiblyAnnotated :: Var v => MakeParser v -> MakeParser v
 possiblyAnnotated rec l = f <$> rec l <*> optional(ann'' l)
@@ -143,15 +144,20 @@ let_ rec l = f <$> (let_ *> optional rec_) <*> bindings <* in_ <*> body
 
 -- var = body
 letBinding :: Ord v => MakeParser v -> RefLookup -> Parser (Text.Text, Term v)
-letBinding rec l = (,) <$> fmap Text.pack varName <* token (char '=') <*> rec l
+letBinding rec l = (,) <$> var <* eq <*> body
+  where
+    var = lineErrorUnless "invalid variable name in let-binding" $ fmap Text.pack varName
+    eq = lineErrorUnless "missing '=' in let-binding" $ token (char '=')
+    body = lineErrorUnless "parse error in body of let-binding" $ rec l
 
 varName :: Parser String
 varName =
   token $ constrainedIdentifier [ isLower . head
-                        , all isAlpha
-                        , not . flip elem keywords
-                        ]
-  where keywords = ["let", "rec", "in"]
+                                , all isAlpha
+                                , (`notElem` keywords)
+                                ]
+keywords :: [String]
+keywords = ["let", "rec", "in", "->", ":"]
 
 lam :: Var v => MakeParser v -> MakeParser v
 lam rec l = Term.lam' <$> vars <* arrow <*> body
