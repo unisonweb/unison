@@ -10,6 +10,7 @@ import Unison.Node.Store (Store)
 import Unison.Var (Var)
 import qualified Unison.ABT as ABT
 import qualified Unison.Node.BasicNode as BasicNode
+import qualified Unison.Node.Builtin as Builtin
 #ifdef leveldb
 import qualified Unison.Node.LeveldbStore as DBStore
 #else
@@ -35,5 +36,5 @@ store = FileStore.make "store"
 main :: IO ()
 main = do
   store' <- store
-  node <- BasicNode.make hash store'
+  node <- BasicNode.make hash store' Builtin.makeBuiltins
   NodeServer.server 8080 node
