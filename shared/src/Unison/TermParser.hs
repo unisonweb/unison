@@ -196,21 +196,26 @@ parseTermTest s = run (term resolveAllAsBuiltin) s
 
 dogCatMouse :: RefLookup
 dogCatMouse s =
-  if (s `elem` ["dog", "cat", "mouse"]) then
+  if s `elem` ["dog", "cat", "mouse"] then
     Just (Reference.Builtin $ Text.pack s)
   else Nothing
 
 substsTest :: Var v => RefLookup -> MakeParser v -> String -> Either [String] (Term v, Set v)
 substsTest stringToRef p s = (,) <$> term' <*> freeVars'
   where
-    -- term :: Result (Term v)
+    -- term :: Either [String] (Unison.Term.Term v)
     term = toEither $ run (p stringToRef) s
+
+    -- freeVars :: Either [String] (Set v)
     freeVars = ABT.freeVars <$> term
 
+    -- term' :: Either [String] (Unison.ABT.Term (Unison.Term.F v) v ())
     term' = ABT.substs <$> varTermList <*> term
+
+    -- freeVars' :: Either [String] (Set v)
     freeVars' = ABT.freeVars <$> term'
 
-    -- varTermList :: Result [(v, Term v)] -- how can I do this?
+    -- varTermList :: Either [String] [(v, Unison.Term.Term v)]
     varTermList = foldMap collectRefs <$> freeVars
 
     varToString :: Var v => v -> String

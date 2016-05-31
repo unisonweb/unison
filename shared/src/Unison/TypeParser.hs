@@ -1,7 +1,6 @@
 module Unison.TypeParser where
 
 import Control.Applicative (empty, (<|>), some)
-import Control.Monad (guard)
 import Data.Char (isUpper, isLower, isAlpha)
 import Data.List (foldl1')
 import Data.Foldable (asum)
@@ -9,11 +8,8 @@ import qualified Data.Text as Text
 
 import Unison.Parser
 import Unison.Reference (Reference)
-import Unison.Symbol (Symbol)
 import Unison.Type (Type)
 import Unison.Var (Var)
-import Unison.View (DFO)
-import qualified Unison.Reference as Reference
 import qualified Unison.Type as Type
 
 type RefLookup = (String -> Maybe Reference)
@@ -30,10 +26,10 @@ typeLeaf l =
        ]
 
 type1 :: Var v => MakeParser v
-type1 l = arrow type2 l
+type1 = arrow type2
 
 type2 :: Var v => MakeParser v
-type2 l = app typeLeaf l
+type2 = app typeLeaf
 
 -- "TypeA TypeB TypeC"
 app :: Var v => MakeParser v -> MakeParser v
@@ -53,13 +49,13 @@ forall rec l = do
 
 varName :: Parser String
 varName =
-  constrainedIdentifier [ (isLower . head)
+  constrainedIdentifier [ isLower . head
                         , all isAlpha
                         ]
 
 typeName :: Parser String
 typeName =
-  constrainedIdentifier [ (isUpper . head)
+  constrainedIdentifier [ isUpper . head
                         , all isAlpha
                         ]
 
