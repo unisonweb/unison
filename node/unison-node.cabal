@@ -50,8 +50,9 @@ library
     Unison.Kind.Extra
     Unison.NodeServer
     Unison.Reference.Extra
-    Unison.Runtime.Remoting
-    Unison.Runtime.TestRemoting
+    -- Unison.Runtime.Remoting
+    Unison.Runtime.Remote
+    -- Unison.Runtime.TestRemoting
     Unison.Symbol.Extra
     Unison.Term.Extra
     Unison.TermEdit.Extra
@@ -69,19 +70,20 @@ library
     applicative-extras,
     attoparsec,
     base,
+    base64-bytestring,
     blaze-html,
-    byteable,
     bytes,
     bytestring,
     cereal,
     containers,
-    cryptohash,
+    cryptonite,
     ctrie,
     directory,
     filepath,
     hashable, 
     http-types,
     io-streams,
+    memory,
     mtl,
     network,
     network-simple,
@@ -118,35 +120,36 @@ executable node
     ghc-options: -funbox-strict-fields -O2
 
   build-depends:
-                  aeson
-                , applicative-extras
-                , attoparsec
-                , base
-                , blaze-html
-                , byteable
-                , bytes
-                , bytestring
-                , cereal
-                , containers
-                , cryptohash
-                , ctrie
-                , directory
-                , filepath
-                , hashable
-                , http-types
-                , mtl
-                , prelude-extras
-                , scotty
-                , stm
-                , text
-                , time
-                , transformers
-                , transformers-compat
-                , unison-node
-                , unison-shared
-                , vector
-                , wai-extra
-                , wai-middleware-static
+    aeson,
+    applicative-extras,
+    attoparsec,
+    base,
+    blaze-html,
+    byteable,
+    bytes,
+    bytestring,
+    cereal,
+    containers,
+    ctrie,
+    cryptonite,
+    directory,
+    filepath,
+    hashable,
+    http-types,
+    memory,
+    mtl,
+    prelude-extras,
+    scotty,
+    stm,
+    text,
+    time,
+    transformers,
+    transformers-compat,
+    unison-node,
+    unison-shared,
+    vector,
+    wai-extra,
+    wai-middleware-static
 
   if flag(leveldb)
     build-depends: exceptions, leveldb-haskell
