@@ -66,12 +66,15 @@ data F v a
   deriving (Eq,Foldable,Functor,Generic1,Traversable)
 
 vmap :: Ord v2 => (v -> v2) -> AnnotatedTerm v a -> AnnotatedTerm v2 a
-vmap f t = go (ABT.vmap f t) where
+vmap f = ABT.vmap f . typeMap (ABT.vmap f)
+
+typeMap :: Ord v2 => (Type v -> Type v2) -> AnnotatedTerm v a -> ABT.Term (F v2) v a
+typeMap f t = go t where
   go (ABT.Term fvs a t) = ABT.Term fvs a $ case t of
     ABT.Abs v t -> ABT.Abs v (go t)
     ABT.Var v -> ABT.Var v
     ABT.Cycle t -> ABT.Cycle (go t)
-    ABT.Tm (Ann e t) -> ABT.Tm (Ann (go e) (ABT.vmap f t))
+    ABT.Tm (Ann e t) -> ABT.Tm (Ann (go e) (f t))
     -- Safe since `Ann` is only ctor that has embedded `Type v` arg
     -- otherwise we'd have to manually match on every non-`Ann` ctor
     ABT.Tm ts -> unsafeCoerce $ ABT.Tm (fmap go ts)

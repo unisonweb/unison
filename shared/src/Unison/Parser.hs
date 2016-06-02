@@ -10,28 +10,41 @@ import qualified Prelude
 
 newtype Parser a = Parser { run :: String -> Result a }
 
+unsafeRun :: Parser a -> String -> a
+unsafeRun p s = case toEither $ run p s of
+  Right a -> a
+  Left e -> error ("Parse error:\n" ++ e)
+
+
 string :: String -> Parser String
-string s = Parser $ \input -> if isPrefixOf s input then Succeed s (length s) else Fail [] False
+string s = Parser $ \input ->
+  if s `isPrefixOf` input then Succeed s (length s) False
+  else Fail [] False
 
 char :: Char -> Parser Char
-char c = Parser $ \input -> if listToMaybe input == Just c then Succeed c 1 else Fail [] False
+char c = Parser $ \input ->
+  if listToMaybe input == Just c then Succeed c 1 False
+  else Fail [] False
 
 one :: (Char -> Bool) -> Parser Char
 one f = Parser $ \s -> case s of
-  (h:_) | f h -> Succeed h 1
+  (h:_) | f h -> Succeed h 1 False
   _ -> Fail [] False
 
 identifier :: Parser String
 identifier = takeWhile1 (`notElem` "\" []{};()")
 
-constrainedIdentifier :: [(String -> Bool)] -> Parser String
+constrainedIdentifier :: [String -> Bool] -> Parser String
 constrainedIdentifier tests = do
   i <- identifier
   guard (all ($ i) tests)
   pure i
 
 token :: Parser a -> Parser a
-token p = p <* whitespace
+token p = p <* many (whitespace1 <|> haskellLineComment)
+
+haskellLineComment :: Parser ()
+haskellLineComment = void $ string "--" *> takeWhile (/= '\n')
 
 lineErrorUnless :: String -> Parser a -> Parser a
 lineErrorUnless s p = commit $ Parser $ \input -> case run p input of
@@ -43,19 +56,19 @@ parenthesized :: Parser a -> Parser a
 parenthesized p = lp *> body <* rp
   where
     lp = token (char '(')
-    body = lineErrorUnless "couldn't parse body of parenthesized expression" $ p
+    body = lineErrorUnless "couldn't parse body of parenthesized expression" p
     rp = lineErrorUnless "missing )" $ token (char ')')
 
 takeWhile :: (Char -> Bool) -> Parser String
 takeWhile f = Parser $ \s ->
   let hd = Prelude.takeWhile f s
-  in Succeed hd (length hd)
+  in Succeed hd (length hd) False
 
 takeWhile1 :: (Char -> Bool) -> Parser String
 takeWhile1 f = Parser $ \s ->
   let hd = Prelude.takeWhile f s
   in if null hd then Fail ["takeWhile1 empty: " ++ take 20 s] False
-     else Succeed hd (length hd)
+     else Succeed hd (length hd) False
 
 whitespace :: Parser ()
 whitespace = void $ takeWhile Char.isSpace
@@ -65,7 +78,7 @@ whitespace1 = void $ takeWhile1 Char.isSpace
 
 nonempty :: Parser a -> Parser a
 nonempty p = Parser $ \s -> case run p s of
-  Succeed _ 0 -> Fail [] False
+  Succeed _ 0 b -> Fail [] b
   ok -> ok
 
 scope :: String -> Parser a -> Parser a
@@ -76,7 +89,10 @@ scope s p = Parser $ \input -> case run p input of
 commit :: Parser a -> Parser a
 commit p = Parser $ \input -> case run p input of
   Fail e _ -> Fail e True
-  ok -> ok
+  Succeed a n _ -> Succeed a n True
+
+commit' :: Parser ()
+commit' = commit (pure ())
 
 sepBy :: Parser a -> Parser b -> Parser [b]
 sepBy sep pb = f <$> optional (sepBy1 sep pb)
@@ -87,13 +103,13 @@ sepBy sep pb = f <$> optional (sepBy1 sep pb)
 sepBy1 :: Parser a -> Parser b -> Parser [b]
 sepBy1 sep pb = (:) <$> pb <*> many (sep *> pb)
 
-toEither :: Result a -> Either [String] a
-toEither (Fail e _) = Left e
-toEither (Succeed a _) = Right a
+toEither :: Result a -> Either String a
+toEither (Fail e _) = Left (intercalate "\n" e)
+toEither (Succeed a _ _) = Right a
 
 data Result a
   = Fail [String] Bool
-  | Succeed a Int
+  | Succeed a Int Bool
   deriving (Show)
 
 instance Functor Parser where
@@ -108,11 +124,11 @@ instance Alternative Parser where
   (<|>) = mplus
 
 instance Monad Parser where
-  return a = Parser $ \_ -> Succeed a 0
+  return a = Parser $ \_ -> Succeed a 0 False
   Parser p >>= f = Parser $ \s -> case p s of
-    Succeed a n -> case run (f a) (drop n s) of
-      Succeed b m -> Succeed b (n+m)
-      err -> err
+    Succeed a n committed -> case run (f a) (drop n s) of
+      Succeed b m c2 -> Succeed b (n+m) (committed || c2)
+      Fail e b -> Fail e (committed || b)
     Fail e b -> Fail e b
 
 instance MonadPlus Parser where

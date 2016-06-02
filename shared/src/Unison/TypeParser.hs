@@ -12,6 +12,7 @@ import Unison.Type (Type)
 import Unison.Var (Var)
 import qualified Unison.Type as Type
 
+-- TODO: RefLookup : V -> Maybe Reference
 type RefLookup = (String -> Maybe Reference)
 type MakeParser v = RefLookup -> Parser (Type v)
 
