@@ -31,12 +31,14 @@ Implementation of the Unison distributed programming API.
 
     data Node
     data Local a
+
     data Remote a
-    instance Monad Local
-    instance Monad Remote
-    fork : Remote a -> Remote (Remote a)
-    local : Local a -> Remote a
     at : Node -> a -> Remote a
+    instance Monad Remote
+
+    instance Monad Local
+    fork : Remote a -> Remote ()
+    local : Local a -> Remote a
 
     root : Node -> Channel Packet
     packet : Remote a -> Packet
@@ -74,6 +76,7 @@ terms, giving the type:
 data Remote t = Step (Step t) | Bind (Step t) t deriving (Generic,Show)
 instance Serial t => Serial (Remote t)
 
+-- todo: change At to take a `t` rather than `Remote t`
 data Step t = Local (Local t) | At Node (Remote t) deriving (Generic,Show)
 instance Serial t => Serial (Step t)
 
@@ -127,12 +130,6 @@ instance Show Node where
 newtype Channel = Channel Base64 deriving (Eq,Ord,Generic,Show)
 instance Serial Channel where
 
-root :: Channel
-root = Channel (Base64 "")
-
-sync :: Channel
-sync = Channel (Base64 "sync")
-
 data Language t h
   = Language
     { localDependencies :: t -> Set h
@@ -161,13 +158,15 @@ instance (Serial t, Serial h, Ord h, Eq h) => Serial (Packet t h)
 
 data Env t h
   = Env { callbacks :: Callbacks t h
-        , loadHashes :: [(h,t)] -> IO ()
+        , saveHashes :: [(h,t)] -> IO ()
         , getHashes :: Set h -> IO [(h,t)]
         , missingHashes :: Set h -> IO (Set h)
         , universe :: Universe
+        -- Returns a `(send, cleanup)`, where the `cleanup` should be invoked when
+        -- finished sending packets via `send`
         , connect :: Node -> IO (Packet t h -> IO (), IO ())
         , keygen :: Int -> IO ByteString
-        , current :: Node }
+        , currentNode :: Node }
 
 sendPacketTo :: Env t h -> Node -> Packet t h -> IO ()
 sendPacketTo env node packet = do
@@ -181,15 +180,18 @@ defaultSyncTimeout = Seconds 10
 -- processing of the packet will cause further progress of the computation either on
 -- the current node or elsewhere (for instance, by causing packets to be sent to other nodes).
 handle :: Ord h => Language t h -> Env t h -> Packet t h -> IO ()
-handle lang env s@(Provide chan sender hashes) = do
+handle lang env (Provide chan sender hashes) = do
   m <- readIORef (callbacks env)
   case Map.lookup chan m of
     Nothing -> pure ()
-    Just (cancelGC, r) -> cancelGC >> void (tryPutMVar r (Syncing chan sender hashes))
+    Just (cancelGC, r) -> do
+      cancelGC
+      atomicModifyIORef' (callbacks env) (\m -> (Map.delete chan m, ()))
+      void (tryPutMVar r (Syncing chan sender hashes))
 handle lang env (Need chan sender hashes) = do
   sources <- getHashes env hashes
   -- todo: separate error if missing requested hashes
-  sendPacketTo env sender (Provide chan (current env) sources)
+  sendPacketTo env sender (Provide chan (currentNode env) sources)
 handle lang env (Eval u sender r) = do
   missingDeps <-
     if (u == universe env) then pure Set.empty
@@ -197,26 +199,26 @@ handle lang env (Eval u sender r) = do
       let deps = localDependencies lang (remote lang r)
       needs <- missingHashes env deps
       pure needs
-  sync missingDeps
+  sync0 missingDeps
   where
-  sync missingDeps | Set.null missingDeps = afterSync
-  sync missingDeps = do
-    chan <- newChannel
+  sync0 missingDeps = newChannel >>= \chan -> sync chan missingDeps
+  sync _ missingDeps | Set.null missingDeps = afterSync
+  sync chan missingDeps = do
     resultMVar <- newEmptyMVar
     gcThread <- Concurrent.forkIO $ do
       Concurrent.threadDelay (floor $ 1000000 * seconds defaultSyncTimeout)
       putMVar resultMVar (Error (Err "Timeout during fetching of dependencies"))
       atomicModifyIORef' (callbacks env) (\m -> (Map.delete chan m, ()))
     atomicModifyIORef' (callbacks env) (\m -> (Map.insert chan (Concurrent.killThread gcThread, resultMVar) m, ()))
-    sendPacketTo env sender (Need chan (current env) missingDeps)
+    sendPacketTo env sender (Need chan (currentNode env) missingDeps)
     s <- takeMVar resultMVar
     case s of
       Error (Err err) -> fail err
       Evaluated _ -> fail "expected a `Syncing` message or an error, got an `Evaluated`"
       Syncing chan sender hashes -> do
-        loadHashes env hashes
+        saveHashes env hashes
         stillMissing <- traverse (\(_,t) -> missingHashes env (localDependencies lang t)) hashes
-        sync (Set.unions stillMissing)
+        sync chan (Set.unions stillMissing)
   afterSync = case r of
     Step (Local l) -> void $ runLocal l
     Step (At n r) -> transfer n r Nothing
@@ -234,7 +236,7 @@ handle lang env (Eval u sender r) = do
   runStep (At n r) = error "todo"
   runLocal (Fork r) = Concurrent.forkIO (handle lang env (Eval u sender r)) $> unit lang
   runLocal CreateChannel = channel lang <$> newChannel
-  runLocal Here = pure $ node lang (current env)
+  runLocal Here = pure $ node lang (currentNode env)
   runLocal (Pure t) = eval lang t
   runLocal (Send a chan) = do
     m <- readIORef (callbacks env)
