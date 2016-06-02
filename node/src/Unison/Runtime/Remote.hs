@@ -13,18 +13,13 @@ import Data.IORef
 import Data.Map (Map)
 import Data.Set (Set)
 import Data.Text (Text)
-import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Data.Text.Encoding (decodeUtf8)
 import GHC.Generics
-import System.Mem.Weak (Weak)
-import Unison.Runtime.ResourcePool (ResourcePool)
 import qualified Control.Concurrent as Concurrent
-import qualified Crypto.Random as Random
 import qualified Data.ByteString.Base64.URL as Base64
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import qualified System.Mem.Weak as Weak
-import qualified Unison.Runtime.ResourcePool as ResourcePool
 
 {-
 Implementation of the Unison distributed programming API.
@@ -76,8 +71,7 @@ terms, giving the type:
 data Remote t = Step (Step t) | Bind (Step t) t deriving (Generic,Show)
 instance Serial t => Serial (Remote t)
 
--- todo: change At to take a `t` rather than `Remote t`
-data Step t = Local (Local t) | At Node (Remote t) deriving (Generic,Show)
+data Step t = Local (Local t) | At Node t deriving (Generic,Show)
 instance Serial t => Serial (Step t)
 
 data Local t
@@ -180,7 +174,7 @@ defaultSyncTimeout = Seconds 10
 -- processing of the packet will cause further progress of the computation either on
 -- the current node or elsewhere (for instance, by causing packets to be sent to other nodes).
 handle :: Ord h => Language t h -> Env t h -> Packet t h -> IO ()
-handle lang env (Provide chan sender hashes) = do
+handle _ env (Provide chan sender hashes) = do
   m <- readIORef (callbacks env)
   case Map.lookup chan m of
     Nothing -> pure ()
@@ -188,7 +182,7 @@ handle lang env (Provide chan sender hashes) = do
       cancelGC
       atomicModifyIORef' (callbacks env) (\m -> (Map.delete chan m, ()))
       void (tryPutMVar r (Syncing chan sender hashes))
-handle lang env (Need chan sender hashes) = do
+handle _ env (Need chan sender hashes) = do
   sources <- getHashes env hashes
   -- todo: separate error if missing requested hashes
   sendPacketTo env sender (Provide chan (currentNode env) sources)
@@ -215,7 +209,7 @@ handle lang env (Eval u sender r) = do
     case s of
       Error (Err err) -> fail err
       Evaluated _ -> fail "expected a `Syncing` message or an error, got an `Evaluated`"
-      Syncing chan sender hashes -> do
+      Syncing chan _ hashes -> do
         saveHashes env hashes
         stillMissing <- traverse (\(_,t) -> missingHashes env (localDependencies lang t)) hashes
         sync chan (Set.unions stillMissing)
@@ -231,9 +225,11 @@ handle lang env (Eval u sender r) = do
         Nothing -> fail "typechecker bug; function passed to Remote.bind did not return a Remote"
   newChannel :: IO Channel
   newChannel = Channel . Base64 . decodeUtf8 . Base64.encode <$> keygen env 64
-  transfer n r k = error "todo"
-  runStep (Local l) = runLocal l
-  runStep (At n r) = error "todo"
+  transfer n t k =
+    sendPacketTo env n (Eval (universe env) (currentNode env) r) where
+      r = case k of
+        Nothing -> Step (Local (Pure t))
+        Just k -> Bind (Local (Pure t)) k
   runLocal (Fork r) = Concurrent.forkIO (handle lang env (Eval u sender r)) $> unit lang
   runLocal CreateChannel = channel lang <$> newChannel
   runLocal Here = pure $ node lang (currentNode env)
@@ -266,4 +262,4 @@ handle lang env (Eval u sender r) = do
         case r of
           Error (Err err) -> fail err
           Evaluated r -> pure r
-          Syncing chan sender hashes -> fail "expected an `Evaluated` message or an error, got a `Syncing`"
+          Syncing _ _ _ -> fail "expected an `Evaluated` message or an error, got a `Syncing`"
