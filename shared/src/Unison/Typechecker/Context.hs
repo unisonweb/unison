@@ -495,6 +495,9 @@ synthesize e = scope ("synth: " ++ show e) $ go e where
     ft <- synthesize f; ctx <- getContext
     synthesizeApp (apply ctx ft) arg
   go (Term.Vector' v) = synthesize (desugarVector (Foldable.toList v))
+  -- todo: pchiusano to fill in implementation of checking for Remote, probably
+  -- implemented similarly to vector, by desugaring, assuming types for at, bind, etc, then
+  -- doing regular synthesis
   go (Term.Let1' binding e) = do
     -- literally just convert to a lambda application and call synthesize!
     -- NB: this misses out on let generalization

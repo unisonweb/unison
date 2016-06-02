@@ -54,6 +54,7 @@ library
     Unison.Path
     Unison.Paths
     Unison.Reference
+    Unison.Remote
     Unison.Symbol
     Unison.Term
     Unison.TermEdit

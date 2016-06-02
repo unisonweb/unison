@@ -15,6 +15,8 @@ import Data.Set (Set)
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8)
 import GHC.Generics
+import Unison.Remote
+import Unison.Remote.Extra
 import qualified Control.Concurrent as Concurrent
 import qualified Data.ByteString.Base64.URL as Base64
 import qualified Data.Map as Map
@@ -66,63 +68,6 @@ data type (would require serializing arbitrary functions), both
 `Local` and the `x -> Remote r` are represented as _Unison_
 terms, giving the type:
 -}
-
--- `t` will be a Unison term, generally
-data Remote t = Step (Step t) | Bind (Step t) t deriving (Generic,Show)
-instance Serial t => Serial (Remote t)
-
-data Step t = Local (Local t) | At Node t deriving (Generic,Show)
-instance Serial t => Serial (Step t)
-
-data Local t
-  -- fork : Remote a -> Local ()
-  = Fork (Remote t)
-  -- channel : Local (Channel a)
-  | CreateChannel
-  -- here : Local Node
-  | Here
-  -- receiveAsync : Channel a -> Local (Local a)
-  | ReceiveAsync Channel Timeout
-  -- receive : Channel a -> Local a
-  | Receive Channel
-  -- send : a -> Channel a -> Local ()
-  | Send t Channel
-  | Pure t deriving (Generic,Show)
-instance Serial t => Serial (Local t)
-
-newtype Timeout = Seconds { seconds :: Double } deriving (Eq,Ord,Show,Generic)
-instance Serial Timeout
-
-{-
-When sending a `Remote` value to a `Node` for evaluation,
-the implementation syncs any needed hashes for just the
-outermost `Local`, then begins evaluation of the `Local`.
-Concurrent with evaluation it syncs any needed hashes for
-the continuation of the `Bind` (ignoring this step for a
-purely `Local` computation).
-
-When both the `Local` portion of the computation has completed
-and any hashes needed by the continuation have also been
-synced, the continuation is invoked and evaluated and the
-computation is sent to the specified `Node` for its next step.
-Note that the computation never 'returns', and it may run forever,
-hopping between different nodes. To return a result to some node,
-we use some of the effects in `Local` to write the final step to
-a channel from which we `receive`.
--}
-
-newtype Base64 = Base64 Text deriving (Eq,Ord,Generic,Show)
-instance Serial Base64
-
--- | A node is a host and a public key. For instance: `Node "unisonweb.org" key`
-data Node = Node { host :: String, publicKey :: Base64 } deriving (Eq,Ord,Generic)
-instance Serial Node
-
-instance Show Node where
-  show (Node host (Base64 key)) = "http://" ++ host ++ "/" ++ Text.unpack key
-
-newtype Channel = Channel Base64 deriving (Eq,Ord,Generic,Show)
-instance Serial Channel where
 
 data Language t h
   = Language

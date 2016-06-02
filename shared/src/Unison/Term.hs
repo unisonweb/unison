@@ -24,6 +24,7 @@ import Text.Show
 import Unison.Hash (Hash)
 import Unison.Hashable (Hashable, Hashable1)
 import Unison.Reference (Reference)
+import Unison.Remote (Remote)
 import Unison.Type (Type)
 import Unison.Var (Var)
 import Unsafe.Coerce
@@ -37,6 +38,7 @@ import qualified Unison.Hash as Hash
 import qualified Unison.Hashable as Hashable
 import qualified Unison.JSON as J
 import qualified Unison.Reference as Reference
+import qualified Unison.Remote as Remote
 
 -- | Literals in the Unison language
 data Literal
@@ -63,7 +65,12 @@ data F v a
   -- Note: first parameter is the binding, second is the expression which may refer
   -- to this let bound variable. Constructed as `Let b (abs v e)`
   | Let a a
+  | Distributed (Distributed a)
   deriving (Eq,Foldable,Functor,Generic1,Traversable)
+
+data Distributed a = Remote (Remote a) | Node Remote.Node | Channel Remote.Channel deriving (Eq,Generic,Functor,Foldable,Traversable)
+instance ToJSON a => ToJSON (Distributed a)
+instance FromJSON a => FromJSON (Distributed a)
 
 vmap :: Ord v2 => (v -> v2) -> AnnotatedTerm v a -> AnnotatedTerm v2 a
 vmap f t = go (ABT.vmap f t) where
@@ -271,6 +278,10 @@ instance Var v => Hashable1 (F v) where
           (hs, hash) -> tag 7 : hashed (hash a) : map hashed hs
         -- here, order is significant, so don't use hashCycle
         Let b a -> [tag 8, hashed (hash b), hashed (hash a)]
+        Distributed d -> case d of
+          Node (Remote.Node host pk) -> [tag 9, hashToken host, hashToken pk]
+          Channel ch -> [tag 10, hashToken ch]
+          Remote r -> [tag 11, hashed $ Hashable.hash1 hashCycle hash r]
 
 -- mostly boring serialization code below ...
 

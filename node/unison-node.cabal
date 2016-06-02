@@ -50,9 +50,8 @@ library
     Unison.Kind.Extra
     Unison.NodeServer
     Unison.Reference.Extra
-    -- Unison.Runtime.Remoting
+    Unison.Remote.Extra
     Unison.Runtime.Remote
-    -- Unison.Runtime.TestRemoting
     Unison.Symbol.Extra
     Unison.Term.Extra
     Unison.TermEdit.Extra
