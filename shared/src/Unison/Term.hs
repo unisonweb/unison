@@ -68,7 +68,7 @@ data F v a
   | Distributed (Distributed a)
   deriving (Eq,Foldable,Functor,Generic1,Traversable)
 
-data Distributed a = Remote (Remote a) | Node Remote.Node | Channel Remote.Channel deriving (Eq,Generic,Functor,Foldable,Traversable)
+data Distributed a = Remote (Remote a) | Node Remote.Node | Channel Remote.Channel deriving (Eq,Generic,Functor,Foldable,Traversable,Show)
 instance ToJSON a => ToJSON (Distributed a)
 instance FromJSON a => FromJSON (Distributed a)
 
@@ -108,6 +108,7 @@ pattern App' f x <- (ABT.out -> ABT.Tm (App f x))
 pattern Apps' f args <- (unApps -> Just (f, args))
 pattern Ann' x t <- (ABT.out -> ABT.Tm (Ann x t))
 pattern Vector' xs <- (ABT.out -> ABT.Tm (Vector xs))
+pattern Distributed' r <- (ABT.out -> ABT.Tm (Distributed r))
 pattern Lam' subst <- ABT.Tm' (Lam (ABT.Abs' subst))
 pattern LamNamed' v body <- (ABT.out -> ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body))))
 pattern Let1' b subst <- (unLet1 -> Just (b, subst))
@@ -153,6 +154,15 @@ apps f = foldl' app f
 
 ann :: Ord v => Term v -> Type v -> Term v
 ann e t = ABT.tm (Ann e t)
+
+node :: Ord v => Remote.Node -> Term v
+node n = ABT.tm (Distributed (Node n))
+
+remote :: Ord v => Remote (Term v) -> Term v
+remote r = ABT.tm (Distributed (Remote r))
+
+channel :: Ord v => Remote.Channel -> Term v
+channel c = ABT.tm (Distributed (Channel c))
 
 vector :: Ord v => [Term v] -> Term v
 vector es = ABT.tm (Vector (Vector.fromList es))
@@ -315,5 +325,6 @@ instance (Var v, Show a) => Show (F v a) where
     go _ (Ref r) = showsPrec 0 r
     go _ (Let b body) = showParen True (s"let " <> showsPrec 0 b <> s" in " <> showsPrec 0 body)
     go _ (LetRec bs body) = showParen True (s"let rec" <> showsPrec 0 bs <> s" in " <> showsPrec 0 body)
+    go _ (Distributed d) = showsPrec 0 d
     (<>) = (.)
     s = showString
