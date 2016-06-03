@@ -53,8 +53,8 @@ data Local t
   | ReceiveAsync Channel Timeout
   -- receive : Channel a -> Local a
   | Receive Channel
-  -- send : a -> Channel a -> Local ()
-  | Send t Channel
+  -- send : Channel a -> a -> Local ()
+  | Send Channel t
   | Pure t deriving (Generic,Generic1,Show,Eq,Foldable,Functor,Traversable)
 
 instance ToJSON t => ToJSON (Local t)
@@ -66,7 +66,7 @@ instance Hashable1 Local where
     Here -> [tag 2]
     ReceiveAsync c t -> [tag 3, H.accumulateToken c, H.accumulateToken t]
     Receive c -> [tag 4, H.accumulateToken c]
-    Send t c -> [tag 5, hashed t, H.accumulateToken c]
+    Send c t -> [tag 5, H.accumulateToken c, hashed t]
     Pure t -> [tag 6, hashed t]
     where
       tag = H.Tag

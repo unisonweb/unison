@@ -13,6 +13,7 @@ module Unison.Typechecker.Context where
 
 import Control.Monad
 import Data.List
+import Data.Maybe
 import Data.Set (Set)
 import Unison.Note (Note,Noted(..))
 import Unison.Remote (Remote)
@@ -565,15 +566,12 @@ synthesizeApp ft arg = go ft where
 desugarRemote :: Var v => Remote (Term v) -> Term v
 desugarRemote r = case r of
   Remote.Step (Remote.At n r) ->
-    Term.builtin "Remote.at" `Term.ann` typeOf "Remote.at" `Term.apps` [Term.node n, r]
+    Term.builtin "Remote.at" `Term.ann` remoteSignatureOf "Remote.at" `Term.apps` [Term.node n, r]
   Remote.Step (Remote.Local l) -> Term.blank
   -- Term.builtin "Remote.fork" `Term.ann` typeOf "Remote.fork" `Term.apps` [Term.node n, r]
   _ -> Term.blank
     -- todo: finish the rest of these
     -- todo: add a type signature for `fork` and `here` to `remoteSignatures`
-  where
-  typeOf k = maybe (error "unknown symbol") id (Map.lookup k types)
-  types = Map.fromList remoteSignatures
 
   -- where
   -- atT = Type.forall' ["a"] (Type.builtin "Node" --> Type.v' "a" --> )
@@ -582,17 +580,21 @@ infixr 7 -->
 (-->) :: Ord v => Type.Type v -> Type.Type v -> Type.Type v
 (-->) = Type.arrow
 
-remoteSignatures :: forall v . Var v => [(Text.Text, Type.Type v)]
-remoteSignatures =
+remoteSignatureOf :: Var v => Text.Text -> Type.Type v
+remoteSignatureOf k = fromMaybe (error "unknown symbol") (Map.lookup k remoteSignatures)
+
+remoteSignatures :: forall v . Var v => Map.Map Text.Text (Type.Type v)
+remoteSignatures = Map.fromList
   [ ("Remote.at", Type.forall' ["a"] (Type.builtin "Node" --> v' "a" --> remote' (v' "a")))
+  , ("Remote.fork", Type.forall' ["a"] (remote' (v' "a") --> remote' unitT))
   , ("Remote.here", remote' (Type.builtin "Node"))
   , ("Remote.send", Type.forall' ["a"] (channel (v' "a") --> v' "a" --> remote' unitT))
   , ("Remote.channel", Type.forall' ["a"] (remote' (channel (v' "a"))))
   , ("Remote.map", Type.forall' ["a","b"] ((v' "a" --> v' "b") --> remote' (v' "a") --> remote' (v' "b")))
   , ("Remote.bind", Type.forall' ["a","b"] ((v' "a" --> remote' (v' "b")) --> remote' (v' "a") --> remote' (v' "b")))
   , ("Remote.pure", Type.forall' ["a"] (v' "a" --> remote' (v' "a")))
-  , ("Remote.awaitAsync", Type.forall' ["a"] (channel (v' "a") --> timeoutT --> remote' (remote' (v' "a"))))
-  , ("Remote.await", Type.forall' ["a"] (channel (v' "a") --> remote' (v' "a"))) ]
+  , ("Remote.receiveAsync", Type.forall' ["a"] (channel (v' "a") --> timeoutT --> remote' (remote' (v' "a"))))
+  , ("Remote.receive", Type.forall' ["a"] (channel (v' "a") --> remote' (v' "a"))) ]
   where
   v' = Type.v'
   timeoutT = Type.builtin "Remote.Timeout"

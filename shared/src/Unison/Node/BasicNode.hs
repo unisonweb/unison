@@ -49,14 +49,11 @@ make hash store getBuiltins =
 
   in N.run $ do
     _ <- Node.createTerm node (Term.lam' ["a"] (Term.var' "a")) (prefix "identity")
-    stub (prefix "at") $ Type.forall' ["a"] (Type.builtin "Node" --> B.v' "a" --> B.remote (B.v' "a"))
-    stub (prefix "here") $ B.remote (Type.builtin "Node")
-    stub (prefix "send") $ Type.forall' ["a"] (Type.builtin "Node" --> B.channel (B.v' "a") --> B.v' "a" --> B.remote' B.unitT)
-    stub (prefix "channel") $ Type.forall' ["a"] (B.remote' (B.v' "a"))
-    stub (prefix "map") $ Type.forall' ["a","b"] ((B.v' "a" --> B.v' "b") --> B.remote (B.v' "a") --> B.remote (B.v' "b"))
-    stub (prefix "map") $ Type.forall' ["a","b"] ((B.v' "a" --> B.v' "b") --> B.remote' (B.v' "a") --> B.remote' (B.v' "b"))
-    stub (prefix "bind") $ Type.forall' ["a","b"] ((B.v' "a" --> B.remote (B.v' "b")) --> B.remote (B.v' "a") --> B.remote (B.v' "b"))
-    stub (prefix "bind") $ Type.forall' ["a","b"] ((B.v' "a" --> B.remote' (B.v' "b")) --> B.remote' (B.v' "a") --> B.remote' (B.v' "b"))
+    compose <- Node.createTerm node (Term.lam' ["a"] (Term.var' "a")) (prefix "compose")
+    -- Node.createTerm node (\f -> bind (compose pure f))
+    let composed f g = Term.ref compose `Term.apps` [f, g]
+    _ <- Node.createTerm node (Term.lam' ["f"] (Term.builtin "Remote.bind" `Term.app` (composed (Term.builtin "Remote.pure") (Term.var' "f"))))
+                              (prefix "map")
     mapM_ (\(B.Builtin r _ t md) -> Node.updateMetadata node r md *> Store.annotateTerm store r t)
           builtins
     pure node

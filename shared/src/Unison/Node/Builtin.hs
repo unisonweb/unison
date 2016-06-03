@@ -6,6 +6,7 @@ import Unison.Metadata (Metadata(..))
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
+import Unison.Typechecker.Context (remoteSignatureOf)
 import Unison.Var (Var)
 import qualified Data.Vector as Vector
 import qualified Unison.ABT as ABT
@@ -13,6 +14,7 @@ import qualified Unison.Eval.Interpreter as I
 import qualified Unison.Metadata as Metadata
 import qualified Unison.Note as N
 import qualified Unison.Reference as R
+import qualified Unison.Remote as Remote
 import qualified Unison.Symbol as Symbol
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
@@ -79,6 +81,61 @@ makeBuiltins whnf =
        in (r, Just (numeric2 (Term.ref r) (*)), numOpTyp, assoc 5 "*")
      , let r = R.Builtin "Number.divide"
        in (r, Just (numeric2 (Term.ref r) (/)), numOpTyp, opl 5 "/")
+
+     , let r = R.Builtin "Remote.at"
+           op [node,term] = do
+             Term.Distributed' (Term.Node node) <- whnf node
+             pure $ Term.remote (Remote.Step (Remote.At node term))
+           op _ = fail "Remote.at unpossible"
+       in (r, Just (I.Primop 2 op), remoteSignatureOf "Remote.at", prefix "at")
+     , let r = R.Builtin "Remote.here"
+           op [] = pure $ Term.remote (Remote.Step (Remote.Local (Remote.Here)))
+           op _ = fail "Remote.here unpossible"
+       in (r, Just (I.Primop 0 op), remoteSignatureOf "Remote.here", prefix "here")
+     , let r = R.Builtin "Remote.send"
+           op [c, v] = do
+             Term.Distributed' (Term.Channel c) <- whnf c
+             pure $ Term.remote (Remote.Step (Remote.Local (Remote.Send c v)))
+           op _ = fail "Remote.send unpossible"
+       in (r, Just (I.Primop 2 op), remoteSignatureOf "Remote.send", prefix "send")
+     , let r = R.Builtin "Remote.channel"
+           op [] = pure $ Term.remote (Remote.Step (Remote.Local Remote.CreateChannel))
+           op _ = fail "Remote.channel unpossible"
+       in (r, Just (I.Primop 0 op), remoteSignatureOf "Remote.channel", prefix "channel")
+    , let r = R.Builtin "Remote.bind"
+          op [g, r] = do
+            r <- whnf r
+            -- right associate the binds so that there is always a Step on the outside
+            let kcomp f g = Term.lam' ["x"] $ Term.builtin "Remote.bind" `Term.apps` [g, f `Term.app` Term.var' "x"]
+            case r of
+              Term.Distributed' (Term.Remote (Remote.Step s)) -> pure $ Term.remote (Remote.Bind s g)
+              Term.Distributed' (Term.Remote (Remote.Bind s f)) -> pure $ Term.remote (Remote.Bind s (kcomp f g))
+              _ -> fail "Remote.bind given a value that was not a Remote"
+          op _ = fail "Remote.bind unpossible"
+       in (r, Just (I.Primop 2 op), remoteSignatureOf "Remote.bind", prefix "bind")
+     , let r = R.Builtin "Remote.pure"
+           op [a] = pure $ Term.remote (Remote.Step (Remote.Local (Remote.Pure a)))
+           op _ = fail "unpossible"
+       in (r, Just (I.Primop 1 op), remoteSignatureOf "Remote.pure", prefix "pure")
+     , let r = R.Builtin "Remote.receiveAsync"
+           op [chan, timeout] = do
+             Term.Number' seconds <- whnf timeout
+             Term.Distributed' (Term.Channel chan) <- whnf chan
+             pure $ Term.remote (Remote.Step (Remote.Local (Remote.ReceiveAsync chan (Remote.Seconds seconds))))
+           op _ = fail "unpossible"
+       in (r, Just (I.Primop 2 op), remoteSignatureOf "Remote.receiveAsync", prefix "receiveAsync")
+     , let r = R.Builtin "Remote.receive"
+           op [chan] = do
+             Term.Distributed' (Term.Channel chan) <- whnf chan
+             pure $ Term.remote (Remote.Step (Remote.Local (Remote.Receive chan)))
+           op _ = fail "unpossible"
+       in (r, Just (I.Primop 1 op), remoteSignatureOf "Remote.receive", prefix "receive")
+     , let r = R.Builtin "Remote.fork"
+           op [r] = do
+             Term.Distributed' (Term.Remote r) <- whnf r
+             pure $ Term.remote (Remote.Step (Remote.Local (Remote.Fork r)))
+           op _ = fail "unpossible"
+       in (r, Just (I.Primop 1 op), remoteSignatureOf "Remote.fork", prefix "fork")
 
      , let r = R.Builtin "Symbol.Symbol"
        in (r, Nothing, str --> fixityT --> num --> symbolT, prefix "Symbol")
