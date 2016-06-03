@@ -566,8 +566,8 @@ desugarRemote :: Var v => Remote (Term v) -> Term v
 desugarRemote r = case r of
   Remote.Step (Remote.At n r) ->
     Term.builtin "Remote.at" `Term.ann` typeOf "Remote.at" `Term.apps` [Term.node n, r]
-  Remote.Step (Remote.Local l) -> case l of
-    Term.builtin "Remote.fork" `Term.ann` typeOf "Remote.fork" `Term.apps` [Term.node n, r]
+  Remote.Step (Remote.Local l) -> Term.blank
+  -- Term.builtin "Remote.fork" `Term.ann` typeOf "Remote.fork" `Term.apps` [Term.node n, r]
   _ -> Term.blank
     -- todo: finish the rest of these
     -- todo: add a type signature for `fork` and `here` to `remoteSignatures`
