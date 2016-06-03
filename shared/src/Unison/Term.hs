@@ -22,7 +22,7 @@ import GHC.Generics
 import Prelude.Extras (Eq1(..), Show1(..))
 import Text.Show
 import Unison.Hash (Hash)
-import Unison.Hashable (Hashable, Hashable1)
+import Unison.Hashable (Hashable, Hashable1, accumulateToken)
 import Unison.Reference (Reference)
 import Unison.Remote (Remote)
 import Unison.Type (Type)
@@ -68,7 +68,7 @@ data F v a
   | Distributed (Distributed a)
   deriving (Eq,Foldable,Functor,Generic1,Traversable)
 
-data Distributed a = Remote (Remote a) | Node Remote.Node | Channel Remote.Channel deriving (Eq,Generic,Functor,Foldable,Traversable)
+data Distributed a = Remote (Remote a) | Node Remote.Node | Channel Remote.Channel deriving (Eq,Generic,Generic1,Functor,Foldable,Traversable)
 instance ToJSON a => ToJSON (Distributed a)
 instance FromJSON a => FromJSON (Distributed a)
 
@@ -254,8 +254,6 @@ instance Var v => Hashable1 (F v) where
   hash1 hashCycle hash e =
     let
       (tag, hashed, varint) = (Hashable.Tag, Hashable.Hashed, Hashable.VarInt)
-      hashToken :: (Hashable.Hash h, Hashable t) => t -> Hashable.Token h
-      hashToken = Hashable.Hashed . Hashable.hash'
     in case e of
       -- So long as `Reference.Derived` ctors are created using the same hashing
       -- function as is used here, this case ensures that references are 'transparent'
@@ -264,10 +262,10 @@ instance Var v => Hashable1 (F v) where
       Ref (Reference.Derived h) -> Hashable.fromBytes (Hash.toBytes h)
       -- Note: start each layer with leading `1` byte, to avoid collisions with
       -- types, which start each layer with leading `0`. See `Hashable1 Type.F`
-      _ -> Hashable.hash $ tag 1 : case e of
-        Lit l -> [tag 0, hashToken l]
+      _ -> Hashable.accumulate $ tag 1 : case e of
+        Lit l -> [tag 0, accumulateToken l]
         Blank -> [tag 1]
-        Ref (Reference.Builtin name) -> [tag 2, hashToken name]
+        Ref (Reference.Builtin name) -> [tag 2, accumulateToken name]
         Ref (Reference.Derived _) -> error "handled above, but GHC can't figure this out"
         App a a2 -> [tag 3, hashed (hash a), hashed (hash a2)]
         Ann a t -> [tag 4, hashed (hash a), hashed (ABT.hash t)]
@@ -279,8 +277,8 @@ instance Var v => Hashable1 (F v) where
         -- here, order is significant, so don't use hashCycle
         Let b a -> [tag 8, hashed (hash b), hashed (hash a)]
         Distributed d -> case d of
-          Node (Remote.Node host pk) -> [tag 9, hashToken host, hashToken pk]
-          Channel ch -> [tag 10, hashToken ch]
+          Node (Remote.Node host pk) -> [tag 9, accumulateToken host, accumulateToken pk]
+          Channel ch -> [tag 10, accumulateToken ch]
           Remote r -> [tag 11, hashed $ Hashable.hash1 hashCycle hash r]
 
 -- mostly boring serialization code below ...

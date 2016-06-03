@@ -28,8 +28,8 @@ hash :: (Var v) => Term.Term v -> Reference
 hash (Term.Ref' r) = r
 hash t = Derived (ABT.hash t)
 
-instance Hashable.Hash Hash where
-  hash tokens = finish $ foldl' step (Murmur.hash64 ()) tokens where
+instance Hashable.Accumulate Hash where
+  accumulate tokens = finish $ foldl' step (Murmur.hash64 ()) tokens where
     step acc t = case t of
       Hashable.Tag i -> Murmur.hash64AddInt (fromIntegral i) acc
       Hashable.Bytes bs -> Murmur.hash64Add bs acc

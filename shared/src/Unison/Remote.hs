@@ -10,16 +10,37 @@ import Unison.Hashable (Hashable, Hashable1)
 import GHC.Generics
 import Data.Text (Text)
 import Data.Aeson (ToJSON,FromJSON)
+import qualified Unison.Hashable as H
 import qualified Data.Text as Text
 
 -- `t` will be a Unison term, generally
-data Remote t = Step (Step t) | Bind (Step t) t deriving (Generic,Show,Eq,Foldable,Functor,Traversable)
+data Remote t = Step (Step t) | Bind (Step t) t deriving (Generic,Generic1,Show,Eq,Foldable,Functor,Traversable)
 instance ToJSON t => ToJSON (Remote t)
 instance FromJSON t => FromJSON (Remote t)
 
-data Step t = Local (Local t) | At Node t deriving (Generic,Show,Eq,Foldable,Functor,Traversable)
+-- Note: start each layer with leading `2` byte, to avoid collisions with
+-- terms/types, which start each layer with leading `0`/`1`.
+-- See `Hashable1 Type.F`
+instance Hashable1 Remote where
+  hash1 hashCycle hash r = H.accumulate $ tag 2 : case r of
+    Step s -> [tag 0, hashed1 s]
+    Bind s t -> [tag 1, hashed1 s, hashed t]
+    where
+      tag = H.Tag
+      hashed1 = H.Hashed . (H.hash1 hashCycle hash)
+      hashed = H.Hashed . hash
+
+data Step t = Local (Local t) | At Node t deriving (Generic,Generic1,Show,Eq,Foldable,Functor,Traversable)
 instance ToJSON t => ToJSON (Step t)
 instance FromJSON t => FromJSON (Step t)
+instance Hashable1 Step where
+  hash1 hashCycle hash s = H.accumulate $ case s of
+    Local l -> [tag 0, hashed1 l]
+    At n t -> [tag 1, H.accumulateToken n, hashed t]
+    where
+      tag = H.Tag
+      hashed1 = H.Hashed . (H.hash1 hashCycle hash)
+      hashed = H.Hashed . hash
 
 data Local t
   -- fork : Remote a -> Local ()
@@ -34,11 +55,23 @@ data Local t
   | Receive Channel
   -- send : a -> Channel a -> Local ()
   | Send t Channel
-  | Pure t deriving (Generic,Show,Eq,Foldable,Functor,Traversable)
+  | Pure t deriving (Generic,Generic1,Show,Eq,Foldable,Functor,Traversable)
+
 instance ToJSON t => ToJSON (Local t)
 instance FromJSON t => FromJSON (Local t)
-instance Hashable1 Remote where
-  hash1 hashCycle hash r = error "todo"
+instance Hashable1 Local where
+  hash1 hashCycle hash l = H.accumulate $ case l of
+    Fork r -> [tag 0, hashed1 r]
+    CreateChannel -> [tag 1]
+    Here -> [tag 2]
+    ReceiveAsync c t -> [tag 3, H.accumulateToken c, H.accumulateToken t]
+    Receive c -> [tag 4, H.accumulateToken c]
+    Send t c -> [tag 5, hashed t, H.accumulateToken c]
+    Pure t -> [tag 6, hashed t]
+    where
+      tag = H.Tag
+      hashed1 = H.Hashed . (H.hash1 hashCycle hash)
+      hashed = H.Hashed . hash
 
 newtype Timeout = Seconds { seconds :: Double } deriving (Eq,Ord,Show,Generic)
 instance ToJSON Timeout
