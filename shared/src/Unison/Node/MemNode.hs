@@ -19,6 +19,7 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Hash as Hash
 import qualified Unison.Hashable as Hashable
 import qualified Unison.Node.BasicNode as BasicNode
+import qualified Unison.Node.Builtin as Builtin
 import qualified Unison.Node.MemStore as MemStore
 import qualified Unison.Symbol as Symbol
 import qualified Unison.Term as Term
@@ -46,4 +47,4 @@ type V = Symbol.Symbol View.DFO
 make :: IO (Node IO V Reference (Type V) (Term V))
 make = do
   store <- MemStore.make :: IO (Store IO V)
-  BasicNode.make hash store
+  BasicNode.make hash store Builtin.makeBuiltins
