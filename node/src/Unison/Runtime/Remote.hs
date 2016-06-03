@@ -179,7 +179,7 @@ handle lang env (Eval u sender r) = do
   runLocal CreateChannel = channel lang <$> newChannel
   runLocal Here = pure $ node lang (currentNode env)
   runLocal (Pure t) = eval lang t
-  runLocal (Send a chan) = do
+  runLocal (Send chan a) = do
     m <- readIORef (callbacks env)
     case Map.lookup chan m of
       Nothing -> pure (unit lang)
