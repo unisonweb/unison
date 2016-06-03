@@ -1,51 +1,52 @@
 module Unison.TypeParser where
 
-import Control.Applicative (empty, (<|>), some)
+import Control.Applicative ((<|>), some)
 import Data.Char (isUpper, isLower, isAlpha)
 import Data.List (foldl1')
 import Data.Foldable (asum)
 import qualified Data.Text as Text
 
 import Unison.Parser
-import Unison.Reference (Reference)
+import Unison.Symbol (Symbol)
 import Unison.Type (Type)
-import Unison.Var (Var)
+import Unison.View (DFO)
 import qualified Unison.Type as Type
 
+type V = Symbol DFO
+
 -- TODO: RefLookup : V -> Maybe Reference
-type RefLookup = (String -> Maybe Reference)
-type MakeParser v = RefLookup -> Parser (Type v)
+-- type RefLookup = (V -> Maybe Reference)
 
-type_ :: Var v => RefLookup -> Parser (Type v)
-type_ l = forall type1 l <|> type1 l
+type_ :: Parser (Type V)
+type_ = forall type1 <|> type1
 
-typeLeaf :: Var v => MakeParser v
-typeLeaf l =
-  asum [ literal l
-       , parenthesized (type_ l)
+typeLeaf :: Parser (Type V)
+typeLeaf =
+  asum [ literal
+       , parenthesized type_
        , fmap (Type.v' . Text.pack) (token varName)
        ]
 
-type1 :: Var v => MakeParser v
+type1 :: Parser (Type V)
 type1 = arrow type2
 
-type2 :: Var v => MakeParser v
+type2 :: Parser (Type V)
 type2 = app typeLeaf
 
 -- "TypeA TypeB TypeC"
-app :: Var v => MakeParser v -> MakeParser v
-app rec l = fmap (foldl1' Type.app) (some (rec l))
+app :: Parser (Type V) -> Parser (Type V)
+app rec = fmap (foldl1' Type.app) (some rec)
 
-arrow :: Var v => MakeParser v -> MakeParser v
-arrow rec l = foldr1 Type.arrow <$> sepBy1 (token $ string "->") (rec l)
+arrow :: Parser (Type V) -> Parser (Type V)
+arrow rec = foldr1 Type.arrow <$> sepBy1 (token $ string "->") rec
 
 -- "forall a b . List a -> List b -> Maybe Text"
-forall :: Var v => MakeParser v -> MakeParser v
-forall rec l = do
+forall :: Parser (Type V) -> Parser (Type V)
+forall rec = do
     _ <- token $ string "forall"
     vars <- some $ token varName
     _ <- token (char '.')
-    t <- rec l
+    t <- rec
     pure $ Type.forall' (fmap Text.pack vars) t
 
 varName :: Parser String
@@ -60,23 +61,10 @@ typeName =
                         , all isAlpha
                         ]
 
-literal :: Var v => RefLookup -> Parser (Type v)
-literal lookup =
+literal :: Parser (Type V)
+literal =
   token $ asum [ Type.lit Type.Number <$ string "Number"
                , Type.lit Type.Text <$ string "Text"
                , Type.lit Type.Vector <$ string "Vector"
-               , lookupReference
+               , (Type.v' . Text.pack) <$> typeName
                ]
-  where
-    lookupReference = do -- identifier starting with upper-case letter
-      id <- token typeName
-      case lookup id of
-        Nothing -> empty
-        Just ref -> pure (Type.lit (Type.Ref ref))
-
--- l :: RefLookup
--- l s = Just (Reference.Builtin $ Text.pack s)
---
--- type V = Symbol DFO
--- foo :: String -> Result (Type V)
--- foo s = run (type_ l) s
