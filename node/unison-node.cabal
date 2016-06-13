@@ -54,7 +54,7 @@ library
     Unison.Runtime.ExtraBuiltins
     Unison.Runtime.KeyValueStore
     Unison.Runtime.Remote
-    Unison.Runtime.SerializationAndHashing
+    Unison.SerializationAndHashing
     Unison.Symbol.Extra
     Unison.Term.Extra
     Unison.TermEdit.Extra
@@ -83,6 +83,7 @@ library
     ctrie,
     directory,
     filepath,
+    free,
     hashable, 
     http-types,
     io-streams,
