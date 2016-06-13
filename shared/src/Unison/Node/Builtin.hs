@@ -32,21 +32,6 @@ data Builtin = Builtin
                , metadata :: Metadata V R.Reference
                }
 
-{--
-addNodeDefinition node store (r, _, t, md) = Node.updateMetadata node r md *> Store.annotateTerm store r t
---}
-
-{--
-store k v = Type.app (Type.app (Type.ref (R.Builtin "Store")) k) v
-store' k v = Type.ref (R.Builtin "Store") `Type.app` k `Type.app` v
---}
-
-{--
-extraOps = [ let r = R.Builtin "KeyValue.store"
-             in (r, Nothing, store' num num, prefix "numberStore")
-           ]
---}
--- whnf :: (Hash -> m (Term v)) -> Term v -> m (Term v), -- ^ Simplify to weak head normal form
 unitRef :: Ord v => Term v
 unitRef = Term.ref (R.Builtin "()")
 
@@ -203,7 +188,7 @@ makeBuiltins whnf =
        in (r, Just (I.Primop 1 op), Type.forall' ["a"] $ v' "a" --> vec (v' "a"), prefix "single")
      ]
 
--- types ripped from "make"
+-- type helpers
 alignmentT :: Ord v => Type v
 alignmentT = Type.ref (R.Builtin "Alignment")
 arr :: Ord v => Type v -> Type v -> Type v
@@ -212,6 +197,8 @@ colorT :: Ord v => Type v
 colorT = Type.ref (R.Builtin "Color")
 fixityT :: Ord v => Type v
 fixityT = Type.ref (R.Builtin "Fixity")
+optionT :: Ord v => Type v -> Type v
+optionT = Type.app (Type.lit Type.Optional)
 num :: Ord v => Type v
 num = Type.lit Type.Number
 numOpTyp :: Ord v => Type v
@@ -240,6 +227,14 @@ infixr 7 -->
 (-->) :: Ord v => Type v -> Type v -> Type v
 (-->) = Type.arrow
 
+-- term helpers
+none :: Term V
+none = Term.ref $ R.Builtin "Optional.None"
+some :: Term V -> Term V
+some t = Term.ref (R.Builtin "Optional.Some") `Term.app` t
+
+
+-- metadata helpers
 opl :: Int -> Text -> Metadata V h
 opl p s =
   let

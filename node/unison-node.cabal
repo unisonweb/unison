@@ -141,6 +141,7 @@ executable node
     cryptonite,
     directory,
     filepath,
+    free,
     hashable,
     http-types,
     memory,

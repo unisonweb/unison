@@ -45,11 +45,6 @@ nextKeyAfterRemoval genVar = do
     Nothing -> fail "got nothin"
   KVS.close db
 
-setupGen :: IO (MVar.MVar StdGen)
-setupGen = do
-  gen <- getStdGen
-  MVar.newMVar gen
-
 ioTests :: IO TestTree
 ioTests = do
   gen <- getStdGen

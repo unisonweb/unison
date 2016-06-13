@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, DeriveDataTypeable, TypeFamilies, TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings, TypeFamilies #-}
 module Unison.Runtime.ExtraBuiltins where
 
 import System.Random
@@ -12,12 +12,10 @@ import qualified Unison.Note as Note
 import qualified Unison.Reference as R
 import qualified Unison.Runtime.KeyValueStore as KVS
 import qualified Unison.Runtime.ResourcePool as RP
+import qualified Unison.SerializationAndHashing as SAH
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 
-
-
---store k v = Type.app (Type.app (Type.ref (R.Builtin "Store")) k) v
 store k v = Type.ref (R.Builtin "Store") `Type.app` k `Type.app` v
 
 makeRandomHash :: RandomGen r => MVar.MVar r -> IO Hash
@@ -33,17 +31,6 @@ makeAPI = do
   genVar <- MVar.newMVar stdGen
   resourcePool <- RP.make 3 10 KVS.load KVS.close
   let nextHash = makeRandomHash genVar
-  {--
-  stringStore <- MVar.newMVar Nothing
-  let getAndSetStore = do
-      storeState <- MVar.readMVar stringStore
-      case storeState of
-        Nothing -> do
-          ss <- openLocalState (KeyValue Map.empty)
-          MVar.putMVar stringStore $ Just ss
-          pure ss
-        Just ss -> pure ss
-  --}
   -- TODO - change from String/String store to Term/Term store
   pure (\whnf -> map (\(r, o, t, m) -> Builtin r o t m)
      [ let r = R.Builtin "KeyValue.empty"
@@ -59,20 +46,21 @@ makeAPI = do
                i <- whnf indexToken
                k <- whnf key
                g i k
-             -- since there's only one index, indexToken is ignored right now
-             g (Term.Store' h) (Term.Text' t) = do
+             g (Term.Store' h) k = do
                val <- Note.lift $ do
                  (db, _) <- RP.acquire resourcePool h
-                 {-- TODO fix
-                 result <- KVS.lookup (Text.unpack t) db
-                 pure $ maybe "" Text.pack result -- TODO introduce maybe type to unison
---}
-                 undefined
-               pure . Term.lit $ Term.Text val
+                 result <- KVS.lookup (SAH.hash' k) db
+                 case result >>= (pure . SAH.deserializeTermFromBytes) of
+                   Just (Left s) -> fail ("KeyValue.lookup could not deserialize: " ++ s)
+                   Just (Right t) -> pure $ some t
+                   Nothing -> pure none
+               pure val
              g s k = pure $ Term.ref r `Term.app` s `Term.app` k
            op _ = fail "KeyValue.lookup unpossible"
            type' = Type.forall' ["k", "v"]
-             $ Type.v' "k" --> store (Type.v' "k") (Type.v' "v") --> remote (Type.v' "v")
+             $ Type.v' "k"
+                   --> store (Type.v' "k") (Type.v' "v")
+                   --> remote (optionT (Type.v' "v"))
        in (r, Just (I.Primop 2 op), type', prefix "lookupKey")
      , let r = R.Builtin "KeyValue.insert"
            op [k, v, store] = inject g k v store where
@@ -81,12 +69,10 @@ makeAPI = do
                v' <- whnf v
                s <- whnf store
                g k' v' s
-             g (Term.Text' k) (Term.Text' v) (Term.Store' h) = do
+             g k v (Term.Store' h) = do
                Note.lift $ do
                  (db, _) <- RP.acquire resourcePool h
-                 -- TODO fix
-                 --KVS.insert (Text.unpack k) (Text.unpack v) db
-                 undefined
+                 KVS.insert (SAH.hash' k) (SAH.serializeTerm v) db
                pure unitRef
              g k v store = pure $ Term.ref r `Term.app` k `Term.app` v `Term.app` store
            op _ = fail "KeyValue.insert unpossible"

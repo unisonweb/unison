@@ -36,6 +36,7 @@ data Literal
   | Text
   | Vector
   | Ref Reference -- ^ A type literal uniquely defined by some nameless Hash
+  | Optional
   deriving (Eq,Ord,Generic)
 
 deriveJSON defaultOptions ''Literal
@@ -203,6 +204,7 @@ instance Show Literal where
   show Text = "Text"
   show Vector = "Vector"
   show (Ref r) = show r
+  show Optional = "Optional"
 
 instance Show a => Show (F a) where
   showsPrec p fa = go p fa where
