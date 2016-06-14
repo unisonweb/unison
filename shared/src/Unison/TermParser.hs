@@ -217,12 +217,12 @@ let_ p = f <$> (let_ *> optional rec_) <*> bindings' <* in_ <*> body
 
 newline :: Parser ()
 newline = void $ token (char '\n')
+semicolon :: Parser ()
+semicolon = void $ token (char ';')
 
 infixBinding :: Parser (Term V) -> Parser (V, Term V)
-infixBinding p = ((,,,,) <$> optional (infixTypedecl <* token (char ';')) <*> prefixVar <*> infixVar <*> prefixVar <*> bindingEqBody p) >>= f
+infixBinding p = ((,,,,) <$> optional (typedecl <* semicolon) <*> prefixVar <*> infixVar <*> prefixVar <*> bindingEqBody p) >>= f
   where
-    infixTypedecl :: Parser (V, Type V)
-    infixTypedecl = (,) <$> infixVar <*> ann''
     f :: (Maybe (V, Type V), V, V, V, Term V) -> Parser (V, Term V)
     f (Just (opName', _), _, opName, _, _) | opName /= opName' =
       failWith ("The type signature for ‘" ++ show opName' ++ "’ lacks an accompanying binding")
@@ -233,11 +233,12 @@ mkBinding :: V -> [V] -> Term V -> (V, Term V)
 mkBinding f [] body = (f, body)
 mkBinding f args body = (f, Term.lam'' args body)
 
+typedecl :: Parser (V, Type V)
+typedecl = (,) <$> prefixVar <*> ann''
+
 prefixBinding :: Parser (Term V) -> Parser (V, Term V)
-prefixBinding p = ((,,,) <$> optional (prefixTypedecl <* newline) <*> prefixVar <*> many prefixVar <*> bindingEqBody p) >>= f -- todo
+prefixBinding p = ((,,,) <$> optional (typedecl <* semicolon) <*> prefixVar <*> many prefixVar <*> bindingEqBody p) >>= f -- todo
   where
-    prefixTypedecl :: Parser (V, Type V)
-    prefixTypedecl = (,) <$> prefixVar <*> ann''
     f :: (Maybe (V, Type V), V, [V], Term V) -> Parser (V, Term V)
     f (Just (opName, _), opName', _, _) | opName /= opName' =
       failWith ("The type signature for ‘" ++ show opName' ++ "’ lacks an accompanying binding")

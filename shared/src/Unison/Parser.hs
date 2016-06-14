@@ -32,7 +32,7 @@ one f = Parser $ \s -> case s of
   _ -> Fail [] False
 
 identifier :: Parser String
-identifier = takeWhile1 (`notElem` "\"\n .[]{};()")
+identifier = takeWhile1 (`notElem` "\"\n .[]{}:;()")
 
 constrainedIdentifier :: [String -> Bool] -> Parser String
 constrainedIdentifier tests = do
