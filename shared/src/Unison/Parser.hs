@@ -32,7 +32,7 @@ one f = Parser $ \s -> case s of
   _ -> Fail [] False
 
 identifier :: Parser String
-identifier = takeWhile1 (`notElem` "\" []{};()")
+identifier = takeWhile1 (`notElem` "\"\n .[]{};()")
 
 constrainedIdentifier :: [String -> Bool] -> Parser String
 constrainedIdentifier tests = do
@@ -47,7 +47,7 @@ haskellLineComment :: Parser ()
 haskellLineComment = void $ string "--" *> takeWhile (/= '\n')
 
 lineErrorUnless :: String -> Parser a -> Parser a
-lineErrorUnless s p = commit $ Parser $ \input -> case run p input of
+lineErrorUnless s p = commitFail $ Parser $ \input -> case run p input of
     Fail e b -> Fail (s:m:e) b
       where m = "near \'" ++ Prelude.takeWhile (/= '\n') input ++ "\'"
     ok -> ok
@@ -56,7 +56,7 @@ parenthesized :: Parser a -> Parser a
 parenthesized p = lp *> body <* rp
   where
     lp = token (char '(')
-    body = lineErrorUnless "couldn't parse body of parenthesized expression" p
+    body = p
     rp = lineErrorUnless "missing )" $ token (char ')')
 
 takeWhile :: (Char -> Bool) -> Parser String
@@ -86,13 +86,21 @@ scope s p = Parser $ \input -> case run p input of
   Fail e b -> Fail (s:e) b
   ok -> ok
 
-commit :: Parser a -> Parser a
-commit p = Parser $ \input -> case run p input of
-  Fail e _ -> Fail e True
+commitSuccess :: Parser a -> Parser a
+commitSuccess p = Parser $ \input -> case run p input of
+  Fail e b -> Fail e b
   Succeed a n _ -> Succeed a n True
 
+commitFail :: Parser a -> Parser a
+commitFail p = Parser $ \input -> case run p input of
+  Fail e _ -> Fail e True
+  Succeed a n b -> Succeed a n b
+
 commit' :: Parser ()
-commit' = commit (pure ())
+commit' = commitSuccess (pure ())
+
+failWith :: String -> Parser a
+failWith error = Parser . const $ Fail [error] False
 
 sepBy :: Parser a -> Parser b -> Parser [b]
 sepBy sep pb = f <$> optional (sepBy1 sep pb)

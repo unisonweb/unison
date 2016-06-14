@@ -22,6 +22,7 @@ import Unison.Reference (Reference)
 import Unison.TypeVar (TypeVar)
 import Unison.Var (Var)
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.Hash as Hash
 import qualified Unison.Hashable as Hashable
@@ -160,8 +161,14 @@ universal v = ABT.var (TypeVar.Universal v)
 v' :: Var v => Text -> Type v
 v' s = ABT.var (ABT.v' s)
 
+v'' :: Var v => String -> Type v
+v'' = (v' . Text.pack)
+
 forall' :: Var v => [Text] -> Type v -> Type v
 forall' vs body = foldr forall body (map ABT.v' vs)
+
+forall'' :: Var v => [String] -> Type v -> Type v
+forall'' vs = forall' (Text.pack <$> vs)
 
 constrain :: Ord v => Type v -> () -> Type v
 constrain t u = ABT.tm (Constrain t u)

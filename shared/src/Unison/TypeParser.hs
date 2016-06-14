@@ -1,6 +1,6 @@
 module Unison.TypeParser where
 
-import Control.Applicative ((<|>), some)
+import Control.Applicative ((<|>), some, optional)
 import Data.Char (isUpper, isLower, isAlpha)
 import Data.List (foldl1')
 import Data.Foldable (asum)
@@ -13,9 +13,6 @@ import Unison.View (DFO)
 import qualified Unison.Type as Type
 
 type V = Symbol DFO
-
--- TODO: RefLookup : V -> Maybe Reference
--- type RefLookup = (V -> Maybe Reference)
 
 type_ :: Parser (Type V)
 type_ = forall type1 <|> type1
@@ -60,6 +57,13 @@ typeName =
   constrainedIdentifier [ isUpper . head
                         , all isAlpha
                         ]
+
+-- qualifiedTypeName :: Parser String
+-- qualifiedTypeName = f <$> typeName <*> optional more
+--   where
+--     f :: String -> (Maybe String) -> String
+--     f first more = maybe first (first++) more
+--     more = (:) <$> char '.' <*> qualifiedTypeName
 
 literal :: Parser (Type V)
 literal =

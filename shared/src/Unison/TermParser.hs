@@ -3,11 +3,14 @@ module Unison.TermParser where
 import Prelude hiding (takeWhile)
 
 import Control.Applicative
-import Data.Char (isLower, isDigit, isAlpha, isSymbol)
-import Data.Foldable (asum)
-import Data.Functor (($>))
-import Data.List (foldl1')
+import Data.Char (isDigit, isAlpha, isSymbol, isPunctuation)
+import Data.Foldable (asum, toList)
+import Data.Functor (($>), void)
+import Data.List (foldl')
+import Data.Maybe (fromMaybe)
 import Data.Set (Set)
+import qualified Data.Maybe as Maybe
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Unison.Parser
 import Unison.Reference (Reference)
@@ -18,6 +21,7 @@ import Unison.View (DFO)
 import qualified Unison.ABT as ABT
 import qualified Unison.Reference as Reference
 import qualified Unison.Term as Term
+import qualified Unison.Type as Type
 import qualified Unison.TypeParser as TypeParser
 import qualified Unison.Var as Var
 
@@ -36,6 +40,42 @@ import qualified Unison.Var as Var
 -- use the new parsers to clean up the tests
    -- add whatever convenience functions needed to make that easier
 
+-- returns missing type vars and term vars
+allFreeVars :: Term V -> Set V
+allFreeVars t = Term.freeVars t `Set.union` Term.freeTypeVars t
+
+missingVars :: Term V -> RefLookup'' -> Set V
+missingVars t l = Set.filter (Maybe.isNothing . l) (allFreeVars t)
+
+resolve :: Term V -> RefLookup'' -> Maybe (Term V)
+resolve t l =
+  if Set.null (missingVars t l)
+  then Just (unsafeResolve t $
+    \v -> fromMaybe (error "nothing was supposed to be missing") (l v))
+  else Nothing
+
+
+unsafeResolve :: Term V -> (V -> Reference) -> Term V
+unsafeResolve t unsafeLookup = (substTermTypes . substTerms) t
+  where
+    lookupTerm :: V -> (V, Term V)
+    lookupTerm v = (\r -> (v, Term.ref r)) $ unsafeLookup v
+    lookupType :: V -> (V, Type V)
+    lookupType v = (\r -> (v, Type.ref r)) $ unsafeLookup v
+
+    readyTerms :: [(V, Term V)]
+    readyTerms = lookupTerm <$> toList (Term.freeVars t)
+    readyTypes :: [(V, Type V)]
+    readyTypes = lookupType <$> toList (Term.freeTypeVars t)
+
+    substTerms :: Term V -> Term V
+    substTerms = ABT.substs readyTerms
+    substType :: Type V -> Type V
+    substType = ABT.substs readyTypes
+
+    substTermTypes :: Term V -> Term V
+    substTermTypes = Term.typeMap substType
+
 type V = Symbol DFO
 
 term :: Parser (Term V)
@@ -45,29 +85,28 @@ term1 :: Parser (Term V)
 term1 = possiblyAnnotated term2
 
 term2 :: Parser (Term V)
--- term2 = let_ term2_5 <|> term2_5
 term2 = let_ term3 <|> term3
 
--- term2_5 :: Parser (Term V)
--- term2_5 = plusparser
-
--- plusparser :: Parser (Term V)
--- plusparser l = case l "+" of
---   Just r -> foldl1' app0 <$> operands
---     where
---       plus = Term.ref r
---       operands = sepBy1 (token $ commit (char '+')) (term3 l)
---       app0 t1 t2 = Term.apps plus [t1, t2]
---   Nothing -> fail "could not find '+' in environment"
-
 term3 :: Parser (Term V)
-term3 = app term4
+term3 = infixApp term4 <|> term4
+
+infixApp :: Parser (Term V) -> Parser (Term V)
+infixApp p = f <$> arg <*> some ((,) <$> infixVar <*> arg)
+  where
+    arg = p
+    f :: Term V -> [(V, Term V)] -> Term V
+    f = foldl' g
+    g :: Term V -> (V, Term V) -> Term V
+    g lhs (op, rhs) = Term.apps (Term.var op) [lhs,rhs]
 
 term4 :: Parser (Term V)
-term4 = lam term <|> termLeaf
+term4 = prefixApp term5
+
+term5 :: Parser (Term V)
+term5 = lam term <|> termLeaf
 
 termLeaf :: Parser (Term V)
-termLeaf = asum [lit, parenthesized term, blank, vector term, var]
+termLeaf = asum [lit, parenthesized term, blank, vector term, prefixTerm]
 
 -- app vs ann:  a b c ::   -> ann has lower priority
 
@@ -145,15 +184,15 @@ blank :: Ord v => Parser (Term v)
 blank = token (char '_') $> Term.blank
 
 vector :: Parser (Term V) -> Parser (Term V)
-vector rec = Term.vector <$> (lbracket *> elements <* rbracket)
+vector p = Term.vector <$> (lbracket *> elements <* rbracket)
   where
     lbracket = token (char '[')
-    elements = sepBy comma rec
+    elements = sepBy comma p
     comma = token (char ',')
     rbracket = lineErrorUnless "syntax error" $ token (char ']')
 
 possiblyAnnotated :: Parser (Term V) -> Parser (Term V)
-possiblyAnnotated rec = f <$> rec <*> optional ann''
+possiblyAnnotated p = f <$> p <*> optional ann''
   where
     f t (Just y) = Term.ann t y
     f t Nothing = t
@@ -161,71 +200,106 @@ possiblyAnnotated rec = f <$> rec <*> optional ann''
 ann'' :: Parser (Type V)
 ann'' = token (char ':') *> TypeParser.type_
 
-var :: Parser (Term V)
-var = (Term.var' . Text.pack) <$> varName
-
 --let server = _; blah = _ in _
 let_ :: Parser (Term V) -> Parser (Term V)
-let_ rec = f <$> (let_ *> optional rec_) <*> bindings <* in_ <*> body
+let_ p = f <$> (let_ *> optional rec_) <*> bindings' <* in_ <*> body
   where
     let_ = token (string "let")
     rec_ = token (string "rec") $> ()
-    bindings = lineErrorUnless "error parsing let bindings" $ sepBy1 (token (char ';')) (binding rec)
+    bindings' = lineErrorUnless "error parsing let bindings" (bindings p)
     in_ = lineErrorUnless "missing 'in' after bindings in let-expression'" $ token (string "in")
-    body = lineErrorUnless "parse error in body of let-expression" rec
+    body = lineErrorUnless "parse error in body of let-expression" p
     -- f = maybe Term.let1'
     f :: Maybe () -> [(V, Term V)] -> Term V -> Term V
     f Nothing bindings body = Term.let1 bindings body
     f (Just _) bindings body = Term.letRec bindings body
 
--- var = body
--- TODO:
--- foo x y = 23
--- let foo x y = x + y in ...
--- let
---   foo : Int -> String
---   foo n = ...
--- in ...
-binding :: Parser (Term V) -> Parser (V, Term V)
-binding rec= (,) <$> (Var.named <$> var) <* eq <*> body
+
+newline :: Parser ()
+newline = void $ token (char '\n')
+
+infixBinding :: Parser (Term V) -> Parser (V, Term V)
+infixBinding p = ((,,,,) <$> optional (infixTypedecl <* token (char ';')) <*> prefixVar <*> infixVar <*> prefixVar <*> bindingEqBody p) >>= f
   where
-    var = lineErrorUnless "invalid variable name in let-binding" $ fmap Text.pack varName
-    eq = lineErrorUnless "missing '=' in let-binding" $ token (char '=')
-    body = lineErrorUnless "parse error in body of let-binding" rec
+    infixTypedecl :: Parser (V, Type V)
+    infixTypedecl = (,) <$> infixVar <*> ann''
+    f :: (Maybe (V, Type V), V, V, V, Term V) -> Parser (V, Term V)
+    f (Just (opName', _), _, opName, _, _) | opName /= opName' =
+      failWith ("The type signature for ‘" ++ show opName' ++ "’ lacks an accompanying binding")
+    f (Nothing, arg1, opName, arg2, body) = pure (mkBinding opName [arg1,arg2] body)
+    f (Just (_, type'), arg1, opName, arg2, body) = pure $ (`Term.ann` type') <$> mkBinding opName [arg1,arg2] body
+
+mkBinding :: V -> [V] -> Term V -> (V, Term V)
+mkBinding f [] body = (f, body)
+mkBinding f args body = (f, Term.lam'' args body)
+
+prefixBinding :: Parser (Term V) -> Parser (V, Term V)
+prefixBinding p = ((,,,) <$> optional (prefixTypedecl <* newline) <*> prefixVar <*> many prefixVar <*> bindingEqBody p) >>= f -- todo
+  where
+    prefixTypedecl :: Parser (V, Type V)
+    prefixTypedecl = (,) <$> prefixVar <*> ann''
+    f :: (Maybe (V, Type V), V, [V], Term V) -> Parser (V, Term V)
+    f (Just (opName, _), opName', _, _) | opName /= opName' =
+      failWith ("The type signature for ‘" ++ show opName' ++ "’ lacks an accompanying binding")
+    f (Nothing, name, args, body) = pure $ mkBinding name args body
+    f (Just (_, t), name, args, body) = pure $ (`Term.ann` t) <$> mkBinding name args body
+
+bindingEqBody :: Parser (Term V) -> Parser (Term V)
+bindingEqBody p = eq *> body
+  where
+    eq = token (char '=')
+    body = lineErrorUnless "parse error in body of binding" p
 
 -- todo: maybe split this into operator/nonoperator constructors?
 --       e.g. for operator declarations in parens  (!@#$dog) a b = ...
-varName :: Parser String
-varName =
-  token $ constrainedIdentifier [ isLower . head
-                                , isAlpha . head
-                                , (`notElem` keywords)
-                                ]
-keywords :: [String]
-keywords = ["let", "rec", "in", "->", ":"]
+
+-- data Identifier = Symboly String | Wordy String
+
+-- varName' :: Parser Identifier
+-- varName' = token $ Symboly <$> symboly <|> Wordy <$> wordy
+--   where
+
+wordyId :: Parser String
+wordyId = token $ constrainedIdentifier [isAlpha . head, (`notElem` keywords)]
+
+symbolyId :: Parser String
+symbolyId = token $ constrainedIdentifier [(\c -> isSymbol c || isPunctuation c) . head, (`notElem` keywords)]
+
+infixVar :: Parser V
+infixVar = (Var.named . Text.pack) <$> infixOp
+  where
+    infixOp :: Parser String
+    infixOp = symbolyId <|> (char '`' *> wordyId <* token (char '`')) -- no whitespace w/in backticks
+
+
+prefixVar :: Parser V
+prefixVar = (Var.named . Text.pack) <$> prefixOp
+  where
+    prefixOp :: Parser String
+    prefixOp = wordyId <|> (char '(' *> symbolyId <* token (char ')')) -- no whitespace w/in parens
+
+prefixTerm :: Parser (Term V)
+prefixTerm = Term.var <$> prefixVar
+
+keywords :: Set String
+keywords = Set.fromList ["let", "rec", "in", "->", ":", "=", "where"]
 
 lam :: Parser (Term V) -> Parser (Term V)
-lam rec = Term.lam' <$> vars <* arrow <*> body
+lam p = Term.lam'' <$> vars <* arrow <*> body
   where
-    vars = some (Text.pack <$> token varName)
+    vars = some prefixVar
     arrow = token (string "->")
-    body = rec
+    body = p
 
-app :: Parser (Term V) -> Parser (Term V)
-app rec = f <$> some rec
+prefixApp :: Parser (Term V) -> Parser (Term V)
+prefixApp p = f <$> some p
   where
     f (func:args) = Term.apps func args
     f [] = error "'some' shouldn't produce an empty list"
 
--- isSymbols = all
--- a + b :: Int   parses as (a + b) :: Int
--- a `foo` b   parses as (foo a b)
-operator :: Parser String
-operator = token $ symbols <|> (char '`' *> varName <* char '`')
-  where symbols = constrainedIdentifier [ all isSymbol ]
-
-bindings :: Parser [(V, Term V)]
-bindings = many (binding term)
+bindings :: Parser (Term V) -> Parser [(V, Term V)]
+bindings p = --many (binding term)
+  sepBy1 (token (char ';' <|> char '\n')) (prefixBinding p <|> infixBinding p)
 
 ----- temporary stuff
 type RefLookup = String -> Maybe Reference
@@ -238,31 +312,8 @@ resolveAllAsBuiltin s = Just (Reference.Builtin $ Text.pack s)
 resolveAllAsBuiltin' :: RefLookup'
 resolveAllAsBuiltin' t = Just (Reference.Builtin t)
 
--- parseTermTest :: String -> Result (Term V)
--- parseTermTest = run (term resolveAllAsBuiltin)
-
 dogCatMouse :: RefLookup
 dogCatMouse s =
   if s `elem` ["dog", "cat", "mouse", "+"] then
     Just (Reference.Builtin $ Text.pack s)
   else Nothing
-
--- substsTest :: RefLookup -> Parser (Term V) -> String -> (Term V, Set V)
--- substsTest stringToRef p s = (term', freeVars')
---   where
---     term = unsafeRun (p stringToRef) s
---     freeVars = ABT.freeVars term
---     term' = ABT.substs varTermList term
---     freeVars' = ABT.freeVars term'
---     varTermList = foldMap collectRefs freeVars
---
---     varToString :: V -> String
---     varToString v = Text.unpack (Var.name v)
---
---     collectRefs :: V -> [(V, Term V)]
---     collectRefs a = case stringToRef (varToString a) of
---       Just r -> [(a, Term.ref r)]
---       Nothing -> []
---
--- substsTestV :: RefLookup -> Parser (Term V) -> String -> (Term V, Set V)
--- substsTestV = substsTest

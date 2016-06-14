@@ -14,8 +14,9 @@ module Unison.Term where
 import Control.Monad
 import Data.Aeson.TH
 import Data.Aeson (ToJSON, FromJSON)
-import Data.List
-import Data.Set (Set)
+import Data.List (foldl')
+import Data.Monoid ((<>))
+import Data.Set (Set, union)
 import Data.Text (Text)
 import Data.Vector (Vector)
 import GHC.Generics
@@ -31,12 +32,14 @@ import qualified Control.Monad.Writer.Strict as Writer
 import qualified Data.Aeson as Aeson
 import qualified Data.Monoid as Monoid
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import qualified Unison.ABT as ABT
 import qualified Unison.Hash as Hash
 import qualified Unison.Hashable as Hashable
 import qualified Unison.JSON as J
 import qualified Unison.Reference as Reference
+import qualified Unison.Type as Type
 
 -- | Literals in the Unison language
 data Literal
@@ -82,6 +85,19 @@ typeMap f t = go t where
 wrapV :: Ord v => AnnotatedTerm v a -> AnnotatedTerm (ABT.V v) a
 wrapV = vmap ABT.Bound
 
+freeVars :: Term v -> Set v
+freeVars = ABT.freeVars
+
+freeTypeVars :: Ord vt => AnnotatedTerm' vt v a -> Set vt
+freeTypeVars t = go t where
+  go :: Ord vt => AnnotatedTerm' vt v a -> Set vt
+  go (ABT.Term _ _ t) = case t of
+    ABT.Abs _ t -> go t
+    ABT.Var _ -> Set.empty
+    ABT.Cycle t -> go t
+    ABT.Tm (Ann e t) -> Type.freeVars t `union` go e
+    ABT.Tm ts -> foldMap go ts
+
 -- | Like `Term v`, but with an annotation of type `a` at every level in the tree
 type AnnotatedTerm v a = ABT.Term (F v) v a
 -- | Allow type variables and term variables to differ
@@ -123,6 +139,9 @@ var = ABT.var
 var' :: Var v => Text -> Term v
 var' = var . ABT.v'
 
+var'' :: Var v => String -> Term v
+var'' = var' . Text.pack
+
 ref :: Ord v => Reference -> Term v
 ref r = ABT.tm (Ref r)
 
@@ -162,6 +181,12 @@ lam v body = ABT.tm (Lam (ABT.abs v body))
 lam' :: Var v => [Text] -> Term v -> Term v
 lam' vs body = foldr lam body (map ABT.v' vs)
 
+lam'' :: Ord v => [v] -> Term v -> Term v
+lam'' vs body = foldr lam body vs
+
+lam''' :: Var v => [String] -> Term v -> Term v
+lam''' vs = lam' (Text.pack <$> vs)
+
 -- | Smart constructor for let rec blocks. Each binding in the block may
 -- reference any other binding in the block in its body (including itself),
 -- and the output expression may also reference any binding in the block.
@@ -184,6 +209,9 @@ let1 bindings e = foldr f e bindings
 
 let1' :: Var v => [(Text,Term v)] -> Term v -> Term v
 let1' bs e = let1 [(ABT.v' name, b) | (name,b) <- bs ] e
+
+let1'' :: Var v => [(String,Term v)] -> Term v -> Term v
+let1'' bs e = let1 [(ABT.v' $ Text.pack name, b) | (name,b) <- bs ] e
 
 unLet1 :: Var v => Term v -> Maybe (Term v, ABT.Subst (F v) v ())
 unLet1 (ABT.Tm' (Let b (ABT.Abs' subst))) = Just (b, subst)

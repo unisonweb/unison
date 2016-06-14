@@ -57,9 +57,11 @@ library
     Unison.Symbol
     Unison.Term
     Unison.TermEdit
+    Unison.TermParser
     Unison.Type
     Unison.Typechecker
     Unison.Typechecker.Context
+    Unison.TypeParser
     Unison.TypeVar
     Unison.Var
     Unison.View
