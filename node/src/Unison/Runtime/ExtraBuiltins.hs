@@ -5,8 +5,8 @@ import System.Random
 import Unison.Hash (Hash)
 import Unison.Hash.Extra ()
 import Unison.Node.Builtin
+import Unison.Type (Type)
 import qualified Control.Concurrent.MVar as MVar
-import qualified Data.Text as Text
 import qualified Unison.Eval.Interpreter as I
 import qualified Unison.Note as Note
 import qualified Unison.Reference as R
@@ -16,13 +16,14 @@ import qualified Unison.SerializationAndHashing as SAH
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 
+store :: Ord v => Type v -> Type v -> Type v
 store k v = Type.ref (R.Builtin "Store") `Type.app` k `Type.app` v
 
 makeRandomHash :: RandomGen r => MVar.MVar r -> IO Hash
 makeRandomHash genVar = do
   gen <- MVar.readMVar genVar
   let (hash, newGen) = random gen
-  MVar.swapMVar genVar newGen
+  _ <- MVar.swapMVar genVar newGen
   pure hash
 
 makeAPI :: IO (WHNFEval -> [Builtin])

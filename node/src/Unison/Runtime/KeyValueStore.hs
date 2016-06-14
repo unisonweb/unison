@@ -4,14 +4,12 @@ module Unison.Runtime.KeyValueStore where
 import Control.Monad.State
 import Control.Monad.Reader
 import Data.Acid
-import Data.Acid.Advanced
 import Data.ByteString (ByteString)
 import Data.SafeCopy
 import Data.Typeable
 import Unison.Hash (Hash)
 import Unison.Hash.Extra ()
 import System.Random
-import qualified Data.ByteString as ByteString
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import qualified Unison.Hash as Hash
@@ -40,7 +38,7 @@ lookupGT_ key = do
   KeyValue m <- ask
   let pairs = iterate (\mkv -> mkv >>= ((`Map.lookupGT` m) . fst))
         $ Just (key, undefined)
-      hasKey (Just (k, (True, v))) = True
+      hasKey (Just (_, (True, _))) = True
       hasKey _ = False
       notDeleted = dropWhile (not . hasKey) $ tail pairs
   pure $ head notDeleted
@@ -52,7 +50,7 @@ data Db = Db { acidState :: AcidState KeyValue, uid :: Hash }
 empty :: IO Db
 empty = do
   g <- getStdGen
-  let (rHash, newGen) = random g :: (Hash, StdGen)
+  let (rHash, _) = random g :: (Hash, StdGen)
       fName = Text.unpack $ Hash.base64 rHash
   acidState <- openLocalStateFrom fName $ KeyValue Map.empty
   pure $ Db acidState rHash
@@ -68,14 +66,14 @@ close :: Db -> IO ()
 close db = closeAcidState $ acidState db
 
 insert :: ByteString -> ByteString -> Db -> IO ()
-insert k v (Db acidState uid) = update acidState $ InsertKey k v
+insert k v (Db acidState _) = update acidState $ InsertKey k v
 
 -- TODO garbage collect deleted keys
 delete :: ByteString -> Db -> IO ()
-delete k (Db acidState uid) = update acidState $ DeleteKey k
+delete k (Db acidState _) = update acidState $ DeleteKey k
 
 lookup :: ByteString -> Db -> IO (Maybe ByteString)
-lookup k (Db acidState uid) = do
+lookup k (Db acidState _) = do
   result <- query acidState $ LookupKey k
   pure $ case result of
     Just (True, v) -> pure v
@@ -83,7 +81,7 @@ lookup k (Db acidState uid) = do
 
 -- | Find next key in the Db whose key is greater than the provided key
 lookupGT :: ByteString -> Db -> IO (Maybe (ByteString, ByteString))
-lookupGT k (Db acidState uid) = do
+lookupGT k (Db acidState _) = do
   result <- query acidState $ LookupGT_ k
   pure $ case result of
     Just (k, (True, v)) -> pure (k, v)

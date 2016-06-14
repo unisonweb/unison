@@ -1,4 +1,3 @@
-
 -- |
 -- A combinator library for building responsive layouts.
 -- Like a prettyprinting library, a single `Doc` may be laid out at multiple
@@ -33,7 +32,6 @@ import Data.Maybe (fromMaybe)
 import Data.String (IsString)
 import Data.Text (Text)
 import Debug.Trace
-import GHC.Generics (Generic,Generic1)
 import Unison.Dimensions (X(..), Y(..), Width(..), Height(..), Region)
 import Unison.Path (Path)
 import qualified Data.Text as Text
@@ -53,8 +51,6 @@ data D e r
   | Nest e r
   | Append r r deriving (Functor, Foldable, Traversable)
 
-instance Generic e => Generic1 (D e)
-
 -- | A `Doc e p` describes a layout that may be rendered at
 -- multiple widths. The `e` parameter is the type of primitive documents,
 -- possibly `String` or `Text`. The `p` parameter is the path type,
@@ -62,8 +58,6 @@ instance Generic e => Generic1 (D e)
 -- subtree in the document is the concatenation of all paths starting
 -- from the root.
 type Doc e p = Cofree (D e) p
-
-instance Generic1 f => Generic1 (Cofree f)
 
 data L e r
   = LEmpty

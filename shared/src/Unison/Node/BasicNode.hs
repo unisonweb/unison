@@ -10,7 +10,6 @@ import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Data.Map as M
-import qualified Data.Vector as Vector
 import qualified Unison.Eval as Eval
 import qualified Unison.Eval.Interpreter as I
 import qualified Unison.Metadata as Metadata
@@ -19,7 +18,6 @@ import qualified Unison.Node.Builtin as B
 import qualified Unison.Node.Store as Store
 import qualified Unison.Note as N
 import qualified Unison.Reference as R
-import qualified Unison.Symbol as Symbol
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 import qualified Unison.Var as Var
@@ -44,8 +42,8 @@ make hash store getBuiltins =
     whnf = Eval.whnf eval readTerm
     node = Node.node eval hash store
 
-    stub :: Metadata V R.Reference -> Type V -> N.Noted IO ()
-    stub s t = () <$ Node.createTerm node (Term.blank `Term.ann` t) s
+    -- stub :: Metadata V R.Reference -> Type V -> N.Noted IO ()
+    -- stub s t = () <$ Node.createTerm node (Term.blank `Term.ann` t) s
 
   in N.run $ do
     _ <- Node.createTerm node (Term.lam' ["a"] (Term.var' "a")) (prefix "identity")

@@ -4,7 +4,6 @@ module Unison.Hash.Extra where
 
 import Data.Bytes.Serial
 import Data.List
-import Data.Word (Word8)
 import System.Random
 import Unison.Hash
 import qualified Crypto.Hash as CH
@@ -32,7 +31,7 @@ instance Serial Hash where
 
 instance Random Hash where
   -- bounds are ignored
-  randomR (lo, hi) gen =
+  randomR (_, _) gen =
     let rs = iterate (random . snd) (0, gen)
         rPairs = take 64 $ tail rs
         newGen = snd . head $ reverse rPairs

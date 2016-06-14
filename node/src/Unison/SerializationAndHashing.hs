@@ -4,18 +4,15 @@ module Unison.SerializationAndHashing where
 
 import Control.Comonad.Cofree (Cofree((:<)))
 import Data.ByteString (ByteString)
-import Data.Bytes.Put (MonadPut)
-import Data.Bytes.Serial (serialize, serialize1, Serial(..), Serial1(..), GSerial1)
-import Data.Bytes.VarInt
+import Data.Bytes.Serial (serialize, Serial(..), Serial1(..))
 import Data.Serialize.Put (Put)
 import Data.Serialize.Get (Get)
-import GHC.Generics (Generic,Generic1,Rep1)
-import Unison.ABT.Extra -- Serial instances
+import Unison.ABT.Extra () -- Serial instances
 import Unison.Reference (Reference)
-import Unison.Reference.Extra -- ..
+import Unison.Reference.Extra ()
 import Unison.Symbol (Symbol)
-import Unison.Symbol.Extra -- Serial instance
-import Unison.Term.Extra -- Serial instances
+import Unison.Symbol.Extra () -- Serial instance
+import Unison.Term.Extra () -- Serial instances
 import Unison.Var (Var)
 import qualified Data.Bytes.Get as Get
 import qualified Data.Bytes.Put as Put

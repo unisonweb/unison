@@ -12,16 +12,15 @@ import Data.Functor
 import Data.IORef
 import Data.Map (Map)
 import Data.Set (Set)
-import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8)
 import GHC.Generics
 import Unison.Remote
-import Unison.Remote.Extra
+import Unison.Remote.Extra ()
 import qualified Control.Concurrent as Concurrent
 import qualified Data.ByteString.Base64.URL as Base64
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Data.Text as Text
+-- import qualified Data.Text as Text
 
 {-
 Implementation of the Unison distributed programming API.

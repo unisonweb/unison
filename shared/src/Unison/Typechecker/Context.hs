@@ -34,10 +34,10 @@ import qualified Unison.Var as Var
 
 -- uncomment for debugging
 import Debug.Trace
-watch msg a = trace (msg ++ ":\n" ++ show a) a
-watchVar msg a = trace (msg ++ ": " ++ Text.unpack (Var.shortName a)) a
-watchVars msg t@(a,b,c) =
-  trace (msg ++ ":\n" ++ show (Var.shortName a, Var.shortName b, Var.shortName c)) t
+--watch msg a = trace (msg ++ ":\n" ++ show a) a
+--watchVar msg a = trace (msg ++ ": " ++ Text.unpack (Var.shortName a)) a
+--watchVars msg t@(a,b,c) =
+--  trace (msg ++ ":\n" ++ show (Var.shortName a, Var.shortName b, Var.shortName c)) t
 
 -- | We deal with type variables annotated with whether they are universal or existential
 type Type v = Type.Type (TypeVar v)
@@ -93,6 +93,7 @@ data Info v =
 context0 :: Context v
 context0 = Context []
 
+env0 :: Env v
 env0 = Env 0 context0
 
 instance Var v => Show (Context v) where
@@ -567,7 +568,8 @@ desugarRemote :: Var v => Remote (Term v) -> Term v
 desugarRemote r = case r of
   Remote.Step (Remote.At n r) ->
     Term.builtin "Remote.at" `Term.ann` remoteSignatureOf "Remote.at" `Term.apps` [Term.node n, r]
-  Remote.Step (Remote.Local l) -> Term.blank
+  Remote.Step (Remote.Local _) -> Term.blank
+    -- todo
   -- Term.builtin "Remote.fork" `Term.ann` typeOf "Remote.fork" `Term.apps` [Term.node n, r]
   _ -> Term.blank
     -- todo: finish the rest of these
