@@ -31,36 +31,8 @@ parseV' p (s,expected) =
     Fail _ _ -> assertFailure "parse failure"
     Succeed a n _ -> assertEqual "mismatch" expected a
 
-
 tests :: TestTree
-tests = testGroup "TermParser" $ fmap (parseV term) strings
-  where
-    strings =
-      [ "1 : Int"
-      , "1:Int"
-      , "(1:Int)"
-      , "(1: Int)"
-      , "(1: Int) : Int"
-      , "add a b"
-      , "a -> 3"
-      , "a b -> add a b"
-      , "let a = b in b -> a"
-      , "let a : Int -> Int -> Int; a b c = b + c in a 1 2"
-      , "let a = b in b -> a : a -> a"
-      , "let a b c = b + c in a 1 2"
-      , "let a + c = foo a c in 1 + 2"
-      , "let a = b in c"
-      , "let a = b; c = d in c"
-      , "let rec a = b in c"
-      , "let rec a = b; c = d in c"
-      , "a b c"
-      , "1 2 3"
-      , "(a b) (c d)"
-      , "(let rec a = b; c = d in c) a b"
-      ]
-
-tests2 :: TestTree
-tests2 = testGroup "TermParser2" $ fmap (parseV' term) strings
+tests = testGroup "TermParser2" $ fmap (parseV' term) strings
   where
     strings =
       [ ("1", one)
@@ -111,4 +83,4 @@ tests2 = testGroup "TermParser2" $ fmap (parseV' term) strings
     f_eq_lamab_in_f11 = Term.let1'' [("f", lam_ab_aplusb)] (Term.apps f [one,one])
     plusintintint_fab_in_1plus1 = Term.let1'' [("+", Term.ann lam_ab_fab intintint)] one_plus_one
 
-main = defaultMain tests2 -- >> defaultMain tests
+main = defaultMain tests
