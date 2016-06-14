@@ -176,8 +176,9 @@ instance Hashable Literal where
     Number -> [Hashable.Tag 0]
     Text -> [Hashable.Tag 1]
     Vector -> [Hashable.Tag 2]
-    Ref (Reference.Builtin name) -> Hashable.Tag 3 : Hashable.tokens name
-    Ref (Reference.Derived h) -> [Hashable.Tag 4, Hashable.Hashed (Hashable.fromBytes (Hash.toBytes h))]
+    Optional -> [Hashable.Tag 3]
+    Ref (Reference.Builtin name) -> Hashable.Tag 4 : Hashable.tokens name
+    Ref (Reference.Derived h) -> [Hashable.Tag 5, Hashable.Hashed (Hashable.fromBytes (Hash.toBytes h))]
 
 instance Hashable1 F where
   hash1 _ hash e =
