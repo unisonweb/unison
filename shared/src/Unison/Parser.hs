@@ -2,6 +2,7 @@ module Unison.Parser where
 
 import Control.Applicative
 import Control.Monad
+import Data.Char (isSpace)
 import Data.List hiding (takeWhile)
 import Data.Maybe
 import Prelude hiding (takeWhile)
@@ -35,13 +36,16 @@ one f = Parser $ \s -> case s of
   (h:_) | f h -> Succeed h 1 False
   _ -> Fail [] False
 
-identifier :: Parser String
-identifier = takeWhile1 (`notElem` "\"\n .,`[]{}:;()")
+notReservedChar :: Char -> Bool
+notReservedChar = (`notElem` "\".,`[]{}:;()")
 
-constrainedIdentifier :: [String -> Bool] -> Parser String
-constrainedIdentifier tests = do
-  i <- identifier
-  guard (all ($ i) tests)
+identifier :: [String -> Bool] -> Parser String
+identifier = identifier' [not . isSpace, notReservedChar]
+
+identifier' :: [Char -> Bool] -> [String -> Bool] -> Parser String
+identifier' charTests stringTests = do
+  i <- takeWhile1 (\c -> all ($ c) charTests)
+  guard (all ($ i) stringTests)
   pure i
 
 token :: Parser a -> Parser a

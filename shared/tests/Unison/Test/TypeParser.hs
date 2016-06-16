@@ -2,10 +2,10 @@
 module Unison.Test.TypeParser where
 
 import           Test.Tasty
-import           Unison.Parser
+import           Unison.Parser      (Result(..))
+import           Unison.Parsers     (parseType)
 import           Unison.Type        (Type)
-import qualified Unison.Type        as Type
-import           Unison.TypeParser
+import qualified Unison.Type        as T
 -- import Test.Tasty.SmallCheck as SC
 -- import Test.Tasty.QuickCheck as QC
 import           Test.Tasty.HUnit
@@ -13,33 +13,34 @@ import           Test.Tasty.HUnit
 import           Unison.Symbol      (Symbol)
 import           Unison.View        (DFO)
 
-parseV :: Parser (Type (Symbol DFO)) -> (String, Type (Symbol DFO)) -> TestTree
-parseV p (s,expected) =
-  testCase ("`" ++ s ++ "`") $ case run p s of
+parseV :: (String, Type (Symbol DFO)) -> TestTree
+parseV (s,expected) =
+  testCase ("`" ++ s ++ "`") $ case parseType s of
     Fail _ _ -> assertFailure "parse failure"
     Succeed a _ _ -> assertEqual "mismatch" expected a
 
 tests :: TestTree
-tests = testGroup "TypeParser" $ fmap (parseV type_) strings
+tests = testGroup "TypeParser" $ fmap parseV strings
   where
-    strings :: [(String, Type V)]
+    strings :: [(String, Type (Symbol DFO))]
     strings =
-      [ ("Number", Type.lit Type.Number)
-      , ("Text", Type.lit Type.Text)
-      , ("Vector", Type.lit Type.Vector)
+      [ ("Number", T.lit T.Number)
+      , ("Text", T.lit T.Text)
+      , ("Vector", T.lit T.Vector)
       , ("Foo", foo)
-      , ("Foo -> Foo", Type.arrow foo foo)
-      , ("a -> a", Type.arrow a a)
-      , ("Foo -> Foo -> Foo", Type.arrow foo (Type.arrow foo foo))
-      , ("Foo -> (Foo -> Foo)", Type.arrow foo (Type.arrow foo foo))
-      , ("(Foo -> Foo) -> Foo", Type.arrow (Type.arrow foo foo) foo)
-      , ("Vector Foo", Type.vectorOf foo)
+      , ("Foo -> Foo", T.arrow foo foo)
+      , ("a -> a", T.arrow a a)
+      , ("Foo -> Foo -> Foo", T.arrow foo (T.arrow foo foo))
+      , ("Foo -> (Foo -> Foo)", T.arrow foo (T.arrow foo foo))
+      , ("(Foo -> Foo) -> Foo", T.arrow (T.arrow foo foo) foo)
+      , ("Vector Foo", T.vectorOf foo)
       , ("forall a . a -> a", forall_aa)
       , ("forall a. a -> a", forall_aa)
+      , ("(forall a.a) -> Number", T.forall' ["a"] (T.v' "a") `T.arrow` T.lit T.Number)
       ]
-    a = Type.v' "a"
-    foo = Type.v' "Foo"
-    forall_aa = Type.forall' ["a"] (Type.arrow a a)
+    a = T.v' "a"
+    foo = T.v' "Foo"
+    forall_aa = T.forall' ["a"] (T.arrow a a)
 
 main :: IO ()
 main = defaultMain tests

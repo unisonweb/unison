@@ -47,16 +47,10 @@ forall rec = do
     pure $ Type.forall' (fmap Text.pack vars) t
 
 varName :: Parser String
-varName =
-  constrainedIdentifier [ isLower . head
-                        , all isAlpha
-                        ]
+varName = identifier [isLower.head, all isAlpha]
 
 typeName :: Parser String
-typeName =
-  constrainedIdentifier [ isUpper . head
-                        , all isAlpha
-                        ]
+typeName = identifier [isUpper.head, all isAlpha]
 
 -- qualifiedTypeName :: Parser String
 -- qualifiedTypeName = f <$> typeName <*> optional more

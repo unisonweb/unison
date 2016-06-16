@@ -2,11 +2,11 @@
 module Unison.Test.TermParser where
 
 import           Test.Tasty
-import           Unison.Parser
+import           Unison.Parser (Result(..))
 import           Unison.Parsers (parseTerm)
 import           Unison.Term
 import           Unison.Type        (Type)
-import qualified Unison.Type        as Type
+import qualified Unison.Type        as T
 -- import Test.Tasty.SmallCheck as SC
 -- import Test.Tasty.QuickCheck as QC
 import qualified Data.Text          as Text
@@ -22,14 +22,33 @@ parse (s, expected) =
       Fail _ _ -> assertFailure "parse failure"
       Succeed a _ _ -> assertEqual "mismatch" expected a
 
+parseFail :: String -> TestTree
+parseFail s =
+  testCase ("`" ++ s ++ "` shouldn't parse") $ assertBool "should not have parsed" $
+    case parseTerm s of Fail {} -> True; Succeed {} -> False
+
 tests :: TestTree
-tests = testGroup "TermParser" $ parse <$> strings
+tests = testGroup "TermParser" $ (parse <$> shouldPass) ++ (parseFail <$> shouldFail)
   where
-    strings =
+    shouldFail =
+      [ "+"
+      ]
+    shouldPass =
       [ ("1", one)
       , ("[1,1]", vector [one, one])
-      , ("[1,1] : Vector Number", ann (vector [one, one]) (Type.vectorOf number))
-      , ("[1+1]", vector [one_plus_one])
+      , ("[1,1] : Vector Number", ann (vector [one, one]) (T.vectorOf number))
+      , ("(+)", numberplus)
+      , ("(++)", var' "++")
+      , ("(++)", var' "++")
+      , ("((++))", var' "++")
+      , ("1+", var' "1+")
+      , ("(1+)", var' "1+")
+      , ("((1+))", var' "1+")
+      , ("1+1", onenone)
+      , ("1+1", onenone)
+      , ("1+ 1", app (var' "1+") one)
+      , ("1 +1", app one (var' "+1"))
+      , ("[1+1]", vector [onenone])
       , ("\"hello\"", hello)
       , ("_", blank)
       , ("a", a)
@@ -46,7 +65,7 @@ tests = testGroup "TermParser" $ parse <$> strings
       , ("(a b -> a + b) : Int -> Int -> Int", ann lam_ab_aplusb intintint)
       , ("a b -> a + b : Int", lam' ["a", "b"] (ann (apps numberplus [a, b]) int))
       , ("a -> a", lam' ["a"] a)
-      , ("(a -> a) : forall a . a -> a", ann (lam' ["a"] a) (Type.forall' ["a"] (Type.arrow a' a')))
+      , ("(a -> a) : forall a . a -> a", ann (lam' ["a"] a) (T.forall' ["a"] (T.arrow a' a')))
       , ("let f = a b -> a + b in f 1 1", f_eq_lamab_in_f11)
       , ("let f a b = a + b in f 1 1", f_eq_lamab_in_f11)
       , ("let f (+) b = 1 + b in f g 1", let1' [("f", lam' ["+", "b"] (apps plus [one, b]))] (apps f [g,one]))
@@ -62,21 +81,26 @@ tests = testGroup "TermParser" $ parse <$> strings
       , ("let rec fix f = f (fix f) in fix", fix) -- fix
       , ("1 + 2 + 3", num 1 `plus'` num 2 `plus'` num 3)
       , ("[1, 2, 1 + 1]", vector [num 1, num 2, num 1 `plus'` num 1])
+      , ("(id -> let x = id 42; y = id \"hi\" in 43) : (forall a.a) -> Number", lam' ["id"] (let1'
+        [ ("x", var' "id" `app` num 42),
+          ("y", var' "id" `app` text "hi")
+        ] (num 43)) `ann` (T.forall' ["a"] (T.v' "a") `T.arrow` T.lit T.Number))
       ]
     one = (lit . Number) 1
     hello = (lit . Text . Text.pack) "hello"
     number :: Ord v => Type v
-    number = Type.lit Type.Number
-    int = Type.v' "Int"
-    intintint = Type.arrow int (Type.arrow int int)
+    number = T.lit T.Number
+    int = T.v' "Int"
+    intintint = T.arrow int (T.arrow int int)
     a = var' "a"
-    a' = Type.v' "a"
+    a' = T.v' "a"
     b = var' "b"
     f = var' "f"
     g = var' "g"
     plus = var' "+"
     plus' x y = builtin "Number.plus" `app` x `app` y
     numberplus = builtin "Number.plus"
+    onenone = var' "1+1"
     one_plus_one = apps plus [one,one]
     lam_ab_aplusb = lam' ["a", "b"] (apps numberplus [a, b])
     lam_b_bplus1 = lam' ["b"] (apps numberplus [b, one])

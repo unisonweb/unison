@@ -3,7 +3,7 @@ module Unison.TermParser where
 import Prelude hiding (takeWhile)
 
 import Control.Applicative
-import Data.Char (isDigit, isAlpha, isSymbol, isPunctuation)
+import Data.Char (isDigit, isAlphaNum, isSpace, isSymbol, isPunctuation)
 import Data.Foldable (asum)
 import Data.Functor (($>), void)
 import Data.List (foldl')
@@ -46,7 +46,7 @@ term5 :: Parser (Term V)
 term5 = lam term <|> termLeaf
 
 termLeaf :: Parser (Term V)
-termLeaf = asum [lit, parenthesized term, blank, vector term, prefixTerm]
+termLeaf = asum [prefixTerm, lit, parenthesized term, blank, vector term]
 
 -- app vs ann:  a b c ::   -> ann has lower priority
 
@@ -189,21 +189,24 @@ bindingEqBody p = eq *> body
     eq = token (char '=')
     body = lineErrorUnless "parse error in body of binding" p
 
+-- a wordyId isn't all digits, and isn't all symbols
 wordyId :: Parser String
 wordyId = token $ f <$> id <*> optional ((:) <$> dot <*> id)
   where
     dot = char '.'
-    id = constrainedIdentifier [isAlpha . head, (`notElem` keywords)]
+    id = identifier [any (not.isDigit), any isAlphaNum, (`notElem` keywords)]
     f id rest = maybe id (id++) rest
 
-
+-- a symbolyId is all symbols
 symbolyId :: Parser String
-symbolyId = token $ constrainedIdentifier [(\c -> isSymbol c || isPunctuation c) . head, (`notElem` keywords)]
+symbolyId = token $ identifier'
+  [notReservedChar, not . isSpace, \c -> isSymbol c || isPunctuation c]
+  [(`notElem` keywords)]
 
 infixVar :: Parser V
 infixVar = (Var.named . Text.pack) <$> (backticked <|> symbolyId)
   where
-    backticked = (char '`' *> wordyId <* token (char '`'))
+    backticked = char '`' *> wordyId <* token (char '`')
 
 
 prefixVar :: Parser V

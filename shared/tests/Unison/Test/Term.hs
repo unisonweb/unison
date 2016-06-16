@@ -105,28 +105,6 @@ rect x y w h =
   (X (fromIntegral x), Y (fromIntegral y), Width (fromIntegral w), Height (fromIntegral h))
 
 -- various unison terms, useful for testing
-
-id :: TTerm
-id = unsafeParseTerm "a -> a"
-
-const :: TTerm
-const = unsafeParseTerm "x y -> x"
-
-one :: TTerm
-one = unsafeParseTerm "1"
-
-zero :: TTerm
-zero = unsafeParseTerm "0"
-
-plus :: TTerm -> TTerm -> TTerm
-plus a b = builtin "Number.plus" `app` a `app` b
-
-minus :: TTerm -> TTerm -> TTerm
-minus a b = builtin "Number.minus" `app` a `app` b
-
-fix :: TTerm
-fix = unsafeParseTerm "let rec fix f = f (fix f) in fix"
-
 pingpong1 :: TTerm
 pingpong1 =
   unsafeParseTerm $
