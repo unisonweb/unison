@@ -4,17 +4,17 @@ module Unison.Hash.Extra where
 
 import Data.Bytes.Serial
 import Data.List
+import System.Random
 import Unison.Hash
-import qualified Unison.Hash
 import qualified Crypto.Hash as CH
+import qualified Data.ByteArray as BA
 import qualified Data.ByteString as B
-import qualified Data.Byteable as Byteable
 import qualified Data.Bytes.Put as Put
 import qualified Data.Bytes.VarInt as VarInt
 import qualified Unison.Hashable as H
 
-instance H.Hash Hash where
-  hash = fromBytes . Byteable.toBytes . CH.hashFinalize . foldl' step CH.hashInit where
+instance H.Accumulate Hash where
+  accumulate = fromBytes . BA.convert . CH.hashFinalize . foldl' step CH.hashInit where
     step :: CH.Context CH.SHA3_512 -> H.Token Hash -> CH.Context CH.SHA3_512
     step acc (H.Tag b) = CH.hashUpdate acc (B.singleton b)
     step acc (H.Bytes bs) = CH.hashUpdate acc bs
@@ -28,3 +28,13 @@ instance H.Hash Hash where
 instance Serial Hash where
   serialize h = serialize (toBytes h)
   deserialize = fromBytes <$> deserialize
+
+instance Random Hash where
+  -- bounds are ignored
+  randomR (_, _) gen =
+    let rs = iterate (random . snd) (0, gen)
+        rPairs = take 64 $ tail rs
+        newGen = snd . head $ reverse rPairs
+        bstring = B.pack $ map fst rPairs
+    in (fromBytes bstring, newGen)
+  random = randomR (undefined, undefined)

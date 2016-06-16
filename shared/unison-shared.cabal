@@ -47,6 +47,7 @@ library
     Unison.Metadata
     Unison.Node
     Unison.Node.BasicNode
+    Unison.Node.Builtin
     Unison.Node.MemStore
     Unison.Node.MemNode
     Unison.Node.Store
@@ -56,6 +57,7 @@ library
     Unison.Path
     Unison.Paths
     Unison.Reference
+    Unison.Remote
     Unison.Symbol
     Unison.Term
     Unison.TermEdit

@@ -5,8 +5,6 @@
 
 module Unison.TermEdit where
 
-import Control.Applicative
-import Control.Monad
 import Data.Aeson.TH
 import GHC.Generics
 import Unison.Eval (Eval)
@@ -16,9 +14,9 @@ import Unison.Type (Type)
 import Unison.Note (Noted)
 import Unison.Var (Var)
 import Unison.Paths (Path)
-import qualified Data.Set as Set
-import qualified Unison.ABT as ABT
-import qualified Unison.Eval as Eval
+-- import qualified Data.Set as Set
+-- import qualified Unison.ABT as ABT
+-- import qualified Unison.Eval as Eval
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 
@@ -45,8 +43,9 @@ interpret :: (Applicative f, Monad f, Var v)
           => Eval (Noted f) v
           -> (Hash -> Noted f (Term v))
           -> Path -> Action v -> Term v -> Noted f (Maybe (Path, Term v))
-interpret eval link path action t =
+interpret _ _ _ _ _ =
   error "todo - interpret"
+-- interpret eval link path action t =
   --case action of
   --Abstract -> pure $ abstract path t
   --AbstractLet -> pure $ abstractLet path t

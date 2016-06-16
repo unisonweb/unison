@@ -12,6 +12,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
@@ -24,19 +25,19 @@ import Control.Monad.State.Strict
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Bifunctor
-import Data.Functor
 import Data.Foldable
+import Data.Functor
 import Data.List hiding (group)
 import Data.Maybe (fromMaybe)
 import Data.String (IsString)
 import Data.Text (Text)
+import Debug.Trace
 import Unison.Dimensions (X(..), Y(..), Width(..), Height(..), Region)
 import Unison.Path (Path)
-import qualified Unison.JSON as J
 import qualified Data.Text as Text
 import qualified Unison.Dimensions as Dimensions
+import qualified Unison.JSON as J
 import qualified Unison.Path as Path
-import Debug.Trace
 
 type IsDelimiter = Bool
 

@@ -36,6 +36,10 @@ flag quiet
   manual: True
   default: False
 
+flag leveldb
+  manual: True
+  default: False
+
 library
   hs-source-dirs: src
 
@@ -46,8 +50,11 @@ library
     Unison.Kind.Extra
     Unison.NodeServer
     Unison.Reference.Extra
-    Unison.Runtime.Remoting
-    Unison.Runtime.TestRemoting
+    Unison.Remote.Extra
+    Unison.Runtime.ExtraBuiltins
+    Unison.Runtime.KeyValueStore
+    Unison.Runtime.Remote
+    Unison.SerializationAndHashing
     Unison.Symbol.Extra
     Unison.Term.Extra
     Unison.TermEdit.Extra
@@ -61,27 +68,33 @@ library
     Unison.Runtime.ResourcePool
 
   build-depends:
+    acid-state,
     aeson,
     applicative-extras,
     attoparsec,
     base,
+    base64-bytestring,
     blaze-html,
-    byteable,
     bytes,
     bytestring,
+    cacophony,
     cereal,
     containers,
-    cryptohash,
+    cryptonite,
     ctrie,
     directory,
     filepath,
+    free,
     hashable, 
     http-types,
     io-streams,
+    memory,
     mtl,
     network,
     network-simple,
     prelude-extras,
+    random,
+    safecopy,
     scotty,
     sockaddr,
     stm,
@@ -93,6 +106,9 @@ library
     vector,
     wai-extra,
     wai-middleware-static
+
+  if flag(leveldb)
+    build-depends: exceptions, leveldb-haskell
 
   ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N
 
@@ -111,35 +127,44 @@ executable node
     ghc-options: -funbox-strict-fields -O2
 
   build-depends:
-                  aeson
-                , applicative-extras
-                , attoparsec
-                , base
-                , blaze-html
-                , byteable
-                , bytes
-                , bytestring
-                , cereal
-                , containers
-                , cryptohash
-                , ctrie
-                , directory
-                , filepath
-                , hashable
-                , http-types
-                , mtl
-                , prelude-extras
-                , scotty
-                , stm
-                , text
-                , time
-                , transformers
-                , transformers-compat
-                , unison-node
-                , unison-shared
-                , vector
-                , wai-extra
-                , wai-middleware-static
+    acid-state,
+    aeson,
+    applicative-extras,
+    attoparsec,
+    base,
+    blaze-html,
+    byteable,
+    bytes,
+    bytestring,
+    cereal,
+    containers,
+    ctrie,
+    cryptonite,
+    directory,
+    filepath,
+    free,
+    hashable,
+    http-types,
+    memory,
+    mtl,
+    prelude-extras,
+    random,
+    safecopy,
+    scotty,
+    stm,
+    text,
+    time,
+    transformers,
+    transformers-compat,
+    unison-node,
+    unison-shared,
+    vector,
+    wai-extra,
+    wai-middleware-static
+
+  if flag(leveldb)
+    build-depends: exceptions, leveldb-haskell
+    cpp-options: -Dleveldb
 
 test-suite tests
   type:           exitcode-stdio-1.0
@@ -149,9 +174,11 @@ test-suite tests
   other-modules:
   build-depends:
     base,
+    bytestring,
     containers,
     ctrie,
     hashable,
+    random,
     stm,
     tasty,
     tasty-hunit,
@@ -159,4 +186,5 @@ test-suite tests
     tasty-quickcheck,
     time,
     transformers,
-    unison-node
+    unison-node,
+    unison-shared

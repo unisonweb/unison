@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Unison.View where
@@ -6,13 +7,14 @@ module Unison.View where
 import Data.Aeson.TH
 import Data.String (IsString(..))
 import Data.Text (Text)
+import GHC.Generics (Generic)
 import Unison.Doc (Doc)
 import Unison.Path (Path)
 import qualified Data.Text as Text
 import qualified Unison.Doc as D
 import qualified Unison.Path as Path
 
-newtype Precedence = Precedence Int deriving (Eq,Ord)
+newtype Precedence = Precedence Int deriving (Eq,Ord,Generic)
 
 low :: Precedence
 low = Precedence 0
@@ -26,9 +28,9 @@ increase (Precedence p) = Precedence (p + 1)
 -- | `Arg 0` references the name of the operator; `Arg 1`
 -- references the first argument it is applied to, `Arg 2`
 -- the second argument it is applied to, etc.
-newtype Var = Arg Int deriving (Eq,Ord)
+newtype Var = Arg Int deriving (Eq,Ord,Generic)
 
-data Segment = Slot Var Precedence | Text Text
+data Segment = Slot Var Precedence | Text Text deriving (Generic)
 
 instance IsString Segment where
   fromString s = Text (Text.pack s)
@@ -97,7 +99,7 @@ class View op where
   -- | The precedence of the operator
   precedence :: op -> Precedence
 
-data DFO = DFO (Doc Segment (Maybe Var)) Precedence
+data DFO = DFO (Doc Segment (Maybe Var)) Precedence deriving Generic
 
 mixfix :: Precedence -> [Doc Segment (Maybe Var)] -> DFO
 mixfix prec segs = DFO (D.docs segs) prec

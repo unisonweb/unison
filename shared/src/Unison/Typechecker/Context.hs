@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
 
 -- | The Unison language typechecker, based on:
@@ -8,20 +9,24 @@
 -- by Dunfield and Krishnaswami
 --
 -- PDF at: https://www.mpi-sws.org/~neelk/bidir.pdf
-module Unison.Typechecker.Context where -- (context, subtype, synthesizeClosed) where
+module Unison.Typechecker.Context where
 
 import Control.Monad
 import Data.List
+import Data.Maybe
 import Data.Set (Set)
 import Unison.Note (Note,Noted(..))
+import Unison.Remote (Remote)
 import Unison.Term (Term)
 import Unison.TypeVar (TypeVar)
 import Unison.Var (Var)
 import qualified Data.Foldable as Foldable
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.Note as Note
+import qualified Unison.Remote as Remote
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 import qualified Unison.TypeVar as TypeVar
@@ -29,10 +34,10 @@ import qualified Unison.Var as Var
 
 -- uncomment for debugging
 import Debug.Trace
-watch msg a = trace (msg ++ ":\n" ++ show a) a
-watchVar msg a = trace (msg ++ ": " ++ Text.unpack (Var.shortName a)) a
-watchVars msg t@(a,b,c) =
-  trace (msg ++ ":\n" ++ show (Var.shortName a, Var.shortName b, Var.shortName c)) t
+--watch msg a = trace (msg ++ ":\n" ++ show a) a
+--watchVar msg a = trace (msg ++ ": " ++ Text.unpack (Var.shortName a)) a
+--watchVars msg t@(a,b,c) =
+--  trace (msg ++ ":\n" ++ show (Var.shortName a, Var.shortName b, Var.shortName c)) t
 
 -- | We deal with type variables annotated with whether they are universal or existential
 type Type v = Type.Type (TypeVar v)
@@ -88,6 +93,7 @@ data Info v =
 context0 :: Context v
 context0 = Context []
 
+env0 :: Env v
 env0 = Env 0 context0
 
 instance Var v => Show (Context v) where
@@ -495,6 +501,9 @@ synthesize e = scope ("synth: " ++ show e) $ go e where
     ft <- synthesize f; ctx <- getContext
     synthesizeApp (apply ctx ft) arg
   go (Term.Vector' v) = synthesize (desugarVector (Foldable.toList v))
+  go (Term.Distributed' (Term.Remote r)) = synthesize (desugarRemote r)
+  go (Term.Distributed' (Term.Node _)) = pure (Type.builtin "Node")
+  go (Term.Distributed' (Term.Channel _)) = pure (Type.builtin "Channel")
   go (Term.Let1' binding e) = do
     -- literally just convert to a lambda application and call synthesize!
     -- NB: this misses out on let generalization
@@ -550,6 +559,50 @@ synthesizeApp ft arg = go ft where
   go _ = scope "unable to synthesize type of application" $
          scope ("function type: " ++ show ft) $
          fail  ("arg: " ++ show arg)
+
+-- | For purposes of typechecking, we translate `[x,y,z]` to the term
+-- `Vector.prepend x (Vector.prepend y (Vector.prepend z Vector.empty))`,
+-- where `Vector.prepend : forall a. a -> Vector a -> a` and
+--       `Vector.empty : forall a. Vector a`
+desugarRemote :: Var v => Remote (Term v) -> Term v
+desugarRemote r = case r of
+  Remote.Step (Remote.At n r) ->
+    Term.builtin "Remote.at" `Term.ann` remoteSignatureOf "Remote.at" `Term.apps` [Term.node n, r]
+  Remote.Step (Remote.Local _) -> Term.blank
+    -- todo
+  -- Term.builtin "Remote.fork" `Term.ann` typeOf "Remote.fork" `Term.apps` [Term.node n, r]
+  _ -> Term.blank
+    -- todo: finish the rest of these
+    -- todo: add a type signature for `fork` and `here` to `remoteSignatures`
+
+  -- where
+  -- atT = Type.forall' ["a"] (Type.builtin "Node" --> Type.v' "a" --> )
+
+infixr 7 -->
+(-->) :: Ord v => Type.Type v -> Type.Type v -> Type.Type v
+(-->) = Type.arrow
+
+remoteSignatureOf :: Var v => Text.Text -> Type.Type v
+remoteSignatureOf k = fromMaybe (error "unknown symbol") (Map.lookup k remoteSignatures)
+
+remoteSignatures :: forall v . Var v => Map.Map Text.Text (Type.Type v)
+remoteSignatures = Map.fromList
+  [ ("Remote.at", Type.forall' ["a"] (Type.builtin "Node" --> v' "a" --> remote' (v' "a")))
+  , ("Remote.fork", Type.forall' ["a"] (remote' (v' "a") --> remote' unitT))
+  , ("Remote.here", remote' (Type.builtin "Node"))
+  , ("Remote.send", Type.forall' ["a"] (channel (v' "a") --> v' "a" --> remote' unitT))
+  , ("Remote.channel", Type.forall' ["a"] (remote' (channel (v' "a"))))
+  , ("Remote.map", Type.forall' ["a","b"] ((v' "a" --> v' "b") --> remote' (v' "a") --> remote' (v' "b")))
+  , ("Remote.bind", Type.forall' ["a","b"] ((v' "a" --> remote' (v' "b")) --> remote' (v' "a") --> remote' (v' "b")))
+  , ("Remote.pure", Type.forall' ["a"] (v' "a" --> remote' (v' "a")))
+  , ("Remote.receiveAsync", Type.forall' ["a"] (channel (v' "a") --> timeoutT --> remote' (remote' (v' "a"))))
+  , ("Remote.receive", Type.forall' ["a"] (channel (v' "a") --> remote' (v' "a"))) ]
+  where
+  v' = Type.v'
+  timeoutT = Type.builtin "Remote.Timeout"
+  unitT = Type.builtin "()"
+  remote' t = Type.builtin "Remote!" `Type.app` t
+  channel t = Type.builtin "Channel" `Type.app` t
 
 -- | For purposes of typechecking, we translate `[x,y,z]` to the term
 -- `Vector.prepend x (Vector.prepend y (Vector.prepend z Vector.empty))`,

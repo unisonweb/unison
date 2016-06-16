@@ -36,6 +36,7 @@ data Literal
   | Text
   | Vector
   | Ref Reference -- ^ A type literal uniquely defined by some nameless Hash
+  | Optional
   deriving (Eq,Ord,Generic)
 
 deriveJSON defaultOptions ''Literal
@@ -182,14 +183,14 @@ instance Hashable1 F where
   hash1 _ hash e =
     let
       (tag, hashed) = (Hashable.Tag, Hashable.Hashed)
-      hashToken :: (Hashable.Hash h, Hashable t) => t -> Hashable.Token h
-      hashToken = Hashable.Hashed . Hashable.hash'
-    in Hashable.hash $ tag 0 : case e of
-      Lit l -> [tag 0, hashToken l]
+      -- Note: start each layer with leading `0` byte, to avoid collisions with
+      -- terms, which start each layer with leading `1`. See `Hashable1 Term.F`
+    in Hashable.accumulate $ tag 0 : case e of
+      Lit l -> [tag 0, Hashable.accumulateToken l]
       Arrow a b -> [tag 1, hashed (hash a), hashed (hash b) ]
       App a b -> [tag 2, hashed (hash a), hashed (hash b) ]
-      Ann a k -> [tag 3, hashed (hash a), hashToken k ]
-      Constrain a u -> [tag 4, hashed (hash a), hashToken u]
+      Ann a k -> [tag 3, hashed (hash a), Hashable.accumulateToken k ]
+      Constrain a u -> [tag 4, hashed (hash a), Hashable.accumulateToken u]
       Forall a -> [tag 5, hashed (hash a)]
 
 instance J.ToJSON1 F where
@@ -203,6 +204,7 @@ instance Show Literal where
   show Text = "Text"
   show Vector = "Vector"
   show (Ref r) = show r
+  show Optional = "Optional"
 
 instance Show a => Show (F a) where
   showsPrec p fa = go p fa where

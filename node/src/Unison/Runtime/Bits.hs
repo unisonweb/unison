@@ -85,6 +85,7 @@ mostSignificantBits bs = go (map rank $ bitCounts bs) where
          in \(zeros, ones) -> score n (fromIntegral zeros) (fromIntegral ones)
   go ranks = map swap $ sortBy (flip compare) (ranks `zip` [0..])
 
+sample :: [Bits]
 sample =
   [ from01s[1,0]
   , from01s[1,0]
@@ -97,4 +98,5 @@ sample =
   , from01s[1,1,1,1]
   ]
 
+sampleMsb :: Maybe (Int,Score)
 sampleMsb = mostSignificantBit sample

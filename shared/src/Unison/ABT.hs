@@ -23,7 +23,7 @@ import Data.Traversable
 import Data.Vector ((!))
 import Prelude hiding (abs,cycle)
 import Prelude.Extras (Eq1(..), Show1(..))
-import Unison.Hashable (Hash,Hashable1)
+import Unison.Hashable (Accumulate,Hashable1)
 import Unison.Var (Var)
 import qualified Data.Aeson as Aeson
 import qualified Data.Foldable as Foldable
@@ -336,7 +336,7 @@ instance (Foldable f, J.FromJSON1 f, FromJSON v, Ord v, FromJSON a) => FromJSON 
 
 -- | We ignore annotations in the `Term`, as these should never affect the
 -- meaning of the term.
-hash :: forall f v a h . (Functor f, Hashable1 f, Eq v, Var v, Ord h, Hash h)
+hash :: forall f v a h . (Functor f, Hashable1 f, Eq v, Var v, Ord h, Accumulate h)
      => Term f v a -> h
 hash t = hash' [] t where
   hash' :: [Either [v] v] -> Term f v a -> h
@@ -347,7 +347,7 @@ hash t = hash' [] t where
             ind = findIndex lookup env
             -- env not likely to be very big, prefer to encode in one byte if possible
             hashInt :: Int -> h
-            hashInt i = Hashable.hash [Hashable.VarInt i]
+            hashInt i = Hashable.accumulate [Hashable.VarInt i]
             die = error $ "unknown var in environment: " ++ show (Var.name v)
     Cycle (AbsN' vs t) -> hash' (Left vs : env) t
     Cycle t -> hash' env t
@@ -366,7 +366,7 @@ hash t = hash' [] t where
   hashCycle env ts = (map (hash' env) ts, hash' env)
 
 -- | Use the `hash` function to efficiently remove duplicates from the list, preserving order.
-distinct :: forall f v h a proxy . (Functor f, Hashable1 f, Eq v, Var v, Ord h, Hash h)
+distinct :: forall f v h a proxy . (Functor f, Hashable1 f, Eq v, Var v, Ord h, Accumulate h)
          => proxy h
          -> [Term f v a] -> [Term f v a]
 distinct _ ts = map fst (sortBy (comparing snd) m)
@@ -374,7 +374,7 @@ distinct _ ts = map fst (sortBy (comparing snd) m)
         hashes = map hash ts :: [h]
 
 -- | Use the `hash` function to remove elements from `t1s` that exist in `t2s`, preserving order.
-subtract :: forall f v h a proxy . (Functor f, Hashable1 f, Eq v, Var v, Ord h, Hash h)
+subtract :: forall f v h a proxy . (Functor f, Hashable1 f, Eq v, Var v, Ord h, Accumulate h)
          => proxy h
          -> [Term f v a] -> [Term f v a] -> [Term f v a]
 subtract _ t1s t2s =
