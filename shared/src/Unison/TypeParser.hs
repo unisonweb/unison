@@ -1,6 +1,6 @@
 module Unison.TypeParser where
 
-import Control.Applicative ((<|>), some, optional)
+import Control.Applicative ((<|>), some)
 import Data.Char (isUpper, isLower, isAlpha)
 import Data.List (foldl1')
 import Data.Foldable (asum)

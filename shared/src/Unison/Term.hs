@@ -15,7 +15,6 @@ import Control.Monad
 import Data.Aeson.TH
 import Data.Aeson (ToJSON, FromJSON)
 import Data.List (foldl')
-import Data.Monoid ((<>))
 import Data.Set (Set, union)
 import Data.Text (Text)
 import Data.Vector (Vector)
@@ -32,7 +31,6 @@ import qualified Control.Monad.Writer.Strict as Writer
 import qualified Data.Aeson as Aeson
 import qualified Data.Monoid as Monoid
 import qualified Data.Set as Set
-import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import qualified Unison.ABT as ABT
 import qualified Unison.Hash as Hash
@@ -139,9 +137,6 @@ var = ABT.var
 var' :: Var v => Text -> Term v
 var' = var . ABT.v'
 
-var'' :: Var v => String -> Term v
-var'' = var' . Text.pack
-
 ref :: Ord v => Reference -> Term v
 ref r = ABT.tm (Ref r)
 
@@ -184,9 +179,6 @@ lam' vs body = foldr lam body (map ABT.v' vs)
 lam'' :: Ord v => [v] -> Term v -> Term v
 lam'' vs body = foldr lam body vs
 
-lam''' :: Var v => [String] -> Term v -> Term v
-lam''' vs = lam' (Text.pack <$> vs)
-
 -- | Smart constructor for let rec blocks. Each binding in the block may
 -- reference any other binding in the block in its body (including itself),
 -- and the output expression may also reference any binding in the block.
@@ -209,9 +201,6 @@ let1 bindings e = foldr f e bindings
 
 let1' :: Var v => [(Text,Term v)] -> Term v -> Term v
 let1' bs e = let1 [(ABT.v' name, b) | (name,b) <- bs ] e
-
-let1'' :: Var v => [(String,Term v)] -> Term v -> Term v
-let1'' bs e = let1 [(ABT.v' $ Text.pack name, b) | (name,b) <- bs ] e
 
 unLet1 :: Var v => Term v -> Maybe (Term v, ABT.Subst (F v) v ())
 unLet1 (ABT.Tm' (Let b (ABT.Abs' subst))) = Just (b, subst)

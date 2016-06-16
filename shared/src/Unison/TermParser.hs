@@ -4,85 +4,25 @@ import Prelude hiding (takeWhile)
 
 import Control.Applicative
 import Data.Char (isDigit, isAlpha, isSymbol, isPunctuation)
-import Data.Foldable (asum, toList)
+import Data.Foldable (asum)
 import Data.Functor (($>), void)
 import Data.List (foldl')
-import Data.Maybe (fromMaybe)
 import Data.Set (Set)
-import qualified Data.Maybe as Maybe
-import qualified Data.Set as Set
-import qualified Data.Text as Text
 import Unison.Parser
-import Unison.Reference (Reference)
 import Unison.Symbol (Symbol, Symbol(..))
 import Unison.Term (Term, Literal)
 import Unison.Type (Type)
 import Unison.View (DFO)
-import qualified Unison.ABT as ABT
-import qualified Unison.Reference as Reference
+import qualified Data.Set as Set
+import qualified Data.Text as Text
 import qualified Unison.Term as Term
-import qualified Unison.Type as Type
 import qualified Unison.TypeParser as TypeParser
 import qualified Unison.Var as Var
-
--- todo:
--- remove use of RefLookup from all parsers -- done
--- do the lookup at the end, following what's already done in substsTest
--- convert the TypeParsers to not use RefLookup -- done
--- resolve :: Term v -> RefLookup -> Term v
---   which replaces free term AND type variables (in embedded Ann) in the input,
---   using the provided RefLookup
---   using the Term.typeMap function to perform substitution of free variables
---   and just using ABT.substs as before to perform substitution of the term's free variables
---   so two calls to subts, one for the term, and one in the function passed to typeMap to do
---   the same substitution over the type annotations
-
--- use the new parsers to clean up the tests
-   -- add whatever convenience functions needed to make that easier
-
--- returns missing type vars and term vars
-allFreeVars :: Term V -> Set V
-allFreeVars t = Term.freeVars t `Set.union` Term.freeTypeVars t
-
-missingVars :: Term V -> RefLookup'' -> Set V
-missingVars t l = Set.filter (Maybe.isNothing . l) (allFreeVars t)
-
-resolve :: Term V -> RefLookup'' -> Maybe (Term V)
-resolve t l =
-  if Set.null (missingVars t l)
-  then Just (unsafeResolve t $
-    \v -> fromMaybe (error "nothing was supposed to be missing") (l v))
-  else Nothing
-
-
-unsafeResolve :: Term V -> (V -> Reference) -> Term V
-unsafeResolve t unsafeLookup = (substTermTypes . substTerms) t
-  where
-    lookupTerm :: V -> (V, Term V)
-    lookupTerm v = (\r -> (v, Term.ref r)) $ unsafeLookup v
-    lookupType :: V -> (V, Type V)
-    lookupType v = (\r -> (v, Type.ref r)) $ unsafeLookup v
-
-    readyTerms :: [(V, Term V)]
-    readyTerms = lookupTerm <$> toList (Term.freeVars t)
-    readyTypes :: [(V, Type V)]
-    readyTypes = lookupType <$> toList (Term.freeTypeVars t)
-
-    substTerms :: Term V -> Term V
-    substTerms = ABT.substs readyTerms
-    substType :: Type V -> Type V
-    substType = ABT.substs readyTypes
-
-    substTermTypes :: Term V -> Term V
-    substTermTypes = Term.typeMap substType
 
 type V = Symbol DFO
 
 term :: Parser (Term V)
-term = term1
-
-term1 :: Parser (Term V)
-term1 = possiblyAnnotated term2
+term = possiblyAnnotated term2
 
 term2 :: Parser (Term V)
 term2 = let_ term3 <|> term3
@@ -215,8 +155,6 @@ let_ p = f <$> (let_ *> optional rec_) <*> bindings' <* in_ <*> body
     f (Just _) bindings body = Term.letRec bindings body
 
 
-newline :: Parser ()
-newline = void $ token (char '\n')
 semicolon :: Parser ()
 semicolon = void $ token (char ';')
 
@@ -251,26 +189,21 @@ bindingEqBody p = eq *> body
     eq = token (char '=')
     body = lineErrorUnless "parse error in body of binding" p
 
--- todo: maybe split this into operator/nonoperator constructors?
---       e.g. for operator declarations in parens  (!@#$dog) a b = ...
-
--- data Identifier = Symboly String | Wordy String
-
--- varName' :: Parser Identifier
--- varName' = token $ Symboly <$> symboly <|> Wordy <$> wordy
---   where
-
 wordyId :: Parser String
-wordyId = token $ constrainedIdentifier [isAlpha . head, (`notElem` keywords)]
+wordyId = token $ f <$> id <*> optional ((:) <$> dot <*> id)
+  where
+    dot = char '.'
+    id = constrainedIdentifier [isAlpha . head, (`notElem` keywords)]
+    f id rest = maybe id (id++) rest
+
 
 symbolyId :: Parser String
 symbolyId = token $ constrainedIdentifier [(\c -> isSymbol c || isPunctuation c) . head, (`notElem` keywords)]
 
 infixVar :: Parser V
-infixVar = (Var.named . Text.pack) <$> infixOp
+infixVar = (Var.named . Text.pack) <$> (backticked <|> symbolyId)
   where
-    infixOp :: Parser String
-    infixOp = symbolyId <|> (char '`' *> wordyId <* token (char '`')) -- no whitespace w/in backticks
+    backticked = (char '`' *> wordyId <* token (char '`'))
 
 
 prefixVar :: Parser V
@@ -301,20 +234,3 @@ prefixApp p = f <$> some p
 bindings :: Parser (Term V) -> Parser [(V, Term V)]
 bindings p = --many (binding term)
   sepBy1 (token (char ';' <|> char '\n')) (prefixBinding p <|> infixBinding p)
-
------ temporary stuff
-type RefLookup = String -> Maybe Reference
-type RefLookup' = Text.Text -> Maybe Reference
-type RefLookup'' = V -> Maybe Reference
-
-resolveAllAsBuiltin :: RefLookup
-resolveAllAsBuiltin s = Just (Reference.Builtin $ Text.pack s)
-
-resolveAllAsBuiltin' :: RefLookup'
-resolveAllAsBuiltin' t = Just (Reference.Builtin t)
-
-dogCatMouse :: RefLookup
-dogCatMouse s =
-  if s `elem` ["dog", "cat", "mouse", "+"] then
-    Just (Reference.Builtin $ Text.pack s)
-  else Nothing

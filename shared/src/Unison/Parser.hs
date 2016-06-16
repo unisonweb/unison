@@ -15,6 +15,10 @@ unsafeRun p s = case toEither $ run p s of
   Right a -> a
   Left e -> error ("Parse error:\n" ++ e)
 
+unsafeGetSucceed :: Result a -> a
+unsafeGetSucceed r = case r of
+  Succeed a _ _ -> a
+  Fail e _ -> error (unlines ("Parse error:":e))
 
 string :: String -> Parser String
 string s = Parser $ \input ->
@@ -32,7 +36,7 @@ one f = Parser $ \s -> case s of
   _ -> Fail [] False
 
 identifier :: Parser String
-identifier = takeWhile1 (`notElem` "\"\n .[]{}:;()")
+identifier = takeWhile1 (`notElem` "\"\n .,`[]{}:;()")
 
 constrainedIdentifier :: [String -> Bool] -> Parser String
 constrainedIdentifier tests = do

@@ -51,6 +51,8 @@ library
     Unison.Node.MemNode
     Unison.Node.Store
     Unison.Note
+    Unison.Parser
+    Unison.Parsers
     Unison.Path
     Unison.Paths
     Unison.Reference
@@ -104,5 +106,6 @@ test-suite tests
     tasty-hunit,
     tasty-smallcheck,
     tasty-quickcheck,
+    text,
     transformers,
     unison-shared
