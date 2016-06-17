@@ -3,11 +3,13 @@
 module Unison.Parsers where
 
 import Control.Arrow ((***))
+import Data.Text (Text)
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Parser (Result(..), run, unsafeGetSucceed)
 import Unison.View (DFO)
+import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.Term as Term
 import qualified Unison.TermParser as TermParser
@@ -58,35 +60,37 @@ termBuiltins = (Var.named *** Term.ref) <$> (
     , alias "some" "Optional.Some"
     , alias "none" "Optional.None"
     -- vector
-    , alias "single" "Vector.single"
-    , alias "prepend" "Vector.prepend"
-    , alias "map" "Vector.map"
-    , alias "fold-left" "Vector.fold-left"
-    , alias "empty" "Vector.empty"
-    , alias "concatenate" "Vector.concatenate"
-    , alias "append" "Vector.append"
+    , aliasFromModule "Vector" "single"
+    , aliasFromModule "Vector" "prepend"
+    , aliasFromModule "Vector" "map"
+    , aliasFromModule "Vector" "fold-left"
+    , aliasFromModule "Vector" "empty"
+    , aliasFromModule "Vector" "concatenate"
+    , aliasFromModule "Vector" "append"
     -- Text
-    , alias "concatenate" "Text.concatenate"
-    , alias "left" "Text.left"
-    , alias "right" "Text.right"
-    , alias "center" "Text.center"
-    , alias "justify" "Text.justify"
+    , aliasFromModule "Text" "concatenate"
+    , aliasFromModule "Text" "left"
+    , aliasFromModule "Text" "right"
+    , aliasFromModule "Text" "center"
+    , aliasFromModule "Text" "justify"
     -- Remote
-    , alias "fork" "Remote.fork"
-    , alias "receive" "Remote.receive"
-    , alias "receiveAsync" "Remote.receiveAsync"
-    , alias "pure" "Remote.pure"
-    , alias "bind" "Remote.bind"
-    , alias "channel" "Remote.channel"
-    , alias "send" "Remote.send"
-    , alias "here" "Remote.here"
-    , alias "at" "Remote.at"
+    , aliasFromModule "Remote" "fork"
+    , aliasFromModule "Remote" "receive"
+    , aliasFromModule "Remote" "receiveAsync"
+    , aliasFromModule "Remote" "pure"
+    , aliasFromModule "Remote" "bind"
+    , aliasFromModule "Remote" "channel"
+    , aliasFromModule "Remote" "send"
+    , aliasFromModule "Remote" "here"
+    , aliasFromModule "Remote" "at"
     -- Color
-    , alias "rgba" "Color.rgba"
+    , aliasFromModule "Color" "rgba"
     -- Symbol
-    , alias "Symbol" "Symbol.Symbol"
+    , aliasFromModule "Symbol" "Symbol"
+    -- KeyValueStore
     ] >>= unpackAliases)
     where
+      aliasFromModule m sym = alias sym (Text.intercalate "." [m, sym])
       alias new known = (new, R.Builtin known)
       builtin t = (t, R.Builtin t)
       unpackAliases p@(t1, R.Builtin t2) =

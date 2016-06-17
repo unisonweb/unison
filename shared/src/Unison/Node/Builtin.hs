@@ -3,11 +3,11 @@ module Unison.Node.Builtin where
 
 import Data.Text (Text)
 import Unison.Metadata (Metadata(..))
+import Unison.Parsers (unsafeParseType)
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Typechecker.Context (remoteSignatureOf)
-import Unison.Var (Var)
 import qualified Data.Vector as Vector
 import qualified Unison.ABT as ABT
 import qualified Unison.Eval.Interpreter as I
@@ -59,7 +59,7 @@ makeBuiltins whnf =
        in (r, Nothing, unitT, prefix "()")
 
      , let r = R.Builtin "Color.rgba"
-       in (r, strict r 4, num --> num --> num --> num --> colorT, prefix "rgba")
+       in (r, strict r 4, unsafeParseType "Number -> Number -> Number -> Number -> Color", prefix "rgba")
 
      , let r = R.Builtin "Number.plus"
        in (r, Just (numeric2 (Term.ref r) (+)), numOpTyp, assoc 4 "+")
@@ -126,7 +126,7 @@ makeBuiltins whnf =
        in (r, Just (I.Primop 1 op), remoteSignatureOf "Remote.fork", prefix "fork")
 
      , let r = R.Builtin "Symbol.Symbol"
-       in (r, Nothing, str --> fixityT --> num --> symbolT, prefix "Symbol")
+       in (r, Nothing, unsafeParseType "Text -> Fixity -> Number -> Symbol", prefix "Symbol")
 
      , let r = R.Builtin "Text.concatenate"
        in (r, Just (string2 (Term.ref r) mappend), strOpTyp, prefixes ["concatenate", "Text"])
@@ -146,7 +146,7 @@ makeBuiltins whnf =
                Term.Vector' init -> Term.vector' (Vector.snoc init last)
                init -> Term.ref r `Term.app` last `Term.app` init
            op _ = fail "Vector.append unpossible"
-       in (r, Just (I.Primop 2 op), Type.forall' ["a"] $ v' "a" --> vec (v' "a") --> vec (v' "a"), prefix "append")
+       in (r, Just (I.Primop 2 op), unsafeParseType "forall a. a -> Vector a -> Vector a", prefix "append")
      , let r = R.Builtin "Vector.concatenate"
            op [a,b] = do
              ar <- whnf a
@@ -155,17 +155,17 @@ makeBuiltins whnf =
                (Term.Vector' a, Term.Vector' b) -> Term.vector' (a `mappend` b)
                (a,b) -> Term.ref r `Term.app` a `Term.app` b
            op _ = fail "Vector.concatenate unpossible"
-       in (r, Just (I.Primop 2 op), Type.forall' ["a"] $ vec (v' "a") --> vec (v' "a") --> vec (v' "a"), prefix "concatenate")
+       in (r, Just (I.Primop 2 op), unsafeParseType "forall a. Vector a -> Vector a -> Vector a", prefix "concatenate")
      , let r = R.Builtin "Vector.empty"
            op [] = pure $ Term.vector mempty
            op _ = fail "Vector.empty unpossible"
-       in (r, Just (I.Primop 0 op), Type.forall' ["a"] (vec (v' "a")), prefix "empty")
+       in (r, Just (I.Primop 0 op), unsafeParseType "forall a. Vector a", prefix "empty")
      , let r = R.Builtin "Vector.fold-left"
            op [f,z,vec] = whnf vec >>= \vec -> case vec of
              Term.Vector' vs -> Vector.foldM (\acc a -> whnf (f `Term.apps` [acc, a])) z vs
              _ -> pure $ Term.ref r `Term.app` vec
            op _ = fail "Vector.fold-left unpossible"
-       in (r, Just (I.Primop 3 op), Type.forall' ["a","b"] $ (v' "b" --> v' "a" --> v' "b") --> v' "b" --> vec (v' "a") --> v' "b", prefix "fold-left")
+       in (r, Just (I.Primop 3 op), unsafeParseType "forall a b. (b -> a -> b) -> b -> Vector a -> b", prefix "fold-left")
      , let r = R.Builtin "Vector.map"
            op [f,vec] = do
              vecr <- whnf vec
@@ -173,7 +173,7 @@ makeBuiltins whnf =
                Term.Vector' vs -> Term.vector' (fmap (Term.app f) vs)
                _ -> Term.ref r `Term.app` vecr
            op _ = fail "Vector.map unpossible"
-       in (r, Just (I.Primop 2 op), Type.forall' ["a","b"] $ (v' "a" --> v' "b") --> vec (v' "a") --> vec (v' "b"), prefix "map")
+       in (r, Just (I.Primop 2 op), unsafeParseType "forall a b. (a -> b) -> Vector a -> Vector b", prefix "map")
      , let r = R.Builtin "Vector.prepend"
            op [hd,tl] = do
              tlr <- whnf tl
@@ -181,48 +181,22 @@ makeBuiltins whnf =
                Term.Vector' tl -> Term.vector' (Vector.cons hd tl)
                tl -> Term.ref r `Term.app` hd `Term.app` tl
            op _ = fail "Vector.prepend unpossible"
-       in (r, Just (I.Primop 2 op), Type.forall' ["a"] $ v' "a" --> vec (v' "a") --> vec (v' "a"), prefix "prepend")
+       in (r, Just (I.Primop 2 op), unsafeParseType "forall a. a -> Vector a -> Vector a", prefix "prepend")
      , let r = R.Builtin "Vector.single"
            op [hd] = pure $ Term.vector (pure hd)
            op _ = fail "Vector.single unpossible"
-       in (r, Just (I.Primop 1 op), Type.forall' ["a"] $ v' "a" --> vec (v' "a"), prefix "single")
+       in (r, Just (I.Primop 1 op), unsafeParseType "forall a. a -> Vector a", prefix "single")
      ]
 
 -- type helpers
 alignmentT :: Ord v => Type v
 alignmentT = Type.ref (R.Builtin "Alignment")
-arr :: Ord v => Type v -> Type v -> Type v
-arr = Type.arrow
-colorT :: Ord v => Type v
-colorT = Type.ref (R.Builtin "Color")
-fixityT :: Ord v => Type v
-fixityT = Type.ref (R.Builtin "Fixity")
-optionT :: Ord v => Type v -> Type v
-optionT = Type.app (Type.lit Type.Optional)
-num :: Ord v => Type v
-num = Type.lit Type.Number
-numOpTyp :: Ord v => Type v
-numOpTyp = num --> num --> num
-str :: Ord v => Type v
-str = Type.lit Type.Text
-strOpTyp :: Ord v => Type v
-strOpTyp = str `arr` (str `arr` str)
-symbolT :: Ord v => Type v
-symbolT = Type.ref (R.Builtin "Symbol")
+numOpTyp :: Type V
+numOpTyp = unsafeParseType "Number -> Number -> Number"
+strOpTyp :: Type V
+strOpTyp = unsafeParseType "Text -> Text -> Text"
 unitT :: Ord v => Type v
 unitT = Type.ref (R.Builtin "Unit")
-v' :: Var v => Text -> Type v
-v' = Type.v'
-vec :: Ord v => Type v -> Type v
-vec a = Type.app (Type.lit Type.Vector) a
-remote :: Ord v => Type v -> Type v
-remote v = Type.builtin "Remote" `Type.app` v
-remote' :: Ord v => Type v -> Type v
-remote' v = Type.builtin "Remote!" `Type.app` v
-future :: Ord v => Type v -> Type v
-future v = Type.builtin "Future" `Type.app` v
-channel :: Ord v => Type v -> Type v
-channel v = Type.builtin "Channel" `Type.app` v
 
 infixr 7 -->
 (-->) :: Ord v => Type v -> Type v -> Type v

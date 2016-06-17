@@ -5,6 +5,7 @@ import System.Random
 import Unison.Hash (Hash)
 import Unison.Hash.Extra ()
 import Unison.Node.Builtin
+import Unison.Parsers (unsafeParseType)
 import Unison.Type (Type)
 import qualified Control.Concurrent.MVar as MVar
 import qualified Unison.Eval.Interpreter as I
@@ -39,7 +40,7 @@ makeAPI = do
              hash <- nextHash
              pure . Term.lit $ Term.KeyValueStore hash
            op _ = fail "KeyValue.empty unpossible"
-           type' = Type.forall' ["k", "v"] $ remote (store (Type.v' "k") (Type.v' "v"))
+           type' = unsafeParseType "forall k v. Remote (Store k v)"
        in (r, Just (I.Primop 0 op), type', prefix "stringStore")
      , let r = R.Builtin "KeyValue.lookup"
            op [indexToken, key] = inject g indexToken key where
@@ -58,10 +59,7 @@ makeAPI = do
                pure val
              g s k = pure $ Term.ref r `Term.app` s `Term.app` k
            op _ = fail "KeyValue.lookup unpossible"
-           type' = Type.forall' ["k", "v"]
-             $ Type.v' "k"
-                   --> store (Type.v' "k") (Type.v' "v")
-                   --> remote (optionT (Type.v' "v"))
+           type' = unsafeParseType "forall k v. k -> Store k v -> Remote (Option v)"
        in (r, Just (I.Primop 2 op), type', prefix "lookupKey")
      , let r = R.Builtin "KeyValue.insert"
            op [k, v, store] = inject g k v store where
@@ -77,7 +75,7 @@ makeAPI = do
                pure unitRef
              g k v store = pure $ Term.ref r `Term.app` k `Term.app` v `Term.app` store
            op _ = fail "KeyValue.insert unpossible"
-       in (r, Just (I.Primop 3 op), str --> str --> store str str --> remote unitT, prefix "insertKey")
+       in (r, Just (I.Primop 3 op), unsafeParseType "String -> String -> Store String String -> Remote Unit", prefix "insertKey")
      ])
 
 
