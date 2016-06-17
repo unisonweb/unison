@@ -49,53 +49,47 @@ unsafeParseTerm' er tr = unsafeGetSucceed . parseTerm' er tr
 unsafeParseType' :: [(V, Type V)] -> String -> Type V
 unsafeParseType' tr = unsafeGetSucceed . parseType' tr
 
+-- Alias <alias> <fully-qualified-name>
+  -- will import the builtin <fully-qualified-name>, and once more as the alias
+-- AliasFromModule
+--   <modulename> e.g. "Number"
+--   <aliases import modulename.alias as alias> e.g. "plus"
+--   <ids import as qualified modulename.id> e.g. "minus" will import builtin "Number.plus" only
+data Builtin = Builtin Text -- e.g. Builtin "()"
+             | Alias Text Text
+             | AliasFromModule Text [Text] [Text]
+
+-- aka default imports
 termBuiltins :: [(V, Term V)]
 termBuiltins = (Var.named *** Term.ref) <$> (
-    [ alias "+" "Number.plus"
-    , alias "-" "Number.minus"
-    , alias "*" "Number.times"
-    , alias "/" "Number.divide"
-    , builtin "()"
-    -- optional
-    , alias "some" "Optional.Some"
-    , alias "none" "Optional.None"
-    -- vector
-    , aliasFromModule "Vector" "single"
-    , aliasFromModule "Vector" "prepend"
-    , aliasFromModule "Vector" "map"
-    , aliasFromModule "Vector" "fold-left"
-    , aliasFromModule "Vector" "empty"
-    , aliasFromModule "Vector" "concatenate"
-    , aliasFromModule "Vector" "append"
-    -- Text
-    , aliasFromModule "Text" "concatenate"
-    , aliasFromModule "Text" "left"
-    , aliasFromModule "Text" "right"
-    , aliasFromModule "Text" "center"
-    , aliasFromModule "Text" "justify"
-    -- Remote
-    , aliasFromModule "Remote" "fork"
-    , aliasFromModule "Remote" "receive"
-    , aliasFromModule "Remote" "receiveAsync"
-    , aliasFromModule "Remote" "pure"
-    , aliasFromModule "Remote" "bind"
-    , aliasFromModule "Remote" "channel"
-    , aliasFromModule "Remote" "send"
-    , aliasFromModule "Remote" "here"
-    , aliasFromModule "Remote" "at"
-    -- Color
-    , aliasFromModule "Color" "rgba"
-    -- Symbol
-    , aliasFromModule "Symbol" "Symbol"
-    -- KeyValueStore
+    [ Alias "+" "Number.plus"
+    , Alias "-" "Number.minus"
+    , Alias "*" "Number.times"
+    , Alias "/" "Number.divide"
+    , Builtin "()"
+    , Alias "some" "Optional.Some"
+    , Alias "none" "Optional.None"
+    , AliasFromModule "Vector"
+        ["single", "prepend", "map", "fold-left", "concatenate", "append"] ["empty"]
+    , AliasFromModule "Text"
+        ["concatenate", "left", "right", "center", "justify"] []
+    , AliasFromModule "Remote"
+        ["fork", "receive", "receiveAsync", "pure", "bind", "channel", "send", "here", "at"] []
+    , AliasFromModule "Color" ["rgba"] []
+    , AliasFromModule "Symbol" ["Symbol"] []
+    , AliasFromModule "KeyValueStore" ["lookup", "insert"] ["empty"]
     ] >>= unpackAliases)
     where
-      aliasFromModule m sym = alias sym (Text.intercalate "." [m, sym])
-      alias new known = (new, R.Builtin known)
+      unpackAliases :: Builtin -> [(Text, R.Reference)]
+      unpackAliases (Builtin t) = [builtin t]
+      unpackAliases (Alias a sym) = [alias a sym, builtin sym]
+      unpackAliases (AliasFromModule m toAlias other) =
+        (aliasFromModule m <$> toAlias) ++ (builtinInModule m <$> other)
+
       builtin t = (t, R.Builtin t)
-      unpackAliases p@(t1, R.Builtin t2) =
-        if t1 == t2 then [p] else [p, builtin t2]
-      unpackAliases p = [p]
+      alias new known = (new, R.Builtin known)
+      aliasFromModule m sym = alias sym (Text.intercalate "." [m, sym])
+      builtinInModule m sym = builtin (Text.intercalate "." [m, sym])
 
 typeBuiltins :: [(V, Type V)]
 typeBuiltins = (Var.named *** Type.lit) <$>
@@ -107,6 +101,8 @@ typeBuiltins = (Var.named *** Type.lit) <$>
   , builtin "Alignment"
   , builtin "Color"
   , builtin "Fixity"
+  -- kv store
+  , builtin "KeyValueStore"
   -- distributed
   , builtin "Channel"
   , builtin "Future"

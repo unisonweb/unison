@@ -53,6 +53,7 @@ tests = testGroup "TermParser" $ (parse <$> shouldPass) ++ (parseFail <$> should
       , ("_", blank)
       , ("a", a)
       , ("Number.plus", numberplus)
+      , ("Number.Other.plus", var' "Number.Other.plus")
       , ("1:Int", ann one int)
       , ("(1:Int)", ann one int)
       , ("(1:Int) : Int", ann (ann one int) int)

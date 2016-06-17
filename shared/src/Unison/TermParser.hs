@@ -191,7 +191,7 @@ bindingEqBody p = eq *> body
 
 -- a wordyId isn't all digits, and isn't all symbols
 wordyId :: Parser String
-wordyId = token $ f <$> id <*> optional ((:) <$> dot <*> id)
+wordyId = token $ f <$> id <*> optional ((:) <$> dot <*> wordyId)
   where
     dot = char '.'
     id = identifier [any (not.isDigit), any isAlphaNum, (`notElem` keywords)]

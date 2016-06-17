@@ -50,7 +50,7 @@ varName :: Parser String
 varName = identifier [isLower.head, all isAlpha]
 
 typeName :: Parser String
-typeName = identifier [isUpper.head, all isAlpha]
+typeName = identifier [isUpper.head]
 
 -- qualifiedTypeName :: Parser String
 -- qualifiedTypeName = f <$> typeName <*> optional more
