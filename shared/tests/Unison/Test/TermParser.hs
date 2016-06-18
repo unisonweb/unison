@@ -1,19 +1,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Unison.Test.TermParser where
 
-import           Test.Tasty
-import           Unison.Parser (Result(..))
-import           Unison.Parsers (parseTerm)
-import           Unison.Term
-import           Unison.Type        (Type)
-import qualified Unison.Type        as T
+import Data.Text (Text)
+import Test.Tasty
+import Test.Tasty.HUnit
+import Unison.Parser (Result(..))
+import Unison.Parsers (parseTerm)
+import Unison.Symbol (Symbol)
+import Unison.Term
+import Unison.Type (Type)
+import Unison.View (DFO)
+import qualified Data.Text as Text
+import qualified Unison.Type as T
 -- import Test.Tasty.SmallCheck as SC
 -- import Test.Tasty.QuickCheck as QC
-import qualified Data.Text          as Text
-import           Test.Tasty.HUnit
-
-import           Unison.Symbol      (Symbol)
-import           Unison.View        (DFO)
 
 parse :: (String, Term (Symbol DFO)) -> TestTree
 parse (s, expected) =
@@ -30,9 +30,7 @@ parseFail s =
 tests :: TestTree
 tests = testGroup "TermParser" $ (parse <$> shouldPass) ++ (parseFail <$> shouldFail)
   where
-    shouldFail =
-      [ "+"
-      ]
+    shouldFail = ["+"]
     shouldPass =
       [ ("1", one)
       , ("[1,1]", vector [one, one])
@@ -86,9 +84,10 @@ tests = testGroup "TermParser" $ (parse <$> shouldPass) ++ (parseFail <$> should
         [ ("x", var' "id" `app` num 42),
           ("y", var' "id" `app` text "hi")
         ] (num 43)) `ann` (T.forall' ["a"] (T.v' "a") `T.arrow` T.lit T.Number))
+      , ("#" ++ Text.unpack sampleHash, derived' sampleHash)
       ]
     one = (lit . Number) 1
-    hello = (lit . Text . Text.pack) "hello"
+    hello = text "hello"
     number :: Ord v => Type v
     number = T.lit T.Number
     int = T.v' "Int"
@@ -113,6 +112,7 @@ tests = testGroup "TermParser" $ (parse <$> shouldPass) ++ (parseFail <$> should
     fix = letRec'
         [ ("fix", lam' ["f"] $ var' "f" `app` (var' "fix" `app` var' "f")) ]
         (var' "fix")
+    sampleHash = "1jgF5VUh1odeSCmmI94efghSPl3yAnopDCGeQC7qFkIcxLXKSJHxpvLcORW-mf1xMgXH-wigSVFmz83-acCllQ==" :: Text
 
 main :: IO ()
 main = defaultMain tests

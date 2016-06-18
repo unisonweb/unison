@@ -46,7 +46,7 @@ term5 :: Parser (Term V)
 term5 = lam term <|> termLeaf
 
 termLeaf :: Parser (Term V)
-termLeaf = asum [prefixTerm, lit, parenthesized term, blank, vector term]
+termLeaf = asum [hashLit, prefixTerm, lit, parenthesized term, blank, vector term]
 
 -- app vs ann:  a b c ::   -> ann has lower priority
 
@@ -110,6 +110,10 @@ number' = token (f <$> digits <*> optional ((:) <$> char '.' <*> digits))
     f :: String -> Maybe String -> Literal
     f whole part =
       (Term.Number . read) $ maybe whole (whole++) part
+
+
+hashLit :: Ord v => Parser (Term v)
+hashLit = token (Term.derived' . Text.pack <$> (char '#' *> sequenceA (replicate 88 (one (const True)))))
 
 number :: Ord v => Parser (Term v)
 number = Term.lit <$> number'

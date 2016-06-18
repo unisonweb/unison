@@ -11,15 +11,16 @@ import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Data.Map as M
+import qualified Data.Text as Text
 import qualified Unison.Eval as Eval
 import qualified Unison.Eval.Interpreter as I
+import qualified Unison.Hash as H
 import qualified Unison.Metadata as Metadata
 import qualified Unison.Node as Node
 import qualified Unison.Node.Builtin as B
 import qualified Unison.Node.Store as Store
 import qualified Unison.Note as N
 import qualified Unison.Reference as R
-import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 import qualified Unison.Var as Var
 import qualified Unison.View as View
@@ -52,10 +53,12 @@ make hash store getBuiltins =
           builtins
     compose <- Node.createTerm node (unsafeParseTerm "f g x -> f (g x)") (prefix "compose")
     -- Node.createTerm node (\f -> bind (compose pure f))
-    let composed f g = Term.ref compose `Term.apps` [f, g]
-    _ <- Node.createTerm node (Term.lam' ["f"] (Term.builtin "Remote.bind" `Term.app` (composed (Term.builtin "Remote.pure") (Term.var' "f"))))
+    _ <- Node.createTerm node (unsafeParseTerm ("f -> Remote.bind (" ++ unsafeHashStringFromReference compose ++ " Remote.pure f)"))
                               (prefix "map")
     pure node
+  where
+    unsafeHashStringFromReference (R.Derived composeHash) = "#" ++ (Text.unpack . H.base64) composeHash
+    unsafeHashStringFromReference _ = error "this is why it's `/unsafe/HashStringFromReference`"
 
 prefix :: Text -> Metadata V h
 prefix s = prefixes [s]
