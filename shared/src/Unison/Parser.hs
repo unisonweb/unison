@@ -36,6 +36,21 @@ one f = Parser $ \s -> case s of
   (h:_) | f h -> Succeed h 1 False
   _ -> Fail [] False
 
+
+base64string' :: String -> Parser String
+base64string' alphabet = concat <$> many base64group
+  where
+    base64group :: Parser String
+    base64group = do
+      chars <- some $ one (`elem` alphabet)
+      padding <- sequenceA (replicate (padCount $ length chars) (char '='))
+      return $ chars ++ padding
+    padCount :: Int -> Int
+    padCount len = case len `mod` 4 of 0 -> 0; n -> 4 - n
+
+base64urlstring :: Parser String
+base64urlstring = base64string' $ ['A' .. 'Z'] ++ ['a' .. 'z'] ++ ['0' .. '9'] ++ "-_"
+
 notReservedChar :: Char -> Bool
 notReservedChar = (`notElem` "\".,`[]{}:;()")
 

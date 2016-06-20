@@ -84,7 +84,8 @@ termBuiltins = (Var.named *** Term.ref) <$> (
       unpackAliases (Builtin t) = [builtin t]
       unpackAliases (Alias a sym) = [alias a sym, builtin sym]
       unpackAliases (AliasFromModule m toAlias other) =
-        (aliasFromModule m <$> toAlias) ++ (builtinInModule m <$> other)
+        (aliasFromModule m <$> toAlias) ++ (builtinInModule m <$> toAlias)
+          ++ (builtinInModule m <$> other)
 
       builtin t = (t, R.Builtin t)
       alias new known = (new, R.Builtin known)

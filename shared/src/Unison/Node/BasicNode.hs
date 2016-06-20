@@ -53,12 +53,12 @@ make hash store getBuiltins =
           builtins
     compose <- Node.createTerm node (unsafeParseTerm "f g x -> f (g x)") (prefix "compose")
     -- Node.createTerm node (\f -> bind (compose pure f))
-    _ <- Node.createTerm node (unsafeParseTerm ("f -> Remote.bind (" ++ unsafeHashStringFromReference compose ++ " Remote.pure f)"))
-                              (prefix "map")
+    let term = unsafeParseTerm ("f -> bind (" ++ unsafeHashStringFromReference compose ++ " Remote.pure f)")
+    _ <- Node.createTerm node term (prefix "map")
     pure node
   where
-    unsafeHashStringFromReference (R.Derived composeHash) = "#" ++ (Text.unpack . H.base64) composeHash
-    unsafeHashStringFromReference _ = error "this is why it's `/unsafe/HashStringFromReference`"
+    unsafeHashStringFromReference (R.Derived h) = "#" ++ Text.unpack (H.base64 h)
+    unsafeHashStringFromReference _ = error "tried to extract a Derived hash from a Builtin"
 
 prefix :: Text -> Metadata V h
 prefix s = prefixes [s]

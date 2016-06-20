@@ -48,53 +48,6 @@ term5 = lam term <|> termLeaf
 termLeaf :: Parser (Term V)
 termLeaf = asum [hashLit, prefixTerm, lit, parenthesized term, blank, vector term]
 
--- app vs ann:  a b c ::   -> ann has lower priority
-
--- app vs lam:
---   a b c d -> e
---     as: a b c (d -> e)
---     or: (a b c d -> e)
--- lam has higher priorty than app
-
--- app vs let:
---   a b c let blah = blah in blah
---     as: a b c (let blah = blah in blah)
---   let a = b in c d e
---   as let a = b in (c d e)
---   vs (let a = b in c) d e
--- app has higher precedence than let because the app will be the body
-
--- lam vs let:
---  let a = b in a -> b
--- lam has higher precedence than let
-
--- let vs ann
--- let a = b in 1 + x :: ann
---   as let a = b in 1 + (x :: ann)
---   vs (let a = b in 1 + x) :: ann
--- let has higher precedence
-
--- let vs +
--- 1 + let ... -- not supposed to parse
--- 1 + (let ...) -- ok
--- let a = b in a + 1
--- operators have higher precedence
-
--- app vs +
--- sqrt 42 + 11
--- (sqrt 42) + 11
--- app has higher precedence
-
---- high priority
--- lit, blank, vector, ref
--- lam
--- app
--- operators
--- let
--- ann
---- low priority
-
--- lit' :: Parser Literal
 text' :: Parser Literal
 text' =
   token $ fmap (Term.Text . Text.pack) ps
@@ -113,7 +66,11 @@ number' = token (f <$> digits <*> optional ((:) <$> char '.' <*> digits))
 
 
 hashLit :: Ord v => Parser (Term v)
-hashLit = token (Term.derived' . Text.pack <$> (char '#' *> sequenceA (replicate 88 (one (const True)))))
+hashLit = token (f <$> (mark *> hash))
+  where
+    f = Term.derived' . Text.pack
+    mark = char '#'
+    hash = lineErrorUnless "error parsing base64url hash" base64urlstring
 
 number :: Ord v => Parser (Term v)
 number = Term.lit <$> number'
