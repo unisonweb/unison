@@ -19,6 +19,18 @@ import qualified Unison.Term as Term
 import qualified Unison.TypeParser as TypeParser
 import qualified Unison.Var as Var
 
+{-
+Precedence of language constructs is identical to Haskell, except that all
+operators (like +, <*>, or any sequence of non-alphanumeric characters) are
+left-associative and equal precedence, and operators must have surrounding
+whitespace (a + b, not a+b) to distinguish from identifiers that may contain
+operator characters (like empty? or fold-left).
+
+Sections / partial application of infix operators is not implemented.
+-}
+
+
+
 type V = Symbol DFO
 
 term :: Parser (Term V)
