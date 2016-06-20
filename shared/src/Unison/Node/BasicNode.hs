@@ -6,6 +6,7 @@ import Data.Text (Text)
 import Unison.Metadata (Metadata(..))
 import Unison.Node (Node)
 import Unison.Node.Store (Store)
+import Unison.Parsers (unsafeParseTerm)
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
@@ -46,10 +47,10 @@ make hash store getBuiltins =
     -- stub s t = () <$ Node.createTerm node (Term.blank `Term.ann` t) s
 
   in N.run $ do
-    _ <- Node.createTerm node (Term.lam' ["a"] (Term.var' "a")) (prefix "identity")
+    _ <- Node.createTerm node (unsafeParseTerm "a -> a") (prefix "identity")
     mapM_ (\(B.Builtin r _ t md) -> Node.updateMetadata node r md *> Store.annotateTerm store r t)
           builtins
-    compose <- Node.createTerm node (Term.lam' ["f", "g", "x"] (Term.var' "f" `Term.app` (Term.var' "g" `Term.app` Term.var' "x"))) (prefix "compose")
+    compose <- Node.createTerm node (unsafeParseTerm "f g x -> f (g x)") (prefix "compose")
     -- Node.createTerm node (\f -> bind (compose pure f))
     let composed f g = Term.ref compose `Term.apps` [f, g]
     _ <- Node.createTerm node (Term.lam' ["f"] (Term.builtin "Remote.bind" `Term.app` (composed (Term.builtin "Remote.pure") (Term.var' "f"))))

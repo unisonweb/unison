@@ -14,8 +14,8 @@ module Unison.Term where
 import Control.Monad
 import Data.Aeson.TH
 import Data.Aeson (ToJSON, FromJSON)
-import Data.List
-import Data.Set (Set)
+import Data.List (foldl')
+import Data.Set (Set, union)
 import Data.Text (Text)
 import Data.Vector (Vector)
 import GHC.Generics
@@ -38,6 +38,7 @@ import qualified Unison.Hash as Hash
 import qualified Unison.Hashable as Hashable
 import qualified Unison.JSON as J
 import qualified Unison.Reference as Reference
+import qualified Unison.Type as Type
 import qualified Unison.Remote as Remote
 
 -- | Literals in the Unison language
@@ -75,18 +76,34 @@ instance ToJSON a => ToJSON (Distributed a)
 instance FromJSON a => FromJSON (Distributed a)
 
 vmap :: Ord v2 => (v -> v2) -> AnnotatedTerm v a -> AnnotatedTerm v2 a
-vmap f t = go (ABT.vmap f t) where
+vmap f = ABT.vmap f . typeMap (ABT.vmap f)
+
+typeMap :: Ord v2 => (Type v -> Type v2) -> AnnotatedTerm v a -> ABT.Term (F v2) v a
+typeMap f t = go t where
   go (ABT.Term fvs a t) = ABT.Term fvs a $ case t of
     ABT.Abs v t -> ABT.Abs v (go t)
     ABT.Var v -> ABT.Var v
     ABT.Cycle t -> ABT.Cycle (go t)
-    ABT.Tm (Ann e t) -> ABT.Tm (Ann (go e) (ABT.vmap f t))
+    ABT.Tm (Ann e t) -> ABT.Tm (Ann (go e) (f t))
     -- Safe since `Ann` is only ctor that has embedded `Type v` arg
     -- otherwise we'd have to manually match on every non-`Ann` ctor
     ABT.Tm ts -> unsafeCoerce $ ABT.Tm (fmap go ts)
 
 wrapV :: Ord v => AnnotatedTerm v a -> AnnotatedTerm (ABT.V v) a
 wrapV = vmap ABT.Bound
+
+freeVars :: Term v -> Set v
+freeVars = ABT.freeVars
+
+freeTypeVars :: Ord vt => AnnotatedTerm' vt v a -> Set vt
+freeTypeVars t = go t where
+  go :: Ord vt => AnnotatedTerm' vt v a -> Set vt
+  go (ABT.Term _ _ t) = case t of
+    ABT.Abs _ t -> go t
+    ABT.Var _ -> Set.empty
+    ABT.Cycle t -> go t
+    ABT.Tm (Ann e t) -> Type.freeVars t `union` go e
+    ABT.Tm ts -> foldMap go ts
 
 -- | Like `Term v`, but with an annotation of type `a` at every level in the tree
 type AnnotatedTerm v a = ABT.Term (F v) v a
@@ -178,6 +195,9 @@ lam v body = ABT.tm (Lam (ABT.abs v body))
 
 lam' :: Var v => [Text] -> Term v -> Term v
 lam' vs body = foldr lam body (map ABT.v' vs)
+
+lam'' :: Ord v => [v] -> Term v -> Term v
+lam'' vs body = foldr lam body vs
 
 -- | Smart constructor for let rec blocks. Each binding in the block may
 -- reference any other binding in the block in its body (including itself),
