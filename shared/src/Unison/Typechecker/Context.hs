@@ -486,7 +486,7 @@ synthLit lit = Type.lit $ case lit of
 synthesize :: Var v => Term v -> M v (Type v)
 synthesize e = scope ("synth: " ++ show e) $ go e where
   go (Term.Var' v) = getContext >>= \ctx -> case lookupType ctx v of -- Var
-    Nothing -> fail "type not in scope"
+    Nothing -> fail $ "type not in scope: " ++ Text.unpack (Var.name v)
     Just t -> pure t
   go Term.Blank' = do
     v <- freshVar
