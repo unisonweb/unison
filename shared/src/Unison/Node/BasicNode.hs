@@ -53,8 +53,9 @@ make hash store getBuiltins =
           builtins
     compose <- Node.createTerm node (unsafeParseTerm "f g x -> f (g x)") (prefix "compose")
     -- Node.createTerm node (\f -> bind (compose pure f))
-    let term = unsafeParseTerm ("f -> bind (" ++ unsafeHashStringFromReference compose ++ " Remote.pure f)")
-    _ <- Node.createTerm node term (prefix "map")
+    let composeH = unsafeHashStringFromReference compose
+    _ <- Node.createTerm node (unsafeParseTerm $ "f -> bind ("++composeH++" pure f)") 
+                              (prefix "map")
     pure node
   where
     unsafeHashStringFromReference (R.Derived h) = "#" ++ Text.unpack (H.base64 h)
