@@ -1,15 +1,10 @@
 module Unison.Runtime.ResourcePool where
 
-import Control.Applicative
-import Control.Concurrent.MVar (MVar)
 import Control.Concurrent.STM.TMVar (TMVar)
 import Control.Concurrent.STM.TVar (TVar)
-import Data.Functor
 import Data.Map (Map)
 import Data.Maybe
-import Data.Time (UTCTime, getCurrentTime, addUTCTime, diffUTCTime)
 import qualified Control.Concurrent as CC
-import qualified Control.Concurrent.MVar as MVar
 import qualified Control.Concurrent.STM.TMVar as TMVar
 import qualified Control.Concurrent.STM.TQueue as TQ
 import qualified Control.Concurrent.STM.TVar as TVar
@@ -77,7 +72,6 @@ recycleOrReacquire acquire release cache (n,q) p = do
   case avail of
     Nothing -> do
       r <- acquire p
-      r' <- STM.atomically $ TMVar.newTMVar (Just r)
       pure (r, release r)
     Just (r, id, release') -> do
       decrementCount cache
