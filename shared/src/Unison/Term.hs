@@ -45,13 +45,11 @@ import qualified Unison.Remote as Remote
 data Literal
   = Number Double
   | Text Text
-  | KeyValueStore Hash
   deriving (Eq,Ord,Generic)
 
 instance Hashable Literal where
   tokens (Number d) = [Hashable.Tag 0, Hashable.Double d]
   tokens (Text txt) = [Hashable.Tag 1, Hashable.Text txt]
-  tokens (KeyValueStore h) = [Hashable.Tag 2, Hashable.Bytes (Hash.toBytes h)]
 
 -- | Base functor for terms in the Unison language
 data F v a
@@ -121,7 +119,6 @@ pattern Var' v <- ABT.Var' v
 pattern Lit' l <- (ABT.out -> ABT.Tm (Lit l))
 pattern Number' n <- Lit' (Number n)
 pattern Text' s <- Lit' (Text s)
-pattern Store' h <- Lit' (KeyValueStore h)
 pattern Blank' <- (ABT.out -> ABT.Tm Blank)
 pattern Ref' r <- (ABT.out -> ABT.Tm (Ref r))
 pattern App' f x <- (ABT.out -> ABT.Tm (App f x))

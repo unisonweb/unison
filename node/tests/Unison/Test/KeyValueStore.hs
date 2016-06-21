@@ -19,31 +19,48 @@ roundTrip :: RandomGen r => MVar.MVar r -> Assertion
 roundTrip genVar = do
   hash <- makeRandomHash genVar
   db <- KVS.load hash
-  KVS.insert (pack "key") (pack "value") db
+  KVS.insert (pack "keyhash") (pack "key", pack "value") db
   KVS.close db
   db2 <- KVS.load hash
-  result <- KVS.lookup (pack "key") db2
+  result <- KVS.lookup (pack "keyhash") db2
   case result of
     Just v | unpack v == "value" -> pure ()
     Just v -> fail ("expected value, got " ++ unpack v)
     _ -> fail "got nothin"
-  KVS.close db2
+  KVS.cleanup db2
 
 nextKeyAfterRemoval :: RandomGen r => MVar.MVar r -> Assertion
 nextKeyAfterRemoval genVar = do
   hash <- makeRandomHash genVar
   db <- KVS.load hash
-  KVS.insert (pack "1") (pack "v1") db
-  KVS.insert (pack "2") (pack "v2") db
-  KVS.insert (pack "3") (pack "v3") db
-  KVS.insert (pack "4") (pack "v4") db
+  KVS.insert (pack "1") (pack "k1", pack "v1") db
+  KVS.insert (pack "2") (pack "k2", pack "v2") db
+  KVS.insert (pack "3") (pack "k3", pack "v3") db
+  KVS.insert (pack "4") (pack "k4", pack "v4") db
   KVS.delete (pack "2") db
   result <- KVS.lookupGT (pack "1") db
   case result of
-    Just (k, v) | unpack k == "3" -> pure ()
-    Just (k, v) -> fail ("expected key 3, got " ++ unpack k)
+    Just (kh, (k, v)) | unpack kh == "3" -> pure ()
+    Just (kh, (k, v)) -> fail ("expected key 3, got " ++ unpack kh)
     Nothing -> fail "got nothin"
-  KVS.close db
+  KVS.cleanup db
+
+runGarbageCollection :: RandomGen r => MVar.MVar r -> Assertion
+runGarbageCollection genVar = do
+  hash <- makeRandomHash genVar
+  db <- KVS.load hash
+  let kvp i = (pack . ("k" ++) . show $ i, pack . ("v" ++) . show $ i)
+  mapM_ (\i -> KVS.insert (pack . show $ i) (kvp i) db) [0..1001]
+  mapM_ (\i -> KVS.delete (pack . show $ i) db) [2..1001]
+  result <- KVS.lookup (pack "1") db
+  case result of
+    Just v | unpack v == "v1" -> pure ()
+    o -> fail ("1. got unexpected value " ++ show o)
+  result2 <- KVS.lookup (pack "2") db
+  case result2 of
+    Nothing -> pure ()
+    Just o -> fail ("2. got unexpected value " ++ unpack o)
+  KVS.cleanup db
 
 ioTests :: IO TestTree
 ioTests = do
@@ -52,6 +69,8 @@ ioTests = do
   pure $ testGroup "KeyValueStore"
     [ testCase "roundTrip" (roundTrip genVar)
     , testCase "nextKeyAfterRemoval" (nextKeyAfterRemoval genVar)
+    -- this takes almost two minutes to run on sfultong's machine
+    --, testCase "runGarbageCollection" (runGarbageCollection genVar)
     ]
 
 main = ioTests >>= defaultMain
