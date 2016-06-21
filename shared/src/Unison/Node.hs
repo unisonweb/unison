@@ -60,7 +60,7 @@ deriveJSON defaultOptions ''LocalInfo
 --   * `v` is the type of variables
 --   * `h` is the type of hashes
 --   * `t` is for type
---   * `e` is for term (pnemonic "expression")
+--   * `e` is for term (mnemonic "expression")
 data Node m v h t e = Node {
   -- | Obtain the type of the given subterm, assuming the path is valid
   admissibleTypeAt :: e -> Path -> Noted m t,

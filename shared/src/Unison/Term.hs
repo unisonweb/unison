@@ -14,16 +14,17 @@ module Unison.Term where
 import Control.Monad
 import Data.Aeson.TH
 import Data.Aeson (ToJSON, FromJSON)
-import Data.List
-import Data.Set (Set)
+import Data.List (foldl')
+import Data.Set (Set, union)
 import Data.Text (Text)
 import Data.Vector (Vector)
 import GHC.Generics
 import Prelude.Extras (Eq1(..), Show1(..))
 import Text.Show
 import Unison.Hash (Hash)
-import Unison.Hashable (Hashable, Hashable1)
+import Unison.Hashable (Hashable, Hashable1, accumulateToken)
 import Unison.Reference (Reference)
+import Unison.Remote (Remote)
 import Unison.Type (Type)
 import Unison.Var (Var)
 import Unsafe.Coerce
@@ -37,6 +38,8 @@ import qualified Unison.Hash as Hash
 import qualified Unison.Hashable as Hashable
 import qualified Unison.JSON as J
 import qualified Unison.Reference as Reference
+import qualified Unison.Type as Type
+import qualified Unison.Remote as Remote
 
 -- | Literals in the Unison language
 data Literal
@@ -63,21 +66,42 @@ data F v a
   -- Note: first parameter is the binding, second is the expression which may refer
   -- to this let bound variable. Constructed as `Let b (abs v e)`
   | Let a a
+  | Distributed (Distributed a)
   deriving (Eq,Foldable,Functor,Generic1,Traversable)
 
+data Distributed a = Remote (Remote a) | Node Remote.Node | Channel Remote.Channel deriving (Eq,Show,Generic,Generic1,Functor,Foldable,Traversable)
+instance ToJSON a => ToJSON (Distributed a)
+instance FromJSON a => FromJSON (Distributed a)
+
 vmap :: Ord v2 => (v -> v2) -> AnnotatedTerm v a -> AnnotatedTerm v2 a
-vmap f t = go (ABT.vmap f t) where
+vmap f = ABT.vmap f . typeMap (ABT.vmap f)
+
+typeMap :: Ord v2 => (Type v -> Type v2) -> AnnotatedTerm v a -> ABT.Term (F v2) v a
+typeMap f t = go t where
   go (ABT.Term fvs a t) = ABT.Term fvs a $ case t of
     ABT.Abs v t -> ABT.Abs v (go t)
     ABT.Var v -> ABT.Var v
     ABT.Cycle t -> ABT.Cycle (go t)
-    ABT.Tm (Ann e t) -> ABT.Tm (Ann (go e) (ABT.vmap f t))
+    ABT.Tm (Ann e t) -> ABT.Tm (Ann (go e) (f t))
     -- Safe since `Ann` is only ctor that has embedded `Type v` arg
     -- otherwise we'd have to manually match on every non-`Ann` ctor
     ABT.Tm ts -> unsafeCoerce $ ABT.Tm (fmap go ts)
 
 wrapV :: Ord v => AnnotatedTerm v a -> AnnotatedTerm (ABT.V v) a
 wrapV = vmap ABT.Bound
+
+freeVars :: Term v -> Set v
+freeVars = ABT.freeVars
+
+freeTypeVars :: Ord vt => AnnotatedTerm' vt v a -> Set vt
+freeTypeVars t = go t where
+  go :: Ord vt => AnnotatedTerm' vt v a -> Set vt
+  go (ABT.Term _ _ t) = case t of
+    ABT.Abs _ t -> go t
+    ABT.Var _ -> Set.empty
+    ABT.Cycle t -> go t
+    ABT.Tm (Ann e t) -> Type.freeVars t `union` go e
+    ABT.Tm ts -> foldMap go ts
 
 -- | Like `Term v`, but with an annotation of type `a` at every level in the tree
 type AnnotatedTerm v a = ABT.Term (F v) v a
@@ -101,6 +125,7 @@ pattern App' f x <- (ABT.out -> ABT.Tm (App f x))
 pattern Apps' f args <- (unApps -> Just (f, args))
 pattern Ann' x t <- (ABT.out -> ABT.Tm (Ann x t))
 pattern Vector' xs <- (ABT.out -> ABT.Tm (Vector xs))
+pattern Distributed' r <- (ABT.out -> ABT.Tm (Distributed r))
 pattern Lam' subst <- ABT.Tm' (Lam (ABT.Abs' subst))
 pattern LamNamed' v body <- (ABT.out -> ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body))))
 pattern Let1' b subst <- (unLet1 -> Just (b, subst))
@@ -119,6 +144,12 @@ var = ABT.var
 
 var' :: Var v => Text -> Term v
 var' = var . ABT.v'
+
+derived :: Ord v => Hash -> Term v
+derived = ref . Reference.Derived
+
+derived' :: Ord v => Text -> Term v
+derived' base64 = derived $ Hash.fromBase64 base64
 
 ref :: Ord v => Reference -> Term v
 ref r = ABT.tm (Ref r)
@@ -147,6 +178,15 @@ apps f = foldl' app f
 ann :: Ord v => Term v -> Type v -> Term v
 ann e t = ABT.tm (Ann e t)
 
+node :: Ord v => Remote.Node -> Term v
+node n = ABT.tm (Distributed (Node n))
+
+remote :: Ord v => Remote (Term v) -> Term v
+remote r = ABT.tm (Distributed (Remote r))
+
+channel :: Ord v => Remote.Channel -> Term v
+channel c = ABT.tm (Distributed (Channel c))
+
 vector :: Ord v => [Term v] -> Term v
 vector es = ABT.tm (Vector (Vector.fromList es))
 
@@ -158,6 +198,9 @@ lam v body = ABT.tm (Lam (ABT.abs v body))
 
 lam' :: Var v => [Text] -> Term v -> Term v
 lam' vs body = foldr lam body (map ABT.v' vs)
+
+lam'' :: Ord v => [v] -> Term v -> Term v
+lam'' vs body = foldr lam body vs
 
 -- | Smart constructor for let rec blocks. Each binding in the block may
 -- reference any other binding in the block in its body (including itself),
@@ -247,8 +290,6 @@ instance Var v => Hashable1 (F v) where
   hash1 hashCycle hash e =
     let
       (tag, hashed, varint) = (Hashable.Tag, Hashable.Hashed, Hashable.VarInt)
-      hashToken :: (Hashable.Hash h, Hashable t) => t -> Hashable.Token h
-      hashToken = Hashable.Hashed . Hashable.hash'
     in case e of
       -- So long as `Reference.Derived` ctors are created using the same hashing
       -- function as is used here, this case ensures that references are 'transparent'
@@ -257,10 +298,10 @@ instance Var v => Hashable1 (F v) where
       Ref (Reference.Derived h) -> Hashable.fromBytes (Hash.toBytes h)
       -- Note: start each layer with leading `1` byte, to avoid collisions with
       -- types, which start each layer with leading `0`. See `Hashable1 Type.F`
-      _ -> Hashable.hash $ tag 1 : case e of
-        Lit l -> [tag 0, hashToken l]
+      _ -> Hashable.accumulate $ tag 1 : case e of
+        Lit l -> [tag 0, accumulateToken l]
         Blank -> [tag 1]
-        Ref (Reference.Builtin name) -> [tag 2, hashToken name]
+        Ref (Reference.Builtin name) -> [tag 2, accumulateToken name]
         Ref (Reference.Derived _) -> error "handled above, but GHC can't figure this out"
         App a a2 -> [tag 3, hashed (hash a), hashed (hash a2)]
         Ann a t -> [tag 4, hashed (hash a), hashed (ABT.hash t)]
@@ -271,6 +312,10 @@ instance Var v => Hashable1 (F v) where
           (hs, hash) -> tag 7 : hashed (hash a) : map hashed hs
         -- here, order is significant, so don't use hashCycle
         Let b a -> [tag 8, hashed (hash b), hashed (hash a)]
+        Distributed d -> case d of
+          Node (Remote.Node host pk) -> [tag 9, accumulateToken host, accumulateToken pk]
+          Channel ch -> [tag 10, accumulateToken ch]
+          Remote r -> [tag 11, hashed $ Hashable.hash1 hashCycle hash r]
 
 -- mostly boring serialization code below ...
 
@@ -304,5 +349,6 @@ instance (Var v, Show a) => Show (F v a) where
     go _ (Ref r) = showsPrec 0 r
     go _ (Let b body) = showParen True (s"let " <> showsPrec 0 b <> s" in " <> showsPrec 0 body)
     go _ (LetRec bs body) = showParen True (s"let rec" <> showsPrec 0 bs <> s" in " <> showsPrec 0 body)
+    go _ (Distributed d) = showsPrec 0 d
     (<>) = (.)
     s = showString
