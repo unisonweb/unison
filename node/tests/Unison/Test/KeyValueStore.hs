@@ -45,6 +45,23 @@ nextKeyAfterRemoval genVar = do
     Nothing -> fail "got nothin"
   KVS.cleanup db
 
+runGarbageCollection :: RandomGen r => MVar.MVar r -> Assertion
+runGarbageCollection genVar = do
+  hash <- makeRandomHash genVar
+  db <- KVS.load hash
+  let kvp i = (pack . ("k" ++) . show $ i, pack . ("v" ++) . show $ i)
+  mapM_ (\i -> KVS.insert (pack . show $ i) (kvp i) db) [0..1001]
+  mapM_ (\i -> KVS.delete (pack . show $ i) db) [2..1001]
+  result <- KVS.lookup (pack "1") db
+  case result of
+    Just v | unpack v == "v1" -> pure ()
+    o -> fail ("1. got unexpected value " ++ show o)
+  result2 <- KVS.lookup (pack "2") db
+  case result2 of
+    Nothing -> pure ()
+    Just o -> fail ("2. got unexpected value " ++ unpack o)
+  KVS.cleanup db
+
 ioTests :: IO TestTree
 ioTests = do
   gen <- getStdGen
@@ -52,6 +69,8 @@ ioTests = do
   pure $ testGroup "KeyValueStore"
     [ testCase "roundTrip" (roundTrip genVar)
     , testCase "nextKeyAfterRemoval" (nextKeyAfterRemoval genVar)
+    -- this takes almost two minutes to run on sfultong's machine
+    --, testCase "runGarbageCollection" (runGarbageCollection genVar)
     ]
 
 main = ioTests >>= defaultMain

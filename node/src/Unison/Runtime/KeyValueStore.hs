@@ -26,8 +26,6 @@ import qualified Data.Text as Text
 import qualified System.Directory as Directory
 import qualified Unison.Hash as Hash
 
--- TODO create snapshots and clean up old snapshots
--- when this many write operations have happened, run garbage collection
 cleanupThreshold :: Int
 cleanupThreshold = 1000
 
@@ -36,7 +34,7 @@ type KeyHash = ByteString
 type Value = ByteString
 
 data KeyValue = KeyValue
-  { store :: Map.Map KeyHash (Key, Value)
+  { store :: !(Map.Map KeyHash (Key, Value))
   , writeCount :: !Int
   } deriving (Typeable)
 $(deriveSafeCopy 0 'base ''KeyValue)
@@ -67,7 +65,12 @@ getWriteCount = do
   KeyValue store dc <- ask
   pure dc
 
-$(makeAcidic ''KeyValue ['insertKey, 'deleteKey, 'lookupKey, 'lookupGT_, 'getWriteCount])
+resetWriteCount :: Update KeyValue ()
+resetWriteCount = do
+  KeyValue store wc <- get
+  put (KeyValue store 0)
+
+$(makeAcidic ''KeyValue ['insertKey, 'deleteKey, 'lookupKey, 'lookupGT_, 'getWriteCount, 'resetWriteCount])
 
 data Db = Db { acidState :: AcidState KeyValue, uid :: Hash }
 
@@ -94,11 +97,29 @@ cleanup db = do
   close db
   Directory.removeDirectoryRecursive . Text.unpack . Hash.base64 . uid $ db
 
+maybeCollectGarbage :: Db -> IO ()
+maybeCollectGarbage (Db acidState uid) = do
+  wc <- query acidState GetWriteCount
+  case wc of
+    wc | wc >= cleanupThreshold -> do
+      let storeDirectory = Text.unpack . Hash.base64 $ uid
+      hasArchive <- Directory.doesDirectoryExist $ storeDirectory </> "Archive"
+      if hasArchive then Directory.removeDirectoryRecursive $ storeDirectory </> "Archive"
+        else pure ()
+      createArchive acidState
+      createCheckpoint acidState
+      update acidState ResetWriteCount
+    _ -> pure ()
+
 insert :: KeyHash -> (Key, Value) -> Db -> IO ()
-insert kh kv (Db acidState _) = update acidState $ InsertKey kh kv
+insert kh kv db@(Db acidState _) = do
+  update acidState $ InsertKey kh kv
+  maybeCollectGarbage db
 
 delete :: KeyHash -> Db -> IO ()
-delete kh db@(Db acidState uid) = update acidState $ DeleteKey kh
+delete kh db@(Db acidState uid) = do
+  update acidState $ DeleteKey kh
+  maybeCollectGarbage db
 
 lookup :: KeyHash -> Db -> IO (Maybe Value)
 lookup kh (Db acidState _) = do
