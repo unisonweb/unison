@@ -32,7 +32,7 @@ makePool :: RP.MaxPoolSize -> IO (RP.ResourcePool Int Int, Assertion)
 makePool maxSize = do
   rs <- IORef.newIORef 0
   nonce <- IORef.newIORef 0
-  pool <- RP.make 1 maxSize (\_ -> increment rs >> increment nonce) (\_ -> decrement rs $> ())
+  pool <- RP.make 3 maxSize (\_ -> increment rs >> increment nonce) (\_ -> decrement rs $> ())
   pure (pool, IORef.readIORef rs >>= \n -> if n == 0 then pure () else fail $ "count nonzero: " ++ show n)
 
 acquireSequential1 :: Assertion
