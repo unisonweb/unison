@@ -18,8 +18,8 @@ import qualified Unison.Type as Type
 import qualified Unison.TypeVar as TypeVar
 import qualified Unison.Typechecker.Context as Context
 
-import Debug.Trace
-watch msg a = trace (msg ++ show a) a
+-- import Debug.Trace
+-- watch msg a = trace (msg ++ show a) a
 
 invalid :: (Show a1, Show a) => a -> a1 -> String
 invalid loc ctx = "invalid path " ++ show loc ++ " in:\n" ++ show ctx

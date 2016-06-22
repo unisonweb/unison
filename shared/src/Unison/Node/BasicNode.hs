@@ -6,20 +6,21 @@ import Data.Text (Text)
 import Unison.Metadata (Metadata(..))
 import Unison.Node (Node)
 import Unison.Node.Store (Store)
+import Unison.Parsers (unsafeParseTerm)
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Data.Map as M
-import qualified Data.Vector as Vector
+import qualified Data.Text as Text
 import qualified Unison.Eval as Eval
 import qualified Unison.Eval.Interpreter as I
+import qualified Unison.Hash as H
 import qualified Unison.Metadata as Metadata
 import qualified Unison.Node as Node
+import qualified Unison.Node.Builtin as B
 import qualified Unison.Node.Store as Store
 import qualified Unison.Note as N
 import qualified Unison.Reference as R
-import qualified Unison.Symbol as Symbol
-import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 import qualified Unison.Var as Var
 import qualified Unison.View as View
@@ -28,169 +29,37 @@ infixr 7 -->
 (-->) :: Ord v => Type v -> Type v -> Type v
 (-->) = Type.arrow
 
-type Term' = Term (Symbol DFO)
 type DFO = View.DFO
 type V = Symbol DFO
 
 make :: (Term V -> R.Reference)
      -> Store IO V
+     -> (B.WHNFEval -> [B.Builtin])
      -> IO (Node IO V R.Reference (Type V) (Term V))
-make hash store =
+make hash store getBuiltins =
   let
-    builtins =
-     [ let r = R.Builtin "()"
-       in (r, Nothing, unitT, prefix "()")
-
-     , let r = R.Builtin "Color.rgba"
-       in (r, strict r 4, num --> num --> num --> num --> colorT, prefix "rgba")
-
-     , let r = R.Builtin "Number.plus"
-       in (r, Just (numeric2 (Term.ref r) (+)), numOpTyp, assoc 4 "+")
-     , let r = R.Builtin "Number.minus"
-       in (r, Just (numeric2 (Term.ref r) (-)), numOpTyp, opl 4 "-")
-     , let r = R.Builtin "Number.times"
-       in (r, Just (numeric2 (Term.ref r) (*)), numOpTyp, assoc 5 "*")
-     , let r = R.Builtin "Number.divide"
-       in (r, Just (numeric2 (Term.ref r) (/)), numOpTyp, opl 5 "/")
-
-     , let r = R.Builtin "Symbol.Symbol"
-       in (r, Nothing, str --> fixityT --> num --> symbolT, prefix "Symbol")
-
-     , let r = R.Builtin "Text.concatenate"
-       in (r, Just (string2 (Term.ref r) mappend), strOpTyp, prefixes ["concatenate", "Text"])
-     , let r = R.Builtin "Text.left"
-       in (r, Nothing, alignmentT, prefixes ["left", "Text"])
-     , let r = R.Builtin "Text.right"
-       in (r, Nothing, alignmentT, prefixes ["right", "Text"])
-     , let r = R.Builtin "Text.center"
-       in (r, Nothing, alignmentT, prefixes ["center", "Text"])
-     , let r = R.Builtin "Text.justify"
-       in (r, Nothing, alignmentT, prefixes ["justify", "Text"])
-
-     , let r = R.Builtin "Vector.append"
-           op [last,init] = do
-             initr <- whnf init
-             pure $ case initr of
-               Term.Vector' init -> Term.vector' (Vector.snoc init last)
-               init -> Term.ref r `Term.app` last `Term.app` init
-           op _ = fail "Vector.append unpossible"
-       in (r, Just (I.Primop 2 op), Type.forall' ["a"] $ v' "a" --> vec (v' "a") --> vec (v' "a"), prefix "append")
-     , let r = R.Builtin "Vector.concatenate"
-           op [a,b] = do
-             ar <- whnf a
-             br <- whnf b
-             pure $ case (ar,br) of
-               (Term.Vector' a, Term.Vector' b) -> Term.vector' (a `mappend` b)
-               (a,b) -> Term.ref r `Term.app` a `Term.app` b
-           op _ = fail "Vector.concatenate unpossible"
-       in (r, Just (I.Primop 2 op), Type.forall' ["a"] $ vec (v' "a") --> vec (v' "a") --> vec (v' "a"), prefix "concatenate")
-     , let r = R.Builtin "Vector.empty"
-           op [] = pure $ Term.vector mempty
-           op _ = fail "Vector.empty unpossible"
-       in (r, Just (I.Primop 0 op), Type.forall' ["a"] (vec (v' "a")), prefix "empty")
-     , let r = R.Builtin "Vector.fold-left"
-           op [f,z,vec] = whnf vec >>= \vec -> case vec of
-             Term.Vector' vs -> Vector.foldM (\acc a -> whnf (f `Term.apps` [acc, a])) z vs
-             _ -> pure $ Term.ref r `Term.app` vec
-           op _ = fail "Vector.fold-left unpossible"
-       in (r, Just (I.Primop 3 op), Type.forall' ["a","b"] $ (v' "b" --> v' "a" --> v' "b") --> v' "b" --> vec (v' "a") --> v' "b", prefix "fold-left")
-     , let r = R.Builtin "Vector.map"
-           op [f,vec] = do
-             vecr <- whnf vec
-             pure $ case vecr of
-               Term.Vector' vs -> Term.vector' (fmap (Term.app f) vs)
-               _ -> Term.ref r `Term.app` vecr
-           op _ = fail "Vector.map unpossible"
-       in (r, Just (I.Primop 2 op), Type.forall' ["a","b"] $ (v' "a" --> v' "b") --> vec (v' "a") --> vec (v' "b"), prefix "map")
-     , let r = R.Builtin "Vector.prepend"
-           op [hd,tl] = do
-             tlr <- whnf tl
-             pure $ case tlr of
-               Term.Vector' tl -> Term.vector' (Vector.cons hd tl)
-               tl -> Term.ref r `Term.app` hd `Term.app` tl
-           op _ = fail "Vector.prepend unpossible"
-       in (r, Just (I.Primop 2 op), Type.forall' ["a"] $ v' "a" --> vec (v' "a") --> vec (v' "a"), prefix "prepend")
-     , let r = R.Builtin "Vector.single"
-           op [hd] = pure $ Term.vector (pure hd)
-           op _ = fail "Vector.single unpossible"
-       in (r, Just (I.Primop 1 op), Type.forall' ["a"] $ v' "a" --> vec (v' "a"), prefix "single")
-     ]
-
-    eval = I.eval (M.fromList [ (k,v) | (k,Just v,_,_) <- builtins ])
+    builtins = getBuiltins whnf
+    eval = I.eval (M.fromList [ (k,v) | (B.Builtin k (Just v) _ _) <- builtins ])
     readTerm h = Store.readTerm store h
     whnf = Eval.whnf eval readTerm
     node = Node.node eval hash store
 
-    v' = Type.v'
-    fixityT = Type.ref (R.Builtin "Fixity")
-    symbolT = Type.ref (R.Builtin "Symbol")
-    alignmentT = Type.ref (R.Builtin "Alignment")
-    arr = Type.arrow
-    colorT = Type.ref (R.Builtin "Color")
-    num = Type.lit Type.Number
-    numOpTyp = num --> num --> num
-    str = Type.lit Type.Text
-    strOpTyp = str `arr` (str `arr` str)
-    unitT = Type.ref (R.Builtin "Unit")
-    vec a = Type.app (Type.lit Type.Vector) a
-    strict r n = Just (I.Primop n f)
-      where f args = reapply <$> traverse whnf (take n args)
-                     where reapply args' = Term.ref r `apps` args' `apps` drop n args
-            apps f args = foldl Term.app f args
-
-    numeric2 :: Term V -> (Double -> Double -> Double) -> I.Primop (N.Noted IO) V
-    numeric2 sym f = I.Primop 2 $ \xs -> case xs of
-      [x,y] -> g <$> whnf x <*> whnf y
-        where g (Term.Number' x) (Term.Number' y) = Term.lit (Term.Number (f x y))
-              g x y = sym `Term.app` x `Term.app` y
-      _ -> error "unpossible"
-
-    string2 :: Term V -> (Text -> Text -> Text) -> I.Primop (N.Noted IO) V
-    string2 sym f = I.Primop 2 $ \xs -> case xs of
-      [x,y] -> g <$> whnf x <*> whnf y
-        where g (Term.Text' x) (Term.Text' y) = Term.lit (Term.Text (f x y))
-              g x y = sym `Term.app` x `Term.app` y
-      _ -> error "unpossible"
-
-    stub :: Metadata V R.Reference -> Type V -> N.Noted IO ()
-    stub s t = () <$ Node.createTerm node (Term.blank `Term.ann` t) s
-
-    remote v = Type.builtin "Remote" `Type.app` v
-    remote' v = Type.builtin "Remote!" `Type.app` v
-    future v = Type.builtin "Future" `Type.app` v
-    channel v = Type.builtin "Channel" `Type.app` v
+    -- stub :: Metadata V R.Reference -> Type V -> N.Noted IO ()
+    -- stub s t = () <$ Node.createTerm node (Term.blank `Term.ann` t) s
 
   in N.run $ do
-    _ <- Node.createTerm node (Term.lam' ["a"] (Term.var' "a")) (prefix "identity")
-    stub (prefix "at") $ Type.forall' ["a"] (Type.builtin "Node" --> v' "a" --> remote (v' "a"))
-    stub (prefix "here") $ remote (Type.builtin "Node")
-    stub (prefix "send") $ Type.forall' ["a"] (Type.builtin "Node" --> channel (v' "a") --> v' "a" --> remote' unitT)
-    stub (prefix "channel") $ Type.forall' ["a"] (remote' (v' "a"))
-    stub (prefix "map") $ Type.forall' ["a","b"] ((v' "a" --> v' "b") --> remote (v' "a") --> remote (v' "b"))
-    stub (prefix "map") $ Type.forall' ["a","b"] ((v' "a" --> v' "b") --> remote' (v' "a") --> remote' (v' "b"))
-    stub (prefix "bind") $ Type.forall' ["a","b"] ((v' "a" --> remote (v' "b")) --> remote (v' "a") --> remote (v' "b"))
-    stub (prefix "bind") $ Type.forall' ["a","b"] ((v' "a" --> remote' (v' "b")) --> remote' (v' "a") --> remote' (v' "b"))
-    mapM_ (\(r,_,t,md) -> Node.updateMetadata node r md *> Store.annotateTerm store r t)
+    _ <- Node.createTerm node (unsafeParseTerm "a -> a") (prefix "identity")
+    mapM_ (\(B.Builtin r _ t md) -> Node.updateMetadata node r md *> Store.annotateTerm store r t)
           builtins
+    compose <- Node.createTerm node (unsafeParseTerm "f g x -> f (g x)") (prefix "compose")
+    -- Node.createTerm node (\f -> bind (compose pure f))
+    let composeH = unsafeHashStringFromReference compose
+    _ <- Node.createTerm node (unsafeParseTerm $ "f -> bind ("++composeH++" pure f)") 
+                              (prefix "map")
     pure node
-
-opl :: Int -> Text -> Metadata V h
-opl p s =
-  let
-    sym :: Symbol DFO
-    sym = Var.named s
-    s' = Symbol.annotate (View.binary View.AssociateL (View.Precedence p)) sym
-  in
-    Metadata Metadata.Term (Metadata.Names [s']) Nothing
-
-assoc :: Int -> Text -> Metadata V h
-assoc p s =
-  let
-    sym :: Symbol DFO
-    sym = Var.named s
-    s' = Symbol.annotate (View.binary View.Associative (View.Precedence p)) sym
-  in
-    Metadata Metadata.Term (Metadata.Names [s']) Nothing
+  where
+    unsafeHashStringFromReference (R.Derived h) = "#" ++ Text.unpack (H.base64 h)
+    unsafeHashStringFromReference _ = error "tried to extract a Derived hash from a Builtin"
 
 prefix :: Text -> Metadata V h
 prefix s = prefixes [s]
