@@ -14,16 +14,19 @@ data Token h
   | Double !Double
   | Hashed !h
 
-class Hash h where
-  hash :: [Token h] -> h
+class Accumulate h where
+  accumulate :: [Token h] -> h
   fromBytes :: ByteString -> h
   toBytes :: h -> ByteString
 
-hash' :: (Hash h, Hashable t) => t -> h
-hash' = hash . tokens
+accumulateToken :: (Accumulate h, Hashable t) => t -> Token h
+accumulateToken = Hashed . accumulate'
+
+accumulate' :: (Accumulate h, Hashable t) => t -> h
+accumulate' = accumulate . tokens
 
 class Hashable t where
-  tokens :: Hash h => t -> [Token h]
+  tokens :: Accumulate h => t -> [Token h]
 
 class Functor f => Hashable1 f where
   -- | Produce a hash for an `f a`, given a hashing function for `a`.
@@ -31,7 +34,7 @@ class Functor f => Hashable1 f where
   -- whose order should not affect hash results. Its second result
   -- can be used to hash order-dependent `a` values at this layer that
   -- are not part of the cycle.
-  hash1 :: (Ord h, Hash h) => ([a] -> ([h], a -> h)) -> (a -> h) -> f a -> h
+  hash1 :: (Ord h, Accumulate h) => ([a] -> ([h], a -> h)) -> (a -> h) -> f a -> h
 
 instance Hashable () where
   tokens _ = []

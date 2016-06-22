@@ -9,11 +9,14 @@ import Unison.Term
 import Unison.ABT.Extra ()
 import Unison.Distance.Extra () -- instance for `Serial`
 import Unison.Type.Extra ()
+import Unison.Remote.Extra ()
 import qualified Data.Bytes.Put as Put
 import qualified Data.Bytes.Get as Get
 import qualified Data.Vector as Vector
 
 instance Serial Literal
+instance Serial1 Distributed
+
 instance (Serial v, Ord v) => Serial1 (F v) where
   serializeWith f e = case e of
     Lit l -> Put.putWord8 0 *> serialize l
@@ -25,6 +28,7 @@ instance (Serial v, Ord v) => Serial1 (F v) where
     Lam a -> Put.putWord8 6 *> f a
     LetRec as a -> Put.putWord8 7 *> serializeWith f as *> f a
     Let b a -> Put.putWord8 8 *> f b *> f a
+    Distributed d -> Put.putWord8 9 *> serializeWith f d
   deserializeWith v = Get.getWord8 >>= \tag -> case tag of
     0 -> Lit <$> deserialize
     1 -> pure Blank
@@ -35,6 +39,7 @@ instance (Serial v, Ord v) => Serial1 (F v) where
     6 -> Lam <$> v
     7 -> LetRec <$> deserializeWith v <*> v
     8 -> Let <$> v <*> v
+    9 -> Distributed <$> deserializeWith v
     _ -> fail $ "unknown tag: " ++ show tag
 
 instance Serial1 Vector where
