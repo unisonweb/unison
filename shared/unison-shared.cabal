@@ -35,6 +35,7 @@ library
 
   exposed-modules:
     Unison.ABT
+    Unison.BlockStore
     Unison.Dimensions
     Unison.Distance
     Unison.Doc
@@ -45,11 +46,12 @@ library
     Unison.JSON
     Unison.Kind
     Unison.Metadata
+    Unison.Namespace
     Unison.Node
     Unison.Node.BasicNode
     Unison.Node.Builtin
-    Unison.Node.MemStore
     Unison.Node.MemNode
+    Unison.Node.MemStore
     Unison.Node.Store
     Unison.Note
     Unison.Parser
@@ -58,15 +60,16 @@ library
     Unison.Paths
     Unison.Reference
     Unison.Remote
+    Unison.Storage
     Unison.Symbol
     Unison.Term
     Unison.TermEdit
     Unison.TermParser
     Unison.Type
-    Unison.Typechecker
-    Unison.Typechecker.Context
     Unison.TypeParser
     Unison.TypeVar
+    Unison.Typechecker
+    Unison.Typechecker.Context
     Unison.Var
     Unison.View
     Unison.Views
