@@ -12,9 +12,12 @@ newtype Series = Series ByteString
 data BlockStore h = BlockStore {
   insert :: ByteString -> IO h,
   lookup :: h -> IO (Maybe ByteString),
-  insertSeries :: ByteString -> IO (h, Series),
+  -- | Will return a random hash if Series not already declared, otherwise returns the result of `resolve`
+  declareSeries :: Series -> IO h,
   -- this fails if the hash does not match the last written block for this series
   -- but if it succeeds, the input hash is marked as garbage and can be deleted
-  update :: Series -> h -> ByteString -> IO (Maybe h)
+  update :: Series -> h -> ByteString -> IO (Maybe h),
+  -- obtain the current hash for a series
+  resolve :: Series -> IO (Maybe h)
   -- todo: stream inserts
 }

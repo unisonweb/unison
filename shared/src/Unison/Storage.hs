@@ -7,5 +7,6 @@ data Storage key fingerprint h = Storage {
   blocks :: BlockStore h,
   namespace :: Namespace key fingerprint h,
   keygen :: IO key,
+  staticKey :: key,
   sign :: Name -> h -> Nonce -> Authorization
 }
