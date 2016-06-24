@@ -51,6 +51,7 @@ library
     Unison.NodeServer
     Unison.Reference.Extra
     Unison.Remote.Extra
+    Unison.Runtime.Block
     Unison.Runtime.ExtraBuiltins
     Unison.Runtime.KeyValueStore
     Unison.Runtime.Remote
