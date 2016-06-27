@@ -22,16 +22,38 @@ get' bs (Block series decode _) = do
   bytes <- BlockStore.lookup bs h
   (,) h <$> decode bytes
 
+-- | Obtain the stream of values in the `Block` series
+gets :: BlockStore h -> Block a -> IO [IO a]
+gets bs b = fmap (map (fmap snd)) (gets' bs b)
+
+-- | Obtain the stream of values in the `Block` series, along with their hashes
+gets' :: BlockStore h -> Block a -> IO [IO (h, a)]
+gets' bs (Block series decode _) = do
+  hs <- BlockStore.resolves bs series
+  pure [ (,) h <$> (decode =<< BlockStore.lookup bs h) | h <- hs ]
+
 -- | Attempt a compare and swap on the value of the block. Returns `Nothing` if the
 -- current value of the block does not have the specified hash.
-trySet :: Eq h => BlockStore h -> Block a -> h -> a -> IO (Maybe h)
-trySet bs (Block series _ encode) h0 a = do
+tryEdit :: Eq h
+        => (BlockStore h -> Series -> h -> ByteString -> IO (Maybe h))
+        -> BlockStore h -> Block a -> h -> a -> IO (Maybe h)
+tryEdit edit bs (Block series _ encode) h0 a = do
   h <- BlockStore.declareSeries bs series
   case h == h0 of
     True -> encode a >>= \o -> case o of
       Nothing -> pure Nothing
-      Just bytes -> BlockStore.update bs series h bytes
+      Just bytes -> edit bs series h bytes
     False -> pure Nothing
+
+-- | Attempt a compare and swap on the value of the block. Returns `Nothing` if the
+-- current value of the block does not have the specified hash.
+tryUpdate :: Eq h => BlockStore h -> Block a -> h -> a -> IO (Maybe h)
+tryUpdate = tryEdit BlockStore.update
+
+-- | Attempt a compare and swap on the value of the block. Returns `Nothing` if the
+-- current value of the block does not have the specified hash.
+tryAppend :: Eq h => BlockStore h -> Block a -> h -> a -> IO (Maybe h)
+tryAppend = tryEdit BlockStore.append
 
 -- | Atomically modify a `Block` using a pure function
 modify :: Eq h => BlockStore h -> Block a -> (a -> a) -> IO h
@@ -42,7 +64,7 @@ modify' :: Eq h => BlockStore h -> Block a -> (a -> IO a) -> IO h
 modify' bs b f = do
   (h,a) <- get' bs b
   a <- f a
-  o <- trySet bs b h a
+  o <- tryUpdate bs b h a
   case o of
     Nothing -> modify' bs b f
     Just h -> pure h
@@ -76,4 +98,6 @@ xmap' to from (Block series get set) = Block series get' set' where
 xmap :: (a -> b) -> (b -> a) -> Block a -> Block b
 xmap to from = xmap' (pure . to) (pure . from)
 
+-- buffer :: Block a -> IO (Block a)
 -- todo: encryption, signatures, timestamping, caching, write-buffering, etc
+-- Blocks as a separate type

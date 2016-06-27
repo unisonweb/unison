@@ -36,6 +36,7 @@ library
   exposed-modules:
     Unison.ABT
     Unison.BlockStore
+    Unison.Cryptography
     Unison.Dimensions
     Unison.Distance
     Unison.Doc
@@ -46,7 +47,6 @@ library
     Unison.JSON
     Unison.Kind
     Unison.Metadata
-    Unison.Namespace
     Unison.Node
     Unison.Node.BasicNode
     Unison.Node.Builtin
@@ -60,7 +60,6 @@ library
     Unison.Paths
     Unison.Reference
     Unison.Remote
-    Unison.Storage
     Unison.Symbol
     Unison.Term
     Unison.TermEdit
