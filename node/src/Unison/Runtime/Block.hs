@@ -1,12 +1,15 @@
+{-# Language TupleSections #-}
+
 module Unison.Runtime.Block where
 
-import Data.Maybe
-import Data.Bytes.Serial (Serial, serialize, deserialize)
 import Data.ByteString (ByteString)
+import Data.Bytes.Serial (Serial, serialize, deserialize)
+import Data.IORef
+import Data.Maybe
 import Unison.BlockStore (BlockStore, Series)
-import qualified Unison.BlockStore as BlockStore
 import qualified Data.Bytes.Get as Get
 import qualified Data.Bytes.Put as Put
+import qualified Unison.BlockStore as BlockStore
 
 -- | A `BlockStore.Series` along with some logic for serialization
 data Block a = Block Series (Maybe ByteString -> IO a) (a -> IO (Maybe ByteString))
@@ -50,24 +53,39 @@ tryEdit edit bs (Block series _ encode) h0 a = do
 tryUpdate :: Eq h => BlockStore h -> Block a -> h -> a -> IO (Maybe h)
 tryUpdate = tryEdit BlockStore.update
 
--- | Attempt a compare and swap on the value of the block. Returns `Nothing` if the
--- current value of the block does not have the specified hash.
+-- | Try appending a value to this block series.
 tryAppend :: Eq h => BlockStore h -> Block a -> h -> a -> IO (Maybe h)
 tryAppend = tryEdit BlockStore.append
 
+-- | Append a value to this block series.
+append :: Eq h => BlockStore h -> Block a -> a -> IO h
+append bs b@(Block series _ _) a = do
+  h <- BlockStore.declareSeries bs series
+  o <- tryAppend bs b h a
+  case o of
+    Nothing -> append bs b a
+    Just h -> pure h
+
 -- | Atomically modify a `Block` using a pure function
-modify :: Eq h => BlockStore h -> Block a -> (a -> a) -> IO h
-modify bs b f = modify' bs b (pure . f)
+modify :: Eq h => BlockStore h -> Block a -> (a -> (a,b)) -> IO (h,b)
+modify bs b f = modifyEffectful bs b (pure . f)
+
+-- | Atomically modify a `Block` using a pure function
+modify' :: Eq h => BlockStore h -> Block a -> (a -> a) -> IO h
+modify' bs b f = fst <$> modify bs b (\a -> (f a, ()))
 
 -- | Atomically modify a `Block` using an effectful function
-modify' :: Eq h => BlockStore h -> Block a -> (a -> IO a) -> IO h
-modify' bs b f = do
+modifyEffectful :: Eq h => BlockStore h -> Block a -> (a -> IO (a,b)) -> IO (h,b)
+modifyEffectful bs b f = do
   (h,a) <- get' bs b
-  a <- f a
+  (a,out) <- f a
   o <- tryUpdate bs b h a
   case o of
-    Nothing -> modify' bs b f
-    Just h -> pure h
+    Nothing -> modifyEffectful bs b f
+    Just h -> pure (h,out)
+
+modifyEffectful' :: Eq h => BlockStore h -> Block a -> (a -> IO a) -> IO h
+modifyEffectful' bs b f = fst <$> modifyEffectful bs b (\a -> (,()) <$> f a)
 
 -- | Create a `Block` from the current bytes pointed to by a `Series`
 fromSeries :: Series -> Block (Maybe ByteString)
@@ -90,6 +108,18 @@ serial a b = xmap' decode encode b where
   decode (Just bs) = either fail pure $ Get.runGetS deserialize bs
   encode a = pure . Just $ Put.runPutS (serialize a)
 
+cache :: Block a -> IO (Block a)
+cache (Block series get set) = cached <$> newIORef Nothing where
+  cached cache = Block series get' set' where
+    get' mbs = do
+      c <- readIORef cache
+      case c of
+        Nothing -> do a <- get mbs; writeIORef cache (Just a); pure a
+        Just a -> pure a
+    set' a = do
+      writeIORef cache Nothing
+      set a
+
 xmap' :: (a -> IO b) -> (b -> IO a) -> Block a -> Block b
 xmap' to from (Block series get set) = Block series get' set' where
   get' bs = get bs >>= to
@@ -97,6 +127,7 @@ xmap' to from (Block series get set) = Block series get' set' where
 
 xmap :: (a -> b) -> (b -> a) -> Block a -> Block b
 xmap to from = xmap' (pure . to) (pure . from)
+
 
 -- buffer :: Block a -> IO (Block a)
 -- todo: encryption, signatures, timestamping, caching, write-buffering, etc
