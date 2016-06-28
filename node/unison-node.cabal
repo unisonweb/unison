@@ -57,6 +57,8 @@ library
     Unison.Runtime.KeyValueStore
     Unison.Runtime.Remote
     Unison.SerializationAndHashing
+    Unison.Store.MemBlockStore
+    Unison.Store.FileBlockStore
     Unison.Symbol.Extra
     Unison.Term.Extra
     Unison.TermEdit.Extra
@@ -92,6 +94,7 @@ library
     io-streams,
     memory,
     mtl,
+    murmur-hash,
     network,
     network-simple,
     prelude-extras,
@@ -149,6 +152,7 @@ executable node
     http-types,
     memory,
     mtl,
+    murmur-hash,
     prelude-extras,
     random,
     safecopy,
@@ -179,6 +183,7 @@ test-suite tests
     bytestring,
     containers,
     ctrie,
+    directory,
     hashable,
     random,
     stm,
