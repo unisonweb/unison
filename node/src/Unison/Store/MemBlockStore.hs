@@ -21,16 +21,6 @@ data StoreData = StoreData
   , seriesMap :: Map.Map BS.Series [Hash]
   }
 
-instance Eq BS.Series where
-  (BS.Series a) == (BS.Series b) = a == b
-
-instance Ord BS.Series where
-  compare (BS.Series a) (BS.Series b) = compare a b
-
-instance Show BS.Series where
-  show (BS.Series x) = show x
-
--- shouldn't update return IO (Maybe Hash) ?
 -- think more about threading random state, since it's used two places now
 
 makeHash :: ByteString -> Hash
@@ -43,12 +33,7 @@ randomHash = random
 makeRandomHash :: RandomGen r => MVar.MVar r -> IO Hash
 makeRandomHash genVar = MVar.modifyMVar genVar (pure . (\(a,b) -> (b,a)) . randomHash)
 
-makeRandomSeries :: RandomGen r => MVar.MVar r -> IO BS.Series
-makeRandomSeries genVar =
-  let hash2BS (h, g) = (g, BS.Series $ toBytes h)
-      randomHash = random :: RandomGen r => r -> (Hash.Hash, r)
-  in MVar.modifyMVar genVar $ \gen -> pure . hash2BS . randomHash $ gen
-
+-- TODO implement real garbage collection for hashes removed from series
 makeStore :: RandomGen r => MVar.MVar r -> MVar.MVar StoreData -> BS.BlockStore Hash
 makeStore genVar mapVar =
   let insertStore (StoreData hashMap seriesMap) v =

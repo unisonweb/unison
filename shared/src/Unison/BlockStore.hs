@@ -2,7 +2,7 @@ module Unison.BlockStore where
 
 import Data.ByteString (ByteString)
 
-newtype Series = Series ByteString
+newtype Series = Series ByteString deriving (Eq, Ord, Show)
 
 -- | Represents an immutable content-addressed storage layer.
 -- We can insert some bytes, getting back a hash which can be used for lookup:

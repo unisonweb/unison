@@ -58,6 +58,7 @@ library
     Unison.Runtime.Remote
     Unison.SerializationAndHashing
     Unison.Store.MemBlockStore
+    Unison.Store.FileBlockStore
     Unison.Symbol.Extra
     Unison.Term.Extra
     Unison.TermEdit.Extra
@@ -182,6 +183,7 @@ test-suite tests
     bytestring,
     containers,
     ctrie,
+    directory,
     hashable,
     random,
     stm,
