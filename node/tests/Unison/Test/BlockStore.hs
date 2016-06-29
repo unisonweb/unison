@@ -1,16 +1,10 @@
-module Unison.Test.MemBlockStore where
+module Unison.Test.BlockStore where
 
 import Data.ByteString.Char8
-import Data.Map as Map
-import System.Random
 import Test.Tasty
 import Test.Tasty.HUnit
 import Unison.Hash (Hash)
-import qualified Control.Concurrent.MVar as MVar
 import qualified Unison.BlockStore as BS
-import qualified Unison.Store.MemBlockStore as MBS
-import qualified Unison.Store.FileBlockStore as FBS
-import qualified System.Directory as Directory
 
 roundTrip :: BS.BlockStore Hash -> Assertion
 roundTrip bs = do
@@ -56,22 +50,3 @@ idempotentDeclare bs = do
   h2 <- BS.declareSeries bs seriesName
   if h == h2 then pure ()
     else fail ("got back unequal hashes " ++ show h ++ " " ++ show h2)
-
-ioTests :: IO (TestTree, IO ())
-ioTests = do
-  gen <- getStdGen
-  genVar <- MVar.newMVar gen
-  mapVar <- MVar.newMVar $ MBS.StoreData Map.empty Map.empty
-  let store = MBS.makeStore genVar mapVar
-  acidState <- FBS.initStore "temp"
-  let fileStore = FBS.makeStore genVar acidState
-  pure ( testGroup "BlockStore"
-    [ testCase "roundTrip" (roundTrip store)
-    , testCase "roundTripSeries" (roundTripSeries store)
-    , testCase "appendAppendUpdate" (appendAppendUpdate store)
-    , testCase "idempotentDeclare" (idempotentDeclare store)
-    , testCase "FileRoundTrip" (roundTrip fileStore)
-    , testCase "FileRoundTripSeries" (roundTripSeries fileStore)
-    , testCase "FileAppendAppendUpdate" (appendAppendUpdate fileStore)
-    , testCase "FileIdempotentDeclare" (idempotentDeclare fileStore)
-    ], Directory.removeDirectoryRecursive "temp")
