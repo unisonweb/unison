@@ -12,61 +12,13 @@ import Data.Functor
 import Data.IORef
 import Data.Map (Map)
 import Data.Set (Set)
-import Data.Text.Encoding (decodeUtf8)
 import GHC.Generics
 import Unison.Remote
 import Unison.Remote.Extra ()
 import qualified Control.Concurrent as Concurrent
-import qualified Data.ByteString.Base64.URL as Base64
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 -- import qualified Data.Text as Text
-
-{-
-Implementation of the Unison distributed programming API.
-
-    data Node
-    data Local a
-
-    data Remote a
-    at : Node -> a -> Remote a
-    instance Monad Remote
-
-    instance Monad Local
-    fork : Remote a -> Remote ()
-    local : Local a -> Remote a
-
-    root : Node -> Channel Packet
-    packet : Remote a -> Packet
-
-`Local` is roughly `IO`, the type of local effects, but has
-a few additional functions:
-
-    channel : Local (Channel a)
-    send : a -> Channel a -> Local ()
-    -- | Registers a callback in a map as a weak ref that sets an MVar
-    -- if weak ref becomes garbage, remove from the map
-    receiveAsync : Channel a -> Local (Local a)
-    -- Can be done a bit more efficiently perhaps
-    recieve : Channel a -> Local a
-    awaitAsync : Remote a -> Local (Local a)
-    await : Remote a -> Local a
-
-For the implementation, a remote computation consists of a step, which evaluates
-locally or transfers control to another node, or a step along with a continuation
-when the step's result is available. Conceptually represented by the following Haskell type:
-
-    data Remote r
-      = Step r
-      | forall x . Bind (Step x) (x -> Remote r)
-
-    data Step r = Local r | At Node r
-
-Since this data type would not be serializable as a Haskell
-data type (would require serializing arbitrary functions), both
-`Local` and the `x -> Remote r` are represented as _Unison_
-terms, giving the type:
--}
 
 data Language t h
   = Language
@@ -168,7 +120,7 @@ handle lang env (Eval u sender r) = do
         Just r -> handle lang env (Eval u sender r)
         Nothing -> fail "typechecker bug; function passed to Remote.bind did not return a Remote"
   newChannel :: IO Channel
-  newChannel = Channel . Base64 . decodeUtf8 . Base64.encode <$> keygen env 64
+  newChannel = Channel <$> keygen env 32
   transfer n t k =
     sendPacketTo env n (Eval (universe env) (currentNode env) r) where
       r = case k of

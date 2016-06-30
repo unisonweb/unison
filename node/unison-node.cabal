@@ -49,6 +49,7 @@ library
     Unison.Hash.Extra
     Unison.Kind.Extra
     Unison.NodeServer
+    Unison.NodeProcess
     Unison.Reference.Extra
     Unison.Remote.Extra
     Unison.Runtime.Block
@@ -73,6 +74,7 @@ library
     acid-state,
     aeson,
     applicative-extras,
+    async,
     attoparsec,
     base,
     base64-bytestring,
