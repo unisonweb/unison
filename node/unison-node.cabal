@@ -179,6 +179,7 @@ test-suite tests
   hs-source-dirs: tests
   other-modules:
   build-depends:
+    QuickCheck,
     base,
     bytestring,
     containers,
@@ -189,8 +190,8 @@ test-suite tests
     stm,
     tasty,
     tasty-hunit,
-    tasty-smallcheck,
     tasty-quickcheck,
+    tasty-smallcheck,
     time,
     transformers,
     unison-node,

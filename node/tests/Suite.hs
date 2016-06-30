@@ -16,4 +16,4 @@ tests = do
         [ResourcePool.tests, kvsTests, mbsTests, fbsTests, SAH.tests], cleanup)
 
 main :: IO ()
-main = tests >>= (\(tt, cleanup) -> defaultMain tt >> cleanup) 
+main = tests >>= (\(tt, cleanup) -> defaultMain tt >> cleanup)

@@ -15,10 +15,7 @@ ioTests = do
   gen <- getStdGen
   genVar <- IORef.newIORef gen
   let genHash = MBS.makeRandomHash genVar
-  fileStore <- FBS.make' genHash "temp"
-  pure ( testGroup "FileBlockStore"
-    [ testCase "FileRoundTrip" (roundTrip fileStore)
-    , testCase "FileRoundTripSeries" (roundTripSeries fileStore)
-    , testCase "FileAppendAppendUpdate" (appendAppendUpdate fileStore)
-    , testCase "FileIdempotentDeclare" (idempotentDeclare fileStore)
-    ], Directory.removeDirectoryRecursive "temp")
+  tempDir <- Directory.makeAbsolute "temp"
+  fileStore <- FBS.make' genHash tempDir
+  pure ( testGroup "FileBlockStore" $ makeCases fileStore
+       , Directory.removeDirectoryRecursive tempDir)

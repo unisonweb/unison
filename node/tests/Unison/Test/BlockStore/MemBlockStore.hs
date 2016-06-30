@@ -14,9 +14,4 @@ ioTests = do
   genVar <- IORef.newIORef gen
   let genHash = MBS.makeRandomHash genVar
   store <- MBS.make' genHash
-  pure $ testGroup "MemBlockStore"
-    [ testCase "roundTrip" (roundTrip store)
-    , testCase "roundTripSeries" (roundTripSeries store)
-    , testCase "appendAppendUpdate" (appendAppendUpdate store)
-    , testCase "idempotentDeclare" (idempotentDeclare store)
-    ]
+  pure . testGroup "MemBlockStore" $ makeCases store

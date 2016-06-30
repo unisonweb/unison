@@ -2,12 +2,9 @@ module Unison.BlockStore.MemBlockStore where
 
 
 import Data.ByteString (ByteString)
-import Debug.Trace (trace)
 import System.Random
 import Unison.Hash (Hash)
-import Unison.Hashable
 import Unison.Hash.Extra ()
---import qualified Control.Concurrent.MVar as MVar
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Digest.Murmur64 as Murmur
@@ -50,6 +47,7 @@ make genHash mapVar =
             Nothing ->
              (store { seriesMap = Map.insert series [hash] (seriesMap store)}, hash)
             Just (h:_) -> (store, h)
+            _ -> error "MemBlockStore.declareSeries had empty list of hashes in series"
       update series hash v = IORef.atomicModifyIORef mapVar $ \(StoreData hashMap sm) ->
         case Map.lookup series sm of
           Just (h:_) | h == hash ->
@@ -57,6 +55,7 @@ make genHash mapVar =
                        newMap = Map.insert series [hash] $ seriesMap valueStore
                        finalStore = valueStore { seriesMap = newMap }
                    in (finalStore, Just hash)
+          Just [] -> error "MemBlockStore.update had empty list of hashes in series"
           _ -> (StoreData hashMap sm, Nothing)
       append series hash v = IORef.atomicModifyIORef mapVar $ \(StoreData hashMap sm) ->
         case Map.lookup series sm of
@@ -65,6 +64,7 @@ make genHash mapVar =
                        newMap = Map.update (Just . (hash :)) series $ seriesMap valueStore
                        finalStore = valueStore { seriesMap = newMap }
                    in (finalStore, Just hash)
+          Just [] -> error "MemBlockStore.append had empty list of hashes in series"
           _ -> (StoreData hashMap sm, Nothing)
       resolve s = IORef.readIORef mapVar >>=
         (\(StoreData _ seriesMap) -> pure . fmap head $ Map.lookup s seriesMap)

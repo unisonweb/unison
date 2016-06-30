@@ -7,23 +7,14 @@ module Unison.BlockStore.FileBlockStore where
 import Control.Monad.State
 import Control.Monad.Reader
 import Data.Acid
-import Data.Acid.Advanced
 import Data.ByteString (ByteString)
 import Data.SafeCopy
 import Data.Typeable
-import Debug.Trace (trace)
-import System.Random
 import Unison.BlockStore.MemBlockStore (makeHash)
 import Unison.Hash (Hash)
-import Unison.Hashable
 import Unison.Hash.Extra ()
-import qualified Control.Concurrent.MVar as MVar
-import qualified Data.ByteString.Builder as Builder
-import qualified Data.ByteString.Lazy as LB
-import qualified Data.Digest.Murmur64 as Murmur
 import qualified Data.Map.Lazy as Map
 import qualified Unison.BlockStore as BS
-import qualified Unison.Hash as Hash
 
 data StoreData = StoreData
   { hashMap :: !(Map.Map Hash ByteString)
@@ -76,6 +67,7 @@ make genHash storeState =
             update storeState $ InsertSeriesMap series [hash]
             pure hash
           Just (h:_) -> pure h
+          _ -> error "FileBlockStore.declareSeries had empty list of hashes in series"
       update' series hash v = do
         seriesHashes <- Map.lookup series <$> query storeState ReadSeriesMap
         case seriesHashes of
@@ -83,7 +75,8 @@ make genHash storeState =
                          newHash <- insertStore v
                          update storeState $ InsertSeriesMap series [newHash]
                          pure $ Just newHash
-          Nothing -> pure Nothing
+          Just [] -> error "FileBlockStore.update had empty list of hashes in series"
+          _ -> pure Nothing
       append series hash v = do
         seriesHashes <- Map.lookup series <$> query storeState ReadSeriesMap
         case seriesHashes of
@@ -91,7 +84,8 @@ make genHash storeState =
                          newHash <- insertStore v
                          update storeState $ AppendSeriesMap series newHash
                          pure $ Just newHash
-          Nothing -> pure Nothing
+          Just [] -> error "FileBlockStore.append had empty list of hashes in series"
+          _ -> pure Nothing
       resolve s = (fmap head . Map.lookup s) <$> query storeState ReadSeriesMap
       resolves s = Map.findWithDefault [] s <$> query storeState ReadSeriesMap
   in BS.BlockStore insert lookup declareSeries update' append resolve resolves
