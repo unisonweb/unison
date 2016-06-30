@@ -5,7 +5,7 @@ module Unison.BlockStore where
 import GHC.Generics
 import Data.ByteString (ByteString)
 
-newtype Series = Series ByteString deriving (Generic)
+newtype Series = Series ByteString deriving (Generic, Eq, Ord, Show)
 
 -- | Represents an immutable content-addressed storage layer.
 -- We can insert some bytes, getting back a hash which can be used for lookup:
