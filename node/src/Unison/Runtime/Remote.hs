@@ -34,6 +34,10 @@ data Language t h
 
 newtype Err = Err String
 type Callbacks t h = IORef (Map Channel (IO (), MVar (Result t h)))
+
+callbacks0 :: IO (Callbacks t h)
+callbacks0 = newIORef Map.empty
+
 data Result t h = Error Err | Evaluated t | Syncing Channel Node [(h,t)]
 
 newtype Universe = Universe ByteString deriving (Show,Eq,Ord,Generic)
@@ -55,7 +59,7 @@ data Env t h
         -- Returns a `(send, cleanup)`, where the `cleanup` should be invoked when
         -- finished sending packets via `send`
         , connect :: Node -> IO (Packet t h -> IO (), IO ())
-        , keygen :: Int -> IO ByteString
+        , randomBytes :: Int -> IO ByteString
         , currentNode :: Node }
 
 sendPacketTo :: Env t h -> Node -> Packet t h -> IO ()
@@ -120,7 +124,7 @@ handle lang env (Eval u sender r) = do
         Just r -> handle lang env (Eval u sender r)
         Nothing -> fail "typechecker bug; function passed to Remote.bind did not return a Remote"
   newChannel :: IO Channel
-  newChannel = Channel <$> keygen env 32
+  newChannel = Channel <$> randomBytes env 32
   transfer n t k =
     sendPacketTo env n (Eval (universe env) (currentNode env) r) where
       r = case k of

@@ -56,6 +56,7 @@ library
     Unison.Runtime.ExtraBuiltins
     Unison.Runtime.Journal
     Unison.Runtime.KeyValueStore
+    Unison.Runtime.Multiplex
     Unison.Runtime.Remote
     Unison.SerializationAndHashing
     Unison.BlockStore.MemBlockStore
@@ -105,6 +106,7 @@ library
     scotty,
     sockaddr,
     stm,
+    stm-containers,
     text,
     time,
     transformers,
