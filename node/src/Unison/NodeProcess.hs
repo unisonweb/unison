@@ -47,11 +47,35 @@ import qualified Unison.Hash as Hash
 import qualified Unison.Cryptography as C
 import qualified Unison.Remote as Remote
 import qualified Unison.Runtime.Remote as Remote
+import qualified Unison.Runtime.Multiplex as Mux
 
 instance Serial Series
 
+data Handshake term
+  = Done (Mux.Channel (Remote.Packet term Hash) ())
+  | More (Mux.Channel B.ByteString (Handshake term)) deriving Generic
+
+instance Serial term => Serial (Handshake term)
+
+data Protocol term signature hash =
+  Protocol
+    -- | Shut down and destroy this node; requires proof of knowledge of private key
+    { _destroyIn :: Mux.Channel signature ()
+    -- | Destroy another node
+    , _destroyOut :: Mux.Channel (Remote.Node, signature) ()
+    -- | Initiate handshake with another node, eventually terminates in a channel that
+    -- may be used to send Remote.Packet values to that node
+    , _handshake :: Mux.Channel (Remote.Node, B.ByteString) (Handshake term)
+    -- | Various `BlockStore` methods
+    , _insert :: Mux.Channel B.ByteString hash
+    , _lookup :: Mux.Channel hash B.ByteString
+    , _declare :: Mux.Channel Series hash
+    , _update :: Mux.Channel (Series,hash,B.ByteString) (Maybe hash)
+    , _append :: Mux.Channel (Series,hash,B.ByteString) (Maybe hash)
+    , _resolve :: Mux.Channel Series (Maybe hash)
+    , _resolves :: Mux.Channel Series [hash] }
+
 data MessageIn signature hash
-  -- Shutdown this `Node`, requires proof of knowledge of private key
   = DestroyIn signature
   -- An encrypted `Remote.Packet t Hash`
   | RemoteIn Word64 B.ByteString

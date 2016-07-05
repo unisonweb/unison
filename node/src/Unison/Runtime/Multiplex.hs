@@ -20,11 +20,11 @@ import qualified STMContainers.Map as M
 -- import Control.Concurrent.STM
 
 data Packet =
-  Packet { destination :: B.ByteString, replyTo :: Maybe B.ByteString, content :: B.ByteString }
+  Packet { destination :: B.ByteString, replyTo :: Maybe B.ByteString, content :: Either String B.ByteString }
   deriving (Generic)
 instance Serial Packet
 
-newtype Callbacks = Callbacks (M.Map B.ByteString (B.ByteString -> IO ()))
+newtype Callbacks = Callbacks (M.Map B.ByteString (Either String B.ByteString -> IO ()))
 
 newtype Multiplex a = Multiplex (ReaderT (Packet -> IO (),Callbacks,IO B.ByteString) IO a)
   deriving (Applicative, Functor, Monad, MonadIO)
@@ -68,8 +68,11 @@ uniqueChannel = do
 callbacks0 :: STM Callbacks
 callbacks0 = Callbacks <$> M.new
 
-data Channel a b = Channel (Type a b) B.ByteString
-data Type a b = Type
+data Channel a b = Channel (Type a b) B.ByteString deriving Generic
+instance Serial (Channel a b)
+
+data Type a b = Type deriving Generic
+instance Serial (Type a b)
 
 type Microseconds = Int
 
@@ -80,11 +83,15 @@ requestCancellable (Channel _ dest) a = do
   replyTo <- liftIO fresh
   result <- liftIO newEmptyMVar
   liftIO . atomically $ M.insert (putMVar result) replyTo cbs
-  liftIO $ send (Packet dest (Just replyTo) (Put.runPutS $ serialize a))
-  cancel <- pure . liftIO . atomically . M.delete replyTo $ cbs
+  liftIO $ send (Packet dest (Just replyTo) (Right . Put.runPutS $ serialize a))
+  cancel <- pure $ do
+    cb <- liftIO . atomically $ M.lookup replyTo cbs <* M.delete replyTo cbs
+    case cb of
+      Nothing -> pure ()
+      Just cb -> liftIO $ cb (Left "cancelled")
   force <- pure . liftIO $ do
     bytes <- takeMVar result
-    pure $ Get.runGetS deserialize bytes
+    pure $ bytes >>= Get.runGetS deserialize
   pure (force, cancel)
 
 request :: (Serial a, Serial b) => Channel a b -> a -> Multiplex (Either String b)
@@ -124,20 +131,32 @@ fork m = do
 send :: Serial a => Channel a b -> a -> Multiplex ()
 send (Channel _ key) a = do
   (send,_,_) <- Multiplex ask
-  liftIO $ send (Packet key Nothing (Put.runPutS (serialize a)))
+  liftIO $ send (Packet key Nothing (Right $ Put.runPutS (serialize a)))
+
+sendFail :: Channel a b -> String -> Multiplex ()
+sendFail (Channel _ key) err = do
+  (send,_,_) <- Multiplex ask
+  liftIO $ send (Packet key Nothing (Left err))
 
 reply :: Serial b => Channel a b -> b -> Multiplex ()
 reply (Channel _ key) b = send (Channel Type key) b
+
+replyFail :: Channel a b -> String -> Multiplex ()
+replyFail (Channel _ key) err = send (Channel Type key) err
 
 receiveCancellable :: Serial b => Channel a b -> Multiplex (Multiplex (Either String b), Multiplex ())
 receiveCancellable (Channel _ key) = do
   (_,Callbacks cbs,_) <- Multiplex ask
   result <- liftIO newEmptyMVar
   liftIO . atomically $ M.insert (putMVar result) key cbs
-  cancel <- pure . liftIO . atomically . M.delete key $ cbs
+  cancel <- pure $ do
+    cb <- liftIO . atomically $ M.lookup key cbs <* M.delete key cbs
+    case cb of
+      Nothing -> pure ()
+      Just cb -> liftIO $ cb (Left "cancelled")
   force <- pure . liftIO $ do
     bytes <- takeMVar result
-    pure $ Get.runGetS deserialize bytes
+    pure $ bytes >>= Get.runGetS deserialize
   pure (force, cancel)
 
 receiveTimed :: Serial b => Microseconds -> Channel a b -> Multiplex (Either String b)
@@ -157,6 +176,6 @@ subscribe (Channel _ key) = do
   unsubscribe <- pure . liftIO . atomically . M.delete key $ cbs
   force <- pure . liftIO $ do
     bytes <- atomically $ readTQueue q
-    pure $ Get.runGetS deserialize bytes
+    pure $ bytes >>= Get.runGetS deserialize
   pure (force, unsubscribe)
 
