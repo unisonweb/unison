@@ -15,6 +15,7 @@
 --   sandbox
 module Unison.NodeProcess where
 
+import Control.Monad.Trans.Reader (ask)
 import Data.Functor
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar
@@ -68,54 +69,12 @@ data Protocol term signature hash =
     , _handshake :: Mux.Channel (Remote.Node, B.ByteString) (Handshake term)
     -- | Various `BlockStore` methods
     , _insert :: Mux.Channel B.ByteString hash
-    , _lookup :: Mux.Channel hash B.ByteString
+    , _lookup :: Mux.Channel hash (Maybe B.ByteString)
     , _declare :: Mux.Channel Series hash
     , _update :: Mux.Channel (Series,hash,B.ByteString) (Maybe hash)
     , _append :: Mux.Channel (Series,hash,B.ByteString) (Maybe hash)
     , _resolve :: Mux.Channel Series (Maybe hash)
     , _resolves :: Mux.Channel Series [hash] }
-
-data MessageIn signature hash
-  = DestroyIn signature
-  -- An encrypted `Remote.Packet t Hash`
-  | RemoteIn Word64 B.ByteString
-  -- Handshaking message used to establish an encrypted pipe
-  | HandshakeIn Word64 B.ByteString
-  -- The result of issuing some `BlockStoreQuery` to the container.
-  -- The `Word64` is the same `Word64`, used for correlation of request to response.
-  | BlockStoreResult Word64 (Either String (BlockStoreResult hash))
-  deriving Generic
-instance (Serial signature, Serial hash) => Serial (MessageIn signature hash)
-
-data MessageOut signature hash
-  = DestroyOut Remote.Node signature
-  | RemoteOut Word64 Remote.Node B.ByteString
-  | HandshakeOut Remote.Node Word64 B.ByteString
-  | BlockStoreQuery Word64 (BlockStoreQuery hash)
-  deriving Generic
-instance (Serial signature, Serial hash) => Serial (MessageOut signature hash)
-
-data BlockStoreQuery hash
-  = Insert B.ByteString
-  | Lookup hash
-  | DeclareSeries Series
-  | Update Series hash B.ByteString
-  | Append Series hash B.ByteString
-  | Resolve Series
-  | Resolves Series
-  deriving Generic
-instance Serial hash => Serial (BlockStoreQuery hash)
-
-data BlockStoreResult hash
-  = InsertResult hash
-  | LookupResult hash (Maybe B.ByteString)
-  | DeclareSeriesResult Series hash
-  | UpdateResult (Maybe hash)
-  | AppendResult (Maybe hash)
-  | ResolveResult (Maybe hash)
-  | ResolvesResult [hash]
-  deriving Generic
-instance Serial hash => Serial (BlockStoreResult hash)
 
 deserializeHandle :: Serial a => Handle -> B.ByteString -> (a -> IO ()) -> IO ()
 deserializeHandle h rem write = go (Get.runGetPartial deserialize rem) where
@@ -134,6 +93,7 @@ deserializeHandle1 h dec = go dec where
     Get.Partial k -> B.hGetSome h 65536 >>= \bs -> go (k bs)
     Get.Done a rem -> pure (a, rem)
 
+{-
 makeEnv :: (Serial term, Eq hash)
         => Remote.Universe
         -> Remote.Node
@@ -171,26 +131,12 @@ makeEnv universe currentNode crypto bs = do
     hs' <- traverse (BlockStore.resolve bs . Series . Hash.toBytes) hs
     pure . Set.fromList $ [h | (h, Nothing) <- hs `zip` hs']
   connect = undefined
+-}
 
 data Keypair = Keypair { public :: B.ByteString, private :: B.ByteString } deriving Generic
 instance Serial Keypair
 
-type BlockStoreCallbacks h = TVar (Word64, Map Word64 (MVar (Either String (BlockStoreResult h))))
-
-blockStoreListener :: BlockStoreCallbacks h -> TQueue (Maybe (MessageIn signature h)) -> IO ()
-blockStoreListener cbs q = void . forkIO . repeatWhile $ do
-  msg <- atomically $ readTQueue q
-  case msg of
-    Just (BlockStoreResult id r) -> handleBlockStore cbs (id, r) $> True
-    _ -> atomically (unGetTQueue q msg) $> False
-
-handleBlockStore :: BlockStoreCallbacks hash -> (Word64, Either String (BlockStoreResult hash)) -> IO ()
-handleBlockStore cbs (id, r) = do
-  (_,m) <- readTVarIO cbs
-  case Map.lookup id m of
-    Nothing -> pure ()
-    Just mvar -> putMVar mvar r
-
+{-
 make :: forall term key symmetricKey signKey signature hash cleartext h
       . (BA.ByteArrayAccess key, Serial signature, Serial term, Serial hash, Serial h, Eq h)
      => (Keypair -> Keypair -> Cryptography key symmetricKey signKey signature hash cleartext)
@@ -242,45 +188,26 @@ make mkCrypto makeSandbox = do
       Just msg -> True <$ B.putStr (Put.runPutS (serialize msgOut))
   Async.waitCatch reader >> Async.waitCatch writer >> pure ()
   pure ()
+-}
 
 repeatWhile :: Monad f => f Bool -> f ()
 repeatWhile action = do
   ok <- action
   when ok (repeatWhile action)
 
-blockStoreProxy :: TVar (Word64, Map Word64 (MVar (Either String (BlockStoreResult hash))))
-                -> (MessageOut signature hash -> IO ())
-                -> BlockStore hash
-blockStoreProxy v send = BlockStore insert lookup declare update append resolve resolves where
-  -- todo may want to add timeouts, errors
-  init query = do
-    result <- newEmptyMVar
-    nonce <- atomically $ do
-      modifyTVar v (\(nonce,m) -> (nonce+1, Map.insert nonce result m))
-      fst <$> readTVar v
-    send $ BlockStoreQuery nonce query
-    e <- takeMVar result
-    either fail pure e
-  insert bytes = do
-    InsertResult h <- init (Insert bytes)
-    pure h
-  lookup h = do
-    LookupResult _ bytes <- init (Lookup h)
-    -- could do some verification of bytes here
-    pure bytes
-  declare s0@(Series series) = do
-    DeclareSeriesResult (Series s) h <- init (DeclareSeries s0)
-    guard (series == s)
-    pure h
-  update series h bytes = do
-    UpdateResult h <- init (Update series h bytes)
-    pure h
-  append series h bytes = do
-    AppendResult h <- init (Append series h bytes)
-    pure h
-  resolve series = do
-    ResolveResult h <- init (Resolve series)
-    pure h
-  resolves series = do
-    ResolvesResult hs <- init (Resolves series)
-    pure hs
+blockStoreProxy :: (Serial hash) => Protocol term signature hash -> Mux.Multiplex (BlockStore hash)
+blockStoreProxy p = go <$> Mux.Multiplex ask
+  where
+  timeout = 5000000 :: Mux.Microseconds
+  go env =
+    let
+      mt :: (Serial a, Serial b) => Mux.Channel a b -> a -> IO b
+      mt chan a = Mux.run env $ Mux.requestTimed' timeout chan a
+      insert bytes = mt (_insert p) bytes
+      lookup h = mt (_lookup p) h
+      declare series = mt (_declare p) series
+      update series h bytes = mt (_update p) (series,h,bytes)
+      append series h bytes = mt (_append p) (series,h,bytes)
+      resolve series = mt (_resolve p) series
+      resolves series = mt (_resolves p) series
+    in BlockStore insert lookup declare update append resolve resolves
