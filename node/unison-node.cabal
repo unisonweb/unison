@@ -154,6 +154,7 @@ executable node
     free,
     hashable,
     http-types,
+    list-t,
     memory,
     mtl,
     murmur-hash,

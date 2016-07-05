@@ -5,11 +5,12 @@ module Unison.Runtime.Multiplex where
 
 import Control.Monad
 import Control.Concurrent.MVar
-import Control.Concurrent.STM
+import Control.Concurrent.STM as STM
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader (ReaderT,runReaderT,ask)
 import Data.Bytes.Serial (Serial(serialize,deserialize))
 import Data.IORef
+import qualified ListT as ListT
 import GHC.Generics
 import qualified Control.Concurrent as C
 import qualified Crypto.Random as Random
@@ -24,7 +25,9 @@ data Packet =
   deriving (Generic)
 instance Serial Packet
 
-newtype Callbacks = Callbacks (M.Map B.ByteString (Either String B.ByteString -> IO ()))
+type IsSubscription = Bool
+
+newtype Callbacks = Callbacks (M.Map B.ByteString (IsSubscription, Either String B.ByteString -> IO ()))
 
 newtype Multiplex a = Multiplex (ReaderT (Packet -> IO (),Callbacks,IO B.ByteString) IO a)
   deriving (Applicative, Functor, Monad, MonadIO)
@@ -43,7 +46,17 @@ runLoop recv env@(_, Callbacks cbs, _) a = do
         callback <- atomically $ M.lookup destination cbs
         case callback of
           Nothing -> pure True
-          Just callback -> callback content >> pure True
+          Just (_, callback) -> callback content >> pure True
+
+shutdown :: Multiplex ()
+shutdown = do
+  (_, Callbacks cbs, _) <- Multiplex ask
+  liftIO . atomically $ do
+    -- todo: may want to do this with uncons, to avoid needing to snapshot entire map
+    entries <- ListT.toList (M.stream cbs)
+    forM_ entries $ \(_,(isSub,_)) ->
+      if isSub then pure ()
+      else STM.retry -- it's an active request, wait for it to complete
 
 repeatWhile :: Monad f => f Bool -> f ()
 repeatWhile action = do
@@ -82,13 +95,13 @@ requestCancellable (Channel _ dest) a = do
   (send,Callbacks cbs,fresh) <- Multiplex ask
   replyTo <- liftIO fresh
   result <- liftIO newEmptyMVar
-  liftIO . atomically $ M.insert (putMVar result) replyTo cbs
+  liftIO . atomically $ M.insert (False, putMVar result) replyTo cbs
   liftIO $ send (Packet dest (Just replyTo) (Right . Put.runPutS $ serialize a))
   cancel <- pure $ do
     cb <- liftIO . atomically $ M.lookup replyTo cbs <* M.delete replyTo cbs
     case cb of
       Nothing -> pure ()
-      Just cb -> liftIO $ cb (Left "cancelled")
+      Just (_,cb) -> liftIO $ cb (Left "cancelled")
   force <- pure . liftIO $ do
     bytes <- takeMVar result
     pure $ bytes >>= Get.runGetS deserialize
@@ -148,12 +161,12 @@ receiveCancellable :: Serial b => Channel a b -> Multiplex (Multiplex (Either St
 receiveCancellable (Channel _ key) = do
   (_,Callbacks cbs,_) <- Multiplex ask
   result <- liftIO newEmptyMVar
-  liftIO . atomically $ M.insert (putMVar result) key cbs
+  liftIO . atomically $ M.insert (False, putMVar result) key cbs
   cancel <- pure $ do
     cb <- liftIO . atomically $ M.lookup key cbs <* M.delete key cbs
     case cb of
       Nothing -> pure ()
-      Just cb -> liftIO $ cb (Left "cancelled")
+      Just (_,cb) -> liftIO $ cb (Left "cancelled")
   force <- pure . liftIO $ do
     bytes <- takeMVar result
     pure $ bytes >>= Get.runGetS deserialize
@@ -172,10 +185,9 @@ subscribe :: Serial b => Channel a b -> Multiplex (Multiplex (Either String b), 
 subscribe (Channel _ key) = do
   (_, Callbacks cbs, _) <- Multiplex ask
   q <- liftIO . atomically $ newTQueue
-  liftIO . atomically $ M.insert (atomically . writeTQueue q) key cbs
+  liftIO . atomically $ M.insert (True, atomically . writeTQueue q) key cbs
   unsubscribe <- pure . liftIO . atomically . M.delete key $ cbs
   force <- pure . liftIO $ do
     bytes <- atomically $ readTQueue q
     pure $ bytes >>= Get.runGetS deserialize
   pure (force, unsubscribe)
-
