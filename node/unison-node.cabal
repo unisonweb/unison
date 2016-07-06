@@ -54,6 +54,7 @@ library
     Unison.Remote.Extra
     Unison.Runtime.Block
     Unison.Runtime.ExtraBuiltins
+    Unison.Runtime.ExpiringMap
     Unison.Runtime.Journal
     Unison.Runtime.KeyValueStore
     Unison.Runtime.Multiplex

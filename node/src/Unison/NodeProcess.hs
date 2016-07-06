@@ -13,6 +13,12 @@
 --   so basically, it's just idleness tracking, nodes go to sleep
 --   so just connect, idleness tracking
 --   sandbox
+--   to implement idleness tracking, can just walk through the callbacks map,
+--   calling retry anytime we hit a non-subscription
+--   not quite sufficient, since our Remote.Env might be waiting for a request
+--   handshaking can return a non-idle subscription
+--   rewrite Runtime.Remote to use Multiplex, then can accurately track
+--   or can provide idleness tracking in Runtime.Remote
 module Unison.NodeProcess where
 
 import Control.Monad.Trans.Reader (ask)
@@ -52,8 +58,15 @@ import qualified Unison.Runtime.Multiplex as Mux
 
 instance Serial Series
 
+-- | Channel which is returned by `Done` is assumed to remain subscribed for
+-- t seconds of inactivity on the sender side, and t + delta of inactivity on the
+-- recipient side. Thus sender can always just send if the channel hasn't
+-- expired, assuming clock skew is less than delta.
+--
+-- The sender keeps an expiring cache of connections returned by handshaking.
+
 data Handshake term
-  = Done (Mux.Channel (Remote.Packet term Hash) ())
+  = Done (Mux.Channel (Maybe B.ByteString) ()) -- an encrypted `Remote.Packet`
   | More (Mux.Channel B.ByteString (Handshake term)) deriving Generic
 
 instance Serial term => Serial (Handshake term)
@@ -93,7 +106,6 @@ deserializeHandle1 h dec = go dec where
     Get.Partial k -> B.hGetSome h 65536 >>= \bs -> go (k bs)
     Get.Done a rem -> pure (a, rem)
 
-{-
 makeEnv :: (Serial term, Eq hash)
         => Remote.Universe
         -> Remote.Node
@@ -105,7 +117,7 @@ makeEnv universe currentNode crypto bs = do
   pure $ Remote.Env callbacks saveHashes getHashes missingHashes universe connect (C.randomBytes crypto) currentNode
   where
   -- connect :: Node -> IO (Packet t h -> IO (), IO ())
-  -- todo: probably should do some caching here
+  -- todo: probably should do some caching/buffering here
   saveHashes hs =
     void $ Async.mapConcurrently saveHash hs
   saveHash (h,t) = do
@@ -130,8 +142,7 @@ makeEnv universe currentNode crypto bs = do
     let hs = Set.toList hs0
     hs' <- traverse (BlockStore.resolve bs . Series . Hash.toBytes) hs
     pure . Set.fromList $ [h | (h, Nothing) <- hs `zip` hs']
-  connect = undefined
--}
+  connect = undefined -- todo: can define this in terms of handshaking
 
 data Keypair = Keypair { public :: B.ByteString, private :: B.ByteString } deriving Generic
 instance Serial Keypair
