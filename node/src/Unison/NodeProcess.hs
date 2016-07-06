@@ -21,15 +21,15 @@
 --   or can provide idleness tracking in Runtime.Remote
 module Unison.NodeProcess where
 
-import Control.Monad.Trans.Reader (ask)
-import Data.Functor
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar
 import Control.Concurrent.STM (atomically,STM)
 import Control.Concurrent.STM.TQueue
 import Control.Concurrent.STM.TVar
 import Control.Monad
+import Control.Monad.Trans.Reader (ask)
 import Data.Bytes.Serial (Serial, serialize, deserialize)
+import Data.Functor
 import Data.Map (Map)
 import Data.Maybe
 import Data.Serialize.Get (Get)
@@ -37,7 +37,6 @@ import Data.Word
 import GHC.Generics
 import System.IO (Handle, stdin, stdout, hSetBinaryMode)
 import Unison.BlockStore (BlockStore(..), Series(..))
-import qualified Unison.BlockStore as BlockStore
 import Unison.Cryptography (Cryptography)
 import Unison.Hash (Hash)
 import Unison.Hash.Extra ()
@@ -49,45 +48,14 @@ import qualified Data.Bytes.Put as Put
 import qualified Data.Map as Map
 import qualified Data.Serialize.Get as Get
 import qualified Data.Set as Set
-import qualified Unison.Runtime.Block as Block
-import qualified Unison.Hash as Hash
+import qualified Unison.BlockStore as BlockStore
 import qualified Unison.Cryptography as C
+import qualified Unison.Hash as Hash
+import qualified Unison.NodeProtocol as P
 import qualified Unison.Remote as Remote
-import qualified Unison.Runtime.Remote as Remote
+import qualified Unison.Runtime.Block as Block
 import qualified Unison.Runtime.Multiplex as Mux
-
-instance Serial Series
-
--- | Channel which is returned by `Done` is assumed to remain subscribed for
--- t seconds of inactivity on the sender side, and t + delta of inactivity on the
--- recipient side. Thus sender can always just send if the channel hasn't
--- expired, assuming clock skew is less than delta.
---
--- The sender keeps an expiring cache of connections returned by handshaking.
-
-data Handshake term
-  = Done (Mux.Channel (Maybe B.ByteString) ()) -- an encrypted `Remote.Packet`
-  | More (Mux.Channel B.ByteString (Handshake term)) deriving Generic
-
-instance Serial term => Serial (Handshake term)
-
-data Protocol term signature hash =
-  Protocol
-    -- | Shut down and destroy this node; requires proof of knowledge of private key
-    { _destroyIn :: Mux.Channel signature ()
-    -- | Destroy another node
-    , _destroyOut :: Mux.Channel (Remote.Node, signature) ()
-    -- | Initiate handshake with another node, eventually terminates in a channel that
-    -- may be used to send Remote.Packet values to that node
-    , _handshake :: Mux.Channel (Remote.Node, B.ByteString) (Handshake term)
-    -- | Various `BlockStore` methods
-    , _insert :: Mux.Channel B.ByteString hash
-    , _lookup :: Mux.Channel hash (Maybe B.ByteString)
-    , _declare :: Mux.Channel Series hash
-    , _update :: Mux.Channel (Series,hash,B.ByteString) (Maybe hash)
-    , _append :: Mux.Channel (Series,hash,B.ByteString) (Maybe hash)
-    , _resolve :: Mux.Channel Series (Maybe hash)
-    , _resolves :: Mux.Channel Series [hash] }
+import qualified Unison.Runtime.Remote as Remote
 
 deserializeHandle :: Serial a => Handle -> B.ByteString -> (a -> IO ()) -> IO ()
 deserializeHandle h rem write = go (Get.runGetPartial deserialize rem) where
@@ -206,19 +174,3 @@ repeatWhile action = do
   ok <- action
   when ok (repeatWhile action)
 
-blockStoreProxy :: (Serial hash) => Protocol term signature hash -> Mux.Multiplex (BlockStore hash)
-blockStoreProxy p = go <$> Mux.Multiplex ask
-  where
-  timeout = 5000000 :: Mux.Microseconds
-  go env =
-    let
-      mt :: (Serial a, Serial b) => Mux.Channel a b -> a -> IO b
-      mt chan a = Mux.run env $ Mux.requestTimed' timeout chan a
-      insert bytes = mt (_insert p) bytes
-      lookup h = mt (_lookup p) h
-      declare series = mt (_declare p) series
-      update series h bytes = mt (_update p) (series,h,bytes)
-      append series h bytes = mt (_append p) (series,h,bytes)
-      resolve series = mt (_resolve p) series
-      resolves series = mt (_resolves p) series
-    in BlockStore insert lookup declare update append resolve resolves

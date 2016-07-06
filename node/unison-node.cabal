@@ -50,6 +50,7 @@ library
     Unison.Kind.Extra
     Unison.NodeServer
     Unison.NodeProcess
+    Unison.NodeProtocol
     Unison.Reference.Extra
     Unison.Remote.Extra
     Unison.Runtime.Block
@@ -96,6 +97,7 @@ library
     hashable, 
     http-types,
     io-streams,
+    list-t,
     memory,
     mtl,
     murmur-hash,
