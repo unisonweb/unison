@@ -5,37 +5,31 @@
 module Unison.NodeProtocol where
 
 import Data.Bytes.Serial (Serial)
-import GHC.Generics
 import Unison.BlockStore (BlockStore(..), Series(..))
 import Unison.Hash.Extra ()
-import Unison.Runtime.Multiplex (Channel,Request)
+import Unison.Remote (Remote)
+import Unison.Runtime.Multiplex (EncryptedChannel,Channel,Request)
 import qualified Data.ByteString as B
-import qualified Unison.Remote as Remote
 import qualified Unison.Runtime.Multiplex as Mux
 
 instance Serial Series
-
--- | Channel which is returned by `Done` is assumed to remain subscribed for
--- t seconds of inactivity on the sender side, and t + delta of inactivity on the
--- recipient side. Thus sender can always just send if the channel hasn't
--- expired, assuming clock skew is less than delta.
---
--- The sender keeps an expiring cache of connections returned by handshaking.
-data Handshake
-  = Done (Channel B.ByteString) -- an encrypted channel
-  | More B.ByteString (Request B.ByteString Handshake) deriving Generic
-
-instance Serial Handshake
 
 data Protocol term signature hash =
   Protocol
     -- | Shut down and destroy this node; requires proof of knowledge of private key
     { _destroyIn :: Channel signature
     -- | Destroy another node
-    , _destroyOut :: Channel (Remote.Node, signature)
-    -- | Initiate handshake with another node, eventually terminates in a channel that
-    -- may be used to send encrypted messages to that node
-    , _handshake :: Request (Remote.Node, B.ByteString) Handshake
+    , _destroyOut :: Channel signature
+    -- | Channel used to initiate handshaking to establish an encrypted pipe of `Maybe (Remote term)`
+    -- Initial message is an encrypted (Remote.Node, Remote.Universe, Channel B.ByteString)
+    -- containing the initiating node+universe and a channel to use for subsequent communication.
+    , _eval :: EncryptedChannel (Maybe (Remote term))
+    -- | Channel used to initiate handshaking to establish an encrypted pipe of
+    -- `Maybe ([Hash], Channel B.ByteString)` for syncing needed hashes. Initial message
+    -- is an encrypted (Remote.Node, Channel B.ByteString, Channel B.ByteString)
+    -- containing the initiating node, +needed hashes and a channel to use for subsequent
+    -- communication.
+    , _needs :: Channel B.ByteString
     -- | Various `BlockStore` methods
     , _insert :: Request B.ByteString hash
     , _lookup :: Request hash (Maybe B.ByteString)

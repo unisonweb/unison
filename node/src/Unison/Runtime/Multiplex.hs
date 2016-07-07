@@ -1,18 +1,23 @@
-{-# Language GeneralizedNewtypeDeriving #-}
 {-# Language DeriveGeneric #-}
+{-# Language GeneralizedNewtypeDeriving #-}
+{-# Language TupleSections #-}
 
 module Unison.Runtime.Multiplex where
 
 import Control.Applicative
 import Control.Concurrent.MVar
 import Control.Concurrent.STM as STM
+import Control.Concurrent.STM.TVar
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Reader (ReaderT,runReaderT,MonadReader)
 import Data.Bytes.Serial (Serial(serialize,deserialize))
+import Data.Functor
 import Data.IORef
+import Data.Maybe
 import GHC.Generics
 import qualified Control.Concurrent as C
+import qualified Control.Concurrent.Async as Async
 import qualified Control.Monad.Reader as Reader
 import qualified Crypto.Random as Random
 import qualified Data.ByteString as B
@@ -89,6 +94,12 @@ callbacks0 :: STM Callbacks
 callbacks0 = Callbacks <$> M.new
 
 data Channel a = Channel (Type a) B.ByteString deriving Generic
+
+newtype EncryptedChannel a = EncryptedChannel (Channel a) deriving Generic
+
+erase :: EncryptedChannel a -> Channel B.ByteString
+erase (EncryptedChannel (Channel _ b)) = Channel Type b
+
 instance Serial (Channel a)
 
 data Type a = Type deriving Generic
@@ -97,6 +108,17 @@ instance Serial (Type a)
 type Request a b = Channel (a, Channel (Maybe b))
 
 type Microseconds = Int
+
+requestTimed' :: (Serial a, Serial b) => Microseconds -> Request a b -> STM a -> Multiplex b
+requestTimed' micros req a = do
+  replyTo <- channel
+  env <- ask
+  (receive, cancel) <- receiveCancellable replyTo
+  send' req $ (,replyTo) <$> a
+  watchdog <- liftIO . C.forkIO $ do
+    liftIO $ C.threadDelay micros
+    run env cancel
+  fork $ receive <* liftIO (C.killThread watchdog)
 
 requestTimed :: (Serial a, Serial b) => Microseconds -> Request a b -> a -> Multiplex b
 requestTimed micros req a = do
@@ -130,9 +152,12 @@ channel = do
   Channel Type <$> liftIO fresh
 
 send :: Serial a => Channel a -> a -> Multiplex ()
-send (Channel _ key) a = do
+send chan a = send' chan (pure a)
+
+send' :: Serial a => Channel a -> STM a -> Multiplex ()
+send' (Channel _ key) a = do
   (send,_,_) <- ask
-  liftIO . atomically . send $ pure (Packet key (Put.runPutS (serialize a)))
+  liftIO . atomically $ send (Packet key . Put.runPutS . serialize <$> a)
 
 receiveCancellable :: Serial a => Channel (Maybe a) -> Multiplex (Multiplex a, Multiplex ())
 receiveCancellable (Channel _ key) = do
@@ -161,7 +186,42 @@ receiveTimed micros chan = do
     run env cancel
   fork $ force <* liftIO (C.killThread watchdog)
 
-subscribe :: Serial a => Channel a -> Multiplex (Multiplex a, IO ())
+timeout' :: Microseconds -> a -> Multiplex a -> Multiplex a
+timeout' micros onTimeout m = fromMaybe onTimeout <$> timeout micros m
+
+timeout :: Microseconds -> Multiplex a -> Multiplex (Maybe a)
+timeout micros m = do
+  env <- ask
+  t1 <- liftIO $ Async.async (Just <$> run env m)
+  t2 <- liftIO $ Async.async (C.threadDelay micros $> Nothing)
+  liftIO $ snd <$> Async.waitAnyCancel [t1, t2]
+
+subscribeTimed :: Serial a => Microseconds -> Channel a -> Multiplex (Multiplex (Maybe a), Multiplex ())
+subscribeTimed micros chan = do
+  (fetch, cancel) <- subscribe chan
+  env <- ask
+  activity <- liftIO . atomically . newTVar $ False
+  alive <- liftIO . atomically . newTVar $ True
+  fetch' <- pure $ do
+    liftIO . atomically $ writeTVar activity True
+    ok <- liftIO $ readTVarIO alive
+    case ok of
+      True -> Just <$> fetch
+      False -> pure Nothing
+  let cleanup = cancel >> (liftIO . atomically . writeTVar alive $ False)
+  watchdog <- liftIO . C.forkIO . run env $ loop activity cleanup
+  cancel' <- pure $ cleanup >> liftIO (C.killThread watchdog)
+  pure (fetch', cancel')
+  where
+  loop activity cleanup = do
+    liftIO . atomically $ writeTVar activity False
+    liftIO $ C.threadDelay micros
+    active <- liftIO . atomically $ readTVar activity
+    case active of
+      False -> cleanup -- no new fetches in last micros period
+      True -> loop activity cleanup
+
+subscribe :: Serial a => Channel a -> Multiplex (Multiplex a, Multiplex ())
 subscribe (Channel _ key) = do
   (_, Callbacks cbs, _) <- ask
   q <- liftIO . atomically $ newTQueue
