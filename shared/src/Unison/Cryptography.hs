@@ -2,11 +2,12 @@
 
 module Unison.Cryptography where
 
-import qualified Data.ByteString.Lazy as LB
-import qualified Data.ByteString.Builder as Builder
+import Control.Concurrent.STM (STM)
+import Data.ByteString (ByteString)
 import Data.List
 import qualified Data.ByteString as ByteString
-import Data.ByteString (ByteString)
+import qualified Data.ByteString.Builder as Builder
+import qualified Data.ByteString.Lazy as LB
 import qualified Data.Digest.Murmur64 as Murmur
 
 type DoneHandshake = Bool
@@ -19,13 +20,14 @@ noop = Cryptography () () hash sign verify randomBytes encryptAsymmetric decrypt
   hash = finish . foldl' (\acc bs -> Murmur.hash64Add bs acc) (Murmur.hash64 ())
   sign _ = "not-a-real-signature" :: ByteString
   verify _ _ _ = True
+  -- todo: this actually needs to be a bit more realistic
   randomBytes n = pure $ ByteString.replicate n 4 -- see: https://xkcd.com/221/
   encryptAsymmetric _ cleartext = pure cleartext
   decryptAsymmetric ciphertext = Right ciphertext
   encrypt _ bs = pure $ ByteString.concat bs
   decrypt _ bs = Right bs
-  pipeInitiator _ = pure (pure True, pure, pure)
-  pipeResponder = pure (pure True, pure (Just ()), pure, pure)
+  pipeInitiator _ = pure (pure True, \b q -> q (pure b), pure)
+  pipeResponder = pure (pure True, pure (Just ()), \b q -> q (pure b), pure)
   finish h64 = (LB.toStrict . Builder.toLazyByteString . Builder.word64LE . Murmur.asWord64) h64
 
 data Cryptography key symmetricKey signKey signature hash cleartext =
@@ -50,13 +52,18 @@ data Cryptography key symmetricKey signKey signature hash cleartext =
     , encrypt :: symmetricKey -> [cleartext] -> IO Ciphertext
     -- symmetrically decrypt
     , decrypt :: symmetricKey -> ByteString -> Either String cleartext
-    -- Initiate a secure pipe. Does not perform transport. Returns a function used to encrypt
-    -- cleartext for sending to the other party, and a receiving function used to decrypt messages
-    -- received back from the other party.
-    , pipeInitiator :: key -> IO (IO DoneHandshake, cleartext -> IO ByteString, ByteString -> IO cleartext)
+    -- Initiate a secure pipe. Does not perform transport. Returns a function used to
+    -- encrypt+enqueue cleartext for sending to the other party, and a receiving function
+    -- used to decrypt messages received back from the other party.
+    , pipeInitiator :: key -> IO ( STM DoneHandshake
+                                 , cleartext -> (STM ByteString -> STM ()) -> STM ()
+                                 , ByteString -> STM cleartext)
     -- Respond to a secure pipe initiated by another party. Does not perform transport.
     -- Returns a function used to encrypt cleartext for sending to the other party, and a
     -- receiving function used to decrypt messages received back from the other party. Also
     -- receives the other party's public key, after handshaking completes.
-    , pipeResponder :: IO (IO DoneHandshake, IO (Maybe key), cleartext -> IO ByteString, ByteString -> IO cleartext) }
+    , pipeResponder :: IO ( STM DoneHandshake, STM (Maybe key)
+                          , cleartext -> (STM ByteString -> STM ()) -> STM ()
+                          , ByteString -> STM cleartext)
+    }
 

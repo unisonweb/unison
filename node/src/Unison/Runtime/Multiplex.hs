@@ -3,48 +3,51 @@
 
 module Unison.Runtime.Multiplex where
 
+import Control.Applicative
 import Control.Concurrent.MVar
 import Control.Concurrent.STM as STM
 import Control.Monad
 import Control.Monad.IO.Class
-import Control.Monad.Trans.Reader (ReaderT,runReaderT,ask)
+import Control.Monad.Reader (ReaderT,runReaderT,MonadReader)
 import Data.Bytes.Serial (Serial(serialize,deserialize))
 import Data.IORef
 import GHC.Generics
 import qualified Control.Concurrent as C
+import qualified Control.Monad.Reader as Reader
 import qualified Crypto.Random as Random
 import qualified Data.ByteString as B
 import qualified Data.Bytes.Get as Get
 import qualified Data.Bytes.Put as Put
-import qualified Data.Serialize.Get as GetS
-import qualified Data.Serialize.Put as PutS
 import qualified ListT as ListT
 import qualified STMContainers.Map as M
 -- import Control.Concurrent.STM
 
-data Packet =
-  Packet { destination :: B.ByteString, replyTo :: Maybe B.ByteString, content :: Either String B.ByteString }
-  deriving (Generic)
+data Packet = Packet { destination :: B.ByteString, content :: B.ByteString } deriving (Generic)
 instance Serial Packet
 
 type IsSubscription = Bool
 
-newtype Callbacks = Callbacks (M.Map B.ByteString (IsSubscription, Either String B.ByteString -> IO ()))
+newtype Callbacks = Callbacks (M.Map B.ByteString (IsSubscription, B.ByteString -> IO ()))
 
-newtype Multiplex a = Multiplex (ReaderT (Packet -> IO (),Callbacks,IO B.ByteString) IO a)
-  deriving (Applicative, Functor, Monad, MonadIO)
+type Env = (STM Packet -> STM (), Callbacks, IO B.ByteString)
 
-run :: (Packet -> IO (), Callbacks, IO B.ByteString) -> Multiplex a -> IO a
+newtype Multiplex a = Multiplex (ReaderT Env IO a)
+  deriving (Applicative, Alternative, Functor, Monad, MonadIO, MonadPlus, MonadReader Env)
+
+run :: Env -> Multiplex a -> IO a
 run env (Multiplex go) = runReaderT go env
+
+ask :: Multiplex Env
+ask = Multiplex Reader.ask
 
 process :: IO (Maybe Packet) -> Multiplex ()
 process recv = do
-  (_, Callbacks cbs, _) <- Multiplex ask
+  (_, Callbacks cbs, _) <- ask
   liftIO . repeatWhile $ do
     packet <- recv
     case packet of
       Nothing -> pure False
-      Just (Packet destination _ content) -> do
+      Just (Packet destination content) -> do
         callback <- atomically $ M.lookup destination cbs
         case callback of
           Nothing -> pure True
@@ -52,7 +55,7 @@ process recv = do
 
 shutdown :: Multiplex ()
 shutdown = do
-  (_, Callbacks cbs, _) <- Multiplex ask
+  (_, Callbacks cbs, _) <- ask
   liftIO . atomically $ do
     -- todo: may want to do this with uncons, to avoid needing to snapshot entire map
     entries <- ListT.toList (M.stream cbs)
@@ -65,10 +68,12 @@ repeatWhile action = do
   ok <- action
   when ok (repeatWhile action)
 
--- todo: main loop, takes an `IO (Maybe Packet)`
-
-env0 :: IO (Packet -> IO (), Callbacks, IO B.ByteString)
-env0 = undefined
+untilDefined :: Monad f => f (Maybe a) -> f a
+untilDefined action = do
+  ok <- action
+  case ok of
+    Nothing -> untilDefined action
+    Just a -> pure a
 
 uniqueChannel :: IO (IO B.ByteString)
 uniqueChannel = do
@@ -83,123 +88,86 @@ uniqueChannel = do
 callbacks0 :: STM Callbacks
 callbacks0 = Callbacks <$> M.new
 
-data Channel a b = Channel (Type a b) B.ByteString deriving Generic
-instance Serial (Channel a b)
+data Channel a = Channel (Type a) B.ByteString deriving Generic
+instance Serial (Channel a)
 
-data Type a b = Type deriving Generic
-instance Serial (Type a b)
+data Type a = Type deriving Generic
+instance Serial (Type a)
+
+type Request a b = Channel (a, Channel (Maybe b))
 
 type Microseconds = Int
 
-requestCancellableVia :: Channel a b -> (a -> PutS.Put, GetS.Get (Either String b))
-                      -> a
-                      -> Multiplex (Multiplex (Either String b), Multiplex ())
-requestCancellableVia (Channel _ dest) (serialize,deserialize) a = do
-  (send,Callbacks cbs,fresh) <- Multiplex ask
-  replyTo <- liftIO fresh
-  result <- liftIO newEmptyMVar
-  liftIO . atomically $ M.insert (False, putMVar result) replyTo cbs
-  liftIO $ send (Packet dest (Just replyTo) (Right . Put.runPutS $ serialize a))
-  cancel <- pure $ do
-    cb <- liftIO . atomically $ M.lookup replyTo cbs <* M.delete replyTo cbs
-    case cb of
-      Nothing -> pure ()
-      Just (_,cb) -> liftIO $ cb (Left "cancelled")
-  force <- pure . liftIO $ do
-    bytes <- takeMVar result
-    pure $ bytes >>= Get.runGetS deserialize >>= id
-  pure (force, cancel)
-
-requestCancellable :: (Serial a, Serial b) => Channel a b -> a
-                   -> Multiplex (Multiplex (Either String b), Multiplex ())
-requestCancellable chan = requestCancellableVia chan (serialize, deserialize)
-
-request :: (Serial a, Serial b) => Channel a b -> a -> Multiplex (Either String b)
-request chan a = do
-  (request, _) <- requestCancellable chan a
-  b <- fork request
-  pure b
-
-requestTimedVia :: Microseconds -> Channel a b -> (a -> PutS.Put, GetS.Get (Either String b))
-                -> a
-                -> Multiplex (Either String b)
-requestTimedVia micros chan putget a = do
-  (request, cancel) <- requestCancellableVia chan putget a
-  env <- Multiplex ask
+requestTimed :: (Serial a, Serial b) => Microseconds -> Request a b -> a -> Multiplex b
+requestTimed micros req a = do
+  replyTo <- channel
+  env <- ask
+  (receive, cancel) <- receiveCancellable replyTo
+  send req (a, replyTo)
   watchdog <- liftIO . C.forkIO $ do
     liftIO $ C.threadDelay micros
     run env cancel
-  fork $ request <* liftIO (C.killThread watchdog)
-
-requestTimed :: (Serial a, Serial b) => Microseconds -> Channel a b -> a -> Multiplex (Either String b)
-requestTimed micros chan = requestTimedVia micros chan (serialize,deserialize)
-
-requestTimed' :: (Serial a, Serial b) => Microseconds -> Channel a b -> a -> Multiplex b
-requestTimed' micros chan a = do
-  e <- requestTimed micros chan a
-  either fail pure e
-
-request' :: (Serial a, Serial b) => Channel a b -> a -> Multiplex b
-request' chan a = do
-  eb <- fork $ request chan a
-  either fail pure eb
+  fork $ receive <* liftIO (C.killThread watchdog)
 
 fork :: Multiplex a -> Multiplex a
 fork m = do
   result <- liftIO newEmptyMVar
-  env <- Multiplex ask
+  env <- ask
   _ <- liftIO . C.forkIO $ do
     a <- run env m
     putMVar result a
   liftIO (takeMVar result)
 
-send :: Serial a => Channel a b -> a -> Multiplex ()
+nest :: Serial k => k -> Multiplex a -> Multiplex a
+nest outer m = Reader.local tweak m where
+  tweak (send,cbs,fresh) = (send' send,cbs,fresh)
+  kbytes = Put.runPutS (serialize outer)
+  send' send p = send $ (\p -> Packet kbytes (Put.runPutS (serialize p))) <$> p
+
+channel :: Multiplex (Channel a)
+channel = do
+  (_,_,fresh) <- ask
+  Channel Type <$> liftIO fresh
+
+send :: Serial a => Channel a -> a -> Multiplex ()
 send (Channel _ key) a = do
-  (send,_,_) <- Multiplex ask
-  liftIO $ send (Packet key Nothing (Right $ Put.runPutS (serialize a)))
+  (send,_,_) <- ask
+  liftIO . atomically . send $ pure (Packet key (Put.runPutS (serialize a)))
 
-sendFail :: Channel a b -> String -> Multiplex ()
-sendFail (Channel _ key) err = do
-  (send,_,_) <- Multiplex ask
-  liftIO $ send (Packet key Nothing (Left err))
-
-reply :: Serial b => Channel a b -> b -> Multiplex ()
-reply (Channel _ key) b = send (Channel Type key) b
-
-replyFail :: Channel a b -> String -> Multiplex ()
-replyFail (Channel _ key) err = send (Channel Type key) err
-
-receiveCancellable :: Serial b => Channel a b -> Multiplex (Multiplex (Either String b), Multiplex ())
+receiveCancellable :: Serial a => Channel (Maybe a) -> Multiplex (Multiplex a, Multiplex ())
 receiveCancellable (Channel _ key) = do
-  (_,Callbacks cbs,_) <- Multiplex ask
+  (_,Callbacks cbs,_) <- ask
   result <- liftIO newEmptyMVar
   liftIO . atomically $ M.insert (False, putMVar result) key cbs
   cancel <- pure $ do
     cb <- liftIO . atomically $ M.lookup key cbs <* M.delete key cbs
     case cb of
       Nothing -> pure ()
-      Just (_,cb) -> liftIO $ cb (Left "cancelled")
+      Just (_,cb) -> liftIO $ cb (Put.runPutS (serialize (Nothing :: Maybe Int)))
   force <- pure . liftIO $ do
     bytes <- takeMVar result
-    pure $ bytes >>= Get.runGetS deserialize
+    case Get.runGetS deserialize bytes of
+      Left err -> fail err
+      Right Nothing -> fail "cancelled"
+      Right (Just a) -> pure a
   pure (force, cancel)
 
-receiveTimed :: Serial b => Microseconds -> Channel a b -> Multiplex (Either String b)
+receiveTimed :: Serial a => Microseconds -> Channel (Maybe a) -> Multiplex a
 receiveTimed micros chan = do
   (force, cancel) <- receiveCancellable chan
-  env <- Multiplex ask
+  env <- ask
   watchdog <- liftIO . C.forkIO $ do
     liftIO $ C.threadDelay micros
     run env cancel
   fork $ force <* liftIO (C.killThread watchdog)
 
-subscribe :: Serial b => Channel a b -> Multiplex (Multiplex (Either String b), IO ())
+subscribe :: Serial a => Channel a -> Multiplex (Multiplex a, IO ())
 subscribe (Channel _ key) = do
-  (_, Callbacks cbs, _) <- Multiplex ask
+  (_, Callbacks cbs, _) <- ask
   q <- liftIO . atomically $ newTQueue
   liftIO . atomically $ M.insert (True, atomically . writeTQueue q) key cbs
   unsubscribe <- pure . liftIO . atomically . M.delete key $ cbs
   force <- pure . liftIO $ do
     bytes <- atomically $ readTQueue q
-    pure $ bytes >>= Get.runGetS deserialize
+    either fail pure $ Get.runGetS deserialize bytes
   pure (force, unsubscribe)

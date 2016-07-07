@@ -74,17 +74,16 @@ deserializeHandle1 h dec = go dec where
     Get.Partial k -> B.hGetSome h 65536 >>= \bs -> go (k bs)
     Get.Done a rem -> pure (a, rem)
 
+{-
 makeEnv :: (Serial term, Eq hash)
         => Remote.Universe
         -> Remote.Node
         -> Cryptography k1 k2 sk sig h ct
         -> BlockStore hash
-        -> IO (Remote.Env term Hash)
-makeEnv universe currentNode crypto bs = do
-  callbacks <- Remote.callbacks0
-  pure $ Remote.Env callbacks saveHashes getHashes missingHashes universe connect (C.randomBytes crypto) currentNode
+        -> Remote.Env term Hash
+makeEnv universe currentNode crypto bs =
+  Remote.Env saveHashes getHashes missingHashes universe currentNode
   where
-  -- connect :: Node -> IO (Packet t h -> IO (), IO ())
   -- todo: probably should do some caching/buffering here
   saveHashes hs =
     void $ Async.mapConcurrently saveHash hs
@@ -173,4 +172,4 @@ repeatWhile :: Monad f => f Bool -> f ()
 repeatWhile action = do
   ok <- action
   when ok (repeatWhile action)
-
+-}

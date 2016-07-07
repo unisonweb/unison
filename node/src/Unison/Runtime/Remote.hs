@@ -3,22 +3,23 @@
 
 module Unison.Runtime.Remote where
 
-import Control.Concurrent.MVar
-import Control.Exception (finally)
+-- import qualified Data.Set as Set
 import Control.Monad
+import Control.Applicative
+import Control.Exception (catch,SomeException,mask_)
+import Control.Monad.IO.Class
 import Data.ByteString (ByteString)
-import Data.Bytes.Serial (Serial)
-import Data.Functor
-import Data.IORef
-import Data.Map (Map)
+import Data.Bytes.Serial (Serial,deserialize)
 import Data.Set (Set)
 import GHC.Generics
 import Unison.Remote
 import Unison.Remote.Extra ()
-import qualified Control.Concurrent as Concurrent
-import qualified Data.Map as Map
-import qualified Data.Set as Set
--- import qualified Data.Text as Text
+import Unison.Runtime.Multiplex (Multiplex)
+import qualified Data.ByteString as B
+import qualified Data.Bytes.Get as Get
+import qualified Unison.Cryptography as C
+import qualified Unison.NodeProtocol as P
+import qualified Unison.Runtime.Multiplex as Mux
 
 data Language t h
   = Language
@@ -32,6 +33,78 @@ data Language t h
     , unRemote :: t -> Maybe (Remote t)
     , remote :: Remote t -> t }
 
+data Env t h
+  = Env { saveHashes :: [(h,t)] -> IO ()
+        , getHashes :: Set h -> IO [(h,t)]
+        , missingHashes :: Set h -> IO (Set h)
+        , universe :: Universe
+        , currentNode :: Node }
+
+newtype Universe = Universe ByteString deriving (Show,Eq,Ord,Generic)
+instance Serial Universe
+
+type Cleartext = ByteString
+
+info :: String -> Multiplex ()
+info msg = liftIO (putStrLn msg)
+
+{-
+handshakeInitiate
+  :: (Serial t, Serial key)
+  => Env t h
+  -> C.Cryptography key symmetricKey signKey signature hash Cleartext
+  -> P.Protocol t signature hash
+  -> Node
+  -> Multiplex (Maybe (Remote t) -> Multiplex ())
+handshakeInitiate env crypto p recipient = do
+  recipientKey <- either fail pure $ Get.runGetS deserialize (publicKey recipient)
+  (doneHandshake, encrypt, decrypt) <- liftIO $ C.pipeInitiator crypto recipientKey
+  undefined
+  -- it's the intiator who gets back a Handshake message?
+  -- go doneHandshake encrypt decrypt
+
+handshakeRespond
+  :: Serial t
+  => C.Cryptography key symmetricKey signKey signature hash Cleartext
+  -> Node
+  -> P.Handshake
+  -> Multiplex (key, Multiplex (Maybe (Remote t)))
+handshakeRespond crypto sender s = do
+  (doneHandshake, senderKey, encrypt, decrypt) <- liftIO $ C.pipeResponder crypto
+  go doneHandshake senderKey encrypt decrypt s
+  where
+  go doneHandshake senderKey encrypt decrypt s = case s of
+    P.Done chan -> do
+      guard =<< liftIO doneHandshake
+      Just senderKey <- liftIO senderKey
+      (encryptedPacket, unsubscribe) <- Mux.subscribe chan
+      decryptMux <- pure . Mux.untilDefined $ do
+        packet <- encryptedPacket
+        bytes <- liftIO $ catch (Just <$> mask_ (decrypt packet))
+                                (\e -> Nothing <$ putStrLn (show (e :: SomeException)))
+        case bytes of
+          Nothing -> pure Nothing
+          Just bytes -> case Get.runGetS deserialize bytes of
+            Left err -> pure Nothing <$ (info $ "Decoding error: " ++ err)
+            Right a -> pure (Just a)
+      pure (senderKey, decryptMux)
+    P.More handshakeData req -> do
+      _ <- liftIO $ decrypt handshakeData
+      payload <- liftIO $ encrypt B.empty
+      s <- Mux.nest sender $ Mux.requestTimed (2*1000*1000) req payload
+      go doneHandshake senderKey encrypt decrypt s
+-}
+{-
+server :: Ord h
+       => C.Cryptography key symmetricKey signKey signature hash Cleartext
+       -> P.Protocol t signature h
+       -> Language t h
+       -> Env t h
+       -> Multiplex ()
+server crypto p lang env = do
+  (accept, unsubscribe) <- Mux.subscribe (P._handshake p)
+  undefined
+
 newtype Err = Err String
 type Callbacks t h = IORef (Map Channel (IO (), MVar (Result t h)))
 
@@ -40,9 +113,6 @@ callbacks0 = newIORef Map.empty
 
 data Result t h = Error Err | Evaluated t | Syncing Channel Node [(h,t)]
 
-newtype Universe = Universe ByteString deriving (Show,Eq,Ord,Generic)
-instance Serial Universe
-
 data Packet t h
   = Eval Universe Node (Remote t)
   | Need Channel Node (Set h)
@@ -50,31 +120,11 @@ data Packet t h
   deriving (Show,Generic)
 instance (Serial t, Serial h, Ord h, Eq h) => Serial (Packet t h)
 
-data Env t h
-  = Env { callbacks :: Callbacks t h
-        , saveHashes :: [(h,t)] -> IO ()
-        , getHashes :: Set h -> IO [(h,t)]
-        , missingHashes :: Set h -> IO (Set h)
-        , universe :: Universe
-        -- Returns a `(send, cleanup)`, where the `cleanup` should be invoked when
-        -- finished sending packets via `send`
-        , connect :: Node -> IO (Packet t h -> IO (), IO ())
-        , randomBytes :: Int -> IO ByteString
-        , currentNode :: Node }
-
-sendPacketTo :: Env t h -> Node -> Packet t h -> IO ()
-sendPacketTo env node packet = do
-  (send, cleanup) <- connect env node
-  send packet `finally` cleanup
-
-defaultSyncTimeout :: Timeout
-defaultSyncTimeout = Seconds 10
-
 -- | Handle a packet. Does not return a meaningful response; it is expected that
 -- processing of the packet will cause further progress of the computation either on
 -- the current node or elsewhere (for instance, by causing packets to be sent to other nodes).
-handle :: Ord h => Language t h -> Env t h -> Packet t h -> IO ()
-handle _ env (Provide chan sender hashes) = do
+server :: Ord h => Language t h -> Env t h -> Multiplex ()
+server lang env (Provide chan sender hashes) = do
   m <- readIORef (callbacks env)
   case Map.lookup chan m of
     Nothing -> pure ()
@@ -163,3 +213,4 @@ handle lang env (Eval u sender r) = do
           Error (Err err) -> fail err
           Evaluated r -> pure r
           Syncing _ _ _ -> fail "expected an `Evaluated` message or an error, got a `Syncing`"
+-}

@@ -85,6 +85,7 @@ library
     mtl,
     murmur-hash,
     prelude-extras,
+    stm,
     text,
     transformers,
     vector
