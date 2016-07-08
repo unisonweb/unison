@@ -1,14 +1,16 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Unison.Test.BlockStore where
 
-import Control.Monad (zipWithM_, (>=>))
+import Control.Concurrent (forkIO, ThreadId)
+import Control.Monad (zipWithM_, foldM, replicateM, (>=>))
 import Data.ByteString.Char8 (ByteString, pack, unpack)
 import Data.Maybe (fromMaybe, catMaybes, isNothing)
 import Test.QuickCheck
 import Test.Tasty
 import Test.Tasty.QuickCheck
 import Unison.Hash (Hash)
+import qualified Control.Concurrent.MVar as MVar
 import qualified Data.ByteString as B
-import qualified Data.IORef as IORef
 import qualified Test.QuickCheck.Monadic as QCM
 import qualified Test.Tasty.HUnit as HU
 import qualified Unison.BlockStore as BS
@@ -80,6 +82,9 @@ data BlockStoreResult
   | NoKey
   | KeyList [Hash] deriving (Eq, Show)
 
+shrinkBS :: ByteString -> ByteString
+shrinkBS = B.pack . tail . B.unpack
+
 instance Arbitrary BlockStoreMethod where
   arbitrary = do
     c <- choose (0,6::Int)
@@ -91,6 +96,12 @@ instance Arbitrary BlockStoreMethod where
       4 -> Append <$> genByteString
       5 -> pure Resolve
       6 -> pure Resolves
+  shrink (Insert bs) = [Insert (shrinkBS bs)]
+  shrink (DeclareSeries (BS.Series bs)) =
+    [DeclareSeries (BS.Series . shrinkBS $ bs)]
+  shrink (Update bs) = [Update . shrinkBS $ bs]
+  shrink (Append bs) = [Append . shrinkBS $ bs]
+  shrink x = [x]
 
 data TestClient = TestClient
   { lastHandle :: Hash
@@ -121,12 +132,10 @@ runCommand bs command tc = case command of
     r <- BS.resolves bs (lastSeries tc)
     pure tc { result = KeyList r }
 
-runMethods :: BS.BlockStore Hash -> IORef.IORef TestClient -> [BlockStoreMethod] -> IO ()
-runMethods blockStore clientVar = mapM_ (runMethod clientVar) where
-  runMethod clientVar method = do
-    client <- IORef.readIORef clientVar
-    newClient <- runCommand blockStore method client
-    IORef.writeIORef clientVar newClient
+runMethods :: BS.BlockStore Hash -> MVar.MVar TestClient -> TestClient -> [BlockStoreMethod] -> IO ThreadId
+runMethods blockStore clientVar client =
+  forkIO . (>>= MVar.putMVar clientVar) . foldM runMethod client where
+  runMethod client method = runCommand blockStore method client
 
 prop_lastKeyIsValid :: BS.BlockStore Hash -> Property
 prop_lastKeyIsValid blockStore = QCM.monadicIO $ do
@@ -149,21 +158,29 @@ prop_SomeoneHasAValidKey blockStore = QCM.monadicIO $ do
   interestingClient <- QCM.run $ Prelude.foldr (\m tc -> tc >>= runCommand blockStore m)
                        (pure $ TestClient undefined undefined undefined)
                        [firstUpdate, firstDeclareSeries]
-  clients <- QCM.run . mapM IORef.newIORef . Prelude.take clientNumber $ repeat interestingClient
-  -- run all forks
+  clientVars <- QCM.run $ replicateM clientNumber MVar.newEmptyMVar
+  let clients = replicate clientNumber interestingClient
   clientMethods <- QCM.pick . vectorOf clientNumber $ arbitrary
-  _ <- QCM.run $ zipWithM_ (runMethods blockStore) clients clientMethods
-  maybeValues <- QCM.run $
-    mapM (IORef.readIORef >=> BS.lookup blockStore . lastHandle) clients
-  QCM.assert . not . Prelude.null . catMaybes $ maybeValues
+  -- run all forks
+  _ <- QCM.run . sequence $ zipWith3 (runMethods blockStore) clientVars clients clientMethods
+  -- wait for all forks to finish
+  clientResults <- QCM.run
+    $ mapM (MVar.takeMVar >=> BS.lookup blockStore . lastHandle) clientVars
+  QCM.assert . not . Prelude.null . catMaybes $ clientResults
 
 makeCases :: BS.BlockStore Hash -> [TestTree]
 makeCases bs = [ HU.testCase "roundTrip" (roundTrip bs)
                , HU.testCase "roundTripSeries" (roundTripSeries bs)
                , HU.testCase "appendAppendUpdate" (appendAppendUpdate bs)
                , HU.testCase "idempotentDeclare" (idempotentDeclare bs)
-               {-- these take forever
-               , testProperty "lastKeyIsValid" (prop_lastKeyIsValid bs)
-               , testProperty "someoneHasValidKey" (prop_SomeoneHasAValidKey bs)
---}
                ]
+
+-- the quickcheck tests seem to take forever.
+makeExhaustiveCases :: BS.BlockStore Hash -> [TestTree]
+makeExhaustiveCases bs = [ HU.testCase "roundTrip" (roundTrip bs)
+                         , HU.testCase "roundTripSeries" (roundTripSeries bs)
+                         , HU.testCase "appendAppendUpdate" (appendAppendUpdate bs)
+                         , HU.testCase "idempotentDeclare" (idempotentDeclare bs)
+                         , testProperty "lastKeyIsValid" (prop_lastKeyIsValid bs)
+                         , testProperty "someoneHasValidKey" (prop_SomeoneHasAValidKey bs)
+                         ]

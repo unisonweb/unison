@@ -1,6 +1,7 @@
 module Unison.Test.BlockStore.MemBlockStore where
 
 import System.Random
+import Test.QuickCheck
 import Test.Tasty
 import Test.Tasty.HUnit
 import Unison.Test.BlockStore
@@ -14,4 +15,13 @@ ioTests = do
   genVar <- IORef.newIORef gen
   let genHash = MBS.makeRandomHash genVar
   store <- MBS.make' genHash
-  pure . testGroup "MemBlockStore" $ makeCases store
+  pure . testGroup "MemBlockStore" $ makeExhaustiveCases store
+
+
+justQuickcheck :: IO [Property]
+justQuickcheck = do
+  gen <- getStdGen
+  genVar <- IORef.newIORef gen
+  let genHash = MBS.makeRandomHash genVar
+  store <- MBS.make' genHash
+  pure [prop_lastKeyIsValid store, prop_SomeoneHasAValidKey store]
