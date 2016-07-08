@@ -8,7 +8,7 @@ module Unison.Runtime.Remote where
 import Data.Functor
 import Control.Monad
 -- import Control.Applicative
-import Control.Concurrent.STM (atomically)
+import Control.Concurrent.STM (atomically,STM)
 import Control.Exception (catch,SomeException,mask_)
 import Control.Monad.IO.Class
 import Data.ByteString (ByteString)
@@ -59,110 +59,113 @@ attemptMasked :: IO a -> IO (Either String a)
 attemptMasked a =
   catch (Right <$> mask_ a) (\e -> pure (Left $ show (e :: SomeException)))
 
+handshakeTimeout :: Mux.Microseconds
+handshakeTimeout = seconds 5
+
+connectionTimeout :: Mux.Microseconds
+connectionTimeout = seconds 45
+
 handshakeInitiate
-  :: (Serial a, Serial key, Serial u)
+  :: (Serial i, Serial o, Serial key, Serial u)
   => C.Cryptography key symmetricKey signKey signature hash Cleartext
-  -> Mux.EncryptedChannel u a
+  -> Mux.EncryptedChannel u o i
   -> Node
   -> u
-  -> Multiplex (Maybe a -> Multiplex ())
+  -> Multiplex (Maybe o -> Multiplex (), Multiplex (Maybe i), CipherState)
 handshakeInitiate crypto rootChan recipient u = do
   recipientKey <- either fail pure $ Get.runGetS deserialize (publicKey recipient)
   (doneHandshake, encrypt, decrypt) <- liftIO $ C.pipeInitiator crypto recipientKey
-  chan <- Mux.channel
-  sub <- Mux.subscribeTimed (seconds 5) chan
-  handshake doneHandshake encrypt decrypt chan recipient sub
+  handshakeChan <- Mux.channel
+  connectedChan <- Mux.channel
+  handshakeSub <- Mux.subscribeTimed handshakeTimeout handshakeChan
+  connectedSub <- Mux.subscribeTimed connectionTimeout connectedChan
+  handshake doneHandshake encrypt decrypt (handshakeChan,connectedChan) handshakeSub connectedSub
   where
-  handshake doneHandshake encrypt decrypt chan recipient (fetch,cancel) =
-    encryptAndSendTo' rootChan u chan >> go
+  handshake doneHandshake encrypt decrypt cs@(chanh,chanc) (fetchh,cancelh) (fetchc,cancelc) =
+    encryptAndSendTo recipient (Mux.erase rootChan) encrypt (u,cs) >> go
     where
+    recv = Mux.untilDefined $ do
+      bytes <- fetchc
+      case bytes of
+        Nothing -> pure (Just Nothing)
+        Just bytes -> do
+          decrypted <- liftIO . atomically $ decrypt bytes
+          case Get.runGetS deserialize decrypted of
+            Left err -> info err >> pure Nothing
+            Right mi -> pure (Just mi)
     go = do
       ready <- liftIO $ atomically doneHandshake
-      if ready then cancel $> encryptAndSendTo chan
+      if ready then do
+        encryptAndSendTo recipient chanh encrypt () -- todo: not sure this flush needed
+        pure (encryptAndSendTo recipient chanc encrypt, recv, (encrypt,decrypt))
       else do
-        Mux.nest recipient $ Mux.send' chan (encrypt B.empty)
-        bytes <- fetch
+        Mux.nest recipient $ Mux.send' chanh (encrypt B.empty)
+        bytes <- fetchh
         case bytes of
-          Nothing -> cancel $> (\_ -> fail "cancelled handshake")
+          Nothing -> cancelh >> cancelc >> fail "cancelled handshake"
           Just bytes -> liftIO (atomically $ decrypt bytes) >> go
-    encryptAndSendTo :: Serial a => Mux.Channel B.ByteString -> a -> Multiplex ()
-    encryptAndSendTo chan a = do
-      let bytes = Put.runPutS (serialize a)
-      bytes `seq` Mux.nest recipient (Mux.send' chan (encrypt bytes))
-    encryptAndSendTo' :: Serial u
-                      => Mux.EncryptedChannel u a -> u -> Mux.Channel B.ByteString -> Multiplex ()
-    encryptAndSendTo' (Mux.EncryptedChannel chan) u reply = encryptAndSendTo chan (u,reply)
+
+encryptAndSendTo :: Serial a
+                 => Node -> Mux.Channel B.ByteString -> (B.ByteString -> STM B.ByteString) -> a
+                 -> Multiplex ()
+encryptAndSendTo recipient chan encrypt a = do
+  let bytes = Put.runPutS (serialize a)
+  bytes `seq` Mux.nest recipient (Mux.send' chan (encrypt bytes))
+
+type CipherState = (Cleartext -> STM C.Ciphertext, C.Ciphertext -> STM Cleartext)
 
 -- todo: add access control here, better to bail ASAP (or after 1s delay
 -- to discourage sniffing for nodes with access) rather than continuing with
 -- handshake if we know we can't accept messages from that party
 handshakeRespond
-  :: (Serial a, Serial u)
+  :: (Serial o, Serial i, Serial u)
   => C.Cryptography key symmetricKey signKey signature hash Cleartext
-  -> Mux.EncryptedChannel u a
+  -> Mux.EncryptedChannel u i o
   -> (u -> Node)
   -> B.ByteString
-  -> Multiplex (key, u, Multiplex (Maybe a))
+  -> Multiplex (key, u, Maybe o -> Multiplex (), Multiplex (Maybe i), CipherState)
 handshakeRespond crypto _ extractSender payload = do
   (doneHandshake, senderKey, encrypt, decrypt) <- liftIO $ C.pipeResponder crypto
   bytes <- (liftIO . atomically . decrypt) payload
-  (u, chan) <- either fail pure $ Get.runGetS deserialize bytes
+  (u, chans@(handshakeChan,connectedChan)) <- either fail pure $ Get.runGetS deserialize bytes
   let sender = extractSender u
-  sub <- Mux.subscribeTimed (seconds 45) chan
-  handshake sender u doneHandshake senderKey encrypt decrypt chan sub
+  handshakeSub <- Mux.subscribeTimed handshakeTimeout handshakeChan
+  connectedSub <- Mux.subscribeTimed connectionTimeout connectedChan
+  handshake doneHandshake senderKey encrypt decrypt chans handshakeSub connectedSub sender u
   where
-  handshake sender u doneHandshake senderKey encrypt decrypt chan (fetch,cancel) = go Nothing
+  handshake doneHandshake senderKey encrypt decrypt (chanh,chanc) (fetchh,cancelh) (fetchc,cancelc) sender u = go
     where
-    go ciphertext = do
-      ready <- (liftIO . atomically) doneHandshake
-      cleartext <- case ciphertext of
-        Nothing -> pure Nothing
-        Just ciphertext -> liftIO . atomically . fmap Just . decrypt $ (ciphertext :: B.ByteString)
-      case ready of
-        -- Keep reading from channel, replying w/ `encrypt B.empty` if handshake incomplete
-        False -> do
-          Mux.nest (sender :: Node) $ Mux.send' chan (encrypt B.empty)
-          go =<< (fetch :: Multiplex (Maybe B.ByteString))
-        -- Handshake complete, current and future payloads decoded as `(Maybe (Remote t))`
-        True -> do
-          Just senderKey <- (liftIO . atomically) senderKey
-          read <- pure $
-            let
-              decode cleartext = case Get.runGetS deserialize cleartext of
-                Left err -> info err >> go
-                Right a -> pure a
-              go = case cleartext of
-                Just cleartext -> decode cleartext
-                Nothing -> do
-                  ciphertext <- fetch
-                  case ciphertext of
-                    Nothing -> cancel $> Nothing
-                    Just ciphertext -> do
-                      e <- (liftIO . attemptMasked . atomically . decrypt) ciphertext
-                      either (\err -> info err >> go) decode e
-            in go
-          pure (senderKey, u, read)
+    recv = Mux.untilDefined $ do
+      bytes <- fetchc
+      case bytes of
+        Nothing -> pure (Just Nothing)
+        Just bytes -> do
+          decrypted <- liftIO . atomically $ decrypt bytes
+          case Get.runGetS deserialize decrypted of
+            Left err -> info err >> pure Nothing
+            Right mi -> pure (Just mi)
+    go = do
+      ready <- liftIO $ atomically doneHandshake
+      if ready then do
+        encryptAndSendTo sender chanh encrypt () -- todo: not sure this flush needed
+        Just senderKey <- liftIO $ atomically senderKey
+        pure (senderKey, u, encryptAndSendTo sender chanc encrypt, recv, (encrypt,decrypt))
+      else do
+        Mux.nest sender $ Mux.send' chanh (encrypt B.empty)
+        bytes <- fetchh
+        case bytes of
+          Nothing -> cancelh >> cancelc >> fail "cancelled handshake"
+          Just bytes -> liftIO (atomically $ decrypt bytes) >> go
 
-server :: Ord h
-       => C.Cryptography key symmetricKey signKey signature hash Cleartext
-       -> P.Protocol t signature h
-       -> Language t h
-       -> Env t h
-       -> Multiplex ()
-server crypto p lang env = do
-  (accept, unsubscribe) <- Mux.subscribeTimed (seconds 60) (Mux.erase $ P._eval p)
-  go accept unsubscribe
-  where
-  go accept unsubscribe = do
-    payload <- accept
-    case payload of
-      Nothing -> unsubscribe
-      Just payload -> do
-        -- (key, senderUniverse, read) <- handshakeRespond crypto payload
-        -- hash syncing should be encrypted as well, ideally using the same
-        -- connection
-        undefined
+encryptedRequestTimed :: (Serial a, Serial b)
+                      => CipherState -> Mux.Microseconds -> Mux.Request a b -> a -> Multiplex b
+encryptedRequestTimed (encrypt,decrypt) micros (Mux.Channel _ bs) a = do
+  let cleartext = Put.runPutS (serialize a)
+  responseCiphertext <- cleartext `seq` Mux.requestTimed' micros (Mux.Channel Mux.Type bs) (encrypt cleartext)
+  responseCleartext <- liftIO . atomically . decrypt $ responseCiphertext
+  either fail pure $ Get.runGetS deserialize responseCleartext
 
+{-
 sync :: (Ord h, Serial key, Serial t, Serial h)
      => C.Cryptography key symmetricKey signKey signature hash Cleartext
      -> Language t h
@@ -192,10 +195,30 @@ sync crypto lang env chan peer needs = do
                                      hashes
             loop (Set.unions stillMissing)
     in loop (Set.fromList needs)
+-}
+{-
+server :: Ord h
+       => C.Cryptography key symmetricKey signKey signature hash Cleartext
+       -> P.Protocol t signature h
+       -> Language t h
+       -> Env t h
+       -> Multiplex ()
+server crypto p lang env = do
+  (accept, unsubscribe) <- Mux.subscribeTimed (seconds 60) (Mux.erase $ P._eval p)
+  go accept unsubscribe
+  where
+  go accept unsubscribe = do
+    payload <- accept
+    case payload of
+      Nothing -> unsubscribe
+      Just payload -> do
+        -- (key, senderUniverse, read) <- handshakeRespond crypto payload
+        -- hash syncing should be encrypted as well, ideally using the same
+        -- connection
+        undefined
 
 -- Remote term -> Multiplex ()
 -- sync sender r
-{-
 
 newtype Err = Err String
 type Callbacks t h = IORef (Map Channel (IO (), MVar (Result t h)))

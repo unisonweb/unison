@@ -23,9 +23,9 @@ data Protocol term signature hash =
     -- | Destroy another node
     , _destroyOut :: Channel signature
     -- | Channel used to initiate handshaking to establish an encrypted pipe of `Maybe (Remote term)`
-    , _eval :: EncryptedChannel (Remote.Node, Remote.Universe) (Maybe (Remote term))
-    -- generalize over Hash
-    , _needs :: EncryptedChannel Remote.Node (Maybe ([Hash], EncryptedChannel Remote.Node [(Hash,term)]))
+    , _eval :: EncryptedChannel (Remote.Node, Remote.Universe)
+                                (Remote term)
+                                ([Hash], Channel [(Hash,term)]) -- todo generalize over Hash
     -- | Various `BlockStore` methods
     , _insert :: Request B.ByteString hash
     , _lookup :: Request hash (Maybe B.ByteString)

@@ -94,10 +94,10 @@ callbacks0 = Callbacks <$> M.new
 
 data Channel a = Channel (Type a) B.ByteString deriving Generic
 
-newtype EncryptedChannel u a = EncryptedChannel (Channel B.ByteString) deriving Generic
-instance Serial (EncryptedChannel u a)
+newtype EncryptedChannel u o i = EncryptedChannel (Channel B.ByteString) deriving Generic
+instance Serial (EncryptedChannel u o i)
 
-erase :: EncryptedChannel u a -> Channel B.ByteString
+erase :: EncryptedChannel u o i -> Channel B.ByteString
 erase (EncryptedChannel chan) = chan
 
 instance Serial (Channel a)
