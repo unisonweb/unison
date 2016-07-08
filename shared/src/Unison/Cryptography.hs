@@ -26,8 +26,8 @@ noop = Cryptography () () hash sign verify randomBytes encryptAsymmetric decrypt
   decryptAsymmetric ciphertext = Right ciphertext
   encrypt _ bs = pure $ ByteString.concat bs
   decrypt _ bs = Right bs
-  pipeInitiator _ = pure (pure True, \b q -> q (pure b), pure)
-  pipeResponder = pure (pure True, pure (Just ()), \b q -> q (pure b), pure)
+  pipeInitiator _ = pure (pure True, pure, pure)
+  pipeResponder = pure (pure True, pure (Just ()), pure, pure)
   finish h64 = (LB.toStrict . Builder.toLazyByteString . Builder.word64LE . Murmur.asWord64) h64
 
 data Cryptography key symmetricKey signKey signature hash cleartext =
@@ -53,17 +53,17 @@ data Cryptography key symmetricKey signKey signature hash cleartext =
     -- symmetrically decrypt
     , decrypt :: symmetricKey -> ByteString -> Either String cleartext
     -- Initiate a secure pipe. Does not perform transport. Returns a function used to
-    -- encrypt+enqueue cleartext for sending to the other party, and a receiving function
+    -- encrypt cleartext for sending to the other party, and a receiving function
     -- used to decrypt messages received back from the other party.
     , pipeInitiator :: key -> IO ( STM DoneHandshake
-                                 , cleartext -> (STM ByteString -> STM ()) -> STM ()
+                                 , cleartext -> STM ByteString
                                  , ByteString -> STM cleartext)
     -- Respond to a secure pipe initiated by another party. Does not perform transport.
     -- Returns a function used to encrypt cleartext for sending to the other party, and a
     -- receiving function used to decrypt messages received back from the other party. Also
     -- receives the other party's public key, after handshaking completes.
     , pipeResponder :: IO ( STM DoneHandshake, STM (Maybe key)
-                          , cleartext -> (STM ByteString -> STM ()) -> STM ()
+                          , cleartext -> STM ByteString
                           , ByteString -> STM cleartext)
     }
 

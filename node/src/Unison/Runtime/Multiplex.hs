@@ -7,7 +7,6 @@ module Unison.Runtime.Multiplex where
 import Control.Applicative
 import Control.Concurrent.MVar
 import Control.Concurrent.STM as STM
-import Control.Concurrent.STM.TVar
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Reader (ReaderT,runReaderT,MonadReader)
@@ -95,10 +94,11 @@ callbacks0 = Callbacks <$> M.new
 
 data Channel a = Channel (Type a) B.ByteString deriving Generic
 
-newtype EncryptedChannel a = EncryptedChannel (Channel a) deriving Generic
+newtype EncryptedChannel u a = EncryptedChannel (Channel B.ByteString) deriving Generic
+instance Serial (EncryptedChannel u a)
 
-erase :: EncryptedChannel a -> Channel B.ByteString
-erase (EncryptedChannel (Channel _ b)) = Channel Type b
+erase :: EncryptedChannel u a -> Channel B.ByteString
+erase (EncryptedChannel chan) = chan
 
 instance Serial (Channel a)
 

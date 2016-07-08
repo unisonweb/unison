@@ -67,6 +67,8 @@ data Remote t = Step (Step t) | Bind (Step t) t deriving (Generic,Generic1,Show,
 instance ToJSON t => ToJSON (Remote t)
 instance FromJSON t => FromJSON (Remote t)
 
+newtype Universe = Universe ByteString deriving (Show,Eq,Ord,Generic)
+
 -- Note: start each layer with leading `2` byte, to avoid collisions with
 -- terms/types, which start each layer with leading `0`/`1`.
 -- See `Hashable1 Type.F`

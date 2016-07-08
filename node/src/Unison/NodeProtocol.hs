@@ -6,11 +6,13 @@ module Unison.NodeProtocol where
 
 import Data.Bytes.Serial (Serial)
 import Unison.BlockStore (BlockStore(..), Series(..))
+import Unison.Hash (Hash)
 import Unison.Hash.Extra ()
 import Unison.Remote (Remote)
 import Unison.Runtime.Multiplex (EncryptedChannel,Channel,Request)
 import qualified Data.ByteString as B
 import qualified Unison.Runtime.Multiplex as Mux
+import qualified Unison.Remote as Remote
 
 instance Serial Series
 
@@ -21,15 +23,9 @@ data Protocol term signature hash =
     -- | Destroy another node
     , _destroyOut :: Channel signature
     -- | Channel used to initiate handshaking to establish an encrypted pipe of `Maybe (Remote term)`
-    -- Initial message is an encrypted (Remote.Node, Remote.Universe, Channel B.ByteString)
-    -- containing the initiating node+universe and a channel to use for subsequent communication.
-    , _eval :: EncryptedChannel (Maybe (Remote term))
-    -- | Channel used to initiate handshaking to establish an encrypted pipe of
-    -- `Maybe ([Hash], Channel B.ByteString)` for syncing needed hashes. Initial message
-    -- is an encrypted (Remote.Node, Channel B.ByteString, Channel B.ByteString)
-    -- containing the initiating node, +needed hashes and a channel to use for subsequent
-    -- communication.
-    , _needs :: Channel B.ByteString
+    , _eval :: EncryptedChannel (Remote.Node, Remote.Universe) (Maybe (Remote term))
+    -- generalize over Hash
+    , _needs :: EncryptedChannel Remote.Node (Maybe ([Hash], EncryptedChannel Remote.Node [(Hash,term)]))
     -- | Various `BlockStore` methods
     , _insert :: Request B.ByteString hash
     , _lookup :: Request hash (Maybe B.ByteString)
