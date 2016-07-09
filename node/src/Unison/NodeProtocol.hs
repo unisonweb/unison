@@ -4,6 +4,7 @@
 
 module Unison.NodeProtocol where
 
+import Control.Monad
 import Data.Bytes.Serial (Serial)
 import Unison.BlockStore (BlockStore(..), Series(..))
 import Unison.Hash (Hash)
@@ -25,7 +26,7 @@ data Protocol term signature hash =
     -- | Channel used to initiate handshaking to establish an encrypted pipe of `Maybe (Remote term)`
     , _eval :: EncryptedChannel (Remote.Node, Remote.Universe)
                                 (Remote term)
-                                ([Hash], Channel [(Hash,term)]) -- todo generalize over Hash
+                                ([Hash], Channel (Maybe [(Hash,term)])) -- todo generalize over Hash
     -- | Various `BlockStore` methods
     , _insert :: Request B.ByteString hash
     , _lookup :: Request hash (Maybe B.ByteString)
@@ -42,7 +43,7 @@ blockStoreProxy p = go <$> Mux.ask
   go env =
     let
       mt :: (Serial a, Serial b) => Request a b -> a -> IO b
-      mt chan a = Mux.run env $ Mux.requestTimed timeout chan a
+      mt chan a = Mux.run env . join $ Mux.requestTimed timeout chan a
       insert bytes = mt (_insert p) bytes
       lookup h = mt (_lookup p) h
       declare series = mt (_declare p) series
