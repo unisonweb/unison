@@ -6,16 +6,20 @@ module Unison.NodeProtocol where
 
 import Control.Monad
 import Data.Bytes.Serial (Serial)
+import GHC.Generics
 import Unison.BlockStore (BlockStore(..), Series(..))
 import Unison.Hash (Hash)
 import Unison.Hash.Extra ()
 import Unison.Remote (Remote)
 import Unison.Runtime.Multiplex (EncryptedChannel,Channel,Request)
 import qualified Data.ByteString as B
-import qualified Unison.Runtime.Multiplex as Mux
 import qualified Unison.Remote as Remote
+import qualified Unison.Runtime.Multiplex as Mux
 
 instance Serial Series
+
+data Ack a = Ack | Payload a deriving Generic
+instance Serial a => Serial (Ack a)
 
 data Protocol term signature hash =
   Protocol
@@ -26,7 +30,7 @@ data Protocol term signature hash =
     -- | Channel used to initiate handshaking to establish an encrypted pipe of `Maybe (Remote term)`
     , _eval :: EncryptedChannel (Remote.Node, Remote.Universe)
                                 (Remote term)
-                                ([Hash], Channel (Maybe [(Hash,term)])) -- todo generalize over Hash
+                                (Ack ([Hash], Channel (Maybe [(Hash,term)]))) -- todo generalize over Hash
     -- | Various `BlockStore` methods
     , _insert :: Request B.ByteString hash
     , _lookup :: Request hash (Maybe B.ByteString)

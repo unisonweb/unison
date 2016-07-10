@@ -82,6 +82,7 @@ library
     containers,
     comonad,
     free,
+    hashable,
     mtl,
     murmur-hash,
     prelude-extras,

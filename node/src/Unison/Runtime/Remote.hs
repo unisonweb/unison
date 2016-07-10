@@ -17,6 +17,7 @@ import Data.Set (Set)
 import GHC.Generics
 import Unison.Remote hiding (seconds)
 import Unison.Remote.Extra ()
+import Unison.Runtime.ExpiringMap (ExpiringMap)
 import Unison.Runtime.Multiplex (Multiplex)
 import qualified Data.ByteString as B
 import qualified Data.Bytes.Get as Get
@@ -24,6 +25,7 @@ import qualified Data.Bytes.Put as Put
 import qualified Data.Set as Set
 import qualified Unison.Cryptography as C
 import qualified Unison.NodeProtocol as P
+import qualified Unison.Runtime.ExpiringMap as EM
 import qualified Unison.Runtime.Multiplex as Mux
 
 data Language t h
@@ -43,7 +45,9 @@ data Env t h
         , getHashes :: Set h -> IO [(h,t)]
         , missingHashes :: Set h -> IO (Set h)
         , universe :: Universe
-        , currentNode :: Node }
+        , currentNode :: Node
+        , connect :: Node -> Multiplex ( Maybe (Remote t) -> Multiplex ()
+                                       , Multiplex (Maybe ([h], Mux.Channel (Maybe [(h,t)]))) ) }
 
 instance Serial Universe
 
@@ -59,7 +63,12 @@ client :: (Ord h, Serial key, Serial t, Serial h)
        -> Node
        -> Remote t
        -> Multiplex ()
-client crypto lang env recipient r = undefined
+client crypto lang env recipient r = do
+  (send, recv) <- connect env recipient
+  -- can send right away, without checking if recipient is alive, but wait for acknowledgement
+  -- before returning; if no reply, backoff to renegotiating connection
+  -- as opposed to doing a round trip for the ping before sending anything
+  undefined
 
 {-
 sync :: (Ord h, Serial key, Serial t, Serial h)

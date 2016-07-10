@@ -14,7 +14,7 @@ import Unison.Hashable (Hashable, Hashable1)
 import qualified Data.ByteString.Base64.URL as Base64
 import qualified Data.Text as Text
 import qualified Unison.Hashable as H
-import qualified Unison.Hashable as Hashable
+import qualified Data.Hashable as DH
 
 {-
 Representation of the Unison distributed programming API.
@@ -128,7 +128,7 @@ newtype Timeout = Seconds { seconds :: Double } deriving (Eq,Ord,Show,Generic)
 instance ToJSON Timeout
 instance FromJSON Timeout
 instance Hashable Timeout where
-  tokens (Seconds seconds) = [Hashable.Double seconds]
+  tokens (Seconds seconds) = [H.Double seconds]
 
 
 {-
@@ -152,6 +152,7 @@ a channel from which we `receive`.
 -- | A node is a host and a public key. For instance: `Node "unisonweb.org" key`
 data Node = Node { host :: Text, publicKey :: ByteString } deriving (Eq,Ord,Generic)
 
+instance DH.Hashable Node
 instance ToJSON Node where toJSON (Node host key) = toJSON (host, decodeUtf8 (Base64.encode key))
 instance FromJSON Node where
   parseJSON v = do
@@ -159,7 +160,7 @@ instance FromJSON Node where
     either fail (pure . Node host) (Base64.decode (encodeUtf8 key))
 
 instance Hashable Node where
-  tokens (Node host key) = [Hashable.Text host, Hashable.Bytes key]
+  tokens (Node host key) = [H.Text host, H.Bytes key]
 
 instance Show Node where
   show (Node host key) = "http://" ++ Text.unpack host ++ "/" ++ Text.unpack (decodeUtf8 (Base64.encode key))
@@ -172,4 +173,4 @@ instance FromJSON Channel where
     txt <- parseJSON v
     either fail (pure . Channel) (Base64.decode (encodeUtf8 txt))
 
-instance Hashable Channel where tokens (Channel c) = Hashable.tokens c
+instance Hashable Channel where tokens (Channel c) = H.tokens c
