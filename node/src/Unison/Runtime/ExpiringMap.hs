@@ -37,7 +37,11 @@ insert :: (Eq k, Hashable k) => k -> v -> ExpiringMap k v -> IO ()
 insert k v (ttl,m) = do
   now <- Clock.getCurrentTime
   expiration <- pure $ Clock.addUTCTime ttl now
-  atomically $ M.insert (expiration,v) k m
+  atomically $ do
+    curv <- M.lookup k m
+    case curv of
+      Nothing -> M.insert (expiration,v) k m
+      Just _ -> pure ()
 
 lookup :: (Eq k, Hashable k) => k -> ExpiringMap k v -> IO (Maybe v)
 lookup k (ttl,m) = do
