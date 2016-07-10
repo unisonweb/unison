@@ -46,8 +46,8 @@ data Env t h
         , missingHashes :: Set h -> IO (Set h)
         , universe :: Universe
         , currentNode :: Node
-        , connect :: Node -> Multiplex ( Maybe (Remote t) -> Multiplex ()
-                                       , Multiplex (Maybe ([h], Mux.Channel (Maybe [(h,t)]))) ) }
+        , connections :: ExpiringMap Node ( Maybe (Remote t) -> Multiplex ()
+                                          , Multiplex (Maybe ([h], Mux.Channel (Maybe [(h,t)]))) ) }
 
 instance Serial Universe
 
@@ -64,11 +64,13 @@ client :: (Ord h, Serial key, Serial t, Serial h)
        -> Remote t
        -> Multiplex ()
 client crypto lang env recipient r = do
-  (send, recv) <- connect env recipient
-  -- can send right away, without checking if recipient is alive, but wait for acknowledgement
-  -- before returning; if no reply, backoff to renegotiating connection
-  -- as opposed to doing a round trip for the ping before sending anything
-  undefined
+  v <- liftIO $ EM.lookup recipient (connections env)
+  case v of
+    Nothing -> undefined -- pipeInitiate, stash in connections, call client
+    Just (send, recv) -> undefined
+      -- can send right away, without checking if recipient is alive, but wait for acknowledgement
+      -- before returning; if no reply, backoff to renegotiating connection
+      -- as opposed to doing a round trip for the ping before sending anything
 
 {-
 sync :: (Ord h, Serial key, Serial t, Serial h)
