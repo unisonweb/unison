@@ -314,15 +314,16 @@ pipeInitiate crypto rootChan (recipient,recipientKey) u = do
             Right mi -> pure (Just mi)
     go = do
       ready <- liftIO $ atomically doneHandshake
-      if ready then do
-        encryptAndSendTo recipient chanh encrypt () -- todo: not sure this flush needed
-        pure (encryptAndSendTo recipient chanc encrypt, recv, (encrypt,decrypt))
-      else do
-        nest recipient $ send' chanh (encrypt B.empty)
-        bytes <- fetchh
-        case bytes of
-          Nothing -> cancelh >> cancelc >> fail "cancelled handshake"
-          Just bytes -> liftIO (atomically $ decrypt bytes) >> go
+      case ready of
+        True -> do
+          encryptAndSendTo recipient chanh encrypt () -- todo: not sure this flush needed
+          pure (encryptAndSendTo recipient chanc encrypt, recv, (encrypt,decrypt))
+        False -> do
+          nest recipient $ send' chanh (encrypt B.empty)
+          bytes <- fetchh
+          case bytes of
+            Nothing -> cancelh >> cancelc >> fail "cancelled handshake"
+            Just bytes -> liftIO (atomically $ decrypt bytes) >> go
 
 -- todo: add access control here, better to bail ASAP (or after 1s delay
 -- to discourage sniffing for nodes with access) rather than continuing with
@@ -356,16 +357,17 @@ pipeRespond crypto _ extractSender payload = do
             Right mi -> pure (Just mi)
     go = do
       ready <- liftIO $ atomically doneHandshake
-      if ready then do
-        encryptAndSendTo sender chanh encrypt () -- todo: not sure this flush needed
-        Just senderKey <- liftIO $ atomically senderKey
-        pure (senderKey, u, encryptAndSendTo sender chanc encrypt, recv, (encrypt,decrypt))
-      else do
-        nest sender $ send' chanh (encrypt B.empty)
-        bytes <- fetchh
-        case bytes of
-          Nothing -> cancelh >> cancelc >> fail "cancelled handshake"
-          Just bytes -> liftIO (atomically $ decrypt bytes) >> go
+      case ready of
+        True -> do
+          encryptAndSendTo sender chanh encrypt () -- todo: not sure this flush needed
+          Just senderKey <- liftIO $ atomically senderKey
+          pure (senderKey, u, encryptAndSendTo sender chanc encrypt, recv, (encrypt,decrypt))
+        False -> do
+          nest sender $ send' chanh (encrypt B.empty)
+          bytes <- fetchh
+          case bytes of
+            Nothing -> cancelh >> cancelc >> fail "cancelled handshake"
+            Just bytes -> liftIO (atomically $ decrypt bytes) >> go
 
 info :: String -> Multiplex ()
 info msg = liftIO (putStrLn msg)

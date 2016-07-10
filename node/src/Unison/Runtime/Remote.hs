@@ -52,6 +52,15 @@ type Cleartext = ByteString
 info :: String -> Multiplex ()
 info msg = liftIO (putStrLn msg)
 
+client :: (Ord h, Serial key, Serial t, Serial h)
+       => C.Cryptography key symmetricKey signKey signature hash Cleartext
+       -> Language t h
+       -> Env t h
+       -> Node
+       -> Remote t
+       -> Multiplex ()
+client crypto lang env recipient r = undefined
+
 {-
 sync :: (Ord h, Serial key, Serial t, Serial h)
      => C.Cryptography key symmetricKey signKey signature hash Cleartext

@@ -1,50 +1,64 @@
 module Unison.Runtime.ExpiringMap where
 
-import Data.Functor
 import Control.Concurrent as C
-import Control.Concurrent.STM (atomically, orElse)
-import Control.Concurrent.STM.TSem
-import qualified STMContainers.Map as M
+import Control.Concurrent.STM (atomically, retry)
+import Control.Monad
 import Data.Hashable (Hashable)
+import qualified Data.Time.Clock as Clock
+import qualified ListT
+import qualified STMContainers.Map as M
 
-type ExpiringMap k v = M.Map k (TSem, v)
-type Microseconds = Int
+type ExpiringMap k v = (Seconds, M.Map k (Clock.UTCTime, v))
 
-new :: IO (ExpiringMap k v)
-new = atomically M.new
+type Seconds = Clock.NominalDiffTime
 
-insert :: (Eq k, Hashable k) => Microseconds -> k -> v -> ExpiringMap k v -> IO ()
-insert ttl k v m = do
-  sem' <- atomically $ newTSem 1
-  o <- atomically $ M.lookup k m <* M.insert (sem',v) k m
-  case o of
-    Nothing -> pure ()
-    Just (sem,_) -> atomically $ waitTSem sem `orElse` pure ()
-  _ <- C.forkIO $ do
-    C.threadDelay ttl
-    atomically $ do
-      waitTSem sem' -- will die if key gets reused before expiration
-      M.delete k m
-  pure ()
+new :: (Hashable k, Eq k) => Seconds -> IO (ExpiringMap k v)
+new ttl = do
+  m <- atomically M.new
+  let m' = (ttl,m)
+  _ <- C.forkIO . forever $ do
+    now <- Clock.getCurrentTime
+    expired <- id $
+      let
+        ensureNonempty s = ListT.uncons s >>= \o -> case o of
+          Nothing -> retry -- will kill the thread if nothing else has reference to map
+          Just (_,_) -> pure ()
+        loop s = atomically (ListT.uncons s) >>= \o -> case o of
+          Nothing -> pure []
+          Just ((k,(expiration,_)), tl) ->
+            if expiration >= now then (k:) <$> loop tl
+            else loop tl
+      in atomically (ensureNonempty (M.stream m)) >> loop (M.stream m)
+    forM_ expired $ \k -> deleteIfExpired k m'
+    C.threadDelay (floor ttl * 1000000)
+  pure m'
 
-lookup :: (Eq k, Hashable k) => Microseconds -> k -> ExpiringMap k v -> IO (Maybe v)
-lookup ttl k m = do
-  o <- atomically $ M.lookup k m
-  action <- case o of
-    Nothing -> pure (pure ())
-    Just (sem,_) -> do
-      sem' <- atomically $ newTSem 1
-      atomically $ waitTSem sem `orElse` pure ()
-      pure . void . C.forkIO $ do
-        C.threadDelay ttl
-        atomically $ do
-          waitTSem sem' -- will die if key gets reused before expiration
-          M.delete k m
-  (snd <$> o) <$ action
+insert :: (Eq k, Hashable k) => k -> v -> ExpiringMap k v -> IO ()
+insert k v (ttl,m) = do
+  now <- Clock.getCurrentTime
+  expiration <- pure $ Clock.addUTCTime ttl now
+  atomically $ M.insert (expiration,v) k m
+
+lookup :: (Eq k, Hashable k) => k -> ExpiringMap k v -> IO (Maybe v)
+lookup k (ttl,m) = do
+  now <- Clock.getCurrentTime
+  expiration' <- pure $ Clock.addUTCTime ttl now
+  atomically $ do
+    v <- M.lookup k m
+    case v of
+      Nothing -> pure Nothing
+      Just (expiration,v) ->
+        if expiration >= now then Nothing <$ M.delete k m
+        else Just v <$ M.insert (expiration',v) k m
 
 delete :: (Eq k, Hashable k) => k -> ExpiringMap k v -> IO ()
-delete k m = do
-  o <- atomically $ M.lookup k m <* M.delete k m
-  case o of
-    Nothing -> pure ()
-    Just (sem, _) -> atomically $ waitTSem sem `orElse` pure ()
+delete k (_,m) = atomically $ M.delete k m
+
+deleteIfExpired :: (Eq k, Hashable k) => k -> ExpiringMap k v -> IO ()
+deleteIfExpired k (_,m) = do
+  now <- Clock.getCurrentTime
+  atomically $ do
+    v <- M.lookup k m
+    case v of
+      Just (expiration,_) | expiration >= now -> M.delete k m
+      _ -> pure ()
