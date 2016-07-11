@@ -33,15 +33,15 @@ new ttl = do
     C.threadDelay (floor ttl * 1000000)
   pure m'
 
-insert :: (Eq k, Hashable k) => k -> v -> ExpiringMap k v -> IO ()
+insert :: (Eq k, Hashable k) => k -> v -> ExpiringMap k v -> IO Bool
 insert k v (ttl,m) = do
   now <- Clock.getCurrentTime
   expiration <- pure $ Clock.addUTCTime ttl now
   atomically $ do
     curv <- M.lookup k m
     case curv of
-      Nothing -> M.insert (expiration,v) k m
-      Just _ -> pure ()
+      Nothing -> pure True <* M.insert (expiration,v) k m
+      Just _ -> pure False
 
 lookup :: (Eq k, Hashable k) => k -> ExpiringMap k v -> IO (Maybe v)
 lookup k (ttl,m) = do

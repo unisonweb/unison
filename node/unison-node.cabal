@@ -75,6 +75,7 @@ library
     Unison.Runtime.Unfold
     Unison.Runtime.Vector
     Unison.Runtime.ResourcePool
+    Unison.Runtime.SharedResourceMap
 
   build-depends:
     acid-state,

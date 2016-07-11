@@ -8,8 +8,6 @@ import Control.Monad
 import Data.Bytes.Serial (Serial)
 import GHC.Generics
 import Unison.BlockStore (BlockStore(..), Series(..))
-import Unison.Hash (Hash)
-import Unison.Hash.Extra ()
 import Unison.Remote (Remote)
 import Unison.Runtime.Multiplex (EncryptedChannel,Channel,Request)
 import qualified Data.ByteString as B
@@ -18,10 +16,10 @@ import qualified Unison.Runtime.Multiplex as Mux
 
 instance Serial Series
 
-data Ack a = Ack | Payload a deriving Generic
-instance Serial a => Serial (Ack a)
+data Ack = Ack deriving Generic
+instance Serial Ack
 
-data Protocol term signature hash =
+data Protocol term signature hash thash =
   Protocol
     -- | Shut down and destroy this node; requires proof of knowledge of private key
     { _destroyIn :: Channel signature
@@ -29,8 +27,8 @@ data Protocol term signature hash =
     , _destroyOut :: Channel signature
     -- | Channel used to initiate handshaking to establish an encrypted pipe of `Maybe (Remote term)`
     , _eval :: EncryptedChannel (Remote.Node, Remote.Universe)
-                                (Remote term)
-                                (Ack ([Hash], Channel (Maybe [(Hash,term)]))) -- todo generalize over Hash
+                                (Remote term, Channel Ack)
+                                (Maybe ([thash], Channel (Maybe [(thash,term)]))) -- todo generalize over Hash
     -- | Various `BlockStore` methods
     , _insert :: Request B.ByteString hash
     , _lookup :: Request hash (Maybe B.ByteString)
@@ -40,7 +38,7 @@ data Protocol term signature hash =
     , _resolve :: Request Series (Maybe hash)
     , _resolves :: Request Series [hash] }
 
-blockStoreProxy :: (Serial hash) => Protocol term signature hash -> Mux.Multiplex (BlockStore hash)
+blockStoreProxy :: (Serial hash) => Protocol term signature hash thash -> Mux.Multiplex (BlockStore hash)
 blockStoreProxy p = go <$> Mux.ask
   where
   timeout = 5000000 :: Mux.Microseconds

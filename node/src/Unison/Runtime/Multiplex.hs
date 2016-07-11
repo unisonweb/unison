@@ -46,6 +46,14 @@ run env (Multiplex go) = runReaderT go env
 ask :: Multiplex Env
 ask = Multiplex Reader.ask
 
+process1 :: Packet -> Multiplex ()
+process1 (Packet destination content) = do
+  (_, Callbacks cbs, _) <- ask
+  callback <- liftIO . atomically $ M.lookup destination cbs
+  liftIO $ case callback of
+    Nothing -> pure ()
+    Just (_, callback) -> callback content
+
 process :: IO (Maybe Packet) -> Multiplex ()
 process recv = do
   (_, Callbacks cbs, _) <- ask
@@ -102,6 +110,9 @@ instance Serial (EncryptedChannel u o i)
 erase :: EncryptedChannel u o i -> Channel B.ByteString
 erase (EncryptedChannel chan) = chan
 
+channelId :: Channel a -> B.ByteString
+channelId (Channel _ id) = id
+
 instance Serial (Channel a)
 
 data Type a = Type deriving Generic
@@ -155,8 +166,8 @@ encryptedRequestTimedVia
   :: (Serial a, Serial b)
   => CipherState
   -> Microseconds
-  -> ((a,Channel (Maybe b)) -> Multiplex ())
-  -> Channel (Maybe b)
+  -> ((a,Channel b) -> Multiplex ())
+  -> Channel b
   -> a
   -> Multiplex b
 encryptedRequestTimedVia (_,decrypt) micros send replyTo@(Channel _ bs) a = do
@@ -173,6 +184,13 @@ encryptAndSendTo
 encryptAndSendTo recipient chan encrypt a = do
   let bytes = Put.runPutS (serialize a)
   bytes `seq` nest recipient (send' chan (encrypt bytes))
+
+encryptAndSendTo'
+  :: (Serial a, Serial node)
+  => node -> Channel a -> (Cleartext -> STM Ciphertext) -> a
+  -> Multiplex ()
+encryptAndSendTo' recipient (Channel _ chan) encrypt a =
+  encryptAndSendTo' recipient (Channel Type chan) encrypt a
 
 fork :: Multiplex a -> Multiplex (Multiplex a)
 fork m = do
