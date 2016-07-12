@@ -303,6 +303,9 @@ handshakeTimeout = seconds 5
 connectionTimeout :: Microseconds
 connectionTimeout = seconds 45
 
+delayBeforeFailure :: Microseconds
+delayBeforeFailure = seconds 2
+
 pipeInitiate
   :: (Serial i, Serial o, Serial key, Serial u, Serial node)
   => C.Cryptography key symmetricKey signKey signature hash Cleartext
@@ -349,11 +352,12 @@ pipeInitiate crypto rootChan (recipient,recipientKey) u = do
 pipeRespond
   :: (Serial o, Serial i, Serial u, Serial node)
   => C.Cryptography key symmetricKey signKey signature hash Cleartext
+  -> (key -> Multiplex Bool)
   -> EncryptedChannel u i o
   -> (u -> node)
   -> B.ByteString
   -> Multiplex (key, u, Maybe o -> Multiplex (), Multiplex (Maybe i), CipherState)
-pipeRespond crypto _ extractSender payload = do
+pipeRespond crypto allow _ extractSender payload = do
   (doneHandshake, senderKey, encrypt, decrypt) <- liftIO $ C.pipeResponder crypto
   bytes <- (liftIO . atomically . decrypt) payload
   (u, chans@(handshakeChan,connectedChan)) <- either fail pure $ Get.runGetS deserialize bytes
@@ -373,8 +377,16 @@ pipeRespond crypto _ extractSender payload = do
           case Get.runGetS deserialize decrypted of
             Left err -> info err >> pure Nothing
             Right mi -> pure (Just mi)
+    checkSenderKey = do
+      senderKey <- liftIO $ atomically senderKey
+      case senderKey of
+        Nothing -> pure ()
+        Just senderKey -> allow senderKey >>= \ok ->
+          if ok then pure ()
+          else liftIO (C.threadDelay delayBeforeFailure) >> fail "disallowed key"
     go = do
       ready <- liftIO $ atomically doneHandshake
+      checkSenderKey
       case ready of
         True -> do
           encryptAndSendTo sender chanh encrypt () -- todo: not sure this flush needed

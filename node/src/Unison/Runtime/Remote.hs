@@ -13,6 +13,7 @@ import Data.Set (Set)
 import Unison.Remote hiding (seconds)
 import Unison.Remote.Extra ()
 import Unison.Runtime.Multiplex (Multiplex)
+import qualified Control.Concurrent as C
 import qualified Data.ByteString as B
 import qualified Data.Bytes.Get as Get
 import qualified Data.Bytes.Put as Put
@@ -54,20 +55,26 @@ type Cleartext = ByteString
 info :: String -> Multiplex ()
 info msg = liftIO (putStrLn msg)
 
+data ConnectionSandbox key =
+  ConnectionSandbox { allowIn :: key -> Multiplex Bool
+                    , allowOut :: key -> Multiplex Bool }
+
 server :: (Ord h, Serial key, Serial t, Serial h)
        => C.Cryptography key symmetricKey signKey signature hash Cleartext
+       -> ConnectionSandbox key
        -> Env t h
        -> Language t h
        -> P.Protocol t signature h' h
        -> Multiplex ()
-server crypto env lang p = do
+server crypto allow env lang p = do
   (accept,_) <- Mux.subscribeTimed (Mux.seconds 60) (Mux.erase (P._eval p))
   Mux.repeatWhile $ do
     initialPayload <- accept
     case initialPayload of
       Nothing -> pure False
-      Just initialPayload -> (\mux -> True <$ Mux.fork mux) $ do -- fork off handling each connection
-        (peerKey, (peer,peeru), send, recv, cipherstate@(encrypt,_)) <- Mux.pipeRespond crypto (P._eval p) fst initialPayload
+      Just initialPayload -> (True <$) . Mux.fork $ do -- fork off handling each connection
+        (peerKey, (peer,peeru), send, recv, cipherstate@(encrypt,_)) <-
+          Mux.pipeRespond crypto (allowIn allow) (P._eval p) fst initialPayload
         guard $ Put.runPutS (serialize peerKey) == publicKey peer
         Mux.repeatWhile $ do
           r <- recv
@@ -77,7 +84,7 @@ server crypto env lang p = do
               Mux.encryptAndSendTo' peer ackChan encrypt P.Ack
               let needs = localDependencies lang (remote lang r)
               when (universe env /= peeru) $ loop needs
-              True <$ Mux.fork (handle crypto env lang p r) -- fork off evaluation of each request
+              True <$ Mux.fork (handle crypto allow env lang p r) -- fork off evaluation of each request
               where
               fetch hs = do
                 syncChan <- Mux.channel
@@ -93,12 +100,13 @@ server crypto env lang p = do
 
 handle :: (Ord h, Serial key, Serial t, Serial h)
        => C.Cryptography key symmetricKey signKey signature hash Cleartext
+       -> ConnectionSandbox key
        -> Env t h
        -> Language t h
        -> P.Protocol t signature h' h
        -> Remote t
        -> Multiplex ()
-handle crypto env lang p r = case r of
+handle crypto allow env lang p r = case r of
   Step (Local l) -> void $ runLocal l
   Step (At n r) -> transfer n r Nothing
   Bind (At n r) k -> transfer n r (Just k)
@@ -106,14 +114,14 @@ handle crypto env lang p r = case r of
     arg <- runLocal l
     r <- liftIO $ eval lang (apply lang k arg)
     case (unRemote lang r) of
-      Just r -> handle crypto env lang p r
+      Just r -> handle crypto allow env lang p r
       Nothing -> fail "typechecker bug; function passed to Remote.bind did not return a Remote"
   where
-  transfer n t k = client crypto env p n r where
+  transfer n t k = client crypto allow env p n r where
     r = case k of
       Nothing -> Step (Local (Pure t))
       Just k -> Bind (Local (Pure t)) k
-  runLocal (Fork r) = Mux.fork (handle crypto env lang p r) $> unit lang
+  runLocal (Fork r) = Mux.fork (handle crypto allow env lang p r) $> unit lang
   runLocal CreateChannel = channel lang . Channel . Mux.channelId <$> Mux.channel
   runLocal Here = pure $ node lang (currentNode env)
   runLocal (Pure t) = liftIO $ eval lang t
@@ -132,13 +140,18 @@ handle crypto env lang p r = case r of
 
 client :: (Ord h, Serial key, Serial t, Serial h)
        => C.Cryptography key symmetricKey signKey signature hash Cleartext
+       -> ConnectionSandbox key
        -> Env t h
        -> P.Protocol t signature h' h
        -> Node
        -> Remote t
        -> Multiplex ()
-client crypto env p recipient r = do
+client crypto allow env p recipient r = do
   recipientKey <- either fail pure $ Get.runGetS deserialize (publicKey recipient)
+  ok <- allowOut allow recipientKey
+  case ok of
+    False -> liftIO $ C.threadDelay Mux.delayBeforeFailure >> fail "disallowed outgoing connection"
+    True -> pure ()
   menv <- Mux.ask
   connect <- pure . Mux.run menv $
     Mux.pipeInitiate crypto (P._eval p) (recipient, recipientKey) (currentNode env, universe env)
