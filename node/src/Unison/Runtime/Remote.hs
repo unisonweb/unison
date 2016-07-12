@@ -4,10 +4,8 @@
 
 module Unison.Runtime.Remote where
 
--- import qualified Data.Set as Set
 import Data.Functor
 import Control.Monad
--- import Control.Applicative
 import Control.Monad.IO.Class
 import Data.ByteString (ByteString)
 import Data.Bytes.Serial (Serial,serialize,deserialize)
@@ -42,6 +40,7 @@ data Env t h
         , missingHashes :: Set h -> IO (Set h)
         , universe :: Universe
         , currentNode :: Node
+        -- todo: cache of recent nodes to check for syncing hashes not found locally
         , connections :: RM.SharedResourceMap
                            Node
                            ( Maybe (Remote t, Mux.Channel P.Ack) -> Multiplex ()
@@ -80,17 +79,17 @@ server crypto env lang p = do
               when (universe env /= peeru) $ loop needs
               True <$ Mux.fork (handle crypto env lang p r) -- fork off evaluation of each request
               where
-              loop needs | Set.null needs = pure ()
-              loop needs = do
+              fetch hs = do
                 syncChan <- Mux.channel
-                hashes <- Mux.encryptedRequestTimedVia cipherstate (Mux.seconds 5) (send . Just . Just) syncChan (Set.toList needs)
-                case hashes of
-                  Nothing -> fail "expected hashes, got timeout"
-                  Just hashes -> do
-                    liftIO $ saveHashes env hashes
-                    stillMissing <- traverse (\(_,t) -> liftIO $ missingHashes env (localDependencies lang t))
-                                             hashes
-                    loop (Set.unions stillMissing)
+                Mux.encryptedRequestTimedVia cipherstate (Mux.seconds 5) (send . Just . Just) syncChan (Set.toList hs)
+              loop needs | Set.null needs = pure ()
+              loop needs = fetch needs >>= \hashes -> case hashes of
+                Nothing -> fail "expected hashes, got timeout"
+                Just hashes -> do
+                  liftIO $ saveHashes env hashes
+                  stillMissing <- forM hashes $ \(_,t) ->
+                    liftIO $ missingHashes env (localDependencies lang t)
+                  loop (Set.unions stillMissing)
 
 handle :: (Ord h, Serial key, Serial t, Serial h)
        => C.Cryptography key symmetricKey signKey signature hash Cleartext

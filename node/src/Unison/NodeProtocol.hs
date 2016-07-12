@@ -28,7 +28,9 @@ data Protocol term signature hash thash =
     -- | Channel used to initiate handshaking to establish an encrypted pipe of `Maybe (Remote term)`
     , _eval :: EncryptedChannel (Remote.Node, Remote.Universe)
                                 (Remote term, Channel Ack)
-                                (Maybe ([thash], Channel (Maybe [(thash,term)]))) -- todo generalize over Hash
+                                (Maybe ([thash], Channel (Maybe [(thash,term)])))
+    -- | Channel used for syncing hashes
+    , _sync :: EncryptedChannel Remote.Node ([thash], Channel Ack) (Maybe [(thash,term)])
     -- | Various `BlockStore` methods
     , _insert :: Request B.ByteString hash
     , _lookup :: Request hash (Maybe B.ByteString)
