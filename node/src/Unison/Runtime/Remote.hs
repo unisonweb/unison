@@ -5,6 +5,7 @@
 module Unison.Runtime.Remote where
 
 import Data.Functor
+import Data.Maybe
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.ByteString (ByteString)
@@ -13,15 +14,18 @@ import Data.Set (Set)
 import Unison.Remote hiding (seconds)
 import Unison.Remote.Extra ()
 import Unison.Runtime.Multiplex (Multiplex)
+import qualified Control.Concurrent.Async as Async
 import qualified Control.Concurrent as C
 import qualified Data.ByteString as B
 import qualified Data.Bytes.Get as Get
 import qualified Data.Bytes.Put as Put
 import qualified Data.Set as Set
+import qualified Unison.BlockStore as BS
 import qualified Unison.Cryptography as C
 import qualified Unison.NodeProtocol as P
-import qualified Unison.Runtime.SharedResourceMap as RM
+import qualified Unison.Runtime.Block as Block
 import qualified Unison.Runtime.Multiplex as Mux
+import qualified Unison.Runtime.SharedResourceMap as RM
 
 data Language t h
   = Language
@@ -49,6 +53,40 @@ data Env t h
                            , Mux.CipherState ) }
 
 instance Serial Universe
+
+makeEnv :: (Serial term, Eq hash, Serial termhash, Ord termhash)
+        => Universe
+        -> Node
+        -> BS.BlockStore hash
+        -> IO (Env term termhash)
+makeEnv universe currentNode bs = mk <$> RM.new 10 40 -- seconds
+  where
+  mk = Env saveHashes getHashes missingHashes universe currentNode
+  -- todo: probably should do some caching/buffering/integrity checking here
+  saveHashes hs =
+    void $ Async.mapConcurrently saveHash hs
+  saveHash (h,t) = do
+    let b = Block.fromSeries (BS.Series (Put.runPutS (serialize h)))
+    let bytes = Put.runPutS (serialize t)
+    _ <- Block.modify' bs b (maybe (Just bytes) Just)
+    pure ()
+  getHashes hs = do
+    blocks <- Async.mapConcurrently getHash (Set.toList hs)
+    blocks <- pure $ catMaybes blocks
+    guard (length blocks == Set.size hs)
+    let e = traverse (Get.runGetS deserialize) blocks
+    case e of
+      Left err -> fail err
+      Right terms  -> pure $ Set.toList hs `zip` terms
+  getHash h = do
+    h <- BS.resolve bs (BS.Series (Put.runPutS (serialize h)))
+    case h of
+      Nothing -> pure Nothing
+      Just h -> BS.lookup bs h
+  missingHashes hs0 = do
+    let hs = Set.toList hs0
+    hs' <- traverse (BS.resolve bs . BS.Series . Put.runPutS . serialize) hs
+    pure . Set.fromList $ [h | (h, Nothing) <- hs `zip` hs']
 
 type Cleartext = ByteString
 

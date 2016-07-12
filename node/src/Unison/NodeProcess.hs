@@ -74,43 +74,6 @@ deserializeHandle1 h dec = go dec where
     Get.Partial k -> B.hGetSome h 65536 >>= \bs -> go (k bs)
     Get.Done a rem -> pure (a, rem)
 
-{-
-makeEnv :: (Serial term, Eq hash)
-        => Remote.Universe
-        -> Remote.Node
-        -> Cryptography k1 k2 sk sig h ct
-        -> BlockStore hash
-        -> Remote.Env term Hash
-makeEnv universe currentNode crypto bs =
-  Remote.Env saveHashes getHashes missingHashes universe currentNode
-  where
-  -- todo: probably should do some caching/buffering here
-  saveHashes hs =
-    void $ Async.mapConcurrently saveHash hs
-  saveHash (h,t) = do
-    let b = Block.fromSeries (Series (Hash.toBytes h))
-    let bytes = Put.runPutS (serialize t)
-    h' <- Block.modify' bs b (maybe (Just bytes) Just)
-    pure ()
-  getHashes hs = do
-    blocks <- Async.mapConcurrently getHash (Set.toList hs)
-    blocks <- pure $ catMaybes blocks
-    guard (length blocks == Set.size hs)
-    let e = traverse (Get.runGetS deserialize) blocks
-    case e of
-      Left err -> fail err
-      Right terms  -> pure $ Set.toList hs `zip` terms
-  getHash h = do
-    h <- BlockStore.resolve bs (Series (Hash.toBytes h))
-    case h of
-      Nothing -> pure Nothing
-      Just h -> BlockStore.lookup bs h
-  missingHashes hs0 = do
-    let hs = Set.toList hs0
-    hs' <- traverse (BlockStore.resolve bs . Series . Hash.toBytes) hs
-    pure . Set.fromList $ [h | (h, Nothing) <- hs `zip` hs']
-  connect = undefined -- todo: can define this in terms of handshaking
-
 data Keypair = Keypair { public :: B.ByteString, private :: B.ByteString } deriving Generic
 instance Serial Keypair
 
@@ -166,10 +129,4 @@ make mkCrypto makeSandbox = do
       Just msg -> True <$ B.putStr (Put.runPutS (serialize msgOut))
   Async.waitCatch reader >> Async.waitCatch writer >> pure ()
   pure ()
--}
-
-repeatWhile :: Monad f => f Bool -> f ()
-repeatWhile action = do
-  ok <- action
-  when ok (repeatWhile action)
 -}
