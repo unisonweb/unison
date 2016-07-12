@@ -173,12 +173,19 @@ executable node
     cpp-options: -Dleveldb
 
 test-suite tests
-  type:           exitcode-stdio-1.0
-  main-is:        Suite.hs
+  type:           detailed-0.9
+  test-module:    Suite
   ghc-options:    -w -threaded -rtsopts -with-rtsopts=-N -v0
   hs-source-dirs: tests
   other-modules:
+    Unison.Test.BlockStore
+    Unison.Test.BlockStore.FileBlockStore
+    Unison.Test.BlockStore.MemBlockStore
+    Unison.Test.KeyValueStore
+    Unison.Test.ResourcePool
+    Unison.Test.SerializationAndHashing
   build-depends:
+    Cabal,
     QuickCheck,
     base,
     bytestring,

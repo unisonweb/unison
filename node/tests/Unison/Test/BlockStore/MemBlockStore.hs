@@ -15,8 +15,7 @@ ioTests = do
   genVar <- IORef.newIORef gen
   let genHash = MBS.makeRandomHash genVar
   store <- MBS.make' genHash
-  pure . testGroup "MemBlockStore" $ makeExhaustiveCases store
-
+  pure . testGroup "MemBlockStore" $ makeCases store
 
 justQuickcheck :: IO [Property]
 justQuickcheck = do
