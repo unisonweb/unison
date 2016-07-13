@@ -49,7 +49,6 @@ library
     Unison.Dom
     Unison.Explorer
     Unison.HTML
-    Unison.Parser
     Unison.TermExplorer
     Unison.TermSearchboxParser
     Unison.UI
