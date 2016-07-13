@@ -48,6 +48,7 @@ library
     Unison.Distance.Extra
     Unison.Hash.Extra
     Unison.Kind.Extra
+    Unison.NodeContainer
     Unison.NodeServer
     Unison.NodeProcess
     Unison.NodeProtocol
@@ -57,6 +58,7 @@ library
     Unison.Runtime.ExtraBuiltins
     Unison.Runtime.ExpiringMap
     Unison.Runtime.Journal
+    Unison.Runtime.JournaledMap
     Unison.Runtime.KeyValueStore
     Unison.Runtime.Multiplex
     Unison.Runtime.Queue

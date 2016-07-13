@@ -27,7 +27,16 @@ import qualified Unison.Runtime.Remote as Remote
 data Keypair k = Keypair { public :: k, private :: B.ByteString } deriving Generic
 instance Serial k => Serial (Keypair k)
 
-make :: (BA.ByteArrayAccess key, Serial signature, Serial term, Serial hash, Serial thash, Serial h, Eq h, Serial key, Serial signKey, Ord thash)
+make :: ( BA.ByteArrayAccess key
+        , Serial signature
+        , Serial term
+        , Serial hash
+        , Serial thash
+        , Serial h
+        , Eq h
+        , Serial key
+        , Serial signKey
+        , Ord thash)
      => P.Protocol term signature h thash
      -> (Keypair key -> Keypair signKey ->
            Cryptography key symmetricKey signKey signature hash Remote.Cleartext)
