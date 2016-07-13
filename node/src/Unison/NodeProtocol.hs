@@ -25,6 +25,8 @@ data Protocol term signature hash thash =
     { _destroyIn :: Channel signature
     -- | Destroy another node
     , _destroyOut :: Channel signature
+    -- | Sent to container to indicate destruction was successful
+    , _destroyed :: Channel (Remote.Node, signature)
     -- | Channel used to initiate handshaking to establish an encrypted pipe of `Maybe (Remote term)`
     , _eval :: EncryptedChannel (Remote.Node, Remote.Universe)
                                 (Remote term, Channel Ack)

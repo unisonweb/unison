@@ -51,8 +51,8 @@ run env (Multiplex go) = runReaderT go env
 -- | Run the multiplexed computation using stdin and stdout, terminating
 -- after a period of inactivity exceeding sleepAfter. `rem` is prepended
 -- onto stdin.
-runStandardIO :: Microseconds -> B.ByteString -> Multiplex a -> IO a
-runStandardIO sleepAfter rem m = do
+runStandardIO :: Microseconds -> B.ByteString -> IO () -> Multiplex a -> IO a
+runStandardIO sleepAfter rem interrupt m = do
   hSetBinaryMode stdin True
   hSetBinaryMode stdout True
   fresh <- uniqueChannel
@@ -62,6 +62,7 @@ runStandardIO sleepAfter rem m = do
   let env = (Q.enqueue output . (Just <$>), cb0, fresh)
   activity <- atomically $ newTVar 0
   let bump = atomically $ modifyTVar' activity (1+)
+  _ <- Async.async $ interrupt; atomically $ writeTQueue input Nothing
   reader <- Async.async $ do
     let write pk = bump >> atomically (writeTQueue input (Just pk))
     deserializeHandle stdin rem write

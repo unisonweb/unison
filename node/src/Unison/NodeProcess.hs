@@ -5,67 +5,63 @@
 
 module Unison.NodeProcess where
 
-import qualified Unison.NodeProtocol as P
-import Control.Concurrent (forkIO)
-import Control.Concurrent.MVar
-import Control.Concurrent.STM (atomically,STM)
-import Control.Concurrent.STM.TQueue
-import Control.Concurrent.STM.TVar
-import Control.Monad
+import Control.Concurrent.STM (atomically)
+import Control.Concurrent.STM.TSem
 import Control.Monad.IO.Class
-import Control.Monad.Trans.Reader (ask)
-import Data.Bytes.Serial (Serial, serialize, deserialize)
-import Data.Functor
-import Data.Map (Map)
-import Data.Maybe
+import Data.Bytes.Serial (Serial, deserialize)
 import Data.Serialize.Get (Get)
-import Data.Word
 import GHC.Generics
-import System.IO (Handle, stdin, stdout, hSetBinaryMode)
+import System.IO (stdin, hSetBinaryMode)
 import Unison.BlockStore (BlockStore(..), Series(..))
 import Unison.Cryptography (Cryptography)
-import Unison.Hash (Hash)
 import Unison.Hash.Extra ()
-import Unison.Runtime.Multiplex (Multiplex)
-import qualified Control.Concurrent.Async as Async
 import qualified Data.ByteArray as BA
 import qualified Data.ByteString as B
 import qualified Data.Bytes.Get as Get
-import qualified Data.Bytes.Put as Put
-import qualified Data.Map as Map
 import qualified Data.Serialize.Get as Get
-import qualified Data.Set as Set
-import qualified Unison.BlockStore as BlockStore
 import qualified Unison.Cryptography as C
-import qualified Unison.Hash as Hash
 import qualified Unison.NodeProtocol as P
-import qualified Unison.Remote as Remote
 import qualified Unison.Runtime.Block as Block
-import qualified Unison.Runtime.Multiplex as Mux
 import qualified Unison.Runtime.Multiplex as Mux
 import qualified Unison.Runtime.Remote as Remote
 
-data Keypair = Keypair { public :: B.ByteString, private :: B.ByteString } deriving Generic
-instance Serial Keypair
+data Keypair k = Keypair { public :: k, private :: B.ByteString } deriving Generic
+instance Serial k => Serial (Keypair k)
 
-{-
-make :: forall term key symmetricKey signKey signature hash thash cleartext h
-      . (BA.ByteArrayAccess key, Serial signature, Serial term, Serial hash, Serial thash, Serial h, Eq h)
+make :: forall term key symmetricKey signKey signature hash thash h
+      . (BA.ByteArrayAccess key, Serial signature, Serial term, Serial hash, Serial thash, Serial h, Eq h, Serial key, Serial signKey, Ord thash)
      => P.Protocol term signature h thash
-     -> (Keypair -> Keypair -> Cryptography key symmetricKey signKey signature hash cleartext)
+     -> (Keypair key -> Keypair signKey ->
+           Cryptography key symmetricKey signKey signature hash Remote.Cleartext)
      -> Get (BlockStore h -> IO (Remote.Language term thash))
      -> IO ()
 make protocol mkCrypto makeSandbox = do
+  hSetBinaryMode stdin True
   (nodeSeries, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize B.empty)
-  Mux.runStandardIO (Mux.seconds 5) rem $ do
+  interrupt <- atomically $ newTSem 0
+  Mux.runStandardIO (Mux.seconds 5) rem (atomically $ waitTSem interrupt) $ do
     blockStore <- P.blockStoreProxy protocol
-    undefined
-    Just (keypair, signKeypair, universe, node, sandbox) <- -- lifetime, budget, children
+    Just (keypair, signKeypair, universe, node, sandbox) <- -- todo: lifetime, budget, children
       liftIO . Block.get blockStore . Block.serial Nothing . Block.fromSeries . Series $ nodeSeries
     makeSandbox <- either fail pure $ Get.runGetS makeSandbox sandbox
     sandbox <- liftIO $ makeSandbox blockStore
     let crypto = mkCrypto keypair signKeypair
+    -- todo: load this from persistent store also
+    connectionSandbox <- pure $ Remote.ConnectionSandbox (\_ -> pure True) (\_ -> pure True)
+    env <- liftIO $ Remote.makeEnv universe node blockStore
+    _ <- Mux.fork $ Remote.server crypto connectionSandbox env sandbox protocol
+    _ <- Mux.fork $ do
+      (destroy, cancel) <- Mux.subscribeTimed (Mux.seconds 60) (P._destroyIn protocol)
+      Mux.repeatWhile $ do
+        sig <- destroy
+        case sig of
+          Just sig | C.verify crypto (public signKeypair) sig "destroy" -> do
+            cancel
+            -- todo: actual cleanup, kill child nodes;
+            -- possiby modify destroyed message to take the
+            -- list of garbage nodes and/or references
+            Mux.send (P._destroyed protocol) (node, sig)
+            liftIO $ atomically (signalTSem interrupt)
+            pure False
+          _ -> pure True
     pure ()
-    -- todo: call Remote.server
-    -- and something to process the destroy messages
--}
