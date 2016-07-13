@@ -48,20 +48,23 @@ newtype Multiplex a = Multiplex (ReaderT Env IO a)
 run :: Env -> Multiplex a -> IO a
 run env (Multiplex go) = runReaderT go env
 
-runStandardIO :: Microseconds -> Multiplex a -> IO a
-runStandardIO sleepAfter m = do
+-- | Run the multiplexed computation using stdin and stdout, terminating
+-- after a period of inactivity exceeding sleepAfter. `rem` is prepended
+-- onto stdin.
+runStandardIO :: Microseconds -> B.ByteString -> Multiplex a -> IO a
+runStandardIO sleepAfter rem m = do
   hSetBinaryMode stdin True
   hSetBinaryMode stdout True
   fresh <- uniqueChannel
   output <- atomically Q.empty
   input <- atomically newTQueue
-  cb0@(Callbacks _ cba) <- Callbacks <$> atomically M.new <*> atomically (newTVar 0)
+  cb0@(Callbacks cbm cba) <- Callbacks <$> atomically M.new <*> atomically (newTVar 0)
   let env = (Q.enqueue output . (Just <$>), cb0, fresh)
   activity <- atomically $ newTVar 0
   let bump = atomically $ modifyTVar' activity (1+)
   reader <- Async.async $ do
-    let write pk = do bump; atomically (writeTQueue input (Just pk))
-    deserializeHandle stdin B.empty write
+    let write pk = bump >> atomically (writeTQueue input (Just pk))
+    deserializeHandle stdin rem write
     bump
     atomically $ writeTQueue input Nothing
   writer <- Async.async . repeatWhile $ do
@@ -74,8 +77,9 @@ runStandardIO sleepAfter m = do
     activity0 <- (+) <$> readTVarIO activity <*> readTVarIO cba
     C.threadDelay sleepAfter
     activity1 <- (+) <$> readTVarIO activity <*> readTVarIO cba
+    nothingPending <- atomically $ M.null cbm
     atomically $
-      if activity0 == activity1 then do
+      if activity0 == activity1 && nothingPending then do
         writeTQueue input Nothing
         Q.enqueue output (pure Nothing)
         pure False

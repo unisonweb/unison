@@ -51,24 +51,21 @@ instance Serial Keypair
 {-
 make :: forall term key symmetricKey signKey signature hash thash cleartext h
       . (BA.ByteArrayAccess key, Serial signature, Serial term, Serial hash, Serial thash, Serial h, Eq h)
-     => P.Protocol term signature hash thash
+     => P.Protocol term signature h thash
      -> (Keypair -> Keypair -> Cryptography key symmetricKey signKey signature hash cleartext)
      -> Get (BlockStore h -> IO (Remote.Language term thash))
-     -> Multiplex ()
+     -> IO ()
 make protocol mkCrypto makeSandbox = do
-  hSetBinaryMode stdin True
-  hSetBinaryMode stdout True
-  (nodeSeries, rem) <- deserializeHandle1 stdin (Get.runGetPartial deserialize B.empty)
-  messagesOut <- atomically (newTQueue :: STM (TQueue (Maybe Mux.Packet)))
-  messagesIn <- atomically (newTQueue :: STM (TQueue (Maybe Mux.Packet)))
-  _ <- Mux.fork $ do
-    liftIO $ deserializeHandle stdin rem (atomically . writeTQueue messagesIn . Just)
-    liftIO . atomically $ writeTQueue messagesIn Nothing
-  blockStore <- P.blockStoreProxy protocol
-  Just (keypair, signKeypair, universe, node, sandbox) <- -- lifetime, budget, children
-    Block.get blockStore . Block.serial Nothing . Block.fromSeries . Series $ nodeSeries
-  makeSandbox <- either fail pure $ Get.runGetS makeSandbox sandbox
-  sandbox <- makeSandbox blockStore
-  let crypto = mkCrypto keypair signKeypair
-  pure ()
+  (nodeSeries, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize B.empty)
+  Mux.runStandardIO (Mux.seconds 5) rem $ do
+    blockStore <- P.blockStoreProxy protocol
+    undefined
+    Just (keypair, signKeypair, universe, node, sandbox) <- -- lifetime, budget, children
+      liftIO . Block.get blockStore . Block.serial Nothing . Block.fromSeries . Series $ nodeSeries
+    makeSandbox <- either fail pure $ Get.runGetS makeSandbox sandbox
+    sandbox <- liftIO $ makeSandbox blockStore
+    let crypto = mkCrypto keypair signKeypair
+    pure ()
+    -- todo: call Remote.server
+    -- and something to process the destroy messages
 -}
