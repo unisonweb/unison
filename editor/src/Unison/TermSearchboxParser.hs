@@ -16,8 +16,6 @@ import qualified Data.Text as Text
 import qualified Unison.Term as E
 import qualified Unison.Var as Var
 
-import Debug.Trace
-
 term :: Parser [Term V]
 term =
   msum
@@ -49,7 +47,7 @@ quotedString = char '\"' *> takeWhile (\c -> c /= '\"') <* optional (char '\"')
 
 intro :: Parser [Term V]
 intro = do
-  let sym = (Var.named . Text.pack <$> token identifier) <|> pure (Var.named "_")
+  let sym = (Var.named . Text.pack <$> token (identifier [])) <|> pure (Var.named "_")
   let lam v = E.lam v E.blank
   let let' v = E.let1 [(v, E.blank)] E.blank
   let letr' v = E.letRec [(v, E.blank)] E.blank

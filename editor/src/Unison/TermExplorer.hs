@@ -76,7 +76,7 @@ make node keydown s paths terms =
         pure ()
     parse _ _ Nothing _ = []
     parse lookup path (Just (Node.LocalInfo{..})) txt = case Parser.run TermSearchboxParser.term txt of
-      Parser.Succeed ts n | all (\c -> c == ' ' || c == ',') (drop n txt) ->
+      Parser.Succeed ts n _ | all (\c -> c == ' ' || c == ',') (drop n txt) ->
         ts >>= \tm ->
           if isValid tm localAdmissibleType
           then [formatResult lookup tm (Replace path tm, Still) Right]
