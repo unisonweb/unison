@@ -51,10 +51,14 @@ library
     Unison.NodeServer
     Unison.Reference.Extra
     Unison.Remote.Extra
+    Unison.Runtime.Block
     Unison.Runtime.ExtraBuiltins
+    Unison.Runtime.Journal
     Unison.Runtime.KeyValueStore
     Unison.Runtime.Remote
     Unison.SerializationAndHashing
+    Unison.BlockStore.MemBlockStore
+    Unison.BlockStore.FileBlockStore
     Unison.Symbol.Extra
     Unison.Term.Extra
     Unison.TermEdit.Extra
@@ -90,6 +94,7 @@ library
     io-streams,
     memory,
     mtl,
+    murmur-hash,
     network,
     network-simple,
     prelude-extras,
@@ -147,6 +152,7 @@ executable node
     http-types,
     memory,
     mtl,
+    murmur-hash,
     prelude-extras,
     random,
     safecopy,
@@ -173,17 +179,19 @@ test-suite tests
   hs-source-dirs: tests
   other-modules:
   build-depends:
+    QuickCheck,
     base,
     bytestring,
     containers,
     ctrie,
+    directory,
     hashable,
     random,
     stm,
     tasty,
     tasty-hunit,
-    tasty-smallcheck,
     tasty-quickcheck,
+    tasty-smallcheck,
     time,
     transformers,
     unison-node,
