@@ -19,4 +19,5 @@ addons:
     - ghc-7.10.2
 
 script:
-  - stack --no-terminal --skip-ghc-check test
+  - stack --no-terminal --skip-ghc-check test unison-shared
+  - stack --no-terminal --skip-ghc-check test unison-node
