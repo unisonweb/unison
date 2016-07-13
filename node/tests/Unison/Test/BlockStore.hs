@@ -2,7 +2,7 @@
 module Unison.Test.BlockStore where
 
 import Control.Concurrent (forkIO, ThreadId)
-import Control.Monad (zipWithM_, foldM, replicateM, (>=>))
+import Control.Monad (zipWithM_, foldM, when, replicateM, (>=>))
 import Data.ByteString.Char8 (ByteString, pack, unpack)
 import Data.Maybe (fromMaybe, catMaybes, isNothing)
 import Test.QuickCheck
@@ -48,7 +48,7 @@ appendAppendUpdate bs = do
   (Just h3) <- BS.append bs seriesName h2 (pack "v2")
   vs <- BS.resolves bs seriesName
   case vs of
-    [h3', h2', h1'] | h3 == h3' && h2 == h2' && h == h1' -> pure ()
+    [h3', h2'] | h3 == h3' && h2 == h2' -> pure ()
     x -> fail ("got series list of " ++ show x)
   (Just h4) <- BS.update bs seriesName h3 (pack "v3")
   vs2 <- BS.resolves bs seriesName
@@ -75,6 +75,10 @@ data BlockStoreMethod
   | Append ByteString
   | Resolve
   | Resolves deriving (Eq, Show)
+
+isDeclareSeries :: BlockStoreMethod -> Bool
+isDeclareSeries (DeclareSeries _) = True
+isDeclareSeries _ = False
 
 data BlockStoreResult
   = Key Hash
@@ -106,7 +110,7 @@ instance Arbitrary BlockStoreMethod where
 data TestClient = TestClient
   { lastHandle :: Hash
   , result :: BlockStoreResult
-  , lastSeries :: BS.Series }
+  , lastSeries :: BS.Series } deriving (Show)
 
 runCommand :: BS.BlockStore Hash -> BlockStoreMethod -> TestClient -> IO TestClient
 runCommand bs command tc = case command of
@@ -137,6 +141,21 @@ runMethods blockStore clientVar client =
   forkIO . (>>= MVar.putMVar clientVar) . foldM runMethod client where
   runMethod client method = runCommand blockStore method client
 
+prop_allSeriesHashesAreValid :: BS.BlockStore Hash -> Property
+prop_allSeriesHashesAreValid bs = QCM.monadicIO $ do
+  firstDeclareSeries <- QCM.pick $ (DeclareSeries . BS.Series) <$> genByteString
+  firstUpdate <- QCM.pick $ Update <$> genByteString
+  client <- QCM.run $ Prelude.foldr (\m tc -> tc >>= runCommand bs m)
+                       (pure $ TestClient undefined undefined undefined)
+                       [firstUpdate, firstDeclareSeries]
+  clientMethods <- QCM.pick . flip suchThat (all (not . isDeclareSeries))
+    $ (arbitrary :: Gen [BlockStoreMethod])
+  newClient <- QCM.run $ foldr (\m c -> c >>= runCommand bs m) (pure client) clientMethods
+  seriesHashes <- QCM.run . BS.resolves bs $ lastSeries newClient
+  seriesValues <- QCM.run $ mapM (BS.lookup bs) seriesHashes
+  -- make sure we didn't get any Nothing values for the series
+  QCM.assert $ length seriesValues == length (catMaybes seriesValues)
+
 prop_lastKeyIsValid :: BS.BlockStore Hash -> Property
 prop_lastKeyIsValid blockStore = QCM.monadicIO $ do
   firstDeclareSeries <- QCM.pick $ (DeclareSeries . BS.Series) <$> genByteString
@@ -144,10 +163,11 @@ prop_lastKeyIsValid blockStore = QCM.monadicIO $ do
   interestingClient <- QCM.run $ Prelude.foldr (\m tc -> tc >>= runCommand blockStore m)
                        (pure $ TestClient undefined undefined undefined)
                        [firstUpdate, firstDeclareSeries]
-  clientMethods <- QCM.pick (arbitrary :: Gen [BlockStoreMethod])
-  _ <- QCM.run $ foldr
+  clientMethods <- filter (not . isDeclareSeries)
+    <$> QCM.pick (arbitrary :: Gen [BlockStoreMethod])
+  newClient <- QCM.run $ foldr
     (\m c -> c >>= runCommand blockStore m) (pure interestingClient) clientMethods
-  lookupLast <- QCM.run . BS.lookup blockStore $ lastHandle interestingClient
+  lookupLast <- QCM.run . BS.lookup blockStore $ lastHandle newClient
   QCM.assert . not $ isNothing lookupLast
 
 prop_SomeoneHasAValidKey :: BS.BlockStore Hash -> Property
@@ -161,8 +181,10 @@ prop_SomeoneHasAValidKey blockStore = QCM.monadicIO $ do
   clientVars <- QCM.run $ replicateM clientNumber MVar.newEmptyMVar
   let clients = replicate clientNumber interestingClient
   clientMethods <- QCM.pick . vectorOf clientNumber $ arbitrary
+  let filteredMethods = map (filter (not . isDeclareSeries)) clientMethods
   -- run all forks
-  _ <- QCM.run . sequence $ zipWith3 (runMethods blockStore) clientVars clients clientMethods
+  _ <- QCM.run . sequence
+    $ zipWith3 (runMethods blockStore) clientVars clients filteredMethods
   -- wait for all forks to finish
   clientResults <- QCM.run
     $ mapM (MVar.takeMVar >=> BS.lookup blockStore . lastHandle) clientVars
@@ -182,5 +204,6 @@ makeExhaustiveCases bs = [ HU.testCase "roundTrip" (roundTrip bs)
                          , HU.testCase "appendAppendUpdate" (appendAppendUpdate bs)
                          , HU.testCase "idempotentDeclare" (idempotentDeclare bs)
                          , testProperty "lastKeyIsValid" (prop_lastKeyIsValid bs)
+                         , testProperty "allSeriesHashesAreValid" (prop_allSeriesHashesAreValid bs)
                          , testProperty "someoneHasValidKey" (prop_SomeoneHasAValidKey bs)
                          ]

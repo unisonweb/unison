@@ -2,7 +2,6 @@ module Unison.BlockStore.MemBlockStore where
 
 
 import Data.ByteString (ByteString)
-import Debug.Trace (trace)
 import System.Random
 import Unison.Hash (Hash)
 import Unison.Hash.Extra ()
@@ -19,14 +18,17 @@ import qualified Unison.Hash as Hash
 garbageLimit :: Int
 garbageLimit = 100
 
+data SeriesData = SeriesData { lastHash :: Hash, seriesList :: [Hash] } deriving (Show)
+
 data StoreData = StoreData
   { hashMap :: Map.Map Hash ByteString
-  , seriesMap :: Map.Map BS.Series [Hash]
+  , seriesMap :: Map.Map BS.Series SeriesData
   , permanent :: Set.Set Hash
   , updateCount :: Int
   } deriving (Show)
 
--- think more about threading random state, since it's used two places now
+addSeriesHash :: Hash -> SeriesData -> SeriesData
+addSeriesHash h (SeriesData _ sl) = SeriesData h (h:sl)
 
 makeHash :: ByteString -> Hash
 makeHash = Hash.fromBytes . LB.toStrict
@@ -38,7 +40,6 @@ randomHash = random
 makeRandomHash :: RandomGen r => IORef.IORef r -> IO Hash
 makeRandomHash genVar = IORef.atomicModifyIORef genVar ((\(a,b) -> (b,a)) . randomHash)
 
--- TODO implement real garbage collection for hashes removed from series
 make :: IO Hash -> IORef.IORef StoreData -> BS.BlockStore Hash
 make genHash mapVar =
   let insertStore (StoreData hashMap seriesMap rs uc) v =
@@ -54,18 +55,19 @@ make genHash mapVar =
         IORef.atomicModifyIORef mapVar $ \store ->
           case Map.lookup series (seriesMap store) of
             Nothing ->
-             (store { seriesMap = Map.insert series [hash] (seriesMap store)}, hash)
-            Just (h:_) -> (store, h)
-            _ -> error "MemBlockStore.declareSeries had empty list of hashes in series"
+             (store { seriesMap = Map.insert series (SeriesData hash []) (seriesMap store)}
+             , hash)
+            Just (SeriesData h _) -> (store, h)
       update series hash v = IORef.atomicModifyIORef mapVar $ \(StoreData hm sm rc uc) ->
         case Map.lookup series sm of
-          Just (h:_) | h == hash ->
+          Just (SeriesData h _) | h == hash ->
                    let (valueStore, hash) = insertStore (StoreData hm sm rc uc) v
-                       newMap = Map.insert series [hash] $ seriesMap valueStore
+                       newSeries = SeriesData hash [hash]
+                       newMap = Map.insert series newSeries $ seriesMap valueStore
                        -- hashes we don't want to garbage collect
-                       preserveHashes = Set.union rc . Set.fromList . concat . Map.elems
-                         $ seriesMap valueStore
-                       clearedMap = Map.filterWithKey (\k now_ -> Set.member k preserveHashes)
+                       preserveHashes = Set.union rc . Set.fromList . concatMap seriesList
+                         . Map.elems $ newMap
+                       clearedMap = Map.filterWithKey (\k _ -> Set.member k preserveHashes)
                          $ hashMap valueStore
                        finalStore = case uc of
                          uc | uc == garbageLimit ->
@@ -74,21 +76,21 @@ make genHash mapVar =
                                       , hashMap = clearedMap }
                          _ -> valueStore { seriesMap = newMap, updateCount = uc + 1 }
                    in (finalStore, Just hash)
-          Just [] -> error "MemBlockStore.update had empty list of hashes in series"
           _ -> (StoreData hm sm rc uc, Nothing)
       append series hash v = IORef.atomicModifyIORef mapVar $ \(StoreData hashMap sm rc uc) ->
         case Map.lookup series sm of
-          Just (h:_) | h == hash ->
+          Just (SeriesData h _) | h == hash ->
                    let (valueStore, hash) = insertStore (StoreData hashMap sm rc uc) v
-                       newMap = Map.update (Just . (hash :)) series $ seriesMap valueStore
+                       newMap = Map.update (Just . addSeriesHash hash) series
+                         $ seriesMap valueStore
                        finalStore = valueStore { seriesMap = newMap }
                    in (finalStore, Just hash)
-          Just [] -> error "MemBlockStore.append had empty list of hashes in series"
           _ -> (StoreData hashMap sm rc uc, Nothing)
       resolve s = IORef.readIORef mapVar >>=
-        (\(StoreData _ seriesMap _ _) -> pure . fmap head $ Map.lookup s seriesMap)
+        (\(StoreData _ seriesMap _ _) -> pure . fmap lastHash $ Map.lookup s seriesMap)
       resolves s = IORef.readIORef mapVar >>=
-        (\(StoreData _ seriesMap _ _) -> pure $ Map.findWithDefault [] s seriesMap)
+        (\(StoreData _ seriesMap _ _) -> pure . seriesList
+          $ Map.findWithDefault (SeriesData undefined []) s seriesMap)
   in BS.BlockStore insert lookup declareSeries update append resolve resolves
 
 make' :: IO Hash -> IO (BS.BlockStore Hash)
