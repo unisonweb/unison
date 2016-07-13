@@ -4,9 +4,11 @@
 
 module Unison.Runtime.Multiplex where
 
+import System.IO (Handle, stdin, stdout, hSetBinaryMode)
 import Control.Applicative
 import Control.Concurrent.MVar
 import Control.Concurrent.STM as STM
+import Control.Concurrent.Async (Async)
 import Control.Exception (catch,SomeException,mask_)
 import Control.Monad
 import Control.Monad.IO.Class
@@ -15,8 +17,8 @@ import Data.Bytes.Serial (Serial(serialize,deserialize))
 import Data.Functor
 import Data.IORef
 import Data.Maybe
+import Data.Word
 import GHC.Generics
-import qualified Unison.Cryptography as C
 import qualified Control.Concurrent as C
 import qualified Control.Concurrent.Async as Async
 import qualified Control.Monad.Reader as Reader
@@ -24,8 +26,10 @@ import qualified Crypto.Random as Random
 import qualified Data.ByteString as B
 import qualified Data.Bytes.Get as Get
 import qualified Data.Bytes.Put as Put
-import qualified ListT as ListT
+import qualified Data.Serialize.Get as Get
 import qualified STMContainers.Map as M
+import qualified Unison.Cryptography as C
+import qualified Unison.Runtime.Queue as Q
 -- import Control.Concurrent.STM
 
 data Packet = Packet { destination :: B.ByteString, content :: B.ByteString } deriving (Generic)
@@ -33,7 +37,8 @@ instance Serial Packet
 
 type IsSubscription = Bool
 
-newtype Callbacks = Callbacks (M.Map B.ByteString (IsSubscription, B.ByteString -> IO ()))
+data Callbacks =
+  Callbacks (M.Map B.ByteString (B.ByteString -> IO ())) (TVar Word64)
 
 type Env = (STM Packet -> STM (), Callbacks, IO B.ByteString)
 
@@ -43,20 +48,85 @@ newtype Multiplex a = Multiplex (ReaderT Env IO a)
 run :: Env -> Multiplex a -> IO a
 run env (Multiplex go) = runReaderT go env
 
+runStandardIO :: Microseconds -> Multiplex a -> IO a
+runStandardIO sleepAfter m = do
+  hSetBinaryMode stdin True
+  hSetBinaryMode stdout True
+  fresh <- uniqueChannel
+  output <- atomically Q.empty
+  input <- atomically newTQueue
+  cb0@(Callbacks _ cba) <- Callbacks <$> atomically M.new <*> atomically (newTVar 0)
+  let env = (Q.enqueue output . (Just <$>), cb0, fresh)
+  activity <- atomically $ newTVar 0
+  let bump = atomically $ modifyTVar' activity (1+)
+  reader <- Async.async $ do
+    let write pk = do bump; atomically (writeTQueue input (Just pk))
+    deserializeHandle stdin B.empty write
+    bump
+    atomically $ writeTQueue input Nothing
+  writer <- Async.async . repeatWhile $ do
+    packet <- atomically $ Q.dequeue output :: IO (Maybe Packet)
+    case packet of
+      Nothing -> pure False
+      Just packet -> True <$ B.putStr (Put.runPutS (serialize packet)) <* bump
+  processor <- Async.async $ run env (process $ atomically (readTQueue input))
+  watchdog <- Async.async . repeatWhile $ do
+    activity0 <- (+) <$> readTVarIO activity <*> readTVarIO cba
+    C.threadDelay sleepAfter
+    activity1 <- (+) <$> readTVarIO activity <*> readTVarIO cba
+    atomically $
+      if activity0 == activity1 then do
+        writeTQueue input Nothing
+        Q.enqueue output (pure Nothing)
+        pure False
+      else
+        pure True
+  logic <- Async.async $ run env m
+  Async.wait watchdog
+  Async.wait reader
+  Async.wait processor
+  Async.wait writer
+  Async.wait logic
+
+deserializeHandle :: Serial a => Handle -> B.ByteString -> (a -> IO ()) -> IO ()
+deserializeHandle h rem write = go (Get.runGetPartial deserialize rem) where
+  go dec = do
+    (a, rem) <- deserializeHandle1 h dec
+    write a
+    go (Get.runGetPartial deserialize rem)
+
+deserializeHandle1' :: Serial a => Handle -> IO (a, B.ByteString)
+deserializeHandle1' h = deserializeHandle1 h (Get.runGetPartial deserialize B.empty)
+
+deserializeHandle1 :: Handle -> Get.Result a -> IO (a, B.ByteString)
+deserializeHandle1 h dec = go dec where
+  go result = case result of
+    Get.Fail msg rem -> fail ("decoding failure " ++ msg ++ ", remainder: " ++ show rem)
+    Get.Partial k -> B.hGetSome h 65536 >>= \bs -> go (k bs)
+    Get.Done a rem -> pure (a, rem)
+
 ask :: Multiplex Env
 ask = Multiplex Reader.ask
 
+bumpActivity :: Multiplex ()
+bumpActivity = do
+  (_, Callbacks _ cba, _) <- ask
+  liftIO $ bumpActivity' cba
+
+bumpActivity' :: TVar Word64 -> IO ()
+bumpActivity' cba = atomically $ modifyTVar' cba (1+)
+
 process1 :: Packet -> Multiplex ()
 process1 (Packet destination content) = do
-  (_, Callbacks cbs, _) <- ask
+  (_, Callbacks cbs cba, _) <- ask
   callback <- liftIO . atomically $ M.lookup destination cbs
   liftIO $ case callback of
     Nothing -> pure ()
-    Just (_, callback) -> callback content
+    Just callback -> bumpActivity' cba >> callback content
 
 process :: IO (Maybe Packet) -> Multiplex ()
 process recv = do
-  (_, Callbacks cbs, _) <- ask
+  (_, Callbacks cbs cba, _) <- ask
   liftIO . repeatWhile $ do
     packet <- recv
     case packet of
@@ -65,17 +135,10 @@ process recv = do
         callback <- atomically $ M.lookup destination cbs
         case callback of
           Nothing -> pure True
-          Just (_, callback) -> callback content >> pure True
-
-shutdown :: Multiplex ()
-shutdown = do
-  (_, Callbacks cbs, _) <- ask
-  liftIO . atomically $ do
-    -- todo: may want to do this with uncons, to avoid needing to snapshot entire map
-    entries <- ListT.toList (M.stream cbs)
-    forM_ entries $ \(_,(isSub,_)) ->
-      if isSub then pure ()
-      else STM.retry -- it's an active request, wait for it to complete
+          Just callback -> do
+            bumpActivity' cba
+            callback content
+            pure True
 
 repeatWhile :: Monad f => f Bool -> f ()
 repeatWhile action = do
@@ -100,7 +163,7 @@ uniqueChannel = do
     pure . Put.runPutS $ Put.putByteString (Put.runPutS $ serialize n) >> Put.putByteString bytes
 
 callbacks0 :: STM Callbacks
-callbacks0 = Callbacks <$> M.new
+callbacks0 = Callbacks <$> M.new <*> newTVar 0
 
 data Channel a = Channel (Type a) B.ByteString deriving Generic
 
@@ -192,11 +255,10 @@ encryptAndSendTo'
 encryptAndSendTo' recipient (Channel _ chan) encrypt a =
   encryptAndSendTo' recipient (Channel Type chan) encrypt a
 
-fork :: Multiplex a -> Multiplex (Multiplex a)
+fork :: Multiplex a -> Multiplex (Async a)
 fork m = do
   env <- ask
-  task <- liftIO . Async.async $ run env m
-  pure $ liftIO (Async.wait task)
+  liftIO . Async.async $ run env m
 
 nest :: Serial k => k -> Multiplex a -> Multiplex a
 nest outer m = Reader.local tweak m where
@@ -219,14 +281,15 @@ send' (Channel _ key) a = do
 
 receiveCancellable :: Serial a => Channel (Maybe a) -> Multiplex (Multiplex a, Multiplex ())
 receiveCancellable (Channel _ key) = do
-  (_,Callbacks cbs,_) <- ask
+  (_,Callbacks cbs cba,_) <- ask
   result <- liftIO newEmptyMVar
-  liftIO . atomically $ M.insert (False, putMVar result) key cbs
+  liftIO . atomically $ M.insert (putMVar result) key cbs
+  liftIO $ bumpActivity' cba
   cancel <- pure $ do
     cb <- liftIO . atomically $ M.lookup key cbs <* M.delete key cbs
     case cb of
       Nothing -> pure ()
-      Just (_,cb) -> liftIO $ cb (Put.runPutS (serialize (Nothing :: Maybe Int)))
+      Just cb -> liftIO $ cb (Put.runPutS (serialize (Nothing :: Maybe Int)))
   force <- pure . liftIO $ do
     bytes <- takeMVar result
     case Get.runGetS deserialize bytes of
@@ -281,9 +344,10 @@ subscribeTimed micros chan = do
 
 subscribe :: Serial a => Channel a -> Multiplex (Multiplex a, Multiplex ())
 subscribe (Channel _ key) = do
-  (_, Callbacks cbs, _) <- ask
+  (_, Callbacks cbs cba, _) <- ask
   q <- liftIO . atomically $ newTQueue
-  liftIO . atomically $ M.insert (True, atomically . writeTQueue q) key cbs
+  liftIO . atomically $ M.insert (atomically . writeTQueue q) key cbs
+  liftIO $ bumpActivity' cba
   unsubscribe <- pure . liftIO . atomically . M.delete key $ cbs
   force <- pure . liftIO $ do
     bytes <- atomically $ readTQueue q
