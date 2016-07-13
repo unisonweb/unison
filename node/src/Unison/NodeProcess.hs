@@ -1,6 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# Language DeriveGeneric #-}
-{-# Language ScopedTypeVariables #-}
 {-# Language OverloadedStrings #-}
 
 module Unison.NodeProcess where
@@ -28,8 +27,7 @@ import qualified Unison.Runtime.Remote as Remote
 data Keypair k = Keypair { public :: k, private :: B.ByteString } deriving Generic
 instance Serial k => Serial (Keypair k)
 
-make :: forall term key symmetricKey signKey signature hash thash h
-      . (BA.ByteArrayAccess key, Serial signature, Serial term, Serial hash, Serial thash, Serial h, Eq h, Serial key, Serial signKey, Ord thash)
+make :: (BA.ByteArrayAccess key, Serial signature, Serial term, Serial hash, Serial thash, Serial h, Eq h, Serial key, Serial signKey, Ord thash)
      => P.Protocol term signature h thash
      -> (Keypair key -> Keypair signKey ->
            Cryptography key symmetricKey signKey signature hash Remote.Cleartext)
