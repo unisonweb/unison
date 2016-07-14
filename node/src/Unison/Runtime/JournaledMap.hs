@@ -3,7 +3,6 @@
 module Unison.Runtime.JournaledMap where
 
 import GHC.Generics
-import Data.List
 import Data.Bytes.Serial (Serial)
 import Data.Map (Map)
 import Unison.Runtime.Journal as J
@@ -32,14 +31,13 @@ lookup :: (Serial k, Ord k, Serial v) => k -> JournaledMap k v -> IO (Maybe v)
 lookup k j = atomically $ Map.lookup k <$> J.get j
 
 keys :: JournaledMap k v -> IO [k]
-keys j = atomically $ Map.keys <$> J.get j
+keys j = Map.keys <$> atomically (J.get j)
 
 fromSeries :: (Eq h, Ord k, Serial k, Serial v) => BS.BlockStore h -> BS.Series -> BS.Series -> IO (JournaledMap k v)
-fromSeries bs keyframe diffs = J.fromBlocks bs apply ks ds where
+fromSeries bs keyframe diffs = J.fromBlocks bs Noop apply ks ds where
   ks = B.serial Map.empty $ B.fromSeries keyframe
   ds = B.serial Noop $ B.fromSeries diffs
-  apply keyframe = foldl' step keyframe
-  step m (Insert k v) = Map.insert k v m
-  step m (Delete k) = Map.delete k m
-  step _ Clear = Map.empty
-  step m Noop = m
+  apply (Insert k v) m = Map.insert k v m
+  apply (Delete k) m = Map.delete k m
+  apply Clear _ = Map.empty
+  apply Noop m = m

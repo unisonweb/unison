@@ -1,63 +1,107 @@
 module Unison.Runtime.Journal where
 
-import Control.Exception (bracket)
-import Control.Monad (when)
+import Control.Concurrent (forkIO)
 import Control.Concurrent.STM (STM, atomically)
 import Control.Concurrent.STM.TSem
-import Data.Functor
+import Control.Concurrent.STM.TVar
+import Control.Concurrent.STM.TQueue
+import Control.Exception
+import Control.Monad
+import Data.List
 import Unison.BlockStore (BlockStore)
 import Unison.Runtime.Block (Block)
 import qualified Unison.Runtime.Block as Block
 
+type VisibleNow = Bool
+
 -- | `flush` flushes the updates to the store
-data Updates u = Updates { flush :: IO (), append :: u -> STM () }
+data Updates u = Updates { flush :: STM (), append :: VisibleNow -> u -> STM (STM ()) }
 
--- | `record` produces a new checkpoint and clears `updates`
-data Journal a u = Journal { get :: STM a, updates :: Updates u, record :: IO () }
+-- | A sequentially-updated, persistent `a` value. `get` obtains the current value.
+-- `updates` can be used to append updates to the value. `recordAsync` produces a new
+-- checkpoint and clears `updates`. It is guaranteed durable when the inner `STM ()` completes.
+data Journal a u = Journal { get :: STM a, updates :: Updates u, recordAsync :: STM (STM ()) }
 
--- update :: u -> Journal a u -> IO ()
--- update u j = append (updates j) u
+-- | Record a new checkpoint synchronously. When the returned `STM` completes,
+-- the checkpoint is durable.
+record :: Journal a u -> STM ()
+record j = join $ recordAsync j
 
--- | Updates the journal; invariant here is that when the `STM ()` is run, updates are durable
--- and also visible (in memory). Updates _may_ be durable and visible before
+-- | Updates the journal; invariant here is that after the `STM ()` is run, updates are durable
+-- and also visible in memory. Updates _may_ be durable and visible before
 -- that but this isn't guaranteed.
 updateAsync :: u -> Journal a u -> IO (STM ())
-updateAsync u j = undefined
+updateAsync u j = atomically $ append (updates j) False u
 
 -- | Updates the journal; updates are visible immediately, but aren't necessarily
 -- durable until the `STM ()` is run.
 updateNowAsyncFlush :: u -> Journal a u -> IO (STM ())
-updateNowAsyncFlush u j = undefined
+updateNowAsyncFlush u j = atomically $ append (updates j) True u
 
--- | Updates the journal; updates are visible immediately, and are durable when
--- this function returns.
+-- | Updates the journal; updates are visible and durable when this function returns.
 update :: u -> Journal a u -> IO ()
 update u j = do
   force <- updateNowAsyncFlush u j
   atomically force
 
-fromBlocks :: Eq h => BlockStore h -> (a -> [u] -> a) -> Block a -> Block u -> IO (Journal a u)
-fromBlocks bs apply checkpoint us =
-  undefined
-  {-
-  do
-  sem <- atomically $ newTSem 1
-  let j = Journal apply (Block.get bs checkpoint) (Updates (pure ()) append gets) (record j sem)
-  pure j
+-- | Create a Journal from two blocks, an identity update, and a function for applying
+-- an update to the state.
+fromBlocks :: Eq h => BlockStore h -> u -> (u -> a -> a) -> Block a -> Block u -> IO (Journal a u)
+fromBlocks bs zero apply checkpoint us = do
+  current <- Block.get bs checkpoint
+  us' <- sequenceA =<< Block.gets bs us
+  current <- atomically $ newTVar (foldl' (flip apply) current us')
+  updateQ <- atomically $ newTQueue
+  latestEnqueue <- atomically $ newTVar (pure ())
+  err <- atomically $ newTVar Nothing
+  get <- pure $ readTVar err >>= maybe (readTVar current) fail
+  let flush = join $ get >> readTVar latestEnqueue
+  append <- pure $ \vnow u -> do
+    cur <- get
+    done <- newTSem 0
+    writeTVar latestEnqueue (waitTSem done)
+    writeTQueue updateQ (Just (u, vnow), signalTSem done)
+    let cur' = apply u cur
+    waitTSem done <$
+      if vnow then cur' `seq` writeTVar current cur'
+      else pure ()
+  _ <- forkIO . forever $ do
+    -- write updates to BlockStore asynchronously, notifying of completion or errors
+    (uvnow, done) <- atomically $ readTQueue updateQ -- will die when the `Journal` gets GC'd
+    id $
+      let
+        handle :: SomeException -> IO ()
+        handle e = atomically $ modifyTVar' err (const (Just . show $ e))
+      in case uvnow of
+        Nothing -> do
+          now <- atomically get
+          _ <- catch (Block.modify' bs checkpoint (const now) >>
+                      Block.modify' bs us (const zero) >>
+                      pure ())
+                     handle
+          pure ()
+        Just (u, vnow) ->
+          catch (Block.append bs us u >> update) handle
+          where
+          update | not vnow  = atomically $ done >> modifyTVar' current (apply u)
+                 | otherwise = pure ()
+  pure $ Journal get (Updates flush append) (record updateQ)
   where
-  append u = void $ Block.append bs us u
-  gets = sequenceA =<< Block.gets bs us
-  record j sem = bracket (atomically $ waitTSem sem) (\_ -> atomically $ signalTSem sem) $ \_ -> do
-    aOld <- Block.get bs checkpoint
-    log <- currentLog (updates j)
-    when (not . null $ log) $ do
-      let commitUpdates = init log
-          stickBack = last log
-      _ <- Block.modify' bs checkpoint (const $ apply aOld commitUpdates)
-      _ <- Block.modify' bs us (const stickBack)
-      pure ()
-  -}
+  record updateQ = do
+    done <- newTSem 0
+    writeTQueue updateQ (Nothing, signalTSem done)
+    pure $ waitTSem done
 
--- TODO implement buffering and auto checkpointing
--- idea - keep a bounded queue of updates
--- buffer :: Journal a u -> IO (Journal a u)
+-- | Log a new checkpoint every `updateCount` updates made to the returned journal
+checkpointEvery :: Int -> Journal a u -> STM (Journal a u)
+checkpointEvery updateCount (Journal get updates record) = tweak <$> newTVar 0 where
+  tweak count =
+    let
+      record' = writeTVar count (0 :: Int) >> record
+      append' vnow u = do
+        done <- modifyTVar' count (1+) >> append updates vnow u
+        count' <- readTVar count
+        case count' of
+          _ | count' >= updateCount -> record'
+            | otherwise -> pure done
+    in Journal get (Updates (flush updates) append') record'

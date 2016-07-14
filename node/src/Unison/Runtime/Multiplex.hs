@@ -186,14 +186,14 @@ instance Serial (Channel a)
 data Type a = Type deriving Generic
 instance Serial (Type a)
 
-type Request a b = Channel (a, Channel (Maybe b))
+type Request a b = Channel (a, Channel b)
 
 type Microseconds = Int
 
 requestTimedVia' :: (Serial a, Serial b)
                  => Microseconds
-                 -> (STM (a,Channel (Maybe b)) -> Multiplex ())
-                 -> Channel (Maybe b)
+                 -> (STM (a, Channel b) -> Multiplex ())
+                 -> Channel b
                  -> STM a
                  -> Multiplex (Multiplex b)
 requestTimedVia' micros send replyTo a = do
@@ -205,7 +205,7 @@ requestTimedVia' micros send replyTo a = do
     run env cancel
   pure $ receive <* liftIO (C.killThread watchdog)
 
-requestTimedVia :: (Serial a, Serial b) => Microseconds -> Request a b -> Channel (Maybe b) -> STM a
+requestTimedVia :: (Serial a, Serial b) => Microseconds -> Request a b -> Channel b -> STM a
                 -> Multiplex (Multiplex b)
 requestTimedVia micros req replyTo a =
   requestTimedVia' micros (send' req) replyTo a
@@ -284,26 +284,22 @@ send' (Channel _ key) a = do
   (send,_,_) <- ask
   liftIO . atomically $ send (Packet key . Put.runPutS . serialize <$> a)
 
-receiveCancellable :: Serial a => Channel (Maybe a) -> Multiplex (Multiplex a, Multiplex ())
+receiveCancellable :: Serial a => Channel a -> Multiplex (Multiplex a, Multiplex ())
 receiveCancellable (Channel _ key) = do
   (_,Callbacks cbs cba,_) <- ask
   result <- liftIO newEmptyMVar
-  liftIO . atomically $ M.insert (putMVar result) key cbs
+  liftIO . atomically $ M.insert (putMVar result . Right) key cbs
   liftIO $ bumpActivity' cba
   cancel <- pure $ do
-    cb <- liftIO . atomically $ M.lookup key cbs <* M.delete key cbs
-    case cb of
-      Nothing -> pure ()
-      Just cb -> liftIO $ cb (Put.runPutS (serialize (Nothing :: Maybe Int)))
+    liftIO . atomically $ M.delete key cbs
+    liftIO $ putMVar result (Left "cancelled")
   force <- pure . liftIO $ do
     bytes <- takeMVar result
-    case Get.runGetS deserialize bytes of
-      Left err -> fail err
-      Right Nothing -> fail "cancelled"
-      Right (Just a) -> pure a
+    bytes <- either fail pure bytes
+    either fail pure $ Get.runGetS deserialize bytes
   pure (force, cancel)
 
-receiveTimed :: Serial a => Microseconds -> Channel (Maybe a) -> Multiplex (Multiplex a)
+receiveTimed :: Serial a => Microseconds -> Channel a -> Multiplex (Multiplex a)
 receiveTimed micros chan = do
   (force, cancel) <- receiveCancellable chan
   env <- ask
