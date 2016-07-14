@@ -7,38 +7,37 @@ import Data.Foldable (asum)
 import qualified Data.Text as Text
 
 import Unison.Parser
-import Unison.Symbol (Symbol)
 import Unison.Type (Type)
-import Unison.View (DFO)
+import Unison.Var (Var)
 import qualified Unison.Type as Type
 
-type V = Symbol DFO
+-- type V = Symbol DFO
 
-type_ :: Parser (Type V)
+type_ :: Var v => Parser (Type v)
 type_ = forall type1 <|> type1
 
-typeLeaf :: Parser (Type V)
+typeLeaf :: Var v => Parser (Type v)
 typeLeaf =
   asum [ literal
        , parenthesized type_
        , fmap (Type.v' . Text.pack) (token varName)
        ]
 
-type1 :: Parser (Type V)
+type1 :: Var v => Parser (Type v)
 type1 = arrow type2
 
-type2 :: Parser (Type V)
+type2 :: Var v => Parser (Type v)
 type2 = app typeLeaf
 
 -- "TypeA TypeB TypeC"
-app :: Parser (Type V) -> Parser (Type V)
+app :: Ord v => Parser (Type v) -> Parser (Type v)
 app rec = fmap (foldl1' Type.app) (some rec)
 
-arrow :: Parser (Type V) -> Parser (Type V)
+arrow :: Ord v => Parser (Type v) -> Parser (Type v)
 arrow rec = foldr1 Type.arrow <$> sepBy1 (token $ string "->") rec
 
 -- "forall a b . List a -> List b -> Maybe Text"
-forall :: Parser (Type V) -> Parser (Type V)
+forall :: Var v => Parser (Type v) -> Parser (Type v)
 forall rec = do
     _ <- token $ string "forall"
     vars <- some $ token varName
@@ -59,7 +58,7 @@ typeName = identifier [isUpper.head]
 --     f first more = maybe first (first++) more
 --     more = (:) <$> char '.' <*> qualifiedTypeName
 
-literal :: Parser (Type V)
+literal :: Var v => Parser (Type v)
 literal =
   token $ asum [ Type.lit Type.Number <$ string "Number"
                , Type.lit Type.Text <$ string "Text"
