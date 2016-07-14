@@ -40,7 +40,7 @@ make :: ( BA.ByteArrayAccess key
      => P.Protocol term signature h thash
      -> (Keypair key -> Keypair signKey ->
            Cryptography key symmetricKey signKey signature hash Remote.Cleartext)
-     -> Get (BlockStore h -> IO (Remote.Language term thash))
+     -> Get (BlockStore h -> Mux.Multiplex (Remote.Language term thash))
      -> IO ()
 make protocol mkCrypto makeSandbox = do
   hSetBinaryMode stdin True
@@ -51,7 +51,7 @@ make protocol mkCrypto makeSandbox = do
     Just (keypair, signKeypair, universe, node, sandbox) <- -- todo: lifetime, budget, children
       liftIO . Block.get blockStore . Block.serial Nothing . Block.fromSeries . Series $ nodeSeries
     makeSandbox <- either fail pure $ Get.runGetS makeSandbox sandbox
-    sandbox <- liftIO $ makeSandbox blockStore
+    sandbox <- makeSandbox blockStore
     let crypto = mkCrypto keypair signKeypair
     -- todo: load this from persistent store also
     connectionSandbox <- pure $ Remote.ConnectionSandbox (\_ -> pure True) (\_ -> pure True)

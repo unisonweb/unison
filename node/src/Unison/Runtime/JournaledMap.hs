@@ -2,14 +2,16 @@
 
 module Unison.Runtime.JournaledMap where
 
-import GHC.Generics
+import Control.Concurrent.STM (atomically)
+import Data.ByteString (ByteString)
 import Data.Bytes.Serial (Serial)
 import Data.Map (Map)
-import Unison.Runtime.Journal as J
+import GHC.Generics
 import qualified Data.Map as Map
 import qualified Unison.BlockStore as BS
+import qualified Unison.Cryptography as C
 import qualified Unison.Runtime.Block as B
-import Control.Concurrent.STM (atomically)
+import qualified Unison.Runtime.Journal as J
 
 type JournaledMap k v = J.Journal (Map k v) (Update k v)
 
@@ -33,11 +35,31 @@ lookup k j = atomically $ Map.lookup k <$> J.get j
 keys :: JournaledMap k v -> IO [k]
 keys j = Map.keys <$> atomically (J.get j)
 
-fromSeries :: (Eq h, Ord k, Serial k, Serial v) => BS.BlockStore h -> BS.Series -> BS.Series -> IO (JournaledMap k v)
-fromSeries bs keyframe diffs = J.fromBlocks bs Noop apply ks ds where
-  ks = B.serial Map.empty $ B.fromSeries keyframe
-  ds = B.serial Noop $ B.fromSeries diffs
+fromBlocks :: (Eq h, Ord k, Serial k, Serial v)
+           => BS.BlockStore h
+           -> B.Block (Maybe ByteString)
+           -> B.Block (Maybe ByteString)
+           -> IO (JournaledMap k v)
+fromBlocks bs keyframe diffs = J.fromBlocks bs Noop apply ks ds where
+  ks = B.serial Map.empty $ keyframe
+  ds = B.serial Noop $ diffs
   apply (Insert k v) m = Map.insert k v m
   apply (Delete k) m = Map.delete k m
   apply Clear _ = Map.empty
   apply Noop m = m
+
+fromSeries :: (Eq h, Ord k, Serial k, Serial v)
+           => BS.BlockStore h
+           -> BS.Series
+           -> BS.Series
+           -> IO (JournaledMap k v)
+fromSeries bs keyframe diffs = fromBlocks bs (B.fromSeries keyframe) (B.fromSeries diffs)
+
+fromEncryptedSeries :: (Eq h, Ord k, Serial k, Serial v)
+                    => C.Cryptography k1 k2 k3 s h2 ByteString
+                    -> BS.BlockStore h
+                    -> BS.Series
+                    -> BS.Series
+                    -> IO (JournaledMap k v)
+fromEncryptedSeries crypto bs keyframe diffs =
+  fromBlocks bs (B.encrypted crypto (B.fromSeries keyframe)) (B.encrypted crypto (B.fromSeries diffs))
