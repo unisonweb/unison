@@ -64,6 +64,16 @@ idempotentDeclare bs = do
   if h == h2 then pure ()
     else fail ("got back unequal hashes " ++ show h ++ " " ++ show h2)
 
+cantChangeWithInvalidHash :: BS.BlockStore Hash -> HU.Assertion
+cantChangeWithInvalidHash bs = do
+  let seriesName = BS.Series $ pack "series4"
+  let series2Name = BS.Series $ pack "series5"
+  h <- BS.declareSeries bs seriesName
+  h2 <- BS.declareSeries bs series2Name
+  result <- BS.update bs seriesName h2 $ pack "value"
+  if isNothing result then pure ()
+    else fail "updated series without correct hash"
+
 genByteString :: Gen ByteString
 genByteString = B.pack <$> listOf (choose (0, 255))
 
@@ -195,15 +205,13 @@ makeCases bs = [ HU.testCase "roundTrip" (roundTrip bs)
                , HU.testCase "roundTripSeries" (roundTripSeries bs)
                , HU.testCase "appendAppendUpdate" (appendAppendUpdate bs)
                , HU.testCase "idempotentDeclare" (idempotentDeclare bs)
+               , HU.testCase "cantChangeWithInvalidHash" (cantChangeWithInvalidHash bs)
                ]
 
 -- the quickcheck tests seem to take forever.
 makeExhaustiveCases :: BS.BlockStore Hash -> [TestTree]
-makeExhaustiveCases bs = [ HU.testCase "roundTrip" (roundTrip bs)
-                         , HU.testCase "roundTripSeries" (roundTripSeries bs)
-                         , HU.testCase "appendAppendUpdate" (appendAppendUpdate bs)
-                         , HU.testCase "idempotentDeclare" (idempotentDeclare bs)
-                         , testProperty "lastKeyIsValid" (prop_lastKeyIsValid bs)
-                         , testProperty "allSeriesHashesAreValid" (prop_allSeriesHashesAreValid bs)
-                         , testProperty "someoneHasValidKey" (prop_SomeoneHasAValidKey bs)
-                         ]
+makeExhaustiveCases bs = makeCases bs ++
+  [ testProperty "lastKeyIsValid" (prop_lastKeyIsValid bs)
+  , testProperty "allSeriesHashesAreValid" (prop_allSeriesHashesAreValid bs)
+  , testProperty "someoneHasValidKey" (prop_SomeoneHasAValidKey bs)
+  ]

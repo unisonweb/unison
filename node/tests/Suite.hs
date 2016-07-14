@@ -16,11 +16,10 @@ tastyTests :: IO (TestTree, IO ())
 tastyTests = do
   kvsTests <- KVS.ioTests
   mbsTests <- MBS.ioTests
-  -- TODO fix FileBlockStore, and put tests back in rotation
   journalTests <- J.ioTests
   (fbsTests, cleanup) <- FBS.ioTests
   pure (testGroup "unison"
-        [ResourcePool.tests, mbsTests, fbsTests, SAH.tests, journalTests], cleanup)
+        [ResourcePool.tests, mbsTests, fbsTests, SAH.tests, journalTests, kvsTests], cleanup)
 
 runTasty :: IO ()
 runTasty = tastyTests >>= (\(tt, cleanup) -> defaultMain tt >> cleanup)
