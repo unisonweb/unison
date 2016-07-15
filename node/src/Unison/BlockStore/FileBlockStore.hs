@@ -68,19 +68,6 @@ appendSeriesMap series hash = do
       alterF (Just (SeriesData _ hl)) = Just . SeriesData hash $ hash : hl
   put sd { seriesMap = newMap }
 
-{-
-insertPermanent :: BS.Series -> Hash -> Update StoreData ()
-insertPermanent series hash = do
-  sd <- get
-  let newPermanents = Set.insert hash $ permanent sd
-  put sd { permanent = newPermanents }
--}
-
-{-
-incrementUpdate :: Update StoreData ()
-incrementUpdate = get >>= \sd -> put sd { updateCount = updateCount sd + 1 }
-  -}
-
 readHashMap :: Query StoreData (Map.Map Hash ByteString)
 readHashMap = ask >>= (pure . hashMap)
 
@@ -96,16 +83,6 @@ maybeCollectGarbage = do
   if updateCount sd == garbageLimit
     then put sd { hashMap = clearedMap, updateCount = 0}
     else put sd { updateCount = updateCount sd + 1 }
-
-{-
-readPermanent :: Query StoreData (Set.Set Hash)
-readPermanent = ask >>= (pure . permanent)
-  -}
-
-{-
-readUpdateCount :: Query StoreData Int
-readUpdateCount = ask >>= (pure . updateCount)
-  -}
 
 $(makeAcidic ''StoreData ['insertHashMap, 'insertSeriesMap, 'appendSeriesMap, 'readSeriesMap, 'insertBS, 'readHashMap, 'maybeCollectGarbage, 'deleteSeriesMap])
 

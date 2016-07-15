@@ -10,6 +10,7 @@ import Unison.Node.Builtin
 import Unison.Parsers (unsafeParseType)
 import Unison.Type (Type)
 import qualified Control.Concurrent.MVar as MVar
+import qualified Unison.BlockStore.FileBlockStore as FBS
 import qualified Unison.Eval.Interpreter as I
 import qualified Unison.Hash as Hash
 import qualified Unison.Note as Note
@@ -41,8 +42,10 @@ makeAPI :: IO (WHNFEval -> [Builtin])
 makeAPI = do
   stdGen <- getStdGen
   genVar <- MVar.newMVar stdGen
-  resourcePool <- RP.make 3 10 KVS.load KVS.close
   let nextHash = makeRandomHash genVar
+      nextHash' = fmap Hash.toBytes nextHash
+  blockStore <- FBS.make' nextHash "keyValueStore"
+  resourcePool <- RP.make 3 10 (KVS.load blockStore nextHash') (const (pure ()))
   pure (\whnf -> map (\(r, o, t, m) -> Builtin r o t m)
      [ let r = R.Builtin "KeyValue.empty"
            op [] = Note.lift $ do
@@ -59,9 +62,9 @@ makeAPI = do
                g i k
              g (Store' h) k = do
                val <- Note.lift $ do
-                 (db, _) <- RP.acquire resourcePool $ Hash.fromBase64 h
+                 (db, _) <- RP.acquire resourcePool . Hash.toBytes $ Hash.fromBase64 h
                  result <- KVS.lookup (SAH.hash' k) db
-                 case result >>= (pure . SAH.deserializeTermFromBytes) of
+                 case result >>= (pure . SAH.deserializeTermFromBytes . snd) of
                    Just (Left s) -> fail ("KeyValue.lookup could not deserialize: " ++ s)
                    Just (Right t) -> pure $ some t
                    Nothing -> pure none
@@ -79,7 +82,7 @@ makeAPI = do
                g k' v' s
              g k v (Store' h) = do
                Note.lift $ do
-                 (db, _) <- RP.acquire resourcePool $ Hash.fromBase64 h
+                 (db, _) <- RP.acquire resourcePool . Hash.toBytes $ Hash.fromBase64 h
                  KVS.insert (SAH.hash' k) (SAH.serializeTerm k, SAH.serializeTerm v) db
                pure unitRef
              g k v store = pure $ Term.ref r `Term.app` k `Term.app` v `Term.app` store
