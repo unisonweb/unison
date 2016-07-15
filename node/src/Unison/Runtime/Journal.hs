@@ -24,8 +24,8 @@ data Journal a u = Journal { get :: STM a, updates :: Updates u, recordAsync :: 
 
 -- | Record a new checkpoint synchronously. When the returned `STM` completes,
 -- the checkpoint is durable.
-record :: Journal a u -> STM ()
-record j = join $ recordAsync j
+record :: Journal a u -> IO ()
+record j = atomically (recordAsync j) >>= atomically
 
 -- | Updates the journal; invariant here is that after the `STM ()` is run, updates are durable
 -- and also visible in memory. Updates _may_ be durable and visible before
@@ -79,7 +79,7 @@ fromBlocks bs zero apply checkpoint us = do
                       Block.modify' bs us (const zero) >>
                       pure ())
                      handle
-          pure ()
+          atomically done
         Just (u, vnow) ->
           catch (Block.append bs us u >> update) handle
           where
