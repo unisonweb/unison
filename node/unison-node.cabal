@@ -197,6 +197,7 @@ test-suite tests
   build-depends:
     QuickCheck,
     base,
+    bytes,
     bytestring,
     containers,
     ctrie,
