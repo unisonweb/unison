@@ -56,7 +56,7 @@ fromSeries :: (Eq h, Ord k, Serial k, Serial v)
 fromSeries bs keyframe diffs = fromBlocks bs (B.fromSeries keyframe) (B.fromSeries diffs)
 
 fromEncryptedSeries :: (Eq h, Ord k, Serial k, Serial v)
-                    => C.Cryptography k1 k2 k3 s h2 ByteString
+                    => C.Cryptography t1 t2 t3 t4 t5 t6 ByteString
                     -> BS.BlockStore h
                     -> BS.Series
                     -> BS.Series

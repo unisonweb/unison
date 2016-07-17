@@ -23,6 +23,8 @@ data BlockStore h = BlockStore {
   lookup :: h -> IO (Maybe ByteString),
   -- | Will return a random hash if Series not already declared, otherwise returns the result of `resolve`
   declareSeries :: Series -> IO h,
+  -- | Marks the `Series` as garbage, allowing it to be collected
+  deleteSeries :: Series -> IO (),
   -- | Update the value associated with this series. Any previous value(s) for the series
   -- are considered garbage after the `update` and may be deleted by the store.
   update :: Series -> h -> ByteString -> IO (Maybe h),

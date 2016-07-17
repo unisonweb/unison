@@ -7,7 +7,7 @@ module Unison.NodeProcess where
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TSem
 import Control.Monad.IO.Class
-import Data.Bytes.Serial (Serial, deserialize)
+import Data.Bytes.Serial (Serial, serialize, deserialize)
 import Data.Serialize.Get (Get)
 import GHC.Generics
 import System.IO (stdin, hSetBinaryMode)
@@ -17,6 +17,7 @@ import Unison.Hash.Extra ()
 import qualified Data.ByteArray as BA
 import qualified Data.ByteString as B
 import qualified Data.Bytes.Get as Get
+import qualified Data.Bytes.Put as Put
 import qualified Data.Serialize.Get as Get
 import qualified Unison.Cryptography as C
 import qualified Unison.NodeProtocol as P
@@ -37,9 +38,8 @@ make :: ( BA.ByteArrayAccess key
         , Serial key
         , Serial signKey
         , Ord thash)
-     => P.Protocol term signature h thash
-     -> (Keypair key -> Keypair signKey ->
-           Cryptography key symmetricKey signKey signature hash Remote.Cleartext)
+     => P.Protocol term hash h thash
+     -> (Keypair key -> Cryptography key symmetricKey signKey skp signature hash Remote.Cleartext)
      -> Get (BlockStore h -> Mux.Multiplex (Remote.Language term thash))
      -> IO ()
 make protocol mkCrypto makeSandbox = do
@@ -48,11 +48,12 @@ make protocol mkCrypto makeSandbox = do
   interrupt <- atomically $ newTSem 0
   Mux.runStandardIO (Mux.seconds 5) rem (atomically $ waitTSem interrupt) $ do
     blockStore <- P.blockStoreProxy protocol
-    Just (keypair, signKeypair, universe, node, sandbox) <- -- todo: lifetime, budget, children
+    Just (keypair, universe, node, sandbox) <- -- todo: lifetime, budget, children
       liftIO . Block.get blockStore . Block.serial Nothing . Block.fromSeries . Series $ nodeSeries
     makeSandbox <- either fail pure $ Get.runGetS makeSandbox sandbox
     sandbox <- makeSandbox blockStore
-    let crypto = mkCrypto keypair signKeypair
+    let crypto = mkCrypto keypair
+    let skHash = Put.runPutS (serialize $ C.hash crypto [Put.runPutS (serialize $ private keypair)])
     -- todo: load this from persistent store also
     connectionSandbox <- pure $ Remote.ConnectionSandbox (\_ -> pure True) (\_ -> pure True)
     env <- liftIO $ Remote.makeEnv universe node blockStore
@@ -62,12 +63,12 @@ make protocol mkCrypto makeSandbox = do
       Mux.repeatWhile $ do
         sig <- destroy
         case sig of
-          Just sig | C.verify crypto (public signKeypair) sig "destroy" -> do
+          -- todo: constant time equality needed here?
+          Just sig | skHash == Put.runPutS (serialize sig) -> do
             cancel
-            -- todo: actual cleanup, kill child nodes;
-            -- possiby modify destroyed message to take the
-            -- list of garbage nodes and/or references
-            Mux.send (P._destroyed protocol) (node, sig)
+            Mux.send (Mux.Channel Mux.Type skHash) ()
+            -- no other cleanup needed; container will reclaim resources and eventually
+            -- kill off linked child nodes
             liftIO $ atomically (signalTSem interrupt)
             pure False
           _ -> pure True

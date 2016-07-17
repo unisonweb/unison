@@ -59,6 +59,7 @@ library
     Unison.Runtime.ExpiringMap
     Unison.Runtime.Journal
     Unison.Runtime.JournaledMap
+    Unison.Runtime.JournaledTrie
     Unison.Runtime.KeyValueStore
     Unison.Runtime.Multiplex
     Unison.Runtime.Queue
@@ -90,6 +91,7 @@ library
     blaze-html,
     bytes,
     bytestring,
+    bytestring-trie,
     cacophony,
     cereal,
     containers,
@@ -108,6 +110,7 @@ library
     network,
     network-simple,
     prelude-extras,
+    process,
     random,
     safecopy,
     scotty,
@@ -118,6 +121,7 @@ library
     time,
     transformers,
     transformers-compat,
+    unagi-chan,
     unison-shared,
     vector,
     wai-extra,

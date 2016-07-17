@@ -86,6 +86,7 @@ library
     mtl,
     murmur-hash,
     prelude-extras,
+    random,
     stm,
     text,
     transformers,

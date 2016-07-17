@@ -96,7 +96,7 @@ fromSeries series = Block series pure pure
 or :: Block (Maybe a) -> a -> Block a
 or (Block series get set) a = Block series (fmap (fromMaybe a) . get) (set . Just)
 
-encrypted :: C.Cryptography k k' k'' s h ByteString
+encrypted :: C.Cryptography t1 t2 t3 t4 t5 t6 ByteString
           -> Block (Maybe ByteString)
           -> Block (Maybe ByteString)
 encrypted crypto b = xmap' decrypt encrypt b where

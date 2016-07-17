@@ -1,9 +1,11 @@
 {-# Language DeriveGeneric #-}
 {-# Language ScopedTypeVariables #-}
+{-# Language OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Unison.NodeProtocol where
 
+import Data.ByteString (ByteString)
 import Control.Monad
 import Data.Bytes.Serial (Serial)
 import GHC.Generics
@@ -19,14 +21,15 @@ instance Serial Series
 data Ack = Ack deriving Generic
 instance Serial Ack
 
+destroyedMessage :: ByteString
+destroyedMessage = "destroyed"
+
 data Protocol term signature hash thash =
   Protocol
     -- | Shut down and destroy this node; requires proof of knowledge of private key
     { _destroyIn :: Channel signature
     -- | Destroy another node
     , _destroyOut :: Channel signature
-    -- | Sent to container to indicate destruction was successful
-    , _destroyed :: Channel (Remote.Node, signature)
     -- | Create a new node (TODO - pass in parameters here)
     , _spawn :: Request () Remote.Node
     -- | Channel used to initiate handshaking to establish an encrypted pipe of `Maybe (Remote term)`
@@ -39,6 +42,7 @@ data Protocol term signature hash thash =
     , _insert :: Request B.ByteString hash
     , _lookup :: Request hash (Maybe B.ByteString)
     , _declare :: Request Series hash
+    , _delete :: Request Series ()
     , _update :: Request (Series,hash,B.ByteString) (Maybe hash)
     , _append :: Request (Series,hash,B.ByteString) (Maybe hash)
     , _resolve :: Request Series (Maybe hash)
@@ -55,8 +59,9 @@ blockStoreProxy p = go <$> Mux.ask
       insert bytes = mt (_insert p) bytes
       lookup h = mt (_lookup p) h
       declare series = mt (_declare p) series
+      delete series = mt (_delete p) series
       update series h bytes = mt (_update p) (series,h,bytes)
       append series h bytes = mt (_append p) (series,h,bytes)
       resolve series = mt (_resolve p) series
       resolves series = mt (_resolves p) series
-    in BlockStore insert lookup declare update append resolve resolves
+    in BlockStore insert lookup declare delete update append resolve resolves

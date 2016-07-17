@@ -98,11 +98,11 @@ data ConnectionSandbox key =
                     , allowOut :: key -> Multiplex Bool }
 
 server :: (Ord h, Serial key, Serial t, Serial h)
-       => C.Cryptography key symmetricKey signKey signature hash Cleartext
+       => C.Cryptography key t1 t2 t3 t4 hash Cleartext
        -> ConnectionSandbox key
        -> Env t h
        -> Language t h
-       -> P.Protocol t signature h' h
+       -> P.Protocol t hash h' h
        -> Multiplex ()
 server crypto allow env lang p = do
   (accept,_) <- Mux.subscribeTimed (Mux.seconds 60) (Mux.erase (P._eval p))
@@ -137,11 +137,11 @@ server crypto allow env lang p = do
                   loop (Set.unions stillMissing)
 
 handle :: (Ord h, Serial key, Serial t, Serial h)
-       => C.Cryptography key symmetricKey signKey signature hash Cleartext
+       => C.Cryptography key t1 t2 t3 t4 hash Cleartext
        -> ConnectionSandbox key
        -> Env t h
        -> Language t h
-       -> P.Protocol t signature h' h
+       -> P.Protocol t hash h' h
        -> Remote t
        -> Multiplex ()
 handle crypto allow env lang p r = case r of
@@ -177,10 +177,10 @@ handle crypto allow env lang p r = case r of
       Right r -> pure r
 
 client :: (Ord h, Serial key, Serial t, Serial h)
-       => C.Cryptography key symmetricKey signKey signature hash Cleartext
+       => C.Cryptography key t1 t2 t3 t4 hash Cleartext
        -> ConnectionSandbox key
        -> Env t h
-       -> P.Protocol t signature h' h
+       -> P.Protocol t hash h' h
        -> Node
        -> Remote t
        -> Multiplex ()

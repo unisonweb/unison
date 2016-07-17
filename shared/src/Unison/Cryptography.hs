@@ -2,6 +2,8 @@
 
 module Unison.Cryptography where
 
+import Control.Monad
+import System.Random (randomIO)
 import Control.Concurrent.STM (STM)
 import Data.ByteString (ByteString)
 import Data.List
@@ -15,13 +17,13 @@ type Ciphertext = ByteString
 
 -- | The noop cryptography object. Does no actual encryption or signing,
 -- and hashing function is not cryptographically secure! Useful for testing / debugging.
-noop :: Cryptography () () () ByteString ByteString ByteString
-noop = Cryptography () () hash sign verify randomBytes encryptAsymmetric decryptAsymmetric encrypt decrypt pipeInitiator pipeResponder where
+noop :: Cryptography () () () () ByteString ByteString ByteString
+noop = Cryptography () gen hash sign verify randomBytes encryptAsymmetric decryptAsymmetric encrypt decrypt pipeInitiator pipeResponder where
+  gen = pure ((), ())
   hash = finish . foldl' (\acc bs -> Murmur.hash64Add bs acc) (Murmur.hash64 ())
   sign _ = "not-a-real-signature" :: ByteString
   verify _ _ _ = True
-  -- todo: this actually needs to be a bit more realistic
-  randomBytes n = pure $ ByteString.replicate n 4 -- see: https://xkcd.com/221/
+  randomBytes n = ByteString.pack <$> replicateM n randomIO
   encryptAsymmetric _ cleartext = pure cleartext
   decryptAsymmetric ciphertext = Right ciphertext
   encrypt _ bs = pure $ ByteString.concat bs
@@ -30,12 +32,12 @@ noop = Cryptography () () hash sign verify randomBytes encryptAsymmetric decrypt
   pipeResponder = pure (pure True, pure (Just ()), pure, pure)
   finish h64 = (LB.toStrict . Builder.toLazyByteString . Builder.word64LE . Murmur.asWord64) h64
 
-data Cryptography key symmetricKey signKey signature hash cleartext =
+data Cryptography key symmetricKey signKey signKeyPrivate signature hash cleartext =
   Cryptography
     -- public key
     { publicKey :: key
-    -- public key, used for signing (may not be the same as `publicKey`)
-    , publicSigningKey :: signKey
+    -- generate a keypair used for signing
+    , generateSignKey :: IO (signKey, signKeyPrivate)
     -- hash some bytes
     , hash :: [ByteString] -> hash
     -- sign some bytes

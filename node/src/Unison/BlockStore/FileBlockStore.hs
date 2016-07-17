@@ -35,6 +35,11 @@ insertSeriesMap series hashes = do
   StoreData hashMap seriesMap <- get
   put (StoreData hashMap (Map.insert series hashes seriesMap))
 
+deleteSeriesMap :: BS.Series -> Update StoreData ()
+deleteSeriesMap series = do
+  StoreData hashMap seriesMap <- get
+  put (StoreData hashMap (Map.delete series seriesMap))
+
 appendSeriesMap :: BS.Series -> Hash -> Update StoreData ()
 appendSeriesMap series hash = do
   StoreData hashMap seriesMap <- get
@@ -46,7 +51,7 @@ readHashMap = ask >>= (pure . hashMap)
 readSeriesMap :: Query StoreData (Map.Map BS.Series [Hash])
 readSeriesMap = ask >>= (pure . seriesMap)
 
-$(makeAcidic ''StoreData ['insertHashMap, 'insertSeriesMap, 'appendSeriesMap, 'readHashMap, 'readSeriesMap])
+$(makeAcidic ''StoreData ['insertHashMap, 'insertSeriesMap, 'deleteSeriesMap, 'appendSeriesMap, 'readHashMap, 'readSeriesMap])
 
 initState :: FilePath -> IO (AcidState StoreData)
 initState f = openLocalStateFrom f $ StoreData Map.empty Map.empty
@@ -69,6 +74,9 @@ make genHash storeState =
             pure hash
           Just (h:_) -> pure h
           _ -> error "FileBlockStore.declareSeries had empty list of hashes in series"
+      deleteSeries series = do
+        seriesHashes <- query storeState ReadSeriesMap
+        update storeState $ DeleteSeriesMap series
       update' series hash v = do
         seriesHashes <- Map.lookup series <$> query storeState ReadSeriesMap
         case seriesHashes of
@@ -89,7 +97,7 @@ make genHash storeState =
           _ -> pure Nothing
       resolve s = (fmap head . Map.lookup s) <$> query storeState ReadSeriesMap
       resolves s = Map.findWithDefault [] s <$> query storeState ReadSeriesMap
-  in BS.BlockStore insert lookup declareSeries update' append resolve resolves
+  in BS.BlockStore insert lookup declareSeries deleteSeries update' append resolve resolves
 
 make' :: IO Hash -> FilePath -> IO (BS.BlockStore Hash)
 make' gen path = initState path >>= pure . make gen

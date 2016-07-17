@@ -58,6 +58,8 @@ make genHash mapVar =
              (store { seriesMap = Map.insert series (SeriesData hash []) (seriesMap store)}
              , hash)
             Just (SeriesData h _) -> (store, h)
+      deleteSeries series = IORef.atomicModifyIORef mapVar $ \store ->
+        (store { seriesMap = Map.delete series (seriesMap store) }, ())
       update series hash v = IORef.atomicModifyIORef mapVar $ \(StoreData hm sm rc uc) ->
         case Map.lookup series sm of
           Just (SeriesData h _) | h == hash ->
@@ -91,7 +93,7 @@ make genHash mapVar =
       resolves s = IORef.readIORef mapVar >>=
         (\(StoreData _ seriesMap _ _) -> pure . seriesList
           $ Map.findWithDefault (SeriesData undefined []) s seriesMap)
-  in BS.BlockStore insert lookup declareSeries update append resolve resolves
+  in BS.BlockStore insert lookup declareSeries deleteSeries update append resolve resolves
 
 make' :: IO Hash -> IO (BS.BlockStore Hash)
 make' genHash = IORef.newIORef (StoreData Map.empty Map.empty Set.empty 0)

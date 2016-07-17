@@ -56,8 +56,8 @@ runStandardIO sleepAfter rem interrupt m = do
   hSetBinaryMode stdin True
   hSetBinaryMode stdout True
   fresh <- uniqueChannel
-  output <- atomically Q.empty
-  input <- atomically newTQueue
+  output <- atomically Q.empty :: IO (Q.Queue (Maybe Packet))
+  input <- atomically newTQueue :: IO (TQueue (Maybe Packet))
   cb0@(Callbacks cbm cba) <- Callbacks <$> atomically M.new <*> atomically (newTVar 0)
   let env = (Q.enqueue output . (Just <$>), cb0, fresh)
   activity <- atomically $ newTVar 0
@@ -373,7 +373,7 @@ delayBeforeFailure = seconds 2
 
 pipeInitiate
   :: (Serial i, Serial o, Serial key, Serial u, Serial node)
-  => C.Cryptography key symmetricKey signKey signature hash Cleartext
+  => C.Cryptography key t1 t2 t3 t4 t5 Cleartext
   -> EncryptedChannel u o i
   -> (node,key)
   -> u
@@ -416,7 +416,7 @@ pipeInitiate crypto rootChan (recipient,recipientKey) u = do
 -- handshake if we know we can't accept messages from that party
 pipeRespond
   :: (Serial o, Serial i, Serial u, Serial node)
-  => C.Cryptography key symmetricKey signKey signature hash Cleartext
+  => C.Cryptography key t1 t2 t3 t4 t5 Cleartext
   -> (key -> Multiplex Bool)
   -> EncryptedChannel u i o
   -> (u -> node)
