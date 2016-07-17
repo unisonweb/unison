@@ -74,8 +74,7 @@ make genHash storeState =
             pure hash
           Just (h:_) -> pure h
           _ -> error "FileBlockStore.declareSeries had empty list of hashes in series"
-      deleteSeries series = do
-        seriesHashes <- query storeState ReadSeriesMap
+      deleteSeries series =
         update storeState $ DeleteSeriesMap series
       update' series hash v = do
         seriesHashes <- Map.lookup series <$> query storeState ReadSeriesMap
