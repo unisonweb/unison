@@ -25,7 +25,7 @@ fromBlocks :: (Eq h, Serial v)
            -> B.Block (Maybe ByteString)
            -> B.Block (Maybe ByteString)
            -> IO (JournaledTrie v)
-fromBlocks bs keyframe diffs = J.fromBlocks bs Nothing apply ks ds where
+fromBlocks bs keyframe diffs = J.fromBlocks bs apply ks ds where
   ks = B.serial T.empty $ keyframe
   ds = B.serial Nothing $ diffs
   apply Nothing t = t
