@@ -40,11 +40,8 @@ readAfterUpdate bs = do
       updates = makeBlock "u " NoOp
   j <- J.fromBlocks bs NoOp simpleUpdate values updates
   J.update Inc j
-  putStrLn "can we just update, friends?"
-  atomically . J.flush . J.updates $ j
-  putStrLn "hey, at least we flushed"
   result <- atomically $ J.get j
-  when (result /= 0) $ fail ("incorrect value after update, result " ++ show result)
+  when (result /= 1) $ fail ("incorrect value after update, result " ++ show result)
 
 ioTests :: IO TestTree
 ioTests = do

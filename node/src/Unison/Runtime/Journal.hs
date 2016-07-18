@@ -84,7 +84,7 @@ fromBlocks bs zero apply checkpoint us = do
           catch (Block.append bs us u >> update) handle
           where
           update | not vnow  = atomically $ done >> modifyTVar' current (apply u)
-                 | otherwise = pure ()
+                 | otherwise = atomically done
   pure $ Journal get (Updates flush append) (record updateQ)
   where
   record updateQ = do
