@@ -24,11 +24,10 @@ makeRandomHash genVar = do
   MVar.swapMVar genVar newGen
   pure hash
 
-data SimpleUpdate = Inc | NoOp deriving (Generic)
+data SimpleUpdate = Inc deriving (Generic)
 instance Serial SimpleUpdate
 
 simpleUpdate :: SimpleUpdate -> Int -> Int
-simpleUpdate NoOp = id
 simpleUpdate Inc = (+1)
 
 makeBlock :: Serial a => String -> a -> B.Block a
@@ -37,8 +36,8 @@ makeBlock name v = B.serial v . B.fromSeries . BS.Series $ pack name
 readAfterUpdate :: BS.BlockStore Hash -> Assertion
 readAfterUpdate bs = do
   let values = makeBlock "v" 0
-      updates = makeBlock "u " NoOp
-  j <- J.fromBlocks bs NoOp simpleUpdate values updates
+      updates = makeBlock "u " Nothing
+  j <- J.fromBlocks bs simpleUpdate values updates
   J.update Inc j
   result <- atomically $ J.get j
   when (result /= 1) $ fail ("incorrect value after update, result " ++ show result)

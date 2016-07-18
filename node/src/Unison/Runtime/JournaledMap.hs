@@ -18,7 +18,6 @@ type JournaledMap k v = J.Journal (Map k v) (Update k v)
 data Update k v
   = Insert k v
   | Delete k
-  | Noop
   | Clear
   deriving Generic
 instance (Serial k, Serial v) => Serial (Update k v)
@@ -40,13 +39,12 @@ fromBlocks :: (Eq h, Ord k, Serial k, Serial v)
            -> B.Block (Maybe ByteString)
            -> B.Block (Maybe ByteString)
            -> IO (JournaledMap k v)
-fromBlocks bs keyframe diffs = J.fromBlocks bs Noop apply ks ds where
+fromBlocks bs keyframe diffs = J.fromBlocks bs apply ks ds where
   ks = B.serial Map.empty $ keyframe
-  ds = B.serial Noop $ diffs
+  ds = B.serial Nothing $ diffs
   apply (Insert k v) m = Map.insert k v m
   apply (Delete k) m = Map.delete k m
   apply Clear _ = Map.empty
-  apply Noop m = m
 
 fromSeries :: (Eq h, Ord k, Serial k, Serial v)
            => BS.BlockStore h
