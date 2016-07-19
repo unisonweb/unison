@@ -36,7 +36,7 @@ make :: (Ord h, S.Serial h, S.Serial key, S.Serial privateKey, S.Serial hash)
      -> BS.BlockStore h
      -> P.Protocol term hash h thash
      -> String
-     -> IO ()
+     -> IO (Mux.Packet -> IO ())
 make host crypto genKeypair bs p launchNodeCmd = do
   -- The set of all BlockStore.Series keys
   nodeSeries <- journaledTrie "node-series" :: IO (JT.JournaledTrie ())
@@ -52,7 +52,7 @@ make host crypto genKeypair bs p launchNodeCmd = do
   (packetWrite, packetRead) <- newChan :: IO (InChan Mux.Packet, OutChan Mux.Packet)
   -- routing trie for packets; initially empty
   routing <- newIORef Trie.empty
-  id $
+  (writeChan packetWrite <$) . forkIO $
     let
       go = do
         packet <- readChan packetRead
