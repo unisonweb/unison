@@ -1,3 +1,4 @@
+{-# Language RankNTypes #-}
 module Unison.Runtime.Journal where
 
 import Control.Concurrent (forkIO)
@@ -8,6 +9,7 @@ import Control.Concurrent.STM.TQueue
 import Control.Exception
 import Control.Monad
 import Data.List
+import Data.Maybe
 import Unison.BlockStore (BlockStore)
 import Unison.Runtime.Block (Block)
 import qualified Unison.Runtime.Block as Block
@@ -20,7 +22,10 @@ data Updates u = Updates { flush :: STM (), append :: VisibleNow -> u -> STM (ST
 -- | A sequentially-updated, persistent `a` value. `get` obtains the current value.
 -- `updates` can be used to append updates to the value. `recordAsync` produces a new
 -- checkpoint and clears `updates`. It is guaranteed durable when the inner `STM ()` completes.
-data Journal a u = Journal { get :: STM a, updates :: Updates u, recordAsync :: STM (STM ()) }
+data Journal a u = Journal { get :: STM a
+                           , updates :: Updates u
+                           , recordAsync :: STM (STM ())
+                           }
 
 -- | Record a new checkpoint synchronously. When the returned `STM` completes,
 -- the checkpoint is durable.
@@ -46,10 +51,10 @@ update u j = do
 
 -- | Create a Journal from two blocks, an identity update, and a function for applying
 -- an update to the state.
-fromBlocks :: Eq h => BlockStore h -> u -> (u -> a -> a) -> Block a -> Block u -> IO (Journal a u)
-fromBlocks bs zero apply checkpoint us = do
+fromBlocks :: Eq h => BlockStore h -> (u -> a -> a) -> Block a -> Block (Maybe u) -> IO (Journal a u)
+fromBlocks bs apply checkpoint us = do
   current <- Block.get bs checkpoint
-  us' <- sequenceA =<< Block.gets bs us
+  us' <- (pure . catMaybes) =<< sequenceA =<< Block.gets bs us
   current <- atomically $ newTVar (foldl' (flip apply) current us')
   updateQ <- atomically $ newTQueue
   latestEnqueue <- atomically $ newTVar (pure ())
@@ -61,7 +66,7 @@ fromBlocks bs zero apply checkpoint us = do
     done <- newTSem 0
     writeTVar latestEnqueue (waitTSem done)
     writeTQueue updateQ (Just (u, vnow), signalTSem done)
-    let cur' = apply u cur
+    let cur' = apply u cur --maybe cur (`apply` cur) u
     waitTSem done <$
       if vnow then cur' `seq` writeTVar current cur'
       else pure ()
@@ -76,15 +81,15 @@ fromBlocks bs zero apply checkpoint us = do
         Nothing -> do
           now <- atomically get
           _ <- catch (Block.modify' bs checkpoint (const now) >>
-                      Block.modify' bs us (const zero) >>
+                      Block.modify' bs us (const Nothing) >>
                       pure ())
                      handle
           atomically done
         Just (u, vnow) ->
-          catch (Block.append bs us u >> update) handle
+          catch (Block.append bs us (Just u) >> update) handle
           where
           update | not vnow  = atomically $ done >> modifyTVar' current (apply u)
-                 | otherwise = pure ()
+                 | otherwise = atomically done
   pure $ Journal get (Updates flush append) (record updateQ)
   where
   record updateQ = do
