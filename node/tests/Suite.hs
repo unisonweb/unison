@@ -12,17 +12,16 @@ import qualified Unison.Test.ResourcePool as ResourcePool
 import qualified Unison.Test.SerializationAndHashing as SAH
 
 
-tastyTests :: IO (TestTree, IO ())
+tastyTests :: IO TestTree
 tastyTests = do
   kvsTests <- KVS.ioTests
   mbsTests <- MBS.ioTests
   journalTests <- J.ioTests
-  (fbsTests, cleanup) <- FBS.ioTests
-  pure (testGroup "unison"
-        [ResourcePool.tests, mbsTests, fbsTests, SAH.tests, journalTests, kvsTests], cleanup)
+  pure $ testGroup "unison"
+        [ResourcePool.tests, mbsTests, FBS.tests, SAH.tests, journalTests, kvsTests]
 
 runTasty :: IO ()
-runTasty = tastyTests >>= (\(tt, cleanup) -> defaultMain tt >> cleanup)
+runTasty = tastyTests >>= defaultMain
 
 main = runTasty --runWithSeed 45 >> runTasty
 
