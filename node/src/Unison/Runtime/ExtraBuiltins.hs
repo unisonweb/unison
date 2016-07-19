@@ -3,7 +3,9 @@
 {-# LANGUAGE PatternSynonyms #-}
 module Unison.Runtime.ExtraBuiltins where
 
+import Data.ByteString (ByteString)
 import System.Random
+import Unison.BlockStore (Series(..))
 import Unison.Hash (Hash)
 import Unison.Hash.Extra ()
 import Unison.Node.Builtin
@@ -38,14 +40,27 @@ makeRandomHash genVar = do
   _ <- MVar.swapMVar genVar newGen
   pure hash
 
+makeRandomBS :: RandomGen r => MVar.MVar r -> IO ByteString
+makeRandomBS genVar = Hash.toBytes <$> makeRandomHash genVar
+
+makeRandomSeries :: RandomGen r => MVar.MVar r -> IO Series
+makeRandomSeries genVar = Series <$> makeRandomBS genVar
+
+makeRandomAddress :: RandomGen r => MVar.MVar r -> IO (Series, Series)
+makeRandomAddress genVar = do
+  cp <- makeRandomSeries genVar
+  ud <- makeRandomSeries genVar
+  pure (cp, ud)
+
 makeAPI :: IO (WHNFEval -> [Builtin])
 makeAPI = do
   stdGen <- getStdGen
   genVar <- MVar.newMVar stdGen
   let nextHash = makeRandomHash genVar
       nextHash' = fmap Hash.toBytes nextHash
+      nextAddress = makeRandomAddress genVar
   blockStore <- FBS.make' nextHash "keyValueStore"
-  resourcePool <- RP.make 3 10 (KVS.load blockStore nextHash') (const (pure ()))
+  resourcePool <- RP.make 3 10 (KVS.load blockStore) (const (pure ()))
   pure (\whnf -> map (\(r, o, t, m) -> Builtin r o t m)
      [ let r = R.Builtin "KeyValue.empty"
            op [] = Note.lift $ do
@@ -62,7 +77,7 @@ makeAPI = do
                g i k
              g (Store' h) k = do
                val <- Note.lift $ do
-                 (db, _) <- RP.acquire resourcePool . Hash.toBytes $ Hash.fromBase64 h
+                 (db, _) <- undefined -- TODO RP.acquire resourcePool . Hash.toBytes $ Hash.fromBase64 h
                  result <- KVS.lookup (SAH.hash' k) db
                  case result >>= (pure . SAH.deserializeTermFromBytes . snd) of
                    Just (Left s) -> fail ("KeyValue.lookup could not deserialize: " ++ s)
@@ -82,7 +97,7 @@ makeAPI = do
                g k' v' s
              g k v (Store' h) = do
                Note.lift $ do
-                 (db, _) <- RP.acquire resourcePool . Hash.toBytes $ Hash.fromBase64 h
+                 (db, _) <- undefined -- TODO RP.acquire resourcePool . Hash.toBytes $ Hash.fromBase64 h
                  KVS.insert (SAH.hash' k) (SAH.serializeTerm k, SAH.serializeTerm v) db
                pure unitRef
              g k v store = pure $ Term.ref r `Term.app` k `Term.app` v `Term.app` store

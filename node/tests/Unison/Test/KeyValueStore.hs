@@ -24,15 +24,23 @@ makeRandomHash genVar = do
 makeRandomBS :: RandomGen r => MVar.MVar r -> IO ByteString
 makeRandomBS genVar = Hash.toBytes <$> makeRandomHash genVar
 
+makeRandomSeries :: RandomGen r => MVar.MVar r -> IO BS.Series
+makeRandomSeries genVar = BS.Series <$> makeRandomBS genVar
+
+makeRandomAddress :: RandomGen r => MVar.MVar r -> IO (BS.Series, BS.Series)
+makeRandomAddress genVar = do
+  cp <- makeRandomSeries genVar
+  ud <- makeRandomSeries genVar
+  pure (cp, ud)
+
 roundTrip :: RandomGen r => Prereqs r -> Assertion
 roundTrip (genVar, bs) = do
 
-  hash <- makeRandomBS genVar
-  db <- KVS.load bs (makeRandomBS genVar) hash
+  address <- makeRandomAddress genVar
+  db <- KVS.load bs address
   KVS.insert (pack "keyhash") (pack "key", pack "value") db
-  db2 <- KVS.load bs (makeRandomBS genVar) hash
-  -- TODO figure out why loading KVS again (db2) fails to return correct lookup
-  result <- KVS.lookup (pack "keyhash") db --db2
+  db2 <- KVS.load bs address
+  result <- KVS.lookup (pack "keyhash") db2
   case result of
     Just (k, v) | unpack v == "value" -> pure ()
     Just (k, v) -> fail ("expected value, got " ++ unpack v)
@@ -40,8 +48,8 @@ roundTrip (genVar, bs) = do
 
 nextKeyAfterRemoval :: RandomGen r => Prereqs r -> Assertion
 nextKeyAfterRemoval (genVar, bs) = do
-  hash <- makeRandomBS genVar
-  db <- KVS.load bs (makeRandomBS genVar) hash
+  address <- makeRandomAddress genVar
+  db <- KVS.load bs address
   KVS.insert (pack "1") (pack "k1", pack "v1") db
   KVS.insert (pack "2") (pack "k2", pack "v2") db
   KVS.insert (pack "3") (pack "k3", pack "v3") db
@@ -55,8 +63,8 @@ nextKeyAfterRemoval (genVar, bs) = do
 
 runGarbageCollection :: RandomGen r => Prereqs r -> Assertion
 runGarbageCollection (genVar, bs) = do
-  hash <- makeRandomBS genVar
-  db <- KVS.load bs (makeRandomBS genVar) hash
+  address <- makeRandomAddress genVar
+  db <- KVS.load bs address
   let kvp i = (pack . ("k" ++) . show $ i, pack . ("v" ++) . show $ i)
   mapM_ (\i -> KVS.insert (pack . show $ i) (kvp i) db) [0..1001]
   mapM_ (\i -> KVS.delete (pack . show $ i) db) [2..1001]
