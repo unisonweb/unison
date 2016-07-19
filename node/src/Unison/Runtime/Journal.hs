@@ -64,10 +64,10 @@ fromBlocks bs apply checkpoint us = do
   append <- pure $ \vnow u -> do
     cur <- get
     done <- newTSem 0
-    writeTVar latestEnqueue (waitTSem done)
+    writeTVar latestEnqueue (waitTSem done <* get)
     writeTQueue updateQ (Just (u, vnow), signalTSem done)
     let cur' = apply u cur --maybe cur (`apply` cur) u
-    waitTSem done <$
+    (waitTSem done <* get) <$
       if vnow then cur' `seq` writeTVar current cur'
       else pure ()
   _ <- forkIO . forever $ do
@@ -90,12 +90,12 @@ fromBlocks bs apply checkpoint us = do
           where
           update | not vnow  = atomically $ done >> modifyTVar' current (apply u)
                  | otherwise = atomically done
-  pure $ Journal get (Updates flush append) (record updateQ)
+  pure $ Journal get (Updates flush append) (record updateQ get)
   where
-  record updateQ = do
+  record updateQ get = do
     done <- newTSem 0
     writeTQueue updateQ (Nothing, signalTSem done)
-    pure $ waitTSem done
+    pure $ waitTSem done <* get
 
 -- | Log a new checkpoint every `updateCount` updates made to the returned journal
 checkpointEvery :: Int -> Journal a u -> STM (Journal a u)
