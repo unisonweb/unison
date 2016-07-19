@@ -27,21 +27,21 @@ data Journal a u = Journal { get :: STM a, updates :: Updates u, recordAsync :: 
 record :: Journal a u -> IO ()
 record j = atomically (recordAsync j) >>= atomically
 
--- | Updates the journal; invariant here is that after the `STM ()` is run, updates are durable
+-- | Updates the journal; invariant here is that after inner `STM ()` is run, updates are durable
 -- and also visible in memory. Updates _may_ be durable and visible before
 -- that but this isn't guaranteed.
-updateAsync :: u -> Journal a u -> IO (STM ())
-updateAsync u j = atomically $ append (updates j) False u
+updateAsync :: u -> Journal a u -> STM (STM ())
+updateAsync u j = append (updates j) False u
 
 -- | Updates the journal; updates are visible immediately, but aren't necessarily
 -- durable until the `STM ()` is run.
-updateNowAsyncFlush :: u -> Journal a u -> IO (STM ())
-updateNowAsyncFlush u j = atomically $ append (updates j) True u
+updateNowAsyncFlush :: u -> Journal a u -> STM (STM ())
+updateNowAsyncFlush u j = append (updates j) True u
 
 -- | Updates the journal; updates are visible and durable when this function returns.
 update :: u -> Journal a u -> IO ()
 update u j = do
-  force <- updateNowAsyncFlush u j
+  force <- atomically $ updateNowAsyncFlush u j
   atomically force
 
 -- | Create a Journal from two blocks, an identity update, and a function for applying

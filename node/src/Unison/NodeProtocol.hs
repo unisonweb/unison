@@ -31,7 +31,7 @@ data Protocol term signature hash thash =
     -- | Destroy another node
     , _destroyOut :: Channel signature
     -- | Create a new node (TODO - pass in parameters here)
-    , _spawn :: Request () Remote.Node
+    , _spawn :: Request B.ByteString Remote.Node
     -- | Channel used to initiate handshaking to establish an encrypted pipe of `Maybe (Remote term)`
     , _eval :: EncryptedChannel (Remote.Node, Remote.Universe)
                                 (Remote term, Channel Ack)

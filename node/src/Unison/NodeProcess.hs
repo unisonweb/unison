@@ -44,6 +44,7 @@ make :: ( BA.ByteArrayAccess key
      -> IO ()
 make protocol mkCrypto makeSandbox = do
   hSetBinaryMode stdin True
+  -- todo - read private key, then node hash from stdin
   (nodeSeries, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize B.empty)
   interrupt <- atomically $ newTSem 0
   Mux.runStandardIO (Mux.seconds 5) rem (atomically $ waitTSem interrupt) $ do
