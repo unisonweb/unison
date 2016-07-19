@@ -11,7 +11,7 @@ import Data.Bytes.Serial (Serial, serialize, deserialize)
 import Data.Serialize.Get (Get)
 import GHC.Generics
 import System.IO (stdin, hSetBinaryMode)
-import Unison.BlockStore (BlockStore(..), Series(..))
+import Unison.BlockStore (BlockStore(..))
 import Unison.Cryptography (Cryptography)
 import Unison.Hash.Extra ()
 import qualified Data.ByteArray as BA
@@ -21,9 +21,10 @@ import qualified Data.Bytes.Put as Put
 import qualified Data.Serialize.Get as Get
 import qualified Unison.Cryptography as C
 import qualified Unison.NodeProtocol as P
-import qualified Unison.Runtime.Block as Block
+import qualified Unison.BlockStore as BS
 import qualified Unison.Runtime.Multiplex as Mux
 import qualified Unison.Runtime.Remote as Remote
+import qualified Unison.Remote as Remote
 
 data Keypair k = Keypair { public :: k, private :: B.ByteString } deriving Generic
 instance Serial k => Serial (Keypair k)
@@ -44,13 +45,20 @@ make :: ( BA.ByteArrayAccess key
      -> IO ()
 make protocol mkCrypto makeSandbox = do
   hSetBinaryMode stdin True
-  -- todo - read private key, then node hash from stdin
-  (nodeSeries, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize B.empty)
+  (privateKey, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize B.empty)
+  (nodeInfoHash, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize rem)
+  (node, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize rem)
+  publicKey <- either fail pure $ Get.runGetS deserialize (Remote.publicKey node)
+  let keypair = Keypair publicKey privateKey
+
   interrupt <- atomically $ newTSem 0
   Mux.runStandardIO (Mux.seconds 5) rem (atomically $ waitTSem interrupt) $ do
     blockStore <- P.blockStoreProxy protocol
-    Just (keypair, universe, node, sandbox) <- -- todo: lifetime, budget, children
-      liftIO . Block.get blockStore . Block.serial Nothing . Block.fromSeries . Series $ nodeSeries
+    Just (universe, sandbox) <- liftIO $ do -- todo: lifetime, budget, children
+      bytes <- BS.lookup blockStore nodeInfoHash
+      case bytes of
+        Nothing -> pure Nothing
+        Just bytes -> Just <$> either fail pure (Get.runGetS deserialize bytes)
     makeSandbox <- either fail pure $ Get.runGetS makeSandbox sandbox
     sandbox <- makeSandbox blockStore
     let crypto = mkCrypto keypair
