@@ -13,7 +13,7 @@ ioTests :: IO TestTree
 ioTests = do
   gen <- getStdGen
   genVar <- IORef.newIORef gen
-  let genHash = MBS.makeRandomHash genVar
+  let genHash = MBS.makeRandomAddress genVar
   store <- MBS.make' genHash
   pure . testGroup "MemBlockStore" $ makeExhaustiveCases store
 
@@ -21,7 +21,7 @@ justQuickcheck :: IO [Property]
 justQuickcheck = do
   gen <- getStdGen
   genVar <- IORef.newIORef gen
-  let genHash = MBS.makeRandomHash genVar
+  let genHash = MBS.makeRandomAddress genVar
   store <- MBS.make' genHash
   pure [ prop_lastKeyIsValid store
        , prop_SomeoneHasAValidKey store

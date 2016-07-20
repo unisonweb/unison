@@ -5,28 +5,33 @@ module Unison.Runtime.KeyValueStore
   ,Unison.Runtime.KeyValueStore.insert
   ,Unison.Runtime.KeyValueStore.lookupGT
   ,load
-  ,dump
+  ,idToText
+  ,textToId
   ) where
 
-import Data.ByteString.Char8 (unpack)
-import Data.ByteString (ByteString)
-import Unison.Hash (Hash)
-import Unison.Hash.Extra ()
+import Data.ByteString (ByteString, append)
+import Data.Text (Text)
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Unison.Runtime.Address
 import Unison.Runtime.JournaledMap as JM
 import qualified Unison.BlockStore as BS
-import qualified Unison.Runtime.Block as B
+import qualified Data.ByteString.Base64.URL as Base64
 
 type KeyHash = ByteString
 type Key = ByteString
 type Value = ByteString
-type Address = (BS.Series, BS.Series)
+type Identifier = (BS.Series, BS.Series)
 
-data Db = Db
-  { journaledMap :: JM.JournaledMap KeyHash (Key, Value)
-  , address :: Address
-  }
+data Db = Db (JM.JournaledMap KeyHash (Key, Value)) Identifier
 
-load :: BS.BlockStore Hash -> Address -> IO Db
+idToText :: Identifier -> Text
+idToText (BS.Series a, BS.Series b) = decodeUtf8 $ append (Base64.encode a)
+  (Base64.encode b)
+
+textToId :: Text -> Identifier
+textToId = undefined encodeUtf8 -- TODO
+
+load :: BS.BlockStore Address -> Identifier -> IO Db
 load bs (cp, ud) = do
   jm <- JM.fromSeries bs cp ud
   pure $ Db jm (cp, ud)

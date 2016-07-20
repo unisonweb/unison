@@ -17,6 +17,7 @@ import qualified Unison.Eval.Interpreter as I
 import qualified Unison.Hash as Hash
 import qualified Unison.Note as Note
 import qualified Unison.Reference as R
+import qualified Unison.Runtime.Address as Address
 import qualified Unison.Runtime.KeyValueStore as KVS
 import qualified Unison.Runtime.ResourcePool as RP
 import qualified Unison.SerializationAndHashing as SAH
@@ -46,26 +47,29 @@ makeRandomBS genVar = Hash.toBytes <$> makeRandomHash genVar
 makeRandomSeries :: RandomGen r => MVar.MVar r -> IO Series
 makeRandomSeries genVar = Series <$> makeRandomBS genVar
 
-makeRandomAddress :: RandomGen r => MVar.MVar r -> IO (Series, Series)
-makeRandomAddress genVar = do
+makeRandomAddress :: RandomGen r => MVar.MVar r -> IO Address.Address
+makeRandomAddress genVar = Address.Address <$> makeRandomBS genVar
+
+makeRandomIdentifier :: RandomGen r => MVar.MVar r -> IO (Series, Series)
+makeRandomIdentifier genVar = do
   cp <- makeRandomSeries genVar
   ud <- makeRandomSeries genVar
   pure (cp, ud)
+
 
 makeAPI :: IO (WHNFEval -> [Builtin])
 makeAPI = do
   stdGen <- getStdGen
   genVar <- MVar.newMVar stdGen
-  let nextHash = makeRandomHash genVar
-      nextHash' = fmap Hash.toBytes nextHash
-      nextAddress = makeRandomAddress genVar
-  blockStore <- FBS.make' nextHash "keyValueStore"
+  let nextAddress = makeRandomAddress genVar
+      nextID = makeRandomIdentifier genVar
+  blockStore <- FBS.make' nextAddress "keyValueStore"
   resourcePool <- RP.make 3 10 (KVS.load blockStore) (const (pure ()))
   pure (\whnf -> map (\(r, o, t, m) -> Builtin r o t m)
      [ let r = R.Builtin "KeyValue.empty"
            op [] = Note.lift $ do
-             hash <- nextHash
-             pure . store . Term.lit . Term.Text . Hash.base64 $ hash
+             ident <- nextID
+             pure . store . Term.lit . Term.Text . KVS.idToText $ ident
            op _ = fail "KeyValue.empty unpossible"
            type' = unsafeParseType "forall k v. Remote (Store k v)"
        in (r, Just (I.Primop 0 op), type', prefix "stringStore")
@@ -77,7 +81,7 @@ makeAPI = do
                g i k
              g (Store' h) k = do
                val <- Note.lift $ do
-                 (db, _) <- undefined -- TODO RP.acquire resourcePool . Hash.toBytes $ Hash.fromBase64 h
+                 (db, _) <- RP.acquire resourcePool . KVS.textToId $ h
                  result <- KVS.lookup (SAH.hash' k) db
                  case result >>= (pure . SAH.deserializeTermFromBytes . snd) of
                    Just (Left s) -> fail ("KeyValue.lookup could not deserialize: " ++ s)
@@ -97,7 +101,7 @@ makeAPI = do
                g k' v' s
              g k v (Store' h) = do
                Note.lift $ do
-                 (db, _) <- undefined -- TODO RP.acquire resourcePool . Hash.toBytes $ Hash.fromBase64 h
+                 (db, _) <- RP.acquire resourcePool . KVS.textToId $ h
                  KVS.insert (SAH.hash' k) (SAH.serializeTerm k, SAH.serializeTerm v) db
                pure unitRef
              g k v store = pure $ Term.ref r `Term.app` k `Term.app` v `Term.app` store

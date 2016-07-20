@@ -8,18 +8,17 @@ import Data.Maybe (fromMaybe, catMaybes, isNothing)
 import Test.QuickCheck
 import Test.Tasty
 import Test.Tasty.QuickCheck
-import Unison.Hash (Hash)
+import Unison.Runtime.Address
 import qualified Control.Concurrent.MVar as MVar
 import qualified Data.ByteString as B
 import qualified Test.QuickCheck.Monadic as QCM
 import qualified Test.Tasty.HUnit as HU
 import qualified Unison.BlockStore as BS
-import qualified Unison.Hash as Hash
 
-instance Arbitrary Hash where
-  arbitrary = (Hash.fromBytes . B.pack) <$> vectorOf 64 arbitrary
+instance Arbitrary Address where
+  arbitrary = (fromBytes . B.pack) <$> vectorOf 64 arbitrary
 
-roundTrip :: BS.BlockStore Hash -> HU.Assertion
+roundTrip :: BS.BlockStore Address -> HU.Assertion
 roundTrip bs = do
   h <- BS.insert bs $ pack "v"
   v <- BS.lookup bs h
@@ -27,7 +26,7 @@ roundTrip bs = do
     Just v2 | unpack v2 == "v" -> pure ()
     a -> fail ("lookup returned " ++ show a)
 
-roundTripSeries :: BS.BlockStore Hash -> HU.Assertion
+roundTripSeries :: BS.BlockStore Address -> HU.Assertion
 roundTripSeries bs = do
   let seriesName = BS.Series $ pack "series"
   h <- BS.declareSeries bs seriesName
@@ -40,7 +39,7 @@ roundTripSeries bs = do
         Just h3' | h3' == h2' -> pure ()
         a -> fail ("resolve returned " ++ show a)
 
-appendAppendUpdate :: BS.BlockStore Hash -> HU.Assertion
+appendAppendUpdate :: BS.BlockStore Address -> HU.Assertion
 appendAppendUpdate bs = do
   let seriesName = BS.Series $ pack "series2"
   h <- BS.declareSeries bs seriesName
@@ -56,7 +55,7 @@ appendAppendUpdate bs = do
     [h4'] | h4 == h4' -> pure ()
     x -> fail ("2. got series list of " ++ show x)
 
-idempotentDeclare :: BS.BlockStore Hash -> HU.Assertion
+idempotentDeclare :: BS.BlockStore Address -> HU.Assertion
 idempotentDeclare bs = do
   let seriesName = BS.Series $ pack "series3"
   h <- BS.declareSeries bs seriesName
@@ -64,7 +63,7 @@ idempotentDeclare bs = do
   if h == h2 then pure ()
     else fail ("got back unequal hashes " ++ show h ++ " " ++ show h2)
 
-cantChangeWithInvalidHash :: BS.BlockStore Hash -> HU.Assertion
+cantChangeWithInvalidHash :: BS.BlockStore Address -> HU.Assertion
 cantChangeWithInvalidHash bs = do
   let seriesName = BS.Series $ pack "series4"
   let series2Name = BS.Series $ pack "series5"
@@ -91,10 +90,10 @@ isDeclareSeries (DeclareSeries _) = True
 isDeclareSeries _ = False
 
 data BlockStoreResult
-  = Key Hash
+  = Key Address
   | Data (Maybe ByteString)
   | NoKey
-  | KeyList [Hash] deriving (Eq, Show)
+  | KeyList [Address] deriving (Eq, Show)
 
 shrinkBS :: ByteString -> ByteString
 shrinkBS = B.pack . tail . B.unpack
@@ -118,11 +117,11 @@ instance Arbitrary BlockStoreMethod where
   shrink x = [x]
 
 data TestClient = TestClient
-  { lastHandle :: Hash
+  { lastHandle :: Address
   , result :: BlockStoreResult
   , lastSeries :: BS.Series } deriving (Show)
 
-runCommand :: BS.BlockStore Hash -> BlockStoreMethod -> TestClient -> IO TestClient
+runCommand :: BS.BlockStore Address -> BlockStoreMethod -> TestClient -> IO TestClient
 runCommand bs command tc = case command of
   (Insert v) -> do
     r <- BS.insert bs v
@@ -146,12 +145,12 @@ runCommand bs command tc = case command of
     r <- BS.resolves bs (lastSeries tc)
     pure tc { result = KeyList r }
 
-runMethods :: BS.BlockStore Hash -> MVar.MVar TestClient -> TestClient -> [BlockStoreMethod] -> IO ThreadId
+runMethods :: BS.BlockStore Address -> MVar.MVar TestClient -> TestClient -> [BlockStoreMethod] -> IO ThreadId
 runMethods blockStore clientVar client =
   forkIO . (>>= MVar.putMVar clientVar) . foldM runMethod client where
   runMethod client method = runCommand blockStore method client
 
-prop_allSeriesHashesAreValid :: BS.BlockStore Hash -> Property
+prop_allSeriesHashesAreValid :: BS.BlockStore Address -> Property
 prop_allSeriesHashesAreValid bs = QCM.monadicIO $ do
   firstDeclareSeries <- QCM.pick $ (DeclareSeries . BS.Series) <$> genByteString
   firstUpdate <- QCM.pick $ Update <$> genByteString
@@ -166,7 +165,7 @@ prop_allSeriesHashesAreValid bs = QCM.monadicIO $ do
   -- make sure we didn't get any Nothing values for the series
   QCM.assert $ length seriesValues == length (catMaybes seriesValues)
 
-prop_lastKeyIsValid :: BS.BlockStore Hash -> Property
+prop_lastKeyIsValid :: BS.BlockStore Address -> Property
 prop_lastKeyIsValid blockStore = QCM.monadicIO $ do
   firstDeclareSeries <- QCM.pick $ (DeclareSeries . BS.Series) <$> genByteString
   firstUpdate <- QCM.pick $ Update <$> genByteString
@@ -180,7 +179,7 @@ prop_lastKeyIsValid blockStore = QCM.monadicIO $ do
   lookupLast <- QCM.run . BS.lookup blockStore $ lastHandle newClient
   QCM.assert . not $ isNothing lookupLast
 
-prop_SomeoneHasAValidKey :: BS.BlockStore Hash -> Property
+prop_SomeoneHasAValidKey :: BS.BlockStore Address -> Property
 prop_SomeoneHasAValidKey blockStore = QCM.monadicIO $ do
   let clientNumber = 100
   firstDeclareSeries <- QCM.pick $ (DeclareSeries . BS.Series) <$> genByteString
@@ -200,7 +199,7 @@ prop_SomeoneHasAValidKey blockStore = QCM.monadicIO $ do
     $ mapM (MVar.takeMVar >=> BS.lookup blockStore . lastHandle) clientVars
   QCM.assert . not . Prelude.null . catMaybes $ clientResults
 
-makeCases :: BS.BlockStore Hash -> [TestTree]
+makeCases :: BS.BlockStore Address -> [TestTree]
 makeCases bs = [ HU.testCase "roundTrip" (roundTrip bs)
                , HU.testCase "roundTripSeries" (roundTripSeries bs)
                , HU.testCase "appendAppendUpdate" (appendAppendUpdate bs)
@@ -209,7 +208,7 @@ makeCases bs = [ HU.testCase "roundTrip" (roundTrip bs)
                ]
 
 -- the quickcheck tests seem to take forever.
-makeExhaustiveCases :: BS.BlockStore Hash -> [TestTree]
+makeExhaustiveCases :: BS.BlockStore Address -> [TestTree]
 makeExhaustiveCases bs = makeCases bs ++
   [ testProperty "lastKeyIsValid" (prop_lastKeyIsValid bs)
   , testProperty "allSeriesHashesAreValid" (prop_allSeriesHashesAreValid bs)

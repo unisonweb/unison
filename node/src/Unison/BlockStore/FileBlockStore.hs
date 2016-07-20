@@ -5,15 +5,14 @@
 {-# LANGUAGE TypeFamilies #-}
 module Unison.BlockStore.FileBlockStore where
 
-import Control.Monad.State
 import Control.Monad.Reader
+import Control.Monad.State
 import Data.Acid
 import Data.ByteString (ByteString)
 import Data.SafeCopy
 import Data.Typeable
-import Unison.BlockStore.MemBlockStore (makeHash)
-import Unison.Hash (Hash)
-import Unison.Hash.Extra ()
+import Unison.BlockStore.MemBlockStore (makeAddress)
+import Unison.Runtime.Address
 import qualified Data.Map.Lazy as Map
 import qualified Data.Set as Set
 import qualified Unison.BlockStore as BS
@@ -22,27 +21,27 @@ import qualified Unison.BlockStore as BS
 garbageLimit :: Int
 garbageLimit = 100
 
-data SeriesData = SeriesData { lastHash :: Hash, seriesList :: [Hash] } deriving (Show)
+data SeriesData = SeriesData { lastAddress :: Address, seriesList :: [Address] } deriving (Show)
 
 data StoreData = StoreData
-  { hashMap :: !(Map.Map Hash ByteString)
+  { hashMap :: !(Map.Map Address ByteString)
   , seriesMap :: !(Map.Map BS.Series SeriesData)
-  , permanent :: Set.Set Hash
+  , permanent :: Set.Set Address
   , updateCount :: Int
   } deriving (Typeable)
-$(deriveSafeCopy 0 'base ''Hash)
+$(deriveSafeCopy 0 'base ''Address)
 $(deriveSafeCopy 0 'base ''BS.Series)
 $(deriveSafeCopy 0 'base ''SeriesData)
 $(deriveSafeCopy 0 'base ''StoreData)
 
-insertBS :: Hash -> ByteString -> Update StoreData ()
+insertBS :: Address -> ByteString -> Update StoreData ()
 insertBS k v = do
   sd <- get
   let newHashMap = Map.insert k v $ hashMap sd
       newPermanents = Set.insert k $ permanent sd
   put sd { hashMap = newHashMap, permanent = newPermanents }
 
-insertHashMap :: Hash -> ByteString -> Update StoreData ()
+insertHashMap :: Address -> ByteString -> Update StoreData ()
 insertHashMap k v = do
   sd <- get
   let newHashMap = Map.insert k v $ hashMap sd
@@ -60,15 +59,15 @@ deleteSeriesMap series = do
   let newSeriesMap = Map.delete series $ seriesMap sd
   put sd { seriesMap = newSeriesMap }
 
-appendSeriesMap :: BS.Series -> Hash -> Update StoreData ()
-appendSeriesMap series hash = do
+appendSeriesMap :: BS.Series -> Address -> Update StoreData ()
+appendSeriesMap series address = do
   sd <- get
   let newMap = Map.alter alterF series $ seriesMap sd
-      alterF Nothing = Just $ SeriesData hash [hash]
-      alterF (Just (SeriesData _ hl)) = Just . SeriesData hash $ hash : hl
+      alterF Nothing = Just $ SeriesData address [address]
+      alterF (Just (SeriesData _ hl)) = Just . SeriesData address $ address : hl
   put sd { seriesMap = newMap }
 
-readHashMap :: Query StoreData (Map.Map Hash ByteString)
+readHashMap :: Query StoreData (Map.Map Address ByteString)
 readHashMap = ask >>= (pure . hashMap)
 
 readSeriesMap :: Query StoreData (Map.Map BS.Series SeriesData)
@@ -89,13 +88,13 @@ $(makeAcidic ''StoreData ['insertHashMap, 'insertSeriesMap, 'appendSeriesMap, 'r
 initState :: FilePath -> IO (AcidState StoreData)
 initState f = openLocalStateFrom f $ StoreData Map.empty Map.empty Set.empty 0
 
-make :: IO Hash -> AcidState StoreData -> BS.BlockStore Hash
+make :: IO Address -> AcidState StoreData -> BS.BlockStore Address
 make genHash storeState =
   let insertStore v =
-        let hash = makeHash v
-        in update storeState (InsertHashMap hash v) >> pure hash
-      insert v = let hash = makeHash v
-                 in update storeState (InsertBS hash v) >> pure hash
+        let address = makeAddress v
+        in update storeState (InsertHashMap address v) >> pure address
+      insert v = let address = makeAddress v
+                 in update storeState (InsertBS address v) >> pure address
       lookup h = Map.lookup h <$> query storeState ReadHashMap
       declareSeries series = do
         seriesHashes <- Map.lookup series <$> query storeState ReadSeriesMap
@@ -107,20 +106,20 @@ make genHash storeState =
             pure hash
       deleteSeries series =
         update storeState $ DeleteSeriesMap series
-      update' series hash v = do
+      update' series address v = do
         seriesHashes <- Map.lookup series <$> query storeState ReadSeriesMap
         case seriesHashes of
-          Just (SeriesData h _) | h == hash -> do
+          Just (SeriesData a _) | a == address -> do
                          newHash <- insertStore v
                          update storeState . InsertSeriesMap series
                            $ SeriesData newHash [newHash]
                          update storeState MaybeCollectGarbage
                          pure $ Just newHash
           _ -> pure Nothing
-      append series hash v = do
+      append series address v = do
         seriesHashes <- Map.lookup series <$> query storeState ReadSeriesMap
         case seriesHashes of
-          Just (SeriesData h _) | h == hash -> do
+          Just (SeriesData a _) | a == address -> do
                          newHash <- insertStore v
                          update storeState $ AppendSeriesMap series newHash
                          pure $ Just newHash
@@ -131,5 +130,5 @@ make genHash storeState =
         <$> query storeState ReadSeriesMap
   in BS.BlockStore insert lookup declareSeries deleteSeries update' append resolve resolves
 
-make' :: IO Hash -> FilePath -> IO (BS.BlockStore Hash)
+make' :: IO Address -> FilePath -> IO (BS.BlockStore Address)
 make' gen path = initState path >>= pure . make gen

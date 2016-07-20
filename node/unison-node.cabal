@@ -54,6 +54,7 @@ library
     Unison.NodeProtocol
     Unison.Reference.Extra
     Unison.Remote.Extra
+    Unison.Runtime.Address
     Unison.Runtime.Block
     Unison.Runtime.ExtraBuiltins
     Unison.Runtime.ExpiringMap
@@ -152,6 +153,7 @@ executable node
     applicative-extras,
     attoparsec,
     base,
+    base64-bytestring,
     blaze-html,
     byteable,
     bytes,
