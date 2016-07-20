@@ -1,15 +1,25 @@
+{-# Language TypeSynonymInstances #-}
+{-# Language FlexibleInstances #-}
 module Unison.Test.KeyValueStore where
 
 import Data.ByteString.Char8
 import System.Random
+import Test.QuickCheck
 import Test.Tasty
 import Test.Tasty.HUnit
+import Test.Tasty.QuickCheck
 import Unison.Runtime.Address
 import qualified Control.Concurrent.MVar as MVar
+import qualified Data.ByteString as B
 import qualified Unison.BlockStore as BS
 import qualified Unison.BlockStore.MemBlockStore as MBS
 import qualified Unison.Runtime.KeyValueStore as KVS
 
+instance Arbitrary KVS.Identifier where
+  arbitrary = do
+    a <- (BS.Series . B.pack) <$> vectorOf 64 arbitrary
+    b <- (BS.Series . B.pack) <$> vectorOf 64 arbitrary
+    pure (a, b)
 
 type Prereqs r = (MVar.MVar r, BS.BlockStore Address)
 
@@ -76,6 +86,10 @@ runGarbageCollection (genVar, bs) = do
     Nothing -> pure ()
     Just (k, o) -> fail ("2. got unexpected value " ++ unpack o)
 
+prop_serializeDeserializeId :: KVS.Identifier -> Bool
+prop_serializeDeserializeId ident = KVS.idToText ident
+  == (KVS.idToText . KVS.textToId . KVS.idToText $ ident)
+
 ioTests :: IO TestTree
 ioTests = do
   gen <- getStdGen
@@ -85,6 +99,7 @@ ioTests = do
   pure $ testGroup "KeyValueStore"
     [ testCase "roundTrip" (roundTrip prereqs)
     , testCase "nextKeyAfterRemoval" (nextKeyAfterRemoval prereqs)
+    , testProperty "serializeDeserializeID" prop_serializeDeserializeId
     -- this takes almost two minutes to run on sfultong's machine
     --, testCase "runGarbageCollection" (runGarbageCollection genVar)
     ]

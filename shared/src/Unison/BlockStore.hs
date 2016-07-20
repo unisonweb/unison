@@ -2,10 +2,16 @@
 
 module Unison.BlockStore where
 
-import GHC.Generics
 import Data.ByteString (ByteString)
+import Data.Text (unpack)
+import Data.Text.Encoding (decodeUtf8)
+import GHC.Generics
+import qualified Data.ByteString.Base64.URL as Base64
 
-newtype Series = Series ByteString deriving (Generic, Eq, Ord, Show)
+newtype Series = Series ByteString deriving (Generic, Eq, Ord)
+
+instance Show Series where
+  show (Series s) = unpack . decodeUtf8 . Base64.encode $ s
 
 -- | Represents an immutable content-addressed storage layer.
 -- We can insert some bytes, getting back a hash which can be used for lookup:
