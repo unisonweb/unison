@@ -11,15 +11,21 @@ import Data.Acid
 import Data.ByteString (ByteString)
 import Data.SafeCopy
 import Data.Typeable
+import System.FilePath ((</>))
 import Unison.BlockStore.MemBlockStore (makeAddress)
 import Unison.Runtime.Address
 import qualified Data.Map.Lazy as Map
 import qualified Data.Set as Set
+import qualified System.Directory as Directory
 import qualified Unison.BlockStore as BS
 
 -- number of updates before unreferenced hashes are garbage collected
 garbageLimit :: Int
 garbageLimit = 100
+
+-- number of updates before deltas are merged into a new snapshot
+checkpointLimit :: Int
+checkpointLimit = 30
 
 data SeriesData = SeriesData { lastAddress :: Address, seriesList :: [Address] } deriving (Show)
 
@@ -27,7 +33,9 @@ data StoreData = StoreData
   { hashMap :: !(Map.Map Address ByteString)
   , seriesMap :: !(Map.Map BS.Series SeriesData)
   , permanent :: Set.Set Address
+  , orphanCount :: Int
   , updateCount :: Int
+  , path :: FilePath
   } deriving (Typeable)
 $(deriveSafeCopy 0 'base ''Address)
 $(deriveSafeCopy 0 'base ''BS.Series)
@@ -73,28 +81,55 @@ readHashMap = ask >>= (pure . hashMap)
 readSeriesMap :: Query StoreData (Map.Map BS.Series SeriesData)
 readSeriesMap = ask >>= (pure . seriesMap)
 
+readPath :: Query StoreData FilePath
+readPath = ask >>= (pure . path)
+
 maybeCollectGarbage :: Update StoreData ()
 maybeCollectGarbage = do
   sd <- get
   let preserveHashes = Set.union (permanent sd) . Set.fromList . concatMap seriesList
         . Map.elems . seriesMap $ sd
       clearedMap = Map.filterWithKey (\k _ -> Set.member k preserveHashes) $ hashMap sd
-  if updateCount sd == garbageLimit
-    then put sd { hashMap = clearedMap, updateCount = 0}
-    else put sd { updateCount = updateCount sd + 1 }
+  if orphanCount sd == garbageLimit
+    then put sd { hashMap = clearedMap, orphanCount = 0}
+    else put sd { orphanCount = orphanCount sd + 1 }
 
-$(makeAcidic ''StoreData ['insertHashMap, 'insertSeriesMap, 'appendSeriesMap, 'readSeriesMap, 'insertBS, 'readHashMap, 'maybeCollectGarbage, 'deleteSeriesMap])
+incrementUpdateCount :: Update StoreData Bool
+incrementUpdateCount = do
+  sd <- get
+  let incCount = updateCount sd + 1
+      runSnapshot = incCount == checkpointLimit
+      newCount = if runSnapshot then 0 else incCount
+  put sd { updateCount = newCount}
+  pure runSnapshot
+
+$(makeAcidic ''StoreData ['insertHashMap, 'insertSeriesMap, 'appendSeriesMap, 'readSeriesMap, 'insertBS, 'readHashMap, 'readPath, 'maybeCollectGarbage, 'deleteSeriesMap, 'incrementUpdateCount])
+
+maybeCreateCheckpoint :: AcidState StoreData -> IO ()
+maybeCreateCheckpoint acidState = do
+  runSnapshot <- update acidState IncrementUpdateCount
+  if runSnapshot
+    then do
+    storePath <- query acidState ReadPath
+    hasArchive <- Directory.doesDirectoryExist $ storePath </> "Archive"
+    if hasArchive then Directory.removeDirectoryRecursive $ storePath </> "Archive"
+      else pure ()
+    createArchive acidState
+    createCheckpoint acidState
+    else pure ()
 
 initState :: FilePath -> IO (AcidState StoreData)
-initState f = openLocalStateFrom f $ StoreData Map.empty Map.empty Set.empty 0
+initState f = openLocalStateFrom f $ StoreData Map.empty Map.empty Set.empty 0 0 f
 
 make :: IO Address -> AcidState StoreData -> BS.BlockStore Address
 make genHash storeState =
   let insertStore v =
         let address = makeAddress v
         in update storeState (InsertHashMap address v) >> pure address
-      insert v = let address = makeAddress v
-                 in update storeState (InsertBS address v) >> pure address
+      insert v = let address = makeAddress v in do
+        update storeState (InsertBS address v)
+        maybeCreateCheckpoint storeState
+        pure address
       lookup h = Map.lookup h <$> query storeState ReadHashMap
       declareSeries series = do
         seriesHashes <- Map.lookup series <$> query storeState ReadSeriesMap
@@ -103,9 +138,12 @@ make genHash storeState =
           Nothing -> do
             hash <- genHash
             update storeState . InsertSeriesMap series $ SeriesData hash []
+            maybeCreateCheckpoint storeState
             pure hash
-      deleteSeries series =
+      deleteSeries series = do
         update storeState $ DeleteSeriesMap series
+        update storeState MaybeCollectGarbage
+        maybeCreateCheckpoint storeState
       update' series address v = do
         seriesHashes <- Map.lookup series <$> query storeState ReadSeriesMap
         case seriesHashes of
@@ -114,6 +152,7 @@ make genHash storeState =
                          update storeState . InsertSeriesMap series
                            $ SeriesData newHash [newHash]
                          update storeState MaybeCollectGarbage
+                         maybeCreateCheckpoint storeState
                          pure $ Just newHash
           _ -> pure Nothing
       append series address v = do
@@ -122,6 +161,7 @@ make genHash storeState =
           Just (SeriesData a _) | a == address -> do
                          newHash <- insertStore v
                          update storeState $ AppendSeriesMap series newHash
+                         maybeCreateCheckpoint storeState
                          pure $ Just newHash
           _ -> pure Nothing
       resolve s = (fmap (head . seriesList) . Map.lookup s)
