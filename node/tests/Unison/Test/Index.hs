@@ -1,6 +1,6 @@
 {-# Language TypeSynonymInstances #-}
 {-# Language FlexibleInstances #-}
-module Unison.Test.KeyValueStore where
+module Unison.Test.Index where
 
 import Data.ByteString.Char8
 import System.Random
@@ -13,7 +13,7 @@ import qualified Control.Concurrent.MVar as MVar
 import qualified Data.ByteString as B
 import qualified Unison.BlockStore as BS
 import qualified Unison.BlockStore.MemBlockStore as MBS
-import qualified Unison.Runtime.KeyValueStore as KVS
+import qualified Unison.Runtime.Index as KVS
 
 instance Arbitrary KVS.Identifier where
   arbitrary = do
@@ -87,8 +87,7 @@ runGarbageCollection (genVar, bs) = do
     Just (k, o) -> fail ("2. got unexpected value " ++ unpack o)
 
 prop_serializeDeserializeId :: KVS.Identifier -> Bool
-prop_serializeDeserializeId ident = KVS.idToText ident
-  == (KVS.idToText . KVS.textToId . KVS.idToText $ ident)
+prop_serializeDeserializeId ident = ident == (KVS.textToId . KVS.idToText $ ident)
 
 ioTests :: IO TestTree
 ioTests = do

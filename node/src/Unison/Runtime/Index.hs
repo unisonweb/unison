@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Unison.Runtime.KeyValueStore
-  (Unison.Runtime.KeyValueStore.lookup
-  ,Unison.Runtime.KeyValueStore.delete
-  ,Unison.Runtime.KeyValueStore.insert
-  ,Unison.Runtime.KeyValueStore.lookupGT
+module Unison.Runtime.Index
+  (Unison.Runtime.Index.lookup
+  ,Unison.Runtime.Index.delete
+  ,Unison.Runtime.Index.insert
+  ,Unison.Runtime.Index.lookupGT
   ,load
   ,idToText
   ,textToId

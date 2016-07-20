@@ -56,12 +56,12 @@ library
     Unison.Remote.Extra
     Unison.Runtime.Address
     Unison.Runtime.Block
-    Unison.Runtime.ExtraBuiltins
     Unison.Runtime.ExpiringMap
+    Unison.Runtime.ExtraBuiltins
+    Unison.Runtime.Index
     Unison.Runtime.Journal
     Unison.Runtime.JournaledMap
     Unison.Runtime.JournaledTrie
-    Unison.Runtime.KeyValueStore
     Unison.Runtime.Multiplex
     Unison.Runtime.Queue
     Unison.Runtime.Remote

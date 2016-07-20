@@ -7,7 +7,7 @@ import Test.Tasty
 import qualified Unison.Test.BlockStore.FileBlockStore as FBS
 import qualified Unison.Test.BlockStore.MemBlockStore as MBS
 import qualified Unison.Test.Journal as J
-import qualified Unison.Test.KeyValueStore as KVS
+import qualified Unison.Test.Index as KVS
 import qualified Unison.Test.ResourcePool as ResourcePool
 import qualified Unison.Test.SerializationAndHashing as SAH
 
