@@ -5,6 +5,7 @@ module Unison.Runtime.Index
   ,Unison.Runtime.Index.insert
   ,Unison.Runtime.Index.lookupGT
   ,load
+  ,loadEncrypted
   ,idToText
   ,textToId
   ,Identifier
@@ -13,6 +14,7 @@ module Unison.Runtime.Index
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Unison.Cryptography
 import Unison.Runtime.JournaledMap as JM
 import qualified Unison.BlockStore as BS
 import qualified Data.ByteString as B
@@ -38,6 +40,12 @@ textToId t =
 load :: (Eq a) => BS.BlockStore a -> Identifier -> IO Db
 load bs (cp, ud) = do
   jm <- JM.fromSeries bs cp ud
+  pure $ Db jm (cp, ud)
+
+loadEncrypted :: (Eq a) => BS.BlockStore a -> Cryptography t1 t2 t3 t4 t5 t6 ByteString
+  -> Identifier -> IO Db
+loadEncrypted bs crypto (cp, ud) = do
+  jm <- JM.fromEncryptedSeries crypto bs cp ud
   pure $ Db jm (cp, ud)
 
 insert :: KeyHash -> (Key, Value) -> Db -> IO ()

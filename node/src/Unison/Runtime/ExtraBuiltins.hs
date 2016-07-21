@@ -3,6 +3,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 module Unison.Runtime.ExtraBuiltins where
 
+import Data.ByteString (ByteString)
 import Unison.BlockStore (Series(..), BlockStore)
 import Unison.Node.Builtin
 import Unison.Parsers (unsafeParseType)
@@ -27,14 +28,14 @@ pattern Store' s <- Term.App'
                     (Term.Ref' (R.Builtin "Index"))
                     (Term.Lit' (Term.Text s))
 
-makeAPI :: Eq a => BlockStore a -> C.Cryptography k syk sk skp s h c
+makeAPI :: Eq a => BlockStore a -> C.Cryptography k syk sk skp s h ByteString
   -> IO (WHNFEval -> [Builtin])
 makeAPI blockStore crypto = do
   let nextID = do
         cp <- C.randomBytes crypto 64
         ud <- C.randomBytes crypto 64
         pure (Series cp, Series ud)
-  resourcePool <- RP.make 3 10 (KVS.load blockStore) (const (pure ()))
+  resourcePool <- RP.make 3 10 (KVS.loadEncrypted blockStore crypto) (const (pure ()))
   pure (\whnf -> map (\(r, o, t, m) -> Builtin r o t m)
      [ let r = R.Builtin "Index.empty"
            op [] = Note.lift $ do
