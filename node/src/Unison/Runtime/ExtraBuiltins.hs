@@ -3,21 +3,14 @@
 {-# LANGUAGE PatternSynonyms #-}
 module Unison.Runtime.ExtraBuiltins where
 
-import Data.ByteString (ByteString)
-import System.Random
-import Unison.BlockStore (Series(..))
-import Unison.Hash (Hash)
-import Unison.Hash.Extra ()
+import Unison.BlockStore (Series(..), BlockStore)
 import Unison.Node.Builtin
 import Unison.Parsers (unsafeParseType)
 import Unison.Type (Type)
-import qualified Control.Concurrent.MVar as MVar
-import qualified Unison.BlockStore.FileBlockStore as FBS
+import qualified Unison.Cryptography as C
 import qualified Unison.Eval.Interpreter as I
-import qualified Unison.Hash as Hash
 import qualified Unison.Note as Note
 import qualified Unison.Reference as R
-import qualified Unison.Runtime.Address as Address
 import qualified Unison.Runtime.Index as KVS
 import qualified Unison.Runtime.ResourcePool as RP
 import qualified Unison.SerializationAndHashing as SAH
@@ -34,36 +27,13 @@ pattern Store' s <- Term.App'
                     (Term.Ref' (R.Builtin "Index"))
                     (Term.Lit' (Term.Text s))
 
-makeRandomHash :: RandomGen r => MVar.MVar r -> IO Hash
-makeRandomHash genVar = do
-  gen <- MVar.readMVar genVar
-  let (hash, newGen) = random gen
-  _ <- MVar.swapMVar genVar newGen
-  pure hash
-
-makeRandomBS :: RandomGen r => MVar.MVar r -> IO ByteString
-makeRandomBS genVar = Hash.toBytes <$> makeRandomHash genVar
-
-makeRandomSeries :: RandomGen r => MVar.MVar r -> IO Series
-makeRandomSeries genVar = Series <$> makeRandomBS genVar
-
-makeRandomAddress :: RandomGen r => MVar.MVar r -> IO Address.Address
-makeRandomAddress genVar = Address.Address <$> makeRandomBS genVar
-
-makeRandomIdentifier :: RandomGen r => MVar.MVar r -> IO (Series, Series)
-makeRandomIdentifier genVar = do
-  cp <- makeRandomSeries genVar
-  ud <- makeRandomSeries genVar
-  pure (cp, ud)
-
-
-makeAPI :: IO (WHNFEval -> [Builtin])
-makeAPI = do
-  stdGen <- getStdGen
-  genVar <- MVar.newMVar stdGen
-  let nextAddress = makeRandomAddress genVar
-      nextID = makeRandomIdentifier genVar
-  blockStore <- FBS.make' nextAddress "Index"
+makeAPI :: Eq a => BlockStore a -> C.Cryptography k syk sk skp s h c
+  -> IO (WHNFEval -> [Builtin])
+makeAPI blockStore crypto = do
+  let nextID = do
+        cp <- C.randomBytes crypto 64
+        ud <- C.randomBytes crypto 64
+        pure (Series cp, Series ud)
   resourcePool <- RP.make 3 10 (KVS.load blockStore) (const (pure ()))
   pure (\whnf -> map (\(r, o, t, m) -> Builtin r o t m)
      [ let r = R.Builtin "Index.empty"
