@@ -36,7 +36,7 @@ textToId t =
       decode = BS.Series . Base64.decodeLenient
   in (decode a, decode b)
 
-load :: BS.BlockStore Address -> Identifier -> IO Db
+load :: (Eq a) => BS.BlockStore a -> Identifier -> IO Db
 load bs (cp, ud) = do
   jm <- JM.fromSeries bs cp ud
   pure $ Db jm (cp, ud)
