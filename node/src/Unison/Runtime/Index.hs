@@ -13,7 +13,6 @@ module Unison.Runtime.Index
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
-import Unison.Runtime.Address
 import Unison.Runtime.JournaledMap as JM
 import qualified Unison.BlockStore as BS
 import qualified Data.ByteString as B
