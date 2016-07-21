@@ -2,13 +2,28 @@ module Unison.Runtime.Address where
 
 import Data.ByteString (ByteString)
 import Data.Bytes.Serial
+import Data.SafeCopy
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import System.Random
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Base64.URL as Base64
+import qualified Data.ByteString.Builder as Builder
+import qualified Data.ByteString.Lazy as LB
+import qualified Data.Digest.Murmur64 as Murmur
+
+class Addressor a where
+  makeAddress :: ByteString -> a
 
 data Address = Address ByteString deriving (Eq,Ord,Show)
+
+instance Addressor Address where
+  makeAddress = fromBytes . LB.toStrict
+    . Builder.toLazyByteString . Builder.word64LE . Murmur.asWord64 . Murmur.hash64
+
+instance SafeCopy Address where
+  putCopy (Address a) = contain $ safePut a
+  getCopy = contain $ Address <$> safeGet
 
 fromBytes :: ByteString -> Address
 fromBytes = Address

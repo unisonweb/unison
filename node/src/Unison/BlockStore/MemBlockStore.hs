@@ -4,33 +4,26 @@ module Unison.BlockStore.MemBlockStore where
 import Data.ByteString (ByteString)
 import System.Random
 import Unison.Runtime.Address
-import qualified Data.ByteString.Builder as Builder
-import qualified Data.ByteString.Lazy as LB
-import qualified Data.Digest.Murmur64 as Murmur
 import qualified Data.IORef as IORef
 import qualified Data.Map.Lazy as Map
 import qualified Data.Set as Set
 import qualified Unison.BlockStore as BS
 
--- number of updates before unreferenced hashes are garbage collected
+-- number of updates before unreferenced addresses are garbage collected
 garbageLimit :: Int
 garbageLimit = 100
 
-data SeriesData = SeriesData { lastAddress :: Address, seriesList :: [Address] } deriving (Show)
+data SeriesData a = SeriesData { lastAddress :: a, seriesList :: [a] } deriving (Show)
 
-data StoreData = StoreData
-  { hashMap :: Map.Map Address ByteString
-  , seriesMap :: Map.Map BS.Series SeriesData
-  , permanent :: Set.Set Address
+data StoreData a = StoreData
+  { hashMap :: Map.Map a ByteString
+  , seriesMap :: Map.Map BS.Series (SeriesData a)
+  , permanent :: Set.Set a
   , updateCount :: Int
   } deriving (Show)
 
-addSeriesAddress :: Address -> SeriesData -> SeriesData
+addSeriesAddress :: a -> SeriesData a -> SeriesData a
 addSeriesAddress h (SeriesData _ sl) = SeriesData h (h:sl)
-
-makeAddress :: ByteString -> Address
-makeAddress = fromBytes . LB.toStrict
-  . Builder.toLazyByteString . Builder.word64LE . Murmur.asWord64 . Murmur.hash64
 
 randomAddress :: RandomGen r => r -> (Address, r)
 randomAddress = random
@@ -38,10 +31,11 @@ randomAddress = random
 makeRandomAddress :: RandomGen r => IORef.IORef r -> IO Address
 makeRandomAddress genVar = IORef.atomicModifyIORef genVar ((\(a,b) -> (b,a)) . randomAddress)
 
-make :: IO Address -> IORef.IORef StoreData -> BS.BlockStore Address
-make genHash mapVar =
+make :: (Ord a, Addressor a) =>
+  IO a -> IORef.IORef (StoreData a) -> BS.BlockStore a
+make genAddress mapVar =
   let insertStore (StoreData hashMap seriesMap rs uc) v =
-        let address = Address v
+        let address = makeAddress v
         in (StoreData (Map.insert address v hashMap) seriesMap rs uc, address)
       insert v = IORef.atomicModifyIORef mapVar $ \store ->
         let (ns, newHash) = insertStore store v
@@ -49,7 +43,7 @@ make genHash mapVar =
       lookup h = IORef.readIORef mapVar >>=
         (\(StoreData hashMap _ _ _) -> pure $ Map.lookup h hashMap)
       declareSeries series = do
-        hash <- genHash
+        hash <- genAddress
         IORef.atomicModifyIORef mapVar $ \store ->
           case Map.lookup series (seriesMap store) of
             Nothing ->
@@ -93,6 +87,6 @@ make genHash mapVar =
           $ Map.findWithDefault (SeriesData undefined []) s seriesMap)
   in BS.BlockStore insert lookup declareSeries deleteSeries update append resolve resolves
 
-make' :: IO Address -> IO (BS.BlockStore Address)
-make' genHash = IORef.newIORef (StoreData Map.empty Map.empty Set.empty 0)
-                >>= pure . make genHash
+make' :: (Ord a, Addressor a) =>  IO a -> IO (BS.BlockStore a)
+make' genAddress = IORef.newIORef (StoreData Map.empty Map.empty Set.empty 0)
+                >>= pure . make genAddress

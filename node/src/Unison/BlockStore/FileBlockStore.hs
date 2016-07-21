@@ -12,7 +12,6 @@ import Data.ByteString (ByteString)
 import Data.SafeCopy
 import Data.Typeable
 import System.FilePath ((</>))
-import Unison.BlockStore.MemBlockStore (makeAddress)
 import Unison.Runtime.Address
 import qualified Data.Map.Lazy as Map
 import qualified Data.Set as Set
@@ -27,47 +26,53 @@ garbageLimit = 100
 checkpointLimit :: Int
 checkpointLimit = 30
 
-data SeriesData = SeriesData { lastAddress :: Address, seriesList :: [Address] } deriving (Show)
+data SeriesData a = SeriesData { lastAddress :: a, seriesList :: [a] } deriving (Show)
 
-data StoreData = StoreData
-  { hashMap :: !(Map.Map Address ByteString)
-  , seriesMap :: !(Map.Map BS.Series SeriesData)
-  , permanent :: Set.Set Address
+data StoreData a = StoreData
+  { hashMap :: !(Map.Map a ByteString)
+  , seriesMap :: !(Map.Map BS.Series (SeriesData a))
+  , permanent :: Set.Set a
   , orphanCount :: Int
   , updateCount :: Int
   , path :: FilePath
   } deriving (Typeable)
-$(deriveSafeCopy 0 'base ''Address)
-$(deriveSafeCopy 0 'base ''BS.Series)
-$(deriveSafeCopy 0 'base ''SeriesData)
-$(deriveSafeCopy 0 'base ''StoreData)
 
-insertBS :: Address -> ByteString -> Update StoreData ()
+$(deriveSafeCopy 0 'base ''BS.Series)
+instance SafeCopy a => SafeCopy (SeriesData a) where
+  putCopy (SeriesData la sl) = contain (safePut la >> safePut sl)
+  getCopy = contain $ SeriesData <$> safeGet <*> safeGet
+instance (Ord a, SafeCopy a) => SafeCopy (StoreData a) where
+  putCopy (StoreData hm sm p oc uc path) = contain
+    $ safePut hm >> safePut sm >> safePut p >> safePut oc >> safePut uc >> safePut path
+  getCopy = contain $ StoreData
+    <$> safeGet <*> safeGet <*> safeGet <*> safeGet <*> safeGet <*> safeGet
+
+insertBS :: Ord a => a -> ByteString -> Update (StoreData a) ()
 insertBS k v = do
   sd <- get
   let newHashMap = Map.insert k v $ hashMap sd
       newPermanents = Set.insert k $ permanent sd
   put sd { hashMap = newHashMap, permanent = newPermanents }
 
-insertHashMap :: Address -> ByteString -> Update StoreData ()
+insertHashMap :: Ord a => a -> ByteString -> Update (StoreData a) ()
 insertHashMap k v = do
   sd <- get
   let newHashMap = Map.insert k v $ hashMap sd
   put sd { hashMap = newHashMap }
 
-insertSeriesMap :: BS.Series -> SeriesData -> Update StoreData ()
+insertSeriesMap :: Ord a => BS.Series -> SeriesData a -> Update (StoreData a) ()
 insertSeriesMap series seriesData = do
   sd <- get
   let newSeriesMap = Map.insert series seriesData $ seriesMap sd
   put sd { seriesMap = newSeriesMap }
 
-deleteSeriesMap :: BS.Series -> Update StoreData ()
+deleteSeriesMap ::Ord a =>  BS.Series -> Update (StoreData a) ()
 deleteSeriesMap series = do
   sd <- get
   let newSeriesMap = Map.delete series $ seriesMap sd
   put sd { seriesMap = newSeriesMap }
 
-appendSeriesMap :: BS.Series -> Address -> Update StoreData ()
+appendSeriesMap :: Ord a => BS.Series -> a -> Update (StoreData a) ()
 appendSeriesMap series address = do
   sd <- get
   let newMap = Map.alter alterF series $ seriesMap sd
@@ -75,16 +80,16 @@ appendSeriesMap series address = do
       alterF (Just (SeriesData _ hl)) = Just . SeriesData address $ address : hl
   put sd { seriesMap = newMap }
 
-readHashMap :: Query StoreData (Map.Map Address ByteString)
+readHashMap :: Ord a => Query (StoreData a) (Map.Map a ByteString)
 readHashMap = ask >>= (pure . hashMap)
 
-readSeriesMap :: Query StoreData (Map.Map BS.Series SeriesData)
+readSeriesMap :: Query (StoreData a) (Map.Map BS.Series (SeriesData a))
 readSeriesMap = ask >>= (pure . seriesMap)
 
-readPath :: Query StoreData FilePath
+readPath :: Query (StoreData a) FilePath
 readPath = ask >>= (pure . path)
 
-maybeCollectGarbage :: Update StoreData ()
+maybeCollectGarbage :: Ord a => Update (StoreData a) ()
 maybeCollectGarbage = do
   sd <- get
   let preserveHashes = Set.union (permanent sd) . Set.fromList . concatMap seriesList
@@ -94,7 +99,7 @@ maybeCollectGarbage = do
     then put sd { hashMap = clearedMap, orphanCount = 0}
     else put sd { orphanCount = orphanCount sd + 1 }
 
-incrementUpdateCount :: Update StoreData Bool
+incrementUpdateCount :: Update (StoreData a) Bool
 incrementUpdateCount = do
   sd <- get
   let incCount = updateCount sd + 1
@@ -105,7 +110,7 @@ incrementUpdateCount = do
 
 $(makeAcidic ''StoreData ['insertHashMap, 'insertSeriesMap, 'appendSeriesMap, 'readSeriesMap, 'insertBS, 'readHashMap, 'readPath, 'maybeCollectGarbage, 'deleteSeriesMap, 'incrementUpdateCount])
 
-maybeCreateCheckpoint :: AcidState StoreData -> IO ()
+maybeCreateCheckpoint :: (SafeCopy a, Typeable a) => AcidState (StoreData a) -> IO ()
 maybeCreateCheckpoint acidState = do
   runSnapshot <- update acidState IncrementUpdateCount
   if runSnapshot
@@ -118,10 +123,11 @@ maybeCreateCheckpoint acidState = do
     createCheckpoint acidState
     else pure ()
 
-initState :: FilePath -> IO (AcidState StoreData)
+initState :: (Ord a, Typeable a, SafeCopy a) => FilePath -> IO (AcidState (StoreData a))
 initState f = openLocalStateFrom f $ StoreData Map.empty Map.empty Set.empty 0 0 f
 
-make :: IO Address -> AcidState StoreData -> BS.BlockStore Address
+make :: (Addressor a, Ord a, Typeable a, SafeCopy a)
+  => IO a -> AcidState (StoreData a) -> BS.BlockStore a
 make genHash storeState =
   let insertStore v =
         let address = makeAddress v
@@ -170,5 +176,6 @@ make genHash storeState =
         <$> query storeState ReadSeriesMap
   in BS.BlockStore insert lookup declareSeries deleteSeries update' append resolve resolves
 
-make' :: IO Address -> FilePath -> IO (BS.BlockStore Address)
+make' :: (Ord a, Typeable a, SafeCopy a, Addressor a)
+  => IO a -> FilePath -> IO (BS.BlockStore a)
 make' gen path = initState path >>= pure . make gen
