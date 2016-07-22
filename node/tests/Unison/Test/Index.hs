@@ -1,5 +1,4 @@
 {-# Language TypeSynonymInstances #-}
-{-# Language FlexibleInstances #-}
 {-# Language OverloadedStrings #-}
 module Unison.Test.Index where
 
@@ -19,11 +18,8 @@ import qualified Unison.BlockStore.MemBlockStore as MBS
 import qualified Unison.Cryptography as C
 import qualified Unison.Runtime.Index as Index
 
-instance Arbitrary Index.Identifier where
-  arbitrary = do
-    a <- (BS.Series . B.pack) <$> vectorOf 64 arbitrary
-    b <- (BS.Series . B.pack) <$> vectorOf 64 arbitrary
-    pure (a, b)
+instance Arbitrary BS.Series where
+    arbitrary =(BS.Series . B.pack) <$> vectorOf 64 arbitrary
 
 makeRandomId :: IO (BS.Series, BS.Series)
 makeRandomId = do
