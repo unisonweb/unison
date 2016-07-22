@@ -25,9 +25,9 @@ addSeriesAddress h (SeriesData _ sl) = SeriesData h (h:sl)
 
 make :: Ord a => IO a -> (ByteString -> a) -> IORef.IORef (StoreData a)
   -> BS.BlockStore a
-make genAddress makeAddress mapVar =
+make genAddress hash mapVar =
   let insertStore (StoreData hashMap seriesMap rs uc) v =
-        let address = makeAddress v
+        let address = hash v
         in (StoreData (Map.insert address v hashMap) seriesMap rs uc, address)
       insert v = IORef.atomicModifyIORef mapVar $ \store ->
         let (ns, newAddress) = insertStore store v
@@ -81,5 +81,5 @@ make genAddress makeAddress mapVar =
   in BS.BlockStore insert lookup declareSeries deleteSeries update append resolve resolves
 
 make' :: Ord a =>  IO a -> (ByteString -> a) -> IO (BS.BlockStore a)
-make' genAddress makeAddress = IORef.newIORef (StoreData Map.empty Map.empty Set.empty 0)
-                >>= pure . make genAddress makeAddress
+make' genAddress hash = IORef.newIORef (StoreData Map.empty Map.empty Set.empty 0)
+                >>= pure . make genAddress hash

@@ -9,6 +9,7 @@ import Control.Monad.Reader
 import Control.Monad.State
 import Data.Acid
 import Data.ByteString (ByteString)
+import Data.Maybe (isNothing)
 import Data.SafeCopy
 import Data.Typeable
 import System.FilePath ((</>))
@@ -127,13 +128,15 @@ initState f = openLocalStateFrom f $ StoreData Map.empty Map.empty Set.empty 0 0
 
 make :: (Ord a, Typeable a, SafeCopy a)
   => IO a -> (ByteString -> a) -> AcidState (StoreData a) -> BS.BlockStore a
-make genAddress makeAddress storeState =
+make genAddress hash storeState =
   let insertStore v =
-        let address = makeAddress v
+        let address = hash v
         in update storeState (InsertHashMap address v) >> pure address
-      insert v = let address = makeAddress v in do
-        update storeState (InsertBS address v)
-        maybeCreateCheckpoint storeState
+      insert v = let address = hash v in do
+        notPresent <- (isNothing . Map.lookup address) <$> query storeState ReadHashMap
+        when notPresent $ do
+          update storeState (InsertBS address v)
+          maybeCreateCheckpoint storeState
         pure address
       lookup h = Map.lookup h <$> query storeState ReadHashMap
       declareSeries series = do
@@ -177,4 +180,4 @@ make genAddress makeAddress storeState =
 
 make' :: (Ord a, Typeable a, SafeCopy a)
   => IO a -> (ByteString -> a) -> FilePath -> IO (BS.BlockStore a)
-make' gen makeAddress path = initState path >>= pure . make gen makeAddress
+make' gen hash path = initState path >>= pure . make gen hash
