@@ -1,8 +1,11 @@
 module Unison.Test.BlockStore.FileBlockStore where
 
+import System.IO.Unsafe
 import System.Random
 import Test.Tasty
 import Test.Tasty.HUnit
+import Unison.BlockStore (BlockStore)
+import Unison.Runtime.Address
 import Unison.Test.BlockStore
 import qualified Control.Concurrent.MVar as MVar
 import qualified Data.IORef as IORef
@@ -10,12 +13,17 @@ import qualified System.Directory as Directory
 import qualified Unison.BlockStore.FileBlockStore as FBS
 import qualified Unison.BlockStore.MemBlockStore as MBS
 
-ioTests :: IO (TestTree, IO ())
-ioTests = do
-  gen <- getStdGen
-  genVar <- IORef.newIORef gen
-  let genHash = MBS.makeRandomHash genVar
+data FileResource = FileResource
+  { path :: FilePath
+  , store :: BlockStore Address
+  }
+
+setup :: IO FileResource
+setup = do
   tempDir <- Directory.makeAbsolute "temp"
-  fileStore <- FBS.make' genHash tempDir
-  pure ( testGroup "FileBlockStore" $ makeCases fileStore
-       , Directory.removeDirectoryRecursive tempDir)
+  fileStore <- FBS.make' makeRandomAddress makeAddress tempDir
+  pure $ FileResource tempDir fileStore
+
+tests :: TestTree
+tests = withResource setup (Directory.removeDirectoryRecursive . path)
+  (testGroup "FileBlockStore" . makeCases . store . unsafePerformIO)

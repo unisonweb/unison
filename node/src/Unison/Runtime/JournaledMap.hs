@@ -31,6 +31,9 @@ delete k = J.update (Delete k)
 lookup :: (Serial k, Ord k, Serial v) => k -> JournaledMap k v -> IO (Maybe v)
 lookup k j = atomically $ Map.lookup k <$> J.get j
 
+lookupGT :: (Serial k, Ord k, Serial v) => k -> JournaledMap k v -> IO (Maybe (k, v))
+lookupGT k j = atomically $ Map.lookupGT k <$> J.get j
+
 keys :: JournaledMap k v -> IO [k]
 keys j = Map.keys <$> atomically (J.get j)
 

@@ -54,13 +54,14 @@ library
     Unison.NodeProtocol
     Unison.Reference.Extra
     Unison.Remote.Extra
+    Unison.Runtime.Address
     Unison.Runtime.Block
-    Unison.Runtime.ExtraBuiltins
     Unison.Runtime.ExpiringMap
+    Unison.Runtime.ExtraBuiltins
+    Unison.Runtime.Index
     Unison.Runtime.Journal
     Unison.Runtime.JournaledMap
     Unison.Runtime.JournaledTrie
-    Unison.Runtime.KeyValueStore
     Unison.Runtime.Multiplex
     Unison.Runtime.Queue
     Unison.Runtime.Remote
@@ -152,6 +153,7 @@ executable node
     applicative-extras,
     attoparsec,
     base,
+    base64-bytestring,
     blaze-html,
     byteable,
     bytes,

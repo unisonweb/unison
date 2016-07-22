@@ -7,23 +7,21 @@ import Test.Tasty
 import qualified Unison.Test.BlockStore.FileBlockStore as FBS
 import qualified Unison.Test.BlockStore.MemBlockStore as MBS
 import qualified Unison.Test.Journal as J
-import qualified Unison.Test.KeyValueStore as KVS
+import qualified Unison.Test.Index as Index
 import qualified Unison.Test.ResourcePool as ResourcePool
 import qualified Unison.Test.SerializationAndHashing as SAH
 
 
-tastyTests :: IO (TestTree, IO ())
+tastyTests :: IO TestTree
 tastyTests = do
-  kvsTests <- KVS.ioTests
+  indexTests <- Index.ioTests
   mbsTests <- MBS.ioTests
-  -- TODO fix FileBlockStore, and put tests back in rotation
   journalTests <- J.ioTests
-  (fbsTests, cleanup) <- FBS.ioTests
-  pure (testGroup "unison"
-        [ResourcePool.tests, mbsTests, fbsTests, SAH.tests, journalTests], cleanup)
+  pure $ testGroup "unison"
+        [ResourcePool.tests, mbsTests, FBS.tests, SAH.tests, journalTests, indexTests]
 
 runTasty :: IO ()
-runTasty = tastyTests >>= (\(tt, cleanup) -> defaultMain tt >> cleanup)
+runTasty = tastyTests >>= defaultMain
 
 main = runTasty --runWithSeed 45 >> runTasty
 
