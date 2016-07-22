@@ -13,7 +13,7 @@ import qualified Unison.Cryptography as C
 import qualified Unison.Eval.Interpreter as I
 import qualified Unison.Note as Note
 import qualified Unison.Reference as R
-import qualified Unison.Runtime.Index as KVS
+import qualified Unison.Runtime.Index as Index
 import qualified Unison.Runtime.ResourcePool as RP
 import qualified Unison.SerializationAndHashing as SAH
 import qualified Unison.Term as Term
@@ -36,12 +36,12 @@ makeAPI blockStore crypto = do
         cp <- C.randomBytes crypto 64
         ud <- C.randomBytes crypto 64
         pure (Series cp, Series ud)
-  resourcePool <- RP.make 3 10 (KVS.loadEncrypted blockStore crypto) KVS.flush
+  resourcePool <- RP.make 3 10 (Index.loadEncrypted blockStore crypto) Index.flush
   pure (\whnf -> map (\(r, o, t, m) -> Builtin r o t m)
      [ let r = R.Builtin "Index.empty"
            op [] = Note.lift $ do
              ident <- nextID
-             pure . store . Term.lit . Term.Text . KVS.idToText $ ident
+             pure . store . Term.lit . Term.Text . Index.idToText $ ident
            op _ = fail "Index.empty unpossible"
            type' = unsafeParseType "forall k v. Remote (Store k v)"
        in (r, Just (I.Primop 0 op), type', prefix "empty")
@@ -53,8 +53,8 @@ makeAPI blockStore crypto = do
                g i k
              g (Store' h) k = do
                val <- Note.lift $ do
-                 (db, _) <- RP.acquire resourcePool . KVS.textToId $ h
-                 result <- atomically $ KVS.lookup (SAH.hash' k) db
+                 (db, _) <- RP.acquire resourcePool . Index.textToId $ h
+                 result <- atomically $ Index.lookup (SAH.hash' k) db
                  case result >>= (pure . SAH.deserializeTermFromBytes . snd) of
                    Just (Left s) -> fail ("Index.lookup could not deserialize: " ++ s)
                    Just (Right t) -> pure $ some t
@@ -73,9 +73,9 @@ makeAPI blockStore crypto = do
                g k' v' s
              g k v (Store' h) = do
                Note.lift $ do
-                 (db, _) <- RP.acquire resourcePool . KVS.textToId $ h
+                 (db, _) <- RP.acquire resourcePool . Index.textToId $ h
                  atomically
-                   (KVS.insert (SAH.hash' k) (SAH.serializeTerm k, SAH.serializeTerm v) db)
+                   (Index.insert (SAH.hash' k) (SAH.serializeTerm k, SAH.serializeTerm v) db)
                    >>= atomically
                pure unitRef
              g k v store = pure $ Term.ref r `Term.app` k `Term.app` v `Term.app` store

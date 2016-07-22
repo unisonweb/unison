@@ -7,18 +7,18 @@ import Test.Tasty
 import qualified Unison.Test.BlockStore.FileBlockStore as FBS
 import qualified Unison.Test.BlockStore.MemBlockStore as MBS
 import qualified Unison.Test.Journal as J
-import qualified Unison.Test.Index as KVS
+import qualified Unison.Test.Index as Index
 import qualified Unison.Test.ResourcePool as ResourcePool
 import qualified Unison.Test.SerializationAndHashing as SAH
 
 
 tastyTests :: IO TestTree
 tastyTests = do
-  kvsTests <- KVS.ioTests
+  indexTests <- Index.ioTests
   mbsTests <- MBS.ioTests
   journalTests <- J.ioTests
   pure $ testGroup "unison"
-        [ResourcePool.tests, mbsTests, FBS.tests, SAH.tests, journalTests, kvsTests]
+        [ResourcePool.tests, mbsTests, FBS.tests, SAH.tests, journalTests, indexTests]
 
 runTasty :: IO ()
 runTasty = tastyTests >>= defaultMain

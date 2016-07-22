@@ -20,11 +20,8 @@ data FileResource = FileResource
 
 setup :: IO FileResource
 setup = do
-  gen <- getStdGen
-  genVar <- IORef.newIORef gen
-  let genHash = MBS.makeRandomAddress genVar
   tempDir <- Directory.makeAbsolute "temp"
-  fileStore <- FBS.make' genHash tempDir
+  fileStore <- FBS.make' makeRandomAddress makeAddress tempDir
   pure $ FileResource tempDir fileStore
 
 tests :: TestTree

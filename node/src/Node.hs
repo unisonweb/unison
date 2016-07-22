@@ -43,7 +43,7 @@ makeRandomAddress crypt = Address <$> C.randomBytes crypt 64
 main :: IO ()
 main = do
   store' <- store
-  blockStore <- FBS.make' (makeRandomAddress C.noop) "Index"
+  blockStore <- FBS.make' (makeRandomAddress C.noop) makeAddress "Index"
   keyValueOps <- EB.makeAPI blockStore C.noop
   let makeBuiltins whnf = concat [Builtin.makeBuiltins whnf, keyValueOps whnf]
   node <- BasicNode.make hash store' makeBuiltins

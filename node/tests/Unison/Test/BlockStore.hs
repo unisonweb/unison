@@ -14,9 +14,13 @@ import qualified Data.ByteString as B
 import qualified Test.QuickCheck.Monadic as QCM
 import qualified Test.Tasty.HUnit as HU
 import qualified Unison.BlockStore as BS
+import qualified Unison.Cryptography as C
 
 instance Arbitrary Address where
   arbitrary = (fromBytes . B.pack) <$> vectorOf 64 arbitrary
+
+makeRandomAddress :: IO Address
+makeRandomAddress = Address <$> C.randomBytes C.noop 64
 
 roundTrip :: BS.BlockStore Address -> HU.Assertion
 roundTrip bs = do

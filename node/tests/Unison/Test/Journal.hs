@@ -10,18 +10,12 @@ import System.Random
 import Test.Tasty
 import Test.Tasty.HUnit
 import Unison.Runtime.Address
+import Unison.Test.BlockStore (makeRandomAddress)
 import qualified Control.Concurrent.MVar as MVar
 import qualified Unison.BlockStore as BS
 import qualified Unison.BlockStore.MemBlockStore as MBS
 import qualified Unison.Runtime.Block as B
 import qualified Unison.Runtime.Journal as J
-
-makeRandomAddress :: RandomGen r => MVar.MVar r -> IO Address
-makeRandomAddress genVar = do
-  gen <- MVar.readMVar genVar
-  let (hash, newGen) = random gen
-  MVar.swapMVar genVar newGen
-  pure hash
 
 data SimpleUpdate = Inc deriving (Generic)
 instance Serial SimpleUpdate
@@ -43,10 +37,7 @@ readAfterUpdate bs = do
 
 ioTests :: IO TestTree
 ioTests = do
-  gen <- getStdGen
-  genVar <- MVar.newMVar gen
-  blockStore <- MBS.make' (makeRandomAddress genVar)
-  let prereqs = (genVar, blockStore)
+  blockStore <- MBS.make' makeRandomAddress makeAddress
   pure $ testGroup "Journal"
     [ testCase "readAfterUpdate" (readAfterUpdate blockStore)
     ]

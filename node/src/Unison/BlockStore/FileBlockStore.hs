@@ -12,7 +12,6 @@ import Data.ByteString (ByteString)
 import Data.SafeCopy
 import Data.Typeable
 import System.FilePath ((</>))
-import Unison.Runtime.Address
 import qualified Data.Map.Lazy as Map
 import qualified Data.Set as Set
 import qualified System.Directory as Directory
@@ -92,9 +91,9 @@ readPath = ask >>= (pure . path)
 maybeCollectGarbage :: Ord a => Update (StoreData a) ()
 maybeCollectGarbage = do
   sd <- get
-  let preserveHashes = Set.union (permanent sd) . Set.fromList . concatMap seriesList
+  let preserveAddresses = Set.union (permanent sd) . Set.fromList . concatMap seriesList
         . Map.elems . seriesMap $ sd
-      clearedMap = Map.filterWithKey (\k _ -> Set.member k preserveHashes) $ hashMap sd
+      clearedMap = Map.filterWithKey (\k _ -> Set.member k preserveAddresses) $ hashMap sd
   if orphanCount sd == garbageLimit
     then put sd { hashMap = clearedMap, orphanCount = 0}
     else put sd { orphanCount = orphanCount sd + 1 }
@@ -126,9 +125,9 @@ maybeCreateCheckpoint acidState = do
 initState :: (Ord a, Typeable a, SafeCopy a) => FilePath -> IO (AcidState (StoreData a))
 initState f = openLocalStateFrom f $ StoreData Map.empty Map.empty Set.empty 0 0 f
 
-make :: (Addressor a, Ord a, Typeable a, SafeCopy a)
-  => IO a -> AcidState (StoreData a) -> BS.BlockStore a
-make genHash storeState =
+make :: (Ord a, Typeable a, SafeCopy a)
+  => IO a -> (ByteString -> a) -> AcidState (StoreData a) -> BS.BlockStore a
+make genAddress makeAddress storeState =
   let insertStore v =
         let address = makeAddress v
         in update storeState (InsertHashMap address v) >> pure address
@@ -138,37 +137,37 @@ make genHash storeState =
         pure address
       lookup h = Map.lookup h <$> query storeState ReadHashMap
       declareSeries series = do
-        seriesHashes <- Map.lookup series <$> query storeState ReadSeriesMap
-        case seriesHashes of
-          Just (SeriesData h _) -> pure h
+        seriesAddresses <- Map.lookup series <$> query storeState ReadSeriesMap
+        case seriesAddresses of
+          Just (SeriesData a _) -> pure a
           Nothing -> do
-            hash <- genHash
-            update storeState . InsertSeriesMap series $ SeriesData hash []
+            address <- genAddress
+            update storeState . InsertSeriesMap series $ SeriesData address []
             maybeCreateCheckpoint storeState
-            pure hash
+            pure address
       deleteSeries series = do
         update storeState $ DeleteSeriesMap series
         update storeState MaybeCollectGarbage
         maybeCreateCheckpoint storeState
       update' series address v = do
-        seriesHashes <- Map.lookup series <$> query storeState ReadSeriesMap
-        case seriesHashes of
+        seriesAddresses <- Map.lookup series <$> query storeState ReadSeriesMap
+        case seriesAddresses of
           Just (SeriesData a _) | a == address -> do
-                         newHash <- insertStore v
+                         newAddress <- insertStore v
                          update storeState . InsertSeriesMap series
-                           $ SeriesData newHash [newHash]
+                           $ SeriesData newAddress [newAddress]
                          update storeState MaybeCollectGarbage
                          maybeCreateCheckpoint storeState
-                         pure $ Just newHash
+                         pure $ Just newAddress
           _ -> pure Nothing
       append series address v = do
-        seriesHashes <- Map.lookup series <$> query storeState ReadSeriesMap
-        case seriesHashes of
+        seriesAddresses <- Map.lookup series <$> query storeState ReadSeriesMap
+        case seriesAddresses of
           Just (SeriesData a _) | a == address -> do
-                         newHash <- insertStore v
-                         update storeState $ AppendSeriesMap series newHash
+                         newAddress <- insertStore v
+                         update storeState $ AppendSeriesMap series newAddress
                          maybeCreateCheckpoint storeState
-                         pure $ Just newHash
+                         pure $ Just newAddress
           _ -> pure Nothing
       resolve s = (fmap (head . seriesList) . Map.lookup s)
         <$> query storeState ReadSeriesMap
@@ -176,6 +175,6 @@ make genHash storeState =
         <$> query storeState ReadSeriesMap
   in BS.BlockStore insert lookup declareSeries deleteSeries update' append resolve resolves
 
-make' :: (Ord a, Typeable a, SafeCopy a, Addressor a)
-  => IO a -> FilePath -> IO (BS.BlockStore a)
-make' gen path = initState path >>= pure . make gen
+make' :: (Ord a, Typeable a, SafeCopy a)
+  => IO a -> (ByteString -> a) -> FilePath -> IO (BS.BlockStore a)
+make' gen makeAddress path = initState path >>= pure . make gen makeAddress
