@@ -2,6 +2,7 @@
 {-# Language FlexibleInstances #-}
 module Unison.Test.Index where
 
+import Control.Concurrent.STM (atomically)
 import Data.ByteString.Char8
 import System.Random
 import Test.QuickCheck
@@ -47,9 +48,9 @@ roundTrip (genVar, bs) = do
 
   ident <- makeRandomId genVar
   db <- KVS.load bs ident
-  KVS.insert (pack "keyhash") (pack "key", pack "value") db
+  atomically (KVS.insert (pack "keyhash") (pack "key", pack "value") db) >>= atomically
   db2 <- KVS.load bs ident
-  result <- KVS.lookup (pack "keyhash") db2
+  result <- atomically $ KVS.lookup (pack "keyhash") db2
   case result of
     Just (k, v) | unpack v == "value" -> pure ()
     Just (k, v) -> fail ("expected value, got " ++ unpack v)
@@ -59,12 +60,13 @@ nextKeyAfterRemoval :: RandomGen r => Prereqs r -> Assertion
 nextKeyAfterRemoval (genVar, bs) = do
   ident <- makeRandomId genVar
   db <- KVS.load bs ident
-  KVS.insert (pack "1") (pack "k1", pack "v1") db
-  KVS.insert (pack "2") (pack "k2", pack "v2") db
-  KVS.insert (pack "3") (pack "k3", pack "v3") db
-  KVS.insert (pack "4") (pack "k4", pack "v4") db
-  KVS.delete (pack "2") db
-  result <- KVS.lookupGT (pack "1") db
+  result <- atomically $ do
+    _ <- KVS.insert (pack "1") (pack "k1", pack "v1") db
+    _ <- KVS.insert (pack "2") (pack "k2", pack "v2") db
+    _ <- KVS.insert (pack "3") (pack "k3", pack "v3") db
+    _ <- KVS.insert (pack "4") (pack "k4", pack "v4") db
+    _ <- KVS.delete (pack "2") db
+    KVS.lookupGT (pack "1") db
   case result of
     Just (kh, (k, v)) | unpack kh == "3" -> pure ()
     Just (kh, (k, v)) -> fail ("expected key 3, got " ++ unpack kh)
@@ -75,13 +77,14 @@ runGarbageCollection (genVar, bs) = do
   ident <- makeRandomId genVar
   db <- KVS.load bs ident
   let kvp i = (pack . ("k" ++) . show $ i, pack . ("v" ++) . show $ i)
-  mapM_ (\i -> KVS.insert (pack . show $ i) (kvp i) db) [0..1001]
-  mapM_ (\i -> KVS.delete (pack . show $ i) db) [2..1001]
-  result <- KVS.lookup (pack "1") db
+  result <- atomically $ do
+    _ <- mapM (\i -> KVS.insert (pack . show $ i) (kvp i) db) [0..1001]
+    _ <- mapM_ (\i -> KVS.delete (pack . show $ i) db) [2..1001]
+    KVS.lookup (pack "1") db
   case result of
     Just (k, v) | unpack v == "v1" -> pure ()
     o -> fail ("1. got unexpected value " ++ show o)
-  result2 <- KVS.lookup (pack "2") db
+  result2 <- atomically $ KVS.lookup (pack "2") db
   case result2 of
     Nothing -> pure ()
     Just (k, o) -> fail ("2. got unexpected value " ++ unpack o)

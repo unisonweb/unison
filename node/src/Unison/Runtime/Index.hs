@@ -4,21 +4,25 @@ module Unison.Runtime.Index
   ,Unison.Runtime.Index.delete
   ,Unison.Runtime.Index.insert
   ,Unison.Runtime.Index.lookupGT
+  ,Unison.Runtime.Index.flush
+  ,idToText
   ,load
   ,loadEncrypted
-  ,idToText
   ,textToId
   ,Identifier
   ) where
 
+import Control.Concurrent.STM (STM)
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Unison.Cryptography
+import Unison.Runtime.Journal as J
 import Unison.Runtime.JournaledMap as JM
 import qualified Unison.BlockStore as BS
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Base64.URL as Base64
+import qualified Data.Map as Map
 
 type KeyHash = ByteString
 type Key = ByteString
@@ -48,15 +52,19 @@ loadEncrypted bs crypto (cp, ud) = do
   jm <- JM.fromEncryptedSeries crypto bs cp ud
   pure $ Db jm (cp, ud)
 
-insert :: KeyHash -> (Key, Value) -> Db -> IO ()
-insert kh kv (Db journaledMap _) = JM.insert kh kv journaledMap
+flush :: Db -> IO ()
+flush (Db journaledMap _) = J.record journaledMap
 
-delete :: KeyHash -> Db -> IO ()
-delete kh (Db journaledMap _) = JM.delete kh journaledMap
+insert :: KeyHash -> (Key, Value) -> Db -> STM (STM ())
+insert kh kv (Db journaledMap _) = J.updateNowAsyncFlush (JM.Insert kh kv) journaledMap
 
-lookup :: KeyHash -> Db -> IO (Maybe (Key, Value))
-lookup kh (Db journaledMap _) = JM.lookup kh journaledMap
+delete :: KeyHash -> Db -> STM (STM ())
+delete kh (Db journaledMap _) = J.updateNowAsyncFlush (JM.Delete kh) journaledMap
+
+lookup :: KeyHash -> Db -> STM (Maybe (Key, Value))
+lookup kh (Db journaledMap _) = Map.lookup kh <$> J.get journaledMap
 
 -- | Find next key in the Db whose key is greater than the provided key
-lookupGT :: KeyHash -> Db -> IO (Maybe (KeyHash, (Key, Value)))
-lookupGT kh (Db journaledMap _) = JM.lookupGT kh journaledMap
+lookupGT :: KeyHash -> Db -> STM (Maybe (KeyHash, (Key, Value)))
+lookupGT kh (Db journaledMap _) = Map.lookupGT kh <$> J.get journaledMap
+
