@@ -72,6 +72,7 @@ library
     Unison.Runtime.Queue
     Unison.Runtime.Remote
     Unison.SerializationAndHashing
+    Unison.BlockStore.LevelDbStore
     Unison.BlockStore.MemBlockStore
     Unison.BlockStore.FileBlockStore
     Unison.Symbol.Extra
@@ -138,6 +139,7 @@ library
 
   if flag(leveldb)
     build-depends: exceptions, leveldb-haskell
+    cpp-options: -Dleveldb
 
   ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N
 
@@ -180,6 +182,9 @@ executable worker
     unison-shared,
     vector
 
+  if flag(leveldb)
+    build-depends: exceptions, leveldb-haskell
+
 executable container
   main-is: Container.hs
   hs-source-dirs: src
@@ -193,6 +198,9 @@ executable container
     curl,
     unison-node,
     unison-shared
+
+  if flag(leveldb)
+    build-depends: exceptions, leveldb-haskell
 
 executable node
   main-is: Node.hs
@@ -275,3 +283,7 @@ test-suite tests
     unison-node,
     unison-shared,
     vector
+
+  if flag(leveldb)
+    build-depends: exceptions, leveldb-haskell
+    cpp-options: -Dleveldb
