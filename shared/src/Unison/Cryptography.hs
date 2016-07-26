@@ -17,8 +17,8 @@ type Ciphertext = ByteString
 
 -- | The noop cryptography object. Does no actual encryption or signing,
 -- and hashing function is not cryptographically secure! Useful for testing / debugging.
-noop :: Cryptography () () () () ByteString ByteString ByteString
-noop = Cryptography () gen hash sign verify randomBytes encryptAsymmetric decryptAsymmetric encrypt decrypt pipeInitiator pipeResponder where
+noop :: Int -> Cryptography Int () () () ByteString ByteString ByteString
+noop key = Cryptography key gen hash sign verify randomBytes encryptAsymmetric decryptAsymmetric encrypt decrypt pipeInitiator pipeResponder where
   gen = pure ((), ())
   hash = finish . foldl' (\acc bs -> Murmur.hash64Add bs acc) (Murmur.hash64 ())
   sign _ = "not-a-real-signature" :: ByteString
@@ -29,7 +29,7 @@ noop = Cryptography () gen hash sign verify randomBytes encryptAsymmetric decryp
   encrypt _ bs = pure $ ByteString.concat bs
   decrypt _ bs = Right bs
   pipeInitiator _ = pure (pure True, pure, pure)
-  pipeResponder = pure (pure True, pure (Just ()), pure, pure)
+  pipeResponder = pure (pure True, pure (Just 0), pure, pure)
   finish h64 = (LB.toStrict . Builder.toLazyByteString . Builder.word64LE . Murmur.asWord64) h64
 
 data Cryptography key symmetricKey signKey signKeyPrivate signature hash cleartext =
