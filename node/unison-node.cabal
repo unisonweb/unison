@@ -62,6 +62,7 @@ library
     Unison.Runtime.Journal
     Unison.Runtime.JournaledMap
     Unison.Runtime.JournaledTrie
+    Unison.Runtime.Lock
     Unison.Runtime.Multiplex
     Unison.Runtime.Queue
     Unison.Runtime.Remote
@@ -138,6 +139,52 @@ library
 
   if flag(quiet)
     ghc-options: -v0
+
+executable container
+  main-is: Container.hs
+  hs-source-dirs: src
+  ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N -v0
+
+  if flag(optimized)
+    ghc-options: -funbox-strict-fields -O2
+
+  build-depends:
+    acid-state,
+    aeson,
+    applicative-extras,
+    attoparsec,
+    base,
+    blaze-html,
+    byteable,
+    bytes,
+    bytestring,
+    cereal,
+    containers,
+    ctrie,
+    cryptonite,
+    directory,
+    filepath,
+    free,
+    hashable,
+    http-types,
+    list-t,
+    memory,
+    mtl,
+    murmur-hash,
+    prelude-extras,
+    random,
+    safecopy,
+    scotty,
+    stm,
+    text,
+    time,
+    transformers,
+    transformers-compat,
+    unison-node,
+    unison-shared,
+    vector,
+    wai-extra,
+    wai-middleware-static
 
 executable node
   main-is: Node.hs
