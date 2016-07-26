@@ -23,8 +23,8 @@ instance Arbitrary BS.Series where
 
 makeRandomId :: IO (BS.Series, BS.Series)
 makeRandomId = do
-  cp <- BS.Series <$> C.randomBytes C.noop 64
-  ud <- BS.Series <$> C.randomBytes C.noop 64
+  cp <- BS.Series <$> C.randomBytes (C.noop 0) 64
+  ud <- BS.Series <$> C.randomBytes (C.noop 0) 64
   pure (cp, ud)
 
 roundTrip :: BS.BlockStore Address -> Assertion
