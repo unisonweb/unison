@@ -9,10 +9,12 @@ import Unison.BlockStore (Series(..), BlockStore)
 import Unison.Node.Builtin
 import Unison.Parsers (unsafeParseType)
 import Unison.Type (Type)
+import qualified Data.Vector as Vector
 import qualified Unison.Cryptography as C
 import qualified Unison.Eval.Interpreter as I
 import qualified Unison.Note as Note
 import qualified Unison.Reference as R
+import qualified Unison.Runtime.Html as Html
 import qualified Unison.Runtime.Index as Index
 import qualified Unison.Runtime.ResourcePool as RP
 import qualified Unison.SerializationAndHashing as SAH
@@ -25,9 +27,24 @@ storeT k v = Type.ref (R.Builtin "Index") `Type.app` k `Type.app` v
 store :: Term.Term V -> Term.Term V
 store h = Term.ref (R.Builtin "Index") `Term.app` h
 
+linkT :: Ord v => Type v
+linkT = Type.ref (R.Builtin "Link")
+
+link :: Term.Term V -> Term.Term V -> Term.Term V
+link href description = Term.ref (R.Builtin "Link") `Term.app` href `Term.app` description
+
+linkToTerm :: Html.Link -> Term.Term V
+linkToTerm (Html.Link href description) = link (Term.lit $ Term.Text href)
+  (Term.lit $ Term.Text description)
+
 pattern Store' s <- Term.App'
                     (Term.Ref' (R.Builtin "Index"))
                     (Term.Lit' (Term.Text s))
+
+pattern Link' href description <-
+  Term.App' (Term.App' (Term.Ref' (R.Builtin "Link"))
+                       (Term.Lit' (Term.Text href)))
+  (Term.Lit' (Term.Text description))
 
 makeAPI :: Eq a => BlockStore a -> C.Cryptography k syk sk skp s h ByteString
   -> IO (WHNFEval -> [Builtin])
@@ -81,5 +98,29 @@ makeAPI blockStore crypto = do
              g k v store = pure $ Term.ref r `Term.app` k `Term.app` v `Term.app` store
            op _ = fail "Index.insert unpossible"
        in (r, Just (I.Primop 3 op), unsafeParseType "String -> String -> Store String String -> Remote Unit", prefix "insert")
+     , let r = R.Builtin "Html.getLinks"
+           op [html] = do
+             html' <- whnf html
+             pure $ case html' of
+               Term.Text' h -> Term.vector' . Vector.fromList . map linkToTerm
+                 $ Html.getLinks h
+               x -> Term.ref r `Term.app` x
+           op _ = fail "Html.getLinks unpossible"
+       in (r, Just (I.Primop 1 op), unsafeParseType "String -> Vector Link", prefix "getLinks")
+     , let r = R.Builtin "Html.getHref"
+           op [link] = do
+             link' <- whnf link
+             pure $ case link' of
+               Link' href _ -> Term.lit (Term.Text href)
+               x -> Term.ref r `Term.app` x
+           op _ = fail "Html.getHref unpossible"
+       in (r, Just (I.Primop 1 op), unsafeParseType "Link -> String", prefix "getHref")
+     , let r = R.Builtin "Html.getDescription"
+           op [link] = do
+             link' <- whnf link
+             pure $ case link' of
+               Link' _ d -> Term.lit (Term.Text d)
+               x -> Term.ref r `Term.app` x
+           op _ = fail "Html.getDescription unpossible"
+       in (r, Just (I.Primop 1 op), unsafeParseType "Link -> String", prefix "getDescription")
      ])
-

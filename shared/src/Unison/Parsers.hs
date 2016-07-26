@@ -77,7 +77,8 @@ termBuiltins = (Var.named *** Term.ref) <$> (
         ["fork", "receive", "receiveAsync", "pure", "bind", "channel", "send", "here", "at"] []
     , AliasFromModule "Color" ["rgba"] []
     , AliasFromModule "Symbol" ["Symbol"] []
-    , AliasFromModule "KeyValueStore" ["lookup", "insert"] ["empty"]
+    , AliasFromModule "Index" ["lookup", "insert"] ["empty"]
+    , AliasFromModule "Html" ["getLinks, getHref, getDescription"] []
     ] >>= unpackAliases)
     where
       unpackAliases :: Builtin -> [(Text, R.Reference)]
@@ -103,7 +104,9 @@ typeBuiltins = (Var.named *** Type.lit) <$>
   , builtin "Color"
   , builtin "Fixity"
   -- kv store
-  , builtin "KeyValueStore"
+  , builtin "Index"
+  -- html functions
+  , builtin "Link"
   -- distributed
   , builtin "Channel"
   , builtin "Future"

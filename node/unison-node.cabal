@@ -59,6 +59,7 @@ library
     Unison.Runtime.Block
     Unison.Runtime.ExpiringMap
     Unison.Runtime.ExtraBuiltins
+    Unison.Runtime.Html
     Unison.Runtime.Index
     Unison.Runtime.Journal
     Unison.Runtime.JournaledMap
@@ -121,6 +122,7 @@ library
     stm,
     stm-containers,
     text,
+    tagsoup,
     time,
     transformers,
     transformers-compat,
@@ -204,6 +206,7 @@ executable node
     safecopy,
     scotty,
     stm,
+    tagsoup,
     text,
     time,
     transformers,
@@ -239,6 +242,7 @@ test-suite tests
     tasty-hunit,
     tasty-quickcheck,
     tasty-smallcheck,
+    text,
     time,
     transformers,
     unison-node,
