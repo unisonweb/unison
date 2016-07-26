@@ -46,7 +46,6 @@ make :: ( BA.ByteArrayAccess key
 make protocol mkCrypto makeSandbox = do
   hSetBinaryMode stdin True
   (privateKey, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize B.empty)
-  (nodeInfoHash, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize rem)
   (node, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize rem)
   publicKey <- either fail pure $ Get.runGetS deserialize (Remote.publicKey node)
   let keypair = Keypair publicKey privateKey
@@ -55,6 +54,7 @@ make protocol mkCrypto makeSandbox = do
   Mux.runStandardIO (Mux.seconds 5) rem (atomically $ waitTSem interrupt) $ do
     blockStore <- P.blockStoreProxy protocol
     Just (universe, sandbox) <- liftIO $ do -- todo: lifetime, budget, children
+      nodeInfoHash <- BS.declareSeries blockStore (BS.Series $ "node-" `mappend` Remote.publicKey node)
       bytes <- BS.lookup blockStore nodeInfoHash
       case bytes of
         Nothing -> pure Nothing

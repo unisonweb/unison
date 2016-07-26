@@ -4,12 +4,12 @@ module Unison.NodeContainer where
 
 import Control.Concurrent (forkIO)
 import Control.Concurrent.Chan.Unagi
-import Control.Concurrent.STM (atomically)
 import Control.Exception
 import Control.Monad
 import Data.ByteString (ByteString)
 import Data.IORef
-import System.IO (hClose, hSetBinaryMode)
+import System.IO (hClose, Handle)
+import Unison.Runtime.Remote ()
 import qualified Control.Concurrent.Async as Async
 import qualified Data.ByteString as B
 import qualified Data.Bytes.Get as Get
@@ -19,39 +19,26 @@ import qualified Data.Trie as Trie
 import qualified System.Exit as Exit
 import qualified System.Process as Process
 import qualified Unison.BlockStore as BS
-import qualified Unison.Cryptography as C
 import qualified Unison.NodeProtocol as P
 import qualified Unison.Remote as Remote
-import qualified Unison.Runtime.Block as Block
-import qualified Unison.Runtime.Journal as J
-import qualified Unison.Runtime.JournaledTrie as JT
+import qualified Unison.Runtime.Lock as L
 import qualified Unison.Runtime.Multiplex as Mux
-import qualified Unison.Runtime.Remote as Remote
-import Data.Text (Text)
 
-make :: (Ord h, S.Serial h, S.Serial key, S.Serial privateKey, S.Serial hash)
-     => Text
-     -> C.Cryptography key symmetricKey signKey signKeyPrivate signature hash Remote.Cleartext
-     -> IO (key, privateKey)
-     -> BS.BlockStore h
+type Trie = Trie.Trie
+type DeleteProof = ByteString
+
+make :: (Ord h, S.Serial h, S.Serial hash)
+     => BS.BlockStore h
+     -> (Remote.Node -> IO L.Lock)
      -> P.Protocol term hash h thash
-     -> String
+     -> (ByteString -> IO Remote.Node)
+     -> (Remote.Node -> IO (Handle, Handle, Process.ProcessHandle, DeleteProof))
      -> IO (Mux.Packet -> IO ())
-make host crypto genKeypair bs p launchNodeCmd = do
-  -- The set of all BlockStore.Series keys
-  nodeSeries <- journaledTrie "node-series" :: IO (JT.JournaledTrie ())
-  -- Node public keys mapped to hash where sandbox, budget, etc are stored
-  knownNodes <- journaledTrie "known-nodes" :: IO (JT.JournaledTrie ByteString)
-  -- Garbage BlockStore.Series keys, can be safely deleted
-  garbage <- journaledTrie "garbage" :: IO (JT.JournaledTrie ())
-  -- Maps node public key to parent public key
-  nodeParents <- journaledTrie "node-parents" :: IO (JT.JournaledTrie ByteString)
-  -- Maps node public key to serialized form of node private key
-  nodeKeys <- journaledTrie "node-keys" :: IO (JT.JournaledTrie ByteString)
+make bs nodeLock p genNode launchNodeCmd = do
   -- packet queue, processed by main `go` loop below
   (packetWrite, packetRead) <- newChan :: IO (InChan Mux.Packet, OutChan Mux.Packet)
   -- routing trie for packets; initially empty
-  routing <- newIORef Trie.empty
+  routing <- newIORef (Trie.empty :: Trie (ByteString -> IO ()))
   (writeChan packetWrite <$) . forkIO $
     let
       go = do
@@ -60,28 +47,23 @@ make host crypto genKeypair bs p launchNodeCmd = do
         let nodeId = Mux.destination packet
         case Trie.lookup nodeId routes of
           -- route did not exist; either wake up a node, or drop the packet
-          -- todo: more efficient J.get in terms of readTVarIO
-          Nothing -> do
-            alive <- isAlive nodeId
-            case alive of
-              False -> deleteNode nodeId >> putStrLn "packet sent to deleted destination"
-              True -> case Get.runGetS S.deserialize nodeId of
-                Left err -> (putStrLn $ "unable to decode node destination: " ++ show err) >> go
-                Right node -> wakeup node [Mux.content packet]
+          Nothing -> case Get.runGetS S.deserialize nodeId of
+            Left err -> (putStrLn $ "unable to decode node destination: " ++ show err) >> go
+            Right node -> do
+              h <- BS.resolve bs (nodeSeries node)
+              case h of
+                Nothing -> (putStrLn $ "message send to nonexistent node: " ++ show node) >> go
+                Just _ -> do
+                  -- todo: check to see if node has been claimed by other container and if so, forward
+                  lock <- nodeLock node
+                  lease <- L.tryAcquire lock
+                  case lease of
+                    Nothing -> pure ()
+                    Just lease -> do
+                      wakeup node [Mux.content packet] `finally` L.release lease
           Just dest -> safely (dest (Mux.content packet)) >> go
 
-      deleteNode nodeId = atomically $ do
-        _ <- J.updateNowAsyncFlush (Just (JT.Delete nodeId)) knownNodes
-        _ <- J.updateNowAsyncFlush (Just (JT.Delete nodeId)) nodeParents
-        allocated <- J.get nodeSeries
-        _ <- J.updateNowAsyncFlush (Just (JT.DeleteSubtree nodeId)) nodeSeries
-        _ <- J.updateNowAsyncFlush (Just (JT.UnionL (Trie.submap nodeId allocated))) garbage
-        pure ()
-
-      cmd = (Process.shell launchNodeCmd) {
-        Process.std_out = Process.CreatePipe,
-        Process.std_in = Process.CreatePipe,
-        Process.std_err = Process.CreatePipe }
+      nodeSeries node = BS.Series $ "node-" `mappend` Remote.publicKey node
 
       wakeup node packets = do
         -- important: we return immediately to main loop after establishing buffer
@@ -95,9 +77,7 @@ make host crypto genKeypair bs p launchNodeCmd = do
 
         -- spin up a new process for the node, which we will communicate with over standard input/output
         void . forkIO . handle (\e -> putStrLn (show (e :: SomeException)) >> removeRoute) $ do
-          (Just stdin, Just stdout, Just stderr, process) <- Process.createProcess cmd
-          hSetBinaryMode stdin True
-          hSetBinaryMode stdout True
+          (stdin, stdout, process, deleteProof) <- launchNodeCmd node
           -- read from the process as quickly as possible, buffering input in a queue
           (fromNodeWrite, fromNodeRead) <- newChan
             :: IO (InChan (Maybe Mux.Packet), OutChan (Maybe Mux.Packet))
@@ -110,13 +90,7 @@ make host crypto genKeypair bs p launchNodeCmd = do
               B.hPut stdin bytes `onException`
               writeChan packetWrite (Mux.Packet nodeBytes bytes)
 
-          -- tell the node its private key and hash where it's sandbox, etc, can be found
-          Just private <- Trie.lookup (Remote.publicKey node) <$> atomically (J.get nodeKeys)
-          Just hash <- Trie.lookup (Remote.publicKey node) <$> atomically (J.get knownNodes)
-
-          writeChan toNodeWrite $ (Put.runPutS $ S.serialize private)
-          writeChan toNodeWrite $ hash
-          writeChan toNodeWrite $ (Put.runPutS $ S.serialize node)
+          send (Put.runPutS $ S.serialize node)
 
           -- establish routes for processing packets coming from the node
           routes <- id $
@@ -131,10 +105,7 @@ make host crypto genKeypair bs p launchNodeCmd = do
                 , (Mux.channelId $ P._resolve p, resolve)
                 , (Mux.channelId $ P._resolves p, resolves)
                 , (Mux.channelId $ P._spawn p, spawn)
-                , (deleteProof, delete deleteProof) ]
-
-              -- to delete a node from the container, send the container a hash of node private key
-              deleteProof = Put.runPutS (S.serialize $ C.hash crypto [Put.runPutS (S.serialize private)])
+                , (deleteProof, delete) ]
 
               handleRequest :: (S.Serial a, S.Serial b) => (a -> IO b) -> ByteString -> IO ()
               handleRequest h bytes = safely $ do
@@ -148,29 +119,18 @@ make host crypto genKeypair bs p launchNodeCmd = do
               append = handleRequest (\(series,hash,bytes) -> BS.append bs series hash bytes)
               resolve = handleRequest (BS.resolve bs)
               resolves = handleRequest (BS.resolves bs)
-              spawn = handleRequest $ \bytes -> do
-                h <- BS.insert bs bytes
-                -- todo: parse this enough to know whether to add self as parent
-                (public,private) <- genKeypair
-                let publicBytes = Put.runPutS (S.serialize public)
-                let u = Just $ JT.Insert publicBytes (Put.runPutS $ S.serialize private)
-                let u2 = Just $ JT.Insert publicBytes (Put.runPutS $ S.serialize h)
-                let u3 = Just $ JT.Insert publicBytes (Remote.publicKey node)
-                _ <- atomically (J.updateNowAsyncFlush u nodeKeys)
-                _ <- atomically (J.updateNowAsyncFlush u2 knownNodes)
-                _ <- atomically (J.updateNowAsyncFlush u3 nodeParents)
-                pure $ Remote.Node host publicBytes
-              delete proof _ | proof /= deleteProof = pure ()
-                             | otherwise  = do
+              spawn = handleRequest $ \nodeParams -> do
+                -- todo: parse nodeParams enough to know whether to add self as parent
+                node <- genNode nodeParams
+                let series = nodeSeries node
+                h0 <- BS.declareSeries bs series
+                Just _ <- BS.update bs series h0 nodeParams
+                pure node
+              delete proof | proof /= deleteProof = pure ()
+                           | otherwise  = do
                 send (Put.runPutS $ S.serialize (Nothing :: Maybe Mux.Packet))
-                let nodePk = Remote.publicKey node
-                let nodeBytes = Put.runPutS $ S.serialize node
-                atomicModifyIORef' routing $ \t -> (Trie.delete nodeBytes t, ())
-                _ <- atomically $
-                  J.updateNowAsyncFlush (Just $ JT.Delete nodePk) knownNodes >>
-                  J.updateNowAsyncFlush (Just $ JT.Delete nodePk) nodeKeys >>
-                  J.updateNowAsyncFlush (Just $ JT.Delete nodePk) nodeParents
-                pure ()
+                BS.deleteSeries bs (BS.Series $ Remote.publicKey node)
+                removeRoute
             in pure routes
 
           processor <- Async.async . forever $ do
@@ -187,21 +147,11 @@ make host crypto genKeypair bs p launchNodeCmd = do
             _ <- Async.waitCatch reader
             _ <- Async.waitCatch writer
             _ <- Async.waitCatch processor
-            mapM_ hClose [stdin, stdout, stderr]
+            mapM_ hClose [stdin, stdout]
             case exitCode of
               Exit.ExitSuccess -> pure ()
               Exit.ExitFailure n -> putStrLn $ "node process exited with: " ++ show n
           pure ()
-
-      isAlive nodeId = do
-        knownNodes <- atomically $ J.get nodeSeries
-        nodeParents <- atomically $ J.get nodeParents
-        pure $ case Trie.member nodeId knownNodes of
-          False -> False
-          True -> case Trie.lookup nodeId nodeParents of
-            Nothing -> True -- node is root, keep it alive
-            Just parent | Trie.member parent knownNodes -> True -- node is non-root, parent alive
-                        | otherwise -> False -- node is non-root, parent not alive
 
       safely :: IO () -> IO ()
       safely action = catch action (handle True) where
@@ -209,10 +159,3 @@ make host crypto genKeypair bs p launchNodeCmd = do
         handle False ex = putStrLn $ "Error: " ++ show ex
         handle _ _ = pure ()
     in go
-  where
-
-  qname name = Put.runPutS $ S.serialize (C.publicKey crypto) >> Put.putByteString name
-  journaledTrie :: S.Serial v => ByteString -> IO (JT.JournaledTrie v)
-  journaledTrie name = atomically . J.checkpointEvery 10000 =<< JT.fromBlocks bs
-    (Block.encrypted crypto $ Block.fromSeries (BS.Series (qname name)))
-    (Block.encrypted crypto $ Block.fromSeries (BS.Series (qname name `mappend` "-updates")))
