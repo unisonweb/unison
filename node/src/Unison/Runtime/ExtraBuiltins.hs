@@ -97,7 +97,7 @@ makeAPI blockStore crypto = do
                pure unitRef
              g k v store = pure $ Term.ref r `Term.app` k `Term.app` v `Term.app` store
            op _ = fail "Index.insert unpossible"
-       in (r, Just (I.Primop 3 op), unsafeParseType "String -> String -> Store String String -> Remote Unit", prefix "insert")
+       in (r, Just (I.Primop 3 op), unsafeParseType "forall k v. k -> v -> Store k v -> Remote Unit", prefix "insert")
      , let r = R.Builtin "Html.getLinks"
            op [html] = do
              html' <- whnf html
@@ -106,7 +106,7 @@ makeAPI blockStore crypto = do
                  $ Html.getLinks h
                x -> Term.ref r `Term.app` x
            op _ = fail "Html.getLinks unpossible"
-       in (r, Just (I.Primop 1 op), unsafeParseType "String -> Vector Link", prefix "getLinks")
+       in (r, Just (I.Primop 1 op), unsafeParseType "Text -> Vector Link", prefix "getLinks")
      , let r = R.Builtin "Html.getHref"
            op [link] = do
              link' <- whnf link
@@ -114,7 +114,7 @@ makeAPI blockStore crypto = do
                Link' href _ -> Term.lit (Term.Text href)
                x -> Term.ref r `Term.app` x
            op _ = fail "Html.getHref unpossible"
-       in (r, Just (I.Primop 1 op), unsafeParseType "Link -> String", prefix "getHref")
+       in (r, Just (I.Primop 1 op), unsafeParseType "Link -> Text", prefix "getHref")
      , let r = R.Builtin "Html.getDescription"
            op [link] = do
              link' <- whnf link
@@ -122,5 +122,5 @@ makeAPI blockStore crypto = do
                Link' _ d -> Term.lit (Term.Text d)
                x -> Term.ref r `Term.app` x
            op _ = fail "Html.getDescription unpossible"
-       in (r, Just (I.Primop 1 op), unsafeParseType "Link -> String", prefix "getDescription")
+       in (r, Just (I.Primop 1 op), unsafeParseType "Link -> Text", prefix "getDescription")
      ])
