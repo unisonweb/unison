@@ -50,7 +50,7 @@ library
     Unison.Kind.Extra
     Unison.NodeContainer
     Unison.NodeServer
-    Unison.NodeProcess
+    Unison.NodeWorker
     Unison.NodeProtocol
     Unison.NodeProtocol.V0
     Unison.Reference.Extra

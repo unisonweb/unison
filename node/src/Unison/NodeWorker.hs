@@ -2,7 +2,7 @@
 {-# Language DeriveGeneric #-}
 {-# Language OverloadedStrings #-}
 
-module Unison.NodeProcess where
+module Unison.NodeWorker where
 
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TSem
