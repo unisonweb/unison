@@ -52,6 +52,7 @@ library
     Unison.NodeServer
     Unison.NodeProcess
     Unison.NodeProtocol
+    Unison.NodeProtocol.V0
     Unison.Reference.Extra
     Unison.Remote.Extra
     Unison.Runtime.Address
@@ -140,6 +141,19 @@ library
   if flag(quiet)
     ghc-options: -v0
 
+executable worker
+  main-is: Worker.hs
+  hs-source-dirs: src
+  ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N -v0
+
+  if flag(optimized)
+    ghc-options: -funbox-strict-fields -O2
+
+  build-depends:
+    base,
+    unison-node,
+    unison-shared
+
 executable container
   main-is: Container.hs
   hs-source-dirs: src
@@ -149,42 +163,9 @@ executable container
     ghc-options: -funbox-strict-fields -O2
 
   build-depends:
-    acid-state,
-    aeson,
-    applicative-extras,
-    attoparsec,
     base,
-    blaze-html,
-    byteable,
-    bytes,
-    bytestring,
-    cereal,
-    containers,
-    ctrie,
-    cryptonite,
-    directory,
-    filepath,
-    free,
-    hashable,
-    http-types,
-    list-t,
-    memory,
-    mtl,
-    murmur-hash,
-    prelude-extras,
-    random,
-    safecopy,
-    scotty,
-    stm,
-    text,
-    time,
-    transformers,
-    transformers-compat,
     unison-node,
-    unison-shared,
-    vector,
-    wai-extra,
-    wai-middleware-static
+    unison-shared
 
 executable node
   main-is: Node.hs
