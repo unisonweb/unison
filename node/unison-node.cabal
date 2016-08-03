@@ -156,6 +156,7 @@ executable worker
   build-depends:
     async,
     base,
+    base64-bytestring,
     bytes,
     bytestring,
     cereal,
@@ -168,6 +169,8 @@ executable worker
     mtl,
     stm,
     stm-containers,
+    tagsoup,
+    text,
     time,
     transformers,
     unison-node,

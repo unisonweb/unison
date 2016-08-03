@@ -41,27 +41,30 @@ make :: ( BA.ByteArrayAccess key
         , Ord thash)
      => P.Protocol term hash h thash
      -> (Keypair key -> Cryptography key symmetricKey signKey skp signature hash Remote.Cleartext)
-     -> Get (BlockStore h -> Mux.Multiplex (Remote.Language term thash))
+     -> Get (Cryptography key symmetricKey signKey skp signature hash Remote.Cleartext
+             -> BlockStore h
+             -> IO (Remote.Language term thash))
      -> IO ()
 make protocol mkCrypto makeSandbox = do
   hSetBinaryMode stdin True
   (privateKey, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize B.empty)
   (node, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize rem)
+  (universe, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize rem)
   publicKey <- either fail pure $ Get.runGetS deserialize (Remote.publicKey node)
   let keypair = Keypair publicKey privateKey
 
   interrupt <- atomically $ newTSem 0
   Mux.runStandardIO (Mux.seconds 5) rem (atomically $ waitTSem interrupt) $ do
     blockStore <- P.blockStoreProxy protocol
-    Just (universe, sandbox) <- liftIO $ do -- todo: lifetime, budget, children
+    Just sandbox <- liftIO $ do -- todo: lifetime, budget, children
       nodeInfoHash <- BS.declareSeries blockStore (BS.Series $ "node-" `mappend` Remote.publicKey node)
       bytes <- BS.lookup blockStore nodeInfoHash
       case bytes of
         Nothing -> pure Nothing
         Just bytes -> Just <$> either fail pure (Get.runGetS deserialize bytes)
     makeSandbox <- either fail pure $ Get.runGetS makeSandbox sandbox
-    sandbox <- makeSandbox blockStore
     let crypto = mkCrypto keypair
+    sandbox <- liftIO $ makeSandbox crypto blockStore
     let skHash = Put.runPutS (serialize $ C.hash crypto [Put.runPutS (serialize $ private keypair)])
     -- todo: load this from persistent store also
     connectionSandbox <- pure $ Remote.ConnectionSandbox (\_ -> pure True) (\_ -> pure True)
