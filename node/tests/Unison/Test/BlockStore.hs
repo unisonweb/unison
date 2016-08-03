@@ -1,4 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# Language OverloadedStrings #-}
+
 module Unison.Test.BlockStore where
 
 import Control.Concurrent (forkIO, ThreadId)
@@ -20,7 +22,7 @@ instance Arbitrary Address where
   arbitrary = (fromBytes . B.pack) <$> vectorOf 64 arbitrary
 
 makeRandomAddress :: IO Address
-makeRandomAddress = Address <$> C.randomBytes (C.noop 0) 64
+makeRandomAddress = Address <$> C.randomBytes (C.noop "dummypublickey") 64
 
 roundTrip :: BS.BlockStore Address -> HU.Assertion
 roundTrip bs = do
