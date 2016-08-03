@@ -21,11 +21,11 @@ import qualified Unison.SerializationAndHashing as SAH
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 
-storeT :: Ord v => Type v -> Type v -> Type v
-storeT k v = Type.ref (R.Builtin "Index") `Type.app` k `Type.app` v
+indexT :: Ord v => Type v -> Type v -> Type v
+indexT k v = Type.ref (R.Builtin "Index") `Type.app` k `Type.app` v
 
-store :: Term.Term V -> Term.Term V
-store h = Term.ref (R.Builtin "Index") `Term.app` h
+index :: Term.Term V -> Term.Term V
+index h = Term.ref (R.Builtin "Index") `Term.app` h
 
 linkT :: Ord v => Type v
 linkT = Type.ref (R.Builtin "Link")
@@ -37,7 +37,7 @@ linkToTerm :: Html.Link -> Term.Term V
 linkToTerm (Html.Link href description) = link (Term.lit $ Term.Text href)
   (Term.lit $ Term.Text description)
 
-pattern Store' s <- Term.App'
+pattern Index' s <- Term.App'
                     (Term.Ref' (R.Builtin "Index"))
                     (Term.Text' s)
 
@@ -58,7 +58,7 @@ makeAPI blockStore crypto = do
      [ let r = R.Builtin "Index.empty"
            op [] = Note.lift $ do
              ident <- nextID
-             pure . store . Term.lit . Term.Text . Index.idToText $ ident
+             pure . index . Term.lit . Term.Text . Index.idToText $ ident
            op _ = fail "Index.empty unpossible"
            type' = unsafeParseType "forall k v. Remote (Store k v)"
        in (r, Just (I.Primop 0 op), type', prefix "empty")
@@ -68,7 +68,7 @@ makeAPI blockStore crypto = do
                i <- whnf indexToken
                k <- whnf key
                g i k
-             g (Store' h) k = do
+             g (Index' h) k = do
                val <- Note.lift $ do
                  (db, _) <- RP.acquire resourcePool . Index.textToId $ h
                  result <- atomically $ Index.lookup (SAH.hash' k) db
@@ -88,7 +88,7 @@ makeAPI blockStore crypto = do
                v' <- whnf v
                s <- whnf store
                g k' v' s
-             g k v (Store' h) = do
+             g k v (Index' h) = do
                Note.lift $ do
                  (db, _) <- RP.acquire resourcePool . Index.textToId $ h
                  atomically
