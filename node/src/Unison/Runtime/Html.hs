@@ -2,7 +2,7 @@ module Unison.Runtime.Html where
 
 import Data.Maybe (listToMaybe, catMaybes, mapMaybe)
 import Data.Text (Text, toLower, pack)
-import Text.HTML.TagSoup
+import Text.HTML.TagSoup (Tag(..), (~/=), maybeTagText, parseTags)
 import qualified Data.Text as Text
 
 data Link = Link { ref :: Text, description :: Text } deriving (Show)
