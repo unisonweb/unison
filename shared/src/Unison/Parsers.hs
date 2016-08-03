@@ -78,7 +78,7 @@ termBuiltins = (Var.named *** Term.ref) <$> (
     , AliasFromModule "Color" ["rgba"] []
     , AliasFromModule "Symbol" ["Symbol"] []
     , AliasFromModule "Index" ["lookup", "insert"] ["empty"]
-    , AliasFromModule "Html" ["getLinks, getHref, getDescription"] []
+    , AliasFromModule "Html" ["getLinks", "getHref", "getDescription"] []
     ] >>= unpackAliases)
     where
       unpackAliases :: Builtin -> [(Text, R.Reference)]

@@ -39,12 +39,12 @@ linkToTerm (Html.Link href description) = link (Term.lit $ Term.Text href)
 
 pattern Store' s <- Term.App'
                     (Term.Ref' (R.Builtin "Index"))
-                    (Term.Lit' (Term.Text s))
+                    (Term.Text' s)
 
 pattern Link' href description <-
   Term.App' (Term.App' (Term.Ref' (R.Builtin "Link"))
-                       (Term.Lit' (Term.Text href)))
-  (Term.Lit' (Term.Text description))
+                       (Term.Text' href))
+  (Term.Text' description)
 
 makeAPI :: Eq a => BlockStore a -> C.Cryptography k syk sk skp s h ByteString
   -> IO (WHNFEval -> [Builtin])

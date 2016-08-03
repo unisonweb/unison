@@ -1,21 +1,23 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TemplateHaskell #-}
 module Unison.Metadata where
 
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Text (Text)
+import GHC.Generics
 import Unison.Var (Var)
 import qualified Data.Text as Text
 import qualified Unison.Var as Var
 
-data Sort = Type | Term deriving (Eq,Ord,Show)
+data Sort = Type | Term deriving (Eq,Ord,Show,Generic)
 
 data Metadata v h =
   Metadata {
     sort :: Sort,
     names :: Names v,
     description :: Maybe h
-  } deriving (Eq,Ord,Show)
+  } deriving (Eq,Ord,Show,Generic)
 
 matches :: Var v => Query -> Metadata v h -> Bool
 matches (Query txt) (Metadata _ (Names ns) _) =
@@ -29,7 +31,7 @@ synthetic t = Metadata t (Names []) Nothing
 syntheticTerm :: Metadata v h
 syntheticTerm = synthetic Term
 
-data Names v = Names [v] deriving (Eq,Ord,Show)
+data Names v = Names [v] deriving (Eq,Ord,Show,Generic)
 
 data Query = Query Text
 

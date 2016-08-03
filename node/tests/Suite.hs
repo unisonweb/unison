@@ -4,6 +4,7 @@ import System.Random
 import Test.QuickCheck
 import Test.QuickCheck.Random
 import Test.Tasty
+import Unison.Test.NodeUtil
 import qualified Unison.Test.BlockStore.FileBlockStore as FBS
 import qualified Unison.Test.BlockStore.MemBlockStore as MBS
 import qualified Unison.Test.Journal as J
@@ -18,9 +19,10 @@ tastyTests = do
   indexTests <- Index.ioTests
   mbsTests <- MBS.ioTests
   journalTests <- J.ioTests
+  testNode <- makeTestNode
   pure $ testGroup "unison"
         [ ResourcePool.tests
-        , Html.tests
+        , Html.nodeTests testNode
         , mbsTests
         , FBS.tests
         , SAH.tests
