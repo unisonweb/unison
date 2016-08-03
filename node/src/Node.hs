@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms, CPP #-}
 
 module Main where
@@ -43,7 +44,7 @@ makeRandomAddress crypt = Address <$> C.randomBytes crypt 64
 main :: IO ()
 main = do
   store' <- store
-  let crypto = C.noop 0
+  let crypto = C.noop "dummypublickey"
   blockStore <- FBS.make' (makeRandomAddress crypto) makeAddress "Index"
   keyValueOps <- EB.makeAPI blockStore crypto
   let makeBuiltins whnf = concat [Builtin.makeBuiltins whnf, keyValueOps whnf]
