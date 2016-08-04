@@ -1,11 +1,11 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-module Unison.SerializationAndHashing where
+
+module Unison.SerializationAndHashing
+  (V, TermV, DFO, hash, hash', serializeTerm, deserializeTerm, deserializeTermFromBytes) where
 
 import Control.Comonad.Cofree (Cofree((:<)))
 import Data.ByteString (ByteString)
 import Data.Bytes.Serial (serialize, Serial(..), Serial1(..))
-import Data.Serialize.Put (Put)
 import Data.Serialize.Get (Get)
 import Unison.ABT.Extra () -- Serial instances
 import Unison.Reference (Reference)
@@ -76,10 +76,3 @@ deserializeTerm = deserialize
 
 deserializeTermFromBytes :: (Var v, Serial v) => ByteString -> Either String (Term.Term v)
 deserializeTermFromBytes = Get.runGetS deserializeTerm
-
-testTerm2 :: TermV
-testTerm2 = undefined
-
-testSerialize2 :: Put
-testSerialize2 = serialize testTerm2
-

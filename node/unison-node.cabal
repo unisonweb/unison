@@ -154,9 +154,28 @@ executable worker
     ghc-options: -funbox-strict-fields -O2
 
   build-depends:
+    async,
     base,
+    base64-bytestring,
+    bytes,
+    bytestring,
+    cereal,
+    containers,
+    cryptonite,
+    free,
+    hashable,
+    list-t,
+    memory,
+    mtl,
+    stm,
+    stm-containers,
+    tagsoup,
+    text,
+    time,
+    transformers,
     unison-node,
-    unison-shared
+    unison-shared,
+    vector
 
 executable container
   main-is: Container.hs

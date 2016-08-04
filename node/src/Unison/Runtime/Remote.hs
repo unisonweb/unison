@@ -39,10 +39,13 @@ data Language t h
     , unRemote :: t -> Maybe (Remote t)
     , remote :: Remote t -> t }
 
+data Codestore t h
+  = Codestore { saveHashes :: [(h,t)] -> IO ()
+              , getHashes :: Set h -> IO [(h,t)]
+              , missingHashes :: Set h -> IO (Set h) }
+
 data Env t h
-  = Env { saveHashes :: [(h,t)] -> IO ()
-        , getHashes :: Set h -> IO [(h,t)]
-        , missingHashes :: Set h -> IO (Set h)
+  = Env { codestore :: Codestore t h
         , universe :: Universe
         , currentNode :: Node
         -- todo: cache of recent nodes to check for syncing hashes not found locally
@@ -54,15 +57,10 @@ data Env t h
 
 instance Serial Universe
 
-makeEnv :: (Serial term, Eq hash, Serial termhash, Ord termhash)
-        => Universe
-        -> Node
-        -> BS.BlockStore hash
-        -> IO (Env term termhash)
-makeEnv universe currentNode bs = mk <$> RM.new 10 40 -- seconds
-  where
-  mk = Env saveHashes getHashes missingHashes universe currentNode
-  -- todo: probably should do some caching/buffering/integrity checking here
+makeCodestore :: (Serial term, Eq hash, Serial termhash, Ord termhash)
+  => BS.BlockStore hash
+  -> Codestore term termhash
+makeCodestore bs = Codestore saveHashes getHashes missingHashes where
   saveHashes hs =
     void $ Async.mapConcurrently saveHash hs
   saveHash (h,t) = do
@@ -70,6 +68,7 @@ makeEnv universe currentNode bs = mk <$> RM.new 10 40 -- seconds
     let bytes = Put.runPutS (serialize t)
     _ <- Block.modify' bs b (maybe (Just bytes) Just)
     pure ()
+  -- todo: probably should do some caching/buffering/integrity checking here
   getHashes hs = do
     blocks <- Async.mapConcurrently getHash (Set.toList hs)
     blocks <- pure $ catMaybes blocks
@@ -88,6 +87,14 @@ makeEnv universe currentNode bs = mk <$> RM.new 10 40 -- seconds
     hs' <- traverse (BS.resolve bs . BS.Series . Put.runPutS . serialize) hs
     pure . Set.fromList $ [h | (h, Nothing) <- hs `zip` hs']
 
+makeEnv :: (Serial term, Eq hash, Serial termhash, Ord termhash)
+        => Universe
+        -> Node
+        -> BS.BlockStore hash
+        -> IO (Env term termhash)
+makeEnv universe currentNode bs = mk <$> RM.new 10 40 -- seconds
+  where
+  mk = Env (makeCodestore bs) universe currentNode
 type Cleartext = ByteString
 
 info :: String -> Multiplex ()
@@ -131,9 +138,9 @@ server crypto allow env lang p = do
               loop needs = fetch needs >>= \hashes -> case hashes of
                 Nothing -> fail "expected hashes, got timeout"
                 Just hashes -> do
-                  liftIO $ saveHashes env hashes
+                  liftIO $ saveHashes (codestore env) hashes
                   stillMissing <- forM hashes $ \(_,t) ->
-                    liftIO $ missingHashes env (localDependencies lang t)
+                    liftIO $ missingHashes (codestore env) (localDependencies lang t)
                   loop (Set.unions stillMissing)
 
 handle :: (Ord h, Serial key, Serial t, Serial h)
@@ -206,7 +213,7 @@ client crypto allow env p recipient r = do
           Nothing -> fail "timeout"
           Just Nothing -> pure () -- no other syncs requested, we're good
           Just (Just (hs, replyTo)) -> do
-            hashes <- liftIO $ getHashes env (Set.fromList hs)
+            hashes <- liftIO $ getHashes (codestore env) (Set.fromList hs)
             Mux.encryptAndSendTo' recipient replyTo encrypt (Just hashes)
             go
     in go

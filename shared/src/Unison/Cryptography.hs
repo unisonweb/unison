@@ -2,12 +2,14 @@
 
 module Unison.Cryptography where
 
+import Control.Concurrent.STM (STM,atomically)
+import Control.Concurrent.STM.TVar
 import Control.Monad
-import System.Random (randomIO)
-import Control.Concurrent.STM (STM)
 import Data.ByteString (ByteString)
 import Data.List
-import qualified Data.ByteString as ByteString
+import Data.Maybe
+import System.Random (randomIO)
+import qualified Data.ByteString as B
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Digest.Murmur64 as Murmur
@@ -17,19 +19,29 @@ type Ciphertext = ByteString
 
 -- | The noop cryptography object. Does no actual encryption or signing,
 -- and hashing function is not cryptographically secure! Useful for testing / debugging.
-noop :: Int -> Cryptography Int () () () ByteString ByteString ByteString
+noop :: ByteString -> Cryptography ByteString () () () ByteString ByteString ByteString
 noop key = Cryptography key gen hash sign verify randomBytes encryptAsymmetric decryptAsymmetric encrypt decrypt pipeInitiator pipeResponder where
   gen = pure ((), ())
   hash = finish . foldl' (\acc bs -> Murmur.hash64Add bs acc) (Murmur.hash64 ())
   sign _ = "not-a-real-signature" :: ByteString
   verify _ _ _ = True
-  randomBytes n = ByteString.pack <$> replicateM n randomIO
+  randomBytes n = B.pack <$> replicateM n randomIO
   encryptAsymmetric _ cleartext = pure cleartext
   decryptAsymmetric ciphertext = Right ciphertext
-  encrypt _ bs = pure $ ByteString.concat bs
+  encrypt _ bs = pure $ B.concat bs
   decrypt _ bs = Right bs
-  pipeInitiator _ = pure (pure True, pure, pure)
-  pipeResponder = pure (pure True, pure (Just 0), pure, pure)
+  -- include the key along with each packet
+  pipeInitiator _ = pure (pure True, \bs -> pure (key `mappend` bs), pure)
+  -- strip out the key the begins each packet
+  pipeResponder = do
+    peerKey <- atomically $ newTVar Nothing
+    pure (isJust <$> readTVar peerKey, readTVar peerKey, pure, read peerKey)
+    where
+    read peerKey bytes = do
+      let k = B.take (B.length key) bytes
+      writeTVar peerKey (Just k)
+      pure $ B.drop (B.length key) bytes
+
   finish h64 = (LB.toStrict . Builder.toLazyByteString . Builder.word64LE . Murmur.asWord64) h64
 
 data Cryptography key symmetricKey signKey signKeyPrivate signature hash cleartext =

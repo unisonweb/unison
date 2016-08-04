@@ -1,3 +1,5 @@
+{-# Language OverloadedStrings #-}
+
 module Unison.Test.NodeUtil where
 
 import Unison.Hash (Hash)
@@ -34,7 +36,7 @@ makeRandomAddress crypt = Address <$> C.randomBytes crypt 64
 
 makeTestNode :: IO TestNode
 makeTestNode = do
-  let crypto = C.noop 0
+  let crypto = C.noop "dummypublickey"
   blockStore <- MBS.make' (makeRandomAddress crypto) makeAddress
   store' <- UBS.make blockStore
   keyValueOps <- EB.makeAPI blockStore crypto
