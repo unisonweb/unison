@@ -207,6 +207,10 @@ none :: Term V
 none = Term.ref $ R.Builtin "Optional.None"
 some :: Term V -> Term V
 some t = Term.ref (R.Builtin "Optional.Some") `Term.app` t
+left :: Term V -> Term V
+left t = Term.ref (R.Builtin "Either.Left") `Term.app` t
+right :: Term V -> Term V
+right t = Term.ref (R.Builtin "Either.Right") `Term.app` t
 
 
 -- metadata helpers

@@ -9,12 +9,14 @@ import Unison.BlockStore (Series(..), BlockStore)
 import Unison.Node.Builtin
 import Unison.Parsers (unsafeParseType)
 import Unison.Type (Type)
+import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import qualified Unison.Cryptography as C
 import qualified Unison.Eval.Interpreter as I
 import qualified Unison.Note as Note
 import qualified Unison.Reference as R
 import qualified Unison.Runtime.Html as Html
+import qualified Unison.Runtime.Http as Http
 import qualified Unison.Runtime.Index as Index
 import qualified Unison.Runtime.ResourcePool as RP
 import qualified Unison.SerializationAndHashing as SAH
@@ -123,4 +125,16 @@ makeAPI blockStore crypto = do
                x -> Term.ref r `Term.app` x
            op _ = fail "Html.getDescription unpossible"
        in (r, Just (I.Primop 1 op), unsafeParseType "Link -> Text", prefix "getDescription")
+     , let r = R.Builtin "Http.getURL"
+           op [url] = do
+             url <- whnf url
+             case url of
+               Term.Text' url -> Note.lift $ do
+                   result <- Http.get $ Text.unpack url
+                   pure $ case result of
+                     Right x -> right $ Term.text x
+                     Left x -> left . Term.text . Text.pack $ show x
+               x -> pure $ Term.ref r `Term.app` x
+           op _ = fail "Http.getURL unpossible"
+       in (r, Just (I.Primop 1 op), unsafeParseType "Text -> Either Text Text", prefix "getURL")
      ])
