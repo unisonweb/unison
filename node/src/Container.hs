@@ -2,35 +2,35 @@
 
 module Main where
 
-import Network.HTTP.Types.Method (StdMethod(OPTIONS))
+import Control.Monad.IO.Class
 import Crypto.Hash (hash, Digest, Blake2b_512)
-import Unison.NodeProtocol.V0 (protocol)
-import Unison.Runtime.Lock (Lock(..),Lease(..))
-import qualified Data.ByteArray as BA
-import qualified Data.Bytes.Put as Put
-import qualified Unison.BlockStore.FileBlockStore as FBS
-import qualified Unison.NodeContainer as C
-import qualified Unison.Runtime.Multiplex as Mux
-import qualified Unison.Runtime.Remote as RR
-import qualified Unison.Remote as R
 import Data.Bytes.Serial (serialize)
-import System.Process as P
+import Data.Text.Encoding (decodeUtf8)
+import Network.HTTP.Types.Method (StdMethod(OPTIONS))
+import Network.Wai.Middleware.RequestLogger (logStdoutDev)
 import System.IO (hSetBinaryMode)
+import System.Process as P
+import Unison.NodeProtocol.V0 (protocol)
+import Unison.NodeServer as NS
+import Unison.Parsers (unsafeParseTerm)
+import Unison.Runtime.Lock (Lock(..),Lease(..))
+import Web.Scotty as S
+import qualified Data.ByteArray as BA
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
-import Web.Scotty as S
-import Unison.NodeServer as NS
-import Network.Wai.Middleware.RequestLogger (logStdoutDev)
-import Data.Text.Encoding (decodeUtf8)
+import qualified Data.Bytes.Put as Put
 import qualified Data.Text as Text
-import Unison.Parsers (unsafeParseTerm)
+import qualified Unison.BlockStore.FileBlockStore as FBS
+import qualified Unison.NodeContainer as C
+import qualified Unison.Remote as R
+import qualified Unison.Runtime.Multiplex as Mux
 
 main :: IO ()
 main = Mux.uniqueChannel >>= \rand ->
   let
     fileBS = FBS.make' rand h "blockstore"
     h bytes = BA.convert (hash bytes :: Digest Blake2b_512)
-    locker node = pure held
+    locker _ = pure held
     held = Lock (pure (Just (Lease (pure True) (pure ()))))
     mkNode _ = do -- todo: actually use node params
       publicKey <- Put.runPutS . serialize <$> rand
@@ -57,12 +57,9 @@ main = Mux.uniqueChannel >>= \rand ->
       S.addroute OPTIONS (S.regex ".*") $ NS.originOptions
       NS.postRoute "/compute/:nodeid" $ do
         nodepk <- S.param "nodeid"
-        let node = R.Node "localhost" nodepk
+        -- let node = R.Node "localhost" nodepk
         programtxt <- S.body
         let programstr = Text.unpack (decodeUtf8 (LB.toStrict programtxt))
         let prog = unsafeParseTerm programstr
-        -- use existing Multiplex stuff to negotiate the connection?
-        -- problem is we have no way of getting replies from the node
-        -- todo: run typechecker
-        -- need to use pipeInitiate to send packet to the node
-        undefined
+        -- todo: run typechecker on prog
+        liftIO $ send (Mux.Packet nodepk $ Put.runPutS (serialize prog))

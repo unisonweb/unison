@@ -65,6 +65,17 @@ make protocol mkCrypto makeSandbox = do
     env <- liftIO $ Remote.makeEnv universe node blockStore
     _ <- Mux.fork $ Remote.server crypto connectionSandbox env sandbox protocol
     _ <- Mux.fork $ do
+      (remote, cancel) <- Mux.subscribeTimed (Mux.seconds 60) (P._localEval protocol)
+      Mux.repeatWhile $ do
+        r <- remote
+        case r of
+          Nothing -> False <$ cancel
+          Just r -> do
+            r <- liftIO $ Remote.eval sandbox r
+            case Remote.unRemote sandbox r of
+              Nothing -> pure True
+              Just r -> True <$ Mux.fork (Remote.handle crypto connectionSandbox env sandbox protocol r)
+    _ <- Mux.fork $ do
       (destroy, cancel) <- Mux.subscribeTimed (Mux.seconds 60) (P._destroyIn protocol)
       Mux.repeatWhile $ do
         sig <- destroy

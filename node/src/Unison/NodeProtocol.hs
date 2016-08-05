@@ -37,7 +37,7 @@ data Protocol term signature hash thash =
                                 (Remote term, Channel Ack)
                                 (Maybe ([thash], Channel (Maybe [(thash,term)])))
     -- | Evaluate an expression, with no handshaking. Used only by container.
-    , _localEval :: Channel (Remote term)
+    , _localEval :: Channel term
     -- | Channel used for syncing hashes
     , _sync :: EncryptedChannel Remote.Node ([thash], Channel Ack) (Maybe [(thash,term)])
     -- | Various `BlockStore` methods
