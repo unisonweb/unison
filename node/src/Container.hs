@@ -17,6 +17,7 @@ import Unison.Runtime.Lock (Lock(..),Lease(..))
 import Web.Scotty as S
 import qualified Data.ByteArray as BA
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Base64.URL as Base64
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Bytes.Put as Put
 import qualified Data.Text as Text
@@ -55,11 +56,12 @@ main = Mux.uniqueChannel >>= \rand ->
     S.scotty 8081 $ do
       S.middleware logStdoutDev
       S.addroute OPTIONS (S.regex ".*") $ NS.originOptions
-      NS.postRoute "/compute/:nodeid" $ do
-        nodepk <- S.param "nodeid"
-        -- let node = R.Node "localhost" nodepk
+      NS.postRoute "/compute/:nodepk" $ do
+        nodepk <- S.param "nodepk"
+        let node = R.Node "localhost" (Base64.decodeLenient nodepk)
         programtxt <- S.body
         let programstr = Text.unpack (decodeUtf8 (LB.toStrict programtxt))
         let prog = unsafeParseTerm programstr
+        let destination = Put.runPutS (serialize node)
         -- todo: run typechecker on prog
-        liftIO $ send (Mux.Packet nodepk $ Put.runPutS (serialize prog))
+        liftIO $ send (Mux.Packet destination $ Put.runPutS (serialize prog))

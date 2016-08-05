@@ -191,6 +191,7 @@ executable container
     async,
     attoparsec,
     base,
+    base64-bytestring,
     bytes,
     bytestring,
     bytestring-trie,

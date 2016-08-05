@@ -10,7 +10,7 @@ import Control.Monad.IO.Class
 import Data.Bytes.Serial (Serial, serialize, deserialize)
 import Data.Serialize.Get (Get)
 import GHC.Generics
-import System.IO (stdin, hSetBinaryMode)
+import System.IO (stdin, stderr, hSetBinaryMode, hPutStrLn)
 import Unison.BlockStore (BlockStore(..))
 import Unison.Cryptography (Cryptography)
 import Unison.Hash.Extra ()
@@ -71,6 +71,7 @@ make protocol mkCrypto makeSandbox = do
         case r of
           Nothing -> False <$ cancel
           Just r -> do
+            liftIO $ hPutStrLn stderr "_localEval got a term"
             r <- liftIO $ Remote.eval sandbox r
             case Remote.unRemote sandbox r of
               Nothing -> pure True

@@ -74,7 +74,7 @@ termBuiltins = (Var.named *** Term.ref) <$> (
     , AliasFromModule "Text"
         ["concatenate", "left", "right", "center", "justify"] []
     , AliasFromModule "Remote"
-        ["fork", "receive", "receiveAsync", "pure", "bind", "channel", "send", "here", "at"] []
+        ["fork", "receive", "receiveAsync", "pure", "bind", "channel", "send", "here", "at", "spawn"] []
     , AliasFromModule "Color" ["rgba"] []
     , AliasFromModule "Symbol" ["Symbol"] []
     , AliasFromModule "Index" ["lookup", "insert"] ["empty"]

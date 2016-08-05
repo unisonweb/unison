@@ -1,0 +1,9 @@
+-- run from unison root directory
+-- curl -H "Content-Type: text/plain; charset=UTF-8" --data-binary @node/tests/pingpong.u http://localhost:8081/compute/dummynode909
+
+let rec
+  ping n1 n2 x = Remote.bind (pong n1 n2) (Remote.at n2 x) ;
+  pong n1 n2 x = Remote.bind (ping n1 n2) (Remote.at n1 x) ;
+  go = Remote.bind (n1 -> Remote.bind (n2 -> ping n1 n2 0) Remote.spawn) Remote.spawn 
+in  
+  go
