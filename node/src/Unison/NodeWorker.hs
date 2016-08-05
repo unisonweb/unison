@@ -21,7 +21,6 @@ import qualified Data.Bytes.Put as Put
 import qualified Data.Serialize.Get as Get
 import qualified Unison.Cryptography as C
 import qualified Unison.NodeProtocol as P
-import qualified Unison.BlockStore as BS
 import qualified Unison.Runtime.Multiplex as Mux
 import qualified Unison.Runtime.Remote as Remote
 import qualified Unison.Remote as Remote
@@ -50,18 +49,13 @@ make protocol mkCrypto makeSandbox = do
   (privateKey, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize B.empty)
   (node, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize rem)
   (universe, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize rem)
+  (sandbox, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize rem)
   publicKey <- either fail pure $ Get.runGetS deserialize (Remote.publicKey node)
   let keypair = Keypair publicKey privateKey
 
   interrupt <- atomically $ newTSem 0
   Mux.runStandardIO (Mux.seconds 5) rem (atomically $ waitTSem interrupt) $ do
     blockStore <- P.blockStoreProxy protocol
-    Just sandbox <- liftIO $ do -- todo: lifetime, budget, children
-      nodeInfoHash <- BS.declareSeries blockStore (BS.Series $ "node-" `mappend` Remote.publicKey node)
-      bytes <- BS.lookup blockStore nodeInfoHash
-      case bytes of
-        Nothing -> pure Nothing
-        Just bytes -> Just <$> either fail pure (Get.runGetS deserialize bytes)
     makeSandbox <- either fail pure $ Get.runGetS makeSandbox sandbox
     let crypto = mkCrypto keypair
     sandbox <- liftIO $ makeSandbox crypto blockStore

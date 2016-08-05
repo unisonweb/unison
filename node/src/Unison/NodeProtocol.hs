@@ -36,6 +36,8 @@ data Protocol term signature hash thash =
     , _eval :: EncryptedChannel (Remote.Node, Remote.Universe)
                                 (Remote term, Channel Ack)
                                 (Maybe ([thash], Channel (Maybe [(thash,term)])))
+    -- | Evaluate an expression, with no handshaking. Used only by container.
+    , _localEval :: Channel (Remote term)
     -- | Channel used for syncing hashes
     , _sync :: EncryptedChannel Remote.Node ([thash], Channel Ack) (Maybe [(thash,term)])
     -- | Various `BlockStore` methods

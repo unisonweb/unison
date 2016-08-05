@@ -186,9 +186,39 @@ executable container
     ghc-options: -funbox-strict-fields -O2
 
   build-depends:
+    acid-state,
+    aeson,
+    async,
+    attoparsec,
     base,
+    bytes,
+    bytestring,
+    bytestring-trie,
+    cereal,
+    containers,
+    cryptonite,
+    directory,
+    filepath,
+    free,
+    hashable,
+    http-types,
+    list-t,
+    memory,
+    mtl,
+    process,
+    safecopy,
+    scotty,
+    stm,
+    stm-containers,
+    text,
+    time,
+    transformers,
+    unagi-chan,
     unison-node,
-    unison-shared
+    unison-shared,
+    vector,
+    wai-extra,
+    wai-middleware-static
 
 executable node
   main-is: Node.hs
