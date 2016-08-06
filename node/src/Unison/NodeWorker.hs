@@ -45,11 +45,16 @@ make :: ( BA.ByteArrayAccess key
              -> IO (Remote.Language term thash))
      -> IO ()
 make protocol mkCrypto makeSandbox = do
+  liftIO $ hPutStrLn stderr "[worker] initializing... "
   hSetBinaryMode stdin True
   (privateKey, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize B.empty)
+  liftIO $ hPutStrLn stderr "[worker] loaded keypair... "
   (node, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize rem)
+  liftIO $ hPutStrLn stderr $ "[worker] loaded node id " ++ show node
   (universe, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize rem)
+  liftIO $ hPutStrLn stderr "[worker] loaded universe... "
   (sandbox, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize rem)
+  liftIO $ hPutStrLn stderr "[worker] loaded sandbox... "
   publicKey <- either fail pure $ Get.runGetS deserialize (Remote.publicKey node)
   let keypair = Keypair publicKey privateKey
 
@@ -63,6 +68,7 @@ make protocol mkCrypto makeSandbox = do
     -- todo: load this from persistent store also
     connectionSandbox <- pure $ Remote.ConnectionSandbox (\_ -> pure True) (\_ -> pure True)
     env <- liftIO $ Remote.makeEnv universe node blockStore
+    liftIO $ hPutStrLn stderr "[worker] ... done initializing"
     _ <- Mux.fork $ Remote.server crypto connectionSandbox env sandbox protocol
     _ <- Mux.fork $ do
       (remote, cancel) <- Mux.subscribeTimed (Mux.seconds 60) (P._localEval protocol)

@@ -4,7 +4,7 @@
 
 module Unison.Runtime.Multiplex where
 
-import System.IO (Handle, stdin, stdout, hSetBinaryMode)
+import System.IO (Handle, stdin, stdout, stderr, hSetBinaryMode, hPutStrLn)
 import Control.Applicative
 import Control.Concurrent.MVar
 import Control.Concurrent.STM as STM
@@ -106,8 +106,14 @@ deserializeHandle1' h = deserializeHandle1 h (Get.runGetPartial deserialize B.em
 deserializeHandle1 :: Handle -> Get.Result a -> IO (a, B.ByteString)
 deserializeHandle1 h dec = go dec where
   go result = case result of
-    Get.Fail msg rem -> fail ("decoding failure " ++ msg ++ ", remainder: " ++ show rem)
-    Get.Partial k -> B.hGetSome h 65536 >>= \bs -> go (k bs)
+    Get.Fail msg rem ->
+      let err = "decoding failure " ++ msg ++ ", remainder: " ++ show rem
+      in hPutStrLn stderr err >> fail "decoding failed"
+    Get.Partial k -> do
+      hPutStrLn stderr $ "need more bytes"
+      bs <- B.hGetSome h 65536
+      hPutStrLn stderr $ "got " ++ show (B.length bs) ++ " bytes"
+      go (k bs)
     Get.Done a rem -> pure (a, rem)
 
 ask :: Multiplex Env

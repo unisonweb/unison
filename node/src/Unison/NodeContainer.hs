@@ -148,7 +148,7 @@ make bs nodeLock p genNode launchNodeCmd = do
             _ <- Async.waitCatch reader
             _ <- Async.waitCatch writer
             _ <- Async.waitCatch processor
-            mapM_ hClose [stdin, stdout]
+            mapM_ (safely . hClose) [stdin, stdout]
             case exitCode of
               Exit.ExitSuccess -> pure ()
               Exit.ExitFailure n -> putStrLn $ "node process exited with: " ++ show n
