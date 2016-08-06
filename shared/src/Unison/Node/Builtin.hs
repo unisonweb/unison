@@ -80,6 +80,10 @@ makeBuiltins whnf =
            op [] = pure $ Term.remote (Remote.Step (Remote.Local (Remote.Here)))
            op _ = fail "Remote.here unpossible"
        in (r, Just (I.Primop 0 op), remoteSignatureOf "Remote.here", prefix "here")
+     , let r = R.Builtin "Remote.spawn"
+           op [] = pure $ Term.remote (Remote.Step (Remote.Local Remote.Spawn))
+           op _ = fail "Remote.spawn unpossible"
+       in (r, Just (I.Primop 0 op), remoteSignatureOf "Remote.spawn", prefix "spawn")
      , let r = R.Builtin "Remote.send"
            op [c, v] = do
              Term.Distributed' (Term.Channel c) <- whnf c

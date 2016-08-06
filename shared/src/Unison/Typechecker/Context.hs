@@ -590,6 +590,7 @@ remoteSignatures = Map.fromList
   [ ("Remote.at", Type.forall' ["a"] (Type.builtin "Node" --> v' "a" --> remote' (v' "a")))
   , ("Remote.fork", Type.forall' ["a"] (remote' (v' "a") --> remote' unitT))
   , ("Remote.here", remote' (Type.builtin "Node"))
+  , ("Remote.spawn", remote' (Type.builtin "Node"))
   , ("Remote.send", Type.forall' ["a"] (channel (v' "a") --> v' "a" --> remote' unitT))
   , ("Remote.channel", Type.forall' ["a"] (remote' (channel (v' "a"))))
   , ("Remote.map", Type.forall' ["a","b"] ((v' "a" --> v' "b") --> remote' (v' "a") --> remote' (v' "b")))

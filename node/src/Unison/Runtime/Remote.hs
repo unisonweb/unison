@@ -169,6 +169,9 @@ handle crypto allow env lang p r = case r of
   runLocal (Fork r) = Mux.fork (handle crypto allow env lang p r) $> unit lang
   runLocal CreateChannel = channel lang . Channel . Mux.channelId <$> Mux.channel
   runLocal Here = pure $ node lang (currentNode env)
+  runLocal Spawn = do
+    n <- Mux.requestTimed (Mux.seconds 5) (P._spawn p) B.empty
+    node lang <$> n
   runLocal (Pure t) = liftIO $ eval lang t
   runLocal (Send (Channel cid) a) = do
     Mux.process1 (Mux.Packet cid (Put.runPutS (serialize a)))

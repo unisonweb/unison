@@ -51,10 +51,11 @@ make bs nodeLock p genNode launchNodeCmd = do
             Left err -> (putStrLn $ "unable to decode node destination: " ++ show err) >> go
             Right node -> do
               h <- BS.resolve bs (nodeSeries node)
-              case h of
-                Nothing -> (putStrLn $ "message send to nonexistent node: " ++ show node) >> go
-                Just _ -> do
+              -- case h of
+              --   Nothing -> (putStrLn $ "message send to nonexistent node: " ++ show node) >> go
+              --   Just _ -> do
                   -- todo: check to see if node has been claimed by other container and if so, forward
+              do
                   lock <- nodeLock node
                   lease <- L.tryAcquire lock
                   case lease of
