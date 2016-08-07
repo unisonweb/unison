@@ -3,7 +3,7 @@ module Unison.Node.Builtin where
 
 import Data.Text (Text)
 import Unison.Metadata (Metadata(..))
-import Unison.Parsers (unsafeParseType, unsafeParseTerm)
+import Unison.Parsers (unsafeParseType)
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
