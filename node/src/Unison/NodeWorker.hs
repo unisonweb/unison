@@ -7,10 +7,11 @@ module Unison.NodeWorker where
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TSem
 import Control.Monad.IO.Class
+import Control.Exception (finally)
 import Data.Bytes.Serial (Serial, serialize, deserialize)
 import Data.Serialize.Get (Get)
 import GHC.Generics
-import System.IO (stdin, stderr, hSetBinaryMode, hPutStrLn)
+import System.IO (stdin, stderr, hSetBinaryMode, hPutStrLn, Handle)
 import Unison.BlockStore (BlockStore(..))
 import Unison.Cryptography (Cryptography)
 import Unison.Hash.Extra ()
@@ -28,15 +29,19 @@ import qualified Unison.Remote as Remote
 data Keypair k = Keypair { public :: k, private :: B.ByteString } deriving Generic
 instance Serial k => Serial (Keypair k)
 
+logger :: Handle -> IO (String -> IO ())
+logger h = do
+  sem <- atomically (newTSem 1)
+  pure $ \s -> atomically (waitTSem sem) >> (hPutStrLn h s `finally` atomically (signalTSem sem))
+
 make :: ( BA.ByteArrayAccess key
         , Serial signature
-        , Serial term
+        , Serial term, Show term
         , Serial hash
         , Serial thash
         , Serial h
         , Eq h
         , Serial key
-        , Serial signKey
         , Ord thash)
      => P.Protocol term hash h thash
      -> (Keypair key -> Cryptography key symmetricKey signKey skp signature hash Remote.Cleartext)
@@ -45,50 +50,52 @@ make :: ( BA.ByteArrayAccess key
              -> IO (Remote.Language term thash))
      -> IO ()
 make protocol mkCrypto makeSandbox = do
-  liftIO $ hPutStrLn stderr "[worker] initializing... "
+  log <- logger stderr
+  let die msg = liftIO $ log msg >> error ""
+  liftIO . log $ "[worker] initializing... "
   hSetBinaryMode stdin True
-  (privateKey, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize B.empty)
-  liftIO $ hPutStrLn stderr "[worker] loaded keypair... "
-  (node, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize rem)
-  liftIO $ hPutStrLn stderr $ "[worker] loaded node id " ++ show node
-  (universe, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize rem)
-  liftIO $ hPutStrLn stderr "[worker] loaded universe... "
-  (sandbox, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize rem)
-  liftIO $ hPutStrLn stderr "[worker] loaded sandbox... "
-  publicKey <- either fail pure $ Get.runGetS deserialize (Remote.publicKey node)
+  (privateKey, _, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize B.empty)
+  liftIO . log $ "[worker] loaded keypair... "
+  (node, _, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize rem)
+  liftIO . log $ "[worker] loaded node: " ++ show node
+  (universe, _, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize rem)
+  liftIO . log $ "[worker] loaded universe: " ++ show universe
+  (sandbox, _, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize rem)
+  liftIO . log $ "[worker] loaded sandbox... "
+  publicKey <- either die pure $ Get.runGetS deserialize (Remote.publicKey node)
   let keypair = Keypair publicKey privateKey
-
+  liftIO . log $ "[worker] remaining bytes: " ++ show (B.length rem)
   interrupt <- atomically $ newTSem 0
-  Mux.runStandardIO (Mux.seconds 5) rem (atomically $ waitTSem interrupt) $ do
+  Mux.runStandardIO log (Mux.seconds 5) rem (atomically $ waitTSem interrupt) $ do
     blockStore <- P.blockStoreProxy protocol
-    makeSandbox <- either fail pure $ Get.runGetS makeSandbox sandbox
+    makeSandbox <- either die pure $ Get.runGetS makeSandbox sandbox
     let crypto = mkCrypto keypair
     sandbox <- liftIO $ makeSandbox crypto blockStore
     let skHash = Put.runPutS (serialize $ C.hash crypto [Put.runPutS (serialize $ private keypair)])
     -- todo: load this from persistent store also
     connectionSandbox <- pure $ Remote.ConnectionSandbox (\_ -> pure True) (\_ -> pure True)
     env <- liftIO $ Remote.makeEnv universe node blockStore
-    liftIO $ hPutStrLn stderr "[worker] ... done initializing"
+    liftIO . log $ "[worker] ... done initializing"
     _ <- Mux.fork $ Remote.server crypto connectionSandbox env sandbox protocol
     _ <- Mux.fork $ do
-      (remote, cancel) <- Mux.subscribeTimed (Mux.seconds 60) (P._localEval protocol)
+      (prog, cancel) <- Mux.subscribeTimed (Mux.seconds 60) (P._localEval protocol)
       Mux.repeatWhile $ do
-        r <- remote
-        case r of
+        e <- prog
+        case e of
           Nothing -> False <$ cancel
           Just r -> do
-            liftIO $ hPutStrLn stderr "_localEval got a term"
+            liftIO . log $ "_localEval got a term " ++ show r
             r <- liftIO $ Remote.eval sandbox r
+            liftIO . log $ "_localEval evaluated to " ++ show r
             case Remote.unRemote sandbox r of
-              Nothing -> pure True
+              Nothing -> liftIO (log "_localEval received a non-Remote") >> pure True
               Just r -> True <$ Mux.fork (Remote.handle crypto connectionSandbox env sandbox protocol r)
     _ <- Mux.fork $ do
       (destroy, cancel) <- Mux.subscribeTimed (Mux.seconds 60) (P._destroyIn protocol)
       Mux.repeatWhile $ do
         sig <- destroy
         case sig of
-          -- todo: constant time equality needed here?
-          Just sig | skHash == Put.runPutS (serialize sig) -> do
+          Just sig | BA.constEq skHash (Put.runPutS (serialize sig)) -> do
             cancel
             Mux.send (Mux.Channel Mux.Type skHash) ()
             -- no other cleanup needed; container will reclaim resources and eventually

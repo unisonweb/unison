@@ -8,7 +8,7 @@ import Control.Exception
 import Control.Monad
 import Data.ByteString (ByteString)
 import Data.IORef
-import System.IO (hClose, Handle)
+import System.IO (hClose, hFlush, Handle)
 import Unison.Runtime.Remote ()
 import qualified Control.Concurrent.Async as Async
 import qualified Data.ByteString as B
@@ -51,16 +51,17 @@ make bs nodeLock p genNode launchNodeCmd = do
             Left err -> (putStrLn $ "unable to decode node destination: " ++ show err) >> go
             Right node -> do
               h <- BS.resolve bs (nodeSeries node)
-              -- case h of
-              --   Nothing -> (putStrLn $ "message send to nonexistent node: " ++ show node) >> go
-              --   Just _ -> do
-                  -- todo: check to see if node has been claimed by other container and if so, forward
               do
+              --case h of
+              --  Nothing -> (putStrLn $ "message send to nonexistent node: " ++ show node) >> go
+              --  Just _ -> do
+                  -- todo: check to see if node has been claimed by other container and if so, forward
                   lock <- nodeLock node
                   lease <- L.tryAcquire lock
                   case lease of
                     Nothing -> pure ()
                     Just lease -> do
+                      putStrLn "waking up node"
                       wakeup node [Mux.content packet] `finally` L.release lease
           Just dest -> safely (dest (Mux.content packet)) >> go
 
@@ -82,16 +83,19 @@ make bs nodeLock p genNode launchNodeCmd = do
           -- read from the process as quickly as possible, buffering input in a queue
           (fromNodeWrite, fromNodeRead) <- newChan
             :: IO (InChan (Maybe Mux.Packet), OutChan (Maybe Mux.Packet))
-          reader <- Async.async $ Mux.deserializeHandle stdout B.empty (writeChan fromNodeWrite)
+          let write a _ = writeChan fromNodeWrite a
+          reader <- Async.async $ Mux.deserializeHandle stdout B.empty write
           -- now that we have a handle to the process, we write to it from the `toNodeRead` queue
           writer <- Async.async . forever $ do
-            bytes <- readChan toNodeRead
+            (bytes, force) <- tryReadChan toNodeRead
+            bytes <- tryRead bytes >>= \bytes -> case bytes of
+              Nothing -> hFlush stdin >> force -- flush buffer whenever there's a pause
+              Just bytes -> pure bytes -- we're saturating the channel, no need to flush manually
             let nodeBytes = Put.runPutS (S.serialize node)
+            putStrLn $ "[container] writing bytes " ++ show (B.length bytes)
             safely $
               B.hPut stdin bytes `onException`
               writeChan packetWrite (Mux.Packet nodeBytes bytes)
-
-          send (Put.runPutS $ S.serialize node)
 
           -- establish routes for processing packets coming from the node
           routes <- id $

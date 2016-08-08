@@ -11,6 +11,14 @@ import qualified Prelude
 
 newtype Parser a = Parser { run :: String -> Result a }
 
+root :: Parser a -> Parser a
+root p = many (whitespace1 <|> haskellLineComment) *> (p <* eof)
+
+eof :: Parser ()
+eof = Parser $ \s -> case s of
+  [] -> Succeed () 0 False
+  _ -> Fail [Prelude.takeWhile (/= '\n') s, "expected eof, got"] False
+
 unsafeRun :: Parser a -> String -> a
 unsafeRun p s = case toEither $ run p s of
   Right a -> a

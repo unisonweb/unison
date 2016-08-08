@@ -9,6 +9,7 @@ import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Parser (Result(..), run, unsafeGetSucceed)
 import Unison.View (DFO)
+import qualified Unison.Parser as Parser
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.Term as Term
@@ -27,13 +28,13 @@ parseType :: String -> Result (Type V)
 parseType = parseType' typeBuiltins
 
 parseTerm' :: [(V, Term V)] -> [(V, Type V)] -> String -> Result (Term V)
-parseTerm' termBuiltins typeBuiltins s = case run TermParser.term s of
+parseTerm' termBuiltins typeBuiltins s = case run (Parser.root TermParser.term) s of
   Succeed e n b ->
     Succeed (Term.typeMap (ABT.substs typeBuiltins) (ABT.substs termBuiltins e)) n b
   fail -> fail
 
 parseType' :: [(V, Type V)] -> String -> Result (Type V)
-parseType' typeBuiltins s = case run TypeParser.type_ s of
+parseType' typeBuiltins s = case run (Parser.root TypeParser.type_) s of
   Succeed t n b -> Succeed (ABT.substs typeBuiltins t) n b
   fail -> fail
 

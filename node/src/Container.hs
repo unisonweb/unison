@@ -1,3 +1,4 @@
+{-# Language BangPatterns #-}
 {-# Language OverloadedStrings #-}
 
 module Main where
@@ -23,6 +24,7 @@ import qualified Data.Bytes.Put as Put
 import qualified Data.Text as Text
 import qualified Unison.BlockStore.FileBlockStore as FBS
 import qualified Unison.NodeContainer as C
+import qualified Unison.NodeProtocol as NP
 import qualified Unison.Remote as R
 import qualified Unison.Runtime.Multiplex as Mux
 
@@ -60,10 +62,12 @@ main = Mux.uniqueChannel >>= \rand ->
       S.addroute OPTIONS (S.regex ".*") $ NS.originOptions
       NS.postRoute "/compute/:nodepk" $ do
         nodepk <- S.param "nodepk"
-        let node = R.Node "localhost" (Base64.decodeLenient nodepk)
+        let node = R.Node "localhost" (Put.runPutS . serialize . Base64.decodeLenient $ nodepk)
         programtxt <- S.body
         let programstr = Text.unpack (decodeUtf8 (LB.toStrict programtxt))
-        let prog = unsafeParseTerm programstr
+        let !prog = unsafeParseTerm programstr
+        liftIO . putStrLn $ "parsed " ++ show prog
         let destination = Put.runPutS (serialize node)
         -- todo: run typechecker on prog
-        liftIO $ send (Mux.Packet destination $ Put.runPutS (serialize prog))
+        let pk = Mux.Packet (Mux.channelId $ NP._localEval protocol) (Put.runPutS (serialize prog))
+        liftIO $ send (Mux.Packet destination (Put.runPutS (serialize pk)))

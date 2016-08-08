@@ -51,6 +51,8 @@ eval env = Eval whnf step
       _ -> pure e
 
     whnf resolveRef e = case e of
+      E.Let1' binding body -> whnf resolveRef (ABT.bind body binding)
+      -- E.LetRecNamed' bs body -> whnf resolveRef (ABT.bind body binding)
       E.App' f x -> do
         f' <- E.link resolveRef f
         e' <- reduce f' [x]
