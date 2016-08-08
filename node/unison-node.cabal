@@ -164,6 +164,7 @@ executable worker
     cereal,
     containers,
     cryptonite,
+    curl,
     free,
     hashable,
     list-t,
@@ -189,6 +190,7 @@ executable container
 
   build-depends:
     base,
+    curl,
     unison-node,
     unison-shared
 
@@ -258,6 +260,7 @@ test-suite tests
     bytestring,
     containers,
     ctrie,
+    curl,
     directory,
     hashable,
     random,
