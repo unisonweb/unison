@@ -84,11 +84,12 @@ runStandardIO info sleepAfter rem interrupt m = do
       Just packet -> pure packet
       -- writer not saturated; flush output buffer to avoid latency and/or deadlock
       Nothing -> hFlush stdout >> atomically (Q.dequeue output)
+    B.putStr (Put.runPutS (serialize packet))
     case packet of
       Nothing -> False <$ info "[Mux.runStandardIO] shutting down output thread"
       Just packet -> do
-        info $ "[Mux.runStandardIO] sending packet@" ++ show (destination packet)
-        True <$ B.putStr (Put.runPutS (serialize packet)) <* bump
+        info $ "[Mux.runStandardIO] sent packet@" ++ show (destination packet)
+        True <$ bump
   watchdog <- Async.async . repeatWhile $ do
     activity0 <- (+) <$> readTVarIO activity <*> readTVarIO cba
     C.threadDelay sleepAfter
