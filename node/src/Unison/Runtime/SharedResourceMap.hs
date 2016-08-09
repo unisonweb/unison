@@ -5,6 +5,10 @@ import Control.Exception (finally)
 import Data.Hashable (Hashable)
 import Prelude hiding (lookup)
 import qualified Unison.Runtime.ExpiringMap as M
+-- import System.IO (stderr, hPutStrLn)
+
+debug :: String -> IO ()
+debug msg = pure ()-- hPutStrLn stderr ("[SharedResourceMap] " ++ msg)
 
 data SharedResourceMap k v
   = SharedResourceMap { acquiring :: M.ExpiringMap k (MVar ())
@@ -22,11 +26,16 @@ lookupOrReplenish k replenish m = do
   case v of
     Nothing -> M.lookup k (acquiring m) >>= \sem -> case sem of
       Nothing -> do
+        debug "no lock allocated"
         sem <- newMVar ()
         _ <- M.insert k sem (acquiring m)
         lookupOrReplenish k replenish m
       Just sem -> do
+        debug "acquiring lock..."
         takeMVar sem
-        v <- (replenish >>= \v -> v <$ M.insert k v (resources m)) `finally` putMVar sem ()
-        pure v
+        debug "... acquired"
+        flip finally (putMVar sem () >> debug "releasing lock") $ do
+          v <- replenish
+          _ <- M.insert k v (resources m)
+          pure v
     Just v -> pure v

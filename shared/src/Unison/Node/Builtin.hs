@@ -102,7 +102,7 @@ makeBuiltins whnf =
             case r of
               Term.Distributed' (Term.Remote (Remote.Step s)) -> pure $ Term.remote (Remote.Bind s g)
               Term.Distributed' (Term.Remote (Remote.Bind s f)) -> pure $ Term.remote (Remote.Bind s (kcomp f g))
-              _ -> fail "Remote.bind given a value that was not a Remote"
+              _ -> fail $ "Remote.bind given a value that was not a Remote: " ++ show r
           op _ = fail "Remote.bind unpossible"
        in (r, Just (I.Primop 2 op), remoteSignatureOf "Remote.bind", prefix "bind")
      , let r = R.Builtin "Remote.pure"

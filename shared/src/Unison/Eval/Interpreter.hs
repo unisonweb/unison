@@ -41,6 +41,9 @@ eval env = Eval whnf step
     reduce _ _ = pure Nothing
 
     step resolveRef e = case e of
+      E.Ref' h -> case M.lookup h env of
+        Just op | arity op == 0 -> call op []
+        _ -> pure e
       E.App' f x -> do
         f' <- E.link resolveRef f
         e' <- reduce f' [x]
@@ -55,6 +58,9 @@ eval env = Eval whnf step
       _ -> pure e
 
     whnf resolveRef e = case e of
+      E.Ref' h -> case M.lookup h env of
+        Just op | arity op == 0 -> call op []
+        _ -> pure e
       E.App' f x -> do
         f' <- E.link resolveRef f
         e' <- reduce f' [x]

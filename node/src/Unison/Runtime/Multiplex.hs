@@ -406,6 +406,7 @@ pipeInitiate
   -> u
   -> Multiplex (Maybe o -> Multiplex (), Multiplex (Maybe i), CipherState)
 pipeInitiate crypto rootChan (recipient,recipientKey) u = do
+  info "[Mux.pipeInitiate] starting"
   (doneHandshake, encrypt, decrypt) <- liftIO $ C.pipeInitiator crypto recipientKey
   handshakeChan <- channel
   connectedChan <- channel
@@ -427,13 +428,17 @@ pipeInitiate crypto rootChan (recipient,recipientKey) u = do
             Right mi -> pure (Just mi)
     go = do
       ready <- liftIO $ atomically doneHandshake
+      info $ "[Mux.pipeInitiate] ready: " ++ show ready
       case ready of
         True -> do
+          info "[Mux.pipeInitiate] handshake complete"
           encryptAndSendTo recipient chanh encrypt () -- todo: not sure this flush needed
           pure (encryptAndSendTo recipient chanc encrypt, recv, (encrypt,decrypt))
         False -> do
+          info "[Mux.pipeInitiate] handshake round trip... "
           nest recipient $ send' chanh (encrypt B.empty)
           bytes <- fetchh
+          info "[Mux.pipeInitiate] ... handshake round trip completed"
           case bytes of
             Nothing -> cancelh >> cancelc >> fail "cancelled handshake"
             Just bytes -> liftIO (atomically $ decrypt bytes) >> go

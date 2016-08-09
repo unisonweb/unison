@@ -97,9 +97,6 @@ makeEnv universe currentNode bs = mk <$> RM.new 10 40 -- seconds
   mk = Env (makeCodestore bs) universe currentNode
 type Cleartext = ByteString
 
-info :: String -> Multiplex ()
-info msg = liftIO (putStrLn msg)
-
 data ConnectionSandbox key =
   ConnectionSandbox { allowIn :: key -> Multiplex Bool
                     , allowOut :: key -> Multiplex Bool }
@@ -167,6 +164,7 @@ handle crypto allow env lang p r = Mux.info ("[Remote.handle] " ++ show r) >> ca
   transfer n t k = do
     Mux.info $ "[Remote.handle] transferring to node: " ++ show n
     client crypto allow env p n r
+    Mux.info $ "[Remote.handle] transferred to node: " ++ show n
     where
     r = case k of
       Nothing -> Step (Local (Pure t))
@@ -214,15 +212,23 @@ client :: (Ord h, Serial key, Serial t, Serial h)
        -> Remote t
        -> Multiplex ()
 client crypto allow env p recipient r = do
+  Mux.info $ "[Remote.client] initiating connection to " ++ show recipient
   recipientKey <- either fail pure $ Get.runGetS deserialize (publicKey recipient)
+  Mux.info $ "[Remote.client] parsed peer public key"
   ok <- allowOut allow recipientKey
   case ok of
     False -> liftIO $ C.threadDelay Mux.delayBeforeFailure >> fail "disallowed outgoing connection"
     True -> pure ()
+  Mux.info $ "[Remote.client] allowing connection to proceed"
   menv <- Mux.ask
   connect <- pure . Mux.run menv $
     Mux.pipeInitiate crypto (P._eval p) (recipient, recipientKey) (currentNode env, universe env)
-  (send,recv,cipherstate@(encrypt,_)) <- liftIO $ RM.lookupOrReplenish recipient connect (connections env)
+  -- (send,recv,cipherstate@(encrypt,_)) <-
+  --  Mux.liftLogged "[Remote.client] connecting" connect
+  (send,recv,cipherstate@(encrypt,_)) <-
+    Mux.liftLogged "[Remote.client] connecting" $
+      RM.lookupOrReplenish recipient connect (connections env)
+  Mux.info $ "[Remote.client] connected"
   replyChan <- Mux.channel
   let send' (a,b) = send (Just (a,b))
   _ <- Mux.encryptedRequestTimedVia cipherstate (Mux.seconds 5) send' replyChan r
