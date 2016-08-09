@@ -136,9 +136,6 @@ library
     wai-extra,
     wai-middleware-static
 
-  if flag(leveldb)
-    build-depends: exceptions, leveldb-haskell
-
   ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N
 
   if flag(optimized)
@@ -146,6 +143,11 @@ library
 
   if flag(quiet)
     ghc-options: -v0
+
+  if flag(leveldb)
+    build-depends: exceptions, leveldb-haskell
+    exposed-modules:
+                    Unison.BlockStore.LevelDbStore
 
 executable worker
   main-is: Worker.hs
@@ -179,6 +181,9 @@ executable worker
     unison-node,
     unison-shared,
     vector
+
+  if flag(leveldb)
+    build-depends: exceptions, leveldb-haskell
 
 executable container
   main-is: Container.hs
@@ -224,6 +229,9 @@ executable container
     vector,
     wai-extra,
     wai-middleware-static
+
+  if flag(leveldb)
+    build-depends: exceptions, leveldb-haskell
 
 executable node
   main-is: Node.hs
@@ -306,3 +314,7 @@ test-suite tests
     unison-node,
     unison-shared,
     vector
+
+  if flag(leveldb)
+    build-depends: exceptions, leveldb-haskell
+    cpp-options: -Dleveldb

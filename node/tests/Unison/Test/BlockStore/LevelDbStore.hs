@@ -1,4 +1,4 @@
-module Unison.Test.BlockStore.FileBlockStore where
+module Unison.Test.BlockStore.LevelDbStore where
 
 import System.IO.Unsafe
 import System.Random
@@ -10,8 +10,7 @@ import Unison.Test.BlockStore
 import qualified Control.Concurrent.MVar as MVar
 import qualified Data.IORef as IORef
 import qualified System.Directory as Directory
-import qualified Unison.BlockStore.FileBlockStore as FBS
-import qualified Unison.BlockStore.MemBlockStore as MBS
+import qualified Unison.BlockStore.LevelDbStore as LBS
 
 data FileResource = FileResource
   { path :: FilePath
@@ -20,10 +19,10 @@ data FileResource = FileResource
 
 setup :: IO FileResource
 setup = do
-  tempDir <- Directory.makeAbsolute "tempFBS"
-  fileStore <- FBS.make' makeRandomAddress makeAddress tempDir
+  tempDir <- Directory.makeAbsolute "tempLDB"
+  fileStore <- LBS.make makeRandomAddress makeAddress tempDir
   pure $ FileResource tempDir fileStore
 
 tests :: TestTree
 tests = withResource setup (Directory.removeDirectoryRecursive . path)
-  (testGroup "FileBlockStore" . makeCases . store . unsafePerformIO)
+  (testGroup "LevelDbBlockStore" . makeExhaustiveCases . store . unsafePerformIO)

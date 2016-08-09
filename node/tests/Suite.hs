@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module Main where
 
 import System.Random
@@ -6,6 +7,9 @@ import Test.QuickCheck.Random
 import Test.Tasty
 import Unison.Test.NodeUtil
 import qualified Unison.Test.BlockStore.FileBlockStore as FBS
+#ifdef leveldb
+import qualified Unison.Test.BlockStore.LevelDbStore as LBS
+#endif
 import qualified Unison.Test.BlockStore.MemBlockStore as MBS
 import qualified Unison.Test.Journal as J
 import qualified Unison.Test.Index as Index
@@ -25,6 +29,9 @@ tastyTests = do
         , Html.nodeTests testNode
         , mbsTests
         , FBS.tests
+#ifdef leveldb
+        , LBS.tests
+#endif
         , SAH.tests
         , journalTests
         , indexTests]
