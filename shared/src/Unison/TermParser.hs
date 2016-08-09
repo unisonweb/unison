@@ -1,3 +1,5 @@
+{-# Language OverloadedStrings #-}
+
 module Unison.TermParser where
 
 import Prelude hiding (takeWhile)
@@ -14,6 +16,7 @@ import Unison.Type (Type)
 import Unison.Var (Var)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import qualified Unison.ABT as ABT
 import qualified Unison.Term as Term
 import qualified Unison.TypeParser as TypeParser
 import qualified Unison.Var as Var
@@ -47,18 +50,43 @@ infixApp p = f <$> arg <*> some ((,) <$> infixVar <*> arg)
     g lhs (op, rhs) = Term.apps (Term.var op) [lhs,rhs]
 
 term4 :: (Var v, Show v) => Parser (Term v)
-term4 = prefixApp term5
-
-term5 :: (Var v, Show v) => Parser (Term v)
-term5 = lam term <|> termLeaf
+term4 = lam term <|> prefixApp termLeaf
 
 termLeaf :: (Var v, Show v) => Parser (Term v)
-termLeaf = asum [hashLit, prefixTerm, lit, parenthesized term, blank, vector term]
+termLeaf = asum [hashLit, effectBlock, prefixTerm, lit, parenthesized term, blank, vector term]
+
+-- |
+-- Remote { x := pure 23; y := at node2 23; pure 19 }
+-- Remote { action1; action2; }
+-- Remote { action1; x = 1 + 1; action2; }
+effectBlock :: (Var v, Show v) => Parser (Term v)
+effectBlock = do
+  name <- wordyId <* token (string "{")
+  let qualifiedPure = ABT.var' (Text.pack name `mappend` Text.pack ".pure")
+      qualifiedBind = ABT.var' (Text.pack name `mappend` Text.pack ".bind")
+  bindings <- some $ asum [Right <$> binding qualifiedPure, Left <$> action qualifiedPure]
+  Just result <- pure $ foldr (bind qualifiedBind) Nothing bindings
+  result <$ lineErrorUnless "missing }" (token (string "}"))
+  where
+  bind qb = go where
+    go (Right (lhs,rhs)) (Just acc) = Just $ qb `Term.apps` [rhs, Term.lam lhs acc]
+    go (Right (_,_)) Nothing = Nothing
+    go (Left action) (Just acc) = Just $ qb `Term.apps` [action, Term.lam (ABT.v' "_") acc]
+    go (Left action) _ = Just action
+  interpretPure qp = ABT.subst (ABT.v' "pure") qp
+  binding qp = scope "binding" $ do
+    lhs <- ABT.v' . Text.pack <$> token wordyId
+    eff <- token $ (True <$ string ":=") <|> (False <$ string "=")
+    rhs <- term <* token (string ";")
+    let rhs' = if eff then interpretPure qp rhs
+               else qp `Term.app` rhs
+    pure (lhs, rhs')
+  action qp = attempt . scope "action" $ (interpretPure qp <$> term) <* token (string ";")
 
 text' :: Parser Literal
 text' =
   token $ fmap (Term.Text . Text.pack) ps
-  where ps = char '"' *> Unison.Parser.takeWhile (/= '"') <* char '"'
+  where ps = char '"' *> Unison.Parser.takeWhile "string literal" (/= '"') <* char '"'
 
 text :: Ord v => Parser (Term v)
 text = Term.lit <$> text'
@@ -66,7 +94,7 @@ text = Term.lit <$> text'
 number' :: Parser Literal
 number' = token (f <$> digits <*> optional ((:) <$> char '.' <*> digits))
   where
-    digits = nonempty (takeWhile isDigit)
+    digits = nonempty (takeWhile "number" isDigit)
     f :: String -> Maybe String -> Literal
     f whole part =
       (Term.Number . read) $ maybe whole (whole++) part

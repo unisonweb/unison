@@ -19,6 +19,11 @@ eof = Parser $ \s -> case s of
   [] -> Succeed () 0 False
   _ -> Fail [Prelude.takeWhile (/= '\n') s, "expected eof, got"] False
 
+attempt :: Parser a -> Parser a
+attempt p = Parser $ \s -> case run p s of
+   Fail stack _ -> Fail stack False
+   Succeed a n _ -> Succeed a n False
+
 unsafeRun :: Parser a -> String -> a
 unsafeRun p s = case toEither $ run p s of
   Right a -> a
@@ -32,7 +37,10 @@ unsafeGetSucceed r = case r of
 string :: String -> Parser String
 string s = Parser $ \input ->
   if s `isPrefixOf` input then Succeed s (length s) False
-  else Fail [] False
+  else Fail ["expected '" ++ s ++ "', got " ++ takeLine input] False
+
+takeLine :: String -> String
+takeLine = Prelude.takeWhile (/= '\n')
 
 char :: Char -> Parser Char
 char c = Parser $ \input ->
@@ -43,7 +51,6 @@ one :: (Char -> Bool) -> Parser Char
 one f = Parser $ \s -> case s of
   (h:_) | f h -> Succeed h 1 False
   _ -> Fail [] False
-
 
 base64string' :: String -> Parser String
 base64string' alphabet = concat <$> many base64group
@@ -67,7 +74,7 @@ identifier = identifier' [not . isSpace, notReservedChar]
 
 identifier' :: [Char -> Bool] -> [String -> Bool] -> Parser String
 identifier' charTests stringTests = do
-  i <- takeWhile1 (\c -> all ($ c) charTests)
+  i <- takeWhile1 "identifier" (\c -> all ($ c) charTests)
   guard (all ($ i) stringTests)
   pure i
 
@@ -75,7 +82,7 @@ token :: Parser a -> Parser a
 token p = p <* many (whitespace1 <|> haskellLineComment)
 
 haskellLineComment :: Parser ()
-haskellLineComment = void $ string "--" *> takeWhile (/= '\n')
+haskellLineComment = void $ string "--" *> takeWhile "-- comment" (/= '\n')
 
 lineErrorUnless :: String -> Parser a -> Parser a
 lineErrorUnless s p = commitFail $ Parser $ \input -> case run p input of
@@ -90,22 +97,22 @@ parenthesized p = lp *> body <* rp
     body = p
     rp = lineErrorUnless "missing )" $ token (char ')')
 
-takeWhile :: (Char -> Bool) -> Parser String
-takeWhile f = Parser $ \s ->
+takeWhile :: String -> (Char -> Bool) -> Parser String
+takeWhile msg f = scope msg . Parser $ \s ->
   let hd = Prelude.takeWhile f s
   in Succeed hd (length hd) False
 
-takeWhile1 :: (Char -> Bool) -> Parser String
-takeWhile1 f = Parser $ \s ->
+takeWhile1 :: String -> (Char -> Bool) -> Parser String
+takeWhile1 msg f = scope msg . Parser $ \s ->
   let hd = Prelude.takeWhile f s
   in if null hd then Fail ["takeWhile1 empty: " ++ take 20 s] False
      else Succeed hd (length hd) False
 
 whitespace :: Parser ()
-whitespace = void $ takeWhile Char.isSpace
+whitespace = void $ takeWhile "whitespace" Char.isSpace
 
 whitespace1 :: Parser ()
-whitespace1 = void $ takeWhile1 Char.isSpace
+whitespace1 = void $ takeWhile1 "whitespace1" Char.isSpace
 
 nonempty :: Parser a -> Parser a
 nonempty p = Parser $ \s -> case run p s of
