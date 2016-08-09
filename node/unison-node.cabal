@@ -72,7 +72,6 @@ library
     Unison.Runtime.Queue
     Unison.Runtime.Remote
     Unison.SerializationAndHashing
-    Unison.BlockStore.LevelDbStore
     Unison.BlockStore.MemBlockStore
     Unison.BlockStore.FileBlockStore
     Unison.Symbol.Extra
@@ -137,10 +136,6 @@ library
     wai-extra,
     wai-middleware-static
 
-  if flag(leveldb)
-    build-depends: exceptions, leveldb-haskell
-    cpp-options: -Dleveldb
-
   ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N
 
   if flag(optimized)
@@ -148,6 +143,11 @@ library
 
   if flag(quiet)
     ghc-options: -v0
+
+  if flag(leveldb)
+    build-depends: exceptions, leveldb-haskell
+    exposed-modules:
+                    Unison.BlockStore.LevelDbStore
 
 executable worker
   main-is: Worker.hs

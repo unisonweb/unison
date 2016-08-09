@@ -1,17 +1,14 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE CPP #-}
 module Unison.BlockStore.LevelDbStore where
 
-import qualified Data.ByteString as B
-import qualified Unison.BlockStore as BS
-
-#ifdef leveldb
 import Data.Bytes.Serial (serialize, Serial(..))
 import Data.Maybe (fromMaybe)
 import Data.Word (Word8)
+import qualified Data.ByteString as B
 import qualified Data.Bytes.Get as Get
 import qualified Data.Bytes.Put as Put
 import qualified Database.LevelDB.Base as DB
+import qualified Unison.BlockStore as BS
 
 instance Serial BS.Series
 
@@ -92,12 +89,7 @@ make genAddress hash path = do
               pure $ Just newAddress
             else pure Nothing
       resolve series = getSeriesAddresses series >>= \addresses -> pure
-        $ maybe Nothing (Just . head) addresses
+        $ head <$> addresses
       resolves series = getSeriesAddresses series >>= \addresses -> pure
         $ fromMaybe [] addresses
   pure $ BS.BlockStore insert lookup declareSeries deleteSeries update append resolve resolves
-
-#else
-make :: Ord a => IO a -> (B.ByteString -> a) -> FilePath -> IO (BS.BlockStore a)
-make _ _ _ = fail "leveldb support not enabled"
-#endif
