@@ -25,4 +25,4 @@ setup = do
 
 tests :: TestTree
 tests = withResource setup (Directory.removeDirectoryRecursive . path)
-  (testGroup "LevelDbBlockStore" . makeCases . store . unsafePerformIO)
+  (testGroup "LevelDbBlockStore" . makeExhaustiveCases . store . unsafePerformIO)

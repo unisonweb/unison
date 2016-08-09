@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE CPP #-}
 module Unison.BlockStore.LevelDbStore where
 
@@ -5,31 +6,20 @@ import qualified Data.ByteString as B
 import qualified Unison.BlockStore as BS
 
 #ifdef leveldb
-import Data.Bytes.Serial (serialize, Serial(..), Serial1(..))
-import Data.Maybe (listToMaybe, fromMaybe)
+import Data.Bytes.Serial (serialize, Serial(..))
+import Data.Maybe (fromMaybe)
 import Data.Word (Word8)
 import qualified Data.Bytes.Get as Get
 import qualified Data.Bytes.Put as Put
-import qualified Data.IORef as IORef
 import qualified Database.LevelDB.Base as DB
-import qualified Database.LevelDB.Iterator as IT
 
 instance Serial BS.Series
 
--- number of updates before unreferenced addresses are garbage collected
-garbageLimit :: Int
-garbageLimit = 100
-
+dbOptions :: DB.Options
 dbOptions = DB.defaultOptions { DB.createIfMissing = True }
-
--- checks if garbage is ready to be collected, and updates or resets counter
-garbageReady :: IORef.IORef Int -> IO Bool
-garbageReady ref = IORef.atomicModifyIORef ref $ \count -> if count == garbageLimit
-  then (0, True) else (count + 1, False)
 
 make :: (Ord a, Serial a) => IO a -> (B.ByteString -> a) -> FilePath -> IO (BS.BlockStore a)
 make genAddress hash path = do
-  updates <- IORef.newIORef 0
   db <- DB.open path dbOptions
   let putDB :: (Serial k, Serial v) =>  Word8 -> k -> v -> IO ()
       putDB o k v = let sk = B.cons o . Put.runPutS $ serialize k
