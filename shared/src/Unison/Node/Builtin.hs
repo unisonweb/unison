@@ -95,7 +95,7 @@ makeBuiltins whnf =
            op _ = fail "Remote.channel unpossible"
        in (r, Just (I.Primop 0 op), remoteSignatureOf "Remote.channel", prefix "channel")
     , let r = R.Builtin "Remote.bind"
-          op [r, g] = do
+          op [g, r] = do
             r <- whnf r
             -- right associate the binds so that there is always a Step on the outside
             let kcomp f g = Term.lam' ["x"] $ Term.builtin "Remote.bind" `Term.apps` [g, f `Term.app` Term.var' "x"]

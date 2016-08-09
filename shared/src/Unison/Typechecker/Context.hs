@@ -594,7 +594,7 @@ remoteSignatures = Map.fromList
   , ("Remote.send", Type.forall' ["a"] (channel (v' "a") --> v' "a" --> remote' unitT))
   , ("Remote.channel", Type.forall' ["a"] (remote' (channel (v' "a"))))
   , ("Remote.map", Type.forall' ["a","b"] ((v' "a" --> v' "b") --> remote' (v' "a") --> remote' (v' "b")))
-  , ("Remote.bind", Type.forall' ["a","b"] (remote' (v' "a") --> (v' "a" --> remote' (v' "b")) --> remote' (v' "b")))
+  , ("Remote.bind", Type.forall' ["a","b"] ((v' "a" --> remote' (v' "b")) --> remote' (v' "a") --> remote' (v' "b")))
   , ("Remote.pure", Type.forall' ["a"] (v' "a" --> remote' (v' "a")))
   , ("Remote.receiveAsync", Type.forall' ["a"] (channel (v' "a") --> timeoutT --> remote' (remote' (v' "a"))))
   , ("Remote.receive", Type.forall' ["a"] (channel (v' "a") --> remote' (v' "a"))) ]

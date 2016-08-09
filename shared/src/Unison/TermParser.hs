@@ -50,10 +50,13 @@ infixApp p = f <$> arg <*> some ((,) <$> infixVar <*> arg)
     g lhs (op, rhs) = Term.apps (Term.var op) [lhs,rhs]
 
 term4 :: (Var v, Show v) => Parser (Term v)
-term4 = lam term <|> prefixApp termLeaf
+term4 = prefixApp term5
+
+term5 :: (Var v, Show v) => Parser (Term v)
+term5 = lam term <|> effectBlock <|> termLeaf
 
 termLeaf :: (Var v, Show v) => Parser (Term v)
-termLeaf = asum [hashLit, effectBlock, prefixTerm, lit, parenthesized term, blank, vector term]
+termLeaf = asum [hashLit, prefixTerm, lit, parenthesized term, blank, vector term]
 
 -- |
 -- Remote { x := pure 23; y := at node2 23; pure 19 }
@@ -69,9 +72,9 @@ effectBlock = do
   result <$ lineErrorUnless "missing }" (token (string "}"))
   where
   bind qb = go where
-    go (Right (lhs,rhs)) (Just acc) = Just $ qb `Term.apps` [rhs, Term.lam lhs acc]
+    go (Right (lhs,rhs)) (Just acc) = Just $ qb `Term.apps` [Term.lam lhs acc, rhs]
     go (Right (_,_)) Nothing = Nothing
-    go (Left action) (Just acc) = Just $ qb `Term.apps` [action, Term.lam (ABT.v' "_") acc]
+    go (Left action) (Just acc) = Just $ qb `Term.apps` [Term.lam (ABT.v' "_") acc, action]
     go (Left action) _ = Just action
   interpretPure qp = ABT.subst (ABT.v' "pure") qp
   binding qp = scope "binding" $ do
@@ -86,7 +89,7 @@ effectBlock = do
 text' :: Parser Literal
 text' =
   token $ fmap (Term.Text . Text.pack) ps
-  where ps = char '"' *> Unison.Parser.takeWhile "string literal" (/= '"') <* char '"'
+  where ps = char '"' *> Unison.Parser.takeWhile "text literal" (/= '"') <* char '"'
 
 text :: Ord v => Parser (Term v)
 text = Term.lit <$> text'
@@ -98,7 +101,6 @@ number' = token (f <$> digits <*> optional ((:) <$> char '.' <*> digits))
     f :: String -> Maybe String -> Literal
     f whole part =
       (Term.Number . read) $ maybe whole (whole++) part
-
 
 hashLit :: Ord v => Parser (Term v)
 hashLit = token (f <$> (mark *> hash))
