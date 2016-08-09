@@ -52,7 +52,8 @@ run env (Multiplex go) = runReaderT go env
 -- | Run the multiplexed computation using stdin and stdout, terminating
 -- after a period of inactivity exceeding sleepAfter. `rem` is prepended
 -- onto stdin.
-runStandardIO :: (String -> IO ()) -> Microseconds -> B.ByteString -> IO () -> Multiplex a -> IO a
+runStandardIO :: (String -> IO ()) -> Microseconds -> B.ByteString -> IO ()
+              -> Multiplex a -> IO a
 runStandardIO info sleepAfter rem interrupt m = do
   hSetBinaryMode stdin True
   hSetBinaryMode stdout True
@@ -65,8 +66,8 @@ runStandardIO info sleepAfter rem interrupt m = do
   let bump = atomically $ modifyTVar' activity (1+)
   _ <- Async.async $ do interrupt; atomically $ writeTQueue input Nothing
   reader <- Async.async $ do
-    let write pk n = bump >> info ("[runStandardIO] read " ++ show n ++ " bytes")
-                          >> info ("[runStandardIO] sending to " ++ show (destination pk))
+    let write pk n = bump >> info ("[Mux.runStandardIO] read " ++ show n ++ " bytes")
+                          >> info ("[Mux.runStandardIO] sending to " ++ show (destination pk))
                           >> atomically (writeTQueue input (Just pk))
     deserializeHandle stdin rem write
     bump
@@ -76,7 +77,6 @@ runStandardIO info sleepAfter rem interrupt m = do
     case packet of
       Nothing -> pure False
       Just packet -> True <$ B.putStr (Put.runPutS (serialize packet)) <* bump
-  processor <- Async.async $ run env (process $ atomically (readTQueue input))
   watchdog <- Async.async . repeatWhile $ do
     activity0 <- (+) <$> readTVarIO activity <*> readTVarIO cba
     C.threadDelay sleepAfter
@@ -89,12 +89,13 @@ runStandardIO info sleepAfter rem interrupt m = do
         pure False
       else
         pure True
-  logic <- Async.async $ run env m
+  a <- run env m
+  processor <- Async.async $ run env (process $ atomically (readTQueue input))
   Async.wait watchdog
   Async.wait reader
   Async.wait processor
   Async.wait writer
-  Async.wait logic
+  pure a
 
 deserializeHandle :: Serial a => Handle -> B.ByteString -> (a -> Int -> IO ()) -> IO ()
 deserializeHandle h rem write = go (Get.runGetPartial deserialize rem) where

@@ -113,7 +113,7 @@ server :: (Ord h, Serial key, Serial t, Serial h)
        -> Multiplex ()
 server crypto allow env lang p = do
   (accept,_) <- Mux.subscribeTimed (Mux.seconds 60) (Mux.erase (P._eval p))
-  Mux.repeatWhile $ do
+  void . Mux.fork . Mux.repeatWhile $ do
     initialPayload <- accept
     case initialPayload of
       Nothing -> pure False
