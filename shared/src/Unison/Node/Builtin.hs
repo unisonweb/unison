@@ -109,6 +109,11 @@ makeBuiltins whnf =
            op [a] = pure $ Term.remote (Remote.Step (Remote.Local (Remote.Pure a)))
            op _ = fail "unpossible"
        in (r, Just (I.Primop 1 op), remoteSignatureOf "Remote.pure", prefix "pure")
+     , let r = R.Builtin "Remote.map"
+           op [f, r] = pure $ Term.builtin "Remote.bind" `Term.app`
+             (Term.lam' ["x"] $ Term.builtin "Remote.pure" `Term.app` (f `Term.app` Term.var' "x"))
+             `Term.app` r
+       in (r, Just (I.Primop 2 op), remoteSignatureOf "Remote.map", prefix "map")
      , let r = R.Builtin "Remote.receiveAsync"
            op [chan, timeout] = do
              Term.Number' seconds <- whnf timeout
@@ -211,6 +216,10 @@ none :: Term V
 none = Term.ref $ R.Builtin "Optional.None"
 some :: Term V -> Term V
 some t = Term.ref (R.Builtin "Optional.Some") `Term.app` t
+left :: Term V -> Term V
+left t = Term.ref (R.Builtin "Either.Left") `Term.app` t
+right :: Term V -> Term V
+right t = Term.ref (R.Builtin "Either.Right") `Term.app` t
 
 
 -- metadata helpers
