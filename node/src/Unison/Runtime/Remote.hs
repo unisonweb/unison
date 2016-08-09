@@ -104,7 +104,7 @@ data ConnectionSandbox key =
   ConnectionSandbox { allowIn :: key -> Multiplex Bool
                     , allowOut :: key -> Multiplex Bool }
 
-server :: (Ord h, Serial key, Serial t, Serial h)
+server :: (Ord h, Serial key, Serial t, Show t, Serial h)
        => C.Cryptography key t1 t2 t3 t4 hash Cleartext
        -> ConnectionSandbox key
        -> Env t h
@@ -143,7 +143,7 @@ server crypto allow env lang p = do
                     liftIO $ missingHashes (codestore env) (localDependencies lang t)
                   loop (Set.unions stillMissing)
 
-handle :: (Ord h, Serial key, Serial t, Serial h)
+handle :: (Ord h, Serial key, Serial t, Serial h, Show t)
        => C.Cryptography key t1 t2 t3 t4 hash Cleartext
        -> ConnectionSandbox key
        -> Env t h
@@ -151,35 +151,54 @@ handle :: (Ord h, Serial key, Serial t, Serial h)
        -> P.Protocol t hash h' h
        -> Remote t
        -> Multiplex ()
-handle crypto allow env lang p r = case r of
+handle crypto allow env lang p r = Mux.info ("[Remote.handle] " ++ show r) >> case r of
   Step (Local l) -> void $ runLocal l
   Step (At n r) -> transfer n r Nothing
   Bind (At n r) k -> transfer n r (Just k)
   Bind (Local l) k -> do
     arg <- runLocal l
-    r <- liftIO $ eval lang (apply lang k arg)
+    Mux.info $ "[Remote.handle] left-hand side of bind completed: " ++ show arg
+    r <- Mux.liftLogged "[Remote.handle] outer bind:" $ eval lang (apply lang k arg)
+    Mux.info $ "[Remote.handle] interpreted outer bind: " ++ show r
     case (unRemote lang r) of
       Just r -> handle crypto allow env lang p r
       Nothing -> fail "typechecker bug; function passed to Remote.bind did not return a Remote"
   where
-  transfer n t k = client crypto allow env p n r where
+  transfer n t k = do
+    Mux.info $ "[Remote.handle] transferring to node: " ++ show n
+    client crypto allow env p n r
+    where
     r = case k of
       Nothing -> Step (Local (Pure t))
       Just k -> Bind (Local (Pure t)) k
-  runLocal (Fork r) = Mux.fork (handle crypto allow env lang p r) $> unit lang
-  runLocal CreateChannel = channel lang . Channel . Mux.channelId <$> Mux.channel
-  runLocal Here = pure $ node lang (currentNode env)
+  runLocal (Fork r) = do
+    Mux.info $ "[Remote.handle] runLocal Fork"
+    Mux.fork (handle crypto allow env lang p r) $> unit lang
+  runLocal CreateChannel = do
+    Mux.info $ "[Remote.handle] runLocal CreateChannel"
+    channel lang . Channel . Mux.channelId <$> Mux.channel
+  runLocal Here = do
+    Mux.info $ "[Remote.handle] runLocal Here"
+    pure $ node lang (currentNode env)
   runLocal Spawn = do
+    Mux.info $ "[Remote.handle] runLocal Spawn"
     n <- Mux.requestTimed (Mux.seconds 5) (P._spawn p) B.empty
-    node lang <$> n
-  runLocal (Pure t) = liftIO $ eval lang t
+    n <- n
+    Mux.info $ "[Remote.handle] runLocal Spawn completed: " ++ show n
+    pure (node lang n)
+  runLocal (Pure t) = do
+    Mux.info $ "[Remote.handle] runLocal Pure"
+    liftIO $ eval lang t
   runLocal (Send (Channel cid) a) = do
+    Mux.info $ "[Remote.handle] runLocal Send " ++ show cid
     Mux.process1 (Mux.Packet cid (Put.runPutS (serialize a)))
     pure (unit lang)
   runLocal (ReceiveAsync chan@(Channel cid) (Seconds seconds)) = do
+    Mux.info $ "[Remote.handle] runLocal ReceiveAsync " ++ show (seconds, cid)
     _ <- Mux.receiveTimed (floor $ seconds * 1000 * 1000) ((Mux.Channel Mux.Type cid) :: Mux.Channel (Maybe B.ByteString))
     pure (remote lang (Step (Local (Receive chan))))
   runLocal (Receive (Channel cid)) = do
+    Mux.info $ "[Remote.handle] runLocal Receive " ++ show cid
     (recv,_) <- Mux.receiveCancellable (Mux.Channel Mux.Type cid)
     bytes <- recv
     case Get.runGetS deserialize bytes of

@@ -5,12 +5,12 @@
 
 module Unison.Runtime.Multiplex where
 
-import System.IO (Handle, stdin, stdout, hSetBinaryMode)
+import System.IO (Handle, stdin, stdout, hFlush, hSetBinaryMode)
 import Control.Applicative
 import Control.Concurrent.Async (Async)
 import Control.Concurrent.MVar
 import Control.Concurrent.STM as STM
-import Control.Exception (catch,SomeException,mask_)
+import Control.Exception (catch,throwIO,SomeException,mask_)
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Reader (ReaderT,runReaderT,MonadReader)
@@ -49,6 +49,11 @@ newtype Multiplex a = Multiplex (ReaderT Env IO a)
 run :: Env -> Multiplex a -> IO a
 run env (Multiplex go) = runReaderT go env
 
+liftLogged :: String -> IO a -> Multiplex a
+liftLogged msg action = ask >>= \env -> liftIO $ catch action (handle env) where
+  handle :: Env -> SomeException -> IO a
+  handle env ex = run env (info $ msg ++ " " ++ show ex) >> throwIO ex
+
 -- | Run the multiplexed computation using stdin and stdout, terminating
 -- after a period of inactivity exceeding sleepAfter. `rem` is prepended
 -- onto stdin.
@@ -73,10 +78,17 @@ runStandardIO info sleepAfter rem interrupt m = do
     bump
     atomically $ writeTQueue input Nothing
   writer <- Async.async . repeatWhile $ do
-    packet <- atomically $ Q.dequeue output :: IO (Maybe Packet)
+    packet <- atomically $ Q.tryDequeue output :: IO (Maybe (Maybe Packet))
+    packet <- case packet of
+      -- writer is saturated, don't bother flushing output buffer
+      Just packet -> pure packet
+      -- writer not saturated; flush output buffer to avoid latency and/or deadlock
+      Nothing -> hFlush stdout >> atomically (Q.dequeue output)
     case packet of
-      Nothing -> pure False
-      Just packet -> True <$ B.putStr (Put.runPutS (serialize packet)) <* bump
+      Nothing -> False <$ info "[Mux.runStandardIO] shutting down output thread"
+      Just packet -> do
+        info $ "[Mux.runStandardIO] sending packet@" ++ show (destination packet)
+        True <$ B.putStr (Put.runPutS (serialize packet)) <* bump
   watchdog <- Async.async . repeatWhile $ do
     activity0 <- (+) <$> readTVarIO activity <*> readTVarIO cba
     C.threadDelay sleepAfter

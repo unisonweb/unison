@@ -4,11 +4,13 @@ module Unison.NodeContainer where
 
 import Control.Concurrent (forkIO)
 import Control.Concurrent.Chan.Unagi
+import Control.Concurrent.STM.TSem
+import Control.Concurrent.STM (atomically)
 import Control.Exception
 import Control.Monad
 import Data.ByteString (ByteString)
 import Data.IORef
-import System.IO (hClose, hFlush, Handle)
+import System.IO (hClose, hFlush, hPutStrLn, stderr, Handle)
 import Unison.Runtime.Remote ()
 import qualified Control.Concurrent.Async as Async
 import qualified Data.ByteString as B
@@ -27,6 +29,11 @@ import qualified Unison.Runtime.Multiplex as Mux
 type Trie = Trie.Trie
 type DeleteProof = ByteString
 
+logger :: Handle -> IO (String -> IO ())
+logger h = do
+  sem <- atomically (newTSem 1)
+  pure $ \s -> atomically (waitTSem sem) >> (hPutStrLn h s `finally` atomically (signalTSem sem))
+
 make :: (Ord h, S.Serial h, S.Serial hash)
      => BS.BlockStore h
      -> (Remote.Node -> IO L.Lock)
@@ -39,6 +46,8 @@ make bs nodeLock p genNode launchNodeCmd = do
   (packetWrite, packetRead) <- newChan :: IO (InChan Mux.Packet, OutChan Mux.Packet)
   -- routing trie for packets; initially empty
   routing <- newIORef (Trie.empty :: Trie (ByteString -> IO ()))
+  info' <- logger stderr
+  let info msg = info' $ "[container] " ++ msg
   (writeChan packetWrite <$) . forkIO $
     let
       go = do
@@ -48,7 +57,7 @@ make bs nodeLock p genNode launchNodeCmd = do
         case Trie.lookup nodeId routes of
           -- route did not exist; either wake up a node, or drop the packet
           Nothing -> case Get.runGetS S.deserialize nodeId of
-            Left err -> (putStrLn $ "unable to decode node destination: " ++ show err) >> go
+            Left err -> (info $ "unable to decode node destination: " ++ show err) >> go
             Right node -> do
               h <- BS.resolve bs (nodeSeries node)
               do
@@ -61,7 +70,7 @@ make bs nodeLock p genNode launchNodeCmd = do
                   case lease of
                     Nothing -> pure ()
                     Just lease -> do
-                      putStrLn "waking up node"
+                      info "waking up node"
                       wakeup node [Mux.content packet] `finally` L.release lease
           Just dest -> safely (dest (Mux.content packet)) >> go
 
@@ -92,7 +101,7 @@ make bs nodeLock p genNode launchNodeCmd = do
               Nothing -> hFlush stdin >> force -- flush buffer whenever there's a pause
               Just bytes -> pure bytes -- we're saturating the channel, no need to flush manually
             let nodeBytes = Put.runPutS (S.serialize node)
-            putStrLn $ "[container] writing bytes " ++ show (B.length bytes)
+            info $ "writing bytes " ++ show (B.length bytes)
             safely $
               B.hPut stdin bytes `onException`
               writeChan packetWrite (Mux.Packet nodeBytes bytes)
@@ -141,10 +150,12 @@ make bs nodeLock p genNode launchNodeCmd = do
           processor <- Async.async . forever $ do
             nodePacket <- readChan fromNodeRead
             case nodePacket of
-              Nothing -> pure ()
-              Just packet -> case Trie.lookup (Mux.destination packet) routes of
-                Just handler -> safely $ handler (Mux.content packet) -- handle directly
-                Nothing -> writeChan packetWrite packet -- forwarded to main loop
+              Nothing -> info "worker shut down"
+              Just packet -> do
+                info $ "got packet@" ++ show (Mux.destination packet) ++ " from worker"
+                case Trie.lookup (Mux.destination packet) routes of
+                  Just handler -> safely $ handler (Mux.content packet) -- handle directly
+                  Nothing -> writeChan packetWrite packet -- forwarded to main loop
 
           _ <- forkIO $ do
             exitCode <- Process.waitForProcess process
@@ -159,7 +170,7 @@ make bs nodeLock p genNode launchNodeCmd = do
           pure ()
 
       safely :: IO () -> IO ()
-      safely action = catch action (handle True) where
+      safely action = catch action (handle False) where
         handle :: Bool -> SomeException -> IO ()
         handle False ex = putStrLn $ "Error: " ++ show ex
         handle _ _ = pure ()
