@@ -20,10 +20,13 @@ import Data.IORef
 import Data.Maybe
 import Data.Word
 import GHC.Generics
+import qualified Data.ByteString.Base64.URL as Base64
 import qualified Control.Concurrent as C
 import qualified Control.Concurrent.Async as Async
 import qualified Control.Monad.Reader as Reader
 import qualified Crypto.Random as Random
+import qualified Crypto.Hash as Hash
+import qualified Data.ByteArray as BA
 import qualified Data.ByteString as B
 import qualified Data.Bytes.Get as Get
 import qualified Data.Bytes.Put as Put
@@ -31,10 +34,13 @@ import qualified Data.Serialize.Get as Get
 import qualified STMContainers.Map as M
 import qualified Unison.Cryptography as C
 import qualified Unison.Runtime.Queue as Q
--- import Control.Concurrent.STM
 
-data Packet = Packet { destination :: !B.ByteString, content :: !B.ByteString } deriving (Generic,Show)
+data Packet = Packet { destination :: !B.ByteString, content :: !B.ByteString } deriving (Generic)
 instance Serial Packet
+
+instance Show Packet where
+  show (Packet d c) =
+    show $ Base64.encode (BA.convert $ (Hash.hash (d `mappend` c) :: Hash.Digest Hash.SHA1))
 
 type IsSubscription = Bool
 
@@ -88,7 +94,7 @@ runStandardIO info sleepAfter rem interrupt m = do
     case packet of
       Nothing -> False <$ info "[Mux.runStandardIO] shutting down output thread"
       Just packet -> do
-        info $ "[Mux.runStandardIO] sent packet@" ++ show (destination packet)
+        info $ "[Mux.runStandardIO] sent packet " ++ show packet
         True <$ bump
   watchdog <- Async.async . repeatWhile $ do
     activity0 <- (+) <$> readTVarIO activity <*> readTVarIO cba

@@ -223,8 +223,6 @@ client crypto allow env p recipient r = do
   menv <- Mux.ask
   connect <- pure . Mux.run menv $
     Mux.pipeInitiate crypto (P._eval p) (recipient, recipientKey) (currentNode env, universe env)
-  -- (send,recv,cipherstate@(encrypt,_)) <-
-  --  Mux.liftLogged "[Remote.client] connecting" connect
   (send,recv,cipherstate@(encrypt,_)) <-
     Mux.liftLogged "[Remote.client] connecting" $
       RM.lookupOrReplenish recipient connect (connections env)
@@ -238,7 +236,7 @@ client crypto allow env p recipient r = do
       go = do
         needs <- recv
         case needs of
-          Nothing -> fail "timeout"
+          Nothing -> pure ()
           Just Nothing -> pure () -- no other syncs requested, we're good
           Just (Just (hs, replyTo)) -> do
             hashes <- liftIO $ getHashes (codestore env) (Set.fromList hs)

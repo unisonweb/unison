@@ -50,15 +50,16 @@ make bs nodeLock p genNode launchNodeCmd = do
   let info msg = info' $ "[container] " ++ msg
   (writeChan packetWrite <$) . forkIO $
     let
-      go = do
+      go = forever $ do
         packet <- readChan packetRead
         routes <- readIORef routing
         let nodeId = Mux.destination packet
         case Trie.lookup nodeId routes of
           -- route did not exist; either wake up a node, or drop the packet
           Nothing -> case Get.runGetS S.deserialize nodeId of
-            Left err -> (info $ "unable to decode node destination: " ++ show err) >> go
+            Left err -> (info $ "unable to decode node destination: " ++ show err)
             Right node -> do
+              info $ "routing packet to " ++ show node
               h <- BS.resolve bs (nodeSeries node)
               do
               --case h of
@@ -70,9 +71,11 @@ make bs nodeLock p genNode launchNodeCmd = do
                   case lease of
                     Nothing -> pure ()
                     Just lease -> do
-                      info "waking up node"
+                      info $ "waking up node " ++ show node
                       wakeup node [Mux.content packet] `finally` L.release lease
-          Just dest -> safely (dest (Mux.content packet)) >> go
+          Just dest -> do
+            info "destination exists; routing"
+            safely (dest (Mux.content packet))
 
       nodeSeries node = BS.Series $ "node-" `mappend` Remote.publicKey node
 
@@ -152,10 +155,14 @@ make bs nodeLock p genNode launchNodeCmd = do
             case nodePacket of
               Nothing -> info "worker shut down"
               Just packet -> do
-                info $ "got packet@" ++ show (Mux.destination packet) ++ " from worker"
+                info $ "got packet " ++ show packet ++ " from worker"
                 case Trie.lookup (Mux.destination packet) routes of
-                  Just handler -> safely $ handler (Mux.content packet) -- handle directly
-                  Nothing -> writeChan packetWrite packet -- forwarded to main loop
+                  Just handler -> do
+                    info $ "found handler for packet"
+                    safely $ handler (Mux.content packet) -- handle directly
+                  Nothing -> do
+                    info $ "no existing handler for packet; routing to main loop"
+                    writeChan packetWrite packet -- forwarded to main loop
 
           _ <- forkIO $ do
             exitCode <- Process.waitForProcess process
