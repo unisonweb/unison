@@ -31,6 +31,7 @@ import qualified Data.ByteString as B
 import qualified Data.Bytes.Get as Get
 import qualified Data.Bytes.Put as Put
 import qualified Data.Serialize.Get as Get
+import qualified Data.Text as Text
 import qualified STMContainers.Map as M
 import qualified Unison.Cryptography as C
 import qualified Unison.Runtime.Queue as Q
@@ -155,7 +156,8 @@ process1 (Packet destination content) = do
 info :: String -> Multiplex ()
 info msg = do
   (_, _, _, log) <- ask
-  liftIO $ log msg
+  let !msg0 = Text.pack msg -- greatly decrease chance of interleaving of output
+  liftIO $ log (Text.unpack msg0)
 
 process :: IO (Maybe Packet) -> Multiplex ()
 process recv = do
@@ -315,9 +317,7 @@ send chan a = send' chan (pure a)
 send' :: Serial a => Channel a -> STM a -> Multiplex ()
 send' (Channel _ key) a = do
   ~(send,_,_,_) <- ask
-  info "[Mux.send] sending..."
-  liftLogged "[Mux.send]" . atomically $ send (Packet key . Put.runPutS . serialize <$> a)
-  info "[Mux.send] sent"
+  liftIO . atomically $ send (Packet key . Put.runPutS . serialize <$> a)
 
 receiveCancellable :: Serial a => Channel a -> Multiplex (Multiplex a, Multiplex ())
 receiveCancellable (Channel _ key) = do
