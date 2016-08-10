@@ -165,13 +165,13 @@ process recv = do
     case packet of
       Nothing -> info "[Mux.process] EOF" >> pure False
       Just (Packet destination content) -> do
-        info $ "[Mux.process] packet sent to " ++ show (Base64.encode destination)
         callback <- atomically $ M.lookup destination cbs
         case callback of
           Nothing -> do
-            info $ "[Mux.process] Dropped packet for destination: " ++ show (Base64.encode destination)
+            info $ "[Mux.process] dropped packet @ " ++ show (Base64.encode destination)
             pure True
           Just callback -> do
+            info $ "[Mux.process] packet delivered @ " ++ show (Base64.encode destination)
             bumpActivity' cba
             callback content
             pure True
@@ -423,7 +423,9 @@ pipeInitiate crypto rootChan (recipient,recipientKey) u = do
   handshake doneHandshake encrypt decrypt chans handshakeSub connectedSub
   where
   handshake doneHandshake encrypt decrypt cs@(chanh,chanc) (fetchh,cancelh) (fetchc,cancelc) =
-    encryptAndSendTo recipient (erase rootChan) encrypt (u,cs) >> go
+    encryptAndSendTo recipient (erase rootChan) encrypt (u,cs) >>
+    fetchh >> -- sync packet, ignored, but lets us know recipient is listening
+    go
     where
     recv = untilDefined $ do
       bytes <- fetchc
@@ -471,6 +473,8 @@ pipeRespond crypto allow _ extractSender payload = do
   let sender = extractSender u
   handshakeSub <- subscribeTimed handshakeTimeout handshakeChan
   connectedSub <- subscribeTimed connectionTimeout connectedChan
+  ok <- liftIO $ C.randomBytes crypto 8
+  nest sender $ send (Channel Type $ channelId handshakeChan) ok
   handshake doneHandshake senderKey encrypt decrypt chans handshakeSub connectedSub sender u
   where
   handshake doneHandshake senderKey encrypt decrypt (chanh,chanc) (fetchh,cancelh) (fetchc,cancelc) sender u = go
