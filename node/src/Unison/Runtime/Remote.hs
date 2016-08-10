@@ -117,15 +117,17 @@ server crypto allow env lang p = do
       Just initialPayload -> (True <$) . Mux.fork $ do -- fork off handling each connection
         (peerKey, (peer,peeru), send, recv, cipherstate@(encrypt,_)) <-
           Mux.pipeRespond crypto (allowIn allow) (P._eval p) fst initialPayload
-        guard $ Put.runPutS (serialize peerKey) == publicKey peer
+        -- guard $ Put.runPutS (serialize peerKey) == publicKey peer
         Mux.repeatWhile $ do
           r <- recv
+          Mux.info $ "[Remote.server] eval " ++ show r
           case r of
             Nothing -> pure False
             Just (r, ackChan) -> do
-              Mux.encryptAndSendTo' peer ackChan encrypt P.Ack
+              Mux.encryptAndSendTo' peer ackChan encrypt (P.Ack (publicKey peer))
               let needs = localDependencies lang (remote lang r)
               when (universe env /= peeru) $ loop needs
+              Mux.info $ "[Remote.server] forking off handler for " ++ show r
               True <$ Mux.fork (handle crypto allow env lang p r) -- fork off evaluation of each request
               where
               fetch hs = do

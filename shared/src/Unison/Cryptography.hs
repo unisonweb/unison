@@ -34,7 +34,7 @@ noop key = Cryptography key gen hash sign verify randomBytes encryptAsymmetric d
   -- include the key along with each packet
   pipeInitiator _ = do
     done <- atomically $ newTVar False
-    let keyfill = key `mappend` B.replicate (32 - B.length key) 0
+    let keyfill = key `mappend` B.replicate (64 - B.length key) 0
     pure (readTVar done, \bs -> writeTVar done True $> (keyfill `mappend` bs), pure)
   -- strip out the key the begins each packet
   pipeResponder = do
@@ -42,9 +42,9 @@ noop key = Cryptography key gen hash sign verify randomBytes encryptAsymmetric d
     pure (isJust <$> readTVar peerKey, readTVar peerKey, pure, read peerKey)
     where
     read peerKey bytes = do
-      let k = B.take 32 bytes
+      let k = B.take 64 bytes
       writeTVar peerKey (Just k)
-      pure $ B.drop 32 bytes
+      pure $ B.drop 64 bytes
 
   finish h64 = (LB.toStrict . Builder.toLazyByteString . Builder.word64LE . Murmur.asWord64) h64
 

@@ -18,7 +18,7 @@ import qualified Unison.Runtime.Multiplex as Mux
 
 instance Serial Series
 
-data Ack = Ack deriving Generic
+data Ack = Ack ByteString deriving Generic
 instance Serial Ack
 
 destroyedMessage :: ByteString

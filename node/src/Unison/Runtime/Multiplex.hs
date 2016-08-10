@@ -40,7 +40,7 @@ instance Serial Packet
 
 instance Show Packet where
   show (Packet d c) =
-    show $ Base64.encode (BA.convert $ (Hash.hash (d `mappend` c) :: Hash.Digest Hash.SHA1))
+    show $ (Base64.encode d, Base64.encode . BA.convert $ (Hash.hash c :: Hash.Digest Hash.SHA1))
 
 type IsSubscription = Bool
 
@@ -77,7 +77,7 @@ runStandardIO info sleepAfter rem interrupt m = do
   let bump = atomically $ modifyTVar' activity (1+)
   _ <- Async.async $ do interrupt; atomically $ writeTQueue input Nothing
   reader <- Async.async $ do
-    let write pk n = bump >> atomically (writeTQueue input (Just pk))
+    let write pk _ = bump >> atomically (writeTQueue input (Just pk))
     deserializeHandle stdin rem write
     bump
     atomically $ writeTQueue input Nothing
@@ -92,7 +92,7 @@ runStandardIO info sleepAfter rem interrupt m = do
     case packet of
       Nothing -> False <$ info "[Mux.runStandardIO] shutting down output thread"
       Just packet -> do
-        info $ "[Mux.runStandardIO] sent packet " ++ show packet
+        info $ "[Mux.runStandardIO] output packet " ++ show packet
         True <$ bump
   watchdog <- Async.async . repeatWhile $ do
     activity0 <- (+) <$> readTVarIO activity <*> readTVarIO cba
@@ -283,15 +283,15 @@ encryptAndSendTo
   => node -> Channel B.ByteString -> (Cleartext -> STM Ciphertext) -> a
   -> Multiplex ()
 encryptAndSendTo recipient chan encrypt a = do
-  let bytes = Put.runPutS (serialize a)
-  bytes `seq` nest recipient (send' chan (encrypt bytes))
+  let !bytes = Put.runPutS (serialize a)
+  nest recipient (send' chan (encrypt bytes))
 
 encryptAndSendTo'
   :: (Serial a, Serial node)
   => node -> Channel a -> (Cleartext -> STM Ciphertext) -> a
   -> Multiplex ()
 encryptAndSendTo' recipient (Channel _ chan) encrypt a =
-  encryptAndSendTo' recipient (Channel Type chan) encrypt a
+  encryptAndSendTo recipient (Channel Type chan) encrypt a
 
 fork :: Multiplex a -> Multiplex (Async a)
 fork m = do
@@ -315,7 +315,9 @@ send chan a = send' chan (pure a)
 send' :: Serial a => Channel a -> STM a -> Multiplex ()
 send' (Channel _ key) a = do
   ~(send,_,_,_) <- ask
-  liftIO . atomically $ send (Packet key . Put.runPutS . serialize <$> a)
+  info "[Mux.send] sending..."
+  liftLogged "[Mux.send]" . atomically $ send (Packet key . Put.runPutS . serialize <$> a)
+  info "[Mux.send] sent"
 
 receiveCancellable :: Serial a => Channel a -> Multiplex (Multiplex a, Multiplex ())
 receiveCancellable (Channel _ key) = do
@@ -502,6 +504,7 @@ pipeRespond crypto allow _ extractSender payload = do
         True -> do
           -- encryptAndSendTo sender chanh encrypt () -- todo: not sure this flush needed
           Just senderKey <- liftIO $ atomically senderKey
+          info $ "[Mux.pipeRespond] completed and listening on " ++ show chanc
           pure (senderKey, u, encryptAndSendTo sender chanc encrypt, recv, (encrypt,decrypt))
         False -> do
           nest sender $ send' chanh (encrypt B.empty)
