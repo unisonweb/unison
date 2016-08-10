@@ -7,11 +7,10 @@ module Unison.NodeWorker where
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TSem
 import Control.Monad.IO.Class
-import Control.Exception (finally)
 import Data.Bytes.Serial (Serial, serialize, deserialize)
 import Data.Serialize.Get (Get)
 import GHC.Generics
-import System.IO (stdin, stderr, hSetBinaryMode, hPutStrLn, Handle)
+import System.IO (stdin, hSetBinaryMode)
 import Unison.BlockStore (BlockStore(..))
 import Unison.Cryptography (Cryptography)
 import Unison.Hash.Extra ()
@@ -20,19 +19,17 @@ import qualified Data.ByteString as B
 import qualified Data.Bytes.Get as Get
 import qualified Data.Bytes.Put as Put
 import qualified Data.Serialize.Get as Get
+import qualified Data.ByteString.Base64.URL as Base64
+import qualified Unison.Config as Config
 import qualified Unison.Cryptography as C
 import qualified Unison.NodeProtocol as P
+import qualified Unison.Remote as Remote
 import qualified Unison.Runtime.Multiplex as Mux
 import qualified Unison.Runtime.Remote as Remote
-import qualified Unison.Remote as Remote
+import qualified Unison.Util.Logger as L
 
 data Keypair k = Keypair { public :: k, private :: B.ByteString } deriving Generic
 instance Serial k => Serial (Keypair k)
-
-logger :: Handle -> IO (String -> IO ())
-logger h = do
-  sem <- atomically (newTSem 1)
-  pure $ \s -> atomically (waitTSem sem) >> (hPutStrLn h s `finally` atomically (signalTSem sem))
 
 make :: ( BA.ByteArrayAccess key
         , Serial signature
@@ -50,23 +47,20 @@ make :: ( BA.ByteArrayAccess key
              -> IO (Remote.Language term thash, term -> IO (Either String ())))
      -> IO ()
 make protocol mkCrypto makeSandbox = do
-  log <- logger stderr
-  let die msg = liftIO $ log msg >> error ""
-  liftIO . log $ "[worker] initializing... "
+  logger <- L.scope "worker" <$> Config.loggerStandardError
+  let die msg = liftIO $ L.error logger msg >> error ""
+  L.info logger $ "initializing... "
   hSetBinaryMode stdin True
   (privateKey, _, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize B.empty)
-  liftIO . log $ "[worker] loaded keypair... "
   (node, _, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize rem)
-  liftIO . log $ "[worker] loaded node: " ++ show node
+  logger <- pure $ L.scope (show . Base64.encode $ Remote.publicKey node) logger
   (universe, _, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize rem)
-  liftIO . log $ "[worker] loaded universe: " ++ show universe
   (sandbox, _, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize rem)
-  liftIO . log $ "[worker] loaded sandbox... "
   publicKey <- either die pure $ Get.runGetS deserialize (Remote.publicKey node)
   let keypair = Keypair publicKey privateKey
-  liftIO . log $ "[worker] remaining bytes: " ++ show (B.length rem)
+  L.debug logger $ "remaining bytes: " ++ show (B.length rem)
   interrupt <- atomically $ newTSem 0
-  Mux.runStandardIO log (Mux.seconds 5) rem (atomically $ waitTSem interrupt) $ do
+  Mux.runStandardIO logger (Mux.seconds 5) rem (atomically $ waitTSem interrupt) $ do
     blockStore <- P.blockStoreProxy protocol
     makeSandbox <- either die pure $ Get.runGetS makeSandbox sandbox
     let crypto = mkCrypto keypair
@@ -75,27 +69,28 @@ make protocol mkCrypto makeSandbox = do
     -- todo: load this from persistent store also
     connectionSandbox <- pure $ Remote.ConnectionSandbox (\_ -> pure True) (\_ -> pure True)
     env <- liftIO $ Remote.makeEnv universe node blockStore
-    liftIO . log $ "[worker] ... done initializing"
+    Mux.info $ "... done initializing"
     _ <- Remote.server crypto connectionSandbox env sandbox protocol
     _ <- do
       (prog, cancel) <- Mux.subscribeTimed (Mux.seconds 60) (P._localEval protocol)
-      Mux.fork . Mux.repeatWhile $ do
+      Mux.fork . Mux.scope "_localEval" . Mux.repeatWhile $ do
         e <- prog
         case e of
           Nothing -> False <$ cancel
           Just r -> do
-            liftIO . log $ "[worker] _localEval got a term " ++ show r
+            Mux.debug $ "got a term " ++ show r
             e <- liftIO . typecheck $ r
             case e of
               Left err -> do
-                liftIO . log $ "[worker] _localEval typechecking failed:\n" ++ err
+                Mux.warn $ "typechecking failed on: " ++ show r
+                Mux.warn $ "typechecking error:\n" ++ err
                 pure True
               Right _ -> do
-                liftIO . log $ "[worker] typechecked"
+                Mux.debug "typechecked"
                 r <- liftIO $ Remote.eval sandbox r
-                liftIO . log $ "[worker] evaluated to " ++ show r
+                Mux.debug $ "evaluated to " ++ show r
                 case Remote.unRemote sandbox r of
-                  Nothing -> liftIO (log "[worker] _localEval received a non-Remote") >> pure True
+                  Nothing -> True <$ (Mux.warn $ "received a non-Remote: " ++ show r)
                   Just r -> True <$ Mux.fork (Remote.handle crypto connectionSandbox env sandbox protocol r)
     _ <- do
       (destroy, cancel) <- Mux.subscribeTimed (Mux.seconds 60) (P._destroyIn protocol)

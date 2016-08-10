@@ -4,13 +4,11 @@ module Unison.NodeContainer where
 
 import Control.Concurrent (forkIO)
 import Control.Concurrent.Chan.Unagi
-import Control.Concurrent.STM.TSem
-import Control.Concurrent.STM (atomically)
 import Control.Exception
 import Control.Monad
 import Data.ByteString (ByteString)
 import Data.IORef
-import System.IO (hClose, hFlush, hPutStrLn, stderr, Handle)
+import System.IO (hClose, hFlush, Handle)
 import Unison.Runtime.Remote ()
 import qualified Control.Concurrent.Async as Async
 import qualified Data.ByteString as B
@@ -21,33 +19,29 @@ import qualified Data.Trie as Trie
 import qualified System.Exit as Exit
 import qualified System.Process as Process
 import qualified Unison.BlockStore as BS
+import qualified Unison.Config as Config
 import qualified Unison.NodeProtocol as P
 import qualified Unison.Remote as Remote
 import qualified Unison.Runtime.Lock as L
 import qualified Unison.Runtime.Multiplex as Mux
+import qualified Unison.Util.Logger as L
 
 type Trie = Trie.Trie
 type DeleteProof = ByteString
-
-logger :: Handle -> IO (String -> IO ())
-logger h = do
-  sem <- atomically (newTSem 1)
-  pure $ \s -> atomically (waitTSem sem) >> (hPutStrLn h s `finally` atomically (signalTSem sem))
 
 make :: (Ord h, S.Serial h, S.Serial hash)
      => BS.BlockStore h
      -> (Remote.Node -> IO L.Lock)
      -> P.Protocol term hash h thash
      -> (ByteString -> IO Remote.Node)
-     -> (Remote.Node -> IO (Handle, Handle, Process.ProcessHandle, DeleteProof))
+     -> (Remote.Node -> IO (Handle, Handle, Handle, Process.ProcessHandle, DeleteProof))
      -> IO (Mux.Packet -> IO ())
 make bs nodeLock p genNode launchNodeCmd = do
+  logger <- L.scope "container" <$> Config.loggerStandardOut
   -- packet queue, processed by main `go` loop below
   (packetWrite, packetRead) <- newChan :: IO (InChan Mux.Packet, OutChan Mux.Packet)
   -- routing trie for packets; initially empty
   routing <- newIORef (Trie.empty :: Trie (ByteString -> IO ()))
-  info' <- logger stderr
-  let info msg = info' $ "[container] " ++ msg
   (writeChan packetWrite <$) . forkIO $
     let
       go = forever $ do
@@ -57,9 +51,9 @@ make bs nodeLock p genNode launchNodeCmd = do
         case Trie.lookup nodeId routes of
           -- route did not exist; either wake up a node, or drop the packet
           Nothing -> case Get.runGetS S.deserialize nodeId of
-            Left err -> (info $ "unable to decode node destination: " ++ show err)
+            Left err -> L.warn logger $ "unable to decode node destination: " ++ show err
             Right node -> do
-              info $ "routing packet to " ++ show node
+              L.debug logger $ "routing packet to " ++ show node
               h <- BS.resolve bs (nodeSeries node)
               do
               --case h of
@@ -71,10 +65,10 @@ make bs nodeLock p genNode launchNodeCmd = do
                   case lease of
                     Nothing -> pure ()
                     Just lease -> do
-                      info $ "waking up node " ++ show node
+                      L.info logger $ "waking up node " ++ show node
                       wakeup node [Mux.content packet] `finally` L.release lease
           Just dest -> do
-            info "destination exists; routing"
+            L.debug logger "destination exists; routing"
             safely (dest (Mux.content packet))
 
       nodeSeries node = BS.Series $ "node-" `mappend` Remote.publicKey node
@@ -90,8 +84,9 @@ make bs nodeLock p genNode launchNodeCmd = do
         let removeRoute = atomicModifyIORef' routing $ \t -> (Trie.delete (Remote.publicKey node) t, ())
 
         -- spin up a new process for the node, which we will communicate with over standard input/output
-        void . forkIO . handle (\e -> putStrLn (show (e :: SomeException)) >> removeRoute) $ do
-          (stdin, stdout, process, deleteProof) <- launchNodeCmd node
+        void . forkIO . handle (\e -> L.warn logger (show (e :: SomeException)) >> removeRoute) $ do
+          (stdin, stdout, stderr, process, deleteProof) <- launchNodeCmd node
+          L.logHandleAt logger L.errorLevel stderr
           -- read from the process as quickly as possible, buffering input in a queue
           (fromNodeWrite, fromNodeRead) <- newChan
             :: IO (InChan (Maybe Mux.Packet), OutChan (Maybe Mux.Packet))
@@ -104,7 +99,7 @@ make bs nodeLock p genNode launchNodeCmd = do
               Nothing -> hFlush stdin >> force -- flush buffer whenever there's a pause
               Just bytes -> pure bytes -- we're saturating the channel, no need to flush manually
             let nodeBytes = Put.runPutS (S.serialize node)
-            info $ "writing bytes " ++ show (B.length bytes)
+            L.trace logger $ "writing bytes " ++ show (B.length bytes)
             safely $
               B.hPut stdin bytes `onException`
               writeChan packetWrite (Mux.Packet nodeBytes bytes)
@@ -153,15 +148,15 @@ make bs nodeLock p genNode launchNodeCmd = do
           processor <- Async.async . forever $ do
             nodePacket <- readChan fromNodeRead
             case nodePacket of
-              Nothing -> info "worker shut down"
+              Nothing -> L.info logger "worker shut down"
               Just packet -> do
-                info $ "got packet " ++ show packet ++ " from worker"
+                L.debug logger $ "got packet " ++ show packet ++ " from worker"
                 case Trie.lookup (Mux.destination packet) routes of
                   Just handler -> do
-                    info $ "found handler for packet"
+                    L.debug logger $ "found handler for packet"
                     safely $ handler (Mux.content packet) -- handle directly
                   Nothing -> do
-                    info $ "no existing handler for packet; routing to main loop"
+                    L.debug logger $ "no existing handler for packet; routing to main loop"
                     writeChan packetWrite packet -- forwarded to main loop
 
           _ <- forkIO $ do
@@ -179,6 +174,6 @@ make bs nodeLock p genNode launchNodeCmd = do
       safely :: IO () -> IO ()
       safely action = catch action (handle False) where
         handle :: Bool -> SomeException -> IO ()
-        handle False ex = putStrLn $ "Error: " ++ show ex
+        handle False ex = L.warn logger $ "Error: " ++ show ex
         handle _ _ = pure ()
     in go

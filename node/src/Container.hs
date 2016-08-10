@@ -39,7 +39,7 @@ main = Mux.uniqueChannel >>= \rand ->
       publicKey <- Put.runPutS . serialize <$> rand
       pure $ R.Node "localhost" publicKey
     launchNode node = do
-      (Just stdin, Just stdout, _, handle) <- P.createProcess_ "node-worker" cmd
+      (Just stdin, Just stdout, Just stderr, handle) <- P.createProcess_ "node-worker" cmd
       hSetBinaryMode stdin True
       B.hPut stdin . Put.runPutS $ do
         serialize ("ignored-private-key" :: B.ByteString)
@@ -48,12 +48,11 @@ main = Mux.uniqueChannel >>= \rand ->
         serialize B.empty -- no sandbox specification
       hFlush stdin
       let proof = "not-real-delete-proof"
-      pure (stdin, stdout, handle, proof)
+      pure (stdin, stdout, stderr, handle, proof)
     cmd = (P.shell "stack exec worker") {
         P.std_out = P.CreatePipe,
         P.std_in = P.CreatePipe,
-        P.std_err = P.Inherit }
-        -- P.std_err = P.UseHandle stdin }
+        P.std_err = P.CreatePipe }
   in do
     fileBS <- fileBS
     send <- C.make fileBS locker protocol mkNode launchNode
