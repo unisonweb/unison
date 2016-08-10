@@ -149,7 +149,9 @@ handle :: (Ord h, Serial key, Serial t, Serial h, Show t)
        -> Remote t
        -> Multiplex ()
 handle crypto allow env lang p r = Mux.info ("[Remote.handle] " ++ show r) >> case r of
-  Step (Local l) -> void $ runLocal l
+  Step (Local l) -> do
+    r <- runLocal l
+    Mux.info $ "[Remote.handle] computation completed with result: " ++ show r
   Step (At n r) -> transfer n r Nothing
   Bind (At n r) k -> transfer n r (Just k)
   Bind (Local l) k -> do

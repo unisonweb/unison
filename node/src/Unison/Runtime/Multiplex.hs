@@ -77,9 +77,7 @@ runStandardIO info sleepAfter rem interrupt m = do
   let bump = atomically $ modifyTVar' activity (1+)
   _ <- Async.async $ do interrupt; atomically $ writeTQueue input Nothing
   reader <- Async.async $ do
-    let write pk n = bump >> info ("[Mux.runStandardIO] read " ++ show n ++ " bytes")
-                          >> info ("[Mux.runStandardIO] sending to " ++ show (destination pk))
-                          >> atomically (writeTQueue input (Just pk))
+    let write pk n = bump >> atomically (writeTQueue input (Just pk))
     deserializeHandle stdin rem write
     bump
     atomically $ writeTQueue input Nothing
@@ -151,7 +149,7 @@ process1 (Packet destination content) = do
   (_, Callbacks cbs cba, _, info) <- ask
   callback <- liftIO . atomically $ M.lookup destination cbs
   liftIO $ case callback of
-    Nothing -> info $ "Dropped packet for destination: " ++ show destination
+    Nothing -> info $ "Dropped packet for destination: " ++ show (Base64.encode destination)
     Just callback -> bumpActivity' cba >> callback content
 
 info :: String -> Multiplex ()
@@ -167,11 +165,11 @@ process recv = do
     case packet of
       Nothing -> info "[Mux.process] EOF" >> pure False
       Just (Packet destination content) -> do
-        info $ "[Mux.process] packet sent to " ++ show destination
+        info $ "[Mux.process] packet sent to " ++ show (Base64.encode destination)
         callback <- atomically $ M.lookup destination cbs
         case callback of
           Nothing -> do
-            info $ "[Mux.process] Dropped packet for destination: " ++ show destination
+            info $ "[Mux.process] Dropped packet for destination: " ++ show (Base64.encode destination)
             pure True
           Just callback -> do
             bumpActivity' cba
@@ -204,6 +202,8 @@ callbacks0 :: STM Callbacks
 callbacks0 = Callbacks <$> M.new <*> newTVar 0
 
 data Channel a = Channel (Type a) B.ByteString deriving Generic
+instance Show (Channel a) where
+  show = show . Base64.encode . channelId
 
 newtype EncryptedChannel u o i = EncryptedChannel (Channel B.ByteString) deriving Generic
 instance Serial (EncryptedChannel u o i)
@@ -418,7 +418,9 @@ pipeInitiate crypto rootChan (recipient,recipientKey) u = do
   connectedChan <- channel
   handshakeSub <- subscribeTimed handshakeTimeout handshakeChan
   connectedSub <- subscribeTimed connectionTimeout connectedChan
-  handshake doneHandshake encrypt decrypt (handshakeChan,connectedChan) handshakeSub connectedSub
+  let chans = (handshakeChan,connectedChan)
+  info $ "[Mux.pipeInitiate] handshake channels " ++ show chans
+  handshake doneHandshake encrypt decrypt chans handshakeSub connectedSub
   where
   handshake doneHandshake encrypt decrypt cs@(chanh,chanc) (fetchh,cancelh) (fetchc,cancelc) =
     encryptAndSendTo recipient (erase rootChan) encrypt (u,cs) >> go
@@ -438,7 +440,7 @@ pipeInitiate crypto rootChan (recipient,recipientKey) u = do
       case ready of
         True -> do
           info "[Mux.pipeInitiate] handshake complete"
-          encryptAndSendTo recipient chanh encrypt () -- todo: not sure this flush needed
+          -- encryptAndSendTo recipient chanh encrypt () -- todo: not sure this flush needed
           pure (encryptAndSendTo recipient chanc encrypt, recv, (encrypt,decrypt))
         False -> do
           info "[Mux.pipeInitiate] handshake round trip... "
@@ -462,8 +464,10 @@ pipeRespond
   -> Multiplex (key, u, Maybe o -> Multiplex (), Multiplex (Maybe i), CipherState)
 pipeRespond crypto allow _ extractSender payload = do
   (doneHandshake, senderKey, encrypt, decrypt) <- liftIO $ C.pipeResponder crypto
-  bytes <- (liftIO . atomically . decrypt) payload
+  info $ "[Mux.pipeRespond] decrypting initial payload"
+  bytes <- (liftLogged "[Mux.pipeRespond] decrypt" . atomically . decrypt) payload
   (u, chans@(handshakeChan,connectedChan)) <- either fail pure $ Get.runGetS deserialize bytes
+  info $ "[Mux.pipeRespond] handshake channels: " ++ show chans
   let sender = extractSender u
   handshakeSub <- subscribeTimed handshakeTimeout handshakeChan
   connectedSub <- subscribeTimed connectionTimeout connectedChan
@@ -492,7 +496,7 @@ pipeRespond crypto allow _ extractSender payload = do
       checkSenderKey
       case ready of
         True -> do
-          encryptAndSendTo sender chanh encrypt () -- todo: not sure this flush needed
+          -- encryptAndSendTo sender chanh encrypt () -- todo: not sure this flush needed
           Just senderKey <- liftIO $ atomically senderKey
           pure (senderKey, u, encryptAndSendTo sender chanc encrypt, recv, (encrypt,decrypt))
         False -> do
