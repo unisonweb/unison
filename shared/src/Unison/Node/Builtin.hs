@@ -98,15 +98,15 @@ makeBuiltins whnf =
      , let r = R.Builtin "Number.divide"
        in (r, Just (numeric2 (Term.ref r) (/)), numOpTyp, opl 5 "/")
      , let r = R.Builtin "Number.greaterThan"
-       in (r, Just (numericCompare (Term.ref r) (>)), numOpTyp, opl 3 ">")
+       in (r, Just (numericCompare (Term.ref r) (>)), numCompareTyp, opl 3 ">")
      , let r = R.Builtin "Number.lessThan"
-       in (r, Just (numericCompare (Term.ref r) (<)), numOpTyp, opl 3 "<")
+       in (r, Just (numericCompare (Term.ref r) (<)), numCompareTyp, opl 3 "<")
      , let r = R.Builtin "Number.greaterThanOrEqual"
-       in (r, Just (numericCompare (Term.ref r) (>=)), numOpTyp, opl 3 ">=")
+       in (r, Just (numericCompare (Term.ref r) (>=)), numCompareTyp, opl 3 ">=")
      , let r = R.Builtin "Number.lessThanOrEqual"
-       in (r, Just (numericCompare (Term.ref r) (<=)), numOpTyp, opl 3 "<=")
+       in (r, Just (numericCompare (Term.ref r) (<=)), numCompareTyp, opl 3 "<=")
      , let r = R.Builtin "Number.equal"
-       in (r, Just (numericCompare (Term.ref r) (==)), numOpTyp, opl 3 "==")
+       in (r, Just (numericCompare (Term.ref r) (==)), numCompareTyp, opl 3 "==")
 
      -- remote computations
      , let r = R.Builtin "Remote.at"
@@ -242,6 +242,8 @@ alignmentT :: Ord v => Type v
 alignmentT = Type.ref (R.Builtin "Alignment")
 numOpTyp :: Type V
 numOpTyp = unsafeParseType "Number -> Number -> Number"
+numCompareTyp :: Type V
+numCompareTyp = unsafeParseType "Number -> Number -> Boolean"
 strOpTyp :: Type V
 strOpTyp = unsafeParseType "Text -> Text -> Text"
 unitT :: Ord v => Type v
