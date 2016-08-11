@@ -44,6 +44,7 @@ eval env = Eval whnf step
       E.Ref' h -> case M.lookup h env of
         Just op | arity op == 0 -> call op []
         _ -> pure e
+      E.App' (E.LetRecNamed' bs body) x -> step resolveRef (E.letRec bs (body `E.app` x))
       E.App' f x -> do
         f' <- E.link resolveRef f
         e' <- reduce f' [x]
@@ -54,18 +55,23 @@ eval env = Eval whnf step
         maybe (pure f) pure e
       E.Let1' binding body -> step resolveRef (ABT.bind body binding)
       E.LetRecNamed' bs body -> step resolveRef (ABT.substs substs body) where
-        substs = [ (v, ABT.subst v (E.letRec bs (E.var v)) b) | (v,b) <- bs ]
+        expandBinding v (E.LamNamed' name body) = E.lam name (expandBinding v body)
+        expandBinding v body = ABT.subst v (E.letRec bs (E.var v)) body
+        substs = [ (v, expandBinding v b) | (v,b) <- bs ]
       _ -> pure e
 
     whnf resolveRef e = case e of
       E.Ref' h -> case M.lookup h env of
         Just op | arity op == 0 -> call op []
         _ -> pure e
+      E.App' (E.LetRecNamed' bs body) x -> whnf resolveRef (E.letRec bs (body `E.app` x))
       E.App' f x -> do
         f' <- E.link resolveRef f
         e' <- reduce f' [x]
         maybe (pure e) (whnf resolveRef) e'
       E.Let1' binding body -> whnf resolveRef (ABT.bind body binding)
       E.LetRecNamed' bs body -> whnf resolveRef (ABT.substs substs body) where
-        substs = [ (v, ABT.subst v (E.letRec bs (E.var v)) b) | (v,b) <- bs ]
+        expandBinding v (E.LamNamed' name body) = E.lam name (expandBinding v body)
+        expandBinding v body = ABT.subst v (E.letRec bs (E.var v)) body
+        substs = [ (v, expandBinding v b) | (v,b) <- bs ]
       _ -> pure e

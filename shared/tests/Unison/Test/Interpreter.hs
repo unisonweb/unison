@@ -24,6 +24,8 @@ tests = withResource Common.node (\_ -> pure ()) $ \node ->
       , t "1 <= 1" "True"
       , t "1 >= 1" "True"
       , t "let rec fac n = if (n == 0) 1 (n * fac (n - 1)) in fac 5" "120"
+      , t "let rec ping n = if (n >= 10) n (pong (n + 1)); pong n = ping (n + 1) in ping 0"
+          "10"
       ]
     t uneval eval = testCase (uneval ++ " ⟹  " ++ eval) $ do
       (node, _) <- node
