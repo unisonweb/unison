@@ -9,7 +9,10 @@ import System.IO (Handle, stdin, stdout, hFlush, hSetBinaryMode)
 import Control.Applicative
 import Control.Concurrent.Async (Async)
 import Control.Concurrent.MVar
-import Control.Concurrent.STM as STM
+import Control.Concurrent.STM (atomically, STM)
+import Control.Concurrent.STM.TVar
+import Control.Concurrent.STM.TMVar
+import Control.Concurrent.STM.TQueue
 import Control.Exception (catch,throwIO,SomeException,mask_)
 import Control.Monad
 import Control.Monad.IO.Class
@@ -380,27 +383,28 @@ timeout micros m = do
 subscribeTimed :: Serial a => Microseconds -> Channel a -> Multiplex (Multiplex (Maybe a), Multiplex ())
 subscribeTimed micros chan = do
   (fetch, cancel) <- subscribe chan
-  env <- ask
+  result <- liftIO . atomically $ newEmptyTMVar
   activity <- liftIO . atomically . newTVar $ False
-  alive <- liftIO . atomically . newTVar $ True
   fetch' <- pure $ do
-    liftIO . atomically $ writeTVar activity True
-    ok <- liftIO $ readTVarIO alive
-    case ok of
-      True -> Just <$> fetch
-      False -> pure Nothing
-  let cleanup = cancel >> (liftIO . atomically . writeTVar alive $ False)
-  watchdog <- liftIO . C.forkIO . run env $ loop activity cleanup
-  cancel' <- pure $ cleanup >> liftIO (C.killThread watchdog)
+    void . fork $ do
+      r <- fetch
+      liftIO . atomically $ do
+        putTMVar result (Just r)
+        writeTVar activity True
+    liftIO . atomically $ takeTMVar result
+  watchdog <- do
+    env <- ask
+    liftIO . C.forkIO $ loop activity result (run env cancel)
+  cancel' <- pure $ cancel >> liftIO (C.killThread watchdog)
   pure (fetch', cancel')
   where
-  loop activity cleanup = do
-    liftIO . atomically $ writeTVar activity False
-    liftIO $ C.threadDelay micros
-    active <- liftIO . atomically $ readTVar activity
+  loop activity result cancel = do
+    atomically $ writeTVar activity False
+    C.threadDelay micros
+    active <- atomically $ readTVar activity
     case active of
-      False -> cleanup -- no new fetches in last micros period
-      True -> loop activity cleanup
+      False -> atomically (putTMVar result Nothing) >> cancel
+      True -> loop activity result cancel
 
 subscribe :: Serial a => Channel a -> Multiplex (Multiplex a, Multiplex ())
 subscribe (Channel _ key) = do
