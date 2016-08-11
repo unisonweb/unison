@@ -35,6 +35,8 @@ import qualified STMContainers.Map as M
 import qualified Unison.Cryptography as C
 import qualified Unison.Runtime.Queue as Q
 import qualified Unison.Util.Logger as L
+import qualified ListT
+import qualified Control.Monad.Morph as Morph
 
 data Packet = Packet { destination :: !B.ByteString, content :: !B.ByteString } deriving (Generic)
 instance Serial Packet
@@ -76,12 +78,16 @@ runStandardIO logger sleepAfter rem interrupt m = do
   let env = (Q.enqueue output . (Just <$>), cb0, fresh, logger)
   activity <- atomically $ newTVar 0
   let bump = atomically $ modifyTVar' activity (1+)
-  _ <- Async.async $ do interrupt; atomically $ writeTQueue input Nothing
-  reader <- Async.async $ do
+  _ <- Async.async $ do
+    interrupt
+    atomically $ writeTQueue input Nothing
+    L.info logger "interrupted"
+  _ <- Async.async $ do
     let write pk _ = bump >> atomically (writeTQueue input (Just pk))
     deserializeHandle stdin rem write
     bump
     atomically $ writeTQueue input Nothing
+    L.info logger "shutting down reader thread"
   writer <- Async.async . repeatWhile $ do
     logger <- pure $ L.scope "writer" logger
     packet <- atomically $ Q.tryDequeue output :: IO (Maybe (Maybe Packet))
@@ -92,7 +98,7 @@ runStandardIO logger sleepAfter rem interrupt m = do
       Nothing -> hFlush stdout >> atomically (Q.dequeue output)
     B.putStr (Put.runPutS (serialize packet))
     case packet of
-      Nothing -> False <$ L.info logger "shutting down output thread"
+      Nothing -> False <$ L.info logger "writer shutting down"
       Just packet -> do
         L.debug logger $ "output packet " ++ show packet
         True <$ bump
@@ -101,19 +107,29 @@ runStandardIO logger sleepAfter rem interrupt m = do
     C.threadDelay sleepAfter
     activity1 <- (+) <$> readTVarIO activity <*> readTVarIO cba
     nothingPending <- atomically $ M.null cbm
-    atomically $
+    L.debug' (L.scope "watchdog" logger) $ do
+      keys <- fmap (map fst) . ListT.toList . Morph.hoist atomically . M.stream $ cbm
+      pure $ "current subscription keys: " ++ show (map Base64.encode keys)
+    L.debug (L.scope "watchdog" logger) $
+      "activity: " ++ show (activity0, activity1, nothingPending)
+    continue <- atomically $
       if activity0 == activity1 && nothingPending then do
         writeTQueue input Nothing
         Q.enqueue output (pure Nothing)
         pure False
       else
         pure True
+    when (not continue) $ L.info logger "watchdog shutting down"
+    pure continue
   a <- run env m
-  processor <- Async.async $ run env (process $ atomically (readTQueue input))
+  processor <- Async.async $ do
+    run env (process $ atomically (readTQueue input))
+    L.info logger "processor shutting down"
   Async.wait watchdog
-  Async.wait reader
+  -- Async.wait reader
   Async.wait processor
   Async.wait writer
+  L.info logger "Mux.runStandardIO shutdown"
   pure a
 
 deserializeHandle :: Serial a => Handle -> B.ByteString -> (a -> Int -> IO ()) -> IO ()

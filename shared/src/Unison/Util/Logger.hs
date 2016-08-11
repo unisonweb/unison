@@ -23,8 +23,6 @@ import System.IO.Error (isEOFError)
 type Level = Int
 type Scope = [String]
 
--- L.atomic (L.at L.infoLevel . L.scope "worker" $ toHandle stderr)
-
 data Logger =
   Logger { getScope :: !Scope
          , prefix :: String -> String
@@ -45,12 +43,17 @@ toHandle h = logger (hPutStrLn h)
 logHandleAt :: Logger -> Level -> Handle -> IO ()
 logHandleAt logger lvl h
   | lvl > getLevel logger = pure ()
-  | otherwise = void . forkIO . forever $ do
-    line <- try (hGetLine h)
-    case line of
-      Left ioe | isEOFError ioe -> logAt (scope "logHandleAt" logger) 3 "EOF"
-               | otherwise      -> logAt (scope "logHandleAt" logger) 2 (show ioe)
-      Right line -> logAt logger lvl line
+  | otherwise = void . forkIO $ loop where
+    loop = do
+      line <- try (hGetLine h)
+      case line of
+        Left ioe | isEOFError ioe -> logAt (scope "logHandleAt" logger) 3 "EOF"
+                 | otherwise      -> logAt (scope "logHandleAt" logger) 2 (show ioe)
+        Right line -> logAt logger lvl line >> loop
+
+logAt' :: Logger -> Level -> IO String -> IO ()
+logAt' logger lvl msg | lvl <= getLevel logger = msg >>= \msg -> raw logger (prefix logger msg)
+                      | otherwise              = pure ()
 
 logAt :: Logger -> Level -> String -> IO ()
 logAt logger lvl msg | lvl <= getLevel logger = raw logger (prefix logger msg)
@@ -74,6 +77,13 @@ warn l = logAt l warnLevel
 info l = logAt l infoLevel
 debug l = logAt l debugLevel
 trace l = logAt l traceLevel
+
+error', warn', info', debug', trace' :: Logger -> IO String -> IO ()
+error' l = logAt' l errorLevel
+warn' l = logAt' l warnLevel
+info' l = logAt' l infoLevel
+debug' l = logAt' l debugLevel
+trace' l = logAt' l traceLevel
 
 errorLevel, warnLevel, infoLevel, debugLevel, traceLevel :: Level
 (errorLevel, warnLevel, infoLevel, debugLevel, traceLevel) = (1,2,3,4,5)

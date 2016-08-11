@@ -8,7 +8,7 @@ import qualified Unison.Runtime.ExpiringMap as M
 -- import System.IO (stderr, hPutStrLn)
 
 debug :: String -> IO ()
-debug msg = pure ()-- hPutStrLn stderr ("[SharedResourceMap] " ++ msg)
+debug _ = pure ()-- hPutStrLn stderr ("[SharedResourceMap] " ++ msg)
 
 data SharedResourceMap k v
   = SharedResourceMap { acquiring :: M.ExpiringMap k (MVar ())

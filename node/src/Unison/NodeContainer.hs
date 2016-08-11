@@ -12,6 +12,7 @@ import System.IO (hClose, hFlush, Handle)
 import Unison.Runtime.Remote ()
 import qualified Control.Concurrent.Async as Async
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Base64.URL as Base64
 import qualified Data.Bytes.Get as Get
 import qualified Data.Bytes.Put as Put
 import qualified Data.Bytes.Serial as S
@@ -78,10 +79,12 @@ make bs nodeLock p genNode launchNodeCmd = do
         -- to hold packets sent to this node. Actual node process is launched asynchronously
         -- and will draw down this buffer
         (toNodeWrite, toNodeRead) <- newChan :: IO (InChan ByteString, OutChan ByteString)
+        logger <- pure $ L.scope (show . Base64.encode . Remote.publicKey $ node) logger
         let send bytes = writeChan toNodeWrite bytes
-        atomicModifyIORef routing $ \t -> (Trie.insert (Put.runPutS $ S.serialize node) send t, ())
+        let nodebytes = Put.runPutS $ S.serialize node
+        atomicModifyIORef routing $ \t -> (Trie.insert nodebytes send t, ())
         forM_ packets send
-        let removeRoute = atomicModifyIORef' routing $ \t -> (Trie.delete (Remote.publicKey node) t, ())
+        let removeRoute = atomicModifyIORef' routing $ \t -> (Trie.delete nodebytes t, ())
 
         -- spin up a new process for the node, which we will communicate with over standard input/output
         void . forkIO . handle (\e -> L.warn logger (show (e :: SomeException)) >> removeRoute) $ do
@@ -145,11 +148,11 @@ make bs nodeLock p genNode launchNodeCmd = do
                 removeRoute
             in pure routes
 
-          processor <- Async.async . forever $ do
+          processor <- Async.async . Mux.repeatWhile $ do
             nodePacket <- readChan fromNodeRead
             case nodePacket of
-              Nothing -> L.info logger "worker shut down"
-              Just packet -> do
+              Nothing -> False <$ L.info logger "processor completed"
+              Just packet -> True <$ do
                 L.debug logger $ "got packet " ++ show packet ++ " from worker"
                 case Trie.lookup (Mux.destination packet) routes of
                   Just handler -> do
@@ -161,14 +164,16 @@ make bs nodeLock p genNode launchNodeCmd = do
 
           _ <- forkIO $ do
             exitCode <- Process.waitForProcess process
-            atomicModifyIORef' routing $ \t -> (Trie.delete (Remote.publicKey node) t, ())
+            L.debug logger "worker process terminated"
+            removeRoute
             _ <- Async.waitCatch reader
-            _ <- Async.waitCatch writer
+            L.debug logger "worker reader thread terminated"
+            Async.cancel writer
             _ <- Async.waitCatch processor
             mapM_ (safely . hClose) [stdin, stdout]
             case exitCode of
-              Exit.ExitSuccess -> pure ()
-              Exit.ExitFailure n -> putStrLn $ "node process exited with: " ++ show n
+              Exit.ExitSuccess -> L.info logger $ "node process terminated"
+              Exit.ExitFailure n -> L.warn logger $ "node process exited with: " ++ show n
           pure ()
 
       safely :: IO () -> IO ()

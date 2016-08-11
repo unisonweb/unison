@@ -19,7 +19,6 @@ import qualified Data.ByteString as B
 import qualified Data.Bytes.Get as Get
 import qualified Data.Bytes.Put as Put
 import qualified Data.Serialize.Get as Get
-import qualified Data.ByteString.Base64.URL as Base64
 import qualified Unison.Config as Config
 import qualified Unison.Cryptography as C
 import qualified Unison.NodeProtocol as P
@@ -53,7 +52,6 @@ make protocol mkCrypto makeSandbox = do
   hSetBinaryMode stdin True
   (privateKey, _, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize B.empty)
   (node, _, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize rem)
-  logger <- pure $ L.scope (show . Base64.encode $ Remote.publicKey node) logger
   (universe, _, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize rem)
   (sandbox, _, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize rem)
   publicKey <- either die pure $ Get.runGetS deserialize (Remote.publicKey node)
@@ -76,7 +74,7 @@ make protocol mkCrypto makeSandbox = do
       Mux.fork . Mux.scope "_localEval" . Mux.repeatWhile $ do
         e <- prog
         case e of
-          Nothing -> False <$ cancel
+          Nothing -> False <$ (Mux.info "_localEval shutdown subscription" <* cancel)
           Just r -> do
             Mux.debug $ "got a term " ++ show r
             e <- liftIO . typecheck $ r

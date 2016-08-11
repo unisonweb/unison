@@ -67,6 +67,5 @@ main = Mux.uniqueChannel >>= \rand ->
         let !prog = unsafeParseTerm programstr
         liftIO . putStrLn $ "parsed " ++ show prog
         let destination = Put.runPutS (serialize node)
-        -- todo: run typechecker on prog
         let pk = Mux.Packet (Mux.channelId $ NP._localEval protocol) (Put.runPutS (serialize prog))
         liftIO $ send (Mux.Packet destination (Put.runPutS (serialize pk)))
