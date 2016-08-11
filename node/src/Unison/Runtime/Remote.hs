@@ -127,7 +127,7 @@ server crypto allow env lang p = do
               Mux.encryptAndSendTo' peer ackChan encrypt (P.Ack (publicKey peer))
               let needs = localDependencies lang (remote lang r)
               when (universe env /= peeru) $ loop needs
-              Mux.info $ "forking off handler for " ++ show r
+              Mux.debug $ "forking off handler for " ++ show r
               True <$ Mux.fork (handle crypto allow env lang p r) -- fork off evaluation of each request
               where
               fetch hs = do
@@ -153,7 +153,7 @@ handle :: (Ord h, Serial key, Serial t, Serial h, Show t)
 handle crypto allow env lang p r = Mux.debug (show r) >> case r of
   Step (Local l) -> do
     r <- runLocal l
-    Mux.debug $ "computation completed with result: " ++ show r
+    Mux.info $ "computation completed with result: " ++ show r
   Step (At n r) -> transfer n r Nothing
   Bind (At n r) k -> transfer n r (Just k)
   Bind (Local l) k -> do
