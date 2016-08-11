@@ -67,6 +67,14 @@ termBuiltins = (Var.named *** Term.ref) <$> (
     , Alias "-" "Number.minus"
     , Alias "*" "Number.times"
     , Alias "/" "Number.divide"
+    , Alias ">" "Number.greaterThan"
+    , Alias "<" "Number.lessThan"
+    , Alias ">=" "Number.greaterThanOrEqual"
+    , Alias "<=" "Number.lessThanOrEqual"
+    , Alias "==" "Number.equal"
+    , Alias "if" "Boolean.if"
+    , Builtin "True"
+    , Builtin "False"
     , Builtin "()"
     , Alias "some" "Optional.Some"
     , Alias "none" "Optional.None"
@@ -99,6 +107,7 @@ typeBuiltins :: [(V, Type V)]
 typeBuiltins = (Var.named *** Type.lit) <$>
   [ ("Number", Type.Number)
   , builtin "Unit"
+  , builtin "Boolean"
   , ("Optional", Type.Optional)
   , builtin "Either"
   -- ???

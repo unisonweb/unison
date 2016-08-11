@@ -9,6 +9,7 @@ import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Typechecker.Context (remoteSignatureOf)
 import qualified Data.Vector as Vector
+import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.Eval.Interpreter as I
 import qualified Unison.Metadata as Metadata
@@ -44,6 +45,14 @@ makeBuiltins whnf =
         where g (Term.Number' x) (Term.Number' y) = Term.lit (Term.Number (f x y))
               g x y = sym `Term.app` x `Term.app` y
       _ -> error "unpossible"
+    numericCompare :: Term V -> (Double -> Double -> Bool) -> I.Primop (N.Noted IO) V
+    numericCompare sym f = I.Primop 2 $ \xs -> case xs of
+      [x,y] -> g <$> whnf x <*> whnf y
+        where g (Term.Number' x) (Term.Number' y) = case f x y of
+                False -> Term.builtin "False"
+                True -> Term.builtin "True"
+              g x y = sym `Term.app` x `Term.app` y
+      _ -> error "unpossible"
     strict r n = Just (I.Primop n f)
       where f args = reapply <$> traverse whnf (take n args)
                       where reapply args' = Term.ref r `apps` args' `apps` drop n args
@@ -61,6 +70,25 @@ makeBuiltins whnf =
      , let r = R.Builtin "Color.rgba"
        in (r, strict r 4, unsafeParseType "Number -> Number -> Number -> Number -> Color", prefix "rgba")
 
+     -- booleans
+     , let r = R.Builtin "True"
+       in (r, Nothing, Type.builtin "Boolean", prefix "True")
+     , let r = R.Builtin "False";
+           op _ = pure (Term.num 0)
+       in (r, Nothing, Type.builtin "Boolean", prefix "False")
+     , let r = R.Builtin "Boolean.if";
+           op [cond,t,f] = do
+             cond <- whnf cond
+             case cond of
+               Term.Builtin' tf -> case Text.head tf of
+                 'T' -> whnf t
+                 'F' -> whnf f
+               _ -> error "unpossible"
+           op _ = error "unpossible"
+           typ = "forall a . Boolean -> a -> a -> a"
+       in (r, Just (I.Primop 3 op), unsafeParseType typ, prefix "if")
+
+     -- numbers
      , let r = R.Builtin "Number.plus"
        in (r, Just (numeric2 (Term.ref r) (+)), numOpTyp, assoc 4 "+")
      , let r = R.Builtin "Number.minus"
@@ -69,7 +97,18 @@ makeBuiltins whnf =
        in (r, Just (numeric2 (Term.ref r) (*)), numOpTyp, assoc 5 "*")
      , let r = R.Builtin "Number.divide"
        in (r, Just (numeric2 (Term.ref r) (/)), numOpTyp, opl 5 "/")
+     , let r = R.Builtin "Number.greaterThan"
+       in (r, Just (numericCompare (Term.ref r) (>)), numOpTyp, opl 3 ">")
+     , let r = R.Builtin "Number.lessThan"
+       in (r, Just (numericCompare (Term.ref r) (<)), numOpTyp, opl 3 "<")
+     , let r = R.Builtin "Number.greaterThanOrEqual"
+       in (r, Just (numericCompare (Term.ref r) (>=)), numOpTyp, opl 3 ">=")
+     , let r = R.Builtin "Number.lessThanOrEqual"
+       in (r, Just (numericCompare (Term.ref r) (<=)), numOpTyp, opl 3 "<=")
+     , let r = R.Builtin "Number.equal"
+       in (r, Just (numericCompare (Term.ref r) (==)), numOpTyp, opl 3 "==")
 
+     -- remote computations
      , let r = R.Builtin "Remote.at"
            op [node,term] = do
              Term.Distributed' (Term.Node node) <- whnf node
