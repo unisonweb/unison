@@ -403,7 +403,7 @@ subscribeTimed micros chan = do
     C.threadDelay micros
     active <- atomically $ readTVar activity
     case active of
-      False -> atomically (putTMVar result Nothing) >> cancel
+      False -> atomically (tryPutTMVar result Nothing) >> cancel
       True -> loop activity result cancel
 
 subscribe :: Serial a => Channel a -> Multiplex (Multiplex a, Multiplex ())
