@@ -233,6 +233,7 @@ client crypto allow env p recipient r = Mux.scope "Remote.client" $ do
   replyChan <- Mux.channel
   let send' (a,b) = send (Just (a,b))
   _ <- Mux.encryptedRequestTimedVia cipherstate (Mux.seconds 5) send' replyChan r
+  Mux.debug $ "got ack on " ++ show replyChan
   -- todo - might want to retry if ack doesn't come back
   id $
     let

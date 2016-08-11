@@ -286,7 +286,7 @@ requestTimed micros req a = do
   watchdog <- liftIO . C.forkIO $ do
     liftIO $ C.threadDelay micros
     run env cancel
-  pure $ receive <* liftIO (C.killThread watchdog)
+  pure $ receive <* liftIO (C.killThread watchdog) <* cancel
 
 type Cleartext = B.ByteString
 type Ciphertext = B.ByteString
@@ -368,7 +368,7 @@ receiveTimed micros chan = do
   watchdog <- liftIO . C.forkIO $ do
     liftIO $ C.threadDelay micros
     run env cancel
-  pure $ force <* liftIO (C.killThread watchdog)
+  pure $ force <* liftIO (C.killThread watchdog) <* cancel
 
 timeout' :: Microseconds -> a -> Multiplex a -> Multiplex a
 timeout' micros onTimeout m = fromMaybe onTimeout <$> timeout micros m
@@ -394,17 +394,23 @@ subscribeTimed micros chan = do
     liftIO . atomically $ takeTMVar result
   watchdog <- do
     env <- ask
-    liftIO . C.forkIO $ loop activity result (run env cancel)
+    l <- logger
+    liftIO . C.forkIO $ loop l activity result (run env cancel)
   cancel' <- pure $ cancel >> liftIO (C.killThread watchdog)
   pure (fetch', cancel')
   where
-  loop activity result cancel = do
+  loop logger activity result cancel = do
     atomically $ writeTVar activity False
     C.threadDelay micros
     active <- atomically $ readTVar activity
     case active of
-      False -> atomically (tryPutTMVar result Nothing) >> cancel
-      True -> loop activity result cancel
+      False -> do
+        L.debug logger $ "timed out on " ++ show chan
+        void $ atomically (tryPutTMVar result Nothing) <* cancel
+        L.debug logger $ "cancelled subscription to " ++ show chan
+      True -> do
+        L.trace logger $ "still activity on " ++ show chan
+        loop logger activity result cancel
 
 subscribe :: Serial a => Channel a -> Multiplex (Multiplex a, Multiplex ())
 subscribe (Channel _ key) = do
@@ -429,7 +435,7 @@ handshakeTimeout :: Microseconds
 handshakeTimeout = seconds 5
 
 connectionTimeout :: Microseconds
-connectionTimeout = seconds 45
+connectionTimeout = seconds 20
 
 delayBeforeFailure :: Microseconds
 delayBeforeFailure = seconds 2
@@ -446,8 +452,8 @@ pipeInitiate crypto rootChan (recipient,recipientKey) u = scope "pipeInitiate" $
   (doneHandshake, encrypt, decrypt) <- liftIO $ C.pipeInitiator crypto recipientKey
   handshakeChan <- channel
   connectedChan <- channel
-  handshakeSub <- subscribeTimed handshakeTimeout handshakeChan
-  connectedSub <- subscribeTimed connectionTimeout connectedChan
+  handshakeSub <- scope "handshakeSub" $ subscribeTimed handshakeTimeout handshakeChan
+  connectedSub <- scope "connectedSub" $ subscribeTimed connectionTimeout connectedChan
   let chans = (handshakeChan,connectedChan)
   info $ "handshake channels " ++ show chans
   handshake doneHandshake encrypt decrypt chans handshakeSub connectedSub
@@ -459,6 +465,7 @@ pipeInitiate crypto rootChan (recipient,recipientKey) u = scope "pipeInitiate" $
     where
     recv = untilDefined $ do
       bytes <- fetchc
+      debug $ "recv " ++ show (B.length <$> bytes)
       case bytes of
         Nothing -> pure (Just Nothing)
         Just bytes -> do
