@@ -69,7 +69,7 @@ library
     Unison.TypeVar
     Unison.Typechecker
     Unison.Typechecker.Context
-    Unison.Typechecker.MinimizeCycles
+    Unison.Typechecker.Components
     Unison.Util.Logger
     Unison.Var
     Unison.View
@@ -83,6 +83,7 @@ library
     bytestring,
     containers,
     comonad,
+    GraphSCC,
     free,
     hashable,
     mtl,

@@ -27,6 +27,7 @@ import qualified Unison.NodeContainer as C
 import qualified Unison.NodeProtocol as NP
 import qualified Unison.Remote as R
 import qualified Unison.Runtime.Multiplex as Mux
+import qualified Unison.Typechecker.Components as Components
 
 main :: IO ()
 main = Mux.uniqueChannel >>= \rand ->
@@ -65,7 +66,9 @@ main = Mux.uniqueChannel >>= \rand ->
         programtxt <- S.body
         let programstr = Text.unpack (decodeUtf8 (LB.toStrict programtxt))
         let !prog = unsafeParseTerm programstr
+        let !prog' = Components.minimize' prog
         liftIO . putStrLn $ "parsed " ++ show prog
+        liftIO . putStrLn $ "parsed' " ++ show prog'
         let destination = Put.runPutS (serialize node)
-        let pk = Mux.Packet (Mux.channelId $ NP._localEval protocol) (Put.runPutS (serialize prog))
+        let pk = Mux.Packet (Mux.channelId $ NP._localEval protocol) (Put.runPutS (serialize prog'))
         liftIO $ send (Mux.Packet destination (Put.runPutS (serialize pk)))
