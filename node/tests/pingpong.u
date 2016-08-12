@@ -5,10 +5,10 @@ Remote {
   n1 := Remote.spawn;
   n2 := Remote.spawn;
   let rec
-    ping n = Remote { 
-      n := Remote.at n1 (n + 1); 
-      if (n >= 5) (pure n) (pong n); 
+    ping i = Remote { 
+      i := Remote.at n2 (i + 1); 
+      if (i >= 5) (pure i) (pong i); 
     };
-    pong n = Remote { n := Remote.at n1 (n + 1); ping n; }
+    pong i = Remote { i := Remote.at n1 (i + 1); ping i; }
   in ping 0;
 }
