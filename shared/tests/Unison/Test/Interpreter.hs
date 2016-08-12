@@ -26,6 +26,9 @@ tests = withResource Common.node (\_ -> pure ()) $ \node ->
       , t "let rec fac n = if (n == 0) 1 (n * fac (n - 1)) in fac 5" "120"
       , t "let rec ping n = if (n >= 10) n (pong (n + 1)); pong n = ping (n + 1) in ping 0"
           "10"
+      , t "let id x = x; g = id 42; p = id \"hi\" in g" "42"
+      , t "let id : forall a . a -> a; id x = x; g = id 42; p = id \"hi\" in g" "42"
+      , t "((let id x = x in id) : forall a . a -> a) 42" "42"
       ]
     t uneval eval = testCase (uneval ++ " ⟹  " ++ eval) $ do
       (node, _) <- node

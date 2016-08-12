@@ -74,7 +74,6 @@ makeBuiltins whnf =
      , let r = R.Builtin "True"
        in (r, Nothing, Type.builtin "Boolean", prefix "True")
      , let r = R.Builtin "False";
-           op _ = pure (Term.num 0)
        in (r, Nothing, Type.builtin "Boolean", prefix "False")
      , let r = R.Builtin "Boolean.if";
            op [cond,t,f] = do
@@ -83,6 +82,7 @@ makeBuiltins whnf =
                Term.Builtin' tf -> case Text.head tf of
                  'T' -> whnf t
                  'F' -> whnf f
+                 _ -> error "unpossible"
                _ -> error "unpossible"
            op _ = error "unpossible"
            typ = "forall a . Boolean -> a -> a -> a"

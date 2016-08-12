@@ -65,7 +65,9 @@ eval env = Eval whnf step
       E.Ref' h -> case M.lookup h env of
         Just op | arity op == 0 -> call op []
         _ -> pure e
+      E.App' (E.Ann' f _) x -> whnf resolveRef (f `E.app` x)
       E.App' (E.LetRecNamed' bs body) x -> whnf resolveRef (E.letRec bs (body `E.app` x))
+      E.App' (E.Let1Named' v b body) x -> whnf resolveRef (E.let1 [(v,b)] (body `E.app` x))
       E.App' f x -> do
         f' <- E.link resolveRef f
         e' <- reduce f' [x]
