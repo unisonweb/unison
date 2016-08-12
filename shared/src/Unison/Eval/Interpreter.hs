@@ -56,7 +56,8 @@ eval env = Eval whnf step
       E.Let1' binding body -> step resolveRef (ABT.bind body binding)
       E.LetRecNamed' bs body -> step resolveRef (ABT.substs substs body) where
         expandBinding v (E.LamNamed' name body) = E.lam name (expandBinding v body)
-        expandBinding v body = ABT.subst v (E.letRec bs (E.var v)) body
+        expandBinding v body = ABT.substs substs' body
+          where substs' = [ (v', ABT.subst v (E.letRec bs (E.var v)) b) | (v',b) <- bs ]
         substs = [ (v, expandBinding v b) | (v,b) <- bs ]
       _ -> pure e
 
@@ -72,6 +73,7 @@ eval env = Eval whnf step
       E.Let1' binding body -> whnf resolveRef (ABT.bind body binding)
       E.LetRecNamed' bs body -> whnf resolveRef (ABT.substs substs body) where
         expandBinding v (E.LamNamed' name body) = E.lam name (expandBinding v body)
-        expandBinding v body = ABT.subst v (E.letRec bs (E.var v)) body
+        expandBinding v body = ABT.substs substs' body
+          where substs' = [ (v', ABT.subst v (E.letRec bs (E.var v)) b) | (v',b) <- bs ]
         substs = [ (v, expandBinding v b) | (v,b) <- bs ]
       _ -> pure e
