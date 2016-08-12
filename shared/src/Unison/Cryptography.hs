@@ -6,6 +6,7 @@ import Control.Concurrent.STM (STM,atomically)
 import Control.Concurrent.STM.TVar
 import Control.Monad
 import Data.ByteString (ByteString)
+import Data.Functor
 import Data.List
 import Data.Maybe
 import System.Random (randomIO)
@@ -31,16 +32,19 @@ noop key = Cryptography key gen hash sign verify randomBytes encryptAsymmetric d
   encrypt _ bs = pure $ B.concat bs
   decrypt _ bs = Right bs
   -- include the key along with each packet
-  pipeInitiator _ = pure (pure True, \bs -> pure (key `mappend` bs), pure)
+  pipeInitiator _ = do
+    done <- atomically $ newTVar False
+    let keyfill = key `mappend` B.replicate (64 - B.length key) 0
+    pure (readTVar done, \bs -> writeTVar done True $> (keyfill `mappend` bs), pure)
   -- strip out the key the begins each packet
   pipeResponder = do
     peerKey <- atomically $ newTVar Nothing
     pure (isJust <$> readTVar peerKey, readTVar peerKey, pure, read peerKey)
     where
     read peerKey bytes = do
-      let k = B.take (B.length key) bytes
+      let k = B.take 64 bytes
       writeTVar peerKey (Just k)
-      pure $ B.drop (B.length key) bytes
+      pure $ B.drop 64 bytes
 
   finish h64 = (LB.toStrict . Builder.toLazyByteString . Builder.word64LE . Murmur.asWord64) h64
 

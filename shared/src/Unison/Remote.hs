@@ -106,6 +106,8 @@ data Local t
   | Receive Channel
   -- send : Channel a -> a -> Local ()
   | Send Channel t
+  -- spawn : Local Node
+  | Spawn
   | Pure t deriving (Generic,Generic1,Show,Eq,Foldable,Functor,Traversable)
 
 instance ToJSON t => ToJSON (Local t)
@@ -118,7 +120,8 @@ instance Hashable1 Local where
     ReceiveAsync c t -> [tag 3, H.accumulateToken c, H.accumulateToken t]
     Receive c -> [tag 4, H.accumulateToken c]
     Send c t -> [tag 5, H.accumulateToken c, hashed t]
-    Pure t -> [tag 6, hashed t]
+    Spawn -> [tag 6]
+    Pure t -> [tag 7, hashed t]
     where
       tag = H.Tag
       hashed1 = H.Hashed . (H.hash1 hashCycle hash)

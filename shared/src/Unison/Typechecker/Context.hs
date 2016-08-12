@@ -504,6 +504,13 @@ synthesize e = scope ("synth: " ++ show e) $ go e where
   go (Term.Distributed' (Term.Remote r)) = synthesize (desugarRemote r)
   go (Term.Distributed' (Term.Node _)) = pure (Type.builtin "Node")
   go (Term.Distributed' (Term.Channel _)) = pure (Type.builtin "Channel")
+  go (Term.Let1' binding e) | Set.null (ABT.freeVars binding) = do
+    -- special case when it is definitely safe to generalize - binding contains
+    -- no free variables, i.e. `let id x = x in ...`
+    t  <- ABT.vmap TypeVar.underlying <$> synthesizeClosed' binding
+    v' <- ABT.freshen e freshenVar
+    e  <- pure $ ABT.bind e (Term.builtin (Var.name v') `Term.ann` t)
+    synthesize e
   go (Term.Let1' binding e) = do
     -- literally just convert to a lambda application and call synthesize!
     -- NB: this misses out on let generalization
@@ -590,6 +597,7 @@ remoteSignatures = Map.fromList
   [ ("Remote.at", Type.forall' ["a"] (Type.builtin "Node" --> v' "a" --> remote' (v' "a")))
   , ("Remote.fork", Type.forall' ["a"] (remote' (v' "a") --> remote' unitT))
   , ("Remote.here", remote' (Type.builtin "Node"))
+  , ("Remote.spawn", remote' (Type.builtin "Node"))
   , ("Remote.send", Type.forall' ["a"] (channel (v' "a") --> v' "a" --> remote' unitT))
   , ("Remote.channel", Type.forall' ["a"] (remote' (channel (v' "a"))))
   , ("Remote.map", Type.forall' ["a","b"] ((v' "a" --> v' "b") --> remote' (v' "a") --> remote' (v' "b")))
@@ -601,7 +609,7 @@ remoteSignatures = Map.fromList
   v' = Type.v'
   timeoutT = Type.builtin "Remote.Timeout"
   unitT = Type.builtin "()"
-  remote' t = Type.builtin "Remote!" `Type.app` t
+  remote' t = Type.builtin "Remote" `Type.app` t
   channel t = Type.builtin "Channel" `Type.app` t
 
 -- | For purposes of typechecking, we translate `[x,y,z]` to the term
@@ -623,6 +631,15 @@ annotateRefs synth term = ABT.visit f term where
 synthesizeClosed :: (Monad f, Var v) => Type.Env f v -> Term v -> Noted f (Type v)
 synthesizeClosed synthRef term = do
   term <- annotateRefs synthRef term
+  synthesizeClosedAnnotated term
+
+synthesizeClosed' :: Var v => Term v -> M v (Type v)
+synthesizeClosed' term = case runM (synthesize term) env0 of
+  Left err -> M $ \_ -> Left err
+  Right (t,env) -> pure $ generalizeExistentials (ctx env) t
+
+synthesizeClosedAnnotated :: (Monad f, Var v) => Term v -> Noted f (Type v)
+synthesizeClosedAnnotated term = do
   Note.fromEither $ runM (synthesize term) env0 >>= \(t,env) ->
     -- we generalize over any remaining unsolved existentials
     pure $ generalizeExistentials (ctx env) t

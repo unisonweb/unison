@@ -46,6 +46,7 @@ library
   exposed-modules:
     Unison.ABT.Extra
     Unison.Distance.Extra
+    Unison.Config
     Unison.Hash.Extra
     Unison.Kind.Extra
     Unison.Metadata.Extra
@@ -101,6 +102,7 @@ library
     bytestring-trie,
     cacophony,
     cereal,
+    configurator,
     containers,
     cryptonite,
     ctrie,
@@ -113,6 +115,7 @@ library
     io-streams,
     list-t,
     memory,
+    mmorph,
     mtl,
     murmur-hash,
     network,
@@ -165,12 +168,14 @@ executable worker
     bytestring,
     cereal,
     containers,
+    configurator,
     cryptonite,
     curl,
     free,
     hashable,
     list-t,
     memory,
+    mmorph,
     mtl,
     stm,
     stm-containers,
@@ -194,10 +199,43 @@ executable container
     ghc-options: -funbox-strict-fields -O2
 
   build-depends:
+    acid-state,
+    aeson,
+    async,
+    attoparsec,
     base,
+    base64-bytestring,
+    bytes,
+    bytestring,
+    bytestring-trie,
+    cereal,
+    containers,
+    configurator,
+    cryptonite,
     curl,
+    directory,
+    filepath,
+    free,
+    hashable,
+    http-types,
+    list-t,
+    memory,
+    mmorph,
+    mtl,
+    process,
+    safecopy,
+    scotty,
+    stm,
+    stm-containers,
+    text,
+    time,
+    transformers,
+    unagi-chan,
     unison-node,
-    unison-shared
+    unison-shared,
+    vector,
+    wai-extra,
+    wai-middleware-static
 
   if flag(leveldb)
     build-depends: exceptions, leveldb-haskell

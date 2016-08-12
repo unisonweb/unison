@@ -52,8 +52,8 @@ lookup k (ttl,m) = do
     case v of
       Nothing -> pure Nothing
       Just (expiration,v) ->
-        if expiration >= now then Nothing <$ M.delete k m
-        else Just v <$ M.insert (expiration',v) k m
+        if expiration >= now then Just v <$ M.insert (expiration',v) k m
+        else Nothing <$ M.delete k m
 
 delete :: (Eq k, Hashable k) => k -> ExpiringMap k v -> IO ()
 delete k (_,m) = atomically $ M.delete k m

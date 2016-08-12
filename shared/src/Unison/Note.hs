@@ -15,6 +15,11 @@ run (Noted m) = m >>= \e -> case e of
   Left (Note stack) -> fail ("\n" ++ intercalate "\n" stack)
   Right a -> return a
 
+attemptRun :: Functor m => Noted m a -> m (Either String a)
+attemptRun n = collapse <$> unnote n where
+  collapse (Left (Note stack)) = Left ("\n" ++ intercalate "\n" stack)
+  collapse (Right a) = Right a
+
 noted :: m (Either Note a) -> Noted m a
 noted = Noted
 

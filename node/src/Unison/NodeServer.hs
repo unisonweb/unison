@@ -26,7 +26,7 @@ import qualified Unison.Hash as H
 import qualified Unison.Node as N
 import qualified Web.Scotty as S
 import Network.Wai.Middleware.Static
-import Network.Wai.Middleware.RequestLogger
+import Network.Wai.Middleware.RequestLogger (logStdoutDev)
 
 runN :: Noted IO a -> ActionM a
 runN n = liftIO (unnote n) >>= go

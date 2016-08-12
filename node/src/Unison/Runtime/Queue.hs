@@ -1,4 +1,4 @@
-module Unison.Runtime.Queue (Queue, empty, enqueue, dequeue) where
+module Unison.Runtime.Queue (Queue, empty, enqueue, dequeue, tryDequeue) where
 
 import Control.Concurrent.STM (STM)
 import Control.Concurrent.STM.TQueue
@@ -17,3 +17,8 @@ enqueue (Q q) a = do
 
 dequeue :: Queue a -> STM a
 dequeue (Q q) = takeTMVar =<< readTQueue q
+
+tryDequeue :: Queue a -> STM (Maybe a)
+tryDequeue (Q q) = tryReadTQueue q >>= \mvar -> case mvar of
+  Nothing -> pure Nothing
+  Just mvar -> Just <$> takeTMVar mvar

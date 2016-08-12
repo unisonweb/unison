@@ -93,6 +93,28 @@ tests = testGroup "TermParser" $ (parse <$> shouldPass) ++ (parseFail <$> should
         ] (num 43)) `ann` (T.forall' ["a"] (T.v' "a") `T.arrow` T.lit T.Number))
         , ("#" ++ Text.unpack sampleHash64, derived' sampleHash64)
         , ("#" ++ Text.unpack sampleHash512, derived' sampleHash512)
+      , ("(Remote { pure 42; })", builtin "Remote.pure" `app` num 42)
+      , ("Remote { x = 42; pure (x + 1); }",
+          builtin "Remote.bind" `apps` [
+            lam' ["q"] (builtin "Remote.pure" `app` (var' "q" `plus'` num 1)),
+            builtin "Remote.pure" `app` num 42
+          ]
+        )
+      , ("Remote { x := pure 42; pure (x + 1); }",
+          builtin "Remote.bind" `apps` [
+            lam' ["q"] (builtin "Remote.pure" `app` (var' "q" `plus'` num 1)),
+            builtin "Remote.pure" `app` num 42
+          ]
+        )
+      , ("Remote { x := pure 42; y := pure 18; pure (x + y); }",
+          builtin "Remote.bind" `apps` [
+            lam' ["x"] (builtin "Remote.bind" `apps` [
+              lam' ["y"] (builtin "Remote.pure" `app` (var' "x" `plus'` var' "y")),
+              builtin "Remote.pure" `app` num 18
+            ]),
+            builtin "Remote.pure" `app` num 42
+          ]
+        )
       ]
     one = (lit . Number) 1
     hello = text "hello"
