@@ -9,6 +9,7 @@ import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Typechecker.Context (remoteSignatureOf)
 import qualified Data.Vector as Vector
+import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.Eval.Interpreter as I
 import qualified Unison.Metadata as Metadata
@@ -44,6 +45,14 @@ makeBuiltins whnf =
         where g (Term.Number' x) (Term.Number' y) = Term.lit (Term.Number (f x y))
               g x y = sym `Term.app` x `Term.app` y
       _ -> error "unpossible"
+    numericCompare :: Term V -> (Double -> Double -> Bool) -> I.Primop (N.Noted IO) V
+    numericCompare sym f = I.Primop 2 $ \xs -> case xs of
+      [x,y] -> g <$> whnf x <*> whnf y
+        where g (Term.Number' x) (Term.Number' y) = case f x y of
+                False -> Term.builtin "False"
+                True -> Term.builtin "True"
+              g x y = sym `Term.app` x `Term.app` y
+      _ -> error "unpossible"
     strict r n = Just (I.Primop n f)
       where f args = reapply <$> traverse whnf (take n args)
                       where reapply args' = Term.ref r `apps` args' `apps` drop n args
@@ -61,6 +70,25 @@ makeBuiltins whnf =
      , let r = R.Builtin "Color.rgba"
        in (r, strict r 4, unsafeParseType "Number -> Number -> Number -> Number -> Color", prefix "rgba")
 
+     -- booleans
+     , let r = R.Builtin "True"
+       in (r, Nothing, Type.builtin "Boolean", prefix "True")
+     , let r = R.Builtin "False";
+       in (r, Nothing, Type.builtin "Boolean", prefix "False")
+     , let r = R.Builtin "Boolean.if";
+           op [cond,t,f] = do
+             cond <- whnf cond
+             case cond of
+               Term.Builtin' tf -> case Text.head tf of
+                 'T' -> whnf t
+                 'F' -> whnf f
+                 _ -> error "unpossible"
+               _ -> error "unpossible"
+           op _ = error "unpossible"
+           typ = "forall a . Boolean -> a -> a -> a"
+       in (r, Just (I.Primop 3 op), unsafeParseType typ, prefix "if")
+
+     -- numbers
      , let r = R.Builtin "Number.plus"
        in (r, Just (numeric2 (Term.ref r) (+)), numOpTyp, assoc 4 "+")
      , let r = R.Builtin "Number.minus"
@@ -69,7 +97,18 @@ makeBuiltins whnf =
        in (r, Just (numeric2 (Term.ref r) (*)), numOpTyp, assoc 5 "*")
      , let r = R.Builtin "Number.divide"
        in (r, Just (numeric2 (Term.ref r) (/)), numOpTyp, opl 5 "/")
+     , let r = R.Builtin "Number.greaterThan"
+       in (r, Just (numericCompare (Term.ref r) (>)), numCompareTyp, opl 3 ">")
+     , let r = R.Builtin "Number.lessThan"
+       in (r, Just (numericCompare (Term.ref r) (<)), numCompareTyp, opl 3 "<")
+     , let r = R.Builtin "Number.greaterThanOrEqual"
+       in (r, Just (numericCompare (Term.ref r) (>=)), numCompareTyp, opl 3 ">=")
+     , let r = R.Builtin "Number.lessThanOrEqual"
+       in (r, Just (numericCompare (Term.ref r) (<=)), numCompareTyp, opl 3 "<=")
+     , let r = R.Builtin "Number.equal"
+       in (r, Just (numericCompare (Term.ref r) (==)), numCompareTyp, opl 3 "==")
 
+     -- remote computations
      , let r = R.Builtin "Remote.at"
            op [node,term] = do
              Term.Distributed' (Term.Node node) <- whnf node
@@ -80,6 +119,10 @@ makeBuiltins whnf =
            op [] = pure $ Term.remote (Remote.Step (Remote.Local (Remote.Here)))
            op _ = fail "Remote.here unpossible"
        in (r, Just (I.Primop 0 op), remoteSignatureOf "Remote.here", prefix "here")
+     , let r = R.Builtin "Remote.spawn"
+           op [] = pure $ Term.remote (Remote.Step (Remote.Local Remote.Spawn))
+           op _ = fail "Remote.spawn unpossible"
+       in (r, Just (I.Primop 0 op), remoteSignatureOf "Remote.spawn", prefix "spawn")
      , let r = R.Builtin "Remote.send"
            op [c, v] = do
              Term.Distributed' (Term.Channel c) <- whnf c
@@ -98,13 +141,19 @@ makeBuiltins whnf =
             case r of
               Term.Distributed' (Term.Remote (Remote.Step s)) -> pure $ Term.remote (Remote.Bind s g)
               Term.Distributed' (Term.Remote (Remote.Bind s f)) -> pure $ Term.remote (Remote.Bind s (kcomp f g))
-              _ -> fail "Remote.bind given a value that was not a Remote"
+              _ -> fail $ "Remote.bind given a value that was not a Remote: " ++ show r
           op _ = fail "Remote.bind unpossible"
        in (r, Just (I.Primop 2 op), remoteSignatureOf "Remote.bind", prefix "bind")
      , let r = R.Builtin "Remote.pure"
            op [a] = pure $ Term.remote (Remote.Step (Remote.Local (Remote.Pure a)))
            op _ = fail "unpossible"
        in (r, Just (I.Primop 1 op), remoteSignatureOf "Remote.pure", prefix "pure")
+     , let r = R.Builtin "Remote.map"
+           op [f, r] = pure $ Term.builtin "Remote.bind" `Term.app`
+             (Term.lam' ["x"] $ Term.builtin "Remote.pure" `Term.app` (f `Term.app` Term.var' "x"))
+             `Term.app` r
+           op _ = fail "unpossible"
+       in (r, Just (I.Primop 2 op), remoteSignatureOf "Remote.map", prefix "map")
      , let r = R.Builtin "Remote.receiveAsync"
            op [chan, timeout] = do
              Term.Number' seconds <- whnf timeout
@@ -193,6 +242,8 @@ alignmentT :: Ord v => Type v
 alignmentT = Type.ref (R.Builtin "Alignment")
 numOpTyp :: Type V
 numOpTyp = unsafeParseType "Number -> Number -> Number"
+numCompareTyp :: Type V
+numCompareTyp = unsafeParseType "Number -> Number -> Boolean"
 strOpTyp :: Type V
 strOpTyp = unsafeParseType "Text -> Text -> Text"
 unitT :: Ord v => Type v
@@ -207,6 +258,10 @@ none :: Term V
 none = Term.ref $ R.Builtin "Optional.None"
 some :: Term V -> Term V
 some t = Term.ref (R.Builtin "Optional.Some") `Term.app` t
+left :: Term V -> Term V
+left t = Term.ref (R.Builtin "Either.Left") `Term.app` t
+right :: Term V -> Term V
+right t = Term.ref (R.Builtin "Either.Right") `Term.app` t
 
 
 -- metadata helpers

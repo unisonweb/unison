@@ -1,8 +1,17 @@
+{-# Language DeriveGeneric #-}
+
 module Unison.BlockStore where
 
 import Data.ByteString (ByteString)
+import Data.Text (unpack)
+import Data.Text.Encoding (decodeUtf8)
+import GHC.Generics
+import qualified Data.ByteString.Base64.URL as Base64
 
-newtype Series = Series ByteString deriving (Eq, Ord, Show)
+newtype Series = Series ByteString deriving (Generic, Eq, Ord)
+
+instance Show Series where
+  show (Series s) = unpack . decodeUtf8 . Base64.encode $ s
 
 -- | Represents an immutable content-addressed storage layer.
 -- We can insert some bytes, getting back a hash which can be used for lookup:
@@ -20,6 +29,8 @@ data BlockStore h = BlockStore {
   lookup :: h -> IO (Maybe ByteString),
   -- | Will return a random hash if Series not already declared, otherwise returns the result of `resolve`
   declareSeries :: Series -> IO h,
+  -- | Marks the `Series` as garbage, allowing it to be collected
+  deleteSeries :: Series -> IO (),
   -- | Update the value associated with this series. Any previous value(s) for the series
   -- are considered garbage after the `update` and may be deleted by the store.
   update :: Series -> h -> ByteString -> IO (Maybe h),

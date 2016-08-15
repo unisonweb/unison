@@ -12,3 +12,4 @@ extra-deps:
   - sockaddr-0.0.0
   - cacophony-0.7.0
   - cryptonite-0.17
+  - unagi-chan-0.4.0.0

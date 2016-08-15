@@ -46,15 +46,31 @@ library
   exposed-modules:
     Unison.ABT.Extra
     Unison.Distance.Extra
+    Unison.Config
     Unison.Hash.Extra
     Unison.Kind.Extra
+    Unison.Metadata.Extra
+    Unison.Node.UnisonBlockStore
+    Unison.NodeContainer
     Unison.NodeServer
+    Unison.NodeWorker
+    Unison.NodeProtocol
+    Unison.NodeProtocol.V0
     Unison.Reference.Extra
     Unison.Remote.Extra
+    Unison.Runtime.Address
     Unison.Runtime.Block
+    Unison.Runtime.ExpiringMap
     Unison.Runtime.ExtraBuiltins
+    Unison.Runtime.Html
+    Unison.Runtime.Http
+    Unison.Runtime.Index
     Unison.Runtime.Journal
-    Unison.Runtime.KeyValueStore
+    Unison.Runtime.JournaledMap
+    Unison.Runtime.JournaledTrie
+    Unison.Runtime.Lock
+    Unison.Runtime.Multiplex
+    Unison.Runtime.Queue
     Unison.Runtime.Remote
     Unison.SerializationAndHashing
     Unison.BlockStore.MemBlockStore
@@ -70,50 +86,58 @@ library
     Unison.Runtime.Unfold
     Unison.Runtime.Vector
     Unison.Runtime.ResourcePool
+    Unison.Runtime.SharedResourceMap
 
   build-depends:
     acid-state,
     aeson,
     applicative-extras,
+    async,
     attoparsec,
     base,
     base64-bytestring,
     blaze-html,
     bytes,
     bytestring,
+    bytestring-trie,
     cacophony,
     cereal,
+    configurator,
     containers,
     cryptonite,
     ctrie,
+    curl,
     directory,
     filepath,
     free,
     hashable, 
     http-types,
     io-streams,
+    list-t,
     memory,
+    mmorph,
     mtl,
     murmur-hash,
     network,
     network-simple,
     prelude-extras,
+    process,
     random,
     safecopy,
     scotty,
     sockaddr,
     stm,
+    stm-containers,
     text,
+    tagsoup,
     time,
     transformers,
     transformers-compat,
+    unagi-chan,
     unison-shared,
     vector,
     wai-extra,
     wai-middleware-static
-
-  if flag(leveldb)
-    build-depends: exceptions, leveldb-haskell
 
   ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N
 
@@ -122,6 +146,99 @@ library
 
   if flag(quiet)
     ghc-options: -v0
+
+  if flag(leveldb)
+    build-depends: exceptions, leveldb-haskell
+    exposed-modules:
+                    Unison.BlockStore.LevelDbStore
+
+executable worker
+  main-is: Worker.hs
+  hs-source-dirs: src
+  ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N -v0
+
+  if flag(optimized)
+    ghc-options: -funbox-strict-fields -O2
+
+  build-depends:
+    async,
+    base,
+    base64-bytestring,
+    bytes,
+    bytestring,
+    cereal,
+    containers,
+    configurator,
+    cryptonite,
+    curl,
+    free,
+    hashable,
+    list-t,
+    memory,
+    mmorph,
+    mtl,
+    stm,
+    stm-containers,
+    tagsoup,
+    text,
+    time,
+    transformers,
+    unison-node,
+    unison-shared,
+    vector
+
+  if flag(leveldb)
+    build-depends: exceptions, leveldb-haskell
+
+executable container
+  main-is: Container.hs
+  hs-source-dirs: src
+  ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N -v0
+
+  if flag(optimized)
+    ghc-options: -funbox-strict-fields -O2
+
+  build-depends:
+    acid-state,
+    aeson,
+    async,
+    attoparsec,
+    base,
+    base64-bytestring,
+    bytes,
+    bytestring,
+    bytestring-trie,
+    cereal,
+    containers,
+    configurator,
+    cryptonite,
+    curl,
+    directory,
+    filepath,
+    free,
+    hashable,
+    http-types,
+    list-t,
+    memory,
+    mmorph,
+    mtl,
+    process,
+    safecopy,
+    scotty,
+    stm,
+    stm-containers,
+    text,
+    time,
+    transformers,
+    unagi-chan,
+    unison-node,
+    unison-shared,
+    vector,
+    wai-extra,
+    wai-middleware-static
+
+  if flag(leveldb)
+    build-depends: exceptions, leveldb-haskell
 
 executable node
   main-is: Node.hs
@@ -137,6 +254,7 @@ executable node
     applicative-extras,
     attoparsec,
     base,
+    base64-bytestring,
     blaze-html,
     byteable,
     bytes,
@@ -144,12 +262,14 @@ executable node
     cereal,
     containers,
     ctrie,
+    curl,
     cryptonite,
     directory,
     filepath,
     free,
     hashable,
     http-types,
+    list-t,
     memory,
     mtl,
     murmur-hash,
@@ -158,6 +278,7 @@ executable node
     safecopy,
     scotty,
     stm,
+    tagsoup,
     text,
     time,
     transformers,
@@ -181,9 +302,11 @@ test-suite tests
   build-depends:
     QuickCheck,
     base,
+    bytes,
     bytestring,
     containers,
     ctrie,
+    curl,
     directory,
     hashable,
     random,
@@ -192,7 +315,13 @@ test-suite tests
     tasty-hunit,
     tasty-quickcheck,
     tasty-smallcheck,
+    text,
     time,
     transformers,
     unison-node,
-    unison-shared
+    unison-shared,
+    vector
+
+  if flag(leveldb)
+    build-depends: exceptions, leveldb-haskell
+    cpp-options: -Dleveldb

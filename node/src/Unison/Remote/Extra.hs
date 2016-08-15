@@ -12,6 +12,5 @@ instance Serial1 Local
 instance Serial t => Serial (Step t)
 instance Serial t => Serial (Local t)
 instance Serial Timeout
-instance Serial Base64
 instance Serial Node
-instance Serial Channel where
+instance Serial Channel

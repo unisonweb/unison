@@ -10,6 +10,7 @@ import Unison.BlockStore (BlockStore, Series)
 import qualified Data.Bytes.Get as Get
 import qualified Data.Bytes.Put as Put
 import qualified Unison.BlockStore as BlockStore
+import qualified Unison.Cryptography as C
 
 -- | A `BlockStore.Series` along with some logic for serialization
 data Block a = Block Series (Maybe ByteString -> IO a) (a -> IO (Maybe ByteString))
@@ -94,6 +95,15 @@ fromSeries series = Block series pure pure
 -- | Provide a default value for this `Block`
 or :: Block (Maybe a) -> a -> Block a
 or (Block series get set) a = Block series (fmap (fromMaybe a) . get) (set . Just)
+
+encrypted :: C.Cryptography t1 t2 t3 t4 t5 t6 ByteString
+          -> Block (Maybe ByteString)
+          -> Block (Maybe ByteString)
+encrypted crypto b = xmap' decrypt encrypt b where
+  decrypt Nothing = pure Nothing
+  decrypt (Just bs) = either fail (pure.Just) $ C.decryptAsymmetric crypto bs
+  encrypt Nothing = pure Nothing
+  encrypt (Just bs) = Just <$> C.encryptAsymmetric crypto (C.publicKey crypto) bs
 
 -- | Serialize/deserialize a block of bytes
 serial' :: Serial a => Block ByteString -> Block a

@@ -69,6 +69,8 @@ library
     Unison.TypeVar
     Unison.Typechecker
     Unison.Typechecker.Context
+    Unison.Typechecker.Components
+    Unison.Util.Logger
     Unison.Var
     Unison.View
     Unison.Views
@@ -81,10 +83,14 @@ library
     bytestring,
     containers,
     comonad,
+    GraphSCC,
     free,
+    hashable,
     mtl,
     murmur-hash,
     prelude-extras,
+    random,
+    stm,
     text,
     transformers,
     vector

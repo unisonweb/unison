@@ -1,26 +1,43 @@
+{-# LANGUAGE CPP #-}
 module Main where
 
 import System.Random
 import Test.QuickCheck
 import Test.QuickCheck.Random
 import Test.Tasty
+import Unison.Test.NodeUtil
 import qualified Unison.Test.BlockStore.FileBlockStore as FBS
+#ifdef leveldb
+import qualified Unison.Test.BlockStore.LevelDbStore as LBS
+#endif
 import qualified Unison.Test.BlockStore.MemBlockStore as MBS
-import qualified Unison.Test.KeyValueStore as KVS
+import qualified Unison.Test.Journal as J
+import qualified Unison.Test.Index as Index
+import qualified Unison.Test.Html as Html
 import qualified Unison.Test.ResourcePool as ResourcePool
 import qualified Unison.Test.SerializationAndHashing as SAH
 
-tastyTests :: IO (TestTree, IO ())
+
+tastyTests :: IO TestTree
 tastyTests = do
-  kvsTests <- KVS.ioTests
+  indexTests <- Index.ioTests
   mbsTests <- MBS.ioTests
-  -- TODO fix FileBlockStore, and put tests back in rotation
-  (fbsTests, cleanup) <- FBS.ioTests
-  pure (testGroup "unison"
-        [ResourcePool.tests, kvsTests, mbsTests, SAH.tests], cleanup)
+  journalTests <- J.ioTests
+  testNode <- makeTestNode
+  pure $ testGroup "unison"
+        [ ResourcePool.tests
+        , Html.nodeTests testNode
+        , mbsTests
+        , FBS.tests
+#ifdef leveldb
+        , LBS.tests
+#endif
+        , SAH.tests
+        , journalTests
+        , indexTests]
 
 runTasty :: IO ()
-runTasty = tastyTests >>= (\(tt, cleanup) -> defaultMain tt >> cleanup)
+runTasty = tastyTests >>= defaultMain
 
 main = runTasty --runWithSeed 45 >> runTasty
 

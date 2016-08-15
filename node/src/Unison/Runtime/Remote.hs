@@ -1,72 +1,31 @@
 {-# Language DeriveGeneric #-}
 {-# Language OverloadedStrings #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Unison.Runtime.Remote where
 
-import Control.Concurrent.MVar
-import Control.Exception (finally)
-import Control.Monad
-import Data.ByteString (ByteString)
-import Data.Bytes.Serial (Serial)
 import Data.Functor
-import Data.IORef
-import Data.Map (Map)
+import Data.Maybe
+import Control.Monad
+import Control.Monad.IO.Class
+import Data.ByteString (ByteString)
+import Data.Bytes.Serial (Serial,serialize,deserialize)
 import Data.Set (Set)
-import Data.Text.Encoding (decodeUtf8)
-import GHC.Generics
-import Unison.Remote
+import Unison.Remote hiding (seconds)
 import Unison.Remote.Extra ()
-import qualified Control.Concurrent as Concurrent
-import qualified Data.ByteString.Base64.URL as Base64
-import qualified Data.Map as Map
+import Unison.Runtime.Multiplex (Multiplex)
+import qualified Control.Concurrent.Async as Async
+import qualified Control.Concurrent as C
+import qualified Data.ByteString as B
+import qualified Data.Bytes.Get as Get
+import qualified Data.Bytes.Put as Put
 import qualified Data.Set as Set
--- import qualified Data.Text as Text
-
-{-
-Implementation of the Unison distributed programming API.
-
-    data Node
-    data Local a
-
-    data Remote a
-    at : Node -> a -> Remote a
-    instance Monad Remote
-
-    instance Monad Local
-    fork : Remote a -> Remote ()
-    local : Local a -> Remote a
-
-    root : Node -> Channel Packet
-    packet : Remote a -> Packet
-
-`Local` is roughly `IO`, the type of local effects, but has
-a few additional functions:
-
-    channel : Local (Channel a)
-    send : a -> Channel a -> Local ()
-    -- | Registers a callback in a map as a weak ref that sets an MVar
-    -- if weak ref becomes garbage, remove from the map
-    receiveAsync : Channel a -> Local (Local a)
-    -- Can be done a bit more efficiently perhaps
-    recieve : Channel a -> Local a
-    awaitAsync : Remote a -> Local (Local a)
-    await : Remote a -> Local a
-
-For the implementation, a remote computation consists of a step, which evaluates
-locally or transfers control to another node, or a step along with a continuation
-when the step's result is available. Conceptually represented by the following Haskell type:
-
-    data Remote r
-      = Step r
-      | forall x . Bind (Step x) (x -> Remote r)
-
-    data Step r = Local r | At Node r
-
-Since this data type would not be serializable as a Haskell
-data type (would require serializing arbitrary functions), both
-`Local` and the `x -> Remote r` are represented as _Unison_
-terms, giving the type:
--}
+import qualified Unison.BlockStore as BS
+import qualified Unison.Cryptography as C
+import qualified Unison.NodeProtocol as P
+import qualified Unison.Runtime.Block as Block
+import qualified Unison.Runtime.Multiplex as Mux
+import qualified Unison.Runtime.SharedResourceMap as RM
 
 data Language t h
   = Language
@@ -80,130 +39,211 @@ data Language t h
     , unRemote :: t -> Maybe (Remote t)
     , remote :: Remote t -> t }
 
-newtype Err = Err String
-type Callbacks t h = IORef (Map Channel (IO (), MVar (Result t h)))
-data Result t h = Error Err | Evaluated t | Syncing Channel Node [(h,t)]
-
-newtype Universe = Universe ByteString deriving (Show,Eq,Ord,Generic)
-instance Serial Universe
-
-data Packet t h
-  = Eval Universe Node (Remote t)
-  | Need Channel Node (Set h)
-  | Provide Channel Node [(h,t)]
-  deriving (Show,Generic)
-instance (Serial t, Serial h, Ord h, Eq h) => Serial (Packet t h)
+data Codestore t h
+  = Codestore { saveHashes :: [(h,t)] -> IO ()
+              , getHashes :: Set h -> IO [(h,t)]
+              , missingHashes :: Set h -> IO (Set h) }
 
 data Env t h
-  = Env { callbacks :: Callbacks t h
-        , saveHashes :: [(h,t)] -> IO ()
-        , getHashes :: Set h -> IO [(h,t)]
-        , missingHashes :: Set h -> IO (Set h)
+  = Env { codestore :: Codestore t h
         , universe :: Universe
-        -- Returns a `(send, cleanup)`, where the `cleanup` should be invoked when
-        -- finished sending packets via `send`
-        , connect :: Node -> IO (Packet t h -> IO (), IO ())
-        , keygen :: Int -> IO ByteString
-        , currentNode :: Node }
+        , currentNode :: Node
+        -- todo: cache of recent nodes to check for syncing hashes not found locally
+        , connections :: RM.SharedResourceMap
+                           Node
+                           ( Maybe (Remote t, Mux.Channel P.Ack) -> Multiplex ()
+                           , Multiplex (Maybe (Maybe ([h], Mux.Channel (Maybe [(h,t)]))))
+                           , Mux.CipherState ) }
 
-sendPacketTo :: Env t h -> Node -> Packet t h -> IO ()
-sendPacketTo env node packet = do
-  (send, cleanup) <- connect env node
-  send packet `finally` cleanup
+instance Serial Universe
 
-defaultSyncTimeout :: Timeout
-defaultSyncTimeout = Seconds 10
+makeCodestore :: (Serial term, Eq hash, Serial termhash, Ord termhash)
+  => BS.BlockStore hash
+  -> Codestore term termhash
+makeCodestore bs = Codestore saveHashes getHashes missingHashes where
+  saveHashes hs =
+    void $ Async.mapConcurrently saveHash hs
+  saveHash (h,t) = do
+    let b = Block.fromSeries (BS.Series (Put.runPutS (serialize h)))
+    let bytes = Put.runPutS (serialize t)
+    _ <- Block.modify' bs b (maybe (Just bytes) Just)
+    pure ()
+  -- todo: probably should do some caching/buffering/integrity checking here
+  getHashes hs = do
+    blocks <- Async.mapConcurrently getHash (Set.toList hs)
+    blocks <- pure $ catMaybes blocks
+    guard (length blocks == Set.size hs)
+    let e = traverse (Get.runGetS deserialize) blocks
+    case e of
+      Left err -> fail err
+      Right terms  -> pure $ Set.toList hs `zip` terms
+  getHash h = do
+    h <- BS.resolve bs (BS.Series (Put.runPutS (serialize h)))
+    case h of
+      Nothing -> pure Nothing
+      Just h -> BS.lookup bs h
+  missingHashes hs0 = do
+    let hs = Set.toList hs0
+    hs' <- traverse (BS.resolve bs . BS.Series . Put.runPutS . serialize) hs
+    pure . Set.fromList $ [h | (h, Nothing) <- hs `zip` hs']
 
--- | Handle a packet. Does not return a meaningful response; it is expected that
--- processing of the packet will cause further progress of the computation either on
--- the current node or elsewhere (for instance, by causing packets to be sent to other nodes).
-handle :: Ord h => Language t h -> Env t h -> Packet t h -> IO ()
-handle _ env (Provide chan sender hashes) = do
-  m <- readIORef (callbacks env)
-  case Map.lookup chan m of
-    Nothing -> pure ()
-    Just (cancelGC, r) -> do
-      cancelGC
-      atomicModifyIORef' (callbacks env) (\m -> (Map.delete chan m, ()))
-      void (tryPutMVar r (Syncing chan sender hashes))
-handle _ env (Need chan sender hashes) = do
-  sources <- getHashes env hashes
-  -- todo: separate error if missing requested hashes
-  sendPacketTo env sender (Provide chan (currentNode env) sources)
-handle lang env (Eval u sender r) = do
-  missingDeps <-
-    if (u == universe env) then pure Set.empty
-    else do -- might need to fetch some dependencies
-      let deps = localDependencies lang (remote lang r)
-      needs <- missingHashes env deps
-      pure needs
-  sync0 missingDeps
+makeEnv :: (Serial term, Eq hash, Serial termhash, Ord termhash)
+        => Universe
+        -> Node
+        -> BS.BlockStore hash
+        -> IO (Env term termhash)
+makeEnv universe currentNode bs = mk <$> RM.new 10 40 -- seconds
   where
-  sync0 missingDeps = newChannel >>= \chan -> sync chan missingDeps
-  sync _ missingDeps | Set.null missingDeps = afterSync
-  sync chan missingDeps = do
-    resultMVar <- newEmptyMVar
-    gcThread <- Concurrent.forkIO $ do
-      Concurrent.threadDelay (floor $ 1000000 * seconds defaultSyncTimeout)
-      putMVar resultMVar (Error (Err "Timeout during fetching of dependencies"))
-      atomicModifyIORef' (callbacks env) (\m -> (Map.delete chan m, ()))
-    atomicModifyIORef' (callbacks env) (\m -> (Map.insert chan (Concurrent.killThread gcThread, resultMVar) m, ()))
-    sendPacketTo env sender (Need chan (currentNode env) missingDeps)
-    s <- takeMVar resultMVar
-    case s of
-      Error (Err err) -> fail err
-      Evaluated _ -> fail "expected a `Syncing` message or an error, got an `Evaluated`"
-      Syncing chan _ hashes -> do
-        saveHashes env hashes
-        stillMissing <- traverse (\(_,t) -> missingHashes env (localDependencies lang t)) hashes
-        sync chan (Set.unions stillMissing)
-  afterSync = case r of
-    Step (Local l) -> void $ runLocal l
-    Step (At n r) -> transfer n r Nothing
-    Bind (At n r) k -> transfer n r (Just k)
-    Bind (Local l) k -> do
-      arg <- runLocal l
-      r <- eval lang (apply lang k arg)
-      case (unRemote lang r) of
-        Just r -> handle lang env (Eval u sender r)
-        Nothing -> fail "typechecker bug; function passed to Remote.bind did not return a Remote"
-  newChannel :: IO Channel
-  newChannel = Channel . Base64 . decodeUtf8 . Base64.encode <$> keygen env 64
-  transfer n t k =
-    sendPacketTo env n (Eval (universe env) (currentNode env) r) where
-      r = case k of
-        Nothing -> Step (Local (Pure t))
-        Just k -> Bind (Local (Pure t)) k
-  runLocal (Fork r) = Concurrent.forkIO (handle lang env (Eval u sender r)) $> unit lang
-  runLocal CreateChannel = channel lang <$> newChannel
-  runLocal Here = pure $ node lang (currentNode env)
-  runLocal (Pure t) = eval lang t
-  runLocal (Send chan a) = do
-    m <- readIORef (callbacks env)
-    case Map.lookup chan m of
-      Nothing -> pure (unit lang)
-      Just (_, result) -> do
-        -- NB: we do not cancel GC, need to block on the read side before timeout
-        _ <- tryPutMVar result (Evaluated a)
-        atomicModifyIORef' (callbacks env) (\m -> (Map.delete chan m, ()))
-        pure (unit lang)
-  runLocal (ReceiveAsync chan (Seconds seconds)) = do
-    -- todo: think about whether to allow multiple concurrent listeners on a channel
-    resultMVar <- newEmptyMVar
-    gcThread <- Concurrent.forkIO $ do
-      Concurrent.threadDelay (floor $ 1000000 * seconds)
-      atomicModifyIORef' (callbacks env) (\m -> (Map.delete chan m, ()))
-      putMVar resultMVar (Error (Err "Timeout on receiving from a channel"))
-    atomicModifyIORef' (callbacks env) (\m -> (Map.insert chan (Concurrent.killThread gcThread, resultMVar) m, ()))
+  mk = Env (makeCodestore bs) universe currentNode
+type Cleartext = ByteString
+
+data ConnectionSandbox key =
+  ConnectionSandbox { allowIn :: key -> Multiplex Bool
+                    , allowOut :: key -> Multiplex Bool }
+
+server :: (Ord h, Serial key, Serial t, Show t, Serial h)
+       => C.Cryptography key t1 t2 t3 t4 hash Cleartext
+       -> ConnectionSandbox key
+       -> Env t h
+       -> Language t h
+       -> P.Protocol t hash h' h
+       -> Multiplex ()
+server crypto allow env lang p = do
+  (accept,_) <- Mux.subscribeTimed (Mux.seconds 60) (Mux.erase (P._eval p))
+  void . Mux.fork . Mux.repeatWhile $ do
+    initialPayload <- accept
+    case initialPayload of
+      Nothing -> pure False
+      Just initialPayload -> (True <$) . Mux.fork $ do -- fork off handling each connection
+        (peerKey, (peer,peeru), send, recv, cipherstate@(encrypt,_)) <-
+          Mux.pipeRespond crypto (allowIn allow) (P._eval p) fst initialPayload
+        -- guard $ Put.runPutS (serialize peerKey) == publicKey peer
+        Mux.scope "Remote.server" . Mux.repeatWhile $ do
+          r <- recv
+          Mux.info $ "eval " ++ show r
+          case r of
+            Nothing -> pure False
+            Just (r, ackChan) -> do
+              Mux.encryptAndSendTo' peer ackChan encrypt (P.Ack (publicKey peer))
+              let needs = localDependencies lang (remote lang r)
+              when (universe env /= peeru) $ loop needs
+              Mux.debug $ "forking off handler for " ++ show r
+              True <$ Mux.fork (handle crypto allow env lang p r) -- fork off evaluation of each request
+              where
+              fetch hs = do
+                syncChan <- Mux.channel
+                Mux.encryptedRequestTimedVia cipherstate (Mux.seconds 5) (send . Just . Just) syncChan (Set.toList hs)
+              loop needs | Set.null needs = pure ()
+              loop needs = fetch needs >>= \hashes -> case hashes of
+                Nothing -> fail "expected hashes, got timeout"
+                Just hashes -> do
+                  liftIO $ saveHashes (codestore env) hashes
+                  stillMissing <- forM hashes $ \(_,t) ->
+                    liftIO $ missingHashes (codestore env) (localDependencies lang t)
+                  loop (Set.unions stillMissing)
+
+handle :: (Ord h, Serial key, Serial t, Serial h, Show t)
+       => C.Cryptography key t1 t2 t3 t4 hash Cleartext
+       -> ConnectionSandbox key
+       -> Env t h
+       -> Language t h
+       -> P.Protocol t hash h' h
+       -> Remote t
+       -> Multiplex ()
+handle crypto allow env lang p r = Mux.debug (show r) >> case r of
+  Step (Local l) -> do
+    r <- runLocal l
+    Mux.info $ "computation completed with result: " ++ show r
+  Step (At n r) -> transfer n r Nothing
+  Bind (At n r) k -> transfer n r (Just k)
+  Bind (Local l) k -> do
+    arg <- runLocal l
+    Mux.debug $ "left-hand side of bind completed: " ++ show arg
+    r <- Mux.liftLogged "outer bind:" $ eval lang (apply lang k arg)
+    Mux.debug $ "interpreted outer bind: " ++ show r
+    case (unRemote lang r) of
+      Just r -> handle crypto allow env lang p r
+      Nothing -> fail "typechecker bug; function passed to Remote.bind did not return a Remote"
+  where
+  transfer n t k = do
+    Mux.debug $ "transferring to node: " ++ show n
+    client crypto allow env p n r
+    Mux.debug $ "transferred to node: " ++ show n
+    where
+    r = case k of
+      Nothing -> Step (Local (Pure t))
+      Just k -> Bind (Local (Pure t)) k
+  runLocal (Fork r) = do
+    Mux.debug $ "runLocal Fork"
+    Mux.fork (handle crypto allow env lang p r) $> unit lang
+  runLocal CreateChannel = do
+    Mux.debug $ "runLocal CreateChannel"
+    channel lang . Channel . Mux.channelId <$> Mux.channel
+  runLocal Here = do
+    Mux.debug $ "runLocal Here"
+    pure $ node lang (currentNode env)
+  runLocal Spawn = do
+    Mux.debug $ "runLocal Spawn"
+    n <- Mux.requestTimed (Mux.seconds 5) (P._spawn p) B.empty
+    n <- n
+    Mux.debug $ "runLocal Spawn completed: " ++ show n
+    pure (node lang n)
+  runLocal (Pure t) = do
+    Mux.debug $ "runLocal Pure"
+    liftIO $ eval lang t
+  runLocal (Send (Channel cid) a) = do
+    Mux.debug $ "runLocal Send " ++ show cid
+    Mux.process1 (Mux.Packet cid (Put.runPutS (serialize a)))
+    pure (unit lang)
+  runLocal (ReceiveAsync chan@(Channel cid) (Seconds seconds)) = do
+    Mux.debug $ "runLocal ReceiveAsync " ++ show (seconds, cid)
+    _ <- Mux.receiveTimed (floor $ seconds * 1000 * 1000) ((Mux.Channel Mux.Type cid) :: Mux.Channel (Maybe B.ByteString))
     pure (remote lang (Step (Local (Receive chan))))
-  runLocal (Receive chan) = do
-    m <- readIORef (callbacks env)
-    case Map.lookup chan m of
-      Nothing -> pure (unit lang)
-      Just (cancelGC, result) -> do
-        r <- takeMVar result
-        cancelGC
-        case r of
-          Error (Err err) -> fail err
-          Evaluated r -> pure r
-          Syncing _ _ _ -> fail "expected an `Evaluated` message or an error, got a `Syncing`"
+  runLocal (Receive (Channel cid)) = do
+    Mux.debug $ "runLocal Receive " ++ show cid
+    (recv,_) <- Mux.receiveCancellable (Mux.Channel Mux.Type cid)
+    bytes <- recv
+    case Get.runGetS deserialize bytes of
+      Left err -> fail err
+      Right r -> pure r
+
+client :: (Ord h, Serial key, Serial t, Serial h)
+       => C.Cryptography key t1 t2 t3 t4 hash Cleartext
+       -> ConnectionSandbox key
+       -> Env t h
+       -> P.Protocol t hash h' h
+       -> Node
+       -> Remote t
+       -> Multiplex ()
+client crypto allow env p recipient r = Mux.scope "Remote.client" $ do
+  Mux.info $ "initiating connection to " ++ show recipient
+  recipientKey <- either fail pure $ Get.runGetS deserialize (publicKey recipient)
+  Mux.debug $ "parsed peer public key"
+  ok <- allowOut allow recipientKey
+  case ok of
+    False -> liftIO $ C.threadDelay Mux.delayBeforeFailure >> fail "disallowed outgoing connection"
+    True -> pure ()
+  Mux.debug $ "allowing connection to proceed"
+  menv <- Mux.ask
+  connect <- pure . Mux.run menv $
+    Mux.pipeInitiate crypto (P._eval p) (recipient, recipientKey) (currentNode env, universe env)
+  (send,recv,cipherstate@(encrypt,_)) <-
+    Mux.liftLogged "connecting" $ RM.lookupOrReplenish recipient connect (connections env)
+  Mux.info $ "connected"
+  replyChan <- Mux.channel
+  let send' (a,b) = send (Just (a,b))
+  _ <- Mux.encryptedRequestTimedVia cipherstate (Mux.seconds 5) send' replyChan r
+  Mux.debug $ "got ack on " ++ show replyChan
+  -- todo - might want to retry if ack doesn't come back
+  id $
+    let
+      go = do
+        needs <- recv
+        case needs of
+          Nothing -> pure ()
+          Just Nothing -> pure () -- no other syncs requested, we're good
+          Just (Just (hs, replyTo)) -> do
+            hashes <- liftIO $ getHashes (codestore env) (Set.fromList hs)
+            Mux.encryptAndSendTo' recipient replyTo encrypt (Just hashes)
+            go
+    in go
