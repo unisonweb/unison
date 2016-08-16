@@ -165,14 +165,15 @@ handle crypto allow env lang p r = Mux.debug (show r) >> case r of
       Just r -> handle crypto allow env lang p r
       Nothing -> fail "typechecker bug; function passed to Remote.bind did not return a Remote"
   where
-  transfer n t k = do
-    Mux.debug $ "transferring to node: " ++ show n
-    client crypto allow env p n r
-    Mux.debug $ "transferred to node: " ++ show n
-    where
-    r = case k of
-      Nothing -> Step (Local (Pure t))
-      Just k -> Bind (Local (Pure t)) k
+  transfer n t k =
+    let r = case k of
+          Nothing -> Step (Local (Pure t))
+          Just k -> Bind (Local (Pure t)) k
+    in if n == currentNode env then handle crypto allow env lang p r
+       else do
+         Mux.debug $ "transferring to node: " ++ show n
+         client crypto allow env p n r
+         Mux.debug $ "transferred to node: " ++ show n
   runLocal (Fork r) = do
     Mux.debug $ "runLocal Fork"
     Mux.fork (handle crypto allow env lang p r) $> unit lang

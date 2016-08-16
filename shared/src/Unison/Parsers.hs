@@ -76,6 +76,7 @@ termBuiltins = (Var.named *** Term.ref) <$> (
     , Builtin "True"
     , Builtin "False"
     , Builtin "()"
+    , Alias "unit" "()"
     , Alias "some" "Optional.Some"
     , Alias "none" "Optional.None"
     , AliasFromModule "Vector"
