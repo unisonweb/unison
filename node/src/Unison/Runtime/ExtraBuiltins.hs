@@ -3,6 +3,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 module Unison.Runtime.ExtraBuiltins where
 
+import Control.Exception (finally)
 import Control.Concurrent.STM (atomically)
 import Data.ByteString (ByteString)
 import Unison.BlockStore (Series(..), BlockStore)
@@ -15,6 +16,7 @@ import qualified Unison.Cryptography as C
 import qualified Unison.Eval.Interpreter as I
 import qualified Unison.Note as Note
 import qualified Unison.Reference as R
+import qualified Unison.Remote as Remote
 import qualified Unison.Runtime.Html as Html
 import qualified Unison.Runtime.Http as Http
 import qualified Unison.Runtime.Index as Index
@@ -26,8 +28,8 @@ import qualified Unison.Type as Type
 indexT :: Ord v => Type v -> Type v -> Type v
 indexT k v = Type.ref (R.Builtin "Index") `Type.app` k `Type.app` v
 
-index :: Term.Term V -> Term.Term V
-index h = Term.ref (R.Builtin "Index") `Term.app` h
+index :: Remote.Node -> Term.Term V -> Term.Term V
+index node h = Term.ref (R.Builtin "Index") `Term.apps` [Term.node node, h]
 
 linkT :: Ord v => Type v
 linkT = Type.ref (R.Builtin "Link")
@@ -39,9 +41,9 @@ linkToTerm :: Html.Link -> Term.Term V
 linkToTerm (Html.Link href description) = link (Term.lit $ Term.Text href)
   (Term.lit $ Term.Text description)
 
-pattern Index' s <- Term.App'
-                    (Term.Ref' (R.Builtin "Index"))
-                    (Term.Text' s)
+pattern Index' node s <-
+  Term.App' (Term.App' (Term.Ref' (R.Builtin "Index")) (Term.Distributed' (Term.Node node)))
+            (Term.Text' s)
 
 pattern Link' href description <-
   Term.App' (Term.App' (Term.Ref' (R.Builtin "Link"))
@@ -59,66 +61,72 @@ makeAPI blockStore crypto = do
   resourcePool <- RP.make 3 10 (Index.loadEncrypted blockStore crypto) Index.flush
   pure (\whnf -> map (\(r, o, t, m) -> Builtin r o t m)
      [ let r = R.Builtin "Index.unsafeEmpty"
-           op [] = Note.lift $ do
-             ident <- nextID
-             pure . index . Term.lit . Term.Text . Index.idToText $ ident
+           op [self] = do
+             ident <- Note.lift nextID
+             Term.Distributed' (Term.Node self) <- whnf self
+             pure . index self . Term.lit . Term.Text . Index.idToText $ ident
            op _ = fail "Index.unsafeEmpty unpossible"
-           type' = unsafeParseType "forall k v. Store k v"
-       in (r, Just (I.Primop 0 op), type', prefix "unsafeEmpty")
-     , let r = R.Builtin "Index.empty"
-           op [] = pure $
-             Term.builtin "Remote.pure" `Term.app` Term.builtin "Index.unsafeEmpty"
-           op _ = fail "Index.empty unpossible"
-           type' = unsafeParseType "forall k v. Remote (Store k v)"
-       in (r, Just (I.Primop 0 op), type', prefix "empty")
+           type' = unsafeParseType "forall k v. Node -> Index k v"
+       in (r, Just (I.Primop 1 op), type', prefix "unsafeEmpty")
      , let r = R.Builtin "Index.unsafeLookup"
-           op [indexToken, key] = inject g indexToken key where
+           op [key, indexToken] = inject g indexToken key where
              inject g indexToken key = do
                i <- whnf indexToken
                k <- whnf key
                g i k
-             g (Index' h) k = do
+             g (Term.Text' h) k = do
                val <- Note.lift $ do
-                 (db, _) <- RP.acquire resourcePool . Index.textToId $ h
-                 result <- atomically $ Index.lookup (SAH.hash' k) db
-                 case result >>= (pure . SAH.deserializeTermFromBytes . snd) of
-                   Just (Left s) -> fail ("Index.unsafeLookup could not deserialize: " ++ s)
-                   Just (Right t) -> pure $ some t
-                   Nothing -> pure none
+                 (db, cleanup) <- RP.acquire resourcePool . Index.textToId $ h
+                 flip finally cleanup $ do
+                   result <- atomically $ Index.lookup (SAH.hash' k) db
+                   case result >>= (pure . SAH.deserializeTermFromBytes . snd) of
+                     Just (Left s) -> fail ("Index.unsafeLookup could not deserialize: " ++ s)
+                     Just (Right t) -> pure $ some t
+                     Nothing -> pure none
                pure val
              g s k = pure $ Term.ref r `Term.app` s `Term.app` k
            op _ = fail "Index.unsafeLookup unpossible"
-           type' = unsafeParseType "forall k v. k -> Store k v -> Option v"
+           type' = unsafeParseType "forall k v. k -> Index k v -> Optional v"
        in (r, Just (I.Primop 2 op), type', prefix "unsafeLookup")
      , let r = R.Builtin "Index.lookup"
-           op [indexToken, key] = pure $ Term.builtin "Remote.pure" `Term.app`
-             (Term.builtin "Index.unsafeLookup" `Term.app` indexToken `Term.app` key)
+           op [key, index] = do
+             Index' node tok <- whnf index
+             pure $
+               Term.builtin "Remote.map" `Term.apps` [
+                 Term.builtin "Index.unsafeLookup" `Term.app` key,
+                 Term.builtin "Remote.at" `Term.apps` [Term.node node, Term.text tok]
+               ]
            op _ = fail "Index.lookup unpossible"
-           type' = unsafeParseType "forall k v. k -> Store k v -> Remote (Option v)"
+           type' = unsafeParseType "forall k v. k -> Index k v -> Remote (Optional v)"
        in (r, Just (I.Primop 2 op), type', prefix "lookup")
      , let r = R.Builtin "Index.unsafeInsert"
-           op [k, v, store] = inject g k v store where
-             inject g k v store = do
+           op [k, v, index] = inject g k v index where
+             inject g k v index = do
                k' <- whnf k
                v' <- whnf v
-               s <- whnf store
+               s <- whnf index
                g k' v' s
-             g k v (Index' h) = do
+             g k v (Term.Text' h) = do
                Note.lift $ do
-                 (db, _) <- RP.acquire resourcePool . Index.textToId $ h
-                 atomically
+                 (db, cleanup) <- RP.acquire resourcePool . Index.textToId $ h
+                 flip finally cleanup $ atomically
                    (Index.insert (SAH.hash' k) (SAH.serializeTerm k, SAH.serializeTerm v) db)
                    >>= atomically
                pure unitRef
-             g k v store = pure $ Term.ref r `Term.app` k `Term.app` v `Term.app` store
+             g k v index = pure $ Term.ref r `Term.app` k `Term.app` v `Term.app` index
            op _ = fail "Index.unsafeInsert unpossible"
-           type' = unsafeParseType "forall k v. k -> v -> Store k v -> Unit"
+           type' = unsafeParseType "forall k v. k -> v -> Index k v -> Unit"
        in (r, Just (I.Primop 3 op), type', prefix "unsafeInsert")
      , let r = R.Builtin "Index.insert"
-           op [k, v, store] = pure $ Term.builtin "Remote.pure" `Term.app`
-             (Term.builtin "Index.unsafeInsert" `Term.app` k `Term.app` v `Term.app` store)
+           op [key, value, index] = do
+             Index' node tok <- whnf index
+             pure $
+               Term.builtin "Remote.map" `Term.apps` [
+                 Term.builtin "Index.unsafeInsert" `Term.apps` [key,value],
+                 Term.builtin "Remote.at" `Term.apps` [Term.node node, Term.text tok]
+               ]
            op _ = fail "Index.insert unpossible"
-           type' = unsafeParseType "forall k v. k -> v -> Store k v -> Remote Unit"
+           type' = unsafeParseType "forall k v. k -> v -> Index k v -> Remote Unit"
        in (r, Just (I.Primop 3 op), type', prefix "insert")
      , let r = R.Builtin "Html.getLinks"
            op [html] = do

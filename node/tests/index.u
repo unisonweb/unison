@@ -1,0 +1,15 @@
+-- run from unison root directory
+-- curl -H "Content-Type: text/plain; charset=UTF-8" --data-binary @node/tests/index.u http://localhost:8081/compute/dummynode909
+
+Remote {
+  n1 := Remote.spawn;
+  n2 := Remote.spawn;
+  ind := Remote {
+    Remote.transfer n1;
+    ind := Index.empty;
+    Index.insert "Unison" "Rulez!!!1" ind; 
+    pure ind;
+  };
+  Remote.transfer n2;
+  Index.lookup "Unison" ind;
+}

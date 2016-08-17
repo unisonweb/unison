@@ -38,6 +38,19 @@ parseType' typeBuiltins s = case run (Parser.root TypeParser.type_) s of
   Succeed t n b -> Succeed (ABT.substs typeBuiltins t) n b
   fail -> fail
 
+prelude = unlines
+  [ "let"
+  , "  Index.empty : forall k v . Remote (Index k v);"
+  , "  Index.empty = Remote.map Index.unsafeEmpty Remote.here;"
+  , ""
+  , "  Remote.transfer : Node -> Remote Unit;"
+  , "  Remote.transfer node = Remote.at node unit"
+  , "in"
+  , ""]
+
+unsafeParseTermWithPrelude :: String -> Term V
+unsafeParseTermWithPrelude prog = unsafeParseTerm (prelude ++ prog)
+
 unsafeParseTerm :: String -> Term V
 unsafeParseTerm = unsafeGetSucceed . parseTerm
 
@@ -76,6 +89,7 @@ termBuiltins = (Var.named *** Term.ref) <$> (
     , Builtin "True"
     , Builtin "False"
     , Builtin "()"
+    , Alias "unit" "()"
     , Alias "some" "Optional.Some"
     , Alias "none" "Optional.None"
     , AliasFromModule "Vector"
@@ -83,10 +97,10 @@ termBuiltins = (Var.named *** Term.ref) <$> (
     , AliasFromModule "Text"
         ["concatenate", "left", "right", "center", "justify"] []
     , AliasFromModule "Remote"
-        ["fork", "receive", "receiveAsync", "pure", "bind", "channel", "send", "here", "at", "spawn"] []
+        ["fork", "receive", "receiveAsync", "pure", "bind", "map", "channel", "send", "here", "at", "spawn"] []
     , AliasFromModule "Color" ["rgba"] []
     , AliasFromModule "Symbol" ["Symbol"] []
-    , AliasFromModule "Index" ["lookup", "unsafeLookup", "insert", "unsafeInsert"] ["empty", "unsafeEmpty"]
+    , AliasFromModule "Index" ["lookup", "unsafeLookup", "insert", "unsafeInsert", "empty", "unsafeEmpty"] []
     , AliasFromModule "Html" ["getLinks", "getHref", "getDescription"] []
     , AliasFromModule "Http" ["getURL", "unsafeGetURL"] []
     ] >>= unpackAliases)
@@ -123,6 +137,6 @@ typeBuiltins = (Var.named *** Type.lit) <$>
   , builtin "Channel"
   , builtin "Future"
   , builtin "Remote"
-  , builtin "Remote!"
+  , builtin "Node"
   ]
   where builtin t = (t, Type.Ref $ R.Builtin t)

@@ -608,7 +608,7 @@ remoteSignatures = Map.fromList
   where
   v' = Type.v'
   timeoutT = Type.builtin "Remote.Timeout"
-  unitT = Type.builtin "()"
+  unitT = Type.builtin "Unit"
   remote' t = Type.builtin "Remote" `Type.app` t
   channel t = Type.builtin "Channel" `Type.app` t
 
