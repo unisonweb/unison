@@ -1,3 +1,5 @@
+{-# Language OverloadedStrings #-}
+
 module Unison.TypeParser where
 
 import Control.Applicative ((<|>), some)
@@ -19,9 +21,17 @@ type_ = forall type1 <|> type1
 typeLeaf :: Var v => Parser (Type v)
 typeLeaf =
   asum [ literal
-       , parenthesized type_
+       , tupleOrParenthesized type_
        , fmap (Type.v' . Text.pack) (token varName)
        ]
+
+tupleOrParenthesized :: Ord v => Parser (Type v) -> Parser (Type v)
+tupleOrParenthesized rec =
+  parenthesized $ go <$> sepBy1 (token $ string ",") rec where
+    go [t] = t
+    go types = foldr pair unit types
+    pair t1 t2 = Type.builtin "Pair" `Type.app` t1 `Type.app` t2
+    unit = Type.builtin "Unit"
 
 type1 :: Var v => Parser (Type v)
 type1 = arrow type2

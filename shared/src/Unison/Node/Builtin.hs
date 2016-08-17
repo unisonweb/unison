@@ -70,7 +70,7 @@ makeBuiltins whnf =
      , let r = R.Builtin "Color.rgba"
        in (r, strict r 4, unsafeParseType "Number -> Number -> Number -> Number -> Color", prefix "rgba")
 
-     -- booleans
+     -- Boolean
      , let r = R.Builtin "True"
        in (r, Nothing, Type.builtin "Boolean", prefix "True")
      , let r = R.Builtin "False";
@@ -88,7 +88,7 @@ makeBuiltins whnf =
            typ = "forall a . Boolean -> a -> a -> a"
        in (r, Just (I.Primop 3 op), unsafeParseType typ, prefix "if")
 
-     -- numbers
+     -- Number
      , let r = R.Builtin "Number.plus"
        in (r, Just (numeric2 (Term.ref r) (+)), numOpTyp, assoc 4 "+")
      , let r = R.Builtin "Number.minus"
@@ -108,7 +108,7 @@ makeBuiltins whnf =
      , let r = R.Builtin "Number.equal"
        in (r, Just (numericCompare (Term.ref r) (==)), numCompareTyp, opl 3 "==")
 
-     -- remote computations
+     -- Remote
      , let r = R.Builtin "Remote.at"
            op [node,term] = do
              Term.Distributed' (Term.Node node) <- whnf node
@@ -178,6 +178,7 @@ makeBuiltins whnf =
      , let r = R.Builtin "Symbol.Symbol"
        in (r, Nothing, unsafeParseType "Text -> Fixity -> Number -> Symbol", prefix "Symbol")
 
+     -- Text
      , let r = R.Builtin "Text.concatenate"
        in (r, Just (string2 (Term.ref r) mappend), strOpTyp, prefixes ["concatenate", "Text"])
      , let r = R.Builtin "Text.left"
@@ -189,6 +190,45 @@ makeBuiltins whnf =
      , let r = R.Builtin "Text.justify"
        in (r, Nothing, alignmentT, prefixes ["justify", "Text"])
 
+     -- Pair
+     , let r = R.Builtin "Pair"
+       in (r, Nothing, unsafeParseType "forall a b . a -> b -> Pair a b", prefix "Pair")
+     , let r = R.Builtin "Pair.fold"
+           op [f,p] = do
+             Term.Apps' (Term.Builtin' "Pair") [a,b] <- whnf p
+             whnf (f `Term.apps` [a,b])
+           op _ = error "Pair.fold unpossible"
+       in (r, Just (I.Primop 2 op), unsafeParseType "forall a b c . (a -> b -> c) -> Pair a b -> c", prefix "fold")
+
+     -- Either
+     , let r = R.Builtin "Either.Left"
+       in (r, Nothing, unsafeParseType "forall a b . a -> Either a b", prefix "Left")
+     , let r = R.Builtin "Either.Right"
+       in (r, Nothing, unsafeParseType "forall a b . b -> Either a b", prefix "Right")
+     , let r = R.Builtin "Either.fold"
+           op [fa,fb,e] = do
+             Term.App' (Term.Builtin' tag) aOrB <- whnf e
+             case tag of
+               _ | tag == "Either.Left" -> whnf (fa `Term.app` aOrB)
+                 | tag == "Either.Right" -> whnf (fb `Term.app` aOrB)
+                 | otherwise -> error "type errror"
+           op _ = error "Either.fold unpossible"
+       in (r, Just (I.Primop 3 op), unsafeParseType "forall a b r . (a -> r) -> (b -> r) -> Either a b -> r", prefix "fold")
+
+     -- Optional
+     , let r = R.Builtin "Optional.None"
+       in (r, Nothing, unsafeParseType "forall a . Optional a", prefix "None")
+     , let r = R.Builtin "Optional.Some"
+       in (r, Nothing, unsafeParseType "forall a . a -> Optional a", prefix "Some")
+     , let r = R.Builtin "Optional.fold"
+           op [fz,f,o] = whnf o >>= \o -> case o of
+             Term.Builtin' tag | tag == "Optional.None" -> whnf fz
+             Term.App' (Term.Builtin' tag) a | tag == "Optional.Some" -> whnf (f `Term.app` a)
+             _ -> error "Optional.fold unpossible"
+           op _ = error "Optional.fold unpossible"
+       in (r, Just (I.Primop 3 op), unsafeParseType "forall a r . r -> (a -> r) -> Optional a -> r", prefix "fold")
+
+     -- Vector
      , let r = R.Builtin "Vector.append"
            op [last,init] = do
              initr <- whnf init

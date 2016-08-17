@@ -56,7 +56,15 @@ term5 :: (Var v, Show v) => Parser (Term v)
 term5 = lam term <|> effectBlock <|> termLeaf
 
 termLeaf :: (Var v, Show v) => Parser (Term v)
-termLeaf = asum [hashLit, prefixTerm, lit, parenthesized term, blank, vector term]
+termLeaf = asum [hashLit, prefixTerm, lit, tupleOrParenthesized term, blank, vector term]
+
+tupleOrParenthesized :: (Var v, Show v) => Parser (Term v) -> Parser (Term v)
+tupleOrParenthesized rec =
+  parenthesized $ go <$> sepBy1 (token $ string ",") rec where
+    go [t] = t -- was just a parenthesized term
+    go terms = foldr pair unit terms -- it's a tuple literal
+    pair t1 t2 = Term.builtin "Pair" `Term.app` t1 `Term.app` t2
+    unit = Term.builtin "()"
 
 -- |
 -- Remote { x := pure 23; y := at node2 23; pure 19 }
