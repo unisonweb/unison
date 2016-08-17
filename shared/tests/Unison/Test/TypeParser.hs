@@ -28,7 +28,6 @@ tests = testGroup "TypeParser" $ fmap parseV strings
       , ("Text", T.lit T.Text)
       , ("Vector", T.lit T.Vector)
       , ("Remote", T.builtin "Remote")
-      , ("Remote!", T.builtin "Remote!")
       , ("Foo", foo)
       , ("Foo -> Foo", T.arrow foo foo)
       , ("a -> a", T.arrow a a)
