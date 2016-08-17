@@ -1,0 +1,7 @@
+# Unison configuration file, used for dynamic settings
+# This file is just defaults and should not generally be modified.
+# Modify the file $(HOME)/.unisonconfig if you wish to override any
+# defaults for local development.
+
+# Can be 0 (off), 1 (error), 2 (warn), 3 (info), 4 (debug), 5 (trace)
+logging = 3
