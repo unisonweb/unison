@@ -34,7 +34,7 @@ The easiest way to compile Unison yourself is to use the provided Dockerfile.
 If you have [Docker set up correctly](https://docs.docker.com/engine/installation/),
 just run
 ```sh
-$ git clone https://github.com/unisonweb/platform.git unisonweb
+$ git clone https://github.com/unisonweb/unison.git unisonweb
 $ cd unisonweb
 $ docker build -t unisonweb/platform .
 ```
@@ -59,6 +59,7 @@ The build uses [Stack](http://docs.haskellstack.org/). If you don't already have
 $ git clone https://github.com/unisonweb/unison.git
 $ cd unison
 $ stack --version # make sure this returns 1.0.2 or later
+$ stack setup
 $ stack build unison-node # build node executable
 ```
 
@@ -73,7 +74,7 @@ The editor is built using GHCJS. If you encounter an issue about missing 'happy'
 _After_ `stack build` completes successfully, you can symlink the generated Javascript files by performing a
 
 ```sh
-$ ln -s $(stack path --local-install-root)/bin editor
+$ ln -s $(stack --stack-yaml editor.yaml path --local-install-root)/bin editor
 ```
 
 You can run it by doing:
