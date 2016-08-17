@@ -38,6 +38,19 @@ parseType' typeBuiltins s = case run (Parser.root TypeParser.type_) s of
   Succeed t n b -> Succeed (ABT.substs typeBuiltins t) n b
   fail -> fail
 
+prelude = unlines
+  [ "let"
+  , "  Index.empty : forall k v . Remote (Index k v);"
+  , "  Index.empty = Remote.map Index.unsafeEmpty Remote.here;"
+  , ""
+  , "  Remote.transfer : Node -> Remote Unit;"
+  , "  Remote.transfer node = Remote.at node unit"
+  , "in"
+  , ""]
+
+unsafeParseTermWithPrelude :: String -> Term V
+unsafeParseTermWithPrelude prog = unsafeParseTerm (prelude ++ prog)
+
 unsafeParseTerm :: String -> Term V
 unsafeParseTerm = unsafeGetSucceed . parseTerm
 
@@ -124,6 +137,6 @@ typeBuiltins = (Var.named *** Type.lit) <$>
   , builtin "Channel"
   , builtin "Future"
   , builtin "Remote"
-  , builtin "Remote!"
+  , builtin "Node"
   ]
   where builtin t = (t, Type.Ref $ R.Builtin t)

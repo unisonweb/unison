@@ -67,15 +67,7 @@ makeAPI blockStore crypto = do
              pure . index self . Term.lit . Term.Text . Index.idToText $ ident
            op _ = fail "Index.unsafeEmpty unpossible"
            type' = unsafeParseType "forall k v. Node -> Index k v"
-       in (r, Just (I.Primop 0 op), type', prefix "unsafeEmpty")
-     , let r = R.Builtin "Index.empty"
-           op [] = pure $
-             Term.builtin "Remote.map" `Term.apps` [
-               Term.builtin "Index.unsafeEmpty",
-               Term.builtin "Remote.here" ]
-           op _ = fail "Index.empty unpossible"
-           type' = unsafeParseType "forall k v. Remote (Index k v)"
-       in (r, Just (I.Primop 0 op), type', prefix "empty")
+       in (r, Just (I.Primop 1 op), type', prefix "unsafeEmpty")
      , let r = R.Builtin "Index.unsafeLookup"
            op [key, indexToken] = inject g indexToken key where
              inject g indexToken key = do
