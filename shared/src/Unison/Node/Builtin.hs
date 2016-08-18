@@ -35,6 +35,11 @@ data Builtin = Builtin
 
 unitRef :: Ord v => Term v
 unitRef = Term.ref (R.Builtin "()")
+true, false :: Ord v => Term v
+true = Term.builtin "True"
+false = Term.builtin "False"
+pair :: Ord v => Term v
+pair = Term.builtin "Pair"
 
 makeBuiltins :: WHNFEval -> [Builtin]
 makeBuiltins whnf =
@@ -49,8 +54,8 @@ makeBuiltins whnf =
     numericCompare sym f = I.Primop 2 $ \xs -> case xs of
       [x,y] -> g <$> whnf x <*> whnf y
         where g (Term.Number' x) (Term.Number' y) = case f x y of
-                False -> Term.builtin "False"
-                True -> Term.builtin "True"
+                False -> false
+                True -> true
               g x y = sym `Term.app` x `Term.app` y
       _ -> error "unpossible"
     strict r n = Just (I.Primop n f)
@@ -250,6 +255,21 @@ makeBuiltins whnf =
            op [] = pure $ Term.vector mempty
            op _ = fail "Vector.empty unpossible"
        in (r, Just (I.Primop 0 op), unsafeParseType "forall a. Vector a", prefix "empty")
+     , let r = R.Builtin "Vector.empty?"
+           op [v] = do
+             Term.Vector' vs <- whnf v
+             pure $ if Vector.null vs then true else false
+           op _ = fail "Vector.empty? unpossible"
+       in (r, Just (I.Primop 1 op), unsafeParseType "forall a. Vector a -> Boolean", prefix "empty?")
+     , let r = R.Builtin "Vector.split"
+           op [v] = do
+             Term.Vector' vs <- whnf v
+             pure $ case Vector.null vs of
+               True -> pair `Term.apps` [Term.vector [], Term.vector []]
+               False -> case Vector.splitAt (Vector.length vs `div` 2) vs of
+                 (x,y) -> pair `Term.app` (Term.vector' x) `Term.app` (Term.vector' y)
+           op _ = fail "Vector.split unpossible"
+       in (r, Just (I.Primop 1 op), unsafeParseType "forall a. Vector a -> Boolean", prefix "empty?")
      , let r = R.Builtin "Vector.fold-left"
            op [f,z,vec] = whnf vec >>= \vec -> case vec of
              Term.Vector' vs -> Vector.foldM (\acc a -> whnf (f `Term.apps` [acc, a])) z vs
