@@ -231,7 +231,7 @@ makeBuiltins whnf =
              Term.App' (Term.Builtin' tag) a | tag == "Optional.Some" -> whnf (f `Term.app` a)
              _ -> error "Optional.fold unpossible"
            op _ = error "Optional.fold unpossible"
-       in (r, Just (I.Primop 3 op), unsafeParseType "forall a r . r -> (a -> r) -> Optional a -> r", prefix "fold")
+       in (r, Just (I.Primop 3 op), unsafeParseType "forall a r . r -> (a -> r) -> Optional a -> r", prefix "Optional.fold")
 
      -- Vector
      , let r = R.Builtin "Vector.append"

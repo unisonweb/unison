@@ -32,7 +32,7 @@ tests = withResource Common.node (\_ -> pure ()) $ \node ->
           "let id x = x; g = id 42; y = id id g in (let rec ping x = pong x; pong x = id (ping x) in y)"
       ]
     t before after = testCase (before ++ " ⟹  " ++ after) $ do
-      (node, _) <- node
+      (node, _, _) <- node
       let term = unsafeParseTerm before
       case term of
         Term.LetRecNamed' bs _ ->

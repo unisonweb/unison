@@ -2,18 +2,17 @@
 
 module Unison.TypeParser where
 
+
 import Control.Applicative ((<|>), some)
 import Data.Char (isUpper, isLower, isAlpha)
-import Data.List (foldl1')
 import Data.Foldable (asum)
-import qualified Data.Text as Text
-
+import Data.Functor
+import Data.List (foldl1')
 import Unison.Parser
 import Unison.Type (Type)
 import Unison.Var (Var)
+import qualified Data.Text as Text
 import qualified Unison.Type as Type
-
--- type V = Symbol DFO
 
 type_ :: Var v => Parser (Type v)
 type_ = forall type1 <|> type1
@@ -49,7 +48,7 @@ arrow rec = foldr1 Type.arrow <$> sepBy1 (token $ string "->") rec
 -- "forall a b . List a -> List b -> Maybe Text"
 forall :: Var v => Parser (Type v) -> Parser (Type v)
 forall rec = do
-    _ <- token $ string "forall"
+    (void . token $ string "forall") <|> void (token (char '∀'))
     vars <- some $ token varName
     _ <- token (char '.')
     t <- rec

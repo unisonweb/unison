@@ -1,3 +1,7 @@
+{-# Language DeriveFunctor #-}
+{-# Language DeriveTraversable #-}
+{-# Language DeriveFoldable #-}
+
 module Unison.Parser where
 
 import Control.Applicative
@@ -156,7 +160,7 @@ toEither (Succeed a _ _) = Right a
 data Result a
   = Fail [String] Bool
   | Succeed a Int Bool
-  deriving (Show)
+  deriving (Show,Functor,Foldable,Traversable)
 
 instance Functor Parser where
   fmap = liftM

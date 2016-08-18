@@ -221,6 +221,7 @@ freshNamed' used n = fresh' used (v' n)
 
 -- | `subst v e body` substitutes `e` for `v` in `body`, avoiding capture by
 -- renaming abstractions in `body`
+-- TODO: avoid traversing subtrees that cannot contain the free variable
 subst :: (Foldable f, Functor f, Var v) => v -> Term f v a -> Term f v a -> Term f v a
 subst v = replace match where
   match (Var' v') = v == v'
@@ -229,7 +230,7 @@ subst v = replace match where
 -- | `substs [(t1,v1), (t2,v2), ...] body` performs multiple simultaneous
 -- substitutions, avoiding capture
 substs :: (Foldable f, Functor f, Var v) => [(v, Term f v a)] -> Term f v a -> Term f v a
-substs replacements body = foldr f body replacements where
+substs replacements body = foldr f body (reverse replacements) where
   f (v, t) body = subst v t body
 
 -- | `replace f t body` substitutes `t` for all maximal (outermost)

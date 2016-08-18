@@ -1,9 +1,11 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Node where
 
 -- import Data.Bytes.Serial (Serial)
 import Control.Monad
+import Data.Foldable
 import Data.Aeson.TH
 import Data.List
 import Data.Map (Map)
@@ -12,7 +14,7 @@ import Data.Set (Set)
 import Unison.Eval as Eval
 import Unison.Metadata (Metadata)
 import Unison.Node.Store (Store)
-import Unison.Note (Noted)
+import Unison.Note (Noted(..),Note(..))
 import Unison.Paths (Path)
 import Unison.Reference (Reference)
 import Unison.Term (Term)
@@ -23,11 +25,17 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.Metadata as Metadata
 import qualified Unison.Node.Store as Store
+import qualified Unison.Parsers as Parsers
+import qualified Unison.Parser as Parser
 import qualified Unison.Paths as Paths
 import qualified Unison.Reference as Reference
 import qualified Unison.Term as Term
 import qualified Unison.TermEdit as TermEdit
+import qualified Unison.TermParser as TermParser
 import qualified Unison.Typechecker as Typechecker
+import qualified Unison.Typechecker.Components as Components
+import qualified Unison.Var as Var
+-- import Debug.Trace
 
 -- | The results of a search.
 -- On client, only need to repeat the query if we modify a character
@@ -230,3 +238,38 @@ node eval hash store =
        types
        typeAt
        updateMetadata
+
+
+-- | Declare a group of bindings and add them to the Node.
+-- Bindings may be in any order and may refer to each other.
+-- They are broken into strongly connected components before
+-- being added, and any free variables are resolved using the
+-- existing metadata store of the Node.
+declare :: (Monad m, Var v) => (h -> Term v) -> [(v, Term v)] -> Node m v h (Type v) (Term v) -> Noted m ()
+declare ref bindings node = do
+  termBuiltins <- do
+    -- grab all definitions in the node
+    results <- search node Term.blank [] 1000000 (Metadata.Query "") Nothing
+    pure [ (v, ref h) | (h, md) <- references results
+                      , v <- toList $ Metadata.firstName (Metadata.names md) ]
+  let groups = Components.components bindings
+      -- watch msg a = trace (msg ++ show (map (Var.name . fst) a)) a
+      bindings' = groups >>= \c -> case c of
+        [(v,b)] -> [(v,b)]
+        _ -> [ (v, Term.letRec c b) | (v,b) <- c ]
+      metadata v = Metadata.Metadata Metadata.Term (Metadata.Names [v]) Nothing
+      tb0 = Parsers.termBuiltins
+      step termBuiltins (v, b) = do
+        let md = metadata v
+        h <- createTerm node (Parsers.bindBuiltins (tb0 ++ termBuiltins) Parsers.typeBuiltins b) md
+        updateMetadata node h md
+        pure ((v, ref h) : termBuiltins)
+  foldM_ step termBuiltins bindings'
+
+-- | Like `declare`, but takes a `String`
+declare' :: (Monad m, Var v) => (h -> Term v) -> String -> Node m v h (Type v) (Term v) -> Noted m ()
+declare' ref bindings node = do
+  bs <- case Parser.run TermParser.moduleBindings bindings of
+    Parser.Fail err _ -> Noted (pure $ Left (Note err))
+    Parser.Succeed bs _ _ -> pure bs
+  declare ref bs node

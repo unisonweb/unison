@@ -32,7 +32,7 @@ hash :: TTerm -> Hash
 hash = ABT.hash
 
 atPts :: Bool -> Common.TNode -> [(Int,Int)] -> TTerm -> [(Paths.Path, Region)]
-atPts print (_,symbol) pts t = map go pts where
+atPts print (_,symbol,_) pts t = map go pts where
   go (x,y) = let p = path x y in (p, Doc.region bounds p)
   doc = Views.term symbol t
   layout = Doc.layout Doc.textWidth (Width 80) doc
@@ -48,20 +48,20 @@ tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Term"
     , testCase "hash cycles" $ assertEqual "pingpong"
        (hash pingpong1)
        (hash pingpong2)
-    , testCase "infix-rendering (1)" $ node >>= \(_,symbol) ->
+    , testCase "infix-rendering (1)" $ node >>= \(_,symbol,_) ->
         let t = unsafeParseTerm "Number.plus 1 1"
         in assertEqual "+"
           "1 + 1"
           (Doc.formatText (Width 80) (Views.term symbol t))
-    , testCase "infix-rendering (unsaturated)" $ node >>= \(_,symbol) ->
+    , testCase "infix-rendering (unsaturated)" $ node >>= \(_,symbol,_) ->
         let t = unsafeParseTerm "Number.plus _"
         in assertEqual "+"
           "(+) _"
           (Doc.formatText (Width 80) (Views.term symbol t))
-    , testCase "infix-rendering (totally unsaturated)" $ node >>= \(_,symbol) ->
+    , testCase "infix-rendering (totally unsaturated)" $ node >>= \(_,symbol,_) ->
         let t = unsafeParseTerm "Number.plus"
         in assertEqual "+" "(+)" (Doc.formatText (Width 80) (Views.term symbol t))
-    , testCase "infix-rendering (2)" $ node >>= \(_,symbol) ->
+    , testCase "infix-rendering (2)" $ node >>= \(_,symbol,_) ->
         do
           t <- pure $ unsafeParseTerm "Number.plus 1 1"
           let d = Views.term symbol t

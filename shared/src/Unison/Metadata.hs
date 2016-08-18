@@ -31,9 +31,13 @@ synthetic t = Metadata t (Names []) Nothing
 syntheticTerm :: Metadata v h
 syntheticTerm = synthetic Term
 
-data Names v = Names [v] deriving (Eq,Ord,Show,Generic)
+newtype Names v = Names [v] deriving (Eq,Ord,Show,Generic)
 
-data Query = Query Text
+firstName :: Names v -> Maybe v
+firstName (Names (h:_)) = Just h
+firstName _ = Nothing
+
+newtype Query = Query Text
 
 instance Show Query where
   show (Query q) = show q

@@ -35,7 +35,7 @@ instance Show StrongEq where show (StrongEq t) = show t
 
 env :: TNode -> TEnv IO
 env node r = do
-  (node, _) <- Note.lift node
+  (node, _, _) <- Note.lift node
   Node.typeAt node (E.ref r) mempty
 
 localsAt :: TNode -> Path -> TTerm -> IO [(V, Type V)]
@@ -45,7 +45,7 @@ localsAt node path e = Note.run $ do
 
 synthesizesAt :: TNode -> Path -> TTerm -> TType -> Assertion
 synthesizesAt node path e t = Note.run $ do
-  (node, _) <- Note.lift node
+  (node, _, _) <- Note.lift node
   t2 <- Node.typeAt node e path
   _ <- Note.fromEither (Typechecker.subtype t2 t)
   _ <- Note.fromEither (Typechecker.subtype t t2)

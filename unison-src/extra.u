@@ -1,0 +1,3 @@
+
+Index.empty : ∀ k v . Remote (Index k v);
+Index.empty = Remote.map Index.unsafeEmpty Remote.here

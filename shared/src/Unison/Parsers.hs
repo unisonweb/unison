@@ -8,6 +8,7 @@ import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Parser (Result(..), run, unsafeGetSucceed)
+import Unison.Var (Var)
 import Unison.View (DFO)
 import qualified Unison.Parser as Parser
 import qualified Data.Text as Text
@@ -28,74 +29,15 @@ parseType :: String -> Result (Type V)
 parseType = parseType' typeBuiltins
 
 parseTerm' :: [(V, Term V)] -> [(V, Type V)] -> String -> Result (Term V)
-parseTerm' termBuiltins typeBuiltins s = case run (Parser.root TermParser.term) s of
-  Succeed e n b ->
-    Succeed (Term.typeMap (ABT.substs typeBuiltins) (ABT.substs termBuiltins e)) n b
-  fail -> fail
+parseTerm' termBuiltins typeBuiltins s =
+  bindBuiltins termBuiltins typeBuiltins <$> run (Parser.root TermParser.term) s
+
+bindBuiltins :: Var v => [(v, Term v)] -> [(v, Type v)] -> Term v -> Term v
+bindBuiltins termBuiltins typeBuiltins =
+   Term.typeMap (ABT.substs typeBuiltins) . ABT.substs termBuiltins
 
 parseType' :: [(V, Type V)] -> String -> Result (Type V)
-parseType' typeBuiltins s = case run (Parser.root TypeParser.type_) s of
-  Succeed t n b -> Succeed (ABT.substs typeBuiltins t) n b
-  fail -> fail
-
-prelude' :: String -> String
-prelude' body = unlines
-  [ "let"
-  , "  Index.empty : forall k v . Remote (Index k v);"
-  , "  Index.empty = Remote.map Index.unsafeEmpty Remote.here"
-  , "in", "(", prelude body, ")"]
-
-prelude :: String -> String
-prelude body = unlines
-  [ "let"
-  , "  Remote.transfer : Node -> Remote Unit;"
-  , "  Remote.transfer node = Remote.at node unit;"
-  , ""
-  , "  then : forall a b c . (a -> b) -> (b -> c) -> a -> c;"
-  , "  then f1 f2 x = f2 (f1 x);"
-  , ""
-  , "  Optional.map : forall a b . (a -> b) -> Optional a -> Optional b;"
-  , "  Optional.map f = Optional.fold None (f `then` Some);"
-  , ""
-  , "  Optional.bind : forall a b . (a -> Optional b) -> Optional a -> Optional b;"
-  , "  Optional.bind f = Optional.fold None f;"
-  , ""
-  , "  Optional.pure : forall a . a -> Optional a;"
-  , "  Optional.pure = Some;"
-  , ""
-  , "  Either.map : forall a b c . (b -> c) -> Either a b -> Either a c;"
-  , "  Either.map f = Either.fold Left (f `then` Right);"
-  , ""
-  , "  Either.pure : forall a b . b -> Either a b;"
-  , "  Either.pure = Right;"
-  , ""
-  , "  Either.bind : forall a b c . (b -> Either a c) -> Either a b -> Either a c;"
-  , "  Either.bind = Either.fold Left;"
-  , ""
-  , "  Either.swap : forall a b . Either a b -> Either b a;"
-  , "  Either.swap e = Either.fold Right Left e;"
-  , ""
-  , "  const x y = x;"
-  , ""
-  , "  first : forall a b . Pair a b -> a;"
-  , "  first p = Pair.fold const p;"
-  , ""
-  , "  rest : forall a b . Pair a b -> b;"
-  , "  rest p = Pair.fold (x y -> y) p;"
-  , ""
-  , "  1st = first;"
-  , "  2nd = rest `then` first;"
-  , "  3rd = rest `then` (rest `then` first);"
-  , "  4th = rest `then` (rest `then` (rest `then` first));"
-  , "  5th = rest `then` (rest `then` (rest `then` (rest `then` first)))"
-  , ""
-  , "in" , "(", body, ")"]
-
-unsafeParseTermWithPrelude' :: String -> Term V
-unsafeParseTermWithPrelude' prog = unsafeParseTerm (prelude' prog)
-
-unsafeParseTermWithPrelude :: String -> Term V
-unsafeParseTermWithPrelude prog = unsafeParseTerm (prelude prog)
+parseType' typeBuiltins s = ABT.substs typeBuiltins <$> run (Parser.root TypeParser.type_) s
 
 unsafeParseTerm :: String -> Term V
 unsafeParseTerm = unsafeGetSucceed . parseTerm
@@ -120,7 +62,7 @@ data Builtin = Builtin Text -- e.g. Builtin "()"
              | AliasFromModule Text [Text] [Text]
 
 -- aka default imports
-termBuiltins :: [(V, Term V)]
+termBuiltins :: Var v => [(v, Term v)]
 termBuiltins = (Var.named *** Term.ref) <$> (
     [ Alias "+" "Number.plus"
     , Alias "-" "Number.minus"
@@ -169,7 +111,7 @@ termBuiltins = (Var.named *** Term.ref) <$> (
       aliasFromModule m sym = alias sym (Text.intercalate "." [m, sym])
       builtinInModule m sym = builtin (Text.intercalate "." [m, sym])
 
-typeBuiltins :: [(V, Type V)]
+typeBuiltins :: Var v => [(v, Type v)]
 typeBuiltins = (Var.named *** Type.lit) <$>
   [ ("Number", Type.Number)
   , builtin "Unit"

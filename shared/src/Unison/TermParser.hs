@@ -31,13 +31,13 @@ operator characters (like empty? or fold-left).
 Sections / partial application of infix operators is not implemented.
 -}
 
-term :: (Var v, Show v) => Parser (Term v)
+term :: Var v => Parser (Term v)
 term = possiblyAnnotated term2
 
-term2 :: (Var v, Show v) => Parser (Term v)
+term2 :: Var v => Parser (Term v)
 term2 = let_ term3 <|> term3
 
-term3 ::(Var v, Show v) => Parser (Term v)
+term3 :: Var v => Parser (Term v)
 term3 = infixApp term4 <|> term4
 
 infixApp :: Var v => Parser (Term v) -> Parser (Term v)
@@ -49,16 +49,16 @@ infixApp p = f <$> arg <*> some ((,) <$> infixVar <*> arg)
     g :: Ord v => Term v -> (v, Term v) -> Term v
     g lhs (op, rhs) = Term.apps (Term.var op) [lhs,rhs]
 
-term4 :: (Var v, Show v) => Parser (Term v)
+term4 :: Var v => Parser (Term v)
 term4 = prefixApp term5
 
-term5 :: (Var v, Show v) => Parser (Term v)
+term5 :: Var v => Parser (Term v)
 term5 = lam term <|> effectBlock <|> termLeaf
 
-termLeaf :: (Var v, Show v) => Parser (Term v)
+termLeaf :: Var v => Parser (Term v)
 termLeaf = asum [hashLit, prefixTerm, lit, tupleOrParenthesized term, blank, vector term]
 
-tupleOrParenthesized :: (Var v, Show v) => Parser (Term v) -> Parser (Term v)
+tupleOrParenthesized :: Var v => Parser (Term v) -> Parser (Term v)
 tupleOrParenthesized rec =
   parenthesized $ go <$> sepBy1 (token $ string ",") rec where
     go [t] = t -- was just a parenthesized term
@@ -70,7 +70,7 @@ tupleOrParenthesized rec =
 -- Remote { x := pure 23; y := at node2 23; pure 19 }
 -- Remote { action1; action2; }
 -- Remote { action1; x = 1 + 1; action2; }
-effectBlock :: (Var v, Show v) => Parser (Term v)
+effectBlock :: Var v => Parser (Term v)
 effectBlock = do
   name <- wordyId <* token (string "{")
   let qualifiedPure = ABT.var' (Text.pack name `mappend` Text.pack ".pure")
@@ -147,29 +147,29 @@ ann'' :: Var v => Parser (Type v)
 ann'' = token (char ':') *> TypeParser.type_
 
 --let server = _; blah = _ in _
-let_ :: (Var v, Show v) => Parser (Term v) -> Parser (Term v)
+let_ :: Var v => Parser (Term v) -> Parser (Term v)
 let_ p = f <$> (let_ *> optional rec_) <*> bindings' <* in_ <*> body
   where
     let_ = token (string "let")
     rec_ = token (string "rec") $> ()
     bindings' = lineErrorUnless "error parsing let bindings" (bindings p)
-    in_ = lineErrorUnless "missing 'in' after bindings in let-expression'" $ token (string "in")
+    in_ = lineErrorUnless "missing 'in' after bindings in let-expression'" $
+          (optional (token (string ";")) *> token (string "in"))
     body = lineErrorUnless "parse error in body of let-expression" p
     -- f = maybe Term.let1'
     f :: Ord v => Maybe () -> [(v, Term v)] -> Term v -> Term v
     f Nothing bindings body = Term.let1 bindings body
     f (Just _) bindings body = Term.letRec bindings body
 
-
 semicolon :: Parser ()
 semicolon = void $ token (char ';')
 
-infixBinding :: (Var v, Show v) => Parser (Term v) -> Parser (v, Term v)
+infixBinding :: Var v => Parser (Term v) -> Parser (v, Term v)
 infixBinding p = ((,,,,) <$> optional (typedecl <* semicolon) <*> prefixVar <*> infixVar <*> prefixVar <*> bindingEqBody p) >>= f
   where
-    f :: (Ord v, Show v) => (Maybe (v, Type v), v, v, v, Term v) -> Parser (v, Term v)
+    f :: Var v => (Maybe (v, Type v), v, v, v, Term v) -> Parser (v, Term v)
     f (Just (opName', _), _, opName, _, _) | opName /= opName' =
-      failWith ("The type signature for ‘" ++ show opName' ++ "’ lacks an accompanying binding")
+      failWith ("The type signature for ‘" ++ show (Var.name opName') ++ "’ lacks an accompanying binding")
     f (Nothing, arg1, opName, arg2, body) = pure (mkBinding opName [arg1,arg2] body)
     f (Just (_, type'), arg1, opName, arg2, body) = pure $ (`Term.ann` type') <$> mkBinding opName [arg1,arg2] body
 
@@ -180,12 +180,11 @@ mkBinding f args body = (f, Term.lam'' args body)
 typedecl :: Var v => Parser (v, Type v)
 typedecl = (,) <$> prefixVar <*> ann''
 
-prefixBinding :: (Var v, Show v) => Parser (Term v) -> Parser (v, Term v)
+prefixBinding :: Var v => Parser (Term v) -> Parser (v, Term v)
 prefixBinding p = ((,,,) <$> optional (typedecl <* semicolon) <*> prefixVar <*> many prefixVar <*> bindingEqBody p) >>= f -- todo
   where
-    f :: (Ord v, Show v) => (Maybe (v, Type v), v, [v], Term v) -> Parser (v, Term v)
     f (Just (opName, _), opName', _, _) | opName /= opName' =
-      failWith ("The type signature for ‘" ++ show opName' ++ "’ lacks an accompanying binding")
+      failWith ("The type signature for ‘" ++ show (Var.name opName') ++ "’ lacks an accompanying binding")
     f (Nothing, name, args, body) = pure $ mkBinding name args body
     f (Just (_, t), name, args, body) = pure $ (`Term.ann` t) <$> mkBinding name args body
 
@@ -240,6 +239,9 @@ prefixApp p = f <$> some p
     f (func:args) = Term.apps func args
     f [] = error "'some' shouldn't produce an empty list"
 
-bindings :: (Var v, Show v) => Parser (Term v) -> Parser [(v, Term v)]
-bindings p = --many (binding term)
-  sepBy1 (token (char ';' <|> char '\n')) (prefixBinding p <|> infixBinding p)
+bindings :: Var v => Parser (Term v) -> Parser [(v, Term v)]
+bindings p =
+  sepBy1 (token (char ';')) (prefixBinding p <|> infixBinding p)
+
+moduleBindings :: Var v => Parser [(v, Term v)]
+moduleBindings = root (bindings term3 <* optional (token (char ';')))

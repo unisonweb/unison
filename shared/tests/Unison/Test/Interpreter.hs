@@ -38,8 +38,9 @@ tests = withResource Common.node (\_ -> pure ()) $ \node ->
       , t "2nd (1,2 + 1,3,4)" "3"
       ]
     t uneval eval = testCase (uneval ++ " ⟹  " ++ eval) $ do
-      (node, _) <- node
-      let term = P.unsafeParseTermWithPrelude uneval
+      (node, _, builtins) <- node
+      -- putStrLn (show $ map fst builtins)
+      let term = P.bindBuiltins builtins [] $ P.unsafeParseTerm uneval
       _ <- Note.run $ Node.typeAt node term []
       [(_,_,result)] <- Note.run $ Node.evaluateTerms node [([], term)]
       assertEqual "comparing results" (P.unsafeParseTerm eval) result
