@@ -174,6 +174,12 @@ scope :: String -> Multiplex a -> Multiplex a
 scope msg = local tweak where
   tweak (a,b,c,logger) = (a,b,c,L.scope msg logger)
 
+-- | Crash with a message. Include the current logging scope.
+crash :: String -> Multiplex a
+crash msg = scope msg $ do
+  l <- logger
+  fail (show $ L.getScope l)
+
 info, warn, debug :: String -> Multiplex ()
 info msg = logger >>= \logger -> liftIO $ L.info logger msg
 warn msg = logger >>= \logger -> liftIO $ L.warn logger msg
@@ -253,40 +259,41 @@ type Request a b = Channel (a, Channel b)
 type Microseconds = Int
 
 requestTimedVia' :: (Serial a, Serial b)
-                 => Microseconds
+                 => String
+                 -> Microseconds
                  -> (STM (a, Channel b) -> Multiplex ())
                  -> Channel b
                  -> STM a
                  -> Multiplex (Multiplex b)
-requestTimedVia' micros send replyTo a = do
+requestTimedVia' msg micros send replyTo a = do
   env <- ask
   (receive, cancel) <- receiveCancellable replyTo
   send $ (,replyTo) <$> a
   watchdog <- liftIO . C.forkIO $ do
     liftIO $ C.threadDelay micros
-    run env cancel
+    run env (cancel $ "requestTimedVia timeout " ++ msg)
   pure $ receive <* liftIO (C.killThread watchdog)
 
-requestTimedVia :: (Serial a, Serial b) => Microseconds -> Request a b -> Channel b -> STM a
+requestTimedVia :: (Serial a, Serial b) => String -> Microseconds -> Request a b -> Channel b -> STM a
                 -> Multiplex (Multiplex b)
-requestTimedVia micros req replyTo a =
-  requestTimedVia' micros (send' req) replyTo a
+requestTimedVia msg micros req replyTo a =
+  requestTimedVia' msg micros (send' req) replyTo a
 
-requestTimed' :: (Serial a, Serial b) => Microseconds -> Request a b -> STM a -> Multiplex (Multiplex b)
-requestTimed' micros req a = do
+requestTimed' :: (Serial a, Serial b) => String -> Microseconds -> Request a b -> STM a -> Multiplex (Multiplex b)
+requestTimed' msg micros req a = do
   replyTo <- channel
-  requestTimedVia micros req replyTo a
+  requestTimedVia msg micros req replyTo a
 
-requestTimed :: (Serial a, Serial b) => Microseconds -> Request a b -> a -> Multiplex (Multiplex b)
-requestTimed micros req a = do
+requestTimed :: (Serial a, Serial b) => String -> Microseconds -> Request a b -> a -> Multiplex (Multiplex b)
+requestTimed msg micros req a = do
   replyTo <- channel
   env <- ask
   (receive, cancel) <- receiveCancellable replyTo
   send req (a, replyTo)
   watchdog <- liftIO . C.forkIO $ do
     liftIO $ C.threadDelay micros
-    run env cancel
-  pure $ receive <* liftIO (C.killThread watchdog) <* cancel
+    run env (cancel $ "requestTimed timeout " ++ msg)
+  pure $ receive <* liftIO (C.killThread watchdog) <* cancel ("requestTimed completed")
 
 type Cleartext = B.ByteString
 type Ciphertext = B.ByteString
@@ -294,18 +301,19 @@ type CipherState = (Cleartext -> STM Ciphertext, Ciphertext -> STM Cleartext)
 
 encryptedRequestTimedVia
   :: (Serial a, Serial b)
-  => CipherState
+  => String
+  -> CipherState
   -> Microseconds
   -> ((a,Channel b) -> Multiplex ())
   -> Channel b
   -> a
   -> Multiplex b
-encryptedRequestTimedVia (_,decrypt) micros send replyTo@(Channel _ bs) a = do
-  responseCiphertext <- receiveTimed micros (Channel Type bs)
+encryptedRequestTimedVia msg (_,decrypt) micros send replyTo@(Channel _ bs) a = do
+  responseCiphertext <- receiveTimed msg micros (Channel Type bs)
   send (a, replyTo)
   responseCiphertext <- responseCiphertext -- force the receive
   responseCleartext <- liftIO . atomically . decrypt $ responseCiphertext
-  either fail pure $ Get.runGetS deserialize responseCleartext
+  either crash pure $ Get.runGetS deserialize responseCleartext
 
 encryptAndSendTo
   :: (Serial a, Serial node)
@@ -346,29 +354,29 @@ send' (Channel _ key) a = do
   ~(send,_,_,_) <- ask
   liftIO . atomically $ send (Packet key . Put.runPutS . serialize <$> a)
 
-receiveCancellable :: Serial a => Channel a -> Multiplex (Multiplex a, Multiplex ())
+receiveCancellable :: Serial a => Channel a -> Multiplex (Multiplex a, String -> Multiplex ())
 receiveCancellable (Channel _ key) = do
   (_,Callbacks cbs cba,_,_) <- ask
   result <- liftIO newEmptyMVar
   liftIO . atomically $ M.insert (putMVar result . Right) key cbs
   liftIO $ bumpActivity' cba
-  cancel <- pure $ do
+  cancel <- pure $ \reason -> do
     liftIO . atomically $ M.delete key cbs
-    liftIO $ putMVar result (Left "cancelled")
-  force <- pure . liftIO $ do
-    bytes <- takeMVar result
-    bytes <- either fail pure bytes
-    either fail pure $ Get.runGetS deserialize bytes
+    liftIO $ putMVar result (Left $ "Mux.cancelled: " ++ reason)
+  force <- pure . scope "receiveCancellable" $ do
+    bytes <- liftIO $ takeMVar result
+    bytes <- either crash pure bytes
+    either crash pure $ Get.runGetS deserialize bytes
   pure (force, cancel)
 
-receiveTimed :: Serial a => Microseconds -> Channel a -> Multiplex (Multiplex a)
-receiveTimed micros chan = do
+receiveTimed :: Serial a => String -> Microseconds -> Channel a -> Multiplex (Multiplex a)
+receiveTimed msg micros chan = do
   (force, cancel) <- receiveCancellable chan
   env <- ask
   watchdog <- liftIO . C.forkIO $ do
     liftIO $ C.threadDelay micros
-    run env cancel
-  pure $ force <* liftIO (C.killThread watchdog) <* cancel
+    run env (cancel $ "receiveTimed timeout during " ++ msg)
+  pure $ scope "receiveTimed" (force <* liftIO (C.killThread watchdog) <* cancel ("receiveTimed completed" ++ msg))
 
 timeout' :: Microseconds -> a -> Multiplex a -> Multiplex a
 timeout' micros onTimeout m = fromMaybe onTimeout <$> timeout micros m
@@ -413,15 +421,15 @@ subscribeTimed micros chan = do
         loop logger activity result cancel
 
 subscribe :: Serial a => Channel a -> Multiplex (Multiplex a, Multiplex ())
-subscribe (Channel _ key) = do
+subscribe (Channel _ key) = scope "subscribe" $ do
   (_, Callbacks cbs cba, _, _) <- ask
   q <- liftIO . atomically $ newTQueue
   liftIO . atomically $ M.insert (atomically . writeTQueue q) key cbs
   liftIO $ bumpActivity' cba
   unsubscribe <- pure . liftIO . atomically . M.delete key $ cbs
-  force <- pure . liftIO $ do
-    bytes <- atomically $ readTQueue q
-    either fail pure $ Get.runGetS deserialize bytes
+  force <- pure $ do
+    bytes <- liftIO . atomically $ readTQueue q
+    either crash pure $ Get.runGetS deserialize bytes
   pure (force, unsubscribe)
 
 seconds :: Microseconds -> Int
@@ -487,7 +495,7 @@ pipeInitiate crypto rootChan (recipient,recipientKey) u = scope "pipeInitiate" $
           bytes <- fetchh
           debug "... handshake round trip completed"
           case bytes of
-            Nothing -> cancelh >> cancelc >> fail "cancelled handshake"
+            Nothing -> cancelh >> cancelc >> crash "cancelled handshake"
             Just bytes -> liftIO (atomically $ decrypt bytes) >> go
 
 -- todo: add access control here, better to bail ASAP (or after 1s delay
@@ -505,7 +513,7 @@ pipeRespond crypto allow _ extractSender payload = do
   (doneHandshake, senderKey, encrypt, decrypt) <- liftIO $ C.pipeResponder crypto
   debug $ "decrypting initial payload"
   bytes <- (liftLogged "[Mux.pipeRespond] decrypt" . atomically . decrypt) payload
-  (u, chans@(handshakeChan,connectedChan)) <- either fail pure $ Get.runGetS deserialize bytes
+  (u, chans@(handshakeChan,connectedChan)) <- either crash pure $ Get.runGetS deserialize bytes
   debug $ "handshake channels: " ++ show chans
   let sender = extractSender u
   handshakeSub <- subscribeTimed handshakeTimeout handshakeChan
@@ -531,7 +539,7 @@ pipeRespond crypto allow _ extractSender payload = do
         Nothing -> pure ()
         Just senderKey -> allow senderKey >>= \ok ->
           if ok then pure ()
-          else liftIO (C.threadDelay delayBeforeFailure) >> fail "disallowed key"
+          else liftIO (C.threadDelay delayBeforeFailure) >> crash "disallowed key"
     go = do
       ready <- liftIO $ atomically doneHandshake
       checkSenderKey
@@ -545,5 +553,5 @@ pipeRespond crypto allow _ extractSender payload = do
           nest sender $ send' chanh (encrypt B.empty)
           bytes <- fetchh
           case bytes of
-            Nothing -> cancelh >> cancelc >> fail "cancelled handshake"
+            Nothing -> cancelh >> cancelc >> crash "cancelled handshake"
             Just bytes -> liftIO (atomically $ decrypt bytes) >> go

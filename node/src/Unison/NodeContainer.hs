@@ -99,13 +99,19 @@ make bs nodeLock p genNode launchNodeCmd = do
           writer <- Async.async . forever $ do
             (bytes, force) <- tryReadChan toNodeRead
             bytes <- tryRead bytes >>= \bytes -> case bytes of
-              Nothing -> hFlush stdin >> force -- flush buffer whenever there's a pause
+              Nothing -> do
+                L.trace logger $ "flushing bytes sent to stdin of node worker"
+                hFlush stdin >> force -- flush buffer whenever there's a pause
               Just bytes -> pure bytes -- we're saturating the channel, no need to flush manually
             let nodeBytes = Put.runPutS (S.serialize node)
-            L.trace logger $ "writing bytes " ++ show (B.length bytes)
+            let numbytes = B.length bytes
+            L.trace logger $ "sending " ++ show numbytes ++ " bytes to node " ++ show node
             safely $
-              B.hPut stdin bytes `onException`
-              writeChan packetWrite (Mux.Packet nodeBytes bytes)
+              do
+                B.hPut stdin bytes
+                L.trace logger $ "done sending " ++ show numbytes ++ " bytes to node " ++ show node
+              `onException`
+                writeChan packetWrite (Mux.Packet nodeBytes bytes)
 
           -- establish routes for processing packets coming from the node
           routes <- id $
@@ -125,7 +131,9 @@ make bs nodeLock p genNode launchNodeCmd = do
               handleRequest :: (S.Serial a, S.Serial b) => (a -> IO b) -> ByteString -> IO ()
               handleRequest h bytes = safely $ do
                 (a, replyTo) <- either fail pure (Get.runGetS S.deserialize bytes)
+                L.debug logger $ "got request " ++ show (Base64.encode replyTo)
                 b <- h a
+                L.debug logger $ "got response " ++ show (Base64.encode replyTo)
                 send $ Put.runPutS (S.serialize (Mux.Packet replyTo $ Put.runPutS (S.serialize b)))
               insert = handleRequest (BS.insert bs)
               lookup = handleRequest (BS.lookup bs)

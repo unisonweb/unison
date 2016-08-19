@@ -161,6 +161,7 @@ executable worker
     ghc-options: -funbox-strict-fields -O2
 
   build-depends:
+    aeson,
     async,
     base,
     base64-bytestring,
@@ -171,6 +172,8 @@ executable worker
     configurator,
     cryptonite,
     curl,
+    directory,
+    filepath,
     free,
     hashable,
     list-t,

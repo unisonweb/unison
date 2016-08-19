@@ -34,6 +34,7 @@ tests = withResource Common.node (\_ -> pure ()) $ \node ->
       , t "Either.fold ((+) 1) ((+) 2) (Either.Right 1)" "3"
       , t "Either.swap (Left 1)" "Either.Right 1"
       , t "Pair.fold (x y -> x) (1, 2)" "1"
+      , t "const 41 0" "41"
       , t "1st (1,2,3,4)" "1"
       , t "2nd (1,2 + 1,3,4)" "3"
       ]

@@ -43,28 +43,7 @@ make hash store getBuiltins =
     readTerm h = Store.readTerm store h
     whnf = Eval.whnf eval readTerm
     node = Node.node eval hash store
-
-    -- stub :: Metadata V R.Reference -> Type V -> N.Noted IO ()
-    -- stub s t = () <$ Node.createTerm node (Term.blank `Term.ann` t) s
-
   in N.run $ do
-    _ <- Node.createTerm node (unsafeParseTerm "a -> a") (prefix "identity")
     mapM_ (\(B.Builtin r _ t md) -> Node.updateMetadata node r md *> Store.annotateTerm store r t)
           builtins
-    compose <- Node.createTerm node (unsafeParseTerm "f g x -> f (g x)") (prefix "compose")
-    -- Node.createTerm node (\f -> bind (compose pure f))
-    let composeH = unsafeHashStringFromReference compose
-    _ <- Node.createTerm node (unsafeParseTerm $ "f -> bind ("++composeH++" pure f)") 
-                              (prefix "map")
     pure node
-  where
-    unsafeHashStringFromReference (R.Derived h) = "#" ++ Text.unpack (H.base64 h)
-    unsafeHashStringFromReference _ = error "tried to extract a Derived hash from a Builtin"
-
-prefix :: Text -> Metadata V h
-prefix s = prefixes [s]
-
-prefixes :: [Text] -> Metadata V h
-prefixes s = Metadata Metadata.Term
-                      (Metadata.Names (map Var.named s))
-                      Nothing

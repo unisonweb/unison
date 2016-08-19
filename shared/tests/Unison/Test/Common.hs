@@ -39,6 +39,8 @@ node = do
   base <- Note.run $ do
     -- grab all definitions in the node
     results <- Node.search node Term.blank [] 1000000 (Metadata.Query "") Nothing
+    sources <- Node.terms node (map fst $ Node.references results)
+    Note.lift $ putStrLn (show sources)
     let x = [ (v, Term.ref h) | (h, md) <- Node.references results
                               , v <- toList $ Metadata.firstName (Metadata.names md) ]
     Note.lift $ putStrLn (show x)

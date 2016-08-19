@@ -43,7 +43,7 @@ make :: ( BA.ByteArrayAccess key
      -> (Keypair key -> Cryptography key symmetricKey signKey skp signature hash Remote.Cleartext)
      -> Get (Cryptography key symmetricKey signKey skp signature hash Remote.Cleartext
              -> BlockStore h
-             -> IO (Remote.Language term thash, term -> IO (Either String ())))
+             -> IO (Remote.Language term thash, term -> IO (Either String term), IO ()))
      -> IO ()
 make protocol mkCrypto makeSandbox = do
   logger <- L.scope "worker" <$> Config.loggerStandardError
@@ -56,21 +56,23 @@ make protocol mkCrypto makeSandbox = do
   (sandbox, _, rem) <- Mux.deserializeHandle1 stdin (Get.runGetPartial deserialize rem)
   publicKey <- either die pure $ Get.runGetS deserialize (Remote.publicKey node)
   let keypair = Keypair publicKey privateKey
+  L.debug logger $ "parsed private key, node id, universe, sandbox description"
   L.debug logger $ "remaining bytes: " ++ show (B.length rem)
   interrupt <- atomically $ newTSem 0
   Mux.runStandardIO logger (Mux.seconds 5) rem (atomically $ waitTSem interrupt) $ do
     blockStore <- P.blockStoreProxy protocol
     makeSandbox <- either die pure $ Get.runGetS makeSandbox sandbox
     let crypto = mkCrypto keypair
-    (sandbox, typecheck) <- liftIO $ makeSandbox crypto blockStore
+    (sandbox, typecheck, initialize) <- liftIO $ makeSandbox crypto blockStore
     let skHash = Put.runPutS (serialize $ C.hash crypto [Put.runPutS (serialize $ private keypair)])
     -- todo: load this from persistent store also
     connectionSandbox <- pure $ Remote.ConnectionSandbox (\_ -> pure True) (\_ -> pure True)
     env <- liftIO $ Remote.makeEnv universe node blockStore
-    Mux.info $ "... done initializing"
     _ <- Remote.server crypto connectionSandbox env sandbox protocol
     _ <- do
       (prog, cancel) <- Mux.subscribeTimed (Mux.seconds 60) (P._localEval protocol)
+      liftIO $ initialize
+      Mux.info $ "... done initializing"
       Mux.fork . Mux.scope "_localEval" . Mux.repeatWhile $ do
         e <- prog
         case e of
@@ -83,7 +85,7 @@ make protocol mkCrypto makeSandbox = do
                 Mux.warn $ "typechecking failed on: " ++ show r
                 Mux.warn $ "typechecking error:\n" ++ err
                 pure True
-              Right _ -> do
+              Right r -> do
                 Mux.debug "typechecked"
                 r <- liftIO $ Remote.eval sandbox r
                 Mux.debug $ "evaluated to " ++ show r

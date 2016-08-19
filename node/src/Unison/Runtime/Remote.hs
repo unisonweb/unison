@@ -132,7 +132,8 @@ server crypto allow env lang p = do
               where
               fetch hs = do
                 syncChan <- Mux.channel
-                Mux.encryptedRequestTimedVia cipherstate (Mux.seconds 5) (send . Just . Just) syncChan (Set.toList hs)
+                Mux.encryptedRequestTimedVia "fetching hashes"
+                  cipherstate (Mux.seconds 5) (send . Just . Just) syncChan (Set.toList hs)
               loop needs | Set.null needs = pure ()
               loop needs = fetch needs >>= \hashes -> case hashes of
                 Nothing -> fail "expected hashes, got timeout"
@@ -185,7 +186,7 @@ handle crypto allow env lang p r = Mux.debug (show r) >> case r of
     pure $ node lang (currentNode env)
   runLocal Spawn = do
     Mux.debug $ "runLocal Spawn"
-    n <- Mux.requestTimed (Mux.seconds 5) (P._spawn p) B.empty
+    n <- Mux.requestTimed "runLocal.spawn" (Mux.seconds 5) (P._spawn p) B.empty
     n <- n
     Mux.debug $ "runLocal Spawn completed: " ++ show n
     pure (node lang n)
@@ -198,7 +199,8 @@ handle crypto allow env lang p r = Mux.debug (show r) >> case r of
     pure (unit lang)
   runLocal (ReceiveAsync chan@(Channel cid) (Seconds seconds)) = do
     Mux.debug $ "runLocal ReceiveAsync " ++ show (seconds, cid)
-    _ <- Mux.receiveTimed (floor $ seconds * 1000 * 1000) ((Mux.Channel Mux.Type cid) :: Mux.Channel (Maybe B.ByteString))
+    _ <- Mux.receiveTimed ("receiveAsync on " ++ show chan)
+      (floor $ seconds * 1000 * 1000) ((Mux.Channel Mux.Type cid) :: Mux.Channel (Maybe B.ByteString))
     pure (remote lang (Step (Local (Receive chan))))
   runLocal (Receive (Channel cid)) = do
     Mux.debug $ "runLocal Receive " ++ show cid
@@ -233,7 +235,7 @@ client crypto allow env p recipient r = Mux.scope "Remote.client" $ do
   Mux.info $ "connected"
   replyChan <- Mux.channel
   let send' (a,b) = send (Just (a,b))
-  _ <- Mux.encryptedRequestTimedVia cipherstate (Mux.seconds 5) send' replyChan r
+  _ <- Mux.encryptedRequestTimedVia "client ack" cipherstate (Mux.seconds 5) send' replyChan r
   Mux.debug $ "got ack on " ++ show replyChan
   -- todo - might want to retry if ack doesn't come back
   id $

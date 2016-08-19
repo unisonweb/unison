@@ -13,7 +13,7 @@ import System.IO (hSetBinaryMode, hFlush, stdin)
 import System.Process as P
 import Unison.NodeProtocol.V0 (protocol)
 import Unison.NodeServer as NS
-import Unison.Parsers (unsafeParseTermWithPrelude)
+import Unison.Parsers (unsafeParseTerm)
 import Unison.Runtime.Lock (Lock(..),Lease(..))
 import Web.Scotty as S
 import qualified Data.ByteArray as BA
@@ -65,7 +65,7 @@ main = Mux.uniqueChannel >>= \rand ->
         let node = R.Node "localhost" (Put.runPutS . serialize . Base64.decodeLenient $ nodepk)
         programtxt <- S.body
         let programstr = Text.unpack (decodeUtf8 (LB.toStrict programtxt))
-        let !prog = unsafeParseTermWithPrelude programstr
+        let !prog = unsafeParseTerm programstr
         let !prog' = Components.minimize' prog
         liftIO . putStrLn $ "parsed " ++ show prog
         liftIO . putStrLn $ "parsed' " ++ show prog'

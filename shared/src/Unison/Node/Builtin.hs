@@ -153,13 +153,13 @@ makeBuiltins whnf =
            op [a] = pure $ Term.remote (Remote.Step (Remote.Local (Remote.Pure a)))
            op _ = fail "unpossible"
        in (r, Just (I.Primop 1 op), remoteSignatureOf "Remote.pure", prefix "pure")
-     , let r = R.Builtin "Remote.map"
-           op [f, r] = pure $ Term.builtin "Remote.bind" `Term.app`
-             (Term.lam' ["x"] $ Term.remote
-               (Remote.Step . Remote.Local . Remote.Pure $ f `Term.app` Term.var' "x"))
-             `Term.app` r
-           op _ = fail "unpossible"
-       in (r, Just (I.Primop 2 op), remoteSignatureOf "Remote.map", prefix "map")
+     --, let r = R.Builtin "Remote.map"
+     --      op [f, r] = pure $ Term.builtin "Remote.bind" `Term.app`
+     --        (Term.lam' ["x"] $ Term.remote
+     --          (Remote.Step . Remote.Local . Remote.Pure $ f `Term.app` Term.var' "x"))
+     --        `Term.app` r
+     --      op _ = fail "unpossible"
+     --  in (r, Just (I.Primop 2 op), remoteSignatureOf "Remote.map", prefix "map")
      , let r = R.Builtin "Remote.receiveAsync"
            op [chan, timeout] = do
              Term.Number' seconds <- whnf timeout

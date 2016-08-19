@@ -10,7 +10,9 @@ cabal-dev
 **/cache/**
 **/build/**
 store
+codestore
 tags
+unison-src/.loaded
 **cabal.sandbox.config
 .cabal-sandbox/**
 

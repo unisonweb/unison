@@ -250,11 +250,7 @@ node eval hash store =
 -- existing metadata store of the Node.
 declare :: (Monad m, Var v) => (h -> Term v) -> [(v, Term v)] -> Node m v h (Type v) (Term v) -> Noted m ()
 declare ref bindings node = do
-  termBuiltins <- do
-    -- grab all definitions in the node
-    results <- search node Term.blank [] 1000000 (Metadata.Query "") Nothing
-    pure [ (v, ref h) | (h, md) <- references results
-                      , v <- toList $ Metadata.firstName (Metadata.names md) ]
+  termBuiltins <- allTermsByVarName ref node
   let groups = Components.components bindings
       -- watch msg a = trace (msg ++ show (map (Var.name . fst) a)) a
       bindings' = groups >>= \c -> case c of
@@ -276,3 +272,15 @@ declare' ref bindings node = do
     Parser.Fail err _ -> Noted (pure $ Left (Note err))
     Parser.Succeed bs _ _ -> pure bs
   declare ref bs node
+
+allTermsByVarName :: (Monad m, Var v) => (h -> Term v) -> Node m v h (Type v) (Term v) -> Noted m [(v, Term v)]
+allTermsByVarName ref node = do
+  -- grab all definitions in the node
+  results <- search node Term.blank [] 1000000 (Metadata.Query "") Nothing
+  pure [ (v, ref h) | (h, md) <- references results
+                    , v <- toList $ Metadata.firstName (Metadata.names md) ]
+
+allTerms :: (Monad m, Var v) => Node m v h (Type v) (Term v) -> Noted m [(h, Term v)]
+allTerms node = do
+  hs <- map fst . references <$> search node Term.blank [] 100000 (Metadata.Query "") Nothing
+  Map.toList <$> terms node hs

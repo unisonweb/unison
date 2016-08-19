@@ -1,6 +1,9 @@
 Remote.transfer : Node -> Remote Unit;
 Remote.transfer node = Remote.at node unit;
 
+Remote.map : ∀ a b . (a -> b) -> Remote a -> Remote b;
+Remote.map f = Remote.bind (f `then` Remote.pure);
+
 then : ∀ a b c . (a -> b) -> (b -> c) -> a -> c;
 then f1 f2 x = f2 (f1 x);
 
