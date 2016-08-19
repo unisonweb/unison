@@ -5,6 +5,7 @@ module Unison.Node where
 
 -- import Data.Bytes.Serial (Serial)
 import Control.Monad
+import Control.Applicative
 import Data.Foldable
 import Data.Aeson.TH
 import Data.List
@@ -125,9 +126,11 @@ node eval hash store =
         Reference.Builtin _ ->
           Store.writeMetadata store r md -- can't change builtin types, just metadata
         Reference.Derived h -> do
-          Store.writeTerm store h e
+          new <- (False <$ Store.readTerm store h) <|> pure True
           Store.writeMetadata store r md
-          Store.annotateTerm store r t
+          when new $ do
+            Store.writeTerm store h e
+            Store.annotateTerm store r t
 
     createType _ _ = error "todo - createType"
 
