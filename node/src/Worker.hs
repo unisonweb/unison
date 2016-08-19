@@ -4,7 +4,7 @@ module Main where
 
 import Control.Concurrent.STM.TVar
 import Control.Monad
-import System.Directory (doesFileExist)
+import System.Directory (doesDirectoryExist)
 import System.IO (stderr)
 import Unison.Hash (Hash)
 import Unison.NodeProtocol.V0 (protocol)
