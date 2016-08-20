@@ -4,13 +4,11 @@ module Main where
 
 import Control.Concurrent.STM.TVar
 import Control.Monad
-import System.Directory (doesDirectoryExist)
 import System.IO (stderr)
 import Unison.Hash (Hash)
 import Unison.NodeProtocol.V0 (protocol)
 import Unison.NodeWorker as W
 import Unison.SerializationAndHashing (TermV)
-import qualified Data.Map as Map
 import qualified Control.Concurrent.STM as STM
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -21,7 +19,7 @@ import qualified Unison.Eval.Interpreter as I
 import qualified Unison.Node as Node
 import qualified Unison.Node.BasicNode as BasicNode
 import qualified Unison.Node.Builtin as Builtin
-import qualified Unison.Node.FileStore as Store
+import qualified Unison.Node.MemStore as Store
 import qualified Unison.Note as Note
 import qualified Unison.Parsers as Parsers
 import qualified Unison.Reference as Reference
@@ -40,12 +38,14 @@ main = do
   lang logger crypto blockstore = do
     let b0 = Builtin.makeBuiltins
     b1 <- ExtraBuiltins.makeAPI blockstore crypto
-    store <- Store.make "codestore"
+    store <- Store.make
     backend <- BasicNode.make SAH.hash store (\whnf -> b0 whnf ++ b1 whnf)
+    loadDeclarations "unison-src/base.u" backend
+    loadDeclarations "unison-src/extra.u" backend
     initialized <- STM.atomically $ newTVar False
-    pure $ go backend initialized b0 b1
+    pure $ go backend initialized
     where
-      go backend initialized b0 b1 =
+      go backend initialized =
         let
           lang :: R.Language TermV Hash
           lang = R.Language localDependencies eval apply node unit channel local unRemote remote
@@ -69,13 +69,15 @@ main = do
               Right _ -> pure (Right e')
           initialize = do
             L.info logger "checking if base libraries loaded"
-            alreadyInitialized <- doesDirectoryExist "codestore"
+            let idf = Term.lam' ["x"] (Term.var' "x") :: TermV
+            let Reference.Derived hashIdf = SAH.hash idf
+            alreadyInitialized <- pure False -- not . null <$> R.getHashes codestore (Set.fromList [hashIdf])
             when (not alreadyInitialized) $ do
-              L.info logger "codestore/ directory not found, loading base libraries..."
-              loadDeclarations "unison-src/base.u" backend
-              loadDeclarations "unison-src/extra.u" backend
+              L.info logger "codestore not loaded... inserting"
               hs <- Note.run (Node.allTerms backend)
-              R.saveHashes codestore [ (h,v) | (Reference.Derived h, v) <- hs ]
+              -- todo
+              -- R.saveHashes codestore [ (h,v) | (Reference.Derived h, v) <- hs ]
+              pure ()
             STM.atomically $ writeTVar initialized True
         in (lang, typecheck, initialize)
       apply = Term.app
@@ -89,7 +91,9 @@ main = do
       loadDeclarations path node = do
         txt <- Text.IO.readFile path
         let str = Text.unpack txt
-        L.info logger $ "loading " ++ path
         r <- Note.run $ Node.declare' Term.ref str node
-        L.info logger $ "done loading " ++ path
+        L.info logger $ "loaded " ++ path
+        L.debug' logger $ do
+          ts <- Note.run $ Node.allTermsByVarName Term.ref node
+          pure $ show ts
         pure r

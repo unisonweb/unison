@@ -1,3 +1,6 @@
+identity : ∀ a . a -> a;
+identity a = a;
+
 Remote.transfer : Node -> Remote Unit;
 Remote.transfer node = Remote.at node unit;
 

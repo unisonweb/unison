@@ -1,5 +1,6 @@
 {-# Language BangPatterns #-}
 {-# Language OverloadedStrings #-}
+{-# Language CPP #-}
 
 module Main where
 
@@ -22,7 +23,11 @@ import qualified Data.ByteString.Base64.URL as Base64
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Bytes.Put as Put
 import qualified Data.Text as Text
+#ifdef leveldb
+import qualified Unison.BlockStore.LevelDbStore as LDBS
+#else
 import qualified Unison.BlockStore.FileBlockStore as FBS
+#endif
 import qualified Unison.NodeContainer as C
 import qualified Unison.NodeProtocol as NP
 import qualified Unison.Remote as R
@@ -32,8 +37,12 @@ import qualified Unison.Typechecker.Components as Components
 main :: IO ()
 main = Mux.uniqueChannel >>= \rand ->
   let
-    fileBS = FBS.make' rand h "blockstore"
     h bytes = BA.convert (hash bytes :: Digest Blake2b_512)
+    #ifdef leveldb
+    blockstore = LDBS.make rand h "blockstore.leveldb"
+    #else
+    blockstore = FBS.make' rand h "blockstore"
+    #endif
     locker _ = pure held
     held = Lock (pure (Just (Lease (pure True) (pure ()))))
     mkNode _ = do -- todo: actually use node params
@@ -55,8 +64,13 @@ main = Mux.uniqueChannel >>= \rand ->
         P.std_in = P.CreatePipe,
         P.std_err = P.CreatePipe }
   in do
-    fileBS <- fileBS
-    send <- C.make fileBS locker protocol mkNode launchNode
+    #ifdef leveldb
+    putStrLn "using leveldb-based block store"
+    #else
+    putStrLn "using file-based block store"
+    #endif
+    blockstore <- blockstore
+    send <- C.make blockstore locker protocol mkNode launchNode
     S.scotty 8081 $ do
       S.middleware logStdoutDev
       S.addroute OPTIONS (S.regex ".*") $ NS.originOptions
