@@ -112,6 +112,7 @@ test-suite tests
   build-depends:
     base,
     containers,
+    filepath,
     tasty,
     tasty-hunit,
     tasty-smallcheck,

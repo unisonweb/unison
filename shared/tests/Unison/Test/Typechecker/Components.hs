@@ -34,11 +34,6 @@ tests = withResource Common.node (\_ -> pure ()) $ \node ->
     t before after = testCase (before ++ " ⟹  " ++ after) $ do
       (node, _, _) <- node
       let term = unsafeParseTerm before
-      case term of
-        Term.LetRecNamed' bs _ ->
-          putStrLn $ "components: " ++ show (map (map fst) components)
-          where components = Components.components bs
-        _ -> pure ()
       let after' = Components.minimize' term
       _ <- Note.run $ Node.typeAt node after' []
       assertEqual "comparing results" (unsafeParseTerm after) after'

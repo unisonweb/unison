@@ -2,27 +2,20 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Unison.Node.BasicNode where
 
-import Data.Text (Text)
-import Unison.Metadata (Metadata(..))
 import Unison.Node (Node)
 import Unison.Node.Store (Store)
-import Unison.Parsers (unsafeParseTerm)
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import qualified Data.Map as M
-import qualified Data.Text as Text
 import qualified Unison.Eval as Eval
 import qualified Unison.Eval.Interpreter as I
-import qualified Unison.Hash as H
-import qualified Unison.Metadata as Metadata
 import qualified Unison.Node as Node
 import qualified Unison.Node.Builtin as B
 import qualified Unison.Node.Store as Store
 import qualified Unison.Note as N
 import qualified Unison.Reference as R
 import qualified Unison.Type as Type
-import qualified Unison.Var as Var
 import qualified Unison.View as View
 
 infixr 7 -->
