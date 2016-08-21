@@ -7,8 +7,8 @@ then f1 f2 x = f2 (f1 x)
 Remote.transfer : Node -> Remote Unit
 Remote.transfer node = Remote.at node unit
 
--- Apply a function to a `Remote`
-Remote.map : ∀ a b . (a -> b) -> Remote a -> Remote b
+Remote.map : 
+  ∀ a b . (a -> b) -> Remote a -> Remote b
 Remote.map f = 
   Remote.bind (f `then` Remote.pure)
 

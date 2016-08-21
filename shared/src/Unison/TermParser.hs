@@ -148,7 +148,7 @@ possiblyAnnotated p = f <$> p <*> optional ann''
     f t Nothing = t
 
 ann'' :: Var v => Parser (Type v)
-ann'' = token (char ':') *> TypeParser.type_
+ann'' = withoutLayout $ token (char ':') *> TypeParser.type_
 
 --let server = _; blah = _ in _
 let_ :: Var v => Parser (Term v) -> Parser (Term v)
