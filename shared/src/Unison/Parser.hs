@@ -12,21 +12,31 @@ import Data.Maybe
 import Prelude hiding (takeWhile)
 import qualified Data.Char as Char
 import qualified Prelude
+import Debug.Trace
 
-newtype Parser a = Parser { run :: String -> Result a }
+type InLayout = Bool
+newtype Parser a = Parser { run' :: (String,InLayout) -> Result a }
 
 root :: Parser a -> Parser a
-root p = many (whitespace1 <|> haskellLineComment) *> (p <* eof)
+root p = ignored *> (p <* (optional semicolon <* eof))
+
+semicolon :: Parser ()
+semicolon = void $ token (char ';')
 
 eof :: Parser ()
-eof = Parser $ \s -> case s of
+eof = Parser $ \(s,_) -> case s of
   [] -> Succeed () 0 False
   _ -> Fail [Prelude.takeWhile (/= '\n') s, "expected eof, got"] False
 
 attempt :: Parser a -> Parser a
-attempt p = Parser $ \s -> case run p s of
+attempt p = Parser $ \s -> case run' p s of
    Fail stack _ -> Fail stack False
    Succeed a n _ -> Succeed a n False
+
+run :: Parser a -> String -> Result a
+-- run p s = run' p (watch "layoutized" $ layoutize s, False)
+run p s = run' p (layoutize s, False)
+  where watch msg a = trace (msg ++ ":\n" ++ a) a
 
 unsafeRun :: Parser a -> String -> a
 unsafeRun p s = case toEither $ run p s of
@@ -39,7 +49,7 @@ unsafeGetSucceed r = case r of
   Fail e _ -> error (unlines ("Parse error:":e))
 
 string :: String -> Parser String
-string s = Parser $ \input ->
+string s = Parser $ \(input,_) ->
   if s `isPrefixOf` input then Succeed s (length s) False
   else Fail ["expected '" ++ s ++ "', got " ++ takeLine input] False
 
@@ -47,12 +57,12 @@ takeLine :: String -> String
 takeLine = Prelude.takeWhile (/= '\n')
 
 char :: Char -> Parser Char
-char c = Parser $ \input ->
+char c = Parser $ \(input,_) ->
   if listToMaybe input == Just c then Succeed c 1 False
-  else Fail [] False
+  else Fail ["expected " ++ show c ++ " near " ++ takeLine input] False
 
 one :: (Char -> Bool) -> Parser Char
-one f = Parser $ \s -> case s of
+one f = Parser $ \(s,_) -> case s of
   (h:_) | f h -> Succeed h 1 False
   _ -> Fail [] False
 
@@ -83,31 +93,31 @@ identifier' charTests stringTests = do
   pure i
 
 token :: Parser a -> Parser a
-token p = p <* many (whitespace1 <|> haskellLineComment)
+token p = p <* ignored
 
 haskellLineComment :: Parser ()
 haskellLineComment = void $ string "--" *> takeWhile "-- comment" (/= '\n')
 
 lineErrorUnless :: String -> Parser a -> Parser a
-lineErrorUnless s p = commitFail $ Parser $ \input -> case run p input of
+lineErrorUnless s p = commitFail $ Parser $ \input -> case run' p input of
     Fail e b -> Fail (s:m:e) b
-      where m = "near \'" ++ Prelude.takeWhile (/= '\n') input ++ "\'"
+      where m = "near \'" ++ Prelude.takeWhile (/= '\n') (fst input) ++ "\'"
     ok -> ok
 
 parenthesized :: Parser a -> Parser a
 parenthesized p = lp *> body <* rp
   where
-    lp = token (char '(')
-    body = p
+    lp = char '(' *> withoutLayout ignored
+    body = withoutLayout p
     rp = lineErrorUnless "missing )" $ token (char ')')
 
 takeWhile :: String -> (Char -> Bool) -> Parser String
-takeWhile msg f = scope msg . Parser $ \s ->
+takeWhile msg f = scope msg . Parser $ \(s,_) ->
   let hd = Prelude.takeWhile f s
   in Succeed hd (length hd) False
 
 takeWhile1 :: String -> (Char -> Bool) -> Parser String
-takeWhile1 msg f = scope msg . Parser $ \s ->
+takeWhile1 msg f = scope msg . Parser $ \(s,_) ->
   let hd = Prelude.takeWhile f s
   in if null hd then Fail ["takeWhile1 empty: " ++ take 20 s] False
      else Succeed hd (length hd) False
@@ -119,22 +129,22 @@ whitespace1 :: Parser ()
 whitespace1 = void $ takeWhile1 "whitespace1" Char.isSpace
 
 nonempty :: Parser a -> Parser a
-nonempty p = Parser $ \s -> case run p s of
+nonempty p = Parser $ \s -> case run' p s of
   Succeed _ 0 b -> Fail [] b
   ok -> ok
 
 scope :: String -> Parser a -> Parser a
-scope s p = Parser $ \input -> case run p input of
+scope s p = Parser $ \input -> case run' p input of
   Fail e b -> Fail (s:e) b
   ok -> ok
 
 commitSuccess :: Parser a -> Parser a
-commitSuccess p = Parser $ \input -> case run p input of
+commitSuccess p = Parser $ \input -> case run' p input of
   Fail e b -> Fail e b
   Succeed a n _ -> Succeed a n True
 
 commitFail :: Parser a -> Parser a
-commitFail p = Parser $ \input -> case run p input of
+commitFail p = Parser $ \input -> case run' p input of
   Fail e _ -> Fail e True
   Succeed a n b -> Succeed a n b
 
@@ -152,6 +162,53 @@ sepBy sep pb = f <$> optional (sepBy1 sep pb)
 
 sepBy1 :: Parser a -> Parser b -> Parser [b]
 sepBy1 sep pb = (:) <$> pb <*> many (sep *> pb)
+
+inLayout :: Parser Bool
+inLayout = Parser $ \(_,inLayout) -> Succeed inLayout 0 False
+
+layoutChar :: Parser ()
+layoutChar = void $ one (\c -> c == ';' || c == '{' || c == '}')
+
+ignored :: Parser ()
+ignored = void $ do
+  inLayout <- inLayout
+  case inLayout of
+    True -> many (whitespace1 <|> haskellLineComment)
+    False -> many (whitespace1 <|> haskellLineComment <|> layoutChar)
+
+withLayout :: Parser a -> Parser a
+withLayout p = Parser $ \(s,_) -> run' p (s,True)
+
+withoutLayout :: Parser a -> Parser a
+withoutLayout p = Parser $ \(s,_) -> run' p (s,False)
+
+layout :: Parser a -> Parser a
+layout p = withLayout $ token (char '{') *> p <* token (char '}')
+
+layoutize :: String -> String
+layoutize s = tweak $ go s [] where
+  close s = '}' : s
+  onlysemis line = all (\c -> Char.isSpace c || c == ';') line
+  tweak [] = []
+  tweak s = case span (/= '\n') s of
+    ([],[]) -> []
+    ([],nl:s) -> nl : tweak s
+    (line,rem) ->
+      if onlysemis line then (filter (/= ';') line) ++ tweak rem
+      else line ++ tweak rem
+  go s stack = case s of
+    '\n' : tl -> handle tl stack where
+      indent = length $ Prelude.takeWhile (\c -> c == ' ' || c == '\t') tl
+      handle :: String -> [Int] -> String
+      handle tl [] | indent == 0 = ';' : '\n' : go tl stack
+                   | otherwise = '\n' : '{' : go tl (indent : stack)
+      handle tl stack@(level:levels) =
+        if indent == level then ';' : '\n' : go tl stack
+        else if indent > level then '{' : '\n' : go tl (indent:stack)
+        else close $ go ('\n' : tl) levels
+    '\r' : tl -> go tl stack
+    hd : tl -> hd : go tl stack
+    [] -> replicate (length stack) '}'
 
 toEither :: Result a -> Either String a
 toEither (Fail e _) = Left (intercalate "\n" e)
@@ -176,13 +233,13 @@ instance Alternative Parser where
 instance Monad Parser where
   return a = Parser $ \_ -> Succeed a 0 False
   Parser p >>= f = Parser $ \s -> case p s of
-    Succeed a n committed -> case run (f a) (drop n s) of
+    Succeed a n committed -> case run' (f a) (drop n (fst s), snd s) of
       Succeed b m c2 -> Succeed b (n+m) (committed || c2)
       Fail e b -> Fail e (committed || b)
     Fail e b -> Fail e b
 
 instance MonadPlus Parser where
   mzero = Parser $ \_ -> Fail [] False
-  mplus p1 p2 = Parser $ \s -> case run p1 s of
-    Fail _ False -> run p2 s
+  mplus p1 p2 = Parser $ \s -> case run' p1 s of
+    Fail _ False -> run' p2 s
     ok -> ok

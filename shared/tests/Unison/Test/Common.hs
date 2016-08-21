@@ -32,7 +32,8 @@ loadDeclarations path node = do
   -- directory is the shared subdir - so we check both locations
   txt <- Text.IO.readFile path <|> Text.IO.readFile (".." `FP.combine` path)
   let str = Text.unpack txt
-  Note.run $ Node.declare' Term.ref str node
+  _ <- Note.run $ Node.declare' Term.ref str node
+  putStrLn $ "loaded file: " ++ path
 
 node :: IO TNode
 node = do
