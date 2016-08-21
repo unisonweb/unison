@@ -1,0 +1,11 @@
+-- going to need tuples at least
+-- allow declarations somehow
+-- going to need hashing
+
+let rec
+  dindex : Vector Node
+        -> Remote (k -> Remote (Optional v), -- lookup
+                   k -> v -> Remote Unit)    -- insert
+  
+in 
+  _
