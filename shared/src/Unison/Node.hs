@@ -35,7 +35,6 @@ import qualified Unison.TermEdit as TermEdit
 import qualified Unison.TermParser as TermParser
 import qualified Unison.Typechecker as Typechecker
 import qualified Unison.Typechecker.Components as Components
-import qualified Unison.Var as Var
 -- import Debug.Trace
 
 -- | The results of a search.
@@ -127,7 +126,8 @@ node eval hash store =
           Store.writeMetadata store r md -- can't change builtin types, just metadata
         Reference.Derived h -> do
           new <- (False <$ Store.readTerm store h) <|> pure True
-          Store.writeMetadata store r md
+          md0 <- (Just <$> Store.readMetadata store r) <|> pure Nothing
+          Store.writeMetadata store r (Metadata.combine md0 md)
           when new $ do
             Store.writeTerm store h e
             Store.annotateTerm store r t
@@ -278,7 +278,7 @@ allTermsByVarName ref node = do
   -- grab all definitions in the node
   results <- search node Term.blank [] 1000000 (Metadata.Query "") Nothing
   pure [ (v, ref h) | (h, md) <- references results
-                    , v <- toList $ Metadata.firstName (Metadata.names md) ]
+                    , v <- Metadata.allNames (Metadata.names md) ]
 
 allTerms :: (Monad m, Var v) => Node m v h (Type v) (Term v) -> Noted m [(h, Term v)]
 allTerms node = do
