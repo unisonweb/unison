@@ -20,17 +20,35 @@ Remote =
 Vector.fold-right : ∀ a b . (a -> b -> b) -> b -> Vector a -> b;
 Vector.fold-right f z vs = Vector.fold-left (flip f) z (Vector.reverse vs);
 
--- todo: figure out why typechecker bombs when try to annotate this
--- Vector.fold-balanced : ∀ a . a -> (a -> a -> a) -> Vector a -> a;
-Vector.fold-balanced zero plus vs = 
+Vector.fold-balanced : ∀ a . (a -> a -> a) -> a -> Vector a -> a;
+Vector.fold-balanced plus zero vs = 
   let rec
-    go zero plus vs = 
+    go plus zero vs = 
       if (Vector.size vs <= 2) 
-         (Vector.fold-left zero plus vs)
+         (Vector.fold-left plus zero vs)
          (let p = Vector.split vs;
-              go zero plus (1st p) `Vector.concatenate` go zero plus (2nd p);;);
-    go zero plus vs;; 
+              plus (go plus zero (1st p)) (go plus zero (2nd p));;);
+    go plus zero vs;; 
   ;
+
+Remote.lift2 : ∀ a b c . (a -> b -> c) -> Remote a -> Remote b -> Remote c;
+Remote.lift2 f a b = do Remote 
+  a := a;
+  b := b;
+  pure (f a b);; 
+  ;
+
+Remote.traverse : ∀ a b . (a -> Remote b) -> Vector a -> Remote (Vector b);
+Remote.traverse f vs =
+  Vector.fold-balanced (Remote.lift2 Vector.concatenate)
+                       (Remote.pure Vector.empty)
+                       (Vector.map (f `then` Remote.map Vector.single) vs);
+
+Remote.sequence : ∀ a . Vector (Remote a) -> Remote (Vector a);
+Remote.sequence vs = 
+  Vector.fold-balanced (Remote.lift2 Vector.concatenate)
+                       (Remote.pure Vector.empty)
+                       (Vector.map (Remote.map Vector.single) vs);
 
 Optional.map : ∀ a b . (a -> b) -> Optional a -> Optional b;
 Optional.map f = Optional.fold None (f `then` Some);

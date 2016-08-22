@@ -44,6 +44,14 @@ tests = withResource Common.node (\_ -> pure ()) $ \node ->
           "[1,2,3,4,5]"
       , t "Vector.fold-balanced Vector.concatenate Vector.empty [[1],[2],[3,4],[5]]"
           "[1,2,3,4,5]"
+      , t "Vector.fold-balanced (+) 0 [1,2,3]" "6"
+      , t "if (Text.equal \"hi\" \"hi\") 1 2" "1"
+      , t "if (Text.lessThan \"hi\" \"hiya\") 1 2" "1"
+      , t "if (Text.lessThanOrEqual \"hi\" \"hiya\") 1 2" "1"
+      , t "if (Text.greaterThan \"hiya\" \"hi\") 1 2" "1"
+      , t "if (Text.greaterThanOrEqual \"hiya\" \"hi\") 1 2" "1"
+      , t "if (Text.greaterThanOrEqual \"hi\" \"hi\") 1 2" "1"
+      , t "if (Text.lessThanOrEqual \"hi\" \"hi\") 1 2" "1"
       ]
     t uneval eval = testCase (uneval ++ " ⟹  " ++ eval) $ do
       (node, _, builtins) <- node

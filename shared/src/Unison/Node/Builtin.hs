@@ -70,6 +70,12 @@ makeBuiltins whnf =
         where g (Term.Text' x) (Term.Text' y) = Term.lit (Term.Text (f x y))
               g x y = sym `Term.app` x `Term.app` y
       _ -> error "unpossible"
+    string2' :: Term V -> (Text -> Text -> Bool) -> I.Primop (N.Noted IO) V
+    string2' sym f = I.Primop 2 $ \xs -> case xs of
+      [x,y] -> g <$> whnf x <*> whnf y
+        where g (Term.Text' x) (Term.Text' y) = if f x y then true else false
+              g x y = sym `Term.app` x `Term.app` y
+      _ -> error "unpossible"
   in map (\(r, o, t, m) -> Builtin r o t m)
      [ let r = R.Builtin "()"
        in (r, Nothing, unitT, prefix "()")
@@ -188,6 +194,17 @@ makeBuiltins whnf =
      -- Text
      , let r = R.Builtin "Text.concatenate"
        in (r, Just (string2 (Term.ref r) mappend), strOpTyp, prefixes ["concatenate", "Text"])
+     , let r = R.Builtin "Text.equal"
+       in (r, Just (string2' (Term.ref r) (==)), textCompareTyp, prefix "Text.equal")
+     , let r = R.Builtin "Text.lessThan"
+       in (r, Just (string2' (Term.ref r) (<)), textCompareTyp, prefix "Text.lessThan")
+     , let r = R.Builtin "Text.lessThanOrEqual"
+       in (r, Just (string2' (Term.ref r) (<=)), textCompareTyp, prefix "Text.lessThanOrEqual")
+     , let r = R.Builtin "Text.greaterThan"
+       in (r, Just (string2' (Term.ref r) (>)), textCompareTyp, prefix "Text.greaterThan")
+     , let r = R.Builtin "Text.greaterThanOrEqual"
+       in (r, Just (string2' (Term.ref r) (>=)), textCompareTyp, prefix "Text.greaterThanOrEqual")
+
      , let r = R.Builtin "Text.left"
        in (r, Nothing, alignmentT, prefixes ["left", "Text"])
      , let r = R.Builtin "Text.right"
@@ -322,6 +339,7 @@ numOpTyp :: Type V
 numOpTyp = unsafeParseType "Number -> Number -> Number"
 numCompareTyp :: Type V
 numCompareTyp = unsafeParseType "Number -> Number -> Boolean"
+textCompareTyp = unsafeParseType "Text -> Text -> Boolean"
 strOpTyp :: Type V
 strOpTyp = unsafeParseType "Text -> Text -> Text"
 unitT :: Ord v => Type v

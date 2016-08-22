@@ -60,15 +60,16 @@ makeAPI blockStore crypto = do
         pure (Series cp, Series ud)
   resourcePool <- RP.make 3 10 (Index.loadEncrypted blockStore crypto) Index.flush
   pure (\whnf -> map (\(r, o, t, m) -> Builtin r o t m)
-     [ let r = R.Builtin "Index.unsafeEmpty"
+     [ -- Index
+       let r = R.Builtin "Index.empty!"
            op [self] = do
              ident <- Note.lift nextID
              Term.Distributed' (Term.Node self) <- whnf self
              pure . index self . Term.lit . Term.Text . Index.idToText $ ident
-           op _ = fail "Index.unsafeEmpty unpossible"
+           op _ = fail "Index.empty! unpossible"
            type' = unsafeParseType "forall k v. Node -> Index k v"
-       in (r, Just (I.Primop 1 op), type', prefix "unsafeEmpty")
-     , let r = R.Builtin "Index.unsafeLookup"
+       in (r, Just (I.Primop 1 op), type', prefix "Index.empty!")
+     , let r = R.Builtin "Index.lookup!"
            op [key, indexToken] = inject g indexToken key where
              inject g indexToken key = do
                i <- whnf indexToken
@@ -80,26 +81,26 @@ makeAPI blockStore crypto = do
                  flip finally cleanup $ do
                    result <- atomically $ Index.lookup (SAH.hash' k) db
                    case result >>= (pure . SAH.deserializeTermFromBytes . snd) of
-                     Just (Left s) -> fail ("Index.unsafeLookup could not deserialize: " ++ s)
+                     Just (Left s) -> fail ("Index.lookup! could not deserialize: " ++ s)
                      Just (Right t) -> pure $ some t
                      Nothing -> pure none
                pure val
              g s k = pure $ Term.ref r `Term.app` s `Term.app` k
-           op _ = fail "Index.unsafeLookup unpossible"
+           op _ = fail "Index.lookup! unpossible"
            type' = unsafeParseType "forall k v. k -> Index k v -> Optional v"
-       in (r, Just (I.Primop 2 op), type', prefix "unsafeLookup")
+       in (r, Just (I.Primop 2 op), type', prefix "Index.lookup!")
      , let r = R.Builtin "Index.lookup"
            op [key, index] = do
              Index' node tok <- whnf index
              pure $
                Term.builtin "Remote.map" `Term.apps` [
-                 Term.builtin "Index.unsafeLookup" `Term.app` key,
+                 Term.builtin "Index.lookup!" `Term.app` key,
                  Term.builtin "Remote.at" `Term.apps` [Term.node node, Term.text tok]
                ]
            op _ = fail "Index.lookup unpossible"
            type' = unsafeParseType "forall k v. k -> Index k v -> Remote (Optional v)"
-       in (r, Just (I.Primop 2 op), type', prefix "lookup")
-     , let r = R.Builtin "Index.unsafeInsert"
+       in (r, Just (I.Primop 2 op), type', prefix "Index.lookup")
+     , let r = R.Builtin "Index.insert!"
            op [k, v, index] = inject g k v index where
              inject g k v index = do
                k' <- whnf k
@@ -114,20 +115,22 @@ makeAPI blockStore crypto = do
                    >>= atomically
                pure unitRef
              g k v index = pure $ Term.ref r `Term.app` k `Term.app` v `Term.app` index
-           op _ = fail "Index.unsafeInsert unpossible"
+           op _ = fail "Index.insert! unpossible"
            type' = unsafeParseType "forall k v. k -> v -> Index k v -> Unit"
-       in (r, Just (I.Primop 3 op), type', prefix "unsafeInsert")
+       in (r, Just (I.Primop 3 op), type', prefix "Index.insert!")
      , let r = R.Builtin "Index.insert"
            op [key, value, index] = do
              Index' node tok <- whnf index
              pure $
                Term.builtin "Remote.map" `Term.apps` [
-                 Term.builtin "Index.unsafeInsert" `Term.apps` [key,value],
+                 Term.builtin "Index.insert!" `Term.apps` [key,value],
                  Term.builtin "Remote.at" `Term.apps` [Term.node node, Term.text tok]
                ]
            op _ = fail "Index.insert unpossible"
            type' = unsafeParseType "forall k v. k -> v -> Index k v -> Remote Unit"
-       in (r, Just (I.Primop 3 op), type', prefix "insert")
+       in (r, Just (I.Primop 3 op), type', prefix "Index.insert")
+
+     -- Html
      , let r = R.Builtin "Html.getLinks"
            op [html] = do
              html' <- whnf html
@@ -153,7 +156,9 @@ makeAPI blockStore crypto = do
                x -> Term.ref r `Term.app` x
            op _ = fail "Html.getDescription unpossible"
        in (r, Just (I.Primop 1 op), unsafeParseType "Link -> Text", prefix "getDescription")
-     , let r = R.Builtin "Http.unsafeGetURL"
+
+     -- Http
+     , let r = R.Builtin "Http.getURL!"
            op [url] = do
              url <- whnf url
              case url of
@@ -163,11 +168,64 @@ makeAPI blockStore crypto = do
                      Right x -> right $ Term.text x
                      Left x -> left . Term.text . Text.pack $ show x
                x -> pure $ Term.ref r `Term.app` x
-           op _ = fail "Http.unsafeGetURL unpossible"
-       in (r, Just (I.Primop 1 op), unsafeParseType "Text -> Either Text Text", prefix "unsafeGetURL")
+           op _ = fail "Http.getURL! unpossible"
+       in (r, Just (I.Primop 1 op), unsafeParseType "Text -> Either Text Text", prefix "Http.getURL!")
      , let r = R.Builtin "Http.getURL"
            op [url] = pure $ Term.builtin "Remote.pure" `Term.app`
-             (Term.builtin "Http.unsafeGetURL" `Term.app` url)
+             (Term.builtin "Http.getURL!" `Term.app` url)
            op _ = fail "Http.getURL unpossible"
-       in (r, Just (I.Primop 1 op), unsafeParseType "Text -> Remote (Either Text Text)", prefix "getURL")
+       in (r, Just (I.Primop 1 op), unsafeParseType "Text -> Remote (Either Text Text)", prefix "Http.getURL")
+
+     -- Hashing
+     -- add erase, comparison functions
+     , let r = R.Builtin "hash!"
+           op [e] = do
+             e <- whnf e
+             pure $ Term.builtin "Hash" `Term.app` (Term.ref $ SAH.hash e)
+           op _ = fail "hash"
+           t = "forall a . a -> Hash a"
+       in (r, Just (I.Primop 1 op), unsafeParseType t, prefix "hash!")
+     , let r = R.Builtin "Hash.erase"
+           op [e] = pure e
+           op _ = fail "hash"
+           t = "forall a . Hash a -> Hash Unit"
+       in (r, Just (I.Primop 1 op), unsafeParseType t, prefix "Hash.erase")
+     , let r = R.Builtin "Hash.equal"
+           op [h1,h2] = do
+             Term.App' _ (Term.Ref' r1) <- whnf h1
+             Term.App' _ (Term.Ref' r2) <- whnf h2
+             pure $ if r1 == r2 then true else false
+           op _ = fail "Hash.equal"
+       in (r, Just (I.Primop 2 op), hashCompareTyp, prefix "Hash.equal")
+     , let r = R.Builtin "Hash.lessThan"
+           op [h1,h2] = do
+             Term.App' _ (Term.Ref' r1) <- whnf h1
+             Term.App' _ (Term.Ref' r2) <- whnf h2
+             pure $ if r1 < r2 then true else false
+           op _ = fail "Hash.lessThan"
+       in (r, Just (I.Primop 2 op), hashCompareTyp, prefix "Hash.lessThan")
+     , let r = R.Builtin "Hash.lessThanOrEqual"
+           op [h1,h2] = do
+             Term.App' _ (Term.Ref' r1) <- whnf h1
+             Term.App' _ (Term.Ref' r2) <- whnf h2
+             pure $ if r1 <= r2 then true else false
+           op _ = fail "Hash.lessThanOrEqual"
+       in (r, Just (I.Primop 2 op), hashCompareTyp, prefix "Hash.lessThanOrEqual")
+     , let r = R.Builtin "Hash.greaterThan"
+           op [h1,h2] = do
+             Term.App' _ (Term.Ref' r1) <- whnf h1
+             Term.App' _ (Term.Ref' r2) <- whnf h2
+             pure $ if r1 > r2 then true else false
+           op _ = fail "Hash.greaterThan"
+       in (r, Just (I.Primop 2 op), hashCompareTyp, prefix "Hash.greaterThan")
+     , let r = R.Builtin "Hash.greaterThanOrEqual"
+           op [h1,h2] = do
+             Term.App' _ (Term.Ref' r1) <- whnf h1
+             Term.App' _ (Term.Ref' r2) <- whnf h2
+             pure $ if r1 >= r2 then true else false
+           op _ = fail "Hash.greaterThanOrEqual"
+       in (r, Just (I.Primop 2 op), hashCompareTyp, prefix "Hash.greaterThanOrEqual")
      ])
+
+hashCompareTyp :: Type V
+hashCompareTyp = unsafeParseType "∀ a . Hash a -> Hash a -> Boolean"
