@@ -6,7 +6,6 @@ module Unison.Node where
 -- import Data.Bytes.Serial (Serial)
 import Control.Monad
 import Control.Applicative
-import Data.Foldable
 import Data.Aeson.TH
 import Data.List
 import Data.Map (Map)

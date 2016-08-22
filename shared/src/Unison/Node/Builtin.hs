@@ -40,6 +40,8 @@ true = Term.builtin "True"
 false = Term.builtin "False"
 pair :: Ord v => Term v
 pair = Term.builtin "Pair"
+pair' :: Ord v => Term v -> Term v -> Term v
+pair' t1 t2 = pair `Term.app` t1 `Term.app` (pair `Term.app` t2 `Term.app` unitRef)
 
 makeBuiltins :: WHNFEval -> [Builtin]
 makeBuiltins whnf =
@@ -200,8 +202,10 @@ makeBuiltins whnf =
        in (r, Nothing, unsafeParseType "forall a b . a -> b -> Pair a b", prefix "Pair")
      , let r = R.Builtin "Pair.fold"
            op [f,p] = do
-             Term.Apps' (Term.Builtin' "Pair") [a,b] <- whnf p
-             whnf (f `Term.apps` [a,b])
+             p <- whnf p
+             case p of
+               Term.Apps' (Term.Builtin' "Pair") [a,b] -> whnf (f `Term.apps` [a,b])
+               p -> fail $ "expected pair, got: " ++ show p
            op _ = error "Pair.fold unpossible"
        in (r, Just (I.Primop 2 op), unsafeParseType "forall a b c . (a -> b -> c) -> Pair a b -> c", prefix "fold")
 
@@ -261,15 +265,28 @@ makeBuiltins whnf =
              pure $ if Vector.null vs then true else false
            op _ = fail "Vector.empty? unpossible"
        in (r, Just (I.Primop 1 op), unsafeParseType "forall a. Vector a -> Boolean", prefix "empty?")
+     , let r = R.Builtin "Vector.size"
+           op [v] = do
+             Term.Vector' vs <- whnf v
+             pure $ Term.num (fromIntegral $ Vector.length vs)
+           op _ = fail "Vector.size unpossible"
+       in (r, Just (I.Primop 1 op), unsafeParseType "forall a. Vector a -> Number", prefix "Vector.size")
+     , let r = R.Builtin "Vector.reverse"
+           op [v] = do
+             Term.Vector' vs <- whnf v
+             pure $ Term.vector' (Vector.reverse vs)
+           op _ = fail "Vector.reverse unpossible"
+       in (r, Just (I.Primop 1 op), unsafeParseType "forall a. Vector a -> Vector a", prefix "Vector.reverse")
      , let r = R.Builtin "Vector.split"
            op [v] = do
              Term.Vector' vs <- whnf v
              pure $ case Vector.null vs of
-               True -> pair `Term.apps` [Term.vector [], Term.vector []]
+               True -> pair' (Term.vector []) (Term.vector [])
                False -> case Vector.splitAt (Vector.length vs `div` 2) vs of
-                 (x,y) -> pair `Term.app` (Term.vector' x) `Term.app` (Term.vector' y)
+                 (x,y) -> pair' (Term.vector' x) (Term.vector' y)
            op _ = fail "Vector.split unpossible"
-       in (r, Just (I.Primop 1 op), unsafeParseType "forall a. Vector a -> Boolean", prefix "empty?")
+           typ = "forall a. Vector a -> (Vector a, Vector a)"
+       in (r, Just (I.Primop 1 op), unsafeParseType typ, prefix "Vector.split")
      , let r = R.Builtin "Vector.fold-left"
            op [f,z,vec] = whnf vec >>= \vec -> case vec of
              Term.Vector' vs -> Vector.foldM (\acc a -> whnf (f `Term.apps` [acc, a])) z vs
@@ -295,7 +312,7 @@ makeBuiltins whnf =
      , let r = R.Builtin "Vector.single"
            op [hd] = pure $ Term.vector (pure hd)
            op _ = fail "Vector.single unpossible"
-       in (r, Just (I.Primop 1 op), unsafeParseType "forall a. a -> Vector a", prefix "single")
+       in (r, Just (I.Primop 1 op), unsafeParseType "forall a. a -> Vector a", prefix "Vector.single")
      ]
 
 -- type helpers

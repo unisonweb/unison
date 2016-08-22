@@ -87,7 +87,7 @@ termBuiltins = (Var.named *** Term.ref) <$> (
     , Builtin "Pair.fold"
     , Builtin "Pair"
     , AliasFromModule "Vector"
-        ["single", "prepend", "map", "fold-left", "concatenate", "append"] ["empty"]
+        ["single", "prepend", "map", "fold-left", "concatenate", "append", "empty"] []
     , AliasFromModule "Text"
         ["concatenate", "left", "right", "center", "justify"] []
     , AliasFromModule "Remote"

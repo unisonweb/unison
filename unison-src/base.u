@@ -1,48 +1,68 @@
-identity : ∀ a . a -> a
-identity a = a
+identity : ∀ a . a -> a;
+identity a = a;
 
-then : ∀ a b c . (a -> b) -> (b -> c) -> a -> c
-then f1 f2 x = f2 (f1 x)
+then : ∀ a b c . (a -> b) -> (b -> c) -> a -> c;
+then f1 f2 x = f2 (f1 x);
 
-Remote.transfer : Node -> Remote Unit
-Remote.transfer node = Remote.at node unit
+flip : ∀ a b c . (a -> b -> c) -> b -> a -> c;
+flip f b a = f a b;
 
-Remote.map : 
-  ∀ a b . (a -> b) -> Remote a -> Remote b
-Remote.map f = 
-  Remote.bind (f `then` Remote.pure)
+Remote.transfer : Node -> Remote Unit;
+Remote.transfer node = Remote.at node unit;
 
-Optional.map : ∀ a b . (a -> b) -> Optional a -> Optional b
-Optional.map f = Optional.fold None (f `then` Some)
+Remote.map : ∀ a b . (a -> b) -> Remote a -> Remote b;
+Remote.map f = Remote.bind (f `then` Remote.pure);
 
-Optional.bind : ∀ a b . (a -> Optional b) -> Optional a -> Optional b
-Optional.bind f = Optional.fold None f
+Remote =
+  ( Remote.pure : ∀ a . a -> Remote a
+  , Remote.bind : ∀ a b . (a -> Remote b) -> Remote a -> Remote b);
 
-Optional.pure : ∀ a . a -> Optional a
-Optional.pure = Some
+Vector.fold-right : ∀ a b . (a -> b -> b) -> b -> Vector a -> b;
+Vector.fold-right f z vs = Vector.fold-left (flip f) z (Vector.reverse vs);
 
-Either.map : ∀ a b c . (b -> c) -> Either a b -> Either a c
-Either.map f = Either.fold Left (f `then` Right)
+-- todo: figure out why typechecker bombs when try to annotate this
+-- Vector.fold-balanced : ∀ a . a -> (a -> a -> a) -> Vector a -> a;
+Vector.fold-balanced zero plus vs = 
+  let rec
+    go zero plus vs = 
+      if (Vector.size vs <= 2) 
+         (Vector.fold-left zero plus vs)
+         (let p = Vector.split vs;
+              go zero plus (1st p) `Vector.concatenate` go zero plus (2nd p);;);
+    go zero plus vs;; 
+  ;
 
-Either.pure : ∀ a b . b -> Either a b
-Either.pure = Right
+Optional.map : ∀ a b . (a -> b) -> Optional a -> Optional b;
+Optional.map f = Optional.fold None (f `then` Some);
 
-Either.bind : ∀ a b c . (b -> Either a c) -> Either a b -> Either a c
-Either.bind = Either.fold Left
+Optional.bind : ∀ a b . (a -> Optional b) -> Optional a -> Optional b;
+Optional.bind f = Optional.fold None f;
 
-Either.swap : ∀ a b . Either a b -> Either b a
-Either.swap e = Either.fold Right Left e
+Optional.pure : ∀ a . a -> Optional a;
+Optional.pure = Some;
 
-const x y = x
+Either.map : ∀ a b c . (b -> c) -> Either a b -> Either a c;
+Either.map f = Either.fold Left (f `then` Right);
 
-first : ∀ a b . Pair a b -> a
-first p = Pair.fold const p
+Either.pure : ∀ a b . b -> Either a b;
+Either.pure = Right;
 
-rest : ∀ a b . Pair a b -> b
-rest p = Pair.fold (x y -> y) p
+Either.bind : ∀ a b c . (b -> Either a c) -> Either a b -> Either a c;
+Either.bind = Either.fold Left;
 
-1st = first
-2nd = rest `then` first
-3rd = rest `then` (rest `then` first)
-4th = rest `then` (rest `then` (rest `then` first))
-5th = rest `then` (rest `then` (rest `then` (rest `then` first)))
+Either.swap : ∀ a b . Either a b -> Either b a;
+Either.swap e = Either.fold Right Left e;
+
+const x y = x;
+
+first : ∀ a b . Pair a b -> a;
+first p = Pair.fold const p;
+
+rest : ∀ a b . Pair a b -> b;
+rest p = Pair.fold (x y -> y) p;
+
+1st = first;
+2nd = rest `then` first;
+3rd = rest `then` (rest `then` first);
+4th = rest `then` (rest `then` (rest `then` first));
+5th = rest `then` (rest `then` (rest `then` (rest `then` first)));

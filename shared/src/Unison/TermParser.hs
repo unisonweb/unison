@@ -1,4 +1,5 @@
 {-# Language OverloadedStrings #-}
+{-# Language ScopedTypeVariables #-}
 
 module Unison.TermParser where
 
@@ -74,21 +75,26 @@ tupleOrParenthesized rec =
 --   x := pure 23
 --   y = 11
 --   pure (f x)
-effectBlock :: Var v => Parser (Term v)
-effectBlock = (token (string "do") *> withLayout wordyId) >>= go where
-  go name = layout $ do
-    bindings <- sepBy1 semicolon $ asum [Right <$> binding, Left <$> action]
+effectBlock :: forall v . Var v => Parser (Term v)
+effectBlock = (token (string "do") *> wordyId) >>= go where
+  go name = do
+    bindings <- some $ asum [Right <$> binding, Left <$> action] <* semicolon
+    semicolon
     Just result <- pure $ foldr bind Nothing bindings
     pure result
     where
+    qualifiedPure, qualifiedBind :: Term v
     qualifiedPure = ABT.var' (Text.pack name `mappend` Text.pack ".pure")
     qualifiedBind = ABT.var' (Text.pack name `mappend` Text.pack ".bind")
+    bind :: (Either (Term v) (v, Term v)) -> Maybe (Term v) -> Maybe (Term v)
     bind = go where
       go (Right (lhs,rhs)) (Just acc) = Just $ qualifiedBind `Term.apps` [Term.lam lhs acc, rhs]
       go (Right (_,_)) Nothing = Nothing
       go (Left action) (Just acc) = Just $ qualifiedBind `Term.apps` [Term.lam (ABT.v' "_") acc, action]
       go (Left action) _ = Just action
+    interpretPure :: Term v -> Term v
     interpretPure = ABT.subst (ABT.v' "pure") qualifiedPure
+    binding :: Parser (v, Term v)
     binding = scope "binding" $ do
       lhs <- ABT.v' . Text.pack <$> token wordyId
       eff <- token $ (True <$ string ":=") <|> (False <$ string "=")
@@ -96,7 +102,8 @@ effectBlock = (token (string "do") *> withLayout wordyId) >>= go where
       let rhs' = if eff then interpretPure rhs
                  else qualifiedPure `Term.app` rhs
       pure (lhs, rhs')
-    action = attempt . scope "action" $ (interpretPure <$> term)
+    action :: Parser (Term v)
+    action = scope "action" $ (interpretPure <$> term)
 
 text' :: Parser Literal
 text' =
@@ -148,18 +155,18 @@ possiblyAnnotated p = f <$> p <*> optional ann''
     f t Nothing = t
 
 ann'' :: Var v => Parser (Type v)
-ann'' = withoutLayout $ token (char ':') *> TypeParser.type_
+ann'' = token (char ':') *> TypeParser.type_
 
 --let server = _; blah = _ in _
 let_ :: Var v => Parser (Term v) -> Parser (Term v)
-let_ p = f <$> withLayout (let_ *> optional rec_) <*> (layout bindings' <|> bindings')
+let_ p = f <$> (let_ *> optional rec_) <*> bindings'
   where
     let_ = token (string "let")
     rec_ = token (string "rec") $> ()
-    bindings' = withLayout $ do
+    bindings' = do
       bs <- lineErrorUnless "error parsing let bindings" (bindings p)
-      semicolon
-      body <- lineErrorUnless "parse error in body of let-expression" p
+      body <- lineErrorUnless "parse error in body of let-expression" term
+      semicolon2
       pure (bs, body)
     f :: Ord v => Maybe () -> ([(v, Term v)], Term v) -> Term v
     f Nothing (bindings, body) = Term.let1 bindings body
@@ -169,7 +176,7 @@ typedecl :: Var v => Parser (v, Type v)
 typedecl = (,) <$> prefixVar <*> ann''
 
 bindingEqBody :: Parser (Term v) -> Parser (Term v)
-bindingEqBody p = eq *> (layout body <|> body)
+bindingEqBody p = eq *> body
   where
     eq = token (char '=')
     body = lineErrorUnless "parse error in body of binding" p
@@ -219,12 +226,12 @@ prefixApp p = f <$> some p
     f [] = error "'some' shouldn't produce an empty list"
 
 bindings :: Var v => Parser (Term v) -> Parser [(v, Term v)]
-bindings p = withLayout (sepBy1 semicolon binding) where
+bindings p = some (binding <* semicolon) where
   binding = do
     typ <- optional (typedecl <* semicolon)
     (name, args) <- ((\arg1 op arg2 -> (op,[arg1,arg2])) <$> prefixVar <*> infixVar <*> prefixVar)
                   <|> ((,) <$> prefixVar <*> many prefixVar)
-    body <- bindingEqBody p
+    body <- bindingEqBody term
     case typ of
       Nothing -> pure $ mkBinding name args body
       Just (nameT, typ)

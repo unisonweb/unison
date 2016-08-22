@@ -23,6 +23,9 @@ root p = ignored *> (p <* (optional semicolon <* eof))
 semicolon :: Parser ()
 semicolon = void $ token (char ';')
 
+semicolon2 :: Parser ()
+semicolon2 = semicolon *> semicolon
+
 eof :: Parser ()
 eof = Parser $ \(s,_) -> case s of
   [] -> Succeed () 0 False
@@ -35,7 +38,7 @@ attempt p = Parser $ \s -> case run' p s of
 
 run :: Parser a -> String -> Result a
 -- run p s = run' p (watch "layoutized" $ layoutize s, False)
-run p s = run' p (layoutize s, False)
+run p s = run' p (s, False)
   where watch msg a = trace (msg ++ ":\n" ++ a) a
 
 unsafeRun :: Parser a -> String -> a
@@ -107,8 +110,8 @@ lineErrorUnless s p = commitFail $ Parser $ \input -> case run' p input of
 parenthesized :: Parser a -> Parser a
 parenthesized p = lp *> body <* rp
   where
-    lp = char '(' *> withoutLayout ignored
-    body = withoutLayout p
+    lp = token (char '(')
+    body = p
     rp = lineErrorUnless "missing )" $ token (char ')')
 
 takeWhile :: String -> (Char -> Bool) -> Parser String
@@ -163,52 +166,8 @@ sepBy sep pb = f <$> optional (sepBy1 sep pb)
 sepBy1 :: Parser a -> Parser b -> Parser [b]
 sepBy1 sep pb = (:) <$> pb <*> many (sep *> pb)
 
-inLayout :: Parser Bool
-inLayout = Parser $ \(_,inLayout) -> Succeed inLayout 0 False
-
-layoutChar :: Parser ()
-layoutChar = void $ one (\c -> c == ';' || c == '{' || c == '}')
-
 ignored :: Parser ()
-ignored = void $ do
-  inLayout <- inLayout
-  case inLayout of
-    True -> many (whitespace1 <|> haskellLineComment)
-    False -> many (whitespace1 <|> haskellLineComment <|> layoutChar)
-
-withLayout :: Parser a -> Parser a
-withLayout p = Parser $ \(s,_) -> run' p (s,True)
-
-withoutLayout :: Parser a -> Parser a
-withoutLayout p = Parser $ \(s,_) -> run' p (s,False)
-
-layout :: Parser a -> Parser a
-layout p = withLayout $ token (char '{') *> p <* token (char '}')
-
-layoutize :: String -> String
-layoutize s = tweak $ go s [] where
-  close s = '}' : s
-  onlysemis line = all (\c -> Char.isSpace c || c == ';') line
-  tweak [] = []
-  tweak s = case span (/= '\n') s of
-    ([],[]) -> []
-    ([],nl:s) -> nl : tweak s
-    (line,rem) ->
-      if onlysemis line then (filter (/= ';') line) ++ tweak rem
-      else line ++ tweak rem
-  go s stack = case s of
-    '\n' : tl -> handle tl stack where
-      indent = length $ Prelude.takeWhile (\c -> c == ' ' || c == '\t') tl
-      handle :: String -> [Int] -> String
-      handle tl [] | indent == 0 = ';' : '\n' : go tl stack
-                   | otherwise = '\n' : '{' : go tl (indent : stack)
-      handle tl stack@(level:levels) =
-        if indent == level then ';' : '\n' : go tl stack
-        else if indent > level then '{' : '\n' : go tl (indent:stack)
-        else close $ go ('\n' : tl) levels
-    '\r' : tl -> go tl stack
-    hd : tl -> hd : go tl stack
-    [] -> replicate (length stack) '}'
+ignored = void $ many (whitespace1 <|> haskellLineComment)
 
 toEither :: Result a -> Either String a
 toEither (Fail e _) = Left (intercalate "\n" e)

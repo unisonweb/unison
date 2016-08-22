@@ -8,7 +8,7 @@ import Data.Char (isUpper, isLower, isAlpha)
 import Data.Foldable (asum)
 import Data.Functor
 import Data.List (foldl1')
-import Unison.Parser hiding (ignored, token)
+import Unison.Parser
 import Unison.Type (Type)
 import Unison.Var (Var)
 import qualified Data.Text as Text
@@ -16,13 +16,6 @@ import qualified Unison.Type as Type
 
 type_ :: Var v => Parser (Type v)
 type_ = forall type1 <|> type1
-
--- we ignore indentation markers { and }, but not semicolon
-ignored :: Parser ()
-ignored = void $ many (whitespace1 <|> haskellLineComment <|> (void $ one (\c -> c == '{' || c == '}')))
-
-token :: Parser a -> Parser a
-token p = (p <* ignored)
 
 typeLeaf :: Var v => Parser (Type v)
 typeLeaf =
