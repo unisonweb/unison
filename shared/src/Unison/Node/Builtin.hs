@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Unison.Node.Builtin where
 
+import Data.List
 import Data.Text (Text)
 import Unison.Metadata (Metadata(..))
 import Unison.Parsers (unsafeParseType)
@@ -120,6 +121,8 @@ makeBuiltins whnf =
        in (r, Just (numericCompare (Term.ref r) (<=)), numCompareTyp, opl 3 "<=")
      , let r = R.Builtin "Number.equal"
        in (r, Just (numericCompare (Term.ref r) (==)), numCompareTyp, opl 3 "==")
+     , let r = R.Builtin "Number.Order"
+       in (r, Nothing, unsafeParseType "Order Number", prefix "Number.Order")
 
      -- Remote
      , let r = R.Builtin "Remote.at"
@@ -204,6 +207,8 @@ makeBuiltins whnf =
        in (r, Just (string2' (Term.ref r) (>)), textCompareTyp, prefix "Text.greaterThan")
      , let r = R.Builtin "Text.greaterThanOrEqual"
        in (r, Just (string2' (Term.ref r) (>=)), textCompareTyp, prefix "Text.greaterThanOrEqual")
+     , let r = R.Builtin "Text.Order"
+       in (r, Nothing, unsafeParseType "Order Text", prefix "Text.Order")
 
      , let r = R.Builtin "Text.left"
        in (r, Nothing, alignmentT, prefixes ["left", "Text"])
@@ -291,6 +296,22 @@ makeBuiltins whnf =
              pure $ if Vector.null vs then true else false
            op _ = fail "Vector.empty? unpossible"
        in (r, Just (I.Primop 1 op), unsafeParseType "forall a. Vector a -> Boolean", prefix "empty?")
+     , let r = R.Builtin "Vector.sort"
+           op [ord,f,v] = do
+             Term.Vector' vs <- whnf v
+             ks <- traverse (whnf . Term.app f) vs
+             Term.Builtin' ord <- whnf ord
+             let
+               sortableVs = Vector.zip ks vs
+               f' (Term.Text' x, _) (Term.Text' y, _) = x `compare` y
+               f' (Term.Number' x, _) (Term.Number' y, _) = x `compare` y
+               f' (Term.App' (Term.Builtin' "Hash") (Term.Ref' r1), _)
+                  (Term.App' (Term.Builtin' "Hash") (Term.Ref' r2), _) = r1 `compare` r2
+               f' x y = error $ "don't know how to compare: " ++ show x ++ " " ++ show y
+             pure . Term.vector . fmap snd $ sortBy f' (Vector.toList sortableVs)
+           op _ = fail "Vector.sort unpossible"
+           typ = "∀ a k . Order k -> (a -> k) -> Vector a -> Vector a"
+       in (r, Just (I.Primop 3 op), unsafeParseType typ, prefix "Vector.sort")
      , let r = R.Builtin "Vector.size"
            op [v] = do
              Term.Vector' vs <- whnf v

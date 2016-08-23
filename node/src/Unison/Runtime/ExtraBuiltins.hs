@@ -234,6 +234,8 @@ makeAPI blockStore crypto = do
              pure $ if r1 >= r2 then true else false
            op _ = fail "Hash.greaterThanOrEqual"
        in (r, Just (I.Primop 2 op), hashCompareTyp, prefix "Hash.greaterThanOrEqual")
+     , let r = R.Builtin "Hash.Order"
+       in (r, Nothing, unsafeParseType "∀ a . Order (Hash a)", prefix "Hash.Order")
      ])
 
 hashCompareTyp :: Type V

@@ -119,6 +119,7 @@ typeBuiltins = (Var.named *** Type.lit) <$>
   , builtin "Pair"
   -- ???
   , builtin "Symbol"
+  , builtin "Order"
   , builtin "Alignment"
   , builtin "Color"
   , builtin "Fixity"
