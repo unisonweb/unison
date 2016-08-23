@@ -52,6 +52,9 @@ tests = withResource Common.node (\_ -> pure ()) $ \node ->
       , t "if (Text.greaterThanOrEqual \"hiya\" \"hi\") 1 2" "1"
       , t "if (Text.greaterThanOrEqual \"hi\" \"hi\") 1 2" "1"
       , t "if (Text.lessThanOrEqual \"hi\" \"hi\") 1 2" "1"
+      , t "Vector.range 0 10" "[0,1,2,3,4,5,6,7,8,9]"
+      , t "Vector.range 0 0" "[]"
+      , t "Vector.fold-left (+) 0 (Vector.replicate 5 1)" "5"
       ]
     t uneval eval = testCase (uneval ++ " ⟹  " ++ eval) $ do
       (node, _, builtins) <- node

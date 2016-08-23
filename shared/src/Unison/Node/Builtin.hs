@@ -276,6 +276,15 @@ makeBuiltins whnf =
            op [] = pure $ Term.vector mempty
            op _ = fail "Vector.empty unpossible"
        in (r, Just (I.Primop 0 op), unsafeParseType "forall a. Vector a", prefix "empty")
+     , let r = R.Builtin "Vector.range"
+           op [start,stop] = do
+             Term.Number' start <- whnf start
+             Term.Number' stop <- whnf stop
+             let num = Term.num . fromIntegral
+             pure $ Term.vector' (Vector.fromList . map num $ [floor start .. floor stop-1])
+           op _ = fail "Vector.range unpossible"
+           typ = unsafeParseType "Number -> Number -> Vector Number"
+       in (r, Just (I.Primop 2 op), typ, prefix "Vector.range")
      , let r = R.Builtin "Vector.empty?"
            op [v] = do
              Term.Vector' vs <- whnf v

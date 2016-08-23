@@ -17,6 +17,12 @@ Remote =
   ( Remote.pure : ∀ a . a -> Remote a
   , Remote.bind : ∀ a b . (a -> Remote b) -> Remote a -> Remote b);
 
+Vector.replicate : ∀ a . Number -> a -> Vector a;
+Vector.replicate n a = Vector.map (const a) (Vector.range 0 n);
+
+Remote.replicate : ∀ a . Number -> Remote a -> Remote (Vector a);
+Remote.replicate n r = Remote.sequence (Vector.replicate n r);
+
 Vector.fold-right : ∀ a b . (a -> b -> b) -> b -> Vector a -> b;
 Vector.fold-right f z vs = Vector.fold-left (flip f) z (Vector.reverse vs);
 
@@ -27,7 +33,7 @@ Vector.fold-balanced plus zero vs =
       if (Vector.size vs <= 2) 
          (Vector.fold-left plus zero vs)
          (let p = Vector.split vs;
-              plus (go plus zero (1st p)) (go plus zero (2nd p));;);
+              go plus zero (1st p) `plus` go plus zero (2nd p);;);
     go plus zero vs;; 
   ;
 
