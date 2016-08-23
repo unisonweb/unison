@@ -76,7 +76,7 @@ tupleOrParenthesized rec =
 --   y = 11;
 --   pure (f x);;
 effectBlock :: forall v . Var v => Parser (Term v)
-effectBlock = (token (string "do") *> wordyId) >>= go where
+effectBlock = (token (string "do") *> wordyId keywords) >>= go where
   go name = do
     bindings <- some $ asum [Right <$> binding, Left <$> action] <* semicolon
     semicolon
@@ -96,7 +96,7 @@ effectBlock = (token (string "do") *> wordyId) >>= go where
     interpretPure = ABT.subst (ABT.v' "pure") qualifiedPure
     binding :: Parser (v, Term v)
     binding = scope "binding" $ do
-      lhs <- ABT.v' . Text.pack <$> token wordyId
+      lhs <- ABT.v' . Text.pack <$> token (wordyId keywords)
       eff <- token $ (True <$ string ":=") <|> (False <$ string "=")
       rhs <- term
       let rhs' = if eff then interpretPure rhs
@@ -181,36 +181,22 @@ bindingEqBody p = eq *> body
     eq = token (char '=')
     body = lineErrorUnless "parse error in body of binding" p
 
--- a wordyId isn't all digits, and isn't all symbols
-wordyId :: Parser String
-wordyId = token $ f <$> id <*> optional ((:) <$> dot <*> wordyId)
-  where
-    dot = char '.'
-    id = identifier [any (not.isDigit), any isAlphaNum, (`notElem` keywords)]
-    f id rest = maybe id (id++) rest
-
--- a symbolyId is all symbols
-symbolyId :: Parser String
-symbolyId = token $ identifier'
-  [notReservedChar, not . isSpace, \c -> isSymbol c || isPunctuation c]
-  [(`notElem` keywords)]
-
 infixVar :: Var v => Parser v
-infixVar = (Var.named . Text.pack) <$> (backticked <|> symbolyId)
+infixVar = (Var.named . Text.pack) <$> (backticked <|> symbolyId keywords)
   where
-    backticked = char '`' *> wordyId <* token (char '`')
+    backticked = char '`' *> wordyId keywords <* token (char '`')
 
 prefixVar :: Var v => Parser v
 prefixVar = (Var.named . Text.pack) <$> prefixOp
   where
     prefixOp :: Parser String
-    prefixOp = wordyId <|> (char '(' *> symbolyId <* token (char ')')) -- no whitespace w/in parens
+    prefixOp = wordyId keywords <|> (char '(' *> symbolyId keywords <* token (char ')')) -- no whitespace w/in parens
 
 prefixTerm :: Var v => Parser (Term v)
 prefixTerm = Term.var <$> prefixVar
 
-keywords :: Set String
-keywords = Set.fromList ["do", "let", "rec", "in", "->", ":", "=", "where"]
+keywords :: [String]
+keywords = ["do", "let", "rec", "in", "->", ":", "=", "where"]
 
 lam :: Var v => Parser (Term v) -> Parser (Term v)
 lam p = Term.lam'' <$> vars <* arrow <*> body

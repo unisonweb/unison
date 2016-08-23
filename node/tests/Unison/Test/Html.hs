@@ -39,10 +39,10 @@ tests = testGroup "html"
   ]
 
 -- evaluateTerms :: [(Path, e)] -> Noted m [(Path,e,e)],
-unisonEvaluate :: TestNode -> Assertion
-unisonEvaluate testNode = do
+unisonEvaluate :: (TestNode, String -> TermV) -> Assertion
+unisonEvaluate (testNode, parse) = do
   let inputPath = [P.Fn]
-      getLinksTerm = unsafeParseTerm $ "getLinks \"" ++ testHTML2 ++ "\""
+      getLinksTerm = parse $ "Html.getLinks \"" ++ testHTML2 ++ "\""
       linkTerm = EB.link (Term.text "link.html") (Term.text "description")
       getLink = Term.ref (R.Builtin "Html.getHref") `Term.app` linkTerm
       getDescription = Term.ref (R.Builtin "Html.getDescription") `Term.app` linkTerm
@@ -64,8 +64,13 @@ unisonEvaluate testNode = do
         , "description match ", show (description == desiredDescription)
         ]
 
-nodeTests :: TestNode -> TestTree
+nodeTests :: (TestNode, String -> TermV) -> TestTree
 nodeTests testNode = testGroup "html"
   [ testCase "numlinks" numlinks
   , testCase "unisonEvaluate" (unisonEvaluate testNode)
   ]
+
+main :: IO ()
+main = do
+  testNode <- makeTestNode
+  defaultMain (nodeTests testNode)

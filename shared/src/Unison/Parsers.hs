@@ -78,6 +78,7 @@ termBuiltins = (Var.named *** Term.ref) <$> (
     , Builtin "False"
     , Builtin "()"
     , Alias "unit" "()"
+    , Alias "Unit" "()"
     , Alias "Some" "Optional.Some"
     , Alias "None" "Optional.None"
     , Alias "Left" "Either.Left"
@@ -124,7 +125,7 @@ typeBuiltins = (Var.named *** Type.lit) <$>
   -- kv store
   , builtin "Index"
   -- html
-  , builtin "Link"
+  , builtin "Html.Link"
   -- distributed
   , builtin "Channel"
   , builtin "Future"

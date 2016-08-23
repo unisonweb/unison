@@ -2,7 +2,7 @@
 
 module Unison.TypeParser where
 
-
+import Control.Monad
 import Control.Applicative ((<|>), some, many)
 import Data.Char (isUpper, isLower, isAlpha)
 import Data.Foldable (asum)
@@ -55,10 +55,19 @@ forall rec = do
     pure $ Type.forall' (fmap Text.pack vars) t
 
 varName :: Parser String
-varName = identifier [isLower.head, all isAlpha]
+varName = do
+  name <- wordyId keywords
+  guard (isLower . head $ name)
+  pure name
 
 typeName :: Parser String
-typeName = identifier [isUpper.head]
+typeName = do
+  name <- wordyId keywords
+  guard (isUpper . head $ name)
+  pure name
+
+keywords :: [String]
+keywords = ["forall", "∀"]
 
 -- qualifiedTypeName :: Parser String
 -- qualifiedTypeName = f <$> typeName <*> optional more
@@ -68,9 +77,9 @@ typeName = identifier [isUpper.head]
 --     more = (:) <$> char '.' <*> qualifiedTypeName
 
 literal :: Var v => Parser (Type v)
-literal =
-  token $ asum [ Type.lit Type.Number <$ string "Number"
-               , Type.lit Type.Text <$ string "Text"
-               , Type.lit Type.Vector <$ string "Vector"
-               , (Type.v' . Text.pack) <$> typeName
-               ]
+literal = scope "literal" . token $
+  asum [ Type.lit Type.Number <$ string "Number"
+       , Type.lit Type.Text <$ string "Text"
+       , Type.lit Type.Vector <$ string "Vector"
+       , (Type.v' . Text.pack) <$> typeName
+       ]

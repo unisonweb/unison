@@ -16,6 +16,12 @@ import qualified Unison.Type as T
 -- import Test.Tasty.SmallCheck as SC
 -- import Test.Tasty.QuickCheck as QC
 
+parse' :: String -> TestTree
+parse' s = testCase ("`" ++ s ++ "`") $
+  case parseTerm s of
+    Fail e _ -> assertFailure $ "parse failure " ++ intercalate "\n" e
+    Succeed a _ _ -> pure ()
+
 parse :: (String, Term (Symbol DFO)) -> TestTree
 parse (s, expected) =
   testCase ("`" ++ s ++ "`") $
@@ -31,13 +37,17 @@ parseFail (s, reason) =
       Succeed _ n _ -> n == length s;
 
 tests :: TestTree
-tests = testGroup "TermParser" $ (parse <$> shouldPass) ++ (parseFail <$> shouldFail)
+tests = testGroup "TermParser" $ (parse <$> shouldPass)
+                              ++ (parse' <$> shouldParse)
+                              ++ (parseFail <$> shouldFail)
   where
     shouldFail =
       [ ("+", "operator needs to be enclosed in parens or between arguments")
       , ("#V-fXHD3-N0E", "invalid base64url")
       , ("#V-f/XHD3-N0E", "invalid base64url")
       ]
+    shouldParse =
+      [ "do Remote n1 := Remote.spawn; n2 := Remote.spawn; let rec x = 10; Remote.pure 42;;; ;" ]
     shouldPass =
       [ ("1", one)
       , ("[1,1]", vector [one, one])
@@ -88,7 +98,7 @@ tests = testGroup "TermParser" $ (parse <$> shouldPass) ++ (parseFail <$> should
       , ("let rec fix f = f (fix f); fix;;", fix) -- fix
       , ("1 + 2 + 3", num 1 `plus'` num 2 `plus'` num 3)
       , ("[1, 2, 1 + 1]", vector [num 1, num 2, num 1 `plus'` num 1])
-      , ("(id -> let x = id 42; y = id \"hi\"; 43;;) : (forall a.a) -> Number", lam' ["id"] (let1'
+      , ("(id -> let x = id 42; y = id \"hi\"; 43;;) : (forall a . a) -> Number", lam' ["id"] (let1'
         [ ("x", var' "id" `app` num 42),
           ("y", var' "id" `app` text "hi")
         ] (num 43)) `ann` (T.forall' ["a"] (T.v' "a") `T.arrow` T.lit T.Number))

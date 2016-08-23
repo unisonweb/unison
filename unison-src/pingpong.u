@@ -1,14 +1,17 @@
 -- run from unison root directory
--- curl -H "Content-Type: text/plain; charset=UTF-8" --data-binary @node/tests/pingpong.u http://localhost:8081/compute/dummynode909
+-- curl -H "Content-Type: text/plain; charset=UTF-8" --data-binary @unison-src/pingpong.u http://localhost:8081/compute/root
 
-Remote {
+do Remote
   n1 := Remote.spawn;
   n2 := Remote.spawn;
   let rec
-    ping i = Remote { 
+    ping i = do Remote
       i := Remote.at n2 (i + 1); 
-      if (i >= 5) (pure i) (pong i); 
-    };
-    pong i = Remote { i := Remote.at n1 (i + 1); ping i; }
-  in ping 0;
-}
+      if (i >= 5) (pure i) (pong i);;
+    ;
+    pong i = do Remote 
+      i := Remote.at n1 (i + 1); 
+      ping i;;
+    ;
+    ping 0;;
+  ;;

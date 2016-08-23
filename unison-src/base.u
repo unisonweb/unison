@@ -1,21 +1,31 @@
 identity : ∀ a . a -> a;
 identity a = a;
 
+const x y = x;
+
 then : ∀ a b c . (a -> b) -> (b -> c) -> a -> c;
 then f1 f2 x = f2 (f1 x);
 
 flip : ∀ a b c . (a -> b -> c) -> b -> a -> c;
 flip f b a = f a b;
 
+first : ∀ a b . Pair a b -> a;
+first p = Pair.fold const p;
+
+rest : ∀ a b . Pair a b -> b;
+rest p = Pair.fold (x y -> y) p;
+
+1st = first;
+2nd = rest `then` first;
+3rd = rest `then` (rest `then` first);
+4th = rest `then` (rest `then` (rest `then` first));
+5th = rest `then` (rest `then` (rest `then` (rest `then` first)));
+
 Remote.transfer : Node -> Remote Unit;
 Remote.transfer node = Remote.at node unit;
 
 Remote.map : ∀ a b . (a -> b) -> Remote a -> Remote b;
 Remote.map f = Remote.bind (f `then` Remote.pure);
-
-Remote =
-  ( Remote.pure : ∀ a . a -> Remote a
-  , Remote.bind : ∀ a b . (a -> Remote b) -> Remote a -> Remote b);
 
 Vector.replicate : ∀ a . Number -> a -> Vector a;
 Vector.replicate n a = Vector.map (const a) (Vector.range 0 n);
@@ -77,16 +87,3 @@ Either.bind = Either.fold Left;
 Either.swap : ∀ a b . Either a b -> Either b a;
 Either.swap e = Either.fold Right Left e;
 
-const x y = x;
-
-first : ∀ a b . Pair a b -> a;
-first p = Pair.fold const p;
-
-rest : ∀ a b . Pair a b -> b;
-rest p = Pair.fold (x y -> y) p;
-
-1st = first;
-2nd = rest `then` first;
-3rd = rest `then` (rest `then` first);
-4th = rest `then` (rest `then` (rest `then` first));
-5th = rest `then` (rest `then` (rest `then` (rest `then` first)));

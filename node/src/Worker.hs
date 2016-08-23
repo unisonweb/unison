@@ -15,7 +15,6 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as Text.IO
 import qualified Unison.Config as Config
 import qualified Unison.Cryptography as C
-import qualified Unison.Eval.Interpreter as I
 import qualified Unison.Node as Node
 import qualified Unison.Node.BasicNode as BasicNode
 import qualified Unison.Node.Builtin as Builtin

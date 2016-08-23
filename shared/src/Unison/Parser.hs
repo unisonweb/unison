@@ -95,6 +95,20 @@ identifier' charTests stringTests = do
   guard (all ($ i) stringTests)
   pure i
 
+-- a wordyId isn't all digits, and isn't all symbols
+wordyId :: [String] -> Parser String
+wordyId keywords = token $ f <$> sepBy1 dot id
+  where
+    dot = char '.'
+    id = identifier [any (not . Char.isDigit), any Char.isAlphaNum, (`notElem` keywords)]
+    f segs = intercalate "." segs
+
+-- a symbolyId is all symbols
+symbolyId :: [String] -> Parser String
+symbolyId keywords = token $ identifier'
+  [notReservedChar, not . Char.isSpace, \c -> Char.isSymbol c || Char.isPunctuation c]
+  [(`notElem` keywords)]
+
 token :: Parser a -> Parser a
 token p = p <* ignored
 
