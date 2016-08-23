@@ -68,13 +68,13 @@ tupleOrParenthesized rec =
     unit = Term.builtin "()"
 
 -- |
--- do Remote { x := pure 23; y := at node2 23; pure 19 }
--- do Remote { action1; action2; }
--- do Remote { action1; x = 1 + 1; action2; }
+-- do Remote x := pure 23; y := at node2 23; pure 19;;
+-- do Remote action1; action2;;
+-- do Remote action1; x = 1 + 1; action2;;
 -- do Remote
---   x := pure 23
---   y = 11
---   pure (f x)
+--   x := pure 23;
+--   y = 11;
+--   pure (f x);;
 effectBlock :: forall v . Var v => Parser (Term v)
 effectBlock = (token (string "do") *> wordyId) >>= go where
   go name = do
