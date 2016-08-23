@@ -634,15 +634,19 @@ synthesizeClosed synthRef term = do
   synthesizeClosedAnnotated term
 
 synthesizeClosed' :: Var v => Term v -> M v (Type v)
-synthesizeClosed' term = case runM (synthesize term) env0 of
+synthesizeClosed' term | Set.null (ABT.freeVars term) = case runM (synthesize term) env0 of
   Left err -> M $ \_ -> Left err
   Right (t,env) -> pure $ generalizeExistentials (ctx env) t
+synthesizeClosed' term =
+  fail $ "cannot synthesize term with free variables: " ++ show (map Var.name $ Set.toList (ABT.freeVars term))
 
 synthesizeClosedAnnotated :: (Monad f, Var v) => Term v -> Noted f (Type v)
-synthesizeClosedAnnotated term = do
+synthesizeClosedAnnotated term | Set.null (ABT.freeVars term) = do
   Note.fromEither $ runM (synthesize term) env0 >>= \(t,env) ->
     -- we generalize over any remaining unsolved existentials
     pure $ generalizeExistentials (ctx env) t
+synthesizeClosedAnnotated term =
+  fail $ "cannot synthesize term with free variables: " ++ show (map Var.name $ Set.toList (ABT.freeVars term))
 
 -- boring instances
 instance Applicative (M v) where

@@ -7,7 +7,9 @@ do Remote
   ind := do Remote
     Remote.transfer n1;
     ind := Index.empty;
-    Index.insert "Unison" "Rulez!!!1" ind; 
+    Index.insert "Unison" "Rulez!!!1" ind;
+    Index.insert "Unison1" "Rulez!!!1" ind;
     pure ind;;
+  ;
   Remote.transfer n2;
-  Index.lookup "Unison" ind;;
+  Index.keys ind;;

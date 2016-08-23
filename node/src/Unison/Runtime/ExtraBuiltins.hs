@@ -67,8 +67,44 @@ makeAPI blockStore crypto = do
              Term.Distributed' (Term.Node self) <- whnf self
              pure . index self . Term.lit . Term.Text . Index.idToText $ ident
            op _ = fail "Index.empty# unpossible"
-           type' = unsafeParseType "forall k v. Node -> Index k v"
+           type' = unsafeParseType "forall k v . Node -> Index k v"
        in (r, Just (I.Primop 1 op), type', prefix "Index.empty#")
+     , let r = R.Builtin "Index.keys#"
+           op [indexToken] = do
+             Term.Text' h <- whnf indexToken
+             Note.lift $ do
+               (db, cleanup) <- RP.acquire resourcePool . Index.textToId $ h
+               flip finally cleanup $ do
+                 keyBytes <- atomically $ Index.keys db
+                 case traverse SAH.deserializeTermFromBytes keyBytes of
+                   Left err -> fail ("Index.keys# could not deserialize: " ++ err)
+                   Right terms -> pure $ Term.vector terms
+           op _ = fail "Index.keys# unpossible"
+           type' = unsafeParseType "forall k . Text -> Vector k"
+       in (r, Just (I.Primop 1 op), type', prefix "Index.keys#")
+     , let r = R.Builtin "Index.increment#"
+           op [key, indexToken] = do
+             key <- whnf key
+             Term.Text' h <- whnf indexToken
+             Note.lift $ do
+               (db, cleanup) <- RP.acquire resourcePool . Index.textToId $ h
+               flip finally cleanup $ do
+                 entry <- atomically $ Index.lookupGT (SAH.hash' key) db
+                 case entry of
+                   Nothing -> pure none
+                   Just (_, (keyBytes, _)) -> case SAH.deserializeTermFromBytes keyBytes of
+                     Left err -> fail ("Index.increment# could not deserialize: " ++ err)
+                     Right term -> pure $ some term
+           op _ = fail "Index.increment# unpossible"
+           type' = unsafeParseType "forall k . k -> Text -> Optional k"
+       in (r, Just (I.Primop 2 op), type', prefix "Index.increment#")
+     , let r = R.Builtin "Index.representation#"
+           op [index] = do
+             Index' node tok <- whnf index
+             pure $ pair' (Term.node node) (Term.text tok)
+           op _ = fail "Index.representation# unpossible"
+           type' = unsafeParseType "forall k v . Index k v -> (Node, Text)"
+       in (r, Just (I.Primop 1 op), type', prefix "Index.representation#")
      , let r = R.Builtin "Index.lookup#"
            op [key, indexToken] = inject g indexToken key where
              inject g indexToken key = do
@@ -87,19 +123,8 @@ makeAPI blockStore crypto = do
                pure val
              g s k = pure $ Term.ref r `Term.app` s `Term.app` k
            op _ = fail "Index.lookup# unpossible"
-           type' = unsafeParseType "forall k v. k -> Index k v -> Optional v"
+           type' = unsafeParseType "forall k v . k -> Text -> Optional v"
        in (r, Just (I.Primop 2 op), type', prefix "Index.lookup#")
-     , let r = R.Builtin "Index.lookup"
-           op [key, index] = do
-             Index' node tok <- whnf index
-             pure $
-               Term.builtin "Remote.map" `Term.apps` [
-                 Term.builtin "Index.lookup#" `Term.app` key,
-                 Term.builtin "Remote.at" `Term.apps` [Term.node node, Term.text tok]
-               ]
-           op _ = fail "Index.lookup unpossible"
-           type' = unsafeParseType "forall k v. k -> Index k v -> Remote (Optional v)"
-       in (r, Just (I.Primop 2 op), type', prefix "Index.lookup")
      , let r = R.Builtin "Index.insert#"
            op [k, v, index] = inject g k v index where
              inject g k v index = do
@@ -116,19 +141,8 @@ makeAPI blockStore crypto = do
                pure unitRef
              g k v index = pure $ Term.ref r `Term.app` k `Term.app` v `Term.app` index
            op _ = fail "Index.insert# unpossible"
-           type' = unsafeParseType "forall k v. k -> v -> Index k v -> Unit"
+           type' = unsafeParseType "forall k v . k -> v -> Text -> Unit"
        in (r, Just (I.Primop 3 op), type', prefix "Index.insert#")
-     , let r = R.Builtin "Index.insert"
-           op [key, value, index] = do
-             Index' node tok <- whnf index
-             pure $
-               Term.builtin "Remote.map" `Term.apps` [
-                 Term.builtin "Index.insert#" `Term.apps` [key,value],
-                 Term.builtin "Remote.at" `Term.apps` [Term.node node, Term.text tok]
-               ]
-           op _ = fail "Index.insert unpossible"
-           type' = unsafeParseType "forall k v. k -> v -> Index k v -> Remote Unit"
-       in (r, Just (I.Primop 3 op), type', prefix "Index.insert")
 
      -- Html
      , let r = R.Builtin "Html.getLinks"
@@ -170,11 +184,6 @@ makeAPI blockStore crypto = do
                x -> pure $ Term.ref r `Term.app` x
            op _ = fail "Http.getUrl# unpossible"
        in (r, Just (I.Primop 1 op), unsafeParseType "Text -> Either Text Text", prefix "Http.getUrl#")
-     , let r = R.Builtin "Http.getUrl"
-           op [url] = pure $ Term.builtin "Remote.pure" `Term.app`
-             (Term.builtin "Http.getUrl#" `Term.app` url)
-           op _ = fail "Http.getUrl unpossible"
-       in (r, Just (I.Primop 1 op), unsafeParseType "Text -> Remote (Either Text Text)", prefix "Http.getUrl")
 
      -- Hashing
      -- add erase, comparison functions

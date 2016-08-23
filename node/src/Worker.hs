@@ -62,6 +62,7 @@ main = do
           -- allprimops = Map.fromList [ (r, op) | Builtin.Builtin r (Just op) _ _ <- allbuiltins ]
           typecheck e = do
             bindings <- Note.run $ Node.allTermsByVarName Term.ref backend
+            L.debug logger $ "known symbols: " ++ show (map fst bindings)
             let e' = Parsers.bindBuiltins bindings [] e
             Note.unnote (Node.typeAt backend e' []) >>= \t -> case t of
               Left note -> pure $ Left (show note)
