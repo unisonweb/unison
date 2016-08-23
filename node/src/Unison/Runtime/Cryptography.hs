@@ -3,10 +3,10 @@ module Unison.Runtime.Cryptography where
 import Unison.Cryptography
 import Data.ByteString (ByteString)
 
--- Creates a Unison.Cryptography object specialized to use cacophony
--- (https://hackage.haskell.org/package/cacophony).
-cacophony :: ByteString -> Cryptography ByteString () () () () () ()
-cacophony key = Cryptography key gen hash sign verify randomBytes encryptAsymmetric decryptAsymmetric encrypt decrypt pipeInitiator pipeResponder where
+-- Creates a Unison.Cryptography object specialized to use the noise protocol
+-- (http://noiseprotocol.org/noise.html).
+noise :: ByteString -> Cryptography ByteString () () () () () ()
+noise key = Cryptography key gen hash sign verify randomBytes encryptAsymmetric decryptAsymmetric encrypt decrypt pipeInitiator pipeResponder where
   gen = undefined
   hash = undefined
   sign _ = undefined
