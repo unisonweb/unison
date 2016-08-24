@@ -5,11 +5,17 @@ Index.empty = Remote.map Index.empty# Remote.here;
 Index.keys : ∀ k v . Index k v -> Remote (Vector k);
 Index.keys = Index.fromUnsafe Index.keys#;
 
+Index.1st-key : ∀ k v . Index k v -> Remote (Optional k);
+Index.1st-key = Index.fromUnsafe Index.1st-key#;
+
 Index.increment : ∀ k v . k -> Index k v -> Remote (Optional k);
 Index.increment k = Index.fromUnsafe (Index.increment# k); 
 
 Index.lookup : ∀ k v . k -> Index k v -> Remote (Optional v);
 Index.lookup k = Index.fromUnsafe (Index.lookup# k);
+
+Index.delete : ∀ k v . k -> Index k v -> Remote Unit; 
+Index.delete k = Index.fromUnsafe (Index.delete# k);
 
 Index.insert : ∀ k v . k -> v -> Index k v -> Remote Unit;
 Index.insert k v = Index.fromUnsafe (Index.insert# k v);
@@ -20,7 +26,8 @@ Index.fromUnsafe f ind = let
   Remote.map f (Remote.at (1st p) (2nd p));;
 ;
 
--- todo: Index.delete
-
 Http.getUrl : Text -> Remote (Either Text Text);
 Http.getUrl url = Remote.map Http.getUrl# (Remote.pure url);
+
+hash! : ∀ a . a -> Remote (Hash a);
+hash! a = Remote.map hash# (Remote.pure a);

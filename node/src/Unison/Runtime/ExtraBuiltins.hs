@@ -13,6 +13,7 @@ import Unison.Type (Type)
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import qualified Unison.Cryptography as C
+import qualified Unison.Hash as Hash
 import qualified Unison.Eval.Interpreter as I
 import qualified Unison.Note as Note
 import qualified Unison.Reference as R
@@ -82,6 +83,21 @@ makeAPI blockStore crypto = do
            op _ = fail "Index.keys# unpossible"
            type' = unsafeParseType "forall k . Text -> Vector k"
        in (r, Just (I.Primop 1 op), type', prefix "Index.keys#")
+     , let r = R.Builtin "Index.1st-key#"
+           op [indexToken] = do
+             Term.Text' h <- whnf indexToken
+             Note.lift $ do
+               (db, cleanup) <- RP.acquire resourcePool . Index.textToId $ h
+               flip finally cleanup $ do
+                 keyBytes <- atomically $ Index.keys db
+                 case keyBytes of
+                   [] -> pure none
+                   (keyBytes:_) -> case SAH.deserializeTermFromBytes keyBytes of
+                     Left err -> fail ("Index.1st-key# could not deserialize: " ++ err)
+                     Right terms -> pure $ some terms
+           op _ = fail "Index.1st-key# unpossible"
+           type' = unsafeParseType "forall k . Text -> Optional k"
+       in (r, Just (I.Primop 1 op), type', prefix "Index.1st-key#")
      , let r = R.Builtin "Index.increment#"
            op [key, indexToken] = do
              key <- whnf key
@@ -125,6 +141,17 @@ makeAPI blockStore crypto = do
            op _ = fail "Index.lookup# unpossible"
            type' = unsafeParseType "forall k v . k -> Text -> Optional v"
        in (r, Just (I.Primop 2 op), type', prefix "Index.lookup#")
+     , let r = R.Builtin "Index.delete#"
+           op [key, indexToken] = do
+             Term.Text' indexToken <- whnf indexToken
+             key <- whnf key
+             (db, cleanup) <- Note.lift . RP.acquire resourcePool . Index.textToId $ indexToken
+             Note.lift . flip finally cleanup $ do
+               _ <- atomically $ Index.delete (SAH.hash' key) db
+               pure unitRef
+           op _ = fail "Index.delete# unpossible"
+           type' = unsafeParseType "forall k . k -> Text -> Unit"
+       in (r, Just (I.Primop 2 op), type', prefix "Index.delete#")
      , let r = R.Builtin "Index.insert#"
            op [k, v, index] = inject g k v index where
              inject g k v index = do
@@ -190,47 +217,55 @@ makeAPI blockStore crypto = do
      , let r = R.Builtin "hash#"
            op [e] = do
              e <- whnf e
-             pure $ Term.builtin "Hash" `Term.app` (Term.ref $ SAH.hash e)
+             let h = Hash.base64 . Hash.fromBytes . SAH.hash' $ e
+             pure $ Term.builtin "Hash" `Term.app` (Term.text h)
            op _ = fail "hash"
            t = "forall a . a -> Hash a"
        in (r, Just (I.Primop 1 op), unsafeParseType t, prefix "hash#")
+     , let r = R.Builtin "Hash.base64"
+           op [e] = do
+             Term.App' _ (Term.Text' r1) <- whnf e
+             pure (Term.text r1)
+           op _ = fail "Hash.base64"
+           t = "forall a . Hash a -> Text"
+       in (r, Just (I.Primop 1 op), unsafeParseType t, prefix "Hash.base64")
      , let r = R.Builtin "Hash.erase"
            op [e] = pure e
-           op _ = fail "hash"
+           op _ = fail "Hash.erase"
            t = "forall a . Hash a -> Hash Unit"
        in (r, Just (I.Primop 1 op), unsafeParseType t, prefix "Hash.erase")
      , let r = R.Builtin "Hash.equal"
            op [h1,h2] = do
-             Term.App' _ (Term.Ref' r1) <- whnf h1
-             Term.App' _ (Term.Ref' r2) <- whnf h2
+             Term.App' _ (Term.Text' r1) <- whnf h1
+             Term.App' _ (Term.Text' r2) <- whnf h2
              pure $ if r1 == r2 then true else false
            op _ = fail "Hash.equal"
        in (r, Just (I.Primop 2 op), hashCompareTyp, prefix "Hash.equal")
      , let r = R.Builtin "Hash.lessThan"
            op [h1,h2] = do
-             Term.App' _ (Term.Ref' r1) <- whnf h1
-             Term.App' _ (Term.Ref' r2) <- whnf h2
+             Term.App' _ (Term.Text' r1) <- whnf h1
+             Term.App' _ (Term.Text' r2) <- whnf h2
              pure $ if r1 < r2 then true else false
            op _ = fail "Hash.lessThan"
        in (r, Just (I.Primop 2 op), hashCompareTyp, prefix "Hash.lessThan")
      , let r = R.Builtin "Hash.lessThanOrEqual"
            op [h1,h2] = do
-             Term.App' _ (Term.Ref' r1) <- whnf h1
-             Term.App' _ (Term.Ref' r2) <- whnf h2
+             Term.App' _ (Term.Text' r1) <- whnf h1
+             Term.App' _ (Term.Text' r2) <- whnf h2
              pure $ if r1 <= r2 then true else false
            op _ = fail "Hash.lessThanOrEqual"
        in (r, Just (I.Primop 2 op), hashCompareTyp, prefix "Hash.lessThanOrEqual")
      , let r = R.Builtin "Hash.greaterThan"
            op [h1,h2] = do
-             Term.App' _ (Term.Ref' r1) <- whnf h1
-             Term.App' _ (Term.Ref' r2) <- whnf h2
+             Term.App' _ (Term.Text' r1) <- whnf h1
+             Term.App' _ (Term.Text' r2) <- whnf h2
              pure $ if r1 > r2 then true else false
            op _ = fail "Hash.greaterThan"
        in (r, Just (I.Primop 2 op), hashCompareTyp, prefix "Hash.greaterThan")
      , let r = R.Builtin "Hash.greaterThanOrEqual"
            op [h1,h2] = do
-             Term.App' _ (Term.Ref' r1) <- whnf h1
-             Term.App' _ (Term.Ref' r2) <- whnf h2
+             Term.App' _ (Term.Text' r1) <- whnf h1
+             Term.App' _ (Term.Text' r2) <- whnf h2
              pure $ if r1 >= r2 then true else false
            op _ = fail "Hash.greaterThanOrEqual"
        in (r, Just (I.Primop 2 op), hashCompareTyp, prefix "Hash.greaterThanOrEqual")

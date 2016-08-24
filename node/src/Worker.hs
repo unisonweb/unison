@@ -41,6 +41,7 @@ main = do
     backend <- BasicNode.make SAH.hash store (\whnf -> b0 whnf ++ b1 whnf)
     loadDeclarations "unison-src/base.u" backend
     loadDeclarations "unison-src/extra.u" backend
+    loadDeclarations "unison-src/dindex.u" backend
     initialized <- STM.atomically $ newTVar False
     pure $ go backend initialized
     where

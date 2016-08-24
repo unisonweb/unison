@@ -9,6 +9,7 @@ import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Typechecker.Context (remoteSignatureOf)
+import Control.Concurrent (threadDelay)
 import qualified Data.Vector as Vector
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
@@ -89,6 +90,33 @@ makeBuiltins whnf =
        in (r, Nothing, Type.builtin "Boolean", prefix "True")
      , let r = R.Builtin "False";
        in (r, Nothing, Type.builtin "Boolean", prefix "False")
+     , let r = R.Builtin "Boolean.and";
+           op [b1,b2] = do
+             Term.Builtin' b1 <- whnf b1
+             Term.Builtin' b2 <- whnf b2
+             pure $ case (b1,b2) of
+               _ | Text.head b1 /= Text.head b2 -> false
+                 | otherwise -> if Text.head b1 == 'T' then true else false
+           op _ = error "unpossible"
+           typ = "Boolean -> Boolean -> Boolean"
+       in (r, Just (I.Primop 2 op), unsafeParseType typ, prefix "and")
+     , let r = R.Builtin "Boolean.or";
+           op [b1,b2] = do
+             Term.Builtin' b1 <- whnf b1
+             Term.Builtin' b2 <- whnf b2
+             pure $ case (b1,b2) of
+               _ | Text.head b1 /= Text.head b2 -> true
+                 | otherwise -> if Text.head b1 == 'F' then false else true
+           op _ = error "unpossible"
+           typ = "Boolean -> Boolean -> Boolean"
+       in (r, Just (I.Primop 2 op), unsafeParseType typ, prefix "or")
+     , let r = R.Builtin "Boolean.not";
+           op [b1] = do
+             Term.Builtin' b1 <- whnf b1
+             pure $ if Text.head b1 == 'T' then false else true
+           op _ = error "unpossible"
+           typ = "Boolean -> Boolean"
+       in (r, Just (I.Primop 1 op), unsafeParseType typ, prefix "not")
      , let r = R.Builtin "Boolean.if";
            op [cond,t,f] = do
              cond <- whnf cond
@@ -124,7 +152,22 @@ makeBuiltins whnf =
      , let r = R.Builtin "Number.Order"
        in (r, Nothing, unsafeParseType "Order Number", prefix "Number.Order")
 
+     -- Duration
+     , let r = R.Builtin "Duration.seconds"
+           op [n] = do
+             Term.Number' n <- whnf n
+             pure $ Term.num n
+           op _ = fail "Duration.seconds unpossible"
+       in (r, Just (I.Primop 1 op), unsafeParseType "Number -> Duration", prefix "Duration.seconds")
+
      -- Remote
+     , let r = R.Builtin "Remote.delay"
+           op [seconds] = do
+             Term.Number' seconds <- whnf seconds
+             N.lift $ threadDelay (floor $ seconds * 1000 * 1000)
+             pure $ Term.remote (Remote.Step (Remote.Local (Remote.Pure unitRef)))
+           op _ = fail "Remote.at unpossible"
+       in (r, Just (I.Primop 1 op), unsafeParseType "Duration -> Remote Unit", prefix "Remote.delay")
      , let r = R.Builtin "Remote.at"
            op [node,term] = do
              Term.Distributed' (Term.Node node) <- whnf node
@@ -171,19 +214,19 @@ makeBuiltins whnf =
              `Term.app` r
            op _ = fail "unpossible"
        in (r, Just (I.Primop 2 op), remoteSignatureOf "Remote.map", prefix "map")
-     , let r = R.Builtin "Remote.receiveAsync"
+     , let r = R.Builtin "Remote.receive-async"
            op [chan, timeout] = do
              Term.Number' seconds <- whnf timeout
              Term.Distributed' (Term.Channel chan) <- whnf chan
              pure $ Term.remote (Remote.Step (Remote.Local (Remote.ReceiveAsync chan (Remote.Seconds seconds))))
            op _ = fail "unpossible"
-       in (r, Just (I.Primop 2 op), remoteSignatureOf "Remote.receiveAsync", prefix "receiveAsync")
+       in (r, Just (I.Primop 2 op), remoteSignatureOf "Remote.receive-async", prefix "Remote.receive-async")
      , let r = R.Builtin "Remote.receive"
            op [chan] = do
              Term.Distributed' (Term.Channel chan) <- whnf chan
              pure $ Term.remote (Remote.Step (Remote.Local (Remote.Receive chan)))
            op _ = fail "unpossible"
-       in (r, Just (I.Primop 1 op), remoteSignatureOf "Remote.receive", prefix "receive")
+       in (r, Just (I.Primop 1 op), remoteSignatureOf "Remote.receive", prefix "Remote.receive")
      , let r = R.Builtin "Remote.fork"
            op [r] = do
              Term.Distributed' (Term.Remote r) <- whnf r

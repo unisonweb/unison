@@ -120,7 +120,7 @@ server crypto allow env lang p = do
         -- guard $ Put.runPutS (serialize peerKey) == publicKey peer
         Mux.scope "Remote.server" . Mux.repeatWhile $ do
           r <- recv
-          Mux.info $ "eval " ++ show r
+          Mux.debug $ "eval " ++ show r
           case r of
             Nothing -> pure False
             Just (r, ackChan) -> do

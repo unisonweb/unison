@@ -6,6 +6,12 @@ const x y = x;
 then : ∀ a b c . (a -> b) -> (b -> c) -> a -> c;
 then f1 f2 x = f2 (f1 x);
 
+(|>) : ∀ a b . a -> (a -> b) -> b;
+a |> f = f a;
+
+(<|) : ∀ a b . (a -> b) -> a -> b;
+f <| a = f a;
+
 flip : ∀ a b c . (a -> b -> c) -> b -> a -> c;
 flip f b a = f a b;
 
@@ -21,22 +27,13 @@ rest p = Pair.fold (x y -> y) p;
 4th = rest `then` (rest `then` (rest `then` first));
 5th = rest `then` (rest `then` (rest `then` (rest `then` first)));
 
-Remote.transfer : Node -> Remote Unit;
-Remote.transfer node = Remote.at node unit;
-
-Remote.map : ∀ a b . (a -> b) -> Remote a -> Remote b;
-Remote.map f = Remote.bind (f `then` Remote.pure);
-
-Vector.replicate : ∀ a . Number -> a -> Vector a;
-Vector.replicate n a = Vector.map (const a) (Vector.range 0 n);
-
-Remote.replicate : ∀ a . Number -> Remote a -> Remote (Vector a);
-Remote.replicate n r = Remote.sequence (Vector.replicate n r);
-
 Vector.bind : ∀ a b . (a -> Vector b) -> Vector a -> Vector b;
 Vector.bind f v = Vector.fold-balanced Vector.concatenate Vector.empty (Vector.map f v);
 
 Vector.pure = Vector.single;
+
+Vector.replicate : ∀ a . Number -> a -> Vector a;
+Vector.replicate n a = Vector.map (const a) (Vector.range 0 n);
 
 Vector.fold-right : ∀ a b . (a -> b -> b) -> b -> Vector a -> b;
 Vector.fold-right f z vs = Vector.fold-left (flip f) z (Vector.reverse vs);
@@ -52,12 +49,56 @@ Vector.fold-balanced plus zero vs =
     go plus zero vs;; 
   ;
 
+Vector.all? : ∀ a . (a -> Boolean) -> Vector a -> Boolean;
+Vector.all? f vs = Vector.fold-balanced and True (Vector.map f vs);
+
+Remote.transfer : Node -> Remote Unit;
+Remote.transfer node = Remote.at node unit;
+
+Remote.map : ∀ a b . (a -> b) -> Remote a -> Remote b;
+Remote.map f = Remote.bind (f `then` Remote.pure);
+
+Remote.replicate : ∀ a . Number -> Remote a -> Remote (Vector a);
+Remote.replicate n r = Remote.sequence (Vector.replicate n r);
+
+Remote.race : ∀ a . Duration -> Vector (Remote a) -> Remote a;
+Remote.race timeout rs = do Remote
+  here := Remote.here;
+  c := Remote.channel;
+  result := Remote.receive-async c timeout;
+  Remote.traverse
+    (r -> Remote.fork <| do Remote a := r; Remote.transfer here; Remote.send c a;;) 
+    rs;
+  result;;
+;
+
+-- Returns `None` if no response within the provided `timeout`, 
+-- which cannot exceed 500 seconds
+Remote.timeout : ∀ a . Duration -> Remote a -> Remote (Optional a);
+Remote.timeout timeout r = 
+  Remote.race (Duration.seconds 501) [
+    Remote.map Some r,
+    do Remote Remote.delay timeout; pure None;;
+  ];
+
 Remote.lift2 : ∀ a b c . (a -> b -> c) -> Remote a -> Remote b -> Remote c;
 Remote.lift2 f a b = do Remote 
   a := a;
   b := b;
   pure (f a b);; 
   ;
+
+Remote.at' : ∀ a . Node -> Remote a -> Remote a;
+Remote.at' node r = do Remote Remote.transfer node; r;;;
+
+Remote.start : ∀ a . Duration -> Remote a -> Remote (Remote a);
+Remote.start timeout r = do Remote
+  here := Remote.here;
+  c := Remote.channel;
+  result := Remote.receive-async c timeout;
+  Remote.fork (Remote.at' here (r |> Remote.bind (Remote.send c)));  
+  pure result;;
+;
 
 Remote.traverse : ∀ a b . (a -> Remote b) -> Vector a -> Remote (Vector b);
 Remote.traverse f vs =
@@ -71,6 +112,17 @@ Remote.sequence vs =
                        (Remote.pure Vector.empty)
                        (Vector.map (Remote.map Vector.single) vs);
 
+Remote.parallel-traverse : ∀ a b . Duration -> (a -> Remote b) -> Vector a -> Remote (Vector b);
+Remote.parallel-traverse timeout f vs = do Remote
+  futures := Remote.traverse (f `then` Remote.start timeout) vs;
+  Remote.sequence futures;;
+;
+
+-- Run several remote computations in parallel, returning once `n` equivalent
+-- replies come back. Equivalence is based on result of `hash!`. 
+Remote.quorum : ∀ a b . Duration -> Number -> (a -> Remote b) -> Vector a -> Remote b;
+Remote.quorum timeout n = _; -- todo
+  
 Optional.map : ∀ a b . (a -> b) -> Optional a -> Optional b;
 Optional.map f = Optional.fold None (f `then` Some);
 
@@ -83,6 +135,9 @@ Optional.pure = Some;
 Optional.getOr : ∀ a . a -> Optional a -> a;
 Optional.getOr a = Optional.fold a identity;
 
+Optional.somes : ∀ a . Vector (Optional a) -> Vector a;
+Optional.somes = Vector.bind (Optional.fold Vector.empty Vector.single);
+
 Either.map : ∀ a b c . (b -> c) -> Either a b -> Either a c;
 Either.map f = Either.fold Left (f `then` Right);
 
@@ -94,4 +149,3 @@ Either.bind = Either.fold Left;
 
 Either.swap : ∀ a b . Either a b -> Either b a;
 Either.swap e = Either.fold Right Left e;
-

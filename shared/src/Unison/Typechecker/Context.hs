@@ -594,22 +594,22 @@ remoteSignatureOf k = fromMaybe (error "unknown symbol") (Map.lookup k remoteSig
 
 remoteSignatures :: forall v . Var v => Map.Map Text.Text (Type.Type v)
 remoteSignatures = Map.fromList
-  [ ("Remote.at", Type.forall' ["a"] (Type.builtin "Node" --> v' "a" --> remote' (v' "a")))
-  , ("Remote.fork", Type.forall' ["a"] (remote' (v' "a") --> remote' unitT))
-  , ("Remote.here", remote' (Type.builtin "Node"))
-  , ("Remote.spawn", remote' (Type.builtin "Node"))
-  , ("Remote.send", Type.forall' ["a"] (channel (v' "a") --> v' "a" --> remote' unitT))
-  , ("Remote.channel", Type.forall' ["a"] (remote' (channel (v' "a"))))
-  , ("Remote.map", Type.forall' ["a","b"] ((v' "a" --> v' "b") --> remote' (v' "a") --> remote' (v' "b")))
-  , ("Remote.bind", Type.forall' ["a","b"] ((v' "a" --> remote' (v' "b")) --> remote' (v' "a") --> remote' (v' "b")))
-  , ("Remote.pure", Type.forall' ["a"] (v' "a" --> remote' (v' "a")))
-  , ("Remote.receiveAsync", Type.forall' ["a"] (channel (v' "a") --> timeoutT --> remote' (remote' (v' "a"))))
-  , ("Remote.receive", Type.forall' ["a"] (channel (v' "a") --> remote' (v' "a"))) ]
+  [ ("Remote.at", Type.forall' ["a"] (Type.builtin "Node" --> v' "a" --> remote (v' "a")))
+  , ("Remote.fork", Type.forall' ["a"] (remote (v' "a") --> remote unitT))
+  , ("Remote.here", remote (Type.builtin "Node"))
+  , ("Remote.spawn", remote (Type.builtin "Node"))
+  , ("Remote.send", Type.forall' ["a"] (channel (v' "a") --> v' "a" --> remote unitT))
+  , ("Remote.channel", Type.forall' ["a"] (remote (channel (v' "a"))))
+  , ("Remote.map", Type.forall' ["a","b"] ((v' "a" --> v' "b") --> remote (v' "a") --> remote (v' "b")))
+  , ("Remote.bind", Type.forall' ["a","b"] ((v' "a" --> remote (v' "b")) --> remote (v' "a") --> remote (v' "b")))
+  , ("Remote.pure", Type.forall' ["a"] (v' "a" --> remote (v' "a")))
+  , ("Remote.receive-async", Type.forall' ["a"] (channel (v' "a") --> timeoutT --> remote (remote (v' "a"))))
+  , ("Remote.receive", Type.forall' ["a"] (channel (v' "a") --> remote (v' "a"))) ]
   where
   v' = Type.v'
-  timeoutT = Type.builtin "Remote.Timeout"
+  timeoutT = Type.builtin "Duration"
   unitT = Type.builtin "Unit"
-  remote' t = Type.builtin "Remote" `Type.app` t
+  remote t = Type.builtin "Remote" `Type.app` t
   channel t = Type.builtin "Channel" `Type.app` t
 
 -- | For purposes of typechecking, we translate `[x,y,z]` to the term

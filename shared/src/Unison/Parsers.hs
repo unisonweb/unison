@@ -129,6 +129,7 @@ typeBuiltins = (Var.named *** Type.lit) <$>
   , builtin "Html.Link"
   -- distributed
   , builtin "Channel"
+  , builtin "Duration"
   , builtin "Future"
   , builtin "Remote"
   , builtin "Node"
