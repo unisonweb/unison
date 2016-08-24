@@ -33,6 +33,11 @@ Vector.replicate n a = Vector.map (const a) (Vector.range 0 n);
 Remote.replicate : ∀ a . Number -> Remote a -> Remote (Vector a);
 Remote.replicate n r = Remote.sequence (Vector.replicate n r);
 
+Vector.bind : ∀ a b . (a -> Vector b) -> Vector a -> Vector b;
+Vector.bind f v = Vector.fold-balanced Vector.concatenate Vector.empty (Vector.map f v);
+
+Vector.pure = Vector.single;
+
 Vector.fold-right : ∀ a b . (a -> b -> b) -> b -> Vector a -> b;
 Vector.fold-right f z vs = Vector.fold-left (flip f) z (Vector.reverse vs);
 

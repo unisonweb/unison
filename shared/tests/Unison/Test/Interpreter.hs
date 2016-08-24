@@ -56,6 +56,7 @@ tests = withResource Common.node (\_ -> pure ()) $ \node ->
       , t "Vector.range 0 0" "[]"
       , t "Vector.fold-left (+) 0 (Vector.replicate 5 1)" "5"
       , t "Vector.sort Number.Order identity [5,2,1,3,4]" "[1,2,3,4,5]"
+      , t "Vector.bind 2nd (Vector.zip [1,2,3] [[1],[2],[3]])" "[1,2,3]"
       , t "Optional.getOr 96 (Vector.at 1 [0,1,2,3,4])" "1"
       , t "Vector.take 0 [1,2,3]" "[]"
       , t "Vector.take 2 [1,2,3]" "[1,2]"

@@ -267,7 +267,7 @@ makeBuiltins whnf =
                Term.Vector' init -> Term.vector' (Vector.snoc init last)
                init -> Term.ref r `Term.app` last `Term.app` init
            op _ = fail "Vector.append unpossible"
-       in (r, Just (I.Primop 2 op), unsafeParseType "forall a. a -> Vector a -> Vector a", prefix "append")
+       in (r, Just (I.Primop 2 op), unsafeParseType "forall a . a -> Vector a -> Vector a", prefix "append")
      , let r = R.Builtin "Vector.concatenate"
            op [a,b] = do
              ar <- whnf a
@@ -276,11 +276,11 @@ makeBuiltins whnf =
                (Term.Vector' a, Term.Vector' b) -> Term.vector' (a `mappend` b)
                (a,b) -> Term.ref r `Term.app` a `Term.app` b
            op _ = fail "Vector.concatenate unpossible"
-       in (r, Just (I.Primop 2 op), unsafeParseType "forall a. Vector a -> Vector a -> Vector a", prefix "concatenate")
+       in (r, Just (I.Primop 2 op), unsafeParseType "forall a . Vector a -> Vector a -> Vector a", prefix "concatenate")
      , let r = R.Builtin "Vector.empty"
            op [] = pure $ Term.vector mempty
            op _ = fail "Vector.empty unpossible"
-       in (r, Just (I.Primop 0 op), unsafeParseType "forall a. Vector a", prefix "empty")
+       in (r, Just (I.Primop 0 op), unsafeParseType "forall a . Vector a", prefix "empty")
      , let r = R.Builtin "Vector.range"
            op [start,stop] = do
              Term.Number' start <- whnf start
@@ -295,7 +295,15 @@ makeBuiltins whnf =
              Term.Vector' vs <- whnf v
              pure $ if Vector.null vs then true else false
            op _ = fail "Vector.empty? unpossible"
-       in (r, Just (I.Primop 1 op), unsafeParseType "forall a. Vector a -> Boolean", prefix "empty?")
+       in (r, Just (I.Primop 1 op), unsafeParseType "forall a . Vector a -> Boolean", prefix "empty?")
+     , let r = R.Builtin "Vector.zip"
+           op [v,v2] = do
+             Term.Vector' vs <- whnf v
+             Term.Vector' vs2 <- whnf v2
+             pure $ Term.vector' (Vector.zipWith pair' vs vs2)
+           op _ = fail "Vector.zip unpossible"
+           typ = "∀ a b . Vector a -> Vector b -> Vector (a,b)"
+       in (r, Just (I.Primop 2 op), unsafeParseType typ, prefix "Vector.zip")
      , let r = R.Builtin "Vector.sort"
            op [ord,f,v] = do
              Term.Vector' vs <- whnf v
@@ -317,13 +325,13 @@ makeBuiltins whnf =
              Term.Vector' vs <- whnf v
              pure $ Term.num (fromIntegral $ Vector.length vs)
            op _ = fail "Vector.size unpossible"
-       in (r, Just (I.Primop 1 op), unsafeParseType "forall a. Vector a -> Number", prefix "Vector.size")
+       in (r, Just (I.Primop 1 op), unsafeParseType "forall a . Vector a -> Number", prefix "Vector.size")
      , let r = R.Builtin "Vector.reverse"
            op [v] = do
              Term.Vector' vs <- whnf v
              pure $ Term.vector' (Vector.reverse vs)
            op _ = fail "Vector.reverse unpossible"
-       in (r, Just (I.Primop 1 op), unsafeParseType "forall a. Vector a -> Vector a", prefix "Vector.reverse")
+       in (r, Just (I.Primop 1 op), unsafeParseType "forall a . Vector a -> Vector a", prefix "Vector.reverse")
      , let r = R.Builtin "Vector.split"
            op [v] = do
              Term.Vector' vs <- whnf v
@@ -332,7 +340,7 @@ makeBuiltins whnf =
                False -> case Vector.splitAt (Vector.length vs `div` 2) vs of
                  (x,y) -> pair' (Term.vector' x) (Term.vector' y)
            op _ = fail "Vector.split unpossible"
-           typ = "forall a. Vector a -> (Vector a, Vector a)"
+           typ = "forall a . Vector a -> (Vector a, Vector a)"
        in (r, Just (I.Primop 1 op), unsafeParseType typ, prefix "Vector.split")
      , let r = R.Builtin "Vector.at"
            op [n,vec] = do
@@ -365,7 +373,8 @@ makeBuiltins whnf =
              Term.Vector' vs -> Vector.foldM (\acc a -> whnf (f `Term.apps` [acc, a])) z vs
              _ -> pure $ Term.ref r `Term.app` vec
            op _ = fail "Vector.fold-left unpossible"
-       in (r, Just (I.Primop 3 op), unsafeParseType "forall a b. (b -> a -> b) -> b -> Vector a -> b", prefix "fold-left")
+           typ = "forall a b . (b -> a -> b) -> b -> Vector a -> b"
+       in (r, Just (I.Primop 3 op), unsafeParseType typ, prefix "fold-left")
      , let r = R.Builtin "Vector.map"
            op [f,vec] = do
              vecr <- whnf vec
@@ -373,7 +382,7 @@ makeBuiltins whnf =
                Term.Vector' vs -> Term.vector' (fmap (Term.app f) vs)
                _ -> Term.ref r `Term.app` vecr
            op _ = fail "Vector.map unpossible"
-       in (r, Just (I.Primop 2 op), unsafeParseType "forall a b. (a -> b) -> Vector a -> Vector b", prefix "map")
+       in (r, Just (I.Primop 2 op), unsafeParseType "forall a b . (a -> b) -> Vector a -> Vector b", prefix "Vector.map")
      , let r = R.Builtin "Vector.prepend"
            op [hd,tl] = do
              tlr <- whnf tl
@@ -381,11 +390,11 @@ makeBuiltins whnf =
                Term.Vector' tl -> Term.vector' (Vector.cons hd tl)
                tl -> Term.ref r `Term.app` hd `Term.app` tl
            op _ = fail "Vector.prepend unpossible"
-       in (r, Just (I.Primop 2 op), unsafeParseType "forall a. a -> Vector a -> Vector a", prefix "prepend")
+       in (r, Just (I.Primop 2 op), unsafeParseType "forall a . a -> Vector a -> Vector a", prefix "prepend")
      , let r = R.Builtin "Vector.single"
            op [hd] = pure $ Term.vector (pure hd)
            op _ = fail "Vector.single unpossible"
-       in (r, Just (I.Primop 1 op), unsafeParseType "forall a. a -> Vector a", prefix "Vector.single")
+       in (r, Just (I.Primop 1 op), unsafeParseType "forall a . a -> Vector a", prefix "Vector.single")
      ]
 
 -- type helpers
