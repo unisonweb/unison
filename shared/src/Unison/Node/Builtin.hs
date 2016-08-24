@@ -334,6 +334,32 @@ makeBuiltins whnf =
            op _ = fail "Vector.split unpossible"
            typ = "forall a. Vector a -> (Vector a, Vector a)"
        in (r, Just (I.Primop 1 op), unsafeParseType typ, prefix "Vector.split")
+     , let r = R.Builtin "Vector.at"
+           op [n,vec] = do
+             Term.Number' n <- whnf n
+             Term.Vector' vs <- whnf vec
+             pure $ case vs Vector.!? (floor n) of
+               Nothing -> none
+               Just t -> some t
+           op _ = fail "Vector.at unpossible"
+           typ = "forall a . Number -> Vector a -> Optional a"
+       in (r, Just (I.Primop 2 op), unsafeParseType typ, prefix "Vector.at")
+     , let r = R.Builtin "Vector.take"
+           op [n,vec] = do
+             Term.Number' n <- whnf n
+             Term.Vector' vs <- whnf vec
+             pure $ Term.vector' (Vector.take (floor n) vs)
+           op _ = fail "Vector.take unpossible"
+           typ = "forall a . Number -> Vector a -> Vector a"
+       in (r, Just (I.Primop 2 op), unsafeParseType typ, prefix "Vector.take")
+     , let r = R.Builtin "Vector.drop"
+           op [n,vec] = do
+             Term.Number' n <- whnf n
+             Term.Vector' vs <- whnf vec
+             pure $ Term.vector' (Vector.drop (floor n) vs)
+           op _ = fail "Vector.drop unpossible"
+           typ = "forall a . Number -> Vector a -> Vector a"
+       in (r, Just (I.Primop 2 op), unsafeParseType typ, prefix "Vector.drop")
      , let r = R.Builtin "Vector.fold-left"
            op [f,z,vec] = whnf vec >>= \vec -> case vec of
              Term.Vector' vs -> Vector.foldM (\acc a -> whnf (f `Term.apps` [acc, a])) z vs

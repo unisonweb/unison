@@ -75,6 +75,9 @@ Optional.bind f = Optional.fold None f;
 Optional.pure : ∀ a . a -> Optional a;
 Optional.pure = Some;
 
+Optional.getOr : ∀ a . a -> Optional a -> a;
+Optional.getOr a = Optional.fold a identity;
+
 Either.map : ∀ a b c . (b -> c) -> Either a b -> Either a c;
 Either.map f = Either.fold Left (f `then` Right);
 
