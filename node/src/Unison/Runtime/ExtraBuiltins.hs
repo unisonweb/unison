@@ -156,20 +156,16 @@ make logger blockStore crypto = do
            type' = unsafeParseType "forall k . k -> Text -> Unit"
        in (r, Just (I.Primop 2 op), type', prefix "Index.delete#")
      , let r = R.Builtin "Index.insert#"
-           op [k, v, index] = inject g k v index where
-             inject g k v index = do
-               k' <- whnf k
-               v' <- whnf v
-               s <- whnf index
-               g k' v' s
-             g k v (Term.Text' h) = do
-               Note.lift $ do
-                 (db, cleanup) <- RP.acquire resourcePool . Index.textToId $ h
-                 flip finally cleanup $ atomically
-                   (Index.insert (SAH.hash' k) (SAH.serializeTerm k, SAH.serializeTerm v) db)
-                   >>= atomically
+           op [k, v, index] = do
+             k <- whnf k
+             v <- whnf v
+             Term.Text' indexToken <- whnf index
+             Note.lift $ do
+               (db, cleanup) <- RP.acquire resourcePool . Index.textToId $ indexToken
+               flip finally cleanup $ atomically
+                 (Index.insert (SAH.hash' k) (SAH.serializeTerm k, SAH.serializeTerm v) db)
+                 >>= atomically
                pure unitRef
-             g k v index = pure $ Term.ref r `Term.app` k `Term.app` v `Term.app` index
            op _ = fail "Index.insert# unpossible"
            type' = unsafeParseType "forall k v . k -> v -> Text -> Unit"
        in (r, Just (I.Primop 3 op), type', prefix "Index.insert#")
