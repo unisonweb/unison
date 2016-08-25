@@ -168,7 +168,10 @@ instance Hashable Node where
 instance Show Node where
   show (Node host key) = "http://" ++ Text.unpack host ++ "/" ++ Text.unpack (decodeUtf8 (Base64.encode key))
 
-newtype Channel = Channel ByteString deriving (Eq,Ord,Generic,Show)
+newtype Channel = Channel ByteString deriving (Eq,Ord,Generic)
+instance Show Channel where
+  show (Channel id) = Text.unpack (decodeUtf8 (Base64.encode id))
+
 instance ToJSON Channel where toJSON (Channel c) = toJSON (decodeUtf8 (Base64.encode c))
 
 instance FromJSON Channel where

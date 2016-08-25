@@ -193,19 +193,23 @@ handle crypto allow env lang p r = Mux.debug (show r) >> case r of
   runLocal (Pure t) = do
     Mux.debug $ "runLocal Pure"
     liftIO $ eval lang t
-  runLocal (Send (Channel cid) a) = do
-    Mux.debug $ "runLocal Send " ++ show cid
+  runLocal (Send c@(Channel cid) a) = do
+    Mux.warn $ "runLocal Send " ++ show c
     Mux.process1 (Mux.Packet cid (Put.runPutS (serialize a)))
     pure (unit lang)
   runLocal (ReceiveAsync chan@(Channel cid) (Seconds seconds)) = do
     Mux.debug $ "runLocal ReceiveAsync " ++ show (seconds, cid)
-    _ <- Mux.receiveTimed ("receiveAsync on " ++ show chan)
-      (floor $ seconds * 1000 * 1000) ((Mux.Channel Mux.Type cid) :: Mux.Channel (Maybe B.ByteString))
-    pure (remote lang (Step (Local (Receive chan))))
+    forceChan <- Mux.channel
+    Mux.warn $ "ReceiveAsync force channel " ++ show forceChan
+    let micros = floor $ seconds * 1000 * 1000
+    force <- Mux.receiveTimed ("receiveAsync on " ++ show chan)
+      micros ((Mux.Channel Mux.Type cid) :: Mux.Channel B.ByteString)
+    Mux.saveReceive micros (Mux.channelId forceChan) force
+    pure (remote lang (Step (Local (Receive (Channel $ Mux.channelId forceChan)))))
   runLocal (Receive (Channel cid)) = do
-    Mux.debug $ "runLocal Receive " ++ show cid
-    (recv,_) <- Mux.receiveCancellable (Mux.Channel Mux.Type cid)
-    bytes <- recv
+    Mux.warn $ "runLocal Receive " ++ show cid
+    bytes <- Mux.restoreReceive cid
+    Mux.warn $ "runLocal Receive got bytes " ++ show cid
     case Get.runGetS deserialize bytes of
       Left err -> fail err
       Right r -> pure r
