@@ -21,6 +21,7 @@ import qualified Unison.Node.MemNode as MemNode
 import qualified Unison.Note as Note
 import qualified Unison.Term as Term
 import qualified Unison.View as View
+import qualified Unison.Util.Logger as L
 
 type V = Symbol View.DFO
 -- A Node for testing
@@ -37,7 +38,8 @@ loadDeclarations path node = do
 
 node :: IO TNode
 node = do
-  node <- MemNode.make
+  logger <- L.atomic (L.atInfo L.toStandardOut)
+  node <- MemNode.make logger
   loadDeclarations "unison-src/base.u" node
   symbols <- liftIO . Note.run $
     Map.fromList . Node.references <$> Node.search node Term.blank [] 1000 (Metadata.Query "") Nothing

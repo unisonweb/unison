@@ -26,6 +26,7 @@ import qualified Unison.Runtime.ExtraBuiltins as EB
 import qualified Unison.Symbol as Symbol
 import qualified Unison.Term as Term
 import qualified Unison.View as View
+import qualified Unison.Util.Logger as L
 
 hash :: Var v => Term.Term v -> Reference
 hash (Term.Ref' r) = r
@@ -44,9 +45,10 @@ makeRandomAddress crypt = Address <$> C.randomBytes crypt 64
 main :: IO ()
 main = do
   store' <- store
+  logger <- L.atomic (L.atInfo L.toStandardError)
   let crypto = C.noop "dummypublickey"
   blockStore <- FBS.make' (makeRandomAddress crypto) makeAddress "Index"
-  keyValueOps <- EB.makeAPI blockStore crypto
-  let makeBuiltins whnf = concat [Builtin.makeBuiltins whnf, keyValueOps whnf]
+  keyValueOps <- EB.make logger blockStore crypto
+  let makeBuiltins whnf = concat [Builtin.makeBuiltins logger whnf, keyValueOps whnf]
   node <- BasicNode.make hash store' makeBuiltins
   NodeServer.server 8080 node

@@ -9,6 +9,7 @@ import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Typechecker.Context (remoteSignatureOf)
+import Unison.Util.Logger (Logger)
 import Control.Concurrent (threadDelay)
 import qualified Data.Vector as Vector
 import qualified Data.Text as Text
@@ -23,6 +24,7 @@ import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 import qualified Unison.Var as Var
 import qualified Unison.View as View
+import qualified Unison.Util.Logger as L
 
 type DFO = View.DFO
 type V = Symbol DFO
@@ -45,8 +47,8 @@ pair = Term.builtin "Pair"
 pair' :: Ord v => Term v -> Term v -> Term v
 pair' t1 t2 = pair `Term.app` t1 `Term.app` (pair `Term.app` t2 `Term.app` unitRef)
 
-makeBuiltins :: WHNFEval -> [Builtin]
-makeBuiltins whnf =
+makeBuiltins :: Logger -> WHNFEval -> [Builtin]
+makeBuiltins logger whnf =
   let
     numeric2 :: Term V -> (Double -> Double -> Double) -> I.Primop (N.Noted IO) V
     numeric2 sym f = I.Primop 2 $ \xs -> case xs of
@@ -81,6 +83,26 @@ makeBuiltins whnf =
   in map (\(r, o, t, m) -> Builtin r o t m)
      [ let r = R.Builtin "()"
        in (r, Nothing, unitT, prefix "()")
+
+     , let r = R.Builtin "Debug.log";
+           op [msg,logged,a] = do
+             Term.Text' msg <- whnf msg
+             logged <- whnf logged
+             N.lift $ L.error logger (Text.unpack msg ++ ": " ++ show logged)
+             whnf a
+           op _ = error "unpossible"
+           typ = "∀ a b . Text -> a -> b -> b"
+       in (r, Just (I.Primop 3 op), unsafeParseType typ, prefix "Debug.log")
+
+     , let r = R.Builtin "Debug.watch";
+           op [msg,a] = do
+             Term.Text' msg <- whnf msg
+             a <- whnf a
+             N.lift $ L.error logger (Text.unpack msg ++ ": " ++ show a)
+             pure a
+           op _ = error "unpossible"
+           typ = "∀ a . Text -> a -> a"
+       in (r, Just (I.Primop 2 op), unsafeParseType typ, prefix "Debug.watch")
 
      , let r = R.Builtin "Color.rgba"
        in (r, strict r 4, unsafeParseType "Number -> Number -> Number -> Number -> Color", prefix "rgba")

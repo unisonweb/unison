@@ -9,9 +9,10 @@ import Unison.Node.Store (Store)
 import Unison.Reference (Reference(Derived))
 import Unison.Term (Term)
 import Unison.Type (Type)
+import Unison.Util.Logger (Logger)
 import Unison.Var (Var)
-import qualified Data.ByteString.Lazy as LB
 import qualified Data.ByteString.Builder as Builder
+import qualified Data.ByteString.Lazy as LB
 import qualified Data.Digest.Murmur64 as Murmur
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Encoding
@@ -44,7 +45,7 @@ instance Hashable.Accumulate Hash where
 
 type V = Symbol.Symbol View.DFO
 
-make :: IO (Node IO V Reference (Type V) (Term V))
-make = do
+make :: Logger -> IO (Node IO V Reference (Type V) (Term V))
+make logger = do
   store <- MemStore.make :: IO (Store IO V)
-  BasicNode.make hash store Builtin.makeBuiltins
+  BasicNode.make hash store (Builtin.makeBuiltins logger)

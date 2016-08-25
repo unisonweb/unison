@@ -10,11 +10,12 @@ import Unison.BlockStore (Series(..), BlockStore)
 import Unison.Node.Builtin
 import Unison.Parsers (unsafeParseType)
 import Unison.Type (Type)
+import Unison.Util.Logger (Logger)
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import qualified Unison.Cryptography as C
-import qualified Unison.Hash as Hash
 import qualified Unison.Eval.Interpreter as I
+import qualified Unison.Hash as Hash
 import qualified Unison.Note as Note
 import qualified Unison.Reference as R
 import qualified Unison.Remote as Remote
@@ -25,6 +26,7 @@ import qualified Unison.Runtime.ResourcePool as RP
 import qualified Unison.SerializationAndHashing as SAH
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
+import qualified Unison.Util.Logger as L
 
 indexT :: Ord v => Type v -> Type v -> Type v
 indexT k v = Type.ref (R.Builtin "Index") `Type.app` k `Type.app` v
@@ -52,9 +54,10 @@ pattern Link' href description <-
   (Term.Text' description)
 
 -- TODO rewrite builtins not to use unsafe code
-makeAPI :: Eq a => BlockStore a -> C.Cryptography k syk sk skp s h ByteString
-  -> IO (WHNFEval -> [Builtin])
-makeAPI blockStore crypto = do
+make :: Eq a
+     => Logger -> BlockStore a -> C.Cryptography k syk sk skp s h ByteString
+     -> IO (WHNFEval -> [Builtin])
+make logger blockStore crypto = do
   let nextID = do
         cp <- C.randomBytes crypto 64
         ud <- C.randomBytes crypto 64

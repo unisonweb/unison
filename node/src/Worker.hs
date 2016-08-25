@@ -35,8 +35,8 @@ main = do
   W.make protocol crypto (pure $ lang logger) where
   crypto keypair = C.noop (W.public keypair)
   lang logger crypto blockstore = do
-    let b0 = Builtin.makeBuiltins
-    b1 <- ExtraBuiltins.makeAPI blockstore crypto
+    let b0 = Builtin.makeBuiltins logger
+    b1 <- ExtraBuiltins.make logger blockstore crypto
     store <- Store.make
     backend <- BasicNode.make SAH.hash store (\whnf -> b0 whnf ++ b1 whnf)
     loadDeclarations "unison-src/base.u" backend
