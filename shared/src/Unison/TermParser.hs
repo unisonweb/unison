@@ -32,16 +32,18 @@ operator characters (like empty? or fold-left).
 Sections / partial application of infix operators is not implemented.
 -}
 
-term :: Var v => Parser (Term v)
+type S = TypeParser.S
+
+term :: Var v => Parser (S v) (Term v)
 term = possiblyAnnotated term2
 
-term2 :: Var v => Parser (Term v)
+term2 :: Var v => Parser (S v) (Term v)
 term2 = let_ term3 <|> term3
 
-term3 :: Var v => Parser (Term v)
+term3 :: Var v => Parser (S v) (Term v)
 term3 = infixApp term4 <|> term4
 
-infixApp :: Var v => Parser (Term v) -> Parser (Term v)
+infixApp :: Var v => Parser (S v) (Term v) -> Parser (S v) (Term v)
 infixApp p = f <$> arg <*> some ((,) <$> infixVar <*> arg)
   where
     arg = p
@@ -50,16 +52,16 @@ infixApp p = f <$> arg <*> some ((,) <$> infixVar <*> arg)
     g :: Ord v => Term v -> (v, Term v) -> Term v
     g lhs (op, rhs) = Term.apps (Term.var op) [lhs,rhs]
 
-term4 :: Var v => Parser (Term v)
+term4 :: Var v => Parser (S v) (Term v)
 term4 = prefixApp term5
 
-term5 :: Var v => Parser (Term v)
+term5 :: Var v => Parser (S v) (Term v)
 term5 = lam term <|> effectBlock <|> termLeaf
 
-termLeaf :: Var v => Parser (Term v)
+termLeaf :: Var v => Parser (S v) (Term v)
 termLeaf = asum [hashLit, prefixTerm, lit, tupleOrParenthesized term, blank, vector term]
 
-tupleOrParenthesized :: Var v => Parser (Term v) -> Parser (Term v)
+tupleOrParenthesized :: Var v => Parser (S v) (Term v) -> Parser (S v) (Term v)
 tupleOrParenthesized rec =
   parenthesized $ go <$> sepBy1 (token $ string ",") rec where
     go [t] = t -- was just a parenthesized term
@@ -75,7 +77,7 @@ tupleOrParenthesized rec =
 --   x := pure 23;
 --   y = 11;
 --   pure (f x);;
-effectBlock :: forall v . Var v => Parser (Term v)
+effectBlock :: forall v . Var v => Parser (S v) (Term v)
 effectBlock = (token (string "do") *> wordyId keywords) >>= go where
   go name = do
     bindings <- some $ asum [Right <$> binding, Left <$> action] <* semicolon
@@ -94,7 +96,7 @@ effectBlock = (token (string "do") *> wordyId keywords) >>= go where
       go (Left action) _ = Just action
     interpretPure :: Term v -> Term v
     interpretPure = ABT.subst (ABT.v' "pure") qualifiedPure
-    binding :: Parser (v, Term v)
+    binding :: Parser (S v) (v, Term v)
     binding = scope "binding" $ do
       lhs <- ABT.v' . Text.pack <$> token (wordyId keywords)
       eff <- token $ (True <$ string ":=") <|> (False <$ string "=")
@@ -102,18 +104,18 @@ effectBlock = (token (string "do") *> wordyId keywords) >>= go where
       let rhs' = if eff then interpretPure rhs
                  else qualifiedPure `Term.app` rhs
       pure (lhs, rhs')
-    action :: Parser (Term v)
+    action :: Parser (S v) (Term v)
     action = scope "action" $ (interpretPure <$> term)
 
-text' :: Parser Literal
+text' :: Parser s Literal
 text' =
   token $ fmap (Term.Text . Text.pack) ps
   where ps = char '"' *> Unison.Parser.takeWhile "text literal" (/= '"') <* char '"'
 
-text :: Ord v => Parser (Term v)
+text :: Ord v => Parser s (Term v)
 text = Term.lit <$> text'
 
-number' :: Parser Literal
+number' :: Parser s Literal
 number' = token (f <$> digits <*> optional ((:) <$> char '.' <*> digits))
   where
     digits = nonempty (takeWhile "number" isDigit)
@@ -121,26 +123,26 @@ number' = token (f <$> digits <*> optional ((:) <$> char '.' <*> digits))
     f whole part =
       (Term.Number . read) $ maybe whole (whole++) part
 
-hashLit :: Ord v => Parser (Term v)
+hashLit :: Ord v => Parser s (Term v)
 hashLit = token (f <$> (mark *> hash))
   where
     f = Term.derived' . Text.pack
     mark = char '#'
     hash = lineErrorUnless "error parsing base64url hash" base64urlstring
 
-number :: Ord v => Parser (Term v)
+number :: Ord v => Parser (S v) (Term v)
 number = Term.lit <$> number'
 
-lit' :: Parser Literal
+lit' :: Parser s Literal
 lit' = text' <|> number'
 
-lit :: Ord v => Parser (Term v)
+lit :: Ord v => Parser (S v) (Term v)
 lit = Term.lit <$> lit'
 
-blank :: Ord v => Parser (Term v)
+blank :: Ord v => Parser (S v) (Term v)
 blank = token (char '_') $> Term.blank
 
-vector :: Ord v => Parser (Term v) -> Parser (Term v)
+vector :: Ord v => Parser (S v) (Term v) -> Parser (S v) (Term v)
 vector p = Term.vector <$> (lbracket *> elements <* rbracket)
   where
     lbracket = token (char '[')
@@ -148,17 +150,17 @@ vector p = Term.vector <$> (lbracket *> elements <* rbracket)
     comma = token (char ',')
     rbracket = lineErrorUnless "syntax error" $ token (char ']')
 
-possiblyAnnotated :: Var v => Parser (Term v) -> Parser (Term v)
+possiblyAnnotated :: Var v => Parser (S v) (Term v) -> Parser (S v) (Term v)
 possiblyAnnotated p = f <$> p <*> optional ann''
   where
     f t (Just y) = Term.ann t y
     f t Nothing = t
 
-ann'' :: Var v => Parser (Type v)
+ann'' :: Var v => Parser (S v) (Type v)
 ann'' = token (char ':') *> TypeParser.type_
 
 --let server = _; blah = _ in _
-let_ :: Var v => Parser (Term v) -> Parser (Term v)
+let_ :: Var v => Parser (S v) (Term v) -> Parser (S v) (Term v)
 let_ p = f <$> (let_ *> optional rec_) <*> bindings'
   where
     let_ = token (string "let")
@@ -172,50 +174,50 @@ let_ p = f <$> (let_ *> optional rec_) <*> bindings'
     f Nothing (bindings, body) = Term.let1 bindings body
     f (Just _) (bindings, body) = Term.letRec bindings body
 
-typedecl :: Var v => Parser (v, Type v)
+typedecl :: Var v => Parser (S v) (v, Type v)
 typedecl = (,) <$> prefixVar <*> ann''
 
-bindingEqBody :: Parser (Term v) -> Parser (Term v)
+bindingEqBody :: Parser (S v) (Term v) -> Parser (S v) (Term v)
 bindingEqBody p = eq *> body
   where
     eq = token (char '=')
     body = lineErrorUnless "parse error in body of binding" p
 
-infixVar :: Var v => Parser v
+infixVar :: Var v => Parser s v
 infixVar = (Var.named . Text.pack) <$> (backticked <|> symbolyId keywords)
   where
     backticked = char '`' *> wordyId keywords <* token (char '`')
 
-prefixVar :: Var v => Parser v
+prefixVar :: Var v => Parser s v
 prefixVar = (Var.named . Text.pack) <$> prefixOp
   where
-    prefixOp :: Parser String
     prefixOp = wordyId keywords <|> (char '(' *> symbolyId keywords <* token (char ')')) -- no whitespace w/in parens
 
-prefixTerm :: Var v => Parser (Term v)
+prefixTerm :: Var v => Parser (S v) (Term v)
 prefixTerm = Term.var <$> prefixVar
 
 keywords :: [String]
 keywords = ["do", "let", "rec", "in", "->", ":", "=", "where"]
 
-lam :: Var v => Parser (Term v) -> Parser (Term v)
+lam :: Var v => Parser (S v) (Term v) -> Parser (S v) (Term v)
 lam p = Term.lam'' <$> vars <* arrow <*> body
   where
     vars = some prefixVar
     arrow = token (string "->")
     body = p
 
-prefixApp :: Ord v => Parser (Term v) -> Parser (Term v)
+prefixApp :: Ord v => Parser (S v) (Term v) -> Parser (S v) (Term v)
 prefixApp p = f <$> some p
   where
     f (func:args) = Term.apps func args
     f [] = error "'some' shouldn't produce an empty list"
 
-bindings :: Var v => Parser (Term v) -> Parser [(v, Term v)]
+bindings :: Var v => Parser (S v) (Term v) -> Parser (S v) [(v, Term v)]
 bindings p = some (binding <* semicolon) where
   binding = do
     typ <- optional (typedecl <* semicolon)
-    (name, args) <- ((\arg1 op arg2 -> (op,[arg1,arg2])) <$> prefixVar <*> infixVar <*> prefixVar)
+    (name, args) <- ( (\arg1 op arg2 -> (op,[arg1,arg2]))
+                      <$> prefixVar <*> infixVar <*> prefixVar)
                   <|> ((,) <$> prefixVar <*> many prefixVar)
     body <- bindingEqBody term
     case typ of
@@ -227,5 +229,5 @@ bindings p = some (binding <* semicolon) where
   mkBinding f [] body = (f, body)
   mkBinding f args body = (f, Term.lam'' args body)
 
-moduleBindings :: Var v => Parser [(v, Term v)]
+moduleBindings :: Var v => Parser (S v) [(v, Term v)]
 moduleBindings = root (bindings term3)

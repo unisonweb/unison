@@ -34,7 +34,7 @@ parseFail (s, reason) =
   testCase ("`" ++ s ++ "` shouldn't parse: " ++ reason) $ assertBool "should not have parsed" $
     case parseTerm s of
       Fail {} -> True;
-      Succeed _ n _ -> n == length s;
+      Succeed _ _ n -> n == length s;
 
 tests :: TestTree
 tests = testGroup "TermParser" $ (parse <$> shouldPass)

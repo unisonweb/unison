@@ -14,17 +14,21 @@ import Unison.Var (Var)
 import qualified Data.Text as Text
 import qualified Unison.Type as Type
 
-type_ :: Var v => Parser (Type v)
+newtype S v = Aliases [(v, [Type v] -> Type v)]
+s0 :: S v
+s0 = Aliases []
+
+type_ :: Var v => Parser (S v) (Type v)
 type_ = forall type1 <|> type1
 
-typeLeaf :: Var v => Parser (Type v)
+typeLeaf :: Var v => Parser (S v) (Type v)
 typeLeaf =
   asum [ literal
        , tupleOrParenthesized type_
        , fmap (Type.v' . Text.pack) (token varName)
        ]
 
-tupleOrParenthesized :: Ord v => Parser (Type v) -> Parser (Type v)
+tupleOrParenthesized :: Ord v => Parser (S v) (Type v) -> Parser (S v) (Type v)
 tupleOrParenthesized rec =
   parenthesized $ go <$> sepBy1 (token $ string ",") rec where
     go [t] = t
@@ -32,21 +36,21 @@ tupleOrParenthesized rec =
     pair t1 t2 = Type.builtin "Pair" `Type.app` t1 `Type.app` t2
     unit = Type.builtin "Unit"
 
-type1 :: Var v => Parser (Type v)
+type1 :: Var v => Parser (S v) (Type v)
 type1 = arrow type2
 
-type2 :: Var v => Parser (Type v)
+type2 :: Var v => Parser (S v) (Type v)
 type2 = app typeLeaf
 
 -- "TypeA TypeB TypeC"
-app :: Ord v => Parser (Type v) -> Parser (Type v)
+app :: Ord v => Parser (S v) (Type v) -> Parser (S v) (Type v)
 app rec = fmap (foldl1' Type.app) (some rec)
 
-arrow :: Ord v => Parser (Type v) -> Parser (Type v)
+arrow :: Ord v => Parser (S v) (Type v) -> Parser (S v) (Type v)
 arrow rec = foldr1 Type.arrow <$> sepBy1 (token $ string "->") rec
 
 -- "forall a b . List a -> List b -> Maybe Text"
-forall :: Var v => Parser (Type v) -> Parser (Type v)
+forall :: Var v => Parser (S v) (Type v) -> Parser (S v) (Type v)
 forall rec = do
     (void . token $ string "forall") <|> void (token (char '∀'))
     vars <- some $ token varName
@@ -54,13 +58,13 @@ forall rec = do
     t <- rec
     pure $ Type.forall' (fmap Text.pack vars) t
 
-varName :: Parser String
+varName :: Parser s String
 varName = do
   name <- wordyId keywords
   guard (isLower . head $ name)
   pure name
 
-typeName :: Parser String
+typeName :: Parser s String
 typeName = do
   name <- wordyId keywords
   guard (isUpper . head $ name)
@@ -76,7 +80,7 @@ keywords = ["forall", "∀"]
 --     f first more = maybe first (first++) more
 --     more = (:) <$> char '.' <*> qualifiedTypeName
 
-literal :: Var v => Parser (Type v)
+literal :: Var v => Parser (S v) (Type v)
 literal = scope "literal" . token $
   asum [ Type.lit Type.Number <$ string "Number"
        , Type.lit Type.Text <$ string "Text"

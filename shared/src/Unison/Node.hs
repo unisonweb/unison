@@ -32,6 +32,7 @@ import qualified Unison.Reference as Reference
 import qualified Unison.Term as Term
 import qualified Unison.TermEdit as TermEdit
 import qualified Unison.TermParser as TermParser
+import qualified Unison.TypeParser as TypeParser
 import qualified Unison.Typechecker as Typechecker
 import qualified Unison.Typechecker.Components as Components
 -- import Debug.Trace
@@ -267,7 +268,7 @@ declare ref bindings node = do
 -- | Like `declare`, but takes a `String`
 declare' :: (Monad m, Var v) => (h -> Term v) -> String -> Node m v h (Type v) (Term v) -> Noted m ()
 declare' ref bindings node = do
-  bs <- case Parser.run TermParser.moduleBindings bindings of
+  bs <- case Parser.run TermParser.moduleBindings bindings TypeParser.s0 of
     Parser.Fail err _ -> Noted (pure $ Left (Note err))
     Parser.Succeed bs _ _ -> pure bs
   declare ref bs node

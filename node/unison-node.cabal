@@ -50,6 +50,7 @@ library
     Unison.Hash.Extra
     Unison.Kind.Extra
     Unison.Metadata.Extra
+    Unison.Node.FileStore
     Unison.Node.UnisonBlockStore
     Unison.NodeContainer
     Unison.NodeServer
@@ -310,6 +311,7 @@ test-suite tests
     ctrie,
     curl,
     directory,
+    filepath,
     hashable,
     random,
     stm,

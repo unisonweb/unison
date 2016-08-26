@@ -21,23 +21,28 @@ import qualified Unison.Reference as R
 import qualified Unison.Var as Var
 
 type V = Symbol DFO
+type S = TypeParser.S V
 
-parseTerm :: String -> Result (Term V)
+s0 :: S
+s0 = TypeParser.s0
+
+parseTerm :: String -> Result S (Term V)
 parseTerm = parseTerm' termBuiltins typeBuiltins
 
-parseType :: String -> Result (Type V)
+parseType :: String -> Result S (Type V)
 parseType = parseType' typeBuiltins
 
-parseTerm' :: [(V, Term V)] -> [(V, Type V)] -> String -> Result (Term V)
+parseTerm' :: [(V, Term V)] -> [(V, Type V)] -> String -> Result S (Term V)
 parseTerm' termBuiltins typeBuiltins s =
-  bindBuiltins termBuiltins typeBuiltins <$> run (Parser.root TermParser.term) s
+  bindBuiltins termBuiltins typeBuiltins <$> run (Parser.root TermParser.term) s s0
 
 bindBuiltins :: Var v => [(v, Term v)] -> [(v, Type v)] -> Term v -> Term v
 bindBuiltins termBuiltins typeBuiltins =
    Term.typeMap (ABT.substs typeBuiltins) . ABT.substs termBuiltins
 
-parseType' :: [(V, Type V)] -> String -> Result (Type V)
-parseType' typeBuiltins s = ABT.substs typeBuiltins <$> run (Parser.root TypeParser.type_) s
+parseType' :: [(V, Type V)] -> String -> Result S (Type V)
+parseType' typeBuiltins s =
+  ABT.substs typeBuiltins <$> run (Parser.root TypeParser.type_) s s0
 
 unsafeParseTerm :: String -> Term V
 unsafeParseTerm = unsafeGetSucceed . parseTerm
