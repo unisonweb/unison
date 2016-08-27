@@ -491,11 +491,18 @@ synthesize e = scope ("synth: " ++ show e) $ go e where
   go Term.Blank' = do
     v <- freshVar
     pure $ Type.forall (TypeVar.Universal v) (Type.universal v)
-  go (Term.Ann' (Term.Ref' _) t) =
-    -- innermost Ref annotation assumed to be correctly provided by `synthesizeClosed`
-    pure (ABT.vmap TypeVar.Universal t)
+  go (Term.Ann' (Term.Ref' _) t) = case ABT.freeVars t of
+    s | Set.null s ->
+      -- innermost Ref annotation assumed to be correctly provided by `synthesizeClosed`
+      pure (ABT.vmap TypeVar.Universal t)
+    s | otherwise ->
+      fail $ "type annotation contains free variables " ++ show (map Var.name (Set.toList s))
   go (Term.Ref' h) = fail $ "unannotated reference: " ++ show h
-  go (Term.Ann' e' t) = case ABT.vmap TypeVar.Universal t of t -> t <$ check e' t -- Anno
+  go (Term.Ann' e' t) = case ABT.freeVars t of
+    s | Set.null s ->
+      case ABT.vmap TypeVar.Universal t of t -> t <$ check e' t -- Anno
+    s | otherwise ->
+      fail $ "type annotation contains free variables " ++ show (map Var.name (Set.toList s))
   go (Term.Lit' l) = pure (synthLit l) -- 1I=>
   go (Term.App' f arg) = do -- ->E
     ft <- synthesize f; ctx <- getContext

@@ -7,7 +7,7 @@ import Control.Applicative ((<|>), some, many)
 import Data.Char (isUpper, isLower, isAlpha)
 import Data.Foldable (asum)
 import Data.Functor
-import Data.List (foldl1')
+import Data.List
 import Unison.Parser
 import Unison.Type (Type)
 import Unison.Var (Var)
@@ -44,7 +44,13 @@ type2 = app typeLeaf
 
 -- "TypeA TypeB TypeC"
 app :: Ord v => Parser (S v) (Type v) -> Parser (S v) (Type v)
-app rec = fmap (foldl1' Type.app) (some rec)
+app rec = get >>= \(Aliases aliases) -> do
+  (hd:tl) <- some rec
+  pure $ case hd of
+    Type.Var' v -> case lookup v aliases of
+      Nothing -> foldl' Type.app hd tl
+      Just apply -> apply tl
+    _ -> foldl' Type.app hd tl
 
 arrow :: Ord v => Parser (S v) (Type v) -> Parser (S v) (Type v)
 arrow rec = foldr1 Type.arrow <$> sepBy1 (token $ string "->") rec

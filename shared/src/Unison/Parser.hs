@@ -119,16 +119,16 @@ haskellLineComment :: Parser s ()
 haskellLineComment = void $ string "--" *> takeWhile "-- comment" (/= '\n')
 
 lineErrorUnless :: String -> Parser s a -> Parser s a
-lineErrorUnless s = commitFail . scope s
+lineErrorUnless s = commit . scope s
+
+currentLine' :: Env s -> String
+currentLine' (Env overall i s cur) = before ++ restOfLine where
+  -- this grabs the current line up to current offset, i
+  before = reverse . Prelude.takeWhile (/= '\n') . reverse . take i $ overall
+  restOfLine = Prelude.takeWhile (/= '\n') cur
 
 currentLine :: Parser s String
-currentLine =
-  Parser $ \(Env overall i s cur) ->
-    let
-      -- this grabs the current line up to current offset, i
-      l = reverse . Prelude.takeWhile (/= '\n') . reverse . take i $ overall
-      restOfLine = Prelude.takeWhile (/= '\n') cur
-    in Succeed (l ++ restOfLine) s 0
+currentLine = Parser $ \env -> Succeed (currentLine' env) (state env) 0
 
 parenthesized :: Parser s a -> Parser s a
 parenthesized p = lp *> body <* rp
@@ -148,6 +148,15 @@ takeWhile1 msg f = scope msg . Parser $ \(Env _ _ s cur) ->
   in if null hd then Fail [] False
      else Succeed hd s (length hd)
 
+-- todo: newline not immediately preceded by semicolon is an error
+-- unless following line indentation level is greater
+-- foo
+-- x y z
+-- (not allowed, must format as)
+-- foo
+--   x y z
+-- or if semicolon is needed - foo; x y z
+
 whitespace :: Parser s ()
 whitespace = void $ takeWhile "whitespace" Char.isSpace
 
@@ -160,17 +169,14 @@ nonempty p = Parser $ \s -> case run' p s of
   ok -> ok
 
 scope :: String -> Parser s a -> Parser s a
-scope s p = Parser $ \input -> case run' p input of
-  Fail e b -> Fail (s:e) b
+scope s p = Parser $ \env -> case run' p env of
+  Fail e b -> Fail (currentLine' env : s:e) b
   ok -> ok
 
-commitFail :: Parser s a -> Parser s a
-commitFail p = Parser $ \input -> case run' p input of
+commit :: Parser s a -> Parser s a
+commit p = Parser $ \input -> case run' p input of
   Fail e _ -> Fail e True
   Succeed a s n -> Succeed a s n
-
-failWith :: String -> Parser s a
-failWith error = Parser . const $ Fail [error] False
 
 sepBy :: Parser s a -> Parser s b -> Parser s [b]
 sepBy sep pb = f <$> optional (sepBy1 sep pb)
@@ -218,6 +224,7 @@ instance Monad (Parser s) where
         Succeed b s m -> Succeed b s (n+m)
         Fail e b -> Fail e b
     Fail e b -> Fail e b
+  fail msg = Parser $ const (Fail [msg] False)
 
 instance MonadPlus (Parser s) where
   mzero = Parser $ \_ -> Fail [] False

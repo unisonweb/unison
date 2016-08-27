@@ -19,6 +19,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.Term as Term
+import qualified Unison.Type as Type
 import qualified Unison.TypeParser as TypeParser
 import qualified Unison.Var as Var
 
@@ -100,7 +101,7 @@ effectBlock = (token (string "do") *> wordyId keywords) >>= go where
     binding = scope "binding" $ do
       lhs <- ABT.v' . Text.pack <$> token (wordyId keywords)
       eff <- token $ (True <$ string ":=") <|> (False <$ string "=")
-      rhs <- term
+      rhs <- commit term
       let rhs' = if eff then interpretPure rhs
                  else qualifiedPure `Term.app` rhs
       pure (lhs, rhs')
@@ -197,7 +198,7 @@ prefixTerm :: Var v => Parser (S v) (Term v)
 prefixTerm = Term.var <$> prefixVar
 
 keywords :: [String]
-keywords = ["do", "let", "rec", "in", "->", ":", "=", "where"]
+keywords = ["alias", "do", "let", "rec", "in", "->", ":", "=", "where"]
 
 lam :: Var v => Parser (S v) (Term v) -> Parser (S v) (Term v)
 lam p = Term.lam'' <$> vars <* arrow <*> body
@@ -212,9 +213,25 @@ prefixApp p = f <$> some p
     f (func:args) = Term.apps func args
     f [] = error "'some' shouldn't produce an empty list"
 
+alias :: Var v => Parser (S v) ()
+alias = do
+  _ <- token (string "alias")
+  scope "alias" . commit $ do
+    (fn:params) <- some (Var.named . Text.pack <$> wordyId keywords)
+    _ <- token (string "=")
+    body <- TypeParser.type_
+    semicolon
+    TypeParser.Aliases s <- get
+    let s' = (fn, apply)
+        apply args | length args <= length params = ABT.substs (params `zip` args) body
+        apply args = apply (take n args) `Type.apps` drop n args
+        n = length params
+    set (TypeParser.Aliases (s':s))
+
 bindings :: Var v => Parser (S v) (Term v) -> Parser (S v) [(v, Term v)]
-bindings p = some (binding <* semicolon) where
+bindings p = do s0 <- get; some (binding <* semicolon) <* set s0 where
   binding = do
+    _ <- optional alias
     typ <- optional (typedecl <* semicolon)
     (name, args) <- ( (\arg1 op arg2 -> (op,[arg1,arg2]))
                       <$> prefixVar <*> infixVar <*> prefixVar)
@@ -224,7 +241,7 @@ bindings p = some (binding <* semicolon) where
       Nothing -> pure $ mkBinding name args body
       Just (nameT, typ)
         | name == nameT -> case mkBinding name args body of (v,body) -> pure (v, Term.ann body typ)
-        | otherwise -> failWith ("The type signature for ‘" ++ show (Var.name nameT) ++ "’ lacks an accompanying binding")
+        | otherwise -> fail ("The type signature for ‘" ++ show (Var.name nameT) ++ "’ lacks an accompanying binding")
 
   mkBinding f [] body = (f, body)
   mkBinding f args body = (f, Term.lam'' args body)
