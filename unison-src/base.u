@@ -27,6 +27,15 @@ rest p = Pair.fold (x y -> y) p;
 4th = rest `then` (rest `then` (rest `then` first));
 5th = rest `then` (rest `then` (rest `then` (rest `then` first)));
 
+Order.compare : ∀ a . Order a -> a -> a -> Comparison;
+Order.compare o a1 a2 = Order.Key.compare (Order.key o a1) (Order.key o a2);
+
+Order.tuple2 : ∀ a b . Order a -> Order b -> Order (a,b);
+Order.tuple2 a b = Pair.Order a (Pair.Order b Unit.Order); 
+
+Order.tuple3 : ∀ a b c . Order a -> Order b -> Order c -> Order (a,b,c);
+Order.tuple3 a b c = Pair.Order a (Pair.Order b (Pair.Order c Unit.Order)); 
+
 Vector.bind : ∀ a b . (a -> Vector b) -> Vector a -> Vector b;
 Vector.bind f v = Vector.fold-balanced Vector.concatenate Vector.empty (Vector.map f v);
 
@@ -51,6 +60,9 @@ Vector.fold-balanced plus zero vs =
 
 Vector.all? : ∀ a . (a -> Boolean) -> Vector a -> Boolean;
 Vector.all? f vs = Vector.fold-balanced and True (Vector.map f vs);
+
+Vector.sort : ∀ k a . Order k -> (a -> k) -> Vector a -> Vector a;
+Vector.sort ok f v = Vector.sort-keyed (f `then` Order.key ok) v;
 
 Remote.transfer : Node -> Remote Unit;
 Remote.transfer node = Remote.at node unit;

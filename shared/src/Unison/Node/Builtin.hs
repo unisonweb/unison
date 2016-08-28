@@ -77,9 +77,13 @@ makeBuiltins logger whnf =
               g x y = sym `Term.app` x `Term.app` y
       _ -> error "unpossible"
   in map (\(r, o, t, m) -> Builtin r o t m)
-     [ let r = R.Builtin "()"
+     [ -- Unit type
+       let r = R.Builtin "()"
        in (r, Nothing, unitT, prefix "()")
+     , let r = R.Builtin "Unit.Order"
+       in (r, Nothing, unsafeParseType "Order Unit", prefix "Unit.Order")
 
+     -- debugging printlns
      , let r = R.Builtin "Debug.log";
            op [msg,logged,a] = do
              Term.Text' msg <- whnf msg
@@ -276,6 +280,8 @@ makeBuiltins logger whnf =
                p -> fail $ "expected pair, got: " ++ show p
            op _ = error "Pair.fold unpossible"
        in (r, Just (I.Primop 2 op), unsafeParseType "forall a b c . (a -> b -> c) -> Pair a b -> c", prefix "Pair.fold")
+     , let r = R.Builtin "Pair.Order"
+       in (r, Nothing, unsafeParseType "forall a b . Order a -> Order b -> Order (Pair a b)", prefix "Pair.Order")
 
      -- Either
      , let r = R.Builtin "Either.Left"
@@ -351,21 +357,17 @@ makeBuiltins logger whnf =
            op _ = fail "Vector.zip unpossible"
            typ = "∀ a b . Vector a -> Vector b -> Vector (a,b)"
        in (r, Just (I.Primop 2 op), unsafeParseType typ, prefix "Vector.zip")
-     , let r = R.Builtin "Vector.sort"
-           op [_,f,v] = do
+     , let r = R.Builtin "Vector.sort-keyed"
+           op [f,v] = do
              Term.Vector' vs <- whnf v
              ks <- traverse (whnf . Term.app f) vs
-             let
-               sortableVs = Vector.zip ks vs
-               f' (Term.Text' x, _) (Term.Text' y, _) = x `compare` y
-               f' (Term.Number' x, _) (Term.Number' y, _) = x `compare` y
-               f' (Term.App' (Term.Builtin' "Hash") (Term.Text' r1), _)
-                  (Term.App' (Term.Builtin' "Hash") (Term.Text' r2), _) = r1 `compare` r2
-               f' x y = error $ "don't know how to compare: " ++ show x ++ " " ++ show y
+             ks <- pure $ fmap extractKey ks
+             let sortableVs = Vector.zip ks vs
+                 f' (a, _) (b, _) = a `compare` b
              pure . Term.vector . fmap snd $ sortBy f' (Vector.toList sortableVs)
-           op _ = fail "Vector.sort unpossible"
-           typ = "∀ a k . Order k -> (a -> k) -> Vector a -> Vector a"
-       in (r, Just (I.Primop 3 op), unsafeParseType typ, prefix "Vector.sort")
+           op _ = fail "Vector.sort-keyed unpossible"
+           typ = "∀ a k . (a -> Order.Key k) -> Vector a -> Vector a"
+       in (r, Just (I.Primop 2 op), unsafeParseType typ, prefix "Vector.sort-keyed")
      , let r = R.Builtin "Vector.size"
            op [v] = do
              Term.Vector' vs <- whnf v
@@ -441,7 +443,94 @@ makeBuiltins logger whnf =
            op [hd] = pure $ Term.vector (pure hd)
            op _ = fail "Vector.single unpossible"
        in (r, Just (I.Primop 1 op), unsafeParseType "forall a . a -> Vector a", prefix "Vector.single")
+
+     , let r = R.Builtin "Order.invert"
+       in (r, Nothing, unsafeParseType "forall a . Order a -> Order a", prefix "Order.invert")
+
+     , let r = R.Builtin "Less"
+       in (r, Nothing, unsafeParseType "Comparison", prefix "Less")
+     , let r = R.Builtin "Greater"
+       in (r, Nothing, unsafeParseType "Comparison", prefix "Greater")
+     , let r = R.Builtin "Equal"
+       in (r, Nothing, unsafeParseType "Comparison", prefix "Equal")
+     , let r = R.Builtin "Comparison.fold"
+           op [lt,eq,gt,c] = do
+             Term.Builtin' c <- whnf c
+             case Text.head c of
+               'L' -> whnf lt
+               'E' -> whnf eq
+               'G' -> whnf gt
+               _ -> fail $ "Comparison.fold not one of {Less,Equal,Greater}" ++ show c
+           op _ = error "Comparison.fold unpossible"
+       in (r, Just (I.Primop 4 op), unsafeParseType "∀ r . r -> r -> r -> Comparison -> r", prefix "Comparison.fold")
+
+     , let r = R.Builtin "Order.Key.compare"
+           op [a,b] = do
+             a <- whnf a
+             b <- whnf b
+             pure $ case compareKeys a b of
+               LT -> Term.builtin "Less"
+               EQ -> Term.builtin "Equal"
+               GT -> Term.builtin "Greater"
+           op _ = error "Order.Key.compare unpossible"
+           typ = "∀ a . Order.Key a -> Order.Key a -> Comparison"
+       in (r, Just (I.Primop 2 op), unsafeParseType typ, prefix "Order.Key.compare")
+
+     , let r = R.Builtin "Order.key"
+           flip ts = (map neg (ts []) ++) where
+             neg (Term.Text' t) = Term.text (Text.reverse t)
+             neg (Term.Number' n) = Term.num (negate n)
+             neg t@(Term.Builtin' _) = t
+             neg t = error $ "don't know how to negate " ++ show t
+           op' ord a = do
+             ord <- whnf ord
+             case ord of
+               Term.App' (Term.Builtin' invert) ord
+                 | invert == "Order.invert" -> flip <$> op' ord a
+               Term.Builtin' b
+                 | b == "Text.Order" -> do a <- whnf a; pure (a:)
+                 | b == "Number.Order" -> do a <- whnf a; pure (a:)
+                 | b == "Hash.Order" -> do Term.App' _ a <- whnf a; pure (a:)
+                 | b == "Unit.Order" -> do a <- whnf a; pure (a:)
+                 | otherwise -> fail $ "unrecognized order type: " ++ Text.unpack b
+               Term.Apps' (Term.Builtin' pair) [ord1, ord2]
+                 | pair == "Pair.Order" -> do
+                     Term.Apps' _ [a,b] <- whnf a
+                     (.) <$> op' ord1 a <*> op' ord2 b
+                 | otherwise -> fail $ "unrecognized order type: " ++ Text.unpack pair
+           op [ord,a] = Term.app (Term.builtin "Order.Key")
+                      . foldr Term.app unitRef
+                      . ($ [])
+                    <$> op' ord a
+           op _ = fail "Order.key unpossible"
+       in (r, Just (I.Primop 2 op), unsafeParseType "forall a . Order a -> a -> Order.Key a", prefix "Order.key")
      ]
+
+extractKey :: Term V -> [Either Double Text]
+extractKey (Term.App' _ t1) = go t1 where
+  go (Term.Builtin' u) = []
+  go (Term.App' (Term.Text' t) tl) = Right t : go tl
+  go (Term.App' (Term.Number' n) tl) = Left n : go tl
+  go (Term.App' (Term.Builtin' b) tl) = Right b : go tl
+  go _ = error $ "don't know what to do with this in extractKey: " ++ show t1
+extractKey t = error $ "not a key: " ++ show t
+
+compareKeys :: Term V -> Term V -> Ordering
+compareKeys (Term.App' _ t1) (Term.App' _ t2) = go t1 t2 where
+  go (Term.Builtin' u) (Term.Builtin' u2) = u `compare` u2
+  go (Term.App' h1 t1) (Term.App' h2 t2) =
+    let go' :: Ord a => a -> a -> Ordering
+        go' a a2 = case a `compare` a2 of
+          EQ -> go t1 t2
+          done -> done
+    in
+      case (h1,h2) of
+        (Term.Text' h1, Term.Text' h2) -> go' h1 h2
+        (Term.Number' h1, Term.Number' h2) -> go' h1 h2
+        (Term.Builtin' h1, Term.Builtin' h2) -> go' h1 h2
+  go (Term.App' _ _) _ = GT
+  go _ _ = LT
+compareKeys _ _ = error "not a key"
 
 -- type helpers
 alignmentT :: Ord v => Type v

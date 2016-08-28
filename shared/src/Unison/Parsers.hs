@@ -74,6 +74,9 @@ termBuiltins = (Var.named *** Term.ref) <$> (
     , Builtin "()"
     , Builtin "Either.Right"
     , Builtin "Either.Left"
+    , Builtin "Greater"
+    , Builtin "Less"
+    , Builtin "Equal"
     , Alias "unit" "()"
     , Alias "Unit" "()"
     , Alias "Some" "Optional.Some"
@@ -107,6 +110,8 @@ typeBuiltins = (Var.named *** Type.lit) <$>
   , builtin "Either"
   , builtin "Pair"
   , builtin "Order"
+  , builtin "Comparison"
+  , builtin "Order.Key"
   -- kv store
   , builtin "Index"
   -- html
@@ -114,7 +119,6 @@ typeBuiltins = (Var.named *** Type.lit) <$>
   -- distributed
   , builtin "Channel"
   , builtin "Duration"
-  , builtin "Future"
   , builtin "Remote"
   , builtin "Node"
   -- hashing
