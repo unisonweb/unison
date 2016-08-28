@@ -446,6 +446,8 @@ makeBuiltins logger whnf =
 
      , let r = R.Builtin "Order.invert"
        in (r, Nothing, unsafeParseType "forall a . Order a -> Order a", prefix "Order.invert")
+     , let r = R.Builtin "Order.ignore"
+       in (r, Nothing, unsafeParseType "forall a . Order a", prefix "Order.ignore")
 
      , let r = R.Builtin "Less"
        in (r, Nothing, unsafeParseType "Comparison", prefix "Less")
@@ -492,6 +494,7 @@ makeBuiltins logger whnf =
                  | b == "Number.Order" -> do a <- whnf a; pure (a:)
                  | b == "Hash.Order" -> do Term.App' _ a <- whnf a; pure (a:)
                  | b == "Unit.Order" -> do a <- whnf a; pure (a:)
+                 | b == "Order.ignore" -> pure id
                  | otherwise -> fail $ "unrecognized order type: " ++ Text.unpack b
                Term.Apps' (Term.Builtin' pair) [ord1, ord2]
                  | pair == "Pair.Order" -> do

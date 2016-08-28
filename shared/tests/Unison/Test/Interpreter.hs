@@ -28,6 +28,8 @@ tests = withResource Common.node (\_ -> pure ()) $ \node ->
       , t "Comparison.fold 0 0 1 Greater" "1"
       , t "Order.compare (Order.invert <| Order.tuple2 Number.Order Number.Order) (1,2) (1,3)" "Greater"
       , t "Order.compare (Order.invert <| Order.tuple2 Number.Order Number.Order) (2,1) (1,3)" "Less"
+      , t "Order.compare (Order.tuple2 Number.Order Order.ignore) (1,2) (1,3)" "Equal"
+      , t "Order.compare (Order.tuple2 Order.ignore Number.Order ) (2,2) (1,3)" "Less"
       , t "True `or` False" "True"
       , t "False `or` True" "True"
       , t "True `or` True" "True"
