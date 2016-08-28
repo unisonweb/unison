@@ -26,6 +26,24 @@ Index.from-unsafe f ind = let
   Remote.map f (Remote.at (1st p) (2nd p));;
 ;
 
+alias IndexedTraversal k v = 
+   ( Remote (Optional k)
+   , k -> Remote (Optional v)
+   , k -> Remote (Optional k));
+
+Index.traversal : ∀ k v . Index k v -> IndexedTraversal (k, Hash k) v; 
+Index.traversal ind = let 
+  add-hash = Optional.map (k -> (k, hash# k));
+  ( Index.1st-key ind |> Remote.map add-hash
+  , k -> Index.lookup (1st k) ind
+  , k -> Index.increment (1st k) ind |> Remote.map add-hash 
+  );;
+;
+
+IndexedTraversal.empty : ∀ k v . IndexedTraversal k v;
+IndexedTraversal.empty = 
+  (Remote.pure None, const (Remote.pure None), const (Remote.pure None));
+
 Http.get-url : Text -> Remote (Either Text Text);
 Http.get-url url = Remote.map Http.getUrl# (Remote.pure url);
 

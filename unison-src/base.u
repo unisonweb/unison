@@ -36,6 +36,15 @@ Order.tuple2 a b = Pair.Order a (Pair.Order b Unit.Order);
 Order.tuple3 : ∀ a b c . Order a -> Order b -> Order c -> Order (a,b,c);
 Order.tuple3 a b c = Pair.Order a (Pair.Order b (Pair.Order c Unit.Order)); 
 
+Order.by-1st : ∀ a b . Order a -> Order (Pair a b);
+Order.by-1st a = Pair.Order a Order.ignore; 
+
+Order.by-2nd : ∀ a b c . Order b -> Order (Pair a (Pair b c));
+Order.by-2nd b = Pair.Order Order.ignore (Pair.Order b Order.ignore); 
+
+Order.by-3rd : ∀ a b c d . Order c -> Order (Pair a (Pair b (Pair c d)));
+Order.by-3rd c = Pair.Order Order.ignore (Pair.Order Order.ignore (Pair.Order c Order.ignore)); 
+
 Vector.bind : ∀ a b . (a -> Vector b) -> Vector a -> Vector b;
 Vector.bind f v = Vector.fold-balanced Vector.concatenate Vector.empty (Vector.map f v);
 
