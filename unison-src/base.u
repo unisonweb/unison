@@ -42,7 +42,7 @@ Vector.fold-balanced : ∀ a . (a -> a -> a) -> a -> Vector a -> a;
 Vector.fold-balanced plus zero vs = 
   let rec
     go plus zero vs = 
-      if (Vector.size vs <= 2) 
+      if (Vector.size vs <=_Number 2) 
          (Vector.fold-left plus zero vs)
          (let p = Vector.split vs;
               go plus zero (1st p) `plus` go plus zero (2nd p);;);
@@ -137,6 +137,13 @@ Optional.getOr a = Optional.fold a identity;
 
 Optional.somes : ∀ a . Vector (Optional a) -> Vector a;
 Optional.somes = Vector.bind (Optional.fold Vector.empty Vector.single);
+
+Optional.lift2 : ∀ a b c . (a -> b -> c) -> Optional a -> Optional b -> Optional c;
+Optional.lift2 f a b = do Optional 
+  a := a;
+  b := b;
+  pure (f a b);;
+;
 
 Either.map : ∀ a b c . (b -> c) -> Either a b -> Either a c;
 Either.map f = Either.fold Left (f `then` Right);

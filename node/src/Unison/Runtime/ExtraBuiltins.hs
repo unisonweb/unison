@@ -171,34 +171,34 @@ make logger blockStore crypto = do
        in (r, Just (I.Primop 3 op), type', prefix "Index.insert#")
 
      -- Html
-     , let r = R.Builtin "Html.getLinks"
+     , let r = R.Builtin "Html.get-links"
            op [html] = do
              html' <- whnf html
              pure $ case html' of
                Term.Text' h -> Term.vector' . Vector.fromList . map linkToTerm
                  $ Html.getLinks h
                x -> Term.ref r `Term.app` x
-           op _ = fail "Html.getLinks unpossible"
-       in (r, Just (I.Primop 1 op), unsafeParseType "Text -> Vector Html.Link", prefix "Html.getLinks")
-     , let r = R.Builtin "Html.getHref"
+           op _ = fail "Html.get-links unpossible"
+       in (r, Just (I.Primop 1 op), unsafeParseType "Text -> Vector Html.Link", prefix "Html.get-links")
+     , let r = R.Builtin "Html.get-href"
            op [link] = do
              link' <- whnf link
              pure $ case link' of
                Link' href _ -> Term.lit (Term.Text href)
                x -> Term.ref r `Term.app` x
-           op _ = fail "Html.getHref unpossible"
-       in (r, Just (I.Primop 1 op), unsafeParseType "Html.Link -> Text", prefix "Html.getHref")
-     , let r = R.Builtin "Html.getDescription"
+           op _ = fail "Html.get-href unpossible"
+       in (r, Just (I.Primop 1 op), unsafeParseType "Html.Link -> Text", prefix "Html.get-href")
+     , let r = R.Builtin "Html.get-description"
            op [link] = do
              link' <- whnf link
              pure $ case link' of
                Link' _ d -> Term.lit (Term.Text d)
                x -> Term.ref r `Term.app` x
-           op _ = fail "Html.getDescription unpossible"
-       in (r, Just (I.Primop 1 op), unsafeParseType "Html.Link -> Text", prefix "Html.getDescription")
+           op _ = fail "Html.get-description unpossible"
+       in (r, Just (I.Primop 1 op), unsafeParseType "Html.Link -> Text", prefix "Html.get-description")
 
      -- Http
-     , let r = R.Builtin "Http.getUrl#"
+     , let r = R.Builtin "Http.get-url#"
            op [url] = do
              url <- whnf url
              case url of
@@ -233,41 +233,41 @@ make logger blockStore crypto = do
            op _ = fail "Hash.erase"
            t = "forall a . Hash a -> Hash Unit"
        in (r, Just (I.Primop 1 op), unsafeParseType t, prefix "Hash.erase")
-     , let r = R.Builtin "Hash.equal"
+     , let r = R.Builtin "Hash.=="
            op [h1,h2] = do
              Term.App' _ (Term.Text' r1) <- whnf h1
              Term.App' _ (Term.Text' r2) <- whnf h2
              pure $ if r1 == r2 then true else false
-           op _ = fail "Hash.equal"
-       in (r, Just (I.Primop 2 op), hashCompareTyp, prefix "Hash.equal")
-     , let r = R.Builtin "Hash.lessThan"
+           op _ = fail "Hash.=="
+       in (r, Just (I.Primop 2 op), hashCompareTyp, prefix "Hash.==")
+     , let r = R.Builtin "Hash.<"
            op [h1,h2] = do
              Term.App' _ (Term.Text' r1) <- whnf h1
              Term.App' _ (Term.Text' r2) <- whnf h2
              pure $ if r1 < r2 then true else false
-           op _ = fail "Hash.lessThan"
-       in (r, Just (I.Primop 2 op), hashCompareTyp, prefix "Hash.lessThan")
-     , let r = R.Builtin "Hash.lessThanOrEqual"
+           op _ = fail "Hash.<"
+       in (r, Just (I.Primop 2 op), hashCompareTyp, prefix "Hash.<")
+     , let r = R.Builtin "Hash.<="
            op [h1,h2] = do
              Term.App' _ (Term.Text' r1) <- whnf h1
              Term.App' _ (Term.Text' r2) <- whnf h2
              pure $ if r1 <= r2 then true else false
-           op _ = fail "Hash.lessThanOrEqual"
-       in (r, Just (I.Primop 2 op), hashCompareTyp, prefix "Hash.lessThanOrEqual")
-     , let r = R.Builtin "Hash.greaterThan"
+           op _ = fail "Hash.<="
+       in (r, Just (I.Primop 2 op), hashCompareTyp, prefix "Hash.<=")
+     , let r = R.Builtin "Hash.>"
            op [h1,h2] = do
              Term.App' _ (Term.Text' r1) <- whnf h1
              Term.App' _ (Term.Text' r2) <- whnf h2
              pure $ if r1 > r2 then true else false
-           op _ = fail "Hash.greaterThan"
-       in (r, Just (I.Primop 2 op), hashCompareTyp, prefix "Hash.greaterThan")
-     , let r = R.Builtin "Hash.greaterThanOrEqual"
+           op _ = fail "Hash.>"
+       in (r, Just (I.Primop 2 op), hashCompareTyp, prefix "Hash.>")
+     , let r = R.Builtin "Hash.>="
            op [h1,h2] = do
              Term.App' _ (Term.Text' r1) <- whnf h1
              Term.App' _ (Term.Text' r2) <- whnf h2
              pure $ if r1 >= r2 then true else false
-           op _ = fail "Hash.greaterThanOrEqual"
-       in (r, Just (I.Primop 2 op), hashCompareTyp, prefix "Hash.greaterThanOrEqual")
+           op _ = fail "Hash.>="
+       in (r, Just (I.Primop 2 op), hashCompareTyp, prefix "Hash.>=")
      , let r = R.Builtin "Hash.Order"
        in (r, Nothing, unsafeParseType "∀ a . Order (Hash a)", prefix "Hash.Order")
      ])

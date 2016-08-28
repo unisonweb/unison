@@ -57,7 +57,7 @@ unsafeGetSucceed r = case r of
 string :: String -> Parser s String
 string s = Parser $ \env ->
   if s `isPrefixOf` (currentInput env) then Succeed s (state env) (length s)
-  else Fail ["expected '" ++ s ++ "', got " ++ takeLine (currentInput env)] False
+  else Fail ["expected " ++ s ++ ", got " ++ takeLine (currentInput env)] False
 
 takeLine :: String -> String
 takeLine = Prelude.takeWhile (/= '\n')
@@ -65,7 +65,7 @@ takeLine = Prelude.takeWhile (/= '\n')
 char :: Char -> Parser s Char
 char c = Parser $ \env ->
   if listToMaybe (currentInput env) == Just c then Succeed c (state env) 1
-  else Fail ["expected '" ++ show c ++ "', got " ++ takeLine (currentInput env)] False
+  else Fail ["expected " ++ show c ++ ", got " ++ takeLine (currentInput env)] False
 
 one :: (Char -> Bool) -> Parser s Char
 one f = Parser $ \env -> case (currentInput env) of
@@ -98,9 +98,12 @@ identifier' charTests stringTests = do
   guard (all ($ i) stringTests)
   pure i
 
--- a wordyId isn't all digits, and isn't all symbols
+-- a wordyId isn't all digits, isn't all symbols, and isn't a symbolyId
 wordyId :: [String] -> Parser s String
-wordyId keywords = token $ f <$> sepBy1 dot id
+wordyId keywords = do
+  op <- (False <$ symbolyId keywords) <|> pure True
+  guard op
+  token $ f <$> sepBy1 dot id
   where
     dot = char '.'
     id = identifier [any (not . Char.isDigit), any Char.isAlphaNum, (`notElem` keywords)]
@@ -108,9 +111,12 @@ wordyId keywords = token $ f <$> sepBy1 dot id
 
 -- a symbolyId is all symbols
 symbolyId :: [String] -> Parser s String
-symbolyId keywords = token $ identifier'
-  [notReservedChar, not . Char.isSpace, \c -> Char.isSymbol c || Char.isPunctuation c]
-  [(`notElem` keywords)]
+symbolyId keywords = scope "operator" . token $ do
+  op <- identifier'
+    [notReservedChar, (/= '_'), not . Char.isSpace, \c -> Char.isSymbol c || Char.isPunctuation c]
+    [(`notElem` keywords)]
+  qual <- optional (char '_' *> wordyId keywords)
+  pure $ maybe op (\qual -> qual ++ "." ++ op) qual
 
 token :: Parser s a -> Parser s a
 token p = p <* ignored
@@ -147,15 +153,6 @@ takeWhile1 msg f = scope msg . Parser $ \(Env _ _ s cur) ->
   let hd = Prelude.takeWhile f cur
   in if null hd then Fail [] False
      else Succeed hd s (length hd)
-
--- todo: newline not immediately preceded by semicolon is an error
--- unless following line indentation level is greater
--- foo
--- x y z
--- (not allowed, must format as)
--- foo
---   x y z
--- or if semicolon is needed - foo; x y z
 
 whitespace :: Parser s ()
 whitespace = void $ takeWhile "whitespace" Char.isSpace

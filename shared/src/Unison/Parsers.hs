@@ -69,37 +69,21 @@ data Builtin = Builtin Text -- e.g. Builtin "()"
 -- aka default imports
 termBuiltins :: Var v => [(v, Term v)]
 termBuiltins = (Var.named *** Term.ref) <$> (
-    [ Alias "+" "Number.plus"
-    , Alias "-" "Number.minus"
-    , Alias "*" "Number.times"
-    , Alias "/" "Number.divide"
-    , Alias ">" "Number.greaterThan"
-    , Alias "<" "Number.lessThan"
-    , Alias ">=" "Number.greaterThanOrEqual"
-    , Alias "<=" "Number.lessThanOrEqual"
-    , Alias "==" "Number.equal"
-    , Alias "if" "Boolean.if"
-    , Builtin "True"
+    [ Builtin "True"
     , Builtin "False"
     , Builtin "()"
+    , Builtin "Either.Right"
+    , Builtin "Either.Left"
     , Alias "unit" "()"
     , Alias "Unit" "()"
     , Alias "Some" "Optional.Some"
     , Alias "None" "Optional.None"
-    , Alias "Left" "Either.Left"
-    , Alias "Right" "Either.Right"
-    , Builtin "Either.fold"
-    , Builtin "Optional.fold"
-    , Builtin "Pair.fold"
-    , Builtin "Pair"
-    , AliasFromModule "Vector"
-        ["single", "prepend", "map", "fold-left", "concatenate", "append", "empty"] []
-    , AliasFromModule "Text"
-        ["concatenate", "left", "right", "center", "justify"] []
-    , AliasFromModule "Remote"
-        ["fork", "receive", "receiveAsync", "pure", "bind", "channel", "send", "here", "at", "spawn"] []
-    , AliasFromModule "Color" ["rgba"] []
-    , AliasFromModule "Symbol" ["Symbol"] []
+    , Alias "+" "Number.+"
+    , Alias "-" "Number.-"
+    , Alias "*" "Number.*"
+    , Alias "/" "Number./"
+    , AliasFromModule "Vector" ["single"] []
+    , AliasFromModule "Remote" ["pure", "bind", "pure", "fork"] []
     ] >>= unpackAliases)
     where
       unpackAliases :: Builtin -> [(Text, R.Reference)]
@@ -122,12 +106,7 @@ typeBuiltins = (Var.named *** Type.lit) <$>
   , ("Optional", Type.Optional)
   , builtin "Either"
   , builtin "Pair"
-  -- ???
-  , builtin "Symbol"
   , builtin "Order"
-  , builtin "Alignment"
-  , builtin "Color"
-  , builtin "Fixity"
   -- kv store
   , builtin "Index"
   -- html

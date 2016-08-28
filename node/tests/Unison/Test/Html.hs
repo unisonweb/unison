@@ -42,10 +42,10 @@ tests = testGroup "html"
 unisonEvaluate :: (TestNode, String -> TermV) -> Assertion
 unisonEvaluate (testNode, parse) = do
   let inputPath = [P.Fn]
-      getLinksTerm = parse $ "Html.getLinks \"" ++ testHTML2 ++ "\""
+      getLinksTerm = parse $ "Html.get-links \"" ++ testHTML2 ++ "\""
       linkTerm = EB.link (Term.text "link.html") (Term.text "description")
-      getLink = Term.ref (R.Builtin "Html.getHref") `Term.app` linkTerm
-      getDescription = Term.ref (R.Builtin "Html.getDescription") `Term.app` linkTerm
+      getLink = Term.ref (R.Builtin "Html.get-href") `Term.app` linkTerm
+      getDescription = Term.ref (R.Builtin "Html.get-description") `Term.app` linkTerm
       desiredLinks = Term.vector [linkTerm]
       desiredHref = Term.text "link.html"
       desiredDescription = Term.text "description"

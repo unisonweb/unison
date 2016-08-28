@@ -64,10 +64,6 @@ makeBuiltins logger whnf =
                 True -> true
               g x y = sym `Term.app` x `Term.app` y
       _ -> error "unpossible"
-    strict r n = Just (I.Primop n f)
-      where f args = reapply <$> traverse whnf (take n args)
-                      where reapply args' = Term.ref r `apps` args' `apps` drop n args
-            apps f args = foldl Term.app f args
     string2 :: Term V -> (Text -> Text -> Text) -> I.Primop (N.Noted IO) V
     string2 sym f = I.Primop 2 $ \xs -> case xs of
       [x,y] -> g <$> whnf x <*> whnf y
@@ -103,9 +99,6 @@ makeBuiltins logger whnf =
            op _ = error "unpossible"
            typ = "∀ a . Text -> a -> a"
        in (r, Just (I.Primop 2 op), unsafeParseType typ, prefix "Debug.watch")
-
-     , let r = R.Builtin "Color.rgba"
-       in (r, strict r 4, unsafeParseType "Number -> Number -> Number -> Number -> Color", prefix "rgba")
 
      -- Boolean
      , let r = R.Builtin "True"
@@ -153,24 +146,24 @@ makeBuiltins logger whnf =
        in (r, Just (I.Primop 3 op), unsafeParseType typ, prefix "if")
 
      -- Number
-     , let r = R.Builtin "Number.plus"
+     , let r = R.Builtin "Number.+"
        in (r, Just (numeric2 (Term.ref r) (+)), numOpTyp, assoc 4 "+")
-     , let r = R.Builtin "Number.minus"
+     , let r = R.Builtin "Number.-"
        in (r, Just (numeric2 (Term.ref r) (-)), numOpTyp, opl 4 "-")
-     , let r = R.Builtin "Number.times"
+     , let r = R.Builtin "Number.*"
        in (r, Just (numeric2 (Term.ref r) (*)), numOpTyp, assoc 5 "*")
-     , let r = R.Builtin "Number.divide"
+     , let r = R.Builtin "Number./"
        in (r, Just (numeric2 (Term.ref r) (/)), numOpTyp, opl 5 "/")
-     , let r = R.Builtin "Number.greaterThan"
-       in (r, Just (numericCompare (Term.ref r) (>)), numCompareTyp, opl 3 ">")
-     , let r = R.Builtin "Number.lessThan"
-       in (r, Just (numericCompare (Term.ref r) (<)), numCompareTyp, opl 3 "<")
-     , let r = R.Builtin "Number.greaterThanOrEqual"
-       in (r, Just (numericCompare (Term.ref r) (>=)), numCompareTyp, opl 3 ">=")
-     , let r = R.Builtin "Number.lessThanOrEqual"
-       in (r, Just (numericCompare (Term.ref r) (<=)), numCompareTyp, opl 3 "<=")
-     , let r = R.Builtin "Number.equal"
-       in (r, Just (numericCompare (Term.ref r) (==)), numCompareTyp, opl 3 "==")
+     , let r = R.Builtin "Number.>"
+       in (r, Just (numericCompare (Term.ref r) (>)), numCompareTyp, opl 3 "Number.>")
+     , let r = R.Builtin "Number.<"
+       in (r, Just (numericCompare (Term.ref r) (<)), numCompareTyp, opl 3 "Number.<")
+     , let r = R.Builtin "Number.>="
+       in (r, Just (numericCompare (Term.ref r) (>=)), numCompareTyp, opl 3 "Number.>=")
+     , let r = R.Builtin "Number.<="
+       in (r, Just (numericCompare (Term.ref r) (<=)), numCompareTyp, opl 3 "Number.<=")
+     , let r = R.Builtin "Number.=="
+       in (r, Just (numericCompare (Term.ref r) (==)), numCompareTyp, opl 3 "Number.==")
      , let r = R.Builtin "Number.Order"
        in (r, Nothing, unsafeParseType "Order Number", prefix "Number.Order")
 
@@ -195,25 +188,25 @@ makeBuiltins logger whnf =
              Term.Distributed' (Term.Node node) <- whnf node
              pure $ Term.remote (Remote.Step (Remote.At node term))
            op _ = fail "Remote.at unpossible"
-       in (r, Just (I.Primop 2 op), remoteSignatureOf "Remote.at", prefix "at")
+       in (r, Just (I.Primop 2 op), remoteSignatureOf "Remote.at", prefix "Remote.at")
      , let r = R.Builtin "Remote.here"
            op [] = pure $ Term.remote (Remote.Step (Remote.Local (Remote.Here)))
            op _ = fail "Remote.here unpossible"
-       in (r, Just (I.Primop 0 op), remoteSignatureOf "Remote.here", prefix "here")
+       in (r, Just (I.Primop 0 op), remoteSignatureOf "Remote.here", prefix "Remote.here")
      , let r = R.Builtin "Remote.spawn"
            op [] = pure $ Term.remote (Remote.Step (Remote.Local Remote.Spawn))
            op _ = fail "Remote.spawn unpossible"
-       in (r, Just (I.Primop 0 op), remoteSignatureOf "Remote.spawn", prefix "spawn")
+       in (r, Just (I.Primop 0 op), remoteSignatureOf "Remote.spawn", prefix "Remote.spawn")
      , let r = R.Builtin "Remote.send"
            op [c, v] = do
              Term.Distributed' (Term.Channel c) <- whnf c
              pure $ Term.remote (Remote.Step (Remote.Local (Remote.Send c v)))
            op _ = fail "Remote.send unpossible"
-       in (r, Just (I.Primop 2 op), remoteSignatureOf "Remote.send", prefix "send")
+       in (r, Just (I.Primop 2 op), remoteSignatureOf "Remote.send", prefix "Remote.send")
      , let r = R.Builtin "Remote.channel"
            op [] = pure $ Term.remote (Remote.Step (Remote.Local Remote.CreateChannel))
            op _ = fail "Remote.channel unpossible"
-       in (r, Just (I.Primop 0 op), remoteSignatureOf "Remote.channel", prefix "channel")
+       in (r, Just (I.Primop 0 op), remoteSignatureOf "Remote.channel", prefix "Remote.channel")
     , let r = R.Builtin "Remote.bind"
           op [g, r] = do
             r <- whnf r
@@ -224,18 +217,18 @@ makeBuiltins logger whnf =
               Term.Distributed' (Term.Remote (Remote.Bind s f)) -> pure $ Term.remote (Remote.Bind s (kcomp f g))
               _ -> fail $ "Remote.bind given a value that was not a Remote: " ++ show r
           op _ = fail "Remote.bind unpossible"
-       in (r, Just (I.Primop 2 op), remoteSignatureOf "Remote.bind", prefix "bind")
+       in (r, Just (I.Primop 2 op), remoteSignatureOf "Remote.bind", prefix "Remote.bind")
      , let r = R.Builtin "Remote.pure"
            op [a] = pure $ Term.remote (Remote.Step (Remote.Local (Remote.Pure a)))
            op _ = fail "unpossible"
-       in (r, Just (I.Primop 1 op), remoteSignatureOf "Remote.pure", prefix "pure")
+       in (r, Just (I.Primop 1 op), remoteSignatureOf "Remote.pure", prefix "Remote.pure")
      , let r = R.Builtin "Remote.map"
            op [f, r] = pure $ Term.builtin "Remote.bind" `Term.app`
              (Term.lam' ["x"] $ Term.remote
                (Remote.Step . Remote.Local . Remote.Pure $ f `Term.app` Term.var' "x"))
              `Term.app` r
            op _ = fail "unpossible"
-       in (r, Just (I.Primop 2 op), remoteSignatureOf "Remote.map", prefix "map")
+       in (r, Just (I.Primop 2 op), remoteSignatureOf "Remote.map", prefix "Remote.map")
      , let r = R.Builtin "Remote.receive-async"
            op [chan, timeout] = do
              Term.Number' seconds <- whnf timeout
@@ -254,35 +247,23 @@ makeBuiltins logger whnf =
              Term.Distributed' (Term.Remote r) <- whnf r
              pure $ Term.remote (Remote.Step (Remote.Local (Remote.Fork r)))
            op _ = fail "unpossible"
-       in (r, Just (I.Primop 1 op), remoteSignatureOf "Remote.fork", prefix "fork")
-
-     , let r = R.Builtin "Symbol.Symbol"
-       in (r, Nothing, unsafeParseType "Text -> Fixity -> Number -> Symbol", prefix "Symbol")
+       in (r, Just (I.Primop 1 op), remoteSignatureOf "Remote.fork", prefix "Remote.fork")
 
      -- Text
      , let r = R.Builtin "Text.concatenate"
        in (r, Just (string2 (Term.ref r) mappend), strOpTyp, prefixes ["concatenate", "Text"])
-     , let r = R.Builtin "Text.equal"
-       in (r, Just (string2' (Term.ref r) (==)), textCompareTyp, prefix "Text.equal")
-     , let r = R.Builtin "Text.lessThan"
-       in (r, Just (string2' (Term.ref r) (<)), textCompareTyp, prefix "Text.lessThan")
-     , let r = R.Builtin "Text.lessThanOrEqual"
-       in (r, Just (string2' (Term.ref r) (<=)), textCompareTyp, prefix "Text.lessThanOrEqual")
-     , let r = R.Builtin "Text.greaterThan"
-       in (r, Just (string2' (Term.ref r) (>)), textCompareTyp, prefix "Text.greaterThan")
-     , let r = R.Builtin "Text.greaterThanOrEqual"
-       in (r, Just (string2' (Term.ref r) (>=)), textCompareTyp, prefix "Text.greaterThanOrEqual")
+     , let r = R.Builtin "Text.=="
+       in (r, Just (string2' (Term.ref r) (==)), textCompareTyp, prefix "Text.==")
+     , let r = R.Builtin "Text.<"
+       in (r, Just (string2' (Term.ref r) (<)), textCompareTyp, prefix "Text.<")
+     , let r = R.Builtin "Text.<="
+       in (r, Just (string2' (Term.ref r) (<=)), textCompareTyp, prefix "Text.<=")
+     , let r = R.Builtin "Text.>"
+       in (r, Just (string2' (Term.ref r) (>)), textCompareTyp, prefix "Text.>")
+     , let r = R.Builtin "Text.>="
+       in (r, Just (string2' (Term.ref r) (>=)), textCompareTyp, prefix "Text.>=")
      , let r = R.Builtin "Text.Order"
        in (r, Nothing, unsafeParseType "Order Text", prefix "Text.Order")
-
-     , let r = R.Builtin "Text.left"
-       in (r, Nothing, alignmentT, prefixes ["left", "Text"])
-     , let r = R.Builtin "Text.right"
-       in (r, Nothing, alignmentT, prefixes ["right", "Text"])
-     , let r = R.Builtin "Text.center"
-       in (r, Nothing, alignmentT, prefixes ["center", "Text"])
-     , let r = R.Builtin "Text.justify"
-       in (r, Nothing, alignmentT, prefixes ["justify", "Text"])
 
      -- Pair
      , let r = R.Builtin "Pair"
@@ -294,7 +275,7 @@ makeBuiltins logger whnf =
                Term.Apps' (Term.Builtin' "Pair") [a,b] -> whnf (f `Term.apps` [a,b])
                p -> fail $ "expected pair, got: " ++ show p
            op _ = error "Pair.fold unpossible"
-       in (r, Just (I.Primop 2 op), unsafeParseType "forall a b c . (a -> b -> c) -> Pair a b -> c", prefix "fold")
+       in (r, Just (I.Primop 2 op), unsafeParseType "forall a b c . (a -> b -> c) -> Pair a b -> c", prefix "Pair.fold")
 
      -- Either
      , let r = R.Builtin "Either.Left"
@@ -309,7 +290,7 @@ makeBuiltins logger whnf =
                  | tag == "Either.Right" -> whnf (fb `Term.app` aOrB)
                  | otherwise -> error "type errror"
            op _ = error "Either.fold unpossible"
-       in (r, Just (I.Primop 3 op), unsafeParseType "forall a b r . (a -> r) -> (b -> r) -> Either a b -> r", prefix "fold")
+       in (r, Just (I.Primop 3 op), unsafeParseType "forall a b r . (a -> r) -> (b -> r) -> Either a b -> r", prefix "Either.fold")
 
      -- Optional
      , let r = R.Builtin "Optional.None"
@@ -341,17 +322,18 @@ makeBuiltins logger whnf =
                (Term.Vector' a, Term.Vector' b) -> Term.vector' (a `mappend` b)
                (a,b) -> Term.ref r `Term.app` a `Term.app` b
            op _ = fail "Vector.concatenate unpossible"
-       in (r, Just (I.Primop 2 op), unsafeParseType "forall a . Vector a -> Vector a -> Vector a", prefix "concatenate")
+       in (r, Just (I.Primop 2 op), unsafeParseType "forall a . Vector a -> Vector a -> Vector a", prefix "Vector.concatenate")
      , let r = R.Builtin "Vector.empty"
            op [] = pure $ Term.vector mempty
            op _ = fail "Vector.empty unpossible"
-       in (r, Just (I.Primop 0 op), unsafeParseType "forall a . Vector a", prefix "empty")
+       in (r, Just (I.Primop 0 op), unsafeParseType "forall a . Vector a", prefix "Vector.empty")
      , let r = R.Builtin "Vector.range"
            op [start,stop] = do
              Term.Number' start <- whnf start
              Term.Number' stop <- whnf stop
              let num = Term.num . fromIntegral
-             pure $ Term.vector' (Vector.fromList . map num $ [floor start .. floor stop-1])
+                 ns = [floor start .. floor stop - (1 :: Int)]
+             pure $ Term.vector' (Vector.fromList . map num $ ns)
            op _ = fail "Vector.range unpossible"
            typ = unsafeParseType "Number -> Number -> Vector Number"
        in (r, Just (I.Primop 2 op), typ, prefix "Vector.range")
@@ -370,16 +352,15 @@ makeBuiltins logger whnf =
            typ = "∀ a b . Vector a -> Vector b -> Vector (a,b)"
        in (r, Just (I.Primop 2 op), unsafeParseType typ, prefix "Vector.zip")
      , let r = R.Builtin "Vector.sort"
-           op [ord,f,v] = do
+           op [_,f,v] = do
              Term.Vector' vs <- whnf v
              ks <- traverse (whnf . Term.app f) vs
-             Term.Builtin' ord <- whnf ord
              let
                sortableVs = Vector.zip ks vs
                f' (Term.Text' x, _) (Term.Text' y, _) = x `compare` y
                f' (Term.Number' x, _) (Term.Number' y, _) = x `compare` y
-               f' (Term.App' (Term.Builtin' "Hash") (Term.Ref' r1), _)
-                  (Term.App' (Term.Builtin' "Hash") (Term.Ref' r2), _) = r1 `compare` r2
+               f' (Term.App' (Term.Builtin' "Hash") (Term.Text' r1), _)
+                  (Term.App' (Term.Builtin' "Hash") (Term.Text' r2), _) = r1 `compare` r2
                f' x y = error $ "don't know how to compare: " ++ show x ++ " " ++ show y
              pure . Term.vector . fmap snd $ sortBy f' (Vector.toList sortableVs)
            op _ = fail "Vector.sort unpossible"
@@ -439,7 +420,7 @@ makeBuiltins logger whnf =
              _ -> pure $ Term.ref r `Term.app` vec
            op _ = fail "Vector.fold-left unpossible"
            typ = "forall a b . (b -> a -> b) -> b -> Vector a -> b"
-       in (r, Just (I.Primop 3 op), unsafeParseType typ, prefix "fold-left")
+       in (r, Just (I.Primop 3 op), unsafeParseType typ, prefix "Vector.fold-left")
      , let r = R.Builtin "Vector.map"
            op [f,vec] = do
              vecr <- whnf vec
@@ -455,7 +436,7 @@ makeBuiltins logger whnf =
                Term.Vector' tl -> Term.vector' (Vector.cons hd tl)
                tl -> Term.ref r `Term.app` hd `Term.app` tl
            op _ = fail "Vector.prepend unpossible"
-       in (r, Just (I.Primop 2 op), unsafeParseType "forall a . a -> Vector a -> Vector a", prefix "prepend")
+       in (r, Just (I.Primop 2 op), unsafeParseType "forall a . a -> Vector a -> Vector a", prefix "Vector.prepend")
      , let r = R.Builtin "Vector.single"
            op [hd] = pure $ Term.vector (pure hd)
            op _ = fail "Vector.single unpossible"
@@ -469,6 +450,7 @@ numOpTyp :: Type V
 numOpTyp = unsafeParseType "Number -> Number -> Number"
 numCompareTyp :: Type V
 numCompareTyp = unsafeParseType "Number -> Number -> Boolean"
+textCompareTyp :: Type V
 textCompareTyp = unsafeParseType "Text -> Text -> Boolean"
 strOpTyp :: Type V
 strOpTyp = unsafeParseType "Text -> Text -> Text"
