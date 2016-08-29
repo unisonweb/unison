@@ -208,8 +208,8 @@ make logger blockStore crypto = do
                      Right x -> right $ Term.text x
                      Left x -> left . Term.text . Text.pack $ show x
                x -> pure $ Term.ref r `Term.app` x
-           op _ = fail "Http.getUrl# unpossible"
-       in (r, Just (I.Primop 1 op), unsafeParseType "Text -> Either Text Text", prefix "Http.getUrl#")
+           op _ = fail "Http.get-url# unpossible"
+       in (r, Just (I.Primop 1 op), unsafeParseType "Text -> Either Text Text", prefix "Http.get-url#")
 
      -- Hashing
      -- add erase, comparison functions

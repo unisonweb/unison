@@ -27,6 +27,9 @@ rest p = Pair.fold (x y -> y) p;
 4th = rest `then` (rest `then` (rest `then` first));
 5th = rest `then` (rest `then` (rest `then` (rest `then` first)));
 
+set-1st : ∀ a a2 b . a2 -> Pair a b -> Pair a2 b; 
+set-1st new-first p = Pair new-first (rest p);
+
 Order.compare : ∀ a . Order a -> a -> a -> Comparison;
 Order.compare o a1 a2 = Order.Key.compare (Order.key o a1) (Order.key o a2);
 
@@ -73,14 +76,38 @@ Vector.all? f vs = Vector.fold-balanced and True (Vector.map f vs);
 Vector.sort : ∀ k a . Order k -> (a -> k) -> Vector a -> Vector a;
 Vector.sort ok f v = Vector.sort-keyed (f `then` Order.key ok) v;
 
-Remote.transfer : Node -> Remote Unit;
-Remote.transfer node = Remote.at node unit;
-
 Remote.map : ∀ a b . (a -> b) -> Remote a -> Remote b;
 Remote.map f = Remote.bind (f `then` Remote.pure);
 
+Remote.map2 : ∀ a b c . (a -> b -> c) -> Remote a -> Remote b -> Remote c;
+Remote.map2 f a b = do Remote 
+  a := a;
+  b := b;
+  pure (f a b);; 
+;
+
+Remote.map2' : ∀ a b c . (a -> b -> Remote c) -> Remote a -> Remote b -> Remote c;
+Remote.map2' f a b = Remote.map2 f a b |> Remote.join;
+
+Remote.join : ∀ a . Remote (Remote a) -> Remote a;
+Remote.join = Remote.bind identity;
+
 Remote.replicate : ∀ a . Number -> Remote a -> Remote (Vector a);
 Remote.replicate n r = Remote.sequence (Vector.replicate n r);
+
+Remote.unfold : ∀ s a . s -> (s -> Remote (Optional (a, s))) -> Remote (Vector a);
+Remote.unfold s f = let rec 
+  go s acc = do Remote
+    ht := f s;
+    ht |> Optional.fold 
+      (pure acc) 
+      (ht -> go (2nd ht) (Vector.append (1st ht) acc));;
+  ;
+  go s Vector.empty;;
+;
+
+Remote.transfer : Node -> Remote Unit;
+Remote.transfer node = Remote.at node unit;
 
 Remote.race : ∀ a . Duration -> Vector (Remote a) -> Remote a;
 Remote.race timeout rs = do Remote
@@ -102,13 +129,6 @@ Remote.timeout timeout r =
     do Remote Remote.delay timeout; pure None;;
   ];
 
-Remote.lift2 : ∀ a b c . (a -> b -> c) -> Remote a -> Remote b -> Remote c;
-Remote.lift2 f a b = do Remote 
-  a := a;
-  b := b;
-  pure (f a b);; 
-  ;
-
 Remote.at' : ∀ a . Node -> Remote a -> Remote a;
 Remote.at' node r = do Remote Remote.transfer node; r;;;
 
@@ -123,13 +143,13 @@ Remote.start timeout r = do Remote
 
 Remote.traverse : ∀ a b . (a -> Remote b) -> Vector a -> Remote (Vector b);
 Remote.traverse f vs =
-  Vector.fold-balanced (Remote.lift2 Vector.concatenate)
+  Vector.fold-balanced (Remote.map2 Vector.concatenate)
                        (Remote.pure Vector.empty)
                        (Vector.map (f `then` Remote.map Vector.single) vs);
 
 Remote.sequence : ∀ a . Vector (Remote a) -> Remote (Vector a);
 Remote.sequence vs = 
-  Vector.fold-balanced (Remote.lift2 Vector.concatenate)
+  Vector.fold-balanced (Remote.map2 Vector.concatenate)
                        (Remote.pure Vector.empty)
                        (Vector.map (Remote.map Vector.single) vs);
 
@@ -159,8 +179,8 @@ Optional.getOr a = Optional.fold a identity;
 Optional.somes : ∀ a . Vector (Optional a) -> Vector a;
 Optional.somes = Vector.bind (Optional.fold Vector.empty Vector.single);
 
-Optional.lift2 : ∀ a b c . (a -> b -> c) -> Optional a -> Optional b -> Optional c;
-Optional.lift2 f a b = do Optional 
+Optional.map2 : ∀ a b c . (a -> b -> c) -> Optional a -> Optional b -> Optional c;
+Optional.map2 f a b = do Optional 
   a := a;
   b := b;
   pure (f a b);;

@@ -319,7 +319,7 @@ makeBuiltins logger whnf =
                Term.Vector' init -> Term.vector' (Vector.snoc init last)
                init -> Term.ref r `Term.app` last `Term.app` init
            op _ = fail "Vector.append unpossible"
-       in (r, Just (I.Primop 2 op), unsafeParseType "forall a . a -> Vector a -> Vector a", prefix "append")
+       in (r, Just (I.Primop 2 op), unsafeParseType "forall a . a -> Vector a -> Vector a", prefix "Vector.append")
      , let r = R.Builtin "Vector.concatenate"
            op [a,b] = do
              ar <- whnf a
