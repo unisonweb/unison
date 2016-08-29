@@ -380,16 +380,16 @@ makeBuiltins logger whnf =
              pure $ Term.vector' (Vector.reverse vs)
            op _ = fail "Vector.reverse unpossible"
        in (r, Just (I.Primop 1 op), unsafeParseType "forall a . Vector a -> Vector a", prefix "Vector.reverse")
-     , let r = R.Builtin "Vector.split"
+     , let r = R.Builtin "Vector.halve"
            op [v] = do
              Term.Vector' vs <- whnf v
              pure $ case Vector.null vs of
                True -> pair' (Term.vector []) (Term.vector [])
                False -> case Vector.splitAt (Vector.length vs `div` 2) vs of
                  (x,y) -> pair' (Term.vector' x) (Term.vector' y)
-           op _ = fail "Vector.split unpossible"
+           op _ = fail "Vector.halve unpossible"
            typ = "forall a . Vector a -> (Vector a, Vector a)"
-       in (r, Just (I.Primop 1 op), unsafeParseType typ, prefix "Vector.split")
+       in (r, Just (I.Primop 1 op), unsafeParseType typ, prefix "Vector.halve")
      , let r = R.Builtin "Vector.at"
            op [n,vec] = do
              Term.Number' n <- whnf n

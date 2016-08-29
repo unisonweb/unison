@@ -65,7 +65,7 @@ Vector.fold-balanced plus zero vs =
     go plus zero vs = 
       if (Vector.size vs <=_Number 2) 
          (Vector.fold-left plus zero vs)
-         (let p = Vector.split vs;
+         (let p = Vector.halve vs;
               go plus zero (1st p) `plus` go plus zero (2nd p);;);
     go plus zero vs;; 
   ;
@@ -75,6 +75,9 @@ Vector.all? f vs = Vector.fold-balanced and True (Vector.map f vs);
 
 Vector.sort : ∀ k a . Order k -> (a -> k) -> Vector a -> Vector a;
 Vector.sort ok f v = Vector.sort-keyed (f `then` Order.key ok) v;
+
+Vector.sort' : ∀ a . Order a -> Vector a -> Vector a;
+Vector.sort' o = Vector.sort o identity;
 
 Remote.map : ∀ a b . (a -> b) -> Remote a -> Remote b;
 Remote.map f = Remote.bind (f `then` Remote.pure);
