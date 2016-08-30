@@ -176,8 +176,8 @@ Optional.bind f = Optional.fold None f;
 Optional.pure : ∀ a . a -> Optional a;
 Optional.pure = Some;
 
-Optional.getOr : ∀ a . a -> Optional a -> a;
-Optional.getOr a = Optional.fold a identity;
+Optional.get-or : ∀ a . a -> Optional a -> a;
+Optional.get-or a = Optional.fold a identity;
 
 Optional.somes : ∀ a . Vector (Optional a) -> Vector a;
 Optional.somes = Vector.bind (Optional.fold Vector.empty Vector.single);

@@ -79,7 +79,7 @@ tests = withResource Common.node (\_ -> pure ()) $ \node ->
       , t "Vector.bind 2nd (Vector.zip [1,2,3] [[1],[2],[3]])" "[1,2,3]"
       , t "Vector.all? identity [True,True,True,True]" "True"
       , t "Vector.all? identity [True,False,True,True]" "False"
-      , t "Optional.getOr 96 (Vector.at 1 [0,1,2,3,4])" "1"
+      , t "Optional.get-or 96 (Vector.at 1 [0,1,2,3,4])" "1"
       , t "Vector.take 0 [1,2,3]" "[]"
       , t "Vector.take 2 [1,2,3]" "[1,2]"
       , t "Vector.drop 2 [1,2,3]" "[3]"
