@@ -180,6 +180,14 @@ make logger blockStore crypto = do
                x -> Term.ref r `Term.app` x
            op _ = fail "Html.get-links unpossible"
        in (r, Just (I.Primop 1 op), unsafeParseType "Text -> Vector Html.Link", prefix "Html.get-links")
+     , let r = R.Builtin "Html.plain-text"
+           op [html] = do
+             html' <- whnf html
+             pure $ case html' of
+               Term.Text' h -> Term.text $ Html.toPlainText h
+               x -> Term.ref r `Term.app` x
+           op _ = fail "Html.plain-text unpossible"
+       in (r, Just (I.Primop 1 op), unsafeParseType "Text -> Text", prefix "Html.plain-text")
      , let r = R.Builtin "Html.get-href"
            op [link] = do
              link' <- whnf link

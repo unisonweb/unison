@@ -2,7 +2,7 @@ module Unison.Runtime.Html where
 
 import Data.Maybe (listToMaybe, catMaybes, mapMaybe)
 import Data.Text (Text, toLower, pack)
-import Text.HTML.TagSoup (Tag(..), (~/=), maybeTagText, parseTags)
+import Text.HTML.TagSoup (Tag(..), (~/=), maybeTagText, parseTags, innerText)
 import qualified Data.Text as Text
 
 data Link = Link { ref :: Text, description :: Text } deriving (Show)
@@ -24,3 +24,7 @@ sectionToLink _ = Nothing
 
 getLinks :: Text -> [Link]
 getLinks s = mapMaybe sectionToLink . justAnchorSections $ parseTags s
+
+toPlainText :: Text -> Text
+--toPlainText s = Text.concat . map fromTagText . filter isTagText $ parseTags s
+toPlainText s = innerText $ parseTags s
