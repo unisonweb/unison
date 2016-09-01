@@ -3,6 +3,7 @@
 module Unison.Test.NodeUtil where
 
 import Control.Applicative
+import Data.Text.Encoding (decodeUtf8)
 import Unison.Hash (Hash)
 import Unison.Node (Node)
 import Unison.Reference (Reference)
@@ -11,6 +12,7 @@ import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Var (Var)
+import qualified Data.ByteString as B
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text.IO
 import qualified System.FilePath as FP
@@ -48,7 +50,7 @@ loadDeclarations :: L.Logger -> FilePath -> Node IO V Reference (Type V) (Term V
 loadDeclarations logger path node = do
   -- note - when run from repl current directory is root, but when run via stack test, current
   -- directory is the shared subdir - so we check both locations
-  txt <- Text.IO.readFile path <|> Text.IO.readFile (".." `FP.combine` path)
+  txt <- decodeUtf8 <$> (B.readFile path <|> B.readFile (".." `FP.combine` path))
   let str = Text.unpack txt
   _ <- Note.run $ Node.declare' Term.ref str node
   L.info logger $ "loaded file: " ++ path
