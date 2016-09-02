@@ -14,7 +14,6 @@ import qualified Control.Concurrent.STM as STM
 import qualified Data.ByteString as B
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import qualified Data.Text.IO as Text.IO
 import qualified Unison.Config as Config
 import qualified Unison.Cryptography as C
 import qualified Unison.Node as Node
