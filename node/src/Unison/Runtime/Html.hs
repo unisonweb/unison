@@ -26,5 +26,4 @@ getLinks :: Text -> [Link]
 getLinks s = mapMaybe sectionToLink . justAnchorSections $ parseTags s
 
 toPlainText :: Text -> Text
---toPlainText s = Text.concat . map fromTagText . filter isTagText $ parseTags s
 toPlainText s = innerText $ parseTags s
