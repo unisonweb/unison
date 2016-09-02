@@ -58,7 +58,7 @@ IndexedTraversal.intersect : ∀ k v . Order k
   -> IndexedTraversal k v 
   -> IndexedTraversal k v;
 IndexedTraversal.intersect o t1 t2 = let rec 
-  align-key k1 k2 = Optional.getOr (Remote.pure None) <| Optional.map2 
+  align-key k1 k2 = Optional.get-or (Remote.pure None) <| Optional.map2 
     (k1 k2 -> Order.compare o k1 k2 |> Comparison.fold
        (IndexedTraversal.increment k2 t1 |> Remote.bind (k1 -> align-key k1 (Some k2)))
        (Remote.pure (Some k1))

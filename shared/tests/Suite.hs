@@ -1,5 +1,6 @@
 module Main where
 
+import System.IO
 import Test.Tasty
 import qualified Unison.Test.Doc as Doc
 import qualified Unison.Test.Typechecker as Typechecker
@@ -13,4 +14,6 @@ tests :: TestTree
 tests = testGroup "unison" [Doc.tests, Typechecker.tests, Term.tests, TermParser.tests, TypeParser.tests, Interpreter.tests, Components.tests]
 
 main :: IO ()
-main = defaultMain tests
+main = do
+  mapM_ (`hSetEncoding` utf8) [stdout, stdin, stderr]
+  defaultMain tests

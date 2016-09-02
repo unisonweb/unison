@@ -191,6 +191,34 @@ executable worker
     unison-node,
     unison-shared,
     vector
+  other-modules:
+    Unison.ABT.Extra,
+    Unison.Config,
+    Unison.Distance.Extra,
+    Unison.Hash.Extra,
+    Unison.Kind.Extra,
+    Unison.NodeProtocol,
+    Unison.NodeProtocol.V0,
+    Unison.NodeWorker,
+    Unison.Reference.Extra,
+    Unison.Remote.Extra,
+    Unison.Runtime.Block,
+    Unison.Runtime.ExpiringMap,
+    Unison.Runtime.ExtraBuiltins,
+    Unison.Runtime.Html,
+    Unison.Runtime.Http,
+    Unison.Runtime.Index,
+    Unison.Runtime.Journal,
+    Unison.Runtime.JournaledMap,
+    Unison.Runtime.Multiplex,
+    Unison.Runtime.Queue,
+    Unison.Runtime.Remote,
+    Unison.Runtime.ResourcePool,
+    Unison.Runtime.SharedResourceMap,
+    Unison.SerializationAndHashing,
+    Unison.Symbol.Extra,
+    Unison.Term.Extra,
+    Unison.Type.Extra
 
 executable container
   main-is: Container.hs
@@ -238,6 +266,30 @@ executable container
     vector,
     wai-extra,
     wai-middleware-static
+  other-modules:
+    Unison.ABT.Extra,
+    Unison.BlockStore.FileBlockStore,
+    Unison.Config,
+    Unison.Distance.Extra,
+    Unison.Hash.Extra,
+    Unison.Kind.Extra,
+    Unison.NodeContainer,
+    Unison.NodeProtocol,
+    Unison.NodeProtocol.V0,
+    Unison.NodeServer,
+    Unison.Reference.Extra,
+    Unison.Remote.Extra,
+    Unison.Runtime.Block,
+    Unison.Runtime.ExpiringMap,
+    Unison.Runtime.Lock,
+    Unison.Runtime.Multiplex,
+    Unison.Runtime.Queue,
+    Unison.Runtime.Remote,
+    Unison.Runtime.SharedResourceMap,
+    Unison.SerializationAndHashing,
+    Unison.Symbol.Extra,
+    Unison.Term.Extra,
+    Unison.Type.Extra
 
   if flag(leveldb)
     build-depends: exceptions, leveldb-haskell
@@ -291,6 +343,29 @@ executable node
     vector,
     wai-extra,
     wai-middleware-static
+  other-modules:
+    Unison.ABT.Extra,
+    Unison.BlockStore.FileBlockStore,
+    Unison.Distance.Extra,
+    Unison.Hash.Extra,
+    Unison.Kind.Extra,
+    Unison.Node.FileStore,
+    Unison.NodeServer,
+    Unison.Reference.Extra,
+    Unison.Remote.Extra,
+    Unison.Runtime.Address,
+    Unison.Runtime.Block,
+    Unison.Runtime.ExtraBuiltins,
+    Unison.Runtime.Html,
+    Unison.Runtime.Http,
+    Unison.Runtime.Index,
+    Unison.Runtime.Journal,
+    Unison.Runtime.JournaledMap,
+    Unison.Runtime.ResourcePool,
+    Unison.SerializationAndHashing,
+    Unison.Symbol.Extra,
+    Unison.Term.Extra,
+    Unison.Type.Extra
 
   if flag(leveldb)
     build-depends: exceptions, leveldb-haskell
@@ -325,6 +400,16 @@ test-suite tests
     unison-node,
     unison-shared,
     vector
+  other-modules:
+    Unison.Test.BlockStore,
+    Unison.Test.BlockStore.FileBlockStore,
+    Unison.Test.BlockStore.MemBlockStore,
+    Unison.Test.Html,
+    Unison.Test.Index,
+    Unison.Test.Journal,
+    Unison.Test.NodeUtil,
+    Unison.Test.ResourcePool,
+    Unison.Test.SerializationAndHashing
 
   if flag(leveldb)
     build-depends: exceptions, leveldb-haskell

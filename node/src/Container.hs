@@ -10,7 +10,7 @@ import Data.Bytes.Serial (serialize)
 import Data.Text.Encoding (decodeUtf8)
 import Network.HTTP.Types.Method (StdMethod(OPTIONS))
 import Network.Wai.Middleware.RequestLogger (logStdoutDev)
-import System.IO (hSetBinaryMode, hFlush, stdin)
+import System.IO (hSetBinaryMode, hFlush, hSetEncoding, stdin, stdout, stderr, utf8)
 import System.Process as P
 import Unison.NodeProtocol.V0 (protocol)
 import Unison.NodeServer as NS
@@ -64,6 +64,7 @@ main = Mux.uniqueChannel >>= \rand ->
         P.std_in = P.CreatePipe,
         P.std_err = P.CreatePipe }
   in do
+    mapM_ (`hSetEncoding` utf8) [stdout, stdin, stderr]
 #ifdef leveldb
     putStrLn "using leveldb-based block store"
 #else

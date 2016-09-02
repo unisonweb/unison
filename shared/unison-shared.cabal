@@ -111,6 +111,7 @@ test-suite tests
   other-modules:
   build-depends:
     base,
+    bytestring,
     containers,
     filepath,
     tasty,
