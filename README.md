@@ -47,7 +47,7 @@ Setting phasers to stun... (port 8080) (ctrl-c to quit)
 and then browse to [http://localhost:8080](http://localhost:8080) to open the editor.
 On Mac and Windows replace `localhost` by the IP of your Docker VM.
 
-Building using Stack
+<a name="stackbuild"></a>Building using Stack
 -----
 
 If these instructions don't work for you or are incomplete, please file an issue.
@@ -84,7 +84,7 @@ $ stack exec node
 Setting phasers to stun... (port 8080) (ctrl-c to quit)
 ```
 
-That last message is [Scotty](http://hackage.haskell.org/package/scotty) telling you it's running. That means you're good. Visit `localhost:8080/` in a browser to see the editor (or just open up `editor/editor.html`).
+That last message is [Scotty](http://hackage.haskell.org/package/scotty) telling you it's running. That means you're good. Visit <http://localhost:8080/> in a browser to see the editor (or just open up `editor/editor.html`).  You can take a look at the posts [here](http://unisonweb.org/editor) for clues on how the editor is used!
 
 These instructions do not work on Windows as far as I know (this might be fixable, contact me if interested), but if you're on Windows or just prefer to build the code on a known-good VM, use the [Vagrant box setup](#vagrant) after reading through these instructions. If you go this route, you can still use your preferred text editor. The VM will have shared filesystem access to the directory where you've checked out the code.
 
@@ -117,17 +117,18 @@ If you're on Windows and would like to build the project, you can do so using th
 
 Here are instructions for this route:
 
+* [Clone](https://help.github.com/articles/cloning-a-repository/) the unison repo (`git clone https://github.com/unisonweb/platform.git unisonweb`).
 * Download and install [Vagrant](https://www.vagrantup.com/).
 * Download and install [VirtualBox](https://www.virtualbox.org/). This is a free VM provider.
 
-Once those are done, from the root directory of the project (the same directory as the `Vagrantfile` file), do:
+Once those are done, from the root directory of the project (the same directory as the `Vagrantfile` file), and from a Windows shell with admin privileges (right-click, 'Run as administrator'), do:
 
-```sh
-$ vagrant up
+```
+> vagrant up
 ... lots of log output as the machine gets set up
 ```
 
-Once it completes, you can do `vagrant ssh`, then `cd /vagrant`. Notice that the `/vagrant` directory on the VM mirrors the root directory of your project. You can edit the code on your local machine, and use the the usual build instructions on the VM to compile and run the project on the VM!
+Once it completes, you can do `vagrant ssh`, then `cd /vagrant`. Notice that the `/vagrant` directory on the VM mirrors the root directory of your project. You can edit the code on your local machine, and follow the usual ['building using stack'](#stackbuild) instructions on the VM to compile and run the project on the VM!  
 
 #### <a id="ubuntu-editor-issues"></a>Problems Building the Editor - Ubuntu
 
