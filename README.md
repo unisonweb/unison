@@ -68,6 +68,7 @@ To build the editor, do:
 ```sh
 $ sudo apt-get install nodejs
 $ stack --stack-yaml editor.yaml setup # first time only
+$ sudo apt-get install cabal-install; cabal update; cabal install nats-1 # first time only
 $ stack --stack-yaml editor.yaml build
 ```
 
