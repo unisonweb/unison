@@ -66,7 +66,7 @@ $ stack build unison-node # build node executable
 
 To build the editor, do:
 ```sh
-# you may have to run `stack --stack-yaml editor.yaml setup` first
+$ stack --stack-yaml editor.yaml setup # first time only
 $ stack --stack-yaml editor.yaml build
 ```
 
