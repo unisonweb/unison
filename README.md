@@ -1,4 +1,4 @@
-The Unison platform
+The Unison platform
 ======
 
 [![Join the chat at https://gitter.im/unisonweb/platform](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/unisonweb/platform?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
@@ -71,7 +71,7 @@ $ stack --stack-yaml editor.yaml setup # first time only
 $ stack --stack-yaml editor.yaml build
 ```
 
-The editor is built using GHCJS. If you encounter an issue about missing 'happy', you can try installing with `stack install happy`, `cabal install happy` or `sudo apt-get install happy` [if on ubuntu](#ubuntu-editor-issues). Make sure that `happy` ends up on your `$PATH` (try doing `happy --version`; it should report 1.19.5 or later) after install.
+The editor is built using GHCJS. If you encounter an issue about missing 'happy', or "'ghc' is required but it could not be found" while building 'happy', you can try installing with `stack install happy`, `cabal install happy` or `sudo apt-get install happy` [if on ubuntu](#ubuntu-editor-issues). If you're using the Vagrant VM then `sudo apt-get install cabal-install; cabal update; cabal install happy` works.  Make sure that `happy` ends up on your `$PATH` (try doing `happy --version`; it should report 1.19.5 or later) after install.  
 
 _After_ `stack build` completes successfully, you can symlink the generated Javascript files by performing a
 
@@ -159,3 +159,5 @@ At least one user has reported problems when building the editor on a machine ru
     ```sh
     $ sudo apt-get install happy
     ```
+	
+	or else try 'sudo apt-get install cabal-install; cabal update; cabal install happy'.
