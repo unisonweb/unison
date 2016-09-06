@@ -66,6 +66,7 @@ $ stack build unison-node # build node executable
 
 To build the editor, do:
 ```sh
+$ sudo apt-get install nodejs
 $ stack --stack-yaml editor.yaml setup # first time only
 $ stack --stack-yaml editor.yaml build
 ```
