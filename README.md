@@ -130,6 +130,8 @@ Once those are done, from the root directory of the project (the same directory 
 
 Once it completes, you can do `vagrant ssh`, then `cd /vagrant`. Notice that the `/vagrant` directory on the VM mirrors the root directory of your project. You can edit the code on your local machine, and follow the usual ['building using stack'](#stackbuild) instructions on the VM to compile and run the project on the VM!  
 
+The `Vagrantfile` configures the VM with 3GB RAM.  If you don't have that much to spare then you might hit out-of-memory problems as you try to build Unison within the VM.  In that case you can cut down the RAM allocation by editing the Vagrantfile (and then doing `vagrant reload`), but you'll need to make up the difference by logging in to the VM (`vagrant ssh`) and configuring swap space [like so](https://www.digitalocean.com/community/tutorials/how-to-add-swap-on-ubuntu-14-04) - but be warned your builds will be a good deal slower.  
+
 #### <a id="ubuntu-editor-issues"></a>Problems Building the Editor - Ubuntu
 
 At least one user has reported problems when building the editor on a machine running Ubuntu 14.04.
