@@ -58,6 +58,7 @@ The build uses [Stack](http://docs.haskellstack.org/). If you don't already have
 ```sh
 $ git clone https://github.com/unisonweb/unison.git
 $ cd unison
+$ sudo apt-get install libcurl4-openssl-dev
 $ stack --version # make sure this returns 1.0.2 or later
 $ stack setup
 $ stack build unison-node # build node executable
