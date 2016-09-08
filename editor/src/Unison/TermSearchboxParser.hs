@@ -31,7 +31,7 @@ term =
   single x = [x]
 
 digits :: Parser String
-digits = takeWhile Char.isDigit
+digits = takeWhile "digits" Char.isDigit
 
 digits1 :: Parser String
 digits1 = (:) <$> one Char.isDigit <*> digits
@@ -43,7 +43,7 @@ floatingPoint = do
   pure $ read d + fromMaybe 0.0 (read <$> rest)
 
 quotedString :: Parser String
-quotedString = char '\"' *> takeWhile (\c -> c /= '\"') <* optional (char '\"')
+quotedString = char '\"' *> takeWhile "string" (\c -> c /= '\"') <* optional (char '\"')
 
 intro :: Parser [Term V]
 intro = do
