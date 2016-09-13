@@ -14,6 +14,10 @@ Index.increment k = Index.from-unsafe (Index.increment# k);
 Index.lookup : ∀ k v . k -> Index k v -> Remote (Optional v);
 Index.lookup k = Index.from-unsafe (Index.lookup# k);
 
+Index.lookup-or : v -> k -> Index k v -> Remote v;
+Index.lookup-or v k ind =
+  Remote.map (Optional.get-or v) (Index.lookup k ind);
+
 Index.delete : ∀ k v . k -> Index k v -> Remote Unit; 
 Index.delete k = Index.from-unsafe (Index.delete# k);
 

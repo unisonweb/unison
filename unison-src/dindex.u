@@ -6,11 +6,13 @@ DIndex.Replication-Factor = 3;
 DIndex.Timeout = Duration.seconds 10;
 DIndex.Max-Timeout = Duration.seconds 500;
 
-DIndex.empty : ∀ k v . Remote (Index Node (Index k v));
+alias DIndex k v = Index Node (Index k v);
+
+DIndex.empty : ∀ k v . Remote (DIndex k v);
 DIndex.empty = Index.empty;
 
 -- Pick the nodes responsible for a key, using HRW hashing 
-DIndex.nodesForKey : ∀ k v . k -> Index Node (Index k v) -> Remote (Vector Node);
+DIndex.nodesForKey : ∀ k v . k -> DIndex k v -> Remote (Vector Node);
 DIndex.nodesForKey k ind = do Remote
   nodes := Index.keys ind;
   hashes := Remote.traverse (node -> hash! (node, k)) nodes; 
@@ -21,7 +23,7 @@ DIndex.nodesForKey k ind = do Remote
   |> pure;;
 ;
 
-DIndex.lookup : ∀ k v . k -> Index Node (Index k v) -> Remote (Optional v);
+DIndex.lookup : ∀ k v . k -> DIndex k v -> Remote (Optional v);
 DIndex.lookup k ind = do Remote
   nodes := DIndex.nodesForKey k ind;
   localLookup = node -> (do Remote
@@ -38,7 +40,7 @@ DIndex.lookup k ind = do Remote
   pure (Vector.at 0 rs |> Optional.bind identity);;
 ;
 
-DIndex.insert : ∀ k v . k -> v -> Index Node (Index k v) -> Remote Unit; 
+DIndex.insert : ∀ k v . k -> v -> DIndex k v -> Remote Unit; 
 DIndex.insert k v ind = do Remote
   nodes := DIndex.nodesForKey k ind;
   localInsert = node -> (do Remote
@@ -50,21 +52,21 @@ DIndex.insert k v ind = do Remote
   Remote.race DIndex.Timeout <| Vector.map localInsert nodes;;
 ;
 
-DIndex.join : ∀ k v . Index Node (Index k v) -> Remote Unit;
+DIndex.join : ∀ k v . DIndex k v -> Remote Unit;
 DIndex.join ind = do Remote 
   here := Remote.here;
   localInd := Index.empty;
   Index.insert here localInd ind;;
 ;
 
-DIndex.indicesForKey : ∀ k v . k -> Index Node (Index k v) -> Remote (Vector (Index k v));
+DIndex.indicesForKey : ∀ k v . k -> DIndex k v -> Remote (Vector (Index k v));
 DIndex.indicesForKey k ind = do Remote
   nodes := DIndex.nodesForKey k ind; 
   indices := Remote.traverse (node -> Index.lookup node ind) nodes;
   pure (Optional.somes indices);;
 ;
 
-DIndex.rebalance : ∀ k v . k -> Index Node (Index k v) -> Remote Unit; 
+DIndex.rebalance : ∀ k v . k -> DIndex k v -> Remote Unit; 
 DIndex.rebalance k ind = do Remote
   indices := DIndex.indicesForKey k ind;
   t = DIndex.Timeout;
@@ -84,7 +86,7 @@ DIndex.rebalance k ind = do Remote
                        ov;;)
   ;;
 ;
-DIndex.leave : ∀ k v . Node -> Index Node (Index k v) -> Remote Unit;
+DIndex.leave : ∀ k v . Node -> DIndex k v -> Remote Unit;
 DIndex.leave node ind = do Remote
   local-ind := Index.lookup node ind;
   Index.delete node ind;
