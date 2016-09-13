@@ -2,17 +2,18 @@
 
 module Main where
 
+import Data.Text.Encoding (decodeUtf8)
 import Control.Concurrent.STM.TVar
 import Control.Monad
-import System.IO (stderr)
+import System.IO (stderr, stdin, stdout, hSetEncoding, utf8)
 import Unison.Hash (Hash)
 import Unison.NodeProtocol.V0 (protocol)
 import Unison.NodeWorker as W
 import Unison.SerializationAndHashing (TermV)
 import qualified Control.Concurrent.STM as STM
+import qualified Data.ByteString as B
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import qualified Data.Text.IO as Text.IO
 import qualified Unison.Config as Config
 import qualified Unison.Cryptography as C
 import qualified Unison.Node as Node
@@ -31,6 +32,7 @@ import qualified Unison.Util.Logger as L
 
 main :: IO ()
 main = do
+  mapM_ (`hSetEncoding` utf8) [stdout, stdin, stderr]
   logger <- L.scope "worker-main" <$> Config.loggerTo stderr
   W.make protocol crypto (pure $ lang logger) where
   crypto keypair = C.noop (W.public keypair)
@@ -90,7 +92,7 @@ main = do
       unRemote _ = Nothing
       remote = Term.remote
       loadDeclarations path node = do
-        txt <- Text.IO.readFile path
+        txt <- decodeUtf8 <$> B.readFile path
         let str = Text.unpack txt
         r <- Note.run $ Node.declare' Term.ref str node
         L.info logger $ "loaded " ++ path

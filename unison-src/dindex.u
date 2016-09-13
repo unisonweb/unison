@@ -73,7 +73,7 @@ DIndex.rebalance k ind = do Remote
   results := Remote.parallel-traverse DIndex.Max-Timeout (Index.lookup k `then` Remote.timeout t) indices;
   resultsHashes := Remote.traverse hash! results;
   uh := hash! None;
-  hd = uh `Optional.getOr` Vector.at 0 resultsHashes;
+  hd = uh `Optional.get-or` Vector.at 0 resultsHashes;
   eq = h1 h2 -> Hash.equal (Hash.erase h1) (Hash.erase h2);
   if (Vector.all? (eq hd) resultsHashes) 
      -- all results matched, we're good 

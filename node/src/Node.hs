@@ -3,6 +3,7 @@
 
 module Main where
 
+import System.IO
 import Unison.Hash.Extra ()
 import Unison.Node.Store (Store)
 import Unison.Reference (Reference)
@@ -44,6 +45,7 @@ makeRandomAddress crypt = Address <$> C.randomBytes crypt 64
 
 main :: IO ()
 main = do
+  mapM_ (`hSetEncoding` utf8) [stdout, stdin, stderr]
   store' <- store
   logger <- L.atomic (L.atInfo L.toStandardError)
   let crypto = C.noop "dummypublickey"

@@ -10,7 +10,7 @@ import Data.Bytes.Serial (serialize)
 import Data.Text.Encoding (decodeUtf8)
 import Network.HTTP.Types.Method (StdMethod(OPTIONS))
 import Network.Wai.Middleware.RequestLogger (logStdoutDev)
-import System.IO (hSetBinaryMode, hFlush, stdin)
+import System.IO (hSetBinaryMode, hFlush, hSetEncoding, stdin, stdout, stderr, utf8)
 import System.Process as P
 import Unison.NodeProtocol.V0 (protocol)
 import Unison.NodeServer as NS
@@ -38,11 +38,11 @@ main :: IO ()
 main = Mux.uniqueChannel >>= \rand ->
   let
     h bytes = BA.convert (hash bytes :: Digest Blake2b_512)
-    #ifdef leveldb
+#ifdef leveldb
     blockstore = LDBS.make rand h "blockstore.leveldb"
-    #else
+#else
     blockstore = FBS.make' rand h "blockstore"
-    #endif
+#endif
     locker _ = pure held
     held = Lock (pure (Just (Lease (pure True) (pure ()))))
     mkNode _ = do -- todo: actually use node params
@@ -64,11 +64,12 @@ main = Mux.uniqueChannel >>= \rand ->
         P.std_in = P.CreatePipe,
         P.std_err = P.CreatePipe }
   in do
-    #ifdef leveldb
+    mapM_ (`hSetEncoding` utf8) [stdout, stdin, stderr]
+#ifdef leveldb
     putStrLn "using leveldb-based block store"
-    #else
+#else
     putStrLn "using file-based block store"
-    #endif
+#endif
     blockstore <- blockstore
     send <- C.make blockstore locker protocol mkNode launchNode
     S.scotty 8081 $ do
