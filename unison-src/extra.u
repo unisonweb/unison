@@ -9,16 +9,16 @@ Index.1st-key : ∀ k v . Index k v -> Remote (Optional k);
 Index.1st-key = Index.from-unsafe Index.1st-key#;
 
 Index.increment : ∀ k v . k -> Index k v -> Remote (Optional k);
-Index.increment k = Index.from-unsafe (Index.increment# k); 
+Index.increment k = Index.from-unsafe (Index.increment# k);
 
 Index.lookup : ∀ k v . k -> Index k v -> Remote (Optional v);
 Index.lookup k = Index.from-unsafe (Index.lookup# k);
 
-Index.lookup-or : v -> k -> Index k v -> Remote v;
+Index.lookup-or : ∀ k v . v -> k -> Index k v -> Remote v;
 Index.lookup-or v k ind =
   Remote.map (Optional.get-or v) (Index.lookup k ind);
 
-Index.delete : ∀ k v . k -> Index k v -> Remote Unit; 
+Index.delete : ∀ k v . k -> Index k v -> Remote Unit;
 Index.delete k = Index.from-unsafe (Index.delete# k);
 
 Index.insert : ∀ k v . k -> v -> Index k v -> Remote Unit;
@@ -30,7 +30,7 @@ Index.from-unsafe f ind = let
   Remote.map f (Remote.at (1st p) (2nd p));;
 ;
 
-alias IndexedTraversal k v = 
+alias IndexedTraversal k v =
    ( Remote (Optional k)
    , k -> Remote (Optional v)
    , k -> Remote (Optional k));
@@ -44,25 +44,25 @@ IndexedTraversal.lookup k t = 2nd t k;
 IndexedTraversal.increment : ∀ k v . k -> IndexedTraversal k v -> Remote (Optional k);
 IndexedTraversal.increment k t = 3rd t k;
 
-Index.traversal : ∀ k v . Index k v -> IndexedTraversal (k, Hash k) v; 
-Index.traversal ind = let 
+Index.traversal : ∀ k v . Index k v -> IndexedTraversal (k, Hash k) v;
+Index.traversal ind = let
   add-hash = Optional.map (k -> (k, hash# k));
   ( Index.1st-key ind |> Remote.map add-hash
   , k -> Index.lookup (1st k) ind
-  , k -> Index.increment (1st k) ind |> Remote.map add-hash 
+  , k -> Index.increment (1st k) ind |> Remote.map add-hash
   );;
 ;
 
 IndexedTraversal.empty : ∀ k v . IndexedTraversal k v;
-IndexedTraversal.empty = 
+IndexedTraversal.empty =
   (Remote.pure None, const (Remote.pure None), const (Remote.pure None));
 
-IndexedTraversal.intersect : ∀ k v . Order k 
-  -> IndexedTraversal k v 
-  -> IndexedTraversal k v 
+IndexedTraversal.intersect : ∀ k v . Order k
+  -> IndexedTraversal k v
+  -> IndexedTraversal k v
   -> IndexedTraversal k v;
-IndexedTraversal.intersect o t1 t2 = let rec 
-  align-key k1 k2 = Optional.get-or (Remote.pure None) <| Optional.map2 
+IndexedTraversal.intersect o t1 t2 = let rec
+  align-key k1 k2 = Optional.get-or (Remote.pure None) <| Optional.map2
     (k1 k2 -> Order.compare o k1 k2 |> Comparison.fold
        (IndexedTraversal.increment k2 t1 |> Remote.bind (k1 -> align-key k1 (Some k2)))
        (Remote.pure (Some k1))
@@ -79,7 +79,7 @@ IndexedTraversal.intersect o t1 t2 = let rec
 IndexedTraversal.1st-entry : ∀ k v . IndexedTraversal k v -> Remote (Optional (k, v));
 IndexedTraversal.1st-entry t = IndexedTraversal.entry-at (1st t) t;
 
-IndexedTraversal.entry-at : ∀ k v . 
+IndexedTraversal.entry-at : ∀ k v .
   Remote (Optional k) -> IndexedTraversal k v -> Remote (Optional (k, v));
 IndexedTraversal.entry-at k t = do Remote
   k := k;
