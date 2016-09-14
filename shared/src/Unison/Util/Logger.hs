@@ -14,7 +14,7 @@ module Unison.Util.Logger where
 
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar
-import Control.Exception (finally, try)
+import Control.Exception (bracket, try)
 import Control.Monad
 import Data.List
 import System.IO (Handle, hPutStrLn, hGetLine, stdout, stderr)
@@ -34,7 +34,7 @@ atomic :: Logger -> IO Logger
 atomic logger = do
   lock <- newMVar ()
   pure $
-    let raw' msg = takeMVar lock >> (raw logger msg `finally` putMVar lock ())
+    let raw' msg = bracket (takeMVar lock) (\_ -> putMVar lock ()) (\_ -> raw logger msg)
     in logger { raw = raw' }
 
 toHandle :: Handle -> Logger

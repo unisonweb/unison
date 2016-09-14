@@ -26,7 +26,7 @@ import qualified Unison.Runtime.ResourcePool as RP
 import qualified Unison.SerializationAndHashing as SAH
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
-import qualified Unison.Util.Logger as L
+-- import qualified Unison.Util.Logger as L
 
 indexT :: Ord v => Type v -> Type v -> Type v
 indexT k v = Type.ref (R.Builtin "Index") `Type.app` k `Type.app` v
@@ -57,7 +57,7 @@ pattern Link' href description <-
 make :: Eq a
      => Logger -> BlockStore a -> C.Cryptography k syk sk skp s h ByteString
      -> IO (WHNFEval -> [Builtin])
-make logger blockStore crypto = do
+make _ blockStore crypto = do
   let nextID = do
         cp <- C.randomBytes crypto 64
         ud <- C.randomBytes crypto 64

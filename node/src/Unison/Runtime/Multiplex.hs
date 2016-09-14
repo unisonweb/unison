@@ -5,7 +5,6 @@
 
 module Unison.Runtime.Multiplex where
 
-import System.IO (Handle, stdin, stdout, hFlush, hSetBinaryMode)
 import Control.Applicative
 import Control.Concurrent.Async (Async)
 import Control.Concurrent.MVar
@@ -33,13 +32,10 @@ import qualified Data.ByteArray as BA
 import qualified Data.ByteString as B
 import qualified Data.Bytes.Get as Get
 import qualified Data.Bytes.Put as Put
-import qualified Data.Serialize.Get as Get
 import qualified STMContainers.Map as M
 import qualified Unison.Cryptography as C
 import qualified Unison.Runtime.Queue as Q
 import qualified Unison.Util.Logger as L
-import qualified ListT
-import qualified Control.Monad.Morph as Morph
 
 data Packet = Packet { destination :: !B.ByteString, content :: !B.ByteString } deriving (Generic)
 instance Serial Packet
@@ -63,6 +59,21 @@ type Env =
 newtype Multiplex a = Multiplex (ReaderT Env IO a)
   deriving (Applicative, Alternative, Functor, Monad, MonadIO, MonadPlus, MonadReader Env)
 
+env0 :: L.Logger -> IO (Env, Maybe Packet -> IO (), IO (Maybe Packet), STM Bool)
+env0 logger = do
+  fresh <- uniqueChannel
+  output <- atomically Q.empty :: IO (Q.Queue (Maybe Packet))
+  input <- atomically newTQueue :: IO (TQueue (Maybe Packet))
+  cb0@(Callbacks m _) <- Callbacks <$> atomically M.new <*> atomically (newTVar 0)
+  recvs0 <- atomically M.new
+  let env = (Q.enqueue output . (Just <$>), cb0, fresh, recvs0, logger)
+      isActive = (||) <$> (not <$> M.null m) <*> (not <$> M.null recvs0)
+  _ <- run env (fork $ process (atomically (readTQueue input)))
+  pure ( env
+       , atomically . writeTQueue input
+       , atomically $ Q.dequeue output
+       , isActive )
+
 run :: Env -> Multiplex a -> IO a
 run env (Multiplex go) = runReaderT go env
 
@@ -71,105 +82,8 @@ liftLogged msg action = ask >>= \env -> liftIO $ catch action (handle env) where
   handle :: Env -> SomeException -> IO a
   handle env ex = run env (warn $ msg ++ " " ++ show ex) >> throwIO ex
 
--- | Run the multiplexed computation using stdin and stdout, terminating
--- after a period of inactivity exceeding sleepAfter. `rem` is prepended
--- onto stdin.
-runStandardIO :: L.Logger -> Microseconds -> B.ByteString -> IO ()
-              -> Multiplex a -> IO a
-runStandardIO logger sleepAfter rem interrupt m = do
-  hSetBinaryMode stdin True
-  hSetBinaryMode stdout True
-  fresh <- uniqueChannel
-  output <- atomically Q.empty :: IO (Q.Queue (Maybe Packet))
-  input <- atomically newTQueue :: IO (TQueue (Maybe Packet))
-  cb0@(Callbacks cbm cba) <- Callbacks <$> atomically M.new <*> atomically (newTVar 0)
-  recvs0 <- atomically M.new
-  let env = (Q.enqueue output . (Just <$>), cb0, fresh, recvs0, logger)
-  activity <- atomically $ newTVar 0
-  let bump = atomically $ modifyTVar' activity (1+)
-  _ <- Async.async $ do
-    interrupt
-    atomically $ writeTQueue input Nothing
-    L.info logger "interrupted"
-  _ <- Async.async $ do
-    let write pk _ = bump >> atomically (writeTQueue input (Just pk))
-    deserializeHandle stdin rem write
-    bump
-    atomically $ writeTQueue input Nothing
-    L.info logger "shutting down reader thread"
-  writer <- Async.async . repeatWhile $ do
-    logger <- pure $ L.scope "writer" logger
-    packet <- atomically $ Q.tryDequeue output :: IO (Maybe (Maybe Packet))
-    packet <- case packet of
-      -- writer is saturated, don't bother flushing output buffer
-      Just packet -> pure packet
-      -- writer not saturated; flush output buffer to avoid latency and/or deadlock
-      Nothing -> hFlush stdout >> atomically (Q.dequeue output)
-    B.putStr (Put.runPutS (serialize packet))
-    case packet of
-      Nothing -> False <$ L.info logger "writer shutting down"
-      Just packet -> do
-        L.debug logger $ "output packet " ++ show packet
-        True <$ bump
-  watchdog <- Async.async . repeatWhile $ do
-    activity0 <- (+) <$> readTVarIO activity <*> readTVarIO cba
-    C.threadDelay sleepAfter
-    activity1 <- (+) <$> readTVarIO activity <*> readTVarIO cba
-    nothingPending <- atomically $ M.null cbm
-    L.debug' (L.scope "watchdog" logger) $ do
-      keys <- fmap (map fst) . ListT.toList . Morph.hoist atomically . M.stream $ cbm
-      pure $ "current subscription keys: " ++ show (map Base64.encode keys)
-    L.debug (L.scope "watchdog" logger) $
-      "activity: " ++ show (activity0, activity1, nothingPending)
-    continue <- atomically $
-      if activity0 == activity1 && nothingPending then do
-        writeTQueue input Nothing
-        Q.enqueue output (pure Nothing)
-        pure False
-      else
-        pure True
-    when (not continue) $ L.info logger "watchdog shutting down"
-    pure continue
-  a <- run env m
-  processor <- Async.async $ do
-    run env (process $ atomically (readTQueue input))
-    L.info logger "processor shutting down"
-  Async.wait watchdog
-  -- Async.wait reader
-  Async.wait processor
-  Async.wait writer
-  L.info logger "Mux.runStandardIO shutdown"
-  pure a
-
-deserializeHandle :: Serial a => Handle -> B.ByteString -> (a -> Int -> IO ()) -> IO ()
-deserializeHandle h rem write = go (Get.runGetPartial deserialize rem) where
-  go dec = do
-    (a, n, rem') <- deserializeHandle1 h dec
-    write a (n + B.length rem)
-    go (Get.runGetPartial deserialize rem')
-
-deserializeHandle1' :: Serial a => Handle -> IO (a, Int, B.ByteString)
-deserializeHandle1' h = deserializeHandle1 h (Get.runGetPartial deserialize B.empty)
-
-deserializeHandle1 :: Handle -> Get.Result a -> IO (a, Int, B.ByteString)
-deserializeHandle1 h dec = go dec 0 where
-  go result !n = case result of
-    Get.Fail msg _ -> fail msg
-    Get.Partial k -> do
-      bs <- B.hGetSome h 65536
-      go (k bs) (n + B.length bs)
-    Get.Done a rem -> pure (a, n, rem)
-
 ask :: Multiplex Env
 ask = Multiplex Reader.ask
-
-bumpActivity :: Multiplex ()
-bumpActivity = do
-  (_, Callbacks _ cba, _, _, _) <- ask
-  liftIO $ bumpActivity' cba
-
-bumpActivity' :: TVar Word64 -> IO ()
-bumpActivity' cba = atomically $ modifyTVar' cba (1+)
 
 logger :: Multiplex L.Logger
 logger = do
@@ -193,7 +107,7 @@ debug msg = logger >>= \logger -> liftIO $ L.debug logger msg
 
 process :: IO (Maybe Packet) -> Multiplex ()
 process recv = scope "Mux.process" $ do
-  (_, Callbacks cbs cba, _, _, logger) <- ask
+  (_, Callbacks cbs _, _, _, logger) <- ask
   liftIO . repeatWhile $ do
     packet <- recv
     case packet of
@@ -206,7 +120,6 @@ process recv = scope "Mux.process" $ do
             pure True
           Just callback -> do
             L.warn logger $ "packet delivered @ " ++ show (Base64.encode destination)
-            bumpActivity' cba
             callback content
             pure True
 
@@ -362,10 +275,9 @@ send' (Channel _ key) a = do
 
 receiveCancellable :: Serial a => Channel a -> Multiplex (Multiplex a, String -> Multiplex ())
 receiveCancellable (Channel _ key) = do
-  (_,Callbacks cbs cba,_,_,_) <- ask
+  (_,Callbacks cbs _,_,_,_) <- ask
   result <- liftIO newEmptyMVar
   liftIO . atomically $ M.insert (putMVar result . Right) key cbs
-  liftIO $ bumpActivity' cba
   cancel <- pure $ \reason -> do
     liftIO . atomically $ M.delete key cbs
     liftIO $ putMVar result (Left $ "Mux.cancelled: " ++ reason)
@@ -449,10 +361,9 @@ subscribeTimed micros chan = do
 
 subscribe :: Serial a => Channel a -> Multiplex (Multiplex a, Multiplex ())
 subscribe (Channel _ key) = scope "subscribe" $ do
-  (_, Callbacks cbs cba, _, _, _) <- ask
+  (_, Callbacks cbs _, _, _, _) <- ask
   q <- liftIO . atomically $ newTQueue
   liftIO . atomically $ M.insert (atomically . writeTQueue q) key cbs
-  liftIO $ bumpActivity' cba
   unsubscribe <- pure . liftIO . atomically . M.delete key $ cbs
   force <- pure $ do
     bytes <- liftIO . atomically $ readTQueue q

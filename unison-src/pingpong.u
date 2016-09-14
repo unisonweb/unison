@@ -6,11 +6,11 @@ do Remote
   n2 := Remote.spawn;
   let rec
     ping i = do Remote
-      i := Remote.at n2 (i + 1); 
-      if (i >= 5) (pure i) (pong i);;
+      i := Remote.at n2 (i + 1);
+      if (i >=_Number 5) (pure i) (pong i);;
     ;
-    pong i = do Remote 
-      i := Remote.at n1 (i + 1); 
+    pong i = do Remote
+      i := Remote.at n1 (i + 1);
       ping i;;
     ;
     ping 0;;

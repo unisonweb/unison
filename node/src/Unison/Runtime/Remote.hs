@@ -4,6 +4,7 @@
 
 module Unison.Runtime.Remote where
 
+import Control.Concurrent.Async (Async)
 import Data.Functor
 import Data.Maybe
 import Control.Monad
@@ -107,10 +108,10 @@ server :: (Ord h, Serial key, Serial t, Show t, Serial h)
        -> Env t h
        -> Language t h
        -> P.Protocol t hash h' h
-       -> Multiplex ()
+       -> Multiplex (Async ())
 server crypto allow env lang p = do
   (accept,_) <- Mux.subscribeTimed (Mux.seconds 60) (Mux.erase (P._eval p))
-  void . Mux.fork . Mux.repeatWhile $ do
+  Mux.fork . Mux.repeatWhile $ do
     initialPayload <- accept
     case initialPayload of
       Nothing -> pure False
