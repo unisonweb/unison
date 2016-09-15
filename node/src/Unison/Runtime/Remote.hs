@@ -195,9 +195,9 @@ handle crypto allow env lang p r = Mux.debug (show r) >> case r of
     Mux.debug $ "runLocal Pure"
     liftIO $ eval lang t
   runLocal (Send c@(Channel cid) a) = do
-    Mux.warn $ "runLocal Send " ++ show c ++ " " ++ show a
+    Mux.debug $ "runLocal Send " ++ show c ++ " " ++ show a
     a <- liftIO $ eval lang a
-    Mux.warn $ "runLocal Send[2] " ++ show c ++ " " ++ show a
+    Mux.debug $ "runLocal Send[2] " ++ show c ++ " " ++ show a
     Mux.process1 (Mux.Packet cid (Put.runPutS (serialize a)))
     pure (unit lang)
   runLocal (Sleep (Seconds seconds)) = do

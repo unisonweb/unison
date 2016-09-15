@@ -121,7 +121,7 @@ process recv = scope "Mux.process" $ do
             L.warn logger $ "dropped packet @ " ++ show (Base64.encode destination)
             pure True
           Just callback -> do
-            L.warn logger $ "packet delivered @ " ++ show (Base64.encode destination)
+            L.debug logger $ "packet delivered @ " ++ show (Base64.encode destination)
             callback content
             pure True
 

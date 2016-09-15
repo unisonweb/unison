@@ -1,0 +1,11 @@
+
+do Remote
+  root := Remote.spawn;
+  Remote.transfer root;
+  ind := DIndex.empty;
+  nodes := Remote.replicate 10 Remote.spawn;
+  Remote.traverse (node -> Remote.at' node (DIndex.join ind)) nodes;
+  DIndex.insert "It's..." "ALIIIVE!!!!" ind;
+  -- Remote.parallel-traverse DIndex.Timeout (k -> DIndex.insert k k ind) (Vector.range 0 5);
+  r := DIndex.lookup "It's..." ind;
+  pure (Debug.watch "result" r);;

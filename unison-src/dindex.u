@@ -35,9 +35,7 @@ DIndex.lookup k ind = do Remote
                   nind;;)
   ;
   -- todo: use Remote.quorum here
-  -- Remote.race DIndex.Timeout <| Vector.map localLookup nodes;;
-  rs := Remote.traverse localLookup nodes;
-  pure (Vector.at 0 rs |> Optional.bind identity);;
+  Remote.race DIndex.Timeout <| Vector.map localLookup nodes;;
 ;
 
 DIndex.insert : ∀ k v . k -> v -> DIndex k v -> Remote Unit;
@@ -86,6 +84,7 @@ DIndex.rebalance k ind = do Remote
                        ov;;)
   ;;
 ;
+
 DIndex.leave : ∀ k v . Node -> DIndex k v -> Remote Unit;
 DIndex.leave node ind = do Remote
   local-ind := Index.lookup node ind;
