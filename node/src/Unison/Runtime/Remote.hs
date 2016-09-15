@@ -177,8 +177,8 @@ handle crypto allow env lang p r = Mux.debug (show r) >> case r of
          client crypto allow env p n r
          Mux.debug $ "transferred to node: " ++ show n
   runLocal (Fork r) = do
-    Mux.debug $ "runLocal Fork"
-    Mux.fork (handle crypto allow env lang p r) $> unit lang
+    Mux.info $ "runLocal Fork"
+    unit lang <$ Mux.fork (handle crypto allow env lang p r)
   runLocal CreateChannel = do
     Mux.debug $ "runLocal CreateChannel"
     channel lang . Channel . Mux.channelId <$> Mux.channel
@@ -195,9 +195,14 @@ handle crypto allow env lang p r = Mux.debug (show r) >> case r of
     Mux.debug $ "runLocal Pure"
     liftIO $ eval lang t
   runLocal (Send c@(Channel cid) a) = do
-    Mux.debug $ "runLocal Send " ++ show c ++ " " ++ show a
+    Mux.warn $ "runLocal Send " ++ show c ++ " " ++ show a
     a <- liftIO $ eval lang a
+    Mux.warn $ "runLocal Send[2] " ++ show c ++ " " ++ show a
     Mux.process1 (Mux.Packet cid (Put.runPutS (serialize a)))
+    pure (unit lang)
+  runLocal (Sleep (Seconds seconds)) = do
+    let micros = floor $ seconds * 1000 * 1000
+    liftIO $ C.threadDelay micros
     pure (unit lang)
   runLocal (ReceiveAsync chan@(Channel cid) (Seconds seconds)) = do
     Mux.debug $ "runLocal ReceiveAsync " ++ show (seconds, chan)

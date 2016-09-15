@@ -27,26 +27,26 @@ rest p = Pair.fold (x y -> y) p;
 4th = rest `then` (rest `then` (rest `then` first));
 5th = rest `then` (rest `then` (rest `then` (rest `then` first)));
 
-set-1st : ∀ a a2 b . a2 -> Pair a b -> Pair a2 b; 
+set-1st : ∀ a a2 b . a2 -> Pair a b -> Pair a2 b;
 set-1st new-first p = Pair new-first (rest p);
 
 Order.compare : ∀ a . Order a -> a -> a -> Comparison;
 Order.compare o a1 a2 = Order.Key.compare (Order.key o a1) (Order.key o a2);
 
 Order.tuple2 : ∀ a b . Order a -> Order b -> Order (a,b);
-Order.tuple2 a b = Pair.Order a (Pair.Order b Unit.Order); 
+Order.tuple2 a b = Pair.Order a (Pair.Order b Unit.Order);
 
 Order.tuple3 : ∀ a b c . Order a -> Order b -> Order c -> Order (a,b,c);
-Order.tuple3 a b c = Pair.Order a (Pair.Order b (Pair.Order c Unit.Order)); 
+Order.tuple3 a b c = Pair.Order a (Pair.Order b (Pair.Order c Unit.Order));
 
 Order.by-1st : ∀ a b . Order a -> Order (Pair a b);
-Order.by-1st a = Pair.Order a Order.ignore; 
+Order.by-1st a = Pair.Order a Order.ignore;
 
 Order.by-2nd : ∀ a b c . Order b -> Order (Pair a (Pair b c));
-Order.by-2nd b = Pair.Order Order.ignore (Pair.Order b Order.ignore); 
+Order.by-2nd b = Pair.Order Order.ignore (Pair.Order b Order.ignore);
 
 Order.by-3rd : ∀ a b c d . Order c -> Order (Pair a (Pair b (Pair c d)));
-Order.by-3rd c = Pair.Order Order.ignore (Pair.Order Order.ignore (Pair.Order c Order.ignore)); 
+Order.by-3rd c = Pair.Order Order.ignore (Pair.Order Order.ignore (Pair.Order c Order.ignore));
 
 Vector.bind : ∀ a b . (a -> Vector b) -> Vector a -> Vector b;
 Vector.bind f v = Vector.fold-balanced Vector.concatenate Vector.empty (Vector.map f v);
@@ -60,14 +60,14 @@ Vector.fold-right : ∀ a b . (a -> b -> b) -> b -> Vector a -> b;
 Vector.fold-right f z vs = Vector.fold-left (flip f) z (Vector.reverse vs);
 
 Vector.fold-balanced : ∀ a . (a -> a -> a) -> a -> Vector a -> a;
-Vector.fold-balanced plus zero vs = 
+Vector.fold-balanced plus zero vs =
   let rec
-    go plus zero vs = 
-      if (Vector.size vs <=_Number 2) 
+    go plus zero vs =
+      if (Vector.size vs <=_Number 2)
          (Vector.fold-left plus zero vs)
          (let p = Vector.halve vs;
               go plus zero (1st p) `plus` go plus zero (2nd p);;);
-    go plus zero vs;; 
+    go plus zero vs;;
   ;
 
 Vector.all? : ∀ a . (a -> Boolean) -> Vector a -> Boolean;
@@ -83,10 +83,10 @@ Remote.map : ∀ a b . (a -> b) -> Remote a -> Remote b;
 Remote.map f = Remote.bind (f `then` Remote.pure);
 
 Remote.map2 : ∀ a b c . (a -> b -> c) -> Remote a -> Remote b -> Remote c;
-Remote.map2 f a b = do Remote 
+Remote.map2 f a b = do Remote
   a := a;
   b := b;
-  pure (f a b);; 
+  pure (f a b);;
 ;
 
 Remote.map2' : ∀ a b c . (a -> b -> Remote c) -> Remote a -> Remote b -> Remote c;
@@ -99,11 +99,11 @@ Remote.replicate : ∀ a . Number -> Remote a -> Remote (Vector a);
 Remote.replicate n r = Remote.sequence (Vector.replicate n r);
 
 Remote.unfold : ∀ s a . s -> (s -> Remote (Optional (a, s))) -> Remote (Vector a);
-Remote.unfold s f = let rec 
+Remote.unfold s f = let rec
   go s acc = do Remote
     ht := f s;
-    ht |> Optional.fold 
-      (pure acc) 
+    ht |> Optional.fold
+      (pure acc)
       (ht -> go (2nd ht) (Vector.append (1st ht) acc));;
   ;
   go s Vector.empty;;
@@ -118,18 +118,18 @@ Remote.race timeout rs = do Remote
   c := Remote.channel;
   result := Remote.receive-async c timeout;
   Remote.traverse
-    (r -> Remote.fork <| do Remote a := r; Remote.transfer here; Remote.send c a;;) 
+    (r -> Remote.fork <| do Remote a := r; Remote.transfer here; Remote.send c a;;)
     rs;
   result;;
 ;
 
--- Returns `None` if no response within the provided `timeout`, 
+-- Returns `None` if no response within the provided `timeout`,
 -- which cannot exceed 500 seconds
 Remote.timeout : ∀ a . Duration -> Remote a -> Remote (Optional a);
-Remote.timeout timeout r = 
+Remote.timeout timeout r =
   Remote.race (Duration.seconds 501) [
     Remote.map Some r,
-    do Remote Remote.delay timeout; pure None;;
+    do Remote Remote.sleep timeout; pure None;;
   ];
 
 Remote.at' : ∀ a . Node -> Remote a -> Remote a;
@@ -140,7 +140,7 @@ Remote.start timeout r = do Remote
   here := Remote.here;
   c := Remote.channel;
   result := Remote.receive-async c timeout;
-  Remote.fork (Remote.at' here (r |> Remote.bind (Remote.send c)));  
+  Remote.fork (Remote.at' here (r |> Remote.bind (Remote.send c)));
   pure result;;
 ;
 
@@ -151,7 +151,7 @@ Remote.traverse f vs =
                        (Vector.map (f `then` Remote.map Vector.single) vs);
 
 Remote.sequence : ∀ a . Vector (Remote a) -> Remote (Vector a);
-Remote.sequence vs = 
+Remote.sequence vs =
   Vector.fold-balanced (Remote.map2 Vector.concatenate)
                        (Remote.pure Vector.empty)
                        (Vector.map (Remote.map Vector.single) vs);
@@ -163,10 +163,10 @@ Remote.parallel-traverse timeout f vs = do Remote
 ;
 
 -- Run several remote computations in parallel, returning once `n` equivalent
--- replies come back. Equivalence is based on result of `hash!`. 
+-- replies come back. Equivalence is based on result of `hash!`.
 Remote.quorum : ∀ a b . Duration -> Number -> (a -> Remote b) -> Vector a -> Remote b;
 Remote.quorum timeout n = _; -- todo
-  
+
 Optional.map : ∀ a b . (a -> b) -> Optional a -> Optional b;
 Optional.map f = Optional.fold None (f `then` Some);
 
@@ -183,7 +183,7 @@ Optional.somes : ∀ a . Vector (Optional a) -> Vector a;
 Optional.somes = Vector.bind (Optional.fold Vector.empty Vector.single);
 
 Optional.map2 : ∀ a b c . (a -> b -> c) -> Optional a -> Optional b -> Optional c;
-Optional.map2 f a b = do Optional 
+Optional.map2 f a b = do Optional
   a := a;
   b := b;
   pure (f a b);;

@@ -180,13 +180,13 @@ makeBuiltins logger whnf =
        in (r, Just (I.Primop 1 op), unsafeParseType "Number -> Duration", prefix "Duration.seconds")
 
      -- Remote
-     , let r = R.Builtin "Remote.delay"
+     , let r = R.Builtin "Remote.sleep"
            op [seconds] = do
              Term.Number' seconds <- whnf seconds
-             N.lift $ threadDelay (floor $ seconds * 1000 * 1000)
-             pure $ Term.remote (Remote.Step (Remote.Local (Remote.Pure unitRef)))
-           op _ = fail "Remote.at unpossible"
-       in (r, Just (I.Primop 1 op), unsafeParseType "Duration -> Remote Unit", prefix "Remote.delay")
+             let s = Remote.Seconds seconds
+             pure $ Term.remote (Remote.Step (Remote.Local (Remote.Sleep s)))
+           op _ = fail "Remote.sleep unpossible"
+       in (r, Just (I.Primop 1 op), unsafeParseType "Duration -> Remote Unit", prefix "Remote.sleep")
      , let r = R.Builtin "Remote.at"
            op [node,term] = do
              Term.Distributed' (Term.Node node) <- whnf node

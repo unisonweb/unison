@@ -100,8 +100,10 @@ data Local t
   | CreateChannel
   -- here : Local Node
   | Here
-  -- receiveAsync : Channel a -> Local (Local a)
-  | ReceiveAsync Channel Timeout
+  -- sleep : Duration -> Local ()
+  | Sleep Duration
+  -- receiveAsync : Channel a -> Duration -> Local (Local a)
+  | ReceiveAsync Channel Duration
   -- receive : Channel a -> Local a
   | Receive Channel
   -- send : Channel a -> a -> Local ()
@@ -127,10 +129,10 @@ instance Hashable1 Local where
       hashed1 = H.Hashed . (H.hash1 hashCycle hash)
       hashed = H.Hashed . hash
 
-newtype Timeout = Seconds { seconds :: Double } deriving (Eq,Ord,Show,Generic)
-instance ToJSON Timeout
-instance FromJSON Timeout
-instance Hashable Timeout where
+newtype Duration = Seconds { seconds :: Double } deriving (Eq,Ord,Show,Generic)
+instance ToJSON Duration
+instance FromJSON Duration
+instance Hashable Duration where
   tokens (Seconds seconds) = [H.Double seconds]
 
 

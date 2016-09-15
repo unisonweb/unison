@@ -280,10 +280,10 @@ receiveCancellable' :: Channel a
 receiveCancellable' chan@(Channel _ key) = do
   (_,Callbacks cbs _,_,_,_) <- ask
   result <- liftIO newEmptyMVar
-  liftIO . atomically $ M.insert (putMVar result . Right) key cbs
+  liftIO . atomically $ M.insert (void . tryPutMVar result . Right) key cbs
   cancel <- pure $ \reason -> do
     liftIO . atomically $ M.delete key cbs
-    liftIO $ putMVar result (Left $ "Mux.cancelled: " ++ reason)
+    liftIO . void $ tryPutMVar result (Left $ "Mux.cancelled: " ++ reason)
   force <- pure . scope (show chan) . scope "receiveCancellable" $ do
     info "awaiting result"
     bytes <- liftIO $ takeMVar result

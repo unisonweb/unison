@@ -11,6 +11,6 @@ instance Serial1 Step
 instance Serial1 Local
 instance Serial t => Serial (Step t)
 instance Serial t => Serial (Local t)
-instance Serial Timeout
+instance Serial Duration
 instance Serial Node
 instance Serial Channel

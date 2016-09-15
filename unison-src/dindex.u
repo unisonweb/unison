@@ -30,7 +30,7 @@ DIndex.lookup k ind = do Remote
     nind := Index.lookup node ind;
     -- on slim chance that a Node is removed from the cluster just before
     -- we do the lookup, it gets treated like a timeout
-    Optional.fold (Remote.map (const None) (Remote.delay DIndex.Timeout))
+    Optional.fold (Remote.map (const None) (Remote.sleep DIndex.Timeout))
                   (Index.lookup k)
                   nind;;)
   ;
@@ -45,7 +45,7 @@ DIndex.insert k v ind = do Remote
   nodes := DIndex.nodesForKey k ind;
   localInsert = node -> (do Remote
     nind := Index.lookup node ind;
-    Optional.fold (Remote.map (const Unit) (Remote.delay DIndex.Timeout))
+    Optional.fold (Remote.map (const Unit) (Remote.sleep DIndex.Timeout))
                   (Index.insert k v)
                   nind;;)
   ;
