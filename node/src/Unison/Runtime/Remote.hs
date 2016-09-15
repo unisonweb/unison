@@ -195,22 +195,22 @@ handle crypto allow env lang p r = Mux.debug (show r) >> case r of
     Mux.debug $ "runLocal Pure"
     liftIO $ eval lang t
   runLocal (Send c@(Channel cid) a) = do
-    Mux.warn $ "runLocal Send " ++ show c ++ " " ++ show a
+    Mux.debug $ "runLocal Send " ++ show c ++ " " ++ show a
     Mux.process1 (Mux.Packet cid (Put.runPutS (serialize a)))
     pure (unit lang)
   runLocal (ReceiveAsync chan@(Channel cid) (Seconds seconds)) = do
-    Mux.warn $ "runLocal ReceiveAsync " ++ show (seconds, chan)
+    Mux.debug $ "runLocal ReceiveAsync " ++ show (seconds, chan)
     forceChan <- Mux.channel
-    Mux.warn $ "ReceiveAsync force channel " ++ show forceChan
+    Mux.debug $ "ReceiveAsync force channel " ++ show forceChan
     let micros = floor $ seconds * 1000 * 1000
     force <- Mux.receiveTimed' ("receiveAsync on " ++ show chan)
       micros ((Mux.Channel Mux.Type cid) :: Mux.Channel B.ByteString)
     Mux.saveReceive micros (Mux.channelId forceChan) force
     pure (remote lang (Step (Local (Receive (Channel $ Mux.channelId forceChan)))))
   runLocal (Receive chan@(Channel cid)) = do
-    Mux.warn $ "runLocal Receive " ++ show chan
+    Mux.debug $ "runLocal Receive " ++ show chan
     bytes <- Mux.restoreReceive cid
-    Mux.warn $ "runLocal Receive got bytes " ++ show chan
+    Mux.debug $ "runLocal Receive got bytes " ++ show chan
     case Get.runGetS deserialize bytes of
       Left err -> fail err
       Right r -> pure r
