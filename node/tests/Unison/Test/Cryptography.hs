@@ -17,7 +17,7 @@ cryptoTest = do
   let decypheredtext = C.decrypt crypto symkey cyphertext
   case decypheredtext of
     Left _ -> fail "Roundtrip encryption failure."
-    Right d -> return $ assertEqual "Original cleartext is not equal to decrypted message." d cleartext
+    Right d -> return $ assertEqual "Original cleartext is not equal to decrypted message." cleartext d
 
 ioTests :: IO TestTree
 ioTests = fmap (testCase "Cryptography roundtrip test.") cryptoTest

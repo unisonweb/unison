@@ -9,14 +9,11 @@ import qualified Data.ByteArray as BA
 import qualified Crypto.Random as R
 import qualified Crypto.Cipher.ChaCha as ChaCha
 
-nonce' :: IO ByteString
-nonce' = randomBytes' 8
-
 numRounds :: Int
 numRounds = 20
 
-nonce'' :: ByteString
-nonce'' = BS8.pack "\xe1\x04\x7b\xa9\x47\x6b\xf8\xff"
+nonceSize :: Int
+nonceSize = 12
 
 -- Creates a Unison.Cryptography object specialized to use the noise protocol
 -- (http://noiseprotocol.org/noise.html).
@@ -30,14 +27,16 @@ noise key = Cryptography key gen hash sign verify randomBytes encryptAsymmetric 
   randomBytes = randomBytes'
   encryptAsymmetric _ cleartext = undefined
   decryptAsymmetric ciphertext = undefined
-  encrypt sk bss = do let cleartext = BA.concat bss
-                          chacha = ChaCha.initialize numRounds sk nonce''
-                          (cyphertext, _) = ChaCha.combine chacha cleartext
-                      return cyphertext
-  decrypt sk bs = Right $ let chacha = ChaCha.initialize numRounds sk nonce''
-                              ba = BA.pack . BS.unpack $ bs
-                              (cleartext, _) = ChaCha.combine chacha ba
-                          in cleartext
+  encrypt sk bss = do nonce <- randomBytes' nonceSize
+                      let cleartext = BA.concat bss
+                          chacha = ChaCha.initialize numRounds sk nonce
+                          (ciphertext, _) = ChaCha.combine chacha cleartext
+                          fct = BS.append nonce ciphertext -- add the nonce to the front of the ciphertext to produce the final ciphertext
+                      return fct
+  decrypt sk bs = let (nonce, ciphertext) = BS.splitAt nonceSize bs -- nonce is stored at the beginning of the ciphertext
+                      chacha = ChaCha.initialize numRounds sk nonce
+                      (cleartxt, _) = ChaCha.combine chacha ciphertext
+                  in Right $ (BA.pack . BS.unpack) cleartxt
   pipeInitiator _ = undefined
   pipeResponder = undefined
 
