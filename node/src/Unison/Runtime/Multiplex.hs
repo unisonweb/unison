@@ -96,9 +96,11 @@ scope msg = local tweak where
 
 -- | Crash with a message. Include the current logging scope.
 crash :: String -> Multiplex a
-crash msg = scope msg $ do
-  l <- logger
-  fail (show $ L.getScope l)
+crash msg = do
+  warn msg
+  scope msg $ do
+    l <- logger
+    fail (show $ L.getScope l)
 
 info, warn, debug :: String -> Multiplex ()
 info msg = logger >>= \logger -> liftIO $ L.info logger msg
@@ -273,28 +275,42 @@ send' (Channel _ key) a = do
   ~(send,_,_,_,_) <- ask
   liftIO . atomically $ send (Packet key . Put.runPutS . serialize <$> a)
 
-receiveCancellable :: Serial a => Channel a -> Multiplex (Multiplex a, String -> Multiplex ())
-receiveCancellable (Channel _ key) = do
+receiveCancellable' :: Channel a
+                    -> Multiplex (Multiplex B.ByteString, String -> Multiplex ())
+receiveCancellable' chan@(Channel _ key) = do
   (_,Callbacks cbs _,_,_,_) <- ask
   result <- liftIO newEmptyMVar
   liftIO . atomically $ M.insert (putMVar result . Right) key cbs
   cancel <- pure $ \reason -> do
     liftIO . atomically $ M.delete key cbs
     liftIO $ putMVar result (Left $ "Mux.cancelled: " ++ reason)
-  force <- pure . scope "receiveCancellable" $ do
+  force <- pure . scope (show chan) . scope "receiveCancellable" $ do
+    info "awaiting result"
     bytes <- liftIO $ takeMVar result
+    info "got result"
     bytes <- either crash pure bytes
-    either crash pure $ Get.runGetS deserialize bytes
+    info "got result bytes"
+    pure bytes
   pure (force, cancel)
 
-receiveTimed :: Serial a => String -> Microseconds -> Channel a -> Multiplex (Multiplex a)
-receiveTimed msg micros chan = do
-  (force, cancel) <- receiveCancellable chan
+receiveCancellable :: Serial a => Channel a -> Multiplex (Multiplex a, String -> Multiplex ())
+receiveCancellable chan@(Channel _ key) = f <$> receiveCancellable' chan where
+  f (get, cancel) = (g =<< get, cancel)
+  g bytes = either crash pure $ Get.runGetS deserialize bytes
+
+receiveTimed' :: String -> Microseconds -> Channel a -> Multiplex (Multiplex B.ByteString)
+receiveTimed' msg micros chan = do
+  (force, cancel) <- receiveCancellable' chan
   env <- ask
   watchdog <- liftIO . C.forkIO $ do
     liftIO $ C.threadDelay micros
     run env (cancel $ "receiveTimed timeout during " ++ msg)
   pure $ scope "receiveTimed" (force <* liftIO (C.killThread watchdog) <* cancel ("receiveTimed completed" ++ msg))
+
+receiveTimed :: Serial a => String -> Microseconds -> Channel a -> Multiplex (Multiplex a)
+receiveTimed msg micros chan = tweak <$> receiveTimed' msg micros chan where
+  tweak bytes = tweak' =<< bytes
+  tweak' bytes = either crash pure $ Get.runGetS deserialize bytes
 
 -- Save a receive future as part of
 saveReceive :: Microseconds
