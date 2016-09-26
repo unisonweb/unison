@@ -42,7 +42,7 @@ term2 :: Var v => Parser (S v) (Term v)
 term2 = let_ term3 <|> term3
 
 term3 :: Var v => Parser (S v) (Term v)
-term3 = infixApp term4 <|> term4
+term3 = ifthen <|> infixApp term4 <|> term4
 
 infixApp :: Var v => Parser (S v) (Term v) -> Parser (S v) (Term v)
 infixApp p = f <$> arg <*> some ((,) <$> infixVar <*> arg)
@@ -61,6 +61,17 @@ term5 = lam term <|> effectBlock <|> termLeaf
 
 termLeaf :: Var v => Parser (S v) (Term v)
 termLeaf = asum [hashLit, prefixTerm, lit, tupleOrParenthesized term, blank, vector term]
+
+ifthen :: Var v => Parser (S v) (Term v)
+ifthen = do
+  _ <- token (string "if")
+  scope "if-then-else" . commit $ do
+    cond <- attempt term
+    _ <- token (string "then")
+    iftrue <- attempt term
+    _ <- token (string "else")
+    iffalse <- term
+    pure (Term.apps (Term.lit Term.If) [cond, iftrue, iffalse])
 
 tupleOrParenthesized :: Var v => Parser (S v) (Term v) -> Parser (S v) (Term v)
 tupleOrParenthesized rec =
@@ -198,7 +209,7 @@ prefixTerm :: Var v => Parser (S v) (Term v)
 prefixTerm = Term.var <$> prefixVar
 
 keywords :: [String]
-keywords = ["alias", "do", "let", "rec", "in", "->", ":", "=", "where"]
+keywords = ["alias", "do", "let", "rec", "in", "->", ":", "=", "where", "else", "then"]
 
 lam :: Var v => Parser (S v) (Term v) -> Parser (S v) (Term v)
 lam p = Term.lam'' <$> vars <* arrow <*> body

@@ -3,8 +3,8 @@ identity a = a;
 
 const x y = x;
 
-then : ∀ a b c . (a -> b) -> (b -> c) -> a -> c;
-then f1 f2 x = f2 (f1 x);
+and-then : ∀ a b c . (a -> b) -> (b -> c) -> a -> c;
+and-then f1 f2 x = f2 (f1 x);
 
 (|>) : ∀ a b . a -> (a -> b) -> b;
 a |> f = f a;
@@ -22,10 +22,10 @@ rest : ∀ a b . Pair a b -> b;
 rest p = Pair.fold (x y -> y) p;
 
 1st = first;
-2nd = rest `then` first;
-3rd = rest `then` (rest `then` first);
-4th = rest `then` (rest `then` (rest `then` first));
-5th = rest `then` (rest `then` (rest `then` (rest `then` first)));
+2nd = rest `and-then` first;
+3rd = rest `and-then` (rest `and-then` first);
+4th = rest `and-then` (rest `and-then` (rest `and-then` first));
+5th = rest `and-then` (rest `and-then` (rest `and-then` (rest `and-then` first)));
 
 set-1st : ∀ a a2 b . a2 -> Pair a b -> Pair a2 b;
 set-1st new-first p = Pair new-first (rest p);
@@ -63,10 +63,10 @@ Vector.fold-balanced : ∀ a . (a -> a -> a) -> a -> Vector a -> a;
 Vector.fold-balanced plus zero vs =
   let rec
     go plus zero vs =
-      if (Vector.size vs <=_Number 2)
-         (Vector.fold-left plus zero vs)
-         (let p = Vector.halve vs;
-              go plus zero (1st p) `plus` go plus zero (2nd p);;);
+      if Vector.size vs <=_Number 2
+      then Vector.fold-left plus zero vs
+      else (let p = Vector.halve vs;
+                go plus zero (1st p) `plus` go plus zero (2nd p);;);
     go plus zero vs;;
   ;
 
@@ -74,13 +74,13 @@ Vector.all? : ∀ a . (a -> Boolean) -> Vector a -> Boolean;
 Vector.all? f vs = Vector.fold-balanced and True (Vector.map f vs);
 
 Vector.sort : ∀ k a . Order k -> (a -> k) -> Vector a -> Vector a;
-Vector.sort ok f v = Vector.sort-keyed (f `then` Order.key ok) v;
+Vector.sort ok f v = Vector.sort-keyed (f `and-then` Order.key ok) v;
 
 Vector.sort' : ∀ a . Order a -> Vector a -> Vector a;
 Vector.sort' o = Vector.sort o identity;
 
 Remote.map : ∀ a b . (a -> b) -> Remote a -> Remote b;
-Remote.map f = Remote.bind (f `then` Remote.pure);
+Remote.map f = Remote.bind (f `and-then` Remote.pure);
 
 Remote.map2 : ∀ a b c . (a -> b -> c) -> Remote a -> Remote b -> Remote c;
 Remote.map2 f a b = do Remote
@@ -148,7 +148,7 @@ Remote.traverse : ∀ a b . (a -> Remote b) -> Vector a -> Remote (Vector b);
 Remote.traverse f vs =
   Vector.fold-balanced (Remote.map2 Vector.concatenate)
                        (Remote.pure Vector.empty)
-                       (Vector.map (f `then` Remote.map Vector.single) vs);
+                       (Vector.map (f `and-then` Remote.map Vector.single) vs);
 
 Remote.sequence : ∀ a . Vector (Remote a) -> Remote (Vector a);
 Remote.sequence vs =
@@ -158,7 +158,7 @@ Remote.sequence vs =
 
 Remote.parallel-traverse : ∀ a b . Duration -> (a -> Remote b) -> Vector a -> Remote (Vector b);
 Remote.parallel-traverse timeout f vs = do Remote
-  futures := Remote.traverse (f `then` Remote.start timeout) vs;
+  futures := Remote.traverse (f `and-then` Remote.start timeout) vs;
   Remote.sequence futures;;
 ;
 
@@ -168,7 +168,7 @@ Remote.quorum : ∀ a b . Duration -> Number -> (a -> Remote b) -> Vector a -> R
 Remote.quorum timeout n = _; -- todo
 
 Optional.map : ∀ a b . (a -> b) -> Optional a -> Optional b;
-Optional.map f = Optional.fold None (f `then` Some);
+Optional.map f = Optional.fold None (f `and-then` Some);
 
 Optional.bind : ∀ a b . (a -> Optional b) -> Optional a -> Optional b;
 Optional.bind f = Optional.fold None f;
@@ -190,7 +190,7 @@ Optional.map2 f a b = do Optional
 ;
 
 Either.map : ∀ a b c . (b -> c) -> Either a b -> Either a c;
-Either.map f = Either.fold Left (f `then` Right);
+Either.map f = Either.fold Left (f `and-then` Right);
 
 Either.pure : ∀ a b . b -> Either a b;
 Either.pure = Right;

@@ -45,11 +45,13 @@ import qualified Unison.Remote as Remote
 data Literal
   = Number Double
   | Text Text
+  | If
   deriving (Eq,Ord,Generic)
 
 instance Hashable Literal where
   tokens (Number d) = [Hashable.Tag 0, Hashable.Double d]
   tokens (Text txt) = [Hashable.Tag 1, Hashable.Text txt]
+  tokens If = [Hashable.Tag 2]
 
 -- | Base functor for terms in the Unison language
 data F v a
@@ -119,6 +121,7 @@ pattern Var' v <- ABT.Var' v
 pattern Lit' l <- (ABT.out -> ABT.Tm (Lit l))
 pattern Number' n <- Lit' (Number n)
 pattern Text' s <- Lit' (Text s)
+pattern If' <- Lit' If
 pattern Blank' <- (ABT.out -> ABT.Tm Blank)
 pattern Ref' r <- (ABT.out -> ABT.Tm (Ref r))
 pattern Builtin' r <- (ABT.out -> ABT.Tm (Ref (Builtin r)))
@@ -334,6 +337,7 @@ instance (Ord v, FromJSON v) => J.FromJSON1 (F v) where parseJSON1 j = Aeson.par
 
 instance Show Literal where
   show (Text t) = show t
+  show If = "if"
   show (Number n) = case floor n of
     m | fromIntegral m == n -> show (m :: Int)
     _ -> show n

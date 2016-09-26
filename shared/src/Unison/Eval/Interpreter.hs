@@ -9,6 +9,7 @@ import Unison.Eval
 import Unison.Term (Term)
 import Unison.Var (Var)
 import qualified Data.Map as M
+import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.Reference as R
 import qualified Unison.Term as E
@@ -30,6 +31,14 @@ eval env = Eval whnf step
     reduce resolveRef f args = do
       f <- whnf resolveRef f
       case f of
+        E.If' -> case take 3 args of
+          [cond,t,f] -> do
+            cond <- whnf resolveRef cond
+            case cond of
+              E.Builtin' c | Text.head c == 'F' -> pure . Just $ foldl E.app f (drop 3 args)
+                           | otherwise -> pure . Just $ foldl E.app t (drop 3 args)
+              _ -> pure Nothing
+          _ -> pure Nothing
         E.Ref' h -> case M.lookup h env of
           Nothing -> pure Nothing
           Just op | length args >= arity op ->
@@ -64,11 +73,20 @@ eval env = Eval whnf step
         Just op | arity op == 0 -> call op []
         _ -> pure e
       E.Ann' e _ -> whnf resolveRef e
+      E.Apps' E.If' (cond:t:f:tl) -> do
+        cond <- whnf resolveRef cond
+        case cond of
+          E.Builtin' b | Text.head b == 'F' -> whnf resolveRef f >>= \f -> whnf resolveRef (f `E.apps` tl)
+                       | otherwise -> whnf resolveRef t >>= \t -> whnf resolveRef (t `E.apps` tl)
+          _ -> pure e
       E.App' f x -> do
         f' <- E.link resolveRef f
+        x <- whnf resolveRef x
         e' <- reduce resolveRef f' [x]
-        maybe (pure e) (whnf resolveRef) e'
-      E.Let1' binding body -> whnf resolveRef (ABT.bind body binding)
+        maybe (pure $ f' `E.app` x) (whnf resolveRef) e'
+      E.Let1' binding body -> do
+        binding <- whnf resolveRef binding
+        whnf resolveRef (ABT.bind body binding)
       E.LetRecNamed' bs body -> whnf resolveRef (ABT.substs substs body) where
         expandBinding v (E.LamNamed' name body) = E.lam name (expandBinding v body)
         expandBinding v body = ABT.substs substs' body

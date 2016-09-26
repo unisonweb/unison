@@ -477,10 +477,11 @@ annotateLetRecBindings letrec = do
   pure $ (marker, body)
 
 -- | Infer the type of a literal
-synthLit :: Ord v => Term.Literal -> Type v
-synthLit lit = Type.lit $ case lit of
-  Term.Number _ -> Type.Number
-  Term.Text _ -> Type.Text
+synthLit :: Var v => Term.Literal -> Type v
+synthLit lit = case lit of
+  Term.Number _ -> Type.lit Type.Number
+  Term.Text _ -> Type.lit Type.Text
+  Term.If -> Type.forall' ["a"] (Type.builtin "Boolean" --> Type.v' "a" --> Type.v' "a" --> Type.v' "a")
 
 -- | Synthesize the type of the given term, updating the context in the process.
 synthesize :: Var v => Term v -> M v (Type v)

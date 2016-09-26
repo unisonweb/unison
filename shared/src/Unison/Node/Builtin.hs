@@ -136,18 +136,6 @@ makeBuiltins logger whnf =
            op _ = error "unpossible"
            typ = "Boolean -> Boolean"
        in (r, Just (I.Primop 1 op), unsafeParseType typ, prefix "not")
-     , let r = R.Builtin "Boolean.if";
-           op [cond,t,f] = do
-             cond <- whnf cond
-             case cond of
-               Term.Builtin' tf -> case Text.head tf of
-                 'T' -> whnf t
-                 'F' -> whnf f
-                 _ -> error "unpossible"
-               _ -> error "unpossible"
-           op _ = error "unpossible"
-           typ = "forall a . Boolean -> a -> a -> a"
-       in (r, Just (I.Primop 3 op), unsafeParseType typ, prefix "if")
 
      -- Number
      , let r = R.Builtin "Number.+"
