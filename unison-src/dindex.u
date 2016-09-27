@@ -68,16 +68,16 @@ DIndex.rebalance : ∀ k v . k -> DIndex k v -> Remote Unit;
 DIndex.rebalance k ind = do Remote
   indices := DIndex.indicesForKey k ind;
   t = DIndex.Timeout;
-  results := Remote.parallel-traverse DIndex.Max-Timeout (Index.lookup k `then` Remote.timeout t) indices;
+  results := Remote.parallel-traverse DIndex.Max-Timeout (Index.lookup k `and-then` Remote.timeout t) indices;
   resultsHashes := Remote.traverse hash! results;
   uh := hash! None;
   hd = uh `Optional.get-or` Vector.at 0 resultsHashes;
   eq = h1 h2 -> Hash.erase h1 ==_Hash Hash.erase h2;
-  if (Vector.all? (eq hd) resultsHashes)
-     -- all results matched, we're good
-     (pure Unit)
-     -- not all results matched, reinsert
-     (do Remote
+  if Vector.all? (eq hd) resultsHashes
+  -- all results matched, we're good
+  then pure Unit
+  -- not all results matched, reinsert
+  else (do Remote
          ov := DIndex.lookup k ind;
          Optional.fold (pure Unit)
                        (v -> DIndex.insert k v ind)

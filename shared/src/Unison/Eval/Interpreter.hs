@@ -26,8 +26,12 @@ eval :: forall f v . (Monad f, Var v) => Map R.Reference (Primop f v) -> Eval f 
 eval env = Eval whnf step
   where
     -- reduce x args | trace ("reduce:" ++ show (x:args)) False = undefined
-    reduce resolveRef (E.App' f x) args = reduce resolveRef f (x:args)
-    reduce resolveRef (E.Let1' binding body) xs = reduce resolveRef (ABT.bind body binding) xs
+    reduce resolveRef (E.App' f x) args = do
+      x <- whnf resolveRef x
+      reduce resolveRef f (x:args)
+    reduce resolveRef (E.Let1' binding body) xs = do
+      binding <- whnf resolveRef binding
+      reduce resolveRef (ABT.bind body binding) xs
     reduce resolveRef f args = do
       f <- whnf resolveRef f
       case f of
@@ -76,8 +80,8 @@ eval env = Eval whnf step
       E.Apps' E.If' (cond:t:f:tl) -> do
         cond <- whnf resolveRef cond
         case cond of
-          E.Builtin' b | Text.head b == 'F' -> whnf resolveRef f >>= \f -> whnf resolveRef (f `E.apps` tl)
-                       | otherwise -> whnf resolveRef t >>= \t -> whnf resolveRef (t `E.apps` tl)
+          E.Builtin' b | Text.head b == 'F' -> whnf resolveRef f >>= \f -> (`E.apps` tl) <$> whnf resolveRef f
+                       | otherwise -> whnf resolveRef t >>= \t -> (`E.apps` tl) <$> whnf resolveRef t
           _ -> pure e
       E.App' f x -> do
         f' <- E.link resolveRef f
