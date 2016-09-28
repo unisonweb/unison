@@ -47,6 +47,7 @@ tests = withResource Common.node (\_ -> pure ()) $ \node ->
       , t "let id : forall a . a -> a; id x = x; g = id 42; p = id \"hi\" ; g;;" "42"
       , t "(let id x = x; id;; : forall a . a -> a) 42" "42"
       , t "Optional.map ((+) 1) (Some 1)" "Some 2"
+      , t "Optional.map ((+) 1) ((Some: ∀ a . a -> Optional a) 1)" "Some 2"
       , t "Either.fold ((+) 1) ((+) 2) (Left 1)" "2"
       , t "Either.fold ((+) 1) ((+) 2) (Right 1)" "3"
       , t "Either.swap (Left 1)" "Either.Right 1"

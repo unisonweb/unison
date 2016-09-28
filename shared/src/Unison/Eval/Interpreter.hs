@@ -32,6 +32,7 @@ eval env = Eval whnf step
     reduce resolveRef (E.Let1' binding body) xs = do
       binding <- whnf resolveRef binding
       reduce resolveRef (ABT.bind body binding) xs
+    reduce resolveRef (E.Ann' e _) args = reduce resolveRef e args
     reduce resolveRef f args = do
       f <- whnf resolveRef f
       case f of
@@ -83,11 +84,12 @@ eval env = Eval whnf step
           E.Builtin' b | Text.head b == 'F' -> whnf resolveRef f >>= \f -> (`E.apps` tl) <$> whnf resolveRef f
                        | otherwise -> whnf resolveRef t >>= \t -> (`E.apps` tl) <$> whnf resolveRef t
           _ -> pure e
-      E.App' f x -> do
+      E.Apps' f xs -> do
         f' <- E.link resolveRef f
-        x <- whnf resolveRef x
-        e' <- reduce resolveRef f' [x]
-        maybe (pure $ f' `E.app` x) (whnf resolveRef) e'
+        f <- whnf resolveRef f'
+        xs <- traverse (whnf resolveRef) xs
+        e' <- reduce resolveRef f xs
+        maybe (pure $ f `E.apps` xs) (whnf resolveRef) e'
       E.Let1' binding body -> do
         binding <- whnf resolveRef binding
         whnf resolveRef (ABT.bind body binding)
