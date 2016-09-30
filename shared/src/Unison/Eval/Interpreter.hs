@@ -93,9 +93,8 @@ eval env = Eval whnf step
       E.Let1' binding body -> do
         binding <- whnf resolveRef binding
         whnf resolveRef (ABT.bind body binding)
-      E.LetRecNamed' bs body -> whnf resolveRef (ABT.substs substs body) where
+      E.LetRecNamed' bs body -> whnf resolveRef (ABT.substs bs' body) where
+        bs' = [ (v, expandBinding v b) | (v,b) <- bs ]
         expandBinding v (E.LamNamed' name body) = E.lam name (expandBinding v body)
-        expandBinding v body = ABT.substs substs' body
-          where substs' = [ (v', ABT.subst v (E.letRec bs (E.var v)) b) | (v',b) <- bs ]
-        substs = [ (v, expandBinding v b) | (v,b) <- bs ]
+        expandBinding v body = E.letRec bs body
       _ -> pure e
