@@ -24,6 +24,10 @@ Index.delete k = Index.from-unsafe (Index.delete# k);
 Index.insert : ∀ k v . k -> v -> Index k v -> Remote Unit;
 Index.insert k v = Index.from-unsafe (Index.insert# k v);
 
+Index.inserts : ∀ k v . Vector (k,v) -> Index k v -> Remote Unit;
+Index.inserts vs ind = Remote.map (const Unit) <|
+  Remote.traverse (kv -> Index.insert (1st kv) (2nd kv) ind) vs;
+
 Index.from-unsafe : ∀ k v r . (Text -> r) -> Index k v -> Remote r;
 Index.from-unsafe f ind = let
   p = Index.representation# ind;
@@ -41,8 +45,16 @@ IndexedTraversal.1st-key t = 1st t;
 IndexedTraversal.lookup : ∀ k v . k -> IndexedTraversal k v -> Remote (Optional v);
 IndexedTraversal.lookup k t = 2nd t k;
 
+-- | Returns the smallest key in the traversal which is > the provided key.
 IndexedTraversal.increment : ∀ k v . k -> IndexedTraversal k v -> Remote (Optional k);
 IndexedTraversal.increment k t = 3rd t k;
+
+-- | Returns the smallest key in the traversal which is >= the provided key.
+IndexedTraversal.ceiling : ∀ k v . k -> IndexedTraversal k v -> Remote (Optional k);
+IndexedTraversal.ceiling k t =
+  IndexedTraversal.lookup k t |> Remote.bind (
+    Optional.fold (IndexedTraversal.increment k t) (const (pure <| Some k))
+  );
 
 Index.traversal : ∀ k v . Index k v -> IndexedTraversal (k, Hash k) v;
 Index.traversal ind = let
@@ -64,9 +76,9 @@ IndexedTraversal.intersect : ∀ k v . Order k
 IndexedTraversal.intersect o t1 t2 = let rec
   align-key k1 k2 = Optional.get-or (Remote.pure None) <| Optional.map2
     (k1 k2 -> Order.compare o k1 k2 |> Comparison.fold
-       (IndexedTraversal.increment k2 t1 |> Remote.bind (k1 -> align-key k1 (Some k2)))
+       (IndexedTraversal.ceiling k2 t1 |> Remote.bind (k1 -> align-key k1 (Some k2)))
        (Remote.pure (Some k1))
-       (IndexedTraversal.increment k1 t2 |> Remote.bind (k2 -> align-key (Some k1) k2))
+       (IndexedTraversal.ceiling k1 t2 |> Remote.bind (k2 -> align-key (Some k1) k2))
     )
     k1 k2
   ;
@@ -93,8 +105,8 @@ IndexedTraversal.take n t =
     t = 1st tn;
     n = 2nd tn;
     step e = (e, (set-1st (IndexedTraversal.increment (1st e) t) t, n - 1));
-    if (n <=_Number 0) (Remote.pure None)
-       (IndexedTraversal.1st-entry t |> Remote.map (Optional.map step));;
+    if n <=_Number 0 then Remote.pure None
+    else IndexedTraversal.1st-entry t |> Remote.map (Optional.map step);;
   );
 
 Http.get-url : Text -> Remote (Either Text Text);

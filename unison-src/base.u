@@ -28,7 +28,7 @@ rest p = Pair.fold (x y -> y) p;
 5th = rest `and-then` (rest `and-then` (rest `and-then` (rest `and-then` first)));
 
 set-1st : ∀ a a2 b . a2 -> Pair a b -> Pair a2 b;
-set-1st new-first p = Pair new-first (rest p);
+set-1st new-1st p = Pair new-1st (rest p);
 
 Order.compare : ∀ a . Order a -> a -> a -> Comparison;
 Order.compare o a1 a2 = Order.Key.compare (Order.key o a1) (Order.key o a2);
