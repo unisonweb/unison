@@ -221,11 +221,20 @@ freshNamed' used n = fresh' used (v' n)
 
 -- | `subst v e body` substitutes `e` for `v` in `body`, avoiding capture by
 -- renaming abstractions in `body`
--- TODO: avoid traversing subtrees that cannot contain the free variable
 subst :: (Foldable f, Functor f, Var v) => v -> Term f v a -> Term f v a -> Term f v a
-subst v = replace match where
-  match (Var' v') = v == v'
-  match _ = False
+subst v r t2@(Term fvs ann body)
+  | Set.notMember v fvs = t2 -- subtrees not containing the var can be skipped
+  | otherwise = case body of
+    Var v' | v == v' -> r    -- var match; perform replacement
+           | otherwise -> t2 -- var did not match one being substituted; ignore
+    Cycle body -> cycle' ann (subst v r body)
+    Abs x e | x == v -> t2 -- x shadows v; ignore subtree
+    Abs x e -> abs' ann x' e'
+      where x' = freshInBoth r t2 x
+            -- rename x to something that cannot be captured by `r`
+            e' = if x /= x' then subst v r (rename x x' e)
+                 else subst v r e
+    Tm body -> tm' ann (fmap (subst v r) body)
 
 -- | `substs [(t1,v1), (t2,v2), ...] body` performs multiple simultaneous
 -- substitutions, avoiding capture
