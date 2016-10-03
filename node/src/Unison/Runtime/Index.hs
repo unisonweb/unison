@@ -1,78 +1,204 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Unison.Runtime.Index
   (Unison.Runtime.Index.lookup
   ,Unison.Runtime.Index.delete
   ,Unison.Runtime.Index.insert
   ,Unison.Runtime.Index.lookupGT
-  ,Unison.Runtime.Index.flush
-  ,entries
-  ,idToText
-  ,keys
+  ,Unison.Runtime.Index.keys
   ,load
-  ,loadEncrypted
-  ,textToId
-  ,Identifier
   ) where
 
-import Control.Concurrent.STM (STM)
+import Control.Applicative
+import Control.Monad
 import Data.ByteString (ByteString)
-import Data.Text (Text)
-import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Data.Bytes.Serial (Serial)
+import Data.Foldable
+import Data.Trie (Trie)
+import GHC.Generics
 import Unison.Cryptography
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Base64.URL as Base64
-import qualified Data.Map as Map
+import qualified Data.ByteString as ByteString
+import qualified Data.Bytes.Serial as S
+import qualified Data.Trie as Trie
 import qualified Unison.BlockStore as BS
-import qualified Unison.Runtime.Journal as J
-import qualified Unison.Runtime.JournaledMap as JM
+import qualified Unison.Cryptography as C
+import qualified Unison.Runtime.Block as B
+
+defaultSize :: Int -- default maximum index trie size, before another level of index is added
+defaultSize = 1024
 
 type KeyHash = ByteString
 type Key = ByteString
 type Value = ByteString
-type Identifier = (BS.Series, BS.Series)
 
-data Db = Db (JM.JournaledMap KeyHash (Key, Value)) Identifier
+data TypedSeries a = TypedSeries { series :: BS.Series, defaultValue :: a } deriving Generic
 
-idToText :: Identifier -> Text
-idToText (BS.Series a, BS.Series b) = decodeUtf8 $ B.concat
-  [Base64.encode a, B.cons 20 $ Base64.encode b] -- delineated by a space
+data Index = Index { value :: TypedSeries (Maybe (Key, Value))
+                   , branches :: Trie (TypedSeries Index)
+                   } deriving Generic
 
-textToId :: Text -> Identifier
-textToId t =
-  let [a, b] = B.split 20 $ encodeUtf8 t
-      decode = BS.Series . Base64.decodeLenient
-  in (decode a, decode b)
+data IndexState h t1 t2 t3 t4 t5 t6 = IndexState
+  (BS.BlockStore h)
+  (Cryptography t1 t2 t3 t4 t5 t6 ByteString)
+  (TypedSeries Index)
+  Int -- size limit for how big each index level can be
 
-load :: (Eq a) => BS.BlockStore a -> Identifier -> IO Db
-load bs (cp, ud) = do
-  jm <- JM.fromSeries bs cp ud
-  pure $ Db jm (cp, ud)
+instance Serial BS.Series
+instance Serial a => Serial (TypedSeries a)
+instance Serial Index where
+  serialize (Index value branches) = S.serialize value *> S.serialize (Trie.toList branches)
+  deserialize = Index <$> S.deserialize <*> fmap Trie.fromList S.deserialize
 
-loadEncrypted :: (Eq a) => BS.BlockStore a -> Cryptography t1 t2 t3 t4 t5 t6 ByteString
-  -> Identifier -> IO Db
-loadEncrypted bs crypto (cp, ud) = do
-  jm <- JM.fromEncryptedSeries crypto bs cp ud
-  pure $ Db jm (cp, ud)
+toBlock :: Serial a => Cryptography t1 t2 t3 t4 t5 t6 ByteString -> TypedSeries a -> B.Block a
+toBlock crypto ts =
+  B.serial (defaultValue ts) . B.encrypted crypto . B.fromSeries $ series ts
 
-flush :: Db -> IO ()
-flush (Db journaledMap _) = J.record journaledMap
+deserialize :: Serial a => BS.BlockStore h -> Cryptography t1 t2 t3 t4 t5 t6 ByteString -> TypedSeries a -> IO a
+deserialize bs crypto ts = B.get bs $ toBlock crypto ts
 
-insert :: KeyHash -> (Key, Value) -> Db -> STM (STM ())
-insert kh kv (Db journaledMap _) = J.updateNowAsyncFlush (JM.Insert kh kv) journaledMap
+randomSeries :: Cryptography t1 t2 t3 t4 t5 t6 ByteString -> IO BS.Series
+randomSeries crypto = BS.Series <$> C.randomBytes crypto 64
 
-delete :: KeyHash -> Db -> STM (STM ())
-delete kh (Db journaledMap _) = J.updateNowAsyncFlush (JM.Delete kh) journaledMap
+makeIndex :: Eq a => BS.BlockStore a -> Cryptography t1 t2 t3 t4 t5 t6 ByteString
+  -> Maybe (Key, Value) -> Trie (TypedSeries Index) -> IO (TypedSeries Index)
+makeIndex bs crypto value branches = do
+  rootSeries@(BS.Series bytes) <- randomSeries crypto
+  h0 <- BS.declareSeries bs rootSeries
+  let
+    valueSeries = TypedSeries (BS.Series $ bytes `mappend` "values") value
+    node = Index valueSeries branches
+    typedSeries = TypedSeries rootSeries node
+    block = toBlock crypto typedSeries
+  _ <- B.tryUpdate bs block h0 node
+  pure typedSeries
 
-lookup :: KeyHash -> Db -> STM (Maybe (Key, Value))
-lookup kh (Db journaledMap _) = Map.lookup kh <$> J.get journaledMap
+emptyTT :: Eq a => BS.BlockStore a -> Cryptography t1 t2 t3 t4 t5 t6 ByteString
+  -> IO (TypedSeries Index)
+emptyTT bs crypto = makeIndex bs crypto Nothing Trie.empty
 
-entries :: Db -> STM [(Key, Value)]
-entries (Db journaledMap _) = Map.elems <$> J.get journaledMap
+isEmpty :: BS.BlockStore a -> Cryptography t1 t2 t3 t4 t5 t6 ByteString -> Index -> IO Bool
+isEmpty bs crypto index = if not . null $ branches index
+  then pure False
+  else do
+  let
+    block = toBlock crypto $ value index
+  null <$> B.get bs block
 
-keys :: Db -> STM [Key]
-keys db = map fst <$> entries db
+load :: Eq a => BS.BlockStore a -> Cryptography t1 t2 t3 t4 t5 t6 ByteString -> BS.Series
+  -> IO (IndexState a t1 t2 t3 t4 t5 t6)
+load bs crypto series = loadSized bs crypto series defaultSize
 
--- | Find next key in the Db whose key is greater than the provided key
-lookupGT :: KeyHash -> Db -> STM (Maybe (KeyHash, (Key, Value)))
-lookupGT kh (Db journaledMap _) = Map.lookupGT kh <$> J.get journaledMap
+loadSized :: Eq a => BS.BlockStore a -> Cryptography t1 t2 t3 t4 t5 t6 ByteString -> BS.Series
+  -> Int -> IO (IndexState a t1 t2 t3 t4 t5 t6)
+loadSized bs crypto series size = do
+  let block = B.fromSeries series
+      blockTyped = B.serialM (emptyTT bs crypto) block
+  index <- B.get bs blockTyped
+  _ <- B.modify' bs blockTyped (const index)
+  pure $ IndexState bs crypto index size
 
+insert :: Eq a => IndexState a t1 t2 t3 t4 t5 t6 -> KeyHash -> (Key, Value) -> IO ()
+insert (IndexState bs crypto index maxSize) kh (k,v) = insert' index kh
+  where
+    insert' index kh = do
+      (Index value branches) <- deserialize bs crypto index
+      if null $ ByteString.unpack kh
+        then let block = toBlock crypto value
+             in void (B.modify' bs block $ const (Just (k,v)))
+        else case Trie.match branches kh of
+               Just (_, branchIndex, remainingKH) -> insert' branchIndex remainingKH
+               Nothing -> do
+                 newIndex <- emptyTT bs crypto
+                 insert' newIndex mempty
+                 let insertedBranches = Trie.insert kh newIndex branches
+                     redistributeBranch i = do
+                       let submap = Trie.submap i insertedBranches
+                           submap' = Trie.delete i submap
+                       value <- case Trie.lookup i insertedBranches of
+                         Nothing -> pure Nothing
+                         Just index -> do
+                           (Index value _) <- deserialize bs crypto index
+                           B.get bs $ toBlock crypto value
+                       makeIndex bs crypto value submap'
+                     allKeys = map ByteString.singleton [0..255]
+                 balancedBranches <- if Trie.size insertedBranches <= maxSize
+                   then pure insertedBranches
+                   else
+                   do
+                     rebalancedIndexes <- mapM redistributeBranch allKeys
+                     pure . Trie.fromList $ zip allKeys rebalancedIndexes
+                 let newIndex = Index value balancedBranches
+                 void $ B.modify' bs (toBlock crypto index) (const newIndex)
+
+delete :: Eq a => IndexState a t1 t2 t3 t4 t5 t6 -> KeyHash -> IO ()
+delete (IndexState bs crypto index _) kh = delete' index kh
+  where
+    delete' index kh = do
+      (Index value branches) <- deserialize bs crypto index
+      if null $ ByteString.unpack kh
+        then let block = toBlock crypto value
+             in void (B.modify' bs block $ const Nothing)
+        else case Trie.match branches kh of
+               Just (_, branchIndex, remainingKH) -> do
+                 delete' branchIndex remainingKH
+                 -- calculating if the tree is empty is expensive.
+                 -- TODO if it fails, earlier calls in the recursion stack should automatically fail
+                 emptyTree <- isEmpty bs crypto $ Index value branches
+                 when emptyTree $
+                   let newTrie = Trie.delete kh branches
+                       newIndex = Index value newTrie
+                   in void $ B.modify' bs (toBlock crypto index) (const newIndex)
+               _ -> pure () -- key didn't actually exist in this index
+
+lookup :: Eq a => IndexState a t1 t2 t3 t4 t5 t6 -> KeyHash -> IO (Maybe (Key, Value))
+lookup (IndexState bs crypto index _) kh = lookup' index kh
+  where
+    lookup' index kh = do
+      (Index value branches) <- deserialize bs crypto index
+      if null $ ByteString.unpack kh
+        then let block = toBlock crypto value
+             in B.get bs block
+        else case Trie.match branches kh of
+               Just (_, branchIndex, remainingKH) -> lookup' branchIndex remainingKH
+               _ -> pure Nothing
+
+-- note: this won't produce an "ordered" traversal in any reasonable sense, but it should
+-- at least iterate through all keys
+lookupGT :: Eq a => IndexState a t1 t2 t3 t4 t5 t6 -> KeyHash
+  -> IO (Maybe (KeyHash, (Key, Value)))
+lookupGT (IndexState bs crypto index _) kh = lookupGT' index kh mempty
+  where
+    findAll index previousKH = do
+      (Index value branches) <- deserialize bs crypto index
+      currentVal <- B.get bs $ toBlock crypto value
+      let getBranch k v = findAll v (previousKH `mappend` k)
+          levelVal = fmap (\kv -> (previousKH, kv)) currentVal
+          mergeOption old kv = liftM2 (<|>) old (uncurry getBranch kv)
+      foldl' mergeOption (pure levelVal) $ Trie.toList branches
+    lookupGT' index kh previousKH = do
+      (Index _ branches) <- deserialize bs crypto index
+      if null $ ByteString.unpack kh
+        then pure Nothing
+        else
+        do
+          furtherMatch <- case Trie.match branches kh of
+            Just (matchedKH, branchIndex, remainingKH) -> lookupGT' branchIndex remainingKH
+                          (previousKH `mappend` matchedKH)
+            _ -> pure Nothing
+          let
+            gtBranches = Trie.mapBy (\k v -> if k > kh then Just (k,v) else Nothing) branches
+            getBranch k v = findAll v (previousKH `mappend` k)
+            mergeOption old kv = liftM2 (<|>) old (uncurry getBranch kv)
+          foldl' mergeOption (pure furtherMatch) gtBranches
+
+keys :: Eq a => IndexState a t1 t2 t3 t4 t5 t6 -> IO [KeyHash]
+keys (IndexState bs crypto index _) = keys' index mempty <*> pure []
+  where
+    keys' index kh = do
+      (Index value branches) <- deserialize bs crypto index
+      currentVal <- B.get bs $ toBlock crypto value
+      let getBranch k v = keys' v (kh `mappend` k)
+          mergeVals kv old = liftM2 (.) (uncurry getBranch kv) old
+      leafKeys <- foldr mergeVals (pure id) $ Trie.toList branches
+      pure $ if null currentVal then leafKeys else (kh:) . leafKeys
