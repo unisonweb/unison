@@ -1,0 +1,13 @@
+
+do Remote
+  n := Remote.spawn;
+  Remote.transfer n;
+  ind1 := Index.empty;
+  ind2 := Index.empty;
+  Index.inserts [(1,"a"), (3,"b"), (9,"c")] ind1;
+  t1 = Index.traversal ind1;
+  Index.inserts [(3,"a"), (4,"b"), (9,"c"), (10, "d")] ind2;
+  t2 = Index.traversal ind2;
+  t3 = IndexedTraversal.intersect (Order.by-2nd Hash.Order) t1 t2;
+  vs := IndexedTraversal.take 10 t3;
+  pure (Debug.watch "result" vs);;

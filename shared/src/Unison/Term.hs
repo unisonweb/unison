@@ -262,6 +262,14 @@ unApps t = case go t [] of [] -> Nothing; f:args -> Just (f,args)
   go _ [] = []
   go fn args = fn:args
 
+pattern LamsNamed' vs body <- (unLams' -> Just (vs, body))
+
+unLams' :: Term v -> Maybe ([v], Term v)
+unLams' (LamNamed' v body) = case unLams' body of
+  Nothing -> Just ([v], body)
+  Just (vs, body) -> Just (v:vs, body)
+unLams' _ = Nothing
+
 dependencies' :: Ord v => Term v -> Set Reference
 dependencies' t = Set.fromList . Writer.execWriter $ ABT.visit' f t
   where f t@(Ref r) = Writer.tell [r] *> pure t
@@ -274,15 +282,6 @@ countBlanks :: Ord v => Term v -> Int
 countBlanks t = Monoid.getSum . Writer.execWriter $ ABT.visit' f t
   where f Blank = Writer.tell (Monoid.Sum (1 :: Int)) *> pure Blank
         f t = pure t
-
--- | Convert all 'Ref' constructors to the corresponding term
-link :: (Applicative f, Monad f, Var v) => (Hash -> f (Term v)) -> Term v -> f (Term v)
-link env e =
-  let ds = map (\h -> (h, link env =<< env h)) (Set.toList (dependencies e))
-      sub e (h, ft) = replace <$> ft
-        where replace t = ABT.replace ((==) rt) t e
-              rt = ref (Reference.Derived h)
-  in foldM sub e ds
 
 -- | If the outermost term is a function application,
 -- perform substitution of the argument into the body

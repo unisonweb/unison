@@ -1,9 +1,12 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE BangPatterns #-}
+
 -- | Very simple and inefficient interpreter of Unison terms
 module Unison.Eval.Interpreter where
 
 import Data.Map (Map)
+import Data.List
 import Debug.Trace
 import Unison.Eval
 import Unison.Term (Term)
@@ -26,13 +29,13 @@ eval :: forall f v . (Monad f, Var v) => Map R.Reference (Primop f v) -> Eval f 
 eval env = Eval whnf step
   where
     -- reduce x args | trace ("reduce:" ++ show (x:args)) False = undefined
+    reduce resolveRef (E.Ann' e _) args = reduce resolveRef e args
     reduce resolveRef (E.App' f x) args = do
       x <- whnf resolveRef x
       reduce resolveRef f (x:args)
     reduce resolveRef (E.Let1' binding body) xs = do
       binding <- whnf resolveRef binding
       reduce resolveRef (ABT.bind body binding) xs
-    reduce resolveRef (E.Ann' e _) args = reduce resolveRef e args
     reduce resolveRef f args = do
       f <- whnf resolveRef f
       case f of
@@ -45,25 +48,29 @@ eval env = Eval whnf step
               _ -> pure Nothing
           _ -> pure Nothing
         E.Ref' h -> case M.lookup h env of
-          Nothing -> pure Nothing
+          Nothing -> case h of
+            R.Derived h -> do
+              r <- resolveRef h
+              r <- whnf resolveRef r
+              reduce resolveRef r args
+            R.Builtin b -> pure Nothing
           Just op | length args >= arity op ->
             call op (take (arity op) args) >>= \e ->
               pure . Just $ foldl E.app e (drop (arity op) args)
           Just _ | otherwise -> pure Nothing
-        E.Lam' f -> case args of
+        E.LamsNamed' vs body -> let n = length vs in case args of
           [] -> pure Nothing
-          (arg1:args) ->
-            let r = ABT.bind f arg1
-            in pure $ Just (foldl E.app r args)
+          args | length args >= n -> pure $ Just (foldl' E.app (ABT.substs (vs `zip` args) body) (drop n args))
+               | otherwise -> pure Nothing
         _ -> pure Nothing
 
     step resolveRef e = case e of
+      E.Ann' e _ -> step resolveRef e
       E.Ref' h -> case M.lookup h env of
         Just op | arity op == 0 -> call op []
         _ -> pure e
-      E.App' f x -> do
-        f <- E.link resolveRef f
-        e' <- reduce resolveRef f [x]
+      E.Apps' f xs -> do
+        e' <- reduce resolveRef f xs
         maybe (pure e) pure e'
       E.Let1' binding body -> step resolveRef (ABT.bind body binding)
       E.LetRecNamed' bs body -> step resolveRef (ABT.substs substs body) where
@@ -76,7 +83,12 @@ eval env = Eval whnf step
     whnf resolveRef e = case e of
       E.Ref' h -> case M.lookup h env of
         Just op | arity op == 0 -> call op []
-        _ -> pure e
+                | otherwise -> pure e
+        Nothing -> case h of
+          R.Derived h -> do
+            r <- resolveRef h
+            whnf resolveRef r
+          R.Builtin b -> pure e
       E.Ann' e _ -> whnf resolveRef e
       E.Apps' E.If' (cond:t:f:tl) -> do
         cond <- whnf resolveRef cond
@@ -85,9 +97,8 @@ eval env = Eval whnf step
                        | otherwise -> whnf resolveRef t >>= \t -> (`E.apps` tl) <$> whnf resolveRef t
           _ -> pure e
       E.Apps' f xs -> do
-        f' <- E.link resolveRef f
-        f <- whnf resolveRef f'
         xs <- traverse (whnf resolveRef) xs
+        f <- whnf resolveRef f
         e' <- reduce resolveRef f xs
         maybe (pure $ f `E.apps` xs) (whnf resolveRef) e'
       E.Let1' binding body -> do
@@ -97,4 +108,5 @@ eval env = Eval whnf step
         bs' = [ (v, expandBinding v b) | (v,b) <- bs ]
         expandBinding v (E.LamNamed' name body) = E.lam name (expandBinding v body)
         expandBinding v body = E.letRec bs body
+      E.Vector' es -> E.vector' <$> traverse (whnf resolveRef) es
       _ -> pure e

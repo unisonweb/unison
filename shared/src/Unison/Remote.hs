@@ -123,7 +123,8 @@ instance Hashable1 Local where
     Receive c -> [tag 4, H.accumulateToken c]
     Send c t -> [tag 5, H.accumulateToken c, hashed t]
     Spawn -> [tag 6]
-    Pure t -> [tag 7, hashed t]
+    Sleep (Seconds d) -> [tag 7, H.Double d]
+    Pure t -> [tag 8, hashed t]
     where
       tag = H.Tag
       hashed1 = H.Hashed . (H.hash1 hashCycle hash)

@@ -297,7 +297,7 @@ makeBuiltins logger whnf =
            op [fz,f,o] = whnf o >>= \o -> case o of
              Term.Builtin' tag | tag == "Optional.None" -> whnf fz
              Term.App' (Term.Builtin' tag) a | tag == "Optional.Some" -> whnf (f `Term.app` a)
-             _ -> error "Optional.fold unpossible"
+             _ -> error $ "Optional.fold unpossible: " ++ show o
            op _ = error "Optional.fold unpossible"
        in (r, Just (I.Primop 3 op), unsafeParseType "forall a r . r -> (a -> r) -> Optional a -> r", prefix "Optional.fold")
 
