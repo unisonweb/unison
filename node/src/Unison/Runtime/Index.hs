@@ -8,6 +8,7 @@ module Unison.Runtime.Index
   ,Unison.Runtime.Index.lookupGT
   ,Unison.Runtime.Index.keys
   ,load
+  ,loadSized
   ) where
 
 import Control.Applicative
@@ -114,7 +115,10 @@ insert (IndexState bs crypto index maxSize) kh (k,v) = insert' index kh
                  let insertedBranches = Trie.insert kh newIndex branches
                      redistributeBranch i = do
                        let submap = Trie.submap i insertedBranches
-                           submap' = Trie.delete i submap
+                           tailKeys = Trie.fromList
+                                      . map (\(k,v) -> (ByteString.tail k, v))
+                                      . Trie.toList
+                           submap' = tailKeys $ Trie.delete i submap
                        value <- case Trie.lookup i insertedBranches of
                          Nothing -> pure Nothing
                          Just index -> do

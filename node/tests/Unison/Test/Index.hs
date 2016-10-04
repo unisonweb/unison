@@ -3,7 +3,8 @@
 module Unison.Test.Index where
 
 import Control.Concurrent.STM (atomically)
-import Data.ByteString.Char8
+import Data.ByteString (ByteString)
+import Data.ByteString.Char8 (pack, unpack)
 import System.Random
 import Test.QuickCheck
 import Test.Tasty
@@ -54,6 +55,18 @@ nextKeyAfterRemoval bs = do
     Just (kh, (k, v)) -> fail ("expected key 3, got " ++ unpack kh)
     Nothing -> fail "got nothin"
 
+keysAfterResize :: BS.BlockStore Address -> Assertion
+keysAfterResize bs = do
+  ident <- makeRandomId
+  db <- Index.loadSized bs crypto ident 10
+  let kvp i = (pack . ("k" ++) . show $ i, pack . ("v" ++) . show $ i)
+      expected = map (pack . show) [15..30]
+  mapM_ (\i -> Index.insert db (pack $ show i) (kvp i)) [15..30]
+  result <- Index.keys db
+  if result == expected
+    then pure ()
+    else fail ("got unexpected result: " ++ show result)
+
 runGarbageCollection :: BS.BlockStore Address -> Assertion
 runGarbageCollection bs = do
   ident <- makeRandomId
@@ -76,6 +89,7 @@ ioTests = do
   pure $ testGroup "KeyValueStore"
     [ testCase "roundTrip" (roundTrip blockStore)
     , testCase "nextKeyAfterRemoval" (nextKeyAfterRemoval blockStore)
+    , testCase "keysAfterResize" (keysAfterResize blockStore)
     ]
 
 main = ioTests >>= defaultMain
