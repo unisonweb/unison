@@ -104,7 +104,7 @@ insert (IndexState bs crypto index maxSize) kh (k,v) = insert' index kh
   where
     insert' index kh = do
       (Index value branches) <- deserialize bs crypto index
-      if null $ ByteString.unpack kh
+      if ByteString.null kh
         then let block = toBlock crypto value
              in void (B.modify' bs block $ const (Just (k,v)))
         else case Trie.match branches kh of
@@ -140,7 +140,7 @@ delete (IndexState bs crypto index _) kh = delete' index kh
   where
     delete' index kh = do
       (Index value branches) <- deserialize bs crypto index
-      if null $ ByteString.unpack kh
+      if ByteString.null kh
         then let block = toBlock crypto value
              in void (B.modify' bs block $ const Nothing)
         else case Trie.match branches kh of
@@ -160,7 +160,7 @@ lookup (IndexState bs crypto index _) kh = lookup' index kh
   where
     lookup' index kh = do
       (Index value branches) <- deserialize bs crypto index
-      if null $ ByteString.unpack kh
+      if ByteString.null kh
         then let block = toBlock crypto value
              in B.get bs block
         else case Trie.match branches kh of
@@ -182,7 +182,7 @@ lookupGT (IndexState bs crypto index _) kh = lookupGT' index kh mempty
       foldl' mergeOption (pure levelVal) $ Trie.toList branches
     lookupGT' index kh previousKH = do
       (Index _ branches) <- deserialize bs crypto index
-      if null $ ByteString.unpack kh
+      if ByteString.null kh
         then pure Nothing
         else
         do

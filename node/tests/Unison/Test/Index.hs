@@ -67,22 +67,6 @@ keysAfterResize bs = do
     then pure ()
     else fail ("got unexpected result: " ++ show result)
 
-runGarbageCollection :: BS.BlockStore Address -> Assertion
-runGarbageCollection bs = do
-  ident <- makeRandomId
-  db <- Index.load bs crypto ident
-  let kvp i = (pack . ("k" ++) . show $ i, pack . ("v" ++) . show $ i)
-  mapM_ (\i -> Index.insert db (pack $ show i) (kvp i)) [0..1001]
-  mapM_ (\i -> Index.delete db (pack $ show i)) [2..1001]
-  result <- Index.lookup db "1"
-  case result of
-    Just (k, v) | v == "v1" -> pure ()
-    o -> fail ("1. got unexpected value " ++ show o)
-  result2 <- Index.lookup db "2"
-  case result2 of
-    Nothing -> pure ()
-    Just (k, o) -> fail ("2. got unexpected value " ++ unpack o)
-
 ioTests :: IO TestTree
 ioTests = do
   blockStore <- MBS.make' makeRandomAddress makeAddress
