@@ -33,6 +33,10 @@ set-1st new-1st p = Pair new-1st (rest p);
 Order.compare : ∀ a . Order a -> a -> a -> Comparison;
 Order.compare o a1 a2 = Order.Key.compare (Order.key o a1) (Order.key o a2);
 
+Order.equal : ∀ a . Order a -> a -> a -> Boolean;
+Order.equal o a a2 =
+  Comparison.fold False True False (Order.compare o a a2);
+
 Order.tuple2 : ∀ a b . Order a -> Order b -> Order (a,b);
 Order.tuple2 a b = Pair.Order a (Pair.Order b Unit.Order);
 
@@ -80,11 +84,11 @@ Optional.lift-or f = a1 a2 ->
 Vector.all? : ∀ a . (a -> Boolean) -> Vector a -> Boolean;
 Vector.all? f vs = Vector.fold-balanced and True (Vector.map f vs);
 
-Vector.sort : ∀ k a . Order k -> (a -> k) -> Vector a -> Vector a;
-Vector.sort ok f v = Vector.sort-keyed (f `and-then` Order.key ok) v;
+Vector.sort-by : ∀ k a . Order k -> (a -> k) -> Vector a -> Vector a;
+Vector.sort-by ok f v = Vector.sort-keyed (f `and-then` Order.key ok) v;
 
-Vector.sort' : ∀ a . Order a -> Vector a -> Vector a;
-Vector.sort' o = Vector.sort o identity;
+Vector.sort : ∀ a . Order a -> Vector a -> Vector a;
+Vector.sort o = Vector.sort-by o identity;
 
 Vector.last : ∀ a . Vector a -> Optional a;
 Vector.last v = Vector.at (Vector.size v - 1) v;
@@ -101,6 +105,9 @@ Vector.dedup-adjacent eq v =
       else Vector.concatenate v1 v2)
     []
     (Vector.map Vector.pure v);
+
+Vector.dedup : ∀ a . Order a -> Vector a -> Vector a;
+Vector.dedup o v = Vector.dedup-adjacent (Order.equal o) (Vector.sort o v);
 
 Remote.map : ∀ a b . (a -> b) -> Remote a -> Remote b;
 Remote.map f = Remote.bind (f `and-then` Remote.pure);
