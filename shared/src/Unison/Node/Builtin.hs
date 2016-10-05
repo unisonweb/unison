@@ -10,7 +10,7 @@ import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Typechecker.Context (remoteSignatureOf)
 import Unison.Util.Logger (Logger)
-import Control.Concurrent (threadDelay)
+import qualified Data.Char as Char
 import qualified Data.Vector as Vector
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
@@ -258,6 +258,35 @@ makeBuiltins logger whnf =
        in (r, Just (string2' (Term.ref r) (>=)), textCompareTyp, prefix "Text.>=")
      , let r = R.Builtin "Text.Order"
        in (r, Nothing, unsafeParseType "Order Text", prefix "Text.Order")
+     , let r = R.Builtin "Text.lowercase"
+           op [Term.Text' txt] = pure $ Term.text (Text.toLower txt)
+           op _ = error "Text.lowercase unpossible"
+           typ = "Text -> Text"
+       in (r, Just (I.Primop 1 op), unsafeParseType typ, prefix "Text.lowercase")
+     , let r = R.Builtin "Text.uppercase"
+           op [Term.Text' txt] = pure $ Term.text (Text.toUpper txt)
+           op _ = error "Text.uppercase unpossible"
+           typ = "Text -> Text"
+       in (r, Just (I.Primop 1 op), unsafeParseType typ, prefix "Text.lowercase")
+     , let r = R.Builtin "Text.take"
+           op [Term.Number' n, Term.Text' txt] = pure $ Term.text (Text.take (floor n) txt)
+           op _ = error "Text.take unpossible"
+           typ = "Number -> Text -> Text"
+       in (r, Just (I.Primop 2 op), unsafeParseType typ, prefix "Text.take")
+     , let r = R.Builtin "Text.drop"
+           op [Term.Number' n, Term.Text' txt] = pure $ Term.text (Text.drop (floor n) txt)
+           op _ = error "Text.drop unpossible"
+           typ = "Number -> Text -> Text"
+       in (r, Just (I.Primop 2 op), unsafeParseType typ, prefix "Text.drop")
+     , -- todo: rather special purpose, remove this in favor of more generic regex
+       let r = R.Builtin "Text.words"
+           op [Term.Text' txt] = pure $
+             let words = map stripPunctuation $ Text.split Char.isSpace txt
+                 stripPunctuation word = Text.dropAround (not . Char.isAlphaNum) word
+             in Term.vector (map Term.text . filter (not . Text.null) $ words)
+           op _ = error "Text.words unpossible"
+           typ = "Text -> Vector Text"
+       in (r, Just (I.Primop 1 op), unsafeParseType typ, prefix "Text.words")
 
      -- Pair
      , let r = R.Builtin "Pair"
@@ -501,7 +530,7 @@ makeBuiltins logger whnf =
 
 extractKey :: Term V -> [Either Double Text]
 extractKey (Term.App' _ t1) = go t1 where
-  go (Term.Builtin' u) = []
+  go (Term.Builtin' _) = []
   go (Term.App' (Term.Text' t) tl) = Right t : go tl
   go (Term.App' (Term.Number' n) tl) = Left n : go tl
   go (Term.App' (Term.Builtin' b) tl) = Right b : go tl

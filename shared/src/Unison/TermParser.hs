@@ -242,7 +242,7 @@ alias = do
 bindings :: Var v => Parser (S v) (Term v) -> Parser (S v) [(v, Term v)]
 bindings p = do s0 <- get; some (binding <* semicolon) <* set s0 where
   binding = do
-    _ <- optional alias
+    _ <- many alias
     typ <- optional (typedecl <* semicolon)
     (name, args) <- ( (\arg1 op arg2 -> (op,[arg1,arg2]))
                       <$> prefixVar <*> infixVar <*> prefixVar)

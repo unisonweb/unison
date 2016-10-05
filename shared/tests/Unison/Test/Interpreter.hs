@@ -72,6 +72,7 @@ tests = withResource Common.node (\_ -> pure ()) $ \node ->
       , t "Vector.fold-balanced Vector.concatenate Vector.empty [[1],[2],[3,4],[5]]"
           "[1,2,3,4,5]"
       , t "Vector.fold-balanced (+) 0 [1,2,3]" "6"
+      , t "Vector.dedup-adjacent (==_Number) [1,1,2,2,3,4,4,4,4,5]" "[1,2,3,4,5]"
       , t "Vector.range 0 10" "[0,1,2,3,4,5,6,7,8,9]"
       , t "Vector.range 0 0" "[]"
       , t "Vector.fold-left (+) 0 (Vector.replicate 5 1)" "5"

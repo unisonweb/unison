@@ -35,9 +35,9 @@ Index.from-unsafe f ind = let
 ;
 
 alias IndexedTraversal k v =
-   ( Remote (Optional k)
-   , k -> Remote (Optional v)
-   , k -> Remote (Optional k));
+   ( Remote (Optional k) -- first key
+   , k -> Remote (Optional v) -- lookup the value for a key
+   , k -> Remote (Optional k)); -- increment a key
 
 IndexedTraversal.1st-key : ∀ k v . IndexedTraversal k v -> Remote (Optional k);
 IndexedTraversal.1st-key t = 1st t;
@@ -108,6 +108,9 @@ IndexedTraversal.take n t =
     if n <=_Number 0 then Remote.pure None
     else IndexedTraversal.1st-entry t |> Remote.map (Optional.map step);;
   );
+
+IndexedTraversal.take-keys : ∀ k v . Number -> IndexedTraversal k v -> Remote (Vector k);
+IndexedTraversal.take-keys n t = IndexedTraversal.take n t |> Remote.map (Vector.map 1st);
 
 Http.get-url : Text -> Remote (Either Text Text);
 Http.get-url url = Remote.map Http.get-url# (Remote.pure url);

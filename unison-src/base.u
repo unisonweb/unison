@@ -70,6 +70,13 @@ Vector.fold-balanced plus zero vs =
     go plus zero vs;;
   ;
 
+Vector.fold-balanced1 : ∀ a . (a -> a -> a) -> Vector a -> Optional a;
+Vector.fold-balanced1 f v = Vector.fold-balanced (Optional.lift-or f) None (Vector.map Some v);
+
+Optional.lift-or : ∀ a . (a -> a -> a) -> Optional a -> Optional a -> Optional a;
+Optional.lift-or f = a1 a2 ->
+  a1 |> Optional.fold a2 (a1 -> Optional.fold None (a2 -> Some (f a1 a2)) a2);
+
 Vector.all? : ∀ a . (a -> Boolean) -> Vector a -> Boolean;
 Vector.all? f vs = Vector.fold-balanced and True (Vector.map f vs);
 
@@ -78,6 +85,22 @@ Vector.sort ok f v = Vector.sort-keyed (f `and-then` Order.key ok) v;
 
 Vector.sort' : ∀ a . Order a -> Vector a -> Vector a;
 Vector.sort' o = Vector.sort o identity;
+
+Vector.last : ∀ a . Vector a -> Optional a;
+Vector.last v = Vector.at (Vector.size v - 1) v;
+
+Vector.1st : ∀ a . Vector a -> Optional a;
+Vector.1st = Vector.at 0;
+
+Vector.dedup-adjacent : ∀ a . (a -> a -> Boolean) -> Vector a -> Vector a;
+Vector.dedup-adjacent eq v =
+  Vector.fold-balanced
+    (v1 v2 ->
+      if Optional.map2 eq (Vector.last v1) (Vector.1st v2) |> Optional.get-or False
+      then Vector.concatenate v1 (Vector.drop 1 v2)
+      else Vector.concatenate v1 v2)
+    []
+    (Vector.map Vector.pure v);
 
 Remote.map : ∀ a b . (a -> b) -> Remote a -> Remote b;
 Remote.map f = Remote.bind (f `and-then` Remote.pure);
