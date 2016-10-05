@@ -13,6 +13,7 @@ import Unison.Type (Type)
 import Unison.Util.Logger (Logger)
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
+import qualified Network.URI as URI
 import qualified Unison.Cryptography as C
 import qualified Unison.Eval.Interpreter as I
 import qualified Unison.Hash as Hash
@@ -218,6 +219,24 @@ make _ blockStore crypto = do
                x -> pure $ Term.ref r `Term.app` x
            op _ = fail "Http.get-url# unpossible"
        in (r, Just (I.Primop 1 op), unsafeParseType "Text -> Either Text Text", prefix "Http.get-url#")
+
+    , let r = R.Builtin "Uri.parse-scheme"
+          op [Term.Text' url] = pure $ case URI.parseURI (Text.unpack url) of
+            Nothing -> none
+            Just uri -> some . Term.text . Text.pack $ URI.uriScheme uri
+          op _ = error "Uri.parse-scheme unpossible"
+          typ = "Text -> Optional Text"
+      in (r, Just (I.Primop 1 op), unsafeParseType typ, prefix "Uri.parse-scheme")
+
+    , let r = R.Builtin "Uri.parse-authority"
+          op [Term.Text' url] = pure $
+            case URI.parseURI (Text.unpack url) >>= URI.uriAuthority of
+              Nothing -> none
+              Just auth -> some . Term.text . Text.pack $
+                URI.uriUserInfo auth ++ URI.uriRegName auth ++ URI.uriPort auth
+          op _ = error "Uri.parse-authority unpossible"
+          typ = "Text -> Optional Text"
+      in (r, Just (I.Primop 1 op), unsafeParseType typ, prefix "Uri.parse-authority")
 
      -- Hashing
      -- add erase, comparison functions

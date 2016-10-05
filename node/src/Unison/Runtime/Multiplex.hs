@@ -97,7 +97,7 @@ scope msg = local tweak where
 -- | Crash with a message. Include the current logging scope.
 crash :: String -> Multiplex a
 crash msg = do
-  warn msg
+  -- warn msg
   scope msg $ do
     l <- logger
     fail (show $ L.getScope l)
@@ -118,7 +118,7 @@ process recv = scope "Mux.process" $ do
         callback <- atomically $ M.lookup destination cbs
         case callback of
           Nothing -> do
-            L.warn logger $ "dropped packet @ " ++ show (Base64.encode destination)
+            L.info logger $ "dropped packet @ " ++ show (Base64.encode destination)
             pure True
           Just callback -> do
             L.debug logger $ "packet delivered @ " ++ show (Base64.encode destination)

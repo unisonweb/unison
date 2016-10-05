@@ -77,9 +77,11 @@ Vector.fold-balanced plus zero vs =
 Vector.fold-balanced1 : ∀ a . (a -> a -> a) -> Vector a -> Optional a;
 Vector.fold-balanced1 f v = Vector.fold-balanced (Optional.lift-or f) None (Vector.map Some v);
 
-Optional.lift-or : ∀ a . (a -> a -> a) -> Optional a -> Optional a -> Optional a;
-Optional.lift-or f = a1 a2 ->
-  a1 |> Optional.fold a2 (a1 -> Optional.fold None (a2 -> Some (f a1 a2)) a2);
+Vector.join : ∀ a . Vector (Vector a) -> Vector a;
+Vector.join = Vector.bind identity;
+
+Vector.filter : ∀ a . (a -> Boolean) -> Vector a -> Vector a;
+Vector.filter f = Vector.bind (a -> if f a then [a] else []);
 
 Vector.all? : ∀ a . (a -> Boolean) -> Vector a -> Boolean;
 Vector.all? f vs = Vector.fold-balanced and True (Vector.map f vs);
@@ -105,6 +107,33 @@ Vector.dedup-adjacent eq v =
       else Vector.concatenate v1 v2)
     []
     (Vector.map Vector.pure v);
+
+Vector.drop-right : ∀ a . Number -> Vector a -> Vector a;
+Vector.drop-right n v = Vector.take (Vector.size v - n) v;
+
+Vector.take-right : ∀ a . Number -> Vector a -> Vector a;
+Vector.take-right n v = Vector.drop (Vector.size v - n) v;
+
+Vector.histogram : ∀ a . Order a -> Vector a -> Vector (a, Number);
+Vector.histogram o v = let
+  merge-bin b1 b2 = (1st b1, 2nd b1 + 2nd b2);
+  combine bin1 bin2 =
+    Optional.map2 (p1 p2 -> if Order.equal o (1st p1) (1st p2)
+                            then [merge-bin p1 p2]
+                            else [p1, p2])
+                  (Vector.last bin1) (Vector.1st bin2)
+    |> Optional.fold' (u -> Vector.concatenate bin1 bin2)
+                      (p -> Vector.join [Vector.drop-right 1 bin1, p, Vector.drop 1 bin2])
+    <| Unit;
+  Vector.fold-balanced combine [] (Vector.map (a -> Vector.pure (a, 1)) (Vector.sort o v));;
+;
+
+Vector.ranked-histogram : ∀ a . Order a -> Vector a -> Vector (a, Number);
+Vector.ranked-histogram o v =
+  Vector.histogram o v |> Vector.sort-by (Order.invert Number.Order) 2nd;
+
+Vector.sum : Vector Number -> Number;
+Vector.sum = Vector.fold-left (+) 0;
 
 Vector.dedup : ∀ a . Order a -> Vector a -> Vector a;
 Vector.dedup o v = Vector.dedup-adjacent (Order.equal o) (Vector.sort o v);
@@ -218,6 +247,13 @@ Optional.map2 f a b = do Optional
   b := b;
   pure (f a b);;
 ;
+
+Optional.lift-or : ∀ a . (a -> a -> a) -> Optional a -> Optional a -> Optional a;
+Optional.lift-or f = a1 a2 ->
+  a1 |> Optional.fold a2 (a1 -> Optional.fold None (a2 -> Some (f a1 a2)) a2);
+
+Optional.fold' : ∀ a b . (Unit -> b) -> (a -> b) -> Optional a -> Unit -> b;
+Optional.fold' thunk f = Optional.fold thunk (a u -> f a);
 
 Either.map : ∀ a b c . (b -> c) -> Either a b -> Either a c;
 Either.map f = Either.fold Left (f `and-then` Right);

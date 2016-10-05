@@ -245,7 +245,7 @@ makeBuiltins logger whnf =
 
      -- Text
      , let r = R.Builtin "Text.concatenate"
-       in (r, Just (string2 (Term.ref r) mappend), strOpTyp, prefixes ["concatenate", "Text"])
+       in (r, Just (string2 (Term.ref r) mappend), strOpTyp, prefix "Text.concatenate")
      , let r = R.Builtin "Text.=="
        in (r, Just (string2' (Term.ref r) (==)), textCompareTyp, prefix "Text.==")
      , let r = R.Builtin "Text.<"

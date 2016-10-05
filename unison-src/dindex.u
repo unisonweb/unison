@@ -2,7 +2,7 @@
 -- to pick which nodes are responsible for which keys. See:
 -- https://en.wikipedia.org/wiki/Rendezvous_hashing
 
-DIndex.Replication-Factor = 3;
+DIndex.Replication-Factor = 1;
 DIndex.Timeout = Duration.seconds 10;
 DIndex.Max-Timeout = Duration.seconds 500;
 
