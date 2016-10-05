@@ -17,7 +17,7 @@ DIndex.nodesForKey k ind = do Remote
   nodes := Index.keys ind;
   hashes := Remote.traverse (node -> hash! (node, k)) nodes;
   (nodes `Vector.zip` hashes)
-  |> Vector.sort Hash.Order 2nd
+  |> Vector.sort-by Hash.Order 2nd
   |> Vector.take DIndex.Replication-Factor
   |> Vector.map 1st
   |> pure;;
