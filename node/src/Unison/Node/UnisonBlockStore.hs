@@ -57,11 +57,11 @@ make bs = let
     StoreData trm tym (Map.insert ref met mm)
   in do
   journaledStore <- J.fromBlocks bs apply keyframeBlock updateBlock
-  let readTerm h = Note.noted . atomically $ (maybeToEither (Note.note "term not found") . Map.lookup h . termMap)
+  let readTerm h = Note.noted . atomically $ (maybeToEither (Note.note $ "term not found " ++ show h) . Map.lookup h . termMap)
         <$> J.get journaledStore
-      typeOfTerm r = Note.noted . atomically $ (maybeToEither (Note.note "type not found") . Map.lookup r . annotationMap)
+      typeOfTerm r = Note.noted . atomically $ (maybeToEither (Note.note $ "type not found " ++ show r) . Map.lookup r . annotationMap)
         <$> J.get journaledStore
-      readMetadata r = Note.noted . atomically $ (maybeToEither (Note.note "metadata not found") . Map.lookup r . metadataMap)
+      readMetadata r = Note.noted . atomically $ (maybeToEither (Note.note $ "metadata not found " ++ show r) . Map.lookup r . metadataMap)
         <$> J.get journaledStore
       writeTerm h t = Note.lift $ J.update (WriteTerm h t) journaledStore
       annotateTerm r t = Note.lift $ J.update (AnnotateTerm r t) journaledStore

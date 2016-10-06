@@ -2,6 +2,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Unison.Metadata where
 
+import Control.Applicative
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Text (Text)
@@ -19,6 +20,11 @@ data Metadata v h =
     description :: Maybe h
   } deriving (Eq,Ord,Show,Generic)
 
+combine :: Maybe (Metadata v h) -> Metadata v h -> Metadata v h
+combine Nothing md2 = md2
+combine (Just (Metadata _ (Names names1) desc1)) (Metadata sort (Names names2) desc2) =
+  Metadata sort (Names $ names2 ++ names1) (desc2 <|> desc1)
+
 matches :: Var v => Query -> Metadata v h -> Bool
 matches (Query txt) (Metadata _ (Names ns) _) =
   any (Text.isPrefixOf txt) (map Var.name ns)
@@ -31,9 +37,16 @@ synthetic t = Metadata t (Names []) Nothing
 syntheticTerm :: Metadata v h
 syntheticTerm = synthetic Term
 
-data Names v = Names [v] deriving (Eq,Ord,Show,Generic)
+newtype Names v = Names [v] deriving (Eq,Ord,Show,Generic)
 
-data Query = Query Text
+firstName :: Names v -> Maybe v
+firstName (Names (h:_)) = Just h
+firstName _ = Nothing
+
+allNames :: Names v -> [v]
+allNames (Names ns) = ns
+
+newtype Query = Query Text
 
 instance Show Query where
   show (Query q) = show q

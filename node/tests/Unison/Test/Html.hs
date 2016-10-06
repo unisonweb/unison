@@ -33,19 +33,26 @@ numlinks = let found = getLinks $ pack testHTML in if 3 == length found
   then pure ()
   else fail $ "expected 3 links, got " ++ show found
 
+plainText :: Assertion
+plainText = let expected = "simple linkInside one Inside other outside one  inside list  Empty link"
+                result = toPlainText $ pack testHTML
+            in if expected == result
+               then pure ()
+               else fail $ "got unclean html: " ++ show result
+
 tests :: TestTree
 tests = testGroup "html"
   [ testCase "numlinks" numlinks
   ]
 
 -- evaluateTerms :: [(Path, e)] -> Noted m [(Path,e,e)],
-unisonEvaluate :: TestNode -> Assertion
-unisonEvaluate testNode = do
+unisonEvaluate :: (TestNode, String -> TermV) -> Assertion
+unisonEvaluate (testNode, parse) = do
   let inputPath = [P.Fn]
-      getLinksTerm = unsafeParseTerm $ "getLinks \"" ++ testHTML2 ++ "\""
+      getLinksTerm = parse $ "Html.get-links \"" ++ testHTML2 ++ "\""
       linkTerm = EB.link (Term.text "link.html") (Term.text "description")
-      getLink = Term.ref (R.Builtin "Html.getHref") `Term.app` linkTerm
-      getDescription = Term.ref (R.Builtin "Html.getDescription") `Term.app` linkTerm
+      getLink = Term.ref (R.Builtin "Html.get-href") `Term.app` linkTerm
+      getDescription = Term.ref (R.Builtin "Html.get-description") `Term.app` linkTerm
       desiredLinks = Term.vector [linkTerm]
       desiredHref = Term.text "link.html"
       desiredDescription = Term.text "description"
@@ -64,8 +71,14 @@ unisonEvaluate testNode = do
         , "description match ", show (description == desiredDescription)
         ]
 
-nodeTests :: TestNode -> TestTree
+nodeTests :: (TestNode, String -> TermV) -> TestTree
 nodeTests testNode = testGroup "html"
   [ testCase "numlinks" numlinks
+  , testCase "plainText" plainText
   , testCase "unisonEvaluate" (unisonEvaluate testNode)
   ]
+
+main :: IO ()
+main = do
+  testNode <- makeTestNode
+  defaultMain (nodeTests testNode)

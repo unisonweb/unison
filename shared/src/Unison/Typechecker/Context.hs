@@ -477,10 +477,11 @@ annotateLetRecBindings letrec = do
   pure $ (marker, body)
 
 -- | Infer the type of a literal
-synthLit :: Ord v => Term.Literal -> Type v
-synthLit lit = Type.lit $ case lit of
-  Term.Number _ -> Type.Number
-  Term.Text _ -> Type.Text
+synthLit :: Var v => Term.Literal -> Type v
+synthLit lit = case lit of
+  Term.Number _ -> Type.lit Type.Number
+  Term.Text _ -> Type.lit Type.Text
+  Term.If -> Type.forall' ["a"] (Type.builtin "Boolean" --> Type.v' "a" --> Type.v' "a" --> Type.v' "a")
 
 -- | Synthesize the type of the given term, updating the context in the process.
 synthesize :: Var v => Term v -> M v (Type v)
@@ -491,11 +492,18 @@ synthesize e = scope ("synth: " ++ show e) $ go e where
   go Term.Blank' = do
     v <- freshVar
     pure $ Type.forall (TypeVar.Universal v) (Type.universal v)
-  go (Term.Ann' (Term.Ref' _) t) =
-    -- innermost Ref annotation assumed to be correctly provided by `synthesizeClosed`
-    pure (ABT.vmap TypeVar.Universal t)
+  go (Term.Ann' (Term.Ref' _) t) = case ABT.freeVars t of
+    s | Set.null s ->
+      -- innermost Ref annotation assumed to be correctly provided by `synthesizeClosed`
+      pure (ABT.vmap TypeVar.Universal t)
+    s | otherwise ->
+      fail $ "type annotation contains free variables " ++ show (map Var.name (Set.toList s))
   go (Term.Ref' h) = fail $ "unannotated reference: " ++ show h
-  go (Term.Ann' e' t) = case ABT.vmap TypeVar.Universal t of t -> t <$ check e' t -- Anno
+  go (Term.Ann' e' t) = case ABT.freeVars t of
+    s | Set.null s ->
+      case ABT.vmap TypeVar.Universal t of t -> t <$ check e' t -- Anno
+    s | otherwise ->
+      fail $ "type annotation contains free variables " ++ show (map Var.name (Set.toList s))
   go (Term.Lit' l) = pure (synthLit l) -- 1I=>
   go (Term.App' f arg) = do -- ->E
     ft <- synthesize f; ctx <- getContext
@@ -594,22 +602,22 @@ remoteSignatureOf k = fromMaybe (error "unknown symbol") (Map.lookup k remoteSig
 
 remoteSignatures :: forall v . Var v => Map.Map Text.Text (Type.Type v)
 remoteSignatures = Map.fromList
-  [ ("Remote.at", Type.forall' ["a"] (Type.builtin "Node" --> v' "a" --> remote' (v' "a")))
-  , ("Remote.fork", Type.forall' ["a"] (remote' (v' "a") --> remote' unitT))
-  , ("Remote.here", remote' (Type.builtin "Node"))
-  , ("Remote.spawn", remote' (Type.builtin "Node"))
-  , ("Remote.send", Type.forall' ["a"] (channel (v' "a") --> v' "a" --> remote' unitT))
-  , ("Remote.channel", Type.forall' ["a"] (remote' (channel (v' "a"))))
-  , ("Remote.map", Type.forall' ["a","b"] ((v' "a" --> v' "b") --> remote' (v' "a") --> remote' (v' "b")))
-  , ("Remote.bind", Type.forall' ["a","b"] ((v' "a" --> remote' (v' "b")) --> remote' (v' "a") --> remote' (v' "b")))
-  , ("Remote.pure", Type.forall' ["a"] (v' "a" --> remote' (v' "a")))
-  , ("Remote.receiveAsync", Type.forall' ["a"] (channel (v' "a") --> timeoutT --> remote' (remote' (v' "a"))))
-  , ("Remote.receive", Type.forall' ["a"] (channel (v' "a") --> remote' (v' "a"))) ]
+  [ ("Remote.at", Type.forall' ["a"] (Type.builtin "Node" --> v' "a" --> remote (v' "a")))
+  , ("Remote.fork", Type.forall' ["a"] (remote (v' "a") --> remote unitT))
+  , ("Remote.here", remote (Type.builtin "Node"))
+  , ("Remote.spawn", remote (Type.builtin "Node"))
+  , ("Remote.send", Type.forall' ["a"] (channel (v' "a") --> v' "a" --> remote unitT))
+  , ("Remote.channel", Type.forall' ["a"] (remote (channel (v' "a"))))
+  , ("Remote.map", Type.forall' ["a","b"] ((v' "a" --> v' "b") --> remote (v' "a") --> remote (v' "b")))
+  , ("Remote.bind", Type.forall' ["a","b"] ((v' "a" --> remote (v' "b")) --> remote (v' "a") --> remote (v' "b")))
+  , ("Remote.pure", Type.forall' ["a"] (v' "a" --> remote (v' "a")))
+  , ("Remote.receive-async", Type.forall' ["a"] (channel (v' "a") --> timeoutT --> remote (remote (v' "a"))))
+  , ("Remote.receive", Type.forall' ["a"] (channel (v' "a") --> remote (v' "a"))) ]
   where
   v' = Type.v'
-  timeoutT = Type.builtin "Remote.Timeout"
+  timeoutT = Type.builtin "Duration"
   unitT = Type.builtin "Unit"
-  remote' t = Type.builtin "Remote" `Type.app` t
+  remote t = Type.builtin "Remote" `Type.app` t
   channel t = Type.builtin "Channel" `Type.app` t
 
 -- | For purposes of typechecking, we translate `[x,y,z]` to the term
@@ -634,15 +642,19 @@ synthesizeClosed synthRef term = do
   synthesizeClosedAnnotated term
 
 synthesizeClosed' :: Var v => Term v -> M v (Type v)
-synthesizeClosed' term = case runM (synthesize term) env0 of
+synthesizeClosed' term | Set.null (ABT.freeVars term) = case runM (synthesize term) env0 of
   Left err -> M $ \_ -> Left err
   Right (t,env) -> pure $ generalizeExistentials (ctx env) t
+synthesizeClosed' term =
+  fail $ "cannot synthesize term with free variables: " ++ show (map Var.name $ Set.toList (ABT.freeVars term))
 
 synthesizeClosedAnnotated :: (Monad f, Var v) => Term v -> Noted f (Type v)
-synthesizeClosedAnnotated term = do
+synthesizeClosedAnnotated term | Set.null (ABT.freeVars term) = do
   Note.fromEither $ runM (synthesize term) env0 >>= \(t,env) ->
     -- we generalize over any remaining unsolved existentials
     pure $ generalizeExistentials (ctx env) t
+synthesizeClosedAnnotated term =
+  fail $ "cannot synthesize term with free variables: " ++ show (map Var.name $ Set.toList (ABT.freeVars term))
 
 -- boring instances
 instance Applicative (M v) where

@@ -1,0 +1,119 @@
+
+Index.empty : ∀ k v . Remote (Index k v);
+Index.empty = Remote.map Index.empty# Remote.here;
+
+Index.keys : ∀ k v . Index k v -> Remote (Vector k);
+Index.keys = Index.from-unsafe Index.keys#;
+
+Index.1st-key : ∀ k v . Index k v -> Remote (Optional k);
+Index.1st-key = Index.from-unsafe Index.1st-key#;
+
+Index.increment : ∀ k v . k -> Index k v -> Remote (Optional k);
+Index.increment k = Index.from-unsafe (Index.increment# k);
+
+Index.lookup : ∀ k v . k -> Index k v -> Remote (Optional v);
+Index.lookup k = Index.from-unsafe (Index.lookup# k);
+
+Index.lookup-or : ∀ k v . v -> k -> Index k v -> Remote v;
+Index.lookup-or v k ind =
+  Remote.map (Optional.get-or v) (Index.lookup k ind);
+
+Index.delete : ∀ k v . k -> Index k v -> Remote Unit;
+Index.delete k = Index.from-unsafe (Index.delete# k);
+
+Index.insert : ∀ k v . k -> v -> Index k v -> Remote Unit;
+Index.insert k v = Index.from-unsafe (Index.insert# k v);
+
+Index.inserts : ∀ k v . Vector (k,v) -> Index k v -> Remote Unit;
+Index.inserts vs ind = Remote.map (const Unit) <|
+  Remote.traverse (kv -> Index.insert (1st kv) (2nd kv) ind) vs;
+
+Index.from-unsafe : ∀ k v r . (Text -> r) -> Index k v -> Remote r;
+Index.from-unsafe f ind = let
+  p = Index.representation# ind;
+  Remote.map f (Remote.at (1st p) (2nd p));;
+;
+
+alias IndexedTraversal k v =
+   ( Remote (Optional k) -- first key
+   , k -> Remote (Optional v) -- lookup the value for a key
+   , k -> Remote (Optional k)); -- increment a key
+
+IndexedTraversal.1st-key : ∀ k v . IndexedTraversal k v -> Remote (Optional k);
+IndexedTraversal.1st-key t = 1st t;
+
+IndexedTraversal.lookup : ∀ k v . k -> IndexedTraversal k v -> Remote (Optional v);
+IndexedTraversal.lookup k t = 2nd t k;
+
+-- | Returns the smallest key in the traversal which is > the provided key.
+IndexedTraversal.increment : ∀ k v . k -> IndexedTraversal k v -> Remote (Optional k);
+IndexedTraversal.increment k t = 3rd t k;
+
+-- | Returns the smallest key in the traversal which is >= the provided key.
+IndexedTraversal.ceiling : ∀ k v . k -> IndexedTraversal k v -> Remote (Optional k);
+IndexedTraversal.ceiling k t =
+  IndexedTraversal.lookup k t |> Remote.bind (
+    Optional.fold (IndexedTraversal.increment k t) (const (pure <| Some k))
+  );
+
+Index.traversal : ∀ k v . Index k v -> IndexedTraversal (k, Hash k) v;
+Index.traversal ind = let
+  add-hash = Optional.map (k -> (k, hash# k));
+  ( Index.1st-key ind |> Remote.map add-hash
+  , k -> Index.lookup (1st k) ind
+  , k -> Index.increment (1st k) ind |> Remote.map add-hash
+  );;
+;
+
+IndexedTraversal.empty : ∀ k v . IndexedTraversal k v;
+IndexedTraversal.empty =
+  (Remote.pure None, const (Remote.pure None), const (Remote.pure None));
+
+IndexedTraversal.intersect : ∀ k v . Order k
+  -> IndexedTraversal k v
+  -> IndexedTraversal k v
+  -> IndexedTraversal k v;
+IndexedTraversal.intersect o t1 t2 = let rec
+  align-key k1 k2 = Optional.get-or (Remote.pure None) <| Optional.map2
+    (k1 k2 -> Order.compare o k1 k2 |> Comparison.fold
+       (IndexedTraversal.ceiling k2 t1 |> Remote.bind (k1 -> align-key k1 (Some k2)))
+       (Remote.pure (Some k1))
+       (IndexedTraversal.ceiling k1 t2 |> Remote.bind (k2 -> align-key (Some k1) k2))
+    )
+    k1 k2
+  ;
+  1st-key = Remote.map2' align-key (1st t1) (1st t2);
+  lookup k = 2nd t1 k |> Remote.bind (Optional.fold (Remote.pure None) (a -> 2nd t2 k));
+  increment k = Remote.map2' align-key (3rd t1 k) (3rd t2 k);
+  (1st-key, lookup, increment);;
+;
+
+IndexedTraversal.1st-entry : ∀ k v . IndexedTraversal k v -> Remote (Optional (k, v));
+IndexedTraversal.1st-entry t = IndexedTraversal.entry-at (1st t) t;
+
+IndexedTraversal.entry-at : ∀ k v .
+  Remote (Optional k) -> IndexedTraversal k v -> Remote (Optional (k, v));
+IndexedTraversal.entry-at k t = do Remote
+  k := k;
+  v := Optional.fold (pure None) (2nd t) k;
+  pure (Optional.map2 (k v -> (k,v)) k v);;
+;
+
+IndexedTraversal.take : ∀ k v . Number -> IndexedTraversal k v -> Remote (Vector (k,v));
+IndexedTraversal.take n t =
+  Remote.unfold (t, n) (tn -> let
+    t = 1st tn;
+    n = 2nd tn;
+    step e = (e, (set-1st (IndexedTraversal.increment (1st e) t) t, n - 1));
+    if n <=_Number 0 then Remote.pure None
+    else IndexedTraversal.1st-entry t |> Remote.map (Optional.map step);;
+  );
+
+IndexedTraversal.take-keys : ∀ k v . Number -> IndexedTraversal k v -> Remote (Vector k);
+IndexedTraversal.take-keys n t = IndexedTraversal.take n t |> Remote.map (Vector.map 1st);
+
+Http.get-url : Text -> Remote (Either Text Text);
+Http.get-url url = Remote.map Http.get-url# (Remote.pure url);
+
+hash! : ∀ a . a -> Remote (Hash a);
+hash! a = Remote.map hash# (Remote.pure a);

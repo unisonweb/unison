@@ -1,0 +1,268 @@
+identity : ∀ a . a -> a;
+identity a = a;
+
+const x y = x;
+
+and-then : ∀ a b c . (a -> b) -> (b -> c) -> a -> c;
+and-then f1 f2 x = f2 (f1 x);
+
+(|>) : ∀ a b . a -> (a -> b) -> b;
+a |> f = f a;
+
+(<|) : ∀ a b . (a -> b) -> a -> b;
+f <| a = f a;
+
+flip : ∀ a b c . (a -> b -> c) -> b -> a -> c;
+flip f b a = f a b;
+
+first : ∀ a b . Pair a b -> a;
+first p = Pair.fold const p;
+
+rest : ∀ a b . Pair a b -> b;
+rest p = Pair.fold (x y -> y) p;
+
+1st = first;
+2nd = rest `and-then` first;
+3rd = rest `and-then` (rest `and-then` first);
+4th = rest `and-then` (rest `and-then` (rest `and-then` first));
+5th = rest `and-then` (rest `and-then` (rest `and-then` (rest `and-then` first)));
+
+set-1st : ∀ a a2 b . a2 -> Pair a b -> Pair a2 b;
+set-1st new-1st p = Pair new-1st (rest p);
+
+Order.compare : ∀ a . Order a -> a -> a -> Comparison;
+Order.compare o a1 a2 = Order.Key.compare (Order.key o a1) (Order.key o a2);
+
+Order.equal : ∀ a . Order a -> a -> a -> Boolean;
+Order.equal o a a2 =
+  Comparison.fold False True False (Order.compare o a a2);
+
+Order.tuple2 : ∀ a b . Order a -> Order b -> Order (a,b);
+Order.tuple2 a b = Pair.Order a (Pair.Order b Unit.Order);
+
+Order.tuple3 : ∀ a b c . Order a -> Order b -> Order c -> Order (a,b,c);
+Order.tuple3 a b c = Pair.Order a (Pair.Order b (Pair.Order c Unit.Order));
+
+Order.by-1st : ∀ a b . Order a -> Order (Pair a b);
+Order.by-1st a = Pair.Order a Order.ignore;
+
+Order.by-2nd : ∀ a b c . Order b -> Order (Pair a (Pair b c));
+Order.by-2nd b = Pair.Order Order.ignore (Pair.Order b Order.ignore);
+
+Order.by-3rd : ∀ a b c d . Order c -> Order (Pair a (Pair b (Pair c d)));
+Order.by-3rd c = Pair.Order Order.ignore (Pair.Order Order.ignore (Pair.Order c Order.ignore));
+
+Vector.bind : ∀ a b . (a -> Vector b) -> Vector a -> Vector b;
+Vector.bind f v = Vector.fold-balanced Vector.concatenate Vector.empty (Vector.map f v);
+
+Vector.pure = Vector.single;
+
+Vector.replicate : ∀ a . Number -> a -> Vector a;
+Vector.replicate n a = Vector.map (const a) (Vector.range 0 n);
+
+Vector.fold-right : ∀ a b . (a -> b -> b) -> b -> Vector a -> b;
+Vector.fold-right f z vs = Vector.fold-left (flip f) z (Vector.reverse vs);
+
+Vector.fold-balanced : ∀ a . (a -> a -> a) -> a -> Vector a -> a;
+Vector.fold-balanced plus zero vs =
+  let rec
+    go plus zero vs =
+      if Vector.size vs <=_Number 2
+      then Vector.fold-left plus zero vs
+      else (let p = Vector.halve vs;
+                go plus zero (1st p) `plus` go plus zero (2nd p);;);
+    go plus zero vs;;
+  ;
+
+Vector.fold-balanced1 : ∀ a . (a -> a -> a) -> Vector a -> Optional a;
+Vector.fold-balanced1 f v = Vector.fold-balanced (Optional.lift-or f) None (Vector.map Some v);
+
+Vector.join : ∀ a . Vector (Vector a) -> Vector a;
+Vector.join = Vector.bind identity;
+
+Vector.filter : ∀ a . (a -> Boolean) -> Vector a -> Vector a;
+Vector.filter f = Vector.bind (a -> if f a then [a] else []);
+
+Vector.all? : ∀ a . (a -> Boolean) -> Vector a -> Boolean;
+Vector.all? f vs = Vector.fold-balanced and True (Vector.map f vs);
+
+Vector.sort-by : ∀ k a . Order k -> (a -> k) -> Vector a -> Vector a;
+Vector.sort-by ok f v = Vector.sort-keyed (f `and-then` Order.key ok) v;
+
+Vector.sort : ∀ a . Order a -> Vector a -> Vector a;
+Vector.sort o = Vector.sort-by o identity;
+
+Vector.last : ∀ a . Vector a -> Optional a;
+Vector.last v = Vector.at (Vector.size v - 1) v;
+
+Vector.1st : ∀ a . Vector a -> Optional a;
+Vector.1st = Vector.at 0;
+
+Vector.dedup-adjacent : ∀ a . (a -> a -> Boolean) -> Vector a -> Vector a;
+Vector.dedup-adjacent eq v =
+  Vector.fold-balanced
+    (v1 v2 ->
+      if Optional.map2 eq (Vector.last v1) (Vector.1st v2) |> Optional.get-or False
+      then Vector.concatenate v1 (Vector.drop 1 v2)
+      else Vector.concatenate v1 v2)
+    []
+    (Vector.map Vector.pure v);
+
+Vector.drop-right : ∀ a . Number -> Vector a -> Vector a;
+Vector.drop-right n v = Vector.take (Vector.size v - n) v;
+
+Vector.take-right : ∀ a . Number -> Vector a -> Vector a;
+Vector.take-right n v = Vector.drop (Vector.size v - n) v;
+
+Vector.histogram : ∀ a . Order a -> Vector a -> Vector (a, Number);
+Vector.histogram o v = let
+  merge-bin b1 b2 = (1st b1, 2nd b1 + 2nd b2);
+  combine bin1 bin2 =
+    Optional.map2 (p1 p2 -> if Order.equal o (1st p1) (1st p2)
+                            then [merge-bin p1 p2]
+                            else [p1, p2])
+                  (Vector.last bin1) (Vector.1st bin2)
+    |> Optional.fold' (u -> Vector.concatenate bin1 bin2)
+                      (p -> Vector.join [Vector.drop-right 1 bin1, p, Vector.drop 1 bin2])
+    <| Unit;
+  Vector.fold-balanced combine [] (Vector.map (a -> Vector.pure (a, 1)) (Vector.sort o v));;
+;
+
+Vector.ranked-histogram : ∀ a . Order a -> Vector a -> Vector (a, Number);
+Vector.ranked-histogram o v =
+  Vector.histogram o v |> Vector.sort-by (Order.invert Number.Order) 2nd;
+
+Vector.sum : Vector Number -> Number;
+Vector.sum = Vector.fold-left (+) 0;
+
+Vector.dedup : ∀ a . Order a -> Vector a -> Vector a;
+Vector.dedup o v = Vector.dedup-adjacent (Order.equal o) (Vector.sort o v);
+
+Remote.map : ∀ a b . (a -> b) -> Remote a -> Remote b;
+Remote.map f = Remote.bind (f `and-then` Remote.pure);
+
+Remote.map2 : ∀ a b c . (a -> b -> c) -> Remote a -> Remote b -> Remote c;
+Remote.map2 f a b = do Remote
+  a := a;
+  b := b;
+  pure (f a b);;
+;
+
+Remote.map2' : ∀ a b c . (a -> b -> Remote c) -> Remote a -> Remote b -> Remote c;
+Remote.map2' f a b = Remote.map2 f a b |> Remote.join;
+
+Remote.join : ∀ a . Remote (Remote a) -> Remote a;
+Remote.join = Remote.bind identity;
+
+Remote.replicate : ∀ a . Number -> Remote a -> Remote (Vector a);
+Remote.replicate n r = Remote.sequence (Vector.replicate n r);
+
+Remote.unfold : ∀ s a . s -> (s -> Remote (Optional (a, s))) -> Remote (Vector a);
+Remote.unfold s f = let rec
+  go s acc = do Remote
+    ht := f s;
+    ht |> Optional.fold
+      (pure acc)
+      (ht -> go (2nd ht) (Vector.append (1st ht) acc));;
+  ;
+  go s Vector.empty;;
+;
+
+Remote.transfer : Node -> Remote Unit;
+Remote.transfer node = Remote.at node unit;
+
+Remote.race : ∀ a . Duration -> Vector (Remote a) -> Remote a;
+Remote.race timeout rs = do Remote
+  here := Remote.here;
+  c := Remote.channel;
+  result := Remote.receive-async c timeout;
+  Remote.traverse
+    (r -> Remote.fork <| do Remote a := r; Remote.transfer here; Remote.send c a;;)
+    rs;
+  result;;
+;
+
+-- Returns `None` if no response within the provided `timeout`,
+-- which cannot exceed 500 seconds
+Remote.timeout : ∀ a . Duration -> Remote a -> Remote (Optional a);
+Remote.timeout timeout r =
+  Remote.race (Duration.seconds 501) [
+    Remote.map Some r,
+    do Remote Remote.sleep timeout; pure None;;
+  ];
+
+Remote.at' : ∀ a . Node -> Remote a -> Remote a;
+Remote.at' node r = do Remote Remote.transfer node; r;;;
+
+Remote.start : ∀ a . Duration -> Remote a -> Remote (Remote a);
+Remote.start timeout r = do Remote
+  here := Remote.here;
+  c := Remote.channel;
+  result := Remote.receive-async c timeout;
+  Remote.fork (Remote.at' here (r |> Remote.bind (Remote.send c)));
+  pure result;;
+;
+
+Remote.traverse : ∀ a b . (a -> Remote b) -> Vector a -> Remote (Vector b);
+Remote.traverse f vs =
+  Vector.fold-balanced (Remote.map2 Vector.concatenate)
+                       (Remote.pure Vector.empty)
+                       (Vector.map (f `and-then` Remote.map Vector.single) vs);
+
+Remote.sequence : ∀ a . Vector (Remote a) -> Remote (Vector a);
+Remote.sequence vs =
+  Vector.fold-balanced (Remote.map2 Vector.concatenate)
+                       (Remote.pure Vector.empty)
+                       (Vector.map (Remote.map Vector.single) vs);
+
+Remote.parallel-traverse : ∀ a b . Duration -> (a -> Remote b) -> Vector a -> Remote (Vector b);
+Remote.parallel-traverse timeout f vs = do Remote
+  futures := Remote.traverse (f `and-then` Remote.start timeout) vs;
+  Remote.sequence futures;;
+;
+
+-- Run several remote computations in parallel, returning once `n` equivalent
+-- replies come back. Equivalence is based on result of `hash!`.
+Remote.quorum : ∀ a b . Duration -> Number -> (a -> Remote b) -> Vector a -> Remote b;
+Remote.quorum timeout n = _; -- todo
+
+Optional.map : ∀ a b . (a -> b) -> Optional a -> Optional b;
+Optional.map f = Optional.fold None (f `and-then` Some);
+
+Optional.bind : ∀ a b . (a -> Optional b) -> Optional a -> Optional b;
+Optional.bind f = Optional.fold None f;
+
+Optional.pure : ∀ a . a -> Optional a;
+Optional.pure = Some;
+
+Optional.get-or : ∀ a . a -> Optional a -> a;
+Optional.get-or a = Optional.fold a identity;
+
+Optional.somes : ∀ a . Vector (Optional a) -> Vector a;
+Optional.somes = Vector.bind (Optional.fold Vector.empty Vector.single);
+
+Optional.map2 : ∀ a b c . (a -> b -> c) -> Optional a -> Optional b -> Optional c;
+Optional.map2 f a b = do Optional
+  a := a;
+  b := b;
+  pure (f a b);;
+;
+
+Optional.lift-or : ∀ a . (a -> a -> a) -> Optional a -> Optional a -> Optional a;
+Optional.lift-or f = a1 a2 ->
+  a1 |> Optional.fold a2 (a1 -> Optional.fold None (a2 -> Some (f a1 a2)) a2);
+
+Optional.fold' : ∀ a b . (Unit -> b) -> (a -> b) -> Optional a -> Unit -> b;
+Optional.fold' thunk f = Optional.fold thunk (a u -> f a);
+
+Either.map : ∀ a b c . (b -> c) -> Either a b -> Either a c;
+Either.map f = Either.fold Left (f `and-then` Right);
+
+Either.pure : ∀ a b . b -> Either a b;
+Either.pure = Right;
+
+Either.bind : ∀ a b c . (b -> Either a c) -> Either a b -> Either a c;
+Either.bind = Either.fold Left;
+
+Either.swap : ∀ a b . Either a b -> Either b a;
+Either.swap e = Either.fold Right Left e;

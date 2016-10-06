@@ -1,0 +1,8 @@
+
+do Remote
+  c := Remote.channel;
+  r := Remote.receive-async c (Duration.seconds 5);
+  Remote.fork (Remote.send c (Debug.watch "sent" 42));
+  -- Remote.send c 42; -- (Debug.watch "sent" 42);
+  r;;
+

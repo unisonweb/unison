@@ -1,0 +1,94 @@
+let
+  alias DIndex k v = Index Node (Index k v);
+  alias Set v = Index v Unit;
+  alias SearchIndex = DIndex Text (Set Text);
+  alias VisitSet = DIndex (Hash Text) Unit;
+
+  search : Number -> Vector Text -> SearchIndex
+        -> Remote (Vector Text);
+  search limit query ind = do Remote
+    url-sets := Remote.traverse (k -> DIndex.lookup k ind) query;
+    url-sets = Vector.map Index.traversal (Optional.somes url-sets);
+    zero = IndexedTraversal.empty;
+    merge = IndexedTraversal.intersect (Order.by-2nd Hash.Order);
+    urls = Optional.get-or IndexedTraversal.empty <| Vector.fold-balanced1 merge url-sets;
+    urls := IndexedTraversal.take-keys limit urls;
+    pure (Vector.map 1st urls);;
+  ;
+
+  trim-to-host : Text -> Text;
+  trim-to-host url = Optional.get-or url <| do Optional
+    host := Uri.parse-authority url;
+    scheme := Uri.parse-scheme url;
+    pure (Text.concatenate scheme ("//" `Text.concatenate` host));;
+  ;
+
+  -- | Convert url (possibly relative to parent) to an absolute url
+  resolve-url : Text -> Text -> Text;
+  resolve-url parent child =
+    if Text.take 1 child ==_Text "/" then
+      Text.concatenate (trim-to-host parent) child
+    else if (Text.take 5 child ==_Text "http:") `or` (Text.take 6 child ==_Text "https:") then
+      child
+    else parent `Text.concatenate` "/" `Text.concatenate` child
+  ;
+
+  crawl : Number -> SearchIndex -> VisitSet -> Text -> Remote Unit;
+  crawl depth ind visited url = let rec
+    insert url keyword = do Remote
+      url-set := DIndex.lookup keyword ind;
+      Optional.fold
+        (do Remote
+            url-set := Index.empty;
+            DIndex.insert keyword url-set ind;
+            insert url keyword;;)
+        (Index.insert url Unit)
+        url-set;;
+    ;
+    go depth url =
+      if depth <=_Number 0 then Remote.pure Unit
+      else do Remote
+        page := Remote.map (Debug.log "indexing url" url) (Http.get-url url);
+        page = Either.fold (err -> Debug.log "error fetching" (url, err) "") identity page;
+        page-hash := hash! page;
+        h := DIndex.lookup page-hash visited;
+        Optional.fold
+          (do Remote
+            page-text = Html.plain-text page;
+            keywords = Text.words page-text
+                    |> Vector.map Text.lowercase
+                    |> Vector.ranked-histogram Text.Order;
+            summary = Vector.drop 5 keywords |> Vector.take 100; -- hacky filter
+            keywords = summary;
+            -- rankings = Debug.watch "rs" <| Vector.map 2nd keywords;
+            -- rankings0 = Debug.watch "kw" <| Vector.map 1st keywords;
+            keywords = Vector.map 1st keywords;
+            links = Html.get-links page;
+            links = Vector.map (Html.get-href `and-then` resolve-url url) links;
+            -- insert all keywords for the page into the map
+            Remote.traverse (insert url) keywords;
+            -- mark page as visited
+            Debug.log "finished indexing" url <| DIndex.insert page-hash Unit visited;
+            -- recurse
+            Remote.traverse (go (depth - 1)) links;
+            pure Unit;;)
+          (x -> Remote.pure (Debug.log "already visited" url Unit))
+          h;;
+      ;
+    go depth url;;
+  ;
+
+  do Remote
+    n := Remote.spawn;
+    Remote.transfer n;
+    ind := DIndex.empty;
+    visited := DIndex.empty;
+    ind-nodes := Remote.replicate 3 Remote.spawn;
+    visited-nodes := Remote.replicate 3 Remote.spawn;
+    Remote.traverse (n -> Remote.at' n (DIndex.join ind)) ind-nodes;
+    Remote.traverse (n -> Remote.at' n (DIndex.join visited)) visited-nodes;
+    Remote.fork <| crawl 2 ind visited "http://unisonweb.org";
+    Remote.sleep (Duration.seconds 500);
+    results := search 10 ["design", "unison", "refactoring"] ind;
+    pure <| Debug.watch "results --- " results;;
+  ;;

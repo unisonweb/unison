@@ -16,7 +16,7 @@ import qualified Data.Text as Text
 import qualified Unison.Term as E
 import qualified Unison.Var as Var
 
-term :: Parser [Term V]
+term :: Parser () [Term V]
 term =
   msum
     [ single . E.lit . E.Text . Text.pack <$> quotedString
@@ -30,22 +30,22 @@ term =
   where
   single x = [x]
 
-digits :: Parser String
-digits = takeWhile Char.isDigit
+digits :: Parser () String
+digits = takeWhile "digits" Char.isDigit
 
-digits1 :: Parser String
+digits1 :: Parser () String
 digits1 = (:) <$> one Char.isDigit <*> digits
 
-floatingPoint :: Parser Double
+floatingPoint :: Parser () Double
 floatingPoint = do
   d <- digits1
   rest <- optional (void (char '.') *> ((++) <$> pure "0." <*> (fromMaybe "0" <$> optional digits1)))
   pure $ read d + fromMaybe 0.0 (read <$> rest)
 
-quotedString :: Parser String
-quotedString = char '\"' *> takeWhile (\c -> c /= '\"') <* optional (char '\"')
+quotedString :: Parser () String
+quotedString = char '\"' *> takeWhile "quoted string" (\c -> c /= '\"') <* optional (char '\"')
 
-intro :: Parser [Term V]
+intro :: Parser () [Term V]
 intro = do
   let sym = (Var.named . Text.pack <$> token (identifier [])) <|> pure (Var.named "_")
   let lam v = E.lam v E.blank

@@ -4,6 +4,7 @@
 
 module Unison.Runtime.Remote where
 
+import Control.Concurrent.Async (Async)
 import Data.Functor
 import Data.Maybe
 import Control.Monad
@@ -107,10 +108,10 @@ server :: (Ord h, Serial key, Serial t, Show t, Serial h)
        -> Env t h
        -> Language t h
        -> P.Protocol t hash h' h
-       -> Multiplex ()
+       -> Multiplex (Async ())
 server crypto allow env lang p = do
   (accept,_) <- Mux.subscribeTimed (Mux.seconds 60) (Mux.erase (P._eval p))
-  void . Mux.fork . Mux.repeatWhile $ do
+  Mux.fork . Mux.repeatWhile $ do
     initialPayload <- accept
     case initialPayload of
       Nothing -> pure False
@@ -120,7 +121,7 @@ server crypto allow env lang p = do
         -- guard $ Put.runPutS (serialize peerKey) == publicKey peer
         Mux.scope "Remote.server" . Mux.repeatWhile $ do
           r <- recv
-          Mux.info $ "eval " ++ show r
+          Mux.debug $ "eval " ++ show r
           case r of
             Nothing -> pure False
             Just (r, ackChan) -> do
@@ -132,7 +133,8 @@ server crypto allow env lang p = do
               where
               fetch hs = do
                 syncChan <- Mux.channel
-                Mux.encryptedRequestTimedVia cipherstate (Mux.seconds 5) (send . Just . Just) syncChan (Set.toList hs)
+                Mux.encryptedRequestTimedVia "fetching hashes"
+                  cipherstate (Mux.seconds 5) (send . Just . Just) syncChan (Set.toList hs)
               loop needs | Set.null needs = pure ()
               loop needs = fetch needs >>= \hashes -> case hashes of
                 Nothing -> fail "expected hashes, got timeout"
@@ -175,8 +177,8 @@ handle crypto allow env lang p r = Mux.debug (show r) >> case r of
          client crypto allow env p n r
          Mux.debug $ "transferred to node: " ++ show n
   runLocal (Fork r) = do
-    Mux.debug $ "runLocal Fork"
-    Mux.fork (handle crypto allow env lang p r) $> unit lang
+    Mux.info $ "runLocal Fork"
+    unit lang <$ Mux.fork (handle crypto allow env lang p r)
   runLocal CreateChannel = do
     Mux.debug $ "runLocal CreateChannel"
     channel lang . Channel . Mux.channelId <$> Mux.channel
@@ -185,25 +187,36 @@ handle crypto allow env lang p r = Mux.debug (show r) >> case r of
     pure $ node lang (currentNode env)
   runLocal Spawn = do
     Mux.debug $ "runLocal Spawn"
-    n <- Mux.requestTimed (Mux.seconds 5) (P._spawn p) B.empty
+    n <- Mux.requestTimed "runLocal.spawn" (Mux.seconds 5) (P._spawn p) B.empty
     n <- n
     Mux.debug $ "runLocal Spawn completed: " ++ show n
     pure (node lang n)
   runLocal (Pure t) = do
     Mux.debug $ "runLocal Pure"
     liftIO $ eval lang t
-  runLocal (Send (Channel cid) a) = do
-    Mux.debug $ "runLocal Send " ++ show cid
+  runLocal (Send c@(Channel cid) a) = do
+    Mux.debug $ "runLocal Send " ++ show c ++ " " ++ show a
+    a <- liftIO $ eval lang a
+    Mux.debug $ "runLocal Send[2] " ++ show c ++ " " ++ show a
     Mux.process1 (Mux.Packet cid (Put.runPutS (serialize a)))
     pure (unit lang)
+  runLocal (Sleep (Seconds seconds)) = do
+    let micros = floor $ seconds * 1000 * 1000
+    liftIO $ C.threadDelay micros
+    pure (unit lang)
   runLocal (ReceiveAsync chan@(Channel cid) (Seconds seconds)) = do
-    Mux.debug $ "runLocal ReceiveAsync " ++ show (seconds, cid)
-    _ <- Mux.receiveTimed (floor $ seconds * 1000 * 1000) ((Mux.Channel Mux.Type cid) :: Mux.Channel (Maybe B.ByteString))
-    pure (remote lang (Step (Local (Receive chan))))
-  runLocal (Receive (Channel cid)) = do
-    Mux.debug $ "runLocal Receive " ++ show cid
-    (recv,_) <- Mux.receiveCancellable (Mux.Channel Mux.Type cid)
-    bytes <- recv
+    Mux.debug $ "runLocal ReceiveAsync " ++ show (seconds, chan)
+    forceChan <- Mux.channel
+    Mux.debug $ "ReceiveAsync force channel " ++ show forceChan
+    let micros = floor $ seconds * 1000 * 1000
+    force <- Mux.receiveTimed' ("receiveAsync on " ++ show chan)
+      micros ((Mux.Channel Mux.Type cid) :: Mux.Channel B.ByteString)
+    Mux.saveReceive micros (Mux.channelId forceChan) force
+    pure (remote lang (Step (Local (Receive (Channel $ Mux.channelId forceChan)))))
+  runLocal (Receive chan@(Channel cid)) = do
+    Mux.debug $ "runLocal Receive " ++ show chan
+    bytes <- Mux.restoreReceive cid
+    Mux.debug $ "runLocal Receive got bytes " ++ show chan
     case Get.runGetS deserialize bytes of
       Left err -> fail err
       Right r -> pure r
@@ -233,7 +246,7 @@ client crypto allow env p recipient r = Mux.scope "Remote.client" $ do
   Mux.info $ "connected"
   replyChan <- Mux.channel
   let send' (a,b) = send (Just (a,b))
-  _ <- Mux.encryptedRequestTimedVia cipherstate (Mux.seconds 5) send' replyChan r
+  _ <- Mux.encryptedRequestTimedVia "client ack" cipherstate (Mux.seconds 5) send' replyChan r
   Mux.debug $ "got ack on " ++ show replyChan
   -- todo - might want to retry if ack doesn't come back
   id $

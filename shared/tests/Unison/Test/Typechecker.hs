@@ -35,7 +35,7 @@ instance Show StrongEq where show (StrongEq t) = show t
 
 env :: TNode -> TEnv IO
 env node r = do
-  (node, _) <- Note.lift node
+  (node, _, _) <- Note.lift node
   Node.typeAt node (E.ref r) mempty
 
 localsAt :: TNode -> Path -> TTerm -> IO [(V, Type V)]
@@ -45,7 +45,7 @@ localsAt node path e = Note.run $ do
 
 synthesizesAt :: TNode -> Path -> TTerm -> TType -> Assertion
 synthesizesAt node path e t = Note.run $ do
-  (node, _) <- Note.lift node
+  (node, _, _) <- Note.lift node
   t2 <- Node.typeAt node e path
   _ <- Note.fromEither (Typechecker.subtype t2 t)
   _ <- Note.fromEither (Typechecker.subtype t t2)
@@ -80,7 +80,7 @@ synthesizesAndChecks node e t =
 
 --singleTest = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Typechecker"
 --  [
---   testTerm "f -> let x = (let saved = f in 42) in 1" $ \tms ->
+--   testTerm "f -> let x = (let saved = f; 42); 1" $ \tms ->
 --    testCase ("synthesize/check ("++tms++")") $ synthesizesAndChecks node
 --      (unsafeParseTerm tms)
 --      (unsafeParseType "forall x. x -> Number")
@@ -119,14 +119,14 @@ tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Typecheck
   , testCase "synthesize/check (x y -> y)" $ synthesizesAndChecks node
       (unsafeParseTerm "x y -> y")
       (unsafeParseType "forall a b. a -> b -> b")
-  , testCase "synthesize/check (let f = (+) in f 1)" $ synthesizesAndChecks node
-      (unsafeParseTerm "let f = (+) in f 1")
+  , testCase "synthesize/check (let f = (+); f 1;;)" $ synthesizesAndChecks node
+      (unsafeParseTerm "let f = (+); f 1;;")
       (T.lit T.Number --> T.lit T.Number)
-  , testCase "synthesize/check (let blank x = _ in blank 1)" $ synthesizesAndChecks node
-      (unsafeParseTerm "let blank x = _ in blank 1")
+  , testCase "synthesize/check (let blank x = _; blank 1;;)" $ synthesizesAndChecks node
+      (unsafeParseTerm "let blank x = _; blank 1;;")
       (forall' ["a"] $ T.v' "a")
   , testCase "synthesize/check Term.fix" $ synthesizesAndChecks node
-      (unsafeParseTerm "let rec fix f = f (fix f) in fix")
+      (unsafeParseTerm "let rec fix f = f (fix f); fix;;")
       (forall' ["a"] $ (T.v' "a" --> T.v' "a") --> T.v' "a")
   , testCase "synthesize/check Term.pingpong1" $ synthesizesAndChecks node
       Term.pingpong1
@@ -137,15 +137,15 @@ tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Typecheck
   , testTerm "[1, 2, 1 + 1]" $ \tms ->
     testCase ("synthesize/checkAt "++tms++"@[Index 2]") $ synthesizesAndChecksAt node
       [Paths.Index 2] (unsafeParseTerm tms) (T.lit T.Number)
-  , testTerm "let x = _ in _" $ \tms ->
+  , testTerm "let x = _; _;;" $ \tms ->
     testCase ("synthesize/checkAt ("++tms++")@[Binding 0,Body]") $ synthesizesAndChecksAt node
       [Paths.Binding 0, Paths.Body] (unsafeParseTerm tms) unconstrained
   -- fails
-  , testTerm "f -> let x = (let saved = f in 42) in 1" $ \tms ->
+  , testTerm "f -> let x = (let saved = f; 42;;); 1;;" $ \tms ->
     testCase ("synthesize/check ("++tms++")") $ synthesizesAndChecks node
       (unsafeParseTerm tms)
       (unsafeParseType "forall x. x -> Number")
-  , testTerm "f -> let x = (b a -> b) 42 f in 1" $ \tms ->
+  , testTerm "f -> let x = (b a -> b) 42 f; 1;;" $ \tms ->
     testCase ("synthesize/check ("++tms++")") $ synthesizesAndChecks node
       (unsafeParseTerm tms) (unsafeParseType "forall x. x -> Number")
   , testTerm "f x y -> (x y -> y) f _ + _" $ \tms ->
@@ -153,14 +153,14 @@ tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Typecheck
       synthesizesAndChecks node
         (unsafeParseTerm tms)
         (unsafeParseType "forall a b c. a -> b -> c -> Number")
-  , testTerm "(id -> let x = id 42; y = id \"hi\" in 43) : (forall a . a -> a) -> Number" $ \tms ->
+  , testTerm "(id -> let x = id 42; y = id \"hi\"; 43;;) : (forall a . a -> a) -> Number" $ \tms ->
     testCase ("higher rank checking: " ++ tms) $
       let
         t = unsafeParseType "(forall a . a -> a) -> Number"
         tm = unsafeParseTerm tms
       in synthesizesAndChecks node tm t
   -- Let generalization not implemented yet; this test fails
-  --, testCase "let generalization: let id a = a; x = id 42; y = id 'hi' in 23" $
+  --, testCase "let generalization: let id a = a; x = id 42; y = id 'hi'; 23" $
   --    let
   --      tm = E.let1'
   --        [ ("id", E.lam' ["a"] (E.var' "a") `E.ann` T.forall' ["a"] (T.v' "a")),
@@ -174,22 +174,22 @@ tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Typecheck
       [(_,xt), (_,yt)] <- localsAt node [Paths.Body, Paths.Body, Paths.Fn, Paths.Arg] tm
       assertEqual "xt unconstrainted" unconstrained (T.generalize xt)
       assertEqual "yt unconstrainted" unconstrained (T.generalize yt)
-  , testTerm "let x = _ in _" $ \tms ->
+  , testTerm "let x = _; _;;" $ \tms ->
     testCase ("locals ("++tms++")") $ do
       let tm = unsafeParseTerm tms
       [(_,xt)] <- localsAt node [Paths.Body] tm
       [] <- localsAt node [Paths.Binding 0, Paths.Body] tm
       assertEqual "xt unconstrainted" unconstrained (T.generalize xt)
-  , testTerm "let x = _; y = _ in _" $ \tms ->
+  , testTerm "let x = _; y = _; _;;" $ \tms ->
     testCase ("locals ("++tms++")@[Body,Body]") $ do
       let tm = unsafeParseTerm tms
       [(_,xt), (_,yt)] <- localsAt node [Paths.Body, Paths.Body] tm
       assertEqual "xt unconstrained" unconstrained (T.generalize xt)
       assertEqual "yt unconstrained" unconstrained (T.generalize yt)
-  , testTerm "let x = _; y = _ in _" $ \tms ->
-    -- testTerm "let x = 42; y = _ in _" $ \tms ->
-    -- testTerm "let x = 42; y = 43 in _" $ \tms ->
-    -- testTerm "let x = 42; y = 43 in 4224" $ \tms ->
+  , testTerm "let x = _; y = _; _;;" $ \tms ->
+    -- testTerm "let x = 42; y = _; _" $ \tms ->
+    -- testTerm "let x = 42; y = 43; _" $ \tms ->
+    -- testTerm "let x = 42; y = 43; 4224" $ \tms ->
     testCase ("locals ("++tms++")@[Body,Binding 0,Body]") $ do
       let tm = unsafeParseTerm tms
       [(_,xt)] <- localsAt node [Paths.Body, Paths.Binding 0, Paths.Body] tm

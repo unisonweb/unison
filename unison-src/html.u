@@ -1,4 +1,4 @@
 -- run from unison root directory
 -- curl -H "Content-Type: text/plain; charset=UTF-8" --data-binary @node/tests/html.u http://localhost:8081/compute/dummynode909
 
-Http.getURL "http://unisonweb.org"
+Http.get-url "http://unisonweb.org"

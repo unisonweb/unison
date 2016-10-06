@@ -5,7 +5,9 @@ module Unison.Runtime.Index
   ,Unison.Runtime.Index.insert
   ,Unison.Runtime.Index.lookupGT
   ,Unison.Runtime.Index.flush
+  ,entries
   ,idToText
+  ,keys
   ,load
   ,loadEncrypted
   ,textToId
@@ -17,12 +19,12 @@ import Data.ByteString (ByteString)
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Unison.Cryptography
-import Unison.Runtime.Journal as J
-import Unison.Runtime.JournaledMap as JM
-import qualified Unison.BlockStore as BS
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Base64.URL as Base64
 import qualified Data.Map as Map
+import qualified Unison.BlockStore as BS
+import qualified Unison.Runtime.Journal as J
+import qualified Unison.Runtime.JournaledMap as JM
 
 type KeyHash = ByteString
 type Key = ByteString
@@ -63,6 +65,12 @@ delete kh (Db journaledMap _) = J.updateNowAsyncFlush (JM.Delete kh) journaledMa
 
 lookup :: KeyHash -> Db -> STM (Maybe (Key, Value))
 lookup kh (Db journaledMap _) = Map.lookup kh <$> J.get journaledMap
+
+entries :: Db -> STM [(Key, Value)]
+entries (Db journaledMap _) = Map.elems <$> J.get journaledMap
+
+keys :: Db -> STM [Key]
+keys db = map fst <$> entries db
 
 -- | Find next key in the Db whose key is greater than the provided key
 lookupGT :: KeyHash -> Db -> STM (Maybe (KeyHash, (Key, Value)))

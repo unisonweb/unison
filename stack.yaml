@@ -13,3 +13,8 @@ extra-deps:
   - cacophony-0.7.0
   - cryptonite-0.17
   - unagi-chan-0.4.0.0
+
+extra-include-dirs:
+- /usr/local/include
+extra-lib-dirs:
+- /usr/local/lib
