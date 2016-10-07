@@ -98,17 +98,17 @@ loadSized bs crypto series size = do
   _ <- B.modify' bs blockTyped (const index)
   pure $ IndexState bs crypto index size
 
-{-
 -- break up a Trie into an assoc list of smaller (Keys,Tries)
-redistributeTrie :: Trie (TypedSeries Index) -> IO [(ByteString, TypedSeries Index)]
-redistributeTrie trie = let
+redistributeTrie :: Eq h => BS.BlockStore h -> Cryptography t1 t2 t3 t4 t5 t6 ByteString
+  -> Trie (TypedSeries Index) -> IO [(ByteString, TypedSeries Index)]
+redistributeTrie bs crypto trie = let
   redistributeBranch i = do
-    let submap = Trie.submap i insertedBranches
+    let submap = Trie.submap i trie
         tailKeys = Trie.fromList
                    . map (\(k,v) -> (ByteString.tail k, v))
                    . Trie.toList
         submap' = tailKeys $ Trie.delete i submap
-    value <- case Trie.lookup i insertedBranches of
+    value <- case Trie.lookup i trie of
       Nothing -> pure Nothing
       Just index -> do
         (Index value _) <- deserialize bs crypto index
@@ -117,8 +117,7 @@ redistributeTrie trie = let
   allKeys = map ByteString.singleton [0..255]
   in do
   rebalancedIndexes <- mapM redistributeBranch allKeys
-  pure . Trie.fromList $ zip allKeys rebalancedIndexes
--}
+  pure $ zip allKeys rebalancedIndexes
 
 insert :: Eq a => IndexState a t1 t2 t3 t4 t5 t6 -> Key -> Value -> IO ()
 insert (IndexState bs crypto index maxSize) kh v = insert' index kh
@@ -134,25 +133,9 @@ insert (IndexState bs crypto index maxSize) kh v = insert' index kh
                  newIndex <- emptyTT bs crypto
                  insert' newIndex mempty
                  let insertedBranches = Trie.insert kh newIndex branches
-                     redistributeBranch i = do
-                       let submap = Trie.submap i insertedBranches
-                           tailKeys = Trie.fromList
-                                      . map (\(k,v) -> (ByteString.tail k, v))
-                                      . Trie.toList
-                           submap' = tailKeys $ Trie.delete i submap
-                       value <- case Trie.lookup i insertedBranches of
-                         Nothing -> pure Nothing
-                         Just index -> do
-                           (Index value _) <- deserialize bs crypto index
-                           B.get bs $ toBlock crypto value
-                       makeIndex bs crypto value submap'
-                     allKeys = map ByteString.singleton [0..255]
                  balancedBranches <- if Trie.size insertedBranches <= maxSize
                    then pure insertedBranches
-                   else
-                   do
-                     rebalancedIndexes <- mapM redistributeBranch allKeys
-                     pure . Trie.fromList $ zip allKeys rebalancedIndexes
+                   else Trie.fromList <$> redistributeTrie bs crypto insertedBranches
                  let newIndex = Index value balancedBranches
                  void $ B.modify' bs (toBlock crypto index) (const newIndex)
 
