@@ -3,12 +3,13 @@ module Unison.Test.Interpreter where
 import Test.Tasty
 import Test.Tasty.HUnit
 import qualified Unison.Parsers as P
-import qualified Unison.Node as Node
+import qualified Unison.Codebase as Codebase
 import qualified Unison.Note as Note
 import qualified Unison.Test.Common as Common
+import qualified Unison.Interpreter as I
 
 tests :: TestTree
-tests = withResource Common.node (\_ -> pure ()) $ \node ->
+tests = withResource Common.codebase (\_ -> pure ()) $ \codebase ->
   let
     tests =
       [ t "1 + 1" "2"
@@ -91,11 +92,11 @@ tests = withResource Common.node (\_ -> pure ()) $ \node ->
       , t "Vector.drop 2 [1,2,3]" "[3]"
       ]
     t uneval eval = testCase (uneval ++ " ⟹  " ++ eval) $ do
-      (node, _, builtins) <- node
+      (codebase, _, builtins, evaluate) <- codebase
       -- putStrLn (show $ map fst builtins)
       let term = P.bindBuiltins builtins [] $ P.unsafeParseTerm uneval
-      _ <- Note.run $ Node.typeAt node term []
-      [(_,_,result)] <- Note.run $ Node.evaluateTerms node [([], term)]
+      _ <- Note.run $ Codebase.typeAt codebase term []
+      result <- Note.run $ evaluate term
       assertEqual "comparing results" (P.unsafeParseTerm eval) result
   in testGroup "Interpreter" tests
 

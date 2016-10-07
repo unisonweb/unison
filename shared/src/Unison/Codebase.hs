@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Unison.Node where
+module Unison.Codebase where
 
 -- import Data.Bytes.Serial (Serial)
 import Control.Monad
@@ -11,9 +11,9 @@ import Data.List
 import Data.Map (Map)
 import Data.Ord
 import Data.Set (Set)
-import Unison.Eval as Eval
+import Unison.Builtin (Builtin(..))
+import Unison.Codebase.Store (Store)
 import Unison.Metadata (Metadata)
-import Unison.Node.Store (Store)
 import Unison.Note (Noted(..),Note(..))
 import Unison.Paths (Path)
 import Unison.Reference (Reference)
@@ -23,10 +23,12 @@ import Unison.Type (Type)
 import Unison.Var (Var)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified Unison.Codebase.Store as Store
+import qualified Unison.Interpreter as Interpreter
 import qualified Unison.Metadata as Metadata
-import qualified Unison.Node.Store as Store
-import qualified Unison.Parsers as Parsers
+import qualified Unison.Note as Note
 import qualified Unison.Parser as Parser
+import qualified Unison.Parsers as Parsers
 import qualified Unison.Paths as Paths
 import qualified Unison.Reference as Reference
 import qualified Unison.Term as Term
@@ -69,7 +71,7 @@ deriveJSON defaultOptions ''LocalInfo
 --   * `h` is the type of hashes
 --   * `t` is for type
 --   * `e` is for term (mnemonic "expression")
-data Node m v h t e = Node {
+data Codebase m v h t e = Codebase {
   -- | Obtain the type of the given subterm, assuming the path is valid
   admissibleTypeAt :: e -> Path -> Noted m t,
   -- | Create a new term and provide its metadata
@@ -84,8 +86,6 @@ data Node m v h t e = Node {
   -- Second argument is path relative to the root.
   -- Returns (root path, original e, edited e, new cursor position)
   editTerm :: Path -> Path -> Action v -> e -> Noted m (Maybe (Path,e,e,Path)),
-  -- Evaluate all terms, returning a list of (path, original e, evaluated e)
-  evaluateTerms :: [(Path, e)] -> Noted m [(Path,e,e)],
   -- | Return information about local types and and variables in scope
   localInfo :: e -> Path -> Noted m (LocalInfo e t),
   -- | Access the metadata for the term and/or types identified by @k@
@@ -106,12 +106,21 @@ data Node m v h t e = Node {
   updateMetadata :: h -> Metadata v h -> Noted m ()
 }
 
-node :: (Show v, Monad f, Var v)
-     => Eval (Noted f) v
-     -> (Term v -> Reference)
+addBuiltins :: Monad f
+            => [Builtin v]
+            -> Store f v
+            -> Codebase f v Reference.Reference (Type v) (Term v)
+            -> f ()
+addBuiltins builtins store code = Note.run $
+  forM_ builtins $ \(Builtin r _ t md) -> do
+    updateMetadata code r md
+    Store.annotateTerm store r t
+
+make :: (Show v, Monad f, Var v)
+     => (Term v -> Reference)
      -> Store f v
-     -> Node f v Reference.Reference (Type v) (Term v)
-node eval hash store =
+     -> Codebase f v Reference.Reference (Type v) (Term v)
+make hash store =
   let
     readTypeOf = Store.typeOfTerm store
 
@@ -145,14 +154,10 @@ node eval hash store =
                   (Set.toList hs)
       pure $ Set.fromList [x | (x,deps) <- hs', Set.member h deps]
 
-    edit rootPath path action e = case Paths.atTerm rootPath e of
-      Nothing -> pure Nothing
-      Just e -> f <$> TermEdit.interpret eval (Store.readTerm store) path action e
-        where f Nothing = Nothing
-              f (Just (newPath,e')) = Just (rootPath,e,e',newPath)
-
-    evaluateTerms es = traverse go es
-      where go (path,e) = (\e' -> (path,e,e')) <$> Eval.whnf eval (Store.readTerm store) e
+    edit rootPath path action e = pure $ do
+      e <- Paths.atTerm rootPath e
+      (newPath, e') <- TermEdit.interpret path action e
+      pure (rootPath, e, e', newPath)
 
     metadatas hs =
       Map.fromList <$> sequence (map (\h -> (,) h <$> Store.readMetadata store h) hs)
@@ -224,14 +229,13 @@ node eval hash store =
       Typechecker.typeAt readTypeOf loc ctx
 
     updateMetadata = Store.writeMetadata store
-  in Node
+  in Codebase
        admissibleTypeAt
        createTerm
        createType
        dependencies
        dependents
        edit
-       evaluateTerms
        localInfo
        metadatas
        search
@@ -242,13 +246,12 @@ node eval hash store =
        typeAt
        updateMetadata
 
-
--- | Declare a group of bindings and add them to the Node.
+-- | Declare a group of bindings and add them to the codebase.
 -- Bindings may be in any order and may refer to each other.
 -- They are broken into strongly connected components before
 -- being added, and any free variables are resolved using the
--- existing metadata store of the Node.
-declare :: (Monad m, Var v) => (h -> Term v) -> [(v, Term v)] -> Node m v h (Type v) (Term v) -> Noted m ()
+-- existing metadata store of the codebase.
+declare :: (Monad m, Var v) => (h -> Term v) -> [(v, Term v)] -> Codebase m v h (Type v) (Term v) -> Noted m ()
 declare ref bindings node = do
   termBuiltins <- allTermsByVarName ref node
   let groups = Components.components bindings
@@ -266,21 +269,30 @@ declare ref bindings node = do
   foldM_ step termBuiltins bindings'
 
 -- | Like `declare`, but takes a `String`
-declare' :: (Monad m, Var v) => (h -> Term v) -> String -> Node m v h (Type v) (Term v) -> Noted m ()
+declare' :: (Monad m, Var v) => (h -> Term v) -> String -> Codebase m v h (Type v) (Term v) -> Noted m ()
 declare' ref bindings node = do
   bs <- case Parser.run TermParser.moduleBindings bindings TypeParser.s0 of
     Parser.Fail err _ -> Noted (pure $ Left (Note err))
     Parser.Succeed bs _ _ -> pure bs
   declare ref bs node
 
-allTermsByVarName :: (Monad m, Var v) => (h -> Term v) -> Node m v h (Type v) (Term v) -> Noted m [(v, Term v)]
+allTermsByVarName :: (Monad m, Var v) => (h -> Term v) -> Codebase m v h (Type v) (Term v) -> Noted m [(v, Term v)]
 allTermsByVarName ref node = do
   -- grab all definitions in the node
   results <- search node Term.blank [] 1000000 (Metadata.Query "") Nothing
   pure [ (v, ref h) | (h, md) <- references results
                     , v <- Metadata.allNames (Metadata.names md) ]
 
-allTerms :: (Monad m, Var v) => Node m v h (Type v) (Term v) -> Noted m [(h, Term v)]
+allTerms :: (Monad m, Var v) => Codebase m v h (Type v) (Term v) -> Noted m [(h, Term v)]
 allTerms node = do
   hs <- map fst . references <$> search node Term.blank [] 100000 (Metadata.Query "") Nothing
   Map.toList <$> terms node hs
+
+interpreter :: Var v
+            => [Builtin v] -> Codebase IO v Reference (Type v) (Term v)
+            -> Term v -> Noted IO (Term v)
+interpreter builtins codebase =
+  let env = Map.fromList [(ref, op) | Builtin ref (Just op) _ _ <- builtins ]
+      resolveHash h = snd . head . Map.toList <$> terms codebase [Reference.Derived h]
+  in Interpreter.make env resolveHash
+

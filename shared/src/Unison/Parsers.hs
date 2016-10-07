@@ -4,12 +4,10 @@ module Unison.Parsers where
 
 import Control.Arrow ((***))
 import Data.Text (Text)
-import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Parser (Result(..), run, unsafeGetSucceed)
 import Unison.Var (Var)
-import Unison.View (DFO)
 import qualified Unison.Parser as Parser
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
@@ -20,19 +18,18 @@ import qualified Unison.Type as Type
 import qualified Unison.Reference as R
 import qualified Unison.Var as Var
 
-type V = Symbol DFO
-type S = TypeParser.S V
+type S v = TypeParser.S v
 
-s0 :: S
+s0 :: S v
 s0 = TypeParser.s0
 
-parseTerm :: String -> Result S (Term V)
+parseTerm :: Var v => String -> Result (S v) (Term v)
 parseTerm = parseTerm' termBuiltins typeBuiltins
 
-parseType :: String -> Result S (Type V)
+parseType :: Var v => String -> Result (S v) (Type v)
 parseType = parseType' typeBuiltins
 
-parseTerm' :: [(V, Term V)] -> [(V, Type V)] -> String -> Result S (Term V)
+parseTerm' :: Var v => [(v, Term v)] -> [(v, Type v)] -> String -> Result (S v) (Term v)
 parseTerm' termBuiltins typeBuiltins s =
   bindBuiltins termBuiltins typeBuiltins <$> run (Parser.root TermParser.term) s s0
 
@@ -40,20 +37,20 @@ bindBuiltins :: Var v => [(v, Term v)] -> [(v, Type v)] -> Term v -> Term v
 bindBuiltins termBuiltins typeBuiltins =
    Term.typeMap (ABT.substs typeBuiltins) . ABT.substs termBuiltins
 
-parseType' :: [(V, Type V)] -> String -> Result S (Type V)
+parseType' :: Var v => [(v, Type v)] -> String -> Result (S v) (Type v)
 parseType' typeBuiltins s =
   ABT.substs typeBuiltins <$> run (Parser.root TypeParser.type_) s s0
 
-unsafeParseTerm :: String -> Term V
+unsafeParseTerm :: Var v => String -> Term v
 unsafeParseTerm = unsafeGetSucceed . parseTerm
 
-unsafeParseType :: String -> Type V
+unsafeParseType :: Var v => String -> Type v
 unsafeParseType = unsafeGetSucceed . parseType
 
-unsafeParseTerm' :: [(V, Term V)] -> [(V, Type V)] -> String -> Term V
+unsafeParseTerm' :: Var v => [(v, Term v)] -> [(v, Type v)] -> String -> Term v
 unsafeParseTerm' er tr = unsafeGetSucceed . parseTerm' er tr
 
-unsafeParseType' :: [(V, Type V)] -> String -> Type V
+unsafeParseType' :: Var v => [(v, Type v)] -> String -> Type v
 unsafeParseType' tr = unsafeGetSucceed . parseType' tr
 
 -- Alias <alias> <fully-qualified-name>

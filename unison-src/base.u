@@ -87,7 +87,8 @@ Vector.all? : ∀ a . (a -> Boolean) -> Vector a -> Boolean;
 Vector.all? f vs = Vector.fold-balanced and True (Vector.map f vs);
 
 Vector.sort-by : ∀ k a . Order k -> (a -> k) -> Vector a -> Vector a;
-Vector.sort-by ok f v = Vector.sort-keyed (f `and-then` Order.key ok) v;
+Vector.sort-by ok f v =
+  Vector.sort-keyed <| Vector.map (a -> (Order.key ok (f a), a)) v;
 
 Vector.sort : ∀ a . Order a -> Vector a -> Vector a;
 Vector.sort o = Vector.sort-by o identity;

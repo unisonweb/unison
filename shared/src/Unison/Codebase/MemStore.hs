@@ -1,11 +1,11 @@
-module Unison.Node.MemStore (make) where
+module Unison.Codebase.MemStore (make) where
 
 import Data.Functor
 import Data.Map (Map)
 import Unison.Hash (Hash)
 import Unison.Metadata (Metadata)
 import Unison.Note (Noted)
-import Unison.Node.Store (Store(Store))
+import Unison.Codebase.Store (Store(Store))
 import Unison.Reference (Reference)
 import Unison.Term (Term)
 import Unison.Type (Type)

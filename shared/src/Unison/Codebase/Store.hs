@@ -1,4 +1,4 @@
-module Unison.Node.Store where
+module Unison.Codebase.Store where
 
 import Data.Set (Set)
 import Unison.Metadata (Metadata)

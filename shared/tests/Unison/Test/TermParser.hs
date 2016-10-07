@@ -1,4 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+
 module Unison.Test.TermParser where
 
 import Data.List
@@ -18,7 +20,7 @@ import qualified Unison.Type as T
 
 parse' :: String -> TestTree
 parse' s = testCase ("`" ++ s ++ "`") $
-  case parseTerm s of
+  case parseTerm s :: Result _ (Term (Symbol DFO)) of
     Fail e _ -> assertFailure $ "parse failure " ++ intercalate "\n" e
     Succeed a _ _ -> pure ()
 
@@ -32,7 +34,7 @@ parse (s, expected) =
 parseFail :: (String,String) -> TestTree
 parseFail (s, reason) =
   testCase ("`" ++ s ++ "` shouldn't parse: " ++ reason) $ assertBool "should not have parsed" $
-    case parseTerm s of
+    case parseTerm s :: Result _ (Term (Symbol DFO)) of
       Fail {} -> True;
       Succeed _ _ n -> n == length s;
 

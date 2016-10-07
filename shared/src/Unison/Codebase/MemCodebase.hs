@@ -1,11 +1,12 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Unison.Node.MemNode where
+module Unison.Codebase.MemCodebase where
 
 import Data.List
+import Unison.Codebase (Codebase)
+import Unison.Codebase.Store (Store)
+import Unison.Note (Noted)
 import Unison.Hash (Hash)
-import Unison.Node (Node)
-import Unison.Node.Store (Store)
 import Unison.Reference (Reference(Derived))
 import Unison.Term (Term)
 import Unison.Type (Type)
@@ -17,11 +18,11 @@ import qualified Data.Digest.Murmur64 as Murmur
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Encoding
 import qualified Unison.ABT as ABT
+import qualified Unison.Builtin as Builtin
+import qualified Unison.Codebase as Codebase
+import qualified Unison.Codebase.MemStore as MemStore
 import qualified Unison.Hash as Hash
 import qualified Unison.Hashable as Hashable
-import qualified Unison.Node.BasicNode as BasicNode
-import qualified Unison.Node.Builtin as Builtin
-import qualified Unison.Node.MemStore as MemStore
 import qualified Unison.Symbol as Symbol
 import qualified Unison.Term as Term
 import qualified Unison.View as View
@@ -45,7 +46,11 @@ instance Hashable.Accumulate Hash where
 
 type V = Symbol.Symbol View.DFO
 
-make :: Logger -> IO (Node IO V Reference (Type V) (Term V))
+make :: (Show v, Var v) => Logger
+     -> IO (Codebase IO v Reference (Type v) (Term v), Term v -> Noted IO (Term v))
 make logger = do
-  store <- MemStore.make :: IO (Store IO V)
-  BasicNode.make hash store (Builtin.makeBuiltins logger)
+  store <- MemStore.make :: IO (Store IO v)
+  code <- pure $ Codebase.make hash store
+  let builtins = Builtin.makeBuiltins logger
+  Codebase.addBuiltins builtins store code
+  pure (code, Codebase.interpreter builtins code)
