@@ -11,7 +11,7 @@ import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Unison.Hash (Hash)
 --import Unison.Metadata (Metadata)
 import Unison.Note (Noted,Note)
-import Unison.Node.Store (Store, Store(..))
+import Unison.Codebase.Store (Store, Store(..))
 import Unison.Reference (Reference)
 import qualified Data.Aeson as Aeson
 import qualified Database.LevelDB.Base as DB
