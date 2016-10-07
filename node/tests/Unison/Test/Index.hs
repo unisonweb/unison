@@ -32,34 +32,34 @@ roundTrip :: BS.BlockStore Address -> Assertion
 roundTrip bs = do
   ident <- makeRandomId
   db <- Index.load bs crypto ident
-  Index.insert db "keyhash" ("key", "value")
+  Index.insert db "key" "value"
   db2 <- Index.load bs crypto ident
-  result <- Index.lookup db2 "keyhash"
+  result <- Index.lookup db2 "key"
   case result of
-    Just (k, v) | v == "value" -> pure ()
-    Just (k, v) -> fail ("expected value, got " ++ unpack v)
+    Just v | v == "value" -> pure ()
+    Just v -> fail ("expected value, got " ++ unpack v)
     _ -> fail "got nothin"
 
 nextKeyAfterRemoval :: BS.BlockStore Address -> Assertion
 nextKeyAfterRemoval bs = do
   ident <- makeRandomId
   db <- Index.load bs crypto ident
-  Index.insert db "1" ("k1", "v1")
-  Index.insert db "2" ("k2", "v2")
-  Index.insert db "3" ("k3", "v3")
-  Index.insert db "4" ("k4", "v4")
-  Index.delete db "2"
-  result <- Index.lookupGT db "1"
+  Index.insert db "k1" "v1"
+  Index.insert db "k2" "v2"
+  Index.insert db "k3" "v3"
+  Index.insert db "k4" "v4"
+  Index.delete db "k2"
+  result <- Index.lookupGT db "k1"
   case result of
-    Just (kh, (k, v)) | kh == "3" -> pure ()
-    Just (kh, (k, v)) -> fail ("expected key 3, got " ++ unpack kh)
+    Just (k, v) | k == "k3" -> pure ()
+    Just (k, v) -> fail ("expected key 3, got " ++ unpack k)
     Nothing -> fail "got nothin"
 
 keysAfterResize :: BS.BlockStore Address -> Assertion
 keysAfterResize bs = do
   ident <- makeRandomId
   db <- Index.loadSized bs crypto ident 10
-  let kvp i = (pack . ("k" ++) . show $ i, pack . ("v" ++) . show $ i)
+  let kvp =  pack . ("v" ++) . show
       expected = map (pack . show) [15..30]
   mapM_ (\i -> Index.insert db (pack $ show i) (kvp i)) [15..30]
   result <- Index.keys db

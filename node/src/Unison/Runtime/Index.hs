@@ -29,13 +29,12 @@ import qualified Unison.Runtime.Block as B
 defaultSize :: Int -- default maximum index trie size, before another level of index is added
 defaultSize = 1024
 
-type KeyHash = ByteString
 type Key = ByteString
 type Value = ByteString
 
 data TypedSeries a = TypedSeries { series :: BS.Series, defaultValue :: a } deriving Generic
 
-data Index = Index { value :: TypedSeries (Maybe (Key, Value))
+data Index = Index { value :: TypedSeries (Maybe Value)
                    , branches :: Trie (TypedSeries Index)
                    } deriving Generic
 
@@ -62,7 +61,7 @@ randomSeries :: Cryptography t1 t2 t3 t4 t5 t6 ByteString -> IO BS.Series
 randomSeries crypto = BS.Series <$> C.randomBytes crypto 64
 
 makeIndex :: Eq a => BS.BlockStore a -> Cryptography t1 t2 t3 t4 t5 t6 ByteString
-  -> Maybe (Key, Value) -> Trie (TypedSeries Index) -> IO (TypedSeries Index)
+  -> Maybe Value -> Trie (TypedSeries Index) -> IO (TypedSeries Index)
 makeIndex bs crypto value branches = do
   rootSeries@(BS.Series bytes) <- randomSeries crypto
   h0 <- BS.declareSeries bs rootSeries
@@ -99,14 +98,36 @@ loadSized bs crypto series size = do
   _ <- B.modify' bs blockTyped (const index)
   pure $ IndexState bs crypto index size
 
-insert :: Eq a => IndexState a t1 t2 t3 t4 t5 t6 -> KeyHash -> (Key, Value) -> IO ()
-insert (IndexState bs crypto index maxSize) kh (k,v) = insert' index kh
+{-
+-- break up a Trie into an assoc list of smaller (Keys,Tries)
+redistributeTrie :: Trie (TypedSeries Index) -> IO [(ByteString, TypedSeries Index)]
+redistributeTrie trie = let
+  redistributeBranch i = do
+    let submap = Trie.submap i insertedBranches
+        tailKeys = Trie.fromList
+                   . map (\(k,v) -> (ByteString.tail k, v))
+                   . Trie.toList
+        submap' = tailKeys $ Trie.delete i submap
+    value <- case Trie.lookup i insertedBranches of
+      Nothing -> pure Nothing
+      Just index -> do
+        (Index value _) <- deserialize bs crypto index
+        B.get bs $ toBlock crypto value
+    makeIndex bs crypto value submap'
+  allKeys = map ByteString.singleton [0..255]
+  in do
+  rebalancedIndexes <- mapM redistributeBranch allKeys
+  pure . Trie.fromList $ zip allKeys rebalancedIndexes
+-}
+
+insert :: Eq a => IndexState a t1 t2 t3 t4 t5 t6 -> Key -> Value -> IO ()
+insert (IndexState bs crypto index maxSize) kh v = insert' index kh
   where
     insert' index kh = do
       (Index value branches) <- deserialize bs crypto index
       if ByteString.null kh
         then let block = toBlock crypto value
-             in void (B.modify' bs block $ const (Just (k,v)))
+             in void (B.modify' bs block $ const (Just v))
         else case Trie.match branches kh of
                Just (_, branchIndex, remainingKH) -> insert' branchIndex remainingKH
                Nothing -> do
@@ -135,7 +156,7 @@ insert (IndexState bs crypto index maxSize) kh (k,v) = insert' index kh
                  let newIndex = Index value balancedBranches
                  void $ B.modify' bs (toBlock crypto index) (const newIndex)
 
-delete :: Eq a => IndexState a t1 t2 t3 t4 t5 t6 -> KeyHash -> IO ()
+delete :: Eq a => IndexState a t1 t2 t3 t4 t5 t6 -> Key -> IO ()
 delete (IndexState bs crypto index _) kh = delete' index kh
   where
     delete' index kh = do
@@ -155,7 +176,7 @@ delete (IndexState bs crypto index _) kh = delete' index kh
                    in void $ B.modify' bs (toBlock crypto index) (const newIndex)
                _ -> pure () -- key didn't actually exist in this index
 
-lookup :: Eq a => IndexState a t1 t2 t3 t4 t5 t6 -> KeyHash -> IO (Maybe (Key, Value))
+lookup :: Eq a => IndexState a t1 t2 t3 t4 t5 t6 -> Key -> IO (Maybe Value)
 lookup (IndexState bs crypto index _) kh = lookup' index kh
   where
     lookup' index kh = do
@@ -169,8 +190,8 @@ lookup (IndexState bs crypto index _) kh = lookup' index kh
 
 -- note: this won't produce an "ordered" traversal in any reasonable sense, but it should
 -- at least iterate through all keys
-lookupGT :: Eq a => IndexState a t1 t2 t3 t4 t5 t6 -> KeyHash
-  -> IO (Maybe (KeyHash, (Key, Value)))
+lookupGT :: Eq a => IndexState a t1 t2 t3 t4 t5 t6 -> Key
+  -> IO (Maybe (Key, Value))
 lookupGT (IndexState bs crypto index _) kh = lookupGT' index kh mempty
   where
     findAll index previousKH = do
@@ -196,7 +217,7 @@ lookupGT (IndexState bs crypto index _) kh = lookupGT' index kh mempty
             mergeOption old kv = liftM2 (<|>) old (uncurry getBranch kv)
           foldl' mergeOption (pure furtherMatch) gtBranches
 
-keys :: Eq a => IndexState a t1 t2 t3 t4 t5 t6 -> IO [KeyHash]
+keys :: Eq a => IndexState a t1 t2 t3 t4 t5 t6 -> IO [Key]
 keys (IndexState bs crypto index _) = keys' index mempty <*> pure []
   where
     keys' index kh = do
