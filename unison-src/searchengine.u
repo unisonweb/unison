@@ -90,15 +90,13 @@ let
     Remote.traverse (n -> Remote.at' n (DIndex.join ind)) ind-nodes;
     Remote.traverse (n -> Remote.at' n (DIndex.join visited)) visited-nodes;
 
-    -- Kick off multiple crawlers at staggered schedules and different depths
+    -- Kick off multiple crawlers
     Remote.fork <| crawl 2 ind visited "http://unisonweb.org";
-    Remote.sleep (Duration.seconds 20);
-    Remote.fork <| crawl 4 ind visited "http://unisonweb.org";
-    Remote.sleep (Duration.seconds 20);
-    Remote.fork <| crawl 8 ind visited "http://unisonweb.org";
+    Remote.fork <| crawl 4 ind visited "http://unisonweb.org/design";
+    Remote.fork <| crawl 3 ind visited "http://www.cnn.com";
+    Remote.fork <| crawl 4 ind visited "http://lambda-the-ultimate.org/";
 
-    -- Wait a while for crawlers to index a bunch of pages, then
-    -- issue a query
+    -- Wait a while for crawlers to index a bunch of pages, then do query
     Remote.sleep (Duration.seconds 120);
     results := search 10 ["design", "unison", "refactoring"] ind;
     pure <| Debug.watch "results --- " results;;
