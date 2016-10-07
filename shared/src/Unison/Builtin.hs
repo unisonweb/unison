@@ -47,8 +47,8 @@ pair = Term.builtin "Pair"
 pair' :: Ord v => Term v -> Term v -> Term v
 pair' t1 t2 = pair `Term.app` t1 `Term.app` (pair `Term.app` t2 `Term.app` unitRef)
 
-makeBuiltins :: (Show v, Var v) => Logger -> [Builtin v]
-makeBuiltins logger =
+make :: (Show v, Var v) => Logger -> [Builtin v]
+make logger =
   let
     numeric2 :: Var v => (Double -> Double -> Double) -> I.Primop (N.Noted IO) v
     numeric2 f = I.Primop 2 $ \xs -> case xs of

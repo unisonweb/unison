@@ -50,10 +50,10 @@ library
     Unison.Hash.Extra
     Unison.Kind.Extra
     Unison.Metadata.Extra
-    Unison.Node.FileStore
-    Unison.Node.UnisonBlockStore
+    Unison.Codebase.FileStore
+    Unison.Codebase.BlockStoreStore
     Unison.NodeContainer
-    Unison.NodeServer
+    Unison.CodebaseServer
     Unison.NodeProtocol
     Unison.NodeProtocol.V0
     Unison.Reference.Extra
@@ -213,7 +213,7 @@ executable container
     Unison.NodeContainer,
     Unison.NodeProtocol,
     Unison.NodeProtocol.V0,
-    Unison.NodeServer,
+    Unison.CodebaseServer,
     Unison.NodeWorker,
     Unison.Reference.Extra,
     Unison.Remote.Extra,
@@ -233,8 +233,8 @@ executable container
     build-depends: exceptions, leveldb-haskell
     cpp-options: -Dleveldb
 
-executable node
-  main-is: Node.hs
+executable codebase
+  main-is: Codebase.hs
   hs-source-dirs: src
   ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N -v0
 
@@ -288,8 +288,8 @@ executable node
     Unison.Distance.Extra,
     Unison.Hash.Extra,
     Unison.Kind.Extra,
-    Unison.Node.FileStore,
-    Unison.NodeServer,
+    Unison.Codebase.FileStore,
+    Unison.CodebaseServer,
     Unison.Reference.Extra,
     Unison.Remote.Extra,
     Unison.Runtime.Address,
@@ -346,7 +346,7 @@ test-suite tests
     Unison.Test.Html,
     Unison.Test.Index,
     Unison.Test.Journal,
-    Unison.Test.NodeUtil,
+    Unison.Test.Util,
     Unison.Test.ResourcePool,
     Unison.Test.SerializationAndHashing
 

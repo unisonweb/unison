@@ -1,4 +1,4 @@
-module Unison.Node.LeveldbStore where
+module Unison.Codebase.LeveldbStore where
 
 import Control.Applicative
 import Control.Monad.Catch
@@ -37,7 +37,7 @@ make root =
             maybe (pure l) (\i -> referenceList (i:l) it)
           referenceSet it = Set.fromList <$> referenceList [] it
           runSet = IT.withIter db DB.defaultReadOptions referenceSet
-      in Note.lift runSet 
+      in Note.lift runSet
 
     n :: Either String a -> Either Note a
     n (Left e) = Left (Note.note e)
@@ -81,7 +81,7 @@ make root =
       (write' termsDB)                   -- writeTerm
       (\r -> case r of                   -- typeOfTerm
           Reference.Derived h -> read' termsDB h
-          Reference.Builtin b -> read encodeUtf8 builtinTypesDB b) 
+          Reference.Builtin b -> read encodeUtf8 builtinTypesDB b)
       (\r -> case r of                   -- annotateTerm
           Reference.Derived h -> write' termsDB h
           Reference.Builtin b -> write encodeUtf8 builtinTypesDB b)

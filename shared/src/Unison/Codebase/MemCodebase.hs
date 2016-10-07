@@ -51,6 +51,6 @@ make :: (Show v, Var v) => Logger
 make logger = do
   store <- MemStore.make :: IO (Store IO v)
   code <- pure $ Codebase.make hash store
-  let builtins = Builtin.makeBuiltins logger
+  let builtins = Builtin.make logger
   Codebase.addBuiltins builtins store code
   pure (code, Codebase.interpreter builtins code)

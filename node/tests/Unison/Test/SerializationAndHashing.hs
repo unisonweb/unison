@@ -7,7 +7,7 @@ import qualified Unison.SerializationAndHashing as SAH
 
 testTermString :: String -> Assertion
 testTermString termString =
-  let term = unsafeParseTerm termString
+  let term = unsafeParseTerm termString :: SAH.TermV
       roundTrip = SAH.deserializeTermFromBytes . SAH.serializeTerm $ term
   in case roundTrip of
     Left s -> fail s
