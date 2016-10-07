@@ -67,6 +67,18 @@ keysAfterResize bs = do
     then pure ()
     else fail ("got unexpected result: " ++ show result)
 
+resizeWithKeyLongSharedPrefix :: BS.BlockStore Address -> Assertion
+resizeWithKeyLongSharedPrefix bs = do
+  ident <- makeRandomId
+  db <- Index.loadSized bs crypto ident 10
+  let kvp =  pack . ("v" ++) . show
+      expected = map (pack . show) [100015..100030]
+  mapM_ (\i -> Index.insert db (pack $ show i) (kvp i)) [100015..100030]
+  result <- Index.keys db
+  if result == expected
+    then pure ()
+    else fail ("got unexpected result: " ++ show result)
+
 ioTests :: IO TestTree
 ioTests = do
   blockStore <- MBS.make' makeRandomAddress makeAddress
@@ -74,6 +86,7 @@ ioTests = do
     [ testCase "roundTrip" (roundTrip blockStore)
     , testCase "nextKeyAfterRemoval" (nextKeyAfterRemoval blockStore)
     , testCase "keysAfterResize" (keysAfterResize blockStore)
+    , testCase "resizeWithKeyLongSharedPrefix" (resizeWithKeyLongSharedPrefix blockStore)
     ]
 
 main = ioTests >>= defaultMain

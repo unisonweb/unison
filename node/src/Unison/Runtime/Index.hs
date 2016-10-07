@@ -16,6 +16,7 @@ import Control.Monad
 import Data.ByteString (ByteString)
 import Data.Bytes.Serial (Serial)
 import Data.Foldable
+import Data.List
 import Data.Trie (Trie)
 import GHC.Generics
 import Unison.Cryptography
@@ -100,8 +101,8 @@ loadSized bs crypto series size = do
 
 -- break up a Trie into an assoc list of smaller (Keys,Tries)
 redistributeTrie :: Eq h => BS.BlockStore h -> Cryptography t1 t2 t3 t4 t5 t6 ByteString
-  -> Trie (TypedSeries Index) -> IO [(ByteString, TypedSeries Index)]
-redistributeTrie bs crypto trie = let
+  -> Trie (TypedSeries Index) -> Int -> IO [(ByteString, TypedSeries Index)]
+redistributeTrie bs crypto trie desiredBuckets = let
   redistributeBranch i = do
     let submap = Trie.submap i trie
         tailKeys = Trie.fromList
@@ -114,10 +115,16 @@ redistributeTrie bs crypto trie = let
         (Index value _) <- deserialize bs crypto index
         B.get bs $ toBlock crypto value
     makeIndex bs crypto value submap'
-  allKeys = map ByteString.singleton [0..255]
+  trieKeys = Trie.keys trie
+  allKeys = map (ByteString.take (findKeySplit trieKeys desiredBuckets)) trieKeys
   in do
   rebalancedIndexes <- mapM redistributeBranch allKeys
   pure $ zip allKeys rebalancedIndexes
+
+findKeySplit :: [ByteString] -> Int -> Int
+findKeySplit keys desiredSize = let
+  prefixSize n = length . nub $ map (ByteString.take n) keys
+  in head . dropWhile (< desiredSize) . map prefixSize $ [0..]
 
 insert :: Eq a => IndexState a t1 t2 t3 t4 t5 t6 -> Key -> Value -> IO ()
 insert (IndexState bs crypto index maxSize) kh v = insert' index kh
@@ -133,9 +140,11 @@ insert (IndexState bs crypto index maxSize) kh v = insert' index kh
                  newIndex <- emptyTT bs crypto
                  insert' newIndex mempty
                  let insertedBranches = Trie.insert kh newIndex branches
+                     desiredSize = div maxSize 16
                  balancedBranches <- if Trie.size insertedBranches <= maxSize
                    then pure insertedBranches
-                   else Trie.fromList <$> redistributeTrie bs crypto insertedBranches
+                   else Trie.fromList
+                        <$> redistributeTrie bs crypto insertedBranches desiredSize
                  let newIndex = Index value balancedBranches
                  void $ B.modify' bs (toBlock crypto index) (const newIndex)
 
