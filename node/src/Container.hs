@@ -62,11 +62,12 @@ main = do
   putStrLn "using file-based block store"
   blockstore <- FBS.make' rand h "blockstore"
 #endif
-  let !builtin0 = Builtin.make logger
+  let !builtins0 = Builtin.make logger
   let !crypto = Cryptography.noop "todo-real-public-key"
-  builtin1 <- ExtraBuiltins.make logger blockstore crypto
+  builtins1 <- ExtraBuiltins.make logger blockstore crypto
   store <- Store.make
   let codebase = Codebase.make SAH.hash store
+  Codebase.addBuiltins (builtins0 ++ builtins1) store codebase
   loadDeclarations logger "unison-src/base.u" codebase
   loadDeclarations logger "unison-src/extra.u" codebase
   loadDeclarations logger "unison-src/dindex.u" codebase
@@ -84,7 +85,7 @@ main = do
       codestore = Remote.makeCodestore blockstore :: Remote.Codestore SAH.TermV Hash
       localDependencies _ = Set.empty -- todo, compute this for real
       -- todo: may want to have this use evaluator + codestore directly
-      whnf = Codebase.interpreter (builtin0 ++ builtin1) codebase
+      whnf = Codebase.interpreter (builtins0 ++ builtins1) codebase
       eval t = Note.run (whnf t)
       -- evaluator = I.eval allprimops
       -- allbuiltins = b0 whnf ++ b1 whnf
