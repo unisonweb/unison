@@ -15,14 +15,14 @@ import Reflex
 import Reflex.Dom
 import Unison.Dimensions (Width(..),X(..),Y(..),Height(..),Region)
 import Unison.Doc (Box)
-import Unison.Node.MemNode (V)
+import Unison.Codebase.MemCodebase (V)
 import Unison.Paths (Path)
 import Unison.Term
 import qualified Data.Set as Set
 import qualified Unison.Doc as Doc
 import qualified Unison.DocView as DocView
-import qualified Unison.Node as Node
-import qualified Unison.Node.MemNode as MemNode
+import qualified Unison.Codebase as Codebase
+import qualified Unison.Codebase.MemCodebase as MemCodebase
 import qualified Unison.Note as Note
 import qualified Unison.Path as Path
 import qualified Unison.Paths as Paths
@@ -31,16 +31,18 @@ import qualified Unison.Term as Term
 import qualified Unison.TermExplorer as TermExplorer
 import qualified Unison.UI as UI
 import qualified Unison.Views as Views
+import qualified Unison.Util.Logger as Logger
 
-term :: Term MemNode.V
+term :: Term MemCodebase.V
 term = builtin "Vector.concatenate" `app`
          (vector (map num [11..15])) `app`
          (vector ([builtin "Number.plus" `app` num 1 `app` num 1, num 2, num 9]))
 
-termEditor :: (Reflex t, MonadWidget t m) => Term MemNode.V -> m ()
+termEditor :: (Reflex t, MonadWidget t m) => Term MemCodebase.V -> m ()
 termEditor term0 = do
-  node <- liftIO MemNode.make
-  symbols0 <- (liftIO . Note.run . Node.metadatas node . Set.toList . Term.dependencies') term0
+  logger <- liftIO (Logger.atomic . Logger.at Logger.warnLevel $ Logger.toStandardOut)
+  (codebase, _) <- liftIO $ MemCodebase.make logger
+  symbols0 <- (liftIO . Note.run . Codebase.metadatas codebase . Set.toList . Term.dependencies') term0
   keydown <- UI.windowKeydown
   rec
     openEvent <- id $
@@ -101,7 +103,7 @@ termEditor term0 = do
       DocView.widgets (Signals.dropWhen isExplorerOpen' keydown) (Signals.dropWhen isExplorerOpen') paths (Width 400) docs
     explorerTopLeft <- holdDyn (X 0, Y 0) $ (\(X x, Y y, _, Height h) -> (X x, Y $ y + h + 20)) <$> highlightRegion
     explorerResults <- Signals.offset "explorer-offset" explorerTopLeft . Signals.modal isExplorerOpen (never,never) $
-                       TermExplorer.make node keydown (current state) (current paths) (current terms)
+                       TermExplorer.make codebase keydown (current state) (current paths) (current terms)
     state' <- Signals.switch' (fst <$> explorerResults)
     actions <- (\a -> leftmost [wraps,a]) <$> Signals.switch' (snd <$> explorerResults)
   pure ()
