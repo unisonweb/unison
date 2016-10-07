@@ -6,7 +6,7 @@ module Unison.Test.Term where
 import Test.Tasty
 import Test.Tasty.HUnit
 import Unison.Hash (Hash)
-import Unison.Node.MemNode ()
+import Unison.Codebase.MemCodebase ()
 import Unison.Parsers (unsafeParseTerm)
 import Unison.Reference as R
 import Unison.Symbol (Symbol)
@@ -31,8 +31,8 @@ type TTerm = Term (Symbol DFO)
 hash :: TTerm -> Hash
 hash = ABT.hash
 
-atPts :: Bool -> Common.TNode -> [(Int,Int)] -> TTerm -> [(Paths.Path, Region)]
-atPts print (_,symbol,_) pts t = map go pts where
+atPts :: Bool -> Common.TCodebase -> [(Int,Int)] -> TTerm -> [(Paths.Path, Region)]
+atPts print (_,symbol,_,_) pts t = map go pts where
   go (x,y) = let p = path x y in (p, Doc.region bounds p)
   doc = Views.term symbol t
   layout = Doc.layout Doc.textWidth (Width 80) doc
@@ -43,40 +43,43 @@ atPts print (_,symbol,_) pts t = map go pts where
 main :: IO ()
 main = defaultMain tests
 
+unsafeParseTerm' :: String -> TTerm
+unsafeParseTerm' = unsafeParseTerm
+
 tests :: TestTree
-tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Term"
+tests = withResource Common.codebase (\_ -> pure ()) $ \codebase -> testGroup "Term"
     [ testCase "alpha equivalence (term)" $ assertEqual "identity"
-       (unsafeParseTerm "a -> a")
-       (unsafeParseTerm "x -> x")
+       (unsafeParseTerm' "a -> a")
+       (unsafeParseTerm' "x -> x")
     , testCase "hash cycles" $ assertEqual "pingpong"
        (hash pingpong1)
        (hash pingpong2)
---    , testCase "infix-rendering (1)" $ node >>= \(_,symbol,_) ->
+--    , testCase "infix-rendering (1)" $ codebase >>= \(_,symbol,_) ->
 --        let t = unsafeParseTerm "Number.plus 1 1"
 --        in assertEqual "+"
 --          "1 + 1"
 --          (Doc.formatText (Width 80) (Views.term symbol t))
---    , testCase "infix-rendering (unsaturated)" $ node >>= \(_,symbol,_) ->
+--    , testCase "infix-rendering (unsaturated)" $ codebase >>= \(_,symbol,_) ->
 --        let t = unsafeParseTerm "Number.plus _"
 --        in assertEqual "+"
 --          "(+) _"
 --          (Doc.formatText (Width 80) (Views.term symbol t))
---    , testCase "infix-rendering (totally unsaturated)" $ node >>= \(_,symbol,_) ->
+--    , testCase "infix-rendering (totally unsaturated)" $ codebase >>= \(_,symbol,_) ->
 --        let t = unsafeParseTerm "Number.plus"
 --        in assertEqual "+" "(+)" (Doc.formatText (Width 80) (Views.term symbol t))
---    , testCase "infix-rendering (2)" $ node >>= \(_,symbol,_) ->
+--    , testCase "infix-rendering (2)" $ codebase >>= \(_,symbol,_) ->
 --        do
 --          t <- pure $ unsafeParseTerm "Number.plus 1 1"
 --          let d = Views.term symbol t
 --          assertEqual "path sanity check"
 --             [Paths.Fn,Paths.Arg]
 --             (head $ Doc.leafPaths d)
---    , testCase "let-rendering (1)" $ node >>= \node ->
+--    , testCase "let-rendering (1)" $ codebase >>= \codebase ->
 --        do
 --          -- let xy = 4223 in 42
 --          t <- pure $ unsafeParseTerm "let xy = 4223 in 42"
 --          [(p1,r1), (p2,_), (p3,r3), (p4,_), (p5,r5), (p6,r6)] <- pure $
---            atPts False node [(0,0), (1,0), (10,0), (11,0), (5,0), (8,0)] t
+--            atPts False codebase [(0,0), (1,0), (10,0), (11,0), (5,0), (8,0)] t
 --          assertEqual "p1" [] p1
 --          assertEqual "p2" [] p2
 --          assertEqual "r1" (rect 0 0 19 1) r1
@@ -87,17 +90,17 @@ tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Term"
 --          assertEqual "r5" (rect 4 0 2 1) r5
 --          assertEqual "p6" [Paths.Binding 0] p6
 --          assertEqual "r6" (rect 4 0 9 1) r6
---    , testCase "map lambda rendering" $ node >>= \node ->
+--    , testCase "map lambda rendering" $ codebase >>= \codebase ->
 --        do
 --          -- map (x -> _) [1,2,3]
 --          t <- pure $ builtin "Vector.map" `app` lam' ["x"] blank `app` vector (map num [1,2,3])
---          [(p1,r1)] <- pure $ atPts False node [(5,0)] t
+--          [(p1,r1)] <- pure $ atPts False codebase [(5,0)] t
 --          assertEqual "p1" [Paths.Fn, Paths.Arg] p1
 --          assertEqual "r1" (rect 4 0 8 1) r1
---    , testCase "operator chain rendering" $ node >>= \node ->
+--    , testCase "operator chain rendering" $ codebase >>= \codebase ->
 --        do
 --          t <- pure $ unsafeParseTerm "1 + 2 + 3"
---          [(p1,r1),(p2,_)] <- pure $ atPts False node [(1,0), (2,0)] t
+--          [(p1,r1),(p2,_)] <- pure $ atPts False codebase [(1,0), (2,0)] t
 --          assertEqual "p1" [Paths.Fn, Paths.Arg, Paths.Fn, Paths.Arg] p1
 --          assertEqual "r1" (rect 0 0 1 1) r1
 --          assertEqual "p2" [] p2

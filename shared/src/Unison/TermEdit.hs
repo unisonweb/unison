@@ -7,16 +7,12 @@ module Unison.TermEdit where
 
 import Data.Aeson.TH
 import GHC.Generics
-import Unison.Eval (Eval)
-import Unison.Hash (Hash)
 import Unison.Term (Term)
 import Unison.Type (Type)
-import Unison.Note (Noted)
 import Unison.Var (Var)
 import Unison.Paths (Path)
 -- import qualified Data.Set as Set
 -- import qualified Unison.ABT as ABT
--- import qualified Unison.Eval as Eval
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 
@@ -30,20 +26,16 @@ data Action v
   | MergeLet -- Merge a let block into its parent let block
   | Noop -- Do nothing to the target
   | Rename v -- Rename the target var
-  | Step -- Link + beta reduce the target
+  | BetaReduce -- beta reduce the target
   | SwapDown -- Swap the target let binding with the subsequent binding
   | SwapUp -- Swap the target let binding with the previous binding
-  | WHNF -- Simplify target to weak head normal form
   deriving Generic
 
 -- | Interpret the given 'Action', returning the new path and the replacement
 -- term at that path (the new path may not be equal to the path passed in, though
 -- it will be related to it in some way that depends on the action).
-interpret :: (Applicative f, Monad f, Var v)
-          => Eval (Noted f) v
-          -> (Hash -> Noted f (Term v))
-          -> Path -> Action v -> Term v -> Noted f (Maybe (Path, Term v))
-interpret _ _ _ _ _ =
+interpret :: Var v => Path -> Action v -> Term v -> Maybe (Path, Term v)
+interpret _ _ _ =
   error "todo - interpret"
 -- interpret eval link path action t =
   --case action of

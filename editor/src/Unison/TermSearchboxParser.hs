@@ -8,7 +8,7 @@ import Control.Applicative
 import Control.Monad
 import Data.Maybe
 import Prelude hiding (takeWhile)
-import Unison.Node.MemNode (V)
+import Unison.Codebase.MemCodebase (V)
 import Unison.Parser
 import Unison.Term (Term)
 import qualified Data.Char as Char

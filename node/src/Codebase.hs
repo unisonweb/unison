@@ -5,7 +5,7 @@ module Main where
 
 import System.IO
 import Unison.Hash.Extra ()
-import Unison.Node.Store (Store)
+import Unison.Codebase.Store (Store)
 import Unison.Reference (Reference)
 import Unison.Runtime.Address
 import Unison.Symbol.Extra ()
@@ -14,14 +14,14 @@ import Unison.Var (Var)
 import qualified Unison.ABT as ABT
 import qualified Unison.BlockStore.FileBlockStore as FBS
 import qualified Unison.Cryptography as C
-import qualified Unison.Node.BasicNode as BasicNode
-import qualified Unison.Node.Builtin as Builtin
+import qualified Unison.Builtin as Builtin
 #ifdef leveldb
-import qualified Unison.Node.LeveldbStore as DBStore
+import qualified Unison.Codebase.LeveldbStore as DBStore
 #else
-import qualified Unison.Node.FileStore as FileStore
+import qualified Unison.Codebase.FileStore as FileStore
 #endif
-import qualified Unison.NodeServer as NodeServer
+import qualified Unison.Codebase as Codebase
+import qualified Unison.CodebaseServer as CodebaseServer
 import qualified Unison.Reference as Reference
 import qualified Unison.Runtime.ExtraBuiltins as EB
 import qualified Unison.Symbol as Symbol
@@ -50,7 +50,8 @@ main = do
   logger <- L.atomic (L.atInfo L.toStandardError)
   let crypto = C.noop "dummypublickey"
   blockStore <- FBS.make' (makeRandomAddress crypto) makeAddress "Index"
-  keyValueOps <- EB.make logger blockStore crypto
-  let makeBuiltins whnf = concat [Builtin.makeBuiltins logger whnf, keyValueOps whnf]
-  node <- BasicNode.make hash store' makeBuiltins
-  NodeServer.server 8080 node
+  builtins0 <- pure $ Builtin.make logger
+  builtins1 <- EB.make logger blockStore crypto
+  codebase <- pure $ Codebase.make hash store'
+  Codebase.addBuiltins (builtins0 ++ builtins1) store' codebase
+  CodebaseServer.server 8080 codebase

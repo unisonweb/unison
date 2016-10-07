@@ -5,16 +5,16 @@ module Unison.Test.Typechecker where
 import Data.Functor
 import Test.Tasty
 import Test.Tasty.HUnit
-import Unison.Node.MemNode ()
+import Unison.Codebase.MemCodebase ()
 import Unison.Symbol (Symbol)
 import Unison.Term as E
-import Unison.Parsers (unsafeParseTerm, unsafeParseType)
+import Unison.Paths (Path)
 import Unison.Type as T
 import Unison.Typechecker as Typechecker
 import Unison.View (DFO)
-import Unison.Paths (Path)
-import qualified Unison.Node as Node
+import qualified Unison.Codebase as Codebase
 import qualified Unison.Note as Note
+import qualified Unison.Parsers as Parsers
 import qualified Unison.Paths as Paths
 import qualified Unison.Test.Common as Common
 import qualified Unison.Test.Term as Term
@@ -23,7 +23,7 @@ type V = Symbol DFO
 type TTerm = Term.TTerm
 type TType = Type V
 type TEnv f = T.Env f V
-type TNode = IO Common.TNode
+type TCodebase = IO Common.TCodebase
 
 infixr 1 -->
 (-->) :: TType -> TType -> TType
@@ -33,40 +33,40 @@ data StrongEq = StrongEq TType
 instance Eq StrongEq where StrongEq t1 == StrongEq t2 = Typechecker.equals t1 t2
 instance Show StrongEq where show (StrongEq t) = show t
 
-env :: TNode -> TEnv IO
-env node r = do
-  (node, _, _) <- Note.lift node
-  Node.typeAt node (E.ref r) mempty
+env :: TCodebase -> TEnv IO
+env codebase r = do
+  (codebase, _, _, _) <- Note.lift codebase
+  Codebase.typeAt codebase (E.ref r) mempty
 
-localsAt :: TNode -> Path -> TTerm -> IO [(V, Type V)]
-localsAt node path e = Note.run $ do
-  t2 <- Typechecker.locals (env node) path e
+localsAt :: TCodebase -> Path -> TTerm -> IO [(V, Type V)]
+localsAt codebase path e = Note.run $ do
+  t2 <- Typechecker.locals (env codebase) path e
   pure t2
 
-synthesizesAt :: TNode -> Path -> TTerm -> TType -> Assertion
-synthesizesAt node path e t = Note.run $ do
-  (node, _, _) <- Note.lift node
-  t2 <- Node.typeAt node e path
+synthesizesAt :: TCodebase -> Path -> TTerm -> TType -> Assertion
+synthesizesAt codebase path e t = Note.run $ do
+  (codebase, _, _, _) <- Note.lift codebase
+  t2 <- Codebase.typeAt codebase e path
   _ <- Note.fromEither (Typechecker.subtype t2 t)
   _ <- Note.fromEither (Typechecker.subtype t t2)
   pure ()
 
-checksAt :: TNode -> Path -> TTerm -> TType -> Assertion
+checksAt :: TCodebase -> Path -> TTerm -> TType -> Assertion
 checksAt node path e t = Note.run . void $
   Typechecker.synthesize (env node) (Paths.modifyTerm' (\e -> E.wrapV (E.ann e t)) path e)
 
-synthesizesAndChecksAt :: TNode -> Path -> TTerm -> TType -> Assertion
+synthesizesAndChecksAt :: TCodebase -> Path -> TTerm -> TType -> Assertion
 synthesizesAndChecksAt node path e t =
   synthesizesAt node path e t >> checksAt node path e t
 
-synthesizes :: TNode -> TTerm -> TType -> Assertion
+synthesizes :: TCodebase -> TTerm -> TType -> Assertion
 synthesizes node e t = Note.run $ do
   t2 <- Typechecker.synthesize (env node) e
   _ <- Note.fromEither (Typechecker.subtype t2 t)
   _ <- Note.fromEither (Typechecker.subtype t t2)
   pure ()
 
-checks :: TNode -> TTerm -> TType -> Assertion
+checks :: TCodebase -> TTerm -> TType -> Assertion
 checks node e t = void $ Note.run (Typechecker.check (env node) e t)
 
 checkSubtype :: TType -> TType -> Assertion
@@ -74,7 +74,7 @@ checkSubtype t1 t2 = case Typechecker.subtype t1 t2 of
   Left err -> assertFailure ("subtype failure:\n" ++ show err)
   Right _ -> pure ()
 
-synthesizesAndChecks :: TNode -> TTerm -> TType -> Assertion
+synthesizesAndChecks :: TCodebase -> TTerm -> TType -> Assertion
 synthesizesAndChecks node e t =
   synthesizes node e t >> checks node e t
 
@@ -89,8 +89,14 @@ synthesizesAndChecks node e t =
 testTerm :: String -> (String -> TestTree) -> TestTree
 testTerm termString f = f termString
 
+unsafeParseTerm :: String -> TTerm
+unsafeParseTerm = Parsers.unsafeParseTerm
+
+unsafeParseType :: String -> TType
+unsafeParseType = Parsers.unsafeParseType
+
 tests :: TestTree
-tests = withResource Common.node (\_ -> pure ()) $ \node -> testGroup "Typechecker"
+tests = withResource Common.codebase (\_ -> pure ()) $ \node -> testGroup "Typechecker"
   [
     testCase "alpha equivalence (type)" $ assertEqual "const"
       (unsafeParseType "forall a b. a -> b -> a")

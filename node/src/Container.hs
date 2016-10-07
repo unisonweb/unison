@@ -12,9 +12,9 @@ import Data.Text.Encoding (decodeUtf8)
 import Network.HTTP.Types.Method (StdMethod(OPTIONS))
 import Network.Wai.Middleware.RequestLogger (logStdoutDev)
 import System.IO (stdout)
+import Unison.CodebaseServer as NS
 import Unison.Hash (Hash)
 import Unison.NodeProtocol.V0 (protocol)
-import Unison.NodeServer as NS
 import Unison.Parsers (unsafeParseTerm)
 import Unison.Runtime.Lock (Lock(..),Lease(..))
 import Web.Scotty as S
@@ -25,12 +25,11 @@ import qualified Data.ByteString.Lazy as LB
 import qualified Data.Bytes.Put as Put
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import qualified Unison.Builtin as Builtin
+import qualified Unison.Codebase as Codebase
+import qualified Unison.Codebase.MemStore as Store
 import qualified Unison.Config as Config
 import qualified Unison.Cryptography as Cryptography
-import qualified Unison.Node as Node
-import qualified Unison.Node.BasicNode as BasicNode
-import qualified Unison.Node.Builtin as Builtin
-import qualified Unison.Node.MemStore as Store
 import qualified Unison.NodeContainer as C
 import qualified Unison.NodeProtocol as NP
 import qualified Unison.NodeWorker as NW
@@ -63,14 +62,15 @@ main = do
   putStrLn "using file-based block store"
   blockstore <- FBS.make' rand h "blockstore"
 #endif
-  let !b0 = Builtin.makeBuiltins logger
+  let !builtins0 = Builtin.make logger
   let !crypto = Cryptography.noop "todo-real-public-key"
-  b1 <- ExtraBuiltins.make logger blockstore crypto
+  builtins1 <- ExtraBuiltins.make logger blockstore crypto
   store <- Store.make
-  backend <- BasicNode.make SAH.hash store (\whnf -> b0 whnf ++ b1 whnf)
-  loadDeclarations logger "unison-src/base.u" backend
-  loadDeclarations logger "unison-src/extra.u" backend
-  loadDeclarations logger "unison-src/dindex.u" backend
+  let codebase = Codebase.make SAH.hash store
+  Codebase.addBuiltins (builtins0 ++ builtins1) store codebase
+  loadDeclarations logger "unison-src/base.u" codebase
+  loadDeclarations logger "unison-src/extra.u" codebase
+  loadDeclarations logger "unison-src/dindex.u" codebase
   let locker _ = pure held
       held = Lock (pure (Just (Lease (pure True) (pure ()))))
       mkNode _ = do -- todo: actually use node params
@@ -84,18 +84,17 @@ main = do
       unRemote _ = Nothing
       codestore = Remote.makeCodestore blockstore :: Remote.Codestore SAH.TermV Hash
       localDependencies _ = Set.empty -- todo, compute this for real
-      whnf e = do -- todo: may want to have this use evaluator + codestore directly
-        [(_,_,e)] <- Node.evaluateTerms backend [([], e)]
-        pure e
+      -- todo: may want to have this use evaluator + codestore directly
+      whnf = Codebase.interpreter (builtins0 ++ builtins1) codebase
       eval t = Note.run (whnf t)
       -- evaluator = I.eval allprimops
       -- allbuiltins = b0 whnf ++ b1 whnf
       -- allprimops = Map.fromList [ (r, op) | Builtin.Builtin r (Just op) _ _ <- allbuiltins ]
       typecheck e = do
-        bindings <- Note.run $ Node.allTermsByVarName Term.ref backend
+        bindings <- Note.run $ Codebase.allTermsByVarName Term.ref codebase
         L.debug logger $ "known symbols: " ++ show (map fst bindings)
         let e' = Parsers.bindBuiltins bindings [] e
-        Note.unnote (Node.typeAt backend e' []) >>= \t -> case t of
+        Note.unnote (Codebase.typeAt codebase e' []) >>= \t -> case t of
           Left note -> pure $ Left (show note)
           Right _ -> pure (Right e')
       launchNode logger node = do
@@ -115,7 +114,7 @@ main = do
       let node = Remote.Node "localhost" (Put.runPutS . serialize . Base64.decodeLenient $ nodepk)
       programtxt <- S.body
       let programstr = Text.unpack (decodeUtf8 (LB.toStrict programtxt))
-      let !prog = unsafeParseTerm programstr
+      let !prog = unsafeParseTerm programstr :: SAH.TermV
       let !prog' = Components.minimize' prog
       liftIO $ L.info logger "parsed"
       let destination = Put.runPutS (serialize node)
@@ -125,9 +124,9 @@ main = do
 loadDeclarations logger path node = do
   txt <- decodeUtf8 <$> B.readFile path
   let str = Text.unpack txt
-  r <- Note.run $ Node.declare' Term.ref str node
+  r <- Note.run $ Codebase.declare' Term.ref str node
   L.info logger $ "loaded " ++ path
   L.debug' logger $ do
-    ts <- Note.run $ Node.allTermsByVarName Term.ref node
+    ts <- Note.run $ Codebase.allTermsByVarName Term.ref node
     pure $ show ts
   pure r

@@ -1,4 +1,4 @@
-module Unison.Node.FileStore where
+module Unison.Codebase.FileStore where
 
 import Control.Applicative
 import Data.Aeson (ToJSON(..),FromJSON(..))
@@ -7,7 +7,7 @@ import Data.Text (Text)
 import System.FilePath ((</>))
 import Unison.Hash (Hash)
 import Unison.Note (Noted,Note)
-import Unison.Node.Store (Store, Store(..))
+import Unison.Codebase.Store (Store, Store(..))
 import Unison.Reference (Reference)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as ByteString

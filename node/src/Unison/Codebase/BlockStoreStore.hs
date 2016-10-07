@@ -1,5 +1,7 @@
 {-# Language DeriveGeneric #-}
-module Unison.Node.UnisonBlockStore where
+
+-- A Codebase.Store based on a Unison.BlockStore
+module Unison.Codebase.BlockStoreStore where
 
 import Control.Applicative
 import Control.Concurrent.STM (atomically)
@@ -12,7 +14,7 @@ import Unison.Hash (Hash)
 import Unison.Hash.Extra ()
 import Unison.Metadata (Metadata)
 import Unison.Metadata.Extra ()
-import Unison.Node.Store (Store, Store(..))
+import Unison.Codebase.Store (Store, Store(..))
 import Unison.Reference (Reference)
 import Unison.Reference.Extra ()
 import Unison.Term (Term)
@@ -42,7 +44,7 @@ data Update v
  deriving Generic
 instance (Ord v, Serial v) => Serial (Update v)
 
-make :: (Eq a, Serial v, Ord v) => BlockStore a ->  IO (Store IO v)
+make :: (Eq a, Serial v, Ord v) => BlockStore a -> IO (Store IO v)
 make bs = let
   maybeToEither b Nothing = Left b
   maybeToEither _ (Just a) = Right a

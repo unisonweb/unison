@@ -3,14 +3,14 @@ module Unison.Test.Typechecker.Components where
 import Test.Tasty
 import Test.Tasty.HUnit
 import Unison.Parsers (unsafeParseTerm)
-import qualified Unison.Node as Node
+import qualified Unison.Codebase as Codebase
 import qualified Unison.Note as Note
 import qualified Unison.Term as Term
 import qualified Unison.Test.Common as Common
 import qualified Unison.Typechecker.Components as Components
 
 tests :: TestTree
-tests = withResource Common.node (\_ -> pure ()) $ \node ->
+tests = withResource Common.codebase (\_ -> pure ()) $ \codebase ->
   let
     tests =
       [
@@ -32,10 +32,10 @@ tests = withResource Common.node (\_ -> pure ()) $ \node ->
           "let id x = x; g = id 42; y = id id g ; (let rec ping x = pong x; pong x = id (ping x) ; y;;);;"
       ]
     t before after = testCase (before ++ " ⟹  " ++ after) $ do
-      (node, _, _) <- node
+      (codebase, _, _, _) <- codebase
       let term = unsafeParseTerm before
       let after' = Components.minimize' term
-      _ <- Note.run $ Node.typeAt node after' []
+      _ <- Note.run $ Codebase.typeAt codebase after' []
       assertEqual "comparing results" (unsafeParseTerm after) after'
   in testGroup "Typechecker.Components" tests
 
