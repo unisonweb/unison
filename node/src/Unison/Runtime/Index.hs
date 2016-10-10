@@ -149,24 +149,23 @@ insert (IndexState bs crypto index maxSize) kh v = insert' index kh
                  void $ B.modify' bs (toBlock crypto index) (const newIndex)
 
 delete :: Eq a => IndexState a t1 t2 t3 t4 t5 t6 -> Key -> IO ()
-delete (IndexState bs crypto index _) kh = delete' index kh
+delete (IndexState bs crypto index _) kh = void $ delete' index kh
   where
     delete' index kh = do
       (Index value branches) <- deserialize bs crypto index
       if ByteString.null kh
         then let block = toBlock crypto value
-             in void (B.modify' bs block $ const Nothing)
+             in (B.modify' bs block $ const Nothing) >> isEmpty bs crypto (Index value branches)
         else case Trie.match branches kh of
                Just (_, branchIndex, remainingKH) -> do
-                 delete' branchIndex remainingKH
-                 -- calculating if the tree is empty is expensive.
-                 -- TODO if it fails, earlier calls in the recursion stack should automatically fail
-                 emptyTree <- isEmpty bs crypto $ Index value branches
-                 when emptyTree $
-                   let newTrie = Trie.delete kh branches
-                       newIndex = Index value newTrie
-                   in void $ B.modify' bs (toBlock crypto index) (const newIndex)
-               _ -> pure () -- key didn't actually exist in this index
+                 emptyBranch <- delete' branchIndex remainingKH
+                 if emptyBranch
+                   then let newTrie = Trie.delete kh branches
+                            newIndex = Index value newTrie
+                        in B.modify' bs (toBlock crypto index) (const newIndex)
+                           >> isEmpty bs crypto newIndex
+                   else pure False
+               _ -> pure False
 
 lookup :: Eq a => IndexState a t1 t2 t3 t4 t5 t6 -> Key -> IO (Maybe Value)
 lookup (IndexState bs crypto index _) kh = lookup' index kh
