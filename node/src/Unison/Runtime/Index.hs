@@ -185,12 +185,13 @@ lookupGT :: Eq a => IndexState a t1 t2 t3 t4 t5 t6 -> Key
   -> IO (Maybe (Key, Value))
 lookupGT (IndexState bs crypto index _) kh = lookupGT' index kh mempty
   where
+    mergeAlt a b = a >>= \a -> if null a then b else pure a
     findAll index previousKH = do
       (Index value branches) <- deserialize bs crypto index
       currentVal <- B.get bs $ toBlock crypto value
       let getBranch k v = findAll v (previousKH `mappend` k)
           levelVal = fmap (\kv -> (previousKH, kv)) currentVal
-          mergeOption old kv = liftM2 (<|>) old (uncurry getBranch kv)
+          mergeOption old kv = mergeAlt old (uncurry getBranch kv)
       foldl' mergeOption (pure levelVal) $ Trie.toList branches
     lookupGT' index kh previousKH = do
       (Index _ branches) <- deserialize bs crypto index
@@ -205,7 +206,7 @@ lookupGT (IndexState bs crypto index _) kh = lookupGT' index kh mempty
           let
             gtBranches = Trie.mapBy (\k v -> if k > kh then Just (k,v) else Nothing) branches
             getBranch k v = findAll v (previousKH `mappend` k)
-            mergeOption old kv = liftM2 (<|>) old (uncurry getBranch kv)
+            mergeOption old kv = mergeAlt old (uncurry getBranch kv)
           foldl' mergeOption (pure furtherMatch) gtBranches
 
 keys :: Eq a => IndexState a t1 t2 t3 t4 t5 t6 -> IO [Key]
