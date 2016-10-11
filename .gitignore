@@ -15,6 +15,8 @@ tags
 unison-src/.loaded
 **cabal.sandbox.config
 .cabal-sandbox/**
+blockstore
+blockstore.leveldb
 
 # Stack
 .stack-work
