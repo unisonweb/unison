@@ -117,8 +117,9 @@ let
 
     -- Wait a while for crawlers to index a bunch of pages, then do query
     Remote.sleep (Duration.seconds 60);
+    u = Debug.watch "done waiting for indexing, getting results" Unit;
     results := search 10 ["design", "unison"] ind;
-    results := format-results results visited excerpts;
+    results := format-results (Debug.watch "results !!!" results) visited excerpts;
     pure <| Debug.log results Unit results;;
     -- pure <| Debug.watch "results" results;;
   ;;

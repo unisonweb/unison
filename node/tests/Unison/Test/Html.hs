@@ -35,7 +35,7 @@ numlinks = let found = getLinks $ pack testHTML in if 3 == length found
   else fail $ "expected 3 links, got " ++ show found
 
 plainText :: Assertion
-plainText = let expected = "simple linkInside one Inside other outside one  inside list  Empty link"
+plainText = let expected = "simple linkInside one Inside other outside one inside list Empty link"
                 result = toPlainText $ pack testHTML
             in if expected == result
                then pure ()
@@ -55,7 +55,6 @@ run (codebase, parse, eval) = do
       desiredLinks = Term.vector [linkTerm]
       desiredHref = Term.text "link.html"
       desiredDescription = Term.text "description"
-      -- todo: i am here, just need to replace this with calls to eval
       result = traverse eval [getLinksTerm, getLink, getDescription]
   evaluatedResult <- Note.unnote result
 

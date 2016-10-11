@@ -33,7 +33,7 @@ getLinks s = mapMaybe sectionToLink . justAnchorSections $ parseTags s
 
 toPlainText :: Text -> Text
 toPlainText s =
-  Text.concat [headings s, Text.pack "\n", collapseSpaces . innerText . ignores $ parseTags s]
+  collapseSpaces $ Text.concat [headings s, Text.pack "\n", innerText . ignores $ parseTags s]
 
 collapseSpaces :: Text -> Text
 collapseSpaces t =
