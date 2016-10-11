@@ -266,6 +266,10 @@ make logger =
      -- Pair
      , let r = R.Builtin "Pair"
        in (r, Nothing, unsafeParseType "forall a b . a -> b -> Pair a b", prefix "Pair")
+     , let r = R.Builtin "pair"
+           op [x,y] = pure $ Term.builtin "Pair" `Term.apps` [x,y]
+           op _ = error "Pair.fold unpossible"
+       in (r, Just (I.Primop 2 op), unsafeParseType "forall a b . a -> b -> Pair a b", prefix "pair")
      , let r = R.Builtin "Pair.fold"
            op [f,Term.Apps' (Term.Builtin' "Pair") [a,b]] = pure $ f `Term.apps` [a,b]
            op _ = error "Pair.fold unpossible"
@@ -302,6 +306,8 @@ make logger =
        in (r, Just (I.Primop 3 op), unsafeParseType "forall a r . r -> (a -> r) -> Optional a -> r", prefix "Optional.fold")
 
      -- Vector
+     , let r = R.Builtin "Vector.force"
+       in (r, Nothing, unsafeParseType "forall a . Vector a -> Vector a", prefix "Vector.force")
      , let r = R.Builtin "Vector.append"
            op [last,Term.Vector' init] = do
              pure $ Term.vector' (Vector.snoc init last)
@@ -391,7 +397,8 @@ make logger =
            typ = "forall a b . (b -> a -> b) -> b -> Vector a -> b"
        in (r, Just (I.Primop 3 op), unsafeParseType typ, prefix "Vector.fold-left")
      , let r = R.Builtin "Vector.map"
-           op [f,Term.Vector' vs] = pure $ Term.vector' (fmap (Term.app f) vs)
+           op [f,Term.Vector' vs] =
+             pure . Term.app (Term.builtin "Vector.force") . Term.vector' $ fmap (Term.app f) vs
            op _ = fail "Vector.map unpossible"
        in (r, Just (I.Primop 2 op), unsafeParseType "forall a b . (a -> b) -> Vector a -> Vector b", prefix "Vector.map")
      , let r = R.Builtin "Vector.prepend"

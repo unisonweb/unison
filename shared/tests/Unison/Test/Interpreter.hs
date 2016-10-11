@@ -96,8 +96,9 @@ tests = withResource Common.codebase (\_ -> pure ()) $ \codebase ->
       -- putStrLn (show $ map fst builtins)
       let term = P.bindBuiltins builtins [] $ P.unsafeParseTerm uneval
       _ <- Note.run $ Codebase.typeAt codebase term []
-      result <- Note.run $ evaluate term
-      assertEqual "comparing results" (P.unsafeParseTerm eval) result
+      actual <- Note.run $ evaluate term
+      expected <- Note.run $ evaluate (P.unsafeParseTerm eval)
+      assertEqual "comparing results" expected actual
   in testGroup "Interpreter" tests
 
 main = defaultMain tests

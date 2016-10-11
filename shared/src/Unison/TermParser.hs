@@ -78,7 +78,7 @@ tupleOrParenthesized rec =
   parenthesized $ go <$> sepBy1 (token $ string ",") rec where
     go [t] = t -- was just a parenthesized term
     go terms = foldr pair unit terms -- it's a tuple literal
-    pair t1 t2 = Term.builtin "Pair" `Term.app` t1 `Term.app` t2
+    pair t1 t2 = Term.builtin "pair" `Term.app` t1 `Term.app` t2
     unit = Term.builtin "()"
 
 -- |
@@ -155,7 +155,7 @@ blank :: Ord v => Parser (S v) (Term v)
 blank = token (char '_') $> Term.blank
 
 vector :: Ord v => Parser (S v) (Term v) -> Parser (S v) (Term v)
-vector p = Term.vector <$> (lbracket *> elements <* rbracket)
+vector p = Term.app (Term.builtin "Vector.force") . Term.vector <$> (lbracket *> elements <* rbracket)
   where
     lbracket = token (char '[')
     elements = sepBy comma p

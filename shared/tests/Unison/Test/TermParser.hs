@@ -52,8 +52,8 @@ tests = testGroup "TermParser" $ (parse <$> shouldPass)
       [ "do Remote n1 := Remote.spawn; n2 := Remote.spawn; let rec x = 10; Remote.pure 42;;; ;" ]
     shouldPass =
       [ ("1", one)
-      , ("[1,1]", vector [one, one])
-      , ("[1,1] : Vector Number", ann (vector [one, one]) (T.vectorOf number))
+      , ("[1,1]", vectorForced [one, one])
+      , ("[1,1] : Vector Number", ann (vectorForced [one, one]) (T.vectorOf number))
       , ("(+)", numberplus)
       , ("(++)", var' "++")
       , ("(++)", var' "++")
@@ -66,7 +66,7 @@ tests = testGroup "TermParser" $ (parse <$> shouldPass)
       , ("1+ 1", app (var' "1+") one)
       -- todo: failing
       -- , ("1 +1", app one (var' "+1"))
-      , ("[1+1]", vector [onenone])
+      , ("[1+1]", vectorForced [onenone])
       , ("\"hello\"", hello)
       , ("_", blank)
       , ("a", a)
@@ -100,7 +100,7 @@ tests = testGroup "TermParser" $ (parse <$> shouldPass)
       , ("let rec fix = f -> f (fix f); fix;;", fix) -- fix
       , ("let rec fix f = f (fix f); fix;;", fix) -- fix
       , ("1 + 2 + 3", num 1 `plus'` num 2 `plus'` num 3)
-      , ("[1, 2, 1 + 1]", vector [num 1, num 2, num 1 `plus'` num 1])
+      , ("[1, 2, 1 + 1]", vectorForced [num 1, num 2, num 1 `plus'` num 1])
       , ("(id -> let x = id 42; y = id \"hi\"; 43;;) : (forall a . a) -> Number", lam' ["id"] (let1'
         [ ("x", var' "id" `app` num 42),
           ("y", var' "id" `app` text "hi")
