@@ -29,7 +29,7 @@ let
   format-results hs urls excerpts = do Remote
     urls := Remote.map Optional.somes <| Remote.traverse (h -> DIndex.lookup h urls) hs;
     excerpts := Remote.map Optional.somes <| Remote.traverse (h -> DIndex.lookup h excerpts) hs;
-    fmt = p -> Text.join [1st p, Text.newline, 2nd p, Text.newline, Text.newline];
+    fmt = p -> Text.join [1st p, Text.newline, 2nd p, Text.newline, "***", Text.newline];
     pure <| Text.join (Vector.map fmt (urls `Vector.zip` excerpts));;
   ;
 
@@ -111,7 +111,6 @@ let
     Remote.traverse (n -> Remote.at' n (DIndex.join excerpts)) excerpts-nodes;
 
     -- Kick off multiple crawlers
-    Remote.fork <| crawl 5 ind visited excerpts "http://unisonweb.org";
     Remote.fork <| crawl 5 ind visited excerpts "http://unisonweb.org/design";
     Remote.fork <| crawl 5 ind visited excerpts "http://www.cnn.com";
     Remote.fork <| crawl 5 ind visited excerpts "http://lambda-the-ultimate.org/";
