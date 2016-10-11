@@ -90,6 +90,7 @@ tests = withResource Common.codebase (\_ -> pure ()) $ \codebase ->
       , t "Vector.take 0 [1,2,3]" "[]"
       , t "Vector.take 2 [1,2,3]" "[1,2]"
       , t "Vector.drop 2 [1,2,3]" "[3]"
+      , t "Text.join [\"a\", \"b\", \"c\"]" "\"abc\""
       ]
     t uneval eval = testCase (uneval ++ " ⟹  " ++ eval) $ do
       (codebase, _, builtins, evaluate) <- codebase

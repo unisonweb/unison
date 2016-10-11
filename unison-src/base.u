@@ -267,3 +267,13 @@ Either.bind = Either.fold Left;
 
 Either.swap : ∀ a b . Either a b -> Either b a;
 Either.swap e = Either.fold Right Left e;
+
+Text.join : Vector Text -> Text;
+Text.join = Vector.fold-balanced Text.concatenate "";
+
+Text.take-right : Number -> Text -> Text;
+Text.take-right n t = Text.drop (Text.length t - n) t;
+
+Text.ends-with : Text -> Text -> Boolean;
+Text.ends-with suffix overall =
+  Text.take-right (Text.length suffix) overall ==_Text suffix;

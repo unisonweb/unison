@@ -262,6 +262,16 @@ make logger =
            op _ = error "Text.words unpossible"
            typ = "Text -> Vector Text"
        in (r, Just (I.Primop 1 op), unsafeParseType typ, prefix "Text.words")
+     , let r = R.Builtin "Text.length"
+           op [Term.Text' txt] = pure $ Term.num (fromIntegral $ Text.length txt)
+           op _ = error "Text.words unpossible"
+           typ = "Text -> Number"
+       in (r, Just (I.Primop 1 op), unsafeParseType typ, prefix "Text.length")
+     , let r = R.Builtin "Text.newline"
+           op [] = pure $ Term.text "\n"
+           op _ = error "Text.newline unpossible"
+           typ = "Text"
+       in (r, Just (I.Primop 0 op), unsafeParseType typ, prefix "Text.newline")
 
      -- Pair
      , let r = R.Builtin "Pair"

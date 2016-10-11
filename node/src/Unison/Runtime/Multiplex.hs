@@ -97,7 +97,7 @@ scope msg = local tweak where
 -- | Crash with a message. Include the current logging scope.
 crash :: String -> Multiplex a
 crash msg = do
-  -- warn msg
+  warn msg
   scope msg $ do
     l <- logger
     fail (show $ L.getScope l)
