@@ -90,14 +90,16 @@ tests = withResource Common.codebase (\_ -> pure ()) $ \codebase ->
       , t "Vector.take 0 [1,2,3]" "[]"
       , t "Vector.take 2 [1,2,3]" "[1,2]"
       , t "Vector.drop 2 [1,2,3]" "[3]"
+      , t "Text.join [\"a\", \"b\", \"c\"]" "\"abc\""
       ]
     t uneval eval = testCase (uneval ++ " ⟹  " ++ eval) $ do
       (codebase, _, builtins, evaluate) <- codebase
       -- putStrLn (show $ map fst builtins)
       let term = P.bindBuiltins builtins [] $ P.unsafeParseTerm uneval
       _ <- Note.run $ Codebase.typeAt codebase term []
-      result <- Note.run $ evaluate term
-      assertEqual "comparing results" (P.unsafeParseTerm eval) result
+      actual <- Note.run $ evaluate term
+      expected <- Note.run $ evaluate (P.unsafeParseTerm eval)
+      assertEqual "comparing results" expected actual
   in testGroup "Interpreter" tests
 
 main = defaultMain tests

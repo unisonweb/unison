@@ -141,8 +141,8 @@ tests = withResource Common.codebase (\_ -> pure ()) $ \node -> testGroup "Typec
       (unsafeParseTerm "[1, 2, 1 + 1]")
       (T.lit T.Vector `T.app` T.lit T.Number)
   , testTerm "[1, 2, 1 + 1]" $ \tms ->
-    testCase ("synthesize/checkAt "++tms++"@[Index 2]") $ synthesizesAndChecksAt node
-      [Paths.Index 2] (unsafeParseTerm tms) (T.lit T.Number)
+    testCase ("synthesize/checkAt "++tms++"@[Paths.Arg, Index 2]") $ synthesizesAndChecksAt node
+      [Paths.Arg, Paths.Index 2] (unsafeParseTerm tms) (T.lit T.Number)
   , testTerm "let x = _; _;;" $ \tms ->
     testCase ("synthesize/checkAt ("++tms++")@[Binding 0,Body]") $ synthesizesAndChecksAt node
       [Paths.Binding 0, Paths.Body] (unsafeParseTerm tms) unconstrained

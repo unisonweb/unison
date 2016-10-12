@@ -1,6 +1,7 @@
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE BangPatterns #-}
 
 -- | Very simple and inefficient interpreter of Unison terms
 module Unison.Interpreter where
@@ -76,17 +77,21 @@ make env = nf
             nf resolveRef r
           R.Builtin _ -> pure e
       E.Ann' e _ -> nf resolveRef e
+      E.App' (E.Ref' (R.Builtin "Vector.force")) (E.Vector' es) ->
+        E.vector' <$> traverse (nf resolveRef) es
       E.Apps' E.If' (cond:t:f:tl) -> do
         cond <- nf resolveRef cond
         case cond of
           E.Builtin' b | Text.head b == 'F' -> nf resolveRef f >>= \f -> (`E.apps` tl) <$> nf resolveRef f
                        | otherwise -> nf resolveRef t >>= \t -> (`E.apps` tl) <$> nf resolveRef t
           _ -> pure e
-      E.Apps' f xs -> do
-        xs <- traverse (nf resolveRef) xs
-        f <- nf resolveRef f
-        e' <- reduce resolveRef f xs
-        maybe (pure $ f `E.apps` xs) (nf resolveRef) e'
+      E.Apps' f xs -> case f of
+        E.Ref' (R.Builtin "Pair") -> pure e
+        f -> do
+          xs <- traverse (nf resolveRef) xs
+          f <- nf resolveRef f
+          e' <- reduce resolveRef f xs
+          maybe (pure $ f `E.apps` xs) (nf resolveRef) e'
       E.Let1' binding body -> do
         binding <- nf resolveRef binding
         nf resolveRef (ABT.bind body binding)
@@ -94,5 +99,4 @@ make env = nf
         bs' = [ (v, expandBinding v b) | (v,b) <- bs ]
         expandBinding v (E.LamNamed' name body) = E.lam name (expandBinding v body)
         expandBinding v body = E.letRec bs body
-      E.Vector' es -> E.vector' <$> traverse (nf resolveRef) es
       _ -> pure e

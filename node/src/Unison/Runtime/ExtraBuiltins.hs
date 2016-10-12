@@ -197,7 +197,6 @@ make _ blockStore crypto = do
       in (r, Just (I.Primop 1 op), unsafeParseType typ, prefix "Uri.parse-authority")
 
      -- Hashing
-     -- add erase, comparison functions
      , let r = R.Builtin "hash#"
            op [e] = let h = Hash.base64 . Hash.fromBytes . SAH.hash' $ e
                     in pure $ Term.builtin "Hash" `Term.app` (Term.text h)

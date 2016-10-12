@@ -56,6 +56,12 @@ IndexedTraversal.ceiling k t =
     Optional.fold (IndexedTraversal.increment k t) (const (pure <| Some k))
   );
 
+-- | Returns the smallest key existing in both traversals which is >= the provided key
+IndexedTraversal.ceiling-both : ∀ k v . k -> IndexedTraversal k v -> IndexedTraversal k v -> Remote (Optional k);
+IndexedTraversal.ceiling-both k t1 t2 =
+  IndexedTraversal.ceiling k t1 |>
+  Remote.bind (Optional.fold (Remote.pure None) (k -> IndexedTraversal.ceiling k t2));
+
 Index.traversal : ∀ k v . Index k v -> IndexedTraversal (k, Hash k) v;
 Index.traversal ind = let
   add-hash = Optional.map (k -> (k, hash# k));
@@ -76,8 +82,11 @@ IndexedTraversal.intersect : ∀ k v . Order k
 IndexedTraversal.intersect o t1 t2 = let rec
   align-key k1 k2 = Optional.get-or (Remote.pure None) <| Optional.map2
     (k1 k2 -> Order.compare o k1 k2 |> Comparison.fold
+       -- k1 < k2
        (IndexedTraversal.ceiling k2 t1 |> Remote.bind (k1 -> align-key k1 (Some k2)))
+       -- k1 == k2
        (Remote.pure (Some k1))
+       -- k1 > k2
        (IndexedTraversal.ceiling k1 t2 |> Remote.bind (k2 -> align-key (Some k1) k2))
     )
     k1 k2

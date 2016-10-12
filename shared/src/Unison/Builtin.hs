@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Unison.Builtin where
 
+import Data.ByteString (ByteString)
 import Data.List
 import Data.Text (Text)
 import Unison.Metadata (Metadata(..))
@@ -11,9 +12,11 @@ import Unison.Type (Type)
 import Unison.Typechecker.Context (remoteSignatureOf)
 import Unison.Util.Logger (Logger)
 import Unison.Var (Var)
+import qualified Data.ByteString.Base64.URL as Base64
 import qualified Data.Char as Char
 import qualified Data.Vector as Vector
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.Interpreter as I
 import qualified Unison.Metadata as Metadata
@@ -262,10 +265,24 @@ make logger =
            op _ = error "Text.words unpossible"
            typ = "Text -> Vector Text"
        in (r, Just (I.Primop 1 op), unsafeParseType typ, prefix "Text.words")
+     , let r = R.Builtin "Text.length"
+           op [Term.Text' txt] = pure $ Term.num (fromIntegral $ Text.length txt)
+           op _ = error "Text.words unpossible"
+           typ = "Text -> Number"
+       in (r, Just (I.Primop 1 op), unsafeParseType typ, prefix "Text.length")
+     , let r = R.Builtin "Text.newline"
+           op [] = pure $ Term.text "\n"
+           op _ = error "Text.newline unpossible"
+           typ = "Text"
+       in (r, Just (I.Primop 0 op), unsafeParseType typ, prefix "Text.newline")
 
      -- Pair
      , let r = R.Builtin "Pair"
        in (r, Nothing, unsafeParseType "forall a b . a -> b -> Pair a b", prefix "Pair")
+     , let r = R.Builtin "pair"
+           op [x,y] = pure $ Term.builtin "Pair" `Term.apps` [x,y]
+           op _ = error "Pair.fold unpossible"
+       in (r, Just (I.Primop 2 op), unsafeParseType "forall a b . a -> b -> Pair a b", prefix "pair")
      , let r = R.Builtin "Pair.fold"
            op [f,Term.Apps' (Term.Builtin' "Pair") [a,b]] = pure $ f `Term.apps` [a,b]
            op _ = error "Pair.fold unpossible"
@@ -302,6 +319,8 @@ make logger =
        in (r, Just (I.Primop 3 op), unsafeParseType "forall a r . r -> (a -> r) -> Optional a -> r", prefix "Optional.fold")
 
      -- Vector
+     , let r = R.Builtin "Vector.force"
+       in (r, Nothing, unsafeParseType "forall a . Vector a -> Vector a", prefix "Vector.force")
      , let r = R.Builtin "Vector.append"
            op [last,Term.Vector' init] = do
              pure $ Term.vector' (Vector.snoc init last)
@@ -391,7 +410,8 @@ make logger =
            typ = "forall a b . (b -> a -> b) -> b -> Vector a -> b"
        in (r, Just (I.Primop 3 op), unsafeParseType typ, prefix "Vector.fold-left")
      , let r = R.Builtin "Vector.map"
-           op [f,Term.Vector' vs] = pure $ Term.vector' (fmap (Term.app f) vs)
+           op [f,Term.Vector' vs] =
+             pure . Term.app (Term.builtin "Vector.force") . Term.vector' $ fmap (Term.app f) vs
            op _ = fail "Vector.map unpossible"
        in (r, Just (I.Primop 2 op), unsafeParseType "forall a b . (a -> b) -> Vector a -> Vector b", prefix "Vector.map")
      , let r = R.Builtin "Vector.prepend"
@@ -445,7 +465,7 @@ make logger =
              Term.Builtin' b
                | b == "Text.Order" -> pure (a:)
                | b == "Number.Order" -> pure (a:)
-               | b == "Hash.Order" -> do Term.App' _ a <- pure a; pure (a:)
+               | b == "Hash.Order" -> pure (a:)
                | b == "Unit.Order" -> pure (a:)
                | b == "Order.ignore" -> pure id
                | otherwise -> fail $ "unrecognized order type: " ++ Text.unpack b
@@ -462,12 +482,16 @@ make logger =
        in (r, Just (I.Primop 2 op), unsafeParseType "forall a . Order a -> a -> Order.Key a", prefix "Order.key")
      ]
 
-extractKey :: Var v => Term v -> [Either Double Text]
+extractKey :: Var v => Term v -> [Either (Either Double Text) ByteString]
+extractKey (Term.App' (Term.Builtin' "Hash") (Term.Text' h1)) =
+  [Right $ Base64.decodeLenient (Text.encodeUtf8 h1)]
 extractKey (Term.App' _ t1) = go t1 where
   go (Term.Builtin' _) = []
-  go (Term.App' (Term.Text' t) tl) = Right t : go tl
-  go (Term.App' (Term.Number' n) tl) = Left n : go tl
-  go (Term.App' (Term.Builtin' b) tl) = Right b : go tl
+  go (Term.App' (Term.Text' t) tl) = Left (Right t) : go tl
+  go (Term.App' (Term.Number' n) tl) = Left (Left n) : go tl
+  go (Term.App' (Term.Builtin' b) tl) = Left (Right b) : go tl
+  go (Term.App' (Term.App' (Term.Builtin' "Hash") (Term.Text' h1)) tl) =
+    (Right $ Base64.decodeLenient (Text.encodeUtf8 h1)) : go tl
   go _ = error $ "don't know what to do with this in extractKey: " ++ show t1
 extractKey t = error $ "not a key: " ++ show t
 
@@ -479,11 +503,14 @@ compareKeys (Term.App' _ t1) (Term.App' _ t2) = go t1 t2 where
         go' a a2 = case a `compare` a2 of
           EQ -> go t1 t2
           done -> done
+        b64 h = Base64.decodeLenient (Text.encodeUtf8 h)
     in
       case (h1,h2) of
         (Term.Text' h1, Term.Text' h2) -> go' h1 h2
         (Term.Number' h1, Term.Number' h2) -> go' h1 h2
         (Term.Builtin' h1, Term.Builtin' h2) -> go' h1 h2
+        (Term.App' (Term.Builtin' "Hash") (Term.Text' h1),
+         Term.App' (Term.Builtin' "Hash") (Term.Text' h2)) -> go' (b64 h1) (b64 h2)
   go (Term.App' _ _) _ = GT
   go _ _ = LT
 compareKeys _ _ = error "not a key"
