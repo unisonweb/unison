@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Unison.Builtin where
 
+import Data.ByteString (ByteString)
 import Data.List
 import Data.Text (Text)
 import Unison.Metadata (Metadata(..))
@@ -11,9 +12,11 @@ import Unison.Type (Type)
 import Unison.Typechecker.Context (remoteSignatureOf)
 import Unison.Util.Logger (Logger)
 import Unison.Var (Var)
+import qualified Data.ByteString.Base64.URL as Base64
 import qualified Data.Char as Char
 import qualified Data.Vector as Vector
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.Interpreter as I
 import qualified Unison.Metadata as Metadata
@@ -462,7 +465,7 @@ make logger =
              Term.Builtin' b
                | b == "Text.Order" -> pure (a:)
                | b == "Number.Order" -> pure (a:)
-               | b == "Hash.Order" -> do Term.App' _ a <- pure a; pure (a:)
+               | b == "Hash.Order" -> pure (a:)
                | b == "Unit.Order" -> pure (a:)
                | b == "Order.ignore" -> pure id
                | otherwise -> fail $ "unrecognized order type: " ++ Text.unpack b
@@ -479,8 +482,10 @@ make logger =
        in (r, Just (I.Primop 2 op), unsafeParseType "forall a . Order a -> a -> Order.Key a", prefix "Order.key")
      ]
 
-extractKey :: Var v => Term v -> [Either Double Text]
-extractKey (Term.App' _ t1) = go t1 where
+extractKey :: Var v => Term v -> [Either (Either Double Text) ByteString]
+extractKey (Term.App' (Term.Builtin' "Hash") (Term.Text' h1)) =
+  [Right $ Base64.decodeLenient (Text.encodeUtf8 h1)]
+extractKey (Term.App' _ t1) = map Left $ go t1 where
   go (Term.Builtin' _) = []
   go (Term.App' (Term.Text' t) tl) = Right t : go tl
   go (Term.App' (Term.Number' n) tl) = Left n : go tl
@@ -496,11 +501,14 @@ compareKeys (Term.App' _ t1) (Term.App' _ t2) = go t1 t2 where
         go' a a2 = case a `compare` a2 of
           EQ -> go t1 t2
           done -> done
+        b64 h = Base64.decodeLenient (Text.encodeUtf8 h)
     in
       case (h1,h2) of
         (Term.Text' h1, Term.Text' h2) -> go' h1 h2
         (Term.Number' h1, Term.Number' h2) -> go' h1 h2
         (Term.Builtin' h1, Term.Builtin' h2) -> go' h1 h2
+        (Term.App' (Term.Builtin' "Hash") (Term.Text' h1),
+         Term.App' (Term.Builtin' "Hash") (Term.Text' h2)) -> go' (b64 h1) (b64 h2)
   go (Term.App' _ _) _ = GT
   go _ _ = LT
 compareKeys _ _ = error "not a key"
