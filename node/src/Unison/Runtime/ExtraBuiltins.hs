@@ -60,7 +60,8 @@ pattern Link' href description <-
                        (Term.Text' href))
   (Term.Text' description)
 
-deserializeTermPair :: ByteString -> Either String (Term.Term V, Term.Term V)
+deserializeTermPair :: (Serial v, Var v) =>
+  ByteString -> Either String (Term.Term v, Term.Term v)
 deserializeTermPair = Get.runGetS $ (,) <$> SAH.deserializeTerm <*> SAH.deserializeTerm
 
 
