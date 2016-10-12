@@ -158,6 +158,15 @@ Remote.join = Remote.bind identity;
 Remote.replicate : ∀ a . Number -> Remote a -> Remote (Vector a);
 Remote.replicate n r = Remote.sequence (Vector.replicate n r);
 
+Remote.replicate! : ∀ a . Number -> Remote a -> Remote Unit;
+Remote.replicate! n a =
+  let rec
+    go n =
+      if n <=_Number 0 then Debug.log "replicate! done" Unit <| Remote.pure Unit
+      else Remote.bind (a -> go (n - 1)) a;
+    go n;;
+;
+
 Remote.unfold : ∀ s a . s -> (s -> Remote (Optional (a, s))) -> Remote (Vector a);
 Remote.unfold s f = let rec
   go s acc = do Remote

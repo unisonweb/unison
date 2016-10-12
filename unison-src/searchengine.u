@@ -116,10 +116,11 @@ let
     Remote.fork <| crawl 5 ind visited excerpts "http://lambda-the-ultimate.org/";
 
     -- Wait a while for crawlers to index a bunch of pages, then do query
-    Remote.sleep (Duration.seconds 60);
+    u = Debug.watch "waiting 2 minutes for indexing before issuing queries..." Unit;
+    Remote.sleep (Duration.seconds 120);
     u = Debug.watch "done waiting for indexing, getting results" Unit;
-    results := search 10 ["design", "unison"] ind;
-    results := format-results (Debug.watch "results !!!" results) visited excerpts;
+    results := search 10 ["design", "unison", "programming"] ind;
+    results := format-results results visited excerpts;
     pure <| Debug.log results Unit results;;
     -- pure <| Debug.watch "results" results;;
   ;;

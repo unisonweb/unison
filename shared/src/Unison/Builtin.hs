@@ -485,11 +485,13 @@ make logger =
 extractKey :: Var v => Term v -> [Either (Either Double Text) ByteString]
 extractKey (Term.App' (Term.Builtin' "Hash") (Term.Text' h1)) =
   [Right $ Base64.decodeLenient (Text.encodeUtf8 h1)]
-extractKey (Term.App' _ t1) = map Left $ go t1 where
+extractKey (Term.App' _ t1) = go t1 where
   go (Term.Builtin' _) = []
-  go (Term.App' (Term.Text' t) tl) = Right t : go tl
-  go (Term.App' (Term.Number' n) tl) = Left n : go tl
-  go (Term.App' (Term.Builtin' b) tl) = Right b : go tl
+  go (Term.App' (Term.Text' t) tl) = Left (Right t) : go tl
+  go (Term.App' (Term.Number' n) tl) = Left (Left n) : go tl
+  go (Term.App' (Term.Builtin' b) tl) = Left (Right b) : go tl
+  go (Term.App' (Term.App' (Term.Builtin' "Hash") (Term.Text' h1)) tl) =
+    (Right $ Base64.decodeLenient (Text.encodeUtf8 h1)) : go tl
   go _ = error $ "don't know what to do with this in extractKey: " ++ show t1
 extractKey t = error $ "not a key: " ++ show t
 
