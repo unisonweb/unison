@@ -11,7 +11,7 @@ import qualified Crypto.Random as R
 import qualified Crypto.Cipher.ChaCha as ChaCha
 import qualified Crypto.Cipher.ChaChaPoly1305 as AEAD
 import qualified Crypto.MAC.Poly1305 as MAC
-import Crypto.Error (CryptoFailable(..), throwCryptoError)
+import Crypto.Error (CryptoFailable(..))
 
 numRounds :: Int
 numRounds = 20
@@ -50,7 +50,7 @@ noise key = Cryptography key gen hash sign verify randomBytes encryptAsymmetric 
           let afterAad = AEAD.finalizeAAD (AEAD.appendAAD aad ini)
               (ciphertext, afterEncrypt) = AEAD.encrypt cleartext afterAad
               MAC.Auth outtag = AEAD.finalize afterEncrypt
-              payload = BA.concat [outtag, (BA.convert rb), (BA.convert ciphertext)] :: cleartext
+              payload = BA.append outtag (BA.convert ciphertext)
           return payload
     case encResult of
       CryptoFailed ce -> error ("Enryption error: " ++ show ce)
@@ -61,8 +61,7 @@ noise key = Cryptography key gen hash sign verify randomBytes encryptAsymmetric 
   --                     (cleartxt, _) = ChaCha.combine chacha ciphertext
   --                 in Right $ (BA.pack . BS.unpack) cleartxt
   decrypt :: symmetricKey -> ByteString -> Either String cleartext
-  decrypt sk bs = let (aad, rest) = BS.splitAt (length aad) bs
-                      ()
+  decrypt sk bs = undefined
 
   pipeInitiator _ = undefined
   pipeResponder = undefined
