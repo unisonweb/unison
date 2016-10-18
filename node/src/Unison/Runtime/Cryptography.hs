@@ -28,7 +28,7 @@ mkCrypto key = Cryptography key gen hash sign verify randomBytes encryptAsymmetr
   encrypt = encrypt'
       
   decrypt :: symmetricKey -> ByteString -> Either String cleartext
-  decrypt sk bs = undefined
+  decrypt = decrypt'
 
   pipeInitiator _ = undefined
   pipeResponder = undefined
@@ -52,3 +52,17 @@ encrypt' k cts = do
       ccpct = C.cipherEncrypt key nonce ad clrtext
       out = C.cipherTextToBytes ccpct
   return $ BA.convert out
+
+decrypt' :: ( ByteArrayAccess symmetricKey
+            , ByteArray cleartext)
+         => symmetricKey
+         -> ByteString
+         -> Either String cleartext
+decrypt' k ct = let key = C.cipherBytesToSym (BA.convert k) :: C.SymmetricKey CCP.ChaChaPoly1305
+                    ciphertext = C.cipherBytesToText (BA.convert ct) :: C.Ciphertext CCP.ChaChaPoly1305
+                    nonce = C.cipherZeroNonce :: C.Nonce CCP.ChaChaPoly1305
+                    ad = "" :: C.AssocData
+                in
+                  case C.cipherDecrypt key nonce ad ciphertext of
+                    Nothing -> Left "Could not decrypt ciphertext; authentication failure."
+                    Just clrtext -> Right $ BA.convert clrtext
