@@ -10,9 +10,9 @@ import Test.Tasty.HUnit
 
 cryptoTest :: IO Assertion
 cryptoTest = do
-  let crypto = noise (B.pack "dummypublickey")
+  let crypto = mkCrypto (B.pack "dummypublickey")
       cleartext = (B.pack "cleartext")
-  symkey <- C.randomBytes crypto 16
+  symkey <- C.randomBytes crypto 32
   cyphertext <- C.encrypt crypto symkey [cleartext]
   let decypheredtext = C.decrypt crypto symkey cyphertext
   case decypheredtext of
