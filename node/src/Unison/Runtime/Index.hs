@@ -35,6 +35,14 @@ type Value = ByteString
 
 data TypedSeries a = TypedSeries { series :: BS.Series, defaultValue :: a } deriving Generic
 
+{-
+This data structure is a radix tree keyed by bytes, externally stored in a BlockStore.
+Rather than store each node of the tree separately in the BlockStore, it chunks up nodes
+into in-memory radix trees to minimize trips to the BlockStore. Thus, for small instances of
+the structure, operations proceed entirely on an in-memory radix tree which is synced to the
+BlockStore. As the tree grows in size it will be split up and repartitioned into smaller
+chunks, each stored separately in the BlockStore.
+  -}
 data Index = Index { value :: TypedSeries (Maybe Value)
                    , branches :: Trie (TypedSeries Index)
                    } deriving Generic
@@ -121,6 +129,8 @@ redistributeTrie bs crypto trie desiredBuckets = let
   rebalancedIndexes <- mapM redistributeBranch allKeys
   pure $ zip allKeys rebalancedIndexes
 
+-- takes a list of keys from a trie, and finds the minimum prefix length needed to divide
+-- this list into a desired number of groups
 findKeySplit :: [ByteString] -> Int -> Int
 findKeySplit keys desiredSize = let
   prefixSize n = length . nub $ map (ByteString.take n) keys
@@ -179,8 +189,7 @@ lookup (IndexState bs crypto index _) kh = lookup' index kh
                Just (_, branchIndex, remainingKH) -> lookup' branchIndex remainingKH
                _ -> pure Nothing
 
--- note: this won't produce an "ordered" traversal in any reasonable sense, but it should
--- at least iterate through all keys
+-- depth-first traversal, each level checks all branches greater than the key for match
 lookupGT :: Eq a => IndexState a t1 t2 t3 t4 t5 t6 -> Key
   -> IO (Maybe (Key, Value))
 lookupGT (IndexState bs crypto index _) kh = lookupGT' index kh mempty
