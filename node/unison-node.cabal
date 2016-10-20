@@ -252,6 +252,7 @@ executable codebase
     byteable,
     bytes,
     bytestring,
+    bytestring-trie,
     cereal,
     containers,
     ctrie,

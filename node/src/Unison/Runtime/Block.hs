@@ -118,6 +118,12 @@ serial a b = xmap' decode encode b where
   decode (Just bs) = either fail pure $ Get.runGetS deserialize bs
   encode a = pure . Just $ Put.runPutS (serialize a)
 
+serialM :: Serial a => IO a -> Block (Maybe ByteString) -> Block a
+serialM gen b = xmap' decode encode b where
+  decode Nothing = gen
+  decode (Just bs) = either fail pure $ Get.runGetS deserialize bs
+  encode a = pure . Just $ Put.runPutS (serialize a)
+
 cache :: Block a -> IO (Block a)
 cache (Block series get set) = cached <$> newIORef Nothing where
   cached cache = Block series get' set' where
