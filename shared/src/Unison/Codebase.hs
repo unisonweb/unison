@@ -9,8 +9,10 @@ import Control.Applicative
 import Data.Aeson.TH
 import Data.List
 import Data.Map (Map)
+import Data.Maybe
 import Data.Ord
 import Data.Set (Set)
+import Data.Text (Text)
 import Unison.Builtin (Builtin(..))
 import Unison.Codebase.Store (Store)
 import Unison.Metadata (Metadata)
@@ -23,7 +25,9 @@ import Unison.Type (Type)
 import Unison.Var (Var)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import qualified Unison.Codebase.Store as Store
+import qualified Unison.Hash as Hash
 import qualified Unison.Interpreter as Interpreter
 import qualified Unison.Metadata as Metadata
 import qualified Unison.Note as Note
@@ -37,6 +41,7 @@ import qualified Unison.TermParser as TermParser
 import qualified Unison.TypeParser as TypeParser
 import qualified Unison.Typechecker as Typechecker
 import qualified Unison.Typechecker.Components as Components
+import qualified Unison.Var as Var
 -- import Debug.Trace
 
 -- | The results of a search.
@@ -65,7 +70,7 @@ data LocalInfo e t =
 deriveJSON defaultOptions ''SearchResults
 deriveJSON defaultOptions ''LocalInfo
 
--- | The Unison Node API:
+-- | The Unison code API:
 --   * `m` is the monad
 --   * `v` is the type of variables
 --   * `h` is the type of hashes
@@ -252,8 +257,8 @@ make hash store =
 -- being added, and any free variables are resolved using the
 -- existing metadata store of the codebase.
 declare :: (Monad m, Var v) => (h -> Term v) -> [(v, Term v)] -> Codebase m v h (Type v) (Term v) -> Noted m ()
-declare ref bindings node = do
-  termBuiltins <- allTermsByVarName ref node
+declare ref bindings code = do
+  termBuiltins <- allTermsByVarName ref code
   let groups = Components.components bindings
       -- watch msg a = trace (msg ++ show (map (Var.name . fst) a)) a
       bindings' = groups >>= \c -> case c of
@@ -263,30 +268,84 @@ declare ref bindings node = do
       tb0 = Parsers.termBuiltins
       step termBuiltins (v, b) = do
         let md = metadata v
-        h <- createTerm node (Parsers.bindBuiltins (tb0 ++ termBuiltins) Parsers.typeBuiltins b) md
-        updateMetadata node h md
+        h <- createTerm code (Parsers.bindBuiltins (tb0 ++ termBuiltins) Parsers.typeBuiltins b) md
+        updateMetadata code h md
         pure ((v, ref h) : termBuiltins)
   foldM_ step termBuiltins bindings'
 
 -- | Like `declare`, but takes a `String`
 declare' :: (Monad m, Var v) => (h -> Term v) -> String -> Codebase m v h (Type v) (Term v) -> Noted m ()
-declare' ref bindings node = do
+declare' ref bindings code = do
   bs <- case Parser.run TermParser.moduleBindings bindings TypeParser.s0 of
     Parser.Fail err _ -> Noted (pure $ Left (Note err))
     Parser.Succeed bs _ _ -> pure bs
-  declare ref bs node
+  declare ref bs code
+
+unresolvedNamesErrorMessage :: Var v => [(v, [Term v])] -> Text
+unresolvedNamesErrorMessage vs =
+  let unknown = [ v | (v, []) <- vs ]
+      ambiguous = [ (v, (h:t)) | (v, (h:t)) <- vs ]
+      render (v, tms) = Var.name v `mappend` " resolves to " `mappend` Text.pack (show tms)
+  in (if null unknown then ""
+      else "unresolved names:" `mappend` (Text.intercalate ", " $ Var.name <$> unknown) `mappend` "\n")
+     `mappend`
+     (if null ambiguous then ""
+      else "ambiguous names:\n" `mappend` (Text.unlines $ map render ambiguous))
+
+-- | Like `declare`, but returns a list of symbols that cannot be resolved
+-- unambiguously (occurs when multiple hashes have the same name)
+declareCheckAmbiguous
+  :: (Monad m, Var v)
+  => (h -> Term v) -> [(v, Term v)] -> Codebase m v h (Type v) (Term v)
+  -> Noted m (Maybe [(v, [Term v])])
+declareCheckAmbiguous ref bindings code = do
+  termBuiltins <- allTermsByVarName ref code -- probably worth caching this, updating it incrementally
+  -- todo, check for type variables via Term.freeTypeVars
+  -- todo - actually need to check all the bindings
+  let nameMulti = multimap (termBuiltins ++ Parsers.termBuiltins)
+      freeVars = Set.unions [ Set.delete v (Term.freeVars tm) | (v, tm) <- bindings ]
+      splitVar v = case Text.splitOn "#" (Var.name v) of
+        [] -> (v, "" :: Text.Text)
+        name : hashPrefix -> (Var.rename name v, Text.intercalate "#" hashPrefix)
+      freeVarsSplit = map splitVar (Set.toList freeVars)
+      covered = Map.keysSet nameMulti
+      startsWith prefix (Term.Ref' (Reference.Derived hash)) = case Hash.base64 hash of
+        hash -> Text.length prefix <= Text.length hash && Text.take (Text.length prefix) hash == prefix
+      startsWith _ _ = False
+      resolvedFreeVars = map go freeVarsSplit where
+        go (v, hashPrefix) = (v, filter (startsWith hashPrefix) $ Map.findWithDefault [] v nameMulti)
+      ok = all (\(v,tms) -> length tms == 1) resolvedFreeVars
+  case ok of
+    False -> pure (Just resolvedFreeVars)
+    True -> do
+      let groups = Components.components bindings
+          bindings' = groups >>= \c -> case c of
+            [(v,b)] -> [(v,b)]
+            _ -> [ (v, Term.letRec c b) | (v,b) <- c ]
+          metadata v = Metadata.Metadata Metadata.Term (Metadata.Names [v]) Nothing
+          tb0 = Parsers.termBuiltins
+          step termBuiltins (v, b) = do
+            let md = metadata v
+            h <- createTerm code (Parsers.bindBuiltins (tb0 ++ termBuiltins) Parsers.typeBuiltins b) md
+            updateMetadata code h md
+            pure ((v, ref h) : termBuiltins)
+      Nothing <$ foldM_ step termBuiltins bindings'
+
+multimap :: Ord k => [(k,v)] -> Map k [v]
+multimap = foldl' insert Map.empty where
+  insert m (k,v) = Map.alter (\vs -> Just $ v : fromMaybe [] vs) k m
 
 allTermsByVarName :: (Monad m, Var v) => (h -> Term v) -> Codebase m v h (Type v) (Term v) -> Noted m [(v, Term v)]
-allTermsByVarName ref node = do
-  -- grab all definitions in the node
-  results <- search node Term.blank [] 1000000 (Metadata.Query "") Nothing
+allTermsByVarName ref code = do
+  -- grab all definitions in the code
+  results <- search code Term.blank [] 1000000 (Metadata.Query "") Nothing
   pure [ (v, ref h) | (h, md) <- references results
                     , v <- Metadata.allNames (Metadata.names md) ]
 
 allTerms :: (Monad m, Var v) => Codebase m v h (Type v) (Term v) -> Noted m [(h, Term v)]
-allTerms node = do
-  hs <- map fst . references <$> search node Term.blank [] 100000 (Metadata.Query "") Nothing
-  Map.toList <$> terms node hs
+allTerms code = do
+  hs <- map fst . references <$> search code Term.blank [] 100000 (Metadata.Query "") Nothing
+  Map.toList <$> terms code hs
 
 interpreter :: Var v
             => [Builtin v] -> Codebase IO v Reference (Type v) (Term v)
