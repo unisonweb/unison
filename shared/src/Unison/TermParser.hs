@@ -6,16 +6,14 @@ module Unison.TermParser where
 import Prelude hiding (takeWhile)
 
 import Control.Applicative
-import Data.Char (isDigit, isAlphaNum, isSpace, isSymbol, isPunctuation)
+import Data.Char (isDigit)
 import Data.Foldable (asum)
 import Data.Functor
 import Data.List (foldl')
-import Data.Set (Set)
 import Unison.Parser
 import Unison.Term (Term, Literal)
 import Unison.Type (Type)
 import Unison.Var (Var)
-import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.Term as Term
