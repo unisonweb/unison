@@ -258,20 +258,10 @@ make hash store =
 -- existing metadata store of the codebase.
 declare :: (Monad m, Var v) => (h -> Term v) -> [(v, Term v)] -> Codebase m v h (Type v) (Term v) -> Noted m ()
 declare ref bindings code = do
-  termBuiltins <- allTermsByVarName ref code
-  let groups = Components.components bindings
-      -- watch msg a = trace (msg ++ show (map (Var.name . fst) a)) a
-      bindings' = groups >>= \c -> case c of
-        [(v,b)] -> [(v,b)]
-        _ -> [ (v, Term.letRec c b) | (v,b) <- c ]
-      metadata v = Metadata.Metadata Metadata.Term (Metadata.Names [v]) Nothing
-      tb0 = Parsers.termBuiltins
-      step termBuiltins (v, b) = do
-        let md = metadata v
-        h <- createTerm code (Parsers.bindBuiltins (tb0 ++ termBuiltins) Parsers.typeBuiltins b) md
-        updateMetadata code h md
-        pure ((v, ref h) : termBuiltins)
-  foldM_ step termBuiltins bindings'
+  maybeErr <- declareCheckAmbiguous ref bindings code
+  case maybeErr of
+    Nothing -> pure ()
+    Just unresolved -> fail (Text.unpack $ unresolvedNamesErrorMessage unresolved)
 
 -- | Like `declare`, but takes a `String`
 declare' :: (Monad m, Var v) => (h -> Term v) -> String -> Codebase m v h (Type v) (Term v) -> Noted m ()
@@ -301,9 +291,16 @@ declareCheckAmbiguous
 declareCheckAmbiguous ref bindings code = do
   termBuiltins <- allTermsByVarName ref code -- probably worth caching this, updating it incrementally
   -- todo, check for type variables via Term.freeTypeVars
-  -- todo - actually need to check all the bindings
+  -- 1) order the bindings into components, then determine what variables are free
+  -- 2) try to resolve all free variables using termBuiltins
+  -- 3) if all free variables resolve and are unambiguous, proceed with typechecking and declaring
   let nameMulti = multimap (termBuiltins ++ Parsers.termBuiltins)
-      freeVars = Set.unions [ Set.delete v (Term.freeVars tm) | (v, tm) <- bindings ]
+      groups = Components.components bindings
+      orderedBindings = join groups
+      bound = scanl' Set.union Set.empty (groups >>= go) where
+        go bs = Set.fromList (map fst bs) : replicate (length bs - 1) Set.empty
+      freeVars = Set.unions [ Term.freeVars tm `Set.difference` bound
+                            | ((v, tm), bound) <- orderedBindings `zip` bound ]
       splitVar v = case Text.splitOn "#" (Var.name v) of
         [] -> (v, "" :: Text.Text)
         name : hashPrefix -> (Var.rename name v, Text.intercalate "#" hashPrefix)
@@ -318,8 +315,7 @@ declareCheckAmbiguous ref bindings code = do
   case ok of
     False -> pure (Just resolvedFreeVars)
     True -> do
-      let groups = Components.components bindings
-          bindings' = groups >>= \c -> case c of
+      let bindings' = groups >>= \c -> case c of
             [(v,b)] -> [(v,b)]
             _ -> [ (v, Term.letRec c b) | (v,b) <- c ]
           metadata v = Metadata.Metadata Metadata.Term (Metadata.Names [v]) Nothing
