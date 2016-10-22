@@ -297,15 +297,14 @@ declareCheckAmbiguous ref bindings code = do
   let nameMulti = multimap (termBuiltins ++ Parsers.termBuiltins)
       groups = Components.components bindings
       orderedBindings = join groups
-      bound = scanl' Set.union Set.empty (groups >>= go) where
+      bound = scanl' Set.union (Map.keysSet nameMulti) (groups >>= go) where
         go bs = Set.fromList (map fst bs) : replicate (length bs - 1) Set.empty
       freeVars = Set.unions [ Term.freeVars tm `Set.difference` bound
-                            | ((v, tm), bound) <- orderedBindings `zip` bound ]
+                            | ((_, tm), bound) <- orderedBindings `zip` bound ]
       splitVar v = case Text.splitOn "#" (Var.name v) of
         [] -> (v, "" :: Text.Text)
         name : hashPrefix -> (Var.rename name v, Text.intercalate "#" hashPrefix)
       freeVarsSplit = map splitVar (Set.toList freeVars)
-      covered = Map.keysSet nameMulti
       startsWith prefix (Term.Ref' (Reference.Derived hash)) = case Hash.base64 hash of
         hash -> Text.length prefix <= Text.length hash && Text.take (Text.length prefix) hash == prefix
       startsWith _ _ = False
