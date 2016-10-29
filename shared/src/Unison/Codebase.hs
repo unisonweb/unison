@@ -44,6 +44,9 @@ import qualified Unison.Typechecker.Components as Components
 import qualified Unison.Var as Var
 -- import Debug.Trace
 
+-- watch :: Show a => String -> a -> a
+-- watch msg a = traceShow (msg ++ ": " ++ show a) a
+
 -- | The results of a search.
 -- On client, only need to repeat the query if we modify a character
 -- at one of the examined positions OR if we add a character to a search
@@ -121,7 +124,7 @@ addBuiltins builtins store code = Note.run $
     updateMetadata code r md
     Store.annotateTerm store r t
 
-make :: (Show v, Monad f, Var v)
+make :: (Show v, Alternative f, Monad f, Var v)
      => (Term v -> Reference)
      -> Store f v
      -> Codebase f v Reference.Reference (Type v) (Term v)
@@ -134,6 +137,8 @@ make hash store =
 
     createTerm e md = do
       t <- Typechecker.synthesize readTypeOf e
+      -- todo: a bit of fanciness to allow annotations that don't constrain type to not participate
+      -- in the hash, perhaps add a Bool flag to Ann ctor
       let r = hash e
       pure r <* case r of
         Reference.Builtin _ ->
@@ -256,15 +261,15 @@ make hash store =
 -- They are broken into strongly connected components before
 -- being added, and any free variables are resolved using the
 -- existing metadata store of the codebase.
-declare :: (Monad m, Var v) => (h -> Term v) -> [(v, Term v)] -> Codebase m v h (Type v) (Term v) -> Noted m ()
+declare :: (Monad m, Var v, Show h) => (h -> Term v) -> [(v, Term v)] -> Codebase m v h (Type v) (Term v) -> Noted m ()
 declare ref bindings code = do
-  maybeErr <- declareCheckAmbiguous ref bindings code
+  maybeErr <- declareCheckAmbiguous hooks0 ref bindings code
   case maybeErr of
     Nothing -> pure ()
     Just unresolved -> fail (Text.unpack $ unresolvedNamesErrorMessage unresolved)
 
 -- | Like `declare`, but takes a `String`
-declare' :: (Monad m, Var v) => (h -> Term v) -> String -> Codebase m v h (Type v) (Term v) -> Noted m ()
+declare' :: (Monad m, Var v, Show h) => (h -> Term v) -> String -> Codebase m v h (Type v) (Term v) -> Noted m ()
 declare' ref bindings code = do
   bs <- case Parser.run TermParser.moduleBindings bindings TypeParser.s0 of
     Parser.Fail err _ -> Noted (pure $ Left (Note err))
@@ -282,22 +287,32 @@ unresolvedNamesErrorMessage vs =
      (if null ambiguous then ""
       else "ambiguous names:\n" `mappend` (Text.unlines $ map render ambiguous))
 
+data Hooks m v h =
+  Hooks { beforeAnyTypechecking :: m ()
+        , beforeTypechecking :: (v, Term v) -> m ()
+        , afterDeclaration :: (v, Term v, h) -> m ()
+        , allowShadowing :: Bool }
+
+hooks0 :: Applicative m => Hooks m v h
+hooks0 = Hooks (pure ()) (const $ pure ()) (const $ pure ()) True
+
 -- | Like `declare`, but returns a list of symbols that cannot be resolved
 -- unambiguously (occurs when multiple hashes have the same name)
 declareCheckAmbiguous
-  :: (Monad m, Var v)
-  => (h -> Term v) -> [(v, Term v)] -> Codebase m v h (Type v) (Term v)
+  :: (Monad m, Var v, Show h)
+  => Hooks m v h
+  -> (h -> Term v) -> [(v, Term v)] -> Codebase m v h (Type v) (Term v)
   -> Noted m (Maybe [(v, [Term v])])
-declareCheckAmbiguous ref bindings code = do
+declareCheckAmbiguous hooks ref bindings code = do
   termBuiltins <- allTermsByVarName ref code -- probably worth caching this, updating it incrementally
   -- todo, check for type variables via Term.freeTypeVars
   -- 1) order the bindings into components, then determine what variables are free
   -- 2) try to resolve all free variables using termBuiltins
   -- 3) if all free variables resolve and are unambiguous, proceed with typechecking and declaring
-  let nameMulti = multimap (termBuiltins ++ Parsers.termBuiltins)
+  let names = multimap (termBuiltins ++ Parsers.termBuiltins)
       groups = Components.components bindings
       orderedBindings = join groups
-      bound = scanl' Set.union (Map.keysSet nameMulti) (groups >>= go) where
+      bound = scanl' Set.union (Map.keysSet names) (groups >>= go) where
         go bs = Set.fromList (map fst bs) : replicate (length bs - 1) Set.empty
       freeVars = Set.unions [ Term.freeVars tm `Set.difference` bound
                             | ((_, tm), bound) <- orderedBindings `zip` bound ]
@@ -309,11 +324,16 @@ declareCheckAmbiguous ref bindings code = do
         hash -> Text.length prefix <= Text.length hash && Text.take (Text.length prefix) hash == prefix
       startsWith _ _ = False
       resolvedFreeVars = map go freeVarsSplit where
-        go (v, hashPrefix) = (v, filter (startsWith hashPrefix) $ Map.findWithDefault [] v nameMulti)
-      ok = all (\(v,tms) -> length tms == 1) resolvedFreeVars
+        go (v, hashPrefix) = (v, filter (startsWith hashPrefix) $ Map.findWithDefault [] v names)
+      shadowed = Set.toList $ Map.keysSet names `Set.intersection` (Set.fromList $ map fst bindings)
+      shadowedBindings = [ (name, Term.var name : b) | name <- shadowed, Just b <- [Map.lookup name names]]
+      isShadowed = not (allowShadowing hooks) || null shadowedBindings
+      resolvedFreeVars' = Map.unionWith (++) (Map.fromList resolvedFreeVars) (Map.fromList shadowedBindings)
+      ok = all (\(v,tms) -> length tms == 1) (Map.toList resolvedFreeVars')
   case ok of
-    False -> pure (Just resolvedFreeVars)
+    False -> pure (Just $ Map.toList resolvedFreeVars')
     True -> do
+      Note.lift (beforeAnyTypechecking hooks)
       let bindings' = groups >>= \c -> case c of
             [(v,b)] -> [(v,b)]
             _ -> [ (v, Term.letRec c b) | (v,b) <- c ]
@@ -321,10 +341,24 @@ declareCheckAmbiguous ref bindings code = do
           tb0 = Parsers.termBuiltins
           step termBuiltins (v, b) = do
             let md = metadata v
+            Note.lift $ beforeTypechecking hooks (v, b)
             h <- createTerm code (Parsers.bindBuiltins (tb0 ++ termBuiltins) Parsers.typeBuiltins b) md
             updateMetadata code h md
+            Note.lift $ afterDeclaration hooks (v, b, h)
             pure ((v, ref h) : termBuiltins)
       Nothing <$ foldM_ step termBuiltins bindings'
+
+-- | Like `declare`, but takes a `String`
+declareCheckAmbiguous'
+  :: (Monad m, Var v, Show h)
+  => Hooks m v h
+  -> (h -> Term v) -> String -> Codebase m v h (Type v) (Term v)
+  -> Noted m (Maybe [(v, [Term v])])
+declareCheckAmbiguous' hooks ref bindings code = do
+  bs <- case Parser.run TermParser.moduleBindings bindings TypeParser.s0 of
+    Parser.Fail err _ -> Noted (pure $ Left (Note err))
+    Parser.Succeed bs _ _ -> pure bs
+  declareCheckAmbiguous hooks ref bs code
 
 multimap :: Ord k => [(k,v)] -> Map k [v]
 multimap = foldl' insert Map.empty where
