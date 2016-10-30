@@ -291,7 +291,14 @@ data Hooks m v h =
   Hooks { beforeAnyTypechecking :: m ()
         , beforeTypechecking :: (v, Term v) -> m ()
         , afterDeclaration :: (v, Term v, h) -> m ()
-        , allowShadowing :: Bool }
+        , handleShadowing :: Bool }
+
+-- | Controls how situation is handled if name assigned to a new declaration
+-- shadows an existing declaration
+data HandleShadowing
+  = FailIfShadowed -- fails with an error
+  | RenameOldIfShadowed -- renames the old definition (appends first few hash characters)
+  | AllowShadowed -- allows the shadowing (users of that name will have to disambiguate via hash)
 
 hooks0 :: Applicative m => Hooks m v h
 hooks0 = Hooks (pure ()) (const $ pure ()) (const $ pure ()) True
@@ -327,7 +334,7 @@ declareCheckAmbiguous hooks ref bindings code = do
         go (v, hashPrefix) = (v, filter (startsWith hashPrefix) $ Map.findWithDefault [] v names)
       shadowed = Set.toList $ Map.keysSet names `Set.intersection` (Set.fromList $ map fst bindings)
       shadowedBindings = [ (name, Term.var name : b) | name <- shadowed, Just b <- [Map.lookup name names]]
-      isShadowed = not (allowShadowing hooks) || null shadowedBindings
+      isShadowed = not (handleShadowing hooks) || null shadowedBindings
       resolvedFreeVars' = Map.unionWith (++) (Map.fromList resolvedFreeVars) (Map.fromList shadowedBindings)
       ok = all (\(v,tms) -> length tms == 1) (Map.toList resolvedFreeVars')
   case ok of
