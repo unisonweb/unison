@@ -12,7 +12,7 @@ import qualified Data.ByteString.Base64.URL as Base64
 newtype Hash = Hash ByteString deriving (Eq,Ord)
 
 instance Show Hash where
-  show h = "#" ++ (take 5 . drop 1 $ show (base64 h))
+  show h = take 8 . drop 1 $ show (base64 h)
 
 -- | Return the base64 encoding of this 'Hash'
 base64 :: Hash -> Text
