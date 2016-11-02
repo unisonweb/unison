@@ -94,6 +94,8 @@ data Codebase m v h t e = Codebase {
   -- Second argument is path relative to the root.
   -- Returns (root path, original e, edited e, new cursor position)
   editTerm :: Path -> Path -> Action v -> e -> Noted m (Maybe (Path,e,e,Path)),
+  -- | Return the hash for the given term
+  hash :: e -> h,
   -- | Return information about local types and and variables in scope
   localInfo :: e -> Path -> Noted m (LocalInfo e t),
   -- | Access the metadata for the term and/or types identified by @k@
@@ -128,7 +130,7 @@ make :: (Show v, Alternative f, Monad f, Var v)
      => (Term v -> Reference)
      -> Store f v
      -> Codebase f v Reference.Reference (Type v) (Term v)
-make hash store =
+make h store =
   let
     readTypeOf = Store.typeOfTerm store
 
@@ -168,6 +170,8 @@ make hash store =
       e <- Paths.atTerm rootPath e
       (newPath, e') <- TermEdit.interpret path action e
       pure (rootPath, e, e', newPath)
+
+    hash = h
 
     metadatas hs =
       Map.fromList <$> sequence (map (\h -> (,) h <$> Store.readMetadata store h) hs)
@@ -246,6 +250,7 @@ make hash store =
        dependencies
        dependents
        edit
+       hash
        localInfo
        metadatas
        search
@@ -261,7 +266,7 @@ make hash store =
 -- They are broken into strongly connected components before
 -- being added, and any free variables are resolved using the
 -- existing metadata store of the codebase.
-declare :: (Monad m, Var v)
+declare :: (Monad m, Alternative m, Var v)
         => [(v, Term v)]
         -> Codebase m v Reference (Type v) (Term v) -> Noted m ()
 declare bindings code = do
@@ -276,13 +281,13 @@ unresolvedNamesErrorMessage vs =
       ambiguous = [ (v, (h:t)) | (v, (h:t)) <- vs ]
       render (v, tms) = Var.name v `mappend` " resolves to " `mappend` Text.pack (show tms)
   in (if null unknown then ""
-      else "unresolved names:" `mappend` (Text.intercalate ", " $ Var.name <$> unknown) `mappend` "\n")
+      else "unresolved names:\n" `mappend` (Text.intercalate ", " $ Var.name <$> unknown) `mappend` "\n")
      `mappend`
      (if null ambiguous then ""
       else "ambiguous names:\n" `mappend` (Text.unlines $ map render ambiguous))
 
 -- | Like `declare`, but takes a `String`
-declare' :: (Monad m, Var v)
+declare' :: (Monad m, Alternative m, Var v)
          => String
          -> Codebase m v Reference (Type v) (Term v) -> Noted m ()
 declare' bindings code = do
@@ -292,11 +297,12 @@ declare' bindings code = do
   declare bs code
 
 data Hooks m v h =
-  Hooks { nameShadowing :: [Term v] -> (v, Term v) -> m ()
+  Hooks { startingToProcess :: (v, Term v) -> m ()
+        , nameShadowing :: [Term v] -> (v, Term v) -> m HandleShadowing
+        , duplicateDefinition :: Term v -> (v, Term v) -> m Bool
         , renamedOldDefinition :: v -> v -> m ()
         , ambiguousReferences :: [(v, [Term v])] -> (v, Term v) -> m ()
-        , finishedDeclaring :: (v, Term v) -> h -> m ()
-        , handleShadowing :: HandleShadowing }
+        , finishedDeclaring :: (v, Term v) -> h -> m () }
 
 -- | Controls how situation is handled if name assigned to a new declaration
 -- shadows an existing declaration
@@ -307,21 +313,23 @@ data HandleShadowing
 
 hooks0 :: Applicative m => Hooks m v h
 hooks0 =
-  Hooks (\_ _ -> pure ())
+  Hooks (\_ -> pure ())
+        (\_ _ -> pure FailIfShadowed)
+        (\_ _ -> pure True)
         (\_ _ -> pure ())
         (\_ _ -> pure ())
         (\_ _ -> pure ())
-        FailIfShadowed
 
 -- | Like `declare`, but returns a list of symbols that cannot be resolved
 -- unambiguously (occurs when multiple hashes have the same name)
 declareCheckAmbiguous
-  :: (Monad m, Var v)
+  :: (Monad m, Alternative m, Var v)
   => Hooks m v Reference -> [(v, Term v)] -> Codebase m v Reference (Type v) (Term v)
   -> Noted m [(v, [Term v])]
 declareCheckAmbiguous hooks bindings code = do
   termBuiltins <- allTermsByVarName Term.ref code -- probably worth caching this, updating it incrementally
-  let names = multimap (termBuiltins ++ Parsers.termBuiltins)
+  let names0 = multimap (termBuiltins ++ Parsers.termBuiltins)
+      names = Map.map (dedupBy (hash code)) names0
       groups = Components.components bindings
       bindings' = groups >>= \c -> case c of
         [(v,b)] -> [(v,b)]
@@ -332,45 +340,64 @@ declareCheckAmbiguous hooks bindings code = do
         Var.rename (Var.qualifiedName name `mappend` "#" `mappend` Text.take 8 (Hash.base64 h)) name
       mangle name (Reference.Builtin h) =
         Var.rename (Var.qualifiedName name `mappend` "#" `mappend` "builtin") name
-      declare (v,b) bindings names = do
+      go _ [] = pure []
+      go names ((v, b) : bindings) = do
+        Note.lift $ startingToProcess hooks (v, b)
         let free = Term.freeVars b
-            lookups = map (\v -> (v, Map.findWithDefault [] v names)) (Set.toList free)
+            splitVar v = case Text.splitOn "#" (Var.name v) of
+              [] -> (v, "" :: Text.Text)
+              name : hashPrefix -> (Var.rename name v, Text.intercalate "#" hashPrefix)
+            startsWith prefix (Term.Ref' (Reference.Derived hash)) = Text.isPrefixOf prefix (Hash.base64 hash)
+            startsWith prefix (Term.Ref' (Reference.Builtin b)) = Text.isPrefixOf prefix b
+            startsWith _ _ = False
+            lookups = map resolve (Set.toList free) where
+              matchesHash h = filter (startsWith h)
+              resolve v = case splitVar v of
+                (baseName, hashPrefix) -> (v, matchesHash hashPrefix $ Map.findWithDefault [] baseName names)
             md = metadata v
             ok = all uniquelyResolves lookups
             uniquelyResolves (_, [_]) = True
             uniquelyResolves _ = False
             resolved = [(v, b) | (v, [b]) <- lookups ]
+            declare (v,b) bindings names = do
+              h <- createTerm code b md
+              Note.lift $ finishedDeclaring hooks (v,b) h
+              go (Map.insert v [Term.ref h] names) bindings
         case ok of
           True -> do
-            h <- createTerm code (Parsers.bindBuiltins (tb0 ++ resolved) Parsers.typeBuiltins b) md
-            updateMetadata code h md
-            Note.lift $ finishedDeclaring hooks (v,b) h
-            go (Map.insert v [Term.ref h] names) bindings
+            b <- pure $ Parsers.bindBuiltins (tb0 ++ resolved) Parsers.typeBuiltins b
+            let hb = hash code b
+            exists <- (listToMaybe . Map.elems <$> terms code [hb]) <|> pure Nothing
+            ok <- case exists of
+              Nothing -> pure True
+              Just old -> Note.lift (duplicateDefinition hooks old (v, b))
+            case ok of
+              False ->
+                go (Map.insert v [Term.ref hb] names) bindings
+              True -> case Map.lookup v names of
+                Nothing -> do
+                  _ <- Note.lift $ nameShadowing hooks [] (v, b)
+                  declare (v,b) bindings names
+                Just collisions -> do
+                  handleShadowing <- Note.lift $ nameShadowing hooks collisions (v, b)
+                  case handleShadowing of
+                    FailIfShadowed -> pure [(v, collisions)]
+                    AllowShadowed -> declare (v,b) bindings names
+                    RenameOldIfShadowed -> do
+                      forM_ [ r | Term.Ref' r <- collisions ] $ \h -> do
+                        let v' = mangle v h
+                            md = metadata v'
+                        updateMetadata code h md
+                        Note.lift $ renamedOldDefinition hooks v v'
+                      declare (v,b) bindings (Map.delete v names)
           False -> do
             Note.lift $ ambiguousReferences hooks lookups (v, b)
             pure lookups
-      go _ [] = pure []
-      go names ((v, b) : bindings) = case Map.lookup v names of
-        Nothing -> do
-          Note.lift $ nameShadowing hooks [] (v, b)
-          declare (v,b) bindings names
-        Just collisions -> do
-          Note.lift $ nameShadowing hooks collisions (v, b)
-          case handleShadowing hooks of
-            FailIfShadowed -> pure [(v, collisions)]
-            AllowShadowed -> declare (v,b) bindings names
-            RenameOldIfShadowed -> do
-              forM_ [ r | Term.Ref' r <- collisions ] $ \h -> do
-                let v' = mangle v h
-                    md = metadata v'
-                updateMetadata code h md
-                Note.lift $ renamedOldDefinition hooks v v'
-              declare (v,b) bindings (Map.delete v names)
   go names bindings'
 
 -- | Like `declare`, but takes a `String`
 declareCheckAmbiguous'
-  :: (Monad m, Var v)
+  :: (Monad m, Alternative m, Var v)
   => Hooks m v Reference -> String -> Codebase m v Reference (Type v) (Term v)
   -> Noted m [(v, [Term v])]
 declareCheckAmbiguous' hooks bindings code = do
@@ -382,6 +409,9 @@ declareCheckAmbiguous' hooks bindings code = do
 multimap :: Ord k => [(k,v)] -> Map k [v]
 multimap = foldl' insert Map.empty where
   insert m (k,v) = Map.alter (\vs -> Just $ v : fromMaybe [] vs) k m
+
+dedupBy :: Ord k => (a -> k) -> [a] -> [a]
+dedupBy f as = join . map (take 1) . Map.elems $ multimap [ (f a, a) | a <- as ]
 
 allTermsByVarName :: (Monad m, Var v) => (h -> Term v) -> Codebase m v h (Type v) (Term v) -> Noted m [(v, Term v)]
 allTermsByVarName ref code = do
