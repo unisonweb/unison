@@ -3,6 +3,7 @@
 module Unison.Test.Util where
 
 import Control.Applicative
+import Data.List
 import Data.Text.Encoding (decodeUtf8)
 import Unison.Hash (Hash)
 import Unison.Codebase (Codebase)
@@ -31,6 +32,7 @@ import qualified Unison.Reference as R
 import qualified Unison.Reference as Reference
 import qualified Unison.Runtime.ExtraBuiltins as EB
 import qualified Unison.Term as Term
+import qualified Unison.Var as Var
 import qualified Unison.View as View
 import qualified Unison.Util.Logger as L
 
@@ -52,7 +54,7 @@ loadDeclarations logger path codebase = do
   -- directory is the shared subdir - so we check both locations
   txt <- decodeUtf8 <$> (B.readFile path <|> B.readFile (".." `FP.combine` path))
   let str = Text.unpack txt
-  _ <- Note.run $ Codebase.declare' Term.ref str codebase
+  _ <- Note.run $ Codebase.declare' str codebase
   L.info logger $ "loaded file: " ++ path
 
 makeTestCodebase :: IO (TestCodebase, String -> Term V, Term V -> Noted IO (Term V))

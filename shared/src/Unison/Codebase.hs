@@ -329,7 +329,9 @@ declareCheckAmbiguous
 declareCheckAmbiguous hooks bindings code = do
   termBuiltins <- allTermsByVarName Term.ref code -- probably worth caching this, updating it incrementally
   let names0 = multimap (termBuiltins ++ Parsers.termBuiltins)
-      names = Map.map (dedupBy (hash code)) names0
+      hash' (Term.Ref' r) = r
+      hash' _ = Reference.Builtin "-"
+      names = Map.map (dedupBy hash') names0
       groups = Components.components bindings
       bindings' = groups >>= \c -> case c of
         [(v,b)] -> [(v,b)]
@@ -346,7 +348,9 @@ declareCheckAmbiguous hooks bindings code = do
         let free = Term.freeVars b
             splitVar v = case Text.splitOn "#" (Var.name v) of
               [] -> (v, "" :: Text.Text)
-              name : hashPrefix -> (Var.rename name v, Text.intercalate "#" hashPrefix)
+              name : hashPrefix ->
+                if hashPrefix == [""] then (v, "") -- if last character is a '#', it's part of identifier
+                else (Var.rename name v, Text.intercalate "#" hashPrefix)
             startsWith prefix (Term.Ref' (Reference.Derived hash)) = Text.isPrefixOf prefix (Hash.base64 hash)
             startsWith prefix (Term.Ref' (Reference.Builtin b)) = Text.isPrefixOf prefix b
             startsWith _ _ = False
@@ -392,7 +396,7 @@ declareCheckAmbiguous hooks bindings code = do
                       declare (v,b) bindings (Map.delete v names)
           False -> do
             Note.lift $ ambiguousReferences hooks lookups (v, b)
-            pure lookups
+            pure (filter (\(v,tms) -> length tms /= 1) lookups)
   go names bindings'
 
 -- | Like `declare`, but takes a `String`
