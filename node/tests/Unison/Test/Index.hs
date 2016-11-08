@@ -3,7 +3,8 @@
 module Unison.Test.Index where
 
 import Control.Concurrent.STM (atomically)
-import Data.ByteString.Char8
+import Data.ByteString (ByteString)
+import Data.ByteString.Char8 (pack, unpack)
 import System.Random
 import Test.QuickCheck
 import Test.Tasty
@@ -21,59 +22,62 @@ import qualified Unison.Runtime.Index as Index
 instance Arbitrary BS.Series where
     arbitrary =(BS.Series . B.pack) <$> vectorOf 64 arbitrary
 
-makeRandomId :: IO (BS.Series, BS.Series)
-makeRandomId = do
-  cp <- BS.Series <$> C.randomBytes (C.noop "dummypublickey") 64
-  ud <- BS.Series <$> C.randomBytes (C.noop "dummypublickey") 64
-  pure (cp, ud)
+makeRandomId :: IO BS.Series
+makeRandomId = BS.Series <$> C.randomBytes (C.noop "dummypublickey") 64
+
+crypto :: C.Cryptography ByteString () () () ByteString ByteString ByteString
+crypto = C.noop "dummypublickey"
 
 roundTrip :: BS.BlockStore Address -> Assertion
 roundTrip bs = do
   ident <- makeRandomId
-  db <- Index.load bs ident
-  atomically (Index.insert "keyhash" ("key", "value") db) >>= atomically
-  db2 <- Index.load bs ident
-  result <- atomically $ Index.lookup "keyhash" db2
+  db <- Index.load bs crypto ident
+  Index.insert db "key" "value"
+  db2 <- Index.load bs crypto ident
+  result <- Index.lookup db2 "key"
   case result of
-    Just (k, v) | v == "value" -> pure ()
-    Just (k, v) -> fail ("expected value, got " ++ unpack v)
+    Just v | v == "value" -> pure ()
+    Just v -> fail ("expected value, got " ++ unpack v)
     _ -> fail "got nothin"
 
 nextKeyAfterRemoval :: BS.BlockStore Address -> Assertion
 nextKeyAfterRemoval bs = do
   ident <- makeRandomId
-  db <- Index.load bs ident
-  result <- atomically $ do
-    _ <- Index.insert "1" ("k1", "v1") db
-    _ <- Index.insert "2" ("k2", "v2") db
-    _ <- Index.insert "3" ("k3", "v3") db
-    _ <- Index.insert "4" ("k4", "v4") db
-    _ <- Index.delete "2" db
-    Index.lookupGT "1" db
+  db <- Index.load bs crypto ident
+  Index.insert db "k1" "v1"
+  Index.insert db "k2" "v2"
+  Index.insert db "k3" "v3"
+  Index.insert db "k4" "v4"
+  Index.delete db "k2"
+  result <- Index.lookupGT db "k1"
   case result of
-    Just (kh, (k, v)) | kh == "3" -> pure ()
-    Just (kh, (k, v)) -> fail ("expected key 3, got " ++ unpack kh)
+    Just (k, v) | k == "k3" -> pure ()
+    Just (k, v) -> fail ("expected key 3, got " ++ unpack k)
     Nothing -> fail "got nothin"
 
-runGarbageCollection :: BS.BlockStore Address -> Assertion
-runGarbageCollection bs = do
+keysAfterResize :: BS.BlockStore Address -> Assertion
+keysAfterResize bs = do
   ident <- makeRandomId
-  db <- Index.load bs ident
-  let kvp i = (pack . ("k" ++) . show $ i, pack . ("v" ++) . show $ i)
-  result <- atomically $ do
-    _ <- mapM (\i -> Index.insert (pack $ show i) (kvp i) db) [0..1001]
-    _ <- mapM_ (\i -> Index.delete (pack $ show i) db) [2..1001]
-    Index.lookup "1" db
-  case result of
-    Just (k, v) | v == "v1" -> pure ()
-    o -> fail ("1. got unexpected value " ++ show o)
-  result2 <- atomically $ Index.lookup "2" db
-  case result2 of
-    Nothing -> pure ()
-    Just (k, o) -> fail ("2. got unexpected value " ++ unpack o)
+  db <- Index.loadSized bs crypto ident 10
+  let kvp =  pack . ("v" ++) . show
+      expected = map (pack . show) [15..30]
+  mapM_ (\i -> Index.insert db (pack $ show i) (kvp i)) [15..30]
+  result <- Index.keys db
+  if result == expected
+    then pure ()
+    else fail ("got unexpected result: " ++ show result)
 
-prop_serializeDeserializeId :: Index.Identifier -> Bool
-prop_serializeDeserializeId ident = ident == (Index.textToId . Index.idToText $ ident)
+resizeWithKeyLongSharedPrefix :: BS.BlockStore Address -> Assertion
+resizeWithKeyLongSharedPrefix bs = do
+  ident <- makeRandomId
+  db <- Index.loadSized bs crypto ident 10
+  let kvp =  pack . ("v" ++) . show
+      expected = map (pack . show) [100015..100030]
+  mapM_ (\i -> Index.insert db (pack $ show i) (kvp i)) [100015..100030]
+  result <- Index.keys db
+  if result == expected
+    then pure ()
+    else fail ("got unexpected result: " ++ show result)
 
 ioTests :: IO TestTree
 ioTests = do
@@ -81,9 +85,8 @@ ioTests = do
   pure $ testGroup "KeyValueStore"
     [ testCase "roundTrip" (roundTrip blockStore)
     , testCase "nextKeyAfterRemoval" (nextKeyAfterRemoval blockStore)
-    , testProperty "serializeDeserializeID" prop_serializeDeserializeId
-    -- this takes almost two minutes to run on sfultong's machine
-    --, testCase "runGarbageCollection" (runGarbageCollection genVar)
+    , testCase "keysAfterResize" (keysAfterResize blockStore)
+    , testCase "resizeWithKeyLongSharedPrefix" (resizeWithKeyLongSharedPrefix blockStore)
     ]
 
 main = ioTests >>= defaultMain

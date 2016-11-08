@@ -3,22 +3,25 @@
 {-# LANGUAGE PatternSynonyms #-}
 module Unison.Runtime.ExtraBuiltins where
 
-import Control.Concurrent.STM (atomically)
 import Control.Exception (finally)
 import Data.ByteString (ByteString)
-import Data.Bytes.Serial (Serial)
+import Data.Bytes.Serial (Serial, serialize)
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Unison.BlockStore (Series(..), BlockStore)
 import Unison.Builtin
 import Unison.Parsers (unsafeParseType)
 import Unison.Type (Type)
 import Unison.Util.Logger (Logger)
 import Unison.Var (Var)
+import qualified Data.ByteString.Base64.URL as Base64
+import qualified Data.Bytes.Get as Get
+import qualified Data.Bytes.Put as Put
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import qualified Network.URI as URI
 import qualified Unison.Cryptography as C
-import qualified Unison.Interpreter as I
 import qualified Unison.Hash as Hash
+import qualified Unison.Interpreter as I
 import qualified Unison.Note as Note
 import qualified Unison.Reference as R
 import qualified Unison.Remote as Remote
@@ -56,59 +59,63 @@ pattern Link' href description <-
                        (Term.Text' href))
   (Term.Text' description)
 
+deserializeTermPair :: (Serial v, Var v) =>
+  ByteString -> Either String (Term.Term v, Term.Term v)
+deserializeTermPair = Get.runGetS $ (,) <$> SAH.deserializeTerm <*> SAH.deserializeTerm
+
+
 -- TODO rewrite builtins not to use unsafe code
 make :: (Serial v, Var v, Eq a)
      => Logger -> BlockStore a -> C.Cryptography k syk sk skp s h ByteString
      -> IO [Builtin v]
 make _ blockStore crypto = do
-  let nextID = do
-        cp <- C.randomBytes crypto 64
-        ud <- C.randomBytes crypto 64
-        pure (Series cp, Series ud)
-  resourcePool <- RP.make 3 10 (Index.loadEncrypted blockStore crypto) Index.flush
+  let nextID = decodeUtf8 . Base64.encode <$> C.randomBytes crypto 64
+      acquire = Index.load blockStore crypto . Series . Base64.decodeLenient . encodeUtf8
+  resourcePool <- RP.make 3 10 acquire (const $ pure ())
   pure (map (\(r, o, t, m) -> Builtin r o t m)
      [ -- Index
        let r = R.Builtin "Index.empty#"
            op [Term.Distributed' (Term.Node self)] = do
              ident <- Note.lift nextID
-             pure . index self . Term.lit . Term.Text . Index.idToText $ ident
+             pure . index self . Term.lit . Term.Text $ ident
            op _ = fail "Index.empty# unpossible"
            type' = unsafeParseType "forall k v . Node -> Index k v"
        in (r, Just (I.Primop 1 op), type', prefix "Index.empty#")
      , let r = R.Builtin "Index.keys#"
            op [Term.Text' h] = Note.lift $ do
-             (db, cleanup) <- RP.acquire resourcePool . Index.textToId $ h
-             flip finally cleanup $ do
-               keyBytes <- atomically $ Index.keys db
-               case traverse SAH.deserializeTermFromBytes keyBytes of
-                 Left err -> fail ("Index.keys# could not deserialize: " ++ err)
-                 Right terms -> pure $ Term.vector terms
+               (db, cleanup) <- RP.acquire resourcePool h
+               flip finally cleanup $ do
+                 keyBytes <- Index.values db
+                 case traverse deserializeTermPair keyBytes of
+                   Left err -> fail ("Index.keys# could not deserialize: " ++ err)
+                   Right terms -> pure . Term.vector $ map fst terms
            op _ = fail "Index.keys# unpossible"
            type' = unsafeParseType "forall k . Text -> Vector k"
        in (r, Just (I.Primop 1 op), type', prefix "Index.keys#")
      , let r = R.Builtin "Index.1st-key#"
            op [Term.Text' h] = Note.lift $ do
-             (db, cleanup) <- RP.acquire resourcePool . Index.textToId $ h
-             flip finally cleanup $ do
-               keyBytes <- atomically $ Index.keys db
-               case keyBytes of
-                 [] -> pure none
-                 (keyBytes:_) -> case SAH.deserializeTermFromBytes keyBytes of
-                   Left err -> fail ("Index.1st-key# could not deserialize: " ++ err)
-                   Right terms -> pure $ some terms
+               (db, cleanup) <- RP.acquire resourcePool h
+               flip finally cleanup $ do
+                 keyBytes <- Index.values db
+                 case keyBytes of
+                   [] -> pure none
+                   (keyBytes:_) -> case deserializeTermPair keyBytes of
+                     Left err -> fail ("Index.1st-key# could not deserialize: " ++ err)
+                     Right terms -> pure . some $ fst terms
            op _ = fail "Index.1st-key# unpossible"
            type' = unsafeParseType "forall k . Text -> Optional k"
        in (r, Just (I.Primop 1 op), type', prefix "Index.1st-key#")
      , let r = R.Builtin "Index.increment#"
            op [key, Term.Text' h] = Note.lift $ do
-             (db, cleanup) <- RP.acquire resourcePool . Index.textToId $ h
-             flip finally cleanup $ do
-               entry <- atomically $ Index.lookupGT (SAH.hash' key) db
-               case entry of
-                 Nothing -> pure none
-                 Just (_, (keyBytes, _)) -> case SAH.deserializeTermFromBytes keyBytes of
-                   Left err -> fail ("Index.increment# could not deserialize: " ++ err)
-                   Right term -> pure $ some term
+               (db, cleanup) <- RP.acquire resourcePool h
+               flip finally cleanup $ do
+                 entry <- Index.lookupGT db (SAH.hash' key)
+                 case entry of
+                   Nothing -> pure none
+                   Just (_, keyValue) ->
+                     case deserializeTermPair keyValue of
+                       Left err -> fail ("Index.increment# could not deserialize: " ++ err)
+                       Right (term,_) -> pure $ some term
            op _ = fail "Index.increment# unpossible"
            type' = unsafeParseType "forall k . k -> Text -> Optional k"
        in (r, Just (I.Primop 2 op), type', prefix "Index.increment#")
@@ -119,32 +126,32 @@ make _ blockStore crypto = do
        in (r, Just (I.Primop 1 op), type', prefix "Index.representation#")
      , let r = R.Builtin "Index.lookup#"
            op [k, Term.Text' h] = Note.lift $ do
-             (db, cleanup) <- RP.acquire resourcePool . Index.textToId $ h
-             flip finally cleanup $ do
-               result <- atomically $ Index.lookup (SAH.hash' k) db
-               case result >>= (pure . SAH.deserializeTermFromBytes . snd) of
-                 Just (Left s) -> fail ("Index.lookup# could not deserialize: " ++ s)
-                 Just (Right t) -> pure $ some t
-                 Nothing -> pure none
+                 (db, cleanup) <- RP.acquire resourcePool h
+                 flip finally cleanup $ do
+                   result <- Index.lookup db (SAH.hash' k)
+                   case result >>= (pure . deserializeTermPair) of
+                     Just (Left s) -> fail ("Index.lookup# could not deserialize: " ++ s)
+                     Just (Right (_,t)) -> pure $ some t
+                     Nothing -> pure none
            op _ = fail "Index.lookup# unpossible"
            type' = unsafeParseType "forall k v . k -> Text -> Optional v"
        in (r, Just (I.Primop 2 op), type', prefix "Index.lookup#")
      , let r = R.Builtin "Index.delete#"
            op [key, Term.Text' indexToken] = do
-             (db, cleanup) <- Note.lift . RP.acquire resourcePool . Index.textToId $ indexToken
+             (db, cleanup) <- Note.lift . RP.acquire resourcePool $ indexToken
              Note.lift . flip finally cleanup $ do
-               _ <- atomically $ Index.delete (SAH.hash' key) db
+               _ <- Index.delete db (SAH.hash' key)
                pure unitRef
            op _ = fail "Index.delete# unpossible"
            type' = unsafeParseType "forall k . k -> Text -> Unit"
        in (r, Just (I.Primop 2 op), type', prefix "Index.delete#")
      , let r = R.Builtin "Index.insert#"
            op [k, v, Term.Text' indexToken] = Note.lift $ do
-             (db, cleanup) <- RP.acquire resourcePool . Index.textToId $ indexToken
-             flip finally cleanup $ atomically
-               (Index.insert (SAH.hash' k) (SAH.serializeTerm k, SAH.serializeTerm v) db)
-               >>= atomically
-             pure unitRef
+               (db, cleanup) <- RP.acquire resourcePool indexToken
+               let value = Put.runPutS $ serialize (k,v)
+               flip finally cleanup $
+                 Index.insert db (SAH.hash' k) value
+               pure unitRef
            op _ = fail "Index.insert# unpossible"
            type' = unsafeParseType "forall k v . k -> v -> Text -> Unit"
        in (r, Just (I.Primop 3 op), type', prefix "Index.insert#")
