@@ -7,11 +7,11 @@ module Unison.Runtime.Index
   ,Unison.Runtime.Index.insert
   ,Unison.Runtime.Index.lookupGT
   ,Unison.Runtime.Index.keys
+  ,Unison.Runtime.Index.values
   ,load
   ,loadSized
   ) where
 
-import Control.Applicative
 import Control.Monad
 import Data.ByteString (ByteString)
 import Data.Bytes.Serial (Serial)
@@ -228,3 +228,14 @@ keys (IndexState bs crypto index _) = keys' index mempty <*> pure []
           mergeVals kv old = liftM2 (.) (uncurry getBranch kv) old
       leafKeys <- foldr mergeVals (pure id) $ Trie.toList branches
       pure $ if null currentVal then leafKeys else (kh:) . leafKeys
+
+values :: Eq a => IndexState a t1 t2 t3 t4 t5 t6 -> IO [Key]
+values (IndexState bs crypto index _) = values' index mempty <*> pure []
+  where
+    values' index kh = do
+      (Index value branches) <- deserialize bs crypto index
+      currentVal <- B.get bs $ toBlock crypto value
+      let getBranch k v = values' v (kh `mappend` k)
+          mergeVals kv old = liftM2 (.) (uncurry getBranch kv) old
+      leafVals <- foldr mergeVals (pure id) $ Trie.toList branches
+      pure $ maybe leafVals (\x -> (x:) . leafVals) currentVal
