@@ -33,7 +33,6 @@ import qualified Unison.SerializationAndHashing as SAH
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 -- import qualified Unison.Util.Logger as L
-import Debug.Trace
 
 indexT :: Ord v => Type v -> Type v -> Type v
 indexT k v = Type.ref (R.Builtin "Index") `Type.app` k `Type.app` v
@@ -101,8 +100,8 @@ make _ blockStore crypto = do
                  case keyBytes of
                    [] -> pure none
                    (keyBytes:_) -> case deserializeTermPair keyBytes of
-                     Left err -> trace "kb4" $ fail ("Index.1st-key# could not deserialize: " ++ err)
-                     Right terms -> trace "kb3" . pure . some $ fst terms
+                     Left err -> fail ("Index.1st-key# could not deserialize: " ++ err)
+                     Right terms -> pure . some $ fst terms
            op _ = fail "Index.1st-key# unpossible"
            type' = unsafeParseType "forall k . Text -> Optional k"
        in (r, Just (I.Primop 1 op), type', prefix "Index.1st-key#")
