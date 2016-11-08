@@ -3,7 +3,6 @@
 {-# LANGUAGE PatternSynonyms #-}
 module Unison.Runtime.ExtraBuiltins where
 
-import Control.Concurrent.STM (atomically)
 import Control.Exception (finally)
 import Data.ByteString (ByteString)
 import Data.Bytes.Serial (Serial, serialize)
@@ -34,6 +33,7 @@ import qualified Unison.SerializationAndHashing as SAH
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 -- import qualified Unison.Util.Logger as L
+import Debug.Trace
 
 indexT :: Ord v => Type v -> Type v -> Type v
 indexT k v = Type.ref (R.Builtin "Index") `Type.app` k `Type.app` v
@@ -86,10 +86,10 @@ make _ blockStore crypto = do
            op [Term.Text' h] = Note.lift $ do
                (db, cleanup) <- RP.acquire resourcePool h
                flip finally cleanup $ do
-                 keyBytes <- Index.keys db
-                 case traverse SAH.deserializeTermFromBytes keyBytes of
+                 keyBytes <- Index.values db
+                 case traverse deserializeTermPair keyBytes of
                    Left err -> fail ("Index.keys# could not deserialize: " ++ err)
-                   Right terms -> pure $ Term.vector terms
+                   Right terms -> pure . Term.vector $ map fst terms
            op _ = fail "Index.keys# unpossible"
            type' = unsafeParseType "forall k . Text -> Vector k"
        in (r, Just (I.Primop 1 op), type', prefix "Index.keys#")
@@ -97,12 +97,12 @@ make _ blockStore crypto = do
            op [Term.Text' h] = Note.lift $ do
                (db, cleanup) <- RP.acquire resourcePool h
                flip finally cleanup $ do
-                 keyBytes <- Index.keys db
+                 keyBytes <- Index.values db
                  case keyBytes of
                    [] -> pure none
-                   (keyBytes:_) -> case SAH.deserializeTermFromBytes keyBytes of
-                     Left err -> fail ("Index.1st-key# could not deserialize: " ++ err)
-                     Right terms -> pure $ some terms
+                   (keyBytes:_) -> case deserializeTermPair keyBytes of
+                     Left err -> trace "kb4" $ fail ("Index.1st-key# could not deserialize: " ++ err)
+                     Right terms -> trace "kb3" . pure . some $ fst terms
            op _ = fail "Index.1st-key# unpossible"
            type' = unsafeParseType "forall k . Text -> Optional k"
        in (r, Just (I.Primop 1 op), type', prefix "Index.1st-key#")
