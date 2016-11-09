@@ -5,6 +5,7 @@ module Main where
 import Control.Applicative
 import Control.Monad
 import Data.List
+import Data.Maybe
 import System.Environment (getArgs)
 import System.IO
 import Unison.Codebase (Codebase)
@@ -75,6 +76,13 @@ randomBase58 numBytes = do
 readLineTrimmed :: IO String
 readLineTrimmed = Text.unpack . Text.strip . Text.pack <$> getLine
 
+viewResult :: Codebase IO V Reference (Type V) (Term V)
+           -> Codebase.SearchResults V Reference (Term V)
+           -> Term V
+           -> Noted IO String
+viewResult code _ (Term.Ref' r) = viewAsBinding code r
+viewResult code rs e = pure (Doc.formatText80 (Views.termMd (Map.fromList $ Codebase.references rs) e))
+
 -- todo: can move this to Codebase
 viewAsBinding :: Codebase IO V Reference (Type V) (Term V) -> Reference -> Noted IO String
 viewAsBinding code r = do
@@ -100,12 +108,25 @@ search code query = case Parsers.unsafeParseTerm query of
 formatSearchResults :: Codebase IO V Reference (Type V) (Term V)
                     -> Codebase.SearchResults V Reference (Term V) -> IO ()
 formatSearchResults code rs = mapM_ fmt (fst . Codebase.matches $ rs) where
-  fmt (Term.Ref' r) = do putStrLn =<< Note.run (viewAsBinding code r); putStrLn ""
-  fmt e = do putStrLn $ Doc.formatText80 (Views.termMd (Map.fromList $ Codebase.references rs) e)
-             putStrLn ""
+  fmt e = do putStrLn =<< Note.run (viewResult code rs e); putStrLn ""
 
-pickSearchResult :: Codebase.SearchResults V Reference (Term V) -> IO (Maybe (Term V))
-pickSearchResult rs = undefined
+pickSearchResult :: Codebase IO V Reference (Type V) (Term V)
+                 -> Codebase.SearchResults V Reference (Term V) -> IO (Maybe (Term V))
+pickSearchResult code rs = case fst (Codebase.matches rs) of
+  [] -> pure Nothing
+  [e] -> pure (Just e)
+  es -> do
+    putStrLn "Multiple search results, pick one to edit\n"
+    let fmt (e, n) = do
+          putStrLn $ show n ++ ")"
+          putStrLn =<< Note.run (viewResult code rs e)
+    mapM_ fmt (es `zip` [(1::Int) ..])
+    putStrLn ""
+    putStr "> "; hFlush stdout
+    choice <- readLineTrimmed
+    case choice of
+      "" -> pure Nothing
+      choice -> pure $ listToMaybe $ drop (read choice) es
 
 tryEdits :: [FilePath] -> IO ()
 tryEdits paths = do
@@ -158,7 +179,7 @@ process codebase ("edit" : rest) = do
   codebase <- codebase
   results <- search codebase (intercalate " " rest)
   let tweak (es, rem) = ([ Term.ref r | Term.Ref' r <- es ], rem)
-  r <- pickSearchResult ( results { Codebase.matches = tweak (Codebase.matches results) } )
+  r <- pickSearchResult codebase ( results { Codebase.matches = tweak (Codebase.matches results) } )
   case r of
     Just (Term.Ref' r) -> do
       s <- Note.run $ viewAsBinding codebase r
