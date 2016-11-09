@@ -15,6 +15,7 @@ import Control.Monad
 import Data.Aeson.TH
 import Data.Aeson (ToJSON, FromJSON)
 import Data.List (foldl')
+import Data.Map (Map)
 import Data.Set (Set, union)
 import Data.Text (Text)
 import Data.Vector (Vector)
@@ -30,6 +31,7 @@ import Unison.Var (Var)
 import Unsafe.Coerce
 import qualified Control.Monad.Writer.Strict as Writer
 import qualified Data.Aeson as Aeson
+import qualified Data.Map as Map
 import qualified Data.Monoid as Monoid
 import qualified Data.Set as Set
 import qualified Data.Vector as Vector
@@ -280,6 +282,11 @@ dependencies' t = Set.fromList . Writer.execWriter $ ABT.visit' f t
 
 dependencies :: Ord v => Term v -> Set Hash
 dependencies e = Set.fromList [ h | Reference.Derived h <- Set.toList (dependencies' e) ]
+
+updateDependencies :: Ord v => Map Reference Reference -> Term v -> Term v
+updateDependencies u tm = ABT.rebuildUp go tm where
+  go (Ref r) = Ref (Map.findWithDefault r r u)
+  go f = f
 
 countBlanks :: Ord v => Term v -> Int
 countBlanks t = Monoid.getSum . Writer.execWriter $ ABT.visit' f t

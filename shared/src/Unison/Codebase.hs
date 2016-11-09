@@ -24,6 +24,7 @@ import Unison.TermEdit (Action)
 import Unison.Type (Type)
 import Unison.Var (Var)
 import qualified Data.Map as Map
+import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Unison.Codebase.Store as Store
@@ -194,6 +195,7 @@ make h store =
       matchingLocals <- filterM f (locals >>= (\(v,t) -> TermEdit.applications (Term.var v) t))
       pure $ LocalInfo subterm current admissible annotatedLocals matchingCurrentApplies matchingLocals
 
+    -- todo: handle hashes here, like foo#Qjd8 in the query
     search e loc limit query _ =
       let
         typeOk focus = maybe (pure False)
@@ -261,6 +263,39 @@ make h store =
        typeAt
        updateMetadata
 
+term :: Functor m => Codebase m v Reference (Type v) (Term v) -> Reference -> Noted m (Maybe (Term v))
+term code h = f <$> terms code [h] where
+  f ts = listToMaybe (Map.elems ts)
+
+names :: Functor m => Codebase m v Reference (Type v) (Term v) -> Reference -> Noted m [v]
+names code h = f <$> metadatas code [h] where
+  f mds = Map.elems mds >>= Metadata.allNames . Metadata.names
+
+firstName :: Functor m => Codebase m v Reference (Type v) (Term v) -> Reference -> Noted m (Maybe v)
+firstName code h = listToMaybe <$> names code h
+
+-- | Replace one definition with another and update dependencies transitively
+replace :: (Monad m, Alternative m, Var v)
+        => Codebase m v Reference (Type v) (Term v)
+        -> Reference
+        -> Reference
+        -> Noted m (Map Reference Reference)
+replace code old new = go (Map.fromList [(old,new)]) (Seq.fromList [old]) where
+  go u q = case Seq.viewl q of
+    Seq.EmptyL -> pure u
+    old Seq.:< olds -> do
+      ds <- dependents code Nothing old
+      [tm] <- map snd . Map.toList <$> terms code [old]
+      [md] <- map snd . Map.toList <$> metadatas code [old]
+      let new = Term.updateDependencies u tm
+          rnew = hash code new
+          hashSuffix = Text.pack ("#" `mappend` show old)
+      rnew <- createTerm code new md -- todo, could get away with not typechecking here
+      updateMetadata code old (Metadata.mangle hashSuffix md)
+      go (Map.insert old rnew u) (olds Seq.>< Seq.fromList (Set.toList ds))
+
+-- todo: a version that allows the type to change, and propagates out as far as possible
+
 -- | Declare a group of bindings and add them to the codebase.
 -- Bindings may be in any order and may refer to each other.
 -- They are broken into strongly connected components before
@@ -272,8 +307,8 @@ declare :: (Monad m, Alternative m, Var v)
 declare bindings code = do
   unresolved <- declareCheckAmbiguous hooks0 bindings code
   case unresolved of
-    [] -> pure ()
-    _ -> fail (Text.unpack $ unresolvedNamesErrorMessage unresolved)
+    Right _ -> pure ()
+    Left unresolved -> fail (Text.unpack $ unresolvedNamesErrorMessage unresolved)
 
 unresolvedNamesErrorMessage :: Var v => [(v, [Term v])] -> Text
 unresolvedNamesErrorMessage vs =
@@ -324,8 +359,9 @@ hooks0 =
 -- unambiguously (occurs when multiple hashes have the same name)
 declareCheckAmbiguous
   :: (Monad m, Alternative m, Var v)
-  => Hooks m v Reference -> [(v, Term v)] -> Codebase m v Reference (Type v) (Term v)
-  -> Noted m [(v, [Term v])]
+  => Hooks m v Reference
+  -> [(v, Term v)] -> Codebase m v Reference (Type v) (Term v)
+  -> Noted m (Either [(v, [Term v])] [(v, Reference)])
 declareCheckAmbiguous hooks bindings code = do
   termBuiltins <- allTermsByVarName Term.ref code -- probably worth caching this, updating it incrementally
   let names0 = multimap (termBuiltins ++ Parsers.termBuiltins)
@@ -342,7 +378,7 @@ declareCheckAmbiguous hooks bindings code = do
         Var.rename (Var.qualifiedName name `mappend` "#" `mappend` Text.take 8 (Hash.base64 h)) name
       mangle name (Reference.Builtin h) =
         Var.rename (Var.qualifiedName name `mappend` "#" `mappend` "builtin") name
-      go _ [] = pure []
+      go _ [] = pure (Right [])
       go names ((v, b) : bindings) = do
         Note.lift $ startingToProcess hooks (v, b)
         let free = Term.freeVars b
@@ -366,7 +402,7 @@ declareCheckAmbiguous hooks bindings code = do
             declare (v,b) bindings names = do
               h <- createTerm code b md
               Note.lift $ finishedDeclaring hooks (v,b) h
-              go (Map.insert v [Term.ref h] names) bindings
+              fmap ((v,h) :) <$> go (Map.insert v [Term.ref h] names) bindings
         case ok of
           True -> do
             b <- pure $ Parsers.bindBuiltins (tb0 ++ resolved) Parsers.typeBuiltins b
@@ -377,7 +413,7 @@ declareCheckAmbiguous hooks bindings code = do
               Just old -> Note.lift (duplicateDefinition hooks old (v, b))
             case ok of
               False ->
-                go (Map.insert v [Term.ref hb] names) bindings
+                fmap ((v,hb) :) <$> go (Map.insert v [Term.ref hb] names) bindings
               True -> case Map.lookup v names of
                 Nothing -> do
                   _ <- Note.lift $ nameShadowing hooks [] (v, b)
@@ -385,7 +421,7 @@ declareCheckAmbiguous hooks bindings code = do
                 Just collisions -> do
                   handleShadowing <- Note.lift $ nameShadowing hooks collisions (v, b)
                   case handleShadowing of
-                    FailIfShadowed -> pure [(v, collisions)]
+                    FailIfShadowed -> pure $ Left [(v, collisions)]
                     AllowShadowed -> declare (v,b) bindings names
                     RenameOldIfShadowed -> do
                       forM_ [ r | Term.Ref' r <- collisions ] $ \h -> do
@@ -396,14 +432,14 @@ declareCheckAmbiguous hooks bindings code = do
                       declare (v,b) bindings (Map.delete v names)
           False -> do
             Note.lift $ ambiguousReferences hooks lookups (v, b)
-            pure (filter (\(v,tms) -> length tms /= 1) lookups)
+            pure . Left $ filter (\(v,tms) -> length tms /= 1) lookups
   go names bindings'
 
 -- | Like `declare`, but takes a `String`
 declareCheckAmbiguous'
   :: (Monad m, Alternative m, Var v)
   => Hooks m v Reference -> String -> Codebase m v Reference (Type v) (Term v)
-  -> Noted m [(v, [Term v])]
+  -> Noted m (Either [(v, [Term v])] [(v, Reference)])
 declareCheckAmbiguous' hooks bindings code = do
   bs <- case Parser.run TermParser.moduleBindings bindings TypeParser.s0 of
     Parser.Fail err _ -> Noted (pure $ Left (Note err))

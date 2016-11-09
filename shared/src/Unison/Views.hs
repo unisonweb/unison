@@ -43,6 +43,25 @@ termMd mds = term (lookupSymbol mds)
 typeMd :: Map Reference (Metadata (Symbol View.DFO) Reference) -> ViewableType -> Doc Text Path
 typeMd mds = type' (lookupSymbol mds)
 
+bindingMd
+  :: Map Reference (Metadata (Symbol View.DFO) Reference) -> Symbol View.DFO -> ViewableTerm
+  -> Doc Text Path
+bindingMd mds = binding (lookupSymbol mds)
+
+binding :: (Reference -> Symbol View.DFO) -> Symbol View.DFO -> ViewableTerm -> Doc Text Path
+binding ref name body = case body of
+  E.Ann' body t -> D.sub P.Annotation $
+    D.docs [term ref (E.var name), D.breakable ": ", D.nest "  " (type' ref t), D.linebreak, go body]
+  body -> go body
+  where
+  go (LamsP' vs (body,bodyp)) =
+    D.docs [ term ref (E.var name `E.apps` map (E.var . fst) vs)
+           , D.delimiter " =", D.breakable " "
+           , D.nest "  " (D.sub' bodyp $ term ref body), D.linebreak ]
+  go body =
+    D.docs [ term ref (E.var name), D.delimiter " =", D.breakable " "
+           , D.nest "  " (D.sub P.Body $ term ref body), D.linebreak]
+
 term :: (Reference -> Symbol View.DFO) -> ViewableTerm -> Doc Text Path
 term ref t = D.group (go no View.low t) where
   no = const False
@@ -74,9 +93,7 @@ term ref t = D.group (go no View.low t) where
       in D.parenthesize (p /= View.low) . D.group $
            D.docs [D.delimiter "let", D.breakable " "]
            `D.append`
-             D.nest "  " (D.delimit (D.breakable "; ") formattedBs) `D.append`
-             D.docs [ D.breakable " ", D.delimiter "in", D.breakable " "
-                    , D.sub' pe . D.nest "  " $ go no View.low e ]
+             D.nest "  " (D.delimit (D.breakable "; ") (formattedBs ++ [D.sub' pe (go no View.low e)]))
     E.LetRecNamed' bs e ->
       let
         bps = map P.Binding [0 .. length bs - 1]
@@ -84,9 +101,7 @@ term ref t = D.group (go no View.low t) where
       in D.parenthesize (p /= View.low) . D.group $
          D.docs [D.delimiter "let rec", D.breakable " "]
          `D.append`
-           D.nest "  " (D.delimit (D.breakable "; ") formattedBs) `D.append`
-           D.docs [ D.breakable " ", D.delimiter "in", D.breakable " "
-                  , D.sub P.Body . D.nest "  " $ go no View.low e ]
+           D.nest "  " (D.delimit (D.breakable "; ") (formattedBs ++ [D.sub P.Body $ go no View.low e]))
     E.Vector' vs | Vector.null vs -> D.embed "[ ]"
                  | otherwise      ->
       let

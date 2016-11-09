@@ -10,8 +10,10 @@ import System.IO
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Store (Store)
 import Unison.Hash.Extra ()
+import Unison.Note (Noted)
 import Unison.Reference (Reference)
 import Unison.Runtime.Address
+import Unison.Symbol (Symbol)
 import Unison.Symbol.Extra ()
 import Unison.Term (Term)
 import Unison.Term.Extra ()
@@ -19,6 +21,8 @@ import Unison.Type (Type)
 import Unison.Var (Var)
 import qualified Crypto.Random as Random
 import qualified Data.ByteString.Base58 as Base58
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified System.Directory as Directory
@@ -29,8 +33,12 @@ import qualified Unison.Builtin as Builtin
 import qualified Unison.Codebase as Codebase
 import qualified Unison.Codebase.FileStore as FileStore
 import qualified Unison.Cryptography as C
+import qualified Unison.Doc as Doc
+import qualified Unison.Hash as Hash
+import qualified Unison.Metadata as Metadata
 import qualified Unison.Note as Note
 import qualified Unison.Parser as Parser
+import qualified Unison.Parsers as Parsers
 import qualified Unison.Reference as Reference
 import qualified Unison.Runtime.ExtraBuiltins as EB
 import qualified Unison.Symbol as Symbol
@@ -38,7 +46,11 @@ import qualified Unison.Term as Term
 import qualified Unison.TermParser as TermParser
 import qualified Unison.TypeParser as TypeParser
 import qualified Unison.Util.Logger as L
+import qualified Unison.Var as Var
 import qualified Unison.View as View
+import qualified Unison.Views as Views
+
+type V = Symbol View.DFO
 
 {-
 uc new
@@ -57,10 +69,54 @@ randomBase58 numBytes = do
   let base58 = Base58.encodeBase58 Base58.bitcoinAlphabet bytes
   pure (Text.unpack $ Text.decodeUtf8 base58)
 
-view :: Codebase IO v Reference (Type v) (Term v) -> Term v -> String
-view code e = "todo"
+-- view :: Codebase IO V Reference (Type V) (Term V) -> Term V -> String
+-- view code e = "todo"
 
-process :: (Show v, Var v) => IO (Codebase IO v Reference (Type v) (Term v)) -> [String] -> IO ()
+readLineTrimmed :: IO String
+readLineTrimmed = Text.unpack . Text.strip . Text.pack <$> getLine
+
+-- todo: can move this to Codebase
+viewAsBinding :: Codebase IO V Reference (Type V) (Term V) -> Reference -> Noted IO String
+viewAsBinding code r = do
+  Just v <- Codebase.firstName code r
+  typ <- Codebase.typeAt code (Term.ref r) []
+  Just e <- Codebase.term code r
+  let e' = Term.ann e typ
+  mds <- Codebase.metadatas code (Set.toList (Term.dependencies' e'))
+  pure (Doc.formatText80 (Views.bindingMd mds v e'))
+
+maxSearchResults = 100
+
+search :: Codebase IO V Reference (Type V) (Term V) -> String -> IO (Codebase.SearchResults V Reference (Term V))
+search code query = case Parsers.unsafeParseTerm query of
+  Term.Ann' Term.Blank' t ->
+    Note.run $ Codebase.search code Term.blank [] maxSearchResults (Metadata.Query "") (Just t)
+  Term.Ann' (Term.Var' v) t ->
+    Note.run $ Codebase.search code Term.blank [] maxSearchResults (Metadata.Query $ Var.name v) (Just t)
+  Term.Var' v ->
+    Note.run $ Codebase.search code Term.blank [] maxSearchResults (Metadata.Query $ Var.name v) Nothing
+  _ -> fail "FAILED search syntax invalid, must be `<name>` or `<name> : <type>`"
+
+formatSearchResults :: Codebase IO V Reference (Type V) (Term V)
+                    -> Codebase.SearchResults V Reference (Term V) -> IO ()
+formatSearchResults code rs = mapM_ fmt (fst . Codebase.matches $ rs) where
+  fmt (Term.Ref' r) = do putStrLn =<< Note.run (viewAsBinding code r); putStrLn ""
+  fmt e = do putStrLn $ Doc.formatText80 (Views.termMd (Map.fromList $ Codebase.references rs) e)
+             putStrLn ""
+
+pickSearchResult :: Codebase.SearchResults V Reference (Term V) -> IO (Maybe (Term V))
+pickSearchResult rs = undefined
+
+tryEdits :: [FilePath] -> IO ()
+tryEdits paths = do
+  editorCommand <- (Text.unpack . Text.strip . Text.pack <$> readFile ".editor") <|> pure ""
+  case editorCommand of
+    "" -> do putStrLn "  TIP: Create a file named .editor with the command to launch your"
+             putStrLn "       editor and `uc new` and `uc edit` will invoke it on newly created files"
+    _ -> forM_ paths $ \path -> let cmd = editorCommand ++ " " ++ path
+                                in do putStrLn cmd; Process.callCommand cmd
+
+process :: IO (Codebase IO V Reference (Type V) (Term V)) -> [String] -> IO ()
 process _ [] = putStrLn $ intercalate "\n"
   [ "usage: uc <subcommand> [<args>]"
   , ""
@@ -93,15 +149,25 @@ process _ ["new"] = do
   let mdpath = name ++ ".markdown"
   writeFile mdpath ""
   putStrLn $ "Created " ++ name ++ ".{u, markdown} for code and docs"
-  editorCommand <- (Text.unpack . Text.strip . Text.pack <$> readFile ".editor") <|> pure ""
-  case editorCommand of
-    "" -> do putStrLn "  TIP: Create a file named .editor with the command to launch your"
-             putStrLn "       editor and `uc new` will invoke it on the created files"
-    _ -> do
-      let cmdu = editorCommand ++ " " ++ name ++ ".u"
-          mdu = editorCommand ++ " " ++ name ++ ".markdown"
-      putStrLn cmdu; Process.callCommand cmdu
-      putStrLn mdu; Process.callCommand mdu
+  tryEdits [name ++ ".u"]
+process codebase ("view" : rest) = do
+  codebase <- codebase
+  results <- search codebase (intercalate " " rest)
+  formatSearchResults codebase results
+process codebase ("edit" : rest) = do
+  codebase <- codebase
+  results <- search codebase (intercalate " " rest)
+  let tweak (es, rem) = ([ Term.ref r | Term.Ref' r <- es ], rem)
+  r <- pickSearchResult ( results { Codebase.matches = tweak (Codebase.matches results) } )
+  case r of
+    Just (Term.Ref' r) -> do
+      s <- Note.run $ viewAsBinding codebase r
+      name <- randomBase58 10
+      writeFile (name ++ ".u") s
+      let mdpath = name ++ ".markdown"
+      writeFile mdpath ""
+      tryEdits [name ++ ".u"]
+    _ -> pure ()
 process codebase ("add" : []) = do
   files <- Directory.getDirectoryContents "."
   let ufiles = filter (".u" `Text.isSuffixOf`) (map Text.pack files)
@@ -139,7 +205,7 @@ process codebase ("add" : [name]) = go0 name where
             , "    2) `allow` the ambiguity - uses of this name will need to disambiguate via hash"
             , "    3) `cancel` or <Enter> - exit without making changes" ]
           putStr "  > "; hFlush stdout
-          line <- Text.strip . Text.pack <$> getLine
+          line <- readLineTrimmed
           case line of
             _ | line == "rename" || line == "1" -> pure Codebase.RenameOldIfShadowed
               | line == "allow" || line == "2" -> pure Codebase.AllowShadowed
@@ -163,14 +229,55 @@ process codebase ("add" : [name]) = go0 name where
           putStrLn $ "     " ++ show h
     results <- Note.run $ Codebase.declareCheckAmbiguous hooks' bs codebase
     case results of
-      [] -> do
+      Right declared -> do
         Directory.removeFile (baseName `mappend` ".markdown") <|> pure ()
         Directory.removeFile (baseName `mappend` ".u") <|> pure ()
-        hasParent <- (True <$ Directory.removeFile (baseName `mappend` ".parent")) <|> pure False
+        let parentFile = baseName `mappend` ".parent"
+        parent <- readFile parentFile <|> pure ""
+        hasParent <- (True <$ Directory.removeFile parentFile) <|> pure False
         let suffix = if hasParent then ".{u, markdown, parent}" else ".{u, markdown}"
         putStrLn $ "OK removed files " ++ baseName ++ suffix
-        -- todo - if hasParent, ask if want to update usages
-      _ -> pure ()
+        case hasParent of
+          False -> pure ()
+          True -> do
+            let pr = Reference.Derived (Hash.fromBase64 (Text.pack parent))
+            Just v <- Note.run $ Codebase.firstName codebase pr
+            dependents <- Note.run $ Codebase.dependents codebase Nothing pr
+            prevType <- Note.run $ Codebase.typeAt codebase (Term.ref pr) []
+            let declared' = if length declared == 1 then declared
+                            else filter (\(v',_) -> v == v') declared
+                edits deps = mapM_ go [ h | Reference.Derived h <- deps ]
+                go h = process (pure codebase) ["edit", Text.unpack $ Hash.base64 h ]
+            when (Set.size dependents > 0) $ case declared' of
+              [] -> putStrLn "OK scratch file contained no declarations"
+              (v, r) : _ -> do
+                updatedType <- Note.run $ Codebase.typeAt codebase (Term.ref r) []
+                case updatedType == prevType of
+                  False -> do
+                    putStrLn "\nThis edit was not type-preserving, you can:\n"
+                    putStrLn "1) Do nothing"
+                    putStrLn "2) Open direct dependents for editing\n"
+                    putStrLn "> "; hFlush stdin
+                    line <- readLineTrimmed
+                    case line of
+                      "1" -> pure ()
+                      "2" -> edits (Set.toList dependents)
+                      _ -> pure ()
+                  True -> do
+                    putStrLn "\nThis edit was type-preserving, you can:\n"
+                    putStrLn "1) Do nothing\n"
+                    putStrLn "2) Open direct dependents for editing"
+                    putStrLn "3) Propagate to all transitive dependents"
+                    putStrLn "> "; hFlush stdin
+                    line <- readLineTrimmed
+                    case line of
+                      "1" -> pure ()
+                      "2" -> edits (Set.toList dependents)
+                      _ | line == "" || line == "3" -> do
+                        replaced <- Note.run $ Codebase.replace codebase pr r
+                        putStrLn $ "OK updated " ++ show (Map.size replaced) ++ " definitions"
+                      _ -> pure ()
+      Left ambiguous -> pure ()
 process codebase _ = process codebase []
 
 stripu :: String -> String

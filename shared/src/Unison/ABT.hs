@@ -261,6 +261,16 @@ replace f t t2@(Term _ ann body) = case body of
                else replace f t e
   Tm body -> tm' ann (fmap (replace f t) body)
 
+rebuildUp :: (Ord v, Foldable f, Functor f)
+          => (f (Term f v a) -> f (Term f v a))
+          -> Term f v a
+          -> Term f v a
+rebuildUp f (Term _ ann body) = case body of
+  Var v -> annotatedVar ann v
+  Cycle body -> cycle' ann (rebuildUp f body)
+  Abs x e -> abs' ann x (rebuildUp f e)
+  Tm body -> tm' ann (f $ fmap (rebuildUp f) body)
+
 -- | `visit f t` applies an effectful function to each subtree of
 -- `t` and sequences the results. When `f` returns `Nothing`, `visit`
 -- descends into the children of the current subtree. When `f` returns
