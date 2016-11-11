@@ -175,16 +175,33 @@ process codebase ("view" : rest) = do
   codebase <- codebase
   results <- search codebase (intercalate " " rest)
   formatSearchResults codebase results
+process codebase ("rename" : src : target) = do
+  codebase <- codebase
+  results <- search codebase src
+  r <- pickSearchResult codebase results
+  case r of
+    Just (Term.Ref' r) -> do
+      [md] <- Map.elems <$> Note.run (Codebase.metadatas codebase [r])
+      let suffix = "#" ++ show r
+          md' = if null target then Metadata.mangle (Text.pack suffix) md
+                else md { Metadata.names = Metadata.Names (map rename (Metadata.allNames (Metadata.names md))) }
+          rename n | Var.name n == Text.pack src = Var.named (Text.pack $ intercalate " " target)
+                   | otherwise = n
+      Note.run $ Codebase.updateMetadata codebase r md'
+      putStrLn $ if null target then "OK appended " ++ suffix ++ " onto name(s)"
+                                else "OK"
+    _ -> pure ()
 process codebase ("edit" : rest) = do
   codebase <- codebase
   results <- search codebase (intercalate " " rest)
   let tweak (es, rem) = ([ Term.ref r | Term.Ref' r <- es ], rem)
   r <- pickSearchResult codebase ( results { Codebase.matches = tweak (Codebase.matches results) } )
   case r of
-    Just (Term.Ref' r) -> do
+    Just (Term.Ref' r@(Reference.Derived h)) -> do
       s <- Note.run $ viewAsBinding codebase r
       name <- randomBase58 10
       writeFile (name ++ ".u") s
+      writeFile (name ++ ".parent") (Text.unpack $ Hash.base64 h)
       let mdpath = name ++ ".markdown"
       writeFile mdpath ""
       tryEdits [name ++ ".u"]
