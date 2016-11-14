@@ -307,7 +307,7 @@ viewAsBinding code r = do
   Just v <- firstName code r
   typ <- typeAt code (Term.ref r) []
   Just e <- term code r
-  let e' = Term.ann e typ
+  let e' = case e of Term.Ann' _ _ -> e; _ -> Term.ann e typ
   mds <- metadatas code (Set.toList (Term.dependencies' e'))
   pure (Doc.formatText80 (Views.bindingMd mds v e'))
 
@@ -472,8 +472,9 @@ declareCheckAmbiguous hooks bindings code = do
                         Note.lift $ renamedOldDefinition hooks v v'
                       declare (v,b) bindings (Map.delete v names)
           False -> do
-            Note.lift $ ambiguousReferences hooks lookups (v, b)
-            pure . Left $ filter (\(v,tms) -> length tms /= 1) lookups
+            let badLookups = filter (\(v,tms) -> length tms /= 1) lookups
+            Note.lift $ ambiguousReferences hooks badLookups (v, b)
+            pure . Left $ badLookups
   go names bindings'
 
 -- | Like `declare`, but takes a `String`

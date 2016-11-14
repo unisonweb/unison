@@ -51,7 +51,11 @@ bindingMd mds = binding (lookupSymbol mds)
 binding :: (Reference -> Symbol View.DFO) -> Symbol View.DFO -> ViewableTerm -> Doc Text Path
 binding ref name body = case body of
   E.Ann' body t -> D.sub P.Annotation $
-    D.docs [term ref (E.var name), D.breakable ": ", D.nest "  " (type' ref t), D.linebreak, go body]
+    D.docs [
+      D.group (D.docs [term ref (E.var name), D.delimiter " :", D.breakable " ", D.nest "  " (type' ref t)]),
+      D.linebreak,
+      D.group (go body)
+    ]
   body -> go body
   where
   go (LamsP' vs (body,bodyp)) =
@@ -158,7 +162,7 @@ type' ref t = go no View.low t
   go :: (ViewableType -> Bool) -> View.Precedence -> ViewableType -> Doc Text Path
   go inChain p t = case t of
     ArrowsPt' spine ->
-      let arr = D.breakable " " `D.append` D.embed "→ "
+      let arr = D.breakable " " `D.append` D.embed "-> "
       in D.parenthesize (p > View.low) . D.group . D.delimit arr $
           [ D.sub' p (go no (View.increase View.low) s) | (s,p) <- spine ]
     AppsPt' (fn,fnP) args ->

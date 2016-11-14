@@ -70,9 +70,6 @@ randomBase58 numBytes = do
   let base58 = Base58.encodeBase58 Base58.bitcoinAlphabet bytes
   pure (Text.unpack $ Text.decodeUtf8 base58)
 
--- view :: Codebase IO V Reference (Type V) (Term V) -> Term V -> String
--- view code e = "todo"
-
 readLineTrimmed :: IO String
 readLineTrimmed = Text.unpack . Text.strip . Text.pack <$> getLine
 
@@ -98,7 +95,7 @@ search code query = case Parsers.unsafeParseTerm query of
 formatSearchResults :: Codebase IO V Reference (Type V) (Term V)
                     -> Codebase.SearchResults V Reference (Term V) -> IO ()
 formatSearchResults code rs = mapM_ fmt (fst . Codebase.matches $ rs) where
-  fmt e = do putStrLn =<< Note.run (viewResult code rs e); putStrLn ""
+  fmt e = putStrLn =<< Note.run (viewResult code rs e)
 
 pickSearchResult :: Codebase IO V Reference (Type V) (Term V)
                  -> Codebase.SearchResults V Reference (Term V) -> IO (Maybe (Term V))
@@ -116,7 +113,7 @@ pickSearchResult code rs = case fst (Codebase.matches rs) of
     choice <- readLineTrimmed
     case choice of
       "" -> pure Nothing
-      choice -> pure $ listToMaybe $ drop (read choice) es
+      choice -> pure $ listToMaybe $ drop (read choice - 1) es
 
 tryEdits :: [FilePath] -> IO ()
 tryEdits paths = do
@@ -126,6 +123,11 @@ tryEdits paths = do
              putStrLn "       editor and `uc new` and `uc edit` will invoke it on newly created files"
     _ -> forM_ paths $ \path -> let cmd = editorCommand ++ " " ++ path
                                 in do putStrLn cmd; Process.callCommand cmd
+
+refsOnly results =
+  results { Codebase.matches = tweak (Codebase.matches results) }
+  where
+  tweak (es, rem) = ([ Term.ref r | Term.Ref' r <- es ], rem)
 
 process :: IO (Codebase IO V Reference (Type V) (Term V)) -> [String] -> IO ()
 process _ [] = putStrLn $ intercalate "\n"
@@ -164,11 +166,11 @@ process _ ["new"] = do
 process codebase ("view" : rest) = do
   codebase <- codebase
   results <- search codebase (intercalate " " rest)
-  formatSearchResults codebase results
+  formatSearchResults codebase (refsOnly results)
 process codebase ("rename" : src : target) = do
   codebase <- codebase
   results <- search codebase src
-  r <- pickSearchResult codebase results
+  r <- pickSearchResult codebase (refsOnly results)
   case r of
     Just (Term.Ref' r) -> do
       [md] <- Map.elems <$> Note.run (Codebase.metadatas codebase [r])
@@ -184,8 +186,7 @@ process codebase ("rename" : src : target) = do
 process codebase ("edit" : rest) = do
   codebase <- codebase
   results <- search codebase (intercalate " " rest)
-  let tweak (es, rem) = ([ Term.ref r | Term.Ref' r <- es ], rem)
-  r <- pickSearchResult codebase ( results { Codebase.matches = tweak (Codebase.matches results) } )
+  r <- pickSearchResult codebase (refsOnly results)
   case r of
     Just (Term.Ref' r@(Reference.Derived h)) -> do
       s <- Note.run $ Codebase.viewAsBinding codebase r
@@ -222,6 +223,7 @@ process codebase ("statistics" : []) = do
     Just md -> case Metadata.firstName (Metadata.names md) of
       Just v -> putStrLn $ show v ++ "  -  " ++ show score
       Nothing -> putStrLn $ show ref ++ "  -  "  ++ show score
+process codebase ("statistics" : stuff) = putStrLn "Not implemented yet"
 process codebase ("add" : [name]) = go0 name where
   baseName = stripu name
   go0 name = do
@@ -264,8 +266,10 @@ process codebase ("add" : [name]) = go0 name where
             _ -> pure False
         renamedOldDefinition v v' = putStrLn $ "  OK renamed old " ++ show v ++ " to " ++ show v'
         ambiguousReferences vs v = do
-          putStrLn "  FAILED ambiguous references in body of binding\n"
-          forM_ vs $ \(v, tms) -> putStrLn $ "  could refer to any of " ++ intercalate "  " (map show tms)
+          putStrLn "  FAILED ambiguous or unresolved references in body of binding\n"
+          forM_ vs $ \(v, tms) -> case tms of
+            [] -> putStrLn $ "  " ++ show v ++ " could not be resolved"
+            tms -> putStrLn $ "  " ++ show v ++ " could refer to any of " ++ intercalate "  " (map show tms)
           putStrLn "\n\n  Use syntax foo#8adj3 to pick a version of 'foo' by hash prefix #8adj3"
         finishedDeclaring (v, _) h = do
           putStrLn $ "  OK finished declaring " ++ show v ++ ", definition has hash:"
@@ -320,7 +324,7 @@ process codebase ("add" : [name]) = go0 name where
                         replaced <- Note.run $ Codebase.replace codebase pr r
                         putStrLn $ "OK updated " ++ show (Map.size replaced) ++ " definitions"
                       _ -> pure ()
-      Left ambiguous -> pure ()
+      Left _ -> pure ()
 
 process codebase _ = process codebase []
 
