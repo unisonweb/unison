@@ -5,6 +5,7 @@
 
 module Main where
 
+import Control.Exception (handle, throw, SomeException)
 import Control.Monad.IO.Class
 import Crypto.Hash (hash, Digest, Blake2b_512)
 import Data.Bytes.Serial (serialize)
@@ -86,7 +87,8 @@ main = do
       localDependencies _ = Set.empty -- todo, compute this for real
       -- todo: may want to have this use evaluator + codestore directly
       whnf = Codebase.interpreter (builtins0 ++ builtins1) codebase
-      eval t = Note.run (whnf t)
+      eval t = handle (\e -> L.error logger (show (e :: SomeException)) >> throw e)
+               $ Note.run (whnf t)
       -- evaluator = I.eval allprimops
       -- allbuiltins = b0 whnf ++ b1 whnf
       -- allprimops = Map.fromList [ (r, op) | Builtin.Builtin r (Just op) _ _ <- allbuiltins ]
