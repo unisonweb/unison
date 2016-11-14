@@ -80,18 +80,8 @@ viewResult :: Codebase IO V Reference (Type V) (Term V)
            -> Codebase.SearchResults V Reference (Term V)
            -> Term V
            -> Noted IO String
-viewResult code _ (Term.Ref' r) = viewAsBinding code r
+viewResult code _ (Term.Ref' r) = Codebase.viewAsBinding code r
 viewResult code rs e = pure (Doc.formatText80 (Views.termMd (Map.fromList $ Codebase.references rs) e))
-
--- todo: can move this to Codebase
-viewAsBinding :: Codebase IO V Reference (Type V) (Term V) -> Reference -> Noted IO String
-viewAsBinding code r = do
-  Just v <- Codebase.firstName code r
-  typ <- Codebase.typeAt code (Term.ref r) []
-  Just e <- Codebase.term code r
-  let e' = Term.ann e typ
-  mds <- Codebase.metadatas code (Set.toList (Term.dependencies' e'))
-  pure (Doc.formatText80 (Views.bindingMd mds v e'))
 
 maxSearchResults = 100
 
@@ -198,7 +188,7 @@ process codebase ("edit" : rest) = do
   r <- pickSearchResult codebase ( results { Codebase.matches = tweak (Codebase.matches results) } )
   case r of
     Just (Term.Ref' r@(Reference.Derived h)) -> do
-      s <- Note.run $ viewAsBinding codebase r
+      s <- Note.run $ Codebase.viewAsBinding codebase r
       name <- randomBase58 10
       writeFile (name ++ ".u") s
       writeFile (name ++ ".parent") (Text.unpack $ Hash.base64 h)
@@ -217,8 +207,23 @@ process codebase ("add" : []) = do
       putStr "  "
       putStrLn . Text.unpack . Text.intercalate "\n  " $ ufiles
       putStrLn "Supply one of these files as the argument to `uc add`"
+process codebase ("statistics" : []) = do
+  files <- Directory.getDirectoryContents "."
+  let parentFiles = map Text.unpack $ filter (".parent" `Text.isSuffixOf`) (map Text.pack files)
+  refs <- mapM readFile parentFiles
+  refs <- pure (map (Reference.Derived . Hash.fromBase64 . Text.pack) refs)
+  codebase <- codebase
+  scores <- Note.run $ Codebase.statistics codebase refs
+  mds <- Note.run $ Codebase.metadatas codebase refs
+  mapM_ (fmt mds) (Map.toList scores)
+  where
+  fmt mds (ref, score) = case Map.lookup ref mds of
+    Nothing -> putStrLn $ show ref ++ "  -  "  ++ show score
+    Just md -> case Metadata.firstName (Metadata.names md) of
+      Just v -> putStrLn $ show v ++ "  -  " ++ show score
+      Nothing -> putStrLn $ show ref ++ "  -  "  ++ show score
 process codebase ("add" : [name]) = go0 name where
-  baseName = stripu name -- todo - more robust file extension stripping
+  baseName = stripu name
   go0 name = do
     codebase <- codebase
     str <- readFile name
@@ -316,6 +321,7 @@ process codebase ("add" : [name]) = go0 name where
                         putStrLn $ "OK updated " ++ show (Map.size replaced) ++ " definitions"
                       _ -> pure ()
       Left ambiguous -> pure ()
+
 process codebase _ = process codebase []
 
 stripu :: String -> String

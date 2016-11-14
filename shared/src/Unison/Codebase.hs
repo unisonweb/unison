@@ -4,8 +4,8 @@
 module Unison.Codebase where
 
 -- import Data.Bytes.Serial (Serial)
-import Control.Monad
 import Control.Applicative
+import Control.Monad
 import Data.Aeson.TH
 import Data.List
 import Data.Map (Map)
@@ -19,6 +19,7 @@ import Unison.Metadata (Metadata)
 import Unison.Note (Noted(..),Note(..))
 import Unison.Paths (Path)
 import Unison.Reference (Reference)
+import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.TermEdit (Action)
 import Unison.Type (Type)
@@ -28,6 +29,7 @@ import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Unison.Codebase.Store as Store
+import qualified Unison.Doc as Doc
 import qualified Unison.Hash as Hash
 import qualified Unison.Interpreter as Interpreter
 import qualified Unison.Metadata as Metadata
@@ -43,6 +45,10 @@ import qualified Unison.TypeParser as TypeParser
 import qualified Unison.Typechecker as Typechecker
 import qualified Unison.Typechecker.Components as Components
 import qualified Unison.Var as Var
+import qualified Unison.View as View
+import qualified Unison.Views as Views
+
+type V = Symbol View.DFO
 -- import Debug.Trace
 
 -- watch :: Show a => String -> a -> a
@@ -293,8 +299,43 @@ replace code old new = go (Map.fromList [(old,new)]) (Seq.fromList [old]) where
       rnew <- createTerm code new md -- todo, could get away with not typechecking here
       updateMetadata code old (Metadata.mangle hashSuffix md)
       go (Map.insert old rnew u) (olds Seq.>< Seq.fromList (Set.toList ds))
-
 -- todo: a version that allows the type to change, and propagates out as far as possible
+
+-- | Returns a prettyprinted version of the given reference
+viewAsBinding :: Codebase IO V Reference (Type V) (Term V) -> Reference -> Noted IO String
+viewAsBinding code r = do
+  Just v <- firstName code r
+  typ <- typeAt code (Term.ref r) []
+  Just e <- term code r
+  let e' = Term.ann e typ
+  mds <- metadatas code (Set.toList (Term.dependencies' e'))
+  pure (Doc.formatText80 (Views.bindingMd mds v e'))
+
+-- | Returns a 'score' for each of the references in the input, based on the
+-- set of transitive dependents of each `Reference`. Higher scores mean more
+-- unique transitive dependents (not reachable from other refs in the input).
+statistics :: Codebase IO V Reference (Type V) (Term V) -> [Reference] -> Noted IO (Map Reference Double)
+statistics code rs = finish <$> foldM (go []) Map.empty rs where
+  addDependent dependent m r =
+    Map.alter (Just . Set.insert dependent . fromMaybe Set.empty) r m
+  go path tds cur = case foldl' (addDependent cur) tds path of
+    tds -> case Map.lookup cur tds of
+      -- we've already seen this node, nothing to add
+      Just _ -> pure tds
+      -- this node is new, visit dependents recursively
+      Nothing -> do
+        ds <- dependents code Nothing cur
+        foldM (\tds cur' -> go (cur:path) tds cur') (Map.insert cur Set.empty tds) ds
+  -- at this point, have set of transitive dependents for all refs reachable from rs
+  finish m =
+    let depsPerRef = [ (r, Map.findWithDefault Set.empty r m) | r <- rs ]
+        allDeps = Set.unions (map snd depsPerRef)
+        -- if a ref is reachable from multiple roots, its contribution to 'score' is split
+        -- evenly by the number of roots that can reach it
+        cardinalities = Map.fromList [ (d, 1 / count d) | d <- Set.toList allDeps ]
+        count d = sum $ map (\(_, ds) -> if Set.member d ds then 1 else 0) depsPerRef
+        summarize (d, ds) = (d, sum $ map (\d -> Map.findWithDefault 0 d cardinalities) (Set.toList ds))
+    in Map.fromList (map summarize depsPerRef)
 
 -- | Declare a group of bindings and add them to the codebase.
 -- Bindings may be in any order and may refer to each other.
