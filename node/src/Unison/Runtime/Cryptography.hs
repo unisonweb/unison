@@ -73,8 +73,8 @@ decrypt' :: forall cleartext symmetricKey .
          => symmetricKey
          -> ByteString
          -> Either String cleartext
-decrypt' k ciphertext = let (auth, ct') = BA.splitAt authTagBitLength ciphertext
-                            (iv, ct'') = BA.splitAt blockLength ct'
+decrypt' k ciphertext = let (auth, ct') = BA.splitAt (authTagBitLength `div` 8) ciphertext
+                            (iv, ct'') = BA.splitAt (blockLength `div` 8) ct'
                             cipher = throwCryptoError $ cipherInit (k :: symmetricKey) :: AES.AES128
                             aead = throwCryptoError $ aeadInit AEAD_GCM cipher iv
                             ad = "" :: ByteString -- associated data
