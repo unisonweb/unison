@@ -5,11 +5,8 @@ module Unison.Runtime.Cryptography where
 
 import Unison.Cryptography
 import Data.ByteString (ByteString)
---import qualified Data.ByteString as BS
 import Data.ByteArray as BA
 import qualified Crypto.Random as R
-import qualified Crypto.Noise.Cipher as C
-import qualified Crypto.Noise.Cipher.ChaChaPoly1305 as CCP
 
 -- cryptonite
 -- import Crypto.Cipher.Types.Base ()
@@ -45,7 +42,11 @@ randomBytes' n = do drg <- R.getSystemDRG
                     let bts = fst $ R.randomBytesGenerate n drg
                     return bts
 
-authTagBitLength = 128 :: Int
+authTagBitLength :: Int
+authTagBitLength = 128
+
+blockLength :: Int
+blockLength = 128
 
 encrypt' :: forall cleartext symmetricKey .
             ( ByteArrayAccess cleartext
@@ -65,16 +66,20 @@ encrypt' k cts = do
       ciphertext = BA.concat [(BA.convert auth), iv, (BA.convert out)]
   return ciphertext
 
-decrypt' :: ( ByteArrayAccess symmetricKey
+decrypt' :: forall cleartext symmetricKey .
+            ( ByteArrayAccess symmetricKey
+            , ByteArray symmetricKey
             , ByteArray cleartext)
          => symmetricKey
          -> ByteString
          -> Either String cleartext
-decrypt' k ct = let key = C.cipherBytesToSym (BA.convert k) :: C.SymmetricKey CCP.ChaChaPoly1305
-                    ciphertext = C.cipherBytesToText (BA.convert ct) :: C.Ciphertext CCP.ChaChaPoly1305
-                    nonce = C.cipherZeroNonce :: C.Nonce CCP.ChaChaPoly1305
-                    ad = "" :: C.AssocData
-                in
-                  case C.cipherDecrypt key nonce ad ciphertext of
-                    Nothing -> Left "Could not decrypt ciphertext; authentication failure."
-                    Just clrtext -> Right $ BA.convert clrtext
+decrypt' k ciphertext = let (auth, ct') = BA.splitAt authTagBitLength ciphertext
+                            (iv, ct'') = BA.splitAt blockLength ct'
+                            cipher = throwCryptoError $ cipherInit (k :: symmetricKey) :: AES.AES128
+                            aead = throwCryptoError $ aeadInit AEAD_GCM cipher iv
+                            ad = "" :: ByteString -- associated data
+                            maybeCleartext = aeadSimpleDecrypt aead ad ct'' (AuthTag (BA.convert auth))
+                        in
+                          case maybeCleartext of
+                          Just pt -> Right $ BA.convert pt
+                          Nothing -> Left "Error when attempting to decrypt ciphertext."
