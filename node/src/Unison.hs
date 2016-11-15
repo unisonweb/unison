@@ -177,7 +177,7 @@ process codebase ("rename" : src : target) = do
       let suffix = "#" ++ show r
           md' = if null target then Metadata.mangle (Text.pack suffix) md
                 else md { Metadata.names = Metadata.Names (map rename (Metadata.allNames (Metadata.names md))) }
-          rename n | Var.name n == Text.pack src = Var.named (Text.pack $ intercalate " " target)
+          rename n | Text.pack src `Text.isPrefixOf` Var.name n = Var.named (Text.pack $ intercalate " " target)
                    | otherwise = n
       Note.run $ Codebase.updateMetadata codebase r md'
       putStrLn $ if null target then "OK appended " ++ suffix ++ " onto name(s)"
@@ -257,13 +257,13 @@ process codebase ("add" : [name]) = go0 name where
               | otherwise -> pure Codebase.FailIfShadowed
         duplicateDefinition t (v, _) = do
           putStrLn "  WARN definition already exists in codebase"
-          putStrLn "       <Enter> - use newer provided form"
-          putStrLn "       `q` - use existing form"
+          putStrLn "       <Enter> - use existing form"
+          putStrLn "       `r` - replace with newer form"
           putStr "  > "; hFlush stdout
           line <- Text.strip . Text.pack <$> getLine
           case line of
-            "" -> pure True
-            _ -> pure False
+            "" -> pure False
+            _ -> pure True
         renamedOldDefinition v v' = putStrLn $ "  OK renamed old " ++ show v ++ " to " ++ show v'
         ambiguousReferences vs v = do
           putStrLn "  FAILED ambiguous or unresolved references in body of binding\n"
@@ -315,7 +315,7 @@ process codebase ("add" : [name]) = go0 name where
                     putStrLn "1) Do nothing"
                     putStrLn "2) Open direct dependents for editing"
                     putStrLn "3) Propagate to all transitive dependents"
-                    putStrLn "> "; hFlush stdin
+                    putStr "> "; hFlush stdout
                     line <- readLineTrimmed
                     case line of
                       "1" -> pure ()
@@ -337,7 +337,7 @@ hash (Term.Ref' r) = r
 hash t = Reference.Derived (ABT.hash t)
 
 store :: IO (Store IO (Symbol.Symbol View.DFO))
-store = FileStore.make "store"
+store = FileStore.make "codebase"
 
 makeRandomAddress :: C.Cryptography k syk sk skp s h c -> IO Address
 makeRandomAddress crypt = Address <$> C.randomBytes crypt 64
