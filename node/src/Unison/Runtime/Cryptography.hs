@@ -5,11 +5,18 @@ module Unison.Runtime.Cryptography where
 
 import Unison.Cryptography
 import Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
+--import qualified Data.ByteString as BS
 import Data.ByteArray as BA
 import qualified Crypto.Random as R
 import qualified Crypto.Noise.Cipher as C
 import qualified Crypto.Noise.Cipher.ChaChaPoly1305 as CCP
+
+-- cryptonite
+-- import Crypto.Cipher.Types.Base ()
+-- import Crypto.Cipher.AES.Primitive (AES)
+import qualified Crypto.Cipher.AES as AES
+import Crypto.Cipher.Types
+import Crypto.Error
 
 -- Creates a Unison.Cryptography object specialized to use the noise protocol
 -- (http://noiseprotocol.org/noise.html).
@@ -38,20 +45,26 @@ randomBytes' n = do drg <- R.getSystemDRG
                     let bts = fst $ R.randomBytesGenerate n drg
                     return bts
 
-encrypt' :: ( ByteArrayAccess cleartext
+authTagBitLength = 128 :: Int
+
+encrypt' :: forall cleartext symmetricKey .
+            ( ByteArrayAccess cleartext
             , ByteArray cleartext
-            , ByteArrayAccess symmetricKey)
+            , ByteArrayAccess symmetricKey
+            , ByteArray symmetricKey)
          => symmetricKey
          -> [cleartext]
          -> IO Ciphertext
 encrypt' k cts = do
-  let clrtext = BA.concat cts -- :: cleartext
-      key = C.cipherBytesToSym (BA.convert k) :: C.SymmetricKey CCP.ChaChaPoly1305
-      nonce = C.cipherZeroNonce :: C.Nonce CCP.ChaChaPoly1305
-      ad = "" :: C.AssocData
-      ccpct = C.cipherEncrypt key nonce ad clrtext
-      out = C.cipherTextToBytes ccpct
-  return $ BA.convert out
+  iv <- randomBytes' 16
+  let clrtext = BA.concat cts :: cleartext
+      cipher = throwCryptoError $ cipherInit k :: AES.AES128
+      ciphertext = case throwCryptoError $ aeadInit AEAD_GCM cipher iv of
+        (AEAD aead st) -> let (out, st') = (aeadImplEncrypt aead st clrtext)
+                              (AuthTag auth) = aeadImplFinalize aead st authTagBitLength
+                              ciphertext = BA.append (BA.convert auth) out
+                          in (BA.convert ciphertext)
+  return ciphertext
 
 decrypt' :: ( ByteArrayAccess symmetricKey
             , ByteArray cleartext)
