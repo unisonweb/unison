@@ -54,14 +54,14 @@ import qualified Unison.Views as Views
 type V = Symbol View.DFO
 
 {-
-uc new
-uc add [<name>]
-uc edit name
-uc view name
-uc rename src target
-uc statistics [name]
-uc help
-uc eval [name]
+unison new
+unison add [<name>]
+unison edit name
+unison view name
+unison rename src target
+unison statistics [name]
+unison help
+unison eval [name]
 -}
 
 randomBase58 :: Int -> IO String
@@ -131,16 +131,16 @@ refsOnly results =
 
 process :: IO (Codebase IO V Reference (Type V) (Term V)) -> [String] -> IO ()
 process _ [] = putStrLn $ intercalate "\n"
-  [ "usage: uc <subcommand> [<args>]"
+  [ "usage: unison <subcommand> [<args>]"
   , ""
   , "subcommands: "
-  , "  uc new"
-  , "  uc add [<name>]"
-  , "  uc edit <name>"
-  , "  uc view <name>"
-  , "  uc rename <name-src> [<name-target>]"
-  , "  uc statistics [<name>]"
-  , "  uc help [{new, add, edit, view, rename, statistics}]" ]
+  , "  unison new"
+  , "  unison add [<name>]"
+  , "  unison edit <name>"
+  , "  unison view <name>"
+  , "  unison rename <name-src> [<name-target>]"
+  , "  unison statistics [<name>]"
+  , "  unison help [{new, add, edit, view, rename, statistics}]" ]
 process codebase ["help"] = process codebase []
 process codebase ("help" : sub) = case sub of
   ["new"] -> putStrLn "Creates a new set of scratch files (for new definitions)"
@@ -207,7 +207,7 @@ process codebase ("add" : []) = do
       putStrLn "Multiple .u files in current directory"
       putStr "  "
       putStrLn . Text.unpack . Text.intercalate "\n  " $ ufiles
-      putStrLn "Supply one of these files as the argument to `uc add`"
+      putStrLn "Supply one of these files as the argument to `unison add`"
 process codebase ("statistics" : []) = do
   files <- Directory.getDirectoryContents "."
   let parentFiles = map Text.unpack $ filter (".parent" `Text.isSuffixOf`) (map Text.pack files)
