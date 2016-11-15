@@ -59,11 +59,10 @@ encrypt' k cts = do
   iv <- randomBytes' 16
   let clrtext = BA.concat cts :: cleartext
       cipher = throwCryptoError $ cipherInit k :: AES.AES128
-      ciphertext = case throwCryptoError $ aeadInit AEAD_GCM cipher iv of
-        (AEAD aead st) -> let (out, st') = (aeadImplEncrypt aead st clrtext)
-                              (AuthTag auth) = aeadImplFinalize aead st authTagBitLength
-                              ciphertext = BA.append (BA.convert auth) out
-                          in (BA.convert ciphertext)
+      aead = throwCryptoError $ aeadInit AEAD_GCM cipher iv
+      ad = "" :: ByteString -- associated data
+      ((AuthTag auth), out) = aeadSimpleEncrypt aead ad clrtext authTagBitLength
+      ciphertext = BA.convert (BA.append (BA.convert auth) out)
   return ciphertext
 
 decrypt' :: ( ByteArrayAccess symmetricKey
