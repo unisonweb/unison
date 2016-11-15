@@ -62,7 +62,7 @@ encrypt' k cts = do
       aead = throwCryptoError $ aeadInit AEAD_GCM cipher iv
       ad = "" :: ByteString -- associated data
       ((AuthTag auth), out) = aeadSimpleEncrypt aead ad clrtext authTagBitLength
-      ciphertext = BA.convert (BA.append (BA.convert auth) out)
+      ciphertext = BA.concat [(BA.convert auth), iv, (BA.convert out)]
   return ciphertext
 
 decrypt' :: ( ByteArrayAccess symmetricKey
