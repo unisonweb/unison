@@ -304,7 +304,7 @@ process codebase ("add" : [name]) = go0 name where
                     putStrLn "\nThis edit was not type-preserving, you can:\n"
                     putStrLn "1) Do nothing"
                     putStrLn "2) Open direct dependents for editing\n"
-                    putStrLn "> "; hFlush stdin
+                    putStrLn "> "; hFlush stdout
                     line <- readLineTrimmed
                     case line of
                       "1" -> pure ()
@@ -312,7 +312,7 @@ process codebase ("add" : [name]) = go0 name where
                       _ -> pure ()
                   True -> do
                     putStrLn "\nThis edit was type-preserving, you can:\n"
-                    putStrLn "1) Do nothing\n"
+                    putStrLn "1) Do nothing"
                     putStrLn "2) Open direct dependents for editing"
                     putStrLn "3) Propagate to all transitive dependents"
                     putStrLn "> "; hFlush stdin

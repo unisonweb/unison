@@ -416,9 +416,9 @@ declareCheckAmbiguous hooks bindings code = do
       metadata v = Metadata.Metadata Metadata.Term (Metadata.Names [v]) Nothing
       tb0 = Parsers.termBuiltins
       mangle name (Reference.Derived h) =
-        Var.rename (Var.qualifiedName name `mappend` "#" `mappend` Text.take 8 (Hash.base64 h)) name
+        Var.rename (Var.name name `mappend` "#" `mappend` Text.take 8 (Hash.base64 h)) name
       mangle name (Reference.Builtin h) =
-        Var.rename (Var.qualifiedName name `mappend` "#" `mappend` "builtin") name
+        Var.rename (Var.name name `mappend` "#" `mappend` "builtin") name
       go _ [] = pure (Right [])
       go names ((v, b) : bindings) = do
         Note.lift $ startingToProcess hooks (v, b)
