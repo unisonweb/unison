@@ -120,7 +120,7 @@ tryEdits paths = do
   editorCommand <- (Text.unpack . Text.strip . Text.pack <$> readFile ".editor") <|> pure ""
   case editorCommand of
     "" -> do putStrLn "  TIP: Create a file named .editor with the command to launch your"
-             putStrLn "       editor and `uc new` and `uc edit` will invoke it on newly created files"
+             putStrLn "       editor and `unison new` and `unison edit` will invoke it on newly created files"
     _ -> forM_ paths $ \path -> let cmd = editorCommand ++ " " ++ path
                                 in do putStrLn cmd; Process.callCommand cmd
 
@@ -236,7 +236,7 @@ process codebase ("add" : [name]) = go0 name where
     go codebase name hasParent bs
   go codebase name hasParent bs = do
     let hooks' = Codebase.Hooks startingToProcess nameShadowing duplicateDefinition renamedOldDefinition ambiguousReferences finishedDeclaring
-        startingToProcess (v, _) = putStrLn (show v)
+        startingToProcess (v, _) = putStrLn ("  " ++ show v)
         nameShadowing [] (_, _) = do
           putStrLn "  OK name does not collide with existing definitions"
           pure Codebase.FailIfShadowed
