@@ -155,14 +155,19 @@ make h store =
       -- a bit of fanciness: annotations that don't constrain type don't affect hash
       let e3 = if maybe False (t ==) t2 then e2 else e
       let r = hash e3
-      pure r <* case r of
-        Reference.Builtin _ ->
+      pure r <* case (r, e3) of
+        (Reference.Builtin _, _) ->
           Store.writeMetadata store r md -- can't change builtin types, just metadata
-        Reference.Derived h -> do
+        (_, Term.Ref' _) -> do
+          -- definition is just an alias to existing definition, as in `x = 1; y = x;`
+          -- so we just combine the metadata
+          md0 <- (Just <$> Store.readMetadata store r) <|> pure Nothing
+          Store.writeMetadata store r (Metadata.combine md0 md)
+          Store.writeMetadata store r md
+        (Reference.Derived h, _) -> do
           new <- (False <$ Store.readTerm store h) <|> pure True
           md0 <- (Just <$> Store.readMetadata store r) <|> pure Nothing
           Store.writeMetadata store r (Metadata.combine md0 md)
-          -- when new $ do -- todo: flag to say whether allow override to existing forms
           Store.writeTerm store h e3
           Store.annotateTerm store r t
 

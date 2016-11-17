@@ -67,8 +67,8 @@ data Builtin = Builtin Text -- e.g. Builtin "()"
 termBuiltins :: Var v => [(v, Term v)]
 termBuiltins = (Var.named *** Term.ref) <$> (
     [ Builtin "()"
-    , Builtin "Either.Right"
-    , Builtin "Either.Left"
+    , Alias "Right" "Either.Right"
+    , Alias "Left" "Either.Left"
     , Builtin "Greater"
     , Builtin "Less"
     , Builtin "Equal"
