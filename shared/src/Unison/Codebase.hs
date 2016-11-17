@@ -145,11 +145,16 @@ make h store =
     admissibleTypeAt e loc =
       Typechecker.admissibleTypeAt readTypeOf loc e
 
+    deannotate (Term.Ann' e _) = deannotate e
+    deannotate e = e
+
     createTerm e md = do
       t <- Typechecker.synthesize readTypeOf e
-      -- todo: a bit of fanciness to allow annotations that don't constrain type to not participate
-      -- in the hash, perhaps add a Bool flag to Ann ctor
-      let r = hash e
+      let e2 = deannotate e
+      t2 <- (Just <$> Typechecker.synthesize readTypeOf e2) <|> pure Nothing
+      -- a bit of fanciness: annotations that don't constrain type don't affect hash
+      let e3 = if maybe False (t ==) t2 then e2 else e
+      let r = hash e3
       pure r <* case r of
         Reference.Builtin _ ->
           Store.writeMetadata store r md -- can't change builtin types, just metadata
@@ -157,9 +162,9 @@ make h store =
           new <- (False <$ Store.readTerm store h) <|> pure True
           md0 <- (Just <$> Store.readMetadata store r) <|> pure Nothing
           Store.writeMetadata store r (Metadata.combine md0 md)
-          when new $ do
-            Store.writeTerm store h e
-            Store.annotateTerm store r t
+          -- when new $ do -- todo: flag to say whether allow override to existing forms
+          Store.writeTerm store h e3
+          Store.annotateTerm store r t
 
     createType _ _ = error "todo - createType"
 
@@ -281,6 +286,11 @@ names code h = f <$> metadatas code [h] where
 firstName :: Functor m => Codebase m v Reference (Type v) (Term v) -> Reference -> Noted m (Maybe v)
 firstName code h = listToMaybe <$> names code h
 
+firstNames :: Functor m => Codebase m v Reference (Type v) (Term v) -> [Reference] -> Noted m (Map Reference v)
+firstNames code hs = go <$> metadatas code hs where
+  go mds = Map.fromList [ (r, v) | (r, Just v) <- Map.toList $
+                          Map.map (listToMaybe . Metadata.allNames . Metadata.names) mds ]
+
 -- | Replace one definition with another and update dependencies transitively
 replace :: (Monad m, Alternative m, Var v)
         => Codebase m v Reference (Type v) (Term v)
@@ -379,7 +389,7 @@ declare' bindings code = do
 data Hooks m v h =
   Hooks { startingToProcess :: (v, Term v) -> m ()
         , nameShadowing :: [Term v] -> (v, Term v) -> m HandleShadowing
-        , duplicateDefinition :: Term v -> (v, Term v) -> m Bool
+        , duplicateDefinition :: h -> (v, Term v) -> m Bool
         , renamedOldDefinition :: v -> v -> m ()
         , ambiguousReferences :: [(v, [Term v])] -> (v, Term v) -> m ()
         , finishedDeclaring :: (v, Term v) -> h -> m () }
@@ -452,10 +462,10 @@ declareCheckAmbiguous hooks bindings code = do
           True -> do
             b <- pure $ Parsers.bindBuiltins (tb0 ++ resolved) Parsers.typeBuiltins b
             let hb = hash code b
-            exists <- (listToMaybe . Map.elems <$> terms code [hb]) <|> pure Nothing
+            exists <- (listToMaybe . Map.elems <$> metadatas code [hb]) <|> pure Nothing
             ok <- case exists of
               Nothing -> pure True
-              Just old -> Note.lift (duplicateDefinition hooks old (v, b))
+              Just _ -> Note.lift (duplicateDefinition hooks hb (v, b))
             case ok of
               False ->
                 fmap ((v,hb) :) <$> go (Map.insert v [Term.ref hb] names) bindings

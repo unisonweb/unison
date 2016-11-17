@@ -181,11 +181,10 @@ type' ref t = go no View.low t
             , D.nest "  " . D.group . D.delimit (D.breakable " ") $
               [ D.sub' p (go no (View.increase View.high) s) | (s,p) <- args ] ]
     ForallsPt' vs (body,bodyp) ->
-      if p == View.low then D.sub' bodyp (go no p body)
-      else D.parenthesize True . D.group $
-           D.embed "∀ " `D.append`
-           D.delimit (D.embed " ") (map (sym . fst) vs) `D.append`
-           D.docs [D.embed ".", D.breakable " ", D.nest "  " $ D.sub' bodyp (go no View.low body)]
+      D.parenthesize (p /= View.low) . D.group $
+      D.embed "∀ " `D.append`
+      D.delimit (D.embed " ") (map (sym . fst) vs) `D.append`
+      D.docs [D.embed " .", D.breakable " ", D.nest "  " $ D.sub' bodyp (go no View.low body)]
     T.Constrain' t _ -> go inChain p t
     T.Ann' t _ -> go inChain p t -- ignoring kind annotations for now
     T.Var' v -> sym v

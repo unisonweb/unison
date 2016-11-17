@@ -2,10 +2,12 @@
 
 module Main where
 
+import Text.Printf (printf)
 import Control.Applicative
 import Control.Monad
 import Data.List
 import Data.Maybe
+import Data.Tuple (swap)
 import System.Environment (getArgs)
 import System.IO
 import Unison.Codebase (Codebase)
@@ -40,6 +42,7 @@ import qualified Unison.Metadata as Metadata
 import qualified Unison.Note as Note
 import qualified Unison.Parser as Parser
 import qualified Unison.Parsers as Parsers
+import qualified Unison.Paths as Paths
 import qualified Unison.Reference as Reference
 import qualified Unison.Runtime.ExtraBuiltins as EB
 import qualified Unison.Symbol as Symbol
@@ -84,10 +87,12 @@ maxSearchResults = 100
 
 search :: Codebase IO V Reference (Type V) (Term V) -> String -> IO (Codebase.SearchResults V Reference (Term V))
 search code query = case Parsers.unsafeParseTerm query of
+  Term.Blank' ->
+    Note.run $ Codebase.search code Term.blank [] maxSearchResults (Metadata.Query "") Nothing
   Term.Ann' Term.Blank' t ->
-    Note.run $ Codebase.search code Term.blank [] maxSearchResults (Metadata.Query "") (Just t)
+    Note.run $ Codebase.search code (Term.blank `Term.ann` t) [Paths.Body] maxSearchResults (Metadata.Query "") Nothing
   Term.Ann' (Term.Var' v) t ->
-    Note.run $ Codebase.search code Term.blank [] maxSearchResults (Metadata.Query $ Var.name v) (Just t)
+    Note.run $ Codebase.search code (Term.blank `Term.ann` t) [Paths.Body] maxSearchResults (Metadata.Query $ Var.name v) Nothing
   Term.Var' v ->
     Note.run $ Codebase.search code Term.blank [] maxSearchResults (Metadata.Query $ Var.name v) Nothing
   _ -> fail "FAILED search syntax invalid, must be `<name>` or `<name> : <type>`"
@@ -97,12 +102,26 @@ formatSearchResults :: Codebase IO V Reference (Type V) (Term V)
 formatSearchResults code rs = mapM_ fmt (fst . Codebase.matches $ rs) where
   fmt e = putStrLn =<< Note.run (viewResult code rs e)
 
-pickSearchResult :: Codebase IO V Reference (Type V) (Term V)
-                 -> Codebase.SearchResults V Reference (Term V) -> IO (Maybe (Term V))
-pickSearchResult code rs = case fst (Codebase.matches rs) of
+pickExactMatch :: Codebase IO V Reference (Type V) (Term V)
+               -> String
+               -> Codebase.SearchResults V Reference (Term V)
+               -> IO (Maybe (Term V))
+pickExactMatch code name rs = case fst (Codebase.matches rs) of
   [] -> pure Nothing
-  [e] -> pure (Just e)
+  [x] -> pure (Just x)
   es -> do
+    names <- Map.fromList . map swap . Map.toList <$> Note.run (Codebase.firstNames code [ r | Term.Ref' r <- es ])
+    pure $ do
+      r <- Map.lookup (Var.named (Text.pack name)) names
+      listToMaybe [ e | e@(Term.Ref' r') <- es, r' == r ]
+
+pickSearchResult :: Codebase IO V Reference (Type V) (Term V)
+                 -> String -> Codebase.SearchResults V Reference (Term V) -> IO (Maybe (Term V))
+pickSearchResult code name rs = pickExactMatch code name rs >>= \o -> case o of
+  Just e -> pure (Just e)
+  Nothing | null (fst (Codebase.matches rs)) -> pure Nothing
+  Nothing -> do
+    let es = fst (Codebase.matches rs)
     putStrLn "Multiple search results, choose one:\n"
     let fmt (e, n) = do
           putStrLn $ show n ++ "."
@@ -164,12 +183,16 @@ process _ ["new"] = do
   tryEdits [name ++ ".u"]
 process codebase ("view" : rest) = do
   codebase <- codebase
-  results <- search codebase (intercalate " " rest)
-  formatSearchResults codebase (refsOnly results)
+  let query = intercalate " " rest
+  results <- search codebase query
+  exact <- pickExactMatch codebase query results
+  case exact of
+    Just e -> putStrLn =<< Note.run (viewResult codebase results e)
+    Nothing -> formatSearchResults codebase (refsOnly results)
 process codebase ("rename" : src : target) = do
   codebase <- codebase
   results <- search codebase src
-  r <- pickSearchResult codebase (refsOnly results)
+  r <- pickSearchResult codebase src (refsOnly results)
   case r of
     Just (Term.Ref' r) -> do
       [md] <- Map.elems <$> Note.run (Codebase.metadatas codebase [r])
@@ -181,21 +204,31 @@ process codebase ("rename" : src : target) = do
       Note.run $ Codebase.updateMetadata codebase r md'
       putStrLn $ if null target then "OK appended " ++ suffix ++ " onto name(s)"
                                 else "OK"
-    _ -> putStrLn "Could not find a definition with name \"" ++ src ++ "\" for renaming."
+    _ -> putStrLn $ "FAILED could not find a definition for renaming"
 process codebase ("edit" : rest) = do
   codebase <- codebase
-  results <- search codebase (intercalate " " rest)
-  r <- pickSearchResult codebase (refsOnly results)
+  let query = intercalate " " rest
+  results <- search codebase query
+  r <- pickSearchResult codebase query (refsOnly results)
   case r of
     Just (Term.Ref' r@(Reference.Derived h)) -> do
-      s <- Note.run $ Codebase.viewAsBinding codebase r
-      name <- randomBase58 10
-      writeFile (name ++ ".u") s
-      writeFile (name ++ ".parent") (Text.unpack $ Hash.base64 h)
-      let mdpath = name ++ ".markdown"
-      writeFile mdpath ""
-      tryEdits [name ++ ".u"]
-    _ -> putStrLn "Could not find definition for editing."
+      files <- Directory.getDirectoryContents "."
+      let parentFiles = filter (".parent" `Text.isSuffixOf`) (map Text.pack files)
+          hashrs = Text.unpack (Hash.base64 h)
+      parentMatches <- map (== hashrs) <$> mapM readFile (map Text.unpack parentFiles)
+      case listToMaybe [ f | (f, True) <- parentFiles `zip` parentMatches ] of
+        Just name -> do
+          putStrLn "Definition is already open for editing, launching editor ..."
+          tryEdits [stripExtension (Text.unpack name) ++ ".u"]
+        Nothing -> do
+          s <- Note.run $ Codebase.viewAsBinding codebase r
+          name <- randomBase58 10
+          writeFile (name ++ ".u") s
+          writeFile (name ++ ".parent") (Text.unpack $ Hash.base64 h)
+          let mdpath = name ++ ".markdown"
+          writeFile mdpath ""
+          tryEdits [name ++ ".u"]
+    _ -> putStrLn "FAILED could not find definition for editing"
 process codebase ("add" : []) = do
   files <- Directory.getDirectoryContents "."
   let ufiles = filter (".u" `Text.isSuffixOf`) (map Text.pack files)
@@ -215,13 +248,23 @@ process codebase ("statistics" : []) = do
   codebase <- codebase
   scores <- Note.run $ Codebase.statistics codebase refs
   mds <- Note.run $ Codebase.metadatas codebase refs
+  when (not (null mds)) $ do
+    putStrLn "For each open definition, count the set of transitive dependents."
+    putStrLn "If N definitions have a common dependent, the contribution of that"
+    putStrLn "dependent to score is divided by N.\n"
+    putStrLn "TIP: Update definitions with higher scores first.\n"
+    printf "  %-10s %s\n" ("Score" :: String) ("Name" :: String)
   mapM_ (fmt mds) (Map.toList scores)
+  case null mds of
+    True -> putStrLn "No open edits. Use `unison edit` to begin a refactoring."
+    False -> printf "\n  %-10.2f (total remaining)\n" (sum $ Map.elems scores)
   where
+  print name score = printf "  %-10.2f %s\n" score name
   fmt mds (ref, score) = case Map.lookup ref mds of
-    Nothing -> putStrLn $ show ref ++ "  -  "  ++ show score
+    Nothing -> print (show ref) score
     Just md -> case Metadata.firstName (Metadata.names md) of
-      Just v -> putStrLn $ show v ++ "  -  " ++ show score
-      Nothing -> putStrLn $ show ref ++ "  -  "  ++ show score
+      Just v -> print (show v) score
+      Nothing -> print (show ref) score
 process codebase ("statistics" : stuff) = putStrLn "Not implemented yet"
 process codebase ("add" : [name]) = go0 name where
   baseName = stripu name
@@ -237,7 +280,7 @@ process codebase ("add" : [name]) = go0 name where
     let hooks' = Codebase.Hooks startingToProcess nameShadowing duplicateDefinition renamedOldDefinition ambiguousReferences finishedDeclaring
         startingToProcess (v, _) = putStrLn ("  " ++ show v) >> putStrLn ("  " ++ replicate (length (show v)) '-')
         nameShadowing [] (_, _) = do
-          putStrLn "  OK name does not collide with existing definitions"
+          putStrLn "  OK name of this binding does not collide with existing definitions"
           pure Codebase.FailIfShadowed
         nameShadowing _ (_, _) | hasParent = pure Codebase.RenameOldIfShadowed
         nameShadowing tms (v, _) = do
@@ -254,10 +297,12 @@ process codebase ("add" : [name]) = go0 name where
             _ | line == "rename" || line == "1" -> pure Codebase.RenameOldIfShadowed
               | line == "allow" || line == "2" -> pure Codebase.AllowShadowed
               | otherwise -> pure Codebase.FailIfShadowed
-        duplicateDefinition t (v, _) = do
-          putStrLn "  WARN definition already exists in codebase"
-          putStrLn "       <Enter> - use existing form"
-          putStrLn "       `r` - replace with newer form"
+        duplicateDefinition old (v, new) = do
+          putStrLn "  YUREKA! you've rediscovered an existing definition, with the form:\n"
+          form <- Note.run $ Codebase.viewAsBinding codebase old
+          let indent s = "    " ++ (s >>= \ch -> if ch == '\n' then "\n    " else [ch])
+          putStrLn (indent form)
+          putStrLn "  <Enter> (use existing form) or `r` (replace with newer form)"
           putStr "  > "; hFlush stdout
           line <- Text.strip . Text.pack <$> getLine
           case line of
@@ -271,8 +316,7 @@ process codebase ("add" : [name]) = go0 name where
             tms -> putStrLn $ "  " ++ show v ++ " could refer to any of " ++ intercalate "  " (map show tms)
           putStrLn "\n\n  Use syntax foo#8adj3 to pick a version of 'foo' by hash prefix #8adj3"
         finishedDeclaring (v, _) h = do
-          putStrLn $ "  OK finished declaring " ++ show v ++ ", definition has hash:"
-          putStrLn $ "     " ++ show h
+          putStrLn $ "  OK finished declaring, definition has hash: " ++ show h
     results <- Note.run $ Codebase.declareCheckAmbiguous hooks' bs codebase
     case results of
       Right declared -> do
@@ -320,13 +364,17 @@ process codebase ("add" : [name]) = go0 name where
                       "1" -> pure ()
                       "2" -> edits (Set.toList dependents)
                       _ | line == "" || line == "3" -> do
-                        putStrLn (show (pr, r))
                         replaced <- Note.run $ Codebase.replace codebase pr r
                         putStrLn $ "OK updated " ++ show (Map.size replaced) ++ " definitions"
                       _ -> pure ()
       Left _ -> pure ()
 
 process codebase _ = process codebase []
+
+stripExtension :: String -> String
+stripExtension s = case dropWhile (/= '.') (reverse s) of
+  [] -> s
+  s -> reverse (drop 1 s)
 
 stripu :: String -> String
 stripu s | Text.isSuffixOf ".u" (Text.pack s) = reverse . drop 2 . reverse $ s
