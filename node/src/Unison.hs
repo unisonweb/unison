@@ -181,7 +181,7 @@ process codebase ("rename" : src : target) = do
       Note.run $ Codebase.updateMetadata codebase r md'
       putStrLn $ if null target then "OK appended " ++ suffix ++ " onto name(s)"
                                 else "OK"
-    _ -> pure ()
+    _ -> putStrLn "Could not find a definition with name \"" ++ src ++ "\" for renaming."
 process codebase ("edit" : rest) = do
   codebase <- codebase
   results <- search codebase (intercalate " " rest)
@@ -195,7 +195,7 @@ process codebase ("edit" : rest) = do
       let mdpath = name ++ ".markdown"
       writeFile mdpath ""
       tryEdits [name ++ ".u"]
-    _ -> pure ()
+    _ -> putStrLn "Could not find definition for editing."
 process codebase ("add" : []) = do
   files <- Directory.getDirectoryContents "."
   let ufiles = filter (".u" `Text.isSuffixOf`) (map Text.pack files)
