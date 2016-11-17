@@ -176,7 +176,7 @@ process codebase ("help" : sub) = case sub of
           process codebase []
 process _ ["new"] = do
   name <- randomBase58 10
-  writeFile (name ++ ".u") ("-- add your definition(s) here, then do\n--  uc add " ++ name ++ ".u")
+  writeFile (name ++ ".u") ("-- add your definition(s) here, then do\n--  unison add " ++ name ++ ".u")
   let mdpath = name ++ ".markdown"
   writeFile mdpath ""
   putStrLn $ "Created " ++ name ++ ".{u, markdown} for code and docs"
