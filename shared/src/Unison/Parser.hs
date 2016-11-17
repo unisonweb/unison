@@ -9,10 +9,18 @@ import Control.Monad
 import Data.Char (isSpace)
 import Data.List hiding (takeWhile)
 import Data.Maybe
+import Data.Text (Text)
 import Prelude hiding (takeWhile)
 import qualified Data.Char as Char
+import qualified Data.Text as Text
 import qualified Prelude
+import qualified Text.Parsec as Parsec
+import qualified Text.Parsec.Layout as L
+
 import Debug.Trace
+
+type Parser' s a = Parsec.Parsec Text (Env' s) a
+data Env' s = Env' s L.LayoutEnv
 
 data Env s =
   Env { overallInput :: String

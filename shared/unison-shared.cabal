@@ -34,6 +34,7 @@ library
   hs-source-dirs: src
 
   exposed-modules:
+    Text.Parsec.Layout
     Unison.ABT
     Unison.Builtin
     Unison.BlockStore
@@ -86,6 +87,7 @@ library
     hashable,
     mtl,
     murmur-hash,
+    parsec,
     prelude-extras,
     random,
     stm,
