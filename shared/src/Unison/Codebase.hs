@@ -48,11 +48,12 @@ import qualified Unison.Var as Var
 import qualified Unison.View as View
 import qualified Unison.Views as Views
 
-type V = Symbol View.DFO
--- import Debug.Trace
+--import Debug.Trace
+--
+--watch :: Show a => String -> a -> a
+--watch msg a = traceShow (msg ++ ": " ++ show a) a
 
--- watch :: Show a => String -> a -> a
--- watch msg a = traceShow (msg ++ ": " ++ show a) a
+type V = Symbol View.DFO
 
 -- | The results of a search.
 -- On client, only need to repeat the query if we modify a character
@@ -286,7 +287,10 @@ replace :: (Monad m, Alternative m, Var v)
         -> Reference
         -> Reference
         -> Noted m (Map Reference Reference)
-replace code old new = go (Map.fromList [(old,new)]) (Seq.fromList [old]) where
+replace code old new = do
+  ds <- dependents code Nothing old
+  go (Map.fromList [(old,new)]) (Seq.fromList (Set.toList ds))
+  where
   go u q = case Seq.viewl q of
     Seq.EmptyL -> pure u
     old Seq.:< olds -> do

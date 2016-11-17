@@ -103,12 +103,11 @@ pickSearchResult code rs = case fst (Codebase.matches rs) of
   [] -> pure Nothing
   [e] -> pure (Just e)
   es -> do
-    putStrLn "Multiple search results, pick one to edit\n"
+    putStrLn "Multiple search results, choose one:\n"
     let fmt (e, n) = do
-          putStrLn $ show n ++ ")"
+          putStrLn $ show n ++ "."
           putStrLn =<< Note.run (viewResult code rs e)
     mapM_ fmt (es `zip` [(1::Int) ..])
-    putStrLn ""
     putStr "> "; hFlush stdout
     choice <- readLineTrimmed
     case choice of
@@ -232,11 +231,11 @@ process codebase ("add" : [name]) = go0 name where
     hasParent <- Directory.doesFileExist (baseName `mappend` ".parent")
     bs <- case Parser.run TermParser.moduleBindings str TypeParser.s0 of
       Parser.Fail err _ -> putStrLn ("FAILED parsing " ++ name) >> mapM_ putStrLn err >> fail "parse failure"
-      Parser.Succeed bs _ _ -> bs <$ putStrLn ("OK parsed " ++ name ++ ", processing declarations ... ")
+      Parser.Succeed bs _ _ -> bs <$ putStrLn ("OK parsed " ++ name ++ ", processing declarations ...\n")
     go codebase name hasParent bs
   go codebase name hasParent bs = do
     let hooks' = Codebase.Hooks startingToProcess nameShadowing duplicateDefinition renamedOldDefinition ambiguousReferences finishedDeclaring
-        startingToProcess (v, _) = putStrLn ("  " ++ show v)
+        startingToProcess (v, _) = putStrLn ("  " ++ show v) >> putStrLn ("  " ++ replicate (length (show v)) '-')
         nameShadowing [] (_, _) = do
           putStrLn "  OK name does not collide with existing definitions"
           pure Codebase.FailIfShadowed
@@ -283,7 +282,7 @@ process codebase ("add" : [name]) = go0 name where
         parent <- readFile parentFile <|> pure ""
         hasParent <- (True <$ Directory.removeFile parentFile) <|> pure False
         let suffix = if hasParent then ".{u, markdown, parent}" else ".{u, markdown}"
-        putStrLn $ "OK removed files " ++ baseName ++ suffix
+        putStrLn $ "\nOK removed files " ++ baseName ++ suffix
         case hasParent of
           False -> pure ()
           True -> do
@@ -302,8 +301,8 @@ process codebase ("add" : [name]) = go0 name where
                 case updatedType == prevType of
                   False -> do
                     putStrLn "\nThis edit was not type-preserving, you can:\n"
-                    putStrLn "1) Do nothing"
-                    putStrLn "2) Open direct dependents for editing\n"
+                    putStrLn "  1) Do nothing"
+                    putStrLn "  2) Open direct dependents for editing\n"
                     putStrLn "> "; hFlush stdout
                     line <- readLineTrimmed
                     case line of
@@ -312,15 +311,16 @@ process codebase ("add" : [name]) = go0 name where
                       _ -> pure ()
                   True -> do
                     putStrLn "\nThis edit was type-preserving, you can:\n"
-                    putStrLn "1) Do nothing"
-                    putStrLn "2) Open direct dependents for editing"
-                    putStrLn "3) Propagate to all transitive dependents"
+                    putStrLn "  1) Do nothing"
+                    putStrLn "  2) Open direct dependents for editing"
+                    putStrLn "  3) Propagate to all transitive dependents\n"
                     putStr "> "; hFlush stdout
                     line <- readLineTrimmed
                     case line of
                       "1" -> pure ()
                       "2" -> edits (Set.toList dependents)
                       _ | line == "" || line == "3" -> do
+                        putStrLn (show (pr, r))
                         replaced <- Note.run $ Codebase.replace codebase pr r
                         putStrLn $ "OK updated " ++ show (Map.size replaced) ++ " definitions"
                       _ -> pure ()
