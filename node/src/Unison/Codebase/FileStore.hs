@@ -64,17 +64,22 @@ make root =
     readTerm = read' "terms"
     writeTerm = write' "terms"
 
+    -- replace slashes with dashes
+    mangle = Text.map unslash where
+      unslash '/' = '-'
+      unslash ch = ch
+
     typeOfTerm (Reference.Derived h) = read' "type-of" h
-    typeOfTerm (Reference.Builtin b) = read id "builtin-type-of" b
+    typeOfTerm (Reference.Builtin b) = read id "builtin-type-of" (mangle b)
 
     annotateTerm (Reference.Derived h) = write' "type-of" h
-    annotateTerm (Reference.Builtin b) = write id "builtin-type-of" b
+    annotateTerm (Reference.Builtin b) = write id "builtin-type-of" (mangle b)
 
     readMetadata (Reference.Derived h) = read' "metadata" h
-    readMetadata (Reference.Builtin b) = read id "builtin-metadata" b
+    readMetadata (Reference.Builtin b) = read id "builtin-metadata" (mangle b)
 
     writeMetadata (Reference.Derived h) = write' "metadata" h
-    writeMetadata (Reference.Builtin b) = write id "builtin-metadata" b
+    writeMetadata (Reference.Builtin b) = write id "builtin-metadata" (mangle b)
 
   in do
     Directory.createDirectoryIfMissing True (root </> "terms")

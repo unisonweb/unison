@@ -139,8 +139,8 @@ Vector.sum = Vector.fold-left (+) 0;
 Vector.dedup : ∀ a . Order a -> Vector a -> Vector a;
 Vector.dedup o v = Vector.dedup-adjacent (Order.equal o) (Vector.sort o v);
 
-Remote.map : ∀ a b . (a -> b) -> Remote a -> Remote b;
-Remote.map f = Remote.bind (f `and-then` Remote.pure);
+-- Remote.map : ∀ a b . (a -> b) -> Remote a -> Remote b;
+-- Remote.map f = Remote.bind (f `and-then` Remote.pure);
 
 Remote.map2 : ∀ a b c . (a -> b -> c) -> Remote a -> Remote b -> Remote c;
 Remote.map2 f a b = do Remote

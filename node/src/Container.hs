@@ -126,7 +126,7 @@ main = do
 loadDeclarations logger path node = do
   txt <- decodeUtf8 <$> B.readFile path
   let str = Text.unpack txt
-  r <- Note.run $ Codebase.declare' Term.ref str node
+  r <- Note.run $ Codebase.declare' str node
   L.info logger $ "loaded " ++ path
   L.debug' logger $ do
     ts <- Note.run $ Codebase.allTermsByVarName Term.ref node

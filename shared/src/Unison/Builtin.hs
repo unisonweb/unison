@@ -50,7 +50,7 @@ pair = Term.builtin "Pair"
 pair' :: Ord v => Term v -> Term v -> Term v
 pair' t1 t2 = pair `Term.app` t1 `Term.app` (pair `Term.app` t2 `Term.app` unitRef)
 
-make :: (Show v, Var v) => Logger -> [Builtin v]
+make :: Logger -> [Builtin V]
 make logger =
   let
     numeric2 :: Var v => (Double -> Double -> Double) -> I.Primop (N.Noted IO) v
@@ -127,23 +127,23 @@ make logger =
 
      -- Number
      , let r = R.Builtin "Number.+"
-       in (r, Just (numeric2 (+)), unsafeParseType "Number -> Number -> Number", prefix "+")
+       in (r, Just (numeric2 (+)), unsafeParseType "Number -> Number -> Number", assoc 4 "+")
      , let r = R.Builtin "Number.-"
-       in (r, Just (numeric2 (-)), unsafeParseType "Number -> Number -> Number", prefix "-")
+       in (r, Just (numeric2 (-)), unsafeParseType "Number -> Number -> Number", opl 4 "-")
      , let r = R.Builtin "Number.*"
-       in (r, Just (numeric2 (*)), unsafeParseType "Number -> Number -> Number", prefix "*")
+       in (r, Just (numeric2 (*)), unsafeParseType "Number -> Number -> Number", assoc 5 "*")
      , let r = R.Builtin "Number./"
-       in (r, Just (numeric2 (/)), unsafeParseType "Number -> Number -> Number", prefix "/")
+       in (r, Just (numeric2 (/)), unsafeParseType "Number -> Number -> Number", opl 5 "/")
      , let r = R.Builtin "Number.>"
-       in (r, Just (numericCompare (>)), unsafeParseType "Number -> Number -> Boolean", prefix "Number.>")
+       in (r, Just (numericCompare (>)), unsafeParseType "Number -> Number -> Boolean", opl 3 "Number.>")
      , let r = R.Builtin "Number.<"
-       in (r, Just (numericCompare (<)), unsafeParseType "Number -> Number -> Boolean", prefix "Number.<")
+       in (r, Just (numericCompare (<)), unsafeParseType "Number -> Number -> Boolean", opl 3 "Number.<")
      , let r = R.Builtin "Number.>="
-       in (r, Just (numericCompare (>=)), unsafeParseType "Number -> Number -> Boolean", prefix "Number.>=")
+       in (r, Just (numericCompare (>=)), unsafeParseType "Number -> Number -> Boolean", opl 3 "Number.>=")
      , let r = R.Builtin "Number.<="
-       in (r, Just (numericCompare (<=)), unsafeParseType "Number -> Number -> Boolean", prefix "Number.<=")
+       in (r, Just (numericCompare (<=)), unsafeParseType "Number -> Number -> Boolean", opl 3 "Number.<=")
      , let r = R.Builtin "Number.=="
-       in (r, Just (numericCompare (==)), unsafeParseType "Number -> Number -> Boolean", prefix "Number.==")
+       in (r, Just (numericCompare (==)), unsafeParseType "Number -> Number -> Boolean", opl 3 "Number.==")
      , let r = R.Builtin "Number.Order"
        in (r, Nothing, unsafeParseType "Order Number", prefix "Number.Order")
 

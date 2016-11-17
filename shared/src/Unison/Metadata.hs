@@ -46,6 +46,11 @@ firstName _ = Nothing
 allNames :: Names v -> [v]
 allNames (Names ns) = ns
 
+mangle :: Var v => Text -> Metadata v h -> Metadata v h
+mangle suffix md = md { names = tweak (names md) } where
+  tweak (Names ns) = Names (map addSuffix ns)
+  addSuffix v = Var.rename (Var.name v `mappend` suffix) v
+
 newtype Query = Query Text
 
 instance Show Query where

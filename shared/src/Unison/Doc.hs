@@ -233,6 +233,9 @@ textWidth = Width . fromIntegral . Text.length
 formatString :: Path p => Width -> Doc String p -> String
 formatString availableWidth d = renderString (layout stringWidth availableWidth d)
 
+formatText80 :: Path p => Doc Text p -> String
+formatText80 = formatText (Width 80)
+
 formatText :: Path p => Width -> Doc Text p -> String
 formatText availableWidth d =
   formatString availableWidth (emap Text.unpack d)

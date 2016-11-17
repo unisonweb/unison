@@ -11,6 +11,7 @@ cabal-dev
 **/build/**
 store
 codestore
+codebase
 tags
 unison-src/.loaded
 **cabal.sandbox.config

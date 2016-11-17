@@ -40,7 +40,7 @@ loadDeclarations path codebase = do
   -- directory is the shared subdir - so we check both locations
   txt <- decodeUtf8 <$> (B.readFile path <|> B.readFile (".." `FP.combine` path))
   let str = Text.unpack txt
-  _ <- Note.run $ Codebase.declare' Term.ref str codebase
+  _ <- Note.run $ Codebase.declare' str codebase
   putStrLn $ "loaded file: " ++ path
 
 codebase :: IO TCodebase
@@ -49,8 +49,9 @@ codebase = do
   (codebase, eval) <- MemCodebase.make logger
   loadDeclarations "unison-src/base.u" codebase
   symbols <- liftIO . Note.run $
-    Map.fromList . Codebase.references <$> Codebase.search codebase Term.blank [] 1000 (Metadata.Query "") Nothing
+    Map.fromList . Codebase.references <$> Codebase.search codebase Term.blank [] 10000 (Metadata.Query "") Nothing
   base <- Note.run $ Codebase.allTermsByVarName Term.ref codebase
+  putStrLn . show $ map fst base
   let firstName (Metadata.Names (n:_)) = n
   let lookupSymbol ref = maybe (defaultSymbol ref) (firstName . Metadata.names) (Map.lookup ref symbols)
   pure (codebase, lookupSymbol, base, eval)

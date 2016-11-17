@@ -22,6 +22,7 @@ annotate :: a -> Symbol b -> Symbol a
 annotate a (Symbol id name _) = Symbol id name a
 
 instance View op => Var (Symbol op) where
+  rename n (Symbol id _ a) = Symbol id n a
   name (Symbol _ n _) = n
   named n = Symbol 0 n View.prefix
   clear (Symbol id n _) = Symbol id n View.prefix

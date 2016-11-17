@@ -26,6 +26,7 @@ import qualified Data.Set as Set
 --
 class (Eq v, Ord v) => Var v where
   named :: Text -> v
+  rename :: Text -> v -> v
   name :: v -> Text
   clear :: v -> v
   qualifiedName :: v -> Text

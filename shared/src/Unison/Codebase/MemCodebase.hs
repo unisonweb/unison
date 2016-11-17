@@ -46,8 +46,8 @@ instance Hashable.Accumulate Hash where
 
 type V = Symbol.Symbol View.DFO
 
-make :: (Show v, Var v) => Logger
-     -> IO (Codebase IO v Reference (Type v) (Term v), Term v -> Noted IO (Term v))
+make :: Logger
+     -> IO (Codebase IO V Reference (Type V) (Term V), Term V -> Noted IO (Term V))
 make logger = do
   store <- MemStore.make :: IO (Store IO v)
   code <- pure $ Codebase.make hash store
