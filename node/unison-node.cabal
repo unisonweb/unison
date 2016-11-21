@@ -50,10 +50,10 @@ library
     Unison.Hash.Extra
     Unison.Kind.Extra
     Unison.Metadata.Extra
-    Unison.Node.UnisonBlockStore
+    Unison.Codebase.FileStore
+    Unison.Codebase.BlockStoreStore
     Unison.NodeContainer
-    Unison.NodeServer
-    Unison.NodeWorker
+    Unison.CodebaseServer
     Unison.NodeProtocol
     Unison.NodeProtocol.V0
     Unison.Reference.Extra
@@ -111,7 +111,7 @@ library
     directory,
     filepath,
     free,
-    hashable, 
+    hashable,
     http-types,
     io-streams,
     list-t,
@@ -120,6 +120,7 @@ library
     mtl,
     murmur-hash,
     network,
+    network-uri,
     network-simple,
     prelude-extras,
     process,
@@ -150,46 +151,9 @@ library
 
   if flag(leveldb)
     build-depends: exceptions, leveldb-haskell
+    cpp-options: -Dleveldb
     exposed-modules:
                     Unison.BlockStore.LevelDbStore
-
-executable worker
-  main-is: Worker.hs
-  hs-source-dirs: src
-  ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N -v0
-
-  if flag(optimized)
-    ghc-options: -funbox-strict-fields -O2
-
-  build-depends:
-    async,
-    base,
-    base64-bytestring,
-    bytes,
-    bytestring,
-    cereal,
-    containers,
-    configurator,
-    cryptonite,
-    curl,
-    free,
-    hashable,
-    list-t,
-    memory,
-    mmorph,
-    mtl,
-    stm,
-    stm-containers,
-    tagsoup,
-    text,
-    time,
-    transformers,
-    unison-node,
-    unison-shared,
-    vector
-
-  if flag(leveldb)
-    build-depends: exceptions, leveldb-haskell
 
 executable container
   main-is: Container.hs
@@ -223,11 +187,13 @@ executable container
     memory,
     mmorph,
     mtl,
+    network-uri,
     process,
     safecopy,
     scotty,
     stm,
     stm-containers,
+    tagsoup,
     text,
     time,
     transformers,
@@ -238,11 +204,87 @@ executable container
     wai-extra,
     wai-middleware-static
 
+  other-modules:
+    Unison.ABT.Extra,
+    Unison.BlockStore.FileBlockStore,
+    Unison.Config,
+    Unison.Distance.Extra,
+    Unison.Hash.Extra,
+    Unison.Kind.Extra,
+    Unison.NodeContainer,
+    Unison.NodeProtocol,
+    Unison.NodeProtocol.V0,
+    Unison.CodebaseServer,
+    Unison.NodeWorker,
+    Unison.Reference.Extra,
+    Unison.Remote.Extra,
+    Unison.Runtime.Block,
+    Unison.Runtime.ExpiringMap,
+    Unison.Runtime.Lock,
+    Unison.Runtime.Multiplex,
+    Unison.Runtime.Queue,
+    Unison.Runtime.Remote,
+    Unison.Runtime.SharedResourceMap,
+    Unison.SerializationAndHashing,
+    Unison.Symbol.Extra,
+    Unison.Term.Extra,
+    Unison.Type.Extra
+
   if flag(leveldb)
     build-depends: exceptions, leveldb-haskell
+    cpp-options: -Dleveldb
 
-executable node
-  main-is: Node.hs
+executable unison
+  main-is: Unison.hs
+  hs-source-dirs: src
+  ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N -v0
+
+  if flag(optimized)
+    ghc-options: -funbox-strict-fields -O2
+
+  build-depends:
+    acid-state,
+    aeson,
+    async,
+    attoparsec,
+    base,
+    base58-bytestring,
+    base64-bytestring,
+    bytes,
+    bytestring,
+    bytestring-trie,
+    cereal,
+    configurator,
+    containers,
+    cryptonite,
+    curl,
+    directory,
+    filepath,
+    free,
+    hashable,
+    list-t,
+    memory,
+    mmorph,
+    mtl,
+    murmur-hash,
+    network-uri,
+    process,
+    random,
+    safecopy,
+    stm,
+    stm-containers,
+    tagsoup,
+    temporary,
+    text,
+    time,
+    transformers,
+    unagi-chan,
+    unison-node,
+    unison-shared,
+    vector
+
+executable codebase
+  main-is: Codebase.hs
   hs-source-dirs: src
   ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N -v0
 
@@ -260,6 +302,7 @@ executable node
     byteable,
     bytes,
     bytestring,
+    bytestring-trie,
     cereal,
     containers,
     ctrie,
@@ -274,6 +317,7 @@ executable node
     memory,
     mtl,
     murmur-hash,
+    network-uri,
     prelude-extras,
     random,
     safecopy,
@@ -289,6 +333,29 @@ executable node
     vector,
     wai-extra,
     wai-middleware-static
+  other-modules:
+    Unison.ABT.Extra,
+    Unison.BlockStore.FileBlockStore,
+    Unison.Distance.Extra,
+    Unison.Hash.Extra,
+    Unison.Kind.Extra,
+    Unison.Codebase.FileStore,
+    Unison.CodebaseServer,
+    Unison.Reference.Extra,
+    Unison.Remote.Extra,
+    Unison.Runtime.Address,
+    Unison.Runtime.Block,
+    Unison.Runtime.ExtraBuiltins,
+    Unison.Runtime.Html,
+    Unison.Runtime.Http,
+    Unison.Runtime.Index,
+    Unison.Runtime.Journal,
+    Unison.Runtime.JournaledMap,
+    Unison.Runtime.ResourcePool,
+    Unison.SerializationAndHashing,
+    Unison.Symbol.Extra,
+    Unison.Term.Extra,
+    Unison.Type.Extra
 
   if flag(leveldb)
     build-depends: exceptions, leveldb-haskell
@@ -309,6 +376,7 @@ test-suite tests
     ctrie,
     curl,
     directory,
+    filepath,
     hashable,
     random,
     stm,
@@ -322,6 +390,16 @@ test-suite tests
     unison-node,
     unison-shared,
     vector
+  other-modules:
+    Unison.Test.BlockStore,
+    Unison.Test.BlockStore.FileBlockStore,
+    Unison.Test.BlockStore.MemBlockStore,
+    Unison.Test.Html,
+    Unison.Test.Index,
+    Unison.Test.Journal,
+    Unison.Test.Util,
+    Unison.Test.ResourcePool,
+    Unison.Test.SerializationAndHashing
 
   if flag(leveldb)
     build-depends: exceptions, leveldb-haskell

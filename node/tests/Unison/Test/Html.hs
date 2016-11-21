@@ -4,11 +4,12 @@ module Unison.Test.Html where
 import Data.Text (pack)
 import Test.Tasty
 import Test.Tasty.HUnit
+import Unison.Note (Noted)
 import Unison.Parsers (unsafeParseTerm)
 import Unison.Runtime.Html as Html
-import Unison.Test.NodeUtil
+import Unison.Test.Util
 import qualified Data.Vector as Vector
-import qualified Unison.Node as Node
+import qualified Unison.Codebase as Codebase
 import qualified Unison.Note as Note
 import qualified Unison.Paths as P
 import qualified Unison.Reference as R
@@ -33,29 +34,33 @@ numlinks = let found = getLinks $ pack testHTML in if 3 == length found
   then pure ()
   else fail $ "expected 3 links, got " ++ show found
 
+plainText :: Assertion
+plainText = let expected = "simple linkInside one Inside other outside one inside list Empty link"
+                result = toPlainText $ pack testHTML
+            in if expected == result
+               then pure ()
+               else fail $ "got unclean html: " ++ show result
+
 tests :: TestTree
 tests = testGroup "html"
   [ testCase "numlinks" numlinks
   ]
 
--- evaluateTerms :: [(Path, e)] -> Noted m [(Path,e,e)],
-unisonEvaluate :: TestNode -> Assertion
-unisonEvaluate testNode = do
-  let inputPath = [P.Fn]
-      getLinksTerm = unsafeParseTerm $ "getLinks \"" ++ testHTML2 ++ "\""
+run :: (TestCodebase, String -> TermV, TermV -> Noted IO TermV) -> Assertion
+run (codebase, parse, eval) = do
+  let getLinksTerm = parse $ "Html.get-links \"" ++ testHTML2 ++ "\""
       linkTerm = EB.link (Term.text "link.html") (Term.text "description")
-      getLink = Term.ref (R.Builtin "Html.getHref") `Term.app` linkTerm
-      getDescription = Term.ref (R.Builtin "Html.getDescription") `Term.app` linkTerm
+      getLink = Term.ref (R.Builtin "Html.get-href") `Term.app` linkTerm
+      getDescription = Term.ref (R.Builtin "Html.get-description") `Term.app` linkTerm
       desiredLinks = Term.vector [linkTerm]
       desiredHref = Term.text "link.html"
       desiredDescription = Term.text "description"
-      result = Node.evaluateTerms testNode
-        [(inputPath, getLinksTerm), (inputPath, getLink), (inputPath, getDescription)]
+      result = traverse eval [getLinksTerm, getLink, getDescription]
   evaluatedResult <- Note.unnote result
 
   case evaluatedResult of
     Left n -> fail $ "could not evaluate " ++ show n
-    Right [(_,_,links), (_,_,href), (_,_,description)] ->
+    Right [links, href, description] ->
       if links == desiredLinks && href == desiredHref && description == desiredDescription
       then pure ()
       else fail $ concat
@@ -64,8 +69,14 @@ unisonEvaluate testNode = do
         , "description match ", show (description == desiredDescription)
         ]
 
-nodeTests :: TestNode -> TestTree
-nodeTests testNode = testGroup "html"
+tests' :: (TestCodebase, String -> TermV, TermV -> Noted IO TermV) -> TestTree
+tests' codebase = testGroup "html"
   [ testCase "numlinks" numlinks
-  , testCase "unisonEvaluate" (unisonEvaluate testNode)
+  , testCase "plainText" plainText
+  , testCase "run" (run codebase)
   ]
+
+main :: IO ()
+main = do
+  codebase <- makeTestCodebase
+  defaultMain (tests' codebase)

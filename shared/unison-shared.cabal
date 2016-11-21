@@ -4,12 +4,12 @@ version:       0.1
 license:       MIT
 cabal-version: >= 1.8
 license-file:  LICENSE
-author:        Paul Chiusano 
+author:        Paul Chiusano
 maintainer:    Paul Chiusano <paul.chiusano@gmail.com>
 stability:     provisional
 homepage:      http://unisonweb.org
 bug-reports:   https://github.com/unisonweb/platform/issues
-copyright:     Copyright (C) 2013 Paul Chiusano and contributors 
+copyright:     Copyright (C) 2013 Paul Chiusano and contributors
 synopsis:      The Unison programming language and platform
 description:   Shared code between node and editor
 
@@ -35,24 +35,22 @@ library
 
   exposed-modules:
     Unison.ABT
+    Unison.Builtin
     Unison.BlockStore
     Unison.Cryptography
     Unison.Dimensions
     Unison.Distance
     Unison.Doc
-    Unison.Eval
-    Unison.Eval.Interpreter
     Unison.Hash
     Unison.Hashable
+    Unison.Interpreter
     Unison.JSON
     Unison.Kind
     Unison.Metadata
-    Unison.Node
-    Unison.Node.BasicNode
-    Unison.Node.Builtin
-    Unison.Node.MemNode
-    Unison.Node.MemStore
-    Unison.Node.Store
+    Unison.Codebase
+    Unison.Codebase.MemCodebase
+    Unison.Codebase.MemStore
+    Unison.Codebase.Store
     Unison.Note
     Unison.Parser
     Unison.Parsers
@@ -111,7 +109,9 @@ test-suite tests
   other-modules:
   build-depends:
     base,
+    bytestring,
     containers,
+    filepath,
     tasty,
     tasty-hunit,
     tasty-smallcheck,

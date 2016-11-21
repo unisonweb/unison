@@ -100,8 +100,10 @@ data Local t
   | CreateChannel
   -- here : Local Node
   | Here
-  -- receiveAsync : Channel a -> Local (Local a)
-  | ReceiveAsync Channel Timeout
+  -- sleep : Duration -> Local ()
+  | Sleep Duration
+  -- receiveAsync : Channel a -> Duration -> Local (Local a)
+  | ReceiveAsync Channel Duration
   -- receive : Channel a -> Local a
   | Receive Channel
   -- send : Channel a -> a -> Local ()
@@ -121,16 +123,17 @@ instance Hashable1 Local where
     Receive c -> [tag 4, H.accumulateToken c]
     Send c t -> [tag 5, H.accumulateToken c, hashed t]
     Spawn -> [tag 6]
-    Pure t -> [tag 7, hashed t]
+    Sleep (Seconds d) -> [tag 7, H.Double d]
+    Pure t -> [tag 8, hashed t]
     where
       tag = H.Tag
       hashed1 = H.Hashed . (H.hash1 hashCycle hash)
       hashed = H.Hashed . hash
 
-newtype Timeout = Seconds { seconds :: Double } deriving (Eq,Ord,Show,Generic)
-instance ToJSON Timeout
-instance FromJSON Timeout
-instance Hashable Timeout where
+newtype Duration = Seconds { seconds :: Double } deriving (Eq,Ord,Show,Generic)
+instance ToJSON Duration
+instance FromJSON Duration
+instance Hashable Duration where
   tokens (Seconds seconds) = [H.Double seconds]
 
 
@@ -168,7 +171,10 @@ instance Hashable Node where
 instance Show Node where
   show (Node host key) = "http://" ++ Text.unpack host ++ "/" ++ Text.unpack (decodeUtf8 (Base64.encode key))
 
-newtype Channel = Channel ByteString deriving (Eq,Ord,Generic,Show)
+newtype Channel = Channel ByteString deriving (Eq,Ord,Generic)
+instance Show Channel where
+  show (Channel id) = Text.unpack (decodeUtf8 (Base64.encode id))
+
 instance ToJSON Channel where toJSON (Channel c) = toJSON (decodeUtf8 (Base64.encode c))
 
 instance FromJSON Channel where

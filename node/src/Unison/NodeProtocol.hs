@@ -53,17 +53,17 @@ data Protocol term signature hash thash =
 blockStoreProxy :: (Serial hash) => Protocol term signature hash thash -> Mux.Multiplex (BlockStore hash)
 blockStoreProxy p = go <$> Mux.ask
   where
-  timeout = 5000000 :: Mux.Microseconds
+  timeout = Mux.seconds 25
   go env =
     let
-      mt :: (Serial a, Serial b) => Request a b -> a -> IO b
-      mt chan a = Mux.run env . join $ Mux.requestTimed timeout chan a
-      insert bytes = mt (_insert p) bytes
-      lookup h = mt (_lookup p) h
-      declare series = mt (_declare p) series
-      delete series = mt (_delete p) series
-      update series h bytes = mt (_update p) (series,h,bytes)
-      append series h bytes = mt (_append p) (series,h,bytes)
-      resolve series = mt (_resolve p) series
-      resolves series = mt (_resolves p) series
+      mt :: (Serial a, Serial b) => String -> Request a b -> a -> IO b
+      mt msg chan a = Mux.run env . join $ Mux.requestTimed msg timeout chan a
+      insert bytes = mt "BlockStore.insert" (_insert p) bytes
+      lookup h = mt "BlockStore.lookup" (_lookup p) h
+      declare series = mt "BlockStore.declare" (_declare p) series
+      delete series = mt "BlockStore.delete" (_delete p) series
+      update series h bytes = mt "BlockStore.update" (_update p) (series,h,bytes)
+      append series h bytes = mt "BlockStore.append" (_append p) (series,h,bytes)
+      resolve series = mt "BlockStore.resolve" (_resolve p) series
+      resolves series = mt "BlockStore.resolves" (_resolves p) series
     in BlockStore insert lookup declare delete update append resolve resolves

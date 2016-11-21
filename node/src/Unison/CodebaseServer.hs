@@ -2,13 +2,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Unison.NodeServer where
+module Unison.CodebaseServer where
 
 import Control.Monad.IO.Class
 import Data.Aeson (ToJSON, FromJSON)
 import Network.HTTP.Types.Method (StdMethod(OPTIONS))
 import Unison.Hash (Hash)
-import Unison.Node (Node)
+import Unison.Codebase (Codebase)
 import Unison.Note (Noted, unnote)
 import Unison.Reference (Reference)
 import Unison.Term (Term)
@@ -23,7 +23,7 @@ import qualified Data.Map as M
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TLE
 import qualified Unison.Hash as H
-import qualified Unison.Node as N
+import qualified Unison.Codebase as C
 import qualified Web.Scotty as S
 import Network.Wai.Middleware.Static
 import Network.Wai.Middleware.RequestLogger (logStdoutDev)
@@ -61,81 +61,77 @@ route action = do
 postRoute :: S.RoutePattern -> ActionM () -> S.ScottyM ()
 postRoute s action = S.post s (route action)
 
-server :: (Ord v, ToJSON v, FromJSON v) => Int -> Node IO v Reference (Type v) (Term v) -> IO ()
-server port node = S.scotty port $ do
+server :: (Ord v, ToJSON v, FromJSON v) => Int -> Codebase IO v Reference (Type v) (Term v) -> IO ()
+server port codebase = S.scotty port $ do
   S.middleware logStdoutDev
   S.middleware $ staticPolicy (noDots >-> addBase "./editor")
   S.get "/" $ S.file "./editor/editor.html"
   S.addroute OPTIONS (S.regex ".*") $ originOptions
   postRoute "/admissible-type-at" $ do
     (h, path) <- S.jsonData
-    t <- runN $ N.admissibleTypeAt node h path
+    t <- runN $ C.admissibleTypeAt codebase h path
     S.json t
   postRoute "/create-term" $ do
     (e, md) <- S.jsonData
-    k <- runN $ N.createTerm node e md
+    k <- runN $ C.createTerm codebase e md
     S.json k
   postRoute "/create-type" $ do
     (t, md) <- S.jsonData
-    k <- runN $ N.createType node t md
+    k <- runN $ C.createType codebase t md
     S.json k
   postRoute "/dependencies" $ do
     (limit, h) <- S.jsonData
-    k <- runN $ N.dependencies node limit h
+    k <- runN $ C.dependencies codebase limit h
     S.json k
   postRoute "/dependents" $ do
     (limit, h) <- S.jsonData
-    k <- runN $ N.dependents node limit h
+    k <- runN $ C.dependents codebase limit h
     S.json k
   postRoute "/edit-term" $ do
     (rootLoc, loc, a, e) <- S.jsonData
-    e <- runN $ N.editTerm node rootLoc loc a e
-    S.json e
-  postRoute "/evaluate-terms" $ do
-    es <- S.jsonData
-    e <- runN $ N.evaluateTerms node es
+    e <- runN $ C.editTerm codebase rootLoc loc a e
     S.json e
   postRoute "/local-info" $ do
     (e, path) <- S.jsonData
-    t <- runN $ N.localInfo node e path
+    t <- runN $ C.localInfo codebase e path
     S.json t
   postRoute "/metadatas" $ do
     hs <- S.jsonData
-    md <- runN $ N.metadatas node hs
+    md <- runN $ C.metadatas codebase hs
     S.json md
   postRoute "/search" $ do
     (e,path,limit,q,t) <- S.jsonData
-    es <- runN $ N.search node e path limit q t
+    es <- runN $ C.search codebase e path limit q t
     S.json es
   postRoute "/terms" $ do
     hs <- S.jsonData
-    r <- runN $ N.terms node hs
+    r <- runN $ C.terms codebase hs
     S.json r
   postRoute "/transitive-dependencies" $ do
     (limit,h) <- S.jsonData
-    s <- runN $ N.transitiveDependencies node limit h
+    s <- runN $ C.transitiveDependencies codebase limit h
     S.json s
   postRoute "/transitive-dependents" $ do
     (limit,h) <- S.jsonData
-    s <- runN $ N.transitiveDependents node limit h
+    s <- runN $ C.transitiveDependents codebase limit h
     S.json s
   postRoute "/types" $ do
     hs <- S.jsonData
-    ts <- runN $ N.types node hs
+    ts <- runN $ C.types codebase hs
     S.json ts
   postRoute "/type-at" . route $ do
     (h,loc) <- S.jsonData
-    s <- runN $ N.typeAt node h loc
+    s <- runN $ C.typeAt codebase h loc
     S.json s
   postRoute "/update-metadata" $ do
     (h,md) <- S.jsonData
-    s <- runN $ N.updateMetadata node h md
+    s <- runN $ C.updateMetadata codebase h md
     S.json s
   S.defaultHandler $ \msg -> originPolicy *> S.raise msg
   {-
   postRoute "/type-of-constructor-argument" $ do
     (h,loc) <- S.jsonData
-    s <- runN $ N.typeOf node h loc
+    s <- runN $ C.typeOf codebase h loc
     S.json s
   -}
 

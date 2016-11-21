@@ -15,6 +15,7 @@ import Control.Monad
 import Data.Aeson.TH
 import Data.Aeson (ToJSON, FromJSON)
 import Data.List (foldl')
+import Data.Map (Map)
 import Data.Set (Set, union)
 import Data.Text (Text)
 import Data.Vector (Vector)
@@ -30,6 +31,7 @@ import Unison.Var (Var)
 import Unsafe.Coerce
 import qualified Control.Monad.Writer.Strict as Writer
 import qualified Data.Aeson as Aeson
+import qualified Data.Map as Map
 import qualified Data.Monoid as Monoid
 import qualified Data.Set as Set
 import qualified Data.Vector as Vector
@@ -45,11 +47,13 @@ import qualified Unison.Remote as Remote
 data Literal
   = Number Double
   | Text Text
+  | If
   deriving (Eq,Ord,Generic)
 
 instance Hashable Literal where
   tokens (Number d) = [Hashable.Tag 0, Hashable.Double d]
   tokens (Text txt) = [Hashable.Tag 1, Hashable.Text txt]
+  tokens If = [Hashable.Tag 2]
 
 -- | Base functor for terms in the Unison language
 data F v a
@@ -119,6 +123,7 @@ pattern Var' v <- ABT.Var' v
 pattern Lit' l <- (ABT.out -> ABT.Tm (Lit l))
 pattern Number' n <- Lit' (Number n)
 pattern Text' s <- Lit' (Text s)
+pattern If' <- Lit' If
 pattern Blank' <- (ABT.out -> ABT.Tm Blank)
 pattern Ref' r <- (ABT.out -> ABT.Tm (Ref r))
 pattern Builtin' r <- (ABT.out -> ABT.Tm (Ref (Builtin r)))
@@ -191,6 +196,9 @@ channel c = ABT.tm (Distributed (Channel c))
 vector :: Ord v => [Term v] -> Term v
 vector es = ABT.tm (Vector (Vector.fromList es))
 
+vectorForced :: Ord v => [Term v] -> Term v
+vectorForced = app (builtin "Vector.force") . vector
+
 vector' :: Ord v => Vector (Term v) -> Term v
 vector' es = ABT.tm (Vector es)
 
@@ -259,6 +267,14 @@ unApps t = case go t [] of [] -> Nothing; f:args -> Just (f,args)
   go _ [] = []
   go fn args = fn:args
 
+pattern LamsNamed' vs body <- (unLams' -> Just (vs, body))
+
+unLams' :: Term v -> Maybe ([v], Term v)
+unLams' (LamNamed' v body) = case unLams' body of
+  Nothing -> Just ([v], body)
+  Just (vs, body) -> Just (v:vs, body)
+unLams' _ = Nothing
+
 dependencies' :: Ord v => Term v -> Set Reference
 dependencies' t = Set.fromList . Writer.execWriter $ ABT.visit' f t
   where f t@(Ref r) = Writer.tell [r] *> pure t
@@ -267,19 +283,15 @@ dependencies' t = Set.fromList . Writer.execWriter $ ABT.visit' f t
 dependencies :: Ord v => Term v -> Set Hash
 dependencies e = Set.fromList [ h | Reference.Derived h <- Set.toList (dependencies' e) ]
 
+updateDependencies :: Ord v => Map Reference Reference -> Term v -> Term v
+updateDependencies u tm = ABT.rebuildUp go tm where
+  go (Ref r) = Ref (Map.findWithDefault r r u)
+  go f = f
+
 countBlanks :: Ord v => Term v -> Int
 countBlanks t = Monoid.getSum . Writer.execWriter $ ABT.visit' f t
   where f Blank = Writer.tell (Monoid.Sum (1 :: Int)) *> pure Blank
         f t = pure t
-
--- | Convert all 'Ref' constructors to the corresponding term
-link :: (Applicative f, Monad f, Var v) => (Hash -> f (Term v)) -> Term v -> f (Term v)
-link env e =
-  let ds = map (\h -> (h, link env =<< env h)) (Set.toList (dependencies e))
-      sub e (h, ft) = replace <$> ft
-        where replace t = ABT.replace ((==) rt) t e
-              rt = ref (Reference.Derived h)
-  in foldM sub e ds
 
 -- | If the outermost term is a function application,
 -- perform substitution of the argument into the body
@@ -334,6 +346,7 @@ instance (Ord v, FromJSON v) => J.FromJSON1 (F v) where parseJSON1 j = Aeson.par
 
 instance Show Literal where
   show (Text t) = show t
+  show If = "if"
   show (Number n) = case floor n of
     m | fromIntegral m == n -> show (m :: Int)
     _ -> show n

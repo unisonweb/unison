@@ -14,8 +14,8 @@ import Data.Maybe
 import Data.Semigroup
 import Reflex.Dom
 import Unison.Metadata (Metadata,Query(..))
-import Unison.Node (Node,SearchResults,LocalInfo)
-import Unison.Node.MemNode (V)
+import Unison.Codebase (Codebase,SearchResults,LocalInfo)
+import Unison.Codebase.MemCodebase (V)
 import Unison.Paths (Path)
 import Unison.Reference (Reference)
 import Unison.Symbol (Symbol)
@@ -28,7 +28,7 @@ import qualified Unison.Doc as Doc
 import qualified Unison.DocView as DocView
 import qualified Unison.Explorer as Explorer
 import qualified Unison.TermSearchboxParser as TermSearchboxParser
-import qualified Unison.Node as Node
+import qualified Unison.Codebase as Codebase
 import qualified Unison.Note as Note
 import qualified Unison.Parser as Parser
 import qualified Unison.Signals as Signals
@@ -55,15 +55,15 @@ data Action
   | Eval Path
 
 make :: forall t m . (MonadWidget t m, Reflex t)
-     => Node IO V Reference (Type V) (Term V)
+     => Codebase IO V Reference (Type V) (Term V)
      -> Event t Int
      -> Behavior t S
      -> Behavior t Path
      -> Behavior t (Term V)
      -> m (Event t S, Event t (Maybe (Action,Advance)))
-make node keydown s paths terms =
+make codebase keydown s paths terms =
   let
-    formatLocalInfo Node.LocalInfo{..} = do
+    formatLocalInfo Codebase.LocalInfo{..} = do
       name <- Views.lookupSymbol . metadata <$> sample s
       let width = Dimensions.Width 380
       elClass "div" "explorer-local-info" $ do
@@ -75,8 +75,8 @@ make node keydown s paths terms =
           traverse (elClass "div" "localVariable" . DocView.view width . Views.term name) localVariables
         pure ()
     parse _ _ Nothing _ = []
-    parse lookup path (Just (Node.LocalInfo{..})) txt = case Parser.run TermSearchboxParser.term txt of
-      Parser.Succeed ts n _ | all (\c -> c == ' ' || c == ',') (drop n txt) ->
+    parse lookup path (Just (Codebase.LocalInfo{..})) txt = case Parser.run TermSearchboxParser.term txt () of
+      Parser.Succeed ts _ n | all (\c -> c == ' ' || c == ',') (drop n txt) ->
         ts >>= \tm ->
           if isValid tm localAdmissibleType
           then [formatResult lookup tm (Replace path tm, Still) Right]
@@ -95,7 +95,7 @@ make node keydown s paths terms =
           let
             f txt = do
               term <- sample terms; path <- sample paths; info <- sample localInfoB
-              let g info = Node.search node term path 10 (Query (Text.pack txt)) (Just (Node.localAdmissibleType info))
+              let g info = Codebase.search codebase term path 10 (Query (Text.pack txt)) (Just (Codebase.localAdmissibleType info))
               pure $ g <$> info
             searchEvents = push f triggeringTxt
           in Signals.evaluate Note.run searchEvents
@@ -113,8 +113,8 @@ make node keydown s paths terms =
               complete <- fromMaybe False . fmap resultsComplete <$> pure lastResults
               alreadyRunning <- sample searchOutstanding
               let unQuery (Query q) = Text.unpack q
-              let oldQuery = maybe "" (unQuery . Node.query) lastResults
-              let examined = maybe [] Node.positionsExamined lastResults
+              let oldQuery = maybe "" (unQuery . Codebase.query) lastResults
+              let examined = maybe [] Codebase.positionsExamined lastResults
               -- No need to repeat searches if a prior search returned complete
               -- results and we haven't touched any of the characters used for prior search
               let untouched = findIndices (uncurry (==)) (oldQuery `zip` txt') == examined
@@ -128,7 +128,7 @@ make node keydown s paths terms =
         let trimEnd = reverse . dropWhile (== ' ') . reverse
         let f possible lits txt = let txt' = trimEnd txt in lits ++ filter (isSubsequenceOf txt' . fst) possible
         filtered <- pure $ f <$> keyed <*> literals <*> current txt
-        let outputS = S . Map.fromList . Node.references <$> searchResultE
+        let outputS = S . Map.fromList . Codebase.references <$> searchResultE
         _ <- widgetHold (pure ()) (formatLocalInfo <$> localInfo)
         ticks <- Signals.guard $ leftmost [void localInfo, void $ updated txt, void searchResultE]
         pure $
@@ -148,16 +148,16 @@ make node keydown s paths terms =
   do
     localInfo <- do
       p <- sample paths; t <- sample terms
-      Signals.later (Note.run (Node.localInfo node t p))
+      Signals.later (Note.run (Codebase.localInfo codebase t p))
     Explorer.explorer keydown (processQuery localInfo) s
 
 queryString :: Query -> String
 queryString (Query s) = Text.unpack s
 
-additionalResults :: Node.SearchResults v h e -> Int
-additionalResults = snd . Node.matches
+additionalResults :: Codebase.SearchResults v h e -> Int
+additionalResults = snd . Codebase.matches
 
-resultsComplete :: Node.SearchResults v h e -> Bool
+resultsComplete :: Codebase.SearchResults v h e -> Bool
 resultsComplete = (==0) . additionalResults
 
 formatResult :: MonadWidget t m
@@ -177,7 +177,7 @@ formatLocals name path results = fromMaybe [] $ go <$> results
   view localType 0 = Term.var' "□" `Term.ann` localType
   view _ n = Term.var' "□" `Term.apps` replicate n Term.blank
   replace localTerm n = localTerm `Term.apps` replicate n Term.blank
-  go (Node.LocalInfo {..}) =
+  go (Codebase.LocalInfo {..}) =
     [ formatResult name e ((Replace path e),Still) Right | e <- localVariableApplications ] ++
     [ formatResult name (view localType n) (Replace path (replace localTerm n),Still) Right | n <- localOverapplications ]
 
@@ -188,7 +188,7 @@ formatSearch :: MonadWidget t m
              -> [(String, Either (m ()) (m (Action,Advance)))]
 formatSearch name path results = fromMaybe [] $ go <$> results
   where
-  go (Node.SearchResults {..}) =
+  go (Codebase.SearchResults {..}) =
     [ formatResult name e () Left | e <- fst illTypedMatches ] ++
     [ formatResult name e (Replace path e,Still) Right | e <- fst matches ]
 

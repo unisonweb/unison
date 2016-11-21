@@ -5,7 +5,7 @@ import System.Random
 import Test.QuickCheck
 import Test.QuickCheck.Random
 import Test.Tasty
-import Unison.Test.NodeUtil
+import Unison.Test.Util
 import qualified Unison.Test.BlockStore.FileBlockStore as FBS
 #ifdef leveldb
 import qualified Unison.Test.BlockStore.LevelDbStore as LBS
@@ -25,10 +25,10 @@ tastyTests = do
   mbsTests <- MBS.ioTests
   journalTests <- J.ioTests
   cryptoTests <- Crypto.ioTests
-  testNode <- makeTestNode
+  codebase <- makeTestCodebase
   pure $ testGroup "unison"
         [ ResourcePool.tests
-        , Html.nodeTests testNode
+        , Html.tests' codebase
         , mbsTests
         , cryptoTests
         , FBS.tests
@@ -49,4 +49,3 @@ runWithSeed s = do
   let args = stdArgs { replay = Just (mkQCGen (s + 1), s * 2)}
   props <- MBS.justQuickcheck
   mapM_ quickCheck props
-

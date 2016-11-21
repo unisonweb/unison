@@ -1,3 +1,7 @@
+{-# Language DeriveFunctor #-}
+{-# Language DeriveTraversable #-}
+{-# Language DeriveFoldable #-}
+
 module Unison.Parser where
 
 import Control.Applicative
@@ -8,54 +12,70 @@ import Data.Maybe
 import Prelude hiding (takeWhile)
 import qualified Data.Char as Char
 import qualified Prelude
+import Debug.Trace
 
-newtype Parser a = Parser { run :: String -> Result a }
+data Env s =
+  Env { overallInput :: String
+      , offset :: !Int
+      , state :: !s
+      , currentInput :: String } -- always just `drop offset overallInput`
 
-root :: Parser a -> Parser a
-root p = many (whitespace1 <|> haskellLineComment) *> (p <* eof)
+newtype Parser s a = Parser { run' :: Env s -> Result s a }
 
-eof :: Parser ()
-eof = Parser $ \s -> case s of
-  [] -> Succeed () 0 False
-  _ -> Fail [Prelude.takeWhile (/= '\n') s, "expected eof, got"] False
+root :: Parser s a -> Parser s a
+root p = ignored *> (p <* (optional semicolon <* eof))
 
-attempt :: Parser a -> Parser a
-attempt p = Parser $ \s -> case run p s of
+semicolon :: Parser s ()
+semicolon = void $ token (char ';')
+
+semicolon2 :: Parser s ()
+semicolon2 = semicolon *> semicolon
+
+eof :: Parser s ()
+eof = Parser $ \env -> case (currentInput env) of
+  [] -> Succeed () (state env) 0
+  _ -> Fail [Prelude.takeWhile (/= '\n') (currentInput env), "expected eof"] False
+
+attempt :: Parser s a -> Parser s a
+attempt p = Parser $ \s -> case run' p s of
    Fail stack _ -> Fail stack False
-   Succeed a n _ -> Succeed a n False
+   succeed -> succeed
 
-unsafeRun :: Parser a -> String -> a
-unsafeRun p s = case toEither $ run p s of
+run :: Parser s a -> String -> s -> Result s a
+run p s s0 = run' p (Env s 0 s0 s)
+
+unsafeRun :: Parser s a -> String -> s -> a
+unsafeRun p s s0 = case toEither $ run p s s0 of
   Right a -> a
   Left e -> error ("Parse error:\n" ++ e)
 
-unsafeGetSucceed :: Result a -> a
+unsafeGetSucceed :: Result s a -> a
 unsafeGetSucceed r = case r of
   Succeed a _ _ -> a
   Fail e _ -> error (unlines ("Parse error:":e))
 
-string :: String -> Parser String
-string s = Parser $ \input ->
-  if s `isPrefixOf` input then Succeed s (length s) False
-  else Fail ["expected '" ++ s ++ "', got " ++ takeLine input] False
+string :: String -> Parser s String
+string s = Parser $ \env ->
+  if s `isPrefixOf` (currentInput env) then Succeed s (state env) (length s)
+  else Fail ["expected " ++ s ++ ", got " ++ takeLine (currentInput env)] False
 
 takeLine :: String -> String
 takeLine = Prelude.takeWhile (/= '\n')
 
-char :: Char -> Parser Char
-char c = Parser $ \input ->
-  if listToMaybe input == Just c then Succeed c 1 False
-  else Fail [] False
+char :: Char -> Parser s Char
+char c = Parser $ \env ->
+  if listToMaybe (currentInput env) == Just c then Succeed c (state env) 1
+  else Fail ["expected " ++ show c ++ ", got " ++ takeLine (currentInput env)] False
 
-one :: (Char -> Bool) -> Parser Char
-one f = Parser $ \s -> case s of
-  (h:_) | f h -> Succeed h 1 False
+one :: (Char -> Bool) -> Parser s Char
+one f = Parser $ \env -> case (currentInput env) of
+  (h:_) | f h -> Succeed h (state env) 1
   _ -> Fail [] False
 
-base64string' :: String -> Parser String
+base64string' :: String -> Parser s String
 base64string' alphabet = concat <$> many base64group
   where
-    base64group :: Parser String
+    base64group :: Parser s String
     base64group = do
       chars <- some $ one (`elem` alphabet)
       padding <- sequenceA (replicate (padCount $ length chars) (char '='))
@@ -63,122 +83,148 @@ base64string' alphabet = concat <$> many base64group
     padCount :: Int -> Int
     padCount len = case len `mod` 4 of 0 -> 0; n -> 4 - n
 
-base64urlstring :: Parser String
+base64urlstring :: Parser s String
 base64urlstring = base64string' $ ['A' .. 'Z'] ++ ['a' .. 'z'] ++ ['0' .. '9'] ++ "-_"
 
 notReservedChar :: Char -> Bool
 notReservedChar = (`notElem` "\".,`[]{}:;()")
 
-identifier :: [String -> Bool] -> Parser String
+identifier :: [String -> Bool] -> Parser s String
 identifier = identifier' [not . isSpace, notReservedChar]
 
-identifier' :: [Char -> Bool] -> [String -> Bool] -> Parser String
+identifier' :: [Char -> Bool] -> [String -> Bool] -> Parser s String
 identifier' charTests stringTests = do
   i <- takeWhile1 "identifier" (\c -> all ($ c) charTests)
   guard (all ($ i) stringTests)
   pure i
 
-token :: Parser a -> Parser a
-token p = p <* many (whitespace1 <|> haskellLineComment)
+-- a wordyId isn't all digits, isn't all symbols, and isn't a symbolyId
+wordyId :: [String] -> Parser s String
+wordyId keywords = do
+  op <- (False <$ symbolyId keywords) <|> pure True
+  guard op
+  token $ f <$> sepBy1 dot id
+  where
+    dot = char '.'
+    id = identifier [any (not . Char.isDigit), any Char.isAlphaNum, (`notElem` keywords)]
+    f segs = intercalate "." segs
 
-haskellLineComment :: Parser ()
+-- a symbolyId is all symbols
+symbolyId :: [String] -> Parser s String
+symbolyId keywords = scope "operator" . token $ do
+  op <- identifier'
+    [notReservedChar, (/= '_'), not . Char.isSpace, \c -> Char.isSymbol c || Char.isPunctuation c]
+    [(`notElem` keywords)]
+  qual <- optional (char '_' *> wordyId keywords)
+  pure $ maybe op (\qual -> qual ++ "." ++ op) qual
+
+token :: Parser s a -> Parser s a
+token p = p <* ignored
+
+haskellLineComment :: Parser s ()
 haskellLineComment = void $ string "--" *> takeWhile "-- comment" (/= '\n')
 
-lineErrorUnless :: String -> Parser a -> Parser a
-lineErrorUnless s p = commitFail $ Parser $ \input -> case run p input of
-    Fail e b -> Fail (s:m:e) b
-      where m = "near \'" ++ Prelude.takeWhile (/= '\n') input ++ "\'"
-    ok -> ok
+lineErrorUnless :: String -> Parser s a -> Parser s a
+lineErrorUnless s = commit . scope s
 
-parenthesized :: Parser a -> Parser a
+currentLine' :: Env s -> String
+currentLine' (Env overall i s cur) = before ++ restOfLine where
+  -- this grabs the current line up to current offset, i
+  before = reverse . Prelude.takeWhile (/= '\n') . reverse . take i $ overall
+  restOfLine = Prelude.takeWhile (/= '\n') cur
+
+currentLine :: Parser s String
+currentLine = Parser $ \env -> Succeed (currentLine' env) (state env) 0
+
+parenthesized :: Parser s a -> Parser s a
 parenthesized p = lp *> body <* rp
   where
     lp = token (char '(')
     body = p
     rp = lineErrorUnless "missing )" $ token (char ')')
 
-takeWhile :: String -> (Char -> Bool) -> Parser String
-takeWhile msg f = scope msg . Parser $ \s ->
-  let hd = Prelude.takeWhile f s
-  in Succeed hd (length hd) False
+takeWhile :: String -> (Char -> Bool) -> Parser s String
+takeWhile msg f = scope msg . Parser $ \(Env _ _ s cur) ->
+  let hd = Prelude.takeWhile f cur
+  in Succeed hd s (length hd)
 
-takeWhile1 :: String -> (Char -> Bool) -> Parser String
-takeWhile1 msg f = scope msg . Parser $ \s ->
-  let hd = Prelude.takeWhile f s
-  in if null hd then Fail ["takeWhile1 empty: " ++ take 20 s] False
-     else Succeed hd (length hd) False
+takeWhile1 :: String -> (Char -> Bool) -> Parser s String
+takeWhile1 msg f = scope msg . Parser $ \(Env _ _ s cur) ->
+  let hd = Prelude.takeWhile f cur
+  in if null hd then Fail [] False
+     else Succeed hd s (length hd)
 
-whitespace :: Parser ()
+whitespace :: Parser s ()
 whitespace = void $ takeWhile "whitespace" Char.isSpace
 
-whitespace1 :: Parser ()
+whitespace1 :: Parser s ()
 whitespace1 = void $ takeWhile1 "whitespace1" Char.isSpace
 
-nonempty :: Parser a -> Parser a
-nonempty p = Parser $ \s -> case run p s of
-  Succeed _ 0 b -> Fail [] b
+nonempty :: Parser s a -> Parser s a
+nonempty p = Parser $ \s -> case run' p s of
+  Succeed _ _ 0 -> Fail [] False
   ok -> ok
 
-scope :: String -> Parser a -> Parser a
-scope s p = Parser $ \input -> case run p input of
-  Fail e b -> Fail (s:e) b
+scope :: String -> Parser s a -> Parser s a
+scope s p = Parser $ \env -> case run' p env of
+  Fail e b -> Fail (currentLine' env : s:e) b
   ok -> ok
 
-commitSuccess :: Parser a -> Parser a
-commitSuccess p = Parser $ \input -> case run p input of
-  Fail e b -> Fail e b
-  Succeed a n _ -> Succeed a n True
-
-commitFail :: Parser a -> Parser a
-commitFail p = Parser $ \input -> case run p input of
+commit :: Parser s a -> Parser s a
+commit p = Parser $ \input -> case run' p input of
   Fail e _ -> Fail e True
-  Succeed a n b -> Succeed a n b
+  Succeed a s n -> Succeed a s n
 
-commit' :: Parser ()
-commit' = commitSuccess (pure ())
-
-failWith :: String -> Parser a
-failWith error = Parser . const $ Fail [error] False
-
-sepBy :: Parser a -> Parser b -> Parser [b]
+sepBy :: Parser s a -> Parser s b -> Parser s [b]
 sepBy sep pb = f <$> optional (sepBy1 sep pb)
   where
     f Nothing = []
     f (Just l) = l
 
-sepBy1 :: Parser a -> Parser b -> Parser [b]
+sepBy1 :: Parser s a -> Parser s b -> Parser s [b]
 sepBy1 sep pb = (:) <$> pb <*> many (sep *> pb)
 
-toEither :: Result a -> Either String a
+ignored :: Parser s ()
+ignored = void $ many (whitespace1 <|> haskellLineComment)
+
+toEither :: Result s a -> Either String a
 toEither (Fail e _) = Left (intercalate "\n" e)
 toEither (Succeed a _ _) = Right a
 
-data Result a
-  = Fail [String] Bool
-  | Succeed a Int Bool
-  deriving (Show)
+data Result s a
+  = Fail [String] !Bool
+  | Succeed a s !Int
+  deriving (Show,Functor,Foldable,Traversable)
 
-instance Functor Parser where
+get :: Parser s s
+get = Parser (\env -> Succeed (state env) (state env) 0)
+
+set :: s -> Parser s ()
+set s = Parser (\env -> Succeed () s 0)
+
+instance Functor (Parser s) where
   fmap = liftM
 
-instance Applicative Parser where
+instance Applicative (Parser s) where
   pure = return
   (<*>) = ap
 
-instance Alternative Parser where
+instance Alternative (Parser s) where
   empty = mzero
   (<|>) = mplus
 
-instance Monad Parser where
-  return a = Parser $ \_ -> Succeed a 0 False
-  Parser p >>= f = Parser $ \s -> case p s of
-    Succeed a n committed -> case run (f a) (drop n s) of
-      Succeed b m c2 -> Succeed b (n+m) (committed || c2)
-      Fail e b -> Fail e (committed || b)
+instance Monad (Parser s) where
+  return a = Parser $ \env -> Succeed a (state env) 0
+  Parser p >>= f = Parser $ \env@(Env overall i s cur) -> case p env of
+    Succeed a s n ->
+      case run' (f a) (Env overall (i+n) s (drop n cur)) of
+        Succeed b s m -> Succeed b s (n+m)
+        Fail e b -> Fail e b
     Fail e b -> Fail e b
+  fail msg = Parser $ const (Fail [msg] False)
 
-instance MonadPlus Parser where
+instance MonadPlus (Parser s) where
   mzero = Parser $ \_ -> Fail [] False
-  mplus p1 p2 = Parser $ \s -> case run p1 s of
-    Fail _ False -> run p2 s
+  mplus p1 p2 = Parser $ \env -> case run' p1 env of
+    Fail _ False -> run' p2 env
     ok -> ok

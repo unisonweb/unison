@@ -14,10 +14,10 @@ module Unison.Util.Logger where
 
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar
-import Control.Exception (finally, try)
+import Control.Exception (bracket, try)
 import Control.Monad
 import Data.List
-import System.IO (Handle, hPutStrLn, hGetLine)
+import System.IO (Handle, hPutStrLn, hGetLine, stdout, stderr)
 import System.IO.Error (isEOFError)
 
 type Level = Int
@@ -34,11 +34,17 @@ atomic :: Logger -> IO Logger
 atomic logger = do
   lock <- newMVar ()
   pure $
-    let raw' msg = takeMVar lock >> (raw logger msg `finally` putMVar lock ())
+    let raw' msg = bracket (takeMVar lock) (\_ -> putMVar lock ()) (\_ -> raw logger msg)
     in logger { raw = raw' }
 
 toHandle :: Handle -> Logger
 toHandle h = logger (hPutStrLn h)
+
+toStandardError :: Logger
+toStandardError = toHandle stderr
+
+toStandardOut :: Logger
+toStandardOut = toHandle stdout
 
 logHandleAt :: Logger -> Level -> Handle -> IO ()
 logHandleAt logger lvl h

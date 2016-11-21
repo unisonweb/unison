@@ -12,6 +12,7 @@ module Unison.Type where
 
 import Data.Aeson (ToJSON(..), FromJSON(..))
 import Data.Aeson.TH
+import Data.List
 import Data.Set (Set)
 import Data.Text (Text)
 import GHC.Generics
@@ -142,6 +143,9 @@ builtin = ref . Reference.Builtin
 
 app :: Ord v => Type v -> Type v -> Type v
 app f arg = ABT.tm (App f arg)
+
+apps :: Ord v => Type v -> [Type v] -> Type v
+apps f = foldl' app f
 
 arrow :: Ord v => Type v -> Type v -> Type v
 arrow i o = ABT.tm (Arrow i o)

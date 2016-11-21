@@ -7,7 +7,7 @@ import qualified Unison.SerializationAndHashing as SAH
 
 testTermString :: String -> Assertion
 testTermString termString =
-  let term = unsafeParseTerm termString
+  let term = unsafeParseTerm termString :: SAH.TermV
       roundTrip = SAH.deserializeTermFromBytes . SAH.serializeTerm $ term
   in case roundTrip of
     Left s -> fail s
@@ -26,10 +26,10 @@ lambda :: Assertion
 lambda = testTermString "x -> x"
 
 letBinding :: Assertion
-letBinding = testTermString "let x = 42 in x + 1"
+letBinding = testTermString "let x = 42; x + 1;;"
 
 letRec :: Assertion
-letRec = testTermString "let rec x = x + 1 in x"
+letRec = testTermString "let rec x = x + 1; x;;"
 
 vec :: Assertion
 vec = testTermString "[\"a\", \"b\", \"c\"]"
@@ -43,5 +43,4 @@ tests = testGroup "SerializationAndHashing"
   , testCase "letBinding" letBinding
   , testCase "letRec" letRec
   , testCase "vec" vec
-
   ]

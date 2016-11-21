@@ -4,11 +4,10 @@ module Unison.Parsers where
 
 import Control.Arrow ((***))
 import Data.Text (Text)
-import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Parser (Result(..), run, unsafeGetSucceed)
-import Unison.View (DFO)
+import Unison.Var (Var)
 import qualified Unison.Parser as Parser
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
@@ -19,48 +18,39 @@ import qualified Unison.Type as Type
 import qualified Unison.Reference as R
 import qualified Unison.Var as Var
 
-type V = Symbol DFO
+type S v = TypeParser.S v
 
-parseTerm :: String -> Result (Term V)
+s0 :: S v
+s0 = TypeParser.s0
+
+parseTerm :: Var v => String -> Result (S v) (Term v)
 parseTerm = parseTerm' termBuiltins typeBuiltins
 
-parseType :: String -> Result (Type V)
+parseType :: Var v => String -> Result (S v) (Type v)
 parseType = parseType' typeBuiltins
 
-parseTerm' :: [(V, Term V)] -> [(V, Type V)] -> String -> Result (Term V)
-parseTerm' termBuiltins typeBuiltins s = case run (Parser.root TermParser.term) s of
-  Succeed e n b ->
-    Succeed (Term.typeMap (ABT.substs typeBuiltins) (ABT.substs termBuiltins e)) n b
-  fail -> fail
+parseTerm' :: Var v => [(v, Term v)] -> [(v, Type v)] -> String -> Result (S v) (Term v)
+parseTerm' termBuiltins typeBuiltins s =
+  bindBuiltins termBuiltins typeBuiltins <$> run (Parser.root TermParser.term) s s0
 
-parseType' :: [(V, Type V)] -> String -> Result (Type V)
-parseType' typeBuiltins s = case run (Parser.root TypeParser.type_) s of
-  Succeed t n b -> Succeed (ABT.substs typeBuiltins t) n b
-  fail -> fail
+bindBuiltins :: Var v => [(v, Term v)] -> [(v, Type v)] -> Term v -> Term v
+bindBuiltins termBuiltins typeBuiltins =
+   Term.typeMap (ABT.substs typeBuiltins) . ABT.substs termBuiltins
 
-prelude = unlines
-  [ "let"
-  , "  Index.empty : forall k v . Remote (Index k v);"
-  , "  Index.empty = Remote.map Index.unsafeEmpty Remote.here;"
-  , ""
-  , "  Remote.transfer : Node -> Remote Unit;"
-  , "  Remote.transfer node = Remote.at node unit"
-  , "in"
-  , ""]
+parseType' :: Var v => [(v, Type v)] -> String -> Result (S v) (Type v)
+parseType' typeBuiltins s =
+  ABT.substs typeBuiltins <$> run (Parser.root TypeParser.type_) s s0
 
-unsafeParseTermWithPrelude :: String -> Term V
-unsafeParseTermWithPrelude prog = unsafeParseTerm (prelude ++ prog)
-
-unsafeParseTerm :: String -> Term V
+unsafeParseTerm :: Var v => String -> Term v
 unsafeParseTerm = unsafeGetSucceed . parseTerm
 
-unsafeParseType :: String -> Type V
+unsafeParseType :: Var v => String -> Type v
 unsafeParseType = unsafeGetSucceed . parseType
 
-unsafeParseTerm' :: [(V, Term V)] -> [(V, Type V)] -> String -> Term V
+unsafeParseTerm' :: Var v => [(v, Term v)] -> [(v, Type v)] -> String -> Term v
 unsafeParseTerm' er tr = unsafeGetSucceed . parseTerm' er tr
 
-unsafeParseType' :: [(V, Type V)] -> String -> Type V
+unsafeParseType' :: Var v => [(v, Type v)] -> String -> Type v
 unsafeParseType' tr = unsafeGetSucceed . parseType' tr
 
 -- Alias <alias> <fully-qualified-name>
@@ -74,35 +64,26 @@ data Builtin = Builtin Text -- e.g. Builtin "()"
              | AliasFromModule Text [Text] [Text]
 
 -- aka default imports
-termBuiltins :: [(V, Term V)]
+termBuiltins :: Var v => [(v, Term v)]
 termBuiltins = (Var.named *** Term.ref) <$> (
-    [ Alias "+" "Number.plus"
-    , Alias "-" "Number.minus"
-    , Alias "*" "Number.times"
-    , Alias "/" "Number.divide"
-    , Alias ">" "Number.greaterThan"
-    , Alias "<" "Number.lessThan"
-    , Alias ">=" "Number.greaterThanOrEqual"
-    , Alias "<=" "Number.lessThanOrEqual"
-    , Alias "==" "Number.equal"
-    , Alias "if" "Boolean.if"
+    [ Builtin "()"
+    , Alias "Right" "Either.Right"
+    , Alias "Left" "Either.Left"
+    , Builtin "Greater"
+    , Builtin "Less"
+    , Builtin "Equal"
     , Builtin "True"
     , Builtin "False"
-    , Builtin "()"
     , Alias "unit" "()"
-    , Alias "some" "Optional.Some"
-    , Alias "none" "Optional.None"
-    , AliasFromModule "Vector"
-        ["single", "prepend", "map", "fold-left", "concatenate", "append"] ["empty"]
-    , AliasFromModule "Text"
-        ["concatenate", "left", "right", "center", "justify"] []
-    , AliasFromModule "Remote"
-        ["fork", "receive", "receiveAsync", "pure", "bind", "map", "channel", "send", "here", "at", "spawn"] []
-    , AliasFromModule "Color" ["rgba"] []
-    , AliasFromModule "Symbol" ["Symbol"] []
-    , AliasFromModule "Index" ["lookup", "unsafeLookup", "insert", "unsafeInsert", "empty", "unsafeEmpty"] []
-    , AliasFromModule "Html" ["getLinks", "getHref", "getDescription"] []
-    , AliasFromModule "Http" ["getURL", "unsafeGetURL"] []
+    , Alias "Unit" "()"
+    , Alias "Some" "Optional.Some"
+    , Alias "None" "Optional.None"
+    , Alias "+" "Number.+"
+    , Alias "-" "Number.-"
+    , Alias "*" "Number.*"
+    , Alias "/" "Number./"
+    , AliasFromModule "Vector" ["single"] []
+    , AliasFromModule "Remote" ["pure", "bind", "pure", "fork"] []
     ] >>= unpackAliases)
     where
       unpackAliases :: Builtin -> [(Text, R.Reference)]
@@ -117,26 +98,27 @@ termBuiltins = (Var.named *** Term.ref) <$> (
       aliasFromModule m sym = alias sym (Text.intercalate "." [m, sym])
       builtinInModule m sym = builtin (Text.intercalate "." [m, sym])
 
-typeBuiltins :: [(V, Type V)]
+typeBuiltins :: Var v => [(v, Type v)]
 typeBuiltins = (Var.named *** Type.lit) <$>
   [ ("Number", Type.Number)
   , builtin "Unit"
   , builtin "Boolean"
   , ("Optional", Type.Optional)
   , builtin "Either"
-  -- ???
-  , builtin "Symbol"
-  , builtin "Alignment"
-  , builtin "Color"
-  , builtin "Fixity"
+  , builtin "Pair"
+  , builtin "Order"
+  , builtin "Comparison"
+  , builtin "Order.Key"
   -- kv store
   , builtin "Index"
   -- html
-  , builtin "Link"
+  , builtin "Html.Link"
   -- distributed
   , builtin "Channel"
-  , builtin "Future"
+  , builtin "Duration"
   , builtin "Remote"
   , builtin "Node"
+  -- hashing
+  , builtin "Hash"
   ]
   where builtin t = (t, Type.Ref $ R.Builtin t)

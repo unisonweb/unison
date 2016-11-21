@@ -5,7 +5,6 @@
 
 module Unison.Runtime.Multiplex where
 
-import System.IO (Handle, stdin, stdout, hFlush, hSetBinaryMode)
 import Control.Applicative
 import Control.Concurrent.Async (Async)
 import Control.Concurrent.MVar
@@ -33,13 +32,10 @@ import qualified Data.ByteArray as BA
 import qualified Data.ByteString as B
 import qualified Data.Bytes.Get as Get
 import qualified Data.Bytes.Put as Put
-import qualified Data.Serialize.Get as Get
 import qualified STMContainers.Map as M
 import qualified Unison.Cryptography as C
 import qualified Unison.Runtime.Queue as Q
 import qualified Unison.Util.Logger as L
-import qualified ListT
-import qualified Control.Monad.Morph as Morph
 
 data Packet = Packet { destination :: !B.ByteString, content :: !B.ByteString } deriving (Generic)
 instance Serial Packet
@@ -53,10 +49,30 @@ type IsSubscription = Bool
 data Callbacks =
   Callbacks (M.Map B.ByteString (B.ByteString -> IO ())) (TVar Word64)
 
-type Env = (STM Packet -> STM (), Callbacks, IO B.ByteString, L.Logger)
+type Env =
+  ( STM Packet -> STM ()
+  , Callbacks
+  , IO B.ByteString
+  , M.Map B.ByteString (Multiplex B.ByteString)
+  , L.Logger)
 
 newtype Multiplex a = Multiplex (ReaderT Env IO a)
   deriving (Applicative, Alternative, Functor, Monad, MonadIO, MonadPlus, MonadReader Env)
+
+env0 :: L.Logger -> IO (Env, Maybe Packet -> IO (), IO (Maybe Packet), STM Bool)
+env0 logger = do
+  fresh <- uniqueChannel
+  output <- atomically Q.empty :: IO (Q.Queue (Maybe Packet))
+  input <- atomically newTQueue :: IO (TQueue (Maybe Packet))
+  cb0@(Callbacks m _) <- Callbacks <$> atomically M.new <*> atomically (newTVar 0)
+  recvs0 <- atomically M.new
+  let env = (Q.enqueue output . (Just <$>), cb0, fresh, recvs0, logger)
+      isActive = (||) <$> (not <$> M.null m) <*> (not <$> M.null recvs0)
+  _ <- run env (fork $ process (atomically (readTQueue input)))
+  pure ( env
+       , atomically . writeTQueue input
+       , atomically $ Q.dequeue output
+       , isActive )
 
 run :: Env -> Multiplex a -> IO a
 run env (Multiplex go) = runReaderT go env
@@ -66,113 +82,25 @@ liftLogged msg action = ask >>= \env -> liftIO $ catch action (handle env) where
   handle :: Env -> SomeException -> IO a
   handle env ex = run env (warn $ msg ++ " " ++ show ex) >> throwIO ex
 
--- | Run the multiplexed computation using stdin and stdout, terminating
--- after a period of inactivity exceeding sleepAfter. `rem` is prepended
--- onto stdin.
-runStandardIO :: L.Logger -> Microseconds -> B.ByteString -> IO ()
-              -> Multiplex a -> IO a
-runStandardIO logger sleepAfter rem interrupt m = do
-  hSetBinaryMode stdin True
-  hSetBinaryMode stdout True
-  fresh <- uniqueChannel
-  output <- atomically Q.empty :: IO (Q.Queue (Maybe Packet))
-  input <- atomically newTQueue :: IO (TQueue (Maybe Packet))
-  cb0@(Callbacks cbm cba) <- Callbacks <$> atomically M.new <*> atomically (newTVar 0)
-  let env = (Q.enqueue output . (Just <$>), cb0, fresh, logger)
-  activity <- atomically $ newTVar 0
-  let bump = atomically $ modifyTVar' activity (1+)
-  _ <- Async.async $ do
-    interrupt
-    atomically $ writeTQueue input Nothing
-    L.info logger "interrupted"
-  _ <- Async.async $ do
-    let write pk _ = bump >> atomically (writeTQueue input (Just pk))
-    deserializeHandle stdin rem write
-    bump
-    atomically $ writeTQueue input Nothing
-    L.info logger "shutting down reader thread"
-  writer <- Async.async . repeatWhile $ do
-    logger <- pure $ L.scope "writer" logger
-    packet <- atomically $ Q.tryDequeue output :: IO (Maybe (Maybe Packet))
-    packet <- case packet of
-      -- writer is saturated, don't bother flushing output buffer
-      Just packet -> pure packet
-      -- writer not saturated; flush output buffer to avoid latency and/or deadlock
-      Nothing -> hFlush stdout >> atomically (Q.dequeue output)
-    B.putStr (Put.runPutS (serialize packet))
-    case packet of
-      Nothing -> False <$ L.info logger "writer shutting down"
-      Just packet -> do
-        L.debug logger $ "output packet " ++ show packet
-        True <$ bump
-  watchdog <- Async.async . repeatWhile $ do
-    activity0 <- (+) <$> readTVarIO activity <*> readTVarIO cba
-    C.threadDelay sleepAfter
-    activity1 <- (+) <$> readTVarIO activity <*> readTVarIO cba
-    nothingPending <- atomically $ M.null cbm
-    L.debug' (L.scope "watchdog" logger) $ do
-      keys <- fmap (map fst) . ListT.toList . Morph.hoist atomically . M.stream $ cbm
-      pure $ "current subscription keys: " ++ show (map Base64.encode keys)
-    L.debug (L.scope "watchdog" logger) $
-      "activity: " ++ show (activity0, activity1, nothingPending)
-    continue <- atomically $
-      if activity0 == activity1 && nothingPending then do
-        writeTQueue input Nothing
-        Q.enqueue output (pure Nothing)
-        pure False
-      else
-        pure True
-    when (not continue) $ L.info logger "watchdog shutting down"
-    pure continue
-  a <- run env m
-  processor <- Async.async $ do
-    run env (process $ atomically (readTQueue input))
-    L.info logger "processor shutting down"
-  Async.wait watchdog
-  -- Async.wait reader
-  Async.wait processor
-  Async.wait writer
-  L.info logger "Mux.runStandardIO shutdown"
-  pure a
-
-deserializeHandle :: Serial a => Handle -> B.ByteString -> (a -> Int -> IO ()) -> IO ()
-deserializeHandle h rem write = go (Get.runGetPartial deserialize rem) where
-  go dec = do
-    (a, n, rem') <- deserializeHandle1 h dec
-    write a (n + B.length rem)
-    go (Get.runGetPartial deserialize rem')
-
-deserializeHandle1' :: Serial a => Handle -> IO (a, Int, B.ByteString)
-deserializeHandle1' h = deserializeHandle1 h (Get.runGetPartial deserialize B.empty)
-
-deserializeHandle1 :: Handle -> Get.Result a -> IO (a, Int, B.ByteString)
-deserializeHandle1 h dec = go dec 0 where
-  go result !n = case result of
-    Get.Fail msg _ -> fail msg
-    Get.Partial k -> do
-      bs <- B.hGetSome h 65536
-      go (k bs) (n + B.length bs)
-    Get.Done a rem -> pure (a, n, rem)
-
 ask :: Multiplex Env
 ask = Multiplex Reader.ask
 
-bumpActivity :: Multiplex ()
-bumpActivity = do
-  (_, Callbacks _ cba, _, _) <- ask
-  liftIO $ bumpActivity' cba
-
-bumpActivity' :: TVar Word64 -> IO ()
-bumpActivity' cba = atomically $ modifyTVar' cba (1+)
-
 logger :: Multiplex L.Logger
 logger = do
-  ~(_, _, _, logger) <- ask
+  ~(_, _, _, _, logger) <- ask
   pure logger
 
 scope :: String -> Multiplex a -> Multiplex a
 scope msg = local tweak where
-  tweak (a,b,c,logger) = (a,b,c,L.scope msg logger)
+  tweak (a,b,c,d,logger) = (a,b,c,d,L.scope msg logger)
+
+-- | Crash with a message. Include the current logging scope.
+crash :: String -> Multiplex a
+crash msg = do
+  warn msg
+  scope msg $ do
+    l <- logger
+    fail (show $ L.getScope l)
 
 info, warn, debug :: String -> Multiplex ()
 info msg = logger >>= \logger -> liftIO $ L.info logger msg
@@ -181,7 +109,7 @@ debug msg = logger >>= \logger -> liftIO $ L.debug logger msg
 
 process :: IO (Maybe Packet) -> Multiplex ()
 process recv = scope "Mux.process" $ do
-  (_, Callbacks cbs cba, _, logger) <- ask
+  (_, Callbacks cbs _, _, _, logger) <- ask
   liftIO . repeatWhile $ do
     packet <- recv
     case packet of
@@ -190,11 +118,10 @@ process recv = scope "Mux.process" $ do
         callback <- atomically $ M.lookup destination cbs
         case callback of
           Nothing -> do
-            L.warn logger $ "dropped packet @ " ++ show (Base64.encode destination)
+            L.info logger $ "dropped packet @ " ++ show (Base64.encode destination)
             pure True
           Just callback -> do
             L.debug logger $ "packet delivered @ " ++ show (Base64.encode destination)
-            bumpActivity' cba
             callback content
             pure True
 
@@ -253,40 +180,41 @@ type Request a b = Channel (a, Channel b)
 type Microseconds = Int
 
 requestTimedVia' :: (Serial a, Serial b)
-                 => Microseconds
+                 => String
+                 -> Microseconds
                  -> (STM (a, Channel b) -> Multiplex ())
                  -> Channel b
                  -> STM a
                  -> Multiplex (Multiplex b)
-requestTimedVia' micros send replyTo a = do
+requestTimedVia' msg micros send replyTo a = do
   env <- ask
   (receive, cancel) <- receiveCancellable replyTo
   send $ (,replyTo) <$> a
   watchdog <- liftIO . C.forkIO $ do
     liftIO $ C.threadDelay micros
-    run env cancel
+    run env (cancel $ "requestTimedVia timeout " ++ msg)
   pure $ receive <* liftIO (C.killThread watchdog)
 
-requestTimedVia :: (Serial a, Serial b) => Microseconds -> Request a b -> Channel b -> STM a
+requestTimedVia :: (Serial a, Serial b) => String -> Microseconds -> Request a b -> Channel b -> STM a
                 -> Multiplex (Multiplex b)
-requestTimedVia micros req replyTo a =
-  requestTimedVia' micros (send' req) replyTo a
+requestTimedVia msg micros req replyTo a =
+  requestTimedVia' msg micros (send' req) replyTo a
 
-requestTimed' :: (Serial a, Serial b) => Microseconds -> Request a b -> STM a -> Multiplex (Multiplex b)
-requestTimed' micros req a = do
+requestTimed' :: (Serial a, Serial b) => String -> Microseconds -> Request a b -> STM a -> Multiplex (Multiplex b)
+requestTimed' msg micros req a = do
   replyTo <- channel
-  requestTimedVia micros req replyTo a
+  requestTimedVia msg micros req replyTo a
 
-requestTimed :: (Serial a, Serial b) => Microseconds -> Request a b -> a -> Multiplex (Multiplex b)
-requestTimed micros req a = do
+requestTimed :: (Serial a, Serial b) => String -> Microseconds -> Request a b -> a -> Multiplex (Multiplex b)
+requestTimed msg micros req a = do
   replyTo <- channel
   env <- ask
   (receive, cancel) <- receiveCancellable replyTo
   send req (a, replyTo)
   watchdog <- liftIO . C.forkIO $ do
     liftIO $ C.threadDelay micros
-    run env cancel
-  pure $ receive <* liftIO (C.killThread watchdog) <* cancel
+    run env (cancel $ "requestTimed timeout " ++ msg)
+  pure $ receive <* liftIO (C.killThread watchdog) <* cancel ("requestTimed completed")
 
 type Cleartext = B.ByteString
 type Ciphertext = B.ByteString
@@ -294,18 +222,19 @@ type CipherState = (Cleartext -> STM Ciphertext, Ciphertext -> STM Cleartext)
 
 encryptedRequestTimedVia
   :: (Serial a, Serial b)
-  => CipherState
+  => String
+  -> CipherState
   -> Microseconds
   -> ((a,Channel b) -> Multiplex ())
   -> Channel b
   -> a
   -> Multiplex b
-encryptedRequestTimedVia (_,decrypt) micros send replyTo@(Channel _ bs) a = do
-  responseCiphertext <- receiveTimed micros (Channel Type bs)
+encryptedRequestTimedVia msg (_,decrypt) micros send replyTo@(Channel _ bs) a = do
+  responseCiphertext <- receiveTimed msg micros (Channel Type bs)
   send (a, replyTo)
   responseCiphertext <- responseCiphertext -- force the receive
   responseCleartext <- liftIO . atomically . decrypt $ responseCiphertext
-  either fail pure $ Get.runGetS deserialize responseCleartext
+  either crash pure $ Get.runGetS deserialize responseCleartext
 
 encryptAndSendTo
   :: (Serial a, Serial node)
@@ -329,13 +258,13 @@ fork m = do
 
 nest :: Serial k => k -> Multiplex a -> Multiplex a
 nest outer m = Reader.local tweak m where
-  tweak (send,cbs,fresh,log) = (send' send,cbs,fresh,log)
+  tweak (send,cbs,fresh,recvs,log) = (send' send,cbs,fresh,recvs,log)
   kbytes = Put.runPutS (serialize outer)
   send' send p = send $ (\p -> Packet kbytes (Put.runPutS (serialize p))) <$> p
 
 channel :: Multiplex (Channel a)
 channel = do
-  ~(_,_,fresh,_) <- ask
+  ~(_,_,fresh,_,_) <- ask
   Channel Type <$> liftIO fresh
 
 send :: Serial a => Channel a -> a -> Multiplex ()
@@ -343,32 +272,66 @@ send chan a = send' chan (pure a)
 
 send' :: Serial a => Channel a -> STM a -> Multiplex ()
 send' (Channel _ key) a = do
-  ~(send,_,_,_) <- ask
+  ~(send,_,_,_,_) <- ask
   liftIO . atomically $ send (Packet key . Put.runPutS . serialize <$> a)
 
-receiveCancellable :: Serial a => Channel a -> Multiplex (Multiplex a, Multiplex ())
-receiveCancellable (Channel _ key) = do
-  (_,Callbacks cbs cba,_,_) <- ask
+receiveCancellable' :: Channel a
+                    -> Multiplex (Multiplex B.ByteString, String -> Multiplex ())
+receiveCancellable' chan@(Channel _ key) = do
+  (_,Callbacks cbs _,_,_,_) <- ask
   result <- liftIO newEmptyMVar
-  liftIO . atomically $ M.insert (putMVar result . Right) key cbs
-  liftIO $ bumpActivity' cba
-  cancel <- pure $ do
+  liftIO . atomically $ M.insert (void . tryPutMVar result . Right) key cbs
+  cancel <- pure $ \reason -> do
     liftIO . atomically $ M.delete key cbs
-    liftIO $ putMVar result (Left "cancelled")
-  force <- pure . liftIO $ do
-    bytes <- takeMVar result
-    bytes <- either fail pure bytes
-    either fail pure $ Get.runGetS deserialize bytes
+    liftIO . void $ tryPutMVar result (Left $ "Mux.cancelled: " ++ reason)
+  force <- pure . scope (show chan) . scope "receiveCancellable" $ do
+    info "awaiting result"
+    bytes <- liftIO $ takeMVar result
+    info "got result"
+    bytes <- either crash pure bytes
+    info "got result bytes"
+    pure bytes
   pure (force, cancel)
 
-receiveTimed :: Serial a => Microseconds -> Channel a -> Multiplex (Multiplex a)
-receiveTimed micros chan = do
-  (force, cancel) <- receiveCancellable chan
+receiveCancellable :: Serial a => Channel a -> Multiplex (Multiplex a, String -> Multiplex ())
+receiveCancellable chan@(Channel _ key) = f <$> receiveCancellable' chan where
+  f (get, cancel) = (g =<< get, cancel)
+  g bytes = either crash pure $ Get.runGetS deserialize bytes
+
+receiveTimed' :: String -> Microseconds -> Channel a -> Multiplex (Multiplex B.ByteString)
+receiveTimed' msg micros chan = do
+  (force, cancel) <- receiveCancellable' chan
   env <- ask
   watchdog <- liftIO . C.forkIO $ do
     liftIO $ C.threadDelay micros
-    run env cancel
-  pure $ force <* liftIO (C.killThread watchdog) <* cancel
+    run env (cancel $ "receiveTimed timeout during " ++ msg)
+  pure $ scope "receiveTimed" (force <* liftIO (C.killThread watchdog) <* cancel ("receiveTimed completed" ++ msg))
+
+receiveTimed :: Serial a => String -> Microseconds -> Channel a -> Multiplex (Multiplex a)
+receiveTimed msg micros chan = tweak <$> receiveTimed' msg micros chan where
+  tweak bytes = tweak' =<< bytes
+  tweak' bytes = either crash pure $ Get.runGetS deserialize bytes
+
+-- Save a receive future as part of
+saveReceive :: Microseconds
+            -> B.ByteString -> Multiplex B.ByteString -> Multiplex ()
+saveReceive micros chan force = do
+  (_,_,_,recvs,_) <- ask
+  tid <- liftIO . C.forkIO $ do
+    C.threadDelay micros
+    atomically $ M.delete chan recvs
+  let force' = do
+        liftIO $ C.killThread tid
+        liftIO $ atomically (M.delete chan recvs)
+        force
+  liftIO . atomically $ M.insert force' chan recvs
+
+restoreReceive :: B.ByteString -> Multiplex B.ByteString
+restoreReceive chan = do
+  (_,_,_,recvs,_) <- ask
+  o <- liftIO . atomically $ M.lookup chan recvs
+  fromMaybe (crash $ "chan could not be restored: " ++ show (Base64.encode chan))
+            o
 
 timeout' :: Microseconds -> a -> Multiplex a -> Multiplex a
 timeout' micros onTimeout m = fromMaybe onTimeout <$> timeout micros m
@@ -413,15 +376,14 @@ subscribeTimed micros chan = do
         loop logger activity result cancel
 
 subscribe :: Serial a => Channel a -> Multiplex (Multiplex a, Multiplex ())
-subscribe (Channel _ key) = do
-  (_, Callbacks cbs cba, _, _) <- ask
+subscribe (Channel _ key) = scope "subscribe" $ do
+  (_, Callbacks cbs _, _, _, _) <- ask
   q <- liftIO . atomically $ newTQueue
   liftIO . atomically $ M.insert (atomically . writeTQueue q) key cbs
-  liftIO $ bumpActivity' cba
   unsubscribe <- pure . liftIO . atomically . M.delete key $ cbs
-  force <- pure . liftIO $ do
-    bytes <- atomically $ readTQueue q
-    either fail pure $ Get.runGetS deserialize bytes
+  force <- pure $ do
+    bytes <- liftIO . atomically $ readTQueue q
+    either crash pure $ Get.runGetS deserialize bytes
   pure (force, unsubscribe)
 
 seconds :: Microseconds -> Int
@@ -487,7 +449,7 @@ pipeInitiate crypto rootChan (recipient,recipientKey) u = scope "pipeInitiate" $
           bytes <- fetchh
           debug "... handshake round trip completed"
           case bytes of
-            Nothing -> cancelh >> cancelc >> fail "cancelled handshake"
+            Nothing -> cancelh >> cancelc >> crash "cancelled handshake"
             Just bytes -> liftIO (atomically $ decrypt bytes) >> go
 
 -- todo: add access control here, better to bail ASAP (or after 1s delay
@@ -505,7 +467,7 @@ pipeRespond crypto allow _ extractSender payload = do
   (doneHandshake, senderKey, encrypt, decrypt) <- liftIO $ C.pipeResponder crypto
   debug $ "decrypting initial payload"
   bytes <- (liftLogged "[Mux.pipeRespond] decrypt" . atomically . decrypt) payload
-  (u, chans@(handshakeChan,connectedChan)) <- either fail pure $ Get.runGetS deserialize bytes
+  (u, chans@(handshakeChan,connectedChan)) <- either crash pure $ Get.runGetS deserialize bytes
   debug $ "handshake channels: " ++ show chans
   let sender = extractSender u
   handshakeSub <- subscribeTimed handshakeTimeout handshakeChan
@@ -531,7 +493,7 @@ pipeRespond crypto allow _ extractSender payload = do
         Nothing -> pure ()
         Just senderKey -> allow senderKey >>= \ok ->
           if ok then pure ()
-          else liftIO (C.threadDelay delayBeforeFailure) >> fail "disallowed key"
+          else liftIO (C.threadDelay delayBeforeFailure) >> crash "disallowed key"
     go = do
       ready <- liftIO $ atomically doneHandshake
       checkSenderKey
@@ -545,5 +507,5 @@ pipeRespond crypto allow _ extractSender payload = do
           nest sender $ send' chanh (encrypt B.empty)
           bytes <- fetchh
           case bytes of
-            Nothing -> cancelh >> cancelc >> fail "cancelled handshake"
+            Nothing -> cancelh >> cancelc >> crash "cancelled handshake"
             Just bytes -> liftIO (atomically $ decrypt bytes) >> go

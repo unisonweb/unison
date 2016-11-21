@@ -33,7 +33,7 @@ vmap f (Type t) = Type (ABT.vmap f t)
 data PathElement
   = Fn -- ^ Points at function in a function/type application
   | Arg -- ^ Points at the argument of a function/type application
-  | Body -- ^ Points at the body of a lambda, let, binding, or forall
+  | Body -- ^ Points at the body of a lambda, let, binding, forall, or annotation
   | Bound -- ^ Points at the symbol bound by a `let`, `lambda` or `forall` binder
   | Binding !Int -- ^ Points at a particular binding in a let
   | Index !Int -- ^ Points at the index of a vector
@@ -90,6 +90,7 @@ focus1 e = ABT.Path go' where
     set (Declaration v b) = pure . Term $ E.let1 [(v, b)] (w body)
     set _ = Nothing
   go Annotation (Term (E.Ann' e t)) = Just (Type t, \t -> Term . E.ann (w e) <$> asType t, [])
+  go Body (Term (E.Ann' body t)) = Just (Term body, \body -> Term . flip E.ann (wt t) <$> asTerm body, [])
   go Input (Type (T.Arrow' i o)) = Just (Type i, \i -> Type <$> (T.arrow <$> asType i <*> pure (wt o)), [])
   go Output (Type (T.Arrow' i o)) = Just (Type o, \o -> Type . T.arrow (wt i) <$> asType o, [])
   go _ _ = Nothing

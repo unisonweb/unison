@@ -63,6 +63,19 @@ instance Applicative m => Applicative (Noted m) where
   pure = Noted . pure . pure
   (Noted f) <*> (Noted a) = Noted $ liftA2 (<*>) f a
 
+instance (Alternative m, Monad m) => MonadPlus (Noted m) where
+  mzero = Noted (pure (Left (Note [])))
+  mplus (Noted n1) (Noted n2) = Noted $ do
+    n1 <- (Left <$> n1) <|> (Right <$> n2)
+    case n1 of
+      Left (Left _) -> n2
+      Left (Right a) -> pure (Right a)
+      Right e -> pure e
+
+instance (Alternative m, Monad m) => Alternative (Noted m) where
+  empty = mzero
+  (<|>) = mplus
+
 note :: String -> Note
 note s = Note [s]
 

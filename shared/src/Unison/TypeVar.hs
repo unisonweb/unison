@@ -17,6 +17,8 @@ instance Show v => Show (TypeVar v) where
   show (Existential v) = "'" ++ show v
 
 instance Var v => Var (TypeVar v) where
+  rename n (Universal v) = Universal (Var.rename n v)
+  rename n (Existential v) = Existential (Var.rename n v)
   named txt = Universal (Var.named txt)
   name v = Var.name (underlying v)
   qualifiedName v = Var.qualifiedName (underlying v)
