@@ -12,7 +12,7 @@ cryptoTest :: IO Assertion
 cryptoTest = do
   let crypto = mkCrypto (B.pack "dummypublickey")
       cleartext = (B.pack "cleartext")
-  symkey <- C.randomBytes crypto 16
+  symkey <- C.randomBytes crypto 32
   ciphertext <- C.encrypt crypto symkey [cleartext]
   let decipheredtext = C.decrypt crypto symkey ciphertext
   case decipheredtext of

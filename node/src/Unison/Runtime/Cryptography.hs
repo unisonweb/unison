@@ -42,11 +42,11 @@ randomBytes' n = do drg <- R.getSystemDRG
                     let bts = fst $ R.randomBytesGenerate n drg
                     return bts
 
+ivBitLength :: Int
+ivBitLength = 128
+
 authTagBitLength :: Int
 authTagBitLength = 128
-
-blockLength :: Int
-blockLength = 128
 
 encrypt' :: forall cleartext symmetricKey .
             ( ByteArrayAccess cleartext
@@ -57,9 +57,9 @@ encrypt' :: forall cleartext symmetricKey .
          -> [cleartext]
          -> IO Ciphertext
 encrypt' k cts = do
-  iv <- randomBytes' 16
+  iv <- randomBytes' $ ivBitLength `div` 8
   let clrtext = BA.concat cts :: cleartext
-      cipher = throwCryptoError $ cipherInit k :: AES.AES128
+      cipher = throwCryptoError $ cipherInit k :: AES.AES256
       aead = throwCryptoError $ aeadInit AEAD_GCM cipher iv
       ad = "" :: ByteString -- associated data
       ((AuthTag auth), out) = aeadSimpleEncrypt aead ad clrtext authTagBitLength
@@ -74,7 +74,7 @@ decrypt' :: forall cleartext symmetricKey .
          -> ByteString
          -> Either String cleartext
 decrypt' k ciphertext = let (auth, ct') = BA.splitAt (authTagBitLength `div` 8) ciphertext
-                            (iv, ct'') = BA.splitAt (blockLength `div` 8) ct'
+                            (iv, ct'') = BA.splitAt (ivBitLength `div` 8) ct'
                             cipher = throwCryptoError $ cipherInit (k :: symmetricKey) :: AES.AES128
                             aead = throwCryptoError $ aeadInit AEAD_GCM cipher iv
                             ad = "" :: ByteString -- associated data
