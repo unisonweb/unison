@@ -273,8 +273,8 @@ process codebase ("add" : [name]) = go0 name where
     str <- readFile name
     hasParent <- Directory.doesFileExist (baseName `mappend` ".parent")
     bs <- case Parser.run TermParser.moduleBindings str TypeParser.s0 of
-      Parser.Fail err _ -> putStrLn ("FAILED parsing " ++ name) >> mapM_ putStrLn err >> fail "parse failure"
-      Parser.Succeed bs _ _ -> bs <$ putStrLn ("OK parsed " ++ name ++ ", processing declarations ...\n")
+      Left err -> putStrLn ("FAILED parsing " ++ name) >> putStrLn err >> fail "parse failure"
+      Right bs -> bs <$ putStrLn ("OK parsed " ++ name ++ ", processing declarations ...\n")
     go codebase name hasParent bs
   go codebase name hasParent bs = do
     let hooks' = Codebase.Hooks startingToProcess nameShadowing duplicateDefinition renamedOldDefinition ambiguousReferences finishedDeclaring

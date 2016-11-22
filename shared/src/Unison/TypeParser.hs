@@ -87,7 +87,7 @@ keywords = ["forall", "∀"]
 --     more = (:) <$> char '.' <*> qualifiedTypeName
 
 literal :: Var v => Parser (S v) (Type v)
-literal = scope "literal" . token $
+literal = label "literal" . token $
   asum [ Type.lit Type.Number <$ string "Number"
        , Type.lit Type.Text <$ string "Text"
        , Type.lit Type.Vector <$ string "Vector"

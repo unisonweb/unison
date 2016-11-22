@@ -7,7 +7,6 @@ import Data.List
 import Data.Text (Text)
 import Test.Tasty
 import Test.Tasty.HUnit
-import Unison.Parser (Result(..))
 import Unison.Parsers (parseTerm)
 import Unison.Symbol (Symbol)
 import Unison.Term
@@ -20,23 +19,23 @@ import qualified Unison.Type as T
 
 parse' :: String -> TestTree
 parse' s = testCase ("`" ++ s ++ "`") $
-  case parseTerm s :: Result _ (Term (Symbol DFO)) of
-    Fail e _ -> assertFailure $ "parse failure " ++ intercalate "\n" e
-    Succeed a _ _ -> pure ()
+  case parseTerm s :: Either _ (Term (Symbol DFO)) of
+    Left e -> assertFailure $ "parse failure \n" ++ e
+    Right a -> pure ()
 
 parse :: (String, Term (Symbol DFO)) -> TestTree
 parse (s, expected) =
   testCase ("`" ++ s ++ "`") $
     case parseTerm s of
-      Fail e _ -> assertFailure $ "parse failure " ++ intercalate "\n" e
-      Succeed a _ _ -> assertEqual "mismatch" expected a
+      Left e -> assertFailure $ "parse failure \n" ++ e
+      Right a -> assertEqual "mismatch" expected a
 
 parseFail :: (String,String) -> TestTree
 parseFail (s, reason) =
   testCase ("`" ++ s ++ "` shouldn't parse: " ++ reason) $ assertBool "should not have parsed" $
-    case parseTerm s :: Result _ (Term (Symbol DFO)) of
-      Fail {} -> True;
-      Succeed _ _ n -> n == length s;
+    case parseTerm s :: Either _ (Term (Symbol DFO)) of
+      Left _ -> True
+      Right _ -> False
 
 tests :: TestTree
 tests = testGroup "TermParser" $ (parse <$> shouldPass)
@@ -76,7 +75,7 @@ tests = testGroup "TermParser" $ (parse <$> shouldPass)
       , ("1:Int", ann one int)
       , ("(1:Int)", ann one int)
       , ("(1:Int) : Int", ann (ann one int) int)
-      , ("let a = 1; a + 1;;", let1' [("a", one)] (apps numberplus [a, one]))
+      , ("let { a = 1; a + 1 }", let1' [("a", one)] (apps numberplus [a, one]))
       , ("let a : Int; a = 1; a + 1;;", let_a_int1_in_aplus1)
       , ("let a: Int; a = 1; a + 1;;", let_a_int1_in_aplus1)
       , ("let a :Int; a = 1; a + 1;;", let_a_int1_in_aplus1)

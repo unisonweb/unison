@@ -73,6 +73,7 @@ library
     Unison.Var
     Unison.View
     Unison.Views
+    Unison.Scratch
 
   build-depends:
     aeson,

@@ -2,7 +2,7 @@
 module Unison.Test.TypeParser where
 
 import           Test.Tasty
-import           Unison.Parser      (Result(..))
+import           Unison.Parser
 import           Unison.Parsers     (parseType)
 import           Unison.Type        (Type)
 import qualified Unison.Type        as T
@@ -16,8 +16,8 @@ import           Unison.View        (DFO)
 parseV :: (String, Type (Symbol DFO)) -> TestTree
 parseV (s,expected) =
   testCase ("`" ++ s ++ "`") $ case parseType s of
-    Fail _ _ -> assertFailure "parse failure"
-    Succeed a _ _ -> assertEqual "mismatch" expected a
+    Left e -> assertFailure $ "parse failure\n" ++ e
+    Right a -> assertEqual "mismatch" expected a
 
 tests :: TestTree
 tests = testGroup "TypeParser" $ fmap parseV strings
