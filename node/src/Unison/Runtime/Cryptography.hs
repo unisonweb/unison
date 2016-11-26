@@ -38,9 +38,7 @@ mkCrypto key = Cryptography key gen hash sign verify randomBytes encryptAsymmetr
   pipeResponder = undefined
 
 randomBytes' :: Int -> IO ByteString
-randomBytes' n = do drg <- R.getSystemDRG
-                    let bts = fst $ R.randomBytesGenerate n drg
-                    return bts
+randomBytes' n = fst . R.randomBytesGenerate n <$> R.getSystemDRG
 
 ivBitLength :: Int
 ivBitLength = 128
