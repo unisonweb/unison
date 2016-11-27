@@ -75,13 +75,14 @@ decrypt' :: forall cleartext symmetricKey .
          => symmetricKey
          -> ByteString
          -> Either String cleartext
-decrypt' k ciphertext = let (auth, ct') = BA.splitAt (authTagBitLength `div` 8) ciphertext
-                            (iv, ct'') = BA.splitAt (ivBitLength `div` 8) ct'
-                            cipher = throwCryptoError $ cipherInit (k :: symmetricKey) :: AES.AES128
-                            aead = throwCryptoError $ aeadInit AEAD_GCM cipher iv
-                            ad = "" :: ByteString -- associated data
-                            maybeCleartext = aeadSimpleDecrypt aead ad ct'' (AuthTag (BA.convert auth))
-                        in
-                          case maybeCleartext of
-                          Just pt -> Right $ BA.convert pt
-                          Nothing -> Left "Error when attempting to decrypt ciphertext."
+decrypt' k ciphertext =
+   let (auth, ct') = BA.splitAt (authTagBitLength `div` 8) ciphertext
+       (iv, ct'') = BA.splitAt (ivBitLength `div` 8) ct'
+       cipher = throwCryptoError $ cipherInit (k :: symmetricKey) :: AES.AES128
+       aead = throwCryptoError $ aeadInit AEAD_GCM cipher iv
+       ad = "" :: ByteString -- associated data
+       maybeCleartext = aeadSimpleDecrypt aead ad ct'' (AuthTag (BA.convert auth))
+   in
+     case maybeCleartext of
+       Just pt -> Right $ BA.convert pt
+       Nothing -> Left "Error when attempting to decrypt ciphertext."
