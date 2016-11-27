@@ -58,15 +58,15 @@ encrypt' :: forall cleartext symmetricKey .
          => symmetricKey
          -> [cleartext]
          -> IO Ciphertext
-encrypt' k cts = do
-  iv <- randomBytes' $ ivBitLength `div` 8
-  let clrtext = BA.concat cts :: cleartext
-      cipher = throwCryptoError $ cipherInit k :: AES.AES256
-      aead = throwCryptoError $ aeadInit AEAD_GCM cipher iv
-      ad = "" :: ByteString -- associated data
-      ((AuthTag auth), out) = aeadSimpleEncrypt aead ad clrtext authTagBitLength
-      ciphertext = BA.concat [(BA.convert auth), iv, (BA.convert out)]
-  return ciphertext
+encrypt' k cts = go <$> randomBytes' (ivBitLength `div` 8)
+  where go iv =
+          let clrtext = BA.concat cts :: cleartext
+              cipher = throwCryptoError $ cipherInit k :: AES.AES256
+              aead = throwCryptoError $ aeadInit AEAD_GCM cipher iv
+              ad = "" :: ByteString -- associated data
+              ((AuthTag auth), out) = aeadSimpleEncrypt aead ad clrtext authTagBitLength
+          in
+            BA.concat [(BA.convert auth), iv, (BA.convert out)]
 
 decrypt' :: forall cleartext symmetricKey .
             ( ByteArrayAccess symmetricKey
