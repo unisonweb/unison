@@ -40,9 +40,13 @@ mkCrypto key = Cryptography key gen hash sign verify randomBytes encryptAsymmetr
 randomBytes' :: Int -> IO ByteString
 randomBytes' n = fst . R.randomBytesGenerate n <$> R.getSystemDRG
 
+-- The number of bits in the Initialization Vector (IV). This should be equal to
+-- the block size, which is 128 in this implementation.
 ivBitLength :: Int
 ivBitLength = 128
 
+-- The number of bits in the authorization tag. In general this value can be one
+-- of 128, 120, 112, 104, or 96. The larger, the better.
 authTagBitLength :: Int
 authTagBitLength = 128
 
