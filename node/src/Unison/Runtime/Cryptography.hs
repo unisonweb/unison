@@ -68,8 +68,7 @@ encrypt' k cts = go <$> randomBytes' (ivBitLength `div` 8)
           in
             BA.concat [(BA.convert auth), iv, (BA.convert out)]
 
-decrypt' :: forall cleartext symmetricKey .
-            ( ByteArrayAccess symmetricKey
+decrypt' :: ( ByteArrayAccess symmetricKey
             , ByteArray symmetricKey
             , ByteArray cleartext)
          => symmetricKey
@@ -78,7 +77,7 @@ decrypt' :: forall cleartext symmetricKey .
 decrypt' k ciphertext =
    let (auth, ct') = BA.splitAt (authTagBitLength `div` 8) ciphertext
        (iv, ct'') = BA.splitAt (ivBitLength `div` 8) ct'
-       cipher = throwCryptoError $ cipherInit (k :: symmetricKey) :: AES.AES128
+       cipher = throwCryptoError $ cipherInit k :: AES.AES128
        aead = throwCryptoError $ aeadInit AEAD_GCM cipher iv
        ad = "" :: ByteString -- associated data
        maybeCleartext = aeadSimpleDecrypt aead ad ct'' (AuthTag (BA.convert auth))
