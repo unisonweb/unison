@@ -63,21 +63,21 @@ import Text.Parsec.Pos
 import Text.Parsec.Prim hiding (State)
 import Text.Parsec.Char hiding (space)
 
-import Debug.Trace
-import Text.Parsec (anyChar)
-
-pTrace s = pt <|> return ()
-    where pt = try $
-               do
-                 x <- try $ many anyChar
-                 trace (s++": " ++x) $ try $ char 'z'
-                 fail x
-
-traced s p = do
-  pTrace s
-  a <- p <|> trace (s ++ " backtracked") (fail s)
-  let !x = trace (s ++ " succeeded") ()
-  pure a
+--import Debug.Trace
+--import Text.Parsec (anyChar)
+--
+--pTrace s = pt <|> return ()
+--    where pt = try $
+--               do
+--                 x <- try $ many anyChar
+--                 trace (s++": " ++x) $ try $ char 'z'
+--                 fail x
+--
+--traced s p = do
+--  pTrace s
+--  a <- p <|> trace (s ++ " backtracked") (fail s)
+--  let !x = trace (s ++ " succeeded") ()
+--  pure a
 
 data LayoutContext = NoLayout | Layout Int deriving (Eq,Ord,Show)
 
@@ -214,7 +214,7 @@ space = do
 -- | Recognize a semicolon including a virtual semicolon in layout.
 semi :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m String
 semi = do
-    traced "semi" (try $ layoutSatisfies p)
+    try $ layoutSatisfies p
     return ";"
   <?> "semicolon"
   where
@@ -235,13 +235,13 @@ rbrace = do
     return "}"
 
 block :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m a -> ParsecT s u m a
-block p = try (braced p) <|> vbraced p where
-  braced s = traced "block-braced" $ between (spaced lbrace) (spaced rbrace) s
-  vbraced s = traced "block-vbraced" $ between (spaced virtual_lbrace) (spaced virtual_rbrace) s
+block p = try (braced p) <|> try (vbraced p) <|> p where
+  braced s = between (spaced lbrace) (spaced rbrace) s
+  vbraced s = between (spaced virtual_lbrace) (spaced virtual_rbrace) s
 
 -- | Repeat a parser in layout, separated by (virtual) semicolons.
 laidout :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m a -> ParsecT s u m [a]
 laidout p = braced statements <|> vbraced statements where
-    braced s = traced "braced" $ between (try (spaced lbrace)) (spaced rbrace) s
-    vbraced s = traced "vbraced" $ between (spaced virtual_lbrace) (spaced virtual_rbrace) s
-    statements = traced "statements" $ traced "p in laidout" p `sepBy` traced "semi in laidout" (spaced semi)
+    braced s = between (try (spaced lbrace)) (spaced rbrace) s
+    vbraced s = between (spaced virtual_lbrace) (spaced virtual_rbrace) s
+    statements = p `sepBy` spaced semi

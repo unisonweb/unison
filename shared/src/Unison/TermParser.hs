@@ -34,6 +34,7 @@ pTrace s = pt <|> return ()
                  trace (s++": " ++x) $ attempt $ char 'z'
                  fail x
 
+-- traced s p = p
 traced s p = do
   pTrace s
   a <- p <|> trace (s ++ " backtracked") (fail s)
@@ -53,31 +54,33 @@ Sections / partial application of infix operators is not implemented.
 type S = TypeParser.S
 
 term :: Var v => Parser (S v) (Term v)
-term = traced "term" $ f <$> term2 <*> optional (token (char ':') *> TypeParser.type_)
-  where
-    f t (Just y) = Term.ann t y
-    f t Nothing = t
+term = term2
 
 term2 :: Var v => Parser (S v) (Term v)
-term2 = traced "term2" $ let_ <|> lam term3 <|> term3
+term2 = let_ <|> lam term2 <|> term3
 
 term3 :: Var v => Parser (S v) (Term v)
-term3 = traced "term3" $ ifthen <|> infixApp
+term3 = do
+  t <- ifthen <|> infixApp
+  ot <- optional (token (char ':') *> TypeParser.type_)
+  pure $ case ot of
+    Nothing -> t
+    Just y -> Term.ann t y
 
 infixApp :: Var v => Parser (S v) (Term v)
-infixApp = traced "infixApp" $ chainl1 (traced "term4 in infix" term4) (f <$> infixVar)
+infixApp = chainl1 term4 (f <$> infixVar)
   where
     f :: Ord v => v -> Term v -> Term v -> Term v
     f op lhs rhs = Term.apps (Term.var op) [lhs,rhs]
 
 term4 :: Var v => Parser (S v) (Term v)
-term4 = traced "term4" $ term5 -- f <$> some (traced "term5 in prefix" term5)
-  --where
-  --  f (func:args) = Term.apps func args
-  --  f [] = error "'some' shouldn't produce an empty list"
+term4 = f <$> some term5
+  where
+    f (func:args) = Term.apps func args
+    f [] = error "'some' shouldn't produce an empty list"
 
 term5 :: Var v => Parser (S v) (Term v)
-term5 = traced "term5" $ label "effect block" effectBlock <|> termLeaf
+term5 = label "effect block" effectBlock <|> termLeaf
 
 termLeaf :: Var v => Parser (S v) (Term v)
 termLeaf =
@@ -90,7 +93,7 @@ ifthen = do
   _ <- token (string "then")
   iftrue <- term
   _ <- token (string "else")
-  iffalse <- term
+  iffalse <- L.block term
   pure (Term.apps (Term.lit Term.If) [cond, iftrue, iffalse])
 
 tupleOrParenthesized :: Var v => Parser (S v) (Term v) -> Parser (S v) (Term v)
@@ -106,14 +109,13 @@ tupleOrParenthesized rec =
 -- do Remote action1; action2;;
 -- do Remote action1; x = 1 + 1; action2;;
 -- do Remote
---   x := pure 23;
---   y = 11;
---   pure (f x);;
+--   x := pure 23
+--   y = 11
+--   pure (f x)
 effectBlock :: forall v . Var v => Parser (S v) (Term v)
 effectBlock = (token (string "do") *> wordyId keywords) >>= go where
   go name = do
-    bindings <- some $ asum [Right <$> binding, Left <$> action] <* semicolon
-    semicolon
+    bindings <- L.laidout $ asum [Right <$> binding, Left <$> action]
     Just result <- pure $ foldr bind Nothing bindings
     pure result
     where
@@ -130,9 +132,11 @@ effectBlock = (token (string "do") *> wordyId keywords) >>= go where
     interpretPure = ABT.subst (ABT.v' "pure") qualifiedPure
     binding :: Parser (S v) (v, Term v)
     binding = do
-      lhs <- ABT.v' . Text.pack <$> token (wordyId keywords)
-      eff <- token $ (True <$ string ":=") <|> (False <$ string "=")
-      rhs <- term
+      (lhs, eff) <- attempt $ do
+        lhs <- ABT.v' . Text.pack <$> token (wordyId keywords)
+        eff <- token $ (True <$ string ":=") <|> (False <$ string "=")
+        pure (lhs, eff)
+      rhs <- L.block term
       let rhs' = if eff then interpretPure rhs
                  else qualifiedPure `Term.app` rhs
       pure (lhs, rhs')
@@ -184,7 +188,7 @@ vector p = Term.app (Term.builtin "Vector.force") . Term.vector <$> (lbracket *>
 
 
 let_ :: Var v => Parser (S v) (Term v)
-let_ = traced "let" $ join $ fixup <$> (let_ *> optional rec_) <*> L.laidout (many alias *> bindingOrTerm)
+let_ = join $ fixup <$> (let_ *> optional rec_) <*> L.laidout (many alias *> bindingOrTerm)
   where
     let_ = token (string "let")
     rec_ = token (string "rec") $> ()
@@ -197,16 +201,16 @@ let_ = traced "let" $ join $ fixup <$> (let_ *> optional rec_) <*> L.laidout (ma
     f (Just _) (bindings,body) = Term.letRec bindings body
 
 binding :: Var v => Parser (S v) (v, Term v)
-binding = traced "binding" $ label "binding" $ do
-  typ <- optional typedecl
+binding = label "binding" $ do
+  typ <- optional typedecl <* optional semicolon
   let lhs = attempt ((\arg1 op arg2 -> (op,[arg1,arg2]))
                     <$> prefixVar <*> infixVar <*> prefixVar)
-                <|> traced "lhs2" ((,) <$> prefixVar <*> many prefixVar)
+                <|> ((,) <$> prefixVar <*> many prefixVar)
   case typ of
     Nothing -> do
       -- we haven't seen a type annotation, so lookahead to '=' before commit
       (name, args) <- attempt (lhs <* token (char '='))
-      body <- L.block (traced "term in let" term)
+      body <- L.block term
       pure $ mkBinding name args body
     Just (nameT, typ) -> do
       (name, args) <- lhs
