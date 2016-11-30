@@ -42,6 +42,9 @@ eof = Parsec.eof
 attempt :: Parser s a -> Parser s a
 attempt = Parsec.try
 
+lookAhead :: Parser s a -> Parser s a
+lookAhead = Parsec.lookAhead
+
 run' :: Parser s a -> String -> s -> String -> Either String a
 run' p s s0 name =
   case Parsec.runParser p (Env s0 L.defaultLayoutEnv) name (Text.pack s) of

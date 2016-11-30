@@ -141,7 +141,7 @@ effectBlock = (token (string "do") *> wordyId keywords) >>= go where
                  else qualifiedPure `Term.app` rhs
       pure (lhs, rhs')
     action :: Parser (S v) (Term v)
-    action = interpretPure <$> term
+    action = interpretPure <$> L.block term
 
 text' :: Parser s Literal
 text' =

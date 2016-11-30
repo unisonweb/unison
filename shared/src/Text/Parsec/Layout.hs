@@ -51,8 +51,10 @@ module Text.Parsec.Layout
     , defaultLayoutEnv
     , HasLayoutEnv(..)
     , maybeFollowedBy
+    , virtual_rbrace
     ) where
 
+import Data.Functor
 import Control.Applicative ((<$>))
 import Control.Monad (guard)
 
@@ -238,6 +240,7 @@ block :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m a -> ParsecT s u m a
 block p = try (braced p) <|> try (vbraced p) <|> p where
   braced s = between (spaced lbrace) (spaced rbrace) s
   vbraced s = between (spaced virtual_lbrace) (spaced virtual_rbrace) s
+-- block p = p <* lookAhead (spaced (virtual_lbrace <|> void semi))
 
 -- | Repeat a parser in layout, separated by (virtual) semicolons.
 laidout :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m a -> ParsecT s u m [a]

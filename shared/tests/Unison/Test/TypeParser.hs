@@ -36,7 +36,6 @@ tests = testGroup "TypeParser" $ fmap parseV strings
       , ("(Foo -> Foo) -> Foo", T.arrow (T.arrow foo foo) foo)
       , ("Vector Foo", T.vectorOf foo)
       , ("forall a . a -> a", forall_aa)
-      , ("forall a. a -> a", forall_aa)
       , ("(forall a . a) -> Number", T.forall' ["a"] (T.v' "a") `T.arrow` T.lit T.Number)
       ]
     a = T.v' "a"
