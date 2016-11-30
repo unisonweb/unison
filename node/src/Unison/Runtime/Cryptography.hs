@@ -77,7 +77,7 @@ decrypt' :: ( ByteArrayAccess symmetricKey
 decrypt' k ciphertext =
    let (auth, ct') = BA.splitAt (authTagBitLength `div` 8) ciphertext
        (iv, ct'') = BA.splitAt (ivBitLength `div` 8) ct'
-       cipher = throwCryptoError $ cipherInit k :: AES.AES128
+       cipher = throwCryptoError $ cipherInit k :: AES.AES256
        aead = throwCryptoError $ aeadInit AEAD_GCM cipher iv
        ad = "" :: ByteString -- associated data
        maybeCleartext = aeadSimpleDecrypt aead ad ct'' (AuthTag (BA.convert auth))
