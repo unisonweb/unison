@@ -1,7 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# Language ScopedTypeVariables #-}
+{-# Language GeneralizedNewtypeDeriving #-}
 
-module Unison.Runtime.Cryptography where
+module Unison.Runtime.Cryptography
+       ( symmetricKey
+       , SymmetricKey
+       , mkCrypto
+       ) where
 
 import Unison.Cryptography
 import Data.ByteString (ByteString)
@@ -9,15 +14,19 @@ import Data.ByteArray as BA
 import qualified Crypto.Random as R
 
 -- cryptonite
--- import Crypto.Cipher.Types.Base ()
--- import Crypto.Cipher.AES.Primitive (AES)
 import qualified Crypto.Cipher.AES as AES
 import Crypto.Cipher.Types
 import Crypto.Error
 
+newtype SymmetricKey = AES256 ByteString deriving (Ord, Eq, Monoid, ByteArrayAccess, ByteArray)
+
+symmetricKey :: ByteString -> Either String SymmetricKey
+symmetricKey bs | BA.length bs == 32 = (Right . AES256) bs
+                | otherwise = Left "Invalid key length: must be 256 bits (32 bytes) in length."
+
 -- Creates a Unison.Cryptography object specialized to use the noise protocol
 -- (http://noiseprotocol.org/noise.html).
-mkCrypto :: forall cleartext symmetricKey . (ByteArrayAccess cleartext, ByteArray cleartext, ByteArrayAccess symmetricKey, ByteArray symmetricKey) => ByteString -> Cryptography ByteString symmetricKey () () () () cleartext
+mkCrypto :: forall cleartext . (ByteArrayAccess cleartext, ByteArray cleartext) => ByteString -> Cryptography ByteString SymmetricKey () () () () cleartext
 mkCrypto key = Cryptography key gen hash sign verify randomBytes encryptAsymmetric decryptAsymmetric encrypt decrypt pipeInitiator pipeResponder where
   -- generates an elliptic curve keypair, for use in ECDSA
   gen = undefined
@@ -28,10 +37,10 @@ mkCrypto key = Cryptography key gen hash sign verify randomBytes encryptAsymmetr
   encryptAsymmetric _ cleartext = undefined
   decryptAsymmetric ciphertext = undefined
 
-  encrypt :: symmetricKey -> [cleartext] -> IO Ciphertext
+  encrypt :: SymmetricKey -> [cleartext] -> IO Ciphertext
   encrypt = encrypt'
       
-  decrypt :: symmetricKey -> ByteString -> Either String cleartext
+  decrypt :: SymmetricKey -> ByteString -> Either String cleartext
   decrypt = decrypt'
 
   pipeInitiator _ = undefined
@@ -50,12 +59,11 @@ ivBitLength = 128
 authTagBitLength :: Int
 authTagBitLength = 128
 
-encrypt' :: forall cleartext symmetricKey .
+encrypt' :: forall cleartext .
             ( ByteArrayAccess cleartext
             , ByteArray cleartext
-            , ByteArrayAccess symmetricKey
-            , ByteArray symmetricKey)
-         => symmetricKey
+            )
+         => SymmetricKey
          -> [cleartext]
          -> IO Ciphertext
 encrypt' k cts = go <$> randomBytes' (ivBitLength `div` 8)
@@ -68,10 +76,8 @@ encrypt' k cts = go <$> randomBytes' (ivBitLength `div` 8)
           in
             BA.concat [(BA.convert auth), iv, (BA.convert out)]
 
-decrypt' :: ( ByteArrayAccess symmetricKey
-            , ByteArray symmetricKey
-            , ByteArray cleartext)
-         => symmetricKey
+decrypt' :: (ByteArray cleartext)
+         => SymmetricKey
          -> ByteString
          -> Either String cleartext
 decrypt' k ciphertext =
