@@ -15,8 +15,8 @@ cryptoTest = do
   let cleartext = (B.pack "cleartext")
   bytes <- C.randomBytes crypto 32
   let symkey = case symmetricKey bytes of
-        Left e -> error e
-        Right k -> k
+        Nothing -> error "Error creating symmetric encryption key."
+        Just k -> k
   ciphertext <- C.encrypt crypto symkey [cleartext]
   let decipheredtext = C.decrypt crypto symkey ciphertext
   case decipheredtext of

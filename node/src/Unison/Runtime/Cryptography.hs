@@ -20,9 +20,9 @@ import Crypto.Error
 
 newtype SymmetricKey = AES256 ByteString deriving (Ord, Eq, Monoid, ByteArrayAccess, ByteArray)
 
-symmetricKey :: ByteString -> Either String SymmetricKey
-symmetricKey bs | BA.length bs == 32 = (Right . AES256) bs
-                | otherwise = Left "Invalid key length: must be 256 bits (32 bytes) in length."
+symmetricKey :: ByteString -> Maybe SymmetricKey
+symmetricKey bs | BA.length bs == 32 = (Just . AES256) bs
+                | otherwise = Nothing
 
 -- Creates a Unison.Cryptography object specialized to use the noise protocol
 -- (http://noiseprotocol.org/noise.html).
