@@ -11,6 +11,7 @@ import qualified Unison.Test.BlockStore.FileBlockStore as FBS
 import qualified Unison.Test.BlockStore.LevelDbStore as LBS
 #endif
 import qualified Unison.Test.BlockStore.MemBlockStore as MBS
+import qualified Unison.Test.Cryptography as Crypto
 import qualified Unison.Test.Journal as J
 import qualified Unison.Test.Index as Index
 import qualified Unison.Test.Html as Html
@@ -23,11 +24,13 @@ tastyTests = do
   indexTests <- Index.ioTests
   mbsTests <- MBS.ioTests
   journalTests <- J.ioTests
+  cryptoTests <- Crypto.ioTests
   codebase <- makeTestCodebase
   pure $ testGroup "unison"
         [ ResourcePool.tests
         , Html.tests' codebase
         , mbsTests
+        , cryptoTests
         , FBS.tests
 #ifdef leveldb
         , LBS.tests
