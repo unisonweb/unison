@@ -57,11 +57,11 @@ term :: Var v => Parser (S v) (Term v)
 term = term2
 
 term2 :: Var v => Parser (S v) (Term v)
-term2 = let_ <|> lam term2 <|> term3
+term2 = lam term2 <|> effectBlock <|> term3
 
 term3 :: Var v => Parser (S v) (Term v)
 term3 = do
-  t <- ifthen <|> infixApp
+  t <- let_ <|> ifthen <|> infixApp
   ot <- optional (token (char ':') *> TypeParser.type_)
   pure $ case ot of
     Nothing -> t
@@ -80,7 +80,7 @@ term4 = f <$> some term5
     f [] = error "'some' shouldn't produce an empty list"
 
 term5 :: Var v => Parser (S v) (Term v)
-term5 = label "effect block" effectBlock <|> termLeaf
+term5 = termLeaf
 
 termLeaf :: Var v => Parser (S v) (Term v)
 termLeaf =
@@ -89,9 +89,9 @@ termLeaf =
 ifthen :: Var v => Parser (S v) (Term v)
 ifthen = do
   _ <- token (string "if")
-  cond <- term
+  cond <- L.withoutLayout "then" term
   _ <- token (string "then")
-  iftrue <- term
+  iftrue <- L.withoutLayout "else" term
   _ <- token (string "else")
   iffalse <- L.block term
   pure (Term.apps (Term.lit Term.If) [cond, iftrue, iffalse])

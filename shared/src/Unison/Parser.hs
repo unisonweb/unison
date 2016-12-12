@@ -1,6 +1,7 @@
 {-# Language DeriveFunctor #-}
 {-# Language DeriveTraversable #-}
 {-# Language DeriveFoldable #-}
+{-# Language BangPatterns #-}
 
 module Unison.Parser where
 
@@ -107,9 +108,9 @@ wordyId :: [String] -> Parser s String
 wordyId keywords = label "wordyId" . token $ do
   op <- (False <$ symbolyId keywords) <|> pure True
   guard op
-  f <$> sepBy1 dot id
+  f <$> sepBy1 dot id -- todo: this screws up ∀ a. without a space following 'a'
   where
-    dot = char '.'
+    dot = attempt (char '.')
     id = identifier "alphanumeric identifier"
       [any (not . Char.isDigit), any Char.isAlphaNum, (`notElem` keywords)]
     f segs = intercalate "." segs
@@ -129,8 +130,8 @@ token p = attempt (L.spaced p)
 parenthesized :: Parser s a -> Parser s a
 parenthesized p = lp *> body <* rp
   where
-    lp = token (char '(')
-    body = p
+    lp = char '(' <* L.withoutLayout "space" (optional L.space)
+    body = L.withoutLayout "parentheses" p
     rp = token (char ')')
 
 takeWhile :: String -> (Char -> Bool) -> Parser s String

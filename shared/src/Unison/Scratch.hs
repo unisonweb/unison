@@ -18,7 +18,10 @@ type TermV = Term V
 parse' :: P.Parser (PS.S V) a -> String -> Either String a
 parse' p input = P.run p input PS.s0
 
-parse :: P.Parser (PS.S V) TermV -> String -> Either String TermV
+-- parse :: P.Parser (PS.S V) TermV -> String -> Either String TermV
+-- parse p input = P.run p input PS.s0
+
+parse :: P.Parser (PS.S V) [(V,TermV)] -> String -> Either String [(V, TermV)]
 parse p input = P.run p input PS.s0
 
 input' = unlines
@@ -28,17 +31,14 @@ input' = unlines
   , "  x = 2"
   , "  x + 1" ]
 
-input = "let { x = 1 ; x }"
+-- input = "let { x = 1 ; x }"
+input = "(do Remote { pure 42 } )"
 -- input = "let\n  x = 1\n  x"
 
 main :: IO ()
-main =
-  let p = E.term
-      -- p2 = parser
-  --in case parse' p2 "let { a; a; a   }" of
-  --  Left err -> putStrLn err
-  --  Right a -> putStrLn (show a)
-  -- in case parse p "let { x=1; x }" of
-  in case parse p "let { a = 2 ; 1 }" of
+main = do
+  input <- readFile "unison-src/base.u"
+  let p = E.moduleBindings
+  case parse p input of
     Left err -> putStrLn err
     Right a -> putStrLn (show a)

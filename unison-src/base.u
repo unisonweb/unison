@@ -72,6 +72,34 @@ Vector.fold-balanced plus zero vs = let rec
              go plus zero (1st p) `plus` go plus zero (2nd p)
   go plus zero vs
 
+Optional.map : ∀ a b . (a -> b) -> Optional a -> Optional b
+Optional.map f = Optional.fold None (f `and-then` Some)
+
+Optional.bind : ∀ a b . (a -> Optional b) -> Optional a -> Optional b
+Optional.bind f a = Optional.fold None f a
+
+Optional.pure : ∀ a . a -> Optional a
+Optional.pure = Some
+
+Optional.get-or : ∀ a . a -> Optional a -> a
+Optional.get-or a = Optional.fold a identity
+
+Optional.somes : ∀ a . Vector (Optional a) -> Vector a
+Optional.somes = Vector.bind (Optional.fold Vector.empty Vector.single)
+
+Optional.map2 : ∀ a b c . (a -> b -> c) -> Optional a -> Optional b -> Optional c
+Optional.map2 f a b = do Optional
+  a := a
+  b := b
+  pure (f a b)
+
+Optional.lift-or : ∀ a . (a -> a -> a) -> Optional a -> Optional a -> Optional a
+Optional.lift-or f = a1 a2 ->
+  a1 |> Optional.fold a2 (a1 -> Optional.fold None (a2 -> Some (f a1 a2)) a2)
+
+Optional.fold' : ∀ a b . (Unit -> b) -> (a -> b) -> Optional a -> Unit -> b
+Optional.fold' thunk f = Optional.fold thunk (a u -> f a)
+
 Vector.fold-balanced1 : ∀ a . (a -> a -> a) -> Vector a -> Optional a
 Vector.fold-balanced1 f v = Vector.fold-balanced (Optional.lift-or f) None (Vector.map Some v)
 
@@ -97,6 +125,12 @@ Vector.last v = Vector.at (Vector.size v - 1) v
 Vector.1st : ∀ a . Vector a -> Optional a
 Vector.1st = Vector.at 0
 
+Vector.drop-right : ∀ a . Number -> Vector a -> Vector a
+Vector.drop-right n v = Vector.take (Vector.size v - n) v
+
+Vector.take-right : ∀ a . Number -> Vector a -> Vector a
+Vector.take-right n v = Vector.drop (Vector.size v - n) v
+
 Vector.dedup-adjacent : ∀ a . (a -> a -> Boolean) -> Vector a -> Vector a
 Vector.dedup-adjacent eq v =
   Vector.fold-balanced
@@ -106,12 +140,6 @@ Vector.dedup-adjacent eq v =
       else Vector.concatenate v1 v2)
     []
     (Vector.map Vector.pure v)
-
-Vector.drop-right : ∀ a . Number -> Vector a -> Vector a
-Vector.drop-right n v = Vector.take (Vector.size v - n) v
-
-Vector.take-right : ∀ a . Number -> Vector a -> Vector a
-Vector.take-right n v = Vector.drop (Vector.size v - n) v
 
 Vector.histogram : ∀ a . Order a -> Vector a -> Vector (a, Number)
 Vector.histogram o v = let
@@ -151,25 +179,32 @@ Remote.map2' f a b = Remote.map2 f a b |> Remote.join
 Remote.join : ∀ a . Remote (Remote a) -> Remote a
 Remote.join = Remote.bind identity
 
-Remote.replicate : ∀ a . Number -> Remote a -> Remote (Vector a)
-Remote.replicate n r = Remote.sequence (Vector.replicate n r)
-
-Remote.replicate! : ∀ a . Number -> Remote a -> Remote Unit
-Remote.replicate! n a = let rec
-  go n =
-    if n <=_Number 0 then Remote.pure Unit
-    else Remote.bind (a -> go (n - 1)) a
-  go n
-
 Remote.unfold : ∀ s a . s -> (s -> Remote (Optional (a, s))) -> Remote (Vector a)
 Remote.unfold s f = let rec
-  go s acc = do Remote {
-    ht := f s;
+  go s acc = do Remote
+    ht := f s
     ht |> Optional.fold
       (pure acc)
       (ht -> go (2nd ht) (Vector.append (1st ht) acc))
-  }
   go s Vector.empty
+
+Remote.at' : ∀ a . Node -> Remote a -> Remote a
+Remote.at' node r = do Remote { Remote.transfer node; r }
+
+Remote.transfer : Node -> Remote Unit
+Remote.transfer node = Remote.at node unit
+
+Remote.replicate : ∀ a . Number -> Remote a -> Remote (Vector a)
+Remote.replicate n r = Remote.sequence (Vector.replicate n r)
+
+
+Remote.start : ∀ a . Duration -> Remote a -> Remote (Remote a)
+Remote.start timeout r = do Remote
+  here := Remote.here
+  c := Remote.channel
+  result := Remote.receive-async c timeout
+  Remote.fork (Remote.at' here (r |> Remote.bind (Remote.send c)))
+  pure result
 
 Remote.race : ∀ a . Duration -> Vector (Remote a) -> Remote a
 Remote.race timeout rs = do Remote
@@ -177,7 +212,7 @@ Remote.race timeout rs = do Remote
   c := Remote.channel
   result := Remote.receive-async c timeout
   Remote.traverse
-    (r -> Remote.fork <| do Remote { a := r Remote.transfer here; Remote.send c a })
+    (r -> Remote.fork <| (do Remote { a := r; Remote.transfer here; Remote.send c a }))
     rs
   result
 
@@ -187,16 +222,15 @@ Remote.timeout : ∀ a . Duration -> Remote a -> Remote (Optional a)
 Remote.timeout timeout r =
   Remote.race (Duration.seconds 501) [
     Remote.map Some r,
-    do Remote Remote.sleep timeout pure None
+    do Remote { Remote.sleep timeout; pure None }
   ]
 
-Remote.start : ∀ a . Duration -> Remote a -> Remote (Remote a)
-Remote.start timeout r = do Remote
-  here := Remote.here
-  c := Remote.channel
-  result := Remote.receive-async c timeout
-  Remote.fork (Remote.at' here (r |> Remote.bind (Remote.send c)))
-  pure result
+Remote.replicate! : ∀ a . Number -> Remote a -> Remote Unit
+Remote.replicate! n a = let rec
+  go n =
+    if n <=_Number 0 then Remote.pure Unit
+    else Remote.bind (a -> go (n - 1)) a
+  go n
 
 Remote.traverse : ∀ a b . (a -> Remote b) -> Vector a -> Remote (Vector b)
 Remote.traverse f vs =
@@ -220,35 +254,6 @@ Remote.parallel-traverse timeout f vs = do Remote
 Remote.quorum : ∀ a b . Duration -> Number -> (a -> Remote b) -> Vector a -> Remote b
 Remote.quorum timeout n = _ -- todo
 
-Optional.map : ∀ a b . (a -> b) -> Optional a -> Optional b
-Optional.map f = Optional.fold None (f `and-then` Some)
-
-Optional.bind : ∀ a b . (a -> Optional b) -> Optional a -> Optional b
-Optional.bind f = Optional.fold None f
-
-Optional.pure : ∀ a . a -> Optional a
-Optional.pure = Some
-
-Optional.get-or : ∀ a . a -> Optional a -> a
-Optional.get-or a = Optional.fold a identity
-
-Optional.somes : ∀ a . Vector (Optional a) -> Vector a
-Optional.somes = Vector.bind (Optional.fold Vector.empty Vector.single)
-
-Optional.map2 : ∀ a b c . (a -> b -> c) -> Optional a -> Optional b -> Optional c
-Optional.map2 f a b = do Optional
-  a := a
-  b := b
-  pure (f a b)
-
-
-Optional.lift-or : ∀ a . (a -> a -> a) -> Optional a -> Optional a -> Optional a
-Optional.lift-or f = a1 a2 ->
-  a1 |> Optional.fold a2 (a1 -> Optional.fold None (a2 -> Some (f a1 a2)) a2)
-
-Optional.fold' : ∀ a b . (Unit -> b) -> (a -> b) -> Optional a -> Unit -> b
-Optional.fold' thunk f = Optional.fold thunk (a u -> f a)
-
 Either.map : ∀ a b c . (b -> c) -> Either a b -> Either a c
 Either.map f = Either.fold Left (f `and-then` Right)
 
@@ -270,9 +275,3 @@ Text.take-right n t = Text.drop (Text.length t - n) t
 Text.ends-with : Text -> Text -> Boolean
 Text.ends-with suffix overall =
   Text.take-right (Text.length suffix) overall ==_Text suffix
-
-Remote.at' : ∀ a . Node -> Remote a -> Remote a
-Remote.at' node r = do Remote { Remote.transfer node; r }
-
-Remote.transfer : Node -> Remote Unit
-Remote.transfer node = Remote.at node unit

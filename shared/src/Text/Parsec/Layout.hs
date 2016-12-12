@@ -1,6 +1,6 @@
 {-# Language BangPatterns #-}
 
--- Copyright (c) 2013, Edward Kmett, Luke Palmer
+-- Copyright (c) 2013, Edward Kmett, Luke Palmer, Paul Chiusano
 --
 -- All rights reserved.
 --
@@ -52,11 +52,12 @@ module Text.Parsec.Layout
     , HasLayoutEnv(..)
     , maybeFollowedBy
     , virtual_rbrace
+    , withoutLayout
     ) where
 
 import Data.Functor
 import Control.Applicative ((<$>))
-import Control.Monad (guard)
+import Control.Monad
 
 import Data.Char (isSpace)
 
@@ -133,6 +134,10 @@ pushCurrentContext = do
 maybeFollowedBy :: Stream s m c => ParsecT s u m a -> ParsecT s u m b -> ParsecT s u m a
 t `maybeFollowedBy` x = do t' <- t; optional x; return t'
 
+withoutLayout :: (HasLayoutEnv u, Stream s m c) => String -> ParsecT s u m a -> ParsecT s u m a
+withoutLayout endMsg p =
+  pushContext NoLayout *> (p <* popContext endMsg)
+
 -- | @(\``maybeFollowedBy`\` space)@
 spaced :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m a -> ParsecT s u m a
 spaced t = t `maybeFollowedBy` space
@@ -200,11 +205,31 @@ layout = try $ do
 layoutSatisfies :: (HasLayoutEnv u, Stream s m Char) => (Layout -> Bool) -> ParsecT s u m ()
 layoutSatisfies p = guard . p =<< layout
 
+inLayout :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m Bool
+inLayout = do
+  env <- getEnv
+  pure $ case envLayout env of
+    [] -> True
+    (NoLayout:_) -> False
+    (Layout _:_) -> True
+
+pushIncrementedContext :: (HasLayoutEnv u, Stream s m c) => ParsecT s u m ()
+pushIncrementedContext = do
+  env <- getEnv
+  case envLayout env of
+    [] -> pushContext (Layout 1)
+    (Layout n : _) -> pushContext (Layout (n + 1))
+    (NoLayout : _) -> pure ()
+
 virtual_lbrace :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m ()
-virtual_lbrace = pushCurrentContext
+virtual_lbrace = do
+  allow <- inLayout
+  when allow pushCurrentContext
 
 virtual_rbrace :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m ()
-virtual_rbrace = eof <|> try (layoutSatisfies (VBrace ==) <?> "outdent")
+virtual_rbrace = do
+  allow <- inLayout
+  when allow $ eof <|> try (layoutSatisfies (VBrace ==) <?> "outdent")
 
 -- | Consumes one or more spaces, comments, and onside newlines in a layout rule.
 space :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m String
@@ -237,10 +262,14 @@ rbrace = do
     return "}"
 
 block :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m a -> ParsecT s u m a
-block p = try (braced p) <|> try (vbraced p) <|> p where
-  braced s = between (spaced lbrace) (spaced rbrace) s
+block p = braced p <|> vbraced p where
+  braced s = between (try (spaced lbrace)) (spaced rbrace) s
   vbraced s = between (spaced virtual_lbrace) (spaced virtual_rbrace) s
--- block p = p <* lookAhead (spaced (virtual_lbrace <|> void semi))
+  -- NB: virtual_lbrace here doesn't use current column for offside calc, instead
+  -- uses 1 column greater than whatever column is at top of layout stack
+  virtual_lbrace = do
+    allow <- inLayout
+    when allow pushIncrementedContext
 
 -- | Repeat a parser in layout, separated by (virtual) semicolons.
 laidout :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m a -> ParsecT s u m [a]
