@@ -61,7 +61,7 @@ unsafeRun p s s0 = case run p s s0 of
   Left e -> error e
 
 string :: String -> Parser s String
-string = Parsec.string
+string s = attempt (Parsec.string s) <|> fail ("expected '" ++ s ++ "'")
 
 takeLine :: String -> String
 takeLine = Prelude.takeWhile (/= '\n')

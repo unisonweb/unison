@@ -1,76 +1,73 @@
 let
-  alias DIndex k v = Index Node (Index k v);
-  alias Set v = Index v Unit;
+  alias DIndex k v = Index Node (Index k v)
+  alias Set v = Index v Unit
 
   -- Maps keywords to set of page content hashes with that keyword
-  alias SearchIndex = DIndex Text (Set (Hash Text));
+  alias SearchIndex = DIndex Text (Set (Hash Text))
 
   -- Maps page hash to canonical Url for that hash
-  alias CanonicalUrls = DIndex (Hash Text) Text;
+  alias CanonicalUrls = DIndex (Hash Text) Text
 
   -- Maps page hash to a short, plain text exerpt from that page
-  alias Excerpts = DIndex (Hash Text) Text;
+  alias Excerpts = DIndex (Hash Text) Text
 
   -- Using the search index, returns the list of page hashes (up to limit)
   -- whose content contains all the keywords of the query
   search : Number -> Vector Text -> SearchIndex
-        -> Remote (Vector (Hash Text));
+        -> Remote (Vector (Hash Text))
   search limit query ind = do Remote
-    url-sets := Remote.traverse (k -> DIndex.lookup k ind) query;
-    url-sets = Vector.map Index.traversal (Optional.somes url-sets);
-    merge = IndexedTraversal.intersect (Order.by-2nd Hash.Order);
-    urls = Optional.get-or IndexedTraversal.empty <| Vector.fold-balanced1 merge url-sets;
-    urls := IndexedTraversal.take-keys limit urls;
-    pure (Vector.map 1st urls);;
-  ;
+    url-sets := Remote.traverse (k -> DIndex.lookup k ind) query
+    url-sets = Vector.map Index.traversal (Optional.somes url-sets)
+    merge = IndexedTraversal.intersect (Order.by-2nd Hash.Order)
+    urls = Optional.get-or IndexedTraversal.empty <| Vector.fold-balanced1 merge url-sets
+    urls := IndexedTraversal.take-keys limit urls
+    pure (Vector.map 1st urls)
 
   -- Plain-text formating of a set of results
-  format-results : Vector (Hash Text) -> CanonicalUrls -> Excerpts -> Remote Text;
+  format-results : Vector (Hash Text) -> CanonicalUrls -> Excerpts -> Remote Text
   format-results hs urls excerpts = do Remote
-    urls := Remote.map Optional.somes <| Remote.traverse (h -> DIndex.lookup h urls) hs;
-    excerpts := Remote.map Optional.somes <| Remote.traverse (h -> DIndex.lookup h excerpts) hs;
-    fmt = p -> Text.join [1st p, Text.newline, 2nd p, Text.newline, "***", Text.newline];
-    pure <| Text.join (Vector.map fmt (urls `Vector.zip` excerpts));;
-  ;
+    urls := Remote.map Optional.somes <| Remote.traverse (h -> DIndex.lookup h urls) hs
+    excerpts := Remote.map Optional.somes <| Remote.traverse (h -> DIndex.lookup h excerpts) hs
+    fmt = p -> Text.join [1st p, Text.newline, 2nd p, Text.newline, "***", Text.newline]
+    pure <| Text.join (Vector.map fmt (urls `Vector.zip` excerpts))
 
-  trim-to-host : Text -> Text;
+  trim-to-host : Text -> Text
   trim-to-host url = Optional.get-or url <| do Optional
-    host := Uri.parse-authority url;
-    scheme := Uri.parse-scheme url;
-    pure (Text.concatenate scheme ("//" `Text.concatenate` host));;
-  ;
+    host := Uri.parse-authority url
+    scheme := Uri.parse-scheme url
+    pure (Text.concatenate scheme ("//" `Text.concatenate` host))
 
   -- | Convert url (possibly relative to parent) to an absolute url
-  resolve-url : Text -> Text -> Text;
+  resolve-url : Text -> Text -> Text
   resolve-url parent child =
     if Text.take 1 child ==_Text "/" then
       Text.concatenate (trim-to-host parent) child
     else if (Text.take 5 child ==_Text "http:") `or` (Text.take 6 child ==_Text "https:") then
       child
     else Text.join [parent, if Text.ends-with "/" parent then "" else "/", child]
-  ;
 
-  crawl : Number -> SearchIndex -> CanonicalUrls -> Excerpts -> Text -> Remote Unit;
+  crawl : Number -> SearchIndex -> CanonicalUrls -> Excerpts -> Text -> Remote Unit
   crawl depth ind visited excerpts url = let rec
     insert url keyword = do Remote
-      url-set := DIndex.lookup keyword ind;
+      url-set := DIndex.lookup keyword ind
       Optional.fold
-        (do Remote
+        (do Remote {
             url-set := Index.empty;
             DIndex.insert keyword url-set ind;
-            insert url keyword;;)
+            insert url keyword
+        })
         (Index.insert url Unit)
-        url-set;;
-    ;
+        url-set
+
     go depth url =
       if depth <=_Number 0 then Remote.pure Unit
       else do Remote
-        page := Remote.map (Debug.log "indexing url" url) (Http.get-url url);
-        page = Either.fold (err -> Debug.log "error fetching" (url, err) "") identity page;
-        page-hash := hash! page;
-        h := DIndex.lookup page-hash visited;
+        page := Remote.map (Debug.log "indexing url" url) (Http.get-url url)
+        page = Either.fold (err -> Debug.log "error fetching" (url, err) "") identity page
+        page-hash := hash! page
+        h := DIndex.lookup page-hash visited
         Optional.fold
-          (do Remote
+          (do Remote {
             page-text = Html.plain-text page;
             keywords = Text.words page-text
                     |> Vector.map Text.lowercase
@@ -88,39 +85,37 @@ let
             Debug.log "finished indexing" url <| DIndex.insert page-hash url visited;
             -- recurse
             Remote.traverse (go (depth - 1)) links;
-            pure Unit;;)
+            pure Unit
+          })
           (x -> Remote.pure (Debug.log "already visited" url Unit))
-          h;;
-      ;
-    go depth url;;
-  ;
+          h
+    go depth url
 
   do Remote
-    n := Remote.spawn;
-    Remote.transfer n;
+    n := Remote.spawn
+    Remote.transfer n
 
     -- Build DIndex for index state and for crawler state
-    ind := DIndex.empty;
-    visited := DIndex.empty;
-    excerpts := DIndex.empty;
-    ind-nodes := Remote.replicate 3 Remote.spawn;
-    visited-nodes := Remote.replicate 3 Remote.spawn;
-    excerpts-nodes := Remote.replicate 3 Remote.spawn;
-    Remote.traverse (n -> Remote.at' n (DIndex.join ind)) ind-nodes;
-    Remote.traverse (n -> Remote.at' n (DIndex.join visited)) visited-nodes;
-    Remote.traverse (n -> Remote.at' n (DIndex.join excerpts)) excerpts-nodes;
+    ind := DIndex.empty
+    visited := DIndex.empty
+    excerpts := DIndex.empty
+    ind-nodes := Remote.replicate 3 Remote.spawn
+    visited-nodes := Remote.replicate 3 Remote.spawn
+    excerpts-nodes := Remote.replicate 3 Remote.spawn
+    Remote.traverse (n -> Remote.at' n (DIndex.join ind)) ind-nodes
+    Remote.traverse (n -> Remote.at' n (DIndex.join visited)) visited-nodes
+    Remote.traverse (n -> Remote.at' n (DIndex.join excerpts)) excerpts-nodes
 
     -- Kick off multiple crawlers
-    Remote.fork <| crawl 5 ind visited excerpts "http://unisonweb.org/design";
-    Remote.fork <| crawl 5 ind visited excerpts "http://www.cnn.com";
-    Remote.fork <| crawl 5 ind visited excerpts "http://lambda-the-ultimate.org/";
+    Remote.fork <| crawl 5 ind visited excerpts "http://unisonweb.org/design"
+    Remote.fork <| crawl 5 ind visited excerpts "http://www.cnn.com"
+    Remote.fork <| crawl 5 ind visited excerpts "http://lambda-the-ultimate.org/"
 
     -- Wait a while for crawlers to index a bunch of pages, then do query
-    u = Debug.watch "waiting 2 minutes for indexing before issuing queries..." Unit;
-    Remote.sleep (Duration.seconds 120);
-    u = Debug.watch "done waiting for indexing, getting results" Unit;
-    results := search 10 ["design", "unison", "programming"] ind;
-    results := format-results results visited excerpts;
-    pure <| Debug.log results Unit results;;
-    -- pure <| Debug.watch "results" results;;
-  ;;
+    u = Debug.watch "waiting 2 minutes for indexing before issuing queries..." Unit
+    Remote.sleep (Duration.seconds 120)
+    u = Debug.watch "done waiting for indexing, getting results" Unit
+    results := search 10 ["design", "unison", "programming"] ind
+    results := format-results results visited excerpts
+    pure <| Debug.log results Unit results
+    -- pure <| Debug.watch "results" results

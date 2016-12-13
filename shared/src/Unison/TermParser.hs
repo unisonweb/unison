@@ -57,7 +57,7 @@ term :: Var v => Parser (S v) (Term v)
 term = term2
 
 term2 :: Var v => Parser (S v) (Term v)
-term2 = lam term2 <|> effectBlock <|> term3
+term2 = lam term2 <|> term3
 
 term3 :: Var v => Parser (S v) (Term v)
 term3 = do
@@ -74,13 +74,13 @@ infixApp = chainl1 term4 (f <$> infixVar)
     f op lhs rhs = Term.apps (Term.var op) [lhs,rhs]
 
 term4 :: Var v => Parser (S v) (Term v)
-term4 = f <$> some term5
+term4 = effectBlock <|> term5
+
+term5 :: Var v => Parser (S v) (Term v)
+term5 = f <$> some termLeaf
   where
     f (func:args) = Term.apps func args
     f [] = error "'some' shouldn't produce an empty list"
-
-term5 :: Var v => Parser (S v) (Term v)
-term5 = termLeaf
 
 termLeaf :: Var v => Parser (S v) (Term v)
 termLeaf =
@@ -182,10 +182,9 @@ vector :: Ord v => Parser (S v) (Term v) -> Parser (S v) (Term v)
 vector p = Term.app (Term.builtin "Vector.force") . Term.vector <$> (lbracket *> elements <* rbracket)
   where
     lbracket = token (char '[')
-    elements = sepBy comma p
+    elements = sepBy comma (L.withoutLayout "vector element" p)
     comma = token (char ',')
     rbracket = token (char ']')
-
 
 let_ :: Var v => Parser (S v) (Term v)
 let_ = join $ fixup <$> (let_ *> optional rec_) <*> L.laidout (many alias *> bindingOrTerm)
@@ -257,9 +256,8 @@ alias :: Var v => Parser (S v) ()
 alias = do
   _ <- token (string "alias")
   (fn:params) <- some (Var.named . Text.pack <$> wordyId keywords)
-  _ <- token (string "=")
-  body <- TypeParser.type_
-  semicolon
+  _ <- token (char '=')
+  body <- L.block TypeParser.type_
   TypeParser.Aliases s <- get
   let s' = (fn, apply)
       apply args | length args <= length params = ABT.substs (params `zip` args) body
