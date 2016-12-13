@@ -60,6 +60,7 @@ library
     Unison.Remote.Extra
     Unison.Runtime.Address
     Unison.Runtime.Block
+    Unison.Runtime.Cryptography
     Unison.Runtime.ExpiringMap
     Unison.Runtime.ExtraBuiltins
     Unison.Runtime.Html
