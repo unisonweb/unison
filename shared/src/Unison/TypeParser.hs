@@ -1,4 +1,5 @@
 {-# Language OverloadedStrings #-}
+{-# Language BangPatterns #-}
 
 module Unison.TypeParser where
 
@@ -13,6 +14,23 @@ import Unison.Type (Type)
 import Unison.Var (Var)
 import qualified Data.Text as Text
 import qualified Unison.Type as Type
+
+import Text.Parsec (anyChar)
+--import Debug.Trace
+--
+--pTrace s = pt <|> return ()
+--    where pt = attempt $
+--               do
+--                 x <- attempt $ many anyChar
+--                 trace (s++": " ++x) $ attempt $ char 'z'
+--                 fail x
+--
+---- traced s p = p
+--traced s p = do
+--  pTrace s
+--  a <- p <|> trace (s ++ " backtracked") (fail s)
+--  let !x = trace (s ++ " succeeded") ()
+--  pure a
 
 newtype S v = Aliases [(v, [Type v] -> Type v)]
 s0 :: S v
@@ -53,7 +71,7 @@ app rec = get >>= \(Aliases aliases) -> do
     _ -> foldl' Type.app hd tl
 
 arrow :: Ord v => Parser (S v) (Type v) -> Parser (S v) (Type v)
-arrow rec = foldr1 Type.arrow <$> sepBy1 (token $ string "->") rec
+arrow rec = foldr1 Type.arrow <$> sepBy1 (token (string "->")) rec
 
 -- "forall a b . List a -> List b -> Maybe Text"
 forall :: Var v => Parser (S v) (Type v) -> Parser (S v) (Type v)
@@ -87,9 +105,9 @@ keywords = ["forall", "∀"]
 --     more = (:) <$> char '.' <*> qualifiedTypeName
 
 literal :: Var v => Parser (S v) (Type v)
-literal = scope "literal" . token $
-  asum [ Type.lit Type.Number <$ string "Number"
-       , Type.lit Type.Text <$ string "Text"
-       , Type.lit Type.Vector <$ string "Vector"
+literal = label "literal" . token $
+  asum [ Type.lit Type.Number <$ token (string "Number")
+       , Type.lit Type.Text <$ token (string "Text")
+       , Type.lit Type.Vector <$ token (string "Vector")
        , (Type.v' . Text.pack) <$> typeName
        ]

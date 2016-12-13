@@ -115,11 +115,11 @@ pingpong1 :: TTerm
 pingpong1 =
   unsafeParseTerm $
     unlines [ "let rec "
-            , "  ping x = pong (x + 1);"
-            , "  pong y = ping (y - 1);"
-            , "  ping 1;;"
+            , "  ping x = pong (x + 1)"
+            , "  pong y = ping (y - 1)"
+            , "  ping 1"
             ]
 
 pingpong2 :: TTerm
 pingpong2 =
-  unsafeParseTerm $ "let rec pong1 p = ping1 (p - 1); ping1 q = pong1 (q + 1); ping1 1;;"
+  unsafeParseTerm $ "let rec { pong1 p = ping1 (p - 1); ping1 q = pong1 (q + 1); ping1 1 }"

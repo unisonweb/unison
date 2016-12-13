@@ -165,7 +165,6 @@ make h store =
           Store.writeMetadata store r (Metadata.combine md0 md)
           Store.writeMetadata store r md
         (Reference.Derived h, _) -> do
-          new <- (False <$ Store.readTerm store h) <|> pure True
           md0 <- (Just <$> Store.readMetadata store r) <|> pure Nothing
           Store.writeMetadata store r (Metadata.combine md0 md)
           Store.writeTerm store h e3
@@ -313,7 +312,6 @@ replace code old new = do
       [tm] <- map snd . Map.toList <$> terms code [old]
       [md] <- map snd . Map.toList <$> metadatas code [old]
       let new = Term.updateDependencies u tm
-          rnew = hash code new
           hashSuffix = Text.pack ("#" `mappend` show old)
       rnew <- createTerm code new md -- todo, could get away with not typechecking here
       updateMetadata code old (Metadata.mangle hashSuffix md)
@@ -387,8 +385,8 @@ declare' :: (Monad m, Alternative m, Var v)
          -> Codebase m v Reference (Type v) (Term v) -> Noted m ()
 declare' bindings code = do
   bs <- case Parser.run TermParser.moduleBindings bindings TypeParser.s0 of
-    Parser.Fail err _ -> Noted (pure $ Left (Note err))
-    Parser.Succeed bs _ _ -> pure bs
+    Left err -> Noted (pure $ Left (Note [err]))
+    Right bs -> pure bs
   declare bs code
 
 data Hooks m v h =
@@ -436,7 +434,7 @@ declareCheckAmbiguous hooks bindings code = do
       tb0 = Parsers.termBuiltins
       mangle name (Reference.Derived h) =
         Var.rename (Var.name name `mappend` "#" `mappend` Text.take 8 (Hash.base64 h)) name
-      mangle name (Reference.Builtin h) =
+      mangle name (Reference.Builtin _) =
         Var.rename (Var.name name `mappend` "#" `mappend` "builtin") name
       go _ [] = pure (Right [])
       go names ((v, b) : bindings) = do
@@ -491,7 +489,7 @@ declareCheckAmbiguous hooks bindings code = do
                         Note.lift $ renamedOldDefinition hooks v v'
                       declare (v,b) bindings (Map.delete v names)
           False -> do
-            let badLookups = filter (\(v,tms) -> length tms /= 1) lookups
+            let badLookups = filter (\(_,tms) -> length tms /= 1) lookups
             Note.lift $ ambiguousReferences hooks badLookups (v, b)
             pure . Left $ badLookups
   go names bindings'
@@ -503,8 +501,8 @@ declareCheckAmbiguous'
   -> Noted m (Either [(v, [Term v])] [(v, Reference)])
 declareCheckAmbiguous' hooks bindings code = do
   bs <- case Parser.run TermParser.moduleBindings bindings TypeParser.s0 of
-    Parser.Fail err _ -> Noted (pure $ Left (Note err))
-    Parser.Succeed bs _ _ -> pure bs
+    Left err -> Noted (pure $ Left (Note [err]))
+    Right bs -> pure bs
   declareCheckAmbiguous hooks bs code
 
 multimap :: Ord k => [(k,v)] -> Map k [v]

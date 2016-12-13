@@ -7,7 +7,6 @@ import Data.List
 import Data.Text (Text)
 import Test.Tasty
 import Test.Tasty.HUnit
-import Unison.Parser (Result(..))
 import Unison.Parsers (parseTerm)
 import Unison.Symbol (Symbol)
 import Unison.Term
@@ -20,23 +19,23 @@ import qualified Unison.Type as T
 
 parse' :: String -> TestTree
 parse' s = testCase ("`" ++ s ++ "`") $
-  case parseTerm s :: Result _ (Term (Symbol DFO)) of
-    Fail e _ -> assertFailure $ "parse failure " ++ intercalate "\n" e
-    Succeed a _ _ -> pure ()
+  case parseTerm s :: Either _ (Term (Symbol DFO)) of
+    Left e -> assertFailure $ "parse failure \n" ++ e
+    Right a -> pure ()
 
 parse :: (String, Term (Symbol DFO)) -> TestTree
 parse (s, expected) =
   testCase ("`" ++ s ++ "`") $
     case parseTerm s of
-      Fail e _ -> assertFailure $ "parse failure " ++ intercalate "\n" e
-      Succeed a _ _ -> assertEqual "mismatch" expected a
+      Left e -> assertFailure $ "parse failure \n" ++ e
+      Right a -> assertEqual "mismatch" expected a
 
 parseFail :: (String,String) -> TestTree
 parseFail (s, reason) =
   testCase ("`" ++ s ++ "` shouldn't parse: " ++ reason) $ assertBool "should not have parsed" $
-    case parseTerm s :: Result _ (Term (Symbol DFO)) of
-      Fail {} -> True;
-      Succeed _ _ n -> n == length s;
+    case parseTerm s :: Either _ (Term (Symbol DFO)) of
+      Left _ -> True
+      Right _ -> False
 
 tests :: TestTree
 tests = testGroup "TermParser" $ (parse <$> shouldPass)
@@ -49,7 +48,7 @@ tests = testGroup "TermParser" $ (parse <$> shouldPass)
       , ("#V-f/XHD3-N0E", "invalid base64url")
       ]
     shouldParse =
-      [ "do Remote n1 := Remote.spawn; n2 := Remote.spawn; let rec x = 10; Remote.pure 42;;; ;" ]
+      [ "do Remote { n1 := Remote.spawn; n2 := Remote.spawn; let rec { x = 10; Remote.pure 42 }}" ]
     shouldPass =
       [ ("1", one)
       , ("[1,1]", vectorForced [one, one])
@@ -76,51 +75,49 @@ tests = testGroup "TermParser" $ (parse <$> shouldPass)
       , ("1:Int", ann one int)
       , ("(1:Int)", ann one int)
       , ("(1:Int) : Int", ann (ann one int) int)
-      , ("let a = 1; a + 1;;", let1' [("a", one)] (apps numberplus [a, one]))
-      , ("let a : Int; a = 1; a + 1;;", let_a_int1_in_aplus1)
-      , ("let a: Int; a = 1; a + 1;;", let_a_int1_in_aplus1)
-      , ("let a :Int; a = 1; a + 1;;", let_a_int1_in_aplus1)
-      , ("let a:Int; a = 1; a + 1;;", let_a_int1_in_aplus1)
+      , ("let { a = 1; a + 1 }", let1' [("a", one)] (apps numberplus [a, one]))
+      , ("let\n  a : Int\n  a = 1\n  a + 1", let_a_int1_in_aplus1)
+      , ("let\n  a : Int\n  a = 1\n  a + 1", let_a_int1_in_aplus1)
       , ("a b -> a + b", lam_ab_aplusb)
       , ("(a b -> a + b) : Int -> Int -> Int", ann lam_ab_aplusb intintint)
       , ("a b -> a + b : Int", lam' ["a", "b"] (ann (apps numberplus [a, b]) int))
       , ("a -> a", lam' ["a"] a)
       , ("(a -> a) : forall a . a -> a", ann (lam' ["a"] a) (T.forall' ["a"] (T.arrow a' a')))
-      , ("let f = a b -> a + b; f 1 1;;", f_eq_lamab_in_f11)
-      , ("let f a b = a + b; f 1 1;;", f_eq_lamab_in_f11)
-      , ("let f (+) b = 1 + b; f g 1;;", let1' [("f", lam' ["+", "b"] (apps plus [one, b]))] (apps f [g,one]))
-      , ("let a + b = f a b; 1 + 1;;", let1' [("+", lam' ["a", "b"] fab)] one_plus_one)
-      , ("let (+) : Int -> Int -> Int; a + b = f a b; 1 + 1;;", plusintintint_fab_in_1plus1)
-      , ("let (+) : Int -> Int -> Int; (+) a b = f a b; 1 + 1;;", plusintintint_fab_in_1plus1)
-      , ("let (+) : Int -> Int -> Int; (+) a b = f a b; (+) 1 1;;", plusintintint_fab_in_1plus1)
-      , ("let f b = b + 1; a = 1; (+) a (f 1);;", let1' [("f", lam_b_bplus1), ("a", one)] (apps numberplus [a, apps f [one]]))
+      , ("let { f = a b -> a + b; f 1 1 }", f_eq_lamab_in_f11)
+      , ("let { f a b = a + b; f 1 1 }", f_eq_lamab_in_f11)
+      , ("let { f (+) b = 1 + b; f g 1 }", let1' [("f", lam' ["+", "b"] (apps plus [one, b]))] (apps f [g,one]))
+      , ("let { a + b = f a b; 1 + 1 }", let1' [("+", lam' ["a", "b"] fab)] one_plus_one)
+      , ("let\n  (+) : Int -> Int -> Int\n  a + b = f a b\n  1 + 1", plusintintint_fab_in_1plus1)
+      , ("let { (+) : Int -> Int -> Int; (+) a b = f a b; 1 + 1 }", plusintintint_fab_in_1plus1)
+      , ("let { (+) : Int -> Int -> Int; (+) a b = f a b; (+) 1 1 }", plusintintint_fab_in_1plus1)
+      , ("let { f b = b + 1; a = 1; (+) a (f 1) }", let1' [("f", lam_b_bplus1), ("a", one)] (apps numberplus [a, apps f [one]]))
       -- from Unison.Test.Term
       , ("a -> a", lam' ["a"] $ var' "a") -- id
       , ("x y -> x", lam' ["x", "y"] $ var' "x") -- const
-      , ("let rec fix = f -> f (fix f); fix;;", fix) -- fix
-      , ("let rec fix f = f (fix f); fix;;", fix) -- fix
+      , ("let rec { fix = f -> f (fix f); fix }", fix) -- fix
+      , ("let rec\n  fix f = f (fix f)\n  fix", fix) -- fix
       , ("1 + 2 + 3", num 1 `plus'` num 2 `plus'` num 3)
       , ("[1, 2, 1 + 1]", vectorForced [num 1, num 2, num 1 `plus'` num 1])
-      , ("(id -> let x = id 42; y = id \"hi\"; 43;;) : (forall a . a) -> Number", lam' ["id"] (let1'
+      , ("(id -> let { x = id 42; y = id \"hi\"; 43 }) : (forall a . a) -> Number", lam' ["id"] (let1'
         [ ("x", var' "id" `app` num 42),
           ("y", var' "id" `app` text "hi")
         ] (num 43)) `ann` (T.forall' ["a"] (T.v' "a") `T.arrow` T.lit T.Number))
         , ("#" ++ Text.unpack sampleHash64, derived' sampleHash64)
         , ("#" ++ Text.unpack sampleHash512, derived' sampleHash512)
-      , ("(do Remote pure 42;;)", builtin "Remote.pure" `app` num 42)
-      , ("do Remote x = 42; pure (x + 1) ;;",
+      , ("(do Remote { pure 42 } )", builtin "Remote.pure" `app` num 42)
+      , ("do Remote { x = 42; pure (x + 1) } ",
           builtin "Remote.bind" `apps` [
             lam' ["q"] (builtin "Remote.pure" `app` (var' "q" `plus'` num 1)),
             builtin "Remote.pure" `app` num 42
           ]
         )
-      , ("do Remote x := pure 42;  pure (x + 1) ;;",
+      , ("do Remote { x := pure 42;  pure (x + 1) } ",
           builtin "Remote.bind" `apps` [
             lam' ["q"] (builtin "Remote.pure" `app` (var' "q" `plus'` num 1)),
             builtin "Remote.pure" `app` num 42
           ]
         )
-      , ("do Remote\n   x := pure 42;\n   y := pure 18;\n   pure (x + y);;",
+      , ("do Remote\n   x := pure 42\n   y := pure 18\n   pure (x + y)",
           builtin "Remote.bind" `apps` [
             lam' ["x"] (builtin "Remote.bind" `apps` [
               lam' ["y"] (builtin "Remote.pure" `app` (var' "x" `plus'` var' "y")),

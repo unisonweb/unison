@@ -53,6 +53,7 @@ unvar (Free v) = v
 unvar (Bound v) = v
 
 instance Var v => Var (V v) where
+  rename n2 = fmap (Var.rename n2)
   named txt = Bound (Var.named txt)
   name v = Var.name (unvar v)
   qualifiedName v = Var.qualifiedName (unvar v)

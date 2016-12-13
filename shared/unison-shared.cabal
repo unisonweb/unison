@@ -34,6 +34,7 @@ library
   hs-source-dirs: src
 
   exposed-modules:
+    Text.Parsec.Layout
     Unison.ABT
     Unison.Builtin
     Unison.BlockStore
@@ -72,6 +73,7 @@ library
     Unison.Var
     Unison.View
     Unison.Views
+    Unison.Scratch
 
   build-depends:
     aeson,
@@ -86,6 +88,7 @@ library
     hashable,
     mtl,
     murmur-hash,
+    parsec,
     prelude-extras,
     random,
     stm,
