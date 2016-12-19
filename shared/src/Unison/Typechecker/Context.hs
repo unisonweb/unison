@@ -15,6 +15,7 @@ import Control.Monad
 import Data.List
 import Data.Maybe
 import Data.Set (Set)
+import Unison.Literal (Literal)
 import Unison.Note (Note,Noted(..))
 import Unison.Remote (Remote)
 import Unison.Term (Term)
@@ -25,6 +26,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
+import qualified Unison.Literal as Literal
 import qualified Unison.Note as Note
 import qualified Unison.Remote as Remote
 import qualified Unison.Term as Term
@@ -477,11 +479,11 @@ annotateLetRecBindings letrec = do
   pure $ (marker, body)
 
 -- | Infer the type of a literal
-synthLit :: Var v => Term.Literal -> Type v
+synthLit :: Var v => Literal -> Type v
 synthLit lit = case lit of
-  Term.Number _ -> Type.lit Type.Number
-  Term.Text _ -> Type.lit Type.Text
-  Term.If -> Type.forall' ["a"] (Type.builtin "Boolean" --> Type.v' "a" --> Type.v' "a" --> Type.v' "a")
+  Literal.Number _ -> Type.lit Type.Number
+  Literal.Text _ -> Type.lit Type.Text
+  Literal.If -> Type.forall' ["a"] (Type.builtin "Boolean" --> Type.v' "a" --> Type.v' "a" --> Type.v' "a")
 
 -- | Synthesize the type of the given term, updating the context in the process.
 synthesize :: Var v => Term v -> M v (Type v)

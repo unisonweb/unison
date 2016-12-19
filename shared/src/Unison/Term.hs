@@ -24,6 +24,8 @@ import Prelude.Extras (Eq1(..), Show1(..))
 import Text.Show
 import Unison.Hash (Hash)
 import Unison.Hashable (Hashable, Hashable1, accumulateToken)
+import Unison.Literal
+import Unison.Pattern (Pattern)
 import Unison.Reference (Reference(..))
 import Unison.Remote (Remote)
 import Unison.Type (Type)
@@ -39,29 +41,19 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Hash as Hash
 import qualified Unison.Hashable as Hashable
 import qualified Unison.JSON as J
+import qualified Unison.Pattern as Pattern
 import qualified Unison.Reference as Reference
-import qualified Unison.Type as Type
 import qualified Unison.Remote as Remote
-
--- | Literals in the Unison language
-data Literal
-  = Number Double
-  | Text Text
-  | If
-  deriving (Eq,Ord,Generic)
-
-instance Hashable Literal where
-  tokens (Number d) = [Hashable.Tag 0, Hashable.Double d]
-  tokens (Text txt) = [Hashable.Tag 1, Hashable.Text txt]
-  tokens If = [Hashable.Tag 2]
+import qualified Unison.Type as Type
 
 -- | Base functor for terms in the Unison language
-data F v a
+-- We need `typeVar` because the term and type variables may differ.
+data F typeVar a
   = Lit Literal
   | Blank -- An expression that has not been filled in, has type `forall a . a`
   | Ref Reference
   | App a a
-  | Ann a (Type v)
+  | Ann a (Type typeVar)
   | Vector (Vector a)
   | Lam a
   -- Note: let rec blocks have an outer ABT.Cycle which introduces as many
@@ -71,7 +63,28 @@ data F v a
   -- to this let bound variable. Constructed as `Let b (abs v e)`
   | Let a a
   | Distributed (Distributed a)
+  -- Pattern matching / eliminating data types, example:
+  --  case x of
+  --    Just _n -> rhs1
+  --    Nothing -> rhs2
+  --
+  -- translates to
+  --
+  --   Match x
+  --     [ (Constructor 0 [Wildcard "n"], rhs1)
+  --     , (Constructor 1 [], rhs2) ]
+  | Match a [(Pattern, a)]
   deriving (Eq,Foldable,Functor,Generic1,Traversable)
+
+-- | Like `Term v`, but with an annotation of type `a` at every level in the tree
+type AnnotatedTerm v a = ABT.Term (F v) v a
+-- | Allow type variables and term variables to differ
+type AnnotatedTerm' vt v a = ABT.Term (F vt) v a
+
+-- | Terms are represented as ABTs over the base functor F, with variables in `v`
+type Term v = AnnotatedTerm v ()
+-- | Terms with type variables in `vt`, and term variables in `v`
+type Term' vt v = AnnotatedTerm' vt v ()
 
 data Distributed a = Remote (Remote a) | Node Remote.Node | Channel Remote.Channel deriving (Eq,Show,Generic,Generic1,Functor,Foldable,Traversable)
 instance ToJSON a => ToJSON (Distributed a)
@@ -107,16 +120,6 @@ freeTypeVars t = go t where
     ABT.Tm (Ann e t) -> Type.freeVars t `union` go e
     ABT.Tm ts -> foldMap go ts
 
--- | Like `Term v`, but with an annotation of type `a` at every level in the tree
-type AnnotatedTerm v a = ABT.Term (F v) v a
--- | Allow type variables and term variables to differ
-type AnnotatedTerm' vt v a = ABT.Term (F vt) v a
-
--- | Terms are represented as ABTs over the base functor F, with variables in `v`
-type Term v = AnnotatedTerm v ()
--- | Terms with type variables in `vt`, and term variables in `v`
-type Term' vt v = AnnotatedTerm' vt v ()
-
 -- nicer pattern syntax
 
 pattern Var' v <- ABT.Var' v
@@ -128,6 +131,7 @@ pattern Blank' <- (ABT.out -> ABT.Tm Blank)
 pattern Ref' r <- (ABT.out -> ABT.Tm (Ref r))
 pattern Builtin' r <- (ABT.out -> ABT.Tm (Ref (Builtin r)))
 pattern App' f x <- (ABT.out -> ABT.Tm (App f x))
+pattern Match' scrutinee branches <- (ABT.out -> ABT.Tm (Match scrutinee branches))
 pattern Apps' f args <- (unApps -> Just (f, args))
 pattern Ann' x t <- (ABT.out -> ABT.Tm (Ann x t))
 pattern Vector' xs <- (ABT.out -> ABT.Tm (Vector xs))
@@ -177,6 +181,9 @@ blank = ABT.tm Blank
 
 app :: Ord v => Term v -> Term v -> Term v
 app f arg = ABT.tm (App f arg)
+
+match :: Ord v => Term v -> [(Pattern, Term v)] -> Term v
+match scrutinee branches = ABT.tm (Match scrutinee branches)
 
 apps :: Ord v => Term v -> [Term v] -> Term v
 apps f = foldl' app f
@@ -332,8 +339,6 @@ instance Var v => Hashable1 (F v) where
 
 -- mostly boring serialization code below ...
 
-deriveJSON defaultOptions ''Literal
-
 instance Var v => Eq1 (F v) where (==#) = (==)
 instance Var v => Show1 (F v) where showsPrec1 = showsPrec
 
@@ -343,13 +348,6 @@ instance (Ord v, FromJSON v, FromJSON r) => FromJSON (F v r) where
 
 instance ToJSON v => J.ToJSON1 (F v) where toJSON1 f = Aeson.toJSON f
 instance (Ord v, FromJSON v) => J.FromJSON1 (F v) where parseJSON1 j = Aeson.parseJSON j
-
-instance Show Literal where
-  show (Text t) = show t
-  show If = "if"
-  show (Number n) = case floor n of
-    m | fromIntegral m == n -> show (m :: Int)
-    _ -> show n
 
 instance (Var v, Show a) => Show (F v a) where
   showsPrec p fa = go p fa where
