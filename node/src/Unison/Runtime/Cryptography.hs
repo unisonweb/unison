@@ -15,6 +15,8 @@ import qualified Crypto.Random as R
 
 -- cryptonite
 import qualified Crypto.Cipher.AES as AES
+import qualified Crypto.Hash as H
+import Crypto.Hash.Algorithms (SHA256)
 import Crypto.Cipher.Types
 import Crypto.Error
 
@@ -26,11 +28,15 @@ symmetricKey bs | BA.length bs == 32 = (Just . AES256) bs
 
 -- Creates a Unison.Cryptography object specialized to use the noise protocol
 -- (http://noiseprotocol.org/noise.html).
-mkCrypto :: forall cleartext . (ByteArrayAccess cleartext, ByteArray cleartext) => ByteString -> Cryptography ByteString SymmetricKey () () () () cleartext
+mkCrypto :: forall cleartext . (ByteArrayAccess cleartext, ByteArray cleartext) => ByteString -> Cryptography ByteString SymmetricKey () () () String cleartext
 mkCrypto key = Cryptography key gen hash sign verify randomBytes encryptAsymmetric decryptAsymmetric encrypt decrypt pipeInitiator pipeResponder where
   -- generates an elliptic curve keypair, for use in ECDSA
   gen = undefined
-  hash = undefined
+
+  hash :: [ByteString] -> String
+  hash bss = show (H.hash bs :: H.Digest SHA256)
+    where bs = BA.concat bss :: ByteString
+
   sign _ = undefined
   verify _ _ _ = undefined
   randomBytes = randomBytes'
