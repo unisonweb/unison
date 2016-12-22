@@ -28,13 +28,13 @@ symmetricKey bs | BA.length bs == 32 = (Just . AES256) bs
 
 -- Creates a Unison.Cryptography object specialized to use the noise protocol
 -- (http://noiseprotocol.org/noise.html).
-mkCrypto :: forall cleartext . (ByteArrayAccess cleartext, ByteArray cleartext) => ByteString -> Cryptography ByteString SymmetricKey () () () String cleartext
+mkCrypto :: forall cleartext . (ByteArrayAccess cleartext, ByteArray cleartext) => ByteString -> Cryptography ByteString SymmetricKey () () () ByteString cleartext
 mkCrypto key = Cryptography key gen hash sign verify randomBytes encryptAsymmetric decryptAsymmetric encrypt decrypt pipeInitiator pipeResponder where
   -- generates an elliptic curve keypair, for use in ECDSA
   gen = undefined
 
-  hash :: [ByteString] -> String
-  hash bss = show (H.hash bs :: H.Digest SHA256)
+  hash :: [ByteString] -> ByteString
+  hash bss = BA.convert (H.hash bs :: H.Digest SHA256)
     where bs = BA.concat bss :: ByteString
 
   sign _ = undefined
