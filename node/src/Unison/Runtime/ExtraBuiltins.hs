@@ -47,8 +47,7 @@ link :: Var v => Term.Term v -> Term.Term v -> Term.Term v
 link href description = Term.ref (R.Builtin "Html.Link") `Term.app` href `Term.app` description
 
 linkToTerm :: Var v => Html.Link -> Term.Term v
-linkToTerm (Html.Link href description) = link (Term.lit $ Term.Text href)
-  (Term.lit $ Term.Text description)
+linkToTerm (Html.Link href description) = link (Term.text href) (Term.text description)
 
 pattern Index' node s <-
   Term.App' (Term.App' (Term.Ref' (R.Builtin "Index")) (Term.Distributed' (Term.Node node)))
@@ -77,7 +76,7 @@ make _ blockStore crypto = do
        let r = R.Builtin "Index.empty#"
            op [Term.Distributed' (Term.Node self)] = do
              ident <- Note.lift nextID
-             pure . index self . Term.lit . Term.Text $ ident
+             pure . index self . Term.text $ ident
            op _ = fail "Index.empty# unpossible"
            type' = unsafeParseType "forall k v . Node -> Index k v"
        in (r, Just (I.Primop 1 op), type', prefix "Index.empty#")

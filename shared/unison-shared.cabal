@@ -40,6 +40,11 @@ library
     Unison.BlockStore
     Unison.Cryptography
     Unison.Dimensions
+    Unison.Codebase
+    Unison.Codebase.MemCodebase
+    Unison.Codebase.MemStore
+    Unison.Codebase.Store
+    Unison.DataDeclaration
     Unison.Distance
     Unison.Doc
     Unison.Hash
@@ -47,16 +52,14 @@ library
     Unison.Interpreter
     Unison.JSON
     Unison.Kind
+    Unison.Literal
     Unison.Metadata
-    Unison.Codebase
-    Unison.Codebase.MemCodebase
-    Unison.Codebase.MemStore
-    Unison.Codebase.Store
     Unison.Note
     Unison.Parser
     Unison.Parsers
     Unison.Path
     Unison.Paths
+    Unison.Pattern
     Unison.Reference
     Unison.Remote
     Unison.Symbol

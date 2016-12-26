@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
 
 -- | The Unison language typechecker, based on:
@@ -11,11 +12,17 @@
 -- PDF at: https://www.mpi-sws.org/~neelk/bidir.pdf
 module Unison.Typechecker.Context where
 
+
 import Control.Monad
 import Data.List
+import Data.Map (Map)
 import Data.Maybe
 import Data.Set (Set)
+import Unison.DataDeclaration (DataDeclaration)
+import Unison.Literal (Literal)
 import Unison.Note (Note,Noted(..))
+import Unison.Pattern (Pattern)
+import Unison.Reference (Reference)
 import Unison.Remote (Remote)
 import Unison.Term (Term)
 import Unison.TypeVar (TypeVar)
@@ -25,13 +32,13 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
+import qualified Unison.Literal as Literal
 import qualified Unison.Note as Note
 import qualified Unison.Remote as Remote
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 import qualified Unison.TypeVar as TypeVar
 import qualified Unison.Var as Var
-
 -- uncomment for debugging
 import Debug.Trace
 --watch msg a = trace (msg ++ ":\n" ++ show a) a
@@ -138,14 +145,19 @@ extend e c@(Context ctx) = Context ((e,i'):ctx) where
 
 data Env v = Env { freshId :: Word, ctx :: Context v }
 
+type DataDeclarations v = Map Reference (DataDeclaration v)
+
 -- | Typechecking monad
-newtype M v a = M { runM :: Env v -> Either Note (a, Env v) }
+newtype M v a = M { runM :: Env v -> DataDeclarations v -> Either Note (a, Env v) }
 
 getContext :: M v (Context v)
-getContext = M (\e@(Env _ ctx) -> Right (ctx, e))
+getContext = M (\e@(Env _ ctx) _ -> Right (ctx, e))
+
+getDataDeclarations :: M v (DataDeclarations v)
+getDataDeclarations = M (\e d -> Right (d, e))
 
 setContext :: Context v -> M v ()
-setContext ctx = M (\(Env id _) -> Right ((), Env id ctx))
+setContext ctx = M (\(Env id _) _ -> Right ((), Env id ctx))
 
 modifyContext :: (Context v -> M v (Context v)) -> M v ()
 modifyContext f = do c <- getContext; c <- f c; setContext c
@@ -157,13 +169,13 @@ appendContext :: Var v => Context v -> M v ()
 appendContext tl = modifyContext' (\ctx -> ctx `append` tl)
 
 scope :: String -> M v a -> M v a
-scope msg (M m) = M (\env -> Note.scope msg (m env))
+scope msg (M m) = M (\env decls -> Note.scope msg (m env decls))
 
 freshenVar :: Var v => v -> M v v
-freshenVar v = M (\(Env id ctx) -> Right (Var.freshenId id v, Env (id+1) ctx))
+freshenVar v = M (\(Env id ctx) _ -> Right (Var.freshenId id v, Env (id+1) ctx))
 
 freshenTypeVar :: Var v => TypeVar v -> M v v
-freshenTypeVar v = M (\(Env id ctx) -> Right (Var.freshenId id (TypeVar.underlying v), Env (id+1) ctx))
+freshenTypeVar v = M (\(Env id ctx) _ -> Right (Var.freshenId id (TypeVar.underlying v), Env (id+1) ctx))
 
 freshVar :: Var v => M v v
 freshVar = freshenVar (Var.named "v")
@@ -437,6 +449,15 @@ check e t = getContext >>= \ctx -> scope ("check: " ++ show e ++ ":   " ++ show 
         (marker, e) <- annotateLetRecBindings letrec
         check e t
         modifyContext (retract marker)
+      go (Term.Match' scrutinee branches) t = do
+        scrutineeType <- synthesize scrutinee
+        dataDecls <- getDataDeclarations
+        forM_ branches $ \(lhs, rhs) -> do
+          checkPattern lhs dataDecls scrutineeType
+          check rhs t
+          -- XXX retract
+
+  -- | Match a [(Pattern, a)]
       go _ _ = do -- Sub
         a <- synthesize e; ctx <- getContext
         subtype (apply ctx a) (apply ctx t)
@@ -448,6 +469,9 @@ check e t = getContext >>= \ctx -> scope ("check: " ++ show e ++ ":   " ++ show 
     scope ("context well formed: " ++ show (wellformed ctx)) .
     scope ("type well formed wrt context: " ++ show (wellformedType ctx t))
     $ fail "check failed"
+
+checkPattern :: Var v => Pattern -> DataDeclarations v -> Type v -> M v ()
+checkPattern = error "checkPattern"
 
 -- | Synthesize and generalize the type of each binding in a let rec
 -- and return the new context in which all bindings are annotated with
@@ -477,11 +501,11 @@ annotateLetRecBindings letrec = do
   pure $ (marker, body)
 
 -- | Infer the type of a literal
-synthLit :: Var v => Term.Literal -> Type v
+synthLit :: Var v => Literal -> Type v
 synthLit lit = case lit of
-  Term.Number _ -> Type.lit Type.Number
-  Term.Text _ -> Type.lit Type.Text
-  Term.If -> Type.forall' ["a"] (Type.builtin "Boolean" --> Type.v' "a" --> Type.v' "a" --> Type.v' "a")
+  Literal.Number _ -> Type.lit Type.Number
+  Literal.Text _ -> Type.lit Type.Text
+  Literal.If -> Type.forall' ["a"] (Type.builtin "Boolean" --> Type.v' "a" --> Type.v' "a" --> Type.v' "a")
 
 -- | Synthesize the type of the given term, updating the context in the process.
 synthesize :: Var v => Term v -> M v (Type v)
@@ -509,13 +533,14 @@ synthesize e = scope ("synth: " ++ show e) $ go e where
     ft <- synthesize f; ctx <- getContext
     synthesizeApp (apply ctx ft) arg
   go (Term.Vector' v) = synthesize (desugarVector (Foldable.toList v))
-  go (Term.Distributed' (Term.Remote r)) = synthesize (desugarRemote r)
+  go (Term.Distributed' (Term.Remote r)) = error "raw remote value in syntax tree" -- TODO: can get rid of this case once runtime values are a separate type from Unison.Term
   go (Term.Distributed' (Term.Node _)) = pure (Type.builtin "Node")
   go (Term.Distributed' (Term.Channel _)) = pure (Type.builtin "Channel")
   go (Term.Let1' binding e) | Set.null (ABT.freeVars binding) = do
     -- special case when it is definitely safe to generalize - binding contains
     -- no free variables, i.e. `let id x = x in ...`
-    t  <- ABT.vmap TypeVar.underlying <$> synthesizeClosed' binding
+    decls <- getDataDeclarations
+    t  <- ABT.vmap TypeVar.underlying <$> synthesizeClosed' decls binding
     v' <- ABT.freshen e freshenVar
     e  <- pure $ ABT.bind e (Term.builtin (Var.name v') `Term.ann` t)
     synthesize e
@@ -575,24 +600,6 @@ synthesizeApp ft arg = go ft where
          scope ("function type: " ++ show ft) $
          fail  ("arg: " ++ show arg)
 
--- | For purposes of typechecking, we translate `[x,y,z]` to the term
--- `Vector.prepend x (Vector.prepend y (Vector.prepend z Vector.empty))`,
--- where `Vector.prepend : forall a. a -> Vector a -> a` and
---       `Vector.empty : forall a. Vector a`
-desugarRemote :: Var v => Remote (Term v) -> Term v
-desugarRemote r = case r of
-  Remote.Step (Remote.At n r) ->
-    Term.builtin "Remote.at" `Term.ann` remoteSignatureOf "Remote.at" `Term.apps` [Term.node n, r]
-  Remote.Step (Remote.Local _) -> Term.blank
-    -- todo
-  -- Term.builtin "Remote.fork" `Term.ann` typeOf "Remote.fork" `Term.apps` [Term.node n, r]
-  _ -> Term.blank
-    -- todo: finish the rest of these
-    -- todo: add a type signature for `fork` and `here` to `remoteSignatures`
-
-  -- where
-  -- atT = Type.forall' ["a"] (Type.builtin "Node" --> Type.v' "a" --> )
-
 infixr 7 -->
 (-->) :: Ord v => Type.Type v -> Type.Type v -> Type.Type v
 (-->) = Type.arrow
@@ -631,29 +638,39 @@ desugarVector ts = case ts of
   where prependT = Type.forall' ["a"] (Type.v' "a" `Type.arrow` (va `Type.arrow` va))
         va = Type.vectorOf (Type.v' "a")
 
-annotateRefs :: (Applicative f, Ord v) => Type.Env f v -> Term v -> Noted f (Term v)
+annotateRefs :: (Applicative f, Ord v)
+             => (Reference -> Noted f (Type.Type v))
+             -> Term v
+             -> Noted f (Term v)
 annotateRefs synth term = ABT.visit f term where
   f (Term.Ref' h) = Just (Term.ann (Term.ref h) <$> synth h)
   f _ = Nothing
 
-synthesizeClosed :: (Monad f, Var v) => Type.Env f v -> Term v -> Noted f (Type v)
-synthesizeClosed synthRef term = do
+synthesizeClosed
+  :: (Monad f, Var v)
+  => Type.Env f v
+  -> (Reference -> Noted f (DataDeclaration v))
+  -> Term v
+  -> Noted f (Type v)
+synthesizeClosed synthRef lookupDecl term = do
+  let declRefs = Set.toList $ Term.referencedDataDeclarations term
   term <- annotateRefs synthRef term
-  synthesizeClosedAnnotated term
+  decls <- Map.fromList <$> traverse (\r -> (r,) <$> lookupDecl r) declRefs
+  synthesizeClosedAnnotated decls term
 
-synthesizeClosed' :: Var v => Term v -> M v (Type v)
-synthesizeClosed' term | Set.null (ABT.freeVars term) = case runM (synthesize term) env0 of
-  Left err -> M $ \_ -> Left err
+synthesizeClosed' :: Var v => DataDeclarations v -> Term v -> M v (Type v)
+synthesizeClosed' decls term | Set.null (ABT.freeVars term) = case runM (synthesize term) env0 decls of
+  Left err -> M $ \_ _ -> Left err
   Right (t,env) -> pure $ generalizeExistentials (ctx env) t
-synthesizeClosed' term =
+synthesizeClosed' _decls term =
   fail $ "cannot synthesize term with free variables: " ++ show (map Var.name $ Set.toList (ABT.freeVars term))
 
-synthesizeClosedAnnotated :: (Monad f, Var v) => Term v -> Noted f (Type v)
-synthesizeClosedAnnotated term | Set.null (ABT.freeVars term) = do
-  Note.fromEither $ runM (synthesize term) env0 >>= \(t,env) ->
+synthesizeClosedAnnotated :: (Monad f, Var v) => DataDeclarations v -> Term v -> Noted f (Type v)
+synthesizeClosedAnnotated decls term | Set.null (ABT.freeVars term) = do
+  Note.fromEither $ runM (synthesize term) env0 decls >>= \(t,env) ->
     -- we generalize over any remaining unsolved existentials
     pure $ generalizeExistentials (ctx env) t
-synthesizeClosedAnnotated term =
+synthesizeClosedAnnotated _decls term =
   fail $ "cannot synthesize term with free variables: " ++ show (map Var.name $ Set.toList (ABT.freeVars term))
 
 -- boring instances
@@ -665,6 +682,6 @@ instance Functor (M v) where
   fmap = liftM
 
 instance Monad (M v) where
-  return a = M (\env -> Right (a, env))
-  M f >>= g = M (\env -> f env >>= (\(a,env) -> runM (g a) env))
-  fail msg = M (\_ -> Left (Note.note msg))
+  return a = M (\env _ -> Right (a, env))
+  M f >>= g = M (\env decls -> f env decls >>= (\(a,env) -> runM (g a) env decls))
+  fail msg = M (\_ _ -> Left (Note.note msg))

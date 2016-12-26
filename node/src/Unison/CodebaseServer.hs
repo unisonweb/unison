@@ -11,8 +11,6 @@ import Unison.Hash (Hash)
 import Unison.Codebase (Codebase)
 import Unison.Note (Noted, unnote)
 import Unison.Reference (Reference)
-import Unison.Term (Term)
-import Unison.Type (Type)
 import Web.Scotty (ActionM)
 import qualified Data.Aeson as J
 import qualified Data.Aeson.Parser as JP
@@ -61,7 +59,7 @@ route action = do
 postRoute :: S.RoutePattern -> ActionM () -> S.ScottyM ()
 postRoute s action = S.post s (route action)
 
-server :: (Ord v, ToJSON v, FromJSON v) => Int -> Codebase IO v Reference (Type v) (Term v) -> IO ()
+server :: (Ord v, ToJSON v, FromJSON v) => Int -> Codebase IO v -> IO ()
 server port codebase = S.scotty port $ do
   S.middleware logStdoutDev
   S.middleware $ staticPolicy (noDots >-> addBase "./editor")
@@ -74,10 +72,6 @@ server port codebase = S.scotty port $ do
   postRoute "/create-term" $ do
     (e, md) <- S.jsonData
     k <- runN $ C.createTerm codebase e md
-    S.json k
-  postRoute "/create-type" $ do
-    (t, md) <- S.jsonData
-    k <- runN $ C.createType codebase t md
     S.json k
   postRoute "/dependencies" $ do
     (limit, h) <- S.jsonData
@@ -107,14 +101,6 @@ server port codebase = S.scotty port $ do
     hs <- S.jsonData
     r <- runN $ C.terms codebase hs
     S.json r
-  postRoute "/transitive-dependencies" $ do
-    (limit,h) <- S.jsonData
-    s <- runN $ C.transitiveDependencies codebase limit h
-    S.json s
-  postRoute "/transitive-dependents" $ do
-    (limit,h) <- S.jsonData
-    s <- runN $ C.transitiveDependents codebase limit h
-    S.json s
   postRoute "/types" $ do
     hs <- S.jsonData
     ts <- runN $ C.types codebase hs
@@ -128,12 +114,6 @@ server port codebase = S.scotty port $ do
     s <- runN $ C.updateMetadata codebase h md
     S.json s
   S.defaultHandler $ \msg -> originPolicy *> S.raise msg
-  {-
-  postRoute "/type-of-constructor-argument" $ do
-    (h,loc) <- S.jsonData
-    s <- runN $ C.typeOf codebase h loc
-    S.json s
-  -}
 
 instance J.ToJSON a => J.ToJSON (M.Map Hash a) where
   toJSON m = J.toJSON . M.fromList . map (\(h,v) -> (H.base64 h, v)) . M.toList $ m

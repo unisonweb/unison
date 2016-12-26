@@ -15,6 +15,7 @@ import Data.Set (Set)
 import Data.Text (Text)
 import Unison.Builtin (Builtin(..))
 import Unison.Codebase.Store (Store)
+import Unison.DataDeclaration (DataDeclaration)
 import Unison.Metadata (Metadata)
 import Unison.Note (Noted(..),Note(..))
 import Unison.Paths (Path)
@@ -81,77 +82,72 @@ data LocalInfo e t =
 deriveJSON defaultOptions ''SearchResults
 deriveJSON defaultOptions ''LocalInfo
 
+data ModuleDeclarationResult v =
+  ModuleDeclarationResult { dataDeclarations :: Map v Reference
+                          , termDeclarations :: Map v Reference }
+
 -- | The Unison code API:
 --   * `m` is the monad
 --   * `v` is the type of variables
---   * `h` is the type of hashes
---   * `t` is for type
---   * `e` is for term (mnemonic "expression")
-data Codebase m v h t e = Codebase {
+data Codebase m v = Codebase {
   -- | Obtain the type of the given subterm, assuming the path is valid
-  admissibleTypeAt :: e -> Path -> Noted m t,
+  admissibleTypeAt :: Term v -> Path -> Noted m (Type v),
   -- | Create a new term and provide its metadata
-  createTerm :: e -> Metadata v h -> Noted m h,
-  -- | Create a new type and provide its metadata
-  createType :: t -> Metadata v h -> Noted m h,
+  createTerm :: Term v -> Metadata v Reference -> Noted m Reference,
+  -- | Declare one or more data types (possibly mutually recursive) and associated
+  -- definitions with access to the constructor functions of the data types
+  createModule :: [(v, DataDeclaration v)] -> [(v, Term v)] -> Noted m (ModuleDeclarationResult v),
+  -- | Lookup the source of the data declaration identified by @h@
+  dataDeclaration :: Reference -> Noted m (DataDeclaration v),
   -- | Lookup the direct dependencies of @k@, optionally limited to the given set
-  dependencies :: Maybe (Set h) -> h -> Noted m (Set h),
+  dependencies :: Maybe (Set Reference) -> Reference -> Noted m (Set Reference),
   -- | Lookup the set of terms/types depending directly on the given @k@, optionally limited to the given set
-  dependents :: Maybe (Set h) -> h -> Noted m (Set h),
+  dependents :: Maybe (Set Reference) -> Reference -> Noted m (Set Reference),
   -- | Modify the given subterm, which may fail. First argument is the root path.
   -- Second argument is path relative to the root.
   -- Returns (root path, original e, edited e, new cursor position)
-  editTerm :: Path -> Path -> Action v -> e -> Noted m (Maybe (Path,e,e,Path)),
+  editTerm :: Path -> Path -> Action v -> Term v -> Noted m (Maybe (Path,Term v,Term v,Path)),
   -- | Return the hash for the given term
-  hash :: e -> h,
+  hash :: Term v -> Reference,
   -- | Return information about local types and and variables in scope
-  localInfo :: e -> Path -> Noted m (LocalInfo e t),
+  localInfo :: Term v -> Path -> Noted m (LocalInfo (Term v) (Type v)),
   -- | Access the metadata for the term and/or types identified by @k@
-  metadatas :: [h] -> Noted m (Map h (Metadata v h)),
+  metadatas :: [Reference] -> Noted m (Map Reference (Metadata v Reference)),
   -- | Search for a term, optionally constrained to be of the given type
-  search :: e -> Path -> Int -> Metadata.Query -> Maybe t -> Noted m (SearchResults v h e),
+  search :: Term v -> Path -> Int -> Metadata.Query -> Maybe (Type v) -> Noted m (SearchResults v Reference (Term v)),
   -- | Lookup the source of the term identified by @h@
-  terms :: [h] -> Noted m (Map h e),
-  -- | Lookup the dependencies of @h@, optionally limited to those that intersect the given set
-  transitiveDependencies :: Maybe (Set h) -> h -> Noted m (Set h),
-  -- | Lookup the set of terms or types which depend on the given @k@, optionally limited to those that intersect the given set
-  transitiveDependents :: Maybe (Set h) -> h -> Noted m (Set h),
+  terms :: [Reference] -> Noted m (Map Reference (Term v)),
   -- | Lookup the source of the type identified by @h@
-  types :: [h] -> Noted m (Map h t),
+  types :: [Reference] -> Noted m (Map Reference (Type v)),
   -- | Obtain the type of the given subterm, assuming the path is valid
-  typeAt :: e -> Path -> Noted m t,
+  typeAt :: Term v -> Path -> Noted m (Type v),
   -- | Update the metadata associated with the given term or type
-  updateMetadata :: h -> Metadata v h -> Noted m ()
+  updateMetadata :: Reference -> Metadata v Reference -> Noted m ()
 }
 
-addBuiltins :: Monad f
-            => [Builtin v]
-            -> Store f v
-            -> Codebase f v Reference.Reference (Type v) (Term v)
-            -> f ()
+addBuiltins :: Monad f => [Builtin v] -> Store f v -> Codebase f v -> f ()
 addBuiltins builtins store code = Note.run $
   forM_ builtins $ \(Builtin r _ t md) -> do
     updateMetadata code r md
     Store.annotateTerm store r t
 
 make :: (Show v, Alternative f, Monad f, Var v)
-     => (Term v -> Reference)
-     -> Store f v
-     -> Codebase f v Reference.Reference (Type v) (Term v)
+     => (Term v -> Reference) -> Store f v -> Codebase f v
 make h store =
   let
     readTypeOf = Store.typeOfTerm store
+    readDataDecl = Store.readDataDeclaration store
 
     admissibleTypeAt e loc =
-      Typechecker.admissibleTypeAt readTypeOf loc e
+      Typechecker.admissibleTypeAt readTypeOf readDataDecl loc e
 
     deannotate (Term.Ann' e _) = deannotate e
     deannotate e = e
 
     createTerm e md = do
-      t <- Typechecker.synthesize readTypeOf e
+      t <- Typechecker.synthesize readTypeOf readDataDecl e
       let e2 = deannotate e
-      t2 <- (Just <$> Typechecker.synthesize readTypeOf e2) <|> pure Nothing
+      t2 <- (Just <$> Typechecker.synthesize readTypeOf readDataDecl e2) <|> pure Nothing
       -- a bit of fanciness: annotations that don't constrain type don't affect hash
       let e3 = if maybe False (t ==) t2 then e2 else e
       let r = hash e3
@@ -170,7 +166,7 @@ make h store =
           Store.writeTerm store h e3
           Store.annotateTerm store r t
 
-    createType _ _ = error "todo - createType"
+    createModule _ _ = error "todo - createModule"
 
     dependencies _ (Reference.Builtin _) = pure Set.empty
     dependencies limit (Reference.Derived h) = let trim = maybe id Set.intersection limit in do
@@ -194,12 +190,12 @@ make h store =
       Map.fromList <$> sequence (map (\h -> (,) h <$> Store.readMetadata store h) hs)
 
     localInfo e loc = do
-      current <- Typechecker.typeAt readTypeOf loc e
-      admissible <- Typechecker.admissibleTypeAt readTypeOf loc e
-      locals <- Typechecker.locals readTypeOf loc e
+      current <- Typechecker.typeAt readTypeOf readDataDecl loc e
+      admissible <- Typechecker.admissibleTypeAt readTypeOf readDataDecl loc e
+      locals <- Typechecker.locals readTypeOf readDataDecl loc e
       annotatedLocals <- pure $ map (\(v,t) -> Term.var v `Term.ann` t) locals
       let f focus = maybe (pure False)
-                          (\e -> Typechecker.wellTyped readTypeOf e)
+                          (\e -> Typechecker.wellTyped readTypeOf readDataDecl e)
                           (Paths.modifyTerm (const (Term.wrapV focus)) loc e)
       let fi (e,_) = f e
       let currentApplies = maybe [] (\e -> TermEdit.applications e admissible) (Paths.atTerm loc e) `zip` [0..]
@@ -215,7 +211,7 @@ make h store =
     search e loc limit query _ =
       let
         typeOk focus = maybe (pure False)
-                             (\e -> Typechecker.wellTyped readTypeOf e)
+                             (\e -> Typechecker.wellTyped readTypeOf readDataDecl e)
                              (Paths.modifyTerm (const (Term.wrapV focus)) loc e)
         elaborate h = (\t -> TermEdit.applications (Term.ref h) t) <$> readTypeOf h
         queryOk e = do mds <- traverse (Store.readMetadata store) (Set.toList (Term.dependencies' e))
@@ -234,7 +230,7 @@ make h store =
           -- return type annotated versions of ill-typed terms
           let welltypedRefs = Set.fromList (map hash qmatches)
               terms = filter (\r -> Set.notMember (hash r) welltypedRefs) qmatches'
-          in zipWith Term.ann terms <$> traverse (Typechecker.synthesize readTypeOf) terms
+          in zipWith Term.ann terms <$> traverse (Typechecker.synthesize readTypeOf readDataDecl) terms
         mds <- mapM (\h -> (,) h <$> Store.readMetadata store h)
                     (Set.toList (Set.unions (map Term.dependencies' (illtypedQmatches ++ qmatches))))
         pure $ SearchResults
@@ -258,13 +254,14 @@ make h store =
       Map.fromList <$> sequence (map (\h -> (,) h <$> readTypeOf h) hs)
 
     typeAt ctx loc =
-      Typechecker.typeAt readTypeOf loc ctx
+      Typechecker.typeAt readTypeOf readDataDecl loc ctx
 
     updateMetadata = Store.writeMetadata store
   in Codebase
        admissibleTypeAt
        createTerm
-       createType
+       createModule
+       readDataDecl
        dependencies
        dependents
        edit
@@ -273,34 +270,29 @@ make h store =
        metadatas
        search
        terms
-       transitiveDependencies
-       transitiveDependents
        types
        typeAt
        updateMetadata
 
-term :: Functor m => Codebase m v Reference (Type v) (Term v) -> Reference -> Noted m (Maybe (Term v))
+term :: Functor m => Codebase m v -> Reference -> Noted m (Maybe (Term v))
 term code h = f <$> terms code [h] where
   f ts = listToMaybe (Map.elems ts)
 
-names :: Functor m => Codebase m v Reference (Type v) (Term v) -> Reference -> Noted m [v]
+names :: Functor m => Codebase m v -> Reference -> Noted m [v]
 names code h = f <$> metadatas code [h] where
   f mds = Map.elems mds >>= Metadata.allNames . Metadata.names
 
-firstName :: Functor m => Codebase m v Reference (Type v) (Term v) -> Reference -> Noted m (Maybe v)
+firstName :: Functor m => Codebase m v -> Reference -> Noted m (Maybe v)
 firstName code h = listToMaybe <$> names code h
 
-firstNames :: Functor m => Codebase m v Reference (Type v) (Term v) -> [Reference] -> Noted m (Map Reference v)
+firstNames :: Functor m => Codebase m v -> [Reference] -> Noted m (Map Reference v)
 firstNames code hs = go <$> metadatas code hs where
   go mds = Map.fromList [ (r, v) | (r, Just v) <- Map.toList $
                           Map.map (listToMaybe . Metadata.allNames . Metadata.names) mds ]
 
 -- | Replace one definition with another and update dependencies transitively
 replace :: (Monad m, Alternative m, Var v)
-        => Codebase m v Reference (Type v) (Term v)
-        -> Reference
-        -> Reference
-        -> Noted m (Map Reference Reference)
+        => Codebase m v -> Reference -> Reference -> Noted m (Map Reference Reference)
 replace code old new = do
   ds <- dependents code Nothing old
   go (Map.fromList [(old,new)]) (Seq.fromList (Set.toList ds))
@@ -319,7 +311,7 @@ replace code old new = do
 -- todo: a version that allows the type to change, and propagates out as far as possible
 
 -- | Returns a prettyprinted version of the given reference
-viewAsBinding :: Codebase IO V Reference (Type V) (Term V) -> Reference -> Noted IO String
+viewAsBinding :: Codebase IO V -> Reference -> Noted IO String
 viewAsBinding code r = do
   Just v <- firstName code r
   typ <- typeAt code (Term.ref r) []
@@ -331,7 +323,7 @@ viewAsBinding code r = do
 -- | Returns a 'score' for each of the references in the input, based on the
 -- set of transitive dependents of each `Reference`. Higher scores mean more
 -- unique transitive dependents (not reachable from other refs in the input).
-statistics :: Codebase IO V Reference (Type V) (Term V) -> [Reference] -> Noted IO (Map Reference Double)
+statistics :: Codebase IO V -> [Reference] -> Noted IO (Map Reference Double)
 statistics code rs = finish <$> foldM (go []) Map.empty rs where
   addDependent dependent m r =
     Map.alter (Just . Set.insert dependent . fromMaybe Set.empty) r m
@@ -359,9 +351,7 @@ statistics code rs = finish <$> foldM (go []) Map.empty rs where
 -- They are broken into strongly connected components before
 -- being added, and any free variables are resolved using the
 -- existing metadata store of the codebase.
-declare :: (Monad m, Alternative m, Var v)
-        => [(v, Term v)]
-        -> Codebase m v Reference (Type v) (Term v) -> Noted m ()
+declare :: (Monad m, Alternative m, Var v) => [(v, Term v)] -> Codebase m v -> Noted m ()
 declare bindings code = do
   unresolved <- declareCheckAmbiguous hooks0 bindings code
   case unresolved of
@@ -382,7 +372,7 @@ unresolvedNamesErrorMessage vs =
 -- | Like `declare`, but takes a `String`
 declare' :: (Monad m, Alternative m, Var v)
          => String
-         -> Codebase m v Reference (Type v) (Term v) -> Noted m ()
+         -> Codebase m v -> Noted m ()
 declare' bindings code = do
   bs <- case Parser.run TermParser.moduleBindings bindings TypeParser.s0 of
     Left err -> Noted (pure $ Left (Note [err]))
@@ -418,10 +408,10 @@ hooks0 =
 declareCheckAmbiguous
   :: (Monad m, Alternative m, Var v)
   => Hooks m v Reference
-  -> [(v, Term v)] -> Codebase m v Reference (Type v) (Term v)
+  -> [(v, Term v)] -> Codebase m v
   -> Noted m (Either [(v, [Term v])] [(v, Reference)])
 declareCheckAmbiguous hooks bindings code = do
-  termBuiltins <- allTermsByVarName Term.ref code -- probably worth caching this, updating it incrementally
+  termBuiltins <- allTermsByVarName code -- probably worth caching this, updating it incrementally
   let names0 = multimap (termBuiltins ++ Parsers.termBuiltins)
       hash' (Term.Ref' r) = r
       hash' _ = Reference.Builtin "-"
@@ -497,7 +487,7 @@ declareCheckAmbiguous hooks bindings code = do
 -- | Like `declare`, but takes a `String`
 declareCheckAmbiguous'
   :: (Monad m, Alternative m, Var v)
-  => Hooks m v Reference -> String -> Codebase m v Reference (Type v) (Term v)
+  => Hooks m v Reference -> String -> Codebase m v
   -> Noted m (Either [(v, [Term v])] [(v, Reference)])
 declareCheckAmbiguous' hooks bindings code = do
   bs <- case Parser.run TermParser.moduleBindings bindings TypeParser.s0 of
@@ -512,21 +502,19 @@ multimap = foldl' insert Map.empty where
 dedupBy :: Ord k => (a -> k) -> [a] -> [a]
 dedupBy f as = join . map (take 1) . Map.elems $ multimap [ (f a, a) | a <- as ]
 
-allTermsByVarName :: (Monad m, Var v) => (h -> Term v) -> Codebase m v h (Type v) (Term v) -> Noted m [(v, Term v)]
-allTermsByVarName ref code = do
+allTermsByVarName :: (Monad m, Var v) => Codebase m v -> Noted m [(v, Term v)]
+allTermsByVarName code = do
   -- grab all definitions in the code
   results <- search code Term.blank [] 1000000 (Metadata.Query "") Nothing
-  pure [ (v, ref h) | (h, md) <- references results
-                    , v <- Metadata.allNames (Metadata.names md) ]
+  pure [ (v, Term.ref h) | (h, md) <- references results
+                         , v <- Metadata.allNames (Metadata.names md) ]
 
-allTerms :: (Monad m, Var v) => Codebase m v h (Type v) (Term v) -> Noted m [(h, Term v)]
+allTerms :: (Monad m, Var v) => Codebase m v -> Noted m [(Reference, Term v)]
 allTerms code = do
   hs <- map fst . references <$> search code Term.blank [] 100000 (Metadata.Query "") Nothing
   Map.toList <$> terms code hs
 
-interpreter :: Var v
-            => [Builtin v] -> Codebase IO v Reference (Type v) (Term v)
-            -> Term v -> Noted IO (Term v)
+interpreter :: Var v => [Builtin v] -> Codebase IO v -> Term v -> Noted IO (Term v)
 interpreter builtins codebase =
   let env = Map.fromList [(ref, op) | Builtin ref (Just op) _ _ <- builtins ]
       resolveHash h = snd . head . Map.toList <$> terms codebase [Reference.Derived h]

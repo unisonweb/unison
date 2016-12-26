@@ -7,12 +7,14 @@ import Data.List
 import Data.Text (Text)
 import Test.Tasty
 import Test.Tasty.HUnit
+import Unison.Literal (Literal)
 import Unison.Parsers (parseTerm)
 import Unison.Symbol (Symbol)
 import Unison.Term
 import Unison.Type (Type)
 import Unison.View (DFO)
 import qualified Data.Text as Text
+import qualified Unison.Literal as Literal
 import qualified Unison.Type as T
 -- import Test.Tasty.SmallCheck as SC
 -- import Test.Tasty.QuickCheck as QC
@@ -127,7 +129,7 @@ tests = testGroup "TermParser" $ (parse <$> shouldPass)
           ]
         )
       ]
-    one = (lit . Number) 1
+    one = (lit . Literal.Number) 1
     hello = text "hello"
     number :: Ord v => Type v
     number = T.lit T.Number

@@ -42,8 +42,7 @@ data ABT f v r
   | Tm (f r) deriving (Functor, Foldable, Traversable)
 
 -- | At each level in the tree, we store the set of free variables and
--- a value of type `a`. Individual variables are annotated with a value of
--- type `v`.
+-- a value of type `a`. Variables are of type `v`.
 data Term f v a = Term { freeVars :: Set v, annotation :: a, out :: ABT f v (Term f v a) }
 
 data V v = Free v | Bound v deriving (Eq,Ord,Show,Functor)

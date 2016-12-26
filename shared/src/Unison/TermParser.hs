@@ -12,12 +12,14 @@ import Data.Char (isDigit)
 import Data.Foldable (asum)
 import Data.Functor
 import Data.List (foldl')
+import Unison.Literal (Literal)
 import Unison.Parser
-import Unison.Term (Term, Literal)
+import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Var (Var)
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
+import qualified Unison.Literal as Literal
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 import qualified Unison.TypeParser as TypeParser
@@ -94,7 +96,7 @@ ifthen = do
   iftrue <- L.withoutLayout "else" term
   _ <- token (string "else")
   iffalse <- L.block term
-  pure (Term.apps (Term.lit Term.If) [cond, iftrue, iffalse])
+  pure (Term.apps (Term.lit Literal.If) [cond, iftrue, iffalse])
 
 tupleOrParenthesized :: Var v => Parser (S v) (Term v) -> Parser (S v) (Term v)
 tupleOrParenthesized rec =
@@ -145,7 +147,7 @@ effectBlock = (token (string "do") *> wordyId keywords) >>= go where
 
 text' :: Parser s Literal
 text' =
-  token $ fmap (Term.Text . Text.pack) ps
+  token $ fmap (Literal.Text . Text.pack) ps
   where ps = char '"' *> Unison.Parser.takeWhile "text literal" (/= '"') <* char '"'
 
 text :: Ord v => Parser s (Term v)
@@ -157,7 +159,7 @@ number' = token (f <$> digits <*> optional ((:) <$> char '.' <*> digits))
     digits = takeWhile1 "number" isDigit
     f :: String -> Maybe String -> Literal
     f whole part =
-      (Term.Number . read) $ maybe whole (whole++) part
+      (Literal.Number . read) $ maybe whole (whole++) part
 
 hashLit :: Ord v => Parser s (Term v)
 hashLit = token (f <$> (mark *> hash))

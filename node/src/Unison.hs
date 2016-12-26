@@ -76,7 +76,7 @@ randomBase58 numBytes = do
 readLineTrimmed :: IO String
 readLineTrimmed = Text.unpack . Text.strip . Text.pack <$> getLine
 
-viewResult :: Codebase IO V Reference (Type V) (Term V)
+viewResult :: Codebase IO V
            -> Codebase.SearchResults V Reference (Term V)
            -> Term V
            -> Noted IO String
@@ -85,7 +85,7 @@ viewResult code rs e = pure (Doc.formatText80 (Views.termMd (Map.fromList $ Code
 
 maxSearchResults = 100
 
-search :: Codebase IO V Reference (Type V) (Term V) -> String -> IO (Codebase.SearchResults V Reference (Term V))
+search :: Codebase IO V -> String -> IO (Codebase.SearchResults V Reference (Term V))
 search code query = case Parsers.unsafeParseTerm query of
   Term.Blank' ->
     Note.run $ Codebase.search code Term.blank [] maxSearchResults (Metadata.Query "") Nothing
@@ -97,12 +97,11 @@ search code query = case Parsers.unsafeParseTerm query of
     Note.run $ Codebase.search code Term.blank [] maxSearchResults (Metadata.Query $ Var.name v) Nothing
   _ -> fail "FAILED search syntax invalid, must be `<name>` or `<name> : <type>`"
 
-formatSearchResults :: Codebase IO V Reference (Type V) (Term V)
-                    -> Codebase.SearchResults V Reference (Term V) -> IO ()
+formatSearchResults :: Codebase IO V -> Codebase.SearchResults V Reference (Term V) -> IO ()
 formatSearchResults code rs = mapM_ fmt (fst . Codebase.matches $ rs) where
   fmt e = putStrLn =<< Note.run (viewResult code rs e)
 
-pickExactMatch :: Codebase IO V Reference (Type V) (Term V)
+pickExactMatch :: Codebase IO V
                -> String
                -> Codebase.SearchResults V Reference (Term V)
                -> IO (Maybe (Term V))
@@ -115,7 +114,7 @@ pickExactMatch code name rs = case fst (Codebase.matches rs) of
       r <- Map.lookup (Var.named (Text.pack name)) names
       listToMaybe [ e | e@(Term.Ref' r') <- es, r' == r ]
 
-pickSearchResult :: Codebase IO V Reference (Type V) (Term V)
+pickSearchResult :: Codebase IO V
                  -> String -> Codebase.SearchResults V Reference (Term V) -> IO (Maybe (Term V))
 pickSearchResult code name rs = pickExactMatch code name rs >>= \o -> case o of
   Just e -> pure (Just e)
@@ -147,7 +146,7 @@ refsOnly results =
   where
   tweak (es, rem) = ([ Term.ref r | Term.Ref' r <- es ], rem)
 
-process :: IO (Codebase IO V Reference (Type V) (Term V)) -> [String] -> IO ()
+process :: IO (Codebase IO V) -> [String] -> IO ()
 process _ [] = putStrLn $ intercalate "\n"
   [ "usage: unison <subcommand> [<args>]"
   , ""
