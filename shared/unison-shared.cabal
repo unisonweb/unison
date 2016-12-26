@@ -19,7 +19,7 @@ data-files:
 
 source-repository head
   type: git
-  location: git://github.com/unisonweb/platform.git
+  location: git://github.com/unisonweb/unison.git
 
 -- `cabal install -foptimized` enables optimizations
 flag optimized
@@ -34,7 +34,6 @@ library
   hs-source-dirs: src
 
   exposed-modules:
-    Text.Parsec.Layout
     Unison.ABT
     Unison.Builtin
     Unison.BlockStore
@@ -92,6 +91,7 @@ library
     mtl,
     murmur-hash,
     parsec,
+    parsec-layout,
     prelude-extras,
     random,
     stm,

@@ -1,6 +1,7 @@
 flags: {}
 
 packages:
+- yaks/parsec-layout
 - shared
 - node
 
