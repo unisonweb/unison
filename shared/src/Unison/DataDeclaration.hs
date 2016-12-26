@@ -1,14 +1,13 @@
+{-# Language DeriveFunctor #-}
+{-# Language DeriveFoldable #-}
+{-# Language DeriveTraversable #-}
+
 module Unison.DataDeclaration where
 
-import qualified Unison.ABT as ABT
-import qualified Unison.Type as T
+import Unison.Type (Type)
 
-newtype Product a = Product [T.F a]
+newtype Product v = Product [v] deriving (Functor, Traversable, Foldable)
 
-data F a = Constructors [Product a]
+data DataDeclaration' name v = Constructors [(name, Product v)] deriving (Functor, Traversable, Foldable)
 
--- | DataDeclarations are represented as ABTs over the base functor F, with variables in `v`
-type DataDeclaration v = AnnotatedDataDeclaration v ()
-
--- | Like `DataDeclaration v`, but with an annotation of type `a` at every level in the tree
-type AnnotatedDataDeclaration v a = ABT.Term F v a
+type DataDeclaration v = DataDeclaration' v (Type v)

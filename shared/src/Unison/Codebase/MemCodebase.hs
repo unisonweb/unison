@@ -5,8 +5,9 @@ module Unison.Codebase.MemCodebase where
 import Data.List
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Store (Store)
-import Unison.Note (Noted)
+import Unison.DataDeclaration (DataDeclaration)
 import Unison.Hash (Hash)
+import Unison.Note (Noted)
 import Unison.Reference (Reference(Derived))
 import Unison.Term (Term)
 import Unison.Type (Type)
@@ -47,7 +48,7 @@ instance Hashable.Accumulate Hash where
 type V = Symbol.Symbol View.DFO
 
 make :: Logger
-     -> IO (Codebase IO V Reference (Type V) (Term V), Term V -> Noted IO (Term V))
+     -> IO (Codebase IO V, Term V -> Noted IO (Term V))
 make logger = do
   store <- MemStore.make :: IO (Store IO v)
   code <- pure $ Codebase.make hash store

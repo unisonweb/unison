@@ -52,6 +52,7 @@ data F typeVar a
   = Lit Literal
   | Blank -- An expression that has not been filled in, has type `forall a . a`
   | Ref Reference
+  | Constructor Reference Int
   | App a a
   | Ann a (Type typeVar)
   | Vector (Vector a)
@@ -132,6 +133,7 @@ pattern Ref' r <- (ABT.out -> ABT.Tm (Ref r))
 pattern Builtin' r <- (ABT.out -> ABT.Tm (Ref (Builtin r)))
 pattern App' f x <- (ABT.out -> ABT.Tm (App f x))
 pattern Match' scrutinee branches <- (ABT.out -> ABT.Tm (Match scrutinee branches))
+pattern Constructor' ref n <- (ABT.out -> ABT.Tm (Constructor ref n))
 pattern Apps' f args <- (unApps -> Just (f, args))
 pattern Ann' x t <- (ABT.out -> ABT.Tm (Ann x t))
 pattern Vector' xs <- (ABT.out -> ABT.Tm (Vector xs))
@@ -184,6 +186,9 @@ app f arg = ABT.tm (App f arg)
 
 match :: Ord v => Term v -> [(Pattern, Term v)] -> Term v
 match scrutinee branches = ABT.tm (Match scrutinee branches)
+
+constructor :: Ord v => Reference -> Int -> Term v
+constructor ref n = ABT.tm (Constructor ref n)
 
 apps :: Ord v => Term v -> [Term v] -> Term v
 apps f = foldl' app f
@@ -289,6 +294,10 @@ dependencies' t = Set.fromList . Writer.execWriter $ ABT.visit' f t
 
 dependencies :: Ord v => Term v -> Set Hash
 dependencies e = Set.fromList [ h | Reference.Derived h <- Set.toList (dependencies' e) ]
+
+referencedDataDeclarations :: Term v -> Set Reference
+referencedDataDeclarations t =
+  Set.empty -- TODO: referenced data declarations, should gather up data decl refs from pattern matching
 
 updateDependencies :: Ord v => Map Reference Reference -> Term v -> Term v
 updateDependencies u tm = ABT.rebuildUp go tm where

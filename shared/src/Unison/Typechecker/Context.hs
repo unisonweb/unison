@@ -533,7 +533,7 @@ synthesize e = scope ("synth: " ++ show e) $ go e where
     ft <- synthesize f; ctx <- getContext
     synthesizeApp (apply ctx ft) arg
   go (Term.Vector' v) = synthesize (desugarVector (Foldable.toList v))
-  go (Term.Distributed' (Term.Remote r)) = synthesize (desugarRemote r)
+  go (Term.Distributed' (Term.Remote r)) = error "raw remote value in syntax tree" -- TODO: can get rid of this case once runtime values are a separate type from Unison.Term
   go (Term.Distributed' (Term.Node _)) = pure (Type.builtin "Node")
   go (Term.Distributed' (Term.Channel _)) = pure (Type.builtin "Channel")
   go (Term.Let1' binding e) | Set.null (ABT.freeVars binding) = do
@@ -600,24 +600,6 @@ synthesizeApp ft arg = go ft where
          scope ("function type: " ++ show ft) $
          fail  ("arg: " ++ show arg)
 
--- | For purposes of typechecking, we translate `[x,y,z]` to the term
--- `Vector.prepend x (Vector.prepend y (Vector.prepend z Vector.empty))`,
--- where `Vector.prepend : forall a. a -> Vector a -> a` and
---       `Vector.empty : forall a. Vector a`
-desugarRemote :: Var v => Remote (Term v) -> Term v
-desugarRemote r = case r of
-  Remote.Step (Remote.At n r) ->
-    Term.builtin "Remote.at" `Term.ann` remoteSignatureOf "Remote.at" `Term.apps` [Term.node n, r]
-  Remote.Step (Remote.Local _) -> Term.blank
-    -- todo
-  -- Term.builtin "Remote.fork" `Term.ann` typeOf "Remote.fork" `Term.apps` [Term.node n, r]
-  _ -> Term.blank
-    -- todo: finish the rest of these
-    -- todo: add a type signature for `fork` and `here` to `remoteSignatures`
-
-  -- where
-  -- atT = Type.forall' ["a"] (Type.builtin "Node" --> Type.v' "a" --> )
-
 infixr 7 -->
 (-->) :: Ord v => Type.Type v -> Type.Type v -> Type.Type v
 (-->) = Type.arrow
@@ -656,14 +638,13 @@ desugarVector ts = case ts of
   where prependT = Type.forall' ["a"] (Type.v' "a" `Type.arrow` (va `Type.arrow` va))
         va = Type.vectorOf (Type.v' "a")
 
-annotateRefs :: (Applicative f, Ord v) => Type.Env f v -> Term v -> Noted f (Term v)
+annotateRefs :: (Applicative f, Ord v)
+             => (Reference -> Noted f (Type.Type v))
+             -> Term v
+             -> Noted f (Term v)
 annotateRefs synth term = ABT.visit f term where
   f (Term.Ref' h) = Just (Term.ann (Term.ref h) <$> synth h)
   f _ = Nothing
-
--- TODO: move this somewhere else, probably Unison.Term
-referencedDeclarations :: Term v -> Set Reference
-referencedDeclarations t = error "referenced declarations"
 
 synthesizeClosed
   :: (Monad f, Var v)
@@ -672,7 +653,7 @@ synthesizeClosed
   -> Term v
   -> Noted f (Type v)
 synthesizeClosed synthRef lookupDecl term = do
-  let declRefs = Set.toList $ referencedDeclarations term
+  let declRefs = Set.toList $ Term.referencedDataDeclarations term
   term <- annotateRefs synthRef term
   decls <- Map.fromList <$> traverse (\r -> (r,) <$> lookupDecl r) declRefs
   synthesizeClosedAnnotated decls term
