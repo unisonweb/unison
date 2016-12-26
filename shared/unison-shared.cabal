@@ -99,7 +99,7 @@ library
     transformers,
     vector
 
-  ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
 
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2

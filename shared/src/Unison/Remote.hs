@@ -2,6 +2,7 @@
 {-# Language DeriveFoldable #-}
 {-# Language DeriveFunctor #-}
 {-# Language DeriveTraversable #-}
+{-# OPTIONS_GHC -O0 #-} -- without this, seem to get some sort of infinite loop in optimizer
 
 module Unison.Remote where
 

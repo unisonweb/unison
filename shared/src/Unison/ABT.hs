@@ -228,7 +228,7 @@ subst v r t2@(Term fvs ann body)
     Var v' | v == v' -> r    -- var match; perform replacement
            | otherwise -> t2 -- var did not match one being substituted; ignore
     Cycle body -> cycle' ann (subst v r body)
-    Abs x e | x == v -> t2 -- x shadows v; ignore subtree
+    Abs x _ | x == v -> t2 -- x shadows v; ignore subtree
     Abs x e -> abs' ann x' e'
       where x' = freshInBoth r t2 x
             -- rename x to something that cannot be captured by `r`

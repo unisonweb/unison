@@ -1,4 +1,5 @@
 {-# Language BangPatterns #-}
+{-# Language ConstrainedClassMethods #-}
 {-# Language DeriveFunctor #-}
 {-# Language DeriveTraversable #-}
 {-# Language DeriveFoldable #-}

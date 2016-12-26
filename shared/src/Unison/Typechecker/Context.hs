@@ -23,7 +23,6 @@ import Unison.Literal (Literal)
 import Unison.Note (Note,Noted(..))
 import Unison.Pattern (Pattern)
 import Unison.Reference (Reference)
-import Unison.Remote (Remote)
 import Unison.Term (Term)
 import Unison.TypeVar (TypeVar)
 import Unison.Var (Var)
@@ -34,13 +33,12 @@ import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.Literal as Literal
 import qualified Unison.Note as Note
-import qualified Unison.Remote as Remote
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 import qualified Unison.TypeVar as TypeVar
 import qualified Unison.Var as Var
 -- uncomment for debugging
-import Debug.Trace
+-- import Debug.Trace
 --watch msg a = trace (msg ++ ":\n" ++ show a) a
 --watchVar msg a = trace (msg ++ ": " ++ Text.unpack (Var.shortName a)) a
 --watchVars msg t@(a,b,c) =
@@ -106,10 +104,10 @@ env0 = Env 0 context0
 instance Var v => Show (Context v) where
   show (Context es) = "Γ\n  " ++ (intercalate "\n  " . map (show . fst)) (reverse es)
 
-logContext :: Var v => String -> M v ()
-logContext msg = do
-  ctx <- getContext
-  setContext (trace ("\n"++msg ++ ": " ++ show ctx) ctx)
+--logContext :: Var v => String -> M v ()
+--logContext msg = do
+--  ctx <- getContext
+--  setContext (trace ("\n"++msg ++ ": " ++ show ctx) ctx)
 
 -- ctxOK :: Context -> Context
 -- ctxOK ctx = if wellformed ctx then ctx else error $ "not ok: " ++ show ctx
@@ -533,7 +531,7 @@ synthesize e = scope ("synth: " ++ show e) $ go e where
     ft <- synthesize f; ctx <- getContext
     synthesizeApp (apply ctx ft) arg
   go (Term.Vector' v) = synthesize (desugarVector (Foldable.toList v))
-  go (Term.Distributed' (Term.Remote r)) = error "raw remote value in syntax tree" -- TODO: can get rid of this case once runtime values are a separate type from Unison.Term
+  go (Term.Distributed' (Term.Remote _)) = error "raw remote value in syntax tree" -- TODO: can get rid of this case once runtime values are a separate type from Unison.Term
   go (Term.Distributed' (Term.Node _)) = pure (Type.builtin "Node")
   go (Term.Distributed' (Term.Channel _)) = pure (Type.builtin "Channel")
   go (Term.Let1' binding e) | Set.null (ABT.freeVars binding) = do

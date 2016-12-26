@@ -1,4 +1,5 @@
 {-# Language BangPatterns #-}
+{-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 
 -- Copyright (c) 2013, Edward Kmett, Luke Palmer, Paul Chiusano
 --
@@ -55,7 +56,6 @@ module Text.Parsec.Layout
     , withoutLayout
     ) where
 
-import Data.Functor
 import Control.Applicative ((<$>))
 import Control.Monad
 

@@ -11,7 +11,6 @@
 
 module Unison.Term where
 
-import Control.Monad
 import Data.Aeson.TH
 import Data.Aeson (ToJSON, FromJSON)
 import Data.List (foldl')
@@ -23,7 +22,7 @@ import GHC.Generics
 import Prelude.Extras (Eq1(..), Show1(..))
 import Text.Show
 import Unison.Hash (Hash)
-import Unison.Hashable (Hashable, Hashable1, accumulateToken)
+import Unison.Hashable (Hashable1, accumulateToken)
 import Unison.Literal
 import Unison.Pattern (Pattern)
 import Unison.Reference (Reference(..))
@@ -41,7 +40,6 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Hash as Hash
 import qualified Unison.Hashable as Hashable
 import qualified Unison.JSON as J
-import qualified Unison.Pattern as Pattern
 import qualified Unison.Reference as Reference
 import qualified Unison.Remote as Remote
 import qualified Unison.Type as Type
@@ -296,7 +294,7 @@ dependencies :: Ord v => Term v -> Set Hash
 dependencies e = Set.fromList [ h | Reference.Derived h <- Set.toList (dependencies' e) ]
 
 referencedDataDeclarations :: Term v -> Set Reference
-referencedDataDeclarations t =
+referencedDataDeclarations _ =
   Set.empty -- TODO: referenced data declarations, should gather up data decl refs from pattern matching
 
 updateDependencies :: Ord v => Map Reference Reference -> Term v -> Term v
@@ -345,6 +343,9 @@ instance Var v => Hashable1 (F v) where
           Node (Remote.Node host pk) -> [tag 9, accumulateToken host, accumulateToken pk]
           Channel ch -> [tag 10, accumulateToken ch]
           Remote r -> [tag 11, hashed $ Hashable.hash1 hashCycle hash r]
+        Constructor r n -> [tag 12, accumulateToken r, varint n]
+        Match e branches -> tag 13 : hashed (hash e) : concatMap h branches where
+          h (pat, branch) = [accumulateToken pat, hashed (hash branch)]
 
 -- mostly boring serialization code below ...
 
@@ -371,5 +372,7 @@ instance (Var v, Show a) => Show (F v a) where
     go _ (Let b body) = showParen True (s"let " <> showsPrec 0 b <> s" in " <> showsPrec 0 body)
     go _ (LetRec bs body) = showParen True (s"let rec" <> showsPrec 0 bs <> s" in " <> showsPrec 0 body)
     go _ (Distributed d) = showsPrec 0 d
+    go _ (Constructor r n) = showsPrec 0 r <> showsPrec 0 n
+    go _ (Match _ _) = s"match"
     (<>) = (.)
     s = showString

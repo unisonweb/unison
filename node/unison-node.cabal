@@ -14,13 +14,6 @@ synopsis:      The Unison programming language and platform
 description:   The Unison typechecker and node
 
 build-type:    Simple
-extra-source-files:
-  -- .travis.yml
-  --.vim.custom
-  .gitignore
-  README.markdown
-  CHANGELOG.markdown
-
 data-files:
 
 source-repository head
@@ -140,7 +133,7 @@ library
     wai-extra,
     wai-middleware-static
 
-  ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -fno-warn-name-shadowing
 
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
