@@ -51,7 +51,6 @@ library
     Unison.Kind.Extra
     Unison.Metadata.Extra
     Unison.Codebase.FileStore
-    Unison.Codebase.BlockStoreStore
     Unison.NodeContainer
     Unison.CodebaseServer
     Unison.NodeProtocol

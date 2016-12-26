@@ -78,6 +78,7 @@ termBuiltins = (Var.named *** Term.ref) <$> (
     , Builtin "Equal"
     , Builtin "True"
     , Builtin "False"
+    , Builtin "Pair"
     , Alias "unit" "()"
     , Alias "Unit" "()"
     , Alias "Some" "Optional.Some"

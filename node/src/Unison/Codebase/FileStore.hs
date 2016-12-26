@@ -63,6 +63,8 @@ make root =
 
     readTerm = read' "terms"
     writeTerm = write' "terms"
+    readDataDeclaration (Reference.Derived h) = read' "data-declarations" h
+    readDataDeclaration (Reference.Builtin b) = read id "builtin-data-declarations" (mangle b)
 
     -- replace slashes with dashes
     mangle = Text.map unslash where
@@ -84,8 +86,10 @@ make root =
   in do
     Directory.createDirectoryIfMissing True (root </> "terms")
     Directory.createDirectoryIfMissing True (root </> "types")
+    Directory.createDirectoryIfMissing True (root </> "data-declarations")
+    Directory.createDirectoryIfMissing True (root </> "builtin-data-declarations")
     Directory.createDirectoryIfMissing True (root </> "type-of")
     Directory.createDirectoryIfMissing True (root </> "builtin-type-of")
     Directory.createDirectoryIfMissing True (root </> "metadata")
     Directory.createDirectoryIfMissing True (root </> "builtin-metadata")
-    pure $ Store hashes readTerm writeTerm typeOfTerm annotateTerm readMetadata writeMetadata
+    pure $ Store hashes readTerm writeTerm typeOfTerm annotateTerm readDataDeclaration readMetadata writeMetadata
