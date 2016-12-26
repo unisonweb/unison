@@ -93,7 +93,7 @@ main = do
       -- allbuiltins = b0 whnf ++ b1 whnf
       -- allprimops = Map.fromList [ (r, op) | Builtin.Builtin r (Just op) _ _ <- allbuiltins ]
       typecheck e = do
-        bindings <- Note.run $ Codebase.allTermsByVarName Term.ref codebase
+        bindings <- Note.run $ Codebase.allTermsByVarName codebase
         L.debug logger $ "known symbols: " ++ show (map fst bindings)
         let e' = Parsers.bindBuiltins bindings [] e
         Note.unnote (Codebase.typeAt codebase e' []) >>= \t -> case t of
@@ -123,12 +123,12 @@ main = do
       let pk = Mux.Packet (Mux.channelId $ NP._localEval protocol) (Put.runPutS (serialize prog'))
       liftIO $ send (Mux.Packet destination (Put.runPutS (serialize pk)))
 
-loadDeclarations logger path node = do
+loadDeclarations logger path code = do
   txt <- decodeUtf8 <$> B.readFile path
   let str = Text.unpack txt
-  r <- Note.run $ Codebase.declare' str node
+  r <- Note.run $ Codebase.declare' str code
   L.info logger $ "loaded " ++ path
   L.debug' logger $ do
-    ts <- Note.run $ Codebase.allTermsByVarName Term.ref node
+    ts <- Note.run $ Codebase.allTermsByVarName code
     pure $ show ts
   pure r
