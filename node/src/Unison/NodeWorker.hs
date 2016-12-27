@@ -11,7 +11,7 @@ import Control.Exception.Base as Ex
 import Control.Monad.IO.Class
 import Data.Bytes.Serial (Serial, serialize)
 import Unison.Cryptography (Cryptography)
-import Unison.Hash.Extra ()
+import Unison.SerializationAndHashing ()
 import qualified Control.Concurrent.Async as Async
 import qualified Data.ByteArray as BA
 import qualified Data.Bytes.Put as Put

@@ -5,16 +5,15 @@
 module Unison.Runtime.Remote where
 
 import Control.Concurrent.Async (Async)
-import Data.Functor
-import Data.Maybe
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.ByteString (ByteString)
 import Data.Bytes.Serial (Serial,serialize,deserialize)
+import Data.Maybe
 import Data.Set (Set)
 import Unison.Remote hiding (seconds)
-import Unison.Remote.Extra ()
 import Unison.Runtime.Multiplex (Multiplex)
+import Unison.SerializationAndHashing ()
 import qualified Control.Concurrent.Async as Async
 import qualified Control.Concurrent as C
 import qualified Data.ByteString as B

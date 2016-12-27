@@ -12,14 +12,12 @@ import System.Environment (getArgs)
 import System.IO
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Store (Store)
-import Unison.Hash.Extra ()
 import Unison.Note (Noted)
 import Unison.Reference (Reference)
 import Unison.Runtime.Address
+import Unison.SerializationAndHashing ()
 import Unison.Symbol (Symbol)
-import Unison.Symbol.Extra ()
 import Unison.Term (Term)
-import Unison.Term.Extra ()
 import Unison.Type (Type)
 import Unison.Var (Var)
 import qualified Crypto.Random as Random
