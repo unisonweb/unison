@@ -16,14 +16,12 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 module Unison.Doc where
 
 import Control.Comonad.Cofree (Cofree(..), unwrap) -- (:<)
 import Control.Monad.State.Strict
 import Data.Aeson
-import Data.Aeson.TH
 import Data.Bifunctor
 import Data.Foldable
 import Data.Functor
@@ -31,13 +29,15 @@ import Data.List hiding (group)
 import Data.Maybe (fromMaybe)
 import Data.String (IsString)
 import Data.Text (Text)
-import Debug.Trace
+import GHC.Generics hiding (D)
 import Unison.Dimensions (X(..), Y(..), Width(..), Height(..), Region)
 import Unison.Path (Path)
 import qualified Data.Text as Text
 import qualified Unison.Dimensions as Dimensions
 import qualified Unison.JSON as J
 import qualified Unison.Path as Path
+
+-- import Debug.Trace
 
 type IsDelimiter = Bool
 
@@ -49,7 +49,7 @@ data D e r
   | Linebreak
   | Group r
   | Nest e r
-  | Append r r deriving (Functor, Foldable, Traversable)
+  | Append r r deriving (Functor, Foldable, Traversable, Generic)
 
 -- | A `Doc e p` describes a layout that may be rendered at
 -- multiple widths. The `e` parameter is the type of primitive documents,
@@ -562,7 +562,7 @@ navigate dir by box p = do
 
   nav :: (Eq p, Path p)
       => Direction -> (Int -> Int) -> Region -> [Box e (p, Region)] -> Maybe (Box e (p, Region))
-  nav _ _ _ [] = trace "navigation failed" Nothing
+  nav _ _ _ [] = Nothing
   nav dir by r (((_,r') :< box) : tl) = case box of
     BEmpty -> nav dir by r' tl
     BEmbed _ -> nav dir by r' tl
@@ -726,9 +726,8 @@ instance Bifunctor D where
 
 -- boring serialization code
 
-deriveToJSON defaultOptions ''D
-instance (FromJSON e, FromJSON r) => FromJSON (D e r) where
-  parseJSON = $(mkParseJSON defaultOptions ''D)
+instance (ToJSON e, ToJSON r) => ToJSON (D e r)
+instance (FromJSON e, FromJSON r) => FromJSON (D e r)
 
 instance (ToJSON e) => J.ToJSON1 (D e) where toJSON1 f = toJSON f
 instance (FromJSON e) => J.FromJSON1 (D e) where parseJSON1 j = parseJSON j
@@ -738,4 +737,3 @@ instance (Functor f, ToJSON p, J.ToJSON1 f) => ToJSON (Cofree f p) where
 
 instance (FromJSON p, J.FromJSON1 f) => FromJSON (Cofree f p) where
   parseJSON j = (:<) <$> J.at 0 parseJSON j <*> J.at 1 J.parseJSON1 j
-

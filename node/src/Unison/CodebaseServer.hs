@@ -116,7 +116,7 @@ server port codebase = S.scotty port $ do
   S.defaultHandler $ \msg -> originPolicy *> S.raise msg
 
 instance J.ToJSON a => J.ToJSON (M.Map Hash a) where
-  toJSON m = J.toJSON . M.fromList . map (\(h,v) -> (H.base64 h, v)) . M.toList $ m
+  toJSON m = J.toJSON . M.fromList . map (\(h,v) -> (H.base58 h, v)) . M.toList $ m
 
 instance J.ToJSON a => J.ToJSON (M.Map Reference a) where
   toJSON = J.toJSON . M.toList

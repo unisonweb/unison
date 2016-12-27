@@ -4,10 +4,9 @@
 module Unison.TypeParser where
 
 import Control.Monad
-import Control.Applicative ((<|>), some, many)
-import Data.Char (isUpper, isLower, isAlpha)
+import Control.Applicative
+import Data.Char (isUpper, isLower)
 import Data.Foldable (asum)
-import Data.Functor
 import Data.List
 import Unison.Parser
 import Unison.Type (Type)
@@ -15,7 +14,6 @@ import Unison.Var (Var)
 import qualified Data.Text as Text
 import qualified Unison.Type as Type
 
-import Text.Parsec (anyChar)
 --import Debug.Trace
 --
 --pTrace s = pt <|> return ()

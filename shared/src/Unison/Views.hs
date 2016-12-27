@@ -203,7 +203,7 @@ defaultSymbol :: Reference -> Symbol View.DFO
 defaultSymbol (Reference.Builtin t) = Symbol.prefix t
 defaultSymbol (Reference.Derived h) = Symbol.prefix (Text.cons '#' $ short h)
   where
-  short h = Text.take 8 . Hash.base64 $ h
+  short h = Text.take 8 . Hash.base58 $ h
 
 unLams' :: Term v -> Maybe ([(v, Path)], (Term v, Path))
 unLams' (E.LamNamed' v body) = case unLams' body of

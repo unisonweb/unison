@@ -45,10 +45,7 @@ tests = testGroup "TermParser" $ (parse <$> shouldPass)
                               ++ (parseFail <$> shouldFail)
   where
     shouldFail =
-      [ ("+", "operator needs to be enclosed in parens or between arguments")
-      , ("#V-fXHD3-N0E", "invalid base64url")
-      , ("#V-f/XHD3-N0E", "invalid base64url")
-      ]
+      [ ("+", "operator needs to be enclosed in parens or between arguments") ]
     shouldParse =
       [ "do Remote { n1 := Remote.spawn; n2 := Remote.spawn; let rec { x = 10; Remote.pure 42 }}" ]
     shouldPass =
@@ -73,7 +70,6 @@ tests = testGroup "TermParser" $ (parse <$> shouldPass)
       , ("a", a)
       , ("(+_Number)", numberplus)
       , ("Number.Other.plus", var' "Number.Other.plus")
-      , ("f -> Remote.bind (#V-fXHD3-N0E= Remote.pure f)", remoteMap)
       , ("1:Int", ann one int)
       , ("(1:Int)", ann one int)
       , ("(1:Int) : Int", ann (ann one int) int)
@@ -104,8 +100,6 @@ tests = testGroup "TermParser" $ (parse <$> shouldPass)
         [ ("x", var' "id" `app` num 42),
           ("y", var' "id" `app` text "hi")
         ] (num 43)) `ann` (T.forall' ["a"] (T.v' "a") `T.arrow` T.lit T.Number))
-        , ("#" ++ Text.unpack sampleHash64, derived' sampleHash64)
-        , ("#" ++ Text.unpack sampleHash512, derived' sampleHash512)
       , ("(do Remote { pure 42 } )", builtin "Remote.pure" `app` num 42)
       , ("do Remote { x = 42; pure (x + 1) } ",
           builtin "Remote.bind" `apps` [
@@ -143,8 +137,6 @@ tests = testGroup "TermParser" $ (parse <$> shouldPass)
     plus = var' "+"
     plus' x y = builtin "Number.+" `app` x `app` y
     numberplus = builtin "Number.+"
-    remotepure = builtin "Remote.pure"
-    remoteMap = lam' ["f"] (builtin "Remote.bind" `app` (derived' sampleHash64 `app` remotepure `app` var' "f"))
     onenone = var' "1+1"
     one_plus_one = apps plus [one,one]
     lam_ab_aplusb = lam' ["a", "b"] (apps numberplus [a, b])
@@ -157,8 +149,6 @@ tests = testGroup "TermParser" $ (parse <$> shouldPass)
     fix = letRec'
         [ ("fix", lam' ["f"] $ var' "f" `app` (var' "fix" `app` var' "f")) ]
         (var' "fix")
-    sampleHash64 = "V-fXHD3-N0E=" :: Text
-    sampleHash512 = "1jgF5VUh1odeSCmmI94efghSPl3yAnopDCGeQC7qFkIcxLXKSJHxpvLcORW-mf1xMgXH-wigSVFmz83-acCllQ==" :: Text
 
 main :: IO ()
 main = defaultMain tests

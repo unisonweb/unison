@@ -9,12 +9,14 @@ import Unison.Hash (Hash)
 import Unison.Codebase (Codebase)
 import Unison.Note (Noted)
 import Unison.Reference (Reference)
-import Unison.Runtime.Address
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Var (Var)
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Builder as Builder
+import qualified Data.ByteString.Lazy as LB
+import qualified Data.Digest.Murmur64 as Murmur
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text.IO
 import qualified System.FilePath as FP
@@ -45,8 +47,12 @@ hash :: Var v => Term.Term v -> Reference
 hash (Term.Ref' r) = r
 hash t = Reference.Derived (ABT.hash t)
 
-makeRandomAddress :: C.Cryptography k syk sk skp s h c -> IO Address
-makeRandomAddress crypt = Address <$> C.randomBytes crypt 64
+makeRandomAddress :: C.Cryptography k syk sk skp s h c -> IO B.ByteString
+makeRandomAddress crypt = C.randomBytes crypt 64
+
+makeAddress :: B.ByteString -> B.ByteString
+makeAddress =
+  LB.toStrict . Builder.toLazyByteString . Builder.word64LE . Murmur.asWord64 . Murmur.hash64
 
 loadDeclarations :: L.Logger -> FilePath -> Codebase IO V -> IO ()
 loadDeclarations logger path codebase = do

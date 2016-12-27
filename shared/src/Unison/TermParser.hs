@@ -11,7 +11,6 @@ import Control.Monad
 import Data.Char (isDigit)
 import Data.Foldable (asum)
 import Data.Functor
-import Data.List (foldl')
 import Unison.Literal (Literal)
 import Unison.Parser
 import Unison.Term (Term)
@@ -26,22 +25,22 @@ import qualified Unison.TypeParser as TypeParser
 import qualified Unison.Var as Var
 import qualified Text.Parsec.Layout as L
 
-import Debug.Trace
-import Text.Parsec (anyChar)
-
-pTrace s = pt <|> return ()
-    where pt = attempt $
-               do
-                 x <- attempt $ many anyChar
-                 trace (s++": " ++x) $ attempt $ char 'z'
-                 fail x
-
--- traced s p = p
-traced s p = do
-  pTrace s
-  a <- p <|> trace (s ++ " backtracked") (fail s)
-  let !x = trace (s ++ " succeeded") ()
-  pure a
+--import Debug.Trace
+--import Text.Parsec (anyChar)
+--
+--pTrace s = pt <|> return ()
+--    where pt = attempt $
+--               do
+--                 x <- attempt $ many anyChar
+--                 trace (s++": " ++x) $ attempt $ char 'z'
+--                 fail x
+--
+---- traced s p = p
+--traced s p = do
+--  pTrace s
+--  a <- p <|> trace (s ++ " backtracked") (fail s)
+--  let !x = trace (s ++ " succeeded") ()
+--  pure a
 
 {-
 Precedence of language constructs is identical to Haskell, except that all
@@ -162,9 +161,11 @@ number' = token (f <$> digits <*> optional ((:) <$> char '.' <*> digits))
       (Literal.Number . read) $ maybe whole (whole++) part
 
 hashLit :: Ord v => Parser s (Term v)
-hashLit = token (f <$> (mark *> hash))
+hashLit = token (f =<< (mark *> hash))
   where
-    f = Term.derived' . Text.pack
+    f h = case Term.derived' (Text.pack h) of
+      Nothing -> fail "invalid base58 string"
+      Just a -> pure a
     mark = char '#'
     hash = base64urlstring
 

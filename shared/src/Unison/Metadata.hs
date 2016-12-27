@@ -1,10 +1,8 @@
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE TemplateHaskell #-}
 module Unison.Metadata where
 
 import Control.Applicative
 import Data.Aeson
-import Data.Aeson.TH
 import Data.Text (Text)
 import GHC.Generics
 import Unison.Var (Var)
@@ -65,6 +63,9 @@ instance ToJSON Query where
 instance FromJSON Query where
   parseJSON v = Query <$> parseJSON v
 
-deriveJSON defaultOptions ''Metadata
-deriveJSON defaultOptions ''Names
-deriveJSON defaultOptions ''Sort
+instance (ToJSON v, ToJSON h) => ToJSON (Metadata v h)
+instance (FromJSON v, FromJSON h) => FromJSON (Metadata v h)
+instance ToJSON v => ToJSON (Names v)
+instance FromJSON v => FromJSON (Names v)
+instance ToJSON Sort
+instance FromJSON Sort

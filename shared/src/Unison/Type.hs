@@ -5,13 +5,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Type where
 
 import Data.Aeson (ToJSON(..), FromJSON(..))
-import Data.Aeson.TH
 import Data.List
 import Data.Set (Set)
 import Data.Text (Text)
@@ -40,7 +38,8 @@ data Literal
   | Optional
   deriving (Eq,Ord,Generic)
 
-deriveJSON defaultOptions ''Literal
+instance ToJSON Literal
+instance FromJSON Literal
 
 -- | Base functor for types in the Unison language
 data F a
@@ -50,9 +49,11 @@ data F a
   | App a a
   | Constrain a () -- todo: constraint language
   | Forall a
-  deriving (Eq,Foldable,Functor,Generic1,Traversable)
+  deriving (Eq,Foldable,Functor,Generic,Generic1,Traversable)
 
-deriveJSON defaultOptions ''F
+instance ToJSON a => ToJSON (F a)
+instance FromJSON a => FromJSON (F a)
+
 instance Eq1 F where (==#) = (==)
 instance Show1 F where showsPrec1 = showsPrec
 

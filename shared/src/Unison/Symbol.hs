@@ -1,16 +1,17 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
 module Unison.Symbol where
 
-import Data.Aeson.TH
+import Data.Aeson
 import Data.Text (Text)
+import GHC.Generics
 import Unison.Var (Var(..))
 import Unison.View (View)
-import qualified Unison.View as View
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import qualified Unison.View as View
 
-data Symbol a = Symbol !Word Text a
+data Symbol a = Symbol !Word Text a deriving (Generic,Generic1)
 
 freshId :: Symbol a -> Word
 freshId (Symbol id _ _) = id
@@ -51,4 +52,5 @@ symbol n = Symbol 0 n View.prefix
 prefix :: View op => Text -> Symbol op
 prefix name = symbol name
 
-deriveJSON defaultOptions ''Symbol
+instance ToJSON a => ToJSON (Symbol a)
+instance FromJSON a => FromJSON (Symbol a)

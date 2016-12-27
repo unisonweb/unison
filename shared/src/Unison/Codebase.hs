@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Codebase where
@@ -6,13 +6,14 @@ module Unison.Codebase where
 -- import Data.Bytes.Serial (Serial)
 import Control.Applicative
 import Control.Monad
-import Data.Aeson.TH
+import Data.Aeson
 import Data.List
 import Data.Map (Map)
 import Data.Maybe
 import Data.Ord
 import Data.Set (Set)
 import Data.Text (Text)
+import GHC.Generics
 import Unison.Builtin (Builtin(..))
 import Unison.Codebase.Store (Store)
 import Unison.DataDeclaration (DataDeclaration)
@@ -68,7 +69,7 @@ data SearchResults v h e =
     , references :: [(h, Metadata v h)]
     , matches :: ([e], Int)
     , illTypedMatches :: ([e], Int)
-    , positionsExamined :: [Int] }
+    , positionsExamined :: [Int] } deriving Generic
 
 data LocalInfo e t =
   LocalInfo
@@ -77,10 +78,13 @@ data LocalInfo e t =
     , localAdmissibleType :: t
     , localVariables :: [e]
     , localOverapplications :: [Int]
-    , localVariableApplications :: [e] }
+    , localVariableApplications :: [e] } deriving Generic
 
-deriveJSON defaultOptions ''SearchResults
-deriveJSON defaultOptions ''LocalInfo
+instance (ToJSON v, ToJSON h, ToJSON e) => ToJSON (SearchResults v h e)
+instance (FromJSON v, FromJSON h, FromJSON e) => FromJSON (SearchResults v h e)
+
+instance (ToJSON e, ToJSON t) => ToJSON (LocalInfo e t)
+instance (FromJSON e, FromJSON t) => FromJSON (LocalInfo e t)
 
 data ModuleDeclarationResult v =
   ModuleDeclarationResult { dataDeclarations :: Map v Reference
@@ -245,10 +249,6 @@ make h store =
 
     terms hs =
       Map.fromList <$> sequence (map (\h -> (,) h <$> readTermRef h) hs)
-
-    transitiveDependencies = error "todo"
-
-    transitiveDependents = error "todo"
 
     types hs =
       Map.fromList <$> sequence (map (\h -> (,) h <$> readTypeOf h) hs)
@@ -423,7 +423,7 @@ declareCheckAmbiguous hooks bindings code = do
       metadata v = Metadata.Metadata Metadata.Term (Metadata.Names [v]) Nothing
       tb0 = Parsers.termBuiltins
       mangle name (Reference.Derived h) =
-        Var.rename (Var.name name `mappend` "#" `mappend` Text.take 8 (Hash.base64 h)) name
+        Var.rename (Var.name name `mappend` "#" `mappend` Text.take 8 (Hash.base58 h)) name
       mangle name (Reference.Builtin _) =
         Var.rename (Var.name name `mappend` "#" `mappend` "builtin") name
       go _ [] = pure (Right [])
@@ -435,7 +435,7 @@ declareCheckAmbiguous hooks bindings code = do
               name : hashPrefix ->
                 if hashPrefix == [""] then (v, "") -- if last character is a '#', it's part of identifier
                 else (Var.rename name v, Text.intercalate "#" hashPrefix)
-            startsWith prefix (Term.Ref' (Reference.Derived hash)) = Text.isPrefixOf prefix (Hash.base64 hash)
+            startsWith prefix (Term.Ref' (Reference.Derived hash)) = Text.isPrefixOf prefix (Hash.base58 hash)
             startsWith prefix (Term.Ref' (Reference.Builtin b)) = Text.isPrefixOf prefix b
             startsWith _ _ = False
             lookups = map resolve (Set.toList free) where

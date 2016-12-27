@@ -28,6 +28,12 @@ accumulate' = accumulate . tokens
 class Hashable t where
   tokens :: Accumulate h => t -> [Token h]
 
+instance Hashable a => Hashable [a] where
+  tokens = map accumulateToken
+
+instance (Hashable a, Hashable b) => Hashable (a,b) where
+  tokens (a,b) = [accumulateToken a, accumulateToken b]
+
 class Functor f => Hashable1 f where
   -- | Produce a hash for an `f a`, given a hashing function for `a`.
   -- The first argument can be used by instances to hash `a` values

@@ -2,6 +2,7 @@
 {-# Language DeriveFoldable #-}
 {-# Language DeriveFunctor #-}
 {-# Language DeriveTraversable #-}
+{-# OPTIONS_GHC -O0 #-} -- without this, seem to get some sort of infinite loop in optimizer
 
 module Unison.Remote where
 
@@ -11,7 +12,7 @@ import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import GHC.Generics
 import Unison.Hashable (Hashable, Hashable1)
-import qualified Data.ByteString.Base64.URL as Base64
+import qualified Data.ByteString.Base58 as Base58
 import qualified Data.Text as Text
 import qualified Unison.Hashable as H
 import qualified Data.Hashable as DH
@@ -158,28 +159,39 @@ a channel from which we `receive`.
 -- | A node is a host and a public key. For instance: `Node "unisonweb.org" key`
 data Node = Node { host :: Text, publicKey :: ByteString } deriving (Eq,Ord,Generic)
 
+encodeBase58 :: ByteString -> ByteString
+encodeBase58 = Base58.encodeBase58 Base58.bitcoinAlphabet
+
+decodeBase58 :: ByteString -> Maybe ByteString
+decodeBase58 = Base58.decodeBase58 Base58.bitcoinAlphabet
+
 instance DH.Hashable Node
-instance ToJSON Node where toJSON (Node host key) = toJSON (host, decodeUtf8 (Base64.encode key))
+instance ToJSON Node where
+  toJSON (Node host key) = toJSON (host, decodeUtf8 (encodeBase58 key))
+
 instance FromJSON Node where
   parseJSON v = do
     (host,key) <- parseJSON v
-    either fail (pure . Node host) (Base64.decode (encodeUtf8 key))
+    maybe (fail "invalide base58 string") (pure . Node host) (decodeBase58 (encodeUtf8 key))
 
 instance Hashable Node where
   tokens (Node host key) = [H.Text host, H.Bytes key]
 
 instance Show Node where
-  show (Node host key) = "http://" ++ Text.unpack host ++ "/" ++ Text.unpack (decodeUtf8 (Base64.encode key))
+  show (Node host key) =
+    "http://" ++ Text.unpack host ++ "/" ++ Text.unpack (decodeUtf8 (encodeBase58 key))
 
 newtype Channel = Channel ByteString deriving (Eq,Ord,Generic)
 instance Show Channel where
-  show (Channel id) = Text.unpack (decodeUtf8 (Base64.encode id))
+  show (Channel id) = Text.unpack (decodeUtf8 (encodeBase58 id))
 
-instance ToJSON Channel where toJSON (Channel c) = toJSON (decodeUtf8 (Base64.encode c))
+instance ToJSON Channel where
+  toJSON (Channel c) = toJSON (decodeUtf8 (encodeBase58 c))
 
 instance FromJSON Channel where
   parseJSON v = do
     txt <- parseJSON v
-    either fail (pure . Channel) (Base64.decode (encodeUtf8 txt))
+    maybe (fail "invalid base58 string") (pure . Channel) (decodeBase58 (encodeUtf8 txt))
 
-instance Hashable Channel where tokens (Channel c) = H.tokens c
+instance Hashable Channel where
+  tokens (Channel c) = H.tokens c

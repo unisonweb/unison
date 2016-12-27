@@ -6,13 +6,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Term where
 
-import Control.Monad
-import Data.Aeson.TH
 import Data.Aeson (ToJSON, FromJSON)
 import Data.List (foldl')
 import Data.Map (Map)
@@ -23,7 +20,7 @@ import GHC.Generics
 import Prelude.Extras (Eq1(..), Show1(..))
 import Text.Show
 import Unison.Hash (Hash)
-import Unison.Hashable (Hashable, Hashable1, accumulateToken)
+import Unison.Hashable (Hashable1, accumulateToken)
 import Unison.Literal
 import Unison.Pattern (Pattern)
 import Unison.Reference (Reference(..))
@@ -41,7 +38,6 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Hash as Hash
 import qualified Unison.Hashable as Hashable
 import qualified Unison.JSON as J
-import qualified Unison.Pattern as Pattern
 import qualified Unison.Reference as Reference
 import qualified Unison.Remote as Remote
 import qualified Unison.Type as Type
@@ -75,7 +71,7 @@ data F typeVar a
   --     [ (Constructor 0 [Wildcard "n"], rhs1)
   --     , (Constructor 1 [], rhs2) ]
   | Match a [(Pattern, a)]
-  deriving (Eq,Foldable,Functor,Generic1,Traversable)
+  deriving (Eq,Foldable,Functor,Generic,Generic1,Traversable)
 
 -- | Like `Term v`, but with an annotation of type `a` at every level in the tree
 type AnnotatedTerm v a = ABT.Term (F v) v a
@@ -160,8 +156,8 @@ var' = var . ABT.v'
 derived :: Ord v => Hash -> Term v
 derived = ref . Reference.Derived
 
-derived' :: Ord v => Text -> Term v
-derived' base64 = derived $ Hash.fromBase64 base64
+derived' :: Ord v => Text -> Maybe (Term v)
+derived' base58 = derived <$> Hash.fromBase58 base58
 
 ref :: Ord v => Reference -> Term v
 ref r = ABT.tm (Ref r)
@@ -296,7 +292,7 @@ dependencies :: Ord v => Term v -> Set Hash
 dependencies e = Set.fromList [ h | Reference.Derived h <- Set.toList (dependencies' e) ]
 
 referencedDataDeclarations :: Term v -> Set Reference
-referencedDataDeclarations t =
+referencedDataDeclarations _ =
   Set.empty -- TODO: referenced data declarations, should gather up data decl refs from pattern matching
 
 updateDependencies :: Ord v => Map Reference Reference -> Term v -> Term v
@@ -345,17 +341,19 @@ instance Var v => Hashable1 (F v) where
           Node (Remote.Node host pk) -> [tag 9, accumulateToken host, accumulateToken pk]
           Channel ch -> [tag 10, accumulateToken ch]
           Remote r -> [tag 11, hashed $ Hashable.hash1 hashCycle hash r]
+        Constructor r n -> [tag 12, accumulateToken r, varint n]
+        Match e branches -> tag 13 : hashed (hash e) : concatMap h branches where
+          h (pat, branch) = [accumulateToken pat, hashed (hash branch)]
 
 -- mostly boring serialization code below ...
 
 instance Var v => Eq1 (F v) where (==#) = (==)
 instance Var v => Show1 (F v) where showsPrec1 = showsPrec
 
-deriveToJSON defaultOptions ''F
-instance (Ord v, FromJSON v, FromJSON r) => FromJSON (F v r) where
-  parseJSON = $(mkParseJSON defaultOptions ''F)
+instance (Ord v, FromJSON v, FromJSON r) => FromJSON (F v r)
+instance (ToJSON v, ToJSON r) => ToJSON (F v r)
 
-instance ToJSON v => J.ToJSON1 (F v) where toJSON1 f = Aeson.toJSON f
+instance (ToJSON v) => J.ToJSON1 (F v) where toJSON1 f = Aeson.toJSON f
 instance (Ord v, FromJSON v) => J.FromJSON1 (F v) where parseJSON1 j = Aeson.parseJSON j
 
 instance (Var v, Show a) => Show (F v a) where
@@ -371,5 +369,7 @@ instance (Var v, Show a) => Show (F v a) where
     go _ (Let b body) = showParen True (s"let " <> showsPrec 0 b <> s" in " <> showsPrec 0 body)
     go _ (LetRec bs body) = showParen True (s"let rec" <> showsPrec 0 bs <> s" in " <> showsPrec 0 body)
     go _ (Distributed d) = showsPrec 0 d
+    go _ (Constructor r n) = showsPrec 0 r <> showsPrec 0 n
+    go _ (Match _ _) = s"match"
     (<>) = (.)
     s = showString

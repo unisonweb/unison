@@ -65,7 +65,7 @@ components bs =
 -- that `id` is suitably generalized.
 minimize :: Var v => Term v -> Maybe (Term v)
 minimize (Term.LetRecNamed' bs e) = case components bs of
-  [single] -> Nothing
+  [_single] -> Nothing
   cs -> Just $ foldr mklet e cs where
     mklet [(hdv,hdb)] e
       | Set.member hdv (ABT.freeVars hdb) = Term.letRec [(hdv,hdb)] e

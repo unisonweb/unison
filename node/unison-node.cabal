@@ -14,13 +14,6 @@ synopsis:      The Unison programming language and platform
 description:   The Unison typechecker and node
 
 build-type:    Simple
-extra-source-files:
-  -- .travis.yml
-  --.vim.custom
-  .gitignore
-  README.markdown
-  CHANGELOG.markdown
-
 data-files:
 
 source-repository head
@@ -44,19 +37,12 @@ library
   hs-source-dirs: src
 
   exposed-modules:
-    Unison.ABT.Extra
-    Unison.Distance.Extra
     Unison.Config
-    Unison.Hash.Extra
-    Unison.Kind.Extra
-    Unison.Metadata.Extra
     Unison.Codebase.FileStore
     Unison.NodeContainer
     Unison.CodebaseServer
     Unison.NodeProtocol
     Unison.NodeProtocol.V0
-    Unison.Reference.Extra
-    Unison.Remote.Extra
     Unison.Runtime.Address
     Unison.Runtime.Block
     Unison.Runtime.Cryptography
@@ -75,10 +61,6 @@ library
     Unison.SerializationAndHashing
     Unison.BlockStore.MemBlockStore
     Unison.BlockStore.FileBlockStore
-    Unison.Symbol.Extra
-    Unison.Term.Extra
-    Unison.TermEdit.Extra
-    Unison.Type.Extra
     Unison.Runtime.Bits
     Unison.Runtime.Free
     Unison.Runtime.Stream
@@ -140,7 +122,7 @@ library
     wai-extra,
     wai-middleware-static
 
-  ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -fno-warn-name-shadowing
 
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
@@ -204,19 +186,12 @@ executable container
     wai-middleware-static
 
   other-modules:
-    Unison.ABT.Extra,
     Unison.BlockStore.FileBlockStore,
     Unison.Config,
-    Unison.Distance.Extra,
-    Unison.Hash.Extra,
-    Unison.Kind.Extra,
     Unison.NodeContainer,
     Unison.NodeProtocol,
     Unison.NodeProtocol.V0,
     Unison.CodebaseServer,
-    Unison.NodeWorker,
-    Unison.Reference.Extra,
-    Unison.Remote.Extra,
     Unison.Runtime.Block,
     Unison.Runtime.ExpiringMap,
     Unison.Runtime.Lock,
@@ -224,10 +199,7 @@ executable container
     Unison.Runtime.Queue,
     Unison.Runtime.Remote,
     Unison.Runtime.SharedResourceMap,
-    Unison.SerializationAndHashing,
-    Unison.Symbol.Extra,
-    Unison.Term.Extra,
-    Unison.Type.Extra
+    Unison.SerializationAndHashing
 
   if flag(leveldb)
     build-depends: exceptions, leveldb-haskell
@@ -333,15 +305,9 @@ executable codebase
     wai-extra,
     wai-middleware-static
   other-modules:
-    Unison.ABT.Extra,
     Unison.BlockStore.FileBlockStore,
-    Unison.Distance.Extra,
-    Unison.Hash.Extra,
-    Unison.Kind.Extra,
     Unison.Codebase.FileStore,
     Unison.CodebaseServer,
-    Unison.Reference.Extra,
-    Unison.Remote.Extra,
     Unison.Runtime.Address,
     Unison.Runtime.Block,
     Unison.Runtime.ExtraBuiltins,
@@ -351,10 +317,7 @@ executable codebase
     Unison.Runtime.Journal,
     Unison.Runtime.JournaledMap,
     Unison.Runtime.ResourcePool,
-    Unison.SerializationAndHashing,
-    Unison.Symbol.Extra,
-    Unison.Term.Extra,
-    Unison.Type.Extra
+    Unison.SerializationAndHashing
 
   if flag(leveldb)
     build-depends: exceptions, leveldb-haskell
@@ -377,6 +340,7 @@ test-suite tests
     directory,
     filepath,
     hashable,
+    murmur-hash,
     random,
     stm,
     tasty,
