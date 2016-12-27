@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ViewPatterns #-}
 module Unison.Runtime.ExtraBuiltins where
 
 import Control.Exception (finally)
@@ -38,7 +39,12 @@ indexT :: Ord v => Type v -> Type v -> Type v
 indexT k v = Type.ref (R.Builtin "Index") `Type.app` k `Type.app` v
 
 index :: Var v => Remote.Node -> Term.Term v -> Term.Term v
-index node h = Term.ref (R.Builtin "Index") `Term.apps` [Term.node node, h]
+index node h = Term.builtin "Index" `Term.apps` [Term.node node, h]
+
+unIndex :: Term.Term v -> Maybe (Remote.Node, Text.Text)
+unIndex e = case e of
+  Term.Apps' (Term.Builtin' "Index") [Term.Distributed' (Term.Node node), Term.Text' s] -> Just (node, s)
+  _ -> Nothing
 
 linkT :: Ord v => Type v
 linkT = Type.ref (R.Builtin "Html.Link")
@@ -46,17 +52,13 @@ linkT = Type.ref (R.Builtin "Html.Link")
 link :: Var v => Term.Term v -> Term.Term v -> Term.Term v
 link href description = Term.ref (R.Builtin "Html.Link") `Term.app` href `Term.app` description
 
+unLink :: Term.Term v -> Maybe (Text.Text, Text.Text)
+unLink e = case e of
+  Term.Apps' (Term.Builtin' "Html.Link") [Term.Text' href, Term.Text' description] -> Just (href, description)
+  _ -> Nothing
+
 linkToTerm :: Var v => Html.Link -> Term.Term v
 linkToTerm (Html.Link href description) = link (Term.text href) (Term.text description)
-
-pattern Index' node s <-
-  Term.App' (Term.App' (Term.Ref' (R.Builtin "Index")) (Term.Distributed' (Term.Node node)))
-            (Term.Text' s)
-
-pattern Link' href description <-
-  Term.App' (Term.App' (Term.Ref' (R.Builtin "Html.Link"))
-                       (Term.Text' href))
-  (Term.Text' description)
 
 deserializeTermPair :: (Serial v, Var v) =>
   ByteString -> Either String (Term.Term v, Term.Term v)
@@ -119,7 +121,7 @@ make _ blockStore crypto = do
            type' = unsafeParseType "forall k . k -> Text -> Optional k"
        in (r, Just (I.Primop 2 op), type', prefix "Index.increment#")
      , let r = R.Builtin "Index.representation#"
-           op [Index' node tok] = pure $ pair' (Term.node node) (Term.text tok)
+           op [unIndex -> Just (node, tok)] = pure $ pair' (Term.node node) (Term.text tok)
            op _ = fail "Index.representation# unpossible"
            type' = unsafeParseType "forall k v . Index k v -> (Node, Text)"
        in (r, Just (I.Primop 1 op), type', prefix "Index.representation#")
@@ -166,11 +168,11 @@ make _ blockStore crypto = do
            op _ = fail "Html.plain-text unpossible"
        in (r, Just (I.Primop 1 op), unsafeParseType "Text -> Text", prefix "Html.plain-text")
      , let r = R.Builtin "Html.get-href"
-           op [Link' href _] = pure $ Term.text href
+           op [unLink -> Just (href, _)] = pure $ Term.text href
            op _ = fail "Html.get-href unpossible"
        in (r, Just (I.Primop 1 op), unsafeParseType "Html.Link -> Text", prefix "Html.get-href")
      , let r = R.Builtin "Html.get-description"
-           op [Link' _ d] = pure $ Term.text d
+           op [unLink -> Just (_, d)] = pure $ Term.text d
            op _ = fail "Html.get-description unpossible"
        in (r, Just (I.Primop 1 op), unsafeParseType "Html.Link -> Text", prefix "Html.get-description")
 
