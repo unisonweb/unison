@@ -1,13 +1,14 @@
 {-# Language ScopedTypeVariables #-}
-{-# Language TemplateHaskell #-}
+{-# Language DeriveGeneric #-}
 {-# Language ViewPatterns #-}
 
 module Unison.Paths where
 
-import Data.Aeson.TH
+import Data.Aeson
 import Data.List
 import Data.Maybe
 import Data.Vector ((//))
+import GHC.Generics
 import Unison.ABT (V)
 import Unison.Term (Term)
 import Unison.Type (Type)
@@ -21,7 +22,7 @@ data Target v
   = Term (Term v)
   | Type (Type v)
   | Var v
-  | Declaration v (Term v)
+  | Declaration v (Term v) deriving Generic
   -- Metadata
 
 vmap :: Ord v2 => (v -> v2) -> Target v -> Target v2
@@ -40,7 +41,7 @@ data PathElement
   | Annotation -- ^ Points into the annotation
   | Input -- ^ Points at the left of an `Arrow`
   | Output -- ^ Points at the right of an `Arrow`
-  deriving (Eq,Ord,Show)
+  deriving (Eq,Ord,Show,Generic)
 
 focus1 :: Var v => PathElement -> ABT.Path (Target v) (Target (V v)) (Target v) (Target (V v)) [v]
 focus1 e = ABT.Path go' where
@@ -182,4 +183,5 @@ asDeclaration :: Target v -> Maybe (v, Term v)
 asDeclaration (Declaration v b) = Just (v,b)
 asDeclaration _ = Nothing
 
-deriveJSON defaultOptions ''PathElement
+instance ToJSON PathElement
+instance FromJSON PathElement

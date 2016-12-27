@@ -1,10 +1,9 @@
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 module Unison.Kind where
 
 import GHC.Generics
-import Data.Aeson.TH
+import Data.Aeson
 import Unison.Hashable (Hashable)
 import qualified Unison.Hashable as Hashable
 
@@ -16,4 +15,5 @@ instance Hashable Kind where
     Constraint -> [Hashable.Tag 1]
     Arrow k1 k2 -> (Hashable.Tag 2 : Hashable.tokens k1) ++ Hashable.tokens k2
 
-deriveJSON defaultOptions ''Kind
+instance ToJSON Kind
+instance FromJSON Kind

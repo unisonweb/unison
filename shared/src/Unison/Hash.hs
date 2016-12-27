@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Unison.Hash (Hash, toBytes, base64, fromBase64, fromBytes) where
 
@@ -6,10 +6,11 @@ import Data.Aeson
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import GHC.Generics
 import qualified Data.ByteString.Base64.URL as Base64
 
 -- | Hash which uniquely identifies a Unison type or term
-newtype Hash = Hash ByteString deriving (Eq,Ord)
+newtype Hash = Hash ByteString deriving (Eq,Ord,Generic)
 
 instance Show Hash where
   show h = take 8 . drop 1 $ show (base64 h)

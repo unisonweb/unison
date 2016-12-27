@@ -6,12 +6,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Term where
 
-import Data.Aeson.TH
 import Data.Aeson (ToJSON, FromJSON)
 import Data.List (foldl')
 import Data.Map (Map)
@@ -73,7 +71,7 @@ data F typeVar a
   --     [ (Constructor 0 [Wildcard "n"], rhs1)
   --     , (Constructor 1 [], rhs2) ]
   | Match a [(Pattern, a)]
-  deriving (Eq,Foldable,Functor,Generic1,Traversable)
+  deriving (Eq,Foldable,Functor,Generic,Generic1,Traversable)
 
 -- | Like `Term v`, but with an annotation of type `a` at every level in the tree
 type AnnotatedTerm v a = ABT.Term (F v) v a
@@ -352,11 +350,10 @@ instance Var v => Hashable1 (F v) where
 instance Var v => Eq1 (F v) where (==#) = (==)
 instance Var v => Show1 (F v) where showsPrec1 = showsPrec
 
-deriveToJSON defaultOptions ''F
-instance (Ord v, FromJSON v, FromJSON r) => FromJSON (F v r) where
-  parseJSON = $(mkParseJSON defaultOptions ''F)
+instance (Ord v, FromJSON v, FromJSON r) => FromJSON (F v r)
+instance (ToJSON v, ToJSON r) => ToJSON (F v r)
 
-instance ToJSON v => J.ToJSON1 (F v) where toJSON1 f = Aeson.toJSON f
+instance (ToJSON v) => J.ToJSON1 (F v) where toJSON1 f = Aeson.toJSON f
 instance (Ord v, FromJSON v) => J.FromJSON1 (F v) where parseJSON1 j = Aeson.parseJSON j
 
 instance (Var v, Show a) => Show (F v a) where
