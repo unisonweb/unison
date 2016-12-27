@@ -340,6 +340,7 @@ test-suite tests
     directory,
     filepath,
     hashable,
+    murmur-hash,
     random,
     stm,
     tasty,

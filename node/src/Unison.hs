@@ -211,7 +211,7 @@ process codebase ("edit" : rest) = do
     Just (Term.Ref' r@(Reference.Derived h)) -> do
       files <- Directory.getDirectoryContents "."
       let parentFiles = filter (".parent" `Text.isSuffixOf`) (map Text.pack files)
-          hashrs = Text.unpack (Hash.base64 h)
+          hashrs = Text.unpack (Hash.base58 h)
       parentMatches <- map (== hashrs) <$> mapM readFile (map Text.unpack parentFiles)
       case listToMaybe [ f | (f, True) <- parentFiles `zip` parentMatches ] of
         Just name -> do
@@ -221,7 +221,7 @@ process codebase ("edit" : rest) = do
           s <- Note.run $ Codebase.viewAsBinding codebase r
           name <- randomBase58 10
           writeFile (name ++ ".u") s
-          writeFile (name ++ ".parent") (Text.unpack $ Hash.base64 h)
+          writeFile (name ++ ".parent") (Text.unpack $ Hash.base58 h)
           let mdpath = name ++ ".markdown"
           writeFile mdpath ""
           tryEdits [name ++ ".u"]
@@ -241,7 +241,7 @@ process codebase ("statistics" : []) = do
   files <- Directory.getDirectoryContents "."
   let parentFiles = map Text.unpack $ filter (".parent" `Text.isSuffixOf`) (map Text.pack files)
   refs <- mapM readFile parentFiles
-  refs <- pure (map (Reference.Derived . Hash.fromBase64 . Text.pack) refs)
+  refs <- pure (map (Reference.Derived . Hash.unsafeFromBase58 . Text.pack) refs)
   codebase <- codebase
   scores <- Note.run $ Codebase.statistics codebase refs
   mds <- Note.run $ Codebase.metadatas codebase refs
@@ -327,14 +327,14 @@ process codebase ("add" : [name]) = go0 name where
         case hasParent of
           False -> pure ()
           True -> do
-            let pr = Reference.Derived (Hash.fromBase64 (Text.pack parent))
+            let pr = Reference.Derived (Hash.unsafeFromBase58 (Text.pack parent))
             Just v <- Note.run $ Codebase.firstName codebase pr
             dependents <- Note.run $ Codebase.dependents codebase Nothing pr
             prevType <- Note.run $ Codebase.typeAt codebase (Term.ref pr) []
             let declared' = if length declared == 1 then declared
                             else filter (\(v',_) -> v == v') declared
                 edits deps = mapM_ go [ h | Reference.Derived h <- deps ]
-                go h = process (pure codebase) ["edit", Text.unpack $ Hash.base64 h ]
+                go h = process (pure codebase) ["edit", Text.unpack $ Hash.base58 h ]
             when (Set.size dependents > 0) $ case declared' of
               [] -> putStrLn "OK scratch file contained no declarations"
               (v, r) : _ -> do

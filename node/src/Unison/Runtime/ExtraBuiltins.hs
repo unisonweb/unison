@@ -206,16 +206,16 @@ make _ blockStore crypto = do
 
      -- Hashing
      , let r = R.Builtin "hash#"
-           op [e] = let h = Hash.base64 . Hash.fromBytes . SAH.hash' $ e
+           op [e] = let h = Hash.base58 . Hash.fromBytes . SAH.hash' $ e
                     in pure $ Term.builtin "Hash" `Term.app` (Term.text h)
            op _ = fail "hash"
            t = "forall a . a -> Hash a"
        in (r, Just (I.Primop 1 op), unsafeParseType t, prefix "hash#")
-     , let r = R.Builtin "Hash.base64"
+     , let r = R.Builtin "Hash.base58"
            op [Term.App' _ (Term.Text' r1)] = pure (Term.text r1)
-           op _ = fail "Hash.base64"
+           op _ = fail "Hash.base58"
            t = "forall a . Hash a -> Text"
-       in (r, Just (I.Primop 1 op), unsafeParseType t, prefix "Hash.base64")
+       in (r, Just (I.Primop 1 op), unsafeParseType t, prefix "Hash.base58")
      , let r = R.Builtin "Hash.erase"
            op [e] = pure e
            op _ = fail "Hash.erase"

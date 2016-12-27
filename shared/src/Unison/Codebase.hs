@@ -423,7 +423,7 @@ declareCheckAmbiguous hooks bindings code = do
       metadata v = Metadata.Metadata Metadata.Term (Metadata.Names [v]) Nothing
       tb0 = Parsers.termBuiltins
       mangle name (Reference.Derived h) =
-        Var.rename (Var.name name `mappend` "#" `mappend` Text.take 8 (Hash.base64 h)) name
+        Var.rename (Var.name name `mappend` "#" `mappend` Text.take 8 (Hash.base58 h)) name
       mangle name (Reference.Builtin _) =
         Var.rename (Var.name name `mappend` "#" `mappend` "builtin") name
       go _ [] = pure (Right [])
@@ -435,7 +435,7 @@ declareCheckAmbiguous hooks bindings code = do
               name : hashPrefix ->
                 if hashPrefix == [""] then (v, "") -- if last character is a '#', it's part of identifier
                 else (Var.rename name v, Text.intercalate "#" hashPrefix)
-            startsWith prefix (Term.Ref' (Reference.Derived hash)) = Text.isPrefixOf prefix (Hash.base64 hash)
+            startsWith prefix (Term.Ref' (Reference.Derived hash)) = Text.isPrefixOf prefix (Hash.base58 hash)
             startsWith prefix (Term.Ref' (Reference.Builtin b)) = Text.isPrefixOf prefix b
             startsWith _ _ = False
             lookups = map resolve (Set.toList free) where

@@ -156,8 +156,8 @@ var' = var . ABT.v'
 derived :: Ord v => Hash -> Term v
 derived = ref . Reference.Derived
 
-derived' :: Ord v => Text -> Term v
-derived' base64 = derived $ Hash.fromBase64 base64
+derived' :: Ord v => Text -> Maybe (Term v)
+derived' base58 = derived <$> Hash.fromBase58 base58
 
 ref :: Ord v => Reference -> Term v
 ref r = ABT.tm (Ref r)

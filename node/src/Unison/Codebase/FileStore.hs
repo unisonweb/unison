@@ -2,6 +2,7 @@ module Unison.Codebase.FileStore where
 
 import Control.Applicative
 import Data.Aeson (ToJSON(..),FromJSON(..))
+import Data.Maybe
 import Data.Set (Set)
 import Data.Text (Text)
 import System.FilePath ((</>))
@@ -48,13 +49,13 @@ make root =
       -- unfortunate that writeFile takes a strict bytestring
 
     read' :: FromJSON a => FilePath -> Hash -> Noted IO a
-    read' = read Hash.base64
+    read' = read Hash.base58
 
     write' :: ToJSON a => FilePath -> Hash -> a -> Noted IO ()
-    write' = write Hash.base64
+    write' = write Hash.base58
 
     hashes limit =
-      let r = Reference.Derived . Hash.fromBase64 . Text.pack
+      let r = Reference.Derived . (fromMaybe (error "invalid base58") . Hash.fromBase58) . Text.pack
           limitf = maybe id Set.intersection limit
           union a b c = a `Set.union` b `Set.union` c
       in liftA3 union (limitf <$> hashesIn r "terms")

@@ -161,9 +161,11 @@ number' = token (f <$> digits <*> optional ((:) <$> char '.' <*> digits))
       (Literal.Number . read) $ maybe whole (whole++) part
 
 hashLit :: Ord v => Parser s (Term v)
-hashLit = token (f <$> (mark *> hash))
+hashLit = token (f =<< (mark *> hash))
   where
-    f = Term.derived' . Text.pack
+    f h = case Term.derived' (Text.pack h) of
+      Nothing -> fail "invalid base58 string"
+      Just a -> pure a
     mark = char '#'
     hash = base64urlstring
 

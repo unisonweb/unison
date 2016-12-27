@@ -80,6 +80,7 @@ library
   build-depends:
     aeson,
     base,
+    base58-bytestring,
     base64-bytestring,
     bifunctors,
     bytestring,
