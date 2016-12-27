@@ -1,3 +1,4 @@
+# run on containerized infrastructure hopefully
 sudo: false
 
 # Caching so the next build will be fast too.
@@ -8,16 +9,9 @@ cache:
 before_install:
 # Download and unpack the stack executable
 - mkdir -p ~/.local/bin
-- export PATH=$HOME/.local/bin:/opt/ghc/7.10.3/bin:$PATH
+- export PATH=$HOME/.local/bin:$PATH
 - travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
 - stack setup
-
-addons:
-  apt:
-    sources:
-    - hvr-ghc
-    packages:
-    - ghc-7.10.3
 
 script:
   - stack --no-terminal --skip-ghc-check test unison-shared
