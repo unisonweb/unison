@@ -1,0 +1,62 @@
+name:          easytest
+category:      Compiler
+version:       0.1
+license:       MIT
+cabal-version: >= 1.8
+license-file:  LICENSE
+author:        Paul Chiusano
+maintainer:    Paul Chiusano <paul.chiusano@gmail.com>
+stability:     provisional
+homepage:      http://unisonweb.org
+bug-reports:   https://github.com/unisonweb/unison/issues
+copyright:     Copyright (C) 2016 Paul Chiusano and contributors
+synopsis:      Simple, expressive testing library
+
+build-type:    Simple
+extra-source-files:
+data-files:
+
+source-repository head
+  type: git
+  location: git://github.com/unisonweb/unison.git
+
+-- `cabal install -foptimized` enables optimizations
+flag optimized
+  manual: True
+  default: False
+
+flag quiet
+  manual: True
+  default: False
+
+library
+  hs-source-dirs: src
+
+  exposed-modules:
+    EasyTest
+
+  -- these bounds could probably be made looser
+  build-depends:
+    async                     >= 2.1      && <= 2.2,
+    base                      >= 4.5      && <= 5,
+    mtl                       >= 2.0.1    && < 2.3,
+    containers                >= 0.4.0    && < 0.6,
+    stm                       >= 2.4      && < 3,
+    random                    >= 1.1      && < 2
+
+  ghc-options: -Wall -fno-warn-name-shadowing
+
+  if flag(optimized)
+    ghc-options: -funbox-strict-fields -O2
+
+  if flag(quiet)
+    ghc-options: -v0
+
+test-suite tests
+  type:           exitcode-stdio-1.0
+  main-is:        Suite.hs
+  ghc-options:    -w -threaded -rtsopts -with-rtsopts=-N -v0
+  hs-source-dirs: tests
+  other-modules:
+  build-depends:
+    easytest
