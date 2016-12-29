@@ -2,7 +2,7 @@
 {-# Language FunctionalDependencies #-}
 {-# Language GeneralizedNewtypeDeriving #-}
 
-module EasyTest (Test, crash, currentScope, noteScoped, skip, ok, fork, fork', scope, note, expect, tests, random, randomBetween, run', runOnly, run, rerun, rerunOnly, parseMessages, module Control.Monad.IO.Class) where
+module EasyTest where
 
 import Control.Applicative
 import Control.Concurrent
@@ -12,12 +12,14 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Reader
 import Data.List
+import Data.Map (Map)
+import Data.Word
 import GHC.Stack
-import qualified System.Random as Random
-import System.Random (Random)
 import System.Exit
+import System.Random (Random)
 import qualified Control.Concurrent.Async as A
 import qualified Data.Map as Map
+import qualified System.Random as Random
 
 data Status = Failed | Passed | Skipped
 
@@ -91,23 +93,28 @@ run' seed note allow (Test t) = do
     Right () -> note $ "Waiting for any asynchronously spawned tests to complete ..."
   atomically $ writeTQueue resultsQ Nothing
   _ <- A.waitCatch rs
-  note line
-  note "\n"
   resultsMap <- readTVarIO results
   let
     resultsList = Map.toList resultsMap
     succeeded = length [ a | a@(_, Passed) <- resultsList ]
     failures = [ a | (a, Failed) <- resultsList ]
     failed = length failures
-  note $ "  " ++ show succeeded ++ (if failed == 0 then " PASSED" else " passed")
-  note $ "  " ++ show (length failures) ++ (if failed == 0 then " failed" else " FAILED (failed scopes below)")
   case failures of
     [] -> do
-      note "\n"
       note line
-      note "✅  all tests passed! 👍 🎉"
+      case succeeded of
+        0 -> do
+          note "😶  hmm ... no test results recorded"
+          note "Tip: use `ok`, `expect`, or `crash` to record results"
+          note "Tip: if running via `runOnly` or `rerunOnly`, check for typos"
+        1 -> note $ "✅  1 test passed, no failures! 👍 🎉"
+        _ -> note $ "✅  " ++ show succeeded ++ " tests passed, no failures! 👍 🎉"
     (hd:_) -> do
-      note $ "    " ++ intercalate "\n    " (map showMessages failures)
+      note line
+      note "\n"
+      note $ "  " ++ show succeeded ++ (if failed == 0 then " PASSED" else " passed")
+      note $ "  " ++ show (length failures) ++ (if failed == 0 then " failed" else " FAILED (failed scopes below)")
+      note $ "    " ++ intercalate "\n    " (map (show . showMessages) failures)
       note ""
       note $ "  To rerun with same random seed:\n"
       note $ "    EasyTest.rerun " ++ show seed
@@ -142,6 +149,9 @@ note msg = do
   liftIO $ note_ msg
   pure ()
 
+note' :: Show s => s -> Test ()
+note' = note . show
+
 random :: Random a => Test a
 random = do
   rng <- asks rng
@@ -151,14 +161,77 @@ random = do
     writeTVar rng rng1
     pure a
 
-randomBetween :: Random a => (a,a) -> Test a
-randomBetween bounds = do
+random' :: Random a => a -> a -> Test a
+random' lower upper = do
   rng <- asks rng
   liftIO . atomically $ do
     rng0 <- readTVar rng
-    let (a, rng1) = Random.randomR bounds rng0
+    let (a, rng1) = Random.randomR (lower,upper) rng0
     writeTVar rng rng1
     pure a
+
+int :: Test Int
+int = random
+
+char :: Test Char
+char = random
+
+double :: Test Double
+double = random
+
+word :: Test Word
+word = random
+
+word8 :: Test Word8
+word8 = random
+
+int' :: Int -> Int -> Test Int
+int' = random'
+
+char' :: Char -> Char -> Test Char
+char' = random'
+
+double' :: Double -> Double -> Test Double
+double' = random'
+
+word' :: Word -> Word -> Test Word
+word' = random'
+
+word8' :: Word8 -> Word8 -> Test Word8
+word8' = random'
+
+-- | Sample uniformly from the given list of possibilities
+pick :: [a] -> Test a
+pick as = let n = length as; ind = picker n as in do
+  i <- int' 0 (n - 1)
+  Just a <- pure (ind i)
+  pure a
+
+picker :: Int -> [a] -> (Int -> Maybe a)
+picker _ [] = const Nothing
+picker _ [a] = \i -> if i == 0 then Just a else Nothing
+picker size as = go where
+  lsize = size `div` 2
+  rsize = size - lsize
+  (l,r) = splitAt lsize as
+  lpicker = picker lsize l
+  rpicker = picker rsize r
+  go i = if i < lsize then lpicker i else rpicker (i - lsize)
+
+listOf :: Int -> Test a -> Test [a]
+listOf = replicateM
+
+listsOf :: [Int] -> Test a -> Test [[a]]
+listsOf sizes gen = sizes `forM` \n -> listOf n gen
+
+pair :: Test a -> Test b -> Test (a,b)
+pair = liftA2 (,)
+
+mapOf :: Ord k => Int -> Test k -> Test v -> Test (Map k v)
+mapOf n k v = Map.fromList <$> listOf n (pair k v)
+
+mapsOf :: Ord k => [Int] -> Test k -> Test v -> Test [Map k v]
+mapsOf sizes k v = sizes `forM` \n -> mapOf n k v
 
 wrap :: Test a -> Test a
 wrap (Test t) = Test $ do
