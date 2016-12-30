@@ -39,6 +39,9 @@ data Env =
 
 newtype Test a = Test (ReaderT Env IO (Maybe a))
 
+io :: IO a -> Test a
+io = liftIO
+
 atomicLogger :: IO (String -> IO ())
 atomicLogger = do
   lock <- newMVar ()
@@ -90,7 +93,7 @@ run' seed note allow (Test t) = do
   e <- try (runReaderT (void t) (Env rngVar [] resultsQ note allow)) :: IO (Either SomeException ())
   case e of
     Left e -> note $ "Exception while running tests: " ++ show e
-    Right () -> note $ "Waiting for any asynchronously spawned tests to complete ..."
+    Right () -> pure ()
   atomically $ writeTQueue resultsQ Nothing
   _ <- A.waitCatch rs
   resultsMap <- readTVarIO results
@@ -134,14 +137,16 @@ parseMessages s = reverse (go s) where
     (hd, tl) -> hd : go (drop 1 tl)
 
 scope :: String -> Test a -> Test a
-scope msg (Test t) = Test $ do
-  env <- ask
-  let messages' = msg : messages env
-      dropRight1 [] = []
-      dropRight1 xs = init xs
-  case (null (allow env) || [msg] `isSuffixOf` allow env) of
-    False -> putResult Skipped >> pure Nothing
-    True -> liftIO $ runReaderT t (env { messages = messages', allow = dropRight1 (allow env) })
+scope msg t = foldr go t (parseMessages msg) where
+  go :: String -> Test a -> Test a
+  go msg (Test t) = Test $ do
+    env <- ask
+    let messages' = msg : messages env
+        dropRight1 [] = []
+        dropRight1 xs = init xs
+    case (null (allow env) || [msg] `isSuffixOf` allow env) of
+      False -> putResult Skipped >> pure Nothing
+      True -> liftIO $ runReaderT t (env { messages = messages', allow = dropRight1 (allow env) })
 
 note :: String -> Test ()
 note msg = do

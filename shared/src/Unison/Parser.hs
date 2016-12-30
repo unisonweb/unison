@@ -18,7 +18,7 @@ import qualified Prelude
 import qualified Text.Parsec as Parsec
 import qualified Text.Parsec.Layout as L
 
-import Debug.Trace
+-- import Debug.Trace
 
 type Parser s a = Parsec.Parsec Text (Env s) a
 

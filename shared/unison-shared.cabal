@@ -118,11 +118,8 @@ test-suite tests
     base,
     bytestring,
     containers,
+    easytest,
     filepath,
-    tasty,
-    tasty-hunit,
-    tasty-smallcheck,
-    tasty-quickcheck,
     text,
     transformers,
     unison-shared
