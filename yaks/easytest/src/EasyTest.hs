@@ -247,6 +247,15 @@ runWrap env t = do
       pure Nothing
     Right a -> pure a
 
+using :: IO r -> (r -> IO ()) -> (r -> Test a) -> Test a
+using r cleanup use = Test $ do
+  r <- liftIO r
+  env <- ask
+  let Test t = use r
+  a <- liftIO (runWrap env t)
+  liftIO (cleanup r)
+  pure a
+
 currentScope :: Test String
 currentScope = do
   msgs <- asks messages
