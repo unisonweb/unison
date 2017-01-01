@@ -59,4 +59,5 @@ test-suite tests
   hs-source-dirs: tests
   other-modules:
   build-depends:
+    base,
     easytest

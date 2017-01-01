@@ -32,10 +32,10 @@ combineStatus Passed Passed = Passed
 
 data Env =
   Env { rng :: TVar Random.StdGen
-      , messages :: [String]
-      , results :: TQueue (Maybe (TMVar ([String], Status)))
+      , messages :: String
+      , results :: TQueue (Maybe (TMVar (String, Status)))
       , note_ :: String -> IO ()
-      , allow :: [String] }
+      , allow :: String }
 
 newtype Test a = Test (ReaderT Env IO (Maybe a))
 
@@ -58,15 +58,15 @@ tests :: [Test ()] -> Test ()
 tests = msum
 
 runOnly :: String -> Test a -> IO ()
-runOnly allow t = do
+runOnly prefix t = do
   logger <- atomicLogger
   seed <- abs <$> Random.randomIO :: IO Int
-  run' seed logger (parseMessages allow) t
+  run' seed logger prefix t
 
 rerunOnly :: Int -> String -> Test a -> IO ()
-rerunOnly seed allow t = do
+rerunOnly seed prefix t = do
   logger <- atomicLogger
-  run' seed logger (parseMessages allow) t
+  run' seed logger prefix t
 
 run :: Test a -> IO ()
 run = runOnly ""
@@ -74,7 +74,7 @@ run = runOnly ""
 rerun :: Int -> Test a -> IO ()
 rerun seed = rerunOnly seed []
 
-run' :: Int -> (String -> IO ()) -> [String] -> Test a -> IO ()
+run' :: Int -> (String -> IO ()) -> String -> Test a -> IO ()
 run' seed note allow (Test t) = do
   let !rng = Random.mkStdGen seed
   resultsQ <- atomically newTQueue
@@ -88,8 +88,8 @@ run' seed note allow (Test t) = do
     atomically $ modifyTVar results (Map.insertWith combineStatus msgs passed)
     case passed of
       Skipped -> pure ()
-      Passed -> note $ "OK " ++ showMessages msgs
-      Failed -> note $ "FAILED " ++ showMessages msgs
+      Passed -> note $ "OK " ++ msgs
+      Failed -> note $ "FAILED " ++ msgs
   let line = "------------------------------------------------------------"
   note "Raw test output to follow ... "
   note line
@@ -120,34 +120,23 @@ run' seed note allow (Test t) = do
       note "\n"
       note $ "  " ++ show succeeded ++ (if failed == 0 then " PASSED" else " passed")
       note $ "  " ++ show (length failures) ++ (if failed == 0 then " failed" else " FAILED (failed scopes below)")
-      note $ "    " ++ intercalate "\n    " (map (show . showMessages) failures)
+      note $ "    " ++ intercalate "\n    " (map show failures)
       note ""
       note $ "  To rerun with same random seed:\n"
       note $ "    EasyTest.rerun " ++ show seed
-      note $ "    EasyTest.rerunOnly " ++ show seed ++ " " ++ "\"" ++ showMessages hd ++ "\""
+      note $ "    EasyTest.rerunOnly " ++ show seed ++ " " ++ "\"" ++ hd ++ "\""
       note "\n"
       note line
       note "❌"
       exitWith (ExitFailure 1)
 
-showMessages :: [String] -> String
-showMessages = intercalate "." . reverse
-
-parseMessages :: String -> [String]
-parseMessages s = reverse (go s) where
-  go "" = []
-  go s = case span (/= '.') s of
-    (hd, tl) -> hd : go (drop 1 tl)
-
 scope :: String -> Test a -> Test a
 scope msg (Test t) = Test $ do
   env <- ask
-  let messages' = msg : messages env
-      dropRight1 [] = []
-      dropRight1 xs = init xs
-  case (null (allow env) || msg `isSuffixOf` join (allow env)) of
+  let messages' = case messages env of [] -> msg; ms -> ms ++ ('.':msg)
+  case (null (allow env) || take (length (allow env)) msg `isPrefixOf` allow env) of
     False -> putResult Skipped >> pure Nothing
-    True -> liftIO $ runReaderT t (env { messages = messages', allow = dropRight1 (allow env) })
+    True -> liftIO $ runReaderT t (env { messages = messages', allow = drop (length msg + 1) (allow env) })
 
 note :: String -> Test ()
 note msg = do
@@ -206,6 +195,9 @@ word' = random'
 word8' :: Word8 -> Word8 -> Test Word8
 word8' = random'
 
+bool :: Test Bool
+bool = random
+
 -- | Sample uniformly from the given list of possibilities
 pick :: [a] -> Test a
 pick as = let n = length as; ind = picker n as in do
@@ -249,7 +241,7 @@ runWrap env t = do
   e <- liftIO . try $ runReaderT t env
   case e of
     Left e -> do
-      note_ env (showMessages (messages env) ++ " EXCEPTION: " ++ show (e :: SomeException))
+      note_ env (messages env ++ " EXCEPTION: " ++ show (e :: SomeException))
       pure Nothing
     Right a -> pure a
 
@@ -263,9 +255,7 @@ using r cleanup use = Test $ do
   pure a
 
 currentScope :: Test String
-currentScope = do
-  msgs <- asks messages
-  pure (showMessages msgs)
+currentScope = asks messages
 
 noteScoped :: String -> Test ()
 noteScoped msg = do
@@ -287,18 +277,27 @@ crash msg = do
 putResult :: Status -> ReaderT Env IO ()
 putResult passed = do
   msgs <- asks messages
-  r <- liftIO . atomically $ newTMVar (msgs, passed)
+  allow <- asks (null . allow)
+  r <- liftIO . atomically $ newTMVar (msgs, if allow then passed else Skipped)
   q <- asks results
   lift . atomically $ writeTQueue q (Just r)
 
 instance MonadReader Env Test where
-  ask = Test (Just <$> ask)
+  ask = Test $ do
+    allow <- asks (null . allow)
+    case allow of
+      True -> Just <$> ask
+      False -> pure Nothing
   local f (Test t) = Test (local f t)
   reader f = Test (Just <$> reader f)
 
 instance Monad Test where
   fail = crash
-  return a = Test (pure (Just a))
+  return a = Test $ do
+    allow <- asks (null . allow)
+    pure $ case allow of
+      True -> Just a
+      False -> Nothing
   Test a >>= f = Test $ do
     a <- a
     case a of
@@ -313,7 +312,11 @@ instance Applicative Test where
   (<*>) = ap
 
 instance MonadIO Test where
-  liftIO io = wrap $ Test (Just <$> liftIO io)
+  liftIO io = do
+    s <- asks (null . allow)
+    case s of
+      True -> wrap $ Test (Just <$> liftIO io)
+      False -> Test (pure Nothing)
 
 instance Alternative Test where
   empty = Test (pure Nothing)
