@@ -69,19 +69,19 @@ data Cryptography key symmetricKey signKey signKeyPrivate signature hash clearte
     -- symmetrically encrypt
     , encrypt :: symmetricKey -> [cleartext] -> IO Ciphertext
     -- symmetrically decrypt
-    , decrypt :: symmetricKey -> ByteString -> Either String cleartext
+    , decrypt :: symmetricKey -> Ciphertext -> Either String cleartext
     -- Initiate a secure pipe. Does not perform transport. Returns a function used to
     -- encrypt cleartext for sending to the other party, and a receiving function
     -- used to decrypt messages received back from the other party.
     , pipeInitiator :: key -> IO ( STM DoneHandshake
-                                 , cleartext -> STM ByteString
-                                 , ByteString -> STM cleartext)
+                                 , cleartext -> STM Ciphertext
+                                 , Ciphertext -> STM cleartext)
     -- Respond to a secure pipe initiated by another party. Does not perform transport.
     -- Returns a function used to encrypt cleartext for sending to the other party, and a
     -- receiving function used to decrypt messages received back from the other party. Also
     -- receives the other party's public key, after handshaking completes.
     , pipeResponder :: IO ( STM DoneHandshake, STM (Maybe key)
-                          , cleartext -> STM ByteString
-                          , ByteString -> STM cleartext)
+                          , cleartext -> STM Ciphertext
+                          , Ciphertext -> STM cleartext)
     }
 
