@@ -354,6 +354,7 @@ test-suite tests
     Unison.Test.BlockStore.FileBlockStore,
     Unison.Test.BlockStore.MemBlockStore,
     Unison.Test.Html,
+    Unison.Test.Http,
     Unison.Test.Index,
     Unison.Test.Journal,
     Unison.Test.Util,

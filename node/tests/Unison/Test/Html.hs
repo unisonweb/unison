@@ -30,15 +30,15 @@ testHTML2 = "<html><body><a href='link.html'>description</a></body</html>"
 
 numlinks :: Test ()
 numlinks = let found = getLinks $ pack testHTML in if 3 == length found
-  then pure ()
-  else fail $ "expected 3 links, got " ++ show found
+  then ok
+  else crash $ "expected 3 links, got " ++ show found
 
 plainText :: Test ()
 plainText = let expected = "simple linkInside one Inside other outside one inside list Empty link"
                 result = toPlainText $ pack testHTML
             in if expected == result
-               then pure ()
-               else fail $ "got unclean html: " ++ show result
+               then ok
+               else crash $ "got unclean html: " ++ show result
 
 test :: Test ()
 test = scope "html" . tests $

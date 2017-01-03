@@ -54,6 +54,14 @@ expect :: HasCallStack => Bool -> Test ()
 expect False = crash "unexpected"
 expect True = ok
 
+expectJust :: HasCallStack => Maybe a -> Test a
+expectJust Nothing = crash "expected Just, got Nothing"
+expectJust (Just a) = ok >> pure a
+
+expectRight :: HasCallStack => Either e a -> Test a
+expectRight (Left _) = crash "expected Right, got Left"
+expectRight (Right a) = ok >> pure a
+
 tests :: [Test ()] -> Test ()
 tests = msum
 
