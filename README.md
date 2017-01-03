@@ -59,7 +59,7 @@ $ stack setup
 $ stack build unison-node
 ```
 
-You'll need [`xz`](http://tukaani.org/xz/) on your path and also the `libghc-curl-dev` library someplace that stack looks for it. See the [Vagrant box setup][#vagrant] and the [vagrant-provision.sh](vagrant-provision.sh) script for known-good setup steps on linux.
+You'll need [`xz`](http://tukaani.org/xz/) on your path and also the `libghc-curl-dev` library someplace that stack looks for it. See the [Vagrant box setup](#vagrant) and the [vagrant-provision.sh](vagrant-provision.sh) script for known-good setup steps on linux.
 
 See [`development.markdown`](development.markdown) for a list of build commands you'll likely use during development.
 
