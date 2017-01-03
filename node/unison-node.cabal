@@ -330,7 +330,6 @@ test-suite tests
   hs-source-dirs: tests
   other-modules:
   build-depends:
-    QuickCheck,
     base,
     bytes,
     bytestring,
@@ -338,15 +337,12 @@ test-suite tests
     ctrie,
     curl,
     directory,
+    easytest,
     filepath,
     hashable,
     murmur-hash,
     random,
     stm,
-    tasty,
-    tasty-hunit,
-    tasty-quickcheck,
-    tasty-smallcheck,
     text,
     time,
     transformers,

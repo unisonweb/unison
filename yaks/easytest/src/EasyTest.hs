@@ -21,19 +21,19 @@ import qualified Control.Concurrent.Async as A
 import qualified Data.Map as Map
 import qualified System.Random as Random
 
-data Status = Failed | Passed | Skipped
+data Status = Failed | Passed !Int | Skipped
 
 combineStatus :: Status -> Status -> Status
 combineStatus Skipped s = s
 combineStatus s Skipped = s
 combineStatus Failed _ = Failed
 combineStatus _ Failed = Failed
-combineStatus Passed Passed = Passed
+combineStatus (Passed n) (Passed m) = Passed (n + m)
 
 data Env =
   Env { rng :: TVar Random.StdGen
       , messages :: String
-      , results :: TQueue (Maybe (TMVar (String, Status)))
+      , results :: TBQueue (Maybe (TMVar (String, Status)))
       , note_ :: String -> IO ()
       , allow :: String }
 
@@ -77,18 +77,19 @@ rerun seed = rerunOnly seed []
 run' :: Int -> (String -> IO ()) -> String -> Test a -> IO ()
 run' seed note allow (Test t) = do
   let !rng = Random.mkStdGen seed
-  resultsQ <- atomically newTQueue
+  resultsQ <- atomically (newTBQueue 50)
   rngVar <- newTVarIO rng
   note $ "Random number generation (RNG) state for this run is " ++ show seed ++ ""
   results <- atomically $ newTVar Map.empty
   rs <- A.async . forever $ do
     -- note, totally fine if this bombs once queue is empty
-    Just result <- atomically $ readTQueue resultsQ
+    Just result <- atomically $ readTBQueue resultsQ
     (msgs, passed) <- atomically $ takeTMVar result
     atomically $ modifyTVar results (Map.insertWith combineStatus msgs passed)
-    case passed of
+    resultsMap <- readTVarIO results
+    case Map.findWithDefault Skipped msgs resultsMap of
       Skipped -> pure ()
-      Passed -> note $ "OK " ++ msgs
+      Passed n -> note $ "OK " ++ (if n == 0 then msgs else "(" ++ show n ++ ") " ++ msgs)
       Failed -> note $ "FAILED " ++ msgs
   let line = "------------------------------------------------------------"
   note "Raw test output to follow ... "
@@ -97,12 +98,14 @@ run' seed note allow (Test t) = do
   case e of
     Left e -> note $ "Exception while running tests: " ++ show e
     Right () -> pure ()
-  atomically $ writeTQueue resultsQ Nothing
+  atomically $ writeTBQueue resultsQ Nothing
   _ <- A.waitCatch rs
   resultsMap <- readTVarIO results
   let
     resultsList = Map.toList resultsMap
-    succeeded = length [ a | a@(_, Passed) <- resultsList ]
+    succeededList = [ n | (_, Passed n) <- resultsList ]
+    succeeded = length succeededList
+    -- totalTestCases = foldl' (+) 0 succeededList
     failures = [ a | (a, Failed) <- resultsList ]
     failed = length failures
   case failures of
@@ -263,7 +266,7 @@ noteScoped msg = do
   note (s ++ ": " ++ msg)
 
 ok :: Test ()
-ok = Test (Just <$> putResult Passed)
+ok = Test (Just <$> putResult (Passed 1))
 
 skip :: Test ()
 skip = Test (Nothing <$ putResult Skipped)
@@ -280,7 +283,7 @@ putResult passed = do
   allow <- asks (null . allow)
   r <- liftIO . atomically $ newTMVar (msgs, if allow then passed else Skipped)
   q <- asks results
-  lift . atomically $ writeTQueue q (Just r)
+  lift . atomically $ writeTBQueue q (Just r)
 
 instance MonadReader Env Test where
   ask = Test $ do
@@ -341,7 +344,7 @@ fork' :: Test a -> Test (Test a)
 fork' (Test t) = do
   env <- ask
   tmvar <- liftIO newEmptyTMVarIO
-  liftIO . atomically $ writeTQueue (results env) (Just tmvar)
+  liftIO . atomically $ writeTBQueue (results env) (Just tmvar)
   r <- liftIO . A.async $ runWrap env t
   waiter <- liftIO . A.async $ do
     e <- A.waitCatch r
