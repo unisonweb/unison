@@ -12,7 +12,8 @@ test :: Test ()
 test = scope "Cryptography" $ do
   let crypto = mkCrypto (BC.pack "dummypublickey")
   Just symkey <- symmetricKey <$> io (C.randomBytes crypto 32)
-  cleartexts <- map B.pack <$> listsOf ([0..100] ++ [1000,1001,9007]) word8
+  bigSizes <- listOf 3 (int' 1000 9000)
+  cleartexts <- map B.pack <$> listsOf ([0..100] ++ bigSizes) word8
   cleartexts `forM_` \cleartext -> do
     ciphertext <- io (C.encrypt crypto symkey [cleartext])
     let cleartext' = C.decrypt crypto symkey ciphertext
