@@ -28,9 +28,13 @@ import qualified Unison.Util.Logger as L
 import qualified Unison.View as View
 
 type V = Symbol View.DFO
+type TermV = Term V
+
+type CodebaseIOV = Codebase IO V
+
 -- A codebase for testing
 type TCodebase =
-  ( Codebase IO V -- the codebase
+  ( CodebaseIOV -- the codebase
   , Reference -> V -- resolve references to symbols
   , [(V, Term V)] -- all symbol bindings
   , Term V -> Noted IO (Term V)) -- evaluator

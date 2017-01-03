@@ -2,6 +2,7 @@ flags: {}
 
 packages:
 - yaks/parsec-layout
+- yaks/easytest
 - shared
 - node
 

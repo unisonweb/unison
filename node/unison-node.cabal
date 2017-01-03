@@ -323,14 +323,12 @@ executable codebase
     build-depends: exceptions, leveldb-haskell
     cpp-options: -Dleveldb
 
-test-suite tests
-  type:           exitcode-stdio-1.0
+executable node-tests
   main-is:        Suite.hs
   ghc-options:    -w -threaded -rtsopts -with-rtsopts=-N -v0
   hs-source-dirs: tests
   other-modules:
   build-depends:
-    QuickCheck,
     base,
     bytes,
     bytestring,
@@ -338,15 +336,12 @@ test-suite tests
     ctrie,
     curl,
     directory,
+    easytest,
     filepath,
     hashable,
     murmur-hash,
     random,
     stm,
-    tasty,
-    tasty-hunit,
-    tasty-quickcheck,
-    tasty-smallcheck,
     text,
     time,
     transformers,
@@ -358,6 +353,7 @@ test-suite tests
     Unison.Test.BlockStore.FileBlockStore,
     Unison.Test.BlockStore.MemBlockStore,
     Unison.Test.Html,
+    Unison.Test.Http,
     Unison.Test.Index,
     Unison.Test.Journal,
     Unison.Test.Util,

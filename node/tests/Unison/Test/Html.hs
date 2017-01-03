@@ -2,8 +2,7 @@
 module Unison.Test.Html where
 
 import Data.Text (pack)
-import Test.Tasty
-import Test.Tasty.HUnit
+import EasyTest
 import Unison.Note (Noted)
 import Unison.Parsers (unsafeParseTerm)
 import Unison.Runtime.Html as Html
@@ -29,54 +28,19 @@ testHTML = concat
 
 testHTML2 = "<html><body><a href='link.html'>description</a></body</html>"
 
-numlinks :: Assertion
+numlinks :: Test ()
 numlinks = let found = getLinks $ pack testHTML in if 3 == length found
-  then pure ()
-  else fail $ "expected 3 links, got " ++ show found
+  then ok
+  else crash $ "expected 3 links, got " ++ show found
 
-plainText :: Assertion
+plainText :: Test ()
 plainText = let expected = "simple linkInside one Inside other outside one inside list Empty link"
                 result = toPlainText $ pack testHTML
             in if expected == result
-               then pure ()
-               else fail $ "got unclean html: " ++ show result
+               then ok
+               else crash $ "got unclean html: " ++ show result
 
-tests :: TestTree
-tests = testGroup "html"
-  [ testCase "numlinks" numlinks
-  ]
-
-run :: (TestCodebase, String -> TermV, TermV -> Noted IO TermV) -> Assertion
-run (codebase, parse, eval) = do
-  let getLinksTerm = parse $ "Html.get-links \"" ++ testHTML2 ++ "\""
-      linkTerm = EB.link (Term.text "link.html") (Term.text "description")
-      getLink = Term.ref (R.Builtin "Html.get-href") `Term.app` linkTerm
-      getDescription = Term.ref (R.Builtin "Html.get-description") `Term.app` linkTerm
-      desiredLinks = Term.vector [linkTerm]
-      desiredHref = Term.text "link.html"
-      desiredDescription = Term.text "description"
-      result = traverse eval [getLinksTerm, getLink, getDescription]
-  evaluatedResult <- Note.unnote result
-
-  case evaluatedResult of
-    Left n -> fail $ "could not evaluate " ++ show n
-    Right [links, href, description] ->
-      if links == desiredLinks && href == desiredHref && description == desiredDescription
-      then pure ()
-      else fail $ concat
-        [ "links match ", show (links == desiredLinks)
-        , "href match ", show (href == desiredHref)
-        , "description match ", show (description == desiredDescription)
-        ]
-
-tests' :: (TestCodebase, String -> TermV, TermV -> Noted IO TermV) -> TestTree
-tests' codebase = testGroup "html"
-  [ testCase "numlinks" numlinks
-  , testCase "plainText" plainText
-  , testCase "run" (run codebase)
-  ]
-
-main :: IO ()
-main = do
-  codebase <- makeTestCodebase
-  defaultMain (tests' codebase)
+test :: Test ()
+test = scope "html" . tests $
+  [ scope "numlinks" numlinks
+  , scope "plainText" plainText ]

@@ -108,8 +108,7 @@ library
   if flag(quiet)
     ghc-options: -v0
 
-test-suite tests
-  type:           exitcode-stdio-1.0
+executable shared-tests
   main-is:        Suite.hs
   ghc-options:    -w -threaded -rtsopts -with-rtsopts=-N -v0
   hs-source-dirs: tests
@@ -118,11 +117,8 @@ test-suite tests
     base,
     bytestring,
     containers,
+    easytest,
     filepath,
-    tasty,
-    tasty-hunit,
-    tasty-smallcheck,
-    tasty-quickcheck,
     text,
     transformers,
     unison-shared

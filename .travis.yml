@@ -14,5 +14,7 @@ before_install:
 - stack setup
 
 script:
-  - stack --no-terminal --skip-ghc-check test unison-shared
+  - stack --no-terminal --skip-ghc-check build unison-shared
+  - stack --no-terminal --skip-ghc-check exec shared-tests
   - stack --no-terminal --skip-ghc-check test unison-node
+  - stack --no-terminal --skip-ghc-check exec node-tests
