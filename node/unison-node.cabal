@@ -323,8 +323,7 @@ executable codebase
     build-depends: exceptions, leveldb-haskell
     cpp-options: -Dleveldb
 
-test-suite tests
-  type:           exitcode-stdio-1.0
+executable node-tests
   main-is:        Suite.hs
   ghc-options:    -w -threaded -rtsopts -with-rtsopts=-N -v0
   hs-source-dirs: tests

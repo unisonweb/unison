@@ -65,12 +65,14 @@ expectRight (Right a) = ok >> pure a
 tests :: [Test ()] -> Test ()
 tests = msum
 
+-- | Run all tests whose scope starts with the given prefix
 runOnly :: String -> Test a -> IO ()
 runOnly prefix t = do
   logger <- atomicLogger
   seed <- abs <$> Random.randomIO :: IO Int
   run' seed logger prefix t
 
+-- | Run all tests with the given seed and whose scope starts with the given prefix
 rerunOnly :: Int -> String -> Test a -> IO ()
 rerunOnly seed prefix t = do
   logger <- atomicLogger
@@ -87,7 +89,7 @@ run' seed note allow (Test t) = do
   let !rng = Random.mkStdGen seed
   resultsQ <- atomically (newTBQueue 50)
   rngVar <- newTVarIO rng
-  note $ "Random number generation (RNG) state for this run is " ++ show seed ++ ""
+  note $ "Randomness seed for this run is " ++ show seed ++ ""
   results <- atomically $ newTVar Map.empty
   rs <- A.async . forever $ do
     -- note, totally fine if this bombs once queue is empty
@@ -97,7 +99,7 @@ run' seed note allow (Test t) = do
     resultsMap <- readTVarIO results
     case Map.findWithDefault Skipped msgs resultsMap of
       Skipped -> pure ()
-      Passed n -> note $ "OK " ++ (if n == 0 then msgs else "(" ++ show n ++ ") " ++ msgs)
+      Passed n -> note $ "OK " ++ (if n <= 1 then msgs else "(" ++ show n ++ ") " ++ msgs)
       Failed -> note $ "FAILED " ++ msgs
   let line = "------------------------------------------------------------"
   note "Raw test output to follow ... "
@@ -141,6 +143,8 @@ run' seed note allow (Test t) = do
       note "❌"
       exitWith (ExitFailure 1)
 
+-- | Label a test. Can be nested. A `'.'` is placed between nested
+-- scopes, so `scope "foo" . scope "bar"` is equivalent to `scope "foo.bar"`
 scope :: String -> Test a -> Test a
 scope msg (Test t) = Test $ do
   env <- ask
@@ -149,15 +153,18 @@ scope msg (Test t) = Test $ do
     False -> putResult Skipped >> pure Nothing
     True -> liftIO $ runReaderT t (env { messages = messages', allow = drop (length msg + 1) (allow env) })
 
+-- | Log a message
 note :: String -> Test ()
 note msg = do
   note_ <- asks note_
   liftIO $ note_ msg
   pure ()
 
+-- | Log a showable value
 note' :: Show s => s -> Test ()
 note' = note . show
 
+-- | Generate a random value
 random :: Random a => Test a
 random = do
   rng <- asks rng
@@ -167,6 +174,7 @@ random = do
     writeTVar rng rng1
     pure a
 
+-- | Generate a bounded random value. Inclusive on both sides.
 random' :: Random a => a -> a -> Test a
 random' lower upper = do
   rng <- asks rng
@@ -176,38 +184,52 @@ random' lower upper = do
     writeTVar rng rng1
     pure a
 
-int :: Test Int
-int = random
-
-char :: Test Char
-char = random
-
-double :: Test Double
-double = random
-
-word :: Test Word
-word = random
+bool :: Test Bool
+bool = random
 
 word8 :: Test Word8
 word8 = random
 
+-- | Generate a random `Char`
+char :: Test Char
+char = random
+
+-- | Generate a random `Int`
+int :: Test Int
+int = random
+
+-- | Generate a random `Double`
+double :: Test Double
+double = random
+
+-- | Generate a random `Word`
+word :: Test Word
+word = random
+
+-- | Generate a random `Int` in the given range
+-- Note: `int' 0 5` includes both `0` and `5`
 int' :: Int -> Int -> Test Int
 int' = random'
 
+-- | Generate a random `Char` in the given range
+-- Note: `char' 'a' 'z'` includes both `'a'` and `'z'`.
 char' :: Char -> Char -> Test Char
 char' = random'
 
+-- | Generate a random `Double` in the given range
+-- Note: `double' 0 1` includes both `0` and `1`.
 double' :: Double -> Double -> Test Double
 double' = random'
 
+-- | Generate a random `Double` in the given range
+-- Note: `word' 0 10` includes both `0` and `10`.
 word' :: Word -> Word -> Test Word
 word' = random'
 
+-- | Generate a random `Double` in the given range
+-- Note: `word8' 0 10` includes both `0` and `10`.
 word8' :: Word8 -> Word8 -> Test Word8
 word8' = random'
-
-bool :: Test Bool
-bool = random
 
 -- | Sample uniformly from the given list of possibilities
 pick :: [a] -> Test a
@@ -227,21 +249,28 @@ picker size as = go where
   rpicker = picker rsize r
   go i = if i < lsize then lpicker i else rpicker (i - lsize)
 
+-- | Alias for `replicateM`
 listOf :: Int -> Test a -> Test [a]
 listOf = replicateM
 
+-- | Generate a list of lists of the given sizes,
+-- an alias for `sizes `forM` \n -> listOf n gen`
 listsOf :: [Int] -> Test a -> Test [[a]]
 listsOf sizes gen = sizes `forM` \n -> listOf n gen
 
+-- | Alias for `liftA2 (,)`.
 pair :: Test a -> Test b -> Test (a,b)
 pair = liftA2 (,)
 
+-- | Generate a `Data.Map k v` of the given size.
 mapOf :: Ord k => Int -> Test k -> Test v -> Test (Map k v)
 mapOf n k v = Map.fromList <$> listOf n (pair k v)
 
+-- | Generate a `[Data.Map k v]` of the given sizes.
 mapsOf :: Ord k => [Int] -> Test k -> Test v -> Test [Map k v]
 mapsOf sizes k v = sizes `forM` \n -> mapOf n k v
 
+-- | Catch all exceptions that could occur in the given `Test`
 wrap :: Test a -> Test a
 wrap (Test t) = Test $ do
   env <- ask
@@ -256,6 +285,7 @@ runWrap env t = do
       pure Nothing
     Right a -> pure a
 
+-- | A test with a setup and teardown
 using :: IO r -> (r -> IO ()) -> (r -> Test a) -> Test a
 using r cleanup use = Test $ do
   r <- liftIO r
@@ -265,20 +295,25 @@ using r cleanup use = Test $ do
   liftIO (cleanup r)
   pure a
 
+-- | The current scope
 currentScope :: Test String
 currentScope = asks messages
 
+-- | Prepend the current scope to a logging message
 noteScoped :: String -> Test ()
 noteScoped msg = do
   s <- currentScope
-  note (s ++ ": " ++ msg)
+  note (s ++ (if null s then "" else " ") ++ msg)
 
+-- | Record a successful test at the current scope
 ok :: Test ()
 ok = Test (Just <$> putResult (Passed 1))
 
+-- | Explicitly skip this test
 skip :: Test ()
 skip = Test (Nothing <$ putResult Skipped)
 
+-- | Record a failure at the current scope
 crash :: HasCallStack => String -> Test a
 crash msg = do
   let trace = callStack
@@ -345,9 +380,12 @@ instance MonadPlus Test where
   mzero = empty
   mplus = (<|>)
 
+-- | Run a test in a separate thread, not blocking for its result.
 fork :: Test a -> Test ()
 fork t = void (fork' t)
 
+-- | Run a test in a separate thread, return a future which can be used
+-- to block on its result.
 fork' :: Test a -> Test (Test a)
 fork' (Test t) = do
   env <- ask

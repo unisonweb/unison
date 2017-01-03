@@ -52,6 +52,17 @@ library
   if flag(quiet)
     ghc-options: -v0
 
+-- Preferred way to run EasyTest-based test suite
+executable runtests
+  main-is:        Suite.hs
+  ghc-options:    -w -threaded -rtsopts -with-rtsopts=-N -v0
+  hs-source-dirs: tests
+  other-modules:
+  build-depends:
+    base,
+    easytest
+
+-- I really have no idea why you'd ever use this, just use an executable as above
 test-suite tests
   type:           exitcode-stdio-1.0
   main-is:        Suite.hs

@@ -1,9 +1,8 @@
 {-# LANGUAGE CPP #-}
 module Main where
 
-import System.Random
 import EasyTest
-import Unison.Test.Util
+-- import Unison.Test.Util
 import qualified Unison.Test.BlockStore.FileBlockStore as FBS
 #ifdef leveldb
 import qualified Unison.Test.BlockStore.LevelDbStore as LBS
@@ -27,6 +26,7 @@ test = scope "unison-node" . tests $
   , Html.test
   , Http.test
   , FBS.test
+  , ResourcePool.test
 #ifdef leveldb
   , LBS.test
 #endif
