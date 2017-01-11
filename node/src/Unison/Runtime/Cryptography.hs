@@ -112,7 +112,9 @@ decrypt' k ciphertext =
        Just pt -> Right $ BA.convert pt
        Nothing -> Left "Error when attempting to decrypt ciphertext."
 
-pipeInitiator' :: ByteString
+pipeInitiator' :: forall cleartext .
+                  (ByteArrayAccess cleartext)
+               => ByteString
                -> IO ( STM DoneHandshake
                      , cleartext -> STM Ciphertext
                      , Ciphertext -> STM cleartext
@@ -124,11 +126,16 @@ pipeInitiator' remoteKey = do
       ns = noiseState ho :: NoiseState AESGCM Curve25519 CacHash.SHA256
   ns' <- atomically $ newTVar ns
   done <- atomically $ newTVar False
-  pure (readTVar done, f, g)
-  where f :: cleartext -> STM ByteString
-        f = undefined
-        g :: ByteString -> STM cleartext
-        g = undefined
+  let f :: cleartext -> STM ByteString
+      f ct = do
+        ns <- readTVar ns'
+        let msg = BA.convert ct
+            (ct, ns'') = either (error . show) id $ writeMessage ns msg
+        _ <- writeTVar done (handshakeComplete ns'')
+        return ct
+      g :: Ciphertext -> STM cleartext
+      g = undefined
+  return (readTVar done, f, g)
 
 mkPublicKey :: DH d => ByteString -> PublicKey d
 mkPublicKey = (fromMaybe (error "Error converting public key.") . dhBytesToPub . convert . B64.decodeLenient)
