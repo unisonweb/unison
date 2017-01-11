@@ -9,9 +9,14 @@ module Unison.Runtime.Cryptography
        ) where
 
 import Unison.Cryptography
+import Data.Maybe (fromMaybe)
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Base64 as B64 (decodeLenient)
 import Data.ByteArray as BA
 import qualified Crypto.Random as R
+import Control.Concurrent.STM (STM,atomically)
+import Control.Concurrent.STM.TVar
+import Control.Lens ((.~), (&))
 
 -- cryptonite
 import qualified Crypto.Cipher.AES as AES
@@ -19,6 +24,14 @@ import qualified Crypto.Hash as H
 import Crypto.Hash.Algorithms (SHA256)
 import Crypto.Cipher.Types
 import Crypto.Error
+
+-- cacophony
+import Crypto.Noise
+import Crypto.Noise.HandshakePatterns (noiseIK)
+import Crypto.Noise.DH
+import Crypto.Noise.DH.Curve25519
+import Crypto.Noise.Cipher.AESGCM
+import qualified Crypto.Noise.Hash.SHA256 as CacHash
 
 newtype SymmetricKey = AES256 ByteString deriving (Ord, Eq, Monoid, ByteArrayAccess, ByteArray)
 
@@ -49,7 +62,8 @@ mkCrypto key = Cryptography key gen hash sign verify randomBytes encryptAsymmetr
   decrypt :: SymmetricKey -> ByteString -> Either String cleartext
   decrypt = decrypt'
 
-  pipeInitiator _ = undefined
+  pipeInitiator = pipeInitiator'
+
   pipeResponder = undefined
 
 randomBytes' :: Int -> IO ByteString
@@ -97,3 +111,24 @@ decrypt' k ciphertext =
      case maybeCleartext of
        Just pt -> Right $ BA.convert pt
        Nothing -> Left "Error when attempting to decrypt ciphertext."
+
+pipeInitiator' :: ByteString
+               -> IO ( STM DoneHandshake
+                     , cleartext -> STM Ciphertext
+                     , Ciphertext -> STM cleartext
+                     )
+pipeInitiator' remoteKey = do
+  let key = mkPublicKey remoteKey :: PublicKey Curve25519
+      dho = defaultHandshakeOpts noiseIK InitiatorRole
+      ho = dho & hoRemoteStatic .~ Just key
+      ns = noiseState ho :: NoiseState AESGCM Curve25519 CacHash.SHA256
+  ns' <- atomically $ newTVar ns
+  done <- atomically $ newTVar False
+  pure (readTVar done, f, g)
+  where f :: cleartext -> STM ByteString
+        f = undefined
+        g :: ByteString -> STM cleartext
+        g = undefined
+
+mkPublicKey :: DH d => ByteString -> PublicKey d
+mkPublicKey = (fromMaybe (error "Error converting public key.") . dhBytesToPub . convert . B64.decodeLenient)

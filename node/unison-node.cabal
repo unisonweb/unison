@@ -114,6 +114,7 @@ library
     hashable,
     http-types,
     io-streams,
+    lens,
     list-t,
     memory,
     mmorph,
