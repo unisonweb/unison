@@ -113,7 +113,9 @@ decrypt' k ciphertext =
        Nothing -> Left "Error when attempting to decrypt ciphertext."
 
 pipeInitiator' :: forall cleartext .
-                  (ByteArrayAccess cleartext)
+                  ( ByteArrayAccess cleartext
+                  , ByteArray cleartext
+                  )
                => ByteString
                -> IO ( STM DoneHandshake
                      , cleartext -> STM Ciphertext
@@ -134,7 +136,12 @@ pipeInitiator' remoteKey = do
         _ <- writeTVar done (handshakeComplete ns'')
         return ct
       g :: Ciphertext -> STM cleartext
-      g = undefined
+      g ct = do
+        ns <- readTVar ns'
+        let (msg, ns'') = either (error . show) id $ readMessage ns ct
+            msg' = BA.convert msg
+        _ <- writeTVar done (handshakeComplete ns'')
+        return msg'
   return (readTVar done, f, g)
 
 mkPublicKey :: DH d => ByteString -> PublicKey d
