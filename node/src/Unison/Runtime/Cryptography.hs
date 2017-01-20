@@ -127,22 +127,19 @@ pipeInitiator' remoteKey = do
       ho = dho & hoRemoteStatic .~ Just key
       ns = noiseState ho :: NoiseState AESGCM Curve25519 CacHash.SHA256
   ns' <- atomically $ newTVar ns
-  done <- atomically $ newTVar False
   let f :: cleartext -> STM ByteString
       f ct = do
         ns <- readTVar ns'
         let msg = BA.convert ct
             (ct, ns'') = either (error . show) id $ writeMessage ns msg
-        _ <- writeTVar done (handshakeComplete ns'')
         return ct
       g :: Ciphertext -> STM cleartext
       g ct = do
         ns <- readTVar ns'
         let (msg, ns'') = either (error . show) id $ readMessage ns ct
             msg' = BA.convert msg
-        _ <- writeTVar done (handshakeComplete ns'')
         return msg'
-  return (readTVar done, f, g)
+  return (handshakeComplete <$> readTVar ns', f, g)
 
 mkPublicKey :: DH d => ByteString -> PublicKey d
 mkPublicKey = (fromMaybe (error "Error converting public key.") . dhBytesToPub . convert . B64.decodeLenient)
