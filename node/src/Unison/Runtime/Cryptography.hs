@@ -9,8 +9,9 @@ module Unison.Runtime.Cryptography
        ) where
 
 import Unison.Cryptography
+import Prelude hiding (writeFile, readFile)
 import Data.Maybe (fromMaybe)
-import Data.ByteString (ByteString)
+import Data.ByteString (ByteString, readFile)
 import qualified Data.ByteString.Base64 as B64 (decodeLenient)
 import Data.ByteArray as BA
 import qualified Crypto.Random as R
@@ -64,7 +65,7 @@ mkCrypto key = Cryptography key gen hash sign verify randomBytes encryptAsymmetr
 
   pipeInitiator = pipeInitiator'
 
-  pipeResponder = undefined
+  pipeResponder = pipeResponder'
 
 randomBytes' :: Int -> IO ByteString
 randomBytes' n = fst . R.randomBytesGenerate n <$> R.getSystemDRG
@@ -122,9 +123,14 @@ pipeInitiator' :: forall cleartext .
                      , Ciphertext -> STM cleartext
                      )
 pipeInitiator' remoteKey = do
-  let key = mkPublicKey remoteKey :: PublicKey Curve25519
+  let keyPairFile = "/path/to/keyfile"
+  staticKeyPair <- readKeyPair keyPairFile :: IO (KeyPair Curve25519)
+  ephemeralKeyPair <- dhGenKey :: IO (KeyPair Curve25519)
+  let remotePublicKey = mkPublicKey remoteKey :: PublicKey Curve25519
       dho = defaultHandshakeOpts noiseIK InitiatorRole
-      ho = dho & hoRemoteStatic .~ Just key
+      ho = dho & hoRemoteStatic .~ Just remotePublicKey
+               & hoLocalEphemeral .~ Just ephemeralKeyPair
+               & hoLocalStatic .~ Just staticKeyPair
       ns = noiseState ho :: NoiseState AESGCM Curve25519 CacHash.SHA256
   ns' <- atomically $ newTVar ns
   let f :: cleartext -> STM ByteString
@@ -141,5 +147,39 @@ pipeInitiator' remoteKey = do
         return msg'
   return (handshakeComplete <$> readTVar ns', f, g)
 
+pipeResponder' :: forall cleartext .
+                  ( ByteArrayAccess cleartext
+                  , ByteArray cleartext
+                  )
+               => IO ( STM DoneHandshake, STM (Maybe ByteString)
+                     , cleartext -> STM Ciphertext
+                     , Ciphertext -> STM cleartext)
+pipeResponder' = do
+  let keyPairFile = "/path/to/keyfile"
+  staticKeyPair <- readKeyPair keyPairFile :: IO (KeyPair Curve25519)
+  ephemeralKeyPair <- dhGenKey :: IO (KeyPair Curve25519)
+  let dho = defaultHandshakeOpts noiseIK InitiatorRole
+      ho = dho & hoLocalStatic .~ Just staticKeyPair
+               & hoLocalEphemeral .~ Just ephemeralKeyPair
+      ns = noiseState ho :: NoiseState AESGCM Curve25519 CacHash.SHA256
+  ns' <- atomically $ newTVar ns
+  sendersPubKey <- atomically $ newTVar Nothing
+  let f :: cleartext -> STM ByteString
+      f ct = do
+        ns <- readTVar ns'
+        let msg = BA.convert ct
+            (ct, ns'') = either (error . show) id $ writeMessage ns msg
+        return ct
+      g :: Ciphertext -> STM cleartext
+      g ct = do
+        ns <- readTVar ns'
+        let (msg, ns'') = either (error . show) id $ readMessage ns ct
+            msg' = BA.convert msg
+        return msg'
+  pure (handshakeComplete <$> readTVar ns', readTVar sendersPubKey, f, g)
+
+readKeyPair :: DH d => FilePath -> IO (KeyPair d)
+readKeyPair f = fromMaybe (error $ "error importing key from file: " ++ f) . dhBytesToPair . BA.convert <$> readFile f
+
 mkPublicKey :: DH d => ByteString -> PublicKey d
-mkPublicKey = (fromMaybe (error "Error converting public key.") . dhBytesToPub . convert . B64.decodeLenient)
+mkPublicKey = (fromMaybe (error "Error converting public key.") . dhBytesToPub . BA.convert . B64.decodeLenient)
