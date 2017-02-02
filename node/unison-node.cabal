@@ -373,6 +373,7 @@ test-suite tests
     base,
     bytes,
     bytestring,
+    cacophony,
     containers,
     ctrie,
     curl,

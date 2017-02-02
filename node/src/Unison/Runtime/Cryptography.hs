@@ -42,8 +42,10 @@ symmetricKey bs | BA.length bs == 32 = (Just . AES256) bs
 
 -- Creates a Unison.Cryptography object specialized to use the noise protocol
 -- (http://noiseprotocol.org/noise.html).
-mkCrypto :: forall cleartext . (ByteArrayAccess cleartext, ByteArray cleartext) => ByteString -> Cryptography ByteString SymmetricKey () () () ByteString cleartext
-mkCrypto key = Cryptography key gen hash sign verify randomBytes encryptAsymmetric decryptAsymmetric encrypt decrypt pipeInitiator pipeResponder where
+mkCrypto :: forall cleartext . (ByteArrayAccess cleartext, ByteArray cleartext) => KeyPair Curve25519 -> Cryptography (PublicKey Curve25519) SymmetricKey () () () ByteString cleartext
+mkCrypto (privateKey, publicKey') = Cryptography publicKey gen hash sign verify randomBytes encryptAsymmetric decryptAsymmetric encrypt decrypt pipeInitiator pipeResponder where
+  publicKey = publicKey'
+
   -- generates an elliptic curve keypair, for use in ECDSA
   gen = undefined
 
@@ -117,17 +119,16 @@ pipeInitiator' :: forall cleartext .
                   ( ByteArrayAccess cleartext
                   , ByteArray cleartext
                   )
-               => ByteString
+               => PublicKey Curve25519
                -> IO ( STM DoneHandshake
                      , cleartext -> STM Ciphertext
                      , Ciphertext -> STM cleartext
                      )
-pipeInitiator' remoteKey = do
+pipeInitiator' remotePublicKey = do
   let keyPairFile = "/path/to/keyfile"
   staticKeyPair <- readKeyPair keyPairFile :: IO (KeyPair Curve25519)
   ephemeralKeyPair <- dhGenKey :: IO (KeyPair Curve25519)
-  let remotePublicKey = mkPublicKey remoteKey :: PublicKey Curve25519
-      dho = defaultHandshakeOpts noiseIK InitiatorRole
+  let dho = defaultHandshakeOpts noiseIK InitiatorRole
       ho = dho & hoRemoteStatic .~ Just remotePublicKey
                & hoLocalEphemeral .~ Just ephemeralKeyPair
                & hoLocalStatic .~ Just staticKeyPair
@@ -151,7 +152,7 @@ pipeResponder' :: forall cleartext .
                   ( ByteArrayAccess cleartext
                   , ByteArray cleartext
                   )
-               => IO ( STM DoneHandshake, STM (Maybe ByteString)
+               => IO ( STM DoneHandshake, STM (Maybe (PublicKey Curve25519))
                      , cleartext -> STM Ciphertext
                      , Ciphertext -> STM cleartext)
 pipeResponder' = do
