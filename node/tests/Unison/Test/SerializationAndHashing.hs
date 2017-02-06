@@ -1,46 +1,45 @@
 module Unison.Test.SerializationAndHashing where
 
-import Test.Tasty
-import Test.Tasty.HUnit
+import EasyTest
 import Unison.Parsers (unsafeParseTerm)
 import qualified Unison.SerializationAndHashing as SAH
 
-testTermString :: String -> Assertion
+testTermString :: String -> Test ()
 testTermString termString =
   let term = unsafeParseTerm termString :: SAH.TermV
       roundTrip = SAH.deserializeTermFromBytes . SAH.serializeTerm $ term
   in case roundTrip of
-    Left s -> fail s
-    Right t -> if t == term then pure () else fail (show t)
+    Left s -> crash s
+    Right t -> if t == term then ok else crash (show t)
 
-fortyTwo :: Assertion
+fortyTwo :: Test ()
 fortyTwo = testTermString "42"
 
-fortyTwoNum :: Assertion
+fortyTwoNum :: Test ()
 fortyTwoNum = testTermString "42 : Number"
 
-hiText :: Assertion
+hiText :: Test ()
 hiText = testTermString "\"hi\" : Text"
 
-lambda :: Assertion
+lambda :: Test ()
 lambda = testTermString "x -> x"
 
-letBinding :: Assertion
-letBinding = testTermString "let x = 42; x + 1;;"
+letBinding :: Test ()
+letBinding = testTermString "let { x = 42; x + 1 }"
 
-letRec :: Assertion
-letRec = testTermString "let rec x = x + 1; x;;"
+letRec :: Test ()
+letRec = testTermString "let rec { x = x + 1; x }"
 
-vec :: Assertion
+vec :: Test ()
 vec = testTermString "[\"a\", \"b\", \"c\"]"
 
-tests :: TestTree
-tests = testGroup "SerializationAndHashing"
-  [ testCase "fortyTwo" fortyTwo
-  , testCase "fortyTwoNum" fortyTwoNum
-  , testCase "hiText" hiText
-  , testCase "lambda" lambda
-  , testCase "letBinding" letBinding
-  , testCase "letRec" letRec
-  , testCase "vec" vec
+test :: Test ()
+test = scope "SerializationAndHashing" . tests $
+  [ scope "fortyTwo" fortyTwo
+  , scope "fortyTwoNum" fortyTwoNum
+  , scope "hiText" hiText
+  , scope "lambda" lambda
+  , scope "letBinding" letBinding
+  , scope "letRec" letRec
+  , scope "vec" vec
   ]

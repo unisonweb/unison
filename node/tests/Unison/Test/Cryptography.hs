@@ -1,31 +1,24 @@
-
-
 module Unison.Test.Cryptography where
 
+import EasyTest
+import Control.Monad
 import qualified Unison.Cryptography as C
-import qualified Data.ByteString.Char8 as B
 import Unison.Runtime.Cryptography
+import qualified Data.ByteString as B
 import Crypto.Noise.DH
 import Crypto.Noise.DH.Curve25519
 import Data.Either
-import Test.Tasty
-import Test.Tasty.HUnit
 
-cryptoTest :: IO Assertion
-cryptoTest = do
-  keyPair <- dhGenKey :: IO (KeyPair Curve25519)
+test :: Test ()
+test = scope "Cryptography" $ do
+  keyPair <- io (dhGenKey :: IO (KeyPair Curve25519))
   let crypto = mkCrypto keyPair
-      cleartext = (B.pack "cleartext")
-  bytes <- C.randomBytes crypto 32
-  let symkey = case symmetricKey bytes of
-        Nothing -> error "Error creating symmetric encryption key."
-        Just k -> k
-  ciphertext <- C.encrypt crypto symkey [cleartext]
-  let decipheredtext = C.decrypt crypto symkey ciphertext
-  case decipheredtext of
-    Left m -> fail ("Roundtrip encryption failure: " ++ m)
-    Right d -> return $ assertEqual "Original cleartext is not equal to decrypted message." cleartext d
-
-ioTests :: IO TestTree
-ioTests = fmap (testCase "Cryptography roundtrip test.") cryptoTest
-
+  Just symkey <- symmetricKey <$> io (C.randomBytes crypto 32)
+  bigSizes <- listOf 3 (int' 1000 9000)
+  cleartexts <- map B.pack <$> listsOf ([0..100] ++ bigSizes) word8
+  cleartexts `forM_` \cleartext -> do
+    ciphertext <- io (C.encrypt crypto symkey [cleartext])
+    let cleartext' = C.decrypt crypto symkey ciphertext
+    case cleartext' of
+      Left err -> crash err
+      Right cleartext' -> expect (cleartext == cleartext')

@@ -1,42 +1,35 @@
 {-# Language OverloadedStrings #-}
 module Unison.Test.Http where
 
+import EasyTest
 import Data.Text (isPrefixOf, unpack)
-import Test.Tasty
-import Test.Tasty.HUnit
 import qualified Unison.Runtime.Http as Http
 
-testGet :: Assertion
+testGet :: Test ()
 testGet = do
   let testUrl = "http://www.haskell.org/"
-  result <- Http.get testUrl
-  case result of
-    Right x -> if isPrefixOf "<!DOCTYPE HTML>" x
-      then pure ()
-      else fail $ "Got unexpected body " ++ unpack x
-    Left x -> fail $ show x
+  result <- io (Http.get testUrl)
+  result <- expectRight result
+  expect ("<!DOCTYPE HTML>" `isPrefixOf` result)
 
-testGetTLS :: Assertion
+testGetTLS :: Test ()
 testGetTLS = do
   let testUrl = "https://www.google.com"
-  result <- Http.get testUrl
-  case result of
-    Right x -> if isPrefixOf "<!doctype html>" x
-      then pure ()
-      else fail $ "Got unexpected body " ++ unpack x
-    Left x -> fail $ show x
+  result <- io (Http.get testUrl)
+  result <- expectRight result
+  expect ("<!doctype html>" `isPrefixOf` result)
 
-test404 :: Assertion
+test404 :: Test ()
 test404 = do
   let testUrl = "https://www.google.com/ireallyhopethisurlwillneverexist"
-  result <- Http.get testUrl
+  result <- io (Http.get testUrl)
   case result of
-    Left x -> pure ()
-    Right x -> fail $ "expected error code, got response body " ++ unpack x
+    Left x -> ok
+    Right x -> crash $ "expected error code, got response body " ++ unpack x
 
-tests :: TestTree
-tests = testGroup "HTTP"
-  [ testCase "testGet" testGet
-  , testCase "testGetTLS" testGetTLS
-  , testCase "test404" test404
+test :: Test ()
+test = scope "Http" . tests $
+  [ scope "get" testGet
+  , scope "getTLS" testGetTLS
+  , scope "404" test404
   ]

@@ -98,5 +98,5 @@ make env = nf
       E.LetRecNamed' bs body -> nf resolveRef (ABT.substs bs' body) where
         bs' = [ (v, expandBinding v b) | (v,b) <- bs ]
         expandBinding v (E.LamNamed' name body) = E.lam name (expandBinding v body)
-        expandBinding v body = E.letRec bs body
+        expandBinding _ body = E.letRec bs body
       _ -> pure e

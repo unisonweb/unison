@@ -2,10 +2,10 @@ These are commands that will likely be useful during development.
 
 For doing compilation you can do:
 
-    stack repl --test unison-shared
-    stack repl --test unison-node
+    stack repl unison-shared
+    stack repl unison-node
 
-to launch a REPL with access to the tests in either the `shared` or `node` project. From here, do `Main.main` to run the tests (or `import Unison.Test.Interpreter as I` and then `I.main` to run a specific test), and `:r` for rapid recompile.
+and select the `node-tests` or `shared-tests` executable to launch a REPL with access to the tests in either the `shared` or `node` project. From here, do `Main.main` to run the tests and `:r` for rapid recompile.
 
 To build/run the node container:
 

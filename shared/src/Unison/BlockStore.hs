@@ -6,12 +6,12 @@ import Data.ByteString (ByteString)
 import Data.Text (unpack)
 import Data.Text.Encoding (decodeUtf8)
 import GHC.Generics
-import qualified Data.ByteString.Base64.URL as Base64
+import qualified Data.ByteString.Base58 as Base58
 
 newtype Series = Series ByteString deriving (Generic, Eq, Ord)
 
 instance Show Series where
-  show (Series s) = unpack . decodeUtf8 . Base64.encode $ s
+  show (Series s) = unpack . decodeUtf8 . Base58.encodeBase58 Base58.bitcoinAlphabet $ s
 
 -- | Represents an immutable content-addressed storage layer.
 -- We can insert some bytes, getting back a hash which can be used for lookup:

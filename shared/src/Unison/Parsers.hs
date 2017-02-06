@@ -6,7 +6,7 @@ import Control.Arrow ((***))
 import Data.Text (Text)
 import Unison.Term (Term)
 import Unison.Type (Type)
-import Unison.Parser (Result(..), run, unsafeGetSucceed)
+import Unison.Parser (run)
 import Unison.Var (Var)
 import qualified Unison.Parser as Parser
 import qualified Data.Text as Text
@@ -23,13 +23,17 @@ type S v = TypeParser.S v
 s0 :: S v
 s0 = TypeParser.s0
 
-parseTerm :: Var v => String -> Result (S v) (Term v)
+unsafeGetRight :: Either String a -> a
+unsafeGetRight (Right a) = a
+unsafeGetRight (Left err) = error err
+
+parseTerm :: Var v => String -> Either String (Term v)
 parseTerm = parseTerm' termBuiltins typeBuiltins
 
-parseType :: Var v => String -> Result (S v) (Type v)
+parseType :: Var v => String -> Either String (Type v)
 parseType = parseType' typeBuiltins
 
-parseTerm' :: Var v => [(v, Term v)] -> [(v, Type v)] -> String -> Result (S v) (Term v)
+parseTerm' :: Var v => [(v, Term v)] -> [(v, Type v)] -> String -> Either String (Term v)
 parseTerm' termBuiltins typeBuiltins s =
   bindBuiltins termBuiltins typeBuiltins <$> run (Parser.root TermParser.term) s s0
 
@@ -37,21 +41,21 @@ bindBuiltins :: Var v => [(v, Term v)] -> [(v, Type v)] -> Term v -> Term v
 bindBuiltins termBuiltins typeBuiltins =
    Term.typeMap (ABT.substs typeBuiltins) . ABT.substs termBuiltins
 
-parseType' :: Var v => [(v, Type v)] -> String -> Result (S v) (Type v)
+parseType' :: Var v => [(v, Type v)] -> String -> Either String (Type v)
 parseType' typeBuiltins s =
   ABT.substs typeBuiltins <$> run (Parser.root TypeParser.type_) s s0
 
 unsafeParseTerm :: Var v => String -> Term v
-unsafeParseTerm = unsafeGetSucceed . parseTerm
+unsafeParseTerm = unsafeGetRight . parseTerm
 
 unsafeParseType :: Var v => String -> Type v
-unsafeParseType = unsafeGetSucceed . parseType
+unsafeParseType = unsafeGetRight . parseType
 
 unsafeParseTerm' :: Var v => [(v, Term v)] -> [(v, Type v)] -> String -> Term v
-unsafeParseTerm' er tr = unsafeGetSucceed . parseTerm' er tr
+unsafeParseTerm' er tr = unsafeGetRight . parseTerm' er tr
 
 unsafeParseType' :: Var v => [(v, Type v)] -> String -> Type v
-unsafeParseType' tr = unsafeGetSucceed . parseType' tr
+unsafeParseType' tr = unsafeGetRight . parseType' tr
 
 -- Alias <alias> <fully-qualified-name>
   -- will import the builtin <fully-qualified-name>, and once more as the alias
@@ -74,6 +78,7 @@ termBuiltins = (Var.named *** Term.ref) <$> (
     , Builtin "Equal"
     , Builtin "True"
     , Builtin "False"
+    , Builtin "Pair"
     , Alias "unit" "()"
     , Alias "Unit" "()"
     , Alias "Some" "Optional.Some"

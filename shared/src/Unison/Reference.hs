@@ -1,10 +1,10 @@
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 module Unison.Reference where
 
-import Data.Aeson.TH
+import Data.Aeson
 import GHC.Generics
+import Unison.Hashable as Hashable
 import qualified Data.Text as Text
 import qualified Unison.Hash as H
 
@@ -14,4 +14,9 @@ instance Show Reference where
   show (Builtin t) = Text.unpack t
   show (Derived h) = show h
 
-deriveJSON defaultOptions ''Reference
+instance ToJSON Reference
+instance FromJSON Reference
+
+instance Hashable.Hashable Reference where
+  tokens (Builtin txt) = [Hashable.Tag 0, Hashable.Text txt]
+  tokens (Derived h) = [Hashable.Tag 0, Hashable.Bytes (H.toBytes h)]

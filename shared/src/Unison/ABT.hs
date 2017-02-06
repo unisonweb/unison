@@ -7,7 +7,6 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.ABT where
@@ -42,8 +41,7 @@ data ABT f v r
   | Tm (f r) deriving (Functor, Foldable, Traversable)
 
 -- | At each level in the tree, we store the set of free variables and
--- a value of type `a`. Individual variables are annotated with a value of
--- type `v`.
+-- a value of type `a`. Variables are of type `v`.
 data Term f v a = Term { freeVars :: Set v, annotation :: a, out :: ABT f v (Term f v a) }
 
 data V v = Free v | Bound v deriving (Eq,Ord,Show,Functor)
@@ -53,6 +51,7 @@ unvar (Free v) = v
 unvar (Bound v) = v
 
 instance Var v => Var (V v) where
+  rename n2 = fmap (Var.rename n2)
   named txt = Bound (Var.named txt)
   name v = Var.name (unvar v)
   qualifiedName v = Var.qualifiedName (unvar v)
@@ -228,7 +227,7 @@ subst v r t2@(Term fvs ann body)
     Var v' | v == v' -> r    -- var match; perform replacement
            | otherwise -> t2 -- var did not match one being substituted; ignore
     Cycle body -> cycle' ann (subst v r body)
-    Abs x e | x == v -> t2 -- x shadows v; ignore subtree
+    Abs x _ | x == v -> t2 -- x shadows v; ignore subtree
     Abs x e -> abs' ann x' e'
       where x' = freshInBoth r t2 x
             -- rename x to something that cannot be captured by `r`

@@ -19,7 +19,7 @@ data-files:
 
 source-repository head
   type: git
-  location: git://github.com/unisonweb/platform.git
+  location: git://github.com/unisonweb/unison.git
 
 -- `cabal install -foptimized` enables optimizations
 flag optimized
@@ -39,6 +39,11 @@ library
     Unison.BlockStore
     Unison.Cryptography
     Unison.Dimensions
+    Unison.Codebase
+    Unison.Codebase.MemCodebase
+    Unison.Codebase.MemStore
+    Unison.Codebase.Store
+    Unison.DataDeclaration
     Unison.Distance
     Unison.Doc
     Unison.Hash
@@ -46,16 +51,14 @@ library
     Unison.Interpreter
     Unison.JSON
     Unison.Kind
+    Unison.Literal
     Unison.Metadata
-    Unison.Codebase
-    Unison.Codebase.MemCodebase
-    Unison.Codebase.MemStore
-    Unison.Codebase.Store
     Unison.Note
     Unison.Parser
     Unison.Parsers
     Unison.Path
     Unison.Paths
+    Unison.Pattern
     Unison.Reference
     Unison.Remote
     Unison.Symbol
@@ -72,10 +75,12 @@ library
     Unison.Var
     Unison.View
     Unison.Views
+    Unison.Scratch
 
   build-depends:
     aeson,
     base,
+    base58-bytestring,
     base64-bytestring,
     bifunctors,
     bytestring,
@@ -86,6 +91,8 @@ library
     hashable,
     mtl,
     murmur-hash,
+    parsec,
+    parsec-layout,
     prelude-extras,
     random,
     stm,
@@ -93,7 +100,7 @@ library
     transformers,
     vector
 
-  ghc-options: -Wall -fno-warn-name-shadowing -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
 
   if flag(optimized)
     ghc-options: -funbox-strict-fields -O2
@@ -101,8 +108,7 @@ library
   if flag(quiet)
     ghc-options: -v0
 
-test-suite tests
-  type:           exitcode-stdio-1.0
+executable shared-tests
   main-is:        Suite.hs
   ghc-options:    -w -threaded -rtsopts -with-rtsopts=-N -v0
   hs-source-dirs: tests
@@ -111,11 +117,8 @@ test-suite tests
     base,
     bytestring,
     containers,
+    easytest,
     filepath,
-    tasty,
-    tasty-hunit,
-    tasty-smallcheck,
-    tasty-quickcheck,
     text,
     transformers,
     unison-shared

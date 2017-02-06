@@ -4,17 +4,15 @@
 module Main where
 
 import System.IO
-import Unison.Hash.Extra ()
 import Unison.Codebase.Store (Store)
 import Unison.Reference (Reference)
 import Unison.Runtime.Address
-import Unison.Symbol.Extra ()
-import Unison.Term.Extra ()
+import Unison.SerializationAndHashing ()
 import Unison.Var (Var)
 import qualified Unison.ABT as ABT
 import qualified Unison.BlockStore.FileBlockStore as FBS
-import qualified Unison.Cryptography as C
 import qualified Unison.Builtin as Builtin
+import qualified Unison.Cryptography as C
 #ifdef leveldb
 import qualified Unison.Codebase.LeveldbStore as DBStore
 #else

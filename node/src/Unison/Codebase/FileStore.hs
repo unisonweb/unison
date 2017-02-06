@@ -2,6 +2,7 @@ module Unison.Codebase.FileStore where
 
 import Control.Applicative
 import Data.Aeson (ToJSON(..),FromJSON(..))
+import Data.Maybe
 import Data.Set (Set)
 import Data.Text (Text)
 import System.FilePath ((</>))
@@ -48,13 +49,13 @@ make root =
       -- unfortunate that writeFile takes a strict bytestring
 
     read' :: FromJSON a => FilePath -> Hash -> Noted IO a
-    read' = read Hash.base64
+    read' = read Hash.base58
 
     write' :: ToJSON a => FilePath -> Hash -> a -> Noted IO ()
-    write' = write Hash.base64
+    write' = write Hash.base58
 
     hashes limit =
-      let r = Reference.Derived . Hash.fromBase64 . Text.pack
+      let r = Reference.Derived . (fromMaybe (error "invalid base58") . Hash.fromBase58) . Text.pack
           limitf = maybe id Set.intersection limit
           union a b c = a `Set.union` b `Set.union` c
       in liftA3 union (limitf <$> hashesIn r "terms")
@@ -63,6 +64,8 @@ make root =
 
     readTerm = read' "terms"
     writeTerm = write' "terms"
+    readDataDeclaration (Reference.Derived h) = read' "data-declarations" h
+    readDataDeclaration (Reference.Builtin b) = read id "builtin-data-declarations" (mangle b)
 
     -- replace slashes with dashes
     mangle = Text.map unslash where
@@ -84,8 +87,10 @@ make root =
   in do
     Directory.createDirectoryIfMissing True (root </> "terms")
     Directory.createDirectoryIfMissing True (root </> "types")
+    Directory.createDirectoryIfMissing True (root </> "data-declarations")
+    Directory.createDirectoryIfMissing True (root </> "builtin-data-declarations")
     Directory.createDirectoryIfMissing True (root </> "type-of")
     Directory.createDirectoryIfMissing True (root </> "builtin-type-of")
     Directory.createDirectoryIfMissing True (root </> "metadata")
     Directory.createDirectoryIfMissing True (root </> "builtin-metadata")
-    pure $ Store hashes readTerm writeTerm typeOfTerm annotateTerm readMetadata writeMetadata
+    pure $ Store hashes readTerm writeTerm typeOfTerm annotateTerm readDataDeclaration readMetadata writeMetadata

@@ -1,11 +1,10 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 module Unison.TermEdit where
 
-import Data.Aeson.TH
+import Data.Aeson
 import GHC.Generics
 import Unison.Term (Term)
 import Unison.Type (Type)
@@ -188,4 +187,5 @@ applications e t = e : go e t
     go e (Type.Arrow' _ t) = let e' = Term.app e Term.blank in e' : go e' t
     go _ _ = []
 
-deriveJSON defaultOptions ''Action
+instance ToJSON v => ToJSON (Action v)
+instance FromJSON v => FromJSON (Action v)

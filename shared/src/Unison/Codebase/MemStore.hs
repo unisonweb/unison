@@ -2,10 +2,11 @@ module Unison.Codebase.MemStore (make) where
 
 import Data.Functor
 import Data.Map (Map)
+import Unison.Codebase.Store (Store(Store))
+import Unison.DataDeclaration (DataDeclaration)
 import Unison.Hash (Hash)
 import Unison.Metadata (Metadata)
 import Unison.Note (Noted)
-import Unison.Codebase.Store (Store(Store))
 import Unison.Reference (Reference)
 import Unison.Term (Term)
 import Unison.Type (Type)
@@ -16,12 +17,13 @@ import qualified Unison.Note as Note
 
 -- | Store implementation that just uses a local `MVar`
 make :: IO (Store IO v)
-make = store <$> MVar.newMVar (S Map.empty Map.empty Map.empty) where
+make = store <$> MVar.newMVar (S Map.empty Map.empty Map.empty Map.empty) where
   store v = Store (withS v hashes)
                   (withS v readTerm)
                   (withS2 v writeTerm)
                   (withS v typeOfTerm)
                   (withS2 v annotateTerm)
+                  (withS v readDataDeclaration)
                   (withS v readMetadata)
                   (withS2 v writeMetadata) where
     hashes s limit =
@@ -34,6 +36,8 @@ make = store <$> MVar.newMVar (S Map.empty Map.empty Map.empty) where
       Note.fromMaybe (unknown "reference" ref) $ Map.lookup ref (typeOfTerm' s)
     annotateTerm s ref t =
       Note.lift . set v $ s { typeOfTerm' = Map.insert ref t (typeOfTerm' s) }
+    readDataDeclaration s ref =
+      Note.fromMaybe (unknown "reference" ref) $ Map.lookup ref (dataDeclaration' s)
     readMetadata s ref =
       Note.fromMaybe (unknown "reference" ref) $ Map.lookup ref (metadata' s)
     writeMetadata s ref md =
@@ -51,7 +55,7 @@ withS2 s f i i2 = Note.lift (MVar.readMVar s) >>= \s -> f s i i2
 
 data S v =
   S { terms' :: Map Hash (Term v)
---  , typeDeclarations' :: Map Hash (Type v)
+    , dataDeclaration' :: Map Reference (DataDeclaration v)
     , typeOfTerm' :: Map Reference (Type v)
     , metadata' :: Map Reference (Metadata v Reference) }
 

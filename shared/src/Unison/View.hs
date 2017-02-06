@@ -1,10 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 module Unison.View where
 
-import Data.Aeson.TH
+import Data.Aeson
 import Data.String (IsString(..))
 import Data.Text (Text)
 import GHC.Generics (Generic)
@@ -143,7 +142,11 @@ instantiate _ _ _ _ = Nothing
 
 -- boring serialization code
 
-deriveJSON defaultOptions ''Precedence
-deriveJSON defaultOptions ''Var
-deriveJSON defaultOptions ''Segment
-deriveJSON defaultOptions ''DFO
+instance ToJSON Precedence
+instance FromJSON Precedence
+instance ToJSON Var
+instance FromJSON Var
+instance ToJSON Segment
+instance FromJSON Segment
+instance ToJSON DFO
+instance FromJSON DFO
