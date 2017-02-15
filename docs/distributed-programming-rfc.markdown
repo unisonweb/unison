@@ -218,7 +218,7 @@ We can supervise (detect and respond to errors, control lifecycle) of computatio
 
 ```Haskell
 -- Create a `Heartbeat` that stops beating after a duration,
--- unless a `Heartbeat.reset` is performed
+-- unless a `Heartbeat.bump` is performed
 Heartbeat.fromDuration : Duration -> Remote Heartbeat
 
 -- Create a duration from a number of seconds
