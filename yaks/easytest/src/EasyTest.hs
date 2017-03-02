@@ -278,10 +278,11 @@ wrap (Test t) = Test $ do
 
 runWrap :: Env -> ReaderT Env IO (Maybe a) -> IO (Maybe a)
 runWrap env t = do
-  e <- liftIO . try $ runReaderT t env
+  e <- try $ runReaderT t env
   case e of
     Left e -> do
       note_ env (messages env ++ " EXCEPTION: " ++ show (e :: SomeException))
+      runReaderT (putResult Failed) env
       pure Nothing
     Right a -> pure a
 

@@ -49,7 +49,11 @@ Building using Stack
 
 If these instructions don't work for you or are incomplete, please file an issue.
 
-The build uses [Stack](http://docs.haskellstack.org/). If you don't already have it installed, version 1.3 or later, [follow the install instructions](http://docs.haskellstack.org/en/stable/README.html#how-to-install) for your platform. Once that's done and the `stack` executable is on your path, do:
+The build uses [Stack](http://docs.haskellstack.org/). If you don't already have it installed, version 1.3 or later, [follow the install instructions](http://docs.haskellstack.org/en/stable/README.html#how-to-install) for your platform.
+
+You'll also need [`xz`](http://tukaani.org/xz/) on your path and also the `libghc-curl-dev` library someplace that stack looks for it. See the [Vagrant box setup](#vagrant) and the [vagrant-provision.sh](vagrant-provision.sh) script for known-good setup steps on linux.
+
+Once that's all done and the `stack` executable is on your path, do:
 
 ```sh
 $ git clone https://github.com/unisonweb/unison.git
@@ -58,8 +62,6 @@ $ stack --version # make sure this returns 1.3 or later
 $ stack setup
 $ stack build unison-node
 ```
-
-You'll need [`xz`](http://tukaani.org/xz/) on your path and also the `libghc-curl-dev` library someplace that stack looks for it. See the [Vagrant box setup](#vagrant) and the [vagrant-provision.sh](vagrant-provision.sh) script for known-good setup steps on linux.
 
 See [`development.markdown`](development.markdown) for a list of build commands you'll likely use during development.
 
