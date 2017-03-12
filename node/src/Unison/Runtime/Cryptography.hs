@@ -43,7 +43,7 @@ symmetricKey bs | BA.length bs == 32 = (Just . AES256) bs
 -- Creates a Unison.Cryptography object specialized to use the noise protocol
 -- (http://noiseprotocol.org/noise.html).
 mkCrypto :: forall cleartext . (ByteArrayAccess cleartext, ByteArray cleartext) => KeyPair Curve25519 -> Cryptography (PublicKey Curve25519) SymmetricKey () () () ByteString cleartext
-mkCrypto (privateKey, publicKey') = Cryptography publicKey gen hash sign verify randomBytes encryptAsymmetric decryptAsymmetric encrypt decrypt pipeInitiator pipeResponder where
+mkCrypto staticKeyPair@(privateKey, publicKey') = Cryptography publicKey gen hash sign verify randomBytes encryptAsymmetric decryptAsymmetric encrypt decrypt pipeInitiator pipeResponder where
   publicKey = publicKey'
 
   -- generates an elliptic curve keypair, for use in ECDSA
@@ -65,9 +65,9 @@ mkCrypto (privateKey, publicKey') = Cryptography publicKey gen hash sign verify 
   decrypt :: SymmetricKey -> ByteString -> Either String cleartext
   decrypt = decrypt'
 
-  pipeInitiator = pipeInitiator'
+  pipeInitiator = pipeInitiator' staticKeyPair
 
-  pipeResponder = pipeResponder'
+  pipeResponder = pipeResponder' staticKeyPair
 
 randomBytes' :: Int -> IO ByteString
 randomBytes' n = fst . R.randomBytesGenerate n <$> R.getSystemDRG
@@ -119,14 +119,15 @@ pipeInitiator' :: forall cleartext .
                   ( ByteArrayAccess cleartext
                   , ByteArray cleartext
                   )
-               => PublicKey Curve25519
+               => KeyPair Curve25519
+               -> PublicKey Curve25519
                -> IO ( STM DoneHandshake
                      , cleartext -> STM Ciphertext
                      , Ciphertext -> STM cleartext
                      )
-pipeInitiator' remotePublicKey = do
-  let keyPairFile = "/path/to/keyfile"
-  staticKeyPair <- readKeyPair keyPairFile :: IO (KeyPair Curve25519)
+pipeInitiator' staticKeyPair remotePublicKey = do
+--  let keyPairFile = "/path/to/keyfile"
+--  staticKeyPair <- readKeyPair keyPairFile :: IO (KeyPair Curve25519)
   ephemeralKeyPair <- dhGenKey :: IO (KeyPair Curve25519)
   let dho = defaultHandshakeOpts noiseIK InitiatorRole
       ho = dho & hoRemoteStatic .~ Just remotePublicKey
@@ -138,13 +139,15 @@ pipeInitiator' remotePublicKey = do
       f ct = do
         ns <- readTVar ns'
         let msg = BA.convert ct
-            (ct, ns'') = either (error . show) id $ writeMessage ns msg
-        return ct
+            (ciphertext, ns'') = either (error . show) id $ writeMessage ns msg
+        writeTVar ns' ns''
+        return ciphertext
       g :: Ciphertext -> STM cleartext
       g ct = do
         ns <- readTVar ns'
         let (msg, ns'') = either (error . show) id $ readMessage ns ct
             msg' = BA.convert msg
+        writeTVar ns' ns''
         return msg'
   return (handshakeComplete <$> readTVar ns', f, g)
 
@@ -152,14 +155,15 @@ pipeResponder' :: forall cleartext .
                   ( ByteArrayAccess cleartext
                   , ByteArray cleartext
                   )
-               => IO ( STM DoneHandshake, STM (Maybe (PublicKey Curve25519))
+               => KeyPair Curve25519
+               -> IO ( STM DoneHandshake, STM (Maybe (PublicKey Curve25519))
                      , cleartext -> STM Ciphertext
                      , Ciphertext -> STM cleartext)
-pipeResponder' = do
-  let keyPairFile = "/path/to/keyfile"
-  staticKeyPair <- readKeyPair keyPairFile :: IO (KeyPair Curve25519)
+pipeResponder' staticKeyPair = do
+--  let keyPairFile = "/path/to/keyfile"
+--  staticKeyPair <- readKeyPair keyPairFile :: IO (KeyPair Curve25519)
   ephemeralKeyPair <- dhGenKey :: IO (KeyPair Curve25519)
-  let dho = defaultHandshakeOpts noiseIK InitiatorRole
+  let dho = defaultHandshakeOpts noiseIK ResponderRole
       ho = dho & hoLocalStatic .~ Just staticKeyPair
                & hoLocalEphemeral .~ Just ephemeralKeyPair
       ns = noiseState ho :: NoiseState AESGCM Curve25519 CacHash.SHA256
@@ -169,13 +173,15 @@ pipeResponder' = do
       f ct = do
         ns <- readTVar ns'
         let msg = BA.convert ct
-            (ct, ns'') = either (error . show) id $ writeMessage ns msg
-        return ct
+            (ciphertext, ns'') = either (error . show) id $ writeMessage ns msg
+        writeTVar ns' ns''
+        return ciphertext
       g :: Ciphertext -> STM cleartext
       g ct = do
         ns <- readTVar ns'
         let (msg, ns'') = either (error . show) id $ readMessage ns ct
             msg' = BA.convert msg
+        writeTVar ns' ns''
         return msg'
   pure (handshakeComplete <$> readTVar ns', readTVar sendersPubKey, f, g)
 

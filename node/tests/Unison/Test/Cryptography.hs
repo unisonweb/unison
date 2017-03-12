@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Unison.Test.Cryptography where
 
 import EasyTest
@@ -34,18 +35,27 @@ testPipe = do
       rpk = snd rkp -- remote public key
   (doneHandshake, iencrypt, idecrypt) <- io $ C.pipeInitiator initiator rpk
   (_, _, rencrypt, rdecrypt) <- io $ C.pipeResponder responder
-  go doneHandshake iencrypt rdecrypt
-  where go doneHandshake iencrypt rdecrypt = do
-          let plaintext = B8.pack "We have done the impossible, and that makes us mighty."
-          ready <- io $ atomically doneHandshake
-          case ready of
-            True -> do
-              ciphertext <- io $ atomically $ iencrypt plaintext
-              plaintext' <- io $ atomically $ rdecrypt ciphertext
-              expect (plaintext == plaintext')
-            False -> crash "Temp fail."
+  go doneHandshake iencrypt idecrypt rencrypt rdecrypt
+  where
+    go doneHandshake iencrypt idecrypt rencrypt rdecrypt = do
+      let plaintext = "We have done the impossible, and that makes us mighty."
+      ready <- io $ atomically doneHandshake
+      case ready of
+        True -> do
+          ciphertext <- io $ atomically $ iencrypt plaintext
+          plaintext' <- io $ atomically $ rdecrypt ciphertext
+          expect (plaintext == plaintext')
+        False -> do
+          ciphertext <- io $ atomically $ iencrypt ""
+          plaintext' <- io $ atomically $ rdecrypt ciphertext
+          ciphertextr <- io $ atomically $ rencrypt ""
+          plaintextr' <- io $ atomically $ idecrypt ciphertextr
+          expect ("" == plaintext')
+          expect ("" == plaintextr')
+          go doneHandshake iencrypt idecrypt rencrypt rdecrypt
 
 test :: Test ()
-test = tests [ scope "encrypt/decrypt roundtrip" testEncryptDecrypt
-             , scope "Pipes roundtrip" testPipe
-             ]
+test = scope "Crypto" $
+  tests [ scope "encrypt/decrypt roundtrip" testEncryptDecrypt
+        , scope "Pipes roundtrip" testPipe
+        ]
