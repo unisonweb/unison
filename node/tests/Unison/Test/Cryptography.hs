@@ -7,10 +7,8 @@ import Control.Monad.STM
 import qualified Unison.Cryptography as C
 import Unison.Runtime.Cryptography
 import qualified Data.ByteString as B
-import qualified Data.ByteString.Char8 as B8
 import Crypto.Noise.DH
 import Crypto.Noise.DH.Curve25519
-import Data.Either
 
 testEncryptDecrypt :: Test ()
 testEncryptDecrypt = do
@@ -35,10 +33,12 @@ testPipe = do
       rpk = snd rkp -- remote public key
   (doneHandshake, iencrypt, idecrypt) <- io $ C.pipeInitiator initiator rpk
   (_, _, rencrypt, rdecrypt) <- io $ C.pipeResponder responder
-  go doneHandshake iencrypt idecrypt rencrypt rdecrypt
+  bigSizes <- listOf 3 (int' 1000 9000)
+  cleartexts <- map B.pack <$> listsOf ([0..100] ++ bigSizes) word8
+  cleartexts `forM_` \cleartext -> do
+    go doneHandshake cleartext iencrypt idecrypt rencrypt rdecrypt
   where
-    go doneHandshake iencrypt idecrypt rencrypt rdecrypt = do
-      let plaintext = "We have done the impossible, and that makes us mighty."
+    go doneHandshake plaintext iencrypt idecrypt rencrypt rdecrypt = do
       ready <- io $ atomically doneHandshake
       case ready of
         True -> do
@@ -52,7 +52,7 @@ testPipe = do
           plaintextr' <- io $ atomically $ idecrypt ciphertextr
           expect ("" == plaintext')
           expect ("" == plaintextr')
-          go doneHandshake iencrypt idecrypt rencrypt rdecrypt
+          go doneHandshake plaintext iencrypt idecrypt rencrypt rdecrypt
 
 test :: Test ()
 test = scope "Crypto" $
