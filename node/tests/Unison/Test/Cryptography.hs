@@ -5,6 +5,7 @@ import EasyTest
 import Control.Monad
 import Control.Monad.STM
 import qualified Unison.Cryptography as C
+import qualified Crypto.PubKey.ECC.ECDSA as ECDSA
 import Unison.Runtime.Cryptography
 import qualified Data.ByteString as B
 import Crypto.Noise.DH
@@ -28,8 +29,8 @@ testPipe :: Test ()
 testPipe = do
   ikp <- io (dhGenKey :: IO (KeyPair Curve25519)) -- initiator key pair
   rkp <- io (dhGenKey :: IO (KeyPair Curve25519)) -- responder key pair
-  let initiator = mkCrypto ikp :: C.Cryptography (PublicKey Curve25519) SymmetricKey () () () B.ByteString B.ByteString
-      responder = mkCrypto rkp :: C.Cryptography (PublicKey Curve25519) SymmetricKey () () () B.ByteString B.ByteString
+  let initiator = mkCrypto ikp :: C.Cryptography (PublicKey Curve25519) SymmetricKey ECDSA.PublicKey ECDSA.PrivateKey () B.ByteString B.ByteString
+      responder = mkCrypto rkp :: C.Cryptography (PublicKey Curve25519) SymmetricKey ECDSA.PublicKey ECDSA.PrivateKey () B.ByteString B.ByteString
       rpk = snd rkp -- remote public key
   (doneHandshake, iencrypt, idecrypt) <- io $ C.pipeInitiator initiator rpk
   (_, _, rencrypt, rdecrypt) <- io $ C.pipeResponder responder

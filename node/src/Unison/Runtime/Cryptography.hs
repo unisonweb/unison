@@ -22,6 +22,9 @@ import Control.Lens ((.~), (&))
 -- cryptonite
 import qualified Crypto.Cipher.AES as AES
 import qualified Crypto.Hash as H
+import qualified Crypto.PubKey.ECC.ECDSA as ECDSA
+import Crypto.PubKey.ECC.Types (getCurveByName, CurveName(..))
+import Crypto.PubKey.ECC.Generate (generate)
 import Crypto.Hash.Algorithms (SHA256)
 import Crypto.Cipher.Types
 import Crypto.Error
@@ -42,12 +45,12 @@ symmetricKey bs | BA.length bs == 32 = (Just . AES256) bs
 
 -- Creates a Unison.Cryptography object specialized to use the noise protocol
 -- (http://noiseprotocol.org/noise.html).
-mkCrypto :: forall cleartext . (ByteArrayAccess cleartext, ByteArray cleartext) => KeyPair Curve25519 -> Cryptography (PublicKey Curve25519) SymmetricKey () () () ByteString cleartext
+mkCrypto :: forall cleartext . (ByteArrayAccess cleartext, ByteArray cleartext) => KeyPair Curve25519 -> Cryptography (PublicKey Curve25519) SymmetricKey ECDSA.PublicKey ECDSA.PrivateKey () ByteString cleartext
 mkCrypto staticKeyPair@(privateKey, publicKey') = Cryptography publicKey gen hash sign verify randomBytes encryptAsymmetric decryptAsymmetric encrypt decrypt pipeInitiator pipeResponder where
   publicKey = publicKey'
 
   -- generates an elliptic curve keypair, for use in ECDSA
-  gen = undefined
+  gen = generate (getCurveByName SEC_p256k1)
 
   hash :: [ByteString] -> ByteString
   hash bss = BA.convert (H.hash bs :: H.Digest SHA256)
