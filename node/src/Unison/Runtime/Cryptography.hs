@@ -49,8 +49,9 @@ mkCrypto :: forall cleartext . (ByteArrayAccess cleartext, ByteArray cleartext) 
 mkCrypto staticKeyPair@(privateKey, publicKey') = Cryptography publicKey gen hash sign verify randomBytes encryptAsymmetric decryptAsymmetric encrypt decrypt pipeInitiator pipeResponder where
   publicKey = publicKey'
 
-  -- generates an elliptic curve keypair, for use in ECDSA
-  gen = generate (getCurveByName SEC_p256k1)
+  -- NIST K-233 curve, which seems to be "safe", at least based on this SO
+  -- answer: http://crypto.stackexchange.com/a/10273.
+  gen = generate (getCurveByName SEC_t233k1)
 
   hash :: [ByteString] -> ByteString
   hash bss = BA.convert (H.hash bs :: H.Digest SHA256)
