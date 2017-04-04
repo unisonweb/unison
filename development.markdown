@@ -7,6 +7,13 @@ For doing compilation you can do:
 
 and select the `node-tests` or `shared-tests` executable to launch a REPL with access to the tests in either the `shared` or `node` project. From here, do `Main.main` to run the tests and `:r` for rapid recompile.
 
+You can also do:
+
+    stack build unison-shared && stack exec shared-tests
+    stack build unison-node && stack exec node-tests
+
+If you want to run the tests outside the REPL.
+
 To build/run the node container:
 
     stack build --flag unison-node:leveldb unison-node

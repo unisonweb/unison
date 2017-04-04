@@ -48,7 +48,7 @@ data F typeVar a
   = Lit Literal
   | Blank -- An expression that has not been filled in, has type `forall a . a`
   | Ref Reference
-  | Constructor Reference Int
+  | Constructor Reference Int -- First argument identifies the data type, second argument identifies the constructor
   | App a a
   | Ann a (Type typeVar)
   | Vector (Vector a)
@@ -62,13 +62,13 @@ data F typeVar a
   | Distributed (Distributed a)
   -- Pattern matching / eliminating data types, example:
   --  case x of
-  --    Just _n -> rhs1
+  --    Just n -> rhs1
   --    Nothing -> rhs2
   --
   -- translates to
   --
   --   Match x
-  --     [ (Constructor 0 [Wildcard "n"], rhs1)
+  --     [ (Constructor 0 [Var], ABT.abs n rhs1)
   --     , (Constructor 1 [], rhs2) ]
   | Match a [(Pattern, a)]
   deriving (Eq,Foldable,Functor,Generic,Generic1,Traversable)
