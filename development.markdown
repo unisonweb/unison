@@ -14,6 +14,8 @@ You can also do:
 
 If you want to run the tests outside the REPL.
 
+__Note:__ As part of `shared-tests`, all the Unison code in `unison-src/base.u` is parsed and typechecked. If you're tweaking the parser and/or typechecker and want to quickly test changes, you can add some additional definitions to this file and rerun the tests.
+
 To build/run the node container:
 
     stack build --flag unison-node:leveldb unison-node
