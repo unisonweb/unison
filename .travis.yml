@@ -1,5 +1,7 @@
+# https://docs.haskellstack.org/en/stable/travis_ci/
 # run on containerized infrastructure hopefully
 sudo: false
+language: generic
 
 # Caching so the next build will be fast too.
 cache:
@@ -11,6 +13,9 @@ before_install:
 - mkdir -p ~/.local/bin
 - export PATH=$HOME/.local/bin:$PATH
 - travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
+# Configure stack to use the system GHC installation
+- stack config set system-ghc --global true
+- export PATH=/opt/ghc/8.0.1/bin:$PATH
 - stack setup
 
 script:
@@ -18,3 +23,14 @@ script:
   - stack --no-terminal --skip-ghc-check exec shared-tests
   - stack --no-terminal --skip-ghc-check test unison-node
   - stack --no-terminal --skip-ghc-check exec node-tests
+
+addons:
+  apt:
+    sources:
+      - hvr-ghc
+    packages:
+      - ghc-8.0.1
+install:
+  - travis_wait stack --no-terminal --skip-ghc-check setup
+  - travis_wait stack --no-terminal --skip-ghc-check test --only-snapshot
+  
