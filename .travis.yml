@@ -30,6 +30,8 @@ addons:
       - hvr-ghc
     packages:
       - ghc-8.0.1
+      - libc6
+      - libc6-dev
 install:
   - travis_wait stack --no-terminal --skip-ghc-check setup
   - travis_wait stack --no-terminal --skip-ghc-check test --only-snapshot
