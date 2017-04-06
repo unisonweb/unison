@@ -1,7 +1,9 @@
 # https://docs.haskellstack.org/en/stable/travis_ci/
 # run on containerized infrastructure hopefully
+dist: trusty
 sudo: false
 language: generic
+
 
 # Caching so the next build will be fast too.
 cache:
