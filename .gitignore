@@ -18,6 +18,7 @@ unison-src/.loaded
 .cabal-sandbox/**
 blockstore
 blockstore.leveldb
+target
 
 # Stack
 .stack-work
