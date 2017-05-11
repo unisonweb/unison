@@ -64,18 +64,30 @@ object Runtime {
         case Apply(fn, args) =>
           val compiledFn = go(fn, env, IsNotTail)
           val compiledArgs = args.map(go(_, env, IsNotTail)).toArray
+          sys.error("todo"): Rt
+        case Apply(fn, List()) => go(fn, env, isTail)
+        case Apply(fn, args) if Term.freeVars(fn).isEmpty =>
+          val compiledArgs = args.view.map(go(_, env, IsNotTail)).toArray
+          val compiledFn = go(fn, Vector(), IsNotTail)
           // 4 cases:
           //   dynamic call (first eval, to obtain function of known arity, then apply)
           //   static call fully saturated (apply directly)
           //   static call overapplied (apply to correct arity, then tail call with remaining args)
           //   static call underapplied (form closure or specialize for applied args)
-          sys.error("todo"): Rt
-        // case Apply(fn, args) => ??? // evaluates fn and all args before returning tail call -
+          def evaluatedCall(fn: Rt, args: Array[Rt]): Rt = {
+            if (compiledFn.arity == compiledArgs.length) // `id 42`
+              FunctionApplication.staticFullySaturatedCall(compiledFn, compiledArgs, e)
+            else if (compiledFn.arity > compiledArgs.length) // underapplication `(x y -> ..) 42`
+              ???
+            else // overapplication, `id id 42`
+              ???
+          }
+          if (compiledFn.isEvaluated) evaluatedCall(compiledFn, compiledArgs)
+          else ???
         // non tail-calls need to catch `Yielded` and add to continuation
         // case Handle(handler, block) => just catches Yielded exception in a loop, calls apply1
         // case Yield(term) => throws Yielded with compiled version of term and current continuation
         // linear handlers like state can be pushed down, handled "in place"
-        // thus don't have to worry about variable slot movement
         case If0(num, is0, not0) =>
           val compiledNum = go(num, env, IsNotTail)
           val compiledIs0 = go(is0, env, isTail)
@@ -116,43 +128,70 @@ object Runtime {
       }
     }
 
-    def lookupVar(i: Int, e: Term): Rt = i match {
-      case 0 => new Arity1(e) {
-        override def apply(arg: D, argb: Rt, result: R): Unit = {
-          result.unboxed = arg
-          result.boxed = argb
-        }
-      }
-      case 1 => new Arity2(e) {
-        override def apply(x1: D, x2: Rt,
-                           arg: D, argb: Rt, result: R): Unit = {
-          result.unboxed = arg
-          result.boxed = argb
-        }
-      }
-      case 2 => new Arity3(e) {
-        override def apply(x1: D, x2: Rt, x3: D, x4: Rt,
-                           arg: D, argb: Rt, result: R): Unit = {
-          result.unboxed = arg
-          result.boxed = argb
-        }
-      }
-      case 3 => new Arity4(e) {
-        override def apply(x1: D, x2: Rt, x3: D, x4: Rt, x5: D, x6: Rt,
-                           arg: D, argb: Rt, result: R): Unit = {
-          result.unboxed = arg
-          result.boxed = argb
-        }
-      }
-      case i => new ArityN(i,e) {
-        override def apply(args: Array[Slot], result: R): Unit = {
-          result.boxed = args(i).boxed
-          result.unboxed = args(i).unboxed
-        }
-      }
-    }
     go(e, Vector(), IsTail)
   }
+
+  @inline
+  def eval0(rt: Rt, r: R): Unit = {
+    rt(r) // todo - interpret tail calls
+  }
+  @inline
+  def eval1(rt: Rt, x1: D, x2: Rt, r: R): Unit = {
+    rt(x1,x2,r) // todo - interpret tail calls
+  }
+  @inline
+  def eval2(rt: Rt, x1: D, x2: Rt, x3: D, x4: Rt, r: R): Unit = {
+    rt(x1,x2,x3,x4,r) // todo - interpret tail calls
+  }
+  @inline
+  def eval3(rt: Rt, x1: D, x2: Rt, x3: D, x4: Rt, x5: D, x6: Rt, r: R): Unit = {
+    rt(x1,x2,x3,x4,x5,x6,r) // todo - interpret tail calls
+  }
+  @inline
+  def eval4(rt: Rt, x1: D, x2: Rt, x3: D, x4: Rt, x5: D, x6: Rt, x7: D, x8: Rt, r: R): Unit = {
+    rt(x1,x2,x3,x4,x5,x6,x7,x8,r) // todo - interpret tail calls
+  }
+  @inline
+  def evalN(rt: Rt, args: Array[Slot], r: R): Unit = {
+    rt(args,r) // todo - interpret tail calls
+  }
+
+  def lookupVar(i: Int, e: Term): Rt = i match {
+    case 0 => new Arity1(e) {
+      override def apply(arg: D, argb: Rt, result: R): Unit = {
+        result.unboxed = arg
+        result.boxed = argb
+      }
+    }
+    case 1 => new Arity2(e) {
+      override def apply(x1: D, x2: Rt,
+                         arg: D, argb: Rt, result: R): Unit = {
+        result.unboxed = arg
+        result.boxed = argb
+      }
+    }
+    case 2 => new Arity3(e) {
+      override def apply(x1: D, x2: Rt, x3: D, x4: Rt,
+                         arg: D, argb: Rt, result: R): Unit = {
+        result.unboxed = arg
+        result.boxed = argb
+      }
+    }
+    case 3 => new Arity4(e) {
+      override def apply(x1: D, x2: Rt, x3: D, x4: Rt, x5: D, x6: Rt,
+                         arg: D, argb: Rt, result: R): Unit = {
+        result.unboxed = arg
+        result.boxed = argb
+      }
+    }
+    case i => new ArityN(i,e) {
+      override def apply(args: Array[Slot], result: R): Unit = {
+        result.boxed = args(i).boxed
+        result.unboxed = args(i).unboxed
+      }
+    }
+  }
+
   // for tail calls, don't check R.tailCall
   // for non-tail calls, check R.tailCall in a loop
 
