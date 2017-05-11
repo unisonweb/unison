@@ -8,6 +8,9 @@ object Term {
   type Name = String
   type Term = ABT.Term[F]
 
+  def freeVars(t: Term): Set[Name] = t.annotation
+  def freshen(v: Name, t: Term): Name = ABT.freshen(v, freeVars(t))
+
   sealed abstract class F[+R]
 
   object F {
@@ -19,8 +22,12 @@ object Term {
     case class LetRec_[R](bindings: List[R], body: R) extends F[R]
     case class Let_[R](binding: R, body: R) extends F[R]
     case class Rec_[R](r: R) extends F[R]
-    case class If_[R](condition: R, ifTrue: R, ifFalse: R) extends F[R]
-    // todo Yield
+    case class If0_[R](condition: R, ifTrue: R, ifFalse: R) extends F[R]
+    // yield : f a -> a|f
+    case class Yield_[R](effect: R) extends F[R]
+    // handle : (forall x . f x -> (x -> y|f+g) -> y|f+g) -> a|f+g -> a|g
+    case class Handle_[R](handler: R, block: R) extends F[R]
+
     // todo pattern matching
     // todo data constructors
 
@@ -39,9 +46,15 @@ object Term {
           val b2 = f(b); val body2 = f(body)
           Let_(b2, body2)
         case Rec_(a) => Rec_(f(a))
-        case If_(c,a,b) =>
+        case If0_(c,a,b) =>
           val c2 = f(c); val a2 = f(a); val b2 = f(b)
-          If_(c2, a2, b2)
+          If0_(c2, a2, b2)
+        case Handle_(h,b) =>
+          val h2 = f(h); val b2 = f(b)
+          Handle_(h2, b2)
+        case Yield_(e) =>
+          val e2 = f(e)
+          Yield_(e2)
       }
       def mapAccumulate[S,A,B](fa: F[A], s0: S)(g: (A,S) => (B,S)): (F[B], S) = {
         var s = s0
@@ -107,6 +120,21 @@ object Term {
     def unapply(t: Term) = ABT.Var.unapply(t)
   }
 
+  object Yield {
+    def unapply(t: Term): Option[Term] = t match {
+      case Tm(Yield_(t)) => Some(t)
+      case _ => None
+    }
+    def apply(t: Term): Term = Tm(Yield_(t))
+  }
+  object Handle {
+    def unapply(t: Term): Option[(Term,Term)] = t match {
+      case Tm(Handle_(handler, block)) => Some(handler -> block)
+      case _ => None
+    }
+    def apply(handler: Term, block: Term): Term = Tm(Handle_(handler, block))
+  }
+
   object LetRec {
     def apply(bs: (Name, Term)*)(body: Term): Term =
       Tm(Rec_(bs.map(_._1).foldRight(Tm(LetRec_(bs.map(_._2).toList, body)))((name,body) => Abs(name,body))))
@@ -132,13 +160,17 @@ object Term {
       go(List(), t)
     }
   }
-  object If {
-    def apply(cond: Term, t: Term, f: Term): Term =
-      Tm(If_(cond, t, f))
+  object If0 {
+    def apply(cond: Term, is0: Term, not0: Term): Term =
+      Tm(If0_(cond, is0, not0))
     def unapply(t: Term): Option[(Term,Term,Term)] = t match {
-      case Tm(If_(cond, t, f)) => Some((cond, t, f))
+      case Tm(If0_(cond, t, f)) => Some((cond, t, f))
     }
   }
 
   implicit def number(n: Double): Term = Num(n)
+
+  implicit class ApplySyntax(val fn: Term) extends AnyVal {
+    def apply(args: Term*) = Apply(fn, args: _*)
+  }
 }
