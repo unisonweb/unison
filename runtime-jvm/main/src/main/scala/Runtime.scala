@@ -61,10 +61,6 @@ object Runtime {
         }
         case Builtin(name) => builtins(name)
         case Num(n) => new Arity0(e) { def apply(r: R) = r.unboxed = n }
-        case Apply(fn, args) =>
-          val compiledFn = go(fn, env, IsNotTail)
-          val compiledArgs = args.map(go(_, env, IsNotTail)).toArray
-          sys.error("todo"): Rt
         case Apply(fn, List()) => go(fn, env, isTail)
         case Apply(fn, args) if Term.freeVars(fn).isEmpty =>
           val compiledArgs = args.view.map(go(_, env, IsNotTail)).toArray
