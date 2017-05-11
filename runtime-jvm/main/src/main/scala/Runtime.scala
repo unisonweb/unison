@@ -76,7 +76,7 @@ object Runtime {
           //   static call underapplied (form closure or specialize for applied args)
           def evaluatedCall(fn: Rt, args: Array[Rt]): Rt = {
             if (compiledFn.arity == compiledArgs.length) // `id 42`
-              FunctionApplication.staticFullySaturatedCall(compiledFn, compiledArgs, e)
+              FunctionApplication.staticFullySaturatedCall(compiledFn, compiledArgs, e, isTail)
             else if (compiledFn.arity > compiledArgs.length) // underapplication `(x y -> ..) 42`
               ???
             else // overapplication, `id id 42`
@@ -154,6 +154,26 @@ object Runtime {
   @inline
   def evalN(rt: Rt, args: Array[Slot], r: R): Unit = {
     rt(args,r) // todo - interpret tail calls
+  }
+  @inline
+  def tailCall(fn: Rt, x1: D, x1b: Rt, r: R): Unit = {
+    r.tailCall = fn; r.tailArgs = Array(Slot(x1,x1b))
+  }
+  @inline
+  def tailCall(fn: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, r: R): Unit = {
+    r.tailCall = fn; r.tailArgs = Array(Slot(x1,x1b),Slot(x2,x2b))
+  }
+  @inline
+  def tailCall(fn: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, r: R): Unit = {
+    r.tailCall = fn; r.tailArgs = Array(Slot(x1,x1b),Slot(x2,x2b),Slot(x3,x3b))
+  }
+  @inline
+  def tailCall(fn: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, x4: D, x4b: Rt, r: R): Unit = {
+    r.tailCall = fn; r.tailArgs = Array(Slot(x1,x1b),Slot(x2,x2b),Slot(x3,x3b),Slot(x4,x4b))
+  }
+  @inline
+  def tailCall(fn: Rt, args: Array[Slot], r: R): Unit = {
+    r.tailCall = fn; r.tailArgs = args
   }
 
   def lookupVar(i: Int, e: Term): Rt = i match {
