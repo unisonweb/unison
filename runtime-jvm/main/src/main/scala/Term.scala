@@ -13,6 +13,58 @@ object Term {
 
   sealed abstract class F[+R]
 
+  def lambdaLift(t: Term): Term = { 
+    def go(t: Term, env: List[Name], lifted: Map[Name, List[Name]]): Term = t match {
+      case Builtin(_) => t 
+      case Num(_) => t
+      case Apply(fn, args) => 
+        go(fn,env,lifted) match {
+          case Apply(fn2,args2) => Apply(fn2, args2 ++ args.map(go(_,env,lifted)): _*)
+          case fn => Apply(fn, args.map(go(_,env,lifted)): _*) 
+        }
+      case If0(n, t, f) => If0(go(n,env,lifted), go(t,env,lifted), go(f,env,lifted))
+      case Yield(e) => Yield(go(e,env,lifted))
+      case Handle(h, b) => Handle(go(h,env,lifted), go(b,env,lifted))
+      case Lam1(name, body) => Lam1(name)(go(body, name :: env, lifted - name))
+      case Let1(name,binding,body) => 
+        if ((freeVars(binding)).isEmpty) 
+          Let1(name, go(binding, env, lifted))(go(body, name :: env, lifted))
+        else {
+          val fvs = orderVars(freeVars(binding), env) 
+          val binding2 = Lam(fvs: _*)(go(binding, env, lifted))
+          Let1(name, binding2)(go(body, name :: env, lifted + (name -> fvs)))
+        }
+      case v@Var(name) => lifted.get(name) match {
+        case None => v 
+        case Some(fvs) => Apply(v, (fvs.map(Var(_))): _*) 
+      }
+      case LetRec(bindings, body) => 
+        val locallyBound = bindings.map(_._1)
+        val env2 = locallyBound ++ env
+        if (freeVars(t).isEmpty) {
+          val bs2 = bindings.map { case (name,b) => (name, go(b, env2, lifted)) }
+          LetRec(bs2: _*)(go(body, env2, lifted))
+        }
+        else {
+          val lifted2 = bindings.foldLeft(lifted) { (lifted,b) => 
+            val fvs = freeVars(b._2) -- locallyBound
+            if (fvs.isEmpty) lifted 
+            else lifted + (b._1 -> orderVars(fvs, env))
+          }
+          val bs2 = bindings.map { case (name,b) => 
+            lifted.get(name) match {
+              case None => (name, go(b, env2, lifted2))
+              case Some(fvs) => (name, Lam(fvs: _*)(go(b, env2, lifted2)))
+            }
+          }
+          LetRec(bs2: _*)(go(body, env2, lifted2))
+        }
+    }
+    def orderVars(names: Set[Name], env: List[Name]): List[Name] = 
+      names.toList.map(name => (name, -env.indexOf(name))).sortBy(_._2).map(_._1)
+    go(t, List(), Map())
+  }
+  
   object F {
 
     case class Lam_[R](body: R) extends F[R]
@@ -117,7 +169,7 @@ object Term {
 
   object Var {
     def apply(n: Name): Term = ABT.Var(n)
-    def unapply(t: Term) = ABT.Var.unapply(t)
+    def unapply(t: Term): Option[Name] = ABT.Var.unapply(t)
   }
 
   object Yield {
@@ -148,6 +200,10 @@ object Term {
   object Let1 {
     def apply(name: Name, binding: Term)(body: Term): Term =
       Tm(Let_(binding, Abs(name, body)))
+    def unapply(t: Term): Option[(Name,Term,Term)] = t match {
+      case Tm(Let_(binding, Abs(name, body))) => Some((name,binding,body)) 
+      case _ => None
+    }
   }
   object Let {
     def apply(bs: (Name,Term)*)(body: Term): Term =
@@ -165,6 +221,7 @@ object Term {
       Tm(If0_(cond, is0, not0))
     def unapply(t: Term): Option[(Term,Term,Term)] = t match {
       case Tm(If0_(cond, t, f)) => Some((cond, t, f))
+      case _ => None
     }
   }
 
