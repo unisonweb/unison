@@ -79,7 +79,20 @@ object Runtime {
               ???
           }
           if (compiledFn.isEvaluated) evaluatedCall(compiledFn, compiledArgs)
-          else ???
+          else { // first evaluate, then do evaluatedCall
+            val arity = compiledArgs.view.map(_.arity).max
+            (arity: @annotation.switch) match {
+              case 0 => new Arity0(e) { def apply(r: R) = {
+                eval0(compiledFn, r)
+                val fn = r.boxed
+                evaluatedCall(fn, compiledArgs)(r) // todo - eh, this allocates an Rt
+              }}
+              case 1 => ???
+              case 2 => ???
+              case 4 => ???
+              case n => ???
+            }
+          }
         // non tail-calls need to catch `Yielded` and add to continuation
         // case Handle(handler, block) => just catches Yielded exception in a loop, calls apply1
         // case Yield(term) => throws Yielded with compiled version of term and current continuation
