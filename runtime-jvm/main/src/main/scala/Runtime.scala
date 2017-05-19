@@ -8,27 +8,37 @@ abstract class Runtime {
   /** The arity of this compiled expression:
    *    0 if a constant, 1 if unary function, etc. */
   def arity: Int
+
   def isEvaluated: Boolean = false
 
   def apply(result: R): Unit
+
   def apply(arg1: D, arg1b: Rt,
             result: R): Unit
+
   def apply(arg1: D, arg1b: Rt,
             arg2: D, arg2b: Rt,
             result: R): Unit
+
   def apply(arg1: D, arg1b: Rt,
             arg2: D, arg2b: Rt,
             arg3: D, arg3b: Rt,
             result: R): Unit
+
   def apply(arg1: D, arg1b: Rt,
             arg2: D, arg2b: Rt,
             arg3: D, arg3b: Rt,
             arg4: D, arg4b: Rt,
             result: R): Unit
+
   def apply(args: Array[Slot],
             result: R): Unit
 
-  def decompile: Term
+  def freeVarsUnderLambda: Set[Name] = ???
+
+  def bind(env: Map[Name, Rt]): Unit = ???
+
+  def decompile: TermC
 }
 
 object Runtime {
@@ -36,6 +46,7 @@ object Runtime {
   type D = Double
   type Rt = Runtime
   type R = Result
+  type TermC = ABT.AnnotatedTerm[Term.F, (Set[Name], Vector[Name])]
 
   import Term._
 
@@ -53,91 +64,129 @@ object Runtime {
   val IsNotTail = false
 
   def compile(builtins: String => Rt)(e: Term): Rt = {
-    def go(e: Term, env: Vector[Name], isTail: Boolean): Rt = {
+
+    def env(t: TermC): Vector[Name] = t.annotation._2
+    def freeVars(t: TermC): Set[Name] = t.annotation._1
+
+    def go(e: TermC, boundByCurrentLambda: Option[Set[Name]], isTail: Boolean): Rt = {
       e match {
-        case Var(name) => env.indexOf(name) match {
-          case -1 => sys.error("unknown variable: " + name)
-          case i => lookupVar(i, e)
-        }
-        case Builtin(name) => builtins(name)
         case Num(n) => new Arity0(e) { def apply(r: R) = r.unboxed = n }
-        case Apply(fn, List()) => go(fn, env, isTail)
-        case Apply(fn, args) if Term.freeVars(fn).isEmpty =>
-          val compiledArgs = args.view.map(go(_, env, IsNotTail)).toArray
-          val compiledFn = go(fn, Vector(), IsNotTail)
-          // 4 cases:
-          //   dynamic call (first eval, to obtain function of known arity, then apply)
-          //   static call fully saturated (apply directly)
-          //   static call overapplied (apply to correct arity, then tail call with remaining args)
-          //   static call underapplied (form closure or specialize for applied args)
-          def evaluatedCall(fn: Rt, args: Array[Rt]): Rt = {
-            if (compiledFn.arity == compiledArgs.length) // `id 42`
-              FunctionApplication.staticFullySaturatedCall(compiledFn, compiledArgs, e, isTail)
-            else if (compiledFn.arity > compiledArgs.length) // underapplication `(x y -> ..) 42`
-              ???
-            else // overapplication, `id id 42`
-              ???
-          }
-          if (compiledFn.isEvaluated) evaluatedCall(compiledFn, compiledArgs)
-          else { // first evaluate, then do evaluatedCall
-            val arity = compiledArgs.view.map(_.arity).max
-            (arity: @annotation.switch) match {
-              case 0 => new Arity0(e) { def apply(r: R) = {
-                eval0(compiledFn, r)
-                val fn = r.boxed
-                evaluatedCall(fn, compiledArgs)(r) // todo - eh, this allocates an Rt
-              }}
-              case 1 => ???
-              case 2 => ???
-              case 4 => ???
-              case n => ???
+        case Builtin(name) => builtins(name)
+        case Var(name) => boundByCurrentLambda match {
+          // if we're under a lambda, and the variable is bound outside the lambda,
+          // we keep it as an unbound variable, to be bound later
+          case Some(bound) if !bound.contains(name) =>
+            new Arity0(e) {
+              var rt: Rt = null
+              def apply(r: R) = rt(r)
+              override val freeVarsUnderLambda = Set(name)
+              override def bind(env: Map[Name,Rt]) = env.get(name) match {
+                case Some(rt2) => rt = rt2
+                case _ => ()
+              }
             }
-          }
-        // non tail-calls need to catch `Yielded` and add to continuation
-        // case Handle(handler, block) => just catches Yielded exception in a loop, calls apply1
-        // case Yield(term) => throws Yielded with compiled version of term and current continuation
-        // linear handlers like state can be pushed down, handled "in place"
-        case If0(num, is0, not0) =>
-          val compiledNum = go(num, env, IsNotTail)
-          val compiledIs0 = go(is0, env, isTail)
-          val compiledNot0 = go(not0, env, isTail)
-          val arity = compiledNum.arity max compiledIs0.arity max compiledNot0.arity
-          (arity: @annotation.switch) match {
-            case 0 => new Arity0(e) { def apply(r: R) = {
-              compiledNum(r)
-              if (r.unboxed == 0.0) compiledIs0(r)
-              else compiledNot0(r)
-            }}
-            case 1 => new Arity1(e) { def apply(x1: D, x2: Rt, r: R) = {
-              compiledNum(x1,x2,r)
-              if (r.unboxed == 0.0) compiledIs0(x1,x2,r)
-              else compiledNot0(x1,x2,r)
-            }}
-            case 2 => new Arity2(e) { def apply(x1: D, x2: Rt, x3: D, x4: Rt, r: R) = {
-              compiledNum(x1,x2,x3,x4,r)
-              if (r.unboxed == 0.0) compiledIs0(x1,x2,x3,x4,r)
-              else compiledNot0(x1,x2,x3,x4,r)
-            }}
-            case 3 => new Arity3(e) { def apply(x1: D, x2: Rt, x3: D, x4: Rt, x5: D, x6: Rt, r: R) = {
-              compiledNum(x1,x2,x3,x4,x5,x6,r)
-              if (r.unboxed == 0.0) compiledIs0(x1,x2,x3,x4,x5,x6,r)
-              else compiledNot0(x1,x2,x3,x4,x5,x6,r)
-            }}
-            case 4 => new Arity4(e) { def apply(x1: D, x2: Rt, x3: D, x4: Rt, x5: D, x6: Rt, x7: D, x8: Rt, r: R) = {
-              compiledNum(x1,x2,x3,x4,x5,x6,x7,x8,r)
-              if (r.unboxed == 0.0) compiledIs0(x1,x2,x3,x4,x5,x6,x7,x8,r)
-              else compiledNot0(x1,x2,x3,x4,x5,x6,x7,x8,r)
-            }}
-            case i => new ArityN(i, e) { def apply(args: Array[Slot], r: R) = {
-              compiledNum(args,r)
-              if (r.unboxed == 0.0) compiledIs0(args,r)
-              else compiledNot0(args,r)
-            }}
-          }
+          case _ => // either not under lambda, or bound locally; compile normally by pulling from env
+            env(e).indexOf(name) match {
+              case -1 => sys.error("unknown variable: " + name)
+              case i => lookupVar(i, e)
+            }
+        }
+        case Lam(names, body) => ???
+        // case Lam1(name, body) => ???
+        //case Lam(names, body) =>
+        //  // x -> (x -> 42), want the inner x to be looked up for "x" var
+        //  // hence the .reverse
+        //  // fac n = <body>
+        //  val compiledBody = go(body, names.reverse.toVector ++ env, IsNotTail)
+        //  val freeVarsUnderLamda = Term.freeVars(e)
+        //  val bind =
+        //  compiledBody.arity match {
+        //    case 0 =
+
+        //  }
+        //  ???
+        //  // let
+        //  //   incr x = x + 1
+        //  //   increments xs = map (x -> incr x) xs
+
+        // todo: finish Apply, Lambda, Let, LetRec
+        //case Apply(fn, List()) => go(fn, env, isTail)
+        //case Apply(fn, args) if Term.freeVars(fn).isEmpty =>
+        //  val compiledArgs = args.view.map(go(_, env, IsNotTail)).toArray
+        //  val compiledFn = go(fn, Vector(), IsNotTail)
+        //  // 4 cases:
+        //  //   dynamic call (first eval, to obtain function of known arity, then apply)
+        //  //   static call fully saturated (apply directly)
+        //  //   static call overapplied (apply to correct arity, then tail call with remaining args)
+        //  //   static call underapplied (form closure or specialize for applied args)
+        //  def evaluatedCall(fn: Rt, args: Array[Rt]): Rt = {
+        //    if (compiledFn.arity == compiledArgs.length) // `id 42`
+        //      FunctionApplication.staticFullySaturatedCall(compiledFn, compiledArgs, e, isTail)
+        //    else if (compiledFn.arity > compiledArgs.length) // underapplication `(x y -> ..) 42`
+        //      ???
+        //    else // overapplication, `id id 42`
+        //      ???
+        //  }
+        //  if (compiledFn.isEvaluated) evaluatedCall(compiledFn, compiledArgs)
+        //  else { // first evaluate, then do evaluatedCall
+        //    val arity = compiledArgs.view.map(_.arity).max
+        //    (arity: @annotation.switch) match {
+        //      case 0 => new Arity0(e) { def apply(r: R) = {
+        //        eval0(compiledFn, r)
+        //        val fn = r.boxed
+        //        evaluatedCall(fn, compiledArgs)(r) // todo - eh, this allocates an Rt
+        //      }}
+        //      case 1 => ???
+        //      case 2 => ???
+        //      case 4 => ???
+        //      case n => ???
+        //    }
+        //  }
+        //// non tail-calls need to catch `Yielded` and add to continuation
+        //// case Handle(handler, block) => just catches Yielded exception in a loop, calls apply1
+        //// case Yield(term) => throws Yielded with compiled version of term and current continuation
+        //// linear handlers like state can be pushed down, handled "in place"
+        //case If0(num, is0, not0) =>
+        //  val compiledNum = go(num, env, IsNotTail)
+        //  val compiledIs0 = go(is0, env, isTail)
+        //  val compiledNot0 = go(not0, env, isTail)
+        //  val arity = compiledNum.arity max compiledIs0.arity max compiledNot0.arity
+        //  (arity: @annotation.switch) match {
+        //    case 0 => new Arity0(e) { def apply(r: R) = {
+        //      compiledNum(r)
+        //      if (r.unboxed == 0.0) compiledIs0(r)
+        //      else compiledNot0(r)
+        //    }}
+        //    case 1 => new Arity1(e) { def apply(x1: D, x2: Rt, r: R) = {
+        //      compiledNum(x1,x2,r)
+        //      if (r.unboxed == 0.0) compiledIs0(x1,x2,r)
+        //      else compiledNot0(x1,x2,r)
+        //    }}
+        //    case 2 => new Arity2(e) { def apply(x1: D, x2: Rt, x3: D, x4: Rt, r: R) = {
+        //      compiledNum(x1,x2,x3,x4,r)
+        //      if (r.unboxed == 0.0) compiledIs0(x1,x2,x3,x4,r)
+        //      else compiledNot0(x1,x2,x3,x4,r)
+        //    }}
+        //    case 3 => new Arity3(e) { def apply(x1: D, x2: Rt, x3: D, x4: Rt, x5: D, x6: Rt, r: R) = {
+        //      compiledNum(x1,x2,x3,x4,x5,x6,r)
+        //      if (r.unboxed == 0.0) compiledIs0(x1,x2,x3,x4,x5,x6,r)
+        //      else compiledNot0(x1,x2,x3,x4,x5,x6,r)
+        //    }}
+        //    case 4 => new Arity4(e) { def apply(x1: D, x2: Rt, x3: D, x4: Rt, x5: D, x6: Rt, x7: D, x8: Rt, r: R) = {
+        //      compiledNum(x1,x2,x3,x4,x5,x6,x7,x8,r)
+        //      if (r.unboxed == 0.0) compiledIs0(x1,x2,x3,x4,x5,x6,x7,x8,r)
+        //      else compiledNot0(x1,x2,x3,x4,x5,x6,x7,x8,r)
+        //    }}
+        //    case i => new ArityN(i, e) { def apply(args: Array[Slot], r: R) = {
+        //      compiledNum(args,r)
+        //      if (r.unboxed == 0.0) compiledIs0(args,r)
+        //      else compiledNot0(args,r)
+        //    }}
+        //  }
       }
     }
 
-    go(e, Vector(), IsTail)
+    go(ABT.annotateBound(e), None, IsTail)
   }
 
   @inline
@@ -185,7 +234,7 @@ object Runtime {
     r.tailCall = fn; r.tailArgs = args
   }
 
-  def lookupVar(i: Int, e: Term): Rt = i match {
+  def lookupVar(i: Int, e: TermC): Rt = i match {
     case 0 => new Arity1(e) {
       override def apply(arg: D, argb: Rt, result: R): Unit = {
         result.unboxed = arg
@@ -224,7 +273,7 @@ object Runtime {
   // for tail calls, don't check R.tailCall
   // for non-tail calls, check R.tailCall in a loop
 
-  abstract class Arity0(val decompile: Term) extends Runtime {
+  abstract class Arity0(val decompile: TermC) extends Runtime {
     def arity: Int = 0
     def apply(result: R): Unit
     def apply(arg1: D, arg1b: Rt,
@@ -245,7 +294,7 @@ object Runtime {
               result: R): Unit = apply(result)
   }
 
-  abstract class Arity1(val decompile: Term) extends Runtime {
+  abstract class Arity1(val decompile: TermC) extends Runtime {
     def arity: Int = 1
     def apply(result: R): Unit = result.boxed = this
     def apply(arg1: D, arg1b: Rt,
@@ -266,7 +315,7 @@ object Runtime {
               result: R): Unit = apply(args(0).unboxed, args(0).boxed, result)
   }
 
-  abstract class Arity2(val decompile: Term) extends Runtime {
+  abstract class Arity2(val decompile: TermC) extends Runtime {
     def arity: Int = 2
     def apply(result: R): Unit = result.boxed = this
     def apply(arg1: D, arg1b: Rt,
@@ -287,7 +336,7 @@ object Runtime {
               result: R): Unit = apply(args(0).unboxed, args(0).boxed, args(1).unboxed, args(1).boxed, result)
   }
 
-  abstract class Arity3(val decompile: Term) extends Runtime {
+  abstract class Arity3(val decompile: TermC) extends Runtime {
     def arity: Int = 3
     def apply(result: R): Unit = result.boxed = this
     def apply(arg1: D, arg1b: Rt,
@@ -311,7 +360,7 @@ object Runtime {
                     args(2).unboxed, args(2).boxed, result)
   }
 
-  abstract class Arity4(val decompile: Term) extends Runtime {
+  abstract class Arity4(val decompile: TermC) extends Runtime {
     def arity: Int = 4
     def apply(result: R): Unit = result.boxed = this
     def apply(arg1: D, arg1b: Rt,
@@ -337,7 +386,7 @@ object Runtime {
                     result)
   }
 
-  abstract class ArityN(val arity: Int, val decompile: Term) extends Runtime {
+  abstract class ArityN(val arity: Int, val decompile: TermC) extends Runtime {
     def apply(result: R): Unit = result.boxed = this
     def apply(arg1: D, arg1b: Rt,
               result: R): Unit = sys.error("partially apply arity N")

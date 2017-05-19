@@ -1,16 +1,15 @@
 package org.unisonweb
 
 import Runtime._
-import Term.Term
 import annotation.switch
 
 object FunctionApplication {
 
-  def staticFullySaturatedCall(fn: Rt, args: Array[Rt], decompile: Term, isTail: Boolean): Rt =
+  def staticFullySaturatedCall(fn: Rt, args: Array[Rt], decompile: TermC, isTail: Boolean): Rt =
     if (isTail) staticFullySaturatedTailCall(fn, args, decompile)
     else staticFullySaturatedNonTailCall(fn, args, decompile)
 
-  def staticFullySaturatedTailCall(fn: Rt, args: Array[Rt], decompile: Term): Rt = {
+  def staticFullySaturatedTailCall(fn: Rt, args: Array[Rt], decompile: TermC): Rt = {
     val arity = args.map(_.arity).max
     (arity: @switch) match {
       case 0 => (args.length: @switch) match {
@@ -322,7 +321,7 @@ object FunctionApplication {
     }
   }
 
-  def staticFullySaturatedNonTailCall(fn: Rt, args: Array[Rt], decompile: Term): Rt = {
+  def staticFullySaturatedNonTailCall(fn: Rt, args: Array[Rt], decompile: TermC): Rt = {
     val arity = args.map(_.arity).max
     (arity: @switch) match {
       case 0 => (args.length: @switch) match {
