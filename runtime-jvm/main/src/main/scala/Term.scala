@@ -1,7 +1,7 @@
 package org.unisonweb
 
 import org.unisonweb.util.Traverse
-import ABT.{Tm,Abs}
+import ABT.{Tm,Abs,AnnotatedTerm}
 
 object Term {
 
@@ -13,32 +13,32 @@ object Term {
 
   sealed abstract class F[+R]
 
-  def lambdaLift(t: Term): Term = { 
+  def lambdaLift(t: Term): Term = {
     def go(t: Term, env: List[Name], lifted: Map[Name, List[Name]]): Term = t match {
-      case Builtin(_) => t 
+      case Builtin(_) => t
       case Num(_) => t
-      case Apply(fn, args) => 
+      case Apply(fn, args) =>
         go(fn,env,lifted) match {
           case Apply(fn2,args2) => Apply(fn2, args2 ++ args.map(go(_,env,lifted)): _*)
-          case fn => Apply(fn, args.map(go(_,env,lifted)): _*) 
+          case fn => Apply(fn, args.map(go(_,env,lifted)): _*)
         }
       case If0(n, t, f) => If0(go(n,env,lifted), go(t,env,lifted), go(f,env,lifted))
       case Yield(e) => Yield(go(e,env,lifted))
       case Handle(h, b) => Handle(go(h,env,lifted), go(b,env,lifted))
       case Lam1(name, body) => Lam1(name)(go(body, name :: env, lifted - name))
-      case Let1(name,binding,body) => 
-        if ((freeVars(binding)).isEmpty) 
+      case Let1(name,binding,body) =>
+        if ((freeVars(binding)).isEmpty)
           Let1(name, go(binding, env, lifted))(go(body, name :: env, lifted))
         else {
-          val fvs = orderVars(freeVars(binding), env) 
+          val fvs = orderVars(freeVars(binding), env)
           val binding2 = Lam(fvs: _*)(go(binding, env, lifted))
           Let1(name, binding2)(go(body, name :: env, lifted + (name -> fvs)))
         }
       case v@Var(name) => lifted.get(name) match {
-        case None => v 
-        case Some(fvs) => Apply(v, (fvs.map(Var(_))): _*) 
+        case None => v
+        case Some(fvs) => Apply(v, (fvs.map(Var(_))): _*)
       }
-      case LetRec(bindings, body) => 
+      case LetRec(bindings, body) =>
         val locallyBound = bindings.map(_._1)
         val env2 = locallyBound ++ env
         if (freeVars(t).isEmpty) {
@@ -46,12 +46,12 @@ object Term {
           LetRec(bs2: _*)(go(body, env2, lifted))
         }
         else {
-          val lifted2 = bindings.foldLeft(lifted) { (lifted,b) => 
+          val lifted2 = bindings.foldLeft(lifted) { (lifted,b) =>
             val fvs = freeVars(b._2) -- locallyBound
-            if (fvs.isEmpty) lifted 
+            if (fvs.isEmpty) lifted
             else lifted + (b._1 -> orderVars(fvs, env))
           }
-          val bs2 = bindings.map { case (name,b) => 
+          val bs2 = bindings.map { case (name,b) =>
             lifted.get(name) match {
               case None => (name, go(b, env2, lifted2))
               case Some(fvs) => (name, Lam(fvs: _*)(go(b, env2, lifted2)))
@@ -60,11 +60,11 @@ object Term {
           LetRec(bs2: _*)(go(body, env2, lifted2))
         }
     }
-    def orderVars(names: Set[Name], env: List[Name]): List[Name] = 
+    def orderVars(names: Set[Name], env: List[Name]): List[Name] =
       names.toList.map(name => (name, -env.indexOf(name))).sortBy(_._2).map(_._1)
     go(t, List(), Map())
   }
-  
+
   object F {
 
     case class Lam_[R](body: R) extends F[R]
@@ -120,7 +120,7 @@ object Term {
 
   // smart patterns and constructors
   object Lam1 {
-    def unapply(t: Term): Option[(Name,Term)] = t match {
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[(Name,AnnotatedTerm[F,A])] = t match {
       case Tm(Lam_(ABT.Abs(name, body))) => Some((name, body))
       case _ => None
     }
@@ -132,8 +132,8 @@ object Term {
     def apply(names: Name*)(body: Term): Term =
       names.foldRight(body)((name,body) => Lam1(name)(body))
 
-    def unapply(t: Term): Option[(List[Name], Term)] = {
-      def go(acc: List[Name], t: Term): Option[(List[Name], Term)] = t match {
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[(List[Name], AnnotatedTerm[F,A])] = {
+      def go(acc: List[Name], t: AnnotatedTerm[F,A]): Option[(List[Name], AnnotatedTerm[F,A])] = t match {
         case Lam1(n, t) => go(n :: acc, t)
         case _ if acc.isEmpty => None
         case _ => Some(acc.reverse -> t)
@@ -144,7 +144,7 @@ object Term {
 
   object Builtin {
     def apply(n: Name): Term = Tm(Builtin_(n))
-    def unapply(t: Term): Option[Name] = t match {
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[Name] = t match {
       case Tm(Builtin_(n)) => Some(n)
       case _ => None
     }
@@ -152,14 +152,14 @@ object Term {
 
   object Num {
     def apply(n: Double): Term = Tm(Num_(n))
-    def unapply(t: Term): Option[Double] = t match {
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[Double] = t match {
       case Tm(Num_(n)) => Some(n)
       case _ => None
     }
   }
 
   object Apply {
-    def unapply(t: Term): Option[(Term, List[Term])] = t match {
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[(AnnotatedTerm[F,A], List[AnnotatedTerm[F,A]])] = t match {
       case Tm(Apply_(f, args)) => Some((f, args))
       case _ => None
     }
@@ -169,18 +169,18 @@ object Term {
 
   object Var {
     def apply(n: Name): Term = ABT.Var(n)
-    def unapply(t: Term): Option[Name] = ABT.Var.unapply(t)
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[Name] = ABT.Var.unapply(t)
   }
 
   object Yield {
-    def unapply(t: Term): Option[Term] = t match {
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[AnnotatedTerm[F,A]] = t match {
       case Tm(Yield_(t)) => Some(t)
       case _ => None
     }
     def apply(t: Term): Term = Tm(Yield_(t))
   }
   object Handle {
-    def unapply(t: Term): Option[(Term,Term)] = t match {
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[(AnnotatedTerm[F,A],AnnotatedTerm[F,A])] = t match {
       case Tm(Handle_(handler, block)) => Some(handler -> block)
       case _ => None
     }
@@ -190,7 +190,7 @@ object Term {
   object LetRec {
     def apply(bs: (Name, Term)*)(body: Term): Term =
       Tm(Rec_(bs.map(_._1).foldRight(Tm(LetRec_(bs.map(_._2).toList, body)))((name,body) => Abs(name,body))))
-    def unapply(t: Term): Option[(List[(Name,Term)], Term)] = t match {
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[(List[(Name,AnnotatedTerm[F,A])], AnnotatedTerm[F,A])] = t match {
       case Tm(Rec_(ABT.AbsChain(names, Tm(LetRec_(bindings, body))))) =>
         Some((names zip bindings, body))
       case _ => None
@@ -200,26 +200,27 @@ object Term {
   object Let1 {
     def apply(name: Name, binding: Term)(body: Term): Term =
       Tm(Let_(binding, Abs(name, body)))
-    def unapply(t: Term): Option[(Name,Term,Term)] = t match {
-      case Tm(Let_(binding, Abs(name, body))) => Some((name,binding,body)) 
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[(Name,AnnotatedTerm[F,A],AnnotatedTerm[F,A])] = t match {
+      case Tm(Let_(binding, Abs(name, body))) => Some((name,binding,body))
       case _ => None
     }
   }
   object Let {
     def apply(bs: (Name,Term)*)(body: Term): Term =
       bs.foldRight(body)((b,body) => Let1(b._1, b._2)(body))
-    def unapply(t: Term): Option[(List[(Name,Term)], Term)] = {
-      def go(bs: List[(Name,Term)], t: Term): Option[(List[(Name,Term)], Term)] = t match {
-        case Tm(Let_(binding, Abs(name, body))) => go((name,binding) :: bs, body)
-        case _ => if (bs.isEmpty) None else Some((bs.reverse, t))
-      }
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[(List[(Name,AnnotatedTerm[F,A])], AnnotatedTerm[F,A])] = {
+      def go(bs: List[(Name,AnnotatedTerm[F,A])], t: AnnotatedTerm[F,A])
+        : Option[(List[(Name,AnnotatedTerm[F,A])], AnnotatedTerm[F,A])] = t match {
+          case Tm(Let_(binding, Abs(name, body))) => go((name,binding) :: bs, body)
+          case _ => if (bs.isEmpty) None else Some((bs.reverse, t))
+        }
       go(List(), t)
     }
   }
   object If0 {
     def apply(cond: Term, is0: Term, not0: Term): Term =
       Tm(If0_(cond, is0, not0))
-    def unapply(t: Term): Option[(Term,Term,Term)] = t match {
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[(AnnotatedTerm[F,A],AnnotatedTerm[F,A],AnnotatedTerm[F,A])] = t match {
       case Tm(If0_(cond, t, f)) => Some((cond, t, f))
       case _ => None
     }

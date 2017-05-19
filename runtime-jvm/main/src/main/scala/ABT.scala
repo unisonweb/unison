@@ -24,6 +24,19 @@ object ABT {
   }
   type Term[F[+_]] = AnnotatedTerm[F,Set[Name]]
 
+  /**
+   * Annotate an ABT with the ordered vector of bound variables available at each subtree.
+   * The first element of the `Vector[Name]` is the innermost bound variable.
+   */
+  def annotateBound[F[+_],A](self: AnnotatedTerm[F,A])(implicit F: Traverse[F]): AnnotatedTerm[F,(A,Vector[Name])] = {
+    def go(self: AnnotatedTerm[F,A], env: Vector[Name]): AnnotatedTerm[F,(A,Vector[Name])] = self match {
+      case Var(n) => AnnotatedTerm(self.annotation -> env, Var_(n))
+      case Tm(f) => AnnotatedTerm(self.annotation -> env, Tm_(F.map(f)(go(_,env))))
+      case Abs(name, body) => AnnotatedTerm(self.annotation -> env, Abs_(name, go(body, name +: env)))
+    }
+    go(self, Vector())
+  }
+
   def rename[F[+_]](from: Name, to: Name)(self: Term[F])(implicit F: Traverse[F]): Term[F] =
     if (!self.annotation.contains(from)) self
     else self match {
@@ -63,7 +76,7 @@ object ABT {
     }
 
   object Var {
-    def unapply[F[+_]](t: Term[F]) = t.get match {
+    def unapply[F[+_],A](t: AnnotatedTerm[F,A]): Option[Name] = t.get match {
       case Var_(name) => Some(name)
       case _ => None
     }
@@ -71,7 +84,7 @@ object ABT {
   }
 
   object Tm {
-    def unapply[F[+_]](t: Term[F]) = t.get match {
+    def unapply[F[+_],A](t: AnnotatedTerm[F,A]): Option[F[AnnotatedTerm[F,A]]] = t.get match {
       case Tm_(f) => Some(f)
       case _ => None
     }
@@ -82,7 +95,7 @@ object ABT {
   }
 
   object Abs {
-    def unapply[F[+_]](t: Term[F]): Option[(Name, Term[F])] = t.get match {
+    def unapply[F[+_],A](t: AnnotatedTerm[F,A]): Option[(Name, AnnotatedTerm[F,A])] = t.get match {
       case Abs_(name, body) => Some((name, body))
       case _ => None
     }
@@ -92,8 +105,8 @@ object ABT {
   }
 
   object AbsChain {
-    def unapply[F[+_]](t: Term[F]): Option[(List[Name], Term[F])] = {
-      def go(names: List[Name], t: Term[F]): Option[(List[Name], Term[F])] = t match {
+    def unapply[F[+_],A](t: AnnotatedTerm[F,A]): Option[(List[Name], AnnotatedTerm[F,A])] = {
+      def go(names: List[Name], t: AnnotatedTerm[F,A]): Option[(List[Name], AnnotatedTerm[F,A])] = t match {
         case Abs(name, body) => go(name :: names, body)
         case _ => if (names.isEmpty) None else Some((names.reverse, t))
       }
