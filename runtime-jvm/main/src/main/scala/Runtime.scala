@@ -79,7 +79,7 @@ object Runtime {
             new Arity0(e) {
               var rt: Rt = null
               def apply(r: R) = rt(r)
-              override val freeVarsUnderLambda = Set(name)
+              override val freeVarsUnderLambda = if (rt eq null) Set(name) else Set()
               override def bind(env: Map[Name,Rt]) = env.get(name) match {
                 case Some(rt2) => rt = rt2
                 case _ => ()
@@ -91,24 +91,28 @@ object Runtime {
               case i => lookupVar(i, e)
             }
         }
-        case Lam(names, body) => ???
-        // case Lam1(name, body) => ???
-        //case Lam(names, body) =>
-        //  // x -> (x -> 42), want the inner x to be looked up for "x" var
-        //  // hence the .reverse
-        //  // fac n = <body>
-        //  val compiledBody = go(body, names.reverse.toVector ++ env, IsNotTail)
-        //  val freeVarsUnderLamda = Term.freeVars(e)
-        //  val bind =
-        //  compiledBody.arity match {
-        //    case 0 =
-
-        //  }
-        //  ???
-        //  // let
-        //  //   incr x = x + 1
-        //  //   increments xs = map (x -> incr x) xs
-
+        case Lam(names, body) =>
+          val compiledBody = go(body, Some(names.toSet), IsTail)
+          if (compiledBody.freeVarsUnderLambda.isEmpty) names.length match {
+            case 1 => new Arity1(e) { def apply(x1: D, x1b: Rt, r: R) = compiledBody(x1, x1b, r); override def isEvaluated = true }
+            case 2 => new Arity2(e) { def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = compiledBody(x1, x1b, x2, x2b, r); override def isEvaluated = true }
+            case 3 => new Arity3(e) { def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, r: R) = compiledBody(x1, x1b, x2, x2b, x3, x3b, r); override def isEvaluated = true }
+            case 4 => new Arity4(e) { def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, x4: D, x4b: Rt, r: R) = compiledBody(x1, x1b, x2, x2b, x3, x3b, x4, x4b, r); override def isEvaluated = true }
+            case n => new ArityN(n, e) { def apply(xs: Array[Slot], r: R) = compiledBody(xs, r); override def isEvaluated = true }
+          }
+          else {
+            trait L { self: Rt =>
+              override def isEvaluated = compiledBody.freeVarsUnderLambda.isEmpty
+              override def bind(env: Map[Name,Rt]) = compiledBody.bind(env)
+            }
+            names.length match {
+              case 1 => new Arity1(e) with L { def apply(x1: D, x1b: Rt, r: R) = compiledBody(x1, x1b, r) }
+              case 2 => new Arity2(e) with L { def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = compiledBody(x1, x1b, x2, x2b, r) }
+              case 3 => new Arity3(e) with L { def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, r: R) = compiledBody(x1, x1b, x2, x2b, x3, x3b, r) }
+              case 4 => new Arity4(e) with L { def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, x4: D, x4b: Rt, r: R) = compiledBody(x1, x1b, x2, x2b, x3, x3b, x4, x4b, r) }
+              case n => new ArityN(n, e) with L { def apply(xs: Array[Slot], r: R) = compiledBody(xs, r) }
+            }
+          }
         // todo: finish Apply, Lambda, Let, LetRec
         //case Apply(fn, List()) => go(fn, env, isTail)
         //case Apply(fn, args) if Term.freeVars(fn).isEmpty =>
