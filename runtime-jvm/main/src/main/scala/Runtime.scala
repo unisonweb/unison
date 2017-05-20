@@ -109,7 +109,7 @@ object Runtime {
           case _ => // either not under lambda, or bound locally; compile normally by pulling from env
             env(e).indexOf(name) match {
               case -1 => sys.error("unknown variable: " + name)
-              case i => lookupVar(i, e)
+              case i => lookupVar(i, unTermC(e))
             }
         }
         case Lam(names, body) =>
@@ -147,31 +147,59 @@ object Runtime {
             }
             arity(locallyBound, env(e)) match {
               case 0 => lam
-              case 1 =>
+              case 1 => new Arity1(e,()) with L2 {
                 val v = locallyBound.toList.head
-                val compiledVar = lookupVar(0, ABT.annotateBound(Var(v)))
-                new Arity1(e,()) with L2 { def apply(x1: D, x1b: Rt, r: R) = {
+                val compiledVar = lookupVar(0, Var(v))
+                def apply(x1: D, x1b: Rt, r: R) = {
                   compiledVar(x1, x1b, r)
                   lam.bind(Map(v -> r.toRuntime))
                   r.boxed = lam
-                }}
-              case 2 =>
-                new Arity2(e,()) with L {
-                  val compiledVars = locallyBound.view.map { v =>
-                    (v, lookupVar(env(e).indexOf(v), ABT.annotateBound(Var(v))))
-                  }.toArray
-                  def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = {
-                    var i = 0; var rts = Map[Name,Rt]()
-                    while (i < compiledVars.length) {
-                      val v = compiledVars(i)
-                      v._2.apply(x1, x1b, x2, x2b, r)
-                      rts = rts + (v._1 -> r.toRuntime)
-                      i += 1
-                    }
-                    lam.bind(rts)
-                    r.boxed = lam
-                  }
                 }
+              }
+              case 2 => new Arity2(e,()) with L2 {
+                val vars = locallyBound.view.map { v => (v, lookupVar(env(e).indexOf(v), Var(v))) }.toArray
+                def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = {
+                  var i = 0; var rts = Map[Name,Rt]()
+                  while (i < vars.length) {
+                    rts = rts + (vars(i)._1 -> { vars(i)._2.apply(x1,x1b,x2,x2b,r); r.toRuntime })
+                    i += 1
+                  }
+                  lam.bind(rts); r.boxed = lam
+                }
+              }
+              case 3 => new Arity3(e,()) with L2 {
+                val vars = locallyBound.view.map { v => (v, lookupVar(env(e).indexOf(v), Var(v))) }.toArray
+                def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, r: R) = {
+                  var i = 0; var rts = Map[Name,Rt]()
+                  while (i < vars.length) {
+                    rts = rts + (vars(i)._1 -> { vars(i)._2.apply(x1,x1b,x2,x2b,x3,x3b,r); r.toRuntime })
+                    i += 1
+                  }
+                  lam.bind(rts); r.boxed = lam
+                }
+              }
+              case 4 => new Arity4(e,()) with L2 {
+                val vars = locallyBound.view.map { v => (v, lookupVar(env(e).indexOf(v), Var(v))) }.toArray
+                def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, x4: D, x4b: Rt, r: R) = {
+                  var i = 0; var rts = Map[Name,Rt]()
+                  while (i < vars.length) {
+                    rts = rts + (vars(i)._1 -> { vars(i)._2.apply(x1,x1b,x2,x2b,x3,x3b,x4,x4b,r); r.toRuntime })
+                    i += 1
+                  }
+                  lam.bind(rts); r.boxed = lam
+                }
+              }
+              case n => new ArityN(n,e,()) with L2 {
+                val vars = locallyBound.view.map { v => (v, lookupVar(env(e).indexOf(v), Var(v))) }.toArray
+                def apply(args: Array[Slot], r: R) = {
+                  var i = 0; var rts = Map[Name,Rt]()
+                  while (i < vars.length) {
+                    rts = rts + (vars(i)._1 -> { vars(i)._2.apply(args, r); r.toRuntime })
+                    i += 1
+                  }
+                  lam.bind(rts); r.boxed = lam
+                }
+              }
             }
           }
         case Let1(name, binding, body) =>
@@ -311,35 +339,35 @@ object Runtime {
     r.tailCall = fn; r.tailArgs = args
   }
 
-  def lookupVar(i: Int, e: TermC): Rt = i match {
-    case 0 => new Arity1(e,()) {
+  def lookupVar(i: Int, e: Term): Rt = i match {
+    case 0 => new Arity1(e) {
       override def apply(arg: D, argb: Rt, result: R): Unit = {
         result.unboxed = arg
         result.boxed = argb
       }
     }
-    case 1 => new Arity2(e,()) {
+    case 1 => new Arity2(e) {
       override def apply(x1: D, x2: Rt,
                          arg: D, argb: Rt, result: R): Unit = {
         result.unboxed = arg
         result.boxed = argb
       }
     }
-    case 2 => new Arity3(e,()) {
+    case 2 => new Arity3(e) {
       override def apply(x1: D, x2: Rt, x3: D, x4: Rt,
                          arg: D, argb: Rt, result: R): Unit = {
         result.unboxed = arg
         result.boxed = argb
       }
     }
-    case 3 => new Arity4(e,()) {
+    case 3 => new Arity4(e) {
       override def apply(x1: D, x2: Rt, x3: D, x4: Rt, x5: D, x6: Rt,
                          arg: D, argb: Rt, result: R): Unit = {
         result.unboxed = arg
         result.boxed = argb
       }
     }
-    case i => new ArityN(i,e,()) {
+    case i => new ArityN(i,e) {
       override def apply(args: Array[Slot], result: R): Unit = {
         result.boxed = args(i).boxed
         result.unboxed = args(i).unboxed
