@@ -44,7 +44,7 @@ abstract class Runtime {
 
   def bind(env: Map[Name, Rt]): Unit = ()
 
-  def decompile: TermC
+  def decompile: Term
 }
 
 object Runtime {
@@ -53,6 +53,7 @@ object Runtime {
   type Rt = Runtime
   type R = Result
   type TermC = ABT.AnnotatedTerm[Term.F, (Set[Name], Vector[Name])]
+  def unTermC(t: TermC): Term = t.map(_._1)
 
   import Term._
 
@@ -74,7 +75,7 @@ object Runtime {
   val IsNotTail = false
 
   def compileNum(n: Double): Rt =
-    new Arity0(ABT.annotateBound(Num(n))) {
+    new Arity0(Num(n)) {
       override def isEvaluated = true
       def apply(r: R) = { r.boxed = null; r.unboxed = n }
     }
@@ -95,7 +96,7 @@ object Runtime {
           // if we're under a lambda, and the variable is bound outside the lambda,
           // we keep it as an unbound variable, to be bound later
           case Some(bound) if !bound.contains(name) =>
-            new Arity0(e) {
+            new Arity0(e, ()) {
               var rt: Rt = null
               def apply(r: R) = rt(r)
               override val freeVarsUnderLambda = if (rt eq null) Set(name) else Set()
@@ -103,7 +104,7 @@ object Runtime {
                 case Some(rt2) => rt = rt2
                 case _ => ()
               }
-              override def decompile = if (rt eq null) e else rt.decompile
+              override def decompile = if (rt eq null) super.decompile else rt.decompile
             }
           case _ => // either not under lambda, or bound locally; compile normally by pulling from env
             env(e).indexOf(name) match {
@@ -114,57 +115,71 @@ object Runtime {
         case Lam(names, body) =>
           val compiledBody = go(body, Some(names.toSet), recursiveVars -- names, IsTail)
           if (compiledBody.freeVarsUnderLambda.isEmpty) names.length match {
-            case 1 => new Arity1(e) { def apply(x1: D, x1b: Rt, r: R) = compiledBody(x1, x1b, r); override def isEvaluated = true }
-            case 2 => new Arity2(e) { def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = compiledBody(x1, x1b, x2, x2b, r); override def isEvaluated = true }
-            case 3 => new Arity3(e) { def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, r: R) = compiledBody(x1, x1b, x2, x2b, x3, x3b, r); override def isEvaluated = true }
-            case 4 => new Arity4(e) { def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, x4: D, x4b: Rt, r: R) = compiledBody(x1, x1b, x2, x2b, x3, x3b, x4, x4b, r); override def isEvaluated = true }
-            case n => new ArityN(n, e) { def apply(xs: Array[Slot], r: R) = compiledBody(xs, r); override def isEvaluated = true }
+            case 1 => new Arity1(e,()) { def apply(x1: D, x1b: Rt, r: R) = compiledBody(x1, x1b, r); override def isEvaluated = true }
+            case 2 => new Arity2(e,()) { def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = compiledBody(x1, x1b, x2, x2b, r); override def isEvaluated = true }
+            case 3 => new Arity3(e,()) { def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, r: R) = compiledBody(x1, x1b, x2, x2b, x3, x3b, r); override def isEvaluated = true }
+            case 4 => new Arity4(e,()) { def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, x4: D, x4b: Rt, r: R) = compiledBody(x1, x1b, x2, x2b, x3, x3b, x4, x4b, r); override def isEvaluated = true }
+            case n => new ArityN(n,e,()) { def apply(xs: Array[Slot], r: R) = compiledBody(xs, r); override def isEvaluated = true }
           }
           else {
             trait L { self: Rt =>
-              override def isEvaluated = compiledBody.freeVarsUnderLambda.isEmpty
-              override def bind(env: Map[Name,Rt]) = compiledBody.bind(env)
+              override def bind(env: Map[Name,Rt]) =
+                if (freeVarsUnderLambda.exists(v => env.contains(v))) compiledBody.bind(env)
+                else ()
               override def freeVarsUnderLambda = compiledBody.freeVarsUnderLambda
             }
             val lam = names.length match {
-              case 1 => new Arity1(e) with L { def apply(x1: D, x1b: Rt, r: R) = compiledBody(x1, x1b, r) }
-              case 2 => new Arity2(e) with L { def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = compiledBody(x1, x1b, x2, x2b, r) }
-              case 3 => new Arity3(e) with L { def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, r: R) = compiledBody(x1, x1b, x2, x2b, x3, x3b, r) }
-              case 4 => new Arity4(e) with L { def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, x4: D, x4b: Rt, r: R) = compiledBody(x1, x1b, x2, x2b, x3, x3b, x4, x4b, r) }
-              case n => new ArityN(n, e) with L { def apply(xs: Array[Slot], r: R) = compiledBody(xs, r) }
+              case 1 => new Arity1(e,()) with L { def apply(x1: D, x1b: Rt, r: R) = compiledBody(x1, x1b, r) }
+              case 2 => new Arity2(e,()) with L { def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = compiledBody(x1, x1b, x2, x2b, r) }
+              case 3 => new Arity3(e,()) with L { def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, r: R) = compiledBody(x1, x1b, x2, x2b, x3, x3b, r) }
+              case 4 => new Arity4(e,()) with L { def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, x4: D, x4b: Rt, r: R) = compiledBody(x1, x1b, x2, x2b, x3, x3b, x4, x4b, r) }
+              case n => new ArityN(n,e,()) with L { def apply(xs: Array[Slot], r: R) = compiledBody(xs, r) }
             }
-            val locallyBound = lam.freeVarsUnderLambda.filterNot(v => recursiveVars.contains(v))
+            val locallyBound = lam.freeVarsUnderLambda.filter(v => !recursiveVars.contains(v))
+            trait L2 { self: Rt =>
+              // avoid binding variables that are locally bound
+              override def bind(env: Map[Name,Rt]) = {
+                val env2 = env -- locallyBound
+                if (env2.isEmpty || !freeVarsUnderLambda.exists(env2.contains(_))) ()
+                else compiledBody.bind(env2)
+              }
+              override def freeVarsUnderLambda = compiledBody.freeVarsUnderLambda
+            }
             arity(locallyBound, env(e)) match {
               case 0 => lam
               case 1 =>
                 val v = locallyBound.toList.head
-                val tm = ABT.annotateBound(Var(v))
-                val compiledVar = lookupVar(0, tm)
-                new Arity1(e) { def apply(x1: D, x1b: Rt, r: R) = {
+                val compiledVar = lookupVar(0, ABT.annotateBound(Var(v)))
+                new Arity1(e,()) with L2 { def apply(x1: D, x1b: Rt, r: R) = {
                   compiledVar(x1, x1b, r)
                   lam.bind(Map(v -> r.toRuntime))
                   r.boxed = lam
                 }}
               case 2 =>
-                // not correct - arity might be 2, but locallyBound might be size 1
-                // containing a variable that accesses the second slot
-                val List(v1, v2) = locallyBound.toList
-                val (v1t, v2t) = (ABT.annotateBound(Var(v1)), ABT.annotateBound(Var(v2)))
-                val (v1c, v2c) = (lookupVar(0,v1t), lookupVar(1,v2t))
-                new Arity2(e) { def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = {
-                  v1c(x1, x1b, x2, x2b, r); val rt1 = r.toRuntime
-                  v2c(x1, x1b, x2, x2b, r); val rt2 = r.toRuntime
-                  lam.bind(Map(v1 -> rt1, v2 -> rt2))
-                  r.boxed = lam
-                }}
+                new Arity2(e,()) with L {
+                  val compiledVars = locallyBound.view.map { v =>
+                    (v, lookupVar(env(e).indexOf(v), ABT.annotateBound(Var(v))))
+                  }.toArray
+                  def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = {
+                    var i = 0; var rts = Map[Name,Rt]()
+                    while (i < compiledVars.length) {
+                      val v = compiledVars(i)
+                      v._2.apply(x1, x1b, x2, x2b, r)
+                      rts = rts + (v._1 -> r.toRuntime)
+                      i += 1
+                    }
+                    lam.bind(rts)
+                    r.boxed = lam
+                  }
+                }
             }
           }
         case Let1(name, binding, body) =>
           val compiledBinding = go(binding, boundByCurrentLambda, recursiveVars, IsNotTail)
           val compiledBody = go(body, boundByCurrentLambda.map(_ + name), recursiveVars - name, isTail)
           arity(freeVars(e), env(e)) match {
-            case 0 => new Arity0(e) { def apply(r: R) = { eval0(compiledBinding,r); compiledBody(r.unboxed, r.boxed, r) } }
-            case 1 => new Arity1(e) {
+            case 0 => new Arity0(e,()) { def apply(r: R) = { eval0(compiledBinding,r); compiledBody(r.unboxed, r.boxed, r) } }
+            case 1 => new Arity1(e,()) {
               def apply(x1: D, x1b: Rt, r: R) = {
                 eval1(compiledBinding, x1, x1b, r)
                 compiledBody(r.unboxed, r.boxed, x1, x1b, r)
@@ -297,34 +312,34 @@ object Runtime {
   }
 
   def lookupVar(i: Int, e: TermC): Rt = i match {
-    case 0 => new Arity1(e) {
+    case 0 => new Arity1(e,()) {
       override def apply(arg: D, argb: Rt, result: R): Unit = {
         result.unboxed = arg
         result.boxed = argb
       }
     }
-    case 1 => new Arity2(e) {
+    case 1 => new Arity2(e,()) {
       override def apply(x1: D, x2: Rt,
                          arg: D, argb: Rt, result: R): Unit = {
         result.unboxed = arg
         result.boxed = argb
       }
     }
-    case 2 => new Arity3(e) {
+    case 2 => new Arity3(e,()) {
       override def apply(x1: D, x2: Rt, x3: D, x4: Rt,
                          arg: D, argb: Rt, result: R): Unit = {
         result.unboxed = arg
         result.boxed = argb
       }
     }
-    case 3 => new Arity4(e) {
+    case 3 => new Arity4(e,()) {
       override def apply(x1: D, x2: Rt, x3: D, x4: Rt, x5: D, x6: Rt,
                          arg: D, argb: Rt, result: R): Unit = {
         result.unboxed = arg
         result.boxed = argb
       }
     }
-    case i => new ArityN(i,e) {
+    case i => new ArityN(i,e,()) {
       override def apply(args: Array[Slot], result: R): Unit = {
         result.boxed = args(i).boxed
         result.unboxed = args(i).unboxed
@@ -335,7 +350,8 @@ object Runtime {
   // for tail calls, don't check R.tailCall
   // for non-tail calls, check R.tailCall in a loop
 
-  abstract class Arity0(decompileIt: TermC) extends Runtime {
+  abstract class Arity0(decompileIt: Term) extends Runtime {
+    def this(t: TermC, dummy: Unit) = this(unTermC(t))
     def decompile = decompileIt
     def arity: Int = 0
     def apply(result: R): Unit
@@ -357,7 +373,8 @@ object Runtime {
               result: R): Unit = apply(result)
   }
 
-  abstract class Arity1(val decompile: TermC) extends Runtime {
+  abstract class Arity1(val decompile: Term) extends Runtime {
+    def this(t: TermC, dummy: Unit) = this(unTermC(t))
     def arity: Int = 1
     def apply(result: R): Unit = result.boxed = this
     def apply(arg1: D, arg1b: Rt,
@@ -378,7 +395,8 @@ object Runtime {
               result: R): Unit = apply(args(0).unboxed, args(0).boxed, result)
   }
 
-  abstract class Arity2(val decompile: TermC) extends Runtime {
+  abstract class Arity2(val decompile: Term) extends Runtime {
+    def this(t: TermC, dummy: Unit) = this(unTermC(t))
     def arity: Int = 2
     def apply(result: R): Unit = result.boxed = this
     def apply(arg1: D, arg1b: Rt,
@@ -399,7 +417,8 @@ object Runtime {
               result: R): Unit = apply(args(0).unboxed, args(0).boxed, args(1).unboxed, args(1).boxed, result)
   }
 
-  abstract class Arity3(val decompile: TermC) extends Runtime {
+  abstract class Arity3(val decompile: Term) extends Runtime {
+    def this(t: TermC, dummy: Unit) = this(unTermC(t))
     def arity: Int = 3
     def apply(result: R): Unit = result.boxed = this
     def apply(arg1: D, arg1b: Rt,
@@ -423,7 +442,8 @@ object Runtime {
                     args(2).unboxed, args(2).boxed, result)
   }
 
-  abstract class Arity4(val decompile: TermC) extends Runtime {
+  abstract class Arity4(val decompile: Term) extends Runtime {
+    def this(t: TermC, dummy: Unit) = this(unTermC(t))
     def arity: Int = 4
     def apply(result: R): Unit = result.boxed = this
     def apply(arg1: D, arg1b: Rt,
@@ -449,7 +469,8 @@ object Runtime {
                     result)
   }
 
-  abstract class ArityN(val arity: Int, val decompile: TermC) extends Runtime {
+  abstract class ArityN(val arity: Int, val decompile: Term) extends Runtime {
+    def this(arity: Int, t: TermC, dummy: Unit) = this(arity, unTermC(t))
     def apply(result: R): Unit = result.boxed = this
     def apply(arg1: D, arg1b: Rt,
               result: R): Unit = sys.error("partially apply arity N")
