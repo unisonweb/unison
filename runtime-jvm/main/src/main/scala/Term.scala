@@ -74,7 +74,7 @@ object Term {
     case class LetRec_[R](bindings: List[R], body: R) extends F[R]
     case class Let_[R](binding: R, body: R) extends F[R]
     case class Rec_[R](r: R) extends F[R]
-    case class If0_[R](condition: R, ifTrue: R, ifFalse: R) extends F[R]
+    case class If0_[R](condition: R, ifZero: R, ifNonzero: R) extends F[R]
     // yield : f a -> a|f
     case class Yield_[R](effect: R) extends F[R]
     // handle : (forall x . f x -> (x -> y|f+g) -> y|f+g) -> a|f+g -> a|g

@@ -5,17 +5,21 @@ import Term.{Name,Term}
 
 abstract class Runtime {
 
+  /** True if this `Runtime` represents an expression in normal form, such
+   *  as a lambda with no free variables `x -> x`, a constant `42`, or a data constructor like `Nil`.
+   *  False if expression still needs evaluation, eg `1 + 1`. */
+  def isEvaluated: Boolean = false
+
   /**
    * If `isEvaluated` is true, arity of 0 is a constant, 1 is unary fn, etc.
    *
    * If `isEvaluated` is false, arity is number of elements needed from stack of
    * free variables in scope that must be passed to `apply` to produce an evaluated result.
+   *
+   * For instance, in `x -> (x + x)`, the parenthesized expresion `x + x` will need the top-most
+   * variable on the stack (the `x`), in order to produce an evaluated result.
    */
   def arity: Int
-
-  /** True if this `Runtime` represents an expression in normal form, such
-   *  as a lambda, a constant, or a data constructor. */
-  def isEvaluated: Boolean = false
 
   def apply(result: R): Unit
 
@@ -40,8 +44,18 @@ abstract class Runtime {
   def apply(args: Array[Slot],
             result: R): Unit
 
+  /**
+   * Lambdas containing free vars are handled specially, e.g. in `let k = 42; x -> x + k`
+   * the `x -> x + k` closes over `k`, and `freeVarsUnderLambda` would have `k`.
+   *
+   * Way this is handled is the lambda is created in two stages - first we create `x -> x + k`,
+   * noting that `k` is still free. A subsequent call to `bind` will bind `k` to something.
+   *
+   * This will ALWAYS be empty if `isEvaluated` is true.
+   */
   def freeVarsUnderLambda: Set[Name] = Set.empty
 
+  /** Bind any free variables under lambdas, using the provided environment. */
   def bind(env: Map[Name, Rt]): Unit = ()
 
   def decompile: Term
@@ -52,10 +66,30 @@ object Runtime {
   type D = Double
   type Rt = Runtime
   type R = Result
+
+  /**
+   * The annotation contains a `Set[Name]` of free variables for the term,
+   * and a `Vector[Name]` which is a stack of bound variables at the term
+   * (bound variable stack is also called "the environment").
+   *
+   * Ex: `x -> y -> x + y`, free variables of `x + y` will be `Set(x, y)`,
+   * and bound variables will be `Vector(y, x)`.
+   */
   type TermC = ABT.AnnotatedTerm[Term.F, (Set[Name], Vector[Name])]
+
   def unTermC(t: TermC): Term = t.map(_._1)
+
   def env(t: TermC): Vector[Name] = t.annotation._2
+
   def freeVars(t: TermC): Set[Name] = t.annotation._1
+
+  /**
+   * Given a set of free variables, and a stack of bound variables, figure out
+   * how many elements from `bound` stack we need to be able to resolve all free vars.
+   *
+   * Ex: Set(x,y) and bound = Vector(x,p,q,r,y,z), arity would be: 5, since we need `bound.take(5)`
+   * to have access to both `x` and `y`.
+   */
   def arity(freeVars: Set[Name], bound: Vector[Name]): Int =
     if (freeVars.isEmpty) 0
     else freeVars.view.map(fv => bound.indexOf(fv)).max + 1
@@ -71,17 +105,28 @@ object Runtime {
       else boxed
   }
 
+  /** Used for representing parameters passed to `Runtime.apply` for large number of parameters. */
   case class Slot(var unboxed: D = 0,
                   var boxed: Rt = null)
 
+  // todo: exception for doing algebraic effects
   case class Yielded(effect: Rt, continuation: Rt) extends Throwable
 
+  /** Constant indicating current term is in tail position, should be compiled accordingly. */
   val IsTail = true
+
+  /** Constant indicating current term not in tail position, should be compiled accordingly. */
   val IsNotTail = false
 
+  /**
+   * This is the main public compilation function. Takes a function for resolving builtins, a term,
+   * and returns a `Runtime`.
+   */
   def compile(builtins: String => Rt)(e: Term): Rt =
     compile(builtins, ABT.annotateBound(e), None, Map(), IsTail)
 
+  /** Actual compile implementation. */
+  private
   def compile(builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
               recursiveVars: Map[Name,TermC], isTail: Boolean): Rt = e match {
     case Num(n) => compileNum(n)
@@ -95,38 +140,73 @@ object Runtime {
       // to evaluate, evaluate all the bindings, getting back a `Rt` for each
       // then call bind on each
       ???
-    case Let1(name, binding, body) =>
-      val compiledBinding = compile(builtins, binding, boundByCurrentLambda, recursiveVars, IsNotTail)
-      val compiledBody = compile(builtins, body, boundByCurrentLambda.map(_ + name), recursiveVars - name, isTail)
-      arity(freeVars(e), env(e)) match {
-        case 0 => new Arity0(e,()) { def apply(r: R) = { eval0(compiledBinding,r); compiledBody(r.unboxed, r.boxed, r) } }
-        case 1 => new Arity1(e,()) {
-          def apply(x1: D, x1b: Rt, r: R) = {
-            eval1(compiledBinding, x1, x1b, r)
-            compiledBody(r.unboxed, r.boxed, x1, x1b, r)
-          }
+    case Let1(name, binding, body) => // `let name = binding; body`
+      compileLet1(name, binding, body, builtins, e, boundByCurrentLambda, recursiveVars, isTail)
+    // todo: finish Apply, Lambda, LetRec
+  }
+
+  def compileLet1(name: Name, binding: TermC, body: TermC,
+                  builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
+                  recursiveVars: Map[Name,TermC], isTail: Boolean): Rt = {
+    val compiledBinding = compile(builtins, binding, boundByCurrentLambda, recursiveVars, IsNotTail)
+    val compiledBody = compile(builtins, body, boundByCurrentLambda.map(_ + name), recursiveVars - name, isTail)
+    arity(freeVars(e), env(e)) match {
+      case 0 => new Arity0(e,()) {
+        def apply(r: R) = {
+          eval0(compiledBinding, r)
+          compiledBody(r.unboxed, r.boxed, r)
         }
       }
-    // todo: finish Apply, Lambda, Let, LetRec
+      case 1 => new Arity1(e,()) {
+        def apply(x1: D, x1b: Rt, r: R) = {
+          eval1(compiledBinding, x1, x1b, r)
+          compiledBody(r.unboxed, r.boxed, x1, x1b, r)
+        }
+      }
+      case 2 => new Arity2(e,()) {
+        def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = {
+          eval2(compiledBinding, x1, x1b, x2, x2b, r)
+          compiledBody(r.unboxed, r.boxed, x1, x1b, x2, x2b, r)
+        }
+      }
+      case 3 => new Arity3(e,()) {
+        def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, r: R) = {
+          eval3(compiledBinding, x1, x1b, x2, x2b, x3, x3b, r)
+          compiledBody(r.unboxed, r.boxed, x1, x1b, x2, x2b, x3, x3b, r)
+        }
+      }
+      case 4 => new Arity4(e,()) {
+        def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, x4: D, x4b: Rt, r: R) = {
+          eval4(compiledBinding, x1, x1b, x2, x2b, x3, x3b, x4, x4b, r)
+          compiledBody(Array(Slot(r.unboxed, r.boxed), Slot(x1, x1b), Slot(x2, x2b), Slot(x3, x3b), Slot(x4, x4b)), r)
+        }
+      }
+      case n => new ArityN(n,e,()) {
+        def apply(args: Array[Slot], r: R) = {
+          evalN(compiledBinding, args, r)
+          compiledBody(Slot(r.unboxed, r.boxed) +: args, r)
+        }
+      }
+    }
   }
 
   def compileNum(n: Double): Rt = new Arity0(Num(n)) {
     override def isEvaluated = true
-    def apply(r: R) = { r.boxed = null; r.unboxed = n }
+    def apply(r: R) = { r.boxed = null; r.unboxed = n } // callee is responsible for nulling out portion of result that's unused
   }
 
   def compileVar(name: Name, e: TermC, boundByCurrentLambda: Option[Set[Name]]): Rt =
     boundByCurrentLambda match {
       // if we're under a lambda, and the variable is bound outside the lambda,
       // we keep it as an unbound variable, to be bound later
-      case Some(bound) if !bound.contains(name) =>
+      case Some(bound) if !bound.contains(name) => // it's a free variable that escapes this lambda
         new Arity0(e,()) {
           var rt: Rt = null
           def apply(r: R) = rt(r)
           override val freeVarsUnderLambda = if (rt eq null) Set(name) else Set()
           override def bind(env: Map[Name,Rt]) = env.get(name) match {
             case Some(rt2) => rt = rt2
-            case _ => ()
+            case _ => () // todo: should this bomb with an error?
           }
           override def decompile = if (rt eq null) super.decompile else rt.decompile
         }
@@ -173,9 +253,17 @@ object Runtime {
              themselves:
 
                let rec { ping x = pong x; pong x = ping (x + 1); ping }
+               let
+                 incr x = x + 1
+                 let rec { ping x = pong x; pong x = ping (incr x); x -> ping x }
           */
           // todo: think about whether this is correct, am concerned that
           // there could be some variable capture issues
+          // note that bound decompiled terms will have no free vars
+          // recursiveVars may have freeVars
+          // lam only has the free vars
+          // possibly need to take into account order?
+          // could have equality and hashing as an effect
           val e2 = e.map(_._1)
           if (freeVars(e).exists(fv => recursiveVars.contains(fv))) {
             val e3 = ABT.substs(recursiveVars.mapValues(unTermC))(e2)
@@ -351,6 +439,7 @@ object Runtime {
   // for tail calls, don't check R.tailCall
   // for non-tail calls, check R.tailCall in a loop
 
+  /** A `Runtime` with just 1 abstract `apply` function, which takes no args. */
   abstract class Arity0(decompileIt: Term) extends Runtime {
     def this(t: TermC, dummy: Unit) = this(unTermC(t))
     def decompile = decompileIt
@@ -374,6 +463,7 @@ object Runtime {
               result: R): Unit = apply(result)
   }
 
+  /** A `Runtime` with just 1 abstract `apply` function, which takes 1 arg. */
   abstract class Arity1(decompileIt: Term) extends Runtime {
     def this(t: TermC, dummy: Unit) = this(unTermC(t))
     def decompile = decompileIt
