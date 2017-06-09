@@ -28,7 +28,7 @@ object ABT {
    * Annotate an ABT with the ordered vector of bound variables available at each subtree.
    * The first element of the `Vector[Name]` is the innermost bound variable.
    */
-  def annotateBound[F[+_],A](self: AnnotatedTerm[F,A])(implicit F: Traverse[F]): AnnotatedTerm[F,(A,Vector[Name])] = {
+  def annotateBound[F[+_],A](self: AnnotatedTerm[F,A])(implicit F: Functor[F]): AnnotatedTerm[F,(A,Vector[Name])] = {
     def go(self: AnnotatedTerm[F,A], env: Vector[Name]): AnnotatedTerm[F,(A,Vector[Name])] = self match {
       case Var(n) => AnnotatedTerm(self.annotation -> env, Var_(n))
       case Tm(f) => AnnotatedTerm(self.annotation -> env, Tm_(F.map(f)(go(_,env))))
