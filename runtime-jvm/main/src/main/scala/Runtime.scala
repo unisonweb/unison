@@ -135,14 +135,56 @@ object Runtime {
     case Lam(names, body) =>
       compileLambda(builtins, e, Some(names.toSet), recursiveVars -- names)(names, body)
     case LetRec(bindings, body) =>
+      // ex:
+      //   let rec
+      //     blah = 42
+      //     let rec
+      //       ping x = pong (x + 1)
+      //       pong x = ping (x - 1)
+      //       ping blah
       // add to recursive vars
+      // ping = (let rec ping = ...; pong = ...; ping)
+      val recursiveVars2 = recursiveVars ++ bindings.view.map(_._1).map { name =>
+        val bindings2 = bindings map { case (name, b) => (name, b map (_._1)) }
+        // easiest to compute annotateBound 'locally', then fixup by adding parent scopes bound vars
+        val appendEnv = (p: (Set[Name], Vector[Name])) => (p._1, p._2 ++ env(e)) // parent scopes vars appear later in the stack
+        (name, ABT.annotateBound(LetRec(bindings2:_*)(Var(name))) map appendEnv)
+      }
+      val boundByCurrentLambda2 = boundByCurrentLambda map (_ ++ bindings.map(_._1))
+      val compiledBindings = bindings.view.map(_._2).map(e => compile(builtins, e, boundByCurrentLambda2, recursiveVars2, IsNotTail)).toArray
+      val compiledBody = compile(builtins, body, boundByCurrentLambda2, recursiveVars2, isTail)
+      val names = bindings.map(_._1).toArray
+      // todo: consider doing something fancy to avoid needing to iterate over compiledBindings at runtime
       // compile all the bindings and the body
       // to evaluate, evaluate all the bindings, getting back a `Rt` for each
       // then call bind on each
-      ???
+      trait B { self : Rt =>
+        override def bind(env: Map[Name,Rt]) = {
+          // remove any bindings shadowed in local let rec
+          val env2 = env -- names
+          if (env2.nonEmpty) {
+            compiledBindings.foreach(_.bind(env2))
+            compiledBody.bind(env2)
+          }
+        }
+      }
+      // observation - most of the time, bindings will be lambdas, so doesn't really matter whether
+      // evaluation of bindings is super fast
+      // might want to 'de-rec' useless let recs since regular let code is going to be faster probably
+      arity(freeVars(e), env(e)) match {
+        case 0 => new Arity0(e,()) with B {
+          def apply(r: R) = {
+            val evaluatedBindings = compiledBindings.map(b => { eval(b, r); r.toRuntime })
+            val env = names.zip(evaluatedBindings).toMap
+            evaluatedBindings.foreach(b => b.bind(env))
+            compiledBody.bind(env) // note - compiledBindings expect evaluated bindings to be bound via `bind`
+            compiledBody(r)
+          }
+        }
+      }
     case Let1(name, binding, body) => // `let name = binding; body`
       compileLet1(name, binding, body, builtins, e, boundByCurrentLambda, recursiveVars, isTail)
-    // todo: finish Apply, Lambda, LetRec
+    // todo: finish Apply, LetRec
   }
 
   def compileLet1(name: Name, binding: TermC, body: TermC,
@@ -153,31 +195,31 @@ object Runtime {
     arity(freeVars(e), env(e)) match {
       case 0 => new Arity0(e,()) {
         def apply(r: R) = {
-          eval0(compiledBinding, r)
+          eval(compiledBinding, r)
           compiledBody(r.unboxed, r.boxed, r)
         }
       }
       case 1 => new Arity1(e,()) {
         def apply(x1: D, x1b: Rt, r: R) = {
-          eval1(compiledBinding, x1, x1b, r)
+          eval(compiledBinding, x1, x1b, r)
           compiledBody(r.unboxed, r.boxed, x1, x1b, r)
         }
       }
       case 2 => new Arity2(e,()) {
         def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = {
-          eval2(compiledBinding, x1, x1b, x2, x2b, r)
+          eval(compiledBinding, x1, x1b, x2, x2b, r)
           compiledBody(r.unboxed, r.boxed, x1, x1b, x2, x2b, r)
         }
       }
       case 3 => new Arity3(e,()) {
         def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, r: R) = {
-          eval3(compiledBinding, x1, x1b, x2, x2b, x3, x3b, r)
+          eval(compiledBinding, x1, x1b, x2, x2b, x3, x3b, r)
           compiledBody(r.unboxed, r.boxed, x1, x1b, x2, x2b, x3, x3b, r)
         }
       }
       case 4 => new Arity4(e,()) {
         def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, x4: D, x4b: Rt, r: R) = {
-          eval4(compiledBinding, x1, x1b, x2, x2b, x3, x3b, x4, x4b, r)
+          eval(compiledBinding, x1, x1b, x2, x2b, x3, x3b, x4, x4b, r)
           compiledBody(Array(Slot(r.unboxed, r.boxed), Slot(x1, x1b), Slot(x2, x2b), Slot(x3, x3b), Slot(x4, x4b)), r)
         }
       }
@@ -206,7 +248,7 @@ object Runtime {
           override val freeVarsUnderLambda = if (rt eq null) Set(name) else Set()
           override def bind(env: Map[Name,Rt]) = env.get(name) match {
             case Some(rt2) => rt = rt2
-            case _ => () // todo: should this bomb with an error?
+            case _ => () // not an error, just means that some other scope will bind this free var
           }
           override def decompile = if (rt eq null) super.decompile else rt.decompile
         }
@@ -356,23 +398,23 @@ object Runtime {
   }
 
   @inline
-  def eval0(rt: Rt, r: R): Unit = {
+  def eval(rt: Rt, r: R): Unit = {
     rt(r) // todo - interpret tail calls
   }
   @inline
-  def eval1(rt: Rt, x1: D, x2: Rt, r: R): Unit = {
+  def eval(rt: Rt, x1: D, x2: Rt, r: R): Unit = {
     rt(x1,x2,r) // todo - interpret tail calls
   }
   @inline
-  def eval2(rt: Rt, x1: D, x2: Rt, x3: D, x4: Rt, r: R): Unit = {
+  def eval(rt: Rt, x1: D, x2: Rt, x3: D, x4: Rt, r: R): Unit = {
     rt(x1,x2,x3,x4,r) // todo - interpret tail calls
   }
   @inline
-  def eval3(rt: Rt, x1: D, x2: Rt, x3: D, x4: Rt, x5: D, x6: Rt, r: R): Unit = {
+  def eval(rt: Rt, x1: D, x2: Rt, x3: D, x4: Rt, x5: D, x6: Rt, r: R): Unit = {
     rt(x1,x2,x3,x4,x5,x6,r) // todo - interpret tail calls
   }
   @inline
-  def eval4(rt: Rt, x1: D, x2: Rt, x3: D, x4: Rt, x5: D, x6: Rt, x7: D, x8: Rt, r: R): Unit = {
+  def eval(rt: Rt, x1: D, x2: Rt, x3: D, x4: Rt, x5: D, x6: Rt, x7: D, x8: Rt, r: R): Unit = {
     rt(x1,x2,x3,x4,x5,x6,x7,x8,r) // todo - interpret tail calls
   }
   @inline
