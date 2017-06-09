@@ -63,6 +63,8 @@ abstract class Runtime {
 
 object Runtime {
 
+  import Term.{freeVars => _, _}
+
   type D = Double
   type Rt = Runtime
   type R = Result
@@ -94,8 +96,6 @@ object Runtime {
     if (freeVars.isEmpty) 0
     else freeVars.view.map(fv => bound.indexOf(fv)).max + 1
 
-  import Term.{freeVars => _, _}
-
   case class Result(var unboxed: D = 0.0,
                     var boxed: Rt = null,
                     var tailCall: Rt = null,
@@ -125,13 +125,20 @@ object Runtime {
   def compile(builtins: String => Rt)(e: Term): Rt =
     compile(builtins, ABT.annotateBound(e), None, Map(), IsTail)
 
+  private def unbindRecursiveVars(e: TermC, recursiveVars: Map[Name,TermC]): TermC =
+    e.reannotate { case (free,bound) => (free, bound.filterNot(recursiveVars.contains(_))) }
+
   /** Actual compile implementation. */
   private
   def compile(builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
-              recursiveVars: Map[Name,TermC], isTail: Boolean): Rt = e match {
+              recursiveVars: Map[Name,TermC], isTail: Boolean): Rt = unbindRecursiveVars(e, recursiveVars) match {
     case Num(n) => compileNum(n)
     case Builtin(name) => builtins(name)
-    case Var(name) => compileVar(name, e, boundByCurrentLambda)
+    case Var(name) =>
+      // we compile a variable as free if it's a recursive var OR we are inside a lambda and this var is bound outside this lambda
+      val compileAsFree = recursiveVars.contains(name) ||
+                          boundByCurrentLambda.map(vs => !vs.contains(name)).getOrElse(false)
+      compileVar(name, e, compileAsFree)
     case Lam(names, body) =>
       compileLambda(builtins, e, Some(names.toSet), recursiveVars -- names)(names, body)
     case LetRec(bindings, body) =>
@@ -181,6 +188,7 @@ object Runtime {
             compiledBody(r)
           }
         }
+        // todo: finish filling in these let rec cases
       }
     case Let1(name, binding, body) => // `let name = binding; body`
       compileLet1(name, binding, body, builtins, e, boundByCurrentLambda, recursiveVars, isTail)
@@ -237,26 +245,20 @@ object Runtime {
     def apply(r: R) = { r.boxed = null; r.unboxed = n } // callee is responsible for nulling out portion of result that's unused
   }
 
-  def compileVar(name: Name, e: TermC, boundByCurrentLambda: Option[Set[Name]]): Rt =
-    boundByCurrentLambda match {
-      // if we're under a lambda, and the variable is bound outside the lambda,
-      // we keep it as an unbound variable, to be bound later
-      case Some(bound) if !bound.contains(name) => // it's a free variable that escapes this lambda
-        new Arity0(e,()) {
-          var rt: Rt = null
-          def apply(r: R) = rt(r)
-          override val freeVarsUnderLambda = if (rt eq null) Set(name) else Set()
-          override def bind(env: Map[Name,Rt]) = env.get(name) match {
-            case Some(rt2) => rt = rt2
-            case _ => () // not an error, just means that some other scope will bind this free var
-          }
-          override def decompile = if (rt eq null) super.decompile else rt.decompile
-        }
-      case _ => // either not under lambda, or bound locally; compile normally by pulling from env
-        env(e).indexOf(name) match {
-          case -1 => sys.error("unknown variable: " + name)
-          case i => lookupVar(i, unTermC(e))
-        }
+  def compileVar(name: Name, e: TermC, compileAsFree: Boolean): Rt =
+    if (compileAsFree) new Arity0(e,()) {
+      var rt: Rt = null
+      def apply(r: R) = rt(r)
+      override val freeVarsUnderLambda = if (rt eq null) Set(name) else Set()
+      override def bind(env: Map[Name,Rt]) = env.get(name) match {
+        case Some(rt2) => rt = rt2
+        case _ => () // not an error, just means that some other scope will bind this free var
+      }
+      override def decompile = if (rt eq null) super.decompile else rt.decompile
+    }
+    else env(e).indexOf(name) match {
+      case -1 => sys.error("unknown variable: " + name)
+      case i => lookupVar(i, unTermC(e))
     }
 
   trait NF { self: Rt => override def isEvaluated = true }
