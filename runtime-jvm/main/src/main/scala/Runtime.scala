@@ -145,7 +145,25 @@ object Runtime {
       compileLetRec(builtins, e, boundByCurrentLambda, recursiveVars, isTail, bindings, body)
     case Let1(name, binding, body) => // `let name = binding; body`
       compileLet1(name, binding, body, builtins, e, boundByCurrentLambda, recursiveVars, isTail)
-    // todo: finish Apply
+    case Apply(fn, List()) => compile(builtins, fn, boundByCurrentLambda, recursiveVars, isTail)
+    case Apply(fn, args) =>
+      // Four cases to consider:
+      //   1. static (function is already evaluated, known arity), fully-saturated call (correct number of args), ex `(x -> x) 42`
+      //   2. static partial application, ex `(x y -> x) 42`, need to form closure or specialize
+      //   3. static overapplication, ex `(x -> x) (y -> y) 42` or `id id 42`
+      //   4. dynamic application, ex in `(f x -> f x) id 42`, `f x` is a dynamic application
+      val compiledFn = compile(builtins, fn, boundByCurrentLambda, recursiveVars, IsNotTail)
+      val compiledArgs = args.view.map(arg => compile(builtins, arg, boundByCurrentLambda, recursiveVars, IsNotTail)).toArray
+      if (compiledFn.isEvaluated) {
+        if (compiledFn.arity == compiledArgs.length) // 1.
+          FunctionApplication.staticCall(compiledFn, compiledArgs, unTermC(e), isTail)
+        else if (compiledFn.arity > compiledArgs.length) // 2.
+          FunctionApplication.staticCall(compiledFn, compiledArgs, unTermC(e), isTail)
+        else // 3. (compiledFn.arity < compiledArgs.length)
+          ???
+      }
+      else // 4.
+        ???
   }
 
   def compileLetRec(builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
@@ -317,12 +335,28 @@ object Runtime {
       builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
       recursiveVars: Map[Name,TermC])(names: List[Name], body: TermC): Rt = {
     val compiledBody = compile(builtins, body, boundByCurrentLambda, recursiveVars, IsTail)
+    def makeCompiledBody = compile(builtins, body, boundByCurrentLambda, recursiveVars, IsTail)
     if (freeVars(e).isEmpty) names.length match {
       case 1 => new Arity1(e,()) with NF { def apply(x1: D, x1b: Rt, r: R) = compiledBody(x1, x1b, r) }
-      case 2 => new Arity2(e,()) with NF { def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = compiledBody(x1, x1b, x2, x2b, r) }
+      case 2 => new Arity2(e,()) with NF {
+        def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = compiledBody(x1, x1b, x2, x2b, r)
+
+        // handle partial application by specialization
+        override def apply(x1: D, x1b: Rt, r: R) = {
+          val compiledBody2 = makeCompiledBody
+          compiledBody2.bind(Map(names.head -> toRuntime(x1, x1b)))
+          def decompiled = unTermC(e)(decompileSlot(x1, x1b))
+          r.boxed = new Arity1(decompiled) {
+            def apply(x2: D, x2b: Rt, r: R) = compiledBody2(x2, x2b, 0.0, null, r)
+          }
+        }
+        // todo - need to do same sort of thing everywhere in compileLambda
+      }
       case 3 => new Arity3(e,()) with NF { def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, r: R) = compiledBody(x1, x1b, x2, x2b, x3, x3b, r) }
       case 4 => new Arity4(e,()) with NF { def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, x4: D, x4b: Rt, r: R) = compiledBody(x1, x1b, x2, x2b, x3, x3b, x4, x4b, r) }
-      case n => new ArityN(n,e,()) with NF { def apply(xs: Array[Slot], r: R) = compiledBody(xs, r) }
+      case n => new ArityN(n,e,()) with NF {
+        def apply(xs: Array[Slot], r: R) = compiledBody(xs, r)
+      }
     }
     else {
       trait Closure { self: Rt =>
@@ -533,8 +567,16 @@ object Runtime {
   // for tail calls, don't check R.tailCall
   // for non-tail calls, check R.tailCall in a loop
 
+  def decompileSlot(unboxed: D, boxed: Rt): Term =
+    if (boxed eq null) Num(unboxed)
+    else boxed.decompile
+
+  def toRuntime(unboxed: D, boxed: Rt): Rt =
+    if (boxed eq null) compileNum(unboxed)
+    else boxed
+
   /** A `Runtime` with just 1 abstract `apply` function, which takes no args. */
-  abstract class Arity0(decompileIt: Term) extends Runtime {
+  abstract class Arity0(decompileIt: => Term) extends Runtime {
     def this(t: TermC, dummy: Unit) = this(unTermC(t))
     def decompile = decompileIt
     def arity: Int = 0
@@ -558,7 +600,7 @@ object Runtime {
   }
 
   /** A `Runtime` with just 1 abstract `apply` function, which takes 1 arg. */
-  abstract class Arity1(decompileIt: Term) extends Runtime {
+  abstract class Arity1(decompileIt: => Term) extends Runtime {
     def this(t: TermC, dummy: Unit) = this(unTermC(t))
     def decompile = decompileIt
     def arity: Int = 1
@@ -581,13 +623,20 @@ object Runtime {
               result: R): Unit = apply(args(0).unboxed, args(0).boxed, result)
   }
 
-  abstract class Arity2(val decompileIt: Term) extends Runtime {
+  abstract class Arity2(decompileIt: => Term) extends Runtime { self =>
     def this(t: TermC, dummy: Unit) = this(unTermC(t))
     def decompile = decompileIt
     def arity: Int = 2
     def apply(result: R): Unit = result.boxed = this
-    def apply(arg1: D, arg1b: Rt,
-              result: R): Unit = sys.error("partially apply arity 2")
+    def apply(arg2: D, arg2b: Rt,
+              result: R): Unit = {
+      val closure = new Arity1(Apply(decompileIt, decompileSlot(arg1, arg1b))) {
+        def apply(arg1: D, arg1b: Rt, r: R) =
+          self(arg1, arg1b, arg2, arg2b, r)
+        override def isEvaluated = true
+      }
+      result.boxed = closure
+    }
     def apply(arg1: D, arg1b: Rt,
               arg2: D, arg2b: Rt,
               result: R): Unit
@@ -604,16 +653,26 @@ object Runtime {
               result: R): Unit = apply(args(0).unboxed, args(0).boxed, args(1).unboxed, args(1).boxed, result)
   }
 
-  abstract class Arity3(val decompileIt: Term) extends Runtime {
+  abstract class Arity3(decompileIt: => Term) extends Runtime { self =>
     def this(t: TermC, dummy: Unit) = this(unTermC(t))
     def decompile = decompileIt
     def arity: Int = 3
     def apply(result: R): Unit = result.boxed = this
-    def apply(arg1: D, arg1b: Rt,
-              result: R): Unit = sys.error("partially apply arity 3")
-    def apply(arg1: D, arg1b: Rt,
-              arg2: D, arg2b: Rt,
-              result: R): Unit = sys.error("partially apply arity 3")
+    def apply(a3: D, a3b: Rt,
+              result: R): Unit =
+      result.boxed = new Arity2(decompileIt(decompileSlot(arg1, arg1b))) with NF {
+        def apply(a1: D, a1b: Rt,
+                  a2: D, a2b: Rt,
+                  result: R): Unit =
+          self(a1, a1b, a2, a2b, a3, a3b, result)
+      }
+    def apply(a2: D, a2b: Rt,
+              a3: D, a3b: Rt,
+              result: R): Unit =
+      result.boxed = new Arity1(decompileIt(decompileSlot(a3,a3b), decompileSlot(a2,a2b))) with NF {
+        def apply(a1: D, a1b: Rt, result: R) =
+          self(a1, a1b, a2, a2b, a3, a3b, result)
+      }
     def apply(arg1: D, arg1b: Rt,
               arg2: D, arg2b: Rt,
               arg3: D, arg3b: Rt,
@@ -630,11 +689,12 @@ object Runtime {
                     args(2).unboxed, args(2).boxed, result)
   }
 
-  abstract class Arity4(val decompileIt: Term) extends Runtime {
+  abstract class Arity4(decompileIt: => Term) extends Runtime {
     def this(t: TermC, dummy: Unit) = this(unTermC(t))
     def decompile = decompileIt
     def arity: Int = 4
     def apply(result: R): Unit = result.boxed = this
+    // todo - handle partial application here
     def apply(arg1: D, arg1b: Rt,
               result: R): Unit = sys.error("partially apply arity 4")
     def apply(arg1: D, arg1b: Rt,
@@ -658,7 +718,7 @@ object Runtime {
                     result)
   }
 
-  abstract class ArityN(val arity: Int, val decompileIt: Term) extends Runtime {
+  abstract class ArityN(val arity: Int, decompileIt: => Term) extends Runtime {
     def this(arity: Int, t: TermC, dummy: Unit) = this(arity, unTermC(t))
     def decompile = decompileIt
     def apply(result: R): Unit = result.boxed = this
