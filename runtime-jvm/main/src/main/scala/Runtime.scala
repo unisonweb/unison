@@ -131,8 +131,8 @@ object Runtime {
 
   /** Actual compile implementation. */
   private
-  def compile(builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
-              recursiveVars: Map[Name,TermC], isTail: Boolean): Rt = unbindRecursiveVars(e, recursiveVars) match {
+  def compile(builtins: String => Rt, e0: TermC, boundByCurrentLambda: Option[Set[Name]],
+              recursiveVars: Map[Name,TermC], isTail: Boolean): Rt = { val e = unbindRecursiveVars(e0, recursiveVars); e match {
     case Num(n) => compileNum(n)
     case Builtin(name) => builtins(name)
     case Var(name) =>
@@ -164,8 +164,28 @@ object Runtime {
           ???
       }
       else // 4.
-        ???
-  }
+        arity(freeVars(e), env(e)) match {
+          case 1 => compiledArgs.length match {
+            case 1 => new Arity1(e,()) {
+              val arg = compiledArgs(0)
+              def apply(x1: D, x1b: Rt, r: R) =
+                if (compiledFn.isEvaluated) {
+                  eval(arg, x1, x1b, r)
+                  compiledFn(r.unboxed, r.boxed, r)
+                }
+                else {
+                  eval(compiledFn, x1, x1b, r)
+                  val fn = r.boxed
+                  eval(arg, x1, x1b, r)
+                  if (fn.arity == 1) fn(r.unboxed, r.boxed, r)
+                  else if (fn.arity > 1)
+                    sys.error("todo - handle partial application here")
+                  else sys.error("type error, function of arity: " + fn.arity + " applied to 1 argument")
+                }
+            }
+          }
+        }
+  }}
 
   def compileLetRec(builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
                     recursiveVars: Map[Name,TermC], isTail: Boolean, bindings: List[(Name,TermC)], body: TermC): Rt = {
