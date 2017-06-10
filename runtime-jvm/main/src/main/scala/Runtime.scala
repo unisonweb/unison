@@ -148,56 +148,123 @@ object Runtime {
     case Num(n) => compileNum(n)
     case Builtin(name) => builtins(name)
     case Var(name) =>
-      // we compile a variable as free if it's a recursive var OR we are inside a lambda and this var is bound outside this lambda
+      // compile a variable as free if it's a recursive var OR
+      // we are inside a lambda and this var is bound outside this lambda
       val compileAsFree = recursiveVars.contains(name) ||
                           boundByCurrentLambda.map(vs => !vs.contains(name)).getOrElse(false)
       compileVar(name, e, compileAsFree)
+    case If0(cond,if0,ifNot0) =>
+      compileIf0(builtins, e, boundByCurrentLambda, recursiveVars, isTail, cond, if0, ifNot0)
     case Lam(names, body) =>
       compileLambda(builtins, e, Some(names.toSet), recursiveVars -- names)(names, body)
     case LetRec(bindings, body) =>
       compileLetRec(builtins, e, boundByCurrentLambda, recursiveVars, isTail, bindings, body)
     case Let1(name, binding, body) => // `let name = binding; body`
       compileLet1(name, binding, body, builtins, e, boundByCurrentLambda, recursiveVars, isTail)
+    case Apply(Builtin(_), args) if isTail =>
+      // don't bother with tail calls for builtins; assume they use constant stack
+      compile(builtins, e, boundByCurrentLambda, recursiveVars, IsNotTail)
     case Apply(fn, List()) => compile(builtins, fn, boundByCurrentLambda, recursiveVars, isTail)
     case Apply(fn, args) =>
-      // Four cases to consider:
-      //   1. static (function is already evaluated, known arity), fully-saturated call (correct number of args), ex `(x -> x) 42`
-      //   2. static partial application, ex `(x y -> x) 42`, need to form closure or specialize
-      //   3. static overapplication, ex `(x -> x) (y -> y) 42` or `id id 42`
-      //   4. dynamic application, ex in `(f x -> f x) id 42`, `f x` is a dynamic application
-      val compiledFn = compile(builtins, fn, boundByCurrentLambda, recursiveVars, IsNotTail)
-      val compiledArgs = args.view.map(arg => compile(builtins, arg, boundByCurrentLambda, recursiveVars, IsNotTail)).toArray
-      if (compiledFn.isEvaluated) {
-        if (compiledFn.arity == compiledArgs.length) // 1.
-          FunctionApplication.staticCall(compiledFn, compiledArgs, unTermC(e), isTail)
-        else if (compiledFn.arity > compiledArgs.length) // 2.
-          FunctionApplication.staticCall(compiledFn, compiledArgs, unTermC(e), isTail)
-        else // 3. (compiledFn.arity < compiledArgs.length)
-          ???
+      compileFunctionApplication(builtins, e, boundByCurrentLambda, recursiveVars, isTail, fn, args)
+  }}
+
+  def compileIf0(
+      builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
+      recursiveVars: Map[Name,TermC], isTail: Boolean, cond: TermC, if0: TermC, ifNot0: TermC): Rt = {
+    val compiledCond = compile(builtins, cond, boundByCurrentLambda, recursiveVars, IsNotTail)
+    val compiledIf0 = compile(builtins, if0, boundByCurrentLambda, recursiveVars, isTail)
+    val compiledIfNot0 = compile(builtins, ifNot0, boundByCurrentLambda, recursiveVars, isTail)
+    // todo - partial evaluation, if cond has no free vars
+    arity(freeVars(e), env(e)) match {
+      case 0 => new Arity0(e,()) {
+        def apply(r: R) = {
+          eval(compiledCond,r)
+          if (r.unboxed == 0.0) compiledIf0(r)
+          else compiledIfNot0(r)
+        }
       }
-      else // 4.
-        arity(freeVars(e), env(e)) match {
-          case 1 => compiledArgs.length match {
-            case 1 => new Arity1(e,()) {
-              val arg = compiledArgs(0)
-              def apply(x1: D, x1b: Rt, r: R) =
-                if (compiledFn.isEvaluated) {
-                  eval(arg, x1, x1b, r)
-                  compiledFn(r.unboxed, r.boxed, r)
-                }
-                else {
-                  eval(compiledFn, x1, x1b, r)
-                  val fn = r.boxed
-                  eval(arg, x1, x1b, r)
-                  if (fn.arity == 1) fn(r.unboxed, r.boxed, r)
-                  else if (fn.arity > 1)
-                    sys.error("todo - handle partial application here")
-                  else sys.error("type error, function of arity: " + fn.arity + " applied to 1 argument")
-                }
-            }
+      case 1 => new Arity1(e,()) {
+        def apply(x1: D, x1b: Rt, r: R) = {
+          eval(compiledCond,x1,x1b,r)
+          if (r.unboxed == 0.0) compiledIf0(x1,x1b,r)
+          else compiledIfNot0(x1,x1b,r)
+        }
+      }
+      case 2 => new Arity2(e,()) {
+        def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = {
+          eval(compiledCond,x1,x1b,x2,x2b,r)
+          if (r.unboxed == 0.0) compiledIf0(x1,x1b,x2,x2b,r)
+          else compiledIfNot0(x1,x1b,x2,x2b,r)
+        }
+      }
+      case 3 => new Arity3(e,()) {
+        def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, r: R) = {
+          eval(compiledCond,x1,x1b,x2,x2b,x3,x3b,r)
+          if (r.unboxed == 0.0) compiledIf0(x1,x1b,x2,x2b,x3,x3b,r)
+          else compiledIfNot0(x1,x1b,x2,x2b,x3,x3b,r)
+        }
+      }
+      case 4 => new Arity4(e,()) {
+        def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, x4: D, x4b: Rt, r: R) = {
+          eval(compiledCond,x1,x1b,x2,x2b,x3,x3b,x4,x4b,r)
+          if (r.unboxed == 0.0) compiledIf0(x1,x1b,x2,x2b,x3,x3b,x4,x4b,r)
+          else compiledIfNot0(x1,x1b,x2,x2b,x3,x3b,x4,x4b,r)
+        }
+      }
+      case n => new ArityN(n,e,()) {
+        def apply(args: Array[Slot], r: R) = {
+          evalN(compiledCond,args,r)
+          if (r.unboxed == 0.0) compiledIf0(args,r)
+          else compiledIfNot0(args,r)
+        }
+      }
+    }
+  }
+
+  def compileFunctionApplication(
+      builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
+      recursiveVars: Map[Name,TermC], isTail: Boolean, fn: TermC, args: List[TermC]): Rt = {
+    /* Four cases to consider:
+       1. static (fn already evaluated, known arity), fully-saturated call (correct # args),
+          ex `(x -> x) 42`
+       2. static partial application, ex `(x y -> x) 42`, need to form closure or specialize
+       3. static overapplication, ex `(x -> x) (y -> y) 42` or `id id 42`
+       4. dynamic application, ex in `(f x -> f x) id 42`, `f x` is a dynamic application
+    */
+    val compiledFn = compile(builtins, fn, boundByCurrentLambda, recursiveVars, IsNotTail)
+    val compiledArgs = args.view.map(arg => compile(builtins, arg, boundByCurrentLambda, recursiveVars, IsNotTail)).toArray
+    if (compiledFn.isEvaluated) {
+      if (compiledFn.arity == compiledArgs.length) // 1.
+        FunctionApplication.staticCall(compiledFn, compiledArgs, unTermC(e), isTail)
+      else if (compiledFn.arity > compiledArgs.length) // 2.
+        FunctionApplication.staticCall(compiledFn, compiledArgs, unTermC(e), isTail)
+      else // 3. (compiledFn.arity < compiledArgs.length)
+        ???
+    }
+    else // 4.
+      arity(freeVars(e), env(e)) match {
+        case 1 => compiledArgs.length match {
+          case 1 => new Arity1(e,()) {
+            val arg = compiledArgs(0)
+            def apply(x1: D, x1b: Rt, r: R) =
+              if (compiledFn.isEvaluated) {
+                eval(arg, x1, x1b, r)
+                compiledFn(r.unboxed, r.boxed, r)
+              }
+              else {
+                eval(compiledFn, x1, x1b, r)
+                val fn = r.boxed
+                eval(arg, x1, x1b, r)
+                if (fn.arity == 1) fn(r.unboxed, r.boxed, r)
+                else if (fn.arity > 1)
+                  sys.error("todo - handle partial application here")
+                else sys.error("type error, function of arity: " + fn.arity + " applied to 1 argument")
+              }
           }
         }
-  }}
+      }
+  }
 
   def compileLetRec(builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
                     recursiveVars: Map[Name,TermC], isTail: Boolean, bindings: List[(Name,TermC)], body: TermC): Rt = {
