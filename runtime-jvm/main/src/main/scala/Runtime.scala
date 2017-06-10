@@ -126,6 +126,14 @@ object Runtime {
   def compile(builtins: String => Rt)(e: Term): Rt =
     compile(builtins, ABT.annotateBound(e), None, Map(), IsTail)
 
+  /** Compile and evaluate a term, the return result back as a term. */
+  def normalize(builtins: String => Rt)(e: Term): Term = {
+    val rt = compile(builtins)(e)
+    val r = Result()
+    rt(r)
+    decompileSlot(r.unboxed, r.boxed)
+  }
+
   private def unbindRecursiveVars(e: TermC, recursiveVars: Map[Name,TermC]): TermC =
     e.reannotate { case (free,bound) => (free, bound.filterNot(recursiveVars.contains(_))) }
 

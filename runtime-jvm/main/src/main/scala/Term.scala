@@ -231,4 +231,6 @@ object Term {
   implicit class ApplySyntax(val fn: Term) extends AnyVal {
     def apply(args: Term*) = Apply(fn, args: _*)
   }
+
+  implicit def stringAsVar(s: Name): Term = Var(s)
 }
