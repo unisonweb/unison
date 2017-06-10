@@ -2,6 +2,7 @@ package org.unisonweb
 
 import Runtime._
 import Term.{Name,Term}
+import annotation.switch
 
 abstract class Runtime {
 
@@ -628,11 +629,11 @@ object Runtime {
     def decompile = decompileIt
     def arity: Int = 2
     def apply(result: R): Unit = result.boxed = this
-    def apply(arg2: D, arg2b: Rt,
+    def apply(a2: D, a2b: Rt,
               result: R): Unit = {
-      val closure = new Arity1(Apply(decompileIt, decompileSlot(arg1, arg1b))) {
-        def apply(arg1: D, arg1b: Rt, r: R) =
-          self(arg1, arg1b, arg2, arg2b, r)
+      val closure = new Arity1(Apply(decompileIt, decompileSlot(a2, a2b))) {
+        def apply(a1: D, a1b: Rt, r: R) =
+          self(a1, a1b, a2, a2b, r)
         override def isEvaluated = true
       }
       result.boxed = closure
@@ -660,7 +661,7 @@ object Runtime {
     def apply(result: R): Unit = result.boxed = this
     def apply(a3: D, a3b: Rt,
               result: R): Unit =
-      result.boxed = new Arity2(decompileIt(decompileSlot(arg1, arg1b))) with NF {
+      result.boxed = new Arity2(decompileIt(decompileSlot(a3, a3b))) with NF {
         def apply(a1: D, a1b: Rt,
                   a2: D, a2b: Rt,
                   result: R): Unit =
@@ -689,21 +690,40 @@ object Runtime {
                     args(2).unboxed, args(2).boxed, result)
   }
 
-  abstract class Arity4(decompileIt: => Term) extends Runtime {
+  abstract class Arity4(decompileIt: => Term) extends Runtime { self =>
     def this(t: TermC, dummy: Unit) = this(unTermC(t))
     def decompile = decompileIt
     def arity: Int = 4
     def apply(result: R): Unit = result.boxed = this
-    // todo - handle partial application here
-    def apply(arg1: D, arg1b: Rt,
-              result: R): Unit = sys.error("partially apply arity 4")
-    def apply(arg1: D, arg1b: Rt,
-              arg2: D, arg2b: Rt,
-              result: R): Unit = sys.error("partially apply arity 4")
-    def apply(arg1: D, arg1b: Rt,
-              arg2: D, arg2b: Rt,
-              arg3: D, arg3b: Rt,
-              result: R): Unit = sys.error("partially apply arity 4")
+    def apply(a4: D, a4b: Rt,
+              result: R): Unit =
+      result.boxed = new Arity3(decompileIt(decompileSlot(a4, a4b))) with NF {
+        def apply(a1: D, a1b: Rt,
+                  a2: D, a2b: Rt,
+                  a3: D, a3b: Rt,
+                  result: R) =
+          self(a1, a1b, a2, a2b, a3, a3b, a4, a4b, result)
+      }
+    def apply(a3: D, a3b: Rt,
+              a4: D, a4b: Rt,
+              result: R): Unit =
+      result.boxed = new Arity2(decompileIt(decompileSlot(a4, a4b), decompileSlot(a3, a3b))) {
+        def apply(a1: D, a1b: Rt,
+                  a2: D, a2b: Rt,
+                  result: R) =
+          self(a1, a1b, a2, a2b, a3, a3b, a4, a4b, result)
+      }
+    def apply(a2: D, a2b: Rt,
+              a3: D, a3b: Rt,
+              a4: D, a4b: Rt,
+              result: R): Unit =
+      result.boxed = new Arity1(decompileIt(decompileSlot(a4, a4b),
+                                            decompileSlot(a3, a3b),
+                                            decompileSlot(a2, a2b))) with NF {
+        def apply(a1: D, a1b: Rt, result: R) =
+          self(a1, a1b, a2, a2b, a3, a3b, a4, a4b, result)
+      }
+
     def apply(arg1: D, arg1b: Rt,
               arg2: D, arg2b: Rt,
               arg3: D, arg3b: Rt,
@@ -718,24 +738,99 @@ object Runtime {
                     result)
   }
 
-  abstract class ArityN(val arity: Int, decompileIt: => Term) extends Runtime {
+  abstract class ArityN(val arity: Int, decompileIt: => Term) extends Runtime { self =>
     def this(arity: Int, t: TermC, dummy: Unit) = this(arity, unTermC(t))
     def decompile = decompileIt
     def apply(result: R): Unit = result.boxed = this
-    def apply(arg1: D, arg1b: Rt,
-              result: R): Unit = sys.error("partially apply arity N")
-    def apply(arg1: D, arg1b: Rt,
-              arg2: D, arg2b: Rt,
-              result: R): Unit = sys.error("partially apply arity N")
-    def apply(arg1: D, arg1b: Rt,
-              arg2: D, arg2b: Rt,
-              arg3: D, arg3b: Rt,
-              result: R): Unit = sys.error("partially apply arity N")
-    def apply(arg1: D, arg1b: Rt,
-              arg2: D, arg2b: Rt,
-              arg3: D, arg3b: Rt,
-              arg4: D, arg4b: Rt,
-              result: R): Unit = sys.error("partially apply arity N")
+    def apply(aN: D, aNb: Rt,
+              result: R): Unit = {
+      def decompiled = decompileIt(decompileSlot(aN, aNb))
+      if (arity > 5) result.boxed = new ArityN(arity - 1, decompiled) {
+        def apply(args: Array[Slot], r: R) = self(args :+ Slot(aN, aNb), r)
+      }
+      else if (arity == 5) result.boxed = new Arity4(decompiled) {
+        def apply(a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, a4: D, a4b: Rt, r: R) =
+          self(Array(Slot(a1,a1b), Slot(a2,a2b), Slot(a3,a3b), Slot(a4,a4b), Slot(aN,aNb)), r)
+      }
+      else
+        sys.error("ArityN with arity less than 5: " + arity)
+    }
+    def apply(aN_1: D, aN_1b: Rt,
+              aN: D, aNb: Rt,
+              result: R): Unit = {
+      def decompiled = decompileIt(decompileSlot(aN, aNb), decompileSlot(aN_1, aN_1b))
+      if (arity > 6) result.boxed = new ArityN(arity - 2, decompiled) {
+        def apply(args: Array[Slot], r: R) = self(args ++ Array(Slot(aN_1,aN_1b),Slot(aN, aNb)), r)
+      }
+      else if (arity == 6) result.boxed = new Arity4(decompiled) {
+        def apply(a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, a4: D, a4b: Rt, r: R) =
+          self(Array(Slot(a1,a1b), Slot(a2,a2b), Slot(a3,a3b), Slot(a4,a4b), Slot(aN_1,aN_1b), Slot(aN,aNb)), r)
+      }
+      else if (arity == 5) result.boxed = new Arity3(decompiled) {
+        def apply(a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, r: R) =
+          self(Array(Slot(a1,a1b), Slot(a2,a2b), Slot(a3,a3b), Slot(aN_1,aN_1b), Slot(aN,aNb)), r)
+      }
+      else
+        sys.error("ArityN with arity less than 5: " + arity)
+    }
+    def apply(aN_2: D, aN_2b: Rt,
+              aN_1: D, aN_1b: Rt,
+              aN: D, aNb: Rt,
+              result: R): Unit = {
+      def decompiled = decompileIt(decompileSlot(aN, aNb), decompileSlot(aN_1, aN_1b), decompileSlot(aN_2, aN_2b))
+      (arity : @switch) match {
+        case 5 => result.boxed = new Arity2(decompiled) {
+          def apply(a1: D, a1b: Rt, a2: D, a2b: Rt, r: R) =
+            self(Array(Slot(a1,a1b), Slot(a2,a2b), Slot(aN_2,aN_2b), Slot(aN_1,aN_1b), Slot(aN,aNb)), r)
+        }
+        case 6 => result.boxed = new Arity3(decompiled) {
+          def apply(a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, r: R) =
+            self(Array(Slot(a1,a1b), Slot(a2,a2b), Slot(a3,a3b), Slot(aN_2,aN_2b), Slot(aN_1,aN_1b), Slot(aN,aNb)), r)
+        }
+        case 7 => result.boxed = new Arity4(decompiled) {
+          def apply(a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, a4: D, a4b: Rt, r: R) =
+            self(Array(Slot(a1,a1b), Slot(a2,a2b), Slot(a3,a3b), Slot(a4,a4b), Slot(aN_2,aN_2b), Slot(aN_1,aN_1b), Slot(aN,aNb)), r)
+        }
+        case arity =>
+          if (arity > 7) result.boxed = new ArityN(arity - 3, decompiled) {
+            def apply(args: Array[Slot], r: R) = self(args ++ Array(Slot(aN_2,aN_2b),Slot(aN_1,aN_1b),Slot(aN, aNb)), r)
+          }
+          else
+            sys.error("ArityN with arity less than 5: " + arity)
+      }
+    }
+
+    def apply(aN_3: D, aN_3b: Rt,
+              aN_2: D, aN_2b: Rt,
+              aN_1: D, aN_1b: Rt,
+              aN: D, aNb: Rt,
+              result: R): Unit = {
+      def decompiled = decompileIt(decompileSlot(aN, aNb), decompileSlot(aN_1, aN_1b), decompileSlot(aN_2, aN_2b), decompileSlot(aN_3, aN_3b))
+      (arity : @switch) match {
+        case 5 => result.boxed = new Arity1(decompiled) {
+          def apply(a1: D, a1b: Rt, r: R) =
+            self(Array(Slot(a1,a1b), Slot(aN_3,aN_3b), Slot(aN_2,aN_2b), Slot(aN_1,aN_1b), Slot(aN,aNb)), r)
+        }
+        case 6 => result.boxed = new Arity2(decompiled) {
+          def apply(a1: D, a1b: Rt, a2: D, a2b: Rt, r: R) =
+            self(Array(Slot(a1,a1b), Slot(a2,a2b), Slot(aN_3,aN_3b), Slot(aN_2,aN_2b), Slot(aN_1,aN_1b), Slot(aN,aNb)), r)
+        }
+        case 7 => result.boxed = new Arity3(decompiled) {
+          def apply(a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, r: R) =
+            self(Array(Slot(a1,a1b), Slot(a2,a2b), Slot(a3,a3b), Slot(aN_3,aN_3b), Slot(aN_2,aN_2b), Slot(aN_1,aN_1b), Slot(aN,aNb)), r)
+        }
+        case 8 => result.boxed = new Arity4(decompiled) {
+          def apply(a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, a4: D, a4b: Rt, r: R) =
+            self(Array(Slot(a1,a1b), Slot(a2,a2b), Slot(a3,a3b), Slot(a4,a4b), Slot(aN_3,aN_3b), Slot(aN_2,aN_2b), Slot(aN_1,aN_1b), Slot(aN,aNb)), r)
+        }
+        case arity =>
+          if (arity > 8) result.boxed = new ArityN(arity - 4, decompiled) {
+            def apply(args: Array[Slot], r: R) = self(args ++ Array(Slot(aN_2,aN_3b),Slot(aN_2,aN_2b),Slot(aN_1,aN_1b),Slot(aN, aNb)), r)
+          }
+          else
+            sys.error("ArityN with arity less than 5: " + arity)
+      }
+    }
     def apply(args: Array[Slot],
               result: R): Unit
   }
