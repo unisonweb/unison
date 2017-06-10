@@ -100,6 +100,10 @@ object Runtime {
   case class Result(var unboxed: D = 0.0,
                     var boxed: Rt = null,
                     var tailCall: Rt = null,
+                    var tailArg1: D = 0.0,
+                    var tailArg1b: Rt = null,
+                    var tailArg2: D = 0.0,
+                    var tailArg2b: Rt = null,
                     var tailArgs: Array[Slot] = null) {
     final def toRuntime =
       if (boxed eq null) compileNum(unboxed)
@@ -130,7 +134,7 @@ object Runtime {
   def normalize(builtins: String => Rt)(e: Term): Term = {
     val rt = compile(builtins)(e)
     val r = Result()
-    rt(r)
+    eval(rt, r)
     decompileSlot(r.unboxed, r.boxed)
   }
 
@@ -517,49 +521,79 @@ object Runtime {
     }
   }
 
+  @inline def tailCallLoop(r: R): Unit = {
+    while (!(r.tailCall eq null)) {
+      val fn = r.tailCall
+      r.tailCall = null
+      (fn.arity : @switch) match {
+        case 1 => fn(r.tailArg1, r.tailArg1b, r)
+        case 2 => fn(r.tailArg1, r.tailArg1b, r.tailArg2, r.tailArg2b, r)
+        case 3 => fn(r.tailArg1, r.tailArg1b, r.tailArg2, r.tailArg2b,
+                             r.tailArgs(0).unboxed, r.tailArgs(0).boxed, r)
+        case 4 => fn(r.tailArg1, r.tailArg1b, r.tailArg2, r.tailArg2b,
+                             r.tailArgs(0).unboxed, r.tailArgs(0).boxed,
+                             r.tailArgs(1).unboxed, r.tailArgs(1).boxed, r)
+        case n => fn(Array(Slot(r.tailArg1, r.tailArg1b), Slot(r.tailArg2, r.tailArg2b)) ++
+                             r.tailArgs, r)
+      }
+    }
+  }
+
   @inline
   def eval(rt: Rt, r: R): Unit = {
-    rt(r) // todo - interpret tail calls
+    r.tailCall = null; r.tailArgs = null
+    rt(r)
+    tailCallLoop(r)
   }
   @inline
   def eval(rt: Rt, x1: D, x2: Rt, r: R): Unit = {
-    rt(x1,x2,r) // todo - interpret tail calls
+    rt(x1,x2,r)
+    tailCallLoop(r)
   }
   @inline
   def eval(rt: Rt, x1: D, x2: Rt, x3: D, x4: Rt, r: R): Unit = {
-    rt(x1,x2,x3,x4,r) // todo - interpret tail calls
+    rt(x1,x2,x3,x4,r)
+    tailCallLoop(r)
   }
   @inline
   def eval(rt: Rt, x1: D, x2: Rt, x3: D, x4: Rt, x5: D, x6: Rt, r: R): Unit = {
-    rt(x1,x2,x3,x4,x5,x6,r) // todo - interpret tail calls
+    rt(x1,x2,x3,x4,x5,x6,r)
+    tailCallLoop(r)
   }
   @inline
   def eval(rt: Rt, x1: D, x2: Rt, x3: D, x4: Rt, x5: D, x6: Rt, x7: D, x8: Rt, r: R): Unit = {
-    rt(x1,x2,x3,x4,x5,x6,x7,x8,r) // todo - interpret tail calls
+    rt(x1,x2,x3,x4,x5,x6,x7,x8,r)
+    tailCallLoop(r)
   }
   @inline
   def evalN(rt: Rt, args: Array[Slot], r: R): Unit = {
-    rt(args,r) // todo - interpret tail calls
+    rt(args,r)
+    tailCallLoop(r)
   }
   @inline
   def tailCall(fn: Rt, x1: D, x1b: Rt, r: R): Unit = {
-    r.tailCall = fn; r.tailArgs = Array(Slot(x1,x1b))
+    r.tailCall = fn; r.tailArg1 = x1; r.tailArg1b = x1b; r.tailArgs = null
   }
   @inline
   def tailCall(fn: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, r: R): Unit = {
-    r.tailCall = fn; r.tailArgs = Array(Slot(x1,x1b),Slot(x2,x2b))
+    r.tailCall = fn; r.tailArg1 = x1; r.tailArg1b = x1b; r.tailArg2 = x2; r.tailArg2b = x2b
+    r.tailArgs = null
   }
   @inline
   def tailCall(fn: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, r: R): Unit = {
-    r.tailCall = fn; r.tailArgs = Array(Slot(x1,x1b),Slot(x2,x2b),Slot(x3,x3b))
+    r.tailCall = fn; r.tailArg1 = x1; r.tailArg1b = x1b; r.tailArg2 = x2; r.tailArg2b = x2b
+    r.tailArgs = Array(Slot(x3,x3b))
   }
   @inline
   def tailCall(fn: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, x4: D, x4b: Rt, r: R): Unit = {
-    r.tailCall = fn; r.tailArgs = Array(Slot(x1,x1b),Slot(x2,x2b),Slot(x3,x3b),Slot(x4,x4b))
+    r.tailCall = fn; r.tailArg1 = x1; r.tailArg1b = x1b; r.tailArg2 = x2; r.tailArg2b = x2b
+    r.tailArgs = Array(Slot(x3,x3b),Slot(x4,x4b))
   }
   @inline
   def tailCall(fn: Rt, args: Array[Slot], r: R): Unit = {
-    r.tailCall = fn; r.tailArgs = args
+    r.tailCall = fn; r.tailArg1 = args(0).unboxed; r.tailArg1b = args(0).boxed
+    r.tailArg2 = args(1).unboxed; r.tailArg2b = args(1).boxed
+    r.tailArgs = args.drop(2)
   }
 
   def lookupVar(i: Int, e: Term): Rt = i match {
