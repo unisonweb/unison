@@ -220,13 +220,16 @@ object Runtime {
     // compile all the bindings and the body
     // to evaluate, evaluate all the bindings, getting back a `Rt` for each
     // then call bind on each
+    val compiledBody2 = compiledBody // NB workaround for https://issues.scala-lang.org/browse/SI-10036
+    val compiledBindings2 = compiledBindings
+    val names2 = names
     trait B { self : Rt =>
       override def bind(env: Map[Name,Rt]) = {
         // remove any bindings shadowed in local let rec
-        val env2 = env -- names
+        val env2 = env -- names2
         if (env2.nonEmpty) {
-          compiledBindings.foreach(_.bind(env2))
-          compiledBody.bind(env2)
+          compiledBindings2.foreach(_.bind(env2))
+          compiledBody2.bind(env2)
         }
       }
     }
@@ -346,7 +349,7 @@ object Runtime {
     if (compileAsFree) new Arity0(e,()) {
       var rt: Rt = null
       def apply(r: R) = rt(r)
-      override val freeVarsUnderLambda = if (rt eq null) Set(name) else Set()
+      override def freeVarsUnderLambda = if (rt eq null) Set(name) else Set()
       override def bind(env: Map[Name,Rt]) = env.get(name) match {
         case Some(rt2) => rt = rt2
         case _ => () // not an error, just means that some other scope will bind this free var
@@ -388,15 +391,16 @@ object Runtime {
       }
     }
     else {
+      val compiledBody2 = compiledBody // NB workaround for https://issues.scala-lang.org/browse/SI-10036
       trait Closure { self: Rt =>
         var bound: List[(Name,Rt)] = List()
         override def bind(env: Map[Name,Rt]) =
           if (freeVars(e).exists(v => env.contains(v))) {
-            compiledBody.bind(env)
+            compiledBody2.bind(env)
             bound = bound ++ env
           }
           else ()
-        override def freeVarsUnderLambda = compiledBody.freeVarsUnderLambda
+        override def freeVarsUnderLambda = compiledBody2.freeVarsUnderLambda
         override def decompile = {
           /* When decompiling closure, bound vars in environment get substituted into
              lambda body, for instance:
@@ -439,14 +443,15 @@ object Runtime {
         case n => new ArityN(n,e,()) with Closure { def apply(xs: Array[Slot], r: R) = compiledBody(xs, r) }
       }
       val locallyBound = compiledBody.freeVarsUnderLambda.filter(v => !recursiveVars.contains(v))
+      val compiledBody3 = compiledBody // NB workaround for https://issues.scala-lang.org/browse/SI-10036
       trait L2 { self: Rt =>
         // avoid binding variables that are locally bound
         override def bind(env: Map[Name,Rt]) = {
           val env2 = env -- locallyBound
           if (env2.isEmpty || !freeVarsUnderLambda.exists(env2.contains(_))) ()
-          else compiledBody.bind(env2)
+          else compiledBody3.bind(env2)
         }
-        override def freeVarsUnderLambda = compiledBody.freeVarsUnderLambda
+        override def freeVarsUnderLambda = compiledBody3.freeVarsUnderLambda
       }
       arity(locallyBound, env(e)) match {
         case 0 => createClosure
