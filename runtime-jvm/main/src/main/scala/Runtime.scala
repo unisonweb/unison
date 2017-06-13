@@ -138,7 +138,7 @@ object Runtime {
     eval(rt, r)
     decompileSlot(r.unboxed, r.boxed)
   }
-
+  
   private def unbindRecursiveVars(e: TermC, recursiveVars: Map[Name,TermC]): TermC =
     e.reannotate { case (free,bound) => (free, bound.filterNot(recursiveVars.contains(_))) }
 
@@ -471,10 +471,7 @@ object Runtime {
   def compileVar(name: Name, e: TermC, compileAsFree: Boolean): Rt =
     if (compileAsFree) new Arity0(e,()) {
       var rt: Rt = null
-      def apply(r: R) =
-        // todo remove this
-        if (rt eq null) sys.error("unbound variable: " + name)
-        else rt(r)
+      def apply(r: R) = rt(r)
       override def freeVarsUnderLambda = if (rt eq null) Set(name) else Set()
       override def bind(env: Map[Name,Rt]) = env.get(name) match {
         case Some(rt2) => rt = rt2
