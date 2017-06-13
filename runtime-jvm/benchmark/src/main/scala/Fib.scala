@@ -19,7 +19,6 @@ object Fib extends App {
     }
     case s@"+" => new Arity2(Builtin(s)) with NF {
       def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = {
-        println("w00t")
         r.boxed = null
         r.unboxed = x2 + x1
       }
@@ -27,11 +26,13 @@ object Fib extends App {
   }
 
   val fib =
-    LetRec("fib" ->
-      Lam("n")(
+    LetRec(
+      "fib" -> Lam("n")(
         If0("n", 0.0,
         If0(Var("n") - 1.0, 1.0,
-            Var("fib")(Var("n") - 1.0) + Var("fib")(Var("n") - 2.0)))))(Var("fib")(0.0))
+        Var("fib")(Var("n") - 1.0) + Var("fib")(Var("n") - 2.0))))
+    )(Var("fib")(0.0))
 
-  println(normalize(builtins)(Num(1.0) + Num(4.0)))
+  println(normalize(builtins)(fib))
+  // println(normalize(builtins)(Num(1.0) + Num(4.0)))
 }

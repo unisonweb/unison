@@ -60,6 +60,7 @@ abstract class Runtime {
   def bind(env: Map[Name, Rt]): Unit
 
   def decompile: Term
+  // def decompile(idHashMap: IdentityHashMap[Rt,Lazy[Term]]): Term
 }
 
 object Runtime {
@@ -487,6 +488,11 @@ object Runtime {
     def bind(env: Map[Name,Rt]) = ()
   }
 
+  trait AccumulateBound { self : Rt =>
+    var bound : Map[Name,Rt] = Map.empty
+    def bind(env: Map[Name,Rt]) = bound = env ++ bound
+  }
+
   class Lambda1(name: Name, e: => Term, compiledBody: Rt) extends Arity1(e) {
     def bind(env: Map[Name,Rt]) = compiledBody.bind(env - name)
     def apply(x1: D, x1b: Rt, r: R) = compiledBody(x1, x1b, r)
@@ -495,9 +501,9 @@ object Runtime {
 
   class Lambda2(name1: Name, name2: Name, e: => Term, body: => Term, compiledBody: Rt, builtins: String => Rt) extends Arity2(e) {
     var bound: Map[Name,Rt] = Map.empty
-    def bind(env: Map[Name,Rt]) = {
+    def bind(env: Map[Name,Rt]) = if (env.isEmpty) () else {
       val env2 = env - name1 - name2
-      compiledBody.bind(env)
+      compiledBody.bind(env2)
       bound = bound ++ env2
     }
     override def apply(x1: D, x1b: Rt, r: R) = {
@@ -515,9 +521,9 @@ object Runtime {
 
   class Lambda3(name1: Name, name2: Name, name3: Name, e: => Term, body: => Term, compiledBody: Rt, builtins: String => Rt) extends Arity3(e) {
     var bound: Map[Name,Rt] = Map.empty
-    def bind(env: Map[Name,Rt]) = {
+    def bind(env: Map[Name,Rt]) = if (env.isEmpty) () else {
       val env2 = env - name1 - name2 - name3
-      compiledBody.bind(env)
+      compiledBody.bind(env2)
       bound = bound ++ env2
     }
     override def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = {
@@ -537,12 +543,55 @@ object Runtime {
     override def isEvaluated = true
   }
 
+  class Lambda4(name1: Name, name2: Name, name3: Name, name4: Name,
+                e: => Term, body: => Term, compiledBody: Rt, builtins: String => Rt) extends Arity4(e) {
+    var bound: Map[Name,Rt] = Map.empty
+    def bind(env: Map[Name,Rt]) = if (env.isEmpty) () else {
+      val env2 = env - name1 - name2 - name3
+      compiledBody.bind(env2)
+      bound = bound ++ env2
+    }
+    override def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = {
+      val rt1 = toRuntime(x1, x1b)
+      val rt2 = toRuntime(x2, x2b)
+      Term.betaReduce2(name1, name2, Lam(name3, name4)(body))(Compiled(rt2), Compiled(rt1)) match {
+        case tm@Lam(List(name3,name4), body) =>
+          val lam = new Lambda2(name3, name4, tm, body, compile(builtins)(body), builtins)
+          lam.bind(bound)
+          r.boxed = lam
+      }
+    }
+    override def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, r: R) = {
+      val rt1 = toRuntime(x1, x1b)
+      val rt2 = toRuntime(x2, x2b)
+      val rt3 = toRuntime(x3, x3b)
+      Term.betaReduce3(name1, name2, name3, Lam(name4)(body))(Compiled(rt3), Compiled(rt2), Compiled(rt1)) match {
+        case tm@Lam(List(name4), body) =>
+          val lam = new Lambda1(name4, tm, compile(builtins)(body))
+          lam.bind(bound)
+          r.boxed = lam
+      }
+    }
+    override def apply(x1: D, x1b: Rt, r: R) = {
+      val rt = toRuntime(x1, x1b)
+      Term.betaReduce(name1, Lam(name2, name3, name4)(body))(Compiled(rt)) match {
+        case tm@Lam(List(name2, name3, name4), body) =>
+          val lam = new Lambda3(name2, name3, name4, tm, body, compile(builtins)(body), builtins)
+          lam.bind(bound)
+          r.boxed = lam
+      }
+    }
+    def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, x4: D, x4b: Rt, r: R) =
+      compiledBody(x1, x1b, x2, x2b, x3, x3b, x4, x4b, r)
+    override def isEvaluated = true
+  }
+
   class LambdaN(names: Array[Name], e: => Term, body: => Term, compiledBody: Rt, builtins: String => Rt)
       extends ArityN(names.length, e) {
     var bound: Map[Name,Rt] = Map.empty
-    def bind(env: Map[Name,Rt]) = {
+    def bind(env: Map[Name,Rt]) = if (env.isEmpty) () else {
       val env2 = env -- names
-      compiledBody.bind(env)
+      compiledBody.bind(env2)
       bound = bound ++ env2
     }
     override def apply(x1: D, x1b: Rt, r: R) = {
@@ -592,66 +641,24 @@ object Runtime {
     override def isEvaluated = true
   }
 
-  class Lambda4(name1: Name, name2: Name, name3: Name, name4: Name,
-                e: => Term, body: => Term, compiledBody: Rt, builtins: String => Rt) extends Arity4(e) {
-    var bound: Map[Name,Rt] = Map.empty
-    def bind(env: Map[Name,Rt]) = {
-      val env2 = env - name1 - name2 - name3
-      compiledBody.bind(env)
-      bound = bound ++ env2
-    }
-    override def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = {
-      val rt1 = toRuntime(x1, x1b)
-      val rt2 = toRuntime(x2, x2b)
-      Term.betaReduce2(name1, name2, Lam(name3, name4)(body))(Compiled(rt2), Compiled(rt1)) match {
-        case tm@Lam(List(name3,name4), body) =>
-          val lam = new Lambda2(name3, name4, tm, body, compile(builtins)(body), builtins)
-          lam.bind(bound)
-          r.boxed = lam
-      }
-    }
-    override def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, r: R) = {
-      val rt1 = toRuntime(x1, x1b)
-      val rt2 = toRuntime(x2, x2b)
-      val rt3 = toRuntime(x3, x3b)
-      Term.betaReduce3(name1, name2, name3, Lam(name4)(body))(Compiled(rt3), Compiled(rt2), Compiled(rt1)) match {
-        case tm@Lam(List(name4), body) =>
-          val lam = new Lambda1(name4, tm, compile(builtins)(body))
-          lam.bind(bound)
-          r.boxed = lam
-      }
-    }
-    override def apply(x1: D, x1b: Rt, r: R) = {
-      val rt = toRuntime(x1, x1b)
-      Term.betaReduce(name1, Lam(name2, name3, name4)(body))(Compiled(rt)) match {
-        case tm@Lam(List(name2, name3, name4), body) =>
-          val lam = new Lambda3(name2, name3, name4, tm, body, compile(builtins)(body), builtins)
-          lam.bind(bound)
-          r.boxed = lam
-      }
-    }
-    def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, x4: D, x4b: Rt, r: R) =
-      compiledBody(x1, x1b, x2, x2b, x3, x3b, x4, x4b, r)
-    override def isEvaluated = true
-  }
+  // todo - do we still need freeVarsUnderLambda?
 
   def compileLambda(
       builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
       recursiveVars: Map[Name,TermC])(names: List[Name], body: TermC): Rt = {
-    val compiledBody = compile(builtins, body, boundByCurrentLambda, recursiveVars, IsTail)
     def makeCompiledBody = compile(builtins, body, boundByCurrentLambda, recursiveVars, IsTail)
     lazy val eUnC = unTermC(e)
     lazy val bodyUnC = unTermC(body)
     def makeLambda = names match {
       case name1 :: tl => tl match {
-        case Nil => new Lambda1(name1, eUnC, compiledBody)
+        case Nil => new Lambda1(name1, eUnC, makeCompiledBody)
         case name2 :: tl => tl match {
-          case Nil => new Lambda2(name1, name2, eUnC, bodyUnC, compiledBody, builtins)
+          case Nil => new Lambda2(name1, name2, eUnC, bodyUnC, makeCompiledBody, builtins)
           case name3 :: tl => tl match {
-            case Nil => new Lambda3(name1, name2, name3, eUnC, bodyUnC, compiledBody, builtins)
+            case Nil => new Lambda3(name1, name2, name3, eUnC, bodyUnC, makeCompiledBody, builtins)
             case name4 :: tl => tl match {
-              case Nil => new Lambda4(name1, name2, name3, name4, eUnC, bodyUnC, compiledBody, builtins)
-              case _ => new LambdaN(names.toArray, eUnC, bodyUnC, compiledBody, builtins)
+              case Nil => new Lambda4(name1, name2, name3, name4, eUnC, bodyUnC, makeCompiledBody, builtins)
+              case _ => new LambdaN(names.toArray, eUnC, bodyUnC, makeCompiledBody, builtins)
             }
           }
         }
@@ -660,81 +667,20 @@ object Runtime {
     }
     if (freeVars(e).isEmpty) makeLambda
     else {
-      val compiledBody2 = compiledBody // NB workaround for https://issues.scala-lang.org/browse/SI-10036
-      trait Closure { self: Rt =>
-        var bound: List[(Name,Rt)] = List()
-        override def bind(env: Map[Name,Rt]) =
-          if (freeVars(e).exists(v => env.contains(v))) {
-            compiledBody2.bind(env)
-            bound = bound ++ env
-          }
-          else ()
-        override def freeVarsUnderLambda = compiledBody2.freeVarsUnderLambda
-        override def decompile = {
-          /* When decompiling closure, bound vars in environment get substituted into
-             lambda body, for instance:
-
-               let { incr x = x + 1; x -> incr x }
-
-             The `x -> incr x` would get decompiled to `x -> (x -> x + 1) x`,
-             with `incr` substituted in.
-
-             Care must be taken since some of the bound variables may refer to
-             themselves:
-
-               let rec { ping x = pong x; pong x = ping (x + 1); ping }
-               let
-                 incr x = x + 1
-                 let rec { ping x = pong x; pong x = ping (incr x); x -> ping x }
-          */
-          // todo: think about whether this is correct, am concerned that
-          // there could be some variable capture issues
-          // note that bound decompiled terms will have no free vars
-          // recursiveVars may have freeVars
-          // lam only has the free vars
-          // possibly need to take into account order?
-          // could have equality and hashing as an effect
-          val e2 = e.map(_._1)
-          if (freeVars(e).exists(fv => recursiveVars.contains(fv))) {
-            val e3 = ABT.substs(recursiveVars.mapValues(unTermC))(e2)
-            ABT.substs((bound.toMap -- recursiveVars.keys).mapValues(_.decompile))(e3)
-          }
-          else
-            ABT.substs(bound.toMap.mapValues(_.decompile))(e2)
-        }
-        override def isEvaluated = true
-      }
-      def createClosure = names.length match {
-        case 1 => new Arity1(e,()) with Closure { def apply(x1: D, x1b: Rt, r: R) = compiledBody(x1, x1b, r) }
-        case 2 => new Arity2(e,()) with Closure { def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = compiledBody(x1, x1b, x2, x2b, r) }
-        case 3 => new Arity3(e,()) with Closure { def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, r: R) = compiledBody(x1, x1b, x2, x2b, x3, x3b, r) }
-        case 4 => new Arity4(e,()) with Closure { def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, x4: D, x4b: Rt, r: R) = compiledBody(x1, x1b, x2, x2b, x3, x3b, x4, x4b, r) }
-        case n => new ArityN(n,e,()) with Closure { def apply(xs: Array[Slot], r: R) = compiledBody(xs, r) }
-      }
-      val locallyBound = compiledBody.freeVarsUnderLambda.filter(v => !recursiveVars.contains(v))
-      val compiledBody3 = compiledBody // NB workaround for https://issues.scala-lang.org/browse/SI-10036
-      trait L2 { self: Rt =>
-        // avoid binding variables that are locally bound
-        override def bind(env: Map[Name,Rt]) = {
-          val env2 = env -- locallyBound
-          if (env2.isEmpty || !freeVarsUnderLambda.exists(env2.contains(_))) ()
-          else compiledBody3.bind(env2)
-        }
-        override def freeVarsUnderLambda = compiledBody3.freeVarsUnderLambda
-      }
+      val locallyBound = freeVars(body).filter(v => !recursiveVars.contains(v))
       arity(locallyBound, env(e)) match {
-        case 0 => createClosure
-        case 1 => new Arity1(e,()) with L2 {
+        case 0 => makeLambda
+        case 1 => new Arity1(e,()) with AccumulateBound {
           val v = locallyBound.toList.head
           val compiledVar = lookupVar(0, v, Var(v))
           def apply(x1: D, x1b: Rt, r: R) = {
             compiledVar(x1, x1b, r)
-            val lam = createClosure
-            lam.bind(Map(v -> r.toRuntime))
+            val lam = makeLambda
+            lam.bind(bound + (v -> r.toRuntime))
             r.boxed = lam
           }
         }
-        case 2 => new Arity2(e,()) with L2 {
+        case 2 => new Arity2(e,()) with AccumulateBound {
           val vars = locallyBound.view.map { v => (v, lookupVar(env(e).indexOf(v), v, Var(v))) }.toArray
           def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = {
             var i = 0; var rts = Map[Name,Rt]()
@@ -742,11 +688,12 @@ object Runtime {
               rts = rts + (vars(i)._1 -> { vars(i)._2.apply(x1,x1b,x2,x2b,r); r.toRuntime })
               i += 1
             }
-            val lam = createClosure
-            lam.bind(rts); r.boxed = lam
+            val lam = makeLambda
+            lam.bind(bound ++ rts)
+            r.boxed = lam
           }
         }
-        case 3 => new Arity3(e,()) with L2 {
+        case 3 => new Arity3(e,()) with AccumulateBound {
           val vars = locallyBound.view.map { v => (v, lookupVar(env(e).indexOf(v), v, Var(v))) }.toArray
           def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, r: R) = {
             var i = 0; var rts = Map[Name,Rt]()
@@ -754,11 +701,12 @@ object Runtime {
               rts = rts + (vars(i)._1 -> { vars(i)._2.apply(x1,x1b,x2,x2b,x3,x3b,r); r.toRuntime })
               i += 1
             }
-            val lam = createClosure
-            lam.bind(rts); r.boxed = lam
+            val lam = makeLambda
+            lam.bind(bound ++ rts)
+            r.boxed = lam
           }
         }
-        case 4 => new Arity4(e,()) with L2 {
+        case 4 => new Arity4(e,()) with AccumulateBound {
           val vars = locallyBound.view.map { v => (v, lookupVar(env(e).indexOf(v), v, Var(v))) }.toArray
           def apply(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, x4: D, x4b: Rt, r: R) = {
             var i = 0; var rts = Map[Name,Rt]()
@@ -766,11 +714,12 @@ object Runtime {
               rts = rts + (vars(i)._1 -> { vars(i)._2.apply(x1,x1b,x2,x2b,x3,x3b,x4,x4b,r); r.toRuntime })
               i += 1
             }
-            val lam = createClosure
-            lam.bind(rts); r.boxed = lam
+            val lam = makeLambda
+            lam.bind(bound ++ rts)
+            r.boxed = lam
           }
         }
-        case n => new ArityN(n,e,()) with L2 {
+        case n => new ArityN(n,e,()) with AccumulateBound {
           val vars = locallyBound.view.map { v => (v, lookupVar(env(e).indexOf(v), v, Var(v))) }.toArray
           def apply(args: Array[Slot], r: R) = {
             var i = 0; var rts = Map[Name,Rt]()
@@ -778,8 +727,9 @@ object Runtime {
               rts = rts + (vars(i)._1 -> { vars(i)._2.apply(args, r); r.toRuntime })
               i += 1
             }
-            val lam = createClosure
-            lam.bind(rts); r.boxed = lam
+            val lam = makeLambda
+            lam.bind(bound ++ rts)
+            r.boxed = lam
           }
         }
       }
