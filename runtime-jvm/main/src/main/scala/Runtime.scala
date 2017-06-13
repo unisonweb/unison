@@ -250,7 +250,7 @@ object Runtime {
     val compiledFn = compile(builtins, fn, boundByCurrentLambda, recursiveVars, IsNotTail)
     val compiledArgs = args.view.map(arg => compile(builtins, arg, boundByCurrentLambda, recursiveVars, IsNotTail)).toArray
     trait FAB { self: Rt =>
-      def bind(env: Map[Name,Rt]) = {
+      def bind(env: Map[Name,Rt]) = if (env.isEmpty) () else {
         compiledFn.bind(env)
         compiledArgs.foreach(_.bind(env))
       }
@@ -264,47 +264,46 @@ object Runtime {
         ???
     }
     else // 4.
-      ???
-      //arity(freeVars(e), env(e)) match {
-      //  case 0 => compiledArgs.length match {
-      //    case 1 => new Arity0(e,()) with FAB {
-      //      val arg = compiledArgs(0)
-      //      def apply(r: R) =
-      //        if (compiledFn.isEvaluated) {
-      //          eval(arg, r)
-      //          compiledFn(r.unboxed, r.boxed, r)
-      //        }
-      //        else {
-      //          eval(compiledFn, r)
-      //          val fn = r.boxed
-      //          eval(arg, r)
-      //          if (fn.arity == 1) fn(r.unboxed, r.boxed, r)
-      //          else if (fn.arity > 1)
-      //            sys.error("todo - handle partial application here")
-      //          else sys.error("type error, function of arity: " + fn.arity + " applied to 1 argument")
-      //        }
-      //    }
-      //  }
-      //  case 1 => compiledArgs.length match {
-      //    case 1 => new Arity1(e,()) with FAB {
-      //      val arg = compiledArgs(0)
-      //      def apply(x1: D, x1b: Rt, r: R) =
-      //        if (compiledFn.isEvaluated) {
-      //          eval(arg, x1, x1b, r)
-      //          compiledFn(r.unboxed, r.boxed, r)
-      //        }
-      //        else {
-      //          eval(compiledFn, x1, x1b, r)
-      //          val fn = r.boxed
-      //          eval(arg, x1, x1b, r)
-      //          if (fn.arity == 1) fn(r.unboxed, r.boxed, r)
-      //          else if (fn.arity > 1)
-      //            sys.error("todo - handle partial application here")
-      //          else sys.error("type error, function of arity: " + fn.arity + " applied to 1 argument")
-      //        }
-      //    }
-      //  }
-      //}
+      arity(freeVars(e), env(e)) match {
+        case 0 => compiledArgs.length match {
+          case 1 => new Arity0(e,()) with FAB {
+            val arg = compiledArgs(0)
+            def apply(r: R) =
+              if (compiledFn.isEvaluated) {
+                eval(arg, r)
+                compiledFn(r.unboxed, r.boxed, r)
+              }
+              else {
+                eval(compiledFn, r)
+                val fn = r.boxed
+                eval(arg, r)
+                if (fn.arity == 1) fn(r.unboxed, r.boxed, r)
+                else if (fn.arity > 1)
+                  sys.error("todo - handle partial application here")
+                else sys.error("type error, function of arity: " + fn.arity + " applied to 1 argument")
+              }
+          }
+        }
+        case 1 => compiledArgs.length match {
+          case 1 => new Arity1(e,()) with FAB {
+            val arg = compiledArgs(0)
+            def apply(x1: D, x1b: Rt, r: R) =
+              if (compiledFn.isEvaluated) {
+                eval(arg, x1, x1b, r)
+                compiledFn(r.unboxed, r.boxed, r)
+              }
+              else {
+                eval(compiledFn, x1, x1b, r)
+                val fn = r.boxed
+                eval(arg, x1, x1b, r)
+                if (fn.arity == 1) fn(r.unboxed, r.boxed, r)
+                else if (fn.arity > 1)
+                  sys.error("todo - handle partial application here")
+                else sys.error("type error, function of arity: " + fn.arity + " applied to 1 argument")
+              }
+          }
+        }
+      }
   }
 
   def compileLetRec(builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
