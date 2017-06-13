@@ -139,6 +139,8 @@ object Runtime {
   private def unbindRecursiveVars(e: TermC, recursiveVars: Map[Name,TermC]): TermC =
     e.reannotate { case (free,bound) => (free, bound.filterNot(recursiveVars.contains(_))) }
 
+  // todo - Apply(Var(v), args) if Some(v) == currentRecVar => do something more intelligent
+  // Var(name) if Some(name) == currentRecVar => new Arity0(???) { def apply(rec: Rt, r: R) = r.boxed = rec }
   /** Actual compile implementation. */
   private
   def compile(builtins: String => Rt, e0: TermC, boundByCurrentLambda: Option[Set[Name]],
