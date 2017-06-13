@@ -249,10 +249,13 @@ object Runtime {
     */
     val compiledFn = compile(builtins, fn, boundByCurrentLambda, recursiveVars, IsNotTail)
     val compiledArgs = args.view.map(arg => compile(builtins, arg, boundByCurrentLambda, recursiveVars, IsNotTail)).toArray
+    // NB workaround for https://issues.scala-lang.org/browse/SI-10036
+    val compiledFn2 = compiledFn
+    val compiledArgs2 = compiledArgs
     trait FAB { self: Rt =>
       def bind(env: Map[Name,Rt]) = if (env.isEmpty) () else {
-        compiledFn.bind(env)
-        compiledArgs.foreach(_.bind(env))
+        compiledFn2.bind(env)
+        compiledArgs2.foreach(_.bind(env))
       }
     }
     if (compiledFn.isEvaluated) {
@@ -411,10 +414,12 @@ object Runtime {
                   recursiveVars: Map[Name,TermC], isTail: Boolean): Rt = {
     val compiledBinding = compile(builtins, binding, boundByCurrentLambda, recursiveVars, IsNotTail)
     val compiledBody = compile(builtins, body, boundByCurrentLambda.map(_ + name), recursiveVars - name, isTail)
+    val compiledBinding2 = compiledBinding
+    val compiledBody2 = compiledBody
     trait LB { self: Rt =>
       def bind(env: Map[Name,Rt]) = {
-        compiledBinding.bind(env)
-        compiledBody.bind(env - name)
+        compiledBinding2.bind(env)
+        compiledBody2.bind(env - name)
       }
     }
     arity(freeVars(e), env(e)) match {
