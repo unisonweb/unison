@@ -60,6 +60,34 @@ abstract class Runtime {
   def bind(env: Map[Name, Rt]): Unit
 
   def decompile: Term
+  /* Two cases: 
+       1. The current term, t, represented by this Rt has no free variables.
+          In this case, decompile is just `t`. 
+          Ex: (x -> x) decompiles as is. 
+       2. The current term, t, DOES have free variables, v1, v2, ...
+          In this case, decompile needs to obtain the decompiled form of v1, v2, 
+          etc, and the substitute these into `t`. 
+          Ex: `(x -> x + k)`, need to obtain decompiled form of `k`, and subst
+            this into the body of the lambda.
+          BUT there's a problem - the decompiled form of a variable may refer
+            to itself, and that needs to be handled appropriately.
+          Ex 2 (silly example): `let rec loop = loop; (x -> x + loop)`
+            What should happen when decompiling `x -> x + loop` ? 
+            What we don't want - infinite expansion
+            What we do want is probably: 
+              `x -> x + (let rec loop = loop; loop)`
+              OR maybe `let rec loop = loop; (x -> x + loop)`
+          
+          Ex 3: `let rec ping = pong; pong = ping; (x -> x + pong)`
+            x -> x + (let rec ping = pong; pong = ping; pong) OR
+            let rec ping = pong; pong = ping; (x -> x + pong)
+            Same idea as above, but now with mutual recursion
+          Ex 4 `(x y -> (p -> p + y))`
+          `(x -> (y -> y + x)) (fib 15)` ==> `y -> y + 610`
+          `(x -> (y -> y + x)) (fib 15)` ==> `y -> y + (fib 15)` -- WRONG, discards the result of the computation
+  */
+  // At a high level,
+  // def decompile(decompiled: collection.mutable.Map[Name, Lazy[Term]]): Term
   // def decompile(idHashMap: IdentityHashMap[Rt,Lazy[Term]]): Term
 }
 
@@ -472,11 +500,16 @@ object Runtime {
     if (compileAsFree) new Arity0(e,()) {
       var rt: Rt = null
       def apply(r: R) = rt(r)
+        // if (rt eq null) throw new InfiniteLoopError(name)
+        // todo : possibly try / catch NPEs
       override def freeVarsUnderLambda = if (rt eq null) Set(name) else Set()
       override def bind(env: Map[Name,Rt]) = env.get(name) match {
         case Some(rt2) => rt = rt2
         case _ => () // not an error, just means that some other scope will bind this free var
       }
+      // let rec loop = loop; loop
+      // let rec ping = pong; pong = ping; ping
+      // let rec ping x = pong (x + 1); pong x = ping (x + 1); ping
       override def decompile = if (rt eq null) super.decompile else rt.decompile
     }
     else env(e).indexOf(name) match {
