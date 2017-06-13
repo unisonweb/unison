@@ -31,7 +31,7 @@ object Fib extends App {
         If0("n", 0.0,
         If0(Var("n") - 1.0, 1.0,
         Var("fib")(Var("n") - 1.0) + Var("fib")(Var("n") - 2.0))))
-    )(Var("fib")(0.0))
+    )(Var("fib")(6.0))
 
   println(normalize(builtins)(fib))
   // println(normalize(builtins)(Num(1.0) + Num(4.0)))

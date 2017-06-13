@@ -12,7 +12,8 @@ object FunctionApplication {
 
   def staticTailCall(fn: Rt, args: Array[Rt], decompile: Term): Rt = {
     val arity = args.map(_.arity).max
-    trait A0 { self: Rt => def bind(env: Map[Name,Rt]) = { fn.bind(env); args.foreach(_.bind(env)) }}
+    val fn2 = fn; val args2 = args
+    trait A0 { self: Rt => def bind(env: Map[Name,Rt]) = { fn2.bind(env); args2.foreach(_.bind(env)) }}
     (arity: @switch) match {
       case 0 => (args.length: @switch) match {
         case 1 =>
@@ -325,7 +326,8 @@ object FunctionApplication {
 
   def staticNonTailCall(fn: Rt, args: Array[Rt], decompile: Term): Rt = {
     val arity = args.map(_.arity).max
-    trait A0 { self: Rt => def bind(env: Map[Name,Rt]) = { fn.bind(env); args.foreach(_.bind(env)) }}
+    val fn2 = fn; val args2 = args
+    trait A0 { self: Rt => def bind(env: Map[Name,Rt]) = { fn2.bind(env); args2.foreach(_.bind(env)) }}
     (arity: @switch) match {
       case 0 => (args.length: @switch) match {
         case 1 =>
