@@ -15,14 +15,12 @@ object Fib extends App {
       def apply(rec: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = {
         r.boxed = null
         r.unboxed = x2 - x1
-        null
       }
     }
     case s@"+" => new Arity2(Builtin(s)) with NF {
       def apply(rec: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = {
         r.boxed = null
         r.unboxed = x2 + x1
-        null
       }
     }
   }
@@ -39,7 +37,7 @@ object Fib extends App {
 
   def fibScala(n: Double): Double =
     if (n == 0.0) 0.0
-    else if (n == 1.0) 1.0
+    else if (n - 1.0 == 0.0) 1.0
     else fibScala(n-1.0) + fibScala(n-2.0)
 
   val plus = compile(builtins)(Builtin("+"))
@@ -59,7 +57,6 @@ object Fib extends App {
           plus(null, r1, null, r2, null, r)
         }
       }
-      null
     }
     override def isEvaluated = true
   }
@@ -77,7 +74,6 @@ object Fib extends App {
           plus(null, r1, null, r2, null, r)
         }
       }
-      null
     }
     override def isEvaluated = true
   }

@@ -21,12 +21,12 @@ abstract class Runtime {
    */
   def arity: Int
 
-  def apply(rec: Rt, result: R): TC
-  def apply(rec: Rt, a1: D, a1b: Rt, result: R): TC
-  def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, result: R): TC
-  def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, result: R): TC
-  def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, a4: D, a4b: Rt, result: R): TC
-  def apply(rec: Rt, as: Array[Slot], result: R): TC
+  def apply(rec: Rt, result: R): Unit
+  def apply(rec: Rt, a1: D, a1b: Rt, result: R): Unit
+  def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, result: R): Unit
+  def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, result: R): Unit
+  def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, a4: D, a4b: Rt, result: R): Unit
+  def apply(rec: Rt, as: Array[Slot], result: R): Unit
 
   /** Bind any free variables under lambdas, using the provided environment. */
   def bind(env: Map[Name, Rt]): Unit
@@ -69,7 +69,6 @@ object Runtime {
 
   type D = Double
   type Rt = Runtime
-  type TC = TailCall
   type R = Result
 
   /**
@@ -99,7 +98,9 @@ object Runtime {
     if (freeVars.isEmpty) 0
     else freeVars.view.map(fv => bound.indexOf(fv)).max + 1
 
-  case class TailCall(fn: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, args: Array[Slot])
+  case class TailCall(fn: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, args: Array[Slot]) extends Throwable {
+    override def fillInStackTrace = this
+  }
 
   case class Result(var unboxed: D = 0.0,
                     var boxed: Rt = null) {
@@ -152,7 +153,7 @@ object Runtime {
     }
 
   def compileRec(name: Name) = new Arity0(Var(name)) {
-    def apply(rec: Rt, r: R) = { r.boxed = rec; null }
+    def apply(rec: Rt, r: R) = r.boxed = rec
     def bind(env: Map[Name,Rt]) = ()
   }
 
@@ -518,7 +519,7 @@ object Runtime {
 
   def compileNum(n: Double): Rt = new Arity0(Num(n)) {
     override def isEvaluated = true
-    def apply(rec: Rt, r: R) = { r.boxed = null; r.unboxed = n; null } // callee is responsible for nulling out portion of result that's unused
+    def apply(rec: Rt, r: R) = { r.boxed = null; r.unboxed = n } // callee is responsible for nulling out portion of result that's unused
     def bind(env: Map[Name,Rt]) = ()
   }
 
@@ -579,7 +580,6 @@ object Runtime {
           val lam = new Lambda1(name2, tm, compile(builtins)(body))
           lam.bind(bound)
           r.boxed = lam
-          null
       }
     }
     def apply(rec: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = compiledBody(rec, x1, x1b, x2, x2b, r)
@@ -596,7 +596,6 @@ object Runtime {
     override def apply(rec: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = {
       apply(rec, x2, x2b, r)
       r.boxed(rec, x1, x1b, r) // todo - more direct impl
-      null
     }
     override def apply(rec: Rt, x1: D, x1b: Rt, r: R) = {
       val rt = toRuntime(x1, x1b)
@@ -605,7 +604,6 @@ object Runtime {
           val lam = new Lambda2(name2, name3, tm, body, compile(builtins)(body), builtins)
           lam.bind(bound)
           r.boxed = lam
-          null
       }
     }
     def apply(rec: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, r: R) =
@@ -629,7 +627,6 @@ object Runtime {
           val lam = new Lambda2(name3, name4, tm, body, compile(builtins)(body), builtins)
           lam.bind(bound)
           r.boxed = lam
-          null
       }
     }
     override def apply(rec: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, r: R) = {
@@ -641,7 +638,6 @@ object Runtime {
           val lam = new Lambda1(name4, tm, compile(builtins)(body))
           lam.bind(bound)
           r.boxed = lam
-          null
       }
     }
     override def apply(rec: Rt, x1: D, x1b: Rt, r: R) = {
@@ -651,7 +647,6 @@ object Runtime {
           val lam = new Lambda3(name2, name3, name4, tm, body, compile(builtins)(body), builtins)
           lam.bind(bound)
           r.boxed = lam
-          null
       }
     }
     def apply(rec: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, x4: D, x4b: Rt, r: R) =
@@ -675,12 +670,10 @@ object Runtime {
             val lam = new Lambda4(name1,name2,name3,name4, tm, body, compile(builtins)(body), builtins)
             lam.bind(bound)
             r.boxed = lam
-            null
           case _ =>
             val lam = new LambdaN(names.toArray, tm, body, compile(builtins)(body), builtins)
             lam.bind(bound)
             r.boxed = lam
-            null
         }
       }
     }
@@ -710,7 +703,6 @@ object Runtime {
           rt = r.boxed
           i -= 1
         }
-        null
       }
       else sys.error("LambdaN overapplication")
 
@@ -754,7 +746,6 @@ object Runtime {
             val lam = makeLambda
             lam.bind(bound + (v -> r.toRuntime))
             r.boxed = lam
-            null
           }
         }
         case 2 => new Arity2(e,()) with AccumulateBound {
@@ -768,7 +759,6 @@ object Runtime {
             val lam = makeLambda
             lam.bind(bound ++ rts)
             r.boxed = lam
-            null
           }
         }
         case 3 => new Arity3(e,()) with AccumulateBound {
@@ -782,7 +772,6 @@ object Runtime {
             val lam = makeLambda
             lam.bind(bound ++ rts)
             r.boxed = lam
-            null
           }
         }
         case 4 => new Arity4(e,()) with AccumulateBound {
@@ -796,7 +785,6 @@ object Runtime {
             val lam = makeLambda
             lam.bind(bound ++ rts)
             r.boxed = lam
-            null
           }
         }
         case n => new ArityN(n,e,()) with AccumulateBound {
@@ -810,67 +798,81 @@ object Runtime {
             val lam = makeLambda
             lam.bind(bound ++ rts)
             r.boxed = lam
-            null
           }
         }
       }
     }
   }
 
-  @inline def tailCallLoop(tc0: TC, r: R): Unit = () /*{
+  @inline def tailCallLoop(tc0: TailCall, r: R): Unit = {
     var tc = tc0
     while (!(tc eq null)) {
       val fn = tc.fn
-      tc = (fn.arity : @annotation.switch) match {
-        case 1 => fn(fn, tc.x1, tc.x1b, r)
-        case 2 => fn(fn, tc.x1, tc.x1b, tc.x2, tc.x2b, r)
-        case 3 => fn(fn, tc.x1, tc.x1b, tc.x2, tc.x2b, tc.args(0).unboxed, tc.args(0).boxed, r)
-        case 4 => fn(fn, tc.x1, tc.x1b, tc.x2, tc.x2b, tc.args(0).unboxed, tc.args(0).boxed, tc.args(1).unboxed, tc.args(1).boxed, r)
-        case n => fn(fn, Array(Slot(tc.x1, tc.x1b), Slot(tc.x2, tc.x2b)) ++ tc.args, r)
+      try {
+        (fn.arity : @annotation.switch) match {
+          case 1 => fn(fn, tc.x1, tc.x1b, r)
+          case 2 => fn(fn, tc.x1, tc.x1b, tc.x2, tc.x2b, r)
+          case 3 => fn(fn, tc.x1, tc.x1b, tc.x2, tc.x2b, tc.args(0).unboxed, tc.args(0).boxed, r)
+          case 4 => fn(fn, tc.x1, tc.x1b, tc.x2, tc.x2b, tc.args(0).unboxed, tc.args(0).boxed, tc.args(1).unboxed, tc.args(1).boxed, r)
+          case n => fn(fn, Array(Slot(tc.x1, tc.x1b), Slot(tc.x2, tc.x2b)) ++ tc.args, r)
+        }
+        return
       }
+      catch { case tc2: TailCall => tc = tc2 }
     }
-  }*/
+  }
 
   @inline
   def eval(rec: Rt, rt: Rt, r: R): Unit =
-    tailCallLoop(rt(rec,r), r)
+    rt(rec, r)
+    // try rt(rec,r)
+    // catch { case tc: TailCall => tailCallLoop(tc, r) }
   @inline
   def eval(rec: Rt, rt: Rt, x1: D, x2: Rt, r: R): Unit =
-    tailCallLoop(rt(rec,x1,x2,r), r)
+    rt(rec,x1,x2,r)
+    //try rt(rec,x1,x2,r)
+    //catch { case tc: TailCall => tailCallLoop(tc, r) }
   @inline
   def eval(rec: Rt, rt: Rt, x1: D, x2: Rt, x3: D, x4: Rt, r: R): Unit =
-    tailCallLoop(rt(rec,x1,x2,x3,x4,r), r)
+    rt(rec,x1,x2,x3,x4,r)
+    //try rt(rec,x1,x2,x3,x4,r)
+    //catch { case tc: TailCall => tailCallLoop(tc, r) }
   @inline
   def eval(rec: Rt, rt: Rt, x1: D, x2: Rt, x3: D, x4: Rt, x5: D, x6: Rt, r: R): Unit =
-    tailCallLoop(rt(rec,x1,x2,x3,x4,x5,x6,r), r)
+    rt(rec,x1,x2,x3,x4,x5,x6,r)
+    //try rt(rec,x1,x2,x3,x4,x5,x6,r)
+    //catch { case tc: TailCall => tailCallLoop(tc, r) }
   @inline
   def eval(rec: Rt, rt: Rt, x1: D, x2: Rt, x3: D, x4: Rt, x5: D, x6: Rt, x7: D, x8: Rt, r: R): Unit =
-    tailCallLoop(rt(rec,x1,x2,x3,x4,x5,x6,x7,x8,r), r)
+    rt(rec,x1,x2,x3,x4,x5,x6,r)
+    // try rt(rec,x1,x2,x3,x4,x5,x6,r)
+    // catch { case tc: TailCall => tailCallLoop(tc, r) }
   @inline
   def evalN(rec: Rt, rt: Rt, args: Array[Slot], r: R): Unit =
-    tailCallLoop(rt(rec,args,r),r)
+    rt(rec,args,r)
+    // try rt(rec,args,r)
+    // catch { case tc: TailCall => tailCallLoop(tc, r) }
   @inline
-  def tailCall(fn: Rt, x1: D, x1b: Rt, r: R): TC =
-    new TailCall(fn, x1, x1b, 0.0, null, null)
+  def tailCall(fn: Rt, x1: D, x1b: Rt, r: R): Unit =
+    throw new TailCall(fn, x1, x1b, 0.0, null, null)
   @inline
-  def tailCall(fn: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, r: R): TC =
-    new TailCall(fn, x1, x1b, x2, x2b, null)
+  def tailCall(fn: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, r: R): Unit =
+    throw new TailCall(fn, x1, x1b, x2, x2b, null)
   @inline
-  def tailCall(fn: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, r: R): TC =
-    new TailCall(fn, x1, x1b, x2, x2b, Array(Slot(x3,x3b)))
+  def tailCall(fn: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, r: R): Unit =
+    throw new TailCall(fn, x1, x1b, x2, x2b, Array(Slot(x3,x3b)))
   @inline
-  def tailCall(fn: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, x4: D, x4b: Rt, r: R): TC =
-    new TailCall(fn, x1, x1b, x2, x2b, Array(Slot(x3,x3b), Slot(x4,x4b)))
+  def tailCall(fn: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, x4: D, x4b: Rt, r: R): Unit =
+    throw new TailCall(fn, x1, x1b, x2, x2b, Array(Slot(x3,x3b), Slot(x4,x4b)))
   @inline
-  def tailCall(fn: Rt, args: Array[Slot], r: R): TC =
-    new TailCall(fn, args(0).unboxed, args(0).boxed, args(1).unboxed, args(1).boxed, args.drop(2))
+  def tailCall(fn: Rt, args: Array[Slot], r: R): Unit =
+    throw new TailCall(fn, args(0).unboxed, args(0).boxed, args(1).unboxed, args(1).boxed, args.drop(2))
 
   def lookupVar(i: Int, name: Name, e: Term): Rt = i match {
     case 0 => new Arity1(e) {
       override def apply(rec: Rt, arg: D, argb: Rt, result: R) = {
         result.unboxed = arg
         result.boxed = argb
-        null
       }
       def bind(env: Map[Name,Rt]) = ()
     }
@@ -879,7 +881,6 @@ object Runtime {
                          arg: D, argb: Rt, result: R) = {
         result.unboxed = arg
         result.boxed = argb
-        null
       }
       def bind(env: Map[Name,Rt]) = ()
     }
@@ -888,7 +889,6 @@ object Runtime {
                          arg: D, argb: Rt, result: R) = {
         result.unboxed = arg
         result.boxed = argb
-        null
       }
       def bind(env: Map[Name,Rt]) = ()
     }
@@ -897,7 +897,6 @@ object Runtime {
                          arg: D, argb: Rt, result: R) = {
         result.unboxed = arg
         result.boxed = argb
-        null
       }
       def bind(env: Map[Name,Rt]) = ()
     }
@@ -905,7 +904,6 @@ object Runtime {
       override def apply(rec: Rt, args: Array[Slot], result: R) = {
         result.boxed = args(i).boxed
         result.unboxed = args(i).unboxed
-        null
       }
       def bind(env: Map[Name,Rt]) = ()
     }
@@ -927,7 +925,7 @@ object Runtime {
     def this(t: TermC, dummy: Unit) = this(unTermC(t))
     def decompile = decompileIt
     def arity: Int = 0
-    def apply(rec: Rt, r: R): TC
+    def apply(rec: Rt, r: R): Unit
     def apply(rec: Rt, a1: D, a1b: Rt, r: R) = apply(rec, r)
     def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, r: R) = apply(rec, r)
     def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, r: R) = apply(rec, r)
@@ -941,9 +939,9 @@ object Runtime {
     def this(t: TermC, dummy: Unit) = this(unTermC(t))
     def decompile = decompileIt
     def arity: Int = 1
-    def apply(rec: Rt, a1: D, a1b: Rt, r: R): TC
+    def apply(rec: Rt, a1: D, a1b: Rt, r: R): Unit
 
-    def apply(rec: Rt, r: R): TC = { r.boxed = this; null }
+    def apply(rec: Rt, r: R): Unit = r.boxed = this
     def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, r: R) =
       apply(rec, a1, a1b, r)
     def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, r: R) =
@@ -957,10 +955,10 @@ object Runtime {
     def this(t: TermC, dummy: Unit) = this(unTermC(t))
     def decompile = decompileIt
     def arity: Int = 2
-    def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, r: R): TC
+    def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, r: R): Unit
 
-    def apply(rec: Rt, r: R): TC = { r.boxed = this; null }
-    def apply(rec: Rt, a2: D, a2b: Rt, r: R): TC = ???
+    def apply(rec: Rt, r: R): Unit = r.boxed = this
+    def apply(rec: Rt, a2: D, a2b: Rt, r: R): Unit = ???
     def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, r: R) =
       apply(rec, a1, a1b, a2, a2b, r)
     def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, a4: D, a4b: Rt, r: R) =
@@ -973,14 +971,14 @@ object Runtime {
     def this(t: TermC, dummy: Unit) = this(unTermC(t))
     def decompile = decompileIt
     def arity: Int = 3
-    def apply(rec: Rt, arg1: D, arg1b: Rt, arg2: D, arg2b: Rt, arg3: D, arg3b: Rt, r: R): TC
+    def apply(rec: Rt, arg1: D, arg1b: Rt, arg2: D, arg2b: Rt, arg3: D, arg3b: Rt, r: R): Unit
 
-    def apply(rec: Rt, r: R): TC = { r.boxed = this; null }
-    def apply(rec: Rt, a1: D, a1b: Rt, r: R): TC = ???
-    def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, r: R): TC = ???
-    def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, a4: D, a4b: Rt, r: R): TC =
+    def apply(rec: Rt, r: R): Unit = r.boxed = this
+    def apply(rec: Rt, a1: D, a1b: Rt, r: R): Unit = ???
+    def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, r: R): Unit = ???
+    def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, a4: D, a4b: Rt, r: R): Unit =
       apply(rec, a1, a1b, a2, a2b, a3, a3b, r)
-    def apply(rec: Rt, as: Array[Slot], r: R): TC =
+    def apply(rec: Rt, as: Array[Slot], r: R): Unit =
       apply(rec, as(0).unboxed, as(0).boxed, as(1).unboxed, as(1).boxed, as(2).unboxed, as(2).boxed, r)
   }
 
@@ -988,25 +986,25 @@ object Runtime {
     def this(t: TermC, dummy: Unit) = this(unTermC(t))
     def decompile = decompileIt
     def arity: Int = 4
-    def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, a4: D, a4b: Rt, r: R): TC
+    def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, a4: D, a4b: Rt, r: R): Unit
 
-    def apply(rec: Rt, r: R) = { r.boxed = this; null }
-    def apply(rec: Rt, a1: D, a1b: Rt, r: R): TC = ???
-    def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, r: R): TC = ???
-    def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, r: R): TC = ???
-    def apply(rec: Rt, as: Array[Slot], r: R): TC =
+    def apply(rec: Rt, r: R) = r.boxed = this
+    def apply(rec: Rt, a1: D, a1b: Rt, r: R): Unit = ???
+    def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, r: R): Unit = ???
+    def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, r: R): Unit = ???
+    def apply(rec: Rt, as: Array[Slot], r: R): Unit =
       apply(rec, as(0).unboxed, as(0).boxed, as(1).unboxed, as(1).boxed, as(2).unboxed, as(2).boxed, as(3).unboxed, as(3).boxed, r)
   }
 
   abstract class ArityN(val arity: Int, decompileIt: => Term) extends Runtime { self =>
     def this(arity: Int, t: TermC, dummy: Unit) = this(arity, unTermC(t))
     def decompile = decompileIt
-    def apply(rec: Rt, args: Array[Slot], r: R): TC
+    def apply(rec: Rt, args: Array[Slot], r: R): Unit
 
-    def apply(rec: Rt, r: R) = { r.boxed = this; null }
-    def apply(rec: Rt, a1: D, a1b: Rt, r: R): TC = ???
-    def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, r: R): TC = ???
-    def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, r: R): TC = ???
-    def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, a4: D, a4b: Rt, r: R): TC = ???
+    def apply(rec: Rt, r: R) = r.boxed = this
+    def apply(rec: Rt, a1: D, a1b: Rt, r: R): Unit = ???
+    def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, r: R): Unit = ???
+    def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, r: R): Unit = ???
+    def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, a4: D, a4b: Rt, r: R): Unit = ???
   }
 }
