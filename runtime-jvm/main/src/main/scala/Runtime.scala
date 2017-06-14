@@ -126,7 +126,7 @@ object Runtime {
    * and returns a `Runtime`.
    */
   def compile(builtins: String => Rt)(e: Term): Rt =
-    compile(builtins, ABT.annotateBound(e), None, Map(), IsTail)
+    compile(builtins, ABT.annotateBound(e), None, Set(), None, IsTail)
 
   /** Compile and evaluate a term, the return result back as a term. */
   def normalize(builtins: String => Rt)(e: Term): Term = {
@@ -136,46 +136,96 @@ object Runtime {
     decompileSlot(r.unboxed, r.boxed)
   }
 
-  private def unbindRecursiveVars(e: TermC, recursiveVars: Map[Name,TermC]): TermC =
+  private def unbindRecursiveVars(e: TermC, recursiveVars: Set[Name]): TermC =
     e.reannotate { case (free,bound) => (free, bound.filterNot(recursiveVars.contains(_))) }
 
-  // todo - Apply(Var(v), args) if Some(v) == currentRecVar => do something more intelligent
-  // Var(name) if Some(name) == currentRecVar => new Arity0(???) { def apply(rec: Rt, r: R) = r.boxed = rec }
+  type Arity = Int
+  def shadowRec(rec: Option[(Name,Arity)], name: Name): Option[(Name,Arity)] =
+    rec match {
+      case Some((n,arity)) if n == name => None
+      case _ => rec
+    }
+  def shadowsRec(rec: Option[(Name,Arity)], names: Seq[Name]): Option[(Name,Arity)] =
+    rec match {
+      case Some((n,arity)) if names.contains(n) => None
+      case _ => rec
+    }
+
+  def compileRec(name: Name) = new Arity0(Var(name)) {
+    def apply(rec: Rt, r: R) = { r.boxed = rec; null }
+    def bind(env: Map[Name,Rt]) = ()
+  }
+
   /** Actual compile implementation. */
   private
   def compile(builtins: String => Rt, e0: TermC, boundByCurrentLambda: Option[Set[Name]],
-              recursiveVars: Map[Name,TermC], isTail: Boolean): Rt = { val e = unbindRecursiveVars(e0, recursiveVars); e match {
+              recursiveVars: Set[Name], currentRec: Option[(Name,Arity)],
+              isTail: Boolean): Rt = { val e = unbindRecursiveVars(e0, recursiveVars); e match {
     case Num(n) => compileNum(n)
     case Builtin(name) => builtins(name)
     case Compiled(rt) => rt
-    case Var(name) =>
+    case Var(name) => currentRec match {
+      case Some((n,_)) if n == name => compileRec(name)
       // compile a variable as free if it's a recursive var OR
       // we are inside a lambda and this var is bound outside this lambda
-      val compileAsFree = recursiveVars.contains(name) ||
-                          boundByCurrentLambda.map(vs => !vs.contains(name)).getOrElse(false)
-      compileVar(name, e, compileAsFree)
+      case _ => val compileAsFree = recursiveVars.contains(name) ||
+                    boundByCurrentLambda.map(vs => !vs.contains(name)).getOrElse(false)
+                compileVar(name, e, compileAsFree)
+    }
     case If0(cond,if0,ifNot0) =>
-      compileIf0(builtins, e, boundByCurrentLambda, recursiveVars, isTail, cond, if0, ifNot0)
+      compileIf0(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(cond, if0, ifNot0)
     case Lam(names, body) =>
-      compileLambda(builtins, e, Some(names.toSet), recursiveVars -- names)(names, body)
+      compileLambda(builtins, e, Some(names.toSet), recursiveVars -- names, shadowsRec(currentRec,names))(names, body)
+    case LetRec(List((name,f@Lam(vs,body))), bodyr) =>
+      // todo - move this to compileLetRec1
+      val lam = compileLambda(builtins, f, Some(vs.toSet), recursiveVars + name, Some(name -> vs.length))(vs, body)
+      val compiledBodyr = compile(builtins, bodyr, boundByCurrentLambda, recursiveVars + name, currentRec, isTail)
+      if (lam.isEvaluated) compiledBodyr.bind(Map((name,lam)))
+      arity(freeVars(e), env(e)) match {
+        case 0 => new Arity0(e,()) {
+          def apply(rec: Rt, r: R) = compiledBodyr(rec, r)
+          def bind(env: Map[Name,Rt]) = ()
+        }
+        case _ => ??? // todo, fill these in - might need to check lam.isEvaluated and use diff code path
+      }
     case LetRec(bindings, body) =>
-      compileLetRec(builtins, e, boundByCurrentLambda, recursiveVars, isTail, bindings, body)
+      compileLetRec(builtins, e, boundByCurrentLambda, recursiveVars, isTail)(bindings, body)
     case Let1(name, binding, body) => // `let name = binding; body`
-      compileLet1(name, binding, body, builtins, e, boundByCurrentLambda, recursiveVars, isTail)
+      compileLet1(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(name, binding, body)
     case Apply(Builtin(_), args) if isTail =>
       // don't bother with tail calls for builtins; assume they use constant stack
-      compile(builtins, e, boundByCurrentLambda, recursiveVars, IsNotTail)
-    case Apply(fn, List()) => compile(builtins, fn, boundByCurrentLambda, recursiveVars, isTail)
+      compile(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
+    case Apply(fn, List()) => compile(builtins, fn, boundByCurrentLambda, recursiveVars, currentRec, isTail)
+    // todo - more generally length of args matches arity
+    case Apply(Var(v), List(arg)) if Some((v,1)) == currentRec =>
+      val compiledArg = compile(builtins, arg, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
+      arity(freeVars(e), env(e)) match {
+        case 0 => new Arity0(e,()) {
+          def apply(rec: Rt, r: R) = {
+            eval(rec, compiledArg, r)
+            rec(rec, r.unboxed, r.boxed, r)
+          }
+          def bind(env: Map[Name,Rt]) = compiledArg.bind(env)
+        }
+        case 1 => new Arity1(e,()) {
+          def apply(rec: Rt, x1: D, x1b: Rt, r: R) = {
+            eval(rec, compiledArg, x1, x1b, r)
+            rec(rec, r.unboxed, r.boxed, r)
+          }
+          def bind(env: Map[Name,Rt]) = compiledArg.bind(env)
+        }
+      }
     case Apply(fn, args) =>
-      compileFunctionApplication(builtins, e, boundByCurrentLambda, recursiveVars, isTail, fn, args)
+      compileFunctionApplication(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(fn, args)
   }}
 
   def compileIf0(
       builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
-      recursiveVars: Map[Name,TermC], isTail: Boolean, cond: TermC, if0: TermC, ifNot0: TermC): Rt = {
-    val compiledCond = compile(builtins, cond, boundByCurrentLambda, recursiveVars, IsNotTail)
-    val compiledIf0 = compile(builtins, if0, boundByCurrentLambda, recursiveVars, isTail)
-    val compiledIfNot0 = compile(builtins, ifNot0, boundByCurrentLambda, recursiveVars, isTail)
+      recursiveVars: Set[Name], currentRec: Option[(Name,Arity)], isTail: Boolean)(
+      cond: TermC, if0: TermC, ifNot0: TermC): Rt = {
+    val compiledCond = compile(builtins, cond, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
+    val compiledIf0 = compile(builtins, if0, boundByCurrentLambda, recursiveVars, currentRec, isTail)
+    val compiledIfNot0 = compile(builtins, ifNot0, boundByCurrentLambda, recursiveVars, currentRec, isTail)
     // todo - partial evaluation, if cond has no free vars
     arity(freeVars(e), env(e)) match {
       case 0 =>
@@ -239,7 +289,8 @@ object Runtime {
 
   def compileFunctionApplication(
       builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
-      recursiveVars: Map[Name,TermC], isTail: Boolean, fn: TermC, args: List[TermC]): Rt = {
+      recursiveVars: Set[Name], currentRec: Option[(Name,Arity)], isTail: Boolean)(
+      fn: TermC, args: List[TermC]): Rt = {
     /* Four cases to consider:
        1. static (fn already evaluated, known arity), fully-saturated call (correct # args),
           ex `(x -> x) 42`
@@ -247,8 +298,10 @@ object Runtime {
        3. static overapplication, ex `(x -> x) (y -> y) 42` or `id id 42`
        4. dynamic application, ex in `(f x -> f x) id 42`, `f x` is a dynamic application
     */
-    val compiledFn = compile(builtins, fn, boundByCurrentLambda, recursiveVars, IsNotTail)
-    val compiledArgs = args.view.map(arg => compile(builtins, arg, boundByCurrentLambda, recursiveVars, IsNotTail)).toArray
+    val compiledFn = compile(builtins, fn, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
+    val compiledArgs = args.view.map(arg =>
+      compile(builtins, arg, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
+    ).toArray
     // NB workaround for https://issues.scala-lang.org/browse/SI-10036
     val compiledFn2 = compiledFn
     val compiledArgs2 = compiledArgs
@@ -310,7 +363,7 @@ object Runtime {
   }
 
   def compileLetRec(builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
-                    recursiveVars: Map[Name,TermC], isTail: Boolean, bindings: List[(Name,TermC)], body: TermC): Rt = ???/*{
+                    recursiveVars: Set[Name], isTail: Boolean)(bindings: List[(Name,TermC)], body: TermC): Rt = ???/*{
     // ex:
     //   let rec
     //     blah = 42
@@ -408,11 +461,13 @@ object Runtime {
     }
   }*/
 
-  def compileLet1(name: Name, binding: TermC, body: TermC,
-                  builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
-                  recursiveVars: Map[Name,TermC], isTail: Boolean): Rt = {
-    val compiledBinding = compile(builtins, binding, boundByCurrentLambda, recursiveVars, IsNotTail)
-    val compiledBody = compile(builtins, body, boundByCurrentLambda.map(_ + name), recursiveVars - name, isTail)
+  def compileLet1(builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
+                  recursiveVars: Set[Name], currentRec: Option[(Name,Arity)], isTail: Boolean)(
+                  name: Name, binding: TermC, body: TermC): Rt = {
+    val compiledBinding = compile(builtins, binding, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
+    val compiledBody =
+      compile(builtins, body, boundByCurrentLambda.map(_ + name), recursiveVars - name,
+              shadowRec(currentRec, name), isTail)
     val compiledBinding2 = compiledBinding
     val compiledBody2 = compiledBody
     trait LB { self: Rt =>
@@ -666,8 +721,8 @@ object Runtime {
 
   def compileLambda(
       builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
-      recursiveVars: Map[Name,TermC])(names: List[Name], body: TermC): Rt = {
-    def makeCompiledBody = compile(builtins, body, boundByCurrentLambda, recursiveVars, IsTail)
+      recursiveVars: Set[Name], currentRec: Option[(Name,Arity)])(names: List[Name], body: TermC): Rt = {
+    def makeCompiledBody = compile(builtins, body, boundByCurrentLambda, recursiveVars -- names, currentRec, IsTail)
     lazy val eUnC = unTermC(e)
     lazy val bodyUnC = unTermC(body)
     def makeLambda = names match {
@@ -762,7 +817,7 @@ object Runtime {
     }
   }
 
-  @inline def tailCallLoop(tc0: TC, r: R): Unit = {
+  @inline def tailCallLoop(tc0: TC, r: R): Unit = () /*{
     var tc = tc0
     while (!(tc eq null)) {
       val fn = tc.fn
@@ -774,7 +829,7 @@ object Runtime {
         case n => fn(fn, Array(Slot(tc.x1, tc.x1b), Slot(tc.x2, tc.x2b)) ++ tc.args, r)
       }
     }
-  }
+  }*/
 
   @inline
   def eval(rec: Rt, rt: Rt, r: R): Unit =
