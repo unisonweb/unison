@@ -92,6 +92,25 @@ object Fib extends App {
     def apply(rec: Rt2, x1: D, x1b: Rt2, x2: D, x2b: Rt2, r: R2): Double
   }
   object Rt2 {
+    case class TC(fn: Rt2, x1: D, x1b: Rt2) extends Throwable { override def fillInStackTrace = this }
+
+    @annotation.tailrec
+    def tailCallLoop(tc: TC, r: R2): Double =
+      try tc.fn(tc.fn, tc.x1, tc.x1b, r)
+      catch { case tc: TC => tailCallLoop(tc, r) }
+
+    @inline def eval(rec: Rt2, e: Rt2, x1: D, x1b: Rt2, x2: D, x2b: Rt2, r: R2): Double =
+      try e(rec, x1, x1b, x2, x2b, r)
+      catch { case tc0: TC => tailCallLoop(tc0, r) }
+
+    @inline def eval(rec: Rt2, e: Rt2, x1: D, x1b: Rt2, r: R2): Double =
+      try e(rec, x1, x1b, r)
+      catch { case tc0: TC => tailCallLoop(tc0, r) }
+
+    @inline def eval(rec: Rt2, e: Rt2, r: R2): Double =
+      try e(rec, r)
+      catch { case tc0: TC => tailCallLoop(tc0, r) }
+
     val x1 = new Rt2 {
       def apply(rec: Rt2, r: R2): Double = ???
       def apply(rec: Rt2, x1: D, x1b: Rt2, r: R2): Double = { r.get = x1b; x1 }
