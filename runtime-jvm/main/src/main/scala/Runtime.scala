@@ -173,6 +173,29 @@ object Runtime {
                     boundByCurrentLambda.map(vs => !vs.contains(name)).getOrElse(false)
                 compileVar(name, e, compileAsFree)
     }
+    case If0(Var(v),if0,ifNot0) if env(e).indexOf(v) != -1 =>
+      val cif0 = compile(builtins, if0, boundByCurrentLambda, recursiveVars, currentRec, isTail)
+      val cifNot0 = compile(builtins, ifNot0, boundByCurrentLambda, recursiveVars, currentRec, isTail)
+      env(e).indexOf(v) match {
+        case 0 => new Arity1(e,()) {
+          def apply(rec: Rt, x1: D, x1b: Rt, r: R) =
+            if (x1 == 0.0) cif0(rec, x1, x1b, r)
+            else cifNot0(rec, x1, x1b, r)
+          def bind(env: Map[Name,Rt]) = { cif0 bind env; cifNot0 bind env }
+        }
+      }
+    case If0(Apply(Builtin("-"),List(Var(v),Num(1.0))),if0,ifNot0) if env(e).indexOf(v) != -1 =>
+      println("woot")
+      val cif0 = compile(builtins, if0, boundByCurrentLambda, recursiveVars, currentRec, isTail)
+      val cifNot0 = compile(builtins, ifNot0, boundByCurrentLambda, recursiveVars, currentRec, isTail)
+      env(e).indexOf(v) match {
+        case 0 => new Arity1(e,()) {
+          def apply(rec: Rt, x1: D, x1b: Rt, r: R) =
+            if (x1 == 1.0) cif0(rec, x1, x1b, r)
+            else cifNot0(rec, x1, x1b, r)
+          def bind(env: Map[Name,Rt]) = { cif0 bind env; cifNot0 bind env }
+        }
+      }
     case If0(cond,if0,ifNot0) =>
       compileIf0(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(cond, if0, ifNot0)
     case Lam(names, body) =>
@@ -196,6 +219,79 @@ object Runtime {
     case Apply(Builtin(_), args) if isTail =>
       // don't bother with tail calls for builtins; assume they use constant stack
       compile(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
+    case Apply(Builtin("+"), List(a1,a2)) =>
+      val compiledArg1 = compile(builtins, a1, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
+      val compiledArg2 = compile(builtins, a2, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
+      arity(freeVars(e), env(e)) match {
+        case 0 => new Arity0(e,()) {
+          def apply(rec: Rt, r: R) = {
+            val a1r = { compiledArg1(rec, r); r.unboxed }
+            compiledArg2(rec, r)
+            r.unboxed += a1r
+          }
+          def bind(env: Map[Name,Rt]) = { compiledArg1.bind(env); compiledArg2.bind(env) }
+        }
+        case 1 => new Arity1(e,()) {
+          def apply(rec: Rt, x1: D, x1b: Rt, r: R) = {
+            val a1r = { compiledArg1(rec, x1, x1b, r); r.unboxed }
+            compiledArg2(rec, x1, x1b, r)
+            r.unboxed += a1r
+          }
+          def bind(env: Map[Name,Rt]) = { compiledArg1.bind(env); compiledArg2.bind(env) }
+        }
+      }
+    case Apply(Var(rec), List(Apply(Builtin("-"), List(Var(v),Num(k)))))
+      if env(e).indexOf(v) != -1 && Some(rec) == currentRec.map(_._1) =>
+        println("oog")
+        trait NB { self: Rt => def bind(env: Map[Name,Rt]) = () }
+        env(e).indexOf(v) match {
+          case 0 => new Arity1(e,()) with NB { def apply(rec: Rt, x1: D, x1b: Rt, r: R) = rec(rec, x1 - k, null, r) }
+          case 1 => new Arity2(e,()) with NB { def apply(rec: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) =
+            rec(rec, x2 - k, null, r)
+          }
+          case 2 => new Arity3(e,()) with NB { def apply(rec: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, r: R) =
+            rec(rec, x3 - k, null, r)
+          }
+        }
+    case Apply(Builtin("-"), List(a1,Num(k))) =>
+      val compiledArg1 = compile(builtins, a1, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
+      arity(freeVars(e), env(e)) match {
+        case 0 => new Arity0(e,()) {
+          def apply(rec: Rt, r: R) = {
+            eval(rec,compiledArg1, r)
+            r.unboxed -= k
+          }
+          def bind(env: Map[Name,Rt]) = compiledArg1.bind(env)
+        }
+        case 1 => new Arity1(e,()) {
+          def apply(rec: Rt, x1: D, x1b: Rt, r: R) = {
+            eval(rec, compiledArg1, x1, x1b, r)
+            r.unboxed -= k
+          }
+          def bind(env: Map[Name,Rt]) = compiledArg1.bind(env)
+        }
+      }
+    case Apply(Builtin("-"), List(a1,a2)) =>
+      val compiledArg1 = compile(builtins, a1, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
+      val compiledArg2 = compile(builtins, a2, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
+      arity(freeVars(e), env(e)) match {
+        case 0 => new Arity0(e,()) {
+          def apply(rec: Rt, r: R) = {
+            val a2r = { compiledArg2(rec, r); r.unboxed }
+            compiledArg1(rec, r)
+            r.unboxed -= a2r
+          }
+          def bind(env: Map[Name,Rt]) = { compiledArg1.bind(env); compiledArg2.bind(env) }
+        }
+        case 1 => new Arity1(e,()) {
+          def apply(rec: Rt, x1: D, x1b: Rt, r: R) = {
+            val a2r = { compiledArg2(rec, x1, x1b, r); r.unboxed }
+            compiledArg1(rec, x1, x1b, r)
+            r.unboxed -= a2r
+          }
+          def bind(env: Map[Name,Rt]) = { compiledArg1.bind(env); compiledArg2.bind(env) }
+        }
+      }
     case Apply(fn, List()) => compile(builtins, fn, boundByCurrentLambda, recursiveVars, currentRec, isTail)
     // todo - more generally length of args matches arity
     case Apply(Var(v), List(arg)) if Some((v,1)) == currentRec =>

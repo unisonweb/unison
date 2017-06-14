@@ -13,13 +13,11 @@ object Fib extends App {
   val builtins : String => Rt = {
     case s@"-" => new Arity2(Builtin(s)) with NF {
       def apply(rec: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = {
-        r.boxed = null
         r.unboxed = x2 - x1
       }
     }
     case s@"+" => new Arity2(Builtin(s)) with NF {
       def apply(rec: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = {
-        r.boxed = null
         r.unboxed = x2 + x1
       }
     }
@@ -49,11 +47,12 @@ object Fib extends App {
     def apply(rec: Rt, x1: D, x1b: Rt, r: R) = {
       if (x1 == 0.0) r.unboxed = 0.0
       else {
-        val x12 = eval(rec, minus1, x1, null, r)
-        if (r.unboxed == 0.0) r.unboxed = 1.0
+        // val x12 = eval(null, minus1, x1, null, r)
+        if (x1 == 1.0) r.unboxed = 1.0
+        // if (r.unboxed == 0.0) r.unboxed = 1.0
         else {
-          val r1 = { eval(rec, minus1, x1, null, r); apply(rec, r.unboxed, r.boxed, r); r.unboxed }
-          val r2 = { eval(rec, minus2, x1, null, r); apply(rec, r.unboxed, r.boxed, r); r.unboxed }
+          val r1 = { apply(null, x1 - 1.0, null, r); r.unboxed }
+          val r2 = { apply(null, x1 - 2.0, null, r); r.unboxed }
           plus(null, r1, null, r2, null, r)
         }
       }
@@ -66,17 +65,24 @@ object Fib extends App {
     def apply(rec: Rt, x1: D, x1b: Rt, r: R) = {
       if (x1 == 0.0) r.unboxed = 0.0
       else {
-        val x12 = eval(rec, minus1, x1, null, r)
-        if (r.unboxed == 0.0) r.unboxed = 1.0
+        if (x1 == 1.0) r.unboxed = 1.0
         else {
-          val r1 = { eval(rec, minus1, x1, null, r); rec(rec, r.unboxed, r.boxed, r); r.unboxed }
-          val r2 = { eval(rec, minus2, x1, null, r); rec(rec, r.unboxed, r.boxed, r); r.unboxed }
+          val r1 = { rec(rec, x1 - 1.0, null, r); r.unboxed }
+          val r2 = { rec(rec, x1 - 2.0, null, r); r.unboxed }
           plus(null, r1, null, r2, null, r)
         }
       }
     }
     override def isEvaluated = true
   }
+
+  // observation - function call overhead is bad for stuff like addition
+  // fib (n - 1)
+  // has to pass n to decrement fn, then take result and pass that to fib
+  // n has to be copied to arg
+  // basically, too much copying around
+  // wonder if there's some way to decrease that overhead?
+  // n - 1
 
   println(normalize(builtins)(fib))
   println(normalize(builtins)(Compiled(manuallyCompiledFib)(Num(N))))
@@ -85,7 +91,7 @@ object Fib extends App {
   val compiledFib = compile(builtins)(fib)
 
   QuickProfile.suite(
-    QuickProfile.timeit("unison", 0.08) {
+    QuickProfile.timeit("unison", 0.03) {
       val r = Result()
       compiledFib(null, r)
       (r.unboxed + math.random).toLong
