@@ -13,6 +13,7 @@ lazy val commonSettings = Seq(
     "-feature",
     "-deprecation",
     "-opt:l:classpath",
+    "-opt-warnings",
     "-language:implicitConversions",
     "-language:higherKinds",
     "-language:existentials",
