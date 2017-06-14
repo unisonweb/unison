@@ -95,21 +95,21 @@ object Fib extends App {
     case class TC(fn: Rt2, x1: D, x1b: Rt2) extends Throwable { override def fillInStackTrace = this }
 
     @annotation.tailrec
-    def tailCallLoop(tc: TC, r: R2): Double =
+    def loop(tc: TC, r: R2): Double =
       try tc.fn(tc.fn, tc.x1, tc.x1b, r)
-      catch { case tc: TC => tailCallLoop(tc, r) }
+      catch { case tc: TC => loop(tc, r) }
 
-    def eval(rec: Rt2, e: Rt2, x1: D, x1b: Rt2, x2: D, x2b: Rt2, r: R2): Double =
-      try e(rec, x1, x1b, x2, x2b, r)
-      catch { case tc0: TC => tailCallLoop(tc0, r) }
+    //def eval(rec: Rt2, e: Rt2, x1: D, x1b: Rt2, x2: D, x2b: Rt2, r: R2): Double =
+    //  try e(rec, x1, x1b, x2, x2b, r)
+    //  catch { case tc0: TC => loop(tc0, r) }
 
-    def eval(rec: Rt2, e: Rt2, x1: D, x1b: Rt2, r: R2): Double =
-      try e(rec, x1, x1b, r)
-      catch { case tc0: TC => tailCallLoop(tc0, r) }
+    //def eval(rec: Rt2, e: Rt2, x1: D, x1b: Rt2, r: R2): Double =
+    //  try e(rec, x1, x1b, r)
+    //  catch { case tc0: TC => loop(tc0, r) }
 
-    def eval(rec: Rt2, e: Rt2, r: R2): Double =
-      try e(rec, r)
-      catch { case tc0: TC => tailCallLoop(tc0, r) }
+    //def eval(rec: Rt2, e: Rt2, r: R2): Double =
+    //  try e(rec, r)
+    //  catch { case tc0: TC => loop(tc0, r) }
 
     val x1 = new Rt2 {
       def apply(rec: Rt2, r: R2): Double = ???
@@ -128,23 +128,47 @@ object Fib extends App {
     }
     def if0(cond: Rt2, if0: Rt2, ifNot0: Rt2): Rt2 = new Rt2 {
       def apply(rec: Rt2, r: R2): Double =
-        if (eval(rec,cond,r) == 0.0) if0(rec, r) else ifNot0(rec, r)
+        if ({ try cond(rec,r) catch { case e: TC => loop(e, r) }} == 0.0) if0(rec, r)
+        else ifNot0(rec, r)
       def apply(rec: Rt2, x1: D, x1b: Rt2, r: R2): Double =
-        if (eval(rec, cond, x1, x1b, r) == 0.0) if0(rec, r) else ifNot0(rec, x1, x1b, r)
+        if ({ try cond(rec,x1,x1b,r) catch { case e: TC => loop(e, r) }} == 0.0) if0(rec, r)
+        else ifNot0(rec, x1, x1b, r)
       def apply(rec: Rt2, x1: D, x1b: Rt2, x2: D, x2b: Rt2, r: R2): Double =
-        if (eval(rec, cond, x1, x1b, x2, x2b, r) == 0.0) if0(rec, r) else ifNot0(rec, x1, x1b, x2, x2b, r)
+        if ({ try cond(rec,x1,x1b,x2,x2b,r) catch { case e: TC => loop(e, r) }} == 0.0) if0(rec, r)
+        else ifNot0(rec, x1, x1b, x2, x2b, r)
+    }
+    def if1(cond: Rt2, if1: Rt2, ifNot1: Rt2): Rt2 = new Rt2 {
+      def apply(rec: Rt2, r: R2): Double =
+        if ({ try cond(rec,r) catch { case e: TC => loop(e, r) }} == 1.0) if1(rec, r)
+        else ifNot1(rec, r)
+      def apply(rec: Rt2, x1: D, x1b: Rt2, r: R2): Double =
+        if ({ try cond(rec,x1,x1b,r) catch { case e: TC => loop(e, r) }} == 1.0) if1(rec, r)
+        else ifNot1(rec, x1, x1b, r)
+      def apply(rec: Rt2, x1: D, x1b: Rt2, x2: D, x2b: Rt2, r: R2): Double =
+        if ({ try cond(rec,x1,x1b,x2,x2b,r) catch { case e: TC => loop(e, r) }} == 1.0) if1(rec, r)
+        else ifNot1(rec, x1, x1b, x2, x2b, r)
     }
     def plus(x: Rt2, y: Rt2): Rt2 = new Rt2 {
-      def apply(rec: Rt2, r: R2): Double = eval(rec, x, r) + eval(rec, y, r)
-      def apply(rec: Rt2, x1: D, x1b: Rt2, r: R2): Double = eval(rec, x, x1, x1b, r) + eval(rec, y, x1, x1b, r)
+      def apply(rec: Rt2, r: R2): Double =
+        { try x(rec, r) catch { case e: TC => loop(e,r) }} +
+        { try y(rec, r) catch { case e: TC => loop(e,r) }}
+      def apply(rec: Rt2, x1: D, x1b: Rt2, r: R2): Double =
+        { try x(rec,x1,x1b,r) catch { case e: TC => loop(e,r) }} +
+        { try y(rec,x1,x1b,r) catch { case e: TC => loop(e,r) }}
       def apply(rec: Rt2, x1: D, x1b: Rt2, x2: D, x2b: Rt2, r: R2): Double =
-        eval(rec, x, x1, x1b, x2, x2b, r) + eval(rec, y, x1, x1b, x2, x2b, r)
+        { try x(rec,x1,x1b,x2,x2b,r) catch { case e: TC => loop(e,r) }} +
+        { try y(rec,x1,x1b,x2,x2b,r) catch { case e: TC => loop(e,r) }}
     }
     def minus(x: Rt2, y: Rt2): Rt2 = new Rt2 {
-      def apply(rec: Rt2, r: R2): Double = eval(rec, x, r) - eval(rec, y, r)
-      def apply(rec: Rt2, x1: D, x1b: Rt2, r: R2): Double = eval(rec, x, x1, x1b, r) - eval(rec, y, x1, x1b, r)
+      def apply(rec: Rt2, r: R2): Double =
+        { try x(rec, r) catch { case e: TC => loop(e,r) }} -
+        { try y(rec, r) catch { case e: TC => loop(e,r) }}
+      def apply(rec: Rt2, x1: D, x1b: Rt2, r: R2): Double =
+        { try x(rec,x1,x1b,r) catch { case e: TC => loop(e,r) }} -
+        { try y(rec,x1,x1b,r) catch { case e: TC => loop(e,r) }}
       def apply(rec: Rt2, x1: D, x1b: Rt2, x2: D, x2b: Rt2, r: R2): Double =
-        eval(rec, x, x1, x1b, x2, x2b, r) - eval(rec, y, x1, x1b, x2, x2b, r)
+        { try x(rec,x1,x1b,x2,x2b,r) catch { case e: TC => loop(e,r) }} -
+        { try y(rec,x1,x1b,x2,x2b,r) catch { case e: TC => loop(e,r) }}
     }
     def num(n: Double): Rt2 = new Rt2 {
       def apply(rec: Rt2, r: R2): Double = n
@@ -152,27 +176,28 @@ object Fib extends App {
       def apply(rec: Rt2, x1: D, x1b: Rt2, x2: D, x2b: Rt2, r: R2): Double = n
     }
     def apRec(a: Rt2): Rt2 = new Rt2 {
-      def apply(rec: Rt2, r: R2) = rec(rec, eval(rec, a, r), r.get, r)
-      def apply(rec: Rt2, x1: D, x1b: Rt2, r: R2) = rec(rec, eval(rec, a, x1, x1b, r), r.get, r)
-      def apply(rec: Rt2, x1: D, x1b: Rt2, x2: D, x2b: Rt2, r: R2) = rec(rec, eval(rec, a, x1, x1b, x2, x2b, r), r.get, r)
+      def apply(rec: Rt2, r: R2) =
+        rec(rec, { try a(rec,r) catch { case e: TC => loop(e,r) }}, r.get, r)
+      def apply(rec: Rt2, x1: D, x1b: Rt2, r: R2) =
+        rec(rec, { try a(rec,x1,x1b,r) catch { case e: TC => loop(e,r) }}, r.get, r)
+      def apply(rec: Rt2, x1: D, x1b: Rt2, x2: D, x2b: Rt2, r: R2) =
+        rec(rec, { try a(rec,x1,x1b,x2,x2b,r) catch { case e: TC => loop(e,r) }}, r.get, r)
     }
     def ap(fn: Rt2, a: Rt2) = new Rt2 {
-      def apply(rec: Rt2, r: R2) = fn(fn, eval(rec, a, r), r.get, r)
-      def apply(rec: Rt2, x1: D, x1b: Rt2, r: R2) = fn(fn, eval(rec, a, x1, x1b, r), r.get, r)
-      def apply(rec: Rt2, x1: D, x1b: Rt2, x2: D, x2b: Rt2, r: R2) = fn(fn, eval(rec, a, x1, x1b, x2, x2b, r), r.get, r)
-    }
-    def if1(cond: Rt2, if1: Rt2, ifNot1: Rt2): Rt2 = new Rt2 {
-      def apply(rec: Rt2, r: R2): Double =
-        if (eval(rec, cond, r) == 1.0) if1(rec, r) else ifNot1(rec, r)
-      def apply(rec: Rt2, x1: D, x1b: Rt2, r: R2): Double =
-        if (eval(rec, cond, x1, x1b, r) == 1.0) if1(rec, r) else ifNot1(rec, x1, x1b, r)
-      def apply(rec: Rt2, x1: D, x1b: Rt2, x2: D, x2b: Rt2, r: R2): Double =
-        if (eval(rec, cond, x1, x1b, x2, x2b, r) == 1.0) if1(rec, r) else ifNot1(rec, x1, x1b, x2, x2b, r)
+      def apply(rec: Rt2, r: R2) =
+        fn(fn, { try a(rec,r) catch { case e: TC => loop(e,r) }}, r.get, r)
+      def apply(rec: Rt2, x1: D, x1b: Rt2, r: R2) =
+        fn(fn, { try a(rec,x1,x1b,r) catch { case e: TC => loop(e,r) }}, r.get, r)
+      def apply(rec: Rt2, x1: D, x1b: Rt2, x2: D, x2b: Rt2, r: R2) =
+        fn(fn, { try a(rec,x1,x1b,x2,x2b,r) catch { case e: TC => loop(e,r) }}, r.get, r)
     }
     def decrement(x: Rt2, by: Double): Rt2 = new Rt2 {
-      def apply(rec: Rt2, r: R2): Double = eval(rec, x, r) - by
-      def apply(rec: Rt2, x1: D, x1b: Rt2, r: R2): Double = eval(rec, x, x1, x1b, r) - by
-      def apply(rec: Rt2, x1: D, x1b: Rt2, x2: D, x2b: Rt2, r: R2): Double = eval(rec, x, x1, x1b, x2, x2b, r) - by
+      def apply(rec: Rt2, r: R2): Double =
+        { try x(rec, r) catch { case e: TC => loop(e,r) }} - by
+      def apply(rec: Rt2, x1: D, x1b: Rt2, r: R2): Double =
+        { try x(rec,x1,x1b,r) catch { case e: TC => loop(e,r) }} - by
+      def apply(rec: Rt2, x1: D, x1b: Rt2, x2: D, x2b: Rt2, r: R2): Double =
+        { try x(rec,x1,x1b,x2,x2b,r) catch { case e: TC => loop(e,r) }} - by
     }
 
     val fib = new Rt2 {
