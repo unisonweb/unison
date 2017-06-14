@@ -86,7 +86,7 @@ object Fib extends App {
 
   case class R2(var get: Rt2)
 
-  trait Rt2 {
+  abstract class Rt2 {
     def apply(rec: Rt2, r: R2): Double
     def apply(rec: Rt2, x1: D, x1b: Rt2, r: R2): Double
     def apply(rec: Rt2, x1: D, x1b: Rt2, x2: D, x2b: Rt2, r: R2): Double
