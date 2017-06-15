@@ -113,13 +113,10 @@ object Fib extends App {
 
     val x1 = new Rt2 {
       def apply(rec: Rt2, r: R2): Double = ???
-      def apply(rec: Rt2, x1: D, x1b: Rt2, r: R2): Double = { r.get = x1b; x1 } // todo - just returning x1 is a speedup
-      def apply(rec: Rt2, x1: D, x1b: Rt2, x2: D, x2b: Rt2, r: R2): Double = { r.get = x1b; x1 }
-    }
-    val x2 = new Rt2 {
-      def apply(rec: Rt2, r: R2): Double = ???
-      def apply(rec: Rt2, x1: D, x1b: Rt2, r: R2): Double = ???
-      def apply(rec: Rt2, x1: D, x1b: Rt2, x2: D, x2b: Rt2, r: R2): Double = { r.get = x2b; x2 }
+      def apply(rec: Rt2, x1: D, x1b: Rt2, r: R2): Double =
+        { if (!(x1b eq null)) r.get = x1b; x1 }
+      def apply(rec: Rt2, x1: D, x1b: Rt2, x2: D, x2b: Rt2, r: R2): Double =
+        { if (!(x1b eq null)) r.get = x1b; x1 }
     }
     val rec = new Rt2 {
       def apply(rec: Rt2, r: R2): Double = { r.get = rec; 0.0 }
