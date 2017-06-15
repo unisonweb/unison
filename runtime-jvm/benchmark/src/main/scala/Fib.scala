@@ -92,11 +92,11 @@ object Fib extends App {
     def apply(rec: Rt2, x1: D, x1b: Rt2, x2: D, x2b: Rt2, r: R2): Double
   }
   object Rt2 {
-    case class TC(fn: Rt2, x1: D, x1b: Rt2) extends Throwable { override def fillInStackTrace = this }
+    case class TC(fn: Rt2, x1: D, x1b: Rt2, x2: D, x2b: Rt2) extends Throwable { override def fillInStackTrace = this }
 
     @annotation.tailrec
     def loop(tc: TC, r: R2): Double =
-      try tc.fn(tc.fn, tc.x1, tc.x1b, r)
+      try tc.fn(tc.fn, tc.x1, tc.x1b, tc.x2, tc.x2b, r)
       catch { case tc: TC => loop(tc, r) }
 
     //def eval(rec: Rt2, e: Rt2, x1: D, x1b: Rt2, x2: D, x2b: Rt2, r: R2): Double =
@@ -107,9 +107,9 @@ object Fib extends App {
     //  try e(rec, x1, x1b, r)
     //  catch { case tc0: TC => loop(tc0, r) }
 
-    //def eval(rec: Rt2, e: Rt2, r: R2): Double =
-    //  try e(rec, r)
-    //  catch { case tc0: TC => loop(tc0, r) }
+    def eval(rec: Rt2, e: Rt2, r: R2): Double =
+      try e(rec, r)
+      catch { case tc0: TC => loop(tc0, r) }
 
     val x1 = new Rt2 {
       def apply(rec: Rt2, r: R2): Double = ???
@@ -145,6 +145,11 @@ object Fib extends App {
         if ({ try cond(rec,x1,x1b,x2,x2b,r) catch { case e: TC => loop(e, r) }} == 1.0) if1(rec, r)
         else ifNot1(rec, x1, x1b, x2, x2b, r)
     }
+    val primPlus: Rt2 = new Rt2 {
+      def apply(rec: Rt2, r: R2) = ???
+      def apply(rec: Rt2, x1: D, x1b: Rt2, r: R2) = ???
+      def apply(rec: Rt2, x1: D, x1b: Rt2, x2: D, x2b: Rt2, r: R2) = x1 + x2
+    }
     def plus(x: Rt2, y: Rt2): Rt2 = new Rt2 {
       def apply(rec: Rt2, r: R2): Double =
         { try x(rec, r) catch { case e: TC => loop(e,r) }} +
@@ -152,6 +157,9 @@ object Fib extends App {
       def apply(rec: Rt2, x1: D, x1b: Rt2, r: R2): Double =
         { try x(rec,x1,x1b,r) catch { case e: TC => loop(e,r) }} +
         { try y(rec,x1,x1b,r) catch { case e: TC => loop(e,r) }}
+        // throw new TC(primPlus,
+        //  { try x(rec,x1,x1b,r) catch { case e: TC => loop(e,r) }}, null,
+        //  { try y(rec,x1,x1b,r) catch { case e: TC => loop(e,r) }}, null)
       def apply(rec: Rt2, x1: D, x1b: Rt2, x2: D, x2b: Rt2, r: R2): Double =
         { try x(rec,x1,x1b,x2,x2b,r) catch { case e: TC => loop(e,r) }} +
         { try y(rec,x1,x1b,x2,x2b,r) catch { case e: TC => loop(e,r) }}
@@ -214,13 +222,13 @@ object Fib extends App {
   println(normalize(builtins)(fib))
   println(normalize(builtins)(Compiled(manuallyCompiledFib)(Num(N))))
   println(fibScala(N))
-  println(Rt2.fibN(null, R2(null)))
+  println(Rt2.eval(null, Rt2.fibN, R2(null)))
 
   val compiledFib = compile(builtins)(fib)
 
   QuickProfile.suite(
     QuickProfile.timeit("manually-compiled (3)", 0.08) {
-      (Rt2.fibN(null, R2(null)) + math.random).toLong
+      (Rt2.eval(null, Rt2.fibN, R2(null)) + math.random).toLong
     },
     QuickProfile.timeit("unison", 0.08) {
       val r = Result()
