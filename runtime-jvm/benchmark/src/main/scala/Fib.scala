@@ -219,15 +219,128 @@ object Fib extends App {
     val fibN = ap(fib, num(N))
   }
 
+  class R3(val unboxed: D = 0.0, val boxed: Rt3 = null)
+
+  trait Rt3 {
+    def apply(rec: Rt3): R3
+    def apply(rec: Rt3, x1: D, x1b: Rt3): R3
+    def apply(rec: Rt3, x1: D, x1b: Rt3, x2: D, x2b: Rt3): R3
+  }
+  object Rt3 {
+    case class TC(fn: Rt3, x1: D, x1b: Rt3, x2: D, x2b: Rt3) extends Throwable { override def fillInStackTrace = this }
+
+    @annotation.tailrec
+    def loop(tc: TC): R3 =
+      try tc.fn(tc.fn, tc.x1, tc.x1b, tc.x2, tc.x2b)
+      catch { case tc: TC => loop(tc) }
+
+    val x1: Rt3 = new Rt3 {
+      def apply(rec: Rt3): R3 = ???
+      def apply(rec: Rt3, x1: D, x1b: Rt3): R3 =
+        new R3(x1, x1b)
+        // if (x1b eq null) new R3(x1, null) else new R3(x1, x1b)
+      def apply(rec: Rt3, x1: D, x1b: Rt3, x2: D, x2b: Rt3): R3 = new R3(x1, x1b)
+    }
+
+    def num(n: Double): Rt3 = new Rt3 {
+      def apply(rec: Rt3): R3 = new R3(unboxed = n)
+      def apply(rec: Rt3, x1: D, x1b: Rt3): R3 = new R3(unboxed = n)
+      def apply(rec: Rt3, x1: D, x1b: Rt3, x2: D, x2b: Rt3): R3 = new R3(unboxed = n)
+    }
+
+    def if0(cond: Rt3, if0: Rt3, ifNot0: Rt3): Rt3 = new Rt3 {
+      def apply(rec: Rt3): R3 =
+        if ({ try { cond(rec) } catch { case e: TC => loop(e) }}.unboxed == 0.0) if0(rec) else ifNot0(rec)
+      def apply(rec: Rt3, x1: D, x1b: Rt3): R3 =
+        if ({ try { cond(rec,x1,x1b) } catch { case e: TC => loop(e) }}.unboxed == 0.0) if0(rec,x1,x1b) else ifNot0(rec,x1,x1b)
+      def apply(rec: Rt3, x1: D, x1b: Rt3, x2: D, x2b: Rt3): R3 =
+        if (cond(rec,x1, x1b, x2, x2b).unboxed == 0.0) if0(rec,x1,x1b,x2,x2b) else ifNot0(rec,x1,x1b,x2,x2b)
+    }
+
+    def if1(cond: Rt3, if1: Rt3, ifNot1: Rt3): Rt3 = new Rt3 {
+      def apply(rec: Rt3): R3 =
+        if ({ try { cond(rec) } catch { case e: TC => loop(e) }}.unboxed == 1.0) if1(rec) else ifNot1(rec)
+      def apply(rec: Rt3, x1: D, x1b: Rt3): R3 =
+        if ({ try { cond(rec,x1,x1b) } catch { case e: TC => loop(e) }}.unboxed == 1.0) if1(rec,x1,x1b) else ifNot1(rec,x1,x1b)
+      def apply(rec: Rt3, x1: D, x1b: Rt3, x2: D, x2b: Rt3): R3 =
+        if (cond(rec,x1, x1b, x2, x2b).unboxed == 1.0) if1(rec,x1,x1b,x2,x2b) else ifNot1(rec,x1,x1b,x2,x2b)
+    }
+
+    def decrement(v: Rt3, by: Double): Rt3 = new Rt3 {
+      def apply(rec: Rt3): R3 = new R3(unboxed = v(rec).unboxed - by)
+      def apply(rec: Rt3, x1: D, x1b: Rt3): R3 =
+        new R3(unboxed = { try { v(rec,x1,x1b) } catch { case e: TC => loop(e) }}.unboxed - by)
+      def apply(rec: Rt3, x1: D, x1b: Rt3, x2: D, x2b: Rt3): R3 = new R3(unboxed = v(rec,x1,x1b,x2,x2b).unboxed - by)
+    }
+
+    def plus(x: Rt3, y: Rt3): Rt3 = new Rt3 {
+      def apply(rec: Rt3): R3 =
+        new R3(unboxed = x(rec).unboxed + y(rec).unboxed)
+      def apply(rec: Rt3, x1: D, x1b: Rt3): R3 =
+        new R3(unboxed = { try { x(rec,x1,x1b) } catch { case e: TC => loop(e) }}.unboxed +
+                         { try { y(rec,x1,x1b) } catch { case e: TC => loop(e) }}.unboxed)
+      def apply(rec: Rt3, x1: D, x1b: Rt3, x2: D, x2b: Rt3): R3 =
+        new R3(unboxed = x(rec,x1,x1b,x2,x2b).unboxed + y(rec,x1,x1b,x2,x2b).unboxed)
+    }
+
+    // assumes f is already evaluated
+    def ap(f: Rt3, arg: Rt3): Rt3 = new Rt3 {
+      def apply(rec: Rt3): R3 = {
+        val r = arg(rec)
+        f(f, r.unboxed, r.boxed)
+      }
+      def apply(rec: Rt3, x1: D, x1b: Rt3): R3 = {
+        val r = arg(rec, x1, x1b)
+        f(f, r.unboxed, r.boxed)
+      }
+      def apply(rec: Rt3, x1: D, x1b: Rt3, x2: D, x2b: Rt3): R3 = {
+        val r = arg(rec, x1, x1b, x2, x2b)
+        f(f, r.unboxed, r.boxed)
+      }
+    }
+
+    def apRec(a: Rt3): Rt3 = new Rt3 {
+      def apply(rec: Rt3) = {
+        val r = a(rec)
+        rec(rec, r.unboxed, r.boxed)
+      }
+      def apply(rec: Rt3, x1: D, x1b: Rt3) = {
+        val r = a(rec, x1, x1b)
+        rec(rec, r.unboxed, r.boxed)
+      }
+      def apply(rec: Rt3, x1: D, x1b: Rt3, x2: D, x2b: Rt3) = {
+        val r = a(rec, x1, x1b, x2, x2b)
+        rec(rec, r.unboxed, r.boxed)
+      }
+    }
+
+    val fib: Rt3 =
+      if0(x1, num(0.0),
+        if1(x1,
+          num(1.0),
+          plus(
+            apRec(decrement(x1, 1.0)),
+            apRec(decrement(x1, 2.0))
+          )
+        )
+      )
+
+    val fibN: Rt3 = ap(fib, num(N))
+  }
+
   println(normalize(builtins)(fib))
   println(normalize(builtins)(Compiled(manuallyCompiledFib)(Num(N))))
   println(fibScala(N))
   println(Rt2.eval(null, Rt2.fibN, R2(null)))
+  println(Rt3.fibN(null).unboxed)
 
   val compiledFib = compile(builtins)(fib)
 
   QuickProfile.suite(
-    QuickProfile.timeit("manually-compiled (3)", 0.08) {
+    QuickProfile.timeit("manually-compiled (Rt3)", 0.05) {
+      (Rt3.fibN(null).unboxed + math.random).toLong
+    },
+    QuickProfile.timeit("manually-compiled (Rt2)", 0.05) {
       (Rt2.eval(null, Rt2.fibN, R2(null)) + math.random).toLong
     },
     QuickProfile.timeit("unison", 0.08) {
