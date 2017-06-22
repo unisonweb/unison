@@ -173,148 +173,25 @@ object Runtime {
                     boundByCurrentLambda.map(vs => !vs.contains(name)).getOrElse(false)
                 compileVar(name, e, compileAsFree)
     }
-    case If0(Var(v),if0,ifNot0) if env(e).indexOf(v) != -1 =>
-      val cif0 = compile(builtins, if0, boundByCurrentLambda, recursiveVars, currentRec, isTail)
-      val cifNot0 = compile(builtins, ifNot0, boundByCurrentLambda, recursiveVars, currentRec, isTail)
-      env(e).indexOf(v) match {
-        case 0 => new Arity1(e,()) {
-          def apply(rec: Rt, x1: D, x1b: Rt, r: R) =
-            if (x1 == 0.0) cif0(rec, x1, x1b, r)
-            else cifNot0(rec, x1, x1b, r)
-          def bind(env: Map[Name,Rt]) = { cif0 bind env; cifNot0 bind env }
-        }
-      }
-    case If0(Apply(Builtin("-"),List(Var(v),Num(1.0))),if0,ifNot0) if env(e).indexOf(v) != -1 =>
-      println("woot")
-      val cif0 = compile(builtins, if0, boundByCurrentLambda, recursiveVars, currentRec, isTail)
-      val cifNot0 = compile(builtins, ifNot0, boundByCurrentLambda, recursiveVars, currentRec, isTail)
-      env(e).indexOf(v) match {
-        case 0 => new Arity1(e,()) {
-          def apply(rec: Rt, x1: D, x1b: Rt, r: R) =
-            if (x1 == 1.0) cif0(rec, x1, x1b, r)
-            else cifNot0(rec, x1, x1b, r)
-          def bind(env: Map[Name,Rt]) = { cif0 bind env; cifNot0 bind env }
-        }
-      }
     case If0(cond,if0,ifNot0) =>
       compileIf0(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(cond, if0, ifNot0)
     case Lam(names, body) =>
       compileLambda(builtins, e, Some(names.toSet), recursiveVars -- names, shadowsRec(currentRec,names))(names, body)
-    case LetRec(List((name,f@Lam(vs,body))), bodyr) =>
-      // todo - move this to compileLetRec1
-      val lam = compileLambda(builtins, f, Some(vs.toSet), recursiveVars + name, Some(name -> vs.length))(vs, body)
-      val compiledBodyr = compile(builtins, bodyr, boundByCurrentLambda, recursiveVars + name, currentRec, isTail)
-      if (lam.isEvaluated) compiledBodyr.bind(Map((name,lam)))
-      arity(freeVars(e), env(e)) match {
-        case 0 => new Arity0(e,()) {
-          def apply(rec: Rt, r: R) = compiledBodyr(rec, r)
-          def bind(env: Map[Name,Rt]) = ()
-        }
-        case _ => ??? // todo, fill these in - might need to check lam.isEvaluated and use diff code path
-      }
-    case LetRec(bindings, body) =>
-      compileLetRec(builtins, e, boundByCurrentLambda, recursiveVars, isTail)(bindings, body)
+    case LetRec(bindings, body) => bindings match {
+      case (name,Lam(vs,bodyf)) :: Nil =>
+        compileLetRec1(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(name,vs,bodyf,body)
+      case _ => compileLetRec(builtins, e, boundByCurrentLambda, recursiveVars, isTail)(bindings, body)
+    }
     case Let1(name, binding, body) => // `let name = binding; body`
       compileLet1(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(name, binding, body)
-    case Apply(Builtin(_), args) if isTail =>
-      // don't bother with tail calls for builtins; assume they use constant stack
-      compile(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
-    case Apply(Builtin("+"), List(a1,a2)) =>
-      val compiledArg1 = compile(builtins, a1, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
-      val compiledArg2 = compile(builtins, a2, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
-      arity(freeVars(e), env(e)) match {
-        case 0 => new Arity0(e,()) {
-          def apply(rec: Rt, r: R) = {
-            val a1r = { compiledArg1(rec, r); r.unboxed }
-            compiledArg2(rec, r)
-            r.unboxed += a1r
-          }
-          def bind(env: Map[Name,Rt]) = { compiledArg1.bind(env); compiledArg2.bind(env) }
-        }
-        case 1 => new Arity1(e,()) {
-          def apply(rec: Rt, x1: D, x1b: Rt, r: R) = {
-            val a1r = { compiledArg1(rec, x1, x1b, r); r.unboxed }
-            compiledArg2(rec, x1, x1b, r)
-            r.unboxed += a1r
-          }
-          def bind(env: Map[Name,Rt]) = { compiledArg1.bind(env); compiledArg2.bind(env) }
-        }
-      }
-    case Apply(Var(rec), List(Apply(Builtin("-"), List(Var(v),Num(k)))))
-      if env(e).indexOf(v) != -1 && Some(rec) == currentRec.map(_._1) =>
-        println("oog")
-        trait NB { self: Rt => def bind(env: Map[Name,Rt]) = () }
-        env(e).indexOf(v) match {
-          case 0 => new Arity1(e,()) with NB { def apply(rec: Rt, x1: D, x1b: Rt, r: R) = rec(rec, x1 - k, null, r) }
-          case 1 => new Arity2(e,()) with NB { def apply(rec: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) =
-            rec(rec, x2 - k, null, r)
-          }
-          case 2 => new Arity3(e,()) with NB { def apply(rec: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, r: R) =
-            rec(rec, x3 - k, null, r)
-          }
-        }
-    case Apply(Builtin("-"), List(a1,Num(k))) =>
-      val compiledArg1 = compile(builtins, a1, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
-      arity(freeVars(e), env(e)) match {
-        case 0 => new Arity0(e,()) {
-          def apply(rec: Rt, r: R) = {
-            eval(rec,compiledArg1, r)
-            r.unboxed -= k
-          }
-          def bind(env: Map[Name,Rt]) = compiledArg1.bind(env)
-        }
-        case 1 => new Arity1(e,()) {
-          def apply(rec: Rt, x1: D, x1b: Rt, r: R) = {
-            eval(rec, compiledArg1, x1, x1b, r)
-            r.unboxed -= k
-          }
-          def bind(env: Map[Name,Rt]) = compiledArg1.bind(env)
-        }
-      }
-    case Apply(Builtin("-"), List(a1,a2)) =>
-      val compiledArg1 = compile(builtins, a1, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
-      val compiledArg2 = compile(builtins, a2, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
-      arity(freeVars(e), env(e)) match {
-        case 0 => new Arity0(e,()) {
-          def apply(rec: Rt, r: R) = {
-            val a2r = { compiledArg2(rec, r); r.unboxed }
-            compiledArg1(rec, r)
-            r.unboxed -= a2r
-          }
-          def bind(env: Map[Name,Rt]) = { compiledArg1.bind(env); compiledArg2.bind(env) }
-        }
-        case 1 => new Arity1(e,()) {
-          def apply(rec: Rt, x1: D, x1b: Rt, r: R) = {
-            val a2r = { compiledArg2(rec, x1, x1b, r); r.unboxed }
-            compiledArg1(rec, x1, x1b, r)
-            r.unboxed -= a2r
-          }
-          def bind(env: Map[Name,Rt]) = { compiledArg1.bind(env); compiledArg2.bind(env) }
-        }
-      }
-    case Apply(fn, List()) => compile(builtins, fn, boundByCurrentLambda, recursiveVars, currentRec, isTail)
-    // todo - more generally length of args matches arity
-    case Apply(Var(v), List(arg)) if Some((v,1)) == currentRec =>
-      val compiledArg = compile(builtins, arg, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
-      arity(freeVars(e), env(e)) match {
-        case 0 => new Arity0(e,()) {
-          def apply(rec: Rt, r: R) = {
-            eval(rec, compiledArg, r)
-            rec(rec, r.unboxed, r.boxed, r)
-          }
-          def bind(env: Map[Name,Rt]) = compiledArg.bind(env)
-        }
-        case 1 => new Arity1(e,()) {
-          def apply(rec: Rt, x1: D, x1b: Rt, r: R) = {
-            eval(rec, compiledArg, x1, x1b, r)
-            rec(rec, r.unboxed, r.boxed, r)
-          }
-          def bind(env: Map[Name,Rt]) = compiledArg.bind(env)
-        }
-      }
     case Apply(fn, args) =>
       compileFunctionApplication(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(fn, args)
   }}
+
+  def compileLetRec1(
+      builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
+      recursiveVars: Set[Name], currentRec: Option[(Name,Arity)], isTail: Boolean)(
+      name: Name, vs: List[Name],bodyf: TermC, body: TermC): Rt = ???
 
   def compileIf0(
       builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
@@ -387,76 +264,101 @@ object Runtime {
   def compileFunctionApplication(
       builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
       recursiveVars: Set[Name], currentRec: Option[(Name,Arity)], isTail: Boolean)(
-      fn: TermC, args: List[TermC]): Rt = {
-    /* Four cases to consider:
-       1. static (fn already evaluated, known arity), fully-saturated call (correct # args),
-          ex `(x -> x) 42`
-       2. static partial application, ex `(x y -> x) 42`, need to form closure or specialize
-       3. static overapplication, ex `(x -> x) (y -> y) 42` or `id id 42`
-       4. dynamic application, ex in `(f x -> f x) id 42`, `f x` is a dynamic application
-    */
-    val compiledFn = compile(builtins, fn, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
-    val compiledArgs = args.view.map(arg =>
-      compile(builtins, arg, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
-    ).toArray
-    // NB workaround for https://issues.scala-lang.org/browse/SI-10036
-    val compiledFn2 = compiledFn
-    val compiledArgs2 = compiledArgs
-    trait FAB { self: Rt =>
-      def bind(env: Map[Name,Rt]) = if (env.isEmpty) () else {
-        compiledFn2.bind(env)
-        compiledArgs2.foreach(_.bind(env))
-      }
-    }
-    if (compiledFn.isEvaluated) {
-      if (compiledFn.arity == compiledArgs.length) // 1.
-        FunctionApplication.staticCall(compiledFn, compiledArgs, unTermC(e), isTail)
-      else if (compiledFn.arity > compiledArgs.length) // 2.
-        FunctionApplication.staticCall(compiledFn, compiledArgs, unTermC(e), isTail)
-      else // 3. (compiledFn.arity < compiledArgs.length)
-        ???
-    }
-    else // 4.
+      fn: TermC, args: List[TermC]): Rt = (fn, args) match {
+    case (Builtin(_), args) if isTail =>
+      // don't bother with tail calls for builtins; assume they use constant stack
+      compile(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
+    case (fn, List()) =>
+      compile(builtins, fn, boundByCurrentLambda, recursiveVars, currentRec, isTail)
+    // todo - more generally length of args matches arity
+    case (Var(v), List(arg)) if Some((v,1)) == currentRec =>
+      val compiledArg = compile(builtins, arg, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
       arity(freeVars(e), env(e)) match {
-        case 0 => compiledArgs.length match {
-          case 1 => new Arity0(e,()) with FAB {
-            val arg = compiledArgs(0)
-            def apply(rec: Rt, r: R) =
-              if (compiledFn.isEvaluated) {
-                eval(rec, arg, r)
-                compiledFn(compiledFn, r.unboxed, r.boxed, r)
-              }
-              else {
-                eval(rec, compiledFn, r)
-                val fn = r.boxed
-                eval(rec, arg, r)
-                if (fn.arity == 1) fn(fn, r.unboxed, r.boxed, r)
-                else if (fn.arity > 1)
-                  sys.error("todo - handle partial application here")
-                else sys.error("type error, function of arity: " + fn.arity + " applied to 1 argument")
-              }
+        case 0 => new Arity0(e,()) {
+          def apply(rec: Rt, r: R) = {
+            eval(rec, compiledArg, r)
+            rec(rec, r.unboxed, r.boxed, r)
           }
+          def bind(env: Map[Name,Rt]) = compiledArg.bind(env)
         }
-        case 1 => compiledArgs.length match {
-          case 1 => new Arity1(e,()) with FAB {
-            val arg = compiledArgs(0)
-            def apply(rec: Rt, x1: D, x1b: Rt, r: R) =
-              if (compiledFn.isEvaluated) {
-                eval(rec, arg, x1, x1b, r)
-                compiledFn(compiledFn, r.unboxed, r.boxed, r)
-              }
-              else {
-                eval(rec, compiledFn, x1, x1b, r)
-                val fn = r.boxed
-                eval(rec, arg, x1, x1b, r)
-                if (fn.arity == 1) fn(fn, r.unboxed, r.boxed, r)
-                else if (fn.arity > 1)
-                  sys.error("todo - handle partial application here")
-                else sys.error("type error, function of arity: " + fn.arity + " applied to 1 argument")
-              }
+        case 1 => new Arity1(e,()) {
+          def apply(rec: Rt, x1: D, x1b: Rt, r: R) = {
+            eval(rec, compiledArg, x1, x1b, r)
+            rec(rec, r.unboxed, r.boxed, r)
           }
+          def bind(env: Map[Name,Rt]) = compiledArg.bind(env)
         }
       }
+    case _ =>
+      /* Four cases to consider:
+         1. static (fn already evaluated, known arity), fully-saturated call (correct # args),
+            ex `(x -> x) 42`
+         2. static partial application, ex `(x y -> x) 42`, need to form closure or specialize
+         3. static overapplication, ex `(x -> x) (y -> y) 42` or `id id 42`
+         4. dynamic application, ex in `(f x -> f x) id 42`, `f x` is a dynamic application
+      */
+      val compiledFn = compile(builtins, fn, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
+      val compiledArgs = args.view.map(arg =>
+        compile(builtins, arg, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
+      ).toArray
+      // NB workaround for https://issues.scala-lang.org/browse/SI-10036
+      val compiledFn2 = compiledFn
+      val compiledArgs2 = compiledArgs
+      trait FAB { self: Rt =>
+        def bind(env: Map[Name,Rt]) = if (env.isEmpty) () else {
+          compiledFn2.bind(env)
+          compiledArgs2.foreach(_.bind(env))
+        }
+      }
+      if (compiledFn.isEvaluated) {
+        if (compiledFn.arity == compiledArgs.length) // 1.
+          FunctionApplication.staticCall(compiledFn, compiledArgs, unTermC(e), isTail)
+        else if (compiledFn.arity > compiledArgs.length) // 2.
+          FunctionApplication.staticCall(compiledFn, compiledArgs, unTermC(e), isTail)
+        else // 3. (compiledFn.arity < compiledArgs.length)
+          ???
+      }
+      else // 4.
+        arity(freeVars(e), env(e)) match {
+          case 0 => compiledArgs.length match {
+            case 1 => new Arity0(e,()) with FAB {
+              val arg = compiledArgs(0)
+              def apply(rec: Rt, r: R) =
+                if (compiledFn.isEvaluated) {
+                  eval(rec, arg, r)
+                  compiledFn(compiledFn, r.unboxed, r.boxed, r)
+                }
+                else {
+                  eval(rec, compiledFn, r)
+                  val fn = r.boxed
+                  eval(rec, arg, r)
+                  if (fn.arity == 1) fn(fn, r.unboxed, r.boxed, r)
+                  else if (fn.arity > 1)
+                    sys.error("todo - handle partial application here")
+                  else sys.error("type error, function of arity: " + fn.arity + " applied to 1 argument")
+                }
+            }
+          }
+          case 1 => compiledArgs.length match {
+            case 1 => new Arity1(e,()) with FAB {
+              val arg = compiledArgs(0)
+              def apply(rec: Rt, x1: D, x1b: Rt, r: R) =
+                if (compiledFn.isEvaluated) {
+                  eval(rec, arg, x1, x1b, r)
+                  compiledFn(compiledFn, r.unboxed, r.boxed, r)
+                }
+                else {
+                  eval(rec, compiledFn, x1, x1b, r)
+                  val fn = r.boxed
+                  eval(rec, arg, x1, x1b, r)
+                  if (fn.arity == 1) fn(fn, r.unboxed, r.boxed, r)
+                  else if (fn.arity > 1)
+                    sys.error("todo - handle partial application here")
+                  else sys.error("type error, function of arity: " + fn.arity + " applied to 1 argument")
+                }
+            }
+          }
+        }
   }
 
   def compileLetRec(builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
