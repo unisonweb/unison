@@ -336,6 +336,46 @@ object Fib extends App {
 
   val compiledFib = compile(builtins)(fib)
 
+  val M = 1000000
+
+  QuickProfile.suite(
+    QuickProfile.timeit("sum (while loop)", 0.05) {
+      var a = math.random; var i = 0.0
+      while (i < M) { a += i; i += 1 }
+      a.toLong
+    },
+    {
+      // sum n = let rec
+      //   go i acc = if i < n then go (i + 1) (acc + i) else acc
+      //   go 0 0
+      // create a function def go
+      // create a var for each function parameter
+      // have a while (true) loop
+      // recursive call sets the new loop parameters
+      // a nonrecursive call does a return
+      def go: Double = {
+        var a = math.random
+        var ab : Rt2 = null
+        var i = 0.0
+        var ib: Rt2 = null
+        val r = R2(null)
+        while (true) {
+          if (i < M) {
+            a = Rt2.primPlus(null, a, ab, i, ib, r)
+            if (!(r.get eq null)) ab = r.get
+            i = Rt2.primPlus(null, i, ib, 1.0, null, r)
+            if (!(r.get eq null)) ib = r.get
+          }
+          else return a
+        }
+        return a
+      }
+      QuickProfile.timeit("sum (manually-compiled Rt2)", 0.05) {
+        go.toLong
+      }
+    }
+  )
+
   QuickProfile.suite(
     QuickProfile.timeit("manually-compiled (Rt3)", 0.05) {
       (Rt3.fibN(null).unboxed + math.random).toLong
