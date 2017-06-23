@@ -70,6 +70,7 @@ object Runtime {
   type D = Double
   type Rt = Runtime
   type R = Result
+  type TC = TailCall
 
   /**
    * The annotation contains a `Set[Name]` of free variables for the term,
@@ -130,7 +131,7 @@ object Runtime {
   def normalize(builtins: String => Rt)(e: Term): Term = {
     val rt = compile(builtins)(e)
     val r = Result()
-    decompileSlot(eval(null, rt, r), r.boxed)
+    decompileSlot(try rt(null, r) catch { case e: TC => loop(e,r) }, r.boxed)
   }
 
   private def unbindRecursiveVars(e: TermC, recursiveVars: Set[Name]): TermC =
@@ -200,14 +201,14 @@ object Runtime {
     arity(freeVars(e), env(e)) match {
       case 0 =>
         class CIf0(cond: Rt, if0: Rt, ifNot0: Rt) extends Arity0(e,()) {
-          def apply(rec: Rt, r: R) = if (eval(rec,cond,r) == 0.0) if0(rec,r) else ifNot0(rec,r)
+          def apply(rec: Rt, r: R) = if ({ try cond(rec,r) catch { case e: TC => loop(e,r) }} == 0.0) if0(rec,r) else ifNot0(rec,r)
           def bind(env: Map[Name,Rt]) = { cond.bind(env); if0.bind(env); ifNot0.bind(env) }
         }
         new CIf0(compiledCond, compiledIf0, compiledIfNot0)
       case 1 =>
         class CIf0(cond: Rt, if0: Rt, ifNot0: Rt) extends Arity1(e,()) {
           def apply(rec: Rt, x1: D, x1b: Rt, r: R) =
-            if (eval(rec,cond,x1,x1b,r) == 0.0) if0(rec,x1,x1b,r)
+            if ({ try cond(rec,x1,x1b,r) catch { case e: TC => loop(e,r) }} == 0.0) if0(rec,x1,x1b,r)
             else ifNot0(rec,x1,x1b,r)
           def bind(env: Map[Name,Rt]) = { cond.bind(env); if0.bind(env); ifNot0.bind(env) }
         }
@@ -215,7 +216,7 @@ object Runtime {
       case 2 =>
         class CIf0(cond: Rt, if0: Rt, ifNot0: Rt) extends Arity2(e,()) {
           def apply(rec: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) =
-            if (eval(rec,cond,x1,x1b,x2,x2b,r) == 0.0) if0(rec,x1,x1b,x2,x2b,r)
+            if ({ try cond(rec,x1,x1b,x2,x2b,r) catch { case e: TC => loop(e,r) }} == 0.0) if0(rec,x1,x1b,x2,x2b,r)
             else ifNot0(rec,x1,x1b,x2,x2b,r)
           def bind(env: Map[Name,Rt]) = { cond.bind(env); if0.bind(env); ifNot0.bind(env) }
         }
@@ -223,7 +224,7 @@ object Runtime {
       case 3 =>
         class CIf0(cond: Rt, if0: Rt, ifNot0: Rt) extends Arity3(e,()) {
           def apply(rec: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, r: R) =
-            if (eval(rec,cond,x1,x1b,x2,x2b,x3,x3b,r) == 0.0) if0(rec,x1,x1b,x2,x2b,x3,x3b,r)
+            if ({ try cond(rec,x1,x1b,x2,x2b,x3,x3b,r) catch { case e: TC => loop(e,r) }} == 0.0) if0(rec,x1,x1b,x2,x2b,x3,x3b,r)
             else ifNot0(rec,x1,x1b,x2,x2b,x3,x3b,r)
           def bind(env: Map[Name,Rt]) = { cond.bind(env); if0.bind(env); ifNot0.bind(env) }
         }
@@ -231,7 +232,7 @@ object Runtime {
       case 4 =>
         class CIf0(cond: Rt, if0: Rt, ifNot0: Rt) extends Arity4(e,()) {
           def apply(rec: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, x4: D, x4b: Rt, r: R) =
-            if (eval(rec,cond,x1,x1b,x2,x2b,x3,x3b,x4,x4b,r) == 0.0) if0(rec,x1,x1b,x2,x2b,x3,x3b,x4,x4b,r)
+            if ({ try cond(rec,x1,x1b,x2,x2b,x3,x3b,x4,x4b,r) catch { case e: TC => loop(e,r) }} == 0.0) if0(rec,x1,x1b,x2,x2b,x3,x3b,x4,x4b,r)
             else ifNot0(rec,x1,x1b,x2,x2b,x3,x3b,x4,x4b,r)
           def bind(env: Map[Name,Rt]) = { cond.bind(env); if0.bind(env); ifNot0.bind(env) }
         }
@@ -239,7 +240,7 @@ object Runtime {
       case n =>
         class CIf0(cond: Rt, if0: Rt, ifNot0: Rt) extends ArityN(n,e,()) {
           def apply(rec: Rt, args: Array[Slot], r: R) =
-            if (evalN(rec,cond,args,r) == 0.0) if0(rec,args,r)
+            if ({ try cond(rec,args,r) catch { case e: TC => loop(e,r) }} == 0.0) if0(rec,args,r)
             else ifNot0(rec,args,r)
           def bind(env: Map[Name,Rt]) = { cond.bind(env); if0.bind(env); ifNot0.bind(env) }
         }
@@ -261,12 +262,12 @@ object Runtime {
       val compiledArg = compile(builtins, arg, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
       arity(freeVars(e), env(e)) match {
         case 0 => new Arity0(e,()) {
-          def apply(rec: Rt, r: R) = rec(rec, eval(rec, compiledArg, r), r.boxed, r)
+          def apply(rec: Rt, r: R) = rec(rec, { try compiledArg(rec, r) catch { case e: TC => loop(e,r) }}, r.boxed, r)
           def bind(env: Map[Name,Rt]) = compiledArg.bind(env)
         }
         case 1 => new Arity1(e,()) {
           def apply(rec: Rt, x1: D, x1b: Rt, r: R) =
-            rec(rec, eval(rec, compiledArg, x1, x1b, r), r.boxed, r)
+            rec(rec, { try compiledArg(rec, x1, x1b, r) catch { case e: TC => loop(e,r) }}, r.boxed, r)
           def bind(env: Map[Name,Rt]) = compiledArg.bind(env)
         }
       }
@@ -306,11 +307,11 @@ object Runtime {
               val arg = compiledArgs(0)
               def apply(rec: Rt, r: R) =
                 if (compiledFn.isEvaluated)
-                  compiledFn(compiledFn, eval(rec, arg, r), r.boxed, r)
+                  compiledFn(compiledFn, { try arg(rec, r) catch { case e: TC => loop(e,r) }}, r.boxed, r)
                 else {
-                  eval(rec, compiledFn, r)
+                  { try compiledFn(rec, r) catch { case e: TC => loop(e,r) }}
                   val fn = r.boxed
-                  if (fn.arity == 1) fn(fn, eval(rec, arg, r), r.boxed, r)
+                  if (fn.arity == 1) fn(fn, { try arg(rec, r) catch { case e: TC => loop(e,r) }}, r.boxed, r)
                   else if (fn.arity > 1)
                     sys.error("todo - handle partial application here")
                   else sys.error("type error, function of arity: " + fn.arity + " applied to 1 argument")
@@ -322,11 +323,11 @@ object Runtime {
               val arg = compiledArgs(0)
               def apply(rec: Rt, x1: D, x1b: Rt, r: R) =
                 if (compiledFn.isEvaluated)
-                  compiledFn(compiledFn, eval(rec, arg, x1, x1b, r), r.boxed, r)
+                  compiledFn(compiledFn, { try arg(rec, x1, x1b, r) catch { case e: TC => loop(e,r) }}, r.boxed, r)
                 else {
-                  eval(rec, compiledFn, x1, x1b, r)
+                  { try compiledFn(rec, x1, x1b, r) catch { case e: TC => loop(e,r) }}
                   val fn = r.boxed
-                  if (fn.arity == 1) fn(fn, eval(rec, arg, x1, x1b, r), r.boxed, r)
+                  if (fn.arity == 1) fn(fn, { try arg(rec, x1, x1b, r) catch { case e: TC => loop(e,r) }}, r.boxed, r)
                   else if (fn.arity > 1)
                     sys.error("todo - handle partial application here")
                   else sys.error("type error, function of arity: " + fn.arity + " applied to 1 argument")
@@ -453,27 +454,29 @@ object Runtime {
     arity(freeVars(e), env(e)) match {
       case 0 => new Arity0(e,()) with LB {
         def apply(rec: Rt, r: R) =
-          compiledBody(rec, eval(rec, compiledBinding, r), r.boxed, r)
+          compiledBody(rec, { try compiledBinding(rec, r) catch { case e: TC => loop(e,r) }}, r.boxed, r)
       }
       case 1 => new Arity1(e,()) with LB {
         def apply(rec: Rt, x1: D, x1b: Rt, r: R) =
-          compiledBody(rec, eval(rec, compiledBinding, x1, x1b, r), r.boxed, x1, x1b, r)
+          compiledBody(rec, { try compiledBinding(rec, x1, x1b, r) catch { case e: TC => loop(e,r) }}, r.boxed, x1, x1b, r)
       }
       case 2 => new Arity2(e,()) with LB {
         def apply(rec: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) =
-          compiledBody(rec, eval(rec, compiledBinding, x1, x1b, x2, x2b, r), r.boxed, x1, x1b, x2, x2b, r)
+          compiledBody(rec, { try compiledBinding(rec, x1, x1b, x2, x2b, r) catch { case e: TC => loop(e,r) }}, r.boxed, x1, x1b, x2, x2b, r)
       }
       case 3 => new Arity3(e,()) with LB {
         def apply(rec: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, r: R) =
-          compiledBody(rec, eval(rec, compiledBinding, x1, x1b, x2, x2b, x3, x3b, r), r.boxed, x1, x1b, x2, x2b, x3, x3b, r)
+          compiledBody(rec, { try compiledBinding(rec, x1, x1b, x2, x2b, x3, x3b, r) catch { case e: TC => loop(e,r) }}, r.boxed, x1, x1b, x2, x2b, x3, x3b, r)
       }
       case 4 => new Arity4(e,()) with LB {
         def apply(rec: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, x4: D, x4b: Rt, r: R) =
-          compiledBody(rec, Array(Slot(eval(rec, compiledBinding, x1, x1b, x2, x2b, x3, x3b, x4, x4b, r), r.boxed), Slot(x1, x1b), Slot(x2, x2b), Slot(x3, x3b), Slot(x4, x4b)), r)
+          compiledBody(rec, Array(Slot({ try compiledBinding(rec, x1, x1b, x2, x2b, x3, x3b, x4, x4b, r) catch { case e: TC => loop(e,r) }}, r.boxed), Slot(x1, x1b), Slot(x2, x2b), Slot(x3, x3b), Slot(x4, x4b)), r)
       }
       case n => new ArityN(n,e,()) with LB {
         def apply(rec: Rt, args: Array[Slot], r: R) =
-          compiledBody(rec, Slot(evalN(rec, compiledBinding, args, r), r.boxed) +: args, r)
+          compiledBody(rec,
+          Slot(try compiledBinding(rec, args, r) catch { case e: TC => loop(e,r) }, r.boxed) +: args,
+          r)
       }
     }
   }
@@ -777,7 +780,7 @@ object Runtime {
     }
   }
 
-  @inline def tailCallLoop(tc0: TailCall, r: R): D = {
+  def loop(tc0: TailCall, r: R): D = {
     var tc = tc0
     while (!(tc eq null)) {
       val fn = tc.fn
@@ -795,36 +798,36 @@ object Runtime {
     0.0
   }
 
-  @inline
-  def eval(rec: Rt, rt: Rt, r: R): D =
-    rt(rec, r)
-    // try rt(rec,r)
-    // catch { case tc: TailCall => tailCallLoop(tc, r) }
-  @inline
-  def eval(rec: Rt, rt: Rt, x1: D, x2: Rt, r: R): D =
-    rt(rec,x1,x2,r)
-    //try rt(rec,x1,x2,r)
-    //catch { case tc: TailCall => tailCallLoop(tc, r) }
-  @inline
-  def eval(rec: Rt, rt: Rt, x1: D, x2: Rt, x3: D, x4: Rt, r: R): D =
-    rt(rec,x1,x2,x3,x4,r)
-    //try rt(rec,x1,x2,x3,x4,r)
-    //catch { case tc: TailCall => tailCallLoop(tc, r) }
-  @inline
-  def eval(rec: Rt, rt: Rt, x1: D, x2: Rt, x3: D, x4: Rt, x5: D, x6: Rt, r: R): D =
-    rt(rec,x1,x2,x3,x4,x5,x6,r)
-    //try rt(rec,x1,x2,x3,x4,x5,x6,r)
-    //catch { case tc: TailCall => tailCallLoop(tc, r) }
-  @inline
-  def eval(rec: Rt, rt: Rt, x1: D, x2: Rt, x3: D, x4: Rt, x5: D, x6: Rt, x7: D, x8: Rt, r: R): D =
-    rt(rec,x1,x2,x3,x4,x5,x6,r)
-    // try rt(rec,x1,x2,x3,x4,x5,x6,r)
-    // catch { case tc: TailCall => tailCallLoop(tc, r) }
-  @inline
-  def evalN(rec: Rt, rt: Rt, args: Array[Slot], r: R): D =
-    rt(rec,args,r)
-    // try rt(rec,args,r)
-    // catch { case tc: TailCall => tailCallLoop(tc, r) }
+  //@inline
+  //def eval(rec: Rt, rt: Rt, r: R): D =
+  //  rt(rec, r)
+  //  // try rt(rec,r)
+  //  // catch { case tc: TailCall => tailCallLoop(tc, r) }
+  //@inline
+  //def eval(rec: Rt, rt: Rt, x1: D, x2: Rt, r: R): D =
+  //  rt(rec,x1,x2,r)
+  //  //try rt(rec,x1,x2,r)
+  //  //catch { case tc: TailCall => tailCallLoop(tc, r) }
+  //@inline
+  //def eval(rec: Rt, rt: Rt, x1: D, x2: Rt, x3: D, x4: Rt, r: R): D =
+  //  rt(rec,x1,x2,x3,x4,r)
+  //  //try rt(rec,x1,x2,x3,x4,r)
+  //  //catch { case tc: TailCall => tailCallLoop(tc, r) }
+  //@inline
+  //def eval(rec: Rt, rt: Rt, x1: D, x2: Rt, x3: D, x4: Rt, x5: D, x6: Rt, r: R): D =
+  //  rt(rec,x1,x2,x3,x4,x5,x6,r)
+  //  //try rt(rec,x1,x2,x3,x4,x5,x6,r)
+  //  //catch { case tc: TailCall => tailCallLoop(tc, r) }
+  //@inline
+  //def eval(rec: Rt, rt: Rt, x1: D, x2: Rt, x3: D, x4: Rt, x5: D, x6: Rt, x7: D, x8: Rt, r: R): D =
+  //  rt(rec,x1,x2,x3,x4,x5,x6,r)
+  //  // try rt(rec,x1,x2,x3,x4,x5,x6,r)
+  //  // catch { case tc: TailCall => tailCallLoop(tc, r) }
+  //@inline
+  //def evalN(rec: Rt, rt: Rt, args: Array[Slot], r: R): D =
+  //  rt(rec,args,r)
+  //  // try rt(rec,args,r)
+  //  // catch { case tc: TailCall => tailCallLoop(tc, r) }
   @inline
   def tailCall(fn: Rt, x1: D, x1b: Rt, r: R): D =
     throw new TailCall(fn, x1, x1b, 0.0, null, null)
