@@ -257,20 +257,9 @@ object Runtime {
     (fn, args) match {
       case (fn, List()) =>
         compile(builtins, fn, boundByCurrentLambda, recursiveVars, currentRec, isTail)
-      // todo - more generally length of args matches arity
-      case (Var(v), List(arg)) if Some((v,1)) == currentRec =>
-        val compiledArg = compile(builtins, arg, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
-        arity(freeVars(e), env(e)) match {
-          case 0 => new Arity0(e,()) {
-            def apply(rec: Rt, r: R) = rec(rec, { try compiledArg(rec, r) catch { case e: TC => loop(e,r) }}, r.boxed, r)
-            def bind(env: Map[Name,Rt]) = compiledArg.bind(env)
-          }
-          case 1 => new Arity1(e,()) {
-            def apply(rec: Rt, x1: D, x1b: Rt, r: R) =
-              rec(rec, { try compiledArg(rec, x1, x1b, r) catch { case e: TC => loop(e,r) }}, r.boxed, r)
-            def bind(env: Map[Name,Rt]) = compiledArg.bind(env)
-          }
-        }
+      case (Var(v), args) if Some((v,args.length)) == currentRec =>
+        val compiledArgs = args.view.map(compile(builtins, _, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)).toArray
+        FunctionApplication.staticRecCall(compiledArgs, unTermC(e), isTail)
       case _ =>
         /* Four cases to consider:
            1. static (fn already evaluated, known arity), fully-saturated call (correct # args),
