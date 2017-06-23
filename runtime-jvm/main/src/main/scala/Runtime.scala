@@ -99,9 +99,10 @@ object Runtime {
     if (freeVars.isEmpty) 0
     else freeVars.view.map(fv => bound.indexOf(fv)).max + 1
 
-  case class TailCall(fn: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, args: Array[Slot]) extends Throwable {
+  class TailCall(val fn: Rt, val x1: D, val x1b: Rt, val x2: D, val x2b: Rt, val args: Array[Slot]) extends Throwable {
     override def fillInStackTrace = this
   }
+  class SelfCall(x1: D, x1b: Rt, x2: D, x2b: Rt, args: Array[Slot]) extends TailCall(null,x1,x1b,x2,x2b,args)
 
   case class Result(var boxed: Rt = null) {
     def toRuntime(unboxed: D): Rt = if (boxed eq null) compileNum(unboxed) else boxed
@@ -173,10 +174,10 @@ object Runtime {
     case If0(cond,if0,ifNot0) =>
       compileIf0(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(cond, if0, ifNot0)
     case Lam(names, body) =>
-      compileLambda(builtins, e, Some(names.toSet), recursiveVars -- names, shadowsRec(currentRec,names))(names, body)
+      compileLambda(builtins, e, boundByCurrentLambda, recursiveVars, currentRec)(names, body)
     case LetRec(bindings, body) => bindings match {
-      case (name,Lam(vs,bodyf)) :: Nil =>
-        compileLetRec1(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(name,vs,bodyf,body)
+      case (name,f@Lam(vs,bodyf)) :: Nil =>
+        compileLetRec1(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(name,vs,f,bodyf,body)
       case _ => compileLetRec(builtins, e, boundByCurrentLambda, recursiveVars, isTail)(bindings, body)
     }
     case Let1(name, binding, body) => // `let name = binding; body`
@@ -185,10 +186,57 @@ object Runtime {
       compileFunctionApplication(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(fn, args)
   }}
 
+  // thing we want to check for is whether the body of the function references
+  // name in tail position, if so, we create a while loop
+  def hasTailRecursiveCall(recName: Name, arity: Int, body: TermC): Boolean = true // todo
+
   def compileLetRec1(
       builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
       recursiveVars: Set[Name], currentRec: Option[(Name,Arity)], isTail: Boolean)(
-      name: Name, vs: List[Name],bodyf: TermC, body: TermC): Rt = ???
+      name: Name, vs: List[Name], f: TermC, bodyf: TermC, body: TermC): Rt =
+    if (hasTailRecursiveCall(name, vs.length, bodyf)) {
+      val vsv = vs.toVector
+      val compiledf = {
+        val step = compileLambda(builtins, f, boundByCurrentLambda, recursiveVars + name,
+                                Some((name,vsv.length)))(vs, bodyf)
+        @annotation.tailrec
+        def loop(v1: D, v1b: Rt, r: R): Double =
+          try return step(step, v1, v1b, r)
+          catch { case e: SelfCall => loop(e.x1, e.x1b, r) }
+        new Lambda1(vsv(0), unTermC(f), step) {
+          override def apply(rec: Rt, x1: D, x1b: Rt, r: R) = loop(x1, x1b, r)
+        }
+      }
+      // we compile this just like a let1
+      val compiledBody = compile(builtins, body, boundByCurrentLambda, recursiveVars - name, currentRec, isTail)
+      (arity(freeVars(e), env(e))) match {
+        case 0 => new Arity0(e,()) {
+          def bind(env: Map[Name,Rt]) = compiledf bind (env -- vs - name)
+          def apply(rec: Rt, r: R) =
+            // NB: okay to assume compiledf is already evaluated, since it is a lambda with no free vars
+            compiledBody(rec, 0.0, compiledf, r)
+        }
+        case 1 => new Arity1(e,()) {
+          def bind(env: Map[Name,Rt]) = compiledf bind (env -- vs - name)
+          def apply(rec: Rt, x1: D, x1b: Rt, r: R) = {
+            val compiledf2 =
+              if (compiledf.isEvaluated) compiledf
+              else { { try compiledf(rec, x1, x1b, r) catch { case e: TC => loop(e,r) }}; r.boxed }
+            compiledBody(rec, 0.0, compiledf2, x1, x1b, r)
+          }
+        }
+        case 2 => new Arity2(e,()) {
+          def bind(env: Map[Name,Rt]) = compiledf bind (env -- vs - name)
+          def apply(rec: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = {
+            val compiledf2 =
+              if (compiledf.isEvaluated) compiledf
+              else { { try compiledf(rec, x1, x1b, x2, x2b, r) catch { case e: TC => loop(e,r) }}; r.boxed }
+            compiledBody(rec, 0.0, compiledf2, x1, x1b, x2, x2b, r)
+          }
+        }
+      }
+    }
+    else ???
 
   def compileIf0(
       builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
@@ -671,12 +719,13 @@ object Runtime {
     override def isEvaluated = true
   }
 
-  // todo - do we still need freeVarsUnderLambda?
-
   def compileLambda(
-      builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
-      recursiveVars: Set[Name], currentRec: Option[(Name,Arity)])(names: List[Name], body: TermC): Rt = {
-    def makeCompiledBody = compile(builtins, body, boundByCurrentLambda, recursiveVars -- names, currentRec, IsTail)
+      builtins: String => Rt, e: TermC, boundByCurrentLambda0: Option[Set[Name]],
+      recursiveVars0: Set[Name], currentRec0: Option[(Name,Arity)])(names: List[Name], body: TermC): Rt = {
+    val boundByCurrentLambda = Some(names.toSet)
+    val recursiveVars = recursiveVars0 -- names
+    val currentRec = shadowsRec(currentRec0, names)
+    def makeCompiledBody = compile(builtins, body, boundByCurrentLambda, recursiveVars, currentRec, IsTail)
     lazy val eUnC = unTermC(e)
     lazy val bodyUnC = unTermC(body)
     def makeLambda = names match {
@@ -818,6 +867,23 @@ object Runtime {
   //  rt(rec,args,r)
   //  // try rt(rec,args,r)
   //  // catch { case tc: TailCall => tailCallLoop(tc, r) }
+
+  @inline
+  def selfTailCall(x1: D, x1b: Rt, r: R): D =
+    throw new SelfCall(x1, x1b, 0.0, null, null)
+  @inline
+  def selfTailCall(x1: D, x1b: Rt, x2: D, x2b: Rt, r: R): D =
+    throw new SelfCall(x1, x1b, x2, x2b, null)
+  @inline
+  def selfTailCall(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, r: R): D =
+    throw new SelfCall(x1, x1b, x2, x2b, Array(Slot(x3,x3b)))
+  @inline
+  def selfTailCall(x1: D, x1b: Rt, x2: D, x2b: Rt, x3: D, x3b: Rt, x4: D, x4b: Rt, r: R): D =
+    throw new SelfCall(x1, x1b, x2, x2b, Array(Slot(x3,x3b), Slot(x4,x4b)))
+  @inline
+  def selfTailCall(args: Array[Slot], r: R): D =
+    throw new SelfCall(args(0).unboxed, args(0).boxed, args(1).unboxed, args(1).boxed, args.drop(2))
+
   @inline
   def tailCall(fn: Rt, x1: D, x1b: Rt, r: R): D =
     throw new TailCall(fn, x1, x1b, 0.0, null, null)

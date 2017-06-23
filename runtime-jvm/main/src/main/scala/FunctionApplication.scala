@@ -326,7 +326,7 @@ object FunctionApplication {
         case 1 =>
           val arg0 = args(0)
           new Arity0(decompile) with A0 { def apply(rec: Rt, r: R) =
-            tailCall(rec, { try arg0(rec, r) catch { case e: TC => loop(e,r) }}, r.boxed, r)
+            selfTailCall({ try arg0(rec, r) catch { case e: TC => loop(e,r) }}, r.boxed, r)
           }
         case 2 =>
           val arg0 = args(0)
@@ -334,7 +334,7 @@ object FunctionApplication {
           new Arity0(decompile) with A0 { def apply(rec: Rt, r: R) = {
             val x1 = { try arg0(rec, r) catch { case e: TC => loop(e,r) }}; val x1b = r.boxed
             val x2 = { try arg1(rec, r) catch { case e: TC => loop(e,r) }}; val x2b = r.boxed
-            tailCall(rec, x2,x2b,x1,x1b,r)
+            selfTailCall(x2,x2b,x1,x1b,r)
           }}
         case 3 =>
           val arg0 = args(0)
@@ -344,7 +344,7 @@ object FunctionApplication {
             val x1 = { try arg0(rec, r) catch { case e: TC => loop(e,r) }}; val x1b = r.boxed
             val x2 = { try arg1(rec, r) catch { case e: TC => loop(e,r) }}; val x2b = r.boxed
             val x3 = { try arg2(rec, r) catch { case e: TC => loop(e,r) }}; val x3b = r.boxed
-            tailCall(rec, x3,x3b,x2,x2b,x1,x1b,r)
+            selfTailCall(x3,x3b,x2,x2b,x1,x1b,r)
           }}
         case 4 =>
           val arg0 = args(0)
@@ -356,7 +356,7 @@ object FunctionApplication {
             val x2 = { try arg1(rec, r) catch { case e: TC => loop(e,r) }}; val x2b = r.boxed
             val x3 = { try arg2(rec, r) catch { case e: TC => loop(e,r) }}; val x3b = r.boxed
             val x4 = { try arg3(rec, r) catch { case e: TC => loop(e,r) }}; val x4b = r.boxed
-            tailCall(rec, x4,x4b,x3,x3b,x2,x2b,x1,x1b,r)
+            selfTailCall(x4,x4b,x3,x3b,x2,x2b,x1,x1b,r)
           }}
         case n =>
           new Arity0(decompile) with A0 { def apply(rec: Rt, r: R) = {
@@ -368,14 +368,14 @@ object FunctionApplication {
               slot.boxed = r.boxed
               i += 1
             }
-            tailCall(rec, slots, r)
+            selfTailCall(slots, r)
           }}
       }
       case 1 => (args.length: @switch) match {
         case 1 =>
           val arg0 = args(0)
           new Arity1(decompile) with A0 { def apply(rec: Rt, a1: D, a1b: Rt, r: R) =
-            tailCall(rec, { try arg0(rec,a1,a1b, r) catch { case e: TC => loop(e,r) }}, r.boxed, r)
+            selfTailCall({ try arg0(rec,a1,a1b, r) catch { case e: TC => loop(e,r) }}, r.boxed, r)
           }
         case 2 =>
           val arg0 = args(0)
@@ -383,7 +383,7 @@ object FunctionApplication {
           new Arity1(decompile) with A0 { def apply(rec: Rt, a1: D, a1b: Rt, r: R) = {
             val x1 = { try arg0(rec,a1,a1b, r) catch { case e: TC => loop(e,r) }}; val x1b = r.boxed
             val x2 = { try arg1(rec,a1,a1b, r) catch { case e: TC => loop(e,r) }}; val x2b = r.boxed
-            tailCall(rec, x2,x2b,x1,x1b,r)
+            selfTailCall(x2,x2b,x1,x1b,r)
           }}
         case 3 =>
           val arg0 = args(0)
@@ -393,7 +393,7 @@ object FunctionApplication {
             val x1 = { try arg0(rec,a1,a1b, r) catch { case e: TC => loop(e,r) }}; val x1b = r.boxed
             val x2 = { try arg1(rec,a1,a1b, r) catch { case e: TC => loop(e,r) }}; val x2b = r.boxed
             val x3 = { try arg2(rec,a1,a1b, r) catch { case e: TC => loop(e,r) }}; val x3b = r.boxed
-            tailCall(rec, x3,x3b,x2,x2b,x1,x1b,r)
+            selfTailCall(x3,x3b,x2,x2b,x1,x1b,r)
           }}
         case 4 =>
           val arg0 = args(0)
@@ -405,7 +405,7 @@ object FunctionApplication {
             val x2 = { try arg1(rec,a1,a1b, r) catch { case e: TC => loop(e,r) }}; val x2b = r.boxed
             val x3 = { try arg2(rec,a1,a1b, r) catch { case e: TC => loop(e,r) }}; val x3b = r.boxed
             val x4 = { try arg3(rec,a1,a1b, r) catch { case e: TC => loop(e,r) }}; val x4b = r.boxed
-            tailCall(rec, x4,x4b,x3,x3b,x2,x2b,x1,x1b,r)
+            selfTailCall(x4,x4b,x3,x3b,x2,x2b,x1,x1b,r)
           }}
         case n =>
           new Arity1(decompile) with A0 { def apply(rec: Rt, a1: D, a1b: Rt, r: R) = {
@@ -417,14 +417,14 @@ object FunctionApplication {
               slot.boxed = r.boxed
               i += 1
             }
-            tailCall(rec, slots, r)
+            selfTailCall(slots, r)
           }}
       }
       case 2 => (args.length: @switch) match {
         case 1 =>
           val arg0 = args(0)
           new Arity2(decompile) with A0 { def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, r: R) =
-            tailCall(rec, { try arg0(rec,a1,a1b,a2,a2b, r) catch { case e: TC => loop(e,r) }}, r.boxed, r)
+            selfTailCall({ try arg0(rec,a1,a1b,a2,a2b, r) catch { case e: TC => loop(e,r) }}, r.boxed, r)
           }
         case 2 =>
           val arg0 = args(0)
@@ -432,7 +432,7 @@ object FunctionApplication {
           new Arity2(decompile) with A0 { def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, r: R) = {
             val x1 = { try arg0(rec,a1,a1b,a2,a2b, r) catch { case e: TC => loop(e,r) }}; val x1b = r.boxed
             val x2 = { try arg1(rec,a1,a1b,a2,a2b, r) catch { case e: TC => loop(e,r) }}; val x2b = r.boxed
-            tailCall(rec, x2,x2b,x1,x1b,r)
+            selfTailCall(x2,x2b,x1,x1b,r)
           }}
         case 3 =>
           val arg0 = args(0)
@@ -442,7 +442,7 @@ object FunctionApplication {
             val x1 = { try arg0(rec,a1,a1b,a2,a2b, r) catch { case e: TC => loop(e,r) }}; val x1b = r.boxed
             val x2 = { try arg1(rec,a1,a1b,a2,a2b, r) catch { case e: TC => loop(e,r) }}; val x2b = r.boxed
             val x3 = { try arg2(rec,a1,a1b,a2,a2b, r) catch { case e: TC => loop(e,r) }}; val x3b = r.boxed
-            tailCall(rec, x3,x3b,x2,x2b,x1,x1b,r)
+            selfTailCall(x3,x3b,x2,x2b,x1,x1b,r)
           }}
         case 4 =>
           val arg0 = args(0)
@@ -454,7 +454,7 @@ object FunctionApplication {
             val x2 = { try arg1(rec,a1,a1b,a2,a2b, r) catch { case e: TC => loop(e,r) }}; val x2b = r.boxed
             val x3 = { try arg2(rec,a1,a1b,a2,a2b, r) catch { case e: TC => loop(e,r) }}; val x3b = r.boxed
             val x4 = { try arg3(rec,a1,a1b,a2,a2b, r) catch { case e: TC => loop(e,r) }}; val x4b = r.boxed
-            tailCall(rec, x4,x4b,x3,x3b,x2,x2b,x1,x1b,r)
+            selfTailCall(x4,x4b,x3,x3b,x2,x2b,x1,x1b,r)
           }}
         case n =>
           new Arity2(decompile) with A0 { def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, r: R) = {
@@ -466,7 +466,7 @@ object FunctionApplication {
               slot.boxed = r.boxed
               i += 1
             }
-            tailCall(rec, slots, r)
+            selfTailCall(slots, r)
           }}
       }
       case 3 => (args.length: @switch) match {
@@ -474,7 +474,7 @@ object FunctionApplication {
           val arg0 = args(0)
           new Arity3(decompile) with A0 { def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, r: R) =
 
-            tailCall(rec, { try arg0(rec,a1,a1b,a2,a2b,a3,a3b, r) catch { case e: TC => loop(e,r) }}, r.boxed, r)
+            selfTailCall({ try arg0(rec,a1,a1b,a2,a2b,a3,a3b, r) catch { case e: TC => loop(e,r) }}, r.boxed, r)
           }
         case 2 =>
           val arg0 = args(0)
@@ -482,7 +482,7 @@ object FunctionApplication {
           new Arity3(decompile) with A0 { def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, r: R) = {
             val x1 = { try arg0(rec,a1,a1b,a2,a2b,a3,a3b, r) catch { case e: TC => loop(e,r) }}; val x1b = r.boxed
             val x2 = { try arg1(rec,a1,a1b,a2,a2b,a3,a3b, r) catch { case e: TC => loop(e,r) }}; val x2b = r.boxed
-            tailCall(rec, x2,x2b,x1,x1b,r)
+            selfTailCall(x2,x2b,x1,x1b,r)
           }}
         case 3 =>
           val arg0 = args(0)
@@ -492,7 +492,7 @@ object FunctionApplication {
             val x1 = { try arg0(rec,a1,a1b,a2,a2b,a3,a3b, r) catch { case e: TC => loop(e,r) }}; val x1b = r.boxed
             val x2 = { try arg1(rec,a1,a1b,a2,a2b,a3,a3b, r) catch { case e: TC => loop(e,r) }}; val x2b = r.boxed
             val x3 = { try arg2(rec,a1,a1b,a2,a2b,a3,a3b, r) catch { case e: TC => loop(e,r) }}; val x3b = r.boxed
-            tailCall(rec, x3,x3b,x2,x2b,x1,x1b,r)
+            selfTailCall(x3,x3b,x2,x2b,x1,x1b,r)
           }}
         case 4 =>
           val arg0 = args(0)
@@ -504,7 +504,7 @@ object FunctionApplication {
             val x2 = { try arg1(rec,a1,a1b,a2,a2b,a3,a3b, r) catch { case e: TC => loop(e,r) }}; val x2b = r.boxed
             val x3 = { try arg2(rec,a1,a1b,a2,a2b,a3,a3b, r) catch { case e: TC => loop(e,r) }}; val x3b = r.boxed
             val x4 = { try arg3(rec,a1,a1b,a2,a2b,a3,a3b, r) catch { case e: TC => loop(e,r) }}; val x4b = r.boxed
-            tailCall(rec, x4,x4b,x3,x3b,x2,x2b,x1,x1b,r)
+            selfTailCall(x4,x4b,x3,x3b,x2,x2b,x1,x1b,r)
           }}
         case n =>
           new Arity3(decompile) with A0 { def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, r: R) = {
@@ -516,14 +516,14 @@ object FunctionApplication {
               slot.boxed = r.boxed
               i += 1
             }
-            tailCall(rec, slots, r)
+            selfTailCall(slots, r)
           }}
       }
       case 4 => (args.length: @switch) match {
         case 1 =>
           val arg0 = args(0)
           new Arity4(decompile) with A0 { def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, a4: D, a4b: Rt, r: R) = {
-            tailCall(rec, { try arg0(rec,a1,a1b,a2,a2b,a3,a3b,a4,a4b, r) catch { case e: TC => loop(e,r) }}, r.boxed, r)
+            selfTailCall({ try arg0(rec,a1,a1b,a2,a2b,a3,a3b,a4,a4b, r) catch { case e: TC => loop(e,r) }}, r.boxed, r)
           }}
         case 2 =>
           val arg0 = args(0)
@@ -531,7 +531,7 @@ object FunctionApplication {
           new Arity4(decompile) with A0 { def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, a4: D, a4b: Rt, r: R) = {
             val x1 = { try arg0(rec,a1,a1b,a2,a2b,a3,a3b,a4,a4b, r) catch { case e: TC => loop(e,r) }}; val x1b = r.boxed
             val x2 = { try arg1(rec,a1,a1b,a2,a2b,a3,a3b,a4,a4b, r) catch { case e: TC => loop(e,r) }}; val x2b = r.boxed
-            tailCall(rec, x2,x2b,x1,x1b,r)
+            selfTailCall(x2,x2b,x1,x1b,r)
           }}
         case 3 =>
           val arg0 = args(0)
@@ -541,7 +541,7 @@ object FunctionApplication {
             val x1 = { try arg0(rec,a1,a1b,a2,a2b,a3,a3b,a4,a4b, r) catch { case e: TC => loop(e,r) }}; val x1b = r.boxed
             val x2 = { try arg1(rec,a1,a1b,a2,a2b,a3,a3b,a4,a4b, r) catch { case e: TC => loop(e,r) }}; val x2b = r.boxed
             val x3 = { try arg2(rec,a1,a1b,a2,a2b,a3,a3b,a4,a4b, r) catch { case e: TC => loop(e,r) }}; val x3b = r.boxed
-            tailCall(rec, x3,x3b,x2,x2b,x1,x1b,r)
+            selfTailCall(x3,x3b,x2,x2b,x1,x1b,r)
           }}
         case 4 =>
           val arg0 = args(0)
@@ -553,7 +553,7 @@ object FunctionApplication {
             val x2 = { try arg1(rec,a1,a1b,a2,a2b,a3,a3b,a4,a4b, r) catch { case e: TC => loop(e,r) }}; val x2b = r.boxed
             val x3 = { try arg2(rec,a1,a1b,a2,a2b,a3,a3b,a4,a4b, r) catch { case e: TC => loop(e,r) }}; val x3b = r.boxed
             val x4 = { try arg3(rec,a1,a1b,a2,a2b,a3,a3b,a4,a4b, r) catch { case e: TC => loop(e,r) }}; val x4b = r.boxed
-            tailCall(rec, x4,x4b,x3,x3b,x2,x2b,x1,x1b,r)
+            selfTailCall(x4,x4b,x3,x3b,x2,x2b,x1,x1b,r)
           }}
         case n =>
           new Arity4(decompile) with A0 { def apply(rec: Rt, a1: D, a1b: Rt, a2: D, a2b: Rt, a3: D, a3b: Rt, a4: D, a4b: Rt, r: R) = {
@@ -565,14 +565,14 @@ object FunctionApplication {
               slot.boxed = r.boxed
               i += 1
             }
-            tailCall(rec, slots, r)
+            selfTailCall(slots, r)
           }}
       }
       case n => (args.length: @switch) match {
         case 1 =>
           val arg0 = args(0)
           new ArityN(n, decompile) with A0 { def apply(rec: Rt, args: Array[Slot], r: R) = {
-            tailCall(rec, { try arg0(rec, args, r) catch { case e: TC => loop(e,r) }}, r.boxed, r)
+            selfTailCall({ try arg0(rec, args, r) catch { case e: TC => loop(e,r) }}, r.boxed, r)
           }}
         case 2 =>
           val arg0 = args(0)
@@ -580,7 +580,7 @@ object FunctionApplication {
           new ArityN(n, decompile) with A0 { def apply(rec: Rt, args: Array[Slot], r: R) = {
             val x1 = { try arg0(rec, args, r) catch { case e: TC => loop(e,r) }}; val x1b = r.boxed
             val x2 = { try arg1(rec, args, r) catch { case e: TC => loop(e,r) }}; val x2b = r.boxed
-            tailCall(rec, x2,x2b,x1,x1b,r)
+            selfTailCall(x2,x2b,x1,x1b,r)
           }}
         case 3 =>
           val arg0 = args(0)
@@ -590,7 +590,7 @@ object FunctionApplication {
             val x1 = { try arg0(rec, args, r) catch { case e: TC => loop(e,r) }}; val x1b = r.boxed
             val x2 = { try arg1(rec, args, r) catch { case e: TC => loop(e,r) }}; val x2b = r.boxed
             val x3 = { try arg2(rec, args, r) catch { case e: TC => loop(e,r) }}; val x3b = r.boxed
-            tailCall(rec, x3,x3b,x2,x2b,x1,x1b,r)
+            selfTailCall(x3,x3b,x2,x2b,x1,x1b,r)
           }}
         case 4 =>
           val arg0 = args(0)
@@ -602,7 +602,7 @@ object FunctionApplication {
             val x2 = { try arg1(rec, args, r) catch { case e: TC => loop(e,r) }}; val x2b = r.boxed
             val x3 = { try arg2(rec, args, r) catch { case e: TC => loop(e,r) }}; val x3b = r.boxed
             val x4 = { try arg3(rec, args, r) catch { case e: TC => loop(e,r) }}; val x4b = r.boxed
-            tailCall(rec, x4,x4b,x3,x3b,x2,x2b,x1,x1b,r)
+            selfTailCall(x4,x4b,x3,x3b,x2,x2b,x1,x1b,r)
           }}
         case m =>
           new ArityN(n, decompile) with A0 { def apply(rec: Rt, args0: Array[Slot], r: R) = {
@@ -614,7 +614,7 @@ object FunctionApplication {
               slot.boxed = r.boxed
               i += 1
             }
-            tailCall(rec, slots, r)
+            selfTailCall(slots, r)
           }}
       }
     }
