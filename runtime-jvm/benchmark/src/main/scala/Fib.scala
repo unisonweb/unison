@@ -1,3 +1,4 @@
+/*
 package org.unisonweb.benchmark
 
 import org.unisonweb.Term._
@@ -406,3 +407,4 @@ object Fib extends App {
   // println(normalize(builtins)(fib))
   // println(normalize(builtins)(Num(1.0) + Num(4.0)))
 }
+*/

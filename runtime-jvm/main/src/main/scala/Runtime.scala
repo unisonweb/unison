@@ -307,7 +307,7 @@ object Runtime {
         compile(builtins, fn, boundByCurrentLambda, recursiveVars, currentRec, isTail)
       case (Var(v), args) if Some((v,args.length)) == currentRec =>
         val compiledArgs = args.view.map(compile(builtins, _, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)).toArray
-        FunctionApplication.staticRecCall(compiledArgs, unTermC(e), isTail)
+        StaticCall.staticRecCall(compiledArgs, unTermC(e), isTail)
       case _ =>
         /* Four cases to consider:
            1. static (fn already evaluated, known arity), fully-saturated call (correct # args),
@@ -330,14 +330,18 @@ object Runtime {
           }
         }
         if (compiledFn.isEvaluated) {
-          if (compiledFn.arity == compiledArgs.length) // 1.
-            FunctionApplication.staticCall(compiledFn, compiledArgs, unTermC(e), isTail)
-          else if (compiledFn.arity > compiledArgs.length) // 2.
-            FunctionApplication.staticCall(compiledFn, compiledArgs, unTermC(e), isTail)
-          else // 3. (compiledFn.arity < compiledArgs.length)
-            ???
+          if (compiledFn.arity >= compiledArgs.length) // 1. and 2. - exact / under-application
+            StaticCall.staticCall(compiledFn, compiledArgs, unTermC(e), isTail)
+          else { // 3. overapplication (compiledFn.arity < compiledArgs.length)
+            val (passed, extra) = compiledArgs.splitAt(compiledFn.arity)
+            val fn2 = StaticCall.staticCall(compiledFn, passed, unTermC(e), isTail)
+            compile(builtins,
+                    ABT.annotateBound(Compiled(fn2)(extra.map(Compiled(_)): _*)),
+                    boundByCurrentLambda, recursiveVars, currentRec, isTail)
+          }
         }
         else // 4.
+          // TODO - factor this out into DynamicCallGenerator
           arity(freeVars(e), env(e)) match {
             case 0 => compiledArgs.length match {
               case 1 => new Arity0(e,()) with FAB {

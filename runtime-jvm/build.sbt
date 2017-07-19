@@ -116,7 +116,8 @@ lazy val main = project.in(file("main")).
     import org.unisonweb.codegeneration._
     val outPath = (sourceManaged in Compile).value / "org" / "unisonweb"
     List(
-      FunctionApplicationGenerator(outPath)
+      StaticCallGenerator(outPath),
+      DynamicCallGenerator(outPath)
     ).map { case (file, content) => IO.write(file, content); file }
   }.taskValue)
 

@@ -2,9 +2,9 @@ package org.unisonweb.codegeneration
 
 import java.io.File
 
-object FunctionApplicationGenerator {
+object StaticCallGenerator {
   def apply(outDir: File): (File, String) =
-    (new File(outDir, "FunctionApplication.scala"), source)
+    (new File(outDir, "StaticCall.scala"), source)
 
   def source =
     s"""package org.unisonweb
@@ -13,7 +13,7 @@ object FunctionApplicationGenerator {
        |import Term.{Name,Term}
        |import annotation.switch
        |
-       |object FunctionApplication {
+       |object StaticCall {
        |
        |  def staticCall(fn: Rt, args: Array[Rt], decompile: Term, isTail: Boolean): Rt =
        |    if (isTail) staticTailCall(fn, args, decompile)
@@ -144,7 +144,7 @@ object FunctionApplicationGenerator {
        |  }}
        |""".stripMargin
   }
-  
+
   def caseVarArgsVarStack(body: String): String = {
     s"""case _ =>
        |  new ArityN(n, decompile) with A0 { def apply(rec: Rt, args0: Array[Slot], r: R) = {
