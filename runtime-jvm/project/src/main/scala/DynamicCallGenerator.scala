@@ -35,7 +35,7 @@ object DynamicCallGenerator {
             s"case $j => " <> {
               (0 until j).each(j => s"val arg$j = args($j)") <>
               { s"new Arity$i(decompile) " + {
-                 "def bind(env: Map[Name,Rt]) = ()" <>
+                 "def bind(env: Map[Name,Rt]) = args2.foreach(_.bind(env))" <>
                  { "def apply(rec: Rt, " + (1 to i).commas(i => s"x$i: D, x${i}b: Rt") + commaIf(i) + "r: R) = ???" }
                 // todo
               }.b }
