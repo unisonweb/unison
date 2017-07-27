@@ -15,6 +15,18 @@ package object codegeneration {
   def braced(s: String) = s.b
   def commaIf(i: Int) = if (i > 0) ", " else ""
 
+  def evalBoxed(i: Int, expr: String) =
+    s"{ ${eval(i, expr)}; r.boxed }"
+
+  def eval(i: Int, expr: String) =
+    "try " + expr + "(rec, "+xArgs(i)+commaIf(i)+ "r) catch { case e: TC => loop(e,r) }"
+
+  def evalN(expr: String) =
+    "try " + expr + "(rec, xs, r) catch { case e: TC => loop(e,r) }"
+
+  def applySignature(i: Int): String =
+    "def apply(rec: Rt, " + (0 until i).commas(i => s"x$i: D, x${i}b: Rt") + commaIf(i) + "r: R)"
+
   def indent2(level: Int, lines: String): String =
     indent(level, lines).drop(level * 2)
 
@@ -39,6 +51,7 @@ package object codegeneration {
   def aParams(count: Int) = 1 to count map (i => s"a$i: D, a${i}b: Rt")
   def aArgs(count: Int) = 1 to count map (i => s"a$i,a${i}b")
   def xRevArgs(count: Int) = count to 1 by -1 map (i => s"x$i,x${i}b")
+  def xArgs(count: Int) = (0 until count).commas(i => s"x$i, x${i}b")
 
   /** adds 1 to a 0-based index */
   def xArg0(index0: Int) = s"x${index0+1}"
