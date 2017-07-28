@@ -52,12 +52,12 @@ object DynamicCallGenerator {
                 applySignature(i) + " = " + {
                   "val argsr = new Array[Slot](args2.length)" <>
                   { "val fn2 = " + evalBoxed(i, "fn") } <>
-                  "var k = argsr.length - 1" <>
-                  "while (k >= 0) " + {
+                  "var k = 0" <>
+                  "while (k < argsr.length) " + {
                      "argsr(k) = new Slot(" + eval(i, "args2(k)") + ", r.boxed)" <>
-                     "k -= 1"
+                     "k += 1"
                   }.b <>
-                  "fn2(fn2, argsr, r)"
+                  "fn2(fn2, argsr.reverse, r)"
                 }.b
              }.b
           }.b } nl
@@ -74,7 +74,20 @@ object DynamicCallGenerator {
                 s"fn2(fn2, " + ((j-1) to 0 by -1).commas(j => s"arg${j}r, arg${j}rb") + commaIf(j) + "r)"
               }.b
             }.b
-          } nl "case j => ???" }.b // todo: fill in case where arity and args are both length n
+          } nl "case j => new ArityN(n, decompile) " + {
+            "def bind(env: Map[Name,Rt]) = args2.foreach(_.bind(env))" <>
+            "def apply(rec: Rt, xs: Array[Slot], r: R) = " + {
+               "val argsr = new Array[Slot](args2.length)" <>
+               ("val fn2 = { " + evalN("fn") + "; r.boxed }") <>
+               "var k = 0" <>
+               "while (k < argsr.length) " + {
+                  "argsr(k) = new Slot(" + evalN("args2(k)") + ", r.boxed)" <>
+                  "k += 1"
+                }.b <>
+                "fn2(fn2, argsr.reverse, r)"
+            }.b
+          }.b
+          }.b
         }.b
      }.b
    }.b
