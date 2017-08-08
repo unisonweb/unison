@@ -114,7 +114,7 @@ lazy val main = project.in(file("main")).
   settings(name := "unison-runtime").
   settings(sourceGenerators in Compile += Def.task {
     import org.unisonweb.codegeneration._
-    val outPath = (sourceManaged in Compile).value / "org" / "unisonweb" / "compile"
+    val outPath = (sourceManaged in Compile).value / "org" / "unisonweb" / "compilation"
     List(
       StaticCallGenerator(outPath),
       DynamicCallGenerator(outPath),

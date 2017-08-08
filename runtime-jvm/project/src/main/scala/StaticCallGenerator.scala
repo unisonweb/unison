@@ -8,7 +8,7 @@ object StaticCallGenerator {
 
   def source =
     s"""package org.unisonweb
-       |package compile
+       |package compilation
        |
        |import Runtime._
        |import Term.{Name,Term}

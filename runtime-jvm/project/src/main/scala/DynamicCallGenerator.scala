@@ -10,7 +10,7 @@ object DynamicCallGenerator {
   def source =
 
    "package org.unisonweb" <>
-   "package compile" <>
+   "package compilation" <>
    "" <>
    "import Runtime._" <>
    "import Term.{Term,Name}" <>

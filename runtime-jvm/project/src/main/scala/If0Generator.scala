@@ -11,7 +11,7 @@ object If0Generator {
   def source =
 
    "package org.unisonweb" <>
-   "package compile" <>
+   "package compilation" <>
    "" <>
    "import Runtime._" <>
    "import Term.Name" <>
