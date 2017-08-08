@@ -157,7 +157,7 @@ object Runtime {
   }
 
   /** Actual compile implementation. */
-  private
+  private[unisonweb]
   def compile(builtins: String => Rt, e0: TermC, boundByCurrentLambda: Option[Set[Name]],
               recursiveVars: Set[Name], currentRec: Option[(Name,Arity)],
               isTail: Boolean): Rt = { val e = unbindRecursiveVars(e0, recursiveVars); e match {
