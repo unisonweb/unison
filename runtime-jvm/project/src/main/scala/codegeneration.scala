@@ -18,8 +18,11 @@ package object codegeneration {
   def evalBoxed(i: Int, expr: String) =
     s"{ ${eval(i, expr)}; r.boxed }"
 
+  def tailEval(i: Int, expr: String): String =
+    expr + "(rec, "+xArgs(i)+commaIf(i)+ "r)"
+
   def eval(i: Int, expr: String) =
-    "try " + expr + "(rec, "+xArgs(i)+commaIf(i)+ "r) catch { case e: TC => loop(e,r) }"
+    "try " + tailEval(i, expr) + " catch { case e: TC => loop(e,r) }"
 
   def evalN(expr: String) =
     "try " + expr + "(rec, xs, r) catch { case e: TC => loop(e,r) }"

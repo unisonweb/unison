@@ -6,14 +6,11 @@ object DynamicCallGenerator {
   def apply(outDir: File): (File, String) =
     (new File(outDir, "DynamicCall.scala"), source)
 
-  val x = 0 until 10 each { i =>
-    s"woot $i"
-  } indent 2
-
- val N = maxInlineArity
- def source =
+  val N = maxInlineArity
+  def source =
 
    "package org.unisonweb" <>
+   "package compile" <>
    "" <>
    "import Runtime._" <>
    "import Term.{Term,Name}" <>

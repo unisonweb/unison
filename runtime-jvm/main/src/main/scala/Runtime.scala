@@ -2,6 +2,7 @@ package org.unisonweb
 
 import Runtime._
 import Term.{Name,Term}
+import compile.StaticCall
 
 abstract class Runtime {
 
