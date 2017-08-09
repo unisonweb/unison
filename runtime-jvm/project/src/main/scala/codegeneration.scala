@@ -18,8 +18,13 @@ package object codegeneration {
   def evalBoxed(i: Int, expr: String) =
     s"{ ${eval(i, expr)}; r.boxed }"
 
+  // tailEval(4, "foo") = "foo(rec, x0, x0b, x1, x1b, x2, x2b, x3, x3b, r)"
   def tailEval(i: Int, expr: String): String =
     expr + "(rec, "+xArgs(i)+commaIf(i)+ "r)"
+
+  // tailEvalN(2, "foo") = "foo(rec, as(0).unboxed, as(0).boxed, as(1).unboxed, as(1).boxed, r)"
+  def tailEvalN(i: Int, expr: String): String =
+    expr + "(rec, "+xsArgs(i)+commaIf(i)+ "r)"
 
   def eval(i: Int, expr: String) =
     "try " + tailEval(i, expr) + " catch { case e: TC => loop(e,r) }"
@@ -28,7 +33,7 @@ package object codegeneration {
     "try " + expr + "(rec, xs, r) catch { case e: TC => loop(e,r) }"
 
   def applySignature(i: Int): String =
-    "def apply(rec: Rt, " + (0 until i).commas(i => s"x$i: D, x${i}b: Rt") + commaIf(i) + "r: R)"
+    "def apply(rec: Rt, " + (0 until i).commas(i => s"x$i: D, x${i}b: Rt") + commaIf(i) + "r: R): D"
 
   def indent2(level: Int, lines: String): String =
     indent(level, lines).drop(level * 2)
@@ -55,6 +60,7 @@ package object codegeneration {
   def aArgs(count: Int) = 1 to count map (i => s"a$i,a${i}b")
   def xRevArgs(count: Int) = count to 1 by -1 map (i => s"x$i,x${i}b")
   def xArgs(count: Int) = (0 until count).commas(i => s"x$i, x${i}b")
+  def xsArgs(count: Int) = 0 until count commas (i => s"xs($i).unboxed, xs($i).boxed")
 
   /** adds 1 to a 0-based index */
   def xArg0(index0: Int) = s"x${index0+1}"
