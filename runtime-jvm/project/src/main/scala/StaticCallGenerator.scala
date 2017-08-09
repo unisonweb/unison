@@ -10,7 +10,6 @@ object StaticCallGenerator {
     s"""package org.unisonweb
        |package compilation
        |
-       |import Runtime._
        |import Term.{Name,Term}
        |import annotation.switch
        |

@@ -13,19 +13,17 @@ object If0Generator {
    "package org.unisonweb" <>
    "package compilation" <>
    "" <>
-   "import Runtime._" <>
    "import Term.Name" <>
    "import annotation.switch" <>
    "" <>
-   "object If0 " + {
-     "" <> """
+   "object If0 " + { """
     |  def compileIf0(
     |      builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
     |      recursiveVars: Set[Name], currentRec: Option[(Name,Arity)], isTail: Boolean)(
     |      cond: TermC, if0: TermC, ifNot0: TermC): Rt = """.stripMargin + {
-        "val compiledCond = Runtime.compile(builtins, cond, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)" <>
-        "val compiledIf0 = Runtime.compile(builtins, if0, boundByCurrentLambda, recursiveVars, currentRec, isTail)" <>
-        "val compiledIfNot0 = Runtime.compile(builtins, ifNot0, boundByCurrentLambda, recursiveVars, currentRec, isTail)" <>
+        "val compiledCond = compilation.compile(builtins, cond, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)" <>
+        "val compiledIf0 = compilation.compile(builtins, if0, boundByCurrentLambda, recursiveVars, currentRec, isTail)" <>
+        "val compiledIfNot0 = compilation.compile(builtins, ifNot0, boundByCurrentLambda, recursiveVars, currentRec, isTail)" <>
         "// todo - partial evaluation, if cond has no free vars" <>
         "(arity(freeVars(e), env(e)): @switch) match " + {
            (0 until N).each { i =>

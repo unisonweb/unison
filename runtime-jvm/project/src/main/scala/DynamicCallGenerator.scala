@@ -12,7 +12,6 @@ object DynamicCallGenerator {
    "package org.unisonweb" <>
    "package compilation" <>
    "" <>
-   "import Runtime._" <>
    "import Term.{Term,Name}" <>
    "import annotation.switch" <>
    "" <>
