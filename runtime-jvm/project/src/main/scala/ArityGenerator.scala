@@ -2,7 +2,7 @@ package org.unisonweb.codegeneration
 
 import java.io.File
 
-object Arities {
+object ArityGenerator {
   def apply(outDir: File): (File, String) =
     (new File(outDir, "Arities.scala"), source)
 

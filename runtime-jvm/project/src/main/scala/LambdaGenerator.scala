@@ -2,7 +2,7 @@ package org.unisonweb.codegeneration
 
 import java.io.File
 
-object Lambdas {
+object LambdaGenerator {
   def apply(outDir: File): (File, String) =
     (new File(outDir, "Lambdas.scala"), source)
 

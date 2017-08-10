@@ -116,8 +116,8 @@ lazy val main = project.in(file("main")).
     import org.unisonweb.codegeneration._
     val outPath = (sourceManaged in Compile).value / "org" / "unisonweb" / "compilation"
     List(
-      Arities(outPath),
-      Lambdas(outPath),
+      ArityGenerator(outPath),
+      LambdaGenerator(outPath),
       CompileVarGenerator(outPath),
       RuntimeGenerator(outPath),
       StaticCallGenerator(outPath),
