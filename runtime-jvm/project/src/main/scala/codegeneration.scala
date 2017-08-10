@@ -22,7 +22,7 @@ package object codegeneration {
   def tailEval(i: Int, expr: String): String =
     expr + "(rec, "+xArgs(i)+commaIf(i)+ "r)"
 
-  // tailEvalN(2, "foo") = "foo(rec, as(0).unboxed, as(0).boxed, as(1).unboxed, as(1).boxed, r)"
+  // tailEvalN(2, "foo") = "foo(rec, xs(0).unboxed, xs(0).boxed, xs(1).unboxed, xs(1).boxed, r)"
   def tailEvalN(i: Int, expr: String): String =
     expr + "(rec, "+xsArgs(i)+commaIf(i)+ "r)"
 
@@ -59,8 +59,12 @@ package object codegeneration {
   def aParams(count: Int) = 1 to count map (i => s"a$i: D, a${i}b: Rt")
   def aArgs(count: Int) = 1 to count map (i => s"a$i,a${i}b")
   def xRevArgs(count: Int) = count to 1 by -1 map (i => s"x$i,x${i}b")
-  def xArgs(count: Int) = (0 until count).commas(i => s"x$i, x${i}b")
-  def xsArgs(count: Int) = 0 until count commas (i => s"xs($i).unboxed, xs($i).boxed")
+  def xArgs(count: Int): String = xArgs(0, count)
+  def xArgs(start: Int, count: Int): String =
+    (start until (start+count)).commas(i => s"x$i, x${i}b")
+  def xsArgs(count: Int): String = xsArgs(0, count)
+  def xsArgs(start: Int, count: Int): String =
+    start until (start + count) commas (i => s"xs($i).unboxed, xs($i).boxed")
 
   /** adds 1 to a 0-based index */
   def xArg0(index0: Int) = s"x${index0+1}"

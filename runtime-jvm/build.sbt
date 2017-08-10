@@ -117,6 +117,7 @@ lazy val main = project.in(file("main")).
     val outPath = (sourceManaged in Compile).value / "org" / "unisonweb" / "compilation"
     List(
       Arities(outPath),
+      Lambdas(outPath),
       StaticCallGenerator(outPath),
       DynamicCallGenerator(outPath),
       If0Generator(outPath)
