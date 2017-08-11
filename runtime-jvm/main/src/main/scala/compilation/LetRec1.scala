@@ -23,7 +23,7 @@ object LetRec1 {
       }
       // we compile this just like a let1
       val compiledBody = compile(builtins, body, boundByCurrentLambda, recursiveVars - name, currentRec, isTail)
-      (arity(freeVars(e), env(e))) match {
+      (arity(freeVars(e), env(e)) : @annotation.switch) match {
         case 0 => new Arity0(e,()) {
           def bind(env: Map[Name,Rt]) = compiledf bind (env -- vs - name)
           def apply(rec: Rt, r: R) =

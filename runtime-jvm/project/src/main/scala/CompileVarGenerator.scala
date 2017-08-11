@@ -18,7 +18,7 @@ object CompileVarGenerator {
        |    if (compileAsFree) new Rt {
        |      var rt: Rt = null
        |      def arity = rt.arity
-       |${ (0 to N).each { i => applySignature(i) + " = " + tailEval(i, "rt")}.indent }
+       |${ (0 to N).each { i => applySignature(i) + " = " + tailEval(i, "rt")}.indentBy(3) }
        |      def apply(rec: Rt, args: Array[Slot], r: R) = rt(rec,args,r)
        |      // if (rt eq null) throw new InfiniteLoopError(name)
        |      // todo : possibly try / catch NPEs

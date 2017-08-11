@@ -119,6 +119,8 @@ lazy val main = project.in(file("main")).
       ArityGenerator(outPath),
       LambdaGenerator(outPath),
       CompileVarGenerator(outPath),
+      LookupVarGenerator(outPath),
+      TailCallGenerator(outPath),
       RuntimeGenerator(outPath),
       StaticCallGenerator(outPath),
       DynamicCallGenerator(outPath),

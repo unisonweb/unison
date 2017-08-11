@@ -2,7 +2,7 @@ package org.unisonweb
 
 package object codegeneration {
 
-  val maxInlineArity = 4
+  val maxInlineArity = 8
 
   def indent(level: Int, lines: Seq[String]): String =
     lines.flatMap(multilines =>
@@ -56,17 +56,10 @@ package object codegeneration {
     def nl(s2: String) = s <> s2
   }
 
-  def aParams(count: Int) = 1 to count map (i => s"a$i: D, a${i}b: Rt")
-  def aArgs(count: Int) = 1 to count map (i => s"a$i,a${i}b")
-  def xRevArgs(count: Int) = count to 1 by -1 map (i => s"x$i,x${i}b")
   def xArgs(count: Int): String = xArgs(0, count)
   def xArgs(start: Int, count: Int): String =
     (start until (start+count)).commas(i => s"x$i, x${i}b")
   def xsArgs(count: Int): String = xsArgs(0, count)
   def xsArgs(start: Int, count: Int): String =
     start until (start + count) commas (i => s"xs($i).unboxed, xs($i).boxed")
-
-  /** adds 1 to a 0-based index */
-  def xArg0(index0: Int) = s"x${index0+1}"
-  def xArgB0(index0: Int) = xArg0(index0) + "b"
 }

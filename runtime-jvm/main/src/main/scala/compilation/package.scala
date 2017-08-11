@@ -1,6 +1,6 @@
 package org.unisonweb
 
-package object compilation {
+package object compilation extends LookupVar with TailCalls {
 
   import Term.{freeVars => _, _}
 

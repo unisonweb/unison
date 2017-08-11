@@ -31,7 +31,7 @@ object Lambda {
     if (freeVars(e).isEmpty) makeLambda
     else {
       val locallyBound = freeVars(body).filter(v => !recursiveVars.contains(v))
-      arity(locallyBound, env(e)) match {
+      (arity(locallyBound, env(e)) : @annotation.switch) match {
         case 0 => makeLambda
         case 1 => new Arity1(e,()) with AccumulateBound {
           val v = locallyBound.toList.head

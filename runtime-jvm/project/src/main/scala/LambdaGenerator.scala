@@ -64,7 +64,7 @@ object LambdaGenerator {
     "override def apply(rec: Rt, xs: Array[Slot], r: R): D = " + {
       s"apply(rec, ${xsArgs(expected)}, r)" <>
         s"xs.drop($expected) match " + {
-          "case xs => xs.length match " + {
+          "case xs => (xs.length : @annotation.switch) match " + {
             ((N+1-expected) to N).each { i => s"case $i => r.boxed.apply(r.boxed, ${xsArgs(i)}, r)" } <>
               s"case n if n > $N => r.boxed.apply(r.boxed, xs, r)"
           }.b
@@ -170,7 +170,7 @@ object LambdaGenerator {
         "// over-application" <>
         "apply(rec, xs.take(names.length), r)" <>
         "xs.drop(names.length) match " + {
-          "case xs => xs.length match " + {
+          "case xs => (xs.length : @annotation.switch) match " + {
             (1 to N).each { i =>
               s"case $i => r.boxed.apply(r.boxed, ${xsArgs(i)}, r)"
             } <>

@@ -18,7 +18,7 @@ object Let1 {
         compiledBody2.bind(env - name)
       }
     }
-    arity(freeVars(e), env(e)) match {
+    (arity(freeVars(e), env(e)) : @annotation.switch) match {
       case 0 => new Arity0(e,()) with LB {
         def apply(rec: Rt, r: R) =
           compiledBody(rec, { try compiledBinding(rec, r) catch { case e: TC => loop(e,r) }}, r.boxed, r)
