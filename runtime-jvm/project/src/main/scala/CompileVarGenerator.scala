@@ -1,20 +1,13 @@
 package org.unisonweb.codegeneration
 
-import java.io.File
-
-object CompileVarGenerator {
-  def apply(outDir: File): (File, String) =
-    (new File(outDir, "compileVar.scala"), source)
-
-  val N = maxInlineArity
-
+object CompileVarGenerator extends OneFileGenerator("CompileVar.scala") {
   def source: String =
     s"""package org.unisonweb.compilation
        |
        |import org.unisonweb.Term.Name
        |
-       |object compileVar extends ((Name, TermC, Boolean) => Rt) {
-       |  def apply(name: Name, e: TermC, compileAsFree: Boolean): Rt =
+       |trait CompileVar {
+       |  def compileVar(name: Name, e: TermC, compileAsFree: Boolean): Rt =
        |    if (compileAsFree) new Rt {
        |      var rt: Rt = null
        |      def arity = rt.arity

@@ -1,6 +1,6 @@
 package org.unisonweb
 
-package object compilation extends LookupVar with TailCalls {
+package object compilation extends LookupVar with CompileIf0 with CompileLet1 with CompileVar with CompileLambda with TailCalls {
 
   import Term.{freeVars => _, _}
 
@@ -104,16 +104,16 @@ package object compilation extends LookupVar with TailCalls {
                 compileVar(name, e, compileAsFree)
     }
     case If0(cond,if0,ifNot0) =>
-      compilation.If0.compileIf0(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(cond, if0, ifNot0)
+      compilation.compileIf0(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(cond, if0, ifNot0)
     case Lam(names, body) =>
-      Lambda.compileLambda(builtins, e, boundByCurrentLambda, recursiveVars, currentRec)(names, body)
+      compilation.compileLambda(builtins, e, boundByCurrentLambda, recursiveVars, currentRec)(names, body)
     case LetRec(bindings, body) => bindings match {
       case (name,f@Lam(vs,bodyf)) :: Nil =>
         compilation.LetRec1.compileLetRec1(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(name,vs,f,bodyf,body)
       case _ => compilation.LetRec.compileLetRec(builtins, e, boundByCurrentLambda, recursiveVars, isTail)(bindings, body)
     }
     case Let1(name, binding, body) => // `let name = binding; body`
-      compilation.Let1.compileLet1(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(name, binding, body)
+      compilation.compileLet1(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(name, binding, body)
     case Apply(fn, args) =>
       compilation.FunctionApplication
         .compileFunctionApplication(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(fn, args)

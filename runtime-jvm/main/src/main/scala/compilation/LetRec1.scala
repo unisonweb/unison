@@ -11,7 +11,7 @@ object LetRec1 {
     if (hasTailRecursiveCall(name, vs.length, bodyf)) {
       val vsv = vs.toVector
       val compiledf = {
-        val step = compilation.Lambda.compileLambda(builtins, f, boundByCurrentLambda, recursiveVars + name,
+        val step = compilation.compileLambda(builtins, f, boundByCurrentLambda, recursiveVars + name,
           Some((name,vsv.length)))(vs, bodyf)
         @annotation.tailrec
         def loop(v1: D, v1b: Rt, r: R): Double =

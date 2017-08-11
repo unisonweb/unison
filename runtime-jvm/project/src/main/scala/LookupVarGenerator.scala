@@ -1,13 +1,6 @@
 package org.unisonweb.codegeneration
 
-import java.io.File
-
-object LookupVarGenerator {
-  def apply(outDir: File): (File, String) =
-    (new File(outDir, "LookupVar.scala"), source)
-
-  val N = maxInlineArity
-
+object LookupVarGenerator extends OneFileGenerator("LookupVar.scala") {
   def source: String =
     "package org.unisonweb.compilation" <>
     "" <>

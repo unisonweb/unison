@@ -1,13 +1,6 @@
 package org.unisonweb.codegeneration
 
-import java.io.File
-
-object ArityGenerator {
-  def apply(outDir: File): (File, String) =
-    (new File(outDir, "Arity.scala"), source)
-
-  val N = maxInlineArity
-
+object ArityGenerator extends OneFileGenerator("Arity.scala") {
   def source: String =
 
     "package org.unisonweb.compilation" <>
@@ -26,7 +19,7 @@ object ArityGenerator {
           "def apply(rec: Rt, xs: Array[Slot], r: R): D =" <>
             tailEvalN(i, "apply").indent
       }.b <> ""
-    } <> "" <>
+    } <>
     "abstract class ArityN(val arity: Int, decompileIt: => Term) extends Runtime " + {
       "def this(arity: Int, t: TermC, dummy: Unit) = this(arity, unTermC(t))" <>
       "def decompile = decompileIt" <>

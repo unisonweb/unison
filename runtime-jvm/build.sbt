@@ -115,17 +115,19 @@ lazy val main = project.in(file("main")).
   settings(sourceGenerators in Compile += Def.task {
     import org.unisonweb.codegeneration._
     val outPath = (sourceManaged in Compile).value / "org" / "unisonweb" / "compilation"
-    List(
-      ArityGenerator(outPath),
-      LambdaGenerator(outPath),
-      CompileVarGenerator(outPath),
-      LookupVarGenerator(outPath),
-      TailCallGenerator(outPath),
-      RuntimeGenerator(outPath),
-      StaticCallGenerator(outPath),
-      DynamicCallGenerator(outPath),
-      If0Generator(outPath)
-    ).map { case (file, content) => IO.write(file, content); file }
+    List[OneFileGenerator](
+      ArityGenerator,
+      LambdaGenerator,
+      CompileIf0Generator,
+      CompileLambdaGenerator,
+      CompileLet1Generator,
+      CompileVarGenerator,
+      LookupVarGenerator,
+      TailCallGenerator,
+      RuntimeGenerator,
+      StaticCallGenerator,
+      DynamicCallGenerator
+    ).map(_.apply(outPath)).map { case (file, content) => IO.write(file, content); file }
   }.taskValue)
 
 lazy val benchmark = project.in(file("benchmark")).

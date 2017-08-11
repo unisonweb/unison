@@ -1,13 +1,6 @@
 package org.unisonweb.codegeneration
 
-import java.io.File
-
-object If0Generator {
-  def apply(outDir: File): (File, String) =
-    (new File(outDir, "If0.scala"), source)
-
-  val N = maxInlineArity
-
+object CompileIf0Generator extends OneFileGenerator("CompileIf0.scala") {
   def source =
 
    "package org.unisonweb" <>
@@ -16,7 +9,7 @@ object If0Generator {
    "import Term.Name" <>
    "import annotation.switch" <>
    "" <>
-   "object If0 " + { """
+   "trait CompileIf0 " + { """
     |  def compileIf0(
     |      builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
     |      recursiveVars: Set[Name], currentRec: Option[(Name,Arity)], isTail: Boolean)(

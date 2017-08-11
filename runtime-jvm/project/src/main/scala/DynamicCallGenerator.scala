@@ -1,12 +1,6 @@
 package org.unisonweb.codegeneration
 
-import java.io.File
-
-object DynamicCallGenerator {
-  def apply(outDir: File): (File, String) =
-    (new File(outDir, "DynamicCall.scala"), source)
-
-  val N = maxInlineArity
+object DynamicCallGenerator extends OneFileGenerator("DynamicCall.scala") {
   def source =
 
    "package org.unisonweb" <>

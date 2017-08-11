@@ -1,13 +1,6 @@
 package org.unisonweb.codegeneration
 
-import java.io.File
-
-object LambdaGenerator {
-  def apply(outDir: File): (File, String) =
-    (new File(outDir, "Lambdas.scala"), source)
-
-  val N = maxInlineArity
-
+object LambdaGenerator extends OneFileGenerator("Lambda.scala") {
   def lambdaCtorArgs(i: Int): String =
     (1 to i).commas(i => s"name$i: Name")
 

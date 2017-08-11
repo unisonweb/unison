@@ -2,9 +2,7 @@ package org.unisonweb.codegeneration
 
 import java.io.File
 
-object StaticCallGenerator {
-  def apply(outDir: File): (File, String) =
-    (new File(outDir, "StaticCall.scala"), source)
+object StaticCallGenerator extends OneFileGenerator("StaticCall.scala") {
 
   def source =
     s"""package org.unisonweb
@@ -34,8 +32,6 @@ object StaticCallGenerator {
     fixedStack: Int => String,
     varStack: String
   )
-
-  private val N: Int = maxInlineArity
 
   def makeDefinition(t: Parts): String =
     s"${t.decl} = " + {

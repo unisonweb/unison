@@ -1,10 +1,6 @@
 package org.unisonweb.codegeneration
 
-import java.io.File
-
-object TailCallGenerator {
-  val N = maxInlineArity
-  def apply(outDir: File): (File, String) = (new File(outDir, "TailCalls.scala"), source)
+object TailCallGenerator extends OneFileGenerator("TailCalls.scala") {
 
   def slot(i: Int) = s"Slot(x$i,x${i}b)"
 
