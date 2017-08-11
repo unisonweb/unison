@@ -1,6 +1,41 @@
 package org.unisonweb
 
-package object compilation extends LookupVar with CompileIf0 with CompileLet1 with CompileVar with CompileLambda with TailCalls {
+/** short top-level classes */
+package compilation {
+
+  import org.unisonweb.Term.Name
+
+  class TailCall(val fn: Rt, val x1: D, val x1b: Rt, val x2: D, val x2b: Rt, val args: Array[Slot]) extends Throwable {
+    override def fillInStackTrace = this
+  }
+
+  class SelfCall(x1: D, x1b: Rt, x2: D, x2b: Rt, args: Array[Slot]) extends TailCall(null,x1,x1b,x2,x2b,args)
+
+  case class Result(var boxed: Rt = null) {
+    def toRuntime(unboxed: D): Rt = if (boxed eq null) compileNum(unboxed) else boxed
+  }
+
+  /** Used for representing parameters passed to `Runtime.apply` for large number of parameters. */
+  case class Slot(var unboxed: D = 0,
+    var boxed: Rt = null)
+
+  // todo: exception for doing algebraic effects
+  case class Yielded(effect: Rt, continuation: Rt) extends Throwable
+
+  trait NF { self: Rt =>
+    override def isEvaluated = true
+    def bind(env: Map[Name,Rt]) = ()
+  }
+
+  trait AccumulateBound { self : Rt =>
+    var bound : Map[Name,Rt] = Map.empty
+    def bind(env: Map[Name,Rt]) = bound = env ++ bound
+  }
+}
+
+/** top-level values */
+package object compilation extends LookupVar with CompileIf0 with CompileLet1 with CompileVar
+  with CompileLambda with CompileLetRec1 with TailCalls {
 
   import Term.{freeVars => _, _}
 
@@ -36,22 +71,11 @@ package object compilation extends LookupVar with CompileIf0 with CompileLet1 wi
     if (freeVars.isEmpty) 0
     else freeVars.view.map(fv => bound.indexOf(fv)).max + 1
 
-  case class Result(var boxed: Rt = null) {
-    def toRuntime(unboxed: D): Rt = if (boxed eq null) compileNum(unboxed) else boxed
-  }
-
-  /** Used for representing parameters passed to `Runtime.apply` for large number of parameters. */
-  case class Slot(var unboxed: D = 0,
-                  var boxed: Rt = null)
-
-  // todo: exception for doing algebraic effects
-  case class Yielded(effect: Rt, continuation: Rt) extends Throwable
-
   /** Constant indicating current term is in tail position, should be compiled accordingly. */
-  val IsTail = false
+  val IsTail = true // switch this to false to disable all tail calls (may cause fireworks)
 
   /** Constant indicating current term not in tail position, should be compiled accordingly. */
-  val IsNotTail = false // todo: why are these both `false`
+  val IsNotTail = false
 
   /**
    * This is the main public compilation function. Takes a function for resolving builtins, a term,
@@ -104,24 +128,23 @@ package object compilation extends LookupVar with CompileIf0 with CompileLet1 wi
                 compileVar(name, e, compileAsFree)
     }
     case If0(cond,if0,ifNot0) =>
-      compilation.compileIf0(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(cond, if0, ifNot0)
+      compileIf0(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(cond, if0, ifNot0)
     case Lam(names, body) =>
-      compilation.compileLambda(builtins, e, boundByCurrentLambda, recursiveVars, currentRec)(names, body)
+      compileLambda(builtins, e, boundByCurrentLambda, recursiveVars, currentRec)(names, body)
     case LetRec(bindings, body) => bindings match {
       case (name,f@Lam(vs,bodyf)) :: Nil =>
-        compilation.LetRec1.compileLetRec1(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(name,vs,f,bodyf,body)
+        compileLetRec1(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(name,vs,f,bodyf,body)
       case _ => compilation.LetRec.compileLetRec(builtins, e, boundByCurrentLambda, recursiveVars, isTail)(bindings, body)
     }
     case Let1(name, binding, body) => // `let name = binding; body`
-      compilation.compileLet1(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(name, binding, body)
+      compileLet1(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(name, binding, body)
     case Apply(fn, args) =>
-      compilation.FunctionApplication
-        .compileFunctionApplication(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(fn, args)
+      compileFunctionApplication(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(fn, args)
   }}
 
   // thing we want to check for is whether the body of the function references
   // name in tail position, if so, we create a while loop
-  def hasTailRecursiveCall(recName: Name, arity: Int, body: TermC): Boolean = true // todo
+  def hasTailRecursiveCall(recName: Name, arity: Int, body: TermC): Boolean = false // todo
 
   def compileNum(n: Double): Rt = new Arity0(Num(n)) {
     override def isEvaluated = true
@@ -129,14 +152,42 @@ package object compilation extends LookupVar with CompileIf0 with CompileLet1 wi
     def bind(env: Map[Name,Rt]) = ()
   }
 
-  trait NF { self: Rt =>
-    override def isEvaluated = true
-    def bind(env: Map[Name,Rt]) = ()
-  }
+  def compileFunctionApplication(
+    builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
+    recursiveVars: Set[Name], currentRec: Option[(Name,Arity)], isTail0: Boolean)(
+    fn: TermC, args: List[TermC]): Rt = {
 
-  trait AccumulateBound { self : Rt =>
-    var bound : Map[Name,Rt] = Map.empty
-    def bind(env: Map[Name,Rt]) = bound = env ++ bound
+    // don't bother with tail calls for builtins and nonrecursive calls
+    val isTail = isTail0 //todo think through conditions to safely elide tailcall
+    // && { fn match { case Var(v) if recursiveVars.contains(v) => true; case _ => false }}
+
+    (fn, args) match {
+      // Term can represent this call with no arguments, though the parser would never produce it.
+      case (fn, List()) =>
+        compile(builtins, fn, boundByCurrentLambda, recursiveVars, currentRec, isTail)
+
+      // fully saturated call to the nearest enclosing recursive function
+      // e.g. fac n = n * (fac (n-1))
+      //                  ^^^^^^^^^^^
+      case (Var(v), args) if Some((v,args.length)) == currentRec =>
+        val compiledArgs = args.view.map(compile(builtins, _, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)).toArray
+        compilation.StaticCall.staticRecCall(compiledArgs, unTermC(e), isTail)
+
+      case _ =>
+        /* Two cases to consider:
+          1. static call, eg `id 42`
+          2. dynamic call, eg `(f x -> f x) id 42`
+                                       ^^^ is a dynamic application
+         */
+        val compiledFn = compile(builtins, fn, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
+        val compiledArgs = args.view.map(arg =>
+          compile(builtins, arg, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
+        ).toArray
+
+        if (compiledFn.isEvaluated)
+          compilation.StaticCall.staticCall(compiledFn, compiledArgs, unTermC(e), isTail)
+        else DynamicCall.dynamicCall(compiledFn, compiledArgs, unTermC(e), isTail)
+    }
   }
 
   // for tail calls, don't check R.tailCall
