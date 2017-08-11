@@ -19,25 +19,29 @@ object CompileIf0Generator extends OneFileGenerator("CompileIf0.scala") {
         "val compiledIfNot0 = compilation.compile(builtins, ifNot0, boundByCurrentLambda, recursiveVars, currentRec, isTail)" <>
         "// todo - partial evaluation, if cond has no free vars" <>
         "(arity(freeVars(e), env(e)): @switch) match " + {
-           (0 until N).each { i =>
-             s"case $i => class CIf0(cond: Rt, if0: Rt, ifNot0: Rt) extends Arity${i}(e, ()) " + {
-               applySignature(i) + " = " + {
-                 "if ({" + eval(i, "cond") + "} == 0.0)" <>
-                   tailEval(i, "if0").indent <>
-                 "else " + tailEval(i, "ifNot0")
-               }.indent <>
-               "def bind(env: Map[Name,Rt]) = { cond.bind(env); if0.bind(env); ifNot0.bind(env) }"
-             }.b <>
-             "new CIf0(compiledCond, compiledIf0, compiledIfNot0)"
+           (0 to N).each { i =>
+             s"case $i =>" <> {
+               s"class CIf0_$i(cond: Rt, if0: Rt, ifNot0: Rt) extends Arity${i}(e, ()) " + {
+                 applySignature(i) + " =" <> {
+                   "if ({" + eval(i, "cond") + "} == 0.0)" <>
+                     tailEval(i, "if0").indent <>
+                     "else " + tailEval(i, "ifNot0")
+                 }.indent <>
+                   "def bind(env: Map[Name,Rt]) = { cond.bind(env); if0.bind(env); ifNot0.bind(env) }"
+               }.b <>
+               s"new CIf0_$i(compiledCond, compiledIf0, compiledIfNot0)"
+             }.indent
            } <>
-           "case n => class CIf0(cond: Rt, if0: Rt, ifNot0: Rt) extends ArityN(n,e,()) " + {
-              "def bind(env: Map[Name,Rt]) = { cond.bind(env); if0.bind(env); ifNot0.bind(env) }" <>
-              "def apply(rec: Rt, args: Array[Slot], r: R) =" <> {
-                "if ({ try cond(rec,args,r) catch { case e: TC => loop(e,r) }} == 0.0) if0(rec,args,r)" <>
-                "else ifNot0(rec,args,r)"
+           "case n =>" <> {
+             "class CIf0_n(cond: Rt, if0: Rt, ifNot0: Rt) extends ArityN(n,e,()) " + {
+               "def bind(env: Map[Name,Rt]) = { cond.bind(env); if0.bind(env); ifNot0.bind(env) }" <>
+                 "def apply(rec: Rt, args: Array[Slot], r: R) =" <> {
+                 "if ({ try cond(rec,args,r) catch { case e: TC => loop(e,r) }} == 0.0) if0(rec,args,r)" <>
+                   "else ifNot0(rec,args,r)"
                }.indent
              }.b <>
-             "new CIf0(compiledCond, compiledIf0, compiledIfNot0)".indent
+               "new CIf0_n(compiledCond, compiledIf0, compiledIfNot0)".indent
+           }.indent
         }.b
       }.b
     }.b

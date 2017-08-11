@@ -32,6 +32,8 @@ package object codegeneration {
   def evalN(expr: String) =
     "try " + expr + "(rec, xs, r) catch { case e: TC => loop(e,r) }"
 
+  def slot(i: Int) = s"Slot(x$i, x${i}b)"
+
   def applySignature(i: Int): String =
     "def apply(rec: Rt, " + (0 until i).commas(i => s"x$i: D, x${i}b: Rt") + commaIf(i) + "r: R): D"
 

@@ -2,8 +2,6 @@ package org.unisonweb.codegeneration
 
 object TailCallGenerator extends OneFileGenerator("TailCalls.scala") {
 
-  def slot(i: Int) = s"Slot(x$i,x${i}b)"
-
   def source: String =
 
     "package org.unisonweb.compilation" <>
