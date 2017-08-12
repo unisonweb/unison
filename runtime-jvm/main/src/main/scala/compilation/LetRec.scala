@@ -7,6 +7,8 @@ object CompileLetRec {
   def compileLetRec(builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
     recursiveVars: Set[Name], currentRec: Option[(Name,Arity)], isTail: Boolean)(
     bindings: List[(Name,TermC)], body: TermC): Rt = ??? /*{
+      import org.unisonweb.Term.{Term,Name,LetRec,Var}
+      import org.unisonweb.ABT
     // ex:
     //   let rec
     //     blah = 42

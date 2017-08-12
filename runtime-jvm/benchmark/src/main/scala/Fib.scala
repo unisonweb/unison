@@ -1,8 +1,7 @@
-/*
 package org.unisonweb.benchmark
 
 import org.unisonweb.Term._
-import org.unisonweb.Runtime._
+import org.unisonweb.compilation._
 
 object Fib extends App {
 
@@ -13,14 +12,10 @@ object Fib extends App {
 
   val builtins : String => Rt = {
     case s@"-" => new Arity2(Builtin(s)) with NF {
-      def apply(rec: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = {
-        r.unboxed = x2 - x1
-      }
+      def apply(rec: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = x2 - x1
     }
     case s@"+" => new Arity2(Builtin(s)) with NF {
-      def apply(rec: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = {
-        r.unboxed = x2 + x1
-      }
+      def apply(rec: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = x2 + x1
     }
   }
 
@@ -46,14 +41,14 @@ object Fib extends App {
   val manuallyCompiledFib : Rt = new Arity1(Builtin("fib-manual-compile")) {
     def bind(env: Map[Name,Rt]) = ()
     def apply(rec: Rt, x1: D, x1b: Rt, r: R) = {
-      if (x1 == 0.0) r.unboxed = 0.0
+      if (x1 == 0.0) 0.0
       else {
         // val x12 = eval(null, minus1, x1, null, r)
-        if (x1 == 1.0) r.unboxed = 1.0
+        if (x1 == 1.0) 1.0
         // if (r.unboxed == 0.0) r.unboxed = 1.0
         else {
-          val r1 = { apply(null, x1 - 1.0, null, r); r.unboxed }
-          val r2 = { apply(null, x1 - 2.0, null, r); r.unboxed }
+          val r1 = { apply(null, x1 - 1.0, null, r) }
+          val r2 = { apply(null, x1 - 2.0, null, r) }
           plus(null, r1, null, r2, null, r)
         }
       }
@@ -64,12 +59,12 @@ object Fib extends App {
   val manuallyCompiledFib2 : Rt = new Arity1(Builtin("fib-manual-compile")) {
     def bind(env: Map[Name,Rt]) = ()
     def apply(rec: Rt, x1: D, x1b: Rt, r: R) = {
-      if (x1 == 0.0) r.unboxed = 0.0
+      if (x1 == 0.0) 0.0
       else {
-        if (x1 == 1.0) r.unboxed = 1.0
+        if (x1 == 1.0) 1.0
         else {
-          val r1 = { rec(rec, x1 - 1.0, null, r); r.unboxed }
-          val r2 = { rec(rec, x1 - 2.0, null, r); r.unboxed }
+          val r1 = { rec(rec, x1 - 1.0, null, r) }
+          val r2 = { rec(rec, x1 - 2.0, null, r) }
           plus(null, r1, null, r2, null, r)
         }
       }
@@ -386,25 +381,21 @@ object Fib extends App {
     },
     QuickProfile.timeit("unison", 0.08) {
       val r = Result()
-      compiledFib(null, r)
-      (r.unboxed + math.random).toLong
+      (compiledFib(null, r) + math.random).toLong
     },
     QuickProfile.timeit("manually-compiled-unison (2)", 0.08) {
       val r = Result()
-      manuallyCompiledFib2(manuallyCompiledFib2, N, null, r)
-      (r.unboxed + math.random).toLong
+      (manuallyCompiledFib2(manuallyCompiledFib2, N, null, r) + math.random).toLong
     },
     QuickProfile.timeit("manually-compiled-unison", 0.08) {
       val r = Result()
-      manuallyCompiledFib(manuallyCompiledFib, N, null, r)
-      (r.unboxed + math.random).toLong
+      (manuallyCompiledFib(manuallyCompiledFib, N, null, r) + math.random).toLong
     },
     QuickProfile.timeit("scala", 0.08) {
       (fibScala(N) + math.random).toLong
     }
   )
 
-  // println(normalize(builtins)(fib))
-  // println(normalize(builtins)(Num(1.0) + Num(4.0)))
+   println(normalize(builtins)(fib))
+   println(normalize(builtins)(Num(1.0) + Num(4.0)))
 }
-*/

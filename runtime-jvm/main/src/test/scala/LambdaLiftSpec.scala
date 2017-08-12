@@ -1,3 +1,4 @@
+/*
 package org.unisonweb
 
 import org.scalacheck._
@@ -59,4 +60,4 @@ object LambdaLiftSpec extends Properties("Term.lambdaLift") {
   
   def isOk(t: Term): Boolean = ???
 }
-
+*/
