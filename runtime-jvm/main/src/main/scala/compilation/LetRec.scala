@@ -1,10 +1,12 @@
 package org.unisonweb.compilation
+package x
 
 import org.unisonweb.Term.Name
 
-object LetRec {
+object CompileLetRec {
   def compileLetRec(builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
-    recursiveVars: Set[Name], isTail: Boolean)(bindings: List[(Name,TermC)], body: TermC): Rt = ???/*{
+    recursiveVars: Set[Name], currentRec: Option[(Name,Arity)], isTail: Boolean)(
+    bindings: List[(Name,TermC)], body: TermC): Rt = ??? /*{
     // ex:
     //   let rec
     //     blah = 42
@@ -15,13 +17,13 @@ object LetRec {
     // ping = (let rec ping = ...; pong = ...; ping)
     // todo: am hazy on how we are using recursive vars to decompile
     val recursiveVars2 = recursiveVars ++ bindings.view.map(_._1).map { name =>
-      val bindings2 = bindings map { case (name, b) => (name, b map (_._1)) }
+      val bindings2: List[(Name, Term)] = bindings map { case (name, b) => (name, b map (_._1)) }
       // easiest to compute annotateBound 'locally', then fixup by adding parent scopes bound vars
       val appendEnv = (p: (Set[Name], Vector[Name])) => (p._1, p._2 ++ env(e)) // parent scopes vars appear later in the stack
       (name, ABT.annotateBound(LetRec(bindings2:_*)(Var(name))) map appendEnv)
     }
     val boundByCurrentLambda2 = boundByCurrentLambda map (_ ++ bindings.map(_._1))
-    val compiledBindings = bindings.view.map(_._2).map(e => compile(builtins, e, boundByCurrentLambda2, recursiveVars2, IsNotTail)).toArray
+    val compiledBindings = bindings.map(_._2).map(e => compile(builtins, e, boundByCurrentLambda2, recursiveVars2, IsNotTail)).toArray
     val compiledBody = compile(builtins, body, boundByCurrentLambda2, recursiveVars2, isTail)
     val names = bindings.map(_._1).toArray
     // todo: consider doing something fancy to avoid needing to iterate over compiledBindings at runtime

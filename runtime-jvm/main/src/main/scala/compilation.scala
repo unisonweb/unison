@@ -35,7 +35,7 @@ package compilation {
 
 /** top-level values */
 package object compilation extends LookupVar with CompileIf0 with CompileLet1 with CompileVar
-  with CompileLambda with CompileLetRec1 with TailCalls {
+  with CompileLambda with CompileLetRec with CompileLetRec1 with TailCalls {
 
   import Term.{freeVars => _, _}
 
@@ -134,7 +134,7 @@ package object compilation extends LookupVar with CompileIf0 with CompileLet1 wi
     case LetRec(bindings, body) => bindings match {
       case (name,f@Lam(vs,bodyf)) :: Nil =>
         compileLetRec1(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(name,vs,f,bodyf,body)
-      case _ => compilation.LetRec.compileLetRec(builtins, e, boundByCurrentLambda, recursiveVars, isTail)(bindings, body)
+      case _ => compileLetRec(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(bindings, body)
     }
     case Let1(name, binding, body) => // `let name = binding; body`
       compileLet1(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(name, binding, body)

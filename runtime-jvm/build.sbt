@@ -121,6 +121,7 @@ lazy val main = project.in(file("main")).
       CompileIf0Generator,
       CompileLambdaGenerator,
       CompileLet1Generator,
+      CompileLetRecGenerator,
       CompileLetRec1Generator,
       CompileVarGenerator,
       LookupVarGenerator,
