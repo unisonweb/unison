@@ -21,7 +21,7 @@ object CompileIf0Generator extends OneFileGenerator("CompileIf0.scala") {
         "(arity(freeVars(e), env(e)): @switch) match " + {
            (0 to N).each { i =>
              s"case $i =>" <> {
-               s"class CIf0_$i(cond: Rt, if0: Rt, ifNot0: Rt) extends Arity${i}(e, ()) " + {
+               s"class CIf0_$i(cond: Rt, if0: Rt, ifNot0: Rt) extends Arity$i(e, ()) " + {
                  applySignature(i) + " =" <> {
                    "if ({" + eval(i, "cond") + "} == 0.0)" <>
                      tailEval(i, "if0").indent <>

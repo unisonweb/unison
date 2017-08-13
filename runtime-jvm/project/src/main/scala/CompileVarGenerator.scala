@@ -9,7 +9,7 @@ object CompileVarGenerator extends OneFileGenerator("CompileVar.scala") {
        |trait CompileVar {
        |  def compileVar(name: Name, e: TermC, compileAsFree: Boolean): Rt =
        |    if (compileAsFree) new Rt {
-       |      var rt: Rt = null
+       |      private var rt: Rt = null
        |      def arity = rt.arity
        |${ (0 to N).each { i => applySignature(i) + " = " + tailEval(i, "rt")}.indentBy(3) }
        |      def apply(rec: Rt, args: Array[Slot], r: R) = rt(rec,args,r)

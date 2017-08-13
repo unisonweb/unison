@@ -92,19 +92,16 @@ package object compilation extends LookupVar with CompileIf0 with CompileLet1 wi
   }
 
   private def unbindRecursiveVars(e: TermC, recursiveVars: Set[Name]): TermC =
-    e.reannotate { case (free,bound) => (free, bound.filterNot(recursiveVars.contains(_))) }
+    e.reannotate { case (free,bound) => (free, bound.filterNot(recursiveVars.contains)) }
 
   type Arity = Int
+  /** knock out the currentRec if appropriate; if it is shadowed, it won't be called */
   def shadowRec(rec: Option[(Name,Arity)], name: Name): Option[(Name,Arity)] =
-    rec match {
-      case Some((n,arity)) if n == name => None
-      case _ => rec
-    }
+    rec.filterNot(name == _._1)
+
+  /** knock out the currentRec if appropriate; if it is shadowed, it won't be called */
   def shadowsRec(rec: Option[(Name,Arity)], names: Seq[Name]): Option[(Name,Arity)] =
-    rec match {
-      case Some((n,arity)) if names.contains(n) => None
-      case _ => rec
-    }
+    rec.filterNot(names contains _._1)
 
   def compileRec(name: Name) = new Arity0(Var(name)) {
     def apply(rec: Rt, r: R) = { r.boxed = rec; 0.0 }
@@ -123,9 +120,9 @@ package object compilation extends LookupVar with CompileIf0 with CompileLet1 wi
       case Some((n,_)) if n == name => compileRec(name)
       // compile a variable as free if it's a recursive var OR
       // we are inside a lambda and this var is bound outside this lambda
-      case _ => val compileAsFree = recursiveVars.contains(name) ||
-                    boundByCurrentLambda.map(vs => !vs.contains(name)).getOrElse(false)
-                compileVar(name, e, compileAsFree)
+      case _ =>
+        val compileAsFree = recursiveVars.contains(name) || boundByCurrentLambda.exists(vs => !vs.contains(name))
+        compileVar(name, e, compileAsFree)
     }
     case If0(cond,if0,ifNot0) =>
       compileIf0(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(cond, if0, ifNot0)
@@ -169,7 +166,7 @@ package object compilation extends LookupVar with CompileIf0 with CompileLet1 wi
       // fully saturated call to the nearest enclosing recursive function
       // e.g. fac n = n * (fac (n-1))
       //                  ^^^^^^^^^^^
-      case (Var(v), args) if Some((v,args.length)) == currentRec =>
+      case (Var(v), args) if currentRec.contains((v, args.length)) =>
         val compiledArgs = args.view.map(compile(builtins, _, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)).toArray
         compilation.StaticCall.staticRecCall(compiledArgs, unTermC(e), isTail)
 

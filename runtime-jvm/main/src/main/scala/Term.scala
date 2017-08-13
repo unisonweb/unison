@@ -48,7 +48,7 @@ object Term {
         case Lam_(a) => Lam_(f(a))
         case b@Builtin_(_) => b
         case Apply_(fn, args) =>
-          val fn2 = f(fn); val args2 = args map f;
+          val fn2 = f(fn); val args2 = args map f
           Apply_(fn2, args2)
         case n@Num_(_) => n
         case LetRec_(bs, body) =>

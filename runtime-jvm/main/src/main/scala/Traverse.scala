@@ -22,7 +22,7 @@ trait Traverse[F[_]] extends Functor[F] {
   private def balancedSequence[G[_],A](v: Vector[G[A]])(implicit G: Applicative[G]): G[Vector[A]] =
     if (v.isEmpty) G.pure(Vector.empty[A])
     else {
-      val (l,r) = v.splitAt((v.length / 2).toInt)
+      val (l,r) = v.splitAt(v.length / 2)
       val l2 = balancedSequence(l)
       val r2 = balancedSequence(r)
       G.map2(l2, r2)(_ ++ _)

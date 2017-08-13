@@ -28,7 +28,7 @@ object LambdaGenerator extends OneFileGenerator("Lambda.scala") {
             ")" + (j+1 to i).map(" - name" + _).mkString + ")(body) match " + {
               s"case body => " <> {
                 s"val tm = Lam($unboundNames)(body)" <>
-                  ((i - j) match {
+                  (i - j match {
                     case 1 => s"val lam = new Lambda1($unboundNames, tm, compile(builtins)(body))"
                     case k => s"val lam = new Lambda$k($unboundNames, tm, body, compile(builtins)(body), builtins)"
                   }) <>
@@ -113,15 +113,15 @@ object LambdaGenerator extends OneFileGenerator("Lambda.scala") {
               "case body => " <> {
                 "val tm = Lam(unboundNames: _*)(body)" <>
                 "unboundNames match " + {
-                  ((N - j + 1 to N).each {
+                  (N - j + 1 to N).each {
                     case 1 =>
                       s"case Array(name) =>" <>
                         "new Lambda1(name, tm, compile(builtins)(body))".indent
                     case k =>
-                      val names = (j+1) until (j+1+k) commas (i => s"name$i")
+                      val names = (j + 1) until (j + 1 + k) commas (i => s"name$i")
                       s"case Array($names) =>" <>
                         s"new Lambda$k($names, tm, body, compile(builtins)(body), builtins)".indent
-                  }) <>
+                  } <>
                   "case unboundNames =>" <>
                     "new LambdaN(unboundNames, tm, body, compile(builtins)(body), builtins)".indent
                 }.b

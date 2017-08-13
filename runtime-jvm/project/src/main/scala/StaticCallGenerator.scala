@@ -21,7 +21,7 @@ object StaticCallGenerator extends OneFileGenerator("StaticCall.scala") {
        |    if (isTail) staticRecTailCall(args, decompile)
        |    else staticRecNonTailCall(args, decompile)
        |
-       |${ indent(1, List(staticRecNonTail, staticRecTailCall, staticTailCall, staticNonTailCall) map makeDefinition mkString("\n"))}
+       |${ indent(1, List(staticRecNonTail, staticRecTailCall, staticTailCall, staticNonTailCall) map makeDefinition mkString "\n")}
        |}
       """.stripMargin
 

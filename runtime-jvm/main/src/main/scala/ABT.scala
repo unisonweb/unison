@@ -116,5 +116,5 @@ object ABT {
   }
 
   def freshen(v: Name, taken: Set[Name]): Name =
-    Stream.continually(v).zipWithIndex.map { case (name,i) => name + i }.dropWhile(taken.contains(_)).head
+    Stream.continually(v).zipWithIndex.map { case (name,i) => name + i }.dropWhile(taken.contains).head
 }
