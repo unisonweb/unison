@@ -29,7 +29,8 @@ object DynamicCallGenerator extends OneFileGenerator("DynamicCall.scala") {
      "(arity: @switch) match " + { (0 to N).each { i =>
         s"case $i => (args.length: @switch) match " + { (1 to N).each { j =>
           s"case $j => " <> {
-            { s"new Arity$i(decompile) " + {
+            val className = emptyOrNon(isTail) + s"TailCall_arity${i}_args$j"
+            s"class $className extends Arity$i(decompile) " + {
                (0 until j).each(j => s"val arg$j = args2($j)") <>
                "def bind(env: Map[Name,Rt]) = args2.foreach(_.bind(env))" <>
                applySignature(i) + " = " + {
@@ -45,55 +46,65 @@ object DynamicCallGenerator extends OneFileGenerator("DynamicCall.scala") {
                    s"tailCall(fn2, " + ((j-1) to 0 by -1).commas(j => s"arg${j}r, arg${j}rb") + commaIf(j) + "r)"
                  )
                }.b
-            }.b }
+            }.b <>
+            s"new $className"
           }.indent } nl
-           s"case j => new Arity$i(decompile) " + {
-              "def bind(env: Map[Name,Rt]) = args2.foreach(_.bind(env))" <>
-              applySignature(i) + " = " + {
-                "val argsr = new Array[Slot](args2.length)" <>
-                { "val fn2 = " + evalBoxed(i, "fn") } <>
-                "var k = 0" <>
-                "while (k < argsr.length) " + {
+           s"case j =>" <> {
+             val className = emptyOrNon(isTail) + s"TailCall_arity${i}_argsN"
+             s"class $className extends Arity$i(decompile) " + {
+               "def bind(env: Map[Name,Rt]) = args2.foreach(_.bind(env))" <>
+               applySignature(i) + " = " + {
+                 "val argsr = new Array[Slot](args2.length)" <>
+                 "val fn2 = " + evalBoxed(i, "fn") <>
+                 "var k = 0" <>
+                 "while (k < argsr.length) " + {
                    "argsr(k) = new Slot(" + eval(i, "args2(k)") + ", r.boxed)" <>
                    "k += 1"
-                }.b <>
-                (if (!isTail) "fn2(fn2, argsr.reverse, r)"
+                 }.b <>
+                 (if (!isTail) "fn2(fn2, argsr.reverse, r)"
                  else "tailCall(fn2, argsr.reverse, r)")
-              }.b
-           }.b
+               }.b
+             }.b <>
+             s"new $className"
+           }.indent
         }.b } nl
         "case n => (args.length: @switch) match " + { (1 to N).each { j =>
-          s"case $j => new ArityN(n, decompile) " + {
-            (0 until j).each(j => s"val arg$j = args($j)") <>
+          s"case $j =>" <> {
+            val className = emptyOrNon(isTail) + s"TailCall_arityN_args$j"
+            s"class $className extends ArityN(n, decompile) " + {
+              (0 until j).each(j => s"val arg$j = args($j)") <>
+              "def bind(env: Map[Name,Rt]) = args2.foreach(_.bind(env))" <>
+              "def apply(rec: Rt, xs: Array[Slot], r: R) = " + {
+                "val fn2 = { " + evalN("fn") + "; r.boxed } " <>
+                (0 until j).each { j =>
+                  s"val arg${j}r = " + evalN(s"arg$j") + "; " +
+                  s"val arg${j}rb = r.boxed"
+                } <>
+                (if (!isTail) s"fn2(fn2, " + ((j-1) to 0 by -1).commas(j => s"arg${j}r, arg${j}rb") + commaIf(j) + "r)"
+                else s"tailCall(fn2, " + ((j-1) to 0 by -1).commas(j => s"arg${j}r, arg${j}rb") + commaIf(j) + "r)")
+              }.b
+            }.b nl
+            s"new $className"
+          }.indent
+        } nl "case j =>" + {
+          val className = emptyOrNon(isTail) + s"TailCall_arityN_argsN"
+          s"class $className extends ArityN(n, decompile) " + {
             "def bind(env: Map[Name,Rt]) = args2.foreach(_.bind(env))" <>
             "def apply(rec: Rt, xs: Array[Slot], r: R) = " + {
-              "val fn2 = { " + evalN("fn") + "; r.boxed } " <>
-              (0 until j).each { j =>
-                s"val arg${j}r = " + evalN(s"arg$j") + "; " +
-                s"val arg${j}rb = r.boxed"
-              } <>
-              (if (!isTail)
-                s"fn2(fn2, " + ((j-1) to 0 by -1).commas(j => s"arg${j}r, arg${j}rb") + commaIf(j) + "r)"
-              else
-                s"tailCall(fn2, " + ((j-1) to 0 by -1).commas(j => s"arg${j}r, arg${j}rb") + commaIf(j) + "r)"
-              )
-            }.b
-          }.b
-        } nl "case j => new ArityN(n, decompile) " + {
-          "def bind(env: Map[Name,Rt]) = args2.foreach(_.bind(env))" <>
-          "def apply(rec: Rt, xs: Array[Slot], r: R) = " + {
-             "val argsr = new Array[Slot](args2.length)" <>
-             ("val fn2 = { " + evalN("fn") + "; r.boxed }") <>
-             "var k = 0" <>
-             "while (k < argsr.length) " + {
+              "val argsr = new Array[Slot](args2.length)" <>
+              ("val fn2 = { " + evalN("fn") + "; r.boxed }") <>
+              "var k = 0" <>
+              "while (k < argsr.length) " + {
                 "argsr(k) = new Slot(" + evalN("args2(k)") + ", r.boxed)" <>
                 "k += 1"
               }.b <>
               (if (!isTail) "fn2(fn2, argsr.reverse, r)"
                else "tailCall(fn2, argsr.reverse, r)")
-          }.b
+            }.b
+          }.b nl
+          s"new $className"
+        }.indent
         }.b
-        }.b
-      }.b
+     }.b
    }.b
 }

@@ -40,31 +40,34 @@ object CompileLetRec1Generator extends OneFileGenerator("CompileLetRec1.scala") 
        |    (arity(freeVars(e), env(e)) : @annotation.switch) match {""".stripMargin <>
           {
             (0 to N).each { i =>
-              s"case $i => new Arity$i(e,()) " + {
-                "def bind(env: Map[Name,Rt]) = { compiledf bind (env - name); compiledBody bind (env - name) }" <>
-                applySignature(i) + " = " + {
-                  "val compiledf2 = " <> {
-                    "if (compiledf.isEvaluated) compiledf" <>
-                    s"else { ${eval(i, "compiledf")}; r.boxed }"
-                  }.indent <> {
-                    if (i < N)
-                      "compiledBody(rec, 0.0, compiledf2, " + xArgs(i) + commaIf(i) + "r)"
-                    else
-                      s"compiledBody(rec, Array(Slot(0.0, compiledf2), ${0 until N commas slot}), r)"
-                  }
-                }.b
-              }.b
+              s"case $i =>" <> {
+                s"class LetRec1_$i extends Arity$i(e,()) " + {
+                  "def bind(env: Map[Name,Rt]) = { compiledf bind (env - name); compiledBody bind (env - name) }" <>
+                    applySignature(i) + " = " + {
+                      "val compiledf2 = " <>
+                        ("if (compiledf.isEvaluated) compiledf" <>
+                        s"else { ${eval(i, "compiledf")}; r.boxed }"
+                        ).indent <>
+                      (if (i < N) "compiledBody(rec, 0.0, compiledf2, " + xArgs(i) + commaIf(i) + "r)"
+                      else s"compiledBody(rec, Array(Slot(0.0, compiledf2), ${0 until N commas slot}), r)")
+                    }.b
+                }.b <>
+                s"new LetRec1_$i"
+              }.indent
             }.indent <>
-            "case n => new ArityN(n,e,()) " + {
-              "def bind(env: Map[Name,Rt]) = { compiledf bind (env - name); compiledBody bind (env - name) }" <>
-                "def apply(rec: Rt, xs: Array[Slot], r: R): D =" + {
-                  "val compiledf2 = " <> {
-                    "if (compiledf.isEvaluated) compiledf" <>
-                      s"else { compiledf(rec, xs, r); r.boxed }"
-                  }.indent <>
+            "case n =>" <> {
+              "class LetRec1_N extends ArityN(n,e,()) " + {
+                "def bind(env: Map[Name,Rt]) = { compiledf bind (env - name); compiledBody bind (env - name) }" <>
+                  "def apply(rec: Rt, xs: Array[Slot], r: R): D =" + {
+                    "val compiledf2 = " <>
+                      ("if (compiledf.isEvaluated) compiledf" <>
+                       "else { compiledf(rec, xs, r); r.boxed }"
+                      ).indent <>
                     "compiledBody(rec, Slot(0.0, compiledf2) +: xs, r)"
-                }.b
-            }.b
+                  }.b
+              }.b <>
+              "new LetRec1_N"
+            }.indent
           }.indentBy(3) <>
      """    } // match
        |  } // def compileLetRec1
