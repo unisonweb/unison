@@ -134,7 +134,9 @@ lazy val main = project.in(file("main")).
 
     val v2_ : List[(File, String)] = List[OneFileGenerator](
       v2.ComputationGenerator,
-      v2.ValueGenerator
+      v2.ValueGenerator,
+      v2.LookupVarGenerator,
+      v2.LetRecGenerator
     ).map(_.apply(outPath / "v2"))
 
     (v1 ++ v2_).map { case (file, content) => IO.write(file, content); file: File }

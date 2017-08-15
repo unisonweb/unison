@@ -2,7 +2,7 @@ package org.unisonweb
 
 package object codegeneration {
 
-  val maxInlineArity = 2
+  val maxInlineArity = 4
 
   def indent(level: Int, lines: Seq[String]): String =
     lines.flatMap(multilines =>
