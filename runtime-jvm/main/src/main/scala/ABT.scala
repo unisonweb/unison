@@ -20,7 +20,6 @@ object ABT {
   case class AnnotatedTerm[F[+_],A](annotation: A, get: ABT[F,AnnotatedTerm[F,A]]) {
     def map[B](f: A => B)(implicit F: Functor[F]): AnnotatedTerm[F,B] =
       AnnotatedTerm(f(annotation), get.map(_.map(f)))
-    override def toString = get.toString
     def reannotate(f: A => A): AnnotatedTerm[F,A] = AnnotatedTerm(f(annotation), get)
   }
   type Term[F[+_]] = AnnotatedTerm[F,Set[Name]]

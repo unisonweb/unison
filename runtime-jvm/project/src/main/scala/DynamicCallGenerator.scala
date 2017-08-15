@@ -24,7 +24,7 @@ object DynamicCallGenerator extends OneFileGenerator("DynamicCall.scala") {
 
   def sourceDynamicCall(isTail: Boolean): String =
   s"def dynamic${emptyOrNon(isTail)}TailCall(fn: Rt, args: Array[Rt], decompile: Term): Rt = " + {
-     "val arity = args.map(_.arity).max" <>
+     "val arity = args.map(_.arity).max max fn.arity" <>
      "val args2 = args" <>
      "(arity: @switch) match " + { (0 to N).each { i =>
         s"case $i => (args.length: @switch) match " + { (1 to N).each { j =>

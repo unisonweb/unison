@@ -144,7 +144,7 @@ object StaticCallGenerator extends OneFileGenerator("StaticCall.scala") {
   }
 
   def caseVarArgsVarStack(body: String): String = {
-    "case _ =>" + {
+    "case _ =>" <> {
       "new ArityN(n, decompile) with A0 { def apply(rec: Rt, args0: Array[Slot], r: R) = " <> {
         "val slots = new Array[Slot](args.length)" <>
         "var i = 0" <>

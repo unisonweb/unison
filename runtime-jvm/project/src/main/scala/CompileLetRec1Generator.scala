@@ -16,22 +16,36 @@ object CompileLetRec1Generator extends OneFileGenerator("CompileLetRec1.scala") 
        |      // bodyf: if n > 0 then fac (n-1) (n * acc) else 1; fac 3 1
        |      // body: fac 3 1
        |  def compileLetRec1(
-       |    builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
-       |    recursiveVars: Set[Name], currentRec: Option[(Name,Arity)], isTail: Boolean)(
+       |    builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[BoundByCurrentLambda],
+       |    recursiveVars: RecursiveVars, currentRec: CurrentRec, isTail: Boolean)(
        |    name: Name, vs: List[Name], f: TermC, bodyf: TermC, body: TermC): Rt = {
        |
        |    val vsv = vs.toVector
        |    val compiledf = {
-       |      val step = compileLambda(builtins, f, boundByCurrentLambda, recursiveVars + name, Some((name,vsv.length)))(vs, bodyf)
-       |      if (hasTailRecursiveCall(name, vs.length, bodyf)) {
-       |        @annotation.tailrec
-       |        def loop(v1: D, v1b: Rt, r: R): Double =
-       |          try step(step, v1, v1b, r)
-       |          catch { case e: SelfCall => loop(e.x1, e.x1b, r) }
-       |        new Lambda1(vsv(0), unTermC(f), step) {
-       |          override def apply(rec: Rt, x1: D, x1b: Rt, r: R) = loop(x1, x1b, r)
-       |        }
-       |      }
+       |      val step = compileLambda(builtins, f, boundByCurrentLambda, recursiveVars + name, CurrentRec(name, vsv.length))(vs, bodyf)
+       |      if (hasTailRecursiveCall(name, vs.length, bodyf)) {""".stripMargin <>
+              (if (N >= 1) {
+                "@annotation.tailrec" <>
+                "def loop(v1: D, v1b: Rt, r: R): Double = " <> {
+                  "try step(step, v1, v1b, r)" <>
+                  "catch { case e: SelfCall => loop(e.x1, e.x1b, r) }"
+                }.indent <>
+                "new Lambda1(vsv(0), unTermC(f), step) " + {
+                  "override def apply(rec: Rt, x1: D, x1b: Rt, r: R) = loop(x1, x1b, r)"
+                }.b
+              } else {
+                "@annotation.tailrec" <>
+                  "def loop(v1: D, v1b: Rt, r: R): Double = " <> {
+                  "try step(step, Array(Slot(v1, v1b)), r)" <>
+                    "catch { case e: SelfCall => loop(e.x1, e.x1b, r) }"
+                }.indent <>
+                "new LambdaN(Array(vsv(0)), unTermC(f), unTermC(bodyf), step, builtins) " + {
+                  if (N >= 1)
+                    "override def apply(rec: Rt, x1: D, x1b: Rt, r: R) = loop(x1, x1b, r)"
+                  else "override def apply(rec: Rt, xs: Array[Slot], r: R) = loop(xs(0).unboxed, xs(0).boxed, r)"
+                }.b
+              }).indentBy(4) <>
+     """      }
        |      else step
        |    }
        |
@@ -49,7 +63,7 @@ object CompileLetRec1Generator extends OneFileGenerator("CompileLetRec1.scala") 
                         s"else { ${eval(i, "compiledf")}; r.boxed }"
                         ).indent <>
                       (if (i < N) "compiledBody(rec, 0.0, compiledf2, " + xArgs(i) + commaIf(i) + "r)"
-                      else s"compiledBody(rec, Array(Slot(0.0, compiledf2), ${0 until N commas slot}), r)")
+                      else "compiledBody(rec, Array(Slot(0.0, compiledf2)" + commaIf(N) + (0 until N commas slot) + "), r)")
                     }.b
                 }.b <>
                 s"new LetRec1_$i"

@@ -31,6 +31,42 @@ package compilation {
     var bound : Map[Name,Rt] = Map.empty
     def bind(env: Map[Name,Rt]) = bound = env ++ bound
   }
+
+  /** newtype */
+  case class BoundByCurrentLambda(get: Option[Set[Name]]) extends AnyVal {
+    def apply(name: Name): Boolean = contains(name)
+    def contains(name: Name): Boolean = get.exists(_.contains(name))
+    def +(name: Name): BoundByCurrentLambda = BoundByCurrentLambda(get.map(_ + name))
+    def ++(names: Seq[Name]): BoundByCurrentLambda = BoundByCurrentLambda(get.map(_ ++ names))
+  }
+  object BoundByCurrentLambda {
+    def apply(names: Set[Name]): BoundByCurrentLambda = BoundByCurrentLambda(Some(names))
+  }
+
+  /** newtype */
+  case class RecursiveVars(get: Set[Name]) extends AnyVal {
+    def contains(name: Name): Boolean = get.contains(name)
+    def +(name: Name): RecursiveVars = RecursiveVars(get + name)
+    def ++(names: Seq[Name]): RecursiveVars = RecursiveVars(get ++ names)
+    def -(name: Name): RecursiveVars = RecursiveVars(get - name)
+    def --(names: Seq[Name]): RecursiveVars = RecursiveVars(get -- names)
+  }
+  object RecursiveVars {
+    def apply(names: Name*): RecursiveVars = RecursiveVars(Set(names: _*))
+  }
+
+  /** newtype */
+  case class CurrentRec(get: Option[(Name, Arity)]) extends AnyVal {
+    def contains(name: Name): Boolean = get.exists(_._1 == name)
+    def contains(name: Name, arity: Arity): Boolean = get == Some((name, arity))
+    /** knock out the currentRec if appropriate; if it is shadowed, it won't be called */
+    def shadow(name: Name): CurrentRec = CurrentRec(get.filterNot(name == _._1))
+    /** knock out the currentRec if appropriate; if it is shadowed, it won't be called */
+    def shadow(names: Seq[Name]): CurrentRec = CurrentRec(get.filterNot(names contains _._1))
+  }
+  object CurrentRec {
+    def apply(name: Name, arity: Arity): CurrentRec = CurrentRec(Some((name,arity)))
+  }
 }
 
 /** top-level values */
@@ -81,8 +117,10 @@ package object compilation extends LookupVar with CompileIf0 with CompileLet1 wi
    * This is the main public compilation function. Takes a function for resolving builtins, a term,
    * and returns a `Runtime`.
    */
-  def compile(builtins: String => Rt)(e: Term): Rt =
-    compile(builtins, ABT.annotateBound(e), None, Set(), None, IsTail)
+  def compile(builtins: String => Rt)(e: Term): Rt = {
+    val annE = ABT.annotateBound(e)
+    compile(builtins, annE, None, RecursiveVars(), CurrentRec(None), IsTail)
+  }
 
   /** Compile and evaluate a term, the return result back as a term. */
   def normalize(builtins: String => Rt)(e: Term): Term = {
@@ -91,67 +129,69 @@ package object compilation extends LookupVar with CompileIf0 with CompileLet1 wi
     decompileSlot(try rt(null, r) catch { case e: TC => loop(e,r) }, r.boxed)
   }
 
-  private def unbindRecursiveVars(e: TermC, recursiveVars: Set[Name]): TermC =
+  private def unbindRecursiveVars(e: TermC, recursiveVars: RecursiveVars): TermC =
     e.reannotate { case (free,bound) => (free, bound.filterNot(recursiveVars.contains)) }
 
   type Arity = Int
-  /** knock out the currentRec if appropriate; if it is shadowed, it won't be called */
-  def shadowRec(rec: Option[(Name,Arity)], name: Name): Option[(Name,Arity)] =
-    rec.filterNot(name == _._1)
 
-  /** knock out the currentRec if appropriate; if it is shadowed, it won't be called */
-  def shadowsRec(rec: Option[(Name,Arity)], names: Seq[Name]): Option[(Name,Arity)] =
-    rec.filterNot(names contains _._1)
-
-  def compileRec(name: Name) = new Arity0(Var(name)) {
-    def apply(rec: Rt, r: R) = { r.boxed = rec; 0.0 }
-    def bind(env: Map[Name,Rt]) = ()
+  def compileRec(name: Name) = {
+    class RecursiveReference extends Arity0(Var(name)) {
+      def apply(rec: Rt, r: R) = { r.boxed = rec; 0.0 }
+      def bind(env: Map[Name,Rt]) = ()
+    }
+    new RecursiveReference
   }
 
   /** Actual compile implementation. */
   private[unisonweb]
-  def compile(builtins: String => Rt, e0: TermC, boundByCurrentLambda: Option[Set[Name]],
-              recursiveVars: Set[Name], currentRec: Option[(Name,Arity)],
-              isTail: Boolean): Rt = { val e = unbindRecursiveVars(e0, recursiveVars); e match {
-    case Num(n) => compileNum(n)
-    case Builtin(name) => builtins(name)
-    case Compiled(rt) => rt
-    case Var(name) => currentRec match {
-      case Some((n,_)) if n == name => compileRec(name)
-      // compile a variable as free if it's a recursive var OR
-      // we are inside a lambda and this var is bound outside this lambda
-      case _ =>
-        val compileAsFree = recursiveVars.contains(name) || boundByCurrentLambda.exists(vs => !vs.contains(name))
-        compileVar(name, e, compileAsFree)
+  def compile(builtins: String => Rt, e0: TermC, boundByCurrentLambda: Option[BoundByCurrentLambda],
+              recursiveVars: RecursiveVars, currentRec: CurrentRec,
+              isTail: Boolean): Rt = {
+    val e = e0 // unbindRecursiveVars(e0, recursiveVars)
+    e match {
+      case Num(n) => compileNum(n)
+      case Builtin(name) => builtins(name)
+      case Compiled(rt) => rt
+      case Var(name) =>
+        if (currentRec.contains(name))
+          compileRec(name)
+        else  {
+          // compile a variable as free if it's a recursive var OR
+          // we are inside a lambda and this var is bound outside this lambda
+          val compileAsFree = false // recursiveVars.contains(name) || boundByCurrentLambda.exists(vs => !vs.contains(name))
+          compileVar(name, e, compileAsFree)
+        }
+      case If0(cond,if0,ifNot0) =>
+        compileIf0(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(cond, if0, ifNot0)
+      case Lam(names, body) =>
+        compileLambda(builtins, e, boundByCurrentLambda, recursiveVars, currentRec)(names, body)
+      case LetRec(bindings, body) => bindings match {
+        case (name,f@Lam(vs,bodyf)) :: Nil =>
+          compileLetRec1(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(name,vs,f,bodyf,body)
+        case _ => compileLetRec(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(bindings, body)
+      }
+      case Let1(name, binding, body) => // `let name = binding; body`
+        compileLet1(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(name, binding, body)
+      case Apply(fn, args) =>
+        compileFunctionApplication(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(fn, args)
     }
-    case If0(cond,if0,ifNot0) =>
-      compileIf0(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(cond, if0, ifNot0)
-    case Lam(names, body) =>
-      compileLambda(builtins, e, boundByCurrentLambda, recursiveVars, currentRec)(names, body)
-    case LetRec(bindings, body) => bindings match {
-      case (name,f@Lam(vs,bodyf)) :: Nil =>
-        compileLetRec1(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(name,vs,f,bodyf,body)
-      case _ => compileLetRec(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(bindings, body)
-    }
-    case Let1(name, binding, body) => // `let name = binding; body`
-      compileLet1(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(name, binding, body)
-    case Apply(fn, args) =>
-      compileFunctionApplication(builtins, e, boundByCurrentLambda, recursiveVars, currentRec, isTail)(fn, args)
-  }}
+  }
 
   // thing we want to check for is whether the body of the function references
   // name in tail position, if so, we create a while loop
   def hasTailRecursiveCall(recName: Name, arity: Int, body: TermC): Boolean = false // todo
 
-  def compileNum(n: Double): Rt = new Arity0(Num(n)) {
-    override def isEvaluated = true
-    def apply(rec: Rt, r: R) = n // todo - need to null out r.boxed?
-    def bind(env: Map[Name,Rt]) = ()
+  def compileNum(n: Double): Rt = {
+    class CompiledNum extends Arity0(Num(n)) {
+      override def isEvaluated = true
+      def apply(rec: Rt, r: R) = { r.boxed = null; n }
+      def bind(env: Map[Name,Rt]) = ()
+    }
+    new CompiledNum
   }
-
   def compileFunctionApplication(
-    builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
-    recursiveVars: Set[Name], currentRec: Option[(Name,Arity)], isTail0: Boolean)(
+    builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[BoundByCurrentLambda],
+    recursiveVars: RecursiveVars, currentRec: CurrentRec, isTail0: Boolean)(
     fn: TermC, args: List[TermC]): Rt = {
 
     // don't bother with tail calls for builtins and nonrecursive calls
@@ -161,12 +201,13 @@ package object compilation extends LookupVar with CompileIf0 with CompileLet1 wi
     (fn, args) match {
       // Term can represent this call with no arguments, though the parser would never produce it.
       case (fn, List()) =>
-        compile(builtins, fn, boundByCurrentLambda, recursiveVars, currentRec, isTail)
+        // compile(builtins, fn, boundByCurrentLambda, recursiveVars, currentRec, isTail)
+        sys.error("the parser isn't supposed to produce this")
 
       // fully saturated call to the nearest enclosing recursive function
       // e.g. fac n = n * (fac (n-1))
       //                  ^^^^^^^^^^^
-      case (Var(v), args) if currentRec.contains((v, args.length)) =>
+      case (Var(v), args) if currentRec.contains(v, args.length) =>
         val compiledArgs = args.view.map(compile(builtins, _, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)).toArray
         compilation.StaticCall.staticRecCall(compiledArgs, unTermC(e), isTail)
 

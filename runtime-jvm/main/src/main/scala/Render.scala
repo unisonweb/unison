@@ -36,7 +36,7 @@ trait RenderInstances {
     case LetRec_(bindings, body) => s"let rec" + bindings.map(renderIndent[A]).mkString("\n", "\n", "\n") + "in\n" + renderIndent(body)
     case Let_(binding, body) => s"let ${R.render(binding)}\nin\n" + renderIndent(body)
     case Rec_(r) => "rec " + R.render(r)
-    case If0_(condition, ifZero, ifNonzero) => s"if $condition\nthen\n${renderIndent(ifZero)}\nelse\n${renderIndent(ifNonzero)}"
+    case If0_(condition, ifZero, ifNonzero) => s"ifZero $condition\nthen\n${renderIndent(ifZero)}\nelse\n${renderIndent(ifNonzero)}"
     case Compiled_(rt) => "Compiled {" + renderIndent(rt.decompile) + "}"
     case Yield_(effect) => "Yield(...)"
     case Handle_(handler, block) => "Handle(...)"
@@ -48,7 +48,7 @@ trait RenderInstances {
 
   implicit def abtRender[F[+_], R](implicit F: Functor[F], R: Render[R], R2: Render[F[String]]): Render[ABT[F,R]] = {
     case Var_(name) => name
-    case Abs_(name, body) => name + " =\n" + renderIndent(body)
+    case Abs_(name, body) => name + " ->\n" + renderIndent(body)
     case Tm_(f) => R2.render(F.map(f)(r => R.render(r)))
   }
 

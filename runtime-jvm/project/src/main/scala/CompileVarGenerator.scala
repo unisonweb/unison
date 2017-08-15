@@ -25,7 +25,7 @@ object CompileVarGenerator extends OneFileGenerator("CompileVar.scala") {
        |      // let rec ping x = pong (x + 1); pong x = ping (x + 1); ping
        |      def decompile = if (rt eq null) unTermC(e) else rt.decompile
        |    }
-       |    else env(e).indexOf(name) match {
+       |    else (env(e).indexOf(name): @annotation.switch) match {
        |      case -1 => sys.error("unknown variable: " + name)
        |      case i => lookupVar(i, name, unTermC(e))
        |    }

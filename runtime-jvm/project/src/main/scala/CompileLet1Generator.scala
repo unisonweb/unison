@@ -7,13 +7,12 @@ object CompileLet1Generator extends OneFileGenerator("CompileLet1.scala") {
        |import org.unisonweb.Term.Name
        |
        |trait CompileLet1 {
-       |  def compileLet1(builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[Set[Name]],
-       |    recursiveVars: Set[Name], currentRec: Option[(Name,Arity)], isTail: Boolean)(
+       |  def compileLet1(builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[BoundByCurrentLambda],
+       |    recursiveVars: RecursiveVars, currentRec: CurrentRec, isTail: Boolean)(
        |    name: Name, binding: TermC, body: TermC): Rt = {
        |    val compiledBinding = compile(builtins, binding, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
        |    val compiledBody =
-       |      compile(builtins, body, boundByCurrentLambda.map(_ + name), recursiveVars - name,
-       |        shadowRec(currentRec, name), isTail)
+       |      compile(builtins, body, boundByCurrentLambda.map(_ + name), recursiveVars - name, currentRec.shadow(name), isTail)
        |    val compiledBinding2 = compiledBinding
        |    val compiledBody2 = compiledBody
        |    trait LB { self: Rt =>
@@ -27,7 +26,7 @@ object CompileLet1Generator extends OneFileGenerator("CompileLet1.scala") {
               s"case $i => new Arity$i(e,()) with LB " + {
                 applySignature(i) + " =" <> {
                   if (i < N) "compiledBody(rec, " + eval(i, "compiledBinding") + ", r.boxed, " + xArgs(i) + commaIf(i) + "r)"
-                  else s"compiledBody(rec, Array(Slot(${eval(N, "compiledBinding")}, r.boxed), " + (0 until N).commas(slot) + "), r)"
+                  else s"compiledBody(rec, Array(Slot(${eval(N, "compiledBinding")}, r.boxed)" + commaIf(N) + (0 until N).commas(slot) + "), r)"
                 }.indent
               }.b
             }.indentBy(3) <>

@@ -9,24 +9,25 @@ object CompileLambdaGenerator extends OneFileGenerator("CompileLambda.scala") {
     "" <>
     "trait CompileLambda " + {
       "def compileLambda(" <>
-      "  builtins: String => Rt, e: TermC, boundByCurrentLambda0: Option[Set[Name]]," <>
-      "  recursiveVars0: Set[Name], currentRec0: Option[(Name,Arity)])(names: List[Name], body: TermC): Rt = " + {
-        "val boundByCurrentLambda = Some(names.toSet)" <>
-        "val recursiveVars = recursiveVars0 -- names" <>
-        "val currentRec = shadowsRec(currentRec0, names)" <>
-        "def makeCompiledBody = compile(builtins, body, boundByCurrentLambda, recursiveVars, currentRec, IsTail)" <>
+      "  builtins: String => Rt, e: TermC, boundByCurrentLambda0: Option[BoundByCurrentLambda]," <>
+      "  recursiveVars0: RecursiveVars, currentRec0: CurrentRec)(names: List[Name], body: TermC): Rt = " + {
+        "val boundByCurrentLambda = BoundByCurrentLambda(names.toSet)" <>
+        "val recursiveVars = recursiveVars0 -- names // parameter names shadow any external recursive vars" <>
+        "val currentRec = currentRec0.shadow(names) // parameter names shadow any enclosing recursive function" <>
+        "def makeCompiledBody = compile(builtins, body, Some(boundByCurrentLambda), recursiveVars, currentRec, IsTail)" <>
         "lazy val eUnC = unTermC(e)" <>
         "lazy val bodyUnC = unTermC(body)" <>
         "def makeLambda = names match " + {
-            "case name1 :: tl => tl match " + {
-              "case Nil => new Lambda1(name1, eUnC, makeCompiledBody)" <>
-              (2 to N).foldRight("case _ => new LambdaN(names.toArray, eUnC, bodyUnC, makeCompiledBody, builtins)") {
-                (i, rest) => s"case name$i :: tl => tl match " + {
-                  s"case Nil => new Lambda$i(" + (1 to i).commas("name" + _) + ", eUnC, bodyUnC, makeCompiledBody, builtins)" <>
-                    rest
-                }.b
-              }
-            }.b <>
+            (1 to N).foldRight("case _ :: _ => new LambdaN(names.toArray, eUnC, bodyUnC, makeCompiledBody, builtins)") {
+              case (1, rest) => "case name1 :: tl => tl match " + {
+                "case Nil => new Lambda1(name1, eUnC, makeCompiledBody)" <>
+                rest
+              }.b
+              case (i, rest) => s"case name$i :: tl => tl match " + {
+                s"case Nil => new Lambda$i(" + (1 to i).commas("name" + _) + ", eUnC, bodyUnC, makeCompiledBody, builtins)" <>
+                  rest
+              }.b
+            } <>
             "case Nil => sys.error(\"impossible, lambdas need parameters\")"
         }.b <>
         "" <>
@@ -35,19 +36,21 @@ object CompileLambdaGenerator extends OneFileGenerator("CompileLambda.scala") {
           "val locallyBound = freeVars(body).filter(v => !recursiveVars.contains(v))" <>
           "(arity(locallyBound, env(e)) : @annotation.switch) match " + {
             "case 0 => makeLambda" <>
-            "case 1 =>" <> {
-              "class Lambda_1 extends Arity1(e,()) with AccumulateBound " + {
-                "val v = locallyBound.toList.head" <>
-                "val compiledVar = lookupVar(0, v, Var(v))" <>
-                "def apply(rec: Rt, x1: D, x1b: Rt, r: R) = " + {
-                  "val lam = makeLambda" <>
-                  "lam.bind(bound + (v -> r.toRuntime(compiledVar(rec, x1, x1b, r))))" <>
-                  "r.boxed = lam" <>
-                  "0.0"
-                }.b
-              }.b <>
-              "new Lambda_1"
-            }.indent
+            (if (N >= 1)
+              "case 1 =>" <> {
+                "class Lambda_1 extends Arity1(e,()) with AccumulateBound " + {
+                  "val v = locallyBound.toList.head" <>
+                  "val compiledVar = lookupVar(0, v, Var(v))" <>
+                  "def apply(rec: Rt, x1: D, x1b: Rt, r: R) = " + {
+                    "val lam = makeLambda" <>
+                    "lam.bind(bound + (v -> r.toRuntime(compiledVar(rec, x1, x1b, r))))" <>
+                    "r.boxed = lam" <>
+                    "0.0"
+                  }.b
+                }.b <>
+                "new Lambda_1"
+              }
+            else "").indent <>
             (2 to N).each { i =>
               s"case $i =>" <> {
                 s"class Lambda_$i extends Arity$i(e,()) with AccumulateBound " + {

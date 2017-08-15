@@ -13,7 +13,7 @@ object ArityGenerator extends OneFileGenerator("Arity.scala") {
         "def this(t: TermC, dummy: Unit) = this(unTermC(t))" <>
           "def decompile = decompileIt" <>
           s"def arity: Int = $i" <>
-          (0 until i).each { j => s"${applySignature(j)} = ???"} <>
+          (0 until i).each { j => s"""${applySignature(j)} = throw new Exception("Expected $i args via stack, but given $j.")""" } <>
           "// " + applySignature(i) <>
           ((i+1) to N).each { j => s"${applySignature(j)} = " + tailEval(i, "apply") } <>
           "def apply(rec: Rt, xs: Array[Slot], r: R): D = " + tailEvalN(i, "apply")
@@ -23,7 +23,7 @@ object ArityGenerator extends OneFileGenerator("Arity.scala") {
       "def this(arity: Int, t: TermC, dummy: Unit) = this(arity, unTermC(t))" <>
       "def decompile = decompileIt" <>
       "" <>
-      (0 to N).each { j => s"${applySignature(j)} = ???"} <>
+      (0 to N).each { j => s"""${applySignature(j)} = throw new Exception("Expected ${N+1}+ args via stack, but given $j.")""" } <>
       "// def apply(rec: Rt, xs: Array[Slot], r: R): D"
     }.b
 }

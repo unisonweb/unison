@@ -195,11 +195,15 @@ object Term {
     }
   }
 
-  implicit def number(n: Double): Term = Num(n)
-
   implicit class ApplySyntax(val fn: Term) extends AnyVal {
     def apply(args: Term*) = Apply(fn, args: _*)
   }
 
+  implicit def number(n: Double): Term = Num(n)
+  implicit def number(n: Int): Term = Num(n)
   implicit def stringAsVar(s: Name): Term = Var(s)
+  implicit def symbolAsVar(s: Symbol): Term = Var(s.name)
+  implicit class symbolSyntax(s: Symbol) {
+    def v: Term = Var(s.name)
+  }
 }
