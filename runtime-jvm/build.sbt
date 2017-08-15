@@ -12,7 +12,8 @@ lazy val commonSettings = Seq(
   scalacOptions ++= Seq(
     "-feature",
     "-deprecation",
-    "-opt:l:classpath",
+    "-g:notailcalls",
+    "-opt:l:none",
     "-opt-warnings",
     "-language:implicitConversions",
     "-language:higherKinds",
@@ -115,21 +116,28 @@ lazy val main = project.in(file("main")).
   settings(sourceGenerators in Compile += Def.task {
     import org.unisonweb.codegeneration._
     val outPath = (sourceManaged in Compile).value / "org" / "unisonweb" / "compilation"
-    List[OneFileGenerator](
-      ArityGenerator,
-      LambdaGenerator,
-      CompileIf0Generator,
-      CompileLambdaGenerator,
-      CompileLet1Generator,
-      CompileLetRecGenerator,
-      CompileLetRec1Generator,
-      CompileVarGenerator,
-      LookupVarGenerator,
-      TailCallGenerator,
-      RuntimeGenerator,
-      StaticCallGenerator,
-      DynamicCallGenerator
-    ).map(_.apply(outPath)).map { case (file, content) => IO.write(file, content); file }
+    val v1: List[(File, String)] = List[OneFileGenerator](
+        ArityGenerator,
+        LambdaGenerator,
+        CompileIf0Generator,
+        CompileLambdaGenerator,
+        CompileLet1Generator,
+        CompileLetRecGenerator,
+        CompileLetRec1Generator,
+        CompileVarGenerator,
+        LookupVarGenerator,
+        TailCallGenerator,
+        RuntimeGenerator,
+        StaticCallGenerator,
+        DynamicCallGenerator
+      ).map(_.apply(outPath))
+
+    val v2_ : List[(File, String)] = List[OneFileGenerator](
+      v2.ComputationGenerator,
+      v2.ValueGenerator
+    ).map(_.apply(outPath / "v2"))
+
+    (v1 ++ v2_).map { case (file, content) => IO.write(file, content); file: File }
   }.taskValue)
 
 lazy val benchmark = project.in(file("benchmark")).
