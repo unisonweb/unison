@@ -16,9 +16,16 @@ object LetRecGenerator extends OneFileGenerator("CompileLetRec.scala") {
                    s"class LetRecS${i}A${j} extends Computation$i(e, ()) " + {
                      (1 to j).each { k => s"val b$k = bindings(${k-1})" } <>
                      applySignature(i) + " = " + {
-                       val bArgs = (j to 1 by -1).commas(l => s"0.0, b${l}r")
+                       val bArgs =
+                        if (i + j <= N)
+                          (j to 1 by -1).commas(l => s"0.0, b${l}r") + commaIf(i) +
+                          (0 until i).commas(l => s"x$l, x${l}b")
+                        else
+                          "Array(" +
+                            (j to 1 by -1).commas(l => s"Slot(0.0, b${l}r)") + commaIf(i) +
+                            (0 until i).commas(l => s"Slot(x$l, x${l}b)") +
+                          ")"
                        (1 to j).each { k => s"val b${k}r = Ref()" } <>
-                       // totally wrong - need to push bArgs onto existing stack, and deal with overflow
                        (1 to j).each { k => s"b${k}r.value = Value(b$k(rec, $bArgs, r), r.boxed)" } <>
                        s"body(rec, $bArgs, r)"
                      }.b
