@@ -1,6 +1,7 @@
 package org.unisonweb.compilation
 
-import org.unisonweb.Term.Name
+import org.unisonweb.{ABT, Term}
+import org.unisonweb.Term.{Name, Term}
 
 package v2 {
   case class Slot(unboxed: D, boxed: Value)
@@ -28,4 +29,33 @@ package object v2 {
     if (freeVars.isEmpty) 0
     else freeVars.view.map(fv => bound.indexOf(fv)).max + 1
 
+  def compile(builtins: String => Rt)(e: Term): Computation = {
+    compile(ABT.annotateBound(e), BoundByCurrentLambda(), CurrentRec(None), IsTail)
+    // todo: do something with builtins
+  }
+
+  def compile(e: TermC, boundByCurrentLambda: BoundByCurrentLambda, currentRec: CurrentRec, isTail: Boolean): Computation =
+    e match {
+      case Term.Num(n) => compileNum(n)
+      case Term.Builtin(name) => ???
+//      case Term.Compiled(_) => ???
+      case Term.Var(name) =>
+        if (currentRec.contains(name))
+          ??? // compileRec(name)
+        else ??? // compileVar(name, e)
+      case Term.If0(cond, if0, ifNot0) =>
+        ??? //compileIf0(e, boundByCurrentLambda, currentRec)(cond, if0, ifNot0)
+      case Term.Lam(names, body) =>
+        ??? //compileLambda(e, boundByCurrentLambda, currentRec)(names, body)
+      case Term.LetRec(bindings, body) => ???
+      case Term.Let1(name, binding, body) => ???
+      case Term.Apply(fn, args) => ???
+    }
+
+  def compileNum(d: Double) = {
+    class CompiledNum extends Computation0(Term.Num(d)) {
+      def apply(rec: Lambda, r: R) = d
+    }
+    new CompiledNum
+  }
 }

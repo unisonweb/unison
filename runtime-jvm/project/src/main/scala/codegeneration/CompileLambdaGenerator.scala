@@ -9,12 +9,12 @@ object CompileLambdaGenerator extends OneFileGenerator("CompileLambda.scala") {
     "" <>
     "trait CompileLambda " + {
       "def compileLambda(" <>
-      "  builtins: String => Rt, e: TermC, boundByCurrentLambda0: Option[BoundByCurrentLambda]," <>
+      "  builtins: String => Rt, e: TermC, boundByCurrentLambda0: BoundByCurrentLambda," <>
       "  recursiveVars0: RecursiveVars, currentRec0: CurrentRec)(names: List[Name], body: TermC): Rt = " + {
         "val boundByCurrentLambda = BoundByCurrentLambda(names.toSet)" <>
         "val recursiveVars = recursiveVars0 -- names // parameter names shadow any external recursive vars" <>
         "val currentRec = currentRec0.shadow(names) // parameter names shadow any enclosing recursive function" <>
-        "def makeCompiledBody = compile(builtins, body, Some(boundByCurrentLambda), recursiveVars, currentRec, IsTail)" <>
+        "def makeCompiledBody = compile(builtins, body, boundByCurrentLambda, recursiveVars, currentRec, IsTail)" <>
         "lazy val eUnC = unTermC(e)" <>
         "lazy val bodyUnC = unTermC(body)" <>
         "def makeLambda = names match " + {

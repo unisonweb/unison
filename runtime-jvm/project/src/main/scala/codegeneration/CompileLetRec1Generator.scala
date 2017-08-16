@@ -16,7 +16,7 @@ object CompileLetRec1Generator extends OneFileGenerator("CompileLetRec1.scala") 
        |      // bodyf: if n > 0 then fac (n-1) (n * acc) else 1; fac 3 1
        |      // body: fac 3 1
        |  def compileLetRec1(
-       |    builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[BoundByCurrentLambda],
+       |    builtins: String => Rt, e: TermC, boundByCurrentLambda: BoundByCurrentLambda,
        |    recursiveVars: RecursiveVars, currentRec: CurrentRec, isTail: Boolean)(
        |    name: Name, vs: List[Name], f: TermC, bodyf: TermC, body: TermC): Rt = {
        |

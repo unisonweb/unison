@@ -33,14 +33,14 @@ package compilation {
   }
 
   /** newtype */
-  case class BoundByCurrentLambda(get: Option[Set[Name]]) extends AnyVal {
+  case class BoundByCurrentLambda(get: Set[Name]) extends AnyVal {
     def apply(name: Name): Boolean = contains(name)
     def contains(name: Name): Boolean = get.exists(_.contains(name))
-    def +(name: Name): BoundByCurrentLambda = BoundByCurrentLambda(get.map(_ + name))
-    def ++(names: Seq[Name]): BoundByCurrentLambda = BoundByCurrentLambda(get.map(_ ++ names))
+    def +(name: Name): BoundByCurrentLambda = BoundByCurrentLambda(get + name)
+    def ++(names: Seq[Name]): BoundByCurrentLambda = BoundByCurrentLambda(get ++ names)
   }
   object BoundByCurrentLambda {
-    def apply(names: Set[Name]): BoundByCurrentLambda = BoundByCurrentLambda(Some(names))
+    def apply(names: Name*): BoundByCurrentLambda = BoundByCurrentLambda(Set(names: _*))
   }
 
   /** newtype */
@@ -119,7 +119,7 @@ package object compilation extends LookupVar with CompileIf0 with CompileLet1 wi
    */
   def compile(builtins: String => Rt)(e: Term): Rt = {
     val annE = ABT.annotateBound(e)
-    compile(builtins, annE, None, RecursiveVars(), CurrentRec(None), IsTail)
+    compile(builtins, annE, BoundByCurrentLambda(), RecursiveVars(), CurrentRec(None), IsTail)
   }
 
   /** Compile and evaluate a term, the return result back as a term. */
@@ -144,7 +144,7 @@ package object compilation extends LookupVar with CompileIf0 with CompileLet1 wi
 
   /** Actual compile implementation. */
   private[unisonweb]
-  def compile(builtins: String => Rt, e0: TermC, boundByCurrentLambda: Option[BoundByCurrentLambda],
+  def compile(builtins: String => Rt, e0: TermC, boundByCurrentLambda: BoundByCurrentLambda,
               recursiveVars: RecursiveVars, currentRec: CurrentRec,
               isTail: Boolean): Rt = {
     val e = e0 // unbindRecursiveVars(e0, recursiveVars)
@@ -190,7 +190,7 @@ package object compilation extends LookupVar with CompileIf0 with CompileLet1 wi
     new CompiledNum
   }
   def compileFunctionApplication(
-    builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[BoundByCurrentLambda],
+    builtins: String => Rt, e: TermC, boundByCurrentLambda: BoundByCurrentLambda,
     recursiveVars: RecursiveVars, currentRec: CurrentRec, isTail0: Boolean)(
     fn: TermC, args: List[TermC]): Rt = {
 

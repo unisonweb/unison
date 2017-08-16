@@ -24,6 +24,10 @@ object Fib extends App {
     }
   }
 
+  def mkBuiltin(name: Name, f: (Double, Double) => Double) = new Arity2(Builtin(name)) with NF {
+    def apply(rec: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = f(x1, x2)
+  }
+
   val N = 15.0
 
   val countFrom =

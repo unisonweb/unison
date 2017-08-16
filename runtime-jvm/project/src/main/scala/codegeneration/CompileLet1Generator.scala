@@ -7,12 +7,12 @@ object CompileLet1Generator extends OneFileGenerator("CompileLet1.scala") {
        |import org.unisonweb.Term.Name
        |
        |trait CompileLet1 {
-       |  def compileLet1(builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[BoundByCurrentLambda],
+       |  def compileLet1(builtins: String => Rt, e: TermC, boundByCurrentLambda: BoundByCurrentLambda,
        |    recursiveVars: RecursiveVars, currentRec: CurrentRec, isTail: Boolean)(
        |    name: Name, binding: TermC, body: TermC): Rt = {
        |    val compiledBinding = compile(builtins, binding, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)
        |    val compiledBody =
-       |      compile(builtins, body, boundByCurrentLambda.map(_ + name), recursiveVars - name, currentRec.shadow(name), isTail)
+       |      compile(builtins, body, boundByCurrentLambda + name, recursiveVars - name, currentRec.shadow(name), isTail)
        |    val compiledBinding2 = compiledBinding
        |    val compiledBody2 = compiledBody
        |    trait LB { self: Rt =>

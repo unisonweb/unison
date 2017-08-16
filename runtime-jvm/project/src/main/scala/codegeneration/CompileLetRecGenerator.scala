@@ -7,7 +7,7 @@ object CompileLetRecGenerator extends OneFileGenerator("CompileLetRec.scala") {
     "import org.unisonweb.Term.Name" <>
     "" <>
     "trait CompileLetRec " + {
-      "def compileLetRec(builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[BoundByCurrentLambda]," <>
+      "def compileLetRec(builtins: String => Rt, e: TermC, boundByCurrentLambda: BoundByCurrentLambda," <>
         "recursiveVars: RecursiveVars, currentRec: CurrentRec, isTail: Boolean".indent <>
         ")(bindings: List[(Name,TermC)], body: TermC): Rt = ??? /*".indent + {
           // ex:
@@ -22,7 +22,7 @@ object CompileLetRecGenerator extends OneFileGenerator("CompileLetRec.scala") {
           "val names: List[Name] = bindings.map(_._1)" <>
           "val recursiveVars2: RecursiveVars = recursiveVars ++ names" <>
           "// todo: when is boundByCurrentLambda ever None?" <>
-          "val boundByCurrentLambda2: Option[BoundByCurrentLambda] = boundByCurrentLambda.map(_ ++ names)" <>
+          "val boundByCurrentLambda2: BoundByCurrentLambda = boundByCurrentLambda ++ names" <>
           "val compiledBindings = bindings.view.map(_._2)" <>
             ".map(e => compile(builtins, e, boundByCurrentLambda2, recursiveVars, currentRec, IsNotTail))".indent <>
           "val compiledBody = compile(builtins, body, boundByCurrentLambda2, recursiveVars2, currentRec, isTail)" <>

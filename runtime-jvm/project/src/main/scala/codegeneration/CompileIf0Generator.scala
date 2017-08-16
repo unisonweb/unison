@@ -11,7 +11,7 @@ object CompileIf0Generator extends OneFileGenerator("CompileIf0.scala") {
    "" <>
    "trait CompileIf0 " + { """
     |  def compileIf0(
-    |      builtins: String => Rt, e: TermC, boundByCurrentLambda: Option[BoundByCurrentLambda],
+    |      builtins: String => Rt, e: TermC, boundByCurrentLambda: BoundByCurrentLambda,
     |      recursiveVars: RecursiveVars, currentRec: CurrentRec, isTail: Boolean)(
     |      cond: TermC, if0: TermC, ifNot0: TermC): Rt = """.stripMargin + {
         "val compiledCond = compilation.compile(builtins, cond, boundByCurrentLambda, recursiveVars, currentRec, IsNotTail)" <>
