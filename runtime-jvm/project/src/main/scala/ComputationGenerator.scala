@@ -6,14 +6,14 @@ object ComputationGenerator extends OneFileGenerator("Computation.scala") {
     "" <>
     "import org.unisonweb.Term.Term" <>
     "" <>
-    "abstract class Computation " + {
+    b("abstract class Computation") {
       "def stackSize: Int" <>
       (0 to maxInlineStack).each(applySignature) <>
       applyNSignature
-    }.b <>
+    } <>
     (0 to maxInlineStack).each { i =>
       s"/** A `Computation` with just one abstract `apply` function, which takes $i args. */" <>
-      s"abstract class Computation$i(decompileIt: => Term) extends Computation " + {
+      b(s"abstract class Computation$i(decompileIt: => Term) extends Computation") {
         "def this(t: TermC, dummy: Unit) = this(unTermC(t))" <>
           "def decompile = decompileIt" <>
           s"def stackSize: Int = $i" <>
@@ -21,13 +21,13 @@ object ComputationGenerator extends OneFileGenerator("Computation.scala") {
           "// " + applySignature(i) <>
           ((i+1) to maxInlineStack).each { j => s"${applySignature(j)} = " + tailEval(i, "apply") } <>
           applyNSignature + " = " + tailEvalN(i, "apply")
-      }.b <> ""
+      } <> ""
     } <>
-    "abstract class ComputationN(val stackSize: Int, decompileIt: => Term) extends Computation " + {
+    b("abstract class ComputationN(val stackSize: Int, decompileIt: => Term) extends Computation") {
       "def this(stackSize: Int, t: TermC, dummy: Unit) = this(stackSize, unTermC(t))" <>
       "def decompile = decompileIt" <>
       "" <>
       (0 to maxInlineStack).each { j => s"""${applySignature(j)} = throw new Exception("Expected ${maxInlineStack+1}+ stack elements, but given $j.")""" } <>
       "// " + applyNSignature
-    }.b
+    }
 }

@@ -3,7 +3,7 @@ package org.unisonweb
 import org.unisonweb.Term.{Name, Term}
 
 package compilation {
-  case class Slot(unboxed: D, boxed: Value)
+  case class Slot(var unboxed: D, var boxed: Value)
   case class Result(var boxed: Value)
 }
 

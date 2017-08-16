@@ -121,6 +121,7 @@ lazy val main = project.in(file("main")).
       ValueGenerator,
       LookupVarGenerator,
       LetRecGenerator,
+      FunctionApplicationGenerator,
       TailCallsGenerator
     ).map(_.apply(outPath))
 

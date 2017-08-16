@@ -5,11 +5,11 @@ object TailCallsGenerator extends OneFileGenerator("TailCalls.scala") {
   def source: String =
     "package org.unisonweb.compilation" <>
     "" <>
-    ("class TailCall(val fn: Lambda, "
+    b("class TailCall(val fn: Lambda, "
       + (0 until maxInlineTC).commas(i => s"val x$i: D, val x${i}b: Value")
-      + commaIf(maxInlineTC) + "val args: Array[Slot]) extends Throwable ") + {
+      + commaIf(maxInlineTC) + "val args: Array[Slot]) extends Throwable") {
       "override def fillInStackTrace = this"
-    }.b <>
+    } <>
     ("class SelfCall("
       + (0 until maxInlineTC).commas(i => s"x$i: D, x${i}b: Value")
       + commaIf(maxInlineTC)
@@ -18,7 +18,7 @@ object TailCallsGenerator extends OneFileGenerator("TailCalls.scala") {
       + commaIf(maxInlineTC)
       + " args)") <>
     "" <>
-    "trait TailCalls " + {
+    b("trait TailCalls") {
       (1 to maxInlineArgs).each { i =>
         "@inline def selfTailCall(" + (0 until i).commas(i => s"x$i: D, x${i}b: V") + commaIf(i) + "r: R): D =" <>
           (if (i < maxInlineTC)
@@ -51,12 +51,12 @@ object TailCallsGenerator extends OneFileGenerator("TailCalls.scala") {
           + ")"
           ).indent <>
       "" <>
-      "def loop(tc0: TailCall, r: R): D = " + {
+      bEq("def loop(tc0: TailCall, r: R): D") {
         "var tc = tc0" <>
-        "while (!(tc eq null)) " + {
+        b("while (!(tc eq null))") {
           "val fn = tc.fn" <>
-          "try " + {
-            "return (fn.arity: @annotation.switch) match " + {
+          b("try") {
+            "return " + switch("fn.arity") {
               (1 to maxInlineArgs).each {
                 case i if i <= 2 => s"case $i => fn(fn, " + (0 until i).commas(i => s"tc.x$i, tc.x${i}b") + ", r)"
                 case i => s"case $i => fn(fn, " +
@@ -69,11 +69,11 @@ object TailCallsGenerator extends OneFileGenerator("TailCalls.scala") {
                 else
                 "case n => fn(fn, tc.args, r)"
               )
-            }.b
-          }.b <>
+            }
+          } <>
           "catch { case tc2: TailCall => tc = tc2 }"
-        }.b <>
+        } <>
         "0.0"
-      }.b
-    }.b
+      }
+    }
 }
