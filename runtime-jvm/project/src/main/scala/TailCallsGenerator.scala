@@ -1,14 +1,13 @@
 package org.unisonweb.codegeneration
 
-object TailCallGenerator extends OneFileGenerator("TailCalls.scala") {
+object TailCallsGenerator extends OneFileGenerator("TailCalls.scala") {
 
   def source: String =
-
     "package org.unisonweb.compilation" <>
     "" <>
     "trait TailCalls " + {
       (1 to N).each { i =>
-        "@inline def selfTailCall(" + (0 until i).commas(i => s"x$i: D, x${i}b: Rt") + commaIf(i) + "r: R): D =" <>
+        "@inline def selfTailCall(" + (0 until i).commas(i => s"x$i: D, x${i}b: V") + commaIf(i) + "r: R): D =" <>
           (i match {
             case 1 => s"throw new SelfCall(${xArgs(1)}, 0.0, null, null)"
             case 2 => s"throw new SelfCall(${xArgs(2)}, null)"
@@ -20,14 +19,14 @@ object TailCallGenerator extends OneFileGenerator("TailCalls.scala") {
       |""".stripMargin <>
       //
       (1 to N).each { i =>
-        "@inline def tailCall(fn: Rt, " + (0 until i).commas(i => s"x$i: D, x${i}b: Rt") + commaIf(i) + "r: R): D =" <>
+        "@inline def tailCall(fn: Lambda, " + (0 until i).commas(i => s"x$i: D, x${i}b: V") + commaIf(i) + "r: R): D =" <>
           (i match {
             case 1 => s"throw new TailCall(fn, ${xArgs(1)}, 0.0, null, null)"
             case 2 => s"throw new TailCall(fn, ${xArgs(2)}, null)"
             case j => s"throw new TailCall(fn, ${xArgs(2)}, Array(" + (2 until j).commas(slot) + "))"
           }).indent
       } <>
-    """@inline def tailCall(fn: Rt, args: Array[Slot], r: R): D =
+    """@inline def tailCall(fn: Lambda, args: Array[Slot], r: R): D =
       |  throw new TailCall(fn, args(0).unboxed, args(0).boxed, args(1).unboxed, args(1).boxed, args.drop(2))
       |""".stripMargin <>
       //
@@ -52,7 +51,4 @@ object TailCallGenerator extends OneFileGenerator("TailCalls.scala") {
         |}
         |""".stripMargin
     }.b
-
-
-
 }

@@ -1,10 +1,8 @@
 package org.unisonweb.codegeneration
-package v2
 
 object ComputationGenerator extends OneFileGenerator("Computation.scala") {
   def source =
     "package org.unisonweb.compilation" <>
-    "package v2" <>
     "" <>
     "import org.unisonweb.Term.Term" <>
     "" <>

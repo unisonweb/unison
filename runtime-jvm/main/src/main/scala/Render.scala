@@ -37,7 +37,7 @@ trait RenderInstances {
     case Let_(binding, body) => s"let ${R.render(binding)}\nin\n" + renderIndent(body)
     case Rec_(r) => "rec " + R.render(r)
     case If0_(condition, ifZero, ifNonzero) => s"ifZero $condition\nthen\n${renderIndent(ifZero)}\nelse\n${renderIndent(ifNonzero)}"
-    case Compiled_(rt) => "Compiled {" + renderIndent(rt.decompile) + "}"
+    case Compiled_(v) => "Compiled {...}"// + renderIndent(rt.decompile) + "}"
     case Yield_(effect) => "Yield(...)"
     case Handle_(handler, block) => "Handle(...)"
   }

@@ -1,8 +1,8 @@
 package org.unisonweb
 
 import org.unisonweb.util.Traverse
-import org.unisonweb.compilation.Runtime
 import ABT.{Tm,Abs,AnnotatedTerm}
+import compilation.Value
 
 object Term {
 
@@ -34,7 +34,7 @@ object Term {
     case class Let_[R](binding: R, body: R) extends F[R]
     case class Rec_[R](r: R) extends F[R]
     case class If0_[R](condition: R, ifZero: R, ifNonzero: R) extends F[R]
-    case class Compiled_(runtime: Runtime) extends F[Nothing]
+    case class Compiled_(value: Value) extends F[Nothing]
     // yield : f a -> a|f
     case class Yield_[R](effect: R) extends F[R]
     // handle : (forall x . f x -> (x -> y|f+g) -> y|f+g) -> a|f+g -> a|g
@@ -187,10 +187,10 @@ object Term {
     }
   }
   object Compiled {
-    def apply(rt: Runtime): Term =
-      Tm(Compiled_(rt))
-    def unapply[A](t: AnnotatedTerm[F,A]): Option[Runtime] = t match {
-      case Tm(Compiled_(rt)) => Some(rt)
+    def apply(v: Value): Term =
+      Tm(Compiled_(v))
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[Value] = t match {
+      case Tm(Compiled_(v)) => Some(v)
       case _ => None
     }
   }

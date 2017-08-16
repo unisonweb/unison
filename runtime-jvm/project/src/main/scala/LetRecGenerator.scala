@@ -1,10 +1,8 @@
 package org.unisonweb.codegeneration
-package v2
 
 object LetRecGenerator extends OneFileGenerator("CompileLetRec.scala") {
   def source =
     "package org.unisonweb.compilation" <>
-    "package v2" <>
     "" <>
     "trait CompileLetRec " + {
       "def compileLetRec(e: TermC, bindings: Array[Computation], body: Computation): Computation = " + {
@@ -26,7 +24,7 @@ object LetRecGenerator extends OneFileGenerator("CompileLetRec.scala") {
                             (0 until i).commas(l => s"Slot(x$l, x${l}b)") +
                           ")"
                        "val " + (1 to j).commas { k => s"b${k}r" } + " = Ref()" <>
-                       (1 to j).each { k => s"b${k}r.value = Value(b$k(rec, $bArgs, r), r.boxed)" } <>
+                       (1 to j).each { k => s"b${k}r.value = Value(" + catchTC(s"b$k(rec, $bArgs, r)") + ", r.boxed)" } <>
                        s"body(rec, $bArgs, r)"
                      }.b
                    }.b <>
@@ -41,7 +39,7 @@ object LetRecGenerator extends OneFileGenerator("CompileLetRec.scala") {
                      "val slots = refs.view.map(r => Slot(0.0, r)).reverse.toArray ++ xs" <>
                      "var i = 0" <>
                      "while (i < bindings.length)" + {
-                       "refs(i).value = Value(bindings(i)(rec, slots, r), r.boxed)" <>
+                       "refs(i).value = Value(" + catchTC("bindings(i)(rec, slots, r)") + ", r.boxed)" <>
                        "i += 1"
                      }.b <>
                      "body(rec, slots, r)"
@@ -58,7 +56,7 @@ object LetRecGenerator extends OneFileGenerator("CompileLetRec.scala") {
                  "val slots = refs.view.map(r => Slot(0.0, r)).reverse.toArray ++ xs" <>
                  "var i = 0" <>
                  "while (i < bindings.length)" + {
-                   "refs(i).value = Value(bindings(i)(rec, slots, r), r.boxed)" <>
+                   "refs(i).value = Value(" + catchTC("bindings(i)(rec, slots, r)") + ", r.boxed)" <>
                    "i += 1"
                  }.b <>
                  "body(rec, slots, r)"

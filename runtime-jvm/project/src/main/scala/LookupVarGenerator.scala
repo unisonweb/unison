@@ -1,12 +1,10 @@
 package org.unisonweb.codegeneration
-package v2
 
 object LookupVarGenerator extends OneFileGenerator("LookupVar.scala") {
   def source: String =
     "package org.unisonweb.compilation" <>
-    "package v2"
     "" <>
-    "import org.unisonweb.Term.{Name, Term}" <>
+    "import org.unisonweb.Term.Term" <>
     "" <>
     "trait LookupVar " + {
       "def lookupVar(i: Int, e: Term): Computation = (i: @annotation.switch) match " + {
