@@ -5,11 +5,6 @@ import org.unisonweb.Term.{Name, Term}
 package compilation {
   case class Slot(unboxed: D, boxed: Value)
   case class Result(var boxed: Value)
-
-  class TailCall(val fn: Lambda, val x1: D, val x1b: Value, val x2: D, val x2b: Value, val args: Array[Slot]) extends Throwable {
-    override def fillInStackTrace = this
-  }
-  class SelfCall(x1: D, x1b: Value, x2: D, x2b: Value, args: Array[Slot]) extends TailCall(null,x1,x1b,x2,x2b,args)
 }
 
 package object compilation extends TailCalls with CompileLetRec with LookupVar {

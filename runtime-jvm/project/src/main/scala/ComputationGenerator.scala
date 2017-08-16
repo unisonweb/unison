@@ -8,18 +8,18 @@ object ComputationGenerator extends OneFileGenerator("Computation.scala") {
     "" <>
     "abstract class Computation " + {
       "def stackSize: Int" <>
-      (0 to N).each(applySignature) <>
+      (0 to maxInlineStack).each(applySignature) <>
       applyNSignature
     }.b <>
-    (0 to N).each { i =>
+    (0 to maxInlineStack).each { i =>
       s"/** A `Computation` with just one abstract `apply` function, which takes $i args. */" <>
       s"abstract class Computation$i(decompileIt: => Term) extends Computation " + {
         "def this(t: TermC, dummy: Unit) = this(unTermC(t))" <>
           "def decompile = decompileIt" <>
           s"def stackSize: Int = $i" <>
-          (0 until i).each { j => s"""${applySignature(j)} = throw new Exception("Expected $i args via stack, but given $j.")""" } <>
+          (0 until i).each { j => s"""${applySignature(j)} = throw new Exception("Expected $i stack elements, but given $j.")""" } <>
           "// " + applySignature(i) <>
-          ((i+1) to N).each { j => s"${applySignature(j)} = " + tailEval(i, "apply") } <>
+          ((i+1) to maxInlineStack).each { j => s"${applySignature(j)} = " + tailEval(i, "apply") } <>
           applyNSignature + " = " + tailEvalN(i, "apply")
       }.b <> ""
     } <>
@@ -27,7 +27,7 @@ object ComputationGenerator extends OneFileGenerator("Computation.scala") {
       "def this(stackSize: Int, t: TermC, dummy: Unit) = this(stackSize, unTermC(t))" <>
       "def decompile = decompileIt" <>
       "" <>
-      (0 to N).each { j => s"""${applySignature(j)} = throw new Exception("Expected ${N+1}+ args via stack, but given $j.")""" } <>
+      (0 to maxInlineStack).each { j => s"""${applySignature(j)} = throw new Exception("Expected ${maxInlineStack+1}+ stack elements, but given $j.")""" } <>
       "// " + applyNSignature
     }.b
 }

@@ -8,7 +8,7 @@ object LookupVarGenerator extends OneFileGenerator("LookupVar.scala") {
     "" <>
     "trait LookupVar " + {
       "def lookupVar(i: Int, e: Term): Computation = (i: @annotation.switch) match " + {
-        (0 until N).each { i =>
+        (0 until maxInlineStack).each { i =>
           s"case $i => new Computation${i+1}(e) " + {
             s"override ${applySignature(i+1)} = " + {
               s"if (x${i}b eq null) x$i" <>

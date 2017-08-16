@@ -11,7 +11,7 @@ object ValueGenerator extends OneFileGenerator("Value.scala") {
     "abstract class Lambda extends Value " + {
       "def arity: Int" <>
       "def apply(r: R) = { r.boxed = this; 0.0 }" <>
-      (0 to N).each(applySignature) <>
+      (0 to maxInlineArgs).each(applySignature) <>
         applyNSignature
     }.b <>
     "case class Ref(var value: Value = null) extends Value " + {

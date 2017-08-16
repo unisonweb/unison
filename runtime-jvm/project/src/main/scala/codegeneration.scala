@@ -1,7 +1,9 @@
 package org.unisonweb
 
 package object codegeneration {
-  val maxInlineArity = 4
+  val maxInlineStack = 4
+  val maxInlineArgs = 3
+  val maxInlineTC = 2
 
   def applySignature(i: Int): String =
     "def apply(rec: Lambda, " + (0 until i).commas(i => s"x$i: D, x${i}b: V") + commaIf(i) + "r: R): D"
