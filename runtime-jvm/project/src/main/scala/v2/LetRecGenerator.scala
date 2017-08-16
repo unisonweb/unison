@@ -69,18 +69,4 @@ object LetRecGenerator extends OneFileGenerator("CompileLetRec.scala") {
         }.b
       }.b
     }.b
-
-  //def letrec2(e: TermC, b1: Computation, b2: Computation, body: Computation): Computation =
-  //  stackSize(e) match {
-  //    case 0 => new Computation0(unTermC(e)) {
-  //      override def apply(rec: Lambda, r: R): D = {
-  //        val b1r = Ref()
-  //        val b2r = Ref()
-  //        b1r.value = Value(b1(rec, 0.0, b2r, 0.0, b1r, r), r.boxed)
-  //        b2r.value = Value(b2(rec, 0.0, b2r, 0.0, b1r, r), r.boxed)
-  //        body(rec, 0.0, b2r, 0.0, b1r, r)
-  //      }
-  //    }
-  //  }
-
 }
