@@ -25,7 +25,7 @@ object LetRecGenerator extends OneFileGenerator("CompileLetRec.scala") {
                             (j to 1 by -1).commas(l => s"Slot(0.0, b${l}r)") + commaIf(i) +
                             (0 until i).commas(l => s"Slot(x$l, x${l}b)") +
                           ")"
-                       (1 to j).each { k => s"val b${k}r = Ref()" } <>
+                       "val " + (1 to j).commas { k => s"b${k}r" } + " = Ref()" <>
                        (1 to j).each { k => s"b${k}r.value = Value(b$k(rec, $bArgs, r), r.boxed)" } <>
                        s"body(rec, $bArgs, r)"
                      }.b
@@ -36,7 +36,7 @@ object LetRecGenerator extends OneFileGenerator("CompileLetRec.scala") {
                "case n => " <> {
                  s"class LetRecS${i}AN extends Computation$i(e, ()) " + {
                    applySignature(i) + " = " + {
-                     "val refs = bindings.map(_ => Ref())" <>
+                     "val refs = Array.fill(bindings.length)(Ref())" <>
                      "val xs = Array[Slot](" + (0 until i).commas(k => s"Slot(x$k,x${k}b)") + ")" <>
                      "val slots = refs.view.map(r => Slot(0.0, r)).reverse.toArray ++ xs" <>
                      "var i = 0" <>
@@ -54,7 +54,7 @@ object LetRecGenerator extends OneFileGenerator("CompileLetRec.scala") {
            "case n => " <> {
              s"class LetRecSNAN extends ComputationN(n, e, ()) " + {
                applyNSignature + " = " + {
-                 "val refs = bindings.map(_ => Ref())" <>
+                 "val refs = Array.fill(bindings.length)(Ref())" <>
                  "val slots = refs.view.map(r => Slot(0.0, r)).reverse.toArray ++ xs" <>
                  "var i = 0" <>
                  "while (i < bindings.length)" + {
