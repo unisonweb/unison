@@ -34,15 +34,38 @@ object LetRecGenerator extends OneFileGenerator("CompileLetRec.scala") {
                  }.indent
                } <>
                "case n => " <> {
-                 s"class LetRecS${i}AN extends ComputationN($i, e, ()) " + {
-                   applyNSignature + " = " + {
-                     "???"
+                 s"class LetRecS${i}AN extends Computation$i(e, ()) " + {
+                   applySignature(i) + " = " + {
+                     "val refs = bindings.map(_ => Ref())" <>
+                     "val xs = Array[Slot](" + (0 until i).commas(k => s"Slot(x$k,x${k}b)") + ")" <>
+                     "val slots = refs.view.map(r => Slot(0.0, r)).reverse.toArray ++ xs" <>
+                     "var i = 0" <>
+                     "while (i < bindings.length)" + {
+                       "refs(i).value = Value(bindings(i)(rec, slots, r), r.boxed)" <>
+                       "i += 1"
+                     }.b <>
+                     "body(rec, slots, r)"
                    }.b
                  }.b <>
                  s"new LetRecS${i}AN"
                }.indent
              }.b
-           }
+           } <>
+           "case n => " <> {
+             s"class LetRecSNAN extends ComputationN(n, e, ()) " + {
+               applyNSignature + " = " + {
+                 "val refs = bindings.map(_ => Ref())" <>
+                 "val slots = refs.view.map(r => Slot(0.0, r)).reverse.toArray ++ xs" <>
+                 "var i = 0" <>
+                 "while (i < bindings.length)" + {
+                   "refs(i).value = Value(bindings(i)(rec, slots, r), r.boxed)" <>
+                   "i += 1"
+                 }.b <>
+                 "body(rec, slots, r)"
+               }.b
+             }.b <>
+             "new LetRecSNAN"
+           }.indent
         }.b
       }.b
     }.b
