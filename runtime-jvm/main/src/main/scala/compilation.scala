@@ -7,7 +7,7 @@ package compilation {
   case class Result(var boxed: Value)
 }
 
-package object compilation extends TailCalls with CompileLetRec with LookupVar {
+package object compilation extends TailCalls with CompileLetRec with LookupVar with FunctionApplication with CompileIf0 {
   type D = Double
   type V = Value
   type R = Result

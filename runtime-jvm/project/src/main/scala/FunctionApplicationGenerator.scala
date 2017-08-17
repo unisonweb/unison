@@ -62,7 +62,7 @@ object FunctionApplicationGenerator extends OneFileGenerator("FunctionApplicatio
       "val stackSize = args.map(_.stackSize).max" <>
       switch("stackSize") {
           (0 to maxInlineStack).each { stackSize =>
-            `case`(stackSize) {
+            `case`(s"/* stackSize = */ $stackSize") {
               switch("args.length") {
                 (1 to maxInlineArgs).each { argCount =>
                   `case`(argCount) {
@@ -102,7 +102,7 @@ object FunctionApplicationGenerator extends OneFileGenerator("FunctionApplicatio
           `case`("stackSize") {
             switch("args.length") {
               (1 to maxInlineArgs).each { argCount =>
-                `case`(argCount) {
+                `case`(s"/* argCount = */ $argCount") {
                   (0 until argCount).each { i => s"val arg$i = args($i)" } <>
                   b(s"class ${classPrefix}SNA$argCount extends ComputationN(stackSize, decompile)") {
                     bEq(applyNSignature) {
@@ -142,34 +142,34 @@ object FunctionApplicationGenerator extends OneFileGenerator("FunctionApplicatio
     bEq(s"def dynamic${emptyOrNon}TailCall(fn: Computation, args: Array[Computation], decompile: Term): Computation") {
       "val stackSize = args.map(_.stackSize).max" <>
       switch("stackSize") {
-        (0 to maxInlineStack).each { i =>
-          `case`(i) {
+        (0 to maxInlineStack).each { stackSize =>
+          `case`(s"/* stackSize = */ $stackSize") {
             switch("args.length") {
-              (1 to maxInlineArgs).each { j =>
-                `case`(j) {
-                  val className = s"${emptyOrNon}TailCallS${i}A${j}"
-                  b(s"class $className extends Computation$i(decompile)") {
-                    (0 until j).each(j => s"val arg$j = args($j)") <>
-                    bEq(applySignature(i)) {
-                      s"val lambda = ${evalBoxed(i, "fn")}.asInstanceOf[Lambda]" <>
-                      (0 until j).each { j => s"val arg${j}r = " + eval(i, s"arg$j") + s"; val arg${j}rb = r.boxed" } <>
+              (1 to maxInlineArgs).each { argCount =>
+                `case`(s"/* argCount = */ $argCount") {
+                  val className = s"${emptyOrNon}TailCallS${stackSize}A${argCount}"
+                  b(s"class $className extends Computation$stackSize(decompile)") {
+                    (0 until argCount).each(j => s"val arg$j = args($j)") <>
+                    bEq(applySignature(stackSize)) {
+                      s"val lambda = ${evalBoxed(stackSize, "fn")}.asInstanceOf[Lambda]" <>
+                      (0 until argCount).each { j => s"val arg${j}r = " + eval(stackSize, s"arg$j") + s"; val arg${j}rb = r.boxed" } <>
                       (if (!isTail)
-                        s"lambda(lambda, " + (j-1 to 0 by -1).commas(j => s"arg${j}r, arg${j}rb") + commaIf(j) + "r)"
-                      else "tailCall(lambda, " + (j-1 to 0 by -1).commas(j => s"arg${j}r, arg${j}rb") + commaIf(j) + "r)")
+                        s"lambda(lambda, " + (argCount-1 to 0 by -1).commas(j => s"arg${j}r, arg${j}rb") + commaIf(argCount) + "r)"
+                      else "tailCall(lambda, " + (argCount-1 to 0 by -1).commas(j => s"arg${j}r, arg${j}rb") + commaIf(argCount) + "r)")
                     }
                   } <>
                   s"new $className"
                 }
               } <>
               `case`("argCount") {
-                val className = s"${emptyOrNon}TailCallS${i}AN"
-                b(s"class $className extends Computation$i(decompile)") {
-                  bEq(applySignature(i)) {
+                val className = s"${emptyOrNon}TailCallS${stackSize}AN"
+                b(s"class $className extends Computation$stackSize(decompile)") {
+                  bEq(applySignature(stackSize)) {
                     "val argsr = new Array[Slot](argCount)" <>
-                    s"val lambda = ${evalBoxed(i, "fn")}.asInstanceOf[Lambda]" <>
+                    s"val lambda = ${evalBoxed(stackSize, "fn")}.asInstanceOf[Lambda]" <>
                     "var k = 0" <>
                     b("while (k < argCount)") {
-                      "argsr(argCount - 1 - k) = new Slot(" + eval(i, "args(k)") + ", r.boxed)" <>
+                      "argsr(argCount - 1 - k) = new Slot(" + eval(stackSize, "args(k)") + ", r.boxed)" <>
                       "k += 1"
                     } <>
                     (if (!isTail) "lambda(lambda, argsr, r)"
@@ -183,16 +183,16 @@ object FunctionApplicationGenerator extends OneFileGenerator("FunctionApplicatio
         } <>
         `case`("stackSize") {
           switch("args.length") {
-            (1 to maxInlineArgs).each { j =>
-              `case`(j) {
-                val className = s"${emptyOrNon}TailCallSNA$j"
+            (1 to maxInlineArgs).each { argCount =>
+              `case`(s"/* argCount = */ $argCount") {
+                val className = s"${emptyOrNon}TailCallSNA$argCount"
                 b(s"class $className extends ComputationN(stackSize, decompile)") {
-                  (0 until j).each(j => s"val arg$j = args($j)") <>
+                  (0 until argCount).each(j => s"val arg$j = args($j)") <>
                   bEq(applyNSignature) {
                     s"val lambda = ${evalNBoxed("fn")}.asInstanceOf[Lambda]" <>
-                    (0 until j).each( j => s"val arg${j}r = " + evalN(s"arg$j") + s"; val arg${j}rb = r.boxed" ) <>
-                    (if (!isTail) s"lambda(lambda, " + ((j-1) to 0 by -1).commas(j => s"arg${j}r, arg${j}rb") + commaIf(j) + "r)"
-                    else s"tailCall(lambda, " + ((j-1) to 0 by -1).commas(j => s"arg${j}r, arg${j}rb") + commaIf(j) + "r)")
+                    (0 until argCount).each( j => s"val arg${j}r = " + evalN(s"arg$j") + s"; val arg${j}rb = r.boxed" ) <>
+                    (if (!isTail) s"lambda(lambda, " + ((argCount-1) to 0 by -1).commas(j => s"arg${j}r, arg${j}rb") + commaIf(argCount) + "r)"
+                    else s"tailCall(lambda, " + ((argCount-1) to 0 by -1).commas(j => s"arg${j}r, arg${j}rb") + commaIf(argCount) + "r)")
                   }
                 } <>
                 s"new $className"

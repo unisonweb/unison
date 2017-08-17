@@ -8,10 +8,10 @@ object LetRecGenerator extends OneFileGenerator("CompileLetRec.scala") {
       bEq("def compileLetRec(e: TermC, bindings: Array[Computation], body: Computation): Computation") {
         switch("stackSize(e)") {
            (0 to maxInlineStack).each { stackSize =>
-             `case`(stackSize) {
+             `case`(s"/* stackSize = */ $stackSize") {
                switch("bindings.length") {
                  (1 to maxInlineArgs).each { argCount =>
-                   `case`(argCount) {
+                   `case`(s"/* argCount = */ $argCount") {
                      b(s"class LetRecS${stackSize}A${argCount} extends Computation$stackSize(e, ())") {
                        (1 to argCount).each { k => s"val b$k = bindings(${k-1})" } <>
                        bEq(applySignature(stackSize)) {
@@ -32,7 +32,7 @@ object LetRecGenerator extends OneFileGenerator("CompileLetRec.scala") {
                      s"new LetRecS${stackSize}A${argCount}"
                    }
                  } <>
-                 `case`("m") {
+                 `case`("/* argCount = */ m") {
                    b(s"class LetRecS${stackSize}AM extends Computation$stackSize(e, ())") {
                      bEq(applySignature(stackSize)) {
                        "val refs = Array.fill(m)(Ref())" <>
@@ -51,7 +51,7 @@ object LetRecGenerator extends OneFileGenerator("CompileLetRec.scala") {
                }
              }
            } <>
-           `case`("n") {
+           `case`("/* stackSize = */ n") {
              b(s"class LetRecSN extends ComputationN(n, e, ())") {
                bEq(applyNSignature) {
                  "val refs = Array.fill(bindings.length)(Ref())" <>

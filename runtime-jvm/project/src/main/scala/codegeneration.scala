@@ -2,7 +2,7 @@ package org.unisonweb
 
 package object codegeneration {
   // JVM max is <256 args per java method
-  val maxInlineStack = 8
+  val maxInlineStack = 4
   val maxInlineArgs = 4
   val maxInlineTC = 2
 
@@ -37,7 +37,11 @@ package object codegeneration {
 
   // tailEvalN(2, "foo") = "foo(rec, xs(0).unboxed, xs(0).boxed, xs(1).unboxed, xs(1).boxed, r)"
   def tailEvalN(i: Int, expr: String): String =
-   expr + "(rec, "+xsArgs(i)+commaIf(i)+ "r)"
+    expr + "(rec, "+xsArgs(i)+commaIf(i)+ "r)"
+
+  /* tailEvalN("foo") = "foo(rec, xs, r)" */
+  def tailEvalN(expr: String): String =
+    expr + "(rec, xs, r)"
 
   def catchTC(expr: String) =
     s"try { $expr } catch { case e: TC => loop(e,r) }"
