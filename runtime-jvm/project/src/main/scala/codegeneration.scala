@@ -1,8 +1,9 @@
 package org.unisonweb
 
 package object codegeneration {
-  val maxInlineStack = 4
-  val maxInlineArgs = 3
+  // JVM max is <256 args per java method
+  val maxInlineStack = 8
+  val maxInlineArgs = 4
   val maxInlineTC = 2
 
   def applySignature(i: Int): String =
@@ -40,6 +41,12 @@ package object codegeneration {
 
   def catchTC(expr: String) =
     s"try { $expr } catch { case e: TC => loop(e,r) }"
+
+  def evalBoxed(i: Int, expr: String) =
+    "{ " + eval(i, expr) + "; r.boxed }"
+
+  def evalNBoxed(expr: String) =
+    "{ " + evalN(expr) + "; r.boxed }"
 
   def eval(i: Int, expr: String) = catchTC(tailEval(i, expr))
 

@@ -17,36 +17,40 @@ object FunctionApplicationGenerator extends OneFileGenerator("FunctionApplicatio
         "else staticRecNonTail(args, decompile)"
       } <>
       "" <>
-      make("staticNonTail",
+      bEqExpr("def dynamicCall(fn: Lambda, args: Array[Computation], decompile: Term, isTail: Boolean): Computation") {
+        "if (isTail) dynamicTailCall(fn, args, decompile)" <>
+        "else dynamicNonTailCall(fn, args, decompile)"
+      }
+
+      "" <> sourceStatic("staticNonTail",
         classPrefix = "StaticNonTail",
         declArgsPrefix = Some("fn: Lambda"),
         evalFn = "fn",
         evalArgsPrefix = Some("fn")
       ) <>
-      "" <>
-      make("staticTailCall",
+      "" <> sourceStatic("staticTailCall",
         classPrefix = "StaticTailCall",
         declArgsPrefix = Some("fn: Lambda"),
         evalFn = "tailCall",
         evalArgsPrefix = Some("fn")
       ) <>
-      "" <>
-      make("staticRecNonTail",
+      "" <> sourceStatic("staticRecNonTail",
         classPrefix = "StaticRecNonTail",
         declArgsPrefix = None,
         evalFn = "rec",
         evalArgsPrefix = Some("rec")
       ) <>
-      "" <>
-      make("staticRecTailCall",
+      "" <> sourceStatic("staticRecTailCall",
         classPrefix = "StaticRecTailCall",
         declArgsPrefix = None,
         evalFn = "selfTailCall",
         evalArgsPrefix = None
-      )
+      ) <>
+      "" <> sourceDynamic(isTail = false) <>
+      "" <> sourceDynamic(isTail = true)
     }
 
-  def make(defName: String, classPrefix: String, declArgsPrefix: Option[String], evalFn: String, evalArgsPrefix: Option[String]) = {
+  def sourceStatic(defName: String, classPrefix: String, declArgsPrefix: Option[String], evalFn: String, evalArgsPrefix: Option[String]) = {
     val evalArgsPrefixStr = evalArgsPrefix.map(_ + ", ").getOrElse("")
     def eEvalArgs(argCount: Int) =
       evalArgsPrefixStr + (argCount - 1 to 0 by -1).commas(i => s"e${i}, e${i}b") + commaIf(argCount) + "r"
@@ -100,15 +104,15 @@ object FunctionApplicationGenerator extends OneFileGenerator("FunctionApplicatio
               (1 to maxInlineArgs).each { argCount =>
                 `case`(argCount) {
                   (0 until argCount).each { i => s"val arg$i = args($i)" } <>
-                    b(s"class ${classPrefix}SNA$argCount extends ComputationN(stackSize, decompile)") {
-                      bEq(applyNSignature) {
-                        (0 until argCount).each { i =>
-                          s"val e$i = " + catchTC(s"arg$i(rec, xs, r)") + s"; val e${i}b = r.boxed"
-                        } <>
-                        s"$evalFn(${eEvalArgs(argCount)})"
-                      }
-                    } <>
-                    s"new ${classPrefix}SNA$argCount"
+                  b(s"class ${classPrefix}SNA$argCount extends ComputationN(stackSize, decompile)") {
+                    bEq(applyNSignature) {
+                      (0 until argCount).each { i =>
+                        s"val e$i = " + catchTC(s"arg$i(rec, xs, r)") + s"; val e${i}b = r.boxed"
+                      } <>
+                      s"$evalFn(${eEvalArgs(argCount)})"
+                    }
+                  } <>
+                  s"new ${classPrefix}SNA$argCount"
                 }
               } <>
               `case`("argCount") {
@@ -130,6 +134,90 @@ object FunctionApplicationGenerator extends OneFileGenerator("FunctionApplicatio
             }
           }
         }
+    }
+  }
+
+  def sourceDynamic(isTail: Boolean): String = {
+    val emptyOrNon = if (isTail) "" else "Non"
+    bEq(s"def dynamic${emptyOrNon}TailCall(fn: Computation, args: Array[Computation], decompile: Term): Computation") {
+      "val stackSize = args.map(_.stackSize).max" <>
+      switch("stackSize") {
+        (0 to maxInlineStack).each { i =>
+          `case`(i) {
+            switch("args.length") {
+              (1 to maxInlineArgs).each { j =>
+                `case`(j) {
+                  val className = s"${emptyOrNon}TailCallS${i}A${j}"
+                  b(s"class $className extends Computation$i(decompile)") {
+                    (0 until j).each(j => s"val arg$j = args($j)") <>
+                    bEq(applySignature(i)) {
+                      s"val lambda = ${evalBoxed(i, "fn")}.asInstanceOf[Lambda]" <>
+                      (0 until j).each { j => s"val arg${j}r = " + eval(i, s"arg$j") + s"; val arg${j}rb = r.boxed" } <>
+                      (if (!isTail)
+                        s"lambda(lambda, " + (j-1 to 0 by -1).commas(j => s"arg${j}r, arg${j}rb") + commaIf(j) + "r)"
+                      else "tailCall(lambda, " + (j-1 to 0 by -1).commas(j => s"arg${j}r, arg${j}rb") + commaIf(j) + "r)")
+                    }
+                  } <>
+                  s"new $className"
+                }
+              } <>
+              `case`("argCount") {
+                val className = s"${emptyOrNon}TailCallS${i}AN"
+                b(s"class $className extends Computation$i(decompile)") {
+                  bEq(applySignature(i)) {
+                    "val argsr = new Array[Slot](argCount)" <>
+                    s"val lambda = ${evalBoxed(i, "fn")}.asInstanceOf[Lambda]" <>
+                    "var k = 0" <>
+                    b("while (k < argCount)") {
+                      "argsr(argCount - 1 - k) = new Slot(" + eval(i, "args(k)") + ", r.boxed)" <>
+                      "k += 1"
+                    } <>
+                    (if (!isTail) "lambda(lambda, argsr, r)"
+                    else "tailCall(lambda, argsr, r)")
+                  }
+                } <>
+                s"new $className"
+              }
+            }
+          }
+        } <>
+        `case`("stackSize") {
+          switch("args.length") {
+            (1 to maxInlineArgs).each { j =>
+              `case`(j) {
+                val className = s"${emptyOrNon}TailCallSNA$j"
+                b(s"class $className extends ComputationN(stackSize, decompile)") {
+                  (0 until j).each(j => s"val arg$j = args($j)") <>
+                  bEq(applyNSignature) {
+                    s"val lambda = ${evalNBoxed("fn")}.asInstanceOf[Lambda]" <>
+                    (0 until j).each( j => s"val arg${j}r = " + evalN(s"arg$j") + s"; val arg${j}rb = r.boxed" ) <>
+                    (if (!isTail) s"lambda(lambda, " + ((j-1) to 0 by -1).commas(j => s"arg${j}r, arg${j}rb") + commaIf(j) + "r)"
+                    else s"tailCall(lambda, " + ((j-1) to 0 by -1).commas(j => s"arg${j}r, arg${j}rb") + commaIf(j) + "r)")
+                  }
+                } <>
+                s"new $className"
+              }
+            } <>
+            `case`("argCount") {
+              val className = s"${emptyOrNon}TailCallSNAM"
+              b(s"class $className extends ComputationN(argCount, decompile)") {
+                bEq(applyNSignature) {
+                  "val argsr = new Array[Slot](argCount)" <>
+                  s"val lambda = ${evalNBoxed("fn")}.asInstanceOf[Lambda]" <>
+                  "var k = 0" <>
+                  b("while (k < argCount)") {
+                    "argsr(argCount - 1 - k) = new Slot(" + evalN("args(k)") + ", r.boxed)" <>
+                    "k += 1"
+                  } <>
+                  (if (!isTail) "lambda(lambda, argsr, r)"
+                  else "tailCall(lambda, argsr, r)")
+                }
+              } <>
+              s"new $className"
+            }
+          }
+        }
+      }
     }
   }
 }
