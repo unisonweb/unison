@@ -72,6 +72,7 @@ package object codegeneration {
     def bracedBy(by: Int) = "{" <> s.indentBy(by + 1) <> "}".indentBy(by) // K&R FTW
     def b = s.bracedBy(0)
     def <>(s2: String) = s + "\n" + s2
+    def <<>>(s2: String) = s + "\n\n" + s2
     def nl(s2: String) = s <> s2
   }
 

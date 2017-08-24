@@ -120,10 +120,11 @@ lazy val main = project.in(file("main")).
       ComputationGenerator,
       ValueGenerator,
       LookupVarGenerator,
-      LetRecGenerator,
+      CompileLet1Generator,
+      CompileLetRecGenerator,
       FunctionApplicationGenerator,
       TailCallsGenerator,
-      If0Generator
+      CompileIf0Generator
     ).map(_.apply(outPath))
 
     gens.map { case (file, content) => IO.write(file, content); file: File }

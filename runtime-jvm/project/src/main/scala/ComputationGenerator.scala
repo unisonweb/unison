@@ -11,6 +11,11 @@ object ComputationGenerator extends OneFileGenerator("Computation.scala") {
       (0 to maxInlineStack).each(applySignature) <>
       applyNSignature
     } <>
+    "" <>
+    b("case class Return(value: Value)(decompileIt: => Term) extends Computation0(decompileIt)") {
+      s"${applySignature(0)} = value(r)"
+    } <>
+    "" <>
     (0 to maxInlineStack).each { i =>
       s"/** A `Computation` with just one abstract `apply` function, which takes $i args. */" <>
       b(s"abstract class Computation$i(decompileIt: => Term) extends Computation") {

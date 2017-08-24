@@ -23,6 +23,9 @@ target
 # Stack
 .stack-work
 
+# IntelliJ
+.idea
+
 # Misc
 *~
 .DS_Store

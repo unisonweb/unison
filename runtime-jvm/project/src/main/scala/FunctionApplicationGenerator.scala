@@ -17,11 +17,10 @@ object FunctionApplicationGenerator extends OneFileGenerator("FunctionApplicatio
         "else staticRecNonTail(args, decompile)"
       } <>
       "" <>
-      bEqExpr("def dynamicCall(fn: Lambda, args: Array[Computation], decompile: Term, isTail: Boolean): Computation") {
+      bEqExpr("def dynamicCall(fn: Computation, args: Array[Computation], decompile: Term, isTail: Boolean): Computation") {
         "if (isTail) dynamicTailCall(fn, args, decompile)" <>
         "else dynamicNonTailCall(fn, args, decompile)"
-      }
-
+      } <>
       "" <> sourceStatic("staticNonTail",
         classPrefix = "StaticNonTail",
         declArgsPrefix = Some("fn: Lambda"),

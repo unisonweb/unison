@@ -1,6 +1,6 @@
 package org.unisonweb.codegeneration
 
-object LetRecGenerator extends OneFileGenerator("CompileLetRec.scala") {
+object CompileLetRecGenerator extends OneFileGenerator("CompileLetRec.scala") {
   def source =
     "package org.unisonweb.compilation" <>
     "" <>
@@ -47,7 +47,7 @@ object LetRecGenerator extends OneFileGenerator("CompileLetRec.scala") {
                      }
                    } <>
                      s"new LetRecS${stackSize}AM"
-                 }.indent
+                 }
                }
              }
            } <>
