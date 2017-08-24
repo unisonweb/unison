@@ -64,26 +64,28 @@ package object compilation extends TailCalls with CompileLet1 with CompileLetRec
     compile(builtins, ABT.annotateBound(e), CurrentRec(None), IsTail)
     // todo: do something with builtins
   }
-  def compile(builtins: String => Value, e: TermC, currentRec: CurrentRec, isTail: Boolean): Computation = {
-    @inline def compile1(isTail: Boolean)(e: TermC): Computation = compile(builtins, e, currentRec, isTail)
-    e match {
+  def compile(builtins: String => Value, termC: TermC, currentRec: CurrentRec, isTail: Boolean): Computation = {
+    @inline def compile1(isTail: Boolean)(termC: TermC): Computation = compile(builtins, termC, currentRec, isTail)
+    @inline def term = unTermC(termC)
+
+    termC match {
       case Term.Num(n) => compileNum(n)
-      case Term.Builtin(name) => ???
+      case Term.Builtin(name) => Return(builtins(name))(term)
       case Term.Compiled(c) => ??? // c
       case Term.Var(name) =>
         if (currentRec.contains(name))
           compileRecVar(name)
         else
-          env(e).indexOf(name) match {
+          env(termC).indexOf(name) match {
             case -1 => sys.error("unknown variable: " + name)
-            case i => lookupVar(i, unTermC(e))
+            case i => lookupVar(i, term)
           }
       case Term.If0(cond, if0, ifNot0) =>
         val compiledCond = compile1(IsNotTail)(cond)
         val compiledIf0 = compile1(isTail)(if0)
         val compiledIfNot0 = compile1(isTail)(ifNot0)
 
-        compileIf0(compiledCond, compiledIf0, compiledIfNot0, unTermC(e))
+        compileIf0(compiledCond, compiledIf0, compiledIfNot0, term)
 
       case Term.Lam(names, body) =>
         // codegen Lambda1, Lambda2, ... Lambda<max-arity> will extend Lambda
@@ -105,16 +107,17 @@ package object compilation extends TailCalls with CompileLet1 with CompileLetRec
         val compiledBindings = bindings.view.map(_._2).map(compile1(IsNotTail)).toArray
         val compiledBody = compile1(isTail)(body)
 
-        compileLetRec(e, compiledBindings, compiledBody)
+        compileLetRec(termC, compiledBindings, compiledBody)
 
       case Term.Let1(name, binding, body) =>
         val compiledBinding = compile1(IsNotTail)(binding)
         val compiledBody = compile1(isTail)(body)
 
-        compileLet1(compiledBinding, compiledBody, unTermC(e))
+        compileLet1(compiledBinding, compiledBody, term)
 
       case Term.Apply(fn, args) =>
         //todo think through conditions to safely elide tailcall
+
         (fn, args) match {
           // Term can represent this call with no arguments, though the parser would never produce it.
           case (fn, List()) =>
@@ -125,7 +128,7 @@ package object compilation extends TailCalls with CompileLet1 with CompileLetRec
           //                  ^^^^^^^^^^^
           case (Term.Var(v), args) if currentRec.contains(v, args.length) =>
             val compiledArgs = args.view.map(compile1(IsNotTail)).toArray
-            compilation.staticRecCall(compiledArgs, unTermC(e), isTail)
+            compilation.staticRecCall(compiledArgs, term, isTail)
 
           // todo: what if it's an overapplication / underapplication of nearest enclosing recursive function; becomes dynamic application?
 
@@ -138,8 +141,8 @@ package object compilation extends TailCalls with CompileLet1 with CompileLetRec
             val compiledArgs = args.view.map(compile1(IsNotTail)).toArray
             compile1(IsNotTail)(fn) match {
               // if cast fails, then it's a type error: applying arguments to non-Lambda value
-              case Return(fn) => staticCall(fn.asInstanceOf[Lambda], compiledArgs, unTermC(e), isTail)
-              case compiledDynamic => dynamicCall(compiledDynamic, compiledArgs, unTermC(e), isTail)
+              case Return(fn) => staticCall(fn.asInstanceOf[Lambda], compiledArgs, term, isTail)
+              case compiledDynamic => dynamicCall(compiledDynamic, compiledArgs, term, isTail)
             }
         }
     }
