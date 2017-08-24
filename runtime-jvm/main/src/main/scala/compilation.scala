@@ -66,6 +66,7 @@ package object compilation extends TailCalls with CompileLet1 with CompileLetRec
   }
   def compile(builtins: String => Value, termC: TermC, currentRec: CurrentRec, isTail: Boolean): Computation = {
     @inline def compile1(isTail: Boolean)(termC: TermC): Computation = compile(builtins, termC, currentRec, isTail)
+    @inline def compile2(isTail: Boolean, currentRec: CurrentRec)(termC: TermC): Computation = compile(builtins, termC, currentRec, isTail)
     @inline def term = unTermC(termC)
 
     termC match {
@@ -94,6 +95,9 @@ package object compilation extends TailCalls with CompileLet1 with CompileLetRec
         // is to handle under-application, because under-application would substitute away the
         // bound variables, and then recompile
         // question - can we just
+
+        val compiledBody = compile2(isTail, currentRec.shadow(names))(body)
+
         ??? // compileLambda(e, boundByCurrentLambda, currentRec)(names, body)
         // old code starts out like this:
         // if (freeVars(e).isEmpty) makeLambda
@@ -104,14 +108,16 @@ package object compilation extends TailCalls with CompileLet1 with CompileLetRec
 
         // Lamdba3 (not Lambda_3) ctor receives (argName1: Name, argName2: Name, argName3: Name, e: => Term, body: => Term, compiledBody: Rt, builtins: String => Rt)
       case Term.LetRec(bindings, body) =>
-        val compiledBindings = bindings.view.map(_._2).map(compile1(IsNotTail)).toArray
-        val compiledBody = compile1(isTail)(body)
+        val shadowCurrentRec = currentRec.shadow(bindings.map(_._1))
+        val compiledBindings = bindings.view.map(_._2).map(compile2(IsNotTail, shadowCurrentRec)).toArray
+        val compiledBody = compile2(isTail, shadowCurrentRec)(body)
 
         compileLetRec(termC, compiledBindings, compiledBody)
 
       case Term.Let1(name, binding, body) =>
-        val compiledBinding = compile1(IsNotTail)(binding)
-        val compiledBody = compile1(isTail)(body)
+        val shadowCurrentRec = currentRec.shadow(name)
+        val compiledBinding = compile2(IsNotTail, shadowCurrentRec)(binding)
+        val compiledBody = compile2(isTail, shadowCurrentRec)(body)
 
         compileLet1(compiledBinding, compiledBody, term)
 
@@ -161,6 +167,4 @@ package object compilation extends TailCalls with CompileLet1 with CompileLetRec
     }
     new RecursiveReference
   }
-
-
 }
