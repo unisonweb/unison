@@ -1,6 +1,6 @@
 package org.unisonweb.codegeneration
 
-object CompileLet1Generator extends OneFileGenerator("CompiletLet1.scala") {
+object CompileLet1Generator extends OneFileGenerator("CompileLet1.scala") {
   def source: String =
     "package org.unisonweb.compilation" <>
     "" <>

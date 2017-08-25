@@ -122,7 +122,7 @@ lazy val main = project.in(file("main")).
       LookupVarGenerator,
       CompileLet1Generator,
       CompileLetRecGenerator,
-      FunctionApplicationGenerator,
+      CompileFunctionApplicationGenerator,
       TailCallsGenerator,
       CompileIf0Generator
     ).map(_.apply(outPath))

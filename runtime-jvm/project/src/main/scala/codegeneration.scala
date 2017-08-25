@@ -24,8 +24,12 @@ package object codegeneration {
   def commaIf(i: Int) = if (i > 0) ", " else ""
   /** I get this wrong every time and want to fix it once and for all. */
   def switch(s: String)(body: String) = s"($s: @annotation.switch) match " + body.b
+  def match1(s: String)(body: String) = s"$s match { $body }"
+  def `match`(s: String)(body: String) = s"$s match " + body.b
   def `case`(expr: String)(body: String): String = s"case $expr =>" <> body.indent <> ""
   def `case`(i: Int)(body: String): String = s"case $i =>" <> body.indent <> ""
+  def caseInline(i: Int)(body: String): String = s"case $i => $body"
+  def caseInline(expr: String)(body: String): String = s"case $expr => $body"
   def b(s: String)(body: String) = s + " " + body.b
   def bEq(s: String)(body: String) = s + " = " + body.b
   def bEqExpr(s: String)(expr: String) = s + " =" <> expr.indent
@@ -79,7 +83,7 @@ package object codegeneration {
   def slot(i: Int) = s"Slot(x$i, x${i}b)"
 
   def xArgs(count: Int): String = xArgs(0, count)
-  private def xArgs(start: Int, count: Int): String =
+  def xArgs(start: Int, count: Int): String =
    (start until (start+count)).commas(i => s"x$i, x${i}b")
   def xsArgs(count: Int): String = xsArgs(0, count)
   private def xsArgs(start: Int, count: Int): String =

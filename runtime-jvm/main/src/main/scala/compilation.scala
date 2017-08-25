@@ -21,7 +21,7 @@ package compilation {
 
 }
 
-package object compilation extends TailCalls with CompileLet1 with CompileLetRec with LookupVar with FunctionApplication with CompileIf0 {
+package object compilation extends TailCalls with CompileLet1 with CompileLetRec with LookupVar with CompileFunctionApplication with CompileIf0 {
   type D = Double
   type V = Value
   type R = Result
@@ -72,7 +72,7 @@ package object compilation extends TailCalls with CompileLet1 with CompileLetRec
     termC match {
       case Term.Num(n) => compileNum(n)
       case Term.Builtin(name) => Return(builtins(name))(term)
-      case Term.Compiled(c) => ??? // c
+      case Term.Compiled(c) => Return(c)(term) // todo: can we do a better job tracking the uncompiled form?
       case Term.Var(name) =>
         if (currentRec.contains(name))
           compileRecVar(name)
@@ -98,6 +98,15 @@ package object compilation extends TailCalls with CompileLet1 with CompileLetRec
 
         val compiledBody = compile2(isTail, currentRec.shadow(names))(body)
 
+        // todo: handle free vars
+        // grab all the free variables referenced by the body of the lambda (not bound by the lambda itself)
+        // get them off the stack when you build the lambda
+        //  (compile/get all those `Var`s)
+        //  take those Values,
+            // decompile them,
+            // substitute them into the body of the lambda, being careful about name clashes
+            // now the lambda has no more free variables; good to compile with happy path
+
         ??? // compileLambda(e, boundByCurrentLambda, currentRec)(names, body)
         // old code starts out like this:
         // if (freeVars(e).isEmpty) makeLambda
@@ -115,9 +124,8 @@ package object compilation extends TailCalls with CompileLet1 with CompileLetRec
         compileLetRec(termC, compiledBindings, compiledBody)
 
       case Term.Let1(name, binding, body) =>
-        val shadowCurrentRec = currentRec.shadow(name)
-        val compiledBinding = compile2(IsNotTail, shadowCurrentRec)(binding)
-        val compiledBody = compile2(isTail, shadowCurrentRec)(body)
+        val compiledBinding = compile2(IsNotTail, currentRec)(binding)
+        val compiledBody = compile2(isTail, currentRec.shadow(name))(body)
 
         compileLet1(compiledBinding, compiledBody, term)
 
@@ -136,13 +144,14 @@ package object compilation extends TailCalls with CompileLet1 with CompileLetRec
             val compiledArgs = args.view.map(compile1(IsNotTail)).toArray
             compilation.staticRecCall(compiledArgs, term, isTail)
 
-          // todo: what if it's an overapplication / underapplication of nearest enclosing recursive function; becomes dynamic application?
 
           case _ =>
             /* Two cases to consider:
               1. static call, eg `id 42`
               2. dynamic call, eg `(f x -> f x) id 42`
                                            ^^^ is a dynamic application
+              todo: may want to break out a self-call that isn't fully saturated; special case of dynamicCall
+                    could conceivably be done more efficiently
              */
             val compiledArgs = args.view.map(compile1(IsNotTail)).toArray
             compile1(IsNotTail)(fn) match {

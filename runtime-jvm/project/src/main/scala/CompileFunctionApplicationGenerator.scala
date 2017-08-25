@@ -1,12 +1,12 @@
 package org.unisonweb.codegeneration
 
-object FunctionApplicationGenerator extends OneFileGenerator("FunctionApplication.scala") {
+object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunctionApplication.scala") {
   def source =
     "package org.unisonweb.compilation" <>
     "" <>
     "import org.unisonweb.Term.Term" <>
     "" <>
-    b("trait FunctionApplication") {
+    b("trait CompileFunctionApplication") {
       bEqExpr("def staticCall(fn: Lambda, args: Array[Computation], decompile: Term, isTail: Boolean): Computation") {
         "if (isTail) staticTailCall(fn, args, decompile)" <>
         "else staticNonTail(fn, args, decompile)"
