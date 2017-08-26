@@ -15,7 +15,7 @@ package compilation {
     def shadow(names: Seq[Name]): CurrentRec = CurrentRec(get.filterNot(names contains _._1))
   }
   object CurrentRec {
-    def empty = CurrentRec(None)
+    def none = CurrentRec(None)
     def apply(name: Name, arity: Arity): CurrentRec = CurrentRec(Some((name,arity)))
   }
 
@@ -62,7 +62,7 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
     else freeVars.view.map(fv => bound.indexOf(fv)).max + 1
 
   def compile(builtins: String => Computation)(e: Term): Computation =
-    compile(builtins, ABT.annotateBound(e), CurrentRec(None), IsTail)
+    compile(builtins, ABT.annotateBound(e), CurrentRec.none, IsTail)
 
   def compile(builtins: String => Computation, termC: TermC, currentRec: CurrentRec, isTail: IsTail): Computation = {
     @inline def compile1(isTail: IsTail)(termC: TermC): Computation = compile(builtins, termC, currentRec, isTail)
