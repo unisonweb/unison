@@ -28,7 +28,7 @@ object Term {
 
     case class Lam_[R](body: R) extends F[R]
     case class Builtin_(name: String) extends F[Nothing]
-    case class Apply_[R](f: R, args: List[R]) extends F[R]
+    case class Apply_[R](fn: R, args: List[R]) extends F[R]
     case class Num_(value: Double) extends F[Nothing]
     case class LetRec_[R](bindings: List[R], body: R) extends F[R]
     case class Let_[R](binding: R, body: R) extends F[R]

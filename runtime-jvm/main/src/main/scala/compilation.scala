@@ -100,7 +100,12 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
 
       case Term.LetRec(bindings, body) =>
         val shadowCurrentRec = currentRec.shadow(bindings.map(_._1))
-        val compiledBindings = bindings.view.map(_._2).map(compile2(IsNotTail, shadowCurrentRec)).toArray
+        val compiledBindings: Array[Computation] = bindings.view.map {
+          case (name, l@Term.Lam(args, body)) => // possibly self-recursive
+            compile2(IsNotTail, CurrentRec(name, args.length))(l)
+          case (_, bindingTermC) => // not a lambda, shouldn't contain recursive call
+            compile2(IsNotTail, shadowCurrentRec)(bindingTermC) // todo should these both replace currentRec?
+        }.toArray
         val compiledBody = compile2(isTail, shadowCurrentRec)(body)
 
         compileLetRec(termC, compiledBindings, compiledBody)
@@ -138,7 +143,7 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
             val compiledArgs = args.view.map(compile1(IsNotTail)).toArray
             compile1(IsNotTail)(fn) match {
               // if cast fails, then it's a type error: applying arguments to non-Lambda value
-              case Return(fn) => staticCall(fn.asInstanceOf[Lambda], compiledArgs, term, isTail)
+              case Return(fn: Lambda) => staticCall(fn, compiledArgs, term, isTail)
               case compiledDynamic => dynamicCall(compiledDynamic, compiledArgs, term, isTail)
             }
         }

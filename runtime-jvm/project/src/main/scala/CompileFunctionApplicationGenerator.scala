@@ -59,6 +59,7 @@ object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunc
 
     bEq(s"def $defName(" + declArgsPrefix.map(_ + ", ").getOrElse("") + "args: Array[Computation], decompile: Term): Computation") {
       "val stackSize = args.map(_.stackSize).max" <>
+      "assert(stackSize == org.unisonweb.compilation.stackSize(org.unisonweb.ABT.annotateBound(decompile)))" <>
       switch("stackSize") {
           (0 to maxInlineStack).each { stackSize =>
             `case`(s"/* stackSize = */ $stackSize") {
@@ -139,7 +140,8 @@ object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunc
   def sourceDynamic(isTail: Boolean): String = {
     val emptyOrNon = if (isTail) "" else "Non"
     bEq(s"def dynamic${emptyOrNon}TailCall(fn: Computation, args: Array[Computation], decompile: Term): Computation") {
-      "val stackSize = args.map(_.stackSize).max" <>
+      "val stackSize = fn.stackSize max args.map(_.stackSize).max" <>
+      "// todo assert(stackSize == org.unisonweb.compilation.stackSize(org.unisonweb.ABT.annotateBound(decompile)))" <>
       switch("stackSize") {
         (0 to maxInlineStack).each { stackSize =>
           `case`(s"/* stackSize = */ $stackSize") {

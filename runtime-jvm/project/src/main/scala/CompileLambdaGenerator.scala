@@ -48,10 +48,14 @@ object CompileLambdaGenerator extends OneFileGenerator("CompileLambda.scala") {
                 val className = s"BindLambdaS${stackSize}"
                 b(s"class $className extends Computation${stackSize}(e,())") {
                   bEq(applySignature(stackSize)) {
-                    "val compiledVars: Map[Name, Term] =" <>
-                      s"fv.map { name => name -> Term.Compiled(Value(${
-                        eval(stackSize, "compileVar(currentRec, name, e)")
-                      }, r.boxed)) }.toMap".indent <<>>
+                    "val compiledVars: Map[Name, Term] = " + b("fv.map") {
+                      `case`("name") {
+                        "val compiledVar = compileVar(currentRec, name, e)" <>
+                        "val evaluatedVar = " + eval(stackSize, "compiledVar") <>
+                        "val value = Value(evaluatedVar, r.boxed)" <>
+                        "(name, Term.Compiled(value))"
+                      }
+                    } + ".toMap" <<>>
                     "val body2 = ABT.substs(compiledVars)(bodyUnC)" <>
                     "val compiledBody2 = compile(shadowedRec)(body2)" <>
                     "val lam2 = Term.Lam(names: _*)(body2)" <>

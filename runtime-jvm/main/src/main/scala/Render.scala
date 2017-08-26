@@ -33,9 +33,9 @@ trait RenderInstances {
     case f@Builtin_(name) => name
     case Apply_(f, args) => args.map(R.render).mkString(s"($f ", " ", ")")
     case Num_(value) => value.toString
-    case LetRec_(bindings, body) => s"let rec" + bindings.map(renderIndent[A]).mkString("\n", "\n", "\n") + "in\n" + renderIndent(body)
+    case LetRec_(bindings, body) => s"letrec" + bindings.map(renderIndent[A]).mkString("\n", "\n", "\n") + "in\n" + renderIndent(body)
     case Let_(binding, body) => s"let ${R.render(binding)}\nin\n" + renderIndent(body)
-    case Rec_(r) => "rec " + R.render(r)
+    case Rec_(r) => "rec\n" + renderIndent(r)
     case If0_(condition, ifZero, ifNonzero) => s"ifZero $condition\nthen\n${renderIndent(ifZero)}\nelse\n${renderIndent(ifNonzero)}"
     case Compiled_(v) => "Compiled {" + renderIndent(v.decompile) + "}"
     case Yield_(effect) => "Yield(...)"

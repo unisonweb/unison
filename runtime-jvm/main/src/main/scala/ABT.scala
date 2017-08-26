@@ -34,7 +34,8 @@ object ABT {
       case Tm(f) => AnnotatedTerm(self.annotation -> env, Tm_(F.map(f)(go(_,env))))
       case Abs(name, body) => AnnotatedTerm(self.annotation -> env, Abs_(name, go(body, name +: env)))
     }
-    go(self, Vector())
+    val result = go(self, Vector())
+    result
   }
 
   def rename[F[+_]](from: Name, to: Name)(self: Term[F])(implicit F: Traverse[F]): Term[F] =

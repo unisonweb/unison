@@ -37,9 +37,12 @@ object Fib extends App {
   val N = 15.0
 
   val countFrom =
-    LetRec("countFrom" -> Lam("n")(
-      If0('n, 0.0, 'countFrom.v('n.v - 1.0))
-    ))('countFrom.v(3.0))
+    LetRec(
+      "foo" -> Num(99),
+      "countFrom" -> Lam("n")(
+        If0('n, 50, 'countFrom.v('n.v - 1.0))
+      ),
+    )('countFrom.v(3.0))
 
   val fib =
     LetRec(
