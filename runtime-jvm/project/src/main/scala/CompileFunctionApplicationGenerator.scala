@@ -7,17 +7,17 @@ object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunc
     "import org.unisonweb.Term.Term" <>
     "" <>
     b("trait CompileFunctionApplication") {
-      bEqExpr("def staticCall(fn: Lambda, args: Array[Computation], decompile: Term, isTail: Boolean): Computation") {
+      indentEqExpr("def staticCall(fn: Lambda, args: Array[Computation], decompile: Term, isTail: IsTail): Computation") {
         "if (isTail) staticTailCall(fn, args, decompile)" <>
         "else staticNonTail(fn, args, decompile)"
       } <>
       "" <>
-      bEqExpr("def staticRecCall(args: Array[Computation], decompile: Term, isTail: Boolean): Computation") {
+      indentEqExpr("def staticRecCall(args: Array[Computation], decompile: Term, isTail: IsTail): Computation") {
         "if (isTail) staticRecTailCall(args, decompile)" <>
         "else staticRecNonTail(args, decompile)"
       } <>
       "" <>
-      bEqExpr("def dynamicCall(fn: Computation, args: Array[Computation], decompile: Term, isTail: Boolean): Computation") {
+      indentEqExpr("def dynamicCall(fn: Computation, args: Array[Computation], decompile: Term, isTail: IsTail): Computation") {
         "if (isTail) dynamicTailCall(fn, args, decompile)" <>
         "else dynamicNonTailCall(fn, args, decompile)"
       } <>

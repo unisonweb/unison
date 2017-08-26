@@ -4,16 +4,13 @@ object CompileIf0Generator extends OneFileGenerator("CompileIf0.scala") {
   def source: String =
     "package org.unisonweb.compilation" <>
       "" <>
-      "import org.unisonweb.Term.Term" <>
-      "" <>
       b("trait CompileIf0") {
-        bEq("def compileIf0(cond: Computation, if0: Computation, ifNot0: Computation, term: Term)") {
-          "val stackSize = cond.stackSize max if0.stackSize max ifNot0.stackSize" <>
-          switch("stackSize") {
+        bEq("def compileIf0(e: TermC, cond: Computation, if0: Computation, ifNot0: Computation)") {
+          switch("stackSize(e)") {
             (0 to maxInlineStack).each { stackSize =>
               `case`(s"/* stackSize = */ $stackSize") {
-                b(s"class If0S$stackSize extends Computation$stackSize(term)") {
-                  bEqExpr(applySignature(stackSize)) {
+                b(s"class If0S$stackSize extends Computation$stackSize(e,())") {
+                  indentEqExpr(applySignature(stackSize)) {
                     "if ((" + eval(stackSize, "cond") + ") == 0.0)" <>
                       tailEval(stackSize, "if0").indent <>
                     "else " <>
@@ -24,8 +21,8 @@ object CompileIf0Generator extends OneFileGenerator("CompileIf0.scala") {
               }
             } <>
             `case`("stackSize") {
-              b("class If0SN extends ComputationN(stackSize, term)") {
-                bEqExpr(applyNSignature) {
+              b("class If0SN extends ComputationN(stackSize,e,())") {
+                indentEqExpr(applyNSignature) {
                   "if ((" + evalN("cond") + ") == 0.0)" <>
                     tailEvalN("if0").indent <>
                     "else " <>

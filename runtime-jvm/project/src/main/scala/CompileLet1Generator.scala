@@ -7,13 +7,13 @@ object CompileLet1Generator extends OneFileGenerator("CompileLet1.scala") {
     "import org.unisonweb.Term.Term" <>
     "" <>
     b("trait CompileLet1") {
-      bEq("def compileLet1(binding: Computation, body: Computation, term: Term)") {
+      bEq("def compileLet1(e: Term, binding: Computation, body: Computation)") {
         "val stackSize = binding.stackSize max body.stackSize" <>
         switch("stackSize") {
           (0 until maxInlineStack).each { stackSize =>
             val className = s"Let1S${stackSize}"
             `case`(stackSize) {
-              b(s"class $className extends Computation${stackSize}(term)") {
+              b(s"class $className extends Computation${stackSize}(e)") {
                 bEq(applySignature(stackSize)) {
                   "val b = " + eval(stackSize, "binding") <>
                   "val br = r.boxed" <>
@@ -25,7 +25,7 @@ object CompileLet1Generator extends OneFileGenerator("CompileLet1.scala") {
           } <>
           `case`(maxInlineStack) {
             val className = s"Let1S${maxInlineStack}"
-            b(s"class $className extends Computation${maxInlineStack}(term)") {
+            b(s"class $className extends Computation${maxInlineStack}(e)") {
               bEq(applySignature(maxInlineStack)) {
                 "val b = " + eval(maxInlineStack, "binding") <>
                 "val br = r.boxed" <>
@@ -39,7 +39,7 @@ object CompileLet1Generator extends OneFileGenerator("CompileLet1.scala") {
           } <>
           `case`("stackSize") {
             val className = s"Let1SN"
-            b(s"class $className extends ComputationN(stackSize, term)") {
+            b(s"class $className extends ComputationN(stackSize, e)") {
               bEq(applyNSignature) {
                 "// evaluate binding and push onto stack for evaluating body" <>
                 "val b = " + evalN("binding") <>

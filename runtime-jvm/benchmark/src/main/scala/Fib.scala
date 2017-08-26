@@ -1,33 +1,39 @@
 package org.unisonweb.benchmark
 
-// import org.unisonweb.Render
-import org.unisonweb.Term._
-// import org.unisonweb.compilation._
+import org.unisonweb.Term
+import org.unisonweb.Term.{Term, Name}
+import org.unisonweb.Render
+import org.unisonweb.compilation._
 
 object Fib extends App {
 
   implicit class Arithmetic(a: Term) {
-    def -(b: Term) = Builtin("-")(a,b)
-    def +(b: Term) = Builtin("+")(a,b)
-    def *(b: Term) = Builtin("*")(a,b)
+    def -(b: Term) = Term.Builtin("-")(a,b)
+    def +(b: Term) = Term.Builtin("+")(a,b)
+    def *(b: Term) = Term.Builtin("*")(a,b)
   }
 
-  // val builtins : String => Rt = {
-  //   case s@"-" => new Arity2(Builtin(s)) with NF {
-  //     def apply(rec: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = x2 - x1
-  //   }
-  //   case s@"+" => new Arity2(Builtin(s)) with NF {
-  //     def apply(rec: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = x2 + x1
-  //   }
-  //   case s@"*" => new Arity2(Builtin(s)) with NF {
-  //     def apply(rec: Rt, x0: D, x0b: Rt, x1: D, x1b: Rt, r: R) = x0 * x1
-  //   }
-  // }
-  //
-  // def mkBuiltin(name: Name, f: (Double, Double) => Double) = new Arity2(Builtin(name)) with NF {
-  //   def apply(rec: Rt, x1: D, x1b: Rt, x2: D, x2b: Rt, r: R) = f(x1, x2)
-  // }
+   val builtins : String => Computation = {
+     case s@"-" => mkBuiltin(s, _ - _)
+     case s@"+" => mkBuiltin(s, _ + _)
+     case s@"*" => mkBuiltin(s, _ * _)
+   }
 
+   def mkBuiltin(name: Name, f: (Double, Double) => Double) = new Computation2(Term.Builtin(name)) {
+     def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, r: R) = f(x0, x1)
+   }
+
+  /** Compile and evaluate a term, the return result back as a term. */
+  def normalize(builtins: Name => Computation)(e: Term): Term = {
+    val rt = compile(builtins)(e)
+    val r = Result()
+    decompileSlot(try rt(null, r) catch { case e: TC => loop(e,r) }, r.boxed)
+  }
+  def decompileSlot(unboxed: D, boxed: Value): Term =
+    if (boxed eq null) Term.Num(unboxed)
+    else boxed.decompile
+
+  import Term._
   val N = 15.0
 
   val countFrom =
@@ -50,7 +56,7 @@ object Fib extends App {
       )
     )('fac.v(10, 1))
 
-// println(normalize(builtins){ println(Render.renderTerm(countFrom)); countFrom })
+  println(normalize(builtins){ println(Render.renderTerm(countFrom)); countFrom })
 
   Thread.sleep(200)
 }

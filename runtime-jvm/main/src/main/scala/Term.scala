@@ -1,7 +1,7 @@
 package org.unisonweb
 
 import org.unisonweb.util.Traverse
-import ABT.{Tm,Abs,AnnotatedTerm}
+import ABT.{Abs, AnnotatedTerm, Tm}
 import compilation.Value
 
 object Term {

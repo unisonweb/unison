@@ -65,8 +65,8 @@ object ValueGenerator extends OneFileGenerator("Value.scala") {
                 `case`("body") {
                   s"val tm = Term.Lam($unboundNames)(body)" <>
                     (i - j match {
-                      case 1 => s"val lam = new Lambda1($unboundNames, tm, compile(builtins)(body))"
-                      case k => s"val lam = new Lambda$k($unboundNames, tm, body, compile(builtins)(body), builtins)"
+                      case 1 => s"val lam = new Lambda1($unboundNames, tm, compile(body))"
+                      case k => s"val lam = new Lambda$k($unboundNames, tm, compile(body))(body, compile)"
                     }) <>
                     "r.boxed = lam" <>
                     "0.0"
@@ -108,7 +108,7 @@ object ValueGenerator extends OneFileGenerator("Value.scala") {
     } <<>>
     (2 to N).each { i =>
       s"/** Specialized Lambda of $i parameters */" <>
-      b(s"class Lambda$i(${lambdaCtorArgs(i)}, e: => Term, body: => Term, compiledBody: Computation, builtins: String => Value) extends Lambda") {
+      b(s"class Lambda$i(${lambdaCtorArgs(i)}, e: => Term, compiledBody: Computation)(body: => Term, compile: Term => Computation) extends Lambda") {
         s"def decompile = e" <>
         s"def arity = $i" <>
           fixedApplyDefs(i) <>
@@ -116,7 +116,7 @@ object ValueGenerator extends OneFileGenerator("Value.scala") {
       } <> ""
     } <>
     s"/** Lambda with ${N+1} or more parameters */" <>
-    b("class LambdaN(argNames: Array[Name], e: => Term, body: => Term, compiledBody: Computation, builtins: String => Value) extends Lambda") {
+    b("class LambdaN(argNames: Array[Name], e: => Term, compiledBody: Computation)(body: => Term, compile: Term => Computation) extends Lambda") {
       s"def decompile = e" <>
       "def arity = argNames.length" <>
       (0 to N).each {
@@ -138,12 +138,12 @@ object ValueGenerator extends OneFileGenerator("Value.scala") {
                     `match`("unboundNames") {
                       (N - j + 1 to N).each {
                         case 1 if N >= 1 =>
-                          s"case Array(argName) => new Lambda1(argName, tm, compile(builtins)(body))"
+                          s"case Array(argName) => new Lambda1(argName, tm, compile(body))"
                         case k =>
                           val argNames = (j + 1) until (j + 1 + k) commas (i => s"argName$i")
-                          s"case Array($argNames) => new Lambda$k($argNames, tm, body, compile(builtins)(body), builtins)"
+                          s"case Array($argNames) => new Lambda$k($argNames, tm, compile(body))(body, compile)"
                       } <>
-                        "case unboundNames => new LambdaN(unboundNames, tm, body, compile(builtins)(body), builtins)"
+                        "case unboundNames => new LambdaN(unboundNames, tm, compile(body))(body, compile)"
                     }
                   }
               }
@@ -165,12 +165,12 @@ object ValueGenerator extends OneFileGenerator("Value.scala") {
               `case`("body") {
                 "val tm = Term.Lam(unboundNames: _*)(body)" <>
                 `match`("unboundNames") {
-                  (if (N >= 1) "case Array(argName) => new Lambda1(argName, tm, compile(builtins)(body))" else "") <>
+                  (if (N >= 1) "case Array(argName) => new Lambda1(argName, tm, compile(body))" else "") <>
                   (2 to N).each { i =>
                     val argNames = (1 to i).commas(j => "argName" + j).mkString
-                    s"case Array($argNames) => new Lambda$i($argNames, tm, body, compile(builtins)(body), builtins)"
+                    s"case Array($argNames) => new Lambda$i($argNames, tm, compile(body))(body, compile)"
                   } <>
-                  "case argNames => new LambdaN(argNames, tm, body, compile(builtins)(body), builtins)"
+                  "case argNames => new LambdaN(argNames, tm, compile(body))(body, compile)"
                 }
               }
             }

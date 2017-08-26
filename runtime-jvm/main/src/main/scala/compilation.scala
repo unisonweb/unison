@@ -4,7 +4,7 @@ import org.unisonweb.Term.{Name, Term}
 
 package compilation {
   case class Slot(var unboxed: D, var boxed: Value)
-  case class Result(var boxed: Value)
+  case class Result(var boxed: Value = null)
 
   case class CurrentRec(get: Option[(Name, Arity)]) extends AnyVal {
     def contains(name: Name): Boolean = get.exists(_._1 == name)
@@ -21,12 +21,13 @@ package compilation {
 
 }
 
-package object compilation extends TailCalls with CompileLet1 with CompileLetRec with LookupVar with CompileFunctionApplication with CompileIf0 {
+package object compilation extends TailCalls with CompileLambda with CompileLet1 with CompileLetRec with LookupVar with CompileFunctionApplication with CompileIf0 {
   type D = Double
   type V = Value
   type R = Result
   type TC = TailCall
   type Arity = Int
+  type IsTail = Boolean
   val IsTail = true
   val IsNotTail = false
 
@@ -60,33 +61,25 @@ package object compilation extends TailCalls with CompileLet1 with CompileLetRec
     if (freeVars.isEmpty) 0
     else freeVars.view.map(fv => bound.indexOf(fv)).max + 1
 
-  def compile(builtins: String => Value)(e: Term): Computation = {
+  def compile(builtins: String => Computation)(e: Term): Computation =
     compile(builtins, ABT.annotateBound(e), CurrentRec(None), IsTail)
-    // todo: do something with builtins
-  }
-  def compile(builtins: String => Value, termC: TermC, currentRec: CurrentRec, isTail: Boolean): Computation = {
-    @inline def compile1(isTail: Boolean)(termC: TermC): Computation = compile(builtins, termC, currentRec, isTail)
-    @inline def compile2(isTail: Boolean, currentRec: CurrentRec)(termC: TermC): Computation = compile(builtins, termC, currentRec, isTail)
+
+  def compile(builtins: String => Computation, termC: TermC, currentRec: CurrentRec, isTail: IsTail): Computation = {
+    @inline def compile1(isTail: IsTail)(termC: TermC): Computation = compile(builtins, termC, currentRec, isTail)
+    @inline def compile2(isTail: IsTail, currentRec: CurrentRec)(termC: TermC): Computation = compile(builtins, termC, currentRec, isTail)
     @inline def term = unTermC(termC)
 
     termC match {
       case Term.Num(n) => compileNum(n)
-      case Term.Builtin(name) => Return(builtins(name))(term)
+      case Term.Builtin(name) => builtins(name)
       case Term.Compiled(c) => Return(c)(term) // todo: can we do a better job tracking the uncompiled form?
-      case Term.Var(name) =>
-        if (currentRec.contains(name))
-          compileRecVar(name)
-        else
-          env(termC).indexOf(name) match {
-            case -1 => sys.error("unknown variable: " + name)
-            case i => lookupVar(i, term)
-          }
+      case Term.Var(name) => compileVar(currentRec, name, termC)
       case Term.If0(cond, if0, ifNot0) =>
         val compiledCond = compile1(IsNotTail)(cond)
         val compiledIf0 = compile1(isTail)(if0)
         val compiledIfNot0 = compile1(isTail)(ifNot0)
 
-        compileIf0(compiledCond, compiledIf0, compiledIfNot0, term)
+        compileIf0(termC, compiledCond, compiledIf0, compiledIfNot0)
 
       case Term.Lam(names, body) =>
         // codegen Lambda1, Lambda2, ... Lambda<max-arity> will extend Lambda
@@ -94,11 +87,7 @@ package object compilation extends TailCalls with CompileLet1 with CompileLetRec
         // only reason we needed to pass more than just the compiled body + metadata (names, orig term)
         // is to handle under-application, because under-application would substitute away the
         // bound variables, and then recompile
-        // question - can we just
 
-        val compiledBody = compile2(isTail, currentRec.shadow(names))(body)
-
-        // todo: handle free vars
         // grab all the free variables referenced by the body of the lambda (not bound by the lambda itself)
         // get them off the stack when you build the lambda
         //  (compile/get all those `Var`s)
@@ -107,15 +96,8 @@ package object compilation extends TailCalls with CompileLet1 with CompileLetRec
             // substitute them into the body of the lambda, being careful about name clashes
             // now the lambda has no more free variables; good to compile with happy path
 
-        ??? // compileLambda(e, boundByCurrentLambda, currentRec)(names, body)
-        // old code starts out like this:
-        // if (freeVars(e).isEmpty) makeLambda
-        // else {
-        //   val locallyBound = freeVars(body).filter(v => !recursiveVars.contains(v))
-        //   ... stuff ...
-        // }
+        compileLambda(termC, names, body, currentRec, r => t => compile2(IsTail, r)(ABT.annotateBound(t)))
 
-        // Lamdba3 (not Lambda_3) ctor receives (argName1: Name, argName2: Name, argName3: Name, e: => Term, body: => Term, compiledBody: Rt, builtins: String => Rt)
       case Term.LetRec(bindings, body) =>
         val shadowCurrentRec = currentRec.shadow(bindings.map(_._1))
         val compiledBindings = bindings.view.map(_._2).map(compile2(IsNotTail, shadowCurrentRec)).toArray
@@ -127,7 +109,7 @@ package object compilation extends TailCalls with CompileLet1 with CompileLetRec
         val compiledBinding = compile2(IsNotTail, currentRec)(binding)
         val compiledBody = compile2(isTail, currentRec.shadow(name))(body)
 
-        compileLet1(compiledBinding, compiledBody, term)
+        compileLet1(term, compiledBinding, compiledBody)
 
       case Term.Apply(fn, args) =>
         //todo think through conditions to safely elide tailcall
@@ -169,6 +151,15 @@ package object compilation extends TailCalls with CompileLet1 with CompileLetRec
     }
     new CompiledNum
   }
+
+  def compileVar(currentRec: CurrentRec, name: Name, termC: TermC): Computation =
+    if (currentRec.contains(name))
+      compileRecVar(name)
+    else
+      env(termC).indexOf(name) match {
+        case -1 => sys.error("unknown variable: " + name)
+        case i => lookupVar(i, unTermC(termC))
+      }
 
   def compileRecVar(name: Name) = {
     class RecursiveReference extends Computation0(Term.Var(name)) {

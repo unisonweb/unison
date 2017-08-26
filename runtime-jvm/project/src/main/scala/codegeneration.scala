@@ -32,7 +32,7 @@ package object codegeneration {
   def caseInline(expr: String)(body: String): String = s"case $expr => $body"
   def b(s: String)(body: String) = s + " " + body.b
   def bEq(s: String)(body: String) = s + " = " + body.b
-  def bEqExpr(s: String)(expr: String) = s + " =" <> expr.indent
+  def indentEqExpr(s: String)(expr: String) = s + " =" <> expr.indent
 
 
   // tailEval(4, "foo") = "foo(rec, x0, x0b, x1, x1b, x2, x2b, x3, x3b, r)"

@@ -120,6 +120,7 @@ lazy val main = project.in(file("main")).
       ComputationGenerator,
       ValueGenerator,
       LookupVarGenerator,
+      CompileLambdaGenerator,
       CompileLet1Generator,
       CompileLetRecGenerator,
       CompileFunctionApplicationGenerator,
