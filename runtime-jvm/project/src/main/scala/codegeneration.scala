@@ -2,9 +2,9 @@ package org.unisonweb
 
 package object codegeneration {
   // JVM max is <256 args per java method
-  val maxInlineStack = 4
-  val maxInlineArgs = 4
-  val maxInlineTC = 2
+  val maxInlineStack = 0
+  val maxInlineArgs = 0
+  val maxInlineTC = 0
 
   def applySignature(i: Int): String =
     "def apply(rec: Lambda, " + (0 until i).commas(i => s"x$i: D, x${i}b: V") + commaIf(i) + "r: R): D"

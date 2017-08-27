@@ -7,6 +7,7 @@ object ComputationGenerator extends OneFileGenerator("Computation.scala") {
     "import org.unisonweb.Term.Term" <>
     "" <>
     b("abstract class Computation") {
+      "def decompile: Term" <>
       "def stackSize: Int" <>
       (0 to maxInlineStack).each(applySignature) <>
       applyNSignature

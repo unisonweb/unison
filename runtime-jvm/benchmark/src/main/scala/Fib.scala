@@ -1,8 +1,7 @@
 package org.unisonweb.benchmark
 
 import org.unisonweb.Term
-import org.unisonweb.Term.{Term, Name}
-import org.unisonweb.Render
+import org.unisonweb.Term.{Name, Term}
 import org.unisonweb.compilation._
 
 object Fib extends App {
@@ -19,9 +18,11 @@ object Fib extends App {
      case s@"*" => mkBuiltin(s, _ * _)
    }
 
-   def mkBuiltin(name: Name, f: (Double, Double) => Double) = new Computation2(Term.Builtin(name)) {
-     def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, r: R) = f(x0, x1)
-   }
+  def mkBuiltin(name: Name, f: (Double) => Double): Computation = ???
+
+  def mkBuiltin(name: Name, f: (Double, Double) => Double) = new ComputationN(2, Term.Builtin(name)) {
+    override def apply(rec: Lambda, xs: Array[Slot], r: R) = f(xs(0).unboxed, xs(1).unboxed)
+  }
 
   /** Compile and evaluate a term, the return result back as a term. */
   def normalize(builtins: Name => Computation)(e: Term): Term = {
@@ -59,7 +60,7 @@ object Fib extends App {
       )
     )('fac.v(10, 1))
 
-  println(normalize(builtins){ println(Render.renderTerm(countFrom)); countFrom })
+  println(normalize(builtins)(countFrom))
 
   Thread.sleep(200)
 }

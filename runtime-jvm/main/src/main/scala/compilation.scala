@@ -49,6 +49,11 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
 
   def stackSize(t: TermC): Int = stackSize(freeVars(t), env(t))
 
+  def warnAssert(b: Boolean, s: => String) = if (!b) {
+    System.err.println(s)
+    Thread.dumpStack()
+  }
+
 
   /**
    * Given a set of free variables, and a stack of bound variables, figure out
@@ -62,9 +67,16 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
     else freeVars.view.map(fv => bound.indexOf(fv)).max + 1
 
   def compile(builtins: String => Computation)(e: Term): Computation =
-    compile(builtins, ABT.annotateBound(e), CurrentRec.none, IsTail)
+    compile(builtins, checkedAnnotateBound(e), CurrentRec.none, IsTail)
+
+  def checkedAnnotateBound(e: Term) = {
+    assert(e.annotation.isEmpty, "reannotating term with free vars")
+    ABT.annotateBound(e)
+  }
 
   def compile(builtins: String => Computation, termC: TermC, currentRec: CurrentRec, isTail: IsTail): Computation = {
+    System.out.println("[debug] compiling:\n" + Render.renderIndent(termC))
+
     @inline def compile1(isTail: IsTail)(termC: TermC): Computation = compile(builtins, termC, currentRec, isTail)
     @inline def compile2(isTail: IsTail, currentRec: CurrentRec)(termC: TermC): Computation = compile(builtins, termC, currentRec, isTail)
 
@@ -95,7 +107,7 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
             // substitute them into the body of the lambda, being careful about name clashes
             // now the lambda has no more free variables; good to compile with happy path
 
-        compileLambda(termC, names, body, currentRec, r => t => compile2(IsTail, r)(ABT.annotateBound(t)))
+        compileLambda(termC, names, body, currentRec, r => t => compile2(IsTail, r)(checkedAnnotateBound(t)))
 
       case Term.LetRec(bindings, body) =>
         val shadowCurrentRec = currentRec.shadow(bindings.map(_._1))
@@ -161,7 +173,7 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
       compileRecVar(name)
     else
       env(termC).indexOf(name) match {
-        case -1 => sys.error("unknown variable: " + name)
+        case -1 => sys.error("unknown variable: " + name + "\nin " + Render.renderIndent(termC))
         case i => lookupVar(i, unTermC(termC))
       }
 

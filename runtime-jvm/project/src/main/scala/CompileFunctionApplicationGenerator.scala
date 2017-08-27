@@ -54,7 +54,8 @@ object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunc
       "rec, " + (0 until argCount).commas(i => s"x${i}, x${i}b") + commaIf(argCount) + "r"
 
     bEq(s"def $defName(e: TermC, " + declArgsPrefix.map(_ + ", ").getOrElse("") + "args: Array[Computation]): Computation") {
-      "assert(stackSize(e) == args.map(_.stackSize).max)" <>
+      "warnAssert(stackSize(e) == args.map(_.stackSize).max," <>
+        """s"stackSize: ${stackSize(e)}, args: ${args.map(_.stackSize).mkString(", ")}")""".indent <>
       switch("stackSize(e)") {
           (0 to maxInlineStack).each { stackSize =>
             `case`(s"/* stackSize = */ $stackSize") {
@@ -135,7 +136,15 @@ object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunc
   def sourceDynamic(isTail: Boolean): String = {
     val emptyOrNon = if (isTail) "" else "Non"
     bEq(s"def dynamic${emptyOrNon}TailCall(e: TermC, mkFn: Computation, args: Array[Computation]): Computation") {
-      "assert(stackSize(e) == (mkFn.stackSize max args.map(_.stackSize).max))" <>
+      "warnAssert(stackSize(e) == (mkFn.stackSize max args.map(_.stackSize).max), " <>
+        """e.toString + "\n" +
+          |s"stackSize(${e.annotation}): ${stackSize(e)}\n" +
+          |s"mkFn (" + mkFn.stackSize + "):\n" +
+          |  org.unisonweb.Render.renderIndent(mkFn.decompile) + "\n" +
+          |s"args (" + args.map(_.stackSize).mkString(", ") + "):\n" +
+          |  args.map(arg => org.unisonweb.Render.renderIndent(arg.decompile)).mkString(",\n")
+          |""".stripMargin.indent <>
+      ")" <>
       switch("stackSize(e)") {
         (0 to maxInlineStack).each { stackSize =>
           `case`(s"/* stackSize = */ $stackSize") {
