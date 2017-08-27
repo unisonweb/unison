@@ -28,10 +28,10 @@ object CompileLambdaGenerator extends OneFileGenerator("CompileLambda.scala") {
             }
           } <>
           "case Nil => sys.error(\"impossible, lambdas need parameters\")"
-        } <>
+        } <<>>
         // grab all the free variables referenced by the body of the lambda (not bound by the lambda itself)
         "val shadowedRec = currentRec.shadow(names)" <>
-        "val fv: Set[Name] = freeVars(e)" <>
+        "val fv: Set[Name] = freeVars(body)" <>
         "if (fv.isEmpty) Return(makeClosedLambda(decompiledLam, names, decompiledBody, compile(shadowedRec)(decompiledBody)))(decompiledLam)" <>
         b("else") {
           // get them off the stack when you build the lambda
@@ -40,7 +40,7 @@ object CompileLambdaGenerator extends OneFileGenerator("CompileLambda.scala") {
           // decompile them,
           // substitute them into the body of the lambda, being careful about name clashes
           // now the lambda has no more free variables; good to compile with happy path
-          switch("stackSize(e)") {
+          switch("stackSize(body)") {
             caseInline(0)("throw new Exception(\"Should have some free vars on the stack!\")") <>
             (1 to maxInlineStack).each { stackSize =>
               `case`(stackSize) {
@@ -49,7 +49,7 @@ object CompileLambdaGenerator extends OneFileGenerator("CompileLambda.scala") {
                   bEq(applySignature(stackSize)) {
                     "val compiledVars: Map[Name, Term] = " + b("fv.map") {
                       `case`("name") {
-                        "val compiledVar = compileVar(currentRec, name, e)" <>
+                        "val compiledVar = compileVar(currentRec, name, body)" <>
                         "val evaluatedVar = " + eval(stackSize, "compiledVar") <>
                         "val value = Value(evaluatedVar, r.boxed)" <>
                         "(name, Term.Compiled(value))"
@@ -71,8 +71,9 @@ object CompileLambdaGenerator extends OneFileGenerator("CompileLambda.scala") {
                 bEq(applyNSignature) {
                   "val compiledVars: Map[Name, Term] =" <>
                     s"fv.map { name => name -> Term.Compiled(Value(${
-                      evalN("compileVar(currentRec, name, e)")
+                      evalN("compileVar(currentRec, name, body)")
                     }, r.boxed)) }.toMap".indent <<>>
+                  "// System.out.println(\"[debug] compiled vars:\\n\" + fv.mkString(\"  \", \"\\n  \", \"\\n\"))"<>
                   "val decompiledBody2 = ABT.substs(compiledVars)(decompiledBody)" <>
                   "val compiledBody2 = compile(shadowedRec)(decompiledBody2)" <>
                   "val decompiledLam2 = Term.Lam(names: _*)(decompiledBody2)" <>

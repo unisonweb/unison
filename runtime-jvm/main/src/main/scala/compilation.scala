@@ -70,12 +70,12 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
     compile(builtins, checkedAnnotateBound(e), CurrentRec.none, IsTail)
 
   def checkedAnnotateBound(e: Term) = {
-    assert(e.annotation.isEmpty, "reannotating term with free vars")
+    assert(e.annotation.isEmpty, s"reannotating term with free vars: ${e.annotation}\n" + Render.renderIndent(e))
     ABT.annotateBound(e)
   }
 
   def compile(builtins: String => Computation, termC: TermC, currentRec: CurrentRec, isTail: IsTail): Computation = {
-    System.out.println("[debug] compiling:\n" + Render.renderIndent(termC))
+    // System.out.println("[debug] compiling:\n" + Render.renderIndent(termC))
 
     @inline def compile1(isTail: IsTail)(termC: TermC): Computation = compile(builtins, termC, currentRec, isTail)
     @inline def compile2(isTail: IsTail, currentRec: CurrentRec)(termC: TermC): Computation = compile(builtins, termC, currentRec, isTail)
@@ -168,7 +168,9 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
     new CompiledNum
   }
 
-  def compileVar(currentRec: CurrentRec, name: Name, termC: TermC): Computation =
+  def compileVar(currentRec: CurrentRec, name: Name, termC: TermC): Computation = {
+    // System.out.println("[debug] compileVar: " + Render.render(termC))
+
     if (currentRec.contains(name))
       compileRecVar(name)
     else
@@ -176,6 +178,7 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
         case -1 => sys.error("unknown variable: " + name + "\nin " + Render.renderIndent(termC))
         case i => lookupVar(i, unTermC(termC))
       }
+  }
 
   def compileRecVar(name: Name) = {
     class RecursiveReference extends Computation0(Term.Var(name)) {

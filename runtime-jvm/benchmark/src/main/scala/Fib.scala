@@ -41,6 +41,7 @@ object Fib extends App {
     LetRec(
       "foo" -> Num(99),
       "countFrom" -> Lam("n")(
+//        'n.v
         If0('n, 50, 'countFrom.v('n.v - 1.0))
       ),
     )('countFrom.v(3.0))
