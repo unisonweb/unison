@@ -22,6 +22,8 @@ package object codegeneration {
   def lines(s: String*) = s.mkString("\n")
   def braced(s: String) = s.b
   def commaIf(i: Int) = if (i > 0) ", " else ""
+  def includeIf(b: Boolean)(s: String): String = if (b) s else ""
+  def includeIf(i: Int)(s: String): String = includeIf(i > 0)(s)
   /** I get this wrong every time and want to fix it once and for all. */
   def switch(s: String)(body: String) = s"($s: @annotation.switch) match " + body.b
   def match1(s: String)(body: String) = s"$s match { $body }"
@@ -78,6 +80,8 @@ package object codegeneration {
     def <>(s2: String) = s + "\n" + s2
     def <<>>(s2: String) = s + "\n\n" + s2
     def nl(s2: String) = s <> s2
+    def <>| = s + "\n"
+    def <<>>| = s + "\n\n"
   }
 
   def slot(i: Int) = s"Slot(x$i, x${i}b)"

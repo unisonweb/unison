@@ -67,12 +67,11 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
   def compile(builtins: String => Computation, termC: TermC, currentRec: CurrentRec, isTail: IsTail): Computation = {
     @inline def compile1(isTail: IsTail)(termC: TermC): Computation = compile(builtins, termC, currentRec, isTail)
     @inline def compile2(isTail: IsTail, currentRec: CurrentRec)(termC: TermC): Computation = compile(builtins, termC, currentRec, isTail)
-    @inline def term = unTermC(termC)
 
     termC match {
       case Term.Num(n) => compileNum(n)
       case Term.Builtin(name) => builtins(name)
-      case Term.Compiled(c) => Return(c)(term) // todo: can we do a better job tracking the uncompiled form?
+      case Term.Compiled(c) => Return(c)(unTermC(termC)) // todo: can we do a better job tracking the uncompiled form?
       case Term.Var(name) => compileVar(currentRec, name, termC)
       case Term.If0(cond, if0, ifNot0) =>
         val compiledCond = compile1(IsNotTail)(cond)
@@ -114,7 +113,7 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
         val compiledBinding = compile2(IsNotTail, currentRec)(binding)
         val compiledBody = compile2(isTail, currentRec.shadow(name))(body)
 
-        compileLet1(term, compiledBinding, compiledBody)
+        compileLet1(termC, compiledBinding, compiledBody)
 
       case Term.Apply(fn, args) =>
         //todo think through conditions to safely elide tailcall
@@ -129,7 +128,7 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
           //                  ^^^^^^^^^^^
           case (Term.Var(v), args) if currentRec.contains(v, args.length) =>
             val compiledArgs = args.view.map(compile1(IsNotTail)).toArray
-            compilation.staticRecCall(compiledArgs, term, isTail)
+            compilation.staticRecCall(termC, compiledArgs, isTail)
 
 
           case _ =>
@@ -143,8 +142,8 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
             val compiledArgs = args.view.map(compile1(IsNotTail)).toArray
             compile1(IsNotTail)(fn) match {
               // if cast fails, then it's a type error: applying arguments to non-Lambda value
-              case Return(fn: Lambda) => staticCall(fn, compiledArgs, term, isTail)
-              case compiledDynamic => dynamicCall(compiledDynamic, compiledArgs, term, isTail)
+              case Return(fn: Lambda) => staticCall(termC, fn, compiledArgs, isTail)
+              case compiledDynamic => dynamicCall(termC, compiledDynamic, compiledArgs, isTail)
             }
         }
     }

@@ -4,49 +4,45 @@ object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunc
   def source =
     "package org.unisonweb.compilation" <>
     "" <>
-    "import org.unisonweb.Term.Term" <>
-    "" <>
     b("trait CompileFunctionApplication") {
-      indentEqExpr("def staticCall(fn: Lambda, args: Array[Computation], decompile: Term, isTail: IsTail): Computation") {
-        "if (isTail) staticTailCall(fn, args, decompile)" <>
-        "else staticNonTail(fn, args, decompile)"
-      } <>
-      "" <>
-      indentEqExpr("def staticRecCall(args: Array[Computation], decompile: Term, isTail: IsTail): Computation") {
-        "if (isTail) staticRecTailCall(args, decompile)" <>
-        "else staticRecNonTail(args, decompile)"
-      } <>
-      "" <>
-      indentEqExpr("def dynamicCall(fn: Computation, args: Array[Computation], decompile: Term, isTail: IsTail): Computation") {
-        "if (isTail) dynamicTailCall(fn, args, decompile)" <>
-        "else dynamicNonTailCall(fn, args, decompile)"
-      } <>
-      "" <> sourceStatic("staticNonTail",
+      indentEqExpr("def staticCall(e: TermC, fn: Lambda, args: Array[Computation], isTail: IsTail): Computation") {
+        "if (isTail) staticTailCall(e, fn, args)" <>
+        "else staticNonTail(e, fn, args)"
+      } <<>>
+      indentEqExpr("def staticRecCall(e: TermC, args: Array[Computation], isTail: IsTail): Computation") {
+        "if (isTail) staticRecTailCall(e, args)" <>
+        "else staticRecNonTail(e, args)"
+      } <<>>
+      indentEqExpr("def dynamicCall(e: TermC, mkFn: Computation, args: Array[Computation], isTail: IsTail): Computation") {
+        "if (isTail) dynamicTailCall(e, mkFn, args)" <>
+        "else dynamicNonTailCall(e, mkFn, args)"
+      } <<>>
+      sourceStatic("staticNonTail",
         classPrefix = "StaticNonTail",
         declArgsPrefix = Some("fn: Lambda"),
         evalFn = "fn",
         evalArgsPrefix = Some("fn")
-      ) <>
-      "" <> sourceStatic("staticTailCall",
+      ) <<>>
+      sourceStatic("staticTailCall",
         classPrefix = "StaticTailCall",
         declArgsPrefix = Some("fn: Lambda"),
         evalFn = "tailCall",
         evalArgsPrefix = Some("fn")
-      ) <>
-      "" <> sourceStatic("staticRecNonTail",
+      ) <<>>
+      sourceStatic("staticRecNonTail",
         classPrefix = "StaticRecNonTail",
         declArgsPrefix = None,
         evalFn = "rec",
         evalArgsPrefix = Some("rec")
-      ) <>
-      "" <> sourceStatic("staticRecTailCall",
+      ) <<>>
+      sourceStatic("staticRecTailCall",
         classPrefix = "StaticRecTailCall",
         declArgsPrefix = None,
         evalFn = "selfTailCall",
         evalArgsPrefix = None
-      ) <>
-      "" <> sourceDynamic(isTail = false) <>
-      "" <> sourceDynamic(isTail = true)
+      ) <<>>
+      sourceDynamic(isTail = false) <<>>
+      sourceDynamic(isTail = true)
     }
 
   def sourceStatic(defName: String, classPrefix: String, declArgsPrefix: Option[String], evalFn: String, evalArgsPrefix: Option[String]) = {
@@ -57,17 +53,16 @@ object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunc
     def xEvalArgs(argCount: Int) =
       "rec, " + (0 until argCount).commas(i => s"x${i}, x${i}b") + commaIf(argCount) + "r"
 
-    bEq(s"def $defName(" + declArgsPrefix.map(_ + ", ").getOrElse("") + "args: Array[Computation], decompile: Term): Computation") {
-      "val stackSize = args.map(_.stackSize).max" <>
-      "assert(stackSize == org.unisonweb.compilation.stackSize(org.unisonweb.ABT.annotateBound(decompile)))" <>
-      switch("stackSize") {
+    bEq(s"def $defName(e: TermC, " + declArgsPrefix.map(_ + ", ").getOrElse("") + "args: Array[Computation]): Computation") {
+      "assert(stackSize(e) == args.map(_.stackSize).max)" <>
+      switch("stackSize(e)") {
           (0 to maxInlineStack).each { stackSize =>
             `case`(s"/* stackSize = */ $stackSize") {
               switch("args.length") {
                 (1 to maxInlineArgs).each { argCount =>
                   `case`(argCount) {
                     (0 until argCount).each { i => s"val arg$i = args($i)" } <>
-                    b(s"class ${classPrefix}S${stackSize}A${argCount} extends Computation${stackSize}(decompile)") {
+                    b(s"class ${classPrefix}S${stackSize}A${argCount} extends Computation${stackSize}(e, ())") {
                       bEq(applySignature(stackSize)) {
                         (0 until argCount).each(i => (
                           s"val e$i = "
@@ -81,7 +76,7 @@ object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunc
                   }
                 } <>
                 `case`("argCount") {
-                  b(s"class ${classPrefix}S${stackSize}AN extends Computation${stackSize}(decompile)") {
+                  b(s"class ${classPrefix}S${stackSize}AN extends Computation${stackSize}(e, ())") {
                     bEq(applySignature(stackSize)) {
                       "val slots = new Array[Slot](argCount)" <>
                       "var i = 0" <>
@@ -104,7 +99,7 @@ object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunc
               (1 to maxInlineArgs).each { argCount =>
                 `case`(s"/* argCount = */ $argCount") {
                   (0 until argCount).each { i => s"val arg$i = args($i)" } <>
-                  b(s"class ${classPrefix}SNA$argCount extends ComputationN(stackSize, decompile)") {
+                  b(s"class ${classPrefix}SNA$argCount extends ComputationN(stackSize, e, ())") {
                     bEq(applyNSignature) {
                       (0 until argCount).each { i =>
                         s"val e$i = " + catchTC(s"arg$i(rec, xs, r)") + s"; val e${i}b = r.boxed"
@@ -116,7 +111,7 @@ object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunc
                 }
               } <>
               `case`("argCount") {
-                b(s"class ${classPrefix}SNAN extends ComputationN(stackSize, decompile)") {
+                b(s"class ${classPrefix}SNAN extends ComputationN(stackSize, e, ())") {
                   bEq(applyNSignature) {
                     "val slots = new Array[Slot](argCount)" <>
                       "var i = 0" <>
@@ -139,20 +134,19 @@ object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunc
 
   def sourceDynamic(isTail: Boolean): String = {
     val emptyOrNon = if (isTail) "" else "Non"
-    bEq(s"def dynamic${emptyOrNon}TailCall(fn: Computation, args: Array[Computation], decompile: Term): Computation") {
-      "val stackSize = fn.stackSize max args.map(_.stackSize).max" <>
-      "// todo assert(stackSize == org.unisonweb.compilation.stackSize(org.unisonweb.ABT.annotateBound(decompile)))" <>
-      switch("stackSize") {
+    bEq(s"def dynamic${emptyOrNon}TailCall(e: TermC, mkFn: Computation, args: Array[Computation]): Computation") {
+      "assert(stackSize(e) == (mkFn.stackSize max args.map(_.stackSize).max))" <>
+      switch("stackSize(e)") {
         (0 to maxInlineStack).each { stackSize =>
           `case`(s"/* stackSize = */ $stackSize") {
             switch("args.length") {
               (1 to maxInlineArgs).each { argCount =>
                 `case`(s"/* argCount = */ $argCount") {
                   val className = s"${emptyOrNon}TailCallS${stackSize}A${argCount}"
-                  b(s"class $className extends Computation$stackSize(decompile)") {
+                  b(s"class $className extends Computation$stackSize(e, ())") {
                     (0 until argCount).each(j => s"val arg$j = args($j)") <>
                     bEq(applySignature(stackSize)) {
-                      s"val lambda = ${evalBoxed(stackSize, "fn")}.asInstanceOf[Lambda]" <>
+                      s"val lambda = ${evalBoxed(stackSize, "mkFn")}.asInstanceOf[Lambda]" <>
                       (0 until argCount).each { j => s"val arg${j}r = " + eval(stackSize, s"arg$j") + s"; val arg${j}rb = r.boxed" } <>
                       (if (!isTail)
                         s"lambda(lambda, " + (argCount-1 to 0 by -1).commas(j => s"arg${j}r, arg${j}rb") + commaIf(argCount) + "r)"
@@ -164,10 +158,10 @@ object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunc
               } <>
               `case`("argCount") {
                 val className = s"${emptyOrNon}TailCallS${stackSize}AN"
-                b(s"class $className extends Computation$stackSize(decompile)") {
+                b(s"class $className extends Computation$stackSize(e, ())") {
                   bEq(applySignature(stackSize)) {
                     "val argsr = new Array[Slot](argCount)" <>
-                    s"val lambda = ${evalBoxed(stackSize, "fn")}.asInstanceOf[Lambda]" <>
+                    s"val lambda = ${evalBoxed(stackSize, "mkFn")}.asInstanceOf[Lambda]" <>
                     "var k = 0" <>
                     b("while (k < argCount)") {
                       "argsr(argCount - 1 - k) = new Slot(" + eval(stackSize, "args(k)") + ", r.boxed)" <>
@@ -187,10 +181,10 @@ object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunc
             (1 to maxInlineArgs).each { argCount =>
               `case`(s"/* argCount = */ $argCount") {
                 val className = s"${emptyOrNon}TailCallSNA$argCount"
-                b(s"class $className extends ComputationN(stackSize, decompile)") {
+                b(s"class $className extends ComputationN(stackSize, e, ())") {
                   (0 until argCount).each(j => s"val arg$j = args($j)") <>
                   bEq(applyNSignature) {
-                    s"val lambda = ${evalNBoxed("fn")}.asInstanceOf[Lambda]" <>
+                    s"val lambda = ${evalNBoxed("mkFn")}.asInstanceOf[Lambda]" <>
                     (0 until argCount).each( j => s"val arg${j}r = " + evalN(s"arg$j") + s"; val arg${j}rb = r.boxed" ) <>
                     (if (!isTail) s"lambda(lambda, " + ((argCount-1) to 0 by -1).commas(j => s"arg${j}r, arg${j}rb") + commaIf(argCount) + "r)"
                     else s"tailCall(lambda, " + ((argCount-1) to 0 by -1).commas(j => s"arg${j}r, arg${j}rb") + commaIf(argCount) + "r)")
@@ -201,10 +195,10 @@ object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunc
             } <>
             `case`("argCount") {
               val className = s"${emptyOrNon}TailCallSNAM"
-              b(s"class $className extends ComputationN(argCount, decompile)") {
+              b(s"class $className extends ComputationN(argCount, e, ())") {
                 bEq(applyNSignature) {
                   "val argsr = new Array[Slot](argCount)" <>
-                  s"val lambda = ${evalNBoxed("fn")}.asInstanceOf[Lambda]" <>
+                  s"val lambda = ${evalNBoxed("mkFn")}.asInstanceOf[Lambda]" <>
                   "var k = 0" <>
                   b("while (k < argCount)") {
                     "argsr(argCount - 1 - k) = new Slot(" + evalN("args(k)") + ", r.boxed)" <>
