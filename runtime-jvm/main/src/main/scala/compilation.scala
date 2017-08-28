@@ -51,7 +51,7 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
 
   def warnAssert(b: Boolean, s: => String) = if (!b) {
     System.err.println(s)
-    Thread.dumpStack()
+//    Thread.dumpStack()
   }
 
 
@@ -163,7 +163,7 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
 
   def compileNum(d: Double) = {
     class CompiledNum extends Computation0(Term.Num(d)) {
-      def apply(rec: Lambda, r: R) = d
+      def apply(rec: Lambda, r: R) = { r.boxed = null; d }
     }
     new CompiledNum
   }

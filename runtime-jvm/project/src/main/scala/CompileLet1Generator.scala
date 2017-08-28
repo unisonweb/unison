@@ -6,8 +6,7 @@ object CompileLet1Generator extends OneFileGenerator("CompileLet1.scala") {
     "" <>
     b("trait CompileLet1") {
       bEq("def compileLet1(e: TermC, binding: Computation, body: Computation)") {
-        "val stackSize = binding.stackSize max body.stackSize" <>
-        switch("stackSize") {
+        switch("stackSize(e)") {
           (0 until maxInlineStack).each { stackSize =>
             val className = s"Let1S${stackSize}"
             `case`(stackSize) {

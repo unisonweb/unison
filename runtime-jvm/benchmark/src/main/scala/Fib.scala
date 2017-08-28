@@ -18,13 +18,36 @@ object Fib extends App {
      case s@"*" => mkBuiltin(s, _ * _)
    }
 
-  def mkBuiltin(name: Name, f: (Double, Double) => Double) = new Computation2(Term.Builtin(name)) {
-    def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, r: R) = f(x1, x0)
-  }
+  def mkBuiltin(name: Name, f: (Double, Double) => Double) = {
+    val term = Term.Builtin(name)
+    Return {
+      new Lambda {
+        def arity = 2
+        def apply(rec: Lambda, r: R) = { r.boxed = this; 0.0 }
 
-//  def mkBuiltin(name: Name, f: (Double, Double) => Double) = new ComputationN(2, Term.Builtin(name)) {
-//    override def apply(rec: Lambda, xs: Array[Slot], r: R) = f(xs(1).unboxed, xs(0).unboxed)
-//  }
+        def apply(rec: Lambda, x0: D, x0b: V, r: R) = { r.boxed = new Lambda {
+          def arity = 1
+
+          def apply(rec: Lambda, r: R) = { r.boxed = this; 0.0 }
+
+          def apply(rec: Lambda, x1: D, x1b: V, r: R) = { r.boxed = null; f(x0, x1) }
+
+          def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, r: R) = ???
+          def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, r: R) = ???
+          def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, r: R) = ???
+          def apply(rec: Lambda, xs: Array[Slot], r: R) = ???
+          def decompile = term(decompileSlot(x0, x0b))
+        }; 0.0 }
+
+        def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, r: R) = { r.boxed = null; f(x1, x0) }
+
+        def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, r: R) = ???
+        def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, r: R) = ???
+        def apply(rec: Lambda, xs: Array[Slot], r: R) = ???
+        def decompile = term
+      }
+    }(term)
+  }
 
   /** Compile and evaluate a term, the return result back as a term. */
   def normalize(builtins: Name => Computation)(e: Term): Term = {
@@ -39,17 +62,17 @@ object Fib extends App {
   import Term._
   val N = 15.0
 
+  val identity = Lam("n")('n)
+  val applyIdentity = Lam("n")('n)(3.0)
+  val identityInLet = Let("identity" -> identity)('identity.v(3.0))
+  val identityInLet2 = Let("foo" -> 99, "identity" -> identity)('identity.v(3.0))
+  val identityInLetRec = LetRec("identity" -> identity)('identity.v(3.0))
+  val identityInLetRec2 = LetRec("foo" -> 99, "identity" -> identity)('identity.v(3.0))
   val countFrom =
-    Lam("n")('n)(3.0)
-
-
-//    Let(
-////      "foo" -> Num(99),
-//      "identity" -> Lam("n")(
-//        'n
-////        If0('n, 50, 'countFrom.v('n.v - 1.0))
-//      ),
-//    )('identity.v(3.0))
+    LetRec(
+      "foo" -> Num(99),
+      "countFrom" -> Lam("n")(If0('n, 50, 'countFrom.v('n.v - 1.0)))
+    )('countFrom.v(3.0))
 
   val fib =
     LetRec(
@@ -66,7 +89,19 @@ object Fib extends App {
       )
     )('fac.v(10, 1))
 
-  println(normalize(builtins)(countFrom))
-
-  Thread.sleep(200)
+  List(
+    "applyIdentity" -> applyIdentity,
+    "identityInLet" -> identityInLet,
+    "identityInLet2" -> identityInLet2,
+    "identityInLetRec" -> identityInLetRec,
+    "identityInLetRec2" -> identityInLetRec2,
+    "countFrom" -> countFrom,
+    "fib" -> fib,
+    "facTailRec" -> facTailRec
+  ).foreach {
+    case (name, term) =>
+      print(s"$name: ")
+      val result = normalize(builtins)(term)
+      println(result)
+  }
 }
