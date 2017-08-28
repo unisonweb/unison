@@ -69,7 +69,7 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
   def compile(builtins: String => Computation)(e: Term): Computation =
     compile(builtins, checkedAnnotateBound(e), CurrentRec.none, IsTail)
 
-  def checkedAnnotateBound(e: Term) = {
+  def checkedAnnotateBound(e: Term): TermC = {
     assert(e.annotation.isEmpty, s"reannotating term with free vars: ${e.annotation}\n" + Render.renderIndent(e))
     ABT.annotateBound(e)
   }
@@ -107,7 +107,7 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
             // substitute them into the body of the lambda, being careful about name clashes
             // now the lambda has no more free variables; good to compile with happy path
 
-        compileLambda(termC, names, body, currentRec, r => t => compile2(IsTail, r)(checkedAnnotateBound(t)))
+        compileLambda(termC, names, body, currentRec, r => t => compile2(IsTail, r)(t))
 
       case Term.LetRec(bindings, body) =>
         val shadowCurrentRec = currentRec.shadow(bindings.map(_._1))

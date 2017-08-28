@@ -16,8 +16,8 @@ object LookupVarGenerator extends OneFileGenerator("LookupVar.scala") {
                   s"if (x${i}b eq null) x$i else x${i}b(r)".indent
               } <>
               s"new LookupVar$i"
-            } <>|
-          }
+            }.<>|
+          } <>
           `case`("i") {
             b("class LookupVarN extends ComputationN(i+1, e)") {
               bEq(applyNSignature) {

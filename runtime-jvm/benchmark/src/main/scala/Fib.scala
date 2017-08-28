@@ -18,11 +18,13 @@ object Fib extends App {
      case s@"*" => mkBuiltin(s, _ * _)
    }
 
-  def mkBuiltin(name: Name, f: (Double) => Double): Computation = ???
-
-  def mkBuiltin(name: Name, f: (Double, Double) => Double) = new ComputationN(2, Term.Builtin(name)) {
-    override def apply(rec: Lambda, xs: Array[Slot], r: R) = f(xs(0).unboxed, xs(1).unboxed)
+  def mkBuiltin(name: Name, f: (Double, Double) => Double) = new Computation2(Term.Builtin(name)) {
+    def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, r: R) = f(x1, x0)
   }
+
+//  def mkBuiltin(name: Name, f: (Double, Double) => Double) = new ComputationN(2, Term.Builtin(name)) {
+//    override def apply(rec: Lambda, xs: Array[Slot], r: R) = f(xs(1).unboxed, xs(0).unboxed)
+//  }
 
   /** Compile and evaluate a term, the return result back as a term. */
   def normalize(builtins: Name => Computation)(e: Term): Term = {
@@ -38,13 +40,16 @@ object Fib extends App {
   val N = 15.0
 
   val countFrom =
-    LetRec(
-      "foo" -> Num(99),
-      "countFrom" -> Lam("n")(
-//        'n.v
-        If0('n, 50, 'countFrom.v('n.v - 1.0))
-      ),
-    )('countFrom.v(3.0))
+    Lam("n")('n)(3.0)
+
+
+//    Let(
+////      "foo" -> Num(99),
+//      "identity" -> Lam("n")(
+//        'n
+////        If0('n, 50, 'countFrom.v('n.v - 1.0))
+//      ),
+//    )('identity.v(3.0))
 
   val fib =
     LetRec(
