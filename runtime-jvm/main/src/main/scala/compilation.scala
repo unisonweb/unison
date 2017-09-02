@@ -1,5 +1,6 @@
 package org.unisonweb
 
+import org.unisonweb.ABT.AnnotatedTerm
 import org.unisonweb.Term.{Name, Term}
 
 package compilation {
@@ -19,16 +20,26 @@ package compilation {
     def apply(name: Name, arity: Arity): CurrentRec = CurrentRec(Some((name,arity)))
   }
 
+  case class RecursiveVars(get: Set[Name]) extends AnyVal {
+    def contains(name: Name): Boolean = get.contains(name)
+    def +(name: Name): RecursiveVars = RecursiveVars(get + name)
+    def ++(names: Seq[Name]): RecursiveVars = RecursiveVars(get ++ names)
+    def -(name: Name): RecursiveVars = RecursiveVars(get.filterNot(name == _))
+    def --(names: Seq[Name]): RecursiveVars = RecursiveVars(get.filterNot(names contains _))
+  }
+  object RecursiveVars {
+      def empty = RecursiveVars(Set())
+  }
 }
 
-package object compilation extends TailCalls with CompileLambda with CompileLet1 with CompileLetRec with LookupVar with CompileFunctionApplication with CompileIf0 {
+package object compilation extends TailCalls with CompileLambda with CompileLet1 with CompileLetRec with CompileLookupVar with CompileFunctionApplication with CompileIf0 {
   type D = Double
   type V = Value
   type R = Result
   type TC = TailCall
   type Arity = Int
   type IsTail = Boolean
-  val IsTail = true
+  val IsTail = false
   val IsNotTail = false
 
   /**
@@ -39,13 +50,15 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
    * Ex: `x -> y -> x + y`, free variables of `x + y` will be `Set(x, y)`,
    * and bound variables will be `Vector(y, x)`.
    */
-  type TermC = ABT.AnnotatedTerm[Term.F, (Set[Name], Vector[Name])]
+  type TermC = AnnotatedTerm[Term.F, ((Set[Name], Vector[Name]), RecursiveVars)]
 
-  def unTermC(t: TermC): Term = t.map(_._1)
+  def unTermC(t: TermC): Term = t.map(_._1._1)
 
-  def env(t: TermC): Vector[Name] = t.annotation._2
+  def env(t: TermC): Vector[Name] = t.annotation._1._2
 
-  def freeVars(t: TermC): Set[Name] = t.annotation._1
+  def freeVars(t: TermC): Set[Name] = t.annotation._1._1
+
+  def recVars(t: TermC): RecursiveVars = t.annotation._2
 
   def stackSize(t: TermC): Int = stackSize(freeVars(t), env(t))
 
@@ -71,7 +84,7 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
 
   def checkedAnnotateBound(e: Term): TermC = {
     assert(e.annotation.isEmpty, s"reannotating term with free vars: ${e.annotation}\n" + Render.renderIndent(e))
-    ABT.annotateBound(e)
+    annotateRecVars(ABT.annotateBound(e))
   }
 
   def compile(builtins: String => Computation, termC: TermC, currentRec: CurrentRec, isTail: IsTail): Computation = {
@@ -84,7 +97,7 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
       case Term.Num(n) => compileNum(n)
       case Term.Builtin(name) => builtins(name)
       case Term.Compiled(c) => Return(c)(unTermC(termC)) // todo: can we do a better job tracking the uncompiled form?
-      case Term.Var(name) => compileVar(currentRec, name, termC)
+      case Term.Var(name) => compileVar(currentRec, name, env(termC))
       case Term.If0(cond, if0, ifNot0) =>
         val compiledCond = compile1(IsNotTail)(cond)
         val compiledIf0 = compile1(isTail)(if0)
@@ -113,9 +126,9 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
         val shadowCurrentRec = currentRec.shadow(bindings.map(_._1))
         val compiledBindings: Array[Computation] = bindings.view.map {
           case (name, l@Term.Lam(args, body)) => // possibly self-recursive
-            compile2(IsNotTail, CurrentRec(name, args.length))(l)
-          case (_, bindingTermC) => // not a lambda, shouldn't contain recursive call
-            compile2(IsNotTail, shadowCurrentRec)(bindingTermC) // todo should these both replace currentRec?
+            compile2(IsNotTail, shadowCurrentRec)(l)
+          case (_, b) => // not a lambda, shouldn't contain recursive call
+            compile2(IsNotTail, shadowCurrentRec)(b)
         }.toArray
         val compiledBody = compile2(isTail, shadowCurrentRec)(body)
 
@@ -168,22 +181,41 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
     new CompiledNum
   }
 
-  def compileVar(currentRec: CurrentRec, name: Name, termC: TermC): Computation = {
-    // System.out.println("[debug] compileVar: " + Render.render(termC))
-
+  def compileVar(currentRec: CurrentRec, name: Name, env: Vector[Name]): Computation = {
     if (currentRec.contains(name))
-      compileRecVar(name)
+      compileCurrentRec(name)
     else
-      env(termC).indexOf(name) match {
-        case -1 => sys.error("unknown variable: " + name + "\nin " + Render.renderIndent(termC))
-        case i => lookupVar(i, unTermC(termC))
+      env.indexOf(name) match {
+        case -1 => sys.error("unknown variable: " + name)
+        case i => compileLookupVar(i, Term.Var(name))
       }
   }
 
-  def compileRecVar(name: Name) = {
-    class RecursiveReference extends Computation0(Term.Var(name)) {
+  def compileCurrentRec(name: Name) = {
+    class GetCurrentRec extends Computation0(Term.Var(name)) {
       def apply(rec: Lambda, r: R) = { r.boxed = rec; 0.0 }
     }
-    new RecursiveReference
+    new GetCurrentRec
   }
+
+  def annotateRecVars[A](term: AnnotatedTerm[Term.F, A]) =
+    term.annotateDown[(Boolean, RecursiveVars), (A, RecursiveVars)](false -> RecursiveVars.empty) {
+      case (s @ (collecting, rv), AnnotatedTerm(a, abt)) =>
+        val a2 = a -> rv
+        abt match {
+          case ABT.Var_(name) => s -> a2
+          case ABT.Abs_(name, body) =>
+            if (collecting)
+              (collecting, rv + name) -> a2 // new rec var
+            else
+              (collecting, rv - name) -> a2 // shadow a rec var
+          case ABT.Tm_(f) =>
+            import Term.F._
+            f match {
+              case Rec_(_) => (true, rv) -> a2 // start collecting
+              case LetRec_(_, _) => (false, rv) -> a2 // stop collecting
+              case _ => s -> a2
+            }
+        }
+    }
 }

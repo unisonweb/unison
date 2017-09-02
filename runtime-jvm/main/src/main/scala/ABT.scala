@@ -1,6 +1,6 @@
 package org.unisonweb
 
-import org.unisonweb.util.{Functor,Traverse}
+import org.unisonweb.util.{Functor, Traverse}
 
 sealed abstract class ABT[F[+_],+R] {
   import ABT._
@@ -21,6 +21,10 @@ object ABT {
     def map[B](f: A => B)(implicit F: Functor[F]): AnnotatedTerm[F,B] =
       AnnotatedTerm(f(annotation), get.map(_.map(f)))
     def reannotate(f: A => A): AnnotatedTerm[F,A] = AnnotatedTerm(f(annotation), get)
+    def annotateDown[S, A2](s: S)(f: (S, AnnotatedTerm[F,A]) => (S, A2))(implicit F: Functor[F]): AnnotatedTerm[F, A2] = {
+      val (s2, a2) = f(s, this)
+      AnnotatedTerm(a2, get.map(_.annotateDown(s2)(f)))
+    }
   }
   type Term[F[+_]] = AnnotatedTerm[F,Set[Name]]
 

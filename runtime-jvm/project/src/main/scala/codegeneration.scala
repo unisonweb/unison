@@ -28,8 +28,8 @@ package object codegeneration {
   def switch(s: String)(body: String) = s"($s: @annotation.switch) match " + body.b
   def match1(s: String)(body: String) = s"$s match { $body }"
   def `match`(s: String)(body: String) = s"$s match " + body.b
-  def `case`(expr: String)(body: String): String = s"case $expr =>" <> body.indent <> ""
-  def `case`(i: Int)(body: String): String = s"case $i =>" <> body.indent <> ""
+  def `case`(expr: String)(body: String): String = s"case $expr =>" <> body.indent
+  def `case`(i: Int)(body: String): String = s"case $i =>" <> body.indent
   def caseInline(i: Int)(body: String): String = s"case $i => $body"
   def caseInline(expr: String)(body: String): String = s"case $expr => $body"
   def b(s: String)(body: String) = s + " " + body.b
@@ -68,6 +68,7 @@ package object codegeneration {
 
   implicit class Codegen1(val r: Seq[Int]) extends AnyVal {
     def each(f: Int => String): String = r map f mkString "\n"
+    def eachNL(f: Int => String): String = r map f mkString "\n\n" // todo: take nl off of `case`
     def semis(f: Int => String): String = r map f mkString "; "
     def commas(f: Int => String): String = r map f mkString ", "
   }

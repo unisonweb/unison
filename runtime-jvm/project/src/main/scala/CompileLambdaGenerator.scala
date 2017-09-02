@@ -30,26 +30,33 @@ object CompileLambdaGenerator extends OneFileGenerator("CompileLambda.scala") {
         } <<>>
         // grab all the free variables referenced by the body of the lambda (not bound by the lambda itself)
         "val shadowedRec = currentRec.shadow(names)" <>
-        "val fv: Set[Name] = freeVars(e)" <>
+        "val fv: Set[Name] = freeVars(e) -- recVars(e).get" <>
         // get them off the stack when you build the lambda
         //  (compile/get all those `Var`s)
         //  take those Values,
         // decompile them,
         // substitute them into the body of the lambda, being careful about name clashes
         // now the lambda has no more free variables; good to compile with happy path
+        // ---
+        // "keep track of recursive vars"
+        // set of names, shadow each time
+        // or: add another annotation to the tree: TermC to (FreeVars, BoundVars, RecVars)
+        // currently, when you compile a lambda with free vars, we grab the fvs from their env and subst into the lambda
+        // but we are eager about how we do it: if the free var is a ref, we resolve the ref eagerly and subst the value in
+        // instead, don't resolve that ref :D substitute the Return(ref) itself into the body
         switch("stackSize(e)") {
           `case`(0) {
             "assert(fv.isEmpty)" <>
             "Return(makeClosedLambda(decompiledLam, names, body, compile(shadowedRec)(body)))(decompiledLam)"
           } <>
-          (1 to maxInlineStack).each { stackSize =>
+          (1 to maxInlineStack).eachNL { stackSize =>
             `case`(stackSize) {
               val className = s"BindLambdaS${stackSize}"
               b(s"class $className extends Computation${stackSize}(e,())") {
                 bEq(applySignature(stackSize)) {
                   "val compiledVars: Map[Name, Term] = " + b("fv.map") {
                     `case`("name") {
-                      "val compiledVar = compileVar(currentRec, name, body)" <>
+                      "val compiledVar = compileVar(currentRec, name, env(e))" <>
                       "val evaluatedVar = " + eval(stackSize, "compiledVar") <>
                       "val value = Value(evaluatedVar, r.boxed)" <>
                       "(name, Term.Compiled(value))"
@@ -65,14 +72,14 @@ object CompileLambdaGenerator extends OneFileGenerator("CompileLambda.scala") {
               } <>
               s"new $className"
             }
-          } <>
+          } <<>>
           `case`("stackSize") {
             val className = s"BindLambdaSN"
             b(s"class $className extends ComputationN(stackSize,e,())") {
               bEq(applyNSignature) {
                 "val compiledVars: Map[Name, Term] =" <>
                   s"fv.map { name => name -> Term.Compiled(Value(${
-                    evalN("compileVar(currentRec, name, body)")
+                    evalN("compileVar(currentRec, name, env(e))")
                   }, r.boxed)) }.toMap".indent <<>>
                 "// System.out.println(\"[debug] compiled vars:\\n\" + fv.mkString(\"  \", \"\\n  \", \"\\n\"))"<>
                 "val lam2 = Term.Lam(names: _*)(body = ABT.substs(compiledVars)(unTermC(body)))" <>

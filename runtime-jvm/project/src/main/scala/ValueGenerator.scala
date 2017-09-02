@@ -32,7 +32,7 @@ object ValueGenerator extends OneFileGenerator("Value.scala") {
       "def apply(r: R) = { r.boxed = this; 0.0 }" <>
       (0 to maxInlineArgs).each(applySignature) <>
       applyNSignature
-    } <>
+    } <<>>
     b("object Lambda") {
       bEq("def unapply(value: Value): Option[(Lambda, Arity)]") {
         `match`("value") {
@@ -109,23 +109,24 @@ object ValueGenerator extends OneFileGenerator("Value.scala") {
           fixedOverapplyN(1)
       }.<<>>|
     } <>
-    (2 to N).each { i =>
+    (2 to N).eachNL { i =>
       s"/** Specialized Lambda of $i parameters */" <>
       b(s"class Lambda$i(${lambdaCtorArgs(i)}, compiledBody: Computation, decompileIt: => Term)(body: TermC, compile: TermC => Computation) extends Lambda") {
         s"def decompile = decompileIt" <>
         s"def arity = $i" <>
           fixedApplyDefs(i) <>
           fixedOverapplyN(i)
-      }.<>|
+      }
     } <>
+    "" <>
     s"/** Lambda with ${N+1} or more parameters */" <>
     b("class LambdaN(argNames: Array[Name], compiledBody: Computation, decompileIt: => Term)(body: TermC, compile: TermC => Computation) extends Lambda") {
       s"def decompile = decompileIt" <>
       "def arity = argNames.length" <>
-      (0 to N).each {
+      (0 to N).eachNL {
         case 0 =>
           "// apply 0 arguments / no-op" <>
-          s"${applySignature(0)} = { r.boxed = this; 0.0 }" <> ""
+          s"${applySignature(0)} = { r.boxed = this; 0.0 }"
 
         case j =>
           s"// partial application: $j of ${N+1}+ arguments; ${N+1-j}+ additional arguments needed" <>
@@ -144,8 +145,9 @@ object ValueGenerator extends OneFileGenerator("Value.scala") {
                   "0.0"
                 }
             }
-          }.<>|
+          }
       } <>
+      "" <>
       bEq(applyNSignature) {
         "if (xs.length == argNames.length) compiledBody(rec, xs, r)" <>
         b("else if (xs.length < argNames.length)") {

@@ -1,25 +1,25 @@
 package org.unisonweb.codegeneration
 
-object LookupVarGenerator extends OneFileGenerator("LookupVar.scala") {
-  def source: String =
+object CompileLookupVarGenerator extends OneFileGenerator("CompileLookupVar.scala") {
+  def source: String = (
     "package org.unisonweb.compilation" <>
     "" <>
     "import org.unisonweb.Term.Term" <>
     "" <>
-    b("trait LookupVar") {
-      bEq("def lookupVar(i: Int, e: Term): Computation") {
+    b("trait CompileLookupVar") {
+      bEq("def compileLookupVar(i: Int, decompile: Term): Computation") {
         switch("i") {
-          (0 until maxInlineStack).each { i =>
+          (0 until maxInlineStack).eachNL { i =>
             `case`(i) {
-              b(s"class LookupVar$i extends Computation${i+1}(e)") {
+              b(s"class LookupVar$i extends Computation${i+1}(decompile)") {
                 s"${applySignature(i+1)} =" <>
                   s"if (x${i}b eq null) x$i else x${i}b(r)".indent
               } <>
               s"new LookupVar$i"
-            }.<>|
-          } <>
+            }
+          } <<>>
           `case`("i") {
-            b("class LookupVarN extends ComputationN(i+1, e)") {
+            b("class LookupVarN extends ComputationN(i+1, decompile)") {
               bEq(applyNSignature) {
                 "val x = xs(i)" <>
                 "if (x.boxed eq null) x.unboxed" <>
@@ -31,4 +31,5 @@ object LookupVarGenerator extends OneFileGenerator("LookupVar.scala") {
         }
       }
     }
+  )
 }

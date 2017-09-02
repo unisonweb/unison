@@ -7,10 +7,10 @@ object CompileLetRecGenerator extends OneFileGenerator("CompileLetRec.scala") {
     b("trait CompileLetRec") {
       bEq("def compileLetRec(e: TermC, bindings: Array[Computation], body: Computation): Computation") {
         switch("stackSize(e)") {
-           (0 to maxInlineStack).each { stackSize =>
+           (0 to maxInlineStack).eachNL { stackSize =>
              `case`(s"/* stackSize = */ $stackSize") {
                switch("bindings.length") {
-                 (1 to maxInlineArgs).each { argCount =>
+                 (1 to maxInlineArgs).eachNL { argCount =>
                    `case`(s"/* argCount = */ $argCount") {
                      b(s"class LetRecS${stackSize}A${argCount} extends Computation$stackSize(e, ())") {
                        (1 to argCount).each { k => s"val b$k = bindings(${k-1})" } <>
@@ -31,7 +31,7 @@ object CompileLetRecGenerator extends OneFileGenerator("CompileLetRec.scala") {
                      } <>
                      s"new LetRecS${stackSize}A${argCount}"
                    }
-                 } <>
+                 } <<>>
                  `case`("/* argCount = */ m") {
                    b(s"class LetRecS${stackSize}AM extends Computation$stackSize(e, ())") {
                      bEq(applySignature(stackSize)) {
@@ -50,7 +50,7 @@ object CompileLetRecGenerator extends OneFileGenerator("CompileLetRec.scala") {
                  }
                }
              }
-           } <>
+           } <<>>
            `case`("/* stackSize = */ n") {
              b(s"class LetRecSN extends ComputationN(n, e, ())") {
                bEq(applyNSignature) {

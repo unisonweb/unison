@@ -119,11 +119,12 @@ lazy val main = project.in(file("main")).
     val gens : List[(File, String)] = List[OneFileGenerator](
       ComputationGenerator,
       ValueGenerator,
-      LookupVarGenerator,
+      CompileLookupVarGenerator,
       CompileLambdaGenerator,
       CompileLet1Generator,
       CompileLetRecGenerator,
       CompileFunctionApplicationGenerator,
+      MakeBuiltinGenerator,
       TailCallsGenerator,
       CompileIf0Generator
     ).map(_.apply(outPath))

@@ -17,7 +17,7 @@ object ComputationGenerator extends OneFileGenerator("Computation.scala") {
       s"${applySignature(0)} = value(r)"
     } <>
     "" <>
-    (0 to maxInlineStack).each { i =>
+    (0 to maxInlineStack).eachNL { i =>
       s"/** A `Computation` with just one abstract `apply` function, which takes $i args. */" <>
       b(s"abstract class Computation$i(decompileIt: => Term) extends Computation") {
         "def this(t: TermC, dummy: Unit) = this(unTermC(t))" <>
@@ -27,8 +27,8 @@ object ComputationGenerator extends OneFileGenerator("Computation.scala") {
           "// " + applySignature(i) <>
           ((i+1) to maxInlineStack).each { j => s"${applySignature(j)} = " + tailEval(i, "apply") } <>
           applyNSignature + " = " + tailEvalN(i, "apply")
-      } <> ""
-    } <>
+      }
+    } <<>>
     b("abstract class ComputationN(val stackSize: Int, decompileIt: => Term) extends Computation") {
       "def this(stackSize: Int, t: TermC, dummy: Unit) = this(stackSize, unTermC(t))" <>
       "def decompile = decompileIt" <>

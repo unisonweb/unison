@@ -7,7 +7,7 @@ object CompileIf0Generator extends OneFileGenerator("CompileIf0.scala") {
       b("trait CompileIf0") {
         bEq("def compileIf0(e: TermC, cond: Computation, if0: Computation, ifNot0: Computation)") {
           switch("stackSize(e)") {
-            (0 to maxInlineStack).each { stackSize =>
+            (0 to maxInlineStack).eachNL { stackSize =>
               `case`(s"/* stackSize = */ $stackSize") {
                 b(s"class If0S$stackSize extends Computation$stackSize(e,())") {
                   indentEqExpr(applySignature(stackSize)) {
@@ -19,7 +19,7 @@ object CompileIf0Generator extends OneFileGenerator("CompileIf0.scala") {
                 } <>
                 s"new If0S$stackSize"
               }
-            } <>
+            } <<>>
             `case`("stackSize") {
               b("class If0SN extends ComputationN(stackSize,e,())") {
                 indentEqExpr(applyNSignature) {

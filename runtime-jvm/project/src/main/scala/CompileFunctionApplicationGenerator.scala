@@ -57,10 +57,10 @@ object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunc
       "warnAssert(stackSize(e) == args.map(_.stackSize).max," <>
         """s"stackSize: ${stackSize(e)}, args: ${args.map(_.stackSize).mkString(", ")}")""".indent <>
       switch("stackSize(e)") {
-          (0 to maxInlineStack).each { stackSize =>
+          (0 to maxInlineStack).eachNL { stackSize =>
             `case`(s"/* stackSize = */ $stackSize") {
               switch("args.length") {
-                (1 to maxInlineArgs).each { argCount =>
+                (1 to maxInlineArgs).eachNL { argCount =>
                   `case`(argCount) {
                     (0 until argCount).each { i => s"val arg$i = args($i)" } <>
                     b(s"class ${classPrefix}S${stackSize}A${argCount} extends Computation${stackSize}(e, ())") {
@@ -72,8 +72,7 @@ object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunc
                           s"$evalFn(${eEvalArgs(argCount)})"
                       }
                     } <>
-                    s"new ${classPrefix}S${stackSize}A${argCount}" <>
-                    ""
+                    s"new ${classPrefix}S${stackSize}A${argCount}"
                   }
                 } <>
                 `case`("argCount") {
@@ -97,7 +96,7 @@ object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunc
           } <>
           `case`("stackSize") {
             switch("args.length") {
-              (1 to maxInlineArgs).each { argCount =>
+              (1 to maxInlineArgs).eachNL { argCount =>
                 `case`(s"/* argCount = */ $argCount") {
                   (0 until argCount).each { i => s"val arg$i = args($i)" } <>
                   b(s"class ${classPrefix}SNA$argCount extends ComputationN(stackSize, e, ())") {
@@ -146,10 +145,10 @@ object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunc
           |""".stripMargin.indent <>
       ")" <>
       switch("stackSize(e)") {
-        (0 to maxInlineStack).each { stackSize =>
+        (0 to maxInlineStack).eachNL { stackSize =>
           `case`(s"/* stackSize = */ $stackSize") {
             switch("args.length") {
-              (1 to maxInlineArgs).each { argCount =>
+              (1 to maxInlineArgs).eachNL { argCount =>
                 `case`(s"/* argCount = */ $argCount") {
                   val className = s"${emptyOrNon}TailCallS${stackSize}A${argCount}"
                   b(s"class $className extends Computation$stackSize(e, ())") {
@@ -184,10 +183,10 @@ object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunc
               }
             }
           }
-        } <>
+        } <<>>
         `case`("stackSize") {
           switch("args.length") {
-            (1 to maxInlineArgs).each { argCount =>
+            (1 to maxInlineArgs).eachNL { argCount =>
               `case`(s"/* argCount = */ $argCount") {
                 val className = s"${emptyOrNon}TailCallSNA$argCount"
                 b(s"class $className extends ComputationN(stackSize, e, ())") {
@@ -201,7 +200,7 @@ object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunc
                 } <>
                 s"new $className"
               }
-            } <>
+            } <<>>
             `case`("argCount") {
               val className = s"${emptyOrNon}TailCallSNAM"
               b(s"class $className extends ComputationN(argCount, e, ())") {

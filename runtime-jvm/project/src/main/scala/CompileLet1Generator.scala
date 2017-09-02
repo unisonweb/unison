@@ -7,7 +7,7 @@ object CompileLet1Generator extends OneFileGenerator("CompileLet1.scala") {
     b("trait CompileLet1") {
       bEq("def compileLet1(e: TermC, binding: Computation, body: Computation)") {
         switch("stackSize(e)") {
-          (0 until maxInlineStack).each { stackSize =>
+          (0 until maxInlineStack).eachNL { stackSize =>
             val className = s"Let1S${stackSize}"
             `case`(stackSize) {
               b(s"class $className extends Computation${stackSize}(e,())") {
@@ -33,7 +33,7 @@ object CompileLet1Generator extends OneFileGenerator("CompileLet1.scala") {
               }
             } <>
             s"new $className"
-          } <>
+          } <<>>
           `case`("stackSize") {
             val className = s"Let1SN"
             b(s"class $className extends ComputationN(stackSize, e, ())") {

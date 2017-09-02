@@ -90,11 +90,11 @@ object Fib extends App {
     )('fac.v(10, 1))
 
   List(
-    "applyIdentity" -> applyIdentity,
-    "identityInLet" -> identityInLet,
-    "identityInLet2" -> identityInLet2,
-    "identityInLetRec" -> identityInLetRec,
-    "identityInLetRec2" -> identityInLetRec2,
+//    "applyIdentity" -> applyIdentity,
+//    "identityInLet" -> identityInLet,
+//    "identityInLet2" -> identityInLet2,
+//    "identityInLetRec" -> identityInLetRec,
+//    "identityInLetRec2" -> identityInLetRec2,
     "countFrom" -> countFrom,
     "fib" -> fib,
     "facTailRec" -> facTailRec
@@ -104,4 +104,10 @@ object Fib extends App {
       val result = normalize(builtins)(term)
       println(result)
   }
+
+  // todo: getting null pointer exception running countFrom
+  // paul: suspect that compiling self-calls is busted in how it interacts with general letrec
+  // arya: selfcall with null fn is crazeballs
+
+
 }
