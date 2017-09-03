@@ -97,6 +97,7 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
       case Term.Num(n) => compileNum(n)
       case Term.Builtin(name) => builtins(name)
       case Term.Compiled(c) => Return(c)(unTermC(termC)) // todo: can we do a better job tracking the uncompiled form?
+      case Term.Delayed(f) => LazyReturn(f)(unTermC(termC))
       case Term.Var(name) => compileVar(currentRec, name, env(termC))
       case Term.If0(cond, if0, ifNot0) =>
         val compiledCond = compile1(IsNotTail)(cond)
@@ -201,15 +202,16 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
   def annotateRecVars[A](term: AnnotatedTerm[Term.F, A]) =
     term.annotateDown[(Boolean, RecursiveVars), (A, RecursiveVars)](false -> RecursiveVars.empty) {
       case (s @ (collecting, rv), AnnotatedTerm(a, abt)) =>
+        import ABT._
         val a2 = a -> rv
         abt match {
-          case ABT.Var_(name) => s -> a2
-          case ABT.Abs_(name, body) =>
+          case Var_(name) => s -> a2
+          case Abs_(name, body) =>
             if (collecting)
-              (collecting, rv + name) -> a2 // new rec var
+              (collecting, rv + name) -> a2 // introduce a rec var
             else
               (collecting, rv - name) -> a2 // shadow a rec var
-          case ABT.Tm_(f) =>
+          case Tm_(f) =>
             import Term.F._
             f match {
               case Rec_(_) => (true, rv) -> a2 // start collecting

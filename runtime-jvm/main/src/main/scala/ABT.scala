@@ -26,6 +26,7 @@ object ABT {
       AnnotatedTerm(a2, get.map(_.annotateDown(s2)(f)))
     }
   }
+
   type Term[F[+_]] = AnnotatedTerm[F,Set[Name]]
 
   /**

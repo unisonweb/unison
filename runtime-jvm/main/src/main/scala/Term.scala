@@ -34,6 +34,11 @@ object Term {
     case class Let_[R](binding: R, body: R) extends F[R]
     case class Rec_[R](r: R) extends F[R]
     case class If0_[R](condition: R, ifZero: R, ifNonzero: R) extends F[R]
+    class Delayed_(delayed: => Value) extends F[Nothing] { lazy val value = delayed }
+    object Delayed_ {
+      def apply(value: => Value) = new Delayed_(value)
+      def unapply(f: Delayed_): Option[() => Value] = Some(() => f.value)
+    }
     case class Compiled_(value: Value) extends F[Nothing]
     // yield : f a -> a|f
     case class Yield_[R](effect: R) extends F[R]
@@ -61,6 +66,7 @@ object Term {
         case If0_(c,a,b) =>
           val c2 = f(c); val a2 = f(a); val b2 = f(b)
           If0_(c2, a2, b2)
+        case a@Delayed_(_) => a
         case a@Compiled_(_) => a
         case Handle_(h,b) =>
           val h2 = f(h); val b2 = f(b)
@@ -191,6 +197,15 @@ object Term {
       Tm(Compiled_(v))
     def unapply[A](t: AnnotatedTerm[F,A]): Option[Value] = t match {
       case Tm(Compiled_(v)) => Some(v)
+      case _ => None
+    }
+  }
+
+  object Delayed {
+    def apply(v: => Value): Term =
+      Tm(Delayed_(v))
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[() => Value] = t match {
+      case Tm(Delayed_(v)) => Some(v)
       case _ => None
     }
   }

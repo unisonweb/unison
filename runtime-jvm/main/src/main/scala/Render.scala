@@ -50,6 +50,7 @@ trait RenderInstances {
     case Rec_(r) => "rec\n" + renderIndent(r)
     case If0_(condition, ifZero, ifNonzero) => s"ifZero $condition\nthen\n${renderIndent(ifZero)}\nelse\n${renderIndent(ifNonzero)}"
     case Compiled_(v) => "Compiled {" + renderIndent(v.decompile) + "}"
+    case Delayed_(v) => "Delayed { ... }"
     case Yield_(effect) => "Yield(...)"
     case Handle_(handler, block) => "Handle(...)"
   }

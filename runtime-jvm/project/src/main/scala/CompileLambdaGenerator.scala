@@ -31,6 +31,7 @@ object CompileLambdaGenerator extends OneFileGenerator("CompileLambda.scala") {
         // grab all the free variables referenced by the body of the lambda (not bound by the lambda itself)
         "val shadowedRec = currentRec.shadow(names)" <>
         "val fv: Set[Name] = freeVars(e) -- recVars(e).get" <>
+        "val rv: Set[Name] = recVars(e).get" <>
         // get them off the stack when you build the lambda
         //  (compile/get all those `Var`s)
         //  take those Values,
@@ -54,7 +55,7 @@ object CompileLambdaGenerator extends OneFileGenerator("CompileLambda.scala") {
               val className = s"BindLambdaS${stackSize}"
               b(s"class $className extends Computation${stackSize}(e,())") {
                 bEq(applySignature(stackSize)) {
-                  "val compiledVars: Map[Name, Term] = " + b("fv.map") {
+                  "val compiledFreeVars: Map[Name, Term] = " + b("fv.map") {
                     `case`("name") {
                       "val compiledVar = compileVar(currentRec, name, env(e))" <>
                       "val evaluatedVar = " + eval(stackSize, "compiledVar") <>
@@ -62,7 +63,15 @@ object CompileLambdaGenerator extends OneFileGenerator("CompileLambda.scala") {
                       "(name, Term.Compiled(value))"
                     }
                   } + ".toMap" <<>>
-                  "val lam2 = Term.Lam(names: _*)(body = ABT.substs(compiledVars)(unTermC(body)))" <>
+                  "val compiledRecVars: Map[Name, Term] = " + b("rv.map") {
+                    `case`("name") {
+                      "val compiledVar = compileVar(currentRec, name, env(e))" <>
+                      "def evaluatedVar = " + eval(stackSize, "compiledVar") + " // delayed" <>
+                      "def value = Value(evaluatedVar, r.boxed)"  + " // delayed" <>
+                      "(name, Term.Delayed(value))"
+                    }
+                  } + ".toMap" <<>>
+                  "val lam2 = Term.Lam(names: _*)(body = ABT.substs(compiledFreeVars ++ compiledRecVars)(unTermC(body)))" <>
                   "r.boxed = compile(currentRec)(checkedAnnotateBound(lam2)) match {" <>
                   "  case Return(v) => v" <>
                   "  case _ => sys.error(\"compiling a lambda with no free vars should always produce a Return.\")" <>

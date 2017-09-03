@@ -90,11 +90,11 @@ object Fib extends App {
     )('fac.v(10, 1))
 
   List(
-//    "applyIdentity" -> applyIdentity,
-//    "identityInLet" -> identityInLet,
-//    "identityInLet2" -> identityInLet2,
-//    "identityInLetRec" -> identityInLetRec,
-//    "identityInLetRec2" -> identityInLetRec2,
+    "applyIdentity" -> applyIdentity,
+    "identityInLet" -> identityInLet,
+    "identityInLet2" -> identityInLet2,
+    "identityInLetRec" -> identityInLetRec,
+    "identityInLetRec2" -> identityInLetRec2,
     "countFrom" -> countFrom,
     "fib" -> fib,
     "facTailRec" -> facTailRec
