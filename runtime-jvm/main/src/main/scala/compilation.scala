@@ -2,6 +2,7 @@ package org.unisonweb
 
 import org.unisonweb.ABT.AnnotatedTerm
 import org.unisonweb.Term.{Name, Term}
+import org.unisonweb.util.Lazy
 
 package compilation {
   case class Slot(var unboxed: D, var boxed: Value)
@@ -39,7 +40,7 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
   type TC = TailCall
   type Arity = Int
   type IsTail = Boolean
-  val IsTail = false
+  val IsTail = true
   val IsNotTail = false
 
   /**
@@ -79,7 +80,7 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
     if (freeVars.isEmpty) 0
     else freeVars.view.map(fv => bound.indexOf(fv)).max + 1
 
-  def compile(builtins: String => Computation)(e: Term): Computation =
+  def compile(builtins: Name => Computation)(e: Term): Computation =
     compile(builtins, checkedAnnotateBound(e), CurrentRec.none, IsTail)
 
   def checkedAnnotateBound(e: Term): TermC = {
@@ -87,7 +88,7 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
     annotateRecVars(ABT.annotateBound(e))
   }
 
-  def compile(builtins: String => Computation, termC: TermC, currentRec: CurrentRec, isTail: IsTail): Computation = {
+  def compile(builtins: Name => Computation, termC: TermC, currentRec: CurrentRec, isTail: IsTail): Computation = {
     // System.out.println("[debug] compiling:\n" + Render.renderIndent(termC))
 
     @inline def compile1(isTail: IsTail)(termC: TermC): Computation = compile(builtins, termC, currentRec, isTail)
@@ -97,7 +98,7 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
       case Term.Num(n) => compileNum(n)
       case Term.Builtin(name) => builtins(name)
       case Term.Compiled(c) => Return(c)(unTermC(termC)) // todo: can we do a better job tracking the uncompiled form?
-      case Term.Delayed(f) => LazyReturn(f)(unTermC(termC))
+      case Term.Delayed(f) => compileDelayed(f)(unTermC(termC))
       case Term.Var(name) => compileVar(currentRec, name, env(termC))
       case Term.If0(cond, if0, ifNot0) =>
         val compiledCond = compile1(IsNotTail)(cond)
@@ -199,6 +200,15 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
     new GetCurrentRec
   }
 
+  def compileDelayed(f: Lazy[Value])(term: Term) = {
+    def decompiled: Term = if (f.evaluated) Term.Compiled(f.value) else term
+
+    class LazyReturn extends Computation0(decompiled) {
+      def apply(rec: Lambda, r: R) = f.value(r)
+    }
+    new LazyReturn
+  }
+
   def annotateRecVars[A](term: AnnotatedTerm[Term.F, A]) =
     term.annotateDown[(Boolean, RecursiveVars), (A, RecursiveVars)](false -> RecursiveVars.empty) {
       case (s @ (collecting, rv), AnnotatedTerm(a, abt)) =>
@@ -220,4 +230,11 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
             }
         }
     }
+
+  def render(d: D, v: V): String = { if (v eq null) d.toString else "(" + Render1.render(v.decompile) + ")" }
+  def render(slot: Slot): String = render(slot.unboxed, slot.boxed)
+
+  import scala.annotation.elidable
+  @elidable(elidable.FINE) // doesn't seem to do anything, even with -Xelide-below ALL
+  def logFine(s: String): Unit = println(s)
 }

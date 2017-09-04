@@ -12,7 +12,15 @@ sealed abstract class ABT[F[+_],+R] {
 }
 
 object ABT {
-  type Name = String
+  case class Name(override val toString: String) extends AnyVal {
+    def +(i: Int) = Name(toString + i)
+  }
+  object Name {
+    implicit def stringToName(s: String): Name = Name(s)
+    implicit def symbolToName(s: Symbol): Name = Name(s.name)
+    implicit def stringKeyToName[A](t: (String, A)): (Name, A) = Name(t._1) -> t._2
+  }
+
   case class Var_[F[+_]](name: Name) extends ABT[F,Nothing]
   case class Abs_[F[+_],R](name: Name, body: R) extends ABT[F,R]
   case class Tm_[F[+_],R](f: F[R]) extends ABT[F,R]

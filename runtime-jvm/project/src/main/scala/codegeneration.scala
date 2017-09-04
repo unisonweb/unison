@@ -5,6 +5,7 @@ package object codegeneration {
   val maxInlineStack = 4
   val maxInlineArgs = 4
   val maxInlineTC = 2
+  val traceEval = true
 
   def applySignature(i: Int): String =
     "def apply(rec: Lambda, " + (0 until i).commas(i => s"x$i: D, x${i}b: V") + commaIf(i) + "r: R): D"
@@ -22,7 +23,8 @@ package object codegeneration {
   def lines(s: String*) = s.mkString("\n")
   def braced(s: String) = s.b
   def commaIf(i: Int) = if (i > 0) ", " else ""
-  def includeIf(b: Boolean)(s: String): String = if (b) s else ""
+  def includeIf(b: Boolean)(s: String): String = includeIfElse(b)(s, "")
+  def includeIfElse(b: Boolean)(s1: String, s2: String): String = if (b) s1 else s2
   def includeIf(i: Int)(s: String): String = includeIf(i > 0)(s)
   /** I get this wrong every time and want to fix it once and for all. */
   def switch(s: String)(body: String) = s"($s: @annotation.switch) match " + body.b

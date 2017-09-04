@@ -1,12 +1,13 @@
 package org.unisonweb
 
-import org.unisonweb.util.Traverse
+import org.unisonweb.util.{Lazy, Traverse}
 import ABT.{Abs, AnnotatedTerm, Tm}
 import compilation.Value
 
 object Term {
 
-  type Name = String
+  type Name = ABT.Name
+  val Name = ABT.Name
   type Term = ABT.Term[F]
 
   def freeVars(t: Term): Set[Name] = t.annotation
@@ -27,18 +28,14 @@ object Term {
   object F {
 
     case class Lam_[R](body: R) extends F[R]
-    case class Builtin_(name: String) extends F[Nothing]
+    case class Builtin_(name: Name) extends F[Nothing]
     case class Apply_[R](fn: R, args: List[R]) extends F[R]
     case class Num_(value: Double) extends F[Nothing]
     case class LetRec_[R](bindings: List[R], body: R) extends F[R]
     case class Let_[R](binding: R, body: R) extends F[R]
     case class Rec_[R](r: R) extends F[R]
     case class If0_[R](condition: R, ifZero: R, ifNonzero: R) extends F[R]
-    class Delayed_(delayed: => Value) extends F[Nothing] { lazy val value = delayed }
-    object Delayed_ {
-      def apply(value: => Value) = new Delayed_(value)
-      def unapply(f: Delayed_): Option[() => Value] = Some(() => f.value)
-    }
+    case class Delayed_(delayed: Lazy[Value]) extends F[Nothing]
     case class Compiled_(value: Value) extends F[Nothing]
     // yield : f a -> a|f
     case class Yield_[R](effect: R) extends F[R]
@@ -203,9 +200,9 @@ object Term {
 
   object Delayed {
     def apply(v: => Value): Term =
-      Tm(Delayed_(v))
-    def unapply[A](t: AnnotatedTerm[F,A]): Option[() => Value] = t match {
-      case Tm(Delayed_(v)) => Some(v)
+      Tm(Delayed_(Lazy(v)))
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[Lazy[Value]] = t match {
+      case Tm(Delayed_(d)) => Some(d)
       case _ => None
     }
   }
@@ -221,4 +218,7 @@ object Term {
   implicit class symbolSyntax(s: Symbol) {
     def v: Term = Var(s.name)
   }
+
+  implicit def stringKeyToNameTerm[A <% Term](kv: (String, A)): (Name, Term) = (kv._1, kv._2)
+  implicit def symbolKeyToNameTerm[A <% Term](kv: (Symbol, A)): (Name, Term) = (kv._1, kv._2)
 }

@@ -86,12 +86,12 @@ object CompileLambdaGenerator extends OneFileGenerator("CompileLambda.scala") {
             val className = s"BindLambdaSN"
             b(s"class $className extends ComputationN(stackSize,e,())") {
               bEq(applyNSignature) {
-                "val compiledVars: Map[Name, Term] =" <>
-                  s"fv.map { name => name -> Term.Compiled(Value(${
-                    evalN("compileVar(currentRec, name, env(e))")
-                  }, r.boxed)) }.toMap".indent <<>>
+                "val compiledFreeVars: Map[Name, Term] =" <>
+                  s"fv.map { name => name -> Term.Compiled(Value(${evalN("compileVar(currentRec, name, env(e))")}, r.boxed)) }.toMap".indent <<>>
+                "val compiledRecVars: Map[Name, Term] =" <>
+                  s"rv.map { name => name -> Term.Delayed(Value(${evalN("compileVar(currentRec, name, env(e))")}, r.boxed)) }.toMap".indent <<>>
                 "// System.out.println(\"[debug] compiled vars:\\n\" + fv.mkString(\"  \", \"\\n  \", \"\\n\"))"<>
-                "val lam2 = Term.Lam(names: _*)(body = ABT.substs(compiledVars)(unTermC(body)))" <>
+                "val lam2 = Term.Lam(names: _*)(body = ABT.substs(compiledFreeVars ++ compiledRecVars)(unTermC(body)))" <>
                 "r.boxed = compile(currentRec)(checkedAnnotateBound(lam2)) match {" <>
                 "  case Return(v) => v" <>
                 "  case _ => sys.error(\"compiling a lambda with no free vars should always produce a Return.\")" <>
