@@ -65,7 +65,6 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
 
   def warnAssert(b: Boolean, s: => String) = if (!b) {
     System.err.println(s)
-//    Thread.dumpStack()
   }
 
 

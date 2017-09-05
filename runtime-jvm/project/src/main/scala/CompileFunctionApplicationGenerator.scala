@@ -193,10 +193,8 @@ object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunc
                     locally {
                       val evalStr = s"$evalFn(${evalArgsPrefixStr}slots, r)"
                       includeIfElse(traceEval)(
-                        s"""logFine("$className-> " + $renderEvalFn + "(" + """ +
-                          """(0 until argCount).map(i => render(slots(i))).mkString(", ") + """ +
-                          """")")""" <>
-                          s"""val d = $evalStr; logFine("$className-> " + render(d, r.boxed)); d""",
+                        s"""logFine("$className-> " + $renderEvalFn + "(" + slots.map(render).mkString(", ") + ")")""" <>
+                        s"""val d = $evalStr; logFine("$className-> " + render(d, r.boxed)); d""",
                         evalStr
                       )
                     }
@@ -242,9 +240,11 @@ object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunc
                       locally {
                         val (evalStr, renderEvalFn) =
                           if (isTail)
-                            "tailCall(lambda, " + (argCount-1 to 0 by -1).commas(j => s"arg${j}r, arg${j}rb") + commaIf(argCount) + "r)" -> """"tailCall " +  Render1.render(lambda.decompile)"""
+                            "tailCall(lambda, " + (argCount-1 to 0 by -1).commas(j => s"arg${j}r, arg${j}rb") + commaIf(argCount) + "r)" ->
+                            """"tailCall " +  Render1.render(lambda.decompile)"""
                           else
-                            "lambda(lambda, " + (argCount-1 to 0 by -1).commas(j => s"arg${j}r, arg${j}rb") + commaIf(argCount) + "r)" -> "Render1.render(lambda.decompile)"
+                            "lambda(lambda, " + (argCount-1 to 0 by -1).commas(j => s"arg${j}r, arg${j}rb") + commaIf(argCount) + "r)" ->
+                            "Render1.render(lambda.decompile)"
                         includeIfElse(traceEval)(
                           s"""logFine("$className-> " + $renderEvalFn + "("""" +
                             (argCount - 1 to 0 by -1).map(i => s"render(arg${i}r, arg${i}rb)").mkString(" + ", """ + ", " + """, " + ") +
@@ -274,8 +274,20 @@ object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunc
                       "argsr(argCount - 1 - k) = new Slot(" + eval(stackSize, "args(k)") + ", r.boxed)" <>
                       "k += 1"
                     } <>
-                    (if (!isTail) "lambda(lambda, argsr, r)"
-                    else "tailCall(lambda, argsr, r)")
+                    locally {
+                      val (evalStr, renderEvalFn) =
+                        if (isTail)
+                          "tailCall(lambda, argsr, r)" ->
+                          """"tailCall " +  Render1.render(lambda.decompile)"""
+                        else
+                          "lambda(lambda, argsr, r)" ->
+                          "Render1.render(lambda.decompile)"
+                      includeIfElse(traceEval)(
+                        s"""logFine("$className-> " + $renderEvalFn + "(" + argsr.map(render).mkString(", ") + ")")""" <>
+                        s"""val d = $evalStr; logFine("$className-> " + render(d, r.boxed)); d""",
+                        evalStr
+                      )
+                    }
                   }
                 } <>
                 s"new $className"

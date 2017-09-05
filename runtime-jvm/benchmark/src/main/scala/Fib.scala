@@ -12,10 +12,11 @@ object Fib extends App {
     def *(b: Term) = Term.Builtin("*")(a,b)
   }
 
-     case s@"-" => mkBuiltin(s, _ - _)
    val builtins : Name => Computation = ({
+     case s@"-" => mkBuiltin(s, _ - _)
      case s@"+" => mkBuiltin(s, _ + _)
      case s@"*" => mkBuiltin(s, _ * _)
+     case s => sys.error("unknown builtin: " + s)
    }: String => Computation).compose[Name](_.toString)
 
   def mkBuiltin(name: Name, f: (Double, Double) => Double) = {
