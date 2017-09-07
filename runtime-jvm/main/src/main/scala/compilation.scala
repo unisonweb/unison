@@ -235,5 +235,9 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
 
   import scala.annotation.elidable
   @elidable(elidable.FINE) // doesn't seem to do anything, even with -Xelide-below ALL
-  def logFine(s: String): Unit = println(s)
+  def logFine(s: String): Unit = ()//println(s)
+
+  def evaluate(rt: Computation, r: R): D =
+    try rt(null, r) catch { case e: TC => loop(e,r) }
+
 }

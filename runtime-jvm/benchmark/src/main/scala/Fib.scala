@@ -1,6 +1,6 @@
 package org.unisonweb.benchmark
 
-import org.unisonweb.{Render1, Term}
+import org.unisonweb.Term
 import org.unisonweb.Term._
 import org.unisonweb.compilation._
 
@@ -10,12 +10,16 @@ object Fib extends App {
     def -(b: Term) = Term.Builtin("-")(a,b)
     def +(b: Term) = Term.Builtin("+")(a,b)
     def *(b: Term) = Term.Builtin("*")(a,b)
+    def <(b: Term) = Term.Builtin("<")(a,b)
+    def >(b: Term) = Term.Builtin(">")(a,b)
   }
 
    val builtins : Name => Computation = ({
      case s@"-" => mkBuiltin(s, _ - _)
      case s@"+" => mkBuiltin(s, _ + _)
      case s@"*" => mkBuiltin(s, _ * _)
+     case s@"<" => mkBuiltin(s, (l, r) => if (l < r) 1.0 else 0.0)
+     case s@">" => mkBuiltin(s, (l, r) => if (l > r) 1.0 else 0.0)
      case s => sys.error("unknown builtin: " + s)
    }: String => Computation).compose[Name](_.toString)
 
@@ -99,13 +103,50 @@ object Fib extends App {
 
   val lambdaFvs = Let1("fv1", 77)(Let1("fv2", 20)(Lam('a, 'b)('fv1.v + 'a.v)(1, 2)))
 
+//  @annotation.tailrec
+//  def iterateWhile[A](a: A)(f: A => A, ok: A => Boolean): A =
+//    if (ok(a)) iterateWhile(f(a))(f, ok)
+//    else a
+//  iterateWhile a f ok = if ok a then iterateWhile (f a) f ok else a
+//  @refried was thinking let’s compare iterateWhile(0.0)(_ + 1.0, _ < 1e6) in Scala vs Unison runtime
+
+  def iterateWhile(max: Double) =
+    LetRec(
+      "iterateWhile" ->
+        Lam('a, 'f, 'stop)(
+          If0('stop.v('a), 'a, 'iterateWhile.v('f.v('a), 'f, 'stop))
+        )
+    )('iterateWhile.v(0.0, Lam('a)('a.v + 1.0), Lam('a)('a.v < max)))
+
+  @annotation.tailrec def iterateWhileScala[A](a: A)(f: A => A, ok: A => Boolean): A =
+    if (ok(a)) iterateWhileScala(f(a))(f, ok)
+    else a
+
+  val add1 = (_: Double) + 1.0
+  def iterateWhileScala0(max: Double) =
+    iterateWhileScala(0.0)(add1, _ < max)
+
+  import QuickProfile._
+  QuickProfile.suite(
+    { val compiled = compile(builtins)(iterateWhile(100.0))
+      timeit("iterateWhile(100)") {
+        evaluate(compiled, Result()).toLong + math.random.toLong
+      }
+    },
+    {
+      timeit("iterateWhileScala(100)") {
+        iterateWhileScala0(100).toLong + math.random.toLong
+      }
+    }
+  )
+  /*
   List(
 //    "applyIdentity" -> applyIdentity -> 3.0,
 //    "identityInLet" -> identityInLet -> 3.0,
 //    "identityInLet2" -> identityInLet2 -> 3.0,
 //    "identityInLetRec" -> identityInLetRec -> 3.0,
 //    "identityInLetRec2" -> identityInLetRec2 -> 3.0,
-//    "countFrom" -> countFrom -> 99.0,
+//    "countFrom" -> countFrom -> 50.0,
 //    "fib" -> fib -> 610.0,
 //    "lambdaFvs" -> lambdaFvs -> 78.0,
 //    "first" -> first(3, 4) -> 3.0,
@@ -113,13 +154,15 @@ object Fib extends App {
 //    "partiallyAppliedFirst" -> first(3)(4) -> 3.0,
 //    "partiallyAppliedSecond" -> second(3)(4) -> 4.0,
 //    "facTailRec" -> facTailRec -> 3628800.0,
-    "facRec" -> facRec -> 3628800.0
+//    "facRec" -> facRec -> 3628800.0,
+    "iterateWhile(...)" -> iterateWhile -> 666.0
   ).foreach {
     case ((name, term), d) =>
       print(f"$name%20s:\t")
       val result = normalize(builtins)(term)
       println(f"${Render1.render(result)}%10s\texpected: $d%10.1f")
-  }
+
+  */
 
   // todo: getting null pointer exception running countFrom
   // paul: suspect that compiling self-calls is busted in how it interacts with general letrec

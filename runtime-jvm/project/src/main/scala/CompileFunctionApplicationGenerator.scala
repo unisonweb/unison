@@ -10,8 +10,9 @@ object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunc
   def source =
     "package org.unisonweb.compilation" <>
     "" <>
+    includeIf(traceEval)(
     "import org.unisonweb.Render1" <>
-    "" <>
+    "".<>|) +
     b("trait CompileFunctionApplication") {
       indentEqExpr("def staticCall(e: TermC, fn: Lambda, args: Array[Computation], isTail: IsTail): Computation") {
         "if (isTail) staticTailCall(e, fn, args)" <>
