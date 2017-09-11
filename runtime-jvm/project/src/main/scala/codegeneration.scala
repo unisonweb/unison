@@ -2,9 +2,9 @@ package org.unisonweb
 
 package object codegeneration {
   // JVM max is <256 args per java method
-  val maxInlineStack = 4
-  val maxInlineArgs = 4
-  val maxInlineTC = 2
+  val maxInlineStack = 16
+  val maxInlineArgs = 8
+  val maxInlineTC = 8
   val traceEval = false
 
   def applySignature(i: Int): String =

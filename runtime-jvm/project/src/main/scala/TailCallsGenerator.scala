@@ -56,7 +56,7 @@ object TailCallsGenerator extends OneFileGenerator("TailCalls.scala") {
           b("try") {
             "return " + switch("fn.arity") {
               (1 to maxInlineArgs).each {
-                case i if i <= 2 => s"case $i => fn(fn, " + (0 until i).commas(i => s"tc.x$i, tc.x${i}b") + ", r)"
+                case i if i <= maxInlineTC => s"case $i => fn(fn, " + (0 until i).commas(i => s"tc.x$i, tc.x${i}b") + ", r)"
                 case i => s"case $i => fn(fn, " +
                   (0 until maxInlineTC).commas(i => s"tc.x$i, tc.x${i}b") + ", " +
                   (0 to (i - maxInlineTC - 1)).commas(i => s"tc.args($i).unboxed, tc.args($i).boxed") + ", r)"
