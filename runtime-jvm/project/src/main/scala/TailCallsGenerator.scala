@@ -9,15 +9,13 @@ object TailCallsGenerator extends OneFileGenerator("TailCalls.scala") {
       + (0 until maxInlineTC).commas(i => s"val x$i: D, val x${i}b: Value")
       + commaIf(maxInlineTC) + "val args: Array[Slot]) extends Throwable") {
       "override def fillInStackTrace = this"
-    } <>
-    ("class SelfCall("
+    } <<>>
+    b("case class SelfCall("
       + (0 until maxInlineTC).commas(i => s"x$i: D, x${i}b: Value")
       + commaIf(maxInlineTC)
-      + "args: Array[Slot]) extends TailCall(null, "
-      + (0 until maxInlineTC).commas(i => s"x$i, x${i}b")
-      + commaIf(maxInlineTC)
-      + " args)") <>
-    "" <>
+      + "args: Array[Slot]) extends Throwable") {
+      "override def fillInStackTrace = this"
+    } <<>>
     b("trait TailCalls") {
       (1 to maxInlineArgs).each { i =>
         "@inline def selfTailCall(" + (0 until i).commas(i => s"x$i: D, x${i}b: V") + commaIf(i) + "r: R): D =" <>

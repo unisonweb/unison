@@ -9,6 +9,7 @@ package compilation {
   case class Result(var boxed: Value = null)
 
   case class CurrentRec(get: Option[(Name, Arity)]) extends AnyVal {
+    def isEmpty = get.isEmpty
     def contains(name: Name): Boolean = get.exists(_._1 == name)
     def contains(name: Name, arity: Arity): Boolean = get == Some((name, arity))
     /** knock out the currentRec if appropriate; if it is shadowed, it won't be called */
@@ -97,7 +98,7 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
       case Term.Num(n) => compileNum(n)
       case Term.Builtin(name) => builtins(name)
       case Term.Compiled(c) => Return(c)(unTermC(termC)) // todo: can we do a better job tracking the uncompiled form?
-      case Term.Delayed(f) => compileDelayed(f)(unTermC(termC))
+      case Term.Delayed(_, f) => compileDelayed(f)(unTermC(termC))
       case Term.Var(name) => compileVar(currentRec, name, env(termC))
       case Term.If0(cond, if0, ifNot0) =>
         val compiledCond = compile1(IsNotTail)(cond)
@@ -125,12 +126,7 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
 
       case Term.LetRec(bindings, body) =>
         val shadowCurrentRec = currentRec.shadow(bindings.map(_._1))
-        val compiledBindings: Array[Computation] = bindings.view.map {
-          case (name, l@Term.Lam(args, body)) => // possibly self-recursive
-            compile2(IsNotTail, shadowCurrentRec)(l)
-          case (_, b) => // not a lambda, shouldn't contain recursive call
-            compile2(IsNotTail, shadowCurrentRec)(b)
-        }.toArray
+        val compiledBindings = compileLetRecBindings(shadowCurrentRec, bindings.toArray, compile2(IsNotTail, _))
         val compiledBody = compile2(isTail, shadowCurrentRec)(body)
 
         compileLetRec(termC, compiledBindings, compiledBody)
@@ -153,9 +149,22 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
           // e.g. fac n = n * (fac (n-1))
           //                  ^^^^^^^^^^^
           case (Term.Var(v), args) if currentRec.contains(v, args.length) =>
+            sys.error("Didn't expect this to occur anymore, because recursive calls are subst'ed for Delayed terms.")
+
+          case (Term.Delayed(name, _), args) if currentRec.contains(name, args.length) =>
             val compiledArgs = args.view.map(compile1(IsNotTail)).toArray
             compilation.staticRecCall(termC, compiledArgs, isTail)
 
+          // if applying fully-saturated built-in
+          case (Term.Builtin(name), args) if (builtins(name) match {
+            case Return(l: Lambda) => l.arity == args.size
+            case _ => false
+          }) =>
+            val compiledArgs = args.view.map(compile1(IsNotTail)).toArray
+            compile1(IsNotTail)(fn) match {
+              case Return(fn: Lambda) =>
+                staticCall(termC, fn, compiledArgs, IsNotTail)
+            }
 
           case _ =>
             /* Two cases to consider:
@@ -229,6 +238,30 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
             }
         }
     }
+
+  def hasTailRecursiveCall(currentRec: CurrentRec, body: TermC): Boolean = !currentRec.isEmpty && {
+    import ABT._
+    body.get match {
+      case Var_(name) => false
+      case Abs_(name, body) => hasTailRecursiveCall(currentRec.shadow(name), body)
+      case Tm_(f) =>
+        import Term.F._
+        def check(body: TermC): Boolean = hasTailRecursiveCall(currentRec, body)
+        f match {
+          case Apply_(AnnotatedTerm(_, Var_(name)), args) if currentRec.contains(name, args.size) => true
+          case Apply_(AnnotatedTerm(_, Tm_(Delayed_(name, _))), args) if currentRec.contains(name, args.size) => true
+          case Apply_(_, _) => false
+          case Lam_(body) => check(body)
+          case LetRec_(_, body) => check(body)
+          case Let_(_, body) => check(body)
+          case Rec_(body) => check(body)
+          case If0_(_, ifZero, ifNotZero) => check(ifZero) || check(ifNotZero)
+          case Builtin_(_) | Num_(_) => false
+          case Delayed_(_, _) | Compiled_(_) => false
+          case Yield_(_) | Handle_(_, _) => ???
+        }
+    }
+  }
 
   def render(d: D, v: V): String = { if (v eq null) d.toString else "(" + Render1.render(v.decompile) + ")" }
   def render(slot: Slot): String = render(slot.unboxed, slot.boxed)

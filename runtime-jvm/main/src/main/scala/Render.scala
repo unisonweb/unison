@@ -54,7 +54,7 @@ trait RenderInstances {
     case Rec_(r) => "rec\n" + renderIndent(r)
     case If0_(condition, ifZero, ifNonzero) => s"ifZero $condition\nthen\n${renderIndent(ifZero)}\nelse\n${renderIndent(ifNonzero)}"
     case Compiled_(v) => "Compiled {" + renderIndent(v.decompile) + "}"
-    case Delayed_(v) => "Delayed { ... }"
+    case Delayed_(name, v) => s"Delayed($name)"
     case Yield_(effect) => "Yield(...)"
     case Handle_(handler, block) => "Handle(...)"
   }
@@ -105,8 +105,8 @@ trait Render1Instances {
     case Rec_(r) => "rec\n" + R.render(r)
     case If0_(condition, ifZero, ifNonzero) => s"(if0 $condition ${R.render(ifZero)} ${R.render(ifNonzero)})"
     case Compiled_(v) => "Compiled(" + Render1.render(v.decompile) + ")"
-    case Delayed_(v) =>
-      "Delayed(...)"
+    case Delayed_(name, v) =>
+      s"Delayed($name)"
 //      if (v.evaluated) {
 //        compilation.render(0.0, v.value)
 //      }

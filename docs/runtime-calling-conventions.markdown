@@ -20,6 +20,7 @@
       - throw selfTailCall with evaluated args (seems like this would not do anything) (?)
     - staticRecNonTailCall
       - call (rec: Lambda) with evaluated args
+      - a SelfCall exception should never escape the wrapper lambda 
   - else compile fn
     - if compiled fn is Return(Lambda)
       - staticTailCall

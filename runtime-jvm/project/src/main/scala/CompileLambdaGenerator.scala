@@ -68,7 +68,7 @@ object CompileLambdaGenerator extends OneFileGenerator("CompileLambda.scala") {
                       "val compiledVar = compileVar(currentRec, name, env(e))" <>
                       "def evaluatedVar = " + eval(stackSize, "compiledVar") + " // delayed" <>
                       "def value = Value(evaluatedVar, r.boxed)"  + " // delayed" <>
-                      "(name, Term.Delayed(value))"
+                      "(name, Term.Delayed(name, value))"
                     }
                   } + ".toMap" <<>>
                   "val lam2 = Term.Lam(names: _*)(body = ABT.substs(compiledFreeVars ++ compiledRecVars)(unTermC(body)))" <>
@@ -89,7 +89,7 @@ object CompileLambdaGenerator extends OneFileGenerator("CompileLambda.scala") {
                 "val compiledFreeVars: Map[Name, Term] =" <>
                   s"fv.map { name => name -> Term.Compiled(Value(${evalN("compileVar(currentRec, name, env(e))")}, r.boxed)) }.toMap".indent <<>>
                 "val compiledRecVars: Map[Name, Term] =" <>
-                  s"rv.map { name => name -> Term.Delayed(Value(${evalN("compileVar(currentRec, name, env(e))")}, r.boxed)) }.toMap".indent <<>>
+                  s"rv.map { name => name -> Term.Delayed(name, Value(${evalN("compileVar(currentRec, name, env(e))")}, r.boxed)) }.toMap".indent <<>>
                 "// System.out.println(\"[debug] compiled vars:\\n\" + fv.mkString(\"  \", \"\\n  \", \"\\n\"))"<>
                 "val lam2 = Term.Lam(names: _*)(body = ABT.substs(compiledFreeVars ++ compiledRecVars)(unTermC(body)))" <>
                 "r.boxed = compile(currentRec)(checkedAnnotateBound(lam2)) match {" <>

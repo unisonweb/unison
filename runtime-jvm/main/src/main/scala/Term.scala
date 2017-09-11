@@ -35,7 +35,7 @@ object Term {
     case class Let_[R](binding: R, body: R) extends F[R]
     case class Rec_[R](r: R) extends F[R]
     case class If0_[R](condition: R, ifZero: R, ifNonzero: R) extends F[R]
-    case class Delayed_(delayed: Lazy[Value]) extends F[Nothing]
+    case class Delayed_(name: Name, delayed: Lazy[Value]) extends F[Nothing]
     case class Compiled_(value: Value) extends F[Nothing]
     // yield : f a -> a|f
     case class Yield_[R](effect: R) extends F[R]
@@ -63,7 +63,7 @@ object Term {
         case If0_(c,a,b) =>
           val c2 = f(c); val a2 = f(a); val b2 = f(b)
           If0_(c2, a2, b2)
-        case a@Delayed_(_) => a
+        case a@Delayed_(_, _) => a
         case a@Compiled_(_) => a
         case Handle_(h,b) =>
           val h2 = f(h); val b2 = f(b)
@@ -96,6 +96,7 @@ object Term {
     def apply(names: Name*)(body: Term): Term =
       names.foldRight(body)((name,body) => Lam1(name)(body))
 
+    // todo: produce an Array[Name]
     def unapply[A](t: AnnotatedTerm[F,A]): Option[(List[Name], AnnotatedTerm[F,A])] = {
       def go(acc: List[Name], t: AnnotatedTerm[F,A]): Option[(List[Name], AnnotatedTerm[F,A])] = t match {
         case Lam1(n, t) => go(n :: acc, t)
@@ -199,10 +200,10 @@ object Term {
   }
 
   object Delayed {
-    def apply(v: => Value): Term =
-      Tm(Delayed_(Lazy(v)))
-    def unapply[A](t: AnnotatedTerm[F,A]): Option[Lazy[Value]] = t match {
-      case Tm(Delayed_(d)) => Some(d)
+    def apply(name: Name, v: => Value): Term =
+      Tm(Delayed_(name, Lazy(v)))
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[(Name, Lazy[Value])] = t match {
+      case Tm(Delayed_(name, d)) => Some((name, d))
       case _ => None
     }
   }

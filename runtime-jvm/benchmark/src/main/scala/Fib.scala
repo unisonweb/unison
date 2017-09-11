@@ -73,6 +73,7 @@ object Fib extends App {
   val identityInLet2 = Let("foo" -> 99, "identity" -> identity)('identity.v(3.0))
   val identityInLetRec = LetRec("identity" -> identity)('identity.v(3.0))
   val identityInLetRec2 = LetRec("foo" -> 99, "identity" -> identity)('identity.v(3.0))
+  val builtin = (4.0: Term) + (5.0: Term)
   val countFrom =
     LetRec(
       "foo" -> Num(99),
@@ -126,47 +127,42 @@ object Fib extends App {
   def iterateWhileScala0(max: Double) =
     iterateWhileScala(0.0)(add1, _ < max)
 
-  import QuickProfile._
-  QuickProfile.suite(
-    { val compiled = compile(builtins)(iterateWhile(100.0))
-      timeit("iterateWhile(100)") {
-        evaluate(compiled, Result()).toLong + math.random.toLong
-      }
-    },
-    {
-      timeit("iterateWhileScala(100)") {
-        iterateWhileScala0(100).toLong + math.random.toLong
-      }
-    }
-  )
-  /*
   List(
-//    "applyIdentity" -> applyIdentity -> 3.0,
-//    "identityInLet" -> identityInLet -> 3.0,
-//    "identityInLet2" -> identityInLet2 -> 3.0,
-//    "identityInLetRec" -> identityInLetRec -> 3.0,
-//    "identityInLetRec2" -> identityInLetRec2 -> 3.0,
-//    "countFrom" -> countFrom -> 50.0,
-//    "fib" -> fib -> 610.0,
-//    "lambdaFvs" -> lambdaFvs -> 78.0,
-//    "first" -> first(3, 4) -> 3.0,
-//    "second" -> second(3, 4) -> 4.0,
-//    "partiallyAppliedFirst" -> first(3)(4) -> 3.0,
-//    "partiallyAppliedSecond" -> second(3)(4) -> 4.0,
-//    "facTailRec" -> facTailRec -> 3628800.0,
-//    "facRec" -> facRec -> 3628800.0,
-    "iterateWhile(...)" -> iterateWhile -> 666.0
+    "applyIdentity" -> applyIdentity -> 3.0,
+    "identityInLet" -> identityInLet -> 3.0,
+    "identityInLet2" -> identityInLet2 -> 3.0,
+    "identityInLetRec" -> identityInLetRec -> 3.0,
+    "identityInLetRec2" -> identityInLetRec2 -> 3.0,
+    "builtin" -> builtin -> 9.0,
+    "countFrom" -> countFrom -> 50.0,
+    "fib" -> fib -> 610.0,
+    "lambdaFvs" -> lambdaFvs -> 78.0,
+    "first" -> first(3, 4) -> 3.0,
+    "second" -> second(3, 4) -> 4.0,
+    "partiallyAppliedFirst" -> first(3)(4) -> 3.0,
+    "partiallyAppliedSecond" -> second(3)(4) -> 4.0,
+    "facTailRec" -> facTailRec -> 3628800.0,
+    "facRec" -> facRec -> 3628800.0,
+    "iterateWhile(...)" -> iterateWhile(2) -> 2.0
   ).foreach {
     case ((name, term), d) =>
       print(f"$name%20s:\t")
       val result = normalize(builtins)(term)
+      import org.unisonweb.Render1
       println(f"${Render1.render(result)}%10s\texpected: $d%10.1f")
+  }
 
-  */
-
-  // todo: getting null pointer exception running countFrom
-  // paul: suspect that compiling self-calls is busted in how it interacts with general letrec
-  // arya: selfcall with null fn is crazeballs
-
-
+//  import QuickProfile._
+//  QuickProfile.suite(
+//    { val compiled = compile(builtins)(iterateWhile(100.0))
+//      timeit("iterateWhile(100)") {
+//        evaluate(compiled, Result()).toLong + math.random.toLong
+//      }
+//    },
+//    {
+//      timeit("iterateWhileScala(100)") {
+//        iterateWhileScala0(100).toLong + math.random.toLong
+//      }
+//    }
+//  )
 }

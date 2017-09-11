@@ -1,10 +1,25 @@
 package org.unisonweb.codegeneration
 
 object CompileLetRecGenerator extends OneFileGenerator("CompileLetRec.scala") {
+
+  def loopSignature(i: Int) = "@annotation.tailrec\ndef loop(" + (0 until i).commas(i => s"x$i: D, x${i}b: V") + ", r: R): D"
+
+  // loop signature maxes out at maxInlineTC to minimize repacking for the tail-recursive call, rather than the initial call
+  def loopSignatureN = (
+    "def loop("
+      + (0 until maxInlineTC).commas(i => s"x$i: D, x${i}b: V") + commaIf(maxInlineTC)
+      + "xs: Array[Slot], r: R): D"
+    )
+
+  def loopXArgs(i: Int) = (0 until i).commas(i => s"e.x$i, e.x${i}b")
+
   def source =
     "package org.unisonweb.compilation" <>
     "" <>
-    b("trait CompileLetRec") {
+    "import org.unisonweb.Term" <>
+    "import org.unisonweb.Term.Name" <>
+    "" <>
+    b("trait CompileLetRec") (
       bEq("def compileLetRec(e: TermC, bindings: Array[Computation], body: Computation): Computation") {
         switch("stackSize(e)") {
            (0 to maxInlineStack).eachNL { stackSize =>
@@ -67,6 +82,77 @@ object CompileLetRecGenerator extends OneFileGenerator("CompileLetRec.scala") {
              "new LetRecSN"
            }
         }
+      } <<>>
+      bEq("def compileLetRecBindings(currentRec: CurrentRec, bindings: Array[(Name, TermC)], compile: CurrentRec => TermC => Computation): Array[Computation]") {
+        b("bindings.map") {
+          `case`("(name, l@Term.Lam(names, body))") {
+            "val currentRec = CurrentRec(name, names.size).shadow(names)" <>
+            "val mkLambda = compile(currentRec)(l)" <>
+            "def decompile = mkLambda.decompile" <>
+            b("if (hasTailRecursiveCall(currentRec, body))") {
+              switch("stackSize(l)") {
+                (0 to maxInlineStack).eachNL { stackSize =>
+                  `case`(stackSize) {
+                    switch("names.size") {
+                      (1 to maxInlineArgs).eachNL { argCount =>
+                        `case`(argCount) {
+                          val className = s"LetRecBindingS${stackSize}A$argCount"
+                          b(s"class $className extends Computation$stackSize(decompile)") {
+                            bEq(applySignature(stackSize)) {
+                              s"val step = { mkLambda(null, ${xArgs(stackSize) + commaIf(stackSize)}r); r.boxed.asInstanceOf[Lambda] }" <<>>
+                              (if (argCount <= maxInlineTC)
+                                indentEqExpr(loopSignature(argCount)) {
+                                  s"try step(step, ${xArgs(argCount)}, r)" <>
+                                  s"catch { case e: SelfCall => loop(${loopXArgs(argCount)}, r) }"
+                                }
+                              else // argCount > maxInlineTC
+                                indentEqExpr(loopSignatureN) {
+                                  s"try step(step, ${xArgs(maxInlineTC)}, ${(0 until argCount-maxInlineTC).commas(i => s"xs($i).unboxed, xs($i).boxed")}, r)" <>
+                                  s"catch { case e: SelfCall => loop(${loopXArgs(maxInlineTC)}, e.args, r) }"
+                                }
+                              ) <<>>
+                              b(s"class Body extends Computation$argCount(step.decompile)") {
+                                indentEqExpr("override " + applySignature(argCount)) {
+                                  if (argCount <= maxInlineTC)
+                                    s"loop(${xArgs(argCount)}, r)"
+                                  else
+                                    s"loop(${xArgs(maxInlineTC)}, Array(${(maxInlineTC until argCount).commas(slot)}), r)"
+                                }
+                              } <<>>
+                              s"r.boxed = new Lambda$argCount(${(0 until argCount).commas(i => s"names($i)")}, new Body, step.decompile)" +
+                                includeIf(argCount > 1)("(body, compile(currentRec))") <>
+                              "0.0"
+                            }
+                          } <>
+                          s"new $className"
+                        }
+                      } <<>>
+                      `case`("argCount") {
+                        val className = s"LetRecBindingS${stackSize}AN"
+                        s"??? // new $className // todo argCount > $maxInlineArgs"
+                      }
+                    }
+                  }
+                } <<>>
+                  `case`("stackSize") {
+                    switch("names.size") {
+                      (1 to maxInlineArgs).eachNL { argCount =>
+                        s"??? // todo stackSize > $maxInlineStack, argCount = $argCount"
+                      }
+                      `case`("argCount") {
+                        s"??? // todo stackSize > $maxInlineStack, argCount > $maxInlineArgs"
+                      }
+                    }
+
+                  }
+              }
+            } <>
+            "else mkLambda"
+          } <<>>
+          `case`("(_, b) /* not a lambda, shouldn't contain recursive call */") {
+            "compile(currentRec)(b)"
+          }
+        }
       }
-    }
+    )
 }

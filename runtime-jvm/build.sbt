@@ -124,7 +124,7 @@ lazy val main = project.in(file("main")).
       CompileLet1Generator,
       CompileLetRecGenerator,
       CompileFunctionApplicationGenerator,
-      MakeBuiltinGenerator,
+//      MakeBuiltinGenerator,
       TailCallsGenerator,
       CompileIf0Generator
     ).map(_.apply(outPath))
