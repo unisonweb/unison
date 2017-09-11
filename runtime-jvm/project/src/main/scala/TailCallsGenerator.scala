@@ -5,73 +5,67 @@ object TailCallsGenerator extends OneFileGenerator("TailCalls.scala") {
   def source: String =
     "package org.unisonweb.compilation" <>
     "" <>
-    b("class TailCall(val fn: Lambda, "
-      + (0 until maxInlineTC).commas(i => s"val x$i: D, val x${i}b: Value")
-      + commaIf(maxInlineTC) + "val args: Array[Slot]) extends Throwable") {
+    b("trait NoBuildStackTrace extends Throwable") {
       "override def fillInStackTrace = this"
     } <<>>
-    b("case class SelfCall("
-      + (0 until maxInlineTC).commas(i => s"x$i: D, x${i}b: Value")
-      + commaIf(maxInlineTC)
-      + "args: Array[Slot]) extends Throwable") {
-      "override def fillInStackTrace = this"
-    } <<>>
-    b("trait TailCalls") {
+    s"case class Result(var boxed: Value = null, var fn: Lambda = null, ${(0 until maxInlineTC).commas(i => s"var x$i: D = 0.0, var x${i}b: V = null") + commaIf(maxInlineTC)}var xs: Array[Slot] = null)" <<>>
+    "case object TailCall extends NoBuildStackTrace" <>
+    "case object SelfCall extends NoBuildStackTrace" <<>>
+    b("trait TailCalls") (
       (1 to maxInlineArgs).each { i =>
-        "@inline def selfTailCall(" + (0 until i).commas(i => s"x$i: D, x${i}b: V") + commaIf(i) + "r: R): D =" <>
-          (if (i < maxInlineTC)
-            s"throw new SelfCall(" + List(xArgs(i), (i+1 to maxInlineTC).commas(_ => "0.0, null")).mkString(", ") + ", Array())"
-          else
-            s"throw new SelfCall(" + xArgs(maxInlineTC) + ", Array(" + (maxInlineTC until i).commas(slot) + "))"
-          ).indent
+        bEq("@inline def selfTailCall(" + signatureXArgs(i) + commaIf(i) + "r: R): D")(
+          (0 until (i min maxInlineTC)).each(i => s"r.x$i = x$i; r.x${i}b = x${i}b") <>
+          (if (i > maxInlineTC)
+            "r.xs = Array(" + (maxInlineTC until i).commas(i => s"Slot(x$i, x${i}b)") + ")"
+          else "r.xs = null") <>
+          "throw SelfCall"
+        )
       } <>
-      "@inline def selfTailCall(args: Array[Slot], r: R): D =" <>
-        ("throw new SelfCall(" +
-          (0 until maxInlineTC).commas(i => s"args($i).unboxed, args($i).boxed")
-          + commaIf(maxInlineTC)
-          + (if (maxInlineTC > 0) s"args.drop($maxInlineTC)" else "args")
-          + ")"
-          ).indent <>
-      "" <>
-      (1 to maxInlineStack).each { i =>
-        "@inline def tailCall(fn: Lambda, " + (0 until i).commas(i => s"x$i: D, x${i}b: V") + commaIf(i) + "r: R): D =" <>
-          (if (i < maxInlineTC)
-            s"throw new TailCall(fn, " + List(xArgs(i), (i+1 to maxInlineTC).commas(_ => "0.0, null")).mkString(", ") + ", Array())"
-          else
-            s"throw new TailCall(fn, " + xArgs(maxInlineTC) + ", Array(" + (maxInlineTC until i).commas(slot) + "))"
-          ).indent
+      bEq("@inline def selfTailCall(args: Array[Slot], r: R): D") {
+        (0 until maxInlineTC).each(i => s"r.x$i = args($i).unboxed; r.x${i}b = args($i).boxed") <>
+        includeLineIf(maxInlineTC > 0)(s"r.xs = args.drop($maxInlineTC)") +
+        "throw SelfCall"
+      } <<>>
+      (1 to maxInlineArgs).each { i =>
+        bEq("@inline def tailCall(fn: Lambda, " + signatureXArgs(i) + commaIf(i) + "r: R): D")(
+          "r.fn = fn" <>
+          (0 until (i min maxInlineTC)).each(i => s"r.x$i = x$i; r.x${i}b = x${i}b") <>
+          (if (i > maxInlineTC)
+            "r.xs = Array(" + (maxInlineTC until i).commas(i => s"Slot(x$i, x${i}b)") + ")"
+          else "r.xs = null") <>
+          "throw TailCall"
+        )
       } <>
-      "@inline def tailCall(fn: Lambda, args: Array[Slot], r: R): D =" <>
-        ("throw new TailCall(fn, " +
-          (0 until maxInlineTC).commas(i => s"args($i).unboxed, args($i).boxed")
-          + commaIf(maxInlineTC)
-          + (if (maxInlineTC > 0) s"args.drop($maxInlineTC)" else "args")
-          + ")"
-          ).indent <>
-      "" <>
-      bEq("def loop(tc0: TailCall, r: R): D") {
-        "var tc = tc0" <>
-        b("while (!(tc eq null))") {
-          "val fn = tc.fn" <>
+      bEq("@inline def tailCall(fn: Lambda, args: Array[Slot], r: R): D") (
+        "r.fn = fn" <>
+        (0 until maxInlineTC).each(i => s"r.x$i = args($i).unboxed; r.x${i}b = args($i).boxed") <>
+        includeLineIf(maxInlineTC > 0)(s"r.xs = args.drop($maxInlineTC)") +
+        "throw TailCall"
+      ) <<>>
+
+      bEq("def loop(r: R): D") {
+        b("while (true)") {
+          "val fn = r.fn" <>
           b("try") {
             "return " + switch("fn.arity") {
               (1 to maxInlineArgs).each {
-                case i if i <= 2 => s"case $i => fn(fn, " + (0 until i).commas(i => s"tc.x$i, tc.x${i}b") + ", r)"
+                case i if i <= maxInlineTC => s"case $i => fn(fn, " +
+                  (0 until i).commas(i => s"r.x$i, r.x${i}b") + ", r)"
                 case i => s"case $i => fn(fn, " +
-                  (0 until maxInlineTC).commas(i => s"tc.x$i, tc.x${i}b") + ", " +
-                  (0 to (i - maxInlineTC - 1)).commas(i => s"tc.args($i).unboxed, tc.args($i).boxed") + ", r)"
+                  (0 until maxInlineTC).commas(i => s"r.x$i, r.x${i}b") + ", " +
+                  (0 until (i - maxInlineTC)).commas(i => s"r.xs($i).unboxed, r.xs($i).boxed") + ", r)"
               } <>
               (if (maxInlineArgs > 0)
                 "case n => fn(fn, Array(" +
-                  (0 until maxInlineTC).commas(i => s"Slot(tc.x$i, tc.x${i}b)") + ") ++ tc.args, r)"
-                else
-                "case n => fn(fn, tc.args, r)"
-              )
+                  (0 until maxInlineTC).commas(i => s"Slot(r.x$i, r.x${i}b)") + ") ++ r.xs, r)"
+              else
+                "case n => fn(fn, r.xs, r)"
+                )
             }
           } <>
-          "catch { case tc2: TailCall => tc = tc2 }"
+          "catch { case tc2: TC => }"
         } <>
         "0.0"
       }
-    }
+    )
 }

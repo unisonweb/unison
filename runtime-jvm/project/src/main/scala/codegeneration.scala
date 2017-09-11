@@ -2,13 +2,14 @@ package org.unisonweb
 
 package object codegeneration {
   // JVM max is <256 args per java method
-  val maxInlineStack = 4
-  val maxInlineArgs = 4
-  val maxInlineTC = 2
+  val maxInlineStack = 16
+  val maxInlineArgs = 8
+  val maxInlineTC = 8
+  assert(maxInlineTC <= maxInlineArgs)
   val traceEval = false
 
   def applySignature(i: Int): String =
-    "def apply(rec: Lambda, " + (0 until i).commas(i => s"x$i: D, x${i}b: V") + commaIf(i) + "r: R): D"
+    "def apply(rec: Lambda, " + signatureXArgs(i) + commaIf(i) + "r: R): D"
 
   def applyNSignature: String =
     "def apply(rec: Lambda, xs: Array[Slot], r: R): D"
@@ -26,6 +27,8 @@ package object codegeneration {
   def includeIf(b: Boolean)(s: String): String = includeIfElse(b)(s, "")
   def includeIfElse(b: Boolean)(s1: String, s2: String): String = if (b) s1 else s2
   def includeIf(i: Int)(s: String): String = includeIf(i > 0)(s)
+  def includeLineIf(b: Boolean)(s: String): String = includeIfElse(b)(s + "\n", "")
+  def includeLineIf(i: Int)(s: String): String = includeLineIf(i > 0)(s)
   /** I get this wrong every time and want to fix it once and for all. */
   def switch(s: String)(body: String) = s"($s: @annotation.switch) match " + body.b
   def match1(s: String)(body: String) = s"$s match { $body }"
@@ -52,7 +55,7 @@ package object codegeneration {
     expr + "(rec, xs, r)"
 
   def catchTC(expr: String) =
-    s"try { $expr } catch { case e: TC => loop(e,r) }"
+    s"try { $expr } catch { case e: TC => loop(r) }"
 
   def evalBoxed(i: Int, expr: String) =
     "{ " + eval(i, expr) + "; r.boxed }"
@@ -92,6 +95,7 @@ package object codegeneration {
   def xArgs(count: Int): String = xArgs(0, count)
   def xArgs(start: Int, count: Int): String =
    (start until (start+count)).commas(i => s"x$i, x${i}b")
+  def signatureXArgs(count: Int) = (0 until count).commas(i => s"x$i: D, x${i}b: V")
   def xsArgs(count: Int): String = xsArgs(0, count)
   private def xsArgs(start: Int, count: Int): String =
    start until (start + count) commas (i => s"xs($i).unboxed, xs($i).boxed")

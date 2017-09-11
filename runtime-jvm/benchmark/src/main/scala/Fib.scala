@@ -40,6 +40,10 @@ object Fib extends App {
           def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, r: R) = ???
           def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, r: R) = ???
           def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, r: R) = ???
+          def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, x4: D, x4b: V, r: R): D = ???
+          def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, x4: D, x4b: V, x5: D, x5b: V, r: R): D = ???
+          def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, x4: D, x4b: V, x5: D, x5b: V, x6: D, x6b: V, r: R): D = ???
+          def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, x4: D, x4b: V, x5: D, x5b: V, x6: D, x6b: V, x7: D, x7b: V, r: R): D = ???
           def apply(rec: Lambda, xs: Array[Slot], r: R) = ???
           def decompile = term(decompileSlot(x0, x0b))
         }; 0.0 }
@@ -48,6 +52,10 @@ object Fib extends App {
 
         def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, r: R) = ???
         def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, r: R) = ???
+        def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, x4: D, x4b: V, r: R): D = ???
+        def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, x4: D, x4b: V, x5: D, x5b: V, r: R): D = ???
+        def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, x4: D, x4b: V, x5: D, x5b: V, x6: D, x6b: V, r: R): D = ???
+        def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, x4: D, x4b: V, x5: D, x5b: V, x6: D, x6b: V, x7: D, x7b: V, r: R): D = ???
         def apply(rec: Lambda, xs: Array[Slot], r: R) = ???
         def decompile = term
       }
@@ -58,7 +66,7 @@ object Fib extends App {
   def normalize(builtins: Name => Computation)(e: Term): Term = {
     val rt = compile(builtins)(e)
     val r = Result()
-    decompileSlot(try rt(null, r) catch { case e: TC => loop(e,r) }, r.boxed)
+    decompileSlot(evaluate(rt, r), r.boxed)
   }
   def decompileSlot(unboxed: D, boxed: Value): Term =
     if (boxed eq null) Term.Num(unboxed)
@@ -152,17 +160,17 @@ object Fib extends App {
       println(f"${Render1.render(result)}%10s\texpected: $d%10.1f")
   }
 
-//  import QuickProfile._
-//  QuickProfile.suite(
-//    { val compiled = compile(builtins)(iterateWhile(100.0))
-//      timeit("iterateWhile(100)") {
-//        evaluate(compiled, Result()).toLong + math.random.toLong
-//      }
-//    },
-//    {
-//      timeit("iterateWhileScala(100)") {
-//        iterateWhileScala0(100).toLong + math.random.toLong
-//      }
-//    }
-//  )
+  import QuickProfile._
+  QuickProfile.suite(
+    { val compiled = compile(builtins)(iterateWhile(5000.0))
+      timeit("iterateWhile(5000)") {
+        evaluate(compiled, Result()).toLong + math.random.toLong
+      }
+    }
+    ,{
+      timeit("iterateWhileScala(5000)") {
+        iterateWhileScala0(5000).toLong + math.random.toLong
+      }
+    }
+  )
 }
