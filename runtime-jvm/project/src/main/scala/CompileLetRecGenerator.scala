@@ -7,11 +7,11 @@ object CompileLetRecGenerator extends OneFileGenerator("CompileLetRec.scala") {
   // loop signature maxes out at maxInlineTC to minimize repacking for the tail-recursive call, rather than the initial call
   def loopSignatureN = (
     "def loop("
-      + (0 until maxInlineTC).commas(i => s"x$i: D, x${i}b: V") + commaIf(maxInlineTC)
+      + signatureXArgs(maxInlineTC) + commaIf(maxInlineTC)
       + "xs: Array[Slot], r: R): D"
     )
 
-  def loopXArgs(i: Int) = (0 until i).commas(i => s"e.x$i, e.x${i}b")
+  def loopXArgs(i: Int) = (0 until i).commas(i => s"r.x$i, r.x${i}b")
 
   def source =
     "package org.unisonweb.compilation" <>
@@ -103,12 +103,12 @@ object CompileLetRecGenerator extends OneFileGenerator("CompileLetRec.scala") {
                               (if (argCount <= maxInlineTC)
                                 indentEqExpr(loopSignature(argCount)) {
                                   s"try step(step, ${xArgs(argCount)}, r)" <>
-                                  s"catch { case e: SelfCall => loop(${loopXArgs(argCount)}, r) }"
+                                  s"catch { case e: STC => loop(${loopXArgs(argCount)}, r) }"
                                 }
                               else // argCount > maxInlineTC
                                 indentEqExpr(loopSignatureN) {
                                   s"try step(step, ${xArgs(maxInlineTC)}, ${(0 until argCount-maxInlineTC).commas(i => s"xs($i).unboxed, xs($i).boxed")}, r)" <>
-                                  s"catch { case e: SelfCall => loop(${loopXArgs(maxInlineTC)}, e.args, r) }"
+                                  s"catch { case e: STC => loop(${loopXArgs(maxInlineTC)}, r.xs, r) }"
                                 }
                               ) <<>>
                               b(s"class Body extends Computation$argCount(step.decompile)") {

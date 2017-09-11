@@ -66,7 +66,7 @@ object Fib extends App {
   def normalize(builtins: Name => Computation)(e: Term): Term = {
     val rt = compile(builtins)(e)
     val r = Result()
-    decompileSlot(try rt(null, r) catch { case e: TC => loop(e,r) }, r.boxed)
+    decompileSlot(evaluate(rt, r), r.boxed)
   }
   def decompileSlot(unboxed: D, boxed: Value): Term =
     if (boxed eq null) Term.Num(unboxed)
@@ -162,12 +162,12 @@ object Fib extends App {
 
   import QuickProfile._
   QuickProfile.suite(
-    { val compiled = compile(builtins)(iterateWhile(5000))
+    { val compiled = compile(builtins)(iterateWhile(5000.0))
       timeit("iterateWhile(5000)") {
         evaluate(compiled, Result()).toLong + math.random.toLong
       }
-    },
-    {
+    }
+    ,{
       timeit("iterateWhileScala(5000)") {
         iterateWhileScala0(5000).toLong + math.random.toLong
       }

@@ -6,7 +6,6 @@ import org.unisonweb.util.Lazy
 
 package compilation {
   case class Slot(var unboxed: D, var boxed: Value)
-  case class Result(var boxed: Value = null)
 
   case class CurrentRec(get: Option[(Name, Arity)]) extends AnyVal {
     def isEmpty = get.isEmpty
@@ -38,7 +37,8 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
   type D = Double
   type V = Value
   type R = Result
-  type TC = TailCall
+  type TC = TailCall.type
+  type STC = SelfCall.type
   type Arity = Int
   type IsTail = Boolean
   val IsTail = true
@@ -271,6 +271,6 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
   def logFine(s: String): Unit = ()//println(s)
 
   def evaluate(rt: Computation, r: R): D =
-    try rt(null, r) catch { case e: TC => loop(e,r) }
+    try rt(null, r) catch { case e: TC => loop(r) }
 
 }
