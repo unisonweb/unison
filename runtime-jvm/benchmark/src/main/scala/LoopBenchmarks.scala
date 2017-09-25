@@ -96,6 +96,26 @@ object LoopBenchmarks extends App {
         sum1toN(sum1toN, (N + math.random).floor, null, 0.0, null, r).toLong
       }
     },
+    {
+      import org.unisonweb.Term._
+      import Builtins.{Arithmetic, builtins}
+      val sum1toN = LetRec("sum1toN" ->
+        Lam('n, 'acc)(
+          If0('n, 'acc, 'sum1toN.v('n.v - 1, 'acc.v + 'n.v))
+        )
+      )('sum1toN)
+      import org.unisonweb.compilation.{compile, Result, Lambda}
+      val compiled = compile(builtins)(sum1toN)
+      val r = Result()
+      compiled(null, r)
+      val lambda = r.boxed.asInstanceOf[Lambda]
+      profile("unison loop") {
+        // todo: could be faster if letrec detected that the only recursive calls are selfcalls,
+        // and skipped saving a lazy self reference.  letrec1 used to do this, but the optimization
+        // shouldn't be limited to a letrec1 construction
+        lambda(null, 0.0, null, (N + math.random).floor, null, r).toLong
+      }
+    },
     //{
     //  // only difference between this and above is the while loop is encoded via
     //  // an @annotation.tailrec function

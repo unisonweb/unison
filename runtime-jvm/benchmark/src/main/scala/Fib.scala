@@ -3,64 +3,9 @@ package org.unisonweb.benchmark
 import org.unisonweb.Term
 import org.unisonweb.Term._
 import org.unisonweb.compilation._
+import org.unisonweb.benchmark.Builtins._
 
 object Fib extends App {
-
-  implicit class Arithmetic(a: Term) {
-    def -(b: Term) = Term.Builtin("-")(a,b)
-    def +(b: Term) = Term.Builtin("+")(a,b)
-    def *(b: Term) = Term.Builtin("*")(a,b)
-    def <(b: Term) = Term.Builtin("<")(a,b)
-    def >(b: Term) = Term.Builtin(">")(a,b)
-  }
-
-   val builtins : Name => Computation = ({
-     case s@"-" => mkBuiltin(s, _ - _)
-     case s@"+" => mkBuiltin(s, _ + _)
-     case s@"*" => mkBuiltin(s, _ * _)
-     case s@"<" => mkBuiltin(s, (l, r) => if (l < r) 1.0 else 0.0)
-     case s@">" => mkBuiltin(s, (l, r) => if (l > r) 1.0 else 0.0)
-     case s => sys.error("unknown builtin: " + s)
-   }: String => Computation).compose[Name](_.toString)
-
-  def mkBuiltin(name: Name, f: (Double, Double) => Double) = {
-    val term = Term.Builtin(name)
-    Return {
-      new Lambda {
-        def arity = 2
-        def apply(rec: Lambda, r: R) = { r.boxed = this; 0.0 }
-
-        def apply(rec: Lambda, x0: D, x0b: V, r: R) = { r.boxed = new Lambda {
-          def arity = 1
-
-          def apply(rec: Lambda, r: R) = { r.boxed = this; 0.0 }
-
-          def apply(rec: Lambda, x1: D, x1b: V, r: R) = { r.boxed = null; f(x1, x0) }
-
-          def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, r: R) = ???
-          def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, r: R) = ???
-          def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, r: R) = ???
-          def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, x4: D, x4b: V, r: R): D = ???
-          def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, x4: D, x4b: V, x5: D, x5b: V, r: R): D = ???
-          def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, x4: D, x4b: V, x5: D, x5b: V, x6: D, x6b: V, r: R): D = ???
-          def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, x4: D, x4b: V, x5: D, x5b: V, x6: D, x6b: V, x7: D, x7b: V, r: R): D = ???
-          def apply(rec: Lambda, xs: Array[Slot], r: R) = ???
-          def decompile = term(decompileSlot(x0, x0b))
-        }; 0.0 }
-
-        def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, r: R) = { r.boxed = null; f(x1, x0) }
-
-        def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, r: R) = ???
-        def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, r: R) = ???
-        def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, x4: D, x4b: V, r: R): D = ???
-        def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, x4: D, x4b: V, x5: D, x5b: V, r: R): D = ???
-        def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, x4: D, x4b: V, x5: D, x5b: V, x6: D, x6b: V, r: R): D = ???
-        def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, x4: D, x4b: V, x5: D, x5b: V, x6: D, x6b: V, x7: D, x7b: V, r: R): D = ???
-        def apply(rec: Lambda, xs: Array[Slot], r: R) = ???
-        def decompile = term
-      }
-    }(term)
-  }
 
   /** Compile and evaluate a term, the return result back as a term. */
   def normalize(builtins: Name => Computation)(e: Term): Term = {
@@ -112,7 +57,14 @@ object Fib extends App {
 
   val lambdaFvs = Let1("fv1", 77)(Let1("fv2", 20)(Lam('a, 'b)('fv1.v + 'a.v)(1, 2)))
 
-//  @annotation.tailrec
+  def sum1toN(n: Double) = LetRec("sum1toN" ->
+    Lam('n, 'acc)(
+      If0('n, 'acc, 'sum1toN.v('n.v - 1, 'acc.v + 'n.v))
+    )
+  )('sum1toN.v(n, 0))
+
+
+  //  @annotation.tailrec
 //  def iterateWhile[A](a: A)(f: A => A, ok: A => Boolean): A =
 //    if (ok(a)) iterateWhile(f(a))(f, ok)
 //    else a
@@ -151,7 +103,8 @@ object Fib extends App {
     "partiallyAppliedSecond" -> second(3)(4) -> 4.0,
     "facTailRec" -> facTailRec -> 3628800.0,
     "facRec" -> facRec -> 3628800.0,
-    "iterateWhile(...)" -> iterateWhile(2) -> 2.0
+    "iterateWhile(...)" -> iterateWhile(2) -> 2.0,
+    "sum1toN" -> sum1toN(N) -> 120.0
   ).foreach {
     case ((name, term), d) =>
       print(f"$name%20s:\t")
