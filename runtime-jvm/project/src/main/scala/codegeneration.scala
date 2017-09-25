@@ -4,7 +4,7 @@ package object codegeneration {
   // JVM max is <256 args per java method
   val maxInlineStack = 6
   val maxInlineArgs = 4
-  val maxInlineTC = 4
+  val maxInlineTC = 3
 
   assert(maxInlineTC <= maxInlineArgs)
 
@@ -75,7 +75,7 @@ package object codegeneration {
 
   implicit class Codegen1(val r: Seq[Int]) extends AnyVal {
     def each(f: Int => String): String = r map f mkString "\n"
-    def eachNL(f: Int => String): String = r map f mkString "\n\n" // todo: take nl off of `case`
+    def eachNL(f: Int => String): String = r map f mkString "\n\n"
     def semis(f: Int => String): String = r map f mkString "; "
     def commas(f: Int => String): String = r map f mkString ", "
   }

@@ -103,12 +103,12 @@ object CompileLetRecGenerator extends OneFileGenerator("CompileLetRec.scala") {
                               (if (argCount <= maxInlineTC)
                                 indentEqExpr(loopSignature(argCount)) {
                                   s"try step(step, ${xArgs(argCount)}, r)" <>
-                                  s"catch { case e: STC => loop(${loopXArgs(argCount)}, r) }"
+                                  s"catch { case e: SelfTC => loop(${loopXArgs(argCount)}, r) }"
                                 }
                               else // argCount > maxInlineTC
                                 indentEqExpr(loopSignatureN) {
                                   s"try step(step, ${xArgs(maxInlineTC)}, ${(0 until argCount-maxInlineTC).commas(i => s"xs($i).unboxed, xs($i).boxed")}, r)" <>
-                                  s"catch { case e: STC => loop(${loopXArgs(maxInlineTC)}, r.xs, r) }"
+                                  s"catch { case e: SelfTC => loop(${loopXArgs(maxInlineTC)}, r.xs, r) }"
                                 }
                               ) <<>>
                               b(s"class Body extends Computation$argCount(step.decompile)") {
@@ -127,20 +127,92 @@ object CompileLetRecGenerator extends OneFileGenerator("CompileLetRec.scala") {
                           s"new $className"
                         }
                       } <<>>
-                      `case`("argCount") {
+                      `case`(s"argCount /* >$maxInlineArgs */") {
                         val className = s"LetRecBindingS${stackSize}AN"
-                        s"??? // new $className // todo argCount > $maxInlineArgs"
+                        b(s"class $className extends Computation$stackSize(decompile)") {
+                          bEq(applySignature(stackSize)) (
+                            s"val step = { mkLambda(null, ${xArgs(stackSize) + commaIf(stackSize)}r); r.boxed.asInstanceOf[Lambda] }" <<>>
+
+                            indentEqExpr(loopSignatureN) {
+                              // todo: this array copy is probably slow
+                              s"try step(step, Array(${0 until maxInlineTC commas slot}) ++ xs, r)" <>
+                              s"catch { case e: SelfTC => loop(${loopXArgs(maxInlineTC)}, r.xs, r) }"
+                            } <<>>
+
+                            b("class Body extends ComputationN(argCount, step.decompile)") {
+                              bEq(applyNSignature) {
+                                s"loop(${xsArgs(maxInlineTC)}, xs.drop($maxInlineTC), r)"
+                              }
+                            } <<>>
+
+                            s"r.boxed = new LambdaN(names.toArray, new Body, step.decompile)(body, compile(currentRec))" <>
+                            "0.0"
+                          )
+                        } <>
+                        s"new $className"
                       }
                     }
                   }
                 } <<>>
-                  `case`("stackSize") {
+                  `case`(s"stackSize /* >$maxInlineStack */") {
                     switch("names.size") {
                       (1 to maxInlineArgs).eachNL { argCount =>
-                        s"??? // todo stackSize > $maxInlineStack, argCount = $argCount"
-                      }
-                      `case`("argCount") {
-                        s"??? // todo stackSize > $maxInlineStack, argCount > $maxInlineArgs"
+                        `case`(argCount) {
+                          val className = s"LetRecBindingSNA$argCount"
+                          b(s"class $className extends ComputationN(stackSize, decompile)") (
+                            bEq(applyNSignature) (
+                              s"val step = { mkLambda(null, xs, r); r.boxed.asInstanceOf[Lambda] }" <<>>
+                              (if (argCount <= maxInlineTC)
+                                indentEqExpr(loopSignature(argCount)) {
+                                  s"try step(step, ${xArgs(argCount)}, r)" <>
+                                    s"catch { case e: SelfTC => loop(${loopXArgs(argCount)}, r) }"
+                                }
+                              else // argCount > maxInlineTC
+                                indentEqExpr(loopSignatureN) {
+                                  s"try step(step, ${xArgs(maxInlineTC)}, ${(0 until argCount-maxInlineTC).commas(i => s"xs($i).unboxed, xs($i).boxed")}, r)" <>
+                                    s"catch { case e: SelfTC => loop(${loopXArgs(maxInlineTC)}, r.xs, r) }"
+                                }
+                              ) <<>>
+                              b(s"class Body extends Computation$argCount(step.decompile)") {
+                                bEq(applySignature(argCount)) {
+                                  if (argCount <= maxInlineTC)
+                                    s"loop(${xArgs(argCount)}, r)"
+                                  else
+                                    s"loop(${xArgs(maxInlineTC)}, Array(${(maxInlineTC until argCount).commas(slot)}), r)"
+                                }
+                              } <<>>
+
+                              s"r.boxed = new LambdaN(names.toArray, new Body, step.decompile)(body, compile(currentRec))" <>
+                              "0.0"
+                            )
+                          ) <>
+                          s"new $className"
+                        }
+                      } <<>>
+                      `case`(s"argCount /* >$maxInlineArgs */") {
+                        val className = "LetRecBindingSNAM"
+                        b(s"class $className extends ComputationN(stackSize, decompile)") (
+                          bEq(applyNSignature) (
+                            s"val step = { mkLambda(null, xs, r); r.boxed.asInstanceOf[Lambda] }" <<>>
+
+                              indentEqExpr(loopSignatureN) {
+                                // todo: this array copy is probably slow
+                                s"try step(step, Array(${0 until maxInlineTC commas slot}) ++ xs, r)" <>
+                                  s"catch { case e: SelfTC => loop(${loopXArgs(maxInlineTC)}, r.xs, r) }"
+                              } <<>>
+
+                              b("class Body extends ComputationN(argCount, step.decompile)") {
+                              bEq(applyNSignature) {
+                                s"loop(${xsArgs(maxInlineTC)}, xs.drop($maxInlineTC), r)"
+                              }
+                            } <<>>
+
+                            s"r.boxed = new LambdaN(names.toArray, new Body, step.decompile)(body, compile(currentRec))" <>
+                            "0.0"
+
+                          )
+                        ) <>
+                        s"new $className"
                       }
                     }
 

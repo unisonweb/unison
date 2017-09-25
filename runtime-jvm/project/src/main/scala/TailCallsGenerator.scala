@@ -10,7 +10,7 @@ object TailCallsGenerator extends OneFileGenerator("TailCalls.scala") {
     } <<>>
     s"case class Result(var boxed: Value = null, var fn: Lambda = null, ${(0 until maxInlineTC).commas(i => s"var x$i: D = 0.0, var x${i}b: V = null") + commaIf(maxInlineTC)}var xs: Array[Slot] = null)" <<>>
     "case object TailCall extends NoBuildStackTrace" <>
-    "case object SelfCall extends NoBuildStackTrace" <<>>
+    "case object SelfTailCall extends NoBuildStackTrace" <<>>
     b("trait TailCalls") (
       (1 to maxInlineArgs).each { i =>
         bEq("@inline def selfTailCall(" + signatureXArgs(i) + commaIf(i) + "r: R): D")(
@@ -18,13 +18,13 @@ object TailCallsGenerator extends OneFileGenerator("TailCalls.scala") {
           (if (i > maxInlineTC)
             "r.xs = Array(" + (maxInlineTC until i).commas(i => s"Slot(x$i, x${i}b)") + ")"
           else "r.xs = null") <>
-          "throw SelfCall"
+          "throw SelfTailCall"
         )
       } <>
       bEq("@inline def selfTailCall(args: Array[Slot], r: R): D") {
         (0 until maxInlineTC).each(i => s"r.x$i = args($i).unboxed; r.x${i}b = args($i).boxed") <>
         includeLineIf(maxInlineTC > 0)(s"r.xs = args.drop($maxInlineTC)") +
-        "throw SelfCall"
+        "throw SelfTailCall"
       } <<>>
       (1 to maxInlineArgs).each { i =>
         bEq("@inline def tailCall(fn: Lambda, " + signatureXArgs(i) + commaIf(i) + "r: R): D")(

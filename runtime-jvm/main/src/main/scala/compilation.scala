@@ -38,7 +38,7 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
   type V = Value
   type R = Result
   type TC = TailCall.type
-  type STC = SelfCall.type
+  type SelfTC = SelfTailCall.type
   type Arity = Int
   type IsTail = Boolean
   val IsTail = true
