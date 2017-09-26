@@ -38,7 +38,7 @@ Sample output:
 object LoopBenchmarks extends App {
   import QuickProfile.{suite, profile}
 
-  val N = 1e6
+  val N = 1e4
 
   @annotation.tailrec
   def iterateWhile[A](a: A)(f: A => A, ok: A => Boolean): A =
@@ -55,6 +55,7 @@ object LoopBenchmarks extends App {
       type V = AnyRef
       type D = Double
       case object SelfTC extends Throwable { override def fillInStackTrace = this }
+      case object TC extends Throwable
       case class Result(var boxed: V, var fn: V, var x0: D, var x0b: V, var x1: D, var x1b: V,
                         var unused: V = null, var unused2: V = null,
                         var unused3: Array[AnyRef] = null)
@@ -94,31 +95,43 @@ object LoopBenchmarks extends App {
         }
       }
 
-      def foo(r: R) = ???
+      val if0 = new Lambda {
+        def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, r: R): D =
+          x1var(rec, x0, x0b, x1, x1b, r)
+      }
+
+      val one = num(1.0)
+
+      def unreachable(r: R) = ???
+
+      val ifNot0 = new Lambda {
+        def apply(rec: Lambda, n: D, x0b: V, acc: D, x1b: V, r: R) = {
+          r.x0 =
+            try minus(rec, x0var(rec, n, x0b, acc, x1b, r), r.boxed, // todo: break x0var result out into a val
+              one(rec, n, x0b, acc, x1b, r), r.boxed,                // todo: break one(..) result out into a val
+              r)
+            catch { case TC => unreachable(r) }
+          r.x0b = r.boxed
+          r.x1 =
+            try
+              plus(rec, x0var(rec, n, x0b, acc, x1b, r), r.boxed,
+                x1var(rec, n, x0b, acc, x1b, r), r.boxed, r)
+            catch { case TC => unreachable(r) }
+          r.x1b = r.boxed
+          r.unused = null
+          r.unused2 = null
+          r.unused3 = null
+          throw SelfTC
+        }
+      }
+
       val step = new Lambda {
         val one = num(1.0)
         def apply(rec: Lambda, n: D, x0b: V, acc: D, x1b: V, r: R): D =
-          if ({ try x0var(rec, n, x0b, acc, x1b, r) catch { case SelfTC => foo(r) }} == 0.0)
-            x1var(rec, n, x0b, acc, x1b, r)
+          if ({ try x0var(rec, n, x0b, acc, x1b, r) catch { case SelfTC => unreachable(r) }} == 0.0)
+            if0(rec, n, x0b, acc, x1b, r)
           // if (n == 0) acc
-          else {
-            r.x0 =
-              try minus(rec, x0var(rec, n, x0b, acc, x1b, r), r.boxed,
-                         one(rec, n, x0b, acc, x1b, r), r.boxed,
-                         r)
-              catch { case SelfTC => foo(r) }
-            r.x0b = r.boxed
-            r.x1 =
-              try
-                plus(rec, x0var(rec, n, x0b, acc, x1b, r), r.boxed,
-                          x1var(rec, n, x0b, acc, x1b, r), r.boxed, r)
-              catch { case SelfTC => foo(r) }
-            r.x1b = r.boxed
-            r.unused = null
-            r.unused2 = null
-            r.unused3 = null
-            throw SelfTC
-         }
+          else ifNot0(rec, n, x0b, acc, x1b, r)
       }
       // sum1toN n acc = if n == 0 then acc else sum1toN (n - 1) (acc + n)
 

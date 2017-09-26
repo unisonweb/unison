@@ -25,7 +25,8 @@ package object codegeneration {
 
   def lines(s: String*) = s.mkString("\n")
   def braced(s: String) = s.b
-  def commaIf(i: Int) = if (i > 0) ", " else ""
+  def commaIf(b: Boolean): String = if (b) ", " else ""
+  def commaIf(i: Int): String = commaIf(i > 0)
   def includeIf(b: Boolean)(s: String): String = includeIfElse(b)(s, "")
   def includeIfElse(b: Boolean)(s1: String, s2: String): String = if (b) s1 else s2
   def includeIf(i: Int)(s: String): String = includeIf(i > 0)(s)
