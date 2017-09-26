@@ -55,6 +55,104 @@ object LoopBenchmarks extends App {
       type V = AnyRef
       type D = Double
       case object SelfTC extends Throwable { override def fillInStackTrace = this }
+      case class Result(var boxed: V, var fn: V, var x0: D, var x0b: V, var x1: D, var x1b: V,
+                        var unused: V = null, var unused2: V = null,
+                        var unused3: Array[AnyRef] = null)
+      type R = Result
+      abstract class Lambda {
+        def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, r: R): D
+        // def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, r: R): D = ???
+      }
+      val x0var = new Lambda {
+        def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, r: R): D = {
+          if (x0b eq null) { r.boxed = null; x0 }
+          else ???
+        }
+      }
+      val x1var = new Lambda {
+        def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, r: R): D = {
+          if (x1b eq null) { r.boxed = null; x1 }
+          else ???
+        }
+      }
+      val plus = new Lambda {
+        def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, r: R): D = {
+          r.boxed = null
+          x0 + x1
+        }
+      }
+      val minus = new Lambda {
+        def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, r: R): D = {
+          r.boxed = null
+          x0 - x1
+        }
+      }
+      def num(d: Double) = new Lambda {
+        def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, r: R): D = {
+          r.boxed = null
+          d
+        }
+      }
+
+      def foo(r: R) = ???
+      val step = new Lambda {
+        val one = num(1.0)
+        def apply(rec: Lambda, n: D, x0b: V, acc: D, x1b: V, r: R): D =
+          if ({ try x0var(rec, n, x0b, acc, x1b, r) catch { case SelfTC => foo(r) }} == 0.0)
+            x1var(rec, n, x0b, acc, x1b, r)
+          // if (n == 0) acc
+          else {
+            r.x0 =
+              try minus(rec, x0var(rec, n, x0b, acc, x1b, r), r.boxed,
+                         one(rec, n, x0b, acc, x1b, r), r.boxed,
+                         r)
+              catch { case SelfTC => foo(r) }
+            r.x0b = r.boxed
+            r.x1 =
+              try
+                plus(rec, x0var(rec, n, x0b, acc, x1b, r), r.boxed,
+                          x1var(rec, n, x0b, acc, x1b, r), r.boxed, r)
+              catch { case SelfTC => foo(r) }
+            r.x1b = r.boxed
+            r.unused = null
+            r.unused2 = null
+            r.unused3 = null
+            throw SelfTC
+         }
+      }
+      // sum1toN n acc = if n == 0 then acc else sum1toN (n - 1) (acc + n)
+
+      val sum1toN = new Lambda {
+        def apply(rec: Lambda, n0: D, x0b: V, acc0: D, x1b: V, r: R): D = {
+          var n = n0
+          var acc = acc0
+          var unused1 = x0b
+          var unused2 = x1b
+          while (true) {
+            try return step(step, n, x0b, acc, x1b, r)
+            catch { case SelfTC =>
+              n = r.x0
+              acc = r.x1
+              unused1 = r.x0b
+              unused2 = r.x1b
+            }
+          }
+          0.0
+        }
+      }
+      println {
+        val r = Result(null, null, 0.0, null, 0.0, null)
+        "sum1toN sanity check: " + sum1toN(sum1toN, 4.0, null, 0.0, null, r).toLong
+      }
+      profile("unison-based exception loop (more realistic)") {
+        val r = Result(null, null, 0.0, null, 0.0, null)
+        sum1toN(sum1toN, (N + math.random).floor, null, 0.0, null, r).toLong
+      }
+    },
+    {
+      type V = AnyRef
+      type D = Double
+      case object SelfTC extends Throwable { override def fillInStackTrace = this }
       case class Result(var boxed: V, var fn: V, var x0: D, var x0b: V, var x1: D, var x1b: V)
       type R = Result
       abstract class Lambda {
@@ -107,12 +205,12 @@ object LoopBenchmarks extends App {
       import org.unisonweb.compilation.{compile, Result, Lambda}
       val compiled = compile(builtins)(sum1toN)
       val r = Result()
+      // todo: could be faster if letrec detected that the only recursive calls are selfcalls,
+      // and skipped saving a lazy self reference.  letrec1 used to do this, but the optimization
+      // shouldn't be limited to a letrec1 construction
       compiled(null, r)
       val lambda = r.boxed.asInstanceOf[Lambda]
       profile("unison loop") {
-        // todo: could be faster if letrec detected that the only recursive calls are selfcalls,
-        // and skipped saving a lazy self reference.  letrec1 used to do this, but the optimization
-        // shouldn't be limited to a letrec1 construction
         lambda(null, 0.0, null, (N + math.random).floor, null, r).toLong
       }
     },
