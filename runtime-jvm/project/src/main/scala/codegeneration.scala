@@ -58,11 +58,11 @@ package object codegeneration {
   def catchTC(expr: String) =
     s"try { $expr } catch { case e: TC => loop(r) }"
 
-  def evalBoxed(i: Int, expr: String) =
-    "{ " + eval(i, expr) + "; r.boxed }"
+  def tailEvalBoxed(i: Int, expr: String) =
+    "{ " + tailEval(i, expr) + "; r.boxed }"
 
-  def evalNBoxed(expr: String) =
-    "{ " + evalN(expr) + "; r.boxed }"
+  def tailEvalNBoxed(expr: String) =
+    "{ " + tailEvalN(expr) + "; r.boxed }"
 
   def eval(i: Int, expr: String) = catchTC(tailEval(i, expr))
 

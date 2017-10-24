@@ -171,12 +171,11 @@ object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunc
                   b(s"class $className extends Computation$stackSize(e, ())") {
                     (0 until argCount).each(j => s"val arg$j = args($j)") <>
                     bEq(applySignature(stackSize)) {
-                      s"val lambda = ${evalBoxed(stackSize, "mkFn")}.asInstanceOf[Lambda]" <>
-                      (0 until argCount).each { j => s"val arg${j}r = " + eval(stackSize, s"arg$j") + s"; val arg${j}rb = r.boxed" } <> (
+                      s"val lambda = ${tailEvalBoxed(stackSize, "mkFn")}.asInstanceOf[Lambda]" <> (
                         if (isTail)
-                          "tailCall(lambda, " + (argCount-1 to 0 by -1).commas(j => s"arg${j}r, arg${j}rb") + commaIf(argCount) + "r)"
+                          "tailCall(lambda, " + (argCount-1 to 0 by -1).commas(j => tailEval(stackSize, s"arg$j") + ", r.boxed") + commaIf(argCount) + "r)"
                         else
-                          "lambda(lambda, " + (argCount-1 to 0 by -1).commas(j => s"arg${j}r, arg${j}rb") + commaIf(argCount) + "r)"
+                          "lambda(lambda, " + (argCount-1 to 0 by -1).commas(j => tailEval(stackSize, s"arg$j") + ", r.boxed") + commaIf(argCount) + "r)"
                         )
                     }
                   } <>
@@ -188,10 +187,10 @@ object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunc
                 b(s"class $className extends Computation$stackSize(e, ())") {
                   bEq(applySignature(stackSize)) {
                     "val argsr = new Array[Slot](argCount)" <>
-                    s"val lambda = ${evalBoxed(stackSize, "mkFn")}.asInstanceOf[Lambda]" <>
+                    s"val lambda = ${tailEvalBoxed(stackSize, "mkFn")}.asInstanceOf[Lambda]" <>
                     "var k = 0" <>
                     b("while (k < argCount)") {
-                      "argsr(argCount - 1 - k) = new Slot(" + eval(stackSize, "args(k)") + ", r.boxed)" <>
+                      "argsr(argCount - 1 - k) = new Slot(" + tailEval(stackSize, "args(k)") + ", r.boxed)" <>
                       "k += 1"
                     } <>
                       (if (isTail)
@@ -213,10 +212,9 @@ object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunc
                 b(s"class $className extends ComputationN(stackSize, e, ())") {
                   (0 until argCount).each(j => s"val arg$j = args($j)") <>
                   bEq(applyNSignature) {
-                    s"val lambda = ${evalNBoxed("mkFn")}.asInstanceOf[Lambda]" <>
-                    (0 until argCount).each( j => s"val arg${j}r = " + evalN(s"arg$j") + s"; val arg${j}rb = r.boxed" ) <>
-                    (if (!isTail) s"lambda(lambda, " + ((argCount-1) to 0 by -1).commas(j => s"arg${j}r, arg${j}rb") + commaIf(argCount) + "r)"
-                    else s"tailCall(lambda, " + ((argCount-1) to 0 by -1).commas(j => s"arg${j}r, arg${j}rb") + commaIf(argCount) + "r)")
+                    s"val lambda = ${tailEvalNBoxed("mkFn")}.asInstanceOf[Lambda]" <>
+                    (if (!isTail) s"lambda(lambda, " + ((argCount-1) to 0 by -1).commas(j => tailEvalN(s"arg$j") + ", r.boxed") + commaIf(argCount) + "r)"
+                    else s"tailCall(lambda, " + ((argCount-1) to 0 by -1).commas(j => tailEvalN(s"arg$j") + ", r.boxed") + commaIf(argCount) + "r)")
                   }
                 } <>
                 s"new $className"
@@ -227,10 +225,10 @@ object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunc
               b(s"class $className extends ComputationN(argCount, e, ())") {
                 bEq(applyNSignature) {
                   "val argsr = new Array[Slot](argCount)" <>
-                  s"val lambda = ${evalNBoxed("mkFn")}.asInstanceOf[Lambda]" <>
+                  s"val lambda = ${tailEvalNBoxed("mkFn")}.asInstanceOf[Lambda]" <>
                   "var k = 0" <>
                   b("while (k < argCount)") {
-                    "argsr(argCount - 1 - k) = new Slot(" + evalN("args(k)") + ", r.boxed)" <>
+                    "argsr(argCount - 1 - k) = new Slot(" + tailEvalN("args(k)") + ", r.boxed)" <>
                     "k += 1"
                   } <>
                   (if (!isTail) "lambda(lambda, argsr, r)"
