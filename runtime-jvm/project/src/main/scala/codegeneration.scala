@@ -8,8 +8,6 @@ package object codegeneration {
 
   assert(maxInlineTC <= maxInlineArgs)
 
-  val traceEval = false
-
   def applySignature(i: Int): String =
     "def apply(rec: Lambda, " + signatureXArgs(i) + commaIf(i) + "r: R): D"
 

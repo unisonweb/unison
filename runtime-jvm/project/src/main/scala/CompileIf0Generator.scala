@@ -11,7 +11,7 @@ object CompileIf0Generator extends OneFileGenerator("CompileIf0.scala") {
               `case`(s"/* stackSize = */ $stackSize") {
                 b(s"class If0S$stackSize extends Computation$stackSize(e,())") {
                   indentEqExpr(applySignature(stackSize)) {
-                    "if ((" + eval(stackSize, "cond") + ") == 0.0)" <>
+                    "if ((" + tailEval(stackSize, "cond") + ") == 0.0)" <>
                       tailEval(stackSize, "if0").indent <>
                     "else " <>
                       tailEval(stackSize, "ifNot0").indent
@@ -23,7 +23,7 @@ object CompileIf0Generator extends OneFileGenerator("CompileIf0.scala") {
             `case`("stackSize") {
               b("class If0SN extends ComputationN(stackSize,e,())") {
                 indentEqExpr(applyNSignature) {
-                  "if ((" + evalN("cond") + ") == 0.0)" <>
+                  "if ((" + tailEvalN("cond") + ") == 0.0)" <>
                     tailEvalN("if0").indent <>
                     "else " <>
                     tailEvalN("ifNot0").indent
