@@ -23,15 +23,27 @@ object Term {
     betaReduce(name4, betaReduce(name3, betaReduce(name2, betaReduce(name1,
     Lam(name2,name3,name4)(body))(arg1))(arg2))(arg3))(arg4)
 
-  def aNormalize(t: Term): Term = t match {
+  /** Convert the term to A-normal form: https://en.wikipedia.org/wiki/A-normal_form. */
+  def ANF(t: Term): Term = t match {
     case t @ ABT.Var(_) => t
-    case ABT.Abs(name, body) => ABT.Abs(name, aNormalize(body))
+    // arg1 -> foo (x + 1) blah
+    // arg1 -> let arg1 = x + 1; foo arg1 blah
+    case ABT.Abs(name, body) => ABT.Abs(name, ANF(body))
     case Apply(f, args) =>
-      val argNames = args.zipWithIndex.map { case (t, i) => freshen(Name(s"arg$i"), t) }
-      val newArgs = argNames zip args
-      Let(newArgs: _*)(Apply(f, argNames.map(n => ABT.Var(n): Term): _*))
-
-    case ABT.Tm(other) => ABT.Tm(F.instance.map(other)(aNormalize))
+      val (bindings2, args2) =
+        args.zipWithIndex.foldRight((List.empty[(Name,Term)], List.empty[Term])) { (argi, accs) =>
+          val (bindings, args) = accs
+          val (arg, i) = argi
+          arg match {
+            case ABT.Var(_) => (bindings, arg :: args)
+            case lam @ Lam(_, _) /* if freeVars(lam).isEmpty */ => (bindings, arg :: args)
+            case arg =>
+              val freshName = freshen(Name(s"arg$i"), arg)
+              ((freshName, arg) :: bindings, Var(freshName) :: args)
+          }
+        }
+      Let(bindings2: _*)(Apply(f, args2: _*))
+    case ABT.Tm(other) => ABT.Tm(F.instance.map(other)(ANF))
   }
 
   sealed abstract class F[+R]
