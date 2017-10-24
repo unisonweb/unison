@@ -104,7 +104,8 @@ object Fib extends App {
     "facTailRec" -> facTailRec -> 3628800.0,
     "facRec" -> facRec -> 3628800.0,
     "iterateWhile(...)" -> iterateWhile(2) -> 2.0,
-    "sum1toN" -> sum1toN(N) -> 120.0
+    "sum1toN" -> sum1toN(N) -> 120.0,
+    "aNormalize(sum1ToN)" -> Term.aNormalize(sum1toN(N)) -> 120.0
   ).foreach {
     case ((name, term), d) =>
       print(f"$name%20s:\t")
@@ -126,4 +127,9 @@ object Fib extends App {
       }
     }
   )
+  println()
+  println(org.unisonweb.Render1.renderTerm(sum1toN(N)))
+  println()
+  println(org.unisonweb.Render1.renderTerm(Term.aNormalize(sum1toN(N))))
+
 }

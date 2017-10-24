@@ -23,6 +23,17 @@ object Term {
     betaReduce(name4, betaReduce(name3, betaReduce(name2, betaReduce(name1,
     Lam(name2,name3,name4)(body))(arg1))(arg2))(arg3))(arg4)
 
+  def aNormalize(t: Term): Term = t match {
+    case t @ ABT.Var(_) => t
+    case ABT.Abs(name, body) => ABT.Abs(name, aNormalize(body))
+    case Apply(f, args) =>
+      val argNames = args.zipWithIndex.map { case (t, i) => freshen(Name(s"arg$i"), t) }
+      val newArgs = argNames zip args
+      Let(newArgs: _*)(Apply(f, argNames.map(n => ABT.Var(n): Term): _*))
+
+    case ABT.Tm(other) => ABT.Tm(F.instance.map(other)(aNormalize))
+  }
+
   sealed abstract class F[+R]
 
   object F {
