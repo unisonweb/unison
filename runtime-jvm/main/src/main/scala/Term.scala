@@ -29,22 +29,33 @@ object Term {
     // arg1 -> foo (x + 1) blah
     // arg1 -> let arg1 = x + 1; foo arg1 blah
     case ABT.Abs(name, body) => ABT.Abs(name, ANF(body))
-    case Apply(f, args) =>
+    case Apply(f @ (ABT.Var(_) | Lam(_,_) | Builtin(_)), args) =>
       val (bindings2, args2) =
         args.zipWithIndex.foldRight((List.empty[(Name,Term)], List.empty[Term])) { (argi, accs) =>
           val (bindings, args) = accs
           val (arg, i) = argi
           arg match {
+            case Num(_) => (bindings, arg :: args)
             case ABT.Var(_) => (bindings, arg :: args)
             case lam @ Lam(_, _) /* if freeVars(lam).isEmpty */ => (bindings, arg :: args)
             case arg =>
-              val freshName = freshen(Name(s"arg$i"), arg)
+              val freshName = freshen(Name(s"_arg$i"), arg)
               ((freshName, arg) :: bindings, Var(freshName) :: args)
           }
         }
       Let(bindings2: _*)(Apply(f, args2: _*))
+    case Apply(f, args) =>
+      val freshName = freshen(Name("_f"), f)
+      Let(freshName -> f)(ANF(Apply(Var(freshName), args: _*)))
+    case If0(cond @ (ABT.Var(_) | Lam(_,_) | Builtin(_)), if0, ifNot0) =>
+      If0(cond, ANF(if0), ANF(ifNot0))
+    case If0(cond, if0, ifNot0) =>
+      val freshName = freshen(Name("_cond"), cond)
+      Let(freshName -> cond)(ANF(If0(Var(freshName), if0, ifNot0)))
     case ABT.Tm(other) => ABT.Tm(F.instance.map(other)(ANF))
   }
+
+  // todo - test when function being applied is a compound expression
 
   sealed abstract class F[+R]
 

@@ -25,22 +25,24 @@ sealed abstract class PrettyPrint {
     case Group(d) => d.renderUnbroken
   }
 
-  def renderBroken(width: Int): String = this match {
+  def renderBroken(width: Int, newline: Boolean): String = this match {
     case Empty => ""
     case Literal(s) => s
     case Append(d1, d2) =>
-      val rd1 = d1.renderBroken(width)
+      val rd1 = d1.renderBroken(width, newline)
       val lengthOfLastLine = rd1.length - (rd1.lastIndexOf("\n") + 1)
-      d2.renderBroken(width - lengthOfLastLine)
+      rd1 + d2.renderBroken(width - lengthOfLastLine, lengthOfLastLine == 0)
     case Nest(prefix, d) =>
-      prefix + d.renderBroken(width - prefix.length).replace("\n", "\n" + prefix)
-    case Breakable(delim) => ""
+      if (newline)
+        prefix + d.renderBroken(width - prefix.length, false).replaceAllLiterally("\n", "\n" + prefix)
+      else d.renderBroken(width, false)
+    case Breakable(_) => "\n"
     case Group(d) => d.render(width)
   }
 
   def render(width: Int): String =
     if (unbrokenWidth <= width) this.renderUnbroken
-    else this.renderBroken(width)
+    else this.renderBroken(width, false)
 }
 
 object PrettyPrint {
@@ -73,43 +75,86 @@ object PrettyPrint {
 
   def group(doc: PrettyPrint) = Group(doc)
 
+  def parenthesizeGroupIf(b: Boolean)(doc: PrettyPrint) = parenthesizeIf(b)(group(doc))
+
+  def parenthesize(doc: PrettyPrint): PrettyPrint = "(" <> doc <> ")"
+
+  def parenthesizeIf(b: Boolean)(doc: PrettyPrint) = if (b) parenthesize(doc) else doc
+
   implicit def lit(s: String): PrettyPrint = Literal(s)
 
   val softbreak = Breakable(" ")
+  def softbreaks(docs: Seq[PrettyPrint]): PrettyPrint = docs.reduce(_ <> softbreak <> _)
+
+  val semicolon = Breakable("; ")
+  def semicolons(docs: Seq[PrettyPrint]): PrettyPrint = docs.reduce(_ <> semicolon <> _)
 
   import org.unisonweb.Term._
 
-  def prettyTerm(t: Term, prec: Int): PrettyPrint = t match {
-    case Num(value) => value.toString
-    case If0(cond, ifZero, ifNonzero) => group {
+  def prettyName(name: Name) = parenthesizeIf(isOperatorName(name))(name.toString)
+
+  def prettyBinding(name: Name, term: Term): PrettyPrint = term match {
+    case Lam(names, body) =>
+      group(group(softbreaks((name +: names).map(prettyName))) <> " =" <> softbreak <> prettyTerm(body, 0).nest("  "))
+
+    case _ => name.toString <> " = " <> prettyTerm(term, 0)
+  }
+
+  def prettyTerm(t: Term, precedence: Int): PrettyPrint = t match {
+    case Num(value) =>
+      if (value == value.toLong)
+        value.toLong.toString
+      else value.toString
+
+    case If0(cond, ifZero, ifNonzero) => parenthesizeGroupIf(precedence > 0) {
       "if " <> prettyTerm(cond, 0) <> " == 0 then" <> softbreak <>
                prettyTerm(ifZero, 0).nest("  ") <> softbreak <> "else" <> softbreak <>
                prettyTerm(ifNonzero, 0).nest("  ")
     }
-    case Apply(f, args) => group {
-      prettyTerm(f, 9) <> softbreak <> ???
-        // args.map(_.nest("  "))
+    case Apply(VarOrBuiltin(name), List(arg1, arg2)) if isOperatorName(name) =>
+       parenthesizeGroupIf(precedence > 5) {
+        prettyTerm(arg1, 5) <> " " <> name.toString <> softbreak <> prettyTerm(arg2, 6).nest("  ")
+    }
+    case Apply(f, args) => parenthesizeGroupIf(precedence > 9) {
+      prettyTerm(f, 9) <> softbreak <>
+        softbreaks(args.map(arg => prettyTerm(arg, 10).nest("  ")))
+    }
+    case Var(name) => prettyName(name)
+    case Builtin(name) => prettyName(name)
+    case Lam(names, body) => parenthesizeGroupIf(precedence > 0) {
+      softbreaks(names.map(name => lit(name.toString))) <> " ->" <> softbreak <>
+        prettyTerm(body, 0).nest("  ")
+    }
+    case Let(bindings, body) => parenthesizeGroupIf(precedence > 0) {
+      "let" <> softbreak <>
+        semicolons(bindings.map((prettyBinding _).tupled)).nest("  ") <> semicolon <>
+        prettyTerm(body, 0).nest("  ")
+    }
+    case LetRec(bindings, body) => parenthesizeGroupIf(precedence > 0) {
+      "let rec" <> softbreak <>
+        semicolons(bindings.map((prettyBinding _).tupled)).nest("  ") <> semicolon <>
+        prettyTerm(body, 0).nest("  ")
+    }
+    case t => t.toString
+
+    //implicit def fRender[A](implicit R: Render[A]): Render[Term.F[A]] = {
+    //  case Compiled_(v) => "Compiled {" + renderIndent(v.decompile) + "}"
+    //  case Delayed_(name, v) => s"Delayed($name)"
+    //  case Yield_(effect) => "Yield(...)"
+    //  case Handle_(handler, block) => "Handle(...)"
+    //}
+  }
+
+  object VarOrBuiltin {
+    def unapply(term: Term): Option[Name] = term match {
+      case Var(name) => Some(name)
+      case Builtin(name) => Some(name)
+      case _ => None
     }
   }
 
-  //implicit def fRender[A](implicit R: Render[A]): Render[Term.F[A]] = {
-  //  case f@Lam_(body) => s"lambda\n${renderIndent(body)}"
-  //  case f@Builtin_(name) => s"builtin($name)"
-  //  case Apply_(f, args) =>
-  //    ("apply\n"
-  //      + indent("fn =\n" + renderIndent(f)) + "\n"
-  //      + indent(args.zipWithIndex.map{ case (a, i) => s"arg$i =\n${renderIndent(a)}" }.mkString("\n"))
-  //      )
-  //  case Num_(value) => value.toString
-  //  case LetRec_(bindings, body) => s"letrec" + bindings.map(renderIndent[A]).mkString("\n", "\n", "\n") + "in\n" + renderIndent(body)
-  //  case Let_(binding, body) => s"let ${R.render(binding)}\nin\n" + renderIndent(body)
-  //  case Rec_(r) => "rec\n" + renderIndent(r)
-  //  case If0_(condition, ifZero, ifNonzero) => s"ifZero $condition\nthen\n${renderIndent(ifZero)}\nelse\n${renderIndent(ifNonzero)}"
-  //  case Compiled_(v) => "Compiled {" + renderIndent(v.decompile) + "}"
-  //  case Delayed_(name, v) => s"Delayed($name)"
-  //  case Yield_(effect) => "Yield(...)"
-  //  case Handle_(handler, block) => "Handle(...)"
-  //}
+  def isOperatorName(name: Name): Boolean =
+    name.toString.forall(c => !c.isLetterOrDigit && !c.isControl && !c.isSpaceChar && !c.isWhitespace)
 
 }
 
