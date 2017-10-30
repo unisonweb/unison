@@ -32,15 +32,22 @@ class Buffer[A](id: AtomicLong, stamp: Long, val values: Array[A], val size: Int
 
 object Buffer {
 
-  val Arity = 64
+  private val ArityI = 128
+  val Arity = 128L
 
   def empty[A]: Buffer[A] =
-    new Buffer(new AtomicLong(0), 0, new Array[Any](Arity), 0).asInstanceOf[Buffer[A]]
+    new Buffer(new AtomicLong(0), 0, new Array[Any](ArityI), 0).asInstanceOf[Buffer[A]]
+
+  def single[A](a: A): Buffer[A] = {
+    val arr = new Array[Any](ArityI)
+    arr(0) = a : Any
+    new Buffer(new AtomicLong(0), 0, arr, 1).asInstanceOf[Buffer[A]]
+  }
 
   def apply[A](as: A*): Buffer[A] = {
     val underlying = as.toArray[Any]
     val paddedUnderlying =
-      if (underlying.length < Arity) underlying ++ new Array[Any](Arity - underlying.length)
+      if (underlying.length < ArityI) underlying ++ new Array[Any](ArityI - underlying.length)
       else underlying
     new Buffer(new AtomicLong(0), 0, paddedUnderlying, as.length).asInstanceOf[Buffer[A]]
   }

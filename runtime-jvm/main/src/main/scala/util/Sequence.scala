@@ -6,9 +6,9 @@ class SnocSequence[A](val size: Long, hd: Buffer[A], tl: SnocSequence[Buffer[A]]
   private final val hdSizePlusTlSize = hd.size + tlSize
 
   def apply(i: Long): A = {
-    if (i < hd.size) hd(i)
-    else if (i < hdSizePlusTlSize) tl((i - Buffer.Arity) / Buffer.Arity)(i % Buffer.Arity)
-    else buf(i - hdSizePlusTlSize)
+    if (i >= hdSizePlusTlSize) buf(i - hdSizePlusTlSize)
+    else if (i < Buffer.Arity) hd(i)
+    else tl((i - Buffer.Arity) / Buffer.Arity)(i % Buffer.Arity)
   }
 
   def :+(a: A): SnocSequence[A] = (buf :+ a) match { case buf =>
