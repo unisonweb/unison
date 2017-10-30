@@ -1,8 +1,6 @@
 package org.unisonweb.util
 
-import scala.reflect.ClassTag
-
-class SnocSequence[A](val size: Long, hd: Buffer[A], tl: SnocSequence[Buffer[A]], buf: Buffer[A], val ct: ClassTag[A]) {
+class SnocSequence[A](val size: Long, hd: Buffer[A], tl: SnocSequence[Buffer[A]], buf: Buffer[A]) {
 
   private final val tlSize = if (tl eq null) 0 else tl.size * Buffer.Arity
 
@@ -18,11 +16,11 @@ class SnocSequence[A](val size: Long, hd: Buffer[A], tl: SnocSequence[Buffer[A]]
     }
 
   def :+(a: A): SnocSequence[A] = (buf :+ a) match { case buf =>
-    if (buf.size != Buffer.Arity) new SnocSequence(size + 1, hd, tl, buf, ct)
-    else if (size == Buffer.Arity - 1) new SnocSequence(size + 1, buf, tl, Buffer.empty[A](ct), ct)
+    if (buf.size != Buffer.Arity) new SnocSequence(size + 1, hd, tl, buf)
+    else if (size == Buffer.Arity - 1) new SnocSequence(size + 1, buf, tl, Buffer.empty[A])
     else new SnocSequence(size + 1, hd,
                           if (tl eq null) SnocSequence.single(buf) else tl :+ buf,
-                          Buffer.empty[A](ct), ct)
+                          Buffer.empty[A])
   }
 
   override def toString =
@@ -31,11 +29,11 @@ class SnocSequence[A](val size: Long, hd: Buffer[A], tl: SnocSequence[Buffer[A]]
 
 object SnocSequence {
 
-  def empty[A](implicit ct: ClassTag[A]): SnocSequence[A] =
-    new SnocSequence[A](0L, Buffer.empty[A], null, Buffer.empty[A], ct)
+  def empty[A]: SnocSequence[A] =
+    new SnocSequence[A](0L, Buffer.empty[A], null, Buffer.empty[A])
 
-  def single[A](a: A)(implicit ct: ClassTag[A]): SnocSequence[A] =
-    new SnocSequence[A](1L, Buffer.empty[A], null, Buffer.empty[A] :+ a, ct)
+  def single[A](a: A): SnocSequence[A] =
+    new SnocSequence[A](1L, Buffer.empty[A], null, Buffer.empty[A] :+ a)
 }
 
 abstract class Sequence[A] {
@@ -44,7 +42,6 @@ abstract class Sequence[A] {
   def :+(a: A): Sequence[A]
   def +:(a: A): Sequence[A]
   def size: Long
-  def ct: ClassTag[A]
 
   override def toString = "Sequence(" + (0L until size).map(apply(_)).mkString(", ") + ")"
 
@@ -63,33 +60,31 @@ abstract class Sequence[A] {
 
 object Sequence {
 
-  def single[A](a: A)(implicit ct: ClassTag[A]): Sequence[A] =
+  def single[A](a: A): Sequence[A] =
     Snoc(SnocSequence.single(a))
 
-  def empty[A](implicit ct: ClassTag[A]): Sequence[A] =
+  def empty[A]: Sequence[A] =
     Snoc(SnocSequence.empty)
 
-  def apply[A](as: A*)(implicit ct: ClassTag[A]): Sequence[A] =
+  def apply[A](as: A*): Sequence[A] =
     Snoc(as.foldLeft(SnocSequence.empty[A])((buf,a) => buf :+ a))
 
   case class Cons[A](s: SnocSequence[A]) extends Sequence[A] {
     def apply(i: Long): A = s(s.size - i - 1)
     def ++(s2: Sequence[A]): Sequence[A] = Append(this, s2)
-    def :+(a: A): Sequence[A] = Append(this, Snoc(SnocSequence.single(a)(ct)))
+    def :+(a: A): Sequence[A] = Append(this, Snoc(SnocSequence.single(a)))
     def +:(a: A): Sequence[A] = Cons(s :+ a)
     def size: Long = s.size
     def depth = 0
-    def ct = s.ct
   }
 
   case class Snoc[A](s: SnocSequence[A]) extends Sequence[A] {
     def apply(i: Long): A = s(i)
     def ++(s2: Sequence[A]): Sequence[A] = Append(this, s2)
     def :+(a: A): Sequence[A] = Snoc(s :+ a)
-    def +:(a: A): Sequence[A] = Append(Cons(SnocSequence.single(a)(ct)), this)
+    def +:(a: A): Sequence[A] = Append(Cons(SnocSequence.single(a)), this)
     def size: Long = s.size
     def depth = 0
-    def ct = s.ct
   }
 
   case class Append[A](left: Sequence[A], right: Sequence[A]) extends Sequence[A] { self =>
@@ -123,7 +118,6 @@ object Sequence {
     def +:(a: A): Sequence[A] = Append(a +: left, right)
     val size: Long = left.size + right.size
     val depth = (left.depth max right.depth) + 1
-    val ct = left.ct
   }
 }
 
