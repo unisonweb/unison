@@ -13,7 +13,7 @@ class SnocSequence[A](val size: Long, hd: Buffer[A], tl: SnocSequence[Buffer[A]]
 
   def :+(a: A): SnocSequence[A] = (buf :+ a) match { case buf =>
     if (buf.size != Buffer.Arity) new SnocSequence(size + 1, hd, tl, buf)
-    else if (size == Buffer.Arity - 1) new SnocSequence(size + 1, buf, tl, Buffer.empty[A])
+    else if (size == Buffer.Arity - 1) new SnocSequence(Buffer.Arity, buf, tl, Buffer.empty[A])
     else new SnocSequence(size + 1, hd,
                           if (tl eq null) SnocSequence.single(buf) else tl :+ buf,
                           Buffer.empty[A])
