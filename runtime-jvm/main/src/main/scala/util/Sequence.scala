@@ -2,18 +2,14 @@ package org.unisonweb.util
 
 class SnocSequence[A](val size: Long, hd: Buffer[A], tl: SnocSequence[Buffer[A]], buf: Buffer[A]) {
 
-  private final val tlSize = if (tl eq null) 0 else tl.size * Buffer.Arity
+  private final def tlSize = if (tl eq null) 0 else tl.size * Buffer.Arity
+  private final val hdSizePlusTlSize = hd.size + tlSize
 
-  def apply(i: Long): A =
+  def apply(i: Long): A = {
     if (i < hd.size) hd(i)
-    else {
-      val hdSizePlusTlSize = hd.size + tlSize
-      if (i >= hdSizePlusTlSize) buf(i - hdSizePlusTlSize)
-      else {
-        val i2 = i - hd.size
-        tl(i2 / Buffer.Arity)(i2 % Buffer.Arity)
-      }
-    }
+    else if (i < hdSizePlusTlSize) tl((i - Buffer.Arity) / Buffer.Arity)(i % Buffer.Arity)
+    else buf(i - hdSizePlusTlSize)
+  }
 
   def :+(a: A): SnocSequence[A] = (buf :+ a) match { case buf =>
     if (buf.size != Buffer.Arity) new SnocSequence(size + 1, hd, tl, buf)
