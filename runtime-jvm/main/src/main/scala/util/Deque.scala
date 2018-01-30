@@ -33,7 +33,7 @@ class Deque[A](idL: AtomicInteger, stampL: Int, val valuesL: Array[A], val sizeL
     if (winner && (valuesR2 eq valuesR))
       new Deque(idL, stampL, valuesL, sizeL, idR, stampR+1, valuesR2, sizeR+1)
     else
-      new Deque(idL, stampL, valuesL, sizeL, new AtomicInteger(0), 0, valuesR2, sizeR + 1)
+      new Deque(idL, stampL, valuesL, sizeL, new AtomicInteger(Deque.MinStamp), Deque.MinStamp, valuesR2, sizeR + 1)
   }
 
   /** Cons a value onto the front of this `Deque`, possibly using (unobservable) mutation. */
@@ -54,12 +54,37 @@ class Deque[A](idL: AtomicInteger, stampL: Int, val valuesL: Array[A], val sizeL
     if (winner && (valuesL2 eq valuesL))
       new Deque(idL, stampL+1, valuesL2, sizeL+1, idR, stampR, valuesR, sizeR)
     else
-      new Deque(new AtomicInteger(0), 0, valuesL2, sizeL + 1, idR, stampR, valuesR, sizeR)
+      new Deque(new AtomicInteger(Deque.MinStamp), Deque.MinStamp, valuesL2, sizeL + 1, idR, stampR, valuesR, sizeR)
+  }
+
+  private def dumbAppend(b: Deque[A]): Deque[A] = {
+    if (Int.MaxValue - size - b.size < 0) throw Deque.Overflow
+    if (b.sizeL == 0 && b.sizeR != 0) {
+      val winner = idR.compareAndSet(stampR, stampR + 1)
+      val valuesR2 =
+        if (valuesR.length - sizeR - b.sizeR <= 0) {
+          val valuesR2 = (new Array[Any]((valuesR.length * 2) max (sizeR + b.sizeR))).asInstanceOf[Array[A]]
+          valuesR.copyToArray(valuesR2)
+          valuesR2
+        }
+        // threads race to be able to mutably update 'values'
+        else if (winner) valuesR
+        // losers forced to make a copy
+        else valuesR.clone
+      Array.copy(b.valuesR, 0, valuesR2, sizeR, b.sizeR)
+      if (winner && (valuesR2 eq valuesR))
+        new Deque(idL, stampL, valuesL, sizeL, idR, stampR+1, valuesR2, sizeR + b.sizeR)
+      else
+        new Deque(idL, stampL, valuesL, sizeL, new AtomicInteger(Deque.MinStamp), Deque.MinStamp, valuesR2, sizeR + b.sizeR)
+    }
+    else if (b.isEmpty) this
+    else
+      b.take(b.sizeL).foldLeft(this)(_ :+ _).dumbAppend(b.drop(b.sizeL))
   }
 
   def ++(b: Deque[A]): Deque[A] =
-    if (size > b.size) b.foldLeft(this)(_ :+ _)
-    else this.foldRight(b)(_ +: _)
+    if (size < b.size / 2) this.foldRight(b)(_ +: _)
+    else this.dumbAppend(b)
 
   def reverse: Deque[A] =
     if (size < 2) this
@@ -75,29 +100,29 @@ class Deque[A](idL: AtomicInteger, stampL: Int, val valuesL: Array[A], val sizeL
     if (n >= size) this
     else if (n >= sizeL)
       new Deque(idL, stampL, valuesL, sizeL,
-                idR, -1, valuesR, sizeR min (n - sizeL))
+                idR, Int.MinValue, valuesR, sizeR min (n - sizeL))
     else { // remove the whole right side
       val valuesL2 = (new Array[Any](valuesL.length)).asInstanceOf[Array[A]]
       val sizeL2 = sizeL - n
       Array.copy(valuesL, n, valuesL2, 0, sizeL2)
       new Deque(
-        new AtomicInteger(0), 0, valuesL2, sizeL2,
-        new AtomicInteger(0), 0, (new Array[Any](Deque.ArityI)).asInstanceOf[Array[A]], 0
+        new AtomicInteger(Deque.MinStamp), Deque.MinStamp, valuesL2, sizeL2,
+        new AtomicInteger(Deque.MinStamp), Deque.MinStamp, (new Array[Any](Deque.ArityI)).asInstanceOf[Array[A]], 0
       )
     }
 
   def drop(n: Int): Deque[A] =
     if (n >= size) Deque.empty
     else if (n <= sizeL)
-      new Deque(new AtomicInteger(0), -1, valuesL, sizeL - n,
+      new Deque(new AtomicInteger(Deque.MinStamp), Int.MinValue, valuesL, sizeL - n,
                 idR, stampR, valuesR, sizeR)
     else { // n >= sizeL, remove the whole left side
       val valuesR2 = (new Array[Any](valuesR.length)).asInstanceOf[Array[A]]
       val sizeR2 = sizeR - (n - sizeL)
       Array.copy(valuesR, n, valuesR2, 0, sizeR2)
       new Deque(
-        new AtomicInteger(0), 0, new Array[Any](Deque.ArityI).asInstanceOf[Array[A]], 0,
-        new AtomicInteger(0), 0, valuesR2, sizeR2)
+        new AtomicInteger(Deque.MinStamp), Deque.MinStamp, new Array[Any](Deque.ArityI).asInstanceOf[Array[A]], 0,
+        new AtomicInteger(Deque.MinStamp), Deque.MinStamp, valuesR2, sizeR2)
     }
 
   def dropRight(n: Int): Deque[A] = take(size - n)
@@ -111,28 +136,27 @@ class Deque[A](idL: AtomicInteger, stampL: Int, val valuesL: Array[A], val sizeL
   final def isEmpty = sizeL == 0 && sizeR == 0
 
   override def toString =
-    "Deque(" +
-      (valuesL.iterator.take(sizeL) ++ valuesR.iterator.take(sizeR)).mkString(", ") +
-    ")"
+    "Deque(" + (0 until size).map(apply(_)).mkString(", ") + ")"
 }
 
 object Deque {
 
   case object Overflow extends Throwable { override def fillInStackTrace = this }
 
-  private val ArityI = 128
+  private val ArityI = 16
+  private val MinStamp = Int.MinValue + 1
 
   def empty[A]: Deque[A] =
     new Deque(
-      new AtomicInteger(0), 0, new Array[Any](ArityI), 0,
-      new AtomicInteger(0), 0, new Array[Any](ArityI), 0).asInstanceOf[Deque[A]]
+      new AtomicInteger(MinStamp), MinStamp, new Array[Any](ArityI), 0,
+      new AtomicInteger(MinStamp), MinStamp, new Array[Any](ArityI), 0).asInstanceOf[Deque[A]]
 
   def single[A](a: A): Deque[A] = {
     val arr = new Array[Any](ArityI)
     arr(0) = a : Any
     new Deque(
-      new AtomicInteger(0), 0, new Array[Any](ArityI), 0,
-      new AtomicInteger(0), 0, arr, 1).asInstanceOf[Deque[A]]
+      new AtomicInteger(MinStamp), MinStamp, new Array[Any](ArityI), 0,
+      new AtomicInteger(MinStamp), MinStamp, arr, 1).asInstanceOf[Deque[A]]
   }
 
   def apply[A](as: A*): Deque[A] = {
@@ -141,8 +165,8 @@ object Deque {
       if (underlying.length < ArityI) underlying ++ new Array[Any](ArityI - underlying.length)
       else underlying
     new Deque(
-      new AtomicInteger(0), 0, new Array[Any](ArityI), 0,
-      new AtomicInteger(0), 0, paddedUnderlying, as.length).asInstanceOf[Deque[A]]
+      new AtomicInteger(MinStamp), MinStamp, new Array[Any](ArityI), 0,
+      new AtomicInteger(MinStamp), MinStamp, paddedUnderlying, as.length).asInstanceOf[Deque[A]]
   }
 
   /*

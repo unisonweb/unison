@@ -40,7 +40,7 @@ abstract class Sequence[A] {
 
 object Sequence {
 
-  val BufferSize = 2
+  val BufferSize = 16
 
   case class Flat[A](elems: Deque[A]) extends Sequence[A] {
     def apply(i: Long) = elems(i.toInt)
@@ -160,6 +160,5 @@ object Sequence {
 
   def apply[A](as: A*): Sequence[A] =
     Flat(as.foldLeft(Deque.empty[A])((buf,a) => buf :+ a))
-
 }
 
