@@ -1,6 +1,6 @@
 package org.unisonweb.util
 
-abstract class Sequence[A] {
+sealed abstract class Sequence[A] {
   import Sequence._
   def apply(i: Long): A
   def ++(s: Sequence[A]): Sequence[A]
@@ -9,8 +9,11 @@ abstract class Sequence[A] {
   def size: Long
   def uncons: Option[(A, Sequence[A])]
   def unsnoc: Option[(Sequence[A], A)]
+  def headOption: Option[A] =
+    if (isEmpty) None
+    else Some(apply(0))
 
-  override def toString = "Sequence(" + (0L until size).map(apply(_)).mkString(", ") + ")"
+  // override def toString = "Sequence(" + (0L until size).map(apply(_)).mkString(", ") + ")"
 
   override lazy val hashCode = (0L until size).map(apply(_)).hashCode
   override def equals(other: Any) = {
@@ -18,13 +21,14 @@ abstract class Sequence[A] {
     size == s2.size && (0L until size).forall(i => apply(i) == s2(i))
   }
 
-  def foldLeft[B](z: B)(f: (B,A) => B): B =
-    (0L until size).foldLeft(z)((b,i) => f(b, apply(i)))
+  def foldLeft[B](z: B)(f: (B,A) => B): B
 
   final def isEmpty = size == 0L
 
   private[util]
   def toDeque: Deque[A]
+
+  def toList = (0L until size).map(apply(_)).toList
 
   def nest: Sequence[A] = this match {
     case Nested(left, middle, right) if middle.size > BufferSize => middle.halve match {
@@ -36,22 +40,26 @@ abstract class Sequence[A] {
   def take(n: Long): Sequence[A]
   def drop(n: Long): Sequence[A]
   def halve = (take(size / 2), drop(size / 2))
+  def reverse: Sequence[A]
+  def map[B](f: A => B): Sequence[B]
 }
 
 object Sequence {
 
-  val BufferSize = 16
+  val BufferSize = 4
 
   case class Flat[A](elems: Deque[A]) extends Sequence[A] {
     def apply(i: Long) = elems(i.toInt)
     def ++(s: Sequence[A]): Sequence[A] =
-      if (s.size + size < BufferSize * 2) Flat(elems ++ s.toDeque)
+      if (s.size < BufferSize) Flat(elems ++ s.toDeque)
       else s match {
         case Flat(es2) => Nested(elems, Flat(Deque.empty), es2)
         case Nested(left, middle, right) =>
           if (elems.size < BufferSize) Nested(elems ++ left, middle, right)
+          else if (left.isEmpty) Nested(elems, middle, right)
           else Nested(elems, left +: middle, right)
       }
+
     def :+(a: A): Sequence[A] =
       try Flat(elems :+ a)
       catch { case Deque.Overflow => Nested(elems, Flat(Deque.empty), Deque.single(a)) }
@@ -70,6 +78,9 @@ object Sequence {
     def unsnoc =
       if (elems.isEmpty) None
       else Some((Flat(elems.take(elems.size - 1)), elems(elems.size - 1)))
+    def reverse = Flat(elems.reverse)
+    def map[B](f: A => B) = Flat(elems map f)
+    def foldLeft[B](z: B)(f: (B,A) => B) = elems.foldLeft(z)(f)
   }
 
   /**
@@ -99,22 +110,6 @@ object Sequence {
         case Some((middle,right)) => Some(Nested(left, middle, right take (right.size - 1)) -> right(right.size - 1))
       }
 
-    def take(n: Long) =
-      if (n <= left.size) Flat(left take n.toInt)
-      else if (n > left.size + middleSize) Flat(right take (n - (left.size + middleSize)).toInt)
-      else middle.uncons match {
-        case Some((mh, mt)) => Nested(mh, mt, right).take(n - left.size)
-        case None => Flat(right).take(n - left.size)
-      }
-
-    def drop(n: Long) =
-      if (n < left.size) Nested(left.drop(n.toInt), middle, right)
-      else if (n > left.size + middleSize) Flat(right drop (n - (left.size + middleSize)).toInt)
-      else middle.uncons match {
-        case Some((mh, mt)) => Nested(mh, mt, right).drop(n - left.size)
-        case None => Flat(right).drop(n - left.size)
-      }
-
     def ++(s: Sequence[A]): Sequence[A] =
       if (s.size < BufferSize) Nested(left, middle, right ++ s.toDeque)
       else s match {
@@ -122,34 +117,84 @@ object Sequence {
           if (right.size < BufferSize) Nested(left, middle, right ++ es2)
           else Nested(left, middle :+ (right ++ es2.take(BufferSize)), es2.drop(BufferSize)).nest
         case Nested(left2, middle2, right2) => {
-          if (left2.size < BufferSize) {
-            middle2.foldLeft(Nested(left, middle, right ++ left2): Sequence[A]) { (buf, chunk) =>
-              buf ++ Flat(chunk)
-            } ++ Flat(right)
-          }
-          else Nested(left, (middle :+ left2) ++ middle2, right2)
+          if (left2.size < BufferSize) Nested(left, (middle :+ (right ++ left2)) ++ middle2, right2)
+          else Nested(left, (middle :+ right :+ left2) ++ middle2, right2)
         }.nest
       }
+
+    lazy val prefixSizes = {
+      var buf = new Array[Long](middle.size.toInt)
+      var acc = 0L
+      var i = 0
+      while (i < buf.length) { acc = acc + middle(i).size; buf(i) = acc; i += 1 }
+      buf
+    }
+
+    lazy val middleSize = if (middle.isEmpty) 0L else prefixSizes(prefixSizes.size - 1)
+
+    lazy val size = left.size + middleSize + right.size
 
     def apply(i: Long) =
       if (i < left.size) left(i.toInt)
       else if (i >= left.size + middleSize) right((i - left.size - middleSize).toInt)
-      else {
-        var j = i - left.size
-        var k = 0
-        while (j >= middle(k).size) { j -= middle(k).size; k += 1 }
-        middle(k)(j.toInt)
+      else { // i < left.size + middleSize
+        val j = i - left.size
+        // tricky
+        // [[a,b], [c,d,e], [f,g,h,i]] // middles
+        // [2,     5,       9        ] // middleSizes
+        val k = Sequence.lubIndex(j + 1, prefixSizes)
+        if (k > 0) {
+          val rem = (j - prefixSizes(k - 1)).toInt
+          middle(k)(rem)
+        }
+        else middle(k)(j.toInt)
       }
 
-    def toDeque = sys.error("nested with size < BufferSize: " + this)
+    def take(n: Long) =
+      if (n <= left.size) Flat(left take n.toInt)
+      else if (n >= left.size + middleSize) Nested(left, middle, right take (n - (left.size + middleSize)).toInt)
+      else {
+        val j = n - left.size
+        val k = Sequence.lubIndex(j, prefixSizes)
+        if (k > 0) {
+          val rem = (j - prefixSizes(k - 1)).toInt
+          (middle.take(k) :+ middle(k).take(rem)).unsnoc match {
+            case Some((middle,right)) => Nested(left,middle,right)
+            case None => Flat(left)
+          }
+        }
+        else Flat(left) ++ Flat(middle(0).take(j.toInt))
+      }
 
-    lazy val middleSize = {
-      var sz = 0L
-      (0L until middle.size).foreach { i => sz += middle(i).size }
-      sz
+    def drop(n: Long) =
+      if (n <= left.size) Nested(left.drop(n.toInt), middle, right)
+      else if (n >= left.size + middleSize) Flat(right drop (n - (left.size + middleSize)).toInt)
+      else {
+        val j = n - left.size
+        val k = Sequence.lubIndex(j, prefixSizes)
+        if (prefixSizes(k) == j) middle.drop(k+1).uncons match {
+          case Some((left,middle)) => Nested(left, middle, right)
+          case None => Flat(right)
+        }
+        else if (k == 0) Nested(middle(k).drop(j.toInt), middle.drop(k+1), right)
+        else {
+          val rem = (j - prefixSizes(k - 1)).toInt
+          Nested(middle(k).drop(rem),  middle.drop(k+1), right)
+        }
+      }
+
+    def reverse = Nested(right.reverse, middle.map(_.reverse).reverse, left.reverse) // nice!
+
+    def map[B](f: A => B) = Nested(left map f, middle map (_ map f), right map f)
+
+    def toDeque = Deque((0L until size).map { i => apply(i) } : _*)
+
+    def foldLeft[B](z: B)(f: (B,A) => B) = {
+      val leftB = left.foldLeft(z)(f)
+      val middleB = middle.foldLeft(leftB)((b,nestf) => nestf.foldLeft(b)(f))
+      val rightB = right.foldLeft(middleB)(f)
+      rightB
     }
-
-    lazy val size = left.size + middleSize + right.size
   }
 
   def single[A](a: A): Sequence[A] =
@@ -160,5 +205,18 @@ object Sequence {
 
   def apply[A](as: A*): Sequence[A] =
     Flat(as.foldLeft(Deque.empty[A])((buf,a) => buf :+ a))
-}
 
+  /** Assuming `vs` is sorted in increasing order, find the index of the first value >= `v`. */
+  def lubIndex(target: Long, vs: Array[Long]): Int = {
+    var low = 0
+    var high = vs.length - 1
+    while (low <= high) {
+      var mid = (low + high) >>> 1
+      val midv = vs(mid)
+      if (midv < target) low = mid + 1
+      else if (midv > target) high = mid - 1
+      else { while (mid > 0 && vs(mid - 1) == midv) { mid -= 1 }; return mid }
+    }
+    low
+  }
+}
