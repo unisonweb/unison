@@ -1,7 +1,6 @@
 package org.unisonweb.util
 
 sealed abstract class Sequence[A] {
-  import Sequence._
   def apply(i: Long): A
   def ++(s: Sequence[A]): Sequence[A]
   def :+(a: A): Sequence[A]
@@ -30,12 +29,7 @@ sealed abstract class Sequence[A] {
 
   def toList = (0L until size).map(apply(_)).toList
 
-  def nest: Sequence[A] = this match {
-    case Nested(left, middle, right) if middle.size > BufferSize => middle.halve match {
-      case (midL, midR) => Nested(left, Flat(midL.toDeque) ++ Flat(midR.toDeque), right)
-    }
-    case _ => this
-  }
+  def nest: Sequence[A]
 
   def take(n: Long): Sequence[A]
   def drop(n: Long): Sequence[A]
@@ -46,7 +40,7 @@ sealed abstract class Sequence[A] {
 
 object Sequence {
 
-  val BufferSize = 4
+  val BufferSize = 128
 
   case class Flat[A](elems: Deque[A]) extends Sequence[A] {
     def apply(i: Long) = elems(i.toInt)
@@ -81,6 +75,7 @@ object Sequence {
     def reverse = Flat(elems.reverse)
     def map[B](f: A => B) = Flat(elems map f)
     def foldLeft[B](z: B)(f: (B,A) => B) = elems.foldLeft(z)(f)
+    def nest = this
   }
 
   /**
@@ -195,6 +190,12 @@ object Sequence {
       val rightB = right.foldLeft(middleB)(f)
       rightB
     }
+
+    def nest =
+      if (middle.size > BufferSize) middle.halve match {
+        case (midL, midR) => Nested(left, Nested(midL.toDeque, Flat(Deque.empty), midR.toDeque), right)
+      }
+      else this
   }
 
   def single[A](a: A): Sequence[A] =
@@ -208,6 +209,7 @@ object Sequence {
 
   /** Assuming `vs` is sorted in increasing order, find the index of the first value >= `v`. */
   def lubIndex(target: Long, vs: Array[Long]): Int = {
+    // todo - tune this, possibly use skewed search
     var low = 0
     var high = vs.length - 1
     while (low <= high) {
