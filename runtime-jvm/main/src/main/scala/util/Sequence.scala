@@ -182,7 +182,8 @@ object Sequence {
 
     def map[B](f: A => B) = Nested(left map f, middle map (_ map f), right map f)
 
-    def toDeque = Deque((0L until size).map { i => apply(i) } : _*)
+    def toDeque =
+      middle.foldLeft(left)(_ ++ _) ++ right
 
     def foldLeft[B](z: B)(f: (B,A) => B) = {
       val leftB = left.foldLeft(z)(f)

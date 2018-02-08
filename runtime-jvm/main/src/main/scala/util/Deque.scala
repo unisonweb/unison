@@ -9,8 +9,8 @@ import java.util.concurrent.atomic.AtomicInteger
  * Idea described by Bryan O'Sullivan in http://www.serpentine.com/blog/2014/05/31/attoparsec/
  */
 private[util]
-class Deque[A](idL: AtomicInteger, stampL: Int, val valuesL: Buffer[_,A], val sizeL: Int,
-               idR: AtomicInteger, stampR: Int, val valuesR: Buffer[_,A], val sizeR: Int) {
+class Deque[A](idL: AtomicInteger, stampL: Int, val valuesL: Buffer[A], val sizeL: Int,
+               idR: AtomicInteger, stampR: Int, val valuesR: Buffer[A], val sizeR: Int) {
 
   final val size = sizeL + sizeR
 
@@ -131,7 +131,7 @@ object Deque {
 
   private val MinStamp = Int.MinValue + 1
 
-  def fromBuffer[A](b: Buffer[_,A], sizeR: Int): Deque[A] =
+  def fromBuffer[A](b: Buffer[A], sizeR: Int): Deque[A] =
     new Deque(new AtomicInteger(MinStamp), MinStamp, b.empty, 0,
               new AtomicInteger(MinStamp), MinStamp, b, sizeR)
 

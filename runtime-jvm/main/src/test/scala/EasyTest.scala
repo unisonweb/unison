@@ -2,6 +2,7 @@ package org.unisonweb
 
 import java.util.concurrent.{BlockingQueue,LinkedBlockingQueue,CountDownLatch}
 import java.util.Random
+import java.lang.Character
 
 object EasyTest {
 
@@ -24,9 +25,35 @@ object EasyTest {
     def alpha = intIn('A'.toInt, 'z'.toInt).toString
     def alphas(n: Int) = replicate(n)(alpha)
     def alpha123 = if (double < .2) intIn(0,10).toString else alpha
-    def alphas123(n: Int) = replicate(n)(alpha123)
+    def alphas123(n: Int) = replicate(n)(alpha123).mkString
     def alphas = replicate(intIn(0,10))(alpha).mkString
     def alphas123 = replicate(intIn(0,10))(alpha123).mkString
+
+    def codepoint: Int =
+      intIn(Character.MIN_CODE_POINT, Character.MAX_CODE_POINT + 1)
+
+    /** A codepoint that can be encoded with a single `char` value. */
+    @annotation.tailrec
+    final def narrowCodepoint: Int = {
+      val ch = codepoint
+      if (Character.charCount(ch) == 2) narrowCodepoint
+      else ch
+    }
+
+    /** Occupies 2 Java `char` values. */
+    def wideCodepoint: Int = {
+      val ch = Character.toCodePoint(
+        intIn(Character.MIN_HIGH_SURROGATE, Character.MAX_HIGH_SURROGATE + 1).toChar,
+        intIn(Character.MIN_LOW_SURROGATE, Character.MAX_LOW_SURROGATE + 1).toChar)
+      require(Character.isValidCodePoint(ch))
+      require(Character.charCount(ch) == 2)
+      ch
+    }
+
+    def string(numCodepoints: Int): String =
+      replicate(numCodepoints)(codepoint).foldLeft(new java.lang.StringBuilder)(_ appendCodePoint _).toString
+
+    def string: String = string(intIn(0,10))
 
     def replicate[A](n: Int)(rand: => A): Vector[A] = (0 until n).map(_ => rand).toVector
 
@@ -98,10 +125,17 @@ object EasyTest {
   def alpha(implicit T: Env) = intIn('A'.toInt, 'z'.toInt).toString
   def alphas(n: Int)(implicit T: Env) = replicate(n)(alpha)
   def alpha123(implicit T: Env) = if (double < .2) intIn(0,10).toString else alpha
-  def alphas123(n: Int)(implicit T: Env) = replicate(n)(alpha123)
+  def alphas123(n: Int)(implicit T: Env) = replicate(n)(alpha123).mkString
   def alphas(implicit T: Env) = replicate(intIn(0,10))(alpha).mkString
   def alphas123(implicit T: Env) = replicate(intIn(0,10))(alpha123).mkString
+  def codepoint(implicit T: Env) = T.codepoint
+  def narrowCodepoint(implicit T: Env) = T.narrowCodepoint
+  def wideCodepoint(implicit T: Env) = T.wideCodepoint
+  def string(numCodepoints: Int)(implicit T: Env) = T.string(numCodepoints)
+  def string(implicit T: Env) = T.string(intIn(0,10))
   def replicate[A](n: Int)(rand: => A)(implicit T: Env): Vector[A] = (0 until n).map(_ => rand).toVector
+  def choose[A](a1: => A, a2: => A)(implicit T: Env): A =
+    if (double < .5) a1 else a2
 
   /** Push `s` onto the scope stack. */
   def scope[A](s: String)(t: Test[A]): Test[A] = test { env =>

@@ -34,6 +34,7 @@ object SequenceTests {
         val s = seqOf(size).run
         val n = longIn(-3, s.size + 6)
         expect1(s.take(n) === s.toList.take(n.toInt))
+        expect1((s.take(n) ++ s.drop(n)) == s)
         expect1(s.drop(n) === s.toList.drop(n.toInt))
         expect1(s.map(x => x) == s)
         expect1(s.reverse === s.toList.reverse)
