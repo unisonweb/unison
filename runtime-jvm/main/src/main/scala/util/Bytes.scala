@@ -56,33 +56,39 @@ object Bytes {
     def size = bytes.size
     def :+(b: Byte) = Seq(bytes :+ (b, c), c)
     def apply(i: Int) = bytes(i)
-    def smallestDifferingIndex(start: Int, b: Seq): Int =
-      this.bytes.smallestDifferingIndex(start, b.bytes)
+    /** Returns the smallest index such that `this(i) != b(i)`,
+      * and throws `NotFound` if the sequences are equal. */
+    def smallestDifferingIndex(b: Seq): Int =
+      if (c eq b.c) this.bytes.smallestDifferingIndex(b.bytes)
+      else {
+        var i = 0; var max = size max b.size; while (i < max) {
+          try { if (this(i) != b(i)) return i }
+          catch { case Seq.OutOfBounds => return i }
+          i += 1
+        }
+        throw Seq.NotFound
+      }
+
+    override def equals(a: Any) = {
+      val s2 = a.asInstanceOf[Seq]
+      if (s2.c eq this.c) this.bytes == s2.bytes
+      else (this eq s2) || (size == s2.size && (0 until size).forall(i => bytes(i) == s2.bytes(i)))
+    }
   }
 
   object Seq {
     def empty: Base = One(Array())
+
+    case object OutOfBounds extends Throwable { override def fillInStackTrace = this }
+    case object NotFound extends Throwable { override def fillInStackTrace = this }
 
     sealed abstract class Base {
       def size: Int
       def :+(b: Byte, c: Canonical): Base
       def apply(i: Int): Byte
       def canonicalize(c: Canonical): Base
-      def equal(b: Base): Boolean = {
-        //todo - more efficient impl
-        (this eq b) || (size == b.size && (0 until size).forall(i => this(i) == b(i)))
-      }
-      /** Returns the smallest index, `i >= start`, such that `this(i) != b(i)`,
-       *  and -1 if all indices >= start are the same. */
-      def smallestDifferingIndex(start: Int, b: Base): Int = {
-        // todo - more efficient impl
-        if (size != b.size) (size min b.size)
-        else {
-          var i = start
-          while (i < size) { if (this(i) != b(i)) return i; i += 1 }
-          -1
-        }
-      }
+
+      def smallestDifferingIndex(b: Base): Int
     }
 
     case class One(get: Array[Byte]) extends Base {
@@ -90,9 +96,29 @@ object Bytes {
       def :+(b: Byte, c: Canonical) =
         if (size == 8) Two(c.canonicalize(get), One(Array(b)))
         else One(get :+ b)
-      def apply(i: Int) = get(i)
+      def apply(i: Int) =
+        if (i < 0 || i >= get.length) throw OutOfBounds
+        else get(i)
+      def smallestDifferingIndex(b: Base): Int =
+        if (this eq b) throw NotFound
+        else b match {
+          case Two(b1,b2) if (b1 eq this) => b1.size
+          case _ =>
+            var i = 0
+            while (i < b.size.max(this.size)) {
+              if (get(i) != b(i)) return i
+              i += 1
+            }
+            throw NotFound
+        }
+
       def canonicalize(c: Canonical) = c.canonicalize(get)
       override def toString = "One(" + get.mkString(", ") + ")"
+      override def hashCode = java.util.Arrays.hashCode(get)
+      override def equals(a: Any) = a match {
+        case a@One(bs2) => (this eq a) || java.util.Arrays.equals(get, bs2)
+        case _ => false
+      }
     }
 
     // satisfies invariant that left is always in canonical form and is a complete tree
@@ -109,6 +135,22 @@ object Bytes {
       def apply(i: Int) =
         if (i < left.size) left(i)
         else right(i - left.size)
+
+      def smallestDifferingIndex(b: Base): Int =
+        if (this eq b) throw NotFound
+        else b match {
+          case Two(left2,right2) =>
+            try left.smallestDifferingIndex(left2)
+            catch { case NotFound => left.size + right.smallestDifferingIndex(right2) }
+          case One(a) => b.smallestDifferingIndex(this)
+        }
+
+      override lazy val hashCode = java.util.Arrays.hashCode(Array(left.hashCode, right.hashCode))
+
+      override def equals(a: Any) = a match {
+        case a@Two(left2, right2) => (this eq a) || ((left eq left2) && right == right2)
+        case _ => false
+      }
     }
   }
 }
