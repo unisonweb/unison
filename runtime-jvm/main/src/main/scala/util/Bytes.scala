@@ -56,6 +56,11 @@ object Bytes {
     def size = bytes.size
     def :+(b: Byte) = Seq(bytes :+ (b, c), c)
     def apply(i: Int) = bytes(i)
+
+    def isPrefixOf(s: Seq) =
+      try smallestDifferingIndex(s) >= size
+      catch { case Seq.NotFound => true } // they are equal
+
     /** Returns the smallest index such that `this(i) != b(i)`,
       * and throws `NotFound` if the sequences are equal. */
     def smallestDifferingIndex(b: Seq): Int =
@@ -74,6 +79,8 @@ object Bytes {
       if (s2.c eq this.c) this.bytes == s2.bytes
       else (this eq s2) || (size == s2.size && (0 until size).forall(i => bytes(i) == s2.bytes(i)))
     }
+
+    override lazy val hashCode = (0 until size).map(apply(_)).hashCode
   }
 
   object Seq {
@@ -105,11 +112,12 @@ object Bytes {
           case Two(b1,b2) if (b1 eq this) => b1.size
           case _ =>
             var i = 0
-            while (i < b.size.max(this.size)) {
+            while (i < b.size.min(this.size)) {
               if (get(i) != b(i)) return i
               i += 1
             }
-            throw NotFound
+            if (this.size == b.size) throw NotFound
+            else i
         }
 
       def canonicalize(c: Canonical) = c.canonicalize(get)
