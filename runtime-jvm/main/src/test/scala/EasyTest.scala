@@ -6,7 +6,7 @@ import java.lang.Character
 
 object EasyTest {
 
-  case class Env(rand: Random, scope: Vector[String], output: BlockingQueue[Msg], activePrefix: Vector[String]) {
+  case class Env(rand: Random, scope: String, output: BlockingQueue[Msg], activePrefix: String) {
     def int = rand.nextInt
     def intIn(low: Int, highExclusive: Int): Int = low + (rand.nextDouble * (highExclusive - low)).toInt
     def ints(n: Int): Vector[Int] = replicate(n)(int)
@@ -59,7 +59,11 @@ object EasyTest {
 
     def ok = output.put(Success(scope))
     def fail(reason: String): Nothing = { output.put(Failure(scope, Failed(reason))); throw Skip }
-    def note(msg: => Any, includeAlways: Boolean = false) = output.put(Note(scope, () => msg.toString, includeAlways))
+    def note(msg: => Any, includeAlways: Boolean = false) = {
+      val latch = new CountDownLatch(1)
+      output.put(Note(scope, () => msg.toString, includeAlways, latch))
+      latch.await
+    }
 
     def equal[A](a: A, b: A): Unit =
       if (a == b) ok
@@ -86,9 +90,9 @@ object EasyTest {
 
   sealed trait Msg
   case object Done extends Msg
-  case class Success(scope: Vector[String]) extends Msg
-  case class Failure(scope: Vector[String], cause: Throwable) extends Msg
-  case class Note(scope: Vector[String], msg: () => String, includeAlways: Boolean = false) extends Msg
+  case class Success(scope: String) extends Msg
+  case class Failure(scope: String, cause: Throwable) extends Msg
+  case class Note(scope: String, msg: () => String, includeAlways: Boolean = false, latch: CountDownLatch) extends Msg
   case class Failed(reason: String) extends Throwable { override def toString = reason }
 
   case object Skip extends Throwable { override def fillInStackTrace = this }
@@ -97,7 +101,7 @@ object EasyTest {
   def test[A](s: String)(run0: Env => A): Test[A] = scope(s)(test(run0))
 
   def test[A](run0: Env => A): Test[A] = new Test[A](env => {
-    if (env.scope == Vector() || env.scope.startsWith(env.activePrefix)) run0(env)
+    if (env.scope.startsWith(env.activePrefix)) run0(env)
     else throw Skip
   })
 
@@ -139,12 +143,16 @@ object EasyTest {
 
   /** Push `s` onto the scope stack. */
   def scope[A](s: String)(t: Test[A]): Test[A] = test { env =>
-    try t.run(env.copy(scope = env.scope :+ s))
+    try t.run(env.copy(scope = concatScope(env.scope, s)))
     catch {
       case Skip => throw Skip
-      case t: Throwable => env.output.put(Failure(env.scope :+ s, t)); throw Skip
+      case t: Throwable => env.output.put(Failure(concatScope(env.scope, s), t)); throw Skip
     }
   }
+  private def concatScope(a: String, b: String) =
+    if (a == "") b
+    else if (b == "") a
+    else a + "." + b
 
   def suite(s: String)(t: Test[Unit]*): Test[Unit] = scope(s)(suite(t: _*))
 
@@ -160,18 +168,23 @@ object EasyTest {
     }
   }
 
-  def run(seed: Long = (math.random * 100000).toLong, prefix: Vector[String] = Vector())(t: Test[Unit]): Unit = {
+  def run(seed: Long = (math.random * 100000).toLong, prefix: String = "")(t: Test[Unit]): Unit = {
     val q = new LinkedBlockingQueue[Msg]()
     val latch = new CountDownLatch(1)
     val rand = new Random(seed)
-    implicit val T = Env(rand, Vector(), q, prefix)
-    var failures = Vector.empty[(Vector[String], Throwable)]
+    implicit val T = Env(rand, "", q, prefix)
+    var failures = Vector.empty[(String, Throwable)]
     var successes: Int = 0
     val bg = new Thread { override def run = {
       var moar = true
-      var lastScope = Vector("**")
+      var lastScope = "**"
       var numSuccessCurrentScope = 1
-      var pendingNotes = Vector.empty[(Vector[String], () => String)]
+      var pendingNotes = Vector.empty[(String, () => String)]
+
+      def printNote(scope: String, msg: () => String, printPendingOnFailure: Boolean = false): Unit =
+        try println("   " + scope + " - " + msg().replace("\n", "\n    "))
+        catch { case cause: Throwable => q.put(Failure(scope, cause)) }
+
       while(moar) {
         val msg = q.take
         msg match {
@@ -181,20 +194,21 @@ object EasyTest {
             pendingNotes = Vector.empty
             if (scope == lastScope) {
               numSuccessCurrentScope += 1
-              println("🦄  " + scope.mkString(".") + " " + s"($numSuccessCurrentScope)")
+              println("🦄  " + scope + s"($numSuccessCurrentScope)")
             }
-            else { println("🦄  " + scope.mkString(".")); lastScope = scope; numSuccessCurrentScope = 0 }
+            else { println("🦄  " + scope); lastScope = scope; numSuccessCurrentScope = 0 }
           case Failure(scope, Disable) =>
-            println("😴  " + scope.mkString(".") + " - disabled")
+            println("😴  " + scope + " - disabled")
           case Failure(scope, cause) =>
             failures = failures :+ (scope -> cause)
-            pendingNotes.foreach { case (scope,msg) => println("   " + scope.mkString(".") + " - " + msg().replace("\n", "\n    ")) }
+            pendingNotes.foreach { case (scope,msg) => println("   " + scope + " - " + msg().replace("\n", "\n    ")) }
             pendingNotes = Vector.empty
-            println("💥  " + scope.mkString(".") + " - " + cause.toString.replace("\n","\n  "))
+            println("💥  " + scope + " - " + cause.toString.replace("\n","\n  "))
             cause.printStackTrace
-          case Note(scope, msg, includeAlways) =>
-            if (includeAlways) println("   " + scope.mkString(".") + " - " + msg().replace("\n", "\n    "))
+          case Note(scope, msg, includeAlways, latch) =>
+            if (includeAlways) printNote(scope, msg)
             else pendingNotes = pendingNotes :+ (scope -> msg)
+            latch.countDown
         }
       }
     }}
@@ -221,9 +235,9 @@ object EasyTest {
       println(s"  $successes passed")
       println(s"  ${failures.size} FAILED (failed scopes below)")
       failures.foreach { case (scope, reason) =>
-        println("    " + scope.mkString(".") + "  " + reason.toString)
+        println("    " + scope + " - " + reason.toString)
       }
-      val formattedFailure = failures(0)._1.map(s => '"' + s + '"')
+      val formattedFailure = '"' + failures(0)._1 + '"'
       println("\n  Oh NOES! There were failures. Rerun with: \n")
       println(s"  EasyTest.run(seed = $seed, prefix = $formattedFailure)(tests)")
       println("")

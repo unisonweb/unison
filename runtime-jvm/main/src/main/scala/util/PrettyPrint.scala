@@ -100,7 +100,7 @@ object PrettyPrint {
     case _ => name.toString <> " = " <> prettyTerm(term, 0)
   }
 
-  def prettyTerm(t: Term, precedence: Int): PrettyPrint = t match {
+  def prettyTerm(t: Term, precedence: Int = 0): PrettyPrint = t match {
     case Num(value) =>
       if (value == value.toLong)
         value.toLong.toString

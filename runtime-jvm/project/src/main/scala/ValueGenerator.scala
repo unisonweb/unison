@@ -23,9 +23,12 @@ object ValueGenerator extends OneFileGenerator("Value.scala") {
       "def apply(r: R) = d"
     } <<>>
     "// abstract class Data extends Value" <<>>
-    b("case class Ref(var value: Value = null) extends Value") {
+    b("case class Ref(name: Name, var value: Value = null) extends Value") {
       "def decompile = value.decompile" <>
-      "def apply(r: R) = value(r)"
+      "def apply(r: R) = value(r)" <>
+      "// want equality to be based on pointer equality" <>
+      "override def equals(a: Any) = this eq a.asInstanceOf[AnyRef]" <>
+      "override def hashCode = System.identityHashCode(this)"
     } <<>>
     b("abstract class Lambda extends Value") {
       "def arity: Int" <>

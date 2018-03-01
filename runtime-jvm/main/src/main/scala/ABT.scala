@@ -33,6 +33,10 @@ object ABT {
       val (s2, a2) = f(s, this)
       AnnotatedTerm(a2, get.map(_.annotateDown(s2)(f)))
     }
+    def rewriteDown(f: AnnotatedTerm[F,A] => AnnotatedTerm[F,A])(implicit F: Functor[F]): AnnotatedTerm[F,A] =
+      f(this) match {
+        case AnnotatedTerm(ann, abt) => AnnotatedTerm(ann, abt.map(_ rewriteDown f))
+      }
   }
 
   type Term[F[+_]] = AnnotatedTerm[F,Set[Name]]

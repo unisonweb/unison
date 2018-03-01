@@ -83,6 +83,16 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
   def compile(builtins: Name => Computation)(e: Term): Computation =
     compile(builtins, checkedAnnotateBound(e), CurrentRec.none, IsTail)
 
+  def normalize(builtins: Name => Computation)(e: Term): Term = {
+    val c = compile(builtins)(e)
+    val r = Result()
+    val x = Value(c(null, r), r.boxed).decompile
+    println("!@#!@#!@# TODO")
+    println(x)
+    println(org.unisonweb.util.PrettyPrint.prettyTerm(x).render(40))
+    Term.fullyDecompile(x, Vector.empty)
+  }
+
   def checkedAnnotateBound(e: Term): TermC = {
     assert(e.annotation.isEmpty, s"reannotating term with free vars: ${e.annotation}\n" + Render.renderIndent(e))
     annotateRecVars(ABT.annotateBound(e))
@@ -129,7 +139,7 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
         val compiledBindings = compileLetRecBindings(shadowCurrentRec, bindings.toArray, compile2(IsNotTail, _))
         val compiledBody = compile2(isTail, shadowCurrentRec)(body)
 
-        compileLetRec(termC, compiledBindings, compiledBody)
+        compileLetRec(termC, bindings.map(_._1).toArray zip compiledBindings, compiledBody)
 
       case Term.Let1(name, binding, body) =>
         val compiledBinding = compile2(IsNotTail, currentRec)(binding)
