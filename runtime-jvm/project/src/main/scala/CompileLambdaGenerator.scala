@@ -31,7 +31,7 @@ object CompileLambdaGenerator extends OneFileGenerator("CompileLambda.scala") {
         // grab all the free variables referenced by the body of the lambda (not bound by the lambda itself)
         "val shadowedRec = currentRec.shadow(names)" <>
         "val fv: Set[Name] = freeVars(e) -- recVars(e).get" <>
-        "val rv: Set[Name] = recVars(e).get" <>
+        "val rv: Set[Name] = freeVars(e) intersect recVars(e).get" <>
         // get them off the stack when you build the lambda
         //  (compile/get all those `Var`s)
         //  take those Values,
@@ -65,10 +65,10 @@ object CompileLambdaGenerator extends OneFileGenerator("CompileLambda.scala") {
                   } + ".toMap" <<>>
                   "val compiledRecVars: Map[Name, Term] = " + b("rv.map") {
                     `case`("name") {
-                      "val compiledVar = compileVar(currentRec, name, env(e))" <>
-                      "def evaluatedVar = " + eval(stackSize, "compiledVar") + " // delayed" <>
-                      "def value = Value(evaluatedVar, r.boxed)"  + " // delayed" <>
-                      "(name, Term.Delayed(name, value))"
+                      "val compiledVar = compileRefVar(currentRec, name, env(e))" <>
+                      "val evaluatedVar = " + eval(stackSize, "compiledVar") <>
+                      "val value = Value(evaluatedVar, r.boxed)" <>
+                      "(name, Term.Compiled(value))"
                     }
                   } + ".toMap" <<>>
                   "val lam2 = Term.Lam(names: _*)(body = ABT.substs(compiledFreeVars ++ compiledRecVars)(unTermC(body)))" <>
@@ -89,7 +89,7 @@ object CompileLambdaGenerator extends OneFileGenerator("CompileLambda.scala") {
                 "val compiledFreeVars: Map[Name, Term] =" <>
                   s"fv.map { name => name -> Term.Compiled(Value(${evalN("compileVar(currentRec, name, env(e))")}, r.boxed)) }.toMap".indent <<>>
                 "val compiledRecVars: Map[Name, Term] =" <>
-                  s"rv.map { name => name -> Term.Delayed(name, Value(${evalN("compileVar(currentRec, name, env(e))")}, r.boxed)) }.toMap".indent <<>>
+                  s"rv.map { name => name -> Term.Compiled(Value(${evalN("compileRefVar(currentRec, name, env(e))")}, r.boxed)) }.toMap".indent <<>>
                 "// System.out.println(\"[debug] compiled vars:\\n\" + fv.mkString(\"  \", \"\\n  \", \"\\n\"))"<>
                 "val lam2 = Term.Lam(names: _*)(body = ABT.substs(compiledFreeVars ++ compiledRecVars)(unTermC(body)))" <>
                 "r.boxed = compile(currentRec)(checkedAnnotateBound(lam2)) match {" <>

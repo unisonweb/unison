@@ -35,6 +35,7 @@ object DecompileTests extends App {
           "pong" -> Term.Lam("x")(Term.Var("ping")(Term.Var("pang")(Term.Var("x"))))) {
             Term.Var("ping")
           }
+      note(pingpong, true)
       note(PrettyPrint.prettyTerm(compilation.normalize(_ => ???)(pingpong)).render(40), includeAlways = true)
       ok
     }

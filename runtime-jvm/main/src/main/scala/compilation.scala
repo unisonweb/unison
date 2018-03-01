@@ -86,7 +86,7 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
   def normalize(builtins: Name => Computation)(e: Term): Term = {
     val c = compile(builtins)(e)
     val r = Result()
-    val x = Value(c(null, r), r.boxed).decompile
+    val x = Term.etaNormalForm(Value(c(null, r), r.boxed).decompile)
     println("!@#!@#!@# TODO")
     println(x)
     println(org.unisonweb.util.PrettyPrint.prettyTerm(x).render(40))
@@ -108,7 +108,6 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
       case Term.Num(n) => compileNum(n)
       case Term.Builtin(name) => builtins(name)
       case Term.Compiled(c) => Return(c)(unTermC(termC)) // todo: can we do a better job tracking the uncompiled form?
-      case Term.Delayed(_, f) => compileDelayed(f)(unTermC(termC))
       case Term.Var(name) => compileVar(currentRec, name, env(termC))
       case Term.If0(cond, if0, ifNot0) =>
         val compiledCond = compile1(IsNotTail)(cond)
@@ -161,10 +160,6 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
           case (Term.Var(v), args) if currentRec.contains(v, args.length) =>
             sys.error("Didn't expect this to occur anymore, because recursive calls are subst'ed for Delayed terms.")
 
-          case (Term.Delayed(name, _), args) if currentRec.contains(name, args.length) =>
-            val compiledArgs = args.view.map(compile1(IsNotTail)).toArray
-            compilation.staticRecCall(termC, compiledArgs, isTail)
-
           // if applying fully-saturated built-in
           case (Term.Builtin(name), args) if (builtins(name) match {
             case Return(l: Lambda) => l.arity == args.size
@@ -199,6 +194,16 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
       def apply(rec: Lambda, r: R) = { r.boxed = null; d }
     }
     new CompiledNum
+  }
+
+  def compileRefVar(currentRec: CurrentRec, name: Name, env: Vector[Name]): Computation = {
+    if (currentRec.contains(name))
+      compileCurrentRec(name)
+    else
+      env.indexOf(name) match {
+        case -1 => sys.error("unknown variable: " + name)
+        case i => compileLookupRef(i, Term.Var(name))
+      }
   }
 
   def compileVar(currentRec: CurrentRec, name: Name, env: Vector[Name]): Computation = {

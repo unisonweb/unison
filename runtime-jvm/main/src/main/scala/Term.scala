@@ -3,6 +3,7 @@ package org.unisonweb
 import org.unisonweb.util.{Lazy, Traverse}
 import ABT.{Abs, AnnotatedTerm, Tm}
 import compilation.Value
+import compilation.Ref
 
 object Term {
 
@@ -22,6 +23,15 @@ object Term {
   def betaReduce4(name1: Name, name2: Name, name3: Name, name4: Name, body: Term)(arg1: Term, arg2: Term, arg3: Term, arg4: Term): Term =
     betaReduce(name4, betaReduce(name3, betaReduce(name2, betaReduce(name1,
     Lam(name2,name3,name4)(body))(arg1))(arg2))(arg3))(arg4)
+
+  def etaNormalForm(t: Term): Term = t match {
+    case Lam1(x, Apply(f, args)) => args.lastOption match {
+      case None => etaNormalForm(Lam(x)(f))
+      case Some(Var(x2)) => if (x == x2) etaNormalForm(Apply(f, args.dropRight(1): _*))
+                            else t
+    }
+    case _ => t
+  }
 
   /** Convert the term to A-normal form: https://en.wikipedia.org/wiki/A-normal_form. */
   def ANF(t: Term): Term = t match {
@@ -55,21 +65,15 @@ object Term {
     case ABT.Tm(other) => ABT.Tm(F.instance.map(other)(ANF))
   }
 
-  private case class DecompileCycle(refs: Vector[DecompileFrame], i: Int) extends Throwable {
+  private case class DecompileCycle(refs: Vector[Ref], i: Int) extends Throwable {
     override def toString: String = s"DecompileCycle($refs, $i)"
     // override def fillInStackTrace = this
-  }
-
-  class DecompileFrame(val name: Name, val lazyVal: Lazy[Value]) {
-    override def toString = s"DecompileFrame($name, $lazyVal)"
-    override def hashCode = System.identityHashCode(lazyVal)
-    override def equals(a: Any) = a.asInstanceOf[DecompileFrame].lazyVal eq lazyVal // using reference equality
   }
 
   /** Removes any `Delayed` and `Compiled` nodes by expanding them to their source representations.
    *  `refs` is the set of refs that we've descended through; used for detecting cycles,
    *    which need to be transformed into a `let rec` */
-  def fullyDecompile(t: Term, refs: Vector[DecompileFrame]): Term = t match {
+  def fullyDecompile(t: Term, refs: Vector[Ref]): Term = t match {
     case Builtin(_) | Num(_) | Var(_) => t
     case Apply(f, args) =>
       val f2 = fullyDecompile(f, refs)
@@ -78,52 +82,34 @@ object Term {
     case Let1(name, binding, body) => Let1(name, fullyDecompile(binding, refs))(fullyDecompile(body, refs))
     case LetRec(bindings, body) =>
       LetRec(bindings.map { case (name, term) => (name, fullyDecompile(term, refs)) }: _*)(fullyDecompile(body, refs))
-    case r @ Delayed(name, thunk) =>
-      println(s"Entering Delayed($name, $thunk); refs = $refs")
-      val frame = new DecompileFrame(name, thunk)
-      refs.indexOf(frame) match {
-        case -1 =>
-          println(s"refs didn't contain $frame, so try decompiling thunk")
-          try fullyDecompile(thunk.value.decompile, refs :+ frame)
-          catch {
-            case e @ DecompileCycle(refs, i) =>
-              println(s"caught $e while decompiling $frame thunk")
-              if (frame != refs(i)) {
-                if (frame.name == refs(i).name) sys.error("WHAT THE FUCK!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-                println(s"rethrowing $e in $name")
-                throw e
-              }
-              else {
-                println(s"that matches me ($name)")
-                val cycle = refs.drop(i)
-                println(s"cycle = $cycle")
-                LetRec(cycle.map { r =>
-                  val name = r.name
-                  val binding = r.lazyVal.value.decompile
-                  println(s"rebuilding the binding for $name")
-                  //println(s"")
-                  require (Term.freeVars(binding).isEmpty)
-                  val binding2 = binding.rewriteDown {
-                    case r2 @ Delayed(name2, t2) =>
-                      val frame2 = new DecompileFrame(name2, t2)
-                      cycle.indexOf(frame2) match {
-                        case -1 => fullyDecompile(r2, refs)
-                        case i =>
-                          println(s"rewriting $r2 as Var(${cycle(i).name})")
-                          ABT.Var(cycle(i).name)
-                      }
-                    case term => term
-                  }
-                  println(s"done rebuilding binding for $name")
-                  (name, binding2)
-                }: _*)(ABT.Var(name))
-              }
-          }
-        case i => throw DecompileCycle(refs, i)
-      }
+    case Compiled(r@Ref(name,value)) => refs.indexOf(r) match {
+      case -1 =>
+        try fullyDecompile(value.decompile, refs :+ r)
+        catch {
+          case e @ DecompileCycle(refs, i) =>
+            if (r != refs(i)) throw e
+            else {
+              val cycle = refs.drop(i)
+              LetRec(cycle.map { r =>
+                val name = r.name
+                val binding = r.value.decompile
+                //println(s"")
+                require (Term.freeVars(binding).isEmpty)
+                val binding2 = binding.rewriteDown {
+                  case t@Compiled(r2@Ref(_, _)) =>
+                    cycle.indexOf(r2) match {
+                      case -1 => fullyDecompile(t, refs)
+                      case i => ABT.Var(cycle(i).name)
+                    }
+                  case term => term
+                }
+                (name, binding2)
+              }: _*)(ABT.Var(name))
+            }
+        }
+      case i => throw DecompileCycle(refs, i)
+    }
     case Compiled(value) => fullyDecompile(value.decompile, refs)
-    // todo - this is start of SOE - body contains a function application, which contains a lambda
-    // i have a theory that our logic for detecting cycles isn't covering all cases
     case Lam(names, body) => Lam(names: _*)(fullyDecompile(body, refs))
   }
 
@@ -235,7 +221,8 @@ object Term {
       case _ => None
     }
     def apply(f: Term, args: Term*): Term =
-      Tm(Apply_(f, args.toList))
+      if (args.isEmpty) f
+      else Tm(Apply_(f, args.toList))
   }
 
   object Var {
@@ -301,19 +288,6 @@ object Term {
       Tm(Compiled_(v))
     def unapply[A](t: AnnotatedTerm[F,A]): Option[Value] = t match {
       case Tm(Compiled_(v)) => Some(v)
-      case _ => None
-    }
-  }
-
-  object Delayed {
-    def apply(name: Name, v: => Value): Term = {
-      val foo = Lazy(v)
-      println(s"!!!!! $name " + System.identityHashCode(foo))
-      Thread.currentThread().getStackTrace().foreach(println(_))
-      Tm(Delayed_(name, Lazy(v)))
-    }
-    def unapply[A](t: AnnotatedTerm[F,A]): Option[(Name, Lazy[Value])] = t match {
-      case Tm(Delayed_(name, d)) => Some((name, d))
       case _ => None
     }
   }
