@@ -1,6 +1,6 @@
 package org.unisonweb
 
-import org.unisonweb.util.{Lazy, Traverse}
+import org.unisonweb.util.{Lazy, Traverse, LCA}
 import ABT.{Abs, AnnotatedTerm, Tm}
 import compilation.Value
 import compilation.Ref
@@ -70,47 +70,62 @@ object Term {
     // override def fillInStackTrace = this
   }
 
-  /** Removes any `Delayed` and `Compiled` nodes by expanding them to their source representations.
-   *  `refs` is the set of refs that we've descended through; used for detecting cycles,
-   *    which need to be transformed into a `let rec` */
-  def fullyDecompile(t: Term, refs: Vector[Ref]): Term = t match {
-    case Builtin(_) | Num(_) | Var(_) => t
-    case Apply(f, args) =>
-      val f2 = fullyDecompile(f, refs)
-      Apply(f2, args.mapConserve(fullyDecompile(_, refs)): _*)
-    case If0(cond, ifZero, ifNonzero) => If0(fullyDecompile(cond, refs), fullyDecompile(ifZero, refs), fullyDecompile(ifNonzero, refs))
-    case Let1(name, binding, body) => Let1(name, fullyDecompile(binding, refs))(fullyDecompile(body, refs))
-    case LetRec(bindings, body) =>
-      LetRec(bindings.map { case (name, term) => (name, fullyDecompile(term, refs)) }: _*)(fullyDecompile(body, refs))
-    case Compiled(r@Ref(name,value)) => refs.indexOf(r) match {
-      case -1 =>
-        try fullyDecompile(value.decompile, refs :+ r)
-        catch {
-          case e @ DecompileCycle(refs, i) =>
-            if (r != refs(i)) throw e
-            else {
-              val cycle = refs.drop(i)
-              LetRec(cycle.map { r =>
-                val name = r.name
-                val binding = r.value.decompile
-                //println(s"")
-                require (Term.freeVars(binding).isEmpty)
-                val binding2 = binding.rewriteDown {
-                  case t@Compiled(r2@Ref(_, _)) =>
-                    cycle.indexOf(r2) match {
-                      case -1 => fullyDecompile(t, refs)
-                      case i => ABT.Var(cycle(i).name)
-                    }
-                  case term => term
-                }
-                (name, binding2)
-              }: _*)(ABT.Var(name))
-            }
-        }
-      case i => throw DecompileCycle(refs, i)
+  def fullyDecompile(t: Term): Term = {
+    def annotateRefs(t: Term): AnnotatedTerm[Term.F, (Set[Name], LCA[Ref])] =
+      t.annotateUp[LCA[Ref]](_ combine _, LCA.empty) {
+        case c@Compiled(r@Ref(_, _)) => c map { _ => LCA.single(r) }
+        case x => x map { _ => LCA.empty }
+      }
+
+    def transitiveClosure(seen: Set[Ref], cur: Term): Set[Ref] = cur match {
+      case Builtin(_) | Num(_) | Var(_) => seen
+      case Apply(f, args) =>
+        args.foldLeft(transitiveClosure(seen, f))(transitiveClosure _)
+      case If0(cond, ifZero, ifNonzero) =>
+        List(ifZero, ifNonzero).foldLeft(transitiveClosure(seen, cond))(transitiveClosure _)
+      case Lam1(name, body) => transitiveClosure(seen, body)
+      case Let1(name, binding, body) =>
+        transitiveClosure(transitiveClosure(seen, binding), body)
+      case LetRec(bindings, body) =>
+        bindings.map(_._2).foldLeft(transitiveClosure(seen, body))(transitiveClosure)
+      case Compiled(r@Ref(name, value)) => if (seen.contains(r)) seen else transitiveClosure(seen + r, value.decompile)
+      case Compiled(v) => transitiveClosure(seen, v.decompile)
     }
-    case Compiled(value) => fullyDecompile(value.decompile, refs)
-    case Lam(names, body) => Lam(names: _*)(fullyDecompile(body, refs))
+
+    type TermLR = AnnotatedTerm[Term.F, Set[Ref]]
+    // println("input term: " + t)
+    // println("annotateRefs: " + annotateRefs(t))
+
+    val letGroups: TermLR = annotateRefs(t match {
+      case Compiled(r@Ref(_, _)) => r.value.decompile
+      case v => v
+    }).annotateDown(Set.empty[Ref]) { (seen, tm) =>
+      val lcas2 = tm.annotation._2.lcas -- seen
+      val bindingsToIntroduce = lcas2.foldLeft(Set.empty[Ref])((seen,ref) => transitiveClosure(seen, ref.value.decompile))
+      (seen ++ bindingsToIntroduce, bindingsToIntroduce)
+    }
+    // println("let groups: " + letGroups)
+
+    import ABT.{Tm_, Abs_}
+    def Tm(f: Term.F[TermLR]): AnnotatedTerm[Term.F, Set[Ref]] = AnnotatedTerm(Set.empty[Ref], Tm_(f))
+
+    val letTree = letGroups rewriteDown { t =>
+      if (t.annotation.isEmpty) t
+      else {
+        def letrec(bs: List[(Name,TermLR)], body: TermLR): TermLR =
+          Tm(F.Rec_(bs.map(_._1).foldRight(Tm(F.LetRec_(bs.map(_._2).toList, body)))((name,body) => AnnotatedTerm(Set.empty, Abs_(name,body)))))
+        def replaceRefs(refs: Set[Ref], t: Term): Term = t.rewriteDown {
+          case c@Compiled(r2@Ref(name2,_)) => if (refs.contains(r2)) Var(name2) else c
+          case c => c
+        }
+        // introduce a let rec
+        letrec(
+          t.annotation.toList.map(r => r.name -> replaceRefs(t.annotation, r.value.decompile).map(_ => Set.empty[Ref])),
+          replaceRefs(t.annotation, t.map(_ => Set.empty)).map(_ => Set.empty)
+        )
+      }
+    }
+    letTree.annotateFree
   }
 
   // todo - test when function being applied is a compound expression

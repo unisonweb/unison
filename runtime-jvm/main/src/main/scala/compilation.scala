@@ -86,11 +86,9 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
   def normalize(builtins: Name => Computation)(e: Term): Term = {
     val c = compile(builtins)(e)
     val r = Result()
-    val x = Term.etaNormalForm(Value(c(null, r), r.boxed).decompile)
-    println("!@#!@#!@# TODO")
-    println(x)
-    println(org.unisonweb.util.PrettyPrint.prettyTerm(x).render(40))
-    Term.fullyDecompile(x, Vector.empty)
+    val x = Value(c(null, r), r.boxed).decompile
+    // val x = Term.etaNormalForm(Value(c(null, r), r.boxed).decompile)
+    Term.fullyDecompile(x)
   }
 
   def checkedAnnotateBound(e: Term): TermC = {

@@ -29,10 +29,34 @@ object ABT {
     def map[B](f: A => B)(implicit F: Functor[F]): AnnotatedTerm[F,B] =
       AnnotatedTerm(f(annotation), get.map(_.map(f)))
     def reannotate(f: A => A): AnnotatedTerm[F,A] = AnnotatedTerm(f(annotation), get)
+
+    def annotateFree(implicit F: Traverse[F]): AnnotatedTerm[F, Set[Name]] = get match {
+      case Var_(name) => Var(name)
+      case Abs_(name, body) => Abs(name, body.annotateFree)
+      case Tm_(tm) => Tm(F.map(tm)(_ annotateFree))
+    }
+
     def annotateDown[S, A2](s: S)(f: (S, AnnotatedTerm[F,A]) => (S, A2))(implicit F: Functor[F]): AnnotatedTerm[F, A2] = {
       val (s2, a2) = f(s, this)
       AnnotatedTerm(a2, get.map(_.annotateDown(s2)(f)))
     }
+
+    /** Accumulate `B` values up the tree. `f` is only applied to leaf nodes of the tree (either `Var` or `Tm` with no children). */
+    def annotateUp[B](combine: (B,B) => B, zero: B)(f: AnnotatedTerm[F,A] => AnnotatedTerm[F,B])(implicit F: Traverse[F]): AnnotatedTerm[F,(A,B)] = {
+       get.map(_.annotateUp(combine, zero)(f)) match {
+         case abt @ Tm_(t) =>
+           val children = F.toVector(t)
+           if (children.isEmpty) f(this).map(b => (annotation, b))
+           else {
+             val b = children.foldLeft(zero) { case (b, tm) => combine(b, tm.annotation._2) }
+             AnnotatedTerm((annotation, b), abt)
+           }
+         case Var_(_) => f(this).map(b => (annotation,b))
+         case abt@Abs_(name, body) => AnnotatedTerm(annotation -> body.annotation._2, abt)
+       }
+    }
+
+    /** Apply `f` to `this`, and then recursively to the children of the resulting term. */
     def rewriteDown(f: AnnotatedTerm[F,A] => AnnotatedTerm[F,A])(implicit F: Functor[F]): AnnotatedTerm[F,A] =
       f(this) match {
         case AnnotatedTerm(ann, abt) => AnnotatedTerm(ann, abt.map(_ rewriteDown f))
