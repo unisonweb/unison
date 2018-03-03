@@ -13,7 +13,7 @@ object Fib extends App {
     val r = Result()
     decompileSlot(evaluate(rt, r), r.boxed)
   }
-  def decompileSlot(unboxed: D, boxed: Value): Term =
+  def decompileSlot(unboxed: D, boxed: P): Term =
     if (boxed eq null) Term.Num(unboxed)
     else boxed.decompile
 
@@ -110,8 +110,7 @@ object Fib extends App {
     case ((name, term), d) =>
       print(f"$name%20s:\t")
       val result = normalize(builtins)(term)
-      import org.unisonweb.Render1
-      println(f"${Render1.render(result)}%10s\texpected: $d%10.1f")
+      println(f"$result%10s\texpected: $d%10.1f")
   }
 
   import QuickProfile._
@@ -128,8 +127,8 @@ object Fib extends App {
     }
   )
   println()
-  println(org.unisonweb.Render1.renderTerm(sum1toN(N)))
+  println(sum1toN(N))
   println()
-  println(org.unisonweb.Render1.renderTerm(Term.ANF(sum1toN(N))))
+  println(Term.ANF(sum1toN(N)))
 
 }

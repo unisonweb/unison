@@ -12,7 +12,7 @@ object TailCallsGenerator extends OneFileGenerator("TailCalls.scala") {
       "// todo: decide whether to clear all unused fields or none; speed vs GCbility" <>
       (1 to maxInlineArgs).each { i =>
         bEq("@inline def selfTailCall(" + signatureXArgs(i) + commaIf(i) + "r: R): D")(
-          (0 until (i min maxInlineTC)).each(i => s"r.x$i = x$i; r.x${i}b = x${i}b") <>
+          (0 until (i min maxInlineTC)).each(i => s"r.x$i = x$i; r.x${i}b = x${i}b.toValue(r)") <>
           (if (i > maxInlineTC)
             "// here, r.xs holds only the excess args" <>
             "r.xs = Array(" + (maxInlineTC until i).commas(i => s"Slot(x$i, x${i}b)") + ")"
@@ -28,7 +28,7 @@ object TailCallsGenerator extends OneFileGenerator("TailCalls.scala") {
       (1 to maxInlineArgs).each { i =>
         bEq("@inline def tailCall(fn: Lambda, " + signatureXArgs(i) + commaIf(i) + "r: R): D")(
           "r.fn = fn" <>
-          (0 until (i min maxInlineTC)).each(i => s"r.x$i = x$i; r.x${i}b = x${i}b") <>
+          (0 until (i min maxInlineTC)).each(i => s"r.x$i = x$i; r.x${i}b = x${i}b.toValue(r)") <>
           (if (i > maxInlineTC)
             "// here, r.xs holds only the excess args" <>
             "r.xs = Array(" + (maxInlineTC until i).commas(i => s"Slot(x$i, x${i}b)") + ")"

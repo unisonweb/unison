@@ -42,4 +42,9 @@ object DecompileTests extends App {
   )
 
   run()(tests)
+
+  // seems like there's something wonky with Refs appearing as the result of a computation
+  // perhaps use types to prevent this from happening, types distinguish between things that can be passed a param (could be a ref)
+  // vs things that may be returned from a computation (cannot be a ref)
+  // seems like fullyDecompile not expanding Refs sufficiently?
 }

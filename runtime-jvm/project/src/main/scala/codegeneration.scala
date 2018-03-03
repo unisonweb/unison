@@ -14,6 +14,12 @@ package object codegeneration {
   def applyNSignature: String =
     "def apply(rec: Lambda, xs: Array[Slot], r: R): D"
 
+  def applySignatureP(i: Int): String =
+    "def apply(rec: Lambda" + commaIf(i) + signatureXArgs(i) + "): P"
+
+  def applyNSignatureP: String =
+    "def apply(rec: Lambda, xs: Array[Slot]): P"
+
   def indent(level: Int, lines: Seq[String]): String =
     lines.flatMap(multilines =>
       multilines.split('\n').map(
@@ -42,7 +48,6 @@ package object codegeneration {
   def bEq(s: String)(body: String) = s + " = " + body.b
   def indentEqExpr(s: String)(expr: String) = s + " =" <> expr.indent
 
-
   // tailEval(4, "foo") = "foo(rec, x0, x0b, x1, x1b, x2, x2b, x3, x3b, r)"
   def tailEval(i: Int, expr: String): String =
    expr + "(rec, "+xArgs(i)+commaIf(i)+ "r)"
@@ -54,6 +59,18 @@ package object codegeneration {
   /* tailEvalN("foo") = "foo(rec, xs, r)" */
   def tailEvalN(expr: String): String =
     expr + "(rec, xs, r)"
+
+  // tailEval(4, "foo") = "foo(rec, x0, x0b, x1, x1b, x2, x2b, x3, x3b)"
+  def tailEvalP(i: Int, expr: String): String =
+   expr + "(rec" + commaIf(i)+xArgs(i)+ ")"
+
+  // tailEvalN(2, "foo") = "foo(rec, xs(0).unboxed, xs(0).boxed, xs(1).unboxed, xs(1).boxed)"
+  def tailEvalNP(i: Int, expr: String): String =
+    expr + "(rec"+commaIf(i)+xsArgs(i) + ")"
+
+  /* tailEvalN("foo") = "foo(rec, xs)" */
+  def tailEvalNP(expr: String): String =
+    expr + "(rec, xs)"
 
   def catchTC(expr: String) =
     s"try { $expr } catch { case e: TC => loop(r) }"
@@ -96,7 +113,7 @@ package object codegeneration {
   def xArgs(count: Int): String = xArgs(0, count)
   def xArgs(start: Int, count: Int): String =
    (start until (start+count)).commas(i => s"x$i, x${i}b")
-  def signatureXArgs(count: Int) = (0 until count).commas(i => s"x$i: D, x${i}b: V")
+  def signatureXArgs(count: Int) = (0 until count).commas(i => s"x$i: D, x${i}b: P")
   def xsArgs(count: Int): String = xsArgs(0, count)
   private def xsArgs(start: Int, count: Int): String =
    start until (start + count) commas (i => s"xs($i).unboxed, xs($i).boxed")

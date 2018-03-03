@@ -67,76 +67,34 @@ object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunc
     def evalArgsN(argCount: Int) =
       evalArgsPrefixStr + (argCount - 1 to 0 by -1).commas(i => s"arg${i}(rec, xs, r), r.boxed") + commaIf(argCount) + "r"
 
-    def renderEvalFn = evalFnType match {
-      case EvalFnType.Lambda => s"Render1.render($evalFn.decompile)"
-      case EvalFnType.TailCall => "\"tailCall\""
-      case EvalFnType.SelfTailCall => "\"selfTailCall\""
-    }
-
     bEq(s"def $defName(e: TermC, " + declArgsPrefix.map(_ + ", ").getOrElse("") + "args: Array[Computation]): Computation") {
-      "warnAssert(stackSize(e) == args.map(_.stackSize).max," <>
-        """s"stackSize: ${stackSize(e)}, args: ${args.map(_.stackSize).mkString(", ")}")""".indent <>
       switch("stackSize(e)") {
-          (0 to maxInlineStack).eachNL { stackSize =>
-            `case`(s"/* stackSize = */ $stackSize") {
-              switch("args.length") {
-                (1 to maxInlineArgs).eachNL { argCount =>
-                  `case`(argCount) {
-                    val className = s"${classPrefix}S${stackSize}A${argCount}"
-                    (0 until argCount).each { i => s"val arg$i = args($i)" } <>
-                    b(s"class $className extends Computation${stackSize}(e, ())") {
-                      indentEqExpr(applySignature(stackSize)) {
-                        s"$evalFn(${evalArgs(stackSize, argCount)})"
-                      }
-                    } <>
-                    s"new $className"
-                  }
-                } <<>>
-                `case`("argCount") {
-                  val className = s"${classPrefix}S${stackSize}AN"
-                  b(s"class $className extends Computation${stackSize}(e, ())") {
-                    bEq(applySignature(stackSize)) {
-                      "val slots = new Array[Slot](argCount)" <>
-                      "var i = 0" <>
-                      b("while (i < argCount)") {
-                        "val slot = slots(argCount - 1 - i)" <>
-                        s"slot.unboxed = " + catchTC(s"args(i)(${xEvalArgs(stackSize)})") <>
-                        s"slot.boxed = r.boxed" <>
-                        "i += 1"
-                      } <>
-                      s"$evalFn(${evalArgsPrefixStr}slots, r)"
-                    }
-                  } <>
-                  s"new $className"
-                }
-              }
-            }
-          } <<>>
-          `case`("stackSize") {
+        (0 to maxInlineStack).eachNL { stackSize =>
+          `case`(s"/* stackSize = */ $stackSize") {
             switch("args.length") {
               (1 to maxInlineArgs).eachNL { argCount =>
-                `case`(s"/* argCount = */ $argCount") {
-                  val className = s"${classPrefix}SNA$argCount"
+                `case`(argCount) {
+                  val className = s"${classPrefix}S${stackSize}A${argCount}"
                   (0 until argCount).each { i => s"val arg$i = args($i)" } <>
-                  b(s"class $className extends ComputationN(stackSize, e, ())") {
-                    indentEqExpr(applyNSignature) {
-                      s"$evalFn(${evalArgsN(argCount)})"
+                  b(s"class $className extends Computation${stackSize}(e, ())") {
+                    indentEqExpr(applySignature(stackSize)) {
+                      s"$evalFn(${evalArgs(stackSize, argCount)})"
                     }
                   } <>
                   s"new $className"
                 }
               } <<>>
               `case`("argCount") {
-                val className = s"${classPrefix}SNAN"
-                b(s"class $className extends ComputationN(stackSize, e, ())") {
-                  bEq(applyNSignature) {
+                val className = s"${classPrefix}S${stackSize}AN"
+                b(s"class $className extends Computation${stackSize}(e, ())") {
+                  bEq(applySignature(stackSize)) {
                     "val slots = new Array[Slot](argCount)" <>
                     "var i = 0" <>
                     b("while (i < argCount)") {
                       "val slot = slots(argCount - 1 - i)" <>
-                        s"slot.unboxed = " + catchTC(s"args(i)(rec, xs, r)") <>
-                        s"slot.boxed = r.boxed" <>
-                        "i += 1"
+                      s"slot.unboxed = " + catchTC(s"args(i)(${xEvalArgs(stackSize)})") <>
+                      s"slot.boxed = r.boxed" <>
+                      "i += 1"
                     } <>
                     s"$evalFn(${evalArgsPrefixStr}slots, r)"
                   }
@@ -145,22 +103,47 @@ object CompileFunctionApplicationGenerator extends OneFileGenerator("CompileFunc
               }
             }
           }
+        } <<>>
+        `case`("stackSize") {
+          switch("args.length") {
+            (1 to maxInlineArgs).eachNL { argCount =>
+              `case`(s"/* argCount = */ $argCount") {
+                val className = s"${classPrefix}SNA$argCount"
+                (0 until argCount).each { i => s"val arg$i = args($i)" } <>
+                b(s"class $className extends ComputationN(stackSize, e, ())") {
+                  indentEqExpr(applyNSignature) {
+                    s"$evalFn(${evalArgsN(argCount)})"
+                  }
+                } <>
+                s"new $className"
+              }
+            } <<>>
+            `case`("argCount") {
+              val className = s"${classPrefix}SNAN"
+              b(s"class $className extends ComputationN(stackSize, e, ())") {
+                bEq(applyNSignature) {
+                  "val slots = new Array[Slot](argCount)" <>
+                  "var i = 0" <>
+                  b("while (i < argCount)") {
+                    "val slot = slots(argCount - 1 - i)" <>
+                      s"slot.unboxed = " + catchTC(s"args(i)(rec, xs, r)") <>
+                      s"slot.boxed = r.boxed" <>
+                      "i += 1"
+                  } <>
+                  s"$evalFn(${evalArgsPrefixStr}slots, r)"
+                }
+              } <>
+              s"new $className"
+            }
+          }
         }
+      }
     }
   }
 
   def sourceDynamic(isTail: Boolean): String = {
     val emptyOrNon = if (isTail) "" else "Non"
     bEq(s"def dynamic${emptyOrNon}TailCall(e: TermC, mkFn: Computation, args: Array[Computation]): Computation") {
-      "warnAssert(stackSize(e) == (mkFn.stackSize max args.map(_.stackSize).max), " <>
-        """e.toString + "\n" +
-          |s"stackSize(${e.annotation}): ${stackSize(e)}\n" +
-          |s"mkFn (" + mkFn.stackSize + "):\n" +
-          |  org.unisonweb.Render.renderIndent(mkFn.decompile) + "\n" +
-          |s"args (" + args.map(_.stackSize).mkString(", ") + "):\n" +
-          |  args.map(arg => org.unisonweb.Render.renderIndent(arg.decompile)).mkString(",\n")
-          |""".stripMargin.indent <>
-      ")" <>
       switch("stackSize(e)") {
         (0 to maxInlineStack).eachNL { stackSize =>
           `case`(s"/* stackSize = */ $stackSize") {

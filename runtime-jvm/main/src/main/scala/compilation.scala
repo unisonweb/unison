@@ -5,7 +5,7 @@ import org.unisonweb.Term.{Name, Term}
 import org.unisonweb.util.Lazy
 
 package compilation {
-  case class Slot(var unboxed: D, var boxed: Value)
+  case class Slot(var unboxed: D, var boxed: P)
 
   case class CurrentRec(get: Option[(Name, Arity)]) extends AnyVal {
     def isEmpty = get.isEmpty
@@ -36,6 +36,7 @@ package compilation {
 package object compilation extends TailCalls with CompileLambda with CompileLet1 with CompileLetRec with CompileLookupVar with CompileFunctionApplication with CompileIf0 {
   type D = Double
   type V = Value
+  type P = Param
   type R = Result
   type TC = TailCall.type
   type SelfTC = SelfTailCall.type
@@ -91,10 +92,8 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
     Term.fullyDecompile(x)
   }
 
-  def checkedAnnotateBound(e: Term): TermC = {
-    assert(e.annotation.isEmpty, s"reannotating term with free vars: ${e.annotation}\n" + Render.renderIndent(e))
+  def checkedAnnotateBound(e: Term): TermC =
     annotateRecVars(ABT.annotateBound(e))
-  }
 
   def compile(builtins: Name => Computation, termC: TermC, currentRec: CurrentRec, isTail: IsTail): Computation = {
     // System.out.println("[debug] compiling:\n" + Render.renderIndent(termC))
@@ -105,7 +104,7 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
     termC match {
       case Term.Num(n) => compileNum(n)
       case Term.Builtin(name) => builtins(name)
-      case Term.Compiled(c) => Return(c)(unTermC(termC)) // todo: can we do a better job tracking the uncompiled form?
+      case Term.Compiled(c) => new Computation0(unTermC(termC)) { def apply(rec: Lambda, r: R) = c(r) }
       case Term.Var(name) => compileVar(currentRec, name, env(termC))
       case Term.If0(cond, if0, ifNot0) =>
         val compiledCond = compile1(IsNotTail)(cond)
@@ -194,13 +193,13 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
     new CompiledNum
   }
 
-  def compileRefVar(currentRec: CurrentRec, name: Name, env: Vector[Name]): Computation = {
+  def compileRefVar(currentRec: CurrentRec, name: Name, env: Vector[Name]): ParamLookup = {
     if (currentRec.contains(name))
-      compileCurrentRec(name)
+      new ParamLookup0 { def apply(rec: Lambda) = rec }
     else
       env.indexOf(name) match {
         case -1 => sys.error("unknown variable: " + name)
-        case i => compileLookupRef(i, Term.Var(name))
+        case i => compileLookupRef(i)
       }
   }
 
@@ -276,14 +275,10 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
     }
   }
 
-  def render(d: D, v: V): String = { if (v eq null) d.toString else "(" + Render1.render(v.decompile) + ")" }
-  def render(slot: Slot): String = render(slot.unboxed, slot.boxed)
-
   import scala.annotation.elidable
   @elidable(elidable.FINE) // doesn't seem to do anything, even with -Xelide-below ALL
   def logFine(s: String): Unit = ()//println(s)
 
   def evaluate(rt: Computation, r: R): D =
     try rt(null, r) catch { case e: TC => loop(r) }
-
 }

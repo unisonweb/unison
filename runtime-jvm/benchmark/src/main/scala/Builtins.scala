@@ -32,32 +32,32 @@ object Builtins {
         def arity = 2
         def apply(rec: Lambda, r: R) = { r.boxed = this; 0.0 }
 
-        def apply(rec: Lambda, x0: D, x0b: V, r: R) = { r.boxed = new Lambda {
+        def apply(rec: Lambda, x0: D, x0b: P, r: R) = { r.boxed = new Lambda {
           def arity = 1
 
           def apply(rec: Lambda, r: R) = { r.boxed = this; 0.0 }
 
-          def apply(rec: Lambda, x1: D, x1b: V, r: R) = { r.boxed = null; f(x1, x0) }
+          def apply(rec: Lambda, x1: D, x1b: P, r: R) = { r.boxed = null; f(x1, x0) }
 
-          def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, r: R) = ???
-          def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, r: R) = ???
-          def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, r: R) = ???
-          def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, x4: D, x4b: V, r: R): D = ???
-          def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, x4: D, x4b: V, x5: D, x5b: V, r: R): D = ???
-          def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, x4: D, x4b: V, x5: D, x5b: V, x6: D, x6b: V, r: R): D = ???
-          def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, x4: D, x4b: V, x5: D, x5b: V, x6: D, x6b: V, x7: D, x7b: V, r: R): D = ???
+          def apply(rec: Lambda, x0: D, x0b: P, x1: D, x1b: P, r: R) = ???
+          def apply(rec: Lambda, x0: D, x0b: P, x1: D, x1b: P, x2: D, x2b: P, r: R) = ???
+          def apply(rec: Lambda, x0: D, x0b: P, x1: D, x1b: P, x2: D, x2b: P, x3: D, x3b: P, r: R) = ???
+          def apply(rec: Lambda, x0: D, x0b: P, x1: D, x1b: P, x2: D, x2b: P, x3: D, x3b: P, x4: D, x4b: P, r: R): D = ???
+          def apply(rec: Lambda, x0: D, x0b: P, x1: D, x1b: P, x2: D, x2b: P, x3: D, x3b: P, x4: D, x4b: P, x5: D, x5b: P, r: R): D = ???
+          def apply(rec: Lambda, x0: D, x0b: P, x1: D, x1b: P, x2: D, x2b: P, x3: D, x3b: P, x4: D, x4b: P, x5: D, x5b: P, x6: D, x6b: P, r: R): D = ???
+          def apply(rec: Lambda, x0: D, x0b: P, x1: D, x1b: P, x2: D, x2b: P, x3: D, x3b: P, x4: D, x4b: P, x5: D, x5b: P, x6: D, x6b: P, x7: D, x7b: P, r: R): D = ???
           def apply(rec: Lambda, xs: Array[Slot], r: R) = ???
           def decompile = term(decompileSlot(x0, x0b))
         }; 0.0 }
 
-        def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, r: R) = { r.boxed = null; f(x1, x0) }
+        def apply(rec: Lambda, x0: D, x0b: P, x1: D, x1b: P, r: R) = { r.boxed = null; f(x1, x0) }
 
-        def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, r: R) = ???
-        def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, r: R) = ???
-        def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, x4: D, x4b: V, r: R): D = ???
-        def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, x4: D, x4b: V, x5: D, x5b: V, r: R): D = ???
-        def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, x4: D, x4b: V, x5: D, x5b: V, x6: D, x6b: V, r: R): D = ???
-        def apply(rec: Lambda, x0: D, x0b: V, x1: D, x1b: V, x2: D, x2b: V, x3: D, x3b: V, x4: D, x4b: V, x5: D, x5b: V, x6: D, x6b: V, x7: D, x7b: V, r: R): D = ???
+        def apply(rec: Lambda, x0: D, x0b: P, x1: D, x1b: P, x2: D, x2b: P, r: R) = ???
+        def apply(rec: Lambda, x0: D, x0b: P, x1: D, x1b: P, x2: D, x2b: P, x3: D, x3b: P, r: R) = ???
+        def apply(rec: Lambda, x0: D, x0b: P, x1: D, x1b: P, x2: D, x2b: P, x3: D, x3b: P, x4: D, x4b: P, r: R): D = ???
+        def apply(rec: Lambda, x0: D, x0b: P, x1: D, x1b: P, x2: D, x2b: P, x3: D, x3b: P, x4: D, x4b: P, x5: D, x5b: P, r: R): D = ???
+        def apply(rec: Lambda, x0: D, x0b: P, x1: D, x1b: P, x2: D, x2b: P, x3: D, x3b: P, x4: D, x4b: P, x5: D, x5b: P, x6: D, x6b: P, r: R): D = ???
+        def apply(rec: Lambda, x0: D, x0b: P, x1: D, x1b: P, x2: D, x2b: P, x3: D, x3b: P, x4: D, x4b: P, x5: D, x5b: P, x6: D, x6b: P, x7: D, x7b: P, r: R): D = ???
         def apply(rec: Lambda, xs: Array[Slot], r: R) = ???
         def decompile = term
       }

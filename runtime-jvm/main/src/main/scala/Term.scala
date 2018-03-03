@@ -2,8 +2,7 @@ package org.unisonweb
 
 import org.unisonweb.util.{Lazy, Traverse, LCA}
 import ABT.{Abs, AnnotatedTerm, Tm}
-import compilation.Value
-import compilation.Ref
+import compilation.{Value,Ref,Param}
 
 object Term {
 
@@ -143,7 +142,7 @@ object Term {
     case class Rec_[R](r: R) extends F[R]
     case class If0_[R](condition: R, ifZero: R, ifNonzero: R) extends F[R]
     case class Delayed_(name: Name, delayed: Lazy[Value]) extends F[Nothing]
-    case class Compiled_(value: Value) extends F[Nothing]
+    case class Compiled_(value: Param) extends F[Nothing]
     // yield : f a -> a|f
     case class Yield_[R](effect: R) extends F[R]
     // handle : (forall x . f x -> (x -> y|f+g) -> y|f+g) -> a|f+g -> a|g
@@ -299,10 +298,10 @@ object Term {
     }
   }
   object Compiled {
-    def apply(v: Value): Term =
+    def apply(v: Param): Term =
       Tm(Compiled_(v))
-    def unapply[A](t: AnnotatedTerm[F,A]): Option[Value] = t match {
-      case Tm(Compiled_(v)) => Some(v)
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[Param] = t match {
+      case Tm(Compiled_(p)) => Some(p)
       case _ => None
     }
   }

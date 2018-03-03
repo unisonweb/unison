@@ -33,5 +33,23 @@ object ComputationGenerator extends OneFileGenerator("Computation.scala") {
       "" <>
       (0 to maxInlineStack).each { j => s"""${applySignature(j)} = throw new Exception("Expected ${maxInlineStack+1}+ stack elements, but given $j.")""" } <>
       "// " + applyNSignature
+    } <<>>
+    b("abstract class ParamLookup") {
+      (0 to maxInlineStack).each(applySignatureP) <>
+      applyNSignatureP
+    } <<>>
+    (0 to maxInlineStack).eachNL { i =>
+      s"/** A `ParamLookup` with just one abstract `apply` function, which takes $i args. */" <>
+      b(s"abstract class ParamLookup$i extends ParamLookup") {
+        s"def stackSize: Int = $i" <>
+        (0 until i).each { j => s"""${applySignatureP(j)} = throw new Exception("Expected $i stack elements, but given $j.")""" } <>
+        "// " + applySignatureP(i) <>
+        ((i+1) to maxInlineStack).each { j => s"${applySignatureP(j)} = " + tailEvalP(i, "apply") } <>
+        applyNSignatureP + " = " + tailEvalNP(i, "apply")
+      }
+    } <<>>
+    b("abstract class ParamLookupN(val stackSize: Int) extends ParamLookup") {
+      (0 to maxInlineStack).each { j => s"""${applySignatureP(j)} = throw new Exception("Expected ${maxInlineStack+1}+ stack elements, but given $j.")""" } <>
+      "// " + applyNSignature
     }
 }

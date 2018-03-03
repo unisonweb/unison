@@ -58,7 +58,7 @@ object CompileLambdaGenerator extends OneFileGenerator("CompileLambda.scala") {
                   "val compiledFreeVars: Map[Name, Term] = " + b("fv.map") {
                     `case`("name") {
                       "val compiledVar = compileVar(currentRec, name, env(e))" <>
-                      "val evaluatedVar = " + eval(stackSize, "compiledVar") <>
+                      "val evaluatedVar = " + tailEval(stackSize, "compiledVar") <>
                       "val value = Value(evaluatedVar, r.boxed)" <>
                       "(name, Term.Compiled(value))"
                     }
@@ -66,9 +66,9 @@ object CompileLambdaGenerator extends OneFileGenerator("CompileLambda.scala") {
                   "val compiledRecVars: Map[Name, Term] = " + b("rv.map") {
                     `case`("name") {
                       "val compiledVar = compileRefVar(currentRec, name, env(e))" <>
-                      "val evaluatedVar = " + eval(stackSize, "compiledVar") <>
-                      "val value = Value(evaluatedVar, r.boxed)" <>
-                      "(name, Term.Compiled(value))"
+                      "val evaluatedVar = " + tailEvalP(stackSize, "compiledVar") <>
+                      "require (evaluatedVar.isRef)" <>
+                      "(name, Term.Compiled(evaluatedVar))"
                     }
                   } + ".toMap" <<>>
                   "val lam2 = Term.Lam(names: _*)(body = ABT.substs(compiledFreeVars ++ compiledRecVars)(unTermC(body)))" <>
@@ -86,11 +86,12 @@ object CompileLambdaGenerator extends OneFileGenerator("CompileLambda.scala") {
             val className = s"BindLambdaSN"
             b(s"class $className extends ComputationN(stackSize,e,())") {
               bEq(applyNSignature) {
-                "val compiledFreeVars: Map[Name, Term] =" <>
-                  s"fv.map { name => name -> Term.Compiled(Value(${evalN("compileVar(currentRec, name, env(e))")}, r.boxed)) }.toMap".indent <<>>
-                "val compiledRecVars: Map[Name, Term] =" <>
-                  s"rv.map { name => name -> Term.Compiled(Value(${evalN("compileRefVar(currentRec, name, env(e))")}, r.boxed)) }.toMap".indent <<>>
-                "// System.out.println(\"[debug] compiled vars:\\n\" + fv.mkString(\"  \", \"\\n  \", \"\\n\"))"<>
+                "val compiledFreeVars: Map[Name, Term] = fv.view.map { name => name -> " <>
+                s"  Term.Compiled(Value(${tailEvalN("compileVar(currentRec, name, env(e))")}, r.boxed))" <>
+                "}.toMap" <>
+                "val compiledRecVars: Map[Name, Term] = rv.view.map { name => name -> " <>
+                "  Term.Compiled(" + tailEvalNP("compileRefVar(currentRec, name, env(e))") + ")" <>
+                "}.toMap" <>
                 "val lam2 = Term.Lam(names: _*)(body = ABT.substs(compiledFreeVars ++ compiledRecVars)(unTermC(body)))" <>
                 "r.boxed = compile(currentRec)(checkedAnnotateBound(lam2)) match {" <>
                 "  case Return(v) => v" <>
