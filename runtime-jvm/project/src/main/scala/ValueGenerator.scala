@@ -33,7 +33,14 @@ object ValueGenerator extends OneFileGenerator("Value.scala") {
       "def apply(r: R) = d"
     } <<>>
     "// abstract class Data extends Value" <<>>
-    b("case class Ref(name: Name, var value: Value = null) extends Param") {
+    b("object Ref") {
+      "def apply(name: Name, lazyValue: => Value): Ref = new Ref(name, () => lazyValue)" <>
+      "def unapply(p: Param) = " <>
+      "  if (p.isInstanceOf[Ref]) { val r = p.asInstanceOf[Ref]; Some((r.name, r.value)) }" <>
+      "  else None"
+    } <<>>
+    b("class Ref(val name: Name, lazyValue: () => Value) extends Param") {
+      "lazy val value = lazyValue() " <>
       "def decompile = value.decompile" <>
       "def apply(r: R) = value(r)" <>
       "def isRef = true" <>

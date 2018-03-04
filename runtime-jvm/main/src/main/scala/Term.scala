@@ -72,7 +72,7 @@ object Term {
   def fullyDecompile(t: Term): Term = {
     def annotateRefs(t: Term): AnnotatedTerm[Term.F, (Set[Name], LCA[Ref])] =
       t.annotateUp[LCA[Ref]](_ combine _, LCA.empty) {
-        case c@Compiled(r@Ref(_, _)) => c map { _ => LCA.single(r) }
+        case c@Compiled(r@Ref(_, _)) => c map { _ => LCA.single(r.asInstanceOf[Ref]) }
         case x => x map { _ => LCA.empty }
       }
 
@@ -87,7 +87,7 @@ object Term {
         transitiveClosure(transitiveClosure(seen, binding), body)
       case LetRec(bindings, body) =>
         bindings.map(_._2).foldLeft(transitiveClosure(seen, body))(transitiveClosure)
-      case Compiled(r@Ref(name, value)) => if (seen.contains(r)) seen else transitiveClosure(seen + r, value.decompile)
+      case Compiled(r : Ref) => if (seen.contains(r)) seen else transitiveClosure(seen + r, r.value.decompile)
       case Compiled(v) => transitiveClosure(seen, v.decompile)
     }
 
@@ -96,7 +96,7 @@ object Term {
     // println("annotateRefs: " + annotateRefs(t))
 
     val letGroups: TermLR = annotateRefs(t match {
-      case Compiled(r@Ref(_, _)) => r.value.decompile
+      case Compiled(r : Ref) => r.value.decompile
       case v => v
     }).annotateDown(Set.empty[Ref]) { (seen, tm) =>
       val lcas2 = tm.annotation._2.lcas -- seen
@@ -114,7 +114,7 @@ object Term {
         def letrec(bs: List[(Name,TermLR)], body: TermLR): TermLR =
           Tm(F.Rec_(bs.map(_._1).foldRight(Tm(F.LetRec_(bs.map(_._2).toList, body)))((name,body) => AnnotatedTerm(Set.empty, Abs_(name,body)))))
         def replaceRefs(refs: Set[Ref], t: Term): Term = t.rewriteDown {
-          case c@Compiled(r2@Ref(name2,_)) => if (refs.contains(r2)) Var(name2) else c
+          case c@Compiled(r2 : Ref) => if (refs.contains(r2)) Var(r2.name) else c
           case c => c
         }
         // introduce a let rec
@@ -153,12 +153,14 @@ object Term {
 
     implicit val instance: Traverse[F] = new Traverse[F] {
       override def map[A,B](fa: F[A])(f: A => B): F[B] = fa match {
-        case Lam_(a) => Lam_(f(a))
         case b@Builtin_(_) => b
+        case n@Num_(_) => n
+        case a@Delayed_(_, _) => a
+        case a@Compiled_(_) => a
+        case Lam_(a) => Lam_(f(a))
         case Apply_(fn, args) =>
           val fn2 = f(fn); val args2 = args map f
           Apply_(fn2, args2)
-        case n@Num_(_) => n
         case LetRec_(bs, body) =>
           val bs2 = bs map f; val body2 = f(body)
           LetRec_(bs2, body2)
@@ -169,8 +171,6 @@ object Term {
         case If0_(c,a,b) =>
           val c2 = f(c); val a2 = f(a); val b2 = f(b)
           If0_(c2, a2, b2)
-        case a@Delayed_(_, _) => a
-        case a@Compiled_(_) => a
         case Handle_(h,b) =>
           val h2 = f(h); val b2 = f(b)
           Handle_(h2, b2)
