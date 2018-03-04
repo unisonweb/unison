@@ -105,6 +105,7 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
       case Term.Num(n) => compileNum(n)
       case Term.Builtin(name) => builtins(name)
       case Term.Compiled(c) => new Computation0(unTermC(termC)) { def apply(rec: Lambda, r: R) = c(r) }
+      case Term.Self(name) => new Computation0(unTermC(termC)) { def apply(rec: Lambda, r: R) = { r.boxed = rec; 0.0 } }
       case Term.Var(name) => compileVar(currentRec, name, env(termC))
       case Term.If0(cond, if0, ifNot0) =>
         val compiledCond = compile1(IsNotTail)(cond)
@@ -114,20 +115,6 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
         compileIf0(termC, compiledCond, compiledIf0, compiledIfNot0)
 
       case Term.Lam(names, body) =>
-        // codegen Lambda1, Lambda2, ... Lambda<max-arity> will extend Lambda
-        // they should handle over and under-application in the different apply methods
-        // only reason we needed to pass more than just the compiled body + metadata (names, orig term)
-        // is to handle under-application, because under-application would substitute away the
-        // bound variables, and then recompile
-
-        // grab all the free variables referenced by the body of the lambda (not bound by the lambda itself)
-        // get them off the stack when you build the lambda
-        //  (compile/get all those `Var`s)
-        //  take those Values,
-            // decompile them,
-            // substitute them into the body of the lambda, being careful about name clashes
-            // now the lambda has no more free variables; good to compile with happy path
-
         compileLambda(termC, names, body, currentRec, r => t => compile2(IsTail, r)(t))
 
       case Term.LetRec(bindings, body) =>
@@ -155,7 +142,13 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
           // e.g. fac n = n * (fac (n-1))
           //                  ^^^^^^^^^^^
           case (Term.Var(v), args) if currentRec.contains(v, args.length) =>
-            sys.error("Didn't expect this to occur anymore, because recursive calls are subst'ed for Delayed terms.")
+            // def staticRecCall(e: TermC, args: Array[Computation], isTail: IsTail): Computation =
+            val compiledArgs = args.view.map(compile1(IsNotTail)).toArray
+            staticRecCall(termC, compiledArgs, isTail)
+
+          case (Term.Self(v), args) if currentRec.contains(v, args.length) =>
+            val compiledArgs = args.view.map(compile1(IsNotTail)).toArray
+            staticRecCall(termC, compiledArgs, isTail)
 
           // if applying fully-saturated built-in
           case (Term.Builtin(name), args) if (builtins(name) match {
@@ -193,19 +186,11 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
     new CompiledNum
   }
 
-  def compileRefVar(currentRec: CurrentRec, name: Name, env: Vector[Name]): ParamLookup = {
-//    if (currentRec.contains(name))
-//      new ParamLookup0 {
-//        def apply(rec: Lambda) =
-//          if (rec ne null) rec // todo: just for debugging
-//          else sys.error(name + " refers to null self call parameter")
-//      }
-//    else
-      env.indexOf(name) match {
-        case -1 => sys.error("unknown variable: " + name)
-        case i => compileLookupRef(i)
-      }
-  }
+  def compileRefVar(currentRec: CurrentRec, name: Name, env: Vector[Name]): ParamLookup =
+    env.indexOf(name) match {
+      case -1 => sys.error("unknown variable: " + name)
+      case i => compileLookupRef(i)
+    }
 
   def compileVar(currentRec: CurrentRec, name: Name, env: Vector[Name]): Computation = {
     if (currentRec.contains(name))
@@ -276,15 +261,14 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
         def check(body: TermC): Boolean = hasTailRecursiveCall(currentRec, body)
         f match {
           case Apply_(AnnotatedTerm(_, Var_(name)), args) if currentRec.contains(name, args.size) => true
-          case Apply_(AnnotatedTerm(_, Tm_(Delayed_(name, _))), args) if currentRec.contains(name, args.size) => true
+          case Apply_(AnnotatedTerm(_, Tm_(Self_(name))), args) if currentRec.contains(name, args.size) => true
           case Apply_(_, _) => false
           case Lam_(body) => check(body)
           case LetRec_(_, body) => check(body)
           case Let_(_, body) => check(body)
           case Rec_(body) => check(body)
           case If0_(_, ifZero, ifNotZero) => check(ifZero) || check(ifNotZero)
-          case Builtin_(_) | Num_(_) => false
-          case Delayed_(_, _) | Compiled_(_) => false
+          case Builtin_(_) | Num_(_) | Self_(_) => false
           case Yield_(_) | Handle_(_, _) => ???
         }
     }

@@ -1,8 +1,8 @@
 package org.unisonweb
 
-import org.unisonweb.util.{Lazy, Traverse, LCA}
+import org.unisonweb.util.{Traverse, LCA}
 import ABT.{Abs, AnnotatedTerm, Tm}
-import compilation.{Value,Ref,Param}
+import compilation.{Ref,Param}
 
 object Term {
 
@@ -72,7 +72,7 @@ object Term {
   def fullyDecompile(t: Term): Term = {
     def annotateRefs(t: Term): AnnotatedTerm[Term.F, (Set[Name], LCA[Ref])] =
       t.annotateUp[LCA[Ref]](_ combine _, LCA.empty) {
-        case c@Compiled(r@Ref(_, _)) => c map { _ => LCA.single(r.asInstanceOf[Ref]) }
+        case c@Compiled(r : Ref) => c map { _ => LCA.single(r) }
         case x => x map { _ => LCA.empty }
       }
 
@@ -140,8 +140,8 @@ object Term {
     case class LetRec_[R](bindings: List[R], body: R) extends F[R]
     case class Let_[R](binding: R, body: R) extends F[R]
     case class Rec_[R](r: R) extends F[R]
+    case class Self_(name: Name) extends F[Nothing]
     case class If0_[R](condition: R, ifZero: R, ifNonzero: R) extends F[R]
-    case class Delayed_(name: Name, delayed: Lazy[Value]) extends F[Nothing]
     case class Compiled_(value: Param) extends F[Nothing]
     // yield : f a -> a|f
     case class Yield_[R](effect: R) extends F[R]
@@ -153,10 +153,7 @@ object Term {
 
     implicit val instance: Traverse[F] = new Traverse[F] {
       override def map[A,B](fa: F[A])(f: A => B): F[B] = fa match {
-        case b@Builtin_(_) => b
-        case n@Num_(_) => n
-        case a@Delayed_(_, _) => a
-        case a@Compiled_(_) => a
+        case fa @ (Builtin_(_) | Num_(_) | Compiled_(_) | Self_(_)) => fa.asInstanceOf[F[B]]
         case Lam_(a) => Lam_(f(a))
         case Apply_(fn, args) =>
           val fn2 = f(fn); val args2 = args map f
@@ -217,6 +214,15 @@ object Term {
     def apply(n: Name): Term = Tm(Builtin_(n))
     def unapply[A](t: AnnotatedTerm[F,A]): Option[Name] = t match {
       case Tm(Builtin_(n)) => Some(n)
+      case _ => None
+    }
+  }
+
+  /** A reference to the currently executing lambda. */
+  object Self {
+    def apply(n: Name): Term = Tm(Self_(n))
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[Name] = t match {
+      case Tm(Self_(n)) => Some(n)
       case _ => None
     }
   }

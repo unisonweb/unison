@@ -65,11 +65,14 @@ object CompileLambdaGenerator extends OneFileGenerator("CompileLambda.scala") {
                   } + ".toMap" <<>>
                   "val compiledRecVars: Map[Name, Term] = " + b("rv.map") {
                     `case`("name") {
-                      "val compiledVar = compileRefVar(currentRec, name, env(e))" <>
-                      "val evaluatedVar = " + tailEvalP(stackSize, "compiledVar") <>
-                      "if (evaluatedVar eq null) sys.error(" + """name + " refers to null stack slot."""" + ")" <>
-                      "require (evaluatedVar.isRef)" <>
-                      "(name, Term.Compiled(evaluatedVar))"
+                      "if (currentRec.contains(name)) (name, Term.Self(name))" <>
+                      b("else") {
+                        "val compiledVar = compileRefVar(currentRec, name, env(e))" <>
+                        "val evaluatedVar = " + tailEvalP(stackSize, "compiledVar") <>
+                        "if (evaluatedVar eq null) sys.error(" + """name + " refers to null stack slot."""" + ")" <>
+                        "require (evaluatedVar.isRef)" <>
+                        "(name, Term.Compiled(evaluatedVar))"
+                      }
                     }
                   } + ".toMap" <<>>
                   "val lam2 = Term.Lam(names: _*)(body = ABT.substs(compiledFreeVars ++ compiledRecVars)(unTermC(body)))" <>
