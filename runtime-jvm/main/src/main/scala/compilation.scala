@@ -194,9 +194,13 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
   }
 
   def compileRefVar(currentRec: CurrentRec, name: Name, env: Vector[Name]): ParamLookup = {
-    if (currentRec.contains(name))
-      new ParamLookup0 { def apply(rec: Lambda) = rec }
-    else
+//    if (currentRec.contains(name))
+//      new ParamLookup0 {
+//        def apply(rec: Lambda) =
+//          if (rec ne null) rec // todo: just for debugging
+//          else sys.error(name + " refers to null self call parameter")
+//      }
+//    else
       env.indexOf(name) match {
         case -1 => sys.error("unknown variable: " + name)
         case i => compileLookupRef(i)
@@ -229,6 +233,17 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
     new LazyReturn
   }
 
+  /**
+   * Annotate a term with the set of recursive variables in scope.
+   * A recursive variable is a name introduced by an outer let rec.
+   *
+   *   Ex: in `let rec loop = loop; x = loop + 1`,
+   *     the body of `x` has `loop` as a recursive variable in scope.
+
+   *   Ex: in `let rec loop = loop; x = { let loop = 23; loop + 1 }`,
+   *     the `loop + 1` expression has no recursive variables in scope,
+   *     since the name `loop` has been shadowed by the inner `let`.
+   */
   def annotateRecVars[A](term: AnnotatedTerm[Term.F, A]) =
     term.annotateDown[(Boolean, RecursiveVars), (A, RecursiveVars)](false -> RecursiveVars.empty) {
       case (s @ (collecting, rv), AnnotatedTerm(a, abt)) =>

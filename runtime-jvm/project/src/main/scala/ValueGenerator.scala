@@ -17,12 +17,17 @@ object ValueGenerator extends OneFileGenerator("Value.scala") {
     b("sealed abstract class Param") {
       "def decompile: Term" <>
       "def apply(r: R): D" <>
-      "def toValue(r: R): V = Value(apply(r), r.boxed)" <>
       "def isRef: Boolean"
+    } <<>>
+    b("object Param") {
+      "def apply(d: D, p: Param): Param = if (p eq null) Num(d) else p" <>
+      "def toValue(d: D, p: Param, r: R): Value = " <>
+        "if (p eq null) Num(d)" <>
+        "else if (p.isInstanceOf[Value]) p.asInstanceOf[Value]" <>
+        "else Value(p(r), r.boxed)"
     } <<>>
     "/** The result of evaluating a `Computation`. */" <>
     b("sealed abstract class Value extends Param") {
-      "override def toValue(r: R) = this" <>
       "def isRef = false"
     } <<>>
     b("object Value") {
@@ -82,7 +87,7 @@ object ValueGenerator extends OneFileGenerator("Value.scala") {
           s"// partial application: $j of $i arguments" <>
           bEq(applySignature(j)) {
             `match`("ABT.substs(Map(" +
-              (0 until j).commas { k => s"\n(name${k + 1}, Term.Compiled(Value(x${j - 1 - k}, x${j - 1 - k}b.toValue(r))))" }.indent <>
+              (0 until j).commas { k => s"\n(name${k + 1}, Term.Compiled(Param(x${j - 1 - k}, x${j - 1 - k}b)))" }.indent <>
               ")" + (j+1 to i).map(" - name" + _).mkString + ")(unTermC(body))") {
                 `case`("body")(
                   s"val lam2 = Term.Lam($unboundNames)(body)" <>
@@ -155,7 +160,7 @@ object ValueGenerator extends OneFileGenerator("Value.scala") {
             s"val unboundNames = argNames.drop($j)" <>
             s"assert(unboundNames.length >= ${N+1-j})" <<>>
             `match`("ABT.substs(Map(" +
-              (0 until j).commas { k => s"\n(argNames($k), Term.Compiled(Value(x${j - 1 - k}, x${j - 1 - k}b.toValue(r))))" }.indent <>
+              (0 until j).commas { k => s"\n(argNames($k), Term.Compiled(Param(x${j - 1 - k}, x${j - 1 - k}b)))" }.indent <>
               s") -- unboundNames)(unTermC(body))") {
                 `case`("body") {
                   "val lam2 = Term.Lam(unboundNames: _*)(body)" <>
@@ -175,7 +180,7 @@ object ValueGenerator extends OneFileGenerator("Value.scala") {
           "// under-application" <>
           "val unboundNames = argNames.drop(xs.length)" <>
           `match`(b("ABT.substs((0 until xs.length).map") {
-            "i => val x = xs(xs.length - 1 - i); (argNames(i), Term.Compiled(Value(x.unboxed, x.boxed.toValue(r))))"
+            "i => val x = xs(xs.length - 1 - i); (argNames(i), Term.Compiled(Param(x.unboxed, x.boxed)))"
           } + ".toMap -- unboundNames)(unTermC(body))") {
             `case`("body") {
               "val lam2 = Term.Lam(unboundNames: _*)(body)" <>

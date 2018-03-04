@@ -5,14 +5,14 @@ object TailCallsGenerator extends OneFileGenerator("TailCalls.scala") {
   def source: String =
     "package org.unisonweb.compilation" <>
     "" <>
-    s"case class Result(var boxed: Value = null, var fn: Lambda = null, ${(0 until maxInlineTC).commas(i => s"var x$i: D = 0.0, var x${i}b: V = null") + commaIf(maxInlineTC)}var xs: Array[Slot] = null)" <<>>
+    s"case class Result(var boxed: Value = null, var fn: Lambda = null, ${(0 until maxInlineTC).commas(i => s"var x$i: D = 0.0, var x${i}b: P = null") + commaIf(maxInlineTC)}var xs: Array[Slot] = null)" <<>>
     "case object TailCall extends Throwable { override def fillInStackTrace = this }" <>
     "case object SelfTailCall extends Throwable { override def fillInStackTrace = this }" <<>>
     b("trait TailCalls") (
       "// todo: decide whether to clear all unused fields or none; speed vs GCbility" <>
       (1 to maxInlineArgs).each { i =>
         bEq("@inline def selfTailCall(" + signatureXArgs(i) + commaIf(i) + "r: R): D")(
-          (0 until (i min maxInlineTC)).each(i => s"r.x$i = x$i; r.x${i}b = x${i}b.toValue(r)") <>
+          (0 until (i min maxInlineTC)).each(i => s"r.x$i = x$i; r.x${i}b = x${i}b") <>
           (if (i > maxInlineTC)
             "// here, r.xs holds only the excess args" <>
             "r.xs = Array(" + (maxInlineTC until i).commas(i => s"Slot(x$i, x${i}b)") + ")"
@@ -28,7 +28,7 @@ object TailCallsGenerator extends OneFileGenerator("TailCalls.scala") {
       (1 to maxInlineArgs).each { i =>
         bEq("@inline def tailCall(fn: Lambda, " + signatureXArgs(i) + commaIf(i) + "r: R): D")(
           "r.fn = fn" <>
-          (0 until (i min maxInlineTC)).each(i => s"r.x$i = x$i; r.x${i}b = x${i}b.toValue(r)") <>
+          (0 until (i min maxInlineTC)).each(i => s"r.x$i = x$i; r.x${i}b = x${i}b") <>
           (if (i > maxInlineTC)
             "// here, r.xs holds only the excess args" <>
             "r.xs = Array(" + (maxInlineTC until i).commas(i => s"Slot(x$i, x${i}b)") + ")"

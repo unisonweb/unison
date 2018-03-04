@@ -67,6 +67,7 @@ object CompileLambdaGenerator extends OneFileGenerator("CompileLambda.scala") {
                     `case`("name") {
                       "val compiledVar = compileRefVar(currentRec, name, env(e))" <>
                       "val evaluatedVar = " + tailEvalP(stackSize, "compiledVar") <>
+                      "if (evaluatedVar eq null) sys.error(" + """name + " refers to null stack slot."""" + ")" <>
                       "require (evaluatedVar.isRef)" <>
                       "(name, Term.Compiled(evaluatedVar))"
                     }
