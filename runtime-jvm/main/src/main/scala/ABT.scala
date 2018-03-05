@@ -1,6 +1,6 @@
 package org.unisonweb
 
-import org.unisonweb.util.{Functor,Traverse}
+import org.unisonweb.util.{Functor, Traverse}
 
 sealed abstract class ABT[F[+_],+R] {
   import ABT._
@@ -12,7 +12,15 @@ sealed abstract class ABT[F[+_],+R] {
 }
 
 object ABT {
-  type Name = String
+  case class Name(override val toString: String) extends AnyVal {
+    def +(i: Int) = Name(toString + i)
+  }
+  object Name {
+    implicit def stringToName(s: String): Name = Name(s)
+    implicit def symbolToName(s: Symbol): Name = Name(s.name)
+    implicit def stringKeyToName[A](t: (String, A)): (Name, A) = Name(t._1) -> t._2
+  }
+
   case class Var_[F[+_]](name: Name) extends ABT[F,Nothing]
   case class Abs_[F[+_],R](name: Name, body: R) extends ABT[F,R]
   case class Tm_[F[+_],R](f: F[R]) extends ABT[F,R]
@@ -20,9 +28,41 @@ object ABT {
   case class AnnotatedTerm[F[+_],A](annotation: A, get: ABT[F,AnnotatedTerm[F,A]]) {
     def map[B](f: A => B)(implicit F: Functor[F]): AnnotatedTerm[F,B] =
       AnnotatedTerm(f(annotation), get.map(_.map(f)))
-    override def toString = get.toString
     def reannotate(f: A => A): AnnotatedTerm[F,A] = AnnotatedTerm(f(annotation), get)
+
+    def annotateFree(implicit F: Traverse[F]): AnnotatedTerm[F, Set[Name]] = get match {
+      case Var_(name) => Var(name)
+      case Abs_(name, body) => Abs(name, body.annotateFree)
+      case Tm_(tm) => Tm(F.map(tm)(_ annotateFree))
+    }
+
+    def annotateDown[S, A2](s: S)(f: (S, AnnotatedTerm[F,A]) => (S, A2))(implicit F: Functor[F]): AnnotatedTerm[F, A2] = {
+      val (s2, a2) = f(s, this)
+      AnnotatedTerm(a2, get.map(_.annotateDown(s2)(f)))
+    }
+
+    /** Accumulate `B` values up the tree. `f` is only applied to leaf nodes of the tree (either `Var` or `Tm` with no children). */
+    def annotateUp[B](combine: (B,B) => B, zero: B)(f: AnnotatedTerm[F,A] => AnnotatedTerm[F,B])(implicit F: Traverse[F]): AnnotatedTerm[F,(A,B)] = {
+       get.map(_.annotateUp(combine, zero)(f)) match {
+         case abt @ Tm_(t) =>
+           val children = F.toVector(t)
+           if (children.isEmpty) f(this).map(b => (annotation, b))
+           else {
+             val b = children.foldLeft(zero) { case (b, tm) => combine(b, tm.annotation._2) }
+             AnnotatedTerm((annotation, b), abt)
+           }
+         case Var_(_) => f(this).map(b => (annotation,b))
+         case abt@Abs_(name, body) => AnnotatedTerm(annotation -> body.annotation._2, abt)
+       }
+    }
+
+    /** Apply `f` to `this`, and then recursively to the children of the resulting term. */
+    def rewriteDown(f: AnnotatedTerm[F,A] => AnnotatedTerm[F,A])(implicit F: Functor[F]): AnnotatedTerm[F,A] =
+      f(this) match {
+        case AnnotatedTerm(ann, abt) => AnnotatedTerm(ann, abt.map(_ rewriteDown f))
+      }
   }
+
   type Term[F[+_]] = AnnotatedTerm[F,Set[Name]]
 
   /**
@@ -35,7 +75,8 @@ object ABT {
       case Tm(f) => AnnotatedTerm(self.annotation -> env, Tm_(F.map(f)(go(_,env))))
       case Abs(name, body) => AnnotatedTerm(self.annotation -> env, Abs_(name, go(body, name +: env)))
     }
-    go(self, Vector())
+    val result = go(self, Vector())
+    result
   }
 
   def rename[F[+_]](from: Name, to: Name)(self: Term[F])(implicit F: Traverse[F]): Term[F] =
@@ -116,5 +157,6 @@ object ABT {
   }
 
   def freshen(v: Name, taken: Set[Name]): Name =
-    Stream.continually(v).zipWithIndex.map { case (name,i) => name + i }.dropWhile(taken.contains(_)).head
+    if (!taken.contains(v)) v
+    else Stream.continually(v).zipWithIndex.map { case (name,i) => name + i }.dropWhile(taken.contains).head
 }

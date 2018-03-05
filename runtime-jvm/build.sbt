@@ -12,7 +12,9 @@ lazy val commonSettings = Seq(
   scalacOptions ++= Seq(
     "-feature",
     "-deprecation",
+//    "-g:notailcalls",
     "-opt:l:classpath",
+    "-opt-warnings",
     "-language:implicitConversions",
     "-language:higherKinds",
     "-language:existentials",
@@ -103,13 +105,32 @@ lazy val releaseSettings = Seq(
 )
 
 lazy val root = project.in(file(".")).
+  settings(name := "unison-runtime-root").
   settings(commonSettings).
   settings(noPublish).
   aggregate(main, benchmark)
-  
+
 lazy val main = project.in(file("main")).
-  settings(commonSettings: _*).
-  settings(name := "unison-runtime")
+  settings(commonSettings).
+  settings(name := "unison-runtime").
+  settings(sourceGenerators in Compile += Def.task {
+    import org.unisonweb.codegeneration._
+    val outPath = (sourceManaged in Compile).value / "org" / "unisonweb" / "compilation"
+    val gens : List[(File, String)] = List[OneFileGenerator](
+      ComputationGenerator,
+      ValueGenerator,
+      CompileLookupVarGenerator,
+      CompileLambdaGenerator,
+      CompileLet1Generator,
+      CompileLetRecGenerator,
+      CompileFunctionApplicationGenerator,
+//      MakeBuiltinGenerator,
+      TailCallsGenerator,
+      CompileIf0Generator
+    ).map(_.apply(outPath))
+
+    gens.map { case (file, content) => IO.write(file, content); file: File }
+  }.taskValue)
 
 lazy val benchmark = project.in(file("benchmark")).
   settings(commonSettings).
