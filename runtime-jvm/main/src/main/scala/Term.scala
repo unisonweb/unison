@@ -2,7 +2,7 @@ package org.unisonweb
 
 import org.unisonweb.util.{Traverse, LCA}
 import ABT.{Abs, AnnotatedTerm, Tm}
-import compilation.{Ref,Param}
+import compilation.{Ref,Param,Value}
 
 object Term {
 
@@ -64,15 +64,35 @@ object Term {
     case ABT.Tm(other) => ABT.Tm(F.instance.map(other)(ANF))
   }
 
-  private case class DecompileCycle(refs: Vector[Ref], i: Int) extends Throwable {
-    override def toString: String = s"DecompileCycle($refs, $i)"
-    // override def fillInStackTrace = this
+  /** Return a `Term` without an outer `Compiled` constructor. */
+  def stripOuterCompiled(t: Term): Term = t match {
+    case Compiled(v: Value) => v.decompile
+    case Compiled(r: Ref) => r.value.decompile
+    case _ => t
   }
 
   def fullyDecompile(t: Term): Term = {
+    // general idea:
+    // 1. accumulate lowest common ancestor info of Refs up the tree
+    // 2. expand set of Refs at each node to include transitive closure of references
+    // 3. traverse down the tree, if a
+    // 4. introduce let rec at each point in the tree with a nonempty cycle of refs
+    //    (and a let rec for each Lam with a Self ref)
+    // question - seems like could do the transitive closure computation before or after accumulating LCA
+    //
+    // Proposed simpler algorithm:
+    // 1. Pass to convert self calls to regular let rec
+    // 2. Collect full set of refs via transitive closure - a `Set[Ref]`
+    // 3. Freshen names for each `Ref`, if needed
+    // 4. Introduce one outer let rec block for each `Ref`, substitute away all refs
+    // 5. (optional) Pass to float bindings in to their LCA of all reference points,
+    //               but there's not much advantage to this.
+
     def annotateRefs(t: Term): AnnotatedTerm[Term.F, (Set[Name], LCA[Ref])] =
       t.annotateUp[LCA[Ref]](_ combine _, LCA.empty) {
-        case c@Compiled(r : Ref) => c map { _ => LCA.single(r) }
+        case Compiled(r : Ref) => Term.Var(r.name) map { _ => LCA.single(r) } // okay to replace this here
+        case Compiled(v : Value) => v.decompile map { _ => LCA.empty }
+        // case Self(name) => Term.Var(name) map { _ => } todo handle this correctly
         case x => x map { _ => LCA.empty }
       }
 
@@ -92,13 +112,9 @@ object Term {
     }
 
     type TermLR = AnnotatedTerm[Term.F, Set[Ref]]
-    // println("input term: " + t)
-    // println("annotateRefs: " + annotateRefs(t))
+    val refs = annotateRefs(stripOuterCompiled(t))
 
-    val letGroups: TermLR = annotateRefs(t match {
-      case Compiled(r : Ref) => r.value.decompile
-      case v => v
-    }).annotateDown(Set.empty[Ref]) { (seen, tm) =>
+    val letGroups: TermLR = annotateRefs(stripOuterCompiled(t)).annotateDown(Set.empty[Ref]) { (seen, tm) =>
       val lcas2 = tm.annotation._2.lcas -- seen
       val bindingsToIntroduce = lcas2.foldLeft(Set.empty[Ref])((seen,ref) => transitiveClosure(seen, ref.value.decompile))
       (seen ++ bindingsToIntroduce, bindingsToIntroduce)
@@ -113,14 +129,9 @@ object Term {
       else {
         def letrec(bs: List[(Name,TermLR)], body: TermLR): TermLR =
           Tm(F.Rec_(bs.map(_._1).foldRight(Tm(F.LetRec_(bs.map(_._2).toList, body)))((name,body) => AnnotatedTerm(Set.empty, Abs_(name,body)))))
-        def replaceRefs(refs: Set[Ref], t: Term): Term = t.rewriteDown {
-          case c@Compiled(r2 : Ref) => if (refs.contains(r2)) Var(r2.name) else c
-          case c => c
-        }
-        // introduce a let rec
         letrec(
-          t.annotation.toList.map(r => r.name -> replaceRefs(t.annotation, r.value.decompile).map(_ => Set.empty[Ref])),
-          replaceRefs(t.annotation, t.map(_ => Set.empty)).map(_ => Set.empty)
+          t.annotation.toList.map(r => r.name -> r.value.decompile.rewriteDown(stripOuterCompiled).map(_ => Set.empty[Ref])),
+          t
         )
       }
     }
