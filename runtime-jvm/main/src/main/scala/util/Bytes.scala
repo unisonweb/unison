@@ -39,7 +39,7 @@ object Bytes {
     }
   }
 
-  private def mkCanonical = new Canonical(Seq.empty, new Array[Canonical](256))
+  private def mkCanonical = new Canonical(Seq.emptyBase, new Array[Canonical](256))
   private var ref = new java.lang.ref.WeakReference(mkCanonical)
 
   def Canonical = {
@@ -52,7 +52,19 @@ object Bytes {
     else r
   }
 
+  def unsigned(b: Byte): Int = b & 0xff
+
   case class Seq(bytes: Seq.Base, c: Canonical) {
+
+    /** Lexicographical minimum, assuming unsigned bytes. */
+    def min(b2: Seq): Seq = {
+      val sdi = this.smallestDifferingIndex(b2)
+      if (sdi >= this.size) this
+      else if (sdi >= b2.size) b2
+      else if (unsigned(this(sdi)) < unsigned(b2(sdi))) this
+      else b2
+    }
+
     def size = bytes.size
     def :+(b: Byte) = Seq(bytes :+ (b, c), c)
     def apply(i: Int) = bytes(i)
@@ -84,10 +96,16 @@ object Bytes {
   }
 
   object Seq {
-    def empty: Base = One(Array())
 
-    case object OutOfBounds extends Throwable { override def fillInStackTrace = this }
-    case object NotFound extends Throwable { override def fillInStackTrace = this }
+    def empty: Seq = Seq(emptyBase, Canonical)
+
+    def apply(bytes: scala.collection.Seq[Byte]): Seq =
+      bytes.foldLeft(empty)(_ :+ _)
+
+    def emptyBase: Base = One(Array())
+
+    case object OutOfBounds extends Throwable
+    case object NotFound extends Throwable
 
     sealed abstract class Base {
       def size: Int

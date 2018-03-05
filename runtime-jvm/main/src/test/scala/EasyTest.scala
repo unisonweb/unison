@@ -8,9 +8,11 @@ object EasyTest {
 
   case class Env(rand: Random, scope: String, output: BlockingQueue[Msg], activePrefix: String) {
     def int = rand.nextInt
-    def intIn(low: Int, highExclusive: Int): Int = low + (rand.nextDouble * (highExclusive - low)).toInt
+    def intIn(low: Int, highExclusive: Int): Int =
+      low + (rand.nextDouble * (highExclusive - low)).toInt
     def ints(n: Int): Vector[Int] = replicate(n)(int)
-    def intsIn(n: Int)(low: Int, highExclusive: Int): Vector[Int] = replicate(n)(intIn(low,highExclusive))
+    def intsIn(n: Int)(low: Int, highExclusive: Int): Vector[Int] =
+      replicate(n)(intIn(low,highExclusive))
 
     def long = rand.nextLong
     def longIn(low: Long, highExclusive: Long): Long = low + (rand.nextDouble * (highExclusive - low)).toLong
@@ -140,6 +142,10 @@ object EasyTest {
   def replicate[A](n: Int)(rand: => A)(implicit T: Env): Vector[A] = (0 until n).map(_ => rand).toVector
   def choose[A](a1: => A, a2: => A)(implicit T: Env): A =
     if (double < .5) a1 else a2
+  def pair[A,B](a: => A, b: => B)(implicit T: Env): (A,B) = (a,b)
+  def byte(implicit T: Env): Byte = intIn(0,256).toByte
+  def map[A,B](size: Int, a: => A, b: => B)(implicit T: Env): Map[A,B] =
+    replicate(size)(pair(a,b)).toMap
 
   /** Push `s` onto the scope stack. */
   def scope[A](s: String)(t: Test[A]): Test[A] = test { env =>

@@ -4,7 +4,12 @@ import org.unisonweb.EasyTest._
 
 object UtilTests {
 
-  lazy val tests = scope("util") { suite(DequeTests.tests, SequenceTests.tests, TextTests.tests) }
+  lazy val tests = scope("util") {
+    suite(DequeTests.tests,
+          SequenceTests.tests,
+          BytesTests.tests,
+          TextTests.tests)
+  }
 }
 
 object RunUtilTests extends App {
