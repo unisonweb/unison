@@ -3,17 +3,17 @@ import sbtrelease.Version
 
 val ReleaseTag = """^release/([\d\.]+a?)$""".r
 
-scalaVersion := "2.12.2"
 
 lazy val commonSettings = Seq(
   organization := "org.unisonweb",
   isScalaJSProject := false,
-  scalaVersion := "2.12.2",
+  scalaVersion := "2.12.4",
   scalacOptions ++= Seq(
     "-feature",
     "-deprecation",
 //    "-g:notailcalls",
-    "-opt:l:classpath",
+    "-opt:l:inline",
+    "-opt-inline-from",
     "-opt-warnings",
     "-language:implicitConversions",
     "-language:higherKinds",
@@ -27,11 +27,6 @@ lazy val commonSettings = Seq(
   ),
   scalacOptions in (Compile, console) ~= {_.filterNot("-Ywarn-unused-import" == _)},
   scalacOptions in (Test, console) := (scalacOptions in (Compile, console)).value,
-  libraryDependencies ++= Seq(
-    compilerPlugin("org.spire-math" %% "kind-projector" % "0.9.3"),
-    "org.scalatest" %%% "scalatest" % "3.0.0" % "test",
-    "org.scalacheck" %%% "scalacheck" % "1.13.4" % "test"
-  ),
   scmInfo := Some(ScmInfo(url("https://github.com/unisonweb/unison"), "git@github.com:unisonweb/unison.git")),
   homepage := Some(url("https://unisonweb.org")),
   licenses += ("MIT", url("http://opensource.org/licenses/MIT"))
