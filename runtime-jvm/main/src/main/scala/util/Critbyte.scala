@@ -8,12 +8,7 @@ sealed abstract class Critbyte[A] {
   /** Returns the submap of this `Critbyte` whose keys all have `key` as a prefix. */
   def prefixedBy(key: Bytes.Seq): Critbyte[A]
 
-  // todo - think about optimized implementation
-  def lookup(key: Bytes.Seq): Option[A] = prefixedBy(key) match {
-    case Critbyte.Leaf(Some((k,v))) if k == key => Some(v)
-    case Critbyte.Branch(fdi, smallestKey, runt, children) =>
-      runt.lookup(key) orElse children.view.map(_.lookup(key)).find(_.isDefined).flatten
-  }
+  def lookup(key: Bytes.Seq): Option[A]
 
   def insert(key: Bytes.Seq, value: A): Critbyte[A]
 
@@ -76,6 +71,12 @@ object Critbyte {
     kvs.foldLeft(empty[A])((buf,kv) => buf.insert(kv._1, kv._2))
 
   case class Leaf[A](entry: Option[(Bytes.Seq, A)]) extends Critbyte[A] {
+
+    override def lookup(key: Bytes.Seq) = entry match {
+      case Some((k,v)) if k == key => Some(v)
+      case _ => None
+    }
+
     def prefix = entry map (_._1) getOrElse Bytes.Seq.empty
 
     def foldLeft[B](z: B)(f: (B,(Bytes.Seq,A)) => B): B = entry.toList.foldLeft(z)(f)
@@ -119,12 +120,23 @@ object Critbyte {
     def foldLeft[B](z: B)(f: (B,(Bytes.Seq,A)) => B): B =
       children.foldLeft(missingFirstDiff.foldLeft(z)(f))((b, child) => child.foldLeft(b)(f))
 
+    def lookup(key: Bytes.Seq) =
+      if (key.isPrefixOf(prefix) || prefix.isPrefixOf(key)) {
+        // lookup(key) on all children (including runt), return first non-None match
+        (Iterator.single(missingFirstDiff) ++ children.iterator).
+          map(_.lookup(key)).find(_.isDefined).flatten
+      }
+      else None
+
     def prefixedBy(key: Bytes.Seq) =
-      // todo: does this have a more efficient implementation?
-      if (key.isPrefixOf(prefix) || prefix.isPrefixOf(key))
-        children.view.map(_.prefixedBy(key)).foldLeft(missingFirstDiff.prefixedBy(key))(_ union _)
-      else
-        empty
+      if (key.size == 0) this
+      else {
+        // todo: does this have a more efficient implementation?
+        if (key.isPrefixOf(prefix) || prefix.isPrefixOf(key))
+          children.view.map(_.prefixedBy(key)).foldLeft(missingFirstDiff.prefixedBy(key))(_ union _)
+        else
+          empty
+      }
 
     def insert(key: Bytes.Seq, value: A) = {
       // `smallestKey` has more than `firstDiff` bytes
