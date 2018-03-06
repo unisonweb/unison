@@ -1,13 +1,18 @@
 package org.unisonweb.util
 
 import Bytes.unsigned
+import Critbyte._
 
 sealed abstract class Critbyte[A] {
+
+  /** Returns the submap of this `Critbyte` whose keys all have `key` as a prefix. */
   def prefixedBy(key: Bytes.Seq): Critbyte[A]
 
+  // todo - think about optimized implementation
   def lookup(key: Bytes.Seq): Option[A] = prefixedBy(key) match {
     case Critbyte.Leaf(Some((k,v))) if k == key => Some(v)
-    case _ => None
+    case Critbyte.Branch(fdi, smallestKey, runt, children) =>
+      runt.lookup(key) orElse children.view.map(_.lookup(key)).find(_.isDefined).flatten
   }
 
   def insert(key: Bytes.Seq, value: A): Critbyte[A]
@@ -18,9 +23,27 @@ sealed abstract class Critbyte[A] {
       case None => insert(key, value)
       case Some(old) => insert(key, combine(old,value))
     }
+
+  /** All keys in this map have this prefix. Satisfies `this.prefixedBy(prefix) == this`. */
+  def prefix: Bytes.Seq
+
+  def foldLeft[B](z: B)(f: (B,(Bytes.Seq,A)) => B): B
+
+  /** Right-preferring union (if `key` exists in `this`, use its value). */
+  def union(b: Critbyte[A]): Critbyte[A] = b.foldLeft(this)((buf, kv) => buf insert (kv._1, kv._2))
+  // todo more efficient impl
+
+  def isEmpty: Boolean = this match {
+    case Leaf(None) => true
+    case _ => false
+  }
 }
 
 object Critbyte {
+
+  private val emptyChildArray_ : Array[Critbyte[AnyRef]] = Array.fill(256)(empty)
+
+  private def emptyChildArray[A]: Array[Critbyte[A]] = emptyChildArray_.asInstanceOf[Array[Critbyte[A]]]
 
   private def Branch2[A](
     firstDiff: Int,
@@ -34,7 +57,7 @@ object Critbyte {
     if (b1 > b2)
       Branch2(firstDiff, smallestKey, b2, cb2, b1, cb1)
     else {
-      val a = new Array[Critbyte[A]](256)
+      val a = emptyChildArray[A].clone
       if (b1 == -1) {
         a(b2) = cb2
         Branch(firstDiff, smallestKey, cb1, a)
@@ -53,6 +76,10 @@ object Critbyte {
     kvs.foldLeft(empty[A])((buf,kv) => buf.insert(kv._1, kv._2))
 
   case class Leaf[A](entry: Option[(Bytes.Seq, A)]) extends Critbyte[A] {
+    def prefix = entry map (_._1) getOrElse Bytes.Seq.empty
+
+    def foldLeft[B](z: B)(f: (B,(Bytes.Seq,A)) => B): B = entry.toList.foldLeft(z)(f)
+
     def prefixedBy(key: Bytes.Seq) = entry match {
       case None => this
       case Some((k,v)) =>
@@ -69,6 +96,12 @@ object Critbyte {
         }
         catch { case Bytes.Seq.NotFound => Leaf(Some((k, value))) }
     }
+
+    override def toString = this match {
+      case Leaf(None) => "empty"
+      case Leaf(Some((k,v))) => "(" + k + ", " + v + ")"
+    }
+
   }
 
   private def byteAt(i: Int, b: Bytes.Seq): Int =
@@ -81,11 +114,18 @@ object Critbyte {
       missingFirstDiff: Critbyte[A],
       children: Array[Critbyte[A]]) extends Critbyte[A] {
 
-    def prefixedBy(key: Bytes.Seq) = {
-      val child = children(unsigned(key(firstDiff)))
-      if (child eq null) empty
-      else child.prefixedBy(key)
-    }
+    lazy val prefix = smallestKey.take(firstDiff)
+
+    def foldLeft[B](z: B)(f: (B,(Bytes.Seq,A)) => B): B =
+      children.foldLeft(missingFirstDiff.foldLeft(z)(f))((b, child) => child.foldLeft(b)(f))
+
+    def prefixedBy(key: Bytes.Seq) =
+      // todo: does this have a more efficient implementation?
+      if (key.isPrefixOf(prefix) || prefix.isPrefixOf(key))
+        children.view.map(_.prefixedBy(key)).foldLeft(missingFirstDiff.prefixedBy(key))(_ union _)
+      else
+        empty
+
     def insert(key: Bytes.Seq, value: A) = {
       // `smallestKey` has more than `firstDiff` bytes
       // `key` may or may not.
@@ -108,14 +148,17 @@ object Critbyte {
       else {
         val bi = unsigned(key(firstDiff))
         val child = children(bi)
-        val newChildren =
-          children.updated(bi,
-            if (child eq null)
-              Leaf(Some((key, value)))
-            else
-              child.insert(key, value))
+        val newChildren = children.updated(bi, child.insert(key, value))
         Branch(firstDiff, newSmallestKey, missingFirstDiff, newChildren)
       }
     }
+
+    override def toString =
+      s"Branch ($firstDiff $smallestKey [" +
+        missingFirstDiff.toString + "] " +
+        children.zipWithIndex.filterNot(_._1.isEmpty)
+                .map(p => "" + p._2.toHexString + " " + p._1)
+                .mkString(", ") +
+      ")"
   }
 }

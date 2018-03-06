@@ -56,6 +56,12 @@ object Bytes {
 
   case class Seq(bytes: Seq.Base, c: Canonical) {
 
+    def take(n: Int): Seq = Seq(bytes.take(n), c)
+
+    // this is slower than it needs to be but we don't care, not called except for testing
+    def toVector: Vector[Byte] =
+      (0 until size).foldLeft(Vector.empty[Byte])((buf,i) => buf :+ apply(i))
+
     /** Lexicographical minimum, assuming unsigned bytes. */
     def min(b2: Seq): Seq = {
       val sdi = this.smallestDifferingIndex(b2)
@@ -93,6 +99,8 @@ object Bytes {
     }
 
     override lazy val hashCode = (0 until size).map(apply(_)).hashCode
+    override def toString =
+      "[" + toVector.map(_.formatted("%02x")).mkString(":") + "]"
   }
 
   object Seq {
@@ -109,6 +117,7 @@ object Bytes {
 
     sealed abstract class Base {
       def size: Int
+      def take(n: Int): Base
       def :+(b: Byte, c: Canonical): Base
       def apply(i: Int): Byte
       def canonicalize(c: Canonical): Base
@@ -118,6 +127,7 @@ object Bytes {
 
     case class One(get: Array[Byte]) extends Base {
       def size = get.length
+      def take(n: Int) = One(get.take(n))
       def :+(b: Byte, c: Canonical) =
         if (size == 8) Two(c.canonicalize(get), One(Array(b)))
         else One(get :+ b)
@@ -150,6 +160,10 @@ object Bytes {
     // satisfies invariant that left is always in canonical form and is a complete tree
     case class Two(left: Base, right: Base) extends Base {
       val size = left.size + right.size
+      def take(n: Int) =
+        if (n > left.size) Two(left, right.take(n - left.size))
+        else if (n == left.size) left
+        else left.take(n)
       def canonicalize(c: Canonical) = {
         val cright = right.canonicalize(c)
         if (cright eq right) this
