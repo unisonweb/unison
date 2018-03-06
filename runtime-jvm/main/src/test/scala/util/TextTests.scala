@@ -73,7 +73,3 @@ object TextTests {
     }
   }
 }
-
-object RunTextTests extends App {
-  run()(TextTests.tests)
-}
