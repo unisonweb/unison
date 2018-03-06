@@ -32,6 +32,13 @@ sealed abstract class Critbyte[A] {
     case Leaf(None) => true
     case _ => false
   }
+
+  def remove(key: Bytes.Seq): Critbyte[A]
+
+  /** List the keys in lexicographical order */
+  def keys: List[Bytes.Seq] = foldLeft(List[Bytes.Seq]()) {
+    case (bs, (k, _)) => k :: bs
+  }.reverse
 }
 
 object Critbyte {
@@ -87,6 +94,7 @@ object Critbyte {
         if (key.isPrefixOf(k)) this
         else empty
     }
+
     def insert(key: Bytes.Seq, value: A) = entry match {
       case None => Leaf(Some((key, value)))
       case Some((k,v)) =>
@@ -96,6 +104,11 @@ object Critbyte {
                                 byteAt(i, key), Leaf(Some((key,value))))
         }
         catch { case Bytes.Seq.NotFound => Leaf(Some((k, value))) }
+    }
+
+    def remove(key: Bytes.Seq) = entry match {
+      case Some((k,v)) if k == key => empty
+      case _ => this
     }
 
     override def toString = this match {
@@ -164,6 +177,11 @@ object Critbyte {
         Branch(firstDiff, newSmallestKey, missingFirstDiff, newChildren)
       }
     }
+
+    def remove(key: Bytes.Seq) =
+      if (key.isPrefixOf(prefix) || prefix.isPrefixOf(key))
+        children.view.map(_.remove(key)).foldLeft(missingFirstDiff.remove(key))(_ union _)
+      else this
 
     override def toString =
       s"Branch ($firstDiff $smallestKey [" +

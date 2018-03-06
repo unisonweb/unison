@@ -15,6 +15,6 @@ object UtilTests {
 
 object RunUtilTests extends App {
   run()(UtilTests.tests)
-  // run(seed = 93276, prefix = "util.Critbyte.works like a map")(UtilTests.tests)
+  // run(prefix = "util.Critbyte.works")(UtilTests.tests)
 }
 

@@ -16,15 +16,17 @@ object CritbyteTests {
     },
     test("works like a map") { implicit T =>
       0 until 100 foreach { i =>
-        val ts = map(intIn(0,i), genBytes(intIn(0,4)), int)
+        def smallKey = genBytes(intIn(0,4))
+        val ts = map(intIn(0,i), smallKey, int)
         note("-----------", false)
-        ts.foldLeft((Critbyte.empty[Int],Map[Bytes.Seq,Int]())) {
+        val (cb, m) = ts.foldLeft((Critbyte.empty[Int],Map[Bytes.Seq,Int]())) {
           case ((cb, m), (k, v)) =>
             val ncb = cb.insert(k, v)
             val nm = m + (k -> v)
             note("insert: " + (k -> v), false)
             note("cb (before): " + cb, false)
             note("cb (after): " + ncb, false)
+            expect1 { ncb.remove(k).lookup(k) == None }
             equal1(ncb.lookup(k), nm.get(k))
             (ncb, nm)
         }
@@ -35,6 +37,16 @@ object CritbyteTests {
       0 until 25 foreach { i =>
         val cb = genCritbytes(i, int)
         expect1 { cb.prefixedBy(Bytes.Seq.empty) eq cb }
+      }
+      ok
+    },
+    test("prefixedBy.homomorphism") { implicit T =>
+      0 until 25 foreach { i =>
+        val cb = genCritbytes(i, int)
+        val keys = cb.keys
+        val k = keys.drop(intIn(0,i)).headOption.getOrElse(Bytes.Seq.empty)
+        val prefix = k.take(intIn(0, k.size))
+        expect1 (keys.filter(prefix isPrefixOf _) == cb.prefixedBy(prefix).keys)
       }
       ok
     }
