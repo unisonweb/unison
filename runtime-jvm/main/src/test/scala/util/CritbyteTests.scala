@@ -2,7 +2,7 @@ package org.unisonweb.util
 
 import org.unisonweb.EasyTest._
 
-object CritbyteTests extends App {
+object CritbyteTests {
 
   val tests = suite("Critbyte")(
     test("works like a map") { implicit T =>
@@ -26,6 +26,4 @@ object CritbyteTests extends App {
   //def genCritbytes[A](size: => Int, a: => A)(implicit T: Env): Critbyte[A] =
   //  map(genBytes(intIn(0,256)), a)
 
-  run()(tests)
 }
-

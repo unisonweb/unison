@@ -2,7 +2,7 @@ package org.unisonweb.util
 
 import org.unisonweb.EasyTest._
 
-object BytesTests extends App {
+object BytesTests {
 
   val tests = test("Bytes.Seq") { implicit T =>
     0 until 1000 foreach { i =>
@@ -15,5 +15,4 @@ object BytesTests extends App {
     ok
   }
 
-  run()(tests)
 }

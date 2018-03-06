@@ -4,7 +4,7 @@ import org.unisonweb.util.PrettyPrint
 import org.unisonweb.EasyTest._
 import org.unisonweb.ABT.Name._
 
-object DecompileTests extends App {
+object DecompileTests {
   val tests = suite("decompile") (
     test("ex1") { implicit T =>
       val pingpong =
@@ -40,8 +40,6 @@ object DecompileTests extends App {
       ok
     }
   )
-
-  run()(tests)
 
   // seems like there's something wonky with Refs appearing as the result of a computation
   // perhaps use types to prevent this from happening, types distinguish between things that can be passed a param (could be a ref)

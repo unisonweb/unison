@@ -107,6 +107,8 @@ object EasyTest {
     else throw Skip
   })
 
+  def testAlways[A](run0: Env => A): Test[A] = new Test[A](env => run0(env))
+
   def note(msg: => Any, includeAlways: Boolean = false)(implicit T: Env): Unit = T.note(msg, includeAlways)
   def ok(implicit T: Env): Unit = T.ok
   def fail(reason: String)(implicit T: Env): Nothing = T.fail(reason)
@@ -148,7 +150,7 @@ object EasyTest {
     replicate(size)(pair(a,b)).toMap
 
   /** Push `s` onto the scope stack. */
-  def scope[A](s: String)(t: Test[A]): Test[A] = test { env =>
+  def scope[A](s: String)(t: Test[A]): Test[A] = testAlways { env =>
     try t.run(env.copy(scope = concatScope(env.scope, s)))
     catch {
       case Skip => throw Skip
@@ -162,7 +164,7 @@ object EasyTest {
 
   def suite(s: String)(t: Test[Unit]*): Test[Unit] = scope(s)(suite(t: _*))
 
-  def suite(t: Test[Unit]*): Test[Unit] = test { implicit T =>
+  def suite(t: Test[Unit]*): Test[Unit] = testAlways { implicit T =>
     val n = T.long
     (0 until t.size).foreach { i =>
       T.rand.setSeed(n)

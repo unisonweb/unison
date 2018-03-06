@@ -8,11 +8,13 @@ object UtilTests {
     suite(DequeTests.tests,
           SequenceTests.tests,
           BytesTests.tests,
-          TextTests.tests)
+          TextTests.tests,
+          CritbyteTests.tests)
   }
 }
 
 object RunUtilTests extends App {
   run()(UtilTests.tests)
+  // run(seed = 93276, prefix = "util.Critbyte.works like a map")(UtilTests.tests)
 }
 
