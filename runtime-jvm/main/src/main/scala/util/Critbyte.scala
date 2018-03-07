@@ -165,14 +165,14 @@ object Critbyte {
       val sz = key.size
       if (sz < critbyte) None
       else if (sz == critbyte) runt.lookup(key)
-      else try {
+      else {
         // sz > critbyte therefore key cannot match runt
-        if (key.smallestDifferingIndex(smallestKey) >= critbyte)
+        val descend =
+          try key.smallestDifferingIndex(smallestKey) >= critbyte
+          catch { case Bytes.Seq.NotFound => true }
+        if (descend)
           children(unsigned(key(critbyte))).lookup(key)
         else None
-      } catch {
-        case Bytes.Seq.NotFound =>
-          children(unsigned(key(critbyte))).lookup(key)
       }
     }
 
