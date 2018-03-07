@@ -71,15 +71,25 @@ object Term {
     case _ => t
   }
 
+
+  def selfToLetRec(t: Term): Term = t rewriteDown {
+    case Lam(names, body) =>
+      val selfRefs = body.foldMap {
+        case Term.Self(name) => Set(name)
+        case _ => Set.empty[Name]
+      } (_ union _, Set.empty)
+      selfRefs.toList match {
+        case Nil => Lam(names: _*)(body) // no self calls
+        case rec :: Nil =>
+          val body2 = Lam(names: _*)(body)
+          // LetRec(rec -> )
+          ???
+        case _ => ??? // should not happen
+      }
+    case _ => ???
+  }
+
   def fullyDecompile(t: Term): Term = {
-    // general idea:
-    // 1. accumulate lowest common ancestor info of Refs up the tree
-    // 2. expand set of Refs at each node to include transitive closure of references
-    // 3. traverse down the tree, if a
-    // 4. introduce let rec at each point in the tree with a nonempty cycle of refs
-    //    (and a let rec for each Lam with a Self ref)
-    // question - seems like could do the transitive closure computation before or after accumulating LCA
-    //
     // Proposed simpler algorithm:
     // 1. Pass to convert self calls to regular let rec
     // 2. Collect full set of refs via transitive closure - a `Set[Ref]`

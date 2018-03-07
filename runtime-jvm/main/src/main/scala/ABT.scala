@@ -30,12 +30,14 @@ object ABT {
       AnnotatedTerm(f(annotation), get.map(_.map(f)))
     def reannotate(f: A => A): AnnotatedTerm[F,A] = AnnotatedTerm(f(annotation), get)
 
+    /** Discard all the annotations and just annotate with the set of free variables. */
     def annotateFree(implicit F: Traverse[F]): AnnotatedTerm[F, Set[Name]] = get match {
       case Var_(name) => Var(name)
       case Abs_(name, body) => Abs(name, body.annotateFree)
       case Tm_(tm) => Tm(F.map(tm)(_ annotateFree))
     }
 
+    /** Push an annotation down from the root. */
     def annotateDown[S, A2](s: S)(f: (S, AnnotatedTerm[F,A]) => (S, A2))(implicit F: Functor[F]): AnnotatedTerm[F, A2] = {
       val (s2, a2) = f(s, this)
       AnnotatedTerm(a2, get.map(_.annotateDown(s2)(f)))
@@ -56,10 +58,31 @@ object ABT {
        }
     }
 
+    /**
+     * Applies `f` to all leaf nodes (either vars or Tm nodes with no children),
+     * then accumulates the values up the tree.
+     */
+    def foldMap[B](f: AnnotatedTerm[F,A] => B)(combine: (B,B) => B, zero: B)(
+        implicit F: Traverse[F]): B =
+      get.map(_.foldMap(f)(combine, zero)) match {
+         case abt @ Tm_(t) =>
+           val children = F.toVector(t)
+           if (children.isEmpty) f(this)
+           else children.foldLeft(zero)(combine)
+         case Var_(_) => f(this)
+         case Abs_(name, b) => b
+      }
+
     /** Apply `f` to `this`, and then recursively to the children of the resulting term. */
     def rewriteDown(f: AnnotatedTerm[F,A] => AnnotatedTerm[F,A])(implicit F: Functor[F]): AnnotatedTerm[F,A] =
       f(this) match {
         case AnnotatedTerm(ann, abt) => AnnotatedTerm(ann, abt.map(_ rewriteDown f))
+      }
+
+    def rewriteDownS[S](s: S)(f: (S,AnnotatedTerm[F,A]) => (S,AnnotatedTerm[F,A]))(
+      implicit F: Functor[F]): AnnotatedTerm[F,A] =
+      f(s, this) match { case (s, AnnotatedTerm(ann,abt)) =>
+        AnnotatedTerm(ann, abt.map(_.rewriteDownS(s)(f)))
       }
   }
 
