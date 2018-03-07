@@ -13,8 +13,9 @@ object UtilTests {
   }
 }
 
-object RunUtilTests extends App {
-  run()(UtilTests.tests)
-  // run(prefix = "util.Critbyte.works")(UtilTests.tests)
+object RunUtilTests {
+  def main(args: Array[String]) =
+    //run()(UtilTests.tests)
+    run(prefix = "util.Critbyte")(UtilTests.tests)
 }
 

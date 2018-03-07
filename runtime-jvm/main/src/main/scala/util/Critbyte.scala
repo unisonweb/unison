@@ -43,36 +43,44 @@ sealed abstract class Critbyte[A] {
 
 object Critbyte {
 
-  private val emptyChildArray_ : Array[Critbyte[AnyRef]] = Array.fill(256)(empty)
+  private val emptyLeaf_ = Leaf[Any](None)
+
+  private def leaf[A](k: Bytes.Seq, v: A) = Leaf(Some(k -> v))
+
+  def empty[A]: Critbyte[A] = emptyLeaf
+
+  private def emptyLeaf[A]: Leaf[A] = emptyLeaf_.asInstanceOf[Leaf[A]]
+
+  val emptyChildArray_ : Array[Critbyte[AnyRef]] = Array.fill(256)(empty)
 
   private def emptyChildArray[A]: Array[Critbyte[A]] = emptyChildArray_.asInstanceOf[Array[Critbyte[A]]]
 
   private def Branch2[A](
-    firstDiff: Int,
+    critbyte: Int,
     smallestKey: Bytes.Seq,
     b1: Int,
-    cb1: Critbyte[A],
+    cb1: Leaf[A],
     b2: Int,
     cb2: Critbyte[A]
   ): Critbyte[A] = {
-    assert(b1 != b2)
-    if (b1 > b2)
-      Branch2(firstDiff, smallestKey, b2, cb2, b1, cb1)
-    else {
+    if (b1 < b2) {
       val a = emptyChildArray[A].clone
       if (b1 == -1) {
         a(b2) = cb2
-        Branch(firstDiff, smallestKey, cb1, a)
+        Branch(critbyte, smallestKey, cb1, a)
       }
       else {
         a(b1) = cb1
         a(b2) = cb2
-        Branch(firstDiff, smallestKey, empty, a)
+        Branch(critbyte, smallestKey, emptyLeaf, a)
+      }
+    } else {
+      cb2 match {
+        case us@Leaf(_) => Branch2(critbyte, smallestKey, b2, us, b1, cb1)
+        case _ => ??? // Should never happen
       }
     }
   }
-
-  def empty[A]: Critbyte[A] = Leaf(None)
 
   def apply[A](kvs: (Bytes.Seq, A)*): Critbyte[A] =
     kvs.foldLeft(empty[A])((buf,kv) => buf.insert(kv._1, kv._2))
@@ -86,7 +94,8 @@ object Critbyte {
 
     def prefix = entry map (_._1) getOrElse Bytes.Seq.empty
 
-    def foldLeft[B](z: B)(f: (B,(Bytes.Seq,A)) => B): B = entry.toList.foldLeft(z)(f)
+    def foldLeft[B](z: B)(f: (B,(Bytes.Seq,A)) => B): B =
+      entry.toList.foldLeft(z)(f)
 
     def prefixedBy(key: Bytes.Seq) = entry match {
       case None => this
@@ -96,14 +105,33 @@ object Critbyte {
     }
 
     def insert(key: Bytes.Seq, value: A) = entry match {
-      case None => Leaf(Some((key, value)))
+      case None => leaf(key, value)
       case Some((k,v)) =>
         try {
           val i = k.smallestDifferingIndex(key)
-          Branch2(i, k min key, byteAt(i, k), this,
-                                byteAt(i, key), Leaf(Some((key,value))))
+          if (k.size == i) {
+            assert(key.size > i)
+            // this becomes the runt
+            Branch(i, k, this,
+                   emptyChildArray[A].updated(unsigned(key(i)),
+                                              leaf(key, value)))
+          }
+          else if (key.size == i) {
+            assert(k.size > i)
+            // the new leaf becomes the runt
+            Branch(i, key,
+                   leaf(key, value),
+                   emptyChildArray[A].updated(unsigned(k(i)), this))
+          } else {
+            // There's no runt
+            assert(k(i) != key(i))
+            val chirren = emptyChildArray[A].clone
+            chirren(unsigned(k(i))) = leaf(k, v)
+            chirren(unsigned(key(i))) = leaf(key, value)
+            Branch(i, key min k, emptyLeaf, chirren)
+          }
         }
-        catch { case Bytes.Seq.NotFound => Leaf(Some((k, value))) }
+        catch { case Bytes.Seq.NotFound => leaf(k, value) }
     }
 
     def remove(key: Bytes.Seq) = entry match {
@@ -123,20 +151,20 @@ object Critbyte {
     catch { case Bytes.Seq.OutOfBounds => -1 }
 
   case class Branch[A](
-      firstDiff: Int,
+      critbyte: Int,
       smallestKey: Bytes.Seq,
-      missingFirstDiff: Critbyte[A],
+      runt: Leaf[A],
       children: Array[Critbyte[A]]) extends Critbyte[A] {
 
-    lazy val prefix = smallestKey.take(firstDiff)
+    lazy val prefix = smallestKey.take(critbyte)
 
     def foldLeft[B](z: B)(f: (B,(Bytes.Seq,A)) => B): B =
-      children.foldLeft(missingFirstDiff.foldLeft(z)(f))((b, child) => child.foldLeft(b)(f))
+      children.foldLeft(runt.foldLeft(z)(f))((b, child) => child.foldLeft(b)(f))
 
     def lookup(key: Bytes.Seq) =
       if (key.isPrefixOf(prefix) || prefix.isPrefixOf(key)) {
         // lookup(key) on all children (including runt), return first non-None match
-        (Iterator.single(missingFirstDiff) ++ children.iterator).
+        (Iterator.single(runt) ++ children.iterator).
           map(_.lookup(key)).find(_.isDefined).flatten
       }
       else None
@@ -146,46 +174,54 @@ object Critbyte {
       else {
         // todo: does this have a more efficient implementation?
         if (key.isPrefixOf(prefix) || prefix.isPrefixOf(key))
-          children.view.map(_.prefixedBy(key)).foldLeft(missingFirstDiff.prefixedBy(key))(_ union _)
+          children.view.map(_.prefixedBy(key)).foldLeft(runt.prefixedBy(key))(_ union _)
         else
           empty
       }
 
     def insert(key: Bytes.Seq, value: A) = {
-      // `smallestKey` has more than `firstDiff` bytes
+      // `smallestKey` has more than `critbyte` bytes
       // `key` may or may not.
       val newSmallestKey = smallestKey min key
       // `sdi` is either the index of the first byte that differs between
       //        `key` and `smallestKey`, or it is the length of `key`,
       //        (because `key` is shorter than `smallestKey`).
       val sdi = key smallestDifferingIndex smallestKey
-      if (sdi < firstDiff) {
-        // `key` differs from the children before they differ from each other
-        Branch2(sdi, newSmallestKey, byteAt(sdi, key), Leaf(Some(key -> value)),
-                                     byteAt(sdi, smallestKey), this)
-      }
-      else if (key.size == sdi) {
-        // `key` doesn't exist at the position where children differ
-        // also `sdi == firstDiff`
-        Branch(sdi, newSmallestKey,
-               missingFirstDiff.insert(key, value), children)
-      }
-      else {
-        val bi = unsigned(key(firstDiff))
-        val child = children(bi)
-        val newChildren = children.updated(bi, child.insert(key, value))
-        Branch(firstDiff, newSmallestKey, missingFirstDiff, newChildren)
+
+      if (sdi >= critbyte) {
+        // The new key belongs in this branch
+        if (key.size == critbyte) {
+          assert(runt.entry.forall(_._1 == key))
+          copy(smallestKey = newSmallestKey, runt = leaf(key, value))
+        } else {
+          assert(key.size > critbyte)
+          val critValue = unsigned(key(critbyte))
+          copy(children =
+            children.updated(critValue, children(critValue).insert(key, value)))
+        }
+      } else {
+        // The new key has an earlier critbyte and we need a new top-level
+        if (key.size == sdi) {
+          Branch(sdi, newSmallestKey, leaf(key, value),
+                 emptyChildArray[A].updated(unsigned(smallestKey(sdi)), this))
+        } else {
+          assert(sdi < key.size)
+          val chirren = emptyChildArray[A].clone
+          chirren(unsigned(smallestKey(sdi))) = this
+          chirren(unsigned(key(sdi))) = leaf(key, value)
+          Branch(sdi, newSmallestKey, emptyLeaf[A], chirren)
+        }
       }
     }
 
     def remove(key: Bytes.Seq) =
       if (key.isPrefixOf(prefix) || prefix.isPrefixOf(key))
-        children.view.map(_.remove(key)).foldLeft(missingFirstDiff.remove(key))(_ union _)
+        children.view.map(_.remove(key)).foldLeft(runt.remove(key))(_ union _)
       else this
 
     override def toString =
-      s"Branch ($firstDiff $smallestKey [" +
-        missingFirstDiff.toString + "] " +
+      s"Branch ($critbyte $smallestKey [" +
+        runt.toString + "] " +
         children.zipWithIndex.filterNot(_._1.isEmpty)
                 .map(p => "" + p._2.toHexString + " " + p._1)
                 .mkString(", ") +
