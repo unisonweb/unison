@@ -161,13 +161,20 @@ object Critbyte {
     def foldLeft[B](z: B)(f: (B,(Bytes.Seq,A)) => B): B =
       children.foldLeft(runt.foldLeft(z)(f))((b, child) => child.foldLeft(b)(f))
 
-    def lookup(key: Bytes.Seq) =
-      if (key.isPrefixOf(prefix) || prefix.isPrefixOf(key)) {
-        // lookup(key) on all children (including runt), return first non-None match
-        (Iterator.single(runt) ++ children.iterator).
-          map(_.lookup(key)).find(_.isDefined).flatten
+    def lookup(key: Bytes.Seq) = {
+      val sz = key.size
+      if (sz < critbyte) None
+      else if (sz == critbyte) runt.lookup(key)
+      else try {
+        // sz > critbyte therefore key cannot match runt
+        if (key.smallestDifferingIndex(smallestKey) >= critbyte)
+          children(unsigned(key(critbyte))).lookup(key)
+        else None
+      } catch {
+        case Bytes.Seq.NotFound =>
+          children(unsigned(key(critbyte))).lookup(key)
       }
-      else None
+    }
 
     def prefixedBy(key: Bytes.Seq) =
       if (key.size == 0) this
@@ -220,10 +227,10 @@ object Critbyte {
       else this
 
     override def toString =
-      s"Branch ($critbyte $smallestKey [" +
-        runt.toString + "] " +
+      s"Branch ($critbyte, $smallestKey, [" +
+        runt.toString + "], " +
         children.zipWithIndex.filterNot(_._1.isEmpty)
-                .map(p => "" + p._2.toHexString + " " + p._1)
+                .map(p => "" + p._2.toHexString + ":" + p._1)
                 .mkString(", ") +
       ")"
   }
