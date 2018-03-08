@@ -55,33 +55,6 @@ object Critbyte {
 
   private def emptyChildArray[A]: Array[Critbyte[A]] = emptyChildArray_.asInstanceOf[Array[Critbyte[A]]]
 
-  private def Branch2[A](
-    critbyte: Int,
-    smallestKey: Bytes.Seq,
-    b1: Int,
-    cb1: Leaf[A],
-    b2: Int,
-    cb2: Critbyte[A]
-  ): Critbyte[A] = {
-    if (b1 < b2) {
-      val a = emptyChildArray[A].clone
-      if (b1 == -1) {
-        a(b2) = cb2
-        Branch(critbyte, smallestKey, cb1, a)
-      }
-      else {
-        a(b1) = cb1
-        a(b2) = cb2
-        Branch(critbyte, smallestKey, emptyLeaf, a)
-      }
-    } else {
-      cb2 match {
-        case us@Leaf(_) => Branch2(critbyte, smallestKey, b2, us, b1, cb1)
-        case _ => ??? // Should never happen
-      }
-    }
-  }
-
   def apply[A](kvs: (Bytes.Seq, A)*): Critbyte[A] =
     kvs.foldLeft(empty[A])((buf,kv) => buf.insert(kv._1, kv._2))
 
@@ -134,8 +107,10 @@ object Critbyte {
         catch { case Bytes.Seq.NotFound => leaf(k, value) }
     }
 
-    def remove(key: Bytes.Seq) = entry match {
-      case Some((k,v)) if k == key => empty
+    def remove(key: Bytes.Seq): Critbyte[A] = removeLeaf(key)
+
+    def removeLeaf(key: Bytes.Seq): Leaf[A] = entry match {
+      case Some((k,v)) if k == key => emptyLeaf
       case _ => this
     }
 
@@ -221,10 +196,48 @@ object Critbyte {
       }
     }
 
-    def remove(key: Bytes.Seq) =
-      if (key.isPrefixOf(prefix) || prefix.isPrefixOf(key))
-        children.view.map(_.remove(key)).foldLeft(runt.remove(key))(_ union _)
+    def remove(key: Bytes.Seq) = {
+      val descend =
+        try ((key smallestDifferingIndex smallestKey) >= critbyte)
+        catch { case Bytes.Seq.NotFound => true }
+
+      if (descend) {
+        // key would be found in this branch; keep looking to remove
+        if (key.size == critbyte) {
+          // key would be in the runt if anywhere
+          assert(runt.entry.forall(_._1 == key))
+          val newSmallestKey = children.view.collect {
+            case Leaf(Some((k,_))) => k
+            case Branch(_,k,_,_) => k
+          }.head // if this is empty, the tree is malformed (no children)
+          copy(smallestKey = newSmallestKey, runt = runt.removeLeaf(key))
+        }
+        else { // deleting from the children
+          // note: don't need to raise critbyte because 2+ descendants differ at the same place
+          val critValue = unsigned(key(critbyte))
+          val newChildren = children.updated(critValue, children(critValue).remove(key))
+          val firstTwo = newChildren.view.filterNot(_.isEmpty).take(2).toList
+
+          runt.entry match {
+            case Some((k,v)) =>
+              firstTwo match {
+                case Nil => leaf(k,v)
+                case _ => copy(children = newChildren)
+              }
+
+            case None =>
+              firstTwo match {
+                case Nil => empty
+                case List(c) => c
+                case c :: _ => Branch(critbyte, c.keys.head, emptyLeaf, newChildren)
+              }
+          }
+        }
+      }
       else this
+    }
+
+
 
     override def toString =
       s"Branch ($critbyte, $smallestKey, [" +
