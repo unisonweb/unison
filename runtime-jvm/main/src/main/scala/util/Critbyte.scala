@@ -153,13 +153,20 @@ object Critbyte {
 
     def prefixedBy(key: Bytes.Seq) =
       if (key.size == 0) this
-      else {
-        // todo: does this have a more efficient implementation?
-        if (key.isPrefixOf(prefix) || prefix.isPrefixOf(key))
-          children.view.map(_.prefixedBy(key)).foldLeft(runt.prefixedBy(key))(_ union _)
-        else
-          empty
+      else try {
+        val sdi = key.smallestDifferingIndex(smallestKey)
+        if (sdi >= critbyte) // prefix matches query up to critbyte
+          if (key.size == critbyte) this // tree prefix = query
+          else children(unsigned(key(critbyte))).prefixedBy(key)
+
+        else if (key.size == sdi) this
+        // if they differ only because query doesn't have a byte at `sdi`, want all
+
+        else empty // sdi < critbyte and key.size > sdi
+          // the bytes after sdi won't match anything here
       }
+      catch { case Bytes.Seq.NotFound => this }
+
 
     def insert(key: Bytes.Seq, value: A) = {
       // `smallestKey` has more than `critbyte` bytes
