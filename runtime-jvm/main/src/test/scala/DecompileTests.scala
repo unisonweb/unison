@@ -8,21 +8,25 @@ object DecompileTests {
   val tests = suite("decompile") (
     test("ex1") { implicit T =>
       val pingpong =
-        Term.LetRec(
-          "ping" -> Term.Lam("x")(Term.Var("pong")(Term.Var("x"))),
-          "pong" -> Term.Lam("x")(Term.Num(79))) {
-            Term.Var("pong")
-          }
+        Term.Let("k" -> Term.Num(79)) {
+          Term.LetRec(
+            "ping" -> Term.Lam("x")(Term.Var("pong")(Term.Var("x"))),
+            "pong" -> Term.Lam("x")(Term.Var("k"))) {
+              Term.Var("pong")
+            }
+        }
       note(PrettyPrint.prettyTerm(compilation.normalize(_ => ???)(pingpong)).render(40), includeAlways = true)
       ok
     },
     test("ex2") { implicit T =>
       val pingpong =
-        Term.LetRec(
-          "ping" -> Term.Lam("x")(Term.Var("pong")(Term.Var("x"))),
-          "pong" -> Term.Lam("x")(Term.Var("ping")(Term.Var("x")))) {
-            Term.Var("ping")
-          }
+        Term.Let("id" -> Term.Lam("x")(Term.Var("x"))) {
+          Term.LetRec(
+            "ping" -> Term.Lam("x")(Term.Var("pong")(Term.Var("id")(Term.Var("x")))),
+            "pong" -> Term.Lam("x")(Term.Var("ping")(Term.Var("x")))) {
+              Term.Var("ping")
+            }
+        }
       note(PrettyPrint.prettyTerm(compilation.normalize(_ => ???)(pingpong)).render(40), includeAlways = true)
       ok
     },

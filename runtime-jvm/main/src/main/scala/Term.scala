@@ -1,7 +1,6 @@
 package org.unisonweb
 
 import org.unisonweb.util.{Traverse,Monoid}
-// import org.unisonweb.util.{Traverse, LCA}
 import ABT.{Abs, AnnotatedTerm, Tm}
 import compilation.{Ref,Param,Value}
 
@@ -29,6 +28,7 @@ object Term {
       case None => etaNormalForm(Lam(x)(f))
       case Some(Var(x2)) => if (x == x2) etaNormalForm(Apply(f, args.dropRight(1): _*))
                             else t
+      case _ => t
     }
     case _ => t
   }
@@ -89,6 +89,10 @@ object Term {
     t2
   }
 
+  /**
+   * Removes all `Compiled` nodes from `t` by expanding their definitions and
+   * converting cyclic references to `let rec` declarations.
+   */
   def fullyDecompile(t: Term): Term = {
     // 1. Collect full set of refs via transitive closure - a `Set[Ref]`
     // 2. Compute all used names (including self recursive names), freshen names for each `Ref`
@@ -127,7 +131,11 @@ object Term {
     // 2. Freshen names for each `Ref`, if needed
     val freshRefNames = refs.keys.view.map(r => (r, ABT.freshen(r.name, usedNames))).toMap
     def replaceRefs(t: Term): Term = selfToLetRec(t).rewriteDown {
-      case Compiled(r : Ref) => Var(freshRefNames(r))
+      case Compiled(c) => c match {
+        case r : Ref => Var(freshRefNames(r))
+        case compilation.Num(d) => Term.Num(d)
+        case v : compilation.Value => replaceRefs(v.decompile)
+      }
       case t => t
     }
     val refBindings = refs.toList.map { case (ref,tm) => (freshRefNames(ref), replaceRefs(tm)) }
