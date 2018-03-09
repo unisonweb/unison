@@ -10,6 +10,9 @@ object AllTests {
   )
 }
 
-object RunAllTests extends App {
-  run()(AllTests.tests)
+object RunAllTests {
+  def main(args: Array[String]) = {
+    val prefix = if (args.length == 1) args(0) else ""
+    run(prefix = prefix)(AllTests.tests)
+  }
 }
