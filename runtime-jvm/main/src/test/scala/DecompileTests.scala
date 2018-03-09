@@ -11,7 +11,7 @@ object DecompileTests {
         Term.LetRec(
           "ping" -> Term.Lam("x")(Term.Var("pong")(Term.Var("x"))),
           "pong" -> Term.Lam("x")(Term.Num(79))) {
-            Term.Var("ping")
+            Term.Var("pong")
           }
       note(PrettyPrint.prettyTerm(compilation.normalize(_ => ???)(pingpong)).render(40), includeAlways = true)
       ok
@@ -35,14 +35,8 @@ object DecompileTests {
           "pong" -> Term.Lam("x")(Term.Var("ping")(Term.Var("pang")(Term.Var("x"))))) {
             Term.Var("ping")
           }
-      note(pingpong, true)
       note(PrettyPrint.prettyTerm(compilation.normalize(_ => ???)(pingpong)).render(40), includeAlways = true)
       ok
     }
   )
-
-  // seems like there's something wonky with Refs appearing as the result of a computation
-  // perhaps use types to prevent this from happening, types distinguish between things that can be passed a param (could be a ref)
-  // vs things that may be returned from a computation (cannot be a ref)
-  // seems like fullyDecompile not expanding Refs sufficiently?
 }

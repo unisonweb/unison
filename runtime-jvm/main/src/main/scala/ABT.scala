@@ -1,6 +1,6 @@
 package org.unisonweb
 
-import org.unisonweb.util.{Functor, Traverse}
+import org.unisonweb.util.{Functor, Traverse, Monoid}
 
 sealed abstract class ABT[F[+_],+R] {
   import ABT._
@@ -44,17 +44,14 @@ object ABT {
     }
 
     /** Accumulate `B` values up the tree. `f` is only applied to leaf nodes of the tree (either `Var` or `Tm` with no children). */
-    def annotateUp[B](combine: (B,B) => B, zero: B)(f: AnnotatedTerm[F,A] => AnnotatedTerm[F,B])(implicit F: Traverse[F]): AnnotatedTerm[F,(A,B)] = {
-       get.map(_.annotateUp(combine, zero)(f)) match {
+    def annotateUp[B](f: AnnotatedTerm[F,A] => AnnotatedTerm[F,B])(B: Monoid[B])(implicit F: Traverse[F]): AnnotatedTerm[F,B] = {
+       get.map(_.annotateUp(f)(B)) match {
          case abt @ Tm_(t) =>
            val children = F.toVector(t)
-           if (children.isEmpty) f(this).map(b => (annotation, b))
-           else {
-             val b = children.foldLeft(zero) { case (b, tm) => combine(b, tm.annotation._2) }
-             AnnotatedTerm((annotation, b), abt)
-           }
-         case Var_(_) => f(this).map(b => (annotation,b))
-         case abt@Abs_(name, body) => AnnotatedTerm(annotation -> body.annotation._2, abt)
+           if (children.isEmpty) f(this)
+           else AnnotatedTerm(B.reduce(children.map(_.annotation)), abt)
+         case Var_(_) => f(this)
+         case abt@Abs_(name, body) => AnnotatedTerm(body.annotation, abt)
        }
     }
 
@@ -62,23 +59,38 @@ object ABT {
      * Applies `f` to all leaf nodes (either vars or Tm nodes with no children),
      * then accumulates the values up the tree.
      */
-    def foldMap[B](f: AnnotatedTerm[F,A] => B)(combine: (B,B) => B, zero: B)(
+    def foldMap[B](f: AnnotatedTerm[F,A] => B)(B: Monoid[B])(
         implicit F: Traverse[F]): B =
-      get.map(_.foldMap(f)(combine, zero)) match {
+      get.map(_.foldMap(f)(B)) match {
          case abt @ Tm_(t) =>
            val children = F.toVector(t)
            if (children.isEmpty) f(this)
-           else children.foldLeft(zero)(combine)
+           else B.reduce(children)
          case Var_(_) => f(this)
          case Abs_(name, b) => b
       }
 
     /** Apply `f` to `this`, and then recursively to the children of the resulting term. */
-    def rewriteDown(f: AnnotatedTerm[F,A] => AnnotatedTerm[F,A])(implicit F: Functor[F]): AnnotatedTerm[F,A] =
-      f(this) match {
+    def rewriteDown(f: AnnotatedTerm[F,A] => AnnotatedTerm[F,A])(
+      implicit F: Functor[F]): AnnotatedTerm[F,A] = f(this) match {
         case AnnotatedTerm(ann, abt) => AnnotatedTerm(ann, abt.map(_ rewriteDown f))
       }
 
+    def rewriteUp(f: AnnotatedTerm[F,A] => AnnotatedTerm[F,A])(
+      implicit F: Traverse[F]): AnnotatedTerm[F,A] = get match {
+         case abt @ Tm_(t) =>
+           val children = F.toVector(t)
+           if (children.isEmpty) f(this)
+           else f(AnnotatedTerm(annotation, Tm_(F.map(t) { _ rewriteUp f })))
+         case Var_(_) => f(this)
+         case abt@Abs_(name, body) =>
+           f(AnnotatedTerm(annotation, ABT.Abs_(name, body.rewriteUp(f))))
+       }
+
+    /**
+     * Like `rewriteDown`, but the function `f` receives state `S` which is
+     * updated while moving down the tree.
+     */
     def rewriteDownS[S](s: S)(f: (S,AnnotatedTerm[F,A]) => (S,AnnotatedTerm[F,A]))(
       implicit F: Functor[F]): AnnotatedTerm[F,A] =
       f(s, this) match { case (s, AnnotatedTerm(ann,abt)) =>
