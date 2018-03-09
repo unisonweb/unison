@@ -19,14 +19,18 @@ sealed abstract class Critbyte[A] {
       case Some(old) => insert(key, combine(old,value))
     }
 
-  /** All keys in this map have this prefix. Satisfies `this.prefixedBy(prefix) == this`. */
+  /**
+   * All keys in this map have this prefix.
+   * Satisfies `x.prefixedBy(x.prefix) == x`.
+   */
   def prefix: Bytes.Seq
 
   def foldLeft[B](z: B)(f: (B,(Bytes.Seq,A)) => B): B
 
   /** Right-preferring union (if `key` exists in `this`, use its value). */
-  def union(b: Critbyte[A]): Critbyte[A] = b.foldLeft(this)((buf, kv) => buf insert (kv._1, kv._2))
-  // todo more efficient impl
+  def union(b: Critbyte[A]): Critbyte[A] =
+    // TODO: more efficient impl
+    b.foldLeft(this)((buf, kv) => buf insert (kv._1, kv._2))
 
   def isEmpty: Boolean = this match {
     case Leaf(None) => true
@@ -39,6 +43,7 @@ sealed abstract class Critbyte[A] {
   def keys: List[Bytes.Seq] = foldLeft(List[Bytes.Seq]()) {
     case (bs, (k, _)) => k :: bs
   }.reverse
+
 }
 
 object Critbyte {
@@ -158,10 +163,9 @@ object Critbyte {
         if (sdi >= critbyte) // prefix matches query up to critbyte
           if (key.size == critbyte) this // tree prefix = query
           else children(unsigned(key(critbyte))).prefixedBy(key)
-
+        // if query matches up to `sdi` and is only `sdi` bytes long,
+        // it's a prefix of this tree's keys.
         else if (key.size == sdi) this
-        // if they differ only because query doesn't have a byte at `sdi`, want all
-
         else empty // sdi < critbyte and key.size > sdi
           // the bytes after sdi won't match anything here
       }

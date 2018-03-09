@@ -49,6 +49,14 @@ object CritbyteTests {
         expect1 (keys.filter(prefix isPrefixOf _) == cb.prefixedBy(prefix).keys)
       }
       ok
+    },
+
+    test("prefixedBy.prefix") { implicit T =>
+      0 until 25 foreach { i =>
+        val cb = genCritbytes(i, int)
+        expect1(cb.prefixedBy(cb.prefix) == cb)
+      }
+      ok
     }
   )
 
