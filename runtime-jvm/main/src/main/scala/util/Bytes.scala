@@ -56,6 +56,9 @@ object Bytes {
 
   case class Seq(bytes: Seq.Base, c: Canonical) {
 
+    def <=(other: Seq): Boolean =
+      (this min other) eq this
+
     def take(n: Int): Seq = Seq(bytes.take(n), c)
 
     // this is slower than it needs to be but we don't care, not called except for testing
