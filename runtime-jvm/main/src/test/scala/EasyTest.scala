@@ -221,7 +221,7 @@ object EasyTest {
       }
     }}
     bg.start
-    println("STARTING TESTS, raw output to follow ... ")
+    println(s"STARTING TESTS with prefix '$prefix', raw output to follow ... ")
     println("--------------------------------------------------\n")
     try t.run
     catch {

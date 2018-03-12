@@ -4,7 +4,7 @@ import org.unisonweb.EasyTest._
 
 object UtilTests {
 
-  lazy val tests = scope("util") {
+  val tests = scope("util") {
     suite(DequeTests.tests,
           SequenceTests.tests,
           BytesTests.tests,
@@ -12,10 +12,3 @@ object UtilTests {
           CritbyteTests.tests)
   }
 }
-
-object RunUtilTests {
-  def main(args: Array[String]) =
-    //run()(UtilTests.tests)
-    run(prefix = "util.Critbyte")(UtilTests.tests)
-}
-
