@@ -39,7 +39,7 @@ object Bytes {
     }
   }
 
-  private def mkCanonical = new Canonical(Seq.empty, new Array[Canonical](256))
+  private def mkCanonical = new Canonical(Seq.emptyBase, new Array[Canonical](256))
   private var ref = new java.lang.ref.WeakReference(mkCanonical)
 
   def Canonical = {
@@ -52,7 +52,28 @@ object Bytes {
     else r
   }
 
+  def unsigned(b: Byte): Int = b & 0xff
+
   case class Seq(bytes: Seq.Base, c: Canonical) {
+
+    def <=(other: Seq): Boolean =
+      (this min other) eq this
+
+    def take(n: Int): Seq = Seq(bytes.take(n), c)
+
+    // this is slower than it needs to be but we don't care, not called except for testing
+    def toVector: Vector[Byte] =
+      (0 until size).foldLeft(Vector.empty[Byte])((buf,i) => buf :+ apply(i))
+
+    /** Lexicographical minimum, assuming unsigned bytes. */
+    def min(b2: Seq): Seq = {
+      val sdi = this.smallestDifferingIndex(b2)
+      if (sdi >= this.size) this
+      else if (sdi >= b2.size) b2
+      else if (unsigned(this(sdi)) < unsigned(b2(sdi))) this
+      else b2
+    }
+
     def size = bytes.size
     def :+(b: Byte) = Seq(bytes :+ (b, c), c)
     def apply(i: Int) = bytes(i)
@@ -81,16 +102,25 @@ object Bytes {
     }
 
     override lazy val hashCode = (0 until size).map(apply(_)).hashCode
+    override def toString =
+      "[" + toVector.map(_.formatted("%02x")).mkString(":") + "]"
   }
 
   object Seq {
-    def empty: Base = One(Array())
 
-    case object OutOfBounds extends Throwable { override def fillInStackTrace = this }
-    case object NotFound extends Throwable { override def fillInStackTrace = this }
+    def empty: Seq = Seq(emptyBase, Canonical)
+
+    def apply(bytes: scala.collection.Seq[Byte]): Seq =
+      bytes.foldLeft(empty)(_ :+ _)
+
+    def emptyBase: Base = One(Array())
+
+    case object OutOfBounds extends Throwable
+    case object NotFound extends Throwable
 
     sealed abstract class Base {
       def size: Int
+      def take(n: Int): Base
       def :+(b: Byte, c: Canonical): Base
       def apply(i: Int): Byte
       def canonicalize(c: Canonical): Base
@@ -100,6 +130,7 @@ object Bytes {
 
     case class One(get: Array[Byte]) extends Base {
       def size = get.length
+      def take(n: Int) = One(get.take(n))
       def :+(b: Byte, c: Canonical) =
         if (size == 8) Two(c.canonicalize(get), One(Array(b)))
         else One(get :+ b)
@@ -132,6 +163,10 @@ object Bytes {
     // satisfies invariant that left is always in canonical form and is a complete tree
     case class Two(left: Base, right: Base) extends Base {
       val size = left.size + right.size
+      def take(n: Int) =
+        if (n > left.size) Two(left, right.take(n - left.size))
+        else if (n == left.size) left
+        else left.take(n)
       def canonicalize(c: Canonical) = {
         val cright = right.canonicalize(c)
         if (cright eq right) this

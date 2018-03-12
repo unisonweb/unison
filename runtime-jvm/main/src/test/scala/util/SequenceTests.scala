@@ -6,7 +6,7 @@ object SequenceTests {
 
   val S = Sequence
 
-  lazy val tests = suite("Sequence")(
+  val tests = suite("Sequence")(
     test("basic examples") { implicit T =>
       expect { S(1) == S(1) }
       expect { S(1) ++ S(1) == S(1,1) }

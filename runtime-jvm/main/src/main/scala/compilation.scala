@@ -87,8 +87,7 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
   def normalize(builtins: Name => Computation)(e: Term): Term = {
     val c = compile(builtins)(e)
     val r = Result()
-    val x = Value(c(null, r), r.boxed).decompile
-    // val x = Term.etaNormalForm(Value(c(null, r), r.boxed).decompile)
+    val x = Term.etaNormalForm(Value(c(null, r), r.boxed).decompile)
     Term.fullyDecompile(x)
   }
 

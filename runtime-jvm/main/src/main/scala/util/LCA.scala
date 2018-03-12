@@ -15,4 +15,10 @@ case class LCA[A](union: Set[A], lcas: Set[A]) {
 object LCA {
   def single[A](a: A): LCA[A] = LCA(Set(a), Set())
   def empty[A]: LCA[A] = LCA(Set(), Set())
+
+  implicit def Monoid[A]: Monoid[LCA[A]] = new Monoid[LCA[A]] {
+    type T = LCA[A]
+    val id = empty[A]
+    def op(t1: T, t2: T) = t1 combine t2
+  }
 }
