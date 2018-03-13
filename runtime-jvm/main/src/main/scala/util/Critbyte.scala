@@ -32,6 +32,8 @@ sealed abstract class Critbyte[A] {
     // TODO: more efficient impl
     b.foldLeft(this)((buf, kv) => buf insert (kv._1, kv._2))
 
+  def unionWith(b: Critbyte[A]): Critbyte[A]
+
   def isEmpty: Boolean = this match {
     case Leaf(None) => true
     case _ => false
@@ -124,6 +126,11 @@ object Critbyte {
       case Leaf(Some((k,v))) => "(" + k + ", " + v + ")"
     }
 
+    def unionWith(b: Critbyte[A])(f: (A, A) => A) = entry match {
+      None => b
+      Some((k,v)) => b.insertAccumulate(k, v)(f)
+    }
+
   }
 
   private def byteAt(i: Int, b: Bytes.Seq): Int =
@@ -137,6 +144,40 @@ object Critbyte {
       children: Array[Critbyte[A]]) extends Critbyte[A] {
 
     lazy val prefix = smallestKey.take(critbyte)
+
+    def unionWith(b: Critbyte[A])(f: (A, A) => A) = b match {
+      case l@Leaf(_) => l.unionWith(b)(f)
+      case Branch(cb, sk, r, ch) => try {
+        val sdi = sk smallestDifferingIndex smallestKey
+        if (sdi < critbyte && sdi < cb)
+          // The union has a new, shorter prefix
+          Branch(sdi, smallestKey min sk,
+                 emptyChildArray.updated(unsigned(smallestKey(sdi)), this)
+                                .updated(unsigned(sk(sdi)), b))
+        else if (critbyte < sdi && sdi < cb)
+          // The whole tree `b` belongs under one of the children of this branch
+          copy(smallestKey = smallestKey min sk,
+               children =
+                 children.updated(unsigned(critbyte),
+                                  children(unsigned(critbyte)).unionWith(b)(f)))
+        else if (cb < sdi && sdi < critbyte)
+          // This whole branch belongs under one of the children of `b`
+          copy(smallestKey = smallestKey min sk,
+               children =
+                 children.updated(unsigned(cb),
+                                  children(unsigned(cb)).unionWith(this)(f)))
+        // Cases to consider:
+        // * sdi is exactly cb or critbyte
+        //   * the smallest key of one belongs as a leaf of the other
+        //
+        // * sdi is after both cb and critbyte
+      } catch { case Bytes.Seq.NotFound =>
+        // Smallest key of both sides is the same
+        runt.unionWith(r)(f).unionWith(children.foldLeft(b) { (acc, c) =>
+          acc.unionWith(c)(f)
+        })
+      }
+    }
 
     def foldLeft[B](z: B)(f: (B,(Bytes.Seq,A)) => B): B =
       children.foldLeft(runt.foldLeft(z)(f))((b, child) => child.foldLeft(b)(f))
