@@ -162,13 +162,13 @@ object Critbyte {
             Branch(sdi, smallestKey min sk, emptyLeaf,
                    emptyChildArray[A].updated(unsigned(smallestKey(sdi)), this)
                                      .updated(unsigned(sk(sdi)), b))
-          else if (critbyte < sdi && sdi < cb)
+          else if (critbyte < sdi && sdi <= cb || critbyte == sdi && sdi < cb)
             // The whole tree `b` belongs under one of this branch's children
             copy(smallestKey = smallestKey min sk,
                  children =
                    children.updated(critbyte,
                                     children(critbyte).unionWith(b)(f)))
-          else if (cb < sdi && sdi < critbyte)
+          else if (cb < sdi && sdi <= critbyte || cb == sdi && sdi < critbyte)
             // This whole branch belongs under one of the children of `b`
             copy(smallestKey = smallestKey min sk,
                  children =
@@ -189,7 +189,7 @@ object Critbyte {
                    newChildren).unionWith(otherRunt)(f)
           }
           else
-            // The two trees are indistinquishable at this level
+            // The sdi of smallest keys is after both critbytes, telling us nothing.
             worstCase
         } catch { case Bytes.Seq.NotFound() =>
           // The smallest key of both trees is the same
