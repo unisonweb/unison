@@ -29,9 +29,12 @@ sealed abstract class Critbyte[A] {
 
   /** Right-preferring union (if `key` exists in `b`, use its value). */
   def union(b: Critbyte[A]): Critbyte[A] =
-    //b.foldLeft(this)((buf, kv) => buf insert (kv._1, kv._2))
     unionWith(b)((_, a) => a)
 
+  /**
+   * Join two `Critbyte` maps and combine values under equal keys
+   * using the function `f`.
+   */
   def unionWith(b: Critbyte[A])(f: (A, A) => A): Critbyte[A]
 
   def isEmpty: Boolean = this match {
@@ -177,9 +180,13 @@ object Critbyte {
             0 until children.size foreach { i =>
               newChildren(i) = children(i).unionWith(ch(i))(f)
             }
-            val newRunt = if ((sk min smallestKey) == sk) r else runt
+            val (newRunt, otherRunt) =
+              if ((sk min smallestKey) == sk) (r, runt) else (runt, r)
             val newSmallest = sk min smallestKey
-            Branch(critbyte, newSmallest, newRunt, newChildren).unionWith(r)(f)
+            Branch(critbyte,
+                   newSmallest,
+                   newRunt,
+                   newChildren).unionWith(otherRunt)(f)
           }
           else
             worstCase
