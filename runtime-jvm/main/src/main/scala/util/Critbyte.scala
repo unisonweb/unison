@@ -163,8 +163,7 @@ object Critbyte {
                    emptyChildArray[A].updated(unsigned(smallestKey(sdi)), this)
                                      .updated(unsigned(sk(sdi)), b))
           else if (critbyte < sdi && sdi < cb)
-            // The whole tree `b` belongs under one of the children
-            // of this branch
+            // The whole tree `b` belongs under one of this branch's children
             copy(smallestKey = smallestKey min sk,
                  children =
                    children.updated(critbyte,
