@@ -175,6 +175,7 @@ object Critbyte {
                    children.updated(cb,
                                     children(cb).unionWith(this)(f)))
           else if (sdi >= critbyte && critbyte == cb) {
+            // The two trees have the same prefix
             val newChildren = emptyChildArray[A].clone
             0 until children.size foreach { i =>
               newChildren(i) = children(i).unionWith(ch(i))(f)
@@ -188,9 +189,10 @@ object Critbyte {
                    newChildren).unionWith(otherRunt)(f)
           }
           else
+            // The two trees are indistinquishable at this level
             worstCase
         } catch { case Bytes.Seq.NotFound() =>
-          // Smallest key of both sides is the same
+          // The smallest key of both trees is the same
           worstCase
         }
     }
