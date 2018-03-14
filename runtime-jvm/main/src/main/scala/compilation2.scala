@@ -1,7 +1,7 @@
 package org.unisonweb
 
 import Term.{Term,Name}
-import compilation.{CurrentRec, RecursiveVars}
+import compilation.{CurrentRec, RecursiveVars, IsTail, IsNotTail}
 
 object compilation2 {
 
@@ -38,23 +38,23 @@ object compilation2 {
   abstract class Push1U { def apply(arr: Array[U], u: U): Array[U] }
   abstract class Push1B { def apply(arr: Array[B], u: B): Array[B] }
 
-  def push1U(env: Vector[Name], e: Term): Push1U =
+  def push1U(env: Vector[Name], freeVars: Set[Name]): Push1U =
     // if x3 is garbage or we no longer care about it, avoid setting
-    if (env.length < K || !Term.freeVars(e).contains(env(K - 1))) new Push1U {
+    if (env.length < K || !freeVars.contains(env(K - 1))) new Push1U {
       def apply(arr: Array[U], u: U) = arr
     }
     else new Push1U { val i = env.length - K; def apply(arr: Array[U], u: U) = { arr(i) = u; arr } }
 
-  def push1B(env: Vector[Name], e: Term): Push1B =
+  def push1B(env: Vector[Name], freeVars: Set[Name]): Push1B =
     // if x3 is garbage or we no longer care about it, avoid setting
-    if (env.length < K || !Term.freeVars(e).contains(env(K - 1))) new Push1B {
+    if (env.length < K || !freeVars.contains(env(K - 1))) new Push1B {
       def apply(arr: Array[B], b: B) = arr
     }
     else new Push1B { val i = env.length - K; def apply(arr: Array[B], b: B) = { arr(i) = b; arr } }
 
   def compile(builtins: Name => Computation)(
-      e: Term, env: Vector[Name], currentRec: CurrentRec, recs: RecursiveVars,
-      isTail: Boolean): Computation =
+    e: Term, env: Vector[Name], currentRec: CurrentRec, recVars: RecursiveVars,
+    isTail: Boolean): Computation =
     e match {
       case Term.Num(n) => new Computation(e) {
         def apply(rec: Lambda, x1: U, x2: U, x3: U, x4: U, stackU: Array[U],
@@ -70,11 +70,11 @@ object compilation2 {
       }
       case Term.Var(name) => compileVar(e, name, env, currentRec)
       case Term.Let1(name, b, body) =>
-        val cb = compile(builtins)(b, env, currentRec, recs, isTail = false)
+        val cb = compile(builtins)(b, env, currentRec, recVars, isTail = false)
         val cbody = compile(builtins)(body, name +: env, currentRec.shadow(name),
-                            recs - name, isTail)
-        val pushU = push1U(env, body)
-        val pushB = push1B(env, body)
+                            recVars - name, isTail)
+        val pushU = push1U(env, Term.freeVars(body))
+        val pushB = push1B(env, Term.freeVars(body))
         new Computation(e) {
           def apply(rec: Lambda, x0: U, x1: U, x2: U, x3: U, stackU: Array[U],
                                  x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B],
@@ -95,11 +95,11 @@ object compilation2 {
         }
         else {
           val compiledFrees: Map[Name,Computation] =
-            (freeVars -- recs.get).view.map {
+            (freeVars -- recVars.get).view.map {
               name => (name, compileVar(Term.Var(name), name, env, currentRec))
             }.toMap
           val compiledFreeRecs: Map[Name,ParamLookup] =
-            freeVars.intersect(recs.get).view.map {
+            freeVars.intersect(recVars.get).view.map {
               name => (name, compileRef(Term.Var(name), name, env, currentRec))
             }.toMap
           new Computation(e) {
@@ -142,7 +142,7 @@ object compilation2 {
 
       case Term.Apply(Term.Apply(fn, args), args2) =>
         compile(builtins)(Term.Apply(fn, (args ++ args2):_*), env,
-                          currentRec, recs, isTail)
+                          currentRec, recVars, isTail)
       case Term.Apply(fn, args) =>
         // static call, fully saturated
         // static call, underapplied
@@ -150,10 +150,51 @@ object compilation2 {
         // self call, fully saturated
         // dynamic call
         ???
-      case Term.LetRec(bindings, body) =>
-        ???
+      case Term.LetRec(List((name, binding)), body) =>
+        // 1. compile the body
+        // 2. compile all of the bindings into an Array[Computation]
+        // 3. construct the Computation
+
+        val cbinding = binding match {
+          case l@Term.Lam(argNames, bindingBody) =>
+            val newCurrentRec = CurrentRec(name, argNames.size).shadow(argNames)
+            if (hasTailRecursiveCall(newCurrentRec, bindingBody))
+              // construct the wrapper lambda to catch the SelfTailCalls
+              ???
+            else // compile the lambda as Normal
+              compile(builtins)(l, name +: env, newCurrentRec, recVars + name, IsNotTail)
+          case b => // not a lambda, not recursive, could have been a Let1
+            compile(builtins)(Term.Let1(name, binding)(body), env, currentRec, recVars, IsNotTail)
+        }
+
+        val cbody = compile(builtins)(body, name +: env, currentRec.shadow(name), recVars + name, isTail)
+
+        val pushU = push1U(env, Term.freeVars(body) ++ Term.freeVars(binding))
+        val pushB = push1B(env, Term.freeVars(body) ++ Term.freeVars(binding))
+
+        // this
+        new Computation(e) {
+          override def apply(rec: Lambda, x0: U, x1: U, x2: U, x3: U, stackU: Array[U],
+                                          x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B], r: R): U = {
+            lazy val evaledBinding: Ref =
+              // eval(cbinding, rec, U0,            x0, x1, x2, pushU(stackU, x3),
+              //                     evaledBinding, x0b, x1b, x2b, pushB(stackB, x3b))
+              // this might be the general case; for let rec 1, probably can do something simpler?
+              // todo: later, can we avoid putting this onto the stack at all? maybe by editing environment
+              new Ref(name, () => Value(eval(cbinding, rec, x0, x1, x2, x3, stackU,
+                                                            x0b, x1b, x2b, x3b, stackB, r), r.boxed))
+
+            eval(cbody, rec, U0,            x0, x1, x2, pushU(stackU, x3),
+                             evaledBinding, x0b, x1b, x2b, pushB(stackB, x3b), r)
+
+          }
+        }
+
+      case Term.LetRec(bindings, body) => ???
     }
 
+  def hasTailRecursiveCall(rec: CurrentRec, term: Term): Boolean = ???
+  
   @inline
   def eval(c: Computation, rec: Lambda,
            x0: U,  x1: U,  x2: U,  x3: U,  stackU: Array[U],
