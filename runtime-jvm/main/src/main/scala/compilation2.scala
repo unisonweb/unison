@@ -5,6 +5,7 @@ import Term.{Term,Name}
 object compilation2 {
 
   type U = Double // unboxed values
+  val U0: U = 0.0
   type B = Param // boxed values
   type R = Result
 
@@ -70,15 +71,15 @@ object compilation2 {
   abstract class Push1B { def apply(arr: Array[B], u: B): Array[B] }
 
   def push1U(env: Vector[Name], e: Term): Push1U =
-    // if x3 is garbage or we no longer care about it, avoid pushing todo - revisit
-    if (env.length < K /*|| !Term.freeVars(e).contains(env(3))*/) new Push1U {
+    // if x3 is garbage or we no longer care about it, avoid setting
+    if (env.length < K || !Term.freeVars(e).contains(env(K - 1))) new Push1U {
       def apply(arr: Array[U], u: U) = arr
     }
     else new Push1U { val i = env.length - K; def apply(arr: Array[U], u: U) = { arr(i) = u; arr } }
 
   def push1B(env: Vector[Name], e: Term): Push1B =
-    // if x3 is garbage or we no longer care about it, avoid pushing
-    if (env.length < K /*|| !Term.freeVars(e).contains(env(3))*/) new Push1B {
+    // if x3 is garbage or we no longer care about it, avoid setting
+    if (env.length < K || !Term.freeVars(e).contains(env(K - 1))) new Push1B {
       def apply(arr: Array[B], b: B) = arr
     }
     else new Push1B { val i = env.length - K; def apply(arr: Array[B], b: B) = { arr(i) = b; arr } }
@@ -89,9 +90,10 @@ object compilation2 {
       case Term.Num(n) => new Computation(e) {
         def apply(rec: Lambda, x1: U, x2: U, x3: U, x4: U, stackU: Array[U],
                                x1b: B, x2b: B, x3b: B, x4b: B, stackB: Array[B],
-                               r: R): U = n
+                               r: R): U = { r.boxed = null; n } // todo - think through whether can elide
       }
       case Term.Builtin(name) => builtins(name)
+      // case Compiled(param) => Return(param.toValue)
       case ABT.Tm(Term.F.Compiled2_(c)) => Return(c.toValue)
       case Term.Self(name) => new Computation(e) {
         def apply(rec: Lambda, x0: U, x1: U, x2: U, x3: U, stackU: Array[U],
@@ -104,14 +106,11 @@ object compilation2 {
         val cbody = compile(builtins)(body, name +: env, isTail)
         val pushU = push1U(env, body)
         val pushB = push1B(env, body)
-        // todo - compute pushU and pushB during compilation
         new Computation(e) {
           def apply(rec: Lambda, x0: U, x1: U, x2: U, x3: U, stackU: Array[U],
                                  x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B],
                                  r: R): U = {
-            // todo - handle tail calls here
-            val rb = cb(rec, x0, x1, x2, x3, stackU,
-                             x0b, x1b, x2b, x3b, stackB, r)
+            val rb = eval(cb, rec, x0, x1, x2, x3, stackU, x0b, x1b, x2b, x3b, stackB, r)
             val rbb = r.boxed
             cbody(rec, rb, x0, x1, x2, pushU(stackU, x3),
                        rbb, x0b, x1b, x2b, pushB(stackB, x3b), r)
@@ -139,17 +138,21 @@ object compilation2 {
     }
 
   @inline
-  def pushU(s: Array[U], i: Int)(u: U): Array[U] = {
-    if (i < 4) s
-    else { s(i - 4) = u; s } // todo: perhaps just s(i), so no arithmetic
-  }
-  @inline
-  def pushB(s: Array[B], i: Int)(v: B): Array[B] = {
-    if (i < 4) s
-    else { s(i - 4) = v; s }
-  }
+  def eval(c: Computation, rec: Lambda,
+           x0: U,  x1: U,  x2: U,  x3: U,  stackU: Array[U],
+           x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B],
+           r: R): U =
+    try c(rec, x0, x1, x2, x3, stackU, x0b, x1b, x2b, x3b, stackB, r)
+    catch { case TailCall => loop(r) }
 
-  val U0 = 0.0
+  def loop(r: R): U = {
+    while (true) {
+      try return r.tailCall.body(r.tailCall, r.x0, r.x1, r.x2, r.x3, r.stackU,
+                                 r.x0b, r.x1b, r.x2b, r.x3b, r.stackB, r)
+      catch { case TailCall => }
+    }
+    U0
+  }
 
   abstract class Param {
     def toValue: Value
@@ -172,6 +175,8 @@ object compilation2 {
   case object TailCall extends Throwable { override def fillInStackTrace = this }
 
   case class Result(var boxed: Value,
-                    var f: Lambda, var x1: U, var x2: U, var xs: Array[U],
-                                   var x1b: B, var x2b: B, var xsb: Array[B])
+                    var tailCall: Lambda,
+                    // Tail call arguments
+                    var x0: U, var x1: U, var x2: U, var x3: U, var stackU: Array[U],
+                    var x0b: B, var x1b: B, var x2b: B, var x3b: B, var stackB: Array[B])
 }
