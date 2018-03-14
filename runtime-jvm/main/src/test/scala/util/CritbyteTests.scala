@@ -57,6 +57,23 @@ object CritbyteTests {
         expect1(cb.prefixedBy(cb.prefix) == cb)
       }
       ok
+    },
+
+    test("union") { implicit T =>
+      0 until 25 foreach { i =>
+        val x = genCritbytes(intIn(0, i), int)
+        val y = genCritbytes(intIn(0, i), int)
+        val u = x union y
+        note("x keys: " + x.keys)
+        note("y keys: " + y.keys)
+        note("u keys: " + u.keys)
+        equal1(u.keys.sorted, (x.keys union y.keys).sorted)
+        y.keys.foreach(k => (for {
+          a <- u lookup k
+          b <- y lookup k
+        } yield equal1(a,b)) getOrElse ok)
+      }
+      ok
     }
   )
 
@@ -65,4 +82,5 @@ object CritbyteTests {
 
   def genCritbytes[A](size: => Int, a: => A)(implicit T: Env): Critbyte[A] =
     map(size, genBytes(intIn(0,256)), a).foldLeft(Critbyte.empty[A])((cb, kv) => cb insert (kv._1, kv._2))
+
 }

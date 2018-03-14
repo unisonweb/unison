@@ -27,12 +27,12 @@ sealed abstract class Critbyte[A] {
 
   def foldLeft[B](z: B)(f: (B,(Bytes.Seq,A)) => B): B
 
-  /** Right-preferring union (if `key` exists in `this`, use its value). */
+  /** Right-preferring union (if `key` exists in `b`, use its value). */
   def union(b: Critbyte[A]): Critbyte[A] =
-    // TODO: more efficient impl
-    b.foldLeft(this)((buf, kv) => buf insert (kv._1, kv._2))
+    //b.foldLeft(this)((buf, kv) => buf insert (kv._1, kv._2))
+    unionWith(b)((_, a) => a)
 
-  def unionWith(b: Critbyte[A]): Critbyte[A]
+  def unionWith(b: Critbyte[A])(f: (A, A) => A): Critbyte[A]
 
   def isEmpty: Boolean = this match {
     case Leaf(None) => true
@@ -111,7 +111,7 @@ object Critbyte {
             Branch(i, key min k, emptyLeaf, chirren)
           }
         }
-        catch { case Bytes.Seq.NotFound => leaf(k, value) }
+        catch { case Bytes.Seq.NotFound() => leaf(k, value) }
     }
 
     def remove(key: Bytes.Seq): Critbyte[A] = removeLeaf(key)
@@ -127,15 +127,15 @@ object Critbyte {
     }
 
     def unionWith(b: Critbyte[A])(f: (A, A) => A) = entry match {
-      None => b
-      Some((k,v)) => b.insertAccumulate(k, v)(f)
+      case None => b
+      case Some((k,v)) => b.insertAccumulate(k, v)(f)
     }
 
   }
 
   private def byteAt(i: Int, b: Bytes.Seq): Int =
     try unsigned(b(i))
-    catch { case Bytes.Seq.OutOfBounds => -1 }
+    catch { case Bytes.Seq.OutOfBounds() => -1 }
 
   case class Branch[A](
       critbyte: Int,
@@ -146,37 +146,47 @@ object Critbyte {
     lazy val prefix = smallestKey.take(critbyte)
 
     def unionWith(b: Critbyte[A])(f: (A, A) => A) = b match {
-      case l@Leaf(_) => l.unionWith(b)(f)
-      case Branch(cb, sk, r, ch) => try {
-        val sdi = sk smallestDifferingIndex smallestKey
-        if (sdi < critbyte && sdi < cb)
-          // The union has a new, shorter prefix
-          Branch(sdi, smallestKey min sk,
-                 emptyChildArray.updated(unsigned(smallestKey(sdi)), this)
-                                .updated(unsigned(sk(sdi)), b))
-        else if (critbyte < sdi && sdi < cb)
-          // The whole tree `b` belongs under one of the children of this branch
-          copy(smallestKey = smallestKey min sk,
-               children =
-                 children.updated(unsigned(critbyte),
-                                  children(unsigned(critbyte)).unionWith(b)(f)))
-        else if (cb < sdi && sdi < critbyte)
-          // This whole branch belongs under one of the children of `b`
-          copy(smallestKey = smallestKey min sk,
-               children =
-                 children.updated(unsigned(cb),
-                                  children(unsigned(cb)).unionWith(this)(f)))
-        // Cases to consider:
-        // * sdi is exactly cb or critbyte
-        //   * the smallest key of one belongs as a leaf of the other
-        //
-        // * sdi is after both cb and critbyte
-      } catch { case Bytes.Seq.NotFound =>
-        // Smallest key of both sides is the same
-        runt.unionWith(r)(f).unionWith(children.foldLeft(b) { (acc, c) =>
-          acc.unionWith(c)(f)
-        })
-      }
+      case l@Leaf(_) => l.unionWith(this)(f)
+      case Branch(cb, sk, r, ch) =>
+        def worstCase =
+          runt.unionWith(r)(f).unionWith(children.foldLeft(b) { (acc, c) =>
+            acc.unionWith(c)(f)
+          })(f)
+        try {
+          val sdi = sk smallestDifferingIndex smallestKey
+          if (sdi < critbyte && sdi < cb)
+            // The union has a new, shorter prefix
+            Branch(sdi, smallestKey min sk, emptyLeaf,
+                   emptyChildArray[A].updated(unsigned(smallestKey(sdi)), this)
+                                     .updated(unsigned(sk(sdi)), b))
+          else if (critbyte < sdi && sdi < cb)
+            // The whole tree `b` belongs under one of the children
+            // of this branch
+            copy(smallestKey = smallestKey min sk,
+                 children =
+                   children.updated(critbyte,
+                                    children(critbyte).unionWith(b)(f)))
+          else if (cb < sdi && sdi < critbyte)
+            // This whole branch belongs under one of the children of `b`
+            copy(smallestKey = smallestKey min sk,
+                 children =
+                   children.updated(cb,
+                                    children(cb).unionWith(this)(f)))
+          else if (sdi >= critbyte && critbyte == cb) {
+            val newChildren = emptyChildArray[A].clone
+            0 until children.size foreach { i =>
+              newChildren(i) = children(i).unionWith(ch(i))(f)
+            }
+            val newRunt = if ((sk min smallestKey) == sk) r else runt
+            val newSmallest = sk min smallestKey
+            Branch(critbyte, newSmallest, newRunt, newChildren).unionWith(r)(f)
+          }
+          else
+            worstCase
+        } catch { case Bytes.Seq.NotFound() =>
+          // Smallest key of both sides is the same
+          worstCase
+        }
     }
 
     def foldLeft[B](z: B)(f: (B,(Bytes.Seq,A)) => B): B =
@@ -190,7 +200,7 @@ object Critbyte {
         // sz > critbyte therefore key cannot match runt
         val descend =
           try key.smallestDifferingIndex(smallestKey) >= critbyte
-          catch { case Bytes.Seq.NotFound => true }
+          catch { case Bytes.Seq.NotFound() => true }
         if (descend)
           children(unsigned(key(critbyte))).lookup(key)
         else None
@@ -210,7 +220,7 @@ object Critbyte {
         else empty // sdi < critbyte and key.size > sdi
           // the bytes after sdi won't match anything here
       }
-      catch { case Bytes.Seq.NotFound => this }
+      catch { case Bytes.Seq.NotFound() => this }
 
 
     def insert(key: Bytes.Seq, value: A) = {
@@ -220,9 +230,11 @@ object Critbyte {
       // `sdi` is either the index of the first byte that differs between
       //        `key` and `smallestKey`, or it is the length of `key`,
       //        (because `key` is shorter than `smallestKey`).
-      val sdi = key smallestDifferingIndex smallestKey
+      val sdi =
+        try key smallestDifferingIndex smallestKey
+        catch { case Bytes.Seq.NotFound() => -1 }
 
-      if (sdi >= critbyte) {
+      if (sdi >= critbyte || sdi == -1) {
         // The new key belongs in this branch
         if (key.size == critbyte) {
           assert(runt.entry.forall(_._1 == key))
@@ -251,7 +263,7 @@ object Critbyte {
     def remove(key: Bytes.Seq) = {
       val descend =
         try ((key smallestDifferingIndex smallestKey) >= critbyte)
-        catch { case Bytes.Seq.NotFound => true }
+        catch { case Bytes.Seq.NotFound() => true }
 
       if (descend) {
         // key would be found in this branch; keep looking to remove
