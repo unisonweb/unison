@@ -121,6 +121,7 @@ object PrettyPrint {
     }
     case Var(name) => prettyName(name)
     case Builtin(name) => prettyName(name)
+    case Self(name) => prettyName(name)
     case Lam(names, body) => parenthesizeGroupIf(precedence > 0) {
       softbreaks(names.map(name => lit(name.toString))) <> " ->" <> softbreak <>
         prettyTerm(body, 0).nest("  ")
