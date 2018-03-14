@@ -331,6 +331,14 @@ object Term {
       case _ => None
     }
   }
+  object Compiled2 {
+    def apply(v: compilation2.Param): Term =
+      Tm(Compiled2_(v))
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[compilation2.Param] = t match {
+      case Tm(Compiled2_(p)) => Some(p)
+      case _ => None
+    }
+  }
 
   implicit class ApplySyntax(val fn: Term) extends AnyVal {
     def apply(args: Term*) = Apply(fn, args: _*)

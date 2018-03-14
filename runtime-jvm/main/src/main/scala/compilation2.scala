@@ -1,6 +1,7 @@
 package org.unisonweb
 
 import Term.{Term,Name}
+import compilation.{CurrentRec, RecursiveVars}
 
 object compilation2 {
 
@@ -16,9 +17,12 @@ object compilation2 {
                            x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B],
                            r: R): U
   }
+
   case class Return(v: Value) extends Computation(v.decompile) {
     val c = v match {
-      case Num(n) => compile(_ => ???)(Term.Num(n), Vector.empty, false)
+      case Num(n) =>
+        compile(_ => ???)(Term.Num(n), Vector.empty,
+                          CurrentRec.none, RecursiveVars.empty, false)
       case f : Lambda => new Computation(f.decompile) {
         def apply(rec: Lambda, x0: U, x1: U, x2: U, x3: U, stackU: Array[U],
                                x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B],
@@ -29,42 +33,6 @@ object compilation2 {
                            x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B],
                            r: R): U = c(rec, x0, x1, x2, x3, stackU,
                                              x0b, x1b, x2b, x3b, stackB, r)
-  }
-
-  // todo - could pass info here about the type of variable, whether it is boxed or
-  // unboxed, and optimize for this case
-  def compileVar(e: Term, name: Name, env: Vector[Name]): Computation = env.indexOf(name) match {
-    case -1 => sys.error("unbound name: " + name)
-    case 0 => new Computation(e) {
-      def apply(rec: Lambda, x0: U, x1: U, x2: U, x3: U, stackU: Array[U],
-                             x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B],
-                             r: R): U = { if (x0b ne null) r.boxed = x0b.toValue; x0 }
-
-    }
-    case 1 => new Computation(e) {
-      def apply(rec: Lambda, x0: U, x1: U, x2: U, x3: U, stackU: Array[U],
-                             x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B],
-                             r: R): U = { if (x1b ne null) r.boxed = x1b.toValue; x1 }
-
-    }
-    case 2 => new Computation(e) {
-      def apply(rec: Lambda, x0: U, x1: U, x2: U, x3: U, stackU: Array[U],
-                             x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B],
-                             r: R): U = { if (x2b ne null) r.boxed = x2b.toValue; x2 }
-
-    }
-    case 3 => new Computation(e) {
-      def apply(rec: Lambda, x0: U, x1: U, x2: U, x3: U, stackU: Array[U],
-                             x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B],
-                             r: R): U = { if (x3b ne null) r.boxed = x3b.toValue; x3 }
-
-    }
-    case n => val m = n - K; new Computation(e) {
-      def apply(rec: Lambda, x0: U, x1: U, x2: U, x3: U, stackU: Array[U],
-                             x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B],
-                             r: R): U = { if (stackB(m) ne null) r.boxed = stackB(m).toValue; stackU(m) }
-
-    }
   }
 
   abstract class Push1U { def apply(arr: Array[U], u: U): Array[U] }
@@ -85,7 +53,8 @@ object compilation2 {
     else new Push1B { val i = env.length - K; def apply(arr: Array[B], b: B) = { arr(i) = b; arr } }
 
   def compile(builtins: Name => Computation)(
-      e: Term, env: Vector[Name], isTail: Boolean): Computation =
+      e: Term, env: Vector[Name], currentRec: CurrentRec, recs: RecursiveVars,
+      isTail: Boolean): Computation =
     e match {
       case Term.Num(n) => new Computation(e) {
         def apply(rec: Lambda, x1: U, x2: U, x3: U, x4: U, stackU: Array[U],
@@ -93,17 +62,17 @@ object compilation2 {
                                r: R): U = { r.boxed = null; n } // todo - think through whether can elide
       }
       case Term.Builtin(name) => builtins(name)
-      // case Compiled(param) => Return(param.toValue)
-      case ABT.Tm(Term.F.Compiled2_(c)) => Return(c.toValue)
+      case Term.Compiled2(param) => Return(param.toValue)
       case Term.Self(name) => new Computation(e) {
         def apply(rec: Lambda, x0: U, x1: U, x2: U, x3: U, stackU: Array[U],
                                x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B],
                                r: R): U = { r.boxed = rec; U0 }
       }
-      case Term.Var(name) => compileVar(e, name, env)
+      case Term.Var(name) => compileVar(e, name, env, currentRec)
       case Term.Let1(name, b, body) =>
-        val cb = compile(builtins)(b, env, isTail = false)
-        val cbody = compile(builtins)(body, name +: env, isTail)
+        val cb = compile(builtins)(b, env, currentRec, recs, isTail = false)
+        val cbody = compile(builtins)(body, name +: env, currentRec.shadow(name),
+                            recs - name, isTail)
         val pushU = push1U(env, body)
         val pushB = push1B(env, body)
         new Computation(e) {
@@ -117,15 +86,63 @@ object compilation2 {
           }
         }
       case Term.Lam(names, body) =>
-        if (Term.freeVars(e).isEmpty) {
-          val cbody = compile(builtins)(body, names.reverse.toVector, isTail = true)
+        val freeVars = Term.freeVars(e)
+        // The lambda is closed
+        if (freeVars.isEmpty) {
+          val cbody = compile(builtins)(body, names.reverse.toVector,
+                              CurrentRec.none, RecursiveVars.empty, isTail = true)
           Return(Lambda(names.length, cbody, e))
         }
-        else
-          ???
-          // todo if e has any free vars, compile and substitute them away
+        else {
+          val compiledFrees: Map[Name,Computation] =
+            (freeVars -- recs.get).view.map {
+              name => (name, compileVar(Term.Var(name), name, env, currentRec))
+            }.toMap
+          val compiledFreeRecs: Map[Name,ParamLookup] =
+            freeVars.intersect(recs.get).view.map {
+              name => (name, compileRef(Term.Var(name), name, env, currentRec))
+            }.toMap
+          new Computation(e) {
+            def apply(rec: Lambda, x0: U, x1: U, x2: U, x3: U, stackU: Array[U],
+                                   x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B],
+                                   r: R): U = {
+              val evaledFreeVars: Map[Name, Term] = compiledFrees.mapValues {
+                c =>
+                  val evaluatedVar =
+                    c(rec, x0, x1, x2, x3, stackU, x0b, x1b, x2b, x3b, stackB, r)
+                  val value = Value(evaluatedVar, r.boxed)
+                  Term.Compiled2(value)
+              }
+
+              val evaledRecVars: Map[Name, Term] = compiledFreeRecs.transform {
+                (name, lookup) =>
+                  if (currentRec.contains(name)) Term.Self(name)
+                  else {
+                    val evaluatedVar = lookup(rec, x0b, x1b, x2b, x3b, stackB)
+                    if (evaluatedVar eq null) sys.error(name + " refers to null stack slot.")
+                    require (evaluatedVar.isRef)
+                    Term.Compiled2(evaluatedVar)
+                  }
+              }
+
+              val lam2 = Term.Lam(names: _*)(
+                body = ABT.substs(evaledFreeVars ++ evaledRecVars)(body)
+              )
+              assert(Term.freeVars(lam2).isEmpty)
+              r.boxed = compile(builtins)(
+                lam2, Vector(), CurrentRec.none, RecursiveVars.empty, false
+              ) match {
+                case Return(v) => v
+                case _ => sys.error("compiling a lambda with no free vars should always produce a Return")
+              }
+              U0
+            }
+          }
+        }
+
       case Term.Apply(Term.Apply(fn, args), args2) =>
-        compile(builtins)(Term.Apply(fn, (args ++ args2):_*), env, isTail)
+        compile(builtins)(Term.Apply(fn, (args ++ args2):_*), env,
+                          currentRec, recs, isTail)
       case Term.Apply(fn, args) =>
         // static call, fully saturated
         // static call, underapplied
@@ -156,15 +173,21 @@ object compilation2 {
 
   abstract class Param {
     def toValue: Value
+    def isRef: Boolean = false
   }
 
   class Ref(val name: Name, computeValue: () => Value) extends Param {
     lazy val value = computeValue()
     def toValue = value
+    override def isRef = true
   }
+
   abstract class Value extends Param {
     def toValue = this
     def decompile: Term
+  }
+  object Value {
+    def apply(u: U, b: Value): Value = if (b eq null) Num(u) else b
   }
   case class Num(n: U) extends Value {
     def decompile = Term.Num(n)
@@ -179,4 +202,82 @@ object compilation2 {
                     // Tail call arguments
                     var x0: U, var x1: U, var x2: U, var x3: U, var stackU: Array[U],
                     var x0b: B, var x1b: B, var x2b: B, var x3b: B, var stackB: Array[B])
+
+  // todo - could pass info here about the type of variable, whether it is boxed or
+  // unboxed, and optimize for this case
+  def compileVar(e: Term, name: Name, env: Vector[Name], currentRec: CurrentRec): Computation =
+    if (currentRec.contains(name)) new Computation(e) {
+      def apply(rec: Lambda, x0: U, x1: U, x2: U, x3: U, stackU: Array[U],
+                             x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B],
+                             r: R): U = { r.boxed = rec; U0 }
+
+    }
+    else env.indexOf(name) match {
+      case -1 => sys.error("unbound name: " + name)
+      case 0 => new Computation(e) {
+        def apply(rec: Lambda, x0: U, x1: U, x2: U, x3: U, stackU: Array[U],
+                               x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B],
+                               r: R): U = { if (x0b ne null) r.boxed = x0b.toValue; x0 }
+
+      }
+      case 1 => new Computation(e) {
+        def apply(rec: Lambda, x0: U, x1: U, x2: U, x3: U, stackU: Array[U],
+                               x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B],
+                               r: R): U = { if (x1b ne null) r.boxed = x1b.toValue; x1 }
+
+      }
+      case 2 => new Computation(e) {
+        def apply(rec: Lambda, x0: U, x1: U, x2: U, x3: U, stackU: Array[U],
+                               x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B],
+                               r: R): U = { if (x2b ne null) r.boxed = x2b.toValue; x2 }
+
+      }
+      case 3 => new Computation(e) {
+        def apply(rec: Lambda, x0: U, x1: U, x2: U, x3: U, stackU: Array[U],
+                               x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B],
+                               r: R): U = { if (x3b ne null) r.boxed = x3b.toValue; x3 }
+
+      }
+      case n => val m = n - K; new Computation(e) {
+        def apply(rec: Lambda, x0: U, x1: U, x2: U, x3: U, stackU: Array[U],
+                               x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B],
+                               r: R): U = { if (stackB(m) ne null) r.boxed = stackB(m).toValue; stackU(m) }
+
+      }
+    }
+
+  def compileRef(e: Term, name: Name, env: Vector[Name], currentRec: CurrentRec): ParamLookup = {
+    if (currentRec.contains(name)) new ParamLookup {
+      def apply(rec: Lambda, x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B]) =
+        rec
+    }
+    else env.indexOf(name) match {
+      case -1 => sys.error("unbound name: " + name)
+      case 0 => new ParamLookup {
+        def apply(rec: Lambda, x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B]) =
+          x0b
+      }
+      case 1 => new ParamLookup {
+        def apply(rec: Lambda, x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B]) =
+          x1b
+      }
+      case 2 => new ParamLookup {
+        def apply(rec: Lambda, x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B]) =
+          x2b
+      }
+      case 3 => new ParamLookup {
+        def apply(rec: Lambda, x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B]) =
+          x3b
+      }
+      case n => val m = n - K; new ParamLookup {
+        def apply(rec: Lambda, x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B]) =
+          stackB(m)
+      }
+    }
+  }
+
+  abstract class ParamLookup {
+    def apply(rec: Lambda, x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B]): B
+  }
+
 }

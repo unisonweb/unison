@@ -29,7 +29,7 @@ package compilation {
     def --(names: Seq[Name]): RecursiveVars = RecursiveVars(get.filterNot(names contains _))
   }
   object RecursiveVars {
-      def empty = RecursiveVars(Set())
+    def empty = RecursiveVars(Set())
   }
 }
 
