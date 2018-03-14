@@ -160,6 +160,7 @@ object Term {
     case class Self_(name: Name) extends F[Nothing]
     case class If0_[R](condition: R, ifZero: R, ifNonzero: R) extends F[R]
     case class Compiled_(value: Param) extends F[Nothing]
+    case class Compiled2_(value: compilation2.Param) extends F[Nothing]
     // yield : f a -> a|f
     case class Yield_[R](effect: R) extends F[R]
     // handle : (forall x . f x -> (x -> y|f+g) -> y|f+g) -> a|f+g -> a|g
@@ -170,7 +171,8 @@ object Term {
 
     implicit val instance: Traverse[F] = new Traverse[F] {
       override def map[A,B](fa: F[A])(f: A => B): F[B] = fa match {
-        case fa @ (Builtin_(_) | Num_(_) | Compiled_(_) | Self_(_)) => fa.asInstanceOf[F[B]]
+        case fa @ (Builtin_(_) | Num_(_) | Compiled_(_) | Compiled2_(_) | Self_(_)) =>
+          fa.asInstanceOf[F[B]]
         case Lam_(a) => Lam_(f(a))
         case Apply_(fn, args) =>
           val fn2 = f(fn); val args2 = args map f
