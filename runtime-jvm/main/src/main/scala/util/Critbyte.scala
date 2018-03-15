@@ -131,7 +131,7 @@ object Critbyte {
 
     def unionWith(b: Critbyte[A])(f: (A, A) => A) = entry match {
       case None => b
-      case Some((k,v)) => b.insertAccumulate(k, v)(f)
+      case Some((k,v)) => b.insertAccumulate(k, v)((x, y) => f(y, x))
     }
 
   }
@@ -149,7 +149,7 @@ object Critbyte {
     lazy val prefix = smallestKey.take(critbyte)
 
     def unionWith(b: Critbyte[A])(f: (A, A) => A) = b match {
-      case l@Leaf(_) => l.unionWith(this)(f)
+      case l@Leaf(_) => l.unionWith(this)((y,x) => f(x,y))
       case br@Branch(cb, sk, r, ch) =>
         val sdi =
           try sk smallestDifferingIndex smallestKey
@@ -194,40 +194,36 @@ object Critbyte {
 
         try {
           val sdi = sk smallestDifferingIndex smallestKey
-          if (sdi >= 0)
-            if (sdi < critbyte && sdi < cb)
-              // The union has a new, shorter prefix
-              newTopLevel
-            else if (critbyte < sdi && sdi <= cb || critbyte == sdi && sdi < cb)
-              // The whole tree `b` belongs under one of this branch's children
-              insertDown(this, br)
-            else if (cb < sdi && sdi <= critbyte || cb == sdi && sdi < critbyte)
-              // This whole branch belongs under one of the children of `b`
-              insertDown(br, this)
-            else if (sdi >= critbyte && critbyte == cb)
-              samePrefix
-            else
-              worstCase
-          else {
-            // The smallest keys of both trees is the same.
-            // Need to calculate the prefixes explicitly.
-            val p1 = prefix
-            val p2 = b.prefix
-            if (p1 == p2)
-              samePrefix
-            else if (p1 isProperPrefixOf p2)
-              insertDown(this, br)
-            else if (p2 isProperPrefixOf p1)
-              insertDown(br, this)
-            else if ({
-              val p = p1 longestCommonPrefix p2
-              p.size != p1.size && p.size != p2.size
-            }) newTopLevel
-            else worstCase
-          }
-        } catch { case Bytes.Seq.NotFound =>
-          // The smallest key of both trees is the same
-          worstCase
+          if (sdi < critbyte && sdi < cb)
+          // The union has a new, shorter prefix
+            newTopLevel
+          else if (critbyte < sdi && sdi <= cb || critbyte == sdi && sdi < cb)
+          // The whole tree `b` belongs under one of this branch's children
+            insertDown(this, br)
+          else if (cb < sdi && sdi <= critbyte || cb == sdi && sdi < critbyte)
+          // This whole branch belongs under one of the children of `b`
+            insertDown(br, this)
+          else if (sdi >= critbyte && critbyte == cb)
+            samePrefix
+          else
+            worstCase
+        }
+        catch { case Bytes.Seq.NotFound =>
+          // The smallest keys of both trees is the same.
+          // Need to calculate the prefixes explicitly.
+          val p1 = prefix
+          val p2 = b.prefix
+          if (p1 == p2)
+            samePrefix
+          else if (p1 isProperPrefixOf p2)
+            insertDown(this, br)
+          else if (p2 isProperPrefixOf p1)
+            insertDown(br, this)
+          else if ({
+            val p = p1 longestCommonPrefix p2
+            p.size != p1.size && p.size != p2.size
+          }) newTopLevel
+          else worstCase
         }
     }
 
