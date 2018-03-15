@@ -72,7 +72,7 @@ object Bytes {
       else if (sdi >= b2.size) b2
       else if (unsigned(this(sdi)) < unsigned(b2(sdi))) this
       else b2
-    } catch { case Bytes.Seq.NotFound() => this }
+    } catch { case Bytes.Seq.NotFound => this }
 
     def size = bytes.size
     def :+(b: Byte) = Seq(bytes :+ (b, c), c)
@@ -80,7 +80,15 @@ object Bytes {
 
     def isPrefixOf(s: Seq) =
       try smallestDifferingIndex(s) >= size
-      catch { case Seq.NotFound() => true } // they are equal
+      catch { case Seq.NotFound => true } // they are equal
+
+    def isProperPrefixOf(s: Seq) =
+      try smallestDifferingIndex(s) >= size
+      catch { case Seq.NotFound => false } // they are equal
+
+    def longestCommonPrefix(s: Seq): Bytes.Seq =
+      try take(smallestDifferingIndex(s))
+      catch { case Seq.NotFound => this }
 
     /** Returns the smallest index such that `this(i) != b(i)`,
       * and throws `NotFound` if the sequences are equal. */
@@ -89,10 +97,10 @@ object Bytes {
       else {
         var i = 0; var max = size max b.size; while (i < max) {
           try { if (this(i) != b(i)) return i }
-          catch { case Seq.OutOfBounds() => return i }
+          catch { case Seq.OutOfBounds => return i }
           i += 1
         }
-        throw Seq.NotFound()
+        throw Seq.NotFound
       }
 
     override def equals(a: Any) = {
@@ -115,8 +123,8 @@ object Bytes {
 
     def emptyBase: Base = One(Array())
 
-    case class OutOfBounds() extends Throwable
-    case class NotFound() extends Throwable
+    case object OutOfBounds extends Throwable
+    case object NotFound extends Throwable
 
     sealed abstract class Base {
       def size: Int
@@ -135,10 +143,10 @@ object Bytes {
         if (size == 8) Two(c.canonicalize(get), One(Array(b)))
         else One(get :+ b)
       def apply(i: Int) =
-        if (i < 0 || i >= get.length) throw OutOfBounds()
+        if (i < 0 || i >= get.length) throw OutOfBounds
         else get(i)
       def smallestDifferingIndex(b: Base): Int =
-        if (this eq b) throw NotFound()
+        if (this eq b) throw NotFound
         else b match {
           case Two(b1,b2) if (b1 eq this) => b1.size
           case _ =>
@@ -147,7 +155,7 @@ object Bytes {
               if (get(i) != b(i)) return i
               i += 1
             }
-            if (this.size == b.size) throw NotFound()
+            if (this.size == b.size) throw NotFound
             else i
         }
 
@@ -180,11 +188,11 @@ object Bytes {
         else right(i - left.size)
 
       def smallestDifferingIndex(b: Base): Int =
-        if (this eq b) throw NotFound()
+        if (this eq b) throw NotFound
         else b match {
           case Two(left2,right2) =>
             try left.smallestDifferingIndex(left2)
-            catch { case NotFound() => left.size + right.smallestDifferingIndex(right2) }
+            catch { case NotFound => left.size + right.smallestDifferingIndex(right2) }
           case One(a) => b.smallestDifferingIndex(this)
         }
 

@@ -64,14 +64,35 @@ object CritbyteTests {
         val x = genCritbytes(intIn(0, i), int)
         val y = genCritbytes(intIn(0, i), int)
         val u = x union y
-        note("x keys: " + x.keys)
-        note("y keys: " + y.keys)
-        note("u keys: " + u.keys)
+        note("x: " + x.toString)
+        note("y: " + y.toString)
+        note("u: " + u.toString)
         equal1(u.keys.sorted, (x.keys union y.keys).sorted)
-        y.keys.foreach(k => (for {
-          a <- u lookup k
-          b <- y lookup k
-        } yield equal1(a,b)) getOrElse ok)
+        u.keys.foreach { k =>
+          equal1(u.lookup(k), y.lookup(k) orElse x.lookup(k))
+        }
+      }
+      ok
+    },
+
+    test("union.associative") { implicit T =>
+      0 until 25 foreach { i =>
+        val x = genCritbytes(intIn(0, i), int)
+        val y = genCritbytes(intIn(0, i), int)
+        val z = genCritbytes(intIn(0, i), int)
+
+        equal1(((x union y) union z).toString,
+               (x union (y union z)).toString)
+      }
+      ok
+    },
+
+    test("unionWith.commutative") { implicit T =>
+      0 until 25 foreach { i =>
+        val x = genCritbytes(intIn(0, i), int)
+        val y = genCritbytes(intIn(0, i), int)
+
+        equal1(x.unionWith(y)(_ + _).toString, y.unionWith(x)(_ + _).toString)
       }
       ok
     }
