@@ -102,6 +102,15 @@ object CritbyteTests {
         equal1(x.unionWith(y)(_ + _).toString, y.unionWith(x)(_ + _).toString)
       }
       ok
+    },
+
+    test("unionWith.identity") { implicit T =>
+      0 until 25 foreach { i =>
+        val x = genCritbytes(intIn(0, i), int)
+        equal1(x union Critbyte.empty, x)
+        equal1(Critbyte.empty union x, x)
+      }
+      ok
     }
   )
 
