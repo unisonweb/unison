@@ -60,7 +60,7 @@ object CritbyteTests {
     },
 
     test("union") { implicit T =>
-      0 until 25 foreach { i =>
+      0 until 250 foreach { i =>
         val x = genCritbytes(intIn(0, i), 'x)
         val y = genCritbytes(intIn(0, i), 'y)
         val u = x union y
@@ -76,7 +76,7 @@ object CritbyteTests {
     },
 
     test("union.associative") { implicit T =>
-      0 until 25 foreach { i =>
+      0 until 250 foreach { i =>
         val x = genCritbytes(intIn(0, i), 'x)
         val y = genCritbytes(intIn(0, i), 'y)
         val z = genCritbytes(intIn(0, i), 'z)
@@ -95,7 +95,7 @@ object CritbyteTests {
     },
 
     test("unionWith.commutative") { implicit T =>
-      0 until 25 foreach { i =>
+      0 until 250 foreach { i =>
         val x = genCritbytes(intIn(0, i), int)
         val y = genCritbytes(intIn(0, i), int)
 

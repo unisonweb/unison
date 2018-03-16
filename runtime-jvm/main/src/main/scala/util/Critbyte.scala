@@ -183,13 +183,11 @@ object Critbyte {
           0 until children.size foreach { i =>
             newChildren(i) = children(i).unionWith(ch(i))(f)
           }
-          val (newRunt, otherRunt) =
-            if ((sk min smallestKey) == sk) (r, runt) else (runt, r)
           val newSmallest = sk min smallestKey
           Branch(critbyte,
                  newSmallest,
-                 newRunt,
-                 newChildren).unionWith(otherRunt)(f)
+                 runt.unionWith(r)(f).asInstanceOf[Leaf[A]],
+                 newChildren)
         }
 
         try {
@@ -280,8 +278,10 @@ object Critbyte {
         } else {
           assert(key.size > critbyte)
           val critValue = unsigned(key(critbyte))
-          copy(children =
-            children.updated(critValue, children(critValue).insert(key, value)))
+          copy(
+            smallestKey = newSmallestKey,
+            children =
+              children.updated(critValue, children(critValue).insert(key, value)))
         }
       } else {
         // The new key has an earlier critbyte and we need a new top-level
