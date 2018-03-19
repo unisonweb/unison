@@ -43,10 +43,14 @@ object CritbyteTests {
     test("prefixedBy.homomorphism") { implicit T =>
       0 until 25 foreach { i =>
         val cb = genCritbytes(i, int)
+        note("cb: " + cb)
         val keys = cb.keys
         val k = keys.drop(intIn(0,i)).headOption.getOrElse(Bytes.Seq.empty)
+        note("k: " + k)
         val prefix = k.take(intIn(0, k.size))
-        expect1 (keys.filter(prefix isPrefixOf _) == cb.prefixedBy(prefix).keys)
+        note("prefix: " + prefix)
+        note("cb prefixedBy prefix: " + cb.prefixedBy(prefix))
+        equal1(keys.filter(prefix isPrefixOf _), cb.prefixedBy(prefix).keys)
       }
       ok
     },
