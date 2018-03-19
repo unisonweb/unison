@@ -8,28 +8,23 @@ object GraphCodec {
 
   // def decode[A](make: (Array[Byte])): A
 
-  def encode[A](expand: A => (Array[Byte], Sequence[A])): A => Sequence[Byte] = {
+  case class Skipstream(prefix: Array[Byte], children: Sequence[Skipstream], size: Long)
+
+  def encode[A](expand: A => (Array[Byte], Sequence[A])): A => Skipstream = {
     root => {
       val m = new mutable.HashMap[Pointer[A], Position]
       def ref(pos: Position): Array[Byte] = ??? // todo
-      // emits s.size, followed by the bytes
-      def sized(s: Sequence[Byte]): Sequence[Byte] = ???
 
-      def go(pos: Position, a: A): Sequence[Byte] = {
+      def go(pos: Position, a: A): Skipstream = {
         val ptr = new Pointer(a)
         m.get(ptr) match {
           case None =>
             m.update(ptr, pos)
             val (prefix0, children) = expand(a)
-            val prefix = sized(Bytes.viewArray(prefix0))
             var pos1 = pos
-            val body = children.foldLeft(prefix) { (buf, a) =>
-              pos1 = pos + buf.size
-              buf ++ go(pos1, a)
-            }
-            sized(body)
+            Skipstream(prefix0, children.map(a => { val s = go(pos, a); pos1 += s.size; s }), pos1)
           case Some(pos) =>
-            Bytes.viewArray(ref(pos))
+            Skipstream(ref(pos), Sequence.empty, ???)
         }
       }
       go(0, root)
