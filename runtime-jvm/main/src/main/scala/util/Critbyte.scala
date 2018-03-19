@@ -27,10 +27,15 @@ sealed abstract class Critbyte[A] {
 
   def foldLeft[B](z: B)(f: (B,(Bytes.Seq,A)) => B): B
 
-  /** Right-preferring union (if `key` exists in `this`, use its value). */
+  /** Right-preferring union (if `key` exists in `b`, use its value). */
   def union(b: Critbyte[A]): Critbyte[A] =
-    // TODO: more efficient impl
-    b.foldLeft(this)((buf, kv) => buf insert (kv._1, kv._2))
+    unionWith(b)((_, a) => a)
+
+  /**
+   * Join two `Critbyte` maps and combine values under equal keys
+   * using the function `f`.
+   */
+  def unionWith(b: Critbyte[A])(f: (A, A) => A): Critbyte[A]
 
   def isEmpty: Boolean = this match {
     case Leaf(None) => true
@@ -124,6 +129,11 @@ object Critbyte {
       case Leaf(Some((k,v))) => "(" + k + ", " + v + ")"
     }
 
+    def unionWith(b: Critbyte[A])(f: (A, A) => A) = entry match {
+      case None => b
+      case Some((k,v)) => b.insertAccumulate(k, v)((x, y) => f(y, x))
+    }
+
   }
 
   private def byteAt(i: Int, b: Bytes.Seq): Int =
@@ -137,6 +147,83 @@ object Critbyte {
       children: Array[Critbyte[A]]) extends Critbyte[A] {
 
     lazy val prefix = smallestKey.take(critbyte)
+
+    def unionWith(b: Critbyte[A])(f: (A, A) => A) = b match {
+      case l@Leaf(_) => l.unionWith(this)((y,x) => f(x,y))
+      case br@Branch(cb, sk, r, ch) =>
+        val sdi =
+          try sk smallestDifferingIndex smallestKey
+          catch { case Bytes.Seq.NotFound => -1 }
+
+        // The sdi of smallest keys is after both critbytes, telling us nothing.
+        def worstCase =
+          runt.unionWith(r)(f).unionWith(children.foldLeft(b) { (acc, c) =>
+            acc.unionWith(c)(f)
+          })(f)
+
+        // The union has a new, shorter prefix
+        def newTopLevel =
+          Branch(sdi, smallestKey min sk, emptyLeaf,
+                 emptyChildArray[A].updated(unsigned(smallestKey(sdi)), this)
+                                   .updated(unsigned(sk(sdi)), b))
+
+        // All the elements in one tree belong under a child of the other
+        def insertDown(c1: Branch[A], c2: Branch[A]) =
+          c1.copy(
+            smallestKey = c1.smallestKey min c2.smallestKey,
+            children =
+              c1.children.updated(
+                c1.critbyte,
+                c1.children(
+                  unsigned(c2.smallestKey(c1.critbyte))).unionWith(c2)(f)))
+
+        // The two trees have the same prefix
+        def samePrefix = {
+          val newChildren = emptyChildArray[A].clone
+          0 until children.size foreach { i =>
+            newChildren(i) = children(i).unionWith(ch(i))(f)
+          }
+          val newSmallest = sk min smallestKey
+          Branch(critbyte,
+                 newSmallest,
+                 runt.unionWith(r)(f).asInstanceOf[Leaf[A]],
+                 newChildren)
+        }
+
+        try {
+          val sdi = sk smallestDifferingIndex smallestKey
+          if (sdi < critbyte && sdi < cb)
+          // The union has a new, shorter prefix
+            newTopLevel
+          else if (critbyte < sdi && sdi <= cb || critbyte == sdi && sdi < cb)
+          // The whole tree `b` belongs under one of this branch's children
+            insertDown(this, br)
+          else if (cb < sdi && sdi <= critbyte || cb == sdi && sdi < critbyte)
+          // This whole branch belongs under one of the children of `b`
+            insertDown(br, this)
+          else if (sdi >= critbyte && critbyte == cb)
+            samePrefix
+          else
+            worstCase
+        }
+        catch { case Bytes.Seq.NotFound =>
+          // The smallest keys of both trees is the same.
+          // Need to calculate the prefixes explicitly.
+          val p1 = prefix
+          val p2 = b.prefix
+          if (p1 == p2)
+            samePrefix
+          else if (p1 isProperPrefixOf p2)
+            insertDown(this, br)
+          else if (p2 isProperPrefixOf p1)
+            insertDown(br, this)
+          else if ({
+            val p = p1 longestCommonPrefix p2
+            p.size != p1.size && p.size != p2.size
+          }) newTopLevel
+          else worstCase
+        }
+    }
 
     def foldLeft[B](z: B)(f: (B,(Bytes.Seq,A)) => B): B =
       children.foldLeft(runt.foldLeft(z)(f))((b, child) => child.foldLeft(b)(f))
@@ -179,9 +266,11 @@ object Critbyte {
       // `sdi` is either the index of the first byte that differs between
       //        `key` and `smallestKey`, or it is the length of `key`,
       //        (because `key` is shorter than `smallestKey`).
-      val sdi = key smallestDifferingIndex smallestKey
+      val sdi =
+        try key smallestDifferingIndex smallestKey
+        catch { case Bytes.Seq.NotFound => -1 }
 
-      if (sdi >= critbyte) {
+      if (sdi >= critbyte || sdi == -1) {
         // The new key belongs in this branch
         if (key.size == critbyte) {
           assert(runt.entry.forall(_._1 == key))
@@ -189,8 +278,10 @@ object Critbyte {
         } else {
           assert(key.size > critbyte)
           val critValue = unsigned(key(critbyte))
-          copy(children =
-            children.updated(critValue, children(critValue).insert(key, value)))
+          copy(
+            smallestKey = newSmallestKey,
+            children =
+              children.updated(critValue, children(critValue).insert(key, value)))
         }
       } else {
         // The new key has an earlier critbyte and we need a new top-level
