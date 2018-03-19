@@ -250,13 +250,18 @@ object Critbyte {
         if (sdi >= critbyte) // prefix matches query up to critbyte
           if (key.size == critbyte) this // tree prefix = query
           else children(unsigned(key(critbyte))).prefixedBy(key)
-        // if query matches up to `sdi` and is only `sdi` bytes long,
-        // it's a prefix of this tree's keys.
-        else if (key.size == sdi) this
-        else empty // sdi < critbyte and key.size > sdi
+        else {
+          // sdi < critbyte and key.size > sdi
           // the bytes after sdi won't match anything here
+          assert(key.size > sdi)
+          empty
+        }
       }
-      catch { case Bytes.Seq.NotFound => this }
+      catch { case Bytes.Seq.NotFound =>
+        if (key.size > critbyte)
+          children(unsigned(key(critbyte))).prefixedBy(key)
+        else this
+      }
 
 
     def insert(key: Bytes.Seq, value: A) = {
