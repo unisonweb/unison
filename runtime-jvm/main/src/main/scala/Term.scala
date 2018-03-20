@@ -74,6 +74,7 @@ object Term {
 
   /** Converts self refs within lambdas to regular named let recs. */
   def selfToLetRec(t: Term): Term = {
+    assert(Term.freeVars(t).isEmpty)
     val t2 = t.rewriteDown {
       case Term.Self(name) => Term.Var(name)
       case t => t
@@ -81,7 +82,7 @@ object Term {
       case t@Lam(names, body) => Term.freeVars(t).toList match {
         case Nil => t
         case rec :: Nil => LetRec(rec -> t)(t)
-        case recs => sys.error("more than one recursive var in scope: " + recs)
+        case recs => t // this can happen if `t` has already been fullyDecompile'd
       }
       case t => t
     }.annotateFree
