@@ -54,7 +54,7 @@ object compilation2 {
   case object TailCall extends Throwable { override def fillInStackTrace = this }
 
 
-  case class Result(var boxed: Value, var tailCall: Lambda, argsStart: StackPtr, stackArgsCount: Int,
+  case class Result(var boxed: Value, var tailCall: Lambda, var argsStart: StackPtr, var stackArgsCount: Int,
                     var x1: U, var x0: U, var x1b: B, var x0b: B)
 
   import Value.Lambda
@@ -195,13 +195,15 @@ object compilation2 {
     }
   }
 
-  def compileStaticFullySaturatedNontailCall(e: Term, lam: Lambda, body: Computation, compiledArgs: List[Computation]) =
+  def compileStaticFullySaturatedNontailCall(e: Term, lam: Lambda, body: Computation, compiledArgs: List[Computation]): Computation {
+    def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U
+  } =
     compiledArgs match {
       case List(arg) => new Computation(e) {
         def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U = {
           val argv = eval(arg, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
           val argvb = r.boxed
-          body(r, rec, top, stackU, U0, argv, stackB, null, argvb)
+          body(r, lam, top, stackU, U0, argv, stackB, null, argvb)
         }
       }
       case List(arg1, arg2) => new Computation(e) {
@@ -210,7 +212,7 @@ object compilation2 {
           val argv1b = r.boxed
           val argv2 = eval(arg2, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
           val argv2b = r.boxed
-          body(r, rec, top, stackU, argv1, argv2, stackB, argv1b, argv2b)
+          body(r, lam, top, stackU, argv1, argv2, stackB, argv1b, argv2b)
         }
       }
       case args =>
@@ -230,9 +232,56 @@ object compilation2 {
             val argv1b = r.boxed
             val argv2 = eval(argsArray(argsArray.length-1), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
             val argv2b = r.boxed
-            body(r, rec, top.increment(argsArray.length - K), stackU, argv1, argv2, stackB, argv1b, argv2b)
+            body(r, lam, top.increment(argsArray.length - K), stackU, argv1, argv2, stackB, argv1b, argv2b)
         }
       }
+    }
+
+  def compileStaticFullySaturatedTailCall(e: Term, lam: Lambda, compiledArgs: List[Computation]): Computation =
+    compiledArgs match {
+      case List(arg) => new Computation(e) {
+        def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U = {
+          r.x0 = eval(arg, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          r.x0b = r.boxed
+          r.stackArgsCount = 0
+          r.tailCall = lam
+          throw TailCall
+        }
+      }
+      case List(arg1, arg2) => new Computation(e) {
+        def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U = {
+          r.x1 = eval(arg1, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          r.x1b = r.boxed
+          r.x0 = eval(arg2, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          r.x0b = r.boxed
+          r.stackArgsCount = 0
+          r.tailCall = lam
+          throw TailCall
+        }
+      }
+      case args =>
+        new Computation(e) {
+          val argsArray = args.toArray
+          def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U = {
+            assert(K == 2) // rewrite all the cases if K is different.
+
+            @annotation.tailrec def go(offset: Int): Unit =
+              if (offset < argsArray.length - K) {
+                top.pushU(stackU, offset, eval(argsArray(offset), r, rec, top, stackU, x1, x0, stackB, x1b, x0b))
+                top.pushB(stackB, offset, r.boxed)
+                go(offset + 1)
+              }
+
+            r.x1 = eval(argsArray(argsArray.length-2), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+            r.x1b = r.boxed
+            r.x0 = eval(argsArray(argsArray.length-1), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+            r.x0b = r.boxed
+            r.argsStart = top.increment(1)
+            r.stackArgsCount = argsArray.length - K
+            r.tailCall = lam
+            throw TailCall
+          }
+        }
     }
 
   def compile(builtins: Name => Computation)(
@@ -327,11 +376,20 @@ object compilation2 {
         val cfn: Computation = compile(builtins)(fn, env, currentRec, recVars, IsNotTail)
 
         cfn match {
-          // static non-tail call, fully saturated
-          //   ex: let x = (x -> x + 1) 1; x
-          //               ^^^^^^^^^^^^^^
+
           case Return(lam@Lambda(arity, body, _)) if arity == args.length =>
-            compileStaticFullySaturatedNontailCall(e, lam, body, compiledArgs)
+            if (isTail)
+              // static tail call, fully saturated
+              //   (x -> x+4) 42
+              //   ^^^^^^^^^^^^^
+              compileStaticFullySaturatedTailCall(e, lam, compiledArgs)
+            else
+              // static non-tail call, fully saturated
+              //   ex: let x = (x -> x + 1) 1; x
+              //               ^^^^^^^^^^^^^^
+              compileStaticFullySaturatedNontailCall(e, lam, body, compiledArgs)
+
+
 
           // self non-tail call, fully saturated
           //   ex: let rec fib n = if n < 2 then n else fib (n - 1) + fib (n - 2)
@@ -348,10 +406,6 @@ object compilation2 {
           // dynamic call
           //   ex: let apply f x = f x; ...
           //                       ^^^^
-
-          // static tail call, fully saturated
-          //   (x -> x+4) 42
-          //   ^^^^^^^^^^^^^
           case _ => ???
         }
 
@@ -538,14 +592,17 @@ object compilation2 {
   def loop(r: R, top: StackPtr, stackU: Array[U], stackB: Array[B]): U = {
     while (true) {
       try {
+        // We've just caught a tail call - the arguments for the tail call are in `r`.
+        // We copy these arguments to the current stack
         System.arraycopy(stackU, r.argsStart.toInt, stackU, top.toInt, r.stackArgsCount)
         System.arraycopy(stackB, r.argsStart.toInt, stackB, top.toInt, r.stackArgsCount)
-        // todo: not sure if we want to do this
+        // ... and then null out the rest of the stack past the last argument
+        // (todo: this is correct but maybe excessive - could be lazier or more targeted about nulling out the stack)
         java.util.Arrays.fill(
           stackB.asInstanceOf[Array[AnyRef]],
           top.toInt + r.stackArgsCount,
-          r.argsStart.toInt + r.stackArgsCount,
-          null)
+          stackB.length, null)
+
         return r.tailCall.body(r, r.tailCall, top.increment(r.stackArgsCount), stackU, r.x1, r.x0, stackB, r.x1b, r.x0b)
       }
       catch {
