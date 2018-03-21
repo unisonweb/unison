@@ -1,5 +1,9 @@
 package org.unisonweb.util
 
+import org.unisonweb.Term
+import org.unisonweb.Term._
+
+
 sealed abstract class PrettyPrint {
   import PrettyPrint._
 
@@ -89,8 +93,6 @@ object PrettyPrint {
   val semicolon = Breakable("; ")
   def semicolons(docs: Seq[PrettyPrint]): PrettyPrint = docs.reduce(_ <> semicolon <> _)
 
-  import org.unisonweb.Term._
-
   def prettyName(name: Name) = parenthesizeIf(isOperatorName(name))(name.toString)
 
   def prettyBinding(name: Name, term: Term): PrettyPrint = term match {
@@ -100,7 +102,9 @@ object PrettyPrint {
     case _ => name.toString <> " = " <> prettyTerm(term, 0)
   }
 
-  def prettyTerm(t: Term, precedence: Int = 0): PrettyPrint = t match {
+  def prettyTerm(t: Term): PrettyPrint = prettyTerm(Term.selfToLetRec(t), 0)
+
+  private def prettyTerm(t: Term, precedence: Int): PrettyPrint = t match {
     case Num(value) =>
       if (value == value.toLong)
         value.toLong.toString
@@ -121,6 +125,8 @@ object PrettyPrint {
     }
     case Var(name) => prettyName(name)
     case Builtin(name) => prettyName(name)
+    case Self(name) =>
+      sys.error("Self terms shouldn't exist after calling `Term.selfToLetRec`, which we do before calling this function.")
     case Lam(names, body) => parenthesizeGroupIf(precedence > 0) {
       softbreaks(names.map(name => lit(name.toString))) <> " ->" <> softbreak <>
         prettyTerm(body, 0).nest("  ")
