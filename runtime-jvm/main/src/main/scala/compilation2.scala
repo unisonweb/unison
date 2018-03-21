@@ -27,6 +27,9 @@ object compilation2 {
     def toValue: Value
     def isRef: Boolean = false
   }
+  object Param {
+    def apply(u: U, b: B): Param = if (b eq null) Value.Num(u) else b
+  }
 
   class Ref(val name: Name, computeValue: () => Value) extends Param {
     lazy val value = computeValue()
@@ -195,9 +198,7 @@ object compilation2 {
     }
   }
 
-  def compileStaticFullySaturatedNontailCall(e: Term, lam: Lambda, body: Computation, compiledArgs: List[Computation]): Computation {
-    def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U
-  } =
+  def compileStaticFullySaturatedNontailCall(e: Term, lam: Lambda, body: Computation, compiledArgs: List[Computation]): Computation =
     compiledArgs match {
       case List(arg) => new Computation(e) {
         def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U = {
@@ -217,7 +218,7 @@ object compilation2 {
       }
       case args =>
         new Computation(e) {
-          val argsArray = args.toArray
+          private val argsArray = args.toArray
           def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U = {
             assert(K == 2) // rewrite all the cases if K is different.
 
@@ -227,6 +228,7 @@ object compilation2 {
                 top.pushB(stackB, offset, r.boxed)
                 go(offset + 1)
               }
+            go(0)
 
             val argv1 = eval(argsArray(argsArray.length-2), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
             val argv1b = r.boxed
@@ -271,6 +273,7 @@ object compilation2 {
                 top.pushB(stackB, offset, r.boxed)
                 go(offset + 1)
               }
+            go(0)
 
             r.x1 = eval(argsArray(argsArray.length-2), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
             r.x1b = r.boxed
@@ -283,6 +286,114 @@ object compilation2 {
           }
         }
     }
+
+  def compileFullySaturatedSelfTailCall(e: Term, compiledArgs: List[Computation]): Computation =
+    compiledArgs match {
+      case List(arg) => new Computation(e) {
+        def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U = {
+          r.x0 = eval(arg, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          r.x0b = r.boxed
+          throw SelfCall
+        }
+      }
+      case List(arg1, arg2) => new Computation(e) {
+        def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U = {
+          r.x1 = eval(arg1, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          r.x1b = r.boxed
+          r.x0 = eval(arg2, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          r.x0b = r.boxed
+          throw SelfCall
+        }
+      }
+      case args => new Computation(e) {
+        private val argsArray = args.toArray
+        def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U = {
+          @annotation.tailrec def go(offset: Int): Unit =
+            if (offset < argsArray.length - K) {
+              top.pushU(stackU, offset, eval(argsArray(offset), r, rec, top, stackU, x1, x0, stackB, x1b, x0b))
+              top.pushB(stackB, offset, r.boxed)
+              go(offset + 1)
+            }
+          go(0)
+
+          r.x1 = eval(argsArray(argsArray.length-2), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          r.x1b = r.boxed
+          r.x0 = eval(argsArray(argsArray.length-1), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          r.x0b = r.boxed
+          throw SelfCall
+        }
+      }
+    }
+
+  def compileFullySaturatedSelfNontailCall(e: Term, compiledArgs: List[Computation]): Computation =
+    compiledArgs match {
+      case List(arg) => new Computation(e) {
+        def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U = {
+          val argv = eval(arg, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          val argvb = r.boxed
+          rec.body(r, rec, top, stackU, U0, argv, stackB, null, argvb)
+        }
+      }
+      case List(arg1, arg2) => new Computation(e) {
+        def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U = {
+          val argv1 = eval(arg1, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          val argv1b = r.boxed
+          val argv2 = eval(arg2, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          val argv2b = r.boxed
+          rec.body(r, rec, top, stackU, argv1, argv2, stackB, argv1b, argv2b)
+        }
+      }
+      case args =>
+        new Computation(e) {
+          private val argsArray = args.toArray
+          def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U = {
+            assert(K == 2) // rewrite all the cases if K is different.
+
+            @annotation.tailrec def go(offset: Int): Unit =
+              if (offset < argsArray.length - K) {
+                top.pushU(stackU, offset, eval(argsArray(offset), r, rec, top, stackU, x1, x0, stackB, x1b, x0b))
+                top.pushB(stackB, offset, r.boxed)
+                go(offset + 1)
+              }
+            go(0)
+
+            val argv1 = eval(argsArray(argsArray.length-2), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+            val argv1b = r.boxed
+            val argv2 = eval(argsArray(argsArray.length-1), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+            val argv2b = r.boxed
+            rec.body(r, rec, top.increment(argsArray.length - K), stackU, argv1, argv2, stackB, argv1b, argv2b)
+          }
+        }
+    }
+
+  def compileStaticUnderappliedCall(builtins: Name => Computation)(e: Term, lam: Lambda, compiledArgs: List[Computation]): Computation = {
+    val Term.Lam(names, body) = lam.decompile
+    val argCount = compiledArgs.length
+    val namesToSubst = names.take(argCount).toSet -- names.drop(argCount)
+    val remNames = names drop argCount
+    assert(argCount < lam.arity)
+    new Computation(e) {
+      def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U = {
+        @annotation.tailrec def go(i: Int, substs: Map[Name, Term]): Map[Name, Term] = {
+          if (i < argCount) {
+            val param =
+                Term.Compiled2(Param(eval(compiledArgs(i), r, rec, top, stackU, x1, x0, stackB, x1b, x0b), r.boxed))
+
+            go(i+1, substs.updated(names(i), param))
+          }
+          else substs
+        }
+        val substs = go(0, Map.empty)
+        val body2 = ABT.substs(substs)(body)
+        val lam2 = Term.Lam(remNames: _*)(body2)
+        r.boxed = compile(builtins)(lam2, Vector.empty, CurrentRec.none, RecursiveVars.empty, IsNotTail) match {
+          case Return(v) => v
+          case v => sys.error("a partially applied lambda should produce another lambda, instead got: " + v)
+        }
+        U0
+      }
+    }
+  }
 
   def compile(builtins: Name => Computation)(
     e: Term, env: Vector[Name], currentRec: CurrentRec, recVars: RecursiveVars,
@@ -377,143 +488,48 @@ object compilation2 {
 
         cfn match {
 
-          case Return(lam@Lambda(arity, body, _)) if arity == args.length =>
-            if (isTail)
+          case Return(lam@Lambda(arity, body, _)) =>
+            if (args.length == arity) {
               // static tail call, fully saturated
               //   (x -> x+4) 42
               //   ^^^^^^^^^^^^^
-              compileStaticFullySaturatedTailCall(e, lam, compiledArgs)
-            else
+              if (isTail)
+                compileStaticFullySaturatedTailCall(e, lam, compiledArgs)
+
               // static non-tail call, fully saturated
               //   ex: let x = (x -> x + 1) 1; x
               //               ^^^^^^^^^^^^^^
-              compileStaticFullySaturatedNontailCall(e, lam, body, compiledArgs)
+              else
+                compileStaticFullySaturatedNontailCall(e, lam, body, compiledArgs)
+            }
+            // static call, underapplied (no tail call variant - just returning immediately)
+            //   ex: (x y -> x) 42
+            //       ^^^^^^^^^^^^^
+            else if (args.length < arity)
+              compileStaticUnderappliedCall(builtins)(e, lam, compiledArgs)
 
+            // static call, overapplied
+            //   ex: (x -> x) (x -> x) (x -> x) 42
+            //       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            else ???
 
+          case Self(name) if currentRec.contains(name, args.length) =>
+            if (isTail)
+              compileFullySaturatedSelfTailCall(e, compiledArgs)
+            else
+              // self non-tail call, fully saturated
+              //   ex: let rec fib n = if n < 2 then n else fib (n - 1) + fib (n - 2)
+              //                                            ^^^^^^^^^^^   ^^^^^^^^^^^
+              compileFullySaturatedSelfNontailCall(e, compiledArgs)
 
-          // self non-tail call, fully saturated
-          //   ex: let rec fib n = if n < 2 then n else fib (n - 1) + fib (n - 2)
-          //                                            ^^^^^^^^^^^   ^^^^^^^^^^^
-
-          // static call, overapplied
-          //   ex: (x -> x) (x -> x) (x -> x) 42
-          //       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-          // static call, underapplied (no tail call variant - just returning immediately)
-          //   ex: (x y -> x) 42
-          //       ^^^^^^^^^^^^^
+          // what about a self tail call, underapplied? not a call - returns immediately
+            // a self
 
           // dynamic call
           //   ex: let apply f x = f x; ...
           //                       ^^^^
           case _ => ???
         }
-
-      /*
-
-        def compileDynamicCall(fn: Computation, args: Array[Computation], decompiled: Term): Computation =
-          new Computation(decompiled) {
-            override def apply(rec: Lambda, x0: U, x1: U, x2: U, x3: U, stackU: Array[U],
-                               x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B], r: R): U = {
-              val evaledLambda = {
-                fn(rec, x0, x1, x2, x3, stackU, x0b, x1b, x2b, x3b, stackB, r)
-                r.boxed.asInstanceOf[Lambda]
-              }
-              doDynamicCall(evaledLambda, args, r)
-            }
-          }
-
-        def doDynamicCall(lambda: Lambda, args: Array[Computation], r: R): U = ???
-
-        cfn match {
-          // static call, fully saturated
-          // todo: can we make this a macro?
-          case Return(lam@Lambda(arity, body, _)) if arity == args.length =>
-            compileStaticFullySaturatedCall(lam, body, compiledArgs)
-
-          // self call, fully saturated
-          case Self(v) if currentRec.contains(v, args.length) =>
-            compiledArgs match {
-              case List(arg0) => new Computation(e) {
-                override def apply(rec: Lambda, x0: U, x1: U, x2: U, x3: U, stackU: Array[U],
-                                   x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B], r: R): U = {
-                  val val0 = arg0(rec, x0, x1, x2, x3, stackU, x0b, x1b, x2b, x3b, stackB, r)
-                  val val0b = r.boxed
-
-                  rec.body(rec, val0, U0, U0, U0, stackU, val0b, null, null, null, stackB, r)
-                }
-              }
-
-              case List(arg0, arg1) => new Computation(e) {
-                override def apply(rec: Lambda, x0: U, x1: U, x2: U, x3: U, stackU: Array[U],
-                                   x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B], r: R): U = {
-                  val val0 = arg0(rec, x0, x1, x2, x3, stackU, x0b, x1b, x2b, x3b, stackB, r)
-                  val val0b = r.boxed
-                  val val1 = arg1(rec, x0, x1, x2, x3, stackU, x0b, x1b, x2b, x3b, stackB, r)
-                  val val1b = r.boxed
-
-                  rec.body(rec, val0, val1, U0, U0, stackU, val0b, val1b, null, null, stackB, r)
-                }
-              }
-
-              case List(arg0, arg1, arg2) => new Computation(e) {
-                override def apply(rec: Lambda, x0: U, x1: U, x2: U, x3: U, stackU: Array[U],
-                                   x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B], r: R): U = {
-                  val val0 = arg0(rec, x0, x1, x2, x3, stackU, x0b, x1b, x2b, x3b, stackB, r)
-                  val val0b = r.boxed
-                  val val1 = arg1(rec, x0, x1, x2, x3, stackU, x0b, x1b, x2b, x3b, stackB, r)
-                  val val1b = r.boxed
-                  val val2 = arg2(rec, x0, x1, x2, x3, stackU, x0b, x1b, x2b, x3b, stackB, r)
-                  val val2b = r.boxed
-                  rec.body(rec, val0, val1, val2, U0, stackU, val0b, val1b, val2b, null, stackB, r)
-                }
-              }
-
-              case List(arg0, arg1, arg2, arg3) => new Computation(e) {
-                override def apply(rec: Lambda, x0: U, x1: U, x2: U, x3: U, stackU: Array[U],
-                                   x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B], r: R): U = {
-                  val val0 = arg0(rec, x0, x1, x2, x3, stackU, x0b, x1b, x2b, x3b, stackB, r)
-                  val val0b = r.boxed
-                  val val1 = arg1(rec, x0, x1, x2, x3, stackU, x0b, x1b, x2b, x3b, stackB, r)
-                  val val1b = r.boxed
-                  val val2 = arg2(rec, x0, x1, x2, x3, stackU, x0b, x1b, x2b, x3b, stackB, r)
-                  val val2b = r.boxed
-                  val val3 = arg2(rec, x0, x1, x2, x3, stackU, x0b, x1b, x2b, x3b, stackB, r)
-                  val val3b = r.boxed
-                  rec.body(rec, val0, val1, val2, val3, stackU, val0b, val1b, val2b, val3b, stackB, r)
-                }
-              }
-
-              case arg0 :: arg1 :: arg2 :: arg3 :: rest => new Computation(e) {
-                override def apply(rec: Lambda, x0: U, x1: U, x2: U, x3: U, stackU: Array[U],
-                                   x0b: B, x1b: B, x2b: B, x3b: B, stackB: Array[B], r: R): U = {
-                  val val0 = arg0(rec, x0, x1, x2, x3, stackU, x0b, x1b, x2b, x3b, stackB, r)
-                  val val0b = r.boxed
-                  val val1 = arg1(rec, x0, x1, x2, x3, stackU, x0b, x1b, x2b, x3b, stackB, r)
-                  val val1b = r.boxed
-                  val val2 = arg2(rec, x0, x1, x2, x3, stackU, x0b, x1b, x2b, x3b, stackB, r)
-                  val val2b = r.boxed
-                  val val3 = arg3(rec, x0, x1, x2, x3, stackU, x0b, x1b, x2b, x3b, stackB, r)
-                  val val3b = r.boxed
-                  rec.body(rec, val0, val1, val2, val3, new Array[U](rec.maxBinderDepth - K),
-                    val0b, val1b, val2b, val3b, new Array[B](rec.maxBinderDepth - K), r)
-                }
-              }
-            }
-
-          // static call, overapplied
-          case Return(lam@Lambda(arity, body, decompiled)) if arity > args.length =>
-            val applied1 = compileStaticFullySaturatedCall(lam, body, compiledArgs.take(arity))
-            compileDynamicCall(applied1, compiledArgs.drop(arity).toArray, ???)
-
-
-          // static call, underapplied
-          case Return(lam@Lambda(arity, body, decompiled)) if arity < args.length => ???
-
-          // dynamic call
-          case _ => compileDynamicCall(cfn, compiledArgs.toArray, ???)
-        }
-      */
 
       case Term.LetRec(List((name, binding)), body) => ???
       /*
