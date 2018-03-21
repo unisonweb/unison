@@ -395,6 +395,30 @@ object compilation2 {
     }
   }
 
+  // in `f x`
+  // - evaluate `f`
+  // - notice `f` has arity 1, and that the call is in tail position
+  //    - issue tail call to `f`
+  // - if `f` has arity > 1
+  def dynamicCall(e: Term, fn: Computation, args: List[Computation], isTail: Boolean): Computation = {
+    new Computation(e) {
+      val argsArray = args.toArray
+      val argc = argsArray.size
+      def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U = {
+        val evalFn = { eval(fn, r, rec, top, stackU, x1, x0, stackB, x1b, x0b); r.boxed }.asInstanceOf[Lambda]
+        if (argc == evalFn.arity) {
+          // if isTail ?
+          if (argc == 1) ???
+          else if (argc == 2) ???
+          else ???
+        }
+        else if (argc < evalFn.arity) ???
+        else /* argsArray.size > evalFn.arity */ ???
+
+      }
+    }
+  }
+
   def compile(builtins: Name => Computation)(
     e: Term, env: Vector[Name], currentRec: CurrentRec, recVars: RecursiveVars,
     isTail: Boolean): Computation = {
@@ -511,7 +535,10 @@ object compilation2 {
             // static call, overapplied
             //   ex: (x -> x) (x -> x) (x -> x) 42
             //       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-            else ???
+            else {
+              val fn2: Computation = compileStaticFullySaturatedNontailCall(e, lam, body, compiledArgs.take(lam.arity))
+              dynamicCall(e, fn2, compiledArgs.drop(lam.arity), isTail)
+            }
 
           case Self(name) if currentRec.contains(name, args.length) =>
             if (isTail)
@@ -522,13 +549,10 @@ object compilation2 {
               //                                            ^^^^^^^^^^^   ^^^^^^^^^^^
               compileFullySaturatedSelfNontailCall(e, compiledArgs)
 
-          // what about a self tail call, underapplied? not a call - returns immediately
-            // a self
-
-          // dynamic call
+          // dynamic call, also catches self calls, underapplied (either in tail or non-tail position)
           //   ex: let apply f x = f x; ...
           //                       ^^^^
-          case _ => ???
+          case _ => dynamicCall(e, cfn, compiledArgs, isTail)
         }
 
       case Term.LetRec(List((name, binding)), body) => ???
