@@ -562,7 +562,7 @@ object compilation2 {
         val compiledLambda: Computation =
           compileLambda(builtins)(e, env, currentRec, recVars, names, body)
 
-        if (hasTailRecursiveCall(currentRec, lam))
+        if (hasTailRecursiveCall(currentRec.shadow(names), body))
           new Computation(e) {
             def apply(r: R, rec: Lambda, top: StackPtr,
                       stackU: Array[U], x1: U, x0: U,
@@ -791,7 +791,21 @@ object compilation2 {
     }
   }
 
-  def hasTailRecursiveCall(rec: CurrentRec, term: Term): Boolean = ???
+  def hasTailRecursiveCall(rec: CurrentRec, term: Term): Boolean =
+    !rec.isEmpty && (term match {
+      case Term.Apply(f, args) => f match {
+        case Term.Var(v) => rec.contains(v, args.length)
+        case Term.Self(v) => rec.contains(v, args.length)
+        case _ => false
+      }
+      case Term.LetRec(bindings, body) =>
+        hasTailRecursiveCall(rec.shadow(bindings.map(_._1)), body)
+      case Term.Let(bindings, body) =>
+        hasTailRecursiveCall(rec.shadow(bindings.map(_._1)), body)
+      case Term.If(_, t, f) =>
+        hasTailRecursiveCall(rec, t) || hasTailRecursiveCall(rec, f)
+      case _ => false
+  })
 
   @inline def eval(c: Computation, r: R, rec: Lambda, top: StackPtr,
                    stackU: Array[U], x1: U, x0: U,
