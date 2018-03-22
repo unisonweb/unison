@@ -19,7 +19,6 @@ object compilation2 {
     @inline def u(stackU: Array[U], envIndex: Int): U = stackU(top - envIndex + K - 1)
     @inline def b(stackB: Array[B], envIndex: Int): B = stackB(top - envIndex + K - 1)
     @inline def increment(by: Int) = new StackPtr(top+by)
-    @inline def incrementFloor(by: Int) = if (by < 0) this else increment(by)
     @inline def pushU(stackU: Array[U], i: Int, u: U): Unit = stackU(top + i + 1) = u
     @inline def pushB(stackB: Array[B], i: Int, b: B): Unit = stackB(top + i + 1) = b
   }
