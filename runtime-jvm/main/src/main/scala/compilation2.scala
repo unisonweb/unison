@@ -468,6 +468,18 @@ object compilation2 {
       case Term.Compiled2(param) => Return(param.toValue, e)
       case Term.Self(name) => new Self(name)
       case Term.Var(name) => compileVar(e, name, env, currentRec)
+      case Term.If(cond, t, f) =>
+        val ccond = compile(builtins)(cond, env, currentRec, recVars, IsNotTail)
+        val ct = compile(builtins)(t, env, currentRec, recVars, isTail)
+        val cf = compile(builtins)(f, env, currentRec, recVars, isTail)
+        new Computation(e) {
+          def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U = {
+            if (eval(ccond, r, rec, top, stackU, x1, x0, stackB, x1b, x0b) != U0)
+              ct(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+            else
+              cf(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          }
+        }
       case Term.Let1(name, b, body) =>
         val cb = compile(builtins)(b, env, currentRec, recVars, isTail = false)
         val cbody = compile(builtins)(body, name +: env, currentRec.shadow(name),

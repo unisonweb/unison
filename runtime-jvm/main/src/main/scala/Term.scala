@@ -160,6 +160,7 @@ object Term {
     case class Rec_[R](r: R) extends F[R]
     case class Self_(name: Name) extends F[Nothing]
     case class If0_[R](condition: R, ifZero: R, ifNonzero: R) extends F[R]
+    case class If_[R](condition: R, ifNonzero: R, ifZero: R) extends F[R]
     case class Compiled_(value: Param) extends F[Nothing]
     case class Compiled2_(value: compilation2.Param) extends F[Nothing]
     // yield : f a -> a|f
@@ -188,6 +189,9 @@ object Term {
         case If0_(c,a,b) =>
           val c2 = f(c); val a2 = f(a); val b2 = f(b)
           If0_(c2, a2, b2)
+        case If_(c,a,b) =>
+          val c2 = f(c); val a2 = f(a); val b2 = f(b)
+          If_(c2, a2, b2)
         case Handle_(h,b) =>
           val h2 = f(h); val b2 = f(b)
           Handle_(h2, b2)
@@ -314,6 +318,14 @@ object Term {
           case _ => if (bs.isEmpty) None else Some((bs.reverse, t))
         }
       go(List(), t)
+    }
+  }
+  object If {
+    def apply(cond: Term, isNot0: Term, is0: Term): Term =
+      Tm(If_(cond, isNot0, is0))
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[(AnnotatedTerm[F,A],AnnotatedTerm[F,A],AnnotatedTerm[F,A])] = t match {
+      case Tm(If_(cond, t, f)) => Some((cond, t, f))
+      case _ => None
     }
   }
   object If0 {
