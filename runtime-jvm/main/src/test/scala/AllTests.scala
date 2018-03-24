@@ -11,8 +11,11 @@ object AllTests {
 }
 
 object RunAllTests {
-  def main(args: Array[String]) = {
-    val prefix = if (args.length == 1) args(0) else ""
-    run(prefix = prefix)(AllTests.tests)
+  def main(args: Array[String]) = args match {
+    case Array(prefix) =>
+      run(prefix = prefix)(AllTests.tests)
+    case Array(seed, prefix) =>
+      run(seed = seed.toLong, prefix = prefix)(AllTests.tests)
+    case _ => run()(AllTests.tests)
   }
 }

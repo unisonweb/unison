@@ -138,6 +138,9 @@ object Deque {
   def fromArray[A](a: Array[A])(implicit A: Buffer.NewArray[A]): Deque[A] =
     fromBuffer(Buffer.fromArray(a), a.length)
 
+  def viewArray[A](a: Array[A])(implicit A: Buffer.NewArray[A]): Deque[A] =
+    fromBuffer(Buffer.viewArray(a), a.length)
+
   def empty[A]: Deque[A] = fromBuffer(Buffer.empty[A], 0)
 
   def single[A](a: A): Deque[A] = fromBuffer(Buffer.empty[A] :+ (0, a), 1)
