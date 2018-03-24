@@ -23,7 +23,7 @@ object Text {
 
   /** The empty `Text`, consists of no characters. */
   def empty: Text =
-    Sequence.Flat(Deque.fromBuffer(emptyBuffer, 0))
+    Sequence.Flat(Deque.fromBlock(emptyBlock, 0))
 
   /** Converts from `String` to `Text`. */
   def fromString(s: String): Text =
@@ -51,5 +51,5 @@ object Text {
     buf.toString
   }
 
-  def emptyBuffer: Buffer[Codepoint] = Buffer.viewArray(new Array[Codepoint](128))
+  def emptyBlock: Block[Codepoint] = Block.viewArray(new Array[Codepoint](128))
 }

@@ -7,7 +7,7 @@ object TextTests {
   lazy val tests = suite("Text")(
     test("Buffer.apply") { implicit T =>
       (0 until 100) foreach { n =>
-        val buf = Text.emptyBuffer
+        val buf = Text.emptyBlock
         val codepoints = replicate(n)(codepoint)
         (0 until n) foreach { i =>
           buf :+ (i, codepoints(i))
