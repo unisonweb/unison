@@ -541,7 +541,7 @@ object compilation2 {
     val r = Result()
     val us = new Array[U](1024)
     val bs = new Array[B](1024)
-    val cc = eval(c, r, null, new StackPtr(0), us, U0, U0, bs, null, null)
+    val cc = eval(c, r, null, new StackPtr(-1), us, U0, U0, bs, null, null)
     val x = Term.etaNormalForm(Value(cc, r.boxed).decompile)
     Term.fullyDecompile(x)
   }
@@ -841,12 +841,15 @@ object compilation2 {
   def loop(r: R, top: StackPtr, stackU: Array[U], stackB: Array[B]): U = {
     while (true) {
       try {
-        // We've just caught a tail call - the arguments for the tail call are in `r`.
-        // We copy these arguments to the current stack
-        System.arraycopy(stackU, r.argsStart.toInt, stackU, top.toInt, r.stackArgsCount)
-        System.arraycopy(stackB, r.argsStart.toInt, stackB, top.toInt, r.stackArgsCount)
+        // We've just caught a tail call - the arguments for the tail call are
+        // in `r`. We copy these arguments to the current stack.
+        System.arraycopy(stackU, r.argsStart.toInt, stackU,
+                         top.toInt + 1, r.stackArgsCount)
+        System.arraycopy(stackB, r.argsStart.toInt, stackB,
+                         top.toInt + 1, r.stackArgsCount)
         // ... and then null out the rest of the stack past the last argument
-        // (todo: this is correct but maybe excessive - could be lazier or more targeted about nulling out the stack)
+        // (todo: this is correct but maybe excessive - could be lazier or more
+        //  targeted about nulling out the stack)
         java.util.Arrays.fill(
           stackB.asInstanceOf[Array[AnyRef]],
           top.toInt + r.stackArgsCount + 1,
