@@ -22,7 +22,10 @@ object compilation2 {
       stackU(top - envIndex + K)
     @inline def b(stackB: Array[B], envIndex: Int): B =
       stackB(top - envIndex + K)
-    @inline def increment(by: Int) = new StackPtr(top+by)
+    @inline def increment(by: Int) = {
+      assert(by >= 0)
+      new StackPtr(top+by)
+    }
     @inline def pushU(stackU: Array[U], i: Int, u: U): Unit =
       stackU(top + i + 1) = u
     @inline def pushB(stackB: Array[B], i: Int, b: B): Unit =
@@ -452,13 +455,18 @@ object compilation2 {
       }
     go(0)
 
-    val argv1 = eval(args(args.length-2), r, rec, top, stackU,
-                     x1, x0, stackB, x1b, x0b)
-    val argv1b = r.boxed
+    var argv1: U = U0
+    var argv1b: B = null
+
+    if (args.length > 1) {
+      argv1 = eval(args(args.length-2), r, rec, top, stackU,
+                   x1, x0, stackB, x1b, x0b)
+      argv1b = r.boxed
+    }
     val argv2 = eval(args(args.length-1), r, rec, top, stackU,
                      x1, x0, stackB, x1b, x0b)
     val argv2b = r.boxed
-    fn.body(r, fn, top.increment(args.length - K), stackU,
+    fn.body(r, fn, top.increment(0.max(args.length - K)), stackU,
             argv1, argv2, stackB, argv1b, argv2b)
   }
 

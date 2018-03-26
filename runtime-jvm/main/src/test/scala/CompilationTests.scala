@@ -39,6 +39,18 @@ object CompilationTests {
       equal(eval(Let('x -> one, 'y -> (10.0:Term), 'z -> (100.0:Term))(
         'x.v + 'y + 'z
       )), 111.0:Term)
+    },
+    test("let7") { implicit T =>
+      equal(eval(Let('x1 -> (5.0:Term), 'x2 -> (2.0:Term), 'x3 -> (3.0:Term),
+                     'x4 -> (7.0:Term), 'x5 -> (11.0:Term), 'x6 -> (13.0:Term),
+                     'x7 -> (17.0:Term))(
+        'x1.v * 'x2 * 'x3 * 'x4 * 'x5 * 'x6 * 'x7
+      )), 510510.0:Term)
+    },
+    test("fib") { implicit T =>
+      0 to 20 foreach { n =>
+        equal(eval(fib(n.toDouble:Term)), scalaFib(n).toDouble:Term)
+      }
     }
   )
 }
@@ -57,10 +69,17 @@ object Terms {
 
   val ap: Term = Lam('f,'x)('f.v('x))
 
+  val fib: Term =
+    LetRec('fib ->
+      Lam('n)(If('n.v < 2.0, 'n, 'fib.v('n.v - 1) + 'fib.v('n.v - 2))))('fib)
+
+  def scalaFib(n: Int): Int = if (n < 2) n else scalaFib(n - 1) + scalaFib(n - 2)
+
   implicit class Ops(t0: Term) {
     def +(t1: Term) = '+.b(t0, t1)
     def -(t1: Term) = '-.b(t0, t1)
     def *(t1: Term) = '*.b(t0, t1)
     def /(t1: Term) = '/.b(t0, t1)
+    def <(t1: Term) = '<.b(t0, t1)
   }
 }
