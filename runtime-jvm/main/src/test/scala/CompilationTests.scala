@@ -19,6 +19,9 @@ object CompilationTests {
     },
     test("1 + 1 = 2") { implicit T =>
       equal(eval(onePlusOne), 2.0:Term)
+    },
+    test("partially apply") { implicit T =>
+      equal(eval(const(zero)), Lam('y)(zero))
     }
   )
 }
@@ -28,6 +31,8 @@ object Terms {
   val one: Term = 1.0
 
   val id: Term = Lam('x)('x)
+
+  val const: Term = Lam('x,'y)('x)
 
   val onePlusOne: Term = one + one
 

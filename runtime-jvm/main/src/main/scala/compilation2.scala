@@ -543,7 +543,7 @@ object compilation2 {
     val bs = new Array[B](1024)
     val cc = eval(c, r, null, new StackPtr(-1), us, U0, U0, bs, null, null)
     val x = Term.etaNormalForm(Value(cc, r.boxed).decompile)
-    Term.fullyDecompile(x)
+    Term.fullyDecompile2(x)
   }
 
   def compile(builtins: Name => Computation)(
