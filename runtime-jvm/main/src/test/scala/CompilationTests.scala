@@ -29,6 +29,16 @@ object CompilationTests {
     },
     test("let") { implicit T =>
       equal(eval(Let('x -> one)(one + 'x)), eval(onePlusOne))
+    },
+    test("let2") { implicit T =>
+      equal(eval(Let('x -> one, 'y -> (2.0:Term))(
+        'x.v + 'y
+      )), 3.0:Term)
+    },
+    test("let3") { implicit T =>
+      equal(eval(Let('x -> one, 'y -> (10.0:Term), 'z -> (100.0:Term))(
+        'x.v + 'y + 'z
+      )), 111.0:Term)
     }
   )
 }

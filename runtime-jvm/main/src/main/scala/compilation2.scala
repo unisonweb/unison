@@ -18,11 +18,15 @@ object compilation2 {
   // type StackPtr = Int
   class StackPtr(private val top: Int) extends AnyVal {
     def toInt = top
-    @inline def u(stackU: Array[U], envIndex: Int): U = stackU(top - envIndex + K - 1)
-    @inline def b(stackB: Array[B], envIndex: Int): B = stackB(top - envIndex + K - 1)
+    @inline def u(stackU: Array[U], envIndex: Int): U =
+      stackU(top - envIndex + K)
+    @inline def b(stackB: Array[B], envIndex: Int): B =
+      stackB(top - envIndex + K)
     @inline def increment(by: Int) = new StackPtr(top+by)
-    @inline def pushU(stackU: Array[U], i: Int, u: U): Unit = stackU(top + i + 1) = u
-    @inline def pushB(stackB: Array[B], i: Int, b: B): Unit = stackB(top + i + 1) = b
+    @inline def pushU(stackU: Array[U], i: Int, u: U): Unit =
+      stackU(top + i + 1) = u
+    @inline def pushB(stackB: Array[B], i: Int, b: B): Unit =
+      stackB(top + i + 1) = b
   }
 
   abstract class Param {
@@ -608,7 +612,7 @@ object compilation2 {
           def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U = {
             val rb = eval(cb, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
             val rbb = r.boxed
-            push(top, stackU, stackB, rb, rbb)
+            push(top, stackU, stackB, x1, x1b)
             cbody(r, rec, top.increment(1), stackU, x0, rb, stackB, x0b, rbb)
           }
         }
