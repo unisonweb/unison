@@ -361,8 +361,10 @@ object Term {
   implicit def number(n: Int): Term = Num(n)
   implicit def stringAsVar(s: Name): Term = Var(s)
   implicit def symbolAsVar(s: Symbol): Term = Var(s.name)
+  implicit def symbolAsName(s: Symbol): Name = s.name
   implicit class symbolSyntax(s: Symbol) {
     def v: Term = Var(s.name)
+    def b: Term = Builtin(s.name)
   }
 
   implicit def stringKeyToNameTerm[A <% Term](kv: (String, A)): (Name, Term) = (kv._1, kv._2)

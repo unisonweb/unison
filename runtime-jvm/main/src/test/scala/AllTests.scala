@@ -6,7 +6,8 @@ import org.unisonweb.util.UtilTests
 object AllTests {
   val tests = suite(
     DecompileTests.tests,
-    UtilTests.tests
+    UtilTests.tests,
+    CompilationTests.tests
   )
 }
 

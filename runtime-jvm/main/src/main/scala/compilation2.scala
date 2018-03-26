@@ -1,7 +1,7 @@
 package org.unisonweb
 
 import org.unisonweb.Term.{Name, Term}
-import org.unisonweb.compilation.{CurrentRec, IsNotTail, RecursiveVars}
+import org.unisonweb.compilation.{CurrentRec, IsNotTail, IsTail, RecursiveVars}
 import org.unisonweb.compilation2.Value.Lambda
 
 object compilation2 {
@@ -72,8 +72,13 @@ object compilation2 {
   case object TailCall extends Throwable { override def fillInStackTrace = this }
 
 
-  case class Result(var boxed: Value, var tailCall: Lambda, var argsStart: StackPtr, var stackArgsCount: Int,
-                    var x1: U, var x0: U, var x1b: B, var x0b: B)
+  case class Result(
+    var boxed: Value = null,
+    var tailCall: Lambda = null,
+    var argsStart: StackPtr = new StackPtr(0),
+    var stackArgsCount: Int = 0,
+    var x1: U = U0, var x0: U = U0,
+    var x1b: B = null, var x0b: B = null)
 
   import Value.Lambda
 
@@ -530,6 +535,16 @@ object compilation2 {
     }
   }
 
+  def normalize(builtins: Name => Computation)(e: Term): Term = {
+    val c = compile(builtins)(
+              e, Vector(), CurrentRec.none, RecursiveVars.empty, IsTail)
+    val r = Result()
+    val us = new Array[U](1024)
+    val bs = new Array[B](1024)
+    val cc = eval(c, r, null, new StackPtr(0), us, U0, U0, bs, null, null)
+    val x = Term.etaNormalForm(Value(cc, r.boxed).decompile)
+    Term.fullyDecompile(x)
+  }
 
   def compile(builtins: Name => Computation)(
     e: Term, env: Vector[Name], currentRec: CurrentRec, recVars: RecursiveVars,
