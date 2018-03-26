@@ -66,13 +66,13 @@ object Bytes {
       (0 until size).foldLeft(Vector.empty[Byte])((buf,i) => buf :+ apply(i))
 
     /** Lexicographical minimum, assuming unsigned bytes. */
-    def min(b2: Seq): Seq = {
+    def min(b2: Seq): Seq = try {
       val sdi = this.smallestDifferingIndex(b2)
       if (sdi >= this.size) this
       else if (sdi >= b2.size) b2
       else if (unsigned(this(sdi)) < unsigned(b2(sdi))) this
       else b2
-    }
+    } catch { case Bytes.Seq.NotFound => this }
 
     def size = bytes.size
     def :+(b: Byte) = Seq(bytes :+ (b, c), c)
@@ -81,6 +81,14 @@ object Bytes {
     def isPrefixOf(s: Seq) =
       try smallestDifferingIndex(s) >= size
       catch { case Seq.NotFound => true } // they are equal
+
+    def isProperPrefixOf(s: Seq) =
+      try smallestDifferingIndex(s) >= size
+      catch { case Seq.NotFound => false } // they are equal
+
+    def longestCommonPrefix(s: Seq): Bytes.Seq =
+      try take(smallestDifferingIndex(s))
+      catch { case Seq.NotFound => this }
 
     /** Returns the smallest index such that `this(i) != b(i)`,
       * and throws `NotFound` if the sequences are equal. */
@@ -194,6 +202,13 @@ object Bytes {
         case a@Two(left2, right2) => (this eq a) || ((left eq left2) && right == right2)
         case _ => false
       }
+    }
+
+    implicit val seqOrdering: Ordering[Seq] = new Ordering[Seq] {
+      def compare(x: Seq, y: Seq) =
+        if (x == y) 0
+        else if ((x min y) == x) -1
+        else 1
     }
   }
 }
