@@ -49,7 +49,8 @@ object compilation2 {
       def decompile = Term.Num(n)
     }
 
-    class Lambda(val arity: Int, val body: Computation, val decompile: Term) extends Value {
+    abstract class Lambda(val arity: Int, val body: Computation, val decompile: Term) extends Value {
+      def names: List[Name]
       def underapply(builtins: Name => Computation)(argCount: Int, substs: Map[Name, Term]): Value.Lambda = decompile match {
         case Term.Lam(names, body) =>
           compile(builtins)(Term.Lam(names drop argCount: _*)(ABT.substs(substs)(body)), Vector.empty, CurrentRec.none, RecursiveVars.empty, IsNotTail) match {
@@ -60,7 +61,9 @@ object compilation2 {
     }
     object Lambda {
       def apply(arity: Int, body: Computation, decompile: Term) =
-        new Lambda(arity, body, decompile)
+        new Lambda(arity, body, decompile) {
+          val names = decompile match { case Term.Lam(names, _) => names }
+        }
 
       def unapply(l: Lambda): Option[(Int, Computation, Term)] =
         Some((l.arity, l.body, l.decompile))
@@ -250,24 +253,13 @@ object compilation2 {
   def compileStaticFullySaturatedTailCall(e: Term, lam: Lambda, compiledArgs: List[Computation]): Computation =
     compiledArgs match {
       case List(arg) => new Computation(e) {
-        def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U = {
-          r.x0 = eval(arg, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
-          r.x0b = r.boxed
-          r.stackArgsCount = 0
-          r.tailCall = lam
-          throw TailCall
-        }
+        def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U =
+          doTailCall(lam, arg, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
       }
       case List(arg1, arg2) => new Computation(e) {
-        def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U = {
-          r.x1 = eval(arg1, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
-          r.x1b = r.boxed
-          r.x0 = eval(arg2, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
-          r.x0b = r.boxed
-          r.stackArgsCount = 0
-          r.tailCall = lam
-          throw TailCall
-        }
+        def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U =
+          doTailCall(lam, arg1, arg2, r, rec, top,
+                     stackU, x1, x0, stackB, x1b, x0b)
       }
       case args =>
         new Computation(e) {
@@ -354,7 +346,7 @@ object compilation2 {
   def compileUnderappliedCall(builtins: Name => Computation)(
     e: Term, lam: Lambda, compiledArgs: Array[Computation]): Computation = {
 
-    val Term.Lam(names, body) = lam.decompile
+    val names = lam.names.toArray
     val argCount = compiledArgs.length
     val remNames = names drop argCount
     assert(argCount < lam.arity)
@@ -380,6 +372,38 @@ object compilation2 {
 
   @inline def doTailCall(
     fn: Lambda,
+    arg: Computation,
+    r: R, rec: Lambda, top: StackPtr,
+    stackU: Array[U], x1: U, x0: U,
+    stackB: Array[B], x1b: B, x0b: B): Nothing = {
+
+    r.x0 = eval(arg, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+    r.x0b = r.boxed
+    r.stackArgsCount = 0
+    r.tailCall = fn
+    throw TailCall
+
+  }
+
+  @inline def doTailCall(
+    fn: Lambda,
+    arg1: Computation,
+    arg2: Computation,
+    r: R, rec: Lambda, top: StackPtr,
+    stackU: Array[U], x1: U, x0: U,
+    stackB: Array[B], x1b: B, x0b: B): Nothing = {
+
+    r.x1 = eval(arg1, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+    r.x1b = r.boxed
+    r.x0 = eval(arg2, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+    r.x0b = r.boxed
+    r.stackArgsCount = 0
+    r.tailCall = fn
+    throw TailCall
+  }
+
+  @inline def doTailCall(
+    fn: Lambda,
     args: Array[Computation],
     r: R, rec: Lambda, top: StackPtr,
     stackU: Array[U], x1: U, x0: U,
@@ -395,9 +419,11 @@ object compilation2 {
       }
     go(0)
 
-    r.x1 = eval(args(args.length-2), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+    r.x1 = eval(args(args.length-2), r, rec, top,
+                stackU, x1, x0, stackB, x1b, x0b)
     r.x1b = r.boxed
-    r.x0 = eval(args(args.length-1), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+    r.x0 = eval(args(args.length-1), r, rec, top,
+                stackU, x1, x0, stackB, x1b, x0b)
     r.x0b = r.boxed
     r.argsStart = top.increment(1)
     r.stackArgsCount = args.length - K
@@ -447,9 +473,14 @@ object compilation2 {
         @annotation.tailrec
         def invokeDynamic(fn: Lambda, args: Array[Computation]): U = {
           if (argc == fn.arity)
-            if (isTail)
-              doTailCall(fn, args, r, rec, top,
-                         stackU, x1, x0, stackB, x1b, x0b)
+            if (isTail) args.length match {
+              case 1 => doTailCall(fn, args(0), r, rec, top,
+                                   stackU, x1, x0, stackB, x1b, x0b)
+              case 2 => doTailCall(fn, args(0), args(1), r, rec, top,
+                                   stackU, x1, x0, stackB, x1b, x0b)
+              case _ => doTailCall(fn, args, r, rec, top,
+                                   stackU, x1, x0, stackB, x1b, x0b)
+            }
             else doFullySaturatedCall(
                    fn, args, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
           else if (argc < fn.arity) {

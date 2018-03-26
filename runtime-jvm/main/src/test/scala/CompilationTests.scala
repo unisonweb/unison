@@ -22,6 +22,10 @@ object CompilationTests {
     },
     test("partially apply") { implicit T =>
       equal(eval(const(zero)), Lam('y)(zero))
+    },
+    test("partially apply builtin") { implicit T =>
+      equal(eval(onePlus), onePlus)
+      equal(eval(ap(onePlus, one)), eval(onePlusOne))
     }
   )
 }
@@ -35,6 +39,10 @@ object Terms {
   val const: Term = Lam('x,'y)('x)
 
   val onePlusOne: Term = one + one
+
+  val onePlus: Term = '+.b(one)
+
+  val ap: Term = Lam('f,'x)('f.v('x))
 
   implicit class Ops(t0: Term) {
     def +(t1: Term) = '+.b(t0, t1)
