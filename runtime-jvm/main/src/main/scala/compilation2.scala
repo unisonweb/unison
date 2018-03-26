@@ -8,6 +8,8 @@ object compilation2 {
 
   type U = Double // unboxed values
   val U0: U = 0.0
+  val True: U = 1.0
+  val False: U = 0.0
   type B = Param // boxed values
   type R = Result
 
@@ -48,39 +50,12 @@ object compilation2 {
     }
 
     class Lambda(val arity: Int, val body: Computation, val decompile: Term) extends Value {
-      /** @param underapplication the decompiled form of this underapplication
-        * Given a `Lambda` object representing `const` in `let const x y = x; const q`,
-        * `const q` will be the `underapplication` Term passed to `underapply`
-        */
-      def underapply(builtins: Name => Computation)
-                    (underapplication: Term, compiledArgs: Array[Computation]): Computation = {
-        val Term.Lam(names, body) = this.decompile
-        val argCount = compiledArgs.length
-        val remNames = names drop argCount
-        assert(argCount < this.arity)
-        new Computation(underapplication) {
-          def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U = {
-            @annotation.tailrec def go(i: Int, substs: Map[Name, Term]): Map[Name, Term] = {
-              if (i < argCount) {
-                val param =
-                  Term.Compiled2(Param(eval(compiledArgs(i), r, rec, top, stackU, x1, x0, stackB, x1b, x0b), r.boxed))
-
-                go(i+1, substs.updated(names(i), param))
-              }
-              else substs
-            }
-            // Should do no substitution: (\y y y -> y) 0 0
-            // because the third y shadows the first two.
-            val substs = go(0, Map.empty) -- remNames
-            val body2 = ABT.substs(substs)(body)
-            val lam2 = Term.Lam(remNames: _*)(body2)
-            r.boxed = compile(builtins)(lam2, Vector.empty, CurrentRec.none, RecursiveVars.empty, IsNotTail) match {
-              case Return(v) => v
-              case v => sys.error("a partially applied lambda should produce another lambda, instead got: " + v)
-            }
-            U0
+      def underapply(builtins: Name => Computation)(argCount: Int, substs: Map[Name, Term]): Value.Lambda = decompile match {
+        case Term.Lam(names, body) =>
+          compile(builtins)(Term.Lam(names drop argCount: _*)(ABT.substs(substs)(body)), Vector.empty, CurrentRec.none, RecursiveVars.empty, IsNotTail) match {
+            case Return(v: Value.Lambda) => v
+            case c => sys.error("compiling a closed Term.Lambda failed to produce a Value.Lambda: " + c)
           }
-        }
       }
     }
     object Lambda {
@@ -392,12 +367,7 @@ object compilation2 {
         // Should do no substitution: (\y y y -> y) 0 0
         // because the third y shadows the first two.
         val substs = go(0, Map.empty) -- remNames
-        val body2 = ABT.substs(substs)(body)
-        val lam2 = Term.Lam(remNames: _*)(body2)
-        r.boxed = compile(builtins)(lam2, Vector.empty, CurrentRec.none, RecursiveVars.empty, IsNotTail) match {
-          case Return(v) => v
-          case v => sys.error("a partially applied lambda should produce another lambda, instead got: " + v)
-        }
+        r.boxed = lam.underapply(builtins)(argCount, substs)
         U0
       }
     }
@@ -707,7 +677,7 @@ object compilation2 {
             //   ex: (x y -> x) 42
             //       ^^^^^^^^^^^^^
             else if (args.length < arity)
-              lam.underapply(builtins)(e, compiledArgs.toArray)
+              compileUnderappliedCall(builtins)(e, lam, compiledArgs.toArray)
 
             // static call, overapplied
             //   ex: (x -> x) (x -> x) (x -> x) 42
