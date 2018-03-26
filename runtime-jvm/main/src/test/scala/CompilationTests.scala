@@ -26,6 +26,9 @@ object CompilationTests {
     test("partially apply builtin") { implicit T =>
       equal(eval(onePlus), onePlus)
       equal(eval(ap(onePlus, one)), eval(onePlusOne))
+    },
+    test("let") { implicit T =>
+      equal(eval(Let('x -> one)(one + 'x)), eval(onePlusOne))
     }
   )
 }

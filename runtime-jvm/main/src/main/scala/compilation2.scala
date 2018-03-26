@@ -609,7 +609,7 @@ object compilation2 {
             val rb = eval(cb, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
             val rbb = r.boxed
             push(top, stackU, stackB, rb, rbb)
-            cbody(r, rec, top.increment(1), stackU, x1, x0, stackB, x1b, x0b)
+            cbody(r, rec, top.increment(1), stackU, x0, rb, stackB, x0b, rbb)
           }
         }
       // todo: Let2, etc.
