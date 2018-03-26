@@ -47,9 +47,50 @@ object compilation2 {
       def decompile = Term.Num(n)
     }
 
-    case class Lambda(arity: Int, body: Computation, decompile: Term) extends Value {
-      def maxBinderDepth = 1024 // todo: actually maintain this during compile
+    class Lambda(val arity: Int, val body: Computation, val decompile: Term) extends Value {
+      /** @param underapplication the decompiled form of this underapplication
+        * Given a `Lambda` object representing `const` in `let const x y = x; const q`,
+        * `const q` will be the `underapplication` Term passed to `underapply`
+        */
+      def underapply(builtins: Name => Computation)
+                    (underapplication: Term, compiledArgs: Array[Computation]): Computation = {
+        val Term.Lam(names, body) = this.decompile
+        val argCount = compiledArgs.length
+        val remNames = names drop argCount
+        assert(argCount < this.arity)
+        new Computation(underapplication) {
+          def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U = {
+            @annotation.tailrec def go(i: Int, substs: Map[Name, Term]): Map[Name, Term] = {
+              if (i < argCount) {
+                val param =
+                  Term.Compiled2(Param(eval(compiledArgs(i), r, rec, top, stackU, x1, x0, stackB, x1b, x0b), r.boxed))
+
+                go(i+1, substs.updated(names(i), param))
+              }
+              else substs
+            }
+            // Should do no substitution: (\y y y -> y) 0 0
+            // because the third y shadows the first two.
+            val substs = go(0, Map.empty) -- remNames
+            val body2 = ABT.substs(substs)(body)
+            val lam2 = Term.Lam(remNames: _*)(body2)
+            r.boxed = compile(builtins)(lam2, Vector.empty, CurrentRec.none, RecursiveVars.empty, IsNotTail) match {
+              case Return(v) => v
+              case v => sys.error("a partially applied lambda should produce another lambda, instead got: " + v)
+            }
+            U0
+          }
+        }
+      }
     }
+    object Lambda {
+      def apply(arity: Int, body: Computation, decompile: Term) =
+        new Lambda(arity, body, decompile)
+
+      def unapply(l: Lambda): Option[(Int, Computation, Term)] =
+        Some((l.arity, l.body, l.decompile))
+    }
+
   }
 
   case object SelfCall extends Throwable { override def fillInStackTrace = this }
@@ -666,7 +707,7 @@ object compilation2 {
             //   ex: (x y -> x) 42
             //       ^^^^^^^^^^^^^
             else if (args.length < arity)
-              compileUnderappliedCall(builtins)(e, lam, compiledArgs.toArray)
+              lam.underapply(builtins)(e, compiledArgs.toArray)
 
             // static call, overapplied
             //   ex: (x -> x) (x -> x) (x -> x) 42
