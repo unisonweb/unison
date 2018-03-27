@@ -94,6 +94,9 @@ object CompilationTests {
     },
     test("overapply") { implicit T =>
       equal(eval(id(id, id, 10:Term)), 10:Term)
+    },
+    test("shadow") { implicit T =>
+      equal(eval(LetRec('fib -> Lam('fib)('fib.v + 1))('fib.v(41))), 42:Term)
     }
   )
 }
