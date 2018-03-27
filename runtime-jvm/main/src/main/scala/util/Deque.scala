@@ -9,8 +9,8 @@ import java.util.concurrent.atomic.AtomicInteger
  * Idea described by Bryan O'Sullivan in http://www.serpentine.com/blog/2014/05/31/attoparsec/
  */
 private[util]
-class Deque[A](idL: AtomicInteger, stampL: Int, val valuesL: Buffer[A], val sizeL: Int,
-               idR: AtomicInteger, stampR: Int, val valuesR: Buffer[A], val sizeR: Int) {
+class Deque[A](idL: AtomicInteger, stampL: Int, val valuesL: Block[A], val sizeL: Int,
+               idR: AtomicInteger, stampR: Int, val valuesR: Block[A], val sizeR: Int) {
 
   final val size = sizeL + sizeR
 
@@ -71,7 +71,7 @@ class Deque[A](idL: AtomicInteger, stampL: Int, val valuesL: Buffer[A], val size
 
   def take(n: Int): Deque[A] =
     if (n >= size) this
-    else if (n <= 0) Deque.fromBuffer(valuesR.empty, 0)
+    else if (n <= 0) Deque.fromBlock(valuesR.empty, 0)
     else if (n >= sizeL) // keep whole left side, take partial of right side
       new Deque(idL, stampL, valuesL, sizeL, idR, Int.MinValue, valuesR, n - sizeL)
     else { // remove the whole right side
@@ -83,7 +83,7 @@ class Deque[A](idL: AtomicInteger, stampL: Int, val valuesL: Buffer[A], val size
     }
 
   def drop(n: Int): Deque[A] =
-    if (n >= size) Deque.fromBuffer(valuesR.empty, 0)
+    if (n >= size) Deque.fromBlock(valuesR.empty, 0)
     else if (n <= 0) this
     else if (n <= sizeL)
       new Deque(new AtomicInteger(Deque.MinStamp), Int.MinValue, valuesL, sizeL - n,
@@ -131,16 +131,19 @@ object Deque {
 
   private val MinStamp = Int.MinValue + 1
 
-  def fromBuffer[A](b: Buffer[A], sizeR: Int): Deque[A] =
+  def fromBlock[A](b: Block[A], sizeR: Int): Deque[A] =
     new Deque(new AtomicInteger(MinStamp), MinStamp, b.empty, 0,
               new AtomicInteger(MinStamp), MinStamp, b, sizeR)
 
-  def fromArray[A](a: Array[A])(implicit A: Buffer.NewArray[A]): Deque[A] =
-    fromBuffer(Buffer.fromArray(a), a.length)
+  def fromArray[A](a: Array[A])(implicit A: Block.NewArray[A]): Deque[A] =
+    fromBlock(Block.fromArray(a), a.length)
 
-  def empty[A]: Deque[A] = fromBuffer(Buffer.empty[A], 0)
+  def viewArray[A](a: Array[A])(implicit A: Block.NewArray[A]): Deque[A] =
+    fromBlock(Block.viewArray(a), a.length)
 
-  def single[A](a: A): Deque[A] = fromBuffer(Buffer.empty[A] :+ (0, a), 1)
+  def empty[A]: Deque[A] = fromBlock(Block.empty[A], 0)
+
+  def single[A](a: A): Deque[A] = fromBlock(Block.empty[A] :+ (0, a), 1)
 
   def apply[A](as: A*): Deque[A] =
     as.foldLeft(empty[A])(_ :+ _)
