@@ -97,6 +97,12 @@ object CompilationTests {
     },
     test("shadow") { implicit T =>
       equal(eval(LetRec('fib -> Lam('fib)('fib.v + 1))('fib.v(41))), 42:Term)
+    },
+    test("mutual non-tail recursion") { implicit T =>
+      0 to 20 foreach { n =>
+        equal1(eval(fibPrime(n.toDouble:Term)), scalaFib(n).toDouble:Term)
+      }
+      ok
     }
   )
 }
@@ -117,7 +123,13 @@ object Terms {
 
   val fib: Term =
     LetRec('fib ->
-      Lam('n)(If('n.v < 2, 'n, 'fib.v('n.v - 1) + 'fib.v('n.v - 2))))('fib)
+             Lam('n)(If('n.v < 2, 'n, 'fib.v('n.v - 1) + 'fib.v('n.v - 2))))('fib)
+
+  val fibPrime: Term =
+    LetRec(
+      'fib -> Lam('n)(If('n.v < 2, 'n, 'fib2.v('n.v - 1) + 'fib2.v('n.v - 2))),
+      'fib2 -> Lam('n)(If('n.v < 2, 'n, 'fib.v('n.v - 1) + 'fib.v('n.v - 2)))
+    )('fib)
 
   def scalaFib(n: Int): Int =
     if (n < 2) n else scalaFib(n - 1) + scalaFib(n - 2)
