@@ -18,10 +18,10 @@ object CompilationTests {
       equal(eval(id(zero)), zero)
     },
     test("1 + 1 = 2") { implicit T =>
-      equal(eval(onePlusOne), 2.0:Term)
+      equal(eval(onePlusOne), 2:Term)
     },
     test("1 + 2 = 3") { implicit T =>
-      equal(eval((1:Term) + (2:Term)), 3.0:Term)
+      equal(eval((1:Term) + (2:Term)), 3:Term)
     },
     test("partially apply") { implicit T =>
       equal(eval(const(zero)), Lam('y)(zero))
@@ -34,21 +34,21 @@ object CompilationTests {
       equal(eval(Let('x -> one)(one + 'x)), eval(onePlusOne))
     },
     test("let2") { implicit T =>
-      equal(eval(Let('x -> one, 'y -> (2.0:Term))(
+      equal(eval(Let('x -> one, 'y -> (2:Term))(
         'x.v + 'y
-      )), 3.0:Term)
+      )), 3:Term)
     },
     test("let3") { implicit T =>
-      equal(eval(Let('x -> one, 'y -> (10.0:Term), 'z -> (100.0:Term))(
+      equal(eval(Let('x -> one, 'y -> (10:Term), 'z -> (100:Term))(
         'x.v + 'y + 'z
-      )), 111.0:Term)
+      )), 111:Term)
     },
     test("let7") { implicit T =>
-      equal(eval(Let('x1 -> (5.0:Term), 'x2 -> (2.0:Term), 'x3 -> (3.0:Term),
-                     'x4 -> (7.0:Term), 'x5 -> (11.0:Term), 'x6 -> (13.0:Term),
-                     'x7 -> (17.0:Term))(
+      equal(eval(Let('x1 -> (5:Term), 'x2 -> (2:Term), 'x3 -> (3:Term),
+                     'x4 -> (7:Term), 'x5 -> (11:Term), 'x6 -> (13:Term),
+                     'x7 -> (17:Term))(
         'x1.v * 'x2 * 'x3 * 'x4 * 'x5 * 'x6 * 'x7
-      )), 510510.0:Term)
+      )), 510510:Term)
     },
     test("if") { implicit T =>
       equal1(eval(If(one, one, zero + one + one)), one)
@@ -80,13 +80,27 @@ object CompilationTests {
         equal1(eval(odd(n:Term)), n % 2 :Term)
       }
       ok
+    },
+    test("nested invokeDynamic") { implicit T =>
+      val nestedInvokeDynamic =
+        Let(
+          'id0 -> id(id),
+          'id1 -> 'id0.v('id0),
+          'id2 -> 'id1.v('id1)
+        ) {
+          'id2.v(10)
+        }
+      equal(eval(nestedInvokeDynamic), 10:Term)
+    },
+    test("overapply") { implicit T =>
+      equal(eval(id(id, id, 10:Term)), 10:Term)
     }
   )
 }
 
 object Terms {
   val zero: Term = U0
-  val one: Term = 1.0
+  val one: Term = 1
 
   val id: Term = Lam('x)('x)
 
@@ -100,7 +114,7 @@ object Terms {
 
   val fib: Term =
     LetRec('fib ->
-      Lam('n)(If('n.v < 2.0, 'n, 'fib.v('n.v - 1) + 'fib.v('n.v - 2))))('fib)
+      Lam('n)(If('n.v < 2, 'n, 'fib.v('n.v - 1) + 'fib.v('n.v - 2))))('fib)
 
   def scalaFib(n: Int): Int =
     if (n < 2) n else scalaFib(n - 1) + scalaFib(n - 2)
