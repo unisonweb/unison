@@ -74,6 +74,12 @@ object CompilationTests {
         equal1(eval(triangle(n:Term, zero)), (0 to n).sum:Term)
       }
       ok
+    },
+    test("evenOdd") { implicit T =>
+      0 to 50 foreach { n =>
+        equal1(eval(odd(n:Term)), n % 2 :Term)
+      }
+      ok
     }
   )
 }
@@ -107,6 +113,12 @@ object Terms {
                  'acc.v,
                  'triangle.v('n.v - 1, 'acc.v + 'n)))
     )('triangle)
+
+  val odd =
+    LetRec(
+      'even -> Lam('n)(If('n.v > zero, 'odd.v ('n.v - 1), one)),
+      'odd-> Lam('n)(If('n.v > zero, 'even.v ('n.v - 1), zero))
+    )('odd)
 
   implicit class Ops(t0: Term) {
     def +(t1: Term) = '+.b(t0, t1)

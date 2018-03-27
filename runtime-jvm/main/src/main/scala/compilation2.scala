@@ -604,7 +604,20 @@ object compilation2 {
     e match {
       case Term.Num(n) => compileNum(n)
       case Term.Builtin(name) => builtins(name)
-      case Term.Compiled2(param) => Return(param.toValue, e)
+      case Term.Compiled2(param) =>
+        if (param.toValue eq null) new Computation(e) {
+          def apply(r: R, rec: Lambda, top: StackPtr,
+                    stackU: Array[U], x1: U, x0: U,
+                    stackB: Array[B], x1b: B, x0b: B): U = {
+            param.toValue match {
+              case Value.Num(n) => n
+              case v =>
+                r.boxed = v
+                U0
+            }
+          }
+        }
+        else Return(param.toValue, e)
       case Term.Self(name) => new Self(name)
       case Term.Var(name) => compileVar(e, name, env, currentRec)
       case Term.If(cond, t, f) =>
