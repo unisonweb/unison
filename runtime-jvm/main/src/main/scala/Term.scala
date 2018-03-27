@@ -116,6 +116,8 @@ object Term {
         args.foldLeft(transitiveClosure(seen, f))(transitiveClosure _)
       case If0(cond, ifZero, ifNonzero) =>
         List(ifZero, ifNonzero).foldLeft(transitiveClosure(seen, cond))(transitiveClosure _)
+      case If(cond, t, f) =>
+        List(t, f).foldLeft(transitiveClosure(seen, cond))(transitiveClosure _)
       case Lam1(name, body) => transitiveClosure(seen, body)
       case Let1(name, binding, body) =>
         transitiveClosure(transitiveClosure(seen, binding), body)

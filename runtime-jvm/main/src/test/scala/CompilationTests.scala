@@ -51,15 +51,27 @@ object CompilationTests {
       )), 510510.0:Term)
     },
     test("if") { implicit T =>
-      equal(eval(If(one, one, zero + one + one)), one)
-      equal(eval(If(one - one, one, zero + one + one)), 2:Term)
-      equal(eval(If(one > zero, one, zero + one + one)), one)
-      equal(eval(If(one < zero, one, zero + one + one)), 2:Term)
+      equal1(eval(If(one, one, zero + one + one)), one)
+      equal1(eval(If(one - one, one, zero + one + one)), 2:Term)
+      equal1(eval(If(one > zero, one, zero + one + one)), one)
+      equal1(eval(If(one < zero, one, zero + one + one)), 2:Term)
+      ok
     },
 
     test("fib") { implicit T =>
       0 to 20 foreach { n =>
         equal1(eval(fib(n.toDouble:Term)), scalaFib(n).toDouble:Term)
+      }
+      ok
+    },
+    test("==") { implicit T =>
+      equal1(eval(one unisonEquals one), eval(one))
+      equal1(eval(one unisonEquals onePlusOne), eval(zero))
+      ok
+    },
+    test("triangle") { implicit T =>
+      0 to 50 foreach { n =>
+        equal1(eval(triangle(n:Term, zero)), (0 to n).sum:Term)
       }
       ok
     }
@@ -84,13 +96,24 @@ object Terms {
     LetRec('fib ->
       Lam('n)(If('n.v < 2.0, 'n, 'fib.v('n.v - 1) + 'fib.v('n.v - 2))))('fib)
 
-  def scalaFib(n: Int): Int = if (n < 2) n else scalaFib(n - 1) + scalaFib(n - 2)
+  def scalaFib(n: Int): Int =
+    if (n < 2) n else scalaFib(n - 1) + scalaFib(n - 2)
+
+  val triangle =
+    LetRec('triangle ->
+             Lam('n, 'acc)(
+               If(
+                 'n.v unisonEquals zero,
+                 'acc.v,
+                 'triangle.v('n.v - 1, 'acc.v + 'n)))
+    )('triangle)
 
   implicit class Ops(t0: Term) {
     def +(t1: Term) = '+.b(t0, t1)
     def -(t1: Term) = '-.b(t0, t1)
     def *(t1: Term) = '*.b(t0, t1)
     def /(t1: Term) = '/.b(t0, t1)
+    def unisonEquals(t1: Term) = '==.b(t0, t1)
     def <(t1: Term) = '<.b(t0, t1)
     def >(t1: Term) = '>.b(t0, t1)
   }

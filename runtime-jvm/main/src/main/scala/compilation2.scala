@@ -682,7 +682,7 @@ object compilation2 {
                         top.toInt + 1,
                         stackB.length, null
                       )
-                      result
+                      return result
                     }
                     catch {
                       case SelfCall =>
