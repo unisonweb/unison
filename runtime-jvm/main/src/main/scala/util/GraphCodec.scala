@@ -27,31 +27,47 @@ object GraphCodec {
 
   val NestedStartMarker = 0 : Byte
   val NestedEndMarker = 1 : Byte
-  val RefMarker = 2 : Byte
+  val RefStartMarker = 2 : Byte
+  val RefEndMarker = 3 : Byte
+  val SeenMarker = 4 : Byte
 
-  /** Encode a `Graphstream` and return the number of bytes written. */
-  def encode(g: Graphstream)(buf: Sink): Unit = {
-    val seen = new IdentityHashMap[Graphstream.Ref,Long]()
+  /** Encode a `Graphstream`. `includeRefMetadata` controls whether the `bytePrefix`
+   *  of each `Ref` is written to the output as well. */
+  def encode(buf: Sink, includeRefMetadata: Boolean): Graphstream => Unit = {
+    val seen = new IdentityHashMap[Graphstream,Long]()
     def go(g: Graphstream): Unit = g match {
       case g : Graphstream.Nested =>
-        buf.putByte(NestedStartMarker) // indicates a Nested follows
-        buf.putInt(g.bytePrefix.length)
-        buf.put(g.bytePrefix)
-        g.foldLeft(())((_,g) => go(g))
-        buf.putByte(NestedEndMarker)
+        val pos = seen.get(g)
+        if (pos eq null) {
+          seen.put(g, buf.position)
+          buf.putByte(NestedStartMarker) // indicates a Nested follows
+          buf.putInt(g.bytePrefix.length)
+          buf.put(g.bytePrefix)
+          g.foldLeft(())((_,g) => go(g))
+          buf.putByte(NestedEndMarker)
+        }
+        else {
+          buf.putByte(SeenMarker)
+          buf.putLong(pos)
+        }
       case r : Graphstream.Ref =>
         val pos = seen.get(r)
-        if (seen.get(r) eq null) {
+        if (pos eq null) {
           seen.put(r, buf.position)
+          buf.putByte(RefStartMarker)
+          if (includeRefMetadata) {
+            buf.putInt(r.bytePrefix.length)
+            buf.put(r.bytePrefix)
+          }
           go(r.dereference)
         }
         else {
           val before = buf.position
-          buf.putByte(RefMarker)
+          buf.putByte(RefEndMarker)
           buf.putLong(pos)
         }
     }
-    go(g)
+    go(_)
   }
 
   // pretty simple - keep a LongMap[Graphstream] mapping positions
