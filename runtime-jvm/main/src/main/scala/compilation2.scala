@@ -472,8 +472,7 @@ object compilation2 {
     val argv = eval(arg, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
     val argvb = r.boxed
 
-    val result = fn.body(r, fn, top, stackU, U0, argv, stackB, null, argvb)
-    result
+    fn.body(r, fn, top, stackU, U0, argv, stackB, null, argvb)
   }
 
   @inline def doFullySaturatedCall2(fn: Lambda,
