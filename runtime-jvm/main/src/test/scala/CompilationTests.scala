@@ -20,6 +20,9 @@ object CompilationTests {
     test("1 + 1 = 2") { implicit T =>
       equal(eval(onePlusOne), 2.0:Term)
     },
+    test("1 + 2 = 3") { implicit T =>
+      equal(eval((1:Term) + (2:Term)), 3.0:Term)
+    },
     test("partially apply") { implicit T =>
       equal(eval(const(zero)), Lam('y)(zero))
     },
@@ -47,10 +50,18 @@ object CompilationTests {
         'x1.v * 'x2 * 'x3 * 'x4 * 'x5 * 'x6 * 'x7
       )), 510510.0:Term)
     },
+    test("if") { implicit T =>
+      equal(eval(If(one, one, zero + one + one)), one)
+      equal(eval(If(one - one, one, zero + one + one)), 2:Term)
+      equal(eval(If(one > zero, one, zero + one + one)), one)
+      equal(eval(If(one < zero, one, zero + one + one)), 2:Term)
+    },
+
     test("fib") { implicit T =>
       0 to 20 foreach { n =>
-        equal(eval(fib(n.toDouble:Term)), scalaFib(n).toDouble:Term)
+        equal1(eval(fib(n.toDouble:Term)), scalaFib(n).toDouble:Term)
       }
+      ok
     }
   )
 }
@@ -81,5 +92,6 @@ object Terms {
     def *(t1: Term) = '*.b(t0, t1)
     def /(t1: Term) = '/.b(t0, t1)
     def <(t1: Term) = '<.b(t0, t1)
+    def >(t1: Term) = '>.b(t0, t1)
   }
 }

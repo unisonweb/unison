@@ -292,10 +292,12 @@ object compilation2 {
       }
       case List(arg1, arg2) => new Computation(e) {
         def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U = {
-          r.x1 = eval(arg1, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
-          r.x1b = r.boxed
+          val arg1v = eval(arg1, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          val arg1vb = r.boxed
           r.x0 = eval(arg2, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
           r.x0b = r.boxed
+          r.x1 = arg1v
+          r.x1b = arg1vb
           // we don't need to set r.stackArgsCount
           throw SelfCall
         }
@@ -311,10 +313,12 @@ object compilation2 {
             }
           go(0)
 
-          r.x1 = eval(argsArray(argsArray.length-2), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
-          r.x1b = r.boxed
+          val arg1v = eval(argsArray(argsArray.length-2), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          val arg1vb = r.boxed
           r.x0 = eval(argsArray(argsArray.length-1), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
           r.x0b = r.boxed
+          r.x1 = arg1v
+          r.x1b = arg1vb
           throw SelfCall
         }
       }
@@ -400,10 +404,12 @@ object compilation2 {
     stackU: Array[U], x1: U, x0: U,
     stackB: Array[B], x1b: B, x0b: B): Nothing = {
 
-    r.x1 = eval(arg1, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
-    r.x1b = r.boxed
+    val arg1v = eval(arg1, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+    val arg1vb = r.boxed
     r.x0 = eval(arg2, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
     r.x0b = r.boxed
+    r.x1 = arg1v
+    r.x1b = arg1vb
     r.stackArgsCount = 0
     r.tailCall = fn
     throw TailCall
@@ -426,12 +432,14 @@ object compilation2 {
       }
     go(0)
 
-    r.x1 = eval(args(args.length-2), r, rec, top,
+    val arg1v = eval(args(args.length-2), r, rec, top,
                 stackU, x1, x0, stackB, x1b, x0b)
-    r.x1b = r.boxed
+    val arg1vb = r.boxed
     r.x0 = eval(args(args.length-1), r, rec, top,
                 stackU, x1, x0, stackB, x1b, x0b)
     r.x0b = r.boxed
+    r.x1 = arg1v
+    r.x1b = arg1vb
     r.argsStart = top.increment(1)
     r.stackArgsCount = args.length - K
     r.tailCall = fn
@@ -528,7 +536,7 @@ object compilation2 {
     // The lambda is closed
     if (freeVars.isEmpty) {
       val cbody = compile(builtins)(body, names.reverse.toVector,
-        CurrentRec.none, RecursiveVars.empty, isTail = true)
+        CurrentRec.none, RecursiveVars.empty, IsTail)
       Return(Lambda(names.length, cbody, e), e)
     }
     else {
@@ -567,7 +575,7 @@ object compilation2 {
           )
           assert(Term.freeVars(lam2).isEmpty)
           r.boxed = compile(builtins)(
-            lam2, Vector(), CurrentRec.none, RecursiveVars.empty, false
+            lam2, Vector(), CurrentRec.none, RecursiveVars.empty, IsNotTail
           ) match {
             case v: Return => v.value
             case _ => sys.error("compiling a lambda with no free vars should always produce a Return")
@@ -612,7 +620,7 @@ object compilation2 {
           }
         }
       case Term.Let1(name, b, body) =>
-        val cb = compile(builtins)(b, env, currentRec, recVars, isTail = false)
+        val cb = compile(builtins)(b, env, currentRec, recVars, IsNotTail)
         val cbody = compile(builtins)(body, name +: env, currentRec.shadow(name),
           recVars - name, isTail)
         val push = compilation2.push(env, Term.freeVars(body)).push1
@@ -898,7 +906,8 @@ object compilation2 {
           top.toInt + r.stackArgsCount + 1,
           stackB.length, null)
 
-        return r.tailCall.body(r, r.tailCall, top.increment(r.stackArgsCount), stackU, r.x1, r.x0, stackB, r.x1b, r.x0b)
+        return r.tailCall.body(r, r.tailCall, top.increment(r.stackArgsCount),
+                               stackU, r.x1, r.x0, stackB, r.x1b, r.x0b)
       }
       catch {
         case TailCall =>
