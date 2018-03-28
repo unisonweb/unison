@@ -53,7 +53,6 @@ lazy val main = project.in(file("main")).
       CompileLet1Generator,
       CompileLetRecGenerator,
       CompileFunctionApplicationGenerator,
-//      MakeBuiltinGenerator,
       TailCallsGenerator,
       CompileIf0Generator
     ).map(_.apply(outPath))
@@ -69,4 +68,5 @@ lazy val benchmark = project.in(file("benchmark")).
   .settings(
     libraryDependencies += scalaOrganization.value % "scala-reflect" % scalaVersion.value
   )
-  .dependsOn(main)
+  .dependsOn(main % "compile->test")
+
