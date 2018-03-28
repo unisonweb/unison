@@ -629,15 +629,23 @@ object compilation2 {
   }
 
   def normalize(builtins: Name => Computation)(e: Term): Term = {
-    val c = compile(builtins)(
-              e, Vector(), CurrentRec.none, RecursiveVars.empty, IsTail)
+    val c = compileTop(builtins)(e)
+    val v = run(c)
+    val x = Term.etaNormalForm(v.decompile)
+    Term.fullyDecompile2(x)
+  }
+
+  def run(c: Computation): Value = {
     val r = Result()
     val us = new Array[U](1024)
     val bs = new Array[B](1024)
     val cc = eval(c, r, null, new StackPtr(-1), us, U0, U0, bs, null, null)
-    val x = Term.etaNormalForm(Value(cc, r.boxed).decompile)
-    Term.fullyDecompile2(x)
+    Value(cc, r.boxed)
   }
+
+  /** Compile top-level term */
+  def compileTop(builtins: Name => Computation)(e: Term) =
+    compile(builtins)(e, Vector(), CurrentRec.none, RecursiveVars.empty, IsTail)
 
   def compile(builtins: Name => Computation)(
     e: Term, env: Vector[Name], currentRec: CurrentRec, recVars: RecursiveVars,

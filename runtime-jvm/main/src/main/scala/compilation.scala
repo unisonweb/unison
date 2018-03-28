@@ -72,10 +72,11 @@ package object compilation extends TailCalls with CompileLambda with CompileLet1
 
   /**
    * Given a set of free variables, and a stack of bound variables, figure out
-   * how many elements from `bound` stack we need to be able to resolve all free vars.
+   * how many elements from `bound` stack we need to be able to resolve all free
+   * vars.
    *
-   * Ex: Set(x,y) and bound = Vector(x,p,q,r,y,z), arity would be: 5, since we need `bound.take(5)`
-   * to have access to both `x` and `y`.
+   * Ex: Set(x,y) and bound = Vector(x,p,q,r,y,z), arity would be: 5, since we
+   * need `bound.take(5)` to have access to both `x` and `y`.
    */
   def stackSize(freeVars: Set[Name], bound: Vector[Name]): Int =
     if (freeVars.isEmpty) 0
