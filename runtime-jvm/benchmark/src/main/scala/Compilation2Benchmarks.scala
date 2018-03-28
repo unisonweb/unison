@@ -23,13 +23,13 @@ object Compilation2Benchmarks {
       profile("scala-fib") {
         def fib(n: Int): Int =
           if (n < 2) n else fib(n - 1) + fib(n - 2)
-        fib(N(17))
+        fib(N(21))
       },
       {
         val p = runTerm(Terms.fib)
         profile("unison-fib") {
           eval(p.body, r, p, top,
-               stackU, U0, N(17).toDouble,
+               stackU, U0, N(21).toDouble,
                stackB, null, null).toLong
         }
       }
@@ -55,13 +55,13 @@ object Compilation2Benchmarks {
           if (n < 2) n else fibPrime2(n - 1) + fibPrime2(n - 2)
         def fibPrime2(n: Int): Int =
           if (n < 2) n else fibPrime(n - 1) + fibPrime(n - 2)
-        fibPrime(N(17))
+        fibPrime(N(21))
       },
       {
         val p = runTerm(Terms.fibPrime)
         profile("unison-fibPrime") {
           eval(p.body, r, p, top,
-               stackU, U0, N(17),
+               stackU, U0, N(21),
                stackB, null, null).toLong
         }
       }
