@@ -110,6 +110,12 @@ object PrettyPrint {
         value.toLong.toString
       else value.toString
 
+    case If(cond, ifZero, ifNonzero) => parenthesizeGroupIf(precedence > 0) {
+      "if " <> prettyTerm(cond, 0) <> " then" <> softbreak <>
+               prettyTerm(ifZero, 0).nest("  ") <> softbreak <> "else" <> softbreak <>
+               prettyTerm(ifNonzero, 0).nest("  ")
+    }
+
     case If0(cond, ifZero, ifNonzero) => parenthesizeGroupIf(precedence > 0) {
       "if " <> prettyTerm(cond, 0) <> " == 0 then" <> softbreak <>
                prettyTerm(ifZero, 0).nest("  ") <> softbreak <> "else" <> softbreak <>
