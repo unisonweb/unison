@@ -609,7 +609,7 @@ object compilation2 {
     // The lambda is closed
     if (freeVars.isEmpty) {
       val cbody = compile(builtins)(body, names.reverse.toVector,
-        CurrentRec.none, RecursiveVars.empty, IsTail)
+        currentRec, RecursiveVars.empty, IsTail) // hack todo
       Return(Lambda(names.length, cbody, e), e)
     }
     else {
@@ -648,7 +648,7 @@ object compilation2 {
           )
           assert(Term.freeVars(lam2).isEmpty)
           r.boxed = compile(builtins)(
-            lam2, Vector(), CurrentRec.none, RecursiveVars.empty, IsNotTail
+            lam2, Vector(), currentRec, RecursiveVars.empty, IsNotTail
           ) match {
             case v: Return => v.value
             case _ => sys.error("compiling a lambda with no free vars should always produce a Return")
@@ -660,15 +660,23 @@ object compilation2 {
   }
 
   def normalize(builtins: Name => Computation)(e: Term): Term = {
-    val c = compile(builtins)(
-              e, Vector(), CurrentRec.none, RecursiveVars.empty, IsTail)
+    val c = compileTop(builtins)(e)
+    val v = run(c)
+    val x = Term.etaNormalForm(v.decompile)
+    Term.fullyDecompile2(x)
+  }
+
+  def run(c: Computation): Value = {
     val r = Result()
     val us = new Array[U](1024)
     val bs = new Array[B](1024)
     val cc = eval(c, r, null, new StackPtr(-1), us, U0, U0, bs, null, null)
-    val x = Term.etaNormalForm(Value(cc, r.boxed).decompile)
-    Term.fullyDecompile2(x)
+    Value(cc, r.boxed)
   }
+
+  /** Compile top-level term */
+  def compileTop(builtins: Name => Computation)(e: Term) =
+    compile(builtins)(e, Vector(), CurrentRec.none, RecursiveVars.empty, IsTail)
 
   def compile(builtins: Name => Computation)(
     e: Term,
@@ -845,19 +853,26 @@ object compilation2 {
               dynamicCall(builtins)(e, fn2, compiledArgs.drop(lam.arity), isTail)
             }
 
-          case Self(name) if currentRec.contains(name, args.length) =>
-            if (isTail)
-              compileFullySaturatedSelfTailCall(e, compiledArgs)
-            else
-              // self non-tail call, fully saturated
-              //   ex: let rec fib n = if n < 2 then n else fib (n - 1) + fib (n - 2)
-              //                                            ^^^^^^^^^^^   ^^^^^^^^^^^
-              compileFullySaturatedSelfNontailCall(e, compiledArgs)
-
-          // dynamic call, also catches self calls, underapplied (either in tail or non-tail position)
-          //   ex: let apply f x = f x; ...
-          //                       ^^^^
-          case _ => dynamicCall(builtins)(e, cfn, compiledArgs, isTail)
+          case _ => fn match {
+            case Term.Self(_) | Term.Var(_) =>
+              val name = fn match { case Term.Self(name) => name; case Term.Var(name) => name }
+              if (currentRec.contains(name, args.length)) {
+                if (isTail)
+                  compileFullySaturatedSelfTailCall(e, compiledArgs)
+                else
+                  // self non-tail call, fully saturated
+                  //   ex: let rec fib n = if n < 2 then n else fib (n - 1) + fib (n - 2)
+                  //                                            ^^^^^^^^^^^   ^^^^^^^^^^^
+                  compileFullySaturatedSelfNontailCall(e, compiledArgs)
+              }
+              else // catches underapplied self calls (either in tail or non-tail position)
+                dynamicCall(builtins)(e, cfn, compiledArgs, isTail)
+            // dynamic call
+            //   ex: let apply f x = f x; ...
+            //                       ^^^^
+            case _ =>
+              dynamicCall(builtins)(e, cfn, compiledArgs, isTail)
+          }
         }
 
       case Term.LetRec(bindings, body) =>
