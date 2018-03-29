@@ -578,7 +578,7 @@ object compilation2 {
     // The lambda is closed
     if (freeVars.isEmpty) {
       val cbody = compile(builtins)(body, names.reverse.toVector,
-        currentRec, RecursiveVars.empty, IsTail) // hack todo
+        currentRec.shadow(names), RecursiveVars.empty, IsTail)
       Return(Lambda(names.length, cbody, e), e)
     }
     else {
@@ -617,10 +617,14 @@ object compilation2 {
           )
           assert(Term.freeVars(lam2).isEmpty)
           r.boxed = compile(builtins)(
-            lam2, Vector(), currentRec, RecursiveVars.empty, IsNotTail
+            lam2, Vector(), currentRec.shadow(names), RecursiveVars.empty, IsNotTail
           ) match {
             case v: Return => v.value
-            case _ => sys.error("compiling a lambda with no free vars should always produce a Return")
+            case v => sys.error(
+              s"""compiling a lambda with no free vars should always produce a Return;
+                 |instead got $v
+               """.stripMargin
+            )
           }
           U0
         }
