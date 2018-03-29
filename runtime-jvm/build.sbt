@@ -1,10 +1,24 @@
 lazy val commonSettings = Seq(
+  fork := true,
+  javaOptions in run ++= Seq(
+    // https://docs.oracle.com/javase/8/embedded/develop-apps-platforms/codecache.htm
+    //"-XX:+UnlockDiagnosticVMOptions",
+    //"-XX:+LogCompilation"
+    //"-XX:InlineSmallCode=9001"
+    //"-XX:MaxInlineLevel=9001"
+    //"-XX:MaxInlineSize=9001"
+    //"-XX:CompileThreshold=10"
+    //"-XX:MinInliningThreshold=10"
+    //"-XX:FreqInlineSize"
+    //"-XX:MaxTrivialSize"
+    //"-XX:LiveNodeCountInliningCutoff"
+  ),
   organization := "org.unisonweb",
   scalaVersion := "2.12.4",
   scalacOptions ++= Seq(
     "-feature",
     "-deprecation",
-//    "-g:notailcalls",
+    //    "-g:notailcalls",
     "-opt:l:inline",
     "-opt-inline-from",
     "-opt-warnings",
