@@ -705,79 +705,88 @@ object compilation2 {
         val compiledLambda: Computation =
           compileLambda(builtins)(e, env, currentRec, recVars, names, body)
 
-        if (hasTailRecursiveCall(currentRec.shadow(names), body))
-          new Computation(e) {
-            def apply(r: R, rec: Lambda, top: StackPtr,
-                      stackU: Array[U], x1: U, x0: U,
-                      stackB: Array[B], x1b: B, x0b: B): U = {
-              // let rec
-              //   go n = if n == 0 then n else go (n - 1)
-              //   go
-              // gets converted to:
-              // let rec
-              //   go-inner n = if n == 0 then n else throw SelfCall (n - 1)
-              //   go n = while (true) return { try go-inner n catch { case SelfCall n2 => go-inner n2 }}
-              //   go
-              val innerLambda: Lambda = {
-                compiledLambda(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
-                r.boxed.asInstanceOf[Lambda]
+        if (hasTailRecursiveCall(currentRec.shadow(names), body)) {
+          // let rec
+          //   go n = if n == 0 then n else go (n - 1)
+          //   go
+          // gets converted to:
+          // let rec
+          //   go-inner n = if n == 0 then n else throw SelfCall (n - 1)
+          //   go n = while (true) return { try go-inner n catch { case SelfCall n2 => go-inner n2 }}
+          //   go
+
+          @inline def handleSelfCalls(innerLambda: Lambda): Lambda = {
+            assert(names.length == innerLambda.arity)
+            val innerLambdaBody = innerLambda.body
+            val needsCopy = names.length > 2
+            // inner lambda may throw SelfCall, so we create wrapper Lambda
+            // to process those
+            val outerLambdaBody: Computation = new Computation(null) {
+              def apply(r: R, rec: Lambda, top: StackPtr,
+                        stackU: Array[U], x1: U, x0: U,
+                        stackB: Array[B], x1b: B, x0b: B): U = {
+
+                val stackArgsCount = innerLambda.arity - K
+                val newArgsSrcIndex = top.increment(stackArgsCount).toInt //
+                val newArgsDestIndex = top.toInt
+
+                @annotation.tailrec
+                def go(x1: U, x0: U, x1b: B, x0b: B): U = {
+                  try {
+                    val result = innerLambdaBody(r, rec, top,
+                                                 stackU, x1, x0, stackB, x1b, x0b)
+                    // todo: could be lazier or more targeted about nulling out the stack
+                    java.util.Arrays.fill(
+                      stackB.asInstanceOf[Array[AnyRef]],
+                      top.toInt + 1,
+                      stackB.length, null
+                    )
+                    return result
+                  }
+                  catch {
+                    case SelfCall =>
+                      if (needsCopy) {
+                        System.arraycopy(
+                          stackU, newArgsSrcIndex,
+                          stackU, newArgsDestIndex,
+                          stackArgsCount
+                        )
+                        System.arraycopy(
+                          stackB, newArgsSrcIndex,
+                          stackB, newArgsDestIndex,
+                          stackArgsCount
+                        )
+                      }
+                  }
+                  go(r.x1, r.x0, r.x1b, r.x0b)
+                }
+
+                go(x1, x0, x1b, x0b)
               }
-              val innerLambdaBody = innerLambda.body
-              val needsCopy = names.length > 2
-              // inner lambda may throw SelfCall, so we create wrapper Lambda
-              // to process those
-              val outerLambdaBody: Computation = new Computation(null) {
+            }
+            Lambda(names.length, outerLambdaBody, innerLambda.decompile)
+          }
 
+          compiledLambda match {
+            case Return(innerLambda: Lambda) =>
+              Return(handleSelfCalls(innerLambda), e)
 
+            case compiledLambda => // first evaluate innerLambda within a Computation
+              new Computation(e) {
                 def apply(r: R, rec: Lambda, top: StackPtr,
                           stackU: Array[U], x1: U, x0: U,
                           stackB: Array[B], x1b: B, x0b: B): U = {
 
-                  val stackArgsCount = innerLambda.arity - K
-                  assert(stackArgsCount == names.length - K)
-                  val newArgsSrcIndex = top.increment(stackArgsCount).toInt //
-                  val newArgsDestIndex = top.toInt
-
-                  @annotation.tailrec
-                  def go(x1: U, x0: U, x1b: B, x0b: B): U = {
-                    try {
-                      val result = innerLambdaBody(r, rec, top,
-                        stackU, x1, x0, stackB, x1b, x0b)
-                      // todo: could be lazier or more targeted about nulling out the stack
-                      java.util.Arrays.fill(
-                        stackB.asInstanceOf[Array[AnyRef]],
-                        top.toInt + 1,
-                        stackB.length, null
-                      )
-                      return result
-                    }
-                    catch {
-                      case SelfCall =>
-                        if (needsCopy) {
-                          System.arraycopy(
-                            stackU, newArgsSrcIndex,
-                            stackU, newArgsDestIndex,
-                            stackArgsCount
-                          )
-                          System.arraycopy(
-                            stackB, newArgsSrcIndex,
-                            stackB, newArgsDestIndex,
-                            stackArgsCount
-                          )
-                        }
-                    }
-                    go(r.x1, r.x0, r.x1b, r.x0b)
+                  r.boxed = handleSelfCalls {
+                    compiledLambda(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+                    r.boxed.asInstanceOf[Lambda]
                   }
-                  go(x1, x0, x1b, x0b)
+                  U0
                 }
               }
-              val outerLambda = Lambda(names.length, outerLambdaBody, innerLambda.decompile)
-              r.boxed = outerLambda
-              U0
-            }
           }
+        }
         else compiledLambda
-
 
       case Term.Apply(Term.Apply(fn, args), args2) => // converts nested applies to a single apply
         compile(builtins)(Term.Apply(fn, (args ++ args2): _*), env, currentRec, recVars, isTail)
