@@ -1,19 +1,47 @@
 package org.unisonweb
 
 import org.unisonweb.Term.{Name, Term}
-import org.unisonweb.compilation.{CurrentRec, IsNotTail, IsTail, RecursiveVars}
 import org.unisonweb.compilation2.Value.Lambda
 
 object compilation2 {
 
   type U = Double // unboxed values
-  val U0: U = 0.0
-  val True: U = 1.0
-  val False: U = 0.0
+  val U0: U = 0
+  val True: U = 1
+  val False: U = 0
   type B = Param // boxed values
   type R = Result
+  type Arity = Int
+  type IsTail = Boolean
+  val IsTail = true
+  val IsNotTail = false
 
   val K = 2
+
+  case class CurrentRec(get: Option[(Name, Arity)]) extends AnyVal {
+    def isEmpty = get.isEmpty
+    def contains(name: Name): Boolean = get.exists(_._1 == name)
+    def contains(name: Name, arity: Arity): Boolean = get == Some((name, arity))
+    /** knock out the currentRec if appropriate; if it is shadowed, it won't be called */
+    def shadow(name: Name): CurrentRec = CurrentRec(get.filterNot(name == _._1))
+    /** knock out the currentRec if appropriate; if it is shadowed, it won't be called */
+    def shadow(names: Seq[Name]): CurrentRec = CurrentRec(get.filterNot(names contains _._1))
+  }
+  object CurrentRec {
+    def none = CurrentRec(None)
+    def apply(name: Name, arity: Arity): CurrentRec = CurrentRec(Some((name,arity)))
+  }
+
+  case class RecursiveVars(get: Set[Name]) extends AnyVal {
+    def contains(name: Name): Boolean = get.contains(name)
+    def +(name: Name): RecursiveVars = RecursiveVars(get + name)
+    def ++(names: Seq[Name]): RecursiveVars = RecursiveVars(get ++ names)
+    def -(name: Name): RecursiveVars = RecursiveVars(get.filterNot(name == _))
+    def --(names: Seq[Name]): RecursiveVars = RecursiveVars(get.filterNot(names contains _))
+  }
+  object RecursiveVars {
+    def empty = RecursiveVars(Set())
+  }
 
   // type StackPtr = Int
   class StackPtr(private val top: Int) extends AnyVal {
@@ -30,6 +58,9 @@ object compilation2 {
       stackU(top + i + 1) = u
     @inline def pushB(stackB: Array[B], i: Int, b: B): Unit =
       stackB(top + i + 1) = b
+  }
+  object StackPtr {
+    def empty = new StackPtr(-1)
   }
 
   abstract class Param {
@@ -652,7 +683,10 @@ object compilation2 {
     compile(builtins)(e, Vector(), CurrentRec.none, RecursiveVars.empty, IsTail)
 
   def compile(builtins: Name => Computation)(
-    e: Term, env: Vector[Name], currentRec: CurrentRec, recVars: RecursiveVars,
+    e: Term,
+    env: Vector[Name] = Vector.empty,
+    currentRec: CurrentRec = CurrentRec.none,
+    recVars: RecursiveVars = RecursiveVars.empty,
     isTail: Boolean): Computation = {
 
     e match {
