@@ -1,6 +1,7 @@
 package org.unisonweb.util
 
 import java.util.IdentityHashMap
+import scala.collection.immutable.LongMap
 
 object GraphCodec {
 
@@ -17,19 +18,13 @@ object GraphCodec {
   }
 
   trait Sink {
-    def putInt(n: Int): Unit
     def put(bs: Array[Byte]): Unit
     def putByte(b: Byte): Unit
+    def putInt(n: Int): Unit
     def putLong(n: Long): Unit
     def putDouble(n: Double): Unit
     def position: Long
   }
-
-  val NestedStartMarker = 0 : Byte
-  val NestedEndMarker = 1 : Byte
-  val RefStartMarker = 2 : Byte
-  val RefEndMarker = 3 : Byte
-  val SeenMarker = 4 : Byte
 
   /** Encode a `Graphstream`. `includeRefMetadata` controls whether the `bytePrefix`
    *  of each `Ref` is written to the output as well. */
@@ -54,30 +49,86 @@ object GraphCodec {
         val pos = seen.get(r)
         if (pos eq null) {
           seen.put(r, buf.position)
-          buf.putByte(RefStartMarker)
+          buf.putByte(RefMarker)
           if (includeRefMetadata) {
+            buf.putByte(RefMetadata)
             buf.putInt(r.bytePrefix.length)
             buf.put(r.bytePrefix)
           }
+          else buf.putByte(RefNoMetadata)
           go(r.dereference)
         }
         else {
-          val before = buf.position
-          buf.putByte(RefEndMarker)
+          buf.putByte(RefSeenMarker.toByte)
           buf.putLong(pos)
         }
     }
     go(_)
   }
 
-  // pretty simple - keep a LongMap[Graphstream] mapping positions
-  // to decoded Graphstream
-  // read first byte, if it's a 0, read a long, lookup in the map
-  // otherwise if it's a 1, read the prefix, then read the children, recursively
-  def decode(bytes: Sequence[Byte]): Graphstream = ???
+  trait Source {
+    def get(n: Int): Array[Byte]
+    def getByte: Byte
+    def getInt: Int
+    def getLong: Long
+    def getDouble: Double
+    def position: Long
+  }
 
-  // def decode
-  //  def decode[A](make: (Array[Byte], Sequence[A]) => A): Graphstream => A = {
+  final val NestedStartMarker = 0
+  final val NestedEndMarker = 1
+  final val SeenMarker = 2
+  final val RefMarker = 3
+  final val RefSeenMarker = 4
+  final val RefMetadata = 0
+  final val RefNoMetadata = 1
 
+  def decode[A,R<:A](nested: (Array[Byte], Sequence[A]) => A,
+                     ref: Either[Long,Array[Byte]] => R,
+                     setRef: (R,A) => Unit)(src: Source): A = {
+    case object NestedEnd extends Throwable { override def fillInStackTrace = this }
+    var decoded = LongMap.empty[A]
+
+    def read1: A = { val pos = src.position; (src.getByte.toInt: @annotation.switch) match {
+      case NestedStartMarker =>
+        val a = nested(src.get(src.getInt), readNestedChildren(Sequence.empty))
+        decoded = decoded.updated(pos, a)
+        a
+      case NestedEndMarker => throw NestedEnd
+      case SeenMarker    => decoded(src.getLong)
+      case RefMarker =>
+        val r =
+          if (src.getByte.toInt == RefMetadata)
+            ref(Right(src.get(src.getInt)))
+          else
+            ref(Left(pos))
+        decoded = decoded.updated(pos, r)
+        val a = read1
+        setRef(r, a)
+        a
+      case RefSeenMarker => decoded(src.getLong)
+    }}
+
+    def readNestedChildren(buf0: Sequence[A]): Sequence[A] = {
+      var buf = buf0
+      while (true) {
+        try { buf = buf :+ read1 }
+        catch { case NestedEnd => return buf }
+      }
+      buf
+    }
+    read1
+  }
+
+  def toBytes(n: Long): Array[Byte] = {
+    val result = new Array[Byte](8)
+    var m = n
+    var i = 8 - 1; while (i >= 0) {
+      result(i) = (m & 0xFF).toByte
+      m >>= 8
+      i -= 1
+    }
+    return result;
+  }
 }
 
