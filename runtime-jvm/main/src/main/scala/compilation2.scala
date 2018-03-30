@@ -315,7 +315,8 @@ object compilation2 {
     compiledArgs match {
       case List(arg) => new Computation(e) {
         def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U = {
-          r.x0 = eval(arg, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          val rx0v = eval(arg, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          r.x0 = rx0v
           r.x0b = r.boxed
           // we don't need to set r.stackArgsCount;
           // it's known in the self-calling function
@@ -326,7 +327,8 @@ object compilation2 {
         def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U = {
           val arg1v = eval(arg1, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
           val arg1vb = r.boxed
-          r.x0 = eval(arg2, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          val rx0v = eval(arg2, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          r.x0 = rx0v
           r.x0b = r.boxed
           r.x1 = arg1v
           r.x1b = arg1vb
@@ -337,9 +339,10 @@ object compilation2 {
       case args => new Computation(e) {
         private val argsArray = args.toArray
         def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U = {
-          @annotation.tailrec def go(offset: Int): Unit =
+          @inline @annotation.tailrec def go(offset: Int): Unit =
             if (offset < argsArray.length - K) {
-              top.pushU(stackU, offset, eval(argsArray(offset), r, rec, top, stackU, x1, x0, stackB, x1b, x0b))
+              val argv = eval(argsArray(offset), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+              top.pushU(stackU, offset, argv)
               top.pushB(stackB, offset, r.boxed)
               go(offset + 1)
             }
@@ -347,7 +350,8 @@ object compilation2 {
 
           val arg1v = eval(argsArray(argsArray.length-2), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
           val arg1vb = r.boxed
-          r.x0 = eval(argsArray(argsArray.length-1), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          val rx0v = eval(argsArray(argsArray.length - 1), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          r.x0 = rx0v
           r.x0b = r.boxed
           r.x1 = arg1v
           r.x1b = arg1vb
@@ -396,11 +400,10 @@ object compilation2 {
     assert(argCount < lam.arity)
     new Computation(e) {
       def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U = {
-        @annotation.tailrec def go(i: Int, substs: Map[Name, Term]): Map[Name, Term] = {
+        @inline @annotation.tailrec def go(i: Int, substs: Map[Name, Term]): Map[Name, Term] = {
           if (i < argCount) {
-            val param =
-                Term.Compiled2(Param(eval(compiledArgs(i), r, rec, top, stackU, x1, x0, stackB, x1b, x0b), r.boxed))
-
+            val argv = eval(compiledArgs(i), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+            val param = Term.Compiled2(Param(argv, r.boxed))
             go(i+1, substs.updated(names(i), param))
           }
           else substs
@@ -421,7 +424,8 @@ object compilation2 {
     stackU: Array[U], x1: U, x0: U,
     stackB: Array[B], x1b: B, x0b: B): Nothing = {
 
-    r.x0 = eval(arg, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+    val rx0v = eval(arg, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+    r.x0 = rx0v
     r.x0b = r.boxed
     r.stackArgsCount = 0
     r.tailCall = fn
@@ -439,7 +443,8 @@ object compilation2 {
 
     val arg1v = eval(arg1, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
     val arg1vb = r.boxed
-    r.x0 = eval(arg2, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+    val rx0v = eval(arg2, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+    r.x0 = rx0v
     r.x0b = r.boxed
     r.x1 = arg1v
     r.x1b = arg1vb
@@ -457,9 +462,10 @@ object compilation2 {
 
     assert(K == 2) // rewrite all the cases if K is different.
 
-    @annotation.tailrec def go(offset: Int): Unit =
+    @inline @annotation.tailrec def go(offset: Int): Unit =
       if (offset < args.length - K) {
-        top.pushU(stackU, offset, eval(args(offset), r, rec, top, stackU, x1, x0, stackB, x1b, x0b))
+        val v = eval(args(offset), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+        top.pushU(stackU, offset, v)
         top.pushB(stackB, offset, r.boxed)
         go(offset + 1)
       }
@@ -468,8 +474,9 @@ object compilation2 {
     val arg1v = eval(args(args.length-2), r, rec, top,
                 stackU, x1, x0, stackB, x1b, x0b)
     val arg1vb = r.boxed
-    r.x0 = eval(args(args.length-1), r, rec, top,
-                stackU, x1, x0, stackB, x1b, x0b)
+    val rx0v = eval(args(args.length - 1), r, rec, top,
+                 stackU, x1, x0, stackB, x1b, x0b)
+    r.x0 = rx0v
     r.x0b = r.boxed
     r.x1 = arg1v
     r.x1b = arg1vb
@@ -531,10 +538,11 @@ object compilation2 {
     assert(args.length > 2)
     assert(K == 2) // rewrite all the cases if K is different.
 
-    @annotation.tailrec def go(offset: Int): Unit =
+    @inline @annotation.tailrec def go(offset: Int): Unit =
       if (offset < args.length - K) {
-        top.pushU(stackU, offset, eval(args(offset), r, rec, top,
-                                       stackU, x1, x0, stackB, x1b, x0b))
+        val v = eval(args(offset), r, rec, top,
+                     stackU, x1, x0, stackB, x1b, x0b)
+        top.pushU(stackU, offset, v)
         top.pushB(stackB, offset, r.boxed)
         go(offset + 1)
       }
@@ -917,11 +925,10 @@ object compilation2 {
                       stackB: Array[B], x1b: B, x0b: B): U = {
               var bindingResult = new Ref(name, null)
               push(top, stackU, stackB, x1, x1b)
-              bindingResult.value = {
-                Value(eval(cbinding, r, rec, top.increment(1),
-                  stackU, x0, U0,
-                  stackB, x0b, bindingResult), r.boxed)
-              }
+              val v = eval(cbinding, r, rec, top.increment(1),
+                           stackU, x0, U0,
+                           stackB, x0b, bindingResult)
+              bindingResult.value = Value(v, r.boxed)
               cbody(r, rec, top.increment(1), stackU, x0, U0, stackB, x0b, bindingResult)
             }
           }
@@ -936,11 +943,14 @@ object compilation2 {
               val r1 = new Ref(name1, null)
               val r0 = new Ref(name0, null)
               push(top, stackU, stackB, x1, x1b, x0, x0b)
-              r1.value = Value(eval(cbinding1, r, rec, top.increment(2),
-                stackU, U0, U0, stackB, r1, r0), r.boxed)
-              r0.value = Value(eval(cbinding0, r, rec, top.increment(2),
-                stackU, U0, U0, stackB, r1, r0), r.boxed)
-              cbody(r, rec, top.increment(2), stackU, U0, U0, stackB, r1, r0)
+              val top2 = top.increment(2)
+              val r1v = eval(cbinding1, r, rec, top2,
+                             stackU, U0, U0, stackB, r1, r0)
+              r1.value = Value(r1v, r.boxed)
+              val r0v = eval(cbinding0, r, rec, top2,
+                             stackU, U0, U0, stackB, r1, r0)
+              r0.value = Value(r0v, r.boxed)
+              cbody(r, rec, top2, stackU, U0, U0, stackB, r1, r0)
             }
           }
           case cbindings => new Computation(e) {
@@ -953,7 +963,7 @@ object compilation2 {
               val bindingResults = bindingNames.map(name => new Ref(name, null))
               push(top, stackU, stackB, x1, x1b, x0, x0b)
               val top2 = top.increment(2)
-              @annotation.tailrec def pushRefs(i: Int): Unit = {
+              @inline @annotation.tailrec def pushRefs(i: Int): Unit = {
                 if (i < cbindings.length - 2) {
                   top2.pushU(stackU, i, U0)
                   top2.pushB(stackB, i, bindingResults(i))
@@ -968,13 +978,11 @@ object compilation2 {
               val topN = top.increment(cbindings.length)
               val brx1 = bindingResults(bindingResults.length - 2)
               val brx0 = bindingResults(bindingResults.length - 1)
-              @annotation.tailrec def evalBindings(i: Int): Unit = {
+              @inline @annotation.tailrec def evalBindings(i: Int): Unit = {
                 if (i < cbindings.length) {
-                  bindingResults(i).value =
-                    Value(eval(cbindings(i), r, rec, topN,
-                      stackU, U0, U0,
-                      stackB, brx1, brx0
-                    ), r.boxed)
+                  val v = eval(cbindings(i), r, rec, topN,
+                               stackU, U0, U0, stackB, brx1, brx0)
+                  bindingResults(i).value = Value(v, r.boxed)
                   evalBindings(i+1)
                 }
               }
