@@ -84,7 +84,7 @@ object GraphCodec {
   final val RefNoMetadata = 1
 
   def decode[A,R<:A](nested: (Array[Byte], Sequence[A]) => A,
-                     ref: Either[Long,Array[Byte]] => R,
+                     ref: (Long,Array[Byte]) => R,
                      setRef: (R,A) => Unit)(src: Source): A = {
     case object NestedEnd extends Throwable { override def fillInStackTrace = this }
     var decoded = LongMap.empty[A]
@@ -95,13 +95,13 @@ object GraphCodec {
         decoded = decoded.updated(pos, a)
         a
       case NestedEndMarker => throw NestedEnd
-      case SeenMarker    => decoded(src.getLong)
+      case SeenMarker => decoded(src.getLong)
       case RefMarker =>
         val r =
           if (src.getByte.toInt == RefMetadata)
-            ref(Right(src.get(src.getInt)))
+            ref(src.position, src.get(src.getInt))
           else
-            ref(Left(pos))
+            ref(src.position, Array.empty)
         decoded = decoded.updated(pos, r)
         val a = read1
         setRef(r, a)
