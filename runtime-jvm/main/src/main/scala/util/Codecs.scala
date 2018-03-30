@@ -85,4 +85,27 @@ object Codecs {
         catch { case e: BufferOverflowException => fill; bb.putDouble(n); () }
     }
   }
+
+  def writeLong(n: Long): Array[Byte] = {
+    val N = java.lang.Long.BYTES
+    val result = new Array[Byte](N)
+    var m = n
+    var i = N - 1; while (i >= 0) {
+      result(i) = (m & 0xFF).toByte
+      m >>= 8
+      i -= 1
+    }
+    return result;
+  }
+
+  def readLong(bs: Array[Byte]): Long = {
+    var result = 0L
+    val N = java.lang.Long.BYTES
+    var i = 0; while (i < N) {
+      result <<= 8
+      result |= (bs(i) & 0xFF)
+      i += 1
+    }
+    result
+  }
 }

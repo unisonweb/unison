@@ -9,6 +9,7 @@ object UtilTests {
           SequenceTests.tests,
           BytesTests.tests,
           TextTests.tests,
-          CritbyteTests.tests)
+          CritbyteTests.tests,
+          CodecsTests.tests)
   }
 }

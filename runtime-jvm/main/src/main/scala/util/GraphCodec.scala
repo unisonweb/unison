@@ -7,7 +7,10 @@ import Codecs.{Source,Sink}
 trait GraphCodec[G,R<:G] {
   import GraphCodec._
 
-  def bytePrefix(graph: G): Array[Byte]
+  def writeBytePrefix(graph: G, sink: Sink): Unit
+  def bytePrefixLength(graph: G): Int
+  def bytePrefixIndex(graph: G, index: Int): Byte
+
   def foldLeft[B](graph: G)(b: B)(f: (B,G) => B): B
   def foreach(graph: G)(f: G => Unit): Unit
 
@@ -34,7 +37,7 @@ trait GraphCodec[G,R<:G] {
           buf.putByte(RefMarker)
           if (includeRefMetadata) {
             buf.putByte(RefMetadata)
-            buf.putFramed(bytePrefix(r))
+            writeBytePrefix(r, buf)
           }
           else buf.putByte(RefNoMetadata)
           go(dereference(r))
@@ -49,7 +52,7 @@ trait GraphCodec[G,R<:G] {
         if (pos eq null) {
           seen.put(g, buf.position)
           buf.putByte(NestedStartMarker) // indicates a Nested follows
-          buf.putFramed(bytePrefix(g))
+          writeBytePrefix(g, buf)
           foreach(g)(go)
           buf.putByte(NestedEndMarker)
         }
