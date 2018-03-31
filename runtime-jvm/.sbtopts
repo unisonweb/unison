@@ -1,9 +1,9 @@
 # https://docs.oracle.com/javase/8/embedded/develop-apps-platforms/codecache.htm
-#-J-XX:InlineSmallCode=9001
-#-J-XX:MaxInlineLevel=9001
-#-J-XX:MaxInlineSize=9001
-#-J-XX:CompileThreshold=10
-#-J-XX:MinInliningThreshold=10
+-J-XX:InlineSmallCode=8000
+-J-XX:MaxInlineLevel=30
+-J-XX:MaxInlineSize=9001
+-J-XX:CompileThreshold=10
+-J-XX:MinInliningThreshold=10
 #-J-XX:FreqInlineSize 
-#-J-XX:MaxTrivialSize
+-J-XX:MaxTrivialSize=50
 #-J-XX:LiveNodeCountInliningCutoff
