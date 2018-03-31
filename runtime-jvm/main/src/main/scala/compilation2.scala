@@ -1,19 +1,47 @@
 package org.unisonweb
 
 import org.unisonweb.Term.{Name, Term}
-import org.unisonweb.compilation.{CurrentRec, IsNotTail, IsTail, RecursiveVars}
 import org.unisonweb.compilation2.Value.Lambda
 
 object compilation2 {
 
   type U = Double // unboxed values
-  val U0: U = 0.0
-  val True: U = 1.0
-  val False: U = 0.0
+  val U0: U = 0
+  val True: U = 1
+  val False: U = 0
   type B = Param // boxed values
   type R = Result
+  type Arity = Int
+  type IsTail = Boolean
+  val IsTail = true
+  val IsNotTail = false
 
   val K = 2
+
+  case class CurrentRec(get: Option[(Name, Arity)]) extends AnyVal {
+    def isEmpty = get.isEmpty
+    def contains(name: Name): Boolean = get.exists(_._1 == name)
+    def contains(name: Name, arity: Arity): Boolean = get == Some((name, arity))
+    /** knock out the currentRec if appropriate; if it is shadowed, it won't be called */
+    def shadow(name: Name): CurrentRec = CurrentRec(get.filterNot(name == _._1))
+    /** knock out the currentRec if appropriate; if it is shadowed, it won't be called */
+    def shadow(names: Seq[Name]): CurrentRec = CurrentRec(get.filterNot(names contains _._1))
+  }
+  object CurrentRec {
+    def none = CurrentRec(None)
+    def apply(name: Name, arity: Arity): CurrentRec = CurrentRec(Some((name,arity)))
+  }
+
+  case class RecursiveVars(get: Set[Name]) extends AnyVal {
+    def contains(name: Name): Boolean = get.contains(name)
+    def +(name: Name): RecursiveVars = RecursiveVars(get + name)
+    def ++(names: Seq[Name]): RecursiveVars = RecursiveVars(get ++ names)
+    def -(name: Name): RecursiveVars = RecursiveVars(get.filterNot(name == _))
+    def --(names: Seq[Name]): RecursiveVars = RecursiveVars(get.filterNot(names contains _))
+  }
+  object RecursiveVars {
+    def empty = RecursiveVars(Set())
+  }
 
   // type StackPtr = Int
   class StackPtr(private val top: Int) extends AnyVal {
@@ -30,6 +58,9 @@ object compilation2 {
       stackU(top + i + 1) = u
     @inline def pushB(stackB: Array[B], i: Int, b: B): Unit =
       stackB(top + i + 1) = b
+  }
+  object StackPtr {
+    def empty = new StackPtr(-1)
   }
 
   abstract class Param {
@@ -284,7 +315,8 @@ object compilation2 {
     compiledArgs match {
       case List(arg) => new Computation(e) {
         def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U = {
-          r.x0 = eval(arg, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          val rx0v = eval(arg, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          r.x0 = rx0v
           r.x0b = r.boxed
           // we don't need to set r.stackArgsCount;
           // it's known in the self-calling function
@@ -295,7 +327,8 @@ object compilation2 {
         def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U = {
           val arg1v = eval(arg1, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
           val arg1vb = r.boxed
-          r.x0 = eval(arg2, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          val rx0v = eval(arg2, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          r.x0 = rx0v
           r.x0b = r.boxed
           r.x1 = arg1v
           r.x1b = arg1vb
@@ -306,9 +339,10 @@ object compilation2 {
       case args => new Computation(e) {
         private val argsArray = args.toArray
         def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U = {
-          @annotation.tailrec def go(offset: Int): Unit =
+          @inline @annotation.tailrec def go(offset: Int): Unit =
             if (offset < argsArray.length - K) {
-              top.pushU(stackU, offset, eval(argsArray(offset), r, rec, top, stackU, x1, x0, stackB, x1b, x0b))
+              val argv = eval(argsArray(offset), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+              top.pushU(stackU, offset, argv)
               top.pushB(stackB, offset, r.boxed)
               go(offset + 1)
             }
@@ -316,7 +350,8 @@ object compilation2 {
 
           val arg1v = eval(argsArray(argsArray.length-2), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
           val arg1vb = r.boxed
-          r.x0 = eval(argsArray(argsArray.length-1), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          val rx0v = eval(argsArray(argsArray.length - 1), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          r.x0 = rx0v
           r.x0b = r.boxed
           r.x1 = arg1v
           r.x1b = arg1vb
@@ -365,11 +400,10 @@ object compilation2 {
     assert(argCount < lam.arity)
     new Computation(e) {
       def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U = {
-        @annotation.tailrec def go(i: Int, substs: Map[Name, Term]): Map[Name, Term] = {
+        @inline @annotation.tailrec def go(i: Int, substs: Map[Name, Term]): Map[Name, Term] = {
           if (i < argCount) {
-            val param =
-                Term.Compiled2(Param(eval(compiledArgs(i), r, rec, top, stackU, x1, x0, stackB, x1b, x0b), r.boxed))
-
+            val argv = eval(compiledArgs(i), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+            val param = Term.Compiled2(Param(argv, r.boxed))
             go(i+1, substs.updated(names(i), param))
           }
           else substs
@@ -390,7 +424,8 @@ object compilation2 {
     stackU: Array[U], x1: U, x0: U,
     stackB: Array[B], x1b: B, x0b: B): Nothing = {
 
-    r.x0 = eval(arg, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+    val rx0v = eval(arg, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+    r.x0 = rx0v
     r.x0b = r.boxed
     r.stackArgsCount = 0
     r.tailCall = fn
@@ -408,7 +443,8 @@ object compilation2 {
 
     val arg1v = eval(arg1, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
     val arg1vb = r.boxed
-    r.x0 = eval(arg2, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+    val rx0v = eval(arg2, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+    r.x0 = rx0v
     r.x0b = r.boxed
     r.x1 = arg1v
     r.x1b = arg1vb
@@ -426,9 +462,10 @@ object compilation2 {
 
     assert(K == 2) // rewrite all the cases if K is different.
 
-    @annotation.tailrec def go(offset: Int): Unit =
+    @inline @annotation.tailrec def go(offset: Int): Unit =
       if (offset < args.length - K) {
-        top.pushU(stackU, offset, eval(args(offset), r, rec, top, stackU, x1, x0, stackB, x1b, x0b))
+        val v = eval(args(offset), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+        top.pushU(stackU, offset, v)
         top.pushB(stackB, offset, r.boxed)
         go(offset + 1)
       }
@@ -437,8 +474,9 @@ object compilation2 {
     val arg1v = eval(args(args.length-2), r, rec, top,
                 stackU, x1, x0, stackB, x1b, x0b)
     val arg1vb = r.boxed
-    r.x0 = eval(args(args.length-1), r, rec, top,
-                stackU, x1, x0, stackB, x1b, x0b)
+    val rx0v = eval(args(args.length - 1), r, rec, top,
+                 stackU, x1, x0, stackB, x1b, x0b)
+    r.x0 = rx0v
     r.x0b = r.boxed
     r.x1 = arg1v
     r.x1b = arg1vb
@@ -500,10 +538,11 @@ object compilation2 {
     assert(args.length > 2)
     assert(K == 2) // rewrite all the cases if K is different.
 
-    @annotation.tailrec def go(offset: Int): Unit =
+    @inline @annotation.tailrec def go(offset: Int): Unit =
       if (offset < args.length - K) {
-        top.pushU(stackU, offset, eval(args(offset), r, rec, top,
-                                       stackU, x1, x0, stackB, x1b, x0b))
+        val v = eval(args(offset), r, rec, top,
+                     stackU, x1, x0, stackB, x1b, x0b)
+        top.pushU(stackU, offset, v)
         top.pushB(stackB, offset, r.boxed)
         go(offset + 1)
       }
@@ -578,7 +617,7 @@ object compilation2 {
     // The lambda is closed
     if (freeVars.isEmpty) {
       val cbody = compile(builtins)(body, names.reverse.toVector,
-        currentRec, RecursiveVars.empty, IsTail) // hack todo
+        currentRec.shadow(names), RecursiveVars.empty, IsTail)
       Return(Lambda(names.length, cbody, e), e)
     }
     else {
@@ -617,10 +656,14 @@ object compilation2 {
           )
           assert(Term.freeVars(lam2).isEmpty)
           r.boxed = compile(builtins)(
-            lam2, Vector(), currentRec, RecursiveVars.empty, IsNotTail
+            lam2, Vector(), currentRec.shadow(names), RecursiveVars.empty, IsNotTail
           ) match {
             case v: Return => v.value
-            case _ => sys.error("compiling a lambda with no free vars should always produce a Return")
+            case v => sys.error(
+              s"""compiling a lambda with no free vars should always produce a Return;
+                 |instead got $v
+               """.stripMargin
+            )
           }
           U0
         }
@@ -648,7 +691,10 @@ object compilation2 {
     compile(builtins)(e, Vector(), CurrentRec.none, RecursiveVars.empty, IsTail)
 
   def compile(builtins: Name => Computation)(
-    e: Term, env: Vector[Name], currentRec: CurrentRec, recVars: RecursiveVars,
+    e: Term,
+    env: Vector[Name] = Vector.empty,
+    currentRec: CurrentRec = CurrentRec.none,
+    recVars: RecursiveVars = RecursiveVars.empty,
     isTail: Boolean): Computation = {
 
     e match {
@@ -701,79 +747,88 @@ object compilation2 {
         val compiledLambda: Computation =
           compileLambda(builtins)(e, env, currentRec, recVars, names, body)
 
-        if (hasTailRecursiveCall(currentRec.shadow(names), body))
-          new Computation(e) {
-            def apply(r: R, rec: Lambda, top: StackPtr,
-                      stackU: Array[U], x1: U, x0: U,
-                      stackB: Array[B], x1b: B, x0b: B): U = {
-              // let rec
-              //   go n = if n == 0 then n else go (n - 1)
-              //   go
-              // gets converted to:
-              // let rec
-              //   go-inner n = if n == 0 then n else throw SelfCall (n - 1)
-              //   go n = while (true) return { try go-inner n catch { case SelfCall n2 => go-inner n2 }}
-              //   go
-              val innerLambda: Lambda = {
-                compiledLambda(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
-                r.boxed.asInstanceOf[Lambda]
+        if (hasTailRecursiveCall(currentRec.shadow(names), body)) {
+          // let rec
+          //   go n = if n == 0 then n else go (n - 1)
+          //   go
+          // gets converted to:
+          // let rec
+          //   go-inner n = if n == 0 then n else throw SelfCall (n - 1)
+          //   go n = while (true) return { try go-inner n catch { case SelfCall n2 => go-inner n2 }}
+          //   go
+
+          @inline def handleSelfCalls(innerLambda: Lambda): Lambda = {
+            assert(names.length == innerLambda.arity)
+            val innerLambdaBody = innerLambda.body
+            val needsCopy = names.length > 2
+            // inner lambda may throw SelfCall, so we create wrapper Lambda
+            // to process those
+            val outerLambdaBody: Computation = new Computation(null) {
+              def apply(r: R, rec: Lambda, top: StackPtr,
+                        stackU: Array[U], x1: U, x0: U,
+                        stackB: Array[B], x1b: B, x0b: B): U = {
+
+                val stackArgsCount = innerLambda.arity - K
+                val newArgsSrcIndex = top.increment(stackArgsCount).toInt //
+                val newArgsDestIndex = top.toInt
+
+                @annotation.tailrec
+                def go(x1: U, x0: U, x1b: B, x0b: B): U = {
+                  try {
+                    val result = innerLambdaBody(r, rec, top,
+                                                 stackU, x1, x0, stackB, x1b, x0b)
+                    // todo: could be lazier or more targeted about nulling out the stack
+                    java.util.Arrays.fill(
+                      stackB.asInstanceOf[Array[AnyRef]],
+                      top.toInt + 1,
+                      stackB.length, null
+                    )
+                    return result
+                  }
+                  catch {
+                    case SelfCall =>
+                      if (needsCopy) {
+                        System.arraycopy(
+                          stackU, newArgsSrcIndex,
+                          stackU, newArgsDestIndex,
+                          stackArgsCount
+                        )
+                        System.arraycopy(
+                          stackB, newArgsSrcIndex,
+                          stackB, newArgsDestIndex,
+                          stackArgsCount
+                        )
+                      }
+                  }
+                  go(r.x1, r.x0, r.x1b, r.x0b)
+                }
+
+                go(x1, x0, x1b, x0b)
               }
-              val innerLambdaBody = innerLambda.body
-              val needsCopy = names.length > 2
-              // inner lambda may throw SelfCall, so we create wrapper Lambda
-              // to process those
-              val outerLambdaBody: Computation = new Computation(null) {
+            }
+            Lambda(names.length, outerLambdaBody, innerLambda.decompile)
+          }
 
+          compiledLambda match {
+            case Return(innerLambda: Lambda) =>
+              Return(handleSelfCalls(innerLambda), e)
 
+            case compiledLambda => // first evaluate innerLambda within a Computation
+              new Computation(e) {
                 def apply(r: R, rec: Lambda, top: StackPtr,
                           stackU: Array[U], x1: U, x0: U,
                           stackB: Array[B], x1b: B, x0b: B): U = {
 
-                  val stackArgsCount = innerLambda.arity - K
-                  assert(stackArgsCount == names.length - K)
-                  val newArgsSrcIndex = top.increment(stackArgsCount).toInt //
-                  val newArgsDestIndex = top.toInt
-
-                  @annotation.tailrec
-                  def go(x1: U, x0: U, x1b: B, x0b: B): U = {
-                    try {
-                      val result = innerLambdaBody(r, rec, top,
-                        stackU, x1, x0, stackB, x1b, x0b)
-                      // todo: could be lazier or more targeted about nulling out the stack
-                      java.util.Arrays.fill(
-                        stackB.asInstanceOf[Array[AnyRef]],
-                        top.toInt + 1,
-                        stackB.length, null
-                      )
-                      return result
-                    }
-                    catch {
-                      case SelfCall =>
-                        if (needsCopy) {
-                          System.arraycopy(
-                            stackU, newArgsSrcIndex,
-                            stackU, newArgsDestIndex,
-                            stackArgsCount
-                          )
-                          System.arraycopy(
-                            stackB, newArgsSrcIndex,
-                            stackB, newArgsDestIndex,
-                            stackArgsCount
-                          )
-                        }
-                    }
-                    go(r.x1, r.x0, r.x1b, r.x0b)
+                  r.boxed = handleSelfCalls {
+                    compiledLambda(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+                    r.boxed.asInstanceOf[Lambda]
                   }
-                  go(x1, x0, x1b, x0b)
+                  U0
                 }
               }
-              val outerLambda = Lambda(names.length, outerLambdaBody, innerLambda.decompile)
-              r.boxed = outerLambda
-              U0
-            }
           }
+        }
         else compiledLambda
-
 
       case Term.Apply(Term.Apply(fn, args), args2) => // converts nested applies to a single apply
         compile(builtins)(Term.Apply(fn, (args ++ args2): _*), env, currentRec, recVars, isTail)
@@ -870,11 +925,10 @@ object compilation2 {
                       stackB: Array[B], x1b: B, x0b: B): U = {
               var bindingResult = new Ref(name, null)
               push(top, stackU, stackB, x1, x1b)
-              bindingResult.value = {
-                Value(eval(cbinding, r, rec, top.increment(1),
-                  stackU, x0, U0,
-                  stackB, x0b, bindingResult), r.boxed)
-              }
+              val v = eval(cbinding, r, rec, top.increment(1),
+                           stackU, x0, U0,
+                           stackB, x0b, bindingResult)
+              bindingResult.value = Value(v, r.boxed)
               cbody(r, rec, top.increment(1), stackU, x0, U0, stackB, x0b, bindingResult)
             }
           }
@@ -889,11 +943,14 @@ object compilation2 {
               val r1 = new Ref(name1, null)
               val r0 = new Ref(name0, null)
               push(top, stackU, stackB, x1, x1b, x0, x0b)
-              r1.value = Value(eval(cbinding1, r, rec, top.increment(2),
-                stackU, U0, U0, stackB, r1, r0), r.boxed)
-              r0.value = Value(eval(cbinding0, r, rec, top.increment(2),
-                stackU, U0, U0, stackB, r1, r0), r.boxed)
-              cbody(r, rec, top.increment(2), stackU, U0, U0, stackB, r1, r0)
+              val top2 = top.increment(2)
+              val r1v = eval(cbinding1, r, rec, top2,
+                             stackU, U0, U0, stackB, r1, r0)
+              r1.value = Value(r1v, r.boxed)
+              val r0v = eval(cbinding0, r, rec, top2,
+                             stackU, U0, U0, stackB, r1, r0)
+              r0.value = Value(r0v, r.boxed)
+              cbody(r, rec, top2, stackU, U0, U0, stackB, r1, r0)
             }
           }
           case cbindings => new Computation(e) {
@@ -906,7 +963,7 @@ object compilation2 {
               val bindingResults = bindingNames.map(name => new Ref(name, null))
               push(top, stackU, stackB, x1, x1b, x0, x0b)
               val top2 = top.increment(2)
-              @annotation.tailrec def pushRefs(i: Int): Unit = {
+              @inline @annotation.tailrec def pushRefs(i: Int): Unit = {
                 if (i < cbindings.length - 2) {
                   top2.pushU(stackU, i, U0)
                   top2.pushB(stackB, i, bindingResults(i))
@@ -921,13 +978,11 @@ object compilation2 {
               val topN = top.increment(cbindings.length)
               val brx1 = bindingResults(bindingResults.length - 2)
               val brx0 = bindingResults(bindingResults.length - 1)
-              @annotation.tailrec def evalBindings(i: Int): Unit = {
+              @inline @annotation.tailrec def evalBindings(i: Int): Unit = {
                 if (i < cbindings.length) {
-                  bindingResults(i).value =
-                    Value(eval(cbindings(i), r, rec, topN,
-                      stackU, U0, U0,
-                      stackB, brx1, brx0
-                    ), r.boxed)
+                  val v = eval(cbindings(i), r, rec, topN,
+                               stackU, U0, U0, stackB, brx1, brx0)
+                  bindingResults(i).value = Value(v, r.boxed)
                   evalBindings(i+1)
                 }
               }

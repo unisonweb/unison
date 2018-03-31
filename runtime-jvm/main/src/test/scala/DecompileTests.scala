@@ -15,7 +15,7 @@ object DecompileTests {
               Term.Var("pong")
             }
         }
-      note(PrettyPrint.prettyTerm(compilation.normalize(_ => ???)(pingpong)).render(40), includeAlways = true)
+      note(PrettyPrint.prettyTerm(compilation2.normalize(_ => ???)(pingpong)).render(40), includeAlways = true)
       ok
     },
     test("ex2") { implicit T =>
@@ -27,7 +27,7 @@ object DecompileTests {
               Term.Var("ping")
             }
         }
-      note(PrettyPrint.prettyTerm(compilation.normalize(_ => ???)(pingpong)).render(40), includeAlways = true)
+      note(PrettyPrint.prettyTerm(compilation2.normalize(_ => ???)(pingpong)).render(40), includeAlways = true)
       ok
     },
     test("ex3") { implicit T =>
@@ -39,7 +39,7 @@ object DecompileTests {
           "pong" -> Term.Lam("x")(Term.Var("ping")(Term.Var("pang")(Term.Var("x"))))) {
             Term.Var("ping")
           }
-      note(PrettyPrint.prettyTerm(compilation.normalize(_ => ???)(pingpong)).render(40), includeAlways = true)
+      note(PrettyPrint.prettyTerm(compilation2.normalize(_ => ???)(pingpong)).render(40), includeAlways = true)
       ok
     }
   )

@@ -2,7 +2,7 @@ package org.unisonweb
 
 import org.unisonweb.util.{Traverse,Monoid}
 import ABT.{Abs, AnnotatedTerm, Tm}
-import compilation.{Ref,Param,Value}
+import compilation2.{Ref,Param,Value}
 
 object Term {
 
@@ -67,8 +67,8 @@ object Term {
 
   /** Return a `Term` without an outer `Compiled` constructor. */
   def stripOuterCompiled(t: Term): Term = t match {
-    case Compiled(v: Value) => v.decompile
-    case Compiled(r: Ref) => r.value.decompile
+    case Compiled2(v: Value) => v.decompile
+    case Compiled2(r: Ref) => r.value.decompile
     case _ => t
   }
 
@@ -139,60 +139,6 @@ object Term {
         case r : Ref => Var(freshRefNames(r))
         case compilation2.Value.Num(d) => Term.Num(d)
         case v : compilation2.Value => replaceRefs(v.decompile)
-      }
-      case t => t
-    }
-    val refBindings = refs.toList.map { case (ref,tm) => (freshRefNames(ref), replaceRefs(tm)) }
-    // 3. Introduce one outer let rec block with all uniquely named refs
-    // 4. Pass to convert self calls to regular let rec
-    LetRec(refBindings: _*)(replaceRefs(t))
-  }
-  /**
-   * Removes all `Compiled` nodes from `t` by expanding their definitions and
-   * converting cyclic references to `let rec` declarations.
-   */
-  def fullyDecompile(t: Term): Term = {
-    // 1. Collect full set of refs via transitive closure - a `Set[Ref]`
-    // 2. Compute all used names (including self recursive names), freshen names for each `Ref`
-    // 3. Introduce one outer let rec block for each `Ref`, substitute away all refs
-    // 4. Pass to convert self calls to regular let rec
-    // 5. (optional) Pass to float bindings in to their LCA of all reference points,
-    //               but there's not much advantage to this.
-
-    def names(t: Term): Set[Name] = t.foldMap[Set[Name]] {
-      case Var(name) => Set(name)
-      case Self(name) => Set(name)
-      case Abs(name, _) => Set(name)
-      case _ => Set.empty
-    } (Monoid.Set)
-
-    def transitiveClosure(seen: Map[Ref,Term], cur: Term): Map[Ref,Term] = cur match {
-      case Builtin(_) | Num(_) | Var(_) => seen
-      case Apply(f, args) =>
-        args.foldLeft(transitiveClosure(seen, f))(transitiveClosure _)
-      case If0(cond, ifZero, ifNonzero) =>
-        List(ifZero, ifNonzero).foldLeft(transitiveClosure(seen, cond))(transitiveClosure _)
-      case Lam1(name, body) => transitiveClosure(seen, body)
-      case Let1(name, binding, body) =>
-        transitiveClosure(transitiveClosure(seen, binding), body)
-      case LetRec(bindings, body) =>
-        bindings.map(_._2).foldLeft(transitiveClosure(seen, body))(transitiveClosure)
-      case Compiled(r : Ref) =>
-        if (seen.contains(r)) seen
-        else { val v = r.value.decompile; transitiveClosure(seen + (r -> v), v) }
-      case Compiled(v) => transitiveClosure(seen, v.decompile)
-    }
-
-    // 1. Collect full set of refs via transitive closure - a `Set[Ref]`
-    val refs = transitiveClosure(Map.empty, t)
-    val usedNames = refs.values.map(names).foldLeft(names(t))(_ union _)
-    // 2. Freshen names for each `Ref`, if needed
-    val freshRefNames = refs.keys.view.map(r => (r, ABT.freshen(r.name, usedNames))).toMap
-    def replaceRefs(t: Term): Term = selfToLetRec(t).rewriteDown {
-      case Compiled(c) => c match {
-        case r : Ref => Var(freshRefNames(r))
-        case compilation.Num(d) => Term.Num(d)
-        case v : compilation.Value => replaceRefs(v.decompile)
       }
       case t => t
     }
@@ -390,14 +336,6 @@ object Term {
       Tm(If0_(cond, is0, not0))
     def unapply[A](t: AnnotatedTerm[F,A]): Option[(AnnotatedTerm[F,A],AnnotatedTerm[F,A],AnnotatedTerm[F,A])] = t match {
       case Tm(If0_(cond, t, f)) => Some((cond, t, f))
-      case _ => None
-    }
-  }
-  object Compiled {
-    def apply(v: Param): Term =
-      Tm(Compiled_(v))
-    def unapply[A](t: AnnotatedTerm[F,A]): Option[Param] = t match {
-      case Tm(Compiled_(p)) => Some(p)
       case _ => None
     }
   }
