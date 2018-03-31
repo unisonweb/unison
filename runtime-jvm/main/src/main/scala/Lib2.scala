@@ -67,6 +67,14 @@ object Lib2 {
           r.boxed = null
           f(x1, n)
         }
+        case List(CompiledVar1,CompiledVar0) => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+          r.boxed = null
+          f(x1, x0)
+        }
+        case List(CompiledVar0,CompiledVar1) => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+          r.boxed = null
+          f(x0, x1)
+        }
         case List(arg1,arg2) => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
           val x1v = eval(arg1,r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
           val x0v = eval(arg2,r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
