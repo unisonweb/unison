@@ -33,11 +33,11 @@ object Lib2 {
 
   @inline def boolToNum(b: Boolean): U = if (b) True else False
 
-  trait NumericUnaryOp {
+  abstract class NumericUnaryOp {
     def apply(n1: U): U
   }
 
-  trait NumericBinOp {
+  abstract class NumericBinOp {
     def apply(n1: U, n2: U): U
   }
 
@@ -58,10 +58,19 @@ object Lib2 {
 
     new Lambda(2, body, decompiled) { self =>
       def names = ns
-      override def saturatedCall(args: List[Computation], isTail: IsTail) = args match {
+      override def saturatedNonTailCall(args: List[Computation]) = args match {
+        case List(CompiledVar0,Return(Value.Num(n))) => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+          r.boxed = null
+          f(x0, n)
+        }
+        case List(CompiledVar1,Return(Value.Num(n))) => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+          r.boxed = null
+          f(x1, n)
+        }
         case List(arg1,arg2) => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
           val x1v = eval(arg1,r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
           val x0v = eval(arg2,r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
+          r.boxed = null
           f(x1v, x0v)
         }
       }

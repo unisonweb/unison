@@ -97,9 +97,8 @@ object compilation2 {
 
       def toResult(r: Result) = { r.boxed = this; U0 }
 
-      def saturatedCall(args: List[Computation], isTail: IsTail): Computation =
-        if (isTail) compileStaticFullySaturatedTailCall(this, args)
-        else compileStaticFullySaturatedNontailCall(this, args)
+      def saturatedNonTailCall(args: List[Computation]): Computation =
+        compileStaticFullySaturatedNontailCall(this, args)
 
       def underapply(builtins: Name => Computation)(argCount: Int, substs: Map[Name, Term]): Value.Lambda = decompile match {
         case Term.Lam(names, body) =>
@@ -191,13 +190,11 @@ object compilation2 {
     }
   }
 
-  def compileNum(n: U): Computation =
-    new Return(Term.Num(n)) {
-      def value = Value.Num(n)
-
-      def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U =
-        returnUnboxed(r, n)
-    }
+  def compileNum(n: U): Computation = new Return(Term.Num(n)) {
+    def value = Value.Num(n)
+    def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U =
+      returnUnboxed(r, n)
+  }
 
   /**
     * Returns true if the register should be saved to the stack when pushing.
@@ -666,7 +663,7 @@ object compilation2 {
     env: Vector[Name] = Vector.empty,
     currentRec: CurrentRec = CurrentRec.none,
     recVars: RecursiveVars = RecursiveVars.empty,
-    isTail: Boolean): Computation = {
+    isTail: IsTail): Computation = {
 
     e match {
       case Term.Num(n) => compileNum(n)
@@ -792,10 +789,12 @@ object compilation2 {
               // static tail call, fully saturated
               //   (x -> x+4) 42
               //   ^^^^^^^^^^^^^
+              if (isTail && needsTailCall(fn)) compileStaticFullySaturatedTailCall(lam, compiledArgs)
+
               // static non-tail call, fully saturated
               //   ex: let x = (x -> x + 1) 1; x
               //               ^^^^^^^^^^^^^^
-              lam.saturatedCall(compiledArgs, isTail && needsTailCall(fn))
+              else lam.saturatedNonTailCall(compiledArgs)
 
             // static call, underapplied (no tail call variant - just returning immediately)
             //   ex: (x y -> x) 42
@@ -987,14 +986,25 @@ object compilation2 {
     U0
   }
 
-  // todo - could pass info here about the type of variable, whether it is boxed or unboxed, and optimize for this case
+  abstract class CompiledVar(val position: Int) extends Computation
+
+  case object CompiledVar0 extends CompiledVar(0) {
+    def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B) = returnBoth(r, x0, x0b)
+  }
+  case object CompiledVar1 extends CompiledVar(0) {
+    def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B) = returnBoth(r, x1, x1b)
+  }
+
   def compileVar(e: Term, name: Name, env: Vector[Name], currentRec: CurrentRec): Computation =
     if (currentRec.contains(name)) new Self(name)
     else env.indexOf(name) match {
       case -1 => sys.error("unbound name: " + name)
-      case 0 => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => returnBoth(r, x0, x0b)
-      case 1 => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => returnBoth(r, x1, x1b)
-      case n => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => returnBoth(r, top.u(stackU, n), top.b(stackB, n))
+      case 0 => CompiledVar0
+      case 1 => CompiledVar1
+      case n => new CompiledVar(n) {
+        def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B) =
+          returnBoth(r, top.u(stackU, n), top.b(stackB, n))
+      }
     }
 
   def compileRef(e: Term, name: Name, env: Vector[Name], currentRec: CurrentRec): ParamLookup = {
