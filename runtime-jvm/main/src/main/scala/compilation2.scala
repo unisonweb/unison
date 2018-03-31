@@ -787,7 +787,7 @@ object compilation2 {
               // static tail call, fully saturated
               //   (x -> x+4) 42
               //   ^^^^^^^^^^^^^
-              if (isTail)
+              if (isTail && needsTailCall(fn))
                 compileStaticFullySaturatedTailCall(e, lam, compiledArgs)
 
               // static non-tail call, fully saturated
@@ -922,6 +922,12 @@ object compilation2 {
             }
         }
     }
+  }
+
+  /** Returns `true` if a fully saturated call of `fn` should be compiled as a tail call. */
+  def needsTailCall(fn: Term): Boolean = fn match {
+    case Term.Var(_) => true
+    case _ => false
   }
 
   def hasTailRecursiveCall(rec: CurrentRec, term: Term): Boolean =
