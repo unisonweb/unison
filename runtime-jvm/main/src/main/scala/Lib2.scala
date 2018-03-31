@@ -58,6 +58,13 @@ object Lib2 {
 
     new Lambda(2, body, decompiled) { self =>
       def names = ns
+      override def saturatedCall(args: List[Computation], isTail: IsTail) = args match {
+        case List(arg1,arg2) => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+          val x1v = eval(arg1,r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
+          val x0v = eval(arg2,r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
+          f(x1v, x0v)
+        }
+      }
       override def underapply(builtins: Name => Computation)
                              (argCount: Int, substs: Map[Name, Term]): Lambda =
         substs.toList match {

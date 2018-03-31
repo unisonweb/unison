@@ -28,9 +28,7 @@ object Compilation2Benchmarks {
       {
         val p = runTerm(Terms.fib)
         profile("unison-fib") {
-          eval(p.body, r, p, top,
-               stackU, U0, N(21).toDouble,
-               stackB, null, null).toLong
+          evalLam(p, r, top, stackU, U0, N(21).toDouble, stackB, null, null).toLong
         }
       }
     )
@@ -43,9 +41,7 @@ object Compilation2Benchmarks {
       {
         val p = runTerm(Terms.triangle)
         profile("unison-triangle") {
-          eval(p.body, r, p, top,
-               stackU, N(1000), N(0),
-               stackB, null, null).toLong
+          evalLam(p, r, top, stackU, N(1000), N(0), stackB, null, null).toLong
         }
       }
     )
@@ -60,9 +56,7 @@ object Compilation2Benchmarks {
       {
         val p = runTerm(Terms.fibPrime)
         profile("unison-fibPrime") {
-          eval(p.body, r, p, top,
-               stackU, U0, N(21),
-               stackB, null, null).toLong
+          evalLam(p, r, top, stackU, U0, N(21), stackB, null, null).toLong
         }
       }
     )
