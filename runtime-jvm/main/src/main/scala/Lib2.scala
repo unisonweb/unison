@@ -42,26 +42,18 @@ object Lib2 {
   }
 
   def builtin1(decompiled: Term, n: Name, f: NumericUnaryOp): Lambda = {
-    val body = new Computation(null) {
-      def apply(r: R, rec: Lambda, top: StackPtr,
-                stackU: Array[U], x1: U, x0: U,
-                stackB: Array[B], x1b: B, x0b: B): U = {
-        r.boxed = null
-        f(x0)
-      }
+    val body: Computation = (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+      r.boxed = null
+      f(x0)
     }
     val ns = List(n)
     new Lambda(1, body, decompiled) { def names = ns }
   }
 
   def builtin2(decompiled: Term, ns: List[Name], f: NumericBinOp): Lambda = {
-    val body = new Computation(null) {
-      def apply(r: R, rec: Lambda, top: StackPtr,
-                stackU: Array[U], x1: U, x0: U,
-                stackB: Array[B], x1b: B, x0b: B): U = {
-        r.boxed = null
-        f(x1, x0)
-      }
+    val body: Computation = (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+      r.boxed = null
+      f(x1, x0)
     }
 
     new Lambda(2, body, decompiled) { self =>
@@ -72,14 +64,11 @@ object Lib2 {
           case List((_,term)) => term match {
             case Term.Compiled2(p: Param) =>
               val n = p.toValue.asInstanceOf[Value.Num].n
-              new Lambda(1, new Computation(null) {
-                def apply(r: R, rec: Lambda, top: StackPtr,
-                          stackU: Array[U], x1: U, x0: U,
-                          stackB: Array[B], x1b: B, x0b: B): U = {
-                  r.boxed = null
-                  f(n, x0)
-                }
-              }, Term.Apply(decompiled, term)) {
+              val body: Computation = (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+                r.boxed = null
+                f(n, x0)
+              }
+              new Lambda(1, body, Term.Apply(decompiled, term)) {
                 def names = self.names drop argCount
               }
             case _ => sys.error("")
