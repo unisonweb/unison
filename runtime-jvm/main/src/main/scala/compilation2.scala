@@ -91,6 +91,7 @@ object compilation2 {
 
     abstract class Lambda(final val arity: Int, final private val body: Computation, val decompile: Term) extends Value {
       def names: List[Name]
+      def toComputation = Return(this, decompile)
 
       final def apply(r: R, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U =
         body(r, this, top, stackU, x1, x0, stackB, x1b, x0b)
