@@ -137,10 +137,9 @@ object Terms {
   val triangle =
     LetRec('triangle ->
              Lam('n, 'acc)(
-               If(
-                 'n.v unisonEquals zero,
-                 'acc.v,
-                 'triangle.v('n.v - 1, 'acc.v + 'n)))
+               If('n.v,
+                  'triangle.v('n.v - 1, 'acc.v + 'n),
+                  'acc.v))
     )('triangle)
 
   val odd =
