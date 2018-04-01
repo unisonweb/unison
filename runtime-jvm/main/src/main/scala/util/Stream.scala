@@ -44,6 +44,20 @@ abstract class Stream[A] { self =>
     try { while (true) s() } catch { case Done => }
     total
   }
+
+  final def evens: Stream[A] = {
+    k => self stage {
+      var ok = true
+      (u,a) => { ok = { if (ok) k(u,a); !ok }}
+    }
+  }
+
+  final def odds: Stream[A] = {
+    k => self stage {
+      var ok = false
+      (u,a) => { ok = { if (ok) k(u,a); !ok }}
+    }
+  }
 }
 
 object Stream {
