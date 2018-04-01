@@ -69,6 +69,12 @@ object Stream {
 
   case object Done extends Throwable { override def fillInStackTrace = this }
 
+  final def range(start: Long, stopExclusive: Long): Stream[Long] =
+    k => {
+      var i = start - 1
+      () => { i += 1; if (i < stopExclusive) k(i,null) else throw Done }
+    }
+
   final def from(n: Long): Stream[Long] =
     k => {
       var i = n - 1
