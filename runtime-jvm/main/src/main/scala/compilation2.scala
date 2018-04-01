@@ -927,7 +927,10 @@ object compilation2 {
 
   /** Returns `true` if a fully saturated call of `fn` should be compiled as a tail call. */
   def needsTailCall(fn: Term): Boolean = fn match {
-    case Term.Var(_) => true
+    // recursive calls must always go through a `Var` or `Self`, and recursive calls are the
+    // only calls required to be emitted as tail calls to ensure stack safety
+    // (you can create cycles via higher order functions, but these will still go through `Var`)
+    case Term.Var(_) | Term.Self(_) => true
     case _ => false
   }
 
