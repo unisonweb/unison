@@ -20,6 +20,19 @@ object Compilation2Benchmarks {
 
   def main(args: Array[String]): Unit = {
     suite(
+      profile("scala-triangle") {
+        def triangle(n: Int, acc: Int): Int =
+          if (n == 0) acc else triangle(n - 1, acc + n)
+        triangle(N(10000), N(0))
+      },
+      {
+        val p = runTerm(Terms.triangle)
+        profile("unison-triangle") {
+          evalLam(p, r, top, stackU, N(10000), N(0), stackB, null, null).toLong
+        }
+      }
+    )
+    suite(
       profile("scala-fib") {
         def fib(n: Int): Int =
           if (n < 2) n else fib(n - 1) + fib(n - 2)
@@ -28,24 +41,7 @@ object Compilation2Benchmarks {
       {
         val p = runTerm(Terms.fib)
         profile("unison-fib") {
-          eval(p.body, r, p, top,
-               stackU, U0, N(21).toDouble,
-               stackB, null, null).toLong
-        }
-      }
-    )
-    suite(
-      profile("scala-triangle") {
-        def triangle(n: Int, acc: Int): Int =
-          if (n == 0) acc else triangle(n - 1, acc + n)
-        triangle(N(1000), N(0))
-      },
-      {
-        val p = runTerm(Terms.triangle)
-        profile("unison-triangle") {
-          eval(p.body, r, p, top,
-               stackU, N(1000), N(0),
-               stackB, null, null).toLong
+          evalLam(p, r, top, stackU, U0, N(21).toDouble, stackB, null, null).toLong
         }
       }
     )
@@ -60,9 +56,7 @@ object Compilation2Benchmarks {
       {
         val p = runTerm(Terms.fibPrime)
         profile("unison-fibPrime") {
-          eval(p.body, r, p, top,
-               stackU, U0, N(21),
-               stackB, null, null).toLong
+          evalLam(p, r, top, stackU, U0, N(21), stackB, null, null).toLong
         }
       }
     )

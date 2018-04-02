@@ -4,8 +4,8 @@ lazy val commonSettings = Seq(
     // https://docs.oracle.com/javase/8/embedded/develop-apps-platforms/codecache.htm
     //"-XX:+UnlockDiagnosticVMOptions",
     //"-XX:+LogCompilation"
-    //"-XX:InlineSmallCode=9001"
-    //"-XX:MaxInlineLevel=9001"
+    "-XX:InlineSmallCode=9001",
+    "-XX:MaxInlineLevel=35"
     //"-XX:MaxInlineSize=9001"
     //"-XX:CompileThreshold=10"
     //"-XX:MinInliningThreshold=10"
