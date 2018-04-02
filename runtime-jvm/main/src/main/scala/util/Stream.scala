@@ -2,8 +2,8 @@ package org.unisonweb
 package util
 
 import Stream._
-import compilation2.{U,U0}
-import Unboxed.{F1,F2}
+import compilation2.{U, U0}
+import Unboxed.{F1, F2, Unboxed}
 
 abstract class Stream[Env,A] { self =>
 
@@ -57,10 +57,9 @@ abstract class Stream[Env,A] { self =>
                else k(u,a)
     }
 
-  final def sum(env: Env)(implicit A: A =:= U): U = {
+  final def sum(env: Env)(implicit A: A =:= Unboxed[U]): U = {
     var total = U0
-    val s = self.stage(env) { (u,_) => total += u }
-    try { while (true) s() } catch { case Done => }
+    self.stage(env) { (u,_) => total += u }.run()
     total
   }
 
@@ -73,6 +72,16 @@ abstract class Stream[Env,A] { self =>
       () => { left(); right(); ab = null.asInstanceOf[A]; cb = null.asInstanceOf[C] }
     }
 
+  def foldLeft[B,C](env: Env, u0: U, b0: B)(f: F2[Env,B,A,B])(extract: (U,B) => C): C = {
+    var (u, b) = (U0, b0)
+    val cf = f.stage(env) { b2 => b = b2 }
+    self.stage(env) { (u2,a) => u = cf(u, b, u2, a) }.run()
+    extract(u,b)
+  }
+
+  def box[T](f: U => T)(implicit A: A =:= Unboxed[T]): Stream[Env,T] =
+    map(env => set => (u,_) => { set(f(u)); U0 })
+
   def ++(s: Stream[Env,A]): Stream[Env,A] = env => k => {
     var done = false
     val cself = self.stage(env)(k)
@@ -82,21 +91,32 @@ abstract class Stream[Env,A] { self =>
       else { try cself() catch { case Done => done = true } }
     }
   }
+
+  def toSequence[B](env: Env)(f: (U,A) => B): Sequence[B] = {
+    var result = Sequence.empty[B]
+    self.stage(env) { (u, a) => result = result :+ f(u,a) }.run()
+    result
+  }
 }
 
 object Stream {
 
   abstract class K[A] { def apply(u: U, b: A): Unit }
-  abstract class Step { def apply(): Unit }
+  abstract class Step {
+    def apply(): Unit
+
+    @inline final def run(): Unit =
+      try { while (true) apply() } catch { case Done => }
+  }
 
   case object Done extends Throwable { override def fillInStackTrace = this }
 
-  final def constant(n: U): Stream[Any,U] =
-    _ => k => () => k(n, null.asInstanceOf[U])
+  final def constant(n: U): Stream[Any,Unboxed[U]] =
+    _ => k => () => k(n, null)
 
-  final def from(n: U): Stream[Any,U] =
+  final def from(n: U): Stream[Any,Unboxed[U]] =
     _ => k => {
       var i = n - 1
-      () => { i += 1; k(i,null.asInstanceOf[U]) }
+      () => { i += 1; k(i,null) }
     }
 }

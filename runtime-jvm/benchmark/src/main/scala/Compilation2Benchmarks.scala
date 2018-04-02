@@ -18,17 +18,29 @@ object Compilation2Benchmarks {
   def runTerm(t: Term): Value.Lambda =
     run(compileTop(Lib2.builtins)(t)).asInstanceOf[Value.Lambda]
 
+  val triangleCount = 10000
+
   def main(args: Array[String]): Unit = {
     suite(
       profile("scala-triangle") {
         def triangle(n: Int, acc: Int): Int =
           if (n == 0) acc else triangle(n - 1, acc + n)
-        triangle(N(10000), N(0))
+        triangle(N(triangleCount), N(0))
       },
       {
         val p = runTerm(Terms.triangle)
         profile("unison-triangle") {
-          evalLam(p, r, top, stackU, N(10000), N(0), stackB, null, null).toLong
+          evalLam(p, r, top, stackU, N(triangleCount), N(0), stackB, null, null).toLong
+        }
+      },
+      {
+        profile("stream-triangle") {
+          util.Stream.from(N(0)).take(N(triangleCount)).sum(()).toLong
+        }
+      },
+      {
+        profile("stream-triangle-unisonfold") {
+          util.Stream.from(N(0)).take(N(triangleCount)).sum(()).toLong
         }
       }
     )
