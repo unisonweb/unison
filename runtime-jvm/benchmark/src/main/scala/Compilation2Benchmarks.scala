@@ -3,6 +3,9 @@ package org.unisonweb.benchmark
 import org.unisonweb._
 import compilation2._
 import Term.Term
+import org.unisonweb.ABT.Name
+import org.unisonweb.compilation2.Value.Lambda
+import org.unisonweb.util.{Stream, Unboxed}
 
 object Compilation2Benchmarks {
 
@@ -39,8 +42,15 @@ object Compilation2Benchmarks {
         }
       },
       {
+        val plusU = UnisonToScala.toUnboxed2 {
+          Lib2.builtins(Name("+")) match { case Return(lam: Lambda) => lam }
+        }.asInstanceOf[Unboxed.F2[UnisonToScala.Env,Param,Param,Param]]
+
+        val env = (new Array[U](20), new Array[B](20), new StackPtr(0), Result())
         profile("stream-triangle-unisonfold") {
-          util.Stream.from(N(0)).take(N(triangleCount)).sum(()).toLong
+          Stream.from(0.0).take(N(triangleCount))
+            .asInstanceOf[Stream[UnisonToScala.Env,Param]]
+            .foldLeft(env, U0, null:Param)(plusU)((u,_) => u).toLong
         }
       }
     )
