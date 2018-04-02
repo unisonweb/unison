@@ -2,23 +2,24 @@ package org.unisonweb.util
 
 import org.unisonweb.compilation2.U
 
-abstract class Unboxed1[-Env,A,B] {
-  def stage(e: Env): (B => Unit) => Unboxed1.Compiled[A,B]
-}
-
-object Unboxed1 {
-  abstract class Compiled[A,B] {
-    def apply(u: U, a: A): U
+object Unboxed {
+  abstract class F1[-Env,A,B] {
+    def stage(e: Env): (B => Unit) => F1.Compiled[A,B]
   }
-}
 
-abstract class Unboxed2[-Env,A,B,C] {
-  def stage(e: Env): (C => Unit) => Unboxed2.Compiled[A,B,C]
-}
+  object F1 {
+    abstract class Compiled[A,B] {
+      def apply(u: U, a: A): U
+    }
+  }
 
-object Unboxed2 {
+  abstract class F2[-Env,A,B,C] {
+    def stage(e: Env): (C => Unit) => F2.Compiled[A,B,C]
+  }
 
-  abstract class Compiled[A,B,C] {
-    def apply(u: U, a: A, u2: U, b: B): U
+  object F2 {
+    abstract class Compiled[A,B,C] {
+      def apply(u: U, a: A, u2: U, b: B): U
+    }
   }
 }

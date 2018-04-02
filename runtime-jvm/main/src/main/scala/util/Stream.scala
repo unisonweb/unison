@@ -3,6 +3,7 @@ package util
 
 import Stream._
 import compilation2.{U,U0}
+import Unboxed.{F1,F2}
 
 abstract class Stream[Env,A] { self =>
 
@@ -10,7 +11,7 @@ abstract class Stream[Env,A] { self =>
 
   def covaryEnv[E2<:Env]: Stream[E2,A] = this.asInstanceOf[Stream[E2,A]]
 
-  final def map[B](f: Unboxed1[Env,A,B]): Stream[Env,B] =
+  final def map[B](f: F1[Env,A,B]): Stream[Env,B] =
     env => k => {
       var b : B = null.asInstanceOf[B]
       val fc = f.stage(env) (br => b = br)
@@ -18,14 +19,14 @@ abstract class Stream[Env,A] { self =>
     }
 
   /** Only emit elements from `this` for which `f` returns a nonzero value. */
-  final def filter(f: Unboxed1[Env,A,U]): Stream[Env,A] =
+  final def filter(f: F1[Env,A,U]): Stream[Env,A] =
     env => k => {
       val fc = f.stage(env) { br => }
       self.stage(env) { (u,a) => if (fc(u,a) != U0) k(u,a) }
     }
 
   /** Emit the longest prefix of `this` for which `f` returns nonzero. */
-  final def takeWhile(f: Unboxed1[Env,A,U]): Stream[Env,A] =
+  final def takeWhile(f: F1[Env,A,U]): Stream[Env,A] =
     env => k => self.stage(env) {
       val fc = f.stage(env) { br => }
       (u,a) => if (fc(u,a) != U0) k(u,a)
@@ -33,7 +34,7 @@ abstract class Stream[Env,A] { self =>
     }
 
   /** Skip the longest prefix of `this` for which `f` returns nonzero. */
-  final def dropWhile(f: Unboxed1[Env,A,U]): Stream[Env,A] =
+  final def dropWhile(f: F1[Env,A,U]): Stream[Env,A] =
     env => k => self.stage(env) {
       val fc = f.stage(env) { br => }
       var dropping = true
@@ -63,7 +64,7 @@ abstract class Stream[Env,A] { self =>
     total
   }
 
-  final def zipWith[B,C](bs: Stream[Env,B])(f: Unboxed2[Env,A,B,C]): Stream[Env,C] =
+  final def zipWith[B,C](bs: Stream[Env,B])(f: F2[Env,A,B,C]): Stream[Env,C] =
     env => k => {
       var au = U0; var ab: A = null.asInstanceOf[A]; var cb: C = null.asInstanceOf[C]
       val fc = f.stage(env) { c => cb = c }

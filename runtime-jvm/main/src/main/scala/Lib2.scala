@@ -103,28 +103,3 @@ object Lib2 {
   }
 }
 
-object UnisonFnToScala {
-
-  import org.unisonweb.util.{Unboxed1,Unboxed2}
-  type Env = (Array[U], Array[B], StackPtr, Result)
-
-  def toUnboxed1(f: Value.Lambda): Unboxed1[Env,Param,Value] =
-    env => set => {
-      val (stackU, stackB, top, r) = env
-      (u,a) => {
-        val out = evalLam(f, r, top, stackU, U0, u, stackB, null, a)
-        set(r.boxed)
-        out
-      }
-    }
-
-  def toUnboxed2(f: Value.Lambda): Unboxed2[Env,Param,Param,Value] =
-    env => set => {
-      val (stackU, stackB, top, r) = env
-      (u1,a,u2,b) => {
-        val out = evalLam(f, r, top, stackU, u1, u2, stackB, a, b)
-        set(r.boxed)
-        out
-      }
-    }
-}
