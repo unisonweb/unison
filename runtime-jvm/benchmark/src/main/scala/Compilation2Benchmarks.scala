@@ -21,7 +21,7 @@ object Compilation2Benchmarks {
   def runTerm(t: Term): Value.Lambda =
     run(compileTop(Lib2.builtins)(t)).asInstanceOf[Value.Lambda]
 
-  val triangleCount = 10000
+  val triangleCount = 100000
 
   def main(args: Array[String]): Unit = {
     suite(
@@ -39,6 +39,12 @@ object Compilation2Benchmarks {
       {
         profile("stream-triangle") {
           util.Stream.from(N(0)).take(N(triangleCount)).sum(()).toLong
+        }
+      },
+      {
+        profile("stream-triangle-fold-left") {
+          util.Stream.from(N(0)).take(N(triangleCount))
+            .foldLeft((), 0, null)(_ => _ => (u,_,u2,_) => u + u2)((u,_) => u).toLong
         }
       },
       {
