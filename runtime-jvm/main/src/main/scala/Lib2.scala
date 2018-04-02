@@ -59,6 +59,10 @@ object Lib2 {
     new Lambda(2, body, decompiled) { self =>
       def names = ns
       override def saturatedNonTailCall(args: List[Computation]) = args match {
+        case List(Return(Value.Num(n1)), Return(Value.Num(n2))) => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+          r.boxed = null
+          f(n1, n2)
+        }
         case List(CompiledVar0,Return(Value.Num(n))) => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
           r.boxed = null
           f(x0, n)
@@ -66,6 +70,14 @@ object Lib2 {
         case List(CompiledVar1,Return(Value.Num(n))) => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
           r.boxed = null
           f(x1, n)
+        }
+        case List(Return(Value.Num(n)), CompiledVar0) => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+          r.boxed = null
+          f(n, x0)
+        }
+        case List(Return(Value.Num(n)), CompiledVar1) => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+          r.boxed = null
+          f(n, x1)
         }
         case List(CompiledVar1,CompiledVar0) => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
           r.boxed = null
