@@ -3,7 +3,7 @@ package util
 
 import Stream._
 import compilation2.{U, U0}
-import Unboxed.{F1, F2, Unboxed}
+import Unboxed.{F1, F2}
 
 abstract class Stream[Env,A] { self =>
 
@@ -108,6 +108,14 @@ object Stream {
     @inline final def run(): Unit =
       try { while (true) apply() } catch { case Done => }
   }
+
+  /**
+   * Marker type with no instances. A `Stream[E,Unboxed[T]]` implies
+   * the stream emits only `null` for the boxed portion of its output and that
+   * there exists a `U => T` for extracting a `T` from the unboxed portion of
+   * its output.
+   */
+  sealed abstract class Unboxed[T]
 
   case object Done extends Throwable { override def fillInStackTrace = this }
 

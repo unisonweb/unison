@@ -4,8 +4,6 @@ import org.unisonweb.compilation2.{U,U0}
 
 object Unboxed {
 
-  sealed abstract class Unboxed[T]
-
   abstract class F1[-Env,A,B] {
     def stage(e: Env): (B => Unit) => F1.Compiled[A]
   }
