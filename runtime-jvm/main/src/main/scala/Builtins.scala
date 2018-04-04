@@ -9,12 +9,25 @@ import org.unisonweb.util.Sequence
 object Builtins {
 
   // Sequence.empty : Sequence a
-  val Sequence_empty: (Name, Computation) = c0("Sequence.empty", Sequence.empty[Value])
+  val Sequence_empty: (Name, Computation) =
+    c0("Sequence.empty", Sequence.empty[Value])
 
   // Sequence.snoc : forall a . Sequence a -> a -> Sequence a
   // Sequence.snoc [] 42
   val Sequence_snoc =
-    f2("Sequence.snoc", "seq", "v", (seq: Sequence[Value], v: Value) => seq :+ v)
+    f2("Sequence.snoc", "seq", "v",
+       (seq: Sequence[Value], v: Value) => seq :+ v)
+
+  val Sequence_cons =
+    f2("Sequence.cons", "v", "seq",
+       (v: Value, seq: Sequence[Value]) => v +: seq)
+
+  val Sequence_take =
+    f2("Sequence.take", "n", "seq",
+      (n: U, seq: Sequence[Value]) => seq take n.toLong)
+
+  val Sequence_size =
+    f1("Sequence.size", "seq", (seq: Sequence[Value]) => seq.size)
 
   def c0[A:Decompile](name: String, a: => A)
                      (implicit A: Encode[A]): (Name, Computation) =
@@ -31,9 +44,24 @@ object Builtins {
     // Sequences
     Sequence_empty,
     Sequence_snoc,
-
-    fuu_u("+", "x", "y", (x,y) => x + y)
+    Sequence_cons,
+    Sequence_take,
+    Sequence_size
   )
+
+  def f1[A,B](name: String, arg: String, f: A => B)
+             (implicit A: Decode[A], B: Encode[B]): (Name, Computation) = {
+    val body: Computation =
+      (r,_,_,_,_,x0,_,_,x0b) => B.encode(r, f(A.decode(x0, x0b)))
+    val decompiled = Term.Builtin(name)
+    val lambda = new Lambda(1, body, decompiled) {
+      def names: List[Name] = List(arg)
+      override def underapply(builtins: Name => Computation)(
+                              argCount: Arity, substs: Map[Name, Term]): Lambda =
+        sys.error("a lambda with arity 1 cannot be underapplied")
+    }
+    name -> Return(lambda, decompiled)
+  }
 
   def f2[A,B,C](name: String, arg1: String, arg2: String, f: (A,B) => C)
                (implicit A: Decode[A], B: Decode[B], C: Encode[C]): (Name, Computation) = {
@@ -71,9 +99,12 @@ object Builtins {
 
     implicit val decodeU: Decode[U] = (u,_) => u
 
-    implicit val decodeLambda: Decode[Lambda] =
-      (_, b) => b.toValue.asInstanceOf[Lambda]
-
+// TODO: If we include this implicit, it gets selected, even if the function
+// is just asking for a `Decode[Value]`.
+// See https://issues.scala-lang.org/browse/SI-2509
+//
+//    implicit val decodeLambda: Decode[Lambda] =
+//      (_, b) => b.toValue.asInstanceOf[Lambda]
   }
   trait Decode0 {
     implicit def decodeAssumeExternal[A]: Decode[A] =
@@ -84,6 +115,10 @@ object Builtins {
   object Encode {
     implicit def encodeExternal[A:Decompile]: Encode[A] =
       (r, a) => { r.boxed = External(a); U0 }
+    implicit val encodeLong: Encode[Long] =
+      (r, a) => { r.boxed = null; a.toDouble }
+    implicit val encodeDouble: Encode[Double] =
+      (r, a) => { r.boxed = null; a }
   }
 
   trait Decompile[A] { def decompile(a: A): Term }

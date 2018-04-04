@@ -29,7 +29,8 @@ object Lib2 {
       case (name, f) =>
         val term = Term.Builtin(name)
         name -> Return(builtin1(term, "x", f), term)
-    }.toMap
+    }.toMap ++
+    Builtins.builtins
 
   @inline def boolToNum(b: Boolean): U = if (b) True else False
 
