@@ -20,7 +20,7 @@ object StreamTests {
       )
     },
     test("foldLeft-scalaPlus") { implicit T =>
-      val plus: Unboxed.F2[U, U, U] = Unboxed.F2.boxedScalaFunction(_ + _)
+      val plus: Unboxed.F2[U, U, U] = Unboxed.F2.BB_B(_ + _)
       equal(
         Stream.from(0.0).take(10000).box[U](identity)
           .foldLeft(U0, U0)(plus)((_,a) => a),

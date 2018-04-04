@@ -5,6 +5,35 @@ import Stream._
 import compilation2.{U,U0}
 import Unboxed.{F1,F2,K,Unboxed}
 
+/**
+ * Fused stream type based loosely on ideas from Oleg's
+ * "Stream Fusion, to Completeness" [1] and also borrowing
+ * from FS2's `Segment` type.[2] Stream values are "staged"
+ * or compiled to loops that operate directly on mutable
+ * values. There is no pattern matching or materialization
+ * of intermediate data structures that occurs as part of traversing
+ * the stream. Modulo some function call overhead (which the JIT
+ * can often inline away), the resulting loop is what one would obtain
+ * from writing a monolithic while loop. But we can assemble our
+ * loops in a compositional fashion, using our favorite higher order functions!
+ *
+ * We differ from [1] in that we aren't generating and compiling
+ * Scala code, instead we rely on the normal JVM JIT'ing.
+ * We differ from [2] in that we use "unboxed" functions and avoid
+ * boxing overhead for mapping, filtering, zipWith, etc. (see `Unboxed.scala`).
+ *
+ * A `Stream[A]` has a single abstract function, `stage`, which
+ * takes an "unboxed" callback `K[A]`. Staging returns a `Step` object
+ * which must be `.run` to pump the output values of the stream through
+ * the provided callback.
+ *
+ * Public users of `Stream` won't use `stage` directly; instead
+ * they construct streams using combinators and consume a stream
+ * with a function like `foldLeft`, `toSequence`, `sum`, etc.
+ *
+ * [1]: https://arxiv.org/abs/1612.06668
+ * [2]: https://github.com/functional-streams-for-scala/fs2/blob/series/1.0/core/shared/src/main/scala/fs2/Segment.scala
+ */
 abstract class Stream[A] { self =>
 
   def stage(callback: K[A]): Step
