@@ -83,6 +83,7 @@ object compilation2 {
   }
   object Value {
     def apply(u: U, b: Value): Value = if (b eq null) Num(u) else b
+    def fromParam(u: U, b: Param): Value = if (b eq null) Num(u) else b.toValue
 
     case class Num(n: U) extends Value {
       def decompile = Term.Num(n)
