@@ -30,6 +30,9 @@ object Compilation2Benchmarks {
           if (n == 0) acc else triangle(n - 1, acc + n)
         triangle(N(triangleCount), N(0))
       },
+      { val s = scala.Stream.range(0, N(triangleCount))
+        profile("scala-stream-triangle") { s.foldLeft(N(0))(_ + _).toLong }
+      },
       {
         val p = runTerm(Terms.triangle)
         profile("unison-triangle") {
