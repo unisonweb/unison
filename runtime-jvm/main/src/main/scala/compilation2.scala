@@ -116,7 +116,10 @@ object compilation2 {
   @inline private def returnBoxed(r: R, v: Value): U = { r.boxed = v; U0 }
 
   // todo: think through whether can elide
-  @inline private def returnUnboxed(r: R, unboxed: U): U = { r.boxed = null; unboxed }
+  @inline private def returnUnboxed(r: R, unboxed: U): U = {
+    r.boxed = null
+    unboxed
+  }
 
   @inline private def returnBoth(r: R, x0: U, x0b: B) = { if (x0b ne null) r.boxed = x0b.toValue; x0 }
 
