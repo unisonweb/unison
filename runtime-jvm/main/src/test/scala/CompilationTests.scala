@@ -103,7 +103,21 @@ object CompilationTests {
         equal1(eval(fibPrime(n.toDouble:Term)), scalaFib(n).toDouble:Term)
       }
       ok
-    }
+    },
+    suite("sequence")(
+      test("take") { implicit T =>
+        1 to 20 foreach { n =>
+          val xs = replicate(intIn(0,n))(int).map(x => Term.Num(x.toDouble))
+          val mySeq = Sequence(xs:_*)
+          val theirSeq = Sequence(xs.take(n):_*)
+          equal1(eval(Sequence.take(n, mySeq)), eval(theirSeq))
+        }
+        ok
+      },
+      test("ex1") { implicit T =>
+        equal(eval(Sequence.size(Sequence(1,2,3))), Term.Num(3))
+      }
+    )
   )
 }
 
@@ -137,10 +151,9 @@ object Terms {
   val triangle =
     LetRec('triangle ->
              Lam('n, 'acc)(
-               If(
-                 'n.v unisonEquals zero,
-                 'acc.v,
-                 'triangle.v('n.v - 1, 'acc.v + 'n)))
+               If('n.v,
+                  'triangle.v('n.v - 1, 'acc.v + 'n),
+                  'acc.v))
     )('triangle)
 
   val odd =
@@ -157,5 +170,18 @@ object Terms {
     def unisonEquals(t1: Term) = '==.b(t0, t1)
     def <(t1: Term) = '<.b(t0, t1)
     def >(t1: Term) = '>.b(t0, t1)
+  }
+
+  object Sequence {
+    import Builtins._
+
+    def apply(terms: Term*): Term =
+      terms.foldLeft(empty)((seq, v) => snoc(seq, v))
+
+    val empty = termFor(Sequence_empty)
+    val cons = termFor(Sequence_cons)
+    val snoc = termFor(Sequence_snoc)
+    val take = termFor(Sequence_take)
+    val size = termFor(Sequence_size)
   }
 }
