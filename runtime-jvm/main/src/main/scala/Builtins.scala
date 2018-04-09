@@ -86,7 +86,7 @@ object Builtins {
                               argCount: Arity, substs: Map[Name, Term]): Lambda =
         sys.error("a lambda with arity 1 cannot be underapplied")
     }
-    name -> Return(lambda, decompiled)
+    name -> Return(lambda)
   }
 
   // Monomorphic one-argument function on unboxed values
@@ -97,7 +97,7 @@ object Builtins {
     }
     val ns = List(arg)
     val decompile = Term.Builtin(name)
-    name -> Return(new Lambda(1, body, decompile) { def names = ns }, decompile)
+    name -> Return(new Lambda(1, body, decompile) { def names = ns })
   }
 
   def fpp_p[A,B,C](name: String, arg1: String, arg2: String, f: (A,B) => C)
@@ -128,7 +128,7 @@ object Builtins {
       }
 
     }
-    name -> Return(lambda, decompiled)
+    name -> Return(lambda)
   }
 
   def fuu_u(name: Name,
@@ -216,7 +216,7 @@ object Builtins {
           case _ => sys.error("unpossible")
         }
     }
-    name -> Return(lam, decompiled)
+    name -> Return(lam)
   }
 
   trait Decode[+T] { def decode(u: U, b: B): T }

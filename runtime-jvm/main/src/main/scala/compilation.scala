@@ -92,7 +92,7 @@ object compilation {
 
     abstract class Lambda(final val arity: Int, final val body: Computation, val decompile: Term) extends Value {
       def names: List[Name]
-      def toComputation = Return(this, decompile)
+      def toComputation = Return(this)
 
       final def apply(r: R, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U =
         body(r, this, top, stackU, x1, x0, stackB, x1b, x0b)
@@ -193,15 +193,12 @@ object compilation {
   }
 
   // todo: maybe opportunities for more expressive matching by breaking this into sub-cases
-  abstract class Return(e: Term) extends Computation {
-    def value: Value
-  }
+  abstract class Return(val value: Value) extends Computation
 
   object Return {
-    def apply(v: Value, t: Term): Computation = v match {
+    def apply(v: Value): Computation = v match {
       case Value.Num(d) => compileNum(d)
-      case f@Value.Lambda(_, _, _) => new Return(f.decompile) {
-        def value: Value = f
+      case f@Value.Lambda(_, _, _) => new Return(f) {
 
         def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U =
           returnBoxed(r, f)
@@ -215,8 +212,7 @@ object compilation {
     }
   }
 
-  def compileNum(n: U): Computation = new Return(Term.Num(n)) {
-    def value = Value.Num(n)
+  def compileNum(n: U): Computation = new Return(Value.Num(n)) {
     def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U =
       returnUnboxed(r, n)
   }
@@ -615,7 +611,7 @@ object compilation {
     if (freeVars.isEmpty) {
       val cbody = compile(builtins)(body, names.reverse.toVector,
         currentRec.shadow(names), RecursiveVars.empty, IsTail)
-      Return(Lambda(names.length, cbody, e), e)
+      Return(Lambda(names.length, cbody, e))
     }
     else {
       val compiledFrees: Map[Name, Computation] =
@@ -696,7 +692,7 @@ object compilation {
       case Term.Compiled(param) =>
         if (param.toValue eq null)
           (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => param.toValue.toResult(r)
-        else Return(param.toValue, e)
+        else Return(param.toValue)
       case Term.Self(name) => new Self(name)
       case Term.Var(name) => compileVar(e, name, env, currentRec)
       case Term.If(cond, t, f) =>
@@ -782,7 +778,7 @@ object compilation {
 
           compiledLambda match {
             case Return(innerLambda: Lambda) =>
-              Return(handleSelfCalls(innerLambda), e)
+              Return(handleSelfCalls(innerLambda))
 
             case compiledLambda => // first evaluate innerLambda within a Computation
               (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
