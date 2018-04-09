@@ -2,7 +2,8 @@ package org.unisonweb
 
 import org.unisonweb.util.{Traverse,Monoid}
 import ABT.{Abs, AnnotatedTerm, Tm}
-import compilation.{Ref,Value,U}
+import compilation.U
+import java.lang.Double.{doubleToRawLongBits}
 
 object Term {
 
@@ -45,7 +46,7 @@ object Term {
           val (bindings, args) = accs
           val (arg, i) = argi
           arg match {
-            case Num(_) => (bindings, arg :: args)
+            case Unboxed(_,_) => (bindings, arg :: args)
             case ABT.Var(_) => (bindings, arg :: args)
             case lam @ Lam(_, _) /* if freeVars(lam).isEmpty */ => (bindings, arg :: args)
             case arg =>
@@ -90,7 +91,6 @@ object Term {
    * converting cyclic references to `let rec` declarations.
    */
   def fullyDecompile2(t: Term): Term = {
-    import compilation.Ref
     // 1. Collect full set of refs via transitive closure - a `Set[Ref]`
     // 2. Compute all used names (including self recursive names), freshen names for each `Ref`
     // 3. Introduce one outer let rec block for each `Ref`, substitute away all refs
@@ -106,7 +106,7 @@ object Term {
     } (Monoid.Set)
 
     def transitiveClosure(seen: Map[Ref,Term], cur: Term): Map[Ref,Term] = cur match {
-      case Builtin(_) | Num(_) | Var(_) => seen
+      case Builtin(_) | Unboxed(_,_) | Var(_) => seen
       case Apply(f, args) =>
         args.foldLeft(transitiveClosure(seen, f))(transitiveClosure _)
       case If(cond, t, f) =>
@@ -130,8 +130,8 @@ object Term {
     def replaceRefs(t: Term): Term = selfToLetRec(t).rewriteDown {
       case Compiled(c) => c match {
         case r : Ref => Var(freshRefNames(r))
-        case compilation.Value.Num(d) => Term.Num(d)
-        case v : compilation.Value => replaceRefs(v.decompile)
+        case Value.Unboxed(d,typ) => Term.Unboxed(d,typ)
+        case v : Value => replaceRefs(v.decompile)
       }
       case t => t
     }
@@ -150,13 +150,13 @@ object Term {
     case class Lam_[R](body: R) extends F[R]
     case class Builtin_(name: Name) extends F[Nothing]
     case class Apply_[R](fn: R, args: List[R]) extends F[R]
-    case class Num_(value: U) extends F[Nothing]
+    case class Unboxed_(value: U, typ: UnboxedType) extends F[Nothing]
     case class LetRec_[R](bindings: List[R], body: R) extends F[R]
     case class Let_[R](binding: R, body: R) extends F[R]
     case class Rec_[R](r: R) extends F[R]
     case class Self_(name: Name) extends F[Nothing]
     case class If_[R](condition: R, ifNonzero: R, ifZero: R) extends F[R]
-    case class Compiled_(value: compilation.Param) extends F[Nothing]
+    case class Compiled_(value: Param) extends F[Nothing]
     // yield : f a -> a|f
     case class Yield_[R](effect: R) extends F[R]
     // handle : (forall x . f x -> (x -> y|f+g) -> y|f+g) -> a|f+g -> a|g
@@ -167,7 +167,7 @@ object Term {
 
     implicit val instance: Traverse[F] = new Traverse[F] {
       override def map[A,B](fa: F[A])(f: A => B): F[B] = fa match {
-        case fa @ (Builtin_(_) | Num_(_) | Compiled_(_) | Self_(_)) =>
+        case fa @ (Builtin_(_) | Unboxed_(_,_) | Compiled_(_) | Self_(_)) =>
           fa.asInstanceOf[F[B]]
         case Lam_(a) => Lam_(f(a))
         case Apply_(fn, args) =>
@@ -242,12 +242,13 @@ object Term {
     }
   }
 
-  object Num {
-    def apply(n: U): Term = Tm(Num_(n))
-    def unapply[A](t: AnnotatedTerm[F,A]): Option[U] = t match {
-      case Tm(Num_(n)) => Some(n)
-      case _ => None
-    }
+  object Unboxed {
+    def apply(n: U, typ: UnboxedType): Term = Tm(Unboxed_(n, typ))
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[(U, UnboxedType)] =
+      t match {
+        case Tm(Unboxed_(n, typ)) => Some((n, typ))
+        case _ => None
+      }
   }
 
   object Apply {
@@ -320,9 +321,9 @@ object Term {
     }
   }
   object Compiled {
-    def apply(v: compilation.Param): Term =
+    def apply(v: Param): Term =
       Tm(Compiled_(v))
-    def unapply[A](t: AnnotatedTerm[F,A]): Option[compilation.Param] = t match {
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[Param] = t match {
       case Tm(Compiled_(p)) => Some(p)
       case _ => None
     }
@@ -332,8 +333,10 @@ object Term {
     def apply(args: Term*) = Apply(fn, args: _*)
   }
 
-  implicit def number(n: Long): Term = Num(n)
-  implicit def number(n: Int): Term = Num(n)
+  implicit def number(n: Long): Term = Unboxed(n, UnboxedType.Integer)
+  implicit def number(n: Int): Term = Unboxed(n, UnboxedType.Integer)
+  implicit def double(n: Double): Term =
+    Unboxed(doubleToRawLongBits(n), UnboxedType.Float)
   implicit def stringAsVar(s: Name): Term = Var(s)
   implicit def symbolAsVar(s: Symbol): Term = Var(s.name)
   implicit def symbolAsName(s: Symbol): Name = s.name

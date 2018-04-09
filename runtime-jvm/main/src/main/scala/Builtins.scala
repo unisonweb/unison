@@ -2,10 +2,10 @@ package org.unisonweb
 
 import compilation._
 import Term.{Apply, Name, Term}
-import org.unisonweb.compilation.Value.Lambda
 import org.unisonweb.util.Sequence
 import java.lang.Double.{doubleToRawLongBits, longBitsToDouble}
 import java.util.function.{LongBinaryOperator, LongUnaryOperator}
+import Value.Lambda
 
 /* Sketch of convenience functions for constructing builtin functions. */
 object Builtins {
@@ -37,7 +37,7 @@ object Builtins {
 
   def termFor(b: (Name, Computation)): Term = Term.Builtin(b._1)
 
-  @inline def boolToNum(b: Boolean): U = if (b) True else False
+  @inline def boolToUnboxed(b: Boolean): U = if (b) True else False
 
   //
   // naming convention
@@ -54,22 +54,28 @@ object Builtins {
   )
 
   val numericBuiltins = Map(
-    fuu_u("+", "x", "y", _ + _),
-    fuu_u("*", "x", "y", _ * _),
-    fuu_u("-", "x", "y", _ - _),
-    fuu_u("/", "x", "y", _ / _),
-    fuu_u("==", "x", "y", (x, y) => boolToNum(x == y)),
-    fuu_u("!=", "x", "y", (x, y) => boolToNum(x != y)),
-    fuu_u("<=", "x", "y", (x, y) => boolToNum(x <= y)),
-    fuu_u(">=", "x", "y", (x, y) => boolToNum(x >= y)),
-    fuu_u("<", "x", "y", (x, y) => boolToNum(x < y)),
-    fuu_u(">", "x", "y", (x, y) => boolToNum(x > y)),
-    fu_u("signum", "x", _.signum),
-    fu_u("negate", "x", -_)
+    fuu_u("Integer.+", "x", "y", UnboxedType.Integer, _ + _),
+    fuu_u("Integer.*", "x", "y", UnboxedType.Integer, _ * _),
+    fuu_u("Integer.-", "x", "y", UnboxedType.Integer, _ - _),
+    fuu_u("Integer./", "x", "y", UnboxedType.Integer, _ / _),
+    fuu_u("Integer.==", "x", "y", UnboxedType.Boolean,
+      (x, y) => boolToUnboxed(x == y)),
+    fuu_u("Integer.!=", "x", "y", UnboxedType.Boolean,
+      (x, y) => boolToUnboxed(x != y)),
+    fuu_u("Integer.<=", "x", "y", UnboxedType.Boolean,
+      (x, y) => boolToUnboxed(x <= y)),
+    fuu_u("Integer.>=", "x", "y", UnboxedType.Boolean,
+      (x, y) => boolToUnboxed(x >= y)),
+    fuu_u("Integer.<", "x", "y", UnboxedType.Boolean,
+      (x, y) => boolToUnboxed(x < y)),
+    fuu_u("Integer.>", "x", "y", UnboxedType.Boolean,
+      (x, y) => boolToUnboxed(x > y)),
+    fu_u("Integer.signum", "x", UnboxedType.Integer, _.signum),
+    fu_u("Integer.negate", "x", UnboxedType.Integer, -_)
   )
 
   val booleanBuiltins = Map(
-    fu_u("not", "b", b => boolToNum(b == U0)),
+    fu_u("Boolean.not", "b", UnboxedType.Boolean, b => boolToUnboxed(b == U0)),
   )
 
   val builtins = seqBuiltins ++ numericBuiltins ++ booleanBuiltins
@@ -90,9 +96,14 @@ object Builtins {
   }
 
   // Monomorphic one-argument function on unboxed values
-  def fu_u(name: Name, arg: Name, f: LongUnaryOperator): (Name, Computation) = {
+  def fu_u(name: Name,
+           arg: Name,
+           outputType: UnboxedType,
+           f: LongUnaryOperator): (Name, Computation) = {
     val body: Computation.C1U = (r,x0) => {
-      r.boxed = null
+      // Unintuitively, we store the type of the unboxed value in `boxed`
+      // since that's a field we don't use for unboxed values.
+      r.boxed = outputType
       f.applyAsLong(x0)
     }
     val ns = List(arg)
@@ -134,9 +145,10 @@ object Builtins {
   def fuu_u(name: Name,
             n1: Name,
             n2: Name,
+            outputType: UnboxedType,
             f: LongBinaryOperator): (Name, Computation) = {
     val body: Computation.C2U = (r,x1,x0) => {
-      r.boxed = null
+      r.boxed = outputType
       f.applyAsLong(x1, x0)
     }
 
@@ -145,43 +157,44 @@ object Builtins {
     val lam = new Lambda(2, body, decompiled) { self =>
       def names = List(n1, n2)
       override def saturatedNonTailCall(args: List[Computation]) = args match {
-        case List(Return(Value.Num(n1)), Return(Value.Num(n2))) =>
+        case List(Return(Value.Unboxed(n1, _)),
+                  Return(Value.Unboxed(n2, _))) =>
           val n3 = f.applyAsLong(n1,n2) // constant fold
-          val c : Computation.C0U = r => { r.boxed = null; n3 }
+          val c : Computation.C0U = r => { r.boxed = outputType; n3 }
           c
-        case List(CompiledVar0,Return(Value.Num(n))) =>
+        case List(CompiledVar0,Return(Value.Unboxed(n, _))) =>
           val c : Computation.C1U = (r,x0) => {
-            r.boxed = null
+            r.boxed = outputType
             f.applyAsLong(x0, n)
           }
           c
-        case List(CompiledVar1,Return(Value.Num(n))) =>
+        case List(CompiledVar1,Return(Value.Unboxed(n, _))) =>
           val c : Computation.C2U = (r,x1,_) => {
-            r.boxed = null
+            r.boxed = outputType
             f.applyAsLong(x1, n)
           }
           c
-        case List(Return(Value.Num(n)), CompiledVar0) =>
+        case List(Return(Value.Unboxed(n, _)), CompiledVar0) =>
           val c: Computation.C1U = (r,x0) => {
-            r.boxed = null
+            r.boxed = outputType
             f.applyAsLong(n,x0)
           }
           c
-        case List(Return(Value.Num(n)), CompiledVar1) =>
+        case List(Return(Value.Unboxed(n, _)), CompiledVar1) =>
           val c: Computation.C2U = (r,x1,_) => {
-            r.boxed = null
+            r.boxed = outputType
             f.applyAsLong(n,x1)
           }
           c
         case List(CompiledVar1,CompiledVar0) =>
           val c: Computation.C2U = (r,x1,x0) => {
-            r.boxed = null
+            r.boxed = outputType
             f.applyAsLong(x1,x0)
           }
           c
         case List(CompiledVar0,CompiledVar1) =>
           val c: Computation.C2U = (r,x1,x0) => {
-            r.boxed = null
+            r.boxed = outputType
             f.applyAsLong(x0,x1)
           }
           c
@@ -193,7 +206,7 @@ object Builtins {
         case List(arg1,arg2) => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
           val x1v = eval(arg1,r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
           val x0v = eval(arg2,r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
-          r.boxed = null
+          r.boxed = outputType
           f.applyAsLong(x1v, x0v)
         }
       }
@@ -202,10 +215,10 @@ object Builtins {
         substs.toList match {
           case List((_,term)) => term match {
             case Term.Compiled(p: Param) =>
-              val n = p.toValue.asInstanceOf[Value.Num].n
+              val n = p.toValue.asInstanceOf[Value.Unboxed].n
               val body: Computation =
                 (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
-                  r.boxed = null
+                  r.boxed = outputType
                   f.applyAsLong(n, x0)
                 }
               new Lambda(1, body, Term.Apply(decompiled, term)) {
@@ -221,10 +234,10 @@ object Builtins {
 
   trait Decode[+T] { def decode(u: U, b: B): T }
   object Decode extends Decode0 {
-    implicit val decodeValue: Decode[Value] =
-      (u, b) => Value.fromParam(u, b)
+//    implicit val decodeValue: Decode[Value] =
+//      (u, b) => Value.fromParam(u, b, UnboxedType.Boxed)
 
-    implicit val decodeU: Decode[U] = (u,_) => u
+    implicit val decodeLong: Decode[Long] = (u,_) => u
     implicit val decodeDouble: Decode[Double] = (u,_) => longBitsToDouble(u)
 
 // TODO: If we include this implicit, it gets selected, even if the function
@@ -242,11 +255,14 @@ object Builtins {
   trait Encode[-A] { def encode(r: Result, a: A): U }
   object Encode {
     implicit def encodeExternal[A:Decompile]: Encode[A] =
-      (r, a) => { r.boxed = External(a); U0 }
+      (r, a) => {
+        r.boxed = External(a)
+        U0
+      }
     implicit val encodeLong: Encode[Long] =
-      (r, a) => { r.boxed = null; a }
+      (r, a) => { r.boxed = UnboxedType.Integer; a }
     implicit val encodeDouble: Encode[Double] =
-      (r, a) => { r.boxed = null; doubleToRawLongBits(a) }
+      (r, a) => { r.boxed = UnboxedType.Float; doubleToRawLongBits(a) }
   }
 
   trait Decompile[A] { def decompile(a: A): Term }

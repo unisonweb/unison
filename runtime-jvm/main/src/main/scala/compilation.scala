@@ -1,7 +1,7 @@
 package org.unisonweb
 
 import org.unisonweb.Term.{Name, Term}
-import org.unisonweb.compilation.Value.Lambda
+import Value.Lambda
 
 object compilation {
 
@@ -61,65 +61,6 @@ object compilation {
   }
   object StackPtr {
     def empty = new StackPtr(-1)
-  }
-
-  abstract class Param {
-    def toValue: Value
-    def isRef: Boolean = false
-  }
-  object Param {
-    def apply(u: U, b: B): Param = if (b eq null) Value.Num(u) else b
-  }
-
-  class Ref(val name: Name, var value: Value) extends Param {
-    def toValue = value
-    override def isRef = true
-  }
-
-  abstract class Value extends Param {
-    def toValue = this
-    def decompile: Term
-    def toResult(r: Result): U
-  }
-  object Value {
-    def apply(u: U, b: Value): Value = if (b eq null) Num(u) else b
-    def fromParam(u: U, b: Param): Value = if (b eq null) Num(u) else b.toValue
-
-    case class Num(n: U) extends Value {
-      def decompile = Term.Num(n)
-      def toResult(r: Result) = n
-    }
-
-    abstract class Lambda(final val arity: Int, final val body: Computation, val decompile: Term) extends Value {
-      def names: List[Name]
-      def toComputation = Return(this)
-
-      final def apply(r: R, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U =
-        body(r, this, top, stackU, x1, x0, stackB, x1b, x0b)
-
-      def toResult(r: Result) = { r.boxed = this; U0 }
-
-      def saturatedNonTailCall(args: List[Computation]): Computation =
-        compileStaticFullySaturatedNontailCall(this, args)
-
-      def underapply(builtins: Name => Computation)(argCount: Int, substs: Map[Name, Term]): Value.Lambda = decompile match {
-        case Term.Lam(names, body) =>
-          compile(builtins)(Term.Lam(names drop argCount: _*)(ABT.substs(substs)(body)), Vector.empty, CurrentRec.none, RecursiveVars.empty, IsNotTail) match {
-            case Return(v: Value.Lambda) => v
-            case c => sys.error("compiling a closed Term.Lambda failed to produce a Value.Lambda: " + c)
-          }
-      }
-    }
-    object Lambda {
-      def apply(arity: Int, body: Computation, decompile: Term) =
-        new Lambda(arity, body, decompile) {
-          val names = decompile match { case Term.Lam(names, _) => names }
-        }
-
-      def unapply(l: Lambda): Option[(Int, Computation, Term)] =
-        Some((l.arity, l.body, l.decompile))
-    }
-
   }
 
   case object SelfCall extends Throwable { override def fillInStackTrace = this }
@@ -197,10 +138,12 @@ object compilation {
 
   object Return {
     def apply(v: Value): Computation = v match {
-      case Value.Num(d) => compileNum(d)
+      case Value.Unboxed(d, t) => compileUnboxed(d, t)
       case f@Value.Lambda(_, _, _) => new Return(f) {
 
-        def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U =
+        def apply(r: R, rec: Lambda, top: StackPtr,
+                  stackU: Array[U], x1: U, x0: U,
+                  stackB: Array[B], x1b: B, x0b: B): U =
           returnBoxed(r, f)
       }
     }
@@ -212,10 +155,13 @@ object compilation {
     }
   }
 
-  def compileNum(n: U): Computation = new Return(Value.Num(n)) {
-    def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U =
-      returnUnboxed(r, n)
-  }
+  def compileUnboxed(n: U, t: UnboxedType): Computation =
+    new Return(Value.Unboxed(n, t)) {
+      def apply(r: R, rec: Lambda, top: StackPtr,
+                stackU: Array[U], x1: U, x0: U,
+                stackB: Array[B], x1b: B, x0b: B): U =
+        returnUnboxed(r, n)
+    }
 
   /**
     * Returns true if the register should be saved to the stack when pushing.
@@ -687,7 +633,7 @@ object compilation {
     isTail: IsTail): Computation = {
 
     e match {
-      case Term.Num(n) => compileNum(n)
+      case Term.Unboxed(n,t) => compileUnboxed(n,t)
       case Term.Builtin(name) => builtins(name)
       case Term.Compiled(param) =>
         if (param.toValue eq null)

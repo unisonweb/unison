@@ -1,8 +1,11 @@
 package org.unisonweb.util
 
+import java.lang.Double.{longBitsToDouble}
+import java.lang.Long.{toUnsignedString}
+import org.unisonweb.compilation.U0
+import org.unisonweb.UnboxedType
 import org.unisonweb.Term
 import org.unisonweb.Term._
-
 
 sealed abstract class PrettyPrint {
   import PrettyPrint._
@@ -105,10 +108,13 @@ object PrettyPrint {
   def prettyTerm(t: Term): PrettyPrint = prettyTerm(Term.selfToLetRec(t), 0)
 
   private def prettyTerm(t: Term, precedence: Int): PrettyPrint = t match {
-    case Num(value) =>
-      if (value == value.toLong)
-        value.toLong.toString
-      else value.toString
+    case Term.Unboxed(value, t) =>
+      t match {
+        case UnboxedType.Integer => value.toString
+        case UnboxedType.Float => longBitsToDouble(value).toString
+        case UnboxedType.Boolean => (value != U0).toString
+        case UnboxedType.Natural => toUnsignedString(value)
+      }
 
     case If(cond, ifZero, ifNonzero) => parenthesizeGroupIf(precedence > 0) {
       "if " <> prettyTerm(cond, 0) <> " then" <> softbreak <>
