@@ -4,6 +4,7 @@ import compilation2._
 import Term.{Apply, Name, Term}
 import org.unisonweb.compilation2.Value.Lambda
 import org.unisonweb.util.Sequence
+import java.lang.Double.{doubleToRawLongBits, longBitsToDouble}
 
 /* Sketch of convenience functions for constructing builtin functions. */
 object Builtins {
@@ -98,6 +99,7 @@ object Builtins {
       (u, b) => Value.fromParam(u, b)
 
     implicit val decodeU: Decode[U] = (u,_) => u
+    implicit val decodeDouble: Decode[Double] = (u,_) => longBitsToDouble(u)
 
 // TODO: If we include this implicit, it gets selected, even if the function
 // is just asking for a `Decode[Value]`.
@@ -116,9 +118,9 @@ object Builtins {
     implicit def encodeExternal[A:Decompile]: Encode[A] =
       (r, a) => { r.boxed = External(a); U0 }
     implicit val encodeLong: Encode[Long] =
-      (r, a) => { r.boxed = null; a.toDouble }
-    implicit val encodeDouble: Encode[Double] =
       (r, a) => { r.boxed = null; a }
+    implicit val encodeDouble: Encode[Double] =
+      (r, a) => { r.boxed = null; doubleToRawLongBits(a) }
   }
 
   trait Decompile[A] { def decompile(a: A): Term }
@@ -140,30 +142,6 @@ object Builtins {
       }
   }
 
-  // abstract class BuiltinLambda
-  // thoughts -
-  //   - interface seems nice, but unclear how handle polymorphic functions (ex: Sequence.snoc)
-  //     issue is that polymorphic functions can receive boxed or unboxed values
-  //   - idea - could convert both boxed and unboxed to uniform (boxed) representation (a la Scala, Haskell)
-  //   - idea - could we somehow generate code for both "boxities"?
-
-  // the boxed version
-  def fbb_b[A<:AnyRef,B<:AnyRef,C<:AnyRef](name: String, arg1: String, arg2: String, f: (A,B) => C): (Name, Value.Lambda) = {
-    val functionBody: Computation =
-      (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
-        val a: A = x1b.toValue match { case e: External => e.get.asInstanceOf[A] }
-        val b: B = x0b.toValue match { case e: External => e.get.asInstanceOf[B] }
-        val c: C = f(a,b)
-        r.boxed = new External(c) { def decompile: Term = ??? }
-        U0
-      }
-    ???
-  }
-
-  def fuu_u(name: String, arg1: String, arg2: String, f: FUU_U): (Name, Value.Lambda) = ???
-
-  // the unboxed version
-  abstract class FUU_U { def apply(u1: U, u2: U): U }
 }
 
 

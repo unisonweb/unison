@@ -57,7 +57,7 @@ object Compilation2Benchmarks {
 
         val env = (new Array[U](20), new Array[B](20), new StackPtr(0), Result())
         profile("stream-triangle-unisonfold") {
-          Stream.from(0.0).take(N(triangleCount))
+          Stream.from(0).take(N(triangleCount))
             .asInstanceOf[Stream[Param]]
             .foldLeft(U0, null:Param)(plusU(env))((u,_) => u).toLong
         }
@@ -72,7 +72,7 @@ object Compilation2Benchmarks {
       {
         val p = runTerm(Terms.fib)
         profile("unison-fib") {
-          evalLam(p, r, top, stackU, U0, N(21).toDouble, stackB, null, null).toLong
+          evalLam(p, r, top, stackU, U0, N(21), stackB, null, null).toLong
         }
       }
     )

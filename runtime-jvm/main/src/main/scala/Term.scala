@@ -2,7 +2,7 @@ package org.unisonweb
 
 import org.unisonweb.util.{Traverse,Monoid}
 import ABT.{Abs, AnnotatedTerm, Tm}
-import compilation2.{Ref,Param,Value}
+import compilation2.{Ref,Param,Value,U}
 
 object Term {
 
@@ -157,7 +157,7 @@ object Term {
     case class Lam_[R](body: R) extends F[R]
     case class Builtin_(name: Name) extends F[Nothing]
     case class Apply_[R](fn: R, args: List[R]) extends F[R]
-    case class Num_(value: Double) extends F[Nothing]
+    case class Num_(value: U) extends F[Nothing]
     case class LetRec_[R](bindings: List[R], body: R) extends F[R]
     case class Let_[R](binding: R, body: R) extends F[R]
     case class Rec_[R](r: R) extends F[R]
@@ -255,8 +255,8 @@ object Term {
   }
 
   object Num {
-    def apply(n: Double): Term = Tm(Num_(n))
-    def unapply[A](t: AnnotatedTerm[F,A]): Option[Double] = t match {
+    def apply(n: U): Term = Tm(Num_(n))
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[U] = t match {
       case Tm(Num_(n)) => Some(n)
       case _ => None
     }
@@ -352,7 +352,7 @@ object Term {
     def apply(args: Term*) = Apply(fn, args: _*)
   }
 
-  implicit def number(n: Double): Term = Num(n)
+  implicit def number(n: Long): Term = Num(n)
   implicit def number(n: Int): Term = Num(n)
   implicit def stringAsVar(s: Name): Term = Var(s)
   implicit def symbolAsVar(s: Symbol): Term = Var(s.name)

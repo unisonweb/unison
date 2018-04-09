@@ -60,7 +60,7 @@ object CompilationTests {
 
     test("fib") { implicit T =>
       0 to 20 foreach { n =>
-        equal1(eval(fib(n.toDouble:Term)), scalaFib(n).toDouble:Term)
+        equal1(eval(fib(n:Term)), scalaFib(n):Term)
       }
       ok
     },
@@ -100,14 +100,14 @@ object CompilationTests {
     },
     test("mutual non-tail recursion") { implicit T =>
       0 to 20 foreach { n =>
-        equal1(eval(fibPrime(n.toDouble:Term)), scalaFib(n).toDouble:Term)
+        equal1(eval(fibPrime(n:Term)), scalaFib(n):Term)
       }
       ok
     },
     suite("sequence")(
       test("take") { implicit T =>
         1 to 20 foreach { n =>
-          val xs = replicate(intIn(0,n))(int).map(x => Term.Num(x.toDouble))
+          val xs = replicate(intIn(0,n))(int).map(x => Term.Num(x))
           val mySeq = Sequence(xs:_*)
           val theirSeq = Sequence(xs.take(n):_*)
           equal1(eval(Sequence.take(n, mySeq)), eval(theirSeq))

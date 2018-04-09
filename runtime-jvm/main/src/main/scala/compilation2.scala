@@ -5,7 +5,7 @@ import org.unisonweb.compilation2.Value.Lambda
 
 object compilation2 {
 
-  type U = Double // unboxed values
+  type U = Long // unboxed values
   val U0: U = 0
   val True: U = 1
   val False: U = 0
