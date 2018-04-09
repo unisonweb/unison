@@ -3,7 +3,7 @@ package org.unisonweb
 object UnisonToScala {
 
   import org.unisonweb.util.Unboxed
-  import compilation2._
+  import compilation._
 
   type Env = (Array[U], Array[B], StackPtr, Result)
 

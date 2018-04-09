@@ -1,9 +1,9 @@
 package org.unisonweb
 
 import org.unisonweb.Term.{Name, Term}
-import org.unisonweb.compilation2.Value.Lambda
+import org.unisonweb.compilation.Value.Lambda
 
-object compilation2 {
+object compilation {
 
   type U = Long // unboxed values
   val U0: U = 0
@@ -404,7 +404,7 @@ object compilation2 {
       @inline @annotation.tailrec def go(i: Int, substs: Map[Name, Term]): Map[Name, Term] = {
         if (i < argCount) {
           val argv = eval(compiledArgs(i), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
-          val param = Term.Compiled2(Param(argv, r.boxed))
+          val param = Term.Compiled(Param(argv, r.boxed))
           go(i+1, substs.updated(names(i), param))
         }
         else substs
@@ -631,7 +631,7 @@ object compilation2 {
           c =>
             val evaluatedVar = c(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
             val value = Value(evaluatedVar, r.boxed)
-            Term.Compiled2(value)
+            Term.Compiled(value)
         }
 
         val evaledRecVars: Map[Name, Term] = compiledFreeRecs.transform {
@@ -641,7 +641,7 @@ object compilation2 {
               val evaluatedVar = lookup(rec, top, stackB, x1b, x0b)
               if (evaluatedVar eq null) sys.error(name + " refers to null stack slot.")
               require(evaluatedVar.isRef)
-              Term.Compiled2(evaluatedVar)
+              Term.Compiled(evaluatedVar)
             }
         }
 
@@ -693,7 +693,7 @@ object compilation2 {
     e match {
       case Term.Num(n) => compileNum(n)
       case Term.Builtin(name) => builtins(name)
-      case Term.Compiled2(param) =>
+      case Term.Compiled(param) =>
         if (param.toValue eq null)
           (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => param.toValue.toResult(r)
         else Return(param.toValue, e)
@@ -712,7 +712,7 @@ object compilation2 {
         val cb = compile(builtins)(b, env, currentRec, recVars, IsNotTail)
         val cbody = compile(builtins)(body, name +: env, currentRec.shadow(name),
           recVars - name, isTail)
-        val push = compilation2.push(env, Term.freeVars(body)).push1
+        val push = compilation.push(env, Term.freeVars(body)).push1
         (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
           val rb = eval(cb, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
           val rbb = r.boxed
@@ -883,7 +883,7 @@ object compilation2 {
         cbindings match {
           case Array(cbinding) =>
             val name = bindingNames(0)
-            val push = compilation2.push(env, Term.freeVars(e)).push1
+            val push = compilation.push(env, Term.freeVars(e)).push1
             (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
               var bindingResult = new Ref(name, null)
               push(top, stackU, stackB, x1, x1b)
@@ -896,7 +896,7 @@ object compilation2 {
           case Array(cbinding1, cbinding0) =>
             val name1 = bindingNames(0)
             val name0 = bindingNames(1)
-            val push = compilation2.push(env, Term.freeVars(e)).push2
+            val push = compilation.push(env, Term.freeVars(e)).push2
             (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
               val r1 = new Ref(name1, null)
               val r0 = new Ref(name0, null)
@@ -911,7 +911,7 @@ object compilation2 {
               cbody(r, rec, top2, stackU, U0, U0, stackB, r1, r0)
             }
           case cbindings =>
-            val push = compilation2.push(env, Term.freeVars(e)).push2
+            val push = compilation.push(env, Term.freeVars(e)).push2
             assert(K == 2)
             (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
               // todo: can this be faster?

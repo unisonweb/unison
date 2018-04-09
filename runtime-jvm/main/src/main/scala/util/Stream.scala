@@ -2,7 +2,7 @@ package org.unisonweb
 package util
 
 import Stream._
-import compilation2.{U,U0}
+import compilation.{U,U0}
 import Unboxed.{F1,F2,K,Unboxed}
 
 /**

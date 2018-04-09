@@ -2,7 +2,7 @@ package org.unisonweb
 
 import org.unisonweb.util.{Traverse,Monoid}
 import ABT.{Abs, AnnotatedTerm, Tm}
-import compilation2.{Ref,Param,Value,U}
+import compilation.{Ref,Value,U}
 
 object Term {
 
@@ -57,18 +57,13 @@ object Term {
     case Apply(f, args) =>
       val freshName = freshen(Name("_f"), f)
       Let(freshName -> f)(ANF(Apply(Var(freshName), args: _*)))
-    case If0(cond @ (ABT.Var(_) | Lam(_,_) | Builtin(_)), if0, ifNot0) =>
-      If0(cond, ANF(if0), ANF(ifNot0))
-    case If0(cond, if0, ifNot0) =>
-      val freshName = freshen(Name("_cond"), cond)
-      Let(freshName -> cond)(ANF(If0(Var(freshName), if0, ifNot0)))
     case ABT.Tm(other) => ABT.Tm(F.instance.map(other)(ANF))
   }
 
   /** Return a `Term` without an outer `Compiled` constructor. */
   def stripOuterCompiled(t: Term): Term = t match {
-    case Compiled2(v: Value) => v.decompile
-    case Compiled2(r: Ref) => r.value.decompile
+    case Compiled(v: Value) => v.decompile
+    case Compiled(r: Ref) => r.value.decompile
     case _ => t
   }
 
@@ -91,11 +86,11 @@ object Term {
   }
 
   /**
-   * Removes all `Compiled2` nodes from `t` by expanding their definitions and
+   * Removes all `Compiled` nodes from `t` by expanding their definitions and
    * converting cyclic references to `let rec` declarations.
    */
   def fullyDecompile2(t: Term): Term = {
-    import compilation2.Ref
+    import compilation.Ref
     // 1. Collect full set of refs via transitive closure - a `Set[Ref]`
     // 2. Compute all used names (including self recursive names), freshen names for each `Ref`
     // 3. Introduce one outer let rec block for each `Ref`, substitute away all refs
@@ -114,8 +109,6 @@ object Term {
       case Builtin(_) | Num(_) | Var(_) => seen
       case Apply(f, args) =>
         args.foldLeft(transitiveClosure(seen, f))(transitiveClosure _)
-      case If0(cond, ifZero, ifNonzero) =>
-        List(ifZero, ifNonzero).foldLeft(transitiveClosure(seen, cond))(transitiveClosure _)
       case If(cond, t, f) =>
         List(t, f).foldLeft(transitiveClosure(seen, cond))(transitiveClosure _)
       case Lam1(name, body) => transitiveClosure(seen, body)
@@ -123,10 +116,10 @@ object Term {
         transitiveClosure(transitiveClosure(seen, binding), body)
       case LetRec(bindings, body) =>
         bindings.map(_._2).foldLeft(transitiveClosure(seen, body))(transitiveClosure)
-      case Compiled2(r : Ref) =>
+      case Compiled(r : Ref) =>
         if (seen.contains(r)) seen
         else { val v = r.value.decompile; transitiveClosure(seen + (r -> v), v) }
-      case Compiled2(v) => transitiveClosure(seen, v.toValue.decompile)
+      case Compiled(v) => transitiveClosure(seen, v.toValue.decompile)
     }
 
     // 1. Collect full set of refs via transitive closure - a `Set[Ref]`
@@ -135,10 +128,10 @@ object Term {
     // 2. Freshen names for each `Ref`, if needed
     val freshRefNames = refs.keys.view.map(r => (r, ABT.freshen(r.name, usedNames))).toMap
     def replaceRefs(t: Term): Term = selfToLetRec(t).rewriteDown {
-      case Compiled2(c) => c match {
+      case Compiled(c) => c match {
         case r : Ref => Var(freshRefNames(r))
-        case compilation2.Value.Num(d) => Term.Num(d)
-        case v : compilation2.Value => replaceRefs(v.decompile)
+        case compilation.Value.Num(d) => Term.Num(d)
+        case v : compilation.Value => replaceRefs(v.decompile)
       }
       case t => t
     }
@@ -162,10 +155,8 @@ object Term {
     case class Let_[R](binding: R, body: R) extends F[R]
     case class Rec_[R](r: R) extends F[R]
     case class Self_(name: Name) extends F[Nothing]
-    case class If0_[R](condition: R, ifZero: R, ifNonzero: R) extends F[R]
     case class If_[R](condition: R, ifNonzero: R, ifZero: R) extends F[R]
-    case class Compiled_(value: Param) extends F[Nothing]
-    case class Compiled2_(value: compilation2.Param) extends F[Nothing]
+    case class Compiled_(value: compilation.Param) extends F[Nothing]
     // yield : f a -> a|f
     case class Yield_[R](effect: R) extends F[R]
     // handle : (forall x . f x -> (x -> y|f+g) -> y|f+g) -> a|f+g -> a|g
@@ -176,7 +167,7 @@ object Term {
 
     implicit val instance: Traverse[F] = new Traverse[F] {
       override def map[A,B](fa: F[A])(f: A => B): F[B] = fa match {
-        case fa @ (Builtin_(_) | Num_(_) | Compiled_(_) | Compiled2_(_) | Self_(_)) =>
+        case fa @ (Builtin_(_) | Num_(_) | Compiled_(_) | Self_(_)) =>
           fa.asInstanceOf[F[B]]
         case Lam_(a) => Lam_(f(a))
         case Apply_(fn, args) =>
@@ -189,9 +180,6 @@ object Term {
           val b2 = f(b); val body2 = f(body)
           Let_(b2, body2)
         case Rec_(a) => Rec_(f(a))
-        case If0_(c,a,b) =>
-          val c2 = f(c); val a2 = f(a); val b2 = f(b)
-          If0_(c2, a2, b2)
         case If_(c,a,b) =>
           val c2 = f(c); val a2 = f(a); val b2 = f(b)
           If_(c2, a2, b2)
@@ -331,19 +319,11 @@ object Term {
       case _ => None
     }
   }
-  object If0 {
-    def apply(cond: Term, is0: Term, not0: Term): Term =
-      Tm(If0_(cond, is0, not0))
-    def unapply[A](t: AnnotatedTerm[F,A]): Option[(AnnotatedTerm[F,A],AnnotatedTerm[F,A],AnnotatedTerm[F,A])] = t match {
-      case Tm(If0_(cond, t, f)) => Some((cond, t, f))
-      case _ => None
-    }
-  }
-  object Compiled2 {
-    def apply(v: compilation2.Param): Term =
-      Tm(Compiled2_(v))
-    def unapply[A](t: AnnotatedTerm[F,A]): Option[compilation2.Param] = t match {
-      case Tm(Compiled2_(p)) => Some(p)
+  object Compiled {
+    def apply(v: compilation.Param): Term =
+      Tm(Compiled_(v))
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[compilation.Param] = t match {
+      case Tm(Compiled_(p)) => Some(p)
       case _ => None
     }
   }

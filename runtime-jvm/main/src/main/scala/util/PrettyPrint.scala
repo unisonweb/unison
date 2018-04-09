@@ -116,11 +116,6 @@ object PrettyPrint {
                prettyTerm(ifNonzero, 0).nest("  ")
     }
 
-    case If0(cond, ifZero, ifNonzero) => parenthesizeGroupIf(precedence > 0) {
-      "if " <> prettyTerm(cond, 0) <> " == 0 then" <> softbreak <>
-               prettyTerm(ifZero, 0).nest("  ") <> softbreak <> "else" <> softbreak <>
-               prettyTerm(ifNonzero, 0).nest("  ")
-    }
     case Apply(VarOrBuiltin(name), List(arg1, arg2)) if isOperatorName(name) =>
        parenthesizeGroupIf(precedence > 5) {
         prettyTerm(arg1, 5) <> " " <> name.toString <> softbreak <> prettyTerm(arg2, 6).nest("  ")

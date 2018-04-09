@@ -1,13 +1,13 @@
 package org.unisonweb.benchmark
 
 import org.unisonweb._
-import compilation2._
+import compilation._
 import Term.Term
 import org.unisonweb.ABT.Name
-import org.unisonweb.compilation2.Value.Lambda
+import org.unisonweb.compilation.Value.Lambda
 import org.unisonweb.util.{Stream, Unboxed}
 
-object Compilation2Benchmarks {
+object CompilationBenchmarks {
 
   import QuickProfile.{profile, suite}
 
@@ -19,7 +19,7 @@ object Compilation2Benchmarks {
   val top = new StackPtr(-1)
 
   def runTerm(t: Term): Value.Lambda =
-    run(compileTop(Lib2.builtins)(t)).asInstanceOf[Value.Lambda]
+    run(compileTop(Builtins.builtins)(t)).asInstanceOf[Value.Lambda]
 
   val triangleCount = 100000
 
@@ -52,7 +52,7 @@ object Compilation2Benchmarks {
       },
       {
         val plusU = UnisonToScala.toUnboxed2 {
-          Lib2.builtins(Name("+")) match { case Return(lam: Lambda) => lam }
+          Builtins.builtins(Name("+")) match { case Return(lam: Lambda) => lam }
         }
 
         val env = (new Array[U](20), new Array[B](20), new StackPtr(0), Result())

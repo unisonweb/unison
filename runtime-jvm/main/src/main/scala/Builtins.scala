@@ -1,8 +1,8 @@
 package org.unisonweb
 
-import compilation2._
+import compilation._
 import Term.{Apply, Name, Term}
-import org.unisonweb.compilation2.Value.Lambda
+import org.unisonweb.compilation.Value.Lambda
 import org.unisonweb.util.Sequence
 import java.lang.Double.{doubleToRawLongBits, longBitsToDouble}
 import java.util.function.{LongBinaryOperator, LongUnaryOperator}
@@ -201,7 +201,7 @@ object Builtins {
                              (argCount: Int, substs: Map[Name, Term]): Lambda =
         substs.toList match {
           case List((_,term)) => term match {
-            case Term.Compiled2(p: Param) =>
+            case Term.Compiled(p: Param) =>
               val n = p.toValue.asInstanceOf[Value.Num].n
               val body: Computation =
                 (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {

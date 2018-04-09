@@ -1,14 +1,14 @@
 package org.unisonweb
 
 import Term._
-import compilation2._
+import compilation._
 
 object CompilationTests {
   import EasyTest._
   import Terms._
 
   def eval(t: Term): Term =
-    normalize(Lib2.builtins)(t)
+    normalize(Builtins.builtins)(t)
 
   val tests = suite("compilation")(
     test("zero") { implicit T =>
