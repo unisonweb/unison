@@ -1,7 +1,7 @@
 package org.unisonweb
 
-import org.unisonweb.Term.{Name, Term}
-import Value.Lambda
+import org.unisonweb.Term.{MatchCase, Name, Term}
+import org.unisonweb.Value.Lambda
 
 object compilation {
 
@@ -223,6 +223,15 @@ object compilation {
       }
     }
   }
+
+  // may throw MatchFail at runtime
+  def compileMatch(scrutinee: Computation, cases: List[Term.MatchCase[Computation]]): Computation = ???
+
+  // may throw CaseNoMatch at runtime
+  def compileMatchCase(c: Term.MatchCase[Computation]): Computation = ???
+
+  // may throw CaseNoMatch at runtime
+  def compilePattern(p: Pattern): Computation => Computation = ???
 
   def compileStaticFullySaturatedNontailCall(lam: Lambda, compiledArgs: List[Computation]): Computation =
     compiledArgs match {
@@ -640,6 +649,48 @@ object compilation {
             ct(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
           else
             cf(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+      case Term.Match(_, Nil) => sys.error("parser shouldn't produce a match with no cases")
+      case Term.Match(scrutinee, cases) =>
+        val cscrutinee = compile(builtins)(
+          scrutinee, env, currentRec, recVars, IsNotTail
+        )
+        // case (foo + 1) of 42 -> ... ; 43 -> ...
+        val ccases: List[Computation] = cases.map { c =>
+          compileMatchCase {
+            c.map(t => compile(builtins)(
+              t, Term.freshen(Name("scrutinee"), t) +: env,
+              currentRec, recVars, isTail
+            ))
+          }
+        }
+        val allGuardOrBodyFreeVars = cases.foldLeft(Set.empty[Name]) {
+          (s, c) => s ++
+                    c.guard.map(Term.freeVars).getOrElse(Set.empty) ++
+                    Term.freeVars(c.body)
+        }
+
+        def sequenceCases(c1: Computation, c2: Computation): Computation =
+          (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
+            try c1(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+            catch { case CaseNoMatch =>
+              c2(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+            }
+
+        val megamatch = ccases.reduceRight(sequenceCases)
+        val push = compilation.push(env, allGuardOrBodyFreeVars).push1
+        (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+          val vscrutinee = cscrutinee(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
+          val vscrutineeb = r.boxed
+          push(top, stackU, stackB, x1, x1b)
+          try megamatch(r, rec, top.increment(1),
+                        stackU, x0,  vscrutinee,
+                        stackB, x0b, vscrutineeb)
+          catch {
+            case CaseNoMatch =>
+              throw MatchFail(Value(vscrutinee, vscrutineeb).decompile, cases)
+          }
+        }
+
       case Term.Let1(name, b, body) =>
         val cb = compile(builtins)(b, env, currentRec, recVars, IsNotTail)
         val cbody = compile(builtins)(body, name +: env, currentRec.shadow(name),
@@ -980,4 +1031,14 @@ object compilation {
   abstract class ParamLookup {
     def apply(rec: Lambda, top: StackPtr, stackB: Array[B], x1b: B, x0b: B): B
   }
+
+  object CaseNoMatch extends Throwable {
+    override def fillInStackTrace(): Throwable = this
+  }
+
+  case class MatchFail(scrutinee: Term, cases: List[MatchCase[Term]])
+    extends Throwable {
+    override def fillInStackTrace(): Throwable = this
+  }
+
 }
