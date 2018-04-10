@@ -128,7 +128,7 @@ object compilation {
   }
 
   @inline private def returnBoth(r: R, x0: U, x0b: B) = {
-    if (x0b ne null) r.boxed = x0b.toValue
+    r.boxed = x0b.toValue
     x0
   }
 

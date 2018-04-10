@@ -2,8 +2,8 @@ lazy val commonSettings = Seq(
   fork := true,
   javaOptions in run ++= Seq(
     // https://docs.oracle.com/javase/8/embedded/develop-apps-platforms/codecache.htm
-    //"-XX:+UnlockDiagnosticVMOptions",
-    //"-XX:+LogCompilation"
+//    "-XX:+UnlockDiagnosticVMOptions",
+//    "-XX:+LogCompilation",
     "-XX:InlineSmallCode=9001",
     "-XX:MaxInlineLevel=35"
     //"-XX:MaxInlineSize=9001"
