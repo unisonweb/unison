@@ -1,7 +1,5 @@
 package org.unisonweb
 
-import org.unisonweb.compilation.U
-
 sealed class Pattern
 object Pattern {
   case class LiteralU(u: U, typ: UnboxedType) extends Pattern

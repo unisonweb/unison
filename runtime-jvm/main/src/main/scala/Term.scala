@@ -2,7 +2,6 @@ package org.unisonweb
 
 import org.unisonweb.util.{Traverse,Monoid}
 import ABT.{Abs, AnnotatedTerm, Tm}
-import compilation.{U, boolToUnboxed}
 import java.lang.Double.{doubleToRawLongBits}
 
 object Term {
@@ -156,6 +155,7 @@ object Term {
     case class Builtin_(name: Name) extends F[Nothing]
     case class Apply_[R](fn: R, args: List[R]) extends F[R]
     case class Unboxed_(value: U, typ: UnboxedType) extends F[Nothing]
+    case class Hashref_(hash: Hash) extends F[Nothing]
     case class LetRec_[R](bindings: List[R], body: R) extends F[R]
     case class Let_[R](binding: R, body: R) extends F[R]
     case class Rec_[R](r: R) extends F[R]
@@ -173,7 +173,7 @@ object Term {
 
     implicit val instance: Traverse[F] = new Traverse[F] {
       override def map[A,B](fa: F[A])(f: A => B): F[B] = fa match {
-        case fa @ (Builtin_(_) | Unboxed_(_,_) | Compiled_(_) | Self_(_)) =>
+        case fa @ (Builtin_(_) | Unboxed_(_,_) | Compiled_(_) | Self_(_) | Hashref_(_)) =>
           fa.asInstanceOf[F[B]]
         case Lam_(a) => Lam_(f(a))
         case Apply_(fn, args) =>
@@ -208,6 +208,14 @@ object Term {
   }
 
   import F._
+
+  object Hashref {
+    def apply(h: Hash): Term = Tm(Hashref_(h))
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[Hash] = t match {
+      case Tm(Hashref_(h)) => Some(h)
+      case _ => None
+    }
+  }
 
   // smart patterns and constructors
   object Match {

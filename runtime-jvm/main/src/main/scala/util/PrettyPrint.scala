@@ -2,7 +2,7 @@ package org.unisonweb.util
 
 import java.lang.Double.{longBitsToDouble}
 import java.lang.Long.{toUnsignedString}
-import org.unisonweb.compilation.U0
+import org.unisonweb.U0
 import org.unisonweb.UnboxedType
 import org.unisonweb.Term
 import org.unisonweb.Term._

@@ -1,5 +1,6 @@
 package org.unisonweb.util
 
+import org.unisonweb.{B, U, U0}
 import org.unisonweb.EasyTest._
 import org.unisonweb.compilation._
 import org.unisonweb.{Builtins, Param, UnisonToScala}

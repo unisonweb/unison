@@ -5,14 +5,6 @@ import Value.Lambda
 
 object compilation {
 
-  type U = Long // unboxed values
-  val U0: U = 0
-  val True: U = 1
-  val False: U = 0
-  @inline def boolToUnboxed(b: Boolean): U = if (b) True else False
-
-  type B = Param // boxed values
-  type R = Result
   type Arity = Int
   type IsTail = Boolean
   val IsTail = true

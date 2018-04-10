@@ -1,6 +1,6 @@
 package org.unisonweb.util
 
-import org.unisonweb.compilation.{U,U0}
+import org.unisonweb.{U,U0}
 
 /** Unboxed functions and continuations / callbacks. */
 object Unboxed {

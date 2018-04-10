@@ -1,7 +1,7 @@
 package org.unisonweb
 
-import Term.{Name, Term}
-import compilation._
+import org.unisonweb.Term.{Name, Term}
+import org.unisonweb.compilation._
 
 sealed abstract class Param {
   def toValue: Value
@@ -81,6 +81,12 @@ object Value {
 
     def unapply(l: Lambda): Option[(Int, Computation, Term)] =
       Some((l.arity, l.body, l.decompile))
+  }
+
+  case class Data(typeId: Hash, constructorId: ConstructorId, fields: Array[Value])
+    extends Value {
+    def decompile: Term = Term.Hashref(Hash.constructorId(typeId, constructorId))
+    def toResult(r: R): U = { r.boxed = this; U0 }
   }
 
 }
