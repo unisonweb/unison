@@ -224,11 +224,21 @@ object compilation {
     }
   }
 
-  // may throw MatchFail at runtime
-  def compileMatch(scrutinee: Computation, cases: List[Term.MatchCase[Computation]]): Computation = ???
-
   // may throw CaseNoMatch at runtime
-  def compileMatchCase(c: Term.MatchCase[Computation]): Computation = ???
+  def compileMatchCase(c: Term.MatchCase[Computation]): Computation = {
+    val cpattern = compilePattern(c.pattern)
+    val caseBody = c.body
+    val cbody: Computation = c.guard match {
+      case None => caseBody
+      case Some(guard) =>
+        (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+           val guardSuccess = guard(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
+           if (guardSuccess != U0) caseBody(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
+           else throw CaseNoMatch
+        }
+    }
+    cpattern(cbody)
+  }
 
   // may throw CaseNoMatch at runtime
   def compilePattern(p: Pattern): Computation => Computation = ???
