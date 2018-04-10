@@ -143,6 +143,11 @@ object Term {
 
   // todo - test when function being applied is a compound expression
 
+  case class MatchCase[R](pattern: Pattern, guard: Option[R], body: R) {
+    def map[R2](f: R => R2): MatchCase[R2] =
+      MatchCase(pattern, guard.map(f), f(body))
+  }
+
   sealed abstract class F[+R]
 
   object F {
@@ -156,6 +161,7 @@ object Term {
     case class Rec_[R](r: R) extends F[R]
     case class Self_(name: Name) extends F[Nothing]
     case class If_[R](condition: R, ifNonzero: R, ifZero: R) extends F[R]
+    case class Match_[R](scrutinee: R, cases: List[MatchCase[R]]) extends F[R]
     case class Compiled_(value: Param) extends F[Nothing]
     // yield : f a -> a|f
     case class Yield_[R](effect: R) extends F[R]
@@ -183,6 +189,9 @@ object Term {
         case If_(c,a,b) =>
           val c2 = f(c); val a2 = f(a); val b2 = f(b)
           If_(c2, a2, b2)
+        case Match_(s, cs) =>
+          val s2 = f(s); val cs2 = cs.map(_.map(f))
+          Match_(s2, cs2)
         case Handle_(h,b) =>
           val h2 = f(h); val b2 = f(b)
           Handle_(h2, b2)
@@ -201,6 +210,15 @@ object Term {
   import F._
 
   // smart patterns and constructors
+  object Match {
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[(AnnotatedTerm[F,A], List[MatchCase[AnnotatedTerm[F,A]]])] = t match {
+      case Tm(Match_(scrutinee, cases)) => Some((scrutinee, cases))
+      case _ => None
+    }
+    def apply(scrutinee: Term)(cases: MatchCase[Term]*): Term =
+      Tm(Match_(scrutinee, cases.toList))
+  }
+
   object Lam1 {
     def unapply[A](t: AnnotatedTerm[F,A]): Option[(Name,AnnotatedTerm[F,A])] = t match {
       case Tm(Lam_(ABT.Abs(name, body))) => Some((name, body))
