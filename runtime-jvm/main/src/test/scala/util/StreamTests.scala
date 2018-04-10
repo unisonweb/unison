@@ -1,10 +1,8 @@
 package org.unisonweb.util
 
-import org.unisonweb.ABT.Name
 import org.unisonweb.EasyTest._
 import org.unisonweb.compilation._
-import org.unisonweb.{Builtins, UnisonToScala}
-import org.unisonweb.compilation.Value.Lambda
+import org.unisonweb.{Builtins, Param, UnisonToScala}
 
 object StreamTests {
   val tests = suite("Stream")(
@@ -28,9 +26,7 @@ object StreamTests {
       )
     },
     test("foldLeft-unisonPlus") { implicit T =>
-      val plusU = UnisonToScala.toUnboxed2(Builtins.builtins(Name("+")) match {
-        case Return(lam: Lambda) => lam
-      })
+      val plusU = UnisonToScala.toUnboxed2(Builtins.lambdaFor(Builtins.Integer_add))
       val env = (new Array[U](20), new Array[B](20), new StackPtr(0), Result())
       equal(
         Stream.from(0).take(10000).asInstanceOf[Stream[Param]]

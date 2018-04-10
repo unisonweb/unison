@@ -2,7 +2,7 @@ package org.unisonweb
 
 import org.unisonweb.util.{Traverse,Monoid}
 import ABT.{Abs, AnnotatedTerm, Tm}
-import compilation.U
+import compilation.{U, boolToUnboxed}
 import java.lang.Double.{doubleToRawLongBits}
 
 object Term {
@@ -333,6 +333,7 @@ object Term {
     def apply(args: Term*) = Apply(fn, args: _*)
   }
 
+  implicit def bool(b: Boolean): Term = Unboxed(boolToUnboxed(b), UnboxedType.Boolean)
   implicit def number(n: Long): Term = Unboxed(n, UnboxedType.Integer)
   implicit def number(n: Int): Term = Unboxed(n, UnboxedType.Integer)
   implicit def double(n: Double): Term =

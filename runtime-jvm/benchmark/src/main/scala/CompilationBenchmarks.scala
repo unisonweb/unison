@@ -1,10 +1,8 @@
 package org.unisonweb.benchmark
 
+import org.unisonweb.Term.Term
 import org.unisonweb._
-import compilation._
-import Term.Term
-import org.unisonweb.ABT.Name
-import org.unisonweb.compilation.Value.Lambda
+import org.unisonweb.compilation._
 import org.unisonweb.util.{Stream, Unboxed}
 
 object CompilationBenchmarks {
@@ -52,7 +50,7 @@ object CompilationBenchmarks {
       },
       {
         val plusU = UnisonToScala.toUnboxed2 {
-          Builtins.builtins(Name("+")) match { case Return(lam: Lambda) => lam }
+          Builtins.lambdaFor(Builtins.Integer_add)
         }
 
         val env = (new Array[U](20), new Array[B](20), new StackPtr(0), Result())

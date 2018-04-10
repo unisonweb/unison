@@ -1,14 +1,15 @@
 package org.unisonweb
 
-import org.unisonweb.util.PrettyPrint
-import org.unisonweb.EasyTest._
 import org.unisonweb.ABT.Name._
+import org.unisonweb.EasyTest._
+import org.unisonweb.Term.number
+import org.unisonweb.util.PrettyPrint
 
 object DecompileTests {
   val tests = suite("decompile") (
     test("ex1") { implicit T =>
       val pingpong =
-        Term.Let("k" -> Term.Num(79)) {
+        Term.Let("k" -> 79) {
           Term.LetRec(
             "ping" -> Term.Lam("x")(Term.Var("pong")(Term.Var("x"))),
             "pong" -> Term.Lam("x")(Term.Var("k"))) {

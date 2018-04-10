@@ -65,8 +65,8 @@ object CompilationTests {
       ok
     },
     test("==") { implicit T =>
-      equal1(eval(one unisonEquals one), eval(one))
-      equal1(eval(one unisonEquals onePlusOne), eval(zero))
+      equal1(eval(one unisonEquals one), eval(true))
+      equal1(eval(one unisonEquals onePlusOne), eval(false))
       ok
     },
     test("triangle") { implicit T =>
@@ -107,7 +107,7 @@ object CompilationTests {
     suite("sequence")(
       test("take") { implicit T =>
         1 to 20 foreach { n =>
-          val xs = replicate(intIn(0,n))(int).map(x => Term.Num(x))
+          val xs = replicate(intIn(0,n))(int).map(x => x: Term)
           val mySeq = Sequence(xs:_*)
           val theirSeq = Sequence(xs.take(n):_*)
           equal1(eval(Sequence.take(n, mySeq)), eval(theirSeq))
@@ -115,7 +115,7 @@ object CompilationTests {
         ok
       },
       test("ex1") { implicit T =>
-        equal(eval(Sequence.size(Sequence(1,2,3))), Term.Num(3))
+        equal(eval(Sequence.size(Sequence(1,2,3))), 3: Term)
       }
     )
   )
@@ -131,7 +131,7 @@ object Terms {
 
   val onePlusOne: Term = one + one
 
-  val onePlus: Term = '+.b(one)
+  val onePlus: Term = Builtins.termFor(Builtins.Integer_add)(one)
 
   val ap: Term = Lam('f,'x)('f.v('x))
 
@@ -163,13 +163,13 @@ object Terms {
     )('odd)
 
   implicit class Ops(t0: Term) {
-    def +(t1: Term) = '+.b(t0, t1)
-    def -(t1: Term) = '-.b(t0, t1)
-    def *(t1: Term) = '*.b(t0, t1)
-    def /(t1: Term) = '/.b(t0, t1)
-    def unisonEquals(t1: Term) = '==.b(t0, t1)
-    def <(t1: Term) = '<.b(t0, t1)
-    def >(t1: Term) = '>.b(t0, t1)
+    def +(t1: Term) = Builtins.termFor(Builtins.Integer_add)(t0, t1)
+    def -(t1: Term) = Builtins.termFor(Builtins.Integer_sub)(t0, t1)
+    def *(t1: Term) = Builtins.termFor(Builtins.Integer_mul)(t0, t1)
+    def unisonEquals(t1: Term) =
+      Builtins.termFor(Builtins.Integer_eq)(t0, t1)
+    def <(t1: Term) = Builtins.termFor(Builtins.Integer_lt)(t0, t1)
+    def >(t1: Term) = Builtins.termFor(Builtins.Integer_gt)(t0, t1)
   }
 
   object Sequence {

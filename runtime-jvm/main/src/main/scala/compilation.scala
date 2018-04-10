@@ -9,6 +9,8 @@ object compilation {
   val U0: U = 0
   val True: U = 1
   val False: U = 0
+  @inline def boolToUnboxed(b: Boolean): U = if (b) True else False
+
   type B = Param // boxed values
   type R = Result
   type Arity = Int
@@ -109,7 +111,7 @@ object compilation {
       def apply(r: R, x0: U): U
       final def apply(r: R, x1: U, x0: U): U = apply(r, x0)
     }
-    abstract class C0U extends C1U {
+    abstract class C0 extends C1U {
       def apply(r: R): U
       final def apply(r: R, x0: U): U = apply(r)
     }
@@ -120,12 +122,15 @@ object compilation {
   @inline private def returnBoxed(r: R, v: Value): U = { r.boxed = v; U0 }
 
   // todo: think through whether can elide
-  @inline private def returnUnboxed(r: R, unboxed: U): U = {
-    r.boxed = null
+  @inline private def returnUnboxed(r: R, unboxed: U, t: UnboxedType): U = {
+    r.boxed = t
     unboxed
   }
 
-  @inline private def returnBoth(r: R, x0: U, x0b: B) = { if (x0b ne null) r.boxed = x0b.toValue; x0 }
+  @inline private def returnBoth(r: R, x0: U, x0b: B) = {
+    if (x0b ne null) r.boxed = x0b.toValue
+    x0
+  }
 
 
   case class Self(name: Name) extends Computation {
@@ -134,17 +139,13 @@ object compilation {
   }
 
   // todo: maybe opportunities for more expressive matching by breaking this into sub-cases
-  abstract class Return(val value: Value) extends Computation
+  abstract class Return(val value: Value) extends Computation.C0
 
   object Return {
     def apply(v: Value): Computation = v match {
       case Value.Unboxed(d, t) => compileUnboxed(d, t)
       case f@Value.Lambda(_, _, _) => new Return(f) {
-
-        def apply(r: R, rec: Lambda, top: StackPtr,
-                  stackU: Array[U], x1: U, x0: U,
-                  stackB: Array[B], x1b: B, x0b: B): U =
-          returnBoxed(r, f)
+        def apply(r: R): U = returnBoxed(r, f)
       }
     }
     def unapply(c: Computation): Option[Value] = {
@@ -157,10 +158,7 @@ object compilation {
 
   def compileUnboxed(n: U, t: UnboxedType): Computation =
     new Return(Value.Unboxed(n, t)) {
-      def apply(r: R, rec: Lambda, top: StackPtr,
-                stackU: Array[U], x1: U, x0: U,
-                stackB: Array[B], x1b: B, x0b: B): U =
-        returnUnboxed(r, n)
+      def apply(r: R): U = returnUnboxed(r, n, t)
     }
 
   /**

@@ -15,13 +15,13 @@ object Param {
     else b
 }
 
-class Ref(val name: Name, var value: Value) extends Param {
+final class Ref(val name: Name, var value: Value) extends Param {
   def toValue = value
   override def isRef = true
 }
 
 abstract class Value extends Param {
-  def toValue = this
+  final def toValue = this
   def decompile: Term
   def toResult(r: Result): U
 }
@@ -35,7 +35,10 @@ object Value {
 
   case class Unboxed(n: U, typ: UnboxedType) extends Value {
     def decompile = Term.Unboxed(n, typ)
-    def toResult(r: Result) = n
+    def toResult(r: Result) =  {
+//      r.boxed = typ // todo: can we elide this?
+      n
+    }
   }
 
   abstract class Lambda(
