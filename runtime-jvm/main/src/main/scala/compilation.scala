@@ -261,23 +261,41 @@ object compilation {
 
   // case foo x of
   //   (b,t) -> f b
-
+  //
   // may throw CaseNoMatch at runtime
   def compilePattern(p: Pattern): Computation => PatternMatch = p match {
-    case Pattern.LiteralU(u, typ) => c =>
+    case Pattern.LiteralU(u, typ) => rhs =>
       (s,_,r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
-        if (s == u) c(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
+        if (s == u) rhs(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
         else throw CaseNoMatch
-    case Pattern.Wildcard => c =>
+    case Pattern.Wildcard => rhs =>
       (s,sb,r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
         top.push1U(stackU, x1)
         top.push1B(stackB, x1b)
-        c(r,rec,top.inc,stackU,x0,s,stackB,x0b,sb)
+        rhs(r,rec,top.inc,stackU,x0,s,stackB,x0b,sb)
       }
-    case Pattern.Uncaptured => c =>
+    case Pattern.Uncaptured => rhs =>
       (_,_,r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
-         c(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
-    case Pattern.Data(typeId, constructorId, patterns) => ???
+       rhs(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
+    case Pattern.Data(_, constructorId, patterns) =>
+      val cpatterns: List[Computation => PatternMatch] = patterns map compilePattern
+      rhs => (s,sb,r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+        // The scrutinee better be data, or the typer is broken
+        val data = sb.asInstanceOf[Value.Data]
+        val fields = data.fields
+        if (data.constructorId == constructorId) {
+          val comp = cpatterns.zip(fields).foldRight(rhs) {
+            case ((p,f), rest) =>
+              val u = f.toResult(r)
+              val b = r.boxed
+              (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
+                p(rest)(u,b,r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
+          }
+          comp(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
+        }
+        else throw CaseNoMatch
+      }
+    case Pattern.As(p) => ???
   }
 
   def compileStaticFullySaturatedNontailCall(lam: Lambda, compiledArgs: List[Computation]): Computation =
