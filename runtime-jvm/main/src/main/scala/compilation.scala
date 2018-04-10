@@ -16,14 +16,24 @@ object compilation {
     def isEmpty = get.isEmpty
     def contains(name: Name): Boolean = get.exists(_._1 == name)
     def contains(name: Name, arity: Arity): Boolean = get == Some((name, arity))
-    /** knock out the currentRec if appropriate; if it is shadowed, it won't be called */
+
+    /*
+     * Knock out the currentRec if appropriate; if it is shadowed,
+     * it won't be called
+     */
     def shadow(name: Name): CurrentRec = CurrentRec(get.filterNot(name == _._1))
-    /** knock out the currentRec if appropriate; if it is shadowed, it won't be called */
-    def shadow(names: Seq[Name]): CurrentRec = CurrentRec(get.filterNot(names contains _._1))
+
+    /*
+     * Knock out the currentRec if appropriate; if it is shadowed,
+     * it won't be called
+     */
+    def shadow(names: Seq[Name]): CurrentRec =
+      CurrentRec(get.filterNot(names contains _._1))
   }
   object CurrentRec {
     def none = CurrentRec(None)
-    def apply(name: Name, arity: Arity): CurrentRec = CurrentRec(Some((name,arity)))
+    def apply(name: Name, arity: Arity): CurrentRec =
+      CurrentRec(Some((name,arity)))
   }
 
   case class RecursiveVars(get: Set[Name]) extends AnyVal {
@@ -31,7 +41,8 @@ object compilation {
     def +(name: Name): RecursiveVars = RecursiveVars(get + name)
     def ++(names: Seq[Name]): RecursiveVars = RecursiveVars(get ++ names)
     def -(name: Name): RecursiveVars = RecursiveVars(get.filterNot(name == _))
-    def --(names: Seq[Name]): RecursiveVars = RecursiveVars(get.filterNot(names contains _))
+    def --(names: Seq[Name]): RecursiveVars =
+      RecursiveVars(get.filterNot(names contains _))
   }
   object RecursiveVars {
     def empty = RecursiveVars(Set())
@@ -40,18 +51,23 @@ object compilation {
   // type StackPtr = Int
   class StackPtr(private val top: Int) extends AnyVal {
     def toInt = top
-    @inline def u(stackU: Array[U], envIndex: Int): U =
+    @inline final def u(stackU: Array[U], envIndex: Int): U =
       stackU(top - envIndex + K)
-    @inline def b(stackB: Array[B], envIndex: Int): B =
+    @inline final def b(stackB: Array[B], envIndex: Int): B =
       stackB(top - envIndex + K)
-    @inline def increment(by: Int) = {
+    @inline final def incBy(by: Int) = {
       assert(by >= 0)
       new StackPtr(top+by)
     }
-    @inline def pushU(stackU: Array[U], i: Int, u: U): Unit =
+    @inline final def inc = incBy(1)
+    @inline final def pushU(stackU: Array[U], i: Int, u: U): Unit =
       stackU(top + i + 1) = u
-    @inline def pushB(stackB: Array[B], i: Int, b: B): Unit =
+    @inline final def push1U(stackU: Array[U], u: U): Unit =
+      stackU(top + 1) = u
+    @inline final def pushB(stackB: Array[B], i: Int, b: B): Unit =
       stackB(top + i + 1) = b
+    @inline final def push1B(stackB: Array[B], b: B): Unit =
+      stackB(top + 1) = b
   }
   object StackPtr {
     def empty = new StackPtr(-1)
@@ -109,6 +125,9 @@ object compilation {
     }
   }
 
+  abstract class PatternMatch {
+    def apply(scrutinee: U, scrutineeB: B, r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U
+  }
 
   /** Put `v` into `r.boxed` */
   @inline private def returnBoxed(r: R, v: Value): U = { r.boxed = v; U0 }
@@ -225,7 +244,7 @@ object compilation {
   }
 
   // may throw CaseNoMatch at runtime
-  def compileMatchCase(c: Term.MatchCase[Computation]): Computation = {
+  def compileMatchCase(c: Term.MatchCase[Computation]): PatternMatch = {
     val cpattern = compilePattern(c.pattern)
     val caseBody = c.body
     val cbody: Computation = c.guard match {
@@ -240,8 +259,26 @@ object compilation {
     cpattern(cbody)
   }
 
+  // case foo x of
+  //   (b,t) -> f b
+
   // may throw CaseNoMatch at runtime
-  def compilePattern(p: Pattern): Computation => Computation = ???
+  def compilePattern(p: Pattern): Computation => PatternMatch = p match {
+    case Pattern.LiteralU(u, typ) => c =>
+      (s,_,r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
+        if (s == u) c(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
+        else throw CaseNoMatch
+    case Pattern.Wildcard => c =>
+      (s,sb,r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+        top.push1U(stackU, x1)
+        top.push1B(stackB, x1b)
+        c(r,rec,top.inc,stackU,x0,s,stackB,x0b,sb)
+      }
+    case Pattern.Uncaptured => c =>
+      (_,_,r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
+         c(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
+    case Pattern.Data(typeId, constructorId, patterns) => ???
+  }
 
   def compileStaticFullySaturatedNontailCall(lam: Lambda, compiledArgs: List[Computation]): Computation =
     compiledArgs match {
@@ -431,7 +468,7 @@ object compilation {
     r.x0b = r.boxed
     r.x1 = arg1v
     r.x1b = arg1vb
-    r.argsStart = top.increment(1)
+    r.argsStart = top.inc
     r.stackArgsCount = args.length - K
     r.tailCall = fn
     throw TailCall
@@ -506,7 +543,7 @@ object compilation {
     val argv2 = eval(args(args.length - (K-1)), r, rec, top, stackU,
                      x1, x0, stackB, x1b, x0b)
     val argv2b = r.boxed
-    fn(r, top.increment(args.length - K), stackU, argv1, argv2, stackB, argv1b, argv2b)
+    fn(r, top.incBy(args.length - K), stackU, argv1, argv2, stackB, argv1b, argv2b)
   }
 
   // in `f x`
@@ -659,18 +696,19 @@ object compilation {
             ct(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
           else
             cf(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
-      case Term.Match(_, Nil) => sys.error("parser shouldn't produce a match with no cases")
+      case Term.Match(_, Nil) =>
+        sys.error("parser shouldn't produce a match with no cases")
       case Term.Match(scrutinee, cases) =>
         val cscrutinee = compile(builtins)(
           scrutinee, env, currentRec, recVars, IsNotTail
         )
         // case (foo + 1) of 42 -> ... ; 43 -> ...
-        val ccases: List[Computation] = cases.map { c =>
+        val ccases: List[PatternMatch] = cases.map { c =>
           compileMatchCase {
-            c.map(t => compile(builtins)(
-              t, Term.freshen(Name("scrutinee"), t) +: env,
-              currentRec, recVars, isTail
-            ))
+            c.map { case ABT.AbsChain(names, t) =>
+              val env2 = names.reverse.toVector ++ env
+              compile(builtins)(t, env2, currentRec, recVars, isTail)
+            }
           }
         }
         val allGuardOrBodyFreeVars = cases.foldLeft(Set.empty[Name]) {
@@ -679,22 +717,19 @@ object compilation {
                     Term.freeVars(c.body)
         }
 
-        def sequenceCases(c1: Computation, c2: Computation): Computation =
-          (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
-            try c1(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+        def sequenceCases(c1: PatternMatch, c2: PatternMatch): PatternMatch =
+          (s,sb,r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
+            try c1(s, sb, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
             catch { case CaseNoMatch =>
-              c2(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+              c2(s, sb, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
             }
 
         val megamatch = ccases.reduceRight(sequenceCases)
-        val push = compilation.push(env, allGuardOrBodyFreeVars).push1
         (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
           val vscrutinee = cscrutinee(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
           val vscrutineeb = r.boxed
-          push(top, stackU, stackB, x1, x1b)
-          try megamatch(r, rec, top.increment(1),
-                        stackU, x0,  vscrutinee,
-                        stackB, x0b, vscrutineeb)
+          try megamatch(vscrutinee,vscrutineeb,
+                        r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
           catch {
             case CaseNoMatch =>
               throw MatchFail(Value(vscrutinee, vscrutineeb).decompile, cases)
@@ -710,7 +745,7 @@ object compilation {
           val rb = eval(cb, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
           val rbb = r.boxed
           push(top, stackU, stackB, x1, x1b)
-          cbody(r, rec, top.increment(1), stackU, x0, rb, stackB, x0b, rbb)
+          cbody(r, rec, top.inc, stackU, x0, rb, stackB, x0b, rbb)
         }
       // todo: Let2, etc.
 
@@ -735,7 +770,7 @@ object compilation {
             // to process those
             val outerLambdaBody: Computation = (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
               val stackArgsCount = innerLambda.arity - K
-              val newArgsSrcIndex = top.increment(stackArgsCount).toInt //
+              val newArgsSrcIndex = top.incBy(stackArgsCount).toInt //
               val newArgsDestIndex = top.toInt
 
               @inline @annotation.tailrec
@@ -880,11 +915,11 @@ object compilation {
             (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
               var bindingResult = new Ref(name, null)
               push(top, stackU, stackB, x1, x1b)
-              val v = eval(cbinding, r, rec, top.increment(1),
+              val v = eval(cbinding, r, rec, top.inc,
                            stackU, x0, U0,
                            stackB, x0b, bindingResult)
               bindingResult.value = Value(v, r.boxed)
-              cbody(r, rec, top.increment(1), stackU, x0, U0, stackB, x0b, bindingResult)
+              cbody(r, rec, top.inc, stackU, x0, U0, stackB, x0b, bindingResult)
             }
           case Array(cbinding1, cbinding0) =>
             val name1 = bindingNames(0)
@@ -894,7 +929,7 @@ object compilation {
               val r1 = new Ref(name1, null)
               val r0 = new Ref(name0, null)
               push(top, stackU, stackB, x1, x1b, x0, x0b)
-              val top2 = top.increment(2)
+              val top2 = top.incBy(2)
               val r1v = eval(cbinding1, r, rec, top2,
                              stackU, U0, U0, stackB, r1, r0)
               r1.value = Value(r1v, r.boxed)
@@ -910,7 +945,7 @@ object compilation {
               // todo: can this be faster?
               val bindingResults = bindingNames.map(name => new Ref(name, null))
               push(top, stackU, stackB, x1, x1b, x0, x0b)
-              val top2 = top.increment(2)
+              val top2 = top.incBy(2)
               @inline @annotation.tailrec def pushRefs(i: Int): Unit = {
                 if (i < cbindings.length - 2) {
                   top2.pushU(stackU, i, U0)
@@ -923,7 +958,7 @@ object compilation {
               // K binding results into registers
               // where K must be 2
               pushRefs(0)
-              val topN = top.increment(cbindings.length)
+              val topN = top.incBy(cbindings.length)
               val brx1 = bindingResults(bindingResults.length - 2)
               val brx0 = bindingResults(bindingResults.length - 1)
               @inline @annotation.tailrec def evalBindings(i: Int): Unit = {
@@ -998,7 +1033,7 @@ object compilation {
           top.toInt + r.stackArgsCount + 1,
           stackB.length, null)
 
-        return r.tailCall(r, top.increment(r.stackArgsCount), stackU, r.x1, r.x0, stackB, r.x1b, r.x0b)
+        return r.tailCall(r, top.incBy(r.stackArgsCount), stackU, r.x1, r.x0, stackB, r.x1b, r.x0b)
       }
       catch {
         case TailCall =>

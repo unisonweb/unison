@@ -181,6 +181,8 @@ object ABT {
     }
   }
 
+  // Matches a nested series of Abs.
+  // Example: Abs(x, Abs(y, t)) -> (List(x,y), t)
   object AbsChain {
     def unapply[F[+_],A](t: AnnotatedTerm[F,A]): Option[(List[Name], AnnotatedTerm[F,A])] = {
       def go(names: List[Name], t: AnnotatedTerm[F,A]): Option[(List[Name], AnnotatedTerm[F,A])] = t match {
