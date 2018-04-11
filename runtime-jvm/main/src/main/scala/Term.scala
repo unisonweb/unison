@@ -147,6 +147,11 @@ object Term {
       MatchCase(pattern, guard.map(f), f(body))
   }
 
+  object MatchCase {
+    def apply[R](pattern: Pattern, body: R): MatchCase[R] =
+      MatchCase(pattern, None, body)
+  }
+
   sealed abstract class F[+R]
 
   object F {

@@ -1,24 +1,18 @@
 package org.unisonweb
 
-sealed abstract class Pattern {
-  import Pattern._
-
-  val arity: Int = this match {
-    case LiteralU(_,_) => 0
-    case Wildcard => 1
-    case Uncaptured => 0
-    case As(p) => 1 + p.arity
-    case Data(_,_,ps) => ps.map(_.arity).sum
-  }
-}
+sealed abstract class Pattern(val arity: Int)
 
 object Pattern {
-  case class LiteralU(u: U, typ: UnboxedType) extends Pattern
-  case object Wildcard extends Pattern
-  case object Uncaptured extends Pattern
+  case class LiteralU(u: U, typ: UnboxedType) extends Pattern(0)
+  case object Wildcard extends Pattern(1)
+  case object Uncaptured extends Pattern(0)
   case class Data(typeId: Hash,
                   constructorId: ConstructorId,
-                  patterns: List[Pattern]) extends Pattern
-  case class As(p: Pattern) extends Pattern
+                  patterns: List[Pattern])
+    extends Pattern(patterns.map(_.arity).sum)
+  case class As(p: Pattern) extends Pattern(1 + p.arity)
 //  case class SequenceUncons(left: Pattern, right: Pattern) extends Pattern
+
+  def Pair(x: Pattern, y: Pattern): Pattern =
+    Data(Hash(null), ConstructorId(0), List(x, y))
 }

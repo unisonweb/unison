@@ -2,6 +2,7 @@ package org.unisonweb
 
 import Term._
 import compilation._
+import Pattern._
 
 object CompilationTests {
   import EasyTest._
@@ -117,6 +118,65 @@ object CompilationTests {
       test("ex1") { implicit T =>
         equal(eval(Sequence.size(Sequence(1,2,3))), 3: Term)
       }
+    ),
+    suite("pattern")(
+      test("literal") { implicit T =>
+        val v: Term = 43
+        val c = MatchCase(LiteralU(10, UnboxedType.Integer), 'x.v + 1)
+        val p = Let('x -> (42:Term))(Match(10)(c))
+        equal(eval(p), v)
+      },
+      test("pattern guard") { implicit T =>
+        val v: Term = 43
+        val c = MatchCase(LiteralU(10, UnboxedType.Integer),
+                  Some(true:Term), 'x.v + 1)
+        val p = Let('x -> (42:Term))(Match(10)(c))
+        equal(eval(p), v)
+      },
+      test("wildcard") { implicit T =>
+        val v: Term = 14
+        val c1 = MatchCase(LiteralU(10, UnboxedType.Integer),
+                   Some(false:Term), 'x.v + 1)
+        val c2 = MatchCase(Wildcard, ABT.Abs('y, 'y.v + 4))
+        val p = Let('x -> (42:Term))(Match(10)(c1, c2))
+        equal(eval(p), v)
+      },
+      test("uncaptured") { implicit T =>
+        val v: Term = 44
+        val c1 = MatchCase(LiteralU(10, UnboxedType.Integer),
+                   Some(false:Term), 'x.v + 1)
+        val c2 = MatchCase(Uncaptured, 'x.v + 2)
+        val p = Let('x -> (42:Term))(Match(10)(c1, c2))
+        equal(eval(p), v)
+      },
+      test("shadowing") { implicit T =>
+        val v: Term = 14
+        val c1 = MatchCase(LiteralU(10, UnboxedType.Integer),
+                   Some(false:Term), 'x.v + 1)
+        val c2 = MatchCase(Wildcard, ABT.Abs('x, 'x.v + 4))
+        val p = Let('x -> (42:Term))(Match(10)(c1, c2))
+        equal(eval(p), v)
+      },
+      test("data pattern") { implicit T =>
+        val v: Term = 6
+        val c1 = MatchCase(Pattern.Pair(Wildcard, Wildcard),
+                  ABT.Abs('x, ABT.Abs('y, 'x.v + 'y.v)))
+        val c2 = MatchCase(Wildcard, ABT.Abs('x, 'x.v + 4))
+        val p = Let('x -> (42:Term))(Match(intPair(2, 4))(c1, c2))
+        equal(eval(p), v)
+      },
+      test("nested data patterns") { implicit T =>
+        val v: Term = 13
+        val c1 =
+          MatchCase(Pattern.Pair(
+                      Pattern.Pair(Wildcard, Wildcard),
+                      Pattern.Pair(Uncaptured, Wildcard)),
+            ABT.AbsChain('x, 'y, 'z)('x.v + 'y + 'z))
+        val c2 = MatchCase(Wildcard, ABT.Abs('x, 'x.v + 4))
+        val p = Let('x -> (42:Term))(
+          Match(Terms.pair(intPairV(3, 4), intPairV(5,6)))(c1, c2))
+        equal(eval(p), v)
+      },
     )
   )
 }
@@ -161,6 +221,20 @@ object Terms {
       'even -> Lam('n)(If('n.v > zero, 'odd.v ('n.v - 1), one)),
       'odd-> Lam('n)(If('n.v > zero, 'even.v ('n.v - 1), zero))
     )('odd)
+
+  def pair(x: Value, y: Value): Term =
+    Term.Compiled(pairV(x, y))
+
+  def pairV(x: Value, y: Value): Value =
+    Value.Data(Hash(null), ConstructorId(0), Array(x, y))
+
+  def intPair(x: Int, y: Int): Term =
+    Term.Compiled(intPairV(x, y))
+
+  def intPairV(x: Int, y: Int): Value =
+    pairV(intValue(x), intValue(y))
+
+  def intValue(x: Int): Value = Value.Unboxed(x.toLong, UnboxedType.Integer)
 
   implicit class Ops(t0: Term) {
     def +(t1: Term) = Builtins.termFor(Builtins.Integer_add)(t0, t1)

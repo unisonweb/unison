@@ -161,7 +161,7 @@ object compilation {
   object Return {
     def apply(v: Value): Computation = v match {
       case Value.Unboxed(d, t) => compileUnboxed(d, t)
-      case f@Value.Lambda(_, _, _) => new Return(f) {
+      case f => new Return(f) {
         def apply(r: R): U = returnBoxed(r, f)
       }
     }
@@ -758,9 +758,12 @@ object compilation {
         // case (foo + 1) of 42 -> ... ; 43 -> ...
         val ccases: List[CompiledCase] = cases.map { c =>
           compileMatchCase {
-            c.map { case ABT.AbsChain(names, t) =>
-              val env2 = names.reverse.toVector ++ env
-              compile(builtins)(t, env2, currentRec, recVars, isTail)
+            c.map {
+              case ABT.AbsChain(names, t) =>
+                val env2 = names.reverse.toVector ++ env
+                compile(builtins)(t, env2, currentRec, recVars, isTail)
+              case t =>
+                compile(builtins)(t, env, currentRec, recVars, isTail)
             }
           }
         }

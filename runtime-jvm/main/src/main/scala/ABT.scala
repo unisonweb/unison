@@ -184,16 +184,24 @@ object ABT {
   // Matches a nested series of Abs.
   // Example: Abs(x, Abs(y, t)) -> (List(x,y), t)
   object AbsChain {
-    def unapply[F[+_],A](t: AnnotatedTerm[F,A]): Option[(List[Name], AnnotatedTerm[F,A])] = {
-      def go(names: List[Name], t: AnnotatedTerm[F,A]): Option[(List[Name], AnnotatedTerm[F,A])] = t match {
-        case Abs(name, body) => go(name :: names, body)
-        case _ => if (names.isEmpty) None else Some((names.reverse, t))
+    def apply[F[+_],A](names: Name*)(t: Term[F]): Term[F] =
+      names.foldRight(t) { Abs(_, _) }
+
+    def unapply[F[+_],A](t: AnnotatedTerm[F,A]):
+      Option[(List[Name], AnnotatedTerm[F,A])] = {
+        def go(names: List[Name],
+               t: AnnotatedTerm[F,A]): Option[(List[Name],
+                                               AnnotatedTerm[F,A])] = t match {
+          case Abs(name, body) => go(name :: names, body)
+          case _ => if (names.isEmpty) None else Some((names.reverse, t))
+        }
+        go(List(), t)
       }
-      go(List(), t)
     }
-  }
 
   def freshen(v: Name, taken: Set[Name]): Name =
     if (!taken.contains(v)) v
-    else Stream.continually(v).zipWithIndex.map { case (name,i) => name + i }.dropWhile(taken.contains).head
+    else Stream.continually(v).zipWithIndex.map {
+      case (name,i) => name + i
+    }.dropWhile(taken.contains).head
 }
