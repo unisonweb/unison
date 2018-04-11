@@ -60,8 +60,8 @@ lazy val main = project.in(file("main"))
 lazy val benchmark = project.in(file("benchmark"))
   .settings(commonSettings)
   .settings(name := "unison-runtime-benchmark")
-  .settings(
-    libraryDependencies += scalaOrganization.value % "scala-reflect" % scalaVersion.value
-  )
+  .settings(scalacOptions += "-Xdisable-assertions")
+  .settings(libraryDependencies +=
+              scalaOrganization.value % "scala-reflect" % scalaVersion.value)
   .dependsOn(main % "compile->test")
 

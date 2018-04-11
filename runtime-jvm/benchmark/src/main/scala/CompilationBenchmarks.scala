@@ -22,6 +22,7 @@ object CompilationBenchmarks {
   val triangleCount = 100000
 
   def main(args: Array[String]): Unit = {
+    assert(false) // making sure assertions are disabled
     suite(
       profile("scala-triangle") {
         def triangle(n: Int, acc: Int): Int =
