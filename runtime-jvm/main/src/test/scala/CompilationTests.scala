@@ -121,12 +121,17 @@ object CompilationTests {
     ),
     suite("pattern")(
       test("literal") { implicit T =>
+        /* let x = 42; case 10 of 10 -> x + 1 */
         val v: Term = 43
         val c = MatchCase(LiteralU(10, UnboxedType.Integer), 'x.v + 1)
         val p = Let('x -> (42:Term))(Match(10)(c))
         equal(eval(p), v)
       },
       test("pattern guard") { implicit T =>
+        /* let x = 42
+           case 10 of
+             10 | true -> x + 1
+        */
         val v: Term = 43
         val c = MatchCase(LiteralU(10, UnboxedType.Integer),
                   Some(true:Term), 'x.v + 1)
@@ -134,6 +139,11 @@ object CompilationTests {
         equal(eval(p), v)
       },
       test("wildcard") { implicit T =>
+        /* let x = 42; case 10 of
+           10 | false -> x + 1;
+           y -> y + 4
+          should be 14
+        */
         val v: Term = 14
         val c1 = MatchCase(LiteralU(10, UnboxedType.Integer),
                            Some(false:Term), 'x.v + 1)
@@ -142,6 +152,7 @@ object CompilationTests {
         equal(eval(p), v)
       },
       test("wildcard0") { implicit T =>
+        /* case 10 of y -> y + 4 */
         val v: Term = 14
         println("begin wildcard0")
         val c = MatchCase(Wildcard, ABT.Abs('y, 'y.v + 4))
@@ -150,6 +161,9 @@ object CompilationTests {
         println("end wildcard0")
       },
       test("uncaptured") { implicit T =>
+        /* let x = 42; case 10 of 10 | false -> x + 1; _ -> x + 2
+           should return 44
+        */
         val v: Term = 44
         val c1 = MatchCase(LiteralU(10, UnboxedType.Integer),
                    Some(false:Term), 'x.v + 1)
@@ -158,6 +172,7 @@ object CompilationTests {
         equal(eval(p), v)
       },
       test("shadowing") { implicit T =>
+        /* let x = 42; case 10 of 10 | false -> x+1; x -> x+4 */
         val v: Term = 14
         val c1 = MatchCase(LiteralU(10, UnboxedType.Integer),
                    Some(false:Term), 'x.v + 1)
@@ -166,6 +181,7 @@ object CompilationTests {
         equal(eval(p), v)
       },
       test("data pattern") { implicit T =>
+        /* let x = 42; case (2,4) of (x,y) -> x+y; x -> x + 4 */
         val v: Term = 6
         val c1 = MatchCase(Pattern.Tuple(Wildcard, Wildcard),
                            ABT.Abs('x, ABT.Abs('y, 'x.v + 'y.v)))
@@ -174,6 +190,7 @@ object CompilationTests {
         equal(eval(p), v)
       },
       test("big non-nested data pattern") { implicit T =>
+        /* let x = 42; case (1,10,100) of (a,b,c) -> a+b+c */
         val v: Term = 111
         val c1 = MatchCase(
           Pattern.Tuple(Wildcard, Wildcard, Wildcard),
@@ -182,6 +199,7 @@ object CompilationTests {
         equal(eval(p), v)
       },
       test("bigger non-nested data pattern") { implicit T =>
+        /* let x = 42; case (1,10,100,1000) of (a,b,c,d) -> a+b+c+d */
         val v: Term = 1111
         val c1 = MatchCase(
           Pattern.Tuple(Wildcard, Wildcard, Wildcard, Wildcard),
@@ -190,6 +208,7 @@ object CompilationTests {
         equal(eval(p), v)
       },
       test("nested data patterns") { implicit T =>
+        /* let x = 42; case ((3,4),(5,6)) of ((x,y),(_,z)) -> x+y+z; x -> x + 4 */
         val v: Term = 13
         val c1 =
           MatchCase(Pattern.Tuple(
@@ -201,7 +220,55 @@ object CompilationTests {
           Match(Terms.tupleTerm(intTupleV(3, 4), intTupleV(5, 6)))(c1, c2))
         equal(eval(p), v)
       },
-    )
+      test("as pattern") { implicit T =>
+        /* case 3 of x@(y) -> x + y */
+        val v: Term = 6
+        val c =
+          MatchCase(Pattern.As(Pattern.Wildcard),
+                    ABT.AbsChain('x, 'y)('x.v + 'y))
+        val p = Match(3)(c)
+        equal(eval(p), v)
+      },
+      test("as-as-literal") { implicit T =>
+        /* case 3 of x@(y@(3)) -> x + y */
+        val v: Term = 6
+        val c =
+          MatchCase(Pattern.As(Pattern.As(Pattern.LiteralU(3, UnboxedType.Integer))),
+                    ABT.AbsChain('x, 'y)('x.v + 'y))
+        val p = Match(3)(c)
+        equal(eval(p), v)
+      },
+      test("as-guard-literal 1") { implicit T =>
+        /*  case 3 of
+              x@(y@(3)) | x + y > 4 -> x + y
+         */
+        val v: Term = 6
+        val c =
+          MatchCase(
+            Pattern.As(
+              Pattern.As(
+                Pattern.LiteralU(3, UnboxedType.Integer)
+              )), Some[Term](ABT.AbsChain('x, 'y)('x.v + 'y > 4)), ABT.AbsChain('x, 'y)('x.v + 'y))
+        val p = Match(3)(c)
+        equal(eval(p), v)
+      },
+      test("as-guard-literal 2") { implicit T =>
+        /*  case 1 of
+              x@(y@(3)) | x + y > 4 -> x + y
+              _ -> 2
+         */
+        val v: Term = 2
+        val c =
+          MatchCase(
+            Pattern.As(
+              Pattern.As(
+                Pattern.LiteralU(3, UnboxedType.Integer)
+              )), Some[Term](ABT.AbsChain('x, 'y)('x.v + 'y > 4)), ABT.AbsChain('x, 'y)('x.v + 'y))
+        val c2 = MatchCase[Term](Pattern.Uncaptured, 2)
+        val p = Match(1)(c, c2)
+        equal(eval(p), v)
+      },
+      )
   )
 }
 

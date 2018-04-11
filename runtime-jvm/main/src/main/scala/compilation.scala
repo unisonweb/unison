@@ -330,7 +330,20 @@ object compilation {
         }
         else throw CaseNoMatch
       }
-    case Pattern.As(p) => ???
+
+    // case x of y@(a,b) -> f y b
+    case Pattern.As(p) =>
+      val cp = compilePattern(p)
+      (s,sb,r,stackU,stackB,top) => {
+        // same as `Wildcard`
+        top.push1(stackU, stackB, r.x1, r.x1b)
+        r.x1 = r.x0
+        r.x1b = r.x0b
+        r.x0 = s
+        r.x0b = sb
+        // and then whatever `cp` does
+        cp(s,sb,r,stackU,stackB,top.inc)
+      }
   }
 
   def compileStaticFullySaturatedNontailCall(lam: Lambda, compiledArgs: List[Computation]): Computation =
