@@ -3,7 +3,7 @@ package org.unisonweb
 sealed abstract class Pattern {
   import Pattern._
 
-  def arity: Int = this match {
+  val arity: Int = this match {
     case LiteralU(_,_) => 0
     case Wildcard => 1
     case Uncaptured => 0

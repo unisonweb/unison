@@ -271,15 +271,18 @@ object compilation {
         cbody(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
       }
       case 1 => (s,sb,r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+        r.x1 = x1
+        r.x1b = x1b
         cpattern(s,sb,r,stackU,stackB,top)
-        top.push1(stackU, stackB, x1, x1b)
         cbody(r,rec,top.inc,stackU,x0,r.x0,stackB,x0b,r.x0b)
       }
       case n => (s,sb,r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+        r.x0 = x0
+        r.x0b = x0b
+        r.x1 = x1
+        r.x1b = x1b
         cpattern(s,sb,r,stackU,stackB,top)
-        top.push1(stackU, stackB, x1, x1b)
-        top.inc.push1(stackU, stackB, x0, x0b)
-        cbody(r,rec,top.incBy(2),stackU,r.x1,r.x0,stackB,r.x1b,r.x0b)
+        cbody(r,rec,top.incBy(n),stackU,r.x1,r.x0,stackB,r.x1b,r.x0b)
       }
     }
   }
@@ -303,16 +306,20 @@ object compilation {
       }
     case Pattern.Uncaptured =>
       (_,_,_,_,_,_) => {}
+
+    // case x of (a,b) -> f a b
     case Pattern.Data(_, constructorId, patterns) =>
       val cpatterns: Array[CompiledPattern] =
         patterns.map(compilePattern).toArray
-      val offsets: Array[Int] = patterns.map(_.arity).scanLeft(0)(_ + _).toArray
+      val offsets: Array[Int] =
+        patterns.map(_.arity).scanLeft(0)(_ + _).map(v => (v - K) max 0).toArray
       (s,sb,r,stackU,stackB,top) => {
         // The scrutinee better be data, or the typer is broken
         val data = sb.asInstanceOf[Value.Data]
         if (data.constructorId == constructorId) {
           val fields = data.fields
-          var i = 0; while (i < fields.length && i < fields.length) {
+          assert(fields.length == cpatterns.length)
+          var i = 0; while (i < fields.length && i < cpatterns.length) {
             val pattern = cpatterns(i)
             val field = fields(i)
             val u = field.toResult(r)
