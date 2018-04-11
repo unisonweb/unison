@@ -13,6 +13,6 @@ object Pattern {
   case class As(p: Pattern) extends Pattern(1 + p.arity)
 //  case class SequenceUncons(left: Pattern, right: Pattern) extends Pattern
 
-  def Pair(x: Pattern, y: Pattern): Pattern =
-    Data(Hash(null), ConstructorId(0), List(x, y))
+  def Tuple(xs: Pattern*): Pattern =
+    Data(Hash(null), ConstructorId(0), xs.toList)
 }

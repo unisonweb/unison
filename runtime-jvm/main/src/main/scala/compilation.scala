@@ -312,7 +312,7 @@ object compilation {
       val cpatterns: Array[CompiledPattern] =
         patterns.map(compilePattern).toArray
       val offsets: Array[Int] =
-        patterns.map(_.arity).scanLeft(0)(_ + _).map(v => (v - K) max 0).toArray
+        patterns.map(_.arity).scanLeft(0)(_ + _).toArray // map(v => (v - K) max 0).toArray
       (s,sb,r,stackU,stackB,top) => {
         // The scrutinee better be data, or the typer is broken
         val data = sb.asInstanceOf[Value.Data]
@@ -766,11 +766,6 @@ object compilation {
                 compile(builtins)(t, env, currentRec, recVars, isTail)
             }
           }
-        }
-        val allGuardOrBodyFreeVars = cases.foldLeft(Set.empty[Name]) {
-          (s, c) => s ++
-                    c.guard.map(Term.freeVars).getOrElse(Set.empty) ++
-                    Term.freeVars(c.body)
         }
 
         def sequenceCases(c1: CompiledCase, c2: CompiledCase): CompiledCase =

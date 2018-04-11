@@ -136,10 +136,18 @@ object CompilationTests {
       test("wildcard") { implicit T =>
         val v: Term = 14
         val c1 = MatchCase(LiteralU(10, UnboxedType.Integer),
-                   Some(false:Term), 'x.v + 1)
+                           Some(false:Term), 'x.v + 1)
         val c2 = MatchCase(Wildcard, ABT.Abs('y, 'y.v + 4))
         val p = Let('x -> (42:Term))(Match(10)(c1, c2))
         equal(eval(p), v)
+      },
+      test("wildcard0") { implicit T =>
+        val v: Term = 14
+        println("begin wildcard0")
+        val c = MatchCase(Wildcard, ABT.Abs('y, 'y.v + 4))
+        val p = Match(10)(c)
+        equal(eval(p), v)
+        println("end wildcard0")
       },
       test("uncaptured") { implicit T =>
         val v: Term = 44
@@ -159,22 +167,38 @@ object CompilationTests {
       },
       test("data pattern") { implicit T =>
         val v: Term = 6
-        val c1 = MatchCase(Pattern.Pair(Wildcard, Wildcard),
-                  ABT.Abs('x, ABT.Abs('y, 'x.v + 'y.v)))
+        val c1 = MatchCase(Pattern.Tuple(Wildcard, Wildcard),
+                           ABT.Abs('x, ABT.Abs('y, 'x.v + 'y.v)))
         val c2 = MatchCase(Wildcard, ABT.Abs('x, 'x.v + 4))
-        val p = Let('x -> (42:Term))(Match(intPair(2, 4))(c1, c2))
+        val p = Let('x -> (42:Term))(Match(intTupleTerm(2, 4))(c1, c2))
+        equal(eval(p), v)
+      },
+      test("big non-nested data pattern") { implicit T =>
+        val v: Term = 111
+        val c1 = MatchCase(
+          Pattern.Tuple(Wildcard, Wildcard, Wildcard),
+          ABT.AbsChain('a, 'b, 'c)('a.v + 'b + 'c))
+        val p = Let('x -> (42:Term))(Match(intTupleTerm(1, 10, 100))(c1))
+        equal(eval(p), v)
+      },
+      test("bigger non-nested data pattern") { implicit T =>
+        val v: Term = 1111
+        val c1 = MatchCase(
+          Pattern.Tuple(Wildcard, Wildcard, Wildcard, Wildcard),
+          ABT.AbsChain('a, 'b, 'c, 'd)('a.v + 'b + 'c + 'd))
+        val p = Let('x -> (42:Term))(Match(intTupleTerm(1, 10, 100, 1000))(c1))
         equal(eval(p), v)
       },
       test("nested data patterns") { implicit T =>
         val v: Term = 13
         val c1 =
-          MatchCase(Pattern.Pair(
-                      Pattern.Pair(Wildcard, Wildcard),
-                      Pattern.Pair(Uncaptured, Wildcard)),
-            ABT.AbsChain('x, 'y, 'z)('x.v + 'y + 'z))
+          MatchCase(Pattern.Tuple(
+            Pattern.Tuple(Wildcard, Wildcard),
+            Pattern.Tuple(Uncaptured, Wildcard)),
+                    ABT.AbsChain('x, 'y, 'z)('x.v + 'y + 'z))
         val c2 = MatchCase(Wildcard, ABT.Abs('x, 'x.v + 4))
         val p = Let('x -> (42:Term))(
-          Match(Terms.pair(intPairV(3, 4), intPairV(5,6)))(c1, c2))
+          Match(Terms.tupleTerm(intTupleV(3, 4), intTupleV(5, 6)))(c1, c2))
         equal(eval(p), v)
       },
     )
@@ -222,17 +246,17 @@ object Terms {
       'odd-> Lam('n)(If('n.v > zero, 'even.v ('n.v - 1), zero))
     )('odd)
 
-  def pair(x: Value, y: Value): Term =
-    Term.Compiled(pairV(x, y))
+  def tupleTerm(xs: Value*): Term =
+    Term.Compiled(tupleV(xs :_*))
 
-  def pairV(x: Value, y: Value): Value =
-    Value.Data(Hash(null), ConstructorId(0), Array(x, y))
+  def tupleV(xs: Value*): Value =
+    Value.Data(Hash(null), ConstructorId(0), xs.toArray)
 
-  def intPair(x: Int, y: Int): Term =
-    Term.Compiled(intPairV(x, y))
+  def intTupleTerm(xs: Int*): Term =
+    Term.Compiled(intTupleV(xs: _*))
 
-  def intPairV(x: Int, y: Int): Value =
-    pairV(intValue(x), intValue(y))
+  def intTupleV(xs: Int*): Value =
+    tupleV(xs.map(intValue): _*)
 
   def intValue(x: Int): Value = Value.Unboxed(x.toLong, UnboxedType.Integer)
 

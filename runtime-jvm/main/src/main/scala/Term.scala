@@ -143,6 +143,17 @@ object Term {
   // todo - test when function being applied is a compound expression
 
   case class MatchCase[R](pattern: Pattern, guard: Option[R], body: R) {
+    assert {
+      try {
+        body.asInstanceOf[Term.Term] match {
+          case ABT.AbsChain(ns,_) => ns.length == pattern.arity
+          case _ => pattern.arity == 0
+        }
+      } catch {
+        case _: ClassCastException => true
+      }
+    }
+
     def map[R2](f: R => R2): MatchCase[R2] =
       MatchCase(pattern, guard.map(f), f(body))
   }
