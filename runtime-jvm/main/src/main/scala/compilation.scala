@@ -126,7 +126,9 @@ object compilation {
   }
 
   abstract class PatternMatch {
-    def apply(scrutinee: U, scrutineeB: B, r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U
+    def apply(scrutinee: U, scrutineeB: B, r: R, rec: Lambda, top: StackPtr,
+              stackU: Array[U], x1: U, x0: U,
+              stackB: Array[B], x1b: B, x0b: B): U
   }
 
   /** Put `v` into `r.boxed` */
@@ -252,47 +254,60 @@ object compilation {
       case Some(guard) =>
         (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
            val guardSuccess = guard(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
-           if (guardSuccess != U0) caseBody(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
+           if (guardSuccess != U0)
+             caseBody(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
            else throw CaseNoMatch
         }
     }
-    cpattern(cbody)
+    (s,sb,r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+      // Eval the pattern to set the correct environment for the body
+      val topr = cpattern(s,sb,r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
+      // Enter the body with the environment from the result of the pattern
+      cbody(r,rec,new StackPtr(topr.toInt),stackU,r.x1,r.x0,stackB,r.x1b,r.x0b)
+    }
   }
 
-  // case foo x of
-  //   (b,t) -> f b
-  //
   // may throw CaseNoMatch at runtime
-  def compilePattern(p: Pattern): Computation => PatternMatch = p match {
-    case Pattern.LiteralU(u, typ) => rhs =>
+  def compilePattern(p: Pattern): PatternMatch = p match {
+    case Pattern.LiteralU(u, typ) =>
       (s,_,r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
-        if (s == u) rhs(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
+        if (s == u) {
+          r.x0 = x0; r.x0b = x0b; r.x1 = x1; r.x1b = x1b
+          top.toInt
+        }
         else throw CaseNoMatch
-    case Pattern.Wildcard => rhs =>
+    case Pattern.Wildcard =>
       (s,sb,r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
         top.push1U(stackU, x1)
         top.push1B(stackB, x1b)
-        rhs(r,rec,top.inc,stackU,x0,s,stackB,x0b,sb)
+        r.x0 = s; r.x0b = sb; r.x1 = x0; r.x1b = x0b
+        top.inc.toInt
       }
-    case Pattern.Uncaptured => rhs =>
-      (_,_,r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
-       rhs(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
+    case Pattern.Uncaptured =>
+      (_,_,r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+        r.x0 = x0; r.x0b = x0b; r.x1 = x1; r.x1b = x1b
+        top.toInt
+      }
     case Pattern.Data(_, constructorId, patterns) =>
-      val cpatterns: List[Computation => PatternMatch] = patterns map compilePattern
-      rhs => (s,sb,r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+      val cpatterns: List[PatternMatch] =
+        patterns map compilePattern
+      def go(bindings: Array[Value], r: R, rec: Lambda, top: StackPtr,
+              stackU: Array[U], x1: U, x0: U,
+              stackB: Array[B], x1b: B, x0b: B): U = {
+        cpatterns.zip(bindings).foreach {
+          case ((pattern, binding)) =>
+            val u = binding.toResult(r)
+            val b = r.boxed
+            pattern(u,b,r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
+        }
+        top.toInt
+      }
+      (s,sb,r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
         // The scrutinee better be data, or the typer is broken
         val data = sb.asInstanceOf[Value.Data]
         val fields = data.fields
-        if (data.constructorId == constructorId) {
-          val comp = cpatterns.zip(fields).foldRight(rhs) {
-            case ((p,f), rest) =>
-              val u = f.toResult(r)
-              val b = r.boxed
-              (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
-                p(rest)(u,b,r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
-          }
-          comp(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
-        }
+        if (data.constructorId == constructorId)
+          go(fields,r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
         else throw CaseNoMatch
       }
     case Pattern.As(p) => ???
@@ -742,7 +757,23 @@ object compilation {
               c2(s, sb, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
             }
 
-        val megamatch = ccases.reduceRight(sequenceCases)
+        val megamatch: PatternMatch =
+          (s,sb,r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+            def go(cs: List[PatternMatch]): U =
+              if (cs match {
+                    case (c::t) =>
+                      try {
+                        c(s, sb, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+                        false
+                      }
+                      catch { case CaseNoMatch => true }
+                    case _ => false
+                  })
+                go(cs.tail)
+              else top.toInt
+            go(ccases)
+          }
+
         (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
           val vscrutinee = cscrutinee(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
           val vscrutineeb = r.boxed
