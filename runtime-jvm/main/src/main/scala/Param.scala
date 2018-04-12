@@ -82,6 +82,10 @@ object Value {
     def unapply(l: Lambda): Option[(Int, Computation, Term)] =
       Some((l.arity, l.body, l.decompile))
 
+    /**
+     * A `Lambda` of arity 2 that forms a closure when underapplied, rather
+     * than specializing away the supplied argument.
+     */
     class ClosureForming2(decompiled: Term, arg1: Name, arg2: Name, body: Computation)
       extends Lambda(2,body,decompiled) {
       val names = List(arg1,arg2)
