@@ -67,7 +67,7 @@ abstract class Stream[A] { self =>
     }
 
   final def sumIntegers(implicit A: A =:= Unboxed[Long]): Long = {
-    var total: Long = U0
+    var total: Long = 0l
     self.stage { (u,_) => total += u }.run()
     total
   }
