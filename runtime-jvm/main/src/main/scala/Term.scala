@@ -105,7 +105,7 @@ object Term {
     } (Monoid.Set)
 
     def transitiveClosure(seen: Map[Ref,Term], cur: Term): Map[Ref,Term] = cur match {
-      case Builtin(_) | Unboxed(_,_) | Var(_) => seen
+      case Builtin(_) | Unboxed(_,_) | Var(_) | Text(_) => seen
       case Apply(f, args) =>
         args.foldLeft(transitiveClosure(seen, f))(transitiveClosure _)
       case If(cond, t, f) =>
@@ -171,6 +171,7 @@ object Term {
     case class Builtin_(name: Name) extends F[Nothing]
     case class Apply_[R](fn: R, args: List[R]) extends F[R]
     case class Unboxed_(value: U, typ: UnboxedType) extends F[Nothing]
+    case class Text_(txt: util.Text.Text) extends F[Nothing]
     case class Hashref_(hash: Hash) extends F[Nothing]
     case class LetRec_[R](bindings: List[R], body: R) extends F[R]
     case class Let_[R](binding: R, body: R) extends F[R]
@@ -189,7 +190,7 @@ object Term {
 
     implicit val instance: Traverse[F] = new Traverse[F] {
       override def map[A,B](fa: F[A])(f: A => B): F[B] = fa match {
-        case fa @ (Builtin_(_) | Unboxed_(_,_) | Compiled_(_) | Self_(_) | Hashref_(_)) =>
+        case fa @ (Builtin_(_) | Unboxed_(_,_) | Compiled_(_) | Self_(_) | Hashref_(_) | Text_(_)) =>
           fa.asInstanceOf[F[B]]
         case Lam_(a) => Lam_(f(a))
         case Apply_(fn, args) =>
@@ -293,6 +294,15 @@ object Term {
       }
   }
 
+  object Text {
+    def apply(txt: util.Text.Text): Term = Tm(Text_(txt))
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[util.Text.Text] =
+      t match {
+        case Tm(Text_(txt)) => Some(txt)
+        case _ => None
+      }
+  }
+
   object Apply {
     def unapply[A](t: AnnotatedTerm[F,A]): Option[(AnnotatedTerm[F,A], List[AnnotatedTerm[F,A]])] = t match {
       case Tm(Apply_(f, args)) => Some((f, args))
@@ -380,7 +390,8 @@ object Term {
   implicit def number(n: Int): Term = Unboxed(n, UnboxedType.Integer)
   implicit def double(n: Double): Term =
     Unboxed(doubleToRawLongBits(n), UnboxedType.Float)
-  implicit def stringAsVar(s: Name): Term = Var(s)
+  implicit def stringAsText(s: String): Term = Text(util.Text.fromString(s))
+  implicit def nameAsVar(s: Name): Term = Var(s)
   implicit def symbolAsVar(s: Symbol): Term = Var(s.name)
   implicit def symbolAsName(s: Symbol): Name = s.name
   implicit class symbolSyntax(s: Symbol) {

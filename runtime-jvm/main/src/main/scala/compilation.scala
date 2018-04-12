@@ -746,6 +746,7 @@ object compilation {
 
     e match {
       case Term.Unboxed(n,t) => compileUnboxed(n,t)
+      case Term.Text(txt) => Return(Builtins.External(txt, e))
       case Term.Builtin(name) => builtins(name)
       case Term.Compiled(param) =>
         if (param.toValue eq null)

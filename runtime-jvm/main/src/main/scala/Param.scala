@@ -81,6 +81,27 @@ object Value {
 
     def unapply(l: Lambda): Option[(Int, Computation, Term)] =
       Some((l.arity, l.body, l.decompile))
+
+    class ClosureForming2(decompiled: Term, arg1: Name, arg2: Name, body: Computation)
+      extends Lambda(2,body,decompiled) {
+      val names = List(arg1,arg2)
+      override def underapply(builtins: Name => Computation)
+                             (argCount: Arity, substs: Map[Name, Term])
+                             : Lambda = {
+        assert(argCount == 1)
+        val compiledArg = compileTop(builtins)(substs(arg1))
+        val body2: Computation = (r,rec,top,stackU,_,x0,stackB,_,x0b) => {
+          val compiledArgv = compiledArg(r, rec, top, stackU, U0, U0, stackB, null, null)
+          body(r, rec, top, stackU, compiledArgv, x0, stackB, r.boxed, x0b)
+        }
+        new Lambda(2 - argCount, body2, decompiled(names.take(argCount).map(substs): _*)) {
+          def names: List[Name] = names.drop(argCount)
+
+          override def underapply(builtins: Name => Computation)(argCount: Arity, substs: Map[Name, Term]): Lambda =
+            sys.error("a lambda with arity 1 cannot be underapplied")
+        }
+      }
+    }
   }
 
   case class Data(typeId: Hash, constructorId: ConstructorId, fields: Array[Value])
