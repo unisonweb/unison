@@ -111,6 +111,21 @@ abstract class Stream[A] { self =>
                                (implicit C: Extract[C0,C]): C0 =
     foldLeft(u0 = C.toUnboxed(c0), b0 = C.toBoxed(c0))(f)(C.extract)
 
+  final def ::(u: U, a: A): Stream[A] =
+    k => {
+      var left = true
+      var cself = self.stage(k)
+      () =>
+        if (left) {
+          left = false
+          k(u, a)
+        }
+        else cself()
+    }
+
+  final def ::[B](b: B)(implicit A: Extract[B,A]): Stream[A] =
+    ::(A.toUnboxed(b), A.toBoxed(b))
+
   final def ++(s: Stream[A]): Stream[A] = k => {
     var done = false
     val cself = self.stage(k)
