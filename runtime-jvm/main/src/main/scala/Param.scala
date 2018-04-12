@@ -27,8 +27,8 @@ abstract class Value extends Param {
 }
 
 object Value {
-  def apply(u: U, b: Value): Value =
-    if (b.isType) Unboxed(u, b.asInstanceOf[UnboxedType]) else b
+  def apply(u: U, v: Value): Value =
+    if (v.isType) Unboxed(u, v.asInstanceOf[UnboxedType]) else v
 
   def fromParam(u: U, b: Param): Value =
     if (b.isType) Unboxed(u, b.asInstanceOf[UnboxedType]) else b.toValue

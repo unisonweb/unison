@@ -55,6 +55,8 @@ object Builtins {
     Sequence_size
   )
 
+  val Integer_inc =
+    fu_u("Integer.+", "x", UnboxedType.Integer, _ + 1)
 
   val Integer_add =
     fuu_u("Integer.+", "x", "y", UnboxedType.Integer, _ + _)
@@ -284,7 +286,7 @@ object Builtins {
 
   trait Decode[+T] { def decode(u: U, b: B): T }
   object Decode extends Decode0 {
-    implicit val decodeValue: Decode[Value] = (u, b) => Value.fromParam(u, b)
+    implicit val decodeValue: Decode[Value] = (u, v) => Value.fromParam(u, v)
 
     implicit val decodeLong: Decode[Long] = (u,_) => u
     implicit val decodeDouble: Decode[Double] = (u,_) => longBitsToDouble(u)
@@ -301,6 +303,7 @@ object Builtins {
       (_, b) => b.toValue.asInstanceOf[External].get.asInstanceOf[A]
   }
 
+  /** Encode a scala type `A` in `Result => U` form. */
   trait Encode[-A] { def encode(r: Result, a: A): U }
   object Encode {
     implicit def encodeExternal[A:Decompile]: Encode[A] =
@@ -310,6 +313,8 @@ object Builtins {
       }
     implicit val encodeLong: Encode[Long] =
       (r, a) => { r.boxed = UnboxedType.Integer; a }
+    implicit val encodeInt: Encode[Int] =
+      (r, a) => { r.boxed = UnboxedType.Integer; a.toLong }
     implicit val encodeDouble: Encode[Double] =
       (r, a) => { r.boxed = UnboxedType.Float; doubleToRawLongBits(a) }
   }

@@ -41,15 +41,15 @@ abstract class Stream[A] { self =>
     k => self.stage(f andThen k)
 
   /** Only emit elements from `this` for which `f` returns a nonzero value. */
-  final def filter(f: F1[A,U]): Stream[A] =
+  final def filter(f: F1[A,Unboxed[Boolean]]): Stream[A] =
     k => self.stage(Unboxed.choose(f, k, Unboxed.K.noop))
 
   /** Emit the longest prefix of `this` for which `f` returns nonzero. */
-  final def takeWhile(f: F1[A,U]): Stream[A] =
+  final def takeWhile(f: F1[A,Unboxed[Boolean]]): Stream[A] =
     k => self.stage(Unboxed.choose[A](f, k, (_,_) => throw Done))
 
   /** Skip the longest prefix of `this` for which `f` returns nonzero. */
-  final def dropWhile(f: F1[A,U]): Stream[A] =
+  final def dropWhile(f: F1[A,Unboxed[Boolean]]): Stream[A] =
     k => self.stage(Unboxed.switchWhen0(f, Unboxed.K.noop, k)())
 
   final def take(n: Long): Stream[A] =
@@ -66,9 +66,15 @@ abstract class Stream[A] { self =>
                else k(u,a)
     }
 
-  final def sum(implicit A: A =:= Unboxed[U]): U = {
-    var total = U0
+  final def sumIntegers(implicit A: A =:= Unboxed[Long]): Long = {
+    var total: Long = U0
     self.stage { (u,_) => total += u }.run()
+    total
+  }
+
+  final def sumFloats(implicit A: A =:= Unboxed[Double]): Double = {
+    var total: Double = 0
+    self.stage { (u,_) => total += unboxedToDouble(u) }.run()
     total
   }
 
@@ -85,19 +91,29 @@ abstract class Stream[A] { self =>
       }
     }
 
-  def foldLeft[B,C](u0: U, b0: B)(f: F2[B,A,B])(extract: (U,B) => C): C = {
-    var u = U0; var b = b0
+  // foldLeft takes `(u0: U, b0: B)` rather than `(c0: C, encode: C => (U,B))`
+  // because `encode` would allocate a `Tuple2`
+  final def foldLeft[B,C](u0: U, b0: B)(f: F2[B,A,B])(extract: (U,B) => C): C = {
+    var u = u0; var b = b0
     val cf = f andThen { (u2,b2) => u = u2; b = b2 }
-    self.stage { (u2,a) => cf(u, b, u2, a) }.run()
+    self.stage { (ux,bx) => cf(u, b, ux, bx) }.run()
     extract(u,b)
   }
 
-  def box[T](f: U => T)(implicit A: A =:= Unboxed[T]): Stream[T] =
-    map(new Unboxed.F1[A,T] {
-      def apply[x] = ktx => (u,_,u2,x) => ktx(U0,f(u),u2,x)
-    })
+  /**
+    * @param c0 accumulator initial value
+    * @param f operator
+    * @param C converts between C and CB
+    * @tparam A0 real type corresponding to stream/boxed type A, eg Long for Unboxed[Long]
+    * @tparam C accumulator Scala type
+    * @tparam CB stream/boxed type corresponding to Scala type C
+    * @return
+    */
+  final def foldLeft[A0, C, CB](c0: C)(f: F2[CB,A,CB])
+                               (implicit C: Extract[C,CB]): C =
+    foldLeft(u0 = C.toUnboxed(c0), b0 = C.toBoxed(c0))(f)(C.extract)
 
-  def ++(s: Stream[A]): Stream[A] = k => {
+  final def ++(s: Stream[A]): Stream[A] = k => {
     var done = false
     val cself = self.stage(k)
     val cs = s.stage(k)
@@ -107,14 +123,47 @@ abstract class Stream[A] { self =>
     }
   }
 
-  def toSequence[B](f: (U,A) => B): Sequence[B] = {
+  final def toSequence[B](f: (U,A) => B): Sequence[B] = {
     var result = Sequence.empty[B]
     self.stage { (u,a) => result = result :+ f(u,a) }.run()
     result
   }
+
+  final def toSequence[B](implicit A: Extract[B,A]): Sequence[B] =
+    toSequence(A.extract _)
 }
 
 object Stream {
+  @inline def getUnboxed[B](u: U, b: B) = u
+  @inline def getBoxed[B](u: U, b: B) = b
+
+  sealed abstract class Extract[Native, Boxed] {
+    def extract(u: U, a: Boxed): Native
+    def toBoxed(c: Native): Boxed
+    def toUnboxed(c: Native): U
+  }
+  object Extract {
+    implicit val extractDouble: Extract[Double, Unboxed[Double]] =
+      new Extract[Double, Unboxed[Double]] {
+        def extract(u: U, a: Unboxed[Double]): Double = unboxedToDouble(u)
+        def toBoxed(c: Double): Unboxed[Double] = null
+        def toUnboxed(c: Double): U = doubleToUnboxed(c)
+      }
+
+    implicit val extractLong: Extract[Long, Unboxed[Long]] =
+      new Extract[Long, Unboxed[Long]] {
+        def extract(u: U, a: Unboxed[Long]): Long = unboxedToLong(u)
+        def toUnboxed(c: Long): U = longToUnboxed(c)
+        def toBoxed(c: Long): Unboxed[Long] = null
+      }
+
+    implicit val extractInt: Extract[Int, Unboxed[Int]] =
+      new Extract[Int, Unboxed[Int]] {
+        def extract(u: U, a: Unboxed[Int]): Int = unboxedToInt(u)
+        def toUnboxed(c: Int): U = intToUnboxed(c)
+        def toBoxed(c: Int): Unboxed[Int] = null
+      }
+  }
 
   abstract class Step {
     def apply(): Unit
@@ -126,12 +175,18 @@ object Stream {
   case object Done extends Throwable { override def fillInStackTrace = this }
   // idea: case class More(s: Step) extends Throwable { override def fillInStackTrace = this }
 
-  final def constant(n: U): Stream[Unboxed[U]] =
+  final def constant(n: Long): Stream[Unboxed[Long]] =
     k => () => k(n, null)
 
-  final def from(n: U): Stream[Unboxed[U]] =
+  /** the arithmetic in here won't work on doubles interpreted as integers */
+  final def from(n: Long): Stream[Unboxed[Long]] =
     k => {
       var i = n - 1
       () => { i += 1; k(i,null) }
+    }
+  final def from(n: Double): Stream[Unboxed[Double]] =
+    k => {
+      var i: Double = n - 1
+      () => { i += 1; k(doubleToUnboxed(i),null) }
     }
 }
