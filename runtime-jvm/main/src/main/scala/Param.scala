@@ -33,6 +33,10 @@ object Value {
   def fromParam(u: U, b: Param): Value =
     if (b.isType) Unboxed(u, b.asInstanceOf[UnboxedType]) else b.toValue
 
+  def apply(n: Long): Value = Value.Unboxed(longToUnboxed(n), UnboxedType.Integer)
+  def apply(n: Double): Value = Value.Unboxed(doubleToUnboxed(n), UnboxedType.Float)
+  def apply(b: Boolean): Value = Value.Unboxed(boolToUnboxed(b), UnboxedType.Boolean)
+
   case class Unboxed(n: U, typ: UnboxedType) extends Value {
     def decompile = Term.Unboxed(n, typ)
     def toResult(r: Result) =  {

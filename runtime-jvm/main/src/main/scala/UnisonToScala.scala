@@ -2,18 +2,21 @@ package org.unisonweb
 
 object UnisonToScala {
 
-  import org.unisonweb.util.Unboxed
   import compilation._
+  import org.unisonweb.util.Unboxed
 
   type Env = (Array[U], Array[B], StackPtr, Result)
 
-  def toUnboxed1(f: Value.Lambda): Env => Unboxed.F1[Param,Value] = {
+  def toUnboxed1(unboxedBuiltin: (Term.Name, UnboxedType, Computation)) =
+    toUnboxed1L(unboxedBuiltin._2, Builtins.lambdaFor(unboxedBuiltin))
+
+  def toUnboxed1L(outputType: UnboxedType, f: Value.Lambda): Env => Unboxed.F1[Param,Value] = {
     require (f.arity == 1)
     env => {
       val (stackU, stackB, top, r) = env
       f.body match {
         case body: Computation.C1U => new Unboxed.F1[Param,Value] {
-          def apply[x] = kvx => (u1,a,u2,x) => kvx(body(r,u1), null, u2, x)
+          def apply[x] = kvx => (u1,a,u2,x) => kvx(body(r,u1), outputType, u2, x)
         }
         case body => new Unboxed.F1[Param,Value] {
           def apply[x] = kvx => (u1,a,u2,x) => {
@@ -25,13 +28,16 @@ object UnisonToScala {
     }
   }
 
-  def toUnboxed2(f: Value.Lambda): Env => Unboxed.F2[Param,Param,Value] = {
+  def toUnboxed2(unboxedBuiltin: (Term.Name, UnboxedType, Computation)) =
+    toUnboxed2L(unboxedBuiltin._2, Builtins.lambdaFor(unboxedBuiltin))
+
+  def toUnboxed2L(outputType: UnboxedType, f: Value.Lambda): Env => Unboxed.F2[Value,Value,Value] = {
     require (f.arity == 2)
     env => {
       val (stackU, stackB, top, r) = env
       f.body match {
         case body : Computation.C2U => new Unboxed.F2[Param,Param,Value] {
-          def apply[x] = kvx => (u1,a,u2,b,u3,x) => kvx(body(r,u1,u2), null, u3, x)
+          def apply[x] = kvx => (u1,a,u2,b,u3,x) => kvx(body(r,u1,u2), outputType, u3, x)
         }
         case body => new Unboxed.F2[Param,Param,Value] {
           def apply[x] = kvx => (u1,a,u2,b,u3,x) => {

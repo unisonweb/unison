@@ -64,15 +64,14 @@ object CompilationBenchmarks {
         }
       },
       {
-        val plusU = UnisonToScala.toUnboxed2 {
-          Builtins.lambdaFor(Builtins.Integer_add)
-        }
+        val plusU = UnisonToScala.toUnboxed2(Builtins.Integer_add)
 
         val env = (new Array[U](20), new Array[B](20), new StackPtr(0), Result())
         profile("triangle stream .foldLeft(plusU)") {
-          Stream.from(0).take(N(triangleCount))
-            .asInstanceOf[Stream[Param]]
-            .foldLeft(U0, null:Param)(plusU(env))((u,_) => u).toLong
+          Stream.fromUnison(0).take(N(triangleCount))
+            .foldLeft(Value(0))(plusU(env)) match {
+            case Value.Unboxed(n, _) => n
+          }
         }
       }
     )

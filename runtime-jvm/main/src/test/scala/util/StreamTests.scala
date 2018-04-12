@@ -56,51 +56,50 @@ object StreamTests {
         s2.zip(s2.drop(1)).map { case (a,b) => a * b }.take(100).sum
       )
     },
-    test("toSequence") { implicit T =>
+    test("toSequence0") { implicit T =>
       equal(
-        Stream.from(0).take(10000).toSequence { (u, _) => u },
+        Stream.from(0).take(10000).toSequence0 { (u, _) => u },
         Sequence.apply(0 until 10000: _*)
       )
     },
-    test("toSequenceTC") { implicit T =>
+    test("toSequence") { implicit T =>
       equal(
         Stream.from(0).take(10000).toSequence,
         Sequence.apply(0 until 10000: _*)
       )
     },
-    test("foldLeft-scalaPlus-long") { implicit T =>
+    test("foldLeft0-scala-plus-long") { implicit T =>
       equal(
         Stream.from(0).take(10000).foldLeft(U0, null:Unboxed[Long])(
           LL_L(_ + _))((u,_) => u),
         (0 until 10000).sum
       )
     },
-    test("foldLeftTC-scalaPlus-double") { implicit T =>
+    test("foldLeft-scala-plus-long") { implicit T =>
       equal(
         Stream.from(0).take(10000).foldLeft(0l)(LL_L(_ + _)),
         (0 until 10000).sum
       )
     },
-    test("foldLeftTC-scalaCount-double") { implicit T =>
+    test("foldLeft-scala-count-double") { implicit T =>
       equal(
         Stream.from(0.0).take(10000).foldLeft(0l)(
           LD_L((z, d) => if (d.toInt % 2 == 0) z else z + 1)),
         (0.0 until 10000 by 1.0).count(_.toInt % 2 == 0)
       )
     },
-    test("foldLeftTC-scalaPlus-double") { implicit T =>
+    test("foldLeft-scala-plus-double") { implicit T =>
       equal(
         Stream.from(0.0).take(10000).foldLeft(0.0)(DD_D(_ + _)),
         (0.0 until 10000 by 1.0).sum
       )
     },
-    test("foldLeft-unisonPlus") { implicit T =>
-      val plusU = UnisonToScala.toUnboxed2(Builtins.lambdaFor(Builtins.Integer_add))
+    test("foldLeft-unison-plus") { implicit T =>
+      val plusU = UnisonToScala.toUnboxed2(Builtins.Integer_add)
       val env = (new Array[U](20), new Array[B](20), new StackPtr(0), Result())
       equal(
-        Stream.from(0).take(10000).asInstanceOf[Stream[Param]]
-          .foldLeft(U0, null:Param)(plusU(env))(Stream.getUnboxed),
-        (0 until 10000).sum
+        Stream.fromUnison(0).take(10000).foldLeft(Value(0))(plusU(env)),
+        Value((0 until 10000).sum)
       )
     },
     test("++") { implicit T =>

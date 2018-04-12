@@ -123,14 +123,14 @@ abstract class Stream[A] { self =>
     }
   }
 
-  final def toSequence[B](f: (U,A) => B): Sequence[B] = {
+  final def toSequence0[B](f: (U,A) => B): Sequence[B] = {
     var result = Sequence.empty[B]
     self.stage { (u,a) => result = result :+ f(u,a) }.run()
     result
   }
 
   final def toSequence[B](implicit A: Extract[B,A]): Sequence[B] =
-    toSequence(A.extract _)
+    toSequence0(A.extract _)
 }
 
 object Stream {
@@ -143,6 +143,24 @@ object Stream {
     def toUnboxed(c: Native): U
   }
   object Extract {
+    implicit val extractValue: Extract[Value, Value] =
+      new Extract[Value, Value] {
+        def extract(u: U, a: Value): Value = a match {
+          case typ: UnboxedType => Value(u, typ)
+          case v => v
+        }
+
+        def toBoxed(c: Value): Value = c match {
+          case Value.Unboxed(n, typ) => typ
+          case v => v
+        }
+
+        def toUnboxed(c: Value): U = c match {
+          case Value.Unboxed(n, _) => n
+          case v => U0
+        }
+      }
+
     implicit val extractDouble: Extract[Double, Unboxed[Double]] =
       new Extract[Double, Unboxed[Double]] {
         def extract(u: U, a: Unboxed[Double]): Double = unboxedToDouble(u)
@@ -184,9 +202,23 @@ object Stream {
       var i = n - 1
       () => { i += 1; k(i,null) }
     }
+
   final def from(n: Double): Stream[Unboxed[Double]] =
     k => {
       var i: Double = n - 1
       () => { i += 1; k(doubleToUnboxed(i),null) }
     }
+
+  final def fromUnison(n: Long): Stream[UnboxedType] =
+    k => {
+      var i = n - 1
+      () => { i += 1; k(i, UnboxedType.Integer) }
+    }
+
+  final def fromUnison(n: Double): Stream[UnboxedType] =
+    k => {
+      var i = n - 1
+      () => { i += 1; k(doubleToUnboxed(i), UnboxedType.Float) }
+    }
+
 }

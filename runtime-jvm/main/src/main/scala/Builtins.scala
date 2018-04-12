@@ -37,8 +37,14 @@ object Builtins {
     (name, (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => A.encode(r, a))
 
   def termFor(b: (Name, Computation)): Term = Term.Builtin(b._1)
-  def computationFor(b: (Name, Computation)): Computation = builtins(b._1)
+  def termFor(b: (Name, UnboxedType, Computation)): Term = Term.Builtin(b._1)
+  def computationFor(b: (Name, Computation)): Computation =
+    builtins(b._1)
+  def computationFor(b: (Name, UnboxedType, Computation)): Computation =
+    builtins(b._1)
   def lambdaFor(b: (Name, Computation)): Lambda =
+    computationFor(b) match { case Return(lam: Lambda) => lam }
+  def lambdaFor(b: (Name, UnboxedType, Computation)): Lambda =
     computationFor(b) match { case Return(lam: Lambda) => lam }
 
   //
@@ -100,7 +106,7 @@ object Builtins {
   val Integer_negate =
     fu_u("Integer.negate", "x", UnboxedType.Integer, -_)
 
-  val numericBuiltins = Map(
+  val numericBuiltins = List(
     // arithmetic
     Integer_add,
     Integer_mul,
@@ -116,17 +122,21 @@ object Builtins {
     Integer_gteq,
     Integer_lt,
     Integer_gt
-  )
+  ).map(discardOutputType).toMap
 
   val Boolean_not =
     fu_u("Boolean.not", "b", UnboxedType.Boolean,
          b => boolToUnboxed(b == U0))
 
-  val booleanBuiltins = Map(
+  val booleanBuiltins = List(
     Boolean_not,
-  )
+  ).map(discardOutputType).toMap
 
   val builtins = seqBuiltins ++ numericBuiltins ++ booleanBuiltins
+
+  def discardOutputType: ((Name, UnboxedType, Computation)) => (Name, Computation) = {
+    case (name, _, body) => name -> body
+  }
 
   // Polymorphic one-argument function
   def fp_p[A,B](name: Name, arg: Name, f: A => B)
@@ -147,7 +157,7 @@ object Builtins {
   def fu_u(name: Name,
            arg: Name,
            outputType: UnboxedType,
-           f: LongUnaryOperator): (Name, Computation) = {
+           f: LongUnaryOperator): (Name, UnboxedType, Computation) = {
     val body: Computation.C1U = (r,x0) => {
       // Unintuitively, we store the type of the unboxed value in `boxed`
       // since that's a field we don't use for unboxed values.
@@ -156,7 +166,7 @@ object Builtins {
     }
     val ns = List(arg)
     val decompile = Term.Builtin(name)
-    name -> Return(new Lambda(1, body, decompile) { def names = ns })
+    (name, outputType, Return(new Lambda(1, body, decompile) { def names = ns }))
   }
 
   def fpp_p[A,B,C](name: String, arg1: String, arg2: String, f: (A,B) => C)
@@ -194,7 +204,7 @@ object Builtins {
             n1: Name,
             n2: Name,
             outputType: UnboxedType,
-            f: LongBinaryOperator): (Name, Computation) = {
+            f: LongBinaryOperator): (Name, UnboxedType, Computation) = {
     val body: Computation.C2U = (r,x1,x0) => {
       r.boxed = outputType
       f.applyAsLong(x1, x0)
@@ -281,7 +291,7 @@ object Builtins {
           case _ => sys.error("unpossible")
         }
     }
-    name -> Return(lam)
+    (name, outputType, Return(lam))
   }
 
   trait Decode[+T] { def decode(u: U, b: B): T }
