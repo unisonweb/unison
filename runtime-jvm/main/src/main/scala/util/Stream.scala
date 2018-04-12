@@ -103,14 +103,12 @@ abstract class Stream[A] { self =>
   /**
     * @param c0 accumulator initial value
     * @param f operator
-    * @param C converts between C and CB
-    * @tparam A0 real type corresponding to stream/boxed type A, eg Long for Unboxed[Long]
-    * @tparam C accumulator Scala type
-    * @tparam CB stream/boxed type corresponding to Scala type C
-    * @return
+    * @tparam C0 accumulator Scala type
+    * @tparam C stream/boxed type corresponding to Scala type C0
+    * @param C converts between C0 and C
     */
-  final def foldLeft[A0, C, CB](c0: C)(f: F2[CB,A,CB])
-                               (implicit C: Extract[C,CB]): C =
+  final def foldLeft[C0, C](c0: C0)(f: F2[C,A,C])
+                               (implicit C: Extract[C0,C]): C0 =
     foldLeft(u0 = C.toUnboxed(c0), b0 = C.toBoxed(c0))(f)(C.extract)
 
   final def ++(s: Stream[A]): Stream[A] = k => {
