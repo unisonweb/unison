@@ -70,7 +70,7 @@ object StreamTests {
     },
     test("foldLeft0-scala-plus-long") { implicit T =>
       equal(
-        Stream.from(0).take(10000).foldLeft(U0, null:Unboxed[Long])(
+        Stream.from(0).take(10000).foldLeft0(U0, null:Unboxed[Long])(
           LL_L(_ + _))((u,_) => u),
         (0 until 10000).sum
       )

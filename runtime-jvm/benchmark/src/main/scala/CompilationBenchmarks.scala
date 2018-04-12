@@ -47,7 +47,7 @@ object CompilationBenchmarks {
       {
         profile("triangle stream .foldLeft(LL_L)") {
           Stream.from(N(0)).take(N(triangleCount))
-            .foldLeft(0, null: Unboxed.Unboxed[U])(
+            .foldLeft0(0, null: Unboxed.Unboxed[U])(
               LL_L(_ + _))((u, _) => u)
         }
       },

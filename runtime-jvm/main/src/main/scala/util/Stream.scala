@@ -91,9 +91,7 @@ abstract class Stream[A] { self =>
       }
     }
 
-  // foldLeft takes `(u0: U, b0: B)` rather than `(c0: C, encode: C => (U,B))`
-  // because `encode` would allocate a `Tuple2`
-  final def foldLeft[B,C](u0: U, b0: B)(f: F2[B,A,B])(extract: (U,B) => C): C = {
+  final def foldLeft0[B,C](u0: U, b0: B)(f: F2[B,A,B])(extract: (U,B) => C): C = {
     var u = u0; var b = b0
     val cf = f andThen { (u2,b2) => u = u2; b = b2 }
     self.stage { (ux,bx) => cf(u, b, ux, bx) }.run()
@@ -109,9 +107,9 @@ abstract class Stream[A] { self =>
     */
   final def foldLeft[C0, C](c0: C0)(f: F2[C,A,C])
                                (implicit C: Extract[C0,C]): C0 =
-    foldLeft(u0 = C.toUnboxed(c0), b0 = C.toBoxed(c0))(f)(C.extract)
+    foldLeft0(u0 = C.toUnboxed(c0), b0 = C.toBoxed(c0))(f)(C.extract)
 
-  final def ::(u: U, a: A): Stream[A] =
+  private final def ::(u: U, a: A): Stream[A] =
     k => {
       var left = true
       var cself = self.stage(k)
