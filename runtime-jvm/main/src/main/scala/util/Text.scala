@@ -21,6 +21,25 @@ object Text {
 
   type Text = Sequence[Codepoint]
 
+  /**
+   * Lexicographical comparison.
+   * Returns: -1 if t1 < t2
+   *           1 if t1 > t2
+   *           0 if t1 == t2
+   */
+  def compare(t1: Text, t2: Text): Long = {
+    if (t1 eq t2) return 0
+    var i = 0; while (i < t1.size && i < t2.size) {
+      val codepoint1 = t1(i)
+      val codepoint2 = t2(i)
+      if (codepoint1 < codepoint2) return -1
+      else if (codepoint1 > codepoint2) return 1
+      else i += 1 // keep going
+    }
+    // smaller text comes first if one is a prefix of another
+    (t1.size - t2.size).signum
+  }
+
   /** The empty `Text`, consists of no characters. */
   def empty: Text =
     Sequence.Flat(Deque.fromBlock(emptyBlock, 0))
