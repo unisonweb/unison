@@ -117,6 +117,29 @@ object CompilationTests {
       },
       test("ex1") { implicit T =>
         equal(eval(Sequence.size(Sequence(1,2,3))), 3: Term)
+      },
+      test("ex2 (underapplication)") { implicit T =>
+        val t: Term =
+          Let('x -> Sequence(1,2,3),
+              'fn -> Sequence.take(2))(Sequence.size('fn.v('x)))
+        equal(eval(t), 2: Term)
+      }
+    ),
+    suite("text") (
+      test("examples") { implicit T =>
+        equal1(eval(Text.concatenate("abc", "123")), "abc123": Term)
+        equal1(eval(Text.concatenate(Text.empty, "123")), "123": Term)
+        equal1(eval(Text.concatenate("123", Text.empty)), "123": Term)
+        equal1(eval(Text.drop(3, "abc123")), "123": Term)
+        equal1(eval(Text.take(3, "abc123")), "abc": Term)
+        equal1(eval(Text.equal("abc", "abc")), true: Term)
+        equal1(eval(Text.lt("Alice", "Bob")), true: Term)
+        equal1(eval(Text.lteq("Runar", "Runarorama")), true: Term)
+        equal1(eval(Text.lt("Arya", "Arya-orama")), true: Term)
+        equal1(eval(Text.gt("Bob", "Alice")), true: Term)
+        equal1(eval(Text.gteq("Runarorama", "Runar")), true: Term)
+        equal1(eval(Text.gteq("Arya-orama", "Arya")), true: Term)
+        ok
       }
     ),
     suite("pattern")(
@@ -154,11 +177,9 @@ object CompilationTests {
       test("wildcard0") { implicit T =>
         /* case 10 of y -> y + 4 */
         val v: Term = 14
-        println("begin wildcard0")
         val c = MatchCase(Wildcard, ABT.Abs('y, 'y.v + 4))
         val p = Match(10)(c)
         equal(eval(p), v)
-        println("end wildcard0")
       },
       test("uncaptured") { implicit T =>
         /* let x = 42; case 10 of 10 | false -> x + 1; _ -> x + 2
@@ -348,5 +369,20 @@ object Terms {
     val snoc = termFor(Sequence_snoc)
     val take = termFor(Sequence_take)
     val size = termFor(Sequence_size)
+  }
+
+  object Text {
+    import Builtins._
+
+    val empty = termFor(Text_empty)
+    val take = termFor(Text_take)
+    val drop = termFor(Text_drop)
+    val concatenate = termFor(Text_concatenate)
+    val size = termFor(Text_size)
+    val equal = termFor(Text_eq)
+    val lt = termFor(Text_lt)
+    val gt = termFor(Text_gt)
+    val lteq = termFor(Text_lteq)
+    val gteq = termFor(Text_gteq)
   }
 }

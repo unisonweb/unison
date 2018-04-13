@@ -3,10 +3,12 @@ package org.unisonweb
 import java.lang.Double.{doubleToRawLongBits, longBitsToDouble}
 import java.util.function.{LongBinaryOperator, LongUnaryOperator}
 
-import org.unisonweb.Term.{Apply, Name, Term}
+import org.unisonweb.Term.{Name, Term}
 import org.unisonweb.Value.Lambda
 import org.unisonweb.compilation._
 import org.unisonweb.util.Sequence
+import org.unisonweb.util.Text.Text
+import org.unisonweb.util.Text
 
 /* Sketch of convenience functions for constructing builtin functions. */
 object Builtins {
@@ -26,7 +28,7 @@ object Builtins {
          (v: Value, seq: Sequence[Value]) => v +: seq)
 
   val Sequence_take =
-    fpp_p("Sequence.take", "n", "seq",
+    fup_p("Sequence.take", "n", "seq",
          (n: U, seq: Sequence[Value]) => seq take n.toLong)
 
   val Sequence_size =
@@ -124,7 +126,62 @@ object Builtins {
     Boolean_not,
   )
 
-  val builtins = seqBuiltins ++ numericBuiltins ++ booleanBuiltins
+  val Text_empty =
+    c0("Text.empty", util.Text.empty)
+
+  val Text_concatenate =
+    fpp_p("Text.concatenate", "textL", "textR", (t1: Text, t2: Text) => t1 ++ t2)
+
+  val Text_take =
+    fup_p("Text.take", "codepoint-count", "text", (u: U, t: Text) => t take u)
+
+  val Text_drop =
+    fup_p("Text.drop", "codepoint-count", "text", (u: U, t: Text) => t drop u)
+
+  val Text_size =
+    fp_p("Text.size", "text", (t: Text) => t.size)
+
+  val Text_eq =
+    fpp_u("Text.==", "t1", "t2", UnboxedType.Boolean,
+      (t1: Text, t2: Text) => boolToUnboxed(t1 == t2))
+
+  val Text_neq =
+    fpp_u("Text.!=", "t1", "t2", UnboxedType.Boolean,
+      (t1: Text, t2: Text) => boolToUnboxed(t1 != t2))
+
+  val Text_lteq =
+    fpp_u("Text.<=", "t1", "t2", UnboxedType.Boolean,
+      (t1: Text, t2: Text) => boolToUnboxed(Text.compare(t1,t2) <= 0))
+
+  val Text_gteq =
+    fpp_u("Text.>=", "t1", "t2", UnboxedType.Boolean,
+      (t1: Text, t2: Text) => boolToUnboxed(Text.compare(t1,t2) >= 0))
+
+  val Text_lt =
+    fpp_u("Text.<", "t1", "t2", UnboxedType.Boolean,
+      (t1: Text, t2: Text) => boolToUnboxed(Text.compare(t1,t2) < 0))
+
+  val Text_gt =
+    fpp_u("Text.>", "t1", "t2", UnboxedType.Boolean,
+      (t1: Text, t2: Text) => boolToUnboxed(Text.compare(t1,t2) > 0))
+
+  val textBuiltins = Map(
+    Text_empty,
+    Text_concatenate,
+    Text_take,
+    Text_drop,
+    Text_size,
+    // todo: indexing, once we add
+
+    Text_eq,
+    Text_neq,
+    Text_lteq,
+    Text_gteq,
+    Text_lt,
+    Text_gt
+  )
+
+  val builtins = seqBuiltins ++ numericBuiltins ++ booleanBuiltins ++ textBuiltins
 
   // Polymorphic one-argument function
   def fp_p[A,B](name: Name, arg: Name, f: A => B)
@@ -165,26 +222,35 @@ object Builtins {
       (r,_,_,_,x1,x0,_,x1b,x0b) =>
         C.encode(r, f(A.decode(x1, x1b), B.decode(x0, x0b)))
     val decompiled = Term.Builtin(name)
-    val lambda = new Lambda(2, body, decompiled) { outer =>
-      def names: List[Name] = List(arg1, arg2)
+    val lambda = new Lambda.ClosureForming2(decompiled, arg1, arg2, body)
+    name -> Return(lambda)
+  }
 
-      // todo: generalize this into 1..K implementations
-      override def underapply(builtins: Name => Computation)(argCount: Arity, substs: Map[Name, Term]): Lambda = {
-        assert(argCount == 1)
-        val compiledArg = compileTop(builtins)(substs(arg2))
-        val body2: Computation = (r,rec,top,stackU,_,x0,stackB,_,x0b) => {
-          val compiledArgv = eval(compiledArg, r, rec, top, stackU, U0, U0, stackB, null, null)
-          body(r, rec, top, stackU, compiledArgv, x0, stackB, r.boxed, x0b)
-        }
-        new Lambda(outer.arity - argCount, body2, decompiled(names.map(substs): _*)) {
-          def names: List[Name] = names.drop(argCount)
+  abstract class FUP_P[A,B] { def apply(u: U, p: A): B }
 
-          override def underapply(builtins: Name => Computation)(argCount: Arity, substs: Map[Name, Term]): Lambda =
-            sys.error("a lambda with arity 1 cannot be underapplied")
-        }
+  def fup_p[A,B](name: Name, n1: Name, n2: Name, f: FUP_P[A,B])
+                (implicit A: Decode[A],
+                          B: Encode[B]): (Name, Computation) = {
+    val body: Computation = (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
+      B.encode(r, f(x1, A.decode(x0, x0b)))
+    val decompiled = Term.Builtin(name)
+    val lambda = new Lambda.ClosureForming2(decompiled, n1, n2, body)
+    name -> Return(lambda)
+  }
+
+  abstract class FPP_U[A,B] { def apply(a: A, b: B): U }
+
+  def fpp_u[A,B,C](name: String, arg1: String, arg2: String,
+                   outputType: UnboxedType, f: FPP_U[A,B])
+                  (implicit A: Decode[A],
+                            B: Decode[B]): (Name, Computation) = {
+    val body: Computation =
+      (r,_,_,_,x1,x0,_,x1b,x0b) => {
+        r.boxed = outputType
+        f(A.decode(x1, x1b), B.decode(x0, x0b))
       }
-
-    }
+    val decompiled = Term.Builtin(name)
+    val lambda = new Lambda.ClosureForming2(decompiled, arg1, arg2, body)
     name -> Return(lambda)
   }
 
@@ -315,18 +381,23 @@ object Builtins {
   }
 
   trait Decompile[A] { def decompile(a: A): Term }
+
   object Decompile {
     implicit val decompileSequence: Decompile[Sequence[Value]] =
       // todo decompile to sequence literals once available
       s => s.foldLeft(termFor(Sequence_empty)) {
-        (term, v) => Apply(termFor(Sequence_snoc), term, v.decompile)
+        (term, v) => Term.Apply(termFor(Sequence_snoc), term, v.decompile)
       }
+    implicit val decompileText: Decompile[Text] =
+      Term.Text(_)
   }
 
   abstract class External(val get: Any) extends Value {
     def toResult(r: R) = { r.boxed = this; U0 }
   }
   object External {
+    def apply[A](value: A, decompiled: Term): Value =
+      new External(value) { def decompile = decompiled }
     def apply[A](value: A)(implicit A: Decompile[A]) =
       new External(value) {
         def decompile: Term = A.decompile(value)
