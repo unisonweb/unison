@@ -1,6 +1,5 @@
 package org.unisonweb
 
-import java.lang.Double.{doubleToRawLongBits, longBitsToDouble}
 import java.util.function.{LongBinaryOperator, LongUnaryOperator}
 
 import org.unisonweb.Term.{Name, Term}
@@ -128,7 +127,7 @@ object Builtins {
 
   val Boolean_not =
     fu_u("Boolean.not", "b", UnboxedType.Boolean,
-         b => boolToUnboxed(b == U0))
+         b => boolToUnboxed(b == UFalse))
 
   val booleanBuiltins = List(
     Boolean_not,
@@ -365,7 +364,7 @@ object Builtins {
     implicit val decodeValue: Decode[Value] = (u, v) => Value.fromParam(u, v)
 
     implicit val decodeLong: Decode[Long] = (u,_) => u
-    implicit val decodeDouble: Decode[Double] = (u,_) => longBitsToDouble(u)
+    implicit val decodeDouble: Decode[Double] = (u,_) => unboxedToDouble(u)
 
 // TODO: If we include this implicit, it gets selected, even if the function
 // is just asking for a `Decode[Value]`.
@@ -392,7 +391,7 @@ object Builtins {
     implicit val encodeInt: Encode[Int] =
       (r, a) => { r.boxed = UnboxedType.Integer; a.toLong }
     implicit val encodeDouble: Encode[Double] =
-      (r, a) => { r.boxed = UnboxedType.Float; doubleToRawLongBits(a) }
+      (r, a) => { r.boxed = UnboxedType.Float; doubleToUnboxed(a) }
   }
 
   trait Decompile[A] { def decompile(a: A): Term }

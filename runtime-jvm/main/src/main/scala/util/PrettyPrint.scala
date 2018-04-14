@@ -1,11 +1,9 @@
 package org.unisonweb.util
 
-import java.lang.Double.{longBitsToDouble}
-import java.lang.Long.{toUnsignedString}
-import org.unisonweb.U0
-import org.unisonweb.UnboxedType
-import org.unisonweb.Term
+import java.lang.Long.toUnsignedString
+
 import org.unisonweb.Term._
+import org.unisonweb.{Term, UnboxedType, unboxedToBool, unboxedToDouble, unboxedToInt, unboxedToLong}
 
 sealed abstract class PrettyPrint {
   import PrettyPrint._
@@ -110,10 +108,10 @@ object PrettyPrint {
   private def prettyTerm(t: Term, precedence: Int): PrettyPrint = t match {
     case Term.Unboxed(value, t) =>
       t match {
-        case UnboxedType.Integer => value.toString
-        case UnboxedType.Float => longBitsToDouble(value).toString
-        case UnboxedType.Boolean => (value != U0).toString
-        case UnboxedType.Natural => toUnsignedString(value)
+        case UnboxedType.Integer => unboxedToInt(value).toString
+        case UnboxedType.Float => unboxedToDouble(value).toString
+        case UnboxedType.Boolean => unboxedToBool(value).toString
+        case UnboxedType.Natural => toUnsignedString(unboxedToLong(value))
       }
 
     case If(cond, ifZero, ifNonzero) => parenthesizeGroupIf(precedence > 0) {

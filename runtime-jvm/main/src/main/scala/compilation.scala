@@ -258,7 +258,7 @@ object compilation {
       case Some(guard) =>
         (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
            val guardSuccess = guard(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
-           if (guardSuccess != U0)
+           if (guardSuccess == UTrue)
              caseBody(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
            else throw CaseNoMatch
         }
@@ -759,7 +759,7 @@ object compilation {
         val ct = compile(builtins)(t, env, currentRec, recVars, isTail)
         val cf = compile(builtins)(f, env, currentRec, recVars, isTail)
         (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
-          if (eval(ccond, r, rec, top, stackU, x1, x0, stackB, x1b, x0b) != U0)
+          if (eval(ccond, r, rec, top, stackU, x1, x0, stackB, x1b, x0b) == UTrue)
             ct(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
           else
             cf(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
