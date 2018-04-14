@@ -2,7 +2,8 @@ package org.unisonweb
 package util
 
 import Stream._
-import Unboxed.{F1,F2,K,Unboxed}
+import Unboxed.{F1, F2, K, Unboxed}
+import org.unisonweb.Builtins.FUP_P
 
 /**
  * Fused stream type based loosely on ideas from Oleg's
@@ -91,7 +92,7 @@ abstract class Stream[A] { self =>
       }
     }
 
-  final def foldLeft0[B,C](u0: U, b0: B)(f: F2[B,A,B])(extract: (U,B) => C): C = {
+  final def foldLeft0[B,C](u0: U, b0: B)(f: F2[B,A,B])(extract: FUP_P[B,C]): C = {
     var u = u0; var b = b0
     val cf = f andThen { (u2,b2) => u = u2; b = b2 }
     self.stage { (ux,bx) => cf(u, b, ux, bx) }.run()
@@ -134,14 +135,14 @@ abstract class Stream[A] { self =>
     }
   }
 
-  final def toSequence0[B](f: (U,A) => B): Sequence[B] = {
+  final def toSequence0[B](f: FUP_P[A,B]): Sequence[B] = {
     var result = Sequence.empty[B]
     self.stage { (u,a) => result = result :+ f(u,a) }.run()
     result
   }
 
   final def toSequence[B](implicit A: Extract[B,A]): Sequence[B] =
-    toSequence0(A.extract _)
+    toSequence0(A.extract)
 }
 
 object Stream {
@@ -149,17 +150,19 @@ object Stream {
   @inline def getBoxed[B](u: U, b: B) = b
 
   sealed abstract class Extract[Native, Boxed] {
-    def extract(u: U, a: Boxed): Native
+    val extract: FUP_P[Boxed,Native]
     def toBoxed(c: Native): Boxed
     def toUnboxed(c: Native): U
   }
   object Extract {
     implicit val extractValue: Extract[Value, Value] =
       new Extract[Value, Value] {
-        def extract(u: U, a: Value): Value = a match {
-          case typ: UnboxedType => Value(u, typ)
-          case v => v
-        }
+
+        val extract =
+          (u,a) => a match {
+            case typ: UnboxedType => Value(u, typ)
+            case v => v
+          }
 
         def toBoxed(c: Value): Value = c match {
           case Value.Unboxed(n, typ) => typ
@@ -174,21 +177,21 @@ object Stream {
 
     implicit val extractDouble: Extract[Double, Unboxed[Double]] =
       new Extract[Double, Unboxed[Double]] {
-        def extract(u: U, a: Unboxed[Double]): Double = unboxedToDouble(u)
+        val extract = (u,_) => unboxedToDouble(u)
         def toBoxed(c: Double): Unboxed[Double] = null
         def toUnboxed(c: Double): U = doubleToUnboxed(c)
       }
 
     implicit val extractLong: Extract[Long, Unboxed[Long]] =
       new Extract[Long, Unboxed[Long]] {
-        def extract(u: U, a: Unboxed[Long]): Long = unboxedToLong(u)
+        val extract = (u,_) => unboxedToLong(u)
         def toUnboxed(c: Long): U = longToUnboxed(c)
         def toBoxed(c: Long): Unboxed[Long] = null
       }
 
     implicit val extractInt: Extract[Int, Unboxed[Int]] =
       new Extract[Int, Unboxed[Int]] {
-        def extract(u: U, a: Unboxed[Int]): Int = unboxedToInt(u)
+        val extract = (u,_) => unboxedToInt(u)
         def toUnboxed(c: Int): U = intToUnboxed(c)
         def toBoxed(c: Int): Unboxed[Int] = null
       }

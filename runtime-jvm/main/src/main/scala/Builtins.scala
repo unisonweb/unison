@@ -173,21 +173,21 @@ object Builtins {
     fpp_u("Text.>", "t1", "t2", UnboxedType.Boolean,
       (t1: Text, t2: Text) => boolToUnboxed(Text.compare(t1,t2) > 0))
 
-  val textBuiltins = Map(
+  val textBuiltins = List(
     Text_empty,
     Text_concatenate,
     Text_take,
     Text_drop,
     Text_size,
     // todo: indexing, once we add
-
+  ).++(List(
     Text_eq,
     Text_neq,
     Text_lteq,
     Text_gteq,
     Text_lt,
     Text_gt
-  )
+  ).map(discardOutputType)).toMap
 
   val builtins = seqBuiltins ++ numericBuiltins ++ booleanBuiltins ++ textBuiltins
 
@@ -255,7 +255,7 @@ object Builtins {
   def fpp_u[A,B,C](name: String, arg1: String, arg2: String,
                    outputType: UnboxedType, f: FPP_U[A,B])
                   (implicit A: Decode[A],
-                            B: Decode[B]): (Name, Computation) = {
+                            B: Decode[B]): (Name, UnboxedType, Computation) = {
     val body: Computation =
       (r,_,_,_,x1,x0,_,x1b,x0b) => {
         r.boxed = outputType
@@ -263,7 +263,7 @@ object Builtins {
       }
     val decompiled = Term.Builtin(name)
     val lambda = new Lambda.ClosureForming2(decompiled, arg1, arg2, body)
-    name -> Return(lambda)
+    (name, outputType, Return(lambda))
   }
 
   def fuu_u(name: Name,
