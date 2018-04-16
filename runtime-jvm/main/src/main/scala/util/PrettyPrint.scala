@@ -3,7 +3,8 @@ package org.unisonweb.util
 import java.lang.Double.longBitsToDouble
 import java.lang.Long.toUnsignedString
 
-import org.unisonweb.{Builtin, HashRef, Term, U0, UnboxedType}
+import org.unisonweb.{Term, U0, UnboxedType}
+import org.unisonweb.Id.{Builtin, HashRef}
 import org.unisonweb.Term._
 
 sealed abstract class PrettyPrint {
