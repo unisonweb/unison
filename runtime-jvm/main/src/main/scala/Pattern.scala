@@ -11,6 +11,8 @@ object Pattern {
                   patterns: List[Pattern])
     extends Pattern(patterns.map(_.arity).sum)
   case class As(p: Pattern) extends Pattern(1 + p.arity)
+//  case class EffectBind(id: Id_, p: Pattern) extends Pattern
+//  case class EffectPure(p: Pattern) extends Pattern
 //  case class SequenceUncons(left: Pattern, right: Pattern) extends Pattern
 
   def Tuple(xs: Pattern*): Pattern =

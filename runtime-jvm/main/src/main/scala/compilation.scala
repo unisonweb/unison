@@ -747,7 +747,8 @@ object compilation {
     e match {
       case Term.Unboxed(n,t) => compileUnboxed(n,t)
       case Term.Text(txt) => Return(Builtins.External(txt, e))
-      case Term.Builtin(name) => builtins(name)
+      case Term.Id(Builtin(name)) => builtins(name)
+      case Term.Id(HashRef(h)) => ???
       case Term.Compiled(param) =>
         if (param.toValue eq null)
           (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => param.toValue.toResult(r)

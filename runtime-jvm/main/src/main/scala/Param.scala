@@ -110,7 +110,7 @@ object Value {
 
   case class Data(typeId: Hash, constructorId: ConstructorId, fields: Array[Value])
     extends Value {
-    def decompile: Term = Term.Hashref(Hash.constructorId(typeId, constructorId))
+    def decompile: Term = Term.Id(Hash.constructorId(typeId, constructorId))
     def toResult(r: R): U = { r.boxed = this; U0 }
   }
 

@@ -38,7 +38,7 @@ object Builtins {
                      (implicit A: Encode[A]): (Name, Computation) =
     (name, (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => A.encode(r, a))
 
-  def termFor(b: (Name, Computation)): Term = Term.Builtin(b._1)
+  def termFor(b: (Name, Computation)): Term = Term.Id(b._1)
   def computationFor(b: (Name, Computation)): Computation = builtins(b._1)
   def lambdaFor(b: (Name, Computation)): Lambda =
     computationFor(b) match { case Return(lam: Lambda) => lam }
@@ -188,7 +188,7 @@ object Builtins {
                (implicit A: Decode[A], B: Encode[B]): (Name, Computation) = {
     val body: Computation =
       (r,_,_,_,_,x0,_,_,x0b) => B.encode(r, f(A.decode(x0, x0b)))
-    val decompiled = Term.Builtin(name)
+    val decompiled = Term.Id(name)
     val lambda = new Lambda(1, body, decompiled) {
       def names: List[Name] = List(arg)
       override def underapply(builtins: Name => Computation)(
@@ -210,7 +210,7 @@ object Builtins {
       f.applyAsLong(x0)
     }
     val ns = List(arg)
-    val decompile = Term.Builtin(name)
+    val decompile = Term.Id(name)
     name -> Return(new Lambda(1, body, decompile) { def names = ns })
   }
 
@@ -221,7 +221,7 @@ object Builtins {
     val body: Computation =
       (r,_,_,_,x1,x0,_,x1b,x0b) =>
         C.encode(r, f(A.decode(x1, x1b), B.decode(x0, x0b)))
-    val decompiled = Term.Builtin(name)
+    val decompiled = Term.Id(name)
     val lambda = new Lambda.ClosureForming2(decompiled, arg1, arg2, body)
     name -> Return(lambda)
   }
@@ -233,7 +233,7 @@ object Builtins {
                           B: Encode[B]): (Name, Computation) = {
     val body: Computation = (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
       B.encode(r, f(x1, A.decode(x0, x0b)))
-    val decompiled = Term.Builtin(name)
+    val decompiled = Term.Id(name)
     val lambda = new Lambda.ClosureForming2(decompiled, n1, n2, body)
     name -> Return(lambda)
   }
@@ -249,7 +249,7 @@ object Builtins {
         r.boxed = outputType
         f(A.decode(x1, x1b), B.decode(x0, x0b))
       }
-    val decompiled = Term.Builtin(name)
+    val decompiled = Term.Id(name)
     val lambda = new Lambda.ClosureForming2(decompiled, arg1, arg2, body)
     name -> Return(lambda)
   }
@@ -264,7 +264,7 @@ object Builtins {
       f.applyAsLong(x1, x0)
     }
 
-    val decompiled = Term.Builtin(name)
+    val decompiled = Term.Id(name)
 
     val lam = new Lambda(2, body, decompiled) { self =>
       def names = List(n1, n2)

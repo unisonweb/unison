@@ -1,10 +1,9 @@
 package org.unisonweb.util
 
-import java.lang.Double.{longBitsToDouble}
-import java.lang.Long.{toUnsignedString}
-import org.unisonweb.U0
-import org.unisonweb.UnboxedType
-import org.unisonweb.Term
+import java.lang.Double.longBitsToDouble
+import java.lang.Long.toUnsignedString
+
+import org.unisonweb.{Builtin, HashRef, Term, U0, UnboxedType}
 import org.unisonweb.Term._
 
 sealed abstract class PrettyPrint {
@@ -131,7 +130,8 @@ object PrettyPrint {
         softbreaks(args.map(arg => prettyTerm(arg, 10).nest("  ")))
     }
     case Var(name) => prettyName(name)
-    case Builtin(name) => prettyName(name)
+    case Id(Builtin(name)) => prettyName(name)
+    case Id(HashRef(hash)) => ???
     case Self(name) =>
       sys.error("Self terms shouldn't exist after calling `Term.selfToLetRec`, which we do before calling this function.")
     case Lam(names, body) => parenthesizeGroupIf(precedence > 0) {
@@ -149,19 +149,13 @@ object PrettyPrint {
         prettyTerm(body, 0).nest("  ")
     }
     case t => t.toString
-
-    //implicit def fRender[A](implicit R: Render[A]): Render[Term.F[A]] = {
-    //  case Compiled_(v) => "Compiled {" + renderIndent(v.decompile) + "}"
-    //  case Delayed_(name, v) => s"Delayed($name)"
-    //  case Yield_(effect) => "Yield(...)"
-    //  case Handle_(handler, block) => "Handle(...)"
-    //}
   }
 
+  // this is only used for rendering infix operators
   object VarOrBuiltin {
     def unapply(term: Term): Option[Name] = term match {
       case Var(name) => Some(name)
-      case Builtin(name) => Some(name)
+      case Id(Builtin(name)) => Some(name)
       case _ => None
     }
   }

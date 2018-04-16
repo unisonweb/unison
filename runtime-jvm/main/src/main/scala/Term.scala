@@ -39,7 +39,7 @@ object Term {
     // arg1 -> foo (x + 1) blah
     // arg1 -> let arg1 = x + 1; foo arg1 blah
     case ABT.Abs(name, body) => ABT.Abs(name, ANF(body))
-    case Apply(f @ (ABT.Var(_) | Lam(_,_) | Builtin(_)), args) =>
+    case Apply(f @ (ABT.Var(_) | Lam(_,_) | Id(_)), args) =>
       val (bindings2, args2) =
         args.zipWithIndex.foldRight((List.empty[(Name,Term)], List.empty[Term])) { (argi, accs) =>
           val (bindings, args) = accs
@@ -105,7 +105,7 @@ object Term {
     } (Monoid.Set)
 
     def transitiveClosure(seen: Map[Ref,Term], cur: Term): Map[Ref,Term] = cur match {
-      case Builtin(_) | Unboxed(_,_) | Var(_) | Text(_) => seen
+      case Id(_) | Unboxed(_,_) | Var(_) | Text(_) => seen
       case Apply(f, args) =>
         args.foldLeft(transitiveClosure(seen, f))(transitiveClosure _)
       case If(cond, t, f) =>
@@ -168,11 +168,10 @@ object Term {
   object F {
 
     case class Lam_[R](body: R) extends F[R]
-    case class Builtin_(name: Name) extends F[Nothing]
+    case class Id_(id: Id) extends F[Nothing]
     case class Apply_[R](fn: R, args: List[R]) extends F[R]
     case class Unboxed_(value: U, typ: UnboxedType) extends F[Nothing]
     case class Text_(txt: util.Text.Text) extends F[Nothing]
-    case class Hashref_(hash: Hash) extends F[Nothing]
     case class LetRec_[R](bindings: List[R], body: R) extends F[R]
     case class Let_[R](binding: R, body: R) extends F[R]
     case class Rec_[R](r: R) extends F[R]
@@ -180,17 +179,14 @@ object Term {
     case class If_[R](condition: R, ifNonzero: R, ifZero: R) extends F[R]
     case class Match_[R](scrutinee: R, cases: List[MatchCase[R]]) extends F[R]
     case class Compiled_(value: Param) extends F[Nothing]
-    // yield : f a -> a|f
-    case class Yield_[R](effect: R) extends F[R]
-    // handle : (forall x . f x -> (x -> y|f+g) -> y|f+g) -> a|f+g -> a|g
+    // request : <f> a -> {f} a
+    case class Request_ [R](id: Id, ctor: ConstructorId, args: List[R]) extends F[R]
+    // handle : (forall x . <f> x -> r) -> {f} x -> r
     case class Handle_[R](handler: R, block: R) extends F[R]
-
-    // todo pattern matching
-    // todo data constructors
 
     implicit val instance: Traverse[F] = new Traverse[F] {
       override def map[A,B](fa: F[A])(f: A => B): F[B] = fa match {
-        case fa @ (Builtin_(_) | Unboxed_(_,_) | Compiled_(_) | Self_(_) | Hashref_(_) | Text_(_)) =>
+        case fa @ (Id_(_) | Unboxed_(_,_) | Compiled_(_) | Self_(_) | Text_(_)) =>
           fa.asInstanceOf[F[B]]
         case Lam_(a) => Lam_(f(a))
         case Apply_(fn, args) =>
@@ -212,9 +208,8 @@ object Term {
         case Handle_(h,b) =>
           val h2 = f(h); val b2 = f(b)
           Handle_(h2, b2)
-        case Yield_(e) =>
-          val e2 = f(e)
-          Yield_(e2)
+        case Request_(id, ctor, args) =>
+          Request_(id, ctor, args.map(f))
       }
       def mapAccumulate[S,A,B](fa: F[A], s0: S)(g: (A,S) => (B,S)): (F[B], S) = {
         var s = s0
@@ -225,14 +220,6 @@ object Term {
   }
 
   import F._
-
-  object Hashref {
-    def apply(h: Hash): Term = Tm(Hashref_(h))
-    def unapply[A](t: AnnotatedTerm[F,A]): Option[Hash] = t match {
-      case Tm(Hashref_(h)) => Some(h)
-      case _ => None
-    }
-  }
 
   // smart patterns and constructors
   object Match {
@@ -268,10 +255,11 @@ object Term {
     }
   }
 
-  object Builtin {
-    def apply(n: Name): Term = Tm(Builtin_(n))
-    def unapply[A](t: AnnotatedTerm[F,A]): Option[Name] = t match {
-      case Tm(Builtin_(n)) => Some(n)
+  object Id {
+    def apply(n: Name): Term = Tm(Id_(org.unisonweb.Id(n)))
+    def apply(h: Hash): Term = Tm(Id_(org.unisonweb.Id(h)))
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[Id] = t match {
+      case Tm(Id_(id)) => Some(id)
       case _ => None
     }
   }
@@ -318,12 +306,13 @@ object Term {
     def unapply[A](t: AnnotatedTerm[F,A]): Option[Name] = ABT.Var.unapply(t)
   }
 
-  object Yield {
+  object Request {
     def unapply[A](t: AnnotatedTerm[F,A]): Option[AnnotatedTerm[F,A]] = t match {
-      case Tm(Yield_(t)) => Some(t)
+      case Tm(Request_(_,_,_)) => Some(t)
       case _ => None
     }
-    def apply(t: Term): Term = Tm(Yield_(t))
+    def apply(id: Id, ctor: ConstructorId, args: List[Term]): Term =
+      Tm(Request_(id, ctor, args))
   }
   object Handle {
     def unapply[A](t: AnnotatedTerm[F,A]): Option[(AnnotatedTerm[F,A],AnnotatedTerm[F,A])] = t match {
@@ -396,7 +385,7 @@ object Term {
   implicit def symbolAsName(s: Symbol): Name = s.name
   implicit class symbolSyntax(s: Symbol) {
     def v: Term = Var(s.name)
-    def b: Term = Builtin(s.name)
+    def b: Term = Id(s.name)
   }
 
   implicit def stringKeyToNameTerm[A <% Term](kv: (String, A)): (Name, Term) = (kv._1, kv._2)
