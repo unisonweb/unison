@@ -319,7 +319,7 @@ object Term {
       case Tm(Handle_(handler, block)) => Some(handler -> block)
       case _ => None
     }
-    def apply(handler: Term, block: Term): Term = Tm(Handle_(handler, block))
+    def apply(handler: Term)(block: Term): Term = Tm(Handle_(handler, block))
   }
 
   object LetRec {

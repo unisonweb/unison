@@ -344,6 +344,9 @@ object compilation {
         // and then whatever `cp` does
         cp(s,sb,r,stackU,stackB,top.inc)
       }
+
+    case Pattern.EffectPure(p) => ???
+    case Pattern.EffectBind(id, ctor, ps) => ???
   }
 
   def compileStaticFullySaturatedNontailCall(lam: Lambda, compiledArgs: List[Computation]): Computation =
