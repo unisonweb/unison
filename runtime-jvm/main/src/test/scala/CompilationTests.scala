@@ -61,10 +61,16 @@ object CompilationTests {
       equal1(eval(If(one < zero, one, zero + one + one)), 2:Term)
       ok
     },
-
     test("fib") { implicit T =>
       0 to 20 foreach { n =>
         equal1(eval(fib(n:Term)), scalaFib(n):Term)
+      }
+      ok
+    },
+    test("fib-ANF") { implicit T =>
+      val fibANF = Term.ANF(fib)
+      0 to 20 foreach { n =>
+        equal1(eval(fibANF(n:Term)), scalaFib(n):Term)
       }
       ok
     },
