@@ -39,8 +39,6 @@ object compilation {
   case class RecursiveVars(get: Set[Name]) extends AnyVal {
     def ++(names: Seq[Name]): RecursiveVars = RecursiveVars(get ++ names)
     def -(name: Name): RecursiveVars = RecursiveVars(get.filterNot(name == _))
-    def --(names: Seq[Name]): RecursiveVars =
-      RecursiveVars(get.filterNot(names contains _))
   }
   object RecursiveVars {
     def empty = RecursiveVars(Set())
@@ -1020,26 +1018,40 @@ object compilation {
             val push = compilation.push(env, Term.freeVars(e)).push2
             assert(K == 2)
             (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
-              // todo: can this be faster?
+              // 1. Create a Ref to hold the result of each binding
+              // 2. Spill K registers onto the array portion of stack
+              // 3. Push N-K Refs onto the stack
+              // 4. To evaluate a binding (or the body)
+              //    a. Put last K Refs in registers, evaluate
+              //    b. Set the Ref to the result of evaluating the binding
+              // 5. Evaluate body in the same way
+
+              // 1. Create a Ref to hold the result of each binding
               val bindingResults = bindingNames.map(name => new Ref(name, null))
+
+              // 2. Spill K registers onto the array portion of stack
               push(top, stackU, stackB, x1, x1b, x0, x0b)
-              val top2 = top.incBy(2)
-              @inline @annotation.tailrec def pushRefs(i: Int): Unit = {
-                if (i < cbindings.length - 2) {
+
+              // 3. Push N-K Refs onto the stack
+              val top2 = top.incBy(K)
+              @inline @annotation.tailrec
+              def pushRefs(i: Int): Unit = {
+                if (i < cbindings.length - K) {
                   top2.pushU(stackU, i, U0)
                   top2.pushB(stackB, i, bindingResults(i))
                   pushRefs(i+1)
                 }
               }
-
-              // push n - K more binding results, and then put the last
-              // K binding results into registers
-              // where K must be 2
               pushRefs(0)
+
               val topN = top.incBy(cbindings.length)
               val brx1 = bindingResults(bindingResults.length - 2)
               val brx0 = bindingResults(bindingResults.length - 1)
-              @inline @annotation.tailrec def evalBindings(i: Int): Unit = {
+              // 4. To evaluate a binding (or the body)
+              //    a. Put last K Refs in registers, evaluate
+              //    b. Set the Ref to the result of evaluating the binding
+              @inline @annotation.tailrec
+              def evalBindings(i: Int): Unit = {
                 if (i < cbindings.length) {
                   val v = eval(cbindings(i), r, rec, topN,
                                stackU, U0, U0, stackB, brx1, brx0)
@@ -1049,6 +1061,7 @@ object compilation {
               }
               evalBindings(0)
 
+              // 5. Evaluate body in the same way
               cbody(r, rec, topN, stackU, U0, U0, stackB, brx1, brx0)
             }
         }
