@@ -119,6 +119,42 @@ object CompilationTests {
       val fibNested = LetRec('fib -> (1: Term))(fib)
       equal(eval(fibNested), 42:Term)
     },
+    test("let rec example 1") { implicit T =>
+      val ex = LetRec(
+        'x -> 1,
+        'y -> 10,
+        'y2 -> 100,
+        'z -> 1000
+      )('x.v + 'y + 'y2 + 'z)
+      equal(eval(ex), 1111: Term)
+    },
+    test("let rec example 2") { implicit T =>
+      val ex = LetRec(
+        'x -> 1,
+        'y -> 10,
+        'y2 -> 100,
+        'z -> 1000
+      )('x.v + 'y2 + 'z)
+      equal(eval(ex), 1101: Term)
+    },
+    test("let rec example 3") { implicit T =>
+      val ex = LetRec(
+        'x -> 1,
+        'y -> 10,
+        'y2 -> 100,
+        'z -> 1000
+      )('y.v + 'y2 + 'z)
+      equal(eval(ex), 1110: Term)
+    },
+    test("let rec example 4") { implicit T =>
+      val ex = LetRec(
+        'x -> 1,
+        'y -> 10,
+        'y2 -> 100,
+        'z -> 1000
+      )('y2.v + 'z)
+      equal(eval(ex), 1100: Term)
+    },
     test("mutual non-tail recursion") { implicit T =>
       0 to 20 foreach { n =>
         equal1(eval(fibPrime(n:Term)), scalaFib(n):Term)
@@ -309,52 +345,52 @@ object CompilationTests {
         val p = Match(1)(c, c2)
         equal(eval(p), v)
       },
-      ),
-    suite("algebraic-effects")(
-      test("ex1") { implicit T =>
-        /*
-          let
-            state : s -> <State s> a -> a
-            state s <a> = a
-            state s <get -> k> = handle (state s) (k s)
-            state _ <put s -> k> = handle (state s) (k ())
+    ),
+    //suite("algebraic-effects")(
+    //  test("ex1") { implicit T =>
+    //    /*
+    //      let
+    //        state : s -> <State s> a -> a
+    //        state s <a> = a
+    //        state s <get -> k> = handle (state s) (k s)
+    //        state _ <put s -> k> = handle (state s) (k ())
 
-            handle (state 0)
-              x = State.get + 1
-              y = State.set (x + 1)
-              State.get + 11
-         */
-        val p = LetRec(
-          ('state, Lam('s, 'action) {
-            Match('action)(
-              // state s <a> = a
-              MatchCase(Pattern.EffectPure(Pattern.Wildcard),
-                        ABT.Abs('a, 'a)),
+    //        handle (state 0)
+    //          x = State.get + 1
+    //          y = State.set (x + 1)
+    //          State.get + 11
+    //     */
+    //    val p = LetRec(
+    //      ('state, Lam('s, 'action) {
+    //        Match('action)(
+    //          // state s <a> = a
+    //          MatchCase(Pattern.EffectPure(Pattern.Wildcard),
+    //                    ABT.Abs('a, 'a)),
 
-              // state s <get -> k> = handle (state s) (k s)
-              MatchCase(Pattern.EffectBind(Id.Builtin("State"),
-                                           ConstructorId(0),
-                                           Nil),
-                        ABT.Abs('k, Handle('state.v('s))('k.v('s)))),
+    //          // state s <get -> k> = handle (state s) (k s)
+    //          MatchCase(Pattern.EffectBind(Id.Builtin("State"),
+    //                                       ConstructorId(0),
+    //                                       Nil),
+    //                    ABT.Abs('k, Handle('state.v('s))('k.v('s)))),
 
-              // state _ <put s -> k> = handle (state s) (k ())
-              MatchCase(Pattern.EffectBind(Id.Builtin("State"),
-                                           ConstructorId(1),
-                                           List(Pattern.Wildcard)),
-                        ABT.AbsChain('s, 'k)(Handle('state.v('s))('k.v(-1))))
-            )
-          })
-        ) {
-          Handle('state.v(0)) {
-            Let(
-              ('x, Request(Id.Builtin("State"), ConstructorId(0), Nil) + 1),
-              ('y, Request(Id.Builtin("State"), ConstructorId(1), List('x.v + 1)))
-            )(Request(Id.Builtin("State"), ConstructorId(0), Nil) + 11)
-          }
-        }
-        equal[Term](eval(p), 13)
-      }
-    )
+    //          // state _ <put s -> k> = handle (state s) (k ())
+    //          MatchCase(Pattern.EffectBind(Id.Builtin("State"),
+    //                                       ConstructorId(1),
+    //                                       List(Pattern.Wildcard)),
+    //                    ABT.AbsChain('s, 'k)(Handle('state.v('s))('k.v(-1))))
+    //        )
+    //      })
+    //    ) {
+    //      Handle('state.v(0)) {
+    //        Let(
+    //          ('x, Request(Id.Builtin("State"), ConstructorId(0), Nil) + 1),
+    //          ('y, Request(Id.Builtin("State"), ConstructorId(1), List('x.v + 1)))
+    //        )(Request(Id.Builtin("State"), ConstructorId(0), Nil) + 11)
+    //      }
+    //    }
+    //    equal[Term](eval(p), 13)
+    //  }
+    //)
   )
 }
 
