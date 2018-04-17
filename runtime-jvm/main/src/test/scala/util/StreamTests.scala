@@ -28,7 +28,7 @@ object StreamTests {
     },
     test("foldLeft-unisonPlus") { implicit T =>
       val plusU = UnisonToScala.toUnboxed2(Builtins.lambdaFor(Builtins.Integer_add))
-      val env = (new Array[U](20), new Array[B](20), new StackPtr(0), Result())
+      val env = (new Array[U](20), new Array[B](20), StackPtr.empty, Result())
       equal(
         Stream.from(0).take(10000).asInstanceOf[Stream[Param]]
                                     .foldLeft(U0, null:Param)(plusU(env))((u,_) => u),

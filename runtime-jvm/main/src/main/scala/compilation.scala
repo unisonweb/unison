@@ -49,7 +49,7 @@ object compilation {
   }
 
   // type StackPtr = Int
-  class StackPtr(private val top: Int) extends AnyVal {
+  class StackPtr private(private val top: Int) extends AnyVal {
     def toInt = top
     @inline final def u(stackU: Array[U], envIndex: Int): U =
       stackU(top - envIndex + K)
@@ -84,7 +84,7 @@ object compilation {
   case class Result(
     var boxed: Value = null,
     var tailCall: Lambda = null,
-    var argsStart: StackPtr = new StackPtr(0),
+    var argsStart: StackPtr = StackPtr.empty,
     var stackArgsCount: Int = 0,
     var x1: U = U0, var x0: U = U0,
     var x1b: B = null, var x0b: B = null)
@@ -417,13 +417,15 @@ object compilation {
             }
           go(0)
 
+          // eval from argsArray.length-K to argsArray.length-1
           val arg1v = eval(argsArray(argsArray.length-2), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
           val arg1vb = r.boxed
-          val rx0v = eval(argsArray(argsArray.length - 1), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
-          r.x0 = rx0v
+          val arg0v = eval(argsArray(argsArray.length - 1), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          r.x0 = arg0v
           r.x0b = r.boxed
           r.x1 = arg1v
           r.x1b = arg1vb
+          r.argsStart = top.inc
           throw SelfCall
         }
     }
@@ -487,7 +489,6 @@ object compilation {
     r.stackArgsCount = 0
     r.tailCall = fn
     throw TailCall
-
   }
 
   @inline def doTailCall(
@@ -732,7 +733,7 @@ object compilation {
     val r = Result()
     val us = new Array[U](1024)
     val bs = new Array[B](1024)
-    val cc = eval(c, r, null, new StackPtr(-1), us, U0, U0, bs, null, null)
+    val cc = eval(c, r, null, StackPtr.empty, us, U0, U0, bs, null, null)
     Value(cc, r.boxed)
   }
 
@@ -833,15 +834,24 @@ object compilation {
           //   go n = while (true) return { try go-inner n catch { case SelfCall n2 => go-inner n2 }}
           //   go
 
+          def printStack[A](stackU: Array[A], top: StackPtr, x1: A, x0: A, prefix: String = "") = {
+            println {
+              prefix +
+                (0 to top.toInt map stackU).mkString("[",", ", "]") + " " +
+                s"($x1) ($x0)"
+            }
+          }
+
+          def stackRegion[A](stackU: Array[A], start: Int, length: Int, prefix: String = "") =
+            prefix + (start until (start+length) map stackU).mkString("[",", ", "]")
+
           def handleSelfCalls(innerLambda: Lambda): Lambda = {
             assert(names.length == innerLambda.arity)
-            val needsCopy = names.length > 2
+            val needsCopy = names.length > K
             // inner lambda may throw SelfCall, so we create wrapper Lambda
             // to process those
             val outerLambdaBody: Computation = (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
-              val stackArgsCount = innerLambda.arity - K
-              val newArgsSrcIndex = top.incBy(stackArgsCount).toInt //
-              val newArgsDestIndex = top.toInt
+              val stackArgsCount = (innerLambda.arity - K) max 0
 
               @inline @annotation.tailrec
               def go(x1: U, x0: U, x1b: B, x0b: B): U = {
@@ -859,13 +869,13 @@ object compilation {
                   case SelfCall =>
                     if (needsCopy) {
                       System.arraycopy(
-                        stackU, newArgsSrcIndex,
-                        stackU, newArgsDestIndex,
+                        stackU, r.argsStart.toInt,
+                        stackU, top.toInt + 1 - stackArgsCount,
                         stackArgsCount
                       )
                       System.arraycopy(
-                        stackB, newArgsSrcIndex,
-                        stackB, newArgsDestIndex,
+                        stackB, r.argsStart.toInt,
+                        stackB, top.toInt + 1 - stackArgsCount,
                         stackArgsCount
                       )
                     }

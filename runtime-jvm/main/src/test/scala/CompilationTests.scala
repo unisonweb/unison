@@ -24,6 +24,9 @@ object CompilationTests {
     test("1 + 2 = 3") { implicit T =>
       equal(eval((1:Term) + (2:Term)), 3:Term)
     },
+    test("sum4(1,2,3,4)") { implicit T =>
+      equal(eval(sum4(1,10,100,1000)), (1+10+100+1000):Term)
+    },
     test("partially apply") { implicit T =>
       equal(eval(const(zero)), Lam('y)(zero))
     },
@@ -77,7 +80,7 @@ object CompilationTests {
       ok
     },
     test("triangle4arg") { implicit T =>
-      0 to 50 foreach { n =>
+      10 to 50 foreach { n =>
         equal1(eval(triangle4arg(n:Term, zero, zero, zero)), (0 to n).sum:Term)
       }
       ok
@@ -163,7 +166,7 @@ object CompilationTests {
         */
         val v: Term = 43
         val c = MatchCase(LiteralU(10, UnboxedType.Integer),
-                  Some(true:Term), 'x.v + 1)
+                          Some(true:Term), 'x.v + 1)
         val p = Let('x -> (42:Term))(Match(10)(c))
         equal(eval(p), v)
       },
@@ -193,7 +196,7 @@ object CompilationTests {
         */
         val v: Term = 44
         val c1 = MatchCase(LiteralU(10, UnboxedType.Integer),
-                   Some(false:Term), 'x.v + 1)
+                           Some(false:Term), 'x.v + 1)
         val c2 = MatchCase(Uncaptured, 'x.v + 2)
         val p = Let('x -> (42:Term))(Match(10)(c1, c2))
         equal(eval(p), v)
@@ -202,7 +205,7 @@ object CompilationTests {
         /* let x = 42; case 10 of 10 | false -> x+1; x -> x+4 */
         val v: Term = 14
         val c1 = MatchCase(LiteralU(10, UnboxedType.Integer),
-                   Some(false:Term), 'x.v + 1)
+                           Some(false:Term), 'x.v + 1)
         val c2 = MatchCase(Wildcard, ABT.Abs('x, 'x.v + 4))
         val p = Let('x -> (42:Term))(Match(10)(c1, c2))
         equal(eval(p), v)
@@ -357,6 +360,8 @@ object Terms {
   val onePlus: Term = Builtins.termFor(Builtins.Integer_add)(one)
 
   val ap: Term = Lam('f,'x)('f.v('x))
+
+  val sum4: Term = Lam('a,'b,'c,'d)('a.v + 'b + 'c + 'd)
 
   val fib: Term =
     LetRec('fib ->
