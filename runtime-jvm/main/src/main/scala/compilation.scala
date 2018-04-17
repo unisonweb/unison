@@ -1131,9 +1131,10 @@ object compilation {
     def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B) = returnBoth(r, x1, x1b)
   }
 
-  def compileVar(e: Term, name: Name, env: Vector[Name], currentRec: CurrentRec): Computation =
-    if (currentRec.contains(name)) new Self(name)
-    else env.indexOf(name) match {
+  def compileVar(e: Term, name: Name, env: Vector[Name], currentRec: CurrentRec): Computation = {
+    // any `Term.Var` matching `currentRec` will have been replaced with `Term.Self`
+    assert(!currentRec.contains(name))
+    env.indexOf(name) match {
       case -1 => sys.error("unbound name: " + name)
       case 0 => CompiledVar0
       case 1 => CompiledVar1
@@ -1142,6 +1143,7 @@ object compilation {
           returnBoth(r, top.u(stackU, n), top.b(stackB, n))
       }
     }
+  }
 
   def compileRef(e: Term, name: Name, env: Vector[Name], currentRec: CurrentRec): ParamLookup = {
     if (currentRec.contains(name)) (rec,_,_,_,_) => rec
