@@ -76,6 +76,12 @@ object CompilationTests {
       }
       ok
     },
+    test("triangle4arg") { implicit T =>
+      0 to 50 foreach { n =>
+        equal1(eval(triangle4arg(n:Term, zero, zero, zero)), (0 to n).sum:Term)
+      }
+      ok
+    },
     test("evenOdd") { implicit T =>
       0 to 50 foreach { n =>
         equal1(eval(odd(n:Term)), n % 2 :Term)
@@ -370,6 +376,14 @@ object Terms {
              Lam('n, 'acc)(
                If('n.v,
                   'triangle.v('n.v - 1, 'acc.v + 'n),
+                  'acc.v))
+    )('triangle)
+
+  val triangle4arg =
+    LetRec('triangle ->
+             Lam('n, 'hahaha, 'hehehe, 'acc)(
+               If('n.v,
+                  'triangle.v('n.v - 1, 'hahaha, 'hehehe, 'acc.v + 'n),
                   'acc.v))
     )('triangle)
 
