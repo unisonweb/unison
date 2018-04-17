@@ -37,8 +37,6 @@ object compilation {
   }
 
   case class RecursiveVars(get: Set[Name]) extends AnyVal {
-    def contains(name: Name): Boolean = get.contains(name)
-    def +(name: Name): RecursiveVars = RecursiveVars(get + name)
     def ++(names: Seq[Name]): RecursiveVars = RecursiveVars(get ++ names)
     def -(name: Name): RecursiveVars = RecursiveVars(get.filterNot(name == _))
     def --(names: Seq[Name]): RecursiveVars =
