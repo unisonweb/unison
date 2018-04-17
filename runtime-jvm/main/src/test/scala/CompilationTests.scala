@@ -150,10 +150,10 @@ object CompilationTests {
       val ex = LetRec(
         'x -> 1,
         'y -> 10,
-        'y2 -> 100,
+        'y2 -> 'x.v * 100,
         'z -> 1000
-      )('y2.v + 'z)
-      equal(eval(ex), 1100: Term)
+      )('y2.v)
+      equal(eval(ex), 100: Term)
     },
     test("mutual non-tail recursion") { implicit T =>
       0 to 20 foreach { n =>

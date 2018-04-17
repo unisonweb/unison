@@ -141,10 +141,13 @@ object compilation {
   }
 
   @inline private def returnBoth(r: R, x0: U, x0b: B) = {
-    r.boxed = x0b.toValue
-    x0
+    if (x0b.isRef)
+      x0b.toValue.toResult(r)
+    else {
+      r.boxed = x0b.toValue
+      x0
+    }
   }
-
 
   case class Self(name: Name) extends Computation {
     def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U =
@@ -1136,10 +1139,12 @@ object compilation {
   abstract class CompiledVar(val position: Int) extends Computation
 
   case object CompiledVar0 extends CompiledVar(0) {
-    def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B) = returnBoth(r, x0, x0b)
+    def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B) =
+      returnBoth(r, x0, x0b)
   }
   case object CompiledVar1 extends CompiledVar(0) {
-    def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B) = returnBoth(r, x1, x1b)
+    def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B) =
+      returnBoth(r, x1, x1b)
   }
 
   def compileVar(e: Term, name: Name, env: Vector[Name], currentRec: CurrentRec): Computation = {
