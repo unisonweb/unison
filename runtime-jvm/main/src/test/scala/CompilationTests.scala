@@ -437,6 +437,11 @@ object CompilationTests {
       equal[Term](eval(fib2(10, 2, -1)), scalaFib(10))
     },
 
+    test("let within body of tailrec function") { implicit T =>
+      val ant: Term = Term.ANF(triangle)
+      equal[Term](eval(triangle(10, 0)), (1 to 10).sum)
+    }
+
     //suite("algebraic-effects")(
     //  test("ex1") { implicit T =>
     //    /*
