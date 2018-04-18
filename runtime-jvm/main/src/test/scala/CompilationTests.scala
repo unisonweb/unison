@@ -463,7 +463,11 @@ object CompilationTests {
                         'acc.v)),
                      )('triangle)
       equal[Term](eval(trianglePrime(10, 0)), (1 to 10).sum)
-    }
+    },
+
+    test("lambda with non-recursive free variables") { implicit T =>
+      equal(eval(Let('x -> 1, 'inc -> Lam('y)('x.v + 'y))('inc.v(one))), 2:Term)
+    },
 
     //suite("algebraic-effects")(
     //  test("ex1") { implicit T =>
