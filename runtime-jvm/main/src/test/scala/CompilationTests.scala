@@ -60,6 +60,12 @@ object CompilationTests {
         'x1.v * 'x2 * 'x3 * 'x4 * 'x5 * 'x6 * 'x7
       )), 510510:Term)
     },
+    test("dynamic non-tail call with K args") { implicit T =>
+      equal(eval(Let('x -> const)('x.v(one, 2) + one)), 2:Term)
+    },
+    test("dynamic non-tail call with K+n args") { implicit T =>
+      equal(eval(Let('x -> sum4)('x.v(one, 2, 3, 4) + one)), 11:Term)
+    },
     test("if") { implicit T =>
       equal1(eval(If(one, one, zero + one + one)), one)
       equal1(eval(If(one - one, one, zero + one + one)), 2:Term)
