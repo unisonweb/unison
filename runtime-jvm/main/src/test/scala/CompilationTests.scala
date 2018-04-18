@@ -458,8 +458,9 @@ object CompilationTests {
       val trianglePrime =
         LetRec('triangle ->
                  Lam('n, 'acc)(
-                     If(LetRec('foo -> 'n.v)('foo),
-                        'triangle.v('n.v - 1, 'acc.v + 'n),
+                     If('n.v,
+                       LetRec('n2 -> ('n.v - 1), 'acc2 -> ('acc.v + 'n))(
+                              'triangle.v('n2, 'acc2)),
                         'acc.v)),
                      )('triangle)
       equal[Term](eval(trianglePrime(10, 0)), (1 to 10).sum)
