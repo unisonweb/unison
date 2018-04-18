@@ -3,7 +3,7 @@ package org.unisonweb
 import org.unisonweb.Term.{MatchCase, Name, Term}
 import org.unisonweb.Value.Lambda
 
-object compilation {
+package object compilation {
 
   type Arity = Int
   type IsTail = Boolean

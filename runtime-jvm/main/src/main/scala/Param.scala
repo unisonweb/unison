@@ -62,9 +62,10 @@ object Value {
         val vb = r.boxed
         self(r,top,stackU,U0,v,stackB,null,vb)
       }
-      val composed =
-        Term.Lam('f, 'g, 'x)('f.v('g.v('x)))(self.decompile, f.decompile)
-      new Lambda(f.arity, k, composed) { val names = f.names }
+      val compose = Term.Lam('f, 'g, 'x)('f.v('g.v('x)))
+      new Lambda(f.arity, k, compose(self.decompile, f.decompile)) {
+        val names = f.names
+      }
     }
 
     def toResult(r: Result) = { r.boxed = this; U0 }
