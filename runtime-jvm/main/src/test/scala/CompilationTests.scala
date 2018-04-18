@@ -15,8 +15,14 @@ object CompilationTests {
     test("zero") { implicit T =>
       equal(eval(zero), zero)
     },
+    test("one") { implicit T =>
+      equal(eval(one), one)
+    },
     test("id") { implicit T =>
-      equal(eval(id(zero)), zero)
+      equal(eval(id(one)), one)
+    },
+    test("const") { implicit T =>
+      equal(eval(const(one, 2)), one)
     },
     test("1 + 1 = 2") { implicit T =>
       equal(eval(onePlusOne), 2:Term)
