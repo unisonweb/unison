@@ -97,7 +97,25 @@ object PrettyPrint {
   val semicolon = Breakable("; ")
   def semicolons(docs: Seq[PrettyPrint]): PrettyPrint = docs.reduce(_ <> semicolon <> _)
 
-  def prettyName(name: Name) = parenthesizeIf(isOperatorName(name))(name.toString)
+  def prettyName(name: Name) = parenthesizeIf(isOperatorName(name.toString))(name.toString)
+
+  def unqualifiedName(name: Name): String =
+    name.toString.reverse.takeWhile(_ != '.').reverse
+
+  def isOperatorName(s: String): Boolean =
+    s.forall(c => !c.isLetterOrDigit && !c.isControl && !c.isSpaceChar && !c.isWhitespace)
+
+  def infixName(name: Name) = {
+    val s = name.toString
+    if (s.contains('.')) {
+      val suffix = unqualifiedName(name)
+      if (isOperatorName(suffix))
+        suffix + "_" + s.take(s.length - suffix.length - 1)
+      else
+        s
+    }
+    else s
+  }
 
   def prettyBinding(name: Name, term: Term): PrettyPrint = term match {
     case Lam(names, body) =>
@@ -157,9 +175,9 @@ object PrettyPrint {
                prettyTerm(ifNonzero, 0).nest("  ")
     }
 
-    case Apply(VarOrBuiltin(name), List(arg1, arg2)) if isOperatorName(name) =>
+    case Apply(VarOrBuiltin(name), List(arg1, arg2)) if isOperatorName(unqualifiedName(name)) =>
        parenthesizeGroupIf(precedence > 5) {
-        prettyTerm(arg1, 5) <> " " <> name.toString <> softbreak <> prettyTerm(arg2, 6).nest("  ")
+        prettyTerm(arg1, 5) <> " " <> infixName(name) <> softbreak <> prettyTerm(arg2, 6).nest("  ")
     }
     case Apply(f, args) => parenthesizeGroupIf(precedence > 9) {
       prettyTerm(f, 9) <> softbreak <>
@@ -201,9 +219,5 @@ object PrettyPrint {
       case _ => None
     }
   }
-
-  def isOperatorName(name: Name): Boolean =
-    name.toString.forall(c => !c.isLetterOrDigit && !c.isControl && !c.isSpaceChar && !c.isWhitespace)
-
 }
 

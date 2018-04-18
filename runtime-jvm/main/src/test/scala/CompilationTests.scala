@@ -67,6 +67,14 @@ object CompilationTests {
       }
       ok
     },
+    test("fib-pretty-print") { implicit T =>
+      import org.unisonweb.util.PrettyPrint
+      note("pretty-printed fib implementation", includeAlways = true)
+      note(PrettyPrint.prettyTerm(fib).render(40), includeAlways = true)
+      note("pretty-printed fib implementation in ANF", includeAlways = true)
+      note(PrettyPrint.prettyTerm(Term.ANF(fib)).render(40), includeAlways = true)
+      ok
+    },
     test("fib-ANF") { implicit T =>
       val fibANF = Term.ANF(fib)
       0 to 20 foreach { n =>
