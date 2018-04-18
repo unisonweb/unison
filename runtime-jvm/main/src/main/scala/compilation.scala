@@ -75,7 +75,11 @@ object compilation {
 
   case object SelfCall extends Throwable { override def fillInStackTrace = this }
   case object TailCall extends Throwable { override def fillInStackTrace = this }
-
+  case class Requested(id: Id,
+                       constructor: ConstructorId,
+                       args: Array[Value],
+                       continuation: Lambda) extends Throwable
+  { override def fillInStackTrace = this }
 
   case class Result(
     var boxed: Value = null,
@@ -810,13 +814,25 @@ object compilation {
 
       case Term.Let1(name, b, body) =>
         val cb = compile(builtins)(b, env, currentRec, recVars, IsNotTail)
+        val cc = compile(builtins)(
+          Term.Lam(name)(body), env, currentRec, recVars, isTail)
         val cbody = compile(builtins)(body, name +: env, currentRec.shadow(name),
           recVars - name, isTail)
         val push = compilation.push(env, Term.freeVars(body)).push1
         (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
-          val rb = eval(cb, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          val rb = try
+              // eval the binding
+              eval(cb, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+            catch { case Requested(effect, ctor, args, k) =>
+              // eval the current continuation
+              eval(cc, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+              // Rethrow with composite continuation
+              throw Requested(effect, ctor, args,
+                              r.boxed.asInstanceOf[Lambda].compose(k))
+            }
           val rbb = r.boxed
           push(top, stackU, stackB, x1, x1b)
+          // Call the body
           cbody(r, rec, top.inc, stackU, x0, rb, stackB, x0b, rbb)
         }
       // todo: Let2, etc.

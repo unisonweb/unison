@@ -2,6 +2,7 @@ package org.unisonweb
 
 import org.unisonweb.Term.{Name, Term}
 import org.unisonweb.compilation._
+import Term.Syntax._
 
 sealed abstract class Param {
   def toValue: Value
@@ -44,7 +45,7 @@ object Value {
   abstract class Lambda(
     final val arity: Int,
     final val body: Computation,
-    val decompile: Term) extends Value {
+    val decompile: Term) extends Value { self =>
 
     def names: List[Name]
     def toComputation = Return(this)
@@ -53,6 +54,18 @@ object Value {
                     stackU: Array[U], x1: U, x0: U,
                     stackB: Array[B], x1b: B, x0b: B): U =
       body(r, this, top, stackU, x1, x0, stackB, x1b, x0b)
+
+    def compose(f: Lambda): Lambda = {
+      assert(arity == 1)
+      val k: Computation = (r, rec, top, stackU, x1, x0, stackB, x1b, x0b) => {
+        val v = evalLam(f,r,top,stackU,x1,x0,stackB,x1b,x0b)
+        val vb = r.boxed
+        self(r,top,stackU,U0,v,stackB,null,vb)
+      }
+      val composed =
+        Term.Lam('f, 'g, 'x)('f.v('g.v('x)))(self.decompile, f.decompile)
+      new Lambda(f.arity, k, composed) { val names = f.names }
+    }
 
     def toResult(r: Result) = { r.boxed = this; U0 }
 

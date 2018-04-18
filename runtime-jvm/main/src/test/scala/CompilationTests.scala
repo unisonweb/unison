@@ -3,6 +3,7 @@ package org.unisonweb
 import Term._
 import compilation._
 import Pattern._
+import Term.Syntax._
 
 object CompilationTests {
   import EasyTest._

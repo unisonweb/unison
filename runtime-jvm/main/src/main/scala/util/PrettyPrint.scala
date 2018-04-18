@@ -6,6 +6,7 @@ import java.lang.Long.toUnsignedString
 
 import org.unisonweb.{Term, U0, UnboxedType}
 import org.unisonweb.Term.{Id => _, _}
+import Term.Syntax._
 import org.unisonweb.Id
 
 sealed abstract class PrettyPrint {

@@ -375,24 +375,28 @@ object Term {
     }
   }
 
-  implicit class ApplySyntax(val fn: Term) extends AnyVal {
-    def apply(args: Term*) = Apply(fn, args: _*)
-  }
+  object Syntax {
 
-  implicit def bool(b: Boolean): Term = Unboxed(boolToUnboxed(b), UnboxedType.Boolean)
-  implicit def number(n: Long): Term = Unboxed(n, UnboxedType.Integer)
-  implicit def number(n: Int): Term = Unboxed(n, UnboxedType.Integer)
-  implicit def double(n: Double): Term =
-    Unboxed(doubleToRawLongBits(n), UnboxedType.Float)
-  implicit def stringAsText(s: String): Term = Text(util.Text.fromString(s))
-  implicit def nameAsVar(s: Name): Term = Var(s)
-  implicit def symbolAsVar(s: Symbol): Term = Var(s.name)
-  implicit def symbolAsName(s: Symbol): Name = s.name
-  implicit class symbolSyntax(s: Symbol) {
-    def v: Term = Var(s.name)
-    def b: Term = Id(s.name)
-  }
+    implicit class ApplySyntax(val fn: Term) extends AnyVal {
+      def apply(args: Term*) = Apply(fn, args: _*)
+    }
 
-  implicit def stringKeyToNameTerm[A <% Term](kv: (String, A)): (Name, Term) = (kv._1, kv._2)
-  implicit def symbolKeyToNameTerm[A <% Term](kv: (Symbol, A)): (Name, Term) = (kv._1, kv._2)
+    implicit def bool(b: Boolean): Term = Unboxed(boolToUnboxed(b), UnboxedType.Boolean)
+    implicit def number(n: Long): Term = Unboxed(n, UnboxedType.Integer)
+    implicit def number(n: Int): Term = Unboxed(n, UnboxedType.Integer)
+    implicit def double(n: Double): Term =
+      Unboxed(doubleToRawLongBits(n), UnboxedType.Float)
+    implicit def stringAsText(s: String): Term = Text(util.Text.fromString(s))
+    implicit def nameAsVar(s: Name): Term = Var(s)
+    implicit def symbolAsVar(s: Symbol): Term = Var(s.name)
+    implicit def symbolAsName(s: Symbol): Name = s.name
+    implicit class symbolSyntax(s: Symbol) {
+      def v: Term = Var(s.name)
+      def b: Term = Id(s.name)
+    }
+
+    implicit def stringKeyToNameTerm[A <% Term](kv: (String, A)): (Name, Term) = (kv._1, kv._2)
+    implicit def symbolKeyToNameTerm[A <% Term](kv: (Symbol, A)): (Name, Term) = (kv._1, kv._2)
+  }
 }
+
