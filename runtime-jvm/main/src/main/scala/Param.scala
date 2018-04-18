@@ -36,7 +36,7 @@ object Value {
   case class Unboxed(n: U, typ: UnboxedType) extends Value {
     def decompile = Term.Unboxed(n, typ)
     def toResult(r: Result) =  {
-//      r.boxed = typ // todo: can we elide this?
+      r.boxed = typ
       n
     }
   }

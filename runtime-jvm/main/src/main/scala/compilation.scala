@@ -270,6 +270,10 @@ object compilation {
         cbody(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
       }
       case 1 => (s,sb,r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+        // When cpattern binds arguments,
+        //  it pushes r.x1/x0 to the array as needed.
+        // ...seeing as how it doesn't have x1/x0 for some reason that
+        //    made sense at the time maybe.
         r.x1 = x1
         r.x1b = x1b
         cpattern(s,sb,r,stackU,stackB,top)
