@@ -297,6 +297,18 @@ object CompilationTests {
           Match(Terms.tupleTerm(intTupleV(3, 4), intTupleV(5, 6)))(c1, c2))
         equal(eval(p), v)
       },
+      test("fall through data pattern") { implicit T =>
+        /* let x = 42; case (2,4) of (x,y) -> x+y; x -> x + 4 */
+        val v: Term = 6
+        val c1 = MatchCase(Pattern.Left(Wildcard), ABT.Abs('x, 'x))
+        val c2 = MatchCase(Pattern.Right(Wildcard), ABT.Abs('x, 'x))
+        val p = Match(intRightTerm(6))(c1, c2)
+        println("---p---")
+        println(util.PrettyPrint.prettyTerm(p).render(20))
+        println("---eval(p)---")
+        println(util.PrettyPrint.prettyTerm(eval(p)).render(20))
+        equal(eval(p), v)
+      },
       test("as pattern") { implicit T =>
         /* case 3 of x@(y) -> x + y */
         val v: Term = 6
@@ -449,11 +461,16 @@ object Terms {
     Term.Compiled(tupleV(xs :_*))
 
   def tupleV(xs: Value*): Value =
-    Value.Data(Hash(null), ConstructorId(0), xs.toArray)
+    Value.Data(Id.Builtin("Tuple"), ConstructorId(0), xs.toArray)
 
   def intTupleTerm(xs: Int*): Term =
     Term.Compiled(intTupleV(xs: _*))
 
+  def intRightTerm(i: Int): Term =
+    Term.Compiled(intRightV(i))
+
+  def intRightV(i: Int): Value =
+    Value.Data(Id.Builtin("Either"), ConstructorId(1), Array(intValue(i)))
   def intTupleV(xs: Int*): Value =
     tupleV(xs.map(intValue): _*)
 

@@ -1,11 +1,12 @@
-package org.unisonweb.util
+package org.unisonweb
+package util
 
 import java.lang.Double.longBitsToDouble
 import java.lang.Long.toUnsignedString
 
 import org.unisonweb.{Term, U0, UnboxedType}
-import org.unisonweb.Id.{Builtin, HashRef}
-import org.unisonweb.Term._
+import org.unisonweb.Term.{Id => _, _}
+import org.unisonweb.Id
 
 sealed abstract class PrettyPrint {
   import PrettyPrint._
@@ -105,6 +106,40 @@ object PrettyPrint {
     case _ => name.toString <> " = " <> prettyTerm(term, 0)
   }
 
+  def prettyCase(c: MatchCase[Term.Term]): PrettyPrint = c match {
+    case MatchCase(p, guard, ABT.AbsChain(names, body)) =>
+      // <p> "|" guard -> <body>
+      group(group(prettyPattern(p, names, 0) <>
+              guard.fold[PrettyPrint]("")(g => " | " <> prettyTerm(g, 0))) <>
+        " ->" <> softbreak <> prettyTerm(body, precedence = 0).nest("  "))
+  }
+
+  def prettyId(typeId: Id, ctorId: ConstructorId): PrettyPrint = typeId match {
+    case Id.Builtin(name) => prettyName(name) <> s"<${ctorId.toInt}>"
+    case Id.HashRef(h) => "#" <> h.bytes.map(b => b.formatted("%02x")).toList.mkString
+  }
+
+  def prettyPattern(p: Pattern, names: List[Name], precedence: Int): PrettyPrint = p match {
+    case Pattern.LiteralU(u, typ) =>
+      prettyTerm(Term.Unboxed(u, typ), 0)
+    case Pattern.Wildcard => prettyName(names.head)
+    case Pattern.Uncaptured => "_"
+    case Pattern.Data(typeId, ctorId, patterns) =>
+      parenthesizeGroupIf(precedence > 0) {
+        softbreaks(
+          prettyId(typeId, ctorId) +:
+            (patterns.foldLeft((Seq.empty[PrettyPrint], names)) {
+              case ((prettyPrints, names), pattern) =>
+                val (names1, names2) = names.splitAt(pattern.arity)
+                (prettyPrints :+ prettyPattern(pattern, names1, 9), names2)
+            })._1
+        )
+      }
+    case Pattern.As(p) =>
+      prettyName(names.head) <> "@" <> prettyPattern(p, names.tail, 9)
+    case other => other.toString
+  }
+
   def prettyTerm(t: Term): PrettyPrint = prettyTerm(Term.selfToLetRec(t), 0)
 
   private def prettyTerm(t: Term, precedence: Int): PrettyPrint = t match {
@@ -131,8 +166,8 @@ object PrettyPrint {
         softbreaks(args.map(arg => prettyTerm(arg, 10).nest("  ")))
     }
     case Var(name) => prettyName(name)
-    case Id(Builtin(name)) => prettyName(name)
-    case Id(HashRef(hash)) => ???
+    case Term.Id(Id.Builtin(name)) => prettyName(name)
+    case Term.Id(Id.HashRef(hash)) => ???
     case Self(name) =>
       sys.error("Self terms shouldn't exist after calling `Term.selfToLetRec`, which we do before calling this function.")
     case Lam(names, body) => parenthesizeGroupIf(precedence > 0) {
@@ -149,6 +184,12 @@ object PrettyPrint {
         semicolons(bindings.map((prettyBinding _).tupled)).nest("  ") <> semicolon <>
         prettyTerm(body, 0).nest("  ")
     }
+    case Match(scrutinee, cases) => parenthesizeGroupIf(precedence > 0) {
+      "case " <> prettyTerm(scrutinee, 0) <> " of" <> softbreak <>
+        semicolons(cases.map(prettyCase)).nest("  ")
+    }
+    case Term.Compiled(Value.Data(typeId, ctorId, fields)) =>
+      prettyTerm(Var(prettyId(typeId, ctorId).renderUnbroken)(fields.map(_.decompile):_*), precedence)
     case t => t.toString
   }
 
@@ -156,7 +197,7 @@ object PrettyPrint {
   object VarOrBuiltin {
     def unapply(term: Term): Option[Name] = term match {
       case Var(name) => Some(name)
-      case Id(Builtin(name)) => Some(name)
+      case Term.Id(Id.Builtin(name)) => Some(name)
       case _ => None
     }
   }

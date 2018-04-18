@@ -108,9 +108,9 @@ object Value {
     }
   }
 
-  case class Data(typeId: Hash, constructorId: ConstructorId, fields: Array[Value])
+  case class Data(typeId: Id, constructorId: ConstructorId, fields: Array[Value])
     extends Value {
-    def decompile: Term = Term.Id(Hash.constructorId(typeId, constructorId))
+    def decompile: Term = Term.Id(typeId)(fields.map(_.decompile): _*)
     def toResult(r: R): U = { r.boxed = this; U0 }
   }
 
