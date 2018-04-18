@@ -378,6 +378,10 @@ object CompilationTests {
         equal(eval(p), v)
       },
     ),
+    test("nested applies") { implicit T =>
+      val p = Apply(Apply(triangle, 10), 0)
+      equal(eval(p), eval(triangle(10, 0)))
+    },
     //suite("algebraic-effects")(
     //  test("ex1") { implicit T =>
     //    /*
