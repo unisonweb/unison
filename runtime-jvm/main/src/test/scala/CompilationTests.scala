@@ -410,6 +410,13 @@ object CompilationTests {
       val p = Apply(Apply(triangle, 10), 0)
       equal(eval(p), eval(triangle(10, 0)))
     },
+
+    test("partially applied dynamic call") { implicit T =>
+      val p = Let('f -> Lam('g)('g.v(1)),
+                  'g -> Lam('a, 'b)('a.v + 'b))('f.v('g)(2))
+      equal[Term](eval(p), 3)
+    },
+
     //suite("algebraic-effects")(
     //  test("ex1") { implicit T =>
     //    /*
