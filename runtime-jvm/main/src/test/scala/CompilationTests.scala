@@ -116,6 +116,13 @@ object CompilationTests {
         }
       equal(eval(nestedInvokeDynamic), 10:Term)
     },
+    test("countDown") { implicit T =>
+      val p = LetRec(
+        'countDown ->
+          Lam('n)(If('n.v, 'countDown.v('n.v-1), 42))
+      )('countDown.v(10))
+      equal[Term](eval(p), 42)
+    },
     test("overapply") { implicit T =>
       equal(eval(id(id, id, 10:Term)), 10:Term)
     },

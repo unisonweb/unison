@@ -385,17 +385,6 @@ object compilation {
                                stackB, x1b, x0b)
     }
 
-  def compileStaticFullySaturatedTailCall(lam: Lambda, compiledArgs: List[Computation]): Computation =
-    compiledArgs match {
-      case List(arg) => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
-        doTailCall(lam, arg, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
-      case List(arg1, arg2) => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
-        doTailCall(lam, arg1, arg2, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
-      case args =>
-        val argsArray = args.toArray
-        (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
-          doTailCall(lam, argsArray, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
-    }
 
   def compileFullySaturatedSelfTailCall(compiledArgs: List[Computation]): Computation =
     compiledArgs match {
@@ -934,12 +923,16 @@ object compilation {
               // static tail call, fully saturated
               //   (x -> x+4) 42
               //   ^^^^^^^^^^^^^
-              if (isTail && needsTailCall(fn)) compileStaticFullySaturatedTailCall(lam, compiledArgs)
+
+              // static fully staturated tail calls deemed too slow/unnecessary
+              // if (isTail && needsTailCall(fn))
+              //   compileStaticFullySaturatedTailCall(lam, compiledArgs)
+              // else /* see below */
 
               // static non-tail call, fully saturated
               //   ex: let x = (x -> x + 1) 1; x
               //               ^^^^^^^^^^^^^^
-              else lam.saturatedNonTailCall(compiledArgs)
+              lam.saturatedNonTailCall(compiledArgs)
 
             // static call, underapplied (no tail call variant - just returning immediately)
             //   ex: (x y -> x) 42

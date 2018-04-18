@@ -359,8 +359,8 @@ object Term {
     }
   }
   object If {
-    def apply(cond: Term, isNot0: Term, is0: Term): Term =
-      Tm(If_(cond, isNot0, is0))
+    def apply(cond: Term, t: Term, f: Term): Term =
+      Tm(If_(cond, t, f))
     def unapply[A](t: AnnotatedTerm[F,A]): Option[(AnnotatedTerm[F,A],AnnotatedTerm[F,A],AnnotatedTerm[F,A])] = t match {
       case Tm(If_(cond, t, f)) => Some((cond, t, f))
       case _ => None
