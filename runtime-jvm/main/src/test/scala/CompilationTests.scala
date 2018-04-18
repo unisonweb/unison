@@ -427,6 +427,16 @@ object CompilationTests {
       equal[Term](eval(fib2(10, 2)), scalaFib(10))
     },
 
+    test("fully applied self non-tail call with K+1 args") { implicit T =>
+      val fib2: Term =
+        LetRec('fib ->
+                 Lam('n, 'm, 'o)(If('n.v < 'm,
+                                 If('n.v < 'o, 'o, 'n),
+                                'fib.v('n.v - 1, 'm, 'o) + 'fib.v('n.v - 2, 'm, 'o)))
+              )('fib)
+      equal[Term](eval(fib2(10, 2, -1)), scalaFib(10))
+    },
+
     //suite("algebraic-effects")(
     //  test("ex1") { implicit T =>
     //    /*
