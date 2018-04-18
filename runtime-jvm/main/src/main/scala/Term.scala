@@ -49,13 +49,13 @@ object Term {
             case ABT.Var(_) => (bindings, arg :: args)
             case lam @ Lam(_, _) /* if freeVars(lam).isEmpty */ => (bindings, arg :: args)
             case arg =>
-              val freshName = freshen(Name(s"_arg$i"), arg)
+              val freshName = freshen(Name(s"arg$i"), arg)
               ((freshName, arg) :: bindings, Var(freshName) :: args)
           }
         }
       Let(bindings2: _*)(Apply(f, args2: _*))
     case Apply(f, args) =>
-      val freshName = freshen(Name("_f"), f)
+      val freshName = freshen(Name("f"), f)
       Let(freshName -> f)(ANF(Apply(Var(freshName), args: _*)))
     case ABT.Tm(other) => ABT.Tm(F.instance.map(other)(ANF))
   }
@@ -73,16 +73,20 @@ object Term {
     val t2 = t.rewriteDown {
       case Term.Self(name) => Term.Var(name)
       case t => t
-    }.annotateFree.rewriteUp {
-      case t@Lam(names, body) => Term.freeVars(t).toList match {
-        case Nil => t
-        case rec :: Nil => LetRec(rec -> t)(t)
-        case recs => t // this can happen if `t` has already been fullyDecompile'd
-      }
-      case t => t
     }.annotateFree
-    assert (Term.freeVars(t2).isEmpty)
-    t2
+    if (Term.freeVars(t2).isEmpty) t2 // no self references
+    else {
+      t2.rewriteUp {
+        case t@Lam(names, body) => Term.freeVars(t).toList match {
+          case Nil => t
+          case rec :: Nil => LetRec(rec -> t)(t)
+          case recs => t // this can happen if `t` has already been fullyDecompile'd
+        }
+        case t => t
+      }.annotateFree
+      assert (Term.freeVars(t2).isEmpty)
+      t2
+    }
   }
 
   /**
