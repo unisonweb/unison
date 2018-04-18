@@ -440,6 +440,17 @@ object CompilationTests {
     test("let within body of tailrec function") { implicit T =>
       val ant: Term = Term.ANF(triangle)
       equal[Term](eval(triangle(10, 0)), (1 to 10).sum)
+    },
+
+    test("letrec within body of tailrec function") { implicit T =>
+      val trianglePrime =
+        LetRec('triangle ->
+                 Lam('n, 'acc)(
+                     If(LetRec('foo -> 'n.v)('foo),
+                        'triangle.v('n.v - 1, 'acc.v + 'n),
+                        'acc.v)),
+                     )('triangle)
+      equal[Term](eval(trianglePrime(10, 0)), (1 to 10).sum)
     }
 
     //suite("algebraic-effects")(
