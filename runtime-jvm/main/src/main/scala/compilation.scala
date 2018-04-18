@@ -119,9 +119,16 @@ object compilation {
       def apply(r: R, x0: U): U
       final def apply(r: R, x1: U, x0: U): U = apply(r, x0)
     }
-    abstract class C0 extends C1U {
+    abstract class C0U extends C1U {
       def apply(r: R): U
       final def apply(r: R, x0: U): U = apply(r)
+    }
+    abstract class C0 extends Computation {
+      def apply(r: R): U
+      final def apply(r: R, rec: Lambda, top: StackPtr,
+                      stackU: Array[U], x1: U, x0: U,
+                      stackB: Array[B], x1b: B, x0b: B): U =
+        apply(r)
     }
   }
 
@@ -155,7 +162,9 @@ object compilation {
   }
 
   // todo: maybe opportunities for more expressive matching by breaking this into sub-cases
-  abstract class Return(val value: Value) extends Computation.C0
+  abstract class Return(val value: Value) extends Computation.C0 {
+    override def toString = s"Return($value)"
+  }
 
   object Return {
     def apply(v: Value): Computation = v match {
@@ -175,6 +184,7 @@ object compilation {
   def compileUnboxed(n: U, t: UnboxedType): Computation =
     new Return(Value.Unboxed(n, t)) {
       def apply(r: R): U = returnUnboxed(r, n, t)
+      override def toString = s"UnboxedComputation($n, $t)"
     }
 
   /**
@@ -701,7 +711,6 @@ object compilation {
             else {
               val evaluatedVar = lookup(rec, top, stackB, x1b, x0b)
               if (evaluatedVar eq null) sys.error(name + " refers to null stack slot.")
-              require(evaluatedVar.isRef)
               Term.Compiled(evaluatedVar)
             }
         }
@@ -757,7 +766,7 @@ object compilation {
       case Term.Id(Id.Builtin(name)) => builtins(name)
       case Term.Id(Id.HashRef(h)) => ???
       case Term.Compiled(param) =>
-        if (param.toValue eq null)
+        if (param.toValue eq null) // todo: make this C0?
           (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => param.toValue.toResult(r)
         else Return(param.toValue)
       case Term.Self(name) => new Self(name)
@@ -1015,11 +1024,14 @@ object compilation {
               val top2 = top.incBy(2)
               val r1v = eval(cbinding1, r, rec, top2,
                              stackU, U0, U0, stackB, r1, r0)
-              r1.value = Value(r1v, r.boxed)
+              val r1vb = r.boxed
+              r1.value = Value(r1v, r1vb)
+
               val r0v = eval(cbinding0, r, rec, top2,
-                             stackU, U0, U0, stackB, r1, r0)
-              r0.value = Value(r0v, r.boxed)
-              cbody(r, rec, top2, stackU, U0, U0, stackB, r1, r0)
+                             stackU, r1v, x0 = U0, stackB, r1vb, x0b = r0)
+              val r0vb = r.boxed
+              r0.value = Value(r0v, r0vb)
+              cbody(r, rec, top2, stackU, r1v, r0v, stackB, r1vb, r0vb)
             }
           case cbindings =>
             val push = compilation.push(env, Term.freeVars(e)).push2
@@ -1058,18 +1070,38 @@ object compilation {
               //    a. Put last K Refs in registers, evaluate
               //    b. Set the Ref to the result of evaluating the binding
               @inline @annotation.tailrec
-              def evalBindings(i: Int): Unit = {
-                if (i < cbindings.length) {
+              def evalAllButLastKBindings(i: Int): Unit = {
+                if (i < cbindings.length - K) {
                   val v = eval(cbindings(i), r, rec, topN,
                                stackU, U0, U0, stackB, brx1, brx0)
-                  bindingResults(i).value = Value(v, r.boxed)
-                  evalBindings(i+1)
+                  val vb = r.boxed
+                  bindingResults(i).value = Value(v, vb)
+                  // mutate the stack to dereference what is currently a Ref
+                  // in that position - this ensures that later bindings that
+                  // reference this variable get a proper value rather than
+                  // a Ref
+                  top2.pushU(stackU, i, v)
+                  top2.pushB(stackB, i, vb)
+                  evalAllButLastKBindings(i+1)
                 }
               }
-              evalBindings(0)
+              evalAllButLastKBindings(0)
+
+              // eval last K bindings
+              val b1v = eval(cbindings(cbindings.length-2), r, rec, topN,
+                             stackU, U0, U0,
+                             stackB, brx1, brx0)
+              val b1vb = r.boxed
+              brx1.value = Value(b1v, b1vb)
+              // each successive binding can use one more v/vb pair instead of a ref
+              val b0v = eval(cbindings(cbindings.length-1), r, rec, topN,
+                             stackU, b1v /* <- */, U0,
+                             stackB, b1vb/* <- */, brx0)
+              val b0vb = r.boxed
+              brx0.value = Value(b0v, b0vb)
 
               // 5. Evaluate body in the same way
-              cbody(r, rec, topN, stackU, U0, U0, stackB, brx1, brx0)
+              cbody(r, rec, topN, stackU, b1v, b0v, stackB, b1vb, b0vb)
             }
         }
     }

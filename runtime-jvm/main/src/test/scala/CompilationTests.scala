@@ -129,39 +129,60 @@ object CompilationTests {
     },
     test("let rec example 1") { implicit T =>
       val ex = LetRec(
-        'x -> 1,
-        'y -> 10,
-        'y2 -> 100,
-        'z -> 1000
-      )('x.v + 'y + 'y2 + 'z)
+        'a -> 1,
+        'b -> 10,
+        'x -> 100,
+        'y -> 1000
+      )('a.v + 'b + 'x + 'y)
       equal(eval(ex), 1111: Term)
     },
     test("let rec example 2") { implicit T =>
       val ex = LetRec(
-        'x -> 1,
-        'y -> 10,
-        'y2 -> 100,
-        'z -> 1000
-      )('x.v + 'y2 + 'z)
+        'a -> 1,
+        'b -> 10,
+        'x -> 100,
+        'y -> 1000
+      )('a.v + 'x + 'y)
       equal(eval(ex), 1101: Term)
     },
     test("let rec example 3") { implicit T =>
       val ex = LetRec(
-        'x -> 1,
-        'y -> 10,
-        'y2 -> 100,
-        'z -> 1000
-      )('y.v + 'y2 + 'z)
+        'a -> 1,
+        'b -> 10,
+        'x -> 100,
+        'y -> 1000
+      )('b.v + 'x + 'y)
       equal(eval(ex), 1110: Term)
     },
     test("let rec example 4") { implicit T =>
       val ex = LetRec(
-        'x -> 1,
-        'y -> 10,
-        'y2 -> 'x.v * 100,
-        'z -> 1000
-      )('y2.v)
-      equal(eval(ex), 100: Term)
+        'a -> 1,
+        'b -> 10,
+        'x -> 100,
+        'y -> 1000
+      )('x.v + 'y)
+      equal(eval(ex), 1100: Term)
+    },
+    {
+      def ex(t: Term) =
+        Let('a -> 1, 'b -> 10)(LetRec(
+          'x -> 100, 'y -> 1000
+        )(t))
+
+      suite("let/letrec")(
+        test("abxy") { implicit T =>
+          equal(eval(ex('a.v + 'b + 'x + 'y)), 1111: Term)
+        },
+        test("axy") { implicit T =>
+          equal(eval(ex('a.v + 'x + 'y)), 1101: Term)
+        },
+        test("bxy") { implicit T =>
+          equal(eval(ex('b.v + 'x + 'y)), 1110: Term)
+        },
+        test("xy") { implicit T =>
+          equal(eval(ex('x.v + 'y)), 1100: Term)
+        }
+      )
     },
     test("mutual non-tail recursion") { implicit T =>
       0 to 20 foreach { n =>
