@@ -384,10 +384,7 @@ object Builtins {
 
   object Decompile {
     implicit val decompileSequence: Decompile[Sequence[Value]] =
-      // todo decompile to sequence literals once available
-      s => s.foldLeft(termFor(Sequence_empty)) {
-        (term, v) => Term.Apply(termFor(Sequence_snoc), term, v.decompile)
-      }
+      s => Term.Sequence(s map (_.decompile))
     implicit val decompileText: Decompile[Text] =
       Term.Text(_)
   }

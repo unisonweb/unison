@@ -762,6 +762,17 @@ package object compilation {
         if (param.toValue eq null) // todo: make this C0?
           (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => param.toValue.toResult(r)
         else Return(param.toValue)
+      case Term.Sequence(s) =>
+        val cs = s.map(compile(builtins)(_, env, currentRec, recVars, IsNotTail))
+        (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+          val cv: util.Sequence[Value] = cs.map { c =>
+            val cv = c(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
+            val cvb = r.boxed
+            Value(cv, cvb)
+          }
+          r.boxed = Builtins.External(cv)
+          U0
+        }
       case Term.Self(name) => new Self(name)
       case Term.Var(name) => compileVar(e, name, env, currentRec)
       case Term.If(cond, t, f) =>
