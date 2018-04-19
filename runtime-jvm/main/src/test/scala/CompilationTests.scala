@@ -3,6 +3,7 @@ package org.unisonweb
 import Term._
 import compilation._
 import Pattern._
+import Term.Syntax._
 
 object CompilationTests {
   import EasyTest._
@@ -15,14 +16,23 @@ object CompilationTests {
     test("zero") { implicit T =>
       equal(eval(zero), zero)
     },
+    test("one") { implicit T =>
+      equal(eval(one), one)
+    },
     test("id") { implicit T =>
-      equal(eval(id(zero)), zero)
+      equal(eval(id(one)), one)
+    },
+    test("const") { implicit T =>
+      equal(eval(const(one, 2)), one)
     },
     test("1 + 1 = 2") { implicit T =>
       equal(eval(onePlusOne), 2:Term)
     },
     test("1 + 2 = 3") { implicit T =>
       equal(eval((1:Term) + (2:Term)), 3:Term)
+    },
+    test("sum4(1,2,3,4)") { implicit T =>
+      equal(eval(sum4(1,10,100,1000)), (1+10+100+1000):Term)
     },
     test("partially apply") { implicit T =>
       equal(eval(const(zero)), Lam('y)(zero))
@@ -51,6 +61,12 @@ object CompilationTests {
         'x1.v * 'x2 * 'x3 * 'x4 * 'x5 * 'x6 * 'x7
       )), 510510:Term)
     },
+    test("dynamic non-tail call with K args") { implicit T =>
+      equal(eval(Let('x -> const)('x.v(one, 2) + one)), 2:Term)
+    },
+    test("dynamic non-tail call with K+n args") { implicit T =>
+      equal(eval(Let('x -> sum4)('x.v(one, 2, 3, 4) + one)), 11:Term)
+    },
     test("if") { implicit T =>
       equal1(eval(If(one, one, zero + one + one)), one)
       equal1(eval(If(one - one, one, zero + one + one)), 2:Term)
@@ -58,10 +74,24 @@ object CompilationTests {
       equal1(eval(If(one < zero, one, zero + one + one)), 2:Term)
       ok
     },
-
     test("fib") { implicit T =>
       0 to 20 foreach { n =>
         equal1(eval(fib(n:Term)), scalaFib(n):Term)
+      }
+      ok
+    },
+    test("fib-pretty-print") { implicit T =>
+      import org.unisonweb.util.PrettyPrint
+      note("pretty-printed fib implementation", includeAlways = true)
+      note(PrettyPrint.prettyTerm(fib).render(40), includeAlways = true)
+      note("pretty-printed fib implementation in ANF", includeAlways = true)
+      note(PrettyPrint.prettyTerm(Term.ANF(fib)).render(40), includeAlways = true)
+      ok
+    },
+    test("fib-ANF") { implicit T =>
+      val fibANF = Term.ANF(fib)
+      0 to 20 foreach { n =>
+        equal1(eval(fibANF(n:Term)), scalaFib(n):Term)
       }
       ok
     },
@@ -71,8 +101,14 @@ object CompilationTests {
       ok
     },
     test("triangle") { implicit T =>
-      0 to 50 foreach { n =>
+      10 to 10 foreach { n =>
         equal1(eval(triangle(n:Term, zero)), (0 to n).sum:Term)
+      }
+      ok
+    },
+    test("triangle4arg") { implicit T =>
+      10 to 50 foreach { n =>
+        equal1(eval(triangle4arg(n:Term, zero, zero, zero)), (0 to n).sum:Term)
       }
       ok
     },
@@ -93,11 +129,80 @@ object CompilationTests {
         }
       equal(eval(nestedInvokeDynamic), 10:Term)
     },
+    test("countDown") { implicit T =>
+      val p = LetRec(
+        'countDown ->
+          Lam('n)(If('n.v, 'countDown.v('n.v-1), 42))
+      )('countDown.v(10))
+      equal[Term](eval(p), 42)
+    },
     test("overapply") { implicit T =>
       equal(eval(id(id, id, 10:Term)), 10:Term)
     },
     test("shadow") { implicit T =>
       equal(eval(LetRec('fib -> Lam('fib)('fib.v + 1))('fib.v(41))), 42:Term)
+    },
+    test("shadow2") { implicit T =>
+      val fib = LetRec('fib -> Lam('fib)('fib.v + 1))('fib.v(41))
+      val fibNested = LetRec('fib -> (1: Term))(fib)
+      equal(eval(fibNested), 42:Term)
+    },
+    test("let rec example 1") { implicit T =>
+      val ex = LetRec(
+        'a -> 1,
+        'b -> 10,
+        'x -> 100,
+        'y -> 1000
+      )('a.v + 'b + 'x + 'y)
+      equal(eval(ex), 1111: Term)
+    },
+    test("let rec example 2") { implicit T =>
+      val ex = LetRec(
+        'a -> 1,
+        'b -> 10,
+        'x -> 100,
+        'y -> 1000
+      )('a.v + 'x + 'y)
+      equal(eval(ex), 1101: Term)
+    },
+    test("let rec example 3") { implicit T =>
+      val ex = LetRec(
+        'a -> 1,
+        'b -> 10,
+        'x -> 100,
+        'y -> 1000
+      )('b.v + 'x + 'y)
+      equal(eval(ex), 1110: Term)
+    },
+    test("let rec example 4") { implicit T =>
+      val ex = LetRec(
+        'a -> 1,
+        'b -> 10,
+        'x -> 100,
+        'y -> 1000
+      )('x.v + 'y)
+      equal(eval(ex), 1100: Term)
+    },
+    {
+      def ex(t: Term) =
+        Let('a -> 1, 'b -> 10)(LetRec(
+          'x -> 100, 'y -> 1000
+        )(t))
+
+      suite("let/letrec")(
+        test("abxy") { implicit T =>
+          equal(eval(ex('a.v + 'b + 'x + 'y)), 1111: Term)
+        },
+        test("axy") { implicit T =>
+          equal(eval(ex('a.v + 'x + 'y)), 1101: Term)
+        },
+        test("bxy") { implicit T =>
+          equal(eval(ex('b.v + 'x + 'y)), 1110: Term)
+        },
+        test("xy") { implicit T =>
+          equal(eval(ex('x.v + 'y)), 1100: Term)
+        }
+      )
     },
     test("mutual non-tail recursion") { implicit T =>
       0 to 20 foreach { n =>
@@ -157,7 +262,7 @@ object CompilationTests {
         */
         val v: Term = 43
         val c = MatchCase(LiteralU(10, UnboxedType.Integer),
-                  Some(true:Term), 'x.v + 1)
+                          Some(true:Term), 'x.v + 1)
         val p = Let('x -> (42:Term))(Match(10)(c))
         equal(eval(p), v)
       },
@@ -187,7 +292,7 @@ object CompilationTests {
         */
         val v: Term = 44
         val c1 = MatchCase(LiteralU(10, UnboxedType.Integer),
-                   Some(false:Term), 'x.v + 1)
+                           Some(false:Term), 'x.v + 1)
         val c2 = MatchCase(Uncaptured, 'x.v + 2)
         val p = Let('x -> (42:Term))(Match(10)(c1, c2))
         equal(eval(p), v)
@@ -196,7 +301,7 @@ object CompilationTests {
         /* let x = 42; case 10 of 10 | false -> x+1; x -> x+4 */
         val v: Term = 14
         val c1 = MatchCase(LiteralU(10, UnboxedType.Integer),
-                   Some(false:Term), 'x.v + 1)
+                           Some(false:Term), 'x.v + 1)
         val c2 = MatchCase(Wildcard, ABT.Abs('x, 'x.v + 4))
         val p = Let('x -> (42:Term))(Match(10)(c1, c2))
         equal(eval(p), v)
@@ -240,6 +345,30 @@ object CompilationTests {
         val p = Let('x -> (42:Term))(
           Match(Terms.tupleTerm(intTupleV(3, 4), intTupleV(5, 6)))(c1, c2))
         equal(eval(p), v)
+      },
+      test("fall through data pattern") { implicit T =>
+        /* let x = 42; case (2,4) of (x,y) -> x+y; x -> x + 4 */
+        val v: Term = 6
+        val c1 = MatchCase(Pattern.Left(Wildcard), ABT.Abs('x, 'x))
+        val c2 = MatchCase(Pattern.Right(Wildcard), ABT.Abs('x, 'x))
+        val p = Match(intRightTerm(6))(c1, c2)
+        equal(eval(p), v)
+      },
+      test("fall through data pattern 2") { implicit T =>
+        /* let x = 42; case (2,4) of (x,y) -> x+y; x -> x + 4 */
+        val v: Term = 8
+        val c1 = MatchCase(Pattern.Left(Wildcard), ABT.Abs('x, 'x.v + 1))
+        val c2 = MatchCase(Pattern.Right(Wildcard), ABT.Abs('x, 'x.v + 2))
+        val p = Match(intRightTerm(6))(c1, c2)
+        equal(eval(p), v)
+      },
+      test("patterns that read the stack array") { implicit T =>
+        /* let x = 42; case (2,4) of (x,y) -> x+y; x -> x + 4 */
+        val c1 = MatchCase(Pattern.Left(Wildcard), ABT.Abs('x, 'x.v + 'a))
+        val c2 = MatchCase(Pattern.Right(Wildcard), ABT.Abs('x, 'x.v + 'a))
+        val p =
+          Let('a -> 1, 'b -> 10)(Match(intRightTerm(6))(c1, c2))
+        equal[Term](eval(p), 7)
       },
       test("as pattern") { implicit T =>
         /* case 3 of x@(y) -> x + y */
@@ -289,7 +418,104 @@ object CompilationTests {
         val p = Match(1)(c, c2)
         equal(eval(p), v)
       },
-      )
+    ),
+    test("nested applies") { implicit T =>
+      val p = Apply(Apply(triangle, 10), 0)
+      equal(eval(p), eval(triangle(10, 0)))
+    },
+
+    test("partially applied dynamic call") { implicit T =>
+      val p = Let('f -> Lam('g)('g.v(1)),
+                  'g -> Lam('a, 'b)('a.v + 'b))('f.v('g)(2))
+      equal[Term](eval(p), 3)
+    },
+
+    test("fully applied self non-tail call with K args") { implicit T =>
+      val fib2: Term =
+        LetRec('fib ->
+                 Lam('n, 'm)(If('n.v < 'm,
+                                'n,
+                                'fib.v('n.v - 1, 'm) + 'fib.v('n.v - 2, 'm)))
+              )('fib)
+      equal[Term](eval(fib2(10, 2)), scalaFib(10))
+    },
+
+    test("fully applied self non-tail call with K+1 args") { implicit T =>
+      val fib2: Term =
+        LetRec('fib ->
+                 Lam('n, 'm, 'o)(If('n.v < 'm,
+                                 If('n.v < 'o, 'o, 'n),
+                                'fib.v('n.v - 1, 'm, 'o) + 'fib.v('n.v - 2, 'm, 'o)))
+              )('fib)
+      equal[Term](eval(fib2(10, 2, -1)), scalaFib(10))
+    },
+
+    test("let within body of tailrec function") { implicit T =>
+      val ant: Term = Term.ANF(triangle)
+      equal[Term](eval(triangle(10, 0)), (1 to 10).sum)
+    },
+
+    test("letrec within body of tailrec function") { implicit T =>
+      val trianglePrime =
+        LetRec('triangle ->
+                 Lam('n, 'acc)(
+                     If('n.v > 0,
+                       LetRec('n2 -> ('n.v - 1), 'acc2 -> ('acc.v + 'n))(
+                              'triangle.v('n2, 'acc2)),
+                        'acc.v))
+                     )('triangle)
+      equal[Term](eval(trianglePrime(10, 0)), (1 to 10).sum)
+    },
+
+    test("lambda with non-recursive free variables") { implicit T =>
+      equal(eval(Let('x -> 1, 'inc -> Lam('y)('x.v + 'y))('inc.v(one))), 2:Term)
+    },
+
+    //suite("algebraic-effects")(
+    //  test("ex1") { implicit T =>
+    //    /*
+    //      let
+    //        state : s -> <State s> a -> a
+    //        state s <a> = a
+    //        state s <get -> k> = handle (state s) (k s)
+    //        state _ <put s -> k> = handle (state s) (k ())
+
+    //        handle (state 0)
+    //          x = State.get + 1
+    //          y = State.set (x + 1)
+    //          State.get + 11
+    //     */
+    //    val p = LetRec(
+    //      ('state, Lam('s, 'action) {
+    //        Match('action)(
+    //          // state s <a> = a
+    //          MatchCase(Pattern.EffectPure(Pattern.Wildcard),
+    //                    ABT.Abs('a, 'a)),
+
+    //          // state s <get -> k> = handle (state s) (k s)
+    //          MatchCase(Pattern.EffectBind(Id.Builtin("State"),
+    //                                       ConstructorId(0),
+    //                                       Nil),
+    //                    ABT.Abs('k, Handle('state.v('s))('k.v('s)))),
+
+    //          // state _ <put s -> k> = handle (state s) (k ())
+    //          MatchCase(Pattern.EffectBind(Id.Builtin("State"),
+    //                                       ConstructorId(1),
+    //                                       List(Pattern.Wildcard)),
+    //                    ABT.AbsChain('s, 'k)(Handle('state.v('s))('k.v(-1))))
+    //        )
+    //      })
+    //    ) {
+    //      Handle('state.v(0)) {
+    //        Let(
+    //          ('x, Request(Id.Builtin("State"), ConstructorId(0), Nil) + 1),
+    //          ('y, Request(Id.Builtin("State"), ConstructorId(1), List('x.v + 1)))
+    //        )(Request(Id.Builtin("State"), ConstructorId(0), Nil) + 11)
+    //      }
+    //    }
+    //    equal[Term](eval(p), 13)
+    //  }
+    //)
   )
 }
 
@@ -307,6 +533,8 @@ object Terms {
 
   val ap: Term = Lam('f,'x)('f.v('x))
 
+  val sum4: Term = Lam('a,'b,'c,'d)('a.v + 'b + 'c + 'd)
+
   val fib: Term =
     LetRec('fib ->
              Lam('n)(If('n.v < 2, 'n, 'fib.v('n.v - 1) + 'fib.v('n.v - 2))))('fib)
@@ -323,8 +551,16 @@ object Terms {
   val triangle =
     LetRec('triangle ->
              Lam('n, 'acc)(
-               If('n.v,
+               If('n.v > 0,
                   'triangle.v('n.v - 1, 'acc.v + 'n),
+                  'acc.v))
+    )('triangle)
+
+  val triangle4arg =
+    LetRec('triangle ->
+             Lam('n, 'hahaha, 'hehehe, 'acc)(
+               If('n.v > 0,
+                  'triangle.v('n.v - 1, 'hahaha, 'hehehe, 'acc.v + 'n),
                   'acc.v))
     )('triangle)
 
@@ -338,11 +574,16 @@ object Terms {
     Term.Compiled(tupleV(xs :_*))
 
   def tupleV(xs: Value*): Value =
-    Value.Data(Hash(null), ConstructorId(0), xs.toArray)
+    Value.Data(Id.Builtin("Tuple"), ConstructorId(0), xs.toArray)
 
   def intTupleTerm(xs: Int*): Term =
     Term.Compiled(intTupleV(xs: _*))
 
+  def intRightTerm(i: Int): Term =
+    Term.Compiled(intRightV(i))
+
+  def intRightV(i: Int): Value =
+    Value.Data(Id.Builtin("Either"), ConstructorId(1), Array(intValue(i)))
   def intTupleV(xs: Int*): Value =
     tupleV(xs.map(intValue): _*)
 

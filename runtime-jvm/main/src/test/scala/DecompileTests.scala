@@ -1,9 +1,8 @@
 package org.unisonweb
 
-import org.unisonweb.ABT.Name._
 import org.unisonweb.EasyTest._
-import org.unisonweb.Term.number
 import org.unisonweb.util.PrettyPrint
+import Term.Syntax._
 
 object DecompileTests {
   val tests = suite("decompile") (

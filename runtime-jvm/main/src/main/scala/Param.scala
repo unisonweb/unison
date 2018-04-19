@@ -2,6 +2,7 @@ package org.unisonweb
 
 import org.unisonweb.Term.{Name, Term}
 import org.unisonweb.compilation._
+import Term.Syntax._
 
 sealed abstract class Param {
   def toValue: Value
@@ -27,7 +28,7 @@ abstract class Value extends Param {
   @inline def toBoxed: Value = this
   /** true boxed values will return U0 */
   @inline def toUnboxed: U = U0
-  def writeResult(r: Result): U = { r.boxed = toBoxed; toUnboxed }
+  def toResult(r: Result): U = { r.boxed = toBoxed; toUnboxed }
 }
 
 object Value {
@@ -50,16 +51,12 @@ object Value {
     final override def toUnboxed: U = n
 
     def decompile = Term.Unboxed(n, typ)
-    def toResult(r: Result) =  {
-//      r.boxed = typ // todo: can we elide this?
-      n
-    }
   }
 
   abstract class Lambda(
     final val arity: Int,
     final val body: Computation,
-    val decompile: Term) extends Value {
+    val decompile: Term) extends Value { self =>
 
     def names: List[Name]
     def toComputation = Return(this)
@@ -69,7 +66,18 @@ object Value {
                     stackB: Array[B], x1b: B, x0b: B): U =
       body(r, this, top, stackU, x1, x0, stackB, x1b, x0b)
 
-    def toResult(r: Result) = { r.boxed = this; U0 }
+    def compose(f: Lambda): Lambda = {
+      assert(arity == 1)
+      val k: Computation = (r, rec, top, stackU, x1, x0, stackB, x1b, x0b) => {
+        val v = evalLam(f,r,top,stackU,x1,x0,stackB,x1b,x0b)
+        val vb = r.boxed
+        self(r,top,stackU,U0,v,stackB,null,vb)
+      }
+      val compose = Term.Lam('f, 'g, 'x)('f.v('g.v('x)))
+      new Lambda(f.arity, k, compose(self.decompile, f.decompile)) {
+        val names = f.names
+      }
+    }
 
     def saturatedNonTailCall(args: List[Computation]): Computation =
       compileStaticFullySaturatedNontailCall(this, args)
@@ -125,17 +133,16 @@ object Value {
     }
   }
 
-  case class Data(typeId: Hash, constructorId: ConstructorId, fields: Array[Value])
+  case class Data(typeId: Id, constructorId: ConstructorId, fields: Array[Value])
     extends Value {
-    def decompile: Term = Term.Hashref(Hash.constructorId(typeId, constructorId))
-    def toResult(r: R): U = { r.boxed = this; U0 }
+    def decompile: Term = Term.Id(typeId)(fields.map(_.decompile): _*)
   }
 
 }
 
 sealed abstract class UnboxedType extends Value {
   def decompile = sys.error("Don't decompile a type.")
-  def toResult(r: R) = sys.error("A type is not a result.")
+  override def toResult(r: R) = sys.error("A type is not a result.")
   override def isType = true
 }
 

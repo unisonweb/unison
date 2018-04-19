@@ -76,6 +76,8 @@ object StreamTests {
       )
     },
     test("foldLeft-scala-plus-long") { implicit T =>
+      val plusU = UnisonToScala.toUnboxed2(Builtins.Integer_add)
+      val env = (new Array[U](20), new Array[B](20), StackPtr.empty, Result())
       equal(
         Stream.from(0).take(10000).foldLeft(0l)(LL_L(_ + _)),
         (0 until 10000).sum
@@ -96,7 +98,7 @@ object StreamTests {
     },
     test("foldLeft-unison-plus") { implicit T =>
       val plusU = UnisonToScala.toUnboxed2(Builtins.Integer_add)
-      val env = (new Array[U](20), new Array[B](20), new StackPtr(0), Result())
+      val env = (new Array[U](20), new Array[B](20), StackPtr.empty, Result())
       equal(
         Stream.fromUnison(0).take(10000).foldLeft(Value(0))(plusU(env)),
         Value((0 until 10000).sum)

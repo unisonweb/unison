@@ -15,7 +15,7 @@ object CompilationBenchmarks {
   val stackB = new Array[B](1024)
   val stackU = new Array[U](1024)
   val r = Result()
-  val top = new StackPtr(-1)
+  val top = StackPtr.empty
 
   def runTerm(t: Term): Value.Lambda =
     run(compileTop(Builtins.builtins)(t)).asInstanceOf[Value.Lambda]
@@ -66,7 +66,7 @@ object CompilationBenchmarks {
       {
         val plusU = UnisonToScala.toUnboxed2(Builtins.Integer_add)
 
-        val env = (new Array[U](20), new Array[B](20), new StackPtr(0), Result())
+        val env = (new Array[U](20), new Array[B](20), StackPtr.empty, Result())
         profile("triangle stream .foldLeft(plusU)") {
           Stream.fromUnison(0).take(N(triangleCount))
             .foldLeft(Value(0))(plusU(env)) match {
