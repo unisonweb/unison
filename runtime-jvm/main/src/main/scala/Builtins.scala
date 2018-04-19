@@ -12,6 +12,13 @@ import org.unisonweb.util.Text
 /* Sketch of convenience functions for constructing builtin functions. */
 object Builtins {
 
+  // Stream.empty : Stream a
+//  val Stream_empty: (Name, Computation) =
+//    c0("Stream.empty", Stream.empty[Value])
+
+  // Stream.map : Stream a -> (a -> b) -> Stream b
+
+
   // Sequence.empty : Sequence a
   val Sequence_empty: (Name, Computation) =
     c0("Sequence.empty", Sequence.empty[Value])
@@ -36,6 +43,10 @@ object Builtins {
   def c0[A:Decompile](name: String, a: => A)
                      (implicit A: Encode[A]): (Name, Computation) =
     (name, (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => A.encode(r, a))
+
+//  def c0[A:NoDecompile](name: String, a: => A)
+//            (implicit A: Encode[A]): (Name, Computation) =
+//    (name, (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => A.encode(r, a))
 
   def termFor(b: (Name, Computation)): Term = Term.Builtin(b._1)
   def termFor(b: (Name, UnboxedType, Computation)): Term = Term.Builtin(b._1)
@@ -381,11 +392,12 @@ object Builtins {
   /** Encode a scala type `A` in `Result => U` form. */
   trait Encode[-A] { def encode(r: Result, a: A): U }
   object Encode {
-    implicit def encodeExternal[A:Decompile]: Encode[A] =
+    implicit def encodeDecompilableExternal[A:Decompile]: Encode[A] =
       (r, a) => {
         r.boxed = External(a)
         U0
       }
+
     implicit val encodeLong: Encode[Long] =
       (r, a) => { r.boxed = UnboxedType.Integer; a }
     implicit val encodeInt: Encode[Int] =
@@ -405,6 +417,8 @@ object Builtins {
     implicit val decompileText: Decompile[Text] =
       Term.Text(_)
   }
+
+//  trait NoDecompile[A] { }
 
   abstract class External(val get: Any) extends Value {
     def toResult(r: R) = { r.boxed = this; U0 }

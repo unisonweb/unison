@@ -149,20 +149,33 @@ object Stream {
   @inline def getUnboxed[B](u: U, b: B) = u
   @inline def getBoxed[B](u: U, b: B) = b
 
-  sealed abstract class Extract[Native, Boxed] {
-    val extract: FUP_P[Boxed,Native]
-    def toBoxed(c: Native): Boxed
-    def toUnboxed(c: Native): U
+  sealed abstract class Extract[A, B] {
+    val extract: FUP_P[B,A]
+    def toBoxed(a: A): B
+    def toUnboxed(a: A): U
   }
   object Extract {
+    implicit val foo: Extract[Param, Value] =
+      new Extract[Param, Value] {
+        override val extract: FUP_P[Value, B] =
+          (u,b) => Value.fromParam(u, b)
+
+        override def toBoxed(a: B): Value = a match {
+          case Value.Unboxed(_, typ) => typ
+          case v => v.toValue
+        }
+
+        override def toUnboxed(a: B): U = a match {
+          case Value.Unboxed(n, _) => n
+          case _ => U0
+        }
+      }
+
     implicit val extractValue: Extract[Value, Value] =
       new Extract[Value, Value] {
 
         val extract =
-          (u,a) => a match {
-            case typ: UnboxedType => Value(u, typ)
-            case v => v
-          }
+          (u,a) => Value(u, a)
 
         def toBoxed(c: Value): Value = c match {
           case Value.Unboxed(n, typ) => typ
@@ -173,6 +186,13 @@ object Stream {
           case Value.Unboxed(n, _) => n
           case v => U0
         }
+      }
+
+    implicit val extractDoubleU: Extract[Double, Value] =
+      new Extract[Double, Value] {
+        val extract: FUP_P[Value, Double] = (u,_) => unboxedToDouble(u)
+        def toBoxed(a: Double): Value = UnboxedType.Float
+        def toUnboxed(a: Double): U = doubleToUnboxed(a)
       }
 
     implicit val extractDouble: Extract[Double, Unboxed[Double]] =

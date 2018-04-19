@@ -16,14 +16,18 @@ object Param {
 }
 
 final class Ref(val name: Name, var value: Value) extends Param {
-  def toValue = value
+  final def toValue = value
   override def isRef = true
 }
 
 abstract class Value extends Param {
   final def toValue = this
   def decompile: Term
-  def toResult(r: Result): U
+  /** Unboxed values will return an UnboxedType */
+  @inline def toBoxed: Value = this
+  /** true boxed values will return U0 */
+  @inline def toUnboxed: U = U0
+  def writeResult(r: Result): U = { r.boxed = toBoxed; toUnboxed }
 }
 
 object Value {
@@ -38,6 +42,13 @@ object Value {
   def apply(b: Boolean): Value = Value.Unboxed(boolToUnboxed(b), UnboxedType.Boolean)
 
   case class Unboxed(n: U, typ: UnboxedType) extends Value {
+
+    /** Unboxed values will return an UnboxedType */
+    final override def toBoxed: Value = typ
+
+    /** true boxed values will return U0 */
+    final override def toUnboxed: U = n
+
     def decompile = Term.Unboxed(n, typ)
     def toResult(r: Result) =  {
 //      r.boxed = typ // todo: can we elide this?
@@ -78,6 +89,8 @@ object Value {
       }
   }
   object Lambda {
+    final def toValue = this
+
     def apply(arity: Int, body: Computation, decompile: Term) =
       new Lambda(arity, body, decompile) {
         val names = decompile match { case Term.Lam(names, _) => names }
