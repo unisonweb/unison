@@ -65,8 +65,8 @@ object Builtins {
                      (implicit A: Encode[A]): (Name, Computation.C0) =
     (name, r => A.encode(r, a))
 
-  def c0l[A:NoDecompile](name: String, a: => A): (Name, Computation.C0) =
-    (name, r => lazyEncode(r, a, name))
+  def c0l[A](name: String, a: => A)(implicit A: LazyEncode[A]): (Name, Computation.C0) =
+    (name, r => A.encodeOp(r, a, name))
 
   def termFor(b: (Name, Computation)): Term = Term.Id(b._1)
   def termFor(b: (Name, UnboxedType, Computation)): Term = Term.Id(b._1)
@@ -246,10 +246,11 @@ object Builtins {
     name -> computation
   }
 
-  def fp_l[A,B:NoDecompile](name: Name, arg: Name, f: A => B)
-                           (implicit A: Decode[A]): (Name, Computation) = {
-    val body: Computation.C1P = (r,x0,x0b) =>
-      lazyEncode(r, f(A.decode(x0,x0b)), name, Value.fromParam(x0,x0b))
+  def fp_l[A,B](name: Name, arg: Name, f: A => B)
+               (implicit A: Decode[A], B: LazyEncode[B]): (Name, Computation) = {
+    val body: Computation.C1P = (r,x0,x0b) => {
+      B.encodeOp(r, f(A.decode(x0, x0b)), name, Value.fromParam(x0, x0b))
+    }
     val lambda = new Lambda.Lambda1(arg, body, None, Term.Id(name))
     name -> Return(lambda)
   }
@@ -269,12 +270,15 @@ object Builtins {
   def fpp_l[A,B,C](name: Name, arg1: String, arg2: String, f: (A,B) => C)
                   (implicit A: Decode[A],
                    B: Decode[B],
-                   C: NoDecompile[C]): (Name, Computation) = {
+                   C: LazyEncode[C]): (Name, Computation) = {
     val body: Computation.C2P =
-      (r,x1,x0,x1b,x0b) =>
-        lazyEncode(r, f(A.decode(x1, x1b), B.decode(x0, x0b)), name,
-                   Value.fromParam(x1,x1b),
-                   Value.fromParam(x0,x0b))
+      (r,x1,x0,x1b,x0b) => {
+        val a = A.decode(x1, x1b)
+        val b = B.decode(x0, x0b)
+        C.encodeOp(r, f(a, b), name,
+                   Value.fromParam(x1, x1b),
+                   Value.fromParam(x0, x0b))
+      }
     val decompiled = Term.Id(name)
     val lambda = new Lambda.ClosureForming2(arg1, arg2, body, None, decompiled)
     name -> Return(lambda)
@@ -291,10 +295,11 @@ object Builtins {
     name -> Return(lambda)
   }
 
-  def fup_l[A,B:NoDecompile](name: Name, arg1: Name, arg2: Name, f: FUP_P[A,B])
-                (implicit A: Decode[A]): (Name, Computation) = {
+  def fup_l[A,B](name: Name, arg1: Name, arg2: Name, f: FUP_P[A,B])
+                (implicit A: Decode[A],
+                          B: LazyEncode[B]): (Name, Computation) = {
     val body: Computation.C2P = (r,x1,x0,x1b,x0b) =>
-      lazyEncode(r, f(x1, A.decode(x0, x0b)), name,
+      B.encodeOp(r, f(x1, A.decode(x0, x0b)), name,
                  Value.fromParam(x1, x1b),
                  Value.fromParam(x0, x0b))
 
@@ -428,13 +433,14 @@ object Builtins {
   }
   trait LowPriorityDecode {
     implicit def decodeAssumeExternal[A]: Decode[A] =
-      (_, b) => b.toValue.asInstanceOf[External].get.asInstanceOf[A]
+      (_, b) =>
+        b.toValue.asInstanceOf[External].get.asInstanceOf[A]
   }
 
   /** Encode a scala type `A` in `Result => U` form. */
   trait Encode[-A] { def encode(r: Result, a: A): U }
   object Encode {
-    implicit def encodeDecompilableExternal[A:Decompile]: Encode[A] =
+    implicit def encodeExternalDirect[A:Decompile]: Encode[A] =
       (r, a) => {
         r.boxed = External(a)
         U0
@@ -448,10 +454,15 @@ object Builtins {
       (r, a) => { r.boxed = UnboxedType.Float; doubleToUnboxed(a) }
   }
 
-  final class NoDecompile[A] private()
-  object NoDecompile {
-    implicit val noDecompileStreamBoxed: NoDecompile[Stream[Value]] = null
-    implicit val noDecompileStreamUnboxed: NoDecompile[Stream[UnboxedType]] = null
+  trait LazyEncode[-A] {
+    def encodeOp(r: Result, fnResult: A, fn: Name, args: Value*): U
+  }
+  object LazyEncode {
+    implicit def encodeExternalLazy[A]: LazyEncode[A] =
+      (r, a, fn, args) => {
+        r.boxed = External(a, Term.Apply(Term.Id(fn), args.map(_.decompile): _*))
+        U0
+      }
   }
 
   trait Decompile[A] { def decompile(a: A): Term }
@@ -467,23 +478,11 @@ object Builtins {
       p => BuiltinTypes.Tuple.term(A.decompile(p._1), B.decompile(p._2))
   }
 
-  def lazyEncode[A:NoDecompile](r: Result, a: A, fn: Name, args: Value*): U = {
-    r.boxed = External(a, Term.Apply(Term.Id(fn),
-                                     args.map(Term.Compiled.apply): _*))
-    U0
-  }
-
-  sealed abstract class Extract[A, B] {
-    val extract: FUP_P[B,A]
-    def toBoxed(a: A): B
-    def toUnboxed(a: A): U
-  }
-
   abstract class External(val get: Any) extends Value
   object External {
     def apply[A](value: A, decompiled: Term): Value =
       new External(value) { def decompile = decompiled }
-    def apply[A](value: A)(implicit A: Decompile[A]) =
+    def apply[A](value: A)(implicit A: Decompile[A]): Value =
       new External(value) {
         def decompile: Term = A.decompile(value)
       }
