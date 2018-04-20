@@ -10,6 +10,7 @@ object CompilationBenchmarks {
   import QuickProfile.{profile, suite}
 
   def N(n: Int): Int = math.random.ceil.toInt * n
+  val env = Environment(Builtins.builtins, _ => ???, BuiltinTypes.dataConstructors)
 
   val stackB = new Array[B](1024)
   val stackU = new Array[U](1024)
@@ -17,7 +18,7 @@ object CompilationBenchmarks {
   val top = StackPtr.empty
 
   def runTerm(t: Term): Value.Lambda =
-    run(compileTop(Builtins.builtins)(t)).asInstanceOf[Value.Lambda]
+    run(compileTop(env)(t)).asInstanceOf[Value.Lambda]
 
   val triangleCount = 100000
 

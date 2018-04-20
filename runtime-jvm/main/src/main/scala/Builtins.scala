@@ -191,7 +191,7 @@ object Builtins {
     val decompiled = Term.Id(name)
     val lambda = new Lambda(1, body, decompiled) {
       def names: List[Name] = List(arg)
-      override def underapply(builtins: Name => Computation)(
+      override def underapply(builtins: Environment)(
                               argCount: Arity, substs: Map[Name, Term]): Lambda =
         sys.error("a lambda with arity 1 cannot be underapplied")
     }
@@ -325,7 +325,7 @@ object Builtins {
           f.applyAsLong(x1v, x0v)
         }
       }
-      override def underapply(builtins: Name => Computation)
+      override def underapply(builtins: Environment)
                              (argCount: Int, substs: Map[Name, Term]): Lambda =
         substs.toList match {
           case List((_,term)) => term match {
@@ -387,6 +387,10 @@ object Builtins {
       s => Term.Sequence(s map (_.decompile))
     implicit val decompileText: Decompile[Text] =
       Term.Text(_)
+    implicit val decompileUnit: Decompile[Unit] =
+      u => BuiltinTypes.Unit.term
+    implicit def decompilePair[A,B](implicit A: Decompile[A], B: Decompile[B]): Decompile[(A,B)] =
+      p => BuiltinTypes.Tuple.term(A.decompile(p._1), B.decompile(p._2))
   }
 
   abstract class External(val get: Any) extends Value {
