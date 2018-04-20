@@ -1,10 +1,10 @@
 package org.unisonweb
 
-import Term._
-import compilation._
-import Pattern._
-import Term.Syntax._
-import Builtins.termFor
+import org.unisonweb.Builtins.termFor
+import org.unisonweb.Pattern._
+import org.unisonweb.Term.Syntax._
+import org.unisonweb.Term._
+import org.unisonweb.compilation._
 
 object CompilationTests {
   import EasyTest._
@@ -482,6 +482,10 @@ object CompilationTests {
       test("decompile-cons") { implicit T =>
         equal[Term](eval(termFor(Builtins.Stream_cons)(1, termFor(Builtins.Stream_empty))),
                     termFor(Builtins.Stream_cons)(1, termFor(Builtins.Stream_empty)))
+      },
+      test("drop-undoes-cons") { implicit T =>
+        equal[Term](eval(termFor(Builtins.Stream_drop)(1, termFor(Builtins.Stream_cons)(1, termFor(Builtins.Stream_empty)))),
+                    termFor(Builtins.Stream_empty))
       }
     ),
 

@@ -19,12 +19,16 @@ object Builtins {
 
   // Stream.fromInt : Integer -> Stream Integer
   val Stream_fromInt = // Stream.iterate(unison 0)(Integer_inc)
-    fp_l("Stream.fromInt", "n", (_: Value) => (??? : Stream[Value]))
+    fp_l("Stream.fromInt", "n", Stream.fromUnison)
 
   // Stream.cons : a -> Stream a -> Stream a
   val Stream_cons =
     fpp_l("Stream.cons", "v", "stream",
           (v: Value, stream: Stream[Value]) => v :: stream)
+
+  val Stream_drop =
+    fup_l("Stream.drop", "n", "stream",
+          (n: Long, s: Stream[Value]) => s.drop(n))
 
   // Stream.map : Stream a -> (a -> b) -> Stream b
   //  val Stream_map = fpp_p("Stream.map", "stream", "f", (s: Stream[Value], b: Value) => ???)
@@ -32,7 +36,8 @@ object Builtins {
   val streamBuiltins = Map(
     Stream_empty,
     Stream_fromInt,
-    Stream_cons
+    Stream_cons,
+    Stream_drop,
   )
 
   // Sequence.empty : Sequence a
@@ -409,7 +414,7 @@ object Builtins {
   }
 
   trait Decode[+T] { def decode(u: U, b: B): T }
-  object Decode extends Decode0 {
+  object Decode extends LowPriorityDecode {
     implicit val decodeValue: Decode[Value] = (u, v) => Value.fromParam(u, v)
     implicit val decodeLong: Decode[Long] = (u,_) => u
     implicit val decodeDouble: Decode[Double] = (u,_) => unboxedToDouble(u)
@@ -421,7 +426,7 @@ object Builtins {
 //    implicit val decodeLambda: Decode[Lambda] =
 //      (_, b) => b.toValue.asInstanceOf[Lambda]
   }
-  trait Decode0 {
+  trait LowPriorityDecode {
     implicit def decodeAssumeExternal[A]: Decode[A] =
       (_, b) => b.toValue.asInstanceOf[External].get.asInstanceOf[A]
   }
@@ -445,7 +450,8 @@ object Builtins {
 
   final class NoDecompile[A] private()
   object NoDecompile {
-    implicit val nodecompileStream: NoDecompile[Stream[Value]] = null
+    implicit val noDecompileStreamBoxed: NoDecompile[Stream[Value]] = null
+    implicit val noDecompileStreamUnboxed: NoDecompile[Stream[UnboxedType]] = null
   }
 
   trait Decompile[A] { def decompile(a: A): Term }
@@ -482,7 +488,6 @@ object Builtins {
         def decompile: Term = A.decompile(value)
       }
   }
-
 }
 
 
