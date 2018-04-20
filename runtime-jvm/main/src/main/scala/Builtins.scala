@@ -249,7 +249,7 @@ object Builtins {
     name -> Return(lambda)
   }
 
-  def fpp_p[A,B,C](name: String, arg1: String, arg2: String, f: (A,B) => C)
+  def fpp_p[A,B,C](name: Name, arg1: String, arg2: String, f: (A,B) => C)
                   (implicit A: Decode[A],
                             B: Decode[B],
                             C: Encode[C]): (Name, Computation) = {
@@ -261,7 +261,7 @@ object Builtins {
     name -> Return(lambda)
   }
 
-  def fpp_l[A,B,C](name: String, arg1: String, arg2: String, f: (A,B) => C)
+  def fpp_l[A,B,C](name: Name, arg1: String, arg2: String, f: (A,B) => C)
                   (implicit A: Decode[A],
                    B: Decode[B],
                    C: NoDecompile[C]): (Name, Computation) = {
@@ -300,7 +300,7 @@ object Builtins {
 
   abstract class FPP_U[A,B] { def apply(a: A, b: B): U }
 
-  def fpp_u[A,B,C](name: String, arg1: String, arg2: String,
+  def fpp_u[A,B,C](name: Name, arg1: String, arg2: String,
                    outputType: UnboxedType, f: FPP_U[A,B])
                   (implicit A: Decode[A],
                             B: Decode[B]): (Name, Computation) = {
@@ -315,8 +315,8 @@ object Builtins {
   }
 
   def fuu_u(name: Name,
-            n1: Name,
-            n2: Name,
+            arg1: Name,
+            arg2: Name,
             outputType: UnboxedType,
             f: LongBinaryOperator): (Name, Computation) = {
     val body: Computation.C2U = (r,x1,x0) => {
@@ -327,7 +327,7 @@ object Builtins {
     val decompiled = Term.Id(name)
 
     val lam = new Lambda(2, body, Some(outputType), decompiled) { self =>
-      def names = List(n1, n2)
+      def names = List(arg1, arg2)
       override def saturatedNonTailCall(args: List[Computation]) = args match {
         case List(Return(Value.Unboxed(n1, _)),
                   Return(Value.Unboxed(n2, _))) =>

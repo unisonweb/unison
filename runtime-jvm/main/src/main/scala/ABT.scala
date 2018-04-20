@@ -12,9 +12,7 @@ sealed abstract class ABT[F[+_],+R] {
 }
 
 object ABT {
-  case class Name(override val toString: String) extends AnyVal {
-    def +(i: Int) = Name(toString + i)
-  }
+  case class Name(override val toString: String) extends AnyVal
   object Name {
     implicit def stringToName(s: String): Name = Name(s)
     implicit def symbolToName(s: Symbol): Name = Name(s.name)
@@ -202,6 +200,6 @@ object ABT {
   def freshen(v: Name, taken: Set[Name]): Name =
     if (!taken.contains(v)) v
     else Stream.continually(v).zipWithIndex.map {
-      case (name,i) => name + i
+      case (name,i) => Name(name.toString + i)
     }.dropWhile(taken.contains).head
 }
