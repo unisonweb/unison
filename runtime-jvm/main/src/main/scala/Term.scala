@@ -109,6 +109,7 @@ object Term {
 
     def transitiveClosure(seen: Map[Ref,Term], cur: Term): Map[Ref,Term] = cur match {
       case Id(_) | Unboxed(_,_) | Var(_) | Text(_) => seen
+      case Sequence(tms) => tms.foldLeft(seen)(transitiveClosure _)
       case Apply(f, args) =>
         args.foldLeft(transitiveClosure(seen, f))(transitiveClosure _)
       case If(cond, t, f) =>
@@ -172,9 +173,11 @@ object Term {
 
     case class Lam_[R](body: R) extends F[R]
     case class Id_(id: Id) extends F[Nothing]
+    case class Constructor_(id: Id, constructorId: ConstructorId) extends F[Nothing]
     case class Apply_[R](fn: R, args: List[R]) extends F[R]
     case class Unboxed_(value: U, typ: UnboxedType) extends F[Nothing]
     case class Text_(txt: util.Text.Text) extends F[Nothing]
+    case class Sequence_[R](seq: util.Sequence[R]) extends F[R]
     case class LetRec_[R](bindings: List[R], body: R) extends F[R]
     case class Let_[R](binding: R, body: R) extends F[R]
     case class Rec_[R](r: R) extends F[R]
@@ -189,7 +192,7 @@ object Term {
 
     implicit val instance: Traverse[F] = new Traverse[F] {
       override def map[A,B](fa: F[A])(f: A => B): F[B] = fa match {
-        case fa @ (Id_(_) | Unboxed_(_,_) | Compiled_(_) | Self_(_) | Text_(_)) =>
+        case fa @ (Id_(_) | Unboxed_(_,_) | Compiled_(_) | Self_(_) | Text_(_) | Constructor_(_,_)) =>
           fa.asInstanceOf[F[B]]
         case Lam_(a) => Lam_(f(a))
         case Apply_(fn, args) =>
@@ -202,6 +205,8 @@ object Term {
           val b2 = f(b); val body2 = f(body)
           Let_(b2, body2)
         case Rec_(a) => Rec_(f(a))
+        case Sequence_(s) =>
+          Sequence_(s map f)
         case If_(c,a,b) =>
           val c2 = f(c); val a2 = f(a); val b2 = f(b)
           If_(c2, a2, b2)
@@ -268,6 +273,14 @@ object Term {
     }
   }
 
+  object Constructor {
+    def apply(id: Id, cid: ConstructorId): Term = Tm(Constructor_(id, cid))
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[(Id, ConstructorId)] = t match {
+      case Tm(Constructor_(id,cid)) => Some((id,cid))
+      case _ => None
+    }
+  }
+
   /** A reference to the currently executing lambda. */
   object Self {
     def apply(n: Name): Term = Tm(Self_(n))
@@ -291,6 +304,15 @@ object Term {
     def unapply[A](t: AnnotatedTerm[F,A]): Option[util.Text.Text] =
       t match {
         case Tm(Text_(txt)) => Some(txt)
+        case _ => None
+      }
+  }
+
+  object Sequence {
+    def apply(s: util.Sequence[Term]): Term = Tm(Sequence_(s))
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[util.Sequence[AnnotatedTerm[F,A]]] =
+      t match {
+        case Tm(Sequence_(s)) => Some(s)
         case _ => None
       }
   }

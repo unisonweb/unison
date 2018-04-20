@@ -84,7 +84,7 @@ object Value {
     def saturatedNonTailCall(args: List[Computation]): Computation =
       compileStaticFullySaturatedNontailCall(this, args)
 
-    def underapply(builtins: Name => Computation)(
+    def underapply(builtins: compilation.Environment)(
                    argCount: Int, substs: Map[Name, Term]): Value.Lambda =
       decompile match {
         case Term.Lam(names, body) =>
@@ -110,10 +110,11 @@ object Value {
       Some((l.arity, l.body, l.decompile))
 
     /** A `Lambda` of arity 1. */
+    // todo: delete this and ClosureForming2 later
     class Lambda1(decompiled: Term, arg1: Name, body: Computation)
       extends Lambda(1,body,decompiled) {
       val names = List(arg1)
-      override def underapply(builtins: Name => Computation)(
+      override def underapply(builtins: Environment)(
         argCount: Arity, substs: Map[Name, Term]): Lambda =
         sys.error("a lambda with arity 1 cannot be underapplied")
     }
@@ -122,10 +123,11 @@ object Value {
       * A `Lambda` of arity 2 that forms a closure when underapplied, rather
       * than specializing away the supplied argument.
       */
+    // todo: delete this and Lambda1 later
     class ClosureForming2(decompiled: Term, arg1: Name, arg2: Name, body: Computation)
       extends Lambda(2,body,decompiled) {
       val names = List(arg1,arg2)
-      override def underapply(builtins: Name => Computation)
+      override def underapply(builtins: Environment)
                              (argCount: Arity, substs: Map[Name, Term])
       : Lambda = {
         assert(argCount == 1)
@@ -134,14 +136,32 @@ object Value {
           val compiledArgv = compiledArg(r, rec, top, stackU, U0, U0, stackB, null, null)
           body(r, rec, top, stackU, compiledArgv, x0, stackB, r.boxed, x0b)
         }
-        new Lambda1(decompiled(substs(names.head)), names.head, body2)
+        new Lambda1(decompiled(substs(arg1)), arg1, body2)
+      }
+    }
+    abstract class ClosureForming(arity: Int, body: Computation, decompiled: Term,
+                                  args: Array[B]) extends Lambda(arity,body,decompiled) { self =>
+      val namesArray = names.toArray
+      override def underapply(builtins: compilation.Environment)(
+                              argCount: Int, substs: Map[Name, Term]): Value.Lambda = {
+        assert(arity >= 1)
+        val argsInOrder: Seq[Term] = (0 until argCount) map { i =>
+          substs(namesArray(i + args.length))
+        }
+        val newArgs = argsInOrder map {
+          case Term.Compiled(b) => b
+          case Term.Self(_) => self
+        }
+        new ClosureForming(arity-argCount, body, decompiled(argsInOrder: _*), args ++ newArgs) {
+          def names = self.names drop argCount
+        }
       }
     }
   }
 
   case class Data(typeId: Id, constructorId: ConstructorId, fields: Array[Value])
     extends Value {
-    def decompile: Term = Term.Id(typeId)(fields.map(_.decompile): _*)
+    def decompile: Term = Term.Constructor(typeId, constructorId)(fields.map(_.decompile): _*)
   }
 
 }

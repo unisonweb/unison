@@ -389,7 +389,7 @@ object Builtins {
           f.applyAsLong(x1v, x0v)
         }
       }
-      override def underapply(builtins: Name => Computation)
+      override def underapply(builtins: Environment)
                              (argCount: Int, substs: Map[Name, Term]): Lambda =
         substs.toList match {
           case List((_,term)) => term match {
@@ -456,12 +456,13 @@ object Builtins {
 
   object Decompile {
     implicit val decompileSequence: Decompile[Sequence[Value]] =
-      // todo decompile to sequence literals once available
-      s => s.foldLeft(termFor(Sequence_empty)) {
-        (term, v) => Term.Apply(termFor(Sequence_snoc), term, v.decompile)
-      }
+      s => Term.Sequence(s map (_.decompile))
     implicit val decompileText: Decompile[Text] =
       Term.Text(_)
+    implicit val decompileUnit: Decompile[Unit] =
+      u => BuiltinTypes.Unit.term
+    implicit def decompilePair[A,B](implicit A: Decompile[A], B: Decompile[B]): Decompile[(A,B)] =
+      p => BuiltinTypes.Tuple.term(A.decompile(p._1), B.decompile(p._2))
   }
 
   def lazyEncode[A:NoDecompile](r: Result, a: A, fn: Name, args: Value*): U = {

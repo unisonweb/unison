@@ -468,7 +468,7 @@ package object compilation {
                                  stackU, x1, x0, stackB, x1b, x0b)
     }
 
-  def compileUnderappliedCall(builtins: Name => Computation)(
+  def compileUnderappliedCall(builtins: Environment)(
     lam: Lambda, compiledArgs: Array[Computation]): Computation = {
 
     val names = lam.names.toArray
@@ -637,7 +637,7 @@ package object compilation {
   // - notice `f` has arity 1, and that the call is in tail position
   //    - issue tail call to `f`
   // - if `f` has arity > 1
-  def dynamicCall(builtins: Name => Computation)(
+  def dynamicCall(builtins: Environment)(
                   fn: Computation, args: List[Computation], isTail: Boolean): Computation = {
     val argsArray = args.toArray
     (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
@@ -679,7 +679,7 @@ package object compilation {
     }
   }
 
-  def compileLambda(builtins: Name => Computation)
+  def compileLambda(builtins: Environment)
                    (e: Term, env: Vector[Name],
                     currentRec: CurrentRec, recVars: RecursiveVars,
                     names: List[Name], body: Term): Computation = {
@@ -737,7 +737,7 @@ package object compilation {
     }
   }
 
-  def normalize(builtins: Name => Computation)(e: Term): Term = {
+  def normalize(builtins: Environment)(e: Term): Term = {
     val c = compileTop(builtins)(e)
     val v = run(c)
     val x = Term.etaNormalForm(v.decompile)
@@ -753,10 +753,16 @@ package object compilation {
   }
 
   /** Compile top-level term */
-  def compileTop(builtins: Name => Computation)(e: Term) =
+  def compileTop(builtins: Environment)(e: Term) =
     compile(builtins)(e, Vector(), CurrentRec.none, RecursiveVars.empty, IsTail)
 
-  def compile(builtins: Name => Computation)(
+  case class Environment(
+    builtins: Name => Computation,
+    userDefined: Hash => Computation,
+    dataConstructors: (Id,ConstructorId) => Computation
+  )
+
+  def compile(builtins: Environment)(
     e: Term,
     env: Vector[Name] = Vector.empty,
     currentRec: CurrentRec = CurrentRec.none,
@@ -766,12 +772,24 @@ package object compilation {
     e match {
       case Term.Unboxed(n,t) => compileUnboxed(n,t)
       case Term.Text(txt) => Return(Builtins.External(txt, e))
-      case Term.Id(Id.Builtin(name)) => builtins(name)
+      case Term.Id(Id.Builtin(name)) => builtins.builtins(name)
       case Term.Id(Id.HashRef(h)) => ???
+      case Term.Constructor(id,cid) => builtins.dataConstructors(id,cid)
       case Term.Compiled(param) =>
         if (param.toValue eq null) // todo: make this C0?
           (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => param.toValue.toResult(r)
         else Return(param.toValue)
+      case Term.Sequence(s) =>
+        val cs = s.map(compile(builtins)(_, env, currentRec, recVars, IsNotTail))
+        (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+          val cv: util.Sequence[Value] = cs.map { c =>
+            val cv = c(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
+            val cvb = r.boxed
+            Value(cv, cvb)
+          }
+          r.boxed = Builtins.External(cv)
+          U0
+        }
       case Term.Self(name) => new Self(name)
       case Term.Var(name) => compileVar(e, name, env, currentRec)
       case Term.If(cond, t, f) =>

@@ -10,8 +10,10 @@ object CompilationTests {
   import EasyTest._
   import Terms._
 
+  val env = Environment(Builtins.builtins, _ => ???, BuiltinTypes.dataConstructors)
+
   def eval(t: Term): Term =
-    normalize(Builtins.builtins)(t)
+    normalize(env)(t)
 
   val tests = suite("compilation")(
     test("zero") { implicit T =>
@@ -615,7 +617,7 @@ object Terms {
     import Builtins._
 
     def apply(terms: Term*): Term =
-      terms.foldLeft(empty)((seq, v) => snoc(seq, v))
+      Term.Sequence(util.Sequence(terms:_*))
 
     val empty = termFor(Sequence_empty)
     val cons = termFor(Sequence_cons)
