@@ -107,28 +107,32 @@ object Value {
     def unapply(l: Lambda): Option[(Int, Computation, Term)] =
       Some((l.arity, l.body, l.decompile))
 
+    /** A `Lambda` of arity 1. */
+    class Lambda1(decompiled: Term, arg1: Name, body: Computation)
+      extends Lambda(1,body,decompiled) {
+      val names = List(arg1)
+      override def underapply(builtins: Name => Computation)(
+        argCount: Arity, substs: Map[Name, Term]): Lambda =
+        sys.error("a lambda with arity 1 cannot be underapplied")
+    }
+
     /**
-     * A `Lambda` of arity 2 that forms a closure when underapplied, rather
-     * than specializing away the supplied argument.
-     */
+      * A `Lambda` of arity 2 that forms a closure when underapplied, rather
+      * than specializing away the supplied argument.
+      */
     class ClosureForming2(decompiled: Term, arg1: Name, arg2: Name, body: Computation)
       extends Lambda(2,body,decompiled) {
       val names = List(arg1,arg2)
       override def underapply(builtins: Name => Computation)
                              (argCount: Arity, substs: Map[Name, Term])
-                             : Lambda = {
+      : Lambda = {
         assert(argCount == 1)
         val compiledArg = compileTop(builtins)(substs(arg1))
         val body2: Computation = (r,rec,top,stackU,_,x0,stackB,_,x0b) => {
           val compiledArgv = compiledArg(r, rec, top, stackU, U0, U0, stackB, null, null)
           body(r, rec, top, stackU, compiledArgv, x0, stackB, r.boxed, x0b)
         }
-        new Lambda(2 - argCount, body2, decompiled(names.take(argCount).map(substs): _*)) {
-          def names: List[Name] = names.drop(argCount)
-
-          override def underapply(builtins: Name => Computation)(argCount: Arity, substs: Map[Name, Term]): Lambda =
-            sys.error("a lambda with arity 1 cannot be underapplied")
-        }
+        new Lambda1(decompiled(substs(names.head)), names.head, body2)
       }
     }
   }

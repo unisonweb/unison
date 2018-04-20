@@ -227,6 +227,9 @@ object Stream {
   case object Done extends Throwable { override def fillInStackTrace = this }
   // idea: case class More(s: Step) extends Throwable { override def fillInStackTrace = this }
 
+  final def empty[A]: Stream[A] =
+    k => () => throw Done
+
   final def constant(n: Long): Stream[Unboxed[Long]] =
     k => () => k(n, null)
 
@@ -237,10 +240,10 @@ object Stream {
       () => { i += 1; k(i,null) }
     }
 
-  final def from(n: Double): Stream[Unboxed[Double]] =
+  final def from(n: Double, by: Double): Stream[Unboxed[Double]] =
     k => {
-      var i: Double = n - 1
-      () => { i += 1; k(doubleToUnboxed(i),null) }
+      var i: Double = n - by
+      () => { i += by; k(doubleToUnboxed(i),null) }
     }
 
   final def fromUnison(n: Long): Stream[UnboxedType] =

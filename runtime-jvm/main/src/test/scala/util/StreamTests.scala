@@ -38,7 +38,7 @@ object StreamTests {
         (0 until 100).takeWhile(_ < 50).sum
       )
       equal(
-        Stream.from(0.0).take(100).takeWhile(D_B(_ < 50.0)).sumFloats,
+        Stream.from(0.0, by = 1.0).take(100).takeWhile(D_B(_ < 50.0)).sumFloats,
         (0.0 until 100.0 by 1.0).takeWhile(_ < 50.0).sum
       )
     },
@@ -85,14 +85,14 @@ object StreamTests {
     },
     test("foldLeft-scala-count-double") { implicit T =>
       equal(
-        Stream.from(0.0).take(10000).foldLeft(0l)(
+        Stream.from(0.0, by = 1.0).take(10000).foldLeft(0l)(
           LD_L((z, d) => if (d.toInt % 2 == 0) z else z + 1)),
         (0.0 until 10000 by 1.0).count(_.toInt % 2 == 0)
       )
     },
     test("foldLeft-scala-plus-double") { implicit T =>
       equal(
-        Stream.from(0.0).take(10000).foldLeft(0.0)(DD_D(_ + _)),
+        Stream.from(0.0, by = 1.0).take(10000).foldLeft(0.0)(DD_D(_ + _)),
         (0.0 until 10000 by 1.0).sum
       )
     },

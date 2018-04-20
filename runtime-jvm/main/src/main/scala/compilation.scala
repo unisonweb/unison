@@ -127,6 +127,16 @@ package object compilation {
       def apply(r: R): U
       final def apply(r: R, x0: U): U = apply(r)
     }
+    abstract class C2P extends Computation {
+      def apply(r: R, x1: U, x0: U, x1b: B, x0b: B): U
+      final def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U =
+        apply(r, x1, x0, x1b, x0b)
+    }
+    abstract class C1P extends Computation {
+      def apply(r: R, x0: U, x0b: B): U
+      final def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U =
+        apply(r, x0, x0b)
+    }
     abstract class C0 extends Computation {
       def apply(r: R): U
       final def apply(r: R, rec: Lambda, top: StackPtr,

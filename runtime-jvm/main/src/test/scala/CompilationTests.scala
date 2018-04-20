@@ -4,6 +4,7 @@ import Term._
 import compilation._
 import Pattern._
 import Term.Syntax._
+import Builtins.termFor
 
 object CompilationTests {
   import EasyTest._
@@ -470,6 +471,17 @@ object CompilationTests {
     test("lambda with non-recursive free variables") { implicit T =>
       equal(eval(Let('x -> 1, 'inc -> Lam('y)('x.v + 'y))('inc.v(one))), 2:Term)
     },
+
+    suite("stream")(
+      test("decompile-empty") { implicit T =>
+        equal[Term](eval(termFor(Builtins.Stream_empty)),
+                    termFor(Builtins.Stream_empty))
+      },
+      test("decompile-cons") { implicit T =>
+        equal[Term](eval(termFor(Builtins.Stream_cons)(1, termFor(Builtins.Stream_empty))),
+                    termFor(Builtins.Stream_cons)(1, termFor(Builtins.Stream_empty)))
+      }
+    ),
 
     //suite("algebraic-effects")(
     //  test("ex1") { implicit T =>
