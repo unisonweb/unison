@@ -22,8 +22,10 @@ final class Ref(val name: Name, var value: Value) extends Param {
 }
 
 abstract class Value extends Param {
+  /** normalizes between refs and other values */
   final def toValue = this
   def decompile: Term
+
   /** Unboxed values will return an UnboxedType */
   @inline def toBoxed: Value = this
   /** true boxed values will return U0 */
