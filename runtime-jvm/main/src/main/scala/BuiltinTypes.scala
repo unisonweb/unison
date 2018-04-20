@@ -13,6 +13,7 @@ object BuiltinTypes {
     val value: Value = Value.Data(Id, ConstructorId(0), Array())
   }
 
+  /* Tuple.pattern(Unit.pattern, Optional.Some.pattern(Pattern.Wildcard)) */
   object Tuple {
     val Id = org.unisonweb.Id("Tuple")
     def pattern(ps: Pattern*): Pattern =
@@ -55,7 +56,15 @@ object BuiltinTypes {
     }
   }
 
-  def dataConstructor(id: Id, cid: ConstructorId, arity: Int, paramNames: Name*): ((Id,ConstructorId), Computation) = {
+  /** Creates a new lambda for the given data constructor - the lambda captures
+    * arity arguments, then sticks them in a Value.Data with the given Id and
+    * ConstructorId.
+    *
+    * Note: if arity is 0, it just returns the Value.Data directly.
+    */
+  def dataConstructor(id: Id, cid: ConstructorId, arity: Int,
+                      outputType: Option[UnboxedType],
+                      paramNames: Name*): ((Id,ConstructorId), Computation) = {
     val body: Computation = arity match {
       case 0 =>
         val data = Value.Data(id, cid, Array.empty)
@@ -92,7 +101,7 @@ object BuiltinTypes {
     }
     val lam: Computation =
       if (arity >= 1)
-        new Value.Lambda.ClosureForming(arity, body, Term.Constructor(id,cid), Array()) {
+        new Value.Lambda.ClosureForming(arity, body, outputType, Term.Constructor(id,cid), Array()) {
           def names = paramNames.toList
         }.toComputation
       else
@@ -102,12 +111,12 @@ object BuiltinTypes {
 
   val dataConstructorsM: Map[(Id,ConstructorId),Computation] =
     Map(
-      dataConstructor(Unit.Id, ConstructorId(0), 0),
-      dataConstructor(Tuple.Id, ConstructorId(0), 2, "head", "tail"),
-      dataConstructor(Optional.Id, Optional.noneCid, 0),
-      dataConstructor(Optional.Id, Optional.someCid, 1, "a"),
-      dataConstructor(Either.Id, Either.leftCid, 1, "a"),
-      dataConstructor(Either.Id, Either.rightCid, 1, "b")
+      dataConstructor(Unit.Id, ConstructorId(0), 0, None),
+      dataConstructor(Tuple.Id, ConstructorId(0), 2, None, "head", "tail"),
+      dataConstructor(Optional.Id, Optional.noneCid, 0, None),
+      dataConstructor(Optional.Id, Optional.someCid, 1, None,"a"),
+      dataConstructor(Either.Id, Either.leftCid, 1, None,"a"),
+      dataConstructor(Either.Id, Either.rightCid, 1, None,"b")
     )
 
   val dataConstructors: (Id,ConstructorId) => Computation =

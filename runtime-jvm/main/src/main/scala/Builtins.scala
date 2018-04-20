@@ -132,7 +132,7 @@ object Builtins {
   val Integer_negate =
     fu_u("Integer.negate", "x", UnboxedType.Integer, -_)
 
-  val numericBuiltins = List(
+  val numericBuiltins = Map(
     // arithmetic
     Integer_add,
     Integer_mul,
@@ -148,15 +148,15 @@ object Builtins {
     Integer_gteq,
     Integer_lt,
     Integer_gt
-  ).map(discardOutputType).toMap
+  )
 
   val Boolean_not =
     fu_u("Boolean.not", "b", UnboxedType.Boolean,
          b => boolToUnboxed(b == UFalse))
 
-  val booleanBuiltins = List(
+  val booleanBuiltins = Map(
     Boolean_not,
-  ).map(discardOutputType).toMap
+  )
 
   val Text_empty =
     c0("Text.empty", util.Text.empty)
@@ -197,43 +197,39 @@ object Builtins {
     fpp_u("Text.>", "t1", "t2", UnboxedType.Boolean,
       (t1: Text, t2: Text) => boolToUnboxed(Text.compare(t1,t2) > 0))
 
-  val textBuiltins = List(
+  val textBuiltins = Map(
     Text_empty,
     Text_concatenate,
     Text_take,
     Text_drop,
     Text_size,
     // todo: indexing, once we add
-  ).++(List(
+
     Text_eq,
     Text_neq,
     Text_lteq,
     Text_gteq,
     Text_lt,
     Text_gt
-  ).map(discardOutputType)).toMap
+  )
 
   val builtins =
     streamBuiltins ++ seqBuiltins ++ numericBuiltins ++
     booleanBuiltins ++ textBuiltins
 
-  def discardOutputType: ((Name, UnboxedType, Computation)) => (Name, Computation) = {
-    case (name, _, body) => name -> body
-  }
-
   // Polymorphic one-argument function
   def fp_p[A,B](name: Name, arg: Name, f: A => B)
                (implicit A: Decode[A], B: Encode[B]): (Name, Computation) = {
     val body: Computation.C1P = (r,x0,x0b) => B.encode(r, f(A.decode(x0, x0b)))
-    val decompiled = Term.Id(name)
-    name -> Return(new Lambda1(decompiled, arg, body))
+    val decompile = Term.Id(name)
+    name -> Return(new Lambda1(arg, body, None, decompile))
   }
 
   // Monomorphic one-argument function on unboxed values
   def fu_u(name: Name,
            arg: Name,
            outputType: UnboxedType,
-           f: LongUnaryOperator): (Name, UnboxedType, Computation) = {
+           f: LongUnaryOperator): (Name, Computation) = {
     val body: Computation.C1U = (r,x0) => {
       // Unintuitively, we store the type of the unboxed value in `boxed`
       // since that's a field we don't use for unboxed values.
@@ -241,15 +237,15 @@ object Builtins {
       f.applyAsLong(x0)
     }
     val decompile = Term.Id(name)
-    val computation = Return(new Lambda1(decompile, arg, body))
-    (name, outputType, computation)
+    val computation = Return(new Lambda1(arg, body, Some(outputType), decompile))
+    name -> computation
   }
 
   def fp_l[A,B:NoDecompile](name: Name, arg: Name, f: A => B)
                            (implicit A: Decode[A]): (Name, Computation) = {
     val body: Computation.C1P = (r,x0,x0b) =>
       lazyEncode(r, f(A.decode(x0,x0b)), name, Value.fromParam(x0,x0b))
-    val lambda = new Lambda.Lambda1(Term.Id(name), arg, body)
+    val lambda = new Lambda.Lambda1(arg, body, None, Term.Id(name))
     name -> Return(lambda)
   }
 
@@ -261,7 +257,7 @@ object Builtins {
       (r,x1,x0,x1b,x0b) =>
         C.encode(r, f(A.decode(x1, x1b), B.decode(x0, x0b)))
     val decompiled = Term.Id(name)
-    val lambda = new Lambda.ClosureForming2(decompiled, arg1, arg2, body)
+    val lambda = new Lambda.ClosureForming2(arg1, arg2, body, None, decompiled)
     name -> Return(lambda)
   }
 
@@ -275,22 +271,22 @@ object Builtins {
                    Value.fromParam(x1,x1b),
                    Value.fromParam(x0,x0b))
     val decompiled = Term.Id(name)
-    val lambda = new Lambda.ClosureForming2(decompiled, arg1, arg2, body)
+    val lambda = new Lambda.ClosureForming2(arg1, arg2, body, None, decompiled)
     name -> Return(lambda)
   }
   abstract class FUP_P[A,B] { def apply(u: U, p: A): B }
 
-  def fup_p[A,B](name: Name, n1: Name, n2: Name, f: FUP_P[A,B])
+  def fup_p[A,B](name: Name, arg1: Name, arg2: Name, f: FUP_P[A,B])
                 (implicit A: Decode[A],
                           B: Encode[B]): (Name, Computation) = {
     val body: Computation.C2P = (r,x1,x0,_,x0b) =>
       B.encode(r, f(x1, A.decode(x0, x0b)))
     val decompiled = Term.Id(name)
-    val lambda = new Lambda.ClosureForming2(decompiled, n1, n2, body)
+    val lambda = new Lambda.ClosureForming2(arg1, arg2, body, None, decompiled)
     name -> Return(lambda)
   }
 
-  def fup_l[A,B:NoDecompile](name: Name, n1: Name, n2: Name, f: FUP_P[A,B])
+  def fup_l[A,B:NoDecompile](name: Name, arg1: Name, arg2: Name, f: FUP_P[A,B])
                 (implicit A: Decode[A]): (Name, Computation) = {
     val body: Computation.C2P = (r,x1,x0,x1b,x0b) =>
       lazyEncode(r, f(x1, A.decode(x0, x0b)), name,
@@ -298,7 +294,7 @@ object Builtins {
                  Value.fromParam(x0, x0b))
 
     val decompiled = Term.Id(name)
-    val lambda = new Lambda.ClosureForming2(decompiled, n1, n2, body)
+    val lambda = new Lambda.ClosureForming2(arg1, arg2, body, None, decompiled)
     name -> Return(lambda)
   }
 
@@ -307,22 +303,22 @@ object Builtins {
   def fpp_u[A,B,C](name: String, arg1: String, arg2: String,
                    outputType: UnboxedType, f: FPP_U[A,B])
                   (implicit A: Decode[A],
-                            B: Decode[B]): (Name, UnboxedType, Computation) = {
+                            B: Decode[B]): (Name, Computation) = {
     val body: Computation =
       (r,_,_,_,x1,x0,_,x1b,x0b) => {
         r.boxed = outputType
         f(A.decode(x1, x1b), B.decode(x0, x0b))
       }
     val decompiled = Term.Id(name)
-    val lambda = new Lambda.ClosureForming2(decompiled, arg1, arg2, body)
-    (name, outputType, Return(lambda))
+    val lambda = new Lambda.ClosureForming2(arg1, arg2, body, Some(outputType), decompiled)
+    name -> Return(lambda)
   }
 
   def fuu_u(name: Name,
             n1: Name,
             n2: Name,
             outputType: UnboxedType,
-            f: LongBinaryOperator): (Name, UnboxedType, Computation) = {
+            f: LongBinaryOperator): (Name, Computation) = {
     val body: Computation.C2U = (r,x1,x0) => {
       r.boxed = outputType
       f.applyAsLong(x1, x0)
@@ -330,7 +326,7 @@ object Builtins {
 
     val decompiled = Term.Id(name)
 
-    val lam = new Lambda(2, body, decompiled) { self =>
+    val lam = new Lambda(2, body, Some(outputType), decompiled) { self =>
       def names = List(n1, n2)
       override def saturatedNonTailCall(args: List[Computation]) = args match {
         case List(Return(Value.Unboxed(n1, _)),
@@ -401,7 +397,7 @@ object Builtins {
                   r.boxed = outputType
                   f.applyAsLong(n, x0)
                 }
-              new Lambda(1, body, Term.Apply(decompiled, term)) {
+              new Lambda(1, body, unboxedType, Term.Apply(decompiled, term)) {
                 def names = self.names drop argCount
               }
             case _ => sys.error("")
@@ -409,7 +405,7 @@ object Builtins {
           case _ => sys.error("unpossible")
         }
     }
-    (name, outputType, Return(lam))
+    name -> Return(lam)
   }
 
   trait Decode[+T] { def decode(u: U, b: B): T }

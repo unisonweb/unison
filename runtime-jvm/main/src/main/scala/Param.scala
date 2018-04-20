@@ -56,9 +56,10 @@ object Value {
   }
 
   abstract class Lambda(
-    final val arity: Int,
-    final val body: Computation,
-    val decompile: Term) extends Value { self =>
+                         final val arity: Int,
+                         final val body: Computation,
+                         final val unboxedType: Option[UnboxedType],
+                         val decompile: Term) extends Value { self =>
 
     def names: List[Name]
     def toComputation = Return(this)
@@ -75,8 +76,9 @@ object Value {
         val vb = r.boxed
         self(r,top,stackU,U0,v,stackB,null,vb)
       }
-      val compose = Term.Lam('f, 'g, 'x)('f.v('g.v('x)))
-      new Lambda(f.arity, k, compose(self.decompile, f.decompile)) {
+      val compose = Term.Lam('f, 'g, 'x)('f.v('g.v('x))) // todo: intern this
+      new Lambda(f.arity, k, self.unboxedType,
+                 compose(self.decompile, f.decompile)) {
         val names = f.names
       }
     }
@@ -101,8 +103,9 @@ object Value {
   object Lambda {
     final def toValue = this
 
-    def apply(arity: Int, body: Computation, decompile: Term) =
-      new Lambda(arity, body, decompile) {
+    def apply(arity: Int, body: Computation, unboxedType: Option[UnboxedType],
+              decompile: Term) =
+      new Lambda(arity, body, unboxedType, decompile) {
         val names = decompile match { case Term.Lam(names, _) => names }
       }
 
@@ -111,8 +114,9 @@ object Value {
 
     /** A `Lambda` of arity 1. */
     // todo: delete this and ClosureForming2 later
-    class Lambda1(decompiled: Term, arg1: Name, body: Computation)
-      extends Lambda(1,body,decompiled) {
+    class Lambda1(arg1: Name, body: Computation, outputType: Option[UnboxedType],
+                  decompiled: Term)
+      extends Lambda(1,body,outputType,decompiled) {
       val names = List(arg1)
       override def underapply(builtins: Environment)(
         argCount: Arity, substs: Map[Name, Term]): Lambda =
@@ -124,8 +128,9 @@ object Value {
       * than specializing away the supplied argument.
       */
     // todo: delete this and Lambda1 later
-    class ClosureForming2(decompiled: Term, arg1: Name, arg2: Name, body: Computation)
-      extends Lambda(2,body,decompiled) {
+    class ClosureForming2(arg1: Name, arg2: Name, body: Computation,
+                          outputType: Option[UnboxedType], decompiled: Term)
+      extends Lambda(2,body,outputType,decompiled) {
       val names = List(arg1,arg2)
       override def underapply(builtins: Environment)
                              (argCount: Arity, substs: Map[Name, Term])
@@ -136,14 +141,16 @@ object Value {
           val compiledArgv = compiledArg(r, rec, top, stackU, U0, U0, stackB, null, null)
           body(r, rec, top, stackU, compiledArgv, x0, stackB, r.boxed, x0b)
         }
-        new Lambda1(decompiled(substs(arg1)), arg1, body2)
+        new Lambda1(arg1, body2, outputType, decompiled(substs(arg1)))
       }
     }
-    abstract class ClosureForming(arity: Int, body: Computation, decompiled: Term,
-                                  args: Array[B]) extends Lambda(arity,body,decompiled) { self =>
+    abstract class ClosureForming(arity: Int, body: Computation,
+                                  outputType: Option[UnboxedType],
+                                  decompiled: Term, args: Array[B])
+      extends Lambda(arity,body,outputType,decompiled) { self =>
       val namesArray = names.toArray
       override def underapply(builtins: compilation.Environment)(
-                              argCount: Int, substs: Map[Name, Term]): Value.Lambda = {
+        argCount: Int, substs: Map[Name, Term]): Value.Lambda = {
         assert(arity >= 1)
         val argsInOrder: Seq[Term] = (0 until argCount) map { i =>
           substs(namesArray(i + args.length))
@@ -152,7 +159,8 @@ object Value {
           case Term.Compiled(b) => b
           case Term.Self(_) => self
         }
-        new ClosureForming(arity-argCount, body, decompiled(argsInOrder: _*), args ++ newArgs) {
+        new ClosureForming(arity-argCount, body, outputType,
+                           decompiled(argsInOrder: _*), args ++ newArgs) {
           def names = self.names drop argCount
         }
       }

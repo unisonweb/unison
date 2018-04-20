@@ -689,7 +689,7 @@ package object compilation {
     if (freeVars.isEmpty) {
       val cbody = compile(builtins)(body, names.reverse.toVector,
         currentRec.shadow(names), RecursiveVars.empty, IsTail)
-      Return(Lambda(names.length, cbody, e))
+      Return(Lambda(names.length, cbody, None, e))
     }
     else {
       val compiledFrees: Map[Name, Computation] =
@@ -930,7 +930,7 @@ package object compilation {
 
               go(x1, x0, x1b, x0b)
             }
-            Lambda(names.length, outerLambdaBody, innerLambda.decompile)
+            Lambda(names.length, outerLambdaBody, innerLambda.unboxedType, innerLambda.decompile)
           }
 
           compiledLambda match {
