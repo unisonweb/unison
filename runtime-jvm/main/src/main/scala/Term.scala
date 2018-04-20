@@ -174,6 +174,7 @@ object Term {
 
     case class Lam_[R](body: R) extends F[R]
     case class Id_(id: Id) extends F[Nothing]
+    case class Constructor_(id: Id, constructorId: ConstructorId) extends F[Nothing]
     case class Apply_[R](fn: R, args: List[R]) extends F[R]
     case class Unboxed_(value: U, typ: UnboxedType) extends F[Nothing]
     case class Text_(txt: util.Text.Text) extends F[Nothing]
@@ -192,7 +193,7 @@ object Term {
 
     implicit val instance: Traverse[F] = new Traverse[F] {
       override def map[A,B](fa: F[A])(f: A => B): F[B] = fa match {
-        case fa @ (Id_(_) | Unboxed_(_,_) | Compiled_(_) | Self_(_) | Text_(_)) =>
+        case fa @ (Id_(_) | Unboxed_(_,_) | Compiled_(_) | Self_(_) | Text_(_) | Constructor_(_,_)) =>
           fa.asInstanceOf[F[B]]
         case Lam_(a) => Lam_(f(a))
         case Apply_(fn, args) =>
@@ -269,6 +270,14 @@ object Term {
     def apply(h: Hash): Term = Tm(Id_(org.unisonweb.Id(h)))
     def unapply[A](t: AnnotatedTerm[F,A]): Option[Id] = t match {
       case Tm(Id_(id)) => Some(id)
+      case _ => None
+    }
+  }
+
+  object Constructor {
+    def apply(id: Id, cid: ConstructorId): Term = Tm(Constructor_(id, cid))
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[(Id, ConstructorId)] = t match {
+      case Tm(Constructor_(id,cid)) => Some((id,cid))
       case _ => None
     }
   }
