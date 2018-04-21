@@ -1,9 +1,9 @@
 package org.unisonweb
 package util
 
-import Stream._
-import Unboxed.{F1, F2, K, Unboxed}
 import org.unisonweb.Builtins.FUP_P
+import org.unisonweb.util.Stream._
+import org.unisonweb.util.Unboxed.{F1, F2, K, Unboxed}
 
 /**
  * Fused stream type based loosely on ideas from Oleg's
@@ -73,6 +73,14 @@ abstract class Stream[A] { self =>
     total
   }
 
+  final def reduce[B](zero: B)(f2: F2[A,A,A])(implicit A: Extract[B,A]): B = {
+    var sumU: U = A.toUnboxed(zero)
+    var sumA: A = A.toBoxed(zero)
+    val cf = f2 andThen { (u, a) => sumU = u; sumA = a }
+    self.stage { (u,a) => cf(sumU, sumA, u, a) }.run()
+    A.extract(sumU, sumA)
+  }
+
   final def sumFloats(implicit A: A =:= Unboxed[Double]): Double = {
     var total: Double = 0
     self.stage { (u,_) => total += unboxedToDouble(u) }.run()
@@ -113,7 +121,7 @@ abstract class Stream[A] { self =>
   private final def ::(u: U, a: A): Stream[A] =
     k => {
       var left = true
-      var cself = self.stage(k)
+      val cself = self.stage(k)
       () =>
         if (left) {
           left = false
@@ -149,10 +157,10 @@ object Stream {
   @inline def getUnboxed[B](u: U, b: B) = u
   @inline def getBoxed[B](u: U, b: B) = b
 
-  sealed abstract class Extract[A, B] {
-    val extract: FUP_P[B,A]
-    def toBoxed(a: A): B
-    def toUnboxed(a: A): U
+  sealed abstract class Extract[Native, Boxed] {
+    val extract: FUP_P[Boxed,Native]
+    def toBoxed(a: Native): Boxed
+    def toUnboxed(a: Native): U
   }
   object Extract {
     implicit val foo: Extract[Param, Value] =
@@ -188,11 +196,25 @@ object Stream {
         }
       }
 
-    implicit val extractDoubleU: Extract[Double, Value] =
+    implicit val extractDoubleValue: Extract[Double, Value] =
       new Extract[Double, Value] {
         val extract: FUP_P[Value, Double] = (u,_) => unboxedToDouble(u)
         def toBoxed(a: Double): Value = UnboxedType.Float
         def toUnboxed(a: Double): U = doubleToUnboxed(a)
+      }
+
+    implicit val extractLongValue: Extract[Long, Value] =
+      new Extract[Long, Value] {
+        val extract: FUP_P[Value, Long] = (u,_) => unboxedToLong(u)
+        def toBoxed(a: Long): Value = UnboxedType.Integer
+        def toUnboxed(a: Long): U = longToUnboxed(a)
+      }
+
+    implicit val extractIntValue: Extract[Int, Value] =
+      new Extract[Int, Value] {
+        val extract: FUP_P[Value, Int] = (u,_) => unboxedToInt(u)
+        def toBoxed(a: Int): Value = UnboxedType.Integer
+        def toUnboxed(a: Int): U = intToUnboxed(a)
       }
 
     implicit val extractDouble: Extract[Double, Unboxed[Double]] =
@@ -233,6 +255,12 @@ object Stream {
   final def constant(n: Long): Stream[Unboxed[Long]] =
     k => () => k(n, null)
 
+  private final def constant0[A](u: U, a: A): Stream[A] =
+    k => () => k(u, a)
+
+  final def constant[A0,A](a0: A0)(implicit A: Extract[A0,A]): Stream[A] =
+    constant0(A.toUnboxed(a0), A.toBoxed(a0))
+
   /** the arithmetic in here won't work on doubles interpreted as integers */
   final def from(n: Long): Stream[Unboxed[Long]] =
     k => {
@@ -252,10 +280,22 @@ object Stream {
       () => { i += 1; k(i, UnboxedType.Integer) }
     }
 
-  final def fromUnison(n: Double): Stream[UnboxedType] =
+  private final def iterate0[A](u0: U, a0: A)(f: F1[A,A]): Stream[A] = {
     k => {
-      var i = n - 1
-      () => { i += 1; k(doubleToUnboxed(i), UnboxedType.Float) }
+      var u1 = u0
+      var a1 = a0
+      val cf = f andThen { (u2, a2) => u1 = u2; a1 = a2 }
+      () => {
+        val u = u1
+        val a = a1
+        cf(u1, a1)
+        k(u,a)
+      }
     }
+  }
+
+  final def iterate[A,B](a: A)(f: F1[B,B])(implicit A:Extract[A,B]): Stream[B] =
+    iterate0(A.toUnboxed(a), A.toBoxed(a))(f)
+
 
 }

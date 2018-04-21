@@ -112,6 +112,15 @@ object Unboxed {
                 ux, bx)
       }
 
+    def D_D(f: DoubleUnaryOperator) =
+      new F1[Unboxed[Double],Unboxed[Double]] {
+        def apply[X] =
+          kux =>
+            (u,_,ux,bx) =>
+              kux(doubleToUnboxed(f.applyAsDouble(unboxedToDouble(u))), null,
+                  ux, bx)
+      }
+
     /** An F1 for unboxed `Long => Boolean` */
     def L_B(f: LongPredicate) =
       new F1[Unboxed[Long],Unboxed[Boolean]] {

@@ -1,6 +1,6 @@
 package org.unisonweb
 
-import java.util.function.{LongBinaryOperator, LongUnaryOperator}
+import java.util.function.{LongBinaryOperator, LongPredicate, LongUnaryOperator}
 
 import org.unisonweb.Term.{Name, Term}
 import org.unisonweb.Value.Lambda
@@ -27,8 +27,8 @@ object Builtins {
           (v: Value, stream: Stream[Value]) => v :: stream)
 
   val Stream_drop =
-    fup_l("Stream.drop", "n", "stream",
-          (n: Long, s: Stream[Value]) => s.drop(n))
+    flp_z("Stream.drop", "n", "stream",
+          (n, s: Stream[Value]) => s.drop(n))
 
   // Stream.map : Stream a -> (a -> b) -> Stream b
   //  val Stream_map = fpp_p("Stream.map", "stream", "f", (s: Stream[Value], b: Value) => ???)
@@ -55,8 +55,7 @@ object Builtins {
          (v: Value, seq: Sequence[Value]) => v +: seq)
 
   val Sequence_take =
-    fup_p("Sequence.take", "n", "seq",
-         (n: U, seq: Sequence[Value]) => seq take n.toLong)
+    flp_p("Sequence.take", "n", "seq", (n, seq: Sequence[Value]) => seq take n)
 
   val Sequence_size =
     fp_p("Sequence.size", "seq", (seq: Sequence[Value]) => seq.size)
@@ -71,11 +70,7 @@ object Builtins {
   def termFor(b: (Name, Computation)): Term = Term.Id(b._1)
   def termFor(b: (Name, UnboxedType, Computation)): Term = Term.Id(b._1)
   def computationFor(b: (Name, Computation)): Computation = builtins(b._1)
-  def computationFor(b: (Name, UnboxedType, Computation)): Computation =
-    builtins(b._1)
   def lambdaFor(b: (Name, Computation)): Lambda =
-    computationFor(b) match { case Return(lam: Lambda) => lam }
-  def lambdaFor(b: (Name, UnboxedType, Computation)): Lambda =
     computationFor(b) match { case Return(lam: Lambda) => lam }
 
   //
@@ -93,52 +88,53 @@ object Builtins {
   )
 
   val Integer_inc =
-    fu_u("Integer.+", "x", UnboxedType.Integer, _ + 1)
+    fl_l("Integer.inc", "x", _ + 1)
+
+  val Integer_isEven =
+    fl_b("Integer.isEven", "x", _ % 2 == 0)
+
+  val Integer_isOdd =
+    fl_b("Integer.isOdd", "x", _ % 2 != 0)
 
   val Integer_add =
-    fuu_u("Integer.+", "x", "y", UnboxedType.Integer, _ + _)
+    fll_l("Integer.+", "x", "y", _ + _)
 
   val Integer_mul =
-    fuu_u("Integer.*", "x", "y", UnboxedType.Integer, _ * _)
+    fll_l("Integer.*", "x", "y", _ * _)
 
   val Integer_sub =
-    fuu_u("Integer.-", "x", "y", UnboxedType.Integer, _ - _)
+    fll_l("Integer.-", "x", "y", _ - _)
 
   val Integer_div =
-    fuu_u("Integer./", "x", "y", UnboxedType.Integer, _ / _)
+    fll_l("Integer./", "x", "y", _ / _)
 
   val Integer_eq =
-    fuu_u("Integer.==", "x", "y", UnboxedType.Boolean,
-          (x, y) => boolToUnboxed(x == y))
+    fll_b("Integer.==", "x", "y", _ == _)
 
   val Integer_neq =
-    fuu_u("Integer.!=", "x", "y", UnboxedType.Boolean,
-          (x, y) => boolToUnboxed(x != y))
+    fll_b("Integer.!=", "x", "y", _ != _)
 
   val Integer_lteq =
-    fuu_u("Integer.<=", "x", "y", UnboxedType.Boolean,
-          (x, y) => boolToUnboxed(x <= y))
+    fll_b("Integer.<=", "x", "y", _ <= _)
 
   val Integer_gteq =
-    fuu_u("Integer.>=", "x", "y", UnboxedType.Boolean,
-          (x, y) => boolToUnboxed(x >= y))
+    fll_b("Integer.>=", "x", "y", _ >= _)
 
   val Integer_lt =
-    fuu_u("Integer.<", "x", "y", UnboxedType.Boolean,
-          (x, y) => boolToUnboxed(x < y))
+    fll_b("Integer.<", "x", "y", _ < _)
 
   val Integer_gt =
-    fuu_u("Integer.>", "x", "y", UnboxedType.Boolean,
-          (x, y) => boolToUnboxed(x > y))
+    fll_b("Integer.>", "x", "y", _ > _)
 
   val Integer_signum =
-    fu_u("Integer.signum", "x", UnboxedType.Integer, _.signum)
+    fl_l("Integer.signum", "x", _.signum)
 
   val Integer_negate =
-    fu_u("Integer.negate", "x", UnboxedType.Integer, -_)
+    fl_l("Integer.negate", "x", -_)
 
   val numericBuiltins = Map(
     // arithmetic
+    Integer_inc,
     Integer_add,
     Integer_mul,
     Integer_sub,
@@ -156,8 +152,7 @@ object Builtins {
   )
 
   val Boolean_not =
-    fu_u("Boolean.not", "b", UnboxedType.Boolean,
-         b => boolToUnboxed(b == UFalse))
+    fb_b("Boolean.not", "b", !_)
 
   val booleanBuiltins = Map(
     Boolean_not,
@@ -170,37 +165,33 @@ object Builtins {
     fpp_p("Text.concatenate", "textL", "textR", (t1: Text, t2: Text) => t1 ++ t2)
 
   val Text_take =
-    fup_p("Text.take", "codepoint-count", "text", (u: U, t: Text) => t take u)
+    flp_p("Text.take", "codepoint-count", "text",
+          (codepointCount, t: Text) => t take codepointCount)
 
   val Text_drop =
-    fup_p("Text.drop", "codepoint-count", "text", (u: U, t: Text) => t drop u)
+    flp_p("Text.drop", "codepoint-count", "text",
+          (codepointCount, t: Text) => t drop codepointCount)
 
   val Text_size =
     fp_p("Text.size", "text", (t: Text) => t.size)
 
   val Text_eq =
-    fpp_u("Text.==", "t1", "t2", UnboxedType.Boolean,
-      (t1: Text, t2: Text) => boolToUnboxed(t1 == t2))
+    fpp_b[Text,Text]("Text.==", "t1", "t2", _ == _)
 
   val Text_neq =
-    fpp_u("Text.!=", "t1", "t2", UnboxedType.Boolean,
-      (t1: Text, t2: Text) => boolToUnboxed(t1 != t2))
+    fpp_b[Text,Text]("Text.!=", "t1", "t2", _ != _)
 
   val Text_lteq =
-    fpp_u("Text.<=", "t1", "t2", UnboxedType.Boolean,
-      (t1: Text, t2: Text) => boolToUnboxed(Text.compare(t1,t2) <= 0))
+    fpp_b[Text,Text]("Text.<=", "t1", "t2", Text.compare(_,_) <= 0)
 
   val Text_gteq =
-    fpp_u("Text.>=", "t1", "t2", UnboxedType.Boolean,
-      (t1: Text, t2: Text) => boolToUnboxed(Text.compare(t1,t2) >= 0))
+    fpp_b[Text,Text]("Text.>=", "t1", "t2", Text.compare(_,_) >= 0)
 
   val Text_lt =
-    fpp_u("Text.<", "t1", "t2", UnboxedType.Boolean,
-      (t1: Text, t2: Text) => boolToUnboxed(Text.compare(t1,t2) < 0))
+    fpp_b[Text,Text]("Text.<", "t1", "t2", Text.compare(_,_) < 0)
 
   val Text_gt =
-    fpp_u("Text.>", "t1", "t2", UnboxedType.Boolean,
-      (t1: Text, t2: Text) => boolToUnboxed(Text.compare(t1,t2) > 0))
+    fpp_b[Text,Text]("Text.>", "t1", "t2", Text.compare(_,_) > 0)
 
   val textBuiltins = Map(
     Text_empty,
@@ -231,10 +222,10 @@ object Builtins {
   }
 
   // Monomorphic one-argument function on unboxed values
-  def fu_u(name: Name,
-           arg: Name,
-           outputType: UnboxedType,
-           f: LongUnaryOperator): (Name, Computation) = {
+  def _fu_u(name: Name,
+            arg: Name,
+            outputType: UnboxedType,
+            f: LongUnaryOperator): (Name, Computation) = {
     val body: Computation.C1U = (r,x0) => {
       // Unintuitively, we store the type of the unboxed value in `boxed`
       // since that's a field we don't use for unboxed values.
@@ -245,6 +236,24 @@ object Builtins {
     val computation = Return(new Lambda1(arg, body, Some(outputType), decompile))
     name -> computation
   }
+
+//// a possibly faster model, but didn't see a clean analogue for fuu_u.
+//  def fu_u(name: Name, arg: Name, outputType: UnboxedType)
+//          (body: Computation.C1U): (Name, Computation) =
+//    name -> Return(new Lambda1(arg, body, Some(outputType), Term.Id(name)))
+
+  abstract class B_B { def test(b: Boolean): Boolean }
+  def fb_b(name: Name, arg: Name, f: B_B): (Name, Computation) =
+    _fu_u(name, arg, UnboxedType.Boolean,
+         u => boolToUnboxed(f.test(unboxedToBool(u))))
+
+  def fl_b(name: Name, arg: Name, f: LongPredicate): (Name, Computation) =
+    _fu_u(name, arg, UnboxedType.Boolean,
+         u => boolToUnboxed(f.test(unboxedToLong(u))))
+
+  def fl_l(name: Name, arg: Name, f: LongUnaryOperator): (Name, Computation) =
+    _fu_u(name, arg, UnboxedType.Integer,
+         u => longToUnboxed(f.applyAsLong(unboxedToLong(u))))
 
   def fp_l[A,B](name: Name, arg: Name, f: A => B)
                (implicit A: Decode[A], B: LazyEncode[B]): (Name, Computation) = {
@@ -283,10 +292,14 @@ object Builtins {
     val lambda = new Lambda.ClosureForming2(arg1, arg2, body, None, decompiled)
     name -> Return(lambda)
   }
-  abstract class FUP_P[A,B] { def apply(u: U, p: A): B }
 
-  def fup_p[A,B](name: Name, arg1: Name, arg2: Name, f: FUP_P[A,B])
-                (implicit A: Decode[A],
+  abstract class FLP_P[A,B] { def apply(l: Long, a: A): B }
+  def flp_p[A:Decode,B:Encode](name: Name, arg1: Name, arg2: Name, f: FLP_P[A,B]) =
+    _fup_p(name, arg1, arg2, (u, p: A) => f(unboxedToLong(u), p))
+
+  abstract class FUP_P[A,B] { def apply(u: U, p: A): B }
+  def _fup_p[A,B](name: Name, arg1: Name, arg2: Name, f: FUP_P[A,B])
+                 (implicit A: Decode[A],
                           B: Encode[B]): (Name, Computation) = {
     val body: Computation.C2P = (r,x1,x0,_,x0b) =>
       B.encode(r, f(x1, A.decode(x0, x0b)))
@@ -295,7 +308,10 @@ object Builtins {
     name -> Return(lambda)
   }
 
-  def fup_l[A,B](name: Name, arg1: Name, arg2: Name, f: FUP_P[A,B])
+  def flp_z[A:Decode,B:LazyEncode](name: Name, arg1: Name, arg2: Name, f: FLP_P[A,B]) =
+    _fup_z[A,B](name, arg1, arg2, (u, a) => f(unboxedToLong(u), a))
+
+  def _fup_z[A,B](name: Name, arg1: Name, arg2: Name, f: FUP_P[A,B])
                 (implicit A: Decode[A],
                           B: LazyEncode[B]): (Name, Computation) = {
     val body: Computation.C2P = (r,x1,x0,x1b,x0b) =>
@@ -308,9 +324,12 @@ object Builtins {
     name -> Return(lambda)
   }
 
-  abstract class FPP_U[A,B] { def apply(a: A, b: B): U }
+  abstract class FPP_B[A,B] { def apply(a: A, b: B): Boolean }
+  def fpp_b[A:Decode,B:Decode](name: Name, arg1: Name, arg2: Name, f: FPP_B[A,B]) =
+    _fpp_u[A,B](name, arg1, arg2, UnboxedType.Boolean, (a,b) => boolToUnboxed(f(a,b)))
 
-  def fpp_u[A,B,C](name: Name, arg1: String, arg2: String,
+  abstract class FPP_U[A,B] { def apply(a: A, b: B): U }
+  def _fpp_u[A,B](name: Name, arg1: Name, arg2: Name,
                    outputType: UnboxedType, f: FPP_U[A,B])
                   (implicit A: Decode[A],
                             B: Decode[B]): (Name, Computation) = {
@@ -324,18 +343,24 @@ object Builtins {
     name -> Return(lambda)
   }
 
-  def fuu_u(name: Name,
-            arg1: Name,
-            arg2: Name,
-            outputType: UnboxedType,
-            f: LongBinaryOperator): (Name, Computation) = {
+  def fll_l(name: Name, arg1: Name, arg2: Name, f: LongBinaryOperator) =
+    _fuu_u(name, arg1, arg2, UnboxedType.Integer, f)
+
+  abstract class FLL_B { def apply(l1: Long, l2: Long): Boolean }
+  def fll_b(name: Name, arg1: Name, arg2: Name, f: FLL_B) =
+    _fuu_u(name, arg1, arg2, UnboxedType.Boolean, (l1, l2) => boolToUnboxed(f(l1, l2)))
+
+  def _fuu_u(name: Name,
+             arg1: Name,
+             arg2: Name,
+             outputType: UnboxedType,
+             f: LongBinaryOperator): (Name, Computation) = {
     val body: Computation.C2U = (r,x1,x0) => {
       r.boxed = outputType
       f.applyAsLong(x1, x0)
     }
 
     val decompiled = Term.Id(name)
-
     val lam = new Lambda(2, body, Some(outputType), decompiled) { self =>
       def names = List(arg1, arg2)
       override def saturatedNonTailCall(args: List[Computation]) = args match {

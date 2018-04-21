@@ -60,7 +60,7 @@ object CompilationBenchmarks {
       },
       {
         profile("triangle stream .foldLeftTC(DD_D)") {
-          Stream.from(N(0).toDouble).take(N(triangleCount))
+          Stream.from(N(0).toDouble, by = 1.0).take(N(triangleCount))
             .foldLeft(0.0)(DD_D(_ + _)).toLong
         }
       },
