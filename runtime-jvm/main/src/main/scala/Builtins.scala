@@ -344,11 +344,13 @@ object Builtins {
   }
 
   def fll_l(name: Name, arg1: Name, arg2: Name, f: LongBinaryOperator) =
-    _fuu_u(name, arg1, arg2, UnboxedType.Integer, f)
+    _fuu_u(name, arg1, arg2, UnboxedType.Integer,
+           (u1, u2) => longToUnboxed(f.applyAsLong(unboxedToLong(u1), unboxedToLong(u2))))
 
   abstract class FLL_B { def apply(l1: Long, l2: Long): Boolean }
   def fll_b(name: Name, arg1: Name, arg2: Name, f: FLL_B) =
-    _fuu_u(name, arg1, arg2, UnboxedType.Boolean, (l1, l2) => boolToUnboxed(f(l1, l2)))
+    _fuu_u(name, arg1, arg2, UnboxedType.Boolean,
+           (u1, u2) => boolToUnboxed(f(unboxedToLong(u1), unboxedToLong(u2))))
 
   def _fuu_u(name: Name,
              arg1: Name,
@@ -472,9 +474,9 @@ object Builtins {
       }
 
     implicit val encodeLong: Encode[Long] =
-      (r, a) => { r.boxed = UnboxedType.Integer; a }
+      (r, a) => { r.boxed = UnboxedType.Integer; longToUnboxed(a) }
     implicit val encodeInt: Encode[Int] =
-      (r, a) => { r.boxed = UnboxedType.Integer; a.toLong }
+      (r, a) => { r.boxed = UnboxedType.Integer; intToUnboxed(a) }
     implicit val encodeDouble: Encode[Double] =
       (r, a) => { r.boxed = UnboxedType.Float; doubleToUnboxed(a) }
   }
