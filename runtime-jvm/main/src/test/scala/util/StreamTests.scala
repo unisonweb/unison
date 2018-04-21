@@ -69,14 +69,14 @@ object StreamTests {
           Sequence.apply(0 until 10000: _*)
         )
       },
-      test("foldLeft0-scala-plus-long") { implicit T =>
+      test("foldLeft0 (+) long") { implicit T =>
         equal(
           Stream.from(0).take(10000).foldLeft0(U0, null:Unboxed[Long])(
             LL_L(_ + _))((u,_) => u),
           (0 until 10000).sum
         )
       },
-      test("foldLeft-scala-plus-long") { implicit T =>
+      test("foldLeft (+) long") { implicit T =>
         val plusU = UnisonToScala.toUnboxed2(Builtins.Integer_add)
         val env = (new Array[U](20), new Array[B](20), StackPtr.empty, Result())
         equal(
@@ -84,14 +84,14 @@ object StreamTests {
           (0 until 10000).sum
         )
       },
-      test("foldLeft-scala-count-double") { implicit T =>
+      test("foldLeft count even doubles") { implicit T =>
         equal(
           Stream.from(0.0, by = 1.0).take(10000).foldLeft(0l)(
             LD_L((z, d) => if (d.toInt % 2 == 0) z else z + 1)),
           (0.0 until 10000 by 1.0).count(_.toInt % 2 == 0)
         )
       },
-      test("foldLeft-scala-plus-double") { implicit T =>
+      test("foldLeft (+) double") { implicit T =>
         equal(
           Stream.from(0.0, by = 1.0).take(10000).foldLeft(0.0)(DD_D(_ + _)),
           (0.0 until 10000 by 1.0).sum
@@ -141,14 +141,14 @@ object StreamTests {
             scala.Stream.from(0).take(10000).map(_ + 1).sum
           )
         },
-        test("foldLeft-unison-plus") { implicit T =>
+        test("foldLeft Integer_add") { implicit T =>
           val plusU = UnisonToScala.toUnboxed2(Builtins.Integer_add)
           equal(
             Stream.fromUnison(0).take(10000).foldLeft(Value(0))(plusU(env)),
             Value((0 until 10000).sum)
           )
         },
-        test("iterate-unison-from0") { implicit T =>
+        test("iterate Integer_inc, reduce Integer_add") { implicit T =>
           val incU = UnisonToScala.toUnboxed1(Builtins.Integer_inc)
           val plusU = UnisonToScala.toUnboxed2(Builtins.Integer_add)
           equal[Value](
