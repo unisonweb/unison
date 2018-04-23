@@ -189,6 +189,9 @@ object Term {
     case class Request_ [R](id: Id, ctor: ConstructorId, args: List[R]) extends F[R]
     // handle : (forall x . <f> x -> r) -> {f} x -> r
     case class Handle_[R](handler: R, block: R) extends F[R]
+    case class EffectPure_[R](value: R) extends F[R]
+    case class EffectBind_[R](
+      id: Id, constructorId: ConstructorId, args: List[R], k: R) extends F[R]
 
     implicit val instance: Traverse[F] = new Traverse[F] {
       override def map[A,B](fa: F[A])(f: A => B): F[B] = fa match {
@@ -218,6 +221,10 @@ object Term {
           Handle_(h2, b2)
         case Request_(id, ctor, args) =>
           Request_(id, ctor, args.map(f))
+        case EffectPure_(v) =>
+          EffectPure_(f(v))
+        case EffectBind_(id, ctor, args, k) =>
+          EffectBind_(id, ctor, args map f, f(k))
       }
       def mapAccumulate[S,A,B](fa: F[A], s0: S)(g: (A,S) => (B,S)): (F[B], S) = {
         var s = s0
@@ -394,6 +401,25 @@ object Term {
       case Tm(Compiled_(p)) => Some(p)
       case _ => None
     }
+  }
+  object EffectPure {
+    def apply(v: Term): Term =
+      Tm(EffectPure_(v))
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[AnnotatedTerm[F,A]] =
+      t match {
+        case Tm(EffectPure_(v)) => Some(v)
+        case _ => None
+      }
+  }
+  object EffectBind {
+    def apply(id: Id, ctor: ConstructorId, args: List[Term], k: Term): Term =
+      Tm(EffectBind_(id, ctor, args, k))
+    def unapply[A](t: AnnotatedTerm[F,A])
+      : Option[(Id, ConstructorId, List[AnnotatedTerm[F,A]], AnnotatedTerm[F,A])] =
+      t match {
+        case Tm(EffectBind_(id, ctor, args, k)) => Some((id, ctor, args, k))
+        case _ => None
+      }
   }
 
   object Syntax {
