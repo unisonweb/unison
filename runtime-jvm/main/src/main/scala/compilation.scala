@@ -1113,6 +1113,26 @@ package object compilation {
               cbody(r, rec, topN, stackU, b1v, b0v, stackB, b1vb, b0vb)
             }
         }
+      case Term.Handle(handler, block) =>
+        val cHandler =
+          compile(builtins)(handler, env, currentRec, recVars, IsNotTail)
+        val cBlock =
+          compile(builtins)(block, env, currentRec, recVars, isTail)
+        (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+          eval(cHandler,r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
+          val h = r.boxed.asInstanceOf[Lambda]
+          var blockU: U = U0
+          var blockB: B = null
+          try {
+            blockU = cBlock(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
+            blockB = r.boxed
+            h(r,top,stackU,U0,U0,stackB,null,??? )// Value.EffectPure(blockU, blockB))
+          } catch {
+            case Requested(id, ctor, args, k) =>
+              val data = ??? // Value.EffectBind(id, ctor, args, k)
+              h(r,top,stackU,U0,U0,stackB,null,data)
+          }
+        }
     }
   }
 
