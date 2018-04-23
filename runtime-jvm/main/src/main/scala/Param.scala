@@ -112,6 +112,14 @@ object Value {
     def unapply(l: Lambda): Option[(Int, Computation, Term)] =
       Some((l.arity, l.body, l.decompile))
 
+    val identity: Lambda1 = {
+      val c: Computation = (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+        r.boxed = x0b.toValue
+        x0
+      }
+      Lambda1("x", c, None, Term.Lam('x)('x))
+    }
+
     /** A `Lambda` of arity 1. */
     // todo: delete this and ClosureForming2 later
     case class Lambda1(arg1: Name, _body: Computation,

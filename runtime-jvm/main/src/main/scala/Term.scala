@@ -75,16 +75,19 @@ object Term {
     }.annotateFree
     if (Term.freeVars(t2).isEmpty) t2 // no self references
     else {
-      t2.rewriteUp {
-        case t@Lam(names, body) => Term.freeVars(t).toList match {
-          case Nil => t
-          case rec :: Nil => LetRec(rec -> t)(t)
-          case recs => t // this can happen if `t` has already been fullyDecompile'd
-        }
+      val t3 = t2.rewriteUp {
+        case t@Lam(names, body) =>
+          println("WOOGOGO")
+          println(util.PrettyPrint.prettyTerm(t, 0).render(40))
+          Term.freeVars(t).toList match {
+            case Nil => t
+            case rec :: Nil => LetRec(rec -> t)(t)
+            case recs => t // this can happen if `t` has already been fullyDecompile'd
+          }
         case t => t
       }.annotateFree
-      assert (Term.freeVars(t2).isEmpty)
-      t2
+      assert (Term.freeVars(t3).isEmpty, "free vars introduced: " + Term.freeVars(t3).toString)
+      t3
     }
   }
 
@@ -340,8 +343,8 @@ object Term {
   }
 
   object Request {
-    def unapply[A](t: AnnotatedTerm[F,A]): Option[AnnotatedTerm[F,A]] = t match {
-      case Tm(Request_(_,_,_)) => Some(t)
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[(Id,ConstructorId,List[AnnotatedTerm[F,A]])] = t match {
+      case Tm(Request_(id,cid,args)) => Some((id,cid,args))
       case _ => None
     }
     def apply(id: Id, ctor: ConstructorId, args: List[Term]): Term =

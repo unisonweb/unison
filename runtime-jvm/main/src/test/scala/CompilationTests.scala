@@ -5,6 +5,7 @@ import org.unisonweb.Pattern._
 import org.unisonweb.Term.Syntax._
 import org.unisonweb.Term._
 import org.unisonweb.compilation._
+import org.unisonweb.util.PrettyPrint
 
 object CompilationTests {
   import EasyTest._
@@ -43,6 +44,11 @@ object CompilationTests {
     test("partially apply builtin") { implicit T =>
       equal(eval(onePlus), onePlus)
       equal(eval(ap(onePlus, one)), eval(onePlusOne))
+    },
+    test("partially apply triangle") { implicit T =>
+      val p: Term =
+        Let('tri -> triangle(100))('tri.v(0))
+      equal[Term](eval(p), eval(triangle(100,0)))
     },
     test("let") { implicit T =>
       equal(eval(Let('x -> one)(one + 'x)), eval(onePlusOne))
@@ -84,7 +90,6 @@ object CompilationTests {
       ok
     },
     test("fib-pretty-print") { implicit T =>
-      import org.unisonweb.util.PrettyPrint
       note("pretty-printed fib implementation", includeAlways = true)
       note(PrettyPrint.prettyTerm(fib).render(40), includeAlways = true)
       note("pretty-printed fib implementation in ANF", includeAlways = true)
@@ -483,57 +488,54 @@ object CompilationTests {
         equal[Term](eval(termFor(Builtins.Stream_cons)(1, termFor(Builtins.Stream_empty))),
                     termFor(Builtins.Stream_cons)(1, termFor(Builtins.Stream_empty)))
       },
-//      test("drop-undoes-cons") { implicit T =>
-//        equal[Term](eval(termFor(Builtins.Stream_drop)(1, termFor(Builtins.Stream_cons)(1, termFor(Builtins.Stream_empty)))),
-//                    termFor(Builtins.Stream_empty))
-//      }
     ),
+    suite("algebraic-effects")(
+      test("ex1") { implicit T =>
+        /*
+          let
+            state : s -> <State s> a -> a
+            state s <a> = a
+            state s <get -> k> = handle (state s) (k s)
+            state _ <put s -> k> = handle (state s) (k ())
 
-    //suite("algebraic-effects")(
-    //  test("ex1") { implicit T =>
-    //    /*
-    //      let
-    //        state : s -> <State s> a -> a
-    //        state s <a> = a
-    //        state s <get -> k> = handle (state s) (k s)
-    //        state _ <put s -> k> = handle (state s) (k ())
+            handle (state 0)
+              x = State.get + 1
+              y = State.set (x + 1)
+              State.get + 11
+         */
+        val p = LetRec(
+          ('state, Lam('s, 'action) {
+            Match('action)(
+              // state s <a> = a
+              MatchCase(Pattern.EffectPure(Pattern.Wildcard),
+                        ABT.Abs('a, 'a)),
 
-    //        handle (state 0)
-    //          x = State.get + 1
-    //          y = State.set (x + 1)
-    //          State.get + 11
-    //     */
-    //    val p = LetRec(
-    //      ('state, Lam('s, 'action) {
-    //        Match('action)(
-    //          // state s <a> = a
-    //          MatchCase(Pattern.EffectPure(Pattern.Wildcard),
-    //                    ABT.Abs('a, 'a)),
+              // state s <get -> k> = handle (state s) (k s)
+              MatchCase(Pattern.EffectBind(Id.Builtin("State"),
+                                           ConstructorId(0),
+                                           Nil, Pattern.Wildcard),
+                        ABT.Abs('k, Handle('state.v('s))('k.v('s)))),
 
-    //          // state s <get -> k> = handle (state s) (k s)
-    //          MatchCase(Pattern.EffectBind(Id.Builtin("State"),
-    //                                       ConstructorId(0),
-    //                                       Nil),
-    //                    ABT.Abs('k, Handle('state.v('s))('k.v('s)))),
-
-    //          // state _ <put s -> k> = handle (state s) (k ())
-    //          MatchCase(Pattern.EffectBind(Id.Builtin("State"),
-    //                                       ConstructorId(1),
-    //                                       List(Pattern.Wildcard)),
-    //                    ABT.AbsChain('s, 'k)(Handle('state.v('s))('k.v(-1))))
-    //        )
-    //      })
-    //    ) {
-    //      Handle('state.v(0)) {
-    //        Let(
-    //          ('x, Request(Id.Builtin("State"), ConstructorId(0), Nil) + 1),
-    //          ('y, Request(Id.Builtin("State"), ConstructorId(1), List('x.v + 1)))
-    //        )(Request(Id.Builtin("State"), ConstructorId(0), Nil) + 11)
-    //      }
-    //    }
-    //    equal[Term](eval(p), 13)
-    //  }
-    //)
+              // state _ <put s -> k> = handle (state s) (k ())
+              MatchCase(Pattern.EffectBind(Id.Builtin("State"),
+                                           ConstructorId(1),
+                                           List(Pattern.Wildcard), Pattern.Wildcard),
+                        ABT.AbsChain('s, 'k)(Handle('state.v('s))('k.v(BuiltinTypes.Unit.term))))
+            )
+          })
+        ) {
+          Handle('state.v(3)) {
+            Let(
+              ('x, Request(Id.Builtin("State"), ConstructorId(0), Nil) + 1),
+              ('y, Request(Id.Builtin("State"), ConstructorId(1), List('x.v + 1)))
+            )(Request(Id.Builtin("State"), ConstructorId(0), Nil) + 11)
+          }
+        }
+        note("pretty-printed algebraic effects program", includeAlways = true)
+        note(PrettyPrint.prettyTerm(p).render(40), includeAlways = true)
+        equal[Term](eval(p), 13)
+      }
+    )
   )
 }
 

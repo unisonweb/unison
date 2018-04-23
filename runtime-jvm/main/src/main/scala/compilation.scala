@@ -372,8 +372,34 @@ package object compilation {
         cp(s,sb,r,stackU,stackB,top.inc)
       }
 
-    case Pattern.EffectPure(p) => ???
-    case Pattern.EffectBind(id, ctor, ps) => ???
+    case Pattern.EffectPure(p) =>
+      val cp = compilePattern(p)
+      (s,sb,r,stackU,stackB,top) => sb match {
+        case Value.EffectPure(u,v) =>
+          cp(u, v, r, stackU, stackB, top)
+        case _ => throw CaseNoMatch
+      }
+    case Pattern.EffectBind(id, constructorId, patterns, k) =>
+      val cpatterns: Array[CompiledPattern] =
+        patterns.map(compilePattern).toArray
+      val kpattern: CompiledPattern = compilePattern(k)
+      // todo: make a note on how this works
+      val offsets: Array[Int] =
+        patterns.map(_.arity).scanLeft(0)(_ + _).toArray
+      (s,sb,r,stackU,stackB,top) => sb match {
+        case Value.EffectBind(`id`,`constructorId`,args,ek) =>
+          assert(args.length == cpatterns.length)
+          var i = 0; while (i < args.length && i < cpatterns.length) {
+            val pattern = cpatterns(i)
+            val arg = args(i)
+            val u = arg.toResult(r)
+            val b = r.boxed
+            pattern(u, b, r, stackU, stackB, top.incBy(offsets(i)))
+            i += 1
+          }
+          kpattern(U0, ek, r, stackU, stackB, top.incBy(offsets(i)))
+        case _ => throw CaseNoMatch
+      }
   }
 
   def compileStaticFullySaturatedNontailCall(lam: Lambda, compiledArgs: List[Computation]): Computation =
@@ -468,6 +494,14 @@ package object compilation {
                                  stackU, x1, x0, stackB, x1b, x0b)
     }
 
+  // todo fixme
+  // self references are all good when a lambda is fully applied
+  // when underapplied, we construct a new lambda, however the self
+  // references really should still point to the OLD lambda (but we think
+  // they aren't)
+  // proposed soln: have compileUnderappliedCall return a Lambda that,
+  // when called, sets the `rec` parameter to the ORIGINAL lambda,
+  // rather than the newly returned lambda
   def compileUnderappliedCall(builtins: Environment)(
     lam: Lambda, compiledArgs: Array[Computation]): Computation = {
 
@@ -643,7 +677,9 @@ package object compilation {
     (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
       @annotation.tailrec
       def invokeDynamic(fn: Lambda, args: Array[Computation]): U = {
-        if (args.length == fn.arity)
+        println("invoke dynamic: " + args.length + "/" + fn.arity)
+        if (args.length == fn.arity) {
+          println("exact")
           if (isTail) args.length match {
             case 1 => doTailCall(fn, args(0), r, rec, top,
                                  stackU, x1, x0, stackB, x1b, x0b)
@@ -654,11 +690,15 @@ package object compilation {
           }
           else doFullySaturatedCall(
             fn, args, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+        }
         else if (args.length < fn.arity) {
+          println("underapply")
           val c = compileUnderappliedCall(builtins)(fn, args)
           c(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
         }
         else {
+          println("overapply")
+          ???
           val lam = {
             doFullySaturatedCall(
               fn, args.take(fn.arity), r, rec, top,
@@ -1142,6 +1182,16 @@ package object compilation {
               cbody(r, rec, topN, stackU, b1v, b0v, stackB, b1vb, b0vb)
             }
         }
+      case Term.Request(id,cid,args) =>
+        val cargs = args.map { arg =>
+          compile(builtins)(arg, env, currentRec, recVars, IsNotTail)
+        }.toArray
+        (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+          val evaluatedArgs = cargs map { arg =>
+            Value(arg(r,rec,top,stackU,x1,x0,stackB,x1b,x0b), r.boxed)
+          }
+          throw Requested(id, cid, evaluatedArgs, Lambda.identity)
+        }
       case Term.Handle(handler, block) =>
         import Lambda._
         val cHandler =
@@ -1182,12 +1232,12 @@ package object compilation {
               blockB = r.boxed
               handler(r,top,stackU,U0,U0,stackB,null,
                       Value.EffectPure(blockU, blockB))
-            } catch {
+            }
+            catch {
               case Requested(id, ctor, args, k) =>
                 val data = Value.EffectBind(id, ctor, args, k)
-                try {
-                  handler(r,top,stackU,U0,U0,stackB,null,data)
-                } catch {
+                try handler(r,top,stackU,U0,U0,stackB,null,data)
+                catch {
                   case Requested(id, ctor, args, k) =>
                     // we augment `k` to be wrapped in `h` handler
                     // k' = x -> handle h (k x)
@@ -1309,7 +1359,15 @@ package object compilation {
 
   case class MatchFail(originalScrutinee: Term, scrutinee: Term, cases: List[MatchCase[Term]])
     extends Throwable {
+    import util.PrettyPrint
     override def fillInStackTrace(): Throwable = this
+    override def toString = (
+      "match fail: \n" +
+        PrettyPrint.prettyTerm(Term.Match(scrutinee)(cases: _*), 0).render(50) + "\n" +
+        // Term.Match(scrutinee)(cases: _*) + "\n" +
+      "original scrutinee: " +
+        PrettyPrint.prettyTerm(originalScrutinee, 0).render(50)
+    )
   }
 
 }
