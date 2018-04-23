@@ -127,19 +127,21 @@ abstract class Stream[A] { self =>
           left = false
           k(u, a)
         }
-        else cself()
+        else throw More(cself)
     }
 
   final def ::[B](b: B)(implicit A: Extract[B,A]): Stream[A] =
     ::(A.toUnboxed(b), A.toBoxed(b))
 
   final def ++(s: Stream[A]): Stream[A] = k => {
-    var done = false
-    val cself = self.stage(k)
+    var cself = self.stage(k)
     val cs = s.stage(k)
     () => {
-      if (done) cs()
-      else { try cself() catch { case Done => done = true } }
+      try cself()
+      catch {
+        case Done => throw More(cs)
+        case More(m) => cself = m
+      }
     }
   }
 
@@ -243,11 +245,15 @@ object Stream {
     def apply(): Unit
 
     @inline final def run(): Unit =
-      try { while (true) apply() } catch { case Done => }
+      try { while (true) apply() }
+      catch {
+        case Done =>
+        case More(s) => s.run
+      }
   }
 
   case object Done extends Throwable { override def fillInStackTrace = this }
-  // idea: case class More(s: Step) extends Throwable { override def fillInStackTrace = this }
+  case class More(s: Step) extends Throwable { override def fillInStackTrace = this }
 
   final def empty[A]: Stream[A] =
     k => () => throw Done

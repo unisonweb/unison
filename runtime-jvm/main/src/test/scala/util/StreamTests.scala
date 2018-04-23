@@ -102,6 +102,10 @@ object StreamTests {
           (Stream.from(0).take(10000) ++ Stream.from(20000).take(5)).sumIntegers,
           (scala.Stream.from(0).take(10000) ++ scala.Stream.from(20000).take(5)).sum
         )
+        equal(
+          (Stream.from(0).drop(10000).take(10000) ++ Stream.from(20000).take(5)).sumIntegers,
+          (scala.Stream.from(0).drop(10000).take(10000) ++ scala.Stream.from(20000).take(5)).sum
+        )
       },
       test("cons") { implicit T =>
         equal(
