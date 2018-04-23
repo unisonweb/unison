@@ -1,6 +1,7 @@
-package org.unisonweb.util
+package org.unisonweb
+package util
 
-import org.unisonweb.{U,U0}
+import java.util.function._
 
 /** Unboxed functions and continuations / callbacks. */
 object Unboxed {
@@ -24,7 +25,7 @@ object Unboxed {
    */
   abstract class F1[-A,+B] { self =>
 
-    /**
+    /*
      * Holy shit! A function from `A -> B` represented as a "continuation transformer".
      * The continuation which accepts a `B` value (potentially unboxed) is transformed
      * into a continuation which accepts an `A` value (potentially unboxed).
@@ -75,8 +76,8 @@ object Unboxed {
    * A continuation which invokes `t` whenver `cond` is nonzero on the
    * input, and which invokes `f` whenever `cond` is zero on the input.
    */
-  def choose[A](cond: F1[A,U], t: K[A], f: K[A]): K[A] = {
-    val ccond = cond[A]((u,_,u2,a) => if (u != U0) t(u2,a) else f(u2,a))
+  def choose[A](cond: F1[A,Unboxed[Boolean]], t: K[A], f: K[A]): K[A] = {
+    val ccond = cond[A]((u,b,u2,a) => if (unboxedToBool(u)) t(u2,a) else f(u2,a))
     (u,a) => ccond(u,a,u,a)
   }
 
@@ -84,20 +85,58 @@ object Unboxed {
    * A continuation which acts as `segment1` until `cond` emits 0, then
    * acts as `segment2` forever thereafter.
    */
-  def switchWhen0[A](cond: F1[A,U], segment1: K[A], segment2: K[A]): () => K[A] = () => {
+  def switchWhen0[A](cond: F1[A,Unboxed[Boolean]], segment1: K[A], segment2: K[A]): () => K[A] = () => {
     var switched = false
-    val ccond = cond[A]((u,_,u2,a) => if (u == U0) { switched = true; segment1(u2,a) } else segment2(u2,a))
+    val ccond = cond[A]((u,_,u2,a) =>
+                          if (switched || !unboxedToBool(u)) {
+                            switched = true
+                            segment2(u2,a)
+                          } else segment1(u2,a))
     (u,a) => ccond(u,a,u,a)
   }
 
   object F1 {
-    /**
-     * Convert a Scala `A => B` to an `F1[A,B]` that acts on boxed input and produces boxed output.
-     * Named `B_B` since it takes one boxed input and produces boxed output.
-     */
-    def B_B[A,B](f: A => B): F1[A,B] = new F1[A,B] {
-      def apply[x] = kbx => (u,a,u2,x) => kbx(U0, f(a), u2, x)
+    /** An F1 for boxed `C => D`. The B's in the name stand for "boxed". */
+    def B_B[C,D](f: C => D): F1[C,D] = new F1[C,D] {
+      def apply[x] =
+        kbx => (_,c,ux,bx) => kbx(U0, f(c), ux, bx)
     }
+
+    /** An F1 for unboxed `Long => Long` */
+    def L_L(f: LongUnaryOperator) =
+      new F1[Unboxed[Long],Unboxed[Long]] {
+        def apply[X] =
+          kux =>
+            (u,_,ux,bx) =>
+              kux(longToUnboxed(f.applyAsLong(unboxedToLong(u))), null,
+                ux, bx)
+      }
+
+    def D_D(f: DoubleUnaryOperator) =
+      new F1[Unboxed[Double],Unboxed[Double]] {
+        def apply[X] =
+          kux =>
+            (u,_,ux,bx) =>
+              kux(doubleToUnboxed(f.applyAsDouble(unboxedToDouble(u))), null,
+                  ux, bx)
+      }
+
+    /** An F1 for unboxed `Long => Boolean` */
+    def L_B(f: LongPredicate) =
+      new F1[Unboxed[Long],Unboxed[Boolean]] {
+        def apply[X]: K2[Unboxed[Boolean], X] => K2[Unboxed[U], X] =
+          kux => (u,_,ux,bx) =>
+            kux(boolToUnboxed(f.test(unboxedToLong(u))), null, ux, bx)
+      }
+
+    /** An F1 for unboxed `Double => Boolean` */
+    def D_B(f: DoublePredicate) =
+      new F1[Unboxed[Double],Unboxed[Boolean]] {
+        def apply[X]: K2[Unboxed[Boolean], X] => K2[Unboxed[Double], X] =
+          kux => (u,_,ux,bx) =>
+            kux(boolToUnboxed(f.test(unboxedToDouble(u))), null, ux, bx)
+      }
+
   }
 
   object F2 {
@@ -106,17 +145,37 @@ object Unboxed {
      * Named `BB_B` since it takes two boxed input and produces boxed output.
      */
     def BB_B[A,B,C](f: (A,B) => C): F2[A,B,C] = new F2[A,B,C] {
-      def apply[x] = kcx => (u,a,u2,b,u3,x) => kcx(U0, f(a,b), u3, x)
+      def apply[x] = kcx =>
+        (_,a,_,b,u3,x) => kcx(U0, f(a,b), u3, x)
     }
 
-    /**
-     * An `F2[Unboxed[U],Unboxed[U],Unboxed[U]]` which works on unboxed input and produces unboxed output.
-     * Named `UU_U` since it takes two unboxed input and produces unboxed output.
-     */
-    def UU_U(fn: UU_U): F2[Unboxed[U],Unboxed[U],Unboxed[U]] = new F2[Unboxed[U],Unboxed[U],Unboxed[U]] {
-      def apply[x] = kux => (u,_,u2,_,u3,x) => kux(fn(u,u2),null,u3,x)
-    }
+    /** An F2 for unboxed `(Long, Long) => Long` */
+    def LL_L(fn: LongBinaryOperator): F2[Unboxed[Long],Unboxed[Long],Unboxed[Long]] =
+      new F2[Unboxed[Long],Unboxed[Long],Unboxed[Long]] {
+        def apply[x] =
+          kux => (u,_,u2,_,u3,x) => kux(fn.applyAsLong(u,u2),null,u3,x)
+      }
 
-    abstract class UU_U { def apply(u: U, u2: U): U }
+    /** An F2 for unboxed `(Long, Double) => Long` */
+    abstract class LD_L { def apply(l: Long, d: Double): Long }
+    def LD_L(fn: LD_L): F2[Unboxed[Long], Unboxed[Double], Unboxed[Long]] =
+      new F2[Unboxed[Long], Unboxed[Double], Unboxed[Long]] {
+        def apply[X]: K2[Unboxed[U], X] => K3[Unboxed[U], Unboxed[Double], X] =
+          kux => (l,_,d,_,ux,bx) =>
+            kux(longToUnboxed(fn(unboxedToLong(l), unboxedToDouble(d))), null, ux, bx)
+      }
+
+    /** An F2 for unboxed `(Double, Double) => Double` */
+    def DD_D(fn: DoubleBinaryOperator) =
+      new F2[Unboxed[Double],Unboxed[Double],Unboxed[Double]] {
+        def apply[x] =
+          kux => (u,_,u2,_,ux,bx) =>
+            kux(
+              doubleToUnboxed(
+                fn.applyAsDouble(
+                  unboxedToDouble(u),
+                  unboxedToDouble(u2))),null,
+              ux,bx)
+      }
   }
 }

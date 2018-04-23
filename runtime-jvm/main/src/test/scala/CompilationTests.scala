@@ -1,16 +1,19 @@
 package org.unisonweb
 
-import Term._
-import compilation._
-import Pattern._
-import Term.Syntax._
+import org.unisonweb.Builtins.termFor
+import org.unisonweb.Pattern._
+import org.unisonweb.Term.Syntax._
+import org.unisonweb.Term._
+import org.unisonweb.compilation._
 
 object CompilationTests {
   import EasyTest._
   import Terms._
 
+  val env = Environment(Builtins.builtins, _ => ???, BuiltinTypes.dataConstructors)
+
   def eval(t: Term): Term =
-    normalize(Builtins.builtins)(t)
+    normalize(env)(t)
 
   val tests = suite("compilation")(
     test("zero") { implicit T =>
@@ -101,7 +104,7 @@ object CompilationTests {
       ok
     },
     test("triangle") { implicit T =>
-      0 to 50 foreach { n =>
+      10 to 10 foreach { n =>
         equal1(eval(triangle(n:Term, zero)), (0 to n).sum:Term)
       }
       ok
@@ -459,10 +462,10 @@ object CompilationTests {
       val trianglePrime =
         LetRec('triangle ->
                  Lam('n, 'acc)(
-                     If('n.v,
+                     If('n.v > 0,
                        LetRec('n2 -> ('n.v - 1), 'acc2 -> ('acc.v + 'n))(
                               'triangle.v('n2, 'acc2)),
-                        'acc.v)),
+                        'acc.v))
                      )('triangle)
       equal[Term](eval(trianglePrime(10, 0)), (1 to 10).sum)
     },
@@ -470,6 +473,21 @@ object CompilationTests {
     test("lambda with non-recursive free variables") { implicit T =>
       equal(eval(Let('x -> 1, 'inc -> Lam('y)('x.v + 'y))('inc.v(one))), 2:Term)
     },
+
+    suite("stream")(
+      test("decompile-empty") { implicit T =>
+        equal[Term](eval(termFor(Builtins.Stream_empty)),
+                    termFor(Builtins.Stream_empty))
+      },
+      test("decompile-cons") { implicit T =>
+        equal[Term](eval(termFor(Builtins.Stream_cons)(1, termFor(Builtins.Stream_empty))),
+                    termFor(Builtins.Stream_cons)(1, termFor(Builtins.Stream_empty)))
+      },
+//      test("drop-undoes-cons") { implicit T =>
+//        equal[Term](eval(termFor(Builtins.Stream_drop)(1, termFor(Builtins.Stream_cons)(1, termFor(Builtins.Stream_empty)))),
+//                    termFor(Builtins.Stream_empty))
+//      }
+    ),
 
     //suite("algebraic-effects")(
     //  test("ex1") { implicit T =>
@@ -551,7 +569,7 @@ object Terms {
   val triangle =
     LetRec('triangle ->
              Lam('n, 'acc)(
-               If('n.v,
+               If('n.v > 0,
                   'triangle.v('n.v - 1, 'acc.v + 'n),
                   'acc.v))
     )('triangle)
@@ -559,7 +577,7 @@ object Terms {
   val triangle4arg =
     LetRec('triangle ->
              Lam('n, 'hahaha, 'hehehe, 'acc)(
-               If('n.v,
+               If('n.v > 0,
                   'triangle.v('n.v - 1, 'hahaha, 'hehehe, 'acc.v + 'n),
                   'acc.v))
     )('triangle)
@@ -603,7 +621,7 @@ object Terms {
     import Builtins._
 
     def apply(terms: Term*): Term =
-      terms.foldLeft(empty)((seq, v) => snoc(seq, v))
+      Term.Sequence(util.Sequence(terms:_*))
 
     val empty = termFor(Sequence_empty)
     val cons = termFor(Sequence_cons)

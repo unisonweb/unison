@@ -1,13 +1,9 @@
 package org.unisonweb
 package util
 
-import java.lang.Double.longBitsToDouble
 import java.lang.Long.toUnsignedString
-
-import org.unisonweb.{Term, U0, UnboxedType}
-import org.unisonweb.Term.{Id => _, _}
+import Term.{Term, Name}
 import Term.Syntax._
-import org.unisonweb.Id
 
 sealed abstract class PrettyPrint {
   import PrettyPrint._
@@ -119,14 +115,14 @@ object PrettyPrint {
   }
 
   def prettyBinding(name: Name, term: Term): PrettyPrint = term match {
-    case Lam(names, body) =>
+    case Term.Lam(names, body) =>
       group(group(softbreaks((name +: names).map(prettyName))) <> " =" <> softbreak <> prettyTerm(body, 0).nest("  "))
 
     case _ => name.toString <> " = " <> prettyTerm(term, 0)
   }
 
-  def prettyCase(c: MatchCase[Term.Term]): PrettyPrint = c match {
-    case MatchCase(p, guard, ABT.AbsChain(names, body)) =>
+  def prettyCase(c: Term.MatchCase[Term.Term]): PrettyPrint = c match {
+    case Term.MatchCase(p, guard, ABT.AbsChain(names, body)) =>
       // <p> "|" guard -> <body>
       group(group(prettyPattern(p, names, 0) <>
               guard.fold[PrettyPrint]("")(g => " | " <> prettyTerm(g, 0))) <>
@@ -164,58 +160,60 @@ object PrettyPrint {
   private def prettyTerm(t: Term, precedence: Int): PrettyPrint = t match {
     case Term.Unboxed(value, t) =>
       t match {
-        case UnboxedType.Integer => value.toString
-        case UnboxedType.Float => longBitsToDouble(value).toString
-        case UnboxedType.Boolean => (value != U0).toString
-        case UnboxedType.Natural => toUnsignedString(value)
+        case UnboxedType.Integer => unboxedToInt(value).toString
+        case UnboxedType.Float => unboxedToDouble(value).toString
+        case UnboxedType.Boolean => unboxedToBool(value).toString
+        case UnboxedType.Natural => toUnsignedString(unboxedToLong(value))
       }
 
-    case If(cond, ifZero, ifNonzero) => parenthesizeGroupIf(precedence > 0) {
+    case Term.If(cond, ifZero, ifNonzero) => parenthesizeGroupIf(precedence > 0) {
       "if " <> prettyTerm(cond, 0) <> " then" <> softbreak <>
                prettyTerm(ifZero, 0).nest("  ") <> softbreak <> "else" <> softbreak <>
                prettyTerm(ifNonzero, 0).nest("  ")
     }
 
-    case Apply(VarOrBuiltin(name), List(arg1, arg2)) if isOperatorName(unqualifiedName(name)) =>
+    case Term.Apply(VarOrBuiltin(name), List(arg1, arg2)) if isOperatorName(unqualifiedName(name)) =>
        parenthesizeGroupIf(precedence > 5) {
         prettyTerm(arg1, 5) <> " " <> infixName(name) <> softbreak <> prettyTerm(arg2, 6).nest("  ")
     }
-    case Apply(f, args) => parenthesizeGroupIf(precedence > 9) {
+    case Term.Apply(f, args) => parenthesizeGroupIf(precedence > 9) {
       prettyTerm(f, 9) <> softbreak <>
         softbreaks(args.map(arg => prettyTerm(arg, 10).nest("  ")))
     }
-    case Var(name) => prettyName(name)
+    case Term.Var(name) => prettyName(name)
     case Term.Id(Id.Builtin(name)) => prettyName(name)
     case Term.Id(Id.HashRef(hash)) => ???
-    case Self(name) =>
+    case Term.Self(name) =>
       sys.error("Self terms shouldn't exist after calling `Term.selfToLetRec`, which we do before calling this function.")
-    case Lam(names, body) => parenthesizeGroupIf(precedence > 0) {
+    case Term.Lam(names, body) => parenthesizeGroupIf(precedence > 0) {
       softbreaks(names.map(name => lit(name.toString))) <> " ->" <> softbreak <>
         prettyTerm(body, 0).nest("  ")
     }
-    case Let(bindings, body) => parenthesizeGroupIf(precedence > 0) {
+    case Term.Let(bindings, body) => parenthesizeGroupIf(precedence > 0) {
       "let" <> softbreak <>
         semicolons(bindings.map((prettyBinding _).tupled)).nest("  ") <> semicolon <>
         prettyTerm(body, 0).nest("  ")
     }
-    case LetRec(bindings, body) => parenthesizeGroupIf(precedence > 0) {
+    case Term.LetRec(bindings, body) => parenthesizeGroupIf(precedence > 0) {
       "let rec" <> softbreak <>
         semicolons(bindings.map((prettyBinding _).tupled)).nest("  ") <> semicolon <>
         prettyTerm(body, 0).nest("  ")
     }
-    case Match(scrutinee, cases) => parenthesizeGroupIf(precedence > 0) {
+    case Term.Match(scrutinee, cases) => parenthesizeGroupIf(precedence > 0) {
       "case " <> prettyTerm(scrutinee, 0) <> " of" <> softbreak <>
         semicolons(cases.map(prettyCase)).nest("  ")
     }
     case Term.Compiled(Value.Data(typeId, ctorId, fields)) =>
-      prettyTerm(Var(prettyId(typeId, ctorId).renderUnbroken)(fields.map(_.decompile):_*), precedence)
+      prettyTerm(
+        Term.Var(prettyId(typeId, ctorId).renderUnbroken)(
+          fields.map(_.decompile):_*), precedence)
     case t => t.toString
   }
 
   // this is only used for rendering infix operators
   object VarOrBuiltin {
     def unapply(term: Term): Option[Name] = term match {
-      case Var(name) => Some(name)
+      case Term.Var(name) => Some(name)
       case Term.Id(Id.Builtin(name)) => Some(name)
       case _ => None
     }
