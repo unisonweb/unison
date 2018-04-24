@@ -47,8 +47,10 @@ package object compilation {
   // type StackPtr = Int
   class StackPtr private(private val top: Int) extends AnyVal {
     def toInt = top
+    /** retrieve the `envIndex`th element from the stack array, 0-based*/
     @inline final def u(stackU: Array[U], envIndex: Int): U =
       stackU(top - envIndex + K)
+    /** retrieve the `envIndex`th element from the stack array, 0-based*/
     @inline final def b(stackB: Array[B], envIndex: Int): B =
       stackB(top - envIndex + K)
     @inline final def incBy(by: Int) = {

@@ -11,33 +11,78 @@ import org.unisonweb.util.{Sequence, Stream, Text}
 
 /* Sketch of convenience functions for constructing builtin functions. */
 object Builtins {
+  def env =
+    (new Array[U](20), new Array[B](20), StackPtr.empty, Result())
 
   // Stream.empty : Stream a
   val Stream_empty =
-    c0l("Stream.empty", Stream.empty[Value])
+    c0z("Stream.empty", Stream.empty[Value])
 
 
   // Stream.fromInt : Integer -> Stream Integer
   val Stream_fromInt = // Stream.iterate(unison 0)(Integer_inc)
-    fp_l("Stream.fromInt", "n", Stream.fromUnison)
+    fp_z("Stream.fromInt", "n", Stream.fromUnison)
 
   // Stream.cons : a -> Stream a -> Stream a
   val Stream_cons =
-    fpp_l("Stream.cons", "v", "stream",
+    fpp_z("Stream.cons", "v", "stream",
           (v: Value, stream: Stream[Value]) => v :: stream)
+
+  val Stream_take =
+    flp_z("Stream.take", "n", "stream",
+          (n, s: Stream[Value]) => s.take(n))
 
   val Stream_drop =
     flp_z("Stream.drop", "n", "stream",
           (n, s: Stream[Value]) => s.drop(n))
 
-  // Stream.map : Stream a -> (a -> b) -> Stream b
-  //  val Stream_map = fpp_p("Stream.map", "stream", "f", (s: Stream[Value], b: Value) => ???)
+  // Stream.map : (a -> b) -> Stream a -> Stream b
+  val Stream_map =
+    fpp_z("Stream.map", "f", "stream",
+          (f: Value, s: Stream[Value]) =>
+            s.map(UnisonToScala.toUnboxed1(f.asInstanceOf[Lambda])(env)))
+
+  // Stream.foldLeft : b -> (b -> a -> b) -> Stream a -> b
+  val Stream_foldLeft =
+    fppp_p("Stream.foldLeft", "acc", "f", "stream",
+           (acc: Value, f: Value, s: Stream[Value]) =>
+             s.foldLeft(acc)(
+               UnisonToScala.toUnboxed2(f.asInstanceOf[Lambda])(env))
+           // todo: env needs to be bigger here
+    )
+
+  abstract class FPPP_P[A,B,C,D] { def apply(a: A, b: B, c: C): D }
+  def fppp_p[A,B,C,D](name: Name, arg1: Name, arg2: Name, arg3: Name,
+                      f: FPPP_P[A,B,C,D])
+                     (implicit
+                      A: Decode[A],
+                      B: Decode[B],
+                      C: Decode[C],
+                      D: Encode[D]): (Name, Computation) = {
+    val body: Computation =
+      (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+        D.encode(r, f(
+          A.decode(top.u(stackU, 0), top.b(stackB, 0)),
+          B.decode(x1, x1b),
+          C.decode(x0, x0b)
+        ))
+      }
+    val decompiled = Term.Id(name)
+    val lambda =
+      new Value.Lambda.ClosureForming(3, body, None, decompiled, Array()) {
+      override def names: List[Name] = List(arg1, arg2, arg3)
+    }
+    name -> Return(lambda)
+  }
 
   val streamBuiltins = Map(
     Stream_empty,
     Stream_fromInt,
     Stream_cons,
     Stream_drop,
+    Stream_take,
+    Stream_map,
+    Stream_foldLeft,
   )
 
   // Sequence.empty : Sequence a
@@ -64,7 +109,7 @@ object Builtins {
                      (implicit A: Encode[A]): (Name, Computation.C0) =
     (name, r => A.encode(r, a))
 
-  def c0l[A](name: String, a: => A)(implicit A: LazyEncode[A]): (Name, Computation.C0) =
+  def c0z[A](name: String, a: => A)(implicit A: LazyEncode[A]): (Name, Computation.C0) =
     (name, r => A.encodeOp(r, a, name))
 
   def termFor(b: (Name, Computation)): Term = Term.Id(b._1)
@@ -255,7 +300,7 @@ object Builtins {
     _fu_u(name, arg, UnboxedType.Integer,
          u => longToUnboxed(f.applyAsLong(unboxedToLong(u))))
 
-  def fp_l[A,B](name: Name, arg: Name, f: A => B)
+  def fp_z[A,B](name: Name, arg: Name, f: A => B)
                (implicit A: Decode[A], B: LazyEncode[B]): (Name, Computation) = {
     val body: Computation.C1P = (r,x0,x0b) => {
       B.encodeOp(r, f(A.decode(x0, x0b)), name, Value.fromParam(x0, x0b))
@@ -276,7 +321,7 @@ object Builtins {
     name -> Return(lambda)
   }
 
-  def fpp_l[A,B,C](name: Name, arg1: String, arg2: String, f: (A,B) => C)
+  def fpp_z[A,B,C](name: Name, arg1: String, arg2: String, f: (A,B) => C)
                   (implicit A: Decode[A],
                    B: Decode[B],
                    C: LazyEncode[C]): (Name, Computation) = {
@@ -307,6 +352,18 @@ object Builtins {
     val lambda = new Lambda.ClosureForming2(arg1, arg2, body, None, decompiled)
     name -> Return(lambda)
   }
+
+  abstract class FPP_P[A,B,C] { def apply(a: A, b: B): C }
+  def fpp_z[A,B,C](name: Name, arg1: Name, arg2: Name, f: FPP_P[A,B,C])
+                  (implicit A: Decode[A], B: Decode[B], C: LazyEncode[C]): (Name, Computation) = {
+    val body: Computation.C2P = (r,x1,x0,x1b,x0b) =>
+      C.encodeOp(r, f(A.decode(x1,x1b), B.decode(x1,x1b)),
+                 name,
+                 Value.fromParam(x1,x1b),
+                 Value.fromParam(x0,x0b))
+    name -> Return(new Value.Lambda.ClosureForming2(arg1, arg2, body, None, Term.Id(name)))
+  }
+
 
   def flp_z[A:Decode,B:LazyEncode](name: Name, arg1: Name, arg2: Name, f: FLP_P[A,B]) =
     _fup_z[A,B](name, arg1, arg2, (u, a) => f(unboxedToLong(u), a))
@@ -494,7 +551,7 @@ object Builtins {
 
   trait Decompile[A] { def decompile(a: A): Term }
 
-  object Decompile {
+  object Decompile extends LowPriorityDecompile {
     implicit val decompileSequence: Decompile[Sequence[Value]] =
       s => Term.Sequence(s map (_.decompile))
     implicit val decompileText: Decompile[Text] =
@@ -503,6 +560,11 @@ object Builtins {
       u => BuiltinTypes.Unit.term
     implicit def decompilePair[A,B](implicit A: Decompile[A], B: Decompile[B]): Decompile[(A,B)] =
       p => BuiltinTypes.Tuple.term(A.decompile(p._1), B.decompile(p._2))
+  }
+
+  trait LowPriorityDecompile {
+    implicit val decompileValue: Decompile[Value] =
+      v => v.decompile
   }
 
   abstract class External(val get: Any) extends Value

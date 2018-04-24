@@ -483,10 +483,22 @@ object CompilationTests {
         equal[Term](eval(termFor(Builtins.Stream_cons)(1, termFor(Builtins.Stream_empty))),
                     termFor(Builtins.Stream_cons)(1, termFor(Builtins.Stream_empty)))
       },
-//      test("drop-undoes-cons") { implicit T =>
-//        equal[Term](eval(termFor(Builtins.Stream_drop)(1, termFor(Builtins.Stream_cons)(1, termFor(Builtins.Stream_empty)))),
-//                    termFor(Builtins.Stream_empty))
-//      }
+      test("map") { implicit T =>
+        equal[Term](
+          eval(
+            termFor(Builtins.Stream_foldLeft)(
+              0,
+              termFor(Builtins.Integer_add),
+              termFor(Builtins.Stream_take)(
+                100,
+                termFor(Builtins.Stream_map)(
+                  termFor(Builtins.Integer_inc),
+                  termFor(Builtins.Stream_fromInt)(0)))
+            )
+          ),
+          0.to(100).map(_ + 1).sum
+        )
+      }
     ),
 
     //suite("algebraic-effects")(
