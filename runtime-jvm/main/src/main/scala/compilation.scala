@@ -857,8 +857,9 @@ package object compilation {
               // eval the current continuation
               eval(cc, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
               // Rethrow with composite continuation
-              throw Requested(effect, ctor, args,
-                              r.boxed.asInstanceOf[Lambda].compose(k))
+              throw Requested(
+                effect, ctor, args,
+                r.boxed.asInstanceOf[Lambda].compose(k))
             }
           val rbb = r.boxed
           push(top, stackU, stackB, x1, x1b)
@@ -1142,6 +1143,60 @@ package object compilation {
               // 5. Evaluate body in the same way
               cbody(r, rec, topN, stackU, b1v, b0v, stackB, b1vb, b0vb)
             }
+        }
+      case Term.Handle(handler, block) =>
+        import Lambda._
+        val cHandler =
+          compile(builtins)(handler, env, currentRec, recVars, IsNotTail)
+        val cBlock =
+          compile(builtins)(block, env, currentRec, recVars, isTail)
+        new Computation { self =>
+          // `k` should be of arity 1
+          def attachHandler(handler: Lambda, k: Lambda): Lambda1 = {
+            val Term.Lam(_, kBodyTerm) = k.decompile
+            val decompiled =
+              Term.Lam(k.names.head)(
+                Term.Handle(Term.Compiled(handler))(kBodyTerm))
+            // k' = x -> handle h (k x)
+            // kbody sets `rec` correctly, and that's it.
+            def kbody(arg0: U, arg0b: B): Computation =
+              (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
+                k(r,top,stackU,U0,arg0,stackB,null,arg0b)
+            val body: Computation = (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
+              doIt(handler, kbody(x0,x0b))(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
+            Lambda1(k.names.head, body, k.unboxedType, decompiled)
+          }
+          def apply(r: R, rec: Lambda, top: StackPtr,
+                    stackU: Array[U], x1: U, x0: U,
+                    stackB: Array[B], x1b: B, x0b: B): U = {
+            eval(cHandler,r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
+            doIt(r.boxed.asInstanceOf[Lambda], cBlock)(
+                 r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          }
+          def doIt(handler: Lambda, body: Computation)(
+                   r: R, rec: Lambda, top: StackPtr,
+                   stackU: Array[U], x1: U, x0: U,
+                   stackB: Array[B], x1b: B, x0b: B): U = {
+            var blockU: U = U0
+            var blockB: Value = null
+            try {
+              blockU = body(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
+              blockB = r.boxed
+              handler(r,top,stackU,U0,U0,stackB,null,
+                      Value.EffectPure(blockU, blockB))
+            } catch {
+              case Requested(id, ctor, args, k) =>
+                val data = Value.EffectBind(id, ctor, args, k)
+                try {
+                  handler(r,top,stackU,U0,U0,stackB,null,data)
+                } catch {
+                  case Requested(id, ctor, args, k) =>
+                    // we augment `k` to be wrapped in `h` handler
+                    // k' = x -> handle h (k x)
+                    throw Requested(id, ctor, args, attachHandler(handler, k))
+                }
+            }
+          }
         }
     }
   }

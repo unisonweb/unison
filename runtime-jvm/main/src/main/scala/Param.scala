@@ -114,9 +114,9 @@ object Value {
 
     /** A `Lambda` of arity 1. */
     // todo: delete this and ClosureForming2 later
-    class Lambda1(arg1: Name, body: Computation, outputType: Option[UnboxedType],
-                  decompiled: Term)
-      extends Lambda(1,body,outputType,decompiled) {
+    case class Lambda1(arg1: Name, _body: Computation,
+                       outputType: Option[UnboxedType], decompiled: Term)
+      extends Lambda(1,_body,outputType,decompiled) {
       val names = List(arg1)
       override def underapply(builtins: Environment)(
         argCount: Arity, substs: Map[Name, Term]): Lambda =
@@ -172,6 +172,15 @@ object Value {
     def decompile: Term = Term.Constructor(typeId, constructorId)(fields.map(_.decompile): _*)
   }
 
+  case class EffectPure(unboxed: U, boxed: Value) extends Value {
+    def decompile = Term.EffectPure(Value(unboxed, boxed).decompile)
+  }
+  case class EffectBind(typeId: Id, constructorId: ConstructorId,
+                        args: Array[Value], k: Lambda) extends Value {
+    def decompile =
+      Term.EffectBind(typeId, constructorId,
+                      args.map(_.decompile).toList, k.decompile)
+  }
 }
 
 sealed abstract class UnboxedType extends Value {
