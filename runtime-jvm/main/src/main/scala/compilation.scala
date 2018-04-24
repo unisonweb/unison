@@ -677,9 +677,7 @@ package object compilation {
     (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
       @annotation.tailrec
       def invokeDynamic(fn: Lambda, args: Array[Computation]): U = {
-        println("invoke dynamic: " + args.length + "/" + fn.arity)
         if (args.length == fn.arity) {
-          println("exact")
           if (isTail) args.length match {
             case 1 => doTailCall(fn, args(0), r, rec, top,
                                  stackU, x1, x0, stackB, x1b, x0b)
@@ -692,13 +690,10 @@ package object compilation {
             fn, args, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
         }
         else if (args.length < fn.arity) {
-          println("underapply")
           val c = compileUnderappliedCall(builtins)(fn, args)
           c(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
         }
         else {
-          println("overapply")
-          ???
           val lam = {
             doFullySaturatedCall(
               fn, args.take(fn.arity), r, rec, top,

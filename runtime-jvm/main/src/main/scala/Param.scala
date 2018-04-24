@@ -56,10 +56,13 @@ object Value {
   }
 
   abstract class Lambda(
-                         final val arity: Int,
-                         final val body: Computation,
-                         final val unboxedType: Option[UnboxedType],
-                         val decompile: Term) extends Value { self =>
+    final val arity: Int,
+    final val body: Computation,
+    final val unboxedType: Option[UnboxedType],
+    val decompile: Term,
+    // `selfRec`, if present, points to the fully unapplied function from which
+    // this lambda was constructed during partial application.
+    final val selfRec: Option[Lambda] = None) extends Value { self =>
 
     def names: List[Name]
     def toComputation = Return(this)
@@ -67,7 +70,13 @@ object Value {
     final def apply(r: R, top: StackPtr,
                     stackU: Array[U], x1: U, x0: U,
                     stackB: Array[B], x1b: B, x0b: B): U =
-      body(r, this, top, stackU, x1, x0, stackB, x1b, x0b)
+      body(r, selfRec getOrElse this, top, stackU, x1, x0, stackB, x1b, x0b)
+
+    def setSelfRec(rec: Lambda): Lambda = new Lambda(
+      arity, body, unboxedType, decompile, Some(rec)
+    ) {
+      def names = self.names
+    }
 
     def compose(f: Lambda): Lambda = {
       assert(arity == 1)
@@ -94,7 +103,11 @@ object Value {
             Term.Lam(names drop argCount: _*)(ABT.substs(substs)(body)),
             Vector.empty, CurrentRec.none, RecursiveVars.empty, IsNotTail
           ) match {
-            case Return(v: Value.Lambda) => v
+            case Return(v: Value.Lambda) =>
+              v.setSelfRec(selfRec match {
+                case None => this
+                case Some(x) => x
+              })
             case c => sys.error(
               s"compiling a closed Term.Lambda failed to produce a Value.Lambda: $c")
           }
@@ -123,8 +136,9 @@ object Value {
     /** A `Lambda` of arity 1. */
     // todo: delete this and ClosureForming2 later
     case class Lambda1(arg1: Name, _body: Computation,
-                       outputType: Option[UnboxedType], decompiled: Term)
-      extends Lambda(1,_body,outputType,decompiled) {
+                       outputType: Option[UnboxedType], decompiled: Term,
+                       _selfRec: Option[Lambda] = None)
+      extends Lambda(1,_body,outputType,decompiled,_selfRec) {
       val names = List(arg1)
       override def underapply(builtins: Environment)(
         argCount: Arity, substs: Map[Name, Term]): Lambda =
@@ -137,8 +151,9 @@ object Value {
       */
     // todo: delete this and Lambda1 later
     class ClosureForming2(arg1: Name, arg2: Name, body: Computation,
-                          outputType: Option[UnboxedType], decompiled: Term)
-      extends Lambda(2,body,outputType,decompiled) {
+                          outputType: Option[UnboxedType], decompiled: Term,
+                          selfRec: Option[Lambda] = None)
+      extends Lambda(2,body,outputType,decompiled,selfRec) {
       val names = List(arg1,arg2)
       override def underapply(builtins: Environment)
                              (argCount: Arity, substs: Map[Name, Term])
@@ -149,12 +164,14 @@ object Value {
           val compiledArgv = compiledArg(r, rec, top, stackU, U0, U0, stackB, null, null)
           body(r, rec, top, stackU, compiledArgv, x0, stackB, r.boxed, x0b)
         }
-        new Lambda1(arg1, body2, outputType, decompiled(substs(arg1)))
+        new Lambda1(arg1, body2, outputType,
+                    decompiled(substs(arg1)), selfRec orElse Some(this))
       }
     }
     abstract class ClosureForming(arity: Int, body: Computation,
                                   outputType: Option[UnboxedType],
-                                  decompiled: Term, args: Array[B])
+                                  decompiled: Term, args: Array[B],
+                                  selfRec: Option[Lambda] = None)
       extends Lambda(arity,body,outputType,decompiled) { self =>
       val namesArray = names.toArray
       override def underapply(builtins: compilation.Environment)(
@@ -168,7 +185,8 @@ object Value {
           case Term.Self(_) => self
         }
         new ClosureForming(arity-argCount, body, outputType,
-                           decompiled(argsInOrder: _*), args ++ newArgs) {
+                           decompiled(argsInOrder: _*), args ++ newArgs,
+                           selfRec orElse Some(this)) {
           def names = self.names drop argCount
         }
       }
