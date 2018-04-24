@@ -38,7 +38,8 @@ object Term {
     // arg1 -> foo (x + 1) blah
     // arg1 -> let arg1 = x + 1; foo arg1 blah
     case ABT.Abs(name, body) => ABT.Abs(name, ANF(body))
-    case Apply(f @ (ABT.Var(_) | Lam(_,_) | Id(_)), args) =>
+    case Apply(f @ (ABT.Var(_) | Lam(_,_) | Id(_) |
+                    Constructor(_,_) | Request(_,_)), args) =>
       val (bindings2, args2) =
         args.zipWithIndex.foldRight((List.empty[(Name,Term)], List.empty[Term])) { (argi, accs) =>
           val (bindings, args) = accs
@@ -77,11 +78,9 @@ object Term {
     else {
       val t3 = t2.rewriteUp {
         case t@Lam(names, body) =>
-          println("WOOGOGO")
-          println(util.PrettyPrint.prettyTerm(t, 0).render(40))
           Term.freeVars(t).toList match {
             case Nil => t
-            case rec :: Nil => LetRec(rec -> t)(t)
+            case rec :: Nil => LetRec(rec -> t)(Var(rec))
             case recs => t // this can happen if `t` has already been fullyDecompile'd
           }
         case t => t
@@ -189,7 +188,7 @@ object Term {
     case class Match_[R](scrutinee: R, cases: List[MatchCase[R]]) extends F[R]
     case class Compiled_(value: Param) extends F[Nothing]
     // request : <f> a -> {f} a
-    case class Request_ [R](id: Id, ctor: ConstructorId, args: List[R]) extends F[R]
+    case class Request_ [R](id: Id, ctor: ConstructorId) extends F[R]
     // handle : (forall x . <f> x -> r) -> {f} x -> r
     case class Handle_[R](handler: R, block: R) extends F[R]
     case class EffectPure_[R](value: R) extends F[R]
@@ -198,7 +197,7 @@ object Term {
 
     implicit val instance: Traverse[F] = new Traverse[F] {
       override def map[A,B](fa: F[A])(f: A => B): F[B] = fa match {
-        case fa @ (Id_(_) | Unboxed_(_,_) | Compiled_(_) | Self_(_) | Text_(_) | Constructor_(_,_)) =>
+        case fa @ (Id_(_) | Unboxed_(_,_) | Compiled_(_) | Self_(_) | Text_(_) | Constructor_(_,_) | Request_(_,_)) =>
           fa.asInstanceOf[F[B]]
         case Lam_(a) => Lam_(f(a))
         case Apply_(fn, args) =>
@@ -222,8 +221,6 @@ object Term {
         case Handle_(h,b) =>
           val h2 = f(h); val b2 = f(b)
           Handle_(h2, b2)
-        case Request_(id, ctor, args) =>
-          Request_(id, ctor, args.map(f))
         case EffectPure_(v) =>
           EffectPure_(f(v))
         case EffectBind_(id, ctor, args, k) =>
@@ -343,12 +340,13 @@ object Term {
   }
 
   object Request {
-    def unapply[A](t: AnnotatedTerm[F,A]): Option[(Id,ConstructorId,List[AnnotatedTerm[F,A]])] = t match {
-      case Tm(Request_(id,cid,args)) => Some((id,cid,args))
-      case _ => None
-    }
-    def apply(id: Id, ctor: ConstructorId, args: List[Term]): Term =
-      Tm(Request_(id, ctor, args))
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[(Id,ConstructorId)] =
+      t match {
+        case Tm(Request_(id,cid)) => Some((id,cid))
+        case _ => None
+      }
+    def apply(id: Id, ctor: ConstructorId): Term =
+      Tm(Request_(id, ctor))
   }
   object Handle {
     def unapply[A](t: AnnotatedTerm[F,A]): Option[(AnnotatedTerm[F,A],AnnotatedTerm[F,A])] = t match {

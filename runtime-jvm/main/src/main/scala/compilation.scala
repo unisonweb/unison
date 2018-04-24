@@ -79,7 +79,7 @@ package object compilation {
                        constructor: ConstructorId,
                        args: Array[Value],
                        continuation: Lambda) extends Throwable
-  { override def fillInStackTrace = this }
+//  { override def fillInStackTrace = this }
 
   case class Result(
     var boxed: Value = null,
@@ -106,8 +106,20 @@ package object compilation {
     *   - `stack(top - 1)` is immediately below `stack(top)`, etc.
     *   - To retrieve the ith element (0-based) of the environment is `stack(top - (i - K) - 1)`
     */
-  abstract class Computation {
+  abstract class Computation { self =>
     def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U
+
+    def setRec(rec: Lambda): Computation = new Computation {
+      def apply(r: R, _rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U =
+        self(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+
+      override val getRec = Some(rec)
+    }
+
+    def maySetRec(rec: Lambda): Computation =
+      if (getRec.isEmpty) setRec(rec) else this
+
+    val getRec: Option[Lambda] = None
   }
 
   object Computation {
@@ -794,7 +806,8 @@ package object compilation {
   case class Environment(
     builtins: Name => Computation,
     userDefined: Hash => Computation,
-    dataConstructors: (Id,ConstructorId) => Computation
+    dataConstructors: (Id,ConstructorId) => Computation,
+    effects: (Id,ConstructorId) => Computation
   )
 
   def compile(builtins: Environment)(
@@ -1177,37 +1190,23 @@ package object compilation {
               cbody(r, rec, topN, stackU, b1v, b0v, stackB, b1vb, b0vb)
             }
         }
-      case Term.Request(id,cid,args) =>
-        val cargs = args.map { arg =>
-          compile(builtins)(arg, env, currentRec, recVars, IsNotTail)
-        }.toArray
-        (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
-          val evaluatedArgs = cargs map { arg =>
-            Value(arg(r,rec,top,stackU,x1,x0,stackB,x1b,x0b), r.boxed)
-          }
-          throw Requested(id, cid, evaluatedArgs, Lambda.identity)
-        }
+      case Term.Constructor(id,cid) => builtins.effects(id,cid)
       case Term.Handle(handler, block) =>
-        import Lambda._
+        import Term.Syntax._
         val cHandler =
           compile(builtins)(handler, env, currentRec, recVars, IsNotTail)
         val cBlock =
           compile(builtins)(block, env, currentRec, recVars, isTail)
         new Computation { self =>
           // `k` should be of arity 1
-          def attachHandler(handler: Lambda, k: Lambda): Lambda1 = {
-            val Term.Lam(_, kBodyTerm) = k.decompile
-            val decompiled =
-              Term.Lam(k.names.head)(
-                Term.Handle(Term.Compiled(handler))(kBodyTerm))
-            // k' = x -> handle h (k x)
-            // kbody sets `rec` correctly, and that's it.
-            def kbody(arg0: U, arg0b: B): Computation =
-              (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
-                k(r,top,stackU,U0,arg0,stackB,null,arg0b)
+          def attachHandler(handler: Lambda, k: Lambda): Lambda = {
+            def decompiled =
+              Term.Lam(k.names:_*)(Term.Handle(Term.Compiled(handler))(
+                k.decompile(k.names.map(Term.Var(_)):_*)))
+            // k' = x... -> handle h (k x...)
             val body: Computation = (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
-              doIt(handler, kbody(x0,x0b))(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
-            Lambda1(k.names.head, body, k.unboxedType, decompiled)
+              doIt(handler, k.body)(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
+            Lambda(k.arity, body, k.unboxedType, decompiled)
           }
           def apply(r: R, rec: Lambda, top: StackPtr,
                     stackU: Array[U], x1: U, x0: U,
@@ -1237,6 +1236,9 @@ package object compilation {
                     // we augment `k` to be wrapped in `h` handler
                     // k' = x -> handle h (k x)
                     throw Requested(id, ctor, args, attachHandler(handler, k))
+                  case TailCall =>
+                    r.tailCall = attachHandler(handler, r.tailCall)
+                    throw TailCall
                 }
             }
           }

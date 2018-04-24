@@ -192,10 +192,7 @@ object PrettyPrint {
     case Term.Handle(handler, body) =>
       "handle " <> prettyTerm(handler, 10) <> softbreak <>
                    prettyTerm(body, 0).nest("  ")
-    case Term.Request(id,cid,args) =>
-      prettyTerm(
-        Term.Var(prettyId(id, cid).renderUnbroken)(args: _*),
-        precedence)
+    case Term.Request(id,cid) => prettyId(id, cid)
     case Term.Apply(VarOrBuiltin(name), List(arg1, arg2)) if isOperatorName(unqualifiedName(name)) =>
        parenthesizeGroupIf(precedence > 5) {
         prettyTerm(arg1, 5) <> " " <> infixName(name) <> softbreak <> prettyTerm(arg2, 6).nest("  ")

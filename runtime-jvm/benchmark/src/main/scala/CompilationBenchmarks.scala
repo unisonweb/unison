@@ -11,7 +11,11 @@ object CompilationBenchmarks {
   import QuickProfile.{profile, suite}
 
   def N(n: Int): Int = math.random.ceil.toInt * n
-  val env = Environment(Builtins.builtins, _ => ???, BuiltinTypes.dataConstructors)
+  val env = Environment(
+    Builtins.builtins,
+    _ => ???,
+    BuiltinTypes.dataConstructors,
+    BuiltinTypes.effects)
 
   val stackB = new Array[B](1024)
   val stackU = new Array[U](1024)

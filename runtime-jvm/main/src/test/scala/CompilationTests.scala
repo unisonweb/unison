@@ -11,7 +11,10 @@ object CompilationTests {
   import EasyTest._
   import Terms._
 
-  val env = Environment(Builtins.builtins, _ => ???, BuiltinTypes.dataConstructors)
+  val env = Environment(
+    Builtins.builtins, _ => ???,
+    BuiltinTypes.dataConstructors,
+    BuiltinTypes.effects)
 
   def eval(t: Term): Term =
     normalize(env)(t)
@@ -49,6 +52,9 @@ object CompilationTests {
       val p: Term =
         Let('tri -> triangle(100))('tri.v(0))
       equal[Term](eval(p), eval(triangle(100,0)))
+    },
+    test("selfToLetRec") { implicit T =>
+      ???
     },
     test("let") { implicit T =>
       equal(eval(Let('x -> one)(one + 'x)), eval(onePlusOne))
@@ -498,7 +504,7 @@ object CompilationTests {
             state s <get -> k> = handle (state s) (k s)
             state _ <put s -> k> = handle (state s) (k ())
 
-            handle (state 0)
+            handle (state 3)
               x = State.get + 1
               y = State.set (x + 1)
               State.get + 11
@@ -526,14 +532,14 @@ object CompilationTests {
         ) {
           Handle('state.v(3)) {
             Let(
-              ('x, Request(Id.Builtin("State"), ConstructorId(0), Nil) + 1),
-              ('y, Request(Id.Builtin("State"), ConstructorId(1), List('x.v + 1)))
-            )(Request(Id.Builtin("State"), ConstructorId(0), Nil) + 11)
+              ('x, Request(Id.Builtin("State"), ConstructorId(0)) + 1),
+              ('y, Request(Id.Builtin("State"), ConstructorId(1))('x.v + 1))
+            )(Request(Id.Builtin("State"), ConstructorId(0)) + 11)
           }
         }
         note("pretty-printed algebraic effects program", includeAlways = true)
-        note(PrettyPrint.prettyTerm(p).render(40), includeAlways = true)
-        equal[Term](eval(p), 13)
+        note(PrettyPrint.prettyTerm(Term.ANF(p)).render(40), includeAlways = true)
+        equal[Term](eval(Term.ANF(p)), 16)
       }
     )
   )

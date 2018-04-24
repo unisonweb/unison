@@ -59,10 +59,7 @@ object Value {
     final val arity: Int,
     final val body: Computation,
     final val unboxedType: Option[UnboxedType],
-    val decompile: Term,
-    // `selfRec`, if present, points to the fully unapplied function from which
-    // this lambda was constructed during partial application.
-    final val selfRec: Option[Lambda] = None) extends Value { self =>
+    val decompile: Term) extends Value { self =>
 
     def names: List[Name]
     def toComputation = Return(this)
@@ -70,10 +67,10 @@ object Value {
     final def apply(r: R, top: StackPtr,
                     stackU: Array[U], x1: U, x0: U,
                     stackB: Array[B], x1b: B, x0b: B): U =
-      body(r, selfRec getOrElse this, top, stackU, x1, x0, stackB, x1b, x0b)
+      body(r, this, top, stackU, x1, x0, stackB, x1b, x0b)
 
     def setSelfRec(rec: Lambda): Lambda = new Lambda(
-      arity, body, unboxedType, decompile, Some(rec)
+      arity, body.setRec(rec), unboxedType, decompile
     ) {
       def names = self.names
     }
@@ -104,10 +101,7 @@ object Value {
             Vector.empty, CurrentRec.none, RecursiveVars.empty, IsNotTail
           ) match {
             case Return(v: Value.Lambda) =>
-              v.setSelfRec(selfRec match {
-                case None => this
-                case Some(x) => x
-              })
+              v.setSelfRec(self.body.getRec getOrElse this)
             case c => sys.error(
               s"compiling a closed Term.Lambda failed to produce a Value.Lambda: $c")
           }
@@ -136,9 +130,8 @@ object Value {
     /** A `Lambda` of arity 1. */
     // todo: delete this and ClosureForming2 later
     case class Lambda1(arg1: Name, _body: Computation,
-                       outputType: Option[UnboxedType], decompiled: Term,
-                       _selfRec: Option[Lambda] = None)
-      extends Lambda(1,_body,outputType,decompiled,_selfRec) {
+                       outputType: Option[UnboxedType], decompiled: Term)
+      extends Lambda(1,_body,outputType,decompiled) {
       val names = List(arg1)
       override def underapply(builtins: Environment)(
         argCount: Arity, substs: Map[Name, Term]): Lambda =
@@ -151,21 +144,20 @@ object Value {
       */
     // todo: delete this and Lambda1 later
     class ClosureForming2(arg1: Name, arg2: Name, body: Computation,
-                          outputType: Option[UnboxedType], decompiled: Term,
-                          selfRec: Option[Lambda] = None)
-      extends Lambda(2,body,outputType,decompiled,selfRec) {
+                          outputType: Option[UnboxedType], decompiled: Term)
+      extends Lambda(2,body,outputType,decompiled) {
       val names = List(arg1,arg2)
       override def underapply(builtins: Environment)
                              (argCount: Arity, substs: Map[Name, Term])
       : Lambda = {
         assert(argCount == 1)
         val compiledArg = compileTop(builtins)(substs(arg1))
+        val body1 = body maySetRec this
         val body2: Computation = (r,rec,top,stackU,_,x0,stackB,_,x0b) => {
           val compiledArgv = compiledArg(r, rec, top, stackU, U0, U0, stackB, null, null)
-          body(r, rec, top, stackU, compiledArgv, x0, stackB, r.boxed, x0b)
+          body1(r, rec, top, stackU, compiledArgv, x0, stackB, r.boxed, x0b)
         }
-        new Lambda1(arg1, body2, outputType,
-                    decompiled(substs(arg1)), selfRec orElse Some(this))
+        new Lambda1(arg1, body2, outputType, decompiled(substs(arg1)))
       }
     }
     abstract class ClosureForming(arity: Int, body: Computation,
@@ -184,9 +176,9 @@ object Value {
           case Term.Compiled(b) => b
           case Term.Self(_) => self
         }
-        new ClosureForming(arity-argCount, body, outputType,
-                           decompiled(argsInOrder: _*), args ++ newArgs,
-                           selfRec orElse Some(this)) {
+        val body1 = body maySetRec this
+        new ClosureForming(arity-argCount, body1, outputType,
+                           decompiled(argsInOrder: _*), args ++ newArgs) {
           def names = self.names drop argCount
         }
       }

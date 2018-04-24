@@ -5,7 +5,7 @@ import org.unisonweb.util.PrettyPrint
 import Term.Syntax._
 
 object DecompileTests {
-  val env0 = compilation.Environment(_ => ???, _ => ???, (_,_) => ???)
+  val env0 = compilation.Environment(_ => ???, _ => ???, (_,_) => ???, (_,_) => ???)
 
   val tests = suite("decompile") (
     test("ex1") { implicit T =>
