@@ -691,6 +691,7 @@ package object compilation {
       @annotation.tailrec
       def invokeDynamic(fn: Lambda, args: Array[Computation]): U = {
         if (args.length == fn.arity) {
+          println("invokeDynamic.exact: " + fn.names)
           if (isTail) args.length match {
             case 1 => doTailCall(fn, args(0), r, rec, top,
                                  stackU, x1, x0, stackB, x1b, x0b)
@@ -703,10 +704,12 @@ package object compilation {
             fn, args, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
         }
         else if (args.length < fn.arity) {
+          println("invokeDynamic.underapply: " + fn.names)
           val c = compileUnderappliedCall(builtins)(fn, args)
           c(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
         }
         else {
+          println("invokeDynamic.overapply: " + fn.names)
           val lam = {
             doFullySaturatedCall(
               fn, args.take(fn.arity), r, rec, top,
@@ -1235,22 +1238,24 @@ package object compilation {
                    stackB: Array[B], x1b: B, x0b: B): U = {
             var blockU: U = U0
             var blockB: Value = null
+            var bodyCompleted = false
             try {
               blockU = body(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
               blockB = r.boxed
-              handler(r,top,stackU,U0,U0,stackB,null,
-                      Value.EffectPure(blockU, blockB))
+              bodyCompleted = true
             }
             catch {
-              case MatchFail(_,_,_) =>
-                sys.error("Handler didn't handle a pure effect. The compiler should statically prevent this.")
+              // If the body throws a tail call, install the handler in the
+              // tail call.
               case TailCall =>
                 r.tailCall = attachHandler(handler, r.tailCall)
                 throw TailCall
+              // If the body issues a request, we obviously pass it to the
+              // handler.
               case Requested(id, ctor, args, k) =>
                 println(s"Requested($id, $ctor, ${args.toList}, $k)")
                 val data = Value.EffectBind(id, ctor, args, k)
-                try handler(r,top,stackU,U0,U0,stackB,null,data)
+                try { blockU = handler(r,top,stackU,U0,U0,stackB,null,data) }
                 catch {
                   // In case of nested handlers, we need to attach the inner
                   // handler to the continuation in case the inner handler
@@ -1271,13 +1276,22 @@ package object compilation {
                     // we augment `k` to be wrapped in `h` handler
                     // k' = x -> handle h (k x)
                     throw Requested(id, ctor, args, attachHandler(handler, k))
+                  // The handler didn't handle this request. Maybe it will be
+                  // handled by an outer handler. Rethrow, but attach this
+                  // handler to the continuation.
                   case MatchFail(_,_,_) =>
                     throw Requested(id, ctor, args, attachHandler(handler, k))
-                  case TailCall =>
-                    r.tailCall = attachHandler(handler, r.tailCall)
-                    throw TailCall
                 }
             }
+            if (bodyCompleted) try {
+              handler(r,top,stackU,U0,U0,stackB,null,
+                      Value.EffectPure(blockU, blockB))
+            } catch {
+              case MatchFail(_,_,_) =>
+                sys.error(
+                  """Handler didn't handle a pure effect.
+                   | The compiler should statically prevent this.""".stripMargin)
+            } else blockU
           }
         }
     }

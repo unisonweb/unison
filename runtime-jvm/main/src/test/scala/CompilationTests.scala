@@ -54,7 +54,7 @@ object CompilationTests {
       equal[Term](eval(p), eval(triangle(100,0)))
     },
     test("selfToLetRec") { implicit T =>
-      ???
+      fail("Might be causing the incorrect.")
     },
     test("let") { implicit T =>
       equal(eval(Let('x -> one)(one + 'x)), eval(onePlusOne))
@@ -495,6 +495,9 @@ object CompilationTests {
                     termFor(Builtins.Stream_cons)(1, termFor(Builtins.Stream_empty)))
       },
     ),
+    { import BuiltinTypes._
+      import Effects._
+
     suite("algebraic-effects")(
       test("ex1") { implicit T =>
         /*
@@ -509,9 +512,6 @@ object CompilationTests {
               y = State.set (x + 1)
               State.get + 11
          */
-
-        import BuiltinTypes._
-        import Effects._
 
         val p = LetRec(
           ('state, Lam('s, 'action) {
@@ -540,8 +540,83 @@ object CompilationTests {
         note("pretty-printed algebraic effects program", includeAlways = true)
         note(PrettyPrint.prettyTerm(Term.ANF(p)).render(40), includeAlways = true)
         equal[Term](eval(Term.ANF(p)), 16)
-      }
-    )
+      },
+      test("nested effects handlers") { implicit T => fail("too big file") },
+      test("effectful handlers") { implicit T =>
+        /*
+          let
+            state : s -> {State Integer} a -> a
+            state s {a} = a
+            state s {get -> k} = handle (state s) (k s)
+            state _ {put s -> k} = handle (state s) (k ())
+
+            state' : s -> {State Integer} Integer -> {State Integer} Integer
+            state' s {a} = State.get * s
+            state' s {get -> k} = let
+              outer-value = State.get
+              handle (state s) (k (s + outer-value))
+            state' _ {put s -> k} = handle (state s) (k ())
+
+            handle (state 10)
+              handle (state' 3)
+                -- x is 14
+                x = State.get + 1
+                -- Inner state is 15
+                y = State.set (x + 1)
+                -- Should be 360
+                State.get + 11
+        */
+
+        val p = LetRec(
+          ('state, Lam('s, 'action) {
+            Match('action)(
+              // state s <a> = a
+              MatchCase(Pattern.EffectPure(Pattern.Wildcard),
+                        ABT.Abs('a, 'a)),
+
+              // state s <get -> k> = handle (state s) (k s)
+              MatchCase(State.Get.pattern(Pattern.Wildcard),
+                        ABT.Abs('k, Handle('state.v('s))('k.v('s)))),
+
+              // state _ <put s -> k> = handle (state s) (k ())
+              MatchCase(State.Set.pattern(Pattern.Wildcard, Pattern.Wildcard),
+                        ABT.AbsChain('s2, 'k)(Handle('state.v('s2))('k.v(BuiltinTypes.Unit.term))))
+            )
+          }),
+          ('state2, Lam('s, 'action) {
+            Match('action)(
+              // state s <a> = State.get * s
+              MatchCase(Pattern.EffectPure(Pattern.Wildcard),
+                        ABT.Abs('a, State.Get.term * 's)),
+
+              /*
+              let
+                outer-value = State.get
+                handle (state s) (k (s + outer-value))
+              */
+              MatchCase(State.Get.pattern(Pattern.Wildcard),
+                        ABT.Abs('k, Let('outer -> State.Get.term)(
+                          Handle('state2.v('s))('k.v('s.v + 'outer))))),
+
+              // state _ <put s -> k> = handle (state s) (k ())
+              MatchCase(State.Set.pattern(Pattern.Wildcard, Pattern.Wildcard),
+                        ABT.AbsChain('s2, 'k)(
+                          Handle('state2.v('s2))('k.v(BuiltinTypes.Unit.term))))
+            )
+          }))(
+
+          /* handle (state 10)
+               handle (state' 3)
+                 x = State.get + 1
+                 y = State.set (x + 1)
+                 State.get + 11 */
+          Handle('state.v(10))(Handle('state2.v(3))(
+            Let('x -> (State.Get.term + 1),
+                'y -> State.Set.term('x.v + 1))(State.Get.term + 11))))
+
+      note(PrettyPrint.prettyTerm(Term.ANF(p)).render(40), includeAlways = true)
+      equal[Term](eval(Term.ANF(p)), 360)
+    })}
   )
 }
 
