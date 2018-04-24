@@ -400,7 +400,8 @@ package object compilation {
         patterns.map(_.arity).scanLeft(0)(_ + _).toArray
       (s,sb,r,stackU,stackB,top) => sb match {
         case Value.EffectBind(`id`,`constructorId`,args,ek) =>
-          assert(args.length == cpatterns.length)
+          assert(args.length == cpatterns.length,
+                 s"Constructor $id($constructorId) expected ${cpatterns.length} args, got ${args.length}")
           var i = 0; while (i < args.length && i < cpatterns.length) {
             val pattern = cpatterns(i)
             val arg = args(i)
@@ -1190,7 +1191,7 @@ package object compilation {
               cbody(r, rec, topN, stackU, b1v, b0v, stackB, b1vb, b0vb)
             }
         }
-      case Term.Constructor(id,cid) => builtins.effects(id,cid)
+      case Term.Request(id,cid) => builtins.effects(id,cid)
       case Term.Handle(handler, block) =>
         import Term.Syntax._
         val cHandler =
@@ -1198,12 +1199,17 @@ package object compilation {
         val cBlock =
           compile(builtins)(block, env, currentRec, recVars, isTail)
         new Computation { self =>
-          // `k` should be of arity 1
+          // Installs `handler` around the body of `k`, so given `k`, we
+          // produce `k'`:
+          //
+          //   k = x* -> <blah>
+          //   k' = x* -> handle h (k x*)
+          //
+          // Here, `x*` represents any number of arguments.
           def attachHandler(handler: Lambda, k: Lambda): Lambda = {
             def decompiled =
               Term.Lam(k.names:_*)(Term.Handle(Term.Compiled(handler))(
                 k.decompile(k.names.map(Term.Var(_)):_*)))
-            // k' = x... -> handle h (k x...)
             val body: Computation = (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
               doIt(handler, k.body)(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
             Lambda(k.arity, body, k.unboxedType, decompiled)
@@ -1215,6 +1221,14 @@ package object compilation {
             doIt(r.boxed.asInstanceOf[Lambda], cBlock)(
                  r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
           }
+          /*
+           * Evaluates the `body`. If the body raises `Requested`,
+           * passes `EffectBind` of that request to the handler.
+           * If `body` completes, pass `EffectPure` to the handler.
+           * If the handler can't process the request, it will throw
+           * `Requested`, which we catch and rethrow with `handler`
+           * installed in the body of the continuation.
+           */
           def doIt(handler: Lambda, body: Computation)(
                    r: R, rec: Lambda, top: StackPtr,
                    stackU: Array[U], x1: U, x0: U,
@@ -1228,13 +1242,36 @@ package object compilation {
                       Value.EffectPure(blockU, blockB))
             }
             catch {
+              case MatchFail(_,_,_) =>
+                sys.error("Handler didn't handle a pure effect. The compiler should statically prevent this.")
+              case TailCall =>
+                r.tailCall = attachHandler(handler, r.tailCall)
+                throw TailCall
               case Requested(id, ctor, args, k) =>
+                println(s"Requested($id, $ctor, ${args.toList}, $k)")
                 val data = Value.EffectBind(id, ctor, args, k)
                 try handler(r,top,stackU,U0,U0,stackB,null,data)
                 catch {
+                  // In case of nested handlers, we need to attach the inner
+                  // handler to the continuation in case the inner handler
+                  // requests an effect of the outer handler. This is because
+                  // the outer handler needs to be able to delegate back to
+                  // the inner one when the continuation contains more requests
+                  // that need to be caught by the inner handler.
+                  //
+                  // E.g.
+                  //
+                  // handle (doSomeIO)
+                  //   handle (doSomeState)
+                  //     foo
+                  //
+                  // Here, doSomeState may have IO effects, followed by state
+                  // effects which doSomeIO doesn't know how to handle.
                   case Requested(id, ctor, args, k) =>
                     // we augment `k` to be wrapped in `h` handler
                     // k' = x -> handle h (k x)
+                    throw Requested(id, ctor, args, attachHandler(handler, k))
+                  case MatchFail(_,_,_) =>
                     throw Requested(id, ctor, args, attachHandler(handler, k))
                   case TailCall =>
                     r.tailCall = attachHandler(handler, r.tailCall)

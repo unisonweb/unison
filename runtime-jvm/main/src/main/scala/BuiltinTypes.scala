@@ -154,7 +154,7 @@ object BuiltinTypes {
     val decompile = Term.Request(id, cid)
     val x = dataConstructorish(
       args => throw(Requested(id, cid, args, Value.Lambda.identity)),
-      decompile)
+      decompile, paramNames:_*)
     ((id, cid), x)
   }
 

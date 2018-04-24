@@ -509,6 +509,10 @@ object CompilationTests {
               y = State.set (x + 1)
               State.get + 11
          */
+
+        import BuiltinTypes._
+        import Effects._
+
         val p = LetRec(
           ('state, Lam('s, 'action) {
             Match('action)(
@@ -517,24 +521,20 @@ object CompilationTests {
                         ABT.Abs('a, 'a)),
 
               // state s <get -> k> = handle (state s) (k s)
-              MatchCase(Pattern.EffectBind(Id.Builtin("State"),
-                                           ConstructorId(0),
-                                           Nil, Pattern.Wildcard),
+              MatchCase(State.Get.pattern(Pattern.Wildcard),
                         ABT.Abs('k, Handle('state.v('s))('k.v('s)))),
 
               // state _ <put s -> k> = handle (state s) (k ())
-              MatchCase(Pattern.EffectBind(Id.Builtin("State"),
-                                           ConstructorId(1),
-                                           List(Pattern.Wildcard), Pattern.Wildcard),
-                        ABT.AbsChain('s, 'k)(Handle('state.v('s))('k.v(BuiltinTypes.Unit.term))))
+              MatchCase(State.Set.pattern(Pattern.Wildcard, Pattern.Wildcard),
+                        ABT.AbsChain('s2, 'k)(Handle('state.v('s2))('k.v(BuiltinTypes.Unit.term))))
             )
           })
         ) {
           Handle('state.v(3)) {
             Let(
-              ('x, Request(Id.Builtin("State"), ConstructorId(0)) + 1),
-              ('y, Request(Id.Builtin("State"), ConstructorId(1))('x.v + 1))
-            )(Request(Id.Builtin("State"), ConstructorId(0)) + 11)
+              ('x, State.Get.term + 1),
+              ('y, State.Set.term('x.v + 1))
+            )(State.Get.term + 11)
           }
         }
         note("pretty-printed algebraic effects program", includeAlways = true)
