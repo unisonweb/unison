@@ -32,6 +32,16 @@ object Term {
     case _ => t
   }
 
+  def curry(t: Term): Term = t match {
+    case Term.Lam(List(name), body) => t
+    case Term.Lam1(name, body) =>
+      import Term.Syntax._
+      Term.Lam1(name) {
+        Term.Let('foo -> body)('foo)
+      }
+    case _ => t
+  }
+
   /** Convert the term to A-normal form: https://en.wikipedia.org/wiki/A-normal_form. */
   def ANF(t: Term): Term = t match {
     case t @ ABT.Var(_) => t
@@ -110,7 +120,18 @@ object Term {
     } (Monoid.Set)
 
     def transitiveClosure(seen: Map[Ref,Term], cur: Term): Map[Ref,Term] = cur match {
-      case Id(_) | Unboxed(_,_) | Var(_) | Text(_) => seen
+      case Id(_) | Unboxed(_,_) | Var(_) | Text(_) | Self(_) |
+           Constructor(_,_) | Request(_,_) => seen
+      case Match(scrutinee, cases) =>
+        cases.foldLeft(transitiveClosure(seen, scrutinee)){ (seen, c) =>
+          val seen2 = c.guard.map(transitiveClosure(seen,_)).getOrElse(seen)
+          c.body match {
+            case ABT.AbsChain(_,body) => transitiveClosure(seen2, body)
+            case _ => transitiveClosure(seen2, c.body)
+          }
+        }
+      case Handle(handler, block) =>
+        transitiveClosure(transitiveClosure(seen, handler), block)
       case Sequence(tms) => tms.foldLeft(seen)(transitiveClosure _)
       case Apply(f, args) =>
         args.foldLeft(transitiveClosure(seen, f))(transitiveClosure _)
