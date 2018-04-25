@@ -37,7 +37,7 @@ object Term {
     case Term.Lam1(name, body) =>
       import Term.Syntax._
       Term.Lam1(name) {
-        Term.Let('foo -> body)('foo)
+        Term.Let('foo -> Term.curry(body))('foo)
       }
     case _ => t
   }
