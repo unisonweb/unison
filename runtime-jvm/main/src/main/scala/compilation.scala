@@ -14,8 +14,8 @@ package object compilation {
 
   case class CurrentRec(get: Option[(Name, Arity)]) extends AnyVal {
     def isEmpty = get.isEmpty
-    def contains(name: Name): Boolean = get.exists(_._1 == name)
-    def contains(name: Name, arity: Arity): Boolean = get == Some((name, arity))
+    def contains(name: Name): Boolean = false // get.exists(_._1 == name)
+    def contains(name: Name, arity: Arity): Boolean = false // get == Some((name, arity))
 
     /*
      * Knock out the currentRec if appropriate; if it is shadowed,
