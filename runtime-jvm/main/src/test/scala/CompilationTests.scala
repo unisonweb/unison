@@ -542,6 +542,56 @@ object CompilationTests {
         equal[Term](eval(Term.ANF(p)), 16)
       },
       test("nested effects handlers") { implicit T => fail("too big file") },
+      test("simple effectful handlers") { implicit T =>
+        /*
+          let
+            state : s -> {State Integer} a -> a
+            state s {a} = a
+            state s {get -> k} = handle (state s) (k s)
+            state _ {put s -> k} = handle (state s) (k ())
+
+            state' : s -> {State Integer} Integer -> {State Integer} Integer
+            state' s {a} = State.get * s
+            state' s {get -> k} = handle (state' s) (k s)
+            state' _ {put s -> k} = handle (state' s) (k ())
+
+            handle (state 10)
+              handle (state' 3)
+                2
+        */
+
+        val p = LetRec(
+          ('state, Term.curry { Lam('s0, 'x, 'y, 'action0) {
+            Match('action0)(
+              MatchCase(Pattern.EffectPure(Pattern.Wildcard), ABT.Abs('a, 'a)),
+              MatchCase(State.Get.pattern(Pattern.Wildcard),
+                        ABT.Abs('k, Handle('state.v('s0,'x,'y))('k.v('s0)))),
+              MatchCase(State.Set.pattern(Pattern.Wildcard, Pattern.Wildcard),
+                        ABT.AbsChain('s2, 'k)(Handle('state.v('s2,'x,'y))('k.v(BuiltinTypes.Unit.term))))
+            )
+          }}),
+          ('state2, Term.curry { Lam('s1, 'x, 'action1) {
+            Match('action1)(
+              // state s {a} = State.get * s
+              MatchCase(Pattern.EffectPure(Pattern.Wildcard),
+                        ABT.Abs('a, State.Get.term * 's1)),
+                        // ABT.Abs('a, 's1)), <-- this works fine!
+              // state' s {get -> k} = handle (state' s) (k s)
+              MatchCase(State.Get.pattern(Pattern.Wildcard),
+                        ABT.Abs('k, Handle('state2.v('s1, 'x))('k.v('s1.v)))),
+              // state' _ {put s -> k} = handle (state' s) (k ())
+              MatchCase(State.Set.pattern(Pattern.Wildcard, Pattern.Wildcard),
+                        ABT.AbsChain('s3, 'k)(
+                          Handle('state2.v('s3, 'x))('k.v(BuiltinTypes.Unit.term))))
+            )
+          }})) {
+            Handle('state.v(10, 3030, 9090))(Handle('state2.v(3, 2929))(2340983))
+          }
+
+        note(PrettyPrint.prettyTerm(p).render(80), includeAlways = true)
+        note(PrettyPrint.prettyTerm(Term.ANF(p)).render(80), includeAlways = true)
+        equal[Term](eval(Term.ANF(p)), 3)
+      },
       test("effectful handlers") { implicit T =>
         /*
           let

@@ -1236,6 +1236,7 @@ package object compilation {
                    r: R, rec: Lambda, top: StackPtr,
                    stackU: Array[U], x1: U, x0: U,
                    stackB: Array[B], x1b: B, x0b: B): U = {
+            assert(handler.arity == 1)
             var blockU: U = U0
             var blockB: Value = null
             var bodyCompleted = false
@@ -1279,7 +1280,8 @@ package object compilation {
                   // The handler didn't handle this request. Maybe it will be
                   // handled by an outer handler. Rethrow, but attach this
                   // handler to the continuation.
-                  case MatchFail(_,_,_) =>
+                  case m@MatchFail(_,_,_) =>
+                    println(m)
                     throw Requested(id, ctor, args, attachHandler(handler, k))
                 }
             }
@@ -1411,10 +1413,10 @@ package object compilation {
     override def fillInStackTrace(): Throwable = this
     override def toString = (
       "match fail: \n" +
-        PrettyPrint.prettyTerm(Term.Match(scrutinee)(cases: _*), 0).render(50) + "\n" +
+        PrettyPrint.prettyTerm(Term.Match(scrutinee)(cases: _*), 0).render(80) + "\n" +
         // Term.Match(scrutinee)(cases: _*) + "\n" +
       "original scrutinee: " +
-        PrettyPrint.prettyTerm(originalScrutinee, 0).render(50)
+        PrettyPrint.prettyTerm(originalScrutinee, 0).render(80)
     )
   }
 
