@@ -590,7 +590,7 @@ object CompilationTests {
 
         note(PrettyPrint.prettyTerm(p).render(80), includeAlways = true)
         note(PrettyPrint.prettyTerm(Term.ANF(p)).render(80), includeAlways = true)
-        equal[Term](eval(Term.ANF(p)), 3)
+        equal[Term](eval(Term.ANF(p)), 30)
       },
       test("effectful handlers") { implicit T =>
         /*
