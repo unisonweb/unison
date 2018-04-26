@@ -740,7 +740,7 @@ package object compilation {
     val compiledLambda =
       compileLambdaImpl(builtins)(e, env, currentRec, bodyRec, recVars, names, body)
 
-    if (hasTailRecursiveCall(currentRec.shadow(names), body)) {
+    if (hasTailRecursiveCall(bodyRec.shadow(names), body)) {
       // let rec
       //   go n = if n == 0 then n else go (n - 1)
       //   go
@@ -782,7 +782,7 @@ package object compilation {
               return result
             }
             catch {
-              case TailCall if r.tailCall eq innerLambda =>
+              case TailCall if r.tailCall eq rec =>
                 if (needsCopy) {
                   System.arraycopy(
                     stackU, r.argsStart.toInt,
