@@ -730,6 +730,15 @@ package object compilation {
     }
   }
 
+  /*
+   * Compiles a lambda, which may or may not have free vars.
+   * `currentRec` tracks the name and arity of the closest lambda
+   * surrounding this one. `bodyRec` tracks the name and arity of
+   * this lambda, used for compiling `body`. `currentRec` is used
+   * during "staging" of the lambda, when all its free variables
+   * are substituted away. `bodyRec` is used for compiling the
+   * body of the lambda, after this substitution has been performed.
+   */
   def compileLambda(builtins: Environment)
                    (e: Term, env: Vector[Name],
                     currentRec: CurrentRec,
@@ -746,8 +755,8 @@ package object compilation {
       //   go
       // gets converted to:
       // let rec
-      //   go-inner n = if n == 0 then n else throw SelfCall (n - 1)
-      //   go n = while (true) return { try go-inner n catch { case SelfCall n2 => go-inner n2 }}
+      //   go-inner n = if n == 0 then n else throw TailCall (n - 1)
+      //   go n = while (true) return { try go-inner n catch { case TailCall n2 => go-inner n2 }}
       //   go
 
       def printStack[A](stackU: Array[A], top: StackPtr, x1: A, x0: A, prefix: String = "") = {
@@ -1294,7 +1303,8 @@ package object compilation {
             }
             catch {
               // If the body throws a tail call, install the handler in the
-              // tail call.
+              // tail call. This ensures that whoever catches the tail call
+              // can still handle this effect.
               case TailCall =>
                 r.tailCall = attachHandler(handler, r.tailCall)
                 throw TailCall
@@ -1307,19 +1317,27 @@ package object compilation {
                   // The handler didn't handle this request. Maybe it will be
                   // handled by an outer handler. Rethrow, but attach this
                   // handler to the continuation.
+                  // This ensures the outer handler can delegate back to
+                  // this handler if the continuation of the program has more
+                  // effects of this type.
                   case m@MatchFail(_,_,_) =>
                     throw Requested(id, ctor, args, attachHandler(handler, k))
                 }
             }
-            if (bodyCompleted) try {
-              handler(r,top,stackU,U0,U0,stackB,null,
+            // We only want to pass pure to the handler if the body completed
+            // without throwing a tail call or an effect request.
+            if (bodyCompleted)
+              try handler(r,top,stackU,U0,U0,stackB,null,
                       Value.EffectPure(blockU, blockB))
-            } catch {
-              case MatchFail(_,_,_) =>
-                sys.error(
-                  """Handler didn't handle a pure effect.
-                   | The compiler should statically prevent this.""".stripMargin)
-            } else blockU
+              catch {
+                case MatchFail(_,_,_) =>
+                  sys.error(
+                    """Handler didn't handle a pure effect.
+                     | The compiler should statically prevent this.""".stripMargin)
+              }
+            else
+              // this will be the result of the handler, if it succeeds
+              blockU
           }
         }
     }
