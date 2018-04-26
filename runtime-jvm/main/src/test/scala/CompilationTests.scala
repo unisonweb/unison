@@ -535,7 +535,6 @@ object CompilationTests {
         note(PrettyPrint.prettyTerm(Term.ANF(p)).render(40), includeAlways = true)
         equal[Term](eval(Term.ANF(p)), 16)
       },
-      test("nested effects handlers") { implicit T => fail("too big file") },
       test("simple effectful handlers") { implicit T =>
         /*
           let

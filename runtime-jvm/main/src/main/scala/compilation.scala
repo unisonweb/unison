@@ -435,7 +435,7 @@ package object compilation {
 
 
   def compileFullySaturatedSelfTailCall(compiledArgs: List[Computation]): Computation = {
-    val stackArgsCount = compiledArgs.length - K
+    val stackArgsCount = (compiledArgs.length - K) max 0
     compiledArgs match {
       case List(arg) => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
         val rx0v = eval(arg, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
