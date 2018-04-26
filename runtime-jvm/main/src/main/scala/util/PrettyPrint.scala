@@ -205,7 +205,7 @@ object PrettyPrint {
     case Term.Id(Id.Builtin(name)) => prettyName(name)
     case Term.Id(Id.HashRef(hash)) => ???
     case Term.Lam(names, body) => parenthesizeGroupIf(precedence > 0) {
-      softbreaks(names.map(name => lit(name.toString))) <> " ->" <> softbreak <>
+      group(softbreaks(names.map(name => lit(name.toString)))) <> " ->" <> softbreak <>
         prettyTerm(body, 0).nest("  ")
     }
     case Term.Let(bindings, body) => parenthesizeGroupIf(precedence > 0) {
