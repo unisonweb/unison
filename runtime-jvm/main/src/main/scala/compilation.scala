@@ -14,8 +14,8 @@ package object compilation {
 
   case class CurrentRec(get: Option[(Name, Arity)]) extends AnyVal {
     def isEmpty = get.isEmpty
-    def contains(name: Name): Boolean = false // get.exists(_._1 == name)
-    def contains(name: Name, arity: Arity): Boolean = false // get == Some((name, arity))
+    def contains(name: Name): Boolean = get.exists(_._1 == name)
+    def contains(name: Name, arity: Arity): Boolean = get == Some((name, arity))
 
     /*
      * Knock out the currentRec if appropriate; if it is shadowed,
@@ -29,6 +29,14 @@ package object compilation {
      */
     def shadow(names: Seq[Name]): CurrentRec =
       CurrentRec(get.filterNot(names contains _._1))
+
+    /*
+     * Create a `RecursiveVars` containing just this `CurrentRec`, if defined,
+     * otherwise `RecursiveVars.empty`.
+     */
+    def toRecursiveVars: RecursiveVars =
+      get.map { case (name,_) => RecursiveVars(Set(name)) }
+         .getOrElse(RecursiveVars.empty)
   }
   object CurrentRec {
     def none = CurrentRec(None)
@@ -73,7 +81,6 @@ package object compilation {
     def empty = new StackPtr(-1)
   }
 
-  case object SelfCall extends Throwable { override def fillInStackTrace = this }
   case object TailCall extends Throwable { override def fillInStackTrace = this }
   case class Requested(id: Id,
                        constructor: ConstructorId,
@@ -108,18 +115,6 @@ package object compilation {
     */
   abstract class Computation { self =>
     def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U
-
-    def setRec(rec: Lambda): Computation = new Computation {
-      def apply(r: R, _rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U =
-        self(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
-
-      override val getRec = Some(rec)
-    }
-
-    def maySetRec(rec: Lambda): Computation =
-      if (getRec.isEmpty) setRec(rec) else this
-
-    val getRec: Option[Lambda] = None
   }
 
   object Computation {
@@ -439,15 +434,16 @@ package object compilation {
     }
 
 
-  def compileFullySaturatedSelfTailCall(compiledArgs: List[Computation]): Computation =
+  def compileFullySaturatedSelfTailCall(compiledArgs: List[Computation]): Computation = {
+    val stackArgsCount = compiledArgs.length - K
     compiledArgs match {
       case List(arg) => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
         val rx0v = eval(arg, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
         r.x0 = rx0v
         r.x0b = r.boxed
-        // we don't need to set r.stackArgsCount;
-        // it's known in the self-calling function
-        throw SelfCall
+        r.tailCall = rec
+        r.stackArgsCount = stackArgsCount
+        throw TailCall
       }
       case List(arg1, arg2) => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
         val arg1v = eval(arg1, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
@@ -457,8 +453,9 @@ package object compilation {
         r.x0b = r.boxed
         r.x1 = arg1v
         r.x1b = arg1vb
-        // we don't need to set r.stackArgsCount
-        throw SelfCall
+        r.tailCall = rec
+        r.stackArgsCount = stackArgsCount
+        throw TailCall
       }
       case args =>
         val argsArray = args.toArray
@@ -481,9 +478,12 @@ package object compilation {
           r.x1 = arg1v
           r.x1b = arg1vb
           r.argsStart = top.inc
-          throw SelfCall
+          r.tailCall = rec
+          r.stackArgsCount = stackArgsCount
+          throw TailCall
         }
     }
+  }
 
   def compileFullySaturatedSelfNontailCall(compiledArgs: List[Computation]): Computation =
     compiledArgs match {
@@ -525,8 +525,11 @@ package object compilation {
     (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
       @inline @annotation.tailrec def go(i: Int, substs: Map[Name, Term]): Map[Name, Term] = {
         if (i < argCount) {
-          val argv = eval(compiledArgs(i), r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
-          val param = Term.Compiled(Param(argv, r.boxed))
+          val argv = eval(compiledArgs(i),
+                          r, rec, top,
+                          stackU, x1, x0,
+                          stackB, x1b, x0b)
+          val param = Term.Compiled(Param(argv, r.boxed), names(i))
           go(i+1, substs.updated(names(i), param))
         }
         else substs
@@ -691,7 +694,6 @@ package object compilation {
       @annotation.tailrec
       def invokeDynamic(fn: Lambda, args: Array[Computation]): U = {
         if (args.length == fn.arity) {
-          println("invokeDynamic.exact: " + fn.names)
           if (isTail) args.length match {
             case 1 => doTailCall(fn, args(0), r, rec, top,
                                  stackU, x1, x0, stackB, x1b, x0b)
@@ -704,12 +706,10 @@ package object compilation {
             fn, args, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
         }
         else if (args.length < fn.arity) {
-          println("invokeDynamic.underapply: " + fn.names)
           val c = compileUnderappliedCall(builtins)(fn, args)
           c(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
         }
         else {
-          println("invokeDynamic.overapply: " + fn.names)
           val lam = {
             doFullySaturatedCall(
               fn, args.take(fn.arity), r, rec, top,
@@ -732,16 +732,137 @@ package object compilation {
 
   def compileLambda(builtins: Environment)
                    (e: Term, env: Vector[Name],
-                    currentRec: CurrentRec, recVars: RecursiveVars,
+                    currentRec: CurrentRec,
+                    bodyRec: CurrentRec,
+                    recVars: RecursiveVars,
                     names: List[Name], body: Term): Computation = {
 
+    val compiledLambda =
+      compileLambdaImpl(builtins)(e, env, currentRec, bodyRec, recVars, names, body)
+
+    if (hasTailRecursiveCall(currentRec.shadow(names), body)) {
+      // let rec
+      //   go n = if n == 0 then n else go (n - 1)
+      //   go
+      // gets converted to:
+      // let rec
+      //   go-inner n = if n == 0 then n else throw SelfCall (n - 1)
+      //   go n = while (true) return { try go-inner n catch { case SelfCall n2 => go-inner n2 }}
+      //   go
+
+      def printStack[A](stackU: Array[A], top: StackPtr, x1: A, x0: A, prefix: String = "") = {
+        println {
+          prefix +
+            (0 to top.toInt map stackU).mkString("[",", ", "]") + " " +
+            s"($x1) ($x0)"
+        }
+      }
+
+      def stackRegion[A](stackU: Array[A], start: Int, length: Int, prefix: String = "") =
+        prefix + (start until (start+length) map stackU).mkString("[",", ", "]")
+
+      def handleSelfCalls(innerLambda: Lambda): Lambda = {
+        assert(names.length == innerLambda.arity)
+        val needsCopy = names.length > K
+        // inner lambda may throw SelfCall, so we create wrapper Lambda
+        // to process those
+        val outerLambdaBody: Computation = (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+          val stackArgsCount = (innerLambda.arity - K) max 0
+
+          @inline @annotation.tailrec
+          def go(x1: U, x0: U, x1b: B, x0b: B): U = {
+            try {
+              val result = innerLambda(r, top, stackU, x1, x0, stackB, x1b, x0b)
+              // todo: could be lazier or more targeted about nulling out the stack
+              java.util.Arrays.fill(
+                stackB.asInstanceOf[Array[AnyRef]],
+                top.toInt + 1,
+                stackB.length, null
+              )
+              return result
+            }
+            catch {
+              case TailCall if r.tailCall eq innerLambda =>
+                if (needsCopy) {
+                  System.arraycopy(
+                    stackU, r.argsStart.toInt,
+                    stackU, top.toInt + 1 - stackArgsCount,
+                    stackArgsCount
+                  )
+                  System.arraycopy(
+                    stackB, r.argsStart.toInt,
+                    stackB, top.toInt + 1 - stackArgsCount,
+                    stackArgsCount
+                  )
+                }
+            }
+            go(r.x1, r.x0, r.x1b, r.x0b)
+          }
+
+          go(x1, x0, x1b, x0b)
+        }
+        Lambda(names.length, outerLambdaBody, innerLambda.unboxedType, innerLambda.decompile)
+      }
+
+      compiledLambda match {
+        case Return(innerLambda: Lambda) =>
+          Return(handleSelfCalls(innerLambda))
+
+        case compiledLambda => // first evaluate innerLambda within a Computation
+          (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+            r.boxed = handleSelfCalls {
+              compiledLambda(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+              r.boxed.asInstanceOf[Lambda]
+            }
+            U0
+          }
+      }
+    }
+    else compiledLambda
+  }
+
+  def compileLambdaImpl(builtins: Environment)
+                       (e: Term, env: Vector[Name],
+                        currentRec: CurrentRec,
+                        bodyRec: CurrentRec, // the CurrentRec when compiling body
+                        recVars: RecursiveVars,
+                        names: List[Name], body: Term): Computation = {
+    // There are two cases:
+    // 1. The lambda has no free vars (is closed) or has just 1 free var
+    //    which is equal to `bodyRec`. In this case, we compile the body
+    //    with `bodyRec` as the `CurrentRec`, and the `Return` the resulting
+    //    Lambda. `currentRec` is unused in this case.
+    //
+    //    Ex: `(x y -> x)` is closed, and is case 1
+    //    Ex:
+    //      let rec fib = n -> if (n < 2) n
+    //                         else fib (n - 1) + fib (n - 2)
+    //           in fib
+    //      Here, the lambda `n -> ...` has 1 free var, `fib`,
+    //      which will be equal to `bodyRec` (set by `LetRec` compilation).
+    //
+    // 2. The lambda has other free vars, which need to be substituted away.
+    //    We lookup all these free vars in the current environment, which
+    //    has access to `currentRec`. Then we substitute the results into the
+    //    body of the lambda. Then compile the lambda, reducing to case 1 above.
+    //
+    //    Ex: (x -> fib 24), references `fib` declared in some outer scope.
+    //    We return a computation that will resolve the reference at runtime,
+    //    substitute the result into the lambda, then compile that lambda.
+    //    (in other words, we do not form a closure, we specialize the lambda
+    //     for whatever its free vars are instantiated to at runtime)
+    //
+
     val freeVars = Term.freeVars(e)
-    // The lambda is closed
-    if (freeVars.isEmpty) {
+    // 1.
+    if (freeVars.isEmpty ||
+        freeVars.size == 1 && currentRec.contains(freeVars.head)) {
+      val shadowedRec = bodyRec.shadow(names)
       val cbody = compile(builtins)(body, names.reverse.toVector,
-        currentRec.shadow(names), RecursiveVars.empty, IsTail)
+        shadowedRec, shadowedRec.toRecursiveVars, IsTail)
       Return(Lambda(names.length, cbody, None, e))
     }
+    // 2.
     else {
       val compiledFrees: Map[Name, Computation] =
         (freeVars -- recVars.get).view.map {
@@ -752,29 +873,27 @@ package object compilation {
           name => (name, compileRef(Term.Var(name), name, env, currentRec))
         }.toMap
       (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
-        val evaledFreeVars: Map[Name, Term] = compiledFrees.mapValues {
-          c =>
+        val evaledFreeVars: Map[Name, Term] = compiledFrees.transform {
+          (name, c) =>
             val evaluatedVar = c(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
             val value = Value(evaluatedVar, r.boxed)
-            Term.Compiled(value)
+            Term.Compiled(value, name)
         }
 
         val evaledRecVars: Map[Name, Term] = compiledFreeRecs.transform {
           (name, lookup) =>
-            if (currentRec.contains(name)) Term.Self(name)
-            else {
-              val evaluatedVar = lookup(rec, top, stackB, x1b, x0b)
-              if (evaluatedVar eq null) sys.error(name + " refers to null stack slot.")
-              Term.Compiled(evaluatedVar)
-            }
+            val evaluatedVar = lookup(rec, top, stackB, x1b, x0b)
+            if (evaluatedVar eq null) sys.error(name + " refers to null stack slot.")
+            Term.Compiled(evaluatedVar, name)
         }
 
+        val body2 = ABT.substs(evaledFreeVars ++ evaledRecVars)(body)
         val lam2 = Term.Lam(names: _*)(
-          body = ABT.substs(evaledFreeVars ++ evaledRecVars)(body)
+          body = body2
         )
-        assert(Term.freeVars(lam2).isEmpty)
-        r.boxed = compile(builtins)(
-          lam2, Vector(), currentRec.shadow(names), RecursiveVars.empty, IsNotTail
+        assert(Term.freeVars(lam2).size <= 1)
+        r.boxed = compileLambda(builtins)(
+          lam2, Vector(), currentRec, bodyRec, recVars, names, body2
         ) match {
           case v: Return => v.value
           case v => sys.error(
@@ -827,7 +946,7 @@ package object compilation {
       case Term.Id(Id.Builtin(name)) => builtins.builtins(name)
       case Term.Id(Id.HashRef(h)) => ???
       case Term.Constructor(id,cid) => builtins.dataConstructors(id,cid)
-      case Term.Compiled(param) =>
+      case Term.Compiled(param,_) =>
         if (param.toValue eq null) // todo: make this C0?
           (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => param.toValue.toResult(r)
         else Return(param.toValue)
@@ -842,7 +961,6 @@ package object compilation {
           r.boxed = Builtins.External(cv)
           U0
         }
-      case Term.Self(name) => new Self(name)
       case Term.Var(name) => compileVar(e, name, env, currentRec)
       case Term.If(cond, t, f) =>
         val ccond = compile(builtins)(cond, env, currentRec, recVars, IsNotTail)
@@ -894,6 +1012,9 @@ package object compilation {
 
       case Term.Let1(name, b, body) =>
         val cb = compile(builtins)(b, env, currentRec, recVars, IsNotTail)
+        // cc will have access to current lambda when it it is substituting
+        // away any free vars, but the body of `cc` will not have access to the
+        // current lambda
         val cc = compile(builtins)(
           Term.Lam(name)(body), env, currentRec, recVars, isTail)
         val cbody = compile(builtins)(body, name +: env, currentRec.shadow(name),
@@ -919,88 +1040,11 @@ package object compilation {
       // todo: Let2, etc.
 
       case lam@Term.Lam(names, body) =>
-        val compiledLambda: Computation =
-          compileLambda(builtins)(e, env, currentRec, recVars, names, body)
-
-        if (hasTailRecursiveCall(currentRec.shadow(names), body)) {
-          // let rec
-          //   go n = if n == 0 then n else go (n - 1)
-          //   go
-          // gets converted to:
-          // let rec
-          //   go-inner n = if n == 0 then n else throw SelfCall (n - 1)
-          //   go n = while (true) return { try go-inner n catch { case SelfCall n2 => go-inner n2 }}
-          //   go
-
-          def printStack[A](stackU: Array[A], top: StackPtr, x1: A, x0: A, prefix: String = "") = {
-            println {
-              prefix +
-                (0 to top.toInt map stackU).mkString("[",", ", "]") + " " +
-                s"($x1) ($x0)"
-            }
-          }
-
-          def stackRegion[A](stackU: Array[A], start: Int, length: Int, prefix: String = "") =
-            prefix + (start until (start+length) map stackU).mkString("[",", ", "]")
-
-          def handleSelfCalls(innerLambda: Lambda): Lambda = {
-            assert(names.length == innerLambda.arity)
-            val needsCopy = names.length > K
-            // inner lambda may throw SelfCall, so we create wrapper Lambda
-            // to process those
-            val outerLambdaBody: Computation = (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
-              val stackArgsCount = (innerLambda.arity - K) max 0
-
-              @inline @annotation.tailrec
-              def go(x1: U, x0: U, x1b: B, x0b: B): U = {
-                try {
-                  val result = innerLambda(r, top, stackU, x1, x0, stackB, x1b, x0b)
-                  // todo: could be lazier or more targeted about nulling out the stack
-                  java.util.Arrays.fill(
-                    stackB.asInstanceOf[Array[AnyRef]],
-                    top.toInt + 1,
-                    stackB.length, null
-                  )
-                  return result
-                }
-                catch {
-                  case SelfCall =>
-                    if (needsCopy) {
-                      System.arraycopy(
-                        stackU, r.argsStart.toInt,
-                        stackU, top.toInt + 1 - stackArgsCount,
-                        stackArgsCount
-                      )
-                      System.arraycopy(
-                        stackB, r.argsStart.toInt,
-                        stackB, top.toInt + 1 - stackArgsCount,
-                        stackArgsCount
-                      )
-                    }
-                }
-                go(r.x1, r.x0, r.x1b, r.x0b)
-              }
-
-              go(x1, x0, x1b, x0b)
-            }
-            Lambda(names.length, outerLambdaBody, innerLambda.unboxedType, innerLambda.decompile)
-          }
-
-          compiledLambda match {
-            case Return(innerLambda: Lambda) =>
-              Return(handleSelfCalls(innerLambda))
-
-            case compiledLambda => // first evaluate innerLambda within a Computation
-              (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
-                r.boxed = handleSelfCalls {
-                  compiledLambda(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
-                  r.boxed.asInstanceOf[Lambda]
-                }
-                U0
-              }
-          }
-        }
-        else compiledLambda
+        compileLambda(builtins)(lam, env,
+                               currentRec,
+                               // we don't allow body of lambda to use self refs
+                               bodyRec = CurrentRec.none,
+                               recVars, names, body)
 
       case Term.Apply(Term.Apply(fn, args), args2) => // converts nested applies to a single apply
         compile(builtins)(Term.Apply(fn, (args ++ args2): _*), env, currentRec, recVars, isTail)
@@ -1049,8 +1093,7 @@ package object compilation {
             }
 
           case _ => fn match {
-            case Term.Self(_) | Term.Var(_) =>
-              val name = fn match { case Term.Self(name) => name; case Term.Var(name) => name }
+            case Term.Var(name) =>
               if (currentRec.contains(name, args.length)) {
                 if (isTail)
                   compileFullySaturatedSelfTailCall(compiledArgs)
@@ -1076,9 +1119,12 @@ package object compilation {
         val recVars2 = recVars ++ bindingNames
         val currentRec2 = currentRec.shadow(bindingNames)
         val cbindings = bindings.map {
-          case (name, lam @ Term.Lam(names, _)) =>
-            compile(builtins)(lam, env2, CurrentRec(name, arity = names.length),
-              recVars2, IsNotTail)
+          case (name, lam @ Term.Lam(names, body)) =>
+            compileLambda(builtins)(lam, env2,
+              currentRec,
+              // we do allow body of lambda to refer to `name`
+              bodyRec = CurrentRec(name, arity = names.length),
+              recVars2, names, body)
           case (_, term) =>
             compile(builtins)(term, env2, currentRec2, recVars2, IsNotTail)
         }.toArray
@@ -1211,7 +1257,8 @@ package object compilation {
           // Here, `x*` represents any number of arguments.
           def attachHandler(handler: Lambda, k: Lambda): Lambda = {
             def decompiled =
-              Term.Lam(k.names:_*)(Term.Handle(Term.Compiled(handler))(
+              // Note: We have to make up a name here. "handler" works.
+              Term.Lam(k.names:_*)(Term.Handle(Term.Compiled(handler, "handler"))(
                 k.decompile(k.names.map(Term.Var(_)):_*)))
             val body: Computation = (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
               doIt(handler, k.body)(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
@@ -1254,7 +1301,6 @@ package object compilation {
               // If the body issues a request, we obviously pass it to the
               // handler.
               case Requested(id, ctor, args, k) =>
-                println(s"Requested($id, $ctor, ${args.toList}, $k)")
                 val data = Value.EffectBind(id, ctor, args, k)
                 try { blockU = handler(r,top,stackU,U0,U0,stackB,null,data) }
                 catch {
@@ -1281,7 +1327,6 @@ package object compilation {
                   // handled by an outer handler. Rethrow, but attach this
                   // handler to the continuation.
                   case m@MatchFail(_,_,_) =>
-                    println(m)
                     throw Requested(id, ctor, args, attachHandler(handler, k))
                 }
             }
@@ -1304,7 +1349,7 @@ package object compilation {
     // recursive calls must always go through a `Var` or `Self`, and recursive calls are the
     // only calls required to be emitted as tail calls to ensure stack safety
     // (you can create cycles via higher order functions, but these will still go through `Var`)
-    case Term.Var(_) | Term.Self(_) => true
+    case Term.Var(_) => true
     case _ => false
   }
 
@@ -1312,7 +1357,6 @@ package object compilation {
     !rec.isEmpty && (term match {
       case Term.Apply(f, args) => f match {
         case Term.Var(v) => rec.contains(v, args.length)
-        case Term.Self(v) => rec.contains(v, args.length)
         case _ => false
       }
       case Term.LetRec(bindings, body) =>
@@ -1376,9 +1420,12 @@ package object compilation {
   }
 
   def compileVar(e: Term, name: Name, env: Vector[Name], currentRec: CurrentRec): Computation = {
-    // any `Term.Var` matching `currentRec` will have been replaced with `Term.Self`
-    assert(!currentRec.contains(name))
-    env.indexOf(name) match {
+    if (currentRec contains name)
+      (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+        r.boxed = rec
+        U0
+      }
+    else env.indexOf(name) match {
       case -1 => sys.error("unbound name: " + name)
       case 0 => CompiledVar0
       case 1 => CompiledVar1

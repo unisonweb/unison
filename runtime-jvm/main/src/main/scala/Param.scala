@@ -59,7 +59,16 @@ object Value {
     final val arity: Int,
     final val body: Computation,
     final val unboxedType: Option[UnboxedType],
-    val decompile: Term) extends Value { self =>
+    // the lambda decompiled form may have one free var, referring to itself
+    decompileWithPossibleFreeVar: Term) extends Value { self =>
+
+    assert (Term.freeVars(decompileWithPossibleFreeVar).size <= 1)
+
+    def decompile = Term.freeVars(decompileWithPossibleFreeVar).toList match {
+      case Nil => decompileWithPossibleFreeVar
+      case List(name) =>
+        ABT.subst(name, Term.Compiled(this, name))(decompileWithPossibleFreeVar)
+    }
 
     def names: List[Name]
     def toComputation = Return(this)
@@ -68,12 +77,6 @@ object Value {
                     stackU: Array[U], x1: U, x0: U,
                     stackB: Array[B], x1b: B, x0b: B): U =
       body(r, this, top, stackU, x1, x0, stackB, x1b, x0b)
-
-    def setSelfRec(rec: Lambda): Lambda = new Lambda(
-      arity, body.setRec(rec), unboxedType, decompile
-    ) {
-      def names = self.names
-    }
 
     def compose(f: Lambda): Lambda = {
       assert(arity == 1)
@@ -100,8 +103,7 @@ object Value {
             Term.Lam(names drop argCount: _*)(ABT.substs(substs)(body)),
             Vector.empty, CurrentRec.none, RecursiveVars.empty, IsNotTail
           ) match {
-            case Return(v: Value.Lambda) =>
-              v.setSelfRec(self.body.getRec getOrElse this)
+            case Return(v: Value.Lambda) => v
             case c => sys.error(
               s"compiling a closed Term.Lambda failed to produce a Value.Lambda: $c")
           }
@@ -152,10 +154,9 @@ object Value {
       : Lambda = {
         assert(argCount == 1)
         val compiledArg = compileTop(builtins)(substs(arg1))
-        val body1 = body maySetRec this
         val body2: Computation = (r,rec,top,stackU,_,x0,stackB,_,x0b) => {
           val compiledArgv = compiledArg(r, rec, top, stackU, U0, U0, stackB, null, null)
-          body1(r, rec, top, stackU, compiledArgv, x0, stackB, r.boxed, x0b)
+          body(r, rec, top, stackU, compiledArgv, x0, stackB, r.boxed, x0b)
         }
         new Lambda1(arg1, body2, outputType, decompiled(substs(arg1)))
       }
@@ -173,11 +174,9 @@ object Value {
           substs(namesArray(i + args.length))
         }
         val newArgs = argsInOrder map {
-          case Term.Compiled(b) => b
-          case Term.Self(_) => self
+          case Term.Compiled(b,_) => b
         }
-        val body1 = body maySetRec this
-        new ClosureForming(arity-argCount, body1, outputType,
+        new ClosureForming(arity-argCount, body, outputType,
                            decompiled(argsInOrder: _*), args ++ newArgs) {
           def names = self.names drop argCount
         }

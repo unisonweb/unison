@@ -53,9 +53,6 @@ object CompilationTests {
         Let('tri -> triangle(100))('tri.v(0))
       equal[Term](eval(p), eval(triangle(100,0)))
     },
-    test("selfToLetRec") { implicit T =>
-      fail("Might be causing the incorrect.")
-    },
     test("let") { implicit T =>
       equal(eval(Let('x -> one)(one + 'x)), eval(onePlusOne))
     },
@@ -90,19 +87,16 @@ object CompilationTests {
       ok
     },
     test("fib") { implicit T =>
+      note("pretty-printed fib implementation", includeAlways = true)
+      note(PrettyPrint.prettyTerm(fib).render(40), includeAlways = true)
       0 to 20 foreach { n =>
         equal1(eval(fib(n:Term)), scalaFib(n):Term)
       }
       ok
     },
-    test("fib-pretty-print") { implicit T =>
-      note("pretty-printed fib implementation", includeAlways = true)
-      note(PrettyPrint.prettyTerm(fib).render(40), includeAlways = true)
+    test("fib-ANF") { implicit T =>
       note("pretty-printed fib implementation in ANF", includeAlways = true)
       note(PrettyPrint.prettyTerm(Term.ANF(fib)).render(40), includeAlways = true)
-      ok
-    },
-    test("fib-ANF") { implicit T =>
       val fibANF = Term.ANF(fib)
       0 to 20 foreach { n =>
         equal1(eval(fibANF(n:Term)), scalaFib(n):Term)
@@ -561,7 +555,7 @@ object CompilationTests {
         */
 
         val p = LetRec(
-          ('state, Term.curry { Lam('s0, 'x, 'y, 'action0) {
+          ('state, Lam('s0, 'x, 'y, 'action0) {
             Match('action0)(
               MatchCase(Pattern.EffectPure(Pattern.Wildcard), ABT.Abs('a, 'a)),
               MatchCase(State.Get.pattern(Pattern.Wildcard),
@@ -569,8 +563,8 @@ object CompilationTests {
               MatchCase(State.Set.pattern(Pattern.Wildcard, Pattern.Wildcard),
                         ABT.AbsChain('s2, 'k)(Handle('state.v('s2,'x,'y))('k.v(BuiltinTypes.Unit.term))))
             )
-          }}),
-          ('state2, Term.curry { Lam('s1, 'x, 'action1) {
+          }),
+          ('state2, Lam('s1, 'x, 'action1) {
             Match('action1)(
               // state s {a} = State.get * s
               MatchCase(Pattern.EffectPure(Pattern.Wildcard),
@@ -584,7 +578,7 @@ object CompilationTests {
                         ABT.AbsChain('s3, 'k)(
                           Handle('state2.v('s3, 'x))('k.v(BuiltinTypes.Unit.term))))
             )
-          }})) {
+          })) {
             Handle('state.v(10, 3030, 9090))(Handle('state2.v(3, 2929))(2340983))
           }
 
@@ -618,7 +612,7 @@ object CompilationTests {
         */
 
         val p = LetRec(
-          ('state, Term.curry { Lam('s, 'action) {
+          ('state, Lam('s, 'action) {
             Match('action)(
               // state s <a> = a
               MatchCase(Pattern.EffectPure(Pattern.Wildcard),
@@ -632,8 +626,8 @@ object CompilationTests {
               MatchCase(State.Set.pattern(Pattern.Wildcard, Pattern.Wildcard),
                         ABT.AbsChain('s2, 'k)(Handle('state.v('s2))('k.v(BuiltinTypes.Unit.term))))
             )
-          }}),
-          ('state2, Term.curry { Lam('s, 'action) {
+          }),
+          ('state2, Lam('s, 'action) {
             Match('action)(
               // state s <a> = State.get * s
               MatchCase(Pattern.EffectPure(Pattern.Wildcard),
@@ -653,7 +647,7 @@ object CompilationTests {
                         ABT.AbsChain('s2, 'k)(
                           Handle('state2.v('s2))('k.v(BuiltinTypes.Unit.term))))
             )
-          }}))(
+          }))(
 
           /* handle (state 10)
                handle (state' 3)
@@ -722,16 +716,16 @@ object Terms {
     )('odd)
 
   def tupleTerm(xs: Value*): Term =
-    Term.Compiled(tupleV(xs :_*))
+    Term.Compiled(tupleV(xs :_*), "Tuple")
 
   def tupleV(xs: Value*): Value =
     Value.Data(Id.Builtin("Tuple"), ConstructorId(0), xs.toArray)
 
   def intTupleTerm(xs: Int*): Term =
-    Term.Compiled(intTupleV(xs: _*))
+    Term.Compiled(intTupleV(xs: _*), "Tuple")
 
   def intRightTerm(i: Int): Term =
-    Term.Compiled(intRightV(i))
+    Term.Compiled(intRightV(i), "Right")
 
   def intRightV(i: Int): Value =
     Value.Data(Id.Builtin("Either"), ConstructorId(1), Array(intValue(i)))

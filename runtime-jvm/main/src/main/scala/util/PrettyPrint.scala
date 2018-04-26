@@ -169,7 +169,7 @@ object PrettyPrint {
     case other => other.toString
   }
 
-  def prettyTerm(t: Term): PrettyPrint = prettyTerm(Term.selfToLetRec(t), 0)
+  def prettyTerm(t: Term): PrettyPrint = prettyTerm(t, 0)
 
   def prettyTerm(t: Term, precedence: Int): PrettyPrint = t match {
     case Term.Unboxed(value, t) =>
@@ -204,8 +204,6 @@ object PrettyPrint {
     case Term.Var(name) => prettyName(name)
     case Term.Id(Id.Builtin(name)) => prettyName(name)
     case Term.Id(Id.HashRef(hash)) => ???
-    case Term.Self(name) =>
-      "*" <> prettyName(name)
     case Term.Lam(names, body) => parenthesizeGroupIf(precedence > 0) {
       softbreaks(names.map(name => lit(name.toString))) <> " ->" <> softbreak <>
         prettyTerm(body, 0).nest("  ")
@@ -225,7 +223,7 @@ object PrettyPrint {
         semicolons(cases.map(prettyCase)).nest("  ")
     }
     case Term.Constructor(id,cid) => prettyId(id,cid)
-    case Term.Compiled(Value.Data(typeId, ctorId, fields)) =>
+    case Term.Compiled(Value.Data(typeId, ctorId, fields), _) =>
       prettyTerm(
         Term.Var(prettyId(typeId, ctorId).renderUnbroken)(
           fields.map(_.decompile):_*), precedence)

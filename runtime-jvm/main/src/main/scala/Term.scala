@@ -72,32 +72,9 @@ object Term {
 
   /** Return a `Term` without an outer `Compiled` constructor. */
   def stripOuterCompiled(t: Term): Term = t match {
-    case Compiled(v: Value) => v.decompile
-    case Compiled(r: Ref) => r.value.decompile
+    case Compiled(v: Value, _) => v.decompile
+    case Compiled(r: Ref, _) => r.value.decompile
     case _ => t
-  }
-
-  /** Converts self refs within lambdas to regular named let recs. */
-  def selfToLetRec(t: Term): Term = {
-    assert(Term.freeVars(t).isEmpty)
-    val t2 = t.rewriteDown {
-      case Term.Self(name) => Term.Var(name)
-      case t => t
-    }.annotateFree
-    if (Term.freeVars(t2).isEmpty) t2 // no self references
-    else {
-      val t3 = t2.rewriteUp {
-        case t@Lam(names, body) =>
-          Term.freeVars(t).toList match {
-            case Nil => t
-            case rec :: Nil => LetRec(rec -> t)(Var(rec))
-            case recs => t // this can happen if `t` has already been fullyDecompile'd
-          }
-        case t => t
-      }.annotateFree
-      assert (Term.freeVars(t3).isEmpty, "free vars introduced: " + Term.freeVars(t3).toString)
-      t3
-    }
   }
 
   /**
@@ -114,13 +91,12 @@ object Term {
 
     def names(t: Term): Set[Name] = t.foldMap[Set[Name]] {
       case Var(name) => Set(name)
-      case Self(name) => Set(name)
       case Abs(name, _) => Set(name)
       case _ => Set.empty
     } (Monoid.Set)
 
     def transitiveClosure(seen: Map[Ref,Term], cur: Term): Map[Ref,Term] = cur match {
-      case Id(_) | Unboxed(_,_) | Var(_) | Text(_) | Self(_) |
+      case Id(_) | Unboxed(_,_) | Var(_) | Text(_) |
            Constructor(_,_) | Request(_,_) => seen
       case Match(scrutinee, cases) =>
         cases.foldLeft(transitiveClosure(seen, scrutinee)){ (seen, c) =>
@@ -142,10 +118,10 @@ object Term {
         transitiveClosure(transitiveClosure(seen, binding), body)
       case LetRec(bindings, body) =>
         bindings.map(_._2).foldLeft(transitiveClosure(seen, body))(transitiveClosure)
-      case Compiled(r : Ref) =>
+      case Compiled(r : Ref, _) =>
         if (seen.contains(r)) seen
         else { val v = r.value.decompile; transitiveClosure(seen + (r -> v), v) }
-      case Compiled(v) => transitiveClosure(seen, v.toValue.decompile)
+      case Compiled(v,_) => transitiveClosure(seen, v.toValue.decompile)
     }
 
     // 1. Collect full set of refs via transitive closure - a `Set[Ref]`
@@ -153,8 +129,8 @@ object Term {
     val usedNames = refs.values.map(names).foldLeft(names(t))(_ union _)
     // 2. Freshen names for each `Ref`, if needed
     val freshRefNames = refs.keys.view.map(r => (r, ABT.freshen(r.name, usedNames))).toMap
-    def replaceRefs(t: Term): Term = selfToLetRec(t).rewriteDown {
-      case Compiled(c) => c match {
+    def replaceRefs(t: Term): Term = t.rewriteDown {
+      case Compiled(c,_) => c match {
         case r : Ref => Var(freshRefNames(r))
         case Value.Unboxed(d,typ) => Term.Unboxed(d,typ)
         case v : Value => replaceRefs(v.decompile)
@@ -204,10 +180,9 @@ object Term {
     case class LetRec_[R](bindings: List[R], body: R) extends F[R]
     case class Let_[R](binding: R, body: R) extends F[R]
     case class Rec_[R](r: R) extends F[R]
-    case class Self_(name: Name) extends F[Nothing]
     case class If_[R](condition: R, ifNonzero: R, ifZero: R) extends F[R]
     case class Match_[R](scrutinee: R, cases: List[MatchCase[R]]) extends F[R]
-    case class Compiled_(value: Param) extends F[Nothing]
+    case class Compiled_(value: Param, name: Name) extends F[Nothing]
     // request : <f> a -> {f} a
     case class Request_ [R](id: Id, ctor: ConstructorId) extends F[R]
     // handle : (forall x . <f> x -> r) -> {f} x -> r
@@ -218,7 +193,8 @@ object Term {
 
     implicit val instance: Traverse[F] = new Traverse[F] {
       override def map[A,B](fa: F[A])(f: A => B): F[B] = fa match {
-        case fa @ (Id_(_) | Unboxed_(_,_) | Compiled_(_) | Self_(_) | Text_(_) | Constructor_(_,_) | Request_(_,_)) =>
+        case fa @ (Id_(_) | Unboxed_(_,_) | Compiled_(_,_) | Text_(_) |
+                   Constructor_(_,_) | Request_(_,_)) =>
           fa.asInstanceOf[F[B]]
         case Lam_(a) => Lam_(f(a))
         case Apply_(fn, args) =>
@@ -305,15 +281,6 @@ object Term {
     def apply(id: Id, cid: ConstructorId): Term = Tm(Constructor_(id, cid))
     def unapply[A](t: AnnotatedTerm[F,A]): Option[(Id, ConstructorId)] = t match {
       case Tm(Constructor_(id,cid)) => Some((id,cid))
-      case _ => None
-    }
-  }
-
-  /** A reference to the currently executing lambda. */
-  object Self {
-    def apply(n: Name): Term = Tm(Self_(n))
-    def unapply[A](t: AnnotatedTerm[F,A]): Option[Name] = t match {
-      case Tm(Self_(n)) => Some(n)
       case _ => None
     }
   }
@@ -417,10 +384,10 @@ object Term {
     }
   }
   object Compiled {
-    def apply(v: Param): Term =
-      Tm(Compiled_(v))
-    def unapply[A](t: AnnotatedTerm[F,A]): Option[Param] = t match {
-      case Tm(Compiled_(p)) => Some(p)
+    def apply(v: Param, name: Name): Term =
+      Tm(Compiled_(v,name))
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[(Param, Name)] = t match {
+      case Tm(Compiled_(p, n)) => Some(p -> n)
       case _ => None
     }
   }

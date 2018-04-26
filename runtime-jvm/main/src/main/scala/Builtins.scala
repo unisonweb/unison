@@ -426,7 +426,7 @@ object Builtins {
                              (argCount: Int, substs: Map[Name, Term]): Lambda =
         substs.toList match {
           case List((_,term)) => term match {
-            case Term.Compiled(p: Param) =>
+            case Term.Compiled(p: Param, _) =>
               // cast is okay, because in `fuu_u`, args are Unboxed.
               val n = p.toValue.asInstanceOf[Value.Unboxed].n
               val body: Computation =
