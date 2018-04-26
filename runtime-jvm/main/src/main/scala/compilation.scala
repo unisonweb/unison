@@ -1247,7 +1247,7 @@ package object compilation {
           compile(builtins)(handler, env, currentRec, recVars, IsNotTail)
         val cBlock =
           compile(builtins)(block, env, currentRec, recVars, isTail)
-        new Computation { self =>
+        new Computation {
           // Installs `handler` around the body of `k`, so given `k`, we
           // produce `k'`:
           //
@@ -1304,25 +1304,6 @@ package object compilation {
                 val data = Value.EffectBind(id, ctor, args, k)
                 try { blockU = handler(r,top,stackU,U0,U0,stackB,null,data) }
                 catch {
-                  // In case of nested handlers, we need to attach the inner
-                  // handler to the continuation in case the inner handler
-                  // requests an effect of the outer handler. This is because
-                  // the outer handler needs to be able to delegate back to
-                  // the inner one when the continuation contains more requests
-                  // that need to be caught by the inner handler.
-                  //
-                  // E.g.
-                  //
-                  // handle (doSomeIO)
-                  //   handle (doSomeState)
-                  //     foo
-                  //
-                  // Here, doSomeState may have IO effects, followed by state
-                  // effects which doSomeIO doesn't know how to handle.
-                  case Requested(id, ctor, args, k) =>
-                    // we augment `k` to be wrapped in `h` handler
-                    // k' = x -> handle h (k x)
-                    throw Requested(id, ctor, args, attachHandler(handler, k))
                   // The handler didn't handle this request. Maybe it will be
                   // handled by an outer handler. Rethrow, but attach this
                   // handler to the continuation.

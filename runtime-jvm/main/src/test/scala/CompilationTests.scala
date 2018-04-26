@@ -554,16 +554,16 @@ object CompilationTests {
         */
 
         val p = LetRec(
-          ('state, Lam('s0, 'x, 'y, 'action0) {
+          ('state, Lam('s0, 'action0) {
             Match('action0)(
               MatchCase(Pattern.EffectPure(Pattern.Wildcard), ABT.Abs('a, 'a)),
               MatchCase(State.Get.pattern(Pattern.Wildcard),
-                        ABT.Abs('k, Handle('state.v('s0,'x,'y))('k.v('s0)))),
+                        ABT.Abs('k, Handle('state.v('s0))('k.v('s0)))),
               MatchCase(State.Set.pattern(Pattern.Wildcard, Pattern.Wildcard),
-                        ABT.AbsChain('s2, 'k)(Handle('state.v('s2,'x,'y))('k.v(BuiltinTypes.Unit.term))))
+                        ABT.AbsChain('s2, 'k)(Handle('state.v('s2))('k.v(BuiltinTypes.Unit.term))))
             )
           }),
-          ('state2, Lam('s1, 'x, 'action1) {
+          ('state2, Lam('s1, 'action1) {
             Match('action1)(
               // state s {a} = State.get * s
               MatchCase(Pattern.EffectPure(Pattern.Wildcard),
@@ -571,14 +571,14 @@ object CompilationTests {
                         // ABT.Abs('a, 's1)), <-- this works fine!
               // state' s {get -> k} = handle (state' s) (k s)
               MatchCase(State.Get.pattern(Pattern.Wildcard),
-                        ABT.Abs('k, Handle('state2.v('s1, 'x))('k.v('s1.v)))),
+                        ABT.Abs('k, Handle('state2.v('s1))('k.v('s1.v)))),
               // state' _ {put s -> k} = handle (state' s) (k ())
               MatchCase(State.Set.pattern(Pattern.Wildcard, Pattern.Wildcard),
                         ABT.AbsChain('s3, 'k)(
-                          Handle('state2.v('s3, 'x))('k.v(BuiltinTypes.Unit.term))))
+                          Handle('state2.v('s3))('k.v(BuiltinTypes.Unit.term))))
             )
           })) {
-            Handle('state.v(10, 3030, 9090))(Handle('state2.v(3, 2929))(2340983))
+            Handle('state.v(10))(Handle('state2.v(3))(2340983))
           }
 
         note(PrettyPrint.prettyTerm(p).render(80), includeAlways = true)
@@ -594,7 +594,7 @@ object CompilationTests {
             state _ {put s -> k} = handle (state s) (k ())
 
             state' : s -> {State Integer} Integer -> {State Integer} Integer
-            state' s {a} = State.get * s
+            state' s {a} = a
             state' s {get -> k} = let
               outer-value = State.get
               handle (state s) (k (s + outer-value))
@@ -630,7 +630,8 @@ object CompilationTests {
             Match('action)(
               // state s <a> = State.get * s
               MatchCase(Pattern.EffectPure(Pattern.Wildcard),
-                        ABT.Abs('a, State.Get.term * 's)),
+                        ABT.Abs('a, 'a)),
+                        // todo: ABT.Abs('a, State.Get.term * 's)),
 
               /*
               let
@@ -648,17 +649,12 @@ object CompilationTests {
             )
           }))(
 
-          /* handle (state 10)
-               handle (state' 3)
-                 x = State.get + 1
-                 y = State.set (x + 1)
-                 State.get + 11 */
-          Handle('state.v(10))(Handle('state2.v(3))(
-            Let('x -> (State.Get.term + 1),
-                'y -> State.Set.term('x.v + 1))(State.Get.term + 11))))
+          Handle('state.v(1))(Handle('state2.v(10))(
+            Let('x -> (State.Get.term + 100),
+                'y -> State.Set.term('x.v + 1000))(State.Get.term + 10000))))
 
-      note(PrettyPrint.prettyTerm(Term.ANF(p)).render(40), includeAlways = true)
-      equal[Term](eval(Term.ANF(p)), 360)
+      note(PrettyPrint.prettyTerm(Term.ANF(p)).render(80), includeAlways = true)
+      equal[Term](eval(Term.ANF(p)), 11112)
     })}
   )
 }
