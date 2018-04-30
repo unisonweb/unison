@@ -135,7 +135,7 @@ object Builtins {
 
   // Unsigned machine integers
   val UInt64_toInt64 =
-    fn_n("UInt64.toInt64", "x", x => x)
+    fl_l("UInt64.toInt64", "x", x => x)
 
   val UInt64_inc =
     fn_n("UInt64.inc", "x", _ + 1)
@@ -162,7 +162,7 @@ object Builtins {
   )
 
   val UInt64_sub =
-    fll_l("UInt64.sub", "x", "y", (x, y) => x - y)
+    fnn_n("UInt64.sub", "x", "y", (x, y) => x - y)
 
   val UInt64_div =
     fnn_n("UInt64./", "x", "y", java.lang.Long.divideUnsigned(_,_))
@@ -193,9 +193,6 @@ object Builtins {
       java.lang.Long.compareUnsigned(x,y) > 0
     )
 
-  val UInt64_negate =
-    fl_l("UInt64.negate", "x", x => -x)
-
   val numericBuiltins: Map[Name, Computation] = Map(
     // arithmetic
     Int64_inc,
@@ -208,11 +205,13 @@ object Builtins {
 
     UInt64_toInt64,
     UInt64_inc,
+    UInt64_isEven,
+    UInt64_isOdd,
     UInt64_mul,
     UInt64_drop,
+    UInt64_add,
     UInt64_sub,
     UInt64_div,
-    UInt64_negate,
 
     // comparison
     Int64_eq,
