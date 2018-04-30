@@ -132,6 +132,12 @@ object Builtins {
   val Integer_negate =
     fl_l("Integer.negate", "x", -_)
 
+  val UInt64_toInt =
+    fl_l("UInt64.toInteger", "x", x => x)
+
+  val Natural_toInt =
+    fl_l("UInt64.toInteger", "x", x => x)
+
   val numericBuiltins = Map(
     // arithmetic
     Integer_inc,
@@ -141,6 +147,14 @@ object Builtins {
     Integer_div,
     Integer_signum,
     Integer_negate,
+    
+    Natural_toInt,
+    Natural_inc,
+    Natural_mul,
+    Natural_drop,
+    Natural_sub,
+    Natural_div,
+    Natural_negate,
 
     // comparison
     Integer_eq,
@@ -148,7 +162,13 @@ object Builtins {
     Integer_lteq,
     Integer_gteq,
     Integer_lt,
-    Integer_gt
+    Integer_gt,
+    Natural_eq,
+    Natural_neq,
+    Natural_lteq,
+    Natural_gteq,
+    Natural_lt,
+    Natural_gt,
   )
 
   val Boolean_not =
@@ -259,7 +279,7 @@ object Builtins {
 
   def fl_l(name: Name, arg: Name, f: LongUnaryOperator): (Name, Computation) =
     _fu_u(name, arg, UnboxedType.Integer,
-         u => longToUnboxed(f.applyAsLong(unboxedToLong(u))))
+          u => longToUnboxed(f.applyAsLong(unboxedToLong(u))))
 
   def fp_l[A,B](name: Name, arg: Name, f: A => B)
                (implicit A: Decode[A], B: LazyEncode[B]): (Name, Computation) = {
