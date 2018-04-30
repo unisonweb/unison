@@ -17,8 +17,8 @@ object Builtins {
     c0l("Stream.empty", Stream.empty[Value])
 
 
-  // Stream.fromInt : Integer -> Stream Integer
-  val Stream_fromInt = // Stream.iterate(unison 0)(Integer_inc)
+  // Stream.fromInt : Int64 -> Stream Int64
+  val Stream_fromInt = // Stream.iterate(unison 0)(Int64_inc)
     fp_l("Stream.fromInt", "n", Stream.fromUnison)
 
   // Stream.cons : a -> Stream a -> Stream a
@@ -87,88 +87,146 @@ object Builtins {
     Sequence_size
   )
 
-  val Integer_inc =
-    fl_l("Integer.inc", "x", _ + 1)
+  // Signed machine integers
+  val Int64_inc =
+    fl_l("Int64.inc", "x", _ + 1)
 
-  val Integer_isEven =
-    fl_b("Integer.isEven", "x", _ % 2 == 0)
+  val Int64_isEven =
+    fl_b("Int64.isEven", "x", _ % 2 == 0)
 
-  val Integer_isOdd =
-    fl_b("Integer.isOdd", "x", _ % 2 != 0)
+  val Int64_isOdd =
+    fl_b("Int64.isOdd", "x", _ % 2 != 0)
 
-  val Integer_add =
-    fll_l("Integer.+", "x", "y", _ + _)
+  val Int64_add =
+    fll_l("Int64.+", "x", "y", _ + _)
 
-  val Integer_mul =
-    fll_l("Integer.*", "x", "y", _ * _)
+  val Int64_mul =
+    fll_l("Int64.*", "x", "y", _ * _)
 
-  val Integer_sub =
-    fll_l("Integer.-", "x", "y", _ - _)
+  val Int64_sub =
+    fll_l("Int64.-", "x", "y", _ - _)
 
-  val Integer_div =
-    fll_l("Integer./", "x", "y", _ / _)
+  val Int64_div =
+    fll_l("Int64./", "x", "y", _ / _)
 
-  val Integer_eq =
-    fll_b("Integer.==", "x", "y", _ == _)
+  val Int64_eq =
+    fll_b("Int64.==", "x", "y", _ == _)
 
-  val Integer_neq =
-    fll_b("Integer.!=", "x", "y", _ != _)
+  val Int64_neq =
+    fll_b("Int64.!=", "x", "y", _ != _)
 
-  val Integer_lteq =
-    fll_b("Integer.<=", "x", "y", _ <= _)
+  val Int64_lteq =
+    fll_b("Int64.<=", "x", "y", _ <= _)
 
-  val Integer_gteq =
-    fll_b("Integer.>=", "x", "y", _ >= _)
+  val Int64_gteq =
+    fll_b("Int64.>=", "x", "y", _ >= _)
 
-  val Integer_lt =
-    fll_b("Integer.<", "x", "y", _ < _)
+  val Int64_lt =
+    fll_b("Int64.<", "x", "y", _ < _)
 
-  val Integer_gt =
-    fll_b("Integer.>", "x", "y", _ > _)
+  val Int64_gt =
+    fll_b("Int64.>", "x", "y", _ > _)
 
-  val Integer_signum =
-    fl_l("Integer.signum", "x", _.signum)
+  val Int64_signum =
+    fl_l("Int64.signum", "x", _.signum)
 
-  val Integer_negate =
-    fl_l("Integer.negate", "x", -_)
+  val Int64_negate =
+    fl_l("Int64.negate", "x", -_)
 
-  val UInt64_toInt =
-    fl_l("UInt64.toInteger", "x", x => x)
+  // Unsigned machine integers
+  val UInt64_toInt64 =
+    fn_n("UInt64.toInt64", "x", x => x)
 
-  val Natural_toInt =
-    fl_l("UInt64.toInteger", "x", x => x)
+  val UInt64_inc =
+    fn_n("UInt64.inc", "x", _ + 1)
 
-  val numericBuiltins = Map(
+  val UInt64_isEven =
+    fl_b("UInt64.isEven", "x", _ % 2 == 0)
+
+  val UInt64_isOdd =
+    fl_b("UInt64.isOdd", "x", _ % 2 != 0)
+
+  val UInt64_add =
+    fnn_n("UInt64.+", "x", "y", _ + _)
+
+  val UInt64_mul =
+    fnn_n("UInt64.*", "x", "y", _ * _)
+
+  val UInt64_drop =
+    fnn_n("UInt64.drop", "x", "y", (x, y) =>
+      if (x < 0 && y < 0)
+        if (x >= y) x - y else 0
+      else if (x < 0 && y >= 0) x - y
+      else if (x >= 0 && y < 0) 0
+      else x - y max 0
+  )
+
+  val UInt64_sub =
+    fll_l("UInt64.sub", "x", "y", (x, y) => x - y)
+
+  val UInt64_div =
+    fnn_n("UInt64./", "x", "y", java.lang.Long.divideUnsigned(_,_))
+
+  val UInt64_eq =
+    fll_b("UInt64.==", "x", "y", _ == _)
+
+  val UInt64_neq =
+    fll_b("UInt64.!=", "x", "y", _ != _)
+
+  val UInt64_lteq =
+    fll_b("UInt64.<=", "x", "y", (x, y) =>
+      java.lang.Long.compareUnsigned(x,y) <= 0
+    )
+
+  val UInt64_gteq =
+    fll_b("UInt64.>=", "x", "y", (x, y) =>
+      java.lang.Long.compareUnsigned(x,y) >= 0
+    )
+
+  val UInt64_lt =
+    fll_b("UInt64.<", "x", "y", (x, y) =>
+      java.lang.Long.compareUnsigned(x,y) < 0
+    )
+
+  val UInt64_gt =
+    fll_b("UInt64.>", "x", "y", (x, y) =>
+      java.lang.Long.compareUnsigned(x,y) > 0
+    )
+
+  val UInt64_negate =
+    fl_l("UInt64.negate", "x", x => -x)
+
+  val numericBuiltins: Map[Name, Computation] = Map(
     // arithmetic
-    Integer_inc,
-    Integer_add,
-    Integer_mul,
-    Integer_sub,
-    Integer_div,
-    Integer_signum,
-    Integer_negate,
-    
-    Natural_toInt,
-    Natural_inc,
-    Natural_mul,
-    Natural_drop,
-    Natural_sub,
-    Natural_div,
-    Natural_negate,
+    Int64_inc,
+    Int64_add,
+    Int64_sub,
+    Int64_mul,
+    Int64_div,
+    Int64_signum,
+    Int64_negate,
+
+    UInt64_toInt64,
+    UInt64_inc,
+    UInt64_mul,
+    UInt64_drop,
+    UInt64_sub,
+    UInt64_div,
+    UInt64_negate,
 
     // comparison
-    Integer_eq,
-    Integer_neq,
-    Integer_lteq,
-    Integer_gteq,
-    Integer_lt,
-    Integer_gt,
-    Natural_eq,
-    Natural_neq,
-    Natural_lteq,
-    Natural_gteq,
-    Natural_lt,
-    Natural_gt,
+    Int64_eq,
+    Int64_neq,
+    Int64_lteq,
+    Int64_gteq,
+    Int64_lt,
+    Int64_gt,
+    UInt64_eq,
+    UInt64_neq,
+    UInt64_lteq,
+    UInt64_gteq,
+    UInt64_lt,
+    UInt64_gt,
   )
 
   val Boolean_not =
@@ -278,7 +336,12 @@ object Builtins {
          u => boolToUnboxed(f.test(unboxedToLong(u))))
 
   def fl_l(name: Name, arg: Name, f: LongUnaryOperator): (Name, Computation) =
-    _fu_u(name, arg, UnboxedType.Integer,
+    _fu_u(name, arg, UnboxedType.Int64,
+          u => longToUnboxed(f.applyAsLong(unboxedToLong(u))))
+
+  // UInt64 -> UInt64
+  def fn_n(name: Name, arg: Name, f: LongUnaryOperator): (Name, Computation) =
+    _fu_u(name, arg, UnboxedType.UInt64,
           u => longToUnboxed(f.applyAsLong(unboxedToLong(u))))
 
   def fp_l[A,B](name: Name, arg: Name, f: A => B)
@@ -369,12 +432,16 @@ object Builtins {
     name -> Return(lambda)
   }
 
-  def fll_l(name: Name, arg1: Name, arg2: Name, f: LongBinaryOperator) =
-    _fuu_u(name, arg1, arg2, UnboxedType.Integer,
+  def fll_l(name: Name, arg1: Name, arg2: Name, f: LongBinaryOperator): (Name, Computation) =
+    _fuu_u(name, arg1, arg2, UnboxedType.Int64,
+           (u1, u2) => longToUnboxed(f.applyAsLong(unboxedToLong(u1), unboxedToLong(u2))))
+
+  def fnn_n(name: Name, arg1: Name, arg2: Name, f: LongBinaryOperator) =
+    _fuu_u(name, arg1, arg2, UnboxedType.UInt64,
            (u1, u2) => longToUnboxed(f.applyAsLong(unboxedToLong(u1), unboxedToLong(u2))))
 
   abstract class FLL_B { def apply(l1: Long, l2: Long): Boolean }
-  def fll_b(name: Name, arg1: Name, arg2: Name, f: FLL_B) =
+  def fll_b(name: Name, arg1: Name, arg2: Name, f: FLL_B): (Name, Computation) =
     _fuu_u(name, arg1, arg2, UnboxedType.Boolean,
            (u1, u2) => boolToUnboxed(f(unboxedToLong(u1), unboxedToLong(u2))))
 
@@ -500,9 +567,9 @@ object Builtins {
       }
 
     implicit val encodeLong: Encode[Long] =
-      (r, a) => { r.boxed = UnboxedType.Integer; longToUnboxed(a) }
+      (r, a) => { r.boxed = UnboxedType.Int64; longToUnboxed(a) }
     implicit val encodeInt: Encode[Int] =
-      (r, a) => { r.boxed = UnboxedType.Integer; intToUnboxed(a) }
+      (r, a) => { r.boxed = UnboxedType.Int64; intToUnboxed(a) }
     implicit val encodeDouble: Encode[Double] =
       (r, a) => { r.boxed = UnboxedType.Float; doubleToUnboxed(a) }
   }

@@ -260,7 +260,7 @@ object CompilationTests {
       test("literal") { implicit T =>
         /* let x = 42; case 10 of 10 -> x + 1 */
         val v: Term = 43
-        val c = MatchCase(LiteralU(10, UnboxedType.Integer), 'x.v + 1)
+        val c = MatchCase(LiteralU(10, UnboxedType.Int64), 'x.v + 1)
         val p = Let('x -> (42:Term))(Match(10)(c))
         equal(eval(p), v)
       },
@@ -270,7 +270,7 @@ object CompilationTests {
              10 | true -> x + 1
         */
         val v: Term = 43
-        val c = MatchCase(LiteralU(10, UnboxedType.Integer),
+        val c = MatchCase(LiteralU(10, UnboxedType.Int64),
                           Some(true:Term), 'x.v + 1)
         val p = Let('x -> (42:Term))(Match(10)(c))
         equal(eval(p), v)
@@ -282,7 +282,7 @@ object CompilationTests {
           should be 14
         */
         val v: Term = 14
-        val c1 = MatchCase(LiteralU(10, UnboxedType.Integer),
+        val c1 = MatchCase(LiteralU(10, UnboxedType.Int64),
                            Some(false:Term), 'x.v + 1)
         val c2 = MatchCase(Wildcard, ABT.Abs('y, 'y.v + 4))
         val p = Let('x -> (42:Term))(Match(10)(c1, c2))
@@ -300,7 +300,7 @@ object CompilationTests {
            should return 44
         */
         val v: Term = 44
-        val c1 = MatchCase(LiteralU(10, UnboxedType.Integer),
+        val c1 = MatchCase(LiteralU(10, UnboxedType.Int64),
                            Some(false:Term), 'x.v + 1)
         val c2 = MatchCase(Uncaptured, 'x.v + 2)
         val p = Let('x -> (42:Term))(Match(10)(c1, c2))
@@ -309,7 +309,7 @@ object CompilationTests {
       test("shadowing") { implicit T =>
         /* let x = 42; case 10 of 10 | false -> x+1; x -> x+4 */
         val v: Term = 14
-        val c1 = MatchCase(LiteralU(10, UnboxedType.Integer),
+        val c1 = MatchCase(LiteralU(10, UnboxedType.Int64),
                            Some(false:Term), 'x.v + 1)
         val c2 = MatchCase(Wildcard, ABT.Abs('x, 'x.v + 4))
         val p = Let('x -> (42:Term))(Match(10)(c1, c2))
@@ -392,7 +392,7 @@ object CompilationTests {
         /* case 3 of x@(y@(3)) -> x + y */
         val v: Term = 6
         val c =
-          MatchCase(Pattern.As(Pattern.As(Pattern.LiteralU(3, UnboxedType.Integer))),
+          MatchCase(Pattern.As(Pattern.As(Pattern.LiteralU(3, UnboxedType.Int64))),
                     ABT.AbsChain('x, 'y)('x.v + 'y))
         val p = Match(3)(c)
         equal(eval(p), v)
@@ -406,7 +406,7 @@ object CompilationTests {
           MatchCase(
             Pattern.As(
               Pattern.As(
-                Pattern.LiteralU(3, UnboxedType.Integer)
+                Pattern.LiteralU(3, UnboxedType.Int64)
               )), Some[Term](ABT.AbsChain('x, 'y)('x.v + 'y > 4)), ABT.AbsChain('x, 'y)('x.v + 'y))
         val p = Match(3)(c)
         equal(eval(p), v)
@@ -421,7 +421,7 @@ object CompilationTests {
           MatchCase(
             Pattern.As(
               Pattern.As(
-                Pattern.LiteralU(3, UnboxedType.Integer)
+                Pattern.LiteralU(3, UnboxedType.Int64)
               )), Some[Term](ABT.AbsChain('x, 'y)('x.v + 'y > 4)), ABT.AbsChain('x, 'y)('x.v + 'y))
         val c2 = MatchCase[Term](Pattern.Uncaptured, 2)
         val p = Match(1)(c, c2)
@@ -687,7 +687,7 @@ object Terms {
 
   val onePlusOne: Term = one + one
 
-  val onePlus: Term = Builtins.termFor(Builtins.Integer_add)(one)
+  val onePlus: Term = Builtins.termFor(Builtins.Int64_add)(one)
 
   val ap: Term = Lam('f,'x)('f.v('x))
 
@@ -745,16 +745,16 @@ object Terms {
   def intTupleV(xs: Int*): Value =
     tupleV(xs.map(intValue): _*)
 
-  def intValue(x: Int): Value = Value.Unboxed(x.toLong, UnboxedType.Integer)
+  def intValue(x: Int): Value = Value.Unboxed(x.toLong, UnboxedType.Int64)
 
   implicit class Ops(t0: Term) {
-    def +(t1: Term) = Builtins.termFor(Builtins.Integer_add)(t0, t1)
-    def -(t1: Term) = Builtins.termFor(Builtins.Integer_sub)(t0, t1)
-    def *(t1: Term) = Builtins.termFor(Builtins.Integer_mul)(t0, t1)
+    def +(t1: Term) = Builtins.termFor(Builtins.Int64_add)(t0, t1)
+    def -(t1: Term) = Builtins.termFor(Builtins.Int64_sub)(t0, t1)
+    def *(t1: Term) = Builtins.termFor(Builtins.Int64_mul)(t0, t1)
     def unisonEquals(t1: Term) =
-      Builtins.termFor(Builtins.Integer_eq)(t0, t1)
-    def <(t1: Term) = Builtins.termFor(Builtins.Integer_lt)(t0, t1)
-    def >(t1: Term) = Builtins.termFor(Builtins.Integer_gt)(t0, t1)
+      Builtins.termFor(Builtins.Int64_eq)(t0, t1)
+    def <(t1: Term) = Builtins.termFor(Builtins.Int64_lt)(t0, t1)
+    def >(t1: Term) = Builtins.termFor(Builtins.Int64_gt)(t0, t1)
   }
 
   object Sequence {

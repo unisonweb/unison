@@ -40,7 +40,7 @@ object Value {
   def fromParam(u: U, b: Param): Value =
     if (b.isType) Unboxed(u, b.asInstanceOf[UnboxedType]) else b.toValue
 
-  def apply(n: Long): Value = Value.Unboxed(longToUnboxed(n), UnboxedType.Integer)
+  def apply(n: Long): Value = Value.Unboxed(longToUnboxed(n), UnboxedType.Int64)
   def apply(n: Double): Value = Value.Unboxed(doubleToUnboxed(n), UnboxedType.Float)
   def apply(b: Boolean): Value = Value.Unboxed(boolToUnboxed(b), UnboxedType.Boolean)
 
@@ -208,9 +208,9 @@ sealed abstract class UnboxedType extends Value {
 
 object UnboxedType {
 
-  case object Integer extends UnboxedType
+  case object Int64 extends UnboxedType
+  case object UInt64 extends UnboxedType
   case object Float extends UnboxedType
   case object Boolean extends UnboxedType
-  case object Natural extends UnboxedType
 
 }
