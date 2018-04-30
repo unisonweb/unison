@@ -181,6 +181,8 @@ object Term {
     case class Let_[R](binding: R, body: R) extends F[R]
     case class Rec_[R](r: R) extends F[R]
     case class If_[R](condition: R, ifNonzero: R, ifZero: R) extends F[R]
+    case class And_[R](x: R, y: R) extends F[R]
+    case class Or_[R](x: R, y: R) extends F[R]
     case class Match_[R](scrutinee: R, cases: List[MatchCase[R]]) extends F[R]
     case class Compiled_(value: Param, name: Name) extends F[Nothing]
     // request : <f> a -> {f} a
@@ -212,6 +214,12 @@ object Term {
         case If_(c,a,b) =>
           val c2 = f(c); val a2 = f(a); val b2 = f(b)
           If_(c2, a2, b2)
+        case And_(x,y) =>
+          val x2 = f(x); val y2 = f(y)
+          And_(x2,y2)
+        case Or_(x,y) =>
+          val x2 = f(x); val y2 = f(y)
+          Or_(x2,y2)
         case Match_(s, cs) =>
           val s2 = f(s); val cs2 = cs.map(_.map(f))
           Match_(s2, cs2)
@@ -383,6 +391,25 @@ object Term {
       case _ => None
     }
   }
+
+  object And {
+    def apply(x: Term, y: Term): Term =
+      Tm(And_(x, y))
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[(AnnotatedTerm[F,A], AnnotatedTerm[F,A])] = t match {
+      case Tm(And_(x, y)) => Some((x, y))
+      case _ => None
+    }
+  }
+
+  object Or {
+    def apply(x: Term, y: Term): Term =
+      Tm(Or_(x, y))
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[(AnnotatedTerm[F,A], AnnotatedTerm[F,A])] = t match {
+      case Tm(Or_(x, y)) => Some((x, y))
+      case _ => None
+    }
+  }
+
   object Compiled {
     def apply(v: Param, name: Name): Term =
       Tm(Compiled_(v,name))

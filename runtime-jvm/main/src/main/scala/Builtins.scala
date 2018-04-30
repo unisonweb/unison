@@ -209,9 +209,15 @@ object Builtins {
     Text_gt
   )
 
-  val builtins =
+  // don't remove the type annotation
+  val Debug_crash: (Term.Name, Computation) =
+    ("Debug.crash", (r => sys.error("called Debug.crash")): Computation.C0)
+
+  val debugBuiltins = Map(Debug_crash)
+
+  val builtins: Map[Name, Computation] =
     streamBuiltins ++ seqBuiltins ++ numericBuiltins ++
-    booleanBuiltins ++ textBuiltins
+    booleanBuiltins ++ textBuiltins ++ debugBuiltins
 
   // Polymorphic one-argument function
   def fp_p[A,B](name: Name, arg: Name, f: A => B)
@@ -501,6 +507,8 @@ object Builtins {
       Term.Text(_)
     implicit val decompileUnit: Decompile[Unit] =
       u => BuiltinTypes.Unit.term
+    implicit val decompileBoolean: Decompile[Boolean] =
+      b => Term.Unboxed(boolToUnboxed(b), UnboxedType.Boolean)
     implicit def decompilePair[A,B](implicit A: Decompile[A], B: Decompile[B]): Decompile[(A,B)] =
       p => BuiltinTypes.Tuple.term(A.decompile(p._1), B.decompile(p._2))
   }

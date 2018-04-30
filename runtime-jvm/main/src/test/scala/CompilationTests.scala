@@ -12,7 +12,8 @@ object CompilationTests {
   import Terms._
 
   val env = Environment(
-    Builtins.builtins, _ => ???,
+    Builtins.builtins,
+    userDefined = _ => ???,
     BuiltinTypes.dataConstructors,
     BuiltinTypes.effects)
 
@@ -655,7 +656,24 @@ object CompilationTests {
 
       note(PrettyPrint.prettyTerm(Term.ANF(p)).render(80), includeAlways = true)
       equal[Term](eval(Term.ANF(p)), 11112)
-    })}
+    })},
+    test("and") { implicit T =>
+      equal[Term](eval(And(true, true)), true)
+      equal[Term](eval(And(true, false)), false)
+      equal[Term](eval(And(false, true)), false)
+      equal[Term](eval(And(false, false)), false)
+    },
+    test("or") { implicit T =>
+      equal[Term](eval(Or(true, true)), true)
+      equal[Term](eval(Or(true, false)), true)
+      equal[Term](eval(Or(false, true)), true)
+      equal[Term](eval(Or(false, false)), false)
+    },
+    test("short-circuiting and/or") { implicit T =>
+      println("starting short-circuiting")
+      equal[Term](eval(Or(true, Debug.crash)), true)
+      equal[Term](eval(And(false, Debug.crash)), false)
+    }
   )
 }
 
@@ -765,5 +783,10 @@ object Terms {
     val gt = termFor(Text_gt)
     val lteq = termFor(Text_lteq)
     val gteq = termFor(Text_gteq)
+  }
+
+  object Debug {
+    import Builtins._
+    val crash = termFor(Debug_crash)
   }
 }

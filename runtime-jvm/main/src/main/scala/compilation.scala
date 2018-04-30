@@ -952,12 +952,13 @@ package object compilation {
     e match {
       case Term.Unboxed(n,t) => compileUnboxed(n,t)
       case Term.Text(txt) => Return(Builtins.External(txt, e))
-      case Term.Id(Id.Builtin(name)) => builtins.builtins(name)
+      case Term.Id(Id.Builtin(name)) =>
+        builtins.builtins(name)
       case Term.Id(Id.HashRef(h)) => ???
       case Term.Constructor(id,cid) => builtins.dataConstructors(id,cid)
       case Term.Compiled(param,_) =>
-        if (param.toValue eq null) // todo: make this C0?
-          (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => param.toValue.toResult(r)
+        if (param.toValue eq null)
+          (r => param.toValue.toResult(r)) : Computation.C0
         else Return(param.toValue)
       case Term.Sequence(s) =>
         val cs = s.map(compile(builtins)(_, env, currentRec, recVars, IsNotTail))
@@ -980,6 +981,22 @@ package object compilation {
             ct(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
           else
             cf(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+      case Term.And(p, q) =>
+        val cp = compile(builtins)(p, env, currentRec, recVars, IsNotTail)
+        val cq = compile(builtins)(q, env, currentRec, recVars, isTail)
+        (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
+          boolToUnboxed(
+            unboxedToBool(cp(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)) &&
+              unboxedToBool(cq(r,rec,top,stackU,x1,x0,stackB,x1b,x0b))
+          )
+      case Term.Or(p, q) =>
+        val cp = compile(builtins)(p, env, currentRec, recVars, IsNotTail)
+        val cq = compile(builtins)(q, env, currentRec, recVars, isTail)
+        (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
+          boolToUnboxed(
+            unboxedToBool(cp(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)) ||
+              unboxedToBool(cq(r,rec,top,stackU,x1,x0,stackB,x1b,x0b))
+          )
       case Term.Match(_, Nil) =>
         sys.error("parser shouldn't produce a match with no cases")
       case Term.Match(scrutinee, cases) =>
