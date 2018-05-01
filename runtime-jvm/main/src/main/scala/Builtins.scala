@@ -360,7 +360,7 @@ object Builtins {
       (r,x1,x0,x1b,x0b) =>
         C.encode(r, f(A.decode(x1, x1b), B.decode(x0, x0b)))
     val decompiled = Term.Id(name)
-    val lambda = new Lambda.ClosureForming2(arg1, arg2, body, None, decompiled)
+    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, None, decompiled)
     name -> Return(lambda)
   }
 
@@ -377,7 +377,7 @@ object Builtins {
                    Value.fromParam(x0, x0b))
       }
     val decompiled = Term.Id(name)
-    val lambda = new Lambda.ClosureForming2(arg1, arg2, body, None, decompiled)
+    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, None, decompiled)
     name -> Return(lambda)
   }
 
@@ -392,7 +392,7 @@ object Builtins {
     val body: Computation.C2P = (r,x1,x0,_,x0b) =>
       B.encode(r, f(x1, A.decode(x0, x0b)))
     val decompiled = Term.Id(name)
-    val lambda = new Lambda.ClosureForming2(arg1, arg2, body, None, decompiled)
+    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, None, decompiled)
     name -> Return(lambda)
   }
 
@@ -408,7 +408,7 @@ object Builtins {
                  Value.fromParam(x0, x0b))
 
     val decompiled = Term.Id(name)
-    val lambda = new Lambda.ClosureForming2(arg1, arg2, body, None, decompiled)
+    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, None, decompiled)
     name -> Return(lambda)
   }
 
@@ -427,7 +427,7 @@ object Builtins {
         f(A.decode(x1, x1b), B.decode(x0, x0b))
       }
     val decompiled = Term.Id(name)
-    val lambda = new Lambda.ClosureForming2(arg1, arg2, body, Some(outputType), decompiled)
+    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, None, decompiled)
     name -> Return(lambda)
   }
 

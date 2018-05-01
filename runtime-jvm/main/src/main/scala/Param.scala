@@ -137,28 +137,6 @@ object Value {
         sys.error("a lambda with arity 1 cannot be underapplied")
     }
 
-    /**
-      * A `Lambda` of arity 2 that forms a closure when underapplied, rather
-      * than specializing away the supplied argument.
-      */
-    // todo: delete this and Lambda1 later
-    class ClosureForming2(arg1: Name, arg2: Name, body: Computation,
-                          outputType: Option[UnboxedType], decompiled: Term)
-      extends Lambda(names = List(arg1,arg2),body,outputType,decompiled) {
-
-      override def underapply(builtins: Environment)
-                             (argCount: Arity, substs: Map[Name, Term])
-      : Lambda = {
-        assert(argCount == 1)
-        val compiledArg = compileTop(builtins)(substs(arg1))
-        val body2: Computation = (r,rec,top,stackU,_,x0,stackB,_,x0b) => {
-          val compiledArgv = compiledArg(r, rec, top, stackU, U0, U0, stackB, null, null)
-          body(r, rec, top, stackU, compiledArgv, x0, stackB, r.boxed, x0b)
-        }
-        new Lambda1(arg1, body2, outputType, decompiled(substs(arg1)))
-      }
-    }
-
     class ClosureForming(names: List[Name], body: Computation,
                                   outputType: Option[UnboxedType],
                                   decompiled: Term)

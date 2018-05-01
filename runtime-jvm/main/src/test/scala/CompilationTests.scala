@@ -178,16 +178,16 @@ object CompilationTests {
       ok
     },
     test("fib") { implicit T =>
-      note("pretty-printed fib implementation", includeAlways = true)
-      note(PrettyPrint.prettyTerm(fib).render(40), includeAlways = true)
+      note("pretty-printed fib implementation")
+      note(PrettyPrint.prettyTerm(fib).render(40))
       0 to 20 foreach { n =>
         equal1(eval(fib(n:Term)), scalaFib(n):Term)
       }
       ok
     },
     test("fib-ANF") { implicit T =>
-      note("pretty-printed fib implementation in ANF", includeAlways = true)
-      note(PrettyPrint.prettyTerm(Term.ANF(fib)).render(40), includeAlways = true)
+      note("pretty-printed fib implementation in ANF")
+      note(PrettyPrint.prettyTerm(Term.ANF(fib)).render(40))
       val fibANF = Term.ANF(fib)
       0 to 20 foreach { n =>
         equal1(eval(fibANF(n:Term)), scalaFib(n):Term)
@@ -636,8 +636,8 @@ object CompilationTests {
               )(State.Get.term + 11)
             }
           }
-          note("pretty-printed algebraic effects program", includeAlways = true)
-          note(PrettyPrint.prettyTerm(Term.ANF(p)).render(40), includeAlways = true)
+          note("pretty-printed algebraic effects program")
+          note(PrettyPrint.prettyTerm(Term.ANF(p)).render(40))
           equal[Term](eval(Term.ANF(p)), 16)
         },
         test("simple effectful handlers") { implicit T =>
@@ -686,8 +686,8 @@ object CompilationTests {
               Handle('state.v(10))(Handle('state2.v(3))(2340983))
             }
 
-          note(PrettyPrint.prettyTerm(p).render(80), includeAlways = true)
-          note(PrettyPrint.prettyTerm(Term.ANF(p)).render(80), includeAlways = true)
+          note(PrettyPrint.prettyTerm(p).render(80))
+          note(PrettyPrint.prettyTerm(Term.ANF(p)).render(80))
           equal[Term](eval(Term.ANF(p)), 30)
         },
         test("effectful handlers") { implicit T =>
@@ -758,7 +758,7 @@ object CompilationTests {
               Let('x -> (State.Get.term + 100),
                   'y -> State.Set.term('x.v + 1000))(State.Get.term + 10000))))
 
-        note(PrettyPrint.prettyTerm(Term.ANF(p)).render(80), includeAlways = true)
+        note(PrettyPrint.prettyTerm(Term.ANF(p)).render(80))
         equal[Term](eval(Term.ANF(p)), 11112)
       },
       test("mixed effects") { implicit T =>
@@ -816,27 +816,29 @@ object CompilationTests {
           }
         }
         val anfP = Term.ANF(p)
-        note(PrettyPrint.prettyTerm(p).render(80), includeAlways = true)
-        note(PrettyPrint.prettyTerm(anfP).render(80), includeAlways = true)
+        note(PrettyPrint.prettyTerm(p).render(80))
+        note(PrettyPrint.prettyTerm(anfP).render(80))
         equal[Term](eval(anfP), Sequence(43,44,45,46,47))
       }
     )},
     test("and") { implicit T =>
-      equal[Term](eval(And(true, true)), true)
-      equal[Term](eval(And(true, false)), false)
-      equal[Term](eval(And(false, true)), false)
-      equal[Term](eval(And(false, false)), false)
+      equal1[Term](eval(And(true, true)), true)
+      equal1[Term](eval(And(true, false)), false)
+      equal1[Term](eval(And(false, true)), false)
+      equal1[Term](eval(And(false, false)), false)
+      ok
     },
     test("or") { implicit T =>
-      equal[Term](eval(Or(true, true)), true)
-      equal[Term](eval(Or(true, false)), true)
-      equal[Term](eval(Or(false, true)), true)
-      equal[Term](eval(Or(false, false)), false)
+      equal1[Term](eval(Or(true, true)), true)
+      equal1[Term](eval(Or(true, false)), true)
+      equal1[Term](eval(Or(false, true)), true)
+      equal1[Term](eval(Or(false, false)), false)
+      ok
     },
     test("short-circuiting and/or") { implicit T =>
-      println("starting short-circuiting")
-      equal[Term](eval(Or(true, Debug.crash)), true)
-      equal[Term](eval(And(false, Debug.crash)), false)
+      equal1[Term](eval(Or(true, Debug.crash)), true)
+      equal1[Term](eval(And(false, Debug.crash)), false)
+      ok
     }
   )
 }
