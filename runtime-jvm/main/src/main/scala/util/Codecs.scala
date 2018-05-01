@@ -1,6 +1,7 @@
 package org.unisonweb.util
 
 import java.nio.{ByteBuffer,BufferOverflowException}
+import Text.Text
 
 object Codecs {
 
@@ -47,6 +48,8 @@ object Codecs {
     def putInt(n: Int): Unit
     def putLong(n: Long): Unit
     def putDouble(n: Double): Unit
+    def putString(s: String): Unit
+    def putText(txt: Text): Unit
     def position: Long
     def putFramed(bs: Array[Byte]): Unit = {
       putInt(bs.length)
@@ -64,6 +67,8 @@ object Codecs {
 
       private final def fill = { pos += bb.position(); bb.position(0); onFill(bb) }
 
+      def putString(s: String) = ???
+      def putText(txt: Text) = ???
       def put(bs: Array[Byte]) =
         try { bb.put(bs); () }
         catch { case e: BufferOverflowException => fill; bb.put(bs); () }
