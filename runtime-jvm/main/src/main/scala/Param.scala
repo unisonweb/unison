@@ -190,10 +190,18 @@ object Value {
           }
           // stack passed to `body2`: [...,y,z]
           // stack passed to `body` : [arg,...,y,z]
-          case n => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
-            // need to insert arg1 before all the (n - 1 - K) args that
+          case arity => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+            // need to insert arg1 before all the (arity - 1 - K) args that
             // are already on the stack, and shift all those args over
-            ???
+            // note: this may exceed the stack
+            val length = arity - K - 1
+            val srcStart = top.toInt + 1 - length
+            val destStart = srcStart + 1
+            System.arraycopy(stackU, srcStart, stackU, destStart, length)
+            System.arraycopy(stackB, srcStart, stackB, destStart, length)
+            stackU(srcStart) = argv
+            stackB(srcStart) = argvb
+            body(r,rec,top.inc,stackU,x1,x0,stackB,x1b,x0b)
           }
         }
         new ClosureForming(arity-1, body2, outputType, decompiled(substTerm)) {

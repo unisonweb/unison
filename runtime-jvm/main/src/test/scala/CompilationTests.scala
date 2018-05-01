@@ -108,8 +108,32 @@ object CompilationTests {
     test("sum4(1,2,3,4)") { implicit T =>
       equal(eval(sum4(1,10,100,1000)), (1+10+100+1000):Term)
     },
-    test("partially apply") { implicit T =>
+    test("partial application does specialization") { implicit T =>
       equal(eval(const(zero)), Lam('y)(zero))
+    },
+    test("partial application") { implicit T =>
+      equal(eval(Let('f -> const(one))('f.v(42))), one)
+    },
+    test("closure-forming partial application") { implicit T =>
+      val body: Computation =
+        (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+          r.boxed = UnboxedType.Int64
+          top.u(stackU, 3) - top.u(stackU, 2) - x1 - x0
+        }
+
+      val lam = Term.Compiled(new Value.Lambda.ClosureForming(4, body, Some(UnboxedType.Int64), 42) {
+        def names = List("a","b","c","d")
+      }, "a-lam")
+      val p = Let('f -> lam(1))('f.v(2,3,4))
+      val p2 = Let('f -> lam(1), 'g -> 'f.v(2))('g.v(3,4))
+      val p3 = Let('f -> lam(1), 'g -> 'f.v(2), 'h -> 'g.v(3))('h.v(4))
+      val p4 = lam(1,2,3,4)
+
+      equal1[Term](eval(p), -8)
+      equal1[Term](eval(p2), -8)
+      equal1[Term](eval(p3), -8)
+      equal1[Term](eval(p4), -8)
+      ok
     },
     test("partially apply builtin") { implicit T =>
       equal(eval(onePlus), onePlus)
