@@ -7,6 +7,7 @@ import org.unisonweb.Term._
 import org.unisonweb.compilation._
 import org.unisonweb.util.PrettyPrint
 import Terms.Int64Ops._
+import org.unisonweb.Value.Lambda.ClosureForming
 
 object CompilationTests {
   import EasyTest._
@@ -121,9 +122,8 @@ object CompilationTests {
           top.u(stackU, 3) - top.u(stackU, 2) - x1 - x0
         }
 
-      val lam = Term.Compiled(new Value.Lambda.ClosureForming(4, body, Some(UnboxedType.Int64), 42) {
-        def names = List("a","b","c","d")
-      }, "a-lam")
+      val lam = Term.Compiled(
+        new ClosureForming(List("a","b","c","d"), body, Some(UnboxedType.Int64), 42), "a-lam")
       val p = Let('f -> lam(1))('f.v(2,3,4))
       val p2 = Let('f -> lam(1), 'g -> 'f.v(2))('g.v(3,4))
       val p3 = Let('f -> lam(1), 'g -> 'f.v(2), 'h -> 'g.v(3))('h.v(4))

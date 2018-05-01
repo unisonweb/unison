@@ -134,9 +134,8 @@ object BuiltinTypes {
     }
     val lam: Computation =
       if (arity >= 1)
-        new Value.Lambda.ClosureForming(arity, body, None, decompile) {
-          def names = paramNames.toList
-        }.toComputation
+        new Value.Lambda.ClosureForming(paramNames.toList, body, None, decompile)
+          .toComputation
       else try {
         Return(req(Array()))
       } catch { case e@Requested(_,_,_,_) =>

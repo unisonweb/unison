@@ -455,13 +455,14 @@ object Builtins {
     }
 
     val decompiled = Term.Id(name)
-    val lam = new Lambda(2, body, Some(outputType), decompiled) { self =>
-      def names = List(arg1, arg2)
+    val lam = new Lambda(List(arg1, arg2), body, Some(outputType), decompiled) {
+      self =>
+
       override def saturatedNonTailCall(args: List[Computation]) = args match {
         case List(Return(Value.Unboxed(n1, _)),
                   Return(Value.Unboxed(n2, _))) =>
           val n3 = f.applyAsLong(n1,n2) // constant fold
-          val c : Computation.C0 = r => { r.boxed = outputType; n3 }
+        val c : Computation.C0 = r => { r.boxed = outputType; n3 }
           c
         case List(CompiledVar0,Return(Value.Unboxed(n, _))) =>
           val c : Computation.C1U = (r,x0) => {
@@ -526,9 +527,8 @@ object Builtins {
                   r.boxed = outputType
                   f.applyAsLong(n, x0)
                 }
-              new Lambda(1, body, unboxedType, Term.Apply(decompiled, term)) {
-                def names = self.names drop argCount
-              }
+              new Lambda(self.names drop argCount, body, unboxedType,
+                         Term.Apply(decompiled, term))
             case _ => sys.error("")
           }
           case _ => sys.error("unpossible")

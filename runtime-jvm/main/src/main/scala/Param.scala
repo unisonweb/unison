@@ -55,8 +55,8 @@ object Value {
     def decompile = Term.Unboxed(n, typ)
   }
 
-  abstract class Lambda(
-    final val arity: Int,
+  class Lambda(
+    final val names: List[Name],
     final val body: Computation,
     final val unboxedType: Option[UnboxedType],
     // the lambda decompiled form may have one free var, referring to itself
@@ -70,7 +70,7 @@ object Value {
         ABT.subst(name, Term.Compiled(this, name))(decompileWithPossibleFreeVar)
     }
 
-    def names: List[Name]
+    final val arity = names.length
     def toComputation = Return(this)
 
     final def apply(r: R, top: StackPtr,
@@ -86,10 +86,8 @@ object Value {
         self(r,top,stackU,U0,v,stackB,null,vb)
       }
       val compose = Term.Lam('f, 'g, 'x)('f.v('g.v('x))) // todo: intern this
-      new Lambda(f.arity, k, self.unboxedType,
-                 compose(self.decompile, f.decompile)) {
-        val names = f.names
-      }
+      new Lambda(f.names, k, self.unboxedType,
+                 compose(self.decompile, f.decompile))
     }
 
     def saturatedNonTailCall(args: List[Computation]): Computation =
@@ -113,10 +111,10 @@ object Value {
     final def toValue = this
 
     def apply(arity: Int, body: Computation, unboxedType: Option[UnboxedType],
-              decompile: Term) =
-      new Lambda(arity, body, unboxedType, decompile) {
-        val names = decompile match { case Term.Lam(names, _) => names }
-      }
+              decompile: Term) = {
+      new Lambda(names = decompile match { case Term.Lam(names, _) => names },
+                 body, unboxedType, decompile)
+    }
 
     def unapply(l: Lambda): Option[(Int, Computation, Term)] =
       Some((l.arity, l.body, l.decompile))
@@ -133,8 +131,7 @@ object Value {
     // todo: delete this and ClosureForming2 later
     case class Lambda1(arg1: Name, _body: Computation,
                        outputType: Option[UnboxedType], decompiled: Term)
-      extends Lambda(1,_body,outputType,decompiled) {
-      val names = List(arg1)
+      extends Lambda(names = List(arg1),_body,outputType,decompiled) {
       override def underapply(builtins: Environment)(
         argCount: Arity, substs: Map[Name, Term]): Lambda =
         sys.error("a lambda with arity 1 cannot be underapplied")
@@ -147,8 +144,8 @@ object Value {
     // todo: delete this and Lambda1 later
     class ClosureForming2(arg1: Name, arg2: Name, body: Computation,
                           outputType: Option[UnboxedType], decompiled: Term)
-      extends Lambda(2,body,outputType,decompiled) {
-      val names = List(arg1,arg2)
+      extends Lambda(names = List(arg1,arg2),body,outputType,decompiled) {
+
       override def underapply(builtins: Environment)
                              (argCount: Arity, substs: Map[Name, Term])
       : Lambda = {
@@ -162,10 +159,10 @@ object Value {
       }
     }
 
-    abstract class ClosureForming(arity: Int, body: Computation,
+    class ClosureForming(names: List[Name], body: Computation,
                                   outputType: Option[UnboxedType],
                                   decompiled: Term)
-        extends Lambda(arity,body,outputType,decompiled) { self =>
+        extends Lambda(names,body,outputType,decompiled) { self =>
       val namesArray = names.toArray
 
       /** Underapply this `Lambda`, passing 1 argument (named `substName`). */
@@ -204,9 +201,7 @@ object Value {
             body(r,rec,top.inc,stackU,x1,x0,stackB,x1b,x0b)
           }
         }
-        new ClosureForming(arity-1, body2, outputType, decompiled(substTerm)) {
-          def names = self.names drop 1
-        }
+        new ClosureForming(names drop 1, body2, outputType, decompiled(substTerm))
       }
 
       // todo: try for more efficient implementation of underapply, O(n) vs n^2
