@@ -54,59 +54,57 @@ object CompilationTests {
         ok
       }
     ),
-    suite("UInt64")(
-      test("arithmetic") { implicit T =>
-        def uint(n: Long): Term = Term.Unboxed(n, UnboxedType.UInt64)
+    test("UInt64") { implicit T =>
+      def uint(n: Long): Term = Term.Unboxed(n, UnboxedType.UInt64)
 
-        // toInt64 should be monotonic, also tests <= on Int64
-        0 until 100 foreach { _ =>
-          val toInt64 = Builtins.termFor(Builtins.UInt64_toInt64)
-          val add = Builtins.termFor(Builtins.UInt64_add)
-          val x = long; val y = long
-          // toInt64 and <
-          equal1[Term](
-            eval(toInt64(uint(x)) < toInt64(uint(y))),
-            x < y)
-          // toInt64 and +
-          equal1[Term](
-            eval(toInt64(uint(x)) + toInt64(uint(y))),
-            eval(toInt64(add(uint(x),uint(y)))))
-          // inc
-          val inc = Builtins.termFor(Builtins.UInt64_inc)
-          equal1[Term](eval(inc(uint(x))), uint(x + 1))
+      // toInt64 should be monotonic, also tests <= on Int64
+      0 until 100 foreach { _ =>
+        val toInt64 = Builtins.termFor(Builtins.UInt64_toInt64)
+        val add = Builtins.termFor(Builtins.UInt64_add)
+        val x = long; val y = long
+        // toInt64 and <
+        equal1[Term](
+          eval(toInt64(uint(x)) < toInt64(uint(y))),
+          x < y)
+        // toInt64 and +
+        equal1[Term](
+          eval(toInt64(uint(x)) + toInt64(uint(y))),
+          eval(toInt64(add(uint(x),uint(y)))))
+        // inc
+        val inc = Builtins.termFor(Builtins.UInt64_inc)
+        equal1[Term](eval(inc(uint(x))), uint(x + 1))
 
-          // isEven and isOdd
-          val isEven = Builtins.termFor(Builtins.UInt64_isEven)
-          val isOdd = Builtins.termFor(Builtins.UInt64_isOdd)
-          val not = Builtins.termFor(Builtins.Boolean_not)
-          equal1[Term](eval(isEven(x)), x % 2 == 0)
-          equal1[Term](eval(isEven(x)), eval(not(isOdd(uint(x)))))
+        // isEven and isOdd
+        val isEven = Builtins.termFor(Builtins.UInt64_isEven)
+        val isOdd = Builtins.termFor(Builtins.UInt64_isOdd)
+        val not = Builtins.termFor(Builtins.Boolean_not)
+        equal1[Term](eval(isEven(x)), x % 2 == 0)
+        equal1[Term](eval(isEven(x)), eval(not(isOdd(uint(x)))))
 
-          // multiply
-          val mul = Builtins.termFor(Builtins.UInt64_mul)
-          equal1[Term](eval(mul(uint(x), uint(y))), uint(x * y))
+        // multiply
+        val mul = Builtins.termFor(Builtins.UInt64_mul)
+        equal1[Term](eval(mul(uint(x), uint(y))), uint(x * y))
 
-          // drop and minus
-          val drop = Builtins.termFor(Builtins.UInt64_drop)
-          val minus = Builtins.termFor(Builtins.UInt64_sub)
-          val i = int.toLong.abs; val j = int.toLong.abs
-          equal1[Term](eval(drop(i,j)), uint((i - j).max(0)))
-          equal1[Term](eval(minus(x,y)), uint(x - y))
-        }
-
-        val lt = Builtins.termFor(Builtins.UInt64_lt)
-        val gt = Builtins.termFor(Builtins.UInt64_gt)
-        val gteq = Builtins.termFor(Builtins.UInt64_gteq)
-        val lteq = Builtins.termFor(Builtins.UInt64_lteq)
-
-        equal1[Term](eval { gt(uint(-1), uint(1)) }, true)
-        equal1[Term](eval { gt(uint(2), uint(1)) }, true)
-        equal1[Term](eval { lt(uint(2), uint(1)) }, false)
-        equal1[Term](eval { lteq(uint(-1), uint(1)) }, false)
-        equal1[Term](eval { gteq(uint(-1), uint(1)) }, true)
-        ok
+        // drop and minus
+        val drop = Builtins.termFor(Builtins.UInt64_drop)
+        val minus = Builtins.termFor(Builtins.UInt64_sub)
+        val i = int.toLong.abs; val j = int.toLong.abs
+        equal1[Term](eval(drop(i,j)), uint((i - j).max(0)))
+        equal1[Term](eval(minus(x,y)), uint(x - y))
       }
-    ),
+
+      val lt = Builtins.termFor(Builtins.UInt64_lt)
+      val gt = Builtins.termFor(Builtins.UInt64_gt)
+      val gteq = Builtins.termFor(Builtins.UInt64_gteq)
+      val lteq = Builtins.termFor(Builtins.UInt64_lteq)
+
+      equal1[Term](eval { gt(uint(-1), uint(1)) }, true)
+      equal1[Term](eval { gt(uint(2), uint(1)) }, true)
+      equal1[Term](eval { lt(uint(2), uint(1)) }, false)
+      equal1[Term](eval { lteq(uint(-1), uint(1)) }, false)
+      equal1[Term](eval { gteq(uint(-1), uint(1)) }, true)
+      ok
+    },
     test("sum4(1,2,3,4)") { implicit T =>
       equal(eval(sum4(1,10,100,1000)), (1+10+100+1000):Term)
     },
