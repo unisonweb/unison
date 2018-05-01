@@ -175,18 +175,20 @@ object PrettyPrint {
 
   def prettyTerm(t: Term): PrettyPrint = prettyTerm(t, 0)
 
+  def prettyUnboxed(value: U, t: UnboxedType): PrettyPrint = t match {
+    case UnboxedType.Int64 =>
+      val i = unboxedToInt(value)
+      parenthesizeGroupIf(i < 0)(i.toString)
+    case UnboxedType.Float =>
+      val i = unboxedToDouble(value)
+      parenthesizeGroupIf(i < 0)(i.toString)
+    case UnboxedType.Boolean => unboxedToBool(value).toString
+    case UnboxedType.UInt64 => toUnsignedString(unboxedToLong(value))
+  }
+
   def prettyTerm(t: Term, precedence: Int): PrettyPrint = t match {
     case Term.Unboxed(value, t) =>
-      t match {
-        case UnboxedType.Int64 =>
-          val i = unboxedToInt(value)
-          parenthesizeGroupIf(i < 0)(i.toString)
-        case UnboxedType.Float =>
-          val i = unboxedToDouble(value)
-          parenthesizeGroupIf(i < 0)(i.toString)
-        case UnboxedType.Boolean => unboxedToBool(value).toString
-        case UnboxedType.UInt64 => toUnsignedString(unboxedToLong(value))
-      }
+      prettyUnboxed(value, t)
 
     case Term.If(cond, ifZero, ifNonzero) => parenthesizeGroupIf(precedence > 0) {
       "if " <> prettyTerm(cond, 0) <> " then" <> softbreak <>

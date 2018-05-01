@@ -172,9 +172,13 @@ object Term {
 
     case class Lam_[R](body: R) extends F[R]
     case class Id_(id: Id) extends F[Nothing]
-    case class Constructor_(id: Id, constructorId: ConstructorId) extends F[Nothing]
+    case class Constructor_(id: Id, constructorId: ConstructorId) extends F[Nothing] {
+      override def toString = util.PrettyPrint.prettyId(id,constructorId).render(1000)
+    }
     case class Apply_[R](fn: R, args: List[R]) extends F[R]
-    case class Unboxed_(value: U, typ: UnboxedType) extends F[Nothing]
+    case class Unboxed_(value: U, typ: UnboxedType) extends F[Nothing] {
+      override def toString = util.PrettyPrint.prettyUnboxed(value, typ).render(1000)
+    }
     case class Text_(txt: util.Text.Text) extends F[Nothing]
     case class Sequence_[R](seq: util.Sequence[R]) extends F[R]
     case class LetRec_[R](bindings: List[R], body: R) extends F[R]
