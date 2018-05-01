@@ -559,170 +559,226 @@ object CompilationTests {
     { import BuiltinTypes._
       import Effects._
 
-    suite("algebraic-effects")(
-      test("ex1") { implicit T =>
-        /*
-          let
-            state : s -> <State s> a -> a
-            state s <a> = a
-            state s <get -> k> = handle (state s) (k s)
-            state _ <put s -> k> = handle (state s) (k ())
+      suite("algebraic-effects")(
+        test("ex1") { implicit T =>
+          /*
+            let
+              state : s -> <State s> a -> a
+              state s <a> = a
+              state s <get -> k> = handle (state s) (k s)
+              state _ <put s -> k> = handle (state s) (k ())
 
-            handle (state 3)
-              x = State.get + 1
-              y = State.set (x + 1)
-              State.get + 11
-         */
-
-        val p = LetRec(
-          ('state, Lam('s, 'action) {
-            Match('action)(
-              // state s <a> = a
-              MatchCase(Pattern.EffectPure(Pattern.Wildcard),
-                        ABT.Abs('a, 'a)),
-
-              // state s <get -> k> = handle (state s) (k s)
-              MatchCase(State.Get.pattern(Pattern.Wildcard),
-                        ABT.Abs('k, Handle('state.v('s))('k.v('s)))),
-
-              // state _ <put s -> k> = handle (state s) (k ())
-              MatchCase(State.Set.pattern(Pattern.Wildcard, Pattern.Wildcard),
-                        ABT.AbsChain('s2, 'k)(Handle('state.v('s2))('k.v(BuiltinTypes.Unit.term))))
-            )
-          })
-        ) {
-          Handle('state.v(3)) {
-            Let(
-              ('x, State.Get.term + 1),
-              ('y, State.Set.term('x.v + 1))
-            )(State.Get.term + 11)
-          }
-        }
-        note("pretty-printed algebraic effects program", includeAlways = true)
-        note(PrettyPrint.prettyTerm(Term.ANF(p)).render(40), includeAlways = true)
-        equal[Term](eval(Term.ANF(p)), 16)
-      },
-      test("simple effectful handlers") { implicit T =>
-        /*
-          let
-            state : s -> {State Integer} a -> a
-            state s {a} = a
-            state s {get -> k} = handle (state s) (k s)
-            state _ {put s -> k} = handle (state s) (k ())
-
-            state' : s -> {State Integer} Integer -> {State Integer} Integer
-            state' s {a} = State.get * s
-            state' s {get -> k} = handle (state' s) (k s)
-            state' _ {put s -> k} = handle (state' s) (k ())
-
-            handle (state 10)
-              handle (state' 3)
-                2
-        */
-
-        val p = LetRec(
-          ('state, Lam('s0, 'action0) {
-            Match('action0)(
-              MatchCase(Pattern.EffectPure(Pattern.Wildcard), ABT.Abs('a, 'a)),
-              MatchCase(State.Get.pattern(Pattern.Wildcard),
-                        ABT.Abs('k, Handle('state.v('s0))('k.v('s0)))),
-              MatchCase(State.Set.pattern(Pattern.Wildcard, Pattern.Wildcard),
-                        ABT.AbsChain('s2, 'k)(Handle('state.v('s2))('k.v(BuiltinTypes.Unit.term))))
-            )
-          }),
-          ('state2, Lam('s1, 'action1) {
-            Match('action1)(
-              // state s {a} = State.get * s
-              MatchCase(Pattern.EffectPure(Pattern.Wildcard),
-                        ABT.Abs('a, State.Get.term * 's1)),
-                        // ABT.Abs('a, 's1)), <-- this works fine!
-              // state' s {get -> k} = handle (state' s) (k s)
-              MatchCase(State.Get.pattern(Pattern.Wildcard),
-                        ABT.Abs('k, Handle('state2.v('s1))('k.v('s1.v)))),
-              // state' _ {put s -> k} = handle (state' s) (k ())
-              MatchCase(State.Set.pattern(Pattern.Wildcard, Pattern.Wildcard),
-                        ABT.AbsChain('s3, 'k)(
-                          Handle('state2.v('s3))('k.v(BuiltinTypes.Unit.term))))
-            )
-          })) {
-            Handle('state.v(10))(Handle('state2.v(3))(2340983))
-          }
-
-        note(PrettyPrint.prettyTerm(p).render(80), includeAlways = true)
-        note(PrettyPrint.prettyTerm(Term.ANF(p)).render(80), includeAlways = true)
-        equal[Term](eval(Term.ANF(p)), 30)
-      },
-      test("effectful handlers") { implicit T =>
-        /*
-          let
-            state : s -> {State Integer} a -> a
-            state s {a} = a
-            state s {get -> k} = handle (state s) (k s)
-            state _ {put s -> k} = handle (state s) (k ())
-
-            state' : s -> {State Integer} Integer -> {State Integer} Integer
-            state' s {a} = a
-            state' s {get -> k} = let
-              outer-value = State.get
-              handle (state s) (k (s + outer-value))
-            state' _ {put s -> k} = handle (state s) (k ())
-
-            handle (state 10)
-              handle (state' 3)
-                -- x is 14
+              handle (state 3)
                 x = State.get + 1
-                -- Inner state is 15
                 y = State.set (x + 1)
-                -- Should be 360
                 State.get + 11
-        */
+           */
 
-        val p = LetRec(
-          ('state, Lam('s, 'action) {
-            Match('action)(
-              // state s <a> = a
-              MatchCase(Pattern.EffectPure(Pattern.Wildcard),
-                        ABT.Abs('a, 'a)),
+          val p = LetRec(
+            ('state, Lam('s, 'action) {
+              Match('action)(
+                // state s <a> = a
+                MatchCase(Pattern.EffectPure(Pattern.Wildcard),
+                          ABT.Abs('a, 'a)),
 
-              // state s <get -> k> = handle (state s) (k s)
-              MatchCase(State.Get.pattern(Pattern.Wildcard),
-                        ABT.Abs('k, Handle('state.v('s))('k.v('s)))),
+                // state s <get -> k> = handle (state s) (k s)
+                MatchCase(State.Get.pattern(Pattern.Wildcard),
+                          ABT.Abs('k, Handle('state.v('s))('k.v('s)))),
 
-              // state _ <put s -> k> = handle (state s) (k ())
-              MatchCase(State.Set.pattern(Pattern.Wildcard, Pattern.Wildcard),
-                        ABT.AbsChain('s2, 'k)(Handle('state.v('s2))('k.v(BuiltinTypes.Unit.term))))
-            )
-          }),
-          ('state2, Lam('s, 'action) {
-            Match('action)(
-              // state s <a> = State.get * s
-              MatchCase(Pattern.EffectPure(Pattern.Wildcard),
-                        ABT.Abs('a, 'a)),
-                        // todo: ABT.Abs('a, State.Get.term * 's)),
+                // state _ <put s -> k> = handle (state s) (k ())
+                MatchCase(State.Set.pattern(Pattern.Wildcard, Pattern.Wildcard),
+                          ABT.AbsChain('s2, 'k)(Handle('state.v('s2))('k.v(BuiltinTypes.Unit.term))))
+              )
+            })
+          ) {
+            Handle('state.v(3)) {
+              Let(
+                ('x, State.Get.term + 1),
+                ('y, State.Set.term('x.v + 1))
+              )(State.Get.term + 11)
+            }
+          }
+          note("pretty-printed algebraic effects program", includeAlways = true)
+          note(PrettyPrint.prettyTerm(Term.ANF(p)).render(40), includeAlways = true)
+          equal[Term](eval(Term.ANF(p)), 16)
+        },
+        test("simple effectful handlers") { implicit T =>
+          /*
+            let
+              state : s -> {State Integer} a -> a
+              state s {a} = a
+              state s {get -> k} = handle (state s) (k s)
+              state _ {put s -> k} = handle (state s) (k ())
 
-              /*
-              let
+              state' : s -> {State Integer} Integer -> {State Integer} Integer
+              state' s {a} = State.get * s
+              state' s {get -> k} = handle (state' s) (k s)
+              state' _ {put s -> k} = handle (state' s) (k ())
+
+              handle (state 10)
+                handle (state' 3)
+                  2
+          */
+
+          val p = LetRec(
+            ('state, Lam('s0, 'action0) {
+              Match('action0)(
+                MatchCase(Pattern.EffectPure(Pattern.Wildcard), ABT.Abs('a, 'a)),
+                MatchCase(State.Get.pattern(Pattern.Wildcard),
+                          ABT.Abs('k, Handle('state.v('s0))('k.v('s0)))),
+                MatchCase(State.Set.pattern(Pattern.Wildcard, Pattern.Wildcard),
+                          ABT.AbsChain('s2, 'k)(Handle('state.v('s2))('k.v(BuiltinTypes.Unit.term))))
+              )
+            }),
+            ('state2, Lam('s1, 'action1) {
+              Match('action1)(
+                // state s {a} = State.get * s
+                MatchCase(Pattern.EffectPure(Pattern.Wildcard),
+                          ABT.Abs('a, State.Get.term * 's1)),
+                          // ABT.Abs('a, 's1)), <-- this works fine!
+                // state' s {get -> k} = handle (state' s) (k s)
+                MatchCase(State.Get.pattern(Pattern.Wildcard),
+                          ABT.Abs('k, Handle('state2.v('s1))('k.v('s1.v)))),
+                // state' _ {put s -> k} = handle (state' s) (k ())
+                MatchCase(State.Set.pattern(Pattern.Wildcard, Pattern.Wildcard),
+                          ABT.AbsChain('s3, 'k)(
+                            Handle('state2.v('s3))('k.v(BuiltinTypes.Unit.term))))
+              )
+            })) {
+              Handle('state.v(10))(Handle('state2.v(3))(2340983))
+            }
+
+          note(PrettyPrint.prettyTerm(p).render(80), includeAlways = true)
+          note(PrettyPrint.prettyTerm(Term.ANF(p)).render(80), includeAlways = true)
+          equal[Term](eval(Term.ANF(p)), 30)
+        },
+        test("effectful handlers") { implicit T =>
+          /*
+            let
+              state : s -> {State Integer} a -> a
+              state s {a} = a
+              state s {get -> k} = handle (state s) (k s)
+              state _ {put s -> k} = handle (state s) (k ())
+
+              state' : s -> {State Integer} Integer -> {State Integer} Integer
+              state' s {a} = a
+              state' s {get -> k} = let
                 outer-value = State.get
                 handle (state s) (k (s + outer-value))
-              */
-              MatchCase(State.Get.pattern(Pattern.Wildcard),
-                        ABT.Abs('k, Let('outer -> State.Get.term)(
-                          Handle('state2.v('s))('k.v('s.v + 'outer))))),
+              state' _ {put s -> k} = handle (state s) (k ())
 
-              // state _ <put s -> k> = handle (state s) (k ())
-              MatchCase(State.Set.pattern(Pattern.Wildcard, Pattern.Wildcard),
-                        ABT.AbsChain('s2, 'k)(
-                          Handle('state2.v('s2))('k.v(BuiltinTypes.Unit.term))))
+              handle (state 10)
+                handle (state' 3)
+                  -- x is 14
+                  x = State.get + 1
+                  -- Inner state is 15
+                  y = State.set (x + 1)
+                  -- Should be 360
+                  State.get + 11
+          */
+
+          val p = LetRec(
+            ('state, Lam('s, 'action) {
+              Match('action)(
+                // state s <a> = a
+                MatchCase(Pattern.EffectPure(Pattern.Wildcard),
+                          ABT.Abs('a, 'a)),
+
+                // state s <get -> k> = handle (state s) (k s)
+                MatchCase(State.Get.pattern(Pattern.Wildcard),
+                          ABT.Abs('k, Handle('state.v('s))('k.v('s)))),
+
+                // state _ <put s -> k> = handle (state s) (k ())
+                MatchCase(State.Set.pattern(Pattern.Wildcard, Pattern.Wildcard),
+                          ABT.AbsChain('s2, 'k)(Handle('state.v('s2))('k.v(BuiltinTypes.Unit.term))))
+              )
+            }),
+            ('state2, Lam('s, 'action) {
+              Match('action)(
+                // state s <a> = State.get * s
+                MatchCase(Pattern.EffectPure(Pattern.Wildcard),
+                          ABT.Abs('a, 'a)),
+                          // todo: ABT.Abs('a, State.Get.term * 's)),
+
+                /*
+                let
+                  outer-value = State.get
+                  handle (state s) (k (s + outer-value))
+                */
+                MatchCase(State.Get.pattern(Pattern.Wildcard),
+                          ABT.Abs('k, Let('outer -> State.Get.term)(
+                            Handle('state2.v('s))('k.v('s.v + 'outer))))),
+
+                // state _ <put s -> k> = handle (state s) (k ())
+                MatchCase(State.Set.pattern(Pattern.Wildcard, Pattern.Wildcard),
+                          ABT.AbsChain('s2, 'k)(
+                            Handle('state2.v('s2))('k.v(BuiltinTypes.Unit.term))))
+              )
+            }))(
+
+            Handle('state.v(1))(Handle('state2.v(10))(
+              Let('x -> (State.Get.term + 100),
+                  'y -> State.Set.term('x.v + 1000))(State.Get.term + 10000))))
+
+        note(PrettyPrint.prettyTerm(Term.ANF(p)).render(80), includeAlways = true)
+        equal[Term](eval(Term.ANF(p)), 11112)
+      },
+      test("mixed effects") { implicit T =>
+        import BuiltinTypes.Effects._
+        import Builtins.termFor
+        val env: Term = 42 // environment for reader
+
+        // handler for Read effects
+        val read = Term.Lam('x) {
+          // case x of
+          Match('x)(
+            // {a} -> a
+            MatchCase(Pattern.EffectPure(Pattern.Wildcard), ABT.Abs('a,'a)),
+            // {Read -> k} = handle (read env) (k env)
+            MatchCase(
+              Read.Read.pattern(Pattern.Wildcard),
+              ABT.Abs('k, Handle('read.v(env))('k.v(env)))
             )
-          }))(
+          )
+        }
+        val write = Term.Lam('acc, 'x) {
+          // case x of
+          Match('x)(
+            // {a} -> acc
+            MatchCase(Pattern.EffectPure(Pattern.Uncaptured), 'acc),
+            // {Write w -> k} = handle (write (Sequence.snoc acc w) (k ()))
+            MatchCase(
+              Write.Write.pattern(Pattern.Wildcard, Pattern.Wildcard),
+              ABT.AbsChain('w, 'k)(
+                Term.Handle('write.v(termFor(Builtins.Sequence_snoc)('acc, 'w))) {
+                  'k.v(BuiltinTypes.Unit.term)
+                }
+              )
+            )
+          )
+        }
 
-          Handle('state.v(1))(Handle('state2.v(10))(
-            Let('x -> (State.Get.term + 100),
-                'y -> State.Set.term('x.v + 1000))(State.Get.term + 10000))))
-
-      note(PrettyPrint.prettyTerm(Term.ANF(p)).render(80), includeAlways = true)
-      equal[Term](eval(Term.ANF(p)), 11112)
-    })},
+        val p = LetRec(
+          'read -> read,
+          'write -> write
+        ) {
+          Handle('write.v(termFor(Builtins.Sequence_empty))) {
+            Handle('read.v(env)) {
+              Let(
+                'x -> { Read.Read.term + 1 }, // 43
+                'u -> Write.Write.term('x), // write 43
+                'u -> Write.Write.term(44),
+                'u -> Write.Write.term(45),
+                'u -> Write.Write.term(46),
+                'z -> { Read.Read.term + 5 }, // 47
+                'u -> Write.Write.term('z) // write 47
+              )(999)
+            }
+          }
+        }
+        equal[Term](eval(p), Sequence(43,44,45,46,47))
+      }
+    )},
     test("and") { implicit T =>
       equal[Term](eval(And(true, true)), true)
       equal[Term](eval(And(true, false)), false)

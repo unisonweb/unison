@@ -20,6 +20,8 @@ object BuiltinTypes {
   /* Tuple.pattern(Unit.pattern, Optional.Some.pattern(Pattern.Wildcard)) */
   object Tuple extends Constructor(0) {
     val Id = org.unisonweb.Id("Tuple")
+    def consPattern(hd: Pattern, tl: Pattern): Pattern =
+      Pattern.Data(Id, cid, List(hd,tl))
     def pattern(ps: Pattern*): Pattern =
       ps.foldRight(Unit.pattern)((hd,tl) => Pattern.Data(Id, cid, List(hd,tl)))
     def term(ts: Term*): Term =
@@ -72,6 +74,23 @@ object BuiltinTypes {
       }
     }
 
+    object Read {
+      val Id = org.unisonweb.Id("Read")
+      object Read extends Constructor(0) {
+        def pattern(k: Pattern): Pattern =
+          Pattern.EffectBind(Id, cid, List(), k)
+        def term: Term = Term.Request(Id, cid)
+      }
+    }
+
+    object Write {
+      val Id = org.unisonweb.Id("Write")
+      object Write extends Constructor(0) {
+        def pattern(v: Pattern, k: Pattern): Pattern =
+          Pattern.EffectBind(Id, cid, List(v), k)
+        def term(t: Term): Term = Term.Request(Id, cid)(t)
+      }
+    }
   }
 
   def dataConstructorish(req: (Array[Value]) => Value, decompile: Term,
@@ -172,7 +191,9 @@ object BuiltinTypes {
     import Effects._
     Map(
       effectRequest(State.Id, State.Get.cid),
-      effectRequest(State.Id, State.Set.cid, "state")
+      effectRequest(State.Id, State.Set.cid, "state"),
+      effectRequest(Read.Id, Read.Read.cid),
+      effectRequest(Write.Id, Write.Write.cid, "w")
     )
   }
 
