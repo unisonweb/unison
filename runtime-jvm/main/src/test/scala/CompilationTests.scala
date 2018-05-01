@@ -509,9 +509,15 @@ object CompilationTests {
       val pair = BuiltinTypes.Tuple.lambda
       val unit = BuiltinTypes.Unit.term
       val p = Let('f -> pair(42))('f.v(pair(43, unit)))
-      // val p = Let('f -> pair(42, pair(43, unit)))('f) ok
       equal[Term](eval(p), eval(BuiltinTypes.Tuple.term(42,43)))
     },
+
+    // test("closure forming 2") { implicit T =>
+    // }
+    // todo: partially applied 3-arg data constructor
+    // todo: partially applied N-arg data constructor
+    // similar to above, or just manually construct closure forming lambda
+    // of appropriate arity
 
     test("fully applied self non-tail call with K args") { implicit T =>
       val fib2: Term =

@@ -168,19 +168,28 @@ object Value {
         extends Lambda(arity,body,outputType,decompiled) { self =>
       val namesArray = names.toArray
 
-      def underapply1(substName: Name, substTerm: Term): ClosureForming = {
+      /** Underapply this `Lambda`, passing 1 argument (named `substName`). */
+      final def underapply1(substName: Name, substTerm: Term): ClosureForming = {
         assert(arity >= 1)
         val arg = substTerm match { case Term.Compiled(b,_) => b }
         val v = arg.toValue
-        val arg1 = v.toUnboxed
-        val arg1b = v.toBoxed
+        val argv = v.toUnboxed
+        val argvb = v.toBoxed
+        // conceptually, `body2` has to insert `arg` BEFORE the new args
+        // on the stack, and then call `body`
         val body2: Computation = arity match {
+          // stack passed to `body2`: [a]
+          // stack passed to `body` : [arg,a]
           case 2 => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
-            body(r,rec,top,stackU,arg1,x0,stackB,arg1b,x0b)
+            body(r,rec,top,stackU,argv,x0,stackB,argvb,x0b)
+          // stack passed to `body2`: [a,b]
+          // stack passed to `body` : [arg,a,b]
           case 3 => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
-            top.push1(stackU,stackB,arg1,arg1b)
+            top.push1(stackU,stackB,argv,argvb)
             body(r,rec,top.inc,stackU,x1,x0,stackB,x1b,x0b)
           }
+          // stack passed to `body2`: [...,y,z]
+          // stack passed to `body` : [arg,...,y,z]
           case n => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
             // need to insert arg1 before all the (n - 1 - K) args that
             // are already on the stack, and shift all those args over
@@ -191,6 +200,10 @@ object Value {
           def names = self.names drop 1
         }
       }
+
+      // todo: try for more efficient implementation of underapply, O(n) vs n^2
+      // esp when there are multiple stages of underapply for functions with
+      // large arities
 
       override def underapply(builtins: compilation.Environment)(
         argCount: Int, substs: Map[Name, Term]): Value.Lambda = {
