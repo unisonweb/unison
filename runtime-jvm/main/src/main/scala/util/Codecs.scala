@@ -33,7 +33,7 @@ object Codecs {
       def getInt: Int = bb.getInt
       def getLong: Long = bb.getLong
       def getDouble: Double = bb.getDouble
-      def position: Long = bb.position.toLong
+      def position: Long = bb.position().toLong
     }
   }
 
@@ -58,11 +58,11 @@ object Codecs {
 
     def fromByteBuffer(bb: ByteBuffer, onFill: ByteBuffer => Unit): Sink = new Sink {
       var pos: Long = 0L
-      def position = pos + bb.position.toLong
+      def position = pos + bb.position().toLong
 
       bb.order(java.nio.ByteOrder.BIG_ENDIAN)
 
-      private final def fill = { pos += bb.position; bb.position(0); onFill(bb) }
+      private final def fill = { pos += bb.position(); bb.position(0); onFill(bb) }
 
       def put(bs: Array[Byte]) =
         try { bb.put(bs); () }

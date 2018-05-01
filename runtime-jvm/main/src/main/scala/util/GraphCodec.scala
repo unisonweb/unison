@@ -4,21 +4,47 @@ import java.util.IdentityHashMap
 import scala.collection.immutable.LongMap
 import Codecs.{Source,Sink}
 
+/**
+ * Encoder/decoder for graphs of type `G` with references of type `R`.
+ *
+ * Each `G` has some number of children, which are also of type `G`,
+ * accessed via `foldLeft`.
+ *
+ * Some `G` are _references_, of type `R`, which can be set via `setReference`
+ * and created via `makeReference`.
+ *
+ * Each `G` also has some binary data, called the _byte prefix_, accessed
+ * via `writeBytePrefix`, `bytePrefixLength`, `bytePrefixIndex`.
+ */
 trait GraphCodec[G,R<:G] {
   import GraphCodec._
 
   def writeBytePrefix(graph: G, sink: Sink): Unit
+
   def bytePrefixLength(graph: G): Int
+
+  /** Returns the `index`th byte (0-based) of the byte prefix. */
   def bytePrefixIndex(graph: G, index: Int): Byte
 
   def foldLeft[B](graph: G)(b: B)(f: (B,G) => B): B
   def foreach(graph: G)(f: G => Unit): Unit
 
+
+  /**
+   * Create an empty `R` from a position and a `prefix`.
+   * It should be subsequently set via `setReference`.
+   */
+  def makeReference(position: Long, prefix: Array[Byte]): R
+  def setReference(ref: R, referent: G): Unit
   def isReference(graph: G): Boolean
   def dereference(graph: R): G
-  def reference(position: Long, prefix: Array[Byte]): R
-  def setReference(ref: R, referent: G): Unit
-  def nested(prefix: Array[Byte], children: Sequence[G]): G
+
+  /**
+   * Create a `G` given a byte prefix and sequence of children.
+   * Byte prefix will generally identify which constructor it is,
+   * and any auxiliary info.
+   */
+  def nest(prefix: Array[Byte], children: Sequence[G]): G
 
   /**
    * Encode a `G` to the given `Sink`.
@@ -71,7 +97,7 @@ trait GraphCodec[G,R<:G] {
 
     def read1: G = { val pos = src.position; (src.getByte.toInt: @annotation.switch) match {
       case NestedStartMarker =>
-        val g = nested(src.get(src.getInt), readN(Sequence.empty))
+        val g = nest(src.get(src.getInt), readN(Sequence.empty))
         decoded = decoded.updated(pos, g)
         g
       case NestedEndMarker => throw NestedEnd
@@ -79,9 +105,9 @@ trait GraphCodec[G,R<:G] {
       case RefMarker =>
         val r =
           if (src.getByte.toInt == RefMetadata)
-            reference(src.position, src.get(src.getInt))
+            makeReference(src.position, src.get(src.getInt))
           else
-            reference(src.position, Array.empty)
+            makeReference(src.position, Array.empty)
         decoded = decoded.updated(pos, r)
         val g = read1
         setReference(r, g)
