@@ -741,6 +741,7 @@ object CompilationTests {
             )
           )
         }
+        // handler for Write effects
         val write = Term.Lam('acc, 'x) {
           // case x of
           Match('x)(
@@ -776,7 +777,10 @@ object CompilationTests {
             }
           }
         }
-        equal[Term](eval(p), Sequence(43,44,45,46,47))
+        val anfP = Term.ANF(p)
+        note(PrettyPrint.prettyTerm(p).render(80), includeAlways = true)
+        note(PrettyPrint.prettyTerm(anfP).render(80), includeAlways = true)
+        equal[Term](eval(anfP), Sequence(43,44,45,46,47))
       }
     )},
     test("and") { implicit T =>

@@ -129,6 +129,10 @@ object PrettyPrint {
       group(group(prettyPattern(p, names, 0) <>
               guard.fold[PrettyPrint]("")(g => " | " <> prettyTerm(g, 0))) <>
         " ->" <> softbreak <> prettyTerm(body, precedence = 0).nest("  "))
+    case Term.MatchCase(p, guard, body) =>
+      group(group(prettyPattern(p, Nil, 0) <>
+              guard.fold[PrettyPrint]("")(g => " | " <> prettyTerm(g, 0))) <>
+        " ->" <> softbreak <> prettyTerm(body, precedence = 0).nest("  "))
   }
 
   def prettyId(typeId: Id, ctorId: ConstructorId): PrettyPrint = typeId match {
@@ -151,9 +155,9 @@ object PrettyPrint {
       prettyTerm(Term.Unboxed(u, typ), 0)
     case Pattern.Wildcard => prettyName(names.head)
     case Pattern.Uncaptured => "_"
-    // ex: <Foo x y> or <x>
+    // ex: {Foo x y} or {x}
     case Pattern.EffectPure(p) => "{" <> prettyPattern(p, names, 0) <> "}"
-    // ex: <State.set s -> k> or <Remote.at node c -> k2>
+    // ex: {State.set s -> k} or {Remote.at node c -> k2}
     case Pattern.EffectBind(id,cid,ps,k) =>
       val (pretties, remNames) = distributeSomeNames(ps, names)
       "{" <> softbreaks(prettyId(id,cid) +: pretties) <>
