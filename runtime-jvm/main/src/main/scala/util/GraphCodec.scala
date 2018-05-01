@@ -8,7 +8,7 @@ import Codecs.{Source,Sink}
  * Encoder/decoder for graphs of type `G` with references of type `R`.
  *
  * Each `G` has some number of children, which are also of type `G`,
- * accessed via `foldLeft`.
+ * accessed via `foreach`.
  *
  * Some `G` are _references_, of type `R`, which can be set via `setReference`
  * and created via `makeReference`.
@@ -26,9 +26,7 @@ trait GraphCodec[G,R<:G] {
   /** Returns the `index`th byte (0-based) of the byte prefix. */
   def bytePrefixIndex(graph: G, index: Int): Byte
 
-  def foldLeft[B](graph: G)(b: B)(f: (B,G) => B): B
   def foreach(graph: G)(f: G => Unit): Unit
-
 
   /**
    * Create an empty `R` from a position and a `prefix`.
@@ -45,6 +43,12 @@ trait GraphCodec[G,R<:G] {
    * and any auxiliary info.
    */
   def nest(prefix: Array[Byte], children: Sequence[G]): G
+
+  def foldLeft[B](graph: G)(b0: B)(f: (B,G) => B): B = {
+    var b = b0
+    foreach(graph)(g => b = f(b,g))
+    b
+  }
 
   /**
    * Encode a `G` to the given `Sink`.

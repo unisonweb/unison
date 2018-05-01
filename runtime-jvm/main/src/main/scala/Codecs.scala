@@ -97,7 +97,6 @@ object Codecs {
         buf(index.toLong)
       }
 
-      def foldLeft[B](graph: G)(b: B)(f: (B,G) => B): B = ???
       def foreach(graph: G)(f: G => Unit): Unit = ???
 
       def nest(prefix: Array[Byte], children: Sequence[G]): G = ???
