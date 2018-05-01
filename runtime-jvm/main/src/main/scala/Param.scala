@@ -161,24 +161,45 @@ object Value {
         new Lambda1(arg1, body2, outputType, decompiled(substs(arg1)))
       }
     }
+
     abstract class ClosureForming(arity: Int, body: Computation,
                                   outputType: Option[UnboxedType],
-                                  decompiled: Term, args: Array[B],
-                                  selfRec: Option[Lambda] = None)
-      extends Lambda(arity,body,outputType,decompiled) { self =>
+                                  decompiled: Term)
+        extends Lambda(arity,body,outputType,decompiled) { self =>
       val namesArray = names.toArray
+
+      def underapply1(substName: Name, substTerm: Term): ClosureForming = {
+        assert(arity >= 1)
+        val arg = substTerm match { case Term.Compiled(b,_) => b }
+        val v = arg.toValue
+        val arg1 = v.toUnboxed
+        val arg1b = v.toBoxed
+        val body2: Computation = arity match {
+          case 2 => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
+            body(r,rec,top,stackU,arg1,x0,stackB,arg1b,x0b)
+          case 3 => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+            top.push1(stackU,stackB,arg1,arg1b)
+            body(r,rec,top.inc,stackU,x1,x0,stackB,x1b,x0b)
+          }
+          case n => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+            // need to insert arg1 before all the (n - 1 - K) args that
+            // are already on the stack, and shift all those args over
+            ???
+          }
+        }
+        new ClosureForming(arity-1, body2, outputType, decompiled(substTerm)) {
+          def names = self.names drop 1
+        }
+      }
+
       override def underapply(builtins: compilation.Environment)(
         argCount: Int, substs: Map[Name, Term]): Value.Lambda = {
-        assert(arity >= 1)
-        val argsInOrder: Seq[Term] = (0 until argCount) map { i =>
-          substs(namesArray(i + args.length))
-        }
-        val newArgs = argsInOrder map {
-          case Term.Compiled(b,_) => b
-        }
-        new ClosureForming(arity-argCount, body, outputType,
-                           decompiled(argsInOrder: _*), args ++ newArgs) {
-          def names = self.names drop argCount
+        if (argCount == 1) underapply1(substs.head._1, substs.head._2)
+        else {
+          (0 until argCount).foldLeft(this) { (lam,i) =>
+            val name = namesArray(i)
+            lam.underapply1(name, substs(name))
+          }
         }
       }
     }

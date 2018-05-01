@@ -26,6 +26,8 @@ object BuiltinTypes {
       ps.foldRight(Unit.pattern)((hd,tl) => Pattern.Data(Id, cid, List(hd,tl)))
     def term(ts: Term*): Term =
       ts.foldRight(Unit.term)((hd,tl) => Term.Constructor(Id, cid)(hd,tl))
+    def lambda: Term =
+      dataConstructors(Id, cid) match { case Return(lam : Value.Lambda) => Term.Compiled(lam, "Tuple") }
     def value(vs: Value*): Value =
       vs.foldRight(Unit.value)((hd,tl) => Value.Data(Id, cid, Array(hd,tl)))
   }
@@ -132,7 +134,7 @@ object BuiltinTypes {
     }
     val lam: Computation =
       if (arity >= 1)
-        new Value.Lambda.ClosureForming(arity, body, None, decompile, Array()) {
+        new Value.Lambda.ClosureForming(arity, body, None, decompile) {
           def names = paramNames.toList
         }.toComputation
       else try {
