@@ -729,7 +729,7 @@ object CompilationTests {
         val env: Term = 42 // environment for reader
 
         // handler for Read effects
-        val read = Term.Lam('x) {
+        val read = Term.Lam('env, 'x) {
           // case x of
           Match('x)(
             // {a} -> a
@@ -737,7 +737,7 @@ object CompilationTests {
             // {Read -> k} = handle (read env) (k env)
             MatchCase(
               Read.Read.pattern(Pattern.Wildcard),
-              ABT.Abs('k, Handle('read.v(env))('k.v(env)))
+              ABT.Abs('k, Handle('read.v('env))('k.v(env)))
             )
           )
         }
