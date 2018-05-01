@@ -1,21 +1,23 @@
 package org.unisonweb
 
-import org.unisonweb.util.PrettyPrint
 import org.unisonweb.EasyTest._
-import org.unisonweb.ABT.Name._
+import org.unisonweb.util.PrettyPrint
+import Term.Syntax._
 
 object DecompileTests {
+  val env0 = compilation.Environment(_ => ???, _ => ???, (_,_) => ???, (_,_) => ???)
+
   val tests = suite("decompile") (
     test("ex1") { implicit T =>
       val pingpong =
-        Term.Let("k" -> Term.Num(79)) {
+        Term.Let("k" -> 79) {
           Term.LetRec(
             "ping" -> Term.Lam("x")(Term.Var("pong")(Term.Var("x"))),
             "pong" -> Term.Lam("x")(Term.Var("k"))) {
               Term.Var("pong")
             }
         }
-      note(PrettyPrint.prettyTerm(compilation.normalize(_ => ???)(pingpong)).render(40), includeAlways = true)
+      note(PrettyPrint.prettyTerm(compilation.normalize(env0)(pingpong)).render(40), includeAlways = true)
       ok
     },
     test("ex2") { implicit T =>
@@ -27,7 +29,7 @@ object DecompileTests {
               Term.Var("ping")
             }
         }
-      note(PrettyPrint.prettyTerm(compilation.normalize(_ => ???)(pingpong)).render(40), includeAlways = true)
+      note(PrettyPrint.prettyTerm(compilation.normalize(env0)(pingpong)).render(40), includeAlways = true)
       ok
     },
     test("ex3") { implicit T =>
@@ -39,7 +41,7 @@ object DecompileTests {
           "pong" -> Term.Lam("x")(Term.Var("ping")(Term.Var("pang")(Term.Var("x"))))) {
             Term.Var("ping")
           }
-      note(PrettyPrint.prettyTerm(compilation.normalize(_ => ???)(pingpong)).render(40), includeAlways = true)
+      note(PrettyPrint.prettyTerm(compilation.normalize(env0)(pingpong)).render(40), includeAlways = true)
       ok
     }
   )

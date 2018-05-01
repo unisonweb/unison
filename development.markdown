@@ -1,5 +1,17 @@
 These are commands that will likely be useful during development.
 
+## Scala
+
+Launch `sbt` in `runtime-jvm` directory, then here are various useful commands:
+
+* `main/test:run` - runs all the tests
+* `main/test:run compilation` - runs tests prefixed by `"compilation"`
+* `main/test:run 102932 compilation.let3` - runs tests prefixed by `"compilation.let3"` with the random seed 102932
+* `benchmark/run` - presents menu of benchmarks to run
+* `;clean;coverage;main/test:run;coverageReport` followed optionally by `;coverageOff` - generates test coverage report
+
+## Haskell
+
 For doing compilation you can do:
 
     stack repl unison-shared

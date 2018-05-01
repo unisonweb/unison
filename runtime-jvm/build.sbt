@@ -1,12 +1,26 @@
 lazy val commonSettings = Seq(
+  fork := true,
+  javaOptions in run ++= Seq(
+    // https://docs.oracle.com/javase/8/embedded/develop-apps-platforms/codecache.htm
+//    "-XX:+UnlockDiagnosticVMOptions",
+//    "-XX:+LogCompilation",
+    "-XX:InlineSmallCode=9001",
+    "-XX:MaxInlineLevel=35"
+    //"-XX:MaxInlineSize=9001"
+    //"-XX:CompileThreshold=10"
+    //"-XX:MinInliningThreshold=10"
+    //"-XX:FreqInlineSize"
+    //"-XX:MaxTrivialSize"
+    //"-XX:LiveNodeCountInliningCutoff"
+  ),
   organization := "org.unisonweb",
   scalaVersion := "2.12.4",
   scalacOptions ++= Seq(
     "-feature",
     "-deprecation",
 //    "-g:notailcalls",
-    "-opt:l:inline",
-    "-opt-inline-from",
+//    "-opt:inline",
+//    "-opt-inline-from:**",
     "-opt-warnings",
     "-language:implicitConversions",
     "-language:higherKinds",
@@ -39,34 +53,15 @@ lazy val root = project.in(file(".")).
   settings(commonSettings).
   aggregate(main, benchmark)
 
-lazy val main = project.in(file("main")).
-  settings(commonSettings).
-  settings(name := "unison-runtime").
-  settings(sourceGenerators in Compile += Def.task {
-    import org.unisonweb.codegeneration._
-    val outPath = (sourceManaged in Compile).value / "org" / "unisonweb" / "compilation"
-    val gens : List[(File, String)] = List[OneFileGenerator](
-      ComputationGenerator,
-      ValueGenerator,
-      CompileLookupVarGenerator,
-      CompileLambdaGenerator,
-      CompileLet1Generator,
-      CompileLetRecGenerator,
-      CompileFunctionApplicationGenerator,
-//      MakeBuiltinGenerator,
-      TailCallsGenerator,
-      CompileIf0Generator
-    ).map(_.apply(outPath))
+lazy val main = project.in(file("main"))
+  .settings(commonSettings)
+  .settings(name := "unison-runtime")
 
-    gens.map { case (file, content) => IO.write(file, content); file: File }
-  }.taskValue)
+lazy val benchmark = project.in(file("benchmark"))
+  .settings(commonSettings)
+  .settings(name := "unison-runtime-benchmark")
+  .settings(scalacOptions += "-Xdisable-assertions")
+  .settings(libraryDependencies +=
+              scalaOrganization.value % "scala-reflect" % scalaVersion.value)
+  .dependsOn(main % "compile->test")
 
-lazy val benchmark = project.in(file("benchmark")).
-  settings(commonSettings).
-  settings(
-    name := "unison-runtime-benchmark"
-  )
-  .settings(
-    libraryDependencies += scalaOrganization.value % "scala-reflect" % scalaVersion.value
-  )
-  .dependsOn(main)
