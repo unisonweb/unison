@@ -67,8 +67,20 @@ object Codecs {
 
       private final def fill = { pos += bb.position(); bb.position(0); onFill(bb) }
 
-      def putString(s: String) = ???
-      def putText(txt: Text) = ???
+      def putString(s: String) =
+        // todo: can we do this without allocating a byte buffer?
+        // seems like it should be possible
+        try {
+          val bytes = java.nio.charset.StandardCharsets.UTF_8.encode(s);
+          bb.put(bytes.position(0))
+          ()
+        }
+        catch { case e: BufferOverflowException => fill; putString(s) }
+
+      def putText(txt: Text) =
+        // todo: more direct implementation
+        putString(Text.toString(txt))
+
       def put(bs: Array[Byte]) =
         try { bb.put(bs); () }
         catch { case e: BufferOverflowException => fill; bb.put(bs); () }

@@ -8,7 +8,6 @@ object Codecs {
   // make sure valueGraphCodec doesn't eagerly call termGraphCodec :)
   implicit val valueGraphCodec: GraphCodec[Param,Ref] = ???
 
-
   def writeId(id: Id, sink: Sink): Unit = id match {
     case Id.Builtin(name) =>
       sink putByte 0
