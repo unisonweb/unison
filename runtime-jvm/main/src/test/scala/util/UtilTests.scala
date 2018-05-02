@@ -10,7 +10,7 @@ object UtilTests {
           BytesTests.tests,
           TextTests.tests,
           CritbyteTests.tests,
-          CodecsTests.tests,
+          SerializationTests.tests,
           StreamTests.tests)
   }
 }

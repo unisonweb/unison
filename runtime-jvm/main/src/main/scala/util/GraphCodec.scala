@@ -2,7 +2,6 @@ package org.unisonweb.util
 
 import java.util.IdentityHashMap
 import scala.collection.immutable.LongMap
-import Codecs.{Source,Sink}
 
 /**
  * Encoder/decoder for graphs of type `G` with references of type `R`.

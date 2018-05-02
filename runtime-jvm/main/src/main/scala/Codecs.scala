@@ -1,6 +1,6 @@
 package org.unisonweb
 
-import util.Codecs.Sink
+import util.Sink
 import util.{GraphCodec, Sequence}
 import Term.Term
 
