@@ -22,6 +22,8 @@ object Codecs {
 
   def writeUnboxedType(t: UnboxedType, sink: Sink): Unit = ???
 
+  def writePattern(p: Pattern, sink: Sink): Unit = ???
+
   implicit val termGraphCodec: GraphCodec[Term,Nothing] =
     new GraphCodec[Term,Nothing] {
       type G = Term
@@ -58,7 +60,15 @@ object Codecs {
           case If_(_,_,_) => sink putByte IfMarker
           case And_(_,_) => sink putByte AndMarker
           case Or_(_,_) => sink putByte OrMarker
-          case Match_(_,_) => sink putByte MatchMarker
+          case Match_(_,cases) =>
+            sink putByte MatchMarker
+            val len = cases.length
+            sink putInt len
+            def bool(b: Boolean): Byte = if (b) 1:Byte else 0:Byte
+            cases foreach { c =>
+              writePattern(c.pattern, sink)
+              sink putByte (bool(c.guard.isEmpty))
+            }
           case Compiled_(value,name) =>
             sink putByte CompiledMarker
             sink putString name.toString
@@ -66,10 +76,11 @@ object Codecs {
           case Request_(_,_) => sink putByte CompiledMarker
           case Handle_(_,_) => sink putByte HandleMarker
           case EffectPure_(_) => sink putByte EffectPureMarker
-          case EffectBind_(id,cid,_,_) =>
+          case EffectBind_(id,cid,args,_) =>
             sink putByte EffectPureMarker
             writeId(id, sink)
             writeConstructorId(cid, sink)
+            sink putInt args.length
           case LetRec_(_,_) =>
             sink putByte LetRecMarker
         }
@@ -82,22 +93,14 @@ object Codecs {
         sink.position.toInt
       }
 
-      def bytePrefixIndex(graph: G, index: Int): Byte = {
-        import util.Bytes
-        var buf = Bytes.empty
-        val bb = java.nio.ByteBuffer.allocate(32)
-        val sink: Sink = Sink.fromByteBuffer(bb,
-          bb => buf = buf ++ Bytes.fromArray(bb.array())
-        )
-        writeBytePrefix(graph, sink)
-        val rem = new Array[Byte](bb.position)
-        bb.position(0)
-        bb.get(rem)
-        buf = buf ++ Bytes.viewArray(rem)
-        buf(index.toLong)
-      }
+      def bytePrefixIndex(graph: G, index: Int): Byte =
+        bytePrefix(graph)(index.toLong)
 
-      def foreach(graph: G)(f: G => Unit): Unit = ???
+      def foreach(graph: G)(f: G => Unit): Unit = graph.get match {
+        case ABT.Tm_(tm) => tm foreachChild f
+        case ABT.Abs_(_,body) => foreach(body)(f)
+        case ABT.Var_(_) => ()
+      }
 
       def nest(prefix: Array[Byte], children: Sequence[G]): G = ???
 

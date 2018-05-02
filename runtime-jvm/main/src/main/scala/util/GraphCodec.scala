@@ -15,6 +15,11 @@ import Codecs.{Source,Sink}
  *
  * Each `G` also has some binary data, called the _byte prefix_, accessed
  * via `writeBytePrefix`, `bytePrefixLength`, `bytePrefixIndex`.
+ *
+ * The interface requires that the byte prefix plus the children be sufficient
+ * to reconstitute the `G`. That is, it satisfies:
+ *
+ *   nest(bytePrefix(g).toArray, children(g)) == g
  */
 trait GraphCodec[G,R<:G] {
   import GraphCodec._
@@ -23,10 +28,30 @@ trait GraphCodec[G,R<:G] {
 
   def bytePrefixLength(graph: G): Int
 
+  def bytePrefix(graph: G): Sequence[Byte] = {
+    var buf = Bytes.empty
+    val bb = java.nio.ByteBuffer.allocate(128)
+    val sink: Sink = Sink.fromByteBuffer(bb,
+      bb => buf = buf ++ Bytes.fromArray(bb.array())
+    )
+    writeBytePrefix(graph, sink)
+    val rem = new Array[Byte](bb.position)
+    bb.position(0)
+    bb.get(rem)
+    buf = buf ++ Bytes.viewArray(rem)
+    buf
+  }
+
   /** Returns the `index`th byte (0-based) of the byte prefix. */
   def bytePrefixIndex(graph: G, index: Int): Byte
 
   def foreach(graph: G)(f: G => Unit): Unit
+
+  def children(graph: G): Sequence[G] = {
+    var cs = Sequence.empty[G]
+    foreach(graph) { g => cs = cs :+ g }
+    cs
+  }
 
   /**
    * Create an empty `R` from a position and a `prefix`.

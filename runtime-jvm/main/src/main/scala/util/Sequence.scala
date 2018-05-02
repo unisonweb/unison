@@ -21,6 +21,7 @@ sealed abstract class Sequence[A] {
   }
 
   def foldLeft[B](z: B)(f: (B,A) => B): B
+  def foreach(f: A => Unit) = foldLeft(())((_,a) => f(a))
 
   final def isEmpty = size == 0L
 
