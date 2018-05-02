@@ -107,6 +107,10 @@ trait GraphCodec[G,R<:G] {
     go(_)
   }
 
+  /** Produce a decoder for `G` that reads from the given `Source`.
+    * Implementations may wish to use `GraphCodec.decoder` to implement
+    * this function.
+    */
   def stageDecoder(src: Source): () => G
 }
 
@@ -158,7 +162,7 @@ object GraphCodec {
         d.setReference(r, g)
         g
       case RefSeenMarker => decoded(src.getLong)
-      case _ => ???
+      case b => sys.error("unknown byte in GraphCodec decoding stream: " + b)
     }}
 
     @annotation.tailrec
