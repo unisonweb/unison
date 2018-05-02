@@ -599,13 +599,15 @@ object Builtins {
       p => BuiltinTypes.Tuple.term(A.decompile(p._1), B.decompile(p._2))
   }
 
-  abstract class External(val get: Any) extends Value
+  abstract class External(val get: Any) extends Value {
+    def foreachChild(f: Param => Unit): Unit = ()
+  }
   object External {
     def apply[A](value: A, decompiled: Term): Value =
       new External(value) { def decompile = decompiled }
     def apply[A](value: A)(implicit A: Decompile[A]): Value =
       new External(value) {
-        def decompile: Term = A.decompile(value)
+        lazy val decompile: Term = A.decompile(value)
       }
   }
 }

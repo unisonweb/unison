@@ -8,6 +8,7 @@ sealed abstract class Param {
   def toValue: Value
   def isRef: Boolean = false
   def isType: Boolean = false
+  def foreachChild(f: Param => Unit): Unit
 }
 
 object Param {
@@ -19,6 +20,7 @@ object Param {
 final class Ref(val name: Name, var value: Value) extends Param {
   final def toValue = value
   override def isRef = true
+  def foreachChild(f: Param => Unit): Unit = f(value)
 }
 
 abstract class Value extends Param {
@@ -53,6 +55,8 @@ object Value {
     final override def toUnboxed: U = n
 
     def decompile = Term.Unboxed(n, typ)
+
+    def foreachChild(f: Param => Unit) = ()
   }
 
   class Lambda(
@@ -106,7 +110,10 @@ object Value {
               s"compiling a closed Term.Lambda failed to produce a Value.Lambda: $c")
           }
       }
+
+    def foreachChild(f: Param => Unit): Unit = ()
   }
+
   object Lambda {
     final def toValue = this
 
@@ -202,16 +209,25 @@ object Value {
   case class Data(typeId: Id, constructorId: ConstructorId, fields: Array[Value])
     extends Value {
     def decompile: Term = Term.Constructor(typeId, constructorId)(fields.map(_.decompile): _*)
+
+    def foreachChild(f: Param => Unit): Unit =
+      fields foreach f
   }
 
   case class EffectPure(unboxed: U, boxed: Value) extends Value {
     def decompile = Term.EffectPure(Value(unboxed, boxed).decompile)
+
+    def foreachChild(f: Param => Unit): Unit = f(boxed)
   }
   case class EffectBind(typeId: Id, constructorId: ConstructorId,
                         args: Array[Value], k: Lambda) extends Value {
     def decompile =
       Term.EffectBind(typeId, constructorId,
                       args.map(_.decompile).toList, k.decompile)
+    def foreachChild(f: Param => Unit): Unit = {
+      args foreach f
+      f(k)
+    }
   }
 }
 
@@ -219,6 +235,7 @@ sealed abstract class UnboxedType extends Value {
   def decompile = sys.error("Don't decompile a type.")
   override def toResult(r: R) = sys.error("A type is not a result.")
   override def isType = true
+  def foreachChild(f: Param => Unit) = ()
 }
 
 object UnboxedType {

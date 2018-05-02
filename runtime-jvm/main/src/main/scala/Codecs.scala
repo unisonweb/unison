@@ -7,7 +7,17 @@ import scala.annotation.switch
 
 object Codecs {
   // make sure valueGraphCodec doesn't eagerly call termGraphCodec :)
-  implicit val valueGraphCodec: GraphCodec[Param,Ref] = ???
+  implicit val valueGraphCodec: GraphCodec[Param,Ref] = new GraphCodec[Param,Ref] {
+    def writeBytePrefix(graph: Param, sink: Sink): Unit = ???
+    def bytePrefixIndex(graph: Param, index: Int): Byte = ???
+    def bytePrefixLength(graph: Param): Int = ???
+
+    def dereference(graph: Ref): Param = graph.value
+    def foreach(graph: Param)(f: Param => Unit): Unit = graph foreachChild f
+    def isReference(graph: Param): Boolean = graph.isRef
+
+    def stageDecoder(src: Source): () => Param = ???
+  }
 
   def writeId(id: Id, sink: Sink): Unit = id match {
     case Id.Builtin(name) =>
@@ -308,6 +318,6 @@ object Codecs {
       final val UnboxedMarker = 6
       final val VarMarker = 0
     }
-    
+
   }
 }
