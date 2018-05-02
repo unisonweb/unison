@@ -21,9 +21,40 @@ object Codecs {
   def writeConstructorId(cid: ConstructorId, sink: Sink): Unit =
     sink putInt cid.toInt
 
-  def writeUnboxedType(t: UnboxedType, sink: Sink): Unit = ???
+  def writeUnboxedType(t: UnboxedType, sink: Sink): Unit = t match {
+    case UnboxedType.Boolean => sink.putByte(0)
+    case UnboxedType.Int64 => sink.putByte(1)
+    case UnboxedType.UInt64 => sink.putByte(2)
+    case UnboxedType.Float => sink.putByte(3)
+  }
 
-  def writePattern(p: Pattern, sink: Sink): Unit = ???
+  def writePattern(p: Pattern, sink: Sink): Unit = p match {
+    case Pattern.LiteralU(u, typ) =>
+      sink.putByte(0)
+      sink.putLong(u)
+      writeUnboxedType(typ, sink)
+    case Pattern.Wildcard =>
+      sink.putByte(1)
+    case Pattern.Uncaptured =>
+      sink.putByte(2)
+    case Pattern.Data(id,cid,patterns) =>
+      sink.putByte(3)
+      writeId(id, sink)
+      writeConstructorId(cid, sink)
+      sink.putFramedSeq(patterns)((sink,p) => writePattern(p,sink))
+    case Pattern.As(p) =>
+      sink.putByte(4)
+      writePattern(p, sink)
+    case Pattern.EffectPure(p) =>
+      sink.putByte(5)
+      writePattern(p, sink)
+    case Pattern.EffectBind(id,cid,patterns,continuation) =>
+      sink.putByte(6)
+      writeId(id, sink)
+      writeConstructorId(cid, sink)
+      sink.putFramedSeq(patterns)((sink,p) => writePattern(p,sink))
+      writePattern(continuation, sink)
+  }
 
 
   implicit val termGraphCodec: GraphCodec[Term,Nothing] = {
@@ -52,8 +83,8 @@ object Codecs {
             sink putText txt
           case Unboxed_(u, t) =>
             sink putByte UnboxedMarker.toByte
-            writeUnboxedType(t, sink)
             sink putLong u
+            writeUnboxedType(t, sink)
           case Sequence_(_) => sink putByte SequenceMarker.toByte
           case Lam_(_) => sink putByte LamMarker.toByte
           case Apply_(_,_) => sink putByte ApplyMarker.toByte
@@ -64,12 +95,10 @@ object Codecs {
           case Or_(_,_) => sink putByte OrMarker.toByte
           case Match_(_,cases) =>
             sink putByte MatchMarker.toByte
-            val len = cases.length
-            sink putInt len
-            def bool(b: Boolean): Byte = if (b) 1:Byte else 0:Byte
-            cases foreach { c =>
-              writePattern(c.pattern, sink)
-              sink putByte (bool(c.guard.isEmpty))
+            sink.putFramedSeq(cases) {
+              (sink, c) =>
+                writePattern(c.pattern, sink)
+                sink putBoolean c.guard.isEmpty
             }
           case Compiled_(value,name) =>
             sink putByte CompiledMarker.toByte
@@ -106,11 +135,63 @@ object Codecs {
         case ABT.Var_(_) => ()
       }
 
-      def readId(source: Source): Id = ???
-      def readConstructorId(source: Source): ConstructorId = ???
-      def readSequence(readChild: () => Option[G]): util.Sequence[G] = ???
-      def readUnboxedType(source: Source): UnboxedType = ???
-      def readList(readChild: () => Option[G]): List[G] = ???
+      def readId(source: Source): Id =
+        (source.getByte: @switch) match {
+          case 0 => Id.Builtin(source.getString)
+          case 1 => Id.HashRef(Hash(source.getFramed))
+        }
+
+      def readConstructorId(source: Source): ConstructorId =
+        ConstructorId(source.getInt)
+
+      def readUnboxedType(source: Source): UnboxedType =
+        (source.getByte: @switch) match {
+          case 0 => UnboxedType.Boolean
+          case 1 => UnboxedType.Int64
+          case 2 => UnboxedType.UInt64
+          case 3 => UnboxedType.Float
+        }
+
+      def readPattern(src: Source): Pattern =
+        (src.getByte: @switch) match {
+          case 0 =>
+            Pattern.LiteralU(src.getLong, readUnboxedType(src))
+          case 1 =>
+            Pattern.Wildcard
+          case 2 =>
+            Pattern.Uncaptured
+          case 3 =>
+            Pattern.Data(readId(src), readConstructorId(src),
+                         Source.getFramedList(src)(readPattern))
+          case 4 =>
+            Pattern.As(readPattern(src))
+          case 5 =>
+            Pattern.EffectPure(readPattern(src))
+          case 6 =>
+            Pattern.EffectBind(readId(src), readConstructorId(src),
+                               Source.getFramedList(src)(readPattern),
+                               readPattern(src))
+        }
+
+      def readSequence(readChild: () => Option[G]): util.Sequence[G] = {
+        @annotation.tailrec
+        def loop(s: util.Sequence[G]): util.Sequence[G] =
+          readChild() match {
+            case Some(g) => loop(s :+ g)
+            case None => s
+          }
+        loop(util.Sequence.empty)
+      }
+
+      def readList(readChild: () => Option[G]): List[G] = {
+        @annotation.tailrec
+        def loop(s: List[G]): List[G] =
+          readChild() match {
+            case Some(g) => loop(g :: s)
+            case None => s.reverse
+          }
+        loop(Nil)
+      }
 
 
       def stageDecoder(src: Source): () => Term = {
@@ -126,14 +207,15 @@ object Codecs {
 
             def isReference(graph: G): Boolean = false
 
-            def decode(readChild: () => Option[G]): G = {
+            def decode(readChildOption: () => Option[G]): G = {
+              def readChild(): G = readChildOption().get
               (src.getByte: @switch) match {
                 case VarMarker =>
                   ABT.Var(src.getString)
                 case AbsMarker =>
                   ABT.Abs(
                     src.getString,
-                    readChild().get
+                    readChild()
                   )
                 case ConstructorMarker =>
                   Term.Constructor(
@@ -145,25 +227,36 @@ object Codecs {
                 case TextMarker =>
                   Term.Text(src.getText)
                 case UnboxedMarker =>
-                  val typ = readUnboxedType(src)
-                  Term.Unboxed(src.getLong, typ)
+                  Term.Unboxed(src.getLong, readUnboxedType(src))
                 case SequenceMarker =>
-                  Term.Sequence(readSequence(readChild))
+                  Term.Sequence(readSequence(readChildOption))
                 case LamMarker =>
-                  ABT.Tm(Lam_(readChild().get))
+                  ABT.Tm(Lam_(readChild()))
                 case ApplyMarker =>
-                  Term.Apply(readChild().get, readList(readChild):_*)
+                  Term.Apply(readChild(), readList(readChildOption):_*)
                 case RecMarker =>
-                  ABT.Tm(Rec_(readChild().get))
+                  ABT.Tm(Rec_(readChild()))
                 case LetMarker =>
-                  ABT.Tm(Let_(readChild().get, readChild().get))
+                  ABT.Tm(Let_(readChild(), readChild()))
                 case IfMarker =>
-                  Term.If(readChild().get, readChild().get, readChild().get)
+                  Term.If(readChild(), readChild(), readChild())
                 case AndMarker =>
-                  Term.And(readChild().get, readChild().get)
+                  Term.And(readChild(), readChild())
                 case OrMarker =>
-                  Term.Or(readChild().get, readChild().get)
-                case MatchMarker => ???
+                  Term.Or(readChild(), readChild())
+                case MatchMarker =>
+                  val patternsish = Source.getFramedArray(src) {
+                    src => (readPattern(src), src.getBoolean)
+                  }
+                  val scrutinee = readChild()
+                  val cases = patternsish map { case (pat, hasGuard) =>
+                    Term.MatchCase(
+                      pat,
+                      if (hasGuard) Some(readChild()) else None,
+                      readChild()
+                    )
+                  }
+                  Term.Match(scrutinee)(cases: _*)
                 case CompiledMarker =>
                   val name = src.getString
                   val param = valueDecoder() // note, this changes src
@@ -171,16 +264,16 @@ object Codecs {
                 case RequestMarker =>
                   Term.Request(readId(src), readConstructorId(src))
                 case HandleMarker =>
-                  Term.Handle(readChild().get)(readChild().get)
+                  Term.Handle(readChild())(readChild())
                 case EffectPureMarker =>
-                  Term.EffectPure(readChild().get)
+                  Term.EffectPure(readChild())
                 case EffectBindMarker =>
                   val id = readId(src)
                   val cid = readConstructorId(src)
-                  val children = readList(readChild) // todo: slow
+                  val children = readList(readChildOption) // todo: slow
                   Term.EffectBind(id,cid,children.init,children.last)
                 case LetRecMarker =>
-                  val children = readList(readChild) // todo: slow
+                  val children = readList(readChildOption) // todo: slow
                   ABT.Tm(LetRec_(children.init, children.last))
               }
             }

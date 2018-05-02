@@ -9,6 +9,7 @@ import Text.Text
  */
 trait Sink {
   def put(bs: Array[Byte]): Unit
+  def putBoolean(b: Boolean): Unit = if (b) putByte(1) else putByte(0)
   def putByte(b: Byte): Unit
   def putInt(n: Int): Unit
   def putLong(n: Long): Unit
@@ -19,6 +20,10 @@ trait Sink {
   def putFramed(bs: Array[Byte]): Unit = {
     putInt(bs.length)
     put(bs)
+  }
+  def putFramedSeq[A](seq: Seq[A])(f: (Sink,A) => Unit): Unit = {
+    putInt(seq.size)
+    seq.foreach(a => f(this, a))
   }
 }
 

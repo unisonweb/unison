@@ -4,6 +4,8 @@ import java.nio.ByteBuffer
 
 import org.unisonweb.util.Text.Text
 
+import scala.reflect.ClassTag
+
 /**
  * A source of bytes which can only be read in a streaming fashion.
  * There is no backtracking or peeking; each read advances the cursor.
@@ -11,6 +13,7 @@ import org.unisonweb.util.Text.Text
  */
 trait Source { self =>
   def get(n: Int): Array[Byte]
+  def getBoolean: Boolean = getByte != 0
   def getByte: Byte
   def getInt: Int
   def getLong: Long
@@ -95,6 +98,15 @@ object Source {
       i += 1
     }
     result
+  }
+
+  def getFramedArray[A:ClassTag](src: Source)(f: Source => A): Array[A] = {
+    val len = src.getInt
+    Array.fill(len)(f(src))
+  }
+  def getFramedList[A](src: Source)(f: Source => A): List[A] = {
+    val len = src.getInt
+    List.fill(len)(f(src))
   }
 }
 
