@@ -1,7 +1,6 @@
 package org.unisonweb
 
-import util.Sink
-import util.{GraphCodec, Sequence}
+import util.{GraphCodec,Sink,Source}
 import Term.Term
 
 object Codecs {
@@ -102,7 +101,7 @@ object Codecs {
         case ABT.Var_(_) => ()
       }
 
-      def nest(prefix: Array[Byte], children: Sequence[G]): G = ???
+      def nest(prefix: Source, readChild: () => Option[G]): G = ???
 
       def makeReference(position: Long, prefix: Array[Byte]): R = sys.error("unpossible")
       def setReference(ref: R, referent: G): Unit = sys.error("unpossible")

@@ -7,7 +7,7 @@ import java.nio.ByteBuffer
  * There is no backtracking or peeking; each read advances the cursor.
  * The cursor position can be accessed via the `position` method.
  */
-trait Source {
+trait Source { self =>
   def get(n: Int): Array[Byte]
   def getByte: Byte
   def getInt: Int
@@ -15,9 +15,56 @@ trait Source {
   def getDouble: Double
   def position: Long
   def getFramed: Array[Byte] = get(getInt)
+
+  /** Checks `ok` before each operation, throws `Source.Invalidated` if `!ok`. */
+  def invalidateWhen(invalidated: => Boolean): Source = new Source {
+    def position =
+      if (!invalidated) self.position
+      else throw Source.Invalidated()
+    def get(n: Int) =
+      if (!invalidated) self.get(n)
+      else throw Source.Invalidated()
+    def getByte: Byte =
+      if (!invalidated) self.getByte
+      else throw Source.Invalidated()
+    def getInt: Int =
+      if (!invalidated) self.getInt
+      else throw Source.Invalidated()
+    def getLong: Long =
+      if (!invalidated) self.getLong
+      else throw Source.Invalidated()
+    def getDouble: Double =
+      if (!invalidated) self.getDouble
+      else throw Source.Invalidated()
+  }
+
+  def take(m: Long): Source = new Source {
+    val end = (self.position + m) max self.position
+    def position = self.position
+    def remaining = end - self.position
+    def get(n: Int) =
+      if (remaining >= n) self.get(n)
+      else throw Source.Underflow()
+    def getByte: Byte =
+      if (remaining > 0) self.getByte
+      else throw Source.Underflow()
+    def getInt: Int =
+      if (remaining > 3) self.getInt
+      else throw Source.Underflow()
+    def getLong: Long =
+      if (remaining > 7) self.getLong
+      else throw Source.Underflow()
+    def getDouble: Double =
+      if (remaining > 7) self.getDouble
+      else throw Source.Underflow()
+  }
+
 }
 
 object Source {
+
+  case class Underflow() extends Throwable
+  case class Invalidated() extends Throwable
 
   def apply(bb: ByteBuffer): Source = new Source {
     bb.order(java.nio.ByteOrder.BIG_ENDIAN)

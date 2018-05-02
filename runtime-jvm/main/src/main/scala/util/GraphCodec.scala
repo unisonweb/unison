@@ -1,6 +1,7 @@
 package org.unisonweb.util
 
 import java.util.IdentityHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import scala.collection.immutable.LongMap
 
 /**
@@ -64,9 +65,10 @@ trait GraphCodec[G,R<:G] {
   /**
    * Create a `G` given a byte prefix and sequence of children.
    * Byte prefix will generally identify which constructor it is,
-   * and any auxiliary info.
+   * and any auxiliary info. Implementations should read from
+   * `prefix` BEFORE calling `readChild`.
    */
-  def nest(prefix: Array[Byte], children: Sequence[G]): G
+  def nest(prefix: Source, readChild: () => Option[G]): G
 
   def foldLeft[B](graph: G)(b0: B)(f: (B,G) => B): B = {
     var b = b0
@@ -125,7 +127,11 @@ trait GraphCodec[G,R<:G] {
 
     def read1: G = { val pos = src.position; (src.getByte.toInt: @annotation.switch) match {
       case NestedStartMarker =>
-        val g = nest(src.get(src.getInt), readN(Sequence.empty))
+        var reachedEnd = new AtomicBoolean(false)
+        var invalidated = new AtomicBoolean(false)
+        val next = readChild(invalidated, reachedEnd)
+        val g = nest(src.invalidateWhen(invalidated.get), next)
+        drain(next)
         decoded = decoded.updated(pos, g)
         g
       case NestedEndMarker => throw NestedEnd
@@ -143,15 +149,24 @@ trait GraphCodec[G,R<:G] {
       case RefSeenMarker => decoded(src.getLong)
     }}
 
-    def readN(buf0: Sequence[G]): Sequence[G] = {
-      var buf = buf0; while (true) {
-        try { buf = buf :+ read1 }
-        catch { case NestedEnd => return buf }
-      }
-      buf
+    @annotation.tailrec
+    def drain(f: () => Option[G]): Unit = f() match {
+      case None => ()
+      case Some(_) => drain(f)
     }
+
+    def readChild(invalidate: AtomicBoolean, reachedEnd: AtomicBoolean): () => Option[G] = () => {
+      invalidate.set(true)
+      if (!reachedEnd.get) {
+        try Some(read1)
+        catch { case NestedEnd => reachedEnd.set(true); None }
+      }
+      else None
+    }
+
     read1
   }
+
 }
 
 object GraphCodec {
