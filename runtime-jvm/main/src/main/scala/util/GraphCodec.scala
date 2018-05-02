@@ -160,7 +160,7 @@ object GraphCodec {
         decoded = decoded.updated(pos, r)
         val g = read1
         d.setReference(r, g)
-        g
+        r // we return the reference, not the thing inside the reference
       case RefSeenMarker => decoded(src.getLong)
       case b => sys.error("unknown byte in GraphCodec decoding stream: " + b)
     }}
