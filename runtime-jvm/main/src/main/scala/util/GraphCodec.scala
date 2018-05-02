@@ -53,22 +53,8 @@ trait GraphCodec[G,R<:G] {
     cs
   }
 
-  /**
-   * Create an empty `R` from a position and a `prefix`.
-   * It should be subsequently set via `setReference`.
-   */
-  def makeReference(position: Long, prefix: Array[Byte]): R
-  def setReference(ref: R, referent: G): Unit
   def isReference(graph: G): Boolean
   def dereference(graph: R): G
-
-  /**
-   * Create a `G` given a byte prefix and sequence of children.
-   * Byte prefix will generally identify which constructor it is,
-   * and any auxiliary info. Implementations should read from
-   * `prefix` BEFORE calling `readChild`.
-   */
-  def nest(prefix: Source, readChild: () => Option[G]): G
 
   def foldLeft[B](graph: G)(b0: B)(f: (B,G) => B): B = {
     var b = b0
@@ -90,12 +76,12 @@ trait GraphCodec[G,R<:G] {
         val pos = seen.get(g)
         if (pos eq null) {
           seen.put(g, buf.position)
-          buf.putByte(RefMarker)
+          buf.putByte(RefMarker.toByte)
           if (includeRefMetadata) {
-            buf.putByte(RefMetadata)
+            buf.putByte(RefMetadata.toByte)
             writeBytePrefix(r, buf)
           }
-          else buf.putByte(RefNoMetadata)
+          else buf.putByte(RefNoMetadata.toByte)
           go(dereference(r))
         }
         else {
@@ -107,13 +93,13 @@ trait GraphCodec[G,R<:G] {
         val pos = seen.get(g)
         if (pos eq null) {
           seen.put(g, buf.position)
-          buf.putByte(NestedStartMarker) // indicates a Nested follows
+          buf.putByte(NestedStartMarker.toByte) // indicates a Nested follows
           writeBytePrefix(g, buf)
           foreach(g)(go)
-          buf.putByte(NestedEndMarker)
+          buf.putByte(NestedEndMarker.toByte)
         }
         else {
-          buf.putByte(SeenMarker)
+          buf.putByte(SeenMarker.toByte)
           buf.putLong(pos)
         }
       }
@@ -121,16 +107,41 @@ trait GraphCodec[G,R<:G] {
     go(_)
   }
 
-  def decode(src: Source): G = {
+  def stageDecoder(src: Source): () => G
+}
+
+object GraphCodec {
+  final val NestedStartMarker = 0
+  final val NestedEndMarker = 1
+  final val SeenMarker = 2
+  final val RefMarker = 3
+  final val RefSeenMarker = 4
+  final val RefMetadata = 0
+  final val RefNoMetadata = 1
+
+  trait Decoder[G, R<:G] {
+    def decode(readChild: () => Option[G]): G
+
+    /**
+      * Create an empty `R` from a position and a `prefix`.
+      * It should be subsequently set via `setReference`.
+      */
+    def makeReference(position: Long, prefix: Array[Byte]): R
+    def setReference(ref: R, referent: G): Unit
+
+  }
+
+  def decoder[G,R<:G](src: Source)(d: Decoder[G,R]): () => G = {
     case object NestedEnd extends Throwable { override def fillInStackTrace = this }
     var decoded = LongMap.empty[G]
 
+    // todo: why can't this switch on Byte?
     def read1: G = { val pos = src.position; (src.getByte.toInt: @annotation.switch) match {
       case NestedStartMarker =>
         var reachedEnd = new AtomicBoolean(false)
         var invalidated = new AtomicBoolean(false)
         val next = readChild(invalidated, reachedEnd)
-        val g = nest(src.invalidateWhen(invalidated.get), next)
+        val g = d.decode(next)
         drain(next)
         decoded = decoded.updated(pos, g)
         g
@@ -139,14 +150,15 @@ trait GraphCodec[G,R<:G] {
       case RefMarker =>
         val r =
           if (src.getByte.toInt == RefMetadata)
-            makeReference(src.position, src.get(src.getInt))
+            d.makeReference(src.position, src.get(src.getInt))
           else
-            makeReference(src.position, Array.empty)
+            d.makeReference(src.position, Array.empty)
         decoded = decoded.updated(pos, r)
         val g = read1
-        setReference(r, g)
+        d.setReference(r, g)
         g
       case RefSeenMarker => decoded(src.getLong)
+      case _ => ???
     }}
 
     @annotation.tailrec
@@ -164,18 +176,9 @@ trait GraphCodec[G,R<:G] {
       else None
     }
 
-    read1
+    () => read1
   }
 
-}
 
-object GraphCodec {
-  final val NestedStartMarker = 0
-  final val NestedEndMarker = 1
-  final val SeenMarker = 2
-  final val RefMarker = 3
-  final val RefSeenMarker = 4
-  final val RefMetadata = 0
-  final val RefNoMetadata = 1
 }
 

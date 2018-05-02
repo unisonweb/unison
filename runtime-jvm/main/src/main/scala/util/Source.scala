@@ -2,6 +2,8 @@ package org.unisonweb.util
 
 import java.nio.ByteBuffer
 
+import org.unisonweb.util.Text.Text
+
 /**
  * A source of bytes which can only be read in a streaming fashion.
  * There is no backtracking or peeking; each read advances the cursor.
@@ -15,6 +17,8 @@ trait Source { self =>
   def getDouble: Double
   def position: Long
   def getFramed: Array[Byte] = get(getInt)
+  final def getString: String = ???
+  final def getText: Text = ???
 
   /** Checks `ok` before each operation, throws `Source.Invalidated` if `!ok`. */
   def invalidateWhen(invalidated: => Boolean): Source = new Source {
