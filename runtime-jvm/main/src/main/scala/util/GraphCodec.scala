@@ -21,12 +21,13 @@ import scala.collection.immutable.LongMap
  *
  *   nest(bytePrefix(g).toArray, children(g)) == g
  */
-trait GraphCodec[G,R<:G] {
+trait GraphCodec[G,R] {
   import GraphCodec._
 
   def writeBytePrefix(graph: G, sink: Sink): Unit
 
-  def bytePrefixLength(graph: G): Int
+  /** `R` must be embeddable in `G`. */
+  def inject(r: R): G
 
   def bytePrefix(graph: G): Sequence[Byte] = {
     var buf = Bytes.empty
@@ -41,9 +42,6 @@ trait GraphCodec[G,R<:G] {
     buf = buf ++ Bytes.viewArray(rem)
     buf
   }
-
-  /** Returns the `index`th byte (0-based) of the byte prefix. */
-  def bytePrefixIndex(graph: G, index: Int): Byte
 
   def foreach(graph: G)(f: G => Unit): Unit
 
@@ -79,7 +77,7 @@ trait GraphCodec[G,R<:G] {
           buf.putByte(RefMarker.toByte)
           if (includeRefMetadata) {
             buf.putByte(RefMetadata.toByte)
-            writeBytePrefix(r, buf)
+            writeBytePrefix(inject(r), buf)
           }
           else buf.putByte(RefNoMetadata.toByte)
           go(dereference(r))
@@ -123,7 +121,7 @@ object GraphCodec {
   final val RefMetadata = 0
   final val RefNoMetadata = 1
 
-  trait Decoder[G, R<:G] {
+  trait Decoder[G,R] {
     def decode(readChild: () => Option[G]): G
 
     /**
@@ -135,7 +133,7 @@ object GraphCodec {
 
   }
 
-  def decoder[G,R<:G](src: Source)(d: Decoder[G,R]): () => G = {
+  def decoder[G,R](src: Source, inject: R => G)(d: Decoder[G,R]): () => G = {
     case object NestedEnd extends Throwable { override def fillInStackTrace = this }
     var decoded = LongMap.empty[G]
 
@@ -157,10 +155,11 @@ object GraphCodec {
             d.makeReference(src.position, src.get(src.getInt))
           else
             d.makeReference(src.position, Array.empty)
-        decoded = decoded.updated(pos, r)
+        val gr = inject(r)
+        decoded = decoded.updated(pos, gr)
         val g = read1
         d.setReference(r, g)
-        r // we return the reference, not the thing inside the reference
+        gr // we return the reference, not the thing inside the reference
       case RefSeenMarker => decoded(src.getLong)
       case b => sys.error("unknown byte in GraphCodec decoding stream: " + b)
     }}
