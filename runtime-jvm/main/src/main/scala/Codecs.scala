@@ -103,8 +103,8 @@ object Codecs {
           case 22 => /* Lambda */
             // in order to do compilation we need the compilation environment
             val c = compilation.compileTop(Environment.standard)(readChildTerm())
-            // in order to do evaluation we need a runtime environment / stack
-            ???
+            val sp0 = compilation.StackPtr.empty
+            Value(compilation.evalClosed(c,R,sp0,stackU,stackB), R.boxed)
           case 23 => Value.Data(readId(src),
                                 readConstructorId(src),
                                 readArray(readChildValueOption _))
@@ -351,32 +351,4 @@ object Codecs {
       loop(Nil)
     }
   }
-
-  //implicit val termGraphCodec: GraphCodec[Term,Nothing] = {
-  //  new GraphCodec[Term,Nothing] {
-  //    type G = Term
-  //    type R = Nothing
-  //    import Term.F._
-
-  //    def inject(r: Nothing): Term = sys.error("unpossible")
-
-  //    def writeBytePrefix(graph: G, sink: Sink): Unit = ???
-
-  //    def foreach(graph: G)(f: G => Unit): Unit = graph.get match {
-  //      // case ABT.Tm_(Compiled()) => tm foreachChild f
-  //      case ABT.Tm_(tm) => tm foreachChild f
-  //      case ABT.Abs_(_,body) => foreach(body)(f)
-  //      case ABT.Var_(_) => ()
-  //    }
-
-  //    }
-
-  //    def makeReference(position: Long, prefix: Array[Byte]): R = sys.error("unpossible")
-  //    def setReference(ref: R, referent: G): Unit = sys.error("unpossible")
-  //    def isReference(graph: G): Boolean = false
-  //    def dereference(graph: R): G = sys.error("unpossible")
-
-  //  }
-  //}
-
 }
