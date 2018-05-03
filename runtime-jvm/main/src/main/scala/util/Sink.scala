@@ -29,13 +29,20 @@ trait Sink {
 
 object Sink {
 
-  def fromByteBuffer(bb: ByteBuffer, onFill: ByteBuffer => Unit): Sink = new Sink {
+  def fromByteBuffer(bb: ByteBuffer, onFill: Array[Byte] => Unit): Sink = new Sink {
     var pos: Long = 0L
     def position = pos + bb.position().toLong
 
     bb.order(java.nio.ByteOrder.BIG_ENDIAN)
 
-    private final def fill = { pos += bb.position(); bb.position(0); onFill(bb) }
+    private final def fill = {
+      val buf = new Array[Byte](bb.position())
+      pos += buf.length
+      bb.position(0)
+      bb.get(buf)
+      onFill(buf)
+      bb.position(0)
+    }
 
     def putString(s: String) =
       // todo: can we do this without allocating a byte buffer?

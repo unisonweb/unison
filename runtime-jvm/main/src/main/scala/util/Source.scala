@@ -77,20 +77,85 @@ object Source {
   case class Underflow() extends Throwable
   case class Invalidated() extends Throwable
 
-  def apply(bb: ByteBuffer): Source = new Source {
-    bb.order(java.nio.ByteOrder.BIG_ENDIAN)
+  def fromChunks(chunks: Sequence[Array[Byte]]): Source = {
+    val bb = java.nio.ByteBuffer.allocate(1024)
+    var rem = chunks
+    Source(bb, bb => rem.uncons match {
+      case None => throw Underflow()
+      case Some((chunk,chunks)) =>
+        if (bb.limit() >= chunk.length) {
+          bb.put(chunk)
+          rem = chunks
+        }
+        else { // need to split up chunk
+          val (c1,c2) = chunk.splitAt(bb.limit())
+          bb.put(c1)
+          rem = c2 +: chunks
+        }
+    })
+  }
 
-    def get(n: Int) = {
-      val arr = new Array[Byte](n)
-      bb.get(arr)
-      arr
+  object BufferUnderflow {
+    import java.nio.BufferUnderflowException
+    def unapply(e: Throwable): Boolean = e match {
+      case e : BufferUnderflowException => true
+      case i : ArrayIndexOutOfBoundsException => true
+      case _ => false
+    }
+  }
+
+  def apply(bb: ByteBuffer, onEmpty: ByteBuffer => Unit): Source = new Source {
+    bb.order(java.nio.ByteOrder.BIG_ENDIAN)
+    var pos = 0L
+
+    def position: Long = pos + bb.position().toLong
+
+    def empty = {
+      pos += bb.position()
+      bb.flip()
+      onEmpty(bb)
+      bb.flip()
     }
 
-    def getByte: Byte = bb.get
-    def getInt: Int = bb.getInt
-    def getLong: Long = bb.getLong
-    def getDouble: Double = bb.getDouble
-    def position: Long = bb.position().toLong
+    def get(n: Int) =
+      try {
+        val arr = new Array[Byte](n)
+        bb.get(arr)
+        arr
+      }
+      catch { case BufferUnderflow() => empty; get(n) }
+
+    def getByte: Byte =
+      try bb.get
+      catch { case BufferUnderflow() => empty; getByte }
+
+    def getInt: Int =
+      try bb.getInt
+      catch { case BufferUnderflow() => empty; getInt }
+
+    def getLong: Long =
+      try bb.getLong
+      catch { case BufferUnderflow() => empty; getLong }
+
+    def getDouble: Double =
+      try bb.getDouble
+      catch { case BufferUnderflow() => empty; getDouble }
+
+    override def getFramed: Array[Byte] = {
+      val originalPos = bb.position()
+      try {
+        val size = getInt
+        val bytes = new Array[Byte](size)
+        bb.get(bytes)
+        bytes
+      }
+      catch {
+        case BufferUnderflow() =>
+          bb.position(originalPos)
+          empty
+          getFramed
+      }
+    }
   }
 
   def readLong(bs: Array[Byte]): Long = {

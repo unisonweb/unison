@@ -14,12 +14,10 @@ import scala.collection.immutable.LongMap
  * and created via `makeReference`.
  *
  * Each `G` also has some binary data, called the _byte prefix_, accessed
- * via `writeBytePrefix`, `bytePrefixLength`, `bytePrefixIndex`.
+ * via `writeBytePrefix`.
  *
  * The interface requires that the byte prefix plus the children be sufficient
- * to reconstitute the `G`. That is, it satisfies:
- *
- *   nest(bytePrefix(g).toArray, children(g)) == g
+ * to reconstitute the `G`.
  */
 trait GraphCodec[G,R] {
   import GraphCodec._
@@ -33,7 +31,7 @@ trait GraphCodec[G,R] {
     var buf = Bytes.empty
     val bb = java.nio.ByteBuffer.allocate(128)
     val sink: Sink = Sink.fromByteBuffer(bb,
-      bb => buf = buf ++ Bytes.fromArray(bb.array())
+      arr => buf = buf ++ Bytes.viewArray(arr)
     )
     writeBytePrefix(graph, sink)
     val rem = new Array[Byte](bb.position)
@@ -66,7 +64,7 @@ trait GraphCodec[G,R] {
    * of each `g: G` which passes `isReference(g)` is written
    * to the output as well.
    */
-  def encode(buf: Sink): G => Unit = {
+  def encodeTo(buf: Sink): G => Unit = {
     val seen = new IdentityHashMap[G,Long]()
     def go(g: G): Unit = {
       if (isReference(g)) {
@@ -106,6 +104,26 @@ trait GraphCodec[G,R] {
     * this function.
     */
   def stageDecoder(src: Source): () => G
+
+  /** Convenience function to write out a sequence of byte chunks for a `G`. */
+  def encode(g: G): Sequence[Array[Byte]] = {
+    var buf = Sequence.empty[Array[Byte]]
+    val bb = java.nio.ByteBuffer.allocate(1024)
+    val encoder = encodeTo(Sink.fromByteBuffer(bb, arr => buf = buf :+ arr))
+    encoder(g)
+    if (bb.position() != 0) {
+      // there are leftover bytes buffered in `bb`, flush them
+      val rem = new Array[Byte](bb.position)
+      bb.position(0)
+      bb.get(rem)
+      buf :+ rem
+    }
+    else buf
+  }
+
+  /** Convenience function to read a `G` from a sequence of chunks. */
+  def decode(chunks: Sequence[Array[Byte]]): G =
+    stageDecoder(Source.fromChunks(chunks))()
 }
 
 object GraphCodec {
