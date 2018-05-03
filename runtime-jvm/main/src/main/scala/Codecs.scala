@@ -19,13 +19,13 @@ object Codecs {
         writeUnboxedType(typ, sink)
       case l: Value.Lambda =>
         sink.putByte(2)
-        termGraphCodec.writeBytePrefix(l.decompile, sink) // ??? what about staging
+        termGraphCodec.writeBytePrefix(l.decompile, sink)
+        // ??? what about staging
       case Value.Data(id, cid, _) =>
         sink.putByte(3)
         writeId(id, sink)
         writeConstructorId(cid, sink)
 
-      // could combine next four cases into one 2-byte code, but why?
       case UnboxedType.Boolean =>
         sink.putByte(4)
       case UnboxedType.Int64 =>
@@ -47,7 +47,7 @@ object Codecs {
         termGraphCodec.writeBytePrefix(e.decompile, sink)
         // todo ??? what about staging this one ^
       case t =>
-        sys.error(s"unexpected Param type ${t.getClass}")
+        sys.error(s"unexpected Param type ${t.getClass} in valueGraphCodec")
     }
 
 
