@@ -20,6 +20,8 @@ object CompilationTests {
     BuiltinTypes.effects)
 
   def eval(t0: Term): Term = {
+    val bytes = Codecs.encodeTerm(t0)
+    println("chunk sizes: " + bytes.map(_.length))
     val t = Codecs.decodeTerm(Codecs.encodeTerm(t0))
     normalize(env)(t)
   }

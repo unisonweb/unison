@@ -76,7 +76,7 @@ object Codecs {
           def readChildValue(): Value = readChildValueOption().get
           val tag = src.getByte
           if (tag <= 20) Node.Term { (tag: @switch) match {
-            case 0  => ABT.Var(src.getString)
+            case -99  => ABT.Var(src.getString)
             case 1  => ABT.Abs(src.getString, readChildTerm())
             case 2  => Term.Id(readId(src))
             case 3  => Term.Constructor(readId(src), readConstructorId(src))
@@ -180,7 +180,7 @@ object Codecs {
 
 
     def writeTermBytePrefix(t: Term, sink: Sink): Unit = t.get match {
-      case ABT.Var_(n)                  => sink putByte 0
+      case ABT.Var_(n)                  => sink putByte -99
         sink putString n.toString
 
       case ABT.Abs_(n,_)                => sink putByte 1

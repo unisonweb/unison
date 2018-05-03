@@ -27,20 +27,6 @@ trait GraphCodec[G,R] {
   /** `R` must be embeddable in `G`. */
   def inject(r: R): G
 
-  def bytePrefix(graph: G): Sequence[Byte] = {
-    var buf = Bytes.empty
-    val bb = java.nio.ByteBuffer.allocate(128)
-    val sink: Sink = Sink.fromByteBuffer(bb,
-      arr => buf = buf ++ Bytes.viewArray(arr)
-    )
-    writeBytePrefix(graph, sink)
-    val rem = new Array[Byte](bb.position)
-    bb.position(0)
-    bb.get(rem)
-    buf = buf ++ Bytes.viewArray(rem)
-    buf
-  }
-
   def foreach(graph: G)(f: G => Unit): Unit
 
   def children(graph: G): Sequence[G] = {
@@ -127,11 +113,11 @@ trait GraphCodec[G,R] {
 }
 
 object GraphCodec {
-  final val NestedStartMarker = 0
-  final val NestedEndMarker = 1
-  final val SeenMarker = 2
-  final val RefMarker = 3
-  final val RefSeenMarker = 4
+  final val NestedStartMarker = -1
+  final val NestedEndMarker = -2
+  final val SeenMarker = -3
+  final val RefMarker = -4
+  final val RefSeenMarker = -5
 
   trait Decoder[G,R] {
     def decode(readChild: () => Option[G]): G

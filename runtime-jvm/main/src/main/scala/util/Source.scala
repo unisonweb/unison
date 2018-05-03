@@ -77,22 +77,27 @@ object Source {
   case class Underflow() extends Throwable
   case class Invalidated() extends Throwable
 
-  def fromChunks(chunks: Sequence[Array[Byte]]): Source = {
-    val bb = java.nio.ByteBuffer.allocate(1024)
-    var rem = chunks
-    Source(bb, bb => rem.uncons match {
-      case None => throw Underflow()
-      case Some((chunk,chunks)) =>
-        if (bb.limit() >= chunk.length) {
-          bb.put(chunk)
-          rem = chunks
-        }
-        else { // need to split up chunk
-          val (c1,c2) = chunk.splitAt(bb.limit())
-          bb.put(c1)
-          rem = c2 +: chunks
-        }
-    })
+  def fromChunks(chunks: Sequence[Array[Byte]]): Source = chunks.uncons match {
+    case None => sys.error("empty chunks")
+    case Some((chunk,chunks)) => {
+      val bb = java.nio.ByteBuffer.allocate(chunk.size * 2)
+      bb.put(chunk)
+      bb.position(0)
+      var rem = chunks
+      Source.fromByteBuffer(bb, bb => rem.uncons match {
+        case None => throw Underflow()
+        case Some((chunk,chunks)) =>
+          if (bb.limit() >= chunk.length) {
+            bb.put(chunk)
+            rem = chunks
+          }
+          else { // need to split up chunk
+            val (c1,c2) = chunk.splitAt(bb.limit())
+            bb.put(c1)
+            rem = c2 +: chunks
+          }
+      })
+    }
   }
 
   object BufferUnderflow {
@@ -104,7 +109,7 @@ object Source {
     }
   }
 
-  def apply(bb: ByteBuffer, onEmpty: ByteBuffer => Unit): Source = new Source {
+  def fromByteBuffer(bb: ByteBuffer, onEmpty: ByteBuffer => Unit): Source = new Source {
     bb.order(java.nio.ByteOrder.BIG_ENDIAN)
     var pos = 0L
 
@@ -126,7 +131,7 @@ object Source {
       catch { case BufferUnderflow() => empty; get(n) }
 
     def getByte: Byte =
-      try bb.get
+      try { val b = bb.get; println("getting a byte: " + b); b }
       catch { case BufferUnderflow() => empty; getByte }
 
     def getInt: Int =
