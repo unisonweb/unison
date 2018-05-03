@@ -20,8 +20,12 @@ trait Source { self =>
   def getDouble: Double
   def position: Long
   def getFramed: Array[Byte] = get(getInt)
-  final def getString: String = ???
-  final def getText: Text = ???
+
+  final def getString: String = {
+    val bytes = getFramed
+    new String(bytes, java.nio.charset.StandardCharsets.UTF_8)
+  }
+  final def getText: Text = Text.fromString(getString)
 
   /** Checks `ok` before each operation, throws `Source.Invalidated` if `!ok`. */
   def invalidateWhen(invalidated: => Boolean): Source = new Source {

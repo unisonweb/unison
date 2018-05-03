@@ -40,12 +40,7 @@ object Sink {
     def putString(s: String) =
       // todo: can we do this without allocating a byte buffer?
       // seems like it should be possible
-      try {
-        val bytes = java.nio.charset.StandardCharsets.UTF_8.encode(s);
-        bb.putLong(bytes.position().toLong)
-        bb.put(bytes.position(0))
-        ()
-      }
+      try putFramed(s.getBytes(java.nio.charset.StandardCharsets.UTF_8))
       catch { case e: BufferOverflowException => fill; putString(s) }
 
     def putText(txt: Text) =
