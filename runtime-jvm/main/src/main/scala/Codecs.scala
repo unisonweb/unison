@@ -22,108 +22,122 @@ object Codecs {
       case Node.Param(r) => r.isRef
       case _ => false
     }
-    def inject(r: Ref) = Node.Param(r)
+    def inject(r: Ref): Node = Node.Param(r)
 
     def stageDecoder(src: Source): () => Node = GraphCodec.decoder(src, inject) {
       new GraphCodec.Decoder[Node,Ref] {
+        val stackU = new Array[U](512)
+        val stackB = new Array[B](512)
+        val R = compilation.Result()
         def makeReference(position: Long, prefix: Array[Byte]) =
           // todo - parse Name out of prefix
           new Ref("v"+position.toString, null)
         def setReference(r: Ref, v: Node): Unit = {
-          r.value = v match { case Node.Param(v) => v.toValue }
+          r.value = v match {
+            case Node.Param(v) => v.toValue
+            case Node.Term(_) => sys.error("cannot set a reference to a term")
+          }
         }
-      }
+        def decode(readChildOption: () => Option[Node]): Node = {
+          def readChildTerm(): Term = readChildTermOption().get
+          def readChildTermOption(): Option[Term] = readChildOption() match {
+            case Some(Node.Term(t)) => Some(t)
+            case _ => None
+          }
+          def readChildParam(): Param = readChildParamOption().get
+          def readChildParamOption(): Option[Param] = readChildOption() match {
+            case Some(Node.Param(p)) => Some(p)
+            case _ => None
+          }
+          def readChildValueOption(): Option[Value] = readChildOption() match {
+            case Some(Node.Param(p)) => Some(p.toValue)
+            case _ => None
+          }
+          def readChildValue(): Value = readChildValueOption().get
+          val tag = src.getByte
+          if (tag <= 20) Node.Term { (tag: @switch) match {
+            case 0  => ABT.Var(src.getString)
+            case 1  => ABT.Abs(src.getString, readChildTerm())
+            case 2  => Term.Id(readId(src))
+            case 3  => Term.Constructor(readId(src), readConstructorId(src))
+            case 4  => Term.Request(readId(src), readConstructorId(src))
+            case 5  => Term.Text(src.getText)
+            case 6  => Term.Unboxed(src.getLong, readUnboxedType(src))
+            case 7  => Term.Sequence(readSequence(readChildTermOption _))
+            case 8  => ABT.Tm(Lam_(readChildTerm()))
+            case 9  => Term.Apply(readChildTerm(), readList(readChildTermOption _):_*)
+            case 10 => ABT.Tm(Rec_(readChildTerm()))
+            case 11 => ABT.Tm(Let_(readChildTerm(), readChildTerm()))
+            case 12 => Term.If(readChildTerm(), readChildTerm(), readChildTerm())
+            case 13 => Term.And(readChildTerm(), readChildTerm())
+            case 14 => Term.Or(readChildTerm(), readChildTerm())
+            case 15 => /* Match */
+              val patternsish = Source.getFramedArray(src) {
+                src => (readPattern(src), src.getBoolean)
+              }
+              val scrutinee = readChildTerm()
+              val cases = patternsish map { case (pat, hasGuard) =>
+                Term.MatchCase(
+                  pat,
+                  if (hasGuard) Some(readChildTerm()) else None,
+                  readChildTerm()
+                )
+              }
+              Term.Match(scrutinee)(cases: _*)
+            case 16 => Term.Handle(readChildTerm())(readChildTerm())
+            case 17 => Term.EffectPure(readChildTerm())
+            case 18 =>
+              val id = readId(src)
+              val cid = readConstructorId(src)
+              val children = readList(readChildTermOption _) // todo: slow
+              Term.EffectBind(id,cid,children.init,children.last)
+            case 19 =>
+              val children = readList(readChildTermOption _) // todo: slow
+              ABT.Tm(LetRec_(children.init, children.last))
+            case 20 =>
+              val name = src.getString
+              val param = readChildParam() // note, this changes src
+              Term.Compiled(param, name)
+        }}
+        else Node.Param { (tag: @switch) match {
+          case 21 => Value.Unboxed(src.getLong, readUnboxedType(src))
+          case 22 => /* Lambda */
+            // in order to do compilation we need the compilation environment
+            val c = compilation.compileTop(Environment.standard)(readChildTerm())
+            // in order to do evaluation we need a runtime environment / stack
+            ???
+          case 23 => Value.Data(readId(src),
+                                readConstructorId(src),
+                                readArray(readChildValueOption _))
+          case 24 => Value.EffectPure(src.getLong, readChildValue())
+          case 25 => /* EffectBind */
+            val id = readId(src)
+            val cid = readConstructorId(src)
+            val children = readArray(readChildValueOption _)
+            Value.EffectBind(readId(src),
+                             readConstructorId(src),
+                             children.init, children.last.asInstanceOf[Value.Lambda])
+          case 26 => new Ref(src.getString, readChildValue())
+          case 27 => /* External */
+            // in order to do compilation we need the compilation environment
+            val c = compilation.compileTop(Environment.standard)(readChildTerm())
+            val sp0 = compilation.StackPtr.empty
+            Value(compilation.evalClosed(c,R,sp0,stackU,stackB), R.boxed)
+          case 28 => UnboxedType.Boolean
+          case 29 => UnboxedType.Int64
+          case 30 => UnboxedType.UInt64
+          case 31 => UnboxedType.Float
+          case t =>
+            sys.error(s"unexpected tag byte $t during decoding")
+        }}
+      }}
     }
 
-  //    def stageDecoder(src: Source): () => Term = {
-  //      val valueDecoder = valueGraphCodec.stageDecoder(src)
-  //      GraphCodec.decoder(src) {
-  //        new GraphCodec.Decoder[G, Nothing] {
-
-  //          def makeReference(position: Long, prefix: Array[Byte]): R =
-  //            sys.error("unpossible")
-
-  //          def setReference(ref: R, referent: G): Unit =
-  //            sys.error("unpossible")
-
-  //          def isReference(graph: G): Boolean = false
-
-  //          def decode(readChildOption: () => Option[G]): G = {
-  //            def readChild(): G = readChildOption().get
-  //            (src.getByte: @switch) match {
-  //              case VarTag =>
-  //                ABT.Var(src.getString)
-  //              case AbsTag =>
-  //                ABT.Abs(
-  //                  src.getString,
-  //                  readChild()
-  //                )
-  //              case ConstructorTag =>
-  //                Term.Constructor(
-  //                  readId(src),
-  //                  readConstructorId(src)
-  //                )
-  //              case IdTag =>
-  //                Term.Id(readId(src))
-  //              case TextTag =>
-  //                Term.Text(src.getText)
-  //              case UnboxedTag =>
-  //                Term.Unboxed(src.getLong, readUnboxedType(src))
-  //              case SequenceTag =>
-  //                Term.Sequence(readSequence(readChildOption))
-  //              case LamTag =>
-  //                ABT.Tm(Lam_(readChild()))
-  //              case ApplyTag =>
-  //                Term.Apply(readChild(), readList(readChildOption):_*)
-  //              case RecTag =>
-  //                ABT.Tm(Rec_(readChild()))
-  //              case LetTag =>
-  //                ABT.Tm(Let_(readChild(), readChild()))
-  //              case IfTag =>
-  //                Term.If(readChild(), readChild(), readChild())
-  //              case AndTag =>
-  //                Term.And(readChild(), readChild())
-  //              case OrTag =>
-  //                Term.Or(readChild(), readChild())
-  //              case MatchTag =>
-  //                val patternsish = Source.getFramedArray(src) {
-  //                  src => (readPattern(src), src.getBoolean)
-  //                }
-  //                val scrutinee = readChild()
-  //                val cases = patternsish map { case (pat, hasGuard) =>
-  //                  Term.MatchCase(
-  //                    pat,
-  //                    if (hasGuard) Some(readChild()) else None,
-  //                    readChild()
-  //                  )
-  //                }
-  //                Term.Match(scrutinee)(cases: _*)
-  //              case CompiledTag =>
-  //                val name = src.getString
-  //                val param = valueDecoder() // note, this changes src
-  //                Term.Compiled(param, name)
-  //              case RequestTag =>
-  //                Term.Request(readId(src), readConstructorId(src))
-  //              case HandleTag =>
-  //                Term.Handle(readChild())(readChild())
-  //              case EffectPureTag =>
-  //                Term.EffectPure(readChild())
-  //              case EffectBindTagTerm=>
-  //                val id = readId(src)
-  //                val cid = readConstructorId(src)
-  //                val children = readList(readChildOption) // todo: slow
-  //                Term.EffectBind(id,cid,children.init,children.last)
-  //              case LetRecTagTerm=>
-  //                val children = readList(readChildOption) // todo: slow
-  //                ABT.Tm(LetRec_(children.init, children.last))
-  //            }
-  //          }
-  //        }
-  //      }
     def foreach(node: Node)(f: Node => Unit): Unit = node match {
       case Node.Param(r) => foreachParam(r)(f)
       case Node.Term(t) => foreachTerm(t)(f)
     }
+
     def foreachTerm(t: Term)(f: Node => Unit): Unit = t.get match {
       case ABT.Tm_(tm) => tm match {
         case Compiled_(p,name) => foreachParam(p)(f)
@@ -135,6 +149,7 @@ object Codecs {
 
     def foreachParam(p: Param)(f: Node => Unit): Unit = p match {
       case lam : Value.Lambda => foreachTerm(lam.decompile)(f)
+      case e : Builtins.External => foreachTerm(e.decompile)(f)
       case p => p foreachChild (p => f(Node.Param(p)))
     }
 
@@ -220,11 +235,8 @@ object Codecs {
 
       case r: Ref                          => sink putByte 26
         sink putString r.name.toString
-        writeParamBytePrefix(r.value, sink)
 
       case e: Builtins.External            => sink putByte 27
-        writeTermBytePrefix(e.decompile,
-                            sink)
 
       case UnboxedType.Boolean             => sink putByte 28
       case UnboxedType.Int64               => sink putByte 29
@@ -310,9 +322,9 @@ object Codecs {
         writePattern(continuation, sink)
     }
 
-    final def readSequence(readChild: () => Option[Node]): util.Sequence[Node] = {
+    final def readSequence[A](readChild: () => Option[A]): util.Sequence[A] = {
       @annotation.tailrec
-      def loop(s: util.Sequence[Node]): util.Sequence[Node] =
+      def loop(s: util.Sequence[A]): util.Sequence[A] =
         readChild() match {
           case Some(g) => loop(s :+ g)
           case None => s
@@ -320,9 +332,19 @@ object Codecs {
       loop(util.Sequence.empty)
     }
 
-    final def readList(readChild: () => Option[Node]): List[Node] = {
+    final def readArray[A:reflect.ClassTag](readChild: () => Option[A]): Array[A] = {
+      val buf = new collection.mutable.ArrayBuffer[A]
       @annotation.tailrec
-      def loop(s: List[Node]): List[Node] =
+      def loop: Array[A] = readChild() match {
+        case Some(g) => buf += g; loop
+        case None => buf.toArray
+      }
+      loop
+    }
+
+    final def readList[A](readChild: () => Option[A]): List[A] = {
+      @annotation.tailrec
+      def loop(s: List[A]): List[A] =
         readChild() match {
           case Some(g) => loop(g :: s)
           case None => s.reverse

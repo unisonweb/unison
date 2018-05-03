@@ -97,7 +97,7 @@ object Value {
     def saturatedNonTailCall(args: List[Computation]): Computation =
       compileStaticFullySaturatedNontailCall(this, args)
 
-    def underapply(builtins: compilation.Environment)(
+    def underapply(builtins: Environment)(
                    argCount: Int, substs: Map[Name, Term]): Value.Lambda =
       decompile match {
         case Term.Lam(names, body) =>
@@ -193,7 +193,7 @@ object Value {
       // esp when there are multiple stages of underapply for functions with
       // large arities
 
-      override def underapply(builtins: compilation.Environment)(
+      override def underapply(builtins: Environment)(
         argCount: Int, substs: Map[Name, Term]): Value.Lambda = {
         if (argCount == 1) underapply1(substs.head._1, substs.head._2)
         else {

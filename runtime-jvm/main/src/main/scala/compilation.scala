@@ -935,13 +935,6 @@ package object compilation {
   def compileTop(builtins: Environment)(e: Term) =
     compile(builtins)(e, Vector(), CurrentRec.none, RecursiveVars.empty, IsTail)
 
-  case class Environment(
-    builtins: Name => Computation,
-    userDefined: Hash => Computation,
-    dataConstructors: (Id,ConstructorId) => Computation,
-    effects: (Id,ConstructorId) => Computation
-  )
-
   def compile(builtins: Environment)(
     e: Term,
     env: Vector[Name] = Vector.empty,
@@ -1394,6 +1387,11 @@ package object compilation {
                    stackU: Array[U], x1: U, x0: U,
                    stackB: Array[B], x1b: B, x0b: B): U =
     try c(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+    catch { case TailCall => loop(r, top, stackU, stackB) }
+
+  @inline def evalClosed(c: Computation, r: R, top: StackPtr,
+                         stackU: Array[U], stackB: Array[B]): U =
+    try c(r, null, top, stackU, U0, U0, stackB, null, null)
     catch { case TailCall => loop(r, top, stackU, stackB) }
 
   def loop(r: R, top: StackPtr, stackU: Array[U], stackB: Array[B]): U = {
