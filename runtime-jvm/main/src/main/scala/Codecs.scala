@@ -8,7 +8,49 @@ import scala.annotation.switch
 object Codecs {
   // make sure valueGraphCodec doesn't eagerly call termGraphCodec :)
   implicit val valueGraphCodec: GraphCodec[Param,Ref] = new GraphCodec[Param,Ref] {
-    def writeBytePrefix(graph: Param, sink: Sink): Unit = ???
+    def writeBytePrefix(graph: Param, sink: Sink): Unit = graph match {
+      case r: Ref =>
+        sink.putByte(0)
+        sink.putString(r.name.toString)
+        writeBytePrefix(r.value, sink)
+      case Value.Unboxed(u, typ) =>
+        sink.putByte(1)
+        sink.putLong(u)
+        writeUnboxedType(typ, sink)
+      case l: Value.Lambda =>
+        sink.putByte(2)
+        termGraphCodec.writeBytePrefix(l.decompile, sink) // ??? what about staging
+      case Value.Data(id, cid, _) =>
+        sink.putByte(3)
+        writeId(id, sink)
+        writeConstructorId(cid, sink)
+
+      // could combine next four cases into one 2-byte code, but why?
+      case UnboxedType.Boolean =>
+        sink.putByte(4)
+      case UnboxedType.Int64 =>
+        sink.putByte(5)
+      case UnboxedType.UInt64 =>
+        sink.putByte(6)
+      case UnboxedType.Float=>
+        sink.putByte(7)
+
+      case Value.EffectPure(u, _) =>
+        sink.putByte(8)
+        sink.putLong(u)
+      case Value.EffectBind(id, cid, _, _) =>
+        sink.putByte(9)
+        writeId(id, sink)
+        writeConstructorId(cid, sink)
+      case e: Builtins.External =>
+        sink.putByte(10)
+        termGraphCodec.writeBytePrefix(e.decompile, sink)
+        // todo ??? what about staging this one ^
+      case t =>
+        sys.error(s"unexpected Param type ${t.getClass}")
+    }
+
+
     def bytePrefixIndex(graph: Param, index: Int): Byte = ???
     def bytePrefixLength(graph: Param): Int = ???
 
