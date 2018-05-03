@@ -29,15 +29,14 @@ object Codecs {
         val stackU = new Array[U](512)
         val stackB = new Array[B](512)
         val R = compilation.Result()
-        def makeReference(position: Long, prefix: Array[Byte]) =
-          // todo - parse Name out of prefix
-          new Ref("v"+position.toString, null)
-        def setReference(r: Ref, v: Node): Unit = {
-          r.value = v match {
-            case Node.Param(v) => v.toValue
-            case Node.Term(_) => sys.error("cannot set a reference to a term")
-          }
+        def nodeToValue(n: Node): Value = n match {
+          case Node.Param(p) => p.toValue
+          case _ => sys.error("not a Param: " + n)
         }
+
+        def decodeReference(position: Long, referent: () => Node) =
+          new Ref(src.getString, nodeToValue(referent()))
+
         def decode(readChildOption: () => Option[Node]): Node = {
           def readChildTerm(): Term = readChildTermOption().get
           def readChildTermOption(): Option[Term] = readChildOption() match {

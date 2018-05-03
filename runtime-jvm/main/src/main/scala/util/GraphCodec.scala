@@ -66,7 +66,7 @@ trait GraphCodec[G,R] {
    * of each `g: G` which passes `isReference(g)` is written
    * to the output as well.
    */
-  def encode(buf: Sink, includeRefMetadata: Boolean): G => Unit = {
+  def encode(buf: Sink): G => Unit = {
     val seen = new IdentityHashMap[G,Long]()
     def go(g: G): Unit = {
       if (isReference(g)) {
@@ -75,11 +75,7 @@ trait GraphCodec[G,R] {
         if (pos eq null) {
           seen.put(g, buf.position)
           buf.putByte(RefMarker.toByte)
-          if (includeRefMetadata) {
-            buf.putByte(RefMetadata.toByte)
-            writeBytePrefix(inject(r), buf)
-          }
-          else buf.putByte(RefNoMetadata.toByte)
+          writeBytePrefix(inject(r), buf)
           go(dereference(r))
         }
         else {
@@ -118,19 +114,10 @@ object GraphCodec {
   final val SeenMarker = 2
   final val RefMarker = 3
   final val RefSeenMarker = 4
-  final val RefMetadata = 0
-  final val RefNoMetadata = 1
 
   trait Decoder[G,R] {
     def decode(readChild: () => Option[G]): G
-
-    /**
-      * Create an empty `R` from a position and a `prefix`.
-      * It should be subsequently set via `setReference`.
-      */
-    def makeReference(position: Long, prefix: Array[Byte]): R
-    def setReference(ref: R, referent: G): Unit
-
+    def decodeReference(position: Long, readReferent: () => G): R
   }
 
   def decoder[G,R](src: Source, inject: R => G)(d: Decoder[G,R]): () => G = {
@@ -150,15 +137,11 @@ object GraphCodec {
       case NestedEndMarker => throw NestedEnd
       case SeenMarker => decoded(src.getLong)
       case RefMarker =>
-        val r =
-          if (src.getByte.toInt == RefMetadata)
-            d.makeReference(src.position, src.get(src.getInt))
-          else
-            d.makeReference(src.position, Array.empty)
+        lazy val referent = read1
+        val r = d.decodeReference(src.position, () => referent)
+        referent // force the referent to be decoded
         val gr = inject(r)
         decoded = decoded.updated(pos, gr)
-        val g = read1
-        d.setReference(r, g)
         gr // we return the reference, not the thing inside the reference
       case RefSeenMarker => decoded(src.getLong)
       case b => sys.error("unknown byte in GraphCodec decoding stream: " + b)
@@ -181,7 +164,5 @@ object GraphCodec {
 
     () => read1
   }
-
-
 }
 
