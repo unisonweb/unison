@@ -1,6 +1,6 @@
 package org.unisonweb
 
-import util.{GraphCodec, Sink, Source}
+import util.{GraphCodec, Sequence, Sink, Source}
 import Term.Term
 import Term.F._
 
@@ -8,12 +8,33 @@ import scala.annotation.switch
 
 object Codecs {
 
-  sealed trait Node
+  sealed trait Node {
+    def unsafeAsTerm: Term = this match {
+      case Node.Term(t) => t
+      case _ => sys.error("not a term: " + this)
+    }
+    def unsafeAsParam: Param = this match {
+      case Node.Param(p) => p
+      case _ => sys.error("not a param: " + this)
+    }
+  }
 
   object Node {
     case class Term(get: org.unisonweb.Term.Term) extends Node
     case class Param(get: org.unisonweb.Param) extends Node
   }
+
+  def encodeTerm(t: Term): Sequence[Array[Byte]] =
+    nodeGraphCodec.encode(Node.Term(t))
+
+  def decodeTerm(bytes: Sequence[Array[Byte]]): Term =
+    nodeGraphCodec.decode(bytes).unsafeAsTerm
+
+  def encodeValue(p: Value): Sequence[Array[Byte]] =
+    nodeGraphCodec.encode(Node.Param(p))
+
+  def decodeValue(bytes: Sequence[Array[Byte]]): Value =
+    nodeGraphCodec.decode(bytes).unsafeAsParam.toValue
 
   implicit val nodeGraphCodec: GraphCodec[Node,Ref] = new GraphCodec[Node,Ref] {
 

@@ -19,8 +19,10 @@ object CompilationTests {
     BuiltinTypes.dataConstructors,
     BuiltinTypes.effects)
 
-  def eval(t: Term): Term =
+  def eval(t0: Term): Term = {
+    val t = Codecs.decodeTerm(Codecs.encodeTerm(t0))
     normalize(env)(t)
+  }
 
   val tests = suite("compilation")(
     test("zero") { implicit T =>
