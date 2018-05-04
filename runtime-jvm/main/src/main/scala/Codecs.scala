@@ -132,8 +132,7 @@ object Codecs {
             val id = readId(src)
             val cid = readConstructorId(src)
             val children = readArray(readChildValueOption _)
-            Value.EffectBind(id,
-                             cid,
+            Value.EffectBind(id, cid,
                              children.init, children.last.asInstanceOf[Value.Lambda])
           case 26 => new Ref(src.getString, readChildValue())
           case 27 => /* External */
