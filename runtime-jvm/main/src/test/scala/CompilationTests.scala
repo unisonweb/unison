@@ -21,7 +21,9 @@ object CompilationTests {
 
   def eval(t0: Term): Term = {
     val bytes = Codecs.encodeTerm(t0)
-    println("chunk sizes: " + bytes.map(_.length))
+    // import util.Bytes
+    // println("chunks: " + bytes.map(_.toList))
+    // println("chunks (sequence): " + Bytes.fromChunks(bytes))
     val t = Codecs.decodeTerm(Codecs.encodeTerm(t0))
     normalize(env)(t)
   }

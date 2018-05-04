@@ -131,7 +131,7 @@ object Source {
       catch { case BufferUnderflow() => empty; get(n) }
 
     def getByte: Byte =
-      try { val b = bb.get; println("getting a byte: " + b); b }
+      try bb.get
       catch { case BufferUnderflow() => empty; getByte }
 
     def getInt: Int =

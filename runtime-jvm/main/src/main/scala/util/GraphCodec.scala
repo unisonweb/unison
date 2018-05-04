@@ -68,8 +68,7 @@ trait GraphCodec[G,R] {
         }
       }
       else {
-        val pos = seen.get(g)
-        if (pos eq null) {
+        if (!seen.containsKey(g)) {
           seen.put(g, buf.position)
           buf.putByte(NestedStartMarker.toByte) // indicates a Nested follows
           writeBytePrefix(g, buf)
@@ -77,6 +76,7 @@ trait GraphCodec[G,R] {
           buf.putByte(NestedEndMarker.toByte)
         }
         else {
+          val pos = seen.get(g)
           buf.putByte(SeenMarker.toByte)
           buf.putLong(pos)
         }
