@@ -126,14 +126,14 @@ object Codecs {
             Value(compilation.evalClosed(c,R,sp0,stackU,stackB), R.boxed)
           case 23 => Value.Data(readId(src),
                                 readConstructorId(src),
-                                Array.fill(src.getInt)(readChildValue()))
+                                readArray(readChildValueOption _))
           case 24 => Value.EffectPure(src.getLong, readChildValue())
           case 25 => /* EffectBind */
             val id = readId(src)
             val cid = readConstructorId(src)
             val children = readArray(readChildValueOption _)
-            Value.EffectBind(readId(src),
-                             readConstructorId(src),
+            Value.EffectBind(id,
+                             cid,
                              children.init, children.last.asInstanceOf[Value.Lambda])
           case 26 => new Ref(src.getString, readChildValue())
           case 27 => /* External */
@@ -252,7 +252,6 @@ object Codecs {
       case Value.Data(id, cid, vs)         => sink putByte 23
         writeId(id, sink)
         writeConstructorId(cid, sink)
-        sink.putInt(vs.length)
 
       case Value.EffectPure(u, _)          => sink putByte 24
         sink putLong u
