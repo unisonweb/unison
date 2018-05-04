@@ -37,6 +37,10 @@ sealed abstract class Sequence[A] {
   def halve = (take(size / 2), drop(size / 2))
   def reverse: Sequence[A]
   def map[B](f: A => B): Sequence[B]
+  def flatMap[B](f: A => Sequence[B]): Sequence[B] = uncons match {
+    case None => Sequence.empty
+    case Some((hd,tl)) => tl.foldLeft(f(hd))((bs,a) => bs ++ f(a))
+  }
 }
 
 object Sequence {
