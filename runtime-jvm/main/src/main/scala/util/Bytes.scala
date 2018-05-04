@@ -13,10 +13,13 @@ object Bytes {
     else Sequence.Flat(Deque.fromBlock(Block.fromArray(bs.toArray), bs.size))
 
   def viewArray(arr: Array[Byte]): Sequence[Byte] =
-    Sequence.Flat(Deque.fromBlock(Block.viewArray(arr), 0))
+    Sequence.Flat(Deque.fromBlock(Block.viewArray(arr), arr.length))
 
   def fromArray(arr: Array[Byte]): Sequence[Byte] =
     viewArray(arr.clone)
+
+  def fromChunks(s: Sequence[Array[Byte]]): Sequence[Byte] =
+    s.foldLeft(empty)((buf,arr) => buf ++ viewArray(arr))
 
   class Canonical(val get: Seq.Base, children: Array[Canonical]) {
     def apply(b: Byte) = {
