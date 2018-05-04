@@ -237,8 +237,8 @@ object Codecs {
           writeConstructorId(cid, sink)
 
         case LetRec_(_,_)               => sink putByte 19
-        case Compiled_(value)           => sink putByte 20
-          writeParamBytePrefix(value, sink)
+        case Compiled_(_)           => sink putByte 20
+//          writeParamBytePrefix(value, sink) // todo: delete this?
       }
     }
 
