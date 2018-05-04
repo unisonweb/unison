@@ -229,7 +229,7 @@ object PrettyPrint {
         semicolons(cases.map(prettyCase)).nest("  ")
     }
     case Term.Constructor(id,cid) => prettyId(id,cid)
-    case Term.Compiled(Value.Data(typeId, ctorId, fields), _) =>
+    case Term.Compiled(Value.Data(typeId, ctorId, fields)) =>
       prettyTerm(
         Term.Var(prettyId(typeId, ctorId).renderUnbroken)(
           fields.map(_.decompile):_*), precedence)

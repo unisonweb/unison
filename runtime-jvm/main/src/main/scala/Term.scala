@@ -72,8 +72,8 @@ object Term {
 
   /** Return a `Term` without an outer `Compiled` constructor. */
   def stripOuterCompiled(t: Term): Term = t match {
-    case Compiled(v: Value, _) => v.decompile
-    case Compiled(r: Ref, _) => r.value.decompile
+    case Compiled(v: Value) => v.decompile
+    case Compiled(r: Ref) => r.value.decompile
     case _ => t
   }
 
@@ -118,10 +118,10 @@ object Term {
         transitiveClosure(transitiveClosure(seen, binding), body)
       case LetRec(bindings, body) =>
         bindings.map(_._2).foldLeft(transitiveClosure(seen, body))(transitiveClosure)
-      case Compiled(r : Ref, _) =>
+      case Compiled(r : Ref) =>
         if (seen.contains(r)) seen
         else { val v = r.value.decompile; transitiveClosure(seen + (r -> v), v) }
-      case Compiled(v,_) => transitiveClosure(seen, v.toValue.decompile)
+      case Compiled(v) => transitiveClosure(seen, v.toValue.decompile)
     }
 
     // 1. Collect full set of refs via transitive closure - a `Set[Ref]`
@@ -130,7 +130,7 @@ object Term {
     // 2. Freshen names for each `Ref`, if needed
     val freshRefNames = refs.keys.view.map(r => (r, ABT.freshen(r.name, usedNames))).toMap
     def replaceRefs(t: Term): Term = t.rewriteDown {
-      case Compiled(c,_) => c match {
+      case Compiled(c) => c match {
         case r : Ref => Var(freshRefNames(r))
         case Value.Unboxed(d,typ) => Term.Unboxed(d,typ)
         case v : Value => replaceRefs(v.decompile)
@@ -218,7 +218,7 @@ object Term {
         cases foreach { case MatchCase(_,g,b) => g foreach f; f(b) }
       }
     }
-    case class Compiled_(value: Param, name: Name) extends A0[Nothing]
+    case class Compiled_(value: Param) extends A0[Nothing]
     // request : <f> a -> {f} a
     case class Request_ [R](id: Id, ctor: ConstructorId) extends A0[R]
     // handle : (forall x . <f> x -> r) -> {f} x -> r
@@ -234,7 +234,7 @@ object Term {
 
     implicit val instance: Traverse[F] = new Traverse[F] {
       override def map[A,B](fa: F[A])(f: A => B): F[B] = fa match {
-        case fa @ (Id_(_) | Unboxed_(_,_) | Compiled_(_,_) | Text_(_) |
+        case fa @ (Id_(_) | Unboxed_(_,_) | Compiled_(_) | Text_(_) |
                    Constructor_(_,_) | Request_(_,_)) =>
           fa.asInstanceOf[F[B]]
         case Lam_(a) => Lam_(f(a))
@@ -450,10 +450,10 @@ object Term {
   }
 
   object Compiled {
-    def apply(v: Param, name: Name): Term =
-      Tm(Compiled_(v,name))
-    def unapply[A](t: AnnotatedTerm[F,A]): Option[(Param, Name)] = t match {
-      case Tm(Compiled_(p, n)) => Some(p -> n)
+    def apply(v: Param): Term =
+      Tm(Compiled_(v))
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[Param] = t match {
+      case Tm(Compiled_(p)) => Some(p)
       case _ => None
     }
   }

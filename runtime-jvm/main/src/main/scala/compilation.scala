@@ -529,7 +529,7 @@ package object compilation {
                           r, rec, top,
                           stackU, x1, x0,
                           stackB, x1b, x0b)
-          val param = Term.Compiled(Param(argv, r.boxed), names(i))
+          val param = Term.Compiled(Param(argv, r.boxed))
           go(i+1, substs.updated(names(i), param))
         }
         else substs
@@ -886,14 +886,14 @@ package object compilation {
           (name, c) =>
             val evaluatedVar = c(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
             val value = Value(evaluatedVar, r.boxed)
-            Term.Compiled(value, name)
+            Term.Compiled(value)
         }
 
         val evaledRecVars: Map[Name, Term] = compiledFreeRecs.transform {
           (name, lookup) =>
             val evaluatedVar = lookup(rec, top, stackB, x1b, x0b)
             if (evaluatedVar eq null) sys.error(name + " refers to null stack slot.")
-            Term.Compiled(evaluatedVar, name)
+            Term.Compiled(evaluatedVar)
         }
 
         val body2 = ABT.substs(evaledFreeVars ++ evaledRecVars)(body)
@@ -949,7 +949,7 @@ package object compilation {
         builtins.builtins(name)
       case Term.Id(Id.HashRef(h)) => ???
       case Term.Constructor(id,cid) => builtins.dataConstructors(id,cid)
-      case Term.Compiled(param,_) =>
+      case Term.Compiled(param) =>
         if (param.toValue eq null)
           (r => param.toValue.toResult(r)) : Computation.C0
         else Return(param.toValue)
@@ -1277,7 +1277,7 @@ package object compilation {
           def attachHandler(handler: Lambda, k: Lambda): Lambda = {
             def decompiled =
               // Note: We have to make up a name here. "handler" works.
-              Term.Lam(k.names:_*)(Term.Handle(Term.Compiled(handler, "handler"))(
+              Term.Lam(k.names:_*)(Term.Handle(Term.Compiled(handler))(
                 k.decompile(k.names.map(Term.Var(_)):_*)))
             val body: Computation = (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
               doIt(handler, k.body)(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)

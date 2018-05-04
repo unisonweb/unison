@@ -71,7 +71,7 @@ object Value {
     def decompile = Term.freeVars(decompileWithPossibleFreeVar).toList match {
       case Nil => decompileWithPossibleFreeVar
       case List(name) =>
-        ABT.subst(name, Term.Compiled(this, name))(decompileWithPossibleFreeVar)
+        ABT.subst(name, Term.Compiled(this))(decompileWithPossibleFreeVar)
     }
 
     final val arity = names.length
@@ -153,7 +153,7 @@ object Value {
       /** Underapply this `Lambda`, passing 1 argument (named `substName`). */
       final def underapply1(substName: Name, substTerm: Term): ClosureForming = {
         assert(arity >= 1)
-        val arg = substTerm match { case Term.Compiled(b,_) => b }
+        val arg = substTerm match { case Term.Compiled(b) => b }
         val v = arg.toValue
         val argv = v.toUnboxed
         val argvb = v.toBoxed

@@ -131,7 +131,7 @@ object CompilationTests {
         }
 
       val lam = Term.Compiled(
-        new ClosureForming(List("a","b","c","d"), body, Some(UnboxedType.Int64), 42), "a-lam")
+        new ClosureForming(List("a","b","c","d"), body, Some(UnboxedType.Int64), 42))
       val p = Let('f -> lam(1))('f.v(2,3,4))
       val p2 = Let('f -> lam(1), 'g -> 'f.v(2))('g.v(3,4))
       val p3 = Let('f -> lam(1), 'g -> 'f.v(2), 'h -> 'g.v(3))('h.v(4))
@@ -903,16 +903,16 @@ object Terms {
     )('odd)
 
   def tupleTerm(xs: Value*): Term =
-    Term.Compiled(tupleV(xs :_*), "Tuple")
+    Term.Compiled(tupleV(xs :_*))
 
   def tupleV(xs: Value*): Value =
     Value.Data(Id.Builtin("Tuple"), ConstructorId(0), xs.toArray)
 
   def intTupleTerm(xs: Int*): Term =
-    Term.Compiled(intTupleV(xs: _*), "Tuple")
+    Term.Compiled(intTupleV(xs: _*))
 
   def intRightTerm(i: Int): Term =
-    Term.Compiled(intRightV(i), "Right")
+    Term.Compiled(intRightV(i))
 
   def intRightV(i: Int): Value =
     Value.Data(Id.Builtin("Either"), ConstructorId(1), Array(intValue(i)))

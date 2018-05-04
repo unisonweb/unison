@@ -115,9 +115,7 @@ object Codecs {
               val children = readList(readChildTermOption _) // todo: slow
               ABT.Tm(LetRec_(children.init, children.last))
             case 20 =>
-              val name = src.getString
-              val param = readChildParam() // note, this changes src
-              Term.Compiled(param, name)
+              Term.Compiled(readChildParam())
         }}
         else Node.Param { (tag: @switch) match {
           case 21 => Value.Unboxed(src.getLong, readUnboxedType(src))
@@ -226,8 +224,7 @@ object Codecs {
           writeConstructorId(cid, sink)
 
         case LetRec_(_,_)               => sink putByte 19
-        case Compiled_(value,name)      => sink putByte 20
-          sink putString name.toString
+        case Compiled_(value)           => sink putByte 20
           writeParamBytePrefix(value, sink)
       }
     }
