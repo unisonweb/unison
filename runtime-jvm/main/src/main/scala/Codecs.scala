@@ -128,7 +128,7 @@ object Codecs {
             Value(compilation.evalClosed(c,R,sp0,stackU,stackB), R.boxed)
           case 23 => Value.Data(readId(src),
                                 readConstructorId(src),
-                                readArray(readChildValueOption _))
+                                Array.fill(src.getInt)(readChildValue()))
           case 24 => Value.EffectPure(src.getLong, readChildValue())
           case 25 => /* EffectBind */
             val id = readId(src)
@@ -168,8 +168,8 @@ object Codecs {
     }
 
     def foreachParam(p: Param)(f: Node => Unit): Unit = p match {
-      case lam : Value.Lambda => foreachTerm(lam.decompile)(f)
-      case e : Builtins.External => foreachTerm(e.decompile)(f)
+      case lam : Value.Lambda => f(Node.Term(lam.decompile))
+      case e : Builtins.External => f(Node.Term(e.decompile))
       case p => p foreachChild (p => f(Node.Param(p)))
     }
 
@@ -177,7 +177,6 @@ object Codecs {
       case Node.Term(t) => writeTermBytePrefix(t, sink)
       case Node.Param(p) => writeParamBytePrefix(p, sink)
     }
-
 
     def writeTermBytePrefix(t: Term, sink: Sink): Unit = t.get match {
       case ABT.Var_(n)                  => sink putByte 0
@@ -239,12 +238,11 @@ object Codecs {
         writeUnboxedType(typ, sink)
 
       case l: Value.Lambda                 => sink putByte 22
-        writeTermBytePrefix(l.decompile,
-                            sink)
 
-      case Value.Data(id, cid, _)          => sink putByte 23
+      case Value.Data(id, cid, vs)         => sink putByte 23
         writeId(id, sink)
         writeConstructorId(cid, sink)
+        sink.putInt(vs.length)
 
       case Value.EffectPure(u, _)          => sink putByte 24
         sink putLong u
@@ -257,7 +255,6 @@ object Codecs {
         sink putString r.name.toString
 
       case e: Builtins.External            => sink putByte 27
-
       case UnboxedType.Boolean             => sink putByte 28
       case UnboxedType.Int64               => sink putByte 29
       case UnboxedType.UInt64              => sink putByte 30
