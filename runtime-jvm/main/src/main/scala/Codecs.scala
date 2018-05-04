@@ -162,6 +162,7 @@ object Codecs {
       t.get match {
         case ABT.Tm_(tm) => tm match {
           case Compiled_(p) => foreachParam(p)(f)
+          case Compiled_(p) => f(Node.Param(p))
           case tm => tm foreachChild (term => f(Node.Term(term)))
         }
         case ABT.Abs_(_,body) => f(Node.Term(body))
