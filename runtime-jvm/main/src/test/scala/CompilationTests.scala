@@ -19,13 +19,15 @@ object CompilationTests {
     BuiltinTypes.dataConstructors,
     BuiltinTypes.effects)
 
-  def eval(t0: Term): Term = {
-    val bytes = Codecs.encodeTerm(t0)
+  def eval(t0: Term, roundTrip: Boolean = true): Term = {
+    // val bytes = Codecs.encodeTerm(t0)
     // import util.Bytes
     // println("chunks: " + bytes.map(_.toList))
     // println("chunks (sequence): " + Bytes.fromChunks(bytes))
-    val t = Codecs.decodeTerm(Codecs.encodeTerm(t0))
-    normalize(env)(t)
+    normalize(env) {
+      if (roundTrip) Codecs.decodeTerm(Codecs.encodeTerm(t0))
+      else t0
+    }
   }
 
   val tests = suite("compilation")(
@@ -135,10 +137,10 @@ object CompilationTests {
       val p3 = Let('f -> lam(1), 'g -> 'f.v(2), 'h -> 'g.v(3))('h.v(4))
       val p4 = lam(1,2,3,4)
 
-      equal1[Term](eval(p), -8)
-      equal1[Term](eval(p2), -8)
-      equal1[Term](eval(p3), -8)
-      equal1[Term](eval(p4), -8)
+      equal1[Term](eval(p,false), -8)
+      equal1[Term](eval(p2,false), -8)
+      equal1[Term](eval(p3,false), -8)
+      equal1[Term](eval(p4,false), -8)
       ok
     },
     test("partially apply builtin") { implicit T =>
