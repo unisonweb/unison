@@ -21,10 +21,7 @@ object CompilationTests {
 
   def eval(t0: Term, roundTrip: Boolean = true): Term = {
     val bytes = Codecs.encodeTerm(t0)
-//    import util.Bytes
-//    println("chunks: " + bytes.map(_.toList))
-//    println("chunks (sequence): " + Bytes.fromChunks(bytes))
-    println("bytes: " + bytes.toList.flatten)
+//    println("bytes: " + bytes.toList.flatten)
     normalize(env) {
       if (roundTrip) Codecs.decodeTerm(Codecs.encodeTerm(t0))
       else t0
