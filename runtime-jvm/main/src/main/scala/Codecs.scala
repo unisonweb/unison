@@ -217,7 +217,7 @@ object Codecs {
           sink.putFramedSeq(cases) {
             (sink, c) =>
               writePattern(c.pattern, sink)
-              sink putBoolean c.guard.isEmpty
+              sink putBoolean c.guard.isDefined
           }
 
         case Handle_(_,_)               => sink putByte 16
@@ -315,31 +315,32 @@ object Codecs {
     }
 
     final def writePattern(p: Pattern, sink: Sink): Unit = p match {
-      case Pattern.LiteralU(u, typ) =>
-        sink.putByte(0)
+      case Pattern.LiteralU(u, typ)      => sink putByte 0
         sink.putLong(u)
         writeUnboxedType(typ, sink)
-      case Pattern.Wildcard =>
-        sink.putByte(1)
-      case Pattern.Uncaptured =>
-        sink.putByte(2)
-      case Pattern.Data(id,cid,patterns) =>
-        sink.putByte(3)
+
+      case Pattern.Wildcard              => sink putByte 1
+      case Pattern.Uncaptured            => sink putByte 2
+
+      case Pattern.Data(id,cid,patterns) => sink putByte 3
         writeId(id, sink)
         writeConstructorId(cid, sink)
-        sink.putFramedSeq(patterns)((sink,p) => writePattern(p,sink))
-      case Pattern.As(p) =>
-        sink.putByte(4)
+        sink.putFramedSeq(patterns)(
+          (sink,p) => writePattern(p,sink))
+
+      case Pattern.As(p)                 => sink putByte 4
         writePattern(p, sink)
-      case Pattern.EffectPure(p) =>
-        sink.putByte(5)
+
+      case Pattern.EffectPure(p)         => sink putByte 5
         writePattern(p, sink)
-      case Pattern.EffectBind(id,cid,patterns,continuation) =>
-        sink.putByte(6)
-        writeId(id, sink)
-        writeConstructorId(cid, sink)
-        sink.putFramedSeq(patterns)((sink,p) => writePattern(p,sink))
-        writePattern(continuation, sink)
+
+      case Pattern.EffectBind(
+        id,cid,patterns,continuation)    => sink putByte 6
+          writeId(id, sink)
+          writeConstructorId(cid, sink)
+          sink.putFramedSeq(patterns)(
+            (sink,p) => writePattern(p,sink))
+          writePattern(continuation, sink)
     }
 
     final def readSequence[A](readChild: () => Option[A]): util.Sequence[A] = {
