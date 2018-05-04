@@ -241,7 +241,6 @@ object Codecs {
       case Value.Data(id, cid, vs)         => sink putByte 23
         writeId(id, sink)
         writeConstructorId(cid, sink)
-        sink.putInt(vs.length)
 
       case Value.EffectPure(u, _)          => sink putByte 24
         sink putLong u
