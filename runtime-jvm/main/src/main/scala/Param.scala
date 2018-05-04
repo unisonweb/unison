@@ -209,6 +209,7 @@ object Value {
   case class Data(typeId: Id, constructorId: ConstructorId, fields: Array[Value])
     extends Value {
     def decompile: Term = Term.Constructor(typeId, constructorId)(fields.map(_.decompile): _*)
+    override def toString = s"Data($typeId,$constructorId,${fields.toSeq})"
 
     def foreachChild(f: Param => Unit): Unit =
       fields foreach f

@@ -156,19 +156,32 @@ object Codecs {
       case Node.Term(t) => foreachTerm(t)(f)
     }
 
-    def foreachTerm(t: Term)(f: Node => Unit): Unit = t.get match {
-      case ABT.Tm_(tm) => tm match {
-        case Compiled_(p,name) => foreachParam(p)(f)
-        case tm => tm foreachChild (term => f(Node.Term(term)))
+    var indent = 0
+    def foreachTerm(t: Term)(f: Node => Unit): Unit = {
+      print("\n" + "  " * indent + s"foreachTerm($t) {")
+      indent += 2
+      t.get match {
+        case ABT.Tm_(tm) => tm match {
+          case Compiled_(p) => foreachParam(p)(f)
+          case tm => tm foreachChild (term => f(Node.Term(term)))
+        }
+        case ABT.Abs_(_,body) => f(Node.Term(body))
+        case ABT.Var_(_) => ()
       }
-      case ABT.Abs_(_,body) => f(Node.Term(body))
-      case ABT.Var_(_) => ()
+      indent -= 2
+      print("\n" + " " * indent + "}")
     }
 
-    def foreachParam(p: Param)(f: Node => Unit): Unit = p match {
-      case lam : Value.Lambda => f(Node.Term(lam.decompile))
-      case e : Builtins.External => f(Node.Term(e.decompile))
-      case p => p foreachChild (p => f(Node.Param(p)))
+    def foreachParam(p: Param)(f: Node => Unit): Unit = {
+      print("\n" + "  " * indent + s"foreachParam($p) {")
+      indent += 2
+      p match {
+        case lam : Value.Lambda => f(Node.Term(lam.decompile))
+        case e : Builtins.External => f(Node.Term(e.decompile))
+        case p => p foreachChild (p => f(Node.Param(p)))
+      }
+      indent -= 2
+      print("  " * indent + "}")
     }
 
     def writeBytePrefix(node: Node, sink: Sink): Unit = node match {

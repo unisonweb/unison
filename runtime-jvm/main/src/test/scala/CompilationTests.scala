@@ -20,10 +20,11 @@ object CompilationTests {
     BuiltinTypes.effects)
 
   def eval(t0: Term, roundTrip: Boolean = true): Term = {
-    // val bytes = Codecs.encodeTerm(t0)
-    // import util.Bytes
-    // println("chunks: " + bytes.map(_.toList))
-    // println("chunks (sequence): " + Bytes.fromChunks(bytes))
+    val bytes = Codecs.encodeTerm(t0)
+//    import util.Bytes
+//    println("chunks: " + bytes.map(_.toList))
+//    println("chunks (sequence): " + Bytes.fromChunks(bytes))
+    println("bytes: " + bytes.toList.flatten)
     normalize(env) {
       if (roundTrip) Codecs.decodeTerm(Codecs.encodeTerm(t0))
       else t0
@@ -413,7 +414,14 @@ object CompilationTests {
         val p = Let('x -> (42:Term))(Match(10)(c1, c2))
         equal(eval(p), v)
       },
-      test("data pattern") { implicit T =>
+      test("data pattern 1") { implicit T =>
+        /* case (2,4) of (x,_) -> x */
+        val v: Term = 2
+        val c = MatchCase(Pattern.Tuple(Wildcard, Uncaptured), ABT.Abs('x, 'x))
+        val p = Match(intTupleTerm(2, 4))(c)
+        equal(eval(p), v)
+      },
+      test("data pattern 2") { implicit T =>
         /* let x = 42; case (2,4) of (x,y) -> x+y; x -> x + 4 */
         val v: Term = 6
         val c1 = MatchCase(Pattern.Tuple(Wildcard, Wildcard),
