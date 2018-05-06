@@ -19,13 +19,15 @@ object CompilationTests {
     BuiltinTypes.dataConstructors,
     BuiltinTypes.effects)
 
-  def eval(t0: Term, roundTrip: Boolean = true): Term = {
-    val bytes = Codecs.encodeTerm(t0)
-//    println("bytes: " + bytes.toList.flatten)
-    normalize(env) {
-      if (roundTrip) Codecs2.decodeTerm(Codecs2.encodeTerm(t0))
-      else t0
-    }
+  def eval(t0: Term, doRoundTrip: Boolean = true): Term = {
+    val bytes = Codecs2.encodeTerm(t0)
+    // println("bytes: " + bytes.toList.flatten)
+    // println("bytes: " + util.Bytes.fromChunks(bytes))
+
+    def roundTrip(t: Term) =
+      if (doRoundTrip) Codecs2.decodeTerm(Codecs2.encodeTerm(t))
+      else t
+    roundTrip(normalize(env)(roundTrip(t0)))
   }
 
   val tests = suite("compilation")(

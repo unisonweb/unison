@@ -150,6 +150,7 @@ object Codecs2 {
           case Value.Data(id, cid, vs)           => sink putByte 23
             encodeId(id, sink)
             encodeConstructorId(cid, sink)
+            sink.putFramedSeq1(vs)(encodeParam)
 
           case Value.EffectPure(u, b)            => sink putByte 24
             sink putLong u
@@ -359,8 +360,7 @@ object Codecs2 {
     case Pattern.Data(id,cid,patterns) => sink putByte 3
       encodeId(id, sink)
       encodeConstructorId(cid, sink)
-      sink.putFramedSeq(patterns)(
-        (sink,p) => encodePattern(p,sink))
+      sink.putFramedSeq1(patterns)(encodePattern(_,sink))
 
     case Pattern.As(p)                 => sink putByte 4
       encodePattern(p, sink)
