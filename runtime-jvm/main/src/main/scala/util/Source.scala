@@ -170,22 +170,6 @@ object Source {
     def getDouble: Double =
       try bb.getDouble
       catch { case BufferUnderflow() => empty; getDouble }
-
-    override def getFramed: Array[Byte] = {
-      val originalPos = bb.position()
-      try {
-        val size = getInt
-        val bytes = new Array[Byte](size)
-        bb.get(bytes)
-        bytes
-      }
-      catch {
-        case BufferUnderflow() =>
-          bb.position(originalPos)
-          empty
-          getFramed
-      }
-    }
   }
 
   def readLong(bs: Array[Byte]): Long = {
