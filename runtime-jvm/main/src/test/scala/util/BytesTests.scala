@@ -34,6 +34,15 @@ object BytesTests {
         equal1((Bytes.empty ++ Bytes.fromArray(bs)).toList, bs.toList)
       }
       ok
+    },
+    test("fromChunks/toChunks") { implicit T =>
+      0 until 100 foreach { n =>
+        val bs = replicate(n)(replicate(intIn(1,10))(byte).toArray[Byte])
+        equal1(
+          Bytes.fromChunks(Bytes.toChunks(Bytes.fromChunks(Sequence(bs:_*)))).toList,
+          bs.toList.flatten)
+      }
+      ok
     }
   )
 
