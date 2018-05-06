@@ -213,6 +213,15 @@ object Sequence {
   def apply[A](as: A*): Sequence[A] =
     Flat(as.foldLeft(Deque.empty[A])((buf,a) => buf :+ a))
 
+  def fill[A](n: Long)(a: => A): Sequence[A] = {
+    var buf = empty[A]
+    var i = 0; while (i < n) {
+      buf = buf :+ a
+      i += 1
+    }
+    buf
+  }
+
   /** Assuming `vs` is sorted in increasing order, find the index of the first value >= `v`. */
   def lubIndex(target: Long, vs: Array[Long]): Int = {
     // todo - tune this, possibly use skewed search

@@ -13,6 +13,9 @@ trait Sink {
   def putByte(b: Byte): Unit
   def putInt(n: Int): Unit
   def putLong(n: Long): Unit
+
+  // todo: the UTF-8 of Long encoding, use a single byte if possible
+  def putVarLong(n: Long): Unit = putLong(n)
   def putDouble(n: Double): Unit
   def putString(s: String): Unit
   def putText(txt: Text): Unit
@@ -21,9 +24,15 @@ trait Sink {
     putInt(bs.length)
     put(bs)
   }
-  def putFramedSeq[A](seq: Seq[A])(f: (Sink,A) => Unit): Unit = {
+  def putFramedSeq[A](seq: Seq[A])(f: (Sink,A) => Unit): Unit =
+    putFramedSeq1(seq)(a => f(this, a))
+  def putFramedSeq1[A](seq: Seq[A])(f: A => Unit): Unit = {
     putInt(seq.size)
-    seq.foreach(a => f(this, a))
+    seq.foreach(f)
+  }
+  def putOption1[A](o: Option[A])(f: A => Unit): Unit = o match {
+    case None => putByte(0)
+    case Some(a) => putByte(1); f(a)
   }
 }
 

@@ -17,6 +17,8 @@ trait Source { self =>
   def getByte: Byte
   def getInt: Int
   def getLong: Long
+  // todo: The UTF-8 of Long encodings, uses a single byte where possible
+  def getVarLong: Long = getLong
   def getDouble: Double
   def position: Long
   def getFramed: Array[Byte] = get(getInt)
@@ -25,7 +27,30 @@ trait Source { self =>
     val bytes = getFramed
     new String(bytes, java.nio.charset.StandardCharsets.UTF_8)
   }
+
   final def getText: Text = Text.fromString(getString)
+
+  def getOption1[A](a: => A): Option[A] =
+    if (getByte == 0) None
+    else Some(a)
+
+  def getOption[A](a: Source => A): Option[A] =
+    getOption1(a(this))
+
+  def getFramedArray1[A:reflect.ClassTag](a: => A): Array[A] =
+    Array.fill(getVarLong.toInt)(a)
+
+  def getFramedArray[A:reflect.ClassTag](a: Source => A): Array[A] =
+    getFramedArray1(a(this))
+
+  def getFramedList1[A](a: => A): List[A] =
+    List.fill(getVarLong.toInt)(a)
+
+  def getFramedList[A](f: Source => A): List[A] =
+    getFramedList1(f(this))
+
+  def getFramedSequence1[A](a: => A): Sequence[A] =
+    Sequence.fill(getVarLong)(a)
 
   /** Checks `ok` before each operation, throws `Source.Invalidated` if `!ok`. */
   def invalidateWhen(invalidated: => Boolean): Source = new Source {
@@ -182,5 +207,6 @@ object Source {
     val len = src.getInt
     List.fill(len)(f(src))
   }
+
 }
 
