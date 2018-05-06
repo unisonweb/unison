@@ -340,12 +340,12 @@ object Codecs2 {
     case 1 => Pattern.Wildcard
     case 2 => Pattern.Uncaptured
     case 3 => Pattern.Data(decodeId(src), decodeConstructorId(src),
-                   Source.getFramedList(src)(decodePattern))
+                           src.getFramedList(decodePattern))
     case 4 => Pattern.As(decodePattern(src))
     case 5 => Pattern.EffectPure(decodePattern(src))
     case 6 => Pattern.EffectBind(decodeId(src), decodeConstructorId(src),
-                         Source.getFramedList(src)(decodePattern),
-                         decodePattern(src))
+                                 src.getFramedList(decodePattern),
+                                 decodePattern(src))
   }
 
   final def encodePattern(p: Pattern, sink: Sink): Unit = p match {
