@@ -1,8 +1,7 @@
 package org.unisonweb
 
-import util.GraphCodec2
+import util.{GraphCodec2, Sequence, Sink, Source}
 import GraphCodec2._
-import util.{Sink, Source}
 import Term.Term
 import Term.F._
 import annotation.switch
@@ -24,6 +23,18 @@ object Codecs2 {
     case class Term(get: org.unisonweb.Term.Term) extends Node
     case class Param(get: org.unisonweb.Param) extends Node
   }
+
+  def encodeTerm(t: Term): Sequence[Array[Byte]] =
+    nodeGraphCodec.encode(Node.Term(t))
+
+  def decodeTerm(bytes: Sequence[Array[Byte]]): Term =
+    nodeGraphCodec.decode(bytes).unsafeAsTerm
+
+  def encodeValue(p: Value): Sequence[Array[Byte]] =
+    nodeGraphCodec.encode(Node.Param(p))
+
+  def decodeValue(bytes: Sequence[Array[Byte]]): Value =
+    nodeGraphCodec.decode(bytes).unsafeAsParam.toValue
 
   implicit val nodeGraphCodec: GraphCodec2[Node] = new GraphCodec2[Node] {
     def encode(sink: Sink, seen: Node => Option[Long]): Node => Unit = {

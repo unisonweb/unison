@@ -23,7 +23,7 @@ object CompilationTests {
     val bytes = Codecs.encodeTerm(t0)
 //    println("bytes: " + bytes.toList.flatten)
     normalize(env) {
-      if (roundTrip) Codecs.decodeTerm(Codecs.encodeTerm(t0))
+      if (roundTrip) Codecs2.decodeTerm(Codecs2.encodeTerm(t0))
       else t0
     }
   }
