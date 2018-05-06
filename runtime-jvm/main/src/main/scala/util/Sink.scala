@@ -27,7 +27,7 @@ trait Sink {
   def putFramedSeq[A](seq: Seq[A])(f: (Sink,A) => Unit): Unit =
     putFramedSeq1(seq)(a => f(this, a))
   def putFramedSeq1[A](seq: Seq[A])(f: A => Unit): Unit = {
-    putInt(seq.size)
+    putVarLong(seq.size.toLong)
     seq.foreach(f)
   }
   def putOption1[A](o: Option[A])(f: A => Unit): Unit = o match {
