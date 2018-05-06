@@ -43,14 +43,14 @@ object Codecs2 {
         case Node.Param(p) => encodeParam(p)
       }
       def encodeTerm(t: Term): Unit = seen(Node.Term(t)) match {
-        case Some(pos)            => sink putByte -1
+        case Some(pos)                      => sink putByte -99
           sink putVarLong pos
 
         case None => t.get match {
-          case ABT.Var_(v)          => sink putByte 0
+          case ABT.Var_(v)                  => sink putByte 0
             sink putString v.toString
 
-          case ABT.Abs_(v,body)     => sink putByte 1
+          case ABT.Abs_(v,body)             => sink putByte 1
             sink putString v.toString
             encodeTerm(body)
 
@@ -136,7 +136,7 @@ object Codecs2 {
       }
 
       def encodeParam(p: Param): Unit = seen(Node.Param(p)) match {
-        case Some(pos)                          => sink putByte -1
+        case Some(pos)                          => sink putByte -99
           sink putVarLong pos
 
         case None => p match {
@@ -194,14 +194,21 @@ object Codecs2 {
       def decode: Node = {
         val pos = src.position
         val tag = src.getByte
-        if (tag <= 20) Node.Term(decodeTerm(pos, tag))
+        if (tag == -99) {
+          val i = src.getVarLong
+          seen(i) match {
+            case Some(n) => done(pos, n); n
+            case None => sys.error("unknown reference to position: " + i)
+          }
+        }
+        else if (tag <= 20) Node.Term(decodeTerm(pos, tag))
         else Node.Param(decodeParam(pos, tag))
       }
 
       def decodeTerm0: Term = decodeTerm(src.position, src.getByte)
       def decodeTerm(pos: Position, tag: Byte): Term = {
         val t: Term = (tag: @switch) match {
-          case -1 => val i = src.getVarLong; seen(i) match {
+          case -99 => val i = src.getVarLong; seen(i) match {
             case Some(n) => n.unsafeAsTerm
             case None => sys.error("unknown reference to position: " + i)
           }
@@ -248,7 +255,7 @@ object Codecs2 {
       def decodeParam0: Param = decodeParam(src.position, src.getByte)
       def decodeParam(pos: Position, tag: Byte): Param = {
         val p: Param = (tag: @switch) match {
-          case -1 => val i = src.getVarLong; seen(i) match {
+          case -99 => val i = src.getVarLong; seen(i) match {
             case Some(n) => n.unsafeAsParam
             case None => sys.error("unknown reference to position: " + i)
           }
