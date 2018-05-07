@@ -166,71 +166,35 @@ object Term {
       MatchCase(pattern, None, body)
   }
 
-  sealed abstract class F[+R] {
-    def foreachChild(f: R => Unit): Unit
-  }
+  sealed abstract class F[+R]
 
   object F {
-    sealed abstract class A0[+R] extends F[R] {
-      def foreachChild(f: R => Unit): Unit = ()
-    }
-    sealed abstract class A1[+R](a: R) extends F[R] {
-      def foreachChild(f: R => Unit): Unit = f(a)
-    }
-    sealed abstract class A2[+R](a1: R, a2: R) extends F[R] {
-      def foreachChild(f: R => Unit): Unit = { f(a1); f(a2) }
-    }
-    sealed abstract class A3[+R](a1: R, a2: R, a3: R) extends F[R] {
-      def foreachChild(f: R => Unit): Unit = { f(a1); f(a2); f(a3) }
-    }
-    case class Lam_[R](body: R) extends A1[R](body)
-    case class Id_(id: Id) extends A0[Nothing]
-    case class Constructor_(id: Id, constructorId: ConstructorId) extends A0[Nothing] {
+    case class Lam_[R](body: R) extends F[R]
+    case class Id_(id: Id) extends F[Nothing]
+    case class Constructor_(id: Id, constructorId: ConstructorId) extends F[Nothing] {
       override def toString = util.PrettyPrint.prettyId(id,constructorId).render(1000)
     }
-    case class Apply_[R](fn: R, args: List[R]) extends F[R] {
-      def foreachChild(f: R => Unit): Unit = {
-        f(fn)
-        args foreach f
-      }
-    }
-    case class Unboxed_(value: U, typ: UnboxedType) extends A0[Nothing] {
+    case class Apply_[R](fn: R, args: List[R]) extends F[R]
+    case class Unboxed_(value: U, typ: UnboxedType) extends F[Nothing] {
       override def toString = util.PrettyPrint.prettyUnboxed(value, typ).render(1000)
     }
-    case class Text_(txt: util.Text.Text) extends A0[Nothing]
-    case class Sequence_[R](seq: util.Sequence[R]) extends F[R] {
-      def foreachChild(f: R => Unit): Unit = seq foreach f
-    }
-    case class LetRec_[R](bindings: List[R], body: R) extends F[R] {
-      def foreachChild(f: R => Unit): Unit = {
-        bindings foreach f
-        f(body)
-      }
-    }
-    case class Let_[R](binding: R, body: R) extends A2[R](binding,body)
-    case class Rec_[R](r: R) extends A1[R](r)
-    case class If_[R](condition: R, ifNonzero: R, ifZero: R) extends A3[R](condition, ifNonzero, ifZero)
-    case class And_[R](x: R, y: R) extends A2[R](x,y)
-    case class Or_[R](x: R, y: R) extends A2[R](x,y)
-    case class Match_[R](scrutinee: R, cases: List[MatchCase[R]]) extends F[R] {
-      def foreachChild(f: R => Unit): Unit = {
-        f(scrutinee)
-        cases foreach { case MatchCase(_,g,b) => g foreach f; f(b) }
-      }
-    }
-    case class Compiled_(value: Param) extends A0[Nothing]
+    case class Text_(txt: util.Text.Text) extends F[Nothing]
+    case class Sequence_[R](seq: util.Sequence[R]) extends F[R]
+    case class LetRec_[R](bindings: List[R], body: R) extends F[R]
+    case class Let_[R](binding: R, body: R) extends F[R]
+    case class Rec_[R](r: R) extends F[R]
+    case class If_[R](condition: R, ifNonzero: R, ifZero: R) extends F[R]
+    case class And_[R](x: R, y: R) extends F[R]
+    case class Or_[R](x: R, y: R) extends F[R]
+    case class Match_[R](scrutinee: R, cases: List[MatchCase[R]]) extends F[R]
+    case class Compiled_(value: Param) extends F[Nothing]
     // request : <f> a -> {f} a
-    case class Request_ [R](id: Id, ctor: ConstructorId) extends A0[R]
+    case class Request_ [R](id: Id, ctor: ConstructorId) extends F[R]
     // handle : (forall x . <f> x -> r) -> {f} x -> r
-    case class Handle_[R](handler: R, block: R) extends A2[R](handler, block)
-    case class EffectPure_[R](value: R) extends A1[R](value)
+    case class Handle_[R](handler: R, block: R) extends F[R]
+    case class EffectPure_[R](value: R) extends F[R]
     case class EffectBind_[R](
-      id: Id, constructorId: ConstructorId, args: List[R], k: R) extends F[R] {
-      def foreachChild(f: R => Unit): Unit = {
-        args foreach f
-        f(k)
-      }
-    }
+      id: Id, constructorId: ConstructorId, args: List[R], k: R) extends F[R]
 
     implicit val instance: Traverse[F] = new Traverse[F] {
       override def map[A,B](fa: F[A])(f: A => B): F[B] = fa match {
