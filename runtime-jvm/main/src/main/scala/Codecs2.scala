@@ -37,6 +37,10 @@ object Codecs2 {
     nodeGraphCodec.decode(bytes).unsafeAsParam.toValue
 
   implicit val nodeGraphCodec: GraphCodec2[Node] = new GraphCodec2[Node] {
+    def objectIdentity(n: Node) = n match {
+      case Node.Term(t) => t
+      case Node.Param(p) => p
+    }
     def encode(sink: Sink, seen: Node => Option[Long]): Node => Unit = {
       def encodeNode(n: Node): Unit = n match {
         case Node.Term(t) => encodeTerm(t)

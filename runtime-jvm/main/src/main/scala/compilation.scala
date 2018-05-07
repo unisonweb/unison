@@ -916,11 +916,12 @@ package object compilation {
     }
   }
 
-  def normalize(builtins: Environment)(e: Term): Term = {
+  def normalize(builtins: Environment)(e: Term, fullyDecompile: Boolean = true): Term = {
     val c = compileTop(builtins)(e)
     val v = run(c)
     val x = Term.etaNormalForm(v.decompile)
-    Term.fullyDecompile2(x)
+    if (fullyDecompile) Term.fullyDecompile(x)
+    else x
   }
 
   def run(c: Computation): Value = {

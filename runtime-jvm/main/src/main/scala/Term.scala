@@ -81,7 +81,7 @@ object Term {
    * Removes all `Compiled` nodes from `t` by expanding their definitions and
    * converting cyclic references to `let rec` declarations.
    */
-  def fullyDecompile2(t: Term): Term = {
+  def fullyDecompile(t: Term): Term = {
     // 1. Collect full set of refs via transitive closure - a `Set[Ref]`
     // 2. Compute all used names (including self recursive names), freshen names for each `Ref`
     // 3. Introduce one outer let rec block for each `Ref`, substitute away all refs

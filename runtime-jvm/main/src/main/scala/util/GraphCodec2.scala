@@ -3,7 +3,11 @@ package org.unisonweb.util
 import GraphCodec2._
 
 trait GraphCodec2[G] {
+
+  def objectIdentity(g: G): Any
+
   def encode(sink: Sink, seen: G => Option[Long]): G => Unit
+
   def decode(src: Source, seen: Long => Option[G], done: (Position, G) => Unit): () => G
 
   def encodeTree(sink: Sink): G => Unit =
@@ -13,9 +17,12 @@ trait GraphCodec2[G] {
     decode(src, _ => None, (_,_) => ())
 
   def encodeGraph(sink: Sink): G => Unit = {
-    val seen = new java.util.IdentityHashMap[G,Long]
-    encode(sink, g => if (seen.containsKey(g)) Some(seen.get(g))
-                      else { seen.put(g, sink.position); None })
+    val seen = new java.util.IdentityHashMap[Any,Long]
+    encode(sink, g => {
+      val id = objectIdentity(g)
+      if (seen.containsKey(id)) Some(seen.get(id))
+      else { seen.put(id, sink.position); None }
+    })
   }
 
   def decodeGraph(src: Source): () => G = {
