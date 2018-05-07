@@ -1,8 +1,8 @@
 package org.unisonweb.util
 
-import GraphCodec2._
+import GraphCodec._
 
-trait GraphCodec2[G] {
+trait GraphCodec[G] {
 
   def objectIdentity(g: G): Any
 
@@ -51,7 +51,7 @@ trait GraphCodec2[G] {
     decodeGraph(Source.fromChunks(chunks))()
 }
 
-object GraphCodec2 {
+object GraphCodec {
   type Position = Long
 }
 
