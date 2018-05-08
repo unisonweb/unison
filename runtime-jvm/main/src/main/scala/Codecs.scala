@@ -43,8 +43,20 @@ object Codecs {
     }
     def encode(sink: Sink, seen: Node => Option[Long]): Node => Unit = {
       def encodeNode(n: Node): Unit = n match {
-        case Node.Term(t) => encodeTerm(t)
-        case Node.Param(p) => encodeParam(p)
+        case Node.Term(t) =>
+          Term.foreachTransitiveParam(Set.empty[Param], t) { param =>
+            sink putByte 1 // more refs to come
+            encodeParam(param)
+          }
+          sink putByte 0 // done writing params
+          encodeTerm(t)
+        case Node.Param(p) =>
+          Term.foreachTransitiveParam(Set.empty[Param], p) { param =>
+            sink putByte 1
+            encodeParam(param)
+          }
+          sink putByte 0
+          encodeParam(p)
       }
       def encodeTerm(t: Term): Unit = seen(Node.Term(t)) match {
         case Some(pos)                      => sink putByte -99
@@ -197,9 +209,14 @@ object Codecs {
       val R = compilation.Result()
 
       def decode: Node = {
+        // we decode all the references at the start; decodeParam0 will
+        // add them to the map
+        src.foreachDelimited(decodeParam0) { _ => () }
         val pos = src.position
         val tag = src.getByte
+        // todo: this shouldn't need to be duplicated?
         if (tag == -99) {
+          // magic byte indicating a backref to a position follows
           val i = src.getVarLong
           seen(i) match {
             case Some(n) => done(pos, n); n
@@ -259,6 +276,8 @@ object Codecs {
       }
       def decodeParam0: Param = decodeParam(src.position, src.getByte)
       def decodeParam(pos: Position, tag: Byte): Param = {
+        val currentRef = new Ref("v"+pos, null)
+        done(pos, Node.Param(currentRef))
         val p: Param = (tag: @switch) match {
           case -99 => val i = src.getVarLong; seen(i) match {
             case Some(n) => n.unsafeAsParam
@@ -298,6 +317,7 @@ object Codecs {
           case t =>
             sys.error(s"unexpected tag byte $t during decoding")
         }
+        currentRef.value = p.toValue
         done(pos, Node.Param(p))
         p
       }

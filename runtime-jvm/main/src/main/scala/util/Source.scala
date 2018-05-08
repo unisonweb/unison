@@ -52,6 +52,16 @@ trait Source { self =>
   def getFramedSequence1[A](a: => A): Sequence[A] =
     Sequence.fill(getVarLong)(a)
 
+  @annotation.tailrec
+  final def foreachDelimited[A](decode1: => A)(each: A => Unit): Unit =
+    getByte match {
+      case 0 => ()
+      case 1 =>
+        each(decode1)
+        foreachDelimited(decode1)(each)
+      case b => sys.error("unknown byte in getDelimited: " + b)
+    }
+
   /** Checks `ok` before each operation, throws `Source.Invalidated` if `!ok`. */
   def invalidateWhen(invalidated: => Boolean): Source = new Source {
     def position =

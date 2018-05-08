@@ -64,7 +64,7 @@ object Value {
 
     assert (Term.freeVars(decompileWithPossibleFreeVar).size <= 1)
 
-    def decompile = Term.freeVars(decompileWithPossibleFreeVar).toList match {
+    lazy val decompile = Term.freeVars(decompileWithPossibleFreeVar).toList match {
       case Nil => decompileWithPossibleFreeVar
       case List(name) =>
         ABT.subst(name, Term.Compiled(this))(decompileWithPossibleFreeVar)

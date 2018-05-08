@@ -77,6 +77,52 @@ object Term {
     case _ => t
   }
 
+  import F._
+
+  /** Visits every `Param` directly or indirectly referenced by `t`.
+   *  todo: does it matter what order?
+   *  foo (Compiled a1) (Compiled a2)
+   *
+   * If `a1` references `a3`, do we call `f` with `a3` first, or with `a1` first?
+   * And does it matter?
+   * If we start writing a1 first, then in the middle of writing a1, we'll
+   * encounter a3, and we'll switch to writing a3.
+   * eventually, either a3 will refer to a1 (forming a cycle) or we will finish
+   * writing a3 and return to where we were writing a1
+   *
+   * Feels like want to do `a3` first, so dependencies of a function are
+   * all already serialized before the function itself.
+   */
+  def foreachTransitiveParam(seen: Set[Param], t: Term)(f: Param => Unit): Set[Param] = t.get match {
+    case ABT.Var_(_) => seen
+    case ABT.Abs_(_,t) => foreachTransitiveParam(seen, t)(f)
+    case ABT.Tm_(t) => t match {
+      case Compiled_(param) => foreachTransitiveParam(seen, param)(f)
+      case _ => t.foldLeft(seen)((seen,t) => foreachTransitiveParam(seen,t)(f))
+    }
+  }
+
+  def foreachTransitiveParam(seen: Set[Param], p: Param)(f: Param => Unit): Set[Param] = {
+    if (seen.contains(p)) seen
+    else (seen + p) match { case seen =>
+      f(p)
+      p match {
+        case lam: Value.Lambda => foreachTransitiveParam(seen, lam.decompile)(f)
+        case Value.Data(_, _, vs) =>
+          vs.foldLeft(seen)(foreachTransitiveParam(_,_)(f))
+        case Value.EffectPure(u, b) => foreachTransitiveParam(seen, b)(f)
+        case Value.EffectBind(id,cid, args, k) =>
+          foreachTransitiveParam(
+            args.foldLeft(seen)(foreachTransitiveParam(_,_)(f)),
+            k)(f)
+        case Value.Unboxed(_, _) | _ : UnboxedType => seen
+        case r: Ref => foreachTransitiveParam(seen, r.value)(f)
+        case e: Builtins.External => foreachTransitiveParam(seen, e.decompile)(f)
+        case t =>
+          sys.error(s"unexpected Param type ${t.getClass} in encodeParam")
+    }}
+  }
+
   /**
    * Removes all `Compiled` nodes from `t` by expanding their definitions and
    * converting cyclic references to `let rec` declarations.
@@ -159,6 +205,8 @@ object Term {
 
     def map[R2](f: R => R2): MatchCase[R2] =
       MatchCase(pattern, guard.map(f), f(body))
+
+    def foldLeft[B](b: B)(f: (B,R) => B): B = f(guard.foldLeft(b)(f), body)
   }
 
   object MatchCase {
@@ -166,35 +214,62 @@ object Term {
       MatchCase(pattern, None, body)
   }
 
-  sealed abstract class F[+R]
+  sealed abstract class F[+R] {
+    def foldLeft[B](b: B)(f: (B,R) => B): B
+  }
 
   object F {
-    case class Lam_[R](body: R) extends F[R]
-    case class Id_(id: Id) extends F[Nothing]
-    case class Constructor_(id: Id, constructorId: ConstructorId) extends F[Nothing] {
+    sealed abstract class F0[+R] extends F[R] {
+      def foldLeft[B](b: B)(f: (B,R) => B): B = b
+    }
+    sealed abstract class F1[+R](r1: R) extends F[R] {
+      def foldLeft[B](b: B)(f: (B,R) => B): B = f(b, r1)
+    }
+    sealed abstract class F2[+R](r1: R, r2: R) extends F[R] {
+      def foldLeft[B](b: B)(f: (B,R) => B): B = f(f(b, r1), r2)
+    }
+    sealed abstract class F3[+R](r1: R, r2: R, r3: R) extends F[R] {
+      def foldLeft[B](b: B)(f: (B,R) => B): B = f(f(f(b, r1), r2), r3)
+    }
+    case class Lam_[R](body: R) extends F1[R](body)
+    case class Id_(id: Id) extends F0[Nothing]
+    case class Constructor_(id: Id, constructorId: ConstructorId) extends F0[Nothing] {
       override def toString = util.PrettyPrint.prettyId(id,constructorId).render(1000)
     }
-    case class Apply_[R](fn: R, args: List[R]) extends F[R]
-    case class Unboxed_(value: U, typ: UnboxedType) extends F[Nothing] {
+    case class Apply_[R](fn: R, args: List[R]) extends F[R] {
+      def foldLeft[B](b: B)(f: (B,R) => B): B = args.foldLeft(f(b,fn))(f)
+    }
+    case class Unboxed_(value: U, typ: UnboxedType) extends F0[Nothing] {
       override def toString = util.PrettyPrint.prettyUnboxed(value, typ).render(1000)
     }
-    case class Text_(txt: util.Text.Text) extends F[Nothing]
-    case class Sequence_[R](seq: util.Sequence[R]) extends F[R]
-    case class LetRec_[R](bindings: List[R], body: R) extends F[R]
-    case class Let_[R](binding: R, body: R) extends F[R]
-    case class Rec_[R](r: R) extends F[R]
-    case class If_[R](condition: R, ifNonzero: R, ifZero: R) extends F[R]
-    case class And_[R](x: R, y: R) extends F[R]
-    case class Or_[R](x: R, y: R) extends F[R]
-    case class Match_[R](scrutinee: R, cases: List[MatchCase[R]]) extends F[R]
-    case class Compiled_(value: Param) extends F[Nothing]
+    case class Text_(txt: util.Text.Text) extends F0[Nothing]
+    case class Sequence_[R](seq: util.Sequence[R]) extends F[R] {
+      def foldLeft[B](b: B)(f: (B,R) => B): B = seq.foldLeft(b)(f)
+    }
+    case class LetRec_[R](bindings: List[R], body: R) extends F[R] {
+      def foldLeft[B](b: B)(f: (B,R) => B): B =
+        f(bindings.foldLeft(b)(f), body)
+    }
+    case class Let_[R](binding: R, body: R) extends F2[R](binding,body)
+    case class Rec_[R](r: R) extends F1[R](r)
+    case class If_[R](condition: R, ifNonzero: R, ifZero: R) extends F3[R](condition,ifNonzero,ifZero)
+    case class And_[R](x: R, y: R) extends F2[R](x,y)
+    case class Or_[R](x: R, y: R) extends F2[R](x,y)
+    case class Match_[R](scrutinee: R, cases: List[MatchCase[R]]) extends F[R] {
+      def foldLeft[B](b: B)(f: (B,R) => B): B =
+        cases.foldLeft(f(b,scrutinee)) { (b,mc) => mc.foldLeft(b)(f) }
+    }
+    case class Compiled_(value: Param) extends F0[Nothing]
     // request : <f> a -> {f} a
-    case class Request_ [R](id: Id, ctor: ConstructorId) extends F[R]
+    case class Request_ [R](id: Id, ctor: ConstructorId) extends F0[R]
     // handle : (forall x . <f> x -> r) -> {f} x -> r
-    case class Handle_[R](handler: R, block: R) extends F[R]
-    case class EffectPure_[R](value: R) extends F[R]
+    case class Handle_[R](handler: R, block: R) extends F2[R](handler,block)
+    case class EffectPure_[R](value: R) extends F1[R](value)
     case class EffectBind_[R](
-      id: Id, constructorId: ConstructorId, args: List[R], k: R) extends F[R]
+      id: Id, constructorId: ConstructorId, args: List[R], k: R) extends F[R] {
+      def foldLeft[B](b: B)(f: (B,R) => B): B =
+        f(args.foldLeft(b)(f), k)
+    }
 
     implicit val instance: Traverse[F] = new Traverse[F] {
       override def map[A,B](fa: F[A])(f: A => B): F[B] = fa match {

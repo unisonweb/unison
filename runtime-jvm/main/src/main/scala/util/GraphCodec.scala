@@ -4,11 +4,14 @@ import GraphCodec._
 
 trait GraphCodec[G] {
 
+  // type K
+  // def objectIdentity(g: G): K
+
   def objectIdentity(g: G): Any
 
-  def encode(sink: Sink, seen: G => Option[Long]): G => Unit
+  def encode(sink: Sink, seen: G => Option[Position]): G => Unit
 
-  def decode(src: Source, seen: Long => Option[G], done: (Position, G) => Unit): () => G
+  def decode(src: Source, seen: Position => Option[G], done: (Position, G) => Unit): () => G
 
   def encodeTree(sink: Sink): G => Unit =
     encode(sink, _ => None)
