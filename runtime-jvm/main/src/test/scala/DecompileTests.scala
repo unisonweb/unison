@@ -9,7 +9,9 @@ object DecompileTests {
   val env0 = Environment.standard
 
   def roundTrip(t: Term) = {
-    Codecs.decodeTerm(Codecs.encodeTerm(t))
+    val bytes = Codecs.encodeTerm(t)
+    println(bytes.toList.flatten)
+    Codecs.decodeTerm(bytes)
   }
 
   val tests = suite("decompile") (
@@ -48,8 +50,9 @@ object DecompileTests {
           "pong" -> Term.Lam("x")(Term.Var("ping")(Term.Var("pang")(Term.Var("x"))))) {
             Term.Var("ping")
           }
-      val result = roundTrip { compilation.normalize(env0)(pingpong, fullyDecompile = false) }
-      note(PrettyPrint.prettyTerm(Term.fullyDecompile(result)).render(40), includeAlways = true)
+      val result0 = { compilation.normalize(env0)(pingpong, fullyDecompile = false) }
+      note(PrettyPrint.prettyTerm(Term.fullyDecompile(result0)).render(40), includeAlways = true)
+      val result = roundTrip { result0 }
       ok
     }
   )
