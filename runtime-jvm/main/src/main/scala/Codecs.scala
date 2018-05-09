@@ -448,7 +448,7 @@ object Codecs {
   final def prettyEncoding(bytes: Source): Vector[String] = {
     def go(bs: Source): String = {
       def r = go(bs)
-      bs.getByte match {
+      val s = bs.getByte match {
         case (-99) => s"#${bs.getVarLong}"
         case 0 => s"Var ${bs.getString}"
         case 1 => s"Abs ${bs.getString} $r"
@@ -462,8 +462,8 @@ object Codecs {
           s"Sequence(${seq.mkString(", ")})"
         case 8 => s"Lam $r"
         case 9 =>
-          val fn = prettyEncoding(bs).mkString
-          val args = bs.getFramedList(prettyEncoding)
+          val fn = go(bs)
+          val args = bs.getFramedList(go)
           "Apply " + fn + "(" + args.mkString(", ") + ")"
         case 10 => s"Rec $r"
         case 11 => s"Let $r $r"
@@ -471,7 +471,7 @@ object Codecs {
         case 13 => s"And $r $r"
         case 14 => s"Or $r $r"
         case 15 =>
-          val scrutinee = prettyEncoding(bs).mkString
+          val scrutinee = go(bs)
           val cases = bs.getFramedList(???)
           s"Match $scrutinee $cases"
         case 16 => s"Handle $r $r"
@@ -479,11 +479,11 @@ object Codecs {
         case 18 =>
           val id = decodeId(bs)
           val ctor = decodeConstructorId(bs)
-          val args = bs.getFramedList(prettyEncoding)
-          val k = prettyEncoding(bs).mkString
+          val args = bs.getFramedList(go)
+          val k = go(bs)
           s"EffectBind $id $ctor(${args.mkString(", ")}) $k"
         case 19 =>
-          val bindings = bs.getFramedList(prettyEncoding)
+          val bindings = bs.getFramedList(go)
           s"LetRec ${bindings.mkString(" ")}\n  $r"
         case 20 => s"Compiled $r"
         case 21 => s"Value.Unboxed ${bs.getLong}:${decodeUnboxedType(bs)}"
@@ -491,11 +491,11 @@ object Codecs {
         case 23 =>
           val id = decodeId(bs)
           val ctor = decodeConstructorId(bs)
-          val args = bs.getFramedList(prettyEncoding)
+          val args = bs.getFramedList(go)
           s"Data $id $ctor(${args.mkString(", ")})"
         case 24 =>
           val unboxed = bs.getLong
-          val boxed = prettyEncoding(bs).mkString(" ")
+          val boxed = go(bs)
           s"Value.EffectPure ($unboxed)($boxed)"
         case 25 => ???
         case 26 =>
@@ -507,6 +507,7 @@ object Codecs {
         case 30 => "UInt64"
         case 31 => "Float"
       }
+      s
     }
 
     var r = Vector[String]()
