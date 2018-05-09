@@ -15,7 +15,8 @@ trait Sink {
   def putLong(n: Long): Unit
 
   // todo: the UTF-8 of Long encoding, use a single byte if possible
-  def putVarLong(n: Long): Unit = putLong(n)
+  def putVarLong(n: Long): Unit =
+    putLong(n)
   def putDouble(n: Double): Unit
   def putString(s: String): Unit
   def putText(txt: Text): Unit
@@ -45,24 +46,25 @@ object Sink {
     bb.order(java.nio.ByteOrder.BIG_ENDIAN)
 
     private final def fill = {
-      val buf = new Array[Byte](bb.position())
+      println("fill getting called " + position)
+      bb.flip() //
+      val buf = new Array[Byte](bb.limit())
       pos += buf.length
-      bb.position(0)
-      bb.get(buf)
+      bb.get(buf) // this fills the array
       onFill(buf)
-      bb.position(0)
+      bb.clear()
     }
 
     def putString(s: String) =
       // todo: can we do this without allocating a byte buffer?
       // seems like it should be possible
-      try putFramed(s.getBytes(java.nio.charset.StandardCharsets.UTF_8))
-      catch { case e: BufferOverflowException => fill; putString(s) }
+      putFramed(s.getBytes(java.nio.charset.StandardCharsets.UTF_8))
 
     def putText(txt: Text) =
       // todo: more direct implementation
       putString(Text.toString(txt))
 
+    // todo: this needs to split the array if buffer capacity is less than array length
     def put(bs: Array[Byte]) =
       try { bb.put(bs); () }
       catch { case e: BufferOverflowException => fill; bb.put(bs); () }

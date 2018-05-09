@@ -56,7 +56,7 @@ trait Source { self =>
   final def foreachDelimited[A](decode1: => A)(each: A => Unit): Unit =
     getByte match {
       case 0 => ()
-      case 1 =>
+      case 111 =>
         each(decode1)
         foreachDelimited(decode1)(each)
       case b => sys.error("unknown byte in getDelimited: " + b)
@@ -115,7 +115,7 @@ object Source {
   def fromChunks(chunks: Sequence[Array[Byte]]): Source = chunks.uncons match {
     case None => sys.error("empty chunks")
     case Some((chunk,chunks)) => {
-      val bb = java.nio.ByteBuffer.allocate(chunk.size * 2)
+      val bb = java.nio.ByteBuffer.allocate(40000000)
       bb.put(chunk)
       bb.position(0)
       var rem = chunks
@@ -150,9 +150,10 @@ object Source {
 
     def position: Long = pos + bb.position().toLong
 
-    def empty = {
+    def refill = {
+      sys.error("refill called!!!")
       pos += bb.position()
-      bb.flip()
+      bb.clear()
       onEmpty(bb)
       bb.flip()
     }
@@ -163,23 +164,23 @@ object Source {
         bb.get(arr)
         arr
       }
-      catch { case BufferUnderflow() => empty; get(n) }
+      catch { case BufferUnderflow() => refill; get(n) }
 
     def getByte: Byte =
       try bb.get
-      catch { case BufferUnderflow() => empty; getByte }
+      catch { case BufferUnderflow() => refill; getByte }
 
     def getInt: Int =
       try bb.getInt
-      catch { case BufferUnderflow() => empty; getInt }
+      catch { case BufferUnderflow() => refill; getInt }
 
     def getLong: Long =
       try bb.getLong
-      catch { case BufferUnderflow() => empty; getLong }
+      catch { case BufferUnderflow() => refill; getLong }
 
     def getDouble: Double =
       try bb.getDouble
-      catch { case BufferUnderflow() => empty; getDouble }
+      catch { case BufferUnderflow() => refill; getDouble }
   }
 
   def readLong(bs: Array[Byte]): Long = {

@@ -79,6 +79,31 @@ object Term {
 
   import F._
 
+  def foreachPostorder[G,K](children: G => Iterator[G], id: G => K, g: G)(f: G => Unit): Set[K] = {
+    @annotation.tailrec
+    def go(seen: Set[K], g: Option[G], rem: util.Sequence[Either[() => Unit, G]]): Set[K] =
+      g match {
+        case None => rem.uncons match {
+          case None => seen
+          case Some((e,rem)) => e match {
+            case Left(thunk) =>
+              thunk()
+              go(seen, None, rem)
+            case Right(g) => go(seen, Some(g), rem)
+          }
+        }
+        case Some(g) =>
+          if (seen.contains(id(g))) go(seen, None, rem)
+          else (seen + id(g)) match { // we haven't seen this node before
+            case seen =>
+              val rem2 = Left(() => f(g)) +: rem
+              go(seen, None,
+                 children(g).foldRight(rem2)((child,rem) => Right(child) +: rem))
+          }
+      }
+    go(Set.empty, Some(g), util.Sequence.empty[Either[() => Unit, G]])
+  }
+
   /** Visits every `Param` directly or indirectly referenced by `t`.
    *  todo: does it matter what order?
    *  foo (Compiled a1) (Compiled a2)
@@ -93,35 +118,27 @@ object Term {
    * Feels like want to do `a3` first, so dependencies of a function are
    * all already serialized before the function itself.
    */
-  def foreachTransitiveParam(seen: Set[Param], t: Term)(f: Param => Unit): Set[Param] = t.get match {
-    case ABT.Var_(_) => seen
-    case ABT.Abs_(_,t) => foreachTransitiveParam(seen, t)(f)
-    case ABT.Tm_(t) => t match {
-      case Compiled_(param) => foreachTransitiveParam(seen, param)(f)
-      case _ => t.foldLeft(seen)((seen,t) => foreachTransitiveParam(seen,t)(f))
-    }
-  }
-
-  def foreachTransitiveParam(seen: Set[Param], p: Param)(f: Param => Unit): Set[Param] = {
-    if (seen.contains(p)) seen
-    else (seen + p) match { case seen =>
-      f(p)
-      p match {
-        case lam: Value.Lambda => foreachTransitiveParam(seen, lam.decompile)(f)
-        case Value.Data(_, _, vs) =>
-          vs.foldLeft(seen)(foreachTransitiveParam(_,_)(f))
-        case Value.EffectPure(u, b) => foreachTransitiveParam(seen, b)(f)
-        case Value.EffectBind(id,cid, args, k) =>
-          foreachTransitiveParam(
-            args.foldLeft(seen)(foreachTransitiveParam(_,_)(f)),
-            k)(f)
-        case Value.Unboxed(_, _) | _ : UnboxedType => seen
-        case r: Ref => foreachTransitiveParam(seen, r.value)(f)
-        case e: Builtins.External => foreachTransitiveParam(seen, e.decompile)(f)
-        case t =>
-          sys.error(s"unexpected Param type ${t.getClass} in encodeParam")
-    }}
-  }
+  // we want to change this function to do post-order traversal, visiting
+  // all children before visiting the parent; this will ensure that when
+  // we go to write out the parent, all its children will just be refs to
+  // previous positions in the stream, very similar to ANF, ex:
+  //
+      // (x, (y, (z, ()))
+      // 1: x
+      // 2: y
+      // 3: z
+      // 4: ()
+      // 5: (#3, #4)
+      // 6: (#2, #5)
+      // 7: (#1, #6)
+  // this will probably let us delete the special encodeData function
+  // AND also means that the decoder doesn't need to do anything special
+  // to ensure stack safety
+  //
+  // to make this happen, we think
+  //   `e` should become some Option[Term + Param + (() => ())],
+  //   unconsing from remain dealt with in just one place
+  // need to "schedule" f(p) on the stack AFTER p, before existing `remain`
 
   /**
    * Removes all `Compiled` nodes from `t` by expanding their definitions and

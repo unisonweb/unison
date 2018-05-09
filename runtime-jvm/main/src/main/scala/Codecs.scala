@@ -17,6 +17,10 @@ object Codecs {
       case Node.Param(p) => p
       case _ => sys.error("not a param: " + this)
     }
+    def fold(tf: Term => R, pf: Param => R): R = this match {
+      case Node.Term(t) => tf(t)
+      case Node.Param(p) => pf(p)
+    }
   }
 
   object Node {
@@ -37,26 +41,58 @@ object Codecs {
     nodeGraphCodec.decode(bytes).unsafeAsParam.toValue
 
   implicit val nodeGraphCodec: GraphCodec[Node] = new GraphCodec[Node] {
+
+    import util.Pointer
+
+    type K = Pointer
+
     def objectIdentity(n: Node) = n match {
-      case Node.Term(t) => t
-      case Node.Param(p) => p
+      case Node.Term(t) => new Pointer(t)
+      case Node.Param(p) => new Pointer(p)
+    }
+
+    def children(g: Node): Iterator[Node] = g match {
+      case Node.Term(t) => t.get match {
+        case ABT.Var_(_) => Iterator.empty
+        case ABT.Abs_(_,t) => Iterator.single(Node.Term(t))
+        case ABT.Tm_(t) => t match {
+          case Compiled_(param) => Iterator.single(Node.Param(param))
+          case _ =>
+            (t.foldLeft(Vector.empty[Node])((r, t) => r :+ Node.Term(t))).iterator
+        }
+      }
+      case Node.Param(p) => p match {
+        case lam: Value.Lambda => Iterator.single(Node.Term(lam.decompile))
+        case Value.Data(_, _, vs) => vs.iterator.map(Node.Param(_))
+        case Value.EffectPure(u, b) => Iterator.single(Node.Param(b))
+        case Value.EffectBind(id, cid, args, k) =>
+          args.iterator.map(Node.Param(_)) ++ Iterator.single(Node.Param(k))
+        case Value.Unboxed(_, _) | _ : UnboxedType => Iterator.empty
+        case r: Ref => Iterator.single(Node.Param(r.value))
+        case e: Builtins.External => Iterator.single(Node.Term(e.decompile))
+        case t => sys.error(s"unexpected Param type ${t.getClass}")
+      }
+    }
+
+    def foreachTransitive(n: Node)(f: Node => Unit): Set[util.Pointer] = {
+      import util.Pointer
+      Term.foreachPostorder[Node,Pointer](
+        children(_),
+        objectIdentity(_),
+        n)(f)
+
     }
     def encode(sink: Sink, seen: Node => Option[Long]): Node => Unit = {
-      def encodeNode(n: Node): Unit = n match {
-        case Node.Term(t) =>
-          Term.foreachTransitiveParam(Set.empty[Param], t) { param =>
-            sink putByte 1 // more refs to come
-            encodeParam(param)
-          }
-          sink putByte 0 // done writing params
-          encodeTerm(t)
-        case Node.Param(p) =>
-          Term.foreachTransitiveParam(Set.empty[Param], p) { param =>
-            sink putByte 1
-            encodeParam(param)
-          }
-          sink putByte 0
-          encodeParam(p)
+      def encodeNode(n: Node): Unit = {
+        foreachTransitive(n) {
+          case Node.Term(t) =>
+            sink putByte 111 // more to come
+            encodeTerm(t)
+          case Node.Param(p) =>
+            sink putByte 111
+            encodeParam(p)
+        }
+        sink putByte 0
       }
       def encodeTerm(t: Term): Unit = seen(Node.Term(t)) match {
         case Some(pos)                      => sink putByte -99
@@ -163,7 +199,7 @@ object Codecs {
           case lam: Value.Lambda                 => sink putByte 22
             encodeTerm(lam.decompile)
 
-          case Value.Data(id, cid, vs)           => sink putByte 23
+          case d@Value.Data(id, cid, vs)         => sink putByte 23
             encodeId(id, sink)
             encodeConstructorId(cid, sink)
             sink.putFramedSeq1(vs)(encodeParam)
@@ -209,9 +245,14 @@ object Codecs {
       val R = compilation.Result()
 
       def decode: Node = {
-        // we decode all the references at the start; decodeParam0 will
-        // add them to the map
-        src.foreachDelimited(decodeParam0) { _ => () }
+        // the last node in the stream is the root node -
+        // it a flat expression that refers back to earlier nodes in the stream
+        var last: Node = null
+        src.foreachDelimited(decode0) { node => last = node }
+        last
+      }
+
+      def decode0: Node = {
         val pos = src.position
         val tag = src.getByte
         // todo: this shouldn't need to be duplicated?
