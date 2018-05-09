@@ -151,7 +151,7 @@ object Source {
     def position: Long = pos + bb.position().toLong
 
     def refill = {
-      sys.error("refill called!!!")
+      //sys.error("refill called!!!")
       pos += bb.position()
       bb.clear()
       onEmpty(bb)

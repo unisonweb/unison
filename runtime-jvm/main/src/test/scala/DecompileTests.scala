@@ -10,7 +10,7 @@ object DecompileTests {
 
   def roundTrip(t: Term) = {
     val bytes = Codecs.encodeTerm(t)
-    println(bytes.toList.flatten)
+    println(Codecs.prettyEncoding(bytes))
     Codecs.decodeTerm(bytes)
   }
 

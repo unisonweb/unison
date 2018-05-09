@@ -441,4 +441,80 @@ object Codecs {
           (sink,p) => encodePattern(p,sink))
         encodePattern(continuation, sink)
   }
+
+  final def prettyEncoding(bytes: util.Sequence[Array[Byte]]): String =
+    prettyEncoding(Source.fromChunks(bytes)).mkString("\n")
+
+  final def prettyEncoding(bytes: Source): Vector[String] = {
+    def go(bs: Source): String = {
+      def r = go(bs)
+      bs.getByte match {
+        case (-99) => s"#${bs.getVarLong}"
+        case 0 => s"Var ${bs.getString}"
+        case 1 => s"Abs ${bs.getString} $r"
+        case 2 => decodeId(bs).toString
+        case 3 => s"Constructor ${decodeId(bs)} ${decodeConstructorId(bs)}"
+        case 4 => s"Request ${decodeId(bs)} ${decodeConstructorId(bs)}"
+        case 5 => s"Text ${bs.getText}"
+        case 6 => s"Unboxed ${bs.getLong}:${decodeUnboxedType(bs)}"
+        case 7 =>
+          val seq = bs.getFramedList(go _)
+          s"Sequence(${seq.mkString(", ")})"
+        case 8 => s"Lam $r"
+        case 9 =>
+          val fn = prettyEncoding(bs).mkString
+          val args = bs.getFramedList(prettyEncoding)
+          "Apply " + fn + "(" + args.mkString(", ") + ")"
+        case 10 => s"Rec $r"
+        case 11 => s"Let $r $r"
+        case 12 => s"If $r $r $r"
+        case 13 => s"And $r $r"
+        case 14 => s"Or $r $r"
+        case 15 =>
+          val scrutinee = prettyEncoding(bs).mkString
+          val cases = bs.getFramedList(???)
+          s"Match $scrutinee $cases"
+        case 16 => s"Handle $r $r"
+        case 17 => s"EffectPure $r"
+        case 18 =>
+          val id = decodeId(bs)
+          val ctor = decodeConstructorId(bs)
+          val args = bs.getFramedList(prettyEncoding)
+          val k = prettyEncoding(bs).mkString
+          s"EffectBind $id $ctor(${args.mkString(", ")}) $k"
+        case 19 =>
+          val bindings = bs.getFramedList(prettyEncoding)
+          s"LetRec ${bindings.mkString(" ")}\n  $r"
+        case 20 => s"Compiled $r"
+        case 21 => s"Value.Unboxed ${bs.getLong}:${decodeUnboxedType(bs)}"
+        case 22 => s"Value.Lambda $r"
+        case 23 =>
+          val id = decodeId(bs)
+          val ctor = decodeConstructorId(bs)
+          val args = bs.getFramedList(prettyEncoding)
+          s"Data $id $ctor(${args.mkString(", ")})"
+        case 24 =>
+          val unboxed = bs.getLong
+          val boxed = prettyEncoding(bs).mkString(" ")
+          s"Value.EffectPure ($unboxed)($boxed)"
+        case 25 => ???
+        case 26 =>
+          s"Value.Ref ${bs.getString} $r"
+        case 27 =>
+          s"Value.External $r"
+        case 28 => "Boolean"
+        case 29 => "Int64"
+        case 30 => "UInt64"
+        case 31 => "Float"
+      }
+    }
+
+    var r = Vector[String]()
+    bytes.foreachDelimited((bytes.position, go(bytes))) {
+      case (pos, s) =>
+        r = r :+ (pos.toString + ":\t" + s)
+    }
+    r
+  }
+
 }
