@@ -79,9 +79,15 @@ object Term {
 
   import F._
 
-  def foreachPostorder[G,K](children: G => Iterator[G], id: G => K, g: G)(f: G => Unit): Set[K] = {
+  def foreachPostorder[G,K](
+    seen: Set[K],
+    children: G => Iterator[G],
+    id: G => K,
+    g: G)(
+    f: G => Unit): Set[K] = {
+
     @annotation.tailrec
-    def go(seen: Set[K], g: Option[G], rem: util.Sequence[Either[() => Unit, G]]): Set[K] =
+    def go(seen: Set[K], g: Option[G], rem: util.Sequence[Either[() => Unit, G]]): Set[K] = {
       g match {
         case None => rem.uncons match {
           case None => seen
@@ -98,10 +104,11 @@ object Term {
             case seen =>
               val rem2 = Left(() => f(g)) +: rem
               go(seen, None,
-                 children(g).foldRight(rem2)((child,rem) => Right(child) +: rem))
+              children(g).foldRight(rem2)((child,rem) => Right(child) +: rem))
           }
       }
-    go(Set.empty, Some(g), util.Sequence.empty[Either[() => Unit, G]])
+    }
+    go(seen, Some(g), util.Sequence.empty[Either[() => Unit, G]])
   }
 
   /** Visits every `Param` directly or indirectly referenced by `t`.

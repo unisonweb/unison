@@ -38,6 +38,7 @@ object DecompileTests {
             }
         }
       val result = roundTrip { compilation.normalize(env0)(pingpong, fullyDecompile = false) }
+      note(result.toString, includeAlways = true)
       note(PrettyPrint.prettyTerm(Term.fullyDecompile(result)).render(40), includeAlways = true)
       ok
     },

@@ -1,6 +1,6 @@
 package org.unisonweb
 
-import util.{GraphCodec, Sequence, Sink, Source}
+import util.{GraphCodec, Sequence, Sink, Source, Pointer}
 import GraphCodec._
 import Term.Term
 import Term.F._
@@ -9,6 +9,8 @@ import annotation.switch
 object Codecs {
 
   sealed trait Node {
+    def toPointer: Pointer = fold(t => new Pointer(t), p => new Pointer(p))
+
     def unsafeAsTerm: Term = this match {
       case Node.Term(t) => t
       case _ => sys.error("not a term: " + this)
@@ -17,7 +19,7 @@ object Codecs {
       case Node.Param(p) => p
       case _ => sys.error("not a param: " + this)
     }
-    def fold(tf: Term => R, pf: Param => R): R = this match {
+    def fold[R](tf: Term => R, pf: Param => R): R = this match {
       case Node.Term(t) => tf(t)
       case Node.Param(p) => pf(p)
     }
@@ -51,7 +53,7 @@ object Codecs {
       case Node.Param(p) => new Pointer(p)
     }
 
-    def children(g: Node): Iterator[Node] = g match {
+    def children(g: Node, expandRefs: Boolean): Iterator[Node] = g match {
       case Node.Term(t) => t.get match {
         case ABT.Var_(_) => Iterator.empty
         case ABT.Abs_(_,t) => Iterator.single(Node.Term(t))
@@ -68,29 +70,80 @@ object Codecs {
         case Value.EffectBind(id, cid, args, k) =>
           args.iterator.map(Node.Param(_)) ++ Iterator.single(Node.Param(k))
         case Value.Unboxed(_, _) | _ : UnboxedType => Iterator.empty
-        case r: Ref => Iterator.single(Node.Param(r.value))
+        case r: Ref =>
+          if (expandRefs) Iterator.single(Node.Param(r.value))
+          else Iterator.empty
         case e: Builtins.External => Iterator.single(Node.Term(e.decompile))
         case t => sys.error(s"unexpected Param type ${t.getClass}")
       }
     }
 
-    def foreachTransitive(n: Node)(f: Node => Unit): Set[util.Pointer] = {
+    def foreachTransitive(seen: Set[util.Pointer], n: Node, expandRefs: Boolean)
+                         (f: Node => Unit): Set[util.Pointer] = {
       import util.Pointer
       Term.foreachPostorder[Node,Pointer](
-        children(_),
-        objectIdentity(_),
-        n)(f)
+        seen, children(_, expandRefs), objectIdentity(_), n)(f)
 
     }
-    def encode(sink: Sink, seen: Node => Option[Long]): Node => Unit = {
+
+    def encodeSetRef(sink: Sink, reference: Position, referent: Position) = {
+      sink putByte 32
+      sink putVarLong reference
+      sink putVarLong referent
+    }
+
+    def decodeSetRef(source: Source, seen: Position => Option[Node]): Param = {
+      val referencePos = source.getVarLong
+      val referentPos = source.getVarLong
+      val Node.Param(ref: Ref) =
+        seen(referencePos) getOrElse {
+          sys.error(s"No reference at position $referencePos")
+        }
+      val Node.Param(referent) =
+        seen(referentPos) getOrElse {
+          sys.error(s"Unknown reference to position $referentPos")
+        }
+      ref.value = referent.toValue
+      ref
+    }
+
+    def encode(sink: Sink, seen: Node => Option[Position]): Node => Unit = {
       def encodeNode(n: Node): Unit = {
-        foreachTransitive(n) {
-          case Node.Term(t) =>
-            sink putByte 111 // more to come
-            encodeTerm(t)
-          case Node.Param(p) =>
+        val refs = new collection.mutable.HashMap[Ref, Position]()
+        foreachTransitive(Set.empty, n, true) {
+          case Node.Param(r:Ref) =>
+            sink putByte 111 // An object follows
+            refs += (r -> sink.position)
+            encodeDeclareRef(r)
+          case _ => ()
+        }
+        val seenSet = refs.foldLeft(refs.keys.map(new Pointer(_)).toSet) {
+          case (seen, (ref, referencePos)) =>
+            var referentPos = -1L
+            val seenSet =
+              foreachTransitive(seen, Node.Param(ref.value), false) { node =>
+                sink putByte 111
+                referentPos = sink.position
+                node match {
+                  case Node.Term(t) => encodeTerm(t)
+                  case Node.Param(p) => encodeParam(p)
+                }
+              }
             sink putByte 111
-            encodeParam(p)
+            encodeSetRef(sink, referencePos, referentPos)
+            seenSet
+        }
+        foreachTransitive(seenSet + new Pointer(n), n, false) { node =>
+          sink putByte 111
+          node match {
+            case Node.Term(t) => encodeTerm(t)
+            case Node.Param(p) => encodeParam(p)
+          }
+        }
+        sink putByte 111
+        n match {
+          case Node.Term(t) => encodeTerm(t)
+          case Node.Param(p) => encodeParam(p)
         }
         sink putByte 0
       }
@@ -187,6 +240,13 @@ object Codecs {
         }
       }
 
+      def encodeDeclareRef(r: Ref): Unit = seen(Node.Param(r)) match {
+        case None =>
+          sink putByte 26
+          sink putString r.name.toString
+        case Some(_) => ()
+      }
+
       def encodeParam(p: Param): Unit = seen(Node.Param(p)) match {
         case Some(pos)                          => sink putByte -99
           sink putVarLong pos
@@ -214,9 +274,10 @@ object Codecs {
             sink.putFramedSeq1(args)(encodeParam)
             encodeParam(k)
 
-          case r: Ref                            => sink putByte 26
-            sink putString r.name.toString
-            encodeParam(r.value)
+          // We'll never actually hit this case because we've already seen
+          // all refs in a previous pass.
+          case r:Ref                             =>
+            sys.error("Should have already seen all refs")
 
           case e: Builtins.External              => sink putByte 27
             encodeTerm(e.decompile)
@@ -339,12 +400,10 @@ object Codecs {
             src.getFramedArray1(decodeParam0.toValue),
             decodeParam0.toValue.asInstanceOf[Value.Lambda])
           case 26 =>
-            // tricky - we declare this `Ref` done before
-            // deserializing the value inside. This allows the
-            // `Ref` to refer to itself.
+            // We don't write out the referent because it may refer to itself.
+            // We'll set the reference later in the stream using a 32.
             val ref = new Ref(src.getString, null)
             done(pos, Node.Param(ref))
-            ref.value = decodeParam0.toValue
             ref
           case 27 => /* External */
             // in order to do compilation we need the compilation environment
@@ -355,6 +414,7 @@ object Codecs {
           case 29 => UnboxedType.Int64
           case 30 => UnboxedType.UInt64
           case 31 => UnboxedType.Float
+          case 32 => decodeSetRef(src, seen)
           case t =>
             sys.error(s"unexpected tag byte $t during decoding")
         }
@@ -449,7 +509,7 @@ object Codecs {
     def go(bs: Source): String = {
       def r = go(bs)
       val s = bs.getByte match {
-        case (-99) => s"#${bs.getVarLong}"
+        case (-99) => s"@${bs.getVarLong}"
         case 0 => s"Var ${bs.getString}"
         case 1 => s"Abs ${bs.getString} $r"
         case 2 => decodeId(bs).toString
@@ -464,7 +524,7 @@ object Codecs {
         case 9 =>
           val fn = go(bs)
           val args = bs.getFramedList(go)
-          "Apply " + fn + "(" + args.mkString(", ") + ")"
+          s"App $fn ${args.mkString(" ")}"
         case 10 => s"Rec $r"
         case 11 => s"Let $r $r"
         case 12 => s"If $r $r $r"
@@ -497,15 +557,16 @@ object Codecs {
           val unboxed = bs.getLong
           val boxed = go(bs)
           s"Value.EffectPure ($unboxed)($boxed)"
-        case 25 => ???
+        case 25 => ??? // TODO
         case 26 =>
-          s"Value.Ref ${bs.getString} $r"
+          s"Ref ${bs.getString}"
         case 27 =>
-          s"Value.External $r"
+          s"External $r"
         case 28 => "Boolean"
         case 29 => "Int64"
         case 30 => "UInt64"
         case 31 => "Float"
+        case 32 => s"SetRef ${bs.getVarLong} ${bs.getVarLong}"
       }
       s
     }

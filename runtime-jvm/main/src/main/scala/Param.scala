@@ -19,6 +19,7 @@ object Param {
 final class Ref(val name: Name, var value: Value) extends Param {
   final def toValue = value
   override def isRef = true
+  override def toString = s"@$name=$value"
 }
 
 abstract class Value extends Param {

@@ -59,7 +59,7 @@ trait Source { self =>
       case 111 =>
         each(decode1)
         foreachDelimited(decode1)(each)
-      case b => sys.error("unknown byte in getDelimited: " + b)
+      case b => sys.error("unknown byte in foreachDelimited: " + b)
     }
 
   /** Checks `ok` before each operation, throws `Source.Invalidated` if `!ok`. */
