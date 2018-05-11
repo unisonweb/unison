@@ -74,22 +74,22 @@ object GraphCodec {
     isRef: G => Boolean, referent: G => G): G => Format[G] = root => {
 
     var out = Sequence.empty[Instruction[G]]
-    val posOf = new collection.mutable.HashMap[G,Long]()
-    def emit(g: G) = { posOf.update(g, out.size); out = out :+ Emit(g) }
+    val posOf = new collection.mutable.HashMap[K,Long]()
+    def emit(g: G) = { posOf.update(id(g), out.size); out = out :+ Emit(g) }
     def skipRefs(g: G) = if (isRef(g)) Iterator.empty else children(g)
 
     foreachPostorder(Set.empty, children, id, root) { g => if (isRef(g)) emit(g) }
-    val seen = out.foldLeft(Set.empty[K]) {
+    val seen = out.foldLeft(posOf.keys.toSet) {
       case (seen,Emit(ref)) =>
         val seen2 = foreachPostorder(seen, skipRefs, id, referent(ref))(emit)
-        out = out :+ SetRef(posOf(ref), out.size - 1)
+        out = out :+ SetRef(posOf(id(ref)), out.size - 1)
         seen2
       case _ => sys.error("unpossible")
     }
     foreachPostorder(seen + id(root), skipRefs, id, root)(emit)
     emit(root)
 
-    Format(out, posOf(_))
+    Format(out, g => posOf(id(g)))
   }
 
   def encodeSink[G](sink: Sink, fmt: Format[G])
