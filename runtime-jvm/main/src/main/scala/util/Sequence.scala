@@ -11,6 +11,9 @@ sealed abstract class Sequence[A] {
   def headOption: Option[A] =
     if (isEmpty) None
     else Some(apply(0))
+  def lastOption: Option[A] =
+    if (isEmpty) None
+    else Some(apply(size - 1))
 
   // override def toString = "Sequence(" + (0L until size).map(apply(_)).mkString(", ") + ")"
 

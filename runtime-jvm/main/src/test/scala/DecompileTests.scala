@@ -9,9 +9,7 @@ object DecompileTests {
   val env0 = Environment.standard
 
   def roundTrip(t: Term) = {
-    val bytes = Codecs.encodeTerm(t)
-    println(Codecs.prettyEncoding(bytes))
-    Codecs.decodeTerm(bytes)
+    Codecs.decodeTerm(Codecs.encodeTerm(t))
   }
 
   val tests = suite("decompile") (

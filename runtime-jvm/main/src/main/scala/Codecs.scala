@@ -30,399 +30,246 @@ object Codecs {
     case class Param(get: org.unisonweb.Param) extends Node
   }
 
-  def encodeTerm(t: Term): Sequence[Array[Byte]] =
-    nodeGraphCodec.encode(Node.Term(t))
+  val nodeEncoder: Node => Format[Node] =
+    encoder(children, objectIdentity, isRef, referent)
 
-  def decodeTerm(bytes: Sequence[Array[Byte]]): Term =
-    nodeGraphCodec.decode(bytes).unsafeAsTerm
+  val nodeDecoder: Source => Node =
+    src => decodeSource(src)(setRef, decoder)
 
-  def encodeValue(p: Value): Sequence[Array[Byte]] =
-    nodeGraphCodec.encode(Node.Param(p))
+  def encodeNode(n: Node): Sequence[Array[Byte]] = {
+    val fmt = nodeEncoder(n)
+    println(prettyFormat(fmt))
+    Sink.toChunks(1024 * 1024 * 4) { sink => encodeSink(sink, fmt)(emitter) }
+  }
 
-  def decodeValue(bytes: Sequence[Array[Byte]]): Value =
-    nodeGraphCodec.decode(bytes).unsafeAsParam.toValue
+  def encodeTerm(t: Term): Sequence[Array[Byte]] = encodeNode(Node.Term(t))
+  def encodeValue(p: Param): Sequence[Array[Byte]] = encodeNode(Node.Param(p))
 
-  implicit val nodeGraphCodec: GraphCodec[Node] = new GraphCodec[Node] {
+  def decodeNode(bs: Sequence[Array[Byte]]): Node =
+    decodeSource(Source.fromChunks(bs))(setRef, decoder)
 
-    import util.Pointer
+  def decodeTerm(bs: Sequence[Array[Byte]]): Term =
+    decodeNode(bs).unsafeAsTerm
 
-    type K = Pointer
+  def decodeValue(bs: Sequence[Array[Byte]]): Value =
+    decodeNode(bs).unsafeAsParam.toValue
 
-    def objectIdentity(n: Node) = n match {
-      case Node.Term(t) => new Pointer(t)
-      case Node.Param(p) => new Pointer(p)
+  def objectIdentity(n: Node) = n match {
+    case Node.Term(t) => new Pointer(t)
+    case Node.Param(p) => new Pointer(p)
+  }
+
+  def isRef(n: Node) = n match {
+    case Node.Param(r : Ref) => true
+    case _ => false
+  }
+
+  def setRef(ref: Node, referent: Node) = {
+    ref.unsafeAsParam.asInstanceOf[Ref].value = referent.unsafeAsParam.toValue
+  }
+
+  def referent(n: Node): Node =
+    Node.Param(n.unsafeAsParam.asInstanceOf[Ref].value)
+
+  def children(g: Node): Iterator[Node] = g match {
+    case Node.Term(t) => t.get match {
+      case ABT.Var_(_) => Iterator.empty
+      case ABT.Abs_(_,t) => Iterator.single(Node.Term(t))
+      case ABT.Tm_(t) => t match {
+        case Compiled_(param) => Iterator.single(Node.Param(param))
+        case _ =>
+          (t.foldLeft(Vector.empty[Node])((r, t) => r :+ Node.Term(t))).iterator
+      }
+    }
+    case Node.Param(p) => p match {
+      case lam: Value.Lambda => Iterator.single(Node.Term(lam.decompile))
+      case Value.Data(_, _, vs) => vs.iterator.map(Node.Param(_))
+      case Value.EffectPure(u, b) => Iterator.single(Node.Param(b))
+      case Value.EffectBind(id, cid, args, k) =>
+        args.iterator.map(Node.Param(_)) ++ Iterator.single(Node.Param(k))
+      case Value.Unboxed(_, _) | _ : UnboxedType => Iterator.empty
+      case r: Ref => Iterator.single(Node.Param(r.value))
+      case e: Builtins.External => Iterator.single(Node.Term(e.decompile))
+      case t => sys.error(s"unexpected Param type ${t.getClass}")
+    }
+  }
+
+  def emitter(sink: Sink, positionOf: Node => Position): Node => Unit = {
+    def encode(t: Term): Unit  = sink.putVarLong(positionOf(Node.Term(t)))
+    def encodep(p: Param): Unit = sink.putVarLong(positionOf(Node.Param(p)))
+
+    def emitTerm(t: Term): Unit = t.get match {
+      case ABT.Var_(v)
+          => sink putByte 0; sink putString v.toString
+      case ABT.Abs_(v,body)
+          => sink putByte 1; sink putString v.toString; encode(body)
+      case ABT.Tm_(tm) => tm match {
+        case Id_(id)
+          => sink putByte 2; encodeId(id, sink)
+        case Constructor_(id,cid)
+          => sink putByte 3; encodeId(id, sink); encodeConstructorId(cid, sink)
+        case Request_(id,cid)
+          => sink putByte 4; encodeId(id, sink); encodeConstructorId(cid, sink)
+        case Text_(txt)
+          => sink putByte 5; sink putText txt
+        case Unboxed_(u, t)
+          => sink putByte 6; sink putLong u; encodeUnboxedType(t, sink)
+        case Sequence_(s)
+          => sink putByte 7; sink putVarLong s.size; s foreach (encode)
+        case Lam_(b)
+          => sink putByte 8; encode(b)
+        case Apply_(fn,args)
+          => sink putByte 9; encode(fn); sink.putFramedSeq1(args)(encode)
+        case Rec_(r)
+          => sink putByte 10; encode(r)
+        case Let_(b,body)
+          => sink putByte 11; encode(b); encode(body)
+        case If_(cond,t,f)
+          => sink putByte 12; encode(cond); encode(t); encode(f)
+        case And_(x,y)
+          => sink putByte 13; encode(x); encode(y)
+        case Or_(x,y)
+          => sink putByte 14; encode(x); encode(y)
+        case Match_(s,cases)
+          => sink putByte 15; encode(s)
+             sink.putFramedSeq1(cases) { c =>
+               encodePattern(c.pattern, sink)
+               sink.putOption1(c.guard)(encode)
+               encode(c.body)
+             }
+        case Handle_(h,body)
+          => sink putByte 16; encode(h); encode(body)
+        case EffectPure_(t)
+          => sink putByte 17; encode(t)
+        case EffectBind_(id,cid,args,k)
+          => sink putByte 18
+             encodeId(id, sink)
+             encodeConstructorId(cid, sink)
+             sink.putFramedSeq1(args)(encode)
+             encode(k)
+        case LetRec_(bs,b)
+          => sink putByte 19; sink.putFramedSeq1(bs)(encode); encode(b)
+        case Compiled_(p)
+          => sink putByte 20; encodep(p)
+      }
     }
 
-    def children(g: Node, expandRefs: Boolean): Iterator[Node] = g match {
-      case Node.Term(t) => t.get match {
-        case ABT.Var_(_) => Iterator.empty
-        case ABT.Abs_(_,t) => Iterator.single(Node.Term(t))
-        case ABT.Tm_(t) => t match {
-          case Compiled_(param) => Iterator.single(Node.Param(param))
-          case _ =>
-            (t.foldLeft(Vector.empty[Node])((r, t) => r :+ Node.Term(t))).iterator
+    def emitParam(p: Param): Unit = p match {
+      case Value.Unboxed(u, typ)
+        => sink putByte 21; sink.putLong(u); encodeUnboxedType(typ, sink)
+      case lam: Value.Lambda
+        => sink putByte 22; encode(lam.decompile)
+      case d@Value.Data(id, cid, vs)
+        => sink putByte 23; encodeId(id, sink); encodeConstructorId(cid, sink)
+           sink.putFramedSeq1(vs)(encodep)
+      case Value.EffectPure(u, b)
+        => sink putByte 24; sink putLong u; encodep(b)
+      case Value.EffectBind(id,cid, args, k)
+        => sink putByte 25; encodeId(id, sink); encodeConstructorId(cid, sink)
+           sink.putFramedSeq1(args)(encodep)
+           encodep(k)
+      case r: Ref
+        => sink putByte 26; sink putString r.name.toString
+      case e: Builtins.External
+        => sink putByte 27; encode(e.decompile)
+      case UnboxedType.Boolean
+        => sink putByte 28
+      case UnboxedType.Int64
+        => sink putByte 29
+      case UnboxedType.UInt64
+        => sink putByte 30
+      case UnboxedType.Float
+        => sink putByte 31
+      case t => sys.error(s"unexpected Param type ${t.getClass} in encodeParam")
+    }
+    _ match {
+      case Node.Term(t) => emitTerm(t)
+      case Node.Param(p) => emitParam(p)
+    }
+  }
+
+  def decoder(src: Source, at: Position => Node): () => Node = {
+    // used for evaluation of lambdas and externals, whose
+    // wire format is the decompiled form that must be
+    // re-evaluated by the decoder
+    val stackU = new Array[U](512)
+    val stackB = new Array[B](512)
+    val R = compilation.Result()
+    def decodeTerm0: Term = at(src.getVarLong).unsafeAsTerm
+    def decodeParam0: Param = at(src.getVarLong).unsafeAsParam
+    def decodeTerm(tag: Byte): Term = tag match {
+      case 0  => ABT.Var(src.getString)
+      case 1  => ABT.Abs(src.getString, decodeTerm0)
+      case 2  => Term.Id(decodeId(src))
+      case 3  => Term.Constructor(decodeId(src), decodeConstructorId(src))
+      case 4  => Term.Request(decodeId(src), decodeConstructorId(src))
+      case 5  => Term.Text(src.getText)
+      case 6  => Term.Unboxed(src.getLong, decodeUnboxedType(src))
+      case 7  => Term.Sequence(src.getFramedSequence1(decodeTerm0))
+      case 8  => ABT.Tm(Lam_(decodeTerm0))
+      case 9  => Term.Apply(decodeTerm0, src.getFramedList1(decodeTerm0):_*)
+      case 10 => ABT.Tm(Rec_(decodeTerm0))
+      case 11 => ABT.Tm(Let_(decodeTerm0, decodeTerm0))
+      case 12 => Term.If(decodeTerm0, decodeTerm0, decodeTerm0)
+      case 13 => Term.And(decodeTerm0, decodeTerm0)
+      case 14 => Term.Or(decodeTerm0, decodeTerm0)
+      case 15 => /* Match */
+        val scrutinee = decodeTerm0
+        val cases = src.getFramedList1 {
+          Term.MatchCase(
+            decodePattern(src),
+            src.getOption1(decodeTerm0),
+            decodeTerm0
+          )
         }
-      }
-      case Node.Param(p) => p match {
-        case lam: Value.Lambda => Iterator.single(Node.Term(lam.decompile))
-        case Value.Data(_, _, vs) => vs.iterator.map(Node.Param(_))
-        case Value.EffectPure(u, b) => Iterator.single(Node.Param(b))
-        case Value.EffectBind(id, cid, args, k) =>
-          args.iterator.map(Node.Param(_)) ++ Iterator.single(Node.Param(k))
-        case Value.Unboxed(_, _) | _ : UnboxedType => Iterator.empty
-        case r: Ref =>
-          if (expandRefs) Iterator.single(Node.Param(r.value))
-          else Iterator.empty
-        case e: Builtins.External => Iterator.single(Node.Term(e.decompile))
-        case t => sys.error(s"unexpected Param type ${t.getClass}")
-      }
+        Term.Match(scrutinee)(cases: _*)
+      case 16 => Term.Handle(decodeTerm0)(decodeTerm0)
+      case 17 => Term.EffectPure(decodeTerm0)
+      case 18 => Term.EffectBind(
+        decodeId(src),
+        decodeConstructorId(src),
+        src.getFramedList1(decodeTerm0),
+        decodeTerm0)
+      case 19 =>
+        ABT.Tm(LetRec_(src.getFramedList1(decodeTerm0), decodeTerm0))
+      case 20 =>
+        Term.Compiled(decodeParam0)
     }
 
-    def foreachTransitive(seen: Set[util.Pointer], n: Node, expandRefs: Boolean)
-                         (f: Node => Unit): Set[util.Pointer] = {
-      import util.Pointer
-      Term.foreachPostorder[Node,Pointer](
-        seen, children(_, expandRefs), objectIdentity(_), n)(f)
-
+    def decodeParam(tag: Byte): Param = (tag : @switch) match {
+      case 21 => Value.Unboxed(src.getLong, decodeUnboxedType(src))
+      case 22 => /* Lambda */
+        // in order to do compilation we need the compilation environment
+        val c = compilation.compileTop(Environment.standard)(decodeTerm0)
+        val sp0 = compilation.StackPtr.empty
+        Value(compilation.evalClosed(c,R,sp0,stackU,stackB), R.boxed)
+      case 23 => Value.Data(decodeId(src),
+                            decodeConstructorId(src),
+                            src.getFramedArray1(decodeParam0.toValue))
+      case 24 => Value.EffectPure(src.getLong, decodeParam0.toValue)
+      case 25 => Value.EffectBind(
+        decodeId(src), decodeConstructorId(src),
+        src.getFramedArray1(decodeParam0.toValue),
+        decodeParam0.toValue.asInstanceOf[Value.Lambda])
+      case 26 =>
+        // Refs are read in the empty state and have referent set later
+        new Ref(src.getString, null)
+      case 27 => /* External */
+        // in order to do compilation we need the compilation environment
+        val c = compilation.compileTop(Environment.standard)(decodeTerm0)
+        val sp0 = compilation.StackPtr.empty
+        Value(compilation.evalClosed(c,R,sp0,stackU,stackB), R.boxed)
+      case 28 => UnboxedType.Boolean
+      case 29 => UnboxedType.Int64
+      case 30 => UnboxedType.UInt64
+      case 31 => UnboxedType.Float
+      case t => sys.error(s"unexpected tag byte $t during decoding")
     }
 
-    def encodeSetRef(sink: Sink, reference: Position, referent: Position) = {
-      sink putByte 32
-      sink putVarLong reference
-      sink putVarLong referent
-    }
-
-    def decodeSetRef(source: Source, seen: Position => Option[Node]): Param = {
-      val referencePos = source.getVarLong
-      val referentPos = source.getVarLong
-      val Node.Param(ref: Ref) =
-        seen(referencePos) getOrElse {
-          sys.error(s"No reference at position $referencePos")
-        }
-      val Node.Param(referent) =
-        seen(referentPos) getOrElse {
-          sys.error(s"Unknown reference to position $referentPos")
-        }
-      ref.value = referent.toValue
-      ref
-    }
-
-    def encode(sink: Sink, seen: Node => Option[Position]): Node => Unit = {
-      def encodeNode(n: Node): Unit = {
-        val refs = new collection.mutable.HashMap[Ref, Position]()
-        foreachTransitive(Set.empty, n, true) {
-          case Node.Param(r:Ref) =>
-            sink putByte 111 // An object follows
-            refs += (r -> sink.position)
-            encodeDeclareRef(r)
-          case _ => ()
-        }
-        val seenSet = refs.foldLeft(refs.keys.map(new Pointer(_)).toSet) {
-          case (seen, (ref, referencePos)) =>
-            var referentPos = -1L
-            val seenSet =
-              foreachTransitive(seen, Node.Param(ref.value), false) { node =>
-                sink putByte 111
-                referentPos = sink.position
-                node match {
-                  case Node.Term(t) => encodeTerm(t)
-                  case Node.Param(p) => encodeParam(p)
-                }
-              }
-            sink putByte 111
-            encodeSetRef(sink, referencePos, referentPos)
-            seenSet
-        }
-        foreachTransitive(seenSet + new Pointer(n), n, false) { node =>
-          sink putByte 111
-          node match {
-            case Node.Term(t) => encodeTerm(t)
-            case Node.Param(p) => encodeParam(p)
-          }
-        }
-        sink putByte 111
-        n match {
-          case Node.Term(t) => encodeTerm(t)
-          case Node.Param(p) => encodeParam(p)
-        }
-        sink putByte 0
-      }
-      def encodeTerm(t: Term): Unit = seen(Node.Term(t)) match {
-        case Some(pos)                      => sink putByte -99
-          sink putVarLong pos
-
-        case None => t.get match {
-          case ABT.Var_(v)                  => sink putByte 0
-            sink putString v.toString
-
-          case ABT.Abs_(v,body)             => sink putByte 1
-            sink putString v.toString
-            encodeTerm(body)
-
-          case ABT.Tm_(tm) => tm match {
-            case Id_(id)                    => sink putByte 2
-              encodeId(id, sink)
-
-            case Constructor_(id,cid)       => sink putByte 3
-              encodeId(id, sink)
-              encodeConstructorId(cid, sink)
-
-            case Request_(id,cid)           => sink putByte 4
-              encodeId(id, sink)
-              encodeConstructorId(cid, sink)
-
-            case Text_(txt)                 => sink putByte 5
-              sink putText txt
-
-            case Unboxed_(u, t)             => sink putByte 6
-              sink putLong u
-              encodeUnboxedType(t, sink)
-
-            case Sequence_(s)               => sink putByte 7
-              sink putVarLong s.size
-              s foreach (encodeTerm)
-
-            case Lam_(b)                    => sink putByte 8
-              encodeTerm(b)
-
-            case Apply_(fn,args)            => sink putByte 9
-              encodeTerm(fn)
-              sink.putFramedSeq1(args)(encodeTerm)
-
-            case Rec_(r)                    => sink putByte 10
-              encodeTerm(r)
-
-            case Let_(b,body)               => sink putByte 11
-              encodeTerm(b)
-              encodeTerm(body)
-
-            case If_(cond,t,f)              => sink putByte 12
-              encodeTerm(cond)
-              encodeTerm(t)
-              encodeTerm(f)
-
-            case And_(x,y)                  => sink putByte 13
-              encodeTerm(x)
-              encodeTerm(y)
-
-            case Or_(x,y)                   => sink putByte 14
-              encodeTerm(x)
-              encodeTerm(y)
-
-            case Match_(s,cases)            => sink putByte 15
-              encodeTerm(s)
-              sink.putFramedSeq1(cases) { c =>
-                encodePattern(c.pattern, sink)
-                sink.putOption1(c.guard)(encodeTerm)
-                encodeTerm(c.body)
-              }
-
-            case Handle_(h,body)            => sink putByte 16
-              encodeTerm(h)
-              encodeTerm(body)
-
-            case EffectPure_(t)             => sink putByte 17
-              encodeTerm(t)
-
-            case EffectBind_(id,cid,args,k) => sink putByte 18
-              encodeId(id, sink)
-              encodeConstructorId(cid, sink)
-              sink.putFramedSeq1(args)(encodeTerm)
-              encodeTerm(k)
-
-            case LetRec_(bs,b)              => sink putByte 19
-              sink.putFramedSeq1(bs)(encodeTerm)
-              encodeTerm(b)
-
-            case Compiled_(p)               => sink putByte 20
-              encodeParam(p)
-          }
-        }
-      }
-
-      def encodeDeclareRef(r: Ref): Unit = seen(Node.Param(r)) match {
-        case None =>
-          sink putByte 26
-          sink putString r.name.toString
-        case Some(_) => ()
-      }
-
-      def encodeParam(p: Param): Unit = seen(Node.Param(p)) match {
-        case Some(pos)                          => sink putByte -99
-          sink putVarLong pos
-
-        case None => p match {
-          case Value.Unboxed(u, typ)             => sink putByte 21
-            sink.putLong(u)
-            encodeUnboxedType(typ, sink)
-
-          case lam: Value.Lambda                 => sink putByte 22
-            encodeTerm(lam.decompile)
-
-          case d@Value.Data(id, cid, vs)         => sink putByte 23
-            encodeId(id, sink)
-            encodeConstructorId(cid, sink)
-            sink.putFramedSeq1(vs)(encodeParam)
-
-          case Value.EffectPure(u, b)            => sink putByte 24
-            sink putLong u
-            encodeParam(b)
-
-          case Value.EffectBind(id,cid, args, k) => sink putByte 25
-            encodeId(id, sink)
-            encodeConstructorId(cid, sink)
-            sink.putFramedSeq1(args)(encodeParam)
-            encodeParam(k)
-
-          // We'll never actually hit this case because we've already seen
-          // all refs in a previous pass.
-          case r:Ref                             =>
-            sys.error("Should have already seen all refs")
-
-          case e: Builtins.External              => sink putByte 27
-            encodeTerm(e.decompile)
-
-          case UnboxedType.Boolean               => sink putByte 28
-          case UnboxedType.Int64                 => sink putByte 29
-          case UnboxedType.UInt64                => sink putByte 30
-          case UnboxedType.Float                 => sink putByte 31
-          case t =>
-            sys.error(s"unexpected Param type ${t.getClass} in encodeParam")
-        }
-      }
-
-      encodeNode(_)
-    }
-
-    def decode(src: Source,
-               seen: Long => Option[Node],
-               done: (Position,Node) => Unit): () => Node = {
-
-      // used for evaluation of lambdas and externals, whose
-      // wire format is the decompiled form that must be
-      // re-evaluated by the decoder
-      val stackU = new Array[U](512)
-      val stackB = new Array[B](512)
-      val R = compilation.Result()
-
-      def decode: Node = {
-        // the last node in the stream is the root node -
-        // it a flat expression that refers back to earlier nodes in the stream
-        var last: Node = null
-        src.foreachDelimited(decode0) { node => last = node }
-        last
-      }
-
-      def decode0: Node = {
-        val pos = src.position
-        val tag = src.getByte
-        // todo: this shouldn't need to be duplicated?
-        if (tag == -99) {
-          // magic byte indicating a backref to a position follows
-          val i = src.getVarLong
-          seen(i) match {
-            case Some(n) => done(pos, n); n
-            case None => sys.error("unknown reference to position: " + i)
-          }
-        }
-        else if (tag <= 20) Node.Term(decodeTerm(pos, tag))
-        else Node.Param(decodeParam(pos, tag))
-      }
-
-      def decodeTerm0: Term = decodeTerm(src.position, src.getByte)
-      def decodeTerm(pos: Position, tag: Byte): Term = {
-        val t: Term = (tag: @switch) match {
-          case -99 => val i = src.getVarLong; seen(i) match {
-            case Some(n) => n.unsafeAsTerm
-            case None => sys.error("unknown reference to position: " + i)
-          }
-          case 0  => ABT.Var(src.getString)
-          case 1  => ABT.Abs(src.getString, decodeTerm0)
-          case 2  => Term.Id(decodeId(src))
-          case 3  => Term.Constructor(decodeId(src), decodeConstructorId(src))
-          case 4  => Term.Request(decodeId(src), decodeConstructorId(src))
-          case 5  => Term.Text(src.getText)
-          case 6  => Term.Unboxed(src.getLong, decodeUnboxedType(src))
-          case 7  => Term.Sequence(src.getFramedSequence1(decodeTerm0))
-          case 8  => ABT.Tm(Lam_(decodeTerm0))
-          case 9  => Term.Apply(decodeTerm0, src.getFramedList1(decodeTerm0):_*)
-          case 10 => ABT.Tm(Rec_(decodeTerm0))
-          case 11 => ABT.Tm(Let_(decodeTerm0, decodeTerm0))
-          case 12 => Term.If(decodeTerm0, decodeTerm0, decodeTerm0)
-          case 13 => Term.And(decodeTerm0, decodeTerm0)
-          case 14 => Term.Or(decodeTerm0, decodeTerm0)
-          case 15 => /* Match */
-            val scrutinee = decodeTerm0
-            val cases = src.getFramedList1 {
-              Term.MatchCase(
-                decodePattern(src),
-                src.getOption1(decodeTerm0),
-                decodeTerm0
-              )
-            }
-            Term.Match(scrutinee)(cases: _*)
-          case 16 => Term.Handle(decodeTerm0)(decodeTerm0)
-          case 17 => Term.EffectPure(decodeTerm0)
-          case 18 => Term.EffectBind(
-            decodeId(src),
-            decodeConstructorId(src),
-            src.getFramedList1(decodeTerm0),
-            decodeTerm0)
-          case 19 =>
-            ABT.Tm(LetRec_(src.getFramedList1(decodeTerm0), decodeTerm0))
-          case 20 =>
-            Term.Compiled(decodeParam0)
-        }
-        done(pos, Node.Term(t))
-        t
-      }
-      def decodeParam0: Param = decodeParam(src.position, src.getByte)
-      def decodeParam(pos: Position, tag: Byte): Param = {
-        val currentRef = new Ref("v"+pos, null)
-        done(pos, Node.Param(currentRef))
-        val p: Param = (tag: @switch) match {
-          case -99 => val i = src.getVarLong; seen(i) match {
-            case Some(n) => n.unsafeAsParam
-            case None => sys.error("unknown reference to position: " + i)
-          }
-          case 21 => Value.Unboxed(src.getLong, decodeUnboxedType(src))
-          case 22 => /* Lambda */
-            // in order to do compilation we need the compilation environment
-            val c = compilation.compileTop(Environment.standard)(decodeTerm0)
-            val sp0 = compilation.StackPtr.empty
-            Value(compilation.evalClosed(c,R,sp0,stackU,stackB), R.boxed)
-          case 23 => Value.Data(decodeId(src),
-                                decodeConstructorId(src),
-                                src.getFramedArray1(decodeParam0.toValue))
-          case 24 => Value.EffectPure(src.getLong, decodeParam0.toValue)
-          case 25 => Value.EffectBind(
-            decodeId(src), decodeConstructorId(src),
-            src.getFramedArray1(decodeParam0.toValue),
-            decodeParam0.toValue.asInstanceOf[Value.Lambda])
-          case 26 =>
-            // We don't write out the referent because it may refer to itself.
-            // We'll set the reference later in the stream using a 32.
-            val ref = new Ref(src.getString, null)
-            done(pos, Node.Param(ref))
-            ref
-          case 27 => /* External */
-            // in order to do compilation we need the compilation environment
-            val c = compilation.compileTop(Environment.standard)(decodeTerm0)
-            val sp0 = compilation.StackPtr.empty
-            Value(compilation.evalClosed(c,R,sp0,stackU,stackB), R.boxed)
-          case 28 => UnboxedType.Boolean
-          case 29 => UnboxedType.Int64
-          case 30 => UnboxedType.UInt64
-          case 31 => UnboxedType.Float
-          case 32 => decodeSetRef(src, seen)
-          case t =>
-            sys.error(s"unexpected tag byte $t during decoding")
-        }
-        currentRef.value = p.toValue
-        done(pos, Node.Param(p))
-        p
-      }
-      () => decode
+    () => {
+      val tag = src.getByte
+      if (tag <= 20) Node.Term(decodeTerm(tag))
+      else Node.Param(decodeParam(tag))
     }
   }
 
@@ -502,6 +349,33 @@ object Codecs {
         encodePattern(continuation, sink)
   }
 
+  def prettyFormat(f: Format[Node]): String = {
+    import GraphCodec.Instruction._
+    def backref(t: Term) = "@"+f.positionOf(Node.Term(t)).toString
+    def backrefp(p: Param) = "@"+f.positionOf(Node.Param(p)).toString
+    f.instructions.toList.zipWithIndex.foldLeft(Vector("-----")) {
+      case (buf,(s,i)) =>
+        val line = s"$i\t" + { s match {
+          case Emit(n) => n match {
+            case Node.Term(t) => t.get.map(backref).toString
+            case Node.Param(p) => p match {
+              case lam : Value.Lambda => "Lambda " + backref(lam.decompile)
+              case e: Builtins.External => "External " + backref(e.decompile)
+              case Value.Data(id,cid,fields) =>
+                s"Data $id $cid ${fields.map(backrefp).mkString(" ")}"
+              case Value.EffectPure(u,b) =>
+                s"EffectPure $u ${backrefp(b)}"
+              case Value.EffectBind(id,cid,fields,k) =>
+                s"EffectBind $id $cid ${fields.map(backrefp).mkString(" ")} | ${backrefp(k)}"
+              case _ => p.toString
+            }
+          }
+          case SetRef(p1, p2) => s"SetRef $p1 $p2"
+        }}
+        buf :+ line
+    }.mkString("\n")
+  }
+
   final def prettyEncoding(bytes: util.Sequence[Array[Byte]]): String =
     prettyEncoding(Source.fromChunks(bytes)).mkString("\n")
 
@@ -578,5 +452,5 @@ object Codecs {
     }
     r
   }
-
 }
+

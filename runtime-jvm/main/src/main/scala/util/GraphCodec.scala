@@ -1,57 +1,5 @@
 package org.unisonweb.util
 
-import GraphCodec._
-
-trait GraphCodec[G] {
-
-  type K
-
-  def objectIdentity(g: G): K
-
-  def encode(sink: Sink, seen: G => Option[Position]): G => Unit
-
-  def decode(src: Source, seen: Position => Option[G], done: (Position, G) => Unit): () => G
-
-  def encodeTree(sink: Sink): G => Unit =
-    encode(sink, _ => None)
-
-  def decodeTree(src: Source): () => G =
-    decode(src, _ => None, (_,_) => ())
-
-  def encodeGraph(sink: Sink): G => Unit = {
-    val seen = new scala.collection.mutable.HashMap[K,Long]
-    encode(sink, g => {
-      val id = objectIdentity(g)
-      seen.get(id) orElse { seen += (id -> sink.position); None }
-    })
-  }
-
-  def decodeGraph(src: Source): () => G = {
-    val seen = new scala.collection.mutable.LongMap[G]()
-    decode(src, seen.get, (pos,g) => seen += (pos, g))
-  }
-
-  /** Convenience function to write out a sequence of byte chunks for a `G`. */
-  def encode(g: G): Sequence[Array[Byte]] = {
-    var buf = Sequence.empty[Array[Byte]]
-    val bb = java.nio.ByteBuffer.allocate(1000 * 1000)
-    val encoder = encodeGraph(Sink.fromByteBuffer(bb, arr => buf = buf :+ arr))
-    encoder(g)
-    if (bb.position() != 0) {
-      // there are leftover bytes buffered in `bb`, flush them
-      val rem = new Array[Byte](bb.position)
-      bb.position(0)
-      bb.get(rem)
-      buf :+ rem
-    }
-    else buf
-  }
-
-  /** Convenience function to read a `G` from a sequence of chunks. */
-  def decode(chunks: Sequence[Array[Byte]]): G =
-    decodeGraph(Source.fromChunks(chunks))()
-}
-
 object GraphCodec {
 
   type Position = Long
@@ -75,7 +23,10 @@ object GraphCodec {
 
     var out = Sequence.empty[Instruction[G]]
     val posOf = new collection.mutable.HashMap[K,Long]()
-    def emit(g: G) = { posOf.update(id(g), out.size); out = out :+ Emit(g) }
+    def emit(g: G) = {
+      if (!posOf.contains(id(g))) posOf.update(id(g), out.size)
+      out = out :+ Emit(g)
+    }
     def skipRefs(g: G) = if (isRef(g)) Iterator.empty else children(g)
 
     foreachPostorder(Set.empty, children, id, root) { g => if (isRef(g)) emit(g) }
@@ -86,10 +37,12 @@ object GraphCodec {
         seen2
       case _ => sys.error("unpossible")
     }
-    foreachPostorder(seen + id(root), skipRefs, id, root)(emit)
-    emit(root)
-
-    Format(out, g => posOf(id(g)))
+    foreachPostorder(seen - id(root), skipRefs, id, root)(emit)
+    out.lastOption match {
+      case Some(Emit(e)) if id(e) == id(root) => ()
+      case _ => emit(root)
+    }
+    Format(out, (g: G) => posOf(id(g)))
   }
 
   def encodeSink[G](sink: Sink, fmt: Format[G])
@@ -120,7 +73,7 @@ object GraphCodec {
       src.getByte match {
         case 111 =>
           src.getByte match {
-            case 0 => decoded.update(pos, decode1())
+            case 0 => val g = decode1(); last = Some(g); decoded.update(pos, g)
             case 1 => setRef(decoded(src.getVarLong), decoded(src.getVarLong))
           }
           go(pos + 1)

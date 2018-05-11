@@ -39,6 +39,20 @@ trait Sink {
 
 object Sink {
 
+  def toChunks(bufferSize: Int)(f: Sink => Unit): Sequence[Array[Byte]] = {
+    var buf = Sequence.empty[Array[Byte]]
+    val bb = java.nio.ByteBuffer.allocate(bufferSize)
+    f(Sink.fromByteBuffer(bb, arr => buf = buf :+ arr))
+    if (bb.position() != 0) {
+      bb.flip()
+      // there are leftover bytes buffered in `bb`, flush them
+      val rem = new Array[Byte](bb.limit())
+      bb.get(rem)
+      buf :+ rem
+    }
+    else buf
+  }
+
   def fromByteBuffer(bb: ByteBuffer, onFill: Array[Byte] => Unit): Sink = new Sink {
     var pos: Long = 0L
     def position = pos + bb.position().toLong

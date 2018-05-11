@@ -5,4 +5,5 @@ class Pointer(val ref: AnyRef) {
     ref eq o.asInstanceOf[Pointer].ref
   override def hashCode: Int =
     System.identityHashCode(ref)
+  override def toString = s"@${System.identityHashCode(ref)}="+ref.toString.take(15)
 }
