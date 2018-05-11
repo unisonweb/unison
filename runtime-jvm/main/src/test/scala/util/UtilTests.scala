@@ -10,6 +10,7 @@ object UtilTests {
           BytesTests.tests,
           TextTests.tests,
           CritbyteTests.tests,
+          SourceSinkTests.tests,
           SerializationTests.tests,
           StreamTests.tests)
   }
