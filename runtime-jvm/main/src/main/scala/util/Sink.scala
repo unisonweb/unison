@@ -59,9 +59,8 @@ object Sink {
 
     bb.order(java.nio.ByteOrder.BIG_ENDIAN)
 
-    private final def fill = {
-      println("fill getting called " + position)
-      bb.flip() //
+    private final def empty = {
+      bb.flip() // reset position back to 0, set limit to position
       val buf = new Array[Byte](bb.limit())
       pos += buf.length
       bb.get(buf) // this fills the array
@@ -78,26 +77,29 @@ object Sink {
       // todo: more direct implementation
       putString(Text.toString(txt))
 
-    // todo: this needs to split the array if buffer capacity is less than array length
     def put(bs: Array[Byte]) =
-      try { bb.put(bs); () }
-      catch { case e: BufferOverflowException => fill; bb.put(bs); () }
+      if (bs.length < bb.capacity())
+        try { bb.put(bs); () }
+        catch { case e: BufferOverflowException => empty; bb.put(bs); () }
+      else bs.splitAt(bs.length / 2) match {
+        case (bs1, bs2) => put(bs1); put(bs2)
+      }
 
     def putByte(b: Byte) =
       try { bb.put(b); () }
-      catch { case e: BufferOverflowException => fill; bb.put(b); () }
+      catch { case e: BufferOverflowException => empty; bb.put(b); () }
 
     def putInt(n: Int) =
       try { bb.putInt(n); () }
-      catch { case e: BufferOverflowException => fill; bb.putInt(n); () }
+      catch { case e: BufferOverflowException => empty; bb.putInt(n); () }
 
     def putLong(n: Long) =
       try { bb.putLong(n); () }
-      catch { case e: BufferOverflowException => fill; bb.putLong(n); () }
+      catch { case e: BufferOverflowException => empty; bb.putLong(n); () }
 
     def putDouble(n: Double) =
       try { bb.putDouble(n); () }
-      catch { case e: BufferOverflowException => fill; bb.putDouble(n); () }
+      catch { case e: BufferOverflowException => empty; bb.putDouble(n); () }
   }
 
   def writeLong(n: Long): Array[Byte] = {

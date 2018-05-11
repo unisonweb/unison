@@ -15,7 +15,6 @@ object CodecsTests {
 
   def roundTrip(p: Value) = {
     val bytes = Codecs.encodeValue(p)
-    // println(bytes.toList.flatten)
     Codecs.decodeValue(bytes)
   }
 

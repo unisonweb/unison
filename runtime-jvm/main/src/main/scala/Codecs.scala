@@ -38,8 +38,7 @@ object Codecs {
 
   def encodeNode(n: Node): Sequence[Array[Byte]] = {
     val fmt = nodeEncoder(n)
-    println(prettyFormat(fmt))
-    Sink.toChunks(1024 * 1024 * 4) { sink => encodeSink(sink, fmt)(emitter) }
+    Sink.toChunks(4096) { sink => encodeSink(sink, fmt)(emitter) }
   }
 
   def encodeTerm(t: Term): Sequence[Array[Byte]] = encodeNode(Node.Term(t))

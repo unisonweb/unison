@@ -116,15 +116,16 @@ object Source {
     val bb = java.nio.ByteBuffer.allocate(bufferSize)
     var rem = chunks
     bb.limit(0)
-    Source.fromByteBuffer(bb, bb => rem.uncons match {
+    Source.fromByteBuffer(bb, (unread, bb) => rem.uncons match {
       case None => throw Underflow()
       case Some((chunk,chunks)) =>
-        if (bb.limit() >= chunk.length) {
+        bb.put(unread)
+        if (chunk.length <= bb.remaining()) {
           bb.put(chunk)
           rem = chunks
         }
         else { // need to split up chunk
-          val (c1,c2) = chunk.splitAt(bb.limit())
+          val (c1,c2) = chunk.splitAt(bb.remaining())
           bb.put(c1)
           rem = c2 +: chunks
         }
@@ -140,16 +141,24 @@ object Source {
     }
   }
 
-  def fromByteBuffer(bb: ByteBuffer, onEmpty: ByteBuffer => Unit): Source = new Source {
+  def fromByteBuffer(bb: ByteBuffer, onEmpty: (Array[Byte], ByteBuffer) => Unit): Source = new Source {
     bb.order(java.nio.ByteOrder.BIG_ENDIAN)
     var pos = 0L
 
     def position: Long = pos + bb.position().toLong
 
     def refill = {
+      // todo: gotta save the unread elements before calling onEmpty
+      val unread =
+        if (bb.remaining() > 0) {
+          val unread = new Array[Byte](bb.limit() - bb.position())
+          bb.put(unread)
+          unread
+        }
+        else Array.empty[Byte]
       pos += bb.position()
       bb.clear()
-      onEmpty(bb)
+      onEmpty(unread, bb)
       bb.flip()
     }
 
@@ -159,7 +168,10 @@ object Source {
         bb.get(arr)
         arr
       }
-      catch { case BufferUnderflow() => refill; get(n) }
+      catch { case BufferUnderflow() =>
+        if (n <= bb.capacity()) { refill; get(n) }
+        else get(n/2) ++ get(n - n/2)
+      }
 
     def getByte: Byte =
       try bb.get
