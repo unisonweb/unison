@@ -62,28 +62,6 @@ trait Source { self =>
       case b => sys.error("unknown byte in foreachDelimited: " + b)
     }
 
-  /** Checks `ok` before each operation, throws `Source.Invalidated` if `!ok`. */
-  def invalidateWhen(invalidated: => Boolean): Source = new Source {
-    def position =
-      if (!invalidated) self.position
-      else throw Source.Invalidated()
-    def get(n: Int) =
-      if (!invalidated) self.get(n)
-      else throw Source.Invalidated()
-    def getByte: Byte =
-      if (!invalidated) self.getByte
-      else throw Source.Invalidated()
-    def getInt: Int =
-      if (!invalidated) self.getInt
-      else throw Source.Invalidated()
-    def getLong: Long =
-      if (!invalidated) self.getLong
-      else throw Source.Invalidated()
-    def getDouble: Double =
-      if (!invalidated) self.getDouble
-      else throw Source.Invalidated()
-  }
-
   def take(m: Long): Source = new Source {
     val end = (self.position + m) max self.position
     def position = self.position

@@ -1,8 +1,33 @@
 package org.unisonweb.util
 
+/** Functions for encoding/decoding object graphs with cycles. */
 object GraphCodec {
 
   type Position = Long
+
+  /**
+   * A flattened format for a graph `G`. Satisfies the
+   * invariants that:
+   *
+   *   - `SetRef i j` must be at a position greater than
+   *     both `i` and `j` (we can only set references
+   *     already declared)
+   *
+   *   - An `Emit(g)` at position `i` can only reference
+   *     `G` values emitted at positions `<= i` (we can
+   *     only refer back to previously emitted values).
+   *
+   * The output is completely flat. Example, the lambda `x -> 79`:
+   *
+   *   0	Unboxed(79,Int64)
+   *   1	Compiled_(Unboxed(79,Int64))
+   *   2	Abs_(x,@1)
+   *   3	Lam_(@2)
+   */
+  case class Format[G](
+    instructions: Sequence[Instruction[G]],
+    positionOf: G => Position
+  )
 
   trait Instruction[+G]
 
@@ -12,11 +37,17 @@ object GraphCodec {
   }
   import Instruction._
 
-  case class Format[G](
-    instructions: Sequence[Instruction[G]],
-    positionOf: G => Position
-  )
-
+  /**
+   * Produce an encoder for graph type `G`:
+   *
+   * - `children` iterates over the child nodes of a `G`.
+   * - `id` extracts a key used to uniquely identify nodes.
+   * - `isRef` is `true` if a node is a mutable reference
+   * - `referent` dereferences a reference node
+   *
+   * For any node, `g`, if `isRef(g)`, then `children(g)`
+   * should include `referent(g)`.
+   */
   def encoder[G,K](
     children: G => Iterator[G], id: G => K,
     isRef: G => Boolean, referent: G => G): G => Format[G] = root => {
@@ -29,15 +60,21 @@ object GraphCodec {
     }
     def skipRefs(g: G) = if (isRef(g)) Iterator.empty else children(g)
 
+    // Algorithm works in 3 passes
+    // 1. Emit/declare all the refs transitively reachable from root
     foreachPostorder(Set.empty, children, id, root) { g => if (isRef(g)) emit(g) }
+    // 2. Emit all the referents of these refs
     val seen = out.foldLeft(posOf.keys.toSet) {
       case (seen,Emit(ref)) =>
         val seen2 = foreachPostorder(seen, skipRefs, id, referent(ref))(emit)
+        // after each referent is encoded, we issue a SetRef instruction
         out = out :+ SetRef(posOf(id(ref)), out.size - 1)
         seen2
       case _ => sys.error("unpossible")
     }
+    // 3. Emit the root node
     foreachPostorder(seen - id(root), skipRefs, id, root)(emit)
+    // We ensure root node is emitted last, even if previously emitted
     out.lastOption match {
       case Some(Emit(e)) if id(e) == id(root) => ()
       case _ => emit(root)
@@ -62,6 +99,7 @@ object GraphCodec {
   }
 
   def decodeSource[G](src: Source)(
+    // setRef(ref, referent)
     setRef: (G, G) => Unit,
     decode: (Source, Position => G) => () => G): G = {
 
