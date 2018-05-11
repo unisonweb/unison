@@ -112,27 +112,23 @@ object Source {
   case class Underflow() extends Throwable
   case class Invalidated() extends Throwable
 
-  def fromChunks(chunks: Sequence[Array[Byte]]): Source = chunks.uncons match {
-    case None => sys.error("empty chunks")
-    case Some((chunk,chunks)) => {
-      val bb = java.nio.ByteBuffer.allocate(40000000)
-      bb.put(chunk)
-      bb.position(0)
-      var rem = chunks
-      Source.fromByteBuffer(bb, bb => rem.uncons match {
-        case None => throw Underflow()
-        case Some((chunk,chunks)) =>
-          if (bb.limit() >= chunk.length) {
-            bb.put(chunk)
-            rem = chunks
-          }
-          else { // need to split up chunk
-            val (c1,c2) = chunk.splitAt(bb.limit())
-            bb.put(c1)
-            rem = c2 +: chunks
-          }
-      })
-    }
+  def fromChunks(bufferSize: Int)(chunks: Sequence[Array[Byte]]): Source = {
+    val bb = java.nio.ByteBuffer.allocate(bufferSize)
+    var rem = chunks
+    bb.limit(0)
+    Source.fromByteBuffer(bb, bb => rem.uncons match {
+      case None => throw Underflow()
+      case Some((chunk,chunks)) =>
+        if (bb.limit() >= chunk.length) {
+          bb.put(chunk)
+          rem = chunks
+        }
+        else { // need to split up chunk
+          val (c1,c2) = chunk.splitAt(bb.limit())
+          bb.put(c1)
+          rem = c2 +: chunks
+        }
+    })
   }
 
   object BufferUnderflow {
@@ -151,7 +147,6 @@ object Source {
     def position: Long = pos + bb.position().toLong
 
     def refill = {
-      sys.error("refill called!!!")
       pos += bb.position()
       bb.clear()
       onEmpty(bb)

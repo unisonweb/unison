@@ -46,7 +46,7 @@ object Codecs {
   def encodeValue(p: Param): Sequence[Array[Byte]] = encodeNode(Node.Param(p))
 
   def decodeNode(bs: Sequence[Array[Byte]]): Node =
-    decodeSource(Source.fromChunks(bs))(setRef, decoder)
+    decodeSource(Source.fromChunks(4096)(bs))(setRef, decoder)
 
   def decodeTerm(bs: Sequence[Array[Byte]]): Term =
     decodeNode(bs).unsafeAsTerm
@@ -377,7 +377,7 @@ object Codecs {
   }
 
   final def prettyEncoding(bytes: util.Sequence[Array[Byte]]): String =
-    prettyEncoding(Source.fromChunks(bytes)).mkString("\n")
+    prettyEncoding(Source.fromChunks(4096)(bytes)).mkString("\n")
 
   final def prettyEncoding(bytes: Source): Vector[String] = {
     def go(bs: Source): String = {
