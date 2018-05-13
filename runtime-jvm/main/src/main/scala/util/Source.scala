@@ -94,10 +94,9 @@ object Source {
     val bb = java.nio.ByteBuffer.allocate(bufferSize)
     var rem = chunks
     bb.limit(0)
-    Source.fromByteBuffer(bb, (unread, bb) => rem.uncons match {
-      case None => throw Underflow()
+    Source.fromByteBuffer(bb, bb => rem.uncons match {
+      case None => false
       case Some((chunk,chunks)) =>
-        bb.put(unread)
         if (chunk.length <= bb.remaining()) {
           bb.put(chunk)
           rem = chunks
@@ -107,6 +106,7 @@ object Source {
           bb.put(c1)
           rem = c2 +: chunks
         }
+        true
     })
   }
 
@@ -119,7 +119,8 @@ object Source {
     }
   }
 
-  def fromByteBuffer(bb: ByteBuffer, onEmpty: (Array[Byte], ByteBuffer) => Unit): Source = new Source {
+  // `onEmpty` should return `false` if it has no more elements
+  def fromByteBuffer(bb: ByteBuffer, onEmpty: ByteBuffer => Boolean): Source = new Source {
     bb.order(java.nio.ByteOrder.BIG_ENDIAN)
     var pos = 0L
 
@@ -135,20 +136,27 @@ object Source {
         }
         else Array.empty[Byte]
       bb.clear()
-      onEmpty(unread, bb)
+      bb.put(unread)
+      while (bb.remaining() > 0 && onEmpty(bb)) {}
       bb.flip()
     }
 
-    def get(n: Int) =
-      try {
+    def get(n: Int): Array[Byte] = getImpl(n, Array.empty[Byte])
+
+    @annotation.tailrec
+    def getImpl(n: Int, acc: Array[Byte]): Array[Byte] = {
+      if (n <= bb.remaining()) {
         val arr = new Array[Byte](n)
         bb.get(arr)
-        arr
+        if (acc.isEmpty) arr else acc ++ arr
       }
-      catch { case BufferUnderflow() =>
-        if (n <= bb.capacity()) { refill; get(n) }
-        else get(n/2) ++ get(n - n/2)
+      else if (n > 0 && bb.remaining() == 0) { refill; getImpl(n, acc) }
+      else { // n > bb.remaining()
+        val hd = new Array[Byte](bb.remaining())
+        bb.get(hd)
+        getImpl(n - hd.length, acc ++ hd)
       }
+    }
 
     def getByte: Byte =
       try bb.get
