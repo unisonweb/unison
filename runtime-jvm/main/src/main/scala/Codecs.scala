@@ -373,7 +373,7 @@ object Codecs {
           case SetRef(p1, p2) => s"SetRef $p1 $p2"
         }}
         buf :+ line
-    }.mkString("\n")
+    }.mkString("\n") + "\n" + "@"+f.positionOf(f.root).toString
   }
 
   final def prettyEncoding(bytes: util.Sequence[Array[Byte]]): String =

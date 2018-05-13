@@ -26,7 +26,8 @@ object GraphCodec {
    */
   case class Format[G](
     instructions: Sequence[Instruction[G]],
-    positionOf: G => Position
+    positionOf: G => Position,
+    root: G
   )
 
   trait Instruction[+G]
@@ -73,13 +74,13 @@ object GraphCodec {
       case _ => sys.error("unpossible")
     }
     // 3. Emit the root node
-    foreachPostorder(seen - id(root), skipRefs, id, root)(emit)
+    foreachPostorder(seen, skipRefs, id, root)(emit)
     // We ensure root node is emitted last, even if previously emitted
     out.lastOption match {
       case Some(Emit(e)) if id(e) == id(root) => ()
       case _ => emit(root)
     }
-    Format(out, (g: G) => posOf(id(g)))
+    Format(out, (g: G) => posOf(id(g)), root)
   }
 
   def encodeSink[G](sink: Sink, fmt: Format[G])
@@ -96,6 +97,7 @@ object GraphCodec {
       }
     }
     sink putByte 0 // end of stream marker
+    sink putVarLong fmt.positionOf(fmt.root)
   }
 
   def decodeSource[G](src: Source)(
@@ -115,7 +117,8 @@ object GraphCodec {
             case 1 => setRef(decoded(src.getVarLong), decoded(src.getVarLong))
           }
           go(pos + 1)
-        case 0 => last.getOrElse(sys.error("empty stream"))
+        case 0 =>
+          decoded(src.getVarLong)
       }
     go(0)
   }
