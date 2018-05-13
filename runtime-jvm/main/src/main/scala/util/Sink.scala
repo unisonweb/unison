@@ -77,12 +77,16 @@ object Sink {
       // todo: more direct implementation
       putString(Text.toString(txt))
 
-    def put(bs: Array[Byte]) =
-      if (bs.length < bb.capacity())
-        try { bb.put(bs); () }
-        catch { case e: BufferOverflowException => empty; bb.put(bs); () }
-      else bs.splitAt(bs.length / 2) match {
-        case (bs1, bs2) => put(bs1); put(bs2)
+    def put(bs: Array[Byte]) = { putImpl(bs); () }
+
+    @annotation.tailrec
+    final def putImpl(bs: Array[Byte]): ByteBuffer =
+      if (bs.length <= bb.remaining()) bb.put(bs)
+      else if (bb.remaining() == 0) { empty; putImpl(bs) }
+      else {
+        val (bs1,bs2) = bs.splitAt(bb.remaining())
+        bb.put(bs1)
+        putImpl(bs2)
       }
 
     def putByte(b: Byte) =

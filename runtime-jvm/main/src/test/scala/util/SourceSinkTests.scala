@@ -3,10 +3,26 @@ package org.unisonweb.util
 import org.unisonweb.EasyTest._
 
 object SourceSinkTests {
-  val tests =
+  val tests = suite("source/sink")(
+    test("sink") { implicit T =>
+      // sink should record all bytes
+      1 until 100 foreach { n =>
+        val input = byteArray(n).toVector
+        val A = intIn(1,n+1*2)
+        val bytes = Sink.toChunks(A) { sink =>
+          var rem = input; while (rem.nonEmpty) {
+            val n = intIn(1, rem.size + 1)
+            val (rem1,rem2) = rem.splitAt(n)
+            sink.put(rem1.toArray)
+            rem = rem2
+          }
+        }
+        equal1(bytes.toList.flatten, input.toList)
+      }
+      ok
+    },
     test("source/sink") { implicit T =>
       // the sink should record all bytes, and the source
-      fail("this test hangs")
       1 until 10 foreach { n =>
         val input = byteArray(n).toVector
         val A = intIn(1,n+1*2)
@@ -43,5 +59,6 @@ object SourceSinkTests {
       }
       ok
     }
+  )
 }
 

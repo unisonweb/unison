@@ -126,15 +126,14 @@ object Source {
     def position: Long = pos + bb.position().toLong
 
     def refill = {
-      // todo: gotta save the unread elements before calling onEmpty
+      pos += bb.position()
       val unread =
         if (bb.remaining() > 0) {
-          val unread = new Array[Byte](bb.limit() - bb.position())
+          val unread = new Array[Byte](bb.remaining())
           bb.put(unread)
           unread
         }
         else Array.empty[Byte]
-      pos += bb.position()
       bb.clear()
       onEmpty(unread, bb)
       bb.flip()
