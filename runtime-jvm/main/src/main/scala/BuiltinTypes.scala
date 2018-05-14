@@ -27,7 +27,7 @@ object BuiltinTypes {
     def term(ts: Term*): Term =
       ts.foldRight(Unit.term)((hd,tl) => Term.Constructor(Id, cid)(hd,tl))
     def lambda: Term =
-      dataConstructors(Id, cid) match { case Return(lam : Value.Lambda) => Term.Compiled(lam, "Tuple") }
+      dataConstructors(Id, cid) match { case Return(lam : Value.Lambda) => Term.Compiled(lam) }
     def value(vs: Value*): Value =
       vs.foldRight(Unit.value)((hd,tl) => Value.Data(Id, cid, Array(hd,tl)))
   }

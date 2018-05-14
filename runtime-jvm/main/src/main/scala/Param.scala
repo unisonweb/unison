@@ -19,6 +19,7 @@ object Param {
 final class Ref(val name: Name, var value: Value) extends Param {
   final def toValue = value
   override def isRef = true
+  override def toString = s"@$name=$value"
 }
 
 abstract class Value extends Param {
@@ -64,10 +65,10 @@ object Value {
 
     assert (Term.freeVars(decompileWithPossibleFreeVar).size <= 1)
 
-    def decompile = Term.freeVars(decompileWithPossibleFreeVar).toList match {
+    lazy val decompile = Term.freeVars(decompileWithPossibleFreeVar).toList match {
       case Nil => decompileWithPossibleFreeVar
       case List(name) =>
-        ABT.subst(name, Term.Compiled(this, name))(decompileWithPossibleFreeVar)
+        ABT.subst(name, Term.Compiled(this))(decompileWithPossibleFreeVar)
     }
 
     final val arity = names.length
@@ -93,7 +94,7 @@ object Value {
     def saturatedNonTailCall(args: List[Computation]): Computation =
       compileStaticFullySaturatedNontailCall(this, args)
 
-    def underapply(builtins: compilation.Environment)(
+    def underapply(builtins: Environment)(
                    argCount: Int, substs: Map[Name, Term]): Value.Lambda =
       decompile match {
         case Term.Lam(names, body) =>
@@ -107,6 +108,7 @@ object Value {
           }
       }
   }
+
   object Lambda {
     final def toValue = this
 
@@ -146,7 +148,7 @@ object Value {
       /** Underapply this `Lambda`, passing 1 argument (named `substName`). */
       final def underapply1(substName: Name, substTerm: Term): ClosureForming = {
         assert(arity >= 1)
-        val arg = substTerm match { case Term.Compiled(b,_) => b }
+        val arg = substTerm match { case Term.Compiled(b) => b }
         val v = arg.toValue
         val argv = v.toUnboxed
         val argvb = v.toBoxed
@@ -186,7 +188,7 @@ object Value {
       // esp when there are multiple stages of underapply for functions with
       // large arities
 
-      override def underapply(builtins: compilation.Environment)(
+      override def underapply(builtins: Environment)(
         argCount: Int, substs: Map[Name, Term]): Value.Lambda = {
         if (argCount == 1) underapply1(substs.head._1, substs.head._2)
         else {
@@ -202,6 +204,7 @@ object Value {
   case class Data(typeId: Id, constructorId: ConstructorId, fields: Array[Value])
     extends Value {
     def decompile: Term = Term.Constructor(typeId, constructorId)(fields.map(_.decompile): _*)
+    override def toString = s"Data($typeId,$constructorId,${fields.toSeq})"
   }
 
   case class EffectPure(unboxed: U, boxed: Value) extends Value {

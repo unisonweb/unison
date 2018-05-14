@@ -72,16 +72,18 @@ object Term {
 
   /** Return a `Term` without an outer `Compiled` constructor. */
   def stripOuterCompiled(t: Term): Term = t match {
-    case Compiled(v: Value, _) => v.decompile
-    case Compiled(r: Ref, _) => r.value.decompile
+    case Compiled(v: Value) => v.decompile
+    case Compiled(r: Ref) => r.value.decompile
     case _ => t
   }
+
+  import F._
 
   /**
    * Removes all `Compiled` nodes from `t` by expanding their definitions and
    * converting cyclic references to `let rec` declarations.
    */
-  def fullyDecompile2(t: Term): Term = {
+  def fullyDecompile(t: Term): Term = {
     // 1. Collect full set of refs via transitive closure - a `Set[Ref]`
     // 2. Compute all used names (including self recursive names), freshen names for each `Ref`
     // 3. Introduce one outer let rec block for each `Ref`, substitute away all refs
@@ -118,10 +120,10 @@ object Term {
         transitiveClosure(transitiveClosure(seen, binding), body)
       case LetRec(bindings, body) =>
         bindings.map(_._2).foldLeft(transitiveClosure(seen, body))(transitiveClosure)
-      case Compiled(r : Ref, _) =>
+      case Compiled(r : Ref) =>
         if (seen.contains(r)) seen
         else { val v = r.value.decompile; transitiveClosure(seen + (r -> v), v) }
-      case Compiled(v,_) => transitiveClosure(seen, v.toValue.decompile)
+      case Compiled(v) => transitiveClosure(seen, v.toValue.decompile)
     }
 
     // 1. Collect full set of refs via transitive closure - a `Set[Ref]`
@@ -130,7 +132,7 @@ object Term {
     // 2. Freshen names for each `Ref`, if needed
     val freshRefNames = refs.keys.view.map(r => (r, ABT.freshen(r.name, usedNames))).toMap
     def replaceRefs(t: Term): Term = t.rewriteDown {
-      case Compiled(c,_) => c match {
+      case Compiled(c) => c match {
         case r : Ref => Var(freshRefNames(r))
         case Value.Unboxed(d,typ) => Term.Unboxed(d,typ)
         case v : Value => replaceRefs(v.decompile)
@@ -159,6 +161,8 @@ object Term {
 
     def map[R2](f: R => R2): MatchCase[R2] =
       MatchCase(pattern, guard.map(f), f(body))
+
+    def foldLeft[B](b: B)(f: (B,R) => B): B = f(guard.foldLeft(b)(f), body)
   }
 
   object MatchCase {
@@ -166,40 +170,66 @@ object Term {
       MatchCase(pattern, None, body)
   }
 
-  sealed abstract class F[+R]
+  sealed abstract class F[+R] {
+    def foldLeft[B](b: B)(f: (B,R) => B): B
+  }
 
   object F {
-
-    case class Lam_[R](body: R) extends F[R]
-    case class Id_(id: Id) extends F[Nothing]
-    case class Constructor_(id: Id, constructorId: ConstructorId) extends F[Nothing] {
+    sealed abstract class F0[+R] extends F[R] {
+      def foldLeft[B](b: B)(f: (B,R) => B): B = b
+    }
+    sealed abstract class F1[+R](r1: R) extends F[R] {
+      def foldLeft[B](b: B)(f: (B,R) => B): B = f(b, r1)
+    }
+    sealed abstract class F2[+R](r1: R, r2: R) extends F[R] {
+      def foldLeft[B](b: B)(f: (B,R) => B): B = f(f(b, r1), r2)
+    }
+    sealed abstract class F3[+R](r1: R, r2: R, r3: R) extends F[R] {
+      def foldLeft[B](b: B)(f: (B,R) => B): B = f(f(f(b, r1), r2), r3)
+    }
+    case class Lam_[R](body: R) extends F1[R](body)
+    case class Id_(id: Id) extends F0[Nothing]
+    case class Constructor_(id: Id, constructorId: ConstructorId) extends F0[Nothing] {
       override def toString = util.PrettyPrint.prettyId(id,constructorId).render(1000)
     }
-    case class Apply_[R](fn: R, args: List[R]) extends F[R]
-    case class Unboxed_(value: U, typ: UnboxedType) extends F[Nothing] {
+    case class Apply_[R](fn: R, args: List[R]) extends F[R] {
+      def foldLeft[B](b: B)(f: (B,R) => B): B = args.foldLeft(f(b,fn))(f)
+    }
+    case class Unboxed_(value: U, typ: UnboxedType) extends F0[Nothing] {
       override def toString = util.PrettyPrint.prettyUnboxed(value, typ).render(1000)
     }
-    case class Text_(txt: util.Text.Text) extends F[Nothing]
-    case class Sequence_[R](seq: util.Sequence[R]) extends F[R]
-    case class LetRec_[R](bindings: List[R], body: R) extends F[R]
-    case class Let_[R](binding: R, body: R) extends F[R]
-    case class Rec_[R](r: R) extends F[R]
-    case class If_[R](condition: R, ifNonzero: R, ifZero: R) extends F[R]
-    case class And_[R](x: R, y: R) extends F[R]
-    case class Or_[R](x: R, y: R) extends F[R]
-    case class Match_[R](scrutinee: R, cases: List[MatchCase[R]]) extends F[R]
-    case class Compiled_(value: Param, name: Name) extends F[Nothing]
+    case class Text_(txt: util.Text.Text) extends F0[Nothing]
+    case class Sequence_[R](seq: util.Sequence[R]) extends F[R] {
+      def foldLeft[B](b: B)(f: (B,R) => B): B = seq.foldLeft(b)(f)
+    }
+    case class LetRec_[R](bindings: List[R], body: R) extends F[R] {
+      def foldLeft[B](b: B)(f: (B,R) => B): B =
+        f(bindings.foldLeft(b)(f), body)
+    }
+    case class Let_[R](binding: R, body: R) extends F2[R](binding,body)
+    case class Rec_[R](r: R) extends F1[R](r)
+    case class If_[R](condition: R, ifNonzero: R, ifZero: R) extends F3[R](condition,ifNonzero,ifZero)
+    case class And_[R](x: R, y: R) extends F2[R](x,y)
+    case class Or_[R](x: R, y: R) extends F2[R](x,y)
+    case class Match_[R](scrutinee: R, cases: List[MatchCase[R]]) extends F[R] {
+      def foldLeft[B](b: B)(f: (B,R) => B): B =
+        cases.foldLeft(f(b,scrutinee)) { (b,mc) => mc.foldLeft(b)(f) }
+    }
+    case class Compiled_(value: Param) extends F0[Nothing]
     // request : <f> a -> {f} a
-    case class Request_ [R](id: Id, ctor: ConstructorId) extends F[R]
+    case class Request_ [R](id: Id, ctor: ConstructorId) extends F0[R]
     // handle : (forall x . <f> x -> r) -> {f} x -> r
-    case class Handle_[R](handler: R, block: R) extends F[R]
-    case class EffectPure_[R](value: R) extends F[R]
+    case class Handle_[R](handler: R, block: R) extends F2[R](handler,block)
+    case class EffectPure_[R](value: R) extends F1[R](value)
     case class EffectBind_[R](
-      id: Id, constructorId: ConstructorId, args: List[R], k: R) extends F[R]
+      id: Id, constructorId: ConstructorId, args: List[R], k: R) extends F[R] {
+      def foldLeft[B](b: B)(f: (B,R) => B): B =
+        f(args.foldLeft(b)(f), k)
+    }
 
     implicit val instance: Traverse[F] = new Traverse[F] {
       override def map[A,B](fa: F[A])(f: A => B): F[B] = fa match {
-        case fa @ (Id_(_) | Unboxed_(_,_) | Compiled_(_,_) | Text_(_) |
+        case fa @ (Id_(_) | Unboxed_(_,_) | Compiled_(_) | Text_(_) |
                    Constructor_(_,_) | Request_(_,_)) =>
           fa.asInstanceOf[F[B]]
         case Lam_(a) => Lam_(f(a))
@@ -415,10 +445,10 @@ object Term {
   }
 
   object Compiled {
-    def apply(v: Param, name: Name): Term =
-      Tm(Compiled_(v,name))
-    def unapply[A](t: AnnotatedTerm[F,A]): Option[(Param, Name)] = t match {
-      case Tm(Compiled_(p, n)) => Some(p -> n)
+    def apply(v: Param): Term =
+      Tm(Compiled_(v))
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[Param] = t match {
+      case Tm(Compiled_(p)) => Some(p)
       case _ => None
     }
   }

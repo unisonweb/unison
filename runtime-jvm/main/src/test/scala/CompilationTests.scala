@@ -19,8 +19,16 @@ object CompilationTests {
     BuiltinTypes.dataConstructors,
     BuiltinTypes.effects)
 
-  def eval(t: Term): Term =
-    normalize(env)(t)
+  def eval(t0: Term, doRoundTrip: Boolean = true): Term = {
+    val bytes = Codecs.encodeTerm(t0)
+    // println("bytes: " + bytes.toList.flatten)
+    // println("bytes: " + util.Bytes.fromChunks(bytes))
+
+    def roundTrip(t: Term) =
+      if (doRoundTrip) Codecs.decodeTerm(Codecs.encodeTerm(t))
+      else t
+    roundTrip(normalize(env)(roundTrip(t0)))
+  }
 
   val tests = suite("compilation")(
     test("zero") { implicit T =>
@@ -123,16 +131,16 @@ object CompilationTests {
         }
 
       val lam = Term.Compiled(
-        new ClosureForming(List("a","b","c","d"), body, Some(UnboxedType.Int64), 42), "a-lam")
+        new ClosureForming(List("a","b","c","d"), body, Some(UnboxedType.Int64), 42))
       val p = Let('f -> lam(1))('f.v(2,3,4))
       val p2 = Let('f -> lam(1), 'g -> 'f.v(2))('g.v(3,4))
       val p3 = Let('f -> lam(1), 'g -> 'f.v(2), 'h -> 'g.v(3))('h.v(4))
       val p4 = lam(1,2,3,4)
 
-      equal1[Term](eval(p), -8)
-      equal1[Term](eval(p2), -8)
-      equal1[Term](eval(p3), -8)
-      equal1[Term](eval(p4), -8)
+      equal1[Term](eval(p,false), -8)
+      equal1[Term](eval(p2,false), -8)
+      equal1[Term](eval(p3,false), -8)
+      equal1[Term](eval(p4,false), -8)
       ok
     },
     test("partially apply builtin") { implicit T =>
@@ -405,7 +413,14 @@ object CompilationTests {
         val p = Let('x -> (42:Term))(Match(10)(c1, c2))
         equal(eval(p), v)
       },
-      test("data pattern") { implicit T =>
+      test("data pattern 1") { implicit T =>
+        /* case (2,4) of (x,_) -> x */
+        val v: Term = 2
+        val c = MatchCase(Pattern.Tuple(Wildcard, Uncaptured), ABT.Abs('x, 'x))
+        val p = Match(intTupleTerm(2, 4))(c)
+        equal(eval(p), v)
+      },
+      test("data pattern 2") { implicit T =>
         /* let x = 42; case (2,4) of (x,y) -> x+y; x -> x + 4 */
         val v: Term = 6
         val c1 = MatchCase(Pattern.Tuple(Wildcard, Wildcard),
@@ -895,16 +910,16 @@ object Terms {
     )('odd)
 
   def tupleTerm(xs: Value*): Term =
-    Term.Compiled(tupleV(xs :_*), "Tuple")
+    Term.Compiled(tupleV(xs :_*))
 
   def tupleV(xs: Value*): Value =
     Value.Data(Id.Builtin("Tuple"), ConstructorId(0), xs.toArray)
 
   def intTupleTerm(xs: Int*): Term =
-    Term.Compiled(intTupleV(xs: _*), "Tuple")
+    Term.Compiled(intTupleV(xs: _*))
 
   def intRightTerm(i: Int): Term =
-    Term.Compiled(intRightV(i), "Right")
+    Term.Compiled(intRightV(i))
 
   def intRightV(i: Int): Value =
     Value.Data(Id.Builtin("Either"), ConstructorId(1), Array(intValue(i)))

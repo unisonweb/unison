@@ -519,7 +519,7 @@ object Builtins {
                              (argCount: Int, substs: Map[Name, Term]): Lambda =
         substs.toList match {
           case List((_,term)) => term match {
-            case Term.Compiled(p: Param, _) =>
+            case Term.Compiled(p: Param) =>
               // cast is okay, because in `fuu_u`, args are Unboxed.
               val n = p.toValue.asInstanceOf[Value.Unboxed].n
               val body: Computation =
@@ -605,7 +605,7 @@ object Builtins {
       new External(value) { def decompile = decompiled }
     def apply[A](value: A)(implicit A: Decompile[A]): Value =
       new External(value) {
-        def decompile: Term = A.decompile(value)
+        lazy val decompile: Term = A.decompile(value)
       }
   }
 }
