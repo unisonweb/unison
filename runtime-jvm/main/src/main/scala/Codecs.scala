@@ -38,7 +38,7 @@ object Codecs {
 
   def encodeNode(n: Node): Sequence[Array[Byte]] = {
     val fmt = nodeEncoder(n)
-    // println(prettyFormat(fmt))
+    println(prettyFormat(fmt))
     Sink.toChunks(4096) { sink => encodeSink(sink, fmt)(emitter) }
   }
 
@@ -95,6 +95,9 @@ object Codecs {
   }
 
   def emitter(sink: Sink, positionOf: Node => Position): Node => Unit = {
+    // These functions are used for encoding children of a Node
+    // Since any child of a node will have been previously encoded,
+    // we just emit a backreference to the position where it is encoded
     def encode(t: Term): Unit  = sink.putVarLong(positionOf(Node.Term(t)))
     def encodep(p: Param): Unit = sink.putVarLong(positionOf(Node.Param(p)))
 
@@ -357,6 +360,7 @@ object Codecs {
       case (buf,(s,i)) =>
         val line = s"$i\t" + { s match {
           case Emit(n) => n match {
+            case Node.Term(Term.Compiled(p)) => s"Compiled(${backrefp(p)})"
             case Node.Term(t) => t.get.map(backref).toString
             case Node.Param(p) => p match {
               case lam : Value.Lambda => "Lambda " + backref(lam.decompile)

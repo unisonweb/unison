@@ -123,21 +123,29 @@ object GraphCodec {
     go(0)
   }
 
+  /**
+   * Calls `f` on each node in the transitive graph starting from the root `g`.
+   * Cycles are detected via the `seen` set, which is added to after each node
+   * is visited. Returns the set of ids of type `K` in the transitive graph
+   * visited.
+   *
+   * The children of a node, `g` are visited _before_ `g`.
+   */
   def foreachPostorder[G,K](
     seen: Set[K],
     children: G => Iterator[G],
     id: G => K,
     g: G)(
-    f: G => Unit): Set[K] = {
+    f: G => Unit): Set[K] = { // todo: maybe just return a (Set[K], Sequence[G])
 
     @annotation.tailrec
-    def go(seen: Set[K], g: Option[G], rem: Sequence[Either[() => Unit, G]]): Set[K] = {
+    def go(seen: Set[K], g: Option[G], rem: Sequence[Either[G, G]]): Set[K] = {
       g match {
         case None => rem.uncons match {
           case None => seen
           case Some((e,rem)) => e match {
-            case Left(thunk) =>
-              thunk()
+            case Left(g) =>
+              f(g)
               go(seen, None, rem)
             case Right(g) => go(seen, Some(g), rem)
           }
@@ -146,12 +154,12 @@ object GraphCodec {
           if (seen.contains(id(g))) go(seen, None, rem)
           else (seen + id(g)) match { // we haven't seen this node before
             case seen =>
-              val rem2 = Left(() => f(g)) +: rem
+              val rem2 = Left(g) +: rem
               go(seen, None,
               children(g).foldRight(rem2)((child,rem) => Right(child) +: rem))
           }
       }
     }
-    go(seen, Some(g), Sequence.empty[Either[() => Unit, G]])
+    go(seen, Some(g), Sequence.empty[Either[G, G]])
   }
 }
