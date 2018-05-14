@@ -31,6 +31,10 @@ trait Sink {
     putVarLong(seq.size.toLong)
     seq.foreach(f)
   }
+  def putFramedSequence1[A](seq: Sequence[A])(f: A => Unit): Unit = {
+    putVarLong(seq.size.toLong)
+    seq.foreach(f)
+  }
   def putOption1[A](o: Option[A])(f: A => Unit): Unit = o match {
     case None => putByte(0)
     case Some(a) => putByte(1); f(a)

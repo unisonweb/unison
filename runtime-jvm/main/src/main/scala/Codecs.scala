@@ -115,7 +115,7 @@ object Codecs {
         case Unboxed_(u, t)
           => sink putByte 6; sink putLong u; encodeUnboxedType(t, sink)
         case Sequence_(s)
-          => sink putByte 7; sink putVarLong s.size; s foreach (encode)
+          => sink putByte 7; sink.putFramedSequence1(s)(encode)
         case Lam_(b)
           => sink putByte 8; encode(b)
         case Apply_(fn,args)
