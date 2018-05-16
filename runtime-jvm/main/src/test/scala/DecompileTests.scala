@@ -3,9 +3,14 @@ package org.unisonweb
 import org.unisonweb.EasyTest._
 import org.unisonweb.util.PrettyPrint
 import Term.Syntax._
+import Term.Term
 
 object DecompileTests {
-  val env0 = compilation.Environment(_ => ???, _ => ???, (_,_) => ???)
+  val env0 = Environment.standard
+
+  def roundTrip(t: Term) = {
+    Codecs.decodeTerm(Codecs.encodeTerm(t))
+  }
 
   val tests = suite("decompile") (
     test("ex1") { implicit T =>
@@ -17,7 +22,8 @@ object DecompileTests {
               Term.Var("pong")
             }
         }
-      note(PrettyPrint.prettyTerm(compilation.normalize(env0)(pingpong)).render(40), includeAlways = true)
+      val result = roundTrip { compilation.normalize(env0)(pingpong, fullyDecompile = false) }
+      note(PrettyPrint.prettyTerm(Term.fullyDecompile(result)).render(40), includeAlways = true)
       ok
     },
     test("ex2") { implicit T =>
@@ -29,7 +35,9 @@ object DecompileTests {
               Term.Var("ping")
             }
         }
-      note(PrettyPrint.prettyTerm(compilation.normalize(env0)(pingpong)).render(40), includeAlways = true)
+      val result = roundTrip { compilation.normalize(env0)(pingpong, fullyDecompile = false) }
+      note(result.toString, includeAlways = true)
+      note(PrettyPrint.prettyTerm(Term.fullyDecompile(result)).render(40), includeAlways = true)
       ok
     },
     test("ex3") { implicit T =>
@@ -41,7 +49,9 @@ object DecompileTests {
           "pong" -> Term.Lam("x")(Term.Var("ping")(Term.Var("pang")(Term.Var("x"))))) {
             Term.Var("ping")
           }
-      note(PrettyPrint.prettyTerm(compilation.normalize(env0)(pingpong)).render(40), includeAlways = true)
+      val result0 = { compilation.normalize(env0)(pingpong, fullyDecompile = false) }
+      note(PrettyPrint.prettyTerm(Term.fullyDecompile(result0)).render(40), includeAlways = true)
+      val result = roundTrip { result0 }
       ok
     }
   )

@@ -5,15 +5,30 @@ import org.unisonweb.Pattern._
 import org.unisonweb.Term.Syntax._
 import org.unisonweb.Term._
 import org.unisonweb.compilation._
+import org.unisonweb.util.PrettyPrint
+import Terms.Int64Ops._
+import org.unisonweb.Value.Lambda.ClosureForming
 
 object CompilationTests {
   import EasyTest._
   import Terms._
 
-  val env = Environment(Builtins.builtins, _ => ???, BuiltinTypes.dataConstructors)
+  val env = Environment(
+    Builtins.builtins,
+    userDefined = _ => ???,
+    BuiltinTypes.dataConstructors,
+    BuiltinTypes.effects)
 
-  def eval(t: Term): Term =
-    normalize(env)(t)
+  def eval(t0: Term, doRoundTrip: Boolean = true): Term = {
+    val bytes = Codecs.encodeTerm(t0)
+    // println("bytes: " + bytes.toList.flatten)
+    // println("bytes: " + util.Bytes.fromChunks(bytes))
+
+    def roundTrip(t: Term) =
+      if (doRoundTrip) Codecs.decodeTerm(Codecs.encodeTerm(t))
+      else t
+    roundTrip(normalize(env)(roundTrip(t0)))
+  }
 
   val tests = suite("compilation")(
     test("zero") { implicit T =>
@@ -34,15 +49,108 @@ object CompilationTests {
     test("1 + 2 = 3") { implicit T =>
       equal(eval((1:Term) + (2:Term)), 3:Term)
     },
+    suite("Int64")(
+      test("arithmetic +-*/") { implicit T =>
+        0 until 100 foreach { _ =>
+          val x = long; val y = long
+          val xt: Term = x
+          val yt: Term = y
+          equal1(eval(xt + yt), (x + y):Term)
+          equal1(eval(xt - yt), (x - y):Term)
+          equal1(eval(xt * yt), (x * y):Term)
+          equal1(eval(xt / yt), (x / y):Term)
+        }
+        ok
+      }
+    ),
+    test("UInt64") { implicit T =>
+      def uint(n: Long): Term = Term.Unboxed(n, UnboxedType.UInt64)
+
+      // toInt64 should be monotonic, also tests <= on Int64
+      0 until 100 foreach { _ =>
+        val toInt64 = Builtins.termFor(Builtins.UInt64_toInt64)
+        val add = Builtins.termFor(Builtins.UInt64_add)
+        val x = long; val y = long
+        // toInt64 and <
+        equal1[Term](
+          eval(toInt64(uint(x)) < toInt64(uint(y))),
+          x < y)
+        // toInt64 and +
+        equal1[Term](
+          eval(toInt64(uint(x)) + toInt64(uint(y))),
+          eval(toInt64(add(uint(x),uint(y)))))
+        // inc
+        val inc = Builtins.termFor(Builtins.UInt64_inc)
+        equal1[Term](eval(inc(uint(x))), uint(x + 1))
+
+        // isEven and isOdd
+        val isEven = Builtins.termFor(Builtins.UInt64_isEven)
+        val isOdd = Builtins.termFor(Builtins.UInt64_isOdd)
+        val not = Builtins.termFor(Builtins.Boolean_not)
+        equal1[Term](eval(isEven(x)), x % 2 == 0)
+        equal1[Term](eval(isEven(x)), eval(not(isOdd(uint(x)))))
+
+        // multiply
+        val mul = Builtins.termFor(Builtins.UInt64_mul)
+        equal1[Term](eval(mul(uint(x), uint(y))), uint(x * y))
+
+        // drop and minus
+        val drop = Builtins.termFor(Builtins.UInt64_drop)
+        val minus = Builtins.termFor(Builtins.UInt64_sub)
+        val i = int.toLong.abs; val j = int.toLong.abs
+        equal1[Term](eval(drop(i,j)), uint((i - j).max(0)))
+        equal1[Term](eval(minus(x,y)), uint(x - y))
+      }
+
+      val lt = Builtins.termFor(Builtins.UInt64_lt)
+      val gt = Builtins.termFor(Builtins.UInt64_gt)
+      val gteq = Builtins.termFor(Builtins.UInt64_gteq)
+      val lteq = Builtins.termFor(Builtins.UInt64_lteq)
+
+      equal1[Term](eval { gt(uint(-1), uint(1)) }, true)
+      equal1[Term](eval { gt(uint(2), uint(1)) }, true)
+      equal1[Term](eval { lt(uint(2), uint(1)) }, false)
+      equal1[Term](eval { lteq(uint(-1), uint(1)) }, false)
+      equal1[Term](eval { gteq(uint(-1), uint(1)) }, true)
+      ok
+    },
     test("sum4(1,2,3,4)") { implicit T =>
       equal(eval(sum4(1,10,100,1000)), (1+10+100+1000):Term)
     },
-    test("partially apply") { implicit T =>
+    test("partial application does specialization") { implicit T =>
       equal(eval(const(zero)), Lam('y)(zero))
+    },
+    test("partial application") { implicit T =>
+      equal(eval(Let('f -> const(one))('f.v(42))), one)
+    },
+    test("closure-forming partial application") { implicit T =>
+      val body: Computation =
+        (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+          r.boxed = UnboxedType.Int64
+          top.u(stackU, 3) - top.u(stackU, 2) - x1 - x0
+        }
+
+      val lam = Term.Compiled(
+        new ClosureForming(List("a","b","c","d"), body, Some(UnboxedType.Int64), 42))
+      val p = Let('f -> lam(1))('f.v(2,3,4))
+      val p2 = Let('f -> lam(1), 'g -> 'f.v(2))('g.v(3,4))
+      val p3 = Let('f -> lam(1), 'g -> 'f.v(2), 'h -> 'g.v(3))('h.v(4))
+      val p4 = lam(1,2,3,4)
+
+      equal1[Term](eval(p,false), -8)
+      equal1[Term](eval(p2,false), -8)
+      equal1[Term](eval(p3,false), -8)
+      equal1[Term](eval(p4,false), -8)
+      ok
     },
     test("partially apply builtin") { implicit T =>
       equal(eval(onePlus), onePlus)
       equal(eval(ap(onePlus, one)), eval(onePlusOne))
+    },
+    test("partially apply triangle") { implicit T =>
+      val p: Term =
+        Let('tri -> triangle(100))('tri.v(0))
+      equal[Term](eval(p), eval(triangle(100,0)))
     },
     test("let") { implicit T =>
       equal(eval(Let('x -> one)(one + 'x)), eval(onePlusOne))
@@ -78,20 +186,16 @@ object CompilationTests {
       ok
     },
     test("fib") { implicit T =>
+      note("pretty-printed fib implementation")
+      note(PrettyPrint.prettyTerm(fib).render(40))
       0 to 20 foreach { n =>
         equal1(eval(fib(n:Term)), scalaFib(n):Term)
       }
       ok
     },
-    test("fib-pretty-print") { implicit T =>
-      import org.unisonweb.util.PrettyPrint
-      note("pretty-printed fib implementation", includeAlways = true)
-      note(PrettyPrint.prettyTerm(fib).render(40), includeAlways = true)
-      note("pretty-printed fib implementation in ANF", includeAlways = true)
-      note(PrettyPrint.prettyTerm(Term.ANF(fib)).render(40), includeAlways = true)
-      ok
-    },
     test("fib-ANF") { implicit T =>
+      note("pretty-printed fib implementation in ANF")
+      note(PrettyPrint.prettyTerm(Term.ANF(fib)).render(40))
       val fibANF = Term.ANF(fib)
       0 to 20 foreach { n =>
         equal1(eval(fibANF(n:Term)), scalaFib(n):Term)
@@ -254,7 +358,7 @@ object CompilationTests {
       test("literal") { implicit T =>
         /* let x = 42; case 10 of 10 -> x + 1 */
         val v: Term = 43
-        val c = MatchCase(LiteralU(10, UnboxedType.Integer), 'x.v + 1)
+        val c = MatchCase(LiteralU(10, UnboxedType.Int64), 'x.v + 1)
         val p = Let('x -> (42:Term))(Match(10)(c))
         equal(eval(p), v)
       },
@@ -264,7 +368,7 @@ object CompilationTests {
              10 | true -> x + 1
         */
         val v: Term = 43
-        val c = MatchCase(LiteralU(10, UnboxedType.Integer),
+        val c = MatchCase(LiteralU(10, UnboxedType.Int64),
                           Some(true:Term), 'x.v + 1)
         val p = Let('x -> (42:Term))(Match(10)(c))
         equal(eval(p), v)
@@ -276,7 +380,7 @@ object CompilationTests {
           should be 14
         */
         val v: Term = 14
-        val c1 = MatchCase(LiteralU(10, UnboxedType.Integer),
+        val c1 = MatchCase(LiteralU(10, UnboxedType.Int64),
                            Some(false:Term), 'x.v + 1)
         val c2 = MatchCase(Wildcard, ABT.Abs('y, 'y.v + 4))
         val p = Let('x -> (42:Term))(Match(10)(c1, c2))
@@ -294,7 +398,7 @@ object CompilationTests {
            should return 44
         */
         val v: Term = 44
-        val c1 = MatchCase(LiteralU(10, UnboxedType.Integer),
+        val c1 = MatchCase(LiteralU(10, UnboxedType.Int64),
                            Some(false:Term), 'x.v + 1)
         val c2 = MatchCase(Uncaptured, 'x.v + 2)
         val p = Let('x -> (42:Term))(Match(10)(c1, c2))
@@ -303,13 +407,20 @@ object CompilationTests {
       test("shadowing") { implicit T =>
         /* let x = 42; case 10 of 10 | false -> x+1; x -> x+4 */
         val v: Term = 14
-        val c1 = MatchCase(LiteralU(10, UnboxedType.Integer),
+        val c1 = MatchCase(LiteralU(10, UnboxedType.Int64),
                            Some(false:Term), 'x.v + 1)
         val c2 = MatchCase(Wildcard, ABT.Abs('x, 'x.v + 4))
         val p = Let('x -> (42:Term))(Match(10)(c1, c2))
         equal(eval(p), v)
       },
-      test("data pattern") { implicit T =>
+      test("data pattern 1") { implicit T =>
+        /* case (2,4) of (x,_) -> x */
+        val v: Term = 2
+        val c = MatchCase(Pattern.Tuple(Wildcard, Uncaptured), ABT.Abs('x, 'x))
+        val p = Match(intTupleTerm(2, 4))(c)
+        equal(eval(p), v)
+      },
+      test("data pattern 2") { implicit T =>
         /* let x = 42; case (2,4) of (x,y) -> x+y; x -> x + 4 */
         val v: Term = 6
         val c1 = MatchCase(Pattern.Tuple(Wildcard, Wildcard),
@@ -386,7 +497,7 @@ object CompilationTests {
         /* case 3 of x@(y@(3)) -> x + y */
         val v: Term = 6
         val c =
-          MatchCase(Pattern.As(Pattern.As(Pattern.LiteralU(3, UnboxedType.Integer))),
+          MatchCase(Pattern.As(Pattern.As(Pattern.LiteralU(3, UnboxedType.Int64))),
                     ABT.AbsChain('x, 'y)('x.v + 'y))
         val p = Match(3)(c)
         equal(eval(p), v)
@@ -400,7 +511,7 @@ object CompilationTests {
           MatchCase(
             Pattern.As(
               Pattern.As(
-                Pattern.LiteralU(3, UnboxedType.Integer)
+                Pattern.LiteralU(3, UnboxedType.Int64)
               )), Some[Term](ABT.AbsChain('x, 'y)('x.v + 'y > 4)), ABT.AbsChain('x, 'y)('x.v + 'y))
         val p = Match(3)(c)
         equal(eval(p), v)
@@ -415,7 +526,7 @@ object CompilationTests {
           MatchCase(
             Pattern.As(
               Pattern.As(
-                Pattern.LiteralU(3, UnboxedType.Integer)
+                Pattern.LiteralU(3, UnboxedType.Int64)
               )), Some[Term](ABT.AbsChain('x, 'y)('x.v + 'y > 4)), ABT.AbsChain('x, 'y)('x.v + 'y))
         val c2 = MatchCase[Term](Pattern.Uncaptured, 2)
         val p = Match(1)(c, c2)
@@ -432,6 +543,20 @@ object CompilationTests {
                   'g -> Lam('a, 'b)('a.v + 'b))('f.v('g)(2))
       equal[Term](eval(p), 3)
     },
+
+    test("partially applied data constructor") { implicit T =>
+      val pair = BuiltinTypes.Tuple.lambda
+      val unit = BuiltinTypes.Unit.term
+      val p = Let('f -> pair(42))('f.v(pair(43, unit)))
+      equal[Term](eval(p), eval(BuiltinTypes.Tuple.term(42,43)))
+    },
+
+    // test("closure forming 2") { implicit T =>
+    // }
+    // todo: partially applied 3-arg data constructor
+    // todo: partially applied N-arg data constructor
+    // similar to above, or just manually construct closure forming lambda
+    // of appropriate arity
 
     test("fully applied self non-tail call with K args") { implicit T =>
       val fib2: Term =
@@ -483,57 +608,270 @@ object CompilationTests {
         equal[Term](eval(termFor(Builtins.Stream_cons)(1, termFor(Builtins.Stream_empty))),
                     termFor(Builtins.Stream_cons)(1, termFor(Builtins.Stream_empty)))
       },
-//      test("drop-undoes-cons") { implicit T =>
-//        equal[Term](eval(termFor(Builtins.Stream_drop)(1, termFor(Builtins.Stream_cons)(1, termFor(Builtins.Stream_empty)))),
-//                    termFor(Builtins.Stream_empty))
-//      }
+      test("map") { implicit T =>
+        // Stream.foldLeft 0 (+) (Stream.take 100 (Stream.map (+1) (Stream.fromInt 0)))
+        equal[Term](
+          eval(
+            termFor(Builtins.Stream_foldLeft)(
+              0,
+              termFor(Builtins.Int64_add),
+              termFor(Builtins.Stream_take)(
+                100,
+                termFor(Builtins.Stream_map)(
+                  termFor(Builtins.Int64_inc),
+                  termFor(Builtins.Stream_fromInt)(0)))
+            )
+          ),
+          scala.Stream.from(0).map(1+).take(100).foldLeft(0)(_+_)
+        )
+      }
     ),
+    { import BuiltinTypes._
+      import Effects._
 
-    //suite("algebraic-effects")(
-    //  test("ex1") { implicit T =>
-    //    /*
-    //      let
-    //        state : s -> <State s> a -> a
-    //        state s <a> = a
-    //        state s <get -> k> = handle (state s) (k s)
-    //        state _ <put s -> k> = handle (state s) (k ())
+      suite("algebraic-effects")(
+        test("ex1") { implicit T =>
+          /*
+            let
+              state : s -> <State s> a -> a
+              state s <a> = a
+              state s <get -> k> = handle (state s) (k s)
+              state _ <put s -> k> = handle (state s) (k ())
 
-    //        handle (state 0)
-    //          x = State.get + 1
-    //          y = State.set (x + 1)
-    //          State.get + 11
-    //     */
-    //    val p = LetRec(
-    //      ('state, Lam('s, 'action) {
-    //        Match('action)(
-    //          // state s <a> = a
-    //          MatchCase(Pattern.EffectPure(Pattern.Wildcard),
-    //                    ABT.Abs('a, 'a)),
+              handle (state 3)
+                x = State.get + 1
+                y = State.set (x + 1)
+                State.get + 11
+           */
 
-    //          // state s <get -> k> = handle (state s) (k s)
-    //          MatchCase(Pattern.EffectBind(Id.Builtin("State"),
-    //                                       ConstructorId(0),
-    //                                       Nil),
-    //                    ABT.Abs('k, Handle('state.v('s))('k.v('s)))),
+          val p = LetRec(
+            ('state, Lam('s, 'action) {
+              Match('action)(
+                // state s <a> = a
+                MatchCase(Pattern.EffectPure(Pattern.Wildcard),
+                          ABT.Abs('a, 'a)),
 
-    //          // state _ <put s -> k> = handle (state s) (k ())
-    //          MatchCase(Pattern.EffectBind(Id.Builtin("State"),
-    //                                       ConstructorId(1),
-    //                                       List(Pattern.Wildcard)),
-    //                    ABT.AbsChain('s, 'k)(Handle('state.v('s))('k.v(-1))))
-    //        )
-    //      })
-    //    ) {
-    //      Handle('state.v(0)) {
-    //        Let(
-    //          ('x, Request(Id.Builtin("State"), ConstructorId(0), Nil) + 1),
-    //          ('y, Request(Id.Builtin("State"), ConstructorId(1), List('x.v + 1)))
-    //        )(Request(Id.Builtin("State"), ConstructorId(0), Nil) + 11)
-    //      }
-    //    }
-    //    equal[Term](eval(p), 13)
-    //  }
-    //)
+                // state s <get -> k> = handle (state s) (k s)
+                MatchCase(State.Get.pattern(Pattern.Wildcard),
+                          ABT.Abs('k, Handle('state.v('s))('k.v('s)))),
+
+                // state _ <put s -> k> = handle (state s) (k ())
+                MatchCase(State.Set.pattern(Pattern.Wildcard, Pattern.Wildcard),
+                          ABT.AbsChain('s2, 'k)(Handle('state.v('s2))('k.v(BuiltinTypes.Unit.term))))
+              )
+            })
+          ) {
+            Handle('state.v(3)) {
+              Let(
+                ('x, State.Get.term + 1),
+                ('y, State.Set.term('x.v + 1))
+              )(State.Get.term + 11)
+            }
+          }
+          note("pretty-printed algebraic effects program")
+          note(PrettyPrint.prettyTerm(Term.ANF(p)).render(40))
+          equal[Term](eval(Term.ANF(p)), 16)
+        },
+        test("simple effectful handlers") { implicit T =>
+          /*
+            let
+              state : s -> {State Integer} a -> a
+              state s {a} = a
+              state s {get -> k} = handle (state s) (k s)
+              state _ {put s -> k} = handle (state s) (k ())
+
+              state' : s -> {State Integer} Integer -> {State Integer} Integer
+              state' s {a} = State.get * s
+              state' s {get -> k} = handle (state' s) (k s)
+              state' _ {put s -> k} = handle (state' s) (k ())
+
+              handle (state 10)
+                handle (state' 3)
+                  2
+          */
+
+          val p = LetRec(
+            ('state, Lam('s0, 'action0) {
+              Match('action0)(
+                MatchCase(Pattern.EffectPure(Pattern.Wildcard), ABT.Abs('a, 'a)),
+                MatchCase(State.Get.pattern(Pattern.Wildcard),
+                          ABT.Abs('k, Handle('state.v('s0))('k.v('s0)))),
+                MatchCase(State.Set.pattern(Pattern.Wildcard, Pattern.Wildcard),
+                          ABT.AbsChain('s2, 'k)(Handle('state.v('s2))('k.v(BuiltinTypes.Unit.term))))
+              )
+            }),
+            ('state2, Lam('s1, 'action1) {
+              Match('action1)(
+                // state s {a} = State.get * s
+                MatchCase(Pattern.EffectPure(Pattern.Wildcard),
+                          ABT.Abs('a, State.Get.term * 's1)),
+                          // ABT.Abs('a, 's1)), <-- this works fine!
+                // state' s {get -> k} = handle (state' s) (k s)
+                MatchCase(State.Get.pattern(Pattern.Wildcard),
+                          ABT.Abs('k, Handle('state2.v('s1))('k.v('s1.v)))),
+                // state' _ {put s -> k} = handle (state' s) (k ())
+                MatchCase(State.Set.pattern(Pattern.Wildcard, Pattern.Wildcard),
+                          ABT.AbsChain('s3, 'k)(
+                            Handle('state2.v('s3))('k.v(BuiltinTypes.Unit.term))))
+              )
+            })) {
+              Handle('state.v(10))(Handle('state2.v(3))(2340983))
+            }
+
+          note(PrettyPrint.prettyTerm(p).render(80))
+          note(PrettyPrint.prettyTerm(Term.ANF(p)).render(80))
+          equal[Term](eval(Term.ANF(p)), 30)
+        },
+        test("effectful handlers") { implicit T =>
+          /*
+            let
+              state : s -> {State Integer} a -> a
+              state s {a} = a
+              state s {get -> k} = handle (state s) (k s)
+              state _ {put s -> k} = handle (state s) (k ())
+
+              state' : s -> {State Integer} Integer -> {State Integer} Integer
+              state' s {a} = a
+              state' s {get -> k} = let
+                outer-value = State.get
+                handle (state s) (k (s + outer-value))
+              state' _ {put s -> k} = handle (state s) (k ())
+
+              handle (state 10)
+                handle (state' 3)
+                  -- x is 14
+                  x = State.get + 1
+                  -- Inner state is 15
+                  y = State.set (x + 1)
+                  -- Should be 360
+                  State.get + 11
+          */
+
+          val p = LetRec(
+            ('state, Lam('s, 'action) {
+              Match('action)(
+                // state s <a> = a
+                MatchCase(Pattern.EffectPure(Pattern.Wildcard),
+                          ABT.Abs('a, 'a)),
+
+                // state s <get -> k> = handle (state s) (k s)
+                MatchCase(State.Get.pattern(Pattern.Wildcard),
+                          ABT.Abs('k, Handle('state.v('s))('k.v('s)))),
+
+                // state _ <put s -> k> = handle (state s) (k ())
+                MatchCase(State.Set.pattern(Pattern.Wildcard, Pattern.Wildcard),
+                          ABT.AbsChain('s2, 'k)(Handle('state.v('s2))('k.v(BuiltinTypes.Unit.term))))
+              )
+            }),
+            ('state2, Lam('s, 'action) {
+              Match('action)(
+                // state s <a> = State.get * s
+                MatchCase(Pattern.EffectPure(Pattern.Wildcard),
+                          ABT.Abs('a, 'a)),
+                          // todo: ABT.Abs('a, State.Get.term * 's)),
+
+                /*
+                let
+                  outer-value = State.get
+                  handle (state s) (k (s + outer-value))
+                */
+                MatchCase(State.Get.pattern(Pattern.Wildcard),
+                          ABT.Abs('k, Let('outer -> State.Get.term)(
+                            Handle('state2.v('s))('k.v('s.v + 'outer))))),
+
+                // state _ <put s -> k> = handle (state s) (k ())
+                MatchCase(State.Set.pattern(Pattern.Wildcard, Pattern.Wildcard),
+                          ABT.AbsChain('s2, 'k)(
+                            Handle('state2.v('s2))('k.v(BuiltinTypes.Unit.term))))
+              )
+            }))(
+
+            Handle('state.v(1))(Handle('state2.v(10))(
+              Let('x -> (State.Get.term + 100),
+                  'y -> State.Set.term('x.v + 1000))(State.Get.term + 10000))))
+
+        note(PrettyPrint.prettyTerm(Term.ANF(p)).render(80))
+        equal[Term](eval(Term.ANF(p)), 11112)
+      },
+      test("mixed effects") { implicit T =>
+        import BuiltinTypes.Effects._
+        import Builtins.termFor
+        val env: Term = 42 // environment for reader
+
+        // handler for Read effects
+        val read = Term.Lam('env, 'x) {
+          // case x of
+          Match('x)(
+            // {a} -> a
+            MatchCase(Pattern.EffectPure(Pattern.Wildcard), ABT.Abs('a,'a)),
+            // {Read -> k} = handle (read env) (k env)
+            MatchCase(
+              Read.Read.pattern(Pattern.Wildcard),
+              ABT.Abs('k, Handle('read.v('env))('k.v(env)))
+            )
+          )
+        }
+        // handler for Write effects
+        val write = Term.Lam('acc, 'x) {
+          // case x of
+          Match('x)(
+            // {a} -> acc
+            MatchCase(Pattern.EffectPure(Pattern.Uncaptured), 'acc),
+            // {Write w -> k} = handle (write (Sequence.snoc acc w) (k ()))
+            MatchCase(
+              Write.Write.pattern(Pattern.Wildcard, Pattern.Wildcard),
+              ABT.AbsChain('w, 'k)(
+                Term.Handle('write.v(termFor(Builtins.Sequence_snoc)('acc, 'w))) {
+                  'k.v(BuiltinTypes.Unit.term)
+                }
+              )
+            )
+          )
+        }
+
+        val p = LetRec(
+          'read -> read,
+          'write -> write
+        ) {
+          Handle('write.v(termFor(Builtins.Sequence_empty))) {
+            Handle('read.v(env)) {
+              Let(
+                'x -> { Read.Read.term + 1 }, // 43
+                'u -> Write.Write.term('x), // write 43
+                'u -> Write.Write.term(44),
+                'u -> Write.Write.term(45),
+                'u -> Write.Write.term(46),
+                'z -> { Read.Read.term + 5 }, // 47
+                'u -> Write.Write.term('z) // write 47
+              )(999)
+            }
+          }
+        }
+        val anfP = Term.ANF(p)
+        note(PrettyPrint.prettyTerm(p).render(80))
+        note(PrettyPrint.prettyTerm(anfP).render(80))
+        equal[Term](eval(anfP), Sequence(43,44,45,46,47))
+      }
+    )},
+    test("and") { implicit T =>
+      equal1[Term](eval(And(true, true)), true)
+      equal1[Term](eval(And(true, false)), false)
+      equal1[Term](eval(And(false, true)), false)
+      equal1[Term](eval(And(false, false)), false)
+      ok
+    },
+    test("or") { implicit T =>
+      equal1[Term](eval(Or(true, true)), true)
+      equal1[Term](eval(Or(true, false)), true)
+      equal1[Term](eval(Or(false, true)), true)
+      equal1[Term](eval(Or(false, false)), false)
+      ok
+    },
+    test("short-circuiting and/or") { implicit T =>
+      equal1[Term](eval(Or(true, Debug.crash)), true)
+      equal1[Term](eval(And(false, Debug.crash)), false)
+      ok
+    }
   )
 }
 
@@ -547,7 +885,7 @@ object Terms {
 
   val onePlusOne: Term = one + one
 
-  val onePlus: Term = Builtins.termFor(Builtins.Integer_add)(one)
+  val onePlus: Term = Builtins.termFor(Builtins.Int64_add)(one)
 
   val ap: Term = Lam('f,'x)('f.v('x))
 
@@ -605,16 +943,19 @@ object Terms {
   def intTupleV(xs: Int*): Value =
     tupleV(xs.map(intValue): _*)
 
-  def intValue(x: Int): Value = Value.Unboxed(x.toLong, UnboxedType.Integer)
+  def intValue(x: Int): Value = Value.Unboxed(x.toLong, UnboxedType.Int64)
 
-  implicit class Ops(t0: Term) {
-    def +(t1: Term) = Builtins.termFor(Builtins.Integer_add)(t0, t1)
-    def -(t1: Term) = Builtins.termFor(Builtins.Integer_sub)(t0, t1)
-    def *(t1: Term) = Builtins.termFor(Builtins.Integer_mul)(t0, t1)
-    def unisonEquals(t1: Term) =
-      Builtins.termFor(Builtins.Integer_eq)(t0, t1)
-    def <(t1: Term) = Builtins.termFor(Builtins.Integer_lt)(t0, t1)
-    def >(t1: Term) = Builtins.termFor(Builtins.Integer_gt)(t0, t1)
+  object Int64Ops {
+    implicit class Ops(t0: Term) {
+      def +(t1: Term) = Builtins.termFor(Builtins.Int64_add)(t0, t1)
+      def -(t1: Term) = Builtins.termFor(Builtins.Int64_sub)(t0, t1)
+      def *(t1: Term) = Builtins.termFor(Builtins.Int64_mul)(t0, t1)
+      def /(t1: Term) = Builtins.termFor(Builtins.Int64_div)(t0, t1)
+      def unisonEquals(t1: Term) =
+        Builtins.termFor(Builtins.Int64_eq)(t0, t1)
+      def <(t1: Term) = Builtins.termFor(Builtins.Int64_lt)(t0, t1)
+      def >(t1: Term) = Builtins.termFor(Builtins.Int64_gt)(t0, t1)
+    }
   }
 
   object Sequence {
@@ -643,5 +984,10 @@ object Terms {
     val gt = termFor(Text_gt)
     val lteq = termFor(Text_lteq)
     val gteq = termFor(Text_gteq)
+  }
+
+  object Debug {
+    import Builtins._
+    val crash = termFor(Debug_crash)
   }
 }

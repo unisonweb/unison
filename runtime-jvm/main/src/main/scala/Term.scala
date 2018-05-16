@@ -32,13 +32,24 @@ object Term {
     case _ => t
   }
 
+  def curry(t: Term): Term = t match {
+    case Term.Lam(List(name), body) => t
+    case Term.Lam1(name, body) =>
+      import Term.Syntax._
+      Term.Lam1(name) {
+        Term.Let('foo -> Term.curry(body))('foo)
+      }
+    case _ => t
+  }
+
   /** Convert the term to A-normal form: https://en.wikipedia.org/wiki/A-normal_form. */
   def ANF(t: Term): Term = t match {
     case t @ ABT.Var(_) => t
     // arg1 -> foo (x + 1) blah
     // arg1 -> let arg1 = x + 1; foo arg1 blah
     case ABT.Abs(name, body) => ABT.Abs(name, ANF(body))
-    case Apply(f @ (ABT.Var(_) | Lam(_,_) | Id(_)), args) =>
+    case Apply(f @ (ABT.Var(_) | Lam(_,_) | Id(_) |
+                    Constructor(_,_) | Request(_,_)), args) =>
       val (bindings2, args2) =
         args.zipWithIndex.foldRight((List.empty[(Name,Term)], List.empty[Term])) { (argi, accs) =>
           val (bindings, args) = accs
@@ -66,33 +77,13 @@ object Term {
     case _ => t
   }
 
-  /** Converts self refs within lambdas to regular named let recs. */
-  def selfToLetRec(t: Term): Term = {
-    assert(Term.freeVars(t).isEmpty)
-    val t2 = t.rewriteDown {
-      case Term.Self(name) => Term.Var(name)
-      case t => t
-    }.annotateFree
-    if (Term.freeVars(t2).isEmpty) t2 // no self references
-    else {
-      t2.rewriteUp {
-        case t@Lam(names, body) => Term.freeVars(t).toList match {
-          case Nil => t
-          case rec :: Nil => LetRec(rec -> t)(t)
-          case recs => t // this can happen if `t` has already been fullyDecompile'd
-        }
-        case t => t
-      }.annotateFree
-      assert (Term.freeVars(t2).isEmpty)
-      t2
-    }
-  }
+  import F._
 
   /**
    * Removes all `Compiled` nodes from `t` by expanding their definitions and
    * converting cyclic references to `let rec` declarations.
    */
-  def fullyDecompile2(t: Term): Term = {
+  def fullyDecompile(t: Term): Term = {
     // 1. Collect full set of refs via transitive closure - a `Set[Ref]`
     // 2. Compute all used names (including self recursive names), freshen names for each `Ref`
     // 3. Introduce one outer let rec block for each `Ref`, substitute away all refs
@@ -102,13 +93,23 @@ object Term {
 
     def names(t: Term): Set[Name] = t.foldMap[Set[Name]] {
       case Var(name) => Set(name)
-      case Self(name) => Set(name)
       case Abs(name, _) => Set(name)
       case _ => Set.empty
     } (Monoid.Set)
 
     def transitiveClosure(seen: Map[Ref,Term], cur: Term): Map[Ref,Term] = cur match {
-      case Id(_) | Unboxed(_,_) | Var(_) | Text(_) => seen
+      case Id(_) | Unboxed(_,_) | Var(_) | Text(_) |
+           Constructor(_,_) | Request(_,_) => seen
+      case Match(scrutinee, cases) =>
+        cases.foldLeft(transitiveClosure(seen, scrutinee)){ (seen, c) =>
+          val seen2 = c.guard.map(transitiveClosure(seen,_)).getOrElse(seen)
+          c.body match {
+            case ABT.AbsChain(_,body) => transitiveClosure(seen2, body)
+            case _ => transitiveClosure(seen2, c.body)
+          }
+        }
+      case Handle(handler, block) =>
+        transitiveClosure(transitiveClosure(seen, handler), block)
       case Sequence(tms) => tms.foldLeft(seen)(transitiveClosure _)
       case Apply(f, args) =>
         args.foldLeft(transitiveClosure(seen, f))(transitiveClosure _)
@@ -130,7 +131,7 @@ object Term {
     val usedNames = refs.values.map(names).foldLeft(names(t))(_ union _)
     // 2. Freshen names for each `Ref`, if needed
     val freshRefNames = refs.keys.view.map(r => (r, ABT.freshen(r.name, usedNames))).toMap
-    def replaceRefs(t: Term): Term = selfToLetRec(t).rewriteDown {
+    def replaceRefs(t: Term): Term = t.rewriteDown {
       case Compiled(c) => c match {
         case r : Ref => Var(freshRefNames(r))
         case Value.Unboxed(d,typ) => Term.Unboxed(d,typ)
@@ -160,6 +161,8 @@ object Term {
 
     def map[R2](f: R => R2): MatchCase[R2] =
       MatchCase(pattern, guard.map(f), f(body))
+
+    def foldLeft[B](b: B)(f: (B,R) => B): B = f(guard.foldLeft(b)(f), body)
   }
 
   object MatchCase {
@@ -167,32 +170,67 @@ object Term {
       MatchCase(pattern, None, body)
   }
 
-  sealed abstract class F[+R]
+  sealed abstract class F[+R] {
+    def foldLeft[B](b: B)(f: (B,R) => B): B
+  }
 
   object F {
-
-    case class Lam_[R](body: R) extends F[R]
-    case class Id_(id: Id) extends F[Nothing]
-    case class Constructor_(id: Id, constructorId: ConstructorId) extends F[Nothing]
-    case class Apply_[R](fn: R, args: List[R]) extends F[R]
-    case class Unboxed_(value: U, typ: UnboxedType) extends F[Nothing]
-    case class Text_(txt: util.Text.Text) extends F[Nothing]
-    case class Sequence_[R](seq: util.Sequence[R]) extends F[R]
-    case class LetRec_[R](bindings: List[R], body: R) extends F[R]
-    case class Let_[R](binding: R, body: R) extends F[R]
-    case class Rec_[R](r: R) extends F[R]
-    case class Self_(name: Name) extends F[Nothing]
-    case class If_[R](condition: R, ifNonzero: R, ifZero: R) extends F[R]
-    case class Match_[R](scrutinee: R, cases: List[MatchCase[R]]) extends F[R]
-    case class Compiled_(value: Param) extends F[Nothing]
+    sealed abstract class F0[+R] extends F[R] {
+      def foldLeft[B](b: B)(f: (B,R) => B): B = b
+    }
+    sealed abstract class F1[+R](r1: R) extends F[R] {
+      def foldLeft[B](b: B)(f: (B,R) => B): B = f(b, r1)
+    }
+    sealed abstract class F2[+R](r1: R, r2: R) extends F[R] {
+      def foldLeft[B](b: B)(f: (B,R) => B): B = f(f(b, r1), r2)
+    }
+    sealed abstract class F3[+R](r1: R, r2: R, r3: R) extends F[R] {
+      def foldLeft[B](b: B)(f: (B,R) => B): B = f(f(f(b, r1), r2), r3)
+    }
+    case class Lam_[R](body: R) extends F1[R](body)
+    case class Id_(id: Id) extends F0[Nothing]
+    case class Constructor_(id: Id, constructorId: ConstructorId) extends F0[Nothing] {
+      override def toString = util.PrettyPrint.prettyId(id,constructorId).render(1000)
+    }
+    case class Apply_[R](fn: R, args: List[R]) extends F[R] {
+      def foldLeft[B](b: B)(f: (B,R) => B): B = args.foldLeft(f(b,fn))(f)
+    }
+    case class Unboxed_(value: U, typ: UnboxedType) extends F0[Nothing] {
+      override def toString = util.PrettyPrint.prettyUnboxed(value, typ).render(1000)
+    }
+    case class Text_(txt: util.Text.Text) extends F0[Nothing]
+    case class Sequence_[R](seq: util.Sequence[R]) extends F[R] {
+      def foldLeft[B](b: B)(f: (B,R) => B): B = seq.foldLeft(b)(f)
+    }
+    case class LetRec_[R](bindings: List[R], body: R) extends F[R] {
+      def foldLeft[B](b: B)(f: (B,R) => B): B =
+        f(bindings.foldLeft(b)(f), body)
+    }
+    case class Let_[R](binding: R, body: R) extends F2[R](binding,body)
+    case class Rec_[R](r: R) extends F1[R](r)
+    case class If_[R](condition: R, ifNonzero: R, ifZero: R) extends F3[R](condition,ifNonzero,ifZero)
+    case class And_[R](x: R, y: R) extends F2[R](x,y)
+    case class Or_[R](x: R, y: R) extends F2[R](x,y)
+    case class Match_[R](scrutinee: R, cases: List[MatchCase[R]]) extends F[R] {
+      def foldLeft[B](b: B)(f: (B,R) => B): B =
+        cases.foldLeft(f(b,scrutinee)) { (b,mc) => mc.foldLeft(b)(f) }
+    }
+    case class Compiled_(value: Param) extends F0[Nothing]
     // request : <f> a -> {f} a
-    case class Request_ [R](id: Id, ctor: ConstructorId, args: List[R]) extends F[R]
+    case class Request_ [R](id: Id, ctor: ConstructorId) extends F0[R]
     // handle : (forall x . <f> x -> r) -> {f} x -> r
-    case class Handle_[R](handler: R, block: R) extends F[R]
+    case class Handle_[R](handler: R, block: R) extends F2[R](handler,block)
+    case class EffectPure_[R](value: R) extends F1[R](value)
+    case class EffectBind_[R](
+      id: Id, constructorId: ConstructorId, args: List[R], k: R) extends F[R] {
+      def foldLeft[B](b: B)(f: (B,R) => B): B =
+        f(args.foldLeft(b)(f), k)
+    }
 
     implicit val instance: Traverse[F] = new Traverse[F] {
       override def map[A,B](fa: F[A])(f: A => B): F[B] = fa match {
-        case fa @ (Id_(_) | Unboxed_(_,_) | Compiled_(_) | Self_(_) | Text_(_) | Constructor_(_,_)) =>
+        case fa @ (Id_(_) | Unboxed_(_,_) | Compiled_(_) | Text_(_) |
+                   Constructor_(_,_) | Request_(_,_)) =>
           fa.asInstanceOf[F[B]]
         case Lam_(a) => Lam_(f(a))
         case Apply_(fn, args) =>
@@ -210,14 +248,22 @@ object Term {
         case If_(c,a,b) =>
           val c2 = f(c); val a2 = f(a); val b2 = f(b)
           If_(c2, a2, b2)
+        case And_(x,y) =>
+          val x2 = f(x); val y2 = f(y)
+          And_(x2,y2)
+        case Or_(x,y) =>
+          val x2 = f(x); val y2 = f(y)
+          Or_(x2,y2)
         case Match_(s, cs) =>
           val s2 = f(s); val cs2 = cs.map(_.map(f))
           Match_(s2, cs2)
         case Handle_(h,b) =>
           val h2 = f(h); val b2 = f(b)
           Handle_(h2, b2)
-        case Request_(id, ctor, args) =>
-          Request_(id, ctor, args.map(f))
+        case EffectPure_(v) =>
+          EffectPure_(f(v))
+        case EffectBind_(id, ctor, args, k) =>
+          EffectBind_(id, ctor, args map f, f(k))
       }
       def mapAccumulate[S,A,B](fa: F[A], s0: S)(g: (A,S) => (B,S)): (F[B], S) = {
         var s = s0
@@ -281,15 +327,6 @@ object Term {
     }
   }
 
-  /** A reference to the currently executing lambda. */
-  object Self {
-    def apply(n: Name): Term = Tm(Self_(n))
-    def unapply[A](t: AnnotatedTerm[F,A]): Option[Name] = t match {
-      case Tm(Self_(n)) => Some(n)
-      case _ => None
-    }
-  }
-
   object Unboxed {
     def apply(n: U, typ: UnboxedType): Term = Tm(Unboxed_(n, typ))
     def unapply[A](t: AnnotatedTerm[F,A]): Option[(U, UnboxedType)] =
@@ -333,12 +370,13 @@ object Term {
   }
 
   object Request {
-    def unapply[A](t: AnnotatedTerm[F,A]): Option[AnnotatedTerm[F,A]] = t match {
-      case Tm(Request_(_,_,_)) => Some(t)
-      case _ => None
-    }
-    def apply(id: Id, ctor: ConstructorId, args: List[Term]): Term =
-      Tm(Request_(id, ctor, args))
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[(Id,ConstructorId)] =
+      t match {
+        case Tm(Request_(id,cid)) => Some((id,cid))
+        case _ => None
+      }
+    def apply(id: Id, ctor: ConstructorId): Term =
+      Tm(Request_(id, ctor))
   }
   object Handle {
     def unapply[A](t: AnnotatedTerm[F,A]): Option[(AnnotatedTerm[F,A],AnnotatedTerm[F,A])] = t match {
@@ -387,6 +425,25 @@ object Term {
       case _ => None
     }
   }
+
+  object And {
+    def apply(x: Term, y: Term): Term =
+      Tm(And_(x, y))
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[(AnnotatedTerm[F,A], AnnotatedTerm[F,A])] = t match {
+      case Tm(And_(x, y)) => Some((x, y))
+      case _ => None
+    }
+  }
+
+  object Or {
+    def apply(x: Term, y: Term): Term =
+      Tm(Or_(x, y))
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[(AnnotatedTerm[F,A], AnnotatedTerm[F,A])] = t match {
+      case Tm(Or_(x, y)) => Some((x, y))
+      case _ => None
+    }
+  }
+
   object Compiled {
     def apply(v: Param): Term =
       Tm(Compiled_(v))
@@ -395,6 +452,25 @@ object Term {
       case _ => None
     }
   }
+  object EffectPure {
+    def apply(v: Term): Term =
+      Tm(EffectPure_(v))
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[AnnotatedTerm[F,A]] =
+      t match {
+        case Tm(EffectPure_(v)) => Some(v)
+        case _ => None
+      }
+  }
+  object EffectBind {
+    def apply(id: Id, ctor: ConstructorId, args: List[Term], k: Term): Term =
+      Tm(EffectBind_(id, ctor, args, k))
+    def unapply[A](t: AnnotatedTerm[F,A])
+      : Option[(Id, ConstructorId, List[AnnotatedTerm[F,A]], AnnotatedTerm[F,A])] =
+      t match {
+        case Tm(EffectBind_(id, ctor, args, k)) => Some((id, ctor, args, k))
+        case _ => None
+      }
+  }
 
   object Syntax {
     implicit class ApplySyntax(val fn: Term) extends AnyVal {
@@ -402,8 +478,8 @@ object Term {
     }
 
     implicit def bool(b: Boolean): Term = Unboxed(boolToUnboxed(b), UnboxedType.Boolean)
-    implicit def number(n: Long): Term = Unboxed(longToUnboxed(n), UnboxedType.Integer)
-    implicit def number(n: Int): Term = Unboxed(intToUnboxed(n), UnboxedType.Integer)
+    implicit def number(n: Long): Term = Unboxed(longToUnboxed(n), UnboxedType.Int64)
+    implicit def number(n: Int): Term = Unboxed(intToUnboxed(n), UnboxedType.Int64)
     implicit def double(n: Double): Term = Unboxed(doubleToUnboxed(n), UnboxedType.Float)
     implicit def stringAsText(s: String): Term = Text(util.Text.fromString(s))
     implicit def nameAsVar(s: Name): Term = Var(s)
