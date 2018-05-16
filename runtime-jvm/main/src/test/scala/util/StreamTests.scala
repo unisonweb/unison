@@ -95,6 +95,18 @@ object StreamTests {
           (0.0 until 10000 by 1.0).sum
         )
       },
+      test("scanLeft0 (+) long") { implicit T =>
+        equal(
+          Stream.from(7).take(10).scanLeft0(longToUnboxed(-3), null: Unboxed[Long])(LL_L(_+_)).sumIntegers,
+          scala.Stream.from(7).take(10).scanLeft(-3)(_+_).sum
+        )
+      },
+      test("scanLeft (+) long") { implicit T =>
+        equal(
+          Stream.from(7).take(10).scanLeft(-3l)(LL_L(_+_)).sumIntegers,
+          scala.Stream.from(7).take(10).scanLeft(-3)(_+_).sum
+        )
+      },
       test("++") { implicit T =>
         equal(
           (Stream.from(0).take(10000) ++ Stream.from(20000).take(5)).sumIntegers,
@@ -148,6 +160,13 @@ object StreamTests {
           equal(
             Stream.fromUnison(0).take(10000).foldLeft(Value(0))(plusU(env)),
             Value((0 until 10000).sum)
+          )
+        },
+        test("scanLeft Int64_add") { implicit T =>
+          val int64add = UnisonToScala.toUnboxed2(Builtins.Int64_add)(env)
+          equal(
+            Stream.fromUnison(1).take(10000).scanLeft(Value(0))(int64add).reduce(Value(0))(int64add),
+            Value(scala.Stream.from(1).take(10000).scanLeft(0l)(_+_).sum)
           )
         },
         test("iterate Int64_inc, reduce Int64_add") { implicit T =>

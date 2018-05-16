@@ -67,6 +67,23 @@ abstract class Stream[A] { self =>
                else k(u,a)
     }
 
+  final def scanLeft0[B](u0: U, b0: B)(f: F2[B,A,B]): Stream[B] =
+    k => {
+      k(u0, b0)
+      var u1 = u0
+      var b1 = b0
+      val cf = f andThen {
+        (u, b) =>
+          u1 = u
+          b1 = b
+          k(u1, b1)
+      }
+      self.stage { (u, a) => cf(u1, b1, u, a) }
+    }
+
+  final def scanLeft[C0, C](c0: C0)(f: F2[C,A,C])(implicit C: Extract[C0,C]): Stream[C] =
+    scanLeft0(u0 = C.toUnboxed(c0), b0 = C.toBoxed(c0))(f)
+
   final def sumIntegers(implicit A: A =:= Unboxed[Long]): Long = {
     var total: Long = 0l
     self.stage { (u,_) => total += u }.run()
@@ -302,6 +319,4 @@ object Stream {
 
   final def iterate[A,B](a: A)(f: F1[B,B])(implicit A:Extract[A,B]): Stream[B] =
     iterate0(A.toUnboxed(a), A.toBoxed(a))(f)
-
-
 }
