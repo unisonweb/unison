@@ -167,13 +167,13 @@ object Critbyte {
                  emptyChildArray[A].updated(unsigned(smallestKey(sdi)), this)
                                    .updated(unsigned(sk(sdi)), b))
 
-        // All the elements in one tree belong under a child of the other
+        // All the elements in `c2` belong as or under a child of `c1`
         def insertDown(c1: Branch[A], c2: Branch[A]) =
           c1.copy(
             smallestKey = c1.smallestKey min c2.smallestKey,
             children =
               c1.children.updated(
-                c1.critbyte,
+                unsigned(c2.smallestKey(c1.critbyte)),
                 c1.children(
                   unsigned(c2.smallestKey(c1.critbyte))).unionWith(c2)(f)))
 

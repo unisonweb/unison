@@ -11,6 +11,9 @@ sealed abstract class Sequence[A] {
   def headOption: Option[A] =
     if (isEmpty) None
     else Some(apply(0))
+  def lastOption: Option[A] =
+    if (isEmpty) None
+    else Some(apply(size - 1))
 
   // override def toString = "Sequence(" + (0L until size).map(apply(_)).mkString(", ") + ")"
 
@@ -21,6 +24,7 @@ sealed abstract class Sequence[A] {
   }
 
   def foldLeft[B](z: B)(f: (B,A) => B): B
+  def foreach(f: A => Unit) = foldLeft(())((_,a) => f(a))
 
   final def isEmpty = size == 0L
 
@@ -36,6 +40,10 @@ sealed abstract class Sequence[A] {
   def halve = (take(size / 2), drop(size / 2))
   def reverse: Sequence[A]
   def map[B](f: A => B): Sequence[B]
+  def flatMap[B](f: A => Sequence[B]): Sequence[B] = uncons match {
+    case None => Sequence.empty
+    case Some((hd,tl)) => tl.foldLeft(f(hd))((bs,a) => bs ++ f(a))
+  }
 }
 
 object Sequence {
@@ -207,6 +215,15 @@ object Sequence {
 
   def apply[A](as: A*): Sequence[A] =
     Flat(as.foldLeft(Deque.empty[A])((buf,a) => buf :+ a))
+
+  def fill[A](n: Long)(a: => A): Sequence[A] = {
+    var buf = empty[A]
+    var i = 0; while (i < n) {
+      buf = buf :+ a
+      i += 1
+    }
+    buf
+  }
 
   /** Assuming `vs` is sorted in increasing order, find the index of the first value >= `v`. */
   def lubIndex(target: Long, vs: Array[Long]): Int = {

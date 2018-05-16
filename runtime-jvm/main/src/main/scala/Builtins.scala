@@ -69,9 +69,7 @@ object Builtins {
       }
     val decompiled = Term.Id(name)
     val lambda =
-      new Value.Lambda.ClosureForming(3, body, None, decompiled, Array()) {
-      override def names: List[Name] = List(arg1, arg2, arg3)
-    }
+      new Value.Lambda.ClosureForming(List(arg1, arg2, arg3), body, None, decompiled)
     name -> Return(lambda)
   }
 
@@ -132,68 +130,145 @@ object Builtins {
     Sequence_size
   )
 
-  val Integer_inc =
-    fl_l("Integer.inc", "x", _ + 1)
+  // Signed machine integers
+  val Int64_inc =
+    fl_l("Int64.inc", "x", _ + 1)
 
-  val Integer_isEven =
-    fl_b("Integer.isEven", "x", _ % 2 == 0)
+  val Int64_isEven =
+    fl_b("Int64.isEven", "x", _ % 2 == 0)
 
-  val Integer_isOdd =
-    fl_b("Integer.isOdd", "x", _ % 2 != 0)
+  val Int64_isOdd =
+    fl_b("Int64.isOdd", "x", _ % 2 != 0)
 
-  val Integer_add =
-    fll_l("Integer.+", "x", "y", _ + _)
+  val Int64_add =
+    fll_l("Int64.+", "x", "y", _ + _)
 
-  val Integer_mul =
-    fll_l("Integer.*", "x", "y", _ * _)
+  val Int64_mul =
+    fll_l("Int64.*", "x", "y", _ * _)
 
-  val Integer_sub =
-    fll_l("Integer.-", "x", "y", _ - _)
+  val Int64_sub =
+    fll_l("Int64.-", "x", "y", _ - _)
 
-  val Integer_div =
-    fll_l("Integer./", "x", "y", _ / _)
+  val Int64_div =
+    fll_l("Int64./", "x", "y", _ / _)
 
-  val Integer_eq =
-    fll_b("Integer.==", "x", "y", _ == _)
+  val Int64_eq =
+    fll_b("Int64.==", "x", "y", _ == _)
 
-  val Integer_neq =
-    fll_b("Integer.!=", "x", "y", _ != _)
+  val Int64_neq =
+    fll_b("Int64.!=", "x", "y", _ != _)
 
-  val Integer_lteq =
-    fll_b("Integer.<=", "x", "y", _ <= _)
+  val Int64_lteq =
+    fll_b("Int64.<=", "x", "y", _ <= _)
 
-  val Integer_gteq =
-    fll_b("Integer.>=", "x", "y", _ >= _)
+  val Int64_gteq =
+    fll_b("Int64.>=", "x", "y", _ >= _)
 
-  val Integer_lt =
-    fll_b("Integer.<", "x", "y", _ < _)
+  val Int64_lt =
+    fll_b("Int64.<", "x", "y", _ < _)
 
-  val Integer_gt =
-    fll_b("Integer.>", "x", "y", _ > _)
+  val Int64_gt =
+    fll_b("Int64.>", "x", "y", _ > _)
 
-  val Integer_signum =
-    fl_l("Integer.signum", "x", _.signum)
+  val Int64_signum =
+    fl_l("Int64.signum", "x", _.signum)
 
-  val Integer_negate =
-    fl_l("Integer.negate", "x", -_)
+  val Int64_negate =
+    fl_l("Int64.negate", "x", -_)
 
-  val numericBuiltins = Map(
+  // Unsigned machine integers
+  val UInt64_toInt64 =
+    fl_l("UInt64.toInt64", "x", x => x)
+
+  val UInt64_inc =
+    fn_n("UInt64.inc", "x", _ + 1)
+
+  val UInt64_isEven =
+    fl_b("UInt64.isEven", "x", _ % 2 == 0)
+
+  val UInt64_isOdd =
+    fl_b("UInt64.isOdd", "x", _ % 2 != 0)
+
+  val UInt64_add =
+    fnn_n("UInt64.+", "x", "y", _ + _)
+
+  val UInt64_mul =
+    fnn_n("UInt64.*", "x", "y", _ * _)
+
+  val UInt64_drop =
+    fnn_n("UInt64.drop", "x", "y", (x, y) =>
+      if (x < 0 && y < 0)
+        if (x >= y) x - y else 0
+      else if (x < 0 && y >= 0) x - y
+      else if (x >= 0 && y < 0) 0
+      else x - y max 0
+  )
+
+  val UInt64_sub =
+    fnn_n("UInt64.sub", "x", "y", (x, y) => x - y)
+
+  val UInt64_div =
+    fnn_n("UInt64./", "x", "y", java.lang.Long.divideUnsigned(_,_))
+
+  val UInt64_eq =
+    fll_b("UInt64.==", "x", "y", _ == _)
+
+  val UInt64_neq =
+    fll_b("UInt64.!=", "x", "y", _ != _)
+
+  val UInt64_lteq =
+    fll_b("UInt64.<=", "x", "y", (x, y) =>
+      java.lang.Long.compareUnsigned(x,y) <= 0
+    )
+
+  val UInt64_gteq =
+    fll_b("UInt64.>=", "x", "y", (x, y) =>
+      java.lang.Long.compareUnsigned(x,y) >= 0
+    )
+
+  val UInt64_lt =
+    fll_b("UInt64.<", "x", "y", (x, y) =>
+      java.lang.Long.compareUnsigned(x,y) < 0
+    )
+
+  val UInt64_gt =
+    fll_b("UInt64.>", "x", "y", (x, y) =>
+      java.lang.Long.compareUnsigned(x,y) > 0
+    )
+
+  val numericBuiltins: Map[Name, Computation] = Map(
     // arithmetic
-    Integer_inc,
-    Integer_add,
-    Integer_mul,
-    Integer_sub,
-    Integer_div,
-    Integer_signum,
-    Integer_negate,
+    Int64_inc,
+    Int64_add,
+    Int64_sub,
+    Int64_mul,
+    Int64_div,
+    Int64_signum,
+    Int64_negate,
+
+    UInt64_toInt64,
+    UInt64_inc,
+    UInt64_isEven,
+    UInt64_isOdd,
+    UInt64_mul,
+    UInt64_drop,
+    UInt64_add,
+    UInt64_sub,
+    UInt64_div,
 
     // comparison
-    Integer_eq,
-    Integer_neq,
-    Integer_lteq,
-    Integer_gteq,
-    Integer_lt,
-    Integer_gt
+    Int64_eq,
+    Int64_neq,
+    Int64_lteq,
+    Int64_gteq,
+    Int64_lt,
+    Int64_gt,
+    UInt64_eq,
+    UInt64_neq,
+    UInt64_lteq,
+    UInt64_gteq,
+    UInt64_lt,
+    UInt64_gt,
   )
 
   val Boolean_not =
@@ -254,9 +329,15 @@ object Builtins {
     Text_gt
   )
 
-  val builtins =
+  // don't remove the type annotation
+  val Debug_crash: (Term.Name, Computation) =
+    ("Debug.crash", (r => sys.error("called Debug.crash")): Computation.C0)
+
+  val debugBuiltins = Map(Debug_crash)
+
+  val builtins: Map[Name, Computation] =
     streamBuiltins ++ seqBuiltins ++ numericBuiltins ++
-    booleanBuiltins ++ textBuiltins
+    booleanBuiltins ++ textBuiltins ++ debugBuiltins
 
   // Polymorphic one-argument function
   def fp_p[A,B](name: Name, arg: Name, f: A => B)
@@ -297,8 +378,13 @@ object Builtins {
          u => boolToUnboxed(f.test(unboxedToLong(u))))
 
   def fl_l(name: Name, arg: Name, f: LongUnaryOperator): (Name, Computation) =
-    _fu_u(name, arg, UnboxedType.Integer,
-         u => longToUnboxed(f.applyAsLong(unboxedToLong(u))))
+    _fu_u(name, arg, UnboxedType.Int64,
+          u => longToUnboxed(f.applyAsLong(unboxedToLong(u))))
+
+  // UInt64 -> UInt64
+  def fn_n(name: Name, arg: Name, f: LongUnaryOperator): (Name, Computation) =
+    _fu_u(name, arg, UnboxedType.UInt64,
+          u => longToUnboxed(f.applyAsLong(unboxedToLong(u))))
 
   def fp_z[A,B](name: Name, arg: Name, f: A => B)
                (implicit A: Decode[A], B: LazyEncode[B]): (Name, Computation) = {
@@ -317,7 +403,7 @@ object Builtins {
       (r,x1,x0,x1b,x0b) =>
         C.encode(r, f(A.decode(x1, x1b), B.decode(x0, x0b)))
     val decompiled = Term.Id(name)
-    val lambda = new Lambda.ClosureForming2(arg1, arg2, body, None, decompiled)
+    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, None, decompiled)
     name -> Return(lambda)
   }
 
@@ -334,7 +420,7 @@ object Builtins {
                    Value.fromParam(x0, x0b))
       }
     val decompiled = Term.Id(name)
-    val lambda = new Lambda.ClosureForming2(arg1, arg2, body, None, decompiled)
+    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, None, decompiled)
     name -> Return(lambda)
   }
 
@@ -349,7 +435,7 @@ object Builtins {
     val body: Computation.C2P = (r,x1,x0,_,x0b) =>
       B.encode(r, f(x1, A.decode(x0, x0b)))
     val decompiled = Term.Id(name)
-    val lambda = new Lambda.ClosureForming2(arg1, arg2, body, None, decompiled)
+    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, None, decompiled)
     name -> Return(lambda)
   }
 
@@ -361,7 +447,7 @@ object Builtins {
                  name,
                  Value.fromParam(x1,x1b),
                  Value.fromParam(x0,x0b))
-    name -> Return(new Value.Lambda.ClosureForming2(arg1, arg2, body, None, Term.Id(name)))
+    name -> Return(new Value.Lambda.ClosureForming(List(arg1, arg2), body, None, Term.Id(name)))
   }
 
 
@@ -377,7 +463,7 @@ object Builtins {
                  Value.fromParam(x0, x0b))
 
     val decompiled = Term.Id(name)
-    val lambda = new Lambda.ClosureForming2(arg1, arg2, body, None, decompiled)
+    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, None, decompiled)
     name -> Return(lambda)
   }
 
@@ -396,16 +482,20 @@ object Builtins {
         f(A.decode(x1, x1b), B.decode(x0, x0b))
       }
     val decompiled = Term.Id(name)
-    val lambda = new Lambda.ClosureForming2(arg1, arg2, body, Some(outputType), decompiled)
+    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, None, decompiled)
     name -> Return(lambda)
   }
 
-  def fll_l(name: Name, arg1: Name, arg2: Name, f: LongBinaryOperator) =
-    _fuu_u(name, arg1, arg2, UnboxedType.Integer,
+  def fll_l(name: Name, arg1: Name, arg2: Name, f: LongBinaryOperator): (Name, Computation) =
+    _fuu_u(name, arg1, arg2, UnboxedType.Int64,
+           (u1, u2) => longToUnboxed(f.applyAsLong(unboxedToLong(u1), unboxedToLong(u2))))
+
+  def fnn_n(name: Name, arg1: Name, arg2: Name, f: LongBinaryOperator) =
+    _fuu_u(name, arg1, arg2, UnboxedType.UInt64,
            (u1, u2) => longToUnboxed(f.applyAsLong(unboxedToLong(u1), unboxedToLong(u2))))
 
   abstract class FLL_B { def apply(l1: Long, l2: Long): Boolean }
-  def fll_b(name: Name, arg1: Name, arg2: Name, f: FLL_B) =
+  def fll_b(name: Name, arg1: Name, arg2: Name, f: FLL_B): (Name, Computation) =
     _fuu_u(name, arg1, arg2, UnboxedType.Boolean,
            (u1, u2) => boolToUnboxed(f(unboxedToLong(u1), unboxedToLong(u2))))
 
@@ -420,13 +510,14 @@ object Builtins {
     }
 
     val decompiled = Term.Id(name)
-    val lam = new Lambda(2, body, Some(outputType), decompiled) { self =>
-      def names = List(arg1, arg2)
+    val lam = new Lambda(List(arg1, arg2), body, Some(outputType), decompiled) {
+      self =>
+
       override def saturatedNonTailCall(args: List[Computation]) = args match {
         case List(Return(Value.Unboxed(n1, _)),
                   Return(Value.Unboxed(n2, _))) =>
           val n3 = f.applyAsLong(n1,n2) // constant fold
-          val c : Computation.C0 = r => { r.boxed = outputType; n3 }
+        val c : Computation.C0 = r => { r.boxed = outputType; n3 }
           c
         case List(CompiledVar0,Return(Value.Unboxed(n, _))) =>
           val c : Computation.C1U = (r,x0) => {
@@ -491,9 +582,8 @@ object Builtins {
                   r.boxed = outputType
                   f.applyAsLong(n, x0)
                 }
-              new Lambda(1, body, unboxedType, Term.Apply(decompiled, term)) {
-                def names = self.names drop argCount
-              }
+              new Lambda(self.names drop argCount, body, unboxedType,
+                         Term.Apply(decompiled, term))
             case _ => sys.error("")
           }
           case _ => sys.error("unpossible")
@@ -531,9 +621,9 @@ object Builtins {
       }
 
     implicit val encodeLong: Encode[Long] =
-      (r, a) => { r.boxed = UnboxedType.Integer; longToUnboxed(a) }
+      (r, a) => { r.boxed = UnboxedType.Int64; longToUnboxed(a) }
     implicit val encodeInt: Encode[Int] =
-      (r, a) => { r.boxed = UnboxedType.Integer; intToUnboxed(a) }
+      (r, a) => { r.boxed = UnboxedType.Int64; intToUnboxed(a) }
     implicit val encodeDouble: Encode[Double] =
       (r, a) => { r.boxed = UnboxedType.Float; doubleToUnboxed(a) }
   }
@@ -558,6 +648,8 @@ object Builtins {
       Term.Text(_)
     implicit val decompileUnit: Decompile[Unit] =
       u => BuiltinTypes.Unit.term
+    implicit val decompileBoolean: Decompile[Boolean] =
+      b => Term.Unboxed(boolToUnboxed(b), UnboxedType.Boolean)
     implicit def decompilePair[A,B](implicit A: Decompile[A], B: Decompile[B]): Decompile[(A,B)] =
       p => BuiltinTypes.Tuple.term(A.decompile(p._1), B.decompile(p._2))
   }
@@ -573,7 +665,7 @@ object Builtins {
       new External(value) { def decompile = decompiled }
     def apply[A](value: A)(implicit A: Decompile[A]): Value =
       new External(value) {
-        def decompile: Term = A.decompile(value)
+        lazy val decompile: Term = A.decompile(value)
       }
   }
 }

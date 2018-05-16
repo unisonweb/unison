@@ -21,9 +21,12 @@ object ABT {
 
   case class Var_[F[+_]](name: Name) extends ABT[F,Nothing]
   case class Abs_[F[+_],R](name: Name, body: R) extends ABT[F,R]
-  case class Tm_[F[+_],R](f: F[R]) extends ABT[F,R]
+  case class Tm_[F[+_],R](f: F[R]) extends ABT[F,R] {
+    override def toString = f.toString
+  }
 
   case class AnnotatedTerm[F[+_],A](annotation: A, get: ABT[F,AnnotatedTerm[F,A]]) {
+    override def toString = get.toString
     def map[B](f: A => B)(implicit F: Functor[F]): AnnotatedTerm[F,B] =
       AnnotatedTerm(f(annotation), get.map(_.map(f)))
     def reannotate(f: A => A): AnnotatedTerm[F,A] = AnnotatedTerm(f(annotation), get)

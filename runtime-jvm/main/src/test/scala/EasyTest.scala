@@ -146,6 +146,7 @@ object EasyTest {
     if (double < .5) a1 else a2
   def pair[A,B](a: => A, b: => B)(implicit T: Env): (A,B) = (a,b)
   def byte(implicit T: Env): Byte = intIn(0,256).toByte
+  def byteArray(size: Int)(implicit T: Env): Array[Byte] = Array.fill(size)(byte)
   def map[A,B](size: Int, a: => A, b: => B)(implicit T: Env): Map[A,B] =
     replicate(size)(pair(a,b)).toMap
 

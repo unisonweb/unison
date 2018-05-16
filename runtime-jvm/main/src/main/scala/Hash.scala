@@ -1,8 +1,6 @@
 package org.unisonweb
 
-import org.unisonweb.util.Sequence
-
-case class Hash(bytes: Sequence[Byte]) extends AnyVal
+case class Hash(bytes: Array[Byte]) extends AnyVal
 
 object Hash {
 

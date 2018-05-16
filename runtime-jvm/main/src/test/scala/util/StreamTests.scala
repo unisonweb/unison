@@ -117,8 +117,8 @@ object StreamTests {
     {
       def env =
         (new Array[U](20), new Array[B](20), StackPtr.empty, Result())
-      val incU = UnisonToScala.toUnboxed1(Builtins.Integer_inc)
-      val plusU = UnisonToScala.toUnboxed2(Builtins.Integer_add)
+      val incU = UnisonToScala.toUnboxed1(Builtins.Int64_inc)
+      val plusU = UnisonToScala.toUnboxed2(Builtins.Int64_add)
 
       suite("unison") (
         test("take/drop") { implicit T =>
@@ -139,16 +139,16 @@ object StreamTests {
             scala.Stream.from(0).take(10000).map(_ + 1).sum
           )
         },
-        test("foldLeft Integer_add") { implicit T =>
-          val plusU = UnisonToScala.toUnboxed2(Builtins.Integer_add)
+        test("foldLeft Int64_add") { implicit T =>
+          val plusU = UnisonToScala.toUnboxed2(Builtins.Int64_add)
           equal(
             Stream.fromUnison(0).take(10000).foldLeft(Value(0))(plusU(env)),
             Value((0 until 10000).sum)
           )
         },
-        test("iterate Integer_inc, reduce Integer_add") { implicit T =>
-          val incU = UnisonToScala.toUnboxed1(Builtins.Integer_inc)
-          val plusU = UnisonToScala.toUnboxed2(Builtins.Integer_add)
+        test("iterate Int64_inc, reduce Int64_add") { implicit T =>
+          val incU = UnisonToScala.toUnboxed1(Builtins.Int64_inc)
+          val plusU = UnisonToScala.toUnboxed2(Builtins.Int64_add)
           equal[Value](
             Stream.iterate(0l)(incU(env)).take(10).reduce(zero = Value(0))(plusU(env)),
             Value((scala.Stream.from(0).take(10)).sum)

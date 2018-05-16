@@ -206,14 +206,14 @@ object Stream {
     implicit val extractLongValue: Extract[Long, Value] =
       new Extract[Long, Value] {
         val extract: FUP_P[Value, Long] = (u,_) => unboxedToLong(u)
-        def toBoxed(a: Long): Value = UnboxedType.Integer
+        def toBoxed(a: Long): Value = UnboxedType.Int64
         def toUnboxed(a: Long): U = longToUnboxed(a)
       }
 
     implicit val extractIntValue: Extract[Int, Value] =
       new Extract[Int, Value] {
         val extract: FUP_P[Value, Int] = (u,_) => unboxedToInt(u)
-        def toBoxed(a: Int): Value = UnboxedType.Integer
+        def toBoxed(a: Int): Value = UnboxedType.Int64
         def toUnboxed(a: Int): U = intToUnboxed(a)
       }
 
@@ -277,7 +277,7 @@ object Stream {
   final def fromUnison(n: Long): Stream[UnboxedType] =
     k => {
       var i = n - 1
-      () => { i += 1; k(i, UnboxedType.Integer) }
+      () => { i += 1; k(i, UnboxedType.Int64) }
     }
 
   private final def iterate0[A](u0: U, a0: A)(f: F1[A,A]): Stream[A] = {

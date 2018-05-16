@@ -89,7 +89,9 @@ object PrettyPrint {
   implicit def lit(s: String): PrettyPrint = Literal(s)
 
   val softbreak = Breakable(" ")
-  def softbreaks(docs: Seq[PrettyPrint]): PrettyPrint = docs.reduce(_ <> softbreak <> _)
+  def softbreaks(docs: Seq[PrettyPrint]): PrettyPrint =
+    if (docs.isEmpty) Empty
+    else docs.reduce(_ <> softbreak <> _)
 
   val semicolon = Breakable("; ")
   def semicolons(docs: Seq[PrettyPrint]): PrettyPrint = docs.reduce(_ <> semicolon <> _)
@@ -127,27 +129,43 @@ object PrettyPrint {
       group(group(prettyPattern(p, names, 0) <>
               guard.fold[PrettyPrint]("")(g => " | " <> prettyTerm(g, 0))) <>
         " ->" <> softbreak <> prettyTerm(body, precedence = 0).nest("  "))
+    case Term.MatchCase(p, guard, body) =>
+      group(group(prettyPattern(p, Nil, 0) <>
+              guard.fold[PrettyPrint]("")(g => " | " <> prettyTerm(g, 0))) <>
+        " ->" <> softbreak <> prettyTerm(body, precedence = 0).nest("  "))
   }
 
   def prettyId(typeId: Id, ctorId: ConstructorId): PrettyPrint = typeId match {
-    case Id.Builtin(name) => prettyName(name) <> s"<${ctorId.toInt}>"
+    case Id.Builtin(name) => prettyName(name) <> s"#${ctorId.toInt}"
     case Id.HashRef(h) => "#" <> h.bytes.map(b => b.formatted("%02x")).toList.mkString
   }
+
+  def distributeNames(patterns: Seq[Pattern], names: List[Name]): Seq[PrettyPrint] =
+    distributeSomeNames(patterns, names)._1
+
+  def distributeSomeNames(patterns: Seq[Pattern], names: List[Name]): (Seq[PrettyPrint], List[Name]) =
+    (patterns.foldLeft((Seq.empty[PrettyPrint], names)) {
+      case ((prettyPrints, names), pattern) =>
+        val (names1, names2) = names.splitAt(pattern.arity)
+        (prettyPrints :+ prettyPattern(pattern, names1, 9), names2)
+    })
 
   def prettyPattern(p: Pattern, names: List[Name], precedence: Int): PrettyPrint = p match {
     case Pattern.LiteralU(u, typ) =>
       prettyTerm(Term.Unboxed(u, typ), 0)
     case Pattern.Wildcard => prettyName(names.head)
     case Pattern.Uncaptured => "_"
+    // ex: {Foo x y} or {x}
+    case Pattern.EffectPure(p) => "{" <> prettyPattern(p, names, 0) <> "}"
+    // ex: {State.set s -> k} or {Remote.at node c -> k2}
+    case Pattern.EffectBind(id,cid,ps,k) =>
+      val (pretties, remNames) = distributeSomeNames(ps, names)
+      "{" <> softbreaks(prettyId(id,cid) +: pretties) <>
+             softbreak <> "-> " <> prettyPattern(k,remNames,0) <> "}"
     case Pattern.Data(typeId, ctorId, patterns) =>
       parenthesizeGroupIf(precedence > 0) {
         softbreaks(
-          prettyId(typeId, ctorId) +:
-            (patterns.foldLeft((Seq.empty[PrettyPrint], names)) {
-              case ((prettyPrints, names), pattern) =>
-                val (names1, names2) = names.splitAt(pattern.arity)
-                (prettyPrints :+ prettyPattern(pattern, names1, 9), names2)
-            })._1
+          prettyId(typeId, ctorId) +: distributeNames(patterns, names)
         )
       }
     case Pattern.As(p) =>
@@ -155,23 +173,32 @@ object PrettyPrint {
     case other => other.toString
   }
 
-  def prettyTerm(t: Term): PrettyPrint = prettyTerm(Term.selfToLetRec(t), 0)
+  def prettyTerm(t: Term): PrettyPrint = prettyTerm(t, 0)
 
-  private def prettyTerm(t: Term, precedence: Int): PrettyPrint = t match {
+  def prettyUnboxed(value: U, t: UnboxedType): PrettyPrint = t match {
+    case UnboxedType.Int64 =>
+      val i = unboxedToInt(value)
+      parenthesizeGroupIf(i < 0)(i.toString)
+    case UnboxedType.Float =>
+      val i = unboxedToDouble(value)
+      parenthesizeGroupIf(i < 0)(i.toString)
+    case UnboxedType.Boolean => unboxedToBool(value).toString
+    case UnboxedType.UInt64 => toUnsignedString(unboxedToLong(value))
+  }
+
+  def prettyTerm(t: Term, precedence: Int): PrettyPrint = t match {
     case Term.Unboxed(value, t) =>
-      t match {
-        case UnboxedType.Integer => unboxedToInt(value).toString
-        case UnboxedType.Float => unboxedToDouble(value).toString
-        case UnboxedType.Boolean => unboxedToBool(value).toString
-        case UnboxedType.Natural => toUnsignedString(unboxedToLong(value))
-      }
+      prettyUnboxed(value, t)
 
     case Term.If(cond, ifZero, ifNonzero) => parenthesizeGroupIf(precedence > 0) {
       "if " <> prettyTerm(cond, 0) <> " then" <> softbreak <>
                prettyTerm(ifZero, 0).nest("  ") <> softbreak <> "else" <> softbreak <>
                prettyTerm(ifNonzero, 0).nest("  ")
     }
-
+    case Term.Handle(handler, body) =>
+      "handle " <> prettyTerm(handler, 10) <> softbreak <>
+                   prettyTerm(body, 0).nest("  ")
+    case Term.Request(id,cid) => prettyId(id, cid)
     case Term.Apply(VarOrBuiltin(name), List(arg1, arg2)) if isOperatorName(unqualifiedName(name)) =>
        parenthesizeGroupIf(precedence > 5) {
         prettyTerm(arg1, 5) <> " " <> infixName(name) <> softbreak <> prettyTerm(arg2, 6).nest("  ")
@@ -183,10 +210,8 @@ object PrettyPrint {
     case Term.Var(name) => prettyName(name)
     case Term.Id(Id.Builtin(name)) => prettyName(name)
     case Term.Id(Id.HashRef(hash)) => ???
-    case Term.Self(name) =>
-      sys.error("Self terms shouldn't exist after calling `Term.selfToLetRec`, which we do before calling this function.")
     case Term.Lam(names, body) => parenthesizeGroupIf(precedence > 0) {
-      softbreaks(names.map(name => lit(name.toString))) <> " ->" <> softbreak <>
+      group(softbreaks(names.map(name => lit(name.toString)))) <> " ->" <> softbreak <>
         prettyTerm(body, 0).nest("  ")
     }
     case Term.Let(bindings, body) => parenthesizeGroupIf(precedence > 0) {
@@ -203,6 +228,7 @@ object PrettyPrint {
       "case " <> prettyTerm(scrutinee, 0) <> " of" <> softbreak <>
         semicolons(cases.map(prettyCase)).nest("  ")
     }
+    case Term.Constructor(id,cid) => prettyId(id,cid)
     case Term.Compiled(Value.Data(typeId, ctorId, fields)) =>
       prettyTerm(
         Term.Var(prettyId(typeId, ctorId).renderUnbroken)(

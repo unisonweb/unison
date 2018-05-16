@@ -29,14 +29,15 @@ object SequenceTests {
       }
       ok
     },
-    test("take/drop/reverse/map/foldLeft") { implicit T =>
-      (0 until 1000).foreach { size =>
+    test("take/drop/reverse/map/flatMap/foldLeft") { implicit T =>
+      sizes.foreach { size =>
         val s = seqOf(size).run
         val n = longIn(-3, s.size + 6)
         expect1(s.take(n) === s.toList.take(n.toInt))
         expect1((s.take(n) ++ s.drop(n)) == s)
         expect1(s.drop(n) === s.toList.drop(n.toInt))
         expect1(s.map(x => x) == s)
+        expect1(s.flatMap(x => s.take(x)) === s.toList.flatMap(x => s.toList.take(x)))
         expect1(s.reverse === s.toList.reverse)
         expect1(s.foldLeft(0)(_ - _) == s.toList.foldLeft(0)(_ - _))
       }
@@ -47,6 +48,9 @@ object SequenceTests {
   implicit class SeqOps[A](s: Sequence[A]) {
     def ===(e: List[A]) = (0L until s.size).map(s(_)).toList == e.toList
   }
+
+  def sizes(implicit T: Env) =
+    Vector.range(0,100) :+ intIn(150,200) :+ intIn(500,1000) :+ intIn(1000,4000) :+ intIn(4000,8000)
 
   def seqOf(size: Int): Test[Sequence[Int]] = test { implicit T =>
     if (size <= 0) S.empty
