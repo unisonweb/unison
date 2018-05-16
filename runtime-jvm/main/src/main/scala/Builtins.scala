@@ -61,8 +61,10 @@ object Builtins {
                       D: Encode[D]): (Name, Computation) = {
     val body: Computation =
       (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+        val x2 = top.u(stackU, 2)
+        val x2b = top.b(stackB, 2)
         D.encode(r, f(
-          A.decode(top.u(stackU, 0), top.b(stackB, 0)),
+          A.decode(x2, x2b),
           B.decode(x1, x1b),
           C.decode(x0, x0b)
         ))
