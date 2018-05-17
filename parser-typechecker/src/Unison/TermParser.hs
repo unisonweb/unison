@@ -4,26 +4,25 @@
 
 module Unison.TermParser where
 
-import Prelude hiding (takeWhile)
-
-import Control.Applicative
-import Control.Monad
-import Data.Char (isDigit)
-import Data.Foldable (asum)
-import Data.Functor
-import Unison.Literal (Literal)
-import Unison.Parser
-import Unison.Term (Term)
-import Unison.Type (Type)
-import Unison.Var (Var)
+import           Control.Applicative
+import           Control.Monad
+import           Data.Char (isDigit)
+import           Data.Foldable (asum)
+import           Data.Functor
 import qualified Data.Text as Text
+import           Prelude hiding (takeWhile)
+import qualified Text.Parsec.Layout as L
 import qualified Unison.ABT as ABT
+import           Unison.Literal (Literal)
 import qualified Unison.Literal as Literal
+import           Unison.Parser
+import           Unison.Term (Term)
 import qualified Unison.Term as Term
+import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.TypeParser as TypeParser
+import           Unison.Var (Var)
 import qualified Unison.Var as Var
-import qualified Text.Parsec.Layout as L
 
 --import Debug.Trace
 --import Text.Parsec (anyChar)
@@ -244,7 +243,24 @@ prefixTerm :: Var v => Parser (S v) (Term v)
 prefixTerm = Term.var <$> prefixVar
 
 keywords :: [String]
-keywords = ["alias", "do", "let", "rec", "in", "->", ":", "=", "where", "else", "then"]
+keywords =
+  [ "->"
+  , ":"
+  , "="
+  , "alias"
+  , "and"
+  , "else"
+  , "handle"
+  , "if"
+  , "in"
+  , "namespace"
+  , "or"
+  , "then"
+  , "where"
+  ]
+
+block :: Var v => Parser (S v) (Term v)
+block = L.laidout (binding <|> term)
 
 lam :: Var v => Parser (S v) (Term v) -> Parser (S v) (Term v)
 lam p = attempt (Term.lam'' <$> vars <* arrow) <*> body
