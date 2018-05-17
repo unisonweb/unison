@@ -10,6 +10,8 @@
 
 module Unison.Term where
 
+import Data.Int (Int64)
+import Data.Word (Word64)
 import Data.List (foldl')
 import Data.Map (Map)
 import Data.Set (Set, union)
@@ -20,7 +22,6 @@ import Prelude.Extras (Eq1(..), Show1(..))
 import Text.Show
 import Unison.Hash (Hash)
 import Unison.Hashable (Hashable1, accumulateToken)
-import Unison.Literal
 import Unison.Pattern (Pattern)
 import Unison.Reference (Reference(..))
 import Unison.Type (Type)
@@ -40,13 +41,24 @@ import qualified Unison.Type as Type
 -- | Base functor for terms in the Unison language
 -- We need `typeVar` because the term and type variables may differ.
 data F typeVar a
-  = Lit Literal
+  = Int64 Int64
+  | UInt64 Word64
+  | Float Double
+  | Boolean Bool
+  | Text Text
   | Blank -- An expression that has not been filled in, has type `forall a . a`
   | Ref Reference
   | Constructor Reference Int -- First argument identifies the data type, second argument identifies the constructor
+  | Request Reference Int
+  | Handle a a
+  | EffectPure a
+  | EffectBind Reference Int [a] a
   | App a a
   | Ann a (Type typeVar)
   | Vector (Vector a)
+  | If a a a
+  | And a a
+  | Or a a
   | Lam a
   -- Note: let rec blocks have an outer ABT.Cycle which introduces as many
   -- variables as there are bindings
@@ -110,16 +122,24 @@ freeTypeVars t = go t where
 -- nicer pattern syntax
 
 pattern Var' v <- ABT.Var' v
-pattern Lit' l <- (ABT.out -> ABT.Tm (Lit l))
-pattern Number' n <- Lit' (Number n)
-pattern Text' s <- Lit' (Text s)
-pattern If' <- Lit' If
+pattern Int64' n <- (ABT.out -> ABT.Tm (Int64 n))
+pattern UInt64' n <- (ABT.out -> ABT.Tm (UInt64 n))
+pattern Float' n <- (ABT.out -> ABT.Tm (Float n))
+pattern Boolean' b <- (ABT.out -> ABT.Tm (Boolean b))
+pattern Text' s <- (ABT.out -> ABT.Tm (Text s))
 pattern Blank' <- (ABT.out -> ABT.Tm Blank)
 pattern Ref' r <- (ABT.out -> ABT.Tm (Ref r))
 pattern Builtin' r <- (ABT.out -> ABT.Tm (Ref (Builtin r)))
 pattern App' f x <- (ABT.out -> ABT.Tm (App f x))
 pattern Match' scrutinee branches <- (ABT.out -> ABT.Tm (Match scrutinee branches))
 pattern Constructor' ref n <- (ABT.out -> ABT.Tm (Constructor ref n))
+pattern Request' ref n <- (ABT.out -> ABT.Tm (Request ref n))
+pattern EffectBind' id cid args k <- (ABT.out -> ABT.Tm (EffectBind id cid args k))
+pattern EffectPure' a <- (ABT.out -> ABT.Tm (EffectPure a))
+pattern If' cond t f <- (ABT.out -> ABT.Tm (If cond t f))
+pattern And' x y <- (ABT.out -> ABT.Tm (And x y))
+pattern Or' x y <- (ABT.out -> ABT.Tm (Or x y))
+pattern Handle' h body <- (ABT.out -> ABT.Tm (Handle h body))
 pattern Apps' f args <- (unApps -> Just (f, args))
 pattern Ann' x t <- (ABT.out -> ABT.Tm (Ann x t))
 pattern Vector' xs <- (ABT.out -> ABT.Tm (Vector xs))
@@ -154,14 +174,17 @@ ref r = ABT.tm (Ref r)
 builtin :: Ord v => Text -> Term v
 builtin n = ref (Reference.Builtin n)
 
-num :: Ord v => Double -> Term v
-num = lit . Number
+float :: Ord v => Double -> Term v
+float d = ABT.tm (Float d)
+
+int64 :: Ord v => Int64 -> Term v
+int64 d = ABT.tm (Int64 d)
+
+uint64 :: Ord v => Word64 -> Term v
+uint64 d = ABT.tm (UInt64 d)
 
 text :: Ord v => Text -> Term v
-text = lit . Text
-
-lit :: Ord v => Literal -> Term v
-lit l = ABT.tm (Lit l)
+text = ABT.tm . Text
 
 blank :: Ord v => Term v
 blank = ABT.tm Blank
@@ -177,6 +200,9 @@ constructor ref n = ABT.tm (Constructor ref n)
 
 apps :: Ord v => Term v -> [Term v] -> Term v
 apps f = foldl' app f
+
+iff :: Ord v => Term v -> Term v -> Term v -> Term v
+iff cond t f = ABT.tm (If cond t f)
 
 ann :: Ord v => Term v -> Type v -> Term v
 ann e t = ABT.tm (Ann e t)
@@ -304,7 +330,6 @@ instance Var v => Hashable1 (F v) where
       -- Note: start each layer with leading `1` byte, to avoid collisions with
       -- types, which start each layer with leading `0`. See `Hashable1 Type.F`
       _ -> Hashable.accumulate $ tag 1 : case e of
-        Lit l -> [tag 0, accumulateToken l]
         Blank -> [tag 1]
         Ref (Reference.Builtin name) -> [tag 2, accumulateToken name]
         Ref (Reference.Derived _) -> error "handled above, but GHC can't figure this out"
@@ -328,7 +353,10 @@ instance Var v => Show1 (F v) where showsPrec1 = showsPrec
 
 instance (Var v, Show a) => Show (F v a) where
   showsPrec p fa = go p fa where
-    go _ (Lit l) = showsPrec 0 l
+    go _ (Int64 n) = showsPrec 0 n
+    go _ (UInt64 n) = showsPrec 0 n
+    go _ (Float n) = showsPrec 0 n
+    go _ (Boolean b) = showsPrec 0 b
     go p (Ann t k) = showParen (p > 1) $ showsPrec 0 t <> s":" <> showsPrec 0 k
     go p (App f x) =
       showParen (p > 9) $ showsPrec 9 f <> s" " <> showsPrec 10 x

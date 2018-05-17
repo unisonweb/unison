@@ -134,6 +134,18 @@ ref = lit . Ref
 builtin :: Ord v => Text -> Type v
 builtin = ref . Reference.Builtin
 
+int64 :: Ord v => Type v
+int64 = builtin "Int64"
+
+uint64 :: Ord v => Type v
+uint64 = builtin "UInt64"
+
+float :: Ord v => Type v
+float = builtin "Float"
+
+boolean :: Ord v => Type v
+boolean = builtin "Boolean"
+
 app :: Ord v => Type v -> Type v -> Type v
 app f arg = ABT.tm (App f arg)
 

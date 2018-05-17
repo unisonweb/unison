@@ -85,7 +85,7 @@ term5 = f <$> some termLeaf
 
 termLeaf :: Var v => Parser (S v) (Term v)
 termLeaf =
-  asum [hashLit, prefixTerm, lit, tupleOrParenthesized term, blank, vector term]
+  asum [hashLit, prefixTerm, text, number, tupleOrParenthesized term, blank, vector term]
 
 ifthen :: Var v => Parser (S v) (Term v)
 ifthen = do
@@ -95,7 +95,7 @@ ifthen = do
   iftrue <- L.withoutLayout "else" term
   _ <- token (string "else")
   iffalse <- L.block term
-  pure (Term.apps (Term.lit Literal.If) [cond, iftrue, iffalse])
+  pure (Term.iff cond iftrue iffalse)
 
 tupleOrParenthesized :: Var v => Parser (S v) (Term v) -> Parser (S v) (Term v)
 tupleOrParenthesized rec =
@@ -144,21 +144,28 @@ effectBlock = (token (string "do") *> wordyId keywords) >>= go where
     action :: Parser (S v) (Term v)
     action = interpretPure <$> L.block term
 
-text' :: Parser s Literal
+text' :: Parser s Text.Text
 text' =
-  token $ fmap (Literal.Text . Text.pack) ps
+  token $ fmap Text.pack ps
   where ps = char '"' *> Unison.Parser.takeWhile "text literal" (/= '"') <* char '"'
 
 text :: Ord v => Parser s (Term v)
-text = Term.lit <$> text'
+text = Term.text <$> text'
 
-number' :: Parser s Literal
-number' = token (f <$> digits <*> optional ((:) <$> char '.' <*> digits))
-  where
-    digits = takeWhile1 "number" isDigit
-    f :: String -> Maybe String -> Literal
-    f whole part =
-      (Literal.Number . read) $ maybe whole (whole++) part
+number :: Ord v => Parser s (Term v)
+number = token $ do
+  let digits = takeWhile1 "number" isDigit
+  ds <- digits
+  part <- optional ((:) <$> char '.' <*> digits)
+  case part of
+    Nothing -> do
+      suffix <- optional (char 'f' <|> char 'n' <|> char 'z')
+      pure $ case suffix of
+        Nothing -> Term.uint64 (read ds)
+        Just 'f' -> Term.float (read ds)
+        Just 'n' -> Term.uint64 (read ds)
+        Just 'z' -> Term.int64 (read ds)
+    Just part -> pure $ Term.float (read $ ds ++ part)
 
 hashLit :: Ord v => Parser s (Term v)
 hashLit = token (f =<< (mark *> hash))
@@ -168,15 +175,6 @@ hashLit = token (f =<< (mark *> hash))
       Just a -> pure a
     mark = char '#'
     hash = base64urlstring
-
-number :: Ord v => Parser (S v) (Term v)
-number = Term.lit <$> number'
-
-lit' :: Parser s Literal
-lit' = text' <|> number'
-
-lit :: Ord v => Parser (S v) (Term v)
-lit = Term.lit <$> lit'
 
 blank :: Ord v => Parser (S v) (Term v)
 blank = token (char '_') $> Term.blank
