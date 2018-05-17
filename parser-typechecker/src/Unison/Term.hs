@@ -195,6 +195,15 @@ app f arg = ABT.tm (App f arg)
 match :: Ord v => Term v -> [(Pattern, Term v)] -> Term v
 match scrutinee branches = ABT.tm (Match scrutinee branches)
 
+handle :: Ord v => Term v -> Term v -> Term v
+handle h block = ABT.tm (Handle h block)
+
+and :: Ord v => Term v -> Term v -> Term v
+and x y = ABT.tm (And x y)
+
+or :: Ord v => Term v -> Term v -> Term v
+or x y = ABT.tm (Or x y)
+
 constructor :: Ord v => Reference -> Int -> Term v
 constructor ref n = ABT.tm (Constructor ref n)
 
