@@ -55,12 +55,16 @@ package object compilation {
   // type StackPtr = Int
   class StackPtr private(private val top: Int) extends AnyVal {
     def toInt = top
-    /** retrieve the `envIndex`th element from the stack array, 0-based*/
-    @inline final def u(stackU: Array[U], envIndex: Int): U =
-      stackU(top - envIndex + K) // note: the Scaladoc is no longer consistent with the impl. or usage
-    /** retrieve the `envIndex`th element from the stack array, 0-based*/
-    @inline final def b(stackB: Array[B], envIndex: Int): B =
+    /** retrieve the `envIndex`th element (0-based) from the environment, assuming it's in the stack array */
+    @inline final def u(stackU: Array[U], envIndex: Int): U = {
+      assume(envIndex > K)
+      stackU(top - envIndex + K)
+    }
+    /** retrieve the `envIndex`th element (0-based) from the environment, assuming it's in the stack array */
+    @inline final def b(stackB: Array[B], envIndex: Int): B = {
+      assume(envIndex > K)
       stackB(top - envIndex + K)
+    }
     @inline final def incBy(by: Int) = {
       assert(by >= 0)
       new StackPtr(top+by)
