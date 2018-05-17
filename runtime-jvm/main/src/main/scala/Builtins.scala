@@ -1,6 +1,7 @@
 package org.unisonweb
 
-import java.util.function.{LongBinaryOperator, LongPredicate, LongUnaryOperator}
+import java.util.function.{LongBinaryOperator, LongPredicate, LongUnaryOperator,
+                           DoubleBinaryOperator}
 
 import org.unisonweb.Term.{Name, Term}
 import org.unisonweb.Value.Lambda
@@ -179,6 +180,8 @@ object Builtins {
     fl_l("Int64.negate", "x", -_)
 
   // Unsigned machine integers
+  def uint(n: Long): Term = Term.Unboxed(n, UnboxedType.UInt64)
+
   val UInt64_toInt64 =
     fl_l("UInt64.toInt64", "x", x => x)
 
@@ -238,6 +241,30 @@ object Builtins {
       java.lang.Long.compareUnsigned(x,y) > 0
     )
 
+  // 64-bit floating point numbers
+  def float(d: Double): Term =
+    Term.Unboxed(java.lang.Double.doubleToLongBits(d), UnboxedType.Float)
+
+  val Float_add = fdd_d("Float.+", "x", "y", _ + _)
+
+  val Float_sub = fdd_d("Float.-", "x", "y", _ - _)
+
+  val Float_mul = fdd_d("Float.*", "x", "y", _ * _)
+
+  val Float_div = fdd_d("Float./", "x", "y", _ / _)
+
+  val Float_eq = fdd_b("Float.==", "x", "y", _ == _)
+
+  val Float_neq = fdd_b("Float.!=", "x", "y", _ != _)
+
+  val Float_lteq = fdd_b("Float.<=", "x", "y", _ <= _)
+
+  val Float_gteq = fdd_b("Float.>=", "x", "y", _ >= _)
+
+  val Float_gt = fdd_b("Float.>", "x", "y", _ > _)
+
+  val Float_lt = fdd_b("Float.<", "x", "y", _ < _)
+
   val numericBuiltins: Map[Name, Computation] = Map(
     // arithmetic
     Int64_inc,
@@ -258,6 +285,11 @@ object Builtins {
     UInt64_sub,
     UInt64_div,
 
+    Float_add,
+    Float_sub,
+    Float_mul,
+    Float_div,
+
     // comparison
     Int64_eq,
     Int64_neq,
@@ -271,6 +303,12 @@ object Builtins {
     UInt64_gteq,
     UInt64_lt,
     UInt64_gt,
+    Float_eq,
+    Float_neq,
+    Float_lteq,
+    Float_gteq,
+    Float_lt,
+    Float_gt
   )
 
   val Boolean_not =
@@ -492,6 +530,10 @@ object Builtins {
     _fuu_u(name, arg1, arg2, UnboxedType.Int64,
            (u1, u2) => longToUnboxed(f.applyAsLong(unboxedToLong(u1), unboxedToLong(u2))))
 
+  def fdd_d(name: Name, arg1: Name, arg2: Name, f: DoubleBinaryOperator): (Name, Computation) =
+    _fuu_u(name, arg1, arg2, UnboxedType.Float,
+           (u1, u2) => doubleToUnboxed(f.applyAsDouble(unboxedToDouble(u1), unboxedToDouble(u2))))
+
   def fnn_n(name: Name, arg1: Name, arg2: Name, f: LongBinaryOperator) =
     _fuu_u(name, arg1, arg2, UnboxedType.UInt64,
            (u1, u2) => longToUnboxed(f.applyAsLong(unboxedToLong(u1), unboxedToLong(u2))))
@@ -500,6 +542,11 @@ object Builtins {
   def fll_b(name: Name, arg1: Name, arg2: Name, f: FLL_B): (Name, Computation) =
     _fuu_u(name, arg1, arg2, UnboxedType.Boolean,
            (u1, u2) => boolToUnboxed(f(unboxedToLong(u1), unboxedToLong(u2))))
+
+  abstract class FDD_B { def apply(l1: Double, l2: Double): Boolean }
+  def fdd_b(name: Name, arg1: Name, arg2: Name, f: FDD_B): (Name, Computation) =
+    _fuu_u(name, arg1, arg2, UnboxedType.Boolean,
+           (u1, u2) => boolToUnboxed(f(unboxedToDouble(u1), unboxedToDouble(u2))))
 
   def _fuu_u(name: Name,
              arg1: Name,
