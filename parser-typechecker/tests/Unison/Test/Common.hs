@@ -16,16 +16,10 @@ import qualified Unison.Var as Var
 import qualified Unison.Reference as R
 
 tm :: String -> Term Symbol
-tm s = let
-  t = unsafeParseTerm s
-  free = Set.toList $ ABT.freeVars t
-  in ABT.substs [(v, Term.builtin (Var.name v)) | v <- free ] t
+tm = B.tm
 
 t :: String -> Type Symbol
-t s = let
-  t = unsafeParseType s
-  free = Set.toList $ ABT.freeVars t
-  in ABT.substs [(v, Type.builtin (Var.name v)) | v <- free ] t
+t = B.t
 
 typechecks :: String -> Bool
 typechecks terms = typechecks' (tm terms)

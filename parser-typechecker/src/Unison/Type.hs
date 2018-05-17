@@ -27,18 +27,9 @@ import qualified Unison.Kind as K
 import qualified Unison.Reference as Reference
 import qualified Unison.TypeVar as TypeVar
 
--- | Type literals
-data Literal
-  = Number
-  | Text
-  | Vector
-  | Ref Reference -- ^ A type literal uniquely defined by some nameless Hash
-  | Optional
-  deriving (Eq,Ord,Generic)
-
 -- | Base functor for types in the Unison language
 data F a
-  = Lit Literal
+  = Ref Reference
   | Arrow a a
   | Ann a K.Kind
   | App a a
@@ -76,7 +67,7 @@ monotype t = Monotype <$> ABT.visit isMono t where
   isMono _ = Nothing
 
 -- some smart patterns
-pattern Lit' l <- ABT.Tm' (Lit l)
+pattern Ref' r <- ABT.Tm' (Ref r)
 pattern Arrow' i o <- ABT.Tm' (Arrow i o)
 pattern Arrows' spine <- (unArrows -> Just spine)
 pattern Ann' t k <- ABT.Tm' (Ann t k)
@@ -119,17 +110,14 @@ isArrow _ = False
 
 -- some smart constructors
 
-lit :: Ord v => Literal -> Type v
-lit l = ABT.tm (Lit l)
-
 vector :: Ord v => Type v
-vector = lit Vector
+vector = builtin "Sequence"
 
 vectorOf :: Ord v => Type v -> Type v
 vectorOf t = vector `app` t
 
 ref :: Ord v => Reference -> Type v
-ref = lit . Ref
+ref = ABT.tm . Ref
 
 builtin :: Ord v => Text -> Type v
 builtin = ref . Reference.Builtin
@@ -180,15 +168,6 @@ constrain t u = ABT.tm (Constrain t u)
 generalize :: Ord v => Type v -> Type v
 generalize t = foldr forall t $ Set.toList (ABT.freeVars t)
 
-instance Hashable Literal where
-  tokens l = case l of
-    Number -> [Hashable.Tag 0]
-    Text -> [Hashable.Tag 1]
-    Vector -> [Hashable.Tag 2]
-    Optional -> [Hashable.Tag 3]
-    Ref (Reference.Builtin name) -> Hashable.Tag 4 : Hashable.tokens name
-    Ref (Reference.Derived h) -> [Hashable.Tag 5, Hashable.Hashed (Hashable.fromBytes (Hash.toBytes h))]
-
 instance Hashable1 F where
   hash1 _ hash e =
     let
@@ -196,23 +175,16 @@ instance Hashable1 F where
       -- Note: start each layer with leading `0` byte, to avoid collisions with
       -- terms, which start each layer with leading `1`. See `Hashable1 Term.F`
     in Hashable.accumulate $ tag 0 : case e of
-      Lit l -> [tag 0, Hashable.accumulateToken l]
+      Ref r -> [tag 0, Hashable.accumulateToken r]
       Arrow a b -> [tag 1, hashed (hash a), hashed (hash b) ]
       App a b -> [tag 2, hashed (hash a), hashed (hash b) ]
       Ann a k -> [tag 3, hashed (hash a), Hashable.accumulateToken k ]
       Constrain a u -> [tag 4, hashed (hash a), Hashable.accumulateToken u]
       Forall a -> [tag 5, hashed (hash a)]
 
-instance Show Literal where
-  show Number = "Number"
-  show Text = "Text"
-  show Vector = "Vector"
-  show (Ref r) = show r
-  show Optional = "Optional"
-
 instance Show a => Show (F a) where
   showsPrec p fa = go p fa where
-    go _ (Lit l) = showsPrec 0 l
+    go _ (Ref r) = showsPrec 0 r
     go p (Arrow i o) =
       showParen (p > 0) $ showsPrec (p+1) i <> s" -> " <> showsPrec p o
     go p (Ann t k) =

@@ -257,7 +257,7 @@ wellformedType :: Var v => Context v -> Type v -> Bool
 wellformedType c t = wellformed c && case t of
   Type.Existential' v -> Set.member v (existentials c)
   Type.Universal' v -> Set.member v (universals c)
-  Type.Lit' _ -> True
+  Type.Ref' _ -> True
   Type.Arrow' i o -> wellformedType c i && wellformedType c o
   Type.Ann' t' _ -> wellformedType c t'
   Type.App' x y -> wellformedType c x && wellformedType c y
@@ -281,7 +281,7 @@ lookupType ctx v = lookup v (bindings ctx)
 apply :: Var v => Context v -> Type v -> Type v
 apply ctx t = case t of
   Type.Universal' _ -> t
-  Type.Lit' _ -> t
+  Type.Ref' _ -> t
   Type.Existential' v ->
     maybe t (\(Type.Monotype t') -> apply ctx t') (lookup v (solved ctx))
   Type.Arrow' i o -> Type.arrow (apply ctx i) (apply ctx o)
@@ -327,7 +327,7 @@ subtype :: Var v => Type v -> Type v -> M v ()
 subtype tx ty = scope (show tx++" <: "++show ty) $
   do ctx <- getContext; go ctx tx ty
   where -- Rules from figure 9
-  go _ (Type.Lit' l) (Type.Lit' l2) | l == l2 = pure () -- `Unit`
+  go _ (Type.Ref' r) (Type.Ref' r2) | r == r2 = pure () -- `Unit`
   go ctx t1@(Type.Universal' v1) t2@(Type.Universal' v2) -- `Var`
     | v1 == v2 && wellformedType ctx t1 && wellformedType ctx t2
     = pure ()

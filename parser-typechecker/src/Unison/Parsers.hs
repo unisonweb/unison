@@ -28,10 +28,10 @@ unsafeGetRight (Right a) = a
 unsafeGetRight (Left err) = error err
 
 parseTerm :: Var v => String -> Either String (Term v)
-parseTerm = parseTerm' termBuiltins typeBuiltins
+parseTerm = parseTerm' [] []
 
 parseType :: Var v => String -> Either String (Type v)
-parseType = parseType' typeBuiltins
+parseType = parseType' []
 
 parseTerm' :: Var v => [(v, Term v)] -> [(v, Type v)] -> String -> Either String (Term v)
 parseTerm' termBuiltins typeBuiltins s =
@@ -56,74 +56,3 @@ unsafeParseTerm' er tr = unsafeGetRight . parseTerm' er tr
 
 unsafeParseType' :: Var v => [(v, Type v)] -> String -> Type v
 unsafeParseType' tr = unsafeGetRight . parseType' tr
-
--- Alias <alias> <fully-qualified-name>
-  -- will import the builtin <fully-qualified-name>, and once more as the alias
--- AliasFromModule
---   <modulename> e.g. "Number"
---   <aliases import modulename.alias as alias> e.g. "plus"
---   <ids import as qualified modulename.id> e.g. "minus" will import builtin "Number.plus" only
-data Builtin = Builtin Text -- e.g. Builtin "()"
-             | Alias Text Text
-             | AliasFromModule Text [Text] [Text]
-
--- aka default imports
-termBuiltins :: Var v => [(v, Term v)]
-termBuiltins = (Var.named *** Term.ref) <$> (
-    [ Builtin "()"
-    , Alias "Right" "Either.Right"
-    , Alias "Left" "Either.Left"
-    , Builtin "Greater"
-    , Builtin "Less"
-    , Builtin "Equal"
-    , Builtin "True"
-    , Builtin "False"
-    , Builtin "Pair"
-    , Alias "unit" "()"
-    , Alias "Unit" "()"
-    , Alias "Some" "Optional.Some"
-    , Alias "None" "Optional.None"
-    , Alias "+" "Number.+"
-    , Alias "-" "Number.-"
-    , Alias "*" "Number.*"
-    , Alias "/" "Number./"
-    , AliasFromModule "Vector" ["single"] []
-    , AliasFromModule "Remote" ["pure", "bind", "pure", "fork"] []
-    ] >>= unpackAliases)
-    where
-      unpackAliases :: Builtin -> [(Text, R.Reference)]
-      unpackAliases (Builtin t) = [builtin t]
-      unpackAliases (Alias a sym) = [alias a sym, builtin sym]
-      unpackAliases (AliasFromModule m toAlias other) =
-        (aliasFromModule m <$> toAlias) ++ (builtinInModule m <$> toAlias)
-          ++ (builtinInModule m <$> other)
-
-      builtin t = (t, R.Builtin t)
-      alias new known = (new, R.Builtin known)
-      aliasFromModule m sym = alias sym (Text.intercalate "." [m, sym])
-      builtinInModule m sym = builtin (Text.intercalate "." [m, sym])
-
-typeBuiltins :: Var v => [(v, Type v)]
-typeBuiltins = (Var.named *** Type.lit) <$>
-  [ ("Number", Type.Number)
-  , builtin "Unit"
-  , builtin "Boolean"
-  , ("Optional", Type.Optional)
-  , builtin "Either"
-  , builtin "Pair"
-  , builtin "Order"
-  , builtin "Comparison"
-  , builtin "Order.Key"
-  -- kv store
-  , builtin "Index"
-  -- html
-  , builtin "Html.Link"
-  -- distributed
-  , builtin "Channel"
-  , builtin "Duration"
-  , builtin "Remote"
-  , builtin "Node"
-  -- hashing
-  , builtin "Hash"
-  ]
-  where builtin t = (t, Type.Ref $ R.Builtin t)
