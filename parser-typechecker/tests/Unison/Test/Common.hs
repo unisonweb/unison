@@ -1,62 +1,52 @@
-{-# LANGUAGE OverloadedStrings #-}
 module Unison.Test.Common where
 
-import Control.Applicative
-import Control.Monad.IO.Class
-import Data.Foldable
-import Data.Text.Encoding (decodeUtf8)
-import System.IO (FilePath)
-import Unison.Codebase (Codebase)
-import Unison.DataDeclaration (DataDeclaration)
-import Unison.Note (Noted)
-import Unison.Reference (Reference)
-import Unison.Symbol (Symbol)
+import Unison.Parsers (unsafeParseTerm, unsafeParseType)
 import Unison.Term (Term)
 import Unison.Type (Type)
-import Unison.Views (defaultSymbol)
-import qualified Data.ByteString as B
+import Unison.Symbol (Symbol)
 import qualified Data.Map as Map
-import qualified Data.Text as Text
-import qualified Data.Text.IO as Text.IO
-import qualified System.FilePath as FP
-import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.MemCodebase as MemCodebase
-import qualified Unison.Metadata as Metadata
-import qualified Unison.Note as Note
+import qualified Data.Set as Set
+import qualified Unison.Builtin as B
+import qualified Unison.Note as N
+import qualified Unison.Typechecker as Typechecker
+import qualified Unison.ABT as ABT
 import qualified Unison.Term as Term
-import qualified Unison.Util.Logger as L
-import qualified Unison.View as View
+import qualified Unison.Type as Type
+import qualified Unison.Var as Var
+import qualified Unison.Reference as R
 
-type V = Symbol View.DFO
-type TermV = Term V
+tm :: String -> Term Symbol
+tm s = let
+  t = unsafeParseTerm s
+  free = Set.toList $ ABT.freeVars t
+  in ABT.substs [(v, Term.builtin (Var.name v)) | v <- free ] t
 
-type CodebaseIOV = Codebase IO V
+t :: String -> Type Symbol
+t s = let
+  t = unsafeParseType s
+  free = Set.toList $ ABT.freeVars t
+  in ABT.substs [(v, Type.builtin (Var.name v)) | v <- free ] t
 
--- A codebase for testing
-type TCodebase =
-  ( CodebaseIOV -- the codebase
-  , Reference -> V -- resolve references to symbols
-  , [(V, Term V)] -- all symbol bindings
-  , Term V -> Noted IO (Term V)) -- evaluator
+typechecks :: String -> Bool
+typechecks terms = typechecks' (tm terms)
 
-loadDeclarations :: FilePath -> Codebase IO V -> IO ()
-loadDeclarations path codebase = do
-  -- note - when run from repl current directory is root, but when run via stack test, current
-  -- directory is the shared subdir - so we check both locations
-  txt <- decodeUtf8 <$> (B.readFile path <|> B.readFile (".." `FP.combine` path))
-  let str = Text.unpack txt
-  _ <- Note.run $ Codebase.declare' str codebase
-  putStrLn $ "loaded file: " ++ path
+typechecks' :: Term Symbol -> Bool
+typechecks' term = let
+  typeOf r = maybe (fail $ "no type for: " ++ show r) pure $ Map.lookup r B.builtins
+  declFor r = fail $ "no data declaration for: " ++ show r
+  ok = Typechecker.synthesize typeOf declFor term
+  in case N.run ok of
+    Left e -> False
+    Right _ -> True
 
-codebase :: IO TCodebase
-codebase = do
-  logger <- L.atomic (L.atInfo L.toStandardOut)
-  (codebase, eval) <- MemCodebase.make logger
-  loadDeclarations "unison-src/base.u" codebase
-  symbols <- liftIO . Note.run $
-    Map.fromList . Codebase.references <$> Codebase.search codebase Term.blank [] 10000 (Metadata.Query "") Nothing
-  base <- Note.run $ Codebase.allTermsByVarName codebase
-  putStrLn . show $ map fst base
-  let firstName (Metadata.Names (n:_)) = n
-  let lookupSymbol ref = maybe (defaultSymbol ref) (firstName . Metadata.names) (Map.lookup ref symbols)
-  pure (codebase, lookupSymbol, base, eval)
+check' :: Term Symbol -> Type Symbol -> Bool
+check' term typ = let
+  typeOf r = maybe (fail $ "no type for: " ++ show r) pure $ Map.lookup r B.builtins
+  declFor r = fail $ "no data declaration for: " ++ show r
+  ok = Typechecker.check typeOf declFor term typ
+  in case N.run ok of
+    Left e -> False
+    Right _ -> True
+
+check :: String -> String -> Bool
+check terms typs = check' (tm terms) (t typs)

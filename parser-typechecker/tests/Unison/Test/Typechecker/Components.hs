@@ -1,14 +1,14 @@
 module Unison.Test.Typechecker.Components where
 
+import Control.Monad
 import EasyTest
 import Unison.Parsers (unsafeParseTerm)
-import qualified Unison.Codebase as Codebase
 import qualified Unison.Note as Note
 import qualified Unison.Test.Common as Common
 import qualified Unison.Typechecker.Components as Components
 
-test :: Common.CodebaseIOV -> Test ()
-test codebase = scope "Typechecker.Components" $ tests
+test :: Test ()
+test = scope "Typechecker.Components" $ tests
   [
   -- simple case, no minimization done
     t "let { id x = x; g = id 42; y = id id g; y }"
@@ -31,5 +31,5 @@ test codebase = scope "Typechecker.Components" $ tests
   t before after = scope (before ++ " ⟹  " ++ after) $ do
     let term = unsafeParseTerm before
     let after' = Components.minimize' term
-    _ <- io . Note.run $ Codebase.typeAt codebase after' []
+    guard $ Common.typechecks' after'
     expect (unsafeParseTerm after ==  after')

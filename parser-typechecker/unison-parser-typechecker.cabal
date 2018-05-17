@@ -50,7 +50,6 @@ library
     Unison.Reference
     Unison.Symbol
     Unison.Term
-    Unison.TermEdit
     Unison.TermParser
     Unison.Type
     Unison.TypeParser
@@ -90,11 +89,15 @@ library
   if flag(quiet)
     ghc-options: -v0
 
-executable shared-tests
+executable tests
   main-is:        Suite.hs
   ghc-options:    -w -threaded -rtsopts -with-rtsopts=-N -v0
   hs-source-dirs: tests
   other-modules:
+    Unison.Test.Common
+    Unison.Test.Typechecker
+    Unison.Test.Typechecker.Components
+
   build-depends:
     base,
     bytestring,
