@@ -1,6 +1,6 @@
 package org.unisonweb
 
-import org.unisonweb.Builtins.termFor
+import org.unisonweb.Builtins._
 import org.unisonweb.Pattern._
 import org.unisonweb.Term.Syntax._
 import org.unisonweb.Term._
@@ -64,8 +64,6 @@ object CompilationTests {
       }
     ),
     test("UInt64") { implicit T =>
-      def uint(n: Long): Term = Term.Unboxed(n, UnboxedType.UInt64)
-
       // toInt64 should be monotonic, also tests <= on Int64
       0 until 100 foreach { _ =>
         val toInt64 = Builtins.termFor(Builtins.UInt64_toInt64)
@@ -112,6 +110,34 @@ object CompilationTests {
       equal1[Term](eval { lt(uint(2), uint(1)) }, false)
       equal1[Term](eval { lteq(uint(-1), uint(1)) }, false)
       equal1[Term](eval { gteq(uint(-1), uint(1)) }, true)
+      ok
+    },
+    test("float") { implicit T =>
+      0 until 100 foreach { _ =>
+        val x = double; val y = double
+
+        // addition and subtraction
+        val add = Builtins.termFor(Builtins.Float_add)
+        val sub = Builtins.termFor(Builtins.Float_sub)
+        equal1[Term](eval(add(float(x), float(y))), float(x + y))
+        equal1[Term](eval(sub(float(x), float(y))), float(x - y))
+
+        // multiplication and division
+        val mul = Builtins.termFor(Builtins.Float_mul)
+        val div = Builtins.termFor(Builtins.Float_div)
+        equal1[Term](eval(mul(float(x), float(y))), float(x * y))
+        equal1[Term](eval(div(float(x), float(y))), float(x / y))
+
+        // comparisons
+        val lt = Builtins.termFor(Builtins.Float_lt)
+        val gt = Builtins.termFor(Builtins.Float_gt)
+        val gteq = Builtins.termFor(Builtins.Float_gteq)
+        val lteq = Builtins.termFor(Builtins.Float_lteq)
+        equal1[Term](eval(lt(float(x), float(y))), x < y)
+        equal1[Term](eval(gt(float(x), float(y))), x > y)
+        equal1[Term](eval(gteq(float(x), float(y))), x >= y)
+        equal1[Term](eval(lteq(float(x), float(y))), x <= y)
+      }
       ok
     },
     test("sum4(1,2,3,4)") { implicit T =>
