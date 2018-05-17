@@ -37,12 +37,12 @@ library
 
   -- these bounds could probably be made looser
   build-depends:
-    async                     >= 2.1      && <= 2.2,
-    base                      >= 4.5      && <= 5,
-    mtl                       >= 2.0.1    && < 2.3,
-    containers                >= 0.4.0    && < 0.6,
-    stm                       >= 2.4      && < 3,
-    random                    >= 1.1      && < 2
+    async                     >= 2.1.1,
+    base                      >= 4.3,
+    mtl                       >= 2.0.1,
+    containers                >= 0.4.0,
+    stm                       >= 2.4,
+    random                    >= 1.1
 
   ghc-options: -Wall -fno-warn-name-shadowing
 
