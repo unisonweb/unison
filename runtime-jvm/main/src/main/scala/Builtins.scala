@@ -269,6 +269,8 @@ object Builtins {
   val numericBuiltins: Map[Name, Computation] = Map(
     // arithmetic
     Int64_inc,
+    Int64_isEven,
+    Int64_isOdd,
     Int64_add,
     Int64_sub,
     Int64_mul,
