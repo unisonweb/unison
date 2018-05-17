@@ -76,8 +76,8 @@ object Unboxed {
    * A continuation which invokes `t` whenver `cond` is nonzero on the
    * input, and which invokes `f` whenever `cond` is zero on the input.
    */
-  def choose[A](cond: F1[A,Unboxed[Boolean]], t: K[A], f: K[A]): K[A] = {
-    val ccond = cond[A]((u,b,u2,a) => if (unboxedToBool(u)) t(u2,a) else f(u2,a))
+  def choose[A](cond: F1[A,_], t: K[A], f: K[A]): K[A] = {
+    val ccond = cond[A]((u,_,u2,a) => if (unboxedToBool(u)) t(u2,a) else f(u2,a))
     (u,a) => ccond(u,a,u,a)
   }
 
@@ -85,7 +85,7 @@ object Unboxed {
    * A continuation which acts as `segment1` until `cond` emits 0, then
    * acts as `segment2` forever thereafter.
    */
-  def switchWhen0[A](cond: F1[A,Unboxed[Boolean]], segment1: K[A], segment2: K[A]): () => K[A] = () => {
+  def switchWhen0[A](cond: F1[A,_], segment1: K[A], segment2: K[A]): () => K[A] = () => {
     var switched = false
     val ccond = cond[A]((u,_,u2,a) =>
                           if (switched || !unboxedToBool(u)) {
@@ -137,14 +137,23 @@ object Unboxed {
             kux(boolToUnboxed(f.test(unboxedToDouble(u))), null, ux, bx)
       }
 
+    abstract class L_P[A] { def apply(l: Long): A }
+    def L_P[A](f: L_P[A]) =
+      new F1[Unboxed[Long], A] {
+        def apply[X]: K2[A, X] => K2[Unboxed[U], X] =
+          kux => (u,_,ux,bx) =>
+            kux(U0, f(unboxedToLong(u)), ux, bx)
+      }
+
   }
 
   object F2 {
     /**
-     * Convert a Scala `(A,B) => C` to an `F2[A,B,C]` that acts on boxed input and produces boxed output.
-     * Named `BB_B` since it takes two boxed input and produces boxed output.
-     */
-    def BB_B[A,B,C](f: (A,B) => C): F2[A,B,C] = new F2[A,B,C] {
+      * Convert a Scala `(A,B) => C` to an `F2[A,B,C]` that acts on boxed input and produces boxed output.
+      * Named `PP_P` since it takes two polymorphic/boxed input and produces
+      * polymorphic/boxed output.
+      */
+    def PP_P[A,B,C](f: (A,B) => C): F2[A,B,C] = new F2[A,B,C] {
       def apply[x] = kcx =>
         (_,a,_,b,u3,x) => kcx(U0, f(a,b), u3, x)
     }
