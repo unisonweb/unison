@@ -180,7 +180,7 @@ object Builtins {
     fl_l("Int64.negate", "x", -_)
 
   // Unsigned machine integers
-  def uint(n: Long): Term = Term.Unboxed(n, UnboxedType.UInt64)
+  def uint(n: Long): Term = Term.Unboxed(longToUnboxed(n), UnboxedType.UInt64)
 
   val UInt64_toInt64 =
     fl_l("UInt64.toInt64", "x", x => x)
@@ -243,7 +243,7 @@ object Builtins {
 
   // 64-bit floating point numbers
   def float(d: Double): Term =
-    Term.Unboxed(java.lang.Double.doubleToLongBits(d), UnboxedType.Float)
+    Term.Unboxed(doubleToUnboxed(d), UnboxedType.Float)
 
   val Float_add = fdd_d("Float.+", "x", "y", _ + _)
 
