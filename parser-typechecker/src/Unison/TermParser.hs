@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes #-}
 {-# Language OverloadedStrings #-}
 {-# Language ScopedTypeVariables #-}
 {-# Language BangPatterns #-}
@@ -7,7 +8,7 @@ module Unison.TermParser where
 import           Control.Applicative
 import           Control.Monad
 import           Data.Char (isDigit)
-import           Data.Foldable (asum)
+import           Data.Foldable (asum,toList)
 import           Data.Functor
 import qualified Data.Text as Text
 import           Prelude hiding (takeWhile)
@@ -54,13 +55,15 @@ Sections / partial application of infix operators is not implemented.
 
 type S = TypeParser.S
 
-term :: Var v => Parser (S v) (Term v)
+type TermP v = Parser (S v) (Term v)
+
+term :: Var v => TermP v
 term = term2
 
-term2 :: Var v => Parser (S v) (Term v)
+term2 :: Var v => TermP v
 term2 = lam term2 <|> term3
 
-term3 :: Var v => Parser (S v) (Term v)
+term3 :: Var v => TermP v
 term3 = do
   t <- ifthen <|> infixApp
   ot <- optional (token (char ':') *> TypeParser.type_)
@@ -68,23 +71,23 @@ term3 = do
     Nothing -> t
     Just y -> Term.ann t y
 
-infixApp :: Var v => Parser (S v) (Term v)
+infixApp :: Var v => TermP v
 infixApp = chainl1 term4 (f <$> infixVar)
   where
     f :: Ord v => v -> Term v -> Term v -> Term v
     f op lhs rhs = Term.apps (Term.var op) [lhs,rhs]
 
-term4 :: Var v => Parser (S v) (Term v)
+term4 :: Var v => TermP v
 term4 = f <$> some termLeaf
   where
     f (func:args) = Term.apps func args
     f [] = error "'some' shouldn't produce an empty list"
 
-termLeaf :: Var v => Parser (S v) (Term v)
+termLeaf :: Var v => TermP v
 termLeaf =
-  asum [hashLit, prefixTerm, text, number, tupleOrParenthesized term, blank, vector term]
+  asum [hashLit, prefixTerm, text, number, tupleOrParenthesized term, blank, vector term, bracedBlock]
 
-ifthen :: Var v => Parser (S v) (Term v)
+ifthen :: Var v => TermP v
 ifthen = do
   _ <- token (string "if")
   cond <- L.withoutLayout "then" term
@@ -94,7 +97,7 @@ ifthen = do
   iffalse <- L.block term
   pure (Term.iff cond iftrue iffalse)
 
-tupleOrParenthesized :: Var v => Parser (S v) (Term v) -> Parser (S v) (Term v)
+tupleOrParenthesized :: Var v => TermP v -> TermP v
 tupleOrParenthesized rec =
   parenthesized $ go <$> sepBy1 (token $ string ",") rec where
     go [t] = t -- was just a parenthesized term
@@ -134,10 +137,10 @@ hashLit = token (f =<< (mark *> hash))
     mark = char '#'
     hash = base64urlstring
 
-blank :: Ord v => Parser (S v) (Term v)
+blank :: Ord v => TermP v
 blank = token (char '_') $> Term.blank
 
-vector :: Ord v => Parser (S v) (Term v) -> Parser (S v) (Term v)
+vector :: Ord v => TermP v -> TermP v
 vector p = Term.app (Term.builtin "Vector.force") . Term.vector <$> (lbracket *> elements <* rbracket)
   where
     lbracket = token (char '[')
@@ -181,7 +184,7 @@ prefixVar = (Var.named . Text.pack) <$> label "symbol" (token prefixOp)
     prefixOp = wordyId keywords
            <|> (char '(' *> symbolyId keywords <* token (char ')')) -- no whitespace w/in parens
 
-prefixTerm :: Var v => Parser (S v) (Term v)
+prefixTerm :: Var v => TermP v
 prefixTerm = Term.var <$> prefixVar
 
 keywords :: [String]
@@ -201,25 +204,53 @@ keywords =
   , "where"
   ]
 
-block :: Var v => Parser (S v) (Term v)
-block = go =<< L.block (sepBy (L.spaced L.semi) statement)
+block'
+  :: Var v
+  => (forall a. Parser (S v) [a] -> Parser (S v) [a])
+  -> TermP v
+block' braced = go =<< braced statements
   where
+  statements = do
+    s <- statement
+    o <- optional semi
+    case o of
+      Nothing -> pure [s]
+      Just _ -> (s:) . join . toList <$> optional statements
+  semi = L.spaced L.semi
   statement = (Right <$> binding) <|> (Left <$> blockTerm)
   toBinding (Right (v, e)) = (v,e)
   toBinding (Left e) = (Var.named "_", e)
   go bs = case reverse bs of
     (Right _e : _) -> fail "let block must end with an expression"
-    (Left e : bs) -> pure . Components.minimize' $ Term.letRec (toBinding <$> reverse bs) e
+    -- TODO: Inform the user that we're going to rewrite the block,
+    -- possibly changing the meaning of the program (which is ambiguous anyway),
+    -- or fail with a helpful error message if there's a forward reference with
+    -- effects.
+    (Left e : bs) -> pure $ Term.letRec (toBinding <$> reverse bs) e
     [] -> fail "empty block"
+
+block :: Var v => TermP v
+block = block' L.block
+
+bracedBlock :: Var v => TermP v
+bracedBlock = block' (\body -> token (string "{") *> body <* token (string "}"))
 
 -- We disallow type annotations and lambdas,
 -- just function application and operators
-blockTerm :: Var v => Parser (S v) (Term v)
+blockTerm :: Var v => TermP v
 blockTerm =
-  lam term <|> ifthen <|> infixApp
-  -- todo: pattern matching in here once we have a parser for it
+  bracedBlock <|> handle <|> ifthen <|> lam term <|> infixApp
+  -- TODO: pattern matching in here once we have a parser for it
 
-lam :: Var v => Parser (S v) (Term v) -> Parser (S v) (Term v)
+handle :: Var v => TermP v
+handle = do
+  token $ string "handle"
+  handler <- term
+  token $ string "in"
+  b <- block
+  pure $ Term.handle handler b
+
+lam :: Var v => TermP v -> TermP v
 lam p = attempt (Term.lam'' <$> vars <* arrow) <*> body
   where
     vars = some prefixVar

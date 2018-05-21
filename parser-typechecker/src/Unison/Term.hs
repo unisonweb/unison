@@ -377,5 +377,6 @@ instance (Var v, Show a) => Show (F v a) where
     go _ (LetRec bs body) = showParen True (s"let rec" <> showsPrec 0 bs <> s" in " <> showsPrec 0 body)
     go _ (Constructor r n) = showsPrec 0 r <> showsPrec 0 n
     go _ (Match _ _) = s"match"
+    go _ (Text s) = showsPrec 0 s
     (<>) = (.)
     s = showString
