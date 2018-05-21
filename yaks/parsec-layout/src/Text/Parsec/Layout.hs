@@ -13,8 +13,9 @@
 
 module Text.Parsec.Layout
     ( block
-    , laidout
+    , vblock
     , semi
+    , vsemi
     , space
     , spaced
     , LayoutEnv
@@ -196,7 +197,7 @@ virtual_lbrace = do
   when allow pushCurrentContext
 
 virtual_rbrace :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m ()
-virtual_rbrace = do
+virtual_rbrace = try (void $ lookAhead semi) <|> do
   allow <- inLayout
   when allow $ eof <|> try (layoutSatisfies (VBrace ==) <?> "outdent")
 
@@ -207,6 +208,15 @@ space = do
     return " "
   <?> "space"
 
+vsemi :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m String
+vsemi = do
+    try $ layoutSatisfies p
+    return ";"
+  <?> "semicolon"
+  where
+    p VSemi = True
+    p _ = False
+
 -- | Recognize a semicolon including a virtual semicolon in layout.
 semi :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m String
 semi = do
@@ -214,9 +224,8 @@ semi = do
     return ";"
   <?> "semicolon"
   where
-        p VSemi = True
-        p (Other ';') = True
-        p _ = False
+    p (Other ';') = True
+    p _ = False
 
 lbrace :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m String
 lbrace = do
@@ -230,6 +239,15 @@ rbrace = do
     popContext "a right brace"
     return "}"
 
+vblock :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m a -> ParsecT s u m a
+vblock p = between (spaced virtual_lbrace) (spaced virtual_rbrace) p
+  where
+  -- NB: virtual_lbrace here doesn't use current column for offside calc, instead
+  -- uses 1 column greater than whatever column is at top of layout stack
+  virtual_lbrace = do
+    allow <- inLayout
+    when allow pushIncrementedContext
+
 block :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m a -> ParsecT s u m a
 block p = braced p <|> vbraced p where
   braced s = between (try (spaced lbrace)) (spaced rbrace) s
@@ -239,11 +257,3 @@ block p = braced p <|> vbraced p where
   virtual_lbrace = do
     allow <- inLayout
     when allow pushIncrementedContext
-
--- | Repeat a parser in layout, separated by (virtual) semicolons.
-laidout :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m a -> ParsecT s u m [a]
-laidout p = braced statements <|> vbraced statements where
-    braced s = between (try (spaced lbrace)) (spaced rbrace) s
-    vbraced s = between (spaced virtual_lbrace) (spaced virtual_rbrace) s
-    statements = p `sepBy` spaced semi
-

@@ -36,12 +36,12 @@ pTrace s = pt <|> return ()
                  trace (s++": " ++x) $ attempt $ char 'z'
                  fail x
 
--- traced s p = p
-traced s p = do
-  pTrace s
-  a <- p <|> trace (s ++ " backtracked") (fail s)
-  let !x = trace (s ++ " succeeded") ()
-  pure a
+traced s p = p
+--traced s p = do
+--  pTrace s
+--  a <- p <|> trace (s ++ " backtracked") (fail s)
+--  let !x = trace (s ++ " succeeded") ()
+--  pure a
 
 {-
 Precedence of language constructs is identical to Haskell, except that all
@@ -84,7 +84,7 @@ term4 = traced "apply-chain" $ f <$> some termLeaf
     f [] = error "'some' shouldn't produce an empty list"
 
 termLeaf :: Var v => TermP v
-termLeaf =
+termLeaf = traced "leaf" $
   asum [hashLit, prefixTerm, text, number, tupleOrParenthesized term, blank, vector term, bracedBlock]
 
 ifthen :: Var v => TermP v
@@ -114,7 +114,7 @@ text :: Ord v => Parser s (Term v)
 text = Term.text <$> text'
 
 number :: Ord v => Parser s (Term v)
-number = traced "number" . token $ do
+number = token $ do
   let digits = takeWhile1 "number" isDigit
   sign <- optional (char '+' <|> char '-')
   ds <- digits
@@ -207,16 +207,16 @@ keywords =
 block'
   :: Var v
   => (forall a. Parser (S v) [a] -> Parser (S v) [a])
+  -> Parser (S v) x
   -> TermP v
-block' braced = go =<< braced statements
+block' braced semi = go =<< braced (traced "statements" statements)
   where
-  statements = traced "statements" $ do
+  statements = do
     s <- statement
     o <- optional semi
     case o of
       Nothing -> pure [s]
       Just _ -> (s:) . join . toList <$> optional statements
-  semi = L.spaced L.semi
   statement = traced "statement" $ (Right <$> binding) <|> (Left <$> blockTerm)
   toBinding (Right (v, e)) = (v,e)
   toBinding (Left e) = (Var.named "_", e)
@@ -230,10 +230,12 @@ block' braced = go =<< braced statements
     [] -> fail "empty block"
 
 block :: Var v => TermP v
-block = traced "block" $ block' L.block
+block = traced "block" $ bracedBlock <|> traced "unbraced-block" (block' L.vblock L.vsemi)
 
 bracedBlock :: Var v => TermP v
-bracedBlock = traced "braced-block" $ block' (\body -> token (string "{") *> body <* token (string "}"))
+bracedBlock = traced "braced-block" $
+  block' (\body -> token (string "{") *> body <* token (string "}")) semi
+  where semi = L.spaced L.semi
 
 -- We disallow type annotations and lambdas,
 -- just function application and operators
@@ -270,8 +272,8 @@ alias = do
       n = length params
   set (TypeParser.Aliases (s':s))
 
-bindings :: Var v => Parser (S v) [(v, Term v)]
-bindings = do s0 <- get; L.laidout (many alias *> binding) <* set s0 where
+-- bindings :: Var v => Parser (S v) [(v, Term v)]
+-- bindings = do s0 <- get; L.laidout (many alias *> binding) <* set s0 where
 
-moduleBindings :: Var v => Parser (S v) [(v, Term v)]
-moduleBindings = root bindings
+-- moduleBindings :: Var v => Parser (S v) [(v, Term v)]
+-- moduleBindings = root bindings
