@@ -26,22 +26,22 @@ import qualified Unison.Typechecker.Components as Components
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 
---import Debug.Trace
---import Text.Parsec (anyChar)
---
---pTrace s = pt <|> return ()
---    where pt = attempt $
---               do
---                 x <- attempt $ many anyChar
---                 trace (s++": " ++x) $ attempt $ char 'z'
---                 fail x
---
----- traced s p = p
---traced s p = do
---  pTrace s
---  a <- p <|> trace (s ++ " backtracked") (fail s)
---  let !x = trace (s ++ " succeeded") ()
---  pure a
+import Debug.Trace
+import Text.Parsec (anyChar)
+
+pTrace s = pt <|> return ()
+    where pt = attempt $
+               do
+                 x <- attempt $ many anyChar
+                 trace (s++": " ++x) $ attempt $ char 'z'
+                 fail x
+
+-- traced s p = p
+traced s p = do
+  pTrace s
+  a <- p <|> trace (s ++ " backtracked") (fail s)
+  let !x = trace (s ++ " succeeded") ()
+  pure a
 
 {-
 Precedence of language constructs is identical to Haskell, except that all
@@ -78,7 +78,7 @@ infixApp = chainl1 term4 (f <$> infixVar)
     f op lhs rhs = Term.apps (Term.var op) [lhs,rhs]
 
 term4 :: Var v => TermP v
-term4 = f <$> some termLeaf
+term4 = traced "apply-chain" $ f <$> some termLeaf
   where
     f (func:args) = Term.apps func args
     f [] = error "'some' shouldn't produce an empty list"
@@ -114,19 +114,19 @@ text :: Ord v => Parser s (Term v)
 text = Term.text <$> text'
 
 number :: Ord v => Parser s (Term v)
-number = token $ do
+number = traced "number" . token $ do
   let digits = takeWhile1 "number" isDigit
+  sign <- optional (char '+' <|> char '-')
   ds <- digits
-  part <- optional ((:) <$> char '.' <*> digits)
-  case part of
-    Nothing -> do
-      suffix <- optional (char 'f' <|> char 'n' <|> char 'z')
-      pure $ case suffix of
-        Nothing -> Term.uint64 (read ds)
-        Just 'f' -> Term.float (read ds)
-        Just 'n' -> Term.uint64 (read ds)
-        Just 'z' -> Term.int64 (read ds)
-    Just part -> pure $ Term.float (read $ ds ++ part)
+  fraction <- optional ((:) <$> char '.' <*> digits)
+  pure $ case fraction of
+    Nothing -> case sign of
+      Nothing -> Term.uint64 (read ds)
+      Just '+' -> Term.int64 (read ds)
+      Just '-' -> Term.int64 (read ('-':ds))
+    Just fraction ->
+      let signl = toList sign
+      in Term.float (read (signl ++ ds ++ fraction))
 
 hashLit :: Ord v => Parser s (Term v)
 hashLit = token (f =<< (mark *> hash))
@@ -210,14 +210,14 @@ block'
   -> TermP v
 block' braced = go =<< braced statements
   where
-  statements = do
+  statements = traced "statements" $ do
     s <- statement
     o <- optional semi
     case o of
       Nothing -> pure [s]
       Just _ -> (s:) . join . toList <$> optional statements
   semi = L.spaced L.semi
-  statement = (Right <$> binding) <|> (Left <$> blockTerm)
+  statement = traced "statement" $ (Right <$> binding) <|> (Left <$> blockTerm)
   toBinding (Right (v, e)) = (v,e)
   toBinding (Left e) = (Var.named "_", e)
   go bs = case reverse bs of
@@ -230,10 +230,10 @@ block' braced = go =<< braced statements
     [] -> fail "empty block"
 
 block :: Var v => TermP v
-block = block' L.block
+block = traced "block" $ block' L.block
 
 bracedBlock :: Var v => TermP v
-bracedBlock = block' (\body -> token (string "{") *> body <* token (string "}"))
+bracedBlock = traced "braced-block" $ block' (\body -> token (string "{") *> body <* token (string "}"))
 
 -- We disallow type annotations and lambdas,
 -- just function application and operators

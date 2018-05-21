@@ -362,7 +362,7 @@ instance Var v => Show1 (F v) where showsPrec1 = showsPrec
 
 instance (Var v, Show a) => Show (F v a) where
   showsPrec p fa = go p fa where
-    go _ (Int64 n) = showsPrec 0 n
+    go _ (Int64 n) = (if n >= 0 then s "+" else s "") <> showsPrec 0 n
     go _ (UInt64 n) = showsPrec 0 n
     go _ (Float n) = showsPrec 0 n
     go _ (Boolean b) = showsPrec 0 b
