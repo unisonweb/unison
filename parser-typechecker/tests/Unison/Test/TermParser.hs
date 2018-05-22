@@ -34,12 +34,13 @@ test = scope "termparser" . tests . map parses $
   , "(let \n" ++
     "  x = 23 + 42\n" ++
     "  x + 1 \n)"
-  -- , "handle foo in \n" ++
-  --  "  x = 23 + 42" ++
-  --   "  x + foo 8 102.0 +4"
-  , "handle foo in \n" ++
-    "  x = 1" ++
+  ,"handle foo in \n" ++
+    "  x = 23 + 42\n" ++
+    "  x + foo 8 102.0 +4"
+  ,"handle foo in \n" ++
+    "  x = 1\n" ++
     "  x"
+  , "handle foo in x"
   ]
 
 parses s = scope s $ do
