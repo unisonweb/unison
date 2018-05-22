@@ -161,6 +161,9 @@ absr = absr' ()
 absr' :: (Functor f, Foldable f, Var v) => a -> v -> Term f (V v) a -> Term f (V v) a
 absr' a v body = wrap' v body $ \v body -> abs' a v body
 
+absChain :: Ord v => [v] -> Term f v () -> Term f v ()
+absChain vs t = foldr abs t vs
+
 tm :: (Foldable f, Ord v) => f (Term f v ()) -> Term f v ()
 tm = tm' ()
 

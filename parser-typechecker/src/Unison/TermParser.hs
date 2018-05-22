@@ -2,6 +2,7 @@
 {-# Language OverloadedStrings #-}
 {-# Language ScopedTypeVariables #-}
 {-# Language BangPatterns #-}
+{-# Language TupleSections #-}
 
 module Unison.TermParser where
 
@@ -10,13 +11,15 @@ import           Control.Monad
 import           Data.Char (isDigit)
 import           Data.Foldable (asum,toList)
 import           Data.Functor
+import           Data.Int (Int64)
+import           Data.Word (Word64)
 import qualified Data.Text as Text
 import           Prelude hiding (takeWhile)
 import qualified Text.Parsec.Layout as L
 import qualified Unison.ABT as ABT
-import           Unison.Literal (Literal)
-import qualified Unison.Literal as Literal
 import           Unison.Parser
+import           Unison.Pattern (Pattern)
+import qualified Unison.Pattern as Pattern
 import           Unison.Term (Term)
 import qualified Unison.Term as Term
 import           Unison.Type (Type)
@@ -68,6 +71,39 @@ term2 = lam term2 <|> term3
 blockTerm :: Var v => TermP v
 blockTerm = letBlock <|> handle <|> ifthen <|> lam term <|> infixApp
   -- TODO: pattern matching in here once we have a parser for it
+
+match :: Var v => TermP v
+match = do
+  token (string "case")
+  scrutinee <- term
+  token (string "of")
+  cases <- L.vblock (sepBy L.vsemi matchCase)
+  pure $ Term.match scrutinee cases
+
+matchCase :: Var v => Parser (S v) (Pattern, Term v)
+matchCase = do
+  (p, boundVars) <- pattern
+  token (string "->")
+  t <- term
+  pure (p, ABT.absChain boundVars t)
+
+pattern :: Var v => Parser (S v) (Pattern, [v])
+pattern = leaf <|> constructor
+  where
+  leaf = literal <|> var <|> unbound
+  literal = (,[]) <$> asum [true, false, number]
+  true = Pattern.Boolean True <$ token (string "true")
+  false = Pattern.Boolean False <$ token (string "false")
+  number = number' Pattern.Int64 Pattern.UInt64 Pattern.Float
+  var = (\v -> (Pattern.Var, [v])) <$> prefixVar
+  unbound = (Pattern.Unbound, []) <$ token (char '_')
+  constructor = do
+    token (string "what about a hack?")
+    error "what about a hack?"
+
+
+  -- where literal = boolean
+
 
 letBlock :: Var v => TermP v
 letBlock = token (string "let") *> block
@@ -123,19 +159,27 @@ text :: Ord v => Parser s (Term v)
 text = Term.text <$> text'
 
 number :: Ord v => Parser s (Term v)
-number = token $ do
+number = number' Term.int64 Term.uint64 Term.float
+
+number' :: (Int64 -> a) -> (Word64 -> a) -> (Double -> a) -> Parser s a
+number' i u f = token $ do
   let digits = takeWhile1 "number" isDigit
   sign <- optional (char '+' <|> char '-')
   ds <- digits
   fraction <- optional ((:) <$> char '.' <*> digits)
   pure $ case fraction of
     Nothing -> case sign of
-      Nothing -> Term.uint64 (read ds)
-      Just '+' -> Term.int64 (read ds)
-      Just '-' -> Term.int64 (read ('-':ds))
+      Nothing -> u (read ds)
+      Just '+' -> i (read ds)
+      Just '-' -> i (read ('-':ds))
     Just fraction ->
       let signl = toList sign
-      in Term.float (read (signl ++ ds ++ fraction))
+      in f (read (signl ++ ds ++ fraction))
+
+boolean :: Ord v => Parser s (Term v)
+boolean =
+  (Term.boolean True <$ token (string "true")) <|>
+  (Term.boolean False <$ token (string "false"))
 
 hashLit :: Ord v => Parser s (Term v)
 hashLit = token (f =<< (mark *> hash))
@@ -202,15 +246,11 @@ keywords =
   , ":"
   , "="
   , "alias"
-  , "and"
-  , "else"
-  , "handle"
-  , "if"
-  , "in"
+  , "and", "or"
+  , "case", "of"
+  , "handle", "in"
+  , "if", "then", "else"
   , "namespace"
-  , "or"
-  , "then"
-  , "where"
   ]
 
 block :: Var v => TermP v

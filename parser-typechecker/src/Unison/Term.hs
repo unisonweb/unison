@@ -177,6 +177,9 @@ builtin n = ref (Reference.Builtin n)
 float :: Ord v => Double -> Term v
 float d = ABT.tm (Float d)
 
+boolean :: Ord v => Bool -> Term v
+boolean b = ABT.tm (Boolean b)
+
 int64 :: Ord v => Int64 -> Term v
 int64 d = ABT.tm (Int64 d)
 
@@ -377,7 +380,8 @@ instance (Var v, Show a) => Show (F v a) where
     go _ (LetRec bs body) = showParen True (s"let rec" <> showsPrec 0 bs <> s" in " <> showsPrec 0 body)
     go _ (Handle b body) = showParen True (s"handle " <> showsPrec 0 b <> showsPrec 0 body)
     go _ (Constructor r n) = showsPrec 0 r <> showsPrec 0 n
-    go _ (Match _ _) = s"match"
+    go _ (Match scrutinee cases) =
+      showParen True (s"case " <> showsPrec 0 scrutinee <> s" of " <> showsPrec 0 cases)
     go _ (Text s) = showsPrec 0 s
     (<>) = (.)
     s = showString

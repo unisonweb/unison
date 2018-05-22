@@ -19,7 +19,6 @@ import Data.Map (Map)
 import Data.Maybe
 import Data.Set (Set)
 import Unison.DataDeclaration (DataDeclaration)
-import Unison.Literal (Literal)
 import Unison.Note (Note,Noted(..))
 import Unison.Pattern (Pattern)
 import Unison.Reference (Reference)
@@ -31,7 +30,6 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
-import qualified Unison.Literal as Literal
 import qualified Unison.Note as Note
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type

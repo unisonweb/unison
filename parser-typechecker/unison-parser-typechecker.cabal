@@ -40,7 +40,6 @@ library
     Unison.Hash
     Unison.Hashable
     Unison.Kind
-    Unison.Literal
     Unison.Note
     Unison.Parser
     Unison.Parsers
