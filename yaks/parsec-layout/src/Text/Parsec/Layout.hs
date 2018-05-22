@@ -35,22 +35,25 @@ import Text.Parsec.Combinator
 import Text.Parsec.Pos
 import Text.Parsec.Prim hiding (State)
 import Text.Parsec.Char hiding (space)
+import qualified Text.Parsec.Char as Parsec.Char
 
---import Debug.Trace
---import Text.Parsec (anyChar)
---
---pTrace s = pt <|> return ()
---    where pt = try $
---               do
---                 x <- try $ many anyChar
---                 trace (s++": " ++x) $ try $ char 'z'
---                 fail x
---
---traced s p = do
---  pTrace s
---  a <- p <|> trace (s ++ " backtracked") (fail s)
---  let !x = trace (s ++ " succeeded") ()
---  pure a
+import Debug.Trace
+import Text.Parsec (anyChar)
+
+pTrace s = pt <|> return ()
+    where pt = try $
+               do
+                 x <- try $ many anyChar
+                 trace (s++": " ++x) $ try $ char 'z'
+                 fail x
+
+traced s p = do
+  pTrace s
+  ctx <- getEnv
+  let !y = trace ("ctx: " ++ show ctx) ()
+  a <- p --  <|> trace (s ++ " backtracked") (fail s)
+  -- let !x = trace (s ++ " succeeded") ()
+  pure a
 
 data LayoutContext = NoLayout | Layout Int deriving (Eq,Ord,Show)
 
@@ -58,7 +61,7 @@ data LayoutContext = NoLayout | Layout Int deriving (Eq,Ord,Show)
 data LayoutEnv = Env
     { envLayout :: [LayoutContext]
     , envBol :: Bool -- if true, must run offside calculation
-    }
+    } deriving (Show)
 
 -- | For embedding layout information into a larger parse state.  Instantiate
 -- this class if you need to use this together with other user state.
@@ -100,6 +103,18 @@ pushCurrentContext = do
     indent <- getIndentation
     col <- sourceColumn <$> getPosition
     pushContext . Layout $ max (indent+1) col
+
+-- Pushes a column onto the layout stack determined by the column where
+-- the next token begins. Ex:
+--   let
+--     x = 42
+-- The column of `x` is pushed after `let` is parsed.
+pushNextTokenContext :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m ()
+pushNextTokenContext = traced "pushNextTokenContext" $ do
+  indent <- getIndentation
+  _ <- Parsec.Char.spaces
+  col <- sourceColumn <$> getPosition
+  pushContext . Layout $ max (indent+1) col
 
 maybeFollowedBy :: Stream s m c => ParsecT s u m a -> ParsecT s u m b -> ParsecT s u m a
 t `maybeFollowedBy` x = do t' <- t; optional x; return t'
@@ -192,9 +207,7 @@ pushIncrementedContext = do
     (NoLayout : _) -> pure ()
 
 virtual_lbrace :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m ()
-virtual_lbrace = do
-  allow <- inLayout
-  when allow pushCurrentContext
+virtual_lbrace = pushNextTokenContext
 
 virtual_rbrace :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m ()
 virtual_rbrace = try (void $ lookAhead semi) <|> do
@@ -203,10 +216,10 @@ virtual_rbrace = try (void $ lookAhead semi) <|> do
 
 -- | Consumes one or more spaces, comments, and onside newlines in a layout rule.
 space :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m String
-space = do
+space = traced "space" $ (do
     try $ layoutSatisfies (Other ' ' ==)
     return " "
-  <?> "space"
+  <?> "space")
 
 vsemi :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m String
 vsemi = do
@@ -240,13 +253,12 @@ rbrace = do
     return "}"
 
 vblock :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m a -> ParsecT s u m a
-vblock p = between (spaced virtual_lbrace) (spaced virtual_rbrace) p
-  where
-  -- NB: virtual_lbrace here doesn't use current column for offside calc, instead
-  -- uses 1 column greater than whatever column is at top of layout stack
-  virtual_lbrace = do
-    allow <- inLayout
-    when allow pushIncrementedContext
+vblock p = do
+  prevEnvBol <- envBol <$> getEnv
+  modifyEnv (\env -> env { envBol = True })
+  a <- between (spaced virtual_lbrace) (spaced virtual_rbrace) p
+  modifyEnv (\env -> env { envBol = prevEnvBol })
+  pure a
 
 block :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m a -> ParsecT s u m a
 block p = braced p <|> vbraced p where

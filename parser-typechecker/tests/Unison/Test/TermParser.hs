@@ -16,28 +16,33 @@ test = scope "termparser" . tests . map parses $
   , "forty"
   , "forty two"
   , "\"forty two\""
-  , "{ one }"
-  , "{ one ; two }"
-  , "{ one ; two ; }"
-  , "{ one ; two ; three }"
-  , "{ one ; two ; 42 }"
-  , "{ one ; two ; three; }"
+  , "( one ; two )"
+  , "( one ; two )"
+  , "( one ; two ; three )"
+  , "( one ; two ; 42 )"
   , "x + 1"
-  , "{ x + 1 }"
-  , "{ x + 1; }"
-  , "{ y = x; 24; }"
-  , "{ y = x + 1; 24 }"
-  , "{ x = 42 ; y = x + 1 ; 24 }"
-  , "{ \n" ++
-    "  x = \n" ++
-    "    z = 13 \n" ++
-    "    z + 1 \n" ++
-    "  91.0 \n" ++
-    "}"
+  , "( x + 1 )"
   , "foo 42"
+  , "let x = 1\n" ++
+    "    x"
+  , "let\n" ++
+    " y = 1\n" ++
+    " x"
+  , "let y = 1  \n" ++
+    "    x = 2  \n" ++
+    "    x + y"
+  , "(let \n" ++
+    "  x = 23 + 42\n" ++
+    "  x + 1 \n)"
+  -- , "handle foo in \n" ++
+  --  "  x = 23 + 42" ++
+  --   "  x + foo 8 102.0 +4"
+  , "handle foo in \n" ++
+    "  x = 1" ++
+    "  x"
   ]
 
-parses s = do
+parses s = scope s $ do
   let p = unsafeParseTerm s :: Term Symbol
   noteScoped $ "parsing: " ++ s ++ "\n  " ++ show p
   ok

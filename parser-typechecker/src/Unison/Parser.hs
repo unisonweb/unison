@@ -89,7 +89,7 @@ base64urlstring :: Parser s String
 base64urlstring = base64string' $ ['A' .. 'Z'] ++ ['a' .. 'z'] ++ ['0' .. '9'] ++ "-_"
 
 notReservedChar :: Char -> Bool
-notReservedChar = (`notElem` "\".,`[]{}:;()")
+notReservedChar = (`notElem` "\".,`[]{}:()")
 
 identifier :: String -> [String -> Bool] -> Parser s String
 identifier msg = identifier' msg [not . isSpace, notReservedChar]
@@ -119,7 +119,10 @@ wordyId keywords = label "wordyId" . token $ do
 symbolyId :: [String] -> Parser s String
 symbolyId keywords = label "operator" . token $ do
   op <- identifier' "operator identifier"
-    [notReservedChar, (/= '_'), not . Char.isSpace, \c -> Char.isSymbol c || Char.isPunctuation c]
+    [notReservedChar,
+     (/= '_'),
+     not . Char.isSpace,
+     \c -> Char.isSymbol c || Char.isPunctuation c]
     [(`notElem` keywords)]
   qual <- optional (char '_' *> wordyId keywords)
   pure $ maybe op (\qual -> qual ++ "." ++ op) qual

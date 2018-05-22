@@ -36,12 +36,12 @@ pTrace s = pt <|> return ()
                  trace (s++": " ++x) $ attempt $ char 'z'
                  fail x
 
-traced s p = p
---traced s p = do
---  pTrace s
---  a <- p <|> trace (s ++ " backtracked") (fail s)
---  let !x = trace (s ++ " succeeded") ()
---  pure a
+-- traced s p = p
+traced s p = do
+  pTrace s
+  a <- p <|> trace (s ++ " backtracked") (fail s)
+  let !x = trace (s ++ " succeeded") ()
+  pure a
 
 {-
 Precedence of language constructs is identical to Haskell, except that all
@@ -63,9 +63,18 @@ term = term2
 term2 :: Var v => TermP v
 term2 = lam term2 <|> term3
 
+-- We disallow type annotations and lambdas,
+-- just function application and operators
+blockTerm :: Var v => TermP v
+blockTerm = letBlock <|> handle <|> ifthen <|> lam term <|> infixApp
+  -- TODO: pattern matching in here once we have a parser for it
+
+letBlock :: Var v => TermP v
+letBlock = token (string "let") *> block
+
 term3 :: Var v => TermP v
 term3 = do
-  t <- ifthen <|> infixApp
+  t <- letBlock <|> handle <|> ifthen <|> infixApp
   ot <- optional (token (char ':') *> TypeParser.type_)
   pure $ case ot of
     Nothing -> t
@@ -85,7 +94,7 @@ term4 = traced "apply-chain" $ f <$> some termLeaf
 
 termLeaf :: Var v => TermP v
 termLeaf = traced "leaf" $
-  asum [hashLit, prefixTerm, text, number, tupleOrParenthesized term, blank, vector term, bracedBlock]
+  asum [hashLit, prefixTerm, text, number, tupleOrParenthesized term, blank, vector term]
 
 ifthen :: Var v => TermP v
 ifthen = do
@@ -94,7 +103,7 @@ ifthen = do
   _ <- token (string "then")
   iftrue <- L.withoutLayout "else" term
   _ <- token (string "else")
-  iffalse <- L.block term
+  iffalse <- L.vblock term
   pure (Term.iff cond iftrue iffalse)
 
 tupleOrParenthesized :: Var v => TermP v -> TermP v
@@ -149,7 +158,7 @@ vector p = Term.app (Term.builtin "Vector.force") . Term.vector <$> (lbracket *>
     rbracket = token (char ']')
 
 binding :: Var v => Parser (S v) (v, Term v)
-binding = label "binding" $ do
+binding = traced "binding" . label "binding" $ do
   typ <- optional typedecl <* optional semicolon
   let lhs = attempt ((\arg1 op arg2 -> (op,[arg1,arg2]))
                     <$> prefixVar <*> infixVar <*> prefixVar)
@@ -171,7 +180,7 @@ binding = label "binding" $ do
   mkBinding f args body = (f, Term.lam'' args body)
 
 typedecl :: Var v => Parser (S v) (v, Type v)
-typedecl = (,) <$> attempt (prefixVar <* token (char ':')) <*> L.block TypeParser.type_
+typedecl = (,) <$> attempt (prefixVar <* token (char ':')) <*> L.vblock TypeParser.type_
 
 infixVar :: Var v => Parser s v
 infixVar = (Var.named . Text.pack) <$> (backticked <|> symbolyId keywords)
@@ -204,24 +213,14 @@ keywords =
   , "where"
   ]
 
-block'
-  :: Var v
-  => (forall a. Parser (S v) [a] -> Parser (S v) [a])
-  -> Parser (S v) x
-  -> TermP v
-block' braced semi = go =<< braced (traced "statements" statements)
+block :: Var v => TermP v
+block = traced "block" $ go =<< L.vblock (sepBy L.vsemi statement)
   where
-  statements = do
-    s <- statement
-    o <- optional semi
-    case o of
-      Nothing -> pure [s]
-      Just _ -> (s:) . join . toList <$> optional statements
   statement = traced "statement" $ (Right <$> binding) <|> (Left <$> blockTerm)
   toBinding (Right (v, e)) = (v,e)
   toBinding (Left e) = (Var.named "_", e)
   go bs = case reverse bs of
-    (Right _e : _) -> fail "let block must end with an expression"
+    (Right _e : _) -> fail "block must end with an expression"
     -- TODO: Inform the user that we're going to rewrite the block,
     -- possibly changing the meaning of the program (which is ambiguous anyway),
     -- or fail with a helpful error message if there's a forward reference with
@@ -229,20 +228,6 @@ block' braced semi = go =<< braced (traced "statements" statements)
     (Left e : bs) -> pure $ Term.letRec (toBinding <$> reverse bs) e
     [] -> fail "empty block"
 
-block :: Var v => TermP v
-block = traced "block" $ bracedBlock <|> traced "unbraced-block" (block' L.vblock L.vsemi)
-
-bracedBlock :: Var v => TermP v
-bracedBlock = traced "braced-block" $
-  block' (\body -> token (string "{") *> body <* token (string "}")) semi
-  where semi = L.spaced L.semi
-
--- We disallow type annotations and lambdas,
--- just function application and operators
-blockTerm :: Var v => TermP v
-blockTerm =
-  bracedBlock <|> handle <|> ifthen <|> lam term <|> infixApp
-  -- TODO: pattern matching in here once we have a parser for it
 
 handle :: Var v => TermP v
 handle = do
@@ -264,7 +249,7 @@ alias = do
   _ <- token (string "alias")
   (fn:params) <- some (Var.named . Text.pack <$> wordyId keywords)
   _ <- token (char '=')
-  body <- L.block TypeParser.type_
+  body <- L.vblock TypeParser.type_
   TypeParser.Aliases s <- get
   let s' = (fn, apply)
       apply args | length args <= length params = ABT.substs (params `zip` args) body
