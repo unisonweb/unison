@@ -12,6 +12,7 @@ import           Data.Char (isDigit)
 import           Data.Foldable (asum,toList)
 import           Data.Functor
 import           Data.Int (Int64)
+import           Data.Map (Map)
 import           Data.Word (Word64)
 import qualified Data.Text as Text
 import           Prelude hiding (takeWhile)
@@ -20,6 +21,7 @@ import qualified Unison.ABT as ABT
 import           Unison.Parser
 import           Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
+import           Unison.Reference (Reference)
 import           Unison.Term (Term)
 import qualified Unison.Term as Term
 import           Unison.Type (Type)

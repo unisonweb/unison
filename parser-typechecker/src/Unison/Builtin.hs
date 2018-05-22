@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Unison.Builtin where
 
+import Unison.Parser (PEnv, penv0)
 import Unison.Parsers (unsafeParseType, unsafeParseTerm)
 import Unison.Symbol (Symbol)
 import Unison.Type (Type)
@@ -16,7 +17,7 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Var as Var
 
 t :: String -> Type Symbol
-t = resolveBuiltinTypes . unsafeParseType
+t s = resolveBuiltinTypes $ unsafeParseType s penv0
 
 resolveBuiltinTypes :: Type Symbol -> Type Symbol
 resolveBuiltinTypes t =
@@ -25,7 +26,7 @@ resolveBuiltinTypes t =
 
 tm :: String -> Term Symbol
 tm s = let
-  t = unsafeParseTerm s
+  t = unsafeParseTerm s penv0
   free = Set.intersection (ABT.freeVars t) builtinTerms
   in ABT.substs [(v, Term.builtin (Var.name v)) | v <- Set.toList free ] t
 

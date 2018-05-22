@@ -4,6 +4,7 @@ import EasyTest
 import Unison.Test.Common
 import Unison.Term (Term)
 import Unison.Symbol (Symbol)
+import Unison.Parser (penv0)
 import Unison.Parsers (unsafeParseTerm)
 
 test = scope "termparser" . tests . map parses $
@@ -44,6 +45,6 @@ test = scope "termparser" . tests . map parses $
   ]
 
 parses s = scope s $ do
-  let p = unsafeParseTerm s :: Term Symbol
+  let p = unsafeParseTerm s penv0 :: Term Symbol
   noteScoped $ "parsing: " ++ s ++ "\n  " ++ show p
   ok

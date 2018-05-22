@@ -2,17 +2,22 @@
 {-# Language DeriveTraversable #-}
 {-# Language DeriveFoldable #-}
 {-# Language BangPatterns #-}
+{-# Language ExplicitForAll #-}
 
 module Unison.Parser where
 
 import Control.Applicative
 import Control.Monad
+import Control.Monad.Reader
 import Data.Char (isSpace)
 import Data.List hiding (takeWhile)
+import Data.Map
 import Data.Maybe
 import Data.Text (Text)
 import Prelude hiding (takeWhile)
+import Unison.Reference (Reference)
 import qualified Data.Char as Char
+import qualified Data.Map  as Map
 import qualified Data.Text as Text
 import qualified Prelude
 import qualified Text.Parsec as Parsec
@@ -20,7 +25,10 @@ import qualified Text.Parsec.Layout as L
 
 -- import Debug.Trace
 
-type Parser s a = Parsec.Parsec Text (Env s) a
+type PEnv = Map String (Reference, Int)
+penv0 :: PEnv
+penv0 = Map.empty
+type Parser s a = Parsec.ParsecT Text (Env s) ((->) PEnv) a
 
 data Env s = Env s L.LayoutEnv
 
@@ -46,19 +54,28 @@ attempt = Parsec.try
 lookAhead :: Parser s a -> Parser s a
 lookAhead = Parsec.lookAhead
 
-run' :: Parser s a -> String -> s -> String -> Either String a
+run' :: Parser s a
+     -> String
+     -> s
+     -> String
+     -> PEnv
+     -> Either String a
 run' p s s0 name =
-  case Parsec.runParser p (Env s0 L.defaultLayoutEnv) name (Text.pack s) of
-    Left e -> Left (show e)
-    Right a -> Right a
+  err <$> Parsec.runParserT p (Env s0 L.defaultLayoutEnv) name (Text.pack s)
+  where err (Left e) = Left (show e)
+        err (Right a) = Right a
 
-run :: Parser s a -> String -> s -> Either String a
+run :: Parser s a
+    -> String
+    -> s
+    -> PEnv
+    -> Either String a
 run p s s0 = run' p s s0 ""
 
-unsafeRun :: Parser s a -> String -> s -> a
-unsafeRun p s s0 = case run p s s0 of
-  Right a -> a
-  Left e -> error e
+unsafeRun :: Parser s a -> String -> s -> PEnv -> a
+unsafeRun p s s0 = err <$> run p s s0
+  where err (Right a) = a
+        err (Left e) = error e
 
 string :: String -> Parser s String
 string s = attempt (Parsec.string s) <|> fail ("expected '" ++ s ++ "'")
