@@ -8,11 +8,13 @@ module Unison.TermParser where
 
 import           Control.Applicative
 import           Control.Monad
-import           Data.Char (isDigit)
+import           Control.Monad.Reader (ask)
+import           Data.Char (isDigit, isUpper)
 import           Data.Foldable (asum,toList)
 import           Data.Functor
 import           Data.Int (Int64)
 import           Data.Map (Map)
+import qualified Data.Map as Map
 import           Data.Word (Word64)
 import qualified Data.Text as Text
 import           Prelude hiding (takeWhile)
@@ -92,7 +94,7 @@ matchCase = do
 pattern :: Var v => Parser (S v) (Pattern, [v])
 pattern = leaf <|> constructor
   where
-  leaf = literal <|> var <|> unbound
+  leaf = literal <|> var <|> unbound <|> parenthesized pattern
   literal = (,[]) <$> asum [true, false, number]
   true = Pattern.Boolean True <$ token (string "true")
   false = Pattern.Boolean False <$ token (string "false")
@@ -100,8 +102,17 @@ pattern = leaf <|> constructor
   var = (\v -> (Pattern.Var, [v])) <$> prefixVar
   unbound = (Pattern.Unbound, []) <$ token (char '_')
   constructor = do
-    token (string "what about a hack?")
-    error "what about a hack?"
+    name <- token $ do
+      s <- wordyId keywords
+      guard . isUpper . head $ s
+      pure s
+    env <- ask
+    case Map.lookup name env of
+      Just (ref, cid) -> go <$> many leaf
+        where
+          go pairs = case unzip pairs of
+            (patterns, vs) -> (Pattern.Constructor ref cid patterns, join vs)
+      Nothing -> fail $ "unknown data constructor " ++ name
 
 
   -- where literal = boolean
