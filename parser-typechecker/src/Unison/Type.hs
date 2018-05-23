@@ -14,14 +14,13 @@ import Data.Set (Set)
 import Data.Text (Text)
 import GHC.Generics
 import Prelude.Extras (Eq1(..),Show1(..))
-import Unison.Hashable (Hashable, Hashable1)
+import Unison.Hashable (Hashable1)
 import Unison.Note (Noted)
 import Unison.Reference (Reference)
 import Unison.TypeVar (TypeVar)
 import Unison.Var (Var)
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
-import qualified Unison.Hash as Hash
 import qualified Unison.Hashable as Hashable
 import qualified Unison.Kind as K
 import qualified Unison.Reference as Reference

@@ -13,41 +13,42 @@ import           Data.Char (isDigit, isUpper)
 import           Data.Foldable (asum,toList)
 import           Data.Functor
 import           Data.Int (Int64)
-import           Data.Map (Map)
 import qualified Data.Map as Map
-import           Data.Word (Word64)
 import qualified Data.Text as Text
+import           Data.Word (Word64)
 import           Prelude hiding (takeWhile)
 import qualified Text.Parsec.Layout as L
+import           Text.Parsec.Prim (ParsecT)
 import qualified Unison.ABT as ABT
 import           Unison.Parser
 import           Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
-import           Unison.Reference (Reference)
 import           Unison.Term (Term)
 import qualified Unison.Term as Term
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.TypeParser as TypeParser
-import qualified Unison.Typechecker.Components as Components
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 
 import Debug.Trace
 import Text.Parsec (anyChar)
 
+pTrace :: [Char] -> Text.Parsec.Prim.ParsecT Text.Text (Env s) ((->) PEnv) ()
 pTrace s = pt <|> return ()
     where pt = attempt $
                do
                  x <- attempt $ many anyChar
-                 trace (s++": " ++x) $ attempt $ char 'z'
+                 void $ trace (s++": " ++x) $ attempt $ char 'z'
                  fail x
 
--- traced s p = p
+traced :: [Char]
+       -> Text.Parsec.Prim.ParsecT Text.Text (Env s) ((->) PEnv) b
+       -> Text.Parsec.Prim.ParsecT Text.Text (Env s) ((->) PEnv) b
 traced s p = do
   pTrace s
   a <- p <|> trace (s ++ " backtracked") (fail s)
-  let !x = trace (s ++ " succeeded") ()
+  let !_ = trace (s ++ " succeeded") ()
   pure a
 
 {-
@@ -86,19 +87,17 @@ blockTerm = letBlock <|> handle <|> ifthen <|> match <|> lam term <|> infixApp
 
 match :: Var v => TermP v
 match = do
-  token (string "case")
+  token_ $ string "case"
   scrutinee <- term
-  token (string "of")
+  token_ $ string "of"
   cases <- L.vblock (sepBy L.vsemi matchCase)
   pure $ Term.match scrutinee cases
 
 matchCase :: Var v => Parser (S v) (Term.MatchCase (Term v))
 matchCase = do
   (p, boundVars) <- pattern
-  guard <- optional $ do
-    token (string "|")
-    block
-  token (string "->")
+  guard <- optional $ token (string "|") *> block
+  token_ $ string "->"
   t <- block
   pure . Term.MatchCase p guard $ ABT.absChain boundVars t
 
@@ -188,6 +187,7 @@ number' i u f = token $ do
       Nothing -> u (read ds)
       Just '+' -> i (read ds)
       Just '-' -> i (read ('-':ds))
+      _ -> error "impossible!"
     Just fraction ->
       let signl = toList sign
       in f (read (signl ++ ds ++ fraction))
@@ -287,9 +287,9 @@ block = traced "block" $ go =<< L.vblock (sepBy L.vsemi statement)
 
 handle :: Var v => TermP v
 handle = do
-  token $ string "handle"
+  token_ $ string "handle"
   handler <- term
-  token $ string "in"
+  token_ $ string "in"
   b <- block
   pure $ Term.handle handler b
 

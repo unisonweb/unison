@@ -2,21 +2,15 @@
 
 module Unison.Parsers where
 
-import Control.Arrow ((***))
-import Data.Text (Text)
-import Unison.Term (Term)
-import Unison.Type (Type)
-import Unison.Parser (run, PEnv)
-import Unison.Var (Var)
-import qualified Unison.Parser as Parser
-import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
+import           Unison.Parser (run, PEnv)
+import qualified Unison.Parser as Parser
+import           Unison.Term (Term)
 import qualified Unison.Term as Term
 import qualified Unison.TermParser as TermParser
+import           Unison.Type (Type)
 import qualified Unison.TypeParser as TypeParser
-import qualified Unison.Type as Type
-import qualified Unison.Reference as R
-import qualified Unison.Var as Var
+import           Unison.Var (Var)
 
 type S v = TypeParser.S v
 

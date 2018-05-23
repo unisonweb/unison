@@ -2,7 +2,8 @@
 
 module Unison.Hashable where
 
-import Data.Word (Word8)
+import Data.Int (Int64)
+import Data.Word (Word8, Word64)
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 
@@ -13,6 +14,7 @@ data Token h
   | Text !Text
   | Double !Double
   | Hashed !h
+  | Word !Word64
 
 class Accumulate h where
   accumulate :: [Token h] -> h
@@ -53,4 +55,13 @@ instance Hashable Text where
 
 instance Hashable ByteString where
   tokens bs = [Bytes bs]
+
+instance Hashable Word64 where
+  tokens w = [Word w]
+
+instance Hashable Int64 where
+  tokens w = [Word $ fromIntegral w]
+
+instance Hashable Bool where
+  tokens b = [Tag . fromIntegral $ fromEnum b]
 

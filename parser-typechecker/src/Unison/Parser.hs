@@ -8,7 +8,6 @@ module Unison.Parser where
 
 import Control.Applicative
 import Control.Monad
-import Control.Monad.Reader
 import Data.Char (isSpace)
 import Data.List hiding (takeWhile)
 import Data.Map
@@ -146,6 +145,9 @@ symbolyId keywords = label "operator" . token $ do
 
 token :: Parser s a -> Parser s a
 token p = attempt (L.spaced p)
+
+token_ :: Parser s a -> Parser s ()
+token_ = void . token
 
 parenthesized :: Parser s a -> Parser s a
 parenthesized p = lp *> body <* rp

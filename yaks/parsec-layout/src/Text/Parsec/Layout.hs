@@ -40,6 +40,7 @@ import qualified Text.Parsec.Char as Parsec.Char
 import Debug.Trace
 import Text.Parsec (anyChar)
 
+pTrace :: Stream s m Char => [Char] -> ParsecT s u m ()
 pTrace s = pt <|> return ()
     where pt = try $
                do
@@ -47,10 +48,12 @@ pTrace s = pt <|> return ()
                  trace (s++": " ++x) $ try $ char 'z'
                  fail x
 
+traced :: (Stream s m Char, HasLayoutEnv u) =>
+          [Char] -> ParsecT s u m b -> ParsecT s u m b
 traced s p = do
   pTrace s
   ctx <- getEnv
-  let !y = trace ("ctx: " ++ show ctx) ()
+  let !_ = trace ("ctx: " ++ show ctx) ()
   a <- p --  <|> trace (s ++ " backtracked") (fail s)
   -- let !x = trace (s ++ " succeeded") ()
   pure a
@@ -97,12 +100,6 @@ getIndentation = depth . envLayout <$> getEnv where
     depth :: [LayoutContext] -> Int
     depth (Layout n:_) = n
     depth _ = 0
-
-pushCurrentContext :: (HasLayoutEnv u, Stream s m c) => ParsecT s u m ()
-pushCurrentContext = do
-    indent <- getIndentation
-    col <- sourceColumn <$> getPosition
-    pushContext . Layout $ max (indent+1) col
 
 -- Pushes a column onto the layout stack determined by the column where
 -- the next token begins. Ex:

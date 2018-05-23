@@ -30,5 +30,5 @@ instance H.Hashable Pattern where
   tokens (Constructor r n args) =
     [H.Tag 6, H.accumulateToken r, H.VarInt n, H.accumulateToken args]
   tokens (EffectPure p) = H.Tag 7 : H.tokens p
-  tokens (EffectBind r ctor ps k) =
+  tokens (EffectBind _r _ctor _ps _k) =
     H.Tag 8 : error "need fo figure out hashable"

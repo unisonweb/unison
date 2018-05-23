@@ -16,7 +16,6 @@ module Unison.Typechecker.Context where
 import Control.Monad
 import Data.List
 import Data.Map (Map)
-import Data.Maybe
 import Data.Set (Set)
 import Unison.DataDeclaration (DataDeclaration)
 import Unison.Note (Note,Noted(..))
@@ -423,10 +422,10 @@ check :: Var v => Term v -> Type v -> M v ()
 check e t = getContext >>= \ctx -> scope ("check: " ++ show e ++ ":   " ++ show t) $
   if wellformedType ctx t then
     let
-      go (Term.Int64' n) _ = subtype Type.int64 t -- 1I
-      go (Term.UInt64' n) _ = subtype Type.uint64 t -- 1I
-      go (Term.Float' n) _ = subtype Type.float t -- 1I
-      go (Term.Boolean' n) _ = subtype Type.boolean t -- 1I
+      go (Term.Int64' _) _ = subtype Type.int64 t -- 1I
+      go (Term.UInt64' _) _ = subtype Type.uint64 t -- 1I
+      go (Term.Float' _) _ = subtype Type.float t -- 1I
+      go (Term.Boolean' _) _ = subtype Type.boolean t -- 1I
       go Term.Blank' _ = pure () -- somewhat hacky short circuit; blank checks successfully against all types
       go _ (Type.Forall' body) = do -- ForallI
         x <- extendUniversal =<< ABT.freshen body freshenTypeVar
@@ -451,7 +450,7 @@ check e t = getContext >>= \ctx -> scope ("check: " ++ show e ++ ":   " ++ show 
       go (Term.Match' scrutinee branches) t = do
         scrutineeType <- synthesize scrutinee
         dataDecls <- getDataDeclarations
-        forM_ branches $ \(Term.MatchCase lhs guard rhs) -> do
+        forM_ branches $ \(Term.MatchCase lhs _guard rhs) -> do
           checkPattern lhs dataDecls scrutineeType
           check rhs t
           -- NOTE: Typecheck the guard

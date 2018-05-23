@@ -66,6 +66,9 @@ test = scope "termparser" . tests . map parses $
     "  0 ->\n" ++
     "    z = 0\n" ++
     "    z"
+
+  , "case x of\n" ++
+    " 0 | 1 == 2 -> 123"
   ]
 
 builtins = Map.fromList

@@ -346,6 +346,11 @@ instance Var v => Hashable1 (F v) where
       -- Note: start each layer with leading `1` byte, to avoid collisions with
       -- types, which start each layer with leading `0`. See `Hashable1 Type.F`
       _ -> Hashable.accumulate $ tag 1 : case e of
+        UInt64 i -> [tag 64, accumulateToken i]
+        Int64 i -> [tag 65, accumulateToken i]
+        Float n -> [tag 66, Hashable.Double n]
+        Boolean b -> [tag 67, accumulateToken b]
+        Text t -> [tag 68, accumulateToken t]
         Blank -> [tag 1]
         Ref (Reference.Builtin name) -> [tag 2, accumulateToken name]
         Ref (Reference.Derived _) -> error "handled above, but GHC can't figure this out"
@@ -357,7 +362,13 @@ instance Var v => Hashable1 (F v) where
         LetRec as a -> case hashCycle as of
           (hs, hash) -> tag 7 : hashed (hash a) : map hashed hs
         -- here, order is significant, so don't use hashCycle
-        Let b a -> [tag 8, hashed (hash b), hashed (hash a)]
+        Let b a -> [tag 8, hashed $ hash b, hashed $ hash a]
+        If b t f -> [tag 9, hashed $ hash b, hashed $ hash t, hashed $ hash f]
+        Request r n -> [tag 10, accumulateToken r, varint n]
+        EffectPure r -> [tag 11, hashed $ hash r]
+        EffectBind r i rs k ->
+          [tag 14, accumulateToken r, varint i, varint (length rs)] ++
+          (hashed . hash <$> rs ++ [k])
         Constructor r n -> [tag 12, accumulateToken r, varint n]
         Match e branches -> tag 13 : hashed (hash e) : concatMap h branches
           where
@@ -365,6 +376,9 @@ instance Var v => Hashable1 (F v) where
               concat [[accumulateToken pat],
                       toList (hashed . hash <$> guard),
                       [hashed (hash branch)]]
+        Handle h b -> [tag 15, hashed $ hash h, hashed $ hash b]
+        And x y -> [tag 16, hashed $ hash x, hashed $ hash y]
+        Or x y -> [tag 17, hashed $ hash x, hashed $ hash y]
 
 -- mostly boring serialization code below ...
 
@@ -373,6 +387,7 @@ instance Var v => Show1 (F v) where showsPrec1 = showsPrec
 
 instance (Var v, Show a) => Show (F v a) where
   showsPrec p fa = go p fa where
+    showConstructor r n = showsPrec 0 r <> s"#" <> showsPrec 0 n
     go _ (Int64 n) = (if n >= 0 then s "+" else s "") <> showsPrec 0 n
     go _ (UInt64 n) = showsPrec 0 n
     go _ (Float n) = showsPrec 0 n
@@ -387,9 +402,21 @@ instance (Var v, Show a) => Show (F v a) where
     go _ (Let b body) = showParen True (s"let " <> showsPrec 0 b <> s" in " <> showsPrec 0 body)
     go _ (LetRec bs body) = showParen True (s"let rec" <> showsPrec 0 bs <> s" in " <> showsPrec 0 body)
     go _ (Handle b body) = showParen True (s"handle " <> showsPrec 0 b <> showsPrec 0 body)
-    go _ (Constructor r n) = showsPrec 0 r <> showsPrec 0 n
+    go _ (Constructor r n) = showConstructor r n
     go _ (Match scrutinee cases) =
       showParen True (s"case " <> showsPrec 0 scrutinee <> s" of " <> showsPrec 0 cases)
     go _ (Text s) = showsPrec 0 s
+    go _ (Request r n) = showConstructor r n
+    go _ (EffectPure r) = s"{ " <> showsPrec 0 r <> s" }"
+    go _ (EffectBind ref i args k) =
+      s"{ " <> showConstructor ref i <> showListWith (showsPrec 0) args <>
+      s" -> " <> showsPrec 0 k <> s" }"
+    go p (If c t f) = showParen (p > 0) $
+      s"if " <> showsPrec 0 c <> s" then " <> showsPrec 0 t <>
+      s" else " <> showsPrec 0 f
+    go p (And x y) = showParen (p > 0) $
+      s"and " <> showsPrec 0 x <> s" " <> showsPrec 0 y
+    go p (Or x y) = showParen (p > 0) $
+      s"or " <> showsPrec 0 x <> s" " <> showsPrec 0 y
     (<>) = (.)
     s = showString

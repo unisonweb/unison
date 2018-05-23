@@ -1,12 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Unison.Builtin where
 
-import Unison.Parser (PEnv, penv0)
+import Unison.Parser (penv0)
 import Unison.Parsers (unsafeParseType, unsafeParseTerm)
 import Unison.Symbol (Symbol)
 import Unison.Type (Type)
 import Unison.Term (Term)
-import Unison.Var (Var)
 import Data.Set (Set)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
