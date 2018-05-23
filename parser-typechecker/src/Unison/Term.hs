@@ -226,9 +226,6 @@ ann e t = ABT.tm (Ann e t)
 vector :: Ord v => [Term v] -> Term v
 vector es = ABT.tm (Vector (Vector.fromList es))
 
-vectorForced :: Ord v => [Term v] -> Term v
-vectorForced = app (builtin "Vector.force") . vector
-
 vector' :: Ord v => Vector (Term v) -> Term v
 vector' es = ABT.tm (Vector es)
 

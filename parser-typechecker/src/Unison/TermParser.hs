@@ -23,6 +23,7 @@ import qualified Unison.ABT as ABT
 import           Unison.Parser
 import           Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
+import qualified Unison.Reference as R
 import           Unison.Term (Term)
 import qualified Unison.Term as Term
 import           Unison.Type (Type)
@@ -105,18 +106,43 @@ matchCase = do
 pattern :: Var v => Parser (S v) (Pattern, [v])
 pattern = traced "pattern" $ constructor <|> leaf
   where
-  leaf = literal <|> var <|> unbound <|> parenthesized pattern
+  leaf = literal <|> var <|> unbound <|> parenthesized pattern <|> effect
   literal = (,[]) <$> asum [true, false, number]
   true = Pattern.Boolean True <$ token (string "true")
   false = Pattern.Boolean False <$ token (string "false")
   number = number' Pattern.Int64 Pattern.UInt64 Pattern.Float
   var = traced "var" $ (\v -> (Pattern.Var, [v])) <$> prefixVar
   unbound = (Pattern.Unbound, []) <$ token (char '_')
+  ctorName = token $ do
+    s <- wordyId keywords
+    guard . isUpper . head $ s
+    pure s
+
+  effectBind0 = traced "effectBind0" $ do
+    name <- ctorName
+    env <- ask
+    (ref,cid) <- case Map.lookup name env of
+      Just (ref, cid) -> pure (ref, cid)
+      Nothing -> fail $ "unknown data constructor " ++ name
+    leaves <- many leaf
+    token_ (string "->")
+    pure (ref, cid, leaves)
+
+  effectBind = do
+    (ref, cid, leaves) <- attempt effectBind0
+    (cont, vsp) <- pattern
+    pure $ case unzip leaves of
+      (patterns, vs) ->
+         (Pattern.EffectBind ref cid patterns cont, join vs ++ vsp)
+  effectPure = go <$> pattern where
+    go (p, vs) = (Pattern.EffectPure p, vs)
+
+  effect = do
+    token_ (string "{")
+    (effectBind <|> effectPure) <* token_ (string "}")
+
   constructor = traced "constructor" $ do
-    name <- token $ do
-      s <- wordyId keywords
-      guard . isUpper . head $ s
-      pure s
+    name <- ctorName
     env <- ask
     case Map.lookup name env of
       Just (ref, cid) -> go <$> many leaf
@@ -166,11 +192,11 @@ or = Term.or <$> (token (string "or") *> termLeaf) <*> termLeaf
 
 tupleOrParenthesized :: Var v => TermP v -> TermP v
 tupleOrParenthesized rec =
-  parenthesized $ go <$> sepBy1 (token $ string ",") rec where
+  parenthesized $ go <$> sepBy (token $ string ",") rec where
     go [t] = t -- was just a parenthesized term
     go terms = foldr pair unit terms -- it's a tuple literal
     pair t1 t2 = Term.builtin "pair" `Term.app` t1 `Term.app` t2
-    unit = Term.builtin "()"
+    unit = Term.constructor (R.Builtin "Unit") 0
 
 text' :: Parser s Text.Text
 text' =
@@ -217,7 +243,7 @@ blank :: Ord v => TermP v
 blank = token (char '_') $> Term.blank
 
 vector :: Ord v => TermP v -> TermP v
-vector p = Term.app (Term.builtin "Vector.force") . Term.vector <$> (lbracket *> elements <* rbracket)
+vector p = Term.vector <$> (lbracket *> elements <* rbracket)
   where
     lbracket = token (char '[')
     elements = sepBy comma (L.withoutLayout "vector element" p)

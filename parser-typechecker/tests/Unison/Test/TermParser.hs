@@ -18,6 +18,7 @@ test = scope "termparser" . tests . map parses $
   , "-1"
   , "-1.0"
   , "4th"
+  , "()"
   , "forty"
   , "forty two"
   , "\"forty two\""
@@ -25,6 +26,8 @@ test = scope "termparser" . tests . map parses $
   , "( one ; two )"
   , "( one ; two ; three )"
   , "( one ; two ; 42 )"
+  , "[1,2,3]"
+  , "\"abc\""
   , "x + 1"
   , "( x + 1 )"
   , "foo 42"
@@ -62,6 +65,9 @@ test = scope "termparser" . tests . map parses $
     "  Pair x y -> x + y\n" ++
     "  Pair (Pair x y) _ -> x + y \n"
   , "case x of\n" ++
+    "  {Pair x y} -> 1\n" ++
+    "  {State.set 42 -> k} -> k 42\n"
+  , "case x of\n" ++
     "  0 ->\n" ++
     "    z = 0\n" ++
     "    z"
@@ -86,11 +92,14 @@ test = scope "termparser" . tests . map parses $
 
 faketest = scope "termparser" . tests . map parses $
   ["x"
-  , "case x of\n" ++ " 0 | 1 == 2 -> 123"
+  , "case x of\n" ++
+    "  {Pair x y} -> 1\n" ++
+    "  {State.set 42 -> k} -> k 42\n"
   ]
 
 builtins = Map.fromList
-  [("Pair", (R.Builtin "Pair", 0))]
+  [("Pair", (R.Builtin "Pair", 0)),
+   ("State.set", (R.Builtin "State", 0))]
 
 parses s = scope s $ do
   let p = unsafeParseTerm s builtins :: Term Symbol
