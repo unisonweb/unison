@@ -16,7 +16,7 @@ import           Data.Int (Int64)
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import           Data.Word (Word64)
-import           Prelude hiding (takeWhile)
+import           Prelude hiding (and, or, takeWhile)
 import qualified Text.Parsec.Layout as L
 import           Text.Parsec.Prim (ParsecT)
 import qualified Unison.ABT as ABT
@@ -73,7 +73,7 @@ term2 = lam term2 <|> term3
 
 term3 :: Var v => TermP v
 term3 = do
-  t <- letBlock <|> handle <|> ifthen <|> match <|> infixApp
+  t <- letBlock <|> handle <|> ifthen <|> and <|> or <|> match <|> infixApp
   ot <- optional (token (char ':') *> TypeParser.type_)
   pure $ case ot of
     Nothing -> t
@@ -82,7 +82,8 @@ term3 = do
 -- We disallow type annotations and lambdas,
 -- just function application and operators
 blockTerm :: Var v => TermP v
-blockTerm = letBlock <|> handle <|> ifthen <|> match <|> lam term <|> infixApp
+blockTerm = letBlock <|> handle <|> ifthen <|> and <|> or <|> match <|>
+            lam term <|> infixApp
   -- TODO: pattern matching in here once we have a parser for it
 
 match :: Var v => TermP v
@@ -156,6 +157,12 @@ ifthen = do
   token_ $ string "else"
   iffalse <- block
   pure $ Term.iff cond iftrue iffalse
+
+and :: Var v => TermP v
+and = Term.and <$> (token (string "and") *> termLeaf) <*> termLeaf
+
+or :: Var v => TermP v
+or = Term.or <$> (token (string "or") *> termLeaf) <*> termLeaf
 
 tupleOrParenthesized :: Var v => TermP v -> TermP v
 tupleOrParenthesized rec =

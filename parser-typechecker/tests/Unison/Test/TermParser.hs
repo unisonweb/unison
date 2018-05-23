@@ -79,6 +79,9 @@ test = scope "termparser" . tests . map parses $
     "else\n" ++
     "  s = 0\n" ++
     "  s + 2\n"
+
+  , "and x y"
+  , "or x y"
   ]
 
 faketest = scope "termparser" . tests . map parses $
