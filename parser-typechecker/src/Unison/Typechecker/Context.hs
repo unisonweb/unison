@@ -451,9 +451,10 @@ check e t = getContext >>= \ctx -> scope ("check: " ++ show e ++ ":   " ++ show 
       go (Term.Match' scrutinee branches) t = do
         scrutineeType <- synthesize scrutinee
         dataDecls <- getDataDeclarations
-        forM_ branches $ \(lhs, rhs) -> do
+        forM_ branches $ \(Term.MatchCase lhs guard rhs) -> do
           checkPattern lhs dataDecls scrutineeType
           check rhs t
+          -- NOTE: Typecheck the guard
           -- XXX retract
 
   -- | Match a [(Pattern, a)]

@@ -53,3 +53,4 @@ instance Hashable Text where
 
 instance Hashable ByteString where
   tokens bs = [Bytes bs]
+

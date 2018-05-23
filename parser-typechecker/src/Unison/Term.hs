@@ -10,33 +10,37 @@
 
 module Unison.Term where
 
-import Data.Int (Int64)
-import Data.Word (Word64)
-import Data.List (foldl')
-import Data.Map (Map)
-import Data.Set (Set, union)
-import Data.Text (Text)
-import Data.Vector (Vector)
-import GHC.Generics
-import Prelude.Extras (Eq1(..), Show1(..))
-import Text.Show
-import Unison.Hash (Hash)
-import Unison.Hashable (Hashable1, accumulateToken)
-import Unison.Pattern (Pattern)
-import Unison.Reference (Reference(..))
-import Unison.Type (Type)
-import Unison.Var (Var)
-import Unsafe.Coerce
 import qualified Control.Monad.Writer.Strict as Writer
+import           Data.Foldable (toList)
+import           Data.Int (Int64)
+import           Data.List (foldl')
+import           Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Monoid as Monoid
+import           Data.Set (Set, union)
 import qualified Data.Set as Set
+import           Data.Text (Text)
+import           Data.Vector (Vector)
 import qualified Data.Vector as Vector
+import           Data.Word (Word64)
+import           GHC.Generics
+import           Prelude.Extras (Eq1(..), Show1(..))
+import           Text.Show
 import qualified Unison.ABT as ABT
+import           Unison.Hash (Hash)
 import qualified Unison.Hash as Hash
+import           Unison.Hashable (Hashable1, accumulateToken)
 import qualified Unison.Hashable as Hashable
+import           Unison.Pattern (Pattern)
+import           Unison.Reference (Reference(..))
 import qualified Unison.Reference as Reference
+import           Unison.Type (Type)
 import qualified Unison.Type as Type
+import           Unison.Var (Var)
+import           Unsafe.Coerce
+
+data MatchCase a = MatchCase Pattern (Maybe a) a
+  deriving (Show,Eq,Foldable,Functor,Generic,Generic1,Traversable)
 
 -- | Base functor for terms in the Unison language
 -- We need `typeVar` because the term and type variables may differ.
@@ -76,7 +80,7 @@ data F typeVar a
   --   Match x
   --     [ (Constructor 0 [Var], ABT.abs n rhs1)
   --     , (Constructor 1 [], rhs2) ]
-  | Match a [(Pattern, a)]
+  | Match a [MatchCase a]
   deriving (Eq,Foldable,Functor,Generic,Generic1,Traversable)
 
 -- | Like `Term v`, but with an annotation of type `a` at every level in the tree
@@ -195,7 +199,7 @@ blank = ABT.tm Blank
 app :: Ord v => Term v -> Term v -> Term v
 app f arg = ABT.tm (App f arg)
 
-match :: Ord v => Term v -> [(Pattern, Term v)] -> Term v
+match :: Ord v => Term v -> [MatchCase (Term v)] -> Term v
 match scrutinee branches = ABT.tm (Match scrutinee branches)
 
 handle :: Ord v => Term v -> Term v -> Term v
@@ -355,8 +359,12 @@ instance Var v => Hashable1 (F v) where
         -- here, order is significant, so don't use hashCycle
         Let b a -> [tag 8, hashed (hash b), hashed (hash a)]
         Constructor r n -> [tag 12, accumulateToken r, varint n]
-        Match e branches -> tag 13 : hashed (hash e) : concatMap h branches where
-          h (pat, branch) = [accumulateToken pat, hashed (hash branch)]
+        Match e branches -> tag 13 : hashed (hash e) : concatMap h branches
+          where
+            h (MatchCase pat guard branch) =
+              concat [[accumulateToken pat],
+                      toList (hashed . hash <$> guard),
+                      [hashed (hash branch)]]
 
 -- mostly boring serialization code below ...
 

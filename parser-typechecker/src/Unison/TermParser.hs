@@ -92,12 +92,15 @@ match = do
   cases <- L.vblock (sepBy L.vsemi matchCase)
   pure $ Term.match scrutinee cases
 
-matchCase :: Var v => Parser (S v) (Pattern, Term v)
+matchCase :: Var v => Parser (S v) (Term.MatchCase (Term v))
 matchCase = do
   (p, boundVars) <- pattern
+  guard <- optional $ do
+    token (string "|")
+    block
   token (string "->")
   t <- block
-  pure (p, ABT.absChain boundVars t)
+  pure . Term.MatchCase p guard $ ABT.absChain boundVars t
 
 pattern :: Var v => Parser (S v) (Pattern, [v])
 pattern = traced "pattern" $ constructor <|> leaf
