@@ -94,6 +94,7 @@ executable tests
   hs-source-dirs: tests
   other-modules:
     Unison.Test.Common
+    Unison.Test.TermParser
     Unison.Test.Typechecker
     Unison.Test.Typechecker.Components
 

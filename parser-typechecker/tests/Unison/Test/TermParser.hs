@@ -1,11 +1,15 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Unison.Test.TermParser where
 
-import EasyTest
-import Unison.Test.Common
-import Unison.Term (Term)
-import Unison.Symbol (Symbol)
-import Unison.Parser (penv0)
-import Unison.Parsers (unsafeParseTerm)
+import qualified Data.Map as Map
+import           EasyTest
+import           Unison.Parser (penv0)
+import           Unison.Parsers (unsafeParseTerm)
+import qualified Unison.Reference as R
+import           Unison.Symbol (Symbol)
+import           Unison.Term (Term)
+import           Unison.Test.Common
 
 test = scope "termparser" . tests . map parses $
   [ "1"
@@ -24,6 +28,8 @@ test = scope "termparser" . tests . map parses $
   , "x + 1"
   , "( x + 1 )"
   , "foo 42"
+
+  -- Block tests
   , "let x = 1\n" ++
     "    x"
   , "let\n" ++
@@ -35,6 +41,8 @@ test = scope "termparser" . tests . map parses $
   , "(let \n" ++
     "  x = 23 + 42\n" ++
     "  x + 1 \n)"
+
+  -- Handlers
   ,"handle foo in \n" ++
     "  x = 23 + 42\n" ++
     "  x + foo 8 102.0 +4"
@@ -42,9 +50,24 @@ test = scope "termparser" . tests . map parses $
     "  x = 1\n" ++
     "  x"
   , "handle foo in x"
+
+  -- Patterns
+  , "case x of 0 -> 1"
+  , "case x of\n" ++
+    "  0 -> 1"
+  , "case x of\n" ++
+    "  x -> 1\n" ++
+    "  2 -> 7\n" ++
+    "  _ -> 3\n" ++
+    "  Pair x y -> x + y\n" ++
+    "  Pair (Pair x y) _ -> x + y \n"
   ]
 
+builtins = Map.fromList
+  [("Pair", (R.Builtin "Pair", 0))]
+
 parses s = scope s $ do
-  let p = unsafeParseTerm s penv0 :: Term Symbol
+  let p = unsafeParseTerm s builtins :: Term Symbol
   noteScoped $ "parsing: " ++ s ++ "\n  " ++ show p
   ok
+

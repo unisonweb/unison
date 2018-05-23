@@ -70,6 +70,14 @@ term = term2
 term2 :: Var v => TermP v
 term2 = lam term2 <|> term3
 
+term3 :: Var v => TermP v
+term3 = do
+  t <- letBlock <|> handle <|> ifthen <|> match <|> infixApp
+  ot <- optional (token (char ':') *> TypeParser.type_)
+  pure $ case ot of
+    Nothing -> t
+    Just y -> Term.ann t y
+
 -- We disallow type annotations and lambdas,
 -- just function application and operators
 blockTerm :: Var v => TermP v
@@ -92,16 +100,16 @@ matchCase = do
   pure (p, ABT.absChain boundVars t)
 
 pattern :: Var v => Parser (S v) (Pattern, [v])
-pattern = leaf <|> constructor
+pattern = traced "pattern" $ constructor <|> leaf
   where
   leaf = literal <|> var <|> unbound <|> parenthesized pattern
   literal = (,[]) <$> asum [true, false, number]
   true = Pattern.Boolean True <$ token (string "true")
   false = Pattern.Boolean False <$ token (string "false")
   number = number' Pattern.Int64 Pattern.UInt64 Pattern.Float
-  var = (\v -> (Pattern.Var, [v])) <$> prefixVar
+  var = traced "var" $ (\v -> (Pattern.Var, [v])) <$> prefixVar
   unbound = (Pattern.Unbound, []) <$ token (char '_')
-  constructor = do
+  constructor = traced "constructor" $ do
     name <- token $ do
       s <- wordyId keywords
       guard . isUpper . head $ s
@@ -120,14 +128,6 @@ pattern = leaf <|> constructor
 
 letBlock :: Var v => TermP v
 letBlock = token (string "let") *> block
-
-term3 :: Var v => TermP v
-term3 = do
-  t <- letBlock <|> handle <|> ifthen <|> infixApp
-  ot <- optional (token (char ':') *> TypeParser.type_)
-  pure $ case ot of
-    Nothing -> t
-    Just y -> Term.ann t y
 
 infixApp :: Var v => TermP v
 infixApp = chainl1 term4 (f <$> infixVar)
