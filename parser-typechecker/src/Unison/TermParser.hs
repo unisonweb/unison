@@ -81,7 +81,7 @@ term3 = do
 -- We disallow type annotations and lambdas,
 -- just function application and operators
 blockTerm :: Var v => TermP v
-blockTerm = letBlock <|> handle <|> ifthen <|> lam term <|> infixApp
+blockTerm = letBlock <|> handle <|> ifthen <|> match <|> lam term <|> infixApp
   -- TODO: pattern matching in here once we have a parser for it
 
 match :: Var v => TermP v
@@ -96,7 +96,7 @@ matchCase :: Var v => Parser (S v) (Pattern, Term v)
 matchCase = do
   (p, boundVars) <- pattern
   token (string "->")
-  t <- term
+  t <- block
   pure (p, ABT.absChain boundVars t)
 
 pattern :: Var v => Parser (S v) (Pattern, [v])

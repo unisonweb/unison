@@ -61,6 +61,11 @@ test = scope "termparser" . tests . map parses $
     "  _ -> 3\n" ++
     "  Pair x y -> x + y\n" ++
     "  Pair (Pair x y) _ -> x + y \n"
+
+  , "case x of\n" ++
+    "  0 ->\n" ++
+    "    z = 0\n" ++
+    "    z"
   ]
 
 builtins = Map.fromList
