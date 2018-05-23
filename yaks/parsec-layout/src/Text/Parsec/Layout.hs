@@ -14,6 +14,7 @@
 module Text.Parsec.Layout
     ( block
     , vblock
+    , vblock'
     , semi
     , vsemi
     , space
@@ -249,13 +250,19 @@ rbrace = do
     popContext "a right brace"
     return "}"
 
-vblock :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m a -> ParsecT s u m a
-vblock p = do
+vblock' :: (HasLayoutEnv u, Stream s m Char)
+        => ParsecT s u m ()
+        -> ParsecT s u m a
+        -> ParsecT s u m a
+vblock' virtual_rbrace p = do
   prevEnvBol <- envBol <$> getEnv
   modifyEnv (\env -> env { envBol = True })
   a <- between (spaced virtual_lbrace) (spaced virtual_rbrace) p
   modifyEnv (\env -> env { envBol = prevEnvBol })
   pure a
+
+vblock :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m a -> ParsecT s u m a
+vblock = vblock' virtual_rbrace
 
 block :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m a -> ParsecT s u m a
 block p = braced p <|> vbraced p where

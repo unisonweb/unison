@@ -96,7 +96,7 @@ match = do
 matchCase :: Var v => Parser (S v) (Term.MatchCase (Term v))
 matchCase = do
   (p, boundVars) <- pattern
-  guard <- optional $ token (string "|") *> block
+  guard <- traced "guard" $ optional $ token (string "|") *> infixApp
   token_ $ string "->"
   t <- block
   pure . Term.MatchCase p guard $ ABT.absChain boundVars t
@@ -149,13 +149,13 @@ termLeaf = traced "leaf" $
 
 ifthen :: Var v => TermP v
 ifthen = do
-  _ <- token (string "if")
-  cond <- L.withoutLayout "then" term
-  _ <- token (string "then")
-  iftrue <- L.withoutLayout "else" term
-  _ <- token (string "else")
-  iffalse <- L.vblock term
-  pure (Term.iff cond iftrue iffalse)
+  token_ $ string "if"
+  cond <- block' $ L.virtual_rbrace <|> (lookAhead . token_ $ string "then")
+  token_ $ string "then"
+  iftrue <- block' $ L.virtual_rbrace <|> (lookAhead . token_ $ string "else")
+  token_ $ string "else"
+  iffalse <- block
+  pure $ Term.iff cond iftrue iffalse
 
 tupleOrParenthesized :: Var v => TermP v -> TermP v
 tupleOrParenthesized rec =
@@ -269,21 +269,25 @@ keywords =
   , "namespace"
   ]
 
-block :: Var v => TermP v
-block = traced "block" $ go =<< L.vblock (sepBy L.vsemi statement)
+block' :: Var v => Parser (S v) () -> TermP v
+block' vendbrace =
+  traced "block" $ go =<< L.vblock' vendbrace (sepBy L.vsemi statement)
   where
-  statement = traced "statement" $ (Right <$> binding) <|> (Left <$> blockTerm)
-  toBinding (Right (v, e)) = (v,e)
-  toBinding (Left e) = (Var.named "_", e)
-  go bs = case reverse bs of
-    (Right _e : _) -> fail "block must end with an expression"
-    -- TODO: Inform the user that we're going to rewrite the block,
-    -- possibly changing the meaning of the program (which is ambiguous anyway),
-    -- or fail with a helpful error message if there's a forward reference with
-    -- effects.
-    (Left e : bs) -> pure $ Term.letRec (toBinding <$> reverse bs) e
-    [] -> fail "empty block"
+    statement =
+      traced "statement" $ (Right <$> binding) <|> (Left <$> blockTerm)
+    toBinding (Right (v, e)) = (v,e)
+    toBinding (Left e) = (Var.named "_", e)
+    go bs = case reverse bs of
+      (Right _e : _) -> fail "block must end with an expression"
+      -- TODO: Inform the user that we're going to rewrite the block,
+      -- possibly changing the meaning of the program (which is ambiguous anyway),
+      -- or fail with a helpful error message if there's a forward reference with
+      -- effects.
+      (Left e : bs) -> pure $ Term.letRec (toBinding <$> reverse bs) e
+      [] -> fail "empty block"
 
+block :: Var v => TermP v
+block = block' L.virtual_rbrace
 
 handle :: Var v => TermP v
 handle = do
@@ -294,7 +298,7 @@ handle = do
   pure $ Term.handle handler b
 
 lam :: Var v => TermP v -> TermP v
-lam p = attempt (Term.lam'' <$> vars <* arrow) <*> body
+lam p = traced "lambda" $ attempt (Term.lam'' <$> vars <* arrow) <*> body
   where
     vars = some prefixVar
     arrow = token (string "->")

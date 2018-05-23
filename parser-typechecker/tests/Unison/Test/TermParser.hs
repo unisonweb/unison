@@ -61,14 +61,29 @@ test = scope "termparser" . tests . map parses $
     "  _ -> 3\n" ++
     "  Pair x y -> x + y\n" ++
     "  Pair (Pair x y) _ -> x + y \n"
-
   , "case x of\n" ++
     "  0 ->\n" ++
     "    z = 0\n" ++
     "    z"
-
   , "case x of\n" ++
     " 0 | 1 == 2 -> 123"
+
+  -- Conditionals
+  , "if x then y else z"
+  , "if\n" ++
+    "  s = 0\n" ++
+    "  s > 0\n" ++
+    "then\n" ++
+    "  s = 0\n" ++
+    "  s + 1\n" ++
+    "else\n" ++
+    "  s = 0\n" ++
+    "  s + 2\n"
+  ]
+
+faketest = scope "termparser" . tests . map parses $
+  ["x"
+  , "case x of\n" ++ " 0 | 1 == 2 -> 123"
   ]
 
 builtins = Map.fromList
