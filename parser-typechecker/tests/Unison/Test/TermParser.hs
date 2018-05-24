@@ -38,9 +38,10 @@ test = scope "termparser" . tests . map parses $
   , "let\n" ++
     " y = 1\n" ++
     " x"
-  , "let y = 1  \n" ++
-    "    x = 2  \n" ++
-    "    x + y"
+  , unlines [
+    "let y = 1  ",
+    "    x = 2  ",
+    "    x + y"]
   , "(let \n" ++
     "  x = 23 + 42\n" ++
     "  x + 1 \n)"

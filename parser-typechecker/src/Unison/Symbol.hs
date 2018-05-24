@@ -8,7 +8,7 @@ import Unison.Var (Var(..))
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 
-data Symbol = Symbol !Word Text deriving Generic
+data Symbol = Symbol !Word Text deriving (Generic, Show)
 
 freshId :: Symbol -> Word
 freshId (Symbol id _) = id
