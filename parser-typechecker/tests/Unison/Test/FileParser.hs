@@ -16,30 +16,30 @@ module Unison.Test.FileParser where
   import Unison.Symbol (Symbol)
 
   test = scope "fileparser" . tests . map parses $
-    [{-"type Pair a b = Pair a b"
+    ["type Pair a b = Pair a b"
     ,"type Optional a = Just a | Nothing"
-    ,-}unlines
+    ,unlines
       ["type Optional2 a"
       ,"  = Just a"
       ,"  | Nothing\n"]
-    -- -- ,unlines
-    -- --   ["type Optional a b c where"
-    -- --   ,"  Just : a -> Optional a"
-    -- --   ,"  Nothing : Optional Int64"]
-    -- -- , unlines
-    -- --   ["type Optional"
-    -- --   ,"   a"
-    -- --   ,"   b"
-    -- --   ,"   c where"
-    -- --   ,"  Just : a -> Optional a"
-    -- --   ,"  Nothing : Optional Int64"]
+     -- ,unlines
+     --   ["type Optional a b c where"
+     --   ,"  Just : a -> Optional a"
+     --   ,"  Nothing : Optional Int64"]
+     -- , unlines
+     --   ["type Optional"
+     --   ,"   a"
+     --   ,"   b"
+     --   ,"   c where"
+     --   ,"  Just : a -> Optional a"
+     --   ,"  Nothing : Optional Int64"]
+    , unlines -- NB: this currently fails because we don't have type AST or parser for effect types yet
+      ["effect State s where"
+      ,"  get : {State s} s"
+      ,"  set : s -> {State s} ()"]
     -- , unlines
-    --   ["effect State s where"
-    --   ,"  get : {State s} s"
-    --   ,"  set : s -> {State s} ()"]
-    -- , unlines
-    --   ["ping x = pong (x + 1)"
-    --   ,"pong x = ping (x - 1)"]
+    --  ["ping x = pong (x + 1)"
+    --  ,"pong x = ping (x - 1)"]
     ]
 
   builtins = Map.fromList

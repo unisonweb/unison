@@ -70,4 +70,4 @@ effectDeclaration = do
     constructors <- sepBy L.vsemi constructor
     pure $ (name, EffectDeclaration typeArgs constructors)
   where
-    constructor = (,) <$> TermParser.prefixVar <*> TypeParser.type_
+    constructor = (,) <$> (TermParser.prefixVar <* token_ (string ":")) <*> TypeParser.type_
