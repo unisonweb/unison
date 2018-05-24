@@ -85,7 +85,16 @@ test = scope "termparser" . tests . map parses $
     "else\n" ++
     "  s = 0\n" ++
     "  s + 2\n"
-
+  , "if\n" ++
+    "  s = 0\n" ++
+    "  s > 0\n" ++
+    "then\n" ++
+    "  s : Int64\n" ++
+    "  s = (0: Int64)\n" ++
+    "  s + 1\n" ++
+    "else\n" ++
+    "  s = 0\n" ++
+    "  s + 2\n"
   , "and x y"
   , "or x y"
   ]
@@ -105,4 +114,3 @@ parses s = scope s $ do
   let p = unsafeParseTerm s builtins :: Term Symbol
   noteScoped $ "parsing: " ++ s ++ "\n  " ++ show p
   ok
-
