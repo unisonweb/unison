@@ -20,9 +20,11 @@ import qualified Data.Map  as Map
 import qualified Data.Text as Text
 import qualified Prelude
 import qualified Text.Parsec as Parsec
+import           Text.Parsec.Prim (ParsecT)
 import qualified Text.Parsec.Layout as L
 
--- import Debug.Trace
+import Debug.Trace
+import Text.Parsec (anyChar)
 
 type PEnv = Map String (Reference, Int)
 penv0 :: PEnv
@@ -34,6 +36,23 @@ data Env s = Env s L.LayoutEnv
 instance L.HasLayoutEnv (Env s) where
   getLayoutEnv (Env _ l) = l
   setLayoutEnv l (Env s _) = Env s l
+
+pTrace :: [Char] -> Text.Parsec.Prim.ParsecT Text.Text (Env s) ((->) PEnv) ()
+pTrace s = pt <|> return ()
+    where pt = attempt $
+               do
+                 x <- attempt $ many anyChar
+                 void $ trace (s++": " ++x) $ attempt $ char 'z'
+                 fail x
+
+traced :: [Char]
+       -> Text.Parsec.Prim.ParsecT Text.Text (Env s) ((->) PEnv) b
+       -> Text.Parsec.Prim.ParsecT Text.Text (Env s) ((->) PEnv) b
+traced s p = do
+  pTrace s
+  a <- p <|> trace (s ++ " backtracked") (fail s)
+  let !_ = trace (s ++ " succeeded") ()
+  pure a
 
 root :: Parser s a -> Parser s a
 root p = optional (L.space) *> (p <* (optional semicolon <* eof))

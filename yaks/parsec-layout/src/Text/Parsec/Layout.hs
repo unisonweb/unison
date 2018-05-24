@@ -13,8 +13,9 @@
 
 module Text.Parsec.Layout
     ( block
-    , vblock
     , vblock'
+    , vblockIncrement
+    , vblockNextToken
     , semi
     , vsemi
     , space
@@ -24,6 +25,8 @@ module Text.Parsec.Layout
     , HasLayoutEnv(..)
     , maybeFollowedBy
     , virtual_rbrace
+    , virtual_lbrace_increment
+    , virtual_lbrace_nextToken
     , withoutLayout
     ) where
 
@@ -196,28 +199,37 @@ inLayout = do
     (NoLayout:_) -> False
     (Layout _:_) -> True
 
-pushIncrementedContext :: (HasLayoutEnv u, Stream s m c) => ParsecT s u m ()
-pushIncrementedContext = do
+pushIncrementedContext :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m ()
+pushIncrementedContext = traced "pushIncrementedContext" $ do
   env <- getEnv
   case envLayout env of
     [] -> pushContext (Layout 1)
     (Layout n : _) -> pushContext (Layout (n + 1))
     (NoLayout : _) -> pure ()
 
-virtual_lbrace :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m ()
-virtual_lbrace = pushNextTokenContext
+vblockIncrement :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m a -> ParsecT s u m a
+vblockIncrement = vblock' pushIncrementedContext virtual_rbrace
+
+vblockNextToken :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m a -> ParsecT s u m a
+vblockNextToken = vblock' pushNextTokenContext virtual_rbrace
+
+virtual_lbrace_increment :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m ()
+virtual_lbrace_increment = pushIncrementedContext
+
+virtual_lbrace_nextToken :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m ()
+virtual_lbrace_nextToken = pushNextTokenContext
 
 virtual_rbrace :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m ()
-virtual_rbrace = try (void $ lookAhead semi) <|> do
+virtual_rbrace = traced "virtual_rbrace" $ try (void $ lookAhead semi) <|> do
   allow <- inLayout
-  when allow $ eof <|> try (layoutSatisfies (VBrace ==) <?> "outdent")
+  when allow $ (traced "eof" $ eof) <|> try (layoutSatisfies (VBrace ==) <?> "outdent")
 
 -- | Consumes one or more spaces, comments, and onside newlines in a layout rule.
 space :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m String
-space = traced "space" $ (do
+space = do
     try $ layoutSatisfies (Other ' ' ==)
     return " "
-  <?> "space")
+  <?> "space"
 
 vsemi :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m String
 vsemi = do
@@ -251,18 +263,16 @@ rbrace = do
     return "}"
 
 vblock' :: (HasLayoutEnv u, Stream s m Char)
-        => ParsecT s u m ()
+        => ParsecT s u m l
+        -> ParsecT s u m r
         -> ParsecT s u m a
         -> ParsecT s u m a
-vblock' virtual_rbrace p = do
+vblock' virtual_lbrace virtual_rbrace p = do
   prevEnvBol <- envBol <$> getEnv
   modifyEnv (\env -> env { envBol = True })
   a <- between (spaced virtual_lbrace) (spaced virtual_rbrace) p
   modifyEnv (\env -> env { envBol = prevEnvBol })
   pure a
-
-vblock :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m a -> ParsecT s u m a
-vblock = vblock' virtual_rbrace
 
 block :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m a -> ParsecT s u m a
 block p = braced p <|> vbraced p where

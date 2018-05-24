@@ -32,26 +32,6 @@ import qualified Unison.TypeParser as TypeParser
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 
-import Debug.Trace
-import Text.Parsec (anyChar)
-
-pTrace :: [Char] -> Text.Parsec.Prim.ParsecT Text.Text (Env s) ((->) PEnv) ()
-pTrace s = pt <|> return ()
-    where pt = attempt $
-               do
-                 x <- attempt $ many anyChar
-                 void $ trace (s++": " ++x) $ attempt $ char 'z'
-                 fail x
-
-traced :: [Char]
-       -> Text.Parsec.Prim.ParsecT Text.Text (Env s) ((->) PEnv) b
-       -> Text.Parsec.Prim.ParsecT Text.Text (Env s) ((->) PEnv) b
-traced s p = do
-  pTrace s
-  a <- p <|> trace (s ++ " backtracked") (fail s)
-  let !_ = trace (s ++ " succeeded") ()
-  pure a
-
 {-
 Precedence of language constructs is identical to Haskell, except that all
 operators (like +, <*>, or any sequence of non-alphanumeric characters) are
@@ -92,7 +72,7 @@ match = do
   token_ $ string "case"
   scrutinee <- term
   token_ $ string "of"
-  cases <- L.vblock (sepBy L.vsemi matchCase)
+  cases <- L.vblockNextToken (sepBy L.vsemi matchCase)
   pure $ Term.match scrutinee cases
 
 matchCase :: Var v => Parser (S v) (Term.MatchCase (Term v))
@@ -273,7 +253,8 @@ binding = traced "binding" . label "binding" $ do
   mkBinding f args body = (f, Term.lam'' args body)
 
 typedecl :: Var v => Parser (S v) (v, Type v)
-typedecl = (,) <$> attempt (prefixVar <* token (char ':')) <*> L.vblock TypeParser.type_
+typedecl = (,) <$> attempt (prefixVar <* token (char ':'))
+               <*> L.vblockIncrement TypeParser.type_
 
 infixVar :: Var v => Parser s v
 infixVar = (Var.named . Text.pack) <$> (backticked <|> symbolyId keywords)
@@ -281,7 +262,7 @@ infixVar = (Var.named . Text.pack) <$> (backticked <|> symbolyId keywords)
     backticked = attempt (char '`') *> wordyId keywords <* token (char '`')
 
 prefixVar :: Var v => Parser s v
-prefixVar = (Var.named . Text.pack) <$> label "symbol" (token prefixOp)
+prefixVar = traced "prefixVar" $ (Var.named . Text.pack) <$> label "symbol" (token prefixOp)
   where
     prefixOp = wordyId keywords
            <|> (char '(' *> symbolyId keywords <* token (char ')')) -- no whitespace w/in parens
@@ -300,11 +281,13 @@ keywords =
   , "handle", "in"
   , "if", "then", "else"
   , "namespace"
+  , "type", "effect", "where"
   ]
 
 block' :: Var v => Parser (S v) () -> TermP v
 block' vendbrace =
-  traced "block" $ go =<< L.vblock' vendbrace (sepBy L.vsemi statement)
+  traced "block" $
+    go =<< L.vblock' L.virtual_lbrace_nextToken vendbrace (sepBy L.vsemi statement)
   where
     statement =
       traced "statement" $ (Right <$> binding) <|> (Left <$> blockTerm)
@@ -342,7 +325,7 @@ alias = do
   _ <- token (string "alias")
   (fn:params) <- some (Var.named . Text.pack <$> wordyId keywords)
   _ <- token (char '=')
-  body <- L.vblock TypeParser.type_
+  body <- L.vblockIncrement TypeParser.type_
   TypeParser.Aliases s <- get
   let s' = (fn, apply)
       apply args | length args <= length params = ABT.substs (params `zip` args) body

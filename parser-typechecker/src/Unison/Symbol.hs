@@ -8,7 +8,7 @@ import Unison.Var (Var(..))
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 
-data Symbol = Symbol !Word Text deriving (Generic, Show)
+data Symbol = Symbol !Word Text deriving (Generic)
 
 freshId :: Symbol -> Word
 freshId (Symbol id _) = id
@@ -28,6 +28,9 @@ instance Eq Symbol where
   Symbol id1 name1 == Symbol id2 name2 = id1 == id2 && name1 == name2
 instance Ord Symbol where
   Symbol id1 name1 `compare` Symbol id2 name2 = (id1,name1) `compare` (id2,name2)
+instance Show Symbol where
+  show (Symbol 0 n) = Text.unpack n
+  show (Symbol id n) = Text.unpack n ++ show id
 
 symbol :: Text -> Symbol
 symbol n = Symbol 0 n

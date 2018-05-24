@@ -2,5 +2,7 @@ module Unison.EffectDeclaration where
 
 import Unison.Type (Type)
 
-newtype EffectDeclaration v = EffectDeclaration [(v, Type v)]
-  deriving (Show)
+data EffectDeclaration v = EffectDeclaration {
+  bound :: [v],
+  constructors :: [(v, Type v)]
+} deriving (Show)
