@@ -49,7 +49,7 @@ pTrace s = pt <|> return ()
     where pt = try $
                do
                  x <- try $ many anyChar
-                 trace (s++": " ++x) $ try $ char 'z'
+                 trace (s++": " ++ show x) $ try $ char 'z'
                  fail x
 
 traced :: (Stream s m Char, HasLayoutEnv u) =>
@@ -57,9 +57,11 @@ traced :: (Stream s m Char, HasLayoutEnv u) =>
 traced s p = do
   pTrace s
   ctx <- getEnv
-  let !_ = trace ("ctx: " ++ show ctx) ()
-  a <- p --  <|> trace (s ++ " backtracked") (fail s)
-  -- let !x = trace (s ++ " succeeded") ()
+  let !_ = trace ("ctx (before): " ++ show ctx) ()
+  a <- p <|> trace (s ++ " backtracked") (fail s)
+  ctx <- getEnv
+  let !_ = trace ("ctx (after): " ++ show ctx) ()
+  let !_ = trace (s ++ " succeeded") ()
   pure a
 
 data LayoutContext = NoLayout | Layout Int deriving (Eq,Ord,Show)
@@ -222,7 +224,11 @@ virtual_lbrace_nextToken = pushNextTokenContext
 virtual_rbrace :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m ()
 virtual_rbrace = traced "virtual_rbrace" $ try (void $ lookAhead semi) <|> do
   allow <- inLayout
-  when allow $ (traced "eof" $ eof) <|> try (layoutSatisfies (VBrace ==) <?> "outdent")
+  when allow $
+    (traced "eof" $ smartEof) <|> (traced "outdent" $ try (layoutSatisfies (VBrace ==) <?> "outdent"))
+
+smartEof :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m ()
+smartEof = try $ many (satisfy isSpace) *> eof
 
 -- | Consumes one or more spaces, comments, and onside newlines in a layout rule.
 space :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m String

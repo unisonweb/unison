@@ -21,7 +21,7 @@ module Unison.Test.FileParser where
     ,-}unlines
       ["type Optional2 a"
       ,"  = Just a"
-      ,"  | Nothing"]
+      ,"  | Nothing\n"]
     -- -- ,unlines
     -- --   ["type Optional a b c where"
     -- --   ,"  Just : a -> Optional a"

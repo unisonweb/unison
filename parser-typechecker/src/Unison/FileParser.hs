@@ -52,22 +52,13 @@ dataDeclaration = traced "data declaration" $ do
   token_ $ string "type"
   (name, typeArgs) <- --L.withoutLayout "type introduction" $
     (,) <$> TermParser.prefixVar <*> traced "many prefixVar" (many TermParser.prefixVar)
-  token_ $ string "="
+  traced "=" . token_ $ string "="
   traced "vblock" $ L.vblockIncrement $ do
     constructors <- traced "constructors" $ sepBy (token_ $ string "|") dataConstructor
     pure $ (name, DataDeclaration typeArgs constructors)
   where
     dataConstructor = traced "data contructor" $ (,) <$> TermParser.prefixVar
                           <*> (traced "many typeLeaf" $ many TypeParser.typeLeaf)
-
-    -- ["effect State s where"
-    -- ,"  get : {State s} s"
-    -- ,"  set : s -> {State s} ()"]
-
-    -- data EffectDeclaration v = EffectDeclaration {
-    --   bound :: [v],
-    --   constructors :: [(v, Type v)]
-    -- } deriving (Show)
 
 effectDeclaration :: Var v => Parser (S v) (v, EffectDeclaration v)
 effectDeclaration = do
