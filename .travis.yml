@@ -21,7 +21,7 @@ before_install:
 - stack setup
 
 script:
-  - stack build && stack exec test
+  - stack build && stack exec tests
   - pushd runtime-jvm
   - sbt main/test:run
   - popd
