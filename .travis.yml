@@ -18,6 +18,7 @@ before_cache:
 - find $HOME/.sbt        -name "*.lock"               -print -delete
 
 before_install:
+- sudo add-apt-repository
 # Download and unpack the stack executable
 - mkdir -p ~/.local/bin
 - export PATH=$HOME/.local/bin:$PATH
@@ -37,8 +38,9 @@ addons:
   apt:
     sources:
       - hvr-ghc
+      - sourceline: 'ppa:hvr/ghc' # PPA of Haskell packages
     packages:
-      - ghc-8.0.1
+      - ghc-8.4.3
       - libc6
       - libc6-dev
 install:
