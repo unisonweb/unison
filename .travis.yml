@@ -11,7 +11,6 @@ cache:
   - $HOME/.stack
   - $HOME/.ivy2/cache
   - $HOME/.sbt
-  - /var/cache/apt/archives/ # deb files
 
 before_cache:
 # Cleanup the cached directories to avoid unnecessary cache updates
@@ -25,14 +24,13 @@ before_install:
 - travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
 # Configure stack to use the system GHC installation
 - stack config set system-ghc --global true
-- export PATH=/opt/ghc/8.0.1/bin:$PATH
-- stack setup
+- export PATH=/opt/ghc/8.4.3/bin:$PATH
 
 install:
-  - stack ghc -- --version
-  - travis_wait stack --no-terminal setup
-  - travis_wait stack --no-terminal test --only-snapshot
-  - travis_wait stack --no-terminal build
+  # - stack ghc -- --version
+  - travis_wait stack --no-terminal --no-install-ghc setup
+  - travis_wait stack --no-terminal --no-install-ghc test --only-snapshot
+  - travis_wait stack --no-terminal --no-install-ghc build
 
 script:
   - stack --no-terminal exec tests
@@ -45,14 +43,12 @@ after_script: # diagnostic stuff, temporary
   - find $HOME/.stack
   - find $HOME/.ivy2/cache
   - find $HOME/.sbt
-  - find /var/cache/apt/archives
   - ls -ld /opt/ghc/*
 
 addons:
   apt:
     sources:
       - hvr-ghc
-      - sourceline: 'ppa:hvr/ghc' # PPA of Haskell packages
     packages:
       - ghc-8.4.3
       - libc6
