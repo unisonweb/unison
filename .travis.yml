@@ -51,5 +51,4 @@ addons:
       - hvr-ghc
     packages:
       - ghc-8.4.3
-      - libc6
-      - libc6-dev
+
