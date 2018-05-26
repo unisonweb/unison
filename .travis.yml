@@ -35,4 +35,4 @@ addons:
       - libgmp-dev
 
 install:
-  - stack --no-terminal install-ghc test --only-dependencies
+  - stack --no-terminal --install-ghc test --only-dependencies
