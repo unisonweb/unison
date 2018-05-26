@@ -11,6 +11,7 @@ cache:
   - $HOME/.stack
   - $HOME/.ivy2/cache
   - $HOME/.sbt
+  - /var/cache/apt/archives/ # deb files
 
 before_cache:
 # Cleanup the cached directories to avoid unnecessary cache updates
@@ -18,7 +19,6 @@ before_cache:
 - find $HOME/.sbt        -name "*.lock"               -print -delete
 
 before_install:
-- sudo add-apt-repository
 # Download and unpack the stack executable
 - mkdir -p ~/.local/bin
 - export PATH=$HOME/.local/bin:$PATH
@@ -29,7 +29,7 @@ before_install:
 - stack setup
 
 script:
-  - stack --no-terminal --skip-ghc-check build && stack --no-terminal --skip-ghc-check exec tests
+  - stack --no-terminal build && stack --no-terminal exec tests
   - pushd runtime-jvm
   - sbt main/test:run
   - popd
@@ -44,5 +44,5 @@ addons:
       - libc6
       - libc6-dev
 install:
-  - travis_wait stack --no-terminal --skip-ghc-check setup
-  - travis_wait stack --no-terminal --skip-ghc-check test --only-snapshot
+  - travis_wait stack --no-terminal setup
+  - travis_wait stack --no-terminal test --only-snapshot
