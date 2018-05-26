@@ -28,11 +28,25 @@ before_install:
 - export PATH=/opt/ghc/8.0.1/bin:$PATH
 - stack setup
 
+install:
+  - stack ghc -- --version
+  - travis_wait stack --no-terminal setup
+  - travis_wait stack --no-terminal test --only-snapshot
+  - travis_wait stack --no-terminal build
+
 script:
-  - stack --no-terminal build && stack --no-terminal exec tests
+  - stack --no-terminal exec tests
   - pushd runtime-jvm
   - sbt main/test:run
   - popd
+
+
+after_script: # diagnostic stuff, temporary
+  - find $HOME/.stack
+  - find $HOME/.ivy2/cache
+  - find $HOME/.sbt
+  - find /var/cache/apt/archives
+  - ls -ld /opt/ghc/*
 
 addons:
   apt:
@@ -43,6 +57,3 @@ addons:
       - ghc-8.4.3
       - libc6
       - libc6-dev
-install:
-  - travis_wait stack --no-terminal setup
-  - travis_wait stack --no-terminal test --only-snapshot
