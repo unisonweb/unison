@@ -28,7 +28,7 @@ before_install:
 - stack setup
 
 script:
-  - stack --no-terminal --skip-ghc-check build && stack --no-terminal --skip-ghc-check exec tests
+  - stack --no-terminal build && stack --no-terminal exec tests
   - pushd runtime-jvm
   - sbt main/test:run
   - popd
