@@ -11,6 +11,7 @@ cache:
   - $HOME/.stack
   - $HOME/.ivy2/cache
   - $HOME/.sbt
+  - $HOME/.coursier
 
 before_cache:
 # Cleanup the cached directories to avoid unnecessary cache updates
