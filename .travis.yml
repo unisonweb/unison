@@ -14,13 +14,13 @@ cache:
 
 before_cache:
 # Cleanup the cached directories to avoid unnecessary cache updates
-- find $HOME/.ivy2/cache -name "ivydata-*.properties" -print -delete
-- find $HOME/.sbt        -name "*.lock"               -print -delete
+- find $HOME/.ivy2/cache -name "ivydata-*.properties" -delete
+- find $HOME/.sbt        -name "*.lock"               -delete
 # diagnostic stuff, temporary
-- find $HOME/.stack
-- find $HOME/.ivy2/cache
-- find $HOME/.sbt
-- ls -ld /opt/ghc/*
+# - find $HOME/.stack
+# - find $HOME/.ivy2/cache
+# - find $HOME/.sbt
+# - ls -ld /opt/ghc/*
 
 before_install:
 # Download and unpack the stack executable
