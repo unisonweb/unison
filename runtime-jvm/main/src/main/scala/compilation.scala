@@ -978,11 +978,13 @@ package object compilation {
         val ccond = compile(builtins)(cond, env, currentRec, recVars, IsNotTail)
         val ct = compile(builtins)(t, env, currentRec, recVars, isTail)
         val cf = compile(builtins)(f, env, currentRec, recVars, isTail)
-        (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
-          if (unboxedToBool(eval(ccond, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)))
+        (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+          val b = eval(ccond, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          if (unboxedToBool(b))
             ct(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
           else
             cf(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+        }
       case Term.And(p, q) =>
         val cp = compile(builtins)(p, env, currentRec, recVars, IsNotTail)
         val cq = compile(builtins)(q, env, currentRec, recVars, isTail)
