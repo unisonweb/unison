@@ -14,25 +14,37 @@ cache:
 
 before_cache:
 # Cleanup the cached directories to avoid unnecessary cache updates
-- find $HOME/.ivy2/cache -name "ivydata-*.properties" -print -delete
-- find $HOME/.sbt        -name "*.lock"               -print -delete
+- find $HOME/.ivy2/cache -name "ivydata-*.properties" -delete
+- find $HOME/.sbt        -name "*.lock"               -delete
+# diagnostic stuff, temporary
+- find $HOME/.stack
+# - find $HOME/.ivy2/cache
+# - find $HOME/.sbt
+# - ls -ld /opt/ghc/*
 
 before_install:
 # Download and unpack the stack executable
 - mkdir -p ~/.local/bin
 - export PATH=$HOME/.local/bin:$PATH
 - travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
+# Configure stack to use the system GHC installation
+
+install:
+  # - stack ghc -- --version
+  - travis_wait stack --no-terminal setup
+  - travis_wait stack --no-terminal test --only-snapshot
+  - travis_wait stack --no-terminal build
 
 script:
-  - stack --no-terminal build && stack --no-terminal exec tests
+  - stack --no-terminal exec tests
   - pushd runtime-jvm
   - sbt main/test:run
   - popd
 
 addons:
   apt:
+    sources:
+    # - hvr-ghc
     packages:
-      - libgmp-dev
+    # - ghc-8.0.1
 
-install:
-  - stack --no-terminal --install-ghc test --only-dependencies
