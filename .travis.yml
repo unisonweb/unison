@@ -9,32 +9,27 @@ language: generic
 cache:
   directories:
   - $HOME/.stack
+  - $HOME/.ivy2/cache
+  - $HOME/.sbt
+  - $HOME/.coursier
+
+before_cache:
+# Cleanup the cached directories to avoid unnecessary cache updates
+- find $HOME/.ivy2/cache -name "ivydata-*.properties" -delete
+- find $HOME/.sbt        -name "*.lock"               -delete
 
 before_install:
 # Download and unpack the stack executable
 - mkdir -p ~/.local/bin
 - export PATH=$HOME/.local/bin:$PATH
 - travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
-# Configure stack to use the system GHC installation
-- stack config set system-ghc --global true
-- export PATH=/opt/ghc/8.0.1/bin:$PATH
-- stack setup
+
+install:
+- stack ghc -- --version
+- travis_wait stack --no-terminal setup
+- travis_wait stack --no-terminal test --only-snapshot
+- travis_wait stack --no-terminal build
 
 script:
-  - stack --no-terminal --skip-ghc-check build unison-shared
-  - stack --no-terminal --skip-ghc-check exec shared-tests
-  - stack --no-terminal --skip-ghc-check test unison-node
-  - stack --no-terminal --skip-ghc-check exec node-tests
-
-addons:
-  apt:
-    sources:
-      - hvr-ghc
-    packages:
-      - ghc-8.0.1
-      - libc6
-      - libc6-dev
-install:
-  - travis_wait stack --no-terminal --skip-ghc-check setup
-  - travis_wait stack --no-terminal --skip-ghc-check test --only-snapshot
-  
+- stack --no-terminal exec tests
+- (cd runtime-jvm; sbt benchmark/compile main/test:run)
