@@ -87,33 +87,34 @@ pattern :: Var v => Parser (S v) (Pattern, [v])
 pattern = traced "pattern" $ constructor <|> leaf
   where
   leaf = literal <|> var <|> unbound <|> parenthesized pattern <|> effect
-  literal = (,[]) <$> asum [true, false, number]
+  literal = traced "pattern.literal" $ (,[]) <$> asum [true, false, number]
   true = Pattern.Boolean True <$ token (string "true")
   false = Pattern.Boolean False <$ token (string "false")
-  number = number' Pattern.Int64 Pattern.UInt64 Pattern.Float
+  number = traced "pattern.number" $ number' Pattern.Int64 Pattern.UInt64 Pattern.Float
   var = traced "var" $ (\v -> (Pattern.Var, [v])) <$> prefixVar
-  unbound = (Pattern.Unbound, []) <$ token (char '_')
-  ctorName = token $ do
+  unbound = traced "unbound" $ (Pattern.Unbound, []) <$ token (char '_')
+  ctorName = traced "ctorName" . token $ do
     s <- wordyId keywords
     guard . isUpper . head $ s
     pure s
 
   effectBind0 = traced "effectBind0" $ do
     name <- ctorName
+    leaves <- many leaf
+    token_ (string "->")
+    pure (name, leaves)
+
+  effectBind = do
+    (name, leaves) <- attempt effectBind0
+    (cont, vsp) <- pattern
     env <- ask
     (ref,cid) <- case Map.lookup name env of
       Just (ref, cid) -> pure (ref, cid)
       Nothing -> fail $ "unknown data constructor " ++ name
-    leaves <- many leaf
-    token_ (string "->")
-    pure (ref, cid, leaves)
-
-  effectBind = do
-    (ref, cid, leaves) <- attempt effectBind0
-    (cont, vsp) <- pattern
     pure $ case unzip leaves of
       (patterns, vs) ->
          (Pattern.EffectBind ref cid patterns cont, join vs ++ vsp)
+
   effectPure = go <$> pattern where
     go (p, vs) = (Pattern.EffectPure p, vs)
 
@@ -125,11 +126,11 @@ pattern = traced "pattern" $ constructor <|> leaf
     name <- ctorName
     env <- ask
     case Map.lookup name env of
-      Just (ref, cid) -> go <$> many leaf
+      Just (ref, cid) -> go <$> traced "pattern.manyleaf" (many leaf)
         where
           go pairs = case unzip pairs of
             (patterns, vs) -> (Pattern.Constructor ref cid patterns, join vs)
-      Nothing -> fail $ "unknown data constructor " ++ name
+      Nothing -> traced ("failing " ++ name) . fail $ "unknown data constructor " ++ name
 
 
   -- where literal = boolean
@@ -232,7 +233,7 @@ vector p = Term.vector <$> (lbracket *> elements <* rbracket)
 
 binding :: Var v => Parser (S v) (v, Term v)
 binding = traced "binding" . label "binding" $ do
-  typ <- optional typedecl <* optional semicolon
+  typ <- optional typedecl
   let lhs = attempt ((\arg1 op arg2 -> (op,[arg1,arg2]))
                     <$> prefixVar <*> infixVar <*> prefixVar)
                 <|> ((,) <$> prefixVar <*> many prefixVar)

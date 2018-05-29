@@ -3,6 +3,7 @@
 module Unison.Test.FileParser where
 
   import EasyTest
+  import Control.Applicative
   import Unison.FileParser
   import Unison.Parser
   import Unison.DataDeclaration
@@ -15,7 +16,7 @@ module Unison.Test.FileParser where
   import qualified Unison.Reference as R
   import Unison.Symbol (Symbol)
 
-  test = scope "fileparser" . tests . map parses $
+  test1 = scope "fileparser" . tests . map parses $
     [
       "type Pair a b = Pair a b\n()"
     , "type Optional a = Just a | Nothing\n()"
@@ -44,6 +45,14 @@ module Unison.Test.FileParser where
       ,"pong x = ping (x - 1)"
       ,"ping"]
     ]
+
+  test2 = scope "fileparser.test1" $ do
+    file <- io $ unsafeReadAndParseFile' "unison-src/test1.u"
+    io $ putStrLn (show (file :: UnisonFile Symbol))
+    ok
+
+  test = test2
+    -- test1 <|> test2
 
   builtins = Map.fromList
     [("Pair", (R.Builtin "Pair", 0)),
