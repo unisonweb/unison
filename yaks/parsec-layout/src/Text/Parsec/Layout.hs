@@ -12,8 +12,7 @@
 -- * Uses \"\{\" and \"\}\" for explicit blocks.  This is hard-coded for the time being.
 
 module Text.Parsec.Layout
-    ( block
-    , vblock'
+    ( vblock'
     , vblockIncrement
     , vblockNextToken
     , semi
@@ -173,13 +172,15 @@ layout = try $ do
     offside x = do
         p <- getPosition
         pos <- compare (sourceColumn p) <$> getIndentation
+        isEof <- (True <$ smartEof) <|> pure False
+        let returnVBrace = do
+              popContext "the offside rule"
+              modifyEnv $ \env -> env { envBol = True }
+              return VBrace
         case pos of
-            LT -> do
-                popContext "the offside rule"
-                modifyEnv $ \env -> env { envBol = True }
-                return VBrace
-            EQ -> return VSemi
-            GT -> onside x
+          LT -> returnVBrace
+          EQ -> if isEof then returnVBrace else return VSemi
+          GT -> onside x
 
     -- we remained onside.
     -- If we skipped any comments, or moved to a new line and stayed onside, we return a single a ' ',
@@ -279,13 +280,3 @@ vblock' virtual_lbrace virtual_rbrace p = do
   a <- between (spaced virtual_lbrace) (spaced virtual_rbrace) p
   modifyEnv (\env -> env { envBol = prevEnvBol })
   pure a
-
-block :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m a -> ParsecT s u m a
-block p = braced p <|> vbraced p where
-  braced s = between (try (spaced lbrace)) (spaced rbrace) s
-  vbraced s = between (spaced virtual_lbrace) (spaced virtual_rbrace) s
-  -- NB: virtual_lbrace here doesn't use current column for offside calc, instead
-  -- uses 1 column greater than whatever column is at top of layout stack
-  virtual_lbrace = do
-    allow <- inLayout
-    when allow pushIncrementedContext
