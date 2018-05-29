@@ -31,6 +31,7 @@ import qualified Unison.Type as Type
 import qualified Unison.TypeParser as TypeParser
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
+import Debug.Trace
 
 {-
 Precedence of language constructs is identical to Haskell, except that all
@@ -84,7 +85,7 @@ matchCase = do
   pure . Term.MatchCase p guard $ ABT.absChain boundVars t
 
 pattern :: Var v => Parser (S v) (Pattern, [v])
-pattern = traced "pattern" $ constructor <|> leaf
+pattern = traced "pattern" $ constructor <|> trace "running leaf" leaf
   where
   leaf = literal <|> var <|> unbound <|> parenthesized pattern <|> effect
   literal = traced "pattern.literal" $ (,[]) <$> asum [true, false, number]
@@ -130,7 +131,9 @@ pattern = traced "pattern" $ constructor <|> leaf
         where
           go pairs = case unzip pairs of
             (patterns, vs) -> (Pattern.Constructor ref cid patterns, join vs)
-      Nothing -> traced ("failing " ++ name) . fail $ "unknown data constructor " ++ name
+      Nothing ->
+        trace ("unknown data constructor " ++ name) $
+          (traced ("failing " ++ name) . fail $ "unknown data constructor " ++ name)
 
 
   -- where literal = boolean
