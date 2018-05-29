@@ -17,9 +17,9 @@ module Unison.Test.FileParser where
 
   test = scope "fileparser" . tests . map parses $
     [
-    -- "type Pair a b = Pair a b\n()"
-    -- , "type Optional a = Just a | Nothing\n()"
-    unlines
+      "type Pair a b = Pair a b\n()"
+    , "type Optional a = Just a | Nothing\n()"
+    , unlines
       ["type Optional2 a"
       ,"  = Just a"
       ,"  | Nothing\n()"]
@@ -34,15 +34,15 @@ module Unison.Test.FileParser where
     ------ --   ,"   c where"
     ------ --   ,"  Just : a -> Optional a"
     ------ --   ,"  Nothing : Optional Int64"]
-    --, unlines -- NB: this currently fails because we don't have type AST or parser for effect types yet
-    --  ["effect State s where"
-    --  ,"  get : {State s} s"
-    --  ,"  set : s -> {State s} ()"
-    --  ,"()"]
-    --, unlines
-    --  ["ping x = pong (x + 1)"
-    --  ,"pong x = ping (x - 1)"
-    --  ,"ping"]
+    , unlines -- NB: this currently fails because we don't have type AST or parser for effect types yet
+      ["effect State s where"
+      ,"  get : {State s} s"
+      ,"  set : s -> {State s} ()"
+      ,"()"]
+    , unlines
+      ["ping x = pong (x + 1)"
+      ,"pong x = ping (x - 1)"
+      ,"ping"]
     ]
 
   builtins = Map.fromList

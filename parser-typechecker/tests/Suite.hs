@@ -8,8 +8,8 @@ import qualified Unison.Test.FileParser as FileParser
 
 test :: Test ()
 test = scope "unison" $ tests [
-  -- TermParser.test
-  -- ,
+  TermParser.test
+  ,
   FileParser.test
  ]
 
