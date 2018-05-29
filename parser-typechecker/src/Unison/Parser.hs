@@ -45,10 +45,13 @@ pTrace s = pt <|> return ()
                  void $ trace (s++": " ++show x) $ attempt $ char 'z'
                  fail x
 
+tracingEnabled :: Bool
+tracingEnabled = False
+
 traced :: [Char]
        -> Text.Parsec.Prim.ParsecT Text.Text (Env s) ((->) PEnv) b
        -> Text.Parsec.Prim.ParsecT Text.Text (Env s) ((->) PEnv) b
-traced s p = do
+traced s p = if not tracingEnabled then p else do
   pTrace s
   a <- p <|> trace (s ++ " backtracked") (fail s)
   let !_ = trace (s ++ " succeeded") ()

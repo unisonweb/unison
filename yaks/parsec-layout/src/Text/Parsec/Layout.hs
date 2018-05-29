@@ -51,9 +51,12 @@ pTrace s = pt <|> return ()
                  trace (s++": " ++ show x) $ try $ char 'z'
                  fail x
 
+tracingEnabled :: Bool
+tracingEnabled = False
+
 traced :: (Stream s m Char, HasLayoutEnv u) =>
           [Char] -> ParsecT s u m b -> ParsecT s u m b
-traced s p = do
+traced s p = if not tracingEnabled then p else do
   pTrace s
   ctx <- getEnv
   let !_ = trace ("ctx (before): " ++ show ctx) ()
