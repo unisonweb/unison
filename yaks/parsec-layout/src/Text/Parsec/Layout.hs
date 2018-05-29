@@ -205,7 +205,7 @@ pushIncrementedContext :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m ()
 pushIncrementedContext = traced "pushIncrementedContext" $ do
   env <- getEnv
   case envLayout env of
-    [] -> pushContext (Layout 1)
+    [] -> pushContext (Layout 2)
     (Layout n : _) -> pushContext (Layout (n + 1))
     (NoLayout : _) -> pure ()
 
@@ -238,10 +238,10 @@ space = do
   <?> "space"
 
 vsemi :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m String
-vsemi = do
+vsemi = traced "vsemi" $ (do
     try $ layoutSatisfies p
     return ";"
-  <?> "semicolon"
+  <?> "semicolon")
   where
     p VSemi = True
     p _ = False

@@ -258,7 +258,7 @@ wellformedType c t = wellformed c && case t of
   Type.Arrow' i o -> wellformedType c i && wellformedType c o
   Type.Ann' t' _ -> wellformedType c t'
   Type.App' x y -> wellformedType c x && wellformedType c y
-  Type.Constrain' t' _ -> wellformedType c t'
+  Type.Effect' _ _ -> error "todo: wellformedType Effect"
   Type.Forall' t ->
     let (v,ctx2) = extendUniversal c
     in wellformedType ctx2 (ABT.bind t (Type.universal v))
@@ -284,7 +284,7 @@ apply ctx t = case t of
   Type.Arrow' i o -> Type.arrow (apply ctx i) (apply ctx o)
   Type.App' x y -> Type.app (apply ctx x) (apply ctx y)
   Type.Ann' v k -> Type.ann (apply ctx v) k
-  Type.Constrain' v c -> Type.constrain (apply ctx v) c
+  Type.Effect' es t -> Type.effect (map (apply ctx) es) (apply ctx t)
   Type.ForallNamed' v t' -> Type.forall v (apply ctx t')
   _ -> error $ "Context.apply ill formed type - " ++ show t
 

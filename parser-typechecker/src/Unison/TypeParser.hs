@@ -34,32 +34,51 @@ newtype S v = Aliases [(v, [Type v] -> Type v)]
 s0 :: S v
 s0 = Aliases []
 
-type_ :: Var v => Parser (S v) (Type v)
-type_ = forall type1 <|> type1
+type TypeP v = Parser (S v) (Type v)
 
-typeLeaf :: Var v => Parser (S v) (Type v)
-typeLeaf =
-  asum [ literal
-       , tupleOrParenthesized type_
-       , fmap (Type.v' . Text.pack) (token varName)
-       ]
+-- Value types cannot have effects, unless those effects appear to
+-- the right of a function arrow:
+--   valueType ::= Int | Text | App valueType valueType | Arrow valueType computationType
+valueType :: Var v => TypeP v
+valueType = forall type1 <|> type1
 
-tupleOrParenthesized :: Ord v => Parser (S v) (Type v) -> Parser (S v) (Type v)
+-- Computation
+-- computationType ::= [{effect*}] valueType
+computationType :: Var v => TypeP v
+computationType = effect <|> valueType
+
+valueTypeLeaf :: Var v => TypeP v
+valueTypeLeaf =
+  tupleOrParenthesized valueType <|> typeVar
+
+typeVar :: Var v => TypeP v
+typeVar = fmap (Type.v' . Text.pack) (token $ wordyId keywords)
+
+type1 :: Var v => TypeP v
+type1 = arrow type2
+
+type2 :: Var v => TypeP v
+type2 = app valueTypeLeaf
+
+-- ex : {State Text, IO} (Sequence Int64)
+effect :: Var v => TypeP v
+effect = do
+  token_ $ string "{"
+  es <- sepBy (token (string ",")) valueType
+  token_ $ string "}"
+  t <- valueTypeLeaf
+  pure (Type.effect es t)
+
+tupleOrParenthesized :: Ord v => TypeP v -> TypeP v
 tupleOrParenthesized rec =
-  parenthesized $ go <$> sepBy1 (token $ string ",") rec where
+  parenthesized $ go <$> sepBy (token $ string ",") rec where
     go [t] = t
     go types = foldr pair unit types
     pair t1 t2 = Type.builtin "Pair" `Type.app` t1 `Type.app` t2
     unit = Type.builtin "Unit"
 
-type1 :: Var v => Parser (S v) (Type v)
-type1 = arrow type2
-
-type2 :: Var v => Parser (S v) (Type v)
-type2 = app typeLeaf
-
 -- "TypeA TypeB TypeC"
-app :: Ord v => Parser (S v) (Type v) -> Parser (S v) (Type v)
+app :: Ord v => TypeP v -> TypeP v
 app rec = get >>= \(Aliases aliases) -> do
   (hd:tl) <- some rec
   pure $ case hd of
@@ -68,11 +87,16 @@ app rec = get >>= \(Aliases aliases) -> do
       Just apply -> apply tl
     _ -> foldl' Type.app hd tl
 
-arrow :: Ord v => Parser (S v) (Type v) -> Parser (S v) (Type v)
-arrow rec = foldr1 Type.arrow <$> sepBy1 (token (string "->")) rec
+--  valueType ::= ... | Arrow valueType computationType
+arrow :: Var v => TypeP v -> TypeP v
+arrow rec = do
+  t <- foldr1 Type.arrow <$> sepBy1 (token (string "->")) (effect <|> rec)
+  case t of
+    Type.Arrow' (Type.Effect' _ _) _ -> fail "effect to the left of an ->"
+    _ -> pure t
 
 -- "forall a b . List a -> List b -> Maybe Text"
-forall :: Var v => Parser (S v) (Type v) -> Parser (S v) (Type v)
+forall :: Var v => TypeP v -> TypeP v
 forall rec = do
     (void . token $ string "forall") <|> void (token (char '∀'))
     vars <- some $ token varName
@@ -102,5 +126,5 @@ keywords = ["forall", "∀"]
 --     f first more = maybe first (first++) more
 --     more = (:) <$> char '.' <*> qualifiedTypeName
 
-literal :: Var v => Parser (S v) (Type v)
+literal :: Var v => TypeP v
 literal = label "literal" . token $ (Type.v' . Text.pack) <$> typeName

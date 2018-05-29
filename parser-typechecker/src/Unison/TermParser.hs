@@ -55,7 +55,7 @@ term2 = lam term2 <|> term3
 term3 :: Var v => TermP v
 term3 = do
   t <- letBlock <|> handle <|> ifthen <|> and <|> or <|> match <|> infixApp
-  ot <- optional (token (char ':') *> TypeParser.type_)
+  ot <- optional (token (char ':') *> TypeParser.valueType)
   pure $ case ot of
     Nothing -> t
     Just y -> Term.ann t y
@@ -254,7 +254,7 @@ binding = traced "binding" . label "binding" $ do
 
 typedecl :: Var v => Parser (S v) (v, Type v)
 typedecl = (,) <$> attempt (prefixVar <* token (char ':'))
-               <*> L.vblockIncrement TypeParser.type_
+               <*> L.vblockIncrement TypeParser.valueType
 
 infixVar :: Var v => Parser s v
 infixVar = (Var.named . Text.pack) <$> (backticked <|> symbolyId keywords)
@@ -303,7 +303,7 @@ block' vendbrace =
       [] -> fail "empty block"
 
 block :: Var v => TermP v
-block = block' L.virtual_rbrace
+block = block' (traced "L.virtual_rbrace" L.virtual_rbrace)
 
 handle :: Var v => TermP v
 handle = do
@@ -325,7 +325,7 @@ alias = do
   _ <- token (string "alias")
   (fn:params) <- some (Var.named . Text.pack <$> wordyId keywords)
   _ <- token (char '=')
-  body <- L.vblockIncrement TypeParser.type_
+  body <- L.vblockIncrement TypeParser.valueType
   TypeParser.Aliases s <- get
   let s' = (fn, apply)
       apply args | length args <= length params = ABT.substs (params `zip` args) body

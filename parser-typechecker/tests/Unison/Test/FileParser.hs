@@ -16,30 +16,33 @@ module Unison.Test.FileParser where
   import Unison.Symbol (Symbol)
 
   test = scope "fileparser" . tests . map parses $
-    ["type Pair a b = Pair a b"
-    ,"type Optional a = Just a | Nothing"
-    ,unlines
+    [
+    -- "type Pair a b = Pair a b\n()"
+    -- , "type Optional a = Just a | Nothing\n()"
+    unlines
       ["type Optional2 a"
       ,"  = Just a"
-      ,"  | Nothing\n"]
-     -- ,unlines
-     --   ["type Optional a b c where"
-     --   ,"  Just : a -> Optional a"
-     --   ,"  Nothing : Optional Int64"]
-     -- , unlines
-     --   ["type Optional"
-     --   ,"   a"
-     --   ,"   b"
-     --   ,"   c where"
-     --   ,"  Just : a -> Optional a"
-     --   ,"  Nothing : Optional Int64"]
-    , unlines -- NB: this currently fails because we don't have type AST or parser for effect types yet
-      ["effect State s where"
-      ,"  get : {State s} s"
-      ,"  set : s -> {State s} ()"]
-    -- , unlines
+      ,"  | Nothing\n()"]
+    ------ -- ,unlines
+    ------ --   ["type Optional a b c where"
+    ------ --   ,"  Just : a -> Optional a"
+    ------ --   ,"  Nothing : Optional Int64"]
+    ------ -- , unlines
+    ------ --   ["type Optional"
+    ------ --   ,"   a"
+    ------ --   ,"   b"
+    ------ --   ,"   c where"
+    ------ --   ,"  Just : a -> Optional a"
+    ------ --   ,"  Nothing : Optional Int64"]
+    --, unlines -- NB: this currently fails because we don't have type AST or parser for effect types yet
+    --  ["effect State s where"
+    --  ,"  get : {State s} s"
+    --  ,"  set : s -> {State s} ()"
+    --  ,"()"]
+    --, unlines
     --  ["ping x = pong (x + 1)"
-    --  ,"pong x = ping (x - 1)"]
+    --  ,"pong x = ping (x - 1)"
+    --  ,"ping"]
     ]
 
   builtins = Map.fromList
@@ -52,7 +55,7 @@ module Unison.Test.FileParser where
   --   ok
 
   parses s = scope s $ do
-    let p = unsafeGetRight $ Unison.Parser.run (Parser.root declarations) s Parsers.s0 builtins
-        p' = p :: (Map Symbol (DataDeclaration Symbol), Map Symbol (EffectDeclaration Symbol))
+    let p = unsafeGetRight $ Unison.Parser.run (Parser.root file) s Parsers.s0 builtins
+        p' = p :: UnisonFile Symbol -- (Map Symbol (DataDeclaration Symbol), Map Symbol (EffectDeclaration Symbol))
     noteScoped $ "parsing: " ++ s ++ "\n  " ++ show p
     ok

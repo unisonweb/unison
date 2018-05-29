@@ -42,7 +42,7 @@ pTrace s = pt <|> return ()
     where pt = attempt $
                do
                  x <- attempt $ many anyChar
-                 void $ trace (s++": " ++x) $ attempt $ char 'z'
+                 void $ trace (s++": " ++show x) $ attempt $ char 'z'
                  fail x
 
 traced :: [Char]

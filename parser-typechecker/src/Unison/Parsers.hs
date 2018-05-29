@@ -43,7 +43,7 @@ bindBuiltins termBuiltins typeBuiltins =
 
 parseType' :: Var v => [(v, Type v)] -> String -> PEnv -> Either String (Type v)
 parseType' typeBuiltins s =
-  fmap (ABT.substs typeBuiltins) <$> run (Parser.root TypeParser.type_) s s0
+  fmap (ABT.substs typeBuiltins) <$> run (Parser.root TypeParser.valueType) s s0
 
 unsafeParseTerm :: Var v => String -> PEnv -> Term v
 unsafeParseTerm = fmap unsafeGetRight . parseTerm

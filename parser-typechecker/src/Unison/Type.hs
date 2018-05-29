@@ -32,7 +32,7 @@ data F a
   | Arrow a a
   | Ann a K.Kind
   | App a a
-  | Constrain a () -- todo: constraint language
+  | Effect [a] a
   | Forall a
   deriving (Eq,Foldable,Functor,Generic,Generic1,Traversable)
 
@@ -72,7 +72,7 @@ pattern Arrows' spine <- (unArrows -> Just spine)
 pattern Ann' t k <- ABT.Tm' (Ann t k)
 pattern App' f x <- ABT.Tm' (App f x)
 pattern Apps' f args <- (unApps -> Just (f, args))
-pattern Constrain' t u <- ABT.Tm' (Constrain t u)
+pattern Effect' es t <- ABT.Tm' (Effect es t)
 pattern Forall' subst <- ABT.Tm' (Forall (ABT.Abs' subst))
 pattern ForallNamed' v body <- ABT.Tm' (Forall (ABT.out -> ABT.Abs v body))
 pattern Var' v <- ABT.Var' v
@@ -103,7 +103,6 @@ matchUniversal _ _ = False
 -- | True if the given type is a function, possibly quantified
 isArrow :: Var v => Type v -> Bool
 isArrow (ForallNamed' _ t) = isArrow t
-isArrow (Constrain' t _) = isArrow t
 isArrow (Arrow' _ _) = True
 isArrow _ = False
 
@@ -160,8 +159,8 @@ v' s = ABT.var (ABT.v' s)
 forall' :: Var v => [Text] -> Type v -> Type v
 forall' vs body = foldr forall body (map ABT.v' vs)
 
-constrain :: Ord v => Type v -> () -> Type v
-constrain t u = ABT.tm (Constrain t u)
+effect :: Ord v => [Type v] -> Type v -> Type v
+effect es t = ABT.tm (Effect es t)
 
 -- | Bind all free variables with an outer `forall`.
 generalize :: Ord v => Type v -> Type v
@@ -178,7 +177,7 @@ instance Hashable1 F where
       Arrow a b -> [tag 1, hashed (hash a), hashed (hash b) ]
       App a b -> [tag 2, hashed (hash a), hashed (hash b) ]
       Ann a k -> [tag 3, hashed (hash a), Hashable.accumulateToken k ]
-      Constrain a u -> [tag 4, hashed (hash a), Hashable.accumulateToken u]
+      Effect es t -> error "Effect.Hashable1 todo"-- [tag 4, hashed (hash a), Hashable.accumulateToken u]
       Forall a -> [tag 5, hashed (hash a)]
 
 instance Show a => Show (F a) where
@@ -190,7 +189,8 @@ instance Show a => Show (F a) where
       showParen (p > 1) $ showsPrec 0 t <> s":" <> showsPrec 0 k
     go p (App f x) =
       showParen (p > 9) $ showsPrec 9 f <> s" " <> showsPrec 10 x
-    go p (Constrain t _) = showsPrec p t
+    go p (Effect es t) = showParen (p > 0) $
+      s"{" <> showsPrec 0 es <> s"} " <> showsPrec p t
     go p (Forall body) = case p of
       0 -> showsPrec p body
       _ -> showParen True $ s"∀ " <> showsPrec 0 body

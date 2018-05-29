@@ -33,8 +33,8 @@ parseFile :: String -> PEnv -> Either String (UnisonFile Symbol)
 parseFile = error ""
 
 file :: Var v => Parser (S v) (UnisonFile v)
-file = do
-  (dataDecls, effectDecls) <- declarations
+file = traced "file" $ do
+  (dataDecls, effectDecls) <- traced "declarations" declarations
   term <- TermParser.block
   pure $ UnisonFile dataDecls effectDecls term
 
@@ -58,10 +58,10 @@ dataDeclaration = traced "data declaration" $ do
     pure $ (name, DataDeclaration typeArgs constructors)
   where
     dataConstructor = traced "data contructor" $ (,) <$> TermParser.prefixVar
-                          <*> (traced "many typeLeaf" $ many TypeParser.typeLeaf)
+                          <*> (traced "many typeLeaf" $ many TypeParser.valueTypeLeaf)
 
 effectDeclaration :: Var v => Parser (S v) (v, EffectDeclaration v)
-effectDeclaration = do
+effectDeclaration = traced "effect declaration" $ do
   token_ $ string "effect"
   name <- TermParser.prefixVar
   typeArgs <- many TermParser.prefixVar
@@ -70,4 +70,4 @@ effectDeclaration = do
     constructors <- sepBy L.vsemi constructor
     pure $ (name, EffectDeclaration typeArgs constructors)
   where
-    constructor = (,) <$> (TermParser.prefixVar <* token_ (string ":")) <*> TypeParser.type_
+    constructor = (,) <$> (TermParser.prefixVar <* token_ (string ":")) <*> traced "computation type" TypeParser.computationType
