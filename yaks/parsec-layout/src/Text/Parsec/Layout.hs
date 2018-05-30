@@ -111,15 +111,24 @@ getIndentation = depth . envLayout <$> getEnv where
 
 -- Pushes a column onto the layout stack determined by the column where
 -- the next token begins. Ex:
+--
 --   let
 --     x = 42
+--
 -- The column of `x` is pushed after `let` is parsed.
+-- This may be less than the previous column at the top
+-- of the layout stack, which allows for things like:
+--
+--   foo x y z = case x of
+--     42 -> ...
+--
+-- Here, the `=` introduces a layout block at column 13 (the start of the `case`),
+-- and the `of` introduces a layout block at column 3 (the start of the `42`).
 pushNextTokenContext :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m ()
 pushNextTokenContext = traced "pushNextTokenContext" $ do
-  indent <- getIndentation
   _ <- Parsec.Char.spaces
   col <- sourceColumn <$> getPosition
-  pushContext . Layout $ max (indent+1) col
+  pushContext . Layout $ col
 
 maybeFollowedBy :: Stream s m c => ParsecT s u m a -> ParsecT s u m b -> ParsecT s u m a
 t `maybeFollowedBy` x = do t' <- t; optional x; return t'
