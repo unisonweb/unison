@@ -147,6 +147,9 @@ ann e t = ABT.tm (Ann e t)
 forall :: Ord v => v -> Type v -> Type v
 forall v body = ABT.tm (Forall (ABT.abs v body))
 
+var :: Ord v => v -> Type v
+var = ABT.var
+
 existential :: Ord v => v -> Type (TypeVar v)
 existential v = ABT.var (TypeVar.Existential v)
 
@@ -158,6 +161,12 @@ v' s = ABT.var (ABT.v' s)
 
 forall' :: Var v => [Text] -> Type v -> Type v
 forall' vs body = foldr forall body (map ABT.v' vs)
+
+foralls :: Var v => [v] -> Type v -> Type v
+foralls vs body = foldr forall body vs
+
+arrows :: Var v => [Type v] -> Type v -> Type v
+arrows ts result = foldr arrow result ts
 
 effect :: Ord v => [Type v] -> Type v -> Type v
 effect es t = ABT.tm (Effect es t)

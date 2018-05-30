@@ -320,6 +320,16 @@ unabs t = ([], t)
 reabs :: Ord v => [v] -> Term f v () -> Term f v ()
 reabs vs t = foldr abs t vs
 
+transform :: (Ord v, Foldable g, Functor f)
+          => (forall a. f a -> g a) -> Term f v a -> Term g v a
+transform f tm = case (out tm) of
+  Var v -> annotatedVar (annotation tm) v
+  Abs v body -> abs' (annotation tm) v (transform f body)
+  Tm subterms ->
+    let subterms' = fmap (transform f) subterms
+    in tm' (annotation tm) (f subterms')
+  Cycle body -> cycle' (annotation tm) (transform f body)
+
 instance (Foldable f, Functor f, Eq1 f, Eq a, Var v) => Eq (Term f v a) where
   -- alpha equivalence, works by renaming any aligned Abs ctors to use a common fresh variable
   t1 == t2 = annotation t1 == annotation t2 && go (out t1) (out t2) where

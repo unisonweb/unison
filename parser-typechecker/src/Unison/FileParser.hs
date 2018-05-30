@@ -20,6 +20,7 @@ import qualified Text.Parsec.Layout as L
 import qualified Unison.Parser
 import qualified Unison.Parsers as Parsers
 import qualified Unison.Term as Term
+import qualified Unison.Type as Type
 import qualified Unison.TermParser as TermParser
 import qualified Unison.TypeParser as TypeParser
 import Control.Monad.Reader
@@ -76,12 +77,17 @@ dataDeclaration = traced "data declaration" $ do
   (name, typeArgs) <- --L.withoutLayout "type introduction" $
     (,) <$> TermParser.prefixVar <*> traced "many prefixVar" (many TermParser.prefixVar)
   traced "=" . token_ $ string "="
+  -- dataConstructorTyp gives the type of the constructor, given the types of
+  -- the constructor arguments, e.g. Cons becomes forall a . a -> List a -> List a
+  let dataConstructorTyp ctorArgs =
+        Type.foralls typeArgs $ Type.arrows ctorArgs (Type.apps (Type.var name) (Type.var <$> typeArgs))
+      dataConstructor =
+        (,) <$> TermParser.prefixVar
+            <*> (dataConstructorTyp <$> many TypeParser.valueTypeLeaf)
   traced "vblock" $ L.vblockIncrement $ do
     constructors <- traced "constructors" $ sepBy (token_ $ string "|") dataConstructor
     pure $ (name, DataDeclaration typeArgs constructors)
-  where
-    dataConstructor = traced "data contructor" $ (,) <$> TermParser.prefixVar
-                          <*> (traced "many typeLeaf" $ many TypeParser.valueTypeLeaf)
+
 
 effectDeclaration :: Var v => Parser (S v) (v, EffectDeclaration v)
 effectDeclaration = traced "effect declaration" $ do
