@@ -6,7 +6,6 @@ module Unison.TypeParser where
 import Control.Monad
 import Control.Applicative
 import Data.Char (isUpper, isLower)
-import Data.Foldable (asum)
 import Data.List
 import Unison.Parser
 import Unison.Type (Type)

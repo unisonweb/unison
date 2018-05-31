@@ -16,3 +16,5 @@ instance Show Reference where
 instance Hashable.Hashable Reference where
   tokens (Builtin txt) = [Hashable.Tag 0, Hashable.Text txt]
   tokens (Derived h) = [Hashable.Tag 0, Hashable.Bytes (H.toBytes h)]
+
+instance Accumulate Reference where

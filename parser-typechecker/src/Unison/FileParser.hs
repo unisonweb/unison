@@ -8,7 +8,7 @@ import Control.Applicative
 import Data.Either (partitionEithers)
 import Data.Map (Map)
 import Unison.DataDeclaration (DataDeclaration(..))
-import Unison.EffectDeclaration (EffectDeclaration(..))
+import Unison.EffectDeclaration (EffectDeclaration(..), mkEffectDecl)
 import Unison.Parser (PEnv, penv0)
 import Unison.Parsers (unsafeGetRight)
 import Unison.Symbol (Symbol)
@@ -17,9 +17,7 @@ import Unison.TypeParser (S)
 import Unison.Var (Var)
 import qualified Data.Map as Map
 import qualified Text.Parsec.Layout as L
-import qualified Unison.Parser
 import qualified Unison.Parsers as Parsers
-import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 import qualified Unison.TermParser as TermParser
 import qualified Unison.TypeParser as TypeParser
@@ -60,7 +58,7 @@ file = traced "file" $ do
     pure $ UnisonFile dataDecls effectDecls term
 
 environmentFor :: Map v (DataDeclaration v) -> Map v (EffectDeclaration v) -> PEnv
-environmentFor ds es = Map.empty -- todo
+environmentFor _ _ = Map.empty -- todo
 
 declarations :: Var v => Parser (S v)
                          (Map v (DataDeclaration v),
@@ -97,6 +95,6 @@ effectDeclaration = traced "effect declaration" $ do
   token_ $ string "where"
   L.vblockNextToken $ do
     constructors <- sepBy L.vsemi constructor
-    pure $ (name, EffectDeclaration typeArgs constructors)
+    pure $ (name, mkEffectDecl typeArgs constructors)
   where
     constructor = (,) <$> (TermParser.prefixVar <* token_ (string ":")) <*> traced "computation type" TypeParser.computationType

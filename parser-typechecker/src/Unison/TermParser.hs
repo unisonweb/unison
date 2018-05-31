@@ -18,7 +18,6 @@ import qualified Data.Text as Text
 import           Data.Word (Word64)
 import           Prelude hiding (and, or, takeWhile)
 import qualified Text.Parsec.Layout as L
-import           Text.Parsec.Prim (ParsecT)
 import qualified Unison.ABT as ABT
 import           Unison.Parser
 import           Unison.Pattern (Pattern)

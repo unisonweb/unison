@@ -18,6 +18,10 @@ extra-deps:
 - GraphSCC-1.0.4
 - base58-bytestring-0.1.0
 
+ghc-options:
+ # All packages
+ "$locals": -Werror
+
 #extra-include-dirs:
 #- /usr/local/include
 #extra-lib-dirs:

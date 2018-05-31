@@ -1,8 +1,11 @@
 module Unison.EffectDeclaration where
 
-import Unison.Type (Type)
+import  Unison.Type (Type)
+import  Unison.DataDeclaration
 
-data EffectDeclaration v = EffectDeclaration {
-  bound :: [v],
-  constructors :: [(v, Type v)]
+newtype EffectDeclaration v = EffectDeclaration {
+  toDataDecl :: DataDeclaration v
 } deriving (Show)
+
+mkEffectDecl :: [v] -> [(v, Type v)] -> EffectDeclaration v
+mkEffectDecl = (EffectDeclaration .) . DataDeclaration

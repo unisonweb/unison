@@ -269,18 +269,6 @@ semi = do
     p (Other ';') = True
     p _ = False
 
-lbrace :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m String
-lbrace = do
-    char '{'
-    pushContext NoLayout
-    return "{"
-
-rbrace :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m String
-rbrace = do
-    char '}'
-    popContext "a right brace"
-    return "}"
-
 vblock' :: (HasLayoutEnv u, Stream s m Char)
         => ParsecT s u m l
         -> ParsecT s u m r

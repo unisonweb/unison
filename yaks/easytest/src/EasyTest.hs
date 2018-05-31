@@ -15,7 +15,6 @@ import Data.List
 import Data.Map (Map)
 import Data.Word
 import GHC.Stack
-import System.Exit
 import System.Random (Random)
 import qualified Control.Concurrent.Async as A
 import qualified Data.Map as Map

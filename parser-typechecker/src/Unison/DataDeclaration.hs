@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# Language DeriveFunctor #-}
 {-# Language DeriveFoldable #-}
 {-# Language DeriveTraversable #-}
@@ -5,14 +6,20 @@
 
 module Unison.DataDeclaration where
 
-import Prelude hiding (cycle)
-import Unison.Type (Type)
-import qualified Unison.Type as Type
-import Unison.ABT (absChain, cycle)
-import Unison.Var (Var)
-import Unison.Hashable (Accumulate, Hashable1)
-import qualified Unison.Hashable as Hashable
+import           Data.Bifunctor (second)
+import           Data.Map (Map, intersectionWith)
+import qualified Data.Map as Map
+import           Prelude hiding (cycle)
+import           Prelude.Extras (Show1)
+import           Unison.ABT (absChain, cycle)
 import qualified Unison.ABT as ABT
+import           Unison.Hashable (Accumulate, Hashable1)
+import qualified Unison.Hashable as Hashable
+import           Unison.Reference (Reference)
+import           Unison.Type (Type)
+import qualified Unison.Type as Type
+import           Unison.Typechecker.Components (components)
+import           Unison.Var (Var)
 
 data DataDeclaration v = DataDeclaration {
   bound :: [v],
@@ -27,7 +34,7 @@ data F a
   = Type (Type.F a)
   | LetRec [a] a
   | Constructors [a]
-  deriving (Functor, Foldable)
+  deriving (Functor, Foldable, Show, Show1)
 
 instance Hashable1 F where
   hash1 hashCycle hash e =
@@ -56,21 +63,48 @@ instance Hashable1 F where
 -}
 
 hash :: (Eq v, Var v, Ord h, Accumulate h)
-     => [(v, DataDeclaration v)] -> [(v, h)]
+     => [(v, ABT.Term F v ())] -> [(v, h)]
 hash recursiveDecls = zip (fst <$> recursiveDecls) hashes where
   hashes = ABT.hash <$> toLetRec recursiveDecls
 
-toLetRec :: Ord v => [(v, DataDeclaration v)] -> [ABT.Term F v ()]
+toLetRec :: Ord v => [(v, ABT.Term F v ())] -> [ABT.Term F v ()]
 toLetRec decls =
   do1 <$> vs
   where
-    vs = fst <$> decls
-    decls' = toABT . snd <$> decls
+    (vs, decls') = unzip decls
     -- we duplicate this letrec once (`do1`) for each of the mutually recursive types
     do1 v = cycle (absChain vs . ABT.tm $ LetRec decls' (ABT.var v))
 
-toABT :: Ord v => DataDeclaration v -> ABT.Term F v ()
+unsafeUnwrapType :: (Var v) => ABT.Term F v () -> Type v
+unsafeUnwrapType typ = ABT.transform f typ
+  where f (Type t) = t
+        f x = error $ "Tried to unwrap a type that wasn't a type: " ++ show typ
+
+toABT :: Var v => DataDeclaration v -> ABT.Term F v ()
 toABT (DataDeclaration bound constructors) =
   absChain bound (cycle (absChain (fst <$> constructors)
                                   (ABT.tm $ Constructors stuff)))
   where stuff = ABT.transform Type . snd <$> constructors
+
+fromABT :: Var v => ABT.Term F v () -> DataDeclaration v
+fromABT (ABT.AbsN' bound (
+           ABT.Cycle' names (ABT.Tm' (Constructors stuff)))) =
+  DataDeclaration
+    bound
+    [(v, unsafeUnwrapType t) | (v, t) <- names `zip` stuff]
+
+hashDecls :: (Eq v, Var v)
+          => Map v (DataDeclaration v) -> [(v, Reference, DataDeclaration v)]
+hashDecls decls =
+  reverse . snd . foldl f ([], []) $ components abts
+  where
+    f (m, newDecls) cycle =
+      let substed = second (ABT.substs m) <$> cycle
+          h = hash substed
+          newM = second toRef <$> h
+          joined = intersectionWith (,) (Map.fromList h) (Map.fromList substed)
+      in (newM ++ m,
+          [(v, r, fromABT d) | (v, (r, d)) <- Map.toList joined] ++ newDecls)
+    abts = second toABT <$> Map.toList decls
+    toRef = ABT.tm . Type . Type.Ref
+

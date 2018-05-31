@@ -186,7 +186,7 @@ instance Hashable1 F where
       Arrow a b -> [tag 1, hashed (hash a), hashed (hash b) ]
       App a b -> [tag 2, hashed (hash a), hashed (hash b) ]
       Ann a k -> [tag 3, hashed (hash a), Hashable.accumulateToken k ]
-      Effect es t -> error "Effect.Hashable1 todo"-- [tag 4, hashed (hash a), Hashable.accumulateToken u]
+      Effect _ _ -> error "Effect.Hashable1 todo"-- [tag 4, hashed (hash a), Hashable.accumulateToken u]
       Forall a -> [tag 5, hashed (hash a)]
 
 instance Show a => Show (F a) where
