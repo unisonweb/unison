@@ -10,11 +10,11 @@ import Data.Text (Text)
 data Token h
   = Tag !Word8
   | Bytes !ByteString
-  | VarInt !Int
+  | Int64 !Int64
   | Text !Text
   | Double !Double
   | Hashed !h
-  | Word !Word64
+  | UInt64 !Word64
 
 class Accumulate h where
   accumulate :: [Token h] -> h
@@ -57,11 +57,10 @@ instance Hashable ByteString where
   tokens bs = [Bytes bs]
 
 instance Hashable Word64 where
-  tokens w = [Word w]
+  tokens w = [UInt64 w]
 
 instance Hashable Int64 where
-  tokens w = [Word $ fromIntegral w]
+  tokens w = [Int64 w]
 
 instance Hashable Bool where
   tokens b = [Tag . fromIntegral $ fromEnum b]
-

@@ -355,7 +355,7 @@ hash t = hash' [] t where
             ind = findIndex lookup env
             -- env not likely to be very big, prefer to encode in one byte if possible
             hashInt :: Int -> h
-            hashInt i = Hashable.accumulate [Hashable.VarInt i]
+            hashInt i = Hashable.accumulate [Hashable.UInt64 $ fromIntegral i]
             die = error $ "unknown var in environment: " ++ show (Var.name v)
     Cycle (AbsN' vs t) -> hash' (Left vs : env) t
     Cycle t -> hash' env t

@@ -333,7 +333,7 @@ betaReduce e = e
 instance Var v => Hashable1 (F v) where
   hash1 hashCycle hash e =
     let
-      (tag, hashed, varint) = (Hashable.Tag, Hashable.Hashed, Hashable.VarInt)
+      (tag, hashed, varint) = (Hashable.Tag, Hashable.Hashed, Hashable.UInt64 . fromIntegral)
     in case e of
       -- So long as `Reference.Derived` ctors are created using the same hashing
       -- function as is used here, this case ensures that references are 'transparent'

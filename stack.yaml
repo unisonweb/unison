@@ -12,10 +12,6 @@ resolver: lts-11.9
 compiler: ghc-8.4.2
 
 extra-deps:
-#  - applicative-extras-0.1.8
-#  - ctrie-0.1.0.3
-- cryptonite-0.17
-- GraphSCC-1.0.4
 - base58-bytestring-0.1.0
 
 ghc-options:

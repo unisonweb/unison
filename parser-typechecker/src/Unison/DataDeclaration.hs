@@ -16,6 +16,7 @@ import qualified Unison.ABT as ABT
 import           Unison.Hashable (Accumulate, Hashable1)
 import qualified Unison.Hashable as Hashable
 import           Unison.Reference (Reference)
+import qualified Unison.Reference as Reference
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import           Unison.Typechecker.Components (components)
@@ -78,7 +79,7 @@ toLetRec decls =
 unsafeUnwrapType :: (Var v) => ABT.Term F v () -> Type v
 unsafeUnwrapType typ = ABT.transform f typ
   where f (Type t) = t
-        f x = error $ "Tried to unwrap a type that wasn't a type: " ++ show typ
+        f _ = error $ "Tried to unwrap a type that wasn't a type: " ++ show typ
 
 toABT :: Var v => DataDeclaration v -> ABT.Term F v ()
 toABT (DataDeclaration bound constructors) =
@@ -92,6 +93,7 @@ fromABT (ABT.AbsN' bound (
   DataDeclaration
     bound
     [(v, unsafeUnwrapType t) | (v, t) <- names `zip` stuff]
+fromABT a = error $ "ABT not of correct form to convert to DataDeclaration: " ++ show a
 
 hashDecls :: (Eq v, Var v)
           => Map v (DataDeclaration v) -> [(v, Reference, DataDeclaration v)]
@@ -100,11 +102,10 @@ hashDecls decls =
   where
     f (m, newDecls) cycle =
       let substed = second (ABT.substs m) <$> cycle
-          h = hash substed
-          newM = second toRef <$> h
-          joined = intersectionWith (,) (Map.fromList h) (Map.fromList substed)
+          hs = second Reference.Derived <$> hash substed -- hash substed :: [(v, Hash)] --> [(v, Reference)]
+          newM = second toRef <$> hs
+          joined = intersectionWith (,) (Map.fromList hs) (Map.fromList substed)
       in (newM ++ m,
           [(v, r, fromABT d) | (v, (r, d)) <- Map.toList joined] ++ newDecls)
     abts = second toABT <$> Map.toList decls
     toRef = ABT.tm . Type . Type.Ref
-
