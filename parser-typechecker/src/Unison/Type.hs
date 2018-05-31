@@ -176,7 +176,7 @@ generalize :: Ord v => Type v -> Type v
 generalize t = foldr forall t $ Set.toList (ABT.freeVars t)
 
 instance Hashable1 F where
-  hash1 _ hash e =
+  hash1 hashCycle hash e =
     let
       (tag, hashed) = (Hashable.Tag, Hashable.Hashed)
       -- Note: start each layer with leading `0` byte, to avoid collisions with
@@ -186,7 +186,15 @@ instance Hashable1 F where
       Arrow a b -> [tag 1, hashed (hash a), hashed (hash b) ]
       App a b -> [tag 2, hashed (hash a), hashed (hash b) ]
       Ann a k -> [tag 3, hashed (hash a), Hashable.accumulateToken k ]
-      Effect _ _ -> error "Effect.Hashable1 todo"-- [tag 4, hashed (hash a), Hashable.accumulateToken u]
+      -- Example:
+      --   a) {Remote, Abort} (() -> {Remote} ()) should hash the same as
+      --   b) {Abort, Remote} (() -> {Remote} ()) but should hash differently from
+      --   c) {Remote, Abort} (() -> {Abort} ())
+      Effect es t -> let
+        (hs, hrem) = hashCycle es
+        -- if we used `hash` here instead of `hrem`, then a) and c) would have
+        -- the same hash!
+        in [tag 4] ++ map hashed hs ++ [hashed (hrem t)]
       Forall a -> [tag 5, hashed (hash a)]
 
 instance Show a => Show (F a) where
