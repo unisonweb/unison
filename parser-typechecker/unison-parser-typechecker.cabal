@@ -36,6 +36,7 @@ library
   exposed-modules:
     Unison.ABT
     Unison.Builtin
+    Unison.Codecs
     Unison.DataDeclaration
     Unison.FileParser
     Unison.Hash
