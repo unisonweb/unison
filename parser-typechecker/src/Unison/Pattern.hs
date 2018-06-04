@@ -16,6 +16,7 @@ data Pattern
   | UInt64 !Word64
   | Float !Double
   | Constructor !Reference !Int [Pattern]
+  | As Pattern
   | EffectPure Pattern
   | EffectBind !Reference !Int [Pattern] Pattern
     deriving (Generic,Eq,Show)
@@ -32,3 +33,4 @@ instance H.Hashable Pattern where
   tokens (EffectPure p) = H.Tag 7 : H.tokens p
   tokens (EffectBind _r _ctor _ps _k) =
     H.Tag 8 : error "need fo figure out hashable"
+  tokens (As p) = H.Tag 9 : H.tokens p

@@ -39,34 +39,30 @@ serializeTerm x = do
     ABT.Tm f -> case f of
       Ref ref -> do
         putWord8 2
-        encodeId ref
+        serializeReference ref
       Constructor ref id -> do
         putWord8 3
-        encodeId ref
+        serializeReference ref
         putWord32be $ fromIntegral id
       Request ref id -> do
         putWord8 4
-        encodeId ref
+        serializeReference ref
         putWord32be $ fromIntegral id
       Text text -> do
         putWord8 5
         lengthEncode text
       Int64 n -> do
         putWord8 6
-        putByteString . BL.toStrict . toLazyByteString $ int64BE n
-        putWord8 1
+        serializeInt64 n
       UInt64 n -> do
         putWord8 6
-        putWord64be n
-        putWord8 2
+        serializeUInt64 n
       Float n -> do
         putWord8 6
-        putByteString . BL.toStrict . toLazyByteString $ doubleBE n
-        putWord8 3
+        serializeFloat n
       Boolean b -> do
         putWord8 6
-        putWord64be (if b then 1 else 0)
-        putWord8 0
+        serializeBoolean b
       Vector v -> do
         elementPositions <- traverse serializeTerm v
         putWord8 7
@@ -121,7 +117,49 @@ serializeTerm x = do
   pure pos
 
 serializePattern :: MonadPut m => Pattern -> m ()
-serializePattern p = _todo
+serializePattern p = case p of
+  -- note: the putWord8 0 is the tag before any unboxed pattern
+  Pattern.Boolean b -> putWord8 0 *> serializeBoolean b
+  Pattern.Int64 n -> putWord8 0 *> serializeInt64 n
+  Pattern.UInt64 n -> putWord8 0 *> serializeUInt64 n
+  Pattern.Float n -> putWord8 0 *> serializeFloat n
+  Pattern.Var -> putWord8 1
+  Pattern.Unbound -> putWord8 2
+  Pattern.Constructor r cid ps -> do
+    putWord8 3
+    serializeReference r
+    putWord32be $ fromIntegral cid
+    putLength (length ps)
+    traverse_ serializePattern ps
+  Pattern.As p -> do
+    putWord8 4
+    serializePattern p
+  Pattern.EffectPure p -> do
+    putWord8 5
+    serializePattern p
+  Pattern.EffectBind r cid ps k -> do
+    putWord8 6
+    serializeReference r
+    putWord32be $ fromIntegral cid
+    putLength (length ps)
+    traverse_ serializePattern ps
+    serializePattern k
+
+serializeFloat n = do
+  putByteString . BL.toStrict . toLazyByteString $ doubleBE n
+  putWord8 3
+
+serializeUInt64 n = do
+  putWord64be n
+  putWord8 2
+
+serializeInt64 n = do
+  putByteString . BL.toStrict . toLazyByteString $ int64BE n
+  putWord8 1
+
+serializeBoolean :: MonadPut m => Bool -> m ()
+serializeBoolean False = putWord64be 0 *> putWord8 0
+serializeBoolean True = putWord64be 1 *> putWord8 0
 
 serializeCase2 :: MonadPut m => MatchCase Pos -> m ()
 serializeCase2 (MatchCase p guard body) = do
@@ -152,7 +190,7 @@ lengthEncode text = do
   putWord32be . fromIntegral $ B.length bs
   putByteString bs
 
-encodeId ref = case ref of
+serializeReference ref = case ref of
   Builtin text -> do
     putWord8 0
     lengthEncode text
