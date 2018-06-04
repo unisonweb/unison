@@ -2,6 +2,7 @@
 
 module Unison.Codecs where
 
+import Data.Text (Text)
 import           Control.Monad.State
 import qualified Data.ByteString as B
 import           Data.ByteString.Builder (doubleBE, int64BE, toLazyByteString)
@@ -18,6 +19,7 @@ import           Unison.Var
 import qualified Unison.Var as Var
 import Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
+import Data.Int (Int64)
 
 type Pos = Word64
 
@@ -77,7 +79,7 @@ serializeTerm x = do
         posarg <- serializeTerm arg
         putWord8 9
         putBackref posf
-        putLength 1
+        putLength (1 :: Int)
         putBackref posarg
       Let binding body -> do
         posbind <- serializeTerm binding
@@ -112,6 +114,34 @@ serializeTerm x = do
         putBackref poss
         putLength $ length casePositions
         traverse_ serializeCase2 casePositions
+      Blank -> error "cannot serialize program with blanks"
+      Handle h body -> do
+        hpos <- serializeTerm h
+        bpos <- serializeTerm body
+        putWord8 16
+        putBackref hpos
+        putBackref bpos
+      EffectPure t -> do
+        pos <- serializeTerm t
+        putWord8 17
+        putBackref pos
+      EffectBind r cid args k -> do
+        positions <- traverse serializeTerm args
+        kpos <- serializeTerm k
+        putWord8 18
+        serializeReference r
+        putWord32be $ fromIntegral cid
+        putLength $ length positions
+        traverse_ putBackref positions
+        putBackref kpos
+      Ann e _ -> void $ serializeTerm e -- ignore types (todo: revisit)
+      LetRec bs body -> do
+        positions <- traverse serializeTerm bs
+        pbody <- serializeTerm body
+        putWord8 19
+        putLength $ length positions
+        traverse_ putBackref positions
+        putBackref pbody
   pos <- get
   modify' (+1)
   pure pos
@@ -145,14 +175,17 @@ serializePattern p = case p of
     traverse_ serializePattern ps
     serializePattern k
 
+serializeFloat :: MonadPut m => Double -> m ()
 serializeFloat n = do
   putByteString . BL.toStrict . toLazyByteString $ doubleBE n
   putWord8 3
 
+serializeUInt64 :: MonadPut m => Word64 -> m ()
 serializeUInt64 n = do
   putWord64be n
   putWord8 2
 
+serializeInt64 :: MonadPut m => Int64 -> m ()
 serializeInt64 n = do
   putByteString . BL.toStrict . toLazyByteString $ int64BE n
   putWord8 1
@@ -185,11 +218,13 @@ serializeMaybe f b = case b of
   Nothing -> putWord8 0
   Just x -> putWord8 1 *> f x
 
+lengthEncode :: MonadPut m => Text -> m ()
 lengthEncode text = do
   let bs = encodeUtf8 text
   putWord32be . fromIntegral $ B.length bs
   putByteString bs
 
+serializeReference :: MonadPut m => Reference -> m ()
 serializeReference ref = case ref of
   Builtin text -> do
     putWord8 0
