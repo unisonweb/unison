@@ -97,6 +97,7 @@ executable tests
   hs-source-dirs: tests
   other-modules:
     Unison.Test.Common
+    Unison.Test.DataDeclaration
     Unison.Test.FileParser
     Unison.Test.TermParser
     Unison.Test.Typechecker
@@ -108,6 +109,7 @@ executable tests
     containers,
     easytest,
     filepath,
+    raw-strings-qq,
     text,
     transformers,
     unison-parser-typechecker
