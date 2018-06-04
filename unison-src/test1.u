@@ -3,7 +3,7 @@ type Optional a = None | Some a
 
 Optional.isEmpty : ∀ a . Optional a -> Boolean
 Optional.isEmpty o = case o of
-  None -> True
+  Optional.None -> True
   _ -> False
 
 ()

@@ -27,6 +27,13 @@ data DataDeclaration v = DataDeclaration {
   constructors :: [(v, Type v)]
 } deriving (Show)
 
+newtype EffectDeclaration v = EffectDeclaration {
+  toDataDecl :: DataDeclaration v
+} deriving (Show)
+
+mkEffectDecl :: [v] -> [(v, Type v)] -> EffectDeclaration v
+mkEffectDecl = (EffectDeclaration .) . DataDeclaration
+
 -- type List a = Nil | Cons a (List a)
 -- cycle (abs "List" (LetRec [abs "a" (cycle (absChain ["Nil","Cons"] (Constructors [List a, a -> List a -> List a])))] "List"))
 -- absChain [a] (cycle ())"List")

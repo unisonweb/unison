@@ -1,3 +1,5 @@
+{-# Language OverloadedStrings #-}
+
 module Unison.FileParser where
 
 -- import           Text.Parsec.Prim (ParsecT)
@@ -7,10 +9,11 @@ import           Unison.Parser
 import Control.Applicative
 import Data.Either (partitionEithers)
 import Data.Map (Map)
-import Unison.DataDeclaration (DataDeclaration(..))
-import Unison.EffectDeclaration (EffectDeclaration(..), mkEffectDecl)
+import Unison.DataDeclaration (DataDeclaration(..), hashDecls,
+                               EffectDeclaration(..), mkEffectDecl)
 import Unison.Parser (PEnv, penv0)
 import Unison.Parsers (unsafeGetRight)
+import Unison.Reference (Reference)
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import Unison.TypeParser (S)
@@ -21,10 +24,12 @@ import qualified Unison.Parsers as Parsers
 import qualified Unison.Type as Type
 import qualified Unison.TermParser as TermParser
 import qualified Unison.TypeParser as TypeParser
+import qualified Unison.Var as Var
 import Control.Monad.Reader
 import Data.Text.IO (readFile)
 import System.IO (FilePath)
 import qualified Data.Text as Text
+import Debug.Trace
 
 data UnisonFile v = UnisonFile {
   dataDeclarations :: Map v (DataDeclaration v),
@@ -57,8 +62,15 @@ file = traced "file" $ do
     term <- TermParser.block
     pure $ UnisonFile dataDecls effectDecls term
 
-environmentFor :: Map v (DataDeclaration v) -> Map v (EffectDeclaration v) -> PEnv
-environmentFor _ _ = Map.empty -- todo
+environmentFor :: Var v => Map v (DataDeclaration v) -> Map v (EffectDeclaration v) -> PEnv
+environmentFor dataDecls effectDecls = -- todo: add effectDecls
+  trace "new env" $ traceShowId $ Map.fromList (constructors' =<< hashDecls (Map.union dataDecls (toDataDecl <$> effectDecls)))
+
+constructors' :: Var v => (v, Reference, DataDeclaration v) -> [(String, (Reference, Int))]
+constructors' (typeSymbol, r, (DataDeclaration _ constructors)) =
+  let qualCtorName ((ctor,_), i) =
+       (Text.unpack $ mconcat [Var.qualifiedName typeSymbol, ".", Var.qualifiedName ctor], (r, i))
+  in qualCtorName <$> constructors `zip` [0..]
 
 declarations :: Var v => Parser (S v)
                          (Map v (DataDeclaration v),

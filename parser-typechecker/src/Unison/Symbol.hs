@@ -18,7 +18,9 @@ instance Var Symbol where
   name (Symbol _ n) = n
   named n = Symbol 0 n
   clear (Symbol id n) = Symbol id n
-  qualifiedName s = name s `Text.append` (Text.pack (show (freshId s)))
+  qualifiedName s =
+    if freshId s /= 0 then name s `Text.append` (Text.pack (show (freshId s)))
+    else name s
   freshIn vs s | Set.null vs || Set.notMember s vs = s -- already fresh!
   freshIn vs s@(Symbol i n) = case Set.elemAt (Set.size vs - 1) vs of
     Symbol i2 _ -> if i > i2 then s else Symbol (i2+1) n

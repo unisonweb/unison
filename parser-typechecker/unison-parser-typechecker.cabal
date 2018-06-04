@@ -37,7 +37,6 @@ library
     Unison.ABT
     Unison.Builtin
     Unison.DataDeclaration
-    Unison.EffectDeclaration
     Unison.FileParser
     Unison.Hash
     Unison.Hashable

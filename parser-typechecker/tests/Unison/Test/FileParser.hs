@@ -7,7 +7,6 @@ module Unison.Test.FileParser where
   import Unison.FileParser
   import Unison.Parser
   import Unison.DataDeclaration
-  import Unison.EffectDeclaration
   import qualified Unison.Parser as Parser
   import qualified Unison.Parsers as Parsers
   import Unison.Parsers (unsafeGetRight)
@@ -16,7 +15,7 @@ module Unison.Test.FileParser where
   import qualified Unison.Reference as R
   import Unison.Symbol (Symbol)
 
-  test1 = scope "fileparser" . tests . map parses $
+  test1 = scope "fileparser.test1" . tests . map parses $
     [
       "type Pair a b = Pair a b\n()"
     , "type Optional a = Just a | Nothing\n()"
@@ -46,13 +45,13 @@ module Unison.Test.FileParser where
       ,"ping"]
     ]
 
-  test2 = scope "fileparser.test1" $ do
+  test2 = scope "fileparser.test2" $ do
     file <- io $ unsafeReadAndParseFile' "unison-src/test1.u"
     io $ putStrLn (show (file :: UnisonFile Symbol))
     ok
 
-  test = test2
-    -- test1 <|> test2
+  test = --test2
+    test1 <|> test2
 
   builtins = Map.fromList
     [("Pair", (R.Builtin "Pair", 0)),
