@@ -65,6 +65,7 @@ library
     base,
     base58-bytestring,
     bifunctors,
+    bytes,
     bytestring,
     containers,
     comonad,
