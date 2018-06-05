@@ -240,7 +240,8 @@ subst v r t2@(Term fvs ann body)
 
 -- | `substs [(t1,v1), (t2,v2), ...] body` performs multiple simultaneous
 -- substitutions, avoiding capture
-substs :: (Foldable f, Functor f, Var v) => [(v, Term f v a)] -> Term f v a -> Term f v a
+substs :: (Foldable f, Functor f, Var v)
+       => [(v, Term f v a)] -> Term f v a -> Term f v a
 substs replacements body = foldr f body (reverse replacements) where
   f (v, t) body = subst v t body
 

@@ -1,18 +1,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Unison.Builtin where
 
-import Unison.Parser (penv0)
-import Unison.Parsers (unsafeParseType, unsafeParseTerm)
-import Unison.Symbol (Symbol)
-import Unison.Type (Type)
-import Unison.Term (Term)
-import Data.Set (Set)
+import           Control.Arrow ((&&&))
 import qualified Data.Map as Map
+import           Data.Set (Set)
 import qualified Data.Set as Set
-import qualified Unison.Reference as R
-import qualified Unison.Type as Type
-import qualified Unison.Term as Term
 import qualified Unison.ABT as ABT
+import           Unison.Parser (penv0)
+import           Unison.Parsers (unsafeParseType, unsafeParseTerm)
+import qualified Unison.Reference as R
+import           Unison.Symbol (Symbol)
+import           Unison.Term (Term)
+import qualified Unison.Term as Term
+import           Unison.Type (Type)
+import qualified Unison.Type as Type
 import qualified Unison.Var as Var
 
 t :: String -> Type Symbol
@@ -35,8 +36,13 @@ builtinTypes = Set.fromList . map Var.named $ [
 
 builtinTerms :: Set Symbol
 builtinTerms = Set.map toSymbol (Map.keysSet builtins) where
-  toSymbol (R.Builtin txt) = Var.named txt
-  toSymbol _ = error "unpossible"
+
+builtinEnv :: [(Symbol, Term Symbol)]
+builtinEnv = (toSymbol &&& Term.ref) <$> Map.keys builtins
+
+toSymbol :: (Var.Var v) => R.Reference -> v
+toSymbol (R.Builtin txt) = Var.named txt
+toSymbol _ = error "unpossible"
 
 builtins :: Map.Map R.Reference (Type Symbol)
 builtins = Map.fromList $
@@ -94,7 +100,7 @@ builtins = Map.fromList $
       , ("Text.>=", "Text -> Text -> Boolean")
       , ("Text.<", "Text -> Text -> Boolean")
       , ("Text.>", "Text -> Text -> Boolean")
-      
+
       , ("Stream.empty", "forall a . Stream a")
       , ("Stream.cons", "forall a . a -> Stream a -> Stream a")
       , ("Stream.take", "forall a . UInt64 -> Stream a -> Stream a")

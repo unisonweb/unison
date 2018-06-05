@@ -3,33 +3,35 @@
 module Unison.FileParser where
 
 -- import           Text.Parsec.Prim (ParsecT)
--- import qualified Unison.TypeParser as TypeParser
-import Prelude hiding (readFile)
-import           Unison.Parser
-import Control.Arrow (second)
-import Control.Applicative
-import Data.Either (partitionEithers)
-import Data.Map (Map)
-import Unison.DataDeclaration (DataDeclaration(..), hashDecls,
-                               EffectDeclaration(..), mkEffectDecl)
-import Unison.Parser (PEnv, penv0)
-import Unison.Parsers (unsafeGetRight)
-import Unison.Reference (Reference)
-import Unison.Symbol (Symbol)
-import Unison.Term (Term)
-import Unison.TypeParser (S)
-import Unison.Var (Var)
+import           Control.Applicative
+import           Control.Arrow (second)
+import           Control.Monad.Reader
+import           Data.Either (partitionEithers)
+import           Data.Map (Map)
 import qualified Data.Map as Map
-import qualified Text.Parsec.Layout as L
-import qualified Unison.Parsers as Parsers
-import qualified Unison.Type as Type
-import qualified Unison.TermParser as TermParser
-import qualified Unison.TypeParser as TypeParser
-import qualified Unison.Var as Var
-import Control.Monad.Reader
-import Data.Text.IO (readFile)
-import System.IO (FilePath)
 import qualified Data.Text as Text
+import           Data.Text.IO (readFile)
+import           Prelude hiding (readFile)
+import           System.IO (FilePath)
+import qualified Text.Parsec.Layout as L
+import qualified Unison.ABT as ABT
+import qualified Unison.Builtin as Builtin
+import           Unison.DataDeclaration (DataDeclaration(..), hashDecls, EffectDeclaration(..), mkEffectDecl)
+import           Unison.Parser
+import           Unison.Parser (PEnv, penv0)
+import           Unison.Parsers (unsafeGetRight)
+import qualified Unison.Parsers as Parsers
+import           Unison.Reference (Reference)
+import           Unison.Symbol (Symbol)
+import           Unison.Term (Term)
+import qualified Unison.TermParser as TermParser
+import qualified Unison.Type as Type
+import           Unison.TypeParser (S)
+import qualified Unison.TypeParser as TypeParser
+import           Unison.Var (Var)
+import qualified Unison.Var as Var
+
+-- import qualified Unison.TypeParser as TypeParser
 
 data UnisonFile v = UnisonFile {
   dataDeclarations :: Map v (Reference, DataDeclaration v),
@@ -61,7 +63,8 @@ file = traced "file" $ do
   let (dataDecls', effectDecls', penv') = environmentFor dataDecls effectDecls
   local (`Map.union` penv') $ do
     term <- TermParser.block
-    pure $ UnisonFile dataDecls' effectDecls' term
+    let term2 = ABT.substs Builtin.builtinEnv term
+    pure $ UnisonFile dataDecls' effectDecls' term2
 
 environmentFor :: Var v
                => Map v (DataDeclaration v)
