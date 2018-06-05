@@ -22,7 +22,7 @@ object Builtins {
 
   // Stream.fromInt : Integer -> Stream Integer
   val Stream_fromInt = // Stream.iterate(unison 0)(Integer_inc)
-    fp_z("Stream.fromInt", "n", Stream.fromUnison)
+    fp_z("Stream.from-int64", "n", Stream.fromUnison)
 
   // Stream.cons : a -> Stream a -> Stream a
   val Stream_cons =
@@ -45,7 +45,7 @@ object Builtins {
 
   // Stream.foldLeft : b -> (b -> a -> b) -> Stream a -> b
   val Stream_foldLeft =
-    fppp_p("Stream.foldLeft", "acc", "f", "stream",
+    fppp_p("Stream.fold-left", "acc", "f", "stream",
            (acc: Value, f: Value, s: Stream[Value]) =>
              s.foldLeft(acc)(
                UnisonToScala.toUnboxed2(f.asInstanceOf[Lambda])(env))
