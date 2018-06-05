@@ -253,7 +253,6 @@ serializeConstructorArities r constructorArities = do
 
 serializeFile :: (MonadPut m, MonadState Pos m, Var v) => UnisonFile v -> m ()
 serializeFile (UnisonFile dataDecls effectDecls body) = do
-  -- list [(Reference, [Arity])]
   let dataDecls' = second DD.constructorArities <$> toList dataDecls
   let effectDecls' = second (DD.constructorArities . DD.toDataDecl) <$> toList effectDecls
   serializeFoldable (uncurry serializeConstructorArities) dataDecls'
