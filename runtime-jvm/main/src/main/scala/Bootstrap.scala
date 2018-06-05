@@ -14,9 +14,6 @@ object Bootstrap {
     val data = decodeConstructorArities(src)
     val effects = decodeConstructorArities(src)
 
-    println(s"data:\n$data")
-    println(s"effects:\n$effects")
-
     val term = termDecoder(src)
 
     val datas = data.flatMap { case (id, arities) =>

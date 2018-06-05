@@ -11,12 +11,7 @@ increment x = x +_UInt64 1
 (|>) : forall a . a -> (a -> b) -> b
 a |> f = f a
 
-{-
 Stream.from-int64 -3
   |> Stream.take 10
   |> Stream.fold-left 0 (+_Int64)
   |> Optional.Some
-  |> Optional.isEmpty
--}
-
-Optional.Some 1

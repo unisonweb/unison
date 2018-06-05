@@ -24,6 +24,7 @@ import qualified Unison.Parsers as Parsers
 import           Unison.Reference (Reference)
 import           Unison.Symbol (Symbol)
 import           Unison.Term (Term)
+import qualified Unison.Term as Term
 import qualified Unison.TermParser as TermParser
 import qualified Unison.Type as Type
 import           Unison.TypeParser (S)
@@ -63,7 +64,10 @@ file = traced "file" $ do
   let (dataDecls', effectDecls', penv') = environmentFor dataDecls effectDecls
   local (`Map.union` penv') $ do
     term <- TermParser.block
-    let term2 = ABT.substs Builtin.builtinEnv term
+    let dataEnv0 = Map.fromList [ (Var.named (Text.pack n), Term.constructor r i) | (n, (r,i)) <- Map.toList penv' ]
+        dataEnv = dataEnv0 `Map.difference` effectDecls
+        effectEnv = dataEnv0 `Map.difference` dataEnv
+    let term2 = ABT.substs (Builtin.builtinEnv ++ Map.toList dataEnv ++ Map.toList effectEnv) term
     pure $ UnisonFile dataDecls' effectDecls' term2
 
 environmentFor :: Var v
