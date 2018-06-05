@@ -82,8 +82,19 @@ builtins = Map.fromList $
       , ("Float.==", "Float -> Float -> Boolean")
 
       , ("Boolean.not", "Boolean -> Boolean")
-      -- todo: Text
 
+      , ("Text.empty", "Text")
+      , ("Text.concatenate", "Text -> Text -> Text")
+      , ("Text.take", "UInt64 -> Text -> Text")
+      , ("Text.drop", "UInt64 -> Text -> Text")
+      , ("Text.size", "Text -> UInt64")
+      , ("Text.==", "Text -> Text -> Boolean")
+      , ("Text.!=", "Text -> Text -> Boolean")
+      , ("Text.<=", "Text -> Text -> Boolean")
+      , ("Text.>=", "Text -> Text -> Boolean")
+      , ("Text.<", "Text -> Text -> Boolean")
+      , ("Text.>", "Text -> Text -> Boolean")
+      
       , ("Stream.empty", "forall a . Stream a")
       , ("Stream.cons", "forall a . a -> Stream a -> Stream a")
       , ("Stream.take", "forall a . UInt64 -> Stream a -> Stream a")
