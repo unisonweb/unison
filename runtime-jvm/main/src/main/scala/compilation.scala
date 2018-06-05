@@ -942,7 +942,11 @@ package object compilation {
 
   /** Compile top-level term */
   def compileTop(builtins: Environment)(e: Term) =
-    compile(builtins)(e, Vector(), CurrentRec.none, RecursiveVars.empty, IsTail)
+    if (!Term.freeVars(e).isEmpty)
+      sys.error("Can't compile top-level term with free variables "
+                + Term.freeVars(e).mkString(", "))
+    else
+      compile(builtins)(e, Vector(), CurrentRec.none, RecursiveVars.empty, IsTail)
 
   def compile(builtins: Environment)(
     e: Term,
@@ -957,7 +961,7 @@ package object compilation {
       case Term.Id(Id.Builtin(name)) =>
         builtins.builtins(name)
       case Term.Id(Id.HashRef(h)) => ???
-      case Term.Constructor(id,cid) => builtins.dataConstructors(id,cid)
+      case Term.Constructor(id,cid) => builtins.dataConstructors(id -> cid)
       case Term.Compiled(param) =>
         if (param.toValue eq null)
           (r => param.toValue.toResult(r)) : Computation.C0
@@ -1270,7 +1274,7 @@ package object compilation {
               cbody(r, rec, topN, stackU, b1v, b0v, stackB, b1vb, b0vb)
             }
         }
-      case Term.Request(id,cid) => builtins.effects(id,cid)
+      case Term.Request(id,cid) => builtins.effects(id -> cid)
       case Term.Handle(handler, block) =>
         import Term.Syntax._
         val cHandler =

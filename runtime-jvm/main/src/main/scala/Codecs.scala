@@ -36,6 +36,9 @@ object Codecs {
   val nodeDecoder: Source => Node =
     src => decodeSource(src)(setRef, decoder)
 
+  def termDecoder(src: Source): Term =
+    nodeDecoder(src).unsafeAsTerm
+
   def encodeNode(n: Node): Sequence[Array[Byte]] = {
     val fmt = nodeEncoder(n)
     // println(prettyFormat(fmt))
@@ -291,6 +294,13 @@ object Codecs {
       sink putByte 1
       sink putFramed h.bytes
   }
+
+  final def decodeConstructorArities(source: Source): List[(Id, List[Int])] =
+    source.getFramedList1 {
+      val id = decodeId(source)
+      val arities = source.getFramedList1(source.getInt)
+      (id, arities)
+    }
 
   final def decodeConstructorId(source: Source): ConstructorId =
     ConstructorId(source.getInt)

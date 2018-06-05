@@ -27,7 +27,7 @@ object BuiltinTypes {
     def term(ts: Term*): Term =
       ts.foldRight(Unit.term)((hd,tl) => Term.Constructor(Id, cid)(hd,tl))
     def lambda: Term =
-      dataConstructors(Id, cid) match { case Return(lam : Value.Lambda) => Term.Compiled(lam) }
+      dataConstructors(Id -> cid) match { case Return(lam : Value.Lambda) => Term.Compiled(lam) }
     def value(vs: Value*): Value =
       vs.foldRight(Unit.value)((hd,tl) => Value.Data(Id, cid, Array(hd,tl)))
   }
@@ -178,7 +178,7 @@ object BuiltinTypes {
     ((id, cid), x)
   }
 
-  val dataConstructorsM: Map[(Id,ConstructorId),Computation] =
+  val dataConstructors: Map[(Id,ConstructorId),Computation] =
     Map(
       dataConstructor(Unit.Id, Unit.cid),
       dataConstructor(Tuple.Id, Tuple.cid, "head", "tail"),
@@ -188,7 +188,7 @@ object BuiltinTypes {
       dataConstructor(Either.Id, Either.Right.cid, "b")
     )
 
-  val effectConstructorsM: Map[(Id,ConstructorId),Computation] = {
+  val effects: Map[(Id,ConstructorId),Computation] = {
     import Effects._
     Map(
       effectRequest(State.Id, State.Get.cid),
@@ -198,9 +198,4 @@ object BuiltinTypes {
     )
   }
 
-  val dataConstructors: (Id,ConstructorId) => Computation =
-    (id,cid) => dataConstructorsM(id -> cid)
-
-  val effects: (Id,ConstructorId) => Computation =
-    (id, cid) => effectConstructorsM(id -> cid)
 }

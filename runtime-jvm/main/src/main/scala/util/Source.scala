@@ -119,6 +119,12 @@ object Source {
     }
   }
 
+  def fromFile(path: String): Source = {
+    import java.nio.file.{Files, Paths}
+    val byteArray = Files.readAllBytes(Paths.get(path))
+    fromByteBuffer(ByteBuffer.wrap(byteArray), _ => false)
+  }
+
   // `onEmpty` should return `false` if it has no more elements
   def fromByteBuffer(bb: ByteBuffer, onEmpty: ByteBuffer => Boolean): Source = new Source {
     bb.order(java.nio.ByteOrder.BIG_ENDIAN)

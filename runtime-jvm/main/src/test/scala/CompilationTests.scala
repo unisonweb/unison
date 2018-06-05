@@ -15,7 +15,7 @@ object CompilationTests {
 
   val env = Environment(
     Builtins.builtins,
-    userDefined = _ => ???,
+    userDefined = Map.empty,
     BuiltinTypes.dataConstructors,
     BuiltinTypes.effects)
 
