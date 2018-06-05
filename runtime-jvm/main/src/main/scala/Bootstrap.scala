@@ -1,9 +1,9 @@
 package org.unisonweb
 
-import util._
-import BuiltinTypes._
-import ABT.Name
-import compilation._
+import org.unisonweb.ABT.Name
+import org.unisonweb.BuiltinTypes._
+import org.unisonweb.compilation._
+import org.unisonweb.util._
 
 object Bootstrap {
   def main(args: Array[String]): Unit = {
@@ -13,6 +13,10 @@ object Bootstrap {
     val src = Source.fromFile(fileName)
     val data = decodeConstructorArities(src)
     val effects = decodeConstructorArities(src)
+
+    println(s"data:\n$data")
+    println(s"effects:\n$effects")
+
     val term = termDecoder(src)
 
     val datas = data.flatMap { case (id, arities) =>

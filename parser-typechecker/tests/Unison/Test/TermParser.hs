@@ -29,6 +29,8 @@ test = scope "termparser" . tests . map parses $
   , "[1,2,3]"
   , "\"abc\""
   , "x + 1"
+  , "1 + 1"
+  , "1 +_UInt64 1"
   , "( x + 1 )"
   , "foo 42"
 
