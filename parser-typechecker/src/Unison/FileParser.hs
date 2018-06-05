@@ -57,7 +57,7 @@ unsafeReadAndParseFile env filename = do
   let str = Text.unpack txt
   pure $ unsafeGetRight (parseFile filename str env)
 
-file :: Var v => Parser (S v) (UnisonFile v)
+file :: Parser (S Symbol) (UnisonFile Symbol)
 file = traced "file" $ do
   (dataDecls, effectDecls) <- traced "declarations" declarations
   let (dataDecls', effectDecls', penv') = environmentFor dataDecls effectDecls

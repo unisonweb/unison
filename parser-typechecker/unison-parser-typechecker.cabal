@@ -97,6 +97,7 @@ executable bootstrap
   hs-source-dirs: src
   other-modules:
     Unison.ABT
+    Unison.Builtin
     Unison.Codecs
     Unison.DataDeclaration
     Unison.FileParser

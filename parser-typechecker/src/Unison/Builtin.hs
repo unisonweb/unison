@@ -15,6 +15,7 @@ import qualified Unison.Term as Term
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.Var as Var
+import           Unison.Var (Var)
 
 t :: String -> Type Symbol
 t s = resolveBuiltinTypes $ unsafeParseType s penv0
@@ -40,7 +41,7 @@ builtinTerms = Set.map toSymbol (Map.keysSet builtins) where
 builtinEnv :: [(Symbol, Term Symbol)]
 builtinEnv = (toSymbol &&& Term.ref) <$> Map.keys builtins
 
-toSymbol :: (Var.Var v) => R.Reference -> v
+toSymbol :: Var v => R.Reference -> v
 toSymbol (R.Builtin txt) = Var.named txt
 toSymbol _ = error "unpossible"
 
