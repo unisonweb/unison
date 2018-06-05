@@ -134,10 +134,6 @@ pattern = traced "pattern" $ constructor <|> trace "running leaf" leaf
         trace ("unknown data constructor " ++ name) $
           (traced ("failing " ++ name) . fail $ "unknown data constructor " ++ name)
 
-
-  -- where literal = boolean
-
-
 letBlock :: Var v => TermP v
 letBlock = token (string "let") *> block
 
@@ -155,7 +151,7 @@ term4 = traced "apply-chain" $ f <$> some termLeaf
 
 termLeaf :: Var v => TermP v
 termLeaf = traced "leaf" $
-  asum [hashLit, prefixTerm, text, number, tupleOrParenthesized term, blank, vector term]
+  asum [hashLit, prefixTerm, text, number, boolean, tupleOrParenthesized term, blank, vector term]
 
 ifthen :: Var v => TermP v
 ifthen = do
@@ -285,6 +281,7 @@ keywords =
   , "if", "then", "else"
   , "namespace"
   , "type", "effect", "where"
+  , "true", "false"
   ]
 
 block' :: Var v => Parser (S v) () -> TermP v
