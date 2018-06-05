@@ -12,19 +12,10 @@ import qualified Data.Map as Map
 import Unison.Parser (PEnv, penv0)
 import Unison.DataDeclaration (hashDecls)
 
-
-{-
-data UnisonFile v = UnisonFile {
-  dataDeclarations :: Map v (DataDeclaration v),
-  effectDeclarations :: Map v (EffectDeclaration v),
-  term :: Term v
-} deriving (Show)
--}
-
 test = scope "datadeclaration" $
   let hashes = hashDecls . dataDeclarations $ file
       hashMap = Map.fromList $ fmap (\(a,b,_) -> (a,b)) hashes
-      hashOf k = Map.lookup (Var.named k) hashMap 
+      hashOf k = Map.lookup (Var.named k) hashMap
   in tests [
     scope "Bool == Bool'" . expect $ hashOf "Bool" == hashOf "Bool'",
     scope "Bool != Option'" . expect $ hashOf "Bool" /= hashOf "Option'",

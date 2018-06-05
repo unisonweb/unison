@@ -65,6 +65,11 @@ monotype t = Monotype <$> ABT.visit isMono t where
   isMono (Forall' _) = Just Nothing
   isMono _ = Nothing
 
+arity :: Type v -> Int
+arity (ForallNamed' _ body) = arity body
+arity (Arrow' _ o) = 1 + arity o
+arity _ = 0
+
 -- some smart patterns
 pattern Ref' r <- ABT.Tm' (Ref r)
 pattern Arrow' i o <- ABT.Tm' (Arrow i o)

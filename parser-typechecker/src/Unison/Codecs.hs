@@ -3,16 +3,19 @@
 module Unison.Codecs where
 
 import Data.Text (Text)
+import           Control.Arrow (second)
 import           Control.Monad (when)
 import           Control.Monad.State
 import qualified Data.ByteString as B
 import           Data.ByteString.Builder (doubleBE, int64BE, toLazyByteString)
 import qualified Data.ByteString.Lazy as BL
 import           Data.Bytes.Put
-import           Data.Foldable (traverse_)
+import           Data.Foldable (toList, traverse_)
 import           Data.Text.Encoding (encodeUtf8)
 import           Data.Word (Word64)
 import qualified Unison.ABT as ABT
+import qualified Unison.DataDeclaration as DD
+import           Unison.FileParser (UnisonFile(..))
 import qualified Unison.Hash as Hash
 import           Unison.Reference
 import           Unison.Term
@@ -227,6 +230,11 @@ lengthEncode text = do
   putWord32be . fromIntegral $ B.length bs
   putByteString bs
 
+serializeFoldable :: (MonadPut m, Foldable f) => (a -> m ()) -> f a -> m ()
+serializeFoldable f fa = do
+  putLength $ length fa
+  traverse_ f fa
+
 serializeReference :: MonadPut m => Reference -> m ()
 serializeReference ref = case ref of
   Builtin text -> do
@@ -238,12 +246,16 @@ serializeReference ref = case ref of
     putWord32be . fromIntegral $ B.length bs
     putByteString bs
 
---
---
--- serializeDataDeclaration :: MonadPut m => DataDeclaration v -> m ()
---
---
--- serializeEffectDeclaration :: MonadPut m => EffectDeclaration v -> m ()
---
---
--- serializeFile :: MonadPut m => UnisonFile
+serializeConstructorArities :: MonadPut m => Reference -> [Int] -> m ()
+serializeConstructorArities r constructorArities = do
+  serializeReference r
+  serializeFoldable (putWord32be . fromIntegral) constructorArities
+
+serializeFile :: (MonadPut m, MonadState Pos m, Var v) => UnisonFile v -> m ()
+serializeFile (UnisonFile dataDecls effectDecls body) = do
+  -- list [(Reference, [Arity])]
+  let dataDecls' = second DD.constructorArities <$> toList dataDecls
+  let effectDecls' = second (DD.constructorArities . DD.toDataDecl) <$> toList effectDecls
+  serializeFoldable (uncurry serializeConstructorArities) dataDecls'
+  serializeFoldable (uncurry serializeConstructorArities) effectDecls'
+  void $ serializeTerm body

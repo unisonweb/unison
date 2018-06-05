@@ -6,6 +6,7 @@ module Unison.FileParser where
 -- import qualified Unison.TypeParser as TypeParser
 import Prelude hiding (readFile)
 import           Unison.Parser
+import Control.Arrow (second)
 import Control.Applicative
 import Data.Either (partitionEithers)
 import Data.Map (Map)
@@ -29,11 +30,10 @@ import Control.Monad.Reader
 import Data.Text.IO (readFile)
 import System.IO (FilePath)
 import qualified Data.Text as Text
-import Debug.Trace
 
 data UnisonFile v = UnisonFile {
-  dataDeclarations :: Map v (DataDeclaration v),
-  effectDeclarations :: Map v (EffectDeclaration v),
+  dataDeclarations :: Map v (Reference, DataDeclaration v),
+  effectDeclarations :: Map v (Reference, EffectDeclaration v),
   term :: Term v
 } deriving (Show)
 
@@ -58,13 +58,23 @@ unsafeReadAndParseFile env filename = do
 file :: Var v => Parser (S v) (UnisonFile v)
 file = traced "file" $ do
   (dataDecls, effectDecls) <- traced "declarations" declarations
-  local (`Map.union` environmentFor dataDecls effectDecls) $ do
+  let (dataDecls', effectDecls', penv') = environmentFor dataDecls effectDecls
+  local (`Map.union` penv') $ do
     term <- TermParser.block
-    pure $ UnisonFile dataDecls effectDecls term
+    pure $ UnisonFile dataDecls' effectDecls' term
 
-environmentFor :: Var v => Map v (DataDeclaration v) -> Map v (EffectDeclaration v) -> PEnv
-environmentFor dataDecls effectDecls = -- todo: add effectDecls
-  trace "new env" $ traceShowId $ Map.fromList (constructors' =<< hashDecls (Map.union dataDecls (toDataDecl <$> effectDecls)))
+environmentFor :: Var v
+               => Map v (DataDeclaration v)
+               -> Map v (EffectDeclaration v)
+               -> (Map v (Reference, DataDeclaration v),
+                   Map v (Reference, EffectDeclaration v),
+                   PEnv)
+environmentFor dataDecls effectDecls =
+  let hashDecls' = hashDecls (Map.union dataDecls (toDataDecl <$> effectDecls))
+      allDecls = Map.fromList [ (v, (r,de)) | (v,r,de) <- hashDecls' ]
+      dataDecls' = Map.difference allDecls effectDecls
+      effectDecls' = second EffectDeclaration <$> Map.difference allDecls dataDecls
+  in (dataDecls', effectDecls', Map.fromList (constructors' =<< hashDecls'))
 
 constructors' :: Var v => (v, Reference, DataDeclaration v) -> [(String, (Reference, Int))]
 constructors' (typeSymbol, r, (DataDeclaration _ constructors)) =
