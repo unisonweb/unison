@@ -135,7 +135,7 @@ object Builtins {
 
   // Signed machine integers
   val Int64_inc =
-    fl_l("Int64.inc", "x", _ + 1)
+    fl_l("Int64.increment", "x", _ + 1)
 
   val Int64_isEven =
     fl_b("Int64.isEven", "x", _ % 2 == 0)
@@ -186,7 +186,7 @@ object Builtins {
     fl_l("UInt64.toInt64", "x", x => x)
 
   val UInt64_inc =
-    fn_n("UInt64.inc", "x", _ + 1)
+    fn_n("UInt64.increment", "x", _ + 1)
 
   val UInt64_isEven =
     fl_b("UInt64.isEven", "x", _ % 2 == 0)

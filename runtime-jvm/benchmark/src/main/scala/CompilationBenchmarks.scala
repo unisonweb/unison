@@ -13,7 +13,7 @@ object CompilationBenchmarks {
   def N(n: Int): Int = math.random.ceil.toInt * n
   val env = Environment(
     Builtins.builtins,
-    _ => ???,
+    Map.empty,
     BuiltinTypes.dataConstructors,
     BuiltinTypes.effects)
 

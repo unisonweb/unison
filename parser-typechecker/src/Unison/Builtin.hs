@@ -51,9 +51,15 @@ builtins = Map.fromList $
       , ("Int64.<=", "Int64 -> Int64 -> Boolean")
       , ("Int64.>=", "Int64 -> Int64 -> Boolean")
       , ("Int64.==", "Int64 -> Int64 -> Boolean")
+      , ("Int64.increment", "Int64 -> Int64")
+      , ("Int64.isEven", "Int64 -> Boolean")
+      , ("Int64.isOdd", "Int64 -> Boolean")
+      , ("Int64.signum", "Int64 -> Int64")
+      , ("Int64.negate", "Int64 -> Int64")
 
       , ("UInt64.+", "UInt64 -> UInt64 -> UInt64")
       , ("UInt64.drop", "UInt64 -> UInt64 -> UInt64")
+      , ("UInt64.sub", "UInt64 -> UInt64 -> Int64")
       , ("UInt64.*", "UInt64 -> UInt64 -> UInt64")
       , ("UInt64./", "UInt64 -> UInt64 -> UInt64")
       , ("UInt64.<", "UInt64 -> UInt64 -> Boolean")
@@ -61,6 +67,9 @@ builtins = Map.fromList $
       , ("UInt64.<=", "UInt64 -> UInt64 -> Boolean")
       , ("UInt64.>=", "UInt64 -> UInt64 -> Boolean")
       , ("UInt64.==", "UInt64 -> UInt64 -> Boolean")
+      , ("UInt64.increment", "UInt64 -> UInt64")
+      , ("UInt64.isEven", "UInt64 -> Boolean")
+      , ("UInt64.isOdd", "UInt64 -> Boolean")
 
       , ("Float.+", "Float -> Float -> Float")
       , ("Float.-", "Float -> Float -> Float")
@@ -71,5 +80,21 @@ builtins = Map.fromList $
       , ("Float.<=", "Float -> Float -> Boolean")
       , ("Float.>=", "Float -> Float -> Boolean")
       , ("Float.==", "Float -> Float -> Boolean")
+
+      , ("Boolean.not", "Boolean -> Boolean")
+      -- todo: Text
+
+      , ("Stream.empty", "forall a . Stream a")
+      , ("Stream.cons", "forall a . a -> Stream a -> Stream a")
+      , ("Stream.take", "forall a . UInt64 -> Stream a -> Stream a")
+      , ("Stream.drop", "forall a . UInt64 -> Stream a -> Stream a")
+      , ("Stream.map", "forall a b . (a -> b) -> Stream a -> Stream b")
+      , ("Stream.foldLeft", "forall a b . b -> (b -> a -> b) -> Stream a -> b")
+
+      , ("Sequence.empty", "forall a . Sequence a")
+      , ("Sequence.cons", "forall a . a -> Sequence a -> Sequence a")
+      , ("Sequence.snoc", "forall a . Sequence a -> a -> Sequence a")
+      , ("Sequence.take", "forall a . UInt64 -> Sequence a -> Sequence a")
+      , ("Sequence.size", "forall a . Sequence a -> UInt64")
       ]
   ]

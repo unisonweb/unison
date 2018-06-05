@@ -14,7 +14,7 @@ object Environment {
 
   val standard = Environment(
     Builtins.builtins,
-    userDefined = Map(),
+    userDefined = Map.empty,
     BuiltinTypes.dataConstructors,
     BuiltinTypes.effects)
 }
