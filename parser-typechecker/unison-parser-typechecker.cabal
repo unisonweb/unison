@@ -92,6 +92,57 @@ library
   if flag(quiet)
     ghc-options: -v0
 
+executable bootstrap
+  main-is: Bootstrap.hs
+  hs-source-dirs: src
+  other-modules:
+    Unison.ABT
+    Unison.Codecs
+    Unison.DataDeclaration
+    Unison.FileParser
+    Unison.Hash
+    Unison.Hashable
+    Unison.Kind
+    Unison.Note
+    Unison.Parser
+    Unison.Parsers
+    Unison.Pattern
+    Unison.Reference
+    Unison.Symbol
+    Unison.Term
+    Unison.TermParser
+    Unison.Type
+    Unison.TypeParser
+    Unison.TypeVar
+    Unison.Typechecker.Components
+    Unison.Var
+
+  build-depends:
+    base,
+    base58-bytestring,
+    bytes,
+    bytestring,
+    containers,
+    cryptonite,
+    filepath,
+    memory,
+    mtl,
+    parsec,
+    parsec-layout,
+    prelude-extras,
+    text,
+    transformers,
+    vector,
+    unison-parser-typechecker
+
+
+    -- base,
+    -- text,
+    -- bytes,
+    -- bytestring,
+    -- base58-bytestring,
+    -- unison-parser-typechecker
+
 executable tests
   main-is:        Suite.hs
   ghc-options:    -w -threaded -rtsopts -with-rtsopts=-N -v0

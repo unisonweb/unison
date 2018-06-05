@@ -13,7 +13,7 @@ import Unison.Parser (PEnv, penv0)
 import Unison.DataDeclaration (hashDecls)
 
 test = scope "datadeclaration" $
-  let hashes = hashDecls . dataDeclarations $ file
+  let hashes = hashDecls . (snd <$>) . dataDeclarations $ file
       hashMap = Map.fromList $ fmap (\(a,b,_) -> (a,b)) hashes
       hashOf k = Map.lookup (Var.named k) hashMap
   in tests [

@@ -6,4 +6,6 @@ Optional.isEmpty o = case o of
   Optional.None -> True
   _ -> False
 
-()
+increment x = x + 1
+
+increment 3
