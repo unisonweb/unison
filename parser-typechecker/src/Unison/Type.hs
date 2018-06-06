@@ -137,6 +137,9 @@ float = builtin "Float"
 boolean :: Ord v => Type v
 boolean = builtin "Boolean"
 
+text :: Ord v => Type v
+text = builtin "Text"
+
 app :: Ord v => Type v -> Type v -> Type v
 app f arg = ABT.tm (App f arg)
 

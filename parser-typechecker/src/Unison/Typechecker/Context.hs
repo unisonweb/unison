@@ -426,6 +426,7 @@ check e t = getContext >>= \ctx -> scope ("check: " ++ show e ++ ":   " ++ show 
       go (Term.UInt64' _) _ = subtype Type.uint64 t -- 1I
       go (Term.Float' _) _ = subtype Type.float t -- 1I
       go (Term.Boolean' _) _ = subtype Type.boolean t -- 1I
+      go (Term.Text' _) _ = subtype Type.text t -- 1I
       go Term.Blank' _ = pure () -- somewhat hacky short circuit; blank checks successfully against all types
       go _ (Type.Forall' body) = do -- ForallI
         x <- extendUniversal =<< ABT.freshen body freshenTypeVar
@@ -500,6 +501,7 @@ annotateLetRecBindings letrec = do
   pure $ (marker, body)
 
 -- | Synthesize the type of the given term, updating the context in the process.
+-- | Figure 11 from the paper
 synthesize :: Var v => Term v -> M v (Type v)
 synthesize e = scope ("synth: " ++ show e) $ go e where
   go (Term.Var' v) = getContext >>= \ctx -> case lookupType ctx v of -- Var
@@ -524,6 +526,7 @@ synthesize e = scope ("synth: " ++ show e) $ go e where
   go (Term.Int64' _) = pure Type.int64 -- 1I=>
   go (Term.UInt64' _) = pure Type.uint64 -- 1I=>
   go (Term.Boolean' _) = pure Type.boolean
+  go (Term.Text' _) = pure Type.text
   go (Term.App' f arg) = do -- ->E
     ft <- synthesize f; ctx <- getContext
     synthesizeApp (apply ctx ft) arg

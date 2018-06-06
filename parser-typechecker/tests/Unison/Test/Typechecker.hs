@@ -3,7 +3,7 @@ module Unison.Test.Typechecker where
 import EasyTest
 import Unison.Test.Common
 
-test = scope "typechecker" . tests . map expect $
+test = scope "typechecker" . tests $
   [
     c "x -> x"
       "forall a . a -> a"
@@ -13,5 +13,23 @@ test = scope "typechecker" . tests . map expect $
 
   , c "(+_Int64)"
       "Int64 -> Int64 -> Int64"
+
+  , c "3"
+      "UInt64"
+
+  , c "+3"
+      "Int64"
+
+  , c "3.0"
+      "Float"
+
+  , c "Boolean.not true"
+      "Boolean"
+
+  , c "Boolean.not"
+      "Boolean -> Boolean"
+
+  , c "\"Hello, world!\""
+      "Text"
   ]
-  where c = check
+  where c tm typ = scope tm $ expect $ check tm typ
