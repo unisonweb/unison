@@ -140,6 +140,14 @@ boolean = builtin "Boolean"
 text :: Ord v => Type v
 text = builtin "Text"
 
+iff :: Var v => Type v
+iff = forall aa $ arrows [boolean, a, a] a
+  where aa = ABT.v' "a"
+        a = var aa
+
+andor :: Ord v => Type v
+andor = arrows [boolean, boolean] boolean
+
 app :: Ord v => Type v -> Type v -> Type v
 app f arg = ABT.tm (App f arg)
 
@@ -173,7 +181,7 @@ forall' vs body = foldr forall body (map ABT.v' vs)
 foralls :: Var v => [v] -> Type v -> Type v
 foralls vs body = foldr forall body vs
 
-arrows :: Var v => [Type v] -> Type v -> Type v
+arrows :: Ord v => [Type v] -> Type v -> Type v
 arrows ts result = foldr arrow result ts
 
 effect :: Ord v => [Type v] -> Type v -> Type v

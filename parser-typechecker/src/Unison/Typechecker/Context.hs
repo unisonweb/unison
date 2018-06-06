@@ -573,6 +573,9 @@ synthesize e = scope ("synth: " ++ show e) $ go e where
     t <- synthesize e
     (ctx, ctx2) <- breakAt marker <$> getContext
     generalizeExistentials ctx2 t <$ setContext ctx
+  go (Term.If' cond t f) = foldM synthesizeApp Type.iff [cond, t, f]
+  go (Term.And' a b) = foldM synthesizeApp Type.andor [a, b]
+  go (Term.Or' a b) = foldM synthesizeApp Type.andor [a, b]
   go e = fail $ "unknown case in synthesize " ++ show e
 
 -- | Synthesize the type of the given term, `arg` given that a function of

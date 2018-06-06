@@ -31,5 +31,9 @@ test = scope "typechecker" . tests $
 
   , c "\"Hello, world!\""
       "Text"
+
+  , c "if true then 1 else 2" "UInt64"
+  , c "or true false" "Boolean"
+  , c "and true false" "Boolean"
   ]
   where c tm typ = scope tm $ expect $ check tm typ
