@@ -5,7 +5,7 @@ license:       MIT
 cabal-version: >= 1.8
 license-file:  LICENSE
 author:        Unison Computing, public benefit corp
-maintainer:    Paul Chiusano <paul.chiusano@gmail.com>
+maintainer:    Paul Chiusano <paul.chiusano@gmail.com>, Runar Bjarnason <runarorama@gmail.com>, Arya Irani <arya.irani@gmail.com>
 stability:     provisional
 homepage:      http://unisonweb.org
 bug-reports:   https://github.com/unisonweb/unison/issues
@@ -94,30 +94,7 @@ library
 
 executable bootstrap
   main-is: Bootstrap.hs
-  hs-source-dirs: src
-  other-modules:
-    Unison.ABT
-    Unison.Builtin
-    Unison.Codecs
-    Unison.DataDeclaration
-    Unison.FileParser
-    Unison.Hash
-    Unison.Hashable
-    Unison.Kind
-    Unison.Note
-    Unison.Parser
-    Unison.Parsers
-    Unison.Pattern
-    Unison.Reference
-    Unison.Symbol
-    Unison.Term
-    Unison.TermParser
-    Unison.Type
-    Unison.TypeParser
-    Unison.TypeVar
-    Unison.Typechecker.Components
-    Unison.Var
-
+  hs-source-dirs: bootstrap
   build-depends:
     base,
     base58-bytestring,
@@ -135,14 +112,6 @@ executable bootstrap
     transformers,
     vector,
     unison-parser-typechecker
-
-
-    -- base,
-    -- text,
-    -- bytes,
-    -- bytestring,
-    -- base58-bytestring,
-    -- unison-parser-typechecker
 
 executable tests
   main-is:        Suite.hs
