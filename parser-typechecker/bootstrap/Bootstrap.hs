@@ -17,4 +17,4 @@ main = do
       let bs = runPutS $ flip evalStateT 0 $ Codecs.serializeFile unisonFile
       BS.writeFile outputFile bs
 
-    _ -> putStrLn "usage: bootstrap in.u out.ub"
+    _ -> putStrLn "usage: bootstrap <in-file.u> <out-file.ub>"
