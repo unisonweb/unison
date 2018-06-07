@@ -5,9 +5,10 @@ import           Control.Arrow ((&&&))
 import qualified Data.Map as Map
 import           Data.Set (Set)
 import qualified Data.Set as Set
+import           Data.Text (Text)
 import qualified Unison.ABT as ABT
-import           Unison.Parser (penv0)
-import           Unison.Parsers (unsafeParseType, unsafeParseTerm)
+import qualified Unison.Parser as Parser
+import qualified Unison.Parsers as Parsers
 import qualified Unison.Reference as R
 import           Unison.Symbol (Symbol)
 import           Unison.Term (Term)
@@ -17,19 +18,24 @@ import qualified Unison.Type as Type
 import qualified Unison.Var as Var
 import           Unison.Var (Var)
 
+-- parse a type, hard-coding the builtins defined in this file
 t :: String -> Type Symbol
-t s = resolveBuiltinTypes $ unsafeParseType s penv0
+t s = resolveBuiltins builtinTypes Type.builtin $
+        Parsers.unsafeParseType s Parser.penv0
 
-resolveBuiltinTypes :: Type Symbol -> Type Symbol
-resolveBuiltinTypes t =
-  let free = Set.intersection (ABT.freeVars t) builtinTypes
-  in ABT.substs [(v, Type.builtin (Var.name v)) | v <- Set.toList free ] t
-
+-- parse a term, hard-coding the builtins defined in this file
 tm :: String -> Term Symbol
-tm s = let
-  t = unsafeParseTerm s penv0
-  free = Set.intersection (ABT.freeVars t) builtinTerms
-  in ABT.substs [(v, Term.builtin (Var.name v)) | v <- Set.toList free ] t
+tm s = resolveBuiltins builtinTerms Term.builtin $
+        Parsers.unsafeParseTerm s Parser.penv0
+
+resolveBuiltins :: (Foldable f, Functor f, Var v) =>
+                 Set v
+                 -> (Text -> ABT.Term f v a)
+                 -> ABT.Term f v a
+                 -> ABT.Term f v a
+resolveBuiltins b mkTerm t = let
+  free = Set.intersection (ABT.freeVars t) b
+  in ABT.substs [(v, mkTerm (Var.name v)) | v <- Set.toList free] t
 
 builtinTypes :: Set Symbol
 builtinTypes = Set.fromList . map Var.named $ [

@@ -10,19 +10,13 @@ import           Data.Either (partitionEithers)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Text as Text
-import           Data.Text.IO (readFile)
 import           Prelude hiding (readFile)
-import           System.IO (FilePath)
 import qualified Text.Parsec.Layout as L
 import qualified Unison.ABT as ABT
-import qualified Unison.Builtin as Builtin
 import           Unison.DataDeclaration (DataDeclaration(..), hashDecls, EffectDeclaration(..), mkEffectDecl)
-import           Unison.Parser
-import           Unison.Parser (PEnv, penv0)
-import           Unison.Parsers (unsafeGetRight)
-import qualified Unison.Parsers as Parsers
+-- import           Unison.Parser
+import           Unison.Parser (Parser, PEnv, traced, token_, sepBy, string)
 import           Unison.Reference (Reference)
-import           Unison.Symbol (Symbol)
 import           Unison.Term (Term)
 import qualified Unison.Term as Term
 import qualified Unison.TermParser as TermParser
@@ -40,26 +34,8 @@ data UnisonFile v = UnisonFile {
   term :: Term v
 } deriving (Show)
 
-unsafeParseFile :: String -> PEnv -> UnisonFile Symbol
-unsafeParseFile s env = unsafeGetRight $ parseFile "" s env
-
-parseFile :: FilePath -> String -> PEnv -> Either String (UnisonFile Symbol)
-parseFile filename s = Unison.Parser.run' (Unison.Parser.root file) s Parsers.s0 filename
-
-parseFile' :: FilePath -> String -> Either String (UnisonFile Symbol)
-parseFile' filename s = parseFile filename s penv0
-
-unsafeReadAndParseFile' :: String -> IO (UnisonFile Symbol)
-unsafeReadAndParseFile' = unsafeReadAndParseFile penv0
-
-unsafeReadAndParseFile :: PEnv -> String -> IO (UnisonFile Symbol)
-unsafeReadAndParseFile env filename = do
-  txt <- readFile filename
-  let str = Text.unpack txt
-  pure $ unsafeGetRight (parseFile filename str env)
-
-file :: Parser (S Symbol) (UnisonFile Symbol)
-file = traced "file" $ do
+file :: Var v => [(v, Term v)] -> Parser (S v) (UnisonFile v)
+file builtinEnv = traced "file" $ do
   (dataDecls, effectDecls) <- traced "declarations" declarations
   let (dataDecls', effectDecls', penv') = environmentFor dataDecls effectDecls
   local (`Map.union` penv') $ do
@@ -67,7 +43,7 @@ file = traced "file" $ do
     let dataEnv0 = Map.fromList [ (Var.named (Text.pack n), Term.constructor r i) | (n, (r,i)) <- Map.toList penv' ]
         dataEnv = dataEnv0 `Map.difference` effectDecls
         effectEnv = dataEnv0 `Map.difference` dataEnv
-    let term2 = ABT.substs (Builtin.builtinEnv ++ Map.toList dataEnv ++ Map.toList effectEnv) term
+    let term2 = ABT.substs (builtinEnv ++ Map.toList dataEnv ++ Map.toList effectEnv) term
     pure $ UnisonFile dataDecls' effectDecls' term2
 
 environmentFor :: Var v

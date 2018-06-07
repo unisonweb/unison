@@ -135,7 +135,7 @@ pattern = traced "pattern" $ constructor <|> trace "running leaf" leaf
           (traced ("failing " ++ name) . fail $ "unknown data constructor " ++ name)
 
 letBlock :: Var v => TermP v
-letBlock = token (string "let") *> block
+letBlock = traced "letBlock" $ token (string "let") *> block
 
 infixApp :: Var v => TermP v
 infixApp = chainl1 term4 (f <$> infixVar)
@@ -274,6 +274,7 @@ keywords =
   [ "->"
   , ":"
   , "="
+  , "let"
   , "alias"
   , "and", "or"
   , "case", "of"

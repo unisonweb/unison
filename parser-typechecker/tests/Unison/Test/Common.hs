@@ -1,12 +1,13 @@
 module Unison.Test.Common where
 
-import Unison.Parsers (unsafeParseTerm, unsafeParseType)
+import Unison.Parsers (unsafeParseType, unsafeParseTerm, unsafeParseFile')
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Symbol (Symbol)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.Builtin as B
+import qualified Unison.FileParser as FileParser
 import qualified Unison.Note as N
 import qualified Unison.Typechecker as Typechecker
 import qualified Unison.ABT as ABT
@@ -22,7 +23,7 @@ t :: String -> Type Symbol
 t = B.t
 
 typechecks :: String -> Bool
-typechecks terms = typechecks' (tm terms)
+typechecks = typechecks' . tm
 
 typechecks' :: Term Symbol -> Bool
 typechecks' term = let

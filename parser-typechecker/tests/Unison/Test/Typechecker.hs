@@ -1,6 +1,9 @@
+{-# LANGUAGE QuasiQuotes #-}
+
 module Unison.Test.Typechecker where
 
 import EasyTest
+import Text.RawString.QQ
 import Unison.Test.Common
 
 test = scope "typechecker" . tests $
@@ -35,5 +38,16 @@ test = scope "typechecker" . tests $
   , c "if true then 1 else 2" "UInt64"
   , c "or true false" "Boolean"
   , c "and true false" "Boolean"
+  , c "[1,2,3]" "Sequence UInt64"
+  , c "Stream.from-int64 +0" "Stream Int64"
+  , c "(+_UInt64) 1" "UInt64 -> UInt64"
+  , c [r|let
+          (|>) : forall a b . a -> (a -> b) -> b
+          a |> f = f a
+
+          Stream.from-int64 -3
+            |> Stream.take 10
+            |> Stream.fold-left +0 (+_Int64)
+        |] "Int64"
   ]
   where c tm typ = scope tm $ expect $ check tm typ

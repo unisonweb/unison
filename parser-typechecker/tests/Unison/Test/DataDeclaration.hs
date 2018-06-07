@@ -5,11 +5,12 @@ module Unison.Test.DataDeclaration where
 import EasyTest
 import Text.RawString.QQ
 import Unison.Test.Common
-import Unison.FileParser (UnisonFile(..), unsafeParseFile)
+import Unison.FileParser (UnisonFile(..))
 import qualified Unison.Var as Var
 import Data.List (intercalate)
 import qualified Data.Map as Map
 import Unison.Parser (PEnv, penv0)
+import Unison.Parsers (unsafeParseFile)
 import Unison.DataDeclaration (hashDecls)
 
 test = scope "datadeclaration" $

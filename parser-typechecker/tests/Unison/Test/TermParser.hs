@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
 
 module Unison.Test.TermParser where
 
@@ -10,6 +10,8 @@ import qualified Unison.Reference as R
 import           Unison.Symbol (Symbol)
 import           Unison.Term (Term)
 import           Unison.Test.Common
+import Text.RawString.QQ
+
 
 test = scope "termparser" . tests . map parses $
   [ "1"
@@ -100,13 +102,16 @@ test = scope "termparser" . tests . map parses $
     "  s + 2\n"
   , "and x y"
   , "or x y"
-  ]
+  , [r|let
+        increment = (+_UInt64) 1
 
-faketest = scope "termparser" . tests . map parses $
-  ["x"
-  , "case x of\n" ++
-    "  {Pair x y} -> 1\n" ++
-    "  {State.set 42 -> k} -> k 42\n"
+        (|>) : forall a . a -> (a -> b) -> b
+        a |> f = f a
+
+        Stream.from-int64 -3
+          |> Stream.take 10
+          |> Stream.fold-left 0 increment
+        |]
   ]
 
 builtins = Map.fromList
