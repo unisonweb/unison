@@ -5,7 +5,7 @@ module Unison.Test.DataDeclaration where
 import EasyTest
 import Text.RawString.QQ
 import Unison.Test.Common
-import Unison.FileParser (UnisonFile(..))
+import Unison.UnisonFile (UnisonFile(..))
 import qualified Unison.Var as Var
 import Data.List (intercalate)
 import qualified Data.Map as Map

@@ -6,7 +6,6 @@ import qualified Data.Text as Text
 import           Data.Text.IO (readFile)
 import           Prelude hiding (readFile)
 import qualified Unison.ABT as ABT
-import           Unison.FileParser (UnisonFile)
 import qualified Unison.FileParser as FileParser
 import           Unison.Parser (PEnv)
 import qualified Unison.Parser as Parser
@@ -16,6 +15,7 @@ import qualified Unison.Term as Term
 import qualified Unison.TermParser as TermParser
 import           Unison.Type (Type)
 import qualified Unison.TypeParser as TypeParser
+import           Unison.UnisonFile (UnisonFile)
 import           Unison.Var (Var)
 
 type S v = TypeParser.S v

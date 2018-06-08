@@ -14,10 +14,10 @@ import           Data.Text.Encoding (encodeUtf8)
 import           Data.Word (Word64)
 import qualified Unison.ABT as ABT
 import qualified Unison.DataDeclaration as DD
-import           Unison.FileParser (UnisonFile(..))
 import qualified Unison.Hash as Hash
 import           Unison.Reference
 import           Unison.Term
+import           Unison.UnisonFile (UnisonFile(..))
 import           Unison.Var
 import qualified Unison.Var as Var
 import Unison.Pattern (Pattern)

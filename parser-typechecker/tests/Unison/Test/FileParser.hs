@@ -4,7 +4,7 @@ module Unison.Test.FileParser where
 
   import EasyTest
   import Control.Applicative
-  import Unison.FileParser (UnisonFile, file)
+  import Unison.FileParser (file)
   import Unison.Parser
   import Unison.DataDeclaration
   import qualified Unison.Parser as Parser
@@ -14,6 +14,7 @@ module Unison.Test.FileParser where
   import qualified Data.Map as Map
   import qualified Unison.Reference as R
   import Unison.Symbol (Symbol)
+  import Unison.UnisonFile (UnisonFile)
 
   test1 = scope "fileparser.test1" . tests . map parses $
     [

@@ -10,11 +10,10 @@ import Control.Applicative
 import Control.Monad
 import Data.Char (isSpace)
 import Data.List hiding (takeWhile)
-import Data.Map
 import Data.Maybe
 import Data.Text (Text)
 import Prelude hiding (takeWhile)
-import Unison.Reference (Reference)
+import qualified Unison.UnisonFile as UnisonFile
 import qualified Data.Char as Char
 import qualified Data.Map  as Map
 import qualified Data.Text as Text
@@ -26,7 +25,8 @@ import qualified Text.Parsec.Layout as L
 import Debug.Trace
 import Text.Parsec (anyChar)
 
-type PEnv = Map String (Reference, Int)
+type PEnv = UnisonFile.CtorLookup
+
 penv0 :: PEnv
 penv0 = Map.empty
 type Parser s a = Parsec.ParsecT Text (Env s) ((->) PEnv) a
