@@ -17,8 +17,3 @@ extra-deps:
 ghc-options:
  # All packages
  "$locals": -Werror
-
-#extra-include-dirs:
-#- /usr/local/include
-#extra-lib-dirs:
-#- /usr/local/lib

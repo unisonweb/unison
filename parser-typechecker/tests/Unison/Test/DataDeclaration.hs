@@ -4,12 +4,10 @@ module Unison.Test.DataDeclaration where
 
 import EasyTest
 import Text.RawString.QQ
-import Unison.Test.Common
 import Unison.UnisonFile (UnisonFile(..))
 import qualified Unison.Var as Var
-import Data.List (intercalate)
 import qualified Data.Map as Map
-import Unison.Parser (PEnv, penv0)
+import Unison.Parser (penv0)
 import Unison.Parsers (unsafeParseFile)
 import Unison.DataDeclaration (hashDecls)
 

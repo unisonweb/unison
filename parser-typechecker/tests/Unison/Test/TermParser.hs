@@ -4,13 +4,11 @@ module Unison.Test.TermParser where
 
 import qualified Data.Map as Map
 import           EasyTest
-import           Unison.Parser (penv0)
+import           Text.RawString.QQ
 import           Unison.Parsers (unsafeParseTerm)
 import qualified Unison.Reference as R
 import           Unison.Symbol (Symbol)
 import           Unison.Term (Term)
-import           Unison.Test.Common
-import Text.RawString.QQ
 
 
 test = scope "termparser" . tests . map parses $

@@ -1,9 +1,10 @@
+{-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
+
 module Main where
 
 import EasyTest
 import System.IO
 import System.Environment (getArgs)
-import qualified Unison.Test.Common as Common
 import qualified Unison.Test.TermParser as TermParser
 import qualified Unison.Test.Typechecker as Typechecker
 import qualified Unison.Test.FileParser as FileParser
