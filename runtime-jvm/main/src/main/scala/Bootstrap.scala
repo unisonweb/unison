@@ -9,7 +9,12 @@ object Bootstrap {
   def main(args: Array[String]): Unit = {
     import Codecs._
 
-    val fileName = args(0)
+    val fileName = args match {
+      case Array(s) => s
+      case _ =>
+        println("usage: Bootstrap <file.ub>")
+        sys.exit(1)
+    }
     val src = Source.fromFile(fileName)
     val data = decodeConstructorArities(src)
     val effects = decodeConstructorArities(src)
