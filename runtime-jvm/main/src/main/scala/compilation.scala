@@ -796,6 +796,9 @@ package object compilation {
         val needsCopy = names.length > K
         // inner lambda may throw SelfCall, so we create wrapper Lambda
         // to process those
+
+        // note: no reason to specialize for Computation.C{2,1,0}U, as these
+        //       won't contain a tail-recursive call, thus won't enter here
         val outerLambdaBody: Computation = (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
           val stackArgsCount = (innerLambda.arity - K) max 0
 
@@ -831,7 +834,7 @@ package object compilation {
 
           go(x1, x0, x1b, x0b)
         }
-        Lambda(names.length, outerLambdaBody, innerLambda.unboxedType, innerLambda.decompile)
+        Lambda(names.length, outerLambdaBody, innerLambda.decompile)
       }
 
       compiledLambda match {
@@ -890,7 +893,7 @@ package object compilation {
       val shadowedRec = bodyRec.shadow(names)
       val cbody = compile(builtins)(body, names.reverse.toVector,
         shadowedRec, shadowedRec.toRecursiveVars, IsTail)
-      Return(Lambda(names.length, cbody, None, e))
+      Return(Lambda(names.length, cbody, e))
     }
     // 2.
     else {
@@ -1307,9 +1310,10 @@ package object compilation {
               // Note: We have to make up a name here. "handler" works.
               Term.Lam(k.names:_*)(Term.Handle(Term.Compiled(handler))(
                 k.decompile(k.names.map(Term.Var(_)):_*)))
+            // todo: worth it to specialize doIt for k.body: Computation.C{2,1,0}U?
             val body: Computation = (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
               doIt(handler, k.body)(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
-            Lambda(k.arity, body, k.unboxedType, decompiled)
+            Lambda(k.arity, body, decompiled)
           }
           def apply(r: R, rec: Lambda, top: StackPtr,
                     stackU: Array[U], x1: U, x0: U,

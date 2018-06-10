@@ -71,7 +71,7 @@ object Builtins {
       }
     val decompiled = Term.Id(name)
     val lambda =
-      new Value.Lambda.ClosureForming(List(arg1, arg2, arg3), body, None, decompiled)
+      new Value.Lambda.ClosureForming(List(arg1, arg2, arg3), body, decompiled)
     name -> Return(lambda)
   }
 
@@ -383,7 +383,7 @@ object Builtins {
                (implicit A: Decode[A], B: Encode[B]): (Name, Computation) = {
     val body: Computation.C1P = (r,x0,x0b) => B.encode(r, f(A.decode(x0, x0b)))
     val decompile = Term.Id(name)
-    name -> Return(new Lambda1(arg, body, None, decompile))
+    name -> Return(new Lambda1(arg, body, decompile))
   }
 
   // Monomorphic one-argument function on unboxed values
@@ -395,7 +395,7 @@ object Builtins {
       def raw(x0: U): U = f.applyAsLong(x0)
     }
     val decompile = Term.Id(name)
-    val computation = Return(new Lambda1(arg, body, Some(outputType), decompile))
+    val computation = Return(new Lambda1(arg, body, decompile))
     name -> computation
   }
 
@@ -427,7 +427,7 @@ object Builtins {
     val body: Computation.C1P = (r,x0,x0b) => {
       B.encodeOp(r, f(A.decode(x0, x0b)), name, Value.fromParam(x0, x0b))
     }
-    val lambda = new Lambda.Lambda1(arg, body, None, Term.Id(name))
+    val lambda = new Lambda.Lambda1(arg, body, Term.Id(name))
     name -> Return(lambda)
   }
 
@@ -439,7 +439,7 @@ object Builtins {
       (r,x1,x0,x1b,x0b) =>
         C.encode(r, f(A.decode(x1, x1b), B.decode(x0, x0b)))
     val decompiled = Term.Id(name)
-    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, None, decompiled)
+    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, decompiled)
     name -> Return(lambda)
   }
 
@@ -456,7 +456,7 @@ object Builtins {
                    Value.fromParam(x0, x0b))
       }
     val decompiled = Term.Id(name)
-    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, None, decompiled)
+    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, decompiled)
     name -> Return(lambda)
   }
 
@@ -471,7 +471,7 @@ object Builtins {
     val body: Computation.C2P = (r,x1,x0,_,x0b) =>
       B.encode(r, f(x1, A.decode(x0, x0b)))
     val decompiled = Term.Id(name)
-    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, None, decompiled)
+    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, decompiled)
     name -> Return(lambda)
   }
 
@@ -483,7 +483,7 @@ object Builtins {
                  name,
                  Value.fromParam(x1,x1b),
                  Value.fromParam(x0,x0b))
-    name -> Return(new Value.Lambda.ClosureForming(List(arg1, arg2), body, None, Term.Id(name)))
+    name -> Return(new Value.Lambda.ClosureForming(List(arg1, arg2), body, Term.Id(name)))
   }
 
 
@@ -499,7 +499,7 @@ object Builtins {
                  Value.fromParam(x0, x0b))
 
     val decompiled = Term.Id(name)
-    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, None, decompiled)
+    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, decompiled)
     name -> Return(lambda)
   }
 
@@ -518,7 +518,7 @@ object Builtins {
         f(A.decode(x1, x1b), B.decode(x0, x0b))
       }
     val decompiled = Term.Id(name)
-    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, None, decompiled)
+    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, decompiled)
     name -> Return(lambda)
   }
 
@@ -554,7 +554,7 @@ object Builtins {
     }
 
     val decompiled = Term.Id(name)
-    val lam = new Lambda(List(arg1, arg2), body, Some(outputType), decompiled) {
+    val lam = new Lambda(List(arg1, arg2), body, decompiled) {
       self =>
 
       override def saturatedNonTailCall(args: List[Computation]) = args match {
@@ -613,11 +613,11 @@ object Builtins {
               val body = new Computation.C1U(outputType) {
                 def raw(x0: U): U = f.applyAsLong(n, x0)
               }
-              new Lambda(self.names drop argCount, body, unboxedType,
+              new Lambda(self.names drop argCount, body,
                          Term.Apply(decompiled, term))
             case _ => sys.error("")
           }
-          case _ => sys.error("unpossible")
+          case _ => sys.error("can't underapply a function of 2 args with anything but 1 arg")
         }
     }
     name -> Return(lam)
