@@ -33,6 +33,9 @@ test = scope "termparser" . tests . map parses $
   , "1 +_UInt64 1"
   , "( x + 1 )"
   , "foo 42"
+  , "1 ==_UInt64 1"
+  , "x ==_UInt64 y"
+  -- , "if x ==_UInt64 0 then true else false"
 
   -- Block tests
   , "let x = 1\n" ++

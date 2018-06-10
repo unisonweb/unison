@@ -154,7 +154,7 @@ termLeaf = traced "leaf" $
   asum [hashLit, prefixTerm, text, number, boolean, tupleOrParenthesized term, blank, vector term]
 
 ifthen :: Var v => TermP v
-ifthen = do
+ifthen = traced "ifthen" $ do
   token_ $ string "if"
   cond <- block' $ L.virtual_rbrace <|> (lookAhead . token_ $ string "then")
   token_ $ string "then"
@@ -307,7 +307,7 @@ block :: Var v => TermP v
 block = block' (traced "L.virtual_rbrace" L.virtual_rbrace)
 
 handle :: Var v => TermP v
-handle = do
+handle = traced "handle" $ do
   token_ $ string "handle"
   handler <- term
   token_ $ string "in"
