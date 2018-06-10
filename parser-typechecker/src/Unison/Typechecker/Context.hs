@@ -598,10 +598,6 @@ synthesizeApp ft arg = go ft where
          scope ("function type: " ++ show ft) $
          fail  ("arg: " ++ show arg)
 
-infixr 7 -->
-(-->) :: Ord v => Type.Type v -> Type.Type v -> Type.Type v
-(-->) = Type.arrow
-
 -- | For purposes of typechecking, we translate `[x,y,z]` to the term
 -- `Vector.prepend x (Vector.prepend y (Vector.prepend z Vector.empty))`,
 -- where `Vector.prepend : forall a. a -> Vector a -> a` and

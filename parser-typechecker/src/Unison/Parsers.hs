@@ -33,8 +33,9 @@ parseTerm = parseTerm' [] []
 parseType :: Var v => String -> PEnv -> Either String (Type v)
 parseType = parseType' []
 
-parseFile :: FilePath -> String -> PEnv -> Either String (UnisonFile Symbol)
-parseFile filename s = Parser.run' (Parser.root (FileParser.file [])) s s0 filename
+parseFile :: Var v => FilePath -> [(v, Term v)] -> String -> PEnv -> Either String (UnisonFile v)
+parseFile filename builtinEnv s =
+  Parser.run' (Parser.root (FileParser.file builtinEnv)) s s0 filename
 
 parseTerm' :: Var v
            => [(v, Term v)]
@@ -54,8 +55,6 @@ parseType' :: Var v => [(v, Type v)] -> String -> PEnv -> Either String (Type v)
 parseType' typeBuiltins s =
   fmap (ABT.substs typeBuiltins) <$> Parser.run (Parser.root TypeParser.valueType) s s0
 
-parseFile' :: FilePath -> String -> PEnv -> Either String (UnisonFile Symbol)
-parseFile' filename s = parseFile filename s
 
 unsafeParseTerm :: Var v => String -> PEnv -> Term v
 unsafeParseTerm = fmap unsafeGetRight . parseTerm
@@ -70,17 +69,19 @@ unsafeParseTerm' termBuiltins typeBuiltins =
 unsafeParseType' :: Var v => [(v, Type v)] -> String -> PEnv -> Type v
 unsafeParseType' tr = fmap unsafeGetRight . parseType' tr
 
-unsafeParseFile :: String -> PEnv -> UnisonFile Symbol
-unsafeParseFile s env = unsafeGetRight $ parseFile "" s env
+unsafeParseFile :: [(Symbol, Term Symbol)] -> String -> PEnv -> UnisonFile Symbol
+unsafeParseFile b s pEnv = unsafeGetRight $ parseFile "" b s pEnv
 
-unsafeParseFile' :: String -> UnisonFile Symbol
-unsafeParseFile' s = unsafeGetRight $ parseFile "" s Parser.penv0
+unsafeParseFile' :: [(Symbol, Term Symbol)] -> String -> UnisonFile Symbol
+unsafeParseFile' b s = unsafeGetRight $ parseFile "" b s Parser.penv0
 
-unsafeReadAndParseFile' :: String -> IO (UnisonFile Symbol)
-unsafeReadAndParseFile' = unsafeReadAndParseFile Parser.penv0
+unsafeReadAndParseFile' :: [(Symbol, Term Symbol)]
+                        -> String -> IO (UnisonFile Symbol)
+unsafeReadAndParseFile' b = unsafeReadAndParseFile b Parser.penv0
 
-unsafeReadAndParseFile :: PEnv -> String -> IO (UnisonFile Symbol)
-unsafeReadAndParseFile env filename = do
+unsafeReadAndParseFile :: [(Symbol, Term Symbol)]
+                       -> PEnv -> String -> IO (UnisonFile Symbol)
+unsafeReadAndParseFile b penv filename = do
   txt <- readFile filename
   let str = Text.unpack txt
-  pure $ unsafeGetRight (parseFile filename str env)
+  pure $ unsafeGetRight (parseFile filename b str penv)

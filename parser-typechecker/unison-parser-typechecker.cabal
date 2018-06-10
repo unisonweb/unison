@@ -45,6 +45,7 @@ library
     Unison.Note
     Unison.Parser
     Unison.Parsers
+    Unison.Parsers2
     Unison.Path
     Unison.Paths
     Unison.Pattern
@@ -116,7 +117,7 @@ executable bootstrap
 
 executable tests
   main-is:        Suite.hs
-  ghc-options:    -w -threaded -rtsopts -with-rtsopts=-N -v0
+  ghc-options:    -W -threaded -rtsopts -with-rtsopts=-N -v0
   hs-source-dirs: tests
   other-modules:
     Unison.Test.Common
