@@ -14,10 +14,8 @@ object UnisonToScala {
     require (f.arity == 1)
     f.body match {
       case body: Computation.C1U =>
-        env =>
-          val (stackU, stackB, top, r) = env
+        _env =>
           new Unboxed.F1[Param, Value] {
-            // todo: can I just call body.raw(u1) here instead of body.apply?
             def apply[x] = kvx => (u1,a,u2,x) => kvx(body.raw(u1), body.outputType, u2, x)
           }
       case _body =>
@@ -39,13 +37,12 @@ object UnisonToScala {
     require(f.arity == 2)
     f.body match {
       case body: Computation.C2U =>
-        env =>
-          val (stackU, stackB, top, r) = env
+        _env =>
           new Unboxed.F2[Param, Param, Value] {
             def apply[x] = kvx => (u1, a, u2, b, u3, x) => kvx(body.raw(u1, u2), body.outputType, u3, x)
           }
 
-      case body =>
+      case _body =>
         env =>
           val (stackU, stackB, top, r) = env
           new Unboxed.F2[Param, Param, Value] {
