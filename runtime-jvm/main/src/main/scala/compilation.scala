@@ -129,18 +129,31 @@ package object compilation {
     // Special cases for computations that take unboxed arguments and produce unboxed results,
     // and which are guaranteed not to throw tail call exceptions during evaluation. We check for
     // these in various places to emit more efficient code for common cases.
-    abstract class C2U extends Computation {
-      def apply(r: R, x1: U, x0: U): U
+    abstract class C2U(val outputType: UnboxedType) extends Computation {
+      def raw(x1: U, x0: U): U
+
+      final def apply(r: R, x1: U, x0: U): U = {
+        r.boxed = outputType
+        raw(x1, x0)
+      }
       final def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U =
         apply(r, x1, x0)
     }
-    abstract class C1U extends C2U {
-      def apply(r: R, x0: U): U
-      final def apply(r: R, x1: U, x0: U): U = apply(r, x0)
+    abstract class C1U(outputType: UnboxedType) extends C2U(outputType) {
+      def raw(x0: U): U
+      final def raw(x1: U, x0: U) = raw(x0)
+      final def apply(r: R, x0: U): U = {
+        r.boxed = outputType
+        raw(x0)
+      }
     }
-    abstract class C0U extends C1U {
-      def apply(r: R): U
-      final def apply(r: R, x0: U): U = apply(r)
+    abstract class C0U(outputType: UnboxedType) extends C1U(outputType) {
+      def raw: U
+      final def raw(x0: U) = raw
+      final def apply(r: R): U = {
+        r.boxed = outputType
+        raw
+      }
     }
     abstract class C2P extends Computation {
       def apply(r: R, x1: U, x0: U, x1b: B, x0b: B): U

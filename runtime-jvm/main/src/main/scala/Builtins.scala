@@ -1,7 +1,6 @@
 package org.unisonweb
 
-import java.util.function.{LongBinaryOperator, LongPredicate, LongUnaryOperator,
-                           DoubleBinaryOperator}
+import java.util.function.{DoubleBinaryOperator, LongBinaryOperator, LongPredicate, LongUnaryOperator}
 
 import org.unisonweb.Term.{Name, Term}
 import org.unisonweb.Value.Lambda
@@ -392,11 +391,8 @@ object Builtins {
             arg: Name,
             outputType: UnboxedType,
             f: LongUnaryOperator): (Name, Computation) = {
-    val body: Computation.C1U = (r,x0) => {
-      // Unintuitively, we store the type of the unboxed value in `boxed`
-      // since that's a field we don't use for unboxed values.
-      r.boxed = outputType
-      f.applyAsLong(x0)
+    val body: Computation.C1U = new Computation.C1U(outputType) {
+      def raw(x0: U): U = f.applyAsLong(x0)
     }
     val decompile = Term.Id(name)
     val computation = Return(new Lambda1(arg, body, Some(outputType), decompile))
@@ -553,9 +549,8 @@ object Builtins {
              arg2: Name,
              outputType: UnboxedType,
              f: LongBinaryOperator): (Name, Computation) = {
-    val body: Computation.C2U = (r,x1,x0) => {
-      r.boxed = outputType
-      f.applyAsLong(x1, x0)
+    val body = new Computation.C2U(outputType) {
+      def raw(x1: U, x0: U): U = f.applyAsLong(x1, x0)
     }
 
     val decompiled = Term.Id(name)
@@ -566,52 +561,41 @@ object Builtins {
         case List(Return(Value.Unboxed(n1, _)),
                   Return(Value.Unboxed(n2, _))) =>
           val n3 = f.applyAsLong(n1,n2) // constant fold
-        val c : Computation.C0 = r => { r.boxed = outputType; n3 }
-          c
+          new Computation.C0U(outputType) {
+            def raw: U = n3
+          }
         case List(CompiledVar0,Return(Value.Unboxed(n, _))) =>
-          val c : Computation.C1U = (r,x0) => {
-            r.boxed = outputType
-            f.applyAsLong(x0, n)
+          new Computation.C1U(outputType) {
+            def raw(x0: U): U = f.applyAsLong(x0, n)
           }
-          c
         case List(CompiledVar1,Return(Value.Unboxed(n, _))) =>
-          val c : Computation.C2U = (r,x1,_) => {
-            r.boxed = outputType
-            f.applyAsLong(x1, n)
+          new Computation.C2U(outputType) {
+            def raw(x1: U, x0: U): U = f.applyAsLong(x1, n)
           }
-          c
         case List(Return(Value.Unboxed(n, _)), CompiledVar0) =>
-          val c: Computation.C1U = (r,x0) => {
-            r.boxed = outputType
-            f.applyAsLong(n,x0)
+          new Computation.C1U(outputType) {
+            def raw(x0: U): U = f.applyAsLong(n,x0)
           }
-          c
         case List(Return(Value.Unboxed(n, _)), CompiledVar1) =>
-          val c: Computation.C2U = (r,x1,_) => {
-            r.boxed = outputType
-            f.applyAsLong(n,x1)
+          new Computation.C2U(outputType) {
+            def raw(x1: U, x0: U): U = f.applyAsLong(n,x1)
           }
-          c
         case List(CompiledVar1,CompiledVar0) =>
-          val c: Computation.C2U = (r,x1,x0) => {
-            r.boxed = outputType
-            f.applyAsLong(x1,x0)
+          new Computation.C2U(outputType) {
+            def raw(x1: U, x0: U): U = f.applyAsLong(x1,x0)
           }
-          c
         case List(CompiledVar0,CompiledVar1) =>
-          val c: Computation.C2U = (r,x1,x0) => {
-            r.boxed = outputType
-            f.applyAsLong(x0,x1)
+          new Computation.C2U(outputType) {
+            def raw(x1: U, x0: U): U = f.applyAsLong(x0,x1)
           }
-          c
         case List(arg1: Computation.C2U, arg2: Computation.C2U) =>
-          val c: Computation.C2U = (r,x1,x0) => {
-            val x1v = arg1(r, x1, x0)
-            val x0v = arg2(r, x1, x0)
-            r.boxed = outputType
-            f.applyAsLong(x1v, x0v)
+          new Computation.C2U(outputType) {
+            def raw(x1: U, x0: U): U = {
+              val x1v = arg1.raw(x1, x0)
+              val x0v = arg2.raw(x1, x0)
+              f.applyAsLong(x1v, x0v)
+            }
           }
-          c
         case List(arg1,arg2) => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
           val x1v = eval(arg1,r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
           val x0v = eval(arg2,r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
@@ -626,11 +610,9 @@ object Builtins {
             case Term.Compiled(p: Param) =>
               // cast is okay, because in `fuu_u`, args are Unboxed.
               val n = p.toValue.asInstanceOf[Value.Unboxed].n
-              val body: Computation =
-                (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
-                  r.boxed = outputType
-                  f.applyAsLong(n, x0)
-                }
+              val body = new Computation.C1U(outputType) {
+                def raw(x0: U): U = f.applyAsLong(n, x0)
+              }
               new Lambda(self.names drop argCount, body, unboxedType,
                          Term.Apply(decompiled, term))
             case _ => sys.error("")

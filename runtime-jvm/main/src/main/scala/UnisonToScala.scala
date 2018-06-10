@@ -12,23 +12,24 @@ object UnisonToScala {
 
   def toUnboxed1(f: Value.Lambda): Env => Unboxed.F1[Param,Value] = {
     require (f.arity == 1)
-    f.unboxedType.map[Env => Unboxed.F1[Param,Value]] {
-      outputType =>
-        env => {
+    f.body match {
+      case body: Computation.C1U =>
+        env =>
           val (stackU, stackB, top, r) = env
-          f.body match {
-            case body: Computation.C1U => new Unboxed.F1[Param,Value] {
-              def apply[x] = kvx => (u1,a,u2,x) => kvx(body(r,u1), outputType, u2, x)
-            }
-            case body => new Unboxed.F1[Param,Value] {
-              def apply[x] = kvx => (u1,a,u2,x) => {
-                val out = evalLam(f, r, top, stackU, U0, u1, stackB, null, a)
-                kvx(out, r.boxed, u2, x)
-              }
+          new Unboxed.F1[Param, Value] {
+            // todo: can I just call body.raw(u1) here instead of body.apply?
+            def apply[x] = kvx => (u1,a,u2,x) => kvx(body.raw(u1), body.outputType, u2, x)
+          }
+      case _body =>
+        env =>
+          val (stackU, stackB, top, r) = env
+          new Unboxed.F1[Param,Value] {
+            def apply[x] = kvx => (u1,a,u2,x) => {
+              val out = evalLam(f, r, top, stackU, U0, u1, stackB, null, a)
+              kvx(out, r.boxed, u2, x)
             }
           }
-        }
-    }.getOrElse(sys.error("`f` is expected to have an unboxed output type"))
+    }
   }
 
   def toUnboxed2(p: (Term.Name, Computation)): Env => Unboxed.F2[Value,Value,Value] =
@@ -36,22 +37,23 @@ object UnisonToScala {
 
   def toUnboxed2(f: Value.Lambda): Env => Unboxed.F2[Value,Value,Value] = {
     require(f.arity == 2)
-    f.unboxedType.map[Env => Unboxed.F2[Value,Value,Value]] {
-      outputType =>
-        env => {
+    f.body match {
+      case body: Computation.C2U =>
+        env =>
           val (stackU, stackB, top, r) = env
-          f.body match {
-            case body: Computation.C2U => new Unboxed.F2[Param, Param, Value] {
-              def apply[x] = kvx => (u1, a, u2, b, u3, x) => kvx(body(r, u1, u2), outputType, u3, x)
-            }
-            case body => new Unboxed.F2[Param, Param, Value] {
-              def apply[x] = kvx => (u1, a, u2, b, u3, x) => {
-                val out = evalLam(f, r, top, stackU, u1, u2, stackB, a, b)
-                kvx(out, r.boxed, u3, x)
-              }
+          new Unboxed.F2[Param, Param, Value] {
+            def apply[x] = kvx => (u1, a, u2, b, u3, x) => kvx(body.raw(u1, u2), body.outputType, u3, x)
+          }
+
+      case body =>
+        env =>
+          val (stackU, stackB, top, r) = env
+          new Unboxed.F2[Param, Param, Value] {
+            def apply[x] = kvx => (u1, a, u2, b, u3, x) => {
+              val out = evalLam(f, r, top, stackU, u1, u2, stackB, a, b)
+              kvx(out, r.boxed, u3, x)
             }
           }
-        }
-    }.getOrElse(sys.error("`f` is expected to have an unboxed output type"))
+    }
   }
 }

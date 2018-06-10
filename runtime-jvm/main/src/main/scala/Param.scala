@@ -122,7 +122,7 @@ object Value {
       Some((l.arity, l.body, l.decompile))
 
     val identity: Lambda1 = {
-      val c: Computation = (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+      val c: Computation.C1P = (r,x0,x0b) => {
         r.boxed = x0b.toValue
         x0
       }
