@@ -184,10 +184,8 @@ object PrettyPrint {
   def prettyUnboxed(value: U, t: UnboxedType): PrettyPrint = t match {
     case UnboxedType.Int64 =>
       val i = unboxedToInt(value)
-      parenthesizeGroupIf(i < 0)(i.toString)
-    case UnboxedType.Float =>
-      val i = unboxedToDouble(value)
-      parenthesizeGroupIf(i < 0)(i.toString)
+      if (i > 0) "+" + i.toString else i.toString
+    case UnboxedType.Float => unboxedToDouble(value).toString
     case UnboxedType.Boolean => unboxedToBool(value).toString
     case UnboxedType.UInt64 => toUnsignedString(unboxedToLong(value))
   }
