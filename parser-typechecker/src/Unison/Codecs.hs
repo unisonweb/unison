@@ -276,7 +276,7 @@ serializeMaybe f b = case b of
 lengthEncode :: MonadPut m => Text -> m ()
 lengthEncode text = do
   let bs = encodeUtf8 text
-  putWord32be . fromIntegral $ B.length bs
+  putLength $ B.length bs
   putByteString bs
 
 serializeFoldable :: (MonadPut m, Foldable f) => (a -> m ()) -> f a -> m ()
@@ -292,7 +292,7 @@ serializeReference ref = case ref of
   Derived hash -> do
     putWord8 1
     let bs = Hash.toBytes hash
-    putWord32be . fromIntegral $ B.length bs
+    putLength $ B.length bs
     putByteString bs
 
 serializeConstructorArities :: MonadPut m => Reference -> [Int] -> m ()

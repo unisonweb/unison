@@ -36,7 +36,7 @@ trait Source { self =>
 
   def getDouble: Double
   def position: Long
-  def getFramed: Array[Byte] = get(getInt)
+  def getFramed: Array[Byte] = get(getVarLong.toInt)
 
   final def getString: String = {
     val bytes = getFramed

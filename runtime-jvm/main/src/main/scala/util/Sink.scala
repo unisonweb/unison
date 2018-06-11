@@ -39,7 +39,7 @@ trait Sink {
   def putText(txt: Text): Unit
   def position: Long
   def putFramed(bs: Array[Byte]): Unit = {
-    putInt(bs.length)
+    putVarLong(bs.length)
     put(bs)
   }
   def putFramedSeq[A](seq: Seq[A])(f: (Sink,A) => Unit): Unit =
