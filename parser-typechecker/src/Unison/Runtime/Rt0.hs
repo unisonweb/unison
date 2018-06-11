@@ -18,7 +18,7 @@ type Pos = Int
 type ArgCount = Int
 
 data V e
-  = I Int64 | F Double | U Word64 | T Text
+  = I Int64 | F Double | U Word64 | B Bool | T Text
   | Lam Arity (Term Symbol) (IR e)
   | Data R.Reference ConstructorId (Vector (V e))
   | Ext e deriving (Eq,Show)
@@ -32,7 +32,7 @@ data IR e
   | Apply ArgCount Pos
   | If Pos (IR e) (IR e) deriving (Eq,Show)
 
-run :: IR e -> [V e] -> V e
+run :: IR R.Reference -> [V R.Reference] -> V R.Reference
 run ir stack = case ir of
   Var i -> stack !! i
   V v -> v
@@ -56,6 +56,8 @@ run ir stack = case ir of
     (F i, F j) -> F (i / j)
     (U i, U j) -> U (i `div` j)
     _ -> error "type error"
+  If c t f -> case stack !! c of
+    B b -> if b then run t stack else run f stack
   Let b body -> run body (run b stack : stack)
   LetRec bs body ->
     let stack' = bs' ++ stack
@@ -77,6 +79,20 @@ run ir stack = case ir of
 decompile :: V e -> Term Symbol
 decompile _ = error "todo: decompile"
 
-compile :: Term Symbol -> IR e
-compile _ = error "todo: compile"
+--anf :: Term Symbol -> Term Symbol
+--anf t = ABT.rewriteUp f $ t where
+--  f t@(Term.App' f arg) = case arg of
+--    Term.Var' _ -> t
+--    _ -> ABT.freshen "arg"
+
+compile :: Term Symbol -> IR R.Reference
+compile t = case t of
+  Term.Int64' n -> V (I n)
+  Term.UInt64' n -> V (U n)
+  Term.Float' n -> V (F n)
+  Term.Boolean' b -> V (B b)
+  Term.Text' t -> V (T t)
+  Term.Ref' r -> V (Ext r)
+  Term.Apps' f args -> case f of
+    Term.Var' v -> error "compile todo"
 
