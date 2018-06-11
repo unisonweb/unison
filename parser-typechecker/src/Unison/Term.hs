@@ -287,7 +287,7 @@ unLetRec (unLetRecNamed -> Just (bs, e)) = Just $ \freshen -> do
   pure (vs `zip` [ sub b | (_,b) <- bs ], sub e)
 unLetRec _ = Nothing
 
-unApps :: Term v -> Maybe (Term v, [Term v])
+unApps :: AnnotatedTerm v a -> Maybe (AnnotatedTerm v a, [AnnotatedTerm v a])
 unApps t = case go t [] of [] -> Nothing; f:args -> Just (f,args)
   where
   go (App' i o) acc = go i (o:acc)

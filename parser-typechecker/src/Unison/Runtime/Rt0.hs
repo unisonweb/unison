@@ -1,9 +1,11 @@
 module Unison.Runtime.Rt0 where
 
+import Control.Monad.Identity (runIdentity)
 import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Vector (Vector)
 import Data.Word (Word64)
+import Data.List
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
 import qualified Data.Text as Text
@@ -29,7 +31,7 @@ data IR e
   | Let (IR e) (IR e)
   | LetRec [IR e] (IR e)
   | V (V e)
-  | Apply ArgCount Pos
+  | Apply Pos [Pos]
   | If Pos (IR e) (IR e) deriving (Eq,Show)
 
 run :: IR R.Reference -> [V R.Reference] -> V R.Reference
@@ -63,36 +65,40 @@ run ir stack = case ir of
     let stack' = bs' ++ stack
         bs' = map (\ir -> run ir stack') bs
     in run body stack'
-  Apply nargs fnPos -> case stack !! fnPos of
-    Lam arity term body
-      | nargs == arity -> run body stack
-      | nargs >  arity ->
-        let (extra, stack') = splitAt (nargs - arity) stack
-            fn' = run body stack'
-        in run (Apply (nargs - arity) 0) (fn' : (extra ++ drop nargs stack))
-      | otherwise {- nargs < arity -} -> case term of
-        Term.LamsNamed' vs body -> Lam (arity - nargs) lam (compile lam)
-          where
-          lam = Term.lam'' (drop nargs vs) $
-            ABT.substs (vs `zip` (map decompile . reverse . take nargs $ stack)) body
+  Apply fnPos args -> call (stack !! fnPos) args stack
+
+call :: V R.Reference -> [Pos] -> [V R.Reference] -> V R.Reference
+call (Lam arity term body) args stack = let nargs = length args in
+  case nargs of
+    _ | nargs == arity -> run body (map (stack !!) args ++ stack)
+    _ | nargs > arity ->
+      let fn' = run body (map (stack !!) args ++ stack)
+      in call fn' (drop arity args) stack
+    _ -> {- nargs < arity -} case term of
+      Term.LamsNamed' vs body -> Lam (arity - nargs) lam (compile lam)
+        where
+        lam = Term.lam'' (drop nargs vs) $
+          ABT.substs (vs `zip` (map decompile . reverse . take nargs $ stack)) body
 
 decompile :: V e -> Term Symbol
 decompile _ = error "todo: decompile"
 
---anf :: Term Symbol -> Term Symbol
---anf t = ABT.rewriteUp f $ t where
---  f t@(Term.App' f arg) = case arg of
---    Term.Var' _ -> t
---    _ -> ABT.freshen "arg"
+anf :: Term Symbol -> Term Symbol
+anf t = error "todo: anf"
+  -- runIdentity $ ABT.visit' f t where
+  -- f t@(Term.Apps' f args) = error "todo anf"
+  -- f t = pure t
 
 compile :: Term Symbol -> IR R.Reference
-compile t = case t of
-  Term.Int64' n -> V (I n)
-  Term.UInt64' n -> V (U n)
-  Term.Float' n -> V (F n)
-  Term.Boolean' b -> V (B b)
-  Term.Text' t -> V (T t)
-  Term.Ref' r -> V (Ext r)
-  Term.Apps' f args -> case f of
-    Term.Var' v -> error "compile todo"
-
+compile t = go (ABT.annotateBound $ anf t) where
+  go t = case t of
+    Term.Int64' n -> V (I n)
+    Term.UInt64' n -> V (U n)
+    Term.Float' n -> V (F n)
+    Term.Boolean' b -> V (B b)
+    Term.Text' t -> V (T t)
+    Term.Ref' r -> V (Ext r)
+    Term.Apps' f args -> Apply (ind t f) (map (ind t) args) where
+      ind t (Term.Var' v) = case elemIndex v (ABT.annotation t) of
+        Nothing -> error $ "free variable during compilation: " ++ show v
+        Just i -> i
