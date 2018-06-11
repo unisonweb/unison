@@ -1,8 +1,8 @@
 package org.unisonweb.util
 
+import org.unisonweb.Builtins.env
 import org.unisonweb.EasyTest._
 import org.unisonweb._
-import org.unisonweb.compilation._
 import org.unisonweb.util.Unboxed.F1.{D_B, L_B, L_L, L_P}
 import org.unisonweb.util.Unboxed.F2.{DD_D, LD_L, LL_L}
 import org.unisonweb.util.Unboxed.Unboxed
@@ -143,8 +143,6 @@ object StreamTests {
       }
     ),
     {
-      def env =
-        (new Array[U](20), new Array[B](20), StackPtr.empty, Result())
       val incU = UnisonToScala.toUnboxed1(Builtins.Int64_inc)
       val plusU = UnisonToScala.toUnboxed2(Builtins.Int64_add)
       val evenU = UnisonToScala.toUnboxed1(Builtins.Int64_isEven)
@@ -158,7 +156,7 @@ object StreamTests {
         },
         test("map") { implicit T =>
           equal[List[Long]](
-            Stream.fromUnison(0).take(10).map(incU(env)).toSequence[Long].toList,
+            Stream.fromInt64(0).take(10).map(incU(env)).toSequence[Long].toList,
             scala.Stream.from(0).take(10).map(_ + 1l).toList
           )
         },
@@ -172,14 +170,14 @@ object StreamTests {
         test("foldLeft Int64_add") { implicit T =>
           val plusU = UnisonToScala.toUnboxed2(Builtins.Int64_add)
           equal(
-            Stream.fromUnison(0).take(10000).foldLeft(Value(0))(plusU(env)),
+            Stream.fromInt64(0).take(10000).foldLeft(Value(0))(plusU(env)),
             Value((0 until 10000).sum)
           )
         },
         test("scanLeft Int64_add") { implicit T =>
           val int64add = UnisonToScala.toUnboxed2(Builtins.Int64_add)(env)
           equal(
-            Stream.fromUnison(1).take(10000).scanLeft(Value(0))(int64add).reduce(Value(0))(int64add),
+            Stream.fromInt64(1).take(10000).scanLeft(Value(0))(int64add).reduce(Value(0))(int64add),
             Value(scala.Stream.from(1).take(10000).scanLeft(0l)(_+_).sum)
           )
         },
