@@ -102,6 +102,14 @@ bound' t = case out t of
   Tm f -> Foldable.toList f >>= bound'
   _ -> []
 
+annotateBound :: (Ord v, Functor f, Foldable f) => Term f v () -> Term f v [v]
+annotateBound t = go [] t where
+  go env t = case out t of
+    Abs v body -> abs' env v (go (v : env) body)
+    Cycle body -> cycle' env (go env body)
+    Tm f -> tm' env (go env <$> f)
+    Var v -> annotatedVar env v
+
 -- | Return the list of all variables bound by this ABT
 bound :: (Ord v, Foldable f) => Term f v a -> Set v
 bound t = Set.fromList (bound' t)
@@ -281,27 +289,27 @@ rebuildUp f (Term _ ann body) = case body of
 -- `visit (const Nothing) t == pure t` and
 -- `visit (const (Just (pure t2))) t == pure t2`
 visit :: (Traversable f, Applicative g, Ord v)
-      => (Term f v () -> Maybe (g (Term f v ())))
-      -> Term f v ()
-      -> g (Term f v ())
+      => (Term f v a -> Maybe (g (Term f v a)))
+      -> Term f v a
+      -> g (Term f v a)
 visit f t = case f t of
   Just gt -> gt
   Nothing -> case out t of
     Var _ -> pure t
-    Cycle body -> cycle <$> visit f body
-    Abs x e -> abs x <$> visit f e
-    Tm body -> tm <$> traverse (visit f) body
+    Cycle body -> cycle' (annotation t) <$> visit f body
+    Abs x e -> abs' (annotation t) x <$> visit f e
+    Tm body -> tm' (annotation t) <$> traverse (visit f) body
 
 -- | Apply an effectful function to an ABT tree top down, sequencing the results.
 visit' :: (Traversable f, Applicative g, Monad g, Ord v)
-       => (f (Term f v ()) -> g (f (Term f v ())))
-       -> Term f v ()
-       -> g (Term f v ())
+       => (f (Term f v a) -> g (f (Term f v a)))
+       -> Term f v a
+       -> g (Term f v a)
 visit' f t = case out t of
   Var _ -> pure t
-  Cycle body -> cycle <$> visit' f body
-  Abs x e -> abs x <$> visit' f e
-  Tm body -> f body >>= \body -> tm <$> traverse (visit' f) body
+  Cycle body -> cycle' (annotation t) <$> visit' f body
+  Abs x e -> abs' (annotation t) x <$> visit' f e
+  Tm body -> f body >>= \body -> tm' (annotation t) <$> traverse (visit' f) body
 
 data Subst f v a =
   Subst { freshen :: forall m v' . Monad m => (v -> m v') -> m v'
