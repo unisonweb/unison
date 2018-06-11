@@ -15,7 +15,6 @@ import Data.List
 import Data.Map (Map)
 import Data.Word
 import GHC.Stack
-import System.Exit
 import System.Random (Random)
 import qualified Control.Concurrent.Async as A
 import qualified Data.Map as Map
@@ -99,8 +98,8 @@ run' seed note allow (Test t) = do
     resultsMap <- readTVarIO results
     case Map.findWithDefault Skipped msgs resultsMap of
       Skipped -> pure ()
-      Passed n -> note $ "OK " ++ (if n <= 1 then msgs else "(" ++ show n ++ ") " ++ msgs)
-      Failed -> note $ "FAILED " ++ msgs
+      Passed n -> note $ "🐬  " ++ (if n <= 1 then msgs else "(" ++ show n ++ ") " ++ msgs)
+      Failed -> note $ "💥  " ++ msgs
   let line = "------------------------------------------------------------"
   note "Raw test output to follow ... "
   note line
@@ -141,7 +140,7 @@ run' seed note allow (Test t) = do
       note "\n"
       note line
       note "❌"
-      exitWith (ExitFailure 1)
+      fail "test failures"
 
 -- | Label a test. Can be nested. A `'.'` is placed between nested
 -- scopes, so `scope "foo" . scope "bar"` is equivalent to `scope "foo.bar"`

@@ -10,43 +10,59 @@
 
 module Unison.Term where
 
-import Data.List (foldl')
-import Data.Map (Map)
-import Data.Set (Set, union)
-import Data.Text (Text)
-import Data.Vector (Vector)
-import GHC.Generics
-import Prelude.Extras (Eq1(..), Show1(..))
-import Text.Show
-import Unison.Hash (Hash)
-import Unison.Hashable (Hashable1, accumulateToken)
-import Unison.Literal
-import Unison.Pattern (Pattern)
-import Unison.Reference (Reference(..))
-import Unison.Type (Type)
-import Unison.Var (Var)
-import Unsafe.Coerce
 import qualified Control.Monad.Writer.Strict as Writer
+import           Data.Foldable (toList)
+import           Data.Int (Int64)
+import           Data.List (foldl')
+import           Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Monoid as Monoid
+import           Data.Set (Set, union)
 import qualified Data.Set as Set
+import           Data.Text (Text)
+import           Data.Vector (Vector)
 import qualified Data.Vector as Vector
+import           Data.Word (Word64)
+import           GHC.Generics
+import           Prelude.Extras (Eq1(..), Show1(..))
+import           Text.Show
 import qualified Unison.ABT as ABT
+import           Unison.Hash (Hash)
 import qualified Unison.Hash as Hash
+import           Unison.Hashable (Hashable1, accumulateToken)
 import qualified Unison.Hashable as Hashable
+import           Unison.Pattern (Pattern)
+import           Unison.Reference (Reference(..))
 import qualified Unison.Reference as Reference
+import           Unison.Type (Type)
 import qualified Unison.Type as Type
+import           Unison.Var (Var)
+import           Unsafe.Coerce
+
+data MatchCase a = MatchCase Pattern (Maybe a) a
+  deriving (Show,Eq,Foldable,Functor,Generic,Generic1,Traversable)
 
 -- | Base functor for terms in the Unison language
 -- We need `typeVar` because the term and type variables may differ.
 data F typeVar a
-  = Lit Literal
+  = Int64 Int64
+  | UInt64 Word64
+  | Float Double
+  | Boolean Bool
+  | Text Text
   | Blank -- An expression that has not been filled in, has type `forall a . a`
   | Ref Reference
   | Constructor Reference Int -- First argument identifies the data type, second argument identifies the constructor
+  | Request Reference Int
+  | Handle a a
+  | EffectPure a
+  | EffectBind Reference Int [a] a
   | App a a
   | Ann a (Type typeVar)
   | Vector (Vector a)
+  | If a a a
+  | And a a
+  | Or a a
   | Lam a
   -- Note: let rec blocks have an outer ABT.Cycle which introduces as many
   -- variables as there are bindings
@@ -64,7 +80,7 @@ data F typeVar a
   --   Match x
   --     [ (Constructor 0 [Var], ABT.abs n rhs1)
   --     , (Constructor 1 [], rhs2) ]
-  | Match a [(Pattern, a)]
+  | Match a [MatchCase a]
   deriving (Eq,Foldable,Functor,Generic,Generic1,Traversable)
 
 -- | Like `Term v`, but with an annotation of type `a` at every level in the tree
@@ -110,16 +126,24 @@ freeTypeVars t = go t where
 -- nicer pattern syntax
 
 pattern Var' v <- ABT.Var' v
-pattern Lit' l <- (ABT.out -> ABT.Tm (Lit l))
-pattern Number' n <- Lit' (Number n)
-pattern Text' s <- Lit' (Text s)
-pattern If' <- Lit' If
+pattern Int64' n <- (ABT.out -> ABT.Tm (Int64 n))
+pattern UInt64' n <- (ABT.out -> ABT.Tm (UInt64 n))
+pattern Float' n <- (ABT.out -> ABT.Tm (Float n))
+pattern Boolean' b <- (ABT.out -> ABT.Tm (Boolean b))
+pattern Text' s <- (ABT.out -> ABT.Tm (Text s))
 pattern Blank' <- (ABT.out -> ABT.Tm Blank)
 pattern Ref' r <- (ABT.out -> ABT.Tm (Ref r))
 pattern Builtin' r <- (ABT.out -> ABT.Tm (Ref (Builtin r)))
 pattern App' f x <- (ABT.out -> ABT.Tm (App f x))
 pattern Match' scrutinee branches <- (ABT.out -> ABT.Tm (Match scrutinee branches))
 pattern Constructor' ref n <- (ABT.out -> ABT.Tm (Constructor ref n))
+pattern Request' ref n <- (ABT.out -> ABT.Tm (Request ref n))
+pattern EffectBind' id cid args k <- (ABT.out -> ABT.Tm (EffectBind id cid args k))
+pattern EffectPure' a <- (ABT.out -> ABT.Tm (EffectPure a))
+pattern If' cond t f <- (ABT.out -> ABT.Tm (If cond t f))
+pattern And' x y <- (ABT.out -> ABT.Tm (And x y))
+pattern Or' x y <- (ABT.out -> ABT.Tm (Or x y))
+pattern Handle' h body <- (ABT.out -> ABT.Tm (Handle h body))
 pattern Apps' f args <- (unApps -> Just (f, args))
 pattern Ann' x t <- (ABT.out -> ABT.Tm (Ann x t))
 pattern Vector' xs <- (ABT.out -> ABT.Tm (Vector xs))
@@ -154,14 +178,20 @@ ref r = ABT.tm (Ref r)
 builtin :: Ord v => Text -> Term v
 builtin n = ref (Reference.Builtin n)
 
-num :: Ord v => Double -> Term v
-num = lit . Number
+float :: Ord v => Double -> Term v
+float d = ABT.tm (Float d)
+
+boolean :: Ord v => Bool -> Term v
+boolean b = ABT.tm (Boolean b)
+
+int64 :: Ord v => Int64 -> Term v
+int64 d = ABT.tm (Int64 d)
+
+uint64 :: Ord v => Word64 -> Term v
+uint64 d = ABT.tm (UInt64 d)
 
 text :: Ord v => Text -> Term v
-text = lit . Text
-
-lit :: Ord v => Literal -> Term v
-lit l = ABT.tm (Lit l)
+text = ABT.tm . Text
 
 blank :: Ord v => Term v
 blank = ABT.tm Blank
@@ -169,8 +199,17 @@ blank = ABT.tm Blank
 app :: Ord v => Term v -> Term v -> Term v
 app f arg = ABT.tm (App f arg)
 
-match :: Ord v => Term v -> [(Pattern, Term v)] -> Term v
+match :: Ord v => Term v -> [MatchCase (Term v)] -> Term v
 match scrutinee branches = ABT.tm (Match scrutinee branches)
+
+handle :: Ord v => Term v -> Term v -> Term v
+handle h block = ABT.tm (Handle h block)
+
+and :: Ord v => Term v -> Term v -> Term v
+and x y = ABT.tm (And x y)
+
+or :: Ord v => Term v -> Term v -> Term v
+or x y = ABT.tm (Or x y)
 
 constructor :: Ord v => Reference -> Int -> Term v
 constructor ref n = ABT.tm (Constructor ref n)
@@ -178,14 +217,14 @@ constructor ref n = ABT.tm (Constructor ref n)
 apps :: Ord v => Term v -> [Term v] -> Term v
 apps f = foldl' app f
 
+iff :: Ord v => Term v -> Term v -> Term v -> Term v
+iff cond t f = ABT.tm (If cond t f)
+
 ann :: Ord v => Term v -> Type v -> Term v
 ann e t = ABT.tm (Ann e t)
 
 vector :: Ord v => [Term v] -> Term v
 vector es = ABT.tm (Vector (Vector.fromList es))
-
-vectorForced :: Ord v => [Term v] -> Term v
-vectorForced = app (builtin "Vector.force") . vector
 
 vector' :: Ord v => Vector (Term v) -> Term v
 vector' es = ABT.tm (Vector es)
@@ -294,7 +333,7 @@ betaReduce e = e
 instance Var v => Hashable1 (F v) where
   hash1 hashCycle hash e =
     let
-      (tag, hashed, varint) = (Hashable.Tag, Hashable.Hashed, Hashable.VarInt)
+      (tag, hashed, varint) = (Hashable.Tag, Hashable.Hashed, Hashable.UInt64 . fromIntegral)
     in case e of
       -- So long as `Reference.Derived` ctors are created using the same hashing
       -- function as is used here, this case ensures that references are 'transparent'
@@ -304,7 +343,11 @@ instance Var v => Hashable1 (F v) where
       -- Note: start each layer with leading `1` byte, to avoid collisions with
       -- types, which start each layer with leading `0`. See `Hashable1 Type.F`
       _ -> Hashable.accumulate $ tag 1 : case e of
-        Lit l -> [tag 0, accumulateToken l]
+        UInt64 i -> [tag 64, accumulateToken i]
+        Int64 i -> [tag 65, accumulateToken i]
+        Float n -> [tag 66, Hashable.Double n]
+        Boolean b -> [tag 67, accumulateToken b]
+        Text t -> [tag 68, accumulateToken t]
         Blank -> [tag 1]
         Ref (Reference.Builtin name) -> [tag 2, accumulateToken name]
         Ref (Reference.Derived _) -> error "handled above, but GHC can't figure this out"
@@ -316,10 +359,23 @@ instance Var v => Hashable1 (F v) where
         LetRec as a -> case hashCycle as of
           (hs, hash) -> tag 7 : hashed (hash a) : map hashed hs
         -- here, order is significant, so don't use hashCycle
-        Let b a -> [tag 8, hashed (hash b), hashed (hash a)]
+        Let b a -> [tag 8, hashed $ hash b, hashed $ hash a]
+        If b t f -> [tag 9, hashed $ hash b, hashed $ hash t, hashed $ hash f]
+        Request r n -> [tag 10, accumulateToken r, varint n]
+        EffectPure r -> [tag 11, hashed $ hash r]
+        EffectBind r i rs k ->
+          [tag 14, accumulateToken r, varint i, varint (length rs)] ++
+          (hashed . hash <$> rs ++ [k])
         Constructor r n -> [tag 12, accumulateToken r, varint n]
-        Match e branches -> tag 13 : hashed (hash e) : concatMap h branches where
-          h (pat, branch) = [accumulateToken pat, hashed (hash branch)]
+        Match e branches -> tag 13 : hashed (hash e) : concatMap h branches
+          where
+            h (MatchCase pat guard branch) =
+              concat [[accumulateToken pat],
+                      toList (hashed . hash <$> guard),
+                      [hashed (hash branch)]]
+        Handle h b -> [tag 15, hashed $ hash h, hashed $ hash b]
+        And x y -> [tag 16, hashed $ hash x, hashed $ hash y]
+        Or x y -> [tag 17, hashed $ hash x, hashed $ hash y]
 
 -- mostly boring serialization code below ...
 
@@ -328,7 +384,11 @@ instance Var v => Show1 (F v) where showsPrec1 = showsPrec
 
 instance (Var v, Show a) => Show (F v a) where
   showsPrec p fa = go p fa where
-    go _ (Lit l) = showsPrec 0 l
+    showConstructor r n = showsPrec 0 r <> s"#" <> showsPrec 0 n
+    go _ (Int64 n) = (if n >= 0 then s "+" else s "") <> showsPrec 0 n
+    go _ (UInt64 n) = showsPrec 0 n
+    go _ (Float n) = showsPrec 0 n
+    go _ (Boolean b) = showsPrec 0 b
     go p (Ann t k) = showParen (p > 1) $ showsPrec 0 t <> s":" <> showsPrec 0 k
     go p (App f x) =
       showParen (p > 9) $ showsPrec 9 f <> s" " <> showsPrec 10 x
@@ -338,7 +398,22 @@ instance (Var v, Show a) => Show (F v a) where
     go _ (Ref r) = showsPrec 0 r
     go _ (Let b body) = showParen True (s"let " <> showsPrec 0 b <> s" in " <> showsPrec 0 body)
     go _ (LetRec bs body) = showParen True (s"let rec" <> showsPrec 0 bs <> s" in " <> showsPrec 0 body)
-    go _ (Constructor r n) = showsPrec 0 r <> showsPrec 0 n
-    go _ (Match _ _) = s"match"
+    go _ (Handle b body) = showParen True (s"handle " <> showsPrec 0 b <> showsPrec 0 body)
+    go _ (Constructor r n) = showConstructor r n
+    go _ (Match scrutinee cases) =
+      showParen True (s"case " <> showsPrec 0 scrutinee <> s" of " <> showsPrec 0 cases)
+    go _ (Text s) = showsPrec 0 s
+    go _ (Request r n) = showConstructor r n
+    go _ (EffectPure r) = s"{ " <> showsPrec 0 r <> s" }"
+    go _ (EffectBind ref i args k) =
+      s"{ " <> showConstructor ref i <> showListWith (showsPrec 0) args <>
+      s" -> " <> showsPrec 0 k <> s" }"
+    go p (If c t f) = showParen (p > 0) $
+      s"if " <> showsPrec 0 c <> s" then " <> showsPrec 0 t <>
+      s" else " <> showsPrec 0 f
+    go p (And x y) = showParen (p > 0) $
+      s"and " <> showsPrec 0 x <> s" " <> showsPrec 0 y
+    go p (Or x y) = showParen (p > 0) $
+      s"or " <> showsPrec 0 x <> s" " <> showsPrec 0 y
     (<>) = (.)
     s = showString

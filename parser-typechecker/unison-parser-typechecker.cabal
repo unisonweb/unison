@@ -5,7 +5,7 @@ license:       MIT
 cabal-version: >= 1.8
 license-file:  LICENSE
 author:        Unison Computing, public benefit corp
-maintainer:    Paul Chiusano <paul.chiusano@gmail.com>
+maintainer:    Paul Chiusano <paul.chiusano@gmail.com>, Runar Bjarnason <runarorama@gmail.com>, Arya Irani <arya.irani@gmail.com>
 stability:     provisional
 homepage:      http://unisonweb.org
 bug-reports:   https://github.com/unisonweb/unison/issues
@@ -36,11 +36,12 @@ library
   exposed-modules:
     Unison.ABT
     Unison.Builtin
+    Unison.Codecs
     Unison.DataDeclaration
+    Unison.FileParser
     Unison.Hash
     Unison.Hashable
     Unison.Kind
-    Unison.Literal
     Unison.Note
     Unison.Parser
     Unison.Parsers
@@ -64,12 +65,14 @@ library
     base,
     base58-bytestring,
     bifunctors,
+    bytes,
     bytestring,
     containers,
     comonad,
-    GraphSCC,
+    cryptonite,
     free,
     hashable,
+    memory,
     mtl,
     murmur-hash,
     parsec,
@@ -89,12 +92,36 @@ library
   if flag(quiet)
     ghc-options: -v0
 
+executable bootstrap
+  main-is: Bootstrap.hs
+  hs-source-dirs: bootstrap
+  build-depends:
+    base,
+    base58-bytestring,
+    bytes,
+    bytestring,
+    containers,
+    cryptonite,
+    filepath,
+    memory,
+    mtl,
+    parsec,
+    parsec-layout,
+    prelude-extras,
+    text,
+    transformers,
+    vector,
+    unison-parser-typechecker
+
 executable tests
   main-is:        Suite.hs
   ghc-options:    -w -threaded -rtsopts -with-rtsopts=-N -v0
   hs-source-dirs: tests
   other-modules:
     Unison.Test.Common
+    Unison.Test.DataDeclaration
+    Unison.Test.FileParser
+    Unison.Test.TermParser
     Unison.Test.Typechecker
     Unison.Test.Typechecker.Components
 
@@ -104,6 +131,7 @@ executable tests
     containers,
     easytest,
     filepath,
+    raw-strings-qq,
     text,
     transformers,
     unison-parser-typechecker

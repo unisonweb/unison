@@ -36,6 +36,9 @@ object Codecs {
   val nodeDecoder: Source => Node =
     src => decodeSource(src)(setRef, decoder)
 
+  def termDecoder(src: Source): Term =
+    nodeDecoder(src).unsafeAsTerm
+
   def encodeNode(n: Node): Sequence[Array[Byte]] = {
     val fmt = nodeEncoder(n)
     // println(prettyFormat(fmt))
@@ -245,7 +248,8 @@ object Codecs {
         // in order to do compilation we need the compilation environment
         val c = compilation.compileTop(Environment.standard)(decodeTerm0)
         val sp0 = compilation.StackPtr.empty
-        Value(compilation.evalClosed(c,R,sp0,stackU,stackB), R.boxed)
+        val u = compilation.evalClosed(c,R,sp0,stackU,stackB)
+        Value(u, R.boxed)
       case 23 => Value.Data(decodeId(src),
                             decodeConstructorId(src),
                             src.getFramedArray1(decodeParam0.toValue))
@@ -261,7 +265,8 @@ object Codecs {
         // in order to do compilation we need the compilation environment
         val c = compilation.compileTop(Environment.standard)(decodeTerm0)
         val sp0 = compilation.StackPtr.empty
-        Value(compilation.evalClosed(c,R,sp0,stackU,stackB), R.boxed)
+        val u = compilation.evalClosed(c,R,sp0,stackU,stackB)
+        Value(u, R.boxed)
       case 28 => UnboxedType.Boolean
       case 29 => UnboxedType.Int64
       case 30 => UnboxedType.UInt64
@@ -289,6 +294,13 @@ object Codecs {
       sink putByte 1
       sink putFramed h.bytes
   }
+
+  final def decodeConstructorArities(source: Source): List[(Id, List[Int])] =
+    source.getFramedList1 {
+      val id = decodeId(source)
+      val arities = source.getFramedList1(source.getInt)
+      (id, arities)
+    }
 
   final def decodeConstructorId(source: Source): ConstructorId =
     ConstructorId(source.getInt)

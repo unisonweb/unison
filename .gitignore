@@ -19,12 +19,14 @@ unison-src/.loaded
 blockstore
 blockstore.leveldb
 target
+htags
 
 # Stack
 .stack-work
 
 # IntelliJ
 .idea
+*.iml
 
 # Misc
 *~

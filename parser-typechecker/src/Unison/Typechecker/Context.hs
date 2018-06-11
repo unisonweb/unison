@@ -16,10 +16,8 @@ module Unison.Typechecker.Context where
 import Control.Monad
 import Data.List
 import Data.Map (Map)
-import Data.Maybe
 import Data.Set (Set)
 import Unison.DataDeclaration (DataDeclaration)
-import Unison.Literal (Literal)
 import Unison.Note (Note,Noted(..))
 import Unison.Pattern (Pattern)
 import Unison.Reference (Reference)
@@ -31,7 +29,6 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
-import qualified Unison.Literal as Literal
 import qualified Unison.Note as Note
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
@@ -257,11 +254,11 @@ wellformedType :: Var v => Context v -> Type v -> Bool
 wellformedType c t = wellformed c && case t of
   Type.Existential' v -> Set.member v (existentials c)
   Type.Universal' v -> Set.member v (universals c)
-  Type.Lit' _ -> True
+  Type.Ref' _ -> True
   Type.Arrow' i o -> wellformedType c i && wellformedType c o
   Type.Ann' t' _ -> wellformedType c t'
   Type.App' x y -> wellformedType c x && wellformedType c y
-  Type.Constrain' t' _ -> wellformedType c t'
+  Type.Effect' _ _ -> error "todo: wellformedType Effect"
   Type.Forall' t ->
     let (v,ctx2) = extendUniversal c
     in wellformedType ctx2 (ABT.bind t (Type.universal v))
@@ -281,13 +278,13 @@ lookupType ctx v = lookup v (bindings ctx)
 apply :: Var v => Context v -> Type v -> Type v
 apply ctx t = case t of
   Type.Universal' _ -> t
-  Type.Lit' _ -> t
+  Type.Ref' _ -> t
   Type.Existential' v ->
     maybe t (\(Type.Monotype t') -> apply ctx t') (lookup v (solved ctx))
   Type.Arrow' i o -> Type.arrow (apply ctx i) (apply ctx o)
   Type.App' x y -> Type.app (apply ctx x) (apply ctx y)
   Type.Ann' v k -> Type.ann (apply ctx v) k
-  Type.Constrain' v c -> Type.constrain (apply ctx v) c
+  Type.Effect' es t -> Type.effect (map (apply ctx) es) (apply ctx t)
   Type.ForallNamed' v t' -> Type.forall v (apply ctx t')
   _ -> error $ "Context.apply ill formed type - " ++ show t
 
@@ -327,7 +324,7 @@ subtype :: Var v => Type v -> Type v -> M v ()
 subtype tx ty = scope (show tx++" <: "++show ty) $
   do ctx <- getContext; go ctx tx ty
   where -- Rules from figure 9
-  go _ (Type.Lit' l) (Type.Lit' l2) | l == l2 = pure () -- `Unit`
+  go _ (Type.Ref' r) (Type.Ref' r2) | r == r2 = pure () -- `Unit`
   go ctx t1@(Type.Universal' v1) t2@(Type.Universal' v2) -- `Var`
     | v1 == v2 && wellformedType ctx t1 && wellformedType ctx t2
     = pure ()
@@ -425,7 +422,10 @@ check :: Var v => Term v -> Type v -> M v ()
 check e t = getContext >>= \ctx -> scope ("check: " ++ show e ++ ":   " ++ show t) $
   if wellformedType ctx t then
     let
-      go (Term.Lit' l) _ = subtype (synthLit l) t -- 1I
+      go (Term.Int64' _) _ = subtype Type.int64 t -- 1I
+      go (Term.UInt64' _) _ = subtype Type.uint64 t -- 1I
+      go (Term.Float' _) _ = subtype Type.float t -- 1I
+      go (Term.Boolean' _) _ = subtype Type.boolean t -- 1I
       go Term.Blank' _ = pure () -- somewhat hacky short circuit; blank checks successfully against all types
       go _ (Type.Forall' body) = do -- ForallI
         x <- extendUniversal =<< ABT.freshen body freshenTypeVar
@@ -450,9 +450,10 @@ check e t = getContext >>= \ctx -> scope ("check: " ++ show e ++ ":   " ++ show 
       go (Term.Match' scrutinee branches) t = do
         scrutineeType <- synthesize scrutinee
         dataDecls <- getDataDeclarations
-        forM_ branches $ \(lhs, rhs) -> do
+        forM_ branches $ \(Term.MatchCase lhs _guard rhs) -> do
           checkPattern lhs dataDecls scrutineeType
           check rhs t
+          -- NOTE: Typecheck the guard
           -- XXX retract
 
   -- | Match a [(Pattern, a)]
@@ -498,13 +499,6 @@ annotateLetRecBindings letrec = do
   setContext (ctx1 `append` context (marker : annotations))
   pure $ (marker, body)
 
--- | Infer the type of a literal
-synthLit :: Var v => Literal -> Type v
-synthLit lit = case lit of
-  Literal.Number _ -> Type.lit Type.Number
-  Literal.Text _ -> Type.lit Type.Text
-  Literal.If -> Type.forall' ["a"] (Type.builtin "Boolean" --> Type.v' "a" --> Type.v' "a" --> Type.v' "a")
-
 -- | Synthesize the type of the given term, updating the context in the process.
 synthesize :: Var v => Term v -> M v (Type v)
 synthesize e = scope ("synth: " ++ show e) $ go e where
@@ -526,7 +520,10 @@ synthesize e = scope ("synth: " ++ show e) $ go e where
       case ABT.vmap TypeVar.Universal t of t -> t <$ check e' t -- Anno
     s | otherwise ->
       fail $ "type annotation contains free variables " ++ show (map Var.name (Set.toList s))
-  go (Term.Lit' l) = pure (synthLit l) -- 1I=>
+  go (Term.Float' _) = pure Type.float -- 1I=>
+  go (Term.Int64' _) = pure Type.int64 -- 1I=>
+  go (Term.UInt64' _) = pure Type.uint64 -- 1I=>
+  go (Term.Boolean' _) = pure Type.boolean
   go (Term.App' f arg) = do -- ->E
     ft <- synthesize f; ctx <- getContext
     synthesizeApp (apply ctx ft) arg
@@ -598,29 +595,6 @@ synthesizeApp ft arg = go ft where
 infixr 7 -->
 (-->) :: Ord v => Type.Type v -> Type.Type v -> Type.Type v
 (-->) = Type.arrow
-
-remoteSignatureOf :: Var v => Text.Text -> Type.Type v
-remoteSignatureOf k = fromMaybe (error "unknown symbol") (Map.lookup k remoteSignatures)
-
-remoteSignatures :: forall v . Var v => Map.Map Text.Text (Type.Type v)
-remoteSignatures = Map.fromList
-  [ ("Remote.at", Type.forall' ["a"] (Type.builtin "Node" --> v' "a" --> remote (v' "a")))
-  , ("Remote.fork", Type.forall' ["a"] (remote (v' "a") --> remote unitT))
-  , ("Remote.here", remote (Type.builtin "Node"))
-  , ("Remote.spawn", remote (Type.builtin "Node"))
-  , ("Remote.send", Type.forall' ["a"] (channel (v' "a") --> v' "a" --> remote unitT))
-  , ("Remote.channel", Type.forall' ["a"] (remote (channel (v' "a"))))
-  , ("Remote.map", Type.forall' ["a","b"] ((v' "a" --> v' "b") --> remote (v' "a") --> remote (v' "b")))
-  , ("Remote.bind", Type.forall' ["a","b"] ((v' "a" --> remote (v' "b")) --> remote (v' "a") --> remote (v' "b")))
-  , ("Remote.pure", Type.forall' ["a"] (v' "a" --> remote (v' "a")))
-  , ("Remote.receive-async", Type.forall' ["a"] (channel (v' "a") --> timeoutT --> remote (remote (v' "a"))))
-  , ("Remote.receive", Type.forall' ["a"] (channel (v' "a") --> remote (v' "a"))) ]
-  where
-  v' = Type.v'
-  timeoutT = Type.builtin "Duration"
-  unitT = Type.builtin "Unit"
-  remote t = Type.builtin "Remote" `Type.app` t
-  channel t = Type.builtin "Channel" `Type.app` t
 
 -- | For purposes of typechecking, we translate `[x,y,z]` to the term
 -- `Vector.prepend x (Vector.prepend y (Vector.prepend z Vector.empty))`,

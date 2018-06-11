@@ -22,7 +22,7 @@ object Builtins {
 
   // Stream.fromInt : Integer -> Stream Integer
   val Stream_fromInt = // Stream.iterate(unison 0)(Integer_inc)
-    fp_z("Stream.fromInt", "n", Stream.fromUnison)
+    fp_z("Stream.from-int64", "n", Stream.fromUnison)
 
   // Stream.cons : a -> Stream a -> Stream a
   val Stream_cons =
@@ -45,7 +45,7 @@ object Builtins {
 
   // Stream.foldLeft : b -> (b -> a -> b) -> Stream a -> b
   val Stream_foldLeft =
-    fppp_p("Stream.foldLeft", "acc", "f", "stream",
+    fppp_p("Stream.fold-left", "acc", "f", "stream",
            (acc: Value, f: Value, s: Stream[Value]) =>
              s.foldLeft(acc)(
                UnisonToScala.toUnboxed2(f.asInstanceOf[Lambda])(env))
@@ -135,7 +135,7 @@ object Builtins {
 
   // Signed machine integers
   val Int64_inc =
-    fl_l("Int64.inc", "x", _ + 1)
+    fl_l("Int64.increment", "x", _ + 1)
 
   val Int64_isEven =
     fl_b("Int64.isEven", "x", _ % 2 == 0)
@@ -186,7 +186,7 @@ object Builtins {
     fl_l("UInt64.toInt64", "x", x => x)
 
   val UInt64_inc =
-    fn_n("UInt64.inc", "x", _ + 1)
+    fn_n("UInt64.increment", "x", _ + 1)
 
   val UInt64_isEven =
     fl_b("UInt64.isEven", "x", _ % 2 == 0)

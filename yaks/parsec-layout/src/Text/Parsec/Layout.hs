@@ -12,9 +12,11 @@
 -- * Uses \"\{\" and \"\}\" for explicit blocks.  This is hard-coded for the time being.
 
 module Text.Parsec.Layout
-    ( block
-    , laidout
+    ( vblock'
+    , vblockIncrement
+    , vblockNextToken
     , semi
+    , vsemi
     , space
     , spaced
     , LayoutEnv
@@ -22,6 +24,8 @@ module Text.Parsec.Layout
     , HasLayoutEnv(..)
     , maybeFollowedBy
     , virtual_rbrace
+    , virtual_lbrace_increment
+    , virtual_lbrace_nextToken
     , withoutLayout
     ) where
 
@@ -34,22 +38,33 @@ import Text.Parsec.Combinator
 import Text.Parsec.Pos
 import Text.Parsec.Prim hiding (State)
 import Text.Parsec.Char hiding (space)
+import qualified Text.Parsec.Char as Parsec.Char
 
---import Debug.Trace
---import Text.Parsec (anyChar)
---
---pTrace s = pt <|> return ()
---    where pt = try $
---               do
---                 x <- try $ many anyChar
---                 trace (s++": " ++x) $ try $ char 'z'
---                 fail x
---
---traced s p = do
---  pTrace s
---  a <- p <|> trace (s ++ " backtracked") (fail s)
---  let !x = trace (s ++ " succeeded") ()
---  pure a
+import Debug.Trace
+import Text.Parsec (anyChar)
+
+pTrace :: Stream s m Char => [Char] -> ParsecT s u m ()
+pTrace s = pt <|> return ()
+    where pt = try $
+               do
+                 x <- try $ many anyChar
+                 trace (s++": " ++ show x) $ try $ char 'z'
+                 fail x
+
+tracingEnabled :: Bool
+tracingEnabled = False
+
+traced :: (Stream s m Char, HasLayoutEnv u) =>
+          [Char] -> ParsecT s u m b -> ParsecT s u m b
+traced s p = if not tracingEnabled then p else do
+  pTrace s
+  ctx <- getEnv
+  let !_ = trace ("ctx (before): " ++ show ctx) ()
+  a <- p <|> trace (s ++ " backtracked") (fail s)
+  ctx <- getEnv
+  let !_ = trace ("ctx (after): " ++ show ctx) ()
+  let !_ = trace (s ++ " succeeded") ()
+  pure a
 
 data LayoutContext = NoLayout | Layout Int deriving (Eq,Ord,Show)
 
@@ -57,7 +72,7 @@ data LayoutContext = NoLayout | Layout Int deriving (Eq,Ord,Show)
 data LayoutEnv = Env
     { envLayout :: [LayoutContext]
     , envBol :: Bool -- if true, must run offside calculation
-    }
+    } deriving (Show)
 
 -- | For embedding layout information into a larger parse state.  Instantiate
 -- this class if you need to use this together with other user state.
@@ -94,11 +109,26 @@ getIndentation = depth . envLayout <$> getEnv where
     depth (Layout n:_) = n
     depth _ = 0
 
-pushCurrentContext :: (HasLayoutEnv u, Stream s m c) => ParsecT s u m ()
-pushCurrentContext = do
-    indent <- getIndentation
-    col <- sourceColumn <$> getPosition
-    pushContext . Layout $ max (indent+1) col
+-- Pushes a column onto the layout stack determined by the column where
+-- the next token begins. Ex:
+--
+--   let
+--     x = 42
+--
+-- The column of `x` is pushed after `let` is parsed.
+-- This may be less than the previous column at the top
+-- of the layout stack, which allows for things like:
+--
+--   foo x y z = case x of
+--     42 -> ...
+--
+-- Here, the `=` introduces a layout block at column 13 (the start of the `case`),
+-- and the `of` introduces a layout block at column 3 (the start of the `42`).
+pushNextTokenContext :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m ()
+pushNextTokenContext = traced "pushNextTokenContext" $ do
+  _ <- Parsec.Char.spaces
+  col <- sourceColumn <$> getPosition
+  pushContext . Layout $ col
 
 maybeFollowedBy :: Stream s m c => ParsecT s u m a -> ParsecT s u m b -> ParsecT s u m a
 t `maybeFollowedBy` x = do t' <- t; optional x; return t'
@@ -154,13 +184,15 @@ layout = try $ do
     offside x = do
         p <- getPosition
         pos <- compare (sourceColumn p) <$> getIndentation
+        isEof <- (True <$ smartEof) <|> pure False
+        let returnVBrace = do
+              popContext "the offside rule"
+              modifyEnv $ \env -> env { envBol = True }
+              return VBrace
         case pos of
-            LT -> do
-                popContext "the offside rule"
-                modifyEnv $ \env -> env { envBol = True }
-                return VBrace
-            EQ -> return VSemi
-            GT -> onside x
+          LT -> returnVBrace
+          EQ -> if isEof then returnVBrace else return VSemi
+          GT -> onside x
 
     -- we remained onside.
     -- If we skipped any comments, or moved to a new line and stayed onside, we return a single a ' ',
@@ -182,23 +214,34 @@ inLayout = do
     (NoLayout:_) -> False
     (Layout _:_) -> True
 
-pushIncrementedContext :: (HasLayoutEnv u, Stream s m c) => ParsecT s u m ()
-pushIncrementedContext = do
+pushIncrementedContext :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m ()
+pushIncrementedContext = traced "pushIncrementedContext" $ do
   env <- getEnv
   case envLayout env of
-    [] -> pushContext (Layout 1)
+    [] -> pushContext (Layout 2)
     (Layout n : _) -> pushContext (Layout (n + 1))
     (NoLayout : _) -> pure ()
 
-virtual_lbrace :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m ()
-virtual_lbrace = do
-  allow <- inLayout
-  when allow pushCurrentContext
+vblockIncrement :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m a -> ParsecT s u m a
+vblockIncrement = vblock' pushIncrementedContext virtual_rbrace
+
+vblockNextToken :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m a -> ParsecT s u m a
+vblockNextToken = vblock' pushNextTokenContext virtual_rbrace
+
+virtual_lbrace_increment :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m ()
+virtual_lbrace_increment = pushIncrementedContext
+
+virtual_lbrace_nextToken :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m ()
+virtual_lbrace_nextToken = pushNextTokenContext
 
 virtual_rbrace :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m ()
-virtual_rbrace = do
+virtual_rbrace = traced "virtual_rbrace" $ try (void $ lookAhead semi) <|> do
   allow <- inLayout
-  when allow $ eof <|> try (layoutSatisfies (VBrace ==) <?> "outdent")
+  when allow $
+    (traced "eof" $ smartEof) <|> (traced "outdent" $ try (layoutSatisfies (VBrace ==) <?> "outdent"))
+
+smartEof :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m ()
+smartEof = try $ many (satisfy isSpace) *> eof
 
 -- | Consumes one or more spaces, comments, and onside newlines in a layout rule.
 space :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m String
@@ -207,6 +250,15 @@ space = do
     return " "
   <?> "space"
 
+vsemi :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m String
+vsemi = traced "vsemi" $ (do
+    try $ layoutSatisfies p
+    return ";"
+  <?> "semicolon")
+  where
+    p VSemi = True
+    p _ = False
+
 -- | Recognize a semicolon including a virtual semicolon in layout.
 semi :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m String
 semi = do
@@ -214,36 +266,17 @@ semi = do
     return ";"
   <?> "semicolon"
   where
-        p VSemi = True
-        p (Other ';') = True
-        p _ = False
+    p (Other ';') = True
+    p _ = False
 
-lbrace :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m String
-lbrace = do
-    char '{'
-    pushContext NoLayout
-    return "{"
-
-rbrace :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m String
-rbrace = do
-    char '}'
-    popContext "a right brace"
-    return "}"
-
-block :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m a -> ParsecT s u m a
-block p = braced p <|> vbraced p where
-  braced s = between (try (spaced lbrace)) (spaced rbrace) s
-  vbraced s = between (spaced virtual_lbrace) (spaced virtual_rbrace) s
-  -- NB: virtual_lbrace here doesn't use current column for offside calc, instead
-  -- uses 1 column greater than whatever column is at top of layout stack
-  virtual_lbrace = do
-    allow <- inLayout
-    when allow pushIncrementedContext
-
--- | Repeat a parser in layout, separated by (virtual) semicolons.
-laidout :: (HasLayoutEnv u, Stream s m Char) => ParsecT s u m a -> ParsecT s u m [a]
-laidout p = braced statements <|> vbraced statements where
-    braced s = between (try (spaced lbrace)) (spaced rbrace) s
-    vbraced s = between (spaced virtual_lbrace) (spaced virtual_rbrace) s
-    statements = p `sepBy` spaced semi
-
+vblock' :: (HasLayoutEnv u, Stream s m Char)
+        => ParsecT s u m l
+        -> ParsecT s u m r
+        -> ParsecT s u m a
+        -> ParsecT s u m a
+vblock' virtual_lbrace virtual_rbrace p = do
+  prevEnvBol <- envBol <$> getEnv
+  modifyEnv (\env -> env { envBol = True })
+  a <- between (spaced virtual_lbrace) (spaced virtual_rbrace) p
+  modifyEnv (\env -> env { envBol = prevEnvBol })
+  pure a

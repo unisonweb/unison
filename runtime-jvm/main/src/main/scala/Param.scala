@@ -28,9 +28,9 @@ abstract class Value extends Param {
   def decompile: Term
 
   /** Unboxed values will return an UnboxedType */
-  @inline def toBoxed: Value = this
+  def toBoxed: Value = this
   /** true boxed values will return U0 */
-  @inline def toUnboxed: U = U0
+  def toUnboxed: U = U0
   def toResult(r: Result): U = { r.boxed = toBoxed; toUnboxed }
 }
 

@@ -161,6 +161,9 @@ absr = absr' ()
 absr' :: (Functor f, Foldable f, Var v) => a -> v -> Term f (V v) a -> Term f (V v) a
 absr' a v body = wrap' v body $ \v body -> abs' a v body
 
+absChain :: Ord v => [v] -> Term f v () -> Term f v ()
+absChain vs t = foldr abs t vs
+
 tm :: (Foldable f, Ord v) => f (Term f v ()) -> Term f v ()
 tm = tm' ()
 
@@ -237,7 +240,8 @@ subst v r t2@(Term fvs ann body)
 
 -- | `substs [(t1,v1), (t2,v2), ...] body` performs multiple simultaneous
 -- substitutions, avoiding capture
-substs :: (Foldable f, Functor f, Var v) => [(v, Term f v a)] -> Term f v a -> Term f v a
+substs :: (Foldable f, Functor f, Var v)
+       => [(v, Term f v a)] -> Term f v a -> Term f v a
 substs replacements body = foldr f body (reverse replacements) where
   f (v, t) body = subst v t body
 
@@ -317,6 +321,16 @@ unabs t = ([], t)
 reabs :: Ord v => [v] -> Term f v () -> Term f v ()
 reabs vs t = foldr abs t vs
 
+transform :: (Ord v, Foldable g, Functor f)
+          => (forall a. f a -> g a) -> Term f v a -> Term g v a
+transform f tm = case (out tm) of
+  Var v -> annotatedVar (annotation tm) v
+  Abs v body -> abs' (annotation tm) v (transform f body)
+  Tm subterms ->
+    let subterms' = fmap (transform f) subterms
+    in tm' (annotation tm) (f subterms')
+  Cycle body -> cycle' (annotation tm) (transform f body)
+
 instance (Foldable f, Functor f, Eq1 f, Eq a, Var v) => Eq (Term f v a) where
   -- alpha equivalence, works by renaming any aligned Abs ctors to use a common fresh variable
   t1 == t2 = annotation t1 == annotation t2 && go (out t1) (out t2) where
@@ -340,9 +354,8 @@ hash t = hash' [] t where
       where lookup (Left cycle) = elem v cycle
             lookup (Right v') = v == v'
             ind = findIndex lookup env
-            -- env not likely to be very big, prefer to encode in one byte if possible
             hashInt :: Int -> h
-            hashInt i = Hashable.accumulate [Hashable.VarInt i]
+            hashInt i = Hashable.accumulate [Hashable.UInt64 $ fromIntegral i]
             die = error $ "unknown var in environment: " ++ show (Var.name v)
     Cycle (AbsN' vs t) -> hash' (Left vs : env) t
     Cycle t -> hash' env t
