@@ -635,7 +635,7 @@ object CompilationTests {
                     termFor(Builtins.Stream_cons)(1, termFor(Builtins.Stream_empty)))
       },
       test("map") { implicit T =>
-        // Stream.foldLeft 0 (+) (Stream.take 100 (Stream.map (+1) (Stream.fromInt 0)))
+        // Stream.foldLeft +0 (+) (Stream.take 100 (Stream.map (\x -> x + 1) (Stream.fromInt +0)))
         equal[Term](
           eval(
             termFor(Builtins.Stream_foldLeft)(
@@ -645,7 +645,7 @@ object CompilationTests {
                 100,
                 termFor(Builtins.Stream_map)(
                   termFor(Builtins.Int64_inc),
-                  termFor(Builtins.Stream_fromInt)(0)))
+                  termFor(Builtins.Stream_fromInt64)(0)))
             )
           ),
           scala.Stream.from(0).map(1+).take(100).foldLeft(0)(_+_)
