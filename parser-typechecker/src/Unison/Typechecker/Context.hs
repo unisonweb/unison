@@ -13,6 +13,7 @@
 module Unison.Typechecker.Context where
 
 
+import Control.Arrow (first, second)
 import Control.Monad
 import Data.List
 import Data.Map (Map)
@@ -578,34 +579,54 @@ synthesize e = scope ("synth: " ++ show e) $ go e where
   go (Term.Or' a b) = foldM synthesizeApp Type.andor [a, b]
   go (Term.Match' scrutinee cases) = do
     scrutineeType <- synthesize scrutinee
-    outputTypev <- freshenVar "match-output"
+    outputTypev <- freshenVar (Var.named "match-output")
     let outputType = Type.existential outputTypev
-    appendContext (context [Existential outputType])
+    appendContext (context [Existential outputTypev])
     Foldable.traverse_ (checkCase scrutineeType outputType) cases
     ctx <- getContext
     pure (apply ctx outputType)
   go e = fail $ "unknown case in synthesize " ++ show e
 
 -- data MatchCase a = MatchCase Pattern (Maybe a) a
-checkCase :: Type v -> Type v -> Term.MatchCase (Term v) -> M v ()
-checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) = _todo
+checkCase :: Var v => Type v -> Type v -> Term.MatchCase (Term v) -> M v ()
+checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) = do
   -- make up a type variable, drop a marker for that type variable
-  -- 1a. convert pattern to a Term, wildcards become existentials introduced into typechecking environment
-  -- 1b. convert the pattern to a Term where RHS is the guard rather than the body
+  marker <- Marker <$> freshenVar (Var.named "check-case")
+  appendContext (context [marker])
+  -- 1a. make up a term that involves the guard if present
+  let rhs' = case guard of
+        Just g -> Term.let1 [(Var.named "_", Term.ann g Type.boolean)] rhs
+        Nothing -> rhs
+  -- 1b. convert pattern to a Term, wildcards become existentials introduced into typechecking environment
+  (patTerm, rhs') <- patternToTerm pat rhs'
   -- Now we have a term for each pattern, and a suitably freshened RHS and guard for each case
   -- 2. check the pattern term against the scrutineeType (makes sure patterns are well-typed, also refines type env)
-  -- 3. check the guard against `Boolean`
+  check patTerm scrutineeType
   -- 4. check the rhs' (freshened rhs) against `outputType`
+  check rhs' outputType
   -- 5. retract the context to the marker
+  modifyContext $ retract marker
+
+  -- case foo of
+  --   Cons h t | h > 3 -> h + 1
+  --   other -> 7
+
+  -- let _ = if not (h > 3) then throw MatchFail else h + 1
 
 -- Convert a
 patternToTerm :: Var v => Pattern -> Term v -> M v (Term v, Term v)
 patternToTerm pat rhs = case pat of
   Pattern.Boolean b -> pure (Term.boolean b, rhs)
+  Pattern.Int64 n -> pure (Term.int64 n, rhs)
+  Pattern.UInt64 n -> pure (Term.uint64 n, rhs)
+  Pattern.Float n -> pure (Term.float n, rhs)
   -- similar for other literals
-  Pattern.Constructor r cid pats -> _todo2
-    -- todo
-    -- pure $ Term.apps (Term.constructor r cid) _patternSubterms
+  Pattern.Constructor r cid pats -> do
+    let f (rhs, reverseTerms) pat = do
+          (outputTerm, rhs') <- patternToTerm pat rhs
+          pure $ (rhs', outputTerm : reverseTerms)
+    (rhs', outputTerms) <- second reverse <$> foldM f (rhs,[]) pats
+    pure (Term.apps (Term.constructor r cid) outputTerms, rhs')
   Pattern.Var -> case rhs of
     ABT.Abs' body -> do
       v' <- ABT.freshen body freshenVar
@@ -613,9 +634,30 @@ patternToTerm pat rhs = case pat of
       let termv = Term.var v'
       let body' = ABT.bind body termv
       pure (termv, body')
-    other -> fail "malformed pattern"
-  -- unbound will be almost the same as Var, just won't be expecting a rhs that's an Abs
-  -- but we will still introduce an existential for the `_`
+    _other -> fail "malformed pattern"
+  Pattern.Unbound -> do
+    v' <- freshenVar (Var.named "_")
+    appendContext (context [Existential v'])
+    let termv = Term.var v'
+    pure (termv, rhs)
+  Pattern.As p -> case rhs of
+    ABT.Abs' body -> do
+      v' <- ABT.freshen body freshenVar
+      appendContext (context [Existential v'])
+      let termv = Term.var v'
+      let body' = ABT.bind body termv
+      (patTerm, rhs') <- patternToTerm p body'
+      -- typecheck v' as `let v' = patTerm in v'`
+      pure (Term.let1 [(v', patTerm)] termv, rhs')
+    _other -> fail "malformed pattern"
+  Pattern.EffectPure p -> first Term.effectPure <$> patternToTerm p rhs
+  Pattern.EffectBind r cid pats kpat -> do
+    let f (rhs, reverseTerms) pat = do
+          (outputTerm, rhs') <- patternToTerm pat rhs
+          pure $ (rhs', outputTerm : reverseTerms)
+    (rhs', outputTerms) <- second reverse <$> foldM f (rhs,[]) pats
+    (rhs'', kTerm) <- patternToTerm kpat rhs'
+    pure (Term.effectBind r cid outputTerms kTerm, rhs'')
 
 -- | Synthesize the type of the given term, `arg` given that a function of
 -- the given type `ft` is being applied to `arg`. Update the context in

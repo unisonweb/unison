@@ -261,6 +261,12 @@ let1 bindings e = foldr f e bindings
 let1' :: Var v => [(Text,Term v)] -> Term v -> Term v
 let1' bs e = let1 [(ABT.v' name, b) | (name,b) <- bs ] e
 
+effectPure :: Ord v => Term v -> Term v
+effectPure t = ABT.tm (EffectPure t)
+
+effectBind :: Ord v => Reference -> Int -> [Term v] -> Term v -> Term v
+effectBind r cid args k = ABT.tm (EffectBind r cid args k)
+
 unLet1 :: Var v => Term v -> Maybe (Term v, ABT.Subst (F v) v ())
 unLet1 (ABT.Tm' (Let b (ABT.Abs' subst))) = Just (b, subst)
 unLet1 _ = Nothing
