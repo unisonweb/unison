@@ -8,7 +8,7 @@ import qualified Data.Set as Set
 import           Data.Text (Text)
 import qualified Unison.ABT as ABT
 import qualified Unison.Parser as Parser
-import qualified Unison.Parsers as Parsers
+import qualified Unison.Parsers as Parsers -- remove this dependency on Parsers
 import qualified Unison.Reference as R
 import           Unison.Symbol (Symbol)
 import           Unison.Term (Term)
@@ -18,6 +18,8 @@ import qualified Unison.Type as Type
 import qualified Unison.Var as Var
 import           Unison.Var (Var)
 
+-- todo: to update these, just inline definition of Parsers.{unsafeParseType, unsafeParseTerm}
+-- then merge Parsers2 back into Parsers (and GC and unused functions)
 -- parse a type, hard-coding the builtins defined in this file
 t :: Var v => String -> Type v
 t s = resolveBuiltins builtinTypes Type.builtin $
