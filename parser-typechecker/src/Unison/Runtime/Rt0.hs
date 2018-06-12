@@ -1,3 +1,5 @@
+{-# Language OverloadedStrings #-}
+
 module Unison.Runtime.Rt0 where
 
 import Control.Monad.Identity (runIdentity)
@@ -8,11 +10,13 @@ import Data.Word (Word64)
 import Data.List
 import Unison.Symbol (Symbol)
 import Unison.Term (Term)
+import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Data.Vector as V
 import qualified Unison.ABT as ABT
 import qualified Unison.Reference as R
 import qualified Unison.Term as Term
+import qualified Unison.Var as Var
 
 type Arity = Int
 type ConstructorId = Int
@@ -84,10 +88,34 @@ decompile :: V e -> Term Symbol
 decompile _ = error "todo: decompile"
 
 anf :: Term Symbol -> Term Symbol
-anf t = error "todo: anf"
-  -- runIdentity $ ABT.visit' f t where
-  -- f t@(Term.Apps' f args) = error "todo anf"
-  -- f t = pure t
+anf t = ABT.rewriteDown go t where
+  fixAp t f args =
+    let
+      args' = Map.fromList $ toVar =<< (args `zip` [0..])
+      toVar (b, i) | inANF b   = []
+                   | otherwise = [(i, ABT.fresh t (Var.named . Text.pack $ "arg" ++ show i))]
+      argsANF = map toANF (args `zip` [0..])
+      toANF (b,i) = maybe b Term.var $ Map.lookup i args'
+      addLet (b,i) body = maybe body (\v -> Term.let1 [(v,b)] body) (Map.lookup i args')
+    in foldr addLet (Term.apps f argsANF) (args `zip` [0..])
+  go t@(Term.Apps' f args)
+    | inANF f = fixAp t f args
+    | otherwise = let fv' = ABT.fresh t (Var.named "f")
+                  in Term.let1 [(fv', anf f)] (fixAp t (Term.var fv') args)
+  go e@(Term.If' cond t f)
+    | inANF cond = e
+    | otherwise = let cond' = ABT.fresh e (Var.named "cond")
+                  in Term.let1 [(cond', anf cond)] (Term.iff (Term.var cond') t f)
+  go e@(Term.Match' scrutinee cases)
+    | inANF scrutinee = e
+    | otherwise = let scrutinee' = ABT.fresh e (Var.named "scrutinee")
+                  in Term.let1 [(scrutinee', anf scrutinee)] (Term.match (Term.var scrutinee') cases)
+  go t = t
+
+inANF :: Term a -> Bool
+inANF t = case t of
+  Term.App' _f _arg -> False
+  _ -> True
 
 compile :: Term Symbol -> IR R.Reference
 compile t = go (ABT.annotateBound $ anf t) where

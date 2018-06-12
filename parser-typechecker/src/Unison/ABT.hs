@@ -311,6 +311,16 @@ visit' f t = case out t of
   Abs x e -> abs' (annotation t) x <$> visit' f e
   Tm body -> f body >>= \body -> tm' (annotation t) <$> traverse (visit' f) body
 
+rewriteDown :: (Traversable f, Ord v)
+            => (Term f v a -> Term f v a)
+            -> Term f v a
+            -> Term f v a
+rewriteDown f t = let t' = f t in case out t' of
+  Var _ -> t'
+  Cycle body -> cycle' (annotation t) (rewriteDown f body)
+  Abs x e -> abs' (annotation t) x (rewriteDown f e)
+  Tm body -> tm' (annotation t) (rewriteDown f `fmap` body)
+
 data Subst f v a =
   Subst { freshen :: forall m v' . Monad m => (v -> m v') -> m v'
         , bind    :: Term f v a -> Term f v a }
