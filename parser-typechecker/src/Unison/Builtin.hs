@@ -3,10 +3,6 @@ module Unison.Builtin where
 
 import           Control.Arrow ((&&&))
 import qualified Data.Map as Map
-import           Data.Set (Set)
-import qualified Data.Set as Set
-import           Data.Text (Text)
-import qualified Unison.ABT as ABT
 import qualified Unison.Parser as Parser
 import qualified Unison.Parsers as Parsers -- remove this dependency on Parsers
 import qualified Unison.Reference as R
@@ -22,33 +18,24 @@ import           Unison.Var (Var)
 -- then merge Parsers2 back into Parsers (and GC and unused functions)
 -- parse a type, hard-coding the builtins defined in this file
 t :: Var v => String -> Type v
-t s = resolveBuiltins builtinTypes Type.builtin $
-        Parsers.unsafeParseType s Parser.penv0
+t s = bindTypeBuiltins $ Parsers.unsafeParseType s Parser.penv0
 
 -- parse a term, hard-coding the builtins defined in this file
 tm :: Var v => String -> Term v
-tm s = resolveBuiltins builtinTerms Term.builtin $
-        Parsers.unsafeParseTerm s Parser.penv0
+tm s = bindBuiltins $ Parsers.unsafeParseTerm s Parser.penv0
 
--- substitute free vars from `t` intersect `b` using `mkTerm` on those vs Text names
-resolveBuiltins :: (Foldable f, Functor f, Var v) =>
-                 Set v
-                 -> (Text -> ABT.Term f v a)
-                 -> ABT.Term f v a
-                 -> ABT.Term f v a
-resolveBuiltins b mkTerm t = let
-  free = Set.intersection (ABT.freeVars t) b -- Arya asks: does this do anything?  what if we just used `b` without calling `freeVars`?
-  in ABT.substs [(v, mkTerm (Var.name v)) | v <- Set.toList free] t
+bindBuiltins :: Var v => Term v -> Term v
+bindBuiltins = Term.bindBuiltins builtinTerms builtinTypes
 
-builtinTypes :: Var v => Set v
-builtinTypes = Set.fromList . map Var.named $ [
-  "Int64", "UInt64", "Float", "Boolean", "Sequence", "Text", "Stream"]
+bindTypeBuiltins :: Var v => Type v -> Type v
+bindTypeBuiltins = Type.bindBuiltins builtinTypes
 
-builtinTerms :: Var v => Set v
-builtinTerms = Set.map toSymbol (Map.keysSet builtins) where
+builtinTerms :: Var v => [(v, Term v)]
+builtinTerms = (toSymbol &&& Term.ref) <$> Map.keys builtins
 
-builtinEnv :: Var v => [(v, Term v)]
-builtinEnv = (toSymbol &&& Term.ref) <$> Map.keys builtins
+builtinTypes :: Var v => [(v, Type v)]
+builtinTypes = (Var.named &&& (Type.ref . R.Builtin)) <$>
+  ["Int64", "UInt64", "Float", "Boolean", "Sequence", "Text", "Stream"]
 
 toSymbol :: Var v => R.Reference -> v
 toSymbol (R.Builtin txt) = Var.named txt

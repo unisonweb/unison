@@ -33,7 +33,8 @@ main = do
     [sourceFile, outputFile] -> do
       unisonFile <- Parsers.unsafeReadAndParseFile Parser.penv0 sourceFile
       let dataDecls = Map.fromList . toList $ UF.dataDeclarations unisonFile
-      let t = B.resolveBuiltins B.builtinTerms Term.builtin $ UF.term unisonFile
+      -- let t = B.resolveBuiltins B.builtinTerms Term.builtin $ UF.term unisonFile
+      let t = Term.bindBuiltins B.builtinTerms B.builtinTypes $ UF.term unisonFile
       typ <- Note.run $ Typechecker.synthesize termLookup (dataDeclLookup dataDecls) t
       putStrLn ("typechecked as " ++ show typ)
       let bs = runPutS $ flip evalStateT 0 $ Codecs.serializeFile unisonFile

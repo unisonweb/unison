@@ -54,6 +54,9 @@ wrapV = ABT.vmap ABT.Bound
 freeVars :: Type v -> Set v
 freeVars = ABT.freeVars
 
+bindBuiltins :: Var v => [(v, Type v)] -> Type v -> Type v
+bindBuiltins bs = ABT.substs bs
+
 data Monotype v = Monotype { getPolytype :: Type v } deriving (Eq)
 
 instance Var v => Show (Monotype v) where
