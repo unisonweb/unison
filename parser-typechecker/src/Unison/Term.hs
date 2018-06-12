@@ -275,7 +275,7 @@ unLet t = fixup (go t) where
   fixup bst = Just bst
 
 -- | Satisfies `unLetRec (letRec bs e) == Just (bs, e)`
-unLetRecNamed :: Term v -> Maybe ([(v, Term v)], Term v)
+unLetRecNamed :: AnnotatedTerm v a -> Maybe ([(v, AnnotatedTerm v a)], AnnotatedTerm v a)
 unLetRecNamed (ABT.Cycle' vs (ABT.Tm' (LetRec bs e)))
   | length vs == length vs = Just (zip vs bs, e)
 unLetRecNamed _ = Nothing

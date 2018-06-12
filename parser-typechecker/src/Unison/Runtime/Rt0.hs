@@ -102,6 +102,10 @@ anf t = ABT.rewriteDown go t where
     | inANF f = fixAp t f args
     | otherwise = let fv' = ABT.fresh t (Var.named "f")
                   in Term.let1 [(fv', anf f)] (fixAp t (Term.var fv') args)
+  go e@(Term.Handle' h body)
+    | inANF h = e
+    | otherwise = let h' = ABT.fresh e (Var.named "handler")
+                  in Term.let1 [(h', anf h)] (Term.handle (Term.var h') body)
   go e@(Term.If' cond t f)
     | inANF cond = e
     | otherwise = let cond' = ABT.fresh e (Var.named "cond")
@@ -126,6 +130,11 @@ compile t = go (ABT.annotateBound $ anf t) where
     Term.Boolean' b -> V (B b)
     Term.Text' t -> V (T t)
     Term.Ref' r -> V (Ext r)
+    Term.Var' v -> case elemIndex v (ABT.annotation t) of
+      Nothing -> error $ "free variable during compilation: " ++ show v
+      Just i -> Var i
+    Term.Let1Named' _ b body -> Let (go b) (go body)
+    Term.LetRecNamed' bs body -> LetRec (go . snd <$> bs) (go body)
     Term.Apps' f args -> Apply (ind t f) (map (ind t) args) where
       ind t (Term.Var' v) = case elemIndex v (ABT.annotation t) of
         Nothing -> error $ "free variable during compilation: " ++ show v
