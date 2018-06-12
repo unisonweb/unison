@@ -5,7 +5,6 @@ module Unison.Parsers where
 import qualified Data.Text as Text
 import           Data.Text.IO (readFile)
 import           Prelude hiding (readFile)
-import qualified Unison.ABT as ABT
 import qualified Unison.FileParser as FileParser
 import           Unison.Parser (PEnv)
 import qualified Unison.Parser as Parser
@@ -30,15 +29,10 @@ parseTerm :: Var v => String -> PEnv -> Either String (Term v)
 parseTerm s = Parser.run (Parser.root TermParser.term) s s0
 
 parseType :: Var v => String -> PEnv -> Either String (Type v)
-parseType = parseType' []
+parseType s = Parser.run (Parser.root TypeParser.valueType) s s0
 
 parseFile :: Var v => FilePath -> String -> PEnv -> Either String (UnisonFile v)
 parseFile filename s = Parser.run' (Parser.root FileParser.file) s s0 filename
-
-parseType' :: Var v => [(v, Type v)] -> String -> PEnv -> Either String (Type v)
-parseType' typeBuiltins s =
-  fmap (ABT.substs typeBuiltins) <$> Parser.run (Parser.root TypeParser.valueType) s s0
-
 
 unsafeParseTerm :: Var v => String -> PEnv -> Term v
 unsafeParseTerm = fmap unsafeGetRight . parseTerm
