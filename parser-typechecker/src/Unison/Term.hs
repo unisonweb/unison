@@ -38,6 +38,8 @@ import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import           Unison.Var (Var)
 import           Unsafe.Coerce
+import qualified Unison.Var as Var
+import qualified Data.Text as Text
 
 data MatchCase a = MatchCase Pattern (Maybe a) a
   deriving (Show,Eq,Foldable,Functor,Generic,Generic1,Traversable)
@@ -329,6 +331,40 @@ countBlanks t = Monoid.getSum . Writer.execWriter $ ABT.visit' f t
 betaReduce :: Var v => Term v -> Term v
 betaReduce (App' (Lam' f) arg) = ABT.bind f arg
 betaReduce e = e
+
+anf :: Var v => Term v -> Term v
+anf t = ABT.rewriteDown go t where
+  fixAp t f args =
+    let
+      args' = Map.fromList $ toVar =<< (args `zip` [0..])
+      toVar (b, i) | inANF b   = []
+                   | otherwise = [(i, ABT.fresh t (Var.named . Text.pack $ "arg" ++ show i))]
+      argsANF = map toANF (args `zip` [0..])
+      toANF (b,i) = maybe b var $ Map.lookup i args'
+      addLet (b,i) body = maybe body (\v -> let1 [(v,b)] body) (Map.lookup i args')
+    in foldr addLet (apps f argsANF) (args `zip` [0..])
+  go t@(Apps' f args)
+    | inANF f = fixAp t f args
+    | otherwise = let fv' = ABT.fresh t (Var.named "f")
+                  in let1 [(fv', anf f)] (fixAp t (var fv') args)
+  go e@(Handle' h body)
+    | inANF h = e
+    | otherwise = let h' = ABT.fresh e (Var.named "handler")
+                  in let1 [(h', anf h)] (handle (var h') body)
+  go e@(If' cond t f)
+    | inANF cond = e
+    | otherwise = let cond' = ABT.fresh e (Var.named "cond")
+                  in let1 [(cond', anf cond)] (iff (var cond') t f)
+  go e@(Match' scrutinee cases)
+    | inANF scrutinee = e
+    | otherwise = let scrutinee' = ABT.fresh e (Var.named "scrutinee")
+                  in let1 [(scrutinee', anf scrutinee)] (match (var scrutinee') cases)
+  go t = t
+
+inANF :: Term a -> Bool
+inANF t = case t of
+  App' _f _arg -> False
+  _ -> True
 
 instance Var v => Hashable1 (F v) where
   hash1 hashCycle hash e =
