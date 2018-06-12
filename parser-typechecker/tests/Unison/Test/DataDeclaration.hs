@@ -8,7 +8,7 @@ import Unison.UnisonFile (UnisonFile(..))
 import qualified Unison.Var as Var
 import qualified Data.Map as Map
 import Unison.Parser (penv0)
-import Unison.Parsers2 (unsafeParseFile)
+import Unison.Parsers (unsafeParseFile)
 import Unison.DataDeclaration (hashDecls)
 
 test = scope "datadeclaration" $

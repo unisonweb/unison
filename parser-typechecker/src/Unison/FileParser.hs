@@ -10,10 +10,8 @@ import qualified Data.Map as Map
 import qualified Data.Text as Text
 import           Prelude hiding (readFile)
 import qualified Text.Parsec.Layout as L
-import qualified Unison.ABT as ABT
 import           Unison.DataDeclaration (DataDeclaration(..), EffectDeclaration(..), mkEffectDecl)
 import           Unison.Parser (Parser, traced, token_, sepBy, string)
-import           Unison.Term (Term)
 import qualified Unison.Term as Term
 import qualified Unison.TermParser as TermParser
 import qualified Unison.Type as Type
@@ -23,8 +21,8 @@ import           Unison.UnisonFile (UnisonFile(..), environmentFor)
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 
-file :: Var v => [(v, Term v)] -> Parser (S v) (UnisonFile v)
-file builtinEnv = traced "file" $ do
+file :: Var v => Parser (S v) (UnisonFile v)
+file = traced "file" $ do
   (dataDecls, effectDecls) <- traced "declarations" declarations
   let (dataDecls', effectDecls', penv') = environmentFor dataDecls effectDecls
   local (`Map.union` penv') $ do
@@ -32,8 +30,10 @@ file builtinEnv = traced "file" $ do
     let dataEnv0 = Map.fromList [ (Var.named (Text.pack n), Term.constructor r i) | (n, (r,i)) <- Map.toList penv' ]
         dataEnv = dataEnv0 `Map.difference` effectDecls
         effectEnv = dataEnv0 `Map.difference` dataEnv
-    let term2 = ABT.substs (builtinEnv ++ Map.toList dataEnv ++ Map.toList effectEnv) term
-    pure $ UnisonFile dataDecls' effectDecls' term2
+        typeEnv = Map.toList (Type.ref . fst <$> dataDecls') ++
+                  Map.toList (Type.ref . fst <$> effectDecls')
+    let term3 = Term.bindBuiltins (Map.toList dataEnv ++ Map.toList effectEnv) typeEnv term
+    pure $ UnisonFile dataDecls' effectDecls' term3
 
 declarations :: Var v => Parser (S v)
                          (Map v (DataDeclaration v),

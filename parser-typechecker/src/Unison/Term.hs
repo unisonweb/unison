@@ -93,6 +93,10 @@ type Term v = AnnotatedTerm v ()
 -- | Terms with type variables in `vt`, and term variables in `v`
 type Term' vt v = AnnotatedTerm' vt v ()
 
+bindBuiltins :: Var v => [(v, Term v)] -> [(v, Type v)] -> Term v -> Term v
+bindBuiltins termBuiltins typeBuiltins =
+   typeMap (ABT.substs typeBuiltins) . ABT.substs termBuiltins
+
 vmap :: Ord v2 => (v -> v2) -> AnnotatedTerm v a -> AnnotatedTerm v2 a
 vmap f = ABT.vmap f . typeMap (ABT.vmap f)
 

@@ -11,7 +11,6 @@ import Control.Monad.State (evalStateT)
 import qualified Unison.Builtin as B
 import qualified Unison.Parser as Parser
 import qualified Unison.Parsers as Parsers
-import qualified Unison.Parsers2 as Parsers2
 import qualified Unison.Term as Term
 import qualified Unison.Typechecker as Typechecker
 import qualified Unison.UnisonFile as UF
@@ -32,7 +31,7 @@ main = do
   args <- getArgs
   case args of
     [sourceFile, outputFile] -> do
-      unisonFile <- Parsers2.unsafeReadAndParseFile Parser.penv0 sourceFile
+      unisonFile <- Parsers.unsafeReadAndParseFile Parser.penv0 sourceFile
       let dataDecls = Map.fromList . toList $ UF.dataDeclarations unisonFile
       let t = B.resolveBuiltins B.builtinTerms Term.builtin $ UF.term unisonFile
       typ <- Note.run $ Typechecker.synthesize termLookup (dataDeclLookup dataDecls) t

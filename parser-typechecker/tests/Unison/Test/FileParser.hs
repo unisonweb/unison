@@ -8,8 +8,7 @@ module Unison.Test.FileParser where
   import Unison.Parser
   import qualified Unison.Parser as Parser
   import qualified Unison.Parsers as Parsers
-  import Unison.Parsers (unsafeGetRight)
-  import Unison.Parsers2 (unsafeReadAndParseFile')
+  import Unison.Parsers (unsafeGetRight, unsafeReadAndParseFile')
   import qualified Data.Map as Map
   import qualified Unison.Reference as R
   import Unison.Symbol (Symbol)
@@ -58,7 +57,7 @@ module Unison.Test.FileParser where
      ("State.set", (R.Builtin "State", 0))]
 
   parses s = scope s $ do
-    let p = unsafeGetRight $ Unison.Parser.run (Parser.root $ file []) s Parsers.s0 builtins
+    let p = unsafeGetRight $ Unison.Parser.run (Parser.root $ file) s Parsers.s0 builtins
         _ = p :: UnisonFile Symbol
     noteScoped $ "parsing: " ++ s ++ "\n  " ++ show p
     ok

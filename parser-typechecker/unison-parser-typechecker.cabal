@@ -45,7 +45,6 @@ library
     Unison.Note
     Unison.Parser
     Unison.Parsers
-    Unison.Parsers2
     Unison.Path
     Unison.Paths
     Unison.Pattern
