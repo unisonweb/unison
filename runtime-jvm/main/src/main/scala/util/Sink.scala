@@ -15,9 +15,10 @@ trait Sink {
   def putInt(n: Int): Unit
   def putLong(n: Long): Unit
 
-  // todo: the UTF-8 of Long encoding, use a single byte if possible
-  // Uses the little-endian variable length encoding of unsigned integers:
-  // https://developers.google.com/protocol-buffers/docs/encoding#varints
+  /**
+    * Uses the little-endian variable length encoding of unsigned integers:
+    * https://developers.google.com/protocol-buffers/docs/encoding#varints
+    */
   def putVarLong(n: Long): Unit = {
     val lsb = n.toShort & 0xff
     if (compareUnsigned(n, 0x80) < 0) putByte(lsb.toByte)
@@ -27,9 +28,11 @@ trait Sink {
     }
   }
 
-  // Uses the zigzag encoding for variable-length signed numbers, described at:
-  // https://developers.google.com/protocol-buffers/docs/encoding#signed-integers
-  // https://github.com/google/protobuf/blob/0400cca/java/core/src/main/java/com/google/protobuf/CodedOutputStream.java#L949-L952
+  /**
+    * Uses the zigzag encoding for variable-length signed numbers, described at:
+    * https://developers.google.com/protocol-buffers/docs/encoding#signed-integers
+    * https://github.com/google/protobuf/blob/0400cca/java/core/src/main/java/com/google/protobuf/CodedOutputStream.java#L949-L952
+    */
   def putVarSignedLong(n: Long): Unit = {
     putVarLong((n << 1) ^ (n >> 63))
   }
