@@ -148,7 +148,9 @@ stream :: Ord v => Type v
 stream = builtin "Stream"
 
 iff :: Var v => Type v
-iff = forall1 (\a -> (boolean --> a --> a --> a))
+iff = forall aa $ arrows [boolean, a, a] a
+  where aa = ABT.v' "a"
+        a = var aa
 
 andor :: Ord v => Type v
 andor = arrows [boolean, boolean] boolean
@@ -167,15 +169,6 @@ ann e t = ABT.tm (Ann e t)
 
 forall :: Ord v => v -> Type v -> Type v
 forall v body = ABT.tm (Forall (ABT.abs v body))
-
-forall1 :: Var v => (Type v -> Type v) -> Type v
-forall1 f = forall aa $ f (var aa)
-  where aa = ABT.v' "a"
-
-forall2 :: Var v => (Type v -> Type v -> Type v) -> Type v
-forall2 f = forall a $ forall b $ f (var a) (var b)
-  where a = ABT.v' "a"
-        b = ABT.v' "b"
 
 var :: Ord v => v -> Type v
 var = ABT.var

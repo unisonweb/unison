@@ -24,6 +24,7 @@ import Unison.Reference (Reference)
 import Unison.Term (Term)
 import Unison.TypeVar (TypeVar)
 import Unison.Var (Var)
+import qualified Unison.Pattern as Pattern
 import qualified Data.Foldable as Foldable
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -456,7 +457,6 @@ check e t = getContext >>= \ctx -> scope ("check: " ++ show e ++ ":   " ++ show 
           check rhs t
           -- NOTE: Typecheck the guard
           -- XXX retract
-
   -- | Match a [(Pattern, a)]
       go _ _ = do -- Sub
         a <- synthesize e; ctx <- getContext
@@ -576,7 +576,46 @@ synthesize e = scope ("synth: " ++ show e) $ go e where
   go (Term.If' cond t f) = foldM synthesizeApp Type.iff [cond, t, f]
   go (Term.And' a b) = foldM synthesizeApp Type.andor [a, b]
   go (Term.Or' a b) = foldM synthesizeApp Type.andor [a, b]
+  go (Term.Match' scrutinee cases) = do
+    scrutineeType <- synthesize scrutinee
+    outputTypev <- freshenVar "match-output"
+    let outputType = Type.existential outputTypev
+    appendContext (context [Existential outputType])
+    Foldable.traverse_ (checkCase scrutineeType outputType) cases
+    ctx <- getContext
+    pure (apply ctx outputType)
   go e = fail $ "unknown case in synthesize " ++ show e
+
+-- data MatchCase a = MatchCase Pattern (Maybe a) a
+checkCase :: Type v -> Type v -> Term.MatchCase (Term v) -> M v ()
+checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) = _todo
+  -- make up a type variable, drop a marker for that type variable
+  -- 1a. convert pattern to a Term, wildcards become existentials introduced into typechecking environment
+  -- 1b. convert the pattern to a Term where RHS is the guard rather than the body
+  -- Now we have a term for each pattern, and a suitably freshened RHS and guard for each case
+  -- 2. check the pattern term against the scrutineeType (makes sure patterns are well-typed, also refines type env)
+  -- 3. check the guard against `Boolean`
+  -- 4. check the rhs' (freshened rhs) against `outputType`
+  -- 5. retract the context to the marker
+
+-- Convert a
+patternToTerm :: Var v => Pattern -> Term v -> M v (Term v, Term v)
+patternToTerm pat rhs = case pat of
+  Pattern.Boolean b -> pure (Term.boolean b, rhs)
+  -- similar for other literals
+  Pattern.Constructor r cid pats -> _todo2
+    -- todo
+    -- pure $ Term.apps (Term.constructor r cid) _patternSubterms
+  Pattern.Var -> case rhs of
+    ABT.Abs' body -> do
+      v' <- ABT.freshen body freshenVar
+      appendContext (context [Existential v'])
+      let termv = Term.var v'
+      let body' = ABT.bind body termv
+      pure (termv, body')
+    other -> fail "malformed pattern"
+  -- unbound will be almost the same as Var, just won't be expecting a rhs that's an Abs
+  -- but we will still introduce an existential for the `_`
 
 -- | Synthesize the type of the given term, `arg` given that a function of
 -- the given type `ft` is being applied to `arg`. Update the context in

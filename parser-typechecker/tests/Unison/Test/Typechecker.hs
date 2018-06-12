@@ -36,6 +36,7 @@ test = scope "typechecker" . tests $
       "Text"
 
   , c "if true then 1 else 2" "UInt64"
+  , c "if true then (x -> x) else (x -> x)" "forall a . a -> a"
   , c "or true false" "Boolean"
   , c "and true false" "Boolean"
   , c "[1,2,3]" "Sequence UInt64"
