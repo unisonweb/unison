@@ -229,6 +229,9 @@ vector p = Term.vector <$> (lbracket *> elements <* rbracket)
     comma = token (char ',')
     rbracket = token (char ']')
 
+eq :: Parser (S v) ()
+eq = void $ char '=' <* L.space
+
 binding :: Var v => Parser (S v) (v, Term v)
 binding = traced "binding" . label "binding" $ do
   typ <- optional typedecl
@@ -238,14 +241,14 @@ binding = traced "binding" . label "binding" $ do
   case typ of
     Nothing -> do
       -- we haven't seen a type annotation, so lookahead to '=' before commit
-      (name, args) <- attempt (lhs <* token (char '='))
+      (name, args) <- attempt (lhs <* eq)
       body <- block
       pure $ mkBinding name args body
     Just (nameT, typ) -> do
       (name, args) <- lhs
       when (name /= nameT) $
         fail ("The type signature for ‘" ++ show (Var.name nameT) ++ "’ lacks an accompanying binding")
-      body <- token (char '=') *> block
+      body <- eq *> block
       pure $ fmap (\e -> Term.ann e typ) (mkBinding name args body)
   where
   mkBinding f [] body = (f, body)
@@ -325,7 +328,7 @@ alias :: Var v => Parser (S v) ()
 alias = do
   _ <- token (string "alias")
   (fn:params) <- some (Var.named . Text.pack <$> wordyId keywords)
-  _ <- token (char '=')
+  _ <- eq
   body <- L.vblockIncrement TypeParser.valueType
   TypeParser.Aliases s <- get
   let s' = (fn, apply)
