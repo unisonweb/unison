@@ -59,7 +59,6 @@ object Value {
   class Lambda(
     final val names: List[Name],
     final val body: Computation,
-    final val unboxedType: Option[UnboxedType],
     // the lambda decompiled form may have one free var, referring to itself
     decompileWithPossibleFreeVar: Term) extends Value { self =>
 
@@ -81,14 +80,25 @@ object Value {
 
     def compose(f: Lambda): Lambda = {
       assert(arity == 1)
-      val k: Computation = (r, rec, top, stackU, x1, x0, stackB, x1b, x0b) => {
-        val v = evalLam(f,r,top,stackU,x1,x0,stackB,x1b,x0b)
-        val vb = r.boxed
-        self(r,top,stackU,U0,v,stackB,null,vb)
+
+      val k: Computation = (self.body, f.body) match {
+        case (left: Computation.C1U, right: Computation.C1U) =>
+          new compilation.Computation.C1U(left.outputType) {
+            def raw(x0: U): U = left.raw(right.raw(x0))
+          }
+        case (left: Computation.C1U, right: Computation.C2U) =>
+          new Computation.C2U(left.outputType) {
+            def raw(x1: U, x0: U): U = left.raw(right.raw(x1, x0))
+          }
+        case _ =>
+          (r, rec, top, stackU, x1, x0, stackB, x1b, x0b) => {
+            val v = evalLam(f,r,top,stackU,x1,x0,stackB,x1b,x0b)
+            val vb = r.boxed
+            self(r,top,stackU,U0,v,stackB,null,vb)
+          }
       }
       val compose = Term.Lam('f, 'g, 'x)('f.v('g.v('x))) // todo: intern this
-      new Lambda(f.names, k, self.unboxedType,
-                 compose(self.decompile, f.decompile))
+      new Lambda(f.names, k, compose(self.decompile, f.decompile))
     }
 
     def saturatedNonTailCall(args: List[Computation]): Computation =
@@ -112,37 +122,33 @@ object Value {
   object Lambda {
     final def toValue = this
 
-    def apply(arity: Int, body: Computation, unboxedType: Option[UnboxedType],
-              decompile: Term) = {
+    def apply(arity: Int, body: Computation, decompile: Term) = {
       new Lambda(names = decompile match { case Term.Lam(names, _) => names },
-                 body, unboxedType, decompile)
+                 body, decompile)
     }
 
     def unapply(l: Lambda): Option[(Int, Computation, Term)] =
       Some((l.arity, l.body, l.decompile))
 
     val identity: Lambda1 = {
-      val c: Computation = (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+      val c: Computation.C1P = (r,x0,x0b) => {
         r.boxed = x0b.toValue
         x0
       }
-      Lambda1("x", c, None, Term.Lam('x)('x))
+      Lambda1("x", c, Term.Lam('x)('x))
     }
 
     /** A `Lambda` of arity 1. */
     // todo: delete this and ClosureForming2 later
-    case class Lambda1(arg1: Name, _body: Computation,
-                       outputType: Option[UnboxedType], decompiled: Term)
-      extends Lambda(names = List(arg1),_body,outputType,decompiled) {
+    case class Lambda1(arg1: Name, _body: Computation, decompiled: Term)
+      extends Lambda(names = List(arg1),_body,decompiled) {
       override def underapply(builtins: Environment)(
         argCount: Arity, substs: Map[Name, Term]): Lambda =
         sys.error("a lambda with arity 1 cannot be underapplied")
     }
 
-    class ClosureForming(names: List[Name], body: Computation,
-                                  outputType: Option[UnboxedType],
-                                  decompiled: Term)
-        extends Lambda(names,body,outputType,decompiled) { self =>
+    class ClosureForming(names: List[Name], body: Computation, decompiled: Term)
+        extends Lambda(names,body,decompiled) { self =>
       val namesArray = names.toArray
 
       /** Underapply this `Lambda`, passing 1 argument (named `substName`). */
@@ -157,8 +163,16 @@ object Value {
         val body2: Computation = arity match {
           // stack passed to `body2`: [a]
           // stack passed to `body` : [arg,a]
-          case 2 => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
-            body(r,rec,top,stackU,argv,x0,stackB,argvb,x0b)
+          case 2 =>
+            body match {
+              case c2u: Computation.C2U => new Computation.C1U(c2u.outputType) {
+                def raw(x0: U): U = c2u.raw(argv,x0)
+              }
+              case _ =>
+                (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
+                  body(r,rec,top,stackU,argv,x0,stackB,argvb,x0b)
+            }
+
           // stack passed to `body2`: [a,b]
           // stack passed to `body` : [arg,a,b]
           case 3 => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
@@ -181,7 +195,7 @@ object Value {
             body(r,rec,top.inc,stackU,x1,x0,stackB,x1b,x0b)
           }
         }
-        new ClosureForming(names drop 1, body2, outputType, decompiled(substTerm))
+        new ClosureForming(names drop 1, body2, decompiled(substTerm))
       }
 
       // todo: try for more efficient implementation of underapply, O(n) vs n^2
