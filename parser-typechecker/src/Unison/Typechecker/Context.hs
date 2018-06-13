@@ -25,13 +25,14 @@ import Unison.Reference (Reference)
 import Unison.Term (Term)
 import Unison.TypeVar (TypeVar)
 import Unison.Var (Var)
-import qualified Unison.Pattern as Pattern
 import qualified Data.Foldable as Foldable
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
+import qualified Unison.DataDeclaration as DataDeclaration
 import qualified Unison.Note as Note
+import qualified Unison.Pattern as Pattern
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 import qualified Unison.TypeVar as TypeVar
@@ -152,6 +153,20 @@ getContext = M (\e@(Env _ ctx) _ -> Right (ctx, e))
 
 getDataDeclarations :: M v (DataDeclarations v)
 getDataDeclarations = M (\e d -> Right (d, e))
+
+getDataDeclaration :: Reference -> M v (DataDeclaration v)
+getDataDeclaration r = do
+  dataDecls <- getDataDeclarations
+  case Map.lookup r dataDecls of
+    Nothing -> fail $ "unknown type reference: " ++ show r ++ " " ++ show (Map.keys dataDecls)
+    Just decl -> pure decl
+
+getConstructorType :: Var v => Reference -> Int -> M v (Type v)
+getConstructorType r cid = do
+  decl <- getDataDeclaration r
+  case drop cid (DataDeclaration.constructors decl) of
+    [] -> fail $ "invalid constructor id: " ++ show cid ++ " in " ++ show r
+    (_v, typ) : _ -> pure $ ABT.vmap TypeVar.Universal typ
 
 setContext :: Context v -> M v ()
 setContext ctx = M (\(Env id _) _ -> Right ((), Env id ctx))
@@ -450,15 +465,6 @@ check e t = getContext >>= \ctx -> scope ("check: " ++ show e ++ ":   " ++ show 
         (marker, e) <- annotateLetRecBindings letrec
         check e t
         modifyContext (retract marker)
-      go (Term.Match' scrutinee branches) t = do
-        scrutineeType <- synthesize scrutinee
-        dataDecls <- getDataDeclarations
-        forM_ branches $ \(Term.MatchCase lhs _guard rhs) -> do
-          checkPattern lhs dataDecls scrutineeType
-          check rhs t
-          -- NOTE: Typecheck the guard
-          -- XXX retract
-  -- | Match a [(Pattern, a)]
       go _ _ = do -- Sub
         a <- synthesize e; ctx <- getContext
         subtype (apply ctx a) (apply ctx t)
@@ -470,9 +476,6 @@ check e t = getContext >>= \ctx -> scope ("check: " ++ show e ++ ":   " ++ show 
     scope ("context well formed: " ++ show (wellformed ctx)) .
     scope ("type well formed wrt context: " ++ show (wellformedType ctx t))
     $ fail "check failed"
-
-checkPattern :: Var v => Pattern -> DataDeclarations v -> Type v -> M v ()
-checkPattern = error "checkPattern"
 
 -- | Synthesize and generalize the type of each binding in a let rec
 -- and return the new context in which all bindings are annotated with
@@ -518,6 +521,7 @@ synthesize e = scope ("synth: " ++ show e) $ go e where
     s | otherwise ->
       fail $ "type annotation contains free variables " ++ show (map Var.name (Set.toList s))
   go (Term.Ref' h) = fail $ "unannotated reference: " ++ show h
+  go (Term.Constructor' r cid) = getConstructorType r cid
   go (Term.Ann' e' t) = case ABT.freeVars t of
     s | Set.null s ->
       case ABT.vmap TypeVar.Universal t of t -> t <$ check e' t -- Anno

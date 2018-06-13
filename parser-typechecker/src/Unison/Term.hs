@@ -38,6 +38,8 @@ import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import           Unison.Var (Var)
 import           Unsafe.Coerce
+import qualified Unison.Pattern as Pattern
+import Data.Foldable (traverse_)
 
 data MatchCase a = MatchCase Pattern (Maybe a) a
   deriving (Show,Eq,Foldable,Functor,Generic,Generic1,Traversable)
@@ -320,9 +322,20 @@ dependencies' t = Set.fromList . Writer.execWriter $ ABT.visit' f t
 dependencies :: Ord v => Term v -> Set Hash
 dependencies e = Set.fromList [ h | Reference.Derived h <- Set.toList (dependencies' e) ]
 
-referencedDataDeclarations :: Term v -> Set Reference
-referencedDataDeclarations _ =
-  Set.empty -- TODO: referenced data declarations, should gather up data decl refs from pattern matching
+referencedDataDeclarations :: Ord v => Term v -> Set Reference
+referencedDataDeclarations t = Set.fromList . Writer.execWriter $ ABT.visit' f t
+  where f t@(Constructor r _) = Writer.tell [r] *> pure t
+        f t@(Match _ cases) = traverse_ g cases *> pure t where
+          g (MatchCase pat _ _) = Writer.tell (Set.toList (referencedDataDeclarationsP pat))
+        f t = pure t
+
+referencedDataDeclarationsP :: Pattern -> Set Reference
+referencedDataDeclarationsP p = Set.fromList . Writer.execWriter $ go p where
+  go (Pattern.As p) = go p
+  go (Pattern.Constructor id _ args) = Writer.tell [id] *> traverse_ go args
+  go (Pattern.EffectPure p) = go p
+  go (Pattern.EffectBind id _ args k) = Writer.tell [id] *> traverse_ go args *> go k
+  go _ = pure ()
 
 updateDependencies :: Ord v => Map Reference Reference -> Term v -> Term v
 updateDependencies u tm = ABT.rebuildUp go tm where
