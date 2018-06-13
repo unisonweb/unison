@@ -23,13 +23,20 @@ import           Unison.Typechecker.Components (components)
 import           Unison.Var (Var)
 
 data DataDeclaration v = DataDeclaration {
-  bound :: [v],
+  bound :: [v], -- todo: do we actually use the names? or just the length
   constructors :: [(v, Type v)]
 } deriving (Show)
+
+bindBuiltins :: Var v => [(v, Type v)] -> DataDeclaration v -> DataDeclaration v
+bindBuiltins typeEnv (DataDeclaration bound constructors) =
+  DataDeclaration bound (second (ABT.substs typeEnv) <$> constructors)
 
 newtype EffectDeclaration v = EffectDeclaration {
   toDataDecl :: DataDeclaration v
 } deriving (Show)
+
+withEffectDecl :: (DataDeclaration v -> DataDeclaration v') -> (EffectDeclaration v -> EffectDeclaration v')
+withEffectDecl f e = EffectDeclaration (f . toDataDecl $ e)
 
 mkEffectDecl :: [v] -> [(v, Type v)] -> EffectDeclaration v
 mkEffectDecl = (EffectDeclaration .) . DataDeclaration

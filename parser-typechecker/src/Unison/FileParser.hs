@@ -3,6 +3,7 @@
 module Unison.FileParser where
 
 import           Control.Applicative
+import           Control.Arrow (second)
 import           Control.Monad.Reader
 import           Data.Either (partitionEithers)
 import           Data.Map (Map)
@@ -10,7 +11,8 @@ import qualified Data.Map as Map
 import qualified Data.Text as Text
 import           Prelude hiding (readFile)
 import qualified Text.Parsec.Layout as L
-import           Unison.DataDeclaration (DataDeclaration(..), EffectDeclaration(..), mkEffectDecl)
+import           Unison.DataDeclaration (DataDeclaration(..), EffectDeclaration(..))
+import qualified Unison.DataDeclaration as DD
 import           Unison.Parser (Parser, traced, token_, sepBy, string)
 import qualified Unison.Term as Term
 import qualified Unison.TermParser as TermParser
@@ -33,7 +35,9 @@ file = traced "file" $ do
         typeEnv = Map.toList (Type.ref . fst <$> dataDecls') ++
                   Map.toList (Type.ref . fst <$> effectDecls')
     let term3 = Term.bindBuiltins (Map.toList dataEnv ++ Map.toList effectEnv) typeEnv term
-    pure $ UnisonFile dataDecls' effectDecls' term3
+        dataDecls'' = second (DD.bindBuiltins typeEnv) <$> dataDecls'
+        effectDecls'' = second (DD.withEffectDecl (DD.bindBuiltins typeEnv)) <$> effectDecls'
+    pure $ UnisonFile dataDecls'' effectDecls'' term3
 
 declarations :: Var v => Parser (S v)
                          (Map v (DataDeclaration v),
@@ -70,6 +74,6 @@ effectDeclaration = traced "effect declaration" $ do
   token_ $ string "where"
   L.vblockNextToken $ do
     constructors <- sepBy L.vsemi constructor
-    pure $ (name, mkEffectDecl typeArgs constructors)
+    pure $ (name, DD.mkEffectDecl typeArgs constructors)
   where
     constructor = (,) <$> (TermParser.prefixVar <* token_ (string ":")) <*> traced "computation type" TypeParser.computationType

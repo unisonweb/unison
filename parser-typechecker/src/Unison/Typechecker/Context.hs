@@ -715,19 +715,31 @@ synthesizeClosed synthRef lookupDecl term = do
   synthesizeClosedAnnotated decls term
 
 synthesizeClosed' :: Var v => DataDeclarations v -> Term v -> M v (Type v)
-synthesizeClosed' decls term | Set.null (ABT.freeVars term) = case runM (synthesize term) env0 decls of
-  Left err -> M $ \_ _ -> Left err
-  Right (t,env) -> pure $ generalizeExistentials (ctx env) t
+synthesizeClosed' decls term | Set.null (ABT.freeVars term) =
+  verifyDataDeclarations decls *>
+  case runM (synthesize term) env0 decls of
+    Left err -> M $ \_ _ -> Left err
+    Right (t,env) -> pure $ generalizeExistentials (ctx env) t
 synthesizeClosed' _decls term =
   fail $ "cannot synthesize term with free variables: " ++ show (map Var.name $ Set.toList (ABT.freeVars term))
 
 synthesizeClosedAnnotated :: (Monad f, Var v) => DataDeclarations v -> Term v -> Noted f (Type v)
 synthesizeClosedAnnotated decls term | Set.null (ABT.freeVars term) = do
-  Note.fromEither $ runM (synthesize term) env0 decls >>= \(t,env) ->
+  Note.fromEither $
+    runM (verifyDataDeclarations decls *> synthesize term) env0 decls >>= \(t,env) ->
     -- we generalize over any remaining unsolved existentials
-    pure $ generalizeExistentials (ctx env) t
+      pure $ generalizeExistentials (ctx env) t
 synthesizeClosedAnnotated _decls term =
   fail $ "cannot synthesize term with free variables: " ++ show (map Var.name $ Set.toList (ABT.freeVars term))
+
+verifyDataDeclarations :: Var v => DataDeclarations v -> M v ()
+verifyDataDeclarations decls = forM_ (Map.toList decls) $ \(r, decl) -> do
+  let ctors = DataDeclaration.constructors decl
+  forM_ ctors $ \(ctorName,typ) ->
+    if Set.null $ ABT.freeVars typ then pure ()
+    else fail $ "encountered free vars " ++
+                show (Var.qualifiedName <$> Set.toList (ABT.freeVars typ)) ++ " in " ++
+                show r ++ "#" ++ show (Var.qualifiedName ctorName)
 
 -- boring instances
 instance Applicative (M v) where
