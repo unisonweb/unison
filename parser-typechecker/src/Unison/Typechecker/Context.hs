@@ -38,7 +38,7 @@ import qualified Unison.Type as Type
 import qualified Unison.TypeVar as TypeVar
 import qualified Unison.Var as Var
 -- uncomment for debugging
--- import Debug.Trace
+import Debug.Trace
 --watch msg a = trace (msg ++ ":\n" ++ show a) a
 --watchVar msg a = trace (msg ++ ": " ++ Text.unpack (Var.shortName a)) a
 --watchVars msg t@(a,b,c) =
@@ -104,10 +104,10 @@ env0 = Env 0 context0
 instance Var v => Show (Context v) where
   show (Context es) = "Γ\n  " ++ (intercalate "\n  " . map (show . fst)) (reverse es)
 
---logContext :: Var v => String -> M v ()
---logContext msg = do
---  ctx <- getContext
---  setContext (trace ("\n"++msg ++ ": " ++ show ctx) ctx)
+logContext :: Var v => String -> M v ()
+logContext msg = do
+  ctx <- getContext
+  setContext (trace ("\n"++msg ++ ": " ++ show ctx) ctx)
 
 -- ctxOK :: Context -> Context
 -- ctxOK ctx = if wellformed ctx then ctx else error $ "not ok: " ++ show ctx
@@ -507,9 +507,9 @@ annotateLetRecBindings letrec = do
 -- | Synthesize the type of the given term, updating the context in the process.
 -- | Figure 11 from the paper
 synthesize :: Var v => Term v -> M v (Type v)
-synthesize e = scope ("synth: " ++ show e) $ go e where
+synthesize e = scope ("synth: " ++ show e) $ logContext "synthesize" >> go e where
   go (Term.Var' v) = getContext >>= \ctx -> case lookupType ctx v of -- Var
-    Nothing -> fail $ "type not in scope: " ++ Text.unpack (Var.name v)
+    Nothing -> fail $ "type not known for term var: " ++ Text.unpack (Var.name v)
     Just t -> pure t
   go Term.Blank' = do
     v <- freshVar
@@ -592,6 +592,26 @@ synthesize e = scope ("synth: " ++ show e) $ go e where
   go e = fail $ "unknown case in synthesize " ++ show e
 
 -- data MatchCase a = MatchCase Pattern (Maybe a) a
+{-
+type Optional b c = None | Some b c
+let blah : Optional Int64 Int64
+    blah = ...
+
+    case blah of
+      Some x (Some y z) | x < 10 -> x + y + z
+
+--becomes--
+
+let x = _
+    y = _
+    z = _
+    pat : Optional Int64 Int64
+    pat = Optional.Some x (Some y z)
+    -- from here on is rhs'
+    guard : Boolean
+    guard = x <_Int64 +10
+    x +_Int64 y
+-}
 checkCase :: Var v => Type v -> Type v -> Term.MatchCase (Term v) -> M v ()
 checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) = do
   -- make up a type variable, drop a marker for that type variable
@@ -603,11 +623,13 @@ checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) = do
         Nothing -> rhs
   -- 1b. convert pattern to a Term, wildcards become existentials introduced into typechecking environment
   (patTerm, rhs') <- patternToTerm pat rhs'
+  -- patType <- freshenVar (Var.named "pattern-type")
+  -- appendContext (context [Ann ? scrutineeType])
   -- Now we have a term for each pattern, and a suitably freshened RHS and guard for each case
   -- 2. check the pattern term against the scrutineeType (makes sure patterns are well-typed, also refines type env)
-  check patTerm scrutineeType
+  trace "check patTerm scrutineetype: " . traceShow (patTerm, scrutineeType) $ check patTerm scrutineeType
   -- 4. check the rhs' (freshened rhs) against `outputType`
-  check rhs' outputType
+  trace "check rhs' outputType: " . traceShow (rhs', outputType) $ check rhs' outputType
   -- 5. retract the context to the marker
   modifyContext $ retract marker
 
