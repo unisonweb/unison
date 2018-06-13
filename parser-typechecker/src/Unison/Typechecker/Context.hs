@@ -13,36 +13,36 @@
 module Unison.Typechecker.Context where
 
 
-import Control.Arrow (first, second)
-import Control.Monad
-import Data.List
-import Data.Map (Map)
-import Data.Set (Set)
-import Unison.DataDeclaration (DataDeclaration)
-import Unison.Note (Note,Noted(..))
-import Unison.Pattern (Pattern)
-import Unison.Reference (Reference)
-import Unison.Term (Term)
-import Unison.TypeVar (TypeVar)
-import Unison.Var (Var)
-import qualified Data.Foldable as Foldable
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Unison.ABT as ABT
-import qualified Unison.DataDeclaration as DataDeclaration
-import qualified Unison.Note as Note
-import qualified Unison.Pattern as Pattern
-import qualified Unison.Term as Term
-import qualified Unison.Type as Type
-import qualified Unison.TypeVar as TypeVar
-import qualified Unison.Var as Var
--- uncomment for debugging
-import Debug.Trace
---watch msg a = trace (msg ++ ":\n" ++ show a) a
+--  trace (msg ++ ":\n" ++ show (Var.shortName a, Var.shortName b, Var.shortName c)) t
 --watchVar msg a = trace (msg ++ ": " ++ Text.unpack (Var.shortName a)) a
 --watchVars msg t@(a,b,c) =
---  trace (msg ++ ":\n" ++ show (Var.shortName a, Var.shortName b, Var.shortName c)) t
+import           Control.Monad
+import           Control.Monad.State
+import qualified Data.Foldable as Foldable
+import           Data.List
+import           Data.Map (Map)
+import qualified Data.Map as Map
+import           Data.Set (Set)
+import qualified Data.Set as Set
+import qualified Data.Text as Text
+import           Debug.Trace
+import qualified Unison.ABT as ABT
+import           Unison.DataDeclaration (DataDeclaration)
+import qualified Unison.DataDeclaration as DataDeclaration
+import           Unison.Note (Note,Noted(..))
+import qualified Unison.Note as Note
+import           Unison.Pattern (Pattern)
+import qualified Unison.Pattern as Pattern
+import           Unison.Reference (Reference)
+import           Unison.Term (Term)
+import qualified Unison.Term as Term
+import qualified Unison.Type as Type
+import           Unison.TypeVar (TypeVar)
+import qualified Unison.TypeVar as TypeVar
+import           Unison.Var (Var)
+import qualified Unison.Var as Var
+-- uncomment for debugging
+--watch msg a = trace (msg ++ ":\n" ++ show a) a
 
 -- | We deal with type variables annotated with whether they are universal or existential
 type Type v = Type.Type (TypeVar v)
@@ -613,77 +613,48 @@ let x = _
     x +_Int64 y
 -}
 checkCase :: Var v => Type v -> Type v -> Term.MatchCase (Term v) -> M v ()
-checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) = do
-  -- make up a type variable, drop a marker for that type variable
-  marker <- Marker <$> freshenVar (Var.named "check-case")
-  appendContext (context [marker])
+checkCase _scrutineeType outputType (Term.MatchCase pat guard rhs) =
+  -- Get the variables bound in the pattern
+  let (vs, body) = case rhs of
+        ABT.AbsN' vars bod -> (vars, bod)
+        _ -> ([], rhs)
   -- 1a. make up a term that involves the guard if present
-  let rhs' = case guard of
-        Just g -> Term.let1 [(Var.named "_", Term.ann g Type.boolean)] rhs
-        Nothing -> rhs
-  -- 1b. convert pattern to a Term, wildcards become existentials introduced into typechecking environment
-  (patTerm, rhs') <- patternToTerm pat rhs'
-  -- patType <- freshenVar (Var.named "pattern-type")
-  -- appendContext (context [Ann ? scrutineeType])
-  -- Now we have a term for each pattern, and a suitably freshened RHS and guard for each case
-  -- 2. check the pattern term against the scrutineeType (makes sure patterns are well-typed, also refines type env)
-  trace "check patTerm scrutineetype: " . traceShow (patTerm, scrutineeType) $ check patTerm scrutineeType
-  -- 4. check the rhs' (freshened rhs) against `outputType`
-  trace "check rhs' outputType: " . traceShow (rhs', outputType) $ check rhs' outputType
-  -- 5. retract the context to the marker
-  modifyContext $ retract marker
+      rhs' = case guard of
+        Just g -> Term.let1 [(Var.named "_", Term.ann g Type.boolean)] body
+        Nothing -> body
+  -- 1b. convert pattern to a Term
+      patTerm = evalState (synthTerm pat) vs
+  -- TODO: Annotate patTerm with scrutinee type
+      newBody = Term.let1 [(Var.named "_", patTerm)] rhs'
+      entireCase = foldr (\v t -> Term.let1 [(v, Term.blank)] t) newBody vs
+  in check entireCase outputType
 
-  -- case foo of
-  --   Cons h t | h > 3 -> h + 1
-  --   other -> 7
-
-  -- let _ = if not (h > 3) then throw MatchFail else h + 1
-
--- Convert a
-patternToTerm :: Var v => Pattern -> Term v -> M v (Term v, Term v)
-patternToTerm pat rhs = case pat of
-  Pattern.Boolean b -> pure (Term.boolean b, rhs)
-  Pattern.Int64 n -> pure (Term.int64 n, rhs)
-  Pattern.UInt64 n -> pure (Term.uint64 n, rhs)
-  Pattern.Float n -> pure (Term.float n, rhs)
+-- Synthesize a fake term for the pattern, that we can typecheck
+synthTerm :: Var v => Pattern -> State [v] (Term v)
+synthTerm pat = case pat of
+  Pattern.Boolean b -> pure $ Term.boolean b
+  Pattern.Int64 n -> pure $ Term.int64 n
+  Pattern.UInt64 n -> pure $ Term.uint64 n
+  Pattern.Float n -> pure $ Term.float n
   -- similar for other literals
   Pattern.Constructor r cid pats -> do
-    let f (rhs, reverseTerms) pat = do
-          (outputTerm, rhs') <- patternToTerm pat rhs
-          pure $ (rhs', outputTerm : reverseTerms)
-    (rhs', outputTerms) <- second reverse <$> foldM f (rhs,[]) pats
-    pure (Term.apps (Term.constructor r cid) outputTerms, rhs')
-  Pattern.Var -> case rhs of
-    ABT.Abs' body -> do
-      v' <- ABT.freshen body freshenVar
-      appendContext (context [Existential v'])
-      let termv = Term.var v'
-      let body' = ABT.bind body termv
-      pure (termv, body')
-    _other -> fail "malformed pattern"
-  Pattern.Unbound -> do
-    v' <- freshenVar (Var.named "_")
-    appendContext (context [Existential v'])
-    let termv = Term.var v'
-    pure (termv, rhs)
-  Pattern.As p -> case rhs of
-    ABT.Abs' body -> do
-      v' <- ABT.freshen body freshenVar
-      appendContext (context [Existential v'])
-      let termv = Term.var v'
-      let body' = ABT.bind body termv
-      (patTerm, rhs') <- patternToTerm p body'
-      -- typecheck v' as `let v' = patTerm in v'`
-      pure (Term.let1 [(v', patTerm)] termv, rhs')
-    _other -> fail "malformed pattern"
-  Pattern.EffectPure p -> first Term.effectPure <$> patternToTerm p rhs
+    outputTerms <- traverse synthTerm pats
+    pure $ Term.apps (Term.constructor r cid) outputTerms
+  Pattern.Var -> do
+    (h : t) <- get
+    put t
+    pure $ Term.var h
+  Pattern.Unbound -> pure Term.blank
+  Pattern.As p -> do
+    (h : t) <- get
+    put t
+    tm <- synthTerm p
+    pure . Term.let1 [(h, tm)] $ Term.var h
+  Pattern.EffectPure p -> Term.effectPure <$> synthTerm p
   Pattern.EffectBind r cid pats kpat -> do
-    let f (rhs, reverseTerms) pat = do
-          (outputTerm, rhs') <- patternToTerm pat rhs
-          pure $ (rhs', outputTerm : reverseTerms)
-    (rhs', outputTerms) <- second reverse <$> foldM f (rhs,[]) pats
-    (rhs'', kTerm) <- patternToTerm kpat rhs'
-    pure (Term.effectBind r cid outputTerms kTerm, rhs'')
+    outputTerms <- traverse synthTerm pats
+    kTerm <- synthTerm kpat
+    pure $ Term.effectBind r cid outputTerms kTerm
 
 -- | Synthesize the type of the given term, `arg` given that a function of
 -- the given type `ft` is being applied to `arg`. Update the context in
