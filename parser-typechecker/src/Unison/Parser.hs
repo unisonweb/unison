@@ -127,7 +127,7 @@ base64urlstring :: Parser s String
 base64urlstring = base64string' $ ['A' .. 'Z'] ++ ['a' .. 'z'] ++ ['0' .. '9'] ++ "-_"
 
 notReservedChar :: Char -> Bool
-notReservedChar = (`notElem` "\".,`[]{}:()")
+notReservedChar = (`notElem` "\".,`[]{}:()@")
 
 identifier :: String -> [String -> Bool] -> Parser s String
 identifier msg = identifier' msg [not . isSpace, notReservedChar]

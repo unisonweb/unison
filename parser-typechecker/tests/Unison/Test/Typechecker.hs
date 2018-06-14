@@ -95,8 +95,11 @@ test = scope "typechecker" . tests $
              |r6 = case () of
              |  () -> ()
              |
+             |r7 : ()
+             |r7 = case () of
+             |  x@() -> x
+             |
              |() |]
---  Constructor !Reference !Int [Pattern]
 --  As Pattern
 --  nested ones
 --  multiple cases

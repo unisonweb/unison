@@ -14,8 +14,10 @@ import           Data.Foldable (asum,toList)
 import           Data.Functor
 import           Data.Int (Int64)
 import qualified Data.Map as Map
+import           Data.Maybe (isJust)
 import qualified Data.Text as Text
 import           Data.Word (Word64)
+import           Debug.Trace
 import           Prelude hiding (and, or, takeWhile)
 import qualified Text.Parsec.Layout as L
 import qualified Unison.ABT as ABT
@@ -30,7 +32,6 @@ import qualified Unison.Type as Type
 import qualified Unison.TypeParser as TypeParser
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
-import Debug.Trace
 
 {-
 Precedence of language constructs is identical to Haskell, except that all
@@ -85,13 +86,19 @@ matchCase = do
 pattern :: Var v => Parser (S v) (Pattern, [v])
 pattern = traced "pattern" $ constructor <|> leaf
   where
-  leaf = literal <|> var <|> unbound <|> unit <|> parenthesized pattern <|> effect
+  leaf = literal <|> varOrAs <|> unbound <|>
+         unit <|> parenthesized pattern <|> effect
   literal = traced "pattern.literal" $ (,[]) <$> asum [true, false, number]
   true = Pattern.Boolean True <$ token (string "true")
   false = Pattern.Boolean False <$ token (string "false")
   number = traced "pattern.number" $ number' Pattern.Int64 Pattern.UInt64 Pattern.Float
   unit = (Pattern.Constructor (R.Builtin "()") 0 [], []) <$ token (string "()")
-  var = traced "var" $ (\v -> (Pattern.Var, [v])) <$> prefixVar
+  varOrAs = traced "varOrAs" $ do
+    v <- prefixVar
+    o <- optional (token $ string "@")
+    if isJust o then
+      (\(p, vs) -> (Pattern.As p, v : vs)) <$> leaf
+      else pure (Pattern.Var, [v])
   unbound = traced "unbound" $ (Pattern.Unbound, []) <$ token (char '_')
   ctorName = traced "ctorName" . token $ do
     s <- wordyId keywords
