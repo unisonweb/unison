@@ -273,12 +273,12 @@ effectPure t = ABT.tm (EffectPure t)
 effectBind :: Ord v => Reference -> Int -> [Term v] -> Term v -> Term v
 effectBind r cid args k = ABT.tm (EffectBind r cid args k)
 
-unLet1 :: Var v => Term v -> Maybe (Term v, ABT.Subst (F v) v ())
+unLet1 :: Var v => AnnotatedTerm' vt v a -> Maybe (AnnotatedTerm' vt v a, ABT.Subst (F vt) v a)
 unLet1 (ABT.Tm' (Let b (ABT.Abs' subst))) = Just (b, subst)
 unLet1 _ = Nothing
 
 -- | Satisfies `unLet (let' bs e) == Just (bs, e)`
-unLet :: Term v -> Maybe ([(v, Term v)], Term v)
+unLet :: AnnotatedTerm' vt v a -> Maybe ([(v, AnnotatedTerm' vt v a)], AnnotatedTerm' vt v a)
 unLet t = fixup (go t) where
   go (ABT.Tm' (Let b (ABT.out -> ABT.Abs v t))) =
     case go t of (env,t) -> ((v,b):env, t)
@@ -287,19 +287,22 @@ unLet t = fixup (go t) where
   fixup bst = Just bst
 
 -- | Satisfies `unLetRec (letRec bs e) == Just (bs, e)`
-unLetRecNamed :: Term v -> Maybe ([(v, Term v)], Term v)
+unLetRecNamed :: AnnotatedTerm' vt v a -> Maybe ([(v, AnnotatedTerm' vt v a)], AnnotatedTerm' vt v a)
 unLetRecNamed (ABT.Cycle' vs (ABT.Tm' (LetRec bs e)))
   | length vs == length vs = Just (zip vs bs, e)
 unLetRecNamed _ = Nothing
 
-unLetRec :: Monad m => Var v => Term v -> Maybe ((v -> m v) -> m ([(v, Term v)], Term v))
+unLetRec :: (Monad m, Var v)
+         => AnnotatedTerm' vt v a
+         -> Maybe ((v -> m v) ->
+                   m ([(v, AnnotatedTerm' vt v a)], AnnotatedTerm' vt v a))
 unLetRec (unLetRecNamed -> Just (bs, e)) = Just $ \freshen -> do
   vs <- sequence [ freshen v | (v,_) <- bs ]
-  let sub = ABT.substs (map fst bs `zip` map ABT.var vs)
+  let sub = ABT.substsInheritAnnotation (map fst bs `zip` map ABT.var vs)
   pure (vs `zip` [ sub b | (_,b) <- bs ], sub e)
 unLetRec _ = Nothing
 
-unApps :: Term v -> Maybe (Term v, [Term v])
+unApps :: AnnotatedTerm' vt v a -> Maybe (AnnotatedTerm' vt v a, [AnnotatedTerm' vt v a])
 unApps t = case go t [] of [] -> Nothing; f:args -> Just (f,args)
   where
   go (App' i o) acc = go i (o:acc)
@@ -308,21 +311,21 @@ unApps t = case go t [] of [] -> Nothing; f:args -> Just (f,args)
 
 pattern LamsNamed' vs body <- (unLams' -> Just (vs, body))
 
-unLams' :: Term v -> Maybe ([v], Term v)
+unLams' :: AnnotatedTerm' vt v a -> Maybe ([v], AnnotatedTerm' vt v a)
 unLams' (LamNamed' v body) = case unLams' body of
   Nothing -> Just ([v], body)
   Just (vs, body) -> Just (v:vs, body)
 unLams' _ = Nothing
 
-dependencies' :: Ord v => Term v -> Set Reference
+dependencies' :: Ord v => AnnotatedTerm' vt v a -> Set Reference
 dependencies' t = Set.fromList . Writer.execWriter $ ABT.visit' f t
   where f t@(Ref r) = Writer.tell [r] *> pure t
         f t = pure t
 
-dependencies :: Ord v => Term v -> Set Hash
+dependencies :: Ord v => AnnotatedTerm' vt v a -> Set Hash
 dependencies e = Set.fromList [ h | Reference.Derived h <- Set.toList (dependencies' e) ]
 
-referencedDataDeclarations :: Ord v => Term v -> Set Reference
+referencedDataDeclarations :: Ord v => AnnotatedTerm' vt v a -> Set Reference
 referencedDataDeclarations t = Set.fromList . Writer.execWriter $ ABT.visit' f t
   where f t@(Constructor r _) = Writer.tell [r] *> pure t
         f t@(Match _ cases) = traverse_ g cases *> pure t where
