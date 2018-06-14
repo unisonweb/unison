@@ -108,7 +108,7 @@ synthesize
   -> Term v
   -> Noted f (Type v)
 synthesize typeOf decl t =
-  ABT.vmap TypeVar.underlying <$> Context.synthesizeClosed typeOf decl t
+  ABT.vmap TypeVar.underlying <$> Context.synthesizeClosed typeOf decl (Term.vtmap TypeVar.Universal t)
 
 -- | Infer the type of a 'Unison.Syntax.Term', assumed
 -- not to contain any @Ref@ constructors
