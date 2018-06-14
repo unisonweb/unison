@@ -50,5 +50,30 @@ test = scope "typechecker" . tests $
             |> Stream.take 10
             |> Stream.fold-left +0 (+_Int64)
         |] "Int64"
+  -- some pattern-matching tests we want to perform:
+--  Unbound
+  -- , c [r|type Optional a = None | Some a
+  --        case Some 3 of
+  --          x -> 1
+  --      |] "UInt64"
+  -- , f [r|type Optional a = None | Some a
+  --       case Some 3 of
+  --         x -> 1
+  --         y -> "boo"
+  --     |]
+--  Var
+--  Boolean !Bool
+--  Int64 !Int64
+--  UInt64 !Word64
+--  Float !Double
+--  Constructor !Reference !Int [Pattern]
+--  As Pattern
+--  nested ones
+--  multiple cases
+--  guards
+
+--  EffectPure Pattern
+--  EffectBind !Reference !Int [Pattern] Pattern--
   ]
   where c tm typ = scope tm $ expect $ check tm typ
+        -- f s = scope s (expect . not . check . fileTypeChecks $ s)

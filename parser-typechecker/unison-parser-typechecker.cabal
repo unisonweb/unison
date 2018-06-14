@@ -39,6 +39,7 @@ library
     Unison.Codecs
     Unison.DataDeclaration
     Unison.FileParser
+    Unison.FileParsers
     Unison.Hash
     Unison.Hashable
     Unison.Kind

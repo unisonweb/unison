@@ -10,6 +10,7 @@ newtype Note = Note [String]
 -- | Monad transformer for adding notes
 newtype Noted m a = Noted { unnote :: m (Either Note a) }
 
+-- todo: don't use this; it's broken.  -Arya & Runar
 run :: Monad m => Noted m a -> m a
 run (Noted m) = m >>= \e -> case e of
   Left (Note stack) -> fail ("\n" ++ intercalate "\n" stack)

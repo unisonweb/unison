@@ -1,4 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ExplicitForAll #-}
 module Unison.Builtin where
 
 import           Control.Arrow ((&&&))
@@ -6,7 +9,6 @@ import qualified Data.Map as Map
 import qualified Unison.Parser as Parser
 import qualified Unison.Parsers as Parsers -- remove this dependency on Parsers
 import qualified Unison.Reference as R
-import           Unison.Symbol (Symbol)
 import           Unison.Term (Term)
 import qualified Unison.Term as Term
 import           Unison.Type (Type)
@@ -30,8 +32,8 @@ bindBuiltins = Term.bindBuiltins builtinTerms builtinTypes
 bindTypeBuiltins :: Var v => Type v -> Type v
 bindTypeBuiltins = Type.bindBuiltins builtinTypes
 
-builtinTerms :: Var v => [(v, Term v)]
-builtinTerms = (toSymbol &&& Term.ref) <$> Map.keys builtins
+builtinTerms :: forall v. Var v => [(v, Term v)]
+builtinTerms = (toSymbol &&& Term.ref) <$> Map.keys (builtins @v)
 
 builtinTypes :: Var v => [(v, Type v)]
 builtinTypes = (Var.named &&& (Type.ref . R.Builtin)) <$>
@@ -41,7 +43,7 @@ toSymbol :: Var v => R.Reference -> v
 toSymbol (R.Builtin txt) = Var.named txt
 toSymbol _ = error "unpossible"
 
-builtins :: Map.Map R.Reference (Type Symbol)
+builtins :: Var v => Map.Map R.Reference (Type v)
 builtins = Map.fromList $
   [ (R.Builtin name, t typ) |
     (name, typ) <-
