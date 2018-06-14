@@ -1,10 +1,15 @@
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE QuasiQuotes #-}
 
 module Unison.Test.Typechecker where
 
-import EasyTest
-import Text.RawString.QQ
-import Unison.Test.Common
+import  EasyTest
+import  Data.Char (isSpace)
+import  Data.Either (isRight)
+import  Unison.FileParsers (parseAndSynthesizeAsFile)
+import  Unison.Symbol
+import  Unison.Test.Common
+import  Text.RawString.QQ
 
 test = scope "typechecker" . tests $
   [
@@ -43,24 +48,30 @@ test = scope "typechecker" . tests $
   , c "Stream.from-int64 +0" "Stream Int64"
   , c "(+_UInt64) 1" "UInt64 -> UInt64"
   , c [r|let
-          (|>) : forall a b . a -> (a -> b) -> b
-          a |> f = f a
-
-          Stream.from-int64 -3
-            |> Stream.take 10
-            |> Stream.fold-left +0 (+_Int64)
-        |] "Int64"
+        |  (|>) : forall a b . a -> (a -> b) -> b
+        |  a |> f = f a
+        |
+        |  Stream.from-int64 -3
+        |    |> Stream.take 10
+        |    |> Stream.fold-left +0 (+_Int64) |] "Int64"
   -- some pattern-matching tests we want to perform:
 --  Unbound
   -- , c [r|type Optional a = None | Some a
   --        case Some 3 of
   --          x -> 1
   --      |] "UInt64"
-  -- , f [r|type Optional a = None | Some a
-  --       case Some 3 of
-  --         x -> 1
-  --         y -> "boo"
-  --     |]
+  , bombs [r|type Optional a = None | Some a
+            |
+            |case Optional.Some 3 of
+            |  x -> 1
+            |  y -> "boo" |]
+  , checks [r|type Optional a = None | Some a
+             |
+             |r : UInt64
+             |r = case Optional.Some 3 of
+             |      x -> 1
+             |() |]
+
 --  Var
 --  Boolean !Bool
 --  Int64 !Int64
@@ -75,5 +86,13 @@ test = scope "typechecker" . tests $
 --  EffectPure Pattern
 --  EffectBind !Reference !Int [Pattern] Pattern--
   ]
-  where c tm typ = scope tm $ expect $ check tm typ
-        -- f s = scope s (expect . not . check . fileTypeChecks $ s)
+  where c tm typ = scope tm . expect $ check (stripMargin tm) typ
+        bombs s = scope s (expect . not . fileTypechecks $ s)
+        checks s = scope s (typer $ s)
+        typeFile = (parseAndSynthesizeAsFile @ Symbol) "<test>" .  stripMargin
+        typer = either crash (const ok) . snd . typeFile
+        fileTypechecks = isRight . snd . typeFile
+        stripMargin =
+          unlines . map (dropWhile (== '|'). dropWhile isSpace) . lines
+
+

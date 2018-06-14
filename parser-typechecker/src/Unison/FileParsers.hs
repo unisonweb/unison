@@ -30,7 +30,9 @@ parseAndSynthesizeAsFile filename s =
 
 synthesizeFile :: Var v => UnisonFile v -> (Term v, Either String (Type v))
 synthesizeFile unisonFile =
-  let dataDecls = Map.fromList . Foldable.toList $ UF.dataDeclarations unisonFile
+  let dataDecls =
+        Map.union (Map.fromList . Foldable.toList $ UF.dataDeclarations unisonFile)
+                  B.builtinDataDecls
       t = Term.bindBuiltins B.builtinTerms B.builtinTypes $ UF.term unisonFile
       n = Note.attemptRun $ Typechecker.synthesize termLookup (dataDeclLookup dataDecls) t
   in (t, runIdentity n)

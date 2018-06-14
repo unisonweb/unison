@@ -74,7 +74,7 @@ tupleOrParenthesized rec =
     go [t] = t
     go types = foldr pair unit types
     pair t1 t2 = Type.builtin "Pair" `Type.app` t1 `Type.app` t2
-    unit = Type.builtin "Unit"
+    unit = Type.builtin "()"
 
 -- "TypeA TypeB TypeC"
 app :: Ord v => TypeP v -> TypeP v

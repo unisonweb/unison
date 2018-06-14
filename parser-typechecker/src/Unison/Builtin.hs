@@ -6,6 +6,7 @@ module Unison.Builtin where
 
 import           Control.Arrow ((&&&))
 import qualified Data.Map as Map
+import           Unison.DataDeclaration (DataDeclaration(..))
 import qualified Unison.Parser as Parser
 import qualified Unison.Parsers as Parsers -- remove this dependency on Parsers
 import qualified Unison.Reference as R
@@ -13,8 +14,8 @@ import           Unison.Term (Term)
 import qualified Unison.Term as Term
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
-import qualified Unison.Var as Var
 import           Unison.Var (Var)
+import qualified Unison.Var as Var
 
 -- todo: to update these, just inline definition of Parsers.{unsafeParseType, unsafeParseTerm}
 -- then merge Parsers2 back into Parsers (and GC and unused functions)
@@ -37,7 +38,11 @@ builtinTerms = (toSymbol &&& Term.ref) <$> Map.keys (builtins @v)
 
 builtinTypes :: Var v => [(v, Type v)]
 builtinTypes = (Var.named &&& (Type.ref . R.Builtin)) <$>
-  ["Int64", "UInt64", "Float", "Boolean", "Sequence", "Text", "Stream"]
+  ["Int64", "UInt64", "Float", "Boolean", "Sequence", "Text", "Stream", "()"]
+
+builtinDataDecls :: (Var v) => Map.Map R.Reference (DataDeclaration v)
+builtinDataDecls = Map.fromList $
+  [ (R.Builtin "()", DataDeclaration [] [(Var.named "()", Type.builtin "()")]) ]
 
 toSymbol :: Var v => R.Reference -> v
 toSymbol (R.Builtin txt) = Var.named txt
