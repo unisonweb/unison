@@ -524,10 +524,7 @@ synthesize e = scope ("synth: " ++ show e) $ logContext "synthesize" >> go e whe
       fail $ "type annotation contains free variables " ++ show (map Var.name (Set.toList s))
   go (Term.Ref' h) = fail $ "unannotated reference: " ++ show h
   go (Term.Constructor' r cid) = getConstructorType r cid
-  go (Term.Ann' e' t) = case ABT.freeVars t of
-    s | Set.null s -> t <$ check e' t -- case ABT.vmap TypeVar.Universal t of t -> t <$ check e' t -- Anno
-    s | otherwise ->
-      fail $ "type annotation contains free variables " ++ show (map Var.name (Set.toList s))
+  go (Term.Ann' e' t) = t <$ check e' t
   go (Term.Float' _) = pure Type.float -- 1I=>
   go (Term.Int64' _) = pure Type.int64 -- 1I=>
   go (Term.UInt64' _) = pure Type.uint64 -- 1I=>
@@ -614,19 +611,18 @@ let x = _
     x +_Int64 y
 -}
 checkCase :: Var v => Type v -> Type v -> Term.MatchCase (Term v) -> M v ()
-checkCase _scrutineeType outputType (Term.MatchCase pat guard rhs) =
+checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) =
   -- Get the variables bound in the pattern
   let (vs, body) = case rhs of
         ABT.AbsN' vars bod -> (vars, bod)
         _ -> ([], rhs)
-  -- 1a. make up a term that involves the guard if present
+      -- Make up a term that involves the guard if present
       rhs' = case guard of
         Just g -> Term.let1 [(Var.named "_", Term.ann g Type.boolean)] body
         Nothing -> body
-  -- 1b. convert pattern to a Term
+      -- Convert pattern to a Term
       patTerm = evalState (synthTerm pat) vs
-  -- TODO: Annotate patTerm with scrutinee type
-      newBody = Term.let1 [(Var.named "_", patTerm)] rhs'
+      newBody = Term.let1 [(Var.named "_", patTerm `Term.ann` scrutineeType)] rhs'
       entireCase = foldr (\v t -> Term.let1 [(v, Term.blank)] t) newBody vs
   in check entireCase outputType
 
