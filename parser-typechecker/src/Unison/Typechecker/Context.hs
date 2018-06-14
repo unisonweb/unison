@@ -105,8 +105,11 @@ env0 = Env 0 context0
 instance Var v => Show (Context v) where
   show (Context es) = "Γ\n  " ++ (intercalate "\n  " . map (show . fst)) (reverse es)
 
+debugEnabled :: Bool
+debugEnabled = False
+
 logContext :: Var v => String -> M v ()
-logContext msg = do
+logContext msg = when debugEnabled $ do
   ctx <- getContext
   setContext (trace ("\n"++msg ++ ": " ++ show ctx) ctx)
 

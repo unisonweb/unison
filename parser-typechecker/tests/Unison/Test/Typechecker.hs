@@ -67,16 +67,35 @@ test = scope "typechecker" . tests $
             |  y -> "boo" |]
   , checks [r|type Optional a = None | Some a
              |
-             |r : UInt64
-             |r = case Optional.Some 3 of
-             |      x -> 1
+             |r1 : UInt64
+             |r1 = case Optional.Some 3 of
+             |  x -> 1
+             |
+             |r2 : UInt64
+             |r2 = case Optional.Some true of
+             |  Optional.Some true -> 1
+             |  Optional.Some false -> 0
+             |
+             |r3 : UInt64
+             |r3 = case Optional.Some true of
+             |  Optional.Some true -> 1
+             |  Optional.Some false -> 0
+             |
+             |r4 : Int64 -> Int64
+             |r4 x = case x of
+             |  +1 -> -1
+             |  _  -> Int64.negate x
+             |
+             |r5 : Float
+             |r5 = case 2.2 of
+             |  2.2 -> 3.0
+             |  _  -> 1.0
+             |
+             |r6 : ()
+             |r6 = case () of
+             |  () -> ()
+             |
              |() |]
-
---  Var
---  Boolean !Bool
---  Int64 !Int64
---  UInt64 !Word64
---  Float !Double
 --  Constructor !Reference !Int [Pattern]
 --  As Pattern
 --  nested ones
@@ -90,8 +109,8 @@ test = scope "typechecker" . tests $
         bombs s = scope s (expect . not . fileTypechecks $ s)
         checks s = scope s (typer $ s)
         typeFile = (parseAndSynthesizeAsFile @ Symbol) "<test>" .  stripMargin
-        typer = either crash (const ok) . snd . typeFile
-        fileTypechecks = isRight . snd . typeFile
+        typer = either crash (const ok) . typeFile
+        fileTypechecks = isRight . typeFile
         stripMargin =
           unlines . map (dropWhile (== '|'). dropWhile isSpace) . lines
 

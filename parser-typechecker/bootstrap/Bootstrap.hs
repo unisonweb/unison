@@ -36,12 +36,11 @@ main = do
   case args of
     [sourceFile, outputFile] -> do
       unisonFile <- Parsers.unsafeReadAndParseFile Parser.penv0 sourceFile
-      let (t, typeNote) = FileParsers.synthesizeFile unisonFile
-      case typeNote of
-        Left e -> putStrLn $ show e
-        Right typ -> do
-          putStrLn ("typechecked as " ++ show typ)
-          let bs = runPutS $ flip evalStateT 0 $ Codecs.serializeFile unisonFile
-          BS.writeFile outputFile bs
+      let r = FileParsers.synthesizeFile unisonFile
+          f typ = do
+            putStrLn ("typechecked as " ++ show typ)
+            let bs = runPutS $ flip evalStateT 0 $ Codecs.serializeFile unisonFile
+            BS.writeFile outputFile bs
+      either (putStrLn . show) (f . snd) r
 
     _ -> putStrLn "usage: bootstrap <in-file.u> <out-file.ub>"

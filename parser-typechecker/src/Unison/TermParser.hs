@@ -65,7 +65,6 @@ term3 = do
 blockTerm :: Var v => TermP v
 blockTerm = letBlock <|> handle <|> ifthen <|> and <|> or <|> match <|>
             lam term <|> infixApp
-  -- TODO: pattern matching in here once we have a parser for it
 
 match :: Var v => TermP v
 match = do
@@ -84,13 +83,14 @@ matchCase = do
   pure . Term.MatchCase p guard $ ABT.absChain boundVars t
 
 pattern :: Var v => Parser (S v) (Pattern, [v])
-pattern = traced "pattern" $ constructor <|> trace "running leaf" leaf
+pattern = traced "pattern" $ constructor <|> leaf
   where
-  leaf = literal <|> var <|> unbound <|> parenthesized pattern <|> effect
+  leaf = literal <|> var <|> unbound <|> unit <|> parenthesized pattern <|> effect
   literal = traced "pattern.literal" $ (,[]) <$> asum [true, false, number]
   true = Pattern.Boolean True <$ token (string "true")
   false = Pattern.Boolean False <$ token (string "false")
   number = traced "pattern.number" $ number' Pattern.Int64 Pattern.UInt64 Pattern.Float
+  unit = (Pattern.Constructor (R.Builtin "()") 0 [], []) <$ token (string "()")
   var = traced "var" $ (\v -> (Pattern.Var, [v])) <$> prefixVar
   unbound = traced "unbound" $ (Pattern.Unbound, []) <$ token (char '_')
   ctorName = traced "ctorName" . token $ do

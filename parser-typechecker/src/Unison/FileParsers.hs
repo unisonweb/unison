@@ -1,4 +1,6 @@
 {-# Language OverloadedStrings #-}
+{-# Language TupleSections     #-}
+
 module Unison.FileParsers where
 
 import Data.Map (Map)
@@ -23,19 +25,19 @@ import Unison.UnisonFile (UnisonFile)
 import Unison.Var (Var)
 
 parseAndSynthesizeAsFile :: Var v => FilePath -> String
-                         -> (Term v, Either String (Type v))
-parseAndSynthesizeAsFile filename s =
-  synthesizeFile . Parsers.unsafeGetRight $
-    Parsers.parseFile filename s Parser.penv0
+                         -> Either String (Term v, Type v)
+parseAndSynthesizeAsFile filename s = do
+  file <- Parsers.parseFile filename s Parser.penv0
+  synthesizeFile file
 
-synthesizeFile :: Var v => UnisonFile v -> (Term v, Either String (Type v))
+synthesizeFile :: Var v => UnisonFile v -> Either String (Term v, Type v)
 synthesizeFile unisonFile =
   let dataDecls =
         Map.union (Map.fromList . Foldable.toList $ UF.dataDeclarations unisonFile)
                   B.builtinDataDecls
       t = Term.bindBuiltins B.builtinTerms B.builtinTypes $ UF.term unisonFile
       n = Note.attemptRun $ Typechecker.synthesize termLookup (dataDeclLookup dataDecls) t
-  in (t, runIdentity n)
+  in (t,) <$> runIdentity n
 
 termLookup :: (Applicative f, Var v) => Reference -> Noted f (Type v)
 termLookup h = Maybe.fromMaybe (missing h) (pure <$> Map.lookup h B.builtins)
