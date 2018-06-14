@@ -169,43 +169,43 @@ fresh = ABT.fresh
 
 -- some smart constructors
 
-var :: v -> Term v
+var :: v -> Term' vt v
 var = ABT.var
 
-var' :: Var v => Text -> Term v
+var' :: Var v => Text -> Term' vt v
 var' = var . ABT.v'
 
-derived :: Ord v => Hash -> Term v
+derived :: Ord v => Hash -> Term' vt v
 derived = ref . Reference.Derived
 
-derived' :: Ord v => Text -> Maybe (Term v)
+derived' :: Ord v => Text -> Maybe (Term' vt v)
 derived' base58 = derived <$> Hash.fromBase58 base58
 
-ref :: Ord v => Reference -> Term v
+ref :: Ord v => Reference -> Term' vt v
 ref r = ABT.tm (Ref r)
 
-builtin :: Ord v => Text -> Term v
+builtin :: Ord v => Text -> Term' vt v
 builtin n = ref (Reference.Builtin n)
 
-float :: Ord v => Double -> Term v
+float :: Ord v => Double -> Term' vt v
 float d = ABT.tm (Float d)
 
-boolean :: Ord v => Bool -> Term v
+boolean :: Ord v => Bool -> Term' vt v
 boolean b = ABT.tm (Boolean b)
 
-int64 :: Ord v => Int64 -> Term v
+int64 :: Ord v => Int64 -> Term' vt v
 int64 d = ABT.tm (Int64 d)
 
-uint64 :: Ord v => Word64 -> Term v
+uint64 :: Ord v => Word64 -> Term' vt v
 uint64 d = ABT.tm (UInt64 d)
 
-text :: Ord v => Text -> Term v
+text :: Ord v => Text -> Term' vt v
 text = ABT.tm . Text
 
-blank :: Ord v => Term v
+blank :: Ord v => Term' vt v
 blank = ABT.tm Blank
 
-app :: Ord v => Term v -> Term v -> Term v
+app :: Ord v => Term' vt v -> Term' vt v -> Term' vt v
 app f arg = ABT.tm (App f arg)
 
 match :: Ord v => Term v -> [MatchCase (Term v)] -> Term v
@@ -220,31 +220,31 @@ and x y = ABT.tm (And x y)
 or :: Ord v => Term v -> Term v -> Term v
 or x y = ABT.tm (Or x y)
 
-constructor :: Ord v => Reference -> Int -> Term v
+constructor :: Ord v => Reference -> Int -> Term' vt v
 constructor ref n = ABT.tm (Constructor ref n)
 
-apps :: Ord v => Term v -> [Term v] -> Term v
+apps :: Ord v => Term' vt v -> [Term' vt v] -> Term' vt v
 apps f = foldl' app f
 
-iff :: Ord v => Term v -> Term v -> Term v -> Term v
+iff :: Ord v => Term' vt v -> Term' vt v -> Term' vt v -> Term' vt v
 iff cond t f = ABT.tm (If cond t f)
 
-ann :: Ord v => Term v -> Type v -> Term v
+ann :: Ord v => Term' vt v -> Type vt -> Term' vt v
 ann e t = ABT.tm (Ann e t)
 
-vector :: Ord v => [Term v] -> Term v
+vector :: Ord v => [Term' vt v] -> Term' vt v
 vector es = ABT.tm (Vector (Vector.fromList es))
 
-vector' :: Ord v => Vector (Term v) -> Term v
+vector' :: Ord v => Vector (Term' vt v) -> Term' vt v
 vector' es = ABT.tm (Vector es)
 
-lam :: Ord v => v -> Term v -> Term v
+lam :: Ord v => v -> Term' vt v -> Term' vt v
 lam v body = ABT.tm (Lam (ABT.abs v body))
 
-lam' :: Var v => [Text] -> Term v -> Term v
+lam' :: Var v => [Text] -> Term' vt v -> Term' vt v
 lam' vs body = foldr lam body (map ABT.v' vs)
 
-lam'' :: Ord v => [v] -> Term v -> Term v
+lam'' :: Ord v => [v] -> Term' vt v -> Term' vt v
 lam'' vs body = foldr lam body vs
 
 -- | Smart constructor for let rec blocks. Each binding in the block may
@@ -262,18 +262,18 @@ letRec' bs e = letRec [(ABT.v' name, b) | (name,b) <- bs] e
 -- | Smart constructor for let blocks. Each binding in the block may
 -- reference only previous bindings in the block, not including itself.
 -- The output expression may reference any binding in the block.
-let1 :: Ord v => [(v,Term v)] -> Term v -> Term v
+let1 :: Ord v => [(v,Term' vt v)] -> Term' vt v -> Term' vt v
 let1 bindings e = foldr f e bindings
   where
     f (v,b) body = ABT.tm (Let b (ABT.abs v body))
 
-let1' :: Var v => [(Text,Term v)] -> Term v -> Term v
+let1' :: Var v => [(Text, Term' vt v)] -> Term' vt v -> Term' vt v
 let1' bs e = let1 [(ABT.v' name, b) | (name,b) <- bs ] e
 
-effectPure :: Ord v => Term v -> Term v
+effectPure :: Ord v => Term' vt v -> Term' vt v
 effectPure t = ABT.tm (EffectPure t)
 
-effectBind :: Ord v => Reference -> Int -> [Term v] -> Term v -> Term v
+effectBind :: Ord v => Reference -> Int -> [Term' vt v] -> Term' vt v -> Term' vt v
 effectBind r cid args k = ABT.tm (EffectBind r cid args k)
 
 unLet1 :: Var v => AnnotatedTerm' vt v a -> Maybe (AnnotatedTerm' vt v a, ABT.Subst (F vt) v a)
