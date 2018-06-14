@@ -34,7 +34,7 @@ import qualified Unison.Note as Note
 import           Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
 import           Unison.Reference (Reference)
-import           Unison.Term (Term)
+-- import           Unison.Term (Term)
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 import           Unison.TypeVar (TypeVar)
@@ -46,6 +46,7 @@ import qualified Unison.Var as Var
 
 -- | We deal with type variables annotated with whether they are universal or existential
 type Type v = Type.Type (TypeVar v)
+type Term v = Term.Term' (TypeVar v) v
 type Monotype v = Type.Monotype (TypeVar v)
 
 pattern Universal v <- Var (TypeVar.Universal v) where
@@ -508,6 +509,7 @@ annotateLetRecBindings letrec = do
 -- | Figure 11 from the paper
 synthesize :: Var v => Term v -> M v (Type v)
 synthesize e = scope ("synth: " ++ show e) $ logContext "synthesize" >> go e where
+  go :: Var v => Term v -> M v (Type v)
   go (Term.Var' v) = getContext >>= \ctx -> case lookupType ctx v of -- Var
     Nothing -> fail $ "type not known for term var: " ++ Text.unpack (Var.name v)
     Just t -> pure t
@@ -517,14 +519,13 @@ synthesize e = scope ("synth: " ++ show e) $ logContext "synthesize" >> go e whe
   go (Term.Ann' (Term.Ref' _) t) = case ABT.freeVars t of
     s | Set.null s ->
       -- innermost Ref annotation assumed to be correctly provided by `synthesizeClosed`
-      pure (ABT.vmap TypeVar.Universal t)
+      pure t
     s | otherwise ->
       fail $ "type annotation contains free variables " ++ show (map Var.name (Set.toList s))
   go (Term.Ref' h) = fail $ "unannotated reference: " ++ show h
   go (Term.Constructor' r cid) = getConstructorType r cid
   go (Term.Ann' e' t) = case ABT.freeVars t of
-    s | Set.null s ->
-      case ABT.vmap TypeVar.Universal t of t -> t <$ check e' t -- Anno
+    s | Set.null s -> t <$ check e' t -- case ABT.vmap TypeVar.Universal t of t -> t <$ check e' t -- Anno
     s | otherwise ->
       fail $ "type annotation contains free variables " ++ show (map Var.name (Set.toList s))
   go (Term.Float' _) = pure Type.float -- 1I=>
@@ -540,7 +541,7 @@ synthesize e = scope ("synth: " ++ show e) $ logContext "synthesize" >> go e whe
     -- special case when it is definitely safe to generalize - binding contains
     -- no free variables, i.e. `let id x = x in ...`
     decls <- getDataDeclarations
-    t  <- ABT.vmap TypeVar.underlying <$> synthesizeClosed' decls binding
+    t  <- synthesizeClosed' decls binding
     v' <- ABT.freshen e freshenVar
     e  <- pure $ ABT.bind e (Term.builtin (Var.name v') `Term.ann` t)
     synthesize e
@@ -680,6 +681,9 @@ synthesizeApp ft arg = go ft where
 -- `Vector.prepend x (Vector.prepend y (Vector.prepend z Vector.empty))`,
 -- where `Vector.prepend : forall a. a -> Vector a -> a` and
 --       `Vector.empty : forall a. Vector a`
+-- todo: easiest to desugar as a variadic function forall a . a -> a -> a -> a -> Vector a
+-- of the appropriate arity
+-- also rename Vector -> Sequence
 desugarVector :: Var v => [Term v] -> Term v
 desugarVector ts = case ts of
   [] -> Term.builtin "Vector.empty" `Term.ann` Type.forall' ["a"] va
@@ -692,7 +696,7 @@ annotateRefs :: (Applicative f, Ord v)
              -> Term v
              -> Noted f (Term v)
 annotateRefs synth term = ABT.visit f term where
-  f (Term.Ref' h) = Just (Term.ann (Term.ref h) <$> synth h)
+  f (Term.Ref' h) = Just (Term.ann (Term.ref h) <$> (ABT.vmap TypeVar.Universal <$> synth h))
   f _ = Nothing
 
 synthesizeClosed
