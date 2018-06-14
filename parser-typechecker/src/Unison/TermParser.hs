@@ -181,7 +181,7 @@ tupleOrParenthesized rec =
   parenthesized $ go <$> sepBy (token $ string ",") rec where
     go [t] = t -- was just a parenthesized term
     go terms = foldr pair unit terms -- it's a tuple literal
-    pair t1 t2 = Term.builtin "pair" `Term.app` t1 `Term.app` t2
+    pair t1 t2 = Term.constructor (R.Builtin "Pair") 0 `Term.app` t1 `Term.app` t2
     unit = Term.constructor (R.Builtin "()") 0
 
 text' :: Parser s Text.Text

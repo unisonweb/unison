@@ -38,11 +38,19 @@ builtinTerms = (toSymbol &&& Term.ref) <$> Map.keys (builtins @v)
 
 builtinTypes :: Var v => [(v, Type v)]
 builtinTypes = (Var.named &&& (Type.ref . R.Builtin)) <$>
-  ["Int64", "UInt64", "Float", "Boolean", "Sequence", "Text", "Stream", "()"]
+  ["Int64", "UInt64", "Float", "Boolean", "Sequence", "Text", "Stream", "()", "Pair"]
 
 builtinDataDecls :: (Var v) => Map.Map R.Reference (DataDeclaration v)
 builtinDataDecls = Map.fromList $
-  [ (R.Builtin "()", DataDeclaration [] [(Var.named "()", Type.builtin "()")]) ]
+  [ (R.Builtin "()", DataDeclaration [] [(Var.named "()", Type.builtin "()")])
+  , (R.Builtin "Pair",
+     DataDeclaration [Var.named "a", Var.named "b"]
+                     [(Var.named "Pair",
+                       let vars = ["a","b"]
+                           tvars = Type.v' <$> vars
+                       in Type.forall' vars . Type.arrows tvars $
+                            Type.builtin "Pair" `Type.apps` tvars)])
+  ]
 
 toSymbol :: Var v => R.Reference -> v
 toSymbol (R.Builtin txt) = Var.named txt
