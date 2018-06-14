@@ -102,7 +102,10 @@ bindBuiltins termBuiltins typeBuiltins =
 vmap :: Ord v2 => (v -> v2) -> AnnotatedTerm v a -> AnnotatedTerm v2 a
 vmap f = ABT.vmap f . typeMap (ABT.vmap f)
 
-typeMap :: Ord v2 => (Type v -> Type v2) -> AnnotatedTerm v a -> ABT.Term (F v2) v a
+vtmap :: Ord vt2 => (vt -> vt2) -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt2 v a
+vtmap f = typeMap (ABT.vmap f)
+
+typeMap :: Ord vt2 => (Type vt -> Type vt2) -> AnnotatedTerm' vt v a -> ABT.Term (F vt2) v a
 typeMap f t = go t where
   go (ABT.Term fvs a t) = ABT.Term fvs a $ case t of
     ABT.Abs v t -> ABT.Abs v (go t)
