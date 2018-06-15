@@ -5,6 +5,10 @@ module Unison.Codecs where
 import Data.Text (Text)
 import           Control.Arrow (second)
 import           Control.Monad.State
+import           Data.Bits (Bits)
+import qualified Data.Bytes.Serial as BS
+import           Data.Bytes.Signed (Unsigned)
+import           Data.Bytes.VarInt (VarInt(..))
 import qualified Data.ByteString as B
 import           Data.ByteString.Builder (doubleBE, int64BE, toLazyByteString)
 import qualified Data.ByteString.Lazy as BL
@@ -257,10 +261,12 @@ serializeCase1 (MatchCase p guard body) = do
   pure $ MatchCase p posg posb
 
 putBackref :: MonadPut m => Pos -> m ()
-putBackref = putWord64be
+putBackref = BS.serialize . VarInt
 
-putLength :: (MonadPut m, Integral n) => n -> m ()
-putLength = putWord64be . fromIntegral
+putLength :: (MonadPut m, Integral n, Integral (Unsigned n),
+                          Bits n,     Bits (Unsigned n))
+          => n -> m ()
+putLength = BS.serialize . VarInt
 
 serializeMaybe :: (MonadPut m) => (a -> m ()) -> Maybe a -> m ()
 serializeMaybe f b = case b of
@@ -270,7 +276,7 @@ serializeMaybe f b = case b of
 lengthEncode :: MonadPut m => Text -> m ()
 lengthEncode text = do
   let bs = encodeUtf8 text
-  putWord32be . fromIntegral $ B.length bs
+  putLength $ B.length bs
   putByteString bs
 
 serializeFoldable :: (MonadPut m, Foldable f) => (a -> m ()) -> f a -> m ()
@@ -286,7 +292,7 @@ serializeReference ref = case ref of
   Derived hash -> do
     putWord8 1
     let bs = Hash.toBytes hash
-    putWord32be . fromIntegral $ B.length bs
+    putLength $ B.length bs
     putByteString bs
 
 serializeConstructorArities :: MonadPut m => Reference -> [Int] -> m ()
@@ -302,4 +308,4 @@ serializeFile (UnisonFile dataDecls effectDecls body) = do
   serializeFoldable (uncurry serializeConstructorArities) effectDecls'
   pos <- serializeTerm body
   putWord8 0
-  putWord64be pos
+  putBackref pos
