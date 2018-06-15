@@ -102,10 +102,27 @@ test = scope "typechecker" . tests $
              |r8 : UInt64
              |r8 = case (1,(2,(3,(4,(5,(6,(7,8))))))) of
              |  (x,(y,(_,_))) -> 0
+             |
+             |r9 : UInt64
+             |r9 = case 1 of
+             |  9 -> 9
+             |  8 -> 8
+             |  7 -> 7
+             |  6 -> 6
+             |  5 -> 5
+             |  _ -> 1
+             |
+             |r10 : UInt64
+             |r10 = case 1 of
+             |  1 | true -> 3
+             |  _ -> 4
+             |
+             |r11 : UInt64
+             |r11 = case 1 of
+             | 1 | 2 ==_UInt64 3 -> 4
+             | _ -> 5
+             |
              |() |]
---  nested ones
---  multiple cases
---  guards
 
 --  EffectPure Pattern
 --  EffectBind !Reference !Int [Pattern] Pattern--

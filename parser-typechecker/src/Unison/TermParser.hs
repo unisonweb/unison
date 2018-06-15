@@ -80,7 +80,7 @@ matchCase :: Var v => Parser (S v) (Term.MatchCase (Term v))
 matchCase = do
   (p, boundVars) <- parsePattern
   guard <- traced "guard" $ optional $ token (string "|") *> infixApp
-  token_ $ string "->"
+  traced "->" $ token_ $ string "->"
   t <- block
   pure . Term.MatchCase p guard $ ABT.absChain boundVars t
 
