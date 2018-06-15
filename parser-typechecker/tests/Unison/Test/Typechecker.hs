@@ -101,7 +101,7 @@ test = scope "typechecker" . tests $
              |
              |r8 : UInt64
              |r8 = case (1,(2,(3,(4,(5,(6,(7,8))))))) of
-             |  _ -> 0
+             |  (x,(y,(_,_))) -> 0
              |() |]
 --  nested ones
 --  multiple cases

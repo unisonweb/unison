@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE RankNTypes #-}
 {-# Language OverloadedStrings #-}
 {-# Language ScopedTypeVariables #-}
@@ -77,22 +78,25 @@ match = do
 
 matchCase :: Var v => Parser (S v) (Term.MatchCase (Term v))
 matchCase = do
-  (p, boundVars) <- pattern
+  (p, boundVars) <- parsePattern
   guard <- traced "guard" $ optional $ token (string "|") *> infixApp
   token_ $ string "->"
   t <- block
   pure . Term.MatchCase p guard $ ABT.absChain boundVars t
 
-pattern :: Var v => Parser (S v) (Pattern, [v])
-pattern = traced "pattern" $ constructor <|> leaf
+parsePattern :: Var v => Parser (S v) (Pattern, [v])
+parsePattern = traced "pattern" $ constructor <|> leaf
   where
   leaf = literal <|> varOrAs <|> unbound <|>
-         unit <|> parenthesized pattern <|> effect
+         parenthesizedOrTuplePattern <|> effect
   literal = traced "pattern.literal" $ (,[]) <$> asum [true, false, number]
   true = Pattern.Boolean True <$ token (string "true")
   false = Pattern.Boolean False <$ token (string "false")
   number = traced "pattern.number" $ number' Pattern.Int64 Pattern.UInt64 Pattern.Float
-  unit = (Pattern.Constructor (R.Builtin "()") 0 [], []) <$ token (string "()")
+  parenthesizedOrTuplePattern = tupleOrParenthesized parsePattern unit pair
+  unit = (Pattern.Constructor (R.Builtin "()") 0 [], [])
+  pair (p1, v1) (p2, v2) =
+    (Pattern.Constructor (R.Builtin "Pair") 0 [p1, p2], v1 ++ v2)
   varOrAs = traced "varOrAs" $ do
     v <- prefixVar
     o <- optional (token $ string "@")
@@ -113,7 +117,7 @@ pattern = traced "pattern" $ constructor <|> leaf
 
   effectBind = do
     (name, leaves) <- attempt effectBind0
-    (cont, vsp) <- pattern
+    (cont, vsp) <- parsePattern
     env <- ask
     (ref,cid) <- case Map.lookup name env of
       Just (ref, cid) -> pure (ref, cid)
@@ -122,7 +126,7 @@ pattern = traced "pattern" $ constructor <|> leaf
       (patterns, vs) ->
          (Pattern.EffectBind ref cid patterns cont, join vs ++ vsp)
 
-  effectPure = go <$> pattern where
+  effectPure = go <$> parsePattern where
     go (p, vs) = (Pattern.EffectPure p, vs)
 
   effect = do
@@ -156,9 +160,9 @@ term4 = traced "apply-chain" $ f <$> some termLeaf
     f (func:args) = Term.apps func args
     f [] = error "'some' shouldn't produce an empty list"
 
-termLeaf :: Var v => TermP v
+termLeaf :: forall v. Var v => TermP v
 termLeaf = traced "leaf" $
-  asum [hashLit, prefixTerm, text, number, boolean, tupleOrParenthesized term, blank, vector term]
+  asum [hashLit, prefixTerm, text, number, boolean, tupleOrParenthesizedTerm, blank, vector term]
 
 ifthen :: Var v => TermP v
 ifthen = traced "ifthen" $ do
@@ -176,12 +180,19 @@ and = Term.and <$> (token (string "and") *> termLeaf) <*> termLeaf
 or :: Var v => TermP v
 or = Term.or <$> (token (string "or") *> termLeaf) <*> termLeaf
 
-tupleOrParenthesized :: Var v => TermP v -> TermP v
-tupleOrParenthesized rec =
+-- Generic parser for tuples and parenthesized patterns/terms
+tupleOrParenthesized :: Parser s a -> a -> (a -> a -> a) -> Parser s a
+tupleOrParenthesized rec unit pair =
   parenthesized $ go <$> sepBy (token $ string ",") rec where
     go [t] = t -- was just a parenthesized term
     go terms = foldr pair unit terms -- it's a tuple literal
-    pair t1 t2 = Term.constructor (R.Builtin "Pair") 0 `Term.app` t1 `Term.app` t2
+
+-- Specialized to terms
+tupleOrParenthesizedTerm :: Var v => TermP v
+tupleOrParenthesizedTerm = tupleOrParenthesized term unit pair
+  where
+    pair t1 t2 =
+      Term.constructor (R.Builtin "Pair") 0 `Term.app` t1 `Term.app` t2
     unit = Term.constructor (R.Builtin "()") 0
 
 text' :: Parser s Text.Text
