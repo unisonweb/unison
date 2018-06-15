@@ -150,7 +150,11 @@ data Env v = Env { freshId :: Word, ctx :: Context v }
 type DataDeclarations v = Map Reference (DataDeclaration v)
 
 -- | Typechecking monad
-newtype M v a = M { runM :: Env v -> DataDeclarations v -> Either Note (a, Env v) }
+newtype M v a = M {
+  runM :: Env v
+       -> DataDeclarations v
+       -> Either Note (a, Env v)
+}
 
 getContext :: M v (Context v)
 getContext = M (\e@(Env _ ctx) _ -> Right (ctx, e))
@@ -158,16 +162,27 @@ getContext = M (\e@(Env _ ctx) _ -> Right (ctx, e))
 getDataDeclarations :: M v (DataDeclarations v)
 getDataDeclarations = M (\e d -> Right (d, e))
 
-getDataDeclaration :: Reference -> M v (DataDeclaration v)
-getDataDeclaration r = do
-  dataDecls <- getDataDeclarations
-  case Map.lookup r dataDecls of
-    Nothing -> fail $ "unknown type reference: " ++ show r ++ " " ++ show (Map.keys dataDecls)
+getFromTypeEnv :: (Ord r, Show r)
+               => String -> M v (Map r (f v)) -> r ->  M v (f v)
+getFromTypeEnv what get r = get >>= \decls ->
+  case Map.lookup r decls of
+    Nothing -> fail $ "unknown " ++ what ++ " reference: " ++ show r ++ " " ++
+                      show (Map.keys decls)
     Just decl -> pure decl
 
+getDataDeclaration :: Reference -> M v (DataDeclaration v)
+getDataDeclaration = getFromTypeEnv "data type" getDataDeclarations
+
 getConstructorType :: Var v => Reference -> Int -> M v (Type v)
-getConstructorType r cid = do
-  decl <- getDataDeclaration r
+getConstructorType = getConstructorType' getDataDeclaration
+
+getConstructorType' :: (Var v, Show r)
+                    => (r -> M v (DataDeclaration v))
+                    -> r
+                    -> Int
+                    -> M v (Type v)
+getConstructorType' get r cid = do
+  decl <- get r
   case drop cid (DataDeclaration.constructors decl) of
     [] -> fail $ "invalid constructor id: " ++ show cid ++ " in " ++ show r
     (_v, typ) : _ -> pure $ ABT.vmap TypeVar.Universal typ
@@ -191,7 +206,9 @@ freshenVar :: Var v => v -> M v v
 freshenVar v = M (\(Env id ctx) _ -> Right (Var.freshenId id v, Env (id+1) ctx))
 
 freshenTypeVar :: Var v => TypeVar v -> M v v
-freshenTypeVar v = M (\(Env id ctx) _ -> Right (Var.freshenId id (TypeVar.underlying v), Env (id+1) ctx))
+freshenTypeVar v =
+  M (\(Env id ctx) _ ->
+    Right (Var.freshenId id (TypeVar.underlying v), Env (id+1) ctx))
 
 freshVar :: Var v => M v v
 freshVar = freshenVar (Var.named "v")
@@ -584,12 +601,11 @@ synthesize e = scope ("synth: " ++ show e) $ logContext "synthesize" >> go e whe
   go (Term.Or' a b) = foldM synthesizeApp Type.andor [a, b]
   go (Term.EffectPure' a) = synthesize a
   go (Term.EffectBind' r cid args k) = do
-    argTypes <- traverse synthesize args
     kType <- synthesize k
-    eType <- getConstructorType r cid
-
-    pure $ Term.effectBind r cid outputTerms kTerm
-
+    cType <- getConstructorType r cid
+    iType <- foldM synthesizeApp cType args
+    rType <- synthesizeApp kType (Term.ann Term.blank iType)
+    pure $ Type.effect [Type.ref r] rType
   go (Term.Match' scrutinee cases) = do
     scrutineeType <- synthesize scrutinee
     outputTypev <- freshenVar (Var.named "match-output")
@@ -718,7 +734,10 @@ synthesizeClosed synthRef lookupDecl term = do
   decls <- Map.fromList <$> traverse (\r -> (r,) <$> lookupDecl r) declRefs
   synthesizeClosedAnnotated decls term
 
-synthesizeClosed' :: Var v => DataDeclarations v -> Term v -> M v (Type v)
+synthesizeClosed' :: Var v
+                  => DataDeclarations v
+                  -> Term v
+                  -> M v (Type v)
 synthesizeClosed' decls term | Set.null (ABT.freeVars term) =
   verifyDataDeclarations decls *>
   case runM (synthesize term) env0 decls of
@@ -727,7 +746,10 @@ synthesizeClosed' decls term | Set.null (ABT.freeVars term) =
 synthesizeClosed' _decls term =
   fail $ "cannot synthesize term with free variables: " ++ show (map Var.name $ Set.toList (ABT.freeVars term))
 
-synthesizeClosedAnnotated :: (Monad f, Var v) => DataDeclarations v -> Term v -> Noted f (Type v)
+synthesizeClosedAnnotated :: (Monad f, Var v)
+                          => DataDeclarations v
+                          -> Term v
+                          -> Noted f (Type v)
 synthesizeClosedAnnotated decls term | Set.null (ABT.freeVars term) = do
   Note.fromEither $
     runM (verifyDataDeclarations decls *> synthesize term) env0 decls >>= \(t,env) ->
