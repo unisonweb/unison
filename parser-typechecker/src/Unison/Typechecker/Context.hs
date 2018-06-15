@@ -582,6 +582,14 @@ synthesize e = scope ("synth: " ++ show e) $ logContext "synthesize" >> go e whe
   go (Term.If' cond t f) = foldM synthesizeApp Type.iff [cond, t, f]
   go (Term.And' a b) = foldM synthesizeApp Type.andor [a, b]
   go (Term.Or' a b) = foldM synthesizeApp Type.andor [a, b]
+  go (Term.EffectPure' a) = synthesize a
+  go (Term.EffectBind' r cid args k) = do
+    argTypes <- traverse synthesize args
+    kType <- synthesize k
+    eType <- getConstructorType r cid
+
+    pure $ Term.effectBind r cid outputTerms kTerm
+
   go (Term.Match' scrutinee cases) = do
     scrutineeType <- synthesize scrutinee
     outputTypev <- freshenVar (Var.named "match-output")

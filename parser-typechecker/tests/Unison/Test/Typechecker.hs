@@ -119,8 +119,13 @@ test = scope "typechecker" . tests $
              |
              |r11 : UInt64
              |r11 = case 1 of
-             | 1 | 2 ==_UInt64 3 -> 4
-             | _ -> 5
+             |  1 | 2 ==_UInt64 3 -> 4
+             |  _ -> 5
+             |
+             |r12 : UInt64
+             |r12 = case Optional.Some 1 of
+             |  {Optional.Some 1} -> 2
+             |  {x} -> 1
              |
              |() |]
 
