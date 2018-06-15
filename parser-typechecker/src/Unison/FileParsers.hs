@@ -21,7 +21,7 @@ import Unison.Note (Noted)
 import Unison.Reference (Reference)
 import Unison.Term (Term)
 import Unison.Type (Type)
-import Unison.UnisonFile (UnisonFile)
+import Unison.UnisonFile (UnisonFile(..))
 import Unison.Var (Var)
 
 parseAndSynthesizeAsFile :: Var v => FilePath -> String
@@ -36,8 +36,13 @@ synthesizeFile unisonFile =
         Map.union (Map.fromList . Foldable.toList $ UF.dataDeclarations unisonFile)
                   B.builtinDataDecls
       t = Term.bindBuiltins B.builtinTerms B.builtinTypes $ UF.term unisonFile
-      n = Note.attemptRun $ Typechecker.synthesize termLookup (dataDeclLookup dataDecls) t
+      n = Note.attemptRun $ Typechecker.synthesize termLookup (dataDeclLookup dataDecls) $ t
   in (t,) <$> runIdentity n
+
+synthesizeUnisonFile :: Var v => UnisonFile v -> Either String (UnisonFile v, Type v)
+synthesizeUnisonFile unisonFile@(UnisonFile d e _t) = do
+  (t', typ) <- synthesizeFile unisonFile
+  pure $ (UnisonFile d e t', typ)
 
 termLookup :: (Applicative f, Var v) => Reference -> Noted f (Type v)
 termLookup h = Maybe.fromMaybe (missing h) (pure <$> Map.lookup h B.builtins)
