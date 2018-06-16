@@ -2,10 +2,6 @@ scopeName: 'source.unison'
 name: 'Unison'
 fileTypes: ['u']
 limitLineLength: false
-#notReservedChar = (`notElem` "\".,`[]{}:()@")
-  ## , ":"
-  ## , "="
-  # ]
 patterns: [
   { include: '#comment' }
   { include: '#boolean' }
