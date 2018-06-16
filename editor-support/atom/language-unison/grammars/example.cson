@@ -1,0 +1,116 @@
+scopeName: 'source.unison'
+name: 'Unison'
+fileTypes: ['u']
+limitLineLength: false
+#notReservedChar = (`notElem` "\".,`[]{}:()@")
+  ## , ":"
+  ## , "="
+  # ]
+patterns: [
+  { include: '#comment' }
+  { include: '#boolean' }
+  { include: '#numeric' }
+  { include: '#text'}
+  { include: '#case_of' }
+  { include: '#if' }
+  { include: '#annotation'}
+  { include: '#type_operators' }
+  { include: '#unsorted_reserved_chars' }
+  { include: '#unsorted_keywords' }
+]
+repository:
+  unsorted_reserved_chars:
+    match: '(,)|(`)|(\\[)|(\\])|({)|(})|(@)|(\\|)'
+    captures:
+      1: {name: 'punctuation.separator.delimiter.unison'}
+      2: {name: 'punctuation.definition.entity.unison'}
+      3: {name: 'punctuation.definition.list.begin.unison'}
+      4: {name: 'punctuation.definition.list.end.unison'}
+      5: {name: 'punctuation.definition.effect.begin.unison'}
+      6: {name: 'punctuation.definition.effect.end.unison'}
+      7: {name: 'punctuation.operator.assignment.as.unison'}
+      8: {name: 'punctuation.separator.pipe.unison'}
+  if:
+    match: '(\\s|^)(if|then|else|and|or)(?=\\s|^)'
+    captures: {2: {name: 'keyword.control.unison'}}
+  annotation:
+    name: 'meta.function.type-declaration.unison'
+    match: '(\\S+)\\s+(:)(?=\\s)'
+    captures:
+      1: {name: 'entity.name.function.unison' }
+      2: {name: 'keyword.other.colon.unison' }
+  type_operators:
+    match: '\\s(forall|∀)|(->)(?=\\s)'
+    captures:
+      1: {name: 'keyword.other.forall.unison'}
+      2: {name: 'keyword.other.arrow.unison'}
+  case_of:
+    match: '(\\s|^)(case|of|->)(?=\\s|$)'
+    captures:
+      2: {name: 'keyword.control.case.unison'}
+  unsorted_keywords:
+    match: '(\\s|^)(let|alias|handle|in|namespace|type|effect)(?=\\s|$)'
+    captures:
+      2: {name: 'keyword.control.unison'}
+
+  boolean:
+    patterns: [
+      {include: '#true'}
+      {include: '#false'}
+    ]
+  numeric:
+    patterns: [
+      {include: '#float'}
+      {include: '#int64'}
+      {include: '#uint64'}
+    ]
+
+  text:
+    name: 'string.quoted.double.unison'
+    match: '(")(.*?)(")'
+    captures:
+      1: {name: 'punctuation.definition.string.begin.unison'}
+      3: {name: 'punctuation.definition.string.end.unison'}
+
+  true:
+    match: 'true'
+    name: 'constant.language.boolean.true.unison'
+
+  false:
+    match: 'false'
+    name: 'constant.language.boolean.false.unison'
+
+  int64:
+    match: '([^\\w\\d]|^)([+-]\\d+)'
+    captures:
+      2: {name: 'constant.numeric.integer.signed.unison'}
+
+  uint64:
+    match: '([^+\\-\\w\\d]|^)(\\d+)'
+    captures:
+      2: {name: 'constant.numeric.integer.unsigned.unison'}
+
+  float:
+    match: '([^+\\-\\w\\d]|^)([+-]?\\d+\\.\\d*)'
+    captures:
+      2: {name: 'constant.numeric.decimal.unison'}
+
+  comment:
+    patterns: [
+      {include: "#block_comment"}
+      {include: "#line_comment"}
+    ]
+  block_comment:
+    name: 'comment.block.unison'
+    begin: '{-'
+    end: '-}'
+    beginCaptures:
+      0:
+        name: 'punctuation.definition.comment.begin.unison'
+    endCaptures:
+      0:
+        name: 'punctuation.definition.comment.end.unison'
+    patterns: [{ include: '#block_comment' }]
+  line_comment:
+    name: 'comment.line.double-dash.unison'
+    match: '--.*$'
