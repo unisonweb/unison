@@ -51,7 +51,7 @@ sealed abstract class PrettyPrint {
 }
 
 object PrettyPrint {
-  val hashPrecision = 10
+  val hashPrecision = 8
 
   /** The empty document. */
   case object Empty extends PrettyPrint { def unbrokenWidth = 0 }
@@ -140,10 +140,8 @@ object PrettyPrint {
   def prettyId(typeId: Id, ctorId: ConstructorId): PrettyPrint = typeId match {
     case Id.Builtin(name) => prettyName(name) <> s"#${ctorId.toInt}"
     case Id.HashRef(h) =>
-      val hashString =
-        h.bytes.map(b => b.formatted("%02x")).toList.mkString
-          .take(hashPrecision)
-      "#" <> hashString <> s"#${ctorId.toInt}"
+      val hashString = Base58.encode(h.bytes).take(hashPrecision)
+      s"#$hashString#${ctorId.toInt}"
   }
 
   def distributeNames(patterns: Seq[Pattern], names: List[Name]): Seq[PrettyPrint] =
