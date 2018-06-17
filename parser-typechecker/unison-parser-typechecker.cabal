@@ -98,6 +98,7 @@ library
 executable bootstrap
   main-is: Bootstrap.hs
   hs-source-dirs: bootstrap
+  ghc-options:    -Wall
   build-depends:
     base,
     base58-bytestring,
