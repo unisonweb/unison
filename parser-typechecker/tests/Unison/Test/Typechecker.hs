@@ -122,6 +122,8 @@ test = scope "typechecker" . tests $
              |  1 | 2 ==_UInt64 3 -> 4
              |  _ -> 5
              |
+             |r12 : UInt64
+             |r12 = (x -> x) 64
              |
              |() |]
 
@@ -132,6 +134,26 @@ test = scope "typechecker" . tests $
              |eff f z e = case e of
              |  { Abort.Abort _ -> k } -> z
              |  { a } -> f a
+             |
+             |() |]
+
+  , checks [r|-- lol
+             |effect Abort where
+             |  Abort : forall a . () -> {Abort} a
+             |
+             |eff : forall a b . (a -> b) -> b -> Effect Abort a -> b
+             |eff f z e = case e of
+             |  { Abort.Abort _ -> k } -> z
+             |  { a } -> f a
+             |
+             |heff : UInt64
+             |heff = handle eff (x -> x +_UInt64 2) 1 in Abort.Abort ()
+             |
+             |hudy : UInt64
+             |hudy = handle eff (x -> x +_UInt64 2) 1 in 42
+             |
+             |bork : () -> {Abort} UInt64
+             |bork = u -> 1 +_UInt64 (Abort.Abort ())
              |
              |() |]
 --  EffectPure Pattern
