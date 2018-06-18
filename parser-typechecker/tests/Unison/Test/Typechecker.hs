@@ -122,13 +122,18 @@ test = scope "typechecker" . tests $
              |  1 | 2 ==_UInt64 3 -> 4
              |  _ -> 5
              |
-             |r12 : UInt64
-             |r12 = case Optional.Some 1 of
-             |  {Optional.Some 1} -> 2
-             |  {x} -> 1
              |
              |() |]
 
+  , checks [r|effect Abort where
+             |  Abort : forall a . () -> {Abort} a
+             |
+             |eff : forall a b . (a -> b) -> b -> Effect Abort a -> b
+             |eff f z e = case e of
+             |  { Abort.Abort _ -> k } -> z
+             |  { a } -> f a
+             |
+             |() |]
 --  EffectPure Pattern
 --  EffectBind !Reference !Int [Pattern] Pattern--
   ]

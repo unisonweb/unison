@@ -656,21 +656,21 @@ checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) =
         Just g -> Term.let1 [(Var.named "_", Term.ann g Type.boolean)] body
         Nothing -> body
       -- Convert pattern to a Term
-      patTerm = evalState (synthTerm pat) vs
+      patTerm = evalState (patternToTerm pat) vs
       newBody = Term.let1 [(Var.named "_", patTerm `Term.ann` scrutineeType)] rhs'
       entireCase = foldr (\v t -> Term.let1 [(v, Term.blank)] t) newBody vs
   in check entireCase outputType
 
--- Synthesize a fake term for the pattern, that we can typecheck
-synthTerm :: Var v => Pattern -> State [v] (Term v)
-synthTerm pat = case pat of
+-- Make up a fake term for the pattern, that we can typecheck
+patternToTerm :: Var v => Pattern -> State [v] (Term v)
+patternToTerm pat = case pat of
   Pattern.Boolean b -> pure $ Term.boolean b
   Pattern.Int64 n -> pure $ Term.int64 n
   Pattern.UInt64 n -> pure $ Term.uint64 n
   Pattern.Float n -> pure $ Term.float n
   -- similar for other literals
   Pattern.Constructor r cid pats -> do
-    outputTerms <- traverse synthTerm pats
+    outputTerms <- traverse patternToTerm pats
     pure $ Term.apps (Term.constructor r cid) outputTerms
   Pattern.Var -> do
     (h : t) <- get
@@ -680,12 +680,12 @@ synthTerm pat = case pat of
   Pattern.As p -> do
     (h : t) <- get
     put t
-    tm <- synthTerm p
+    tm <- patternToTerm p
     pure . Term.let1 [(h, tm)] $ Term.var h
-  Pattern.EffectPure p -> Term.effectPure <$> synthTerm p
+  Pattern.EffectPure p -> Term.effectPure <$> patternToTerm p
   Pattern.EffectBind r cid pats kpat -> do
-    outputTerms <- traverse synthTerm pats
-    kTerm <- synthTerm kpat
+    outputTerms <- traverse patternToTerm pats
+    kTerm <- patternToTerm kpat
     pure $ Term.effectBind r cid outputTerms kTerm
 
 -- | Synthesize the type of the given term, `arg` given that a function of

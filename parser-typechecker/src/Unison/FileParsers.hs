@@ -3,30 +3,31 @@
 
 module Unison.FileParsers where
 
-import Control.Monad.State (evalStateT)
-import Data.Bytes.Put (runPutS)
-import Data.ByteString (ByteString)
-import Data.Map (Map)
-import Data.Functor.Identity (runIdentity)
+import           Control.Monad.State (evalStateT)
+import           Data.Bifunctor (second)
+import           Data.ByteString (ByteString)
+import           Data.Bytes.Put (runPutS)
 import qualified Data.Foldable as Foldable
+import           Data.Functor.Identity (runIdentity)
+import           Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Debug.Trace as Trace
 import qualified Unison.Builtin as B
 import qualified Unison.Codecs as Codecs
+import           Unison.DataDeclaration (DataDeclaration, toDataDecl)
+import           Unison.Note (Noted)
 import qualified Unison.Note as Note
 import qualified Unison.Parser as Parser
 import qualified Unison.Parsers as Parsers
+import           Unison.Reference (Reference)
+import           Unison.Term (Term)
 import qualified Unison.Term as Term
+import           Unison.Type (Type)
 import qualified Unison.Typechecker as Typechecker
+import           Unison.UnisonFile (UnisonFile(..))
 import qualified Unison.UnisonFile as UF
-import Unison.DataDeclaration (DataDeclaration)
-import Unison.Note (Noted)
-import Unison.Reference (Reference)
-import Unison.Term (Term)
-import Unison.Type (Type)
-import Unison.UnisonFile (UnisonFile(..))
-import Unison.Var (Var)
+import           Unison.Var (Var)
 
 parseAndSynthesizeAsFile :: Var v => FilePath -> String
                          -> Either String (Term v, Type v)
@@ -37,13 +38,19 @@ parseAndSynthesizeAsFile filename s = do
 synthesizeFile :: Var v => UnisonFile v -> Either String (Term v, Type v)
 synthesizeFile unisonFile =
   let dataDecls =
-        Map.union (Map.fromList . Foldable.toList $ UF.dataDeclarations unisonFile)
+        Map.union (Map.fromList . Foldable.toList $
+                     Map.union (UF.dataDeclarations unisonFile)
+                               (fmap (second toDataDecl) $
+                                  UF.effectDeclarations unisonFile))
                   B.builtinDataDecls
       t = Term.bindBuiltins B.builtinTerms B.builtinTypes $ UF.term unisonFile
-      n = Note.attemptRun $ Typechecker.synthesize termLookup (dataDeclLookup dataDecls) $ t
+      n = Note.attemptRun $
+            Typechecker.synthesize termLookup (dataDeclLookup dataDecls) $ t
   in (t,) <$> runIdentity n
 
-synthesizeUnisonFile :: Var v => UnisonFile v -> Either String (UnisonFile v, Type v)
+synthesizeUnisonFile :: Var v
+                     => UnisonFile v
+                     -> Either String (UnisonFile v, Type v)
 synthesizeUnisonFile unisonFile@(UnisonFile d e _t) = do
   (t', typ) <- synthesizeFile unisonFile
   pure $ (UnisonFile d e t', typ)
