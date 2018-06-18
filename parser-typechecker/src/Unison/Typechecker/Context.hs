@@ -151,16 +151,20 @@ type DataDeclarations v = Map Reference (DataDeclaration v)
 
 -- | Typechecking monad
 newtype M v a = M {
-  runM :: Env v
-       -> DataDeclarations v
+  runM :: Env v               -- typechecking state, can be read and written
+       -> [Type v]            -- allowed ambient abilities / effects
+       -> DataDeclarations v  -- data decls in scope
        -> Either Note (a, Env v)
 }
 
 getContext :: M v (Context v)
-getContext = M (\e@(Env _ ctx) _ -> Right (ctx, e))
+getContext = M (\e@(Env _ ctx) _ _ -> Right (ctx, e))
 
 getDataDeclarations :: M v (DataDeclarations v)
-getDataDeclarations = M (\e d -> Right (d, e))
+getDataDeclarations = M (\e _ d -> Right (d, e))
+
+getAbilities :: M v [Type v]
+getAbilities = M (\e abilities _ -> Right (abilities, e))
 
 getFromTypeEnv :: (Ord r, Show r)
                => String -> M v (Map r (f v)) -> r ->  M v (f v)
@@ -188,7 +192,7 @@ getConstructorType' get r cid = do
     (_v, typ) : _ -> pure $ ABT.vmap TypeVar.Universal typ
 
 setContext :: Context v -> M v ()
-setContext ctx = M (\(Env id _) _ -> Right ((), Env id ctx))
+setContext ctx = M (\(Env id _) _ _ -> Right ((), Env id ctx))
 
 modifyContext :: (Context v -> M v (Context v)) -> M v ()
 modifyContext f = do c <- getContext; c <- f c; setContext c
@@ -200,14 +204,14 @@ appendContext :: Var v => Context v -> M v ()
 appendContext tl = modifyContext' (\ctx -> ctx `append` tl)
 
 scope :: String -> M v a -> M v a
-scope msg (M m) = M (\env decls -> Note.scope msg (m env decls))
+scope msg (M m) = M (\env abilities decls -> Note.scope msg (m env abilities decls))
 
 freshenVar :: Var v => v -> M v v
-freshenVar v = M (\(Env id ctx) _ -> Right (Var.freshenId id v, Env (id+1) ctx))
+freshenVar v = M (\(Env id ctx) _ _ -> Right (Var.freshenId id v, Env (id+1) ctx))
 
 freshenTypeVar :: Var v => TypeVar v -> M v v
 freshenTypeVar v =
-  M (\(Env id ctx) _ ->
+  M (\(Env id ctx) _ _ ->
     Right (Var.freshenId id (TypeVar.underlying v), Env (id+1) ctx))
 
 freshVar :: Var v => M v v
@@ -558,7 +562,8 @@ synthesize e = scope ("synth: " ++ show e) $ logContext "synthesize" >> go e whe
     -- special case when it is definitely safe to generalize - binding contains
     -- no free variables, i.e. `let id x = x in ...`
     decls <- getDataDeclarations
-    t  <- synthesizeClosed' decls binding
+    abilities <- getAbilities
+    t  <- synthesizeClosed' abilities decls binding
     v' <- ABT.freshen e freshenVar
     e  <- pure $ ABT.bind e (Term.builtin (Var.name v') `Term.ann` t)
     synthesize e
@@ -733,38 +738,41 @@ annotateRefs synth term = ABT.visit f term where
 
 synthesizeClosed
   :: (Monad f, Var v)
-  => Type.Env f v
+  => [Type v]
+  -> Type.Env f v
   -> (Reference -> Noted f (DataDeclaration v))
   -> Term v
   -> Noted f (Type v)
-synthesizeClosed synthRef lookupDecl term = do
+synthesizeClosed abilities synthRef lookupDecl term = do
   let declRefs = Set.toList $ Term.referencedDataDeclarations term
   term <- annotateRefs synthRef term
   decls <- Map.fromList <$> traverse (\r -> (r,) <$> lookupDecl r) declRefs
-  synthesizeClosedAnnotated decls term
+  synthesizeClosedAnnotated abilities decls term
 
 synthesizeClosed' :: Var v
-                  => DataDeclarations v
+                  => [Type v]
+                  -> DataDeclarations v
                   -> Term v
                   -> M v (Type v)
-synthesizeClosed' decls term | Set.null (ABT.freeVars term) =
+synthesizeClosed' abilities decls term | Set.null (ABT.freeVars term) =
   verifyDataDeclarations decls *>
-  case runM (synthesize term) env0 decls of
-    Left err -> M $ \_ _ -> Left err
+  case runM (synthesize term) env0 abilities decls of
+    Left err -> M $ \_ _ _ -> Left err
     Right (t,env) -> pure $ generalizeExistentials (ctx env) t
-synthesizeClosed' _decls term =
+synthesizeClosed' _abilities _decls term =
   fail $ "cannot synthesize term with free variables: " ++ show (map Var.name $ Set.toList (ABT.freeVars term))
 
 synthesizeClosedAnnotated :: (Monad f, Var v)
-                          => DataDeclarations v
+                          => [Type v]
+                          -> DataDeclarations v
                           -> Term v
                           -> Noted f (Type v)
-synthesizeClosedAnnotated decls term | Set.null (ABT.freeVars term) = do
+synthesizeClosedAnnotated abilities decls term | Set.null (ABT.freeVars term) = do
   Note.fromEither $
-    runM (verifyDataDeclarations decls *> synthesize term) env0 decls >>= \(t,env) ->
+    runM (verifyDataDeclarations decls *> synthesize term) env0 abilities decls >>= \(t,env) ->
     -- we generalize over any remaining unsolved existentials
       pure $ generalizeExistentials (ctx env) t
-synthesizeClosedAnnotated _decls term =
+synthesizeClosedAnnotated _abilities _decls term =
   fail $ "cannot synthesize term with free variables: " ++ show (map Var.name $ Set.toList (ABT.freeVars term))
 
 verifyDataDeclarations :: Var v => DataDeclarations v -> M v ()
@@ -785,6 +793,6 @@ instance Functor (M v) where
   fmap = liftM
 
 instance Monad (M v) where
-  return a = M (\env _ -> Right (a, env))
-  M f >>= g = M (\env decls -> f env decls >>= (\(a,env) -> runM (g a) env decls))
-  fail msg = M (\_ _ -> Left (Note.note msg))
+  return a = M (\env _ _ -> Right (a, env))
+  M f >>= g = M (\env abilities decls -> f env abilities decls >>= (\(a,env) -> runM (g a) env abilities decls))
+  fail msg = M (\_ _ _ -> Left (Note.note msg))

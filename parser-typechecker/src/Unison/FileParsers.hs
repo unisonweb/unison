@@ -45,7 +45,7 @@ synthesizeFile unisonFile =
                   B.builtinDataDecls
       t = Term.bindBuiltins B.builtinTerms B.builtinTypes $ UF.term unisonFile
       n = Note.attemptRun $
-            Typechecker.synthesize termLookup (dataDeclLookup dataDecls) $ t
+            Typechecker.synthesize [] termLookup (dataDeclLookup dataDecls) $ t
   in (t,) <$> runIdentity n
 
 synthesizeUnisonFile :: Var v
