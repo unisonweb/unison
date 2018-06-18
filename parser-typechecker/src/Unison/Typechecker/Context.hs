@@ -599,21 +599,29 @@ synthesize e = scope ("synth: " ++ show e) $ logContext "synthesize" >> go e whe
   go (Term.If' cond t f) = foldM synthesizeApp Type.iff [cond, t, f]
   go (Term.And' a b) = foldM synthesizeApp Type.andor [a, b]
   go (Term.Or' a b) = foldM synthesizeApp Type.andor [a, b]
-  go (Term.EffectPure' a) = synthesize a
+  -- { 42 }
+  go (Term.EffectPure' a) = do
+    e <- freshenVar (Var.named "e")
+    at <- synthesize a
+    pure . Type.forall (TypeVar.Universal e) $ Type.effectV (Type.universal e) at
   go (Term.EffectBind' r cid args k) = do
-    kType <- synthesize k
     cType <- getConstructorType r cid
-    iType <- foldM synthesizeApp cType args
-    rType <- synthesizeApp kType (Term.ann Term.blank iType)
-    pure $ Type.effect [Type.ref r] rType
+    let arity = Type.arity cType
+    -- TODO: error message algebra
+    when (length args /= arity) .  fail $
+      "Effect constructor wanted " <> show arity <> " arguments " <> "but got "
+      <> show (length args)
+    ([eType], iType) <- Type.stripEffect <$> foldM synthesizeApp cType args
+    rType <- synthesizeApp (Type.flipApply iType) k
+    pure $ Type.effectV eType rType
   go (Term.Match' scrutinee cases) = do
     scrutineeType <- synthesize scrutinee
     outputTypev <- freshenVar (Var.named "match-output")
     let outputType = Type.existential outputTypev
-    appendContext (context [Existential outputTypev])
+    appendContext $ context [Existential outputTypev]
     Foldable.traverse_ (checkCase scrutineeType outputType) cases
     ctx <- getContext
-    pure (apply ctx outputType)
+    pure $ apply ctx outputType
   go e = fail $ "unknown case in synthesize " ++ show e
 
 -- data MatchCase a = MatchCase Pattern (Maybe a) a
@@ -683,6 +691,7 @@ synthTerm pat = case pat of
 -- | Synthesize the type of the given term, `arg` given that a function of
 -- the given type `ft` is being applied to `arg`. Update the context in
 -- the process.
+-- e.g. in `(f:t) x` -- finds the type of (f x) given t and x.
 synthesizeApp :: Var v => Type v -> Term v -> M v (Type v)
 synthesizeApp ft arg = go ft where
   go (Type.Forall' body) = do -- Forall1App

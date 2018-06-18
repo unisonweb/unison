@@ -194,8 +194,26 @@ foralls vs body = foldr forall body vs
 arrows :: Ord v => [Type v] -> Type v -> Type v
 arrows ts result = foldr arrow result ts
 
+-- The types of effectful computations
 effect :: Ord v => [Type v] -> Type v -> Type v
+effect es (Effect' fs t) = ABT.tm (Effect (es ++ fs) t)
 effect es t = ABT.tm (Effect es t)
+
+-- The types of first-class effect values
+-- which get deconstructed in effect handlers.
+effectV :: Ord v => Type v -> Type v -> Type v
+effectV e t = apps (builtin "Effect") [e, t]
+
+-- Strips effects from a type. E.g. `{e} a` becomes `a`.
+stripEffect :: Type v -> ([Type v], Type v)
+stripEffect (Effect' e t) = (e, t)
+stripEffect t = ([], t)
+
+-- The type of the flipped function application operator:
+-- `(a -> (a -> b) -> b)`
+flipApply :: Var v => Type v -> Type v
+flipApply t = forall b $ arrow (arrow t (var b)) (var b)
+  where b = ABT.fresh t (ABT.v' "b")
 
 -- | Bind all free variables with an outer `forall`.
 generalize :: Ord v => Type v -> Type v
