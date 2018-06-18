@@ -57,6 +57,7 @@ lazy val root = project.in(file(".")).
 lazy val main = project.in(file("main"))
   .settings(commonSettings)
   .settings(name := "unison-runtime")
+  .settings(com.github.retronym.SbtOneJar.oneJarSettings)
 
 lazy val benchmark = project.in(file("benchmark"))
   .settings(commonSettings)
