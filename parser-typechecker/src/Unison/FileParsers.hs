@@ -3,6 +3,9 @@
 
 module Unison.FileParsers where
 
+import Control.Monad.State (evalStateT)
+import Data.Bytes.Put (runPutS)
+import Data.ByteString (ByteString)
 import Data.Map (Map)
 import Data.Functor.Identity (runIdentity)
 import qualified Data.Foldable as Foldable
@@ -10,6 +13,7 @@ import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Debug.Trace as Trace
 import qualified Unison.Builtin as B
+import qualified Unison.Codecs as Codecs
 import qualified Unison.Note as Note
 import qualified Unison.Parser as Parser
 import qualified Unison.Parsers as Parsers
@@ -43,6 +47,16 @@ synthesizeUnisonFile :: Var v => UnisonFile v -> Either String (UnisonFile v, Ty
 synthesizeUnisonFile unisonFile@(UnisonFile d e _t) = do
   (t', typ) <- synthesizeFile unisonFile
   pure $ (UnisonFile d e t', typ)
+
+serializeUnisonFile :: Var v => UnisonFile v
+                             -> Either String (UnisonFile v, Type v, ByteString)
+serializeUnisonFile unisonFile =
+  let r = synthesizeUnisonFile unisonFile
+      f (unisonFile', typ) =
+        let bs = runPutS $ flip evalStateT 0 $ Codecs.serializeFile unisonFile'
+        in (unisonFile', typ, bs)
+  in f <$> r
+
 
 termLookup :: (Applicative f, Var v) => Reference -> Noted f (Type v)
 termLookup h = Maybe.fromMaybe (missing h) (pure <$> Map.lookup h B.builtins)
