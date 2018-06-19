@@ -13,6 +13,7 @@
 module Unison.Typechecker.Context where
 
 
+-- import           Unison.Term (Term)
 --  trace (msg ++ ":\n" ++ show (Var.shortName a, Var.shortName b, Var.shortName c)) t
 --watchVar msg a = trace (msg ++ ": " ++ Text.unpack (Var.shortName a)) a
 --watchVars msg t@(a,b,c) =
@@ -24,6 +25,7 @@ import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Set (Set)
 import qualified Data.Set as Set
+import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Debug.Trace
 import qualified Unison.ABT as ABT
@@ -34,7 +36,6 @@ import qualified Unison.Note as Note
 import           Unison.Pattern (Pattern)
 import qualified Unison.Pattern as Pattern
 import           Unison.Reference (Reference)
--- import           Unison.Term (Term)
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 import           Unison.TypeVar (TypeVar)
@@ -214,8 +215,12 @@ freshenTypeVar v =
   M (\(Env id ctx) _ _ ->
     Right (Var.freshenId id (TypeVar.underlying v), Env (id+1) ctx))
 
+freshNamed :: Var v => Text -> M v v
+freshNamed = freshenVar . Var.named
+
 freshVar :: Var v => M v v
-freshVar = freshenVar (Var.named "v")
+freshVar = freshNamed "v"
+
 
 -- then have check, subtype, etc, take a Fresh (Term v), Fresh (Type v)
 
@@ -593,13 +598,16 @@ synthesize e = scope ("synth: " ++ show e) $ logContext "synthesize" >> go e whe
   --  -- generalizeExistentials ctx2 t <$ setContext ctx
   go (Term.Lam' body) = do -- ->I=> (Full Damas Milner rule)
     [arg, i, o] <- sequence [ABT.freshen body freshenVar, freshVar, freshVar]
-    appendContext $ context [Marker i, Existential i, Existential o, Ann arg (Type.existential i)]
+    appendContext $
+      context [Marker i, Existential i, Existential o, Ann arg (Type.existential i)]
     body <- pure $ ABT.bind body (Term.var arg)
     check body (Type.existential o)
     (ctx1, ctx2) <- breakAt (Marker i) <$> getContext
     -- unsolved existentials get generalized to universals
     setContext ctx1
-    pure $ generalizeExistentials ctx2 (Type.existential i `Type.arrow` Type.existential o)
+    pure $ generalizeExistentials
+             ctx2
+             (Type.existential i `Type.arrow` Type.existential o)
   go (Term.LetRecNamed' [] body) = synthesize body
   go (Term.LetRec' letrec) = do
     (marker, e) <- annotateLetRecBindings letrec
@@ -633,9 +641,13 @@ synthesize e = scope ("synth: " ++ show e) $ logContext "synthesize" >> go e whe
     ctx <- getContext
     pure $ apply ctx outputType
   go (Term.Handle' h body) = do
-    hType <- synthesize h
-    e <- _find_effect_in_hType -- may have forall's
-    withEffects [e] $ synthesize body
+    [e, i, o] <- sequence [freshNamed "e", freshNamed "i", freshNamed "o"]
+    appendContext $
+      context [Existential e, Existential i, Existential o]
+    check h $
+      Type.effectV (Type.existential e) (Type.existential i)
+        `Type.arrow` Type.existential o
+    withEffects [Type.existential e] $ synthesize body
   go e = fail $ "unknown case in synthesize " ++ show e
 
 -- data MatchCase a = MatchCase Pattern (Maybe a) a
