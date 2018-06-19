@@ -458,6 +458,10 @@ instantiateR t v = getContext >>= \ctx -> case Type.monotype t >>= solve ctx v o
       modifyContext (retract (Marker x'))
     _ -> fail "could not instantiate right"
 
+withEffects :: [Type v] -> M v a -> M v a
+withEffects abilities m =
+  M (\env abilities' d -> runM m env (abilities ++ abilities') d)
+
 -- | Check that under the given context, `e` has type `t`,
 -- updating the context in the process.
 check :: Var v => Term v -> Type v -> M v ()
@@ -493,7 +497,8 @@ check e t = getContext >>= \ctx -> scope ("check: " ++ show e ++ ":   " ++ show 
       go _ _ = do -- Sub
         a <- synthesize e; ctx <- getContext
         subtype (apply ctx a) (apply ctx t)
-    in go e t
+      (as, t') = Type.stripEffect t
+    in withEffects as $ go e t'
   else
     scope ("context: " ++ show ctx) .
     scope ("term: " ++ show e) .
@@ -510,7 +515,7 @@ check e t = getContext >>= \ctx -> scope ("check: " ++ show e ++ ":   " ++ show 
 annotateLetRecBindings :: Var v => ((v -> M v v) -> M v ([(v, Term v)], Term v)) -> M v (Element v, Term v)
 annotateLetRecBindings letrec = do
   (bindings, body) <- letrec freshenVar
-  vs <- pure $ map fst bindings
+  let vs = map fst bindings
   -- generate a fresh existential variable `e1, e2 ...` for each binding
   es <- traverse freshenVar vs
   e1 <- if null vs then fail "impossible" else pure $ head es
@@ -627,6 +632,10 @@ synthesize e = scope ("synth: " ++ show e) $ logContext "synthesize" >> go e whe
     Foldable.traverse_ (checkCase scrutineeType outputType) cases
     ctx <- getContext
     pure $ apply ctx outputType
+  go (Term.Handle' h body) = do
+    hType <- synthesize h
+    e <- _find_effect_in_hType -- may have forall's
+    withEffects [e] $ synthesize body
   go e = fail $ "unknown case in synthesize " ++ show e
 
 -- data MatchCase a = MatchCase Pattern (Maybe a) a
