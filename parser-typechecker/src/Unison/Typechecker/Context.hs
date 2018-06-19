@@ -18,6 +18,7 @@ module Unison.Typechecker.Context where
 --watchVar msg a = trace (msg ++ ": " ++ Text.unpack (Var.shortName a)) a
 --watchVars msg t@(a,b,c) =
 import           Control.Monad
+import           Control.Monad.Loops (anyM, allM)
 import           Control.Monad.State
 import qualified Data.Foldable as Foldable
 import           Data.List
@@ -158,6 +159,10 @@ newtype M v a = M {
        -> Either Note (a, Env v)
 }
 
+orElse :: M v a -> M v a -> M v a
+orElse m1 m2 =
+  M (\env es ds -> either (const $ runM m2 env es ds) Right $ runM m1 env es ds)
+
 getContext :: M v (Context v)
 getContext = M (\e@(Env _ ctx) _ _ -> Right (ctx, e))
 
@@ -166,6 +171,16 @@ getDataDeclarations = M (\e _ d -> Right (d, e))
 
 getAbilities :: M v [Type v]
 getAbilities = M (\e abilities _ -> Right (abilities, e))
+
+abilityCheck :: Var v => [Type v] -> M v ()
+abilityCheck requested = do
+  ambient <- getAbilities
+  success <- flip allM requested $ \req ->
+    flip anyM ambient $ \amb ->
+      (True <$ subtype amb req) `orElse` pure False
+  when (not success) $
+    fail $ "Ability check failed. Requested abilities " <> show requested <>
+           " but ambient abilities only included " <> show ambient <> "."
 
 getFromTypeEnv :: (Ord r, Show r)
                => String -> M v (Map r (f v)) -> r ->  M v (f v)
@@ -565,7 +580,8 @@ synthesize e = scope ("synth: " ++ show e) $ logContext "synthesize" >> go e whe
   go (Term.Boolean' _) = pure Type.boolean
   go (Term.Text' _) = pure Type.text
   go (Term.App' f arg) = do -- ->E
-    ft <- synthesize f; ctx <- getContext
+    ft <- synthesize f
+    ctx <- getContext
     synthesizeApp (apply ctx ft) arg
   go (Term.Vector' v) = synthesize (desugarVector (Foldable.toList v))
   go (Term.Let1' binding e) | Set.null (ABT.freeVars binding) = do
@@ -724,7 +740,10 @@ synthesizeApp ft arg = go ft where
     v <- ABT.freshen body freshenTypeVar
     appendContext (context [Existential v])
     synthesizeApp (ABT.bind body (Type.existential v)) arg
-  go (Type.Arrow' i o) = o <$ check arg i -- ->App
+  go (Type.Arrow' i o) = do -- ->App
+    let (es, _) = Type.stripEffect o
+    abilityCheck es
+    o <$ check arg i
   go (Type.Existential' a) = do -- a^App
     [i,o] <- traverse freshenVar [a, ABT.v' "o"]
     let soln = Type.Monotype (Type.existential i `Type.arrow` Type.existential o)

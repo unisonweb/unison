@@ -76,6 +76,7 @@ library
     free,
     hashable,
     memory,
+    monad-loops,
     mtl,
     murmur-hash,
     parsec,
