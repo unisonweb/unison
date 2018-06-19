@@ -188,17 +188,20 @@ abilityCheckEnabled = M $ fromMEnv abilityChecks
 withoutAbilityCheck :: M v a -> M v a
 withoutAbilityCheck m = M (\menv -> runM m $ menv { abilityChecks = False })
 
+abilityCheck' :: Var v => [Type v] -> [Type v] -> M v ()
+abilityCheck' ambient requested = do
+  success <- flip allM requested $ \req ->
+    flip anyM ambient $ \amb -> (True <$ subtype amb req) `orElse` pure False
+  when (not success) $
+    fail $ "Ability check failed. Requested abilities " <> show requested <>
+           " but ambient abilities only included " <> show ambient <> "."
+
 abilityCheck :: Var v => [Type v] -> M v ()
 abilityCheck requested = do
   enabled <- abilityCheckEnabled
   when enabled $ do
     ambient <- getAbilities
-    success <- flip allM requested $ \req ->
-      flip anyM ambient $ \amb ->
-        (True <$ subtype amb req) `orElse` pure False
-    when (not success) $
-      fail $ "Ability check failed. Requested abilities " <> show requested <>
-             " but ambient abilities only included " <> show ambient <> "."
+    abilityCheck' ambient requested
 
 getFromTypeEnv :: (Ord r, Show r)
                => String -> M v (Map r (f v)) -> r ->  M v (f v)
@@ -344,7 +347,7 @@ wellformedType c t = wellformed c && case t of
   Type.Arrow' i o -> wellformedType c i && wellformedType c o
   Type.Ann' t' _ -> wellformedType c t'
   Type.App' x y -> wellformedType c x && wellformedType c y
-  Type.Effect' _ _ -> error "todo: wellformedType Effect"
+  Type.Effect' es a -> all (wellformedType c) es && wellformedType c a
   Type.Forall' t ->
     let (v,ctx2) = extendUniversal c
     in wellformedType ctx2 (ABT.bind t (Type.universal v))
@@ -440,6 +443,27 @@ subtype tx ty = scope (show tx++" <: "++show ty) $
   go ctx t (Type.Existential' v) -- `InstantiateR`
     | Set.member v (existentials ctx) && notMember v (Type.freeVars t) =
     instantiateR t v
+  go _ (Type.Effect'' es1 a1) (Type.Effect'' es2 a2)
+     | not (null es1) || not (null es2) = do
+       subtype a1 a2
+       ctx <- getContext
+       let es1' = map (apply ctx) es1
+           es2' = map (apply ctx) es2
+       abilityCheck' es2' es1'
+  go _ a1 (Type.Effect' [] a2) = subtype a1 a2
+
+  -- for all e in es1', must exist e2 in es2' s.t. e <: e2
+  --{Remote} Int <: {Abort, Remote} Int  ?
+  --{} Int <: {es} Int
+
+
+--{e} a <: {e'} b?
+  --Int <: forall e . {e}Int
+  --{e}Int <: {e2}Int if e <: e2
+  --{e}Int <: {es}Int if exists e' in es | e <: e'
+  --go ctx (Type.Effect' es a) t = ...
+  --go ctx t (Type.Effect' es a) = ...
+  --
   go _ _ _ = fail "not a subtype"
 
 -- | Instantiate the given existential such that it is
@@ -768,7 +792,8 @@ synthesizeApp ft arg = go ft where
   go (Type.Arrow' i o) = do -- ->App
     let (es, _) = Type.stripEffect o
     abilityCheck es
-    o <$ check arg i
+    ambientEs <- getAbilities
+    o <$ check arg (Type.effect ambientEs i)
   go (Type.Existential' a) = do -- a^App
     [i,o] <- traverse freshenVar [a, ABT.v' "o"]
     let soln = Type.Monotype (Type.existential i `Type.arrow` Type.existential o)
