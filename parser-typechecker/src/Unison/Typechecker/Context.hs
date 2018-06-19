@@ -153,34 +153,52 @@ type DataDeclarations v = Map Reference (DataDeclaration v)
 
 -- | Typechecking monad
 newtype M v a = M {
-  runM :: Env v               -- typechecking state, can be read and written
-       -> [Type v]            -- allowed ambient abilities / effects
-       -> DataDeclarations v  -- data decls in scope
-       -> Either Note (a, Env v)
+  runM :: MEnv v -> Either Note (a, Env v)
+}
+
+-- | The typechecking environment
+data MEnv v = MEnv {
+  env :: Env v,                    -- The typechecking state
+  abilities :: [Type v],           -- Allowed ambient abilities
+  dataDecls :: DataDeclarations v, -- Data declarations in scope
+  abilityChecks :: Bool            -- Whether to perform ability checks.
+                                   --   It's here so we can disable it during
+                                   --   effect inference.
 }
 
 orElse :: M v a -> M v a -> M v a
 orElse m1 m2 =
-  M (\env es ds -> either (const $ runM m2 env es ds) Right $ runM m1 env es ds)
+  M (\menv -> either (const $ runM m2 menv) Right $ runM m1 menv)
+
+fromMEnv :: (MEnv v -> a) -> MEnv v -> Either Note (a, Env v)
+fromMEnv f m = Right (f m, env m)
 
 getContext :: M v (Context v)
-getContext = M (\e@(Env _ ctx) _ _ -> Right (ctx, e))
+getContext = M . fromMEnv $ ctx . env
 
 getDataDeclarations :: M v (DataDeclarations v)
-getDataDeclarations = M (\e _ d -> Right (d, e))
+getDataDeclarations = M $ fromMEnv dataDecls
 
 getAbilities :: M v [Type v]
-getAbilities = M (\e abilities _ -> Right (abilities, e))
+getAbilities = M $ fromMEnv abilities
+
+abilityCheckEnabled :: M v Bool
+abilityCheckEnabled = M $ fromMEnv abilityChecks
+
+withoutAbilityCheck :: M v a -> M v a
+withoutAbilityCheck m = M (\menv -> runM m $ menv { abilityChecks = False })
 
 abilityCheck :: Var v => [Type v] -> M v ()
 abilityCheck requested = do
-  ambient <- getAbilities
-  success <- flip allM requested $ \req ->
-    flip anyM ambient $ \amb ->
-      (True <$ subtype amb req) `orElse` pure False
-  when (not success) $
-    fail $ "Ability check failed. Requested abilities " <> show requested <>
-           " but ambient abilities only included " <> show ambient <> "."
+  enabled <- abilityCheckEnabled
+  when enabled $ do
+    ambient <- getAbilities
+    success <- flip allM requested $ \req ->
+      flip anyM ambient $ \amb ->
+        (True <$ subtype amb req) `orElse` pure False
+    when (not success) $
+      fail $ "Ability check failed. Requested abilities " <> show requested <>
+             " but ambient abilities only included " <> show ambient <> "."
 
 getFromTypeEnv :: (Ord r, Show r)
                => String -> M v (Map r (f v)) -> r ->  M v (f v)
@@ -208,7 +226,7 @@ getConstructorType' get r cid = do
     (_v, typ) : _ -> pure $ ABT.vmap TypeVar.Universal typ
 
 setContext :: Context v -> M v ()
-setContext ctx = M (\(Env id _) _ _ -> Right ((), Env id ctx))
+setContext ctx = M (\menv -> let e = env menv in Right ((), e {ctx = ctx}))
 
 modifyContext :: (Context v -> M v (Context v)) -> M v ()
 modifyContext f = do c <- getContext; c <- f c; setContext c
@@ -220,15 +238,21 @@ appendContext :: Var v => Context v -> M v ()
 appendContext tl = modifyContext' (\ctx -> ctx `append` tl)
 
 scope :: String -> M v a -> M v a
-scope msg (M m) = M (\env abilities decls -> Note.scope msg (m env abilities decls))
+scope msg (M m) = M (\menv -> Note.scope msg $ m menv)
 
 freshenVar :: Var v => v -> M v v
-freshenVar v = M (\(Env id ctx) _ _ -> Right (Var.freshenId id v, Env (id+1) ctx))
+freshenVar v =
+  M (\menv ->
+       let e = env menv
+           id = freshId e
+       in Right (Var.freshenId id v, e {freshId = id+1}))
 
 freshenTypeVar :: Var v => TypeVar v -> M v v
 freshenTypeVar v =
-  M (\(Env id ctx) _ _ ->
-    Right (Var.freshenId id (TypeVar.underlying v), Env (id+1) ctx))
+  M (\menv ->
+       let e = env menv
+           id = freshId e
+       in Right (Var.freshenId id (TypeVar.underlying v), e {freshId = id+1}))
 
 freshNamed :: Var v => Text -> M v v
 freshNamed = freshenVar . Var.named
@@ -479,8 +503,8 @@ instantiateR t v = getContext >>= \ctx -> case Type.monotype t >>= solve ctx v o
     _ -> fail "could not instantiate right"
 
 withEffects :: [Type v] -> M v a -> M v a
-withEffects abilities m =
-  M (\env abilities' d -> runM m env (abilities ++ abilities') d)
+withEffects abilities' m =
+  M (\menv -> runM m (menv { abilities = abilities' ++ abilities menv }))
 
 -- | Check that under the given context, `e` has type `t`,
 -- updating the context in the process.
@@ -645,7 +669,8 @@ synthesize e = scope ("synth: " ++ show e) $ logContext "synthesize" >> go e whe
     when (length args /= arity) .  fail $
       "Effect constructor wanted " <> show arity <> " arguments " <> "but got "
       <> show (length args)
-    ([eType], iType) <- Type.stripEffect <$> foldM synthesizeApp cType args
+    ([eType], iType) <-
+      Type.stripEffect <$> withoutAbilityCheck (foldM synthesizeApp cType args)
     rType <- synthesizeApp (Type.flipApply iType) k
     pure $ Type.effectV eType rType
   go (Term.Match' scrutinee cases) = do
@@ -796,8 +821,8 @@ synthesizeClosed' :: Var v
                   -> M v (Type v)
 synthesizeClosed' abilities decls term | Set.null (ABT.freeVars term) =
   verifyDataDeclarations decls *>
-  case runM (synthesize term) env0 abilities decls of
-    Left err -> M $ \_ _ _ -> Left err
+  case runM (synthesize term) (MEnv env0 abilities decls True) of
+    Left err -> M $ \_ -> Left err
     Right (t,env) -> pure $ generalizeExistentials (ctx env) t
 synthesizeClosed' _abilities _decls term =
   fail $ "cannot synthesize term with free variables: " ++ show (map Var.name $ Set.toList (ABT.freeVars term))
@@ -809,9 +834,11 @@ synthesizeClosedAnnotated :: (Monad f, Var v)
                           -> Noted f (Type v)
 synthesizeClosedAnnotated abilities decls term | Set.null (ABT.freeVars term) = do
   Note.fromEither $
-    runM (verifyDataDeclarations decls *> synthesize term) env0 abilities decls >>= \(t,env) ->
+    runM (verifyDataDeclarations decls *> synthesize term)
+         (MEnv env0 abilities decls True)
+      >>= \(t,env) ->
     -- we generalize over any remaining unsolved existentials
-      pure $ generalizeExistentials (ctx env) t
+        pure $ generalizeExistentials (ctx env) t
 synthesizeClosedAnnotated _abilities _decls term =
   fail $ "cannot synthesize term with free variables: " ++ show (map Var.name $ Set.toList (ABT.freeVars term))
 
@@ -833,6 +860,7 @@ instance Functor (M v) where
   fmap = liftM
 
 instance Monad (M v) where
-  return a = M (\env _ _ -> Right (a, env))
-  M f >>= g = M (\env abilities decls -> f env abilities decls >>= (\(a,env) -> runM (g a) env abilities decls))
-  fail msg = M (\_ _ _ -> Left (Note.note msg))
+  return a = M (\menv -> Right (a, env menv))
+  M f >>= g = M (\menv ->
+                   f menv >>= (\(a,env') -> runM (g a) (menv {env = env'})))
+  fail msg = M (\_ -> Left (Note.note msg))

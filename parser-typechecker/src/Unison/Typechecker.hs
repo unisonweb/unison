@@ -177,7 +177,8 @@ wellTyped abilities typeOf decl term =
 subtype :: Var v => Type v -> Type v -> Either Note (Type v)
 subtype t1 t2 =
   let (t1', t2') = (ABT.vmap TypeVar.Universal t1, ABT.vmap TypeVar.Universal t2)
-  in case Context.runM (Context.subtype t1' t2') Context.env0 [] Map.empty of
+  in case Context.runM (Context.subtype t1' t2')
+                       (Context.MEnv Context.env0 [] Map.empty True) of
     Left e -> Left e
     Right _ -> Right t2
 
