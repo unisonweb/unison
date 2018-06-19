@@ -450,6 +450,7 @@ subtype tx ty = scope (show tx++" <: "++show ty) $
        let es1' = map (apply ctx) es1
            es2' = map (apply ctx) es2
        abilityCheck' es2' es1'
+  go _ (Type.Effect' [] a1) (Type.Effect' [] a2) = subtype a1 a2
   go _ a1 (Type.Effect' [] a2) = subtype a1 a2
 
   -- for all e in es1', must exist e2 in es2' s.t. e <: e2
@@ -562,6 +563,11 @@ check e t = getContext >>= \ctx -> scope ("check: " ++ show e ++ ":   " ++ show 
         (marker, e) <- annotateLetRecBindings letrec
         check e t
         modifyContext (retract marker)
+      go (Term.Handle' h body) t = do
+        [e, i] <- sequence [freshNamed "e", freshNamed "i"]
+        appendContext $ context [Existential e, Existential i]
+        check h $ Type.effectV (Type.existential e) (Type.existential i) `Type.arrow` t
+        withEffects [Type.existential e] $ check body (Type.effect [Type.existential e] t)
       go _ _ = do -- Sub
         a <- synthesize e; ctx <- getContext
         subtype (apply ctx a) (apply ctx t)
