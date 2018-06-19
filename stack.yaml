@@ -16,4 +16,4 @@ extra-deps:
 
 ghc-options:
  # All packages
- "$locals": -Werror
+ "$locals": -Werror -freverse-errors
