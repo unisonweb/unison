@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
@@ -108,12 +109,13 @@ instance Var v => Show (Context v) where
   show (Context es) = "Γ\n  " ++ (intercalate "\n  " . map (show . fst)) (reverse es)
 
 debugEnabled :: Bool
-debugEnabled = False
+debugEnabled = True
 
 logContext :: Var v => String -> M v ()
 logContext msg = when debugEnabled $ do
   ctx <- getContext
-  setContext (trace ("\n"++msg ++ ": " ++ show ctx) ctx)
+  let !_ = trace ("\n"++msg ++ ": " ++ show ctx) ()
+  setContext ctx
 
 -- ctxOK :: Context -> Context
 -- ctxOK ctx = if wellformed ctx then ctx else error $ "not ok: " ++ show ctx
@@ -377,7 +379,7 @@ apply ctx t = case t of
   Type.ForallNamed' v t' -> Type.forall v (apply ctx t')
   _ -> error $ "Context.apply ill formed type - " ++ show t
 
--- | solve (ΓL,α^,ΓR) α τ = (ΓL,α = τ,ΓR)
+-- | solve (ΓL,α^,ΓR) α τ = (ΓL,α^ = τ,ΓR)
 -- If the given existential variable exists in the context,
 -- we solve it to the given monotype, otherwise return `Nothing`
 solve :: Var v => Context v -> v -> Monotype v -> Maybe (Context v)
@@ -825,7 +827,7 @@ patternToTerm pat = case pat of
 -- the process.
 -- e.g. in `(f:t) x` -- finds the type of (f x) given t and x.
 synthesizeApp :: Var v => Type v -> Term v -> M v (Type v)
-synthesizeApp ft arg = go ft where
+synthesizeApp ft arg = scope ("synthesizeApp: " ++ show ft ++ " " ++ show arg) $ go ft where
   go (Type.Forall' body) = do -- Forall1App
     v <- ABT.freshen body freshenTypeVar
     appendContext (context [Existential v])
@@ -840,6 +842,7 @@ synthesizeApp ft arg = go ft where
     let soln = Type.Monotype (Type.existential i `Type.arrow` Type.existential o)
     let ctxMid = context [Existential o, Existential i, Solved a soln]
     modifyContext' $ replace (Existential a) ctxMid
+    logContext "synthesizeApp (Existential)"
     Type.existential o <$ check arg (Type.existential i)
   go _ = scope "unable to synthesize type of application" $
          scope ("function type: " ++ show ft) $

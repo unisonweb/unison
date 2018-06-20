@@ -157,15 +157,15 @@ test = scope "typechecker" . tests $
              |
              |() |]
   , checks [r|--State effect
-             |effect State s where
-             |  put : ∀ s . s -> {State s} ()
-             |  get : ∀ s . () -> {State s} s
+             |effect State se2 where
+             |  put : ∀ se . se -> {State se} ()
+             |  get : ∀ se . () -> {State se} se
              |
              |state : ∀ s a . s -> Effect (State s) a -> (s, a)
-             |state s eff = case eff of
-             |  { State.get () -> k } -> handle (state s) in (k s)
-             |  { State.put s -> k } -> handle (state s) in (k ())
-             |  { a } -> (s, a)
+             |state woot eff = case eff of
+             |  { State.get () -> k } -> handle (state woot) in (k woot)
+             |  { State.put snew -> k } -> handle (state snew) in (k ())
+             |  { a } -> (woot, a)
              |
              |ex : (UInt64, UInt64)
              |ex = handle (state 42) in State.get ()
