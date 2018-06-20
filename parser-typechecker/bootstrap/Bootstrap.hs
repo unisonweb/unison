@@ -18,6 +18,6 @@ main = do
           f (_unisonFile', typ, bs) = do
             putStrLn ("typechecked as " ++ show typ)
             BS.writeFile outputFile bs
-      either print f r
+      either putStrLn f r
 
     _ -> putStrLn "usage: bootstrap <in-file.u> <out-file.ub>"

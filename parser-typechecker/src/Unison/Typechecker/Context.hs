@@ -513,19 +513,38 @@ instantiateR t v = getContext >>= \ctx -> case Type.monotype t >>= solve ctx v o
       setContext (replace (Existential v) (context [Existential o', Existential i', s]) ctx)
       ctx <- instantiateL i' i >> getContext
       instantiateR (apply ctx o) o'
+    Type.Effect' es vt -> do
+      es' <- replicateM (length es) (freshNamed "effect")
+      vt' <- freshNamed "vt"
+      let s = Solved v (Type.Monotype (Type.effect (Type.existential <$> es')
+                                                   (Type.existential vt')))
+      setContext $ replace (Existential v)
+                           (context $ (Existential <$> es') ++
+                                      [Existential vt', s])
+                           ctx
+      Foldable.for_ (es `zip` es') $ \(e, e') -> do
+        ctx <- getContext
+        instantiateR (apply ctx e) e'
+      ctx <- getContext
+      instantiateR (apply ctx vt) vt'
     Type.App' x y -> do -- analogue of InstRArr
+      -- example foo a <: v' will
+      -- 1. create foo', a', add these to the context
+      -- 2. add v' = foo' a' to the context
+      -- 3. recurse to refine the types of foo' and a'
       [x', y'] <- traverse freshenVar [ABT.v' "x", ABT.v' "y"]
       let s = Solved v (Type.Monotype (Type.app (Type.existential x') (Type.existential y')))
       setContext $ replace (Existential v) (context [Existential y', Existential x', s]) ctx
-      ctx0 <- getContext
-      ctx <- instantiateR (apply ctx0 x) x' >> getContext
+      ctx <- getContext
+      instantiateR (apply ctx x) x'
+      ctx <- getContext
       instantiateR (apply ctx y) y'
     Type.Forall' body -> do -- InstRAIIL
       x' <- ABT.freshen body freshenTypeVar
       setContext $ ctx `append` context [Marker x', Existential x']
       instantiateR (ABT.bind body (Type.existential x')) v
       modifyContext (retract (Marker x'))
-    _ -> fail "could not instantiate right"
+    _ -> fail $ "could not instantiate right " ++ show t
 
 withEffects :: [Type v] -> M v a -> M v a
 withEffects abilities' m =
