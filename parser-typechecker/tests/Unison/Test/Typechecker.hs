@@ -146,7 +146,7 @@ test = scope "typechecker" . tests $
              |  { Abort.Abort _ -> k } -> z
              |  { a } -> f a
              |
-             |heff : UInt64
+             |-- heff : UInt64
              |heff = handle eff (x -> x +_UInt64 2) 1 in Abort.Abort ()
              |
              |hudy : UInt64
@@ -156,8 +156,22 @@ test = scope "typechecker" . tests $
              |bork = u -> 1 +_UInt64 (Abort.Abort ())
              |
              |() |]
---  EffectPure Pattern
---  EffectBind !Reference !Int [Pattern] Pattern--
+  , checks [r|--State effect
+             |effect State s where
+             |  put : ∀ s . s -> {State s} ()
+             |  get : ∀ s . () -> {State s} s
+             |
+             |state : ∀ s a . s -> Effect (State s) a -> (s, a)
+             |state s eff = case eff of
+             |  { State.get () -> k } -> handle (state s) in (k s)
+             |  { State.put s -> k } -> handle (state s) in (k ())
+             |  { a } -> (s, a)
+             |
+             |ex : (UInt64, UInt64)
+             |ex = handle (state 42) in State.get ()
+             |
+             |ex
+             |]
   ]
   where c tm typ = scope tm . expect $ check (stripMargin tm) typ
         bombs s = scope s (expect . not . fileTypechecks $ s)
