@@ -737,7 +737,23 @@ synthesize e = scope ("synth: " ++ show e) $ logContext "synthesize" >> go e whe
     check h $
       Type.effectV (Type.existential e) (Type.existential i)
         `Type.arrow` Type.existential o
-    withEffects [Type.existential e] $ synthesize body
+    -- output type of the body should {e} i
+    -- body : {IO, State Int} Text
+    -- body <: {State Int} Text -- don't want this
+    -- bodyType <- synthesize the body, obtain `{e,e1,e2...} a`
+    -- we strip out `e` from the effect list of body type (if effect list is there)
+    -- subtype check
+    withEffects [Type.existential e] $ do
+      Type.Effect'' es bodyType <- synthesize body
+      bodyType `subtype` Type.existential i
+      ctx <- getContext
+      let normalizedEs = apply ctx <$> es
+          normalizedE = apply ctx (Type.existential e)
+      -- todo: should we just remove the first one we see?
+          es' = filter (\t -> t /= normalizedE) normalizedEs
+      case es' of
+        [] -> pure $ apply ctx (Type.existential o)
+        _ -> pure $ apply ctx (Type.effect es' $ Type.existential o)
   go e = fail $ "unknown case in synthesize " ++ show e
 
 -- data MatchCase a = MatchCase Pattern (Maybe a) a
