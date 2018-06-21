@@ -46,7 +46,7 @@ pTrace s = pt <|> return ()
                  fail x
 
 tracingEnabled :: Bool
-tracingEnabled = True
+tracingEnabled = False
 
 traced :: [Char]
        -> Text.Parsec.Prim.ParsecT Text.Text (Env s) ((->) PEnv) b

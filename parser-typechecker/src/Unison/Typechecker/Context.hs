@@ -440,12 +440,6 @@ subtype tx ty = scope (show tx++" <: "++show ty) $
     ctx' <- getContext
     subtype (apply ctx' t) t2
     modifyContext (retract (Marker v))
-  go ctx (Type.Existential' v) t -- `InstantiateL`
-    | Set.member v (existentials ctx) && notMember v (Type.freeVars t) =
-    instantiateL v t
-  go ctx t (Type.Existential' v) -- `InstantiateR`
-    | Set.member v (existentials ctx) && notMember v (Type.freeVars t) =
-    instantiateR t v
   go _ (Type.Effect'' es1 a1) (Type.Effect'' es2 a2)
      | not (null es1) || not (null es2) = do
        subtype a1 a2
@@ -454,20 +448,14 @@ subtype tx ty = scope (show tx++" <: "++show ty) $
            es2' = map (apply ctx) es2
        abilityCheck' es2' es1'
   go _ (Type.Effect' [] a1) (Type.Effect' [] a2) = subtype a1 a2
-  go _ a1 (Type.Effect' [] a2) = subtype a1 a2
-
-  -- for all e in es1', must exist e2 in es2' s.t. e <: e2
-  --{Remote} Int <: {Abort, Remote} Int  ?
-  --{} Int <: {es} Int
-
-
---{e} a <: {e'} b?
-  --Int <: forall e . {e}Int
-  --{e}Int <: {e2}Int if e <: e2
-  --{e}Int <: {es}Int if exists e' in es | e <: e'
-  --go ctx (Type.Effect' es a) t = ...
-  --go ctx t (Type.Effect' es a) = ...
-  --
+  go _ a1 (Type.Effect' _ a2) = subtype a1 a2
+  go _ (Type.Effect' _ a1) a2 = subtype a1 a2
+  go ctx (Type.Existential' v) t -- `InstantiateL`
+    | Set.member v (existentials ctx) && notMember v (Type.freeVars t) =
+    instantiateL v t
+  go ctx t (Type.Existential' v) -- `InstantiateR`
+    | Set.member v (existentials ctx) && notMember v (Type.freeVars t) =
+    instantiateR t v
   go _ _ _ = fail "not a subtype"
 
 -- | Instantiate the given existential such that it is
@@ -597,7 +585,9 @@ check e t = getContext >>= \ctx -> scope ("check: " ++ show e ++ ":   " ++ show 
         appendContext $ context [Existential e, Existential i]
         check h $ Type.effectV (Type.existential e) (Type.existential i) `Type.arrow` t
         ctx <- getContext
-        withEffects [Type.existential e] $ check body (apply ctx (Type.existential i))
+        withEffects [Type.existential e] $ do
+          ambient <- getAbilities
+          check body (apply ctx (Type.effect ambient (Type.existential i)))
       go _ _ = do -- Sub
         a <- synthesize e; ctx <- getContext
         subtype (apply ctx a) (apply ctx t)
@@ -779,6 +769,7 @@ synthesize e = scope ("synth: " ++ show e) $ go (minimize' e)
         [] -> pure $ apply ctx (Type.existential o)
         _ -> pure $ apply ctx (Type.effect es' $ Type.existential o)
   go e = fail $ "unknown case in synthesize " ++ show e
+
 
 -- data MatchCase a = MatchCase Pattern (Maybe a) a
 {-
