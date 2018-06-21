@@ -293,7 +293,7 @@ test = scope "typechecker" . tests $
              |
              |foo : () -> {IO} ()
              |foo unit =
-             |  inc-by : Int64 -> {IO, State Int} ()
+             |  inc-by : Int64 -> {IO, State Int64} ()
              |  inc-by i =
              |    IO.launch-missiles() -- OK, since declared by `inc-by` signature
              |    y = State.get()
