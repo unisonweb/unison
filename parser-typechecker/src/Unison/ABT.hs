@@ -393,7 +393,7 @@ subtract _ t1s t2s =
 instance (Show1 f, Var v) => Show (Term f v a) where
   -- annotations not shown
   showsPrec p (Term _ _ out) = case out of
-    Var v -> (Text.unpack (Var.shortName v) ++)
+    Var v -> (show v ++)
     Cycle body -> showsPrec p body
     Abs v body -> showParen True $ (Text.unpack (Var.shortName v) ++) . showString ". " . showsPrec p body
     Tm f -> showsPrec1 p f

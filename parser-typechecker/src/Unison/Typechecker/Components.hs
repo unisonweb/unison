@@ -6,7 +6,7 @@ import           Data.Maybe
 import           Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
-import           Unison.Term (Term)
+import           Unison.Term (Term')
 import qualified Unison.Term as Term
 import           Unison.Var (Var)
 
@@ -63,7 +63,7 @@ components' freeVars bs =
 --
 -- Gets rid of the let rec and replaces it with an ordinary `let`, such
 -- that `id` is suitably generalized.
-minimize :: Var v => Term v -> Maybe (Term v)
+minimize :: Var v => Term' vt v -> Maybe (Term' vt v)
 minimize (Term.LetRecNamed' bs e) = case components bs of
   [_single] -> Nothing
   cs -> Just $ foldr mklet e cs where
@@ -73,5 +73,5 @@ minimize (Term.LetRecNamed' bs e) = case components bs of
     mklet cycle e = Term.letRec cycle e
 minimize _ = Nothing
 
-minimize' :: Var v => Term v -> Term v
+minimize' :: Var v => Term' vt v -> Term' vt v
 minimize' term = fromMaybe term (minimize term)

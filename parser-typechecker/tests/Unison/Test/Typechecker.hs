@@ -125,6 +125,17 @@ test = scope "typechecker" . tests $
              |r12 : UInt64
              |r12 = (x -> x) 64
              |
+             |id : forall a . a -> a
+             |id x = x
+             |
+             |r13 : (UInt64, Text)
+             |r13 = let
+             |  id = ((x -> x): forall a . a -> a)
+             |  (id 10, id "foo")
+             |
+             |r14 : (forall a . a -> a) -> (UInt64, Text)
+             |r14 id = (id 10, id "foo")
+             |
              |() |]
 
   , checks [r|effect Abort where
@@ -156,7 +167,19 @@ test = scope "typechecker" . tests $
              |bork = u -> 1 +_UInt64 (Abort.Abort ())
              |
              |() |]
-  , checks [r|--State effect
+  , checks [r|--State1 effect
+             |effect State se2 where
+             |  put : ∀ se . se -> {State se} ()
+             |  get : ∀ se . () -> {State se} se
+             |
+             |state woot eff = case eff of
+             |  { State.get () -> k } -> handle state woot in k woot
+             |  { State.put snew -> k } -> handle (state snew) in (k ())
+             |  { a } -> (woot, a)
+             |
+             |()
+             |]
+  , checks [r|--State2 effect
              |effect State se2 where
              |  put : ∀ se . se -> {State se} ()
              |  get : ∀ se . () -> {State se} se
@@ -165,13 +188,13 @@ test = scope "typechecker" . tests $
              |state woot eff = case eff of
              |  { State.get () -> k } -> handle (state woot) in (k woot)
              |  { State.put snew -> k } -> handle (state snew) in (k ())
-             |  { a } -> (woot, a)
              |
-             |ex : (UInt64, UInt64)
-             |ex = handle (state 42) in State.get ()
-             |
-             |ex
+             |()
              |]
+
+             --ex : (UInt64, UInt64)
+             --ex = handle (state 42) in State.get ()
+
   ]
   where c tm typ = scope tm . expect $ check (stripMargin tm) typ
         bombs s = scope s (expect . not . fileTypechecks $ s)

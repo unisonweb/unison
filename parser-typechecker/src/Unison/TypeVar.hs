@@ -13,7 +13,7 @@ underlying (Universal v) = v
 underlying (Existential v) = v
 
 instance Show v => Show (TypeVar v) where
-  show (Universal v) = show v
+  show (Universal v) = "@" ++ show v
   show (Existential v) = "'" ++ show v
 
 instance Var v => Var (TypeVar v) where

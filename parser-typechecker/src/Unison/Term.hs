@@ -250,7 +250,7 @@ lam'' vs body = foldr lam body vs
 -- | Smart constructor for let rec blocks. Each binding in the block may
 -- reference any other binding in the block in its body (including itself),
 -- and the output expression may also reference any binding in the block.
-letRec :: Ord v => [(v,Term v)] -> Term v -> Term v
+letRec :: Ord v => [(v, Term' vt v)] -> Term' vt v -> Term' vt v
 letRec [] e = e
 letRec bindings e = ABT.cycle (foldr ABT.abs z (map fst bindings))
   where

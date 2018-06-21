@@ -42,6 +42,7 @@ import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 import           Unison.TypeVar (TypeVar)
 import qualified Unison.TypeVar as TypeVar
+import           Unison.Typechecker.Components (minimize')
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 -- uncomment for debugging
@@ -67,10 +68,10 @@ data Element v
 
 instance Var v => Show (Element v) where
   show (Var v) = case v of
-    TypeVar.Universal v -> Text.unpack (Var.shortName v)
-    TypeVar.Existential v -> "'"++Text.unpack (Var.shortName v)
+    TypeVar.Universal x -> "@" <> show x
+    TypeVar.Existential x -> "'" ++ show x
   show (Solved v t) = "'"++Text.unpack (Var.shortName v)++" = "++show t
-  show (Ann v t) = Text.unpack (Var.shortName v)++" : "++show t
+  show (Ann v t) = Text.unpack (Var.shortName v) ++ " : " ++ show t
   show (Marker v) = "|"++Text.unpack (Var.shortName v)++"|"
 
 (===) :: Eq v => Element v -> Element v -> Bool
@@ -546,7 +547,9 @@ instantiateR t v = getContext >>= \ctx -> case Type.monotype t >>= solve ctx v o
       setContext $ ctx `append` context [Marker x', Existential x']
       instantiateR (ABT.bind body (Type.existential x')) v
       modifyContext (retract (Marker x'))
-    _ -> fail $ "could not instantiate right " ++ show t
+    _ -> do
+      logContext ("failed: instantiateR " <> show t <> " " <> show v)
+      fail $ "could not instantiate right " ++ show t
 
 withEffects :: [Type v] -> M v a -> M v a
 withEffects abilities' m =
@@ -593,7 +596,7 @@ check e t = getContext >>= \ctx -> scope ("check: " ++ show e ++ ":   " ++ show 
         a <- synthesize e; ctx <- getContext
         subtype (apply ctx a) (apply ctx t)
       (as, t') = Type.stripEffect t
-    in withEffects as $ go e t'
+    in withEffects as $ go (minimize' e) t'
   else
     scope ("context: " ++ show ctx) .
     scope ("term: " ++ show e) .
@@ -618,6 +621,7 @@ annotateLetRecBindings letrec = do
   -- annotate each term variable w/ corresponding existential
   -- [marker e1, 'e1, 'e2, ... v1 : 'e1, v2 : 'e2 ...]
   appendContext $ context (Marker e1 : map Existential es ++ zipWith Ann vs (map Type.existential es))
+  logContext "annotating letrec bindings"
   -- check each `bi` against `ei`; sequencing resulting contexts
   Foldable.traverse_ (\(e,(_,binding)) -> check binding (Type.existential e)) (zip es bindings)
   -- compute generalized types `gt1, gt2 ...` for each binding `b1, b2...`;
@@ -632,7 +636,8 @@ annotateLetRecBindings letrec = do
 -- | Synthesize the type of the given term, updating the context in the process.
 -- | Figure 11 from the paper
 synthesize :: Var v => Term v -> M v (Type v)
-synthesize e = scope ("synth: " ++ show e) $ logContext "synthesize" >> go e where
+synthesize e = scope ("synth: " ++ show e) $ go (minimize' e)
+  where
   go :: Var v => Term v -> M v (Type v)
   go (Term.Var' v) = getContext >>= \ctx -> case lookupType ctx v of -- Var
     Nothing -> fail $ "type not known for term var: " ++ Text.unpack (Var.name v)
@@ -838,7 +843,7 @@ synthesizeApp ft arg = scope ("synthesizeApp: " ++ show ft ++ " " ++ show arg) $
     ambientEs <- getAbilities
     o <$ check arg (Type.effect ambientEs i)
   go (Type.Existential' a) = do -- a^App
-    [i,o] <- traverse freshenVar [a, ABT.v' "o"]
+    [i,o] <- traverse freshenVar [ABT.v' "i", ABT.v' "o"]
     let soln = Type.Monotype (Type.existential i `Type.arrow` Type.existential o)
     let ctxMid = context [Existential o, Existential i, Solved a soln]
     modifyContext' $ replace (Existential a) ctxMid
