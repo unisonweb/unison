@@ -534,6 +534,10 @@ withEffects :: [Type v] -> M v a -> M v a
 withEffects abilities' m =
   M (\menv -> runM m (menv { abilities = abilities' ++ abilities menv }))
 
+withEffects0 :: [Type v] -> M v a -> M v a
+withEffects0 abilities' m =
+  M (\menv -> runM m (menv { abilities = abilities' }))
+
 -- | Check that under the given context, `e` has type `t`,
 -- updating the context in the process.
 check :: Var v => Term v -> Type v -> M v ()
@@ -553,7 +557,8 @@ check e t = getContext >>= \ctx -> scope ("check: " ++ show e ++ ":   " ++ show 
       go (Term.Lam' body) (Type.Arrow' i o) = do -- =>I
         x <- ABT.freshen body freshenVar
         modifyContext' (extend (Ann x i))
-        check (ABT.bind body (Term.var x)) o
+        let Type.Effect'' es _ = o
+        scope ("pushing effects: " ++ show es) . withEffects0 es $ check (ABT.bind body (Term.var x)) o
         modifyContext (retract (Ann x i))
       go (Term.Let1' binding e) t = do
         v <- ABT.freshen e freshenVar
