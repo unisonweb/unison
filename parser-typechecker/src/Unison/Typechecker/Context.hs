@@ -498,7 +498,10 @@ instantiateL v t = getContext >>= \ctx -> case Type.monotype t >>= solve ctx v o
       v <- extendUniversal =<< ABT.freshen body freshenTypeVar
       instantiateL v (ABT.bind body (Type.universal v))
       modifyContext (retract (Universal v))
-    _ -> fail ("could not instantiate left: " ++ show t)
+    _ -> do
+      let msg = "could not instantiate left: '" ++ show v ++ " <: " ++ show t
+      logContext msg
+      fail msg
 
 -- | Instantiate the given existential such that it is
 -- a supertype of the given type, updating the context
@@ -760,9 +763,13 @@ synthesize e = scope ("synth: " ++ show e) $ go (minimize' e)
     -- bodyType <- synthesize the body, obtain `{e,e1,e2...} a`
     -- we strip out `e` from the effect list of body type (if effect list is there)
     -- subtype check
-    withEffects [Type.existential e] $ do
-      Type.Effect'' es bodyType <- synthesize body
-      bodyType `subtype` Type.existential i
+    ctx <- getContext
+    withEffects [apply ctx $ Type.existential e] . scope "body of handle" $ do
+      Type.Effect'' es bodyType <- scope "synth handle body" $ synthesize body
+      ctx <- getContext
+      logContext "body subtype check"
+      scope "body subtype check" $
+        apply ctx bodyType `subtype` (apply ctx $ Type.existential i)
       ctx <- getContext
       let normalizedEs = apply ctx <$> es
           normalizedE = apply ctx (Type.existential e)

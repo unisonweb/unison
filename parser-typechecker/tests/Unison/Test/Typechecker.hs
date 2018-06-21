@@ -208,10 +208,18 @@ test = scope "typechecker" . tests $
              |ex1a : (UInt64, UInt64)
              |ex1a = handle (state 42) in 49
              |
+             |ex1b = handle (x -> 10) in 0
+             |
+             |ex1c : UInt64
+             |ex1c = handle (x -> 10) in 0
+             |
+             |ex1d = handle (state 42) in 49
+             |
              |-- this fails - something busted with inference of `handle` blocks
-             |-- ex2 = handle (state 42) in State.get ()
-             |--ex3 : (UInt64, UInt64)
-             |--ex3 = ex2
+             |ex2 = handle (state 42) in State.get ()
+             |
+             |ex3 : (UInt64, UInt64)
+             |ex3 = ex2
              |
              |()
              |]
