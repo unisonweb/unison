@@ -616,14 +616,21 @@ annotateLetRecBindings letrec = do
   let vs = map fst bindings
   -- generate a fresh existential variable `e1, e2 ...` for each binding
   es <- traverse freshenVar vs
+  ctx <- getContext
   e1 <- if null vs then fail "impossible" else pure $ head es
   -- Introduce these existentials into the context and
   -- annotate each term variable w/ corresponding existential
   -- [marker e1, 'e1, 'e2, ... v1 : 'e1, v2 : 'e2 ...]
-  appendContext $ context (Marker e1 : map Existential es ++ zipWith Ann vs (map Type.existential es))
+  let f e (_,binding) = case binding of
+        -- TODO: Think about whether `apply` here is always correct
+        --       Used to have a guard that would only do this if t had no free vars
+        Term.Ann' _ t -> apply ctx t
+        _ -> Type.existential e
+  let bindingTypes = zipWith f es bindings
+  appendContext $ context (Marker e1 : map Existential es ++ zipWith Ann vs bindingTypes)
   logContext "annotating letrec bindings"
   -- check each `bi` against `ei`; sequencing resulting contexts
-  Foldable.traverse_ (\(e,(_,binding)) -> check binding (Type.existential e)) (zip es bindings)
+  Foldable.for_ (zip bindings bindingTypes) $ \((_,b), t) -> check b t
   -- compute generalized types `gt1, gt2 ...` for each binding `b1, b2...`;
   -- add annotations `v1 : gt1, v2 : gt2 ...` to the context
   (ctx1, ctx2) <- breakAt (Marker e1) <$> getContext
