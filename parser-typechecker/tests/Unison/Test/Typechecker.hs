@@ -188,13 +188,114 @@ test = scope "typechecker" . tests $
              |state woot eff = case eff of
              |  { State.get () -> k } -> handle (state woot) in (k woot)
              |  { State.put snew -> k } -> handle (state snew) in (k ())
+             |  { a } -> (woot, a)
              |
              |()
              |]
-
-             --ex : (UInt64, UInt64)
-             --ex = handle (state 42) in State.get ()
-
+  , checks [r|--State3 effect
+             |effect State se2 where
+             |  put : ∀ se . se -> {State se} ()
+             |  get : ∀ se . () -> {State se} se
+             |
+             |state : ∀ s a . s -> Effect (State s) a -> (s, a)
+             |state woot eff = case eff of
+             |  { State.get () -> k } -> handle (state woot) in (k woot)
+             |  { State.put snew -> k } -> handle (state snew) in (k ())
+             |
+             |ex1 : (UInt64, UInt64)
+             |ex1 = handle (state 42) in State.get ()
+             |
+             |-- this also bombs due to UInt64 <: Pair UInt64 (Pair UInt64 ())
+             |--failure, seems like this isn't a subtype check that should be
+             |--happening when typechecking this program
+             |ex1a : (UInt64, UInt64)
+             |ex1a = handle (state 42) in 49
+             |
+             |-- this fails - something busted with inference of `handle` blocks
+             |-- ex2 = handle (state 42) in State.get ()
+             |--ex3 : (UInt64, UInt64)
+             |--ex3 = ex2
+             |
+             |()
+             |]
+  , bombs  [r|--State4 effect
+             |effect State se2 where
+             |  put : ∀ se . se -> {State se} ()
+             |  get : ∀ se . () -> {State se} se
+             |
+             |-- binding is not guarded by a lambda, it only can access
+             |-- ambient abilities (which will be empty)
+             |ex1 : {State Int64} ()
+             |ex1 =
+             |  y = State.get
+             |  State.put (y +_Int64 +1)
+             |  ()
+             |
+             |()
+             |]
+  , bombs  [r|--IO effect
+             |effect IO where
+             |  launch-missiles : () -> {IO} ()
+             |
+             |-- binding is not guarded by a lambda, it only can access
+             |-- ambient abilities (which will be empty)
+             |ex1 : {IO} ()
+             |ex1 = launch-missiles()
+             |
+             |()
+             |]
+  , bombs  [r|--IO/State1 effect
+             |effect IO where
+             |  launch-missiles : () -> {IO} ()
+             |
+             |effect State se2 where
+             |  put : ∀ se . se -> {State se} ()
+             |  get : ∀ se . () -> {State se} se
+             |
+             |foo : () -> {IO} ()
+             |foo unit =
+             |-- inner binding can't access outer abilities unless it declares
+             |-- them explicitly
+             |  inc-by : Int64 -> {State Int} ()
+             |  inc-by i =
+             |    launch-missiles() -- not allowed
+             |    y = State.get
+             |    State.set (y +_Int64 i)
+             |  ()
+             |
+             |()
+             |]
+  , checks [r|--IO/State2 effect
+             |effect IO where
+             |  launch-missiles : () -> {IO} ()
+             |
+             |effect State se2 where
+             |  put : ∀ se . se -> {State se} ()
+             |  get : ∀ se . () -> {State se} se
+             |
+             |foo : () -> {IO} ()
+             |foo unit =
+             |  inc-by : Int64 -> {IO, State Int} ()
+             |  inc-by i =
+             |    launch-missiles() -- OK, since declared by `inc-by` signature
+             |    y = State.get
+             |    State.set (y +_Int64 i)
+             |  ()
+             |
+             |()
+             |]
+  , checks [r|--IO3 effect
+             |effect IO where
+             |  launch-missiles : () -> {IO} ()
+             |
+             |-- binding IS guarded, so its body can access whatever abilities
+             |-- are declared by the type of the binding
+             |-- ambient abilities (which will be empty)
+             |ex1 : () -> {IO} ()
+             |ex1 unit = IO.launch-missiles()
+             |
+             |()
+             |]
   ]
   where c tm typ = scope tm . expect $ check (stripMargin tm) typ
         bombs s = scope s (expect . not . fileTypechecks $ s)
@@ -204,5 +305,3 @@ test = scope "typechecker" . tests $
         fileTypechecks = isRight . typeFile
         stripMargin =
           unlines . map (dropWhile (== '|'). dropWhile isSpace) . lines
-
-
