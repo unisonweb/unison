@@ -901,28 +901,36 @@ synthesizeClosed' :: Var v
                   -> DataDeclarations v
                   -> Term v
                   -> M v (Type v)
-synthesizeClosed' abilities decls term | Set.null (ABT.freeVars term) =
+synthesizeClosed' abilities decls term
+  | Set.null (ABT.freeVars term) =
   verifyDataDeclarations decls *>
   case runM (synthesize term) (MEnv env0 abilities decls True) of
     Left err -> M $ \_ -> Left err
     Right (t,env) -> pure $ generalizeExistentials (ctx env) t
 synthesizeClosed' _abilities _decls term =
-  fail $ "cannot synthesize term with free variables: " ++ show (map Var.name $ Set.toList (ABT.freeVars term))
+  fail $ "Unknown symbols: " ++ show (Set.toList . ABT.freeVars $ term)
+
+checkClosed :: (Monad f, Var v) => Term v -> Noted f ()
+checkClosed t =
+  let fvs = Set.toList $ Term.freeVars t
+      fvts = Set.toList $ Term.freeTypeVars t
+  in if null fvs && null fvts
+       then pure ()
+       else fail $ "Unknown symbols: " ++ intercalate ", " (Set.toList . Set.fromList $ map show fvs ++ map show fvts)
 
 synthesizeClosedAnnotated :: (Monad f, Var v)
                           => [Type v]
                           -> DataDeclarations v
                           -> Term v
                           -> Noted f (Type v)
-synthesizeClosedAnnotated abilities decls term | Set.null (ABT.freeVars term) = do
+synthesizeClosedAnnotated abilities decls term = do
+  checkClosed term
   Note.fromEither $
     runM (verifyDataDeclarations decls *> synthesize term)
          (MEnv env0 abilities decls True)
       >>= \(t,env) ->
     -- we generalize over any remaining unsolved existentials
         pure $ generalizeExistentials (ctx env) t
-synthesizeClosedAnnotated _abilities _decls term =
-  fail $ "cannot synthesize term with free variables: " ++ show (map Var.name $ Set.toList (ABT.freeVars term))
 
 verifyDataDeclarations :: Var v => DataDeclarations v -> M v ()
 verifyDataDeclarations decls = forM_ (Map.toList decls) $ \(r, decl) -> do

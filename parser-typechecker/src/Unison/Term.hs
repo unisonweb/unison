@@ -119,7 +119,7 @@ typeMap f t = go t where
 wrapV :: Ord v => AnnotatedTerm v a -> AnnotatedTerm (ABT.V v) a
 wrapV = vmap ABT.Bound
 
-freeVars :: Term v -> Set v
+freeVars :: AnnotatedTerm' vt v a -> Set v
 freeVars = ABT.freeVars
 
 freeTypeVars :: Ord vt => AnnotatedTerm' vt v a -> Set vt
