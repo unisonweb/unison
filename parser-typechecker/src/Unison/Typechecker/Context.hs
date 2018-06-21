@@ -588,10 +588,13 @@ check e t = getContext >>= \ctx -> scope ("check: " ++ show e ++ ":   " ++ show 
         check e t
         modifyContext (retract marker)
       go (Term.Handle' h body) t = do
+        -- `h` should check against `Effect e i -> t` (for new existentials `e` and `i`)
+        -- `body` should check against `i`
         [e, i] <- sequence [freshNamed "e", freshNamed "i"]
         appendContext $ context [Existential e, Existential i]
         check h $ Type.effectV (Type.existential e) (Type.existential i) `Type.arrow` t
-        withEffects [Type.existential e] $ check body (Type.effect [Type.existential e] t)
+        ctx <- getContext
+        withEffects [Type.existential e] $ check body (apply ctx (Type.existential i))
       go _ _ = do -- Sub
         a <- synthesize e; ctx <- getContext
         subtype (apply ctx a) (apply ctx t)

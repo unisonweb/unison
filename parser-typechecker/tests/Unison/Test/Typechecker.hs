@@ -148,7 +148,7 @@ test = scope "typechecker" . tests $
              |
              |() |]
 
-  , checks [r|-- lol
+  , checks [r|--Abort
              |effect Abort where
              |  Abort : forall a . () -> {Abort} a
              |
@@ -205,9 +205,6 @@ test = scope "typechecker" . tests $
              |ex1 : (UInt64, UInt64)
              |ex1 = handle (state 42) in State.get ()
              |
-             |-- this also bombs due to UInt64 <: Pair UInt64 (Pair UInt64 ())
-             |--failure, seems like this isn't a subtype check that should be
-             |--happening when typechecking this program
              |ex1a : (UInt64, UInt64)
              |ex1a = handle (state 42) in 49
              |
