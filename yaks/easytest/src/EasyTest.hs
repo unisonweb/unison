@@ -132,7 +132,7 @@ run' seed note allow (Test t) = do
       note "\n"
       note $ "  " ++ show succeeded ++ (if failed == 0 then " PASSED" else " passed")
       note $ "  " ++ show (length failures) ++ (if failed == 0 then " failed" else " FAILED (failed scopes below)")
-      note $ "    " ++ intercalate "\n    " (map show failures)
+      note $ "    " ++ intercalate "\n    " (map (show . takeWhile (/= '\n')) failures)
       note ""
       note $ "  To rerun with same random seed:\n"
       note $ "    EasyTest.rerun " ++ show seed
