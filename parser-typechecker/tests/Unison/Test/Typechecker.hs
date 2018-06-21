@@ -278,7 +278,7 @@ test = scope "typechecker" . tests $
              |  inc-by i =
              |    launch-missiles() -- not allowed
              |    y = State.get()
-             |    State.set (y +_Int64 i)
+             |    State.put (y +_Int64 i)
              |  ()
              |
              |()
@@ -295,9 +295,9 @@ test = scope "typechecker" . tests $
              |foo unit =
              |  inc-by : Int64 -> {IO, State Int} ()
              |  inc-by i =
-             |    launch-missiles() -- OK, since declared by `inc-by` signature
+             |    IO.launch-missiles() -- OK, since declared by `inc-by` signature
              |    y = State.get()
-             |    State.set (y +_Int64 i)
+             |    State.put (y +_Int64 i)
              |  ()
              |
              |()
