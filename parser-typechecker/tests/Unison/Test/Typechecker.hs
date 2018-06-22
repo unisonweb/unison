@@ -360,8 +360,9 @@ test = scope "typechecker" . tests $
              |zappy : () -> {Noop} (List UInt64)
              |zappy u = map (zap -> (Noop.noop zap +_UInt64 1)) ex
              |
-             |--zappy2 : () -> {Noop, Noop2} (List UInt64)
-             |--zappy2 u = map (zap -> Noop.noop zap +_UInt64 Noop2.noop2 2 7) ex
+             |zappy2 : () -> {Noop, Noop2} (List UInt64)
+             |zappy2 u = map (zap -> Noop.noop zap +_UInt64 Noop2.noop2 2 7) ex
+             |
              |()
              |]
   ]
