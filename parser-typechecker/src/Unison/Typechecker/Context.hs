@@ -243,8 +243,10 @@ modifyContext' f = modifyContext (pure . f)
 appendContext :: Var v => Context v -> M v ()
 appendContext tl = modifyContext' (\ctx -> ctx `append` tl)
 
-scope :: String -> M v a -> M v a
-scope msg (M m) = M (\menv -> Note.scope msg $ m menv)
+scope :: Var v => String -> M v a -> M v a
+scope msg (M m) = do
+  ambient <- getAbilities
+  M (\menv -> Note.scope (show ambient ++ " " ++ msg) $ m menv)
 
 freshenVar :: Var v => v -> M v v
 freshenVar v =
@@ -831,7 +833,7 @@ patternToTerm pat = case pat of
 -- the process.
 -- e.g. in `(f:t) x` -- finds the type of (f x) given t and x.
 synthesizeApp :: Var v => Type v -> Term v -> M v (Type v)
-synthesizeApp ft arg = scope ("synthesizeApp: " ++ show ft ++ " " ++ show arg) $ go ft where
+synthesizeApp ft arg = scope ("synthesizeApp: " ++ show ft ++ ", " ++ show arg) $ go ft where
   go (Type.Forall' body) = do -- Forall1App
     v <- ABT.freshen body freshenTypeVar
     appendContext (context [Existential v])
