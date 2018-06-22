@@ -584,7 +584,6 @@ check e t = getContext >>= \ctx -> scope ("check: " ++ show e ++ ":   " ++ show 
       go _ _ = do -- Sub
         a <- synthesize e; ctx <- getContext
         subtype (apply ctx a) (apply ctx t)
-      -- (as, t') = Type.stripEffect t
     in go (minimize' e) t
   else
     scope ("context: " ++ show ctx) .

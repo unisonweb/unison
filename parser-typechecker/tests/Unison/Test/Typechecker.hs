@@ -129,7 +129,7 @@ test = scope "typechecker" . tests $
              |id x = x
              |
              |r13 : (UInt64, Text)
-             |r13 = let
+             |r13 =
              |  id = ((x -> x): forall a . a -> a)
              |  (id 10, id "foo")
              |
