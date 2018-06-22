@@ -228,7 +228,6 @@ test = scope "typechecker" . tests $
              |
              |ex1d = handle (state 42) in 49
              |
-             |-- this fails - something busted with inference of `handle` blocks
              |ex2 = handle (state 42) in State.get ()
              |
              |ex3 : (UInt64, UInt64)
@@ -298,8 +297,6 @@ test = scope "typechecker" . tests $
              |    IO.launch-missiles() -- OK, since declared by `inc-by` signature
              |    y = State.get()
              |    State.put (y +_Int64 i)
-             |    -- not sure why, but putting the `()` as the body causes test to pass
-             |    ()
              |  ()
              |
              |()

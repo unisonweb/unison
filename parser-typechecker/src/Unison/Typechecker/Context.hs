@@ -584,8 +584,8 @@ check e t = getContext >>= \ctx -> scope ("check: " ++ show e ++ ":   " ++ show 
       go _ _ = do -- Sub
         a <- synthesize e; ctx <- getContext
         subtype (apply ctx a) (apply ctx t)
-      (as, t') = Type.stripEffect t
-    in withEffects as $ go (minimize' e) t'
+      -- (as, t') = Type.stripEffect t
+    in go (minimize' e) t
   else
     scope ("context: " ++ show ctx) .
     scope ("term: " ++ show e) .
@@ -669,20 +669,19 @@ synthesize e = scope ("synth: " ++ show e) $ go (minimize' e)
     v' <- ABT.freshen e freshenVar
     e  <- pure $ ABT.bind e (Term.builtin (Var.name v') `Term.ann` t)
     synthesize e
-  go (Term.Let1' binding e) = do
-    -- literally just convert to a lambda application and call synthesize!
-    -- NB: this misses out on let generalization
-    -- let x = blah p q in foo y <=> (x -> foo y) (blah p q)
-    v' <- ABT.freshen e freshenVar
-    e  <- pure $ ABT.bind e (Term.var v')
-    synthesize (Term.lam v' e `Term.app` binding)
   --go (Term.Let1' binding e) = do
-  --  -- note: no need to freshen binding, it can't refer to v
-  --  tbinding <- synthesize binding
+  --  -- literally just convert to a lambda application and call synthesize!
+  --  -- NB: this misses out on let generalization
+  --  -- let x = blah p q in foo y <=> (x -> foo y) (blah p q)
   --  v' <- ABT.freshen e freshenVar
-  --  appendContext (context [Ann v' tbinding])
-  --  t <- synthesize (ABT.bind e (Term.var v'))
-  --  pure t
+  --  e  <- pure $ ABT.bind e (Term.var v')
+  --  synthesize (Term.lam v' e `Term.app` binding)
+  go (Term.Let1' binding e) = do
+    -- note: no need to freshen binding, it can't refer to v
+    tbinding <- synthesize binding
+    v' <- ABT.freshen e freshenVar
+    appendContext (context [Ann v' tbinding])
+    synthesize (ABT.bind e (Term.var v'))
   --  -- TODO: figure out why this retract sometimes generates invalid contexts,
   --  -- (ctx, ctx2) <- breakAt (Ann v' tbinding) <$> getContext
   --  -- as in (f -> let x = (let saved = f in 42) in 1)
