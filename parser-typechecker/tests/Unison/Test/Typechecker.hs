@@ -313,6 +313,25 @@ test = scope "typechecker" . tests $
              |
              |()
              |]
+  , checks [r|--map/traverse
+             |effect Noop where
+             |  noop : ∀ a . a -> {Noop} a
+             |
+             |type List a = Nil | Cons a (List a)
+             |
+             |map : ∀ a b . (a -> b) -> List a -> List b
+             |map f as = case as of
+             |  List.Nil -> List.Nil
+             |  List.Cons h t -> List.Cons (f h) (map f t)
+             |
+             |c = List.Cons
+             |z = List.Nil
+             |
+             |ex = (c 1 (c 2 (c 3 z)))
+             |
+             |()
+             |-- map (a -> Noop.noop a)
+             |]
   ]
   where c tm typ = scope tm . expect $ check (stripMargin tm) typ
         bombs s = scope s (expect . not . fileTypechecks $ s)
