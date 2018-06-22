@@ -765,27 +765,14 @@ synthesize e = scope ("synth: " ++ show e) $ go (minimize' e)
     check h $
       Type.effectV (Type.existential e) (Type.existential i)
         `Type.arrow` Type.existential o
-    -- output type of the body should {e} i
-    -- body : {IO, State Int} Text
-    -- body <: {State Int} Text -- don't want this
+    -- handler is of type `Effect e a -> {e1,e2..} o`
     -- bodyType <- synthesize the body, obtain `{e,e1,e2...} a`
     -- we strip out `e` from the effect list of body type (if effect list is there)
     -- subtype check
     ctx <- getContext
-    withEffects [apply ctx $ Type.existential e] . scope "body of handle" $ do
-      Type.Effect'' es bodyType <- scope "synth handle body" $ synthesize body
-      ctx <- getContext
-      logContext "body subtype check"
-      scope "body subtype check" $
-        apply ctx bodyType `subtype` (apply ctx $ Type.existential i)
-      ctx <- getContext
-      let normalizedEs = apply ctx <$> es
-          normalizedE = apply ctx (Type.existential e)
-      -- todo: should we just remove the first one we see?
-          es' = filter (\t -> t /= normalizedE) normalizedEs
-      case es' of
-        [] -> pure $ apply ctx (Type.existential o)
-        _ -> pure $ apply ctx (Type.effect es' $ Type.existential o)
+    withEffects [apply ctx $ Type.existential e] . scope "body of handle" $
+      synthesizeApp (apply ctx $ Type.existential i `Type.arrow` Type.existential o)
+                    body
   go e = fail $ "unknown case in synthesize " ++ show e
 
 
