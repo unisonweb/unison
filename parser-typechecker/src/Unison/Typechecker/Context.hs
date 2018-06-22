@@ -243,8 +243,10 @@ modifyContext' f = modifyContext (pure . f)
 appendContext :: Var v => Context v -> M v ()
 appendContext tl = modifyContext' (\ctx -> ctx `append` tl)
 
-scope :: String -> M v a -> M v a
-scope msg (M m) = M (\menv -> Note.scope msg $ m menv)
+scope :: Var v => String -> M v a -> M v a
+scope msg (M m) = do
+  ambient <- getAbilities
+  M (\menv -> Note.scope (show ambient ++ " " ++ msg) $ m menv)
 
 freshenVar :: Var v => v -> M v v
 freshenVar v =
@@ -534,6 +536,10 @@ withEffects :: [Type v] -> M v a -> M v a
 withEffects abilities' m =
   M (\menv -> runM m (menv { abilities = abilities' ++ abilities menv }))
 
+withEffects0 :: [Type v] -> M v a -> M v a
+withEffects0 abilities' m =
+  M (\menv -> runM m (menv { abilities = abilities' }))
+
 -- | Check that under the given context, `e` has type `t`,
 -- updating the context in the process.
 check :: Var v => Term v -> Type v -> M v ()
@@ -553,7 +559,8 @@ check e t = getContext >>= \ctx -> scope ("check: " ++ show e ++ ":   " ++ show 
       go (Term.Lam' body) (Type.Arrow' i o) = do -- =>I
         x <- ABT.freshen body freshenVar
         modifyContext' (extend (Ann x i))
-        check (ABT.bind body (Term.var x)) o
+        let Type.Effect'' es _ = o
+        scope ("pushing effects: " ++ show es) . withEffects0 es $ check (ABT.bind body (Term.var x)) o
         modifyContext (retract (Ann x i))
       go (Term.Let1' binding e) t = do
         v <- ABT.freshen e freshenVar
@@ -579,8 +586,7 @@ check e t = getContext >>= \ctx -> scope ("check: " ++ show e ++ ":   " ++ show 
       go _ _ = do -- Sub
         a <- synthesize e; ctx <- getContext
         subtype (apply ctx a) (apply ctx t)
-      (as, t') = Type.stripEffect t
-    in withEffects as $ go (minimize' e) t'
+    in go (minimize' e) t
   else
     scope ("context: " ++ show ctx) .
     scope ("term: " ++ show e) .
@@ -634,8 +640,9 @@ synthesize e = scope ("synth: " ++ show e) $ go (minimize' e)
     Nothing -> fail $ "type not known for term var: " ++ Text.unpack (Var.name v)
     Just t -> pure t
   go Term.Blank' = do
-    v <- freshVar
-    pure $ Type.forall (TypeVar.Universal v) (Type.universal v)
+    v <- freshNamed "_"
+    appendContext $ context [Existential v]
+    pure $ Type.existential v -- forall (TypeVar.Universal v) (Type.universal v)
   go (Term.Ann' (Term.Ref' _) t) = case ABT.freeVars t of
     s | Set.null s ->
       -- innermost Ref annotation assumed to be correctly provided by `synthesizeClosed`
@@ -664,20 +671,21 @@ synthesize e = scope ("synth: " ++ show e) $ go (minimize' e)
     v' <- ABT.freshen e freshenVar
     e  <- pure $ ABT.bind e (Term.builtin (Var.name v') `Term.ann` t)
     synthesize e
-  go (Term.Let1' binding e) = do
-    -- literally just convert to a lambda application and call synthesize!
-    -- NB: this misses out on let generalization
-    -- let x = blah p q in foo y <=> (x -> foo y) (blah p q)
-    v' <- ABT.freshen e freshenVar
-    e  <- pure $ ABT.bind e (Term.var v')
-    synthesize (Term.lam v' e `Term.app` binding)
   --go (Term.Let1' binding e) = do
-  --  -- note: no need to freshen binding, it can't refer to v
-  --  tbinding <- synthesize binding
+  --  -- literally just convert to a lambda application and call synthesize!
+  --  -- NB: this misses out on let generalization
+  --  -- let x = blah p q in foo y <=> (x -> foo y) (blah p q)
   --  v' <- ABT.freshen e freshenVar
-  --  appendContext (context [Ann v' tbinding])
-  --  t <- synthesize (ABT.bind e (Term.var v'))
-  --  pure t
+  --  e  <- pure $ ABT.bind e (Term.var v')
+  --  synthesize (Term.lam v' e `Term.app` binding)
+  go (Term.Let1' binding e) = do
+    -- note: no need to freshen binding, it can't refer to v
+    tbinding <- synthesize binding
+    v' <- ABT.freshen e freshenVar
+    appendContext (context [Ann v' tbinding])
+    t <- synthesize (ABT.bind e (Term.var v'))
+    modifyContext (retract (Ann v' tbinding))
+    pure t
   --  -- TODO: figure out why this retract sometimes generates invalid contexts,
   --  -- (ctx, ctx2) <- breakAt (Ann v' tbinding) <$> getContext
   --  -- as in (f -> let x = (let saved = f in 42) in 1)
@@ -828,7 +836,7 @@ patternToTerm pat = case pat of
 -- the process.
 -- e.g. in `(f:t) x` -- finds the type of (f x) given t and x.
 synthesizeApp :: Var v => Type v -> Term v -> M v (Type v)
-synthesizeApp ft arg = scope ("synthesizeApp: " ++ show ft ++ " " ++ show arg) $ go ft where
+synthesizeApp ft arg = scope ("synthesizeApp: " ++ show ft ++ ", " ++ show arg) $ go ft where
   go (Type.Forall' body) = do -- Forall1App
     v <- ABT.freshen body freshenTypeVar
     appendContext (context [Existential v])
