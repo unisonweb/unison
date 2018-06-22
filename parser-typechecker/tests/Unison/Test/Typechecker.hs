@@ -313,13 +313,38 @@ test = scope "typechecker" . tests $
              |
              |()
              |]
+  , bombs [r|--Type.apply
+            |type List a = Nil | Cons a (List a)
+            |
+            |map : ∀ a b . (a -> b) -> List a -> List b
+            |map f as = case as of
+            |  List.Nil -> List.Nil
+            |  List.Cons h t -> List.Cons h (map f t) -- should not typecheck, missing (f h)
+            |
+            |-- definitely should not typecheck!
+            |map2 : ∀ a . a
+            |map2 = map
+            |
+            |c = List.Cons
+            |z = List.Nil
+            |
+            |ex = c 1 (c 2 (c 3 z))
+            |
+            |pure-map : List Int64 -- should fail, output is a `List Text`
+            |pure-map = map (a -> "hi") ex
+            |
+            |()
+            |]
   , checks [r|--map/traverse
              |effect Noop where
              |  noop : ∀ a . a -> {Noop} a
              |
+             |effect Noop2 where
+             |  noop2 : ∀ a . a -> a -> {Noop2} a
+             |
              |type List a = Nil | Cons a (List a)
              |
-             |map : ∀ a b . (a -> b) -> List a -> List b
+             |map : ∀ a b e . (a -> {e} b) -> List a -> {e} (List b)
              |map f as = case as of
              |  List.Nil -> List.Nil
              |  List.Cons h t -> List.Cons (f h) (map f t)
@@ -329,8 +354,15 @@ test = scope "typechecker" . tests $
              |
              |ex = (c 1 (c 2 (c 3 z)))
              |
+             |pure-map : List Text
+             |pure-map = map (a -> "hello") ex
+             |
+             |zappy : () -> {Noop} (List UInt64)
+             |zappy u = map (zap -> (Noop.noop zap +_UInt64 1)) ex
+             |
+             |--zappy2 : () -> {Noop, Noop2} (List UInt64)
+             |--zappy2 u = map (zap -> Noop.noop zap +_UInt64 Noop2.noop2 2 7) ex
              |()
-             |-- map (a -> Noop.noop a)
              |]
   ]
   where c tm typ = scope tm . expect $ check (stripMargin tm) typ
