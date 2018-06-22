@@ -45,8 +45,10 @@ import qualified Unison.TypeVar as TypeVar
 import           Unison.Typechecker.Components (minimize')
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
+
 -- uncomment for debugging
---watch msg a = trace (msg ++ ":\n" ++ show a) a
+watch :: Show a => String -> a -> a
+watch msg a = trace (msg ++ ":  " ++ show a) a
 
 -- | We deal with type variables annotated with whether they are universal or existential
 type Type v = Type.Type (TypeVar v)
@@ -442,22 +444,20 @@ subtype tx ty = scope (show tx++" <: "++show ty) $
     ctx' <- getContext
     subtype (apply ctx' t) t2
     modifyContext (retract (Marker v))
-  go _ (Type.Effect'' es1 a1) (Type.Effect'' es2 a2)
-     | not (null es1) || not (null es2) = do
-       subtype a1 a2
-       ctx <- getContext
-       let es1' = map (apply ctx) es1
-           es2' = map (apply ctx) es2
-       abilityCheck' es2' es1'
-  go _ (Type.Effect' [] a1) (Type.Effect' [] a2) = subtype a1 a2
-  go _ a1 (Type.Effect' _ a2) = subtype a1 a2
-  go _ (Type.Effect' _ a1) a2 = subtype a1 a2
+  go _ (Type.Effect' [] a1) a2 = subtype a1 a2
+  go _ a1 (Type.Effect' [] a2) = subtype a1 a2
   go ctx (Type.Existential' v) t -- `InstantiateL`
     | Set.member v (existentials ctx) && notMember v (Type.freeVars t) =
     instantiateL v t
   go ctx t (Type.Existential' v) -- `InstantiateR`
     | Set.member v (existentials ctx) && notMember v (Type.freeVars t) =
     instantiateR t v
+  go _ (Type.Effect'' es1 a1) (Type.Effect' es2 a2) = do
+     subtype a1 a2
+     ctx <- getContext
+     let !es1' = watch "es1'" $ map (apply ctx) es1
+         !es2' = watch "es2'" $ map (apply ctx) es2
+     abilityCheck' es2' es1'
   go _ _ _ = fail "not a subtype"
 
 -- | Instantiate the given existential such that it is
@@ -484,11 +484,20 @@ instantiateL v t = getContext >>= \ctx -> case Type.monotype t >>= solve ctx v o
       ctx0 <- getContext
       ctx' <- instantiateL x' (apply ctx0 x) >> getContext
       instantiateL y' (apply ctx' y)
+    Type.Effect' es vt -> do
+      es' <- replicateM (length es) (freshNamed "e")
+      vt' <- freshNamed "vt"
+      let s = Solved v (Type.Monotype (Type.effect (Type.existential <$> es') (Type.existential vt')))
+      modifyContext' $ replace (Existential v) (context $ (Existential <$> es') ++ [Existential vt', s])
+      Foldable.for_ (es' `zip` es) $ \(e',e) -> do
+        ctx <- getContext
+        instantiateL e' (apply ctx e)
+      ctx <- getContext
+      instantiateL vt' (apply ctx vt)
     Type.Forall' body -> do -- InstLIIL
       v <- extendUniversal =<< ABT.freshen body freshenTypeVar
       instantiateL v (ABT.bind body (Type.universal v))
       modifyContext (retract (Universal v))
-    Type.Effect' _es _vt -> error "the impossible happened: subtype should eliminate all effects before reaching here"
     _ -> do
       let msg = "could not instantiate left: '" ++ show v ++ " <: " ++ show t
       logContext msg
@@ -522,12 +531,21 @@ instantiateR t v = getContext >>= \ctx -> case Type.monotype t >>= solve ctx v o
       instantiateR (apply ctx x) x'
       ctx <- getContext
       instantiateR (apply ctx y) y'
+    Type.Effect' es vt -> do
+      es' <- replicateM (length es) (freshNamed "e")
+      vt' <- freshNamed "vt"
+      let s = Solved v (Type.Monotype (Type.effect (Type.existential <$> es') (Type.existential vt')))
+      modifyContext' $ replace (Existential v) (context $ (Existential <$> es') ++ [Existential vt', s])
+      Foldable.for_ (es `zip` es') $ \(e, e') -> do
+        ctx <- getContext
+        instantiateR (apply ctx e) e'
+      ctx <- getContext
+      instantiateR (apply ctx vt) vt'
     Type.Forall' body -> do -- InstRAIIL
       x' <- ABT.freshen body freshenTypeVar
       setContext $ ctx `append` context [Marker x', Existential x']
       instantiateR (ABT.bind body (Type.existential x')) v
       modifyContext (retract (Marker x'))
-    Type.Effect' _es _vt -> error "the impossible happened: subtype should eliminate all effects before reaching here"
     _ -> do
       logContext ("failed: instantiateR " <> show t <> " " <> show v)
       fail $ "could not instantiate right " ++ show t
@@ -543,7 +561,7 @@ withEffects0 abilities' m =
 -- | Check that under the given context, `e` has type `t`,
 -- updating the context in the process.
 check :: Var v => Term v -> Type v -> M v ()
-check e t = getContext >>= \ctx -> scope ("check: " ++ show e ++ ":   " ++ show t) $
+check e t = getContext >>= \ctx ->
   if wellformedType ctx t then
     let
       go (Term.Int64' _) _ = subtype Type.int64 t -- 1I
@@ -564,9 +582,9 @@ check e t = getContext >>= \ctx -> scope ("check: " ++ show e ++ ":   " ++ show 
         modifyContext (retract (Ann x i))
       go (Term.Let1' binding e) t = do
         v <- ABT.freshen e freshenVar
-        tbinding <- synthesize binding
+        tbinding <- scope "let1.synthesize binding" $ synthesize binding
         modifyContext' (extend (Ann v tbinding))
-        check (ABT.bind e (Term.var v)) t
+        scope "let1.checking body" $ check (ABT.bind e (Term.var v)) t
         modifyContext (retract (Ann v tbinding))
       go (Term.LetRecNamed' [] e) t = check e t
       go (Term.LetRec' letrec) t = do
@@ -586,7 +604,11 @@ check e t = getContext >>= \ctx -> scope ("check: " ++ show e ++ ":   " ++ show 
       go _ _ = do -- Sub
         a <- synthesize e; ctx <- getContext
         subtype (apply ctx a) (apply ctx t)
-    in go (minimize' e) t
+      e' = minimize' e
+    in scope ("check: " ++ show e' ++ ":   " ++ show t) $ case t of
+         -- expand existentials before checking
+         t@(Type.Existential' _) -> go e' (apply ctx t)
+         t -> go e' t
   else
     scope ("context: " ++ show ctx) .
     scope ("term: " ++ show e) .
@@ -618,7 +640,6 @@ annotateLetRecBindings letrec = do
         _ -> Type.existential e
   let bindingTypes = zipWith f es bindings
   appendContext $ context (Marker e1 : map Existential es ++ zipWith Ann vs bindingTypes)
-  logContext "annotating letrec bindings"
   -- check each `bi` against `ei`; sequencing resulting contexts
   Foldable.for_ (zip bindings bindingTypes) $ \((_,b), t) -> check b t
   -- compute generalized types `gt1, gt2 ...` for each binding `b1, b2...`;
@@ -667,7 +688,7 @@ synthesize e = scope ("synth: " ++ show e) $ go (minimize' e)
     -- no free variables, i.e. `let id x = x in ...`
     decls <- getDataDeclarations
     abilities <- getAbilities
-    t  <- synthesizeClosed' abilities decls binding
+    t  <- scope "let1 closed" $ synthesizeClosed' abilities decls binding
     v' <- ABT.freshen e freshenVar
     e  <- pure $ ABT.bind e (Term.builtin (Var.name v') `Term.ann` t)
     synthesize e
@@ -852,7 +873,7 @@ synthesizeApp ft arg = scope ("synthesizeApp: " ++ show ft ++ ", " ++ show arg) 
     let ctxMid = context [Existential o, Existential i, Solved a soln]
     modifyContext' $ replace (Existential a) ctxMid
     logContext "synthesizeApp (Existential)"
-    Type.existential o <$ check arg (Type.existential i)
+    scope "a^App" $ (Type.existential o <$ check arg (Type.existential i))
   go _ = scope "unable to synthesize type of application" $
          scope ("function type: " ++ show ft) $
          fail  ("arg: " ++ show arg)
