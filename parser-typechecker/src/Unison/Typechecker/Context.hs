@@ -683,7 +683,9 @@ synthesize e = scope ("synth: " ++ show e) $ go (minimize' e)
     tbinding <- synthesize binding
     v' <- ABT.freshen e freshenVar
     appendContext (context [Ann v' tbinding])
-    synthesize (ABT.bind e (Term.var v'))
+    t <- synthesize (ABT.bind e (Term.var v'))
+    modifyContext (retract (Ann v' tbinding))
+    pure t
   --  -- TODO: figure out why this retract sometimes generates invalid contexts,
   --  -- (ctx, ctx2) <- breakAt (Ann v' tbinding) <$> getContext
   --  -- as in (f -> let x = (let saved = f in 42) in 1)
