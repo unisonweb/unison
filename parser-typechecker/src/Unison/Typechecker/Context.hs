@@ -598,9 +598,10 @@ check e t = getContext >>= \ctx ->
         appendContext $ context [Existential e, Existential i]
         check h $ Type.effectV (Type.existential e) (Type.existential i) `Type.arrow` t
         ctx <- getContext
-        withEffects [Type.existential e] $ do
+        withEffects [apply ctx $ Type.existential e] $ do
           ambient <- getAbilities
-          check body (apply ctx (Type.effect ambient (Type.existential i)))
+          let (_, i') = Type.stripEffect (apply ctx (Type.existential i))
+          check body (Type.effect ambient i')
       go _ _ = do -- Sub
         a <- synthesize e; ctx <- getContext
         subtype (apply ctx a) (apply ctx t)
