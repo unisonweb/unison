@@ -640,8 +640,9 @@ synthesize e = scope ("synth: " ++ show e) $ go (minimize' e)
     Nothing -> fail $ "type not known for term var: " ++ Text.unpack (Var.name v)
     Just t -> pure t
   go Term.Blank' = do
-    v <- freshVar
-    pure $ Type.forall (TypeVar.Universal v) (Type.universal v)
+    v <- freshNamed "_"
+    appendContext $ context [Existential v]
+    pure $ Type.existential v -- forall (TypeVar.Universal v) (Type.universal v)
   go (Term.Ann' (Term.Ref' _) t) = case ABT.freeVars t of
     s | Set.null s ->
       -- innermost Ref annotation assumed to be correctly provided by `synthesizeClosed`
