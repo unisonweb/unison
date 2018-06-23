@@ -185,13 +185,13 @@ test = scope "typechecker" . tests $
    , checks [r|--State1a effect
              |effect State se2 where
              |  put : ∀ se . se -> {State se} ()
-             |  get : ∀ se . () -> {State se} se
+             |  get : ∀ se . {State se} se
              |
              |id : Int64 -> Int64
              |id i = i
              |
              |foo : () -> {State Int64} Int64
-             |foo unit = id (State.get() +_Int64 State.get())
+             |foo unit = id (State.get +_Int64 State.get)
              |
              |()
              |]
