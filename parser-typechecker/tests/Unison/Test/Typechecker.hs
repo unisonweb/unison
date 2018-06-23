@@ -172,11 +172,14 @@ test = scope "typechecker" . tests $
              |  put : ∀ se . se -> {State se} ()
              |  get : ∀ se . () -> {State se} se
              |
+             |-- state : ∀ s a . s -> Effect (State s) a -> (s, a)
              |state woot eff = case eff of
+             |  { State.put snew -> k } -> handle (state snew) in k ()
              |  { State.get () -> k } -> handle state woot in k woot
-             |  { State.put snew -> k } -> handle (state snew) in (k ())
              |  { a } -> (woot, a)
              |
+             |blah : ∀ s a . s -> Effect (State s) a -> (s, a)
+             |blah = state
              |()
              |]
    , checks [r|--State1a effect
