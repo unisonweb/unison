@@ -48,7 +48,9 @@ import qualified Unison.Var as Var
 
 -- uncomment for debugging
 watch :: Show a => String -> a -> a
-watch msg a = trace (msg ++ ":  " ++ show a) a
+watch msg a =
+  let !r = trace (msg ++ ":  " ++ show a) a
+  in r
 
 -- | We deal with type variables annotated with whether they are universal or existential
 type Type v = Type.Type (TypeVar v)
@@ -455,8 +457,8 @@ subtype tx ty = scope (show tx++" <: "++show ty) $
   go _ (Type.Effect'' es1 a1) (Type.Effect' es2 a2) = do
      subtype a1 a2
      ctx <- getContext
-     let !es1' = watch "es1'" $ map (apply ctx) es1
-         !es2' = watch "es2'" $ map (apply ctx) es2
+     let es1' = map (apply ctx) es1
+         es2' = map (apply ctx) es2
      abilityCheck' es2' es1'
   go _ _ _ = fail "not a subtype"
 
@@ -860,7 +862,6 @@ synthesizeApp ft arg = scope ("synthesizeApp: " ++ show ft ++ ", " ++ show arg) 
     let soln = Type.Monotype (Type.existential i `Type.arrow` Type.existential o)
     let ctxMid = context [Existential o, Existential i, Solved a soln]
     modifyContext' $ replace (Existential a) ctxMid
-    logContext "synthesizeApp (Existential)"
     scope "a^App" $ (Type.existential o <$ check arg (Type.existential i))
   go _ = scope "unable to synthesize type of application" $
          scope ("function type: " ++ show ft) $
