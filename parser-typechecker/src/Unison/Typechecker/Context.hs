@@ -483,7 +483,7 @@ instantiateL v t = getContext >>= \ctx -> case Type.monotype t >>= trace "L" (so
       ctx <- getContext
       instantiateL o' (apply ctx o)
     Type.App' x y -> do -- analogue of InstLArr
-      [x', y'] <- traverse freshenVar [ABT.v' "x", ABT.v' "yyyy"]
+      [x', y'] <- traverse freshenVar [ABT.v' "x", ABT.v' "y"]
       let s = Solved v (Type.Monotype (Type.app (Type.existential x') (Type.existential y')))
       modifyContext' $ replace (Existential v) (context [Existential y', Existential x', s])
       ctx0 <- getContext
@@ -491,7 +491,7 @@ instantiateL v t = getContext >>= \ctx -> case Type.monotype t >>= trace "L" (so
       instantiateL y' (apply ctx' y)
     Type.Effect' es vt -> do
       es' <- replicateM (length es) (freshNamed "eeee")
-      vt' <- freshNamed "vtttt"
+      vt' <- freshNamed "vt"
       let s = Solved v (Type.Monotype (Type.effect (Type.existential <$> es') (Type.existential vt')))
       modifyContext' $ replace (Existential v) (context $ (Existential <$> es') ++ [Existential vt', s])
       Foldable.for_ (es' `zip` es) $ \(e',e) -> do
