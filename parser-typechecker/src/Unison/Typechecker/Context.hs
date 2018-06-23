@@ -683,7 +683,17 @@ synthesize e = scope ("synth: " ++ show e) $ go (minimize' e)
     s | otherwise ->
       fail $ "type annotation contains free variables " ++ show (map Var.name (Set.toList s))
   go (Term.Ref' h) = fail $ "unannotated reference: " ++ show h
-  go (Term.Constructor' r cid) = getConstructorType r cid
+  go (Term.Constructor' r cid) = do
+    t <- getConstructorType r cid
+    if Type.arity t == 0
+      then do
+             a <- freshNamed "a"
+             appendContext $ context [Marker a, Existential a]
+             ambient <- getAbilities
+             subtype t (Type.effect ambient (Type.existential a))
+             -- modifyContext $ retract [Marker a]
+             pure t
+      else pure t
   go (Term.Ann' e' t) = t <$ check e' t
   go (Term.Float' _) = pure Type.float -- 1I=>
   go (Term.Int64' _) = pure Type.int64 -- 1I=>

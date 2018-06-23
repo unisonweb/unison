@@ -266,7 +266,7 @@ test = scope "typechecker" . tests $
              |]
   , bombs  [r|--IO/State1 effect
              |effect IO where
-             |  launch-missiles : () -> {IO} ()
+             |  launch-missiles : {IO} ()
              |
              |effect State se2 where
              |  put : ∀ se . se -> {State se} ()
@@ -278,7 +278,7 @@ test = scope "typechecker" . tests $
              |-- them explicitly
              |  inc-by : Int64 -> {State Int} ()
              |  inc-by i =
-             |    launch-missiles() -- not allowed
+             |    launch-missiles -- not allowed
              |    y = State.get()
              |    State.put (y +_Int64 i)
              |  ()
@@ -287,18 +287,18 @@ test = scope "typechecker" . tests $
              |]
   , checks [r|--IO/State2 effect
              |effect IO where
-             |  launch-missiles : () -> {IO} ()
+             |  launch-missiles : {IO} ()
              |
              |effect State se2 where
              |  put : ∀ se . se -> {State se} ()
-             |  get : ∀ se . () -> {State se} se
+             |  get : ∀ se . {State se} se
              |
              |foo : () -> {IO} ()
              |foo unit =
              |  inc-by : Int64 -> {IO, State Int64} ()
              |  inc-by i =
-             |    IO.launch-missiles() -- OK, since declared by `inc-by` signature
-             |    y = State.get()
+             |    IO.launch-missiles -- OK, since declared by `inc-by` signature
+             |    y = State.get
              |    State.put (y +_Int64 i)
              |  ()
              |
