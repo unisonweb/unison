@@ -73,10 +73,6 @@ arity (ForallNamed' _ body) = arity body
 arity (Arrow' _ o) = 1 + arity o
 arity _ = 0
 
-unEffect0 :: Type v -> ([Type v], Type v)
-unEffect0 (Effect' es t) = (es, t)
-unEffect0 t = ([], t)
-
 -- some smart patterns
 pattern Ref' r <- ABT.Tm' (Ref r)
 pattern Arrow' i o <- ABT.Tm' (Arrow i o)
@@ -85,7 +81,7 @@ pattern Ann' t k <- ABT.Tm' (Ann t k)
 pattern App' f x <- ABT.Tm' (App f x)
 pattern Apps' f args <- (unApps -> Just (f, args))
 pattern Effect' es t <- ABT.Tm' (Effect es t)
-pattern Effect'' es t <- (unEffect0 -> (es, t))
+pattern Effect'' es t <- (stripEffect -> (es, t))
 pattern Forall' subst <- ABT.Tm' (Forall (ABT.Abs' subst))
 pattern ForallNamed' v body <- ABT.Tm' (Forall (ABT.out -> ABT.Abs v body))
 pattern Var' v <- ABT.Var' v
@@ -211,7 +207,7 @@ effectV e t = apps (builtin "Effect") [e, t]
 
 -- Strips effects from a type. E.g. `{e} a` becomes `a`.
 stripEffect :: Type v -> ([Type v], Type v)
-stripEffect (Effect' e t) = (e, t)
+stripEffect (Effect' e t) = case stripEffect t of (ei, t) -> (e ++ ei, t)
 stripEffect t = ([], t)
 
 -- The type of the flipped function application operator:

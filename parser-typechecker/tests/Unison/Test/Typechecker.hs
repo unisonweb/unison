@@ -172,23 +172,26 @@ test = scope "typechecker" . tests $
              |  put : ∀ se . se -> {State se} ()
              |  get : ∀ se . () -> {State se} se
              |
+             |-- state : ∀ s a . s -> Effect (State s) a -> (s, a)
              |state woot eff = case eff of
+             |  { State.put snew -> k } -> handle (state snew) in k ()
              |  { State.get () -> k } -> handle state woot in k woot
-             |  { State.put snew -> k } -> handle (state snew) in (k ())
              |  { a } -> (woot, a)
              |
+             |blah : ∀ s a . s -> Effect (State s) a -> (s, a)
+             |blah = state
              |()
              |]
    , checks [r|--State1a effect
              |effect State se2 where
              |  put : ∀ se . se -> {State se} ()
-             |  get : ∀ se . () -> {State se} se
+             |  get : ∀ se . {State se} se
              |
              |id : Int64 -> Int64
              |id i = i
              |
              |foo : () -> {State Int64} Int64
-             |foo unit = id (State.get() +_Int64 State.get())
+             |foo unit = id (State.get +_Int64 State.get)
              |
              |()
              |]
@@ -263,7 +266,7 @@ test = scope "typechecker" . tests $
              |]
   , bombs  [r|--IO/State1 effect
              |effect IO where
-             |  launch-missiles : () -> {IO} ()
+             |  launch-missiles : {IO} ()
              |
              |effect State se2 where
              |  put : ∀ se . se -> {State se} ()
@@ -275,7 +278,7 @@ test = scope "typechecker" . tests $
              |-- them explicitly
              |  inc-by : Int64 -> {State Int} ()
              |  inc-by i =
-             |    launch-missiles() -- not allowed
+             |    launch-missiles -- not allowed
              |    y = State.get()
              |    State.put (y +_Int64 i)
              |  ()
@@ -284,18 +287,18 @@ test = scope "typechecker" . tests $
              |]
   , checks [r|--IO/State2 effect
              |effect IO where
-             |  launch-missiles : () -> {IO} ()
+             |  launch-missiles : {IO} ()
              |
              |effect State se2 where
              |  put : ∀ se . se -> {State se} ()
-             |  get : ∀ se . () -> {State se} se
+             |  get : ∀ se . {State se} se
              |
              |foo : () -> {IO} ()
              |foo unit =
              |  inc-by : Int64 -> {IO, State Int64} ()
              |  inc-by i =
-             |    IO.launch-missiles() -- OK, since declared by `inc-by` signature
-             |    y = State.get()
+             |    IO.launch-missiles -- OK, since declared by `inc-by` signature
+             |    y = State.get
              |    State.put (y +_Int64 i)
              |  ()
              |
@@ -360,8 +363,9 @@ test = scope "typechecker" . tests $
              |zappy : () -> {Noop} (List UInt64)
              |zappy u = map (zap -> (Noop.noop zap +_UInt64 1)) ex
              |
-             |--zappy2 : () -> {Noop, Noop2} (List UInt64)
-             |--zappy2 u = map (zap -> Noop.noop zap +_UInt64 Noop2.noop2 2 7) ex
+             |zappy2 : () -> {Noop, Noop2} (List UInt64)
+             |zappy2 u = map (zap -> Noop.noop zap +_UInt64 Noop2.noop2 2 7) ex
+             |
              |()
              |]
   ]

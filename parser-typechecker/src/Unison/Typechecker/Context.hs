@@ -45,8 +45,12 @@ import qualified Unison.TypeVar as TypeVar
 import           Unison.Typechecker.Components (minimize')
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
+
 -- uncomment for debugging
---watch msg a = trace (msg ++ ":\n" ++ show a) a
+watch :: Show a => String -> a -> a
+watch msg a =
+  let !r = trace (msg ++ ":  " ++ show a) a
+  in r
 
 -- | We deal with type variables annotated with whether they are universal or existential
 type Type v = Type.Type (TypeVar v)
@@ -110,7 +114,7 @@ instance Var v => Show (Context v) where
   show (Context es) = "Γ\n  " ++ (intercalate "\n  " . map (show . fst)) (reverse es)
 
 debugEnabled :: Bool
-debugEnabled = True
+debugEnabled = False
 
 logContext :: Var v => String -> M v ()
 logContext msg = when debugEnabled $ do
@@ -392,10 +396,11 @@ solve ctx v t
   where same t2 | apply ctx (Type.getPolytype t) == apply ctx (Type.getPolytype t2) = Just ctx
                 | otherwise = Nothing
 solve ctx v t
-  | wellformedType ctxL (Type.getPolytype t) = Just ctx'
+  | wellformedType ctxL (Type.getPolytype t) = trace msg $ Just ctx'
   | otherwise                                = Nothing
   where (ctxL,ctxR) = breakAt (Existential v) ctx
         ctx' = ctxL `append` context [Solved v t] `append` ctxR
+        msg = "solving '" ++ show v ++ " = " ++ show (Type.getPolytype t)
 
 extendUniversal :: Var v => v -> M v v
 extendUniversal v = do
@@ -415,6 +420,7 @@ notMember v s = Set.notMember (TypeVar.Universal v) s && Set.notMember (TypeVar.
 -- | `subtype ctx t1 t2` returns successfully if `t1` is a subtype of `t2`.
 -- This may have the effect of altering the context.
 subtype :: Var v => Type v -> Type v -> M v ()
+subtype tx ty | debugEnabled && traceShow ("subtype"::String, tx, ty) False = undefined
 subtype tx ty = scope (show tx++" <: "++show ty) $
   do ctx <- getContext; go ctx tx ty
   where -- Rules from figure 9
@@ -442,29 +448,28 @@ subtype tx ty = scope (show tx++" <: "++show ty) $
     ctx' <- getContext
     subtype (apply ctx' t) t2
     modifyContext (retract (Marker v))
-  go _ (Type.Effect'' es1 a1) (Type.Effect'' es2 a2)
-     | not (null es1) || not (null es2) = do
-       subtype a1 a2
-       ctx <- getContext
-       let es1' = map (apply ctx) es1
-           es2' = map (apply ctx) es2
-       abilityCheck' es2' es1'
-  go _ (Type.Effect' [] a1) (Type.Effect' [] a2) = subtype a1 a2
-  go _ a1 (Type.Effect' _ a2) = subtype a1 a2
-  go _ (Type.Effect' _ a1) a2 = subtype a1 a2
+  go _ (Type.Effect' [] a1) a2 = subtype a1 a2
+  go _ a1 (Type.Effect' [] a2) = subtype a1 a2
   go ctx (Type.Existential' v) t -- `InstantiateL`
     | Set.member v (existentials ctx) && notMember v (Type.freeVars t) =
     instantiateL v t
   go ctx t (Type.Existential' v) -- `InstantiateR`
     | Set.member v (existentials ctx) && notMember v (Type.freeVars t) =
     instantiateR t v
+  go _ (Type.Effect'' es1 a1) (Type.Effect' es2 a2) = do
+     subtype a1 a2
+     ctx <- getContext
+     let es1' = map (apply ctx) es1
+         es2' = map (apply ctx) es2
+     abilityCheck' es2' es1'
   go _ _ _ = fail "not a subtype"
 
 -- | Instantiate the given existential such that it is
 -- a subtype of the given type, updating the context
 -- in the process.
 instantiateL :: Var v => v -> Type v -> M v ()
-instantiateL v t = getContext >>= \ctx -> case Type.monotype t >>= solve ctx v of
+instantiateL v t | debugEnabled && traceShow ("instantiateL"::String, v, t) False = undefined
+instantiateL v t = getContext >>= \ctx -> case Type.monotype t >>= trace "L" (solve ctx v) of
   Just ctx -> setContext ctx -- InstLSolve
   Nothing -> case t of
     Type.Existential' v2 | ordered ctx v v2 -> -- InstLReach (both are existential, set v2 = v)
@@ -484,11 +489,20 @@ instantiateL v t = getContext >>= \ctx -> case Type.monotype t >>= solve ctx v o
       ctx0 <- getContext
       ctx' <- instantiateL x' (apply ctx0 x) >> getContext
       instantiateL y' (apply ctx' y)
+    Type.Effect' es vt -> do
+      es' <- replicateM (length es) (freshNamed "eeee")
+      vt' <- freshNamed "vt"
+      let s = Solved v (Type.Monotype (Type.effect (Type.existential <$> es') (Type.existential vt')))
+      modifyContext' $ replace (Existential v) (context $ (Existential <$> es') ++ [Existential vt', s])
+      Foldable.for_ (es' `zip` es) $ \(e',e) -> do
+        ctx <- getContext
+        instantiateL e' (apply ctx e)
+      ctx <- getContext
+      instantiateL vt' (apply ctx vt)
     Type.Forall' body -> do -- InstLIIL
       v <- extendUniversal =<< ABT.freshen body freshenTypeVar
       instantiateL v (ABT.bind body (Type.universal v))
       modifyContext (retract (Universal v))
-    Type.Effect' _es _vt -> error "the impossible happened: subtype should eliminate all effects before reaching here"
     _ -> do
       let msg = "could not instantiate left: '" ++ show v ++ " <: " ++ show t
       logContext msg
@@ -498,7 +512,8 @@ instantiateL v t = getContext >>= \ctx -> case Type.monotype t >>= solve ctx v o
 -- a supertype of the given type, updating the context
 -- in the process.
 instantiateR :: Var v => Type v -> v -> M v ()
-instantiateR t v = getContext >>= \ctx -> case Type.monotype t >>= solve ctx v of
+instantiateR t v | debugEnabled && traceShow ("instantiateR"::String, t, v) False = undefined
+instantiateR t v = getContext >>= \ctx -> case Type.monotype t >>= (trace "R" $ solve ctx v) of
   Just ctx -> setContext ctx -- InstRSolve
   Nothing -> case t of
     Type.Existential' v2 | ordered ctx v v2 -> -- InstRReach (both are existential, set v2 = v)
@@ -522,12 +537,21 @@ instantiateR t v = getContext >>= \ctx -> case Type.monotype t >>= solve ctx v o
       instantiateR (apply ctx x) x'
       ctx <- getContext
       instantiateR (apply ctx y) y'
+    Type.Effect' es vt -> do
+      es' <- replicateM (length es) (freshNamed "e")
+      vt' <- freshNamed "vt"
+      let s = Solved v (Type.Monotype (Type.effect (Type.existential <$> es') (Type.existential vt')))
+      modifyContext' $ replace (Existential v) (context $ (Existential <$> es') ++ [Existential vt', s])
+      Foldable.for_ (es `zip` es') $ \(e, e') -> do
+        ctx <- getContext
+        instantiateR (apply ctx e) e'
+      ctx <- getContext
+      instantiateR (apply ctx vt) vt'
     Type.Forall' body -> do -- InstRAIIL
       x' <- ABT.freshen body freshenTypeVar
       setContext $ ctx `append` context [Marker x', Existential x']
       instantiateR (ABT.bind body (Type.existential x')) v
       modifyContext (retract (Marker x'))
-    Type.Effect' _es _vt -> error "the impossible happened: subtype should eliminate all effects before reaching here"
     _ -> do
       logContext ("failed: instantiateR " <> show t <> " " <> show v)
       fail $ "could not instantiate right " ++ show t
@@ -543,7 +567,8 @@ withEffects0 abilities' m =
 -- | Check that under the given context, `e` has type `t`,
 -- updating the context in the process.
 check :: Var v => Term v -> Type v -> M v ()
-check e t = getContext >>= \ctx -> scope ("check: " ++ show e ++ ":   " ++ show t) $
+check e t | debugEnabled && traceShow ("check"::String, e, t) False = undefined
+check e t = getContext >>= \ctx ->
   if wellformedType ctx t then
     let
       go (Term.Int64' _) _ = subtype Type.int64 t -- 1I
@@ -564,9 +589,9 @@ check e t = getContext >>= \ctx -> scope ("check: " ++ show e ++ ":   " ++ show 
         modifyContext (retract (Ann x i))
       go (Term.Let1' binding e) t = do
         v <- ABT.freshen e freshenVar
-        tbinding <- synthesize binding
+        tbinding <- scope "let1.synthesize binding" $ synthesize binding
         modifyContext' (extend (Ann v tbinding))
-        check (ABT.bind e (Term.var v)) t
+        scope "let1.checking body" $ check (ABT.bind e (Term.var v)) t
         modifyContext (retract (Ann v tbinding))
       go (Term.LetRecNamed' [] e) t = check e t
       go (Term.LetRec' letrec) t = do
@@ -580,13 +605,21 @@ check e t = getContext >>= \ctx -> scope ("check: " ++ show e ++ ":   " ++ show 
         appendContext $ context [Existential e, Existential i]
         check h $ Type.effectV (Type.existential e) (Type.existential i) `Type.arrow` t
         ctx <- getContext
-        withEffects [Type.existential e] $ do
+        let Type.Effect'' requested _ = apply ctx t
+        abilityCheck requested
+        withEffects [apply ctx $ Type.existential e] $ do
           ambient <- getAbilities
-          check body (apply ctx (Type.effect ambient (Type.existential i)))
+          let (_, i') = Type.stripEffect (apply ctx (Type.existential i))
+          check body (Type.effect ambient i')
+          pure ()
       go _ _ = do -- Sub
         a <- synthesize e; ctx <- getContext
         subtype (apply ctx a) (apply ctx t)
-    in go (minimize' e) t
+      e' = minimize' e
+    in scope ("check: " ++ show e' ++ ":   " ++ show t) $ case t of
+         -- expand existentials before checking
+         t@(Type.Existential' _) -> go e' (apply ctx t)
+         t -> go e' t
   else
     scope ("context: " ++ show ctx) .
     scope ("term: " ++ show e) .
@@ -618,7 +651,6 @@ annotateLetRecBindings letrec = do
         _ -> Type.existential e
   let bindingTypes = zipWith f es bindings
   appendContext $ context (Marker e1 : map Existential es ++ zipWith Ann vs bindingTypes)
-  logContext "annotating letrec bindings"
   -- check each `bi` against `ei`; sequencing resulting contexts
   Foldable.for_ (zip bindings bindingTypes) $ \((_,b), t) -> check b t
   -- compute generalized types `gt1, gt2 ...` for each binding `b1, b2...`;
@@ -633,6 +665,7 @@ annotateLetRecBindings letrec = do
 -- | Synthesize the type of the given term, updating the context in the process.
 -- | Figure 11 from the paper
 synthesize :: Var v => Term v -> M v (Type v)
+synthesize e | debugEnabled && traceShow ("synthesize"::String, e) False = undefined
 synthesize e = scope ("synth: " ++ show e) $ go (minimize' e)
   where
   go :: Var v => Term v -> M v (Type v)
@@ -650,7 +683,17 @@ synthesize e = scope ("synth: " ++ show e) $ go (minimize' e)
     s | otherwise ->
       fail $ "type annotation contains free variables " ++ show (map Var.name (Set.toList s))
   go (Term.Ref' h) = fail $ "unannotated reference: " ++ show h
-  go (Term.Constructor' r cid) = getConstructorType r cid
+  go (Term.Constructor' r cid) = do
+    t <- getConstructorType r cid
+    if Type.arity t == 0
+      then do
+             a <- freshNamed "a"
+             appendContext $ context [Marker a, Existential a]
+             ambient <- getAbilities
+             subtype t (Type.effect ambient (Type.existential a))
+             -- modifyContext $ retract [Marker a]
+             pure t
+      else pure t
   go (Term.Ann' e' t) = t <$ check e' t
   go (Term.Float' _) = pure Type.float -- 1I=>
   go (Term.Int64' _) = pure Type.int64 -- 1I=>
@@ -667,7 +710,7 @@ synthesize e = scope ("synth: " ++ show e) $ go (minimize' e)
     -- no free variables, i.e. `let id x = x in ...`
     decls <- getDataDeclarations
     abilities <- getAbilities
-    t  <- synthesizeClosed' abilities decls binding
+    t  <- scope "let1 closed" $ synthesizeClosed' abilities decls binding
     v' <- ABT.freshen e freshenVar
     e  <- pure $ ABT.bind e (Term.builtin (Var.name v') `Term.ann` t)
     synthesize e
@@ -715,7 +758,7 @@ synthesize e = scope ("synth: " ++ show e) $ go (minimize' e)
   -- { 42 }
   go (Term.EffectPure' a) = do
     e <- freshenVar (Var.named "e")
-    at <- synthesize a
+    Type.Effect'' _ at <- synthesize a
     pure . Type.forall (TypeVar.Universal e) $ Type.effectV (Type.universal e) at
   go (Term.EffectBind' r cid args k) = do
     cType <- getConstructorType r cid
@@ -726,9 +769,13 @@ synthesize e = scope ("synth: " ++ show e) $ go (minimize' e)
       <> show (length args)
     ([eType], iType) <-
       Type.stripEffect <$> withoutAbilityCheck (foldM synthesizeApp cType args)
-    rType <- synthesizeApp (Type.flipApply iType) k
-    pure $ Type.effectV eType rType
-  go (Term.Match' scrutinee cases) = do
+    rTypev <- freshNamed "result"
+    let rType = Type.existential rTypev
+    appendContext $ context [Existential rTypev]
+    check k (iType `Type.arrow` Type.effect [eType] rType)
+    ctx <- getContext
+    pure $ apply ctx (Type.effectV eType rType)
+  go (Term.Match' scrutinee cases) = scope ("match " ++ show scrutinee) $ do
     scrutineeType <- synthesize scrutinee
     outputTypev <- freshenVar (Var.named "match-output")
     let outputType = Type.existential outputTypev
@@ -736,34 +783,12 @@ synthesize e = scope ("synth: " ++ show e) $ go (minimize' e)
     Foldable.traverse_ (checkCase scrutineeType outputType) cases
     ctx <- getContext
     pure $ apply ctx outputType
-  go (Term.Handle' h body) = do
-    [e, i, o] <- sequence [freshNamed "e", freshNamed "i", freshNamed "o"]
-    appendContext $
-      context [Existential e, Existential i, Existential o]
-    check h $
-      Type.effectV (Type.existential e) (Type.existential i)
-        `Type.arrow` Type.existential o
-    -- output type of the body should {e} i
-    -- body : {IO, State Int} Text
-    -- body <: {State Int} Text -- don't want this
-    -- bodyType <- synthesize the body, obtain `{e,e1,e2...} a`
-    -- we strip out `e` from the effect list of body type (if effect list is there)
-    -- subtype check
+  go h@(Term.Handle' _ _) = do
+    o <- freshNamed "o"
+    appendContext $ context [Existential o]
+    check h (Type.existential o)
     ctx <- getContext
-    withEffects [apply ctx $ Type.existential e] . scope "body of handle" $ do
-      Type.Effect'' es bodyType <- scope "synth handle body" $ synthesize body
-      ctx <- getContext
-      logContext "body subtype check"
-      scope "body subtype check" $
-        apply ctx bodyType `subtype` (apply ctx $ Type.existential i)
-      ctx <- getContext
-      let normalizedEs = apply ctx <$> es
-          normalizedE = apply ctx (Type.existential e)
-      -- todo: should we just remove the first one we see?
-          es' = filter (\t -> t /= normalizedE) normalizedEs
-      case es' of
-        [] -> pure $ apply ctx (Type.existential o)
-        _ -> pure $ apply ctx (Type.effect es' $ Type.existential o)
+    pure (apply ctx (Type.existential o))
   go e = fail $ "unknown case in synthesize " ++ show e
 
 
@@ -836,6 +861,7 @@ patternToTerm pat = case pat of
 -- the process.
 -- e.g. in `(f:t) x` -- finds the type of (f x) given t and x.
 synthesizeApp :: Var v => Type v -> Term v -> M v (Type v)
+synthesizeApp ft arg | debugEnabled && traceShow ("synthesizeApp"::String, ft, arg) False = undefined
 synthesizeApp ft arg = scope ("synthesizeApp: " ++ show ft ++ ", " ++ show arg) $ go ft where
   go (Type.Forall' body) = do -- Forall1App
     v <- ABT.freshen body freshenTypeVar
@@ -851,8 +877,7 @@ synthesizeApp ft arg = scope ("synthesizeApp: " ++ show ft ++ ", " ++ show arg) 
     let soln = Type.Monotype (Type.existential i `Type.arrow` Type.existential o)
     let ctxMid = context [Existential o, Existential i, Solved a soln]
     modifyContext' $ replace (Existential a) ctxMid
-    logContext "synthesizeApp (Existential)"
-    Type.existential o <$ check arg (Type.existential i)
+    scope "a^App" $ (Type.existential o <$ check arg (Type.existential i))
   go _ = scope "unable to synthesize type of application" $
          scope ("function type: " ++ show ft) $
          fail  ("arg: " ++ show arg)
