@@ -3,6 +3,7 @@
 module Main where
 
 import System.Environment (getArgs)
+import System.Exit (die)
 import qualified Unison.FileParsers as FileParsers
 import qualified Unison.Parser as Parser
 import qualified Unison.Parsers as Parsers
@@ -18,6 +19,6 @@ main = do
           f (_unisonFile', typ, bs) = do
             putStrLn ("typechecked as " ++ show typ)
             BS.writeFile outputFile bs
-      either putStrLn f r
+      either die f r
 
     _ -> putStrLn "usage: bootstrap <in-file.u> <out-file.ub>"
