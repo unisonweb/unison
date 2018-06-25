@@ -11,7 +11,7 @@ object BuiltinTypes {
   }
 
   object Unit extends Constructor(0) {
-    val Id = org.unisonweb.Id("Unit")
+    val Id = org.unisonweb.Id("()")
     val pattern: Pattern = Pattern.Data(Id, cid, Nil)
     val term: Term = Term.Constructor(Id, cid)
     val value: Value = Value.Data(Id, cid, Array())
@@ -19,7 +19,7 @@ object BuiltinTypes {
 
   /* Tuple.pattern(Unit.pattern, Optional.Some.pattern(Pattern.Wildcard)) */
   object Tuple extends Constructor(0) {
-    val Id = org.unisonweb.Id("Tuple")
+    val Id = org.unisonweb.Id("Pair")
     def consPattern(hd: Pattern, tl: Pattern): Pattern =
       Pattern.Data(Id, cid, List(hd,tl))
     def pattern(ps: Pattern*): Pattern =
