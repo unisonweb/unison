@@ -103,7 +103,7 @@ object Builtins {
     flp_p("Sequence.take", "n", "seq", (n, seq: Sequence[Value]) => seq take n)
 
   val Sequence_size =
-    fp_p("Sequence.size", "seq", (seq: Sequence[Value]) => seq.size)
+    fp_p("Sequence.size", "seq", (seq: Sequence[Value]) => Unsigned(seq.size))
 
   def c0[A:Decompile](name: String, a: => A)
                      (implicit A: Encode[A]): (Name, Computation.C0) =
