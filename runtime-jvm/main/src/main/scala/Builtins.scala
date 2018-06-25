@@ -118,6 +118,8 @@ object Builtins {
   def lambdaFor(b: (Name, Computation)): Lambda =
     computationFor(b) match { case Return(lam: Lambda) => lam }
 
+  case class Unsigned(raw: Long) extends AnyVal
+
   //
   // naming convention
   //   - fb_b is a function taking 1 boxed arg, returning 1 boxed result
@@ -332,7 +334,7 @@ object Builtins {
           (codepointCount, t: Text) => t drop codepointCount)
 
   val Text_size =
-    fp_p("Text.size", "text", (t: Text) => t.size)
+    fp_p("Text.size", "text", (t: Text) => Unsigned(t.size))
 
   val Text_eq =
     fpp_b[Text,Text]("Text.==", "t1", "t2", _ == _)
@@ -651,6 +653,8 @@ object Builtins {
         U0
       }
 
+    implicit val encodeUnsigned: Encode[Unsigned] =
+      (r, a) => { r.boxed = UnboxedType.UInt64; longToUnboxed(a.raw) }
     implicit val encodeLong: Encode[Long] =
       (r, a) => { r.boxed = UnboxedType.Int64; longToUnboxed(a) }
     implicit val encodeInt: Encode[Int] =
