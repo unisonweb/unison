@@ -1,0 +1,3 @@
+'.source.unison':
+  'editor':
+    commentStart: '--'
