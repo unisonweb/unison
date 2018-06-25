@@ -14,7 +14,7 @@ lazy val commonSettings = Seq(
     //"-XX:LiveNodeCountInliningCutoff"
   ),
   organization := "org.unisonweb",
-  scalaVersion := "2.12.4",
+  scalaVersion := "2.12.6",
   scalacOptions ++= Seq(
     "-feature",
     "-deprecation",
@@ -57,7 +57,6 @@ lazy val root = project.in(file(".")).
 lazy val main = project.in(file("main"))
   .settings(commonSettings)
   .settings(name := "unison-runtime")
-  .settings(com.github.retronym.SbtOneJar.oneJarSettings)
 
 lazy val benchmark = project.in(file("benchmark"))
   .settings(commonSettings)
