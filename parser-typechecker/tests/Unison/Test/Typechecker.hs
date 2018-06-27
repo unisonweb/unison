@@ -395,6 +395,10 @@ test = scope "typechecker" . tests $
              |
              |()
              |]
+  , checks [r|--data references builtins
+             |type StringOrInt = S Text | I UInt64
+             |[StringOrInt.S "YO", StringOrInt.I 1]
+             |]
   ]
   where c tm typ = scope tm . expect $ check (stripMargin tm) typ
         bombs s = scope s (expect . not . fileTypechecks $ s)

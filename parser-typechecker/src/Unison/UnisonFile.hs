@@ -7,9 +7,12 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Unison.Reference (Reference)
 import Unison.DataDeclaration (DataDeclaration(..), EffectDeclaration(..))
-import Unison.DataDeclaration (hashDecls, toDataDecl)
+import Unison.DataDeclaration (hashDecls, toDataDecl, withEffectDecl)
+import qualified Unison.DataDeclaration as DataDeclaration
 import qualified Data.Text as Text
 import Unison.Term (Term)
+import qualified Unison.Term as Term
+import Unison.Type (Type)
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 
@@ -20,6 +23,14 @@ data UnisonFile v = UnisonFile {
 } deriving (Show)
 
 type CtorLookup = Map String (Reference, Int)
+
+bindBuiltins :: Var v => [(v, Term v)] -> [(v, Type v)] -> UnisonFile v
+                      -> UnisonFile v
+bindBuiltins termBuiltins typeBuiltins (UnisonFile d e t) =
+  UnisonFile
+    (second (DataDeclaration.bindBuiltins typeBuiltins) <$> d)
+    (second (withEffectDecl (DataDeclaration.bindBuiltins typeBuiltins)) <$> e)
+    (Term.bindBuiltins termBuiltins typeBuiltins t)
 
 environmentFor :: Var v
                => Map v (DataDeclaration v)

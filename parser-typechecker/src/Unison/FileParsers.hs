@@ -22,7 +22,6 @@ import qualified Unison.Parser as Parser
 import qualified Unison.Parsers as Parsers
 import           Unison.Reference (Reference)
 import           Unison.Term (Term)
-import qualified Unison.Term as Term
 import           Unison.Type (Type)
 import qualified Unison.Typechecker as Typechecker
 import           Unison.UnisonFile (UnisonFile(..))
@@ -37,13 +36,12 @@ parseAndSynthesizeAsFile filename s = do
 
 synthesizeFile :: Var v => UnisonFile v -> Either String (Term v, Type v)
 synthesizeFile unisonFile =
-  let dataDecls =
+  let (UnisonFile d e t) =
+        UF.bindBuiltins B.builtinTerms B.builtinTypes unisonFile
+      dataDecls =
         Map.union (Map.fromList . Foldable.toList $
-                     Map.union (UF.dataDeclarations unisonFile)
-                               (fmap (second toDataDecl) $
-                                  UF.effectDeclarations unisonFile))
+                     Map.union d (second toDataDecl <$> e))
                   B.builtinDataDecls
-      t = Term.bindBuiltins B.builtinTerms B.builtinTypes $ UF.term unisonFile
       n = Note.attemptRun $
             Typechecker.synthesize [] termLookup (dataDeclLookup dataDecls) $ t
   in (t,) <$> runIdentity n

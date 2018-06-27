@@ -29,7 +29,7 @@ data DataDeclaration v = DataDeclaration {
 
 bindBuiltins :: Var v => [(v, Type v)] -> DataDeclaration v -> DataDeclaration v
 bindBuiltins typeEnv (DataDeclaration bound constructors) =
-  DataDeclaration bound (second (ABT.substs typeEnv) <$> constructors)
+  DataDeclaration bound (second (Type.bindBuiltins typeEnv) <$> constructors)
 
 newtype EffectDeclaration v = EffectDeclaration {
   toDataDecl :: DataDeclaration v
