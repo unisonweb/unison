@@ -396,11 +396,10 @@ solve ctx v t
   where same t2 | apply ctx (Type.getPolytype t) == apply ctx (Type.getPolytype t2) = Just ctx
                 | otherwise = Nothing
 solve ctx v t
-  | wellformedType ctxL (Type.getPolytype t) = trace msg $ Just ctx'
+  | wellformedType ctxL (Type.getPolytype t) = Just ctx'
   | otherwise                                = Nothing
   where (ctxL,ctxR) = breakAt (Existential v) ctx
         ctx' = ctxL `append` context [Solved v t] `append` ctxR
-        msg = "solving '" ++ show v ++ " = " ++ show (Type.getPolytype t)
 
 extendUniversal :: Var v => v -> M v v
 extendUniversal v = do
@@ -469,7 +468,7 @@ subtype tx ty = scope (show tx++" <: "++show ty) $
 -- in the process.
 instantiateL :: Var v => v -> Type v -> M v ()
 instantiateL v t | debugEnabled && traceShow ("instantiateL"::String, v, t) False = undefined
-instantiateL v t = getContext >>= \ctx -> case Type.monotype t >>= trace "L" (solve ctx v) of
+instantiateL v t = getContext >>= \ctx -> case Type.monotype t >>= (solve ctx v) of
   Just ctx -> setContext ctx -- InstLSolve
   Nothing -> case t of
     Type.Existential' v2 | ordered ctx v v2 -> -- InstLReach (both are existential, set v2 = v)
@@ -513,7 +512,7 @@ instantiateL v t = getContext >>= \ctx -> case Type.monotype t >>= trace "L" (so
 -- in the process.
 instantiateR :: Var v => Type v -> v -> M v ()
 instantiateR t v | debugEnabled && traceShow ("instantiateR"::String, t, v) False = undefined
-instantiateR t v = getContext >>= \ctx -> case Type.monotype t >>= (trace "R" $ solve ctx v) of
+instantiateR t v = getContext >>= \ctx -> case Type.monotype t >>= solve ctx v of
   Just ctx -> setContext ctx -- InstRSolve
   Nothing -> case t of
     Type.Existential' v2 | ordered ctx v v2 -> -- InstRReach (both are existential, set v2 = v)

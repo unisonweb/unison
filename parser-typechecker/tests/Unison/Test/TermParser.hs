@@ -124,6 +124,5 @@ builtins = Map.fromList
    ("State.set", (R.Builtin "State", 0))]
 
 parses s = scope s $ do
-  let p = unsafeParseTerm s builtins :: Term Symbol
-  noteScoped $ "parsing: " ++ s ++ "\n  " ++ show p
-  ok
+  let !p = unsafeParseTerm s builtins :: Term Symbol
+  pure p >> ok

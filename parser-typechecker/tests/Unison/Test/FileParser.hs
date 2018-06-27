@@ -1,4 +1,4 @@
-{-# Language OverloadedStrings #-}
+{-# Language BangPatterns, OverloadedStrings #-}
 
 module Unison.Test.FileParser where
 
@@ -44,10 +44,8 @@ module Unison.Test.FileParser where
       ,"ping"]
     ]
 
-  test2 = scope "fileparser.test2" $ do
-    file <- io $ unsafeReadAndParseFile' "unison-src/test1.u"
-    io $ putStrLn (show (file :: UnisonFile Symbol))
-    ok
+  test2 = scope "fileparser.test2" $
+    (io $ unsafeReadAndParseFile' "unison-src/test1.u") *> ok
 
   test = --test2
     test1 <|> test2
@@ -57,7 +55,7 @@ module Unison.Test.FileParser where
      ("State.set", (R.Builtin "State", 0))]
 
   parses s = scope s $ do
-    let p = unsafeGetRight $ Unison.Parser.run (Parser.root $ file) s Parsers.s0 builtins
-        _ = p :: UnisonFile Symbol
-    noteScoped $ "parsing: " ++ s ++ "\n  " ++ show p
-    ok
+    let
+      p :: UnisonFile Symbol
+      !p = unsafeGetRight $ Unison.Parser.run (Parser.root $ file) s Parsers.s0 builtins
+    pure p >> ok
