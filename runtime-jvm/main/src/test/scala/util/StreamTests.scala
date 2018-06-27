@@ -30,7 +30,7 @@ object StreamTests {
       test("filter") { implicit T =>
         equal(
           Stream.from(0).take(10000).filter(L_B(_ % 2 == 0)).sumIntegers,
-          (0 until 10000).filter(_.toDouble % 2 == 0).sum
+          (0 until 10000).filter(_ % 2 == 0).sum
         )
       },
       test("takeWhile") { implicit T =>
@@ -40,7 +40,7 @@ object StreamTests {
         )
         equal(
           Stream.from(0.0, by = 1.0).take(100).takeWhile(D_B(_ < 50.0)).sumFloats,
-          (0.0 until 100.0 by 1.0).takeWhile(_ < 50.0).sum
+          (0 until 100).takeWhile(_ < 50).sum
         )
       },
       test("dropWhile") { implicit T =>
@@ -86,13 +86,13 @@ object StreamTests {
         equal(
           Stream.from(0.0, by = 1.0).take(10000).foldLeft(0l)(
             LD_L((z, d) => if (d.toInt % 2 == 0) z else z + 1)),
-          (0.0 until 10000 by 1.0).count(_.toInt % 2 == 0)
+          (0 until 10000).count(_ % 2 == 0)
         )
       },
       test("foldLeft (+) double") { implicit T =>
         equal(
           Stream.from(0.0, by = 1.0).take(10000).foldLeft(0.0)(DD_D(_ + _)),
-          (0.0 until 10000 by 1.0).sum
+          (0 until 10000).sum
         )
       },
       test("scanLeft0 (+) long") { implicit T =>
