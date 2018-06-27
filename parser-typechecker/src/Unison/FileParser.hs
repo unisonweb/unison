@@ -11,6 +11,7 @@ import qualified Data.Map as Map
 import qualified Data.Text as Text
 import           Prelude hiding (readFile)
 import qualified Text.Parsec.Layout as L
+import qualified Unison.Builtin as Builtin
 import           Unison.DataDeclaration (DataDeclaration(..), EffectDeclaration(..))
 import qualified Unison.DataDeclaration as DD
 import           Unison.Parser (Parser, traced, token_, sepBy, string)
@@ -26,7 +27,8 @@ import qualified Unison.Var as Var
 file :: Var v => Parser (S v) (UnisonFile v)
 file = traced "file" $ do
   (dataDecls, effectDecls) <- traced "declarations" declarations
-  let (dataDecls', effectDecls', penv') = environmentFor dataDecls effectDecls
+  let (dataDecls', effectDecls', penv') =
+                      environmentFor Builtin.builtinTypes dataDecls effectDecls
   local (`Map.union` penv') $ do
     term <- TermParser.block
     let dataEnv0 = Map.fromList [ (Var.named (Text.pack n), Term.constructor r i) | (n, (r,i)) <- Map.toList penv' ]

@@ -33,13 +33,17 @@ bindBuiltins termBuiltins typeBuiltins (UnisonFile d e t) =
     (Term.bindBuiltins termBuiltins typeBuiltins t)
 
 environmentFor :: Var v
-               => Map v (DataDeclaration v)
+               => [(v, Type v)]
+               -> Map v (DataDeclaration v)
                -> Map v (EffectDeclaration v)
                -> (Map v (Reference, DataDeclaration v),
                    Map v (Reference, EffectDeclaration v),
                    CtorLookup)
-environmentFor dataDecls effectDecls =
-  let hashDecls' = hashDecls (Map.union dataDecls (toDataDecl <$> effectDecls))
+environmentFor typeBuiltins dataDecls0 effectDecls0 =
+  let dataDecls = DataDeclaration.bindBuiltins typeBuiltins <$> dataDecls0
+      effectDecls = withEffectDecl (DataDeclaration.bindBuiltins typeBuiltins)
+                <$> effectDecls0
+      hashDecls' = hashDecls (Map.union dataDecls (toDataDecl <$> effectDecls))
       allDecls = Map.fromList [ (v, (r,de)) | (v,r,de) <- hashDecls' ]
       dataDecls' = Map.difference allDecls effectDecls
       effectDecls' = second EffectDeclaration <$> Map.difference allDecls dataDecls

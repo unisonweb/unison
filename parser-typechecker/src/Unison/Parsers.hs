@@ -22,8 +22,7 @@ s0 :: S v
 s0 = TypeParser.s0
 
 unsafeGetRight :: Either String a -> a
-unsafeGetRight (Right a) = a
-unsafeGetRight (Left err) = error err
+unsafeGetRight = either error id
 
 parseTerm :: Var v => String -> PEnv -> Either String (Term v)
 parseTerm s = Parser.run (Parser.root TermParser.term) s s0

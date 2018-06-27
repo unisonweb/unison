@@ -8,10 +8,11 @@ import           Control.Arrow ((&&&))
 import qualified Data.Map as Map
 import           Unison.DataDeclaration (DataDeclaration(..))
 import qualified Unison.Parser as Parser
-import qualified Unison.Parsers as Parsers -- remove this dependency on Parsers
 import qualified Unison.Reference as R
 import           Unison.Term (Term)
 import qualified Unison.Term as Term
+import qualified Unison.TermParser as TermParser
+import qualified Unison.TypeParser as TypeParser
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import           Unison.Var (Var)
@@ -21,11 +22,13 @@ import qualified Unison.Var as Var
 -- then merge Parsers2 back into Parsers (and GC and unused functions)
 -- parse a type, hard-coding the builtins defined in this file
 t :: Var v => String -> Type v
-t s = bindTypeBuiltins $ Parsers.unsafeParseType s Parser.penv0
+t s = bindTypeBuiltins . either error id $
+  Parser.run (Parser.root TypeParser.valueType) s TypeParser.s0 Parser.penv0
 
 -- parse a term, hard-coding the builtins defined in this file
 tm :: Var v => String -> Term v
-tm s = bindBuiltins $ Parsers.unsafeParseTerm s Parser.penv0
+tm s = bindBuiltins . either error id $
+  Parser.run (Parser.root TermParser.term) s TypeParser.s0 Parser.penv0
 
 bindBuiltins :: Var v => Term v -> Term v
 bindBuiltins = Term.bindBuiltins builtinTerms builtinTypes
