@@ -1,7 +1,6 @@
 package org.unisonweb
 
-import java.util.function.{LongBinaryOperator, LongPredicate, LongUnaryOperator,
-                           DoubleBinaryOperator}
+import java.util.function.{DoubleBinaryOperator, LongBinaryOperator, LongPredicate, LongUnaryOperator}
 
 import org.unisonweb.Term.{Name, Term}
 import org.unisonweb.Value.Lambda
@@ -22,7 +21,7 @@ object Builtins {
 
   // Stream.fromInt : Integer -> Stream Integer
   val Stream_fromInt = // Stream.iterate(unison 0)(Integer_inc)
-    fp_z("Stream.fromInt", "n", Stream.fromUnison)
+    fp_z("Stream.from-int64", "n", Stream.fromUnison)
 
   // Stream.cons : a -> Stream a -> Stream a
   val Stream_cons =
@@ -45,7 +44,7 @@ object Builtins {
 
   // Stream.foldLeft : b -> (b -> a -> b) -> Stream a -> b
   val Stream_foldLeft =
-    fppp_p("Stream.foldLeft", "acc", "f", "stream",
+    fppp_p("Stream.fold-left", "acc", "f", "stream",
            (acc: Value, f: Value, s: Stream[Value]) =>
              s.foldLeft(acc)(
                UnisonToScala.toUnboxed2(f.asInstanceOf[Lambda])(env))
@@ -72,7 +71,7 @@ object Builtins {
       }
     val decompiled = Term.Id(name)
     val lambda =
-      new Value.Lambda.ClosureForming(List(arg1, arg2, arg3), body, None, decompiled)
+      new Value.Lambda.ClosureForming(List(arg1, arg2, arg3), body, decompiled)
     name -> Return(lambda)
   }
 
@@ -104,7 +103,7 @@ object Builtins {
     flp_p("Sequence.take", "n", "seq", (n, seq: Sequence[Value]) => seq take n)
 
   val Sequence_size =
-    fp_p("Sequence.size", "seq", (seq: Sequence[Value]) => seq.size)
+    fp_p("Sequence.size", "seq", (seq: Sequence[Value]) => Unsigned(seq.size))
 
   def c0[A:Decompile](name: String, a: => A)
                      (implicit A: Encode[A]): (Name, Computation.C0) =
@@ -118,6 +117,8 @@ object Builtins {
   def computationFor(b: (Name, Computation)): Computation = builtins(b._1)
   def lambdaFor(b: (Name, Computation)): Lambda =
     computationFor(b) match { case Return(lam: Lambda) => lam }
+
+  case class Unsigned(raw: Long) extends AnyVal
 
   //
   // naming convention
@@ -135,7 +136,7 @@ object Builtins {
 
   // Signed machine integers
   val Int64_inc =
-    fl_l("Int64.inc", "x", _ + 1)
+    fl_l("Int64.increment", "x", _ + 1)
 
   val Int64_isEven =
     fl_b("Int64.isEven", "x", _ % 2 == 0)
@@ -186,7 +187,7 @@ object Builtins {
     fl_l("UInt64.toInt64", "x", x => x)
 
   val UInt64_inc =
-    fn_n("UInt64.inc", "x", _ + 1)
+    fn_n("UInt64.increment", "x", _ + 1)
 
   val UInt64_isEven =
     fl_b("UInt64.isEven", "x", _ % 2 == 0)
@@ -333,7 +334,7 @@ object Builtins {
           (codepointCount, t: Text) => t drop codepointCount)
 
   val Text_size =
-    fp_p("Text.size", "text", (t: Text) => t.size)
+    fp_p("Text.size", "text", (t: Text) => Unsigned(t.size))
 
   val Text_eq =
     fpp_b[Text,Text]("Text.==", "t1", "t2", _ == _)
@@ -384,7 +385,7 @@ object Builtins {
                (implicit A: Decode[A], B: Encode[B]): (Name, Computation) = {
     val body: Computation.C1P = (r,x0,x0b) => B.encode(r, f(A.decode(x0, x0b)))
     val decompile = Term.Id(name)
-    name -> Return(new Lambda1(arg, body, None, decompile))
+    name -> Return(new Lambda1(arg, body, decompile))
   }
 
   // Monomorphic one-argument function on unboxed values
@@ -392,14 +393,11 @@ object Builtins {
             arg: Name,
             outputType: UnboxedType,
             f: LongUnaryOperator): (Name, Computation) = {
-    val body: Computation.C1U = (r,x0) => {
-      // Unintuitively, we store the type of the unboxed value in `boxed`
-      // since that's a field we don't use for unboxed values.
-      r.boxed = outputType
-      f.applyAsLong(x0)
+    val body: Computation.C1U = new Computation.C1U(outputType) {
+      def raw(x0: U): U = f.applyAsLong(x0)
     }
     val decompile = Term.Id(name)
-    val computation = Return(new Lambda1(arg, body, Some(outputType), decompile))
+    val computation = Return(new Lambda1(arg, body, decompile))
     name -> computation
   }
 
@@ -431,7 +429,7 @@ object Builtins {
     val body: Computation.C1P = (r,x0,x0b) => {
       B.encodeOp(r, f(A.decode(x0, x0b)), name, Value.fromParam(x0, x0b))
     }
-    val lambda = new Lambda.Lambda1(arg, body, None, Term.Id(name))
+    val lambda = new Lambda.Lambda1(arg, body, Term.Id(name))
     name -> Return(lambda)
   }
 
@@ -443,7 +441,7 @@ object Builtins {
       (r,x1,x0,x1b,x0b) =>
         C.encode(r, f(A.decode(x1, x1b), B.decode(x0, x0b)))
     val decompiled = Term.Id(name)
-    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, None, decompiled)
+    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, decompiled)
     name -> Return(lambda)
   }
 
@@ -460,7 +458,7 @@ object Builtins {
                    Value.fromParam(x0, x0b))
       }
     val decompiled = Term.Id(name)
-    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, None, decompiled)
+    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, decompiled)
     name -> Return(lambda)
   }
 
@@ -475,7 +473,7 @@ object Builtins {
     val body: Computation.C2P = (r,x1,x0,_,x0b) =>
       B.encode(r, f(x1, A.decode(x0, x0b)))
     val decompiled = Term.Id(name)
-    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, None, decompiled)
+    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, decompiled)
     name -> Return(lambda)
   }
 
@@ -487,7 +485,7 @@ object Builtins {
                  name,
                  Value.fromParam(x1,x1b),
                  Value.fromParam(x0,x0b))
-    name -> Return(new Value.Lambda.ClosureForming(List(arg1, arg2), body, None, Term.Id(name)))
+    name -> Return(new Value.Lambda.ClosureForming(List(arg1, arg2), body, Term.Id(name)))
   }
 
 
@@ -503,7 +501,7 @@ object Builtins {
                  Value.fromParam(x0, x0b))
 
     val decompiled = Term.Id(name)
-    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, None, decompiled)
+    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, decompiled)
     name -> Return(lambda)
   }
 
@@ -522,7 +520,7 @@ object Builtins {
         f(A.decode(x1, x1b), B.decode(x0, x0b))
       }
     val decompiled = Term.Id(name)
-    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, None, decompiled)
+    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, decompiled)
     name -> Return(lambda)
   }
 
@@ -553,65 +551,53 @@ object Builtins {
              arg2: Name,
              outputType: UnboxedType,
              f: LongBinaryOperator): (Name, Computation) = {
-    val body: Computation.C2U = (r,x1,x0) => {
-      r.boxed = outputType
-      f.applyAsLong(x1, x0)
+    val body = new Computation.C2U(outputType) {
+      def raw(x1: U, x0: U): U = f.applyAsLong(x1, x0)
     }
 
     val decompiled = Term.Id(name)
-    val lam = new Lambda(List(arg1, arg2), body, Some(outputType), decompiled) {
+    val lam = new Lambda(List(arg1, arg2), body, decompiled) {
       self =>
 
       override def saturatedNonTailCall(args: List[Computation]) = args match {
         case List(Return(Value.Unboxed(n1, _)),
                   Return(Value.Unboxed(n2, _))) =>
           val n3 = f.applyAsLong(n1,n2) // constant fold
-        val c : Computation.C0 = r => { r.boxed = outputType; n3 }
-          c
+          new Computation.C0U(outputType) {
+            def raw: U = n3
+          }
         case List(CompiledVar0,Return(Value.Unboxed(n, _))) =>
-          val c : Computation.C1U = (r,x0) => {
-            r.boxed = outputType
-            f.applyAsLong(x0, n)
+          new Computation.C1U(outputType) {
+            def raw(x0: U): U = f.applyAsLong(x0, n)
           }
-          c
         case List(CompiledVar1,Return(Value.Unboxed(n, _))) =>
-          val c : Computation.C2U = (r,x1,_) => {
-            r.boxed = outputType
-            f.applyAsLong(x1, n)
+          new Computation.C2U(outputType) {
+            def raw(x1: U, x0: U): U = f.applyAsLong(x1, n)
           }
-          c
         case List(Return(Value.Unboxed(n, _)), CompiledVar0) =>
-          val c: Computation.C1U = (r,x0) => {
-            r.boxed = outputType
-            f.applyAsLong(n,x0)
+          new Computation.C1U(outputType) {
+            def raw(x0: U): U = f.applyAsLong(n,x0)
           }
-          c
         case List(Return(Value.Unboxed(n, _)), CompiledVar1) =>
-          val c: Computation.C2U = (r,x1,_) => {
-            r.boxed = outputType
-            f.applyAsLong(n,x1)
+          new Computation.C2U(outputType) {
+            def raw(x1: U, x0: U): U = f.applyAsLong(n,x1)
           }
-          c
         case List(CompiledVar1,CompiledVar0) =>
-          val c: Computation.C2U = (r,x1,x0) => {
-            r.boxed = outputType
-            f.applyAsLong(x1,x0)
+          new Computation.C2U(outputType) {
+            def raw(x1: U, x0: U): U = f.applyAsLong(x1,x0)
           }
-          c
         case List(CompiledVar0,CompiledVar1) =>
-          val c: Computation.C2U = (r,x1,x0) => {
-            r.boxed = outputType
-            f.applyAsLong(x0,x1)
+          new Computation.C2U(outputType) {
+            def raw(x1: U, x0: U): U = f.applyAsLong(x0,x1)
           }
-          c
         case List(arg1: Computation.C2U, arg2: Computation.C2U) =>
-          val c: Computation.C2U = (r,x1,x0) => {
-            val x1v = arg1(r, x1, x0)
-            val x0v = arg2(r, x1, x0)
-            r.boxed = outputType
-            f.applyAsLong(x1v, x0v)
+          new Computation.C2U(outputType) {
+            def raw(x1: U, x0: U): U = {
+              val x1v = arg1.raw(x1, x0)
+              val x0v = arg2.raw(x1, x0)
+              f.applyAsLong(x1v, x0v)
+            }
           }
-          c
         case List(arg1,arg2) => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
           val x1v = eval(arg1,r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
           val x0v = eval(arg2,r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
@@ -626,16 +612,14 @@ object Builtins {
             case Term.Compiled(p: Param) =>
               // cast is okay, because in `fuu_u`, args are Unboxed.
               val n = p.toValue.asInstanceOf[Value.Unboxed].n
-              val body: Computation =
-                (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
-                  r.boxed = outputType
-                  f.applyAsLong(n, x0)
-                }
-              new Lambda(self.names drop argCount, body, unboxedType,
+              val body = new Computation.C1U(outputType) {
+                def raw(x0: U): U = f.applyAsLong(n, x0)
+              }
+              new Lambda(self.names drop argCount, body,
                          Term.Apply(decompiled, term))
             case _ => sys.error("")
           }
-          case _ => sys.error("unpossible")
+          case _ => sys.error("can't underapply a function of 2 args with anything but 1 arg")
         }
     }
     name -> Return(lam)
@@ -669,6 +653,8 @@ object Builtins {
         U0
       }
 
+    implicit val encodeUnsigned: Encode[Unsigned] =
+      (r, a) => { r.boxed = UnboxedType.UInt64; longToUnboxed(a.raw) }
     implicit val encodeLong: Encode[Long] =
       (r, a) => { r.boxed = UnboxedType.Int64; longToUnboxed(a) }
     implicit val encodeInt: Encode[Int] =

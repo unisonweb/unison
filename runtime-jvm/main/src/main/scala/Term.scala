@@ -477,9 +477,17 @@ object Term {
       def apply(args: Term*) = Apply(fn, args: _*)
     }
 
+    implicit class IntegerSyntax(val i: Int) extends AnyVal {
+      def unsigned: Term = Unboxed(intToUnboxed(i), UnboxedType.UInt64)
+    }
+
+    implicit class LongSyntax(val l: Long) extends AnyVal {
+      def unsigned: Term = Unboxed(longToUnboxed(l), UnboxedType.UInt64)
+    }
+
     implicit def bool(b: Boolean): Term = Unboxed(boolToUnboxed(b), UnboxedType.Boolean)
-    implicit def number(n: Long): Term = Unboxed(longToUnboxed(n), UnboxedType.Int64)
-    implicit def number(n: Int): Term = Unboxed(intToUnboxed(n), UnboxedType.Int64)
+    implicit def signed(n: Long): Term = Unboxed(longToUnboxed(n), UnboxedType.Int64)
+    implicit def signed(n: Int): Term = Unboxed(intToUnboxed(n), UnboxedType.Int64)
     implicit def double(n: Double): Term = Unboxed(doubleToUnboxed(n), UnboxedType.Float)
     implicit def stringAsText(s: String): Term = Text(util.Text.fromString(s))
     implicit def nameAsVar(s: Name): Term = Var(s)

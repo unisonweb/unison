@@ -37,12 +37,13 @@ invalid loc ctx = "invalid path " ++ show loc ++ " in:\n" ++ show ctx
 -- @(f e)@, where @f@ is a fresh function parameter. We then
 -- read off the type of @e@ from the inferred result type of @f@.
 admissibleTypeAt :: (Monad f, Var v)
-                 => (Reference -> Noted f (Type v))
+                 => [Type v]
+                 -> (Reference -> Noted f (Type v))
                  -> (Reference -> Noted f (DataDeclaration v))
                  -> Path
                  -> Term v
                  -> Noted f (Type v)
-admissibleTypeAt typeOf decl loc t = Note.scoped ("admissibleTypeAt@" ++ show loc ++ " " ++ show t) $
+admissibleTypeAt abilities typeOf decl loc t = Note.scoped ("admissibleTypeAt@" ++ show loc ++ " " ++ show t) $
   let
     f = ABT.v' "f"
     shake (Type.Arrow' (Type.Arrow' _ tsub) _) = Type.generalize tsub
@@ -50,16 +51,17 @@ admissibleTypeAt typeOf decl loc t = Note.scoped ("admissibleTypeAt@" ++ show lo
     shake _ = error "impossible, f had better be a function"
   in case Term.lam f <$> Paths.modifyTerm (\t -> Term.app (Term.var (ABT.Free f)) (Term.wrapV t)) loc t of
     Nothing -> Note.failure $ invalid loc t
-    Just t -> shake <$> synthesize typeOf decl t
+    Just t -> shake <$> synthesize abilities typeOf decl t
 
 -- | Compute the type of the given subterm.
 typeAt :: (Monad f, Var v)
-       => (Reference -> Noted f (Type v))
+       => [Type v]
+       -> (Reference -> Noted f (Type v))
        -> (Reference -> Noted f (DataDeclaration v))
        -> Path
        -> Term v -> Noted f (Type v)
-typeAt typeOf decl [] t = Note.scoped ("typeAt: " ++ show t) $ synthesize typeOf decl t
-typeAt typeOf decl loc t = Note.scoped ("typeAt@"++show loc ++ " " ++ show t) $
+typeAt abilities typeOf decl [] t = Note.scoped ("typeAt: " ++ show t) $ synthesize abilities typeOf decl t
+typeAt abilities typeOf decl loc t = Note.scoped ("typeAt@"++show loc ++ " " ++ show t) $
   let
     f = ABT.v' "f"
     remember e = Term.var (ABT.Free f) `Term.app` Term.wrapV e
@@ -68,15 +70,16 @@ typeAt typeOf decl loc t = Note.scoped ("typeAt@"++show loc ++ " " ++ show t) $
     shake _ = error "impossible, f had better be a function"
   in case Term.lam f <$> Paths.modifyTerm remember loc t of
     Nothing -> Note.failure $ invalid loc t
-    Just t -> shake <$> synthesize typeOf decl t
+    Just t -> shake <$> synthesize abilities typeOf decl t
 
 -- | Return the type of all local variables in scope at the given location
 locals :: (Show v, Monad f, Var v)
-       => (Reference -> Noted f (Type v))
+       => [Type v]
+       -> (Reference -> Noted f (Type v))
        -> (Reference -> Noted f (DataDeclaration v))
        -> Path
        -> Term v -> Noted f [(v, Type v)]
-locals typeOf decl path ctx | ABT.isClosed ctx =
+locals abilities typeOf decl path ctx | ABT.isClosed ctx =
   Note.scoped ("locals@"++show path ++ " " ++ show ctx)
               ((zip (map ABT.unvar vars)) <$> types)
   where
@@ -89,31 +92,36 @@ locals typeOf decl path ctx | ABT.isClosed ctx =
     remember e = Term.let1 [(saved, Term.var (ABT.Free f) `Term.apps` map Term.var vars)] (Term.wrapV e)
     usingAllLocals = Term.lam f (Paths.modifyTerm' remember path ctx)
     types = if null vars then pure []
-            else extract <$> typeAt typeOf decl [] usingAllLocals
+            else extract <$> typeAt abilities typeOf decl [] usingAllLocals
     extract (Type.Arrow' i _) = extract1 i
     extract (Type.ForallNamed' _ t) = extract t
     extract t = error $ "expected function type, got: " ++ show t
     extract1 (Type.Arrow' i o) = i : extract1 o
     extract1 _ = []
-locals _ _ _ ctx =
+locals _ _ _ _ ctx =
   Note.failure $ "Term.locals: term contains free variables - " ++ show ctx
 
--- | Infer the type of a 'Unison.Syntax.Term', using
+-- | Infer the type of a 'Unison.Term', using
 -- a function to resolve the type of @Ref@ constructors
 -- contained in that term.
 synthesize
   :: (Monad f, Var v)
-  => (Reference -> Noted f (Type v))
+  => [Type v]
+  -> (Reference -> Noted f (Type v))
   -> (Reference -> Noted f (DataDeclaration v))
   -> Term v
   -> Noted f (Type v)
-synthesize typeOf decl t =
-  ABT.vmap TypeVar.underlying <$> Context.synthesizeClosed typeOf decl t
+synthesize abilities typeOf decl t =
+  ABT.vmap TypeVar.underlying <$>
+    Context.synthesizeClosed (ABT.vmap TypeVar.Universal <$> abilities)
+                             typeOf
+                             decl
+                             (Term.vtmap TypeVar.Universal t)
 
--- | Infer the type of a 'Unison.Syntax.Term', assumed
+-- | Infer the type of a 'Unison.Term', assumed
 -- not to contain any @Ref@ constructors
 synthesize' :: Var v => Term v -> Either Note (Type v)
-synthesize' term = join . Note.unnote $ synthesize missing missingD term
+synthesize' term = join . Note.unnote $ synthesize [] missing missingD term
   where missing h = Note.failure $ "unexpected term ref: " ++ show h
         missingD h = Note.failure $ "unexpected data declaration reference: " ++ show h
 
@@ -123,17 +131,18 @@ synthesize' term = join . Note.unnote $ synthesize missing missingD term
 -- and a note about typechecking failure otherwise.
 check
   :: (Monad f, Var v)
-  => (Reference -> Noted f (Type v))
+  => [Type v]
+  -> (Reference -> Noted f (Type v))
   -> (Reference -> Noted f (DataDeclaration v))
   -> Term v
   -> Type v -> Noted f (Type v)
-check typeOf decl term typ = synthesize typeOf decl (Term.ann term typ)
+check abilities typeOf decl term typ = synthesize abilities typeOf decl (Term.ann term typ)
 
 -- | Check whether a term, assumed to contain no @Ref@ constructors,
 -- matches a given type. Return @Left@ if any references exist, or
 -- if typechecking fails.
 check' :: Var v => Term v -> Type v -> Either Note (Type v)
-check' term typ = join . Note.unnote $ check missing missingD term typ
+check' term typ = join . Note.unnote $ check [] missing missingD term typ
   where missing h = Note.failure $ "unexpected term reference: " ++ show h
         missingD h = Note.failure $ "unexpected data declaration reference: " ++ show h
 
@@ -150,12 +159,13 @@ checkAdmissible' term typ =
 -- | Returns `True` if the expression is well-typed, `False` otherwise
 wellTyped
   :: (Monad f, Var v)
-  => (Reference -> Noted f (Type v))
+  => [Type v]
+  -> (Reference -> Noted f (Type v))
   -> (Reference -> Noted f (DataDeclaration v))
   -> Term v
   -> Noted f Bool
-wellTyped typeOf decl term =
-  (const True <$> synthesize typeOf decl term) `Note.orElse` pure False
+wellTyped abilities typeOf decl term =
+  (const True <$> synthesize abilities typeOf decl term) `Note.orElse` pure False
 
 -- | @subtype a b@ is @Right b@ iff @f x@ is well-typed given
 -- @x : a@ and @f : b -> t@. That is, if a value of type `a`
@@ -167,7 +177,8 @@ wellTyped typeOf decl term =
 subtype :: Var v => Type v -> Type v -> Either Note (Type v)
 subtype t1 t2 =
   let (t1', t2') = (ABT.vmap TypeVar.Universal t1, ABT.vmap TypeVar.Universal t2)
-  in case Context.runM (Context.subtype t1' t2') Context.env0 Map.empty of
+  in case Context.runM (Context.subtype t1' t2')
+                       (Context.MEnv Context.env0 [] Map.empty True) of
     Left e -> Left e
     Right _ -> Right t2
 

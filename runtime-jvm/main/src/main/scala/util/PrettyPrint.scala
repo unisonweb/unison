@@ -51,6 +51,8 @@ sealed abstract class PrettyPrint {
 }
 
 object PrettyPrint {
+  val hashPrecision = 8
+
   /** The empty document. */
   case object Empty extends PrettyPrint { def unbrokenWidth = 0 }
 
@@ -137,7 +139,9 @@ object PrettyPrint {
 
   def prettyId(typeId: Id, ctorId: ConstructorId): PrettyPrint = typeId match {
     case Id.Builtin(name) => prettyName(name) <> s"#${ctorId.toInt}"
-    case Id.HashRef(h) => "#" <> h.bytes.map(b => b.formatted("%02x")).toList.mkString
+    case Id.HashRef(h) =>
+      val hashString = Base58.encode(h.bytes).take(hashPrecision)
+      s"#$hashString#${ctorId.toInt}"
   }
 
   def distributeNames(patterns: Seq[Pattern], names: List[Name]): Seq[PrettyPrint] =
@@ -178,10 +182,8 @@ object PrettyPrint {
   def prettyUnboxed(value: U, t: UnboxedType): PrettyPrint = t match {
     case UnboxedType.Int64 =>
       val i = unboxedToInt(value)
-      parenthesizeGroupIf(i < 0)(i.toString)
-    case UnboxedType.Float =>
-      val i = unboxedToDouble(value)
-      parenthesizeGroupIf(i < 0)(i.toString)
+      if (i > 0) "+" + i.toString else i.toString
+    case UnboxedType.Float => unboxedToDouble(value).toString
     case UnboxedType.Boolean => unboxedToBool(value).toString
     case UnboxedType.UInt64 => toUnsignedString(unboxedToLong(value))
   }
@@ -233,6 +235,7 @@ object PrettyPrint {
       prettyTerm(
         Term.Var(prettyId(typeId, ctorId).renderUnbroken)(
           fields.map(_.decompile):_*), precedence)
+    case Term.Text(txt) => '"' + Text.toString(txt) + '"'
     case t => t.toString
   }
 

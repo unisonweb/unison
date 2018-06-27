@@ -2,21 +2,19 @@
 
 module Unison.Parsers where
 
-import Control.Arrow ((***))
-import Data.Text (Text)
-import Unison.Term (Term)
-import Unison.Type (Type)
-import Unison.Parser (run)
-import Unison.Var (Var)
-import qualified Unison.Parser as Parser
 import qualified Data.Text as Text
-import qualified Unison.ABT as ABT
-import qualified Unison.Term as Term
+import           Data.Text.IO (readFile)
+import           Prelude hiding (readFile)
+import qualified Unison.FileParser as FileParser
+import           Unison.Parser (PEnv)
+import qualified Unison.Parser as Parser
+import           Unison.Symbol (Symbol)
+import           Unison.Term (Term)
 import qualified Unison.TermParser as TermParser
+import           Unison.Type (Type)
 import qualified Unison.TypeParser as TypeParser
-import qualified Unison.Type as Type
-import qualified Unison.Reference as R
-import qualified Unison.Var as Var
+import           Unison.UnisonFile (UnisonFile)
+import           Unison.Var (Var)
 
 type S v = TypeParser.S v
 
@@ -24,106 +22,34 @@ s0 :: S v
 s0 = TypeParser.s0
 
 unsafeGetRight :: Either String a -> a
-unsafeGetRight (Right a) = a
-unsafeGetRight (Left err) = error err
+unsafeGetRight = either error id
 
-parseTerm :: Var v => String -> Either String (Term v)
-parseTerm = parseTerm' termBuiltins typeBuiltins
+parseTerm :: Var v => String -> PEnv -> Either String (Term v)
+parseTerm s = Parser.run (Parser.root TermParser.term) s s0
 
-parseType :: Var v => String -> Either String (Type v)
-parseType = parseType' typeBuiltins
+parseType :: Var v => String -> PEnv -> Either String (Type v)
+parseType s = Parser.run (Parser.root TypeParser.valueType) s s0
 
-parseTerm' :: Var v => [(v, Term v)] -> [(v, Type v)] -> String -> Either String (Term v)
-parseTerm' termBuiltins typeBuiltins s =
-  bindBuiltins termBuiltins typeBuiltins <$> run (Parser.root TermParser.term) s s0
+parseFile :: Var v => FilePath -> String -> PEnv -> Either String (UnisonFile v)
+parseFile filename s = Parser.run' (Parser.root FileParser.file) s s0 filename
 
-bindBuiltins :: Var v => [(v, Term v)] -> [(v, Type v)] -> Term v -> Term v
-bindBuiltins termBuiltins typeBuiltins =
-   Term.typeMap (ABT.substs typeBuiltins) . ABT.substs termBuiltins
+unsafeParseTerm :: Var v => String -> PEnv -> Term v
+unsafeParseTerm = fmap unsafeGetRight . parseTerm
 
-parseType' :: Var v => [(v, Type v)] -> String -> Either String (Type v)
-parseType' typeBuiltins s =
-  ABT.substs typeBuiltins <$> run (Parser.root TypeParser.type_) s s0
+unsafeParseType :: Var v => String -> PEnv -> Type v
+unsafeParseType = fmap unsafeGetRight . parseType
 
-unsafeParseTerm :: Var v => String -> Term v
-unsafeParseTerm = unsafeGetRight . parseTerm
+unsafeParseFile ::String -> PEnv -> UnisonFile Symbol
+unsafeParseFile s pEnv = unsafeGetRight $ parseFile "" s pEnv
 
-unsafeParseType :: Var v => String -> Type v
-unsafeParseType = unsafeGetRight . parseType
+unsafeParseFile' :: String -> UnisonFile Symbol
+unsafeParseFile' s = unsafeGetRight $ parseFile "" s Parser.penv0
 
-unsafeParseTerm' :: Var v => [(v, Term v)] -> [(v, Type v)] -> String -> Term v
-unsafeParseTerm' er tr = unsafeGetRight . parseTerm' er tr
+unsafeReadAndParseFile' :: String -> IO (UnisonFile Symbol)
+unsafeReadAndParseFile' = unsafeReadAndParseFile Parser.penv0
 
-unsafeParseType' :: Var v => [(v, Type v)] -> String -> Type v
-unsafeParseType' tr = unsafeGetRight . parseType' tr
-
--- Alias <alias> <fully-qualified-name>
-  -- will import the builtin <fully-qualified-name>, and once more as the alias
--- AliasFromModule
---   <modulename> e.g. "Number"
---   <aliases import modulename.alias as alias> e.g. "plus"
---   <ids import as qualified modulename.id> e.g. "minus" will import builtin "Number.plus" only
-data Builtin = Builtin Text -- e.g. Builtin "()"
-             | Alias Text Text
-             | AliasFromModule Text [Text] [Text]
-
--- aka default imports
-termBuiltins :: Var v => [(v, Term v)]
-termBuiltins = (Var.named *** Term.ref) <$> (
-    [ Builtin "()"
-    , Alias "Right" "Either.Right"
-    , Alias "Left" "Either.Left"
-    , Builtin "Greater"
-    , Builtin "Less"
-    , Builtin "Equal"
-    , Builtin "True"
-    , Builtin "False"
-    , Builtin "Pair"
-    , Alias "unit" "()"
-    , Alias "Unit" "()"
-    , Alias "Some" "Optional.Some"
-    , Alias "None" "Optional.None"
-    , Alias "+" "Number.+"
-    , Alias "-" "Number.-"
-    , Alias "*" "Number.*"
-    , Alias "/" "Number./"
-    , AliasFromModule "Vector" ["single"] []
-    , AliasFromModule "Remote" ["pure", "bind", "pure", "fork"] []
-    ] >>= unpackAliases)
-    where
-      unpackAliases :: Builtin -> [(Text, R.Reference)]
-      unpackAliases (Builtin t) = [builtin t]
-      unpackAliases (Alias a sym) = [alias a sym, builtin sym]
-      unpackAliases (AliasFromModule m toAlias other) =
-        (aliasFromModule m <$> toAlias) ++ (builtinInModule m <$> toAlias)
-          ++ (builtinInModule m <$> other)
-
-      builtin t = (t, R.Builtin t)
-      alias new known = (new, R.Builtin known)
-      aliasFromModule m sym = alias sym (Text.intercalate "." [m, sym])
-      builtinInModule m sym = builtin (Text.intercalate "." [m, sym])
-
-typeBuiltins :: Var v => [(v, Type v)]
-typeBuiltins = (Var.named *** Type.lit) <$>
-  [ ("Number", Type.Number)
-  , builtin "Unit"
-  , builtin "Boolean"
-  , ("Optional", Type.Optional)
-  , builtin "Either"
-  , builtin "Pair"
-  , builtin "Order"
-  , builtin "Comparison"
-  , builtin "Order.Key"
-  -- kv store
-  , builtin "Index"
-  -- html
-  , builtin "Html.Link"
-  -- distributed
-  , builtin "Channel"
-  , builtin "Duration"
-  , builtin "Remote"
-  , builtin "Node"
-  -- hashing
-  , builtin "Hash"
-  ]
-  where builtin t = (t, Type.Ref $ R.Builtin t)
+unsafeReadAndParseFile :: PEnv -> String -> IO (UnisonFile Symbol)
+unsafeReadAndParseFile penv filename = do
+  txt <- readFile filename
+  let str = Text.unpack txt
+  pure $ unsafeGetRight (parseFile filename str penv)

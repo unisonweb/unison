@@ -12,17 +12,40 @@ import scala.reflect.ClassTag
  * The cursor position can be accessed via the `position` method.
  */
 trait Source { self =>
+  // todo: use a representation that supports 64-bit lengths, unlike Array
   def get(n: Int): Array[Byte]
   def getBoolean: Boolean = getByte != 0
   def getByte: Byte
   def getInt: Int
   def getLong: Long
-  // todo: The UTF-8 of Long encodings, uses a single byte where possible
-  def getVarLong: Long = getLong
+
+  /**
+    * Uses the little-endian variable length encoding of unsigned integers:
+    * https://developers.google.com/protocol-buffers/docs/encoding#varints
+    */
+  def getVarLong: Long = {
+    val b = getByte
+    if ((b & 0x80) == 0) b
+    else (getVarLong << 7) | (b & 0x7f)
+  }
+
+  /**
+    * Uses the zigzag encoding for variable-length signed numbers, described at:
+    * https://developers.google.com/protocol-buffers/docs/encoding#signed-integers
+    * https://github.com/google/protobuf/blob/0400cca/java/core/src/main/java/com/google/protobuf/CodedOutputStream.java#L949-L952
+    */
+  def getVarSignedLong: Long = {
+    val n = getVarLong
+    (n >>> 1) ^ -(n & 1)
+  }
+
   def getDouble: Double
   def position: Long
-  def getFramed: Array[Byte] = get(getInt)
 
+  // todo: use a representation that supports 64-bit lengths, unlike Array
+  def getFramed: Array[Byte] = get(getVarLong.toInt)
+
+  // todo: use a representation that supports 64-bit lengths, unlike String
   final def getString: String = {
     val bytes = getFramed
     new String(bytes, java.nio.charset.StandardCharsets.UTF_8)
@@ -117,6 +140,12 @@ object Source {
       case i : ArrayIndexOutOfBoundsException => true
       case _ => false
     }
+  }
+
+  def fromFile(path: String): Source = {
+    import java.nio.file.{Files, Paths}
+    val byteArray = Files.readAllBytes(Paths.get(path))
+    fromByteBuffer(ByteBuffer.wrap(byteArray), _ => false)
   }
 
   // `onEmpty` should return `false` if it has no more elements

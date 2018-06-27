@@ -24,7 +24,7 @@ import qualified Data.Set as Set
 --     info attached to `v` values may participate in the `Eq` or `Ord` instances,
 --     it is 'just' metadata.
 --
-class (Eq v, Ord v) => Var v where
+class (Show v, Eq v, Ord v) => Var v where
   named :: Text -> v
   rename :: Text -> v -> v
   name :: v -> Text

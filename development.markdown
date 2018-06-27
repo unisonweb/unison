@@ -9,6 +9,22 @@ Launch `sbt` in `runtime-jvm` directory, then here are various useful commands:
 * `main/test:run 102932 compilation.let3` - runs tests prefixed by `"compilation.let3"` with the random seed 102932
 * `benchmark/run` - presents menu of benchmarks to run
 * `;clean;coverage;main/test:run;coverageReport` followed optionally by `;coverageOff` - generates test coverage report
+* `main/compile` - builds the interpreter
+* `main/run` - builds and runs the interpreter
+
+The runtime doesn't build with JDK 10 at the moment, but this will work:
+```bash
+JAVA_HOME=`/usr/libexec/java_home -v 9` sbt <commands ...>
+```
+
+To run the built interpreter without booting sbt:
+```bash
+scala -cp main/target/scala-2.12/classes org.unisonweb.Bootstrap test.ub
+```
+or from the project root directory:
+```bash
+scala -cp runtime-jvm/main/target/scala-2.12/classes org.unisonweb.Bootstrap test.ub
+```
 
 ## Haskell
 

@@ -4,17 +4,17 @@ import compilation._
 import Term.Name
 
 case class Environment(
-  builtins: Name => Computation,
-  userDefined: Hash => Computation,
-  dataConstructors: (Id,ConstructorId) => Computation,
-  effects: (Id,ConstructorId) => Computation
+  builtins: Map[Name, Computation],
+  userDefined: Map[Hash, Computation],
+  dataConstructors: Map[(Id,ConstructorId), Computation],
+  effects: Map[(Id,ConstructorId), Computation]
 )
 
 object Environment {
 
   val standard = Environment(
     Builtins.builtins,
-    userDefined = _ => ???,
+    userDefined = Map.empty,
     BuiltinTypes.dataConstructors,
     BuiltinTypes.effects)
 }

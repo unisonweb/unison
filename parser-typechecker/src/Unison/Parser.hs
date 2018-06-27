@@ -2,6 +2,7 @@
 {-# Language DeriveTraversable #-}
 {-# Language DeriveFoldable #-}
 {-# Language BangPatterns #-}
+{-# Language ExplicitForAll #-}
 
 module Unison.Parser where
 
@@ -12,21 +13,45 @@ import Data.List hiding (takeWhile)
 import Data.Maybe
 import Data.Text (Text)
 import Prelude hiding (takeWhile)
+import qualified Unison.UnisonFile as UnisonFile
 import qualified Data.Char as Char
+import qualified Data.Map  as Map
 import qualified Data.Text as Text
 import qualified Prelude
 import qualified Text.Parsec as Parsec
+import           Text.Parsec.Prim (ParsecT)
 import qualified Text.Parsec.Layout as L
 
--- import Debug.Trace
+import Debug.Trace
+import Text.Parsec (anyChar)
 
-type Parser s a = Parsec.Parsec Text (Env s) a
+type PEnv = UnisonFile.CtorLookup
+
+penv0 :: PEnv
+penv0 = Map.empty
+type Parser s a = Parsec.ParsecT Text (Env s) ((->) PEnv) a
 
 data Env s = Env s L.LayoutEnv
 
 instance L.HasLayoutEnv (Env s) where
   getLayoutEnv (Env _ l) = l
   setLayoutEnv l (Env s _) = Env s l
+
+pTrace :: [Char] -> Text.Parsec.Prim.ParsecT Text.Text (Env s) ((->) PEnv) ()
+pTrace s = pt <|> return ()
+    where pt = attempt $
+               do
+                 x <- attempt $ many anyChar
+                 void $ trace (s++": " ++show x) $ attempt $ char 'z'
+                 fail x
+
+tracingEnabled :: Bool
+tracingEnabled = False
+
+traced :: [Char]
+       -> Text.Parsec.Prim.ParsecT Text.Text (Env s) ((->) PEnv) b
+       -> Text.Parsec.Prim.ParsecT Text.Text (Env s) ((->) PEnv) b
+traced s p = if not tracingEnabled then p else Parsec.parserTraced s p
 
 root :: Parser s a -> Parser s a
 root p = optional (L.space) *> (p <* (optional semicolon <* eof))
@@ -46,19 +71,28 @@ attempt = Parsec.try
 lookAhead :: Parser s a -> Parser s a
 lookAhead = Parsec.lookAhead
 
-run' :: Parser s a -> String -> s -> String -> Either String a
+run' :: Parser s a
+     -> String
+     -> s
+     -> String
+     -> PEnv
+     -> Either String a
 run' p s s0 name =
-  case Parsec.runParser p (Env s0 L.defaultLayoutEnv) name (Text.pack s) of
-    Left e -> Left (show e)
-    Right a -> Right a
+  err <$> Parsec.runParserT p (Env s0 L.defaultLayoutEnv) name (Text.pack s)
+  where err (Left e) = Left (show e)
+        err (Right a) = Right a
 
-run :: Parser s a -> String -> s -> Either String a
+run :: Parser s a
+    -> String
+    -> s
+    -> PEnv
+    -> Either String a
 run p s s0 = run' p s s0 ""
 
-unsafeRun :: Parser s a -> String -> s -> a
-unsafeRun p s s0 = case run p s s0 of
-  Right a -> a
-  Left e -> error e
+unsafeRun :: Parser s a -> String -> s -> PEnv -> a
+unsafeRun p s s0 = err <$> run p s s0
+  where err (Right a) = a
+        err (Left e) = error e
 
 string :: String -> Parser s String
 string s = attempt (Parsec.string s) <|> fail ("expected '" ++ s ++ "'")
@@ -89,7 +123,7 @@ base64urlstring :: Parser s String
 base64urlstring = base64string' $ ['A' .. 'Z'] ++ ['a' .. 'z'] ++ ['0' .. '9'] ++ "-_"
 
 notReservedChar :: Char -> Bool
-notReservedChar = (`notElem` "\".,`[]{}:;()")
+notReservedChar = (`notElem` "\".,`[]{}:()@")
 
 identifier :: String -> [String -> Bool] -> Parser s String
 identifier msg = identifier' msg [not . isSpace, notReservedChar]
@@ -119,13 +153,19 @@ wordyId keywords = label "wordyId" . token $ do
 symbolyId :: [String] -> Parser s String
 symbolyId keywords = label "operator" . token $ do
   op <- identifier' "operator identifier"
-    [notReservedChar, (/= '_'), not . Char.isSpace, \c -> Char.isSymbol c || Char.isPunctuation c]
+    [notReservedChar,
+     (/= '_'),
+     not . Char.isSpace,
+     \c -> Char.isSymbol c || Char.isPunctuation c]
     [(`notElem` keywords)]
   qual <- optional (char '_' *> wordyId keywords)
   pure $ maybe op (\qual -> qual ++ "." ++ op) qual
 
 token :: Parser s a -> Parser s a
 token p = attempt (L.spaced p)
+
+token_ :: Parser s a -> Parser s ()
+token_ = void . token
 
 parenthesized :: Parser s a -> Parser s a
 parenthesized p = lp *> body <* rp

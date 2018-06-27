@@ -1,10 +1,13 @@
 package org.unisonweb
 
-case class Hash(bytes: Array[Byte]) extends AnyVal
+case class Hash(bytes: Array[Byte]) {
+  override def toString: String =
+    "#" + bytes.map(b => b.formatted("%02x")).toList.mkString.take(10)
 
-object Hash {
+  override def hashCode(): Int = bytes.toSeq.hashCode()
 
-  /** Compute the Hash for a constructorId of some data type with hash `h`. */
-  def constructorId(h: Hash, constructorId: ConstructorId): Hash =
-    ???
+  override def equals(obj: scala.Any): Boolean = obj match {
+    case obj: Hash => bytes.toSeq.equals(obj.bytes.toSeq)
+    case _ => sys.error("completely bomb")
+  }
 }

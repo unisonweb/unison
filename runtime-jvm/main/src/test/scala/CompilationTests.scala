@@ -15,7 +15,7 @@ object CompilationTests {
 
   val env = Environment(
     Builtins.builtins,
-    userDefined = _ => ???,
+    userDefined = Map.empty,
     BuiltinTypes.dataConstructors,
     BuiltinTypes.effects)
 
@@ -157,7 +157,7 @@ object CompilationTests {
         }
 
       val lam = Term.Compiled(
-        new ClosureForming(List("a","b","c","d"), body, Some(UnboxedType.Int64), 42))
+        new ClosureForming(List("a","b","c","d"), body, 42))
       val p = Let('f -> lam(1))('f.v(2,3,4))
       val p2 = Let('f -> lam(1), 'g -> 'f.v(2))('g.v(3,4))
       val p3 = Let('f -> lam(1), 'g -> 'f.v(2), 'h -> 'g.v(3))('h.v(4))
@@ -354,13 +354,13 @@ object CompilationTests {
         ok
       },
       test("ex1") { implicit T =>
-        equal(eval(Sequence.size(Sequence(1,2,3))), 3: Term)
+        equal(eval(Sequence.size(Sequence(1,2,3))), 3.unsigned)
       },
       test("ex2 (underapplication)") { implicit T =>
         val t: Term =
           Let('x -> Sequence(1,2,3),
               'fn -> Sequence.take(2))(Sequence.size('fn.v('x)))
-        equal(eval(t), 2: Term)
+        equal(eval(t), 2.unsigned)
       }
     ),
     suite("text") (

@@ -11,7 +11,7 @@ object BuiltinTypes {
   }
 
   object Unit extends Constructor(0) {
-    val Id = org.unisonweb.Id("Unit")
+    val Id = org.unisonweb.Id("()")
     val pattern: Pattern = Pattern.Data(Id, cid, Nil)
     val term: Term = Term.Constructor(Id, cid)
     val value: Value = Value.Data(Id, cid, Array())
@@ -19,7 +19,7 @@ object BuiltinTypes {
 
   /* Tuple.pattern(Unit.pattern, Optional.Some.pattern(Pattern.Wildcard)) */
   object Tuple extends Constructor(0) {
-    val Id = org.unisonweb.Id("Tuple")
+    val Id = org.unisonweb.Id("Pair")
     def consPattern(hd: Pattern, tl: Pattern): Pattern =
       Pattern.Data(Id, cid, List(hd,tl))
     def pattern(ps: Pattern*): Pattern =
@@ -27,7 +27,7 @@ object BuiltinTypes {
     def term(ts: Term*): Term =
       ts.foldRight(Unit.term)((hd,tl) => Term.Constructor(Id, cid)(hd,tl))
     def lambda: Term =
-      dataConstructors(Id, cid) match { case Return(lam : Value.Lambda) => Term.Compiled(lam) }
+      dataConstructors(Id -> cid) match { case Return(lam : Value.Lambda) => Term.Compiled(lam) }
     def value(vs: Value*): Value =
       vs.foldRight(Unit.value)((hd,tl) => Value.Data(Id, cid, Array(hd,tl)))
   }
@@ -134,7 +134,7 @@ object BuiltinTypes {
     }
     val lam: Computation =
       if (arity >= 1)
-        new Value.Lambda.ClosureForming(paramNames.toList, body, None, decompile)
+        new Value.Lambda.ClosureForming(paramNames.toList, body, decompile)
           .toComputation
       else try {
         Return(req(Array()))
@@ -178,7 +178,7 @@ object BuiltinTypes {
     ((id, cid), x)
   }
 
-  val dataConstructorsM: Map[(Id,ConstructorId),Computation] =
+  val dataConstructors: Map[(Id,ConstructorId),Computation] =
     Map(
       dataConstructor(Unit.Id, Unit.cid),
       dataConstructor(Tuple.Id, Tuple.cid, "head", "tail"),
@@ -188,7 +188,7 @@ object BuiltinTypes {
       dataConstructor(Either.Id, Either.Right.cid, "b")
     )
 
-  val effectConstructorsM: Map[(Id,ConstructorId),Computation] = {
+  val effects: Map[(Id,ConstructorId),Computation] = {
     import Effects._
     Map(
       effectRequest(State.Id, State.Get.cid),
@@ -198,9 +198,4 @@ object BuiltinTypes {
     )
   }
 
-  val dataConstructors: (Id,ConstructorId) => Computation =
-    (id,cid) => dataConstructorsM(id -> cid)
-
-  val effects: (Id,ConstructorId) => Computation =
-    (id, cid) => effectConstructorsM(id -> cid)
 }

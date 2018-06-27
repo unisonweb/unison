@@ -129,18 +129,31 @@ package object compilation {
     // Special cases for computations that take unboxed arguments and produce unboxed results,
     // and which are guaranteed not to throw tail call exceptions during evaluation. We check for
     // these in various places to emit more efficient code for common cases.
-    abstract class C2U extends Computation {
-      def apply(r: R, x1: U, x0: U): U
+    abstract class C2U(val outputType: UnboxedType) extends Computation {
+      def raw(x1: U, x0: U): U
+
+      final def apply(r: R, x1: U, x0: U): U = {
+        r.boxed = outputType
+        raw(x1, x0)
+      }
       final def apply(r: R, rec: Lambda, top: StackPtr, stackU: Array[U], x1: U, x0: U, stackB: Array[B], x1b: B, x0b: B): U =
         apply(r, x1, x0)
     }
-    abstract class C1U extends C2U {
-      def apply(r: R, x0: U): U
-      final def apply(r: R, x1: U, x0: U): U = apply(r, x0)
+    abstract class C1U(outputType: UnboxedType) extends C2U(outputType) {
+      def raw(x0: U): U
+      final def raw(x1: U, x0: U) = raw(x0)
+      final def apply(r: R, x0: U): U = {
+        r.boxed = outputType
+        raw(x0)
+      }
     }
-    abstract class C0U extends C1U {
-      def apply(r: R): U
-      final def apply(r: R, x0: U): U = apply(r)
+    abstract class C0U(outputType: UnboxedType) extends C1U(outputType) {
+      def raw: U
+      final def raw(x0: U) = raw
+      final def apply(r: R): U = {
+        r.boxed = outputType
+        raw
+      }
     }
     abstract class C2P extends Computation {
       def apply(r: R, x1: U, x0: U, x1b: B, x0b: B): U
@@ -783,6 +796,9 @@ package object compilation {
         val needsCopy = names.length > K
         // inner lambda may throw SelfCall, so we create wrapper Lambda
         // to process those
+
+        // note: no reason to specialize for Computation.C{2,1,0}U, as these
+        //       won't contain a tail-recursive call, thus won't enter here
         val outerLambdaBody: Computation = (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
           val stackArgsCount = (innerLambda.arity - K) max 0
 
@@ -818,7 +834,7 @@ package object compilation {
 
           go(x1, x0, x1b, x0b)
         }
-        Lambda(names.length, outerLambdaBody, innerLambda.unboxedType, innerLambda.decompile)
+        Lambda(names.length, outerLambdaBody, innerLambda.decompile)
       }
 
       compiledLambda match {
@@ -877,7 +893,7 @@ package object compilation {
       val shadowedRec = bodyRec.shadow(names)
       val cbody = compile(builtins)(body, names.reverse.toVector,
         shadowedRec, shadowedRec.toRecursiveVars, IsTail)
-      Return(Lambda(names.length, cbody, None, e))
+      Return(Lambda(names.length, cbody, e))
     }
     // 2.
     else {
@@ -942,7 +958,11 @@ package object compilation {
 
   /** Compile top-level term */
   def compileTop(builtins: Environment)(e: Term) =
-    compile(builtins)(e, Vector(), CurrentRec.none, RecursiveVars.empty, IsTail)
+    if (!Term.freeVars(e).isEmpty)
+      sys.error("Can't compile top-level term with free variables "
+                + Term.freeVars(e).mkString(", "))
+    else
+      compile(builtins)(e, Vector(), CurrentRec.none, RecursiveVars.empty, IsTail)
 
   def compile(builtins: Environment)(
     e: Term,
@@ -957,7 +977,7 @@ package object compilation {
       case Term.Id(Id.Builtin(name)) =>
         builtins.builtins(name)
       case Term.Id(Id.HashRef(h)) => ???
-      case Term.Constructor(id,cid) => builtins.dataConstructors(id,cid)
+      case Term.Constructor(id,cid) => builtins.dataConstructors(id -> cid)
       case Term.Compiled(param) =>
         if (param.toValue eq null)
           (r => param.toValue.toResult(r)) : Computation.C0
@@ -978,11 +998,13 @@ package object compilation {
         val ccond = compile(builtins)(cond, env, currentRec, recVars, IsNotTail)
         val ct = compile(builtins)(t, env, currentRec, recVars, isTail)
         val cf = compile(builtins)(f, env, currentRec, recVars, isTail)
-        (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
-          if (unboxedToBool(eval(ccond, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)))
+        (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+          val b = eval(ccond, r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+          if (unboxedToBool(b))
             ct(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
           else
             cf(r, rec, top, stackU, x1, x0, stackB, x1b, x0b)
+        }
       case Term.And(p, q) =>
         val cp = compile(builtins)(p, env, currentRec, recVars, IsNotTail)
         val cq = compile(builtins)(q, env, currentRec, recVars, isTail)
@@ -1268,7 +1290,7 @@ package object compilation {
               cbody(r, rec, topN, stackU, b1v, b0v, stackB, b1vb, b0vb)
             }
         }
-      case Term.Request(id,cid) => builtins.effects(id,cid)
+      case Term.Request(id,cid) => builtins.effects(id -> cid)
       case Term.Handle(handler, block) =>
         import Term.Syntax._
         val cHandler =
@@ -1288,9 +1310,10 @@ package object compilation {
               // Note: We have to make up a name here. "handler" works.
               Term.Lam(k.names:_*)(Term.Handle(Term.Compiled(handler))(
                 k.decompile(k.names.map(Term.Var(_)):_*)))
+            // todo: worth it to specialize doIt for k.body: Computation.C{2,1,0}U?
             val body: Computation = (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) =>
               doIt(handler, k.body)(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
-            Lambda(k.arity, body, k.unboxedType, decompiled)
+            Lambda(k.arity, body, decompiled)
           }
           def apply(r: R, rec: Lambda, top: StackPtr,
                     stackU: Array[U], x1: U, x0: U,

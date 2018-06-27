@@ -161,6 +161,9 @@ absr = absr' ()
 absr' :: (Functor f, Foldable f, Var v) => a -> v -> Term f (V v) a -> Term f (V v) a
 absr' a v body = wrap' v body $ \v body -> abs' a v body
 
+absChain :: Ord v => [v] -> Term f v () -> Term f v ()
+absChain vs t = foldr abs t vs
+
 tm :: (Foldable f, Ord v) => f (Term f v ()) -> Term f v ()
 tm = tm' ()
 
@@ -221,44 +224,46 @@ freshNamed' used n = fresh' used (v' n)
 -- | `subst v e body` substitutes `e` for `v` in `body`, avoiding capture by
 -- renaming abstractions in `body`
 subst :: (Foldable f, Functor f, Var v) => v -> Term f v a -> Term f v a -> Term f v a
-subst v r t2@(Term fvs ann body)
+subst v r t2 = subst' (const r) v (freeVars r) t2
+
+-- Slightly generalized version of `subst`, the replacement action is handled
+-- by the function `replace`, which is given the annotation `a` at the point
+-- of replacement. `r` should be the set of free variables contained in the
+-- term returned by `replace`. See `substInheritAnnotation` for an example usage.
+subst' :: (Foldable f, Functor f, Var v) => (a -> Term f v a) -> v -> Set v -> Term f v a -> Term f v a
+subst' replace v r t2@(Term fvs ann body)
   | Set.notMember v fvs = t2 -- subtrees not containing the var can be skipped
   | otherwise = case body of
-    Var v' | v == v' -> r    -- var match; perform replacement
+    Var v' | v == v' -> replace ann -- var match; perform replacement
            | otherwise -> t2 -- var did not match one being substituted; ignore
-    Cycle body -> cycle' ann (subst v r body)
+    Cycle body -> cycle' ann (subst' replace v r body)
     Abs x _ | x == v -> t2 -- x shadows v; ignore subtree
     Abs x e -> abs' ann x' e'
-      where x' = freshInBoth r t2 x
+      where x' = fresh t2 (fresh' r x)
             -- rename x to something that cannot be captured by `r`
-            e' = if x /= x' then subst v r (rename x x' e)
-                 else subst v r e
-    Tm body -> tm' ann (fmap (subst v r) body)
+            e' = if x /= x' then subst' replace v r (rename x x' e)
+                 else subst' replace v r e
+    Tm body -> tm' ann (fmap (subst' replace v r) body)
+
+-- Like `subst`, but the annotation of the replacement is inherited from
+-- the previous annotation at each replacement point.
+substInheritAnnotation :: (Foldable f, Functor f, Var v)
+                       => v -> Term f v b -> Term f v a -> Term f v a
+substInheritAnnotation v r t =
+  subst' (\ann -> const ann <$> r) v (freeVars r) t
+
+substsInheritAnnotation
+  :: (Foldable f, Functor f, Var v)
+  => [(v, Term f v b)] -> Term f v a -> Term f v a
+substsInheritAnnotation replacements body = foldr f body (reverse replacements) where
+  f (v, t) body = substInheritAnnotation v t body
 
 -- | `substs [(t1,v1), (t2,v2), ...] body` performs multiple simultaneous
 -- substitutions, avoiding capture
-substs :: (Foldable f, Functor f, Var v) => [(v, Term f v a)] -> Term f v a -> Term f v a
+substs :: (Foldable f, Functor f, Var v)
+       => [(v, Term f v a)] -> Term f v a -> Term f v a
 substs replacements body = foldr f body (reverse replacements) where
   f (v, t) body = subst v t body
-
--- | `replace f t body` substitutes `t` for all maximal (outermost)
--- subterms matching the predicate `f` in `body`, avoiding capture.
-replace :: (Foldable f, Functor f, Var v)
-        => (Term f v a -> Bool)
-        -> Term f v a
-        -> Term f v a
-        -> Term f v a
-replace f t body | f body = t
-replace f t t2@(Term _ ann body) = case body of
-  Var v -> annotatedVar ann v
-  Cycle body -> cycle' ann (replace f t body)
-  Abs x e | f (annotatedVar ann x) -> abs' ann x e
-  Abs x e -> abs' ann x' e'
-    where x' = freshInBoth t t2 x
-          -- rename x to something that cannot be captured by `t`
-          e' = if x /= x' then replace f t (rename x x' e)
-               else replace f t e
-  Tm body -> tm' ann (fmap (replace f t) body)
 
 rebuildUp :: (Ord v, Foldable f, Functor f)
           => (f (Term f v a) -> f (Term f v a))
@@ -277,27 +282,27 @@ rebuildUp f (Term _ ann body) = case body of
 -- `visit (const Nothing) t == pure t` and
 -- `visit (const (Just (pure t2))) t == pure t2`
 visit :: (Traversable f, Applicative g, Ord v)
-      => (Term f v () -> Maybe (g (Term f v ())))
-      -> Term f v ()
-      -> g (Term f v ())
+      => (Term f v a -> Maybe (g (Term f v a)))
+      -> Term f v a
+      -> g (Term f v a)
 visit f t = case f t of
   Just gt -> gt
   Nothing -> case out t of
     Var _ -> pure t
-    Cycle body -> cycle <$> visit f body
-    Abs x e -> abs x <$> visit f e
-    Tm body -> tm <$> traverse (visit f) body
+    Cycle body -> cycle' (annotation t) <$> visit f body
+    Abs x e -> abs' (annotation t) x <$> visit f e
+    Tm body -> tm' (annotation t) <$> traverse (visit f) body
 
 -- | Apply an effectful function to an ABT tree top down, sequencing the results.
 visit' :: (Traversable f, Applicative g, Monad g, Ord v)
-       => (f (Term f v ()) -> g (f (Term f v ())))
-       -> Term f v ()
-       -> g (Term f v ())
+       => (f (Term f v a) -> g (f (Term f v a)))
+       -> Term f v a
+       -> g (Term f v a)
 visit' f t = case out t of
   Var _ -> pure t
-  Cycle body -> cycle <$> visit' f body
-  Abs x e -> abs x <$> visit' f e
-  Tm body -> f body >>= \body -> tm <$> traverse (visit' f) body
+  Cycle body -> cycle' (annotation t) <$> visit' f body
+  Abs x e -> abs' (annotation t) x <$> visit' f e
+  Tm body -> f body >>= \body -> tm' (annotation t) <$> traverse (visit' f) body
 
 data Subst f v a =
   Subst { freshen :: forall m v' . Monad m => (v -> m v') -> m v'
@@ -316,6 +321,16 @@ unabs t = ([], t)
 
 reabs :: Ord v => [v] -> Term f v () -> Term f v ()
 reabs vs t = foldr abs t vs
+
+transform :: (Ord v, Foldable g, Functor f)
+          => (forall a. f a -> g a) -> Term f v a -> Term g v a
+transform f tm = case (out tm) of
+  Var v -> annotatedVar (annotation tm) v
+  Abs v body -> abs' (annotation tm) v (transform f body)
+  Tm subterms ->
+    let subterms' = fmap (transform f) subterms
+    in tm' (annotation tm) (f subterms')
+  Cycle body -> cycle' (annotation tm) (transform f body)
 
 instance (Foldable f, Functor f, Eq1 f, Eq a, Var v) => Eq (Term f v a) where
   -- alpha equivalence, works by renaming any aligned Abs ctors to use a common fresh variable
@@ -340,9 +355,8 @@ hash t = hash' [] t where
       where lookup (Left cycle) = elem v cycle
             lookup (Right v') = v == v'
             ind = findIndex lookup env
-            -- env not likely to be very big, prefer to encode in one byte if possible
             hashInt :: Int -> h
-            hashInt i = Hashable.accumulate [Hashable.VarInt i]
+            hashInt i = Hashable.accumulate [Hashable.UInt64 $ fromIntegral i]
             die = error $ "unknown var in environment: " ++ show (Var.name v)
     Cycle (AbsN' vs t) -> hash' (Left vs : env) t
     Cycle t -> hash' env t
@@ -379,7 +393,7 @@ subtract _ t1s t2s =
 instance (Show1 f, Var v) => Show (Term f v a) where
   -- annotations not shown
   showsPrec p (Term _ _ out) = case out of
-    Var v -> (Text.unpack (Var.shortName v) ++)
-    Cycle body -> showsPrec p body
+    Var v -> (show v ++)
+    Cycle body -> ("Cycle " ++) . showsPrec p body
     Abs v body -> showParen True $ (Text.unpack (Var.shortName v) ++) . showString ". " . showsPrec p body
     Tm f -> showsPrec1 p f
