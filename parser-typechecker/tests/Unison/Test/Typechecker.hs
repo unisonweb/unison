@@ -338,7 +338,7 @@ test = scope "typechecker" . tests $
             |
             |()
             |]
-  , bombs [r|--handle inference
+  ,broken [r|--handle inference
             |effect State s where
             |  get : ∀ s . () -> {State s} s
             |  set : ∀ s . s -> {State s} ()
@@ -402,7 +402,10 @@ test = scope "typechecker" . tests $
   ]
   where c tm typ = scope tm . expect $ check (stripMargin tm) typ
         bombs s = scope s (expect . not . fileTypechecks $ s)
-        checks s = scope s (typer $ s)
+        broken :: String -> Test ()
+        broken s = scope s $ pending (checks s)
+        checks :: String -> Test ()
+        checks s = scope s (typer s)
         typeFile = (parseAndSynthesizeAsFile @ Symbol) "<test>" .  stripMargin
         typer = either crash (const ok) . typeFile
         fileTypechecks = isRight . typeFile

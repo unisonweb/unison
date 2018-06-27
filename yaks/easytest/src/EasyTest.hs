@@ -20,11 +20,13 @@ import qualified Control.Concurrent.Async as A
 import qualified Data.Map as Map
 import qualified System.Random as Random
 
-data Status = Failed | Passed !Int | Skipped
+data Status = Failed | Passed !Int | Skipped | Pending
 
 combineStatus :: Status -> Status -> Status
 combineStatus Skipped s = s
 combineStatus s Skipped = s
+combineStatus _ Pending = Pending
+combineStatus Pending _ = Pending
 combineStatus Failed _ = Failed
 combineStatus _ Failed = Failed
 combineStatus (Passed n) (Passed m) = Passed (n + m)
@@ -98,6 +100,7 @@ run' seed note allow (Test t) = do
     resultsMap <- readTVarIO results
     case Map.findWithDefault Skipped msgs resultsMap of
       Skipped -> pure ()
+      Pending -> note $ "🚧  " ++ msgs
       Passed n -> note $ "🐬  " ++ (if n <= 1 then msgs else "(" ++ show n ++ ") " ++ msgs)
       Failed -> note $ "💥  " ++ msgs
   let line = "------------------------------------------------------------"
@@ -117,19 +120,24 @@ run' seed note allow (Test t) = do
     -- totalTestCases = foldl' (+) 0 succeededList
     failures = [ a | (a, Failed) <- resultsList ]
     failed = length failures
+    pendings = [ a | (a, Pending) <- resultsList ]
+    pending = length pendings
+    pendingSuffix = if pending == 0 then "👍 🎉" else ""
+  note line
+  note "\n"
+  when (pending > 0) $ do
+    note $ "🚧  " ++ show pending ++ " test(s) still pending (pending scopes below):"
+    note $ "    " ++ intercalate "\n    " (map (show . takeWhile (/= '\n')) pendings)
   case failures of
     [] -> do
-      note line
       case succeeded of
         0 -> do
           note "😶  hmm ... no test results recorded"
           note "Tip: use `ok`, `expect`, or `crash` to record results"
           note "Tip: if running via `runOnly` or `rerunOnly`, check for typos"
-        1 -> note $ "✅  1 test passed, no failures! 👍 🎉"
-        _ -> note $ "✅  " ++ show succeeded ++ " tests passed, no failures! 👍 🎉"
+        1 -> note $ "✅  1 test passed, no failures! " ++ pendingSuffix
+        _ -> note $ "✅  " ++ show succeeded ++ " tests passed, no failures! " ++ pendingSuffix
     (hd:_) -> do
-      note line
-      note "\n"
       note $ "  " ++ show succeeded ++ (if failed == 0 then " PASSED" else " passed")
       note $ "  " ++ show (length failures) ++ (if failed == 0 then " failed" else " FAILED (failed scopes below)")
       note $ "    " ++ intercalate "\n    " (map (show . takeWhile (/= '\n')) failures)
@@ -319,6 +327,10 @@ crash msg = do
   let trace = callStack
       msg' = msg ++ " " ++ prettyCallStack trace
   Test (Just <$> putResult Failed) >> noteScoped ("FAILURE " ++ msg') >> Test (pure Nothing)
+
+-- skips the test but makes a note of this fact
+pending :: Test a -> Test ()
+pending _ = Test (Nothing <$ putResult Pending)
 
 putResult :: Status -> ReaderT Env IO ()
 putResult passed = do
