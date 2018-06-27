@@ -123,26 +123,26 @@ run' seed note allow (Test t) = do
     pendings = [ a | (a, Pending) <- resultsList ]
     pending = length pendings
     pendingSuffix = if pending == 0 then "👍 🎉" else ""
+    testsPlural n = show n ++ " " ++ if n == 1 then "test" else "tests"
   note line
   note "\n"
   when (pending > 0) $ do
-    note $ "🚧  " ++ show pending ++ " test(s) still pending (pending scopes below):"
+    note $ "🚧  " ++ testsPlural pending ++ " still pending (pending scopes below):"
     note $ "    " ++ intercalate "\n    " (map (show . takeWhile (/= '\n')) pendings)
   case failures of
-    [] -> do
+    [] ->
       case succeeded of
         0 -> do
           note "😶  hmm ... no test results recorded"
           note "Tip: use `ok`, `expect`, or `crash` to record results"
           note "Tip: if running via `runOnly` or `rerunOnly`, check for typos"
-        1 -> note $ "✅  1 test passed, no failures! " ++ pendingSuffix
-        _ -> note $ "✅  " ++ show succeeded ++ " tests passed, no failures! " ++ pendingSuffix
+        n -> note $ "✅  " ++ testsPlural n ++ " passed, no failures! " ++ pendingSuffix
     (hd:_) -> do
       note $ "  " ++ show succeeded ++ (if failed == 0 then " PASSED" else " passed")
       note $ "  " ++ show (length failures) ++ (if failed == 0 then " failed" else " FAILED (failed scopes below)")
       note $ "    " ++ intercalate "\n    " (map (show . takeWhile (/= '\n')) failures)
       note ""
-      note $ "  To rerun with same random seed:\n"
+      note "  To rerun with same random seed:\n"
       note $ "    EasyTest.rerun " ++ show seed
       note $ "    EasyTest.rerunOnly " ++ show seed ++ " " ++ "\"" ++ hd ++ "\""
       note "\n"
