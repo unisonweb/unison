@@ -354,13 +354,13 @@ object CompilationTests {
         ok
       },
       test("ex1") { implicit T =>
-        equal(eval(Sequence.size(Sequence(1,2,3))), 3: Term)
+        equal(eval(Sequence.size(Sequence(1,2,3))), 3.unsigned)
       },
       test("ex2 (underapplication)") { implicit T =>
         val t: Term =
           Let('x -> Sequence(1,2,3),
               'fn -> Sequence.take(2))(Sequence.size('fn.v('x)))
-        equal(eval(t), 2: Term)
+        equal(eval(t), 2.unsigned)
       }
     ),
     suite("text") (
