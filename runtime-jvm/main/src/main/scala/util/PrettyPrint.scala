@@ -235,6 +235,7 @@ object PrettyPrint {
       prettyTerm(
         Term.Var(prettyId(typeId, ctorId).renderUnbroken)(
           fields.map(_.decompile):_*), precedence)
+    case Term.Text(txt) => '"' + Text.toString(txt) + '"'
     case t => t.toString
   }
 
