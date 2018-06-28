@@ -43,6 +43,7 @@ library
     Unison.Hash
     Unison.Hashable
     Unison.Kind
+    Unison.Lexer
     Unison.Note
     Unison.Parser
     Unison.Parsers
