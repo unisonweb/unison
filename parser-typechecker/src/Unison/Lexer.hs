@@ -1,5 +1,7 @@
 module Unison.Lexer where
 
+-- import Data.Char
+
 -- Design principle:
 --   `[Token]` should be sufficient information for parsing without
 --   further knowledge of spacing or indentation levels
@@ -17,10 +19,9 @@ data Token
 
 type Line = Int
 type Column = Int
-type Pos = (Line, Column)
+type Position = (Line, Column)
 
 data Err = Err -- richer algebra
 
-lexer :: String -> Either Err [(Token, (Pos, Pos))]
-lexer _input = error "todo"
-
+lexer :: String -> Either Err [(Token, Position)]
+lexer _rem = error "todo"
