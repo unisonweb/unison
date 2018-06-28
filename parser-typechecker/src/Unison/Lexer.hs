@@ -5,7 +5,7 @@ module Unison.Lexer where
 --   further knowledge of spacing or indentation levels
 --   any knowledge of comments
 data Token
-  = Open             -- start of a block
+  = Open String      -- start of a block
   | Semi             -- separator between elements of a block
   | Close            -- end of a block
   | Reserved String  -- reserved tokens such as `{`, `(`, `type`, `effect`, `of`, etc
@@ -21,5 +21,6 @@ type Pos = (Line, Column)
 
 data Err = Err -- richer algebra
 
-lexer :: String -> Either Err [(Token, Pos)]
+lexer :: String -> Either Err [(Token, (Pos, Pos))]
 lexer _input = error "todo"
+
