@@ -12,7 +12,7 @@ import org.unisonweb.util.{Sequence, Stream, Text}
 /* Sketch of convenience functions for constructing builtin functions. */
 object Builtins {
   def env =
-    (new Array[U](20), new Array[B](20), StackPtr.empty, Result())
+    (new Array[U](1024), new Array[B](1024), StackPtr.empty, Result())
 
   // Stream.empty : Stream a
   val Stream_empty =
@@ -52,7 +52,6 @@ object Builtins {
            (acc: Value, f: Value, s: Stream[Value]) =>
              s.foldLeft(acc)(
                UnisonToScala.toUnboxed2(f.asInstanceOf[Lambda])(env))
-           // todo: env needs to be bigger here
     )
 
   abstract class FPPP_P[A,B,C,D] { def apply(a: A, b: B, c: C): D }

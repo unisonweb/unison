@@ -12,7 +12,8 @@ object FileCompilationTests {
   val testFiles = new File("../../unison-src/tests").toPath
 
   val checkResultTests = Map[String, Term](
-    "fib4" -> 2249999.u
+    "fib4" -> 2249999.u,
+    "stream-shouldnt-damage-stack" -> ((4950.u, 9999.u)),
   )
 
   def tests = suite("compilation.file")(
