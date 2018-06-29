@@ -119,6 +119,7 @@ builtins = Map.fromList $
 
       , ("Stream.empty", "forall a . Stream a")
       , ("Stream.from-int64", "Int64 -> Stream Int64")
+      , ("Stream.from-uint64", "UInt64 -> Stream UInt64")
       , ("Stream.cons", "forall a . a -> Stream a -> Stream a")
       , ("Stream.take", "forall a . UInt64 -> Stream a -> Stream a")
       , ("Stream.drop", "forall a . UInt64 -> Stream a -> Stream a")

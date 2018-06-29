@@ -984,6 +984,12 @@ object Terms {
     }
   }
 
+  object Int64 {
+    import Builtins._
+    val + = termFor(Int64_add)
+    val inc = termFor(Int64_inc)
+  }
+
   object Sequence {
     import Builtins._
 
