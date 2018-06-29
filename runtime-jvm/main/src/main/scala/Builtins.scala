@@ -653,6 +653,8 @@ object Builtins {
         U0
       }
 
+    implicit val encodeValue: Encode[Value] =
+      (r, a) => { r.boxed = a.toBoxed; a.toUnboxed }
     implicit val encodeUnsigned: Encode[Unsigned] =
       (r, a) => { r.boxed = UnboxedType.UInt64; longToUnboxed(a.raw) }
     implicit val encodeLong: Encode[Long] =
