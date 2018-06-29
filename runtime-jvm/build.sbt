@@ -14,7 +14,7 @@ lazy val commonSettings = Seq(
     //"-XX:LiveNodeCountInliningCutoff"
   ),
   organization := "org.unisonweb",
-  scalaVersion := "2.12.4",
+  scalaVersion := "2.12.6",
   scalacOptions ++= Seq(
     "-feature",
     "-deprecation",
