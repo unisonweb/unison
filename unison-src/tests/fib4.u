@@ -19,11 +19,4 @@ ten-simple =
   sum = Stream.fold-left 0 (+) t
   sum * 10000 + p + q + r + s
 
--- ten-simpler =
---   t = Stream.take 10 (Stream.map fib4 (Stream.from-uint64 0))
---   sum = Stream.fold-left 0 (+) t
---   sum + 1
---
--- sum4 a b c d = a + b + c + d
-
 ten-simple

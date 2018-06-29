@@ -287,12 +287,14 @@ object Stream {
       () => { i += by; k(doubleToUnboxed(i),null) }
     }
 
+  /** intended to be called from Unison code */
   final def fromInt64(u: U): Stream[UnboxedType] =
     k => {
       var i = unboxedToLong(u) - 1
       () => { i += 1; k(longToUnboxed(i), UnboxedType.Int64) }
     }
 
+  /** intended to be called from Unison code */
   final def fromUInt64(u: U): Stream[UnboxedType] =
     k => {
       var i = unboxedToLong(u) - 1
