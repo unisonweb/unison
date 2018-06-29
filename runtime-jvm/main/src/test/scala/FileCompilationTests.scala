@@ -9,7 +9,7 @@ import org.unisonweb.util.PrettyPrint.prettyTerm
 
 object FileCompilationTests {
   import EasyTest._
-  val testFiles = new File("../../unison-src/tests").toPath
+  val testFiles = new File("../unison-src/tests").toPath
 
   val checkResultTests = Map[String, Term](
     "fib4" -> 2249999.u

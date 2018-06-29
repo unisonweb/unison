@@ -67,7 +67,7 @@ object Bootstrap {
   val UNISON_PROJECT_ROOT =
     new File(Option(System.getProperty(PROJECT_ROOT_ENV_NAME))
                .orElse(Option(System.getenv(PROJECT_ROOT_ENV_NAME)))
-               .getOrElse("../.."))
+               .getOrElse(".."))
 
   def normalizedFromTextFile(u: File,
                              stackDir: File = UNISON_PROJECT_ROOT
