@@ -645,7 +645,7 @@ object CompilationTests {
                 100,
                 termFor(Builtins.Stream_map)(
                   termFor(Builtins.Int64_inc),
-                  termFor(Builtins.Stream_fromInt)(0)))
+                  termFor(Builtins.Stream_fromInt64)(0)))
             )
           ),
           scala.Stream.from(0).map(1+).take(100).foldLeft(0)(_+_)
@@ -982,6 +982,12 @@ object Terms {
       def <(t1: Term) = Builtins.termFor(Builtins.Int64_lt)(t0, t1)
       def >(t1: Term) = Builtins.termFor(Builtins.Int64_gt)(t0, t1)
     }
+  }
+
+  object Int64 {
+    import Builtins._
+    val + = termFor(Int64_add)
+    val inc = termFor(Int64_inc)
   }
 
   object Sequence {

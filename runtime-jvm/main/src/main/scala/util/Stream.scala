@@ -297,10 +297,16 @@ object Stream {
       () => { i += by; k(doubleToUnboxed(i),null) }
     }
 
-  final def fromUnison(n: Long): Stream[UnboxedType] =
+  final def fromInt64(n: Long): Stream[UnboxedType] =
     k => {
       var i = n - 1
       () => { i += 1; k(i, UnboxedType.Int64) }
+    }
+
+  final def fromUInt64(n: Long): Stream[UnboxedType] =
+    k => {
+      var i = n - 1
+      () => { i += 1; k(i, UnboxedType.UInt64) }
     }
 
   private final def iterate0[A](u0: U, a0: A)(f: F1[A,A]): Stream[A] = {
