@@ -41,16 +41,22 @@ abstract class Stream[A] { self =>
   final def map[B](f: F1[A,B]): Stream[B] =
     k => self.stage(f andThen k)
 
+  final def flatMap[B](f: F1[A,Stream[B]]): Stream[B] =
+    k => self.stage {
+      val cf = f andThen { (_,sb) => sb.stage { (u,b) => k(u,b) }.run() }
+      (u,a) => cf(u,a)
+    }
+
   /** Only emit elements from `this` for which `f` returns a nonzero value. */
-  final def filter(f: F1[A,Unboxed[Boolean]]): Stream[A] =
+  final def filter(f: F1[A,_]): Stream[A] =
     k => self.stage(Unboxed.choose(f, k, Unboxed.K.noop))
 
   /** Emit the longest prefix of `this` for which `f` returns nonzero. */
-  final def takeWhile(f: F1[A,Unboxed[Boolean]]): Stream[A] =
+  final def takeWhile(f: F1[A,_]): Stream[A] =
     k => self.stage(Unboxed.choose[A](f, k, (_,_) => throw Done))
 
   /** Skip the longest prefix of `this` for which `f` returns nonzero. */
-  final def dropWhile(f: F1[A,Unboxed[Boolean]]): Stream[A] =
+  final def dropWhile(f: F1[A,_]): Stream[A] =
     k => self.stage(Unboxed.switchWhen0(f, Unboxed.K.noop, k)())
 
   final def take(n: Long): Stream[A] =
@@ -182,22 +188,6 @@ object Stream {
     def toUnboxed(a: Native): U
   }
   object Extract {
-    implicit val foo: Extract[Param, Value] =
-      new Extract[Param, Value] {
-        override val extract: FUP_P[Value, B] =
-          (u,b) => Value.fromParam(u, b)
-
-        override def toBoxed(a: B): Value = a match {
-          case Value.Unboxed(_, typ) => typ
-          case v => v.toValue
-        }
-
-        override def toUnboxed(a: B): U = a match {
-          case Value.Unboxed(n, _) => n
-          case _ => U0
-        }
-      }
-
     implicit val extractValue: Extract[Value, Value] =
       new Extract[Value, Value] {
 
@@ -297,16 +287,18 @@ object Stream {
       () => { i += by; k(doubleToUnboxed(i),null) }
     }
 
-  final def fromInt64(n: Long): Stream[UnboxedType] =
+  /** intended to be called from Unison code */
+  final def fromInt64(u: U): Stream[UnboxedType] =
     k => {
-      var i = n - 1
-      () => { i += 1; k(i, UnboxedType.Int64) }
+      var i = unboxedToLong(u) - 1
+      () => { i += 1; k(longToUnboxed(i), UnboxedType.Int64) }
     }
 
-  final def fromUInt64(n: Long): Stream[UnboxedType] =
+  /** intended to be called from Unison code */
+  final def fromUInt64(u: U): Stream[UnboxedType] =
     k => {
-      var i = n - 1
-      () => { i += 1; k(i, UnboxedType.UInt64) }
+      var i = unboxedToLong(u) - 1
+      () => { i += 1; k(longToUnboxed(i), UnboxedType.UInt64) }
     }
 
   private final def iterate0[A](u0: U, a0: A)(f: F1[A,A]): Stream[A] = {

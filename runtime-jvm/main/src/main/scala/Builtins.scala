@@ -12,17 +12,18 @@ import org.unisonweb.util.{Sequence, Stream, Text}
 /* Sketch of convenience functions for constructing builtin functions. */
 object Builtins {
   def env =
-    (new Array[U](20), new Array[B](20), StackPtr.empty, Result())
+    (new Array[U](1024), new Array[B](1024), StackPtr.empty, Result())
 
   // Stream.empty : Stream a
   val Stream_empty =
     c0z("Stream.empty", Stream.empty[Value])
 
 
-  // Stream.fromInt : Int64 -> Stream Integer
+  // Stream.fromInt64 : Int64 -> Stream Int64
   val Stream_fromInt64 =
     fp_z("Stream.from-int64", "n", Stream.fromInt64)
 
+  // Stream.fromUInt64 : UInt64 -> Stream UInt64
   val Stream_fromUInt64 =
     fp_z("Stream.from-uint64", "n", Stream.fromUInt64)
 
@@ -51,7 +52,6 @@ object Builtins {
            (acc: Value, f: Value, s: Stream[Value]) =>
              s.foldLeft(acc)(
                UnisonToScala.toUnboxed2(f.asInstanceOf[Lambda])(env))
-           // todo: env needs to be bigger here
     )
 
   abstract class FPPP_P[A,B,C,D] { def apply(a: A, b: B, c: C): D }
@@ -273,6 +273,8 @@ object Builtins {
   val numericBuiltins: Map[Name, Computation] = Map(
     // arithmetic
     Int64_inc,
+    Int64_isEven,
+    Int64_isOdd,
     Int64_add,
     Int64_sub,
     Int64_mul,
