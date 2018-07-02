@@ -1,18 +1,4 @@
 lazy val commonSettings = Seq(
-  fork := true,
-  javaOptions in run ++= Seq(
-    // https://docs.oracle.com/javase/8/embedded/develop-apps-platforms/codecache.htm
-//    "-XX:+UnlockDiagnosticVMOptions",
-//    "-XX:+LogCompilation",
-    "-XX:InlineSmallCode=9001",
-    "-XX:MaxInlineLevel=35"
-    //"-XX:MaxInlineSize=9001"
-    //"-XX:CompileThreshold=10"
-    //"-XX:MinInliningThreshold=10"
-    //"-XX:FreqInlineSize"
-    //"-XX:MaxTrivialSize"
-    //"-XX:LiveNodeCountInliningCutoff"
-  ),
   organization := "org.unisonweb",
   scalaVersion := "2.12.6",
   scalacOptions ++= Seq(
@@ -62,6 +48,22 @@ lazy val benchmark = project.in(file("benchmark"))
   .settings(commonSettings)
   .settings(name := "unison-runtime-benchmark")
   .settings(scalacOptions += "-Xdisable-assertions")
+  .settings(
+    //  fork := true,
+    javaOptions in run ++= Seq(
+      // https://docs.oracle.com/javase/8/embedded/develop-apps-platforms/codecache.htm
+      //    "-XX:+UnlockDiagnosticVMOptions",
+      //    "-XX:+LogCompilation",
+      "-XX:InlineSmallCode=9001",
+      "-XX:MaxInlineLevel=35"
+      //"-XX:MaxInlineSize=9001"
+      //"-XX:CompileThreshold=10"
+      //"-XX:MinInliningThreshold=10"
+      //"-XX:FreqInlineSize"
+      //"-XX:MaxTrivialSize"
+      //"-XX:LiveNodeCountInliningCutoff"
+    )
+  )
   .settings(libraryDependencies +=
               scalaOrganization.value % "scala-reflect" % scalaVersion.value)
   .dependsOn(main % "compile->test")

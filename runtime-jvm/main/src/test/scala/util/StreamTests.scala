@@ -158,14 +158,14 @@ object StreamTests {
         test("foldLeft Int64_add") { implicit T =>
           val plusU = UnisonToScala.toUnboxed2(Builtins.Int64_add)
           equal(
-            Stream.fromUnison(0).take(10000).foldLeft(Value(0))(plusU(env)),
+            Stream.fromInt64(0).take(10000).foldLeft(Value(0))(plusU(env)),
             Value((0 until 10000).sum)
           )
         },
         test("scanLeft Int64_add") { implicit T =>
           val int64add = UnisonToScala.toUnboxed2(Builtins.Int64_add)(env)
           equal(
-            Stream.fromUnison(1).take(10000).scanLeft(Value(0))(int64add).reduce(Value(0))(int64add),
+            Stream.fromInt64(1).take(10000).scanLeft(Value(0))(int64add).reduce(Value(0))(int64add),
             Value(scala.Stream.from(1).take(10000).scanLeft(0l)(_+_).sum)
           )
         },
