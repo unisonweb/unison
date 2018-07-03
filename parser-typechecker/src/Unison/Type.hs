@@ -54,21 +54,21 @@ wrapV = ABT.vmap ABT.Bound
 freeVars :: Type v -> Set v
 freeVars = ABT.freeVars
 
-bindBuiltins :: Var v => [(v, Type v)] -> Type v -> Type v
+bindBuiltins :: Var v => [(v, AnnotatedType v a)] -> AnnotatedType v a -> AnnotatedType v a
 bindBuiltins bs = ABT.substs bs
 
-data Monotype v = Monotype { getPolytype :: Type v } deriving (Eq)
+data Monotype v a = Monotype { getPolytype :: AnnotatedType v a } deriving (Eq)
 
-instance Var v => Show (Monotype v) where
+instance (Show a, Var v) => Show (Monotype v a) where
   show = show . getPolytype
 
 -- Smart constructor which checks if a `Type` has no `Forall` quantifiers.
-monotype :: Var v => Type v -> Maybe (Monotype v)
+monotype :: Var v => AnnotatedType v a -> Maybe (Monotype v a)
 monotype t = Monotype <$> ABT.visit isMono t where
   isMono (Forall' _) = Just Nothing
   isMono _ = Nothing
 
-arity :: Type v -> Int
+arity :: AnnotatedType v a -> Int
 arity (ForallNamed' _ body) = arity body
 arity (Arrow' _ o) = 1 + arity o
 arity _ = 0
@@ -182,6 +182,12 @@ existential v = ABT.var (TypeVar.Existential v)
 
 universal :: Ord v => v -> Type (TypeVar v)
 universal v = ABT.var (TypeVar.Universal v)
+
+existential' :: Ord v => a -> v -> AnnotatedType (TypeVar v) a
+existential' a v = ABT.annotatedVar a (TypeVar.Existential v)
+
+universal' :: Ord v => a -> v -> AnnotatedType (TypeVar v) a
+universal' a v = ABT.annotatedVar a (TypeVar.Universal v)
 
 v' :: Var v => Text -> Type v
 v' s = ABT.var (ABT.v' s)

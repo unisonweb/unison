@@ -55,7 +55,7 @@ watch msg a =
 -- | We deal with type variables annotated with whether they are universal or existential
 type Type v = Type.Type (TypeVar v)
 type Term v = Term.Term' (TypeVar v) v
-type Monotype v = Type.Monotype (TypeVar v)
+type Monotype v = Type.Monotype (TypeVar v) ()
 
 pattern Universal v <- Var (TypeVar.Universal v) where
   Universal v = Var (TypeVar.Universal v)

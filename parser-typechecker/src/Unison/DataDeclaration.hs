@@ -6,44 +6,56 @@
 
 module Unison.DataDeclaration where
 
-import           Data.Bifunctor (second)
 import           Data.Map (Map, intersectionWith)
 import qualified Data.Map as Map
 import           Prelude hiding (cycle)
 import           Prelude.Extras (Show1)
-import           Unison.ABT (absChain, cycle)
 import qualified Unison.ABT as ABT
 import           Unison.Hashable (Accumulate, Hashable1)
 import qualified Unison.Hashable as Hashable
 import           Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
-import           Unison.Type (Type)
+import           Unison.Type (AnnotatedType)
 import qualified Unison.Type as Type
 import           Unison.Typechecker.Components (components)
 import           Unison.Var (Var)
 
-data DataDeclaration v = DataDeclaration {
+type DataDeclaration v = DataDeclaration' v ()
+
+data DataDeclaration' v a = DataDeclaration {
+  annotation :: a,
   bound :: [v], -- todo: do we actually use the names? or just the length
-  constructors :: [(v, Type v)]
+  constructors' :: [(a, v, AnnotatedType v a)]
 } deriving (Show)
 
-bindBuiltins :: Var v => [(v, Type v)] -> DataDeclaration v -> DataDeclaration v
-bindBuiltins typeEnv (DataDeclaration bound constructors) =
-  DataDeclaration bound (second (Type.bindBuiltins typeEnv) <$> constructors)
+constructors :: DataDeclaration' v a -> [(v, AnnotatedType v a)]
+constructors (DataDeclaration _ _ ctors) = [(v,t) | (_,v,t) <- ctors ]
 
-newtype EffectDeclaration v = EffectDeclaration {
-  toDataDecl :: DataDeclaration v
+bindBuiltins :: Var v => [(v, AnnotatedType v a)] -> DataDeclaration' v a -> DataDeclaration' v a
+bindBuiltins typeEnv (DataDeclaration a bound constructors) =
+  DataDeclaration a bound (third (Type.bindBuiltins typeEnv) <$> constructors)
+
+third :: (a -> b) -> (x,y,a) -> (x,y,b)
+third f (x,y,a) = (x, y, f a)
+
+type EffectDeclaration v = EffectDeclaration' ()
+
+newtype EffectDeclaration' v a = EffectDeclaration {
+  toDataDecl :: DataDeclaration' v a
 } deriving (Show)
 
-withEffectDecl :: (DataDeclaration v -> DataDeclaration v') -> (EffectDeclaration v -> EffectDeclaration v')
+withEffectDecl :: (DataDeclaration' v a -> DataDeclaration' v' a') -> (EffectDeclaration' v a -> EffectDeclaration' v' a')
 withEffectDecl f e = EffectDeclaration (f . toDataDecl $ e)
 
-mkEffectDecl :: [v] -> [(v, Type v)] -> EffectDeclaration v
-mkEffectDecl = (EffectDeclaration .) . DataDeclaration
+mkEffectDecl' :: a -> [v] -> [(a, v, AnnotatedType v a)] -> EffectDeclaration' v a
+mkEffectDecl' a b cs = EffectDeclaration (DataDeclaration a b cs)
 
-constructorArities :: DataDeclaration v -> [Int]
-constructorArities (DataDeclaration _bound ctors) =
-  Type.arity . snd <$> ctors
+mkEffectDecl :: [v] -> [(v, AnnotatedType v ())] -> EffectDeclaration' v ()
+mkEffectDecl b cs = mkEffectDecl' () b $ map (\(v,t) -> ((),v,t)) cs
+
+constructorArities :: DataDeclaration' v a -> [Int]
+constructorArities (DataDeclaration _a _bound ctors) =
+  Type.arity . (\(_,_,t) -> t) <$> ctors
 
 -- type List a = Nil | Cons a (List a)
 -- cycle (abs "List" (LetRec [abs "a" (cycle (absChain ["Nil","Cons"] (Constructors [List a, a -> List a -> List a])))] "List"))
@@ -92,20 +104,22 @@ toLetRec decls =
   where
     (vs, decls') = unzip decls
     -- we duplicate this letrec once (`do1`) for each of the mutually recursive types
-    do1 v = cycle (absChain vs . ABT.tm $ LetRec decls' (ABT.var v))
+    do1 v = ABT.cycle (absChain vs . ABT.tm $ LetRec decls' (ABT.var v))
 
-unsafeUnwrapType :: (Var v) => ABT.Term F v () -> Type v
+unsafeUnwrapType :: (Var v) => ABT.Term F v a -> AnnotatedType v a
 unsafeUnwrapType typ = ABT.transform f typ
   where f (Type t) = t
         f _ = error $ "Tried to unwrap a type that wasn't a type: " ++ show typ
 
-toABT :: Var v => DataDeclaration v -> ABT.Term F v ()
-toABT (DataDeclaration bound constructors) =
-  absChain bound (cycle (absChain (fst <$> constructors)
-                                  (ABT.tm $ Constructors stuff)))
-  where stuff = ABT.transform Type . snd <$> constructors
+toABT :: Var v => DataDeclaration' v a -> ABT.Term F v a
+toABT (DataDeclaration ann bound constructors) =
+  ABT.absChain' ann bound (ABT.cycle' ann (ABT.absChain' ann (vname <$> constructors)
+                                          (ABT.tm' ann $ Constructors stuff)))
+  where stuff = ABT.transform Type . (\(_,_,t) -> t) <$> constructors
+        typ (_,_,t) = t
+        vname (_,v,_) = v
 
-fromABT :: Var v => ABT.Term F v () -> DataDeclaration v
+fromABT :: Var v => ABT.Term F v a -> DataDeclaration' v a
 fromABT (ABT.AbsN' bound (
            ABT.Cycle' names (ABT.Tm' (Constructors stuff)))) =
   DataDeclaration
