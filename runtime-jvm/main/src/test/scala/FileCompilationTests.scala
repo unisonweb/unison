@@ -38,14 +38,14 @@ object FileCompilationTests {
     val filename = s"$filePrefix.u"
     val file = testFiles.resolve(filename)
     test(s"$filePrefix = ${prettyTerm(result).render(100)}") { implicit T =>
-      Bootstrap.normalizedFromTextFile(file.toFile).fold(fail(_), equal(_, result))
+      Bootstrap.normalizedFromTextFile(file).fold(fail(_), equal(_, result))
     }
   }
 
   def normalize(p: Path): Test[Unit] = {
     test(testFiles.relativize(p).toString.dropRight(2)) {
       implicit T =>
-        Bootstrap.normalizedFromTextFile(p.toFile).fold(fail(_), _ => ok)
+        Bootstrap.normalizedFromTextFile(p).fold(fail(_), _ => ok)
     }
   }
 }

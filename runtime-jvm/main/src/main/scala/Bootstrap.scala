@@ -1,10 +1,12 @@
 package org.unisonweb
 
 import java.io.File
+import java.nio.charset.StandardCharsets
+import java.nio.file.{Files, Path}
 
 import org.unisonweb.ABT.Name
-import org.unisonweb.Term.Term
 import org.unisonweb.BuiltinTypes._
+import org.unisonweb.Term.Term
 import org.unisonweb.compilation._
 import org.unisonweb.util._
 
@@ -69,12 +71,14 @@ object Bootstrap {
                .orElse(Option(System.getenv(PROJECT_ROOT_ENV_NAME)))
                .getOrElse(".."))
 
-  def normalizedFromTextFile(u: File,
+  private implicit class Ops[A](val a: A) extends AnyVal {
+    def unsafeTap(f: A => Unit): A = { f(a); a }
+  }
+  def normalizedFromTextFile(u: Path,
                              stackDir: File = UNISON_PROJECT_ROOT
                             ): Either[String,Term] = {
     if (! new File(UNISON_PROJECT_ROOT, "stack.yaml").isFile) Left {
-      import java.nio.file.FileSystems
-      import java.nio.file.Path
+      import java.nio.file.{FileSystems, Path}
 
       val path: Path = FileSystems.getDefault.getPath(".").toAbsolutePath
       s"""Expected to find `stack.yaml` in `$UNISON_PROJECT_ROOT` to `stack exec bootstrap`,
@@ -85,7 +89,7 @@ object Bootstrap {
     }
     else {
       import sys.process._
-      val ub = File.createTempFile(u.getName, ".ub")
+      val ub = Files.createTempFile(u.getFileName.toString, ".ub")
       val stderrBuffer = new StringBuffer
       val log = new ProcessLogger {
         def buffer[T](f: => T): T = f
@@ -96,11 +100,22 @@ object Bootstrap {
           ()
         }
       }
-      val result =
+      val haskellResult =
         Process(Seq("stack", "build"), stackDir) #&&
           Process(Seq("stack", "exec", "bootstrap", u.toString, ub.toString)) ! log
-      if (result > 0) Left(stderrBuffer.toString)
-      else Right(normalizedFromBinaryFile(ub.toString))
+
+      { if (haskellResult > 0) Left(stderrBuffer.toString)
+        else Right(normalizedFromBinaryFile(ub.toString)) }
+        .unsafeTap(_ => Files.delete(ub))
     }
+  }
+
+  def normalizedFromText(s: String,
+                         stackDir: File = UNISON_PROJECT_ROOT
+                        ): Either[String, Term] = {
+    val u = Files.createTempFile("", ".u")
+    Files.write(u, s.getBytes(StandardCharsets.UTF_8))
+    normalizedFromTextFile(u, stackDir)
+        .unsafeTap(_ => Files.delete(u))
   }
 }
