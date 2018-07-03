@@ -6,7 +6,7 @@ import Data.Bifunctor (second)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Unison.Reference (Reference)
-import Unison.DataDeclaration (DataDeclaration(..), EffectDeclaration(..))
+import Unison.DataDeclaration (DataDeclaration(..), EffectDeclaration, EffectDeclaration'(..))
 import Unison.DataDeclaration (hashDecls, toDataDecl, withEffectDecl)
 import qualified Unison.DataDeclaration as DataDeclaration
 import qualified Data.Text as Text
@@ -50,7 +50,7 @@ environmentFor typeBuiltins dataDecls0 effectDecls0 =
   in (dataDecls', effectDecls', Map.fromList (constructors' =<< hashDecls'))
 
 constructors' :: Var v => (v, Reference, DataDeclaration v) -> [(String, (Reference, Int))]
-constructors' (typeSymbol, r, (DataDeclaration _ constructors)) =
+constructors' (typeSymbol, r, dd) =
   let qualCtorName ((ctor,_), i) =
        (Text.unpack $ mconcat [Var.qualifiedName typeSymbol, ".", Var.qualifiedName ctor], (r, i))
-  in qualCtorName <$> constructors `zip` [0..]
+  in qualCtorName <$> DataDeclaration.constructors dd `zip` [0..]

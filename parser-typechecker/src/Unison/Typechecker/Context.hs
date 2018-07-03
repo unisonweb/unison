@@ -211,7 +211,7 @@ abilityCheck requested = do
     abilityCheck' ambient requested
 
 getFromTypeEnv :: (Ord r, Show r)
-               => String -> M v (Map r (f v)) -> r ->  M v (f v)
+               => String -> M v (Map r (f v ())) -> r ->  M v (f v ())
 getFromTypeEnv what get r = get >>= \decls ->
   case Map.lookup r decls of
     Nothing -> fail $ "unknown " ++ what ++ " reference: " ++ show r ++ " " ++

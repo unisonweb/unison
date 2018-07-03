@@ -19,11 +19,11 @@ import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Set (Set)
 import qualified Data.Set as Set
--- import           Data.Text (Text)
+import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Debug.Trace
 import qualified Unison.ABT as ABT
-import           Unison.DataDeclaration (DataDeclaration, EffectDeclaration)
+import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 import qualified Unison.DataDeclaration as DataDeclaration
 -- import           Unison.Note (Note,Noted(..))
 -- import qualified Unison.Note as Note
@@ -61,8 +61,8 @@ type Element v loc = (Element' v loc, loc)
 
 data Env v loc = Env { freshId :: Word, ctx :: Context v loc }
 
-type DataDeclarations v = Map Reference (DataDeclaration v)
-type EffectDeclarations v = Map Reference (EffectDeclaration v)
+type DataDeclarations v loc = Map Reference (DataDeclaration' v loc)
+type EffectDeclarations v loc = Map Reference (EffectDeclaration' v loc)
 
 -- | Typechecking monad
 newtype M v loc a = M {
@@ -75,18 +75,12 @@ data Note loc = InternalError
 data MEnv v loc = MEnv {
   env :: Env v loc,                    -- The typechecking state
   abilities :: [Type v loc],           -- Allowed ambient abilities
-  dataDecls :: DataDeclarations v, -- Data declarations in scope
-  effectDecls :: EffectDeclarations v, -- Effect declarations in scope
+  dataDecls :: DataDeclarations v loc, -- Data declarations in scope
+  effectDecls :: EffectDeclarations v loc, -- Effect declarations in scope
   abilityChecks :: Bool            -- Whether to perform ability checks.
                                    --   It's here so we can disable it during
                                    --   effect inference.
 }
-
--- (===) :: Eq v => Element v a -> Element v a -> Bool
--- Existential v, _) === Existential v2 | v == v2 = True
--- Universal v   === Universal v2 | v == v2 = True
--- Marker v      === Marker v2 | v == v2 = True
--- _ === _ = False
 
 newtype Context v loc = Context [(Element v loc, Info v)]
 
@@ -100,6 +94,54 @@ data Info v =
 -- | The empty context
 context0 :: Context v loc
 context0 = Context []
+
+-- | Build a context from a list of elements.
+context :: Var v => [Element v loc] -> Context v loc
+context xs = foldl' (flip extend) context0 xs
+
+-- | Delete from the end of this context up to and including
+-- the given `Element`. Returns `Left` if the element is not found.
+retract :: (Eq loc, Var v) => Element' v loc -> Context v loc -> Maybe (Context v loc)
+retract m (Context ctx) =
+  let maybeTail [] = Nothing
+      maybeTail (_:t) = Just t
+  -- note: no need to recompute used variables; any suffix of the
+  -- context snoc list is also a valid context
+  in Context <$> maybeTail (dropWhile (\((e,_),_) -> e /= m) ctx)
+
+-- | Like `retract`, but returns the empty context if retracting would remove all elements.
+retract' :: (Eq loc, Var v) => Element' v loc -> Context v loc -> Context v loc
+retract' e ctx = case retract e ctx of
+  Nothing -> context []
+  Just ctx -> ctx
+
+solved :: Context v loc -> [(v, Monotype v loc)]
+solved (Context ctx) = [(v, sa) | ((Solved v sa,_),_) <- ctx]
+
+unsolved :: Context v loc -> [v]
+unsolved (Context ctx) = [v | ((Existential v,_),_) <- ctx]
+
+replace :: Var v => Element' v loc -> Context v loc -> Context v loc -> Context v loc
+replace e focus ctx =
+  let (l,r) = breakAt e ctx
+  in l `mappend` focus `mappend` r
+
+breakAt :: Var v => Element' v loc -> Context v loc -> (Context v loc, Context v loc)
+breakAt m (Context xs) =
+  let
+    (r, l) = break (\(e,_) -> e === m) xs
+  -- l is a suffix of xs and is already a valid context;
+  -- r needs to be rebuilt
+    (Existential v, _) === Existential v2 | v == v2 = True
+    (Universal v, _)   === Universal v2 | v == v2 = True
+    (Marker v, _)      === Marker v2 | v == v2 = True
+    _ === _ = False
+  in (Context (drop 1 l), context . map fst $ reverse r)
+
+
+-- | ordered Γ α β = True <=> Γ[α^][β^]
+ordered :: (Eq loc, Var v) => Context v loc -> v -> v -> Bool
+ordered ctx v v2 = Set.member v (existentials (retract' (Existential v2) ctx))
 
 env0 :: Env v loc
 env0 = Env 0 context0
@@ -139,6 +181,26 @@ universals = universalVars . info
 
 existentials :: Context v loc -> Set v
 existentials = existentialVars . info
+
+freshenVar :: Var v => v -> M v loc v
+freshenVar v =
+  M (\menv ->
+       let e = env menv
+           id = freshId e
+       in (mempty, (Var.freshenId id v, e {freshId = id+1})))
+
+freshenTypeVar :: Var v => TypeVar v -> M v loc v
+freshenTypeVar v =
+  M (\menv ->
+       let e = env menv
+           id = freshId e
+       in (mempty, (Var.freshenId id (TypeVar.underlying v), e {freshId = id+1})))
+
+freshNamed :: Var v => Text -> M v loc v
+freshNamed = freshenVar . Var.named
+
+freshVar :: Var v => M v loc v
+freshVar = freshNamed "v"
 
 -- | Check that the context is well formed, see Figure 7 of paper
 -- Since contexts are 'monotonic', we can compute an cache this efficiently
@@ -200,7 +262,7 @@ orElse m1 m2 = M go where
     r @ (_, (Just _, _)) -> r
     _ -> runM m2 menv
 
-getDataDeclarations :: M v loc (DataDeclarations v)
+getDataDeclarations :: M v loc (DataDeclarations v loc)
 getDataDeclarations = M $ fromMEnv dataDecls
 
 getAbilities :: M v loc [Type v loc]
@@ -211,6 +273,46 @@ abilityCheckEnabled = M $ fromMEnv abilityChecks
 
 withoutAbilityCheck :: M v loc a -> M v loc a
 withoutAbilityCheck m = M (\menv -> runM m $ menv { abilityChecks = False })
+
+-- todo: better error
+compilerCrash :: String -> a
+compilerCrash msg = error msg
+
+-- todo: better error
+getFromTypeEnv :: (Ord r, Show r)
+               => String -> M v loc (Map r (f v loc)) -> r ->  M v loc (f v loc)
+getFromTypeEnv what get r = get >>= \decls ->
+  case Map.lookup r decls of
+    Nothing -> compilerCrash $ "unknown " ++ what ++ " reference: " ++ show r ++ " " ++
+                      show (Map.keys decls)
+    Just decl -> pure decl
+
+getDataDeclaration :: Reference -> M v loc (DataDeclaration' v loc)
+getDataDeclaration = getFromTypeEnv "data type" getDataDeclarations
+
+getEffectDeclaration :: Reference -> M v loc (DataDeclaration' v loc)
+getEffectDeclaration = getFromTypeEnv "data type" getDataDeclarations
+
+getDataConstructorType :: Var v => Reference -> Int -> M v loc (Type v loc)
+getDataConstructorType = getConstructorType' getDataDeclaration
+
+getEffectConstructorType :: Var v => Reference -> Int -> M v loc (Type v loc)
+getEffectConstructorType = getConstructorType' getDataDeclaration
+
+-- todo: crash the compiler with as much info as needed to submit a bug report
+-- it's a compiler bug, not your fault, etc.
+-- Encountered an unknown constructor in the typechecker; unknown constructors
+-- should have been detected earlier though.
+getConstructorType' :: (Var v, Show r)
+                    => (r -> M v loc (DataDeclaration' v loc))
+                    -> r
+                    -> Int
+                    -> M v loc (Type v loc)
+getConstructorType' get r cid = do
+  decl <- get r
+  case drop cid (DataDeclaration.constructors decl) of
+    [] -> compilerCrash $ "invalid constructor id: " ++ show cid ++ " in " ++ show r
+    (_v, typ) : _ -> pure $ ABT.vmap TypeVar.Universal typ
 
 -- abilityCheck' :: Var v => [Type v] -> [Type v] -> M v ()
 -- abilityCheck' ambient requested = do
@@ -226,47 +328,6 @@ withoutAbilityCheck m = M (\menv -> runM m $ menv { abilityChecks = False })
 --   when enabled $ do
 --     ambient <- getAbilities
 --     abilityCheck' ambient requested
-
--- todo: better error
-compilerCrash :: String -> a
-compilerCrash msg = error msg
-
--- todo: better error
-getFromTypeEnv :: (Ord r, Show r)
-               => String -> M v loc (Map r (f v)) -> r ->  M v loc (f v)
-getFromTypeEnv what get r = get >>= \decls ->
-  case Map.lookup r decls of
-    Nothing -> compilerCrash $ "unknown " ++ what ++ " reference: " ++ show r ++ " " ++
-                      show (Map.keys decls)
-    Just decl -> pure decl
-
-getDataDeclaration :: Reference -> M v loc (DataDeclaration v)
-getDataDeclaration = getFromTypeEnv "data type" getDataDeclarations
-
-getEffectDeclaration :: Reference -> M v loc (DataDeclaration v)
-getEffectDeclaration = getFromTypeEnv "data type" getDataDeclarations
-
-getDataConstructorType :: Var v => Reference -> Int -> M v loc (Type v loc)
-getDataConstructorType = getConstructorType' getDataDeclaration
-
-getEffectConstructorType :: Var v => Reference -> Int -> M v loc (Type v loc)
-getEffectConstructorType = getConstructorType' getDataDeclaration
-
--- todo: crash the compiler with as much info as needed to submit a bug report
--- it's a compiler bug, not your fault, etc.
--- Encountered an unknown constructor in the typechecker; unknown constructors
--- should have been detected earlier though.
-getConstructorType' :: (Var v, Show r)
-                    => (r -> M v loc (DataDeclaration v))
-                    -> r
-                    -> Int
-                    -> M v loc (Type v loc)
-getConstructorType' get r cid = do
-  decl <- get r
-  case drop cid (DataDeclaration.constructors decl) of
-    [] -> compilerCrash $ "invalid constructor id: " ++ show cid ++ " in " ++ show r
-    (_v, typ) : _ -> pure $ ABT.vmap TypeVar.Universal typ
-
 
 instance (Var v, Show loc) => Show (Element' v loc) where
   show (Var v) = case v of

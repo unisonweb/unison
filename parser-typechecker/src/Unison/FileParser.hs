@@ -65,7 +65,7 @@ dataDeclaration = traced "data declaration" $ do
             <*> (dataConstructorTyp <$> many TypeParser.valueTypeLeaf)
   traced "vblock" $ L.vblockIncrement $ do
     constructors <- traced "constructors" $ sepBy (token_ $ string "|") dataConstructor
-    pure $ (name, DataDeclaration typeArgs constructors)
+    pure $ (name, DD.mkDataDecl typeArgs constructors)
 
 
 effectDeclaration :: Var v => Parser (S v) (v, EffectDeclaration v)

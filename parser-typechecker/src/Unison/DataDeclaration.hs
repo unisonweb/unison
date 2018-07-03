@@ -6,6 +6,7 @@
 
 module Unison.DataDeclaration where
 
+import Data.Bifunctor (second)
 import           Data.Map (Map, intersectionWith)
 import qualified Data.Map as Map
 import           Prelude hiding (cycle)
@@ -38,7 +39,7 @@ bindBuiltins typeEnv (DataDeclaration a bound constructors) =
 third :: (a -> b) -> (x,y,a) -> (x,y,b)
 third f (x,y,a) = (x, y, f a)
 
-type EffectDeclaration v = EffectDeclaration' ()
+type EffectDeclaration v = EffectDeclaration' v ()
 
 newtype EffectDeclaration' v a = EffectDeclaration {
   toDataDecl :: DataDeclaration' v a
@@ -52,6 +53,12 @@ mkEffectDecl' a b cs = EffectDeclaration (DataDeclaration a b cs)
 
 mkEffectDecl :: [v] -> [(v, AnnotatedType v ())] -> EffectDeclaration' v ()
 mkEffectDecl b cs = mkEffectDecl' () b $ map (\(v,t) -> ((),v,t)) cs
+
+mkDataDecl' :: a -> [v] -> [(a, v, AnnotatedType v a)] -> DataDeclaration' v a
+mkDataDecl' a b cs = DataDeclaration a b cs
+
+mkDataDecl :: [v] -> [(v, AnnotatedType v ())] -> DataDeclaration' v ()
+mkDataDecl b cs = mkDataDecl' () b $ map (\(v,t) -> ((),v,t)) cs
 
 constructorArities :: DataDeclaration' v a -> [Int]
 constructorArities (DataDeclaration _a _bound ctors) =
@@ -104,37 +111,36 @@ toLetRec decls =
   where
     (vs, decls') = unzip decls
     -- we duplicate this letrec once (`do1`) for each of the mutually recursive types
-    do1 v = ABT.cycle (absChain vs . ABT.tm $ LetRec decls' (ABT.var v))
+    do1 v = ABT.cycle (ABT.absChain vs . ABT.tm $ LetRec decls' (ABT.var v))
 
 unsafeUnwrapType :: (Var v) => ABT.Term F v a -> AnnotatedType v a
 unsafeUnwrapType typ = ABT.transform f typ
   where f (Type t) = t
         f _ = error $ "Tried to unwrap a type that wasn't a type: " ++ show typ
 
-toABT :: Var v => DataDeclaration' v a -> ABT.Term F v a
-toABT (DataDeclaration ann bound constructors) =
-  ABT.absChain' ann bound (ABT.cycle' ann (ABT.absChain' ann (vname <$> constructors)
-                                          (ABT.tm' ann $ Constructors stuff)))
-  where stuff = ABT.transform Type . (\(_,_,t) -> t) <$> constructors
-        typ (_,_,t) = t
-        vname (_,v,_) = v
+toABT :: Var v => DataDeclaration v -> ABT.Term F v ()
+toABT dd =
+  ABT.absChain (bound dd) (ABT.cycle (ABT.absChain (fst <$> constructors dd)
+                                                   (ABT.tm $ Constructors stuff)))
+  where stuff = ABT.transform Type . snd <$> constructors dd
 
-fromABT :: Var v => ABT.Term F v a -> DataDeclaration' v a
+fromABT :: Var v => ABT.Term F v () -> DataDeclaration' v ()
 fromABT (ABT.AbsN' bound (
            ABT.Cycle' names (ABT.Tm' (Constructors stuff)))) =
-  DataDeclaration
+  DataDeclaration ()
     bound
-    [(v, unsafeUnwrapType t) | (v, t) <- names `zip` stuff]
+    [((), v, unsafeUnwrapType t) | (v, t) <- names `zip` stuff]
 fromABT a = error $ "ABT not of correct form to convert to DataDeclaration: " ++ show a
 
+-- todo: generalize this to work for any annotation type
 hashDecls :: (Eq v, Var v)
-          => Map v (DataDeclaration v) -> [(v, Reference, DataDeclaration v)]
+          => Map v (DataDeclaration' v ()) -> [(v, Reference, DataDeclaration' v ())]
 hashDecls decls =
   reverse . snd . foldl f ([], []) $ components abts
   where
     f (m, newDecls) cycle =
       let substed = second (ABT.substs m) <$> cycle
-          hs = second Reference.Derived <$> hash substed -- hash substed :: [(v, Hash)] --> [(v, Reference)]
+          hs = second Reference.Derived <$> hash substed
           newM = second toRef <$> hs
           joined = intersectionWith (,) (Map.fromList hs) (Map.fromList substed)
       in (newM ++ m,

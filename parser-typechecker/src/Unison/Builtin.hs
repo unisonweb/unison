@@ -6,7 +6,8 @@ module Unison.Builtin where
 
 import           Control.Arrow ((&&&))
 import qualified Data.Map as Map
-import           Unison.DataDeclaration (DataDeclaration(..))
+import           Unison.DataDeclaration (DataDeclaration)
+import qualified Unison.DataDeclaration as DD
 import qualified Unison.Parser as Parser
 import qualified Unison.Reference as R
 import           Unison.Term (Term)
@@ -46,14 +47,15 @@ builtinTypes = (Var.named &&& (Type.ref . R.Builtin)) <$>
 
 builtinDataDecls :: (Var v) => Map.Map R.Reference (DataDeclaration v)
 builtinDataDecls = Map.fromList $
-  [ (R.Builtin "()", DataDeclaration [] [(Var.named "()", Type.builtin "()")])
+  [ (R.Builtin "()", DD.mkDataDecl [] [(Var.named "()", Type.builtin "()")])
   , (R.Builtin "Pair",
-     DataDeclaration [Var.named "a", Var.named "b"]
-                     [(Var.named "Pair",
-                       let vars = ["a","b"]
-                           tvars = Type.v' <$> vars
-                       in Type.forall' vars . Type.arrows tvars $
-                            Type.builtin "Pair" `Type.apps` tvars)])
+     DD.mkDataDecl
+       [Var.named "a", Var.named "b"]
+       [(Var.named "Pair",
+         let vars = ["a","b"]
+             tvars = Type.v' <$> vars
+         in Type.forall' vars . Type.arrows tvars $
+              Type.builtin "Pair" `Type.apps` tvars)])
   ]
 
 toSymbol :: Var v => R.Reference -> v
