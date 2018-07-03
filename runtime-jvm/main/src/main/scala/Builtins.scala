@@ -11,47 +11,51 @@ import org.unisonweb.util.{Sequence, Stream, Text}
 
 /* Sketch of convenience functions for constructing builtin functions. */
 object Builtins {
-  def env =
+  type Env = (Array[U], Array[B], StackPtr, Result)
+  def _env: Env =
     (new Array[U](1024), new Array[B](1024), StackPtr.empty, Result())
 
+  type StreamRepr = Env => Stream[Value]
   // Stream.empty : Stream a
   val Stream_empty =
-    c0z("Stream.empty", Stream.empty[Value])
-
+    c0z("Stream.empty", (_: Env) => Stream.empty[Value])
 
   // Stream.fromInt64 : Int64 -> Stream Int64
   val Stream_fromInt64 =
-    fp_z("Stream.from-int64", "n", Stream.fromInt64)
+    fp_z("Stream.from-int64", "n", (u: U) => (_: Env) => Stream.fromInt64(u))
 
   // Stream.fromUInt64 : UInt64 -> Stream UInt64
   val Stream_fromUInt64 =
-    fp_z("Stream.from-uint64", "n", Stream.fromUInt64)
+    fp_z("Stream.from-uint64", "n", (u: U) => (_: Env) => Stream.fromUInt64(u))
 
   // Stream.cons : a -> Stream a -> Stream a
   val Stream_cons =
     fpp_z("Stream.cons", "v", "stream",
-          (v: Value, stream: Stream[Value]) => v :: stream)
+          (v: Value, stream: StreamRepr) => (env: Env) => v :: stream(env))
 
   val Stream_take =
     flp_z("Stream.take", "n", "stream",
-          (n, s: Stream[Value]) => s.take(n))
+          (n, s: StreamRepr) => (env: Env) => s(env).take(n))
 
   val Stream_drop =
     flp_z("Stream.drop", "n", "stream",
-          (n, s: Stream[Value]) => s.drop(n))
+          (n, s: StreamRepr) => (env: Env) => s(env).drop(n))
 
   // Stream.map : (a -> b) -> Stream a -> Stream b
   val Stream_map =
     fpp_z("Stream.map", "f", "stream",
-          (f: Value, s: Stream[Value]) =>
-            s.map(UnisonToScala.toUnboxed1(f.asInstanceOf[Lambda])(env)))
+          (f: Value, s: StreamRepr) =>
+            (env: Env) =>
+              s(env).map(UnisonToScala.toUnboxed1(f.asInstanceOf[Lambda])(env)))
 
   // Stream.foldLeft : b -> (b -> a -> b) -> Stream a -> b
   val Stream_foldLeft =
-    fppp_p("Stream.fold-left", "acc", "f", "stream",
-           (acc: Value, f: Value, s: Stream[Value]) =>
+    fpps_p("Stream.fold-left", "acc", "f", "stream",
+           (acc: Value, f: Value, s: Stream[Value]) => {
+             val env = _env
              s.foldLeft(acc)(
                UnisonToScala.toUnboxed2(f.asInstanceOf[Lambda])(env))
+           }
     )
 
   abstract class FPPP_P[A,B,C,D] { def apply(a: A, b: B, c: C): D }
@@ -70,6 +74,30 @@ object Builtins {
           A.decode(x2, x2b),
           B.decode(x1, x1b),
           C.decode(x0, x0b)
+        ))
+      }
+    val decompiled = Term.Id(name)
+    val lambda =
+      new Value.Lambda.ClosureForming(List(arg1, arg2, arg3), body, decompiled)
+    name -> Return(lambda)
+  }
+
+  abstract class FPPS_P[A,B,C,D] { def apply(a: A, b: B, c: C): D }
+  def fpps_p[A,B,C,D](name: Name, arg1: Name, arg2: Name, arg3: Name,
+                      f: FPPS_P[A,B,C,D])
+                     (implicit
+                      A: Decode[A],
+                      B: Decode[B],
+                      C: StackDecode[C],
+                      D: Encode[D]): (Name, Computation) = {
+    val body: Computation =
+      (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+        val x2 = top.u(stackU, 2)
+        val x2b = top.b(stackB, 2)
+        D.encode(r, f(
+          A.decode(x2, x2b),
+          B.decode(x1, x1b),
+          C.stackDecode(x0, x0b)((stackU, stackB, top, r))
         ))
       }
     val decompiled = Term.Id(name)
@@ -648,6 +676,16 @@ object Builtins {
     implicit def decodeAssumeExternal[A]: Decode[A] =
       (_, b) =>
         b.toValue.asInstanceOf[External].get.asInstanceOf[A]
+  }
+
+  trait StackDecode[+T] {
+    def stackDecode(u: U, b: B): Env => T
+  }
+  object StackDecode {
+    implicit def stackDecodeStream: StackDecode[Stream[Value]] =
+      (_, b) =>
+        b.asInstanceOf[External]
+          .get.asInstanceOf[StreamRepr]
   }
 
   /** Encode a scala type `A` in `Result => U` form. */
