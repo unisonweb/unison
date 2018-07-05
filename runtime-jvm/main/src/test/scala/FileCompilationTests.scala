@@ -32,6 +32,14 @@ object FileCompilationTests {
       (3 #:: scala.Stream.from(0) take 10).scanLeft(0)(_+_).sum.u,
     "stream/append" ->
       (Stream.from(5).take(3) ++ Stream.from(100).take(10)).take(6).sum.u,
+    "stream/takewhile-dropwhile-zipwith" ->
+      (Stream.from(0).takeWhile(_ < 10) zip Stream.from(77).dropWhile(_ < 103))
+        .map { case (x,y) => x * y }
+        .sum.u,
+//    "stream/flatmap" ->
+//      scala.Stream.from(0)
+//        .flatMap(n => 7 #:: scala.Stream.continually(1).take(n))
+//        .take(10).sum.u,
   )
 
   def tests = suite("compilation.file")(
@@ -56,7 +64,7 @@ object FileCompilationTests {
     val filename = s"$filePrefix.u"
     val file = testFiles.resolve(filename)
     test(s"$filePrefix = ${prettyTerm(result).render(100)}") { implicit T =>
-      Bootstrap.normalizedFromTextFile(file).fold(fail(_), equal(_, result))
+      Bootstrap.normalizedFromTextFile(file).fold(fail(_), equalShow(_, result)(prettyTerm(_).render(100)))
     }
   }
 

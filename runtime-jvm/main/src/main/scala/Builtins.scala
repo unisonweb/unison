@@ -20,6 +20,9 @@ object Builtins {
   val Stream_empty =
     c0z("Stream.empty", (_: Env) => Stream.empty[Value])
 
+  val Stream_constant =
+    fp_z("Stream.constant", "a", (a: Value) => (_: Env) => Stream.constant(a))
+
   // Stream.fromInt64 : Int64 -> Stream Int64
   val Stream_fromInt64 =
     fp_z("Stream.from-int64", "n", (u: U) => (_: Env) => Stream.fromInt64(u))
@@ -38,6 +41,13 @@ object Builtins {
     fpp_z("Stream.append", "s1", "s2",
           (s1: StreamRepr, s2: StreamRepr) => (env: Env) => s1(env) ++ s2(env))
 
+  // Stream.zip-with : forall a b c . (a -> b -> c) -> Stream a -> Stream b -> Stream c
+  val Stream_zipWith =
+    fppp_z("Stream.zip-with", "f", "s1", "s2",
+           (f: Value, s1: StreamRepr, s2: StreamRepr) =>
+             (env: Env) => s1(env).zipWith(s2(env))(UnisonToScala.unsafeToUnboxed2(f)(env))
+           )
+
   val Stream_take =
     flp_z("Stream.take", "n", "stream",
           (n, s: StreamRepr) => (env: Env) => s(env).take(n))
@@ -46,12 +56,41 @@ object Builtins {
     flp_z("Stream.drop", "n", "stream",
           (n, s: StreamRepr) => (env: Env) => s(env).drop(n))
 
+  // Stream.take-while : forall a . (a -> Boolean) -> Stream a -> Stream a
+  val Stream_takeWhile =
+    fpp_z("Stream.take-while", "f", "stream",
+          (f: Value, s: StreamRepr) =>
+            (env: Env) =>
+              s(env).takeWhile(UnisonToScala.unsafeToUnboxed1(f)(env)))
+
+  // Stream.drop-while : forall a . (a -> Boolean) -> Stream a -> Stream a
+  val Stream_dropWhile =
+    fpp_z("Stream.drop-while", "f", "stream",
+          (f: Value, s: StreamRepr) =>
+            (env: Env) =>
+              s(env).dropWhile(UnisonToScala.unsafeToUnboxed1(f)(env)))
+
   // Stream.map : (a -> b) -> Stream a -> Stream b
   val Stream_map =
     fpp_z("Stream.map", "f", "stream",
           (f: Value, s: StreamRepr) =>
             (env: Env) =>
               s(env).map(UnisonToScala.toUnboxed1(f.asInstanceOf[Lambda])(env)))
+
+  def valueAsInstanceOfStream(env: Env): util.Unboxed.F1[Value, Stream[Value]] =
+    new util.Unboxed.F1[Value, Stream[Value]] {
+      def apply[x] =
+        kvx =>
+          (u1,a,u2,x) =>
+            kvx(U0, a.asInstanceOf[External].get.asInstanceOf[StreamRepr](env), u2, x)
+    }
+
+  // Stream.flat-map : (a -> Stream b) -> Stream a -> Stream b)
+  val Stream_flatMap =
+    fpp_z("Stream.flat-map", "f", "stream",
+          (f: Value, s: StreamRepr) =>
+            (env: Env) =>
+              s(env).flatMap(UnisonToScala.unsafeToUnboxed1(f)(env).map(valueAsInstanceOfStream(env))))
 
   // Stream.foldLeft : b -> (b -> a -> b) -> Stream a -> b
   val Stream_foldLeft =
@@ -178,13 +217,18 @@ object Builtins {
 
   val streamBuiltins = Map(
     Stream_empty,
+    Stream_constant,
     Stream_fromInt64,
     Stream_fromUInt64,
     Stream_append,
+    Stream_zipWith,
     Stream_cons,
     Stream_drop,
     Stream_take,
+    Stream_dropWhile,
+    Stream_takeWhile,
     Stream_map,
+    Stream_flatMap,
     Stream_foldLeft,
     Stream_iterate,
     Stream_reduce,
