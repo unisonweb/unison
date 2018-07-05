@@ -33,6 +33,11 @@ object Builtins {
     fpp_z("Stream.cons", "v", "stream",
           (v: Value, stream: StreamRepr) => (env: Env) => v :: stream(env))
 
+  // Stream.append: Stream a -> Stream a -> Stream a
+  val Stream_append =
+    fpp_z("Stream.append", "s1", "s2",
+          (s1: StreamRepr, s2: StreamRepr) => (env: Env) => s1(env) ++ s2(env))
+
   val Stream_take =
     flp_z("Stream.take", "n", "stream",
           (n, s: StreamRepr) => (env: Env) => s(env).take(n))
@@ -95,6 +100,21 @@ object Builtins {
              (env: Env) =>
                s(env).scanLeft(acc)(UnisonToScala.unsafeToUnboxed2(f)(env))
     )
+
+  // Stream.sum-int64 : Stream Int64 -> Int64
+  val Stream_sumInt64 =
+    fs_p("Stream.sum-int64", "stream",
+         (s: Stream[Value]) => s.unsafeSumUnboxedLong)
+
+  // Stream.sum-uint64 : Stream UInt64 -> UInt64
+  val Stream_sumUInt64 =
+    fs_p("Stream.sum-uint64", "stream",
+         (s: Stream[Value]) => Unsigned(s.unsafeSumUnboxedLong))
+
+  // Stream.sum-float : Stream Float -> Float
+  val Stream_sumFloat =
+    fs_p("Stream.sum-float", "stream",
+         (s: Stream[Value]) => s.unsafeSumUnboxedFloat)
 
   def fppp_p[A,B,C,D](name: Name, arg1: Name, arg2: Name, arg3: Name, f: (A,B,C) => D)
                      (implicit
@@ -160,6 +180,7 @@ object Builtins {
     Stream_empty,
     Stream_fromInt64,
     Stream_fromUInt64,
+    Stream_append,
     Stream_cons,
     Stream_drop,
     Stream_take,
@@ -170,6 +191,9 @@ object Builtins {
     Stream_toSequence,
     Stream_filter,
     Stream_scanLeft,
+    Stream_sumInt64,
+    Stream_sumUInt64,
+    Stream_sumFloat,
   )
 
   // Sequence.empty : Sequence a

@@ -96,6 +96,18 @@ abstract class Stream[A] { self =>
     total
   }
 
+  final def unsafeSumUnboxedLong: U = {
+    var total: Long = 0l
+    self.stage { (u,_) => total += unboxedToLong(u) }.run()
+    longToUnboxed(total)
+  }
+
+  final def unsafeSumUnboxedFloat: U = {
+    var total: Double = 0.0
+    self.stage { (u,_) => total += unboxedToDouble(u) }.run()
+    doubleToUnboxed(total)
+  }
+
   final def reduce[B](zero: B)(f2: F2[A,A,A])(implicit A: Extract[B,A]): B = {
     var sumU: U = A.toUnboxed(zero)
     var sumA: A = A.toBoxed(zero)
@@ -264,6 +276,15 @@ object Stream {
 
   final def empty[A]: Stream[A] =
     k => () => throw Done
+
+  final def singleton[A0,A](a0: A0)(implicit A: Extract[A0,A]): Stream[A] =
+    singleton0(A.toUnboxed(a0), A.toBoxed(a0))
+
+  final def singleton0[A](u: U, a: A): Stream[A] =
+    k => {
+      var done = false
+      () => if (done) throw Done else { done = true; k(u,a) }
+    }
 
   final def constant(n: Long): Stream[Unboxed[Long]] =
     k => () => k(n, null)

@@ -28,6 +28,10 @@ object FileCompilationTests {
       (0 until 10000).sum.u,
     "stream/scan-left" ->
       scala.Stream.from(1).take(10000).scanLeft(0l)(_+_).sum.u,
+    "stream/cons" ->
+      (3 #:: scala.Stream.from(0) take 10).scanLeft(0)(_+_).sum.u,
+    "stream/append" ->
+      (Stream.from(5).take(3) ++ Stream.from(100).take(10)).take(6).sum.u,
   )
 
   def tests = suite("compilation.file")(

@@ -130,6 +130,10 @@ builtins = Map.fromList $
       , ("Stream.to-sequence", "forall a . Stream a -> Sequence a")
       , ("Stream.filter", "forall a . (a -> Boolean) -> Stream a -> Stream a")
       , ("Stream.scan-left", "forall a b . b -> (b -> a -> b) -> Stream a -> Stream b")
+      , ("Stream.sum-int64", "Stream Int64 -> Int64")
+      , ("Stream.sum-uint64", "Stream UInt64 -> UInt64")
+      , ("Stream.sum-float", "Stream Float -> Float")
+      , ("Stream.append", "forall a . Stream a -> Stream a -> Stream a")
 
       , ("Sequence.empty", "forall a . Sequence a")
       , ("Sequence.cons", "forall a . a -> Sequence a -> Sequence a")
