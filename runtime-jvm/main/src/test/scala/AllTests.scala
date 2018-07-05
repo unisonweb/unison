@@ -1,7 +1,7 @@
 package org.unisonweb
 
 import org.unisonweb.EasyTest._
-import org.unisonweb.util.{StreamTests, UtilTests}
+import org.unisonweb.util.UtilTests
 
 object AllTests {
   val tests = suite(
@@ -10,7 +10,6 @@ object AllTests {
     CompilationTests.tests,
     FileCompilationTests.tests,
     CodecsTests.tests,
-    StreamTests.tests,
   )
 }
 

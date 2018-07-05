@@ -10,6 +10,9 @@ object UnisonToScala {
   def toUnboxed1(p: (Term.Name, Computation)): Env => Unboxed.F1[Param,Value] =
     toUnboxed1(Builtins.lambdaFor(p))
 
+  def unsafeToUnboxed1(f: Value): Env => Unboxed.F1[Param,Value] =
+    toUnboxed1(f.asInstanceOf[Value.Lambda])
+
   def toUnboxed1(f: Value.Lambda): Env => Unboxed.F1[Param,Value] = {
     require (f.arity == 1)
     f.body match {
@@ -29,6 +32,9 @@ object UnisonToScala {
           }
     }
   }
+
+  def unsafeToUnboxed2(f: Value): Env => Unboxed.F2[Value,Value,Value] =
+    toUnboxed2(f.asInstanceOf[Value.Lambda])
 
   def toUnboxed2(p: (Term.Name, Computation)): Env => Unboxed.F2[Value,Value,Value] =
     toUnboxed2(Builtins.lambdaFor(p))

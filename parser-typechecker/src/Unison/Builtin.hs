@@ -125,6 +125,11 @@ builtins = Map.fromList $
       , ("Stream.drop", "forall a . UInt64 -> Stream a -> Stream a")
       , ("Stream.map", "forall a b . (a -> b) -> Stream a -> Stream b")
       , ("Stream.fold-left", "forall a b . b -> (b -> a -> b) -> Stream a -> b")
+      , ("Stream.iterate", "forall a . a -> (a -> a) -> Stream a")
+      , ("Stream.reduce", "forall a . a -> (a -> a -> a) -> Stream a -> a")
+      , ("Stream.to-sequence", "forall a . Stream a -> Sequence a")
+      , ("Stream.filter", "forall a . (a -> Boolean) -> Stream a -> Stream a")
+      , ("Stream.scan-left", "forall a b . b -> (b -> a -> b) -> Stream a -> Stream b")
 
       , ("Sequence.empty", "forall a . Sequence a")
       , ("Sequence.cons", "forall a . a -> Sequence a -> Sequence a")

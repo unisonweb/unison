@@ -98,6 +98,9 @@ object PrettyPrint {
   val semicolon = Breakable("; ")
   def semicolons(docs: Seq[PrettyPrint]): PrettyPrint = docs.reduce(_ <> semicolon <> _)
 
+  val comma = Breakable(", ")
+  def commas(docs: Seq[PrettyPrint]): PrettyPrint = docs.reduce(_ <> comma <> _)
+
   def prettyName(name: Name) = parenthesizeIf(isOperatorName(name.toString))(name.toString)
 
   def unqualifiedName(name: Name): String =
@@ -205,6 +208,9 @@ object PrettyPrint {
        parenthesizeGroupIf(precedence > 5) {
         prettyTerm(arg1, 5) <> " " <> infixName(name) <> softbreak <> prettyTerm(arg2, 6).nest("  ")
     }
+    case Tuple(args) => "(" <> commas(args.map(prettyTerm)) <> ")"
+    case Term.Apply(Term.Constructor(BuiltinTypes.Tuple.Id, BuiltinTypes.Tuple.cid), args) =>
+      "(" <> commas(args.map(prettyTerm)) <> ")"
     case Term.Apply(f, args) => parenthesizeGroupIf(precedence > 9) {
       prettyTerm(f, 9) <> softbreak <>
         softbreaks(args.map(arg => prettyTerm(arg, 10).nest("  ")))
@@ -236,6 +242,7 @@ object PrettyPrint {
         Term.Var(prettyId(typeId, ctorId).renderUnbroken)(
           fields.map(_.decompile):_*), precedence)
     case Term.Text(txt) => '"' + Text.toString(txt) + '"'
+    case Term.Sequence(seq) => "[" <> commas(seq.map(prettyTerm).toList) <> "]"
     case t => t.toString
   }
 
@@ -245,6 +252,31 @@ object PrettyPrint {
       case Term.Var(name) => Some(name)
       case Term.Id(Id.Builtin(name)) => Some(name)
       case _ => None
+    }
+  }
+
+  object Tuple {
+    def unapply(term: Term): Option[Seq[Term]] = {
+      val B = BuiltinTypes
+
+      def go(term: Term, elements: Seq[Term]): Seq[Term] = {
+        term match {
+          case Term.Apply(Term.Constructor(B.Tuple.Id, B.Tuple.cid), args) =>
+            args match {
+              case element :: term :: Nil => go(term, elements :+ element)
+              case _ => throw new Exception("tuple wasn't a cons")
+            }
+
+          case _ => elements
+        }
+      }
+      term match {
+        case Term.Apply(Term.Constructor(B.Tuple.Id, B.Tuple.cid), args) =>
+          Some(go(term, Seq.empty))
+
+        case _ => None
+
+      }
     }
   }
 }

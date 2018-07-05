@@ -58,9 +58,45 @@ object Builtins {
            }
     )
 
-  abstract class FPPP_P[A,B,C,D] { def apply(a: A, b: B, c: C): D }
-  def fppp_p[A,B,C,D](name: Name, arg1: Name, arg2: Name, arg3: Name,
-                      f: FPPP_P[A,B,C,D])
+  // Stream.iterate : a -> (a -> a) -> Stream a
+  val Stream_iterate =
+    fpp_z("Stream.iterate", "start", "f",
+          (start: Value, f: Value) =>
+            (env: Env) =>
+              Stream.iterate(start)(UnisonToScala.unsafeToUnboxed1(f)(env))
+    )
+
+  // Stream.reduce : a -> (a -> a -> a) -> Stream a -> a
+  val Stream_reduce =
+    fpps_p("Stream.reduce", "zero", "f", "stream",
+            (zero: Value, f: Value, s: Stream[Value]) => {
+              val env = _env
+              s.reduce(zero)(UnisonToScala.unsafeToUnboxed2(f)(env))
+            }
+      )
+
+  // Stream.to-sequence : Stream a -> Sequence a
+  val Stream_toSequence =
+    fs_p("Stream.to-sequence", "stream",
+         (s: Stream[Value]) => s.toSequence[Value])
+
+  // Stream.filter : (a -> Boolean) -> Stream a -> Stream a
+  val Stream_filter =
+    fpp_z("Stream.filter", "f", "stream",
+          (f: Value, s: StreamRepr) =>
+            (env: Env) =>
+              s(env).filter(UnisonToScala.unsafeToUnboxed1(f)(env))
+    )
+
+  // Stream.scan-left : b -> (b -> a -> b) -> Stream a -> Stream b
+  val Stream_scanLeft =
+    fppp_z("Stream.scan-left", "acc", "f", "stream",
+           (acc: Value, f: Value, s: StreamRepr) =>
+             (env: Env) =>
+               s(env).scanLeft(acc)(UnisonToScala.unsafeToUnboxed2(f)(env))
+    )
+
+  def fppp_p[A,B,C,D](name: Name, arg1: Name, arg2: Name, arg3: Name, f: (A,B,C) => D)
                      (implicit
                       A: Decode[A],
                       B: Decode[B],
@@ -82,9 +118,7 @@ object Builtins {
     name -> Return(lambda)
   }
 
-  abstract class FPPS_P[A,B,C,D] { def apply(a: A, b: B, c: C): D }
-  def fpps_p[A,B,C,D](name: Name, arg1: Name, arg2: Name, arg3: Name,
-                      f: FPPS_P[A,B,C,D])
+  def fpps_p[A,B,C,D](name: Name, arg1: Name, arg2: Name, arg3: Name, f: (A,B,C) => D)
                      (implicit
                       A: Decode[A],
                       B: Decode[B],
@@ -106,6 +140,22 @@ object Builtins {
     name -> Return(lambda)
   }
 
+  def fs_p[C,D](name: Name, arg1: Name, f: C => D)
+               (implicit
+                C: StackDecode[C],
+                D: Encode[D]): (Name, Computation) = {
+    val body: Computation =
+      (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+        D.encode(r, f(
+          C.stackDecode(x0, x0b)((stackU, stackB, top, r))
+        ))
+      }
+    val decompiled = Term.Id(name)
+    val lambda =
+      new Value.Lambda.ClosureForming(List(arg1), body, decompiled)
+    name -> Return(lambda)
+  }
+
   val streamBuiltins = Map(
     Stream_empty,
     Stream_fromInt64,
@@ -115,6 +165,11 @@ object Builtins {
     Stream_take,
     Stream_map,
     Stream_foldLeft,
+    Stream_iterate,
+    Stream_reduce,
+    Stream_toSequence,
+    Stream_filter,
+    Stream_scanLeft,
   )
 
   // Sequence.empty : Sequence a
@@ -171,10 +226,10 @@ object Builtins {
     fl_l("Int64.increment", "x", _ + 1)
 
   val Int64_isEven =
-    fl_b("Int64.isEven", "x", _ % 2 == 0)
+    fl_b("Int64.is-even", "x", _ % 2 == 0)
 
   val Int64_isOdd =
-    fl_b("Int64.isOdd", "x", _ % 2 != 0)
+    fl_b("Int64.is-odd", "x", _ % 2 != 0)
 
   val Int64_add =
     fll_l("Int64.+", "x", "y", _ + _)
@@ -216,16 +271,16 @@ object Builtins {
   def uint(n: Long): Term = Term.Unboxed(longToUnboxed(n), UnboxedType.UInt64)
 
   val UInt64_toInt64 =
-    fl_l("UInt64.toInt64", "x", x => x)
+    fl_l("UInt64.to-int64", "x", x => x)
 
   val UInt64_inc =
     fn_n("UInt64.increment", "x", _ + 1)
 
   val UInt64_isEven =
-    fl_b("UInt64.isEven", "x", _ % 2 == 0)
+    fl_b("UInt64.is-even", "x", _ % 2 == 0)
 
   val UInt64_isOdd =
-    fl_b("UInt64.isOdd", "x", _ % 2 != 0)
+    fl_b("UInt64.is-odd", "x", _ % 2 != 0)
 
   val UInt64_add =
     fnn_n("UInt64.+", "x", "y", _ + _)
@@ -496,6 +551,31 @@ object Builtins {
     name -> Return(lambda)
   }
 
+  def fppp_z[A,B,C,D](name: Name, arg1: String, arg2: String, arg3: String, f: (A,B,C) => D)
+                  (implicit
+                   A: Decode[A],
+                   B: Decode[B],
+                   C: Decode[C],
+                   D: LazyEncode[D]): (Name, Computation) = {
+    val body: Computation =
+      (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+        val x2 = top.u(stackU, 2)
+        val x2b = top.b(stackB, 2)
+        val a = A.decode(x2, x2b)
+        val b = B.decode(x1, x1b)
+        val c = C.decode(x0, x0b)
+        D.encodeOp(r, f(a, b, c), name,
+                   Value.fromParam(x2, x2b),
+                   Value.fromParam(x1, x1b),
+                   Value.fromParam(x0, x0b))
+      }
+    val decompiled = Term.Id(name)
+    val lambda = new Lambda.ClosureForming(List(arg1, arg2, arg3), body, decompiled)
+    name -> Return(lambda)
+  }
+
+
+
   abstract class FLP_P[A,B] { def apply(l: Long, a: A): B }
   def flp_p[A:Decode,B:Encode](name: Name, arg1: Name, arg2: Name, f: FLP_P[A,B]) =
     _fup_p(name, arg1, arg2, (u, p: A) => f(unboxedToLong(u), p))
@@ -521,7 +601,6 @@ object Builtins {
                  Value.fromParam(x0,x0b))
     name -> Return(new Value.Lambda.ClosureForming(List(arg1, arg2), body, Term.Id(name)))
   }
-
 
   def flp_z[A:Decode,B:LazyEncode](name: Name, arg1: Name, arg2: Name, f: FLP_P[A,B]) =
     _fup_z[A,B](name, arg1, arg2, (u, a) => f(unboxedToLong(u), a))
