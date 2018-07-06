@@ -118,6 +118,7 @@ builtins = Map.fromList $
       , ("Text.>", "Text -> Text -> Boolean")
 
       , ("Stream.empty", "forall a . Stream a")
+      , ("Stream.single", "forall a . a -> Stream a")
       , ("Stream.constant", "forall a . a -> Stream a")
       , ("Stream.from-int64", "Int64 -> Stream Int64")
       , ("Stream.from-uint64", "UInt64 -> Stream UInt64")

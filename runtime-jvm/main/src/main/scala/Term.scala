@@ -487,6 +487,9 @@ object Term {
       def u: Term = unsigned
     }
 
+    implicit def sequenceToTerm[A<%Term](s: Seq[A]): Term =
+      Term.Sequence(util.Sequence(s.map(a => a: Term): _*))
+
     implicit def tuple2[A<%Term,B<%Term](t: (A,B)): Term =
       BuiltinTypes.Tuple.term(t._1, t._2)
     implicit def tuple3[A<%Term,B<%Term,C<%Term](t: (A,B,C)): Term =

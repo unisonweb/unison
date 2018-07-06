@@ -36,12 +36,38 @@ object StreamTests {
           (0 until 10000).map(_ + 1).toList
         )
       },
-      test("flatMap") { implicit T =>
+      test("flatMap 0") { implicit T =>
         equal(
           Stream.from(1).take(100)
             .flatMap(L_P(n => Stream.constant(n).take(n))).toSequence.toList,
           scala.Stream.from(1).take(100)
             .flatMap(n => scala.Stream.continually(n).take(n)).toList
+        )
+      },
+      test("flatMap 1") { implicit T =>
+        equal(
+          Stream.from(1).take(100)
+            .flatMap(L_P(n => Stream.constant(n).take(n))).toSequence.toList,
+          scala.Stream.from(1).take(100)
+            .flatMap(n => scala.Stream.continually(n).take(n)).toList
+        )
+      },
+      test("flatMap inf-fin-take") { implicit T =>
+        equal(
+          Stream.from(0).flatMap(L_P[Stream[Unboxed[Long]]](n => Stream.singleton(n))).take(3).toSequence.toList,
+          scala.Stream.from(0).flatMap(n => scala.Stream(n)).take(3).map(_.toLong).toList
+        )
+      },
+      test("flatMap inf-inf-take") { implicit T =>
+        equal(
+          Stream.from(0).flatMap(L_P[Stream[Unboxed[Long]]](n => Stream.constant(n))).take(3).toSequence.toList,
+          scala.Stream.from(0).flatMap(n => scala.Stream.continually(n)).take(3).map(_.toLong).toList
+        )
+      },
+      test("flatMap inf-consinf-take") { implicit T =>
+        equal(
+          Stream.from(0).flatMap(L_P[Stream[Unboxed[Long]]](n => 7l :: Stream.constant(n))).take(5).toSequence.toList,
+          scala.Stream.from(0).flatMap(n => 7 #:: scala.Stream.continually(n)).take(5).map(_.toLong).toList
         )
       },
       test("filter") { implicit T =>

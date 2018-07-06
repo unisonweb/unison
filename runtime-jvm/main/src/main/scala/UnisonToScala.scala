@@ -5,7 +5,7 @@ object UnisonToScala {
   import compilation._
   import org.unisonweb.util.Unboxed
 
-  type Env = (Array[U], Array[B], StackPtr, Result)
+  type Env = (Array[U], Array[B], StackPtr, Result) //todo: get rid of this tuple; make an alias for Env => ...
 
   def toUnboxed1(p: (Term.Name, Computation)): Env => Unboxed.F1[Param,Value] =
     toUnboxed1(Builtins.lambdaFor(p))

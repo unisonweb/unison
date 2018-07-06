@@ -36,14 +36,26 @@ object FileCompilationTests {
       (Stream.from(0).takeWhile(_ < 10) zip Stream.from(77).dropWhile(_ < 103))
         .map { case (x,y) => x * y }
         .sum.u,
-//    "stream/flatmap" ->
-//      scala.Stream.from(0)
-//        .flatMap(n => 7 #:: scala.Stream.continually(1).take(n))
-//        .take(10).sum.u,
+    "stream/flatmap" ->
+      scala.Stream.from(0)
+        .flatMap(n => 7 #:: scala.Stream.continually(1).take(n))
+        .take(10).sum.u,
+    "stream/flatmap-finite" ->
+      scala.Stream.from(0)
+        .flatMap(n => 7.u #:: Stream(n.u))
+        .take(5),
+    "stream/flatmap-finite2" ->
+      scala.Stream.from(0)
+        .flatMap(n => 7.u #:: Stream(n.u))
+        .take(5),
+    "stream/flatmap-infinite" ->
+      scala.Stream.from(0)
+        .flatMap(n => Stream.continually(n.u))
+        .take(3)
   )
 
   def tests = suite("compilation.file")(
-    checkResultTests.toList.map((checkResult _).tupled) ++
+    checkResultTests.toList.sortBy(_._1).map((checkResult _).tupled) ++
       uncheckedEvaluation: _*
   )
 

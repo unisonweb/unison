@@ -20,6 +20,10 @@ object Builtins {
   val Stream_empty =
     c0z("Stream.empty", (_: Env) => Stream.empty[Value])
 
+  // Stream.single: a -> Stream a
+  val Stream_single =
+    fp_z("Stream.single", "a", (a: Value) => (_: Env) => Stream.singleton(a))
+
   val Stream_constant =
     fp_z("Stream.constant", "a", (a: Value) => (_: Env) => Stream.constant(a))
 
@@ -217,6 +221,7 @@ object Builtins {
 
   val streamBuiltins = Map(
     Stream_empty,
+    Stream_single,
     Stream_constant,
     Stream_fromInt64,
     Stream_fromUInt64,

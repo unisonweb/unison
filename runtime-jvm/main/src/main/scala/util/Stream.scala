@@ -42,9 +42,37 @@ abstract class Stream[A] { self =>
     k => self.stage(f andThen k)
 
   final def flatMap[B](f: F1[A,Stream[B]]): Stream[B] =
-    k => self.stage {
-      val cf = f andThen { (_,sb) => sb.stage { (u,b) => k(u,b) }.run() }
-      (u,a) => cf(u,a)
+    kb => {
+      var cb: Step = null
+      var stop = false
+      val setAndWatch: K[Stream[B]] =
+        (_, sb) =>
+          cb = sb.stage {
+            (u, a) =>
+              try kb(u, a)
+              catch {
+                case Done =>
+                  // we caught a Done when trying to push data to a consumer
+                  // e.g. Stream.take.  This means we can stop producing.
+                  stop = true
+                  throw Done
+              }
+          }
+      val cself: Step = self.stage {
+        val cf = f andThen setAndWatch
+        (u,a) => cf(u,a)
+      }
+          
+      () => {
+        if (stop) throw Done
+        else if (cb ne null)
+          try cb()
+          catch {
+            case More(s) => cb = s
+            case Done => cb = null
+          }
+        else cself()
+      }
     }
 
   /** Only emit elements from `this` for which `f` returns a nonzero value. */
@@ -281,10 +309,7 @@ object Stream {
     singleton0(A.toUnboxed(a0), A.toBoxed(a0))
 
   final def singleton0[A](u: U, a: A): Stream[A] =
-    k => {
-      var done = false
-      () => if (done) throw Done else { done = true; k(u,a) }
-    }
+    k => () => { k(u,a); throw Done }
 
   final def constant(n: Long): Stream[Unboxed[Long]] =
     k => () => k(n, null)
