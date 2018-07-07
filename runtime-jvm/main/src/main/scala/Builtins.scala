@@ -12,10 +12,6 @@ import org.unisonweb.util.{Sequence, Stream, Text}
 
 /* Sketch of convenience functions for constructing builtin functions. */
 object Builtins {
-  def _stackU = new Array[U](1024)
-  def _stackB = new Array[B](1024)
-  def _top = StackPtr.empty
-  def _r = Result()
 
   type StreamRepr = EnvTo[Stream[Value]]
   // Stream.empty : Stream a
@@ -142,10 +138,11 @@ object Builtins {
 
   // Stream.foldLeft : b -> (b -> a -> b) -> Stream a -> b
   val Stream_foldLeft =
-    fpps_p("Stream.fold-left", "acc", "f", "stream",
-           (acc: Value, f: Value, s: Stream[Value]) => {
-             s.foldLeft(acc)(
-               unsafeToUnboxed2(f)(_stackU, _stackB, _top, _r))
+    fppp_s("Stream.fold-left", "acc", "f", "stream",
+           (acc: Value, f: Value, s: StreamRepr) => {
+             (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+               s(stackU, stackB, top, r)
+                 .foldLeft(acc)(unsafeToUnboxed2(f)(stackU, stackB, top, r))
            }
     )
 
@@ -159,16 +156,20 @@ object Builtins {
 
   // Stream.reduce : a -> (a -> a -> a) -> Stream a -> a
   val Stream_reduce =
-    fpps_p("Stream.reduce", "zero", "f", "stream",
-            (zero: Value, f: Value, s: Stream[Value]) => {
-              s.reduce(zero)(unsafeToUnboxed2(f)(_stackU, _stackB, _top, _r))
-            }
+    fppp_s("Stream.reduce", "zero", "f", "stream",
+            (zero: Value, f: Value, s: StreamRepr) =>
+              (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) => {
+                s(stackU, stackB, top, r)
+                  .reduce(zero)(unsafeToUnboxed2(f)(stackU, stackB, top, r))
+              }
       )
 
   // Stream.to-sequence : Stream a -> Sequence a
   val Stream_toSequence =
-    fs_p("Stream.to-sequence", "stream",
-         (s: Stream[Value]) => s.toSequence[Value])
+    fp_s("Stream.to-sequence", "stream",
+         (s: StreamRepr) =>
+           (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+             s(stackU, stackB, top, r).toSequence[Value])
 
   // Stream.filter : (a -> Boolean) -> Stream a -> Stream a
   val Stream_filter =
@@ -190,18 +191,24 @@ object Builtins {
 
   // Stream.sum-int64 : Stream Int64 -> Int64
   val Stream_sumInt64 =
-    fs_p("Stream.sum-int64", "stream",
-         (s: Stream[Value]) => s.unsafeSumUnboxedLong)
+    fp_s("Stream.sum-int64", "stream",
+         (s: StreamRepr) =>
+           (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+             s(stackU, stackB, top, r).unsafeSumUnboxedLong)
 
   // Stream.sum-uint64 : Stream UInt64 -> UInt64
   val Stream_sumUInt64 =
-    fs_p("Stream.sum-uint64", "stream",
-         (s: Stream[Value]) => Unsigned(s.unsafeSumUnboxedLong))
+    fp_s("Stream.sum-uint64", "stream",
+         (s: StreamRepr) =>
+           (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+             Unsigned(s(stackU, stackB, top, r).unsafeSumUnboxedLong))
 
   // Stream.sum-float : Stream Float -> Float
   val Stream_sumFloat =
-    fs_p("Stream.sum-float", "stream",
-         (s: Stream[Value]) => s.unsafeSumUnboxedFloat)
+    fp_s("Stream.sum-float", "stream",
+         (s: StreamRepr) =>
+           (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+             s(stackU, stackB, top, r).unsafeSumUnboxedFloat)
 
   def fppp_p[A,B,C,D](name: Name, arg1: Name, arg2: Name, arg3: Name, f: (A,B,C) => D)
                      (implicit
@@ -225,11 +232,11 @@ object Builtins {
     name -> Return(lambda)
   }
 
-  def fpps_p[A,B,C,D](name: Name, arg1: Name, arg2: Name, arg3: Name, f: (A,B,C) => D)
+  def fppp_s[A,B,C,D](name: Name, arg1: Name, arg2: Name, arg3: Name, f: (A,B,C) => EnvTo[D])
                      (implicit
                       A: Decode[A],
                       B: Decode[B],
-                      C: StackDecode[C],
+                      C: Decode[C],
                       D: Encode[D]): (Name, Computation) = {
     val body: Computation =
       (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
@@ -238,8 +245,8 @@ object Builtins {
         D.encode(r, f(
           A.decode(x2, x2b),
           B.decode(x1, x1b),
-          C.stackDecode(x0, x0b)(stackU, stackB, top, r)
-        ))
+          C.decode(x0, x0b)
+        )(stackU,stackB,top,r))
       }
     val decompiled = Term.Id(name)
     val lambda =
@@ -247,21 +254,6 @@ object Builtins {
     name -> Return(lambda)
   }
 
-  def fs_p[C,D](name: Name, arg1: Name, f: C => D)
-               (implicit
-                C: StackDecode[C],
-                D: Encode[D]): (Name, Computation) = {
-    val body: Computation =
-      (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
-        D.encode(r, f(
-          C.stackDecode(x0, x0b)(stackU, stackB, top, r)
-        ))
-      }
-    val decompiled = Term.Id(name)
-    val lambda =
-      new Value.Lambda.ClosureForming(List(arg1), body, decompiled)
-    name -> Return(lambda)
-  }
 
   val streamBuiltins = Map(
     Stream_empty,
@@ -595,6 +587,16 @@ object Builtins {
     name -> Return(new Lambda1(arg, body, decompile))
   }
 
+  // Polymorphic one-argument function, requiring stack to encode result
+  def fp_s[A,B](name: Name, arg: Name, f: A => EnvTo[B])
+               (implicit A: Decode[A], B: Encode[B]): (Name, Computation) = {
+    val body: Computation =
+      (r,_,top,stackU,_,x0,stackB,_,x0b) =>
+        B.encode(r, f(A.decode(x0, x0b))(stackU, stackB, top, r))
+    val decompile = Term.Id(name)
+    name -> Return(new Lambda1(arg, body, decompile))
+  }
+
   // Monomorphic one-argument function on unboxed values
   def _fu_u(name: Name,
             arg: Name,
@@ -607,11 +609,6 @@ object Builtins {
     val computation = Return(new Lambda1(arg, body, decompile))
     name -> computation
   }
-
-//// a possibly faster model, but didn't see a clean analogue for fuu_u.
-//  def fu_u(name: Name, arg: Name, outputType: UnboxedType)
-//          (body: Computation.C1U): (Name, Computation) =
-//    name -> Return(new Lambda1(arg, body, Some(outputType), Term.Id(name)))
 
   abstract class B_B { def test(b: Boolean): Boolean }
   def fb_b(name: Name, arg: Name, f: B_B): (Name, Computation) =
@@ -691,8 +688,6 @@ object Builtins {
     val lambda = new Lambda.ClosureForming(List(arg1, arg2, arg3), body, decompiled)
     name -> Return(lambda)
   }
-
-
 
   abstract class FLP_P[A,B] { def apply(l: Long, a: A): B }
   def flp_p[A:Decode,B:Encode](name: Name, arg1: Name, arg2: Name, f: FLP_P[A,B]) =
@@ -875,15 +870,6 @@ object Builtins {
         b.toValue.asInstanceOf[External].get.asInstanceOf[A]
   }
 
-  trait StackDecode[+T] {
-    def stackDecode(u: U, b: B): EnvTo[T]
-  }
-  object StackDecode {
-    implicit def stackDecodeStream: StackDecode[Stream[Value]] =
-      (_, b) =>
-        b.asInstanceOf[External].get.asInstanceOf[StreamRepr]
-  }
-
   /** Encode a scala type `A` in `Result => U` form. */
   trait Encode[-A] { def encode(r: Result, a: A): U }
   object Encode {
@@ -946,5 +932,3 @@ object Builtins {
       }
   }
 }
-
-

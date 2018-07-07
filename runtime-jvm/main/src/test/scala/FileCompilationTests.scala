@@ -54,6 +54,8 @@ object FileCompilationTests {
         .flatMap(n => Stream.continually(n.u))
         .take(3),
     "stream/unfold" -> List(-2/2, -1/2, 0/2),
+    "stream/foldleft-uint64" -> 45.u,
+    "stream/foldleft-stream" -> Seq(9,8,7,6,5,4,3,2,1,0).map(_.u),
   )
 
   def tests = suite("compilation.file")(
@@ -84,9 +86,14 @@ object FileCompilationTests {
   }
 
   def normalize(p: Path): Test[Unit] = {
-    test(testFiles.relativize(p).toString.dropRight(2)) {
+    val name = testFiles.relativize(p).toString.dropRight(2)
+    test(name) {
       implicit T =>
-        Bootstrap.normalizedFromTextFile(p).fold(fail(_), _ => ok)
+        Bootstrap.normalizedFromTextFile(p)
+          .fold(fail(_), t => {
+            note(s"$name (unchecked) = ${prettyTerm(t).render(100)}")
+            ok
+          })
     }
   }
 }

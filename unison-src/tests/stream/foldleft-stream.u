@@ -1,0 +1,5 @@
+a |> f = f a
+Stream.from-uint64 0
+  |> Stream.take 10
+  |> Stream.fold-left Stream.empty (b a -> Stream.cons a b)
+  |> Stream.to-sequence
