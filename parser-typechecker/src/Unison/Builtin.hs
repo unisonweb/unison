@@ -89,16 +89,10 @@ builtinDataDecls =
     ddPairToType (r@(R.Builtin s), _) = (Var.named s, Type.ref r)
     ddPairToType _ = error "expected them all to be R.Builtins"
     l = [ (R.Builtin "()", DataDeclaration [] [(Var.named "()", Type.builtin "()")])
-      , (R.Builtin "Pair",
-         DataDeclaration [Var.named "a", Var.named "b"]
-                         [(Var.named "Pair",
-                           let vars = ["a","b"]
-                               tvars = Type.v' <$> vars
-                           in Type.forall' vars . Type.arrows tvars $
-                                Type.builtin "Pair" `Type.apps` tvars)])
         -- todo: these should get replaced by hashes,
         --       same as the user-defined data types.
         --       but we still will want a way to associate a name
+        , parseDataDeclAsBuiltin "type Pair a b = Pair a b"
         , parseDataDeclAsBuiltin "type Optional a = None | Some a"
         ]
 

@@ -55,6 +55,7 @@ object PrettyPrint {
 
   /** The empty document. */
   case object Empty extends PrettyPrint { def unbrokenWidth = 0 }
+  def empty: PrettyPrint = Empty
 
   /** Embed a string into a document. */
   case class Literal(get: String) extends PrettyPrint { def unbrokenWidth = get.length }
@@ -96,10 +97,10 @@ object PrettyPrint {
     else docs.reduce(_ <> softbreak <> _)
 
   val semicolon = Breakable("; ")
-  def semicolons(docs: Seq[PrettyPrint]): PrettyPrint = docs.reduce(_ <> semicolon <> _)
+  def semicolons(docs: Seq[PrettyPrint]): PrettyPrint = docs.reduceOption(_ <> semicolon <> _).getOrElse(empty)
 
   val comma = Breakable(", ")
-  def commas(docs: Seq[PrettyPrint]): PrettyPrint = docs.reduce(_ <> comma <> _)
+  def commas(docs: Seq[PrettyPrint]): PrettyPrint = docs.reduceOption(_ <> comma <> _).getOrElse(empty)
 
   def prettyName(name: Name) = parenthesizeIf(isOperatorName(name.toString))(name.toString)
 

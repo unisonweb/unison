@@ -13,6 +13,7 @@ object FileCompilationTests {
 
   val checkResultTests = Map[String, Term](
     "fib4" -> 2249999.u,
+    "tuple" -> ((3.u, 7.u)),
     "stream-shouldnt-damage-stack" -> ((4950.u, 9999.u)),
     "stream/iterate-increment-take-drop-reduce" ->
       scala.Stream.from(0).take(5).drop(3).sum,
@@ -51,7 +52,8 @@ object FileCompilationTests {
     "stream/flatmap-infinite" ->
       scala.Stream.from(0)
         .flatMap(n => Stream.continually(n.u))
-        .take(3)
+        .take(3),
+    "stream/unfold" -> List(-2/2, -1/2, 0/2),
   )
 
   def tests = suite("compilation.file")(
@@ -76,7 +78,8 @@ object FileCompilationTests {
     val filename = s"$filePrefix.u"
     val file = testFiles.resolve(filename)
     test(s"$filePrefix = ${prettyTerm(result).render(100)}") { implicit T =>
-      Bootstrap.normalizedFromTextFile(file).fold(fail(_), equalShow(_, result)(prettyTerm(_).render(100)))
+      Bootstrap.normalizedFromTextFile(file)
+        .fold(fail(_), equalShow(_, result)(prettyTerm(_).render(100)))
     }
   }
 

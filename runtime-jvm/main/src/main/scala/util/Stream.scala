@@ -374,11 +374,12 @@ object Stream {
 
     implicit val valueOptional: OptionalTC[Value,Value] =
       new OptionalTC[Value,Value] {
+        import BuiltinTypes.Optional
         def isEmpty(a: Value): Boolean = a match {
-          case Value.Data(BuiltinTypes.Optional.Id, cid, fields) => cid == BuiltinTypes.Optional.Some.cid
+          case Value.Data(Optional.Id, cid, _) => cid == Optional.None.cid
         }
         def get(a: Value): Value = a match {
-          case Value.Data(BuiltinTypes.Optional.Id, BuiltinTypes.Optional.Some.cid, fields) => fields(0)
+          case Value.Data(Optional.Id, Optional.Some.cid, fields) => fields(0)
         }
       }
   }
@@ -402,20 +403,22 @@ object Stream {
 
     implicit val pairValue: PairTC[Value,Value,Value] =
       new PairTC[Value,Value,Value] {
+        import BuiltinTypes.Tuple
+        // Any MatchFailures are a type error
         def _1u(t: Value): U = t match {
-          case Value.Data(BuiltinTypes.Tuple.Id, BuiltinTypes.Tuple.cid, fields) => fields(0).toUnboxed
+          case Value.Data(Tuple.Id, Tuple.cid, fields) => fields(0).toUnboxed
         }
         def _1(t: Value): Value = t match {
-          case Value.Data(BuiltinTypes.Tuple.Id, BuiltinTypes.Tuple.cid, fields) => fields(0).toBoxed
+          case Value.Data(Tuple.Id, Tuple.cid, fields) => fields(0).toBoxed
         }
         def _2u(t: Value): U = t match {
-          case Value.Data(BuiltinTypes.Tuple.Id, BuiltinTypes.Tuple.cid, fields) => fields(1) match {
-            case Value.Data(BuiltinTypes.Tuple.Id, BuiltinTypes.Tuple.cid, fields) => fields(0).toUnboxed
+          case Value.Data(Tuple.Id, Tuple.cid, fields) => fields(1) match {
+            case Value.Data(Tuple.Id, Tuple.cid, fields) => fields(0).toUnboxed
           }
         }
         def _2(t: Value): Value = t match {
-          case Value.Data(BuiltinTypes.Tuple.Id, BuiltinTypes.Tuple.cid, fields) => fields(1) match {
-            case Value.Data(BuiltinTypes.Tuple.Id, BuiltinTypes.Tuple.cid, fields) => fields(0).toBoxed
+          case Value.Data(Tuple.Id, Tuple.cid, fields) => fields(1) match {
+            case Value.Data(Tuple.Id, Tuple.cid, fields) => fields(0).toBoxed
           }
         }
       }
