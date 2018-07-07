@@ -3,6 +3,7 @@ package org.unisonweb
 import java.util.function.{DoubleBinaryOperator, LongBinaryOperator, LongPredicate, LongUnaryOperator}
 
 import org.unisonweb.Term.{Name, Term}
+import org.unisonweb.UnisonToScala.{EnvTo, unsafeToUnboxed1, unsafeToUnboxed2}
 import org.unisonweb.Value.Lambda
 import org.unisonweb.Value.Lambda.Lambda1
 import org.unisonweb.compilation._
@@ -11,105 +12,140 @@ import org.unisonweb.util.{Sequence, Stream, Text}
 
 /* Sketch of convenience functions for constructing builtin functions. */
 object Builtins {
-  type Env = (Array[U], Array[B], StackPtr, Result)
-  def _env: Env =
-    (new Array[U](1024), new Array[B](1024), StackPtr.empty, Result())
+  def _stackU = new Array[U](1024)
+  def _stackB = new Array[B](1024)
+  def _top = StackPtr.empty
+  def _r = Result()
 
-  type StreamRepr = Env => Stream[Value]
+  type StreamRepr = EnvTo[Stream[Value]]
   // Stream.empty : Stream a
   val Stream_empty =
-    c0z("Stream.empty", (_: Env) => Stream.empty[Value])
+    c0z("Stream.empty",
+        (_: Array[U], _: Array[B], _: StackPtr, _: R) =>
+          Stream.empty[Value])
 
   // Stream.single: a -> Stream a
   val Stream_single =
-    fp_z("Stream.single", "a", (a: Value) => (_: Env) => Stream.singleton(a))
+    fp_z("Stream.single", "a",
+         (a: Value) =>
+           (_: Array[U], _: Array[B], _: StackPtr, _: R) =>
+             Stream.singleton(a))
 
   val Stream_constant =
-    fp_z("Stream.constant", "a", (a: Value) => (_: Env) => Stream.constant(a))
+    fp_z("Stream.constant", "a",
+         (a: Value) =>
+           (_: Array[U], _: Array[B], _: StackPtr, _: R) =>
+             Stream.constant(a))
 
   // Stream.fromInt64 : Int64 -> Stream Int64
   val Stream_fromInt64 =
-    fp_z("Stream.from-int64", "n", (u: U) => (_: Env) => Stream.fromInt64(u))
+    fp_z("Stream.from-int64", "n",
+         (u: U) =>
+           (_: Array[U], _: Array[B], _: StackPtr, _: R) =>
+             Stream.fromInt64(u))
 
   // Stream.fromUInt64 : UInt64 -> Stream UInt64
   val Stream_fromUInt64 =
-    fp_z("Stream.from-uint64", "n", (u: U) => (_: Env) => Stream.fromUInt64(u))
+    fp_z("Stream.from-uint64", "n",
+         (u: U) =>
+           (_: Array[U], _: Array[B], _: StackPtr, _: R) =>
+             Stream.fromUInt64(u))
 
   // Stream.cons : a -> Stream a -> Stream a
   val Stream_cons =
     fpp_z("Stream.cons", "v", "stream",
-          (v: Value, stream: StreamRepr) => (env: Env) => v :: stream(env))
+          (v: Value, stream: StreamRepr) =>
+            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+              v :: stream(stackU, stackB, top, r))
 
   // "Stream.unfold", "forall a b . (a -> Optional (b, a)) -> b -> Stream a"
   val Stream_unfold =
     fpp_z("Stream.unfold", "f", "initial",
           (f: Value, b: Value) =>
-            (env: Env) =>
-              Stream.unfold[Value,Value,Value,Value,Value](b)(UnisonToScala.unsafeToUnboxed1(f)(env)))
+            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+              Stream.unfold[Value,Value,Value,Value,Value](b)(
+                unsafeToUnboxed1(f)(stackU, stackB, top, r)))
 
   // Stream.append: Stream a -> Stream a -> Stream a
   val Stream_append =
     fpp_z("Stream.append", "s1", "s2",
-          (s1: StreamRepr, s2: StreamRepr) => (env: Env) => s1(env) ++ s2(env))
+          (s1: StreamRepr, s2: StreamRepr) =>
+            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+              s1(stackU, stackB, top, r) ++ s2(stackU, stackB, top, r))
 
   // Stream.zip-with : forall a b c . (a -> b -> c) -> Stream a -> Stream b -> Stream c
   val Stream_zipWith =
     fppp_z("Stream.zip-with", "f", "s1", "s2",
            (f: Value, s1: StreamRepr, s2: StreamRepr) =>
-             (env: Env) => s1(env).zipWith(s2(env))(UnisonToScala.unsafeToUnboxed2(f)(env))
+             (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+               s1(stackU, stackB, top, r).
+                 zipWith(s2(stackU, stackB, top, r))
+                        (unsafeToUnboxed2(f)(stackU, stackB, top, r))
            )
 
   val Stream_take =
     flp_z("Stream.take", "n", "stream",
-          (n, s: StreamRepr) => (env: Env) => s(env).take(n))
+          (n, s: StreamRepr) =>
+            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+              s(stackU, stackB, top, r).take(n))
 
   val Stream_drop =
     flp_z("Stream.drop", "n", "stream",
-          (n, s: StreamRepr) => (env: Env) => s(env).drop(n))
+          (n, s: StreamRepr) =>
+            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+              s(stackU, stackB, top, r).drop(n))
 
   // Stream.take-while : forall a . (a -> Boolean) -> Stream a -> Stream a
   val Stream_takeWhile =
     fpp_z("Stream.take-while", "f", "stream",
           (f: Value, s: StreamRepr) =>
-            (env: Env) =>
-              s(env).takeWhile(UnisonToScala.unsafeToUnboxed1(f)(env)))
+            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+              s(stackU, stackB, top, r)
+                .takeWhile(unsafeToUnboxed1(f)(stackU, stackB, top, r)))
 
   // Stream.drop-while : forall a . (a -> Boolean) -> Stream a -> Stream a
   val Stream_dropWhile =
     fpp_z("Stream.drop-while", "f", "stream",
           (f: Value, s: StreamRepr) =>
-            (env: Env) =>
-              s(env).dropWhile(UnisonToScala.unsafeToUnboxed1(f)(env)))
+            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+              s(stackU, stackB, top, r)
+                .dropWhile(unsafeToUnboxed1(f)(stackU, stackB, top, r)))
 
   // Stream.map : (a -> b) -> Stream a -> Stream b
   val Stream_map =
     fpp_z("Stream.map", "f", "stream",
           (f: Value, s: StreamRepr) =>
-            (env: Env) =>
-              s(env).map(UnisonToScala.toUnboxed1(f.asInstanceOf[Lambda])(env)))
+            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+              s(stackU, stackB, top, r)
+                .map(unsafeToUnboxed1(f)(stackU, stackB, top, r)))
 
-  def valueAsInstanceOfStream(env: Env): util.Unboxed.F1[Value, Stream[Value]] =
+  def unsafeValueToStream(stackU: Array[U], stackB: Array[B], top: StackPtr, r: R): util.Unboxed.F1[Value, Stream[Value]] =
     new util.Unboxed.F1[Value, Stream[Value]] {
       def apply[x] =
         kvx =>
-          (u1,a,u2,x) =>
-            kvx(U0, a.asInstanceOf[External].get.asInstanceOf[StreamRepr](env), u2, x)
+          (u1,a1,u2,x) => {
+            val a =
+              a1.asInstanceOf[External].get
+                .asInstanceOf[StreamRepr](stackU, stackB, top, r)
+            kvx(U0, a, u2, x)
+          }
     }
 
   // Stream.flat-map : (a -> Stream b) -> Stream a -> Stream b)
   val Stream_flatMap =
     fpp_z("Stream.flat-map", "f", "stream",
           (f: Value, s: StreamRepr) =>
-            (env: Env) =>
-              s(env).flatMap(UnisonToScala.unsafeToUnboxed1(f)(env).map(valueAsInstanceOfStream(env))))
+            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+              s(stackU, stackB, top, r)
+                .flatMap(unsafeToUnboxed1(f)(stackU, stackB, top, r)
+                           .map(unsafeValueToStream(stackU, stackB, top, r))))
 
   // Stream.foldLeft : b -> (b -> a -> b) -> Stream a -> b
   val Stream_foldLeft =
     fpps_p("Stream.fold-left", "acc", "f", "stream",
            (acc: Value, f: Value, s: Stream[Value]) => {
-             val env = _env
              s.foldLeft(acc)(
-               UnisonToScala.toUnboxed2(f.asInstanceOf[Lambda])(env))
+               unsafeToUnboxed2(f)(_stackU, _stackB, _top, _r))
            }
     )
 
@@ -117,16 +153,15 @@ object Builtins {
   val Stream_iterate =
     fpp_z("Stream.iterate", "start", "f",
           (start: Value, f: Value) =>
-            (env: Env) =>
-              Stream.iterate(start)(UnisonToScala.unsafeToUnboxed1(f)(env))
+            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+              Stream.iterate(start)(unsafeToUnboxed1(f)(stackU, stackB, top, r))
     )
 
   // Stream.reduce : a -> (a -> a -> a) -> Stream a -> a
   val Stream_reduce =
     fpps_p("Stream.reduce", "zero", "f", "stream",
             (zero: Value, f: Value, s: Stream[Value]) => {
-              val env = _env
-              s.reduce(zero)(UnisonToScala.unsafeToUnboxed2(f)(env))
+              s.reduce(zero)(unsafeToUnboxed2(f)(_stackU, _stackB, _top, _r))
             }
       )
 
@@ -139,16 +174,18 @@ object Builtins {
   val Stream_filter =
     fpp_z("Stream.filter", "f", "stream",
           (f: Value, s: StreamRepr) =>
-            (env: Env) =>
-              s(env).filter(UnisonToScala.unsafeToUnboxed1(f)(env))
+            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+              s(stackU, stackB, top, r)
+                .filter(unsafeToUnboxed1(f)(stackU, stackB, top, r))
     )
 
   // Stream.scan-left : b -> (b -> a -> b) -> Stream a -> Stream b
   val Stream_scanLeft =
     fppp_z("Stream.scan-left", "acc", "f", "stream",
            (acc: Value, f: Value, s: StreamRepr) =>
-             (env: Env) =>
-               s(env).scanLeft(acc)(UnisonToScala.unsafeToUnboxed2(f)(env))
+             (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+               s(stackU, stackB, top, r)
+                 .scanLeft(acc)(unsafeToUnboxed2(f)(stackU, stackB, top, r))
     )
 
   // Stream.sum-int64 : Stream Int64 -> Int64
@@ -201,7 +238,7 @@ object Builtins {
         D.encode(r, f(
           A.decode(x2, x2b),
           B.decode(x1, x1b),
-          C.stackDecode(x0, x0b)((stackU, stackB, top, r))
+          C.stackDecode(x0, x0b)(stackU, stackB, top, r)
         ))
       }
     val decompiled = Term.Id(name)
@@ -217,7 +254,7 @@ object Builtins {
     val body: Computation =
       (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
         D.encode(r, f(
-          C.stackDecode(x0, x0b)((stackU, stackB, top, r))
+          C.stackDecode(x0, x0b)(stackU, stackB, top, r)
         ))
       }
     val decompiled = Term.Id(name)
@@ -839,13 +876,12 @@ object Builtins {
   }
 
   trait StackDecode[+T] {
-    def stackDecode(u: U, b: B): Env => T
+    def stackDecode(u: U, b: B): EnvTo[T]
   }
   object StackDecode {
     implicit def stackDecodeStream: StackDecode[Stream[Value]] =
       (_, b) =>
-        b.asInstanceOf[External]
-          .get.asInstanceOf[StreamRepr]
+        b.asInstanceOf[External].get.asInstanceOf[StreamRepr]
   }
 
   /** Encode a scala type `A` in `Result => U` form. */

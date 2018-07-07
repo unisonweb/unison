@@ -1,7 +1,6 @@
 package org.unisonweb.util
 
 import org.unisonweb.EasyTest._
-import org.unisonweb.Term.Term
 import org.unisonweb._
 import org.unisonweb.util.Unboxed.F1.{D_B, L_B, L_L, L_P}
 import org.unisonweb.util.Unboxed.F2.{DD_D, LD_L, LL_L}
