@@ -8,15 +8,6 @@ import org.unisonweb.util.Unboxed.F2.{DD_D, LD_L, LL_L}
 import org.unisonweb.util.Unboxed.Unboxed
 
 object StreamTests {
-  implicit class SourceRunner(private val s: String) extends AnyVal {
-    def runPipes(implicit t: EasyTest.Env): Term =
-      Bootstrap.normalizedFromText(
-        s"""a |> f = f a
-           |$s
-          """.stripMargin
-      ).fold(fail(_), identity)
-  }
-
   val tests = suite("stream")(
     suite("native")(
       test("take/drop") { implicit T =>
