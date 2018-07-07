@@ -6,7 +6,6 @@ module Unison.Builtin where
 
 import           Control.Arrow ((&&&), second)
 import qualified Data.Map as Map
-import qualified Data.Text as Text
 import           Unison.DataDeclaration (DataDeclaration(..))
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Parser as Parser
@@ -33,11 +32,11 @@ tm :: Var v => String -> Term v
 tm s = bindBuiltins . either error id $
   Parser.run (Parser.root TermParser.term) s TypeParser.s0 Parser.penv0
 
-parseDataDeclAsBuiltin :: Var v => String -> (R.Reference, DataDeclaration v)
+parseDataDeclAsBuiltin :: Var v => String -> (v, (R.Reference, DataDeclaration v))
 parseDataDeclAsBuiltin s =
   let (v, dd) = either error id $
         Parser.run (Parser.root FileParser.dataDeclaration) s TypeParser.s0 Parser.penv0
-  in (R.Builtin . Var.qualifiedName $ v, DD.bindBuiltins builtinTypes dd)
+  in (v, (R.Builtin . Var.qualifiedName $ v, DD.bindBuiltins builtinTypes dd))
 
 bindBuiltins :: Var v => Term v -> Term v
 bindBuiltins = Term.bindBuiltins builtinTerms builtinTypes
@@ -47,20 +46,15 @@ bindTypeBuiltins = Type.bindBuiltins builtinTypes
 
 builtinTerms :: forall v. Var v => [(v, Term v)]
 builtinTerms = builtinTerms' ++
-    (mkConstructors =<< Map.toList (builtinDataDecls @ v))
+    (mkConstructors =<< builtinDataDecls')
   where
-    -- (Reference, DataDeclaration v) -> [(v, Term v)]
-    mkConstructors (r, dd) =
-      mkConstructor r <$> DD.constructors dd `zip` [0..]
-    -- Reference -> String -> ((v, Type v), Int) -> (v, Term v)
-    mkConstructor r@(R.Builtin s) ((v, _t), i) =
-      (Var.named $ mconcat [s, ".", Var.qualifiedName v],
+    mkConstructors :: (v, (R.Reference, DataDeclaration v)) -> [(v, Term v)]
+    mkConstructors (vt, (r, dd)) =
+      mkConstructor vt r <$> DD.constructors dd `zip` [0..]
+    mkConstructor :: v -> R.Reference -> ((v, Type v), Int) -> (v, Term v)
+    mkConstructor vt r ((v, _t), i) =
+      (Var.named $ mconcat [Var.qualifiedName vt, ".", Var.qualifiedName v],
         Term.constructor r i)
-    mkConstructor (R.Derived h) ((v, _t), _i) =
-      error $ "what kind of name do you want for this one? " ++
-                show h ++ "." ++ Text.unpack (Var.qualifiedName v)
--- each dd has a bunch of constructors.  add those constructors as builtinTerms!
-  -- where f (R.Builtin s, dd) =
 
 builtinTerms' :: forall v. Var v => [(v, Term v)]
 builtinTerms' = (toSymbol &&& Term.ref) <$> Map.keys (builtins @v)
@@ -78,22 +72,27 @@ builtinTypes' = (Var.named &&& (Type.ref . R.Builtin)) <$>
   ["Int64", "UInt64", "Float", "Boolean",
     "Sequence", "Text", "Stream", "Effect"]
 
+builtinDataDecls :: forall v. (Var v) => Map.Map R.Reference (DataDeclaration v)
+builtinDataDecls = Map.fromList (snd <$> builtinDataDecls')
+
 -- | parse some builtin data types, and resolve their free variables using
 -- | builtinTypes' and those types defined herein
-builtinDataDecls :: (Var v) => Map.Map R.Reference (DataDeclaration v)
-builtinDataDecls =
-  Map.fromList . (bindAllTheTypes <$>) $ l
+builtinDataDecls' :: forall v. (Var v) => [(v, (R.Reference, DataDeclaration v))]
+builtinDataDecls' = bindAllTheTypes <$> l
   where
+    bindAllTheTypes :: (v, (R.Reference, DataDeclaration v)) -> (v, (R.Reference, DataDeclaration v))
     bindAllTheTypes =
-      second (DD.bindBuiltins $ builtinTypes' ++ (ddPairToType <$> l))
-    ddPairToType (r@(R.Builtin s), _) = (Var.named s, Type.ref r)
-    ddPairToType _ = error "expected them all to be R.Builtins"
-    l = [ (R.Builtin "()", DataDeclaration [] [(Var.named "()", Type.builtin "()")])
-    -- todo: figure out why this doesn't parse:
+      second . second $ (DD.bindBuiltins $ builtinTypes' ++ (dd3ToType <$> l))
+    dd3ToType (v, (r, _)) = (v, Type.ref r)
+    l :: [(v, (R.Reference, DataDeclaration v))]
+    l = [ (Var.named "()",
+            (R.Builtin "()", DataDeclaration [] [(Var.named "()", Type.builtin "()")]))
+    -- todo: figure out why `type () = ()` doesn't parse:
     -- l = [ parseDataDeclAsBuiltin "type () = ()"
-        -- todo: these should get replaced by hashes,
+        -- todo: These should get replaced by hashes,
         --       same as the user-defined data types.
-        --       but we still will want a way to associate a name
+        --       But we still will want a way to associate a name.
+        --
         , parseDataDeclAsBuiltin "type Pair a b = Pair a b"
         , parseDataDeclAsBuiltin "type Optional a = None | Some a"
         ]
