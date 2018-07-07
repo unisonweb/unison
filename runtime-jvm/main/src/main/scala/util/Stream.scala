@@ -361,6 +361,101 @@ object Stream {
     }
   }
 
+  trait OptionalTC[A,B] {
+    def isEmpty(a: A): Boolean
+    def get(a: A): B
+  }
+  object OptionalTC {
+    implicit def optionOptional[A]: OptionalTC[Option[A],A] =
+      new OptionalTC[Option[A],A] {
+        def isEmpty(a: Option[A]): Boolean = a.isEmpty
+        def get(a: Option[A]): A = a.get
+      }
+
+    implicit val valueOptional: OptionalTC[Value,Value] =
+      new OptionalTC[Value,Value] {
+        def isEmpty(a: Value): Boolean = a match {
+          case Value.Data(BuiltinTypes.Optional.Id, cid, fields) => cid == BuiltinTypes.Optional.Some.cid
+        }
+        def get(a: Value): Value = a match {
+          case Value.Data(BuiltinTypes.Optional.Id, BuiltinTypes.Optional.Some.cid, fields) => fields(0)
+        }
+      }
+  }
+  trait PairTC[T,A,B] {
+    def _1u(t: T): U
+    def _1(t: T): A
+    def _2u(t: T): U
+    def _2(t: T): B
+  }
+  object PairTC {
+    implicit def pairTuple2[AN,A,BN,B](implicit
+                                       A: Extract[AN,A],
+                                       B: Extract[BN,B]
+                                      ): PairTC[(AN,BN),A,B] =
+      new PairTC[(AN,BN),A,B] {
+        def _1u(t: (AN, BN)): U = A.toUnboxed(t._1)
+        def _1(t: (AN, BN)): A = A.toBoxed(t._1)
+        def _2u(t: (AN, BN)): U = B.toUnboxed(t._2)
+        def _2(t: (AN, BN)): B = B.toBoxed(t._2)
+      }
+
+    implicit val pairValue: PairTC[Value,Value,Value] =
+      new PairTC[Value,Value,Value] {
+        def _1u(t: Value): U = t match {
+          case Value.Data(BuiltinTypes.Tuple.Id, BuiltinTypes.Tuple.cid, fields) => fields(0).toUnboxed
+        }
+        def _1(t: Value): Value = t match {
+          case Value.Data(BuiltinTypes.Tuple.Id, BuiltinTypes.Tuple.cid, fields) => fields(0).toBoxed
+        }
+        def _2u(t: Value): U = t match {
+          case Value.Data(BuiltinTypes.Tuple.Id, BuiltinTypes.Tuple.cid, fields) => fields(1) match {
+            case Value.Data(BuiltinTypes.Tuple.Id, BuiltinTypes.Tuple.cid, fields) => fields(0).toUnboxed
+          }
+        }
+        def _2(t: Value): Value = t match {
+          case Value.Data(BuiltinTypes.Tuple.Id, BuiltinTypes.Tuple.cid, fields) => fields(1) match {
+            case Value.Data(BuiltinTypes.Tuple.Id, BuiltinTypes.Tuple.cid, fields) => fields(0).toBoxed
+          }
+        }
+      }
+
+  }
+  private final def unfold0[Opt,Tup,A,B](u0: U, b0: B)
+                                        (f: F1[B, Opt])
+                                        (implicit
+                                         Opt: OptionalTC[Opt,Tup],
+                                         Tup: PairTC[Tup,B,A],
+                                        ): Stream[A] = {
+    k => {
+      var ub = u0
+      var b = b0
+      // pass u,b to f
+      val cf = f andThen {
+        (u2, optPair) =>
+          if (Opt.isEmpty(optPair)) throw Done
+          else {
+            val tup = Opt.get(optPair)
+            ub = Tup._1u(tup)
+            b = Tup._1(tup)
+            val ua = Tup._2u(tup)
+            val a = Tup._2(tup)
+            k(ua, a)
+          }
+      }
+      () => cf(ub, b)
+    }
+  }
+
+  final def unfold[Opt,T,A,B,BN](b: BN)
+                                (f: F1[B, Opt])
+                                (implicit
+                                 Opt: OptionalTC[Opt,T],
+                                 Tup: PairTC[T,B,A],
+                                 B: Extract[BN,B]
+                                ): Stream[A] =
+    unfold0(B.toUnboxed(b), B.toBoxed(b))(f)
+
   final def iterate[A,B](a: A)(f: F1[B,B])(implicit A:Extract[A,B]): Stream[B] =
     iterate0(A.toUnboxed(a), A.toBoxed(a))(f)
 }

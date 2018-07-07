@@ -40,6 +40,13 @@ object Builtins {
     fpp_z("Stream.cons", "v", "stream",
           (v: Value, stream: StreamRepr) => (env: Env) => v :: stream(env))
 
+  // "Stream.unfold", "forall a b . (a -> Optional (b, a)) -> b -> Stream a"
+  val Stream_unfold =
+    fpp_z("Stream.unfold", "f", "initial",
+          (f: Value, b: Value) =>
+            (env: Env) =>
+              Stream.unfold[Value,Value,Value,Value,Value](b)(UnisonToScala.unsafeToUnboxed1(f)(env)))
+
   // Stream.append: Stream a -> Stream a -> Stream a
   val Stream_append =
     fpp_z("Stream.append", "s1", "s2",
@@ -243,6 +250,7 @@ object Builtins {
     Stream_sumInt64,
     Stream_sumUInt64,
     Stream_sumFloat,
+    Stream_unfold,
   )
 
   // Sequence.empty : Sequence a

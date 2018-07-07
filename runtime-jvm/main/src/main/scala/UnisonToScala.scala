@@ -10,7 +10,7 @@ object UnisonToScala {
   def toUnboxed1(p: (Term.Name, Computation)): Env => Unboxed.F1[Param,Value] =
     toUnboxed1(Builtins.lambdaFor(p))
 
-  def unsafeToUnboxed1(f: Value): Env => Unboxed.F1[Param,Value] =
+  def unsafeToUnboxed1(f: Value): Env => Unboxed.F1[Value,Value] =
     toUnboxed1(f.asInstanceOf[Value.Lambda])
 
   def toUnboxed1(f: Value.Lambda): Env => Unboxed.F1[Param,Value] = {

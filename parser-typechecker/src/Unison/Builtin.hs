@@ -4,13 +4,16 @@
 {-# LANGUAGE ExplicitForAll #-}
 module Unison.Builtin where
 
-import           Control.Arrow ((&&&))
+import           Control.Arrow ((&&&), second)
 import qualified Data.Map as Map
+import qualified Data.Text as Text
 import           Unison.DataDeclaration (DataDeclaration(..))
+import qualified Unison.DataDeclaration as DD
 import qualified Unison.Parser as Parser
 import qualified Unison.Reference as R
 import           Unison.Term (Term)
 import qualified Unison.Term as Term
+import qualified Unison.FileParser as FileParser
 import qualified Unison.TermParser as TermParser
 import qualified Unison.TypeParser as TypeParser
 import           Unison.Type (Type)
@@ -30,6 +33,12 @@ tm :: Var v => String -> Term v
 tm s = bindBuiltins . either error id $
   Parser.run (Parser.root TermParser.term) s TypeParser.s0 Parser.penv0
 
+parseDataDeclAsBuiltin :: Var v => String -> (R.Reference, DataDeclaration v)
+parseDataDeclAsBuiltin s =
+  let (v, dd) = either error id $
+        Parser.run (Parser.root FileParser.dataDeclaration) s TypeParser.s0 Parser.penv0
+  in (R.Builtin . Var.qualifiedName $ v, DD.bindBuiltins builtinTypes dd)
+
 bindBuiltins :: Var v => Term v -> Term v
 bindBuiltins = Term.bindBuiltins builtinTerms builtinTypes
 
@@ -37,24 +46,61 @@ bindTypeBuiltins :: Var v => Type v -> Type v
 bindTypeBuiltins = Type.bindBuiltins builtinTypes
 
 builtinTerms :: forall v. Var v => [(v, Term v)]
-builtinTerms = (toSymbol &&& Term.ref) <$> Map.keys (builtins @v)
+builtinTerms = builtinTerms' ++
+    (mkConstructors =<< Map.toList (builtinDataDecls @ v))
+  where
+    -- (Reference, DataDeclaration v) -> [(v, Term v)]
+    mkConstructors (r, dd) =
+      mkConstructor r <$> DD.constructors dd `zip` [0..]
+    -- Reference -> String -> ((v, Type v), Int) -> (v, Term v)
+    mkConstructor r@(R.Builtin s) ((v, _t), i) =
+      (Var.named $ mconcat [s, ".", Var.qualifiedName v],
+        Term.constructor r i)
+    mkConstructor (R.Derived h) ((v, _t), _i) =
+      error $ "what kind of name do you want for this one? " ++
+                show h ++ "." ++ Text.unpack (Var.qualifiedName v)
+-- each dd has a bunch of constructors.  add those constructors as builtinTerms!
+  -- where f (R.Builtin s, dd) =
 
-builtinTypes :: Var v => [(v, Type v)]
-builtinTypes = (Var.named &&& (Type.ref . R.Builtin)) <$>
+builtinTerms' :: forall v. Var v => [(v, Term v)]
+builtinTerms' = (toSymbol &&& Term.ref) <$> Map.keys (builtins @v)
+
+
+builtinTypes :: forall v. Var v => [(v, Type v)]
+builtinTypes = builtinTypes' ++ (f <$> Map.toList (builtinDataDecls @v))
+  where f (r@(R.Builtin s), _) = (Var.named s, Type.ref r)
+        f (R.Derived h, _) =
+          error $ "expected builtinDataDecls to be all R.Builtins; " ++
+                  "don't know what name to assign to " ++ show h
+
+builtinTypes' :: Var v => [(v, Type v)]
+builtinTypes' = (Var.named &&& (Type.ref . R.Builtin)) <$>
   ["Int64", "UInt64", "Float", "Boolean",
-    "Sequence", "Text", "Stream", "()", "Pair", "Effect"]
+    "Sequence", "Text", "Stream", "Effect"]
 
+-- | parse some builtin data types, and resolve their free variables using
+-- | builtinTypes' and those types defined herein
 builtinDataDecls :: (Var v) => Map.Map R.Reference (DataDeclaration v)
-builtinDataDecls = Map.fromList $
-  [ (R.Builtin "()", DataDeclaration [] [(Var.named "()", Type.builtin "()")])
-  , (R.Builtin "Pair",
-     DataDeclaration [Var.named "a", Var.named "b"]
-                     [(Var.named "Pair",
-                       let vars = ["a","b"]
-                           tvars = Type.v' <$> vars
-                       in Type.forall' vars . Type.arrows tvars $
-                            Type.builtin "Pair" `Type.apps` tvars)])
-  ]
+builtinDataDecls =
+  Map.fromList . (bindAllTheTypes <$>) $ l
+  where
+    bindAllTheTypes =
+      second (DD.bindBuiltins $ builtinTypes' ++ (ddPairToType <$> l))
+    ddPairToType (r@(R.Builtin s), _) = (Var.named s, Type.ref r)
+    ddPairToType _ = error "expected them all to be R.Builtins"
+    l = [ (R.Builtin "()", DataDeclaration [] [(Var.named "()", Type.builtin "()")])
+      , (R.Builtin "Pair",
+         DataDeclaration [Var.named "a", Var.named "b"]
+                         [(Var.named "Pair",
+                           let vars = ["a","b"]
+                               tvars = Type.v' <$> vars
+                           in Type.forall' vars . Type.arrows tvars $
+                                Type.builtin "Pair" `Type.apps` tvars)])
+        -- todo: these should get replaced by hashes,
+        --       same as the user-defined data types.
+        --       but we still will want a way to associate a name
+        , parseDataDeclAsBuiltin "type Optional a = None | Some a"
+        ]
 
 toSymbol :: Var v => R.Reference -> v
 toSymbol (R.Builtin txt) = Var.named txt
@@ -140,6 +186,7 @@ builtins = Map.fromList $
       , ("Stream.sum-float", "Stream Float -> Float")
       , ("Stream.append", "forall a . Stream a -> Stream a -> Stream a")
       , ("Stream.zip-with", "forall a b c . (a -> b -> c) -> Stream a -> Stream b -> Stream c")
+      , ("Stream.unfold", "forall a b . (a -> Optional (b, a)) -> b -> Stream a")
 
       , ("Sequence.empty", "forall a . Sequence a")
       , ("Sequence.cons", "forall a . a -> Sequence a -> Sequence a")

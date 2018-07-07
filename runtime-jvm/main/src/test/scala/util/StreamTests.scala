@@ -70,6 +70,15 @@ object StreamTests {
           scala.Stream.from(0).flatMap(n => 7 #:: scala.Stream.continually(n)).take(5).map(_.toLong).toList
         )
       },
+      test("unfold") { implicit T =>
+        equal(
+          // Stream.take 5 (Stream.unfold (b -> if b < 1 then Some (b + 1, b / 2) else None) -2)
+          Stream.unfold[Option[(Long,Long)],(Long,Long),Unboxed[Long],Unboxed[Long],Long](-2)(
+            L_P(b => if (b < 1) Some((b + 1l, b / 2l)) else None)
+          ).take(5).toSequence.toList,
+          List(-2/2, -1/2, 0/2)
+        )
+      },
       test("filter") { implicit T =>
         equal(
           Stream.from(0).take(10000).filter(L_B(_ % 2 == 0)).toSequence.toList,
