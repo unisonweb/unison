@@ -66,7 +66,7 @@ type EffectDeclarations v loc = Map Reference (EffectDeclaration' v loc)
 
 -- | Typechecking monad
 newtype M v loc a = M {
-  runM :: MEnv v loc -> (Seq (Note loc), (a, Env v loc))
+  runM :: MEnv v loc -> (Seq (Note loc), Maybe (a, Env v loc))
 }
 
 data Note loc = InternalError
@@ -158,14 +158,16 @@ logContext msg = when debugEnabled $ do
 usedVars :: Context v loc -> Set v
 usedVars = allVars . info
 
-fromMEnv :: (MEnv v loc -> a) -> MEnv v loc -> (Seq (Note loc), (a, Env v loc))
-fromMEnv f m = (mempty, (f m, env m))
+fromMEnv :: (MEnv v loc -> a)
+         -> MEnv v loc
+         -> (Seq (Note loc), Maybe (a, Env v loc))
+fromMEnv f m = (mempty, pure (f m, env m))
 
 getContext :: M v loc (Context v loc)
 getContext = M . fromMEnv $ ctx . env
 
 setContext :: Context v loc -> M v loc ()
-setContext ctx = M (\menv -> let e = env menv in (mempty, ((), e {ctx = ctx})))
+setContext ctx = M (\menv -> let e = env menv in (mempty, pure ((), e {ctx = ctx})))
 
 modifyContext :: (Context v loc -> M v loc (Context v loc)) -> M v loc ()
 modifyContext f = do c <- getContext; c <- f c; setContext c
@@ -187,14 +189,14 @@ freshenVar v =
   M (\menv ->
        let e = env menv
            id = freshId e
-       in (mempty, (Var.freshenId id v, e {freshId = id+1})))
+       in (mempty, pure (Var.freshenId id v, e {freshId = id+1})))
 
 freshenTypeVar :: Var v => TypeVar v -> M v loc v
 freshenTypeVar v =
   M (\menv ->
        let e = env menv
            id = freshId e
-       in (mempty, (Var.freshenId id (TypeVar.underlying v), e {freshId = id+1})))
+       in (mempty, pure (Var.freshenId id (TypeVar.underlying v), e {freshId = id+1})))
 
 freshNamed :: Var v => Text -> M v loc v
 freshNamed = freshenVar . Var.named
@@ -256,10 +258,10 @@ extend e c@(Context ctx) = Context ((e,i'):ctx) where
     Marker v -> Info es us (Set.insert v vs) (ok && Set.notMember v vs)
 
 -- | doesn't combine notes
-orElse :: M v loc (Maybe a) -> M v loc (Maybe a) -> M v loc (Maybe a)
+orElse :: M v loc a -> M v loc a -> M v loc a
 orElse m1 m2 = M go where
   go menv = case runM m1 menv of
-    r @ (_, (Just _, _)) -> r
+    r @ (_, Just (_, _)) -> r
     _ -> runM m2 menv
 
 getDataDeclarations :: M v loc (DataDeclarations v loc)
@@ -342,12 +344,15 @@ instance (Var v, Show loc) => Show (Context v loc) where
 
 -- MEnv v loc -> (Seq (Note loc), (a, Env v loc))
 instance Monad (M v loc) where
-  return a = M (\menv -> (mempty, (a, env menv)))
+  return a = M (\menv -> (mempty, pure (a, env menv)))
   m >>= f = M go where
     go menv = let
-      (notes1, (a, env1)) = runM m menv
-      (notes2, x) = runM (f a) (menv { env = env1 })
-      in (notes1 `mappend` notes2, x)
+      (notes1, aenv1) = runM m menv
+      in case aenv1 of
+        Nothing -> (notes1, Nothing)
+        Just (a, env1) ->
+          let (notes2, x) = runM (f a) (menv { env = env1 })
+          in (notes1 `mappend` notes2, x)
 
 instance Applicative (M v loc) where
   pure = return
