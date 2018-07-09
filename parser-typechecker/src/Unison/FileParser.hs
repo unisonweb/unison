@@ -12,7 +12,7 @@ import qualified Data.Text as Text
 import           Prelude hiding (readFile)
 import qualified Text.Parsec.Layout as L
 import qualified Unison.Builtin as Builtin
-import           Unison.DataDeclaration (DataDeclaration(..), EffectDeclaration(..))
+import           Unison.DataDeclaration (DataDeclaration, EffectDeclaration)
 import qualified Unison.DataDeclaration as DD
 import           Unison.Parser (Parser, traced, token_, sepBy, string)
 import qualified Unison.Term as Term

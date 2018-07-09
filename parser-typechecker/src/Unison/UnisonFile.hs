@@ -6,7 +6,7 @@ import Data.Bifunctor (second)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Unison.Reference (Reference)
-import Unison.DataDeclaration (DataDeclaration(..), EffectDeclaration, EffectDeclaration'(..))
+import Unison.DataDeclaration (DataDeclaration, EffectDeclaration, EffectDeclaration'(..))
 import Unison.DataDeclaration (hashDecls, toDataDecl, withEffectDecl)
 import qualified Unison.DataDeclaration as DataDeclaration
 import qualified Data.Text as Text

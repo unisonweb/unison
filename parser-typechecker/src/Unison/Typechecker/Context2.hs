@@ -24,7 +24,7 @@ import qualified Data.Text as Text
 import           Debug.Trace
 import qualified Unison.ABT as ABT
 import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
-import qualified Unison.DataDeclaration as DataDeclaration
+import qualified Unison.DataDeclaration as DD
 -- import           Unison.Note (Note,Noted(..))
 -- import qualified Unison.Note as Note
 -- import           Unison.Pattern (Pattern)
@@ -66,10 +66,17 @@ type EffectDeclarations v loc = Map Reference (EffectDeclaration' v loc)
 
 -- | Typechecking monad
 newtype M v loc a = M {
-  runM :: MEnv v loc -> (Seq (Note loc), Maybe (a, Env v loc))
+  runM :: MEnv v loc -> (Seq (Note v loc), Maybe (a, Env v loc))
 }
 
-data Note loc = InternalError
+data Unknown = Data | Effect
+
+data CompilerBug v loc
+  = UnknownDecl Unknown Reference (Map Reference (DataDeclaration' v loc))
+  | UnknownConstructor Unknown Reference Int (DataDeclaration' v loc)
+
+data Note v loc
+  = CompilerBug (CompilerBug v loc)
 
 -- | The typechecking environment
 data MEnv v loc = MEnv {
@@ -160,7 +167,7 @@ usedVars = allVars . info
 
 fromMEnv :: (MEnv v loc -> a)
          -> MEnv v loc
-         -> (Seq (Note loc), Maybe (a, Env v loc))
+         -> (Seq (Note v loc), Maybe (a, Env v loc))
 fromMEnv f m = (mempty, pure (f m, env m))
 
 getContext :: M v loc (Context v loc)
@@ -225,7 +232,7 @@ wellformedType c t = wellformed c && case t of
   Type.Forall' t' ->
     let (v,ctx2) = extendUniversal c
     in wellformedType ctx2 (ABT.bind t' (Type.universal' (ABT.annotation t) v))
-  _ -> compilerCrash $ "Context.wellformedType - ill formed type - " ++ show t
+  _ -> error $ "Match failure in wellformedType: " ++ show t
   where
   -- | Extend this `Context` with a single variable, guaranteed fresh
   extendUniversal ctx = case Var.freshIn (usedVars ctx) (Var.named "var") of
@@ -267,6 +274,9 @@ orElse m1 m2 = M go where
 getDataDeclarations :: M v loc (DataDeclarations v loc)
 getDataDeclarations = M $ fromMEnv dataDecls
 
+getEffectDeclarations :: M v loc (EffectDeclarations v loc)
+getEffectDeclarations = M $ fromMEnv effectDecls
+
 getAbilities :: M v loc [Type v loc]
 getAbilities = M $ fromMEnv abilities
 
@@ -277,43 +287,42 @@ withoutAbilityCheck :: M v loc a -> M v loc a
 withoutAbilityCheck m = M (\menv -> runM m $ menv { abilityChecks = False })
 
 -- todo: better error
-compilerCrash :: String -> a
-compilerCrash msg = error msg
-
--- todo: better error
-getFromTypeEnv :: (Ord r, Show r)
-               => String -> M v loc (Map r (f v loc)) -> r ->  M v loc (f v loc)
-getFromTypeEnv what get r = get >>= \decls ->
-  case Map.lookup r decls of
-    Nothing -> compilerCrash $ "unknown " ++ what ++ " reference: " ++ show r ++ " " ++
-                      show (Map.keys decls)
-    Just decl -> pure decl
+compilerCrash :: CompilerBug v loc -> M v loc a
+compilerCrash bug = M (\_ -> (pure (CompilerBug bug), Nothing))
 
 getDataDeclaration :: Reference -> M v loc (DataDeclaration' v loc)
-getDataDeclaration = getFromTypeEnv "data type" getDataDeclarations
+getDataDeclaration r = do
+  decls <- getDataDeclarations
+  case Map.lookup r decls of
+    Nothing -> compilerCrash (UnknownDecl Data r decls)
+    Just decl -> pure decl
 
-getEffectDeclaration :: Reference -> M v loc (DataDeclaration' v loc)
-getEffectDeclaration = getFromTypeEnv "data type" getDataDeclarations
+getEffectDeclaration :: Reference -> M v loc (EffectDeclaration' v loc)
+getEffectDeclaration r = do
+  decls <- getEffectDeclarations
+  case Map.lookup r decls of
+    Nothing -> compilerCrash (UnknownDecl Effect r (DD.toDataDecl <$> decls))
+    Just decl -> pure decl
 
 getDataConstructorType :: Var v => Reference -> Int -> M v loc (Type v loc)
-getDataConstructorType = getConstructorType' getDataDeclaration
+getDataConstructorType = getConstructorType' Data getDataDeclaration
 
 getEffectConstructorType :: Var v => Reference -> Int -> M v loc (Type v loc)
-getEffectConstructorType = getConstructorType' getDataDeclaration
+getEffectConstructorType = getConstructorType' Effect go where
+  go r = DD.toDataDecl <$> getEffectDeclaration r
 
--- todo: crash the compiler with as much info as needed to submit a bug report
--- it's a compiler bug, not your fault, etc.
 -- Encountered an unknown constructor in the typechecker; unknown constructors
 -- should have been detected earlier though.
-getConstructorType' :: (Var v, Show r)
-                    => (r -> M v loc (DataDeclaration' v loc))
-                    -> r
+getConstructorType' :: Var v
+                    => Unknown
+                    -> (Reference -> M v loc (DataDeclaration' v loc))
+                    -> Reference
                     -> Int
                     -> M v loc (Type v loc)
-getConstructorType' get r cid = do
+getConstructorType' kind get r cid = do
   decl <- get r
-  case drop cid (DataDeclaration.constructors decl) of
-    [] -> compilerCrash $ "invalid constructor id: " ++ show cid ++ " in " ++ show r
+  case drop cid (DD.constructors decl) of
+    [] -> compilerCrash $ UnknownConstructor kind r cid decl
     (_v, typ) : _ -> pure $ ABT.vmap TypeVar.Universal typ
 
 -- abilityCheck' :: Var v => [Type v] -> [Type v] -> M v ()
@@ -342,7 +351,7 @@ instance (Var v, Show loc) => Show (Element' v loc) where
 instance (Var v, Show loc) => Show (Context v loc) where
   show (Context es) = "Γ\n  " ++ (intercalate "\n  " . map (show . fst)) (reverse es)
 
--- MEnv v loc -> (Seq (Note loc), (a, Env v loc))
+-- MEnv v loc -> (Seq (Note v loc), (a, Env v loc))
 instance Monad (M v loc) where
   return a = M (\menv -> (mempty, pure (a, env menv)))
   m >>= f = M go where

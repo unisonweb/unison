@@ -360,7 +360,7 @@ wellformedType c t = wellformed c && case t of
   Type.Forall' t ->
     let (v,ctx2) = extendUniversal c
     in wellformedType ctx2 (ABT.bind t (Type.universal v))
-  _ -> error $ "Context.wellformedType - ill formed type - " ++ show t
+  _ -> error $ "Match failure in wellformedType: " ++ show t
   where
   -- | Extend this `Context` with a single variable, guaranteed fresh
   extendUniversal ctx = case Var.freshIn (usedVars ctx) (Var.named "var") of
