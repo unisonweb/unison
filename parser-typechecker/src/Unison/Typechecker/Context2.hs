@@ -11,7 +11,7 @@ module Unison.Typechecker.Context2 where
 import Data.Sequence (Seq)
 
 import           Control.Monad
--- import           Control.Monad.Loops (anyM, allM)
+import           Control.Monad.Loops (anyM, allM)
 -- import           Control.Monad.State
 -- import qualified Data.Foldable as Foldable
 import Data.Maybe
@@ -82,6 +82,7 @@ data Note v loc
   | WithinSubtype (Type v loc) (Type v loc) (Note v loc)
   | WithinCheck (Term v loc) (Type v loc) (Note v loc)
   | CompilerBug (CompilerBug v loc)
+  | AbilityCheckFailure [Type v loc] [Type v loc] -- ambient, requested
 
 withinSynthesize :: Term v loc -> M v loc a -> M v loc a
 withinSynthesize t (M m) = M go where
@@ -316,9 +317,11 @@ abilityCheckEnabled = M $ fromMEnv abilityChecks
 withoutAbilityCheck :: M v loc a -> M v loc a
 withoutAbilityCheck m = M (\menv -> runM m $ menv { abilityChecks = False })
 
--- todo: better error
 compilerCrash :: CompilerBug v loc -> M v loc a
-compilerCrash bug = M (\_ -> (pure (CompilerBug bug), Nothing))
+compilerCrash bug = failNote $ CompilerBug bug
+
+failNote :: Note v loc -> M v loc a
+failNote note = M (\_ -> (pure note, Nothing))
 
 getDataDeclaration :: Reference -> M v loc (DataDeclaration' v loc)
 getDataDeclaration r = do
@@ -373,19 +376,19 @@ notMember v s = Set.notMember (TypeVar.Universal v) s && Set.notMember (TypeVar.
 
 -- | Replace any existentials with their solution in the context
 apply :: Var v => Context v loc -> Type v loc -> Type v loc
-apply ctx t = _todo
---case t of
---  Type.Universal' _ -> t
---  Type.Ref' _ -> t
---  Type.Existential' v ->
---    maybe t (\(Type.Monotype t') -> apply ctx t') (lookup v (solved ctx))
---  Type.Arrow' i o -> Type.arrow (apply ctx i) (apply ctx o)
---  Type.App' x y -> Type.app (apply ctx x) (apply ctx y)
---  Type.Ann' v k -> Type.ann (apply ctx v) k
---  Type.Effect' es t -> Type.effect (map (apply ctx) es) (apply ctx t)
---  Type.ForallNamed' v t' -> Type.forall v (apply ctx t')
---  _ -> error $ "Match error in Context.apply: " ++ show t
---
+apply ctx t = case t of
+  Type.Universal' _ -> t
+  Type.Ref' _ -> t
+  Type.Existential' v ->
+    maybe t (\(Type.Monotype t') -> apply ctx t') (lookup v (solved ctx))
+  Type.Arrow' i o -> Type.arrow a (apply ctx i) (apply ctx o)
+  Type.App' x y -> Type.app a (apply ctx x) (apply ctx y)
+  Type.Ann' v k -> Type.ann a (apply ctx v) k
+  Type.Effect' es t -> Type.effect a (map (apply ctx) es) (apply ctx t)
+  Type.ForallNamed' v t' -> Type.forall a v (apply ctx t')
+  _ -> error $ "Match error in Context.apply: " ++ show t
+  where a = ABT.annotation t
+
 -- | `subtype ctx t1 t2` returns successfully if `t1` is a subtype of `t2`.
 -- This may have the effect of altering the context.
 subtype :: forall v loc . (Eq loc, Var v) => loc -> Type v loc -> Type v loc -> M v loc ()
@@ -431,23 +434,22 @@ subtype loc tx ty = withinSubtype tx ty $
      ctx <- getContext
      let es1' = map (apply ctx) es1
          es2' = map (apply ctx) es2
-     _abilityCheck' es2' es1'
+     abilityCheck' loc es2' es1'
   go _ _ _ = fail "not a subtype"
 
--- abilityCheck' :: Var v => [Type v] -> [Type v] -> M v ()
--- abilityCheck' ambient requested = do
---   success <- flip allM requested $ \req ->
---     flip anyM ambient $ \amb -> (True <$ subtype amb req) `orElse` pure False
---   when (not success) $
---     fail $ "Ability check failed. Requested abilities " <> show requested <>
---            " but ambient abilities only included " <> show ambient <> "."
---
--- abilityCheck :: Var v => [Type v] -> M v ()
--- abilityCheck requested = do
---   enabled <- abilityCheckEnabled
---   when enabled $ do
---     ambient <- getAbilities
---     abilityCheck' ambient requested
+abilityCheck' :: (Var v, Eq loc) => loc -> [Type v loc] -> [Type v loc] -> M v loc ()
+abilityCheck' loc ambient requested = do
+  success <- flip allM requested $ \req ->
+    flip anyM ambient $ \amb -> (True <$ subtype loc amb req) `orElse` pure False
+  when (not success) $
+    failNote $ AbilityCheckFailure ambient requested
+
+abilityCheck :: (Var v, Eq loc) => loc -> [Type v loc] -> M v loc ()
+abilityCheck loc requested = do
+  enabled <- abilityCheckEnabled
+  when enabled $ do
+    ambient <- getAbilities
+    abilityCheck' loc ambient requested
 
 instance (Var v, Show loc) => Show (Element' v loc) where
   show (Var v) = case v of
