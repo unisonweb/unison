@@ -1,0 +1,12 @@
+(+) = (+_Int64)
+(/) = (/_Int64)
+(<) = (<_Int64)
+Stream.to-sequence
+  (Stream.take 5
+    (Stream.unfold
+      (b ->
+        if b < +1
+        then Optional.Some (b + +1, b / +2)
+        else Optional.None
+      )
+      -2))

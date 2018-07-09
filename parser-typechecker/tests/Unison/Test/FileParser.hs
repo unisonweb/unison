@@ -4,6 +4,7 @@ module Unison.Test.FileParser where
 
   import EasyTest
   import Control.Applicative
+  import qualified Unison.Builtin as Builtin
   import Unison.FileParser (file)
   import Unison.Parser
   import qualified Unison.Parser as Parser
@@ -57,5 +58,7 @@ module Unison.Test.FileParser where
   parses s = scope s $ do
     let
       p :: UnisonFile Symbol
-      !p = unsafeGetRight $ Unison.Parser.run (Parser.root $ file) s Parsers.s0 builtins
+      !p = unsafeGetRight $
+        Unison.Parser.run (Parser.root $ file Builtin.builtinTypes)
+                          s Parsers.s0 builtins
     pure p >> ok

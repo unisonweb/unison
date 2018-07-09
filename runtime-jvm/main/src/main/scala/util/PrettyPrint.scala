@@ -55,6 +55,7 @@ object PrettyPrint {
 
   /** The empty document. */
   case object Empty extends PrettyPrint { def unbrokenWidth = 0 }
+  def empty: PrettyPrint = Empty
 
   /** Embed a string into a document. */
   case class Literal(get: String) extends PrettyPrint { def unbrokenWidth = get.length }
@@ -96,7 +97,10 @@ object PrettyPrint {
     else docs.reduce(_ <> softbreak <> _)
 
   val semicolon = Breakable("; ")
-  def semicolons(docs: Seq[PrettyPrint]): PrettyPrint = docs.reduce(_ <> semicolon <> _)
+  def semicolons(docs: Seq[PrettyPrint]): PrettyPrint = docs.reduceOption(_ <> semicolon <> _).getOrElse(empty)
+
+  val comma = Breakable(", ")
+  def commas(docs: Seq[PrettyPrint]): PrettyPrint = docs.reduceOption(_ <> comma <> _).getOrElse(empty)
 
   def prettyName(name: Name) = parenthesizeIf(isOperatorName(name.toString))(name.toString)
 
@@ -205,6 +209,9 @@ object PrettyPrint {
        parenthesizeGroupIf(precedence > 5) {
         prettyTerm(arg1, 5) <> " " <> infixName(name) <> softbreak <> prettyTerm(arg2, 6).nest("  ")
     }
+    case Tuple(args) => "(" <> commas(args.map(prettyTerm)) <> ")"
+    case Term.Apply(Term.Constructor(BuiltinTypes.Tuple.Id, BuiltinTypes.Tuple.cid), args) =>
+      "(" <> commas(args.map(prettyTerm)) <> ")"
     case Term.Apply(f, args) => parenthesizeGroupIf(precedence > 9) {
       prettyTerm(f, 9) <> softbreak <>
         softbreaks(args.map(arg => prettyTerm(arg, 10).nest("  ")))
@@ -236,6 +243,7 @@ object PrettyPrint {
         Term.Var(prettyId(typeId, ctorId).renderUnbroken)(
           fields.map(_.decompile):_*), precedence)
     case Term.Text(txt) => '"' + Text.toString(txt) + '"'
+    case Term.Sequence(seq) => "[" <> commas(seq.map(prettyTerm).toList) <> "]"
     case t => t.toString
   }
 
@@ -245,6 +253,31 @@ object PrettyPrint {
       case Term.Var(name) => Some(name)
       case Term.Id(Id.Builtin(name)) => Some(name)
       case _ => None
+    }
+  }
+
+  object Tuple {
+    def unapply(term: Term): Option[Seq[Term]] = {
+      val B = BuiltinTypes
+
+      def go(t: Term, elements: Seq[Term]): Seq[Term] = {
+        t match {
+          case Term.Apply(Term.Constructor(B.Tuple.Id, B.Tuple.cid), args) =>
+            args match {
+              case element :: term :: Nil => go(term, elements :+ element)
+              case other => throw new Exception(s"tuple wasn't a cons, it was ${args.size} elements:\n  $other\n in $term")
+            }
+
+          case B.Unit.term => elements
+        }
+      }
+      term match {
+        case Term.Apply(Term.Constructor(B.Tuple.Id, B.Tuple.cid), args) =>
+          Some(go(term, Seq.empty))
+
+        case _ => None
+
+      }
     }
   }
 }
