@@ -66,15 +66,15 @@ effect = do
   es <- sepBy (token (string ",")) valueType
   token_ $ string "}"
   t <- valueTypeLeaf
-  pure (Type.effect es t)
+  pure (Type.effect() es t)
 
 tupleOrParenthesized :: Ord v => TypeP v -> TypeP v
 tupleOrParenthesized rec =
   parenthesized $ go <$> sepBy (token $ string ",") rec where
     go [t] = t
     go types = foldr pair unit types
-    pair t1 t2 = Type.builtin "Pair" `Type.app` t1 `Type.app` t2
-    unit = Type.builtin "()"
+    pair t1 t2 = Type.app() (Type.app() (Type.builtin() "Pair") t1) t2
+    unit = Type.builtin() "()"
 
 -- "TypeA TypeB TypeC"
 app :: Ord v => TypeP v -> TypeP v
@@ -82,14 +82,14 @@ app rec = get >>= \(Aliases aliases) -> do
   (hd:tl) <- some rec
   pure $ case hd of
     Type.Var' v -> case lookup v aliases of
-      Nothing -> foldl' Type.app hd tl
+      Nothing -> foldl' (Type.app()) hd tl
       Just apply -> apply tl
-    _ -> foldl' Type.app hd tl
+    _ -> foldl' (Type.app()) hd tl
 
 --  valueType ::= ... | Arrow valueType computationType
 arrow :: Var v => TypeP v -> TypeP v
 arrow rec = do
-  t <- foldr1 Type.arrow <$> sepBy1 (token (string "->")) (effect <|> rec)
+  t <- foldr1 (Type.arrow()) <$> sepBy1 (token (string "->")) (effect <|> rec)
   case t of
     Type.Arrow' (Type.Effect' _ _) _ -> fail "effect to the left of an ->"
     _ -> pure t
@@ -101,7 +101,7 @@ forall rec = do
     vars <- some $ token varName
     _ <- token (char '.')
     t <- rec
-    pure $ Type.forall' (fmap Text.pack vars) t
+    pure $ Type.forall'() (fmap Text.pack vars) t
 
 varName :: Parser s String
 varName = do

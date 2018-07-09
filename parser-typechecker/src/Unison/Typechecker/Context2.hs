@@ -371,6 +371,21 @@ extendMarker loc v = do
 notMember :: Var v => v -> Set (TypeVar v) -> Bool
 notMember v s = Set.notMember (TypeVar.Universal v) s && Set.notMember (TypeVar.Existential v) s
 
+-- | Replace any existentials with their solution in the context
+apply :: Var v => Context v loc -> Type v loc -> Type v loc
+apply ctx t = _todo
+--case t of
+--  Type.Universal' _ -> t
+--  Type.Ref' _ -> t
+--  Type.Existential' v ->
+--    maybe t (\(Type.Monotype t') -> apply ctx t') (lookup v (solved ctx))
+--  Type.Arrow' i o -> Type.arrow (apply ctx i) (apply ctx o)
+--  Type.App' x y -> Type.app (apply ctx x) (apply ctx y)
+--  Type.Ann' v k -> Type.ann (apply ctx v) k
+--  Type.Effect' es t -> Type.effect (map (apply ctx) es) (apply ctx t)
+--  Type.ForallNamed' v t' -> Type.forall v (apply ctx t')
+--  _ -> error $ "Match error in Context.apply: " ++ show t
+--
 -- | `subtype ctx t1 t2` returns successfully if `t1` is a subtype of `t2`.
 -- This may have the effect of altering the context.
 subtype :: forall v loc . (Eq loc, Var v) => loc -> Type v loc -> Type v loc -> M v loc ()
@@ -418,8 +433,6 @@ subtype loc tx ty = withinSubtype tx ty $
          es2' = map (apply ctx) es2
      _abilityCheck' es2' es1'
   go _ _ _ = fail "not a subtype"
-  apply = _todoApply
-
 
 -- abilityCheck' :: Var v => [Type v] -> [Type v] -> M v ()
 -- abilityCheck' ambient requested = do
