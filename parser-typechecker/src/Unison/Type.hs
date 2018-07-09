@@ -51,7 +51,7 @@ type Env f v = Reference -> Noted f (Type v)
 wrapV :: Ord v => AnnotatedType v a -> AnnotatedType (ABT.V v) a
 wrapV = ABT.vmap ABT.Bound
 
-freeVars :: Type v -> Set v
+freeVars :: AnnotatedType v a -> Set v
 freeVars = ABT.freeVars
 
 bindBuiltins :: Var v => [(v, AnnotatedType v a)] -> AnnotatedType v a -> AnnotatedType v a
@@ -212,7 +212,7 @@ effectV :: Ord v => Type v -> Type v -> Type v
 effectV e t = apps (builtin "Effect") [e, t]
 
 -- Strips effects from a type. E.g. `{e} a` becomes `a`.
-stripEffect :: Type v -> ([Type v], Type v)
+stripEffect :: AnnotatedType v a -> ([AnnotatedType v a], AnnotatedType v a)
 stripEffect (Effect' e t) = case stripEffect t of (ei, t) -> (e ++ ei, t)
 stripEffect t = ([], t)
 

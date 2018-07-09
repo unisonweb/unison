@@ -14,6 +14,7 @@ import           Control.Monad
 -- import           Control.Monad.Loops (anyM, allM)
 -- import           Control.Monad.State
 -- import qualified Data.Foldable as Foldable
+import Data.Maybe
 import           Data.List
 import           Data.Map (Map)
 import qualified Data.Map as Map
@@ -74,9 +75,31 @@ data Unknown = Data | Effect
 data CompilerBug v loc
   = UnknownDecl Unknown Reference (Map Reference (DataDeclaration' v loc))
   | UnknownConstructor Unknown Reference Int (DataDeclaration' v loc)
+  | RetractFailure (Element' v loc) (Context v loc)
 
 data Note v loc
-  = CompilerBug (CompilerBug v loc)
+  = WithinSynthesize (Term v loc) (Note v loc)
+  | WithinSubtype (Type v loc) (Type v loc) (Note v loc)
+  | WithinCheck (Term v loc) (Type v loc) (Note v loc)
+  | CompilerBug (CompilerBug v loc)
+
+withinSynthesize :: Term v loc -> M v loc a -> M v loc a
+withinSynthesize t (M m) = M go where
+  go menv =
+    let (notes, r) = m menv
+    in (WithinSynthesize t <$> notes, r)
+
+withinSubtype :: Type v loc -> Type v loc -> M v loc a -> M v loc a
+withinSubtype t1 t2 (M m) = M go where
+  go menv =
+    let (notes, r) = m menv
+    in (WithinSubtype t1 t2 <$> notes, r)
+
+withinCheck :: Term v loc -> Type v loc -> M v loc a -> M v loc a
+withinCheck e t2 (M m) = M go where
+  go menv =
+    let (notes, r) = m menv
+    in (WithinCheck e t2 <$> notes, r)
 
 -- | The typechecking environment
 data MEnv v loc = MEnv {
@@ -107,20 +130,27 @@ context :: Var v => [Element v loc] -> Context v loc
 context xs = foldl' (flip extend) context0 xs
 
 -- | Delete from the end of this context up to and including
--- the given `Element`. Returns `Left` if the element is not found.
+-- the given `Element`. Returns `Nothing` if the element is not found.
 retract :: (Eq loc, Var v) => Element' v loc -> Context v loc -> Maybe (Context v loc)
-retract m (Context ctx) =
+retract e (Context ctx) =
   let maybeTail [] = Nothing
-      maybeTail (_:t) = Just t
+      maybeTail (_:t) = pure t
   -- note: no need to recompute used variables; any suffix of the
   -- context snoc list is also a valid context
-  in Context <$> maybeTail (dropWhile (\((e,_),_) -> e /= m) ctx)
+  in Context <$> maybeTail (dropWhile (\((e',_),_) -> e' /= e) ctx)
+
+-- | Delete from the end of this context up to and including
+-- the given `Element`.
+doRetract :: (Eq loc, Var v) => Element' v loc -> M v loc ()
+doRetract e = do
+  ctx <- getContext
+  case retract e ctx of
+    Nothing -> compilerCrash (RetractFailure e ctx)
+    Just t -> setContext t
 
 -- | Like `retract`, but returns the empty context if retracting would remove all elements.
 retract' :: (Eq loc, Var v) => Element' v loc -> Context v loc -> Context v loc
-retract' e ctx = case retract e ctx of
-  Nothing -> context []
-  Just ctx -> ctx
+retract' e ctx = fromMaybe mempty $ retract e ctx
 
 solved :: Context v loc -> [(v, Monotype v loc)]
 solved (Context ctx) = [(v, sa) | ((Solved v sa,_),_) <- ctx]
@@ -324,6 +354,72 @@ getConstructorType' kind get r cid = do
   case drop cid (DD.constructors decl) of
     [] -> compilerCrash $ UnknownConstructor kind r cid decl
     (_v, typ) : _ -> pure $ ABT.vmap TypeVar.Universal typ
+
+extendUniversal :: Var v => loc -> v -> M v loc v
+extendUniversal loc v = do
+  v' <- freshenVar v
+  modifyContext (pure . extend (Universal v', loc))
+  pure v'
+
+extendMarker :: Var v => loc -> v -> M v loc v
+extendMarker loc v = do
+  v' <- freshenVar v
+  modifyContext (\ctx -> pure $ ctx `mappend`
+    (context [(Marker v',loc), (Existential v',loc)]))
+  pure v'
+
+notMember :: Var v => v -> Set (TypeVar v) -> Bool
+notMember v s = Set.notMember (TypeVar.Universal v) s && Set.notMember (TypeVar.Existential v) s
+
+-- | `subtype ctx t1 t2` returns successfully if `t1` is a subtype of `t2`.
+-- This may have the effect of altering the context.
+subtype :: forall v loc . (Eq loc, Var v) => loc -> Type v loc -> Type v loc -> M v loc ()
+subtype _ tx ty | debugEnabled && traceShow ("subtype"::String, tx, ty) False = undefined
+subtype loc tx ty = withinSubtype tx ty $
+  do ctx <- getContext; go (ctx :: Context v loc) tx ty
+  where -- Rules from figure 9
+  go :: Context v loc -> Type v loc -> Type v loc -> M v loc ()
+  go _ (Type.Ref' r) (Type.Ref' r2) | r == r2 = pure () -- `Unit`
+  go ctx t1@(Type.Universal' v1) t2@(Type.Universal' v2) -- `Var`
+    | v1 == v2 && wellformedType ctx t1 && wellformedType ctx t2
+    = pure ()
+  go ctx t1@(Type.Existential' v1) t2@(Type.Existential' v2) -- `Exvar`
+    | v1 == v2 && wellformedType ctx t1 && wellformedType ctx t2
+    = pure ()
+  go _ (Type.Arrow' i1 o1) (Type.Arrow' i2 o2) = do -- `-->`
+    subtype loc i1 i2; ctx' <- getContext
+    subtype loc (apply ctx' o1) (apply ctx' o2)
+  go _ (Type.App' x1 y1) (Type.App' x2 y2) = do -- analogue of `-->`
+    subtype loc x1 x2; ctx' <- getContext
+    subtype loc (apply ctx' y1) (apply ctx' y2)
+  go _ t (Type.Forall' t2) = do
+    v' <- extendUniversal loc =<< ABT.freshen t2 freshenTypeVar
+    t2 <- pure $ ABT.bindInheritAnnotation t2 (Type.universal v')
+    subtype loc t t2
+    doRetract (Universal v')
+  go _ (Type.Forall' t) t2 = do
+    v <- extendMarker loc =<< ABT.freshen t freshenTypeVar
+    t <- pure $ ABT.bindInheritAnnotation t (Type.existential v)
+    ctx' <- getContext
+    subtype loc (apply ctx' t) t2
+    doRetract (Marker v)
+  go _ (Type.Effect' [] a1) a2 = subtype loc a1 a2
+  go _ a1 (Type.Effect' [] a2) = subtype loc a1 a2
+  go ctx (Type.Existential' v) t -- `InstantiateL`
+    | Set.member v (existentials ctx) && notMember v (Type.freeVars t) =
+    _instantiateL v t
+  go ctx t (Type.Existential' v) -- `InstantiateR`
+    | Set.member v (existentials ctx) && notMember v (Type.freeVars t) =
+    _instantiateR t v
+  go _ (Type.Effect'' es1 a1) (Type.Effect' es2 a2) = do
+     subtype loc a1 a2
+     ctx <- getContext
+     let es1' = map (apply ctx) es1
+         es2' = map (apply ctx) es2
+     _abilityCheck' es2' es1'
+  go _ _ _ = fail "not a subtype"
+  apply = _todoApply
+
 
 -- abilityCheck' :: Var v => [Type v] -> [Type v] -> M v ()
 -- abilityCheck' ambient requested = do
