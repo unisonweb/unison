@@ -42,9 +42,37 @@ abstract class Stream[A] { self =>
     k => self.stage(f andThen k)
 
   final def flatMap[B](f: F1[A,Stream[B]]): Stream[B] =
-    k => self.stage {
-      val cf = f andThen { (_,sb) => sb.stage { (u,b) => k(u,b) }.run() }
-      (u,a) => cf(u,a)
+    kb => {
+      var cb: Step = null
+      var stop = false
+      val setAndWatch: K[Stream[B]] =
+        (_, sb) =>
+          cb = sb.stage {
+            (u, a) =>
+              try kb(u, a)
+              catch {
+                case Done =>
+                  // we caught a Done when trying to push data to a consumer
+                  // e.g. Stream.take.  This means we can stop producing.
+                  stop = true
+                  throw Done
+              }
+          }
+      val cself: Step = self.stage {
+        val cf = f andThen setAndWatch
+        (u,a) => cf(u,a)
+      }
+          
+      () => {
+        if (stop) throw Done
+        else if (cb ne null)
+          try cb()
+          catch {
+            case More(s) => cb = s
+            case Done => cb = null
+          }
+        else cself()
+      }
     }
 
   /** Only emit elements from `this` for which `f` returns a nonzero value. */
@@ -94,6 +122,18 @@ abstract class Stream[A] { self =>
     var total: Long = 0l
     self.stage { (u,_) => total += u }.run()
     total
+  }
+
+  final def unsafeSumUnboxedLong: U = {
+    var total: Long = 0l
+    self.stage { (u,_) => total += unboxedToLong(u) }.run()
+    longToUnboxed(total)
+  }
+
+  final def unsafeSumUnboxedFloat: U = {
+    var total: Double = 0.0
+    self.stage { (u,_) => total += unboxedToDouble(u) }.run()
+    doubleToUnboxed(total)
   }
 
   final def reduce[B](zero: B)(f2: F2[A,A,A])(implicit A: Extract[B,A]): B = {
@@ -265,6 +305,12 @@ object Stream {
   final def empty[A]: Stream[A] =
     k => () => throw Done
 
+  final def singleton[A0,A](a0: A0)(implicit A: Extract[A0,A]): Stream[A] =
+    singleton0(A.toUnboxed(a0), A.toBoxed(a0))
+
+  final def singleton0[A](u: U, a: A): Stream[A] =
+    k => () => { k(u,a); throw Done }
+
   final def constant(n: Long): Stream[Unboxed[Long]] =
     k => () => k(n, null)
 
@@ -314,6 +360,104 @@ object Stream {
       }
     }
   }
+
+  trait OptionalTC[A,B] {
+    def isEmpty(a: A): Boolean
+    def get(a: A): B
+  }
+  object OptionalTC {
+    implicit def optionOptional[A]: OptionalTC[Option[A],A] =
+      new OptionalTC[Option[A],A] {
+        def isEmpty(a: Option[A]): Boolean = a.isEmpty
+        def get(a: Option[A]): A = a.get
+      }
+
+    implicit val valueOptional: OptionalTC[Value,Value] =
+      new OptionalTC[Value,Value] {
+        import BuiltinTypes.Optional
+        def isEmpty(a: Value): Boolean = a match {
+          case Value.Data(Optional.Id, cid, _) => cid == Optional.None.cid
+        }
+        def get(a: Value): Value = a match {
+          case Value.Data(Optional.Id, Optional.Some.cid, fields) => fields(0)
+        }
+      }
+  }
+  trait PairTC[T,A,B] {
+    def _1u(t: T): U
+    def _1(t: T): A
+    def _2u(t: T): U
+    def _2(t: T): B
+  }
+  object PairTC {
+    implicit def pairTuple2[AN,A,BN,B](implicit
+                                       A: Extract[AN,A],
+                                       B: Extract[BN,B]
+                                      ): PairTC[(AN,BN),A,B] =
+      new PairTC[(AN,BN),A,B] {
+        def _1u(t: (AN, BN)): U = A.toUnboxed(t._1)
+        def _1(t: (AN, BN)): A = A.toBoxed(t._1)
+        def _2u(t: (AN, BN)): U = B.toUnboxed(t._2)
+        def _2(t: (AN, BN)): B = B.toBoxed(t._2)
+      }
+
+    implicit val pairValue: PairTC[Value,Value,Value] =
+      new PairTC[Value,Value,Value] {
+        import BuiltinTypes.Tuple
+        // Any MatchFailures are a type error
+        def _1u(t: Value): U = t match {
+          case Value.Data(Tuple.Id, Tuple.cid, fields) => fields(0).toUnboxed
+        }
+        def _1(t: Value): Value = t match {
+          case Value.Data(Tuple.Id, Tuple.cid, fields) => fields(0).toBoxed
+        }
+        def _2u(t: Value): U = t match {
+          case Value.Data(Tuple.Id, Tuple.cid, fields) => fields(1) match {
+            case Value.Data(Tuple.Id, Tuple.cid, fields) => fields(0).toUnboxed
+          }
+        }
+        def _2(t: Value): Value = t match {
+          case Value.Data(Tuple.Id, Tuple.cid, fields) => fields(1) match {
+            case Value.Data(Tuple.Id, Tuple.cid, fields) => fields(0).toBoxed
+          }
+        }
+      }
+
+  }
+  private final def unfold0[Opt,Tup,A,B](u0: U, b0: B)
+                                        (f: F1[B, Opt])
+                                        (implicit
+                                         Opt: OptionalTC[Opt,Tup],
+                                         Tup: PairTC[Tup,B,A],
+                                        ): Stream[A] = {
+    k => {
+      var ub = u0
+      var b = b0
+      // pass u,b to f
+      val cf = f andThen {
+        (u2, optPair) =>
+          if (Opt.isEmpty(optPair)) throw Done
+          else {
+            val tup = Opt.get(optPair)
+            ub = Tup._1u(tup)
+            b = Tup._1(tup)
+            val ua = Tup._2u(tup)
+            val a = Tup._2(tup)
+            k(ua, a)
+          }
+      }
+      () => cf(ub, b)
+    }
+  }
+
+  final def unfold[Opt,T,A,B,BN](b: BN)
+                                (f: F1[B, Opt])
+                                (implicit
+                                 Opt: OptionalTC[Opt,T],
+                                 Tup: PairTC[T,B,A],
+                                 B: Extract[BN,B]
+                                ): Stream[A] =
+    unfold0(B.toUnboxed(b), B.toBoxed(b))(f)
 
   final def iterate[A,B](a: A)(f: F1[B,B])(implicit A:Extract[A,B]): Stream[B] =
     iterate0(A.toUnboxed(a), A.toBoxed(a))(f)

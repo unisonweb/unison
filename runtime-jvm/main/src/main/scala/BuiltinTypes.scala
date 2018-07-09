@@ -7,7 +7,7 @@ import compilation.{Computation, Return, Requested}
 object BuiltinTypes {
 
   abstract class Constructor(_cid: Int) {
-    def cid = ConstructorId(_cid)
+    val cid = ConstructorId(_cid)
   }
 
   object Unit extends Constructor(0) {

@@ -71,6 +71,10 @@ object EasyTest {
       if (a == b) ok
       else fail(s"$a != $b")
 
+    def equalShow[A](a: A, b: A)(show: A => String): Unit =
+      if (a == b) ok
+      else fail(s"${show(a)} != ${show(b)}")
+
     def equal1[A](a: A, b: A): Unit =
       if (a == b) ()
       else fail(s"$a != $b")
@@ -117,6 +121,7 @@ object EasyTest {
   def expect(b: Boolean)(implicit T: Env): Unit = T.expect(b)
   def expect1(b: Boolean)(implicit T: Env): Unit = T.expect1(b)
   def equal[A](a1: A, a2: A)(implicit T: Env): Unit = T.equal(a1, a2)
+  def equalShow[A](a1: A, a2: A)(showAs: A => String)(implicit T: Env): Unit = T.equalShow(a1, a2)(showAs)
   def equal1[A](a1: A, a2: A)(implicit T: Env): Unit = T.equal1(a1, a2)
   def int(implicit T: Env) = T.rand.nextInt
   def intIn(low: Int, highExclusive: Int)(implicit T: Env): Int = low + (T.rand.nextDouble * (highExclusive - low)).toInt
