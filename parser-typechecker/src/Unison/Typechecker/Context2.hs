@@ -37,7 +37,7 @@ import           Unison.Type (AnnotatedType)
 import qualified Unison.Type as Type
 import           Unison.TypeVar (TypeVar)
 import qualified Unison.TypeVar as TypeVar
--- import           Unison.Typechecker.Components (minimize')
+import           Unison.Typechecker.Components (minimize')
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 
@@ -513,7 +513,7 @@ check e t = withinCheck e t $ getContext >>= \ctx ->
       go _ _ = do -- Sub
         a <- synthesize e; ctx <- getContext
         subtype (apply ctx a) (apply ctx t)
-      e' = error "todo" -- minimize' e
+      e' = minimize' e
     in case t of
          -- expand existentials before checking
          t@(Type.Existential' _) -> go e' (apply ctx t)

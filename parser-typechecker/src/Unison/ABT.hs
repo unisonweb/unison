@@ -135,6 +135,13 @@ pattern Cycle' vs t <- Term _ _ (Cycle (AbsN' vs t))
 pattern Abs' subst <- (unabs1 -> Just subst)
 pattern AbsN' vs body <- (unabs -> (vs, body))
 pattern Tm' f <- Term _ _ (Tm f)
+pattern CycleA' a avs t <- Term _ a (Cycle (AbsNA' avs t))
+pattern AbsNA' avs body <- (unabsA -> (avs, body))
+
+unabsA :: Term f v a -> ([(a,v)], Term f v a)
+unabsA (Term _ a (Abs hd body)) =
+  let (tl, body') = unabsA body in ((a,hd) : tl, body')
+unabsA t = ([], t)
 
 v' :: Var v => Text -> v
 v' = Var.named

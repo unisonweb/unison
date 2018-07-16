@@ -251,6 +251,19 @@ lam' vs body = foldr lam body (map ABT.v' vs)
 lam'' :: Ord v => [v] -> Term' vt v -> Term' vt v
 lam'' vs body = foldr lam body vs
 
+pattern LetRecNamedAnnotated' ann bs e <- (unLetRecNamedAnnotated -> Just (ann, bs,e))
+
+unLetRecNamedAnnotated :: AnnotatedTerm' vt v a -> Maybe (a, [((a, v), AnnotatedTerm' vt v a)], AnnotatedTerm' vt v a)
+unLetRecNamedAnnotated (ABT.CycleA' ann avs (ABT.Tm' (LetRec bs e))) =
+  Just (ann, avs `zip` bs, e)
+unLetRecNamedAnnotated _ = Nothing
+
+annotatedLetRec :: Ord v => a -> [((a,v), AnnotatedTerm' vt v a)] -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
+annotatedLetRec _ [] e = e
+annotatedLetRec a bindings e = ABT.cycle' a (foldr (uncurry ABT.abs') z (map fst bindings))
+  where
+    z = ABT.tm' a (LetRec (map snd bindings) e)
+
 -- | Smart constructor for let rec blocks. Each binding in the block may
 -- reference any other binding in the block in its body (including itself),
 -- and the output expression may also reference any binding in the block.
@@ -270,6 +283,11 @@ let1 :: Ord v => [(v,Term' vt v)] -> Term' vt v -> Term' vt v
 let1 bindings e = foldr f e bindings
   where
     f (v,b) body = ABT.tm (Let b (ABT.abs v body))
+
+annotatedLet1 :: Ord v => [((a, v), AnnotatedTerm' vt v a)] -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
+annotatedLet1 bindings e = foldr f e bindings
+  where
+    f ((ann,v),b) body = ABT.tm' ann (Let b (ABT.abs' ann v body))
 
 let1' :: Var v => [(Text, Term' vt v)] -> Term' vt v -> Term' vt v
 let1' bs e = let1 [(ABT.v' name, b) | (name,b) <- bs ] e
