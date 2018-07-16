@@ -74,6 +74,7 @@ data CompilerBug v loc
   = UnknownDecl Unknown Reference (Map Reference (DataDeclaration' v loc))
   | UnknownConstructor Unknown Reference Int (DataDeclaration' v loc)
   | RetractFailure (Element v loc) (Context v loc)
+  | EmptyLetRec (Term v loc) -- the body of the empty let rec
 
 data Note v loc
   = WithinSynthesize (Term v loc) (Note v loc)
@@ -412,35 +413,36 @@ synthesize = error "synthesize todo"
 annotateLetRecBindings
   :: Var v => ((v -> M v loc v) -> M v loc ([(v, Term v loc)], Term v loc))
            -> M v loc (Element v loc, Term v loc)
-annotateLetRecBindings letrec =
-  error "todo"
-  --do
-  --(bindings, body) <- letrec freshenVar
-  --let vs = map fst bindings
-  ---- generate a fresh existential variable `e1, e2 ...` for each binding
-  --es <- traverse freshenVar vs
-  --ctx <- getContext
-  --e1 <- if null vs then fail "impossible" else pure $ head es
-  ---- Introduce these existentials into the context and
-  ---- annotate each term variable w/ corresponding existential
-  ---- [marker e1, 'e1, 'e2, ... v1 : 'e1, v2 : 'e2 ...]
-  --let f e (_,binding) = case binding of
-  --      -- TODO: Think about whether `apply` here is always correct
-  --      --       Used to have a guard that would only do this if t had no free vars
-  --      Term.Ann' _ t -> apply ctx t
-  --      _ -> Type.existential' (loc binding) e
-  --let bindingTypes = zipWith f es bindings
-  --appendContext $ context (Marker e1 : map Existential es ++ zipWith Ann vs bindingTypes)
-  ---- check each `bi` against `ei`; sequencing resulting contexts
-  --Foldable.for_ (zip bindings bindingTypes) $ \((_,b), t) -> check b t
-  ---- compute generalized types `gt1, gt2 ...` for each binding `b1, b2...`;
-  ---- add annotations `v1 : gt1, v2 : gt2 ...` to the context
-  --(ctx1, ctx2) <- breakAt (Marker e1) <$> getContext
-  --let gen e = generalizeExistentials ctx2 (Type.existential e)
-  --let annotations = zipWith Ann vs (map gen es)
-  --marker <- Marker <$> freshenVar (ABT.v' "let-rec-marker")
-  --setContext (ctx1 `mappend` context (marker : annotations))
-  --pure $ (marker, body)
+annotateLetRecBindings letrec = do
+  (bindings, body) <- letrec freshenVar
+  let vs = map fst bindings
+  -- generate a fresh existential variable `e1, e2 ...` for each binding
+  es <- traverse freshenVar vs
+  ctx <- getContext
+  e1 <- case vs of
+    h : _t -> pure h
+    _ -> compilerCrash (EmptyLetRec body)
+  -- Introduce these existentials into the context and
+  -- annotate each term variable w/ corresponding existential
+  -- [marker e1, 'e1, 'e2, ... v1 : 'e1, v2 : 'e2 ...]
+  let f e (_,binding) = case binding of
+        -- TODO: Think about whether `apply` here is always correct
+        --       Used to have a guard that would only do this if t had no free vars
+        Term.Ann' _ t -> apply ctx t
+        _ -> Type.existential' (loc binding) e
+  let bindingTypes = zipWith f es bindings
+  appendContext $ context (Marker e1 : map Existential es ++ zipWith Ann vs bindingTypes)
+  -- check each `bi` against `ei`; sequencing resulting contexts
+  Foldable.for_ (zip bindings bindingTypes) $ \((_,b), t) -> check b t
+  -- compute generalized types `gt1, gt2 ...` for each binding `b1, b2...`;
+  -- add annotations `v1 : gt1, v2 : gt2 ...` to the context
+  (ctx1, ctx2) <- breakAt (Marker e1) <$> getContext
+  -- The location of the existential is just the location of the binding
+  let gen (e,(_,binding)) = generalizeExistentials ctx2 (Type.existential' (loc binding) e)
+  let annotations = zipWith Ann vs (map gen (es `zip` bindings))
+  marker <- Marker <$> freshenVar (ABT.v' "let-rec-marker")
+  setContext (ctx1 `mappend` context (marker : annotations))
+  pure $ (marker, body)
 
 -- | Apply the context to the input type, then convert any unsolved existentials
 -- to universals.
@@ -450,6 +452,9 @@ generalizeExistentials ctx t =
   where
     gen e t =
       if TypeVar.Existential e `ABT.isFreeIn` t
+      -- location of the forall is just the location of the input type
+      -- and the location of each quantified variable is just inherited from
+      -- its source location
       then Type.forall (loc t) (TypeVar.Universal e) (ABT.substInheritAnnotation (TypeVar.Existential e) (Type.universal e) t)
       else t -- don't bother introducing a forall if type variable is unused
 
