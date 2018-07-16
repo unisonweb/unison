@@ -478,34 +478,34 @@ check e t = withinCheck e t $ getContext >>= \ctx ->
         let Type.Effect'' es _ = o
         withEffects0 es $ check (ABT.bindInheritAnnotation body (Term.var x)) o
         doRetract $ Ann x i
-  --    go (Term.Let1' binding e) t = do
-  --      v <- ABT.freshen e freshenVar
-  --      tbinding <- synthesize binding
-  --      modifyContext' (extend (Ann v tbinding))
-  --      check (ABT.bindInheritAnnotation e (Term.var v)) t
-  --      doRetract $ Ann v tbinding
-  --    go (Term.LetRecNamed' [] e) t = check e t
-  --    go (Term.LetRec' letrec) t = do
-  --      (marker, e) <- annotateLetRecBindings letrec
-  --      check e t
-  --      doRetract marker
-  --    go (Term.Handle' h body) t = do
-  --      -- `h` should check against `Effect e i -> t` (for new existentials `e` and `i`)
-  --      -- `body` should check against `i`
-  --      [e, i] <- sequence [freshNamed "e", freshNamed "i"]
-  --      appendContext $ context [Existential e, Existential i]
-  --      check h $ Type.effectV (Type.existential e) (Type.existential i) `Type.arrow` t
-  --      ctx <- getContext
-  --      let Type.Effect'' requested _ = apply ctx t
-  --      abilityCheck requested
-  --      withEffects [apply ctx $ Type.existential e] $ do
-  --        ambient <- getAbilities
-  --        let (_, i') = Type.stripEffect (apply ctx (Type.existential i))
-  --        check body (Type.effect ambient i')
-  --        pure ()
-  --    go _ _ = do -- Sub
-  --      a <- synthesize e; ctx <- getContext
-  --      subtype (apply ctx a) (apply ctx t)
+      go (Term.Let1' binding e) t = do
+        v <- ABT.freshen e freshenVar
+        tbinding <- synthesize binding
+        modifyContext' (extend (Ann v tbinding))
+        check (ABT.bindInheritAnnotation e (Term.var v)) t
+        doRetract $ Ann v tbinding
+      go (Term.LetRecNamed' [] e) t = check e t
+      go (Term.LetRec' letrec) t = do
+        (marker, e) <- annotateLetRecBindings letrec
+        check e t
+        doRetract marker
+      --go (Term.Handle' h body) t = do
+      --  -- `h` should check against `Effect e i -> t` (for new existentials `e` and `i`)
+      --  -- `body` should check against `i`
+      --  [e, i] <- sequence [freshNamed "e", freshNamed "i"]
+      --  appendContext $ context [Existential e, Existential i]
+      --  check h $ Type.effectV (Type.existential e) (Type.existential i) `Type.arrow` t
+      --  ctx <- getContext
+      --  let Type.Effect'' requested _ = apply ctx t
+      --  abilityCheck requested
+      --  withEffects [apply ctx $ Type.existential e] $ do
+      --    ambient <- getAbilities
+      --    let (_, i') = Type.stripEffect (apply ctx (Type.existential i))
+      --    check body (Type.effect ambient i')
+      --    pure ()
+      go _ _ = do -- Sub
+        a <- synthesize e; ctx <- getContext
+        subtype (apply ctx a) (apply ctx t)
       e' = error "todo" -- minimize' e
     in case t of
          -- expand existentials before checking
@@ -515,9 +515,9 @@ check e t = withinCheck e t $ getContext >>= \ctx ->
 
 -- | `subtype ctx t1 t2` returns successfully if `t1` is a subtype of `t2`.
 -- This may have the effect of altering the context.
-subtype :: forall v loc . (Eq loc, Var v) => loc -> Type v loc -> Type v loc -> M v loc ()
-subtype _ tx ty | debugEnabled && traceShow ("subtype"::String, tx, ty) False = undefined
-subtype loc tx ty = withinSubtype tx ty $
+subtype :: forall v loc . (Eq loc, Var v) => Type v loc -> Type v loc -> M v loc ()
+subtype tx ty | debugEnabled && traceShow ("subtype"::String, tx, ty) False = undefined
+subtype tx ty = withinSubtype tx ty $
   do ctx <- getContext; go (ctx :: Context v loc) tx ty
   where -- Rules from figure 9
   go :: Context v loc -> Type v loc -> Type v loc -> M v loc ()
@@ -529,24 +529,24 @@ subtype loc tx ty = withinSubtype tx ty $
     | v1 == v2 && wellformedType ctx t1 && wellformedType ctx t2
     = pure ()
   go _ (Type.Arrow' i1 o1) (Type.Arrow' i2 o2) = do -- `-->`
-    subtype loc i1 i2; ctx' <- getContext
-    subtype loc (apply ctx' o1) (apply ctx' o2)
+    subtype i1 i2; ctx' <- getContext
+    subtype (apply ctx' o1) (apply ctx' o2)
   go _ (Type.App' x1 y1) (Type.App' x2 y2) = do -- analogue of `-->`
-    subtype loc x1 x2; ctx' <- getContext
-    subtype loc (apply ctx' y1) (apply ctx' y2)
+    subtype x1 x2; ctx' <- getContext
+    subtype (apply ctx' y1) (apply ctx' y2)
   go _ t (Type.Forall' t2) = do
     v' <- extendUniversal =<< ABT.freshen t2 freshenTypeVar
     t2 <- pure $ ABT.bindInheritAnnotation t2 (Type.universal v')
-    subtype loc t t2
+    subtype t t2
     doRetract (Universal v')
   go _ (Type.Forall' t) t2 = do
     v <- extendMarker =<< ABT.freshen t freshenTypeVar
     t <- pure $ ABT.bindInheritAnnotation t (Type.existential v)
     ctx' <- getContext
-    subtype loc (apply ctx' t) t2
+    subtype (apply ctx' t) t2
     doRetract (Marker v)
-  go _ (Type.Effect' [] a1) a2 = subtype loc a1 a2
-  go _ a1 (Type.Effect' [] a2) = subtype loc a1 a2
+  go _ (Type.Effect' [] a1) a2 = subtype a1 a2
+  go _ a1 (Type.Effect' [] a2) = subtype a1 a2
   go ctx (Type.Existential' v) t -- `InstantiateL`
     | Set.member v (existentials ctx) && notMember v (Type.freeVars t) =
     instantiateL v t
@@ -554,11 +554,11 @@ subtype loc tx ty = withinSubtype tx ty $
     | Set.member v (existentials ctx) && notMember v (Type.freeVars t) =
     instantiateR t v
   go _ (Type.Effect'' es1 a1) (Type.Effect' es2 a2) = do
-     subtype loc a1 a2
+     subtype a1 a2
      ctx <- getContext
      let es1' = map (apply ctx) es1
          es2' = map (apply ctx) es2
-     abilityCheck' loc es2' es1'
+     abilityCheck' es2' es1'
   go _ _ _ = failNote TypeMismatch
 
 instantiateL :: Var v => v -> Type v loc -> M v loc ()
@@ -566,19 +566,19 @@ instantiateL = error "todo" -- may need a loc parameter?
 instantiateR :: Var v => Type v loc -> v -> M v loc ()
 instantiateR = error "todo" -- may need a loc parameter?
 
-abilityCheck' :: (Var v, Eq loc) => loc -> [Type v loc] -> [Type v loc] -> M v loc ()
-abilityCheck' loc ambient requested = do
+abilityCheck' :: (Var v, Eq loc) => [Type v loc] -> [Type v loc] -> M v loc ()
+abilityCheck' ambient requested = do
   success <- flip allM requested $ \req ->
-    flip anyM ambient $ \amb -> (True <$ subtype loc amb req) `orElse` pure False
+    flip anyM ambient $ \amb -> (True <$ subtype amb req) `orElse` pure False
   when (not success) $
     failNote $ AbilityCheckFailure ambient requested
 
-abilityCheck :: (Var v, Eq loc) => loc -> [Type v loc] -> M v loc ()
-abilityCheck loc requested = do
+abilityCheck :: (Var v, Eq loc) => [Type v loc] -> M v loc ()
+abilityCheck requested = do
   enabled <- abilityCheckEnabled
   when enabled $ do
     ambient <- getAbilities
-    abilityCheck' loc ambient requested
+    abilityCheck' ambient requested
 
 instance (Var v, Show loc) => Show (Element v loc) where
   show (Var v) = case v of
