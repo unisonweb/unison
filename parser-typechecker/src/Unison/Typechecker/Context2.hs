@@ -80,6 +80,8 @@ data Note v loc
   = WithinSynthesize (Term v loc) (Note v loc)
   | WithinSubtype (Type v loc) (Type v loc) (Note v loc)
   | WithinCheck (Term v loc) (Type v loc) (Note v loc)
+  | WithinInstantiateL v (Type v loc) (Note v loc)
+  | WithinInstantiateR (Type v loc) v (Note v loc)
   | TypeMismatch (Context v loc)
   | IllFormedType (Context v loc)
   | CompilerBug (CompilerBug v loc)
@@ -102,6 +104,18 @@ withinCheck e t2 (M m) = M go where
   go menv =
     let (notes, r) = m menv
     in (WithinCheck e t2 <$> notes, r)
+
+withinInstantiateL :: v -> Type v loc -> M v loc a -> M v loc a
+withinInstantiateL v t (M m) = M go where
+  go menv =
+    let (notes, r) = m menv
+    in (WithinInstantiateL v t <$> notes, r)
+
+withinInstantiateR :: Type v loc -> v -> M v loc a -> M v loc a
+withinInstantiateR t v (M m) = M go where
+  go menv =
+    let (notes, r) = m menv
+    in (WithinInstantiateR t v <$> notes, r)
 
 -- | The typechecking environment
 data MEnv v loc = MEnv {
@@ -574,52 +588,109 @@ subtype tx ty = withinSubtype tx ty $
 -- in the process.
 instantiateL :: (Eq loc, Var v) => v -> Type v loc -> M v loc ()
 instantiateL v t | debugEnabled && traceShow ("instantiateL"::String, v, t) False = undefined
-instantiateL v t = getContext >>= \ctx -> case Type.monotype t >>= (solve ctx v) of
-  Just ctx -> setContext ctx -- InstLSolve
-  Nothing -> case t of
-    Type.Existential' v2 | ordered ctx v v2 -> -- InstLReach (both are existential, set v2 = v)
-      maybe (failNote $ TypeMismatch ctx) setContext $
-        solve ctx v2 (Type.Monotype (Type.existential' (loc t) v))
-    Type.Arrow' i o -> do -- InstLArr
-      [i',o'] <- traverse freshenVar [ABT.v' "i", ABT.v' "o"]
-      let s = Solved v (Type.Monotype (Type.arrow (loc t)
-                                                  (Type.existential' (loc i) i')
-                                                  (Type.existential' (loc o) o')))
-      modifyContext' $ replace (Existential v) (context [Existential o', Existential i', s])
-      instantiateR i i'
-      ctx <- getContext
-      instantiateL o' (apply ctx o)
-    Type.App' x y -> do -- analogue of InstLArr
-      [x', y'] <- traverse freshenVar [ABT.v' "x", ABT.v' "y"]
-      let s = Solved v (Type.Monotype (Type.app (loc t)
-                                                (Type.existential' (loc x) x')
-                                                (Type.existential' (loc y) y')))
-      modifyContext' $ replace (Existential v) (context [Existential y', Existential x', s])
-      ctx0 <- getContext
-      ctx' <- instantiateL x' (apply ctx0 x) >> getContext
-      instantiateL y' (apply ctx' y)
-    Type.Effect' es vt -> do
-      es' <- replicateM (length es) (freshNamed "e")
-      vt' <- freshNamed "vt"
-      let locs = loc <$> es
-          s = Solved v (Type.Monotype
-                        (Type.effect (loc t)
-                         (uncurry Type.existential' <$> locs `zip` es')
-                         (Type.existential' (loc vt) vt')))
-      modifyContext' $ replace (Existential v) (context $ (Existential <$> es') ++ [Existential vt', s])
-      Foldable.for_ (es' `zip` es) $ \(e',e) -> do
+instantiateL v t = withinInstantiateL v t $
+  getContext >>= \ctx -> case Type.monotype t >>= (solve ctx v) of
+    Just ctx -> setContext ctx -- InstLSolve
+    Nothing -> case t of
+      Type.Existential' v2 | ordered ctx v v2 -> -- InstLReach (both are existential, set v2 = v)
+        maybe (failNote $ TypeMismatch ctx) setContext $
+          solve ctx v2 (Type.Monotype (Type.existential' (loc t) v))
+      Type.Arrow' i o -> do -- InstLArr
+        [i',o'] <- traverse freshenVar [ABT.v' "i", ABT.v' "o"]
+        let s = Solved v (Type.Monotype (Type.arrow (loc t)
+                                                    (Type.existential' (loc i) i')
+                                                    (Type.existential' (loc o) o')))
+        modifyContext' $ replace (Existential v)
+                                 (context [Existential o', Existential i', s])
+        instantiateR i i'
         ctx <- getContext
-        instantiateL e' (apply ctx e)
-      ctx <- getContext
-      instantiateL vt' (apply ctx vt)
-    Type.Forall' body -> do -- InstLIIL
-      v <- extendUniversal =<< ABT.freshen body freshenTypeVar
-      instantiateL v (ABT.bindInheritAnnotation body (Type.universal v))
-      doRetract (Universal v)
-    _ -> failNote $ TypeMismatch ctx
+        instantiateL o' (apply ctx o)
+      Type.App' x y -> do -- analogue of InstLArr
+        [x', y'] <- traverse freshenVar [ABT.v' "x", ABT.v' "y"]
+        let s = Solved v (Type.Monotype (Type.app (loc t)
+                                                  (Type.existential' (loc x) x')
+                                                  (Type.existential' (loc y) y')))
+        modifyContext' $ replace (Existential v)
+                                 (context [Existential y', Existential x', s])
+        ctx0 <- getContext
+        ctx' <- instantiateL x' (apply ctx0 x) >> getContext
+        instantiateL y' (apply ctx' y)
+      Type.Effect' es vt -> do
+        es' <- replicateM (length es) (freshNamed "e")
+        vt' <- freshNamed "vt"
+        let locs = loc <$> es
+            s = Solved v (Type.Monotype
+                          (Type.effect (loc t)
+                           (uncurry Type.existential' <$> locs `zip` es')
+                           (Type.existential' (loc vt) vt')))
+        modifyContext' $ replace (Existential v)
+                                 (context $ (Existential <$> es') ++
+                                            [Existential vt', s])
+        Foldable.for_ (es' `zip` es) $ \(e',e) -> do
+          ctx <- getContext
+          instantiateL e' (apply ctx e)
+        ctx <- getContext
+        instantiateL vt' (apply ctx vt)
+      Type.Forall' body -> do -- InstLIIL
+        v <- extendUniversal =<< ABT.freshen body freshenTypeVar
+        instantiateL v (ABT.bindInheritAnnotation body (Type.universal v))
+        doRetract (Universal v)
+      _ -> failNote $ TypeMismatch ctx
 
-instantiateR :: Var v => Type v loc -> v -> M v loc ()
-instantiateR = error "todo" -- may need a loc parameter?
+-- | Instantiate the given existential such that it is
+-- a supertype of the given type, updating the context
+-- in the process.
+instantiateR :: (Eq loc, Var v) => Type v loc -> v -> M v loc ()
+instantiateR t v | debugEnabled && traceShow ("instantiateR"::String, t, v) False = undefined
+instantiateR t v = withinInstantiateR t v $
+  getContext >>= \ctx -> case Type.monotype t >>= solve ctx v of
+    Just ctx -> setContext ctx -- InstRSolve
+    Nothing -> case t of
+      Type.Existential' v2 | ordered ctx v v2 -> -- InstRReach (both are existential, set v2 = v)
+        maybe (failNote $ TypeMismatch ctx) setContext $
+          solve ctx v2 (Type.Monotype (Type.existential' (loc t) v))
+      Type.Arrow' i o -> do -- InstRArrow
+        [i', o'] <- traverse freshenVar [ABT.v' "i", ABT.v' "o"]
+        let s = Solved v (Type.Monotype
+                          (Type.arrow (loc t)
+                            (Type.existential' (loc i) i')
+                            (Type.existential' (loc o) o')))
+        modifyContext' $ replace (Existential v)
+                                 (context [Existential o', Existential i', s])
+        ctx <- instantiateL i' i >> getContext
+        instantiateR (apply ctx o) o'
+      Type.App' x y -> do -- analogue of InstRArr
+        -- example foo a <: v' will
+        -- 1. create foo', a', add these to the context
+        -- 2. add v' = foo' a' to the context
+        -- 3. recurse to refine the types of foo' and a'
+        [x', y'] <- traverse freshenVar [ABT.v' "x", ABT.v' "y"]
+        let s = Solved v (Type.Monotype (Type.app (loc t) (Type.existential' (loc x) x') (Type.existential' (loc y) y')))
+        modifyContext' $ replace (Existential v) (context [Existential y', Existential x', s])
+        ctx <- getContext
+        instantiateR (apply ctx x) x'
+        ctx <- getContext
+        instantiateR (apply ctx y) y'
+      Type.Effect' es vt -> do
+        es' <- replicateM (length es) (freshNamed "e")
+        vt' <- freshNamed "vt"
+        let locs = loc <$> es
+            s = Solved v (Type.Monotype
+                          (Type.effect (loc t)
+                             (uncurry Type.existential' <$> locs `zip` es')
+                             (Type.existential' (loc vt) vt')))
+        modifyContext' $ replace (Existential v) (context $ (Existential <$> es') ++ [Existential vt', s])
+        Foldable.for_ (es `zip` es') $ \(e, e') -> do
+          ctx <- getContext
+          instantiateR (apply ctx e) e'
+        ctx <- getContext
+        instantiateR (apply ctx vt) vt'
+      Type.Forall' body -> do -- InstRAIIL
+        x' <- ABT.freshen body freshenTypeVar
+        setContext $ ctx `mappend` context [Marker x', Existential x']
+        instantiateR (ABT.bindInheritAnnotation body (Type.existential x')) v
+        doRetract (Marker x')
+      _ -> failNote $ TypeMismatch ctx
 
 -- | solve (ΓL,α^,ΓR) α τ = (ΓL,α^ = τ,ΓR)
 -- If the given existential variable exists in the context,
