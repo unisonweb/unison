@@ -73,8 +73,12 @@ data Unknown = Data | Effect
 data CompilerBug v loc
   = UnknownDecl Unknown Reference (Map Reference (DataDeclaration' v loc))
   | UnknownConstructor Unknown Reference Int (DataDeclaration' v loc)
+  | UndeclaredTermVariable v (Context v loc)
   | RetractFailure (Element v loc) (Context v loc)
   | EmptyLetRec (Term v loc) -- the body of the empty let rec
+  | PatternMatchFailure
+  | FreeVarsInTypeAnnotation (Set (TypeVar v))
+  | UnannotatedReference Reference
 
 data Note v loc
   = WithinSynthesize (Term v loc) (Note v loc)
@@ -421,8 +425,145 @@ withEffects0 :: [Type v loc] -> M v loc a -> M v loc a
 withEffects0 abilities' m =
   M (\menv -> runM m (menv { abilities = abilities' }))
 
-synthesize :: Var v => Term v loc -> M v loc (Type v loc)
-synthesize = error "synthesize todo"
+-- | Synthesize the type of the given term, updating the context in the process.
+-- | Figure 11 from the paper
+synthesize :: forall v loc . (Eq loc, Var v) => Term v loc -> M v loc (Type v loc)
+synthesize e = withinSynthesize e $ go (minimize' e)
+  where
+  go :: Var v => Term v loc -> M v loc (Type v loc)
+  go (Term.Var' v) = getContext >>= \ctx -> case lookupType ctx v of -- Var
+    Nothing -> compilerCrash $ UndeclaredTermVariable v ctx
+    Just t -> pure t
+  go Term.Blank' = do
+    v <- freshNamed "_"
+    appendContext $ context [Existential v]
+    pure $ Type.existential' (loc e) v -- forall (TypeVar.Universal v) (Type.universal v)
+  go (Term.Ann' (Term.Ref' _) t) = case ABT.freeVars t of
+    s | Set.null s ->
+      -- innermost Ref annotation assumed to be correctly provided by `synthesizeClosed`
+      pure t
+    s | otherwise -> compilerCrash $ FreeVarsInTypeAnnotation s
+  go (Term.Ref' h) = compilerCrash $ UnannotatedReference h
+  go (Term.Constructor' r cid) = do
+    t <- getDataConstructorType r cid
+    if Type.arity t == 0
+      then do
+             a <- freshNamed "a"
+             appendContext $ context [Marker a, Existential a]
+             ambient <- getAbilities
+             let l = loc t
+             -- arya: we should revisit these l's too
+             subtype t (Type.effect l ambient (Type.existential' l a))
+             -- modifyContext $ retract [Marker a]
+             pure t
+      else pure t
+  -- -- todo: Term.Request'
+  go (Term.Ann' e' t) = t <$ check e' t
+  go (Term.Float' _) = getBuiltinLocation >>= pure . Type.float -- 1I=>
+  go (Term.Int64' _) = getBuiltinLocation >>= pure . Type.int64 -- 1I=>
+  go (Term.UInt64' _) = getBuiltinLocation >>= pure . Type.uint64 -- 1I=>
+  go (Term.Boolean' _) = getBuiltinLocation >>= pure . Type.boolean
+  go (Term.Text' _) = getBuiltinLocation >>= pure . Type.text
+  -- go (Term.App' f arg) = do -- ->E
+  --   ft <- synthesize f
+  --   ctx <- getContext
+  --   synthesizeApp (apply ctx ft) arg
+  -- go (Term.Vector' v) = synthesize (desugarVector (Foldable.toList v))
+  -- go (Term.Let1' binding e) | Set.null (ABT.freeVars binding) = do
+  --   -- special case when it is definitely safe to generalize - binding contains
+  --   -- no free variables, i.e. `let id x = x in ...`
+  --   decls <- getDataDeclarations
+  --   abilities <- getAbilities
+  --   t  <- scope "let1 closed" $ synthesizeClosed' abilities decls binding
+  --   v' <- ABT.freshen e freshenVar
+  --   e  <- pure $ ABT.bind e (Term.builtin (Var.name v') `Term.ann` t)
+  --   synthesize e
+  -- --go (Term.Let1' binding e) = do
+  -- --  -- literally just convert to a lambda application and call synthesize!
+  -- --  -- NB: this misses out on let generalization
+  -- --  -- let x = blah p q in foo y <=> (x -> foo y) (blah p q)
+  -- --  v' <- ABT.freshen e freshenVar
+  -- --  e  <- pure $ ABT.bind e (Term.var v')
+  -- --  synthesize (Term.lam v' e `Term.app` binding)
+  -- go (Term.Let1' binding e) = do
+  --   -- note: no need to freshen binding, it can't refer to v
+  --   tbinding <- synthesize binding
+  --   v' <- ABT.freshen e freshenVar
+  --   appendContext (context [Ann v' tbinding])
+  --   t <- synthesize (ABT.bind e (Term.var v'))
+  --   modifyContext (retract (Ann v' tbinding))
+  --   pure t
+  -- --  -- TODO: figure out why this retract sometimes generates invalid contexts,
+  -- --  -- (ctx, ctx2) <- breakAt (Ann v' tbinding) <$> getContext
+  -- --  -- as in (f -> let x = (let saved = f in 42) in 1)
+  -- --  -- removing the retract and generalize 'works' for this example
+  -- --  -- generalizeExistentials ctx2 t <$ setContext ctx
+  -- go (Term.Lam' body) = do -- ->I=> (Full Damas Milner rule)
+  --   [arg, i, o] <- sequence [ABT.freshen body freshenVar, freshVar, freshVar]
+  --   appendContext $
+  --     context [Marker i, Existential i, Existential o, Ann arg (Type.existential i)]
+  --   body <- pure $ ABT.bind body (Term.var arg)
+  --   check body (Type.existential o)
+  --   (ctx1, ctx2) <- breakAt (Marker i) <$> getContext
+  --   -- unsolved existentials get generalized to universals
+  --   setContext ctx1
+  --   pure $ generalizeExistentials
+  --            ctx2
+  --            (Type.arrow() (Type.existential i) (Type.existential o))
+  -- go (Term.LetRecNamed' [] body) = synthesize body
+  -- go (Term.LetRec' letrec) = do
+  --   (marker, e) <- annotateLetRecBindings letrec
+  --   t <- synthesize e
+  --   (ctx, ctx2) <- breakAt marker <$> getContext
+  --   generalizeExistentials ctx2 t <$ setContext ctx
+  -- go (Term.If' cond t f) = foldM synthesizeApp Type.iff [cond, t, f]
+  -- go (Term.And' a b) = foldM synthesizeApp Type.andor [a, b]
+  -- go (Term.Or' a b) = foldM synthesizeApp Type.andor [a, b]
+  -- -- { 42 }
+  -- go (Term.EffectPure' a) = do
+  --   e <- freshenVar (Var.named "e")
+  --   Type.Effect'' _ at <- synthesize a
+  --   pure . Type.forall() (TypeVar.Universal e) $ Type.effectV() ((), Type.universal e) ((), at)
+  -- go (Term.EffectBind' r cid args k) = do
+  --   cType <- getConstructorType r cid
+  --   let arity = Type.arity cType
+  --   -- TODO: error message algebra
+  --   when (length args /= arity) .  fail $
+  --     "Effect constructor wanted " <> show arity <> " arguments " <> "but got "
+  --     <> show (length args)
+  --   ([eType], iType) <-
+  --     Type.stripEffect <$> withoutAbilityCheck (foldM synthesizeApp cType args)
+  --   rTypev <- freshNamed "result"
+  --   let rType = Type.existential rTypev
+  --   appendContext $ context [Existential rTypev]
+  --   check k (Type.arrow() iType (Type.effect() [eType] rType))
+  --   ctx <- getContext
+  --   pure $ apply ctx (Type.effectV() ((), eType) ((), rType))
+  -- go (Term.Match' scrutinee cases) = scope ("match " ++ show scrutinee) $ do
+  --   scrutineeType <- synthesize scrutinee
+  --   outputTypev <- freshenVar (Var.named "match-output")
+  --   let outputType = Type.existential outputTypev
+  --   appendContext $ context [Existential outputTypev]
+  --   Foldable.traverse_ (checkCase scrutineeType outputType) cases
+  --   ctx <- getContext
+  --   pure $ apply ctx outputType
+  -- go h@(Term.Handle' _ _) = do
+  --   o <- freshNamed "o"
+  --   appendContext $ context [Existential o]
+  --   check h (Type.existential o)
+  --   ctx <- getContext
+  --   pure (apply ctx (Type.existential o))
+  go _e = compilerCrash PatternMatchFailure
+
+bindings :: Context v loc -> [(v, Type v loc)]
+bindings (Context ctx) = [(v,a) | (Ann v a,_) <- ctx]
+
+lookupType :: Eq v => Context v loc -> v -> Maybe (Type v loc)
+lookupType ctx v = lookup v (bindings ctx)
+
+
+
+
 
 -- | Synthesize and generalize the type of each binding in a let rec
 -- and return the new context in which all bindings are annotated with
