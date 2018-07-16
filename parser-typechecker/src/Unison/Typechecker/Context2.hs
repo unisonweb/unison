@@ -81,6 +81,7 @@ data Note v loc
   | WithinSubtype (Type v loc) (Type v loc) (Note v loc)
   | WithinCheck (Term v loc) (Type v loc) (Note v loc)
   | TypeMismatch
+  | IllFormedType (Context v loc)
   | CompilerBug (CompilerBug v loc)
   | AbilityCheckFailure [Type v loc] [Type v loc] -- ambient, requested
 
@@ -411,8 +412,9 @@ synthesize = error "synthesize todo"
 -- which should be used to retract the context after checking/synthesis
 -- of `body` is complete. See usage in `synthesize` and `check` for `LetRec'` case.
 annotateLetRecBindings
-  :: Var v => ((v -> M v loc v) -> M v loc ([(v, Term v loc)], Term v loc))
-           -> M v loc (Element v loc, Term v loc)
+  :: (Eq loc, Var v)
+  => ((v -> M v loc v) -> M v loc ([(v, Term v loc)], Term v loc))
+  -> M v loc (Element v loc, Term v loc)
 annotateLetRecBindings letrec = do
   (bindings, body) <- letrec freshenVar
   let vs = map fst bindings
@@ -460,17 +462,16 @@ generalizeExistentials ctx t =
 
 -- | Check that under the given context, `e` has type `t`,
 -- updating the context in the process.
-check :: Var v => Term v loc -> Type v loc -> M v loc ()
+check :: (Eq loc, Var v) => Term v loc -> Type v loc -> M v loc ()
 -- check e t | debugEnabled && traceShow ("check"::String, e, t) False = undefined
-check e t = withinCheck e t $ error "todo"
-  --getContext >>= \ctx ->
-  --if wellformedType ctx t then
-  --  let
-  --    go Term.Blank' _ = pure () -- somewhat hacky short circuit; blank checks successfully against all types
-  --    go _ (Type.Forall' body) = do -- ForallI
-  --      x <- extendUniversal =<< ABT.freshen body freshenTypeVar
-  --      check e (ABT.bindInheritAnnotation body (Type.universal x))
-  --      doRetract $ Universal x
+check e t = withinCheck e t $ getContext >>= \ctx ->
+  if wellformedType ctx t then
+    let
+      go Term.Blank' _ = pure () -- somewhat hacky short circuit; blank checks successfully against all types
+      go _ (Type.Forall' body) = do -- ForallI
+        x <- extendUniversal =<< ABT.freshen body freshenTypeVar
+        check e (ABT.bindInheritAnnotation body (Type.universal x))
+        doRetract $ Universal x
   --    go (Term.Lam' body) (Type.Arrow' i o) = do -- =>I
   --      x <- ABT.freshen body freshenVar
   --      modifyContext' (extend (Ann x i))
@@ -505,18 +506,12 @@ check e t = withinCheck e t $ error "todo"
   --    go _ _ = do -- Sub
   --      a <- synthesize e; ctx <- getContext
   --      subtype (apply ctx a) (apply ctx t)
-  --    e' = minimize' e
-  --  in scope ("check: " ++ show e' ++ ":   " ++ show t) $ case t of
-  --       -- expand existentials before checking
-  --       t@(Type.Existential' _) -> go e' (apply ctx t)
-  --       t -> go e' t
-  --else
-  --  scope ("context: " ++ show ctx) .
-  --  scope ("term: " ++ show e) .
-  --  scope ("type: " ++ show t) .
-  --  scope ("context well formed: " ++ show (wellformed ctx)) .
-  --  scope ("type well formed wrt context: " ++ show (wellformedType ctx t))
-  --  $ fail "check failed"
+      e' = error "todo" -- minimize' e
+    in case t of
+         -- expand existentials before checking
+         t@(Type.Existential' _) -> go e' (apply ctx t)
+         t -> go e' t
+  else failNote $ IllFormedType ctx
 
 -- | `subtype ctx t1 t2` returns successfully if `t1` is a subtype of `t2`.
 -- This may have the effect of altering the context.
@@ -564,7 +559,7 @@ subtype loc tx ty = withinSubtype tx ty $
      let es1' = map (apply ctx) es1
          es2' = map (apply ctx) es2
      abilityCheck' loc es2' es1'
-  go _ _ _ = fail "not a subtype"
+  go _ _ _ = failNote TypeMismatch
 
 instantiateL :: Var v => v -> Type v loc -> M v loc ()
 instantiateL = error "todo" -- may need a loc parameter?
