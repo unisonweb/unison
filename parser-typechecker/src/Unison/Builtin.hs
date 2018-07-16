@@ -62,13 +62,13 @@ builtinTerms' = (toSymbol &&& Term.ref) <$> Map.keys (builtins @v)
 
 builtinTypes :: forall v. Var v => [(v, Type v)]
 builtinTypes = builtinTypes' ++ (f <$> Map.toList (builtinDataDecls @v))
-  where f (r@(R.Builtin s), _) = (Var.named s, Type.ref r)
+  where f (r@(R.Builtin s), _) = (Var.named s, Type.ref() r)
         f (R.Derived h, _) =
           error $ "expected builtinDataDecls to be all R.Builtins; " ++
                   "don't know what name to assign to " ++ show h
 
 builtinTypes' :: Var v => [(v, Type v)]
-builtinTypes' = (Var.named &&& (Type.ref . R.Builtin)) <$>
+builtinTypes' = (Var.named &&& (Type.ref() . R.Builtin)) <$>
   ["Int64", "UInt64", "Float", "Boolean",
     "Sequence", "Text", "Stream", "Effect"]
 
@@ -83,10 +83,10 @@ builtinDataDecls' = bindAllTheTypes <$> l
     bindAllTheTypes :: (v, (R.Reference, DataDeclaration v)) -> (v, (R.Reference, DataDeclaration v))
     bindAllTheTypes =
       second . second $ (DD.bindBuiltins $ builtinTypes' ++ (dd3ToType <$> l))
-    dd3ToType (v, (r, _)) = (v, Type.ref r)
+    dd3ToType (v, (r, _)) = (v, Type.ref() r)
     l :: [(v, (R.Reference, DataDeclaration v))]
     l = [ (Var.named "()",
-            (R.Builtin "()", DD.mkDataDecl [] [(Var.named "()", Type.builtin "()")]))
+            (R.Builtin "()", DD.mkDataDecl [] [(Var.named "()", Type.builtin() "()")]))
     -- todo: figure out why `type () = ()` doesn't parse:
     -- l = [ parseDataDeclAsBuiltin "type () = ()"
         -- todo: These should get replaced by hashes,

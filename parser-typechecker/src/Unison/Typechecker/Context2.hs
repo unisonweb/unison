@@ -412,92 +412,106 @@ synthesize = error "synthesize todo"
 annotateLetRecBindings
   :: Var v => ((v -> M v loc v) -> M v loc ([(v, Term v loc)], Term v loc))
            -> M v loc (Element v loc, Term v loc)
-annotateLetRecBindings letrec = do
-  (bindings, body) <- letrec freshenVar
-  let vs = map fst bindings
-  -- generate a fresh existential variable `e1, e2 ...` for each binding
-  es <- traverse freshenVar vs
-  ctx <- getContext
-  e1 <- if null vs then fail "impossible" else pure $ head es
-  -- Introduce these existentials into the context and
-  -- annotate each term variable w/ corresponding existential
-  -- [marker e1, 'e1, 'e2, ... v1 : 'e1, v2 : 'e2 ...]
-  let f e (_,binding) = case binding of
-        -- TODO: Think about whether `apply` here is always correct
-        --       Used to have a guard that would only do this if t had no free vars
-        Term.Ann' _ t -> apply ctx t
-        _ -> Type.existential' (loc binding) e
-  let bindingTypes = zipWith f es bindings
-  appendContext $ context (Marker e1 : map Existential es ++ zipWith Ann vs bindingTypes)
-  -- check each `bi` against `ei`; sequencing resulting contexts
-  Foldable.for_ (zip bindings bindingTypes) $ \((_,b), t) -> check b t
-  -- compute generalized types `gt1, gt2 ...` for each binding `b1, b2...`;
-  -- add annotations `v1 : gt1, v2 : gt2 ...` to the context
-  (ctx1, ctx2) <- breakAt (Marker e1) <$> getContext
-  let gen e = generalizeExistentials ctx2 (Type.existential e)
-  let annotations = zipWith Ann vs (map gen es)
-  marker <- Marker <$> freshenVar (ABT.v' "let-rec-marker")
-  setContext (ctx1 `append` context (marker : annotations))
-  pure $ (marker, body)
+annotateLetRecBindings letrec =
+  error "todo"
+  --do
+  --(bindings, body) <- letrec freshenVar
+  --let vs = map fst bindings
+  ---- generate a fresh existential variable `e1, e2 ...` for each binding
+  --es <- traverse freshenVar vs
+  --ctx <- getContext
+  --e1 <- if null vs then fail "impossible" else pure $ head es
+  ---- Introduce these existentials into the context and
+  ---- annotate each term variable w/ corresponding existential
+  ---- [marker e1, 'e1, 'e2, ... v1 : 'e1, v2 : 'e2 ...]
+  --let f e (_,binding) = case binding of
+  --      -- TODO: Think about whether `apply` here is always correct
+  --      --       Used to have a guard that would only do this if t had no free vars
+  --      Term.Ann' _ t -> apply ctx t
+  --      _ -> Type.existential' (loc binding) e
+  --let bindingTypes = zipWith f es bindings
+  --appendContext $ context (Marker e1 : map Existential es ++ zipWith Ann vs bindingTypes)
+  ---- check each `bi` against `ei`; sequencing resulting contexts
+  --Foldable.for_ (zip bindings bindingTypes) $ \((_,b), t) -> check b t
+  ---- compute generalized types `gt1, gt2 ...` for each binding `b1, b2...`;
+  ---- add annotations `v1 : gt1, v2 : gt2 ...` to the context
+  --(ctx1, ctx2) <- breakAt (Marker e1) <$> getContext
+  --let gen e = generalizeExistentials ctx2 (Type.existential e)
+  --let annotations = zipWith Ann vs (map gen es)
+  --marker <- Marker <$> freshenVar (ABT.v' "let-rec-marker")
+  --setContext (ctx1 `mappend` context (marker : annotations))
+  --pure $ (marker, body)
+
+-- | Apply the context to the input type, then convert any unsolved existentials
+-- to universals.
+generalizeExistentials :: Var v => Context v loc -> Type v loc -> Type v loc
+generalizeExistentials ctx t = error "todo"
+  -- foldr gen (apply ctx t) (unsolved ctx)
+  --where
+  --  gen e t =
+  --    if TypeVar.Existential e `ABT.isFreeIn` t
+  --    then Type.forall (TypeVar.Universal e) (ABT.subst (TypeVar.Existential e) (Type.universal e) t)
+  --    else t -- don't bother introducing a forall if type variable is unused
 
 -- | Check that under the given context, `e` has type `t`,
 -- updating the context in the process.
 check :: Var v => Term v loc -> Type v loc -> M v loc ()
-check e t | debugEnabled && traceShow ("check"::String, e, t) False = undefined
-check e t = withinCheck e t $ getContext >>= \ctx ->
-  if wellformedType ctx t then
-    let
-      go Term.Blank' _ = pure () -- somewhat hacky short circuit; blank checks successfully against all types
-      go _ (Type.Forall' body) = do -- ForallI
-        x <- extendUniversal =<< ABT.freshen body freshenTypeVar
-        check e (ABT.bindInheritAnnotation body (Type.universal x))
-        doRetract $ Universal x
-      go (Term.Lam' body) (Type.Arrow' i o) = do -- =>I
-        x <- ABT.freshen body freshenVar
-        modifyContext' (extend (Ann x i))
-        let Type.Effect'' es _ = o
-        withEffects0 es $ check (ABT.bindInheritAnnotation body (Term.var x)) o
-        doRetract $ Ann x i
-      go (Term.Let1' binding e) t = do
-        v <- ABT.freshen e freshenVar
-        tbinding <- synthesize binding
-        modifyContext' (extend (Ann v tbinding))
-        check (ABT.bindInheritAnnotation e (Term.var v)) t
-        doRetract $ Ann v tbinding
-      go (Term.LetRecNamed' [] e) t = check e t
-      go (Term.LetRec' letrec) t = do
-        (marker, e) <- annotateLetRecBindings letrec
-        check e t
-        doRetract marker
-      go (Term.Handle' h body) t = do
-        -- `h` should check against `Effect e i -> t` (for new existentials `e` and `i`)
-        -- `body` should check against `i`
-        [e, i] <- sequence [freshNamed "e", freshNamed "i"]
-        appendContext $ context [Existential e, Existential i]
-        check h $ Type.effectV (Type.existential e) (Type.existential i) `Type.arrow` t
-        ctx <- getContext
-        let Type.Effect'' requested _ = apply ctx t
-        abilityCheck requested
-        withEffects [apply ctx $ Type.existential e] $ do
-          ambient <- getAbilities
-          let (_, i') = Type.stripEffect (apply ctx (Type.existential i))
-          check body (Type.effect ambient i')
-          pure ()
-      go _ _ = do -- Sub
-        a <- synthesize e; ctx <- getContext
-        subtype (apply ctx a) (apply ctx t)
-      e' = minimize' e
-    in scope ("check: " ++ show e' ++ ":   " ++ show t) $ case t of
-         -- expand existentials before checking
-         t@(Type.Existential' _) -> go e' (apply ctx t)
-         t -> go e' t
-  else
-    scope ("context: " ++ show ctx) .
-    scope ("term: " ++ show e) .
-    scope ("type: " ++ show t) .
-    scope ("context well formed: " ++ show (wellformed ctx)) .
-    scope ("type well formed wrt context: " ++ show (wellformedType ctx t))
-    $ fail "check failed"
+-- check e t | debugEnabled && traceShow ("check"::String, e, t) False = undefined
+check e t = withinCheck e t $ error "todo"
+  --getContext >>= \ctx ->
+  --if wellformedType ctx t then
+  --  let
+  --    go Term.Blank' _ = pure () -- somewhat hacky short circuit; blank checks successfully against all types
+  --    go _ (Type.Forall' body) = do -- ForallI
+  --      x <- extendUniversal =<< ABT.freshen body freshenTypeVar
+  --      check e (ABT.bindInheritAnnotation body (Type.universal x))
+  --      doRetract $ Universal x
+  --    go (Term.Lam' body) (Type.Arrow' i o) = do -- =>I
+  --      x <- ABT.freshen body freshenVar
+  --      modifyContext' (extend (Ann x i))
+  --      let Type.Effect'' es _ = o
+  --      withEffects0 es $ check (ABT.bindInheritAnnotation body (Term.var x)) o
+  --      doRetract $ Ann x i
+  --    go (Term.Let1' binding e) t = do
+  --      v <- ABT.freshen e freshenVar
+  --      tbinding <- synthesize binding
+  --      modifyContext' (extend (Ann v tbinding))
+  --      check (ABT.bindInheritAnnotation e (Term.var v)) t
+  --      doRetract $ Ann v tbinding
+  --    go (Term.LetRecNamed' [] e) t = check e t
+  --    go (Term.LetRec' letrec) t = do
+  --      (marker, e) <- annotateLetRecBindings letrec
+  --      check e t
+  --      doRetract marker
+  --    go (Term.Handle' h body) t = do
+  --      -- `h` should check against `Effect e i -> t` (for new existentials `e` and `i`)
+  --      -- `body` should check against `i`
+  --      [e, i] <- sequence [freshNamed "e", freshNamed "i"]
+  --      appendContext $ context [Existential e, Existential i]
+  --      check h $ Type.effectV (Type.existential e) (Type.existential i) `Type.arrow` t
+  --      ctx <- getContext
+  --      let Type.Effect'' requested _ = apply ctx t
+  --      abilityCheck requested
+  --      withEffects [apply ctx $ Type.existential e] $ do
+  --        ambient <- getAbilities
+  --        let (_, i') = Type.stripEffect (apply ctx (Type.existential i))
+  --        check body (Type.effect ambient i')
+  --        pure ()
+  --    go _ _ = do -- Sub
+  --      a <- synthesize e; ctx <- getContext
+  --      subtype (apply ctx a) (apply ctx t)
+  --    e' = minimize' e
+  --  in scope ("check: " ++ show e' ++ ":   " ++ show t) $ case t of
+  --       -- expand existentials before checking
+  --       t@(Type.Existential' _) -> go e' (apply ctx t)
+  --       t -> go e' t
+  --else
+  --  scope ("context: " ++ show ctx) .
+  --  scope ("term: " ++ show e) .
+  --  scope ("type: " ++ show t) .
+  --  scope ("context well formed: " ++ show (wellformed ctx)) .
+  --  scope ("type well formed wrt context: " ++ show (wellformedType ctx t))
+  --  $ fail "check failed"
 
 -- | `subtype ctx t1 t2` returns successfully if `t1` is a subtype of `t2`.
 -- This may have the effect of altering the context.
@@ -521,12 +535,12 @@ subtype loc tx ty = withinSubtype tx ty $
     subtype loc x1 x2; ctx' <- getContext
     subtype loc (apply ctx' y1) (apply ctx' y2)
   go _ t (Type.Forall' t2) = do
-    v' <- extendUniversal loc =<< ABT.freshen t2 freshenTypeVar
+    v' <- extendUniversal =<< ABT.freshen t2 freshenTypeVar
     t2 <- pure $ ABT.bindInheritAnnotation t2 (Type.universal v')
     subtype loc t t2
     doRetract (Universal v')
   go _ (Type.Forall' t) t2 = do
-    v <- extendMarker loc =<< ABT.freshen t freshenTypeVar
+    v <- extendMarker =<< ABT.freshen t freshenTypeVar
     t <- pure $ ABT.bindInheritAnnotation t (Type.existential v)
     ctx' <- getContext
     subtype loc (apply ctx' t) t2
@@ -535,10 +549,10 @@ subtype loc tx ty = withinSubtype tx ty $
   go _ a1 (Type.Effect' [] a2) = subtype loc a1 a2
   go ctx (Type.Existential' v) t -- `InstantiateL`
     | Set.member v (existentials ctx) && notMember v (Type.freeVars t) =
-    _instantiateL v t
+    instantiateL v t
   go ctx t (Type.Existential' v) -- `InstantiateR`
     | Set.member v (existentials ctx) && notMember v (Type.freeVars t) =
-    _instantiateR t v
+    instantiateR t v
   go _ (Type.Effect'' es1 a1) (Type.Effect' es2 a2) = do
      subtype loc a1 a2
      ctx <- getContext
@@ -546,6 +560,11 @@ subtype loc tx ty = withinSubtype tx ty $
          es2' = map (apply ctx) es2
      abilityCheck' loc es2' es1'
   go _ _ _ = fail "not a subtype"
+
+instantiateL :: Var v => v -> Type v loc -> M v loc ()
+instantiateL = error "todo" -- may need a loc parameter?
+instantiateR :: Var v => Type v loc -> v -> M v loc ()
+instantiateR = error "todo" -- may need a loc parameter?
 
 abilityCheck' :: (Var v, Eq loc) => loc -> [Type v loc] -> [Type v loc] -> M v loc ()
 abilityCheck' loc ambient requested = do
@@ -570,7 +589,7 @@ instance (Var v, Show loc) => Show (Element v loc) where
   show (Marker v) = "|"++Text.unpack (Var.shortName v)++"|"
 
 instance (Var v, Show loc) => Show (Context v loc) where
-  show (Context es) = "Γ\n  " ++ (intercalate "\n  " . map show) (reverse es)
+  show (Context es) = "Γ\n  " ++ (intercalate "\n  " . map (show . fst)) (reverse es)
 
 -- MEnv v loc -> (Seq (Note v loc), (a, Env v loc))
 instance Monad (M v loc) where

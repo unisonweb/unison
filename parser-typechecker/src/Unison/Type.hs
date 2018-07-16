@@ -121,8 +121,8 @@ isArrow _ = False
 vector :: Ord v => a -> AnnotatedType v a
 vector a = builtin a "Sequence"
 
--- vectorOf :: Ord v => a -> AnnotatedType v a -> Type v
--- vectorOf a t = vector `app` t
+--vectorOf :: Ord v => a -> AnnotatedType v a -> Type v
+--vectorOf a t = vector `app` t
 
 ref :: Ord v => a -> Reference -> AnnotatedType v a
 ref a = ABT.tm' a . Ref

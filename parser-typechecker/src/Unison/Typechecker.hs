@@ -153,8 +153,8 @@ checkAdmissible' :: Var v => Term v -> Type v -> Either Note (Type v)
 checkAdmissible' term typ =
   synthesize' (Term.blank `Term.ann` tweak typ `Term.app` term)
   where
-    tweak (Type.ForallNamed' v body) = Type.forall v (tweak body)
-    tweak t = t `Type.arrow` t
+    tweak (Type.ForallNamed' v body) = Type.forall() v (tweak body)
+    tweak t = Type.arrow() t t
 
 -- | Returns `True` if the expression is well-typed, `False` otherwise
 wellTyped
