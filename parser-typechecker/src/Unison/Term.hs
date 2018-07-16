@@ -170,8 +170,11 @@ fresh = ABT.fresh
 
 -- some smart constructors
 
-var :: v -> Term' vt v
+var :: v -> ABT.Term (F vt at) v ()
 var = ABT.var
+
+annotatedVar :: a -> v -> ABT.Term (F vt at) v a
+annotatedVar = ABT.annotatedVar
 
 var' :: Var v => Text -> Term' vt v
 var' = var . ABT.v'

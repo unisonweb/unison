@@ -462,7 +462,7 @@ generalizeExistentials ctx t =
 
 -- | Check that under the given context, `e` has type `t`,
 -- updating the context in the process.
-check :: (Eq loc, Var v) => Term v loc -> Type v loc -> M v loc ()
+check :: forall v loc . (Eq loc, Var v) => Term v loc -> Type v loc -> M v loc ()
 -- check e t | debugEnabled && traceShow ("check"::String, e, t) False = undefined
 check e t = withinCheck e t $ getContext >>= \ctx ->
   if wellformedType ctx t then
@@ -472,12 +472,12 @@ check e t = withinCheck e t $ getContext >>= \ctx ->
         x <- extendUniversal =<< ABT.freshen body freshenTypeVar
         check e (ABT.bindInheritAnnotation body (Type.universal x))
         doRetract $ Universal x
-  --    go (Term.Lam' body) (Type.Arrow' i o) = do -- =>I
-  --      x <- ABT.freshen body freshenVar
-  --      modifyContext' (extend (Ann x i))
-  --      let Type.Effect'' es _ = o
-  --      withEffects0 es $ check (ABT.bindInheritAnnotation body (Term.var x)) o
-  --      doRetract $ Ann x i
+      go (Term.Lam' body) (Type.Arrow' i o) = do -- =>I
+        x <- ABT.freshen body freshenVar
+        modifyContext' (extend (Ann x i))
+        let Type.Effect'' es _ = o
+        withEffects0 es $ check (ABT.bindInheritAnnotation body (Term.var x)) o
+        doRetract $ Ann x i
   --    go (Term.Let1' binding e) t = do
   --      v <- ABT.freshen e freshenVar
   --      tbinding <- synthesize binding
