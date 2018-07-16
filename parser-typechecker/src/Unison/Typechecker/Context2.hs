@@ -445,13 +445,13 @@ annotateLetRecBindings letrec =
 -- | Apply the context to the input type, then convert any unsolved existentials
 -- to universals.
 generalizeExistentials :: Var v => Context v loc -> Type v loc -> Type v loc
-generalizeExistentials ctx t = error "todo"
-  -- foldr gen (apply ctx t) (unsolved ctx)
-  --where
-  --  gen e t =
-  --    if TypeVar.Existential e `ABT.isFreeIn` t
-  --    then Type.forall (TypeVar.Universal e) (ABT.subst (TypeVar.Existential e) (Type.universal e) t)
-  --    else t -- don't bother introducing a forall if type variable is unused
+generalizeExistentials ctx t =
+  foldr gen (apply ctx t) (unsolved ctx)
+  where
+    gen e t =
+      if TypeVar.Existential e `ABT.isFreeIn` t
+      then Type.forall (loc t) (TypeVar.Universal e) (ABT.substInheritAnnotation (TypeVar.Existential e) (Type.universal e) t)
+      else t -- don't bother introducing a forall if type variable is unused
 
 -- | Check that under the given context, `e` has type `t`,
 -- updating the context in the process.
