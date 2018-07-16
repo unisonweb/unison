@@ -693,6 +693,7 @@ synthesize e = scope ("synth: " ++ show e) $ go (minimize' e)
              -- modifyContext $ retract [Marker a]
              pure t
       else pure t
+  -- todo: Term.Request'
   go (Term.Ann' e' t) = t <$ check e' t
   go (Term.Float' _) = pure (Type.float()) -- 1I=>
   go (Term.Int64' _) = pure (Type.int64()) -- 1I=>

@@ -80,7 +80,7 @@ data Note v loc
   = WithinSynthesize (Term v loc) (Note v loc)
   | WithinSubtype (Type v loc) (Type v loc) (Note v loc)
   | WithinCheck (Term v loc) (Type v loc) (Note v loc)
-  | TypeMismatch
+  | TypeMismatch (Context v loc)
   | IllFormedType (Context v loc)
   | CompilerBug (CompilerBug v loc)
   | AbilityCheckFailure [Type v loc] [Type v loc] -- ambient, requested
@@ -566,12 +566,75 @@ subtype tx ty = withinSubtype tx ty $
      let es1' = map (apply ctx) es1
          es2' = map (apply ctx) es2
      abilityCheck' es2' es1'
-  go _ _ _ = failNote TypeMismatch
+  go ctx _ _ = failNote $ TypeMismatch ctx
 
-instantiateL :: Var v => v -> Type v loc -> M v loc ()
-instantiateL = error "todo" -- may need a loc parameter?
+
+-- | Instantiate the given existential such that it is
+-- a subtype of the given type, updating the context
+-- in the process.
+instantiateL :: (Eq loc, Var v) => v -> Type v loc -> M v loc ()
+instantiateL v t | debugEnabled && traceShow ("instantiateL"::String, v, t) False = undefined
+instantiateL v t = getContext >>= \ctx -> case Type.monotype t >>= (solve ctx v) of
+  Just ctx -> setContext ctx -- InstLSolve
+  Nothing -> case t of
+    Type.Existential' v2 | ordered ctx v v2 -> -- InstLReach (both are existential, set v2 = v)
+      maybe (failNote $ TypeMismatch ctx) setContext $
+        solve ctx v2 (Type.Monotype (Type.existential' (loc t) v))
+    Type.Arrow' i o -> do -- InstLArr
+      [i',o'] <- traverse freshenVar [ABT.v' "i", ABT.v' "o"]
+      let s = Solved v (Type.Monotype (Type.arrow (loc t)
+                                                  (Type.existential' (loc i) i')
+                                                  (Type.existential' (loc o) o')))
+      modifyContext' $ replace (Existential v) (context [Existential o', Existential i', s])
+      instantiateR i i'
+      ctx <- getContext
+      instantiateL o' (apply ctx o)
+    Type.App' x y -> do -- analogue of InstLArr
+      [x', y'] <- traverse freshenVar [ABT.v' "x", ABT.v' "y"]
+      let s = Solved v (Type.Monotype (Type.app (loc t)
+                                                (Type.existential' (loc x) x')
+                                                (Type.existential' (loc y) y')))
+      modifyContext' $ replace (Existential v) (context [Existential y', Existential x', s])
+      ctx0 <- getContext
+      ctx' <- instantiateL x' (apply ctx0 x) >> getContext
+      instantiateL y' (apply ctx' y)
+    Type.Effect' es vt -> do
+      es' <- replicateM (length es) (freshNamed "e")
+      vt' <- freshNamed "vt"
+      let locs = loc <$> es
+          s = Solved v (Type.Monotype
+                        (Type.effect (loc t)
+                         (uncurry Type.existential' <$> locs `zip` es')
+                         (Type.existential' (loc vt) vt')))
+      modifyContext' $ replace (Existential v) (context $ (Existential <$> es') ++ [Existential vt', s])
+      Foldable.for_ (es' `zip` es) $ \(e',e) -> do
+        ctx <- getContext
+        instantiateL e' (apply ctx e)
+      ctx <- getContext
+      instantiateL vt' (apply ctx vt)
+    Type.Forall' body -> do -- InstLIIL
+      v <- extendUniversal =<< ABT.freshen body freshenTypeVar
+      instantiateL v (ABT.bindInheritAnnotation body (Type.universal v))
+      doRetract (Universal v)
+    _ -> failNote $ TypeMismatch ctx
+
 instantiateR :: Var v => Type v loc -> v -> M v loc ()
 instantiateR = error "todo" -- may need a loc parameter?
+
+-- | solve (ΓL,α^,ΓR) α τ = (ΓL,α^ = τ,ΓR)
+-- If the given existential variable exists in the context,
+-- we solve it to the given monotype, otherwise return `Nothing`
+solve :: (Eq loc, Var v) => Context v loc -> v -> Monotype v loc -> Maybe (Context v loc)
+solve ctx v t
+  -- okay to solve something again if it's to an identical type
+  | v `elem` (map fst (solved ctx)) = same =<< lookup v (solved ctx)
+  where same t2 | apply ctx (Type.getPolytype t) == apply ctx (Type.getPolytype t2) = Just ctx
+                | otherwise = Nothing
+solve ctx v t
+  | wellformedType ctxL (Type.getPolytype t) = Just ctx'
+  | otherwise                                = Nothing
+  where (ctxL,ctxR) = breakAt (Existential v) ctx
+        ctx' = ctxL `mappend` context [Solved v t] `mappend` ctxR
 
 abilityCheck' :: (Var v, Eq loc) => [Type v loc] -> [Type v loc] -> M v loc ()
 abilityCheck' ambient requested = do
