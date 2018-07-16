@@ -107,6 +107,7 @@ withinCheck e t2 (M m) = M go where
 data MEnv v loc = MEnv {
   env :: Env v loc,                    -- The typechecking state
   abilities :: [Type v loc],           -- Allowed ambient abilities
+  builtinLocation :: loc,              -- The location of builtins
   dataDecls :: DataDeclarations v loc, -- Data declarations in scope
   effectDecls :: EffectDeclarations v loc, -- Effect declarations in scope
   abilityChecks :: Bool            -- Whether to perform ability checks.
@@ -201,6 +202,9 @@ fromMEnv :: (MEnv v loc -> a)
          -> MEnv v loc
          -> (Seq (Note v loc), Maybe (a, Env v loc))
 fromMEnv f m = (mempty, pure (f m, env m))
+
+getBuiltinLocation :: M v loc loc
+getBuiltinLocation = M . fromMEnv $ builtinLocation
 
 getContext :: M v loc (Context v loc)
 getContext = M . fromMEnv $ ctx . env
@@ -489,20 +493,23 @@ check e t = withinCheck e t $ getContext >>= \ctx ->
         (marker, e) <- annotateLetRecBindings letrec
         check e t
         doRetract marker
-      --go (Term.Handle' h body) t = do
-      --  -- `h` should check against `Effect e i -> t` (for new existentials `e` and `i`)
-      --  -- `body` should check against `i`
-      --  [e, i] <- sequence [freshNamed "e", freshNamed "i"]
-      --  appendContext $ context [Existential e, Existential i]
-      --  check h $ Type.effectV (Type.existential e) (Type.existential i) `Type.arrow` t
-      --  ctx <- getContext
-      --  let Type.Effect'' requested _ = apply ctx t
-      --  abilityCheck requested
-      --  withEffects [apply ctx $ Type.existential e] $ do
-      --    ambient <- getAbilities
-      --    let (_, i') = Type.stripEffect (apply ctx (Type.existential i))
-      --    check body (Type.effect ambient i')
-      --    pure ()
+      go block@(Term.Handle' h body) t = do
+        -- `h` should check against `Effect e i -> t` (for new existentials `e` and `i`)
+        -- `body` should check against `i`
+        builtinLoc <- getBuiltinLocation
+        [e, i] <- sequence [freshNamed "e", freshNamed "i"]
+        appendContext $ context [Existential e, Existential i]
+        let l = loc block
+        check h $ Type.arrow l (Type.effectV builtinLoc (l, Type.existential' l e) (l, Type.existential' l i)) t
+        ctx <- getContext
+        let Type.Effect'' requested _ = apply ctx t
+        abilityCheck requested
+        withEffects [apply ctx $ Type.existential' l e] $ do
+          ambient <- getAbilities
+          let (_, i') = Type.stripEffect (apply ctx (Type.existential' l i))
+          -- arya: we should revisit these `l`s once we have this up and running
+          check body (Type.effect l ambient i')
+          pure ()
       go _ _ = do -- Sub
         a <- synthesize e; ctx <- getContext
         subtype (apply ctx a) (apply ctx t)
