@@ -224,8 +224,8 @@ number' i u f = token $ do
 
 boolean :: Ord v => Parser s (Term v)
 boolean =
-  (Term.boolean True <$ token (string "true")) <|>
-  (Term.boolean False <$ token (string "false"))
+  (Term.boolean() True <$ token (string "true")) <|>
+  (Term.boolean() False <$ token (string "false"))
 
 hashLit :: Ord v => Parser s (Term v)
 hashLit = token (f =<< (mark *> hash))

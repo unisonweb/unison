@@ -41,6 +41,7 @@ import           Unsafe.Coerce
 import qualified Unison.Pattern as Pattern
 import Data.Foldable (traverse_)
 
+-- todo: add loc to MatchCase
 data MatchCase a = MatchCase Pattern (Maybe a) a
   deriving (Show,Eq,Foldable,Functor,Generic,Generic1,Traversable)
 
@@ -194,8 +195,8 @@ builtin n = ref (Reference.Builtin n)
 float :: Ord v => Double -> Term' vt v
 float d = ABT.tm (Float d)
 
-boolean :: Ord v => Bool -> Term' vt v
-boolean b = ABT.tm (Boolean b)
+boolean :: Ord v => a -> Bool -> AnnotatedTerm' vt v a
+boolean a b = ABT.tm' a (Boolean b)
 
 int64 :: Ord v => Int64 -> Term' vt v
 int64 d = ABT.tm (Int64 d)
@@ -208,6 +209,9 @@ text = ABT.tm . Text
 
 blank :: Ord v => Term' vt v
 blank = ABT.tm Blank
+
+blank' :: Ord v => a -> AnnotatedTerm' vt v a
+blank' a = ABT.tm' a Blank
 
 app :: Ord v => Term' vt v -> Term' vt v -> Term' vt v
 app f arg = ABT.tm (App f arg)

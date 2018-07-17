@@ -8,6 +8,7 @@ import GHC.Generics
 import Unison.Reference (Reference)
 import qualified Unison.Hashable as H
 
+-- todo: add loc to patterns
 data Pattern
   = Unbound
   | Var

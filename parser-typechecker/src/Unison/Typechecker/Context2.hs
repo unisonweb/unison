@@ -12,7 +12,7 @@ import Data.Sequence (Seq)
 
 import           Control.Monad
 import           Control.Monad.Loops (anyM, allM)
--- import           Control.Monad.State
+-- import           Control.Monad.State (evalState)
 import qualified Data.Foldable as Foldable
 import Data.Maybe
 import           Data.List
@@ -33,6 +33,7 @@ import qualified Unison.DataDeclaration as DD
 import           Unison.Reference (Reference)
 import qualified Unison.Term as Term
 import           Unison.Term (AnnotatedTerm')
+-- import           Unison.Term (AnnotatedTerm)
 import           Unison.Type (AnnotatedType)
 import qualified Unison.Type as Type
 import           Unison.TypeVar (TypeVar)
@@ -485,6 +486,7 @@ vectorConstructorOfArity arity = do
 synthesize :: forall v loc . (Eq loc, Var v) => Term v loc -> M v loc (Type v loc)
 synthesize e = withinSynthesize e $ go (minimize' e)
   where
+  l = loc e
   go :: Var v => Term v loc -> M v loc (Type v loc)
   go (Term.Var' v) = getContext >>= \ctx -> case lookupType ctx v of -- Var
     Nothing -> compilerCrash $ UndeclaredTermVariable v ctx
@@ -492,7 +494,7 @@ synthesize e = withinSynthesize e $ go (minimize' e)
   go Term.Blank' = do
     v <- freshNamed "_"
     appendContext $ context [Existential v]
-    pure $ Type.existential' (loc e) v -- forall (TypeVar.Universal v) (Type.universal v)
+    pure $ Type.existential' l v -- forall (TypeVar.Universal v) (Type.universal v)
   go (Term.Ann' (Term.Ref' _) t) = case ABT.freeVars t of
     s | Set.null s ->
       -- innermost Ref annotation assumed to be correctly provided by `synthesizeClosed`
@@ -537,13 +539,13 @@ synthesize e = withinSynthesize e $ go (minimize' e)
     -- note: `Ann' (Ref'  _) t` synthesizes to `t`
     e  <- pure $ ABT.bindInheritAnnotation e (Term.ann' () (Term.builtin (Var.name v')) t)
     synthesize e
-  go l@(Term.Let1' binding e) = do
+  go (Term.Let1' binding e) = do
    -- literally just convert to a lambda application and call synthesize!
    -- NB: this misses out on let generalization
    -- let x = blah p q in foo y <=> (x -> foo y) (blah p q)
    v' <- ABT.freshen e freshenVar
    e  <- pure $ ABT.bindInheritAnnotation e (Term.var v')
-   synthesize (Term.app' (loc l) (Term.lamA (loc l) v' e) binding)
+   synthesize (Term.app' l (Term.lamA l v' e) binding)
   go (Term.Let1' binding e) = do
     -- note: no need to freshen binding, it can't refer to v
     tbinding <- synthesize binding
@@ -559,7 +561,6 @@ synthesize e = withinSynthesize e $ go (minimize' e)
    -- generalizeExistentials ctx2 t <$ setContext ctx
   go (Term.Lam' body) = do -- ->I=> (Full Damas Milner rule)
     -- arya: are there more meaningful locations we could put into and pull out of the abschain?)
-    let l = loc e
     [arg, i, o] <- sequence [ABT.freshen body freshenVar, freshVar, freshVar]
     let it = Type.existential' l i
         ot = Type.existential' l o
@@ -577,30 +578,31 @@ synthesize e = withinSynthesize e $ go (minimize' e)
     t <- synthesize e
     (ctx, ctx2) <- breakAt marker <$> getContext
     generalizeExistentials ctx2 t <$ setContext ctx
-  go (Term.If' cond t f) = foldM synthesizeApp (Type.iff' $ loc e) [cond, t, f]
-  go (Term.And' a b) = foldM synthesizeApp (Type.andor' $ loc e) [a, b]
-  go (Term.Or' a b) = foldM synthesizeApp (Type.andor' $ loc e) [a, b]
-  -- -- { 42 }
-  -- go (Term.EffectPure' a) = do
-  --   e <- freshenVar (Var.named "e")
-  --   Type.Effect'' _ at <- synthesize a
-  --   pure . Type.forall() (TypeVar.Universal e) $ Type.effectV() ((), Type.universal e) ((), at)
-  -- go (Term.EffectBind' r cid args k) = do
-  --   cType <- getConstructorType r cid
-  --   let arity = Type.arity cType
-  --   -- TODO: error message algebra
-  --   when (length args /= arity) .  fail $
-  --     "Effect constructor wanted " <> show arity <> " arguments " <> "but got "
-  --     <> show (length args)
-  --   ([eType], iType) <-
-  --     Type.stripEffect <$> withoutAbilityCheck (foldM synthesizeApp cType args)
-  --   rTypev <- freshNamed "result"
-  --   let rType = Type.existential rTypev
-  --   appendContext $ context [Existential rTypev]
-  --   check k (Type.arrow() iType (Type.effect() [eType] rType))
-  --   ctx <- getContext
-  --   pure $ apply ctx (Type.effectV() ((), eType) ((), rType))
-  -- go (Term.Match' scrutinee cases) = scope ("match " ++ show scrutinee) $ do
+  go (Term.If' cond t f) = foldM synthesizeApp (Type.iff' l) [cond, t, f]
+  go (Term.And' a b) = foldM synthesizeApp (Type.andor' l) [a, b]
+  go (Term.Or' a b) = foldM synthesizeApp (Type.andor' l) [a, b]
+  -- { 42 }
+  go (Term.EffectPure' a) = do
+    e <- freshenVar (Var.named "e")
+    bl <- getBuiltinLocation
+    Type.Effect'' _ at <- synthesize a
+    pure . Type.forall l (TypeVar.Universal e) $ Type.effectV bl (l, Type.universal' l e) (l, at)
+  go (Term.EffectBind' r cid args k) = do
+    cType <- getEffectConstructorType r cid
+    let arity = Type.arity cType
+    -- TODO: error message algebra
+    when (length args /= arity) .  fail $
+      "Effect constructor wanted " <> show arity <> " arguments " <> "but got "
+      <> show (length args)
+    ([eType], iType) <-
+      Type.stripEffect <$> withoutAbilityCheck (foldM synthesizeApp cType args)
+    rTypev <- freshNamed "result"
+    let rType = Type.existential' l rTypev
+    appendContext $ context [Existential rTypev]
+    check k (Type.arrow l iType (Type.effect l [eType] rType))
+    ctx <- getContext
+    pure $ apply ctx (Type.effectV l (l, eType) (l, rType))
+  -- go (Term.Match' scrutinee cases) = do
   --   scrutineeType <- synthesize scrutinee
   --   outputTypev <- freshenVar (Var.named "match-output")
   --   let outputType = Type.existential outputTypev
@@ -608,13 +610,56 @@ synthesize e = withinSynthesize e $ go (minimize' e)
   --   Foldable.traverse_ (checkCase scrutineeType outputType) cases
   --   ctx <- getContext
   --   pure $ apply ctx outputType
-  -- go h@(Term.Handle' _ _) = do
-  --   o <- freshNamed "o"
-  --   appendContext $ context [Existential o]
-  --   check h (Type.existential o)
-  --   ctx <- getContext
-  --   pure (apply ctx (Type.existential o))
+  go h@(Term.Handle' _ _) = do
+    o <- freshNamed "o"
+    appendContext $ context [Existential o]
+    let ot = Type.existential' l o
+    check h ot
+    ctx <- getContext
+    pure (apply ctx ot)
   go _e = compilerCrash PatternMatchFailure
+
+-- data MatchCase a = MatchCase Pattern (Maybe a) a
+{-
+type Optional b c = None | Some b c
+let blah : Optional Int64 Int64
+    blah = ...
+
+    case blah of
+      Some x (Some y z) | x < 10 -> x + y + z
+
+--becomes--
+
+let x = _
+    y = _
+    z = _
+    pat : Optional Int64 Int64
+    pat = Optional.Some x (Some y z)
+    -- from here on is rhs'
+    guard : Boolean
+    guard = x <_Int64 +10
+    x +_Int64 y
+-}
+-- checkCase :: Var v => AnnotatedType v a -> AnnotatedType v a -> Term.MatchCase (AnnotatedTerm v a) -> M v a ()
+-- checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) =
+--   -- Get the variables bound in the pattern
+--   let (vs, body) = case rhs of
+--         ABT.AbsN' vars bod -> (vars, bod)
+--         _ -> ([], rhs)
+--       -- Make up a term that involves the guard if present
+--       rhs' = case guard of
+--         -- todo: arya: I would like the annotation to be more expressive than just a location;
+--         -- e.g. noting that g is boolean because it's a pattern guard, not because it has
+--         -- location (abc:xyz).  We'll see when we can run it and view output!
+--         Just g ->
+--           let l = loc g in
+--           Term.annotatedLet1 [((l, Var.named "_"), Term.ann' l g (Type.boolean l))] body
+--         Nothing -> body
+--       -- Convert pattern to a Term
+--       patTerm = evalState (patternToTerm pat) vs
+--       newBody = Term.annotatedLet1 [(Var.named "_", Term.ann' (loc scrutineeType) patTerm scrutineeType)] rhs'
+--       entireCase = foldr (\v t -> Term.annotatedLet1 [(v, Term.blank' )] t) newBody vs
+--   in check entireCase outputType
 
 bindings :: Context v loc -> [(v, Type v loc)]
 bindings (Context ctx) = [(v,a) | (Ann v a,_) <- ctx]

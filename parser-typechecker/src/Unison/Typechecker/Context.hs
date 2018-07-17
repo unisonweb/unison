@@ -832,7 +832,7 @@ checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) =
 -- Make up a fake term for the pattern, that we can typecheck
 patternToTerm :: Var v => Pattern -> State [v] (Term v)
 patternToTerm pat = case pat of
-  Pattern.Boolean b -> pure $ Term.boolean b
+  Pattern.Boolean b -> pure $ Term.boolean() b
   Pattern.Int64 n -> pure $ Term.int64 n
   Pattern.UInt64 n -> pure $ Term.uint64 n
   Pattern.Float n -> pure $ Term.float n
