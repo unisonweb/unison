@@ -12,6 +12,7 @@
 module Unison.ABT where
 
 import Control.Applicative
+import Control.Monad
 import Data.List hiding (cycle)
 import Data.Maybe
 import Data.Ord
@@ -284,6 +285,25 @@ rebuildUp f (Term _ ann body) = case body of
   Cycle body -> cycle' ann (rebuildUp f body)
   Abs x e -> abs' ann x (rebuildUp f e)
   Tm body -> tm' ann (f $ fmap (rebuildUp f) body)
+
+annotateBound :: (Ord v, Foldable f, Functor f) => Term f v a -> Term f v (a, Set v)
+annotateBound t = go Set.empty t where
+  go bound t = let a = (annotation t, bound) in case out t of
+    Var v -> annotatedVar a v
+    Cycle body -> cycle' a (go bound body)
+    Abs x body -> abs' a x (go (Set.insert x bound) body)
+    Tm body -> tm' a (go bound <$> body)
+
+foreachSubterm
+  :: (Traversable f, Applicative g, Ord v)
+  => (Term f v a -> g b)
+  -> Term f v a
+  -> g [b]
+foreachSubterm f e = case out e of
+  Var _ -> pure <$> f e
+  Cycle body -> liftA2 (:) (f e) (foreachSubterm f body)
+  Abs _ body -> liftA2 (:) (f e) (foreachSubterm f body)
+  Tm body -> liftA2 (:) (f e) (join . Foldable.toList <$> (sequenceA $ foreachSubterm f <$> body))
 
 -- | `visit f t` applies an effectful function to each subtree of
 -- `t` and sequences the results. When `f` returns `Nothing`, `visit`

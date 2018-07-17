@@ -185,10 +185,10 @@ derived = ref . Reference.Derived
 derived' :: Ord v => Text -> Maybe (Term' vt v)
 derived' base58 = derived <$> Hash.fromBase58 base58
 
-ref :: Ord v => Reference -> Term' vt v
+ref :: Ord v => Reference -> ABT.Term (F vt at) v ()
 ref r = ABT.tm (Ref r)
 
-builtin :: Ord v => Text -> Term' vt v
+builtin :: Ord v => Text -> ABT.Term (F vt at) v ()
 builtin n = ref (Reference.Builtin n)
 
 float :: Ord v => Double -> Term' vt v
@@ -235,6 +235,9 @@ iff cond t f = ABT.tm (If cond t f)
 
 ann :: Ord v => Term' vt v -> Type vt -> Term' vt v
 ann e t = ABT.tm (Ann e t)
+
+ann' :: Ord v => a -> ABT.Term (F vt at) v a -> Type.AnnotatedType vt at -> ABT.Term (F vt at) v a
+ann' a e t = ABT.tm' a (Ann e t)
 
 vector :: Ord v => [Term' vt v] -> Term' vt v
 vector es = ABT.tm (Vector (Vector.fromList es))

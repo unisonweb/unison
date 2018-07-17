@@ -89,6 +89,7 @@ data Note v loc
   | WithinSynthesizeApp (Type v loc) (Term v loc) (Note v loc)
   | TypeMismatch (Context v loc)
   | IllFormedType (Context v loc)
+  | UnknownSymbol loc v
   | CompilerBug (CompilerBug v loc)
   | AbilityCheckFailure [Type v loc] [Type v loc] -- ambient, requested
 
@@ -332,6 +333,14 @@ orElse m1 m2 = M go where
     r @ (_, Just (_, _)) -> r
     _ -> runM m2 menv
 
+-- If the action fails, preserve all the notes it emitted and then return the
+-- provided `a`; if the action succeeds, we're good, just use its result
+recover :: a -> M v loc a -> M v loc a
+recover ifFail (M action) = M go where
+  go menv = case action menv of
+    (notes, Nothing) -> (notes, Just (ifFail, env menv))
+    r -> r
+
 getDataDeclarations :: M v loc (DataDeclarations v loc)
 getDataDeclarations = M $ fromMEnv dataDecls
 
@@ -519,22 +528,21 @@ synthesize e = withinSynthesize e $ go (minimize' e)
   go (Term.Vector' v) = do
     ft <- vectorConstructorOfArity (Foldable.length v)
     foldM synthesizeApp ft v
-  -- go (Term.Let1' binding e) | Set.null (ABT.freeVars binding) = do
-  --   -- special case when it is definitely safe to generalize - binding contains
-  --   -- no free variables, i.e. `let id x = x in ...`
-  --   decls <- getDataDeclarations
-  --   abilities <- getAbilities
-  --   t  <- scope "let1 closed" $ synthesizeClosed' abilities decls binding
-  --   v' <- ABT.freshen e freshenVar
-  --   e  <- pure $ ABT.bind e (Term.builtin (Var.name v') `Term.ann` t)
-  --   synthesize e
-  -- --go (Term.Let1' binding e) = do
-  -- --  -- literally just convert to a lambda application and call synthesize!
-  -- --  -- NB: this misses out on let generalization
-  -- --  -- let x = blah p q in foo y <=> (x -> foo y) (blah p q)
-  -- --  v' <- ABT.freshen e freshenVar
-  -- --  e  <- pure $ ABT.bind e (Term.var v')
-  -- --  synthesize (Term.lam v' e `Term.app` binding)
+  go (Term.Let1' binding e) | Set.null (ABT.freeVars binding) = do
+    -- special case when it is definitely safe to generalize - binding contains
+    -- no free variables, i.e. `let id x = x in ...`
+    abilities <- getAbilities
+    t  <- synthesizeClosed' abilities binding
+    v' <- ABT.freshen e freshenVar
+    e  <- pure $ ABT.bindInheritAnnotation e (Term.ann' () (Term.builtin (Var.name v')) t)
+    synthesize e
+  --go (Term.Let1' binding e) = do
+  --  -- literally just convert to a lambda application and call synthesize!
+  --  -- NB: this misses out on let generalization
+  --  -- let x = blah p q in foo y <=> (x -> foo y) (blah p q)
+  --  v' <- ABT.freshen e freshenVar
+  --  e  <- pure $ ABT.bind e (Term.var v')
+  --  synthesize (Term.lam v' e `Term.app` binding)
   -- go (Term.Let1' binding e) = do
   --   -- note: no need to freshen binding, it can't refer to v
   --   tbinding <- synthesize binding
@@ -914,6 +922,25 @@ abilityCheck requested = do
   when enabled $ do
     ambient <- getAbilities
     abilityCheck' ambient requested
+
+verifyDataDeclarations :: (Eq loc, Var v) => DataDeclarations v loc -> M v loc ()
+verifyDataDeclarations decls = forM_ (Map.toList decls) $ \(_ref, decl) -> do
+  let ctors = DD.constructors decl
+  forM_ ctors $ \(_ctorName,typ) ->
+    let isBoundIn v t = Set.member v (snd (ABT.annotation t))
+        loc t = fst (ABT.annotation t)
+        go t@(ABT.Var' v) | not (isBoundIn v t) = recover () $ failNote (UnknownSymbol (loc t) v)
+        go _ = pure ()
+    in ABT.foreachSubterm go (ABT.annotateBound typ)
+
+synthesizeClosed' :: (Eq loc, Var v)
+                  => [Type v loc]
+                  -> Term v loc
+                  -> M v loc (Type v loc)
+synthesizeClosed' abilities term = do
+  t <- withEffects0 abilities (synthesize term)
+  ctx <- getContext
+  pure $ generalizeExistentials ctx t
 
 instance (Var v, Show loc) => Show (Element v loc) where
   show (Var v) = case v of
