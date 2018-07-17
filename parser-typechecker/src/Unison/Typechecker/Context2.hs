@@ -86,10 +86,17 @@ data Note v loc
   | WithinCheck (Term v loc) (Type v loc) (Note v loc)
   | WithinInstantiateL v (Type v loc) (Note v loc)
   | WithinInstantiateR (Type v loc) v (Note v loc)
+  | WithinSynthesizeApp (Type v loc) (Term v loc) (Note v loc)
   | TypeMismatch (Context v loc)
   | IllFormedType (Context v loc)
   | CompilerBug (CompilerBug v loc)
   | AbilityCheckFailure [Type v loc] [Type v loc] -- ambient, requested
+
+withinSynthesizeApp :: Type v loc -> Term v loc -> M v loc a -> M v loc a
+withinSynthesizeApp ft arg (M m) = M go where
+  go menv =
+    let (notes, r) = m menv
+    in (WithinSynthesizeApp ft arg <$> notes, r)
 
 withinSynthesize :: Term v loc -> M v loc a -> M v loc a
 withinSynthesize t (M m) = M go where
@@ -425,6 +432,45 @@ withEffects0 :: [Type v loc] -> M v loc a -> M v loc a
 withEffects0 abilities' m =
   M (\menv -> runM m (menv { abilities = abilities' }))
 
+-- | Synthesize the type of the given term, `arg` given that a function of
+-- the given type `ft` is being applied to `arg`. Update the context in
+-- the process.
+-- e.g. in `(f:t) x` -- finds the type of (f x) given t and x.
+synthesizeApp :: (Eq loc, Var v) => Type v loc -> Term v loc -> M v loc (Type v loc)
+-- synthesizeApp ft arg | debugEnabled && traceShow ("synthesizeApp"::String, ft, arg) False = undefined
+synthesizeApp ft arg = withinSynthesizeApp ft arg $ go ft where
+  go (Type.Forall' body) = do -- Forall1App
+    v <- ABT.freshen body freshenTypeVar
+    appendContext (context [Existential v])
+    synthesizeApp (ABT.bindInheritAnnotation body (Type.existential v)) arg
+  go (Type.Arrow' i o) = do -- ->App
+    let (es, _) = Type.stripEffect o
+    abilityCheck es
+    ambientEs <- getAbilities
+    -- note - the location on this Type.effect isn't really used for anything,
+    -- and won't be reported to the user
+    o <$ check arg (Type.effect (loc ft) ambientEs i)
+  go (Type.Existential' a) = do -- a^App
+    [i,o] <- traverse freshenVar [ABT.v' "i", ABT.v' "o"]
+    let it = Type.existential' (loc ft) i
+        ot = Type.existential' (loc ft) o
+        soln = Type.Monotype (Type.arrow (loc ft) it ot)
+        ctxMid = context [Existential o, Existential i, Solved a soln]
+    modifyContext' $ replace (Existential a) ctxMid
+    ot <$ check arg it
+  go _ = getContext >>= \ctx -> failNote $ TypeMismatch ctx
+
+-- For arity 3, creates the type `∀ a . a -> a -> a -> Sequence a`
+-- For arity 2, creates the type `∀ a . a -> a -> Sequence a`
+vectorConstructorOfArity :: Var v => Int -> M v loc (Type v loc)
+vectorConstructorOfArity arity = do
+  bl <- getBuiltinLocation
+  let elementVar = Var.named "elem"
+      args = replicate arity (bl, Type.var bl elementVar)
+      resultType = Type.app bl (Type.vector bl) (Type.var bl elementVar)
+      vt = Type.forall bl elementVar (Type.arrows args resultType)
+  pure vt
+
 -- | Synthesize the type of the given term, updating the context in the process.
 -- | Figure 11 from the paper
 synthesize :: forall v loc . (Eq loc, Var v) => Term v loc -> M v loc (Type v loc)
@@ -464,11 +510,15 @@ synthesize e = withinSynthesize e $ go (minimize' e)
   go (Term.UInt64' _) = getBuiltinLocation >>= pure . Type.uint64 -- 1I=>
   go (Term.Boolean' _) = getBuiltinLocation >>= pure . Type.boolean
   go (Term.Text' _) = getBuiltinLocation >>= pure . Type.text
-  -- go (Term.App' f arg) = do -- ->E
-  --   ft <- synthesize f
-  --   ctx <- getContext
-  --   synthesizeApp (apply ctx ft) arg
-  -- go (Term.Vector' v) = synthesize (desugarVector (Foldable.toList v))
+  go (Term.App' f arg) = do -- ->E
+    -- todo: might want to consider using a different location for `ft` in
+    -- the event that `ft` is an existential?
+    ft <- synthesize f
+    ctx <- getContext
+    synthesizeApp (apply ctx ft) arg
+  go (Term.Vector' v) = do
+    ft <- vectorConstructorOfArity (Foldable.length v)
+    foldM synthesizeApp ft v
   -- go (Term.Let1' binding e) | Set.null (ABT.freeVars binding) = do
   --   -- special case when it is definitely safe to generalize - binding contains
   --   -- no free variables, i.e. `let id x = x in ...`
@@ -665,6 +715,9 @@ check e t = withinCheck e t $ getContext >>= \ctx ->
           -- arya: we should revisit these `l`s once we have this up and running
           check body (Type.effect l ambient i')
           pure ()
+      -- todo: should probably have a case here for checking against effect types
+      -- just strip out the effects, check against the value type, then
+      -- do an ability check?
       go _ _ = do -- Sub
         a <- synthesize e; ctx <- getContext
         subtype (apply ctx a) (apply ctx t)
