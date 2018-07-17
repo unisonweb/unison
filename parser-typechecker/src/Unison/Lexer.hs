@@ -38,7 +38,7 @@ data Token = Token {
   payload :: Lexeme,
   start :: Pos,
   end :: Pos
-}
+} deriving (Eq, Ord, Show)
 
 type Line = Int
 type Column = Int
