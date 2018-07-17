@@ -212,6 +212,9 @@ blank = ABT.tm Blank
 app :: Ord v => Term' vt v -> Term' vt v -> Term' vt v
 app f arg = ABT.tm (App f arg)
 
+app' :: Ord v => a -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
+app' a f arg = ABT.tm' a (App f arg)
+
 match :: Ord v => Term v -> [MatchCase (Term v)] -> Term v
 match scrutinee branches = ABT.tm (Match scrutinee branches)
 
@@ -247,6 +250,10 @@ vector' es = ABT.tm (Vector es)
 
 lam :: Ord v => v -> Term' vt v -> Term' vt v
 lam v body = ABT.tm (Lam (ABT.abs v body))
+
+-- arya: are we sure we want the two annotations to be the same?
+lamA :: Ord v => a -> v -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
+lamA a v body = ABT.tm' a (Lam (ABT.abs' a v body))
 
 lam' :: Var v => [Text] -> Term' vt v -> Term' vt v
 lam' vs body = foldr lam body (map ABT.v' vs)

@@ -172,9 +172,19 @@ iff = forall () aa $ arrows (f <$> [boolean(), a, a]) a
         a = var () aa
         f x = ((), x)
 
+iff' :: Var v => a -> AnnotatedType v a
+iff' loc = forall loc aa $ arrows (f <$> [boolean loc, a, a]) a
+  where aa = ABT.v' "a"
+        a = var loc aa
+        f x = (loc, x)
+
 andor :: Ord v => Type v
 andor = arrows (f <$> [boolean(), boolean()]) $ boolean()
   where f x = ((), x)
+
+andor' :: Ord v => a -> AnnotatedType v a
+andor' a = arrows (f <$> [boolean a, boolean a]) $ boolean a
+  where f x = (a, x)
 
 var :: Ord v => a -> v -> AnnotatedType v a
 var = ABT.annotatedVar
