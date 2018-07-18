@@ -267,18 +267,18 @@ unLetRecNamedAnnotated (ABT.CycleA' ann avs (ABT.Tm' (LetRec bs e))) =
   Just (ann, avs `zip` bs, e)
 unLetRecNamedAnnotated _ = Nothing
 
-annotatedLetRec :: Ord v => a -> [((a,v), AnnotatedTerm' vt v a)] -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
-annotatedLetRec _ [] e = e
-annotatedLetRec a bindings e = ABT.cycle' a (foldr (uncurry ABT.abs') z (map fst bindings))
+letRec :: Ord v => a -> [((a,v), AnnotatedTerm' vt v a)] -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
+letRec _ [] e = e
+letRec a bindings e = ABT.cycle' a (foldr (uncurry ABT.abs') z (map fst bindings))
   where
     z = ABT.tm' a (LetRec (map snd bindings) e)
 
 -- | Smart constructor for let rec blocks. Each binding in the block may
 -- reference any other binding in the block in its body (including itself),
 -- and the output expression may also reference any binding in the block.
-letRec :: Ord v => [(v, Term' vt v)] -> Term' vt v -> Term' vt v
-letRec [] e = e
-letRec bindings e = ABT.cycle (foldr ABT.abs z (map fst bindings))
+letRec_ :: Ord v => [(v, Term' vt v)] -> Term' vt v -> Term' vt v
+letRec_ [] e = e
+letRec_ bindings e = ABT.cycle (foldr ABT.abs z (map fst bindings))
   where
     z = ABT.tm (LetRec (map snd bindings) e)
 

@@ -75,9 +75,9 @@ minimize (Term.LetRecNamedAnnotated' ann bs e) = case components (first snd <$> 
       -- When introducing a nested let/let rec, we use the annotation of the
       -- variable that starts off that let/let rec
       mklet [(hdv,hdb)] e
-        | Set.member hdv (ABT.freeVars hdb) = Term.annotatedLetRec (annotationFor hdv) [(annotatedVar hdv, hdb)] e
+        | Set.member hdv (ABT.freeVars hdb) = Term.letRec (annotationFor hdv) [(annotatedVar hdv, hdb)] e
         | otherwise                         = Term.let1 [(annotatedVar hdv,hdb)] e
-      mklet cycle@((hdv,_):_) e = Term.annotatedLetRec (annotationFor hdv) (first annotatedVar <$> cycle) e
+      mklet cycle@((hdv,_):_) e = Term.letRec (annotationFor hdv) (first annotatedVar <$> cycle) e
       mklet [] e = e
     in
       -- The outer annotation is going to be meaningful, so we make

@@ -321,7 +321,7 @@ block' vendbrace =
       -- possibly changing the meaning of the program (which is ambiguous anyway),
       -- or fail with a helpful error message if there's a forward reference with
       -- effects.
-      (Left e : bs) -> pure $ Term.letRec (toBinding <$> reverse bs) e
+      (Left e : bs) -> pure $ Term.letRec_ (toBinding <$> reverse bs) e
       [] -> fail "empty block"
 
 block :: Var v => TermP v
