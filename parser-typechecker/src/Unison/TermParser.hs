@@ -175,10 +175,10 @@ ifthen = traced "ifthen" $ do
   pure $ Term.iff cond iftrue iffalse
 
 and :: Var v => TermP v
-and = Term.and <$> (token (string "and") *> termLeaf) <*> termLeaf
+and = Term.and() <$> (token (string "and") *> termLeaf) <*> termLeaf
 
 or :: Var v => TermP v
-or = Term.or <$> (token (string "or") *> termLeaf) <*> termLeaf
+or = Term.or() <$> (token (string "or") *> termLeaf) <*> termLeaf
 
 -- Generic parser for tuples and parenthesized patterns/terms
 tupleOrParenthesized :: Parser s a -> a -> (a -> a -> a) -> Parser s a

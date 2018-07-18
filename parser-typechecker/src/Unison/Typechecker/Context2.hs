@@ -28,8 +28,8 @@ import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 import qualified Unison.DataDeclaration as DD
 -- import           Unison.Note (Note,Noted(..))
 -- import qualified Unison.Note as Note
-import           Unison.PatternP (Pattern)
-import qualified Unison.PatternP as Pattern
+-- import           Unison.PatternP (Pattern)
+-- import qualified Unison.PatternP as Pattern
 import           Unison.Reference (Reference)
 import qualified Unison.Term as Term
 import           Unison.Term (AnnotatedTerm')

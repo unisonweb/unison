@@ -227,6 +227,7 @@ serializePattern p = case p of
     putLength (length ps)
     traverse_ serializePattern ps
     serializePattern k
+  _ -> error "todo: delete me after deleting PatternP - serializePattern match failure"
 
 serializeFloat :: MonadPut m => Double -> m ()
 serializeFloat n = do

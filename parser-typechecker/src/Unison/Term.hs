@@ -226,11 +226,11 @@ match a scrutinee branches = ABT.tm' a (Match scrutinee branches)
 handle :: Ord v => a -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a
 handle a h block = ABT.tm' a (Handle h block)
 
-and :: Ord v => Term v -> Term v -> Term v
-and x y = ABT.tm (And x y)
+and :: Ord v => a -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a
+and a x y = ABT.tm' a (And x y)
 
-or :: Ord v => Term v -> Term v -> Term v
-or x y = ABT.tm (Or x y)
+or :: Ord v => a -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a
+or a x y = ABT.tm' a (Or x y)
 
 apps :: Ord v => Term' vt v -> [Term' vt v] -> Term' vt v
 apps f = foldl' app f

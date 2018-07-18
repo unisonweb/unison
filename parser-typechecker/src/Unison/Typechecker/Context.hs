@@ -855,6 +855,7 @@ patternToTerm pat = case pat of
     outputTerms <- traverse patternToTerm pats
     kTerm <- patternToTerm kpat
     pure $ Term.effectBind r cid outputTerms kTerm
+  _ -> error "todo: delete me after deleting PatternP - patternToTerm match failure"
 
 -- | Synthesize the type of the given term, `arg` given that a function of
 -- the given type `ft` is being applied to `arg`. Update the context in
