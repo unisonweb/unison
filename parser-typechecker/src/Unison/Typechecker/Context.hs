@@ -821,12 +821,12 @@ checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) =
         _ -> ([], rhs)
       -- Make up a term that involves the guard if present
       rhs' = case guard of
-        Just g -> Term.let1 [(Var.named "_", Term.ann g (Type.boolean()))] body
+        Just g -> Term.let1_ [(Var.named "_", Term.ann g (Type.boolean()))] body
         Nothing -> body
       -- Convert pattern to a Term
       patTerm = evalState (patternToTerm pat) vs
-      newBody = Term.let1 [(Var.named "_", patTerm `Term.ann` scrutineeType)] rhs'
-      entireCase = foldr (\v t -> Term.let1 [(v, Term.blank())] t) newBody vs
+      newBody = Term.let1_ [(Var.named "_", patTerm `Term.ann` scrutineeType)] rhs'
+      entireCase = foldr (\v t -> Term.let1_ [(v, Term.blank())] t) newBody vs
   in check entireCase outputType
 
 -- Make up a fake term for the pattern, that we can typecheck
@@ -849,7 +849,7 @@ patternToTerm pat = case pat of
     (h : t) <- get
     put t
     tm <- patternToTerm p
-    pure . Term.let1 [(h, tm)] $ Term.var() h
+    pure . Term.let1_ [(h, tm)] $ Term.var() h
   Pattern.EffectPure p -> Term.effectPure() <$> patternToTerm p
   Pattern.EffectBind r cid pats kpat -> do
     outputTerms <- traverse patternToTerm pats

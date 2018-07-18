@@ -270,7 +270,7 @@ binding = traced "binding" . label "binding" $ do
       pure $ fmap (\e -> Term.ann e typ) (mkBinding name args body)
   where
   mkBinding f [] body = (f, body)
-  mkBinding f args body = (f, Term.lam'' args body)
+  mkBinding f args body = (f, Term.lam' () args body)
 
 typedecl :: Var v => Parser (S v) (v, Type v)
 typedecl = (,) <$> attempt (prefixVar <* token (char ':'))
@@ -336,7 +336,7 @@ handle = traced "handle" $ do
   pure $ Term.handle() handler b
 
 lam :: Var v => TermP v -> TermP v
-lam p = traced "lambda" $ attempt (Term.lam'' <$> vars <* arrow) <*> body
+lam p = traced "lambda" $ attempt (Term.lam' () <$> vars <* arrow) <*> body
   where
     vars = some prefixVar
     arrow = token (string "->")

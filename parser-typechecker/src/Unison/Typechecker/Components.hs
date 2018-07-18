@@ -76,7 +76,7 @@ minimize (Term.LetRecNamedAnnotated' ann bs e) = case components (first snd <$> 
       -- variable that starts off that let/let rec
       mklet [(hdv,hdb)] e
         | Set.member hdv (ABT.freeVars hdb) = Term.annotatedLetRec (annotationFor hdv) [(annotatedVar hdv, hdb)] e
-        | otherwise                         = Term.annotatedLet1 [(annotatedVar hdv,hdb)] e
+        | otherwise                         = Term.let1 [(annotatedVar hdv,hdb)] e
       mklet cycle@((hdv,_):_) e = Term.annotatedLetRec (annotationFor hdv) (first annotatedVar <$> cycle) e
       mklet [] e = e
     in

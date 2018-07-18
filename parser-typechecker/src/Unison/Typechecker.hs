@@ -90,7 +90,7 @@ locals abilities typeOf decl path ctx | ABT.isClosed ctx =
     vars = map ABT.Bound (Paths.inScopeAtTerm path ctx)
     f = ABT.v' "f"
     saved = ABT.v' "saved"
-    remember e = Term.let1 [(saved, Term.var() (ABT.Free f) `Term.apps` map (((),) . Term.var()) vars)] (Term.wrapV e)
+    remember e = Term.let1_ [(saved, Term.var() (ABT.Free f) `Term.apps` map (((),) . Term.var()) vars)] (Term.wrapV e)
     usingAllLocals = Term.lam() f (Paths.modifyTerm' remember path ctx)
     types = if null vars then pure []
             else extract <$> typeAt abilities typeOf decl [] usingAllLocals

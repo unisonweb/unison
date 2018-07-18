@@ -251,14 +251,14 @@ ann' :: Ord v => a -> AnnotatedTerm2 vt at v a -> Type.AnnotatedType vt at -> An
 ann' a e t = ABT.tm' a (Ann e t)
 
 -- arya: are we sure we want the two annotations to be the same?
-lam :: Ord v => a -> v -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
+lam :: Ord v => a -> v -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a
 lam a v body = ABT.tm' a (Lam (ABT.abs' a v body))
 
-lam' :: Var v => [Text] -> Term' vt v -> Term' vt v
-lam' vs body = foldr (lam()) body (map ABT.v' vs)
+lam' :: Ord v => a -> [v] -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a
+lam' a vs body = foldr (lam a) body vs
 
-lam'' :: Ord v => [v] -> Term' vt v -> Term' vt v
-lam'' vs body = foldr (lam()) body vs
+lam'' :: Ord v => [(a,v)] -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a
+lam'' vs body = foldr (uncurry lam) body vs
 
 pattern LetRecNamedAnnotated' ann bs e <- (unLetRecNamedAnnotated -> Just (ann, bs,e))
 
@@ -282,24 +282,22 @@ letRec bindings e = ABT.cycle (foldr ABT.abs z (map fst bindings))
   where
     z = ABT.tm (LetRec (map snd bindings) e)
 
-letRec' :: Var v => [(Text, Term v)] -> Term v -> Term v
-letRec' bs e = letRec [(ABT.v' name, b) | (name,b) <- bs] e
-
 -- | Smart constructor for let blocks. Each binding in the block may
 -- reference only previous bindings in the block, not including itself.
 -- The output expression may reference any binding in the block.
-let1 :: Ord v => [(v,Term' vt v)] -> Term' vt v -> Term' vt v
-let1 bindings e = foldr f e bindings
+-- todo: delete me
+let1_ :: Ord v => [(v,Term' vt v)] -> Term' vt v -> Term' vt v
+let1_ bindings e = foldr f e bindings
   where
     f (v,b) body = ABT.tm (Let b (ABT.abs v body))
 
-annotatedLet1 :: Ord v => [((a, v), AnnotatedTerm' vt v a)] -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
-annotatedLet1 bindings e = foldr f e bindings
+let1 :: Ord v => [((a, v), AnnotatedTerm2 vt at v a)] -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a
+let1 bindings e = foldr f e bindings
   where
     f ((ann,v),b) body = ABT.tm' ann (Let b (ABT.abs' ann v body))
 
-let1' :: Var v => [(Text, Term' vt v)] -> Term' vt v -> Term' vt v
-let1' bs e = let1 [(ABT.v' name, b) | (name,b) <- bs ] e
+-- let1' :: Var v => [(Text, Term' vt v)] -> Term' vt v -> Term' vt v
+-- let1' bs e = let1 [(ABT.v' name, b) | (name,b) <- bs ] e
 
 effectPure :: Ord v => a -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a
 effectPure a t = ABT.tm' a (EffectPure t)

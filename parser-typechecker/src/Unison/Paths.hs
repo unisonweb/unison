@@ -79,7 +79,7 @@ focus1 e = ABT.Path go' where
   go Bound (Term (E.LamNamed' v body)) =
     Just (Var v, \v -> Term <$> (E.lam() <$> asVar v <*> pure (w body)), [])
   go Bound (Term (E.Let1Named' v b body)) =
-    Just (Var v, \v -> (\v -> Term $ E.let1 [(v,w b)] (w body)) <$> asVar v, [])
+    Just (Var v, \v -> (\v -> Term $ E.let1 [(((),v),w b)] (w body)) <$> asVar v, [])
   go Bound (Type (T.ForallNamed' v body)) =
     Just (Var v, \v -> Type <$> (T.forall() <$> asVar v <*> pure (wt body)), [])
   go (Index i) (Term (E.Vector' vs)) | i < Vector.length vs && i >= 0 =
@@ -87,7 +87,7 @@ focus1 e = ABT.Path go' where
           \e -> (\e -> Term $ E.vector'() $ fmap w vs // [(i,e)]) <$> asTerm e,
           [])
   go (Binding i) (Term (E.Let1Named' v b body)) | i <= 0 = Just (Declaration v b, set, []) where
-    set (Declaration v b) = pure . Term $ E.let1 [(v, b)] (w body)
+    set (Declaration v b) = pure . Term $ E.let1 [(((),v), b)] (w body)
     set _ = Nothing
   go Annotation (Term (E.Ann' e t)) = Just (Type t, \t -> Term . E.ann (w e) <$> asType t, [])
   go Body (Term (E.Ann' body t)) = Just (Term body, \body -> Term . flip E.ann (wt t) <$> asTerm body, [])
