@@ -55,7 +55,7 @@ watch msg a =
 -- | We deal with type variables annotated with whether they are universal or existential
 type Type v = Type.Type (TypeVar v)
 type Term v = Term.Term' (TypeVar v) v
-type Monotype v = Type.Monotype (TypeVar v)
+type Monotype v = Type.Monotype (TypeVar v) ()
 
 pattern Universal v <- Var (TypeVar.Universal v) where
   Universal v = Var (TypeVar.Universal v)
@@ -211,7 +211,7 @@ abilityCheck requested = do
     abilityCheck' ambient requested
 
 getFromTypeEnv :: (Ord r, Show r)
-               => String -> M v (Map r (f v)) -> r ->  M v (f v)
+               => String -> M v (Map r (f v ())) -> r ->  M v (f v ())
 getFromTypeEnv what get r = get >>= \decls ->
   case Map.lookup r decls of
     Nothing -> fail $ "unknown " ++ what ++ " reference: " ++ show r ++ " " ++
@@ -360,7 +360,7 @@ wellformedType c t = wellformed c && case t of
   Type.Forall' t ->
     let (v,ctx2) = extendUniversal c
     in wellformedType ctx2 (ABT.bind t (Type.universal v))
-  _ -> error $ "Context.wellformedType - ill formed type - " ++ show t
+  _ -> error $ "Match failure in wellformedType: " ++ show t
   where
   -- | Extend this `Context` with a single variable, guaranteed fresh
   extendUniversal ctx = case Var.freshIn (usedVars ctx) (Var.named "var") of

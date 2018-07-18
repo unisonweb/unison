@@ -1,0 +1,6 @@
+Stream.to-sequence
+  (Stream.take 5
+    (Stream.flat-map
+      (n -> Stream.cons 7
+              (Stream.take 1 (Stream.constant n)))
+      (Stream.from-uint64 0)))

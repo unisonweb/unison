@@ -46,7 +46,7 @@ data MatchCase a = MatchCase Pattern (Maybe a) a
 
 -- | Base functor for terms in the Unison language
 -- We need `typeVar` because the term and type variables may differ.
-data F typeVar a
+data F typeVar typeAnn a
   = Int64 Int64
   | UInt64 Word64
   | Float Double
@@ -60,7 +60,7 @@ data F typeVar a
   | EffectPure a
   | EffectBind Reference Int [a] a
   | App a a
-  | Ann a (Type typeVar)
+  | Ann a (Type.AnnotatedType typeVar typeAnn)
   | Vector (Vector a)
   | If a a a
   | And a a
@@ -86,9 +86,9 @@ data F typeVar a
   deriving (Eq,Foldable,Functor,Generic,Generic1,Traversable)
 
 -- | Like `Term v`, but with an annotation of type `a` at every level in the tree
-type AnnotatedTerm v a = ABT.Term (F v) v a
+type AnnotatedTerm v a = ABT.Term (F v a) v a
 -- | Allow type variables and term variables to differ
-type AnnotatedTerm' vt v a = ABT.Term (F vt) v a
+type AnnotatedTerm' vt v a = ABT.Term (F vt a) v a
 
 -- | Terms are represented as ABTs over the base functor F, with variables in `v`
 type Term v = AnnotatedTerm v ()
@@ -105,7 +105,8 @@ vmap f = ABT.vmap f . typeMap (ABT.vmap f)
 vtmap :: Ord vt2 => (vt -> vt2) -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt2 v a
 vtmap f = typeMap (ABT.vmap f)
 
-typeMap :: Ord vt2 => (Type vt -> Type vt2) -> AnnotatedTerm' vt v a -> ABT.Term (F vt2) v a
+typeMap :: Ord vt2 => (Type.AnnotatedType vt a -> Type.AnnotatedType vt2 a2)
+                   -> AnnotatedTerm' vt v a -> ABT.Term (F vt2 a2) v a
 typeMap f t = go t where
   go (ABT.Term fvs a t) = ABT.Term fvs a $ case t of
     ABT.Abs v t -> ABT.Abs v (go t)
@@ -276,7 +277,7 @@ effectPure t = ABT.tm (EffectPure t)
 effectBind :: Ord v => Reference -> Int -> [Term' vt v] -> Term' vt v -> Term' vt v
 effectBind r cid args k = ABT.tm (EffectBind r cid args k)
 
-unLet1 :: Var v => AnnotatedTerm' vt v a -> Maybe (AnnotatedTerm' vt v a, ABT.Subst (F vt) v a)
+unLet1 :: Var v => AnnotatedTerm' vt v a -> Maybe (AnnotatedTerm' vt v a, ABT.Subst (F vt a) v a)
 unLet1 (ABT.Tm' (Let b (ABT.Abs' subst))) = Just (b, subst)
 unLet1 _ = Nothing
 
@@ -359,7 +360,7 @@ betaReduce :: Var v => Term v -> Term v
 betaReduce (App' (Lam' f) arg) = ABT.bind f arg
 betaReduce e = e
 
-instance Var v => Hashable1 (F v) where
+instance Var v => Hashable1 (F v a) where
   hash1 hashCycle hash e =
     let
       (tag, hashed, varint) = (Hashable.Tag, Hashable.Hashed, Hashable.UInt64 . fromIntegral)
@@ -408,10 +409,10 @@ instance Var v => Hashable1 (F v) where
 
 -- mostly boring serialization code below ...
 
-instance Var v => Eq1 (F v) where (==#) = (==)
-instance Var v => Show1 (F v) where showsPrec1 = showsPrec
+instance (Eq a, Var v) => Eq1 (F v a) where (==#) = (==)
+instance (Show a, Var v) => Show1 (F v a) where showsPrec1 = showsPrec
 
-instance (Var v, Show a) => Show (F v a) where
+instance (Var v, Show a0, Show a) => Show (F v a0 a) where
   showsPrec p fa = go p fa where
     showConstructor r n = showsPrec 0 r <> s"#" <> showsPrec 0 n
     go _ (Int64 n) = (if n >= 0 then s "+" else s "") <> showsPrec 0 n

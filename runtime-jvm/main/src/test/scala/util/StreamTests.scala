@@ -2,10 +2,9 @@ package org.unisonweb.util
 
 import org.unisonweb.EasyTest._
 import org.unisonweb._
-import org.unisonweb.compilation._
+import org.unisonweb.util.Unboxed.F1.{D_B, L_B, L_L, L_P}
+import org.unisonweb.util.Unboxed.F2.{DD_D, LD_L, LL_L}
 import org.unisonweb.util.Unboxed.Unboxed
-import org.unisonweb.util.Unboxed.F1.{L_B, D_B, L_L}
-import org.unisonweb.util.Unboxed.F2.{LL_L,DD_D,LD_L}
 
 object StreamTests {
   val tests = suite("stream")(
@@ -23,38 +22,81 @@ object StreamTests {
       },
       test("map") { implicit T =>
         equal(
-          Stream.from(0).take(10000).map(L_L(_ + 1)).sumIntegers,
-          (0 until 10000).map(_ + 1).sum
+          Stream.from(0).take(10000).map(L_L(_ + 1)).toSequence.toList,
+          (0 until 10000).map(_ + 1).toList
+        )
+      },
+      test("flatMap 0") { implicit T =>
+        equal(
+          Stream.from(1).take(100)
+            .flatMap(L_P(n => Stream.constant(n).take(n))).toSequence.toList,
+          scala.Stream.from(1).take(100)
+            .flatMap(n => scala.Stream.continually(n).take(n)).toList
+        )
+      },
+      test("flatMap 1") { implicit T =>
+        equal(
+          Stream.from(1).take(100)
+            .flatMap(L_P(n => Stream.constant(n).take(n))).toSequence.toList,
+          scala.Stream.from(1).take(100)
+            .flatMap(n => scala.Stream.continually(n).take(n)).toList
+        )
+      },
+      test("flatMap inf-fin-take") { implicit T =>
+        equal(
+          Stream.from(0).flatMap(L_P[Stream[Unboxed[Long]]](n => Stream.singleton(n))).take(3).toSequence.toList,
+          scala.Stream.from(0).flatMap(n => scala.Stream(n)).take(3).map(_.toLong).toList
+        )
+      },
+      test("flatMap inf-inf-take") { implicit T =>
+        equal(
+          Stream.from(0).flatMap(L_P[Stream[Unboxed[Long]]](n => Stream.constant(n))).take(3).toSequence.toList,
+          scala.Stream.from(0).flatMap(n => scala.Stream.continually(n)).take(3).map(_.toLong).toList
+        )
+      },
+      test("flatMap inf-consinf-take") { implicit T =>
+        equal(
+          Stream.from(0).flatMap(L_P[Stream[Unboxed[Long]]](n => 7l :: Stream.constant(n))).take(5).toSequence.toList,
+          scala.Stream.from(0).flatMap(n => 7 #:: scala.Stream.continually(n)).take(5).map(_.toLong).toList
+        )
+      },
+      test("unfold") { implicit T =>
+        equal(
+          // Stream.take 5 (Stream.unfold (b -> if b < 1 then Some (b + 1, b / 2) else None) -2)
+          Stream.unfold[Option[(Long,Long)],(Long,Long),Unboxed[Long],Unboxed[Long],Long](-2)(
+            L_P(b => if (b < 1) Some((b + 1l, b / 2l)) else None)
+          ).take(5).toSequence.toList,
+          List(-2/2, -1/2, 0/2)
         )
       },
       test("filter") { implicit T =>
         equal(
-          Stream.from(0).take(10000).filter(L_B(_ % 2 == 0)).sumIntegers,
-          (0 until 10000).filter(_.toDouble % 2 == 0).sum
+          Stream.from(0).take(10000).filter(L_B(_ % 2 == 0)).toSequence.toList,
+          (0 until 10000).filter(_ % 2 == 0).toList
         )
       },
       test("takeWhile") { implicit T =>
         equal(
-          Stream.from(0).take(100).takeWhile(L_B(_ < 50)).sumIntegers,
-          (0 until 100).takeWhile(_ < 50).sum
+          Stream.from(0).take(100).takeWhile(L_B(_ < 50)).toSequence.toList,
+          (0 until 100).takeWhile(_ < 50).toList
         )
         equal(
-          Stream.from(0.0, by = 1.0).take(100).takeWhile(D_B(_ < 50.0)).sumFloats,
-          (0.0 until 100.0 by 1.0).takeWhile(_ < 50.0).sum
+          Stream.from(0.0, by = 1.0).take(100).takeWhile(D_B(_ < 50.0)).toSequence.toList,
+          (0 until 100).takeWhile(_ < 50).toList
         )
       },
       test("dropWhile") { implicit T =>
         equal(
-          Stream.from(0).take(100).dropWhile(L_B(_ < 50)).sumIntegers,
-          (0 until 100).dropWhile(_ < 50).sum
+          Stream.from(0).take(100).dropWhile(L_B(_ < 50)).toSequence.toList,
+          (0 until 100).dropWhile(_ < 50).toList
         )
       },
       test("zipWith") { implicit T =>
         val s1 = Stream.from(0)
         val s2 = scala.collection.immutable.Stream.from(0)
         equal(
-          s1.zipWith(s1.drop(1))(LL_L(_ * _)).take(100).sumIntegers,
-          s2.zip(s2.drop(1)).map { case (a,b) => a * b }.take(100).sum
+          s1.zipWith(s1.drop(1))(LL_L(_ * _)).take(100).toSequence.toList,
+          s2.zip(s2.drop(1)).map { case (a,b) => a * b }.take(100).toList
         )
       },
       test("toSequence0") { implicit T =>
@@ -86,13 +128,13 @@ object StreamTests {
         equal(
           Stream.from(0.0, by = 1.0).take(10000).foldLeft(0l)(
             LD_L((z, d) => if (d.toInt % 2 == 0) z else z + 1)),
-          (0.0 until 10000 by 1.0).count(_.toInt % 2 == 0)
+          (0 until 10000).count(_ % 2 == 0)
         )
       },
       test("foldLeft (+) double") { implicit T =>
         equal(
           Stream.from(0.0, by = 1.0).take(10000).foldLeft(0.0)(DD_D(_ + _)),
-          (0.0 until 10000 by 1.0).sum
+          (0 until 10000).sum
         )
       },
       test("scanLeft0 (+) long") { implicit T =>
@@ -109,75 +151,30 @@ object StreamTests {
       },
       test("++") { implicit T =>
         equal(
-          (Stream.from(0).take(10000) ++ Stream.from(20000).take(5)).sumIntegers,
-          (scala.Stream.from(0).take(10000) ++ scala.Stream.from(20000).take(5)).sum
+          (Stream.from(0).take(10000) ++ Stream.from(20000).take(5))
+            .toSequence.toList,
+          (scala.Stream.from(0).take(10000) ++ scala.Stream.from(20000).take(5))
+            .toList
         )
         equal(
-          (Stream.from(0).drop(10000).take(10000) ++ Stream.from(20000).take(5)).sumIntegers,
-          (scala.Stream.from(0).drop(10000).take(10000) ++ scala.Stream.from(20000).take(5)).sum
+          (Stream.from(0).drop(10000).take(10000) ++ Stream.from(20000).take(5))
+            .toSequence.toList,
+          (scala.Stream.from(0).drop(10000).take(10000) ++
+            scala.Stream.from(20000).take(5)).toList
         )
       },
       test("cons") { implicit T =>
         equal(
-          (-10l :: Stream.from(0).take(10)).sumIntegers,
-          (-10 #:: scala.Stream.from(0).take(10)).sum
+          (-10l :: Stream.from(0).take(10)).toSequence.toList,
+          (-10 #:: scala.Stream.from(0).take(10)).toList
         )
       },
       test("iterate-from0") { implicit T =>
         equal(
-          Stream.iterate(0l)(L_L(_ + 1)).take(10).sumIntegers,
-          (scala.Stream.from(0).take(10)).sum
+          Stream.iterate(0l)(L_L(_ + 1)).take(10).toSequence.toList,
+          (scala.Stream.from(0).take(10)).toList
         )
       }
-    ),
-    {
-      def env =
-        (new Array[U](20), new Array[B](20), StackPtr.empty, Result())
-      val incU = UnisonToScala.toUnboxed1(Builtins.Int64_inc)
-      val plusU = UnisonToScala.toUnboxed2(Builtins.Int64_add)
-
-      suite("unison") (
-        test("take/drop") { implicit T =>
-          equal(
-            Stream.iterate(0)(incU(env)).take(5).drop(3).reduce(0)(plusU(env)),
-            scala.Stream.from(0).take(5).drop(3).sum
-          )
-        },
-        test("map") { implicit T =>
-          equal[Int](
-            Stream.iterate(0)(incU(env)).take(10000).map(incU(env)).reduce(0)(plusU(env)),
-            scala.Stream.from(0).take(10000).map(_ + 1).sum
-          )
-        },
-        test("filter") { implicit T =>
-          equal[Int](
-            Stream.iterate(0)(incU(env)).take(10000).map(incU(env)).reduce(0)(plusU(env)),
-            scala.Stream.from(0).take(10000).map(_ + 1).sum
-          )
-        },
-        test("foldLeft Int64_add") { implicit T =>
-          val plusU = UnisonToScala.toUnboxed2(Builtins.Int64_add)
-          equal(
-            Stream.fromUnison(0).take(10000).foldLeft(Value(0))(plusU(env)),
-            Value((0 until 10000).sum)
-          )
-        },
-        test("scanLeft Int64_add") { implicit T =>
-          val int64add = UnisonToScala.toUnboxed2(Builtins.Int64_add)(env)
-          equal(
-            Stream.fromUnison(1).take(10000).scanLeft(Value(0))(int64add).reduce(Value(0))(int64add),
-            Value(scala.Stream.from(1).take(10000).scanLeft(0l)(_+_).sum)
-          )
-        },
-        test("iterate Int64_inc, reduce Int64_add") { implicit T =>
-          val incU = UnisonToScala.toUnboxed1(Builtins.Int64_inc)
-          val plusU = UnisonToScala.toUnboxed2(Builtins.Int64_add)
-          equal[Value](
-            Stream.iterate(0l)(incU(env)).take(10).reduce(zero = Value(0))(plusU(env)),
-            Value((scala.Stream.from(0).take(10)).sum)
-          )
-        }
-      )
-    }
+    )
   )
 }

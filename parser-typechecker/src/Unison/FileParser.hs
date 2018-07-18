@@ -11,12 +11,12 @@ import qualified Data.Map as Map
 import qualified Data.Text as Text
 import           Prelude hiding (readFile)
 import qualified Text.Parsec.Layout as L
-import qualified Unison.Builtin as Builtin
-import           Unison.DataDeclaration (DataDeclaration(..), EffectDeclaration(..))
+import           Unison.DataDeclaration (DataDeclaration, EffectDeclaration)
 import qualified Unison.DataDeclaration as DD
 import           Unison.Parser (Parser, traced, token_, sepBy, string)
 import qualified Unison.Term as Term
 import qualified Unison.TermParser as TermParser
+import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import           Unison.TypeParser (S)
 import qualified Unison.TypeParser as TypeParser
@@ -24,11 +24,11 @@ import           Unison.UnisonFile (UnisonFile(..), environmentFor)
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 
-file :: Var v => Parser (S v) (UnisonFile v)
-file = traced "file" $ do
+file :: Var v => [(v, Type v)] -> Parser (S v) (UnisonFile v)
+file builtinTypes = traced "file" $ do
   (dataDecls, effectDecls) <- traced "declarations" declarations
   let (dataDecls', effectDecls', penv') =
-                      environmentFor Builtin.builtinTypes dataDecls effectDecls
+                      environmentFor builtinTypes dataDecls effectDecls
   local (`Map.union` penv') $ do
     term <- TermParser.block
     let dataEnv0 = Map.fromList [ (Var.named (Text.pack n), Term.constructor r i) | (n, (r,i)) <- Map.toList penv' ]
@@ -65,7 +65,7 @@ dataDeclaration = traced "data declaration" $ do
             <*> (dataConstructorTyp <$> many TypeParser.valueTypeLeaf)
   traced "vblock" $ L.vblockIncrement $ do
     constructors <- traced "constructors" $ sepBy (token_ $ string "|") dataConstructor
-    pure $ (name, DataDeclaration typeArgs constructors)
+    pure $ (name, DD.mkDataDecl typeArgs constructors)
 
 
 effectDeclaration :: Var v => Parser (S v) (v, EffectDeclaration v)

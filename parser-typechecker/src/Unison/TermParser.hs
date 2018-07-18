@@ -351,8 +351,9 @@ alias = do
   TypeParser.Aliases s <- get
   let s' = (fn, apply)
       apply args | length args <= length params = ABT.substs (params `zip` args) body
-      apply args = apply (take n args) `Type.apps` drop n args
+      apply args = apply (take n args) `Type.apps` (addUnit <$> drop n args)
       n = length params
+      addUnit a = ((), a)
   set (TypeParser.Aliases (s':s))
 
 -- bindings :: Var v => Parser (S v) [(v, Term v)]

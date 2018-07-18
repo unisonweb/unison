@@ -1,0 +1,11 @@
+reduce = Stream.reduce
+(+) = (+_UInt64)
+take = Stream.take
+cons = Stream.cons
+from = Stream.from-uint64
+sum = reduce 0 (+)
+scan = Stream.scan-left 0 (+)
+f `compose` g = a -> f (g a)
+
+(sum `compose` scan `compose` Stream.take 10 `compose` Stream.cons 3)
+  (from 0)

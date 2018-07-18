@@ -635,19 +635,8 @@ object CompilationTests {
                     termFor(Builtins.Stream_cons)(1, termFor(Builtins.Stream_empty)))
       },
       test("map") { implicit T =>
-        // Stream.foldLeft 0 (+) (Stream.take 100 (Stream.map (+1) (Stream.fromInt 0)))
         equal[Term](
-          eval(
-            termFor(Builtins.Stream_foldLeft)(
-              0,
-              termFor(Builtins.Int64_add),
-              termFor(Builtins.Stream_take)(
-                100,
-                termFor(Builtins.Stream_map)(
-                  termFor(Builtins.Int64_inc),
-                  termFor(Builtins.Stream_fromInt)(0)))
-            )
-          ),
+          eval(Stream.foldLeft(0, Int64.+, Stream.take(100, Stream.map(Int64.inc, Stream.fromInt64(0))))),
           scala.Stream.from(0).map(1+).take(100).foldLeft(0)(_+_)
         )
       }
@@ -984,6 +973,12 @@ object Terms {
     }
   }
 
+  object Int64 {
+    import Builtins._
+    val + = termFor(Int64_add)
+    val inc = termFor(Int64_inc)
+  }
+
   object Sequence {
     import Builtins._
 
@@ -1010,6 +1005,18 @@ object Terms {
     val gt = termFor(Text_gt)
     val lteq = termFor(Text_lteq)
     val gteq = termFor(Text_gteq)
+  }
+  
+  object Stream {
+    import Builtins._
+    val empty = termFor(Stream_empty)
+    val fromInt64 = termFor(Stream_fromInt64)
+    val fromUInt64 = termFor(Stream_fromUInt64)
+    val cons = termFor(Stream_cons)
+    val drop = termFor(Stream_drop)
+    val take = termFor(Stream_take)
+    val map = termFor(Stream_map)
+    val foldLeft = termFor(Stream_foldLeft)
   }
 
   object Debug {
