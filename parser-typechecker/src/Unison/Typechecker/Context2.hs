@@ -640,6 +640,9 @@ let x = _
     guard = x <_Int64 +10
     x +_Int64 y
 -}
+
+--
+
 -- checkCase :: Var v => AnnotatedType v a -> AnnotatedType v a -> Term.MatchCase (AnnotatedTerm v a) -> M v a ()
 -- checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) =
 --   -- Get the variables bound in the pattern
@@ -666,10 +669,6 @@ bindings (Context ctx) = [(v,a) | (Ann v a,_) <- ctx]
 
 lookupType :: Eq v => Context v loc -> v -> Maybe (Type v loc)
 lookupType ctx v = lookup v (bindings ctx)
-
-
-
-
 
 -- | Synthesize and generalize the type of each binding in a let rec
 -- and return the new context in which all bindings are annotated with

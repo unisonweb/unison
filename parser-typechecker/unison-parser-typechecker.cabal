@@ -49,6 +49,7 @@ library
     Unison.Path
     Unison.Paths
     Unison.Pattern
+    Unison.PatternP
     Unison.Reference
     Unison.Symbol
     Unison.Term
