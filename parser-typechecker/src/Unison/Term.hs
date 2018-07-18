@@ -168,6 +168,7 @@ pattern Let1Named' v b e <- (ABT.Tm' (Let b (ABT.out -> ABT.Abs v e)))
 pattern Lets' bs e <- (unLet -> Just (bs, e))
 pattern LetRecNamed' bs e <- (unLetRecNamed -> Just (bs,e))
 pattern LetRec' subst <- (unLetRec -> Just subst)
+pattern LetRecNamedAnnotated' ann bs e <- (unLetRecNamedAnnotated -> Just (ann, bs,e))
 
 fresh :: Var v => Term v -> v -> v
 fresh = ABT.fresh
@@ -259,8 +260,6 @@ lam' a vs body = foldr (lam a) body vs
 
 lam'' :: Ord v => [(a,v)] -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a
 lam'' vs body = foldr (uncurry lam) body vs
-
-pattern LetRecNamedAnnotated' ann bs e <- (unLetRecNamedAnnotated -> Just (ann, bs,e))
 
 unLetRecNamedAnnotated :: AnnotatedTerm' vt v a -> Maybe (a, [((a, v), AnnotatedTerm' vt v a)], AnnotatedTerm' vt v a)
 unLetRecNamedAnnotated (ABT.CycleA' ann avs (ABT.Tm' (LetRec bs e))) =
