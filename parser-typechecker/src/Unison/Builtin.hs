@@ -57,7 +57,7 @@ builtinTerms = builtinTerms' ++
         Term.constructor r i)
 
 builtinTerms' :: forall v. Var v => [(v, Term v)]
-builtinTerms' = (toSymbol &&& Term.ref) <$> Map.keys (builtins @v)
+builtinTerms' = (toSymbol &&& Term.ref()) <$> Map.keys (builtins @v)
 
 
 builtinTypes :: forall v. Var v => [(v, Type v)]

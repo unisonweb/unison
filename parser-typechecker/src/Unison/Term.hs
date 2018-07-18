@@ -180,17 +180,17 @@ var = ABT.annotatedVar
 var' :: Var v => Text -> Term' vt v
 var' = var() . ABT.v'
 
-derived :: Ord v => Hash -> Term' vt v
-derived = ref . Reference.Derived
+derived :: Ord v => a -> Hash -> AnnotatedType2 vt at v a
+derived a = ref a . Reference.Derived
 
 derived' :: Ord v => Text -> Maybe (Term' vt v)
-derived' base58 = derived <$> Hash.fromBase58 base58
+derived' base58 = derived () <$> Hash.fromBase58 base58
 
-ref :: Ord v => Reference -> AnnotatedType2 vt at v ()
-ref r = ABT.tm (Ref r)
+ref :: Ord v => a -> Reference -> AnnotatedType2 vt at v a
+ref a r = ABT.tm' a (Ref r)
 
-builtin :: Ord v => Text -> AnnotatedType2 vt at v ()
-builtin n = ref (Reference.Builtin n)
+builtin :: Ord v => a -> Text -> AnnotatedType2 vt at v a
+builtin a n = ref a (Reference.Builtin n)
 
 float :: Ord v => Double -> Term' vt v
 float d = ABT.tm (Float d)
