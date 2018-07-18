@@ -232,6 +232,12 @@ and a x y = ABT.tm' a (And x y)
 or :: Ord v => a -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a
 or a x y = ABT.tm' a (Or x y)
 
+vector :: Ord v => a -> [AnnotatedTerm2 vt at v a] -> AnnotatedTerm2 vt at v a
+vector a es = vector' a (Vector.fromList es)
+
+vector' :: Ord v => a -> Vector (AnnotatedTerm2 vt at v a) -> AnnotatedTerm2 vt at v a
+vector' a es = ABT.tm' a (Vector es)
+
 apps :: Ord v => Term' vt v -> [Term' vt v] -> Term' vt v
 apps f = foldl' app f
 
@@ -243,12 +249,6 @@ ann e t = ABT.tm (Ann e t)
 
 ann' :: Ord v => a -> AnnotatedTerm2 vt at v a -> Type.AnnotatedType vt at -> AnnotatedTerm2 vt at v a
 ann' a e t = ABT.tm' a (Ann e t)
-
-vector :: Ord v => [Term' vt v] -> Term' vt v
-vector es = ABT.tm (Vector (Vector.fromList es))
-
-vector' :: Ord v => Vector (Term' vt v) -> Term' vt v
-vector' es = ABT.tm (Vector es)
 
 lam :: Ord v => v -> Term' vt v -> Term' vt v
 lam v body = ABT.tm (Lam (ABT.abs v body))

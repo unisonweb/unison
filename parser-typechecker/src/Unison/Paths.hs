@@ -84,7 +84,7 @@ focus1 e = ABT.Path go' where
     Just (Var v, \v -> Type <$> (T.forall() <$> asVar v <*> pure (wt body)), [])
   go (Index i) (Term (E.Vector' vs)) | i < Vector.length vs && i >= 0 =
     Just (Term (vs `Vector.unsafeIndex` i),
-          \e -> (\e -> Term $ E.vector' $ fmap w vs // [(i,e)]) <$> asTerm e,
+          \e -> (\e -> Term $ E.vector'() $ fmap w vs // [(i,e)]) <$> asTerm e,
           [])
   go (Binding i) (Term (E.Let1Named' v b body)) | i <= 0 = Just (Declaration v b, set, []) where
     set (Declaration v b) = pure . Term $ E.let1 [(v, b)] (w body)
@@ -145,7 +145,7 @@ insertTerm at ctx = do
   case parent of
     Term (E.Vector' vs) -> do
       i <- listToMaybe [i | Index i <- [last at]]
-      let v2 = E.vector' ((E.vmap ABT.Bound <$> Vector.take (i+1) vs) `mappend`
+      let v2 = E.vector'() ((E.vmap ABT.Bound <$> Vector.take (i+1) vs) `mappend`
                           Vector.singleton (E.blank()) `mappend`
                           (E.vmap ABT.Bound <$> Vector.drop (i+1) vs))
       asTerm =<< set (Term v2)

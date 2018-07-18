@@ -240,7 +240,7 @@ blank :: Ord v => TermP v
 blank = token (char '_') $> Term.blank()
 
 vector :: Ord v => TermP v -> TermP v
-vector p = Term.vector <$> (lbracket *> elements <* rbracket)
+vector p = Term.vector() <$> (lbracket *> elements <* rbracket)
   where
     lbracket = token (char '[')
     elements = sepBy comma (L.withoutLayout "vector element" p)
