@@ -74,7 +74,7 @@ match = do
   scrutinee <- term
   token_ $ string "of"
   cases <- L.vblockNextToken (sepBy L.vsemi matchCase)
-  pure $ Term.match scrutinee cases
+  pure $ Term.match() scrutinee cases
 
 matchCase :: Var v => Parser (S v) (Term.MatchCase (Term v))
 matchCase = do
