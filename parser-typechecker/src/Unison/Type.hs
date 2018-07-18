@@ -15,7 +15,6 @@ import Data.Text (Text)
 import GHC.Generics
 import Prelude.Extras (Eq1(..),Show1(..))
 import Unison.Hashable (Hashable1)
-import Unison.Note (Noted)
 import Unison.Reference (Reference)
 import Unison.TypeVar (TypeVar)
 import Unison.Var (Var)
@@ -54,9 +53,6 @@ type Type v = AnnotatedType v ()
 
 -- | Like `Type v`, but with an annotation of type `a` at every level in the tree
 type AnnotatedType v a = ABT.Term F v a
-
--- An environment for looking up type references
-type Env f v = Reference -> Noted f (Type v)
 
 wrapV :: Ord v => AnnotatedType v a -> AnnotatedType (ABT.V v) a
 wrapV = ABT.vmap ABT.Bound

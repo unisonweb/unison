@@ -59,7 +59,6 @@ library
     Unison.TypeVar
     Unison.Typechecker
     Unison.Typechecker.Context
-    Unison.Typechecker.Context2
     Unison.Typechecker.Components
     Unison.UnisonFile
     Unison.Util.Logger
