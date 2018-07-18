@@ -215,11 +215,11 @@ constructor :: Ord v => a -> Reference -> Int -> AnnotatedTerm2 vt at v a
 constructor a ref n = ABT.tm' a (Constructor ref n)
 
 -- todo: delete and rename app' to app
-app :: Ord v => Term' vt v -> Term' vt v -> Term' vt v
-app f arg = ABT.tm (App f arg)
+app_ :: Ord v => Term' vt v -> Term' vt v -> Term' vt v
+app_ f arg = ABT.tm (App f arg)
 
-app' :: Ord v => a -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a
-app' a f arg = ABT.tm' a (App f arg)
+app :: Ord v => a -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a
+app a f arg = ABT.tm' a (App f arg)
 
 match :: Ord v => a -> AnnotatedTerm2 vt at v a -> [MatchCase (AnnotatedTerm2 vt at v a)] -> AnnotatedTerm2 vt at v a
 match a scrutinee branches = ABT.tm' a (Match scrutinee branches)
@@ -240,16 +240,16 @@ vector' :: Ord v => a -> Vector (AnnotatedTerm2 vt at v a) -> AnnotatedTerm2 vt 
 vector' a es = ABT.tm' a (Vector es)
 
 apps :: Ord v => AnnotatedTerm2 vt at v a -> [(a, AnnotatedTerm2 vt at v a)] -> AnnotatedTerm2 vt at v a
-apps f = foldl' (\f (a,t) -> app' a t f) f
+apps f = foldl' (\f (a,t) -> app a t f) f
 
 iff :: Ord v => a -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a
 iff a cond t f = ABT.tm' a (If cond t f)
 
-ann :: Ord v => Term' vt v -> Type vt -> Term' vt v
-ann e t = ABT.tm (Ann e t)
+ann_ :: Ord v => Term' vt v -> Type vt -> Term' vt v
+ann_ e t = ABT.tm (Ann e t)
 
-ann' :: Ord v => a -> AnnotatedTerm2 vt at v a -> Type.AnnotatedType vt at -> AnnotatedTerm2 vt at v a
-ann' a e t = ABT.tm' a (Ann e t)
+ann :: Ord v => a -> AnnotatedTerm2 vt at v a -> Type.AnnotatedType vt at -> AnnotatedTerm2 vt at v a
+ann a e t = ABT.tm' a (Ann e t)
 
 -- arya: are we sure we want the two annotations to be the same?
 lam :: Ord v => a -> v -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a
@@ -348,15 +348,15 @@ unLams' (LamNamed' v body) = case unLams' body of
   Just (vs, body) -> Just (v:vs, body)
 unLams' _ = Nothing
 
-dependencies' :: Ord v => AnnotatedTerm' vt v a -> Set Reference
+dependencies' :: Ord v => AnnotatedTerm2 vt at v a -> Set Reference
 dependencies' t = Set.fromList . Writer.execWriter $ ABT.visit' f t
   where f t@(Ref r) = Writer.tell [r] *> pure t
         f t = pure t
 
-dependencies :: Ord v => AnnotatedTerm' vt v a -> Set Hash
+dependencies :: Ord v => AnnotatedTerm2 vt at v a -> Set Hash
 dependencies e = Set.fromList [ h | Reference.Derived h <- Set.toList (dependencies' e) ]
 
-referencedDataDeclarations :: Ord v => AnnotatedTerm' vt v a -> Set Reference
+referencedDataDeclarations :: Ord v => AnnotatedTerm2 vt at v a -> Set Reference
 referencedDataDeclarations t = Set.fromList . Writer.execWriter $ ABT.visit' f t
   where f t@(Constructor r _) = Writer.tell [r] *> pure t
         f t@(Match _ cases) = traverse_ g cases *> pure t where

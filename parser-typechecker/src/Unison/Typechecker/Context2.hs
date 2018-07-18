@@ -537,7 +537,7 @@ synthesize e = withinSynthesize e $ go (minimize' e)
     t  <- synthesizeClosed' abilities binding
     v' <- ABT.freshen e freshenVar
     -- note: `Ann' (Ref'  _) t` synthesizes to `t`
-    e  <- pure $ ABT.bindInheritAnnotation e (Term.ann' () (Term.builtin() (Var.name v')) t)
+    e  <- pure $ ABT.bindInheritAnnotation e (Term.ann () (Term.builtin() (Var.name v')) t)
     synthesize e
   go (Term.Let1' binding e) = do
    -- literally just convert to a lambda application and call synthesize!
@@ -545,7 +545,7 @@ synthesize e = withinSynthesize e $ go (minimize' e)
    -- let x = blah p q in foo y <=> (x -> foo y) (blah p q)
    v' <- ABT.freshen e freshenVar
    e  <- pure $ ABT.bindInheritAnnotation e (Term.var() v')
-   synthesize (Term.app' l (Term.lam l v' e) binding)
+   synthesize (Term.app l (Term.lam l v' e) binding)
   go (Term.Let1' binding e) = do
     -- note: no need to freshen binding, it can't refer to v
     tbinding <- synthesize binding

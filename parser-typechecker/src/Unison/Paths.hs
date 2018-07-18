@@ -48,11 +48,11 @@ focus1 e = ABT.Path go' where
   w = E.vmap ABT.Bound
   wt = ABT.vmap ABT.Bound
   go Fn (Term (E.App' fn arg)) =
-    Just (Term fn, \fn -> Term <$> (E.app <$> asTerm fn <*> pure (w arg)), [])
+    Just (Term fn, \fn -> Term <$> (E.app() <$> asTerm fn <*> pure (w arg)), [])
   go Fn (Type (T.App' fn arg)) =
     Just (Type fn, \fn -> Type <$> (T.app() <$> asType fn <*> pure (wt arg)), [])
   go Arg (Term (E.App' fn arg)) =
-    Just (Term arg, \arg -> Term <$> (E.app (w fn) <$> asTerm arg), [])
+    Just (Term arg, \arg -> Term <$> (E.app () (w fn) <$> asTerm arg), [])
   go Arg (Type (T.App' fn arg)) =
     Just (Type arg, \arg -> Type <$> (T.app() (wt fn) <$> asType arg), [])
   go Body (Term (E.LamNamed' v body)) = Just (Term body, \t -> Term . set <$> asTerm t, [v]) where
@@ -89,8 +89,8 @@ focus1 e = ABT.Path go' where
   go (Binding i) (Term (E.Let1Named' v b body)) | i <= 0 = Just (Declaration v b, set, []) where
     set (Declaration v b) = pure . Term $ E.let1 [(((),v), b)] (w body)
     set _ = Nothing
-  go Annotation (Term (E.Ann' e t)) = Just (Type t, \t -> Term . E.ann (w e) <$> asType t, [])
-  go Body (Term (E.Ann' body t)) = Just (Term body, \body -> Term . flip E.ann (wt t) <$> asTerm body, [])
+  go Annotation (Term (E.Ann' e t)) = Just (Type t, \t -> Term . E.ann () (w e) <$> asType t, [])
+  go Body (Term (E.Ann' body t)) = Just (Term body, \body -> Term . flip (E.ann ()) (wt t) <$> asTerm body, [])
   go Input (Type (T.Arrow' i o)) = Just (Type i, \i -> Type <$> (T.arrow() <$> asType i <*> pure (wt o)), [])
   go Output (Type (T.Arrow' i o)) = Just (Type o, \o -> Type . T.arrow() (wt i) <$> asType o, [])
   go _ _ = Nothing

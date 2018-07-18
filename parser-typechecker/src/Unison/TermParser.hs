@@ -60,7 +60,7 @@ term3 = do
   ot <- optional (token (char ':') *> TypeParser.valueType)
   pure $ case ot of
     Nothing -> t
-    Just y -> Term.ann t y
+    Just y -> Term.ann() t y
 
 -- We disallow type annotations and lambdas,
 -- just function application and operators
@@ -192,7 +192,7 @@ tupleOrParenthesizedTerm :: Var v => TermP v
 tupleOrParenthesizedTerm = tupleOrParenthesized term unit pair
   where
     pair t1 t2 =
-      Term.constructor() (R.Builtin "Pair") 0 `Term.app` t1 `Term.app` t2
+      Term.constructor() (R.Builtin "Pair") 0 `Term.app_` t1 `Term.app_` t2
     unit = Term.constructor() (R.Builtin "()") 0
 
 text' :: Parser s Text.Text
@@ -267,7 +267,7 @@ binding = traced "binding" . label "binding" $ do
       when (name /= nameT) $
         fail ("The type signature for ‘" ++ show (Var.name nameT) ++ "’ lacks an accompanying binding")
       body <- eq *> block
-      pure $ fmap (\e -> Term.ann e typ) (mkBinding name args body)
+      pure $ fmap (\e -> Term.ann () e typ) (mkBinding name args body)
   where
   mkBinding f [] body = (f, body)
   mkBinding f args body = (f, Term.lam' () args body)

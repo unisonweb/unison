@@ -712,7 +712,7 @@ synthesize e = scope ("synth: " ++ show e) $ go (minimize' e)
     abilities <- getAbilities
     t  <- scope "let1 closed" $ synthesizeClosed' abilities decls binding
     v' <- ABT.freshen e freshenVar
-    e  <- pure $ ABT.bind e (Term.builtin() (Var.name v') `Term.ann` t)
+    e  <- pure $ ABT.bind e (Term.builtin() (Var.name v') `Term.ann_` t)
     synthesize e
   --go (Term.Let1' binding e) = do
   --  -- literally just convert to a lambda application and call synthesize!
@@ -821,11 +821,11 @@ checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) =
         _ -> ([], rhs)
       -- Make up a term that involves the guard if present
       rhs' = case guard of
-        Just g -> Term.let1_ [(Var.named "_", Term.ann g (Type.boolean()))] body
+        Just g -> Term.let1_ [(Var.named "_", g `Term.ann_` Type.boolean())] body
         Nothing -> body
       -- Convert pattern to a Term
       patTerm = evalState (patternToTerm pat) vs
-      newBody = Term.let1_ [(Var.named "_", patTerm `Term.ann` scrutineeType)] rhs'
+      newBody = Term.let1_ [(Var.named "_", patTerm `Term.ann_` scrutineeType)] rhs'
       entireCase = foldr (\v t -> Term.let1_ [(v, Term.blank())] t) newBody vs
   in check entireCase outputType
 
@@ -892,8 +892,8 @@ synthesizeApp ft arg = scope ("synthesizeApp: " ++ show ft ++ ", " ++ show arg) 
 -- also rename Vector -> Sequence
 desugarVector :: Var v => [Term v] -> Term v
 desugarVector ts = case ts of
-  [] -> Term.ann (Term.builtin() "Vector.empty") (Type.forall'() ["a"] va)
-  hd : tl -> (Term.builtin() "Vector.prepend" `Term.ann` prependT) `Term.app` hd `Term.app` desugarVector tl
+  [] -> Term.ann() (Term.builtin() "Vector.empty") (Type.forall'() ["a"] va)
+  hd : tl -> (Term.builtin() "Vector.prepend" `Term.ann_` prependT) `Term.app_` hd `Term.app_` desugarVector tl
   where prependT = Type.forall'() ["a"] (Type.arrow() (Type.v' "a") (Type.arrow() va va))
         va = Type.app() (Type.vector()) (Type.v' "a")
 
@@ -902,7 +902,7 @@ annotateRefs :: (Applicative f, Ord v)
              -> Term v
              -> Noted f (Term v)
 annotateRefs synth term = ABT.visit f term where
-  f (Term.Ref' h) = Just (Term.ann (Term.ref() h) <$> (ABT.vmap TypeVar.Universal <$> synth h))
+  f (Term.Ref' h) = Just (Term.ann() (Term.ref() h) <$> (ABT.vmap TypeVar.Universal <$> synth h))
   f _ = Nothing
 
 synthesizeClosed
