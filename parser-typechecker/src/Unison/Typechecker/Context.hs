@@ -839,7 +839,7 @@ patternToTerm pat = case pat of
   -- similar for other literals
   Pattern.Constructor r cid pats -> do
     outputTerms <- traverse patternToTerm pats
-    pure $ Term.apps (Term.constructor() r cid) outputTerms
+    pure $ Term.apps (Term.constructor() r cid) (((),) <$> outputTerms)
   Pattern.Var -> do
     (h : t) <- get
     put t
@@ -850,11 +850,11 @@ patternToTerm pat = case pat of
     put t
     tm <- patternToTerm p
     pure . Term.let1 [(h, tm)] $ Term.var() h
-  Pattern.EffectPure p -> Term.effectPure <$> patternToTerm p
+  Pattern.EffectPure p -> Term.effectPure() <$> patternToTerm p
   Pattern.EffectBind r cid pats kpat -> do
     outputTerms <- traverse patternToTerm pats
     kTerm <- patternToTerm kpat
-    pure $ Term.effectBind r cid outputTerms kTerm
+    pure $ Term.effectBind() r cid outputTerms kTerm
   _ -> error "todo: delete me after deleting PatternP - patternToTerm match failure"
 
 -- | Synthesize the type of the given term, `arg` given that a function of

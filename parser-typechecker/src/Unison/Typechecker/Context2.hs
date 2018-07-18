@@ -545,7 +545,7 @@ synthesize e = withinSynthesize e $ go (minimize' e)
    -- let x = blah p q in foo y <=> (x -> foo y) (blah p q)
    v' <- ABT.freshen e freshenVar
    e  <- pure $ ABT.bindInheritAnnotation e (Term.var() v')
-   synthesize (Term.app' l (Term.lamA l v' e) binding)
+   synthesize (Term.app' l (Term.lam l v' e) binding)
   go (Term.Let1' binding e) = do
     -- note: no need to freshen binding, it can't refer to v
     tbinding <- synthesize binding

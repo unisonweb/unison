@@ -238,11 +238,11 @@ vector a es = vector' a (Vector.fromList es)
 vector' :: Ord v => a -> Vector (AnnotatedTerm2 vt at v a) -> AnnotatedTerm2 vt at v a
 vector' a es = ABT.tm' a (Vector es)
 
-apps :: Ord v => Term' vt v -> [Term' vt v] -> Term' vt v
-apps f = foldl' app f
+apps :: Ord v => AnnotatedTerm2 vt at v a -> [(a, AnnotatedTerm2 vt at v a)] -> AnnotatedTerm2 vt at v a
+apps f = foldl' (\f (a,t) -> app' a t f) f
 
-iff :: Ord v => Term' vt v -> Term' vt v -> Term' vt v -> Term' vt v
-iff cond t f = ABT.tm (If cond t f)
+iff :: Ord v => a -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a
+iff a cond t f = ABT.tm' a (If cond t f)
 
 ann :: Ord v => Term' vt v -> Type vt -> Term' vt v
 ann e t = ABT.tm (Ann e t)
@@ -250,18 +250,15 @@ ann e t = ABT.tm (Ann e t)
 ann' :: Ord v => a -> AnnotatedTerm2 vt at v a -> Type.AnnotatedType vt at -> AnnotatedTerm2 vt at v a
 ann' a e t = ABT.tm' a (Ann e t)
 
-lam :: Ord v => v -> Term' vt v -> Term' vt v
-lam v body = ABT.tm (Lam (ABT.abs v body))
-
 -- arya: are we sure we want the two annotations to be the same?
-lamA :: Ord v => a -> v -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
-lamA a v body = ABT.tm' a (Lam (ABT.abs' a v body))
+lam :: Ord v => a -> v -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
+lam a v body = ABT.tm' a (Lam (ABT.abs' a v body))
 
 lam' :: Var v => [Text] -> Term' vt v -> Term' vt v
-lam' vs body = foldr lam body (map ABT.v' vs)
+lam' vs body = foldr (lam()) body (map ABT.v' vs)
 
 lam'' :: Ord v => [v] -> Term' vt v -> Term' vt v
-lam'' vs body = foldr lam body vs
+lam'' vs body = foldr (lam()) body vs
 
 pattern LetRecNamedAnnotated' ann bs e <- (unLetRecNamedAnnotated -> Just (ann, bs,e))
 
@@ -304,11 +301,11 @@ annotatedLet1 bindings e = foldr f e bindings
 let1' :: Var v => [(Text, Term' vt v)] -> Term' vt v -> Term' vt v
 let1' bs e = let1 [(ABT.v' name, b) | (name,b) <- bs ] e
 
-effectPure :: Ord v => Term' vt v -> Term' vt v
-effectPure t = ABT.tm (EffectPure t)
+effectPure :: Ord v => a -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a
+effectPure a t = ABT.tm' a (EffectPure t)
 
-effectBind :: Ord v => Reference -> Int -> [Term' vt v] -> Term' vt v -> Term' vt v
-effectBind r cid args k = ABT.tm (EffectBind r cid args k)
+effectBind :: Ord v => a -> Reference -> Int -> [AnnotatedTerm2 vt at v a] -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a
+effectBind a r cid args k = ABT.tm' a (EffectBind r cid args k)
 
 unLet1 :: Var v => AnnotatedTerm' vt v a -> Maybe (AnnotatedTerm' vt v a, ABT.Subst (F vt a) v a)
 unLet1 (ABT.Tm' (Let b (ABT.Abs' subst))) = Just (b, subst)

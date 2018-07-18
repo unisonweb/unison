@@ -77,7 +77,7 @@ focus1 e = ABT.Path go' where
   go Body (Declaration v body) = Just (Term body, \body -> Declaration (ABT.Bound v) <$> asTerm body, [])
   go Bound (Declaration v body) = Just (Var v, \v -> Declaration <$> asVar v <*> pure (w body), [])
   go Bound (Term (E.LamNamed' v body)) =
-    Just (Var v, \v -> Term <$> (E.lam <$> asVar v <*> pure (w body)), [])
+    Just (Var v, \v -> Term <$> (E.lam() <$> asVar v <*> pure (w body)), [])
   go Bound (Term (E.Let1Named' v b body)) =
     Just (Var v, \v -> (\v -> Term $ E.let1 [(v,w b)] (w body)) <$> asVar v, [])
   go Bound (Type (T.ForallNamed' v body)) =

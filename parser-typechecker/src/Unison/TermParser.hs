@@ -152,12 +152,12 @@ infixApp :: Var v => TermP v
 infixApp = chainl1 term4 (f <$> infixVar)
   where
     f :: Ord v => v -> Term v -> Term v -> Term v
-    f op lhs rhs = Term.apps (Term.var() op) [lhs,rhs]
+    f op lhs rhs = Term.apps (Term.var() op) [((),lhs),((),rhs)]
 
 term4 :: Var v => TermP v
 term4 = traced "apply-chain" $ f <$> some termLeaf
   where
-    f (func:args) = Term.apps func args
+    f (func:args) = Term.apps func (((),) <$> args)
     f [] = error "'some' shouldn't produce an empty list"
 
 termLeaf :: forall v. Var v => TermP v
@@ -172,7 +172,7 @@ ifthen = traced "ifthen" $ do
   iftrue <- block' $ L.virtual_rbrace <|> (lookAhead . token_ $ string "else")
   token_ $ string "else"
   iffalse <- block
-  pure $ Term.iff cond iftrue iffalse
+  pure $ Term.iff() cond iftrue iffalse
 
 and :: Var v => TermP v
 and = Term.and() <$> (token (string "and") *> termLeaf) <*> termLeaf
