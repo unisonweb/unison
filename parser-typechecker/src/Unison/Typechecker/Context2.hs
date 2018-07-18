@@ -601,14 +601,14 @@ synthesize e = withinSynthesize e $ go (minimize' e)
     check k (Type.arrow l iType (Type.effect l [eType] rType))
     ctx <- getContext
     pure $ apply ctx (Type.effectV l (l, eType) (l, rType))
-  -- go (Term.Match' scrutinee cases) = do
-  --   scrutineeType <- synthesize scrutinee
-  --   outputTypev <- freshenVar (Var.named "match-output")
-  --   let outputType = Type.existential outputTypev
-  --   appendContext $ context [Existential outputTypev]
-  --   Foldable.traverse_ (checkCase scrutineeType outputType) cases
-  --   ctx <- getContext
-  --   pure $ apply ctx outputType
+  go (Term.Match' scrutinee cases) = do
+    scrutineeType <- synthesize scrutinee
+    outputTypev <- freshenVar (Var.named "match-output")
+    let outputType = Type.existential' l outputTypev
+    appendContext $ context [Existential outputTypev]
+    Foldable.traverse_ (checkCase scrutineeType outputType) cases
+    ctx <- getContext
+    pure $ apply ctx outputType
   go h@(Term.Handle' _ _) = do
     o <- freshNamed "o"
     appendContext $ context [Existential o]
