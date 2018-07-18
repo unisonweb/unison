@@ -333,7 +333,7 @@ handle = traced "handle" $ do
   handler <- term
   token_ $ string "in"
   b <- block
-  pure $ Term.handle handler b
+  pure $ Term.handle() handler b
 
 lam :: Var v => TermP v -> TermP v
 lam p = traced "lambda" $ attempt (Term.lam'' <$> vars <* arrow) <*> body

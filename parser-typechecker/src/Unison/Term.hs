@@ -223,8 +223,8 @@ app' a f arg = ABT.tm' a (App f arg)
 match :: Ord v => a -> AnnotatedTerm2 vt at v a -> [MatchCase (AnnotatedTerm2 vt at v a)] -> AnnotatedTerm2 vt at v a
 match a scrutinee branches = ABT.tm' a (Match scrutinee branches)
 
-handle :: Ord v => Term v -> Term v -> Term v
-handle h block = ABT.tm (Handle h block)
+handle :: Ord v => a -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a
+handle a h block = ABT.tm' a (Handle h block)
 
 and :: Ord v => Term v -> Term v -> Term v
 and x y = ABT.tm (And x y)
