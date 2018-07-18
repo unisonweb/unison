@@ -87,12 +87,12 @@ data F typeVar typeAnn a
   deriving (Eq,Foldable,Functor,Generic,Generic1,Traversable)
 
 -- | Like `Term v`, but with an annotation of type `a` at every level in the tree
-type AnnotatedTerm v a = AnnotatedType2 v a v a
+type AnnotatedTerm v a = AnnotatedTerm2 v a v a
 -- | Allow type variables and term variables to differ
-type AnnotatedTerm' vt v a = AnnotatedType2 vt a v a
+type AnnotatedTerm' vt v a = AnnotatedTerm2 vt a v a
 -- | Allow type variables, term variables, type annotations and term annotations
 -- to all differ
-type AnnotatedType2 vt at v a = ABT.Term (F vt at) v a
+type AnnotatedTerm2 vt at v a = ABT.Term (F vt at) v a
 
 -- | Terms are represented as ABTs over the base functor F, with variables in `v`
 type Term v = AnnotatedTerm v ()
@@ -174,44 +174,41 @@ fresh = ABT.fresh
 
 -- some smart constructors
 
-var :: a -> v -> AnnotatedType2 vt at v a
+var :: a -> v -> AnnotatedTerm2 vt at v a
 var = ABT.annotatedVar
 
 var' :: Var v => Text -> Term' vt v
 var' = var() . ABT.v'
 
-derived :: Ord v => a -> Hash -> AnnotatedType2 vt at v a
+derived :: Ord v => a -> Hash -> AnnotatedTerm2 vt at v a
 derived a = ref a . Reference.Derived
 
 derived' :: Ord v => Text -> Maybe (Term' vt v)
 derived' base58 = derived () <$> Hash.fromBase58 base58
 
-ref :: Ord v => a -> Reference -> AnnotatedType2 vt at v a
+ref :: Ord v => a -> Reference -> AnnotatedTerm2 vt at v a
 ref a r = ABT.tm' a (Ref r)
 
-builtin :: Ord v => a -> Text -> AnnotatedType2 vt at v a
+builtin :: Ord v => a -> Text -> AnnotatedTerm2 vt at v a
 builtin a n = ref a (Reference.Builtin n)
 
-float :: Ord v => Double -> Term' vt v
-float d = ABT.tm (Float d)
+float :: Ord v => a -> Double -> AnnotatedTerm2 vt at v a
+float a d = ABT.tm' a (Float d)
 
-boolean :: Ord v => a -> Bool -> AnnotatedTerm' vt v a
+boolean :: Ord v => a -> Bool -> AnnotatedTerm2 vt at v a
 boolean a b = ABT.tm' a (Boolean b)
 
-int64 :: Ord v => Int64 -> Term' vt v
-int64 d = ABT.tm (Int64 d)
+int64 :: Ord v => a -> Int64 -> AnnotatedTerm2 vt at v a
+int64 a d = ABT.tm' a (Int64 d)
 
-uint64 :: Ord v => Word64 -> Term' vt v
-uint64 d = ABT.tm (UInt64 d)
+uint64 :: Ord v => a -> Word64 -> AnnotatedTerm2 vt at v a
+uint64 a d = ABT.tm' a (UInt64 d)
 
-text :: Ord v => Text -> Term' vt v
-text = ABT.tm . Text
+text :: Ord v => a -> Text -> AnnotatedTerm2 vt at v a
+text a = ABT.tm' a . Text
 
-blank :: Ord v => Term' vt v
-blank = ABT.tm Blank
-
-blank' :: Ord v => a -> AnnotatedTerm' vt v a
-blank' a = ABT.tm' a Blank
+blank :: Ord v => a -> AnnotatedTerm2 vt at v a
+blank a = ABT.tm' a Blank
 
 app :: Ord v => Term' vt v -> Term' vt v -> Term' vt v
 app f arg = ABT.tm (App f arg)
@@ -243,7 +240,7 @@ iff cond t f = ABT.tm (If cond t f)
 ann :: Ord v => Term' vt v -> Type vt -> Term' vt v
 ann e t = ABT.tm (Ann e t)
 
-ann' :: Ord v => a -> AnnotatedType2 vt at v a -> Type.AnnotatedType vt at -> AnnotatedType2 vt at v a
+ann' :: Ord v => a -> AnnotatedTerm2 vt at v a -> Type.AnnotatedType vt at -> AnnotatedTerm2 vt at v a
 ann' a e t = ABT.tm' a (Ann e t)
 
 vector :: Ord v => [Term' vt v] -> Term' vt v

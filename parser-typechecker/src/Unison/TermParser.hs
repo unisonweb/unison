@@ -201,10 +201,10 @@ text' =
   where ps = char '"' *> Unison.Parser.takeWhile "text literal" (/= '"') <* char '"'
 
 text :: Ord v => Parser s (Term v)
-text = Term.text <$> text'
+text = Term.text() <$> text'
 
 number :: Ord v => Parser s (Term v)
-number = number' Term.int64 Term.uint64 Term.float
+number = number' (Term.int64()) (Term.uint64()) (Term.float())
 
 number' :: (Int64 -> a) -> (Word64 -> a) -> (Double -> a) -> Parser s a
 number' i u f = token $ do
@@ -237,7 +237,7 @@ hashLit = token (f =<< (mark *> hash))
     hash = base64urlstring
 
 blank :: Ord v => TermP v
-blank = token (char '_') $> Term.blank
+blank = token (char '_') $> Term.blank()
 
 vector :: Ord v => TermP v -> TermP v
 vector p = Term.vector <$> (lbracket *> elements <* rbracket)

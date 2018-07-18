@@ -151,7 +151,7 @@ check' term typ = join . Note.unnote $ check [] missing missingD term typ
 -- this will check that `(f : forall a . a -> a) e` is well typed.
 checkAdmissible' :: Var v => Term v -> Type v -> Either Note (Type v)
 checkAdmissible' term typ =
-  synthesize' (Term.blank `Term.ann` tweak typ `Term.app` term)
+  synthesize' (Term.blank() `Term.ann` tweak typ `Term.app` term)
   where
     tweak (Type.ForallNamed' v body) = Type.forall() v (tweak body)
     tweak t = Type.arrow() t t

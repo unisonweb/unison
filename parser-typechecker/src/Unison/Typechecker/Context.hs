@@ -826,16 +826,16 @@ checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) =
       -- Convert pattern to a Term
       patTerm = evalState (patternToTerm pat) vs
       newBody = Term.let1 [(Var.named "_", patTerm `Term.ann` scrutineeType)] rhs'
-      entireCase = foldr (\v t -> Term.let1 [(v, Term.blank)] t) newBody vs
+      entireCase = foldr (\v t -> Term.let1 [(v, Term.blank())] t) newBody vs
   in check entireCase outputType
 
 -- Make up a fake term for the pattern, that we can typecheck
 patternToTerm :: Var v => Pattern -> State [v] (Term v)
 patternToTerm pat = case pat of
   Pattern.Boolean b -> pure $ Term.boolean() b
-  Pattern.Int64 n -> pure $ Term.int64 n
-  Pattern.UInt64 n -> pure $ Term.uint64 n
-  Pattern.Float n -> pure $ Term.float n
+  Pattern.Int64 n -> pure $ Term.int64() n
+  Pattern.UInt64 n -> pure $ Term.uint64() n
+  Pattern.Float n -> pure $ Term.float() n
   -- similar for other literals
   Pattern.Constructor r cid pats -> do
     outputTerms <- traverse patternToTerm pats
@@ -844,7 +844,7 @@ patternToTerm pat = case pat of
     (h : t) <- get
     put t
     pure $ Term.var() h
-  Pattern.Unbound -> pure Term.blank
+  Pattern.Unbound -> pure $ Term.blank()
   Pattern.As p -> do
     (h : t) <- get
     put t
