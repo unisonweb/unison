@@ -76,7 +76,7 @@ match = do
   cases <- L.vblockNextToken (sepBy L.vsemi matchCase)
   pure $ Term.match() scrutinee cases
 
-matchCase :: Var v => Parser (S v) (Term.MatchCase (Term v))
+matchCase :: Var v => Parser (S v) (Term.MatchCase () (Term v))
 matchCase = do
   (p, boundVars) <- parsePattern
   guard <- traced "guard" $ optional $ token (string "|") *> infixApp

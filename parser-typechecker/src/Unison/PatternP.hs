@@ -15,4 +15,7 @@ pattern Float loc n = P.FloatP loc n
 pattern Constructor loc r cid ps = P.ConstructorP loc r cid ps
 pattern As loc p = P.AsP loc p
 pattern EffectPure loc p = P.EffectPureP loc p
-pattern EffectBind loc r cid ps k = P.EffectBindP loc r cid ps k
+pattern EffectBind loc r c args k = P.EffectBindP loc r c args k
+
+loc :: P.PatternP loc -> loc
+loc p = P.loc p

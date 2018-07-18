@@ -35,10 +35,19 @@ data F a
   | App a a
   | Effect [a] a
   | Forall a
-  deriving (Eq,Foldable,Functor,Generic,Generic1,Traversable)
+  deriving (Foldable,Functor,Generic,Generic1,Traversable)
 
 instance Eq1 F where (==#) = (==)
 instance Show1 F where showsPrec1 = showsPrec
+instance Eq a => Eq (F a) where
+  Ref r == Ref r2 = r == r2
+  Arrow i o == Arrow i2 o2 = i == i2 && o == o2
+  Ann a k == Ann a2 k2 = a == a2 && k == k2
+  App f a == App f2 a2 = f == f2 && a == a2
+  Effect es t == Effect es2 t2 = es == es2 && t == t2
+  Forall a == Forall b = a == b
+  _ == _ = False
+
 
 -- | Types are represented as ABTs over the base functor F, with variables in `v`
 type Type v = AnnotatedType v ()

@@ -12,7 +12,7 @@ import Data.Sequence (Seq)
 
 import           Control.Monad
 import           Control.Monad.Loops (anyM, allM)
--- import           Control.Monad.State (evalState)
+import           Control.Monad.State (State, get, put, evalState)
 import qualified Data.Foldable as Foldable
 import Data.Maybe
 import           Data.List
@@ -28,12 +28,11 @@ import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 import qualified Unison.DataDeclaration as DD
 -- import           Unison.Note (Note,Noted(..))
 -- import qualified Unison.Note as Note
--- import           Unison.PatternP (Pattern)
--- import qualified Unison.PatternP as Pattern
+import           Unison.PatternP (Pattern)
+import qualified Unison.PatternP as Pattern
 import           Unison.Reference (Reference)
 import qualified Unison.Term as Term
 import           Unison.Term (AnnotatedTerm')
--- import           Unison.Term (AnnotatedTerm)
 import           Unison.Type (AnnotatedType)
 import qualified Unison.Type as Type
 import           Unison.TypeVar (TypeVar)
@@ -161,7 +160,7 @@ context xs = foldl' (flip extend) context0 xs
 
 -- | Delete from the end of this context up to and including
 -- the given `Element`. Returns `Nothing` if the element is not found.
-retract :: (Eq loc, Var v) => Element v loc -> Context v loc -> Maybe (Context v loc)
+retract :: Var v => Element v loc -> Context v loc -> Maybe (Context v loc)
 retract e (Context ctx) =
   let maybeTail [] = Nothing
       maybeTail (_:t) = pure t
@@ -171,7 +170,7 @@ retract e (Context ctx) =
 
 -- | Delete from the end of this context up to and including
 -- the given `Element`.
-doRetract :: (Eq loc, Var v) => Element v loc -> M v loc ()
+doRetract :: Var v => Element v loc -> M v loc ()
 doRetract e = do
   ctx <- getContext
   case retract e ctx of
@@ -179,7 +178,7 @@ doRetract e = do
     Just t -> setContext t
 
 -- | Like `retract`, but returns the empty context if retracting would remove all elements.
-retract' :: (Eq loc, Var v) => Element v loc -> Context v loc -> Context v loc
+retract' :: Var v => Element v loc -> Context v loc -> Context v loc
 retract' e ctx = fromMaybe mempty $ retract e ctx
 
 solved :: Context v loc -> [(v, Monotype v loc)]
@@ -207,7 +206,7 @@ breakAt m (Context xs) =
 
 
 -- | ordered Γ α β = True <=> Γ[α^][β^]
-ordered :: (Eq loc, Var v) => Context v loc -> v -> v -> Bool
+ordered :: Var v => Context v loc -> v -> v -> Bool
 ordered ctx v v2 = Set.member v (existentials (retract' (Existential v2) ctx))
 
 env0 :: Env v loc
@@ -446,7 +445,7 @@ withEffects0 abilities' m =
 -- the given type `ft` is being applied to `arg`. Update the context in
 -- the process.
 -- e.g. in `(f:t) x` -- finds the type of (f x) given t and x.
-synthesizeApp :: (Eq loc, Var v) => Type v loc -> Term v loc -> M v loc (Type v loc)
+synthesizeApp :: Var v => Type v loc -> Term v loc -> M v loc (Type v loc)
 -- synthesizeApp ft arg | debugEnabled && traceShow ("synthesizeApp"::String, ft, arg) False = undefined
 synthesizeApp ft arg = withinSynthesizeApp ft arg $ go ft where
   go (Type.Forall' body) = do -- Forall1App
@@ -483,7 +482,7 @@ vectorConstructorOfArity arity = do
 
 -- | Synthesize the type of the given term, updating the context in the process.
 -- | Figure 11 from the paper
-synthesize :: forall v loc . (Eq loc, Var v) => Term v loc -> M v loc (Type v loc)
+synthesize :: forall v loc . Var v => Term v loc -> M v loc (Type v loc)
 synthesize e = withinSynthesize e $ go (minimize' e)
   where
   l = loc e
@@ -642,52 +641,54 @@ let x = _
 -}
 
 -- Make up a fake term for the pattern, that we can typecheck
--- patternToTerm :: Var v => Pattern loc -> State [v] (Term v loc)
---patternToTerm pat = case pat of
---  Pattern.Boolean loc b -> pure $ Term.boolean() b
---  Pattern.Int64 n -> pure $ Term.int64 n
---  Pattern.UInt64 n -> pure $ Term.uint64 n
---  Pattern.Float n -> pure $ Term.float n
---  -- similar for other literals
---  Pattern.Constructor r cid pats -> do
---    outputTerms <- traverse patternToTerm pats
---    pure $ Term.apps (Term.constructor r cid) outputTerms
---  Pattern.Var -> do
---    (h : t) <- get
---    put t
---    pure $ Term.var h
---  Pattern.Unbound -> pure Term.blank
---  Pattern.As p -> do
---    (h : t) <- get
---    put t
---    tm <- patternToTerm p
---    pure . Term.let1 [(h, tm)] $ Term.var h
---  Pattern.EffectPure p -> Term.effectPure <$> patternToTerm p
---  Pattern.EffectBind r cid pats kpat -> do
---    outputTerms <- traverse patternToTerm pats
---    kTerm <- patternToTerm kpat
---    pure $ Term.effectBind r cid outputTerms kTerm
+patternToTerm :: Var v => Pattern loc -> State [v] (Term v loc)
+patternToTerm pat = case pat of
+  Pattern.Boolean loc b -> pure $ Term.boolean loc b
+  Pattern.Int64 loc n -> pure $ Term.int64 loc n
+  Pattern.UInt64 loc n -> pure $ Term.uint64 loc n
+  Pattern.Float loc n -> pure $ Term.float loc n
+  -- similar for other literals
+  Pattern.Constructor loc r cid pats -> do
+   outputTerms <- traverse patternToTerm pats
+   pure $ Term.apps (Term.constructor loc r cid) ((Pattern.loc pat,) <$> outputTerms)
+  Pattern.Var loc -> do
+   (h : t) <- get
+   put t
+   pure $ Term.var loc h
+  Pattern.Unbound loc -> pure $ Term.blank loc
+  Pattern.As loc p -> do
+   (h : t) <- get
+   put t
+   tm <- patternToTerm p
+   pure . Term.let1 [((Pattern.loc p, h), tm)] $ Term.var loc h
+  Pattern.EffectPure loc p -> Term.effectPure loc <$> patternToTerm p
+  Pattern.EffectBind loc r cid pats kpat -> do
+   outputTerms <- traverse patternToTerm pats
+   kTerm <- patternToTerm kpat
+   pure $ Term.effectBind loc r cid outputTerms kTerm
+  _  -> error "todo: delete me after deleting PatternP - match fail in patternToTerm"
 
--- checkCase :: Var v => AnnotatedType v a -> AnnotatedType v a -> Term.MatchCase (AnnotatedTerm v a) -> M v a ()
--- checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) =
---   -- Get the variables bound in the pattern
---   let (vs, body) = case rhs of
---         ABT.AbsN' vars bod -> (vars, bod)
---         _ -> ([], rhs)
---       -- Make up a term that involves the guard if present
---       rhs' = case guard of
---         -- todo: arya: I would like the annotation to be more expressive than just a location;
---         -- e.g. noting that g is boolean because it's a pattern guard, not because it has
---         -- location (abc:xyz).  We'll see when we can run it and view output!
---         Just g ->
---           let l = loc g in
---           Term.annotatedLet1 [((l, Var.named "_"), Term.ann' l g (Type.boolean l))] body
---         Nothing -> body
---       -- Convert pattern to a Term
---       patTerm = evalState (patternToTerm pat) vs
---       newBody = Term.annotatedLet1 [(Var.named "_", Term.ann' (loc scrutineeType) patTerm scrutineeType)] rhs'
---       entireCase = foldr (\v t -> Term.annotatedLet1 [(v, Term.blank' )] t) newBody vs
---   in check entireCase outputType
+checkCase :: forall v loc . Var v => Type v loc -> Type v loc -> Term.MatchCase loc (Term v loc) -> M v loc ()
+checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) =
+  -- Get the variables bound in the pattern
+  let (vs, body) = case rhs of
+        ABT.AbsN' vars bod -> (vars, bod)
+        _ -> ([], rhs)
+      -- Make up a term that involves the guard if present
+      rhs' = case guard of
+        -- todo: arya: I would like the annotation to be more expressive than just a location;
+        -- e.g. noting that g is boolean because it's a pattern guard, not because it has
+        -- location (abc:xyz).  We'll see when we can run it and view output!
+        Just g ->
+          let locg = loc g in
+          Term.let1 [((locg, Var.named "_"), Term.ann locg g (Type.boolean locg))] body
+        Nothing -> body
+      -- Convert pattern to a Term
+      patTerm :: Term v loc
+      patTerm = evalState (patternToTerm (pat :: Pattern loc) :: State [v] (Term v loc)) vs
+      newBody = Term.let1 [((loc rhs', Var.named "_"), Term.ann (loc scrutineeType) patTerm scrutineeType)] rhs'
+      entireCase = foldr (\locv t -> Term.let1 [(locv, Term.blank (fst locv))] t) newBody (Foldable.toList pat `zip` vs)
+  in check entireCase outputType
 
 bindings :: Context v loc -> [(v, Type v loc)]
 bindings (Context ctx) = [(v,a) | (Ann v a,_) <- ctx]
@@ -701,7 +702,7 @@ lookupType ctx v = lookup v (bindings ctx)
 -- which should be used to retract the context after checking/synthesis
 -- of `body` is complete. See usage in `synthesize` and `check` for `LetRec'` case.
 annotateLetRecBindings
-  :: (Eq loc, Var v)
+  :: Var v
   => ((v -> M v loc v) -> M v loc ([(v, Term v loc)], Term v loc))
   -> M v loc (Element v loc, Term v loc)
 annotateLetRecBindings letrec = do
@@ -751,11 +752,12 @@ generalizeExistentials ctx t =
 
 -- | Check that under the given context, `e` has type `t`,
 -- updating the context in the process.
-check :: forall v loc . (Eq loc, Var v) => Term v loc -> Type v loc -> M v loc ()
+check :: forall v loc . Var v => Term v loc -> Type v loc -> M v loc ()
 -- check e t | debugEnabled && traceShow ("check"::String, e, t) False = undefined
 check e t = withinCheck e t $ getContext >>= \ctx ->
   if wellformedType ctx t then
     let
+      go :: Term v loc -> Type v loc -> M v loc ()
       go Term.Blank' _ = pure () -- somewhat hacky short circuit; blank checks successfully against all types
       go _ (Type.Forall' body) = do -- ForallI
         x <- extendUniversal =<< ABT.freshen body freshenTypeVar
@@ -810,7 +812,7 @@ check e t = withinCheck e t $ getContext >>= \ctx ->
 
 -- | `subtype ctx t1 t2` returns successfully if `t1` is a subtype of `t2`.
 -- This may have the effect of altering the context.
-subtype :: forall v loc . (Eq loc, Var v) => Type v loc -> Type v loc -> M v loc ()
+subtype :: forall v loc . Var v => Type v loc -> Type v loc -> M v loc ()
 subtype tx ty | debugEnabled && traceShow ("subtype"::String, tx, ty) False = undefined
 subtype tx ty = withinSubtype tx ty $
   do ctx <- getContext; go (ctx :: Context v loc) tx ty
@@ -860,7 +862,7 @@ subtype tx ty = withinSubtype tx ty $
 -- | Instantiate the given existential such that it is
 -- a subtype of the given type, updating the context
 -- in the process.
-instantiateL :: (Eq loc, Var v) => v -> Type v loc -> M v loc ()
+instantiateL :: Var v => v -> Type v loc -> M v loc ()
 instantiateL v t | debugEnabled && traceShow ("instantiateL"::String, v, t) False = undefined
 instantiateL v t = withinInstantiateL v t $
   getContext >>= \ctx -> case Type.monotype t >>= (solve ctx v) of
@@ -914,7 +916,7 @@ instantiateL v t = withinInstantiateL v t $
 -- | Instantiate the given existential such that it is
 -- a supertype of the given type, updating the context
 -- in the process.
-instantiateR :: (Eq loc, Var v) => Type v loc -> v -> M v loc ()
+instantiateR :: Var v => Type v loc -> v -> M v loc ()
 instantiateR t v | debugEnabled && traceShow ("instantiateR"::String, t, v) False = undefined
 instantiateR t v = withinInstantiateR t v $
   getContext >>= \ctx -> case Type.monotype t >>= solve ctx v of
@@ -969,7 +971,7 @@ instantiateR t v = withinInstantiateR t v $
 -- | solve (ΓL,α^,ΓR) α τ = (ΓL,α^ = τ,ΓR)
 -- If the given existential variable exists in the context,
 -- we solve it to the given monotype, otherwise return `Nothing`
-solve :: (Eq loc, Var v) => Context v loc -> v -> Monotype v loc -> Maybe (Context v loc)
+solve :: Var v => Context v loc -> v -> Monotype v loc -> Maybe (Context v loc)
 solve ctx v t
   -- okay to solve something again if it's to an identical type
   | v `elem` (map fst (solved ctx)) = same =<< lookup v (solved ctx)
@@ -981,21 +983,21 @@ solve ctx v t
   where (ctxL,ctxR) = breakAt (Existential v) ctx
         ctx' = ctxL `mappend` context [Solved v t] `mappend` ctxR
 
-abilityCheck' :: (Var v, Eq loc) => [Type v loc] -> [Type v loc] -> M v loc ()
+abilityCheck' :: Var v => [Type v loc] -> [Type v loc] -> M v loc ()
 abilityCheck' ambient requested = do
   success <- flip allM requested $ \req ->
     flip anyM ambient $ \amb -> (True <$ subtype amb req) `orElse` pure False
   when (not success) $
     failNote $ AbilityCheckFailure ambient requested
 
-abilityCheck :: (Var v, Eq loc) => [Type v loc] -> M v loc ()
+abilityCheck :: Var v => [Type v loc] -> M v loc ()
 abilityCheck requested = do
   enabled <- abilityCheckEnabled
   when enabled $ do
     ambient <- getAbilities
     abilityCheck' ambient requested
 
-verifyDataDeclarations :: (Eq loc, Var v) => DataDeclarations v loc -> M v loc ()
+verifyDataDeclarations :: Var v => DataDeclarations v loc -> M v loc ()
 verifyDataDeclarations decls = forM_ (Map.toList decls) $ \(_ref, decl) -> do
   let ctors = DD.constructors decl
   forM_ ctors $ \(_ctorName,typ) ->
@@ -1005,7 +1007,7 @@ verifyDataDeclarations decls = forM_ (Map.toList decls) $ \(_ref, decl) -> do
         go _ = pure ()
     in ABT.foreachSubterm go (ABT.annotateBound typ)
 
-synthesizeClosed' :: (Eq loc, Var v)
+synthesizeClosed' :: Var v
                   => [Type v loc]
                   -> Term v loc
                   -> M v loc (Type v loc)

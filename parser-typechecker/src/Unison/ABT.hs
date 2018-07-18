@@ -364,9 +364,9 @@ transform f tm = case (out tm) of
     in tm' (annotation tm) (f subterms')
   Cycle body -> cycle' (annotation tm) (transform f body)
 
-instance (Foldable f, Functor f, Eq1 f, Eq a, Var v) => Eq (Term f v a) where
+instance (Foldable f, Functor f, Eq1 f, Var v) => Eq (Term f v a) where
   -- alpha equivalence, works by renaming any aligned Abs ctors to use a common fresh variable
-  t1 == t2 = annotation t1 == annotation t2 && go (out t1) (out t2) where
+  t1 == t2 = go (out t1) (out t2) where
     go (Var v) (Var v2) | v == v2 = True
     go (Cycle t1) (Cycle t2) = t1 == t2
     go (Abs v1 body1) (Abs v2 body2) =

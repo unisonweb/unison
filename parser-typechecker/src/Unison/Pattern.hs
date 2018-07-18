@@ -4,6 +4,7 @@ module Unison.Pattern where
 
 import Data.Int (Int64)
 import Data.Word (Word64)
+import Data.Foldable as Foldable
 import GHC.Generics
 import Unison.Reference (Reference)
 import qualified Unison.Hashable as H
@@ -37,7 +38,10 @@ data PatternP loc
   | AsP loc (PatternP loc)
   | EffectPureP loc (PatternP loc)
   | EffectBindP loc !Reference !Int [PatternP loc] (PatternP loc)
-    deriving (Generic,Eq,Show,Functor,Foldable,Traversable)
+    deriving (Generic,Show,Functor,Foldable,Traversable)
+
+loc :: PatternP loc -> loc
+loc p = head $ Foldable.toList p
 
 pattern Unbound = UnboundP ()
 pattern Var = VarP ()
@@ -63,3 +67,23 @@ instance H.Hashable (PatternP p) where
   tokens (EffectBindP _ _r _ctor _ps _k) =
     H.Tag 8 : error "need fo figure out hashable"
   tokens (AsP _ p) = H.Tag 9 : H.tokens p
+
+instance Eq (PatternP loc) where
+  UnboundP _ == UnboundP _ = True
+  VarP _ == VarP _ = True
+  BooleanP _ b == BooleanP _ b2 = b == b2
+  Int64P _ n == Int64P _ m = n == m
+  UInt64P _ n == UInt64P _ m = n == m
+  FloatP _ f == FloatP _ g = f == g
+  ConstructorP _ r n args == ConstructorP _ s m brgs = r == s && n == m && args == brgs
+  EffectPureP _ p == EffectPureP _ q = p == q
+  EffectBindP _ r ctor ps k == EffectBindP _ r2 ctor2 ps2 k2 = r == r2 && ctor == ctor2 && ps == ps2 && k == k2
+  AsP _ p == AsP _ q = p == q
+  _ == _ = False
+
+
+
+-- idea: rename PatternP to PatternP0
+-- newtype PatternP loc = PatternP (PatternP0 loc)
+-- instance Eq (PatternP loc) where
+--   (PatternP p) == (PatternP p2) = void p == void p2
