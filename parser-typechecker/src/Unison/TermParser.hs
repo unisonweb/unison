@@ -152,7 +152,7 @@ infixApp :: Var v => TermP v
 infixApp = chainl1 term4 (f <$> infixVar)
   where
     f :: Ord v => v -> Term v -> Term v -> Term v
-    f op lhs rhs = Term.apps (Term.var op) [lhs,rhs]
+    f op lhs rhs = Term.apps (Term.var() op) [lhs,rhs]
 
 term4 :: Var v => TermP v
 term4 = traced "apply-chain" $ f <$> some termLeaf
@@ -288,7 +288,7 @@ prefixVar = traced "prefixVar" $ (Var.named . Text.pack) <$> label "symbol" (tok
            <|> (char '(' *> symbolyId keywords <* token (char ')')) -- no whitespace w/in parens
 
 prefixTerm :: Var v => TermP v
-prefixTerm = Term.var <$> prefixVar
+prefixTerm = Term.var() <$> prefixVar
 
 keywords :: [String]
 keywords =

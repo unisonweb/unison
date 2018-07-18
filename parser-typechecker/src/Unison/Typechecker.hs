@@ -49,7 +49,7 @@ admissibleTypeAt abilities typeOf decl loc t = Note.scoped ("admissibleTypeAt@" 
     shake (Type.Arrow' (Type.Arrow' _ tsub) _) = Type.generalize tsub
     shake (Type.ForallNamed' _ t) = shake t
     shake _ = error "impossible, f had better be a function"
-  in case Term.lam f <$> Paths.modifyTerm (\t -> Term.app (Term.var (ABT.Free f)) (Term.wrapV t)) loc t of
+  in case Term.lam f <$> Paths.modifyTerm (\t -> Term.app (Term.var() (ABT.Free f)) (Term.wrapV t)) loc t of
     Nothing -> Note.failure $ invalid loc t
     Just t -> shake <$> synthesize abilities typeOf decl t
 
@@ -64,7 +64,7 @@ typeAt abilities typeOf decl [] t = Note.scoped ("typeAt: " ++ show t) $ synthes
 typeAt abilities typeOf decl loc t = Note.scoped ("typeAt@"++show loc ++ " " ++ show t) $
   let
     f = ABT.v' "f"
-    remember e = Term.var (ABT.Free f) `Term.app` Term.wrapV e
+    remember e = Term.var() (ABT.Free f) `Term.app` Term.wrapV e
     shake (Type.Arrow' (Type.Arrow' tsub _) _) = Type.generalize tsub
     shake (Type.ForallNamed' _ t) = shake t
     shake _ = error "impossible, f had better be a function"
@@ -89,7 +89,7 @@ locals abilities typeOf decl path ctx | ABT.isClosed ctx =
     vars = map ABT.Bound (Paths.inScopeAtTerm path ctx)
     f = ABT.v' "f"
     saved = ABT.v' "saved"
-    remember e = Term.let1 [(saved, Term.var (ABT.Free f) `Term.apps` map Term.var vars)] (Term.wrapV e)
+    remember e = Term.let1 [(saved, Term.var() (ABT.Free f) `Term.apps` map (Term.var()) vars)] (Term.wrapV e)
     usingAllLocals = Term.lam f (Paths.modifyTerm' remember path ctx)
     types = if null vars then pure []
             else extract <$> typeAt abilities typeOf decl [] usingAllLocals

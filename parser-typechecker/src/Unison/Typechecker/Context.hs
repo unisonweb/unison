@@ -584,13 +584,13 @@ check e t = getContext >>= \ctx ->
         x <- ABT.freshen body freshenVar
         modifyContext' (extend (Ann x i))
         let Type.Effect'' es _ = o
-        scope ("pushing effects: " ++ show es) . withEffects0 es $ check (ABT.bind body (Term.var x)) o
+        scope ("pushing effects: " ++ show es) . withEffects0 es $ check (ABT.bind body (Term.var() x)) o
         modifyContext (retract (Ann x i))
       go (Term.Let1' binding e) t = do
         v <- ABT.freshen e freshenVar
         tbinding <- scope "let1.synthesize binding" $ synthesize binding
         modifyContext' (extend (Ann v tbinding))
-        scope "let1.checking body" $ check (ABT.bind e (Term.var v)) t
+        scope "let1.checking body" $ check (ABT.bind e (Term.var() v)) t
         modifyContext (retract (Ann v tbinding))
       go (Term.LetRecNamed' [] e) t = check e t
       go (Term.LetRec' letrec) t = do
@@ -726,7 +726,7 @@ synthesize e = scope ("synth: " ++ show e) $ go (minimize' e)
     tbinding <- synthesize binding
     v' <- ABT.freshen e freshenVar
     appendContext (context [Ann v' tbinding])
-    t <- synthesize (ABT.bind e (Term.var v'))
+    t <- synthesize (ABT.bind e (Term.var() v'))
     modifyContext (retract (Ann v' tbinding))
     pure t
   --  -- TODO: figure out why this retract sometimes generates invalid contexts,
@@ -738,7 +738,7 @@ synthesize e = scope ("synth: " ++ show e) $ go (minimize' e)
     [arg, i, o] <- sequence [ABT.freshen body freshenVar, freshVar, freshVar]
     appendContext $
       context [Marker i, Existential i, Existential o, Ann arg (Type.existential i)]
-    body <- pure $ ABT.bind body (Term.var arg)
+    body <- pure $ ABT.bind body (Term.var() arg)
     check body (Type.existential o)
     (ctx1, ctx2) <- breakAt (Marker i) <$> getContext
     -- unsolved existentials get generalized to universals
@@ -843,13 +843,13 @@ patternToTerm pat = case pat of
   Pattern.Var -> do
     (h : t) <- get
     put t
-    pure $ Term.var h
+    pure $ Term.var() h
   Pattern.Unbound -> pure Term.blank
   Pattern.As p -> do
     (h : t) <- get
     put t
     tm <- patternToTerm p
-    pure . Term.let1 [(h, tm)] $ Term.var h
+    pure . Term.let1 [(h, tm)] $ Term.var() h
   Pattern.EffectPure p -> Term.effectPure <$> patternToTerm p
   Pattern.EffectBind r cid pats kpat -> do
     outputTerms <- traverse patternToTerm pats

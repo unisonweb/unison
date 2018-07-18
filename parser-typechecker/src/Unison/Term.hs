@@ -87,9 +87,12 @@ data F typeVar typeAnn a
   deriving (Eq,Foldable,Functor,Generic,Generic1,Traversable)
 
 -- | Like `Term v`, but with an annotation of type `a` at every level in the tree
-type AnnotatedTerm v a = ABT.Term (F v a) v a
+type AnnotatedTerm v a = AnnotatedType2 v a v a
 -- | Allow type variables and term variables to differ
-type AnnotatedTerm' vt v a = ABT.Term (F vt a) v a
+type AnnotatedTerm' vt v a = AnnotatedType2 vt a v a
+-- | Allow type variables, term variables, type annotations and term annotations
+-- to all differ
+type AnnotatedType2 vt at v a = ABT.Term (F vt at) v a
 
 -- | Terms are represented as ABTs over the base functor F, with variables in `v`
 type Term v = AnnotatedTerm v ()
@@ -171,14 +174,11 @@ fresh = ABT.fresh
 
 -- some smart constructors
 
-var :: v -> ABT.Term (F vt at) v ()
-var = ABT.var
-
-annotatedVar :: a -> v -> ABT.Term (F vt at) v a
-annotatedVar = ABT.annotatedVar
+var :: a -> v -> AnnotatedType2 vt at v a
+var = ABT.annotatedVar
 
 var' :: Var v => Text -> Term' vt v
-var' = var . ABT.v'
+var' = var() . ABT.v'
 
 derived :: Ord v => Hash -> Term' vt v
 derived = ref . Reference.Derived
@@ -186,10 +186,10 @@ derived = ref . Reference.Derived
 derived' :: Ord v => Text -> Maybe (Term' vt v)
 derived' base58 = derived <$> Hash.fromBase58 base58
 
-ref :: Ord v => Reference -> ABT.Term (F vt at) v ()
+ref :: Ord v => Reference -> AnnotatedType2 vt at v ()
 ref r = ABT.tm (Ref r)
 
-builtin :: Ord v => Text -> ABT.Term (F vt at) v ()
+builtin :: Ord v => Text -> AnnotatedType2 vt at v ()
 builtin n = ref (Reference.Builtin n)
 
 float :: Ord v => Double -> Term' vt v
@@ -243,7 +243,7 @@ iff cond t f = ABT.tm (If cond t f)
 ann :: Ord v => Term' vt v -> Type vt -> Term' vt v
 ann e t = ABT.tm (Ann e t)
 
-ann' :: Ord v => a -> ABT.Term (F vt at) v a -> Type.AnnotatedType vt at -> ABT.Term (F vt at) v a
+ann' :: Ord v => a -> AnnotatedType2 vt at v a -> Type.AnnotatedType vt at -> AnnotatedType2 vt at v a
 ann' a e t = ABT.tm' a (Ann e t)
 
 vector :: Ord v => [Term' vt v] -> Term' vt v

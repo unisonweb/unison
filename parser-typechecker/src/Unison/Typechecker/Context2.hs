@@ -28,8 +28,8 @@ import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 import qualified Unison.DataDeclaration as DD
 -- import           Unison.Note (Note,Noted(..))
 -- import qualified Unison.Note as Note
--- import           Unison.Pattern (Pattern)
--- import qualified Unison.Pattern as Pattern
+import           Unison.PatternP (Pattern)
+import qualified Unison.PatternP as Pattern
 import           Unison.Reference (Reference)
 import qualified Unison.Term as Term
 import           Unison.Term (AnnotatedTerm')
@@ -544,14 +544,14 @@ synthesize e = withinSynthesize e $ go (minimize' e)
    -- NB: this misses out on let generalization
    -- let x = blah p q in foo y <=> (x -> foo y) (blah p q)
    v' <- ABT.freshen e freshenVar
-   e  <- pure $ ABT.bindInheritAnnotation e (Term.var v')
+   e  <- pure $ ABT.bindInheritAnnotation e (Term.var() v')
    synthesize (Term.app' l (Term.lamA l v' e) binding)
   go (Term.Let1' binding e) = do
     -- note: no need to freshen binding, it can't refer to v
     tbinding <- synthesize binding
     v' <- ABT.freshen e freshenVar
     appendContext (context [Ann v' tbinding])
-    t <- synthesize (ABT.bindInheritAnnotation e (Term.var v'))
+    t <- synthesize (ABT.bindInheritAnnotation e (Term.var() v'))
     doRetract $ Ann v' tbinding
     pure t
    -- TODO: figure out why this retract sometimes generates invalid contexts,
@@ -566,7 +566,7 @@ synthesize e = withinSynthesize e $ go (minimize' e)
         ot = Type.existential' l o
     appendContext $
       context [Marker i, Existential i, Existential o, Ann arg it]
-    body <- pure $ ABT.bindInheritAnnotation body (Term.var arg)
+    body <- pure $ ABT.bindInheritAnnotation body (Term.var() arg)
     check body ot
     (ctx1, ctx2) <- breakAt (Marker i) <$> getContext
     -- unsolved existentials get generalized to universals
@@ -641,7 +641,32 @@ let x = _
     x +_Int64 y
 -}
 
---
+-- Make up a fake term for the pattern, that we can typecheck
+-- patternToTerm :: Var v => Pattern loc -> State [v] (Term v loc)
+--patternToTerm pat = case pat of
+--  Pattern.Boolean loc b -> pure $ Term.boolean() b
+--  Pattern.Int64 n -> pure $ Term.int64 n
+--  Pattern.UInt64 n -> pure $ Term.uint64 n
+--  Pattern.Float n -> pure $ Term.float n
+--  -- similar for other literals
+--  Pattern.Constructor r cid pats -> do
+--    outputTerms <- traverse patternToTerm pats
+--    pure $ Term.apps (Term.constructor r cid) outputTerms
+--  Pattern.Var -> do
+--    (h : t) <- get
+--    put t
+--    pure $ Term.var h
+--  Pattern.Unbound -> pure Term.blank
+--  Pattern.As p -> do
+--    (h : t) <- get
+--    put t
+--    tm <- patternToTerm p
+--    pure . Term.let1 [(h, tm)] $ Term.var h
+--  Pattern.EffectPure p -> Term.effectPure <$> patternToTerm p
+--  Pattern.EffectBind r cid pats kpat -> do
+--    outputTerms <- traverse patternToTerm pats
+--    kTerm <- patternToTerm kpat
+--    pure $ Term.effectBind r cid outputTerms kTerm
 
 -- checkCase :: Var v => AnnotatedType v a -> AnnotatedType v a -> Term.MatchCase (AnnotatedTerm v a) -> M v a ()
 -- checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) =
@@ -740,13 +765,13 @@ check e t = withinCheck e t $ getContext >>= \ctx ->
         x <- ABT.freshen body freshenVar
         modifyContext' (extend (Ann x i))
         let Type.Effect'' es _ = o
-        withEffects0 es $ check (ABT.bindInheritAnnotation body (Term.var x)) o
+        withEffects0 es $ check (ABT.bindInheritAnnotation body (Term.var() x)) o
         doRetract $ Ann x i
       go (Term.Let1' binding e) t = do
         v <- ABT.freshen e freshenVar
         tbinding <- synthesize binding
         modifyContext' (extend (Ann v tbinding))
-        check (ABT.bindInheritAnnotation e (Term.var v)) t
+        check (ABT.bindInheritAnnotation e (Term.var() v)) t
         doRetract $ Ann v tbinding
       go (Term.LetRecNamed' [] e) t = check e t
       go (Term.LetRec' letrec) t = do
