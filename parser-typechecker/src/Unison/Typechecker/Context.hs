@@ -839,7 +839,7 @@ patternToTerm pat = case pat of
   -- similar for other literals
   Pattern.Constructor r cid pats -> do
     outputTerms <- traverse patternToTerm pats
-    pure $ Term.apps (Term.constructor r cid) outputTerms
+    pure $ Term.apps (Term.constructor() r cid) outputTerms
   Pattern.Var -> do
     (h : t) <- get
     put t

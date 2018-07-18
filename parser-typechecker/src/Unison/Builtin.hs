@@ -54,11 +54,10 @@ builtinTerms = builtinTerms' ++
     mkConstructor :: v -> R.Reference -> ((v, Type v), Int) -> (v, Term v)
     mkConstructor vt r ((v, _t), i) =
       (Var.named $ mconcat [Var.qualifiedName vt, ".", Var.qualifiedName v],
-        Term.constructor r i)
+        Term.constructor() r i)
 
 builtinTerms' :: forall v. Var v => [(v, Term v)]
 builtinTerms' = (toSymbol &&& Term.ref()) <$> Map.keys (builtins @v)
-
 
 builtinTypes :: forall v. Var v => [(v, Type v)]
 builtinTypes = builtinTypes' ++ (f <$> Map.toList (builtinDataDecls @v))

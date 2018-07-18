@@ -192,8 +192,8 @@ tupleOrParenthesizedTerm :: Var v => TermP v
 tupleOrParenthesizedTerm = tupleOrParenthesized term unit pair
   where
     pair t1 t2 =
-      Term.constructor (R.Builtin "Pair") 0 `Term.app` t1 `Term.app` t2
-    unit = Term.constructor (R.Builtin "()") 0
+      Term.constructor() (R.Builtin "Pair") 0 `Term.app` t1 `Term.app` t2
+    unit = Term.constructor() (R.Builtin "()") 0
 
 text' :: Parser s Text.Text
 text' =

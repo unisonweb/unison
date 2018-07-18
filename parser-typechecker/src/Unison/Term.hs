@@ -210,10 +210,14 @@ text a = ABT.tm' a . Text
 blank :: Ord v => a -> AnnotatedTerm2 vt at v a
 blank a = ABT.tm' a Blank
 
+constructor :: Ord v => a -> Reference -> Int -> AnnotatedTerm2 vt at v a
+constructor a ref n = ABT.tm' a (Constructor ref n)
+
+-- todo: delete and rename app' to app
 app :: Ord v => Term' vt v -> Term' vt v -> Term' vt v
 app f arg = ABT.tm (App f arg)
 
-app' :: Ord v => a -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
+app' :: Ord v => a -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a -> AnnotatedTerm2 vt at v a
 app' a f arg = ABT.tm' a (App f arg)
 
 match :: Ord v => Term v -> [MatchCase (Term v)] -> Term v
@@ -227,9 +231,6 @@ and x y = ABT.tm (And x y)
 
 or :: Ord v => Term v -> Term v -> Term v
 or x y = ABT.tm (Or x y)
-
-constructor :: Ord v => Reference -> Int -> Term' vt v
-constructor ref n = ABT.tm (Constructor ref n)
 
 apps :: Ord v => Term' vt v -> [Term' vt v] -> Term' vt v
 apps f = foldl' app f

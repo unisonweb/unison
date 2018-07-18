@@ -31,7 +31,7 @@ file builtinTypes = traced "file" $ do
                       environmentFor builtinTypes dataDecls effectDecls
   local (`Map.union` penv') $ do
     term <- TermParser.block
-    let dataEnv0 = Map.fromList [ (Var.named (Text.pack n), Term.constructor r i) | (n, (r,i)) <- Map.toList penv' ]
+    let dataEnv0 = Map.fromList [ (Var.named (Text.pack n), Term.constructor() r i) | (n, (r,i)) <- Map.toList penv' ]
         dataEnv = dataEnv0 `Map.difference` effectDecls
         effectEnv = dataEnv0 `Map.difference` dataEnv
         typeEnv = Map.toList (Type.ref() . fst <$> dataDecls') ++
