@@ -57,6 +57,7 @@ library
     Unison.TermParser
     Unison.Type
     Unison.TypeParser
+    Unison.TypeParser2
     Unison.TypeVar
     Unison.Typechecker
     Unison.Typechecker.Context
