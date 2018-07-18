@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE TupleSections #-}
 
 -- | This module is the primary interface to the Unison typechecker
 module Unison.Typechecker (admissibleTypeAt, check, check', checkAdmissible', equals, locals, subtype, isSubtype, synthesize, synthesize', typeAt, wellTyped) where
@@ -49,7 +50,7 @@ admissibleTypeAt abilities typeOf decl loc t = Note.scoped ("admissibleTypeAt@" 
     shake (Type.Arrow' (Type.Arrow' _ tsub) _) = Type.generalize tsub
     shake (Type.ForallNamed' _ t) = shake t
     shake _ = error "impossible, f had better be a function"
-  in case Term.lam f <$> Paths.modifyTerm (\t -> Term.app (Term.var (ABT.Free f)) (Term.wrapV t)) loc t of
+  in case Term.lam() f <$> Paths.modifyTerm (\t -> Term.app() (Term.var() (ABT.Free f)) (Term.wrapV t)) loc t of
     Nothing -> Note.failure $ invalid loc t
     Just t -> shake <$> synthesize abilities typeOf decl t
 
@@ -64,11 +65,11 @@ typeAt abilities typeOf decl [] t = Note.scoped ("typeAt: " ++ show t) $ synthes
 typeAt abilities typeOf decl loc t = Note.scoped ("typeAt@"++show loc ++ " " ++ show t) $
   let
     f = ABT.v' "f"
-    remember e = Term.var (ABT.Free f) `Term.app` Term.wrapV e
+    remember e = Term.var() (ABT.Free f) `Term.app_` Term.wrapV e
     shake (Type.Arrow' (Type.Arrow' tsub _) _) = Type.generalize tsub
     shake (Type.ForallNamed' _ t) = shake t
     shake _ = error "impossible, f had better be a function"
-  in case Term.lam f <$> Paths.modifyTerm remember loc t of
+  in case Term.lam() f <$> Paths.modifyTerm remember loc t of
     Nothing -> Note.failure $ invalid loc t
     Just t -> shake <$> synthesize abilities typeOf decl t
 
@@ -89,8 +90,8 @@ locals abilities typeOf decl path ctx | ABT.isClosed ctx =
     vars = map ABT.Bound (Paths.inScopeAtTerm path ctx)
     f = ABT.v' "f"
     saved = ABT.v' "saved"
-    remember e = Term.let1 [(saved, Term.var (ABT.Free f) `Term.apps` map Term.var vars)] (Term.wrapV e)
-    usingAllLocals = Term.lam f (Paths.modifyTerm' remember path ctx)
+    remember e = Term.let1_ [(saved, Term.var() (ABT.Free f) `Term.apps` map (((),) . Term.var()) vars)] (Term.wrapV e)
+    usingAllLocals = Term.lam() f (Paths.modifyTerm' remember path ctx)
     types = if null vars then pure []
             else extract <$> typeAt abilities typeOf decl [] usingAllLocals
     extract (Type.Arrow' i _) = extract1 i
@@ -136,7 +137,7 @@ check
   -> (Reference -> Noted f (DataDeclaration v))
   -> Term v
   -> Type v -> Noted f (Type v)
-check abilities typeOf decl term typ = synthesize abilities typeOf decl (Term.ann term typ)
+check abilities typeOf decl term typ = synthesize abilities typeOf decl (Term.ann () term typ)
 
 -- | Check whether a term, assumed to contain no @Ref@ constructors,
 -- matches a given type. Return @Left@ if any references exist, or
@@ -151,10 +152,10 @@ check' term typ = join . Note.unnote $ check [] missing missingD term typ
 -- this will check that `(f : forall a . a -> a) e` is well typed.
 checkAdmissible' :: Var v => Term v -> Type v -> Either Note (Type v)
 checkAdmissible' term typ =
-  synthesize' (Term.blank `Term.ann` tweak typ `Term.app` term)
+  synthesize' (Term.blank() `Term.ann_` tweak typ `Term.app_` term)
   where
-    tweak (Type.ForallNamed' v body) = Type.forall v (tweak body)
-    tweak t = t `Type.arrow` t
+    tweak (Type.ForallNamed' v body) = Type.forall() v (tweak body)
+    tweak t = Type.arrow() t t
 
 -- | Returns `True` if the expression is well-typed, `False` otherwise
 wellTyped

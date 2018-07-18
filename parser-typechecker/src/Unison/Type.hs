@@ -35,10 +35,19 @@ data F a
   | App a a
   | Effect [a] a
   | Forall a
-  deriving (Eq,Foldable,Functor,Generic,Generic1,Traversable)
+  deriving (Foldable,Functor,Generic,Generic1,Traversable)
 
 instance Eq1 F where (==#) = (==)
 instance Show1 F where showsPrec1 = showsPrec
+instance Eq a => Eq (F a) where
+  Ref r == Ref r2 = r == r2
+  Arrow i o == Arrow i2 o2 = i == i2 && o == o2
+  Ann a k == Ann a2 k2 = a == a2 && k == k2
+  App f a == App f2 a2 = f == f2 && a == a2
+  Effect es t == Effect es2 t2 = es == es2 && t == t2
+  Forall a == Forall b = a == b
+  _ == _ = False
+
 
 -- | Types are represented as ABTs over the base functor F, with variables in `v`
 type Type v = AnnotatedType v ()
@@ -121,8 +130,8 @@ isArrow _ = False
 vector :: Ord v => a -> AnnotatedType v a
 vector a = builtin a "Sequence"
 
--- vectorOf :: Ord v => a -> AnnotatedType v a -> Type v
--- vectorOf a t = vector `app` t
+--vectorOf :: Ord v => a -> AnnotatedType v a -> Type v
+--vectorOf a t = vector `app` t
 
 ref :: Ord v => a -> Reference -> AnnotatedType v a
 ref a = ABT.tm' a . Ref
@@ -172,9 +181,19 @@ iff = forall () aa $ arrows (f <$> [boolean(), a, a]) a
         a = var () aa
         f x = ((), x)
 
+iff' :: Var v => a -> AnnotatedType v a
+iff' loc = forall loc aa $ arrows (f <$> [boolean loc, a, a]) a
+  where aa = ABT.v' "a"
+        a = var loc aa
+        f x = (loc, x)
+
 andor :: Ord v => Type v
 andor = arrows (f <$> [boolean(), boolean()]) $ boolean()
   where f x = ((), x)
+
+andor' :: Ord v => a -> AnnotatedType v a
+andor' a = arrows (f <$> [boolean a, boolean a]) $ boolean a
+  where f x = (a, x)
 
 var :: Ord v => a -> v -> AnnotatedType v a
 var = ABT.annotatedVar

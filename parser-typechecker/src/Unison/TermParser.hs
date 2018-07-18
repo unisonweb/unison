@@ -60,7 +60,7 @@ term3 = do
   ot <- optional (token (char ':') *> TypeParser.valueType)
   pure $ case ot of
     Nothing -> t
-    Just y -> Term.ann t y
+    Just y -> Term.ann() t y
 
 -- We disallow type annotations and lambdas,
 -- just function application and operators
@@ -74,9 +74,9 @@ match = do
   scrutinee <- term
   token_ $ string "of"
   cases <- L.vblockNextToken (sepBy L.vsemi matchCase)
-  pure $ Term.match scrutinee cases
+  pure $ Term.match() scrutinee cases
 
-matchCase :: Var v => Parser (S v) (Term.MatchCase (Term v))
+matchCase :: Var v => Parser (S v) (Term.MatchCase () (Term v))
 matchCase = do
   (p, boundVars) <- parsePattern
   guard <- traced "guard" $ optional $ token (string "|") *> infixApp
@@ -152,12 +152,12 @@ infixApp :: Var v => TermP v
 infixApp = chainl1 term4 (f <$> infixVar)
   where
     f :: Ord v => v -> Term v -> Term v -> Term v
-    f op lhs rhs = Term.apps (Term.var op) [lhs,rhs]
+    f op lhs rhs = Term.apps (Term.var() op) [((),lhs),((),rhs)]
 
 term4 :: Var v => TermP v
 term4 = traced "apply-chain" $ f <$> some termLeaf
   where
-    f (func:args) = Term.apps func args
+    f (func:args) = Term.apps func (((),) <$> args)
     f [] = error "'some' shouldn't produce an empty list"
 
 termLeaf :: forall v. Var v => TermP v
@@ -172,13 +172,13 @@ ifthen = traced "ifthen" $ do
   iftrue <- block' $ L.virtual_rbrace <|> (lookAhead . token_ $ string "else")
   token_ $ string "else"
   iffalse <- block
-  pure $ Term.iff cond iftrue iffalse
+  pure $ Term.iff() cond iftrue iffalse
 
 and :: Var v => TermP v
-and = Term.and <$> (token (string "and") *> termLeaf) <*> termLeaf
+and = Term.and() <$> (token (string "and") *> termLeaf) <*> termLeaf
 
 or :: Var v => TermP v
-or = Term.or <$> (token (string "or") *> termLeaf) <*> termLeaf
+or = Term.or() <$> (token (string "or") *> termLeaf) <*> termLeaf
 
 -- Generic parser for tuples and parenthesized patterns/terms
 tupleOrParenthesized :: Parser s a -> a -> (a -> a -> a) -> Parser s a
@@ -192,8 +192,8 @@ tupleOrParenthesizedTerm :: Var v => TermP v
 tupleOrParenthesizedTerm = tupleOrParenthesized term unit pair
   where
     pair t1 t2 =
-      Term.constructor (R.Builtin "Pair") 0 `Term.app` t1 `Term.app` t2
-    unit = Term.constructor (R.Builtin "()") 0
+      Term.constructor() (R.Builtin "Pair") 0 `Term.app_` t1 `Term.app_` t2
+    unit = Term.constructor() (R.Builtin "()") 0
 
 text' :: Parser s Text.Text
 text' =
@@ -201,10 +201,10 @@ text' =
   where ps = char '"' *> Unison.Parser.takeWhile "text literal" (/= '"') <* char '"'
 
 text :: Ord v => Parser s (Term v)
-text = Term.text <$> text'
+text = Term.text() <$> text'
 
 number :: Ord v => Parser s (Term v)
-number = number' Term.int64 Term.uint64 Term.float
+number = number' (Term.int64()) (Term.uint64()) (Term.float())
 
 number' :: (Int64 -> a) -> (Word64 -> a) -> (Double -> a) -> Parser s a
 number' i u f = token $ do
@@ -224,8 +224,8 @@ number' i u f = token $ do
 
 boolean :: Ord v => Parser s (Term v)
 boolean =
-  (Term.boolean True <$ token (string "true")) <|>
-  (Term.boolean False <$ token (string "false"))
+  (Term.boolean() True <$ token (string "true")) <|>
+  (Term.boolean() False <$ token (string "false"))
 
 hashLit :: Ord v => Parser s (Term v)
 hashLit = token (f =<< (mark *> hash))
@@ -237,10 +237,10 @@ hashLit = token (f =<< (mark *> hash))
     hash = base64urlstring
 
 blank :: Ord v => TermP v
-blank = token (char '_') $> Term.blank
+blank = token (char '_') $> Term.blank()
 
 vector :: Ord v => TermP v -> TermP v
-vector p = Term.vector <$> (lbracket *> elements <* rbracket)
+vector p = Term.vector() <$> (lbracket *> elements <* rbracket)
   where
     lbracket = token (char '[')
     elements = sepBy comma (L.withoutLayout "vector element" p)
@@ -267,10 +267,10 @@ binding = traced "binding" . label "binding" $ do
       when (name /= nameT) $
         fail ("The type signature for ‘" ++ show (Var.name nameT) ++ "’ lacks an accompanying binding")
       body <- eq *> block
-      pure $ fmap (\e -> Term.ann e typ) (mkBinding name args body)
+      pure $ fmap (\e -> Term.ann () e typ) (mkBinding name args body)
   where
   mkBinding f [] body = (f, body)
-  mkBinding f args body = (f, Term.lam'' args body)
+  mkBinding f args body = (f, Term.lam' () args body)
 
 typedecl :: Var v => Parser (S v) (v, Type v)
 typedecl = (,) <$> attempt (prefixVar <* token (char ':'))
@@ -288,7 +288,7 @@ prefixVar = traced "prefixVar" $ (Var.named . Text.pack) <$> label "symbol" (tok
            <|> (char '(' *> symbolyId keywords <* token (char ')')) -- no whitespace w/in parens
 
 prefixTerm :: Var v => TermP v
-prefixTerm = Term.var <$> prefixVar
+prefixTerm = Term.var() <$> prefixVar
 
 keywords :: [String]
 keywords =
@@ -321,7 +321,7 @@ block' vendbrace =
       -- possibly changing the meaning of the program (which is ambiguous anyway),
       -- or fail with a helpful error message if there's a forward reference with
       -- effects.
-      (Left e : bs) -> pure $ Term.letRec (toBinding <$> reverse bs) e
+      (Left e : bs) -> pure $ Term.letRec_ (toBinding <$> reverse bs) e
       [] -> fail "empty block"
 
 block :: Var v => TermP v
@@ -333,10 +333,10 @@ handle = traced "handle" $ do
   handler <- term
   token_ $ string "in"
   b <- block
-  pure $ Term.handle handler b
+  pure $ Term.handle() handler b
 
 lam :: Var v => TermP v -> TermP v
-lam p = traced "lambda" $ attempt (Term.lam'' <$> vars <* arrow) <*> body
+lam p = traced "lambda" $ attempt (Term.lam' () <$> vars <* arrow) <*> body
   where
     vars = some prefixVar
     arrow = token (string "->")

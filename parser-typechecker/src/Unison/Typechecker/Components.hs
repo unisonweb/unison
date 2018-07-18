@@ -1,12 +1,13 @@
 module Unison.Typechecker.Components (components, minimize, minimize') where
 
+import Data.Bifunctor (first)
 import qualified Data.Graph as Graph
 import qualified Data.Map as Map
 import           Data.Maybe
 import           Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
-import           Unison.Term (Term')
+import           Unison.Term (AnnotatedTerm')
 import qualified Unison.Term as Term
 import           Unison.Var (Var)
 
@@ -63,15 +64,27 @@ components' freeVars bs =
 --
 -- Gets rid of the let rec and replaces it with an ordinary `let`, such
 -- that `id` is suitably generalized.
-minimize :: Var v => Term' vt v -> Maybe (Term' vt v)
-minimize (Term.LetRecNamed' bs e) = case components bs of
+minimize :: Var v => AnnotatedTerm' vt v a -> Maybe (AnnotatedTerm' vt v a)
+minimize (Term.LetRecNamedAnnotated' ann bs e) = case components (first snd <$> bs) of
   [_single] -> Nothing
-  cs -> Just $ foldr mklet e cs where
-    mklet [(hdv,hdb)] e
-      | Set.member hdv (ABT.freeVars hdb) = Term.letRec [(hdv,hdb)] e
-      | otherwise                         = Term.let1 [(hdv,hdb)] e
-    mklet cycle e = Term.letRec cycle e
+  cs ->
+    let
+      varAnnotations = Map.fromList ((\((a,v),_) -> (v,a)) <$> bs)
+      annotationFor v = fromJust $ Map.lookup v varAnnotations
+      annotatedVar v = (annotationFor v, v)
+      -- When introducing a nested let/let rec, we use the annotation of the
+      -- variable that starts off that let/let rec
+      mklet [(hdv,hdb)] e
+        | Set.member hdv (ABT.freeVars hdb) = Term.letRec (annotationFor hdv) [(annotatedVar hdv, hdb)] e
+        | otherwise                         = Term.let1 [(annotatedVar hdv,hdb)] e
+      mklet cycle@((hdv,_):_) e = Term.letRec (annotationFor hdv) (first annotatedVar <$> cycle) e
+      mklet [] e = e
+    in
+      -- The outer annotation is going to be meaningful, so we make
+      -- sure to preserve it, whereas the annotations at intermediate Abs nodes
+      -- aren't necessarily meaningful
+      Just $ ABT.annotate ann (foldr mklet e cs) where
 minimize _ = Nothing
 
-minimize' :: Var v => Term' vt v -> Term' vt v
+minimize' :: Var v => AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
 minimize' term = fromMaybe term (minimize term)

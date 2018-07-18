@@ -321,7 +321,7 @@ generalizeExistentials ctx t = foldr gen (apply ctx t) (unsolved ctx)
   where
     gen e t =
       if TypeVar.Existential e `ABT.isFreeIn` t
-      then Type.forall (TypeVar.Universal e) (ABT.subst (TypeVar.Existential e) (Type.universal e) t)
+      then Type.forall() (TypeVar.Universal e) (ABT.subst (TypeVar.Existential e) (Type.universal e) t)
       else t -- don't bother introducing a forall if type variable is unused
 
 replace :: Var v => Element v -> Context v -> Context v -> Context v
@@ -379,11 +379,11 @@ apply ctx t = case t of
   Type.Ref' _ -> t
   Type.Existential' v ->
     maybe t (\(Type.Monotype t') -> apply ctx t') (lookup v (solved ctx))
-  Type.Arrow' i o -> Type.arrow (apply ctx i) (apply ctx o)
-  Type.App' x y -> Type.app (apply ctx x) (apply ctx y)
-  Type.Ann' v k -> Type.ann (apply ctx v) k
-  Type.Effect' es t -> Type.effect (map (apply ctx) es) (apply ctx t)
-  Type.ForallNamed' v t' -> Type.forall v (apply ctx t')
+  Type.Arrow' i o -> Type.arrow() (apply ctx i) (apply ctx o)
+  Type.App' x y -> Type.app() (apply ctx x) (apply ctx y)
+  Type.Ann' v k -> Type.ann() (apply ctx v) k
+  Type.Effect' es t -> Type.effect() (map (apply ctx) es) (apply ctx t)
+  Type.ForallNamed' v t' -> Type.forall() v (apply ctx t')
   _ -> error $ "Context.apply ill formed type - " ++ show t
 
 -- | solve (ΓL,α^,ΓR) α τ = (ΓL,α^ = τ,ΓR)
@@ -476,14 +476,14 @@ instantiateL v t = getContext >>= \ctx -> case Type.monotype t >>= (solve ctx v)
         solve ctx v2 (Type.Monotype (Type.existential v))
     Type.Arrow' i o -> do -- InstLArr
       [i',o'] <- traverse freshenVar [ABT.v' "i", ABT.v' "o"]
-      let s = Solved v (Type.Monotype (Type.arrow (Type.existential i') (Type.existential o')))
+      let s = Solved v (Type.Monotype (Type.arrow() (Type.existential i') (Type.existential o')))
       modifyContext' $ replace (Existential v) (context [Existential o', Existential i', s])
       instantiateR i i'
       ctx <- getContext
       instantiateL o' (apply ctx o)
     Type.App' x y -> do -- analogue of InstLArr
       [x', y'] <- traverse freshenVar [ABT.v' "x", ABT.v' "y"]
-      let s = Solved v (Type.Monotype (Type.app (Type.existential x') (Type.existential y')))
+      let s = Solved v (Type.Monotype (Type.app() (Type.existential x') (Type.existential y')))
       modifyContext' $ replace (Existential v) (context [Existential y', Existential x', s])
       ctx0 <- getContext
       ctx' <- instantiateL x' (apply ctx0 x) >> getContext
@@ -491,7 +491,7 @@ instantiateL v t = getContext >>= \ctx -> case Type.monotype t >>= (solve ctx v)
     Type.Effect' es vt -> do
       es' <- replicateM (length es) (freshNamed "eeee")
       vt' <- freshNamed "vt"
-      let s = Solved v (Type.Monotype (Type.effect (Type.existential <$> es') (Type.existential vt')))
+      let s = Solved v (Type.Monotype (Type.effect() (Type.existential <$> es') (Type.existential vt')))
       modifyContext' $ replace (Existential v) (context $ (Existential <$> es') ++ [Existential vt', s])
       Foldable.for_ (es' `zip` es) $ \(e',e) -> do
         ctx <- getContext
@@ -520,7 +520,7 @@ instantiateR t v = getContext >>= \ctx -> case Type.monotype t >>= solve ctx v o
         solve ctx v2 (Type.Monotype (Type.existential v))
     Type.Arrow' i o -> do -- InstRArrow
       [i', o'] <- traverse freshenVar [ABT.v' "i", ABT.v' "o"]
-      let s = Solved v (Type.Monotype (Type.arrow (Type.existential i') (Type.existential o')))
+      let s = Solved v (Type.Monotype (Type.arrow() (Type.existential i') (Type.existential o')))
       setContext (replace (Existential v) (context [Existential o', Existential i', s]) ctx)
       ctx <- instantiateL i' i >> getContext
       instantiateR (apply ctx o) o'
@@ -530,7 +530,7 @@ instantiateR t v = getContext >>= \ctx -> case Type.monotype t >>= solve ctx v o
       -- 2. add v' = foo' a' to the context
       -- 3. recurse to refine the types of foo' and a'
       [x', y'] <- traverse freshenVar [ABT.v' "x", ABT.v' "y"]
-      let s = Solved v (Type.Monotype (Type.app (Type.existential x') (Type.existential y')))
+      let s = Solved v (Type.Monotype (Type.app() (Type.existential x') (Type.existential y')))
       setContext $ replace (Existential v) (context [Existential y', Existential x', s]) ctx
       ctx <- getContext
       instantiateR (apply ctx x) x'
@@ -539,7 +539,7 @@ instantiateR t v = getContext >>= \ctx -> case Type.monotype t >>= solve ctx v o
     Type.Effect' es vt -> do
       es' <- replicateM (length es) (freshNamed "e")
       vt' <- freshNamed "vt"
-      let s = Solved v (Type.Monotype (Type.effect (Type.existential <$> es') (Type.existential vt')))
+      let s = Solved v (Type.Monotype (Type.effect() (Type.existential <$> es') (Type.existential vt')))
       modifyContext' $ replace (Existential v) (context $ (Existential <$> es') ++ [Existential vt', s])
       Foldable.for_ (es `zip` es') $ \(e, e') -> do
         ctx <- getContext
@@ -570,11 +570,11 @@ check e t | debugEnabled && traceShow ("check"::String, e, t) False = undefined
 check e t = getContext >>= \ctx ->
   if wellformedType ctx t then
     let
-      go (Term.Int64' _) _ = subtype Type.int64 t -- 1I
-      go (Term.UInt64' _) _ = subtype Type.uint64 t -- 1I
-      go (Term.Float' _) _ = subtype Type.float t -- 1I
-      go (Term.Boolean' _) _ = subtype Type.boolean t -- 1I
-      go (Term.Text' _) _ = subtype Type.text t -- 1I
+      go (Term.Int64' _) _ = subtype (Type.int64()) t -- 1I
+      go (Term.UInt64' _) _ = subtype (Type.uint64()) t -- 1I
+      go (Term.Float' _) _ = subtype (Type.float()) t -- 1I
+      go (Term.Boolean' _) _ = subtype (Type.boolean()) t -- 1I
+      go (Term.Text' _) _ = subtype (Type.text()) t -- 1I
       go Term.Blank' _ = pure () -- somewhat hacky short circuit; blank checks successfully against all types
       go _ (Type.Forall' body) = do -- ForallI
         x <- extendUniversal =<< ABT.freshen body freshenTypeVar
@@ -584,13 +584,13 @@ check e t = getContext >>= \ctx ->
         x <- ABT.freshen body freshenVar
         modifyContext' (extend (Ann x i))
         let Type.Effect'' es _ = o
-        scope ("pushing effects: " ++ show es) . withEffects0 es $ check (ABT.bind body (Term.var x)) o
+        scope ("pushing effects: " ++ show es) . withEffects0 es $ check (ABT.bind body (Term.var() x)) o
         modifyContext (retract (Ann x i))
       go (Term.Let1' binding e) t = do
         v <- ABT.freshen e freshenVar
         tbinding <- scope "let1.synthesize binding" $ synthesize binding
         modifyContext' (extend (Ann v tbinding))
-        scope "let1.checking body" $ check (ABT.bind e (Term.var v)) t
+        scope "let1.checking body" $ check (ABT.bind e (Term.var() v)) t
         modifyContext (retract (Ann v tbinding))
       go (Term.LetRecNamed' [] e) t = check e t
       go (Term.LetRec' letrec) t = do
@@ -602,14 +602,14 @@ check e t = getContext >>= \ctx ->
         -- `body` should check against `i`
         [e, i] <- sequence [freshNamed "e", freshNamed "i"]
         appendContext $ context [Existential e, Existential i]
-        check h $ Type.effectV (Type.existential e) (Type.existential i) `Type.arrow` t
+        check h $ Type.arrow() (Type.effectV() ((), Type.existential e) ((), Type.existential i)) t
         ctx <- getContext
         let Type.Effect'' requested _ = apply ctx t
         abilityCheck requested
         withEffects [apply ctx $ Type.existential e] $ do
           ambient <- getAbilities
           let (_, i') = Type.stripEffect (apply ctx (Type.existential i))
-          check body (Type.effect ambient i')
+          check body (Type.effect() ambient i')
           pure ()
       go _ _ = do -- Sub
         a <- synthesize e; ctx <- getContext
@@ -689,16 +689,17 @@ synthesize e = scope ("synth: " ++ show e) $ go (minimize' e)
              a <- freshNamed "a"
              appendContext $ context [Marker a, Existential a]
              ambient <- getAbilities
-             subtype t (Type.effect ambient (Type.existential a))
+             subtype t (Type.effect() ambient (Type.existential a))
              -- modifyContext $ retract [Marker a]
              pure t
       else pure t
+  -- todo: Term.Request'
   go (Term.Ann' e' t) = t <$ check e' t
-  go (Term.Float' _) = pure Type.float -- 1I=>
-  go (Term.Int64' _) = pure Type.int64 -- 1I=>
-  go (Term.UInt64' _) = pure Type.uint64 -- 1I=>
-  go (Term.Boolean' _) = pure Type.boolean
-  go (Term.Text' _) = pure Type.text
+  go (Term.Float' _) = pure (Type.float()) -- 1I=>
+  go (Term.Int64' _) = pure (Type.int64()) -- 1I=>
+  go (Term.UInt64' _) = pure (Type.uint64())-- 1I=>
+  go (Term.Boolean' _) = pure (Type.boolean())
+  go (Term.Text' _) = pure (Type.text())
   go (Term.App' f arg) = do -- ->E
     ft <- synthesize f
     ctx <- getContext
@@ -711,7 +712,7 @@ synthesize e = scope ("synth: " ++ show e) $ go (minimize' e)
     abilities <- getAbilities
     t  <- scope "let1 closed" $ synthesizeClosed' abilities decls binding
     v' <- ABT.freshen e freshenVar
-    e  <- pure $ ABT.bind e (Term.builtin (Var.name v') `Term.ann` t)
+    e  <- pure $ ABT.bind e (Term.builtin() (Var.name v') `Term.ann_` t)
     synthesize e
   --go (Term.Let1' binding e) = do
   --  -- literally just convert to a lambda application and call synthesize!
@@ -725,7 +726,7 @@ synthesize e = scope ("synth: " ++ show e) $ go (minimize' e)
     tbinding <- synthesize binding
     v' <- ABT.freshen e freshenVar
     appendContext (context [Ann v' tbinding])
-    t <- synthesize (ABT.bind e (Term.var v'))
+    t <- synthesize (ABT.bind e (Term.var() v'))
     modifyContext (retract (Ann v' tbinding))
     pure t
   --  -- TODO: figure out why this retract sometimes generates invalid contexts,
@@ -737,14 +738,14 @@ synthesize e = scope ("synth: " ++ show e) $ go (minimize' e)
     [arg, i, o] <- sequence [ABT.freshen body freshenVar, freshVar, freshVar]
     appendContext $
       context [Marker i, Existential i, Existential o, Ann arg (Type.existential i)]
-    body <- pure $ ABT.bind body (Term.var arg)
+    body <- pure $ ABT.bind body (Term.var() arg)
     check body (Type.existential o)
     (ctx1, ctx2) <- breakAt (Marker i) <$> getContext
     -- unsolved existentials get generalized to universals
     setContext ctx1
     pure $ generalizeExistentials
              ctx2
-             (Type.existential i `Type.arrow` Type.existential o)
+             (Type.arrow() (Type.existential i) (Type.existential o))
   go (Term.LetRecNamed' [] body) = synthesize body
   go (Term.LetRec' letrec) = do
     (marker, e) <- annotateLetRecBindings letrec
@@ -758,7 +759,7 @@ synthesize e = scope ("synth: " ++ show e) $ go (minimize' e)
   go (Term.EffectPure' a) = do
     e <- freshenVar (Var.named "e")
     Type.Effect'' _ at <- synthesize a
-    pure . Type.forall (TypeVar.Universal e) $ Type.effectV (Type.universal e) at
+    pure . Type.forall() (TypeVar.Universal e) $ Type.effectV() ((), Type.universal e) ((), at)
   go (Term.EffectBind' r cid args k) = do
     cType <- getConstructorType r cid
     let arity = Type.arity cType
@@ -771,9 +772,9 @@ synthesize e = scope ("synth: " ++ show e) $ go (minimize' e)
     rTypev <- freshNamed "result"
     let rType = Type.existential rTypev
     appendContext $ context [Existential rTypev]
-    check k (iType `Type.arrow` Type.effect [eType] rType)
+    check k (Type.arrow() iType (Type.effect() [eType] rType))
     ctx <- getContext
-    pure $ apply ctx (Type.effectV eType rType)
+    pure $ apply ctx (Type.effectV() ((), eType) ((), rType))
   go (Term.Match' scrutinee cases) = scope ("match " ++ show scrutinee) $ do
     scrutineeType <- synthesize scrutinee
     outputTypev <- freshenVar (Var.named "match-output")
@@ -812,7 +813,7 @@ let x = _
     guard = x <_Int64 +10
     x +_Int64 y
 -}
-checkCase :: Var v => Type v -> Type v -> Term.MatchCase (Term v) -> M v ()
+checkCase :: Var v => Type v -> Type v -> Term.MatchCase () (Term v) -> M v ()
 checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) =
   -- Get the variables bound in the pattern
   let (vs, body) = case rhs of
@@ -820,40 +821,41 @@ checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) =
         _ -> ([], rhs)
       -- Make up a term that involves the guard if present
       rhs' = case guard of
-        Just g -> Term.let1 [(Var.named "_", Term.ann g Type.boolean)] body
+        Just g -> Term.let1_ [(Var.named "_", g `Term.ann_` Type.boolean())] body
         Nothing -> body
       -- Convert pattern to a Term
       patTerm = evalState (patternToTerm pat) vs
-      newBody = Term.let1 [(Var.named "_", patTerm `Term.ann` scrutineeType)] rhs'
-      entireCase = foldr (\v t -> Term.let1 [(v, Term.blank)] t) newBody vs
+      newBody = Term.let1_ [(Var.named "_", patTerm `Term.ann_` scrutineeType)] rhs'
+      entireCase = foldr (\v t -> Term.let1_ [(v, Term.blank())] t) newBody vs
   in check entireCase outputType
 
 -- Make up a fake term for the pattern, that we can typecheck
 patternToTerm :: Var v => Pattern -> State [v] (Term v)
 patternToTerm pat = case pat of
-  Pattern.Boolean b -> pure $ Term.boolean b
-  Pattern.Int64 n -> pure $ Term.int64 n
-  Pattern.UInt64 n -> pure $ Term.uint64 n
-  Pattern.Float n -> pure $ Term.float n
+  Pattern.Boolean b -> pure $ Term.boolean() b
+  Pattern.Int64 n -> pure $ Term.int64() n
+  Pattern.UInt64 n -> pure $ Term.uint64() n
+  Pattern.Float n -> pure $ Term.float() n
   -- similar for other literals
   Pattern.Constructor r cid pats -> do
     outputTerms <- traverse patternToTerm pats
-    pure $ Term.apps (Term.constructor r cid) outputTerms
+    pure $ Term.apps (Term.constructor() r cid) (((),) <$> outputTerms)
   Pattern.Var -> do
     (h : t) <- get
     put t
-    pure $ Term.var h
-  Pattern.Unbound -> pure Term.blank
+    pure $ Term.var() h
+  Pattern.Unbound -> pure $ Term.blank()
   Pattern.As p -> do
     (h : t) <- get
     put t
     tm <- patternToTerm p
-    pure . Term.let1 [(h, tm)] $ Term.var h
-  Pattern.EffectPure p -> Term.effectPure <$> patternToTerm p
+    pure . Term.let1_ [(h, tm)] $ Term.var() h
+  Pattern.EffectPure p -> Term.effectPure() <$> patternToTerm p
   Pattern.EffectBind r cid pats kpat -> do
     outputTerms <- traverse patternToTerm pats
     kTerm <- patternToTerm kpat
-    pure $ Term.effectBind r cid outputTerms kTerm
+    pure $ Term.effectBind() r cid outputTerms kTerm
+  _ -> error "todo: delete me after deleting PatternP - patternToTerm match failure"
 
 -- | Synthesize the type of the given term, `arg` given that a function of
 -- the given type `ft` is being applied to `arg`. Update the context in
@@ -870,10 +872,10 @@ synthesizeApp ft arg = scope ("synthesizeApp: " ++ show ft ++ ", " ++ show arg) 
     let (es, _) = Type.stripEffect o
     abilityCheck es
     ambientEs <- getAbilities
-    o <$ check arg (Type.effect ambientEs i)
+    o <$ check arg (Type.effect() ambientEs i)
   go (Type.Existential' a) = do -- a^App
     [i,o] <- traverse freshenVar [ABT.v' "i", ABT.v' "o"]
-    let soln = Type.Monotype (Type.existential i `Type.arrow` Type.existential o)
+    let soln = Type.Monotype (Type.arrow() (Type.existential i) (Type.existential o))
     let ctxMid = context [Existential o, Existential i, Solved a soln]
     modifyContext' $ replace (Existential a) ctxMid
     scope "a^App" $ (Type.existential o <$ check arg (Type.existential i))
@@ -890,17 +892,17 @@ synthesizeApp ft arg = scope ("synthesizeApp: " ++ show ft ++ ", " ++ show arg) 
 -- also rename Vector -> Sequence
 desugarVector :: Var v => [Term v] -> Term v
 desugarVector ts = case ts of
-  [] -> Term.builtin "Vector.empty" `Term.ann` Type.forall' ["a"] va
-  hd : tl -> (Term.builtin "Vector.prepend" `Term.ann` prependT) `Term.app` hd `Term.app` desugarVector tl
-  where prependT = Type.forall' ["a"] (Type.v' "a" `Type.arrow` (va `Type.arrow` va))
-        va = Type.vectorOf (Type.v' "a")
+  [] -> Term.ann() (Term.builtin() "Vector.empty") (Type.forall'() ["a"] va)
+  hd : tl -> (Term.builtin() "Vector.prepend" `Term.ann_` prependT) `Term.app_` hd `Term.app_` desugarVector tl
+  where prependT = Type.forall'() ["a"] (Type.arrow() (Type.v' "a") (Type.arrow() va va))
+        va = Type.app() (Type.vector()) (Type.v' "a")
 
 annotateRefs :: (Applicative f, Ord v)
              => (Reference -> Noted f (Type.Type v))
              -> Term v
              -> Noted f (Term v)
 annotateRefs synth term = ABT.visit f term where
-  f (Term.Ref' h) = Just (Term.ann (Term.ref h) <$> (ABT.vmap TypeVar.Universal <$> synth h))
+  f (Term.Ref' h) = Just (Term.ann() (Term.ref() h) <$> (ABT.vmap TypeVar.Universal <$> synth h))
   f _ = Nothing
 
 synthesizeClosed

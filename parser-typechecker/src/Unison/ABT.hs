@@ -12,6 +12,7 @@
 module Unison.ABT where
 
 import Control.Applicative
+import Control.Monad
 import Data.List hiding (cycle)
 import Data.Maybe
 import Data.Ord
@@ -135,6 +136,13 @@ pattern Cycle' vs t <- Term _ _ (Cycle (AbsN' vs t))
 pattern Abs' subst <- (unabs1 -> Just subst)
 pattern AbsN' vs body <- (unabs -> (vs, body))
 pattern Tm' f <- Term _ _ (Tm f)
+pattern CycleA' a avs t <- Term _ a (Cycle (AbsNA' avs t))
+pattern AbsNA' avs body <- (unabsA -> (avs, body))
+
+unabsA :: Term f v a -> ([(a,v)], Term f v a)
+unabsA (Term _ a (Abs hd body)) =
+  let (tl, body') = unabsA body in ((a,hd) : tl, body')
+unabsA t = ([], t)
 
 v' :: Var v => Text -> v
 v' = Var.named
@@ -278,6 +286,25 @@ rebuildUp f (Term _ ann body) = case body of
   Abs x e -> abs' ann x (rebuildUp f e)
   Tm body -> tm' ann (f $ fmap (rebuildUp f) body)
 
+annotateBound :: (Ord v, Foldable f, Functor f) => Term f v a -> Term f v (a, Set v)
+annotateBound t = go Set.empty t where
+  go bound t = let a = (annotation t, bound) in case out t of
+    Var v -> annotatedVar a v
+    Cycle body -> cycle' a (go bound body)
+    Abs x body -> abs' a x (go (Set.insert x bound) body)
+    Tm body -> tm' a (go bound <$> body)
+
+foreachSubterm
+  :: (Traversable f, Applicative g, Ord v)
+  => (Term f v a -> g b)
+  -> Term f v a
+  -> g [b]
+foreachSubterm f e = case out e of
+  Var _ -> pure <$> f e
+  Cycle body -> liftA2 (:) (f e) (foreachSubterm f body)
+  Abs _ body -> liftA2 (:) (f e) (foreachSubterm f body)
+  Tm body -> liftA2 (:) (f e) (join . Foldable.toList <$> (sequenceA $ foreachSubterm f <$> body))
+
 -- | `visit f t` applies an effectful function to each subtree of
 -- `t` and sequences the results. When `f` returns `Nothing`, `visit`
 -- descends into the children of the current subtree. When `f` returns
@@ -337,9 +364,9 @@ transform f tm = case (out tm) of
     in tm' (annotation tm) (f subterms')
   Cycle body -> cycle' (annotation tm) (transform f body)
 
-instance (Foldable f, Functor f, Eq1 f, Eq a, Var v) => Eq (Term f v a) where
+instance (Foldable f, Functor f, Eq1 f, Var v) => Eq (Term f v a) where
   -- alpha equivalence, works by renaming any aligned Abs ctors to use a common fresh variable
-  t1 == t2 = annotation t1 == annotation t2 && go (out t1) (out t2) where
+  t1 == t2 = go (out t1) (out t2) where
     go (Var v) (Var v2) | v == v2 = True
     go (Cycle t1) (Cycle t2) = t1 == t2
     go (Abs v1 body1) (Abs v2 body2) =
