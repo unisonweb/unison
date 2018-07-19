@@ -76,6 +76,7 @@ environmentFor typeBuiltins0 dataDecls0 effectDecls0 =
       effectDecls'' = second (DD.withEffectDecl (DD.bindBuiltins typeEnv)) <$> effectDecls'
       dataRefs = Set.fromList $ (fst <$> Map.toList dataDecls'')
       effectRefs = Set.fromList $ (fst <$> Map.toList effectDecls'')
+      termFor :: Reference -> Int -> AnnotatedTerm v ()
       termFor r cid = if Set.member r dataRefs then Term.constructor() r cid
                       else Term.request() r cid
       termsByName = Map.fromList [
