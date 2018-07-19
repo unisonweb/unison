@@ -4,6 +4,7 @@ import Control.Monad
 import Data.Sequence (Seq)
 import qualified Unison.Typechecker.Context as Context
 import Unison.Paths (Path)
+import Unison.Reference (Reference)
 import Unison.Term (AnnotatedTerm)
 
 data Result v loc a = Result { notes :: Seq (Note v loc), result :: Maybe a }
@@ -13,6 +14,7 @@ data Note v loc
   = Parsing String
   | InvalidPath Path (Term v loc) -- todo: move me!
   | UnknownSymbol v loc
+  | UnknownReference Reference
   | Typechecking (Context.Note v loc)
   -- WithinLocals (Note v loc)
 

@@ -19,6 +19,7 @@ import           Unison.DataDeclaration (DataDeclaration, toDataDecl)
 import qualified Unison.Parser as Parser
 import qualified Unison.Parsers as Parsers
 import           Unison.Reference (Reference)
+import           Unison.Result (Result(..))
 import           Unison.Term (Term)
 import           Unison.Type (Type)
 import qualified Unison.Typechecker as Typechecker
@@ -32,16 +33,31 @@ parseAndSynthesizeAsFile filename s = do
   file <- Parsers.parseFile filename s Parser.penv0
   synthesizeFile file
 
-synthesizeFile :: Var v => UnisonFile v -> Either String (Term v, Type v)
+synthesizeFile :: Var v => UnisonFile v ->  Result v () (Term v, Type v)
 synthesizeFile unisonFile =
-  let (UnisonFile d e t) =
+  let (UnisonFile dds eds t) =
         UF.bindBuiltins B.builtinTerms B.builtinTypes unisonFile
-      dataDecls =
-        Map.union (Map.fromList . Foldable.toList $
-                     Map.union d (second toDataDecl <$> e))
-                  B.builtinDataDecls
-      n = Note.attemptRun $
-            Typechecker.synthesize [] termLookup (dataDeclLookup dataDecls) $ t
+      dataDecls = Map.union dds B.builtinDataDecls -- `Map.union` is left-biased
+      effectDecls = Map.union eds B.builtinEffectDecls
+      n = Typechecker.synthesize
+            (Typechecker.Env () [] termLookup
+              (dataDeclLookup dataDecls)
+              (effectDeclLookup effectDecls) e) $ t
+      dataDeclLookup decls h = pure $
+          fromMaybe (error $ "unknown reference " ++ show h ++ " in " ++ show decls)
+          (Map.lookup decls h)
+      effectDeclLookup decls h = pure $
+        fromMaybe (error $ "unknown reference " ++ show h ++ " in " ++ show decls)
+          (Map.lookup decls h)
+      {-data Env f v loc = Env {
+        builtinLoc :: loc,
+        ambientAbilities :: [Type v loc],
+        typeOf :: Reference -> f (Type v loc),
+        dataDeclaration :: Reference -> f (DataDeclaration' v loc),
+        effectDeclaration :: Reference -> f (EffectDeclaration' v loc)
+      }
+-}
+
   in (t,) <$> runIdentity n
 
 synthesizeUnisonFile :: Var v
@@ -61,19 +77,19 @@ serializeUnisonFile unisonFile =
   in f <$> r
 
 
-termLookup :: (Applicative f, Var v) => Reference -> Noted f (Type v)
-termLookup h = Maybe.fromMaybe (missing h) (pure <$> Map.lookup h B.builtins)
+-- termLookup :: (Applicative f, Var v) => Reference -> Noted f (Type v)
+-- termLookup h = Maybe.fromMaybe (missing h) (pure <$> Map.lookup h B.builtins)
 
-dataDeclLookup :: Applicative f
-               => Map Reference (DataDeclaration v)
-               -> Reference
-               -> Noted f (DataDeclaration v)
-dataDeclLookup dataDecls h =
-  let _ = Trace.trace $ "dataDeclLookup: " ++ show h in
-  Maybe.fromMaybe (missingD h) (pure <$> Map.lookup h dataDecls)
+-- dataDeclLookup :: Applicative f
+--                => Map Reference (DataDeclaration v)
+--                -> Reference
+--                -> Noted f (DataDeclaration v)
+-- dataDeclLookup dataDecls h =
+--   let _ = Trace.trace $ "dataDeclLookup: " ++ show h in
+--   Maybe.fromMaybe (missingD h) (pure <$> Map.lookup h dataDecls)
 
-missing :: (Applicative m, Show a) => a -> Noted m b
-missing h = Note.failure $ "no match looking up type of term reference: " ++ show h
-
-missingD :: (Applicative m, Show a) => a -> Noted m b
-missingD h = Note.failure $ "no match looking up type of data declaration reference: " ++ show h
+-- missing :: (Applicative m, Show a) => a -> Noted m b
+-- missing h = Note.failure $ "no match looking up type of term reference: " ++ show h
+--
+-- missingD :: (Applicative m, Show a) => a -> Noted m b
+-- missingD h = Note.failure $ "no match looking up type of data declaration reference: " ++ show h

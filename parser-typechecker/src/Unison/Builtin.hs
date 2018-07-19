@@ -6,7 +6,7 @@ module Unison.Builtin where
 
 import           Control.Arrow ((&&&), second)
 import qualified Data.Map as Map
-import           Unison.DataDeclaration (DataDeclaration)
+import           Unison.DataDeclaration (DataDeclaration, EffectDeclaration)
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Parser as Parser
 import qualified Unison.Reference as R
@@ -70,6 +70,9 @@ builtinTypes' :: Var v => [(v, Type v)]
 builtinTypes' = (Var.named &&& (Type.ref() . R.Builtin)) <$>
   ["Int64", "UInt64", "Float", "Boolean",
     "Sequence", "Text", "Stream", "Effect"]
+
+builtinEffectDecls :: forall v. Var v => Map.Map R.Reference (EffectDeclaration v)
+builtinEffectDecls = Map.empty
 
 builtinDataDecls :: forall v. (Var v) => Map.Map R.Reference (DataDeclaration v)
 builtinDataDecls = Map.fromList (snd <$> builtinDataDecls')
