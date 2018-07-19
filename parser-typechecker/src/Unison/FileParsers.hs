@@ -1,74 +1,66 @@
 {-# Language OverloadedStrings #-}
+{-# Language ScopedTypeVariables #-}
 {-# Language TupleSections     #-}
+{-# Language UnicodeSyntax     #-}
 
 module Unison.FileParsers where
 
+import Data.Maybe
 import           Control.Monad.State (evalStateT)
-import           Data.Bifunctor (second)
 import           Data.ByteString (ByteString)
 import           Data.Bytes.Put (runPutS)
 import qualified Data.Foldable as Foldable
 import           Data.Functor.Identity (runIdentity)
 import           Data.Map (Map)
 import qualified Data.Map as Map
-import qualified Data.Maybe as Maybe
-import qualified Debug.Trace as Trace
 import qualified Unison.Builtin as B
 import qualified Unison.Codecs as Codecs
-import           Unison.DataDeclaration (DataDeclaration, toDataDecl)
+import           Unison.DataDeclaration (DataDeclaration)
 import qualified Unison.Parser as Parser
 import qualified Unison.Parsers as Parsers
 import           Unison.Reference (Reference)
 import           Unison.Result (Result(..))
+import qualified Unison.Result as Result
 import           Unison.Term (Term)
 import           Unison.Type (Type)
 import qualified Unison.Typechecker as Typechecker
 import           Unison.UnisonFile (UnisonFile(..))
 import qualified Unison.UnisonFile as UF
 import           Unison.Var (Var)
+-- import qualified Debug.Trace as Trace
 
 parseAndSynthesizeAsFile :: Var v => FilePath -> String
-                         -> Either String (Term v, Type v)
+                         -> Result v () (Term v, Type v)
 parseAndSynthesizeAsFile filename s = do
-  file <- Parsers.parseFile filename s Parser.penv0
+  file <- Result.fromParsing $ Parsers.parseFile filename s Parser.penv0
   synthesizeFile file
 
-synthesizeFile :: Var v => UnisonFile v ->  Result v () (Term v, Type v)
+synthesizeFile :: ∀ v . Var v => UnisonFile v -> Result v () (Term v, Type v)
 synthesizeFile unisonFile =
-  let (UnisonFile dds eds t) =
+  let (UnisonFile dds0 eds0 term) =
         UF.bindBuiltins B.builtinTerms B.builtinTypes unisonFile
-      dataDecls = Map.union dds B.builtinDataDecls -- `Map.union` is left-biased
-      effectDecls = Map.union eds B.builtinEffectDecls
-      n = Typechecker.synthesize
-            (Typechecker.Env () [] termLookup
-              (dataDeclLookup dataDecls)
-              (effectDeclLookup effectDecls) e) $ t
-      dataDeclLookup decls h = pure $
-          fromMaybe (error $ "unknown reference " ++ show h ++ " in " ++ show decls)
-          (Map.lookup decls h)
-      effectDeclLookup decls h = pure $
-        fromMaybe (error $ "unknown reference " ++ show h ++ " in " ++ show decls)
-          (Map.lookup decls h)
-      {-data Env f v loc = Env {
-        builtinLoc :: loc,
-        ambientAbilities :: [Type v loc],
-        typeOf :: Reference -> f (Type v loc),
-        dataDeclaration :: Reference -> f (DataDeclaration' v loc),
-        effectDeclaration :: Reference -> f (EffectDeclaration' v loc)
-      }
--}
-
-  in (t,) <$> runIdentity n
+      dds :: Map Reference (DataDeclaration v)
+      dds = Map.fromList $ Foldable.toList dds0
+      eds = Map.fromList $ Foldable.toList eds0
+      datas = Map.union dds B.builtinDataDecls -- `Map.union` is left-biased
+      effects = Map.union eds B.builtinEffectDecls
+      env0 = Typechecker.Env () [] typeOf dataDeclaration effectDeclaration
+      n = Typechecker.synthesize env0 term
+      die h = error $ "unknown reference " ++ show h
+      typeOf r = pure $ fromMaybe (die r) $ Map.lookup r B.builtins
+      dataDeclaration r = pure $ fromMaybe (die r) $ Map.lookup r datas
+      effectDeclaration r = pure $ fromMaybe (die r) $ Map.lookup r effects
+  in (term,) <$> runIdentity n
 
 synthesizeUnisonFile :: Var v
                      => UnisonFile v
-                     -> Either String (UnisonFile v, Type v)
+                     -> Result v () (UnisonFile v, Type v)
 synthesizeUnisonFile unisonFile@(UnisonFile d e _t) = do
   (t', typ) <- synthesizeFile unisonFile
   pure $ (UnisonFile d e t', typ)
 
 serializeUnisonFile :: Var v => UnisonFile v
-                             -> Either String (UnisonFile v, Type v, ByteString)
+                             -> Result v () (UnisonFile v, Type v, ByteString)
 serializeUnisonFile unisonFile =
   let r = synthesizeUnisonFile unisonFile
       f (unisonFile', typ) =
@@ -76,20 +68,3 @@ serializeUnisonFile unisonFile =
         in (unisonFile', typ, bs)
   in f <$> r
 
-
--- termLookup :: (Applicative f, Var v) => Reference -> Noted f (Type v)
--- termLookup h = Maybe.fromMaybe (missing h) (pure <$> Map.lookup h B.builtins)
-
--- dataDeclLookup :: Applicative f
---                => Map Reference (DataDeclaration v)
---                -> Reference
---                -> Noted f (DataDeclaration v)
--- dataDeclLookup dataDecls h =
---   let _ = Trace.trace $ "dataDeclLookup: " ++ show h in
---   Maybe.fromMaybe (missingD h) (pure <$> Map.lookup h dataDecls)
-
--- missing :: (Applicative m, Show a) => a -> Noted m b
--- missing h = Note.failure $ "no match looking up type of term reference: " ++ show h
---
--- missingD :: (Applicative m, Show a) => a -> Noted m b
--- missingD h = Note.failure $ "no match looking up type of data declaration reference: " ++ show h
