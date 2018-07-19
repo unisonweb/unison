@@ -5,11 +5,11 @@ module Unison.Test.Typechecker where
 
 import  EasyTest
 import  Data.Char (isSpace)
-import  Data.Either (isRight)
 import  Unison.FileParsers (parseAndSynthesizeAsFile)
 import  Unison.Symbol
 import  Unison.Test.Common
 import  Text.RawString.QQ
+import  qualified Unison.Result as Result
 
 test = scope "typechecker" . tests $
   [
@@ -407,7 +407,8 @@ test = scope "typechecker" . tests $
         checks :: String -> Test ()
         checks s = scope s (typer s)
         typeFile = (parseAndSynthesizeAsFile @ Symbol) "<test>" .  stripMargin
-        typer = either crash (const ok) . typeFile
-        fileTypechecks = isRight . typeFile
+        crash' e = crash $ show e -- todo: don't use show, print errors prettily
+        typer = either crash' (const ok) . Result.toEither . typeFile
+        fileTypechecks = Result.isSuccess . typeFile
         stripMargin =
           unlines . map (dropWhile (== '|'). dropWhile isSpace) . lines

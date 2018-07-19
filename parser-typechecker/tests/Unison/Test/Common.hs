@@ -1,6 +1,5 @@
 module Unison.Test.Common where
 
-import           Control.Error (hush, isRight)
 import qualified Data.Map as Map
 import qualified Unison.Builtin as B
 import qualified Unison.FileParsers as FP
@@ -9,26 +8,27 @@ import           Unison.Term (Term)
 import           Unison.Type (Type)
 import qualified Unison.Typechecker as Typechecker
 import qualified Unison.Result as Result
+import Unison.Result (Result)
 
 tm :: String -> Term Symbol
 tm = B.tm
 
-file :: String -> Either String (Term Symbol, Type Symbol)
+file :: String -> Result Symbol () (Term Symbol, Type Symbol)
 file = FP.parseAndSynthesizeAsFile ""
 
-fileTerm :: String -> Either String (Term Symbol)
+fileTerm :: String -> Result Symbol () (Term Symbol)
 fileTerm = fmap fst . FP.parseAndSynthesizeAsFile "<test>"
 
 fileTermType :: String -> Maybe (Term Symbol, Type Symbol)
-fileTermType = hush . FP.parseAndSynthesizeAsFile "<test>"
+fileTermType = Result.toMaybe . FP.parseAndSynthesizeAsFile "<test>"
 
 t :: String -> Type Symbol
 t = B.t
 
 typechecks :: String -> Bool
-typechecks = isRight . file
+typechecks = Result.isSuccess . file
 
-env :: Monad m => Typechecker.Env m v ()
+env :: Monad m => Typechecker.Env m Symbol ()
 env = Typechecker.Env () [] typeOf dd ed where
   typeOf r = maybe (error $ "no type for: " ++ show r) pure $ Map.lookup r B.builtins
   dd r = error $ "no data declaration for: " ++ show r

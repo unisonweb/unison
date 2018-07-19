@@ -70,7 +70,7 @@ newtype M v loc a = M {
   runM :: MEnv v loc -> Result v loc (a, Env v loc)
 }
 
-data Unknown = Data | Effect
+data Unknown = Data | Effect deriving Show
 
 data CompilerBug v loc
   = UnknownDecl Unknown Reference (Map Reference (DataDeclaration' v loc))
@@ -80,7 +80,7 @@ data CompilerBug v loc
   | EmptyLetRec (Term v loc) -- the body of the empty let rec
   | PatternMatchFailure
   | FreeVarsInTypeAnnotation (Set (TypeVar v))
-  | UnannotatedReference Reference
+  | UnannotatedReference Reference deriving Show
 
 data Note v loc
   = WithinSynthesize (Term v loc) (Note v loc)
@@ -94,6 +94,7 @@ data Note v loc
   | UnknownSymbol loc v
   | CompilerBug (CompilerBug v loc)
   | AbilityCheckFailure [Type v loc] [Type v loc] -- ambient, requested
+  deriving Show
 
 withinSynthesizeApp :: Type v loc -> Term v loc -> M v loc a -> M v loc a
 withinSynthesizeApp ft arg (M m) = M go where
