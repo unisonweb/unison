@@ -47,6 +47,14 @@ test = scope "typechecker" . tests $
   , c "[1,2,3]" "Sequence UInt64"
   , c "Stream.from-int64 +0" "Stream Int64"
   , c "(+_UInt64) 1" "UInt64 -> UInt64"
+  , bombs [r|--unresolved symbol
+            |let
+            |  (|>) : forall a b . a -> (a -> WHat) -> b -- unresolved symbol
+            |  a |> f = f a
+            |
+            |  Stream.from-int64 -3
+            |    |> Stream.take 10
+            |    |> Stream.fold-left +0 (+_Int64) |]
   , c [r|let
         |  (|>) : forall a b . a -> (a -> b) -> b
         |  a |> f = f a

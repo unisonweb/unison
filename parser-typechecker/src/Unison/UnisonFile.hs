@@ -15,11 +15,10 @@ import qualified Data.Text as Text
 import qualified Unison.Type as Type
 import Unison.Term (Term,AnnotatedTerm)
 import qualified Unison.Term as Term
-import Unison.Type (Type,AnnotatedType)
+import Unison.Type (AnnotatedType)
 import qualified Data.Set as Set
 import Unison.Var (Var)
 import qualified Unison.Var as Var
-import qualified Unison.ABT as ABT
 
 data UnisonFile v = UnisonFile {
   dataDeclarations :: Map v (Reference, DataDeclaration v),
@@ -82,14 +81,12 @@ environmentFor termBuiltins typeBuiltins0 dataDecls0 effectDecls0 =
       dataDecls'' = second (DD.bindBuiltins typeEnv) <$> dataDecls'
       effectDecls'' = second (DD.withEffectDecl (DD.bindBuiltins typeEnv)) <$> effectDecls'
       dataRefs = Set.fromList $ (fst <$> Foldable.toList dataDecls'')
-      effectRefs = Set.fromList $ (fst <$> Foldable.toList effectDecls'')
       termFor :: Reference -> Int -> AnnotatedTerm v ()
       termFor r cid = if Set.member r dataRefs then Term.constructor() r cid
                       else Term.request() r cid
       -- Map `Optional.None` to `Term.constructor() ...` or `Term.request() ...`
       dataAndEffectCtors = [
         (Var.named (Text.pack s), termFor r cid) | (s, (r,cid)) <- Map.toList ctorLookup ]
-      termVarToRef = (fst <$> dataDecls'') `Map.union` (fst <$> effectDecls'')
       typesByName = Map.toList $ (fst <$> dataDecls'') `Map.union` (fst <$> effectDecls'')
       ctorLookup = Map.fromList (constructors' =<< hashDecls')
   in Env dataDecls'' effectDecls''

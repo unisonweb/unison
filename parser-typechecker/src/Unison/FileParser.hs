@@ -3,27 +3,22 @@
 module Unison.FileParser where
 
 import           Control.Applicative
-import           Control.Arrow (second)
 import           Control.Monad.Reader
 import           Data.Either (partitionEithers)
 import           Data.Map (Map)
 import qualified Data.Map as Map
-import qualified Data.Text as Text
 import           Prelude hiding (readFile)
 import qualified Text.Parsec.Layout as L
 import           Unison.DataDeclaration (DataDeclaration, EffectDeclaration)
 import qualified Unison.DataDeclaration as DD
 import           Unison.Parser (Parser, traced, token_, sepBy, string)
-import qualified Unison.Term as Term
 import qualified Unison.TermParser as TermParser
-import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import           Unison.TypeParser (S)
 import qualified Unison.TypeParser as TypeParser
 import           Unison.UnisonFile (UnisonFile(..), environmentFor)
 import qualified Unison.UnisonFile as UF
 import           Unison.Var (Var)
-import qualified Unison.Var as Var
 import Unison.Reference (Reference)
 
 file :: Var v => [(v, Reference)] -> [(v, Reference)] -> Parser (S v) (UnisonFile v)
