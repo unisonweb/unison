@@ -13,6 +13,7 @@ module Unison.ABT where
 
 import Control.Applicative
 import Control.Monad
+import Data.Functor.Identity (runIdentity)
 import Data.List hiding (cycle)
 import Data.Maybe
 import Data.Ord
@@ -293,6 +294,14 @@ annotateBound t = go Set.empty t where
     Cycle body -> cycle' a (go bound body)
     Abs x body -> abs' a x (go (Set.insert x bound) body)
     Tm body -> tm' a (go bound <$> body)
+
+freeVarAnnotations :: (Traversable f, Ord v) => Term f v a -> [(v, a)]
+freeVarAnnotations t =
+  join . runIdentity $ foreachSubterm f (annotateBound t) where
+    f t@(Var' v)
+      | Set.notMember v (snd . annotation $ t) = pure [(v, fst . annotation $ t)]
+    f _ = pure []
+
 
 foreachSubterm
   :: (Traversable f, Applicative g, Ord v)

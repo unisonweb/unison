@@ -369,6 +369,23 @@ referencedDataDeclarationsP p = Set.fromList . Writer.execWriter $ go p where
   go (Pattern.As _ p) = go p
   go (Pattern.Constructor _ id _ args) = Writer.tell [id] *> traverse_ go args
   go (Pattern.EffectPure _ p) = go p
+  go (Pattern.EffectBind _ _ _ args k) = traverse_ go args *> go k
+  go _ = pure ()
+
+referencedEffectDeclarations :: Ord v => AnnotatedTerm2 vt at ap v a -> Set Reference
+referencedEffectDeclarations t = Set.fromList . Writer.execWriter $ ABT.visit' f t
+  where f t@(Request r _) = Writer.tell [r] *> pure t
+        f t@(EffectBind r _ _ _) = Writer.tell [r] *> pure t
+        f t@(Match _ cases) = traverse_ g cases *> pure t where
+          g (MatchCase pat _ _) = Writer.tell (Set.toList (referencedEffectDeclarationsP pat))
+          -- todo: does this traverse the guard and body of MatchCase?
+        f t = pure t
+
+referencedEffectDeclarationsP :: Pattern loc -> Set Reference
+referencedEffectDeclarationsP p = Set.fromList . Writer.execWriter $ go p where
+  go (Pattern.As _ p) = go p
+  go (Pattern.Constructor _ _ _ args) = traverse_ go args
+  go (Pattern.EffectPure _ p) = go p
   go (Pattern.EffectBind _ id _ args k) = Writer.tell [id] *> traverse_ go args *> go k
   go _ = pure ()
 

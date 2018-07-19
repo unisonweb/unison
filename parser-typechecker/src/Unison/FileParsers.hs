@@ -16,8 +16,6 @@ import qualified Debug.Trace as Trace
 import qualified Unison.Builtin as B
 import qualified Unison.Codecs as Codecs
 import           Unison.DataDeclaration (DataDeclaration, toDataDecl)
-import           Unison.Note (Noted)
-import qualified Unison.Note as Note
 import qualified Unison.Parser as Parser
 import qualified Unison.Parsers as Parsers
 import           Unison.Reference (Reference)

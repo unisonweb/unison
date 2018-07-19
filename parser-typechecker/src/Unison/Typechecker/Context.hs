@@ -6,7 +6,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Typechecker.Context where
+module Unison.Typechecker.Context (synthesizeClosed, Note(..)) where
 
 import Data.Sequence (Seq)
 
@@ -211,17 +211,17 @@ breakAt m (Context xs) =
 ordered :: Var v => Context v loc -> v -> v -> Bool
 ordered ctx v v2 = Set.member v (existentials (retract' (Existential v2) ctx))
 
-env0 :: Env v loc
-env0 = Env 0 context0
+-- env0 :: Env v loc
+-- env0 = Env 0 context0
 
 debugEnabled :: Bool
 debugEnabled = False
 
-logContext :: (Show loc, Var v) => String -> M v loc ()
-logContext msg = when debugEnabled $ do
-  ctx <- getContext
-  let !_ = trace ("\n"++msg ++ ": " ++ show ctx) ()
-  setContext ctx
+-- logContext :: (Show loc, Var v) => String -> M v loc ()
+-- logContext msg = when debugEnabled $ do
+--   ctx <- getContext
+--   let !_ = trace ("\n"++msg ++ ": " ++ show ctx) ()
+--   setContext ctx
 
 usedVars :: Context v loc -> Set v
 usedVars = allVars . info
@@ -1009,25 +1009,34 @@ verifyDataDeclarations decls = forM_ (Map.toList decls) $ \(_ref, decl) -> do
         go _ = pure ()
     in ABT.foreachSubterm go (ABT.annotateBound typ)
 
+-- | public interface to the typechecker
 synthesizeClosed
   :: (Monad f, Var v)
-  => [Type v loc]
-  -> (Reference -> f (Type v loc))
+  => loc
+  -> [Type v loc]
+  -> (Reference -> f (Type.AnnotatedType v loc))
   -> (Reference -> f (DataDeclaration' v loc))
+  -> (Reference -> f (EffectDeclaration' v loc))
   -> Term v loc
   -> f (Result v loc (Type v loc))
-synthesizeClosed abilities synthRef lookupDecl term = do
-  let declRefs = Set.toList $ Term.referencedDataDeclarations term
+synthesizeClosed builtinLoc abilities synthRef lookupData lookupEffect term = do
+  let dataRefs = Set.toList $ Term.referencedDataDeclarations term
+      effectRefs = Set.toList $ Term.referencedEffectDeclarations term
   term <- annotateRefs synthRef term
-  decls <- Map.fromList <$> traverse (\r -> (r,) <$> lookupDecl r) declRefs
-  synthesizeClosedAnnotated abilities decls term
+  datas <- Map.fromList <$> traverse (\r -> (r,) <$> lookupData r) dataRefs
+  effects <- Map.fromList <$> traverse (\r -> (r,) <$> lookupEffect r) effectRefs
+  pure . run builtinLoc [] datas effects $ do
+    verifyDataDeclarations datas
+    verifyDataDeclarations (DD.toDataDecl <$> effects)
+    synthesizeClosed' abilities term
 
 annotateRefs :: (Applicative f, Ord v)
-             => (Reference -> f (Type v loc))
+             => (Reference -> f (Type.AnnotatedType v loc))
              -> Term v loc
              -> f (Term v loc)
 annotateRefs synth term = ABT.visit f term where
-  f (Term.Ref' h) = Just (Term.ann() (Term.ref() h) <$> (ABT.vmap TypeVar.Universal <$> synth h))
+  f r@(Term.Ref' h) = Just (Term.ann ra (Term.ref ra h) <$> (ABT.vmap TypeVar.Universal <$> synth h))
+    where ra = ABT.annotation r
   f _ = Nothing
 
 run :: Var v
@@ -1049,28 +1058,6 @@ synthesizeClosed' abilities term = do
   t <- withEffects0 abilities (synthesize term)
   ctx <- getContext
   pure $ generalizeExistentials ctx t
-
--- synthesizeClosedAnnotated :: (Monad f, Var v)
---                           => [Type v]
---                           -> DataDeclarations v
---                           -> Term v
---                           -> Noted f (Type v)
--- synthesizeClosedAnnotated abilities decls term = do
---   checkClosed term
---   Note.fromEither $
---     runM (verifyDataDeclarations decls *> synthesize term)
---          (MEnv env0 abilities decls True)
---       >>= \(t,env) ->
---     -- we generalize over any remaining unsolved existentials
---         pure $ generalizeExistentials (ctx env) t
-
--- checkClosed :: (Monad f, Var v) => Term v -> Noted f ()
--- checkClosed t =
---   let fvs = Set.toList $ Term.freeVars t
---       fvts = Set.toList $ Term.freeTypeVars t
---   in if null fvs && null fvts
---        then pure ()
---        else fail $ "Unknown symbols: " ++ intercalate ", " (Set.toList . Set.fromList $ map show fvs ++ map show fvts)
 
 instance (Var v, Show loc) => Show (Element v loc) where
   show (Var v) = case v of
