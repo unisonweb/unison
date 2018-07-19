@@ -5,7 +5,8 @@
 
 module Unison.Parser2 where
 
-import           Control.Monad (join)
+import           Control.Monad (join, void)
+import           Control.Monad.State (StateT, modify, put, evalStateT)
 import           Data.Bifunctor (bimap)
 import           Data.List.NonEmpty (NonEmpty(..))
 import           Data.Maybe
@@ -20,7 +21,11 @@ import qualified Unison.UnisonFile as UnisonFile
 
 type PEnv = UnisonFile.CtorLookup
 
-type Parser s a = ParsecT Text s ((->) PEnv) (L.Token a)
+-- The parser needs to track the start and end position of the parsed object
+-- in the input text.
+type Ann = (L.Pos, L.Pos)
+
+type Parser s a = StateT Ann (ParsecT Text s ((->) PEnv)) a
 
 -- A parser of `Lexer.Input` streams.
 type UnisonParser a = Parser Input a
@@ -84,7 +89,7 @@ run' :: P.Stream s
      -> String
      -> PEnv
      -> Either (Err s) a
-run' p s name = fmap L.payload . runParserT p name s
+run' p s name = runParserT (evalStateT p (L.Pos 0 0, L.Pos 0 0)) name s
 
 run :: P.Stream s
     => Parser s a
@@ -93,9 +98,21 @@ run :: P.Stream s
     -> Either (Err s) a
 run p s = run' p s ""
 
+putStart :: P.Stream s => L.Token a -> Parser s ()
+putStart (L.Token _ start _) = modify (\(_,e) -> (start, e))
+
+putEnd :: P.Stream s => L.Token a -> Parser s ()
+putEnd (L.Token _ _ end) = modify (\(s,_) -> (s, end))
+
+putPos :: P.Stream s => L.Token a -> Parser s ()
+putPos (L.Token _ start end) = put (start, end)
+
 -- Virtual pattern match on a lexeme.
 queryToken :: (L.Lexeme -> Maybe a) -> UnisonParser a
-queryToken f = P.token go Nothing
+queryToken f = do
+  t <- P.token go Nothing
+  putPos t
+  pure $ L.payload t
   where go t@((f . L.payload) -> Just s) = Right $ fmap (const s) t
         go x = Left (pure (P.Tokens (x:|[])), Set.empty)
 
@@ -108,15 +125,18 @@ openBlock = queryToken getOpen
 
 -- Match a particular lexeme exactly, and consume it.
 matchToken :: L.Lexeme -> UnisonParser L.Lexeme
-matchToken x = P.satisfy ((==) x . L.payload)
+matchToken x = do
+  t <- P.satisfy ((==) x . L.payload)
+  putPos t
+  pure $ L.payload t
 
 -- Consume a virtual semicolon
 semi :: UnisonParser ()
-semi = fmap (const ()) <$> matchToken L.Semi
+semi = void $ matchToken L.Semi
 
 -- Consume the end of a block
 closeBlock :: UnisonParser ()
-closeBlock = fmap (const ()) <$> matchToken L.Close
+closeBlock = void $ matchToken L.Close
 
 -- Parse an alphanumeric identifier
 wordyId :: UnisonParser String
@@ -141,8 +161,8 @@ parenthesized :: UnisonParser a -> UnisonParser a
 parenthesized = P.between (reserved "(") (reserved ")")
 
 sepBy :: (P.Stream s) => Parser s a -> Parser s b -> Parser s [b]
-sepBy sep pb = sequenceA <$> P.sepBy pb sep
+sepBy sep pb = P.sepBy pb sep
 
 sepBy1 :: (P.Stream s) => Parser s a -> Parser s b -> Parser s [b]
-sepBy1 sep pb = sequenceA <$> P.sepBy pb sep
+sepBy1 sep pb = P.sepBy pb sep
 
