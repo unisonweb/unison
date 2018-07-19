@@ -21,24 +21,18 @@ import qualified Unison.Type as Type
 import           Unison.TypeParser (S)
 import qualified Unison.TypeParser as TypeParser
 import           Unison.UnisonFile (UnisonFile(..), environmentFor)
+import qualified Unison.UnisonFile as UF
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
+import Unison.Reference (Reference)
 
-file :: Var v => [(v, Type v)] -> Parser (S v) (UnisonFile v)
-file builtinTypes = traced "file" $ do
+file :: Var v => [(v, Reference)] -> [(v, Reference)] -> Parser (S v) (UnisonFile v)
+file builtinTerms builtinTypes = traced "file" $ do
   (dataDecls, effectDecls) <- traced "declarations" declarations
-  let (dataDecls', effectDecls', penv') =
-                      environmentFor builtinTypes dataDecls effectDecls
-  local (`Map.union` penv') $ do
+  let env = environmentFor builtinTerms builtinTypes dataDecls effectDecls
+  local (`Map.union` UF.constructorLookup env) $ do
     term <- TermParser.block
-    -- let dataEnv0 = Map.fromList [ (Var.named (Text.pack n), Term.constructor() r i) | (n, (r,i)) <- Map.toList penv' ]
-    --     dataEnv = dataEnv0 `Map.difference` effectDecls
-    --     effectEnv = dataEnv0 `Map.difference` dataEnv
-    let
-      dataEnv = Map.fromList [ (Var.named (Text.pack n), Term.constructor() r i) | (n, (r,i)) <- Map.toList (penv' `Map.difference` effectDecls') ]
-      effectEnv = _help
-      term3 = Term.bindBuiltins (Map.toList dataEnv ++ Map.toList effectEnv) typeEnv term
-    pure $ UnisonFile dataDecls' effectDecls' term3
+    pure $ UnisonFile (UF.datas env) (UF.effects env) (UF.resolveTerm env term)
 
 declarations :: Var v => Parser (S v)
                          (Map v (DataDeclaration v),
@@ -64,7 +58,6 @@ dataDeclaration = traced "data declaration" $ do
   traced "vblock" $ L.vblockIncrement $ do
     constructors <- traced "constructors" $ sepBy (token_ $ string "|") dataConstructor
     pure $ (name, DD.mkDataDecl typeArgs constructors)
-
 
 effectDeclaration :: Var v => Parser (S v) (v, EffectDeclaration v)
 effectDeclaration = traced "effect declaration" $ do

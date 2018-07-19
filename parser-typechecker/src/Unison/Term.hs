@@ -99,11 +99,15 @@ type Term v = AnnotatedTerm v ()
 -- | Terms with type variables in `vt`, and term variables in `v`
 type Term' vt v = AnnotatedTerm' vt v ()
 
-bindBuiltins :: Var v => [(v, Reference)] -> [(v, Reference)]
+bindBuiltins :: Var v
+             => [(v, AnnotatedTerm v a)]
+             -> [(v, Reference)]
+             -> [(v, Reference)]
              -> AnnotatedTerm v a -> AnnotatedTerm v a
-bindBuiltins termBuiltins0 typeBuiltins =
+bindBuiltins dataAndEffectCtors termBuiltins0 typeBuiltins =
    typeMap (Type.bindBuiltins typeBuiltins) .
-   ABT.substsInheritAnnotation termBuiltins
+   ABT.substsInheritAnnotation termBuiltins .
+   ABT.substsInheritAnnotation dataAndEffectCtors
    where
    termBuiltins = [ (v, ref() r) | (v,r) <- termBuiltins0 ]
 

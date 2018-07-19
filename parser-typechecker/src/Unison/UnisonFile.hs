@@ -1,7 +1,8 @@
-{-# Language OverloadedStrings #-}
+{-# Language ScopedTypeVariables, OverloadedStrings #-}
 
 module Unison.UnisonFile where
 
+import qualified Data.Foldable as Foldable
 import Data.Bifunctor (second)
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -18,6 +19,7 @@ import Unison.Type (Type,AnnotatedType)
 import qualified Data.Set as Set
 import Unison.Var (Var)
 import qualified Unison.Var as Var
+import qualified Unison.ABT as ABT
 
 data UnisonFile v = UnisonFile {
   dataDeclarations :: Map v (Reference, DataDeclaration v),
@@ -27,13 +29,17 @@ data UnisonFile v = UnisonFile {
 
 type CtorLookup = Map String (Reference, Int)
 
-bindBuiltins :: Var v => [(v, Reference)] -> [(v, Reference)] -> UnisonFile v
-                      -> UnisonFile v
-bindBuiltins termBuiltins typeBuiltins (UnisonFile d e t) =
+bindBuiltins :: Var v
+             => [(v, Term v)]
+             -> [(v, Reference)]
+             -> [(v, Reference)]
+             -> UnisonFile v
+             -> UnisonFile v
+bindBuiltins dataAndEffectCtors termBuiltins typeBuiltins (UnisonFile d e t) =
   UnisonFile
     (second (DD.bindBuiltins typeBuiltins) <$> d)
     (second (withEffectDecl (DD.bindBuiltins typeBuiltins)) <$> e)
-    (Term.bindBuiltins termBuiltins typeBuiltins t)
+    (Term.bindBuiltins dataAndEffectCtors termBuiltins typeBuiltins t)
 
 data Env v a = Env
   -- Data declaration name to hash and its fully resolved form
@@ -53,12 +59,13 @@ data Env v a = Env
 -- This function computes hashes for data and effect declarations, and
 -- also returns a function for resolving strings to (Reference, ConstructorId)
 -- for parsing of pattern matching
-environmentFor :: Var v
+environmentFor :: forall v . Var v
                => [(v, Reference)]
+               -> [(v, Reference)]
                -> Map v (DataDeclaration v)
                -> Map v (EffectDeclaration v)
                -> Env v ()
-environmentFor typeBuiltins0 dataDecls0 effectDecls0 =
+environmentFor termBuiltins typeBuiltins0 dataDecls0 effectDecls0 =
   let -- ignore builtin types that will be shadowed by user-defined data/effects
       typeBuiltins = [ (v, t) | (v, t) <- typeBuiltins0,
                                 Map.notMember v dataDecls0 &&
@@ -70,21 +77,23 @@ environmentFor typeBuiltins0 dataDecls0 effectDecls0 =
       allDecls = Map.fromList [ (v, (r,de)) | (v,r,de) <- hashDecls' ]
       dataDecls' = Map.difference allDecls effectDecls
       effectDecls' = second EffectDeclaration <$> Map.difference allDecls dataDecls
-      typeEnv = Map.toList (fst <$> dataDecls') ++
-                Map.toList (fst <$> effectDecls')
+      typeEnv :: [(v, Reference)]
+      typeEnv = Map.toList (fst <$> dataDecls') ++ Map.toList (fst <$> effectDecls')
       dataDecls'' = second (DD.bindBuiltins typeEnv) <$> dataDecls'
       effectDecls'' = second (DD.withEffectDecl (DD.bindBuiltins typeEnv)) <$> effectDecls'
-      dataRefs = Set.fromList $ (fst <$> Map.toList dataDecls'')
-      effectRefs = Set.fromList $ (fst <$> Map.toList effectDecls'')
+      dataRefs = Set.fromList $ (fst <$> Foldable.toList dataDecls'')
+      effectRefs = Set.fromList $ (fst <$> Foldable.toList effectDecls'')
       termFor :: Reference -> Int -> AnnotatedTerm v ()
       termFor r cid = if Set.member r dataRefs then Term.constructor() r cid
                       else Term.request() r cid
-      termsByName = Map.fromList [
+      -- Map `Optional.None` to `Term.constructor() ...` or `Term.request() ...`
+      dataAndEffectCtors = [
         (Var.named (Text.pack s), termFor r cid) | (s, (r,cid)) <- Map.toList ctorLookup ]
-      typesByName = (fst <$> dataDecls'') `Map.union` (fst <$> effectDecls'')
+      termVarToRef = (fst <$> dataDecls'') `Map.union` (fst <$> effectDecls'')
+      typesByName = Map.toList $ (fst <$> dataDecls'') `Map.union` (fst <$> effectDecls'')
       ctorLookup = Map.fromList (constructors' =<< hashDecls')
   in Env dataDecls'' effectDecls''
-         (Term.bindBuiltins termsByName typesByName)
+         (Term.bindBuiltins dataAndEffectCtors termBuiltins typesByName)
          (Type.bindBuiltins typesByName)
          ctorLookup
 

@@ -38,7 +38,7 @@ parseAndSynthesizeAsFile filename s = do
 synthesizeFile :: ∀ v . Var v => UnisonFile v -> Result v () (Term v, Type v)
 synthesizeFile unisonFile =
   let (UnisonFile dds0 eds0 term) =
-        UF.bindBuiltins B.builtinTerms B.builtinTypes unisonFile
+        UF.bindBuiltins B.builtinDataAndEffectCtors B.builtinTerms B.builtinTypes unisonFile
       dds :: Map Reference (DataDeclaration v)
       dds = Map.fromList $ Foldable.toList dds0
       eds = Map.fromList $ Foldable.toList eds0
