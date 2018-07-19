@@ -1,4 +1,4 @@
-{-# Language LambdaCase, ViewPatterns, TemplateHaskell #-}
+{-# Language LambdaCase, ViewPatterns, TemplateHaskell, DeriveFunctor #-}
 
 module Unison.Lexer where
 
@@ -34,11 +34,15 @@ data Lexeme
 
 makePrisms ''Lexeme
 
-data Token = Token {
-  payload :: Lexeme,
+data Token a = Token {
+  payload :: a,
   start :: Pos,
   end :: Pos
-} deriving (Eq, Ord, Show)
+} deriving (Eq, Ord, Show, Functor)
+
+instance Applicative Token where
+  pure a = Token a (Pos 0 0) (Pos 0 0)
+  Token f start _ <*> Token a _ end = Token (f a) start end
 
 type Line = Int
 type Column = Int
@@ -63,7 +67,7 @@ pop = drop 1
 topLeftCorner :: Pos
 topLeftCorner = Pos 1 1
 
-lexer :: String -> String -> [Token]
+lexer :: String -> String -> [Token Lexeme]
 lexer scope rem =
     Token (Open scope) topLeftCorner topLeftCorner
       : pushLayout [] topLeftCorner rem

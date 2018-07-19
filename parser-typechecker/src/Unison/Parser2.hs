@@ -5,7 +5,7 @@
 
 module Unison.Parser2 where
 
-import           Control.Monad (void, join)
+import           Control.Monad (join)
 import           Data.Bifunctor (bimap)
 import           Data.List.NonEmpty (NonEmpty(..))
 import           Data.Maybe
@@ -20,17 +20,18 @@ import qualified Unison.UnisonFile as UnisonFile
 
 type PEnv = UnisonFile.CtorLookup
 
-type Parser s a = ParsecT Text s ((->) PEnv) a
+type Parser s a = ParsecT Text s ((->) PEnv) (L.Token a)
 
 -- A parser of `Lexer.Input` streams.
 type UnisonParser a = Parser Input a
 
-newtype Input = Input { inputStream :: [L.Token] } deriving (Eq, Ord, Show)
+newtype Input = Input { inputStream :: [L.Token L.Lexeme] }
+  deriving (Eq, Ord, Show)
 
 type Err s = ParseError (P.Token s) Text
 
 instance P.Stream Input where
-  type Token Input = L.Token
+  type Token Input = L.Token L.Lexeme
   type Tokens Input = Input
 
   tokenToChunk pxy = P.tokensToChunk pxy . pure
@@ -68,6 +69,9 @@ setPos :: P.SourcePos -> L.Pos -> P.SourcePos
 setPos sp lp =
   P.SourcePos (P.sourceName sp) (P.mkPos $ L.line lp) (P.mkPos $ L.column lp)
 
+mkPosRange :: L.Token a -> L.Token b -> (L.Pos, L.Pos)
+mkPosRange t1 t2 = (L.start t1, L.end t2)
+
 proxy :: Proxy Input
 proxy = Proxy
 
@@ -80,7 +84,7 @@ run' :: P.Stream s
      -> String
      -> PEnv
      -> Either (Err s) a
-run' p s name = runParserT p name s
+run' p s name = fmap L.payload . runParserT p name s
 
 run :: P.Stream s
     => Parser s a
@@ -92,7 +96,7 @@ run p s = run' p s ""
 -- Virtual pattern match on a lexeme.
 queryToken :: (L.Lexeme -> Maybe a) -> UnisonParser a
 queryToken f = P.token go Nothing
-  where go ((f . L.payload) -> Just s) = Right s
+  where go t@((f . L.payload) -> Just s) = Right $ fmap (const s) t
         go x = Left (pure (P.Tokens (x:|[])), Set.empty)
 
 -- Consume a block opening and return the string that opens the block.
@@ -103,16 +107,16 @@ openBlock = queryToken getOpen
     getOpen _ = Nothing
 
 -- Match a particular lexeme exactly, and consume it.
-matchToken :: L.Lexeme -> UnisonParser L.Token
+matchToken :: L.Lexeme -> UnisonParser L.Lexeme
 matchToken x = P.satisfy ((==) x . L.payload)
 
 -- Consume a virtual semicolon
 semi :: UnisonParser ()
-semi = void $ matchToken L.Semi
+semi = fmap (const ()) <$> matchToken L.Semi
 
 -- Consume the end of a block
 closeBlock :: UnisonParser ()
-closeBlock = void $ matchToken L.Close
+closeBlock = fmap (const ()) <$> matchToken L.Close
 
 -- Parse an alphanumeric identifier
 wordyId :: UnisonParser String
@@ -127,16 +131,18 @@ symbolyId = queryToken getSymboly
         getSymboly _ = Nothing
 
 -- Parse a reserved word
-reserved :: String -> UnisonParser ()
-reserved w = void $ matchToken (L.Reserved w)
+reserved :: String -> UnisonParser String
+reserved w = queryToken getReserved
+  where getReserved (L.Reserved w') | w == w' = Just w
+        getReserved _ = Nothing
 
 -- Parse a pair of parentheses around an expression
 parenthesized :: UnisonParser a -> UnisonParser a
 parenthesized = P.between (reserved "(") (reserved ")")
 
 sepBy :: (P.Stream s) => Parser s a -> Parser s b -> Parser s [b]
-sepBy sep pb = P.sepBy pb sep
+sepBy sep pb = sequenceA <$> P.sepBy pb sep
 
 sepBy1 :: (P.Stream s) => Parser s a -> Parser s b -> Parser s [b]
-sepBy1 sep pb = P.sepBy pb sep
+sepBy1 sep pb = sequenceA <$> P.sepBy pb sep
 

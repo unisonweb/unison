@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Unison.TypeParser2 where
@@ -11,11 +12,15 @@ import qualified Data.Text as Text
 import qualified Text.Megaparsec as P
 import qualified Unison.Lexer as L
 import           Unison.Parser2
-import           Unison.Type (Type)
+import           Unison.Type (Type, AnnotatedType)
 import qualified Unison.Type as Type
 import           Unison.Var (Var)
 
-type TypeP v = P.ParsecT Text Input ((->) PEnv) (Type v)
+-- A parsed type is annotated with its starting and ending position in the
+-- source text.
+type Ann = (L.Pos, L.Pos)
+
+type TypeP v = UnisonParser (AnnotatedType v Ann)
 
 -- Value types cannot have effects, unless those effects appear to
 -- the right of a function arrow:
@@ -62,12 +67,14 @@ tupleOrParenthesized rec =
 app :: Ord v => TypeP v -> TypeP v
 app rec = do
   (hd:tl) <- some rec
-  pure $ foldl' Type.app hd tl
+  pos <- P.getPosition
+  pure $ foldl' (\a b -> getPosition >>= \pos -> Type.app pos a b) hd tl
 
 --  valueType ::= ... | Arrow valueType computationType
 arrow :: Var v => TypeP v -> TypeP v
 arrow rec = do
-  t <- foldr1 Type.arrow <$> sepBy1 (P.try (reserved "->")) (effect <|> rec)
+  t <- foldr1 (Type.arrow pos a b) <$>
+         sepBy1 (P.try (reserved "->")) (effect <|> rec)
   case t of
     Type.Arrow' (Type.Effect' _ _) _ -> fail "effect to the left of an ->"
     _ -> pure t
@@ -75,22 +82,23 @@ arrow rec = do
 -- "forall a b . List a -> List b -> Maybe Text"
 forall :: Var v => TypeP v -> TypeP v
 forall rec = do
-    (P.try $ reserved "forall") <|> void (P.try $ reserved "∀")
-    vars <- some $ P.try varName
+    kw <- (P.try $ reserved "forall") <|> void (P.try $ reserved "∀")
+    vars <- fmap L.payload . some $ P.try varName
     _ <- P.try . matchToken $ L.SymbolyId "."
-    t <- rec
-    pure $ Type.forall' (fmap Text.pack vars) t
+    t <- L.payload <$> rec
+    let pos = ((start kw), snd $ annotation t)
+    pure $ Type.forall' pos (fmap Text.pack vars) t
 
 varName :: UnisonParser String
 varName = do
   name <- wordyId
-  guard (isLower . head $ name)
+  guard (isLower . head $ L.payload name)
   pure name
 
 typeName :: UnisonParser String
 typeName = do
   name <- wordyId
-  guard (isUpper . head $ name)
+  guard (isUpper . head $ L.payload name)
   pure name
 
 -- qualifiedTypeName :: Parser String
@@ -100,6 +108,13 @@ typeName = do
 --     f first more = maybe first (first++) more
 --     more = (:) <$> char '.' <*> qualifiedTypeName
 
+posMap :: (Ann -> a -> b) -> Parser s a -> Parser s b
+posMap f = fmap $
+  \case L.Token a start end ->
+          L.Token (f (start, end) a) start end
+
 literal :: Var v => TypeP v
-literal = P.label "literal" . P.try $ (Type.v' . Text.pack) <$> typeName
+literal =
+  P.label "literal" . P.try .
+    posMap (\pos -> Type.av' pos . Text.pack) $ typeName
 
