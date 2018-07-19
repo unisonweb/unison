@@ -60,8 +60,8 @@ wrapV = ABT.vmap ABT.Bound
 freeVars :: AnnotatedType v a -> Set v
 freeVars = ABT.freeVars
 
-bindBuiltins :: Var v => [(v, AnnotatedType v a)] -> AnnotatedType v a -> AnnotatedType v a
-bindBuiltins bs = ABT.substs bs
+bindBuiltins :: Var v => [(v, Reference)] -> AnnotatedType v a -> AnnotatedType v a
+bindBuiltins bs = ABT.substsInheritAnnotation [ (v, ref() r) | (v,r) <- bs ]
 
 data Monotype v a = Monotype { getPolytype :: AnnotatedType v a } deriving (Eq)
 

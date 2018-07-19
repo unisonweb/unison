@@ -32,7 +32,7 @@ data DataDeclaration' v a = DataDeclaration {
 constructors :: DataDeclaration' v a -> [(v, AnnotatedType v a)]
 constructors (DataDeclaration _ _ ctors) = [(v,t) | (_,v,t) <- ctors ]
 
-bindBuiltins :: Var v => [(v, AnnotatedType v a)] -> DataDeclaration' v a -> DataDeclaration' v a
+bindBuiltins :: Var v => [(v, Reference)] -> DataDeclaration' v a -> DataDeclaration' v a
 bindBuiltins typeEnv (DataDeclaration a bound constructors) =
   DataDeclaration a bound (third (Type.bindBuiltins typeEnv) <$> constructors)
 

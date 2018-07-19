@@ -35,14 +35,10 @@ file builtinTypes = traced "file" $ do
     --     dataEnv = dataEnv0 `Map.difference` effectDecls
     --     effectEnv = dataEnv0 `Map.difference` dataEnv
     let
-        typeEnv = Map.toList (Type.ref() . fst <$> dataDecls') ++
-                  Map.toList (Type.ref() . fst <$> effectDecls')
-        effectEnv :: Map v (Term v) -- Term.request
-        effectEnv =
-        term3 = Term.bindBuiltins (Map.toList dataEnv ++ Map.toList effectEnv) typeEnv term
-        dataDecls'' = second (DD.bindBuiltins typeEnv) <$> dataDecls'
-        effectDecls'' = second (DD.withEffectDecl (DD.bindBuiltins typeEnv)) <$> effectDecls'
-    pure $ UnisonFile dataDecls'' effectDecls'' term3
+      dataEnv = Map.fromList [ (Var.named (Text.pack n), Term.constructor() r i) | (n, (r,i)) <- Map.toList (penv' `Map.difference` effectDecls') ]
+      effectEnv = _help
+      term3 = Term.bindBuiltins (Map.toList dataEnv ++ Map.toList effectEnv) typeEnv term
+    pure $ UnisonFile dataDecls' effectDecls' term3
 
 declarations :: Var v => Parser (S v)
                          (Map v (DataDeclaration v),
@@ -51,7 +47,6 @@ declarations = do
   declarations <- many ((Left <$> dataDeclaration) <|> Right <$> effectDeclaration)
   let (dataDecls, effectDecls) = partitionEithers declarations
   pure (Map.fromList dataDecls, Map.fromList effectDecls)
-
 
 dataDeclaration :: Var v => Parser (S v) (v, DataDeclaration v)
 dataDeclaration = traced "data declaration" $ do

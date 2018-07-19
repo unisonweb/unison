@@ -99,9 +99,13 @@ type Term v = AnnotatedTerm v ()
 -- | Terms with type variables in `vt`, and term variables in `v`
 type Term' vt v = AnnotatedTerm' vt v ()
 
-bindBuiltins :: Var v => [(v, Term v)] -> [(v, Type v)] -> Term v -> Term v
-bindBuiltins termBuiltins typeBuiltins =
-   typeMap (ABT.substs typeBuiltins) . ABT.substs termBuiltins
+bindBuiltins :: Var v => [(v, Reference)] -> [(v, Reference)]
+             -> AnnotatedTerm v a -> AnnotatedTerm v a
+bindBuiltins termBuiltins0 typeBuiltins =
+   typeMap (Type.bindBuiltins typeBuiltins) .
+   ABT.substsInheritAnnotation termBuiltins
+   where
+   termBuiltins = [ (v, ref() r) | (v,r) <- termBuiltins0 ]
 
 vmap :: Ord v2 => (v -> v2) -> AnnotatedTerm v a -> AnnotatedTerm v2 a
 vmap f = ABT.vmap f . typeMap (ABT.vmap f)
@@ -213,6 +217,9 @@ blank a = ABT.tm' a Blank
 
 constructor :: Ord v => a -> Reference -> Int -> AnnotatedTerm2 vt at ap v a
 constructor a ref n = ABT.tm' a (Constructor ref n)
+
+request :: Ord v => a -> Reference -> Int -> AnnotatedTerm2 vt at ap v a
+request a ref n = ABT.tm' a (Request ref n)
 
 -- todo: delete and rename app' to app
 app_ :: Ord v => Term' vt v -> Term' vt v -> Term' vt v
