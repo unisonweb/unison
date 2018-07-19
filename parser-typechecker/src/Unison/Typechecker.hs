@@ -7,16 +7,15 @@
 
 module Unison.Typechecker where
 
-import Control.Monad
-import Unison.Paths (Path)
 import Unison.Term (AnnotatedTerm)
 import Unison.Type (AnnotatedType)
 import Unison.Var (Var)
 import Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 import Unison.Reference (Reference)
+import qualified Unison.Result as Result
+import Unison.Result (Result(..), Note)
 -- import qualified Data.Map as Map
 import Data.Maybe (isJust)
-import Data.Sequence (Seq)
 import qualified Unison.ABT as ABT
 -- import qualified Unison.Paths as Paths
 import qualified Unison.Term as Term
@@ -29,14 +28,6 @@ import qualified Unison.Typechecker.Context as Context
 
 type Term v loc = AnnotatedTerm v loc
 type Type v loc = AnnotatedType v loc
-
-data Result v loc a = Result { notes :: Seq (Note v loc), result :: Maybe a }
-
-data Note v loc
-  = InvalidPath Path (Term v loc)
-  | UnknownSymbol v loc
-  | Typechecking (Context.Note v loc)
-  -- WithinLocals (Note v loc)
 
 failNote :: Note v loc -> Result v loc a
 failNote note = Result (pure note) Nothing
@@ -119,7 +110,7 @@ data Env f v loc = Env {
 synthesize :: (Monad f, Var v) => Env f v loc -> Term v loc
            -> f (Result v loc (Type v loc))
 synthesize env t =
-  let go (notes, ot) = Result (Typechecking <$> notes) (ABT.vmap TypeVar.underlying <$> ot)
+  let go (notes, ot) = Result (Result.Typechecking <$> notes) (ABT.vmap TypeVar.underlying <$> ot)
   in go <$> Context.synthesizeClosed
       (builtinLoc env)
       (ABT.vmap TypeVar.Universal <$> ambientAbilities env)
@@ -177,17 +168,3 @@ wellTyped env term = isJust . result <$> synthesize env term
 -- `forall a b . a -> b -> a` to be different types
 -- equals :: Var v => Type v -> Type v -> Bool
 -- equals t1 t2 = isSubtype t1 t2 && isSubtype t2 t1
-
-
-instance Functor (Result v loc) where
-  fmap = liftM
-
-instance Applicative (Result v loc) where
-  pure = return
-  (<*>) = ap
-
-instance Monad (Result v loc) where
-  return a = Result mempty (Just a)
-  Result notes Nothing >>= _f = Result notes Nothing
-  Result notes (Just a) >>= f = case f a of
-    Result notes2 b -> Result (notes `mappend` notes2) b

@@ -50,6 +50,7 @@ library
     Unison.Pattern
     Unison.PatternP
     Unison.Reference
+    Unison.Result
     Unison.Symbol
     Unison.Term
     Unison.TermParser
