@@ -409,7 +409,7 @@ test = scope "typechecker" . tests $
              |]
   ]
   where c tm typ = scope tm . expect $ check (stripMargin tm) typ
-        bombs s = scope s (expect . not . fileTypechecks $ s)
+        bombs s = scope s (crasher s)
         broken :: String -> Test ()
         broken s = scope s $ pending (checks s)
         checks :: String -> Test ()
@@ -417,6 +417,6 @@ test = scope "typechecker" . tests $
         typeFile = (parseAndSynthesizeAsFile @ Symbol) "<test>" .  stripMargin
         crash' e = crash $ show e -- todo: don't use show, print errors prettily
         typer = either crash' (const ok) . Result.toEither . typeFile
-        fileTypechecks = Result.isSuccess . typeFile
+        crasher = either (const ok) crash' . Result.toEither . typeFile
         stripMargin =
           unlines . map (dropWhile (== '|'). dropWhile isSpace) . lines
