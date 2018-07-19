@@ -503,8 +503,9 @@ synthesize e = withinSynthesize e $ go (minimize' e)
       pure t
     s | otherwise -> compilerCrash $ FreeVarsInTypeAnnotation s
   go (Term.Ref' h) = compilerCrash $ UnannotatedReference h
-  go (Term.Constructor' r cid) = do
-    t <- getDataConstructorType r cid
+  go (Term.Constructor' r cid) = getDataConstructorType r cid
+  go (Term.Request' r cid) = do
+    t <- getEffectConstructorType r cid
     if Type.arity t == 0
       then do
              a <- freshNamed "a"
@@ -516,7 +517,6 @@ synthesize e = withinSynthesize e $ go (minimize' e)
              -- modifyContext $ retract [Marker a]
              pure t
       else pure t
-  -- -- todo: Term.Request'
   go (Term.Ann' e' t) = t <$ check e' t
   go (Term.Float' _) = getBuiltinLocation >>= pure . Type.float -- 1I=>
   go (Term.Int64' _) = getBuiltinLocation >>= pure . Type.int64 -- 1I=>
@@ -1003,12 +1003,7 @@ abilityCheck requested = do
 verifyDataDeclarations :: Var v => DataDeclarations v loc -> M v loc ()
 verifyDataDeclarations decls = forM_ (Map.toList decls) $ \(_ref, decl) -> do
   let ctors = DD.constructors decl
-  forM_ ctors $ \(_ctorName,typ) ->
-    let isBoundIn v t = Set.member v (snd (ABT.annotation t))
-        loc t = fst (ABT.annotation t)
-        go t@(ABT.Var' v) | not (isBoundIn v t) = recover () $ failNote (UnknownSymbol (loc t) v)
-        go _ = pure ()
-    in ABT.foreachSubterm go (ABT.annotateBound typ)
+  forM_ ctors $ \(_ctorName,typ) -> verifyClosed typ id
 
 -- | public interface to the typechecker
 synthesizeClosed
@@ -1029,7 +1024,25 @@ synthesizeClosed builtinLoc abilities synthRef lookupData lookupEffect term = do
   pure . run builtinLoc [] datas effects $ do
     verifyDataDeclarations datas
     verifyDataDeclarations (DD.toDataDecl <$> effects)
+    verifyClosedTerm term
     synthesizeClosed' abilities term
+
+verifyClosedTerm :: forall v loc . Ord v => Term v loc -> M v loc ()
+verifyClosedTerm t = do
+  verifyClosed t id
+  void $ ABT.foreachSubterm go t
+  where
+    go :: Term v loc -> M v loc ()
+    go (Term.Ann' _ t) = verifyClosed t TypeVar.underlying
+    go _ = pure ()
+
+verifyClosed :: (Traversable f, Ord v) => ABT.Term f v a -> (v -> v2) -> M v2 a ()
+verifyClosed t toV2 =
+  let isBoundIn v t = Set.member v (snd (ABT.annotation t))
+      loc t = fst (ABT.annotation t)
+      go t@(ABT.Var' v) | not (isBoundIn v t) = recover () $ failNote (UnknownSymbol (loc t) $ toV2 v)
+      go _ = pure ()
+  in void $ ABT.foreachSubterm go (ABT.annotateBound t)
 
 annotateRefs :: (Applicative f, Ord v)
              => (Reference -> f (Type.AnnotatedType v loc))
