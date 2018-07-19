@@ -31,12 +31,15 @@ file builtinTypes = traced "file" $ do
                       environmentFor builtinTypes dataDecls effectDecls
   local (`Map.union` penv') $ do
     term <- TermParser.block
-    let dataEnv0 = Map.fromList [ (Var.named (Text.pack n), Term.constructor() r i) | (n, (r,i)) <- Map.toList penv' ]
-        dataEnv = dataEnv0 `Map.difference` effectDecls
-        effectEnv = dataEnv0 `Map.difference` dataEnv
+    -- let dataEnv0 = Map.fromList [ (Var.named (Text.pack n), Term.constructor() r i) | (n, (r,i)) <- Map.toList penv' ]
+    --     dataEnv = dataEnv0 `Map.difference` effectDecls
+    --     effectEnv = dataEnv0 `Map.difference` dataEnv
+    let
         typeEnv = Map.toList (Type.ref() . fst <$> dataDecls') ++
                   Map.toList (Type.ref() . fst <$> effectDecls')
-    let term3 = Term.bindBuiltins (Map.toList dataEnv ++ Map.toList effectEnv) typeEnv term
+        effectEnv :: Map v (Term v) -- Term.request
+        effectEnv =
+        term3 = Term.bindBuiltins (Map.toList dataEnv ++ Map.toList effectEnv) typeEnv term
         dataDecls'' = second (DD.bindBuiltins typeEnv) <$> dataDecls'
         effectDecls'' = second (DD.withEffectDecl (DD.bindBuiltins typeEnv)) <$> effectDecls'
     pure $ UnisonFile dataDecls'' effectDecls'' term3

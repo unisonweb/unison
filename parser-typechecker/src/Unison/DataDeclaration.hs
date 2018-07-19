@@ -133,6 +133,12 @@ fromABT (ABT.AbsN' bound (
 fromABT a = error $ "ABT not of correct form to convert to DataDeclaration: " ++ show a
 
 -- todo: generalize this to work for any annotation type
+-- | compute the hashes of these user defined types and update any free vars
+--   corresponding to these decls with the resulting hashes
+--
+--   data List a = Nil | Cons a (List a)
+--   becomes something like
+--   (List, #xyz, [forall a. #xyz a, forall a. a -> (#xyz a) -> (#xyz a)])
 hashDecls :: (Eq v, Var v)
           => Map v (DataDeclaration' v ()) -> [(v, Reference, DataDeclaration' v ())]
 hashDecls decls =

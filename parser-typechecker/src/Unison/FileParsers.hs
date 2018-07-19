@@ -46,10 +46,10 @@ synthesizeFile unisonFile =
       effects = Map.union eds B.builtinEffectDecls
       env0 = Typechecker.Env () [] typeOf dataDeclaration effectDeclaration
       n = Typechecker.synthesize env0 term
-      die h = error $ "unknown reference " ++ show h
-      typeOf r = pure $ fromMaybe (die r) $ Map.lookup r B.builtins
-      dataDeclaration r = pure $ fromMaybe (die r) $ Map.lookup r datas
-      effectDeclaration r = pure $ fromMaybe (die r) $ Map.lookup r effects
+      die s h = error $ "unknown " ++ s ++ " reference " ++ show h
+      typeOf r = pure $ fromMaybe (die "value" r) $ Map.lookup r B.builtins
+      dataDeclaration r = pure $ fromMaybe (die "data" r) $ Map.lookup r datas
+      effectDeclaration r = pure $ fromMaybe (die "effect" r) $ Map.lookup r effects
   in (term,) <$> runIdentity n
 
 synthesizeUnisonFile :: Var v
@@ -67,4 +67,3 @@ serializeUnisonFile unisonFile =
         let bs = runPutS $ flip evalStateT 0 $ Codecs.serializeFile unisonFile'
         in (unisonFile', typ, bs)
   in f <$> r
-

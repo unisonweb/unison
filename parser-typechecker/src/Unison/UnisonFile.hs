@@ -39,14 +39,20 @@ environmentFor :: Var v
                -> (Map v (Reference, DataDeclaration v),
                    Map v (Reference, EffectDeclaration v),
                    CtorLookup)
-environmentFor typeBuiltins dataDecls0 effectDecls0 =
-  let dataDecls = DataDeclaration.bindBuiltins typeBuiltins <$> dataDecls0
+environmentFor typeBuiltins0 dataDecls0 effectDecls0 =
+  let -- ignore builtin types that will be shadowed by user-defined data/effects
+      typeBuiltins = [ (v, t) | (v, t) <- typeBuiltins0,
+                                Map.notMember v dataDecls0 &&
+                                Map.notMember v effectDecls0]
+      dataDecls = DataDeclaration.bindBuiltins typeBuiltins <$> dataDecls0
       effectDecls = withEffectDecl (DataDeclaration.bindBuiltins typeBuiltins)
                 <$> effectDecls0
       hashDecls' = hashDecls (Map.union dataDecls (toDataDecl <$> effectDecls))
       allDecls = Map.fromList [ (v, (r,de)) | (v,r,de) <- hashDecls' ]
       dataDecls' = Map.difference allDecls effectDecls
       effectDecls' = second EffectDeclaration <$> Map.difference allDecls dataDecls
+      -- dataDecls'' = second (DD.bindBuiltins typeEnv) <$> dataDecls'
+      -- effectDecls'' = second (DD.withEffectDecl (DD.bindBuiltins typeEnv)) <$> effectDecls'
   in (dataDecls', effectDecls', Map.fromList (constructors' =<< hashDecls'))
 
 constructors' :: Var v => (v, Reference, DataDeclaration v) -> [(String, (Reference, Int))]
