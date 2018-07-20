@@ -6,7 +6,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Typechecker.Context (synthesizeClosed, Note(..)) where
+module Unison.Typechecker.Context (synthesizeClosed, Note(..), Cause(..), Path(..)) where
 
 import Data.Sequence (Seq)
 
@@ -26,8 +26,6 @@ import           Debug.Trace
 import qualified Unison.ABT as ABT
 import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 import qualified Unison.DataDeclaration as DD
--- import           Unison.Note (Note,Noted(..))
--- import qualified Unison.Note as Note
 import           Unison.PatternP (Pattern)
 import qualified Unison.PatternP as Pattern
 import           Unison.Reference (Reference)
@@ -82,55 +80,33 @@ data CompilerBug v loc
   | FreeVarsInTypeAnnotation (Set (TypeVar v))
   | UnannotatedReference Reference deriving Show
 
-data Note v loc
-  = WithinSynthesize (Term v loc) (Note v loc)
-  | WithinSubtype (Type v loc) (Type v loc) (Note v loc)
-  | WithinCheck (Term v loc) (Type v loc) (Note v loc)
-  | WithinInstantiateL v (Type v loc) (Note v loc)
-  | WithinInstantiateR (Type v loc) v (Note v loc)
-  | WithinSynthesizeApp (Type v loc) (Term v loc) (Note v loc)
-  | TypeMismatch (Context v loc)
+data Path v loc
+  = InSynthesize (Term v loc)
+  | InSubtype (Type v loc) (Type v loc)
+  | InCheck (Term v loc) (Type v loc)
+  | InInstantiateL v (Type v loc)
+  | InInstantiateR (Type v loc) v
+  | InSynthesizeApp (Type v loc) (Term v loc)
+  deriving Show
+
+data Cause v loc
+  = TypeMismatch (Context v loc)
   | IllFormedType (Context v loc)
   | UnknownSymbol loc v
   | CompilerBug (CompilerBug v loc)
   | AbilityCheckFailure [Type v loc] [Type v loc] -- ambient, requested
   deriving Show
 
-withinSynthesizeApp :: Type v loc -> Term v loc -> M v loc a -> M v loc a
-withinSynthesizeApp ft arg (M m) = M go where
-  go menv =
-    let (notes, r) = m menv
-    in (WithinSynthesizeApp ft arg <$> notes, r)
+data Note v loc = Note { cause :: Cause v loc, path :: Seq (Path v loc) } deriving Show
 
-withinSynthesize :: Term v loc -> M v loc a -> M v loc a
-withinSynthesize t (M m) = M go where
-  go menv =
-    let (notes, r) = m menv
-    in (WithinSynthesize t <$> notes, r)
+scope' :: Path v loc -> Note v loc -> Note v loc
+scope' elem (Note cause path) = Note cause (path `mappend` pure elem)
 
-withinSubtype :: Type v loc -> Type v loc -> M v loc a -> M v loc a
-withinSubtype t1 t2 (M m) = M go where
+scope :: Path v loc -> M v loc a -> M v loc a
+scope p (M m) = M go where
   go menv =
     let (notes, r) = m menv
-    in (WithinSubtype t1 t2 <$> notes, r)
-
-withinCheck :: Term v loc -> Type v loc -> M v loc a -> M v loc a
-withinCheck e t2 (M m) = M go where
-  go menv =
-    let (notes, r) = m menv
-    in (WithinCheck e t2 <$> notes, r)
-
-withinInstantiateL :: v -> Type v loc -> M v loc a -> M v loc a
-withinInstantiateL v t (M m) = M go where
-  go menv =
-    let (notes, r) = m menv
-    in (WithinInstantiateL v t <$> notes, r)
-
-withinInstantiateR :: Type v loc -> v -> M v loc a -> M v loc a
-withinInstantiateR t v (M m) = M go where
-  go menv =
-    let (notes, r) = m menv
-    in (WithinInstantiateR t v <$> notes, r)
+    in (scope' p <$> notes, r)
 
 -- | The typechecking environment
 data MEnv v loc = MEnv {
@@ -360,10 +336,10 @@ withoutAbilityCheck :: M v loc a -> M v loc a
 withoutAbilityCheck m = M (\menv -> runM m $ menv { abilityChecks = False })
 
 compilerCrash :: CompilerBug v loc -> M v loc a
-compilerCrash bug = failNote $ CompilerBug bug
+compilerCrash bug = failWith $ CompilerBug bug
 
-failNote :: Note v loc -> M v loc a
-failNote note = M (\_ -> (pure note, Nothing))
+failWith :: Cause v loc -> M v loc a
+failWith cause = M (\_ -> (pure (Note cause mempty), Nothing))
 
 getDataDeclaration :: Reference -> M v loc (DataDeclaration' v loc)
 getDataDeclaration r = do
@@ -450,7 +426,7 @@ withEffects0 abilities' m =
 -- e.g. in `(f:t) x` -- finds the type of (f x) given t and x.
 synthesizeApp :: Var v => Type v loc -> Term v loc -> M v loc (Type v loc)
 -- synthesizeApp ft arg | debugEnabled && traceShow ("synthesizeApp"::String, ft, arg) False = undefined
-synthesizeApp ft arg = withinSynthesizeApp ft arg $ go ft where
+synthesizeApp ft arg = scope (InSynthesizeApp ft arg) $ go ft where
   go (Type.Forall' body) = do -- Forall1App
     v <- ABT.freshen body freshenTypeVar
     appendContext (context [Existential v])
@@ -470,7 +446,7 @@ synthesizeApp ft arg = withinSynthesizeApp ft arg $ go ft where
         ctxMid = context [Existential o, Existential i, Solved a soln]
     modifyContext' $ replace (Existential a) ctxMid
     ot <$ check arg it
-  go _ = getContext >>= \ctx -> failNote $ TypeMismatch ctx
+  go _ = getContext >>= \ctx -> failWith $ TypeMismatch ctx
 
 -- For arity 3, creates the type `∀ a . a -> a -> a -> Sequence a`
 -- For arity 2, creates the type `∀ a . a -> a -> Sequence a`
@@ -486,7 +462,7 @@ vectorConstructorOfArity arity = do
 -- | Synthesize the type of the given term, updating the context in the process.
 -- | Figure 11 from the paper
 synthesize :: forall v loc . Var v => Term v loc -> M v loc (Type v loc)
-synthesize e = withinSynthesize e $ go (minimize' e)
+synthesize e = scope (InSynthesize e) $ go (minimize' e)
   where
   l = loc e
   go :: Var v => Term v loc -> M v loc (Type v loc)
@@ -755,7 +731,7 @@ generalizeExistentials ctx t =
 -- updating the context in the process.
 check :: forall v loc . Var v => Term v loc -> Type v loc -> M v loc ()
 -- check e t | debugEnabled && traceShow ("check"::String, e, t) False = undefined
-check e0 t = withinCheck e0 t $ getContext >>= \ctx ->
+check e0 t = scope (InCheck e0 t) $ getContext >>= \ctx ->
   if wellformedType ctx t then
     let
       go :: Term v loc -> Type v loc -> M v loc ()
@@ -809,13 +785,13 @@ check e0 t = withinCheck e0 t $ getContext >>= \ctx ->
          -- expand existentials before checking
          t@(Type.Existential' _) -> go e (apply ctx t)
          t -> go e t
-  else failNote $ IllFormedType ctx
+  else failWith $ IllFormedType ctx
 
 -- | `subtype ctx t1 t2` returns successfully if `t1` is a subtype of `t2`.
 -- This may have the effect of altering the context.
 subtype :: forall v loc . Var v => Type v loc -> Type v loc -> M v loc ()
 subtype tx ty | debugEnabled && traceShow ("subtype"::String, tx, ty) False = undefined
-subtype tx ty = withinSubtype tx ty $
+subtype tx ty = scope (InSubtype tx ty) $
   do ctx <- getContext; go (ctx :: Context v loc) tx ty
   where -- Rules from figure 9
   go :: Context v loc -> Type v loc -> Type v loc -> M v loc ()
@@ -857,7 +833,7 @@ subtype tx ty = withinSubtype tx ty $
      let es1' = map (apply ctx) es1
          es2' = map (apply ctx) es2
      abilityCheck' es2' es1'
-  go ctx _ _ = failNote $ TypeMismatch ctx
+  go ctx _ _ = failWith $ TypeMismatch ctx
 
 
 -- | Instantiate the given existential such that it is
@@ -865,12 +841,12 @@ subtype tx ty = withinSubtype tx ty $
 -- in the process.
 instantiateL :: Var v => v -> Type v loc -> M v loc ()
 instantiateL v t | debugEnabled && traceShow ("instantiateL"::String, v, t) False = undefined
-instantiateL v t = withinInstantiateL v t $
+instantiateL v t = scope (InInstantiateL v t) $
   getContext >>= \ctx -> case Type.monotype t >>= (solve ctx v) of
     Just ctx -> setContext ctx -- InstLSolve
     Nothing -> case t of
       Type.Existential' v2 | ordered ctx v v2 -> -- InstLReach (both are existential, set v2 = v)
-        maybe (failNote $ TypeMismatch ctx) setContext $
+        maybe (failWith $ TypeMismatch ctx) setContext $
           solve ctx v2 (Type.Monotype (Type.existential' (loc t) v))
       Type.Arrow' i o -> do -- InstLArr
         [i',o'] <- traverse freshenVar [ABT.v' "i", ABT.v' "o"]
@@ -912,19 +888,19 @@ instantiateL v t = withinInstantiateL v t $
         v <- extendUniversal =<< ABT.freshen body freshenTypeVar
         instantiateL v (ABT.bindInheritAnnotation body (Type.universal v))
         doRetract (Universal v)
-      _ -> failNote $ TypeMismatch ctx
+      _ -> failWith $ TypeMismatch ctx
 
 -- | Instantiate the given existential such that it is
 -- a supertype of the given type, updating the context
 -- in the process.
 instantiateR :: Var v => Type v loc -> v -> M v loc ()
 instantiateR t v | debugEnabled && traceShow ("instantiateR"::String, t, v) False = undefined
-instantiateR t v = withinInstantiateR t v $
+instantiateR t v = scope (InInstantiateR t v) $
   getContext >>= \ctx -> case Type.monotype t >>= solve ctx v of
     Just ctx -> setContext ctx -- InstRSolve
     Nothing -> case t of
       Type.Existential' v2 | ordered ctx v v2 -> -- InstRReach (both are existential, set v2 = v)
-        maybe (failNote $ TypeMismatch ctx) setContext $
+        maybe (failWith $ TypeMismatch ctx) setContext $
           solve ctx v2 (Type.Monotype (Type.existential' (loc t) v))
       Type.Arrow' i o -> do -- InstRArrow
         [i', o'] <- traverse freshenVar [ABT.v' "i", ABT.v' "o"]
@@ -967,7 +943,7 @@ instantiateR t v = withinInstantiateR t v $
         setContext $ ctx `mappend` context [Marker x', Existential x']
         instantiateR (ABT.bindInheritAnnotation body (Type.existential x')) v
         doRetract (Marker x')
-      _ -> failNote $ TypeMismatch ctx
+      _ -> failWith $ TypeMismatch ctx
 
 -- | solve (ΓL,α^,ΓR) α τ = (ΓL,α^ = τ,ΓR)
 -- If the given existential variable exists in the context,
@@ -989,7 +965,7 @@ abilityCheck' ambient requested = do
   success <- flip allM requested $ \req ->
     flip anyM ambient $ \amb -> (True <$ subtype amb req) `orElse` pure False
   when (not success) $
-    failNote $ AbilityCheckFailure ambient requested
+    failWith $ AbilityCheckFailure ambient requested
 
 abilityCheck :: Var v => [Type v loc] -> M v loc ()
 abilityCheck requested = do
@@ -1038,7 +1014,7 @@ verifyClosed :: (Traversable f, Ord v) => ABT.Term f v a -> (v -> v2) -> M v2 a 
 verifyClosed t toV2 =
   let isBoundIn v t = Set.member v (snd (ABT.annotation t))
       loc t = fst (ABT.annotation t)
-      go t@(ABT.Var' v) | not (isBoundIn v t) = recover () $ failNote (UnknownSymbol (loc t) $ toV2 v)
+      go t@(ABT.Var' v) | not (isBoundIn v t) = recover () $ failWith (UnknownSymbol (loc t) $ toV2 v)
       go _ = pure ()
   in void $ ABT.foreachSubterm go (ABT.annotateBound t)
 
