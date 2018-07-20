@@ -29,7 +29,7 @@ import qualified Unison.Typechecker.Context as Context
 type Term v loc = AnnotatedTerm v loc
 type Type v loc = AnnotatedType v loc
 
-failNote :: Note v loc -> Result v loc a
+failNote :: Note v loc -> Result (Note v loc) a
 failNote note = Result (pure note) Nothing
 
 data Env f v loc = Env {
@@ -108,7 +108,7 @@ data Env f v loc = Env {
 -- a function to resolve the type of @Ref@ constructors
 -- contained in that term.
 synthesize :: (Monad f, Var v) => Env f v loc -> Term v loc
-           -> f (Result v loc (Type v loc))
+           -> f (Result (Note v loc) (Type v loc))
 synthesize env t =
   let go (notes, ot) = Result (Result.Typechecking <$> notes) (ABT.vmap TypeVar.underlying <$> ot)
   in go <$> Context.synthesizeClosed
@@ -124,7 +124,7 @@ synthesize env t =
 -- contained in the term. Returns @typ@ if successful,
 -- and a note about typechecking failure otherwise.
 check :: (Monad f, Var v) => Env f v loc -> Term v loc -> Type v loc
-      -> f (Result v loc (Type v loc))
+      -> f (Result (Note v loc) (Type v loc))
 check env term typ = synthesize env (Term.ann (ABT.annotation term) term typ)
 
 -- | `checkAdmissible' e t` tests that `(f : t -> r) e` is well-typed.

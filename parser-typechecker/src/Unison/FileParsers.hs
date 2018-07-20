@@ -19,7 +19,7 @@ import           Unison.DataDeclaration (DataDeclaration)
 import qualified Unison.Parser as Parser
 import qualified Unison.Parsers as Parsers
 import           Unison.Reference (Reference)
-import           Unison.Result (Result(..))
+import           Unison.Result (Result(..), Note)
 import qualified Unison.Result as Result
 import           Unison.Term (Term)
 import           Unison.Type (Type)
@@ -30,12 +30,12 @@ import           Unison.Var (Var)
 -- import qualified Debug.Trace as Trace
 
 parseAndSynthesizeAsFile :: Var v => FilePath -> String
-                         -> Result v () (Term v, Type v)
+                         -> Result (Note v ()) (Term v, Type v)
 parseAndSynthesizeAsFile filename s = do
   file <- Result.fromParsing $ Parsers.parseFile filename s Parser.penv0
   synthesizeFile file
 
-synthesizeFile :: ∀ v . Var v => UnisonFile v -> Result v () (Term v, Type v)
+synthesizeFile :: ∀ v . Var v => UnisonFile v -> Result (Note v ()) (Term v, Type v)
 synthesizeFile unisonFile =
   let (UnisonFile dds0 eds0 term) =
         UF.bindBuiltins B.builtinDataAndEffectCtors B.builtinTerms B.builtinTypes unisonFile
@@ -54,13 +54,13 @@ synthesizeFile unisonFile =
 
 synthesizeUnisonFile :: Var v
                      => UnisonFile v
-                     -> Result v () (UnisonFile v, Type v)
+                     -> Result (Note v ()) (UnisonFile v, Type v)
 synthesizeUnisonFile unisonFile@(UnisonFile d e _t) = do
   (t', typ) <- synthesizeFile unisonFile
   pure $ (UnisonFile d e t', typ)
 
 serializeUnisonFile :: Var v => UnisonFile v
-                             -> Result v () (UnisonFile v, Type v, ByteString)
+                             -> Result (Note v ()) (UnisonFile v, Type v, ByteString)
 serializeUnisonFile unisonFile =
   let r = synthesizeUnisonFile unisonFile
       f (unisonFile', typ) =

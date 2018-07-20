@@ -8,15 +8,15 @@ import           Unison.Term (Term)
 import           Unison.Type (Type)
 import qualified Unison.Typechecker as Typechecker
 import qualified Unison.Result as Result
-import Unison.Result (Result)
+import Unison.Result (Result,Note)
 
 tm :: String -> Term Symbol
 tm = B.tm
 
-file :: String -> Result Symbol () (Term Symbol, Type Symbol)
+file :: String -> Result (Note Symbol ()) (Term Symbol, Type Symbol)
 file = FP.parseAndSynthesizeAsFile ""
 
-fileTerm :: String -> Result Symbol () (Term Symbol)
+fileTerm :: String -> Result (Note Symbol ()) (Term Symbol)
 fileTerm = fmap fst . FP.parseAndSynthesizeAsFile "<test>"
 
 fileTermType :: String -> Maybe (Term Symbol, Type Symbol)
