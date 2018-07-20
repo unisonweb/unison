@@ -755,7 +755,7 @@ generalizeExistentials ctx t =
 -- updating the context in the process.
 check :: forall v loc . Var v => Term v loc -> Type v loc -> M v loc ()
 -- check e t | debugEnabled && traceShow ("check"::String, e, t) False = undefined
-check e t = withinCheck e t $ getContext >>= \ctx ->
+check e0 t = withinCheck e0 t $ getContext >>= \ctx ->
   if wellformedType ctx t then
     let
       go :: Term v loc -> Type v loc -> M v loc ()
@@ -804,11 +804,11 @@ check e t = withinCheck e t $ getContext >>= \ctx ->
       go _ _ = do -- Sub
         a <- synthesize e; ctx <- getContext
         subtype (apply ctx a) (apply ctx t)
-      e' = minimize' e
+      e = minimize' e0
     in case t of
          -- expand existentials before checking
-         t@(Type.Existential' _) -> go e' (apply ctx t)
-         t -> go e' t
+         t@(Type.Existential' _) -> go e (apply ctx t)
+         t -> go e t
   else failNote $ IllFormedType ctx
 
 -- | `subtype ctx t1 t2` returns successfully if `t1` is a subtype of `t2`.
