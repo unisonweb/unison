@@ -73,7 +73,8 @@ test = scope "typechecker" . tests $
             |case Optional.Some 3 of
             |  x -> 1
             |  y -> "boo" |]
-  , checks [r|type Optional a = None | Some a
+  , checks [r|--grab bag
+             |type Optional a = None | Some a
              |
              |r1 : UInt64
              |r1 = case Optional.Some 3 of

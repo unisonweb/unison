@@ -713,10 +713,8 @@ annotateLetRecBindings letrec = do
   let vs = map fst bindings
   -- generate a fresh existential variable `e1, e2 ...` for each binding
   es <- traverse freshenVar vs
+  e1 <- freshNamed "bindings-start"
   ctx <- getContext
-  e1 <- case vs of
-    h : _t -> pure h
-    _ -> compilerCrash (EmptyLetRec body)
   -- Introduce these existentials into the context and
   -- annotate each term variable w/ corresponding existential
   -- [marker e1, 'e1, 'e2, ... v1 : 'e1, v2 : 'e2 ...]
