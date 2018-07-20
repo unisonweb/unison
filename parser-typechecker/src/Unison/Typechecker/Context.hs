@@ -6,7 +6,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Typechecker.Context (synthesizeClosed, Note(..), Cause(..), Path(..)) where
+module Unison.Typechecker.Context (synthesizeClosed, Note(..), Cause(..), PathElement(..)) where
 
 import Data.Sequence (Seq)
 
@@ -80,7 +80,7 @@ data CompilerBug v loc
   | FreeVarsInTypeAnnotation (Set (TypeVar v))
   | UnannotatedReference Reference deriving Show
 
-data Path v loc
+data PathElement v loc
   = InSynthesize (Term v loc)
   | InSubtype (Type v loc) (Type v loc)
   | InCheck (Term v loc) (Type v loc)
@@ -97,12 +97,14 @@ data Cause v loc
   | AbilityCheckFailure [Type v loc] [Type v loc] -- ambient, requested
   deriving Show
 
-data Note v loc = Note { cause :: Cause v loc, path :: Seq (Path v loc) } deriving Show
+data Note v loc = Note { cause :: Cause v loc, path :: Seq (PathElement v loc) } deriving Show
 
-scope' :: Path v loc -> Note v loc -> Note v loc
-scope' elem (Note cause path) = Note cause (path `mappend` pure elem)
+-- Add `p` onto the end of the `path` of this `Note`
+scope' :: PathElement v loc -> Note v loc -> Note v loc
+scope' p (Note cause path) = Note cause (path `mappend` pure p)
 
-scope :: Path v loc -> M v loc a -> M v loc a
+-- Add `p` onto the end of the `path` of any `Note`s emitted by the action
+scope :: PathElement v loc -> M v loc a -> M v loc a
 scope p (M m) = M go where
   go menv =
     let (notes, r) = m menv
