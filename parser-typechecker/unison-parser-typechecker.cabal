@@ -43,13 +43,14 @@ library
     Unison.Hash
     Unison.Hashable
     Unison.Kind
-    Unison.Note
     Unison.Parser
     Unison.Parsers
     Unison.Path
     Unison.Paths
     Unison.Pattern
+    Unison.PatternP
     Unison.Reference
+    Unison.Result
     Unison.Symbol
     Unison.Term
     Unison.TermParser

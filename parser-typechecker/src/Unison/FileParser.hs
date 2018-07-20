@@ -1,45 +1,33 @@
-{-# Language OverloadedStrings #-}
+{-# Language OverloadedStrings, TupleSections #-}
 
 module Unison.FileParser where
 
 import           Control.Applicative
-import           Control.Arrow (second)
 import           Control.Monad.Reader
 import           Data.Either (partitionEithers)
 import           Data.Map (Map)
 import qualified Data.Map as Map
-import qualified Data.Text as Text
 import           Prelude hiding (readFile)
 import qualified Text.Parsec.Layout as L
-import           Unison.DataDeclaration (DataDeclaration(..), EffectDeclaration(..))
+import           Unison.DataDeclaration (DataDeclaration, EffectDeclaration)
 import qualified Unison.DataDeclaration as DD
 import           Unison.Parser (Parser, traced, token_, sepBy, string)
-import qualified Unison.Term as Term
 import qualified Unison.TermParser as TermParser
-import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import           Unison.TypeParser (S)
 import qualified Unison.TypeParser as TypeParser
 import           Unison.UnisonFile (UnisonFile(..), environmentFor)
+import qualified Unison.UnisonFile as UF
 import           Unison.Var (Var)
-import qualified Unison.Var as Var
+import Unison.Reference (Reference)
 
-file :: Var v => [(v, Type v)] -> Parser (S v) (UnisonFile v)
-file builtinTypes = traced "file" $ do
+file :: Var v => [(v, Reference)] -> [(v, Reference)] -> Parser (S v) (UnisonFile v)
+file builtinTerms builtinTypes = traced "file" $ do
   (dataDecls, effectDecls) <- traced "declarations" declarations
-  let (dataDecls', effectDecls', penv') =
-                      environmentFor builtinTypes dataDecls effectDecls
-  local (`Map.union` penv') $ do
+  let env = environmentFor builtinTerms builtinTypes dataDecls effectDecls
+  local (`Map.union` UF.constructorLookup env) $ do
     term <- TermParser.block
-    let dataEnv0 = Map.fromList [ (Var.named (Text.pack n), Term.constructor r i) | (n, (r,i)) <- Map.toList penv' ]
-        dataEnv = dataEnv0 `Map.difference` effectDecls
-        effectEnv = dataEnv0 `Map.difference` dataEnv
-        typeEnv = Map.toList (Type.ref . fst <$> dataDecls') ++
-                  Map.toList (Type.ref . fst <$> effectDecls')
-    let term3 = Term.bindBuiltins (Map.toList dataEnv ++ Map.toList effectEnv) typeEnv term
-        dataDecls'' = second (DD.bindBuiltins typeEnv) <$> dataDecls'
-        effectDecls'' = second (DD.withEffectDecl (DD.bindBuiltins typeEnv)) <$> effectDecls'
-    pure $ UnisonFile dataDecls'' effectDecls'' term3
+    pure $ UnisonFile (UF.datas env) (UF.effects env) (UF.resolveTerm env term)
 
 declarations :: Var v => Parser (S v)
                          (Map v (DataDeclaration v),
@@ -48,7 +36,6 @@ declarations = do
   declarations <- many ((Left <$> dataDeclaration) <|> Right <$> effectDeclaration)
   let (dataDecls, effectDecls) = partitionEithers declarations
   pure (Map.fromList dataDecls, Map.fromList effectDecls)
-
 
 dataDeclaration :: Var v => Parser (S v) (v, DataDeclaration v)
 dataDeclaration = traced "data declaration" $ do
@@ -59,14 +46,13 @@ dataDeclaration = traced "data declaration" $ do
   -- dataConstructorTyp gives the type of the constructor, given the types of
   -- the constructor arguments, e.g. Cons becomes forall a . a -> List a -> List a
   let dataConstructorTyp ctorArgs =
-        Type.foralls typeArgs $ Type.arrows ctorArgs (Type.apps (Type.var name) (Type.var <$> typeArgs))
+        Type.foralls() typeArgs $ Type.arrows (((),) <$> ctorArgs) (Type.apps (Type.var() name) (((),) . Type.var() <$> typeArgs))
       dataConstructor =
         (,) <$> TermParser.prefixVar
             <*> (dataConstructorTyp <$> many TypeParser.valueTypeLeaf)
   traced "vblock" $ L.vblockIncrement $ do
     constructors <- traced "constructors" $ sepBy (token_ $ string "|") dataConstructor
-    pure $ (name, DataDeclaration typeArgs constructors)
-
+    pure $ (name, DD.mkDataDecl typeArgs constructors)
 
 effectDeclaration :: Var v => Parser (S v) (v, EffectDeclaration v)
 effectDeclaration = traced "effect declaration" $ do

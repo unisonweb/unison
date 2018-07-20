@@ -24,8 +24,8 @@ import           Unison.Term
 import           Unison.UnisonFile (UnisonFile(..))
 import           Unison.Var
 import qualified Unison.Var as Var
-import Unison.Pattern (Pattern)
-import qualified Unison.Pattern as Pattern
+import Unison.PatternP (Pattern)
+import qualified Unison.PatternP as Pattern
 import Data.Int (Int64)
 
 type Pos = Word64
@@ -199,34 +199,35 @@ serializeTerm x = do
         putBackref pbody
         incPosition
 
-serializePattern :: MonadPut m => Pattern -> m ()
+serializePattern :: MonadPut m => Pattern a -> m ()
 serializePattern p = case p of
   -- note: the putWord8 0 is the tag before any unboxed pattern
-  Pattern.Boolean b -> putWord8 0 *> serializeBoolean b
-  Pattern.Int64 n -> putWord8 0 *> serializeInt64 n
-  Pattern.UInt64 n -> putWord8 0 *> serializeUInt64 n
-  Pattern.Float n -> putWord8 0 *> serializeFloat n
-  Pattern.Var -> putWord8 1
-  Pattern.Unbound -> putWord8 2
-  Pattern.Constructor r cid ps -> do
+  Pattern.Boolean _ b -> putWord8 0 *> serializeBoolean b
+  Pattern.Int64 _ n -> putWord8 0 *> serializeInt64 n
+  Pattern.UInt64 _ n -> putWord8 0 *> serializeUInt64 n
+  Pattern.Float _ n -> putWord8 0 *> serializeFloat n
+  Pattern.Var _ -> putWord8 1
+  Pattern.Unbound _ -> putWord8 2
+  Pattern.Constructor _ r cid ps -> do
     putWord8 3
     serializeReference r
     putWord32be $ fromIntegral cid
     putLength (length ps)
     traverse_ serializePattern ps
-  Pattern.As p -> do
+  Pattern.As _ p -> do
     putWord8 4
     serializePattern p
-  Pattern.EffectPure p -> do
+  Pattern.EffectPure _ p -> do
     putWord8 5
     serializePattern p
-  Pattern.EffectBind r cid ps k -> do
+  Pattern.EffectBind _ r cid ps k -> do
     putWord8 6
     serializeReference r
     putWord32be $ fromIntegral cid
     putLength (length ps)
     traverse_ serializePattern ps
     serializePattern k
+  _ -> error "todo: delete me after deleting PatternP - serializePattern match failure"
 
 serializeFloat :: MonadPut m => Double -> m ()
 serializeFloat n = do
@@ -247,14 +248,14 @@ serializeBoolean :: MonadPut m => Bool -> m ()
 serializeBoolean False = putWord64be 0 *> putWord8 0
 serializeBoolean True = putWord64be 1 *> putWord8 0
 
-serializeCase2 :: MonadPut m => MatchCase Pos -> m ()
+serializeCase2 :: MonadPut m => MatchCase loc Pos -> m ()
 serializeCase2 (MatchCase p guard body) = do
   serializePattern p
   serializeMaybe putBackref guard
   putBackref body
 
 serializeCase1 :: (Var v, MonadPut m, MonadState Pos m)
-               => MatchCase (Term v) -> m (MatchCase Pos)
+               => MatchCase p (Term v) -> m (MatchCase p Pos)
 serializeCase1 (MatchCase p guard body) = do
   posg <- traverse serializeTerm guard
   posb <- serializeTerm body

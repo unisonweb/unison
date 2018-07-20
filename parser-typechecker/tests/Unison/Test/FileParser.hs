@@ -59,6 +59,6 @@ module Unison.Test.FileParser where
     let
       p :: UnisonFile Symbol
       !p = unsafeGetRight $
-        Unison.Parser.run (Parser.root $ file Builtin.builtinTypes)
+        Unison.Parser.run (Parser.root $ file Builtin.builtinTerms Builtin.builtinTypes)
                           s Parsers.s0 builtins
     pure p >> ok
