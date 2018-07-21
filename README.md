@@ -15,8 +15,9 @@ y = foo x -- happens on `alice` node
 Remote.transfer bob
 bar x y -- happens on `bob` node
 ```
+The `Remote.transfer` function introduces a "remote effect", where computation may proceed on multiple Unison nodes:
 
-* The `Remote.transfer alice` produces a `Remote` effect which transfers control of the computation to the `alice` node.
+* The `Remote.transfer alice` transfers control of the computation to the `alice` node.
 * The `foo x` call happens on the `alice` node.
 * At each transfer, any required definitions (such as `foo` and `x`) will be dynamically deployed to the `alice` node and cached for future use.
 * The `Remote.transfer bob` transfers control of the rest of the computation to the `bob` node.
