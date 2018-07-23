@@ -158,9 +158,13 @@ lam p = mkLam <$> P.try (some prefixVar <* reserved "->") <*> p
     mkLam vs b = Term.lam' (ann (head vs) <> ann b) (map L.payload vs) b
 
 letBlock, handle, ifthen, and, or, infixApp :: Var v => TermP v
-letBlock = undefined
+letBlock = block "let"
 
-handle = undefined
+handle = do
+  t <- reserved "handle"
+  handler <- term
+  b <- block "in"
+  pure $ Term.handle (ann t <> ann b) handler b
 
 ifthen = undefined
 
