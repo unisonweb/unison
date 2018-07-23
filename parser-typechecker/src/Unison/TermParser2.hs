@@ -166,7 +166,11 @@ handle = do
   b <- block "in"
   pure $ Term.handle (ann t <> ann b) handler b
 
-ifthen = undefined
+ifthen = do
+  c <- block "if"
+  t <- block "then"
+  f <- block "else"
+  pure $ Term.iff (ann c <> ann f) c t f
 
 and = undefined
 
