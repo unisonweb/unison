@@ -9,7 +9,7 @@ import           Data.Char (isUpper, isLower)
 import           Data.List
 import qualified Data.Text as Text
 import qualified Text.Megaparsec as P
-import           Unison.ABT (annotation, annotate)
+import           Unison.ABT (annotate)
 import qualified Unison.Lexer as L
 import           Unison.Parser2
 import           Unison.Type (AnnotatedType)
@@ -51,7 +51,7 @@ effect = do
   es <- sepBy (reserved ",") valueType
   _ <- reserved "}"
   t <- valueTypeLeaf
-  pure (Type.effect (Ann (L.start open) (end $ annotation t)) es t)
+  pure (Type.effect (Ann (L.start open) (end $ ann t)) es t)
 
 tupleOrParenthesized :: Ord v => TypeP v -> TypeP v
 tupleOrParenthesized rec = do
@@ -63,21 +63,21 @@ tupleOrParenthesized rec = do
     go [t] _ _ = t
     go types s e = annotate (ann s <> ann e) $ foldr pair (unit e e) types
     pair t1 t2 =
-      let a = annotation t1 <> annotation t2
-      in Type.app a (Type.app (annotation t1) (Type.builtin a "Pair") t1) t2
+      let a = ann t1 <> ann t2
+      in Type.app a (Type.app (ann t1) (Type.builtin a "Pair") t1) t2
     unit s e = Type.builtin (ann s <> ann e) "()"
 
 -- "TypeA TypeB TypeC"
 app :: Ord v => TypeP v -> TypeP v
 app rec = do
   (hd:tl) <- some rec
-  pure $ foldl' (\a b -> Type.app (annotation a <> annotation b) a b) hd tl
+  pure $ foldl' (\a b -> Type.app (ann a <> ann b) a b) hd tl
 
 --  valueType ::= ... | Arrow valueType computationType
 arrow :: Var v => TypeP v -> TypeP v
 arrow rec =
   let p = sepBy1 (reserved "->") (effect <|> rec)
-  in foldr1 (\a b -> Type.arrow (annotation a <> annotation b) a b) <$> p
+  in foldr1 (\a b -> Type.arrow (ann a <> ann b) a b) <$> p
 
 -- "forall a b . List a -> List b -> Maybe Text"
 forall :: Var v => TypeP v -> TypeP v
@@ -86,7 +86,7 @@ forall rec = do
     vars <- fmap (fmap L.payload) . some $ varName
     _ <- matchToken $ L.SymbolyId "."
     t <- rec
-    pure $ Type.forall' (ann kw <> annotation t) (fmap Text.pack vars) t
+    pure $ Type.forall' (ann kw <> ann t) (fmap Text.pack vars) t
 
 varName :: Parser String
 varName = do

@@ -56,6 +56,7 @@ library
     Unison.Symbol
     Unison.Term
     Unison.TermParser
+    Unison.TermParser2
     Unison.Type
     Unison.TypeParser
     Unison.TypeParser2

@@ -5,17 +5,25 @@
 
 module Unison.Parser2 where
 
+import           Control.Applicative
 import           Control.Monad (join)
 import           Data.Bifunctor (bimap)
 import           Data.List.NonEmpty (NonEmpty(..))
 import           Data.Maybe
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import           Data.Typeable (Proxy(..))
 import           Text.Megaparsec (ParseError, runParserT)
 import qualified Text.Megaparsec as P
 import qualified Text.Megaparsec.Char as P
+import qualified Unison.ABT as ABT
 import qualified Unison.Lexer as L
+import           Unison.Pattern (PatternP)
+import qualified Unison.PatternP as Pattern
+import           Unison.Term (MatchCase(..))
 import qualified Unison.UnisonFile as UnisonFile
+import           Unison.Var (Var)
+import qualified Unison.Var as Var
 
 type PEnv = UnisonFile.CtorLookup
 
@@ -74,8 +82,29 @@ setPos :: P.SourcePos -> L.Pos -> P.SourcePos
 setPos sp lp =
   P.SourcePos (P.sourceName sp) (P.mkPos $ L.line lp) (P.mkPos $ L.column lp)
 
-ann :: L.Token a -> Ann
-ann (L.Token _ s e) = Ann s e
+class Annotated a where
+  ann :: a -> Ann
+
+instance Annotated Ann where
+  ann = id
+
+instance Annotated (L.Token a) where
+  ann (L.Token _ s e) = Ann s e
+
+instance Annotated a => Annotated (ABT.Term f v a) where
+  ann = ann . ABT.annotation
+
+instance Annotated a => Annotated (PatternP a) where
+  ann = ann . Pattern.loc
+
+instance (Annotated a, Annotated b) => Annotated (MatchCase a b) where
+  ann (MatchCase p _ b) = ann p <> ann b
+
+mkAnn :: (Annotated a, Annotated b) => a -> b -> Ann
+mkAnn x y = ann x <> ann y
+
+tok :: (Ann -> a -> b) -> L.Token a -> b
+tok f (L.Token a start end) = f (Ann start end) a
 
 proxy :: Proxy Input
 proxy = Proxy
@@ -132,6 +161,11 @@ reserved w = queryToken getReserved
   where getReserved (L.Reserved w') | w == w' = Just w
         getReserved _ = Nothing
 
+numeric :: Parser String
+numeric = queryToken getNumeric
+  where getNumeric (L.Numeric s) = Just s
+        getNumeric _ = Nothing
+
 -- Parse a pair of parentheses around an expression
 parenthesized :: Parser a -> Parser a
 parenthesized = P.between (reserved "(") (reserved ")")
@@ -141,4 +175,9 @@ sepBy sep pb = P.sepBy pb sep
 
 sepBy1 :: P a -> P b -> P [b]
 sepBy1 sep pb = P.sepBy pb sep
+
+prefixVar :: Var v => Parser v
+prefixVar = fmap (Var.named . Text.pack) <$> P.label "symbol" prefixOp
+  where
+    prefixOp = wordyId <|> (reserved "(" *> symbolyId <* reserved ")")
 
