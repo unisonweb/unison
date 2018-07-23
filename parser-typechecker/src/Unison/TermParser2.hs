@@ -76,7 +76,8 @@ matchCase :: Var v => P (Term.MatchCase Ann (AnnotatedTerm v Ann))
 matchCase = do
   (p, boundVars) <- parsePattern
   guard <- optional $ reserved "|" *> infixApp
-  t <- block "->"
+  _ <- reserved "->"
+  t <- blockTerm
   pure . Term.MatchCase p guard $ ABT.absChain' boundVars t
 
 parsePattern :: forall v. Var v => P (Pattern Ann, [(Ann, v)])
@@ -152,7 +153,9 @@ parsePattern = constructor <|> leaf
 
 
 lam :: Var v => TermP v -> TermP v
-lam = undefined
+lam p = mkLam <$> P.try (some prefixVar <* reserved "->") <*> p
+  where
+    mkLam vs b = Term.lam' (ann (head vs) <> ann b) (map L.payload vs) b
 
 letBlock, handle, ifthen, and, or, infixApp :: Var v => TermP v
 letBlock = undefined
