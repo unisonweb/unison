@@ -7,21 +7,17 @@ import           Control.Applicative
 import           Control.Monad
 import           Data.Char (isUpper, isLower)
 import           Data.List
-import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Text.Megaparsec as P
-import           Unison.ABT (annotation)
+import           Unison.ABT (annotation, annotate)
 import qualified Unison.Lexer as L
 import           Unison.Parser2
-import           Unison.Type (Type, AnnotatedType)
+import           Unison.Type (AnnotatedType)
 import qualified Unison.Type as Type
 import           Unison.Var (Var)
 
-type Ann = (L.Pos, L.Pos)
-
 -- A parsed type is annotated with its starting and ending position in the
 -- source text.
-type P = P.ParsecT Text Input ((->) PEnv)
 type TypeP v = P (AnnotatedType v Ann)
 
 -- Value types cannot have effects, unless those effects appear to
@@ -40,7 +36,7 @@ valueTypeLeaf =
   tupleOrParenthesized valueType <|> typeVar
 
 typeVar :: Var v => TypeP v
-typeVar = fmap (Type.v' . Text.pack) (P.try wordyId)
+typeVar = posMap (\pos -> Type.av' pos . Text.pack) wordyId
 
 type1 :: Var v => TypeP v
 type1 = arrow type2
@@ -51,55 +47,54 @@ type2 = app valueTypeLeaf
 -- ex : {State Text, IO} (Sequence Int64)
 effect :: Var v => TypeP v
 effect = do
-  P.try $ reserved "{"
-  es <- sepBy (P.try (reserved ",")) valueType
-  P.try $ reserved "}"
+  open <- reserved "{"
+  es <- sepBy (reserved ",") valueType
+  _ <- reserved "}"
   t <- valueTypeLeaf
-  pure (Type.effect es t)
+  pure (Type.effect (Ann (L.start open) (end $ annotation t)) es t)
 
 tupleOrParenthesized :: Ord v => TypeP v -> TypeP v
-tupleOrParenthesized rec =
-  parenthesized $ go <$> sepBy (P.try $ reserved ",") rec where
-    go [t] = t
-    go types = foldr pair unit types
-    pair t1 t2 = Type.builtin "Pair" `Type.app` t1 `Type.app` t2
-    unit = Type.builtin "()"
+tupleOrParenthesized rec = do
+    open <- reserved "("
+    es <- sepBy (reserved ",") rec
+    close <- reserved ")"
+    pure $ go es open close
+  where
+    go [t] _ _ = t
+    go types s e = annotate (ann s <> ann e) $ foldr pair (unit e e) types
+    pair t1 t2 =
+      let a = annotation t1 <> annotation t2
+      in Type.app a (Type.app (annotation t1) (Type.builtin a "Pair") t1) t2
+    unit s e = Type.builtin (ann s <> ann e) "()"
 
 -- "TypeA TypeB TypeC"
 app :: Ord v => TypeP v -> TypeP v
 app rec = do
   (hd:tl) <- some rec
-  pos <- P.getPosition
-  pure $ foldl' (\a b -> getPosition >>= \pos -> Type.app pos a b) hd tl
+  pure $ foldl' (\a b -> Type.app (annotation a <> annotation b) a b) hd tl
 
 --  valueType ::= ... | Arrow valueType computationType
 arrow :: Var v => TypeP v -> TypeP v
-arrow rec = do
-  let p = sepBy1 (P.try (reserved "->")) (effect <|> rec)
-      mkArrow a b =
-        Type.arrow (Pos (fst $ annotation a) (snd $ annotation b)) a b
-  t <- foldr1 mkArrow <$> p
-  case t of
-    Type.Arrow' (Type.Effect' _ _) _ -> fail "effect to the left of an ->"
-    _ -> pure t
+arrow rec =
+  let p = sepBy1 (reserved "->") (effect <|> rec)
+  in foldr1 (\a b -> Type.arrow (annotation a <> annotation b) a b) <$> p
 
 -- "forall a b . List a -> List b -> Maybe Text"
 forall :: Var v => TypeP v -> TypeP v
 forall rec = do
-    kw <- P.try (reserved "forall") <|> P.try (reserved "∀")
-    vars <- fmap (fmap L.payload) . some $ P.try varName
-    _ <- P.try . matchToken $ L.SymbolyId "."
+    kw <- reserved "forall" <|> reserved "∀"
+    vars <- fmap (fmap L.payload) . some $ varName
+    _ <- matchToken $ L.SymbolyId "."
     t <- rec
-    let pos = ((L.start kw), snd $ annotation t)
-    pure $ Type.forall' pos (fmap Text.pack vars) t
+    pure $ Type.forall' (ann kw <> annotation t) (fmap Text.pack vars) t
 
-varName :: UnisonParser String
+varName :: Parser String
 varName = do
   name <- wordyId
   guard (isLower . head $ L.payload name)
   pure name
 
-typeName :: UnisonParser String
+typeName :: Parser String
 typeName = do
   name <- wordyId
   guard (isUpper . head $ L.payload name)
@@ -112,11 +107,10 @@ typeName = do
 --     f first more = maybe first (first++) more
 --     more = (:) <$> char '.' <*> qualifiedTypeName
 
-posMap :: (Ann -> a -> b) -> UnisonParser a -> P b
-posMap f = fmap $ \case L.Token a start end -> f (start, end) a
+posMap :: (Ann -> a -> b) -> Parser a -> P b
+posMap f = fmap $ \case L.Token a start end -> f (Ann start end) a
 
 literal :: Var v => TypeP v
 literal =
-  P.label "literal" . P.try .
-    posMap (\pos -> Type.av' pos . Text.pack) $ typeName
+  P.label "literal" . posMap (\pos -> Type.av' pos . Text.pack) $ typeName
 
