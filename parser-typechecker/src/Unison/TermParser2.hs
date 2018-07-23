@@ -172,7 +172,35 @@ ifthen = do
   f <- block "else"
   pure $ Term.iff (ann c <> ann f) c t f
 
-and = undefined
+hashLit :: Var v => TermP v
+hashLit = tok Term.derived <$> hashLiteral
+
+prefixTerm :: Var v => TermP v
+prefixTerm = tok Term.var <$> prefixVar
+
+text :: Var v => TermP v
+text = tok Term.text <$> string
+
+boolean :: Ord v => TermP v
+boolean = ((\t -> Term.boolean (ann t) True) <$> reserved "true") <|>
+          ((\t -> Term.boolean (ann t) False) <$> reserved "false")
+
+blank :: Ord v => TermP v
+blank = (\t -> Term.blank (ann t)) <$> reserved "_"
+
+vector :: Ord v => TermP v -> TermP v
+vector p = f <$> reserved "[" <*> elements <*> reserved "]"
+  where
+    elements = sepBy (reserved ",") p
+    f open elems close = Term.vector (ann open <> ann close) elems
+
+termLeaf :: forall v. Var v => TermP v
+termLeaf =
+  asum [hashLit, prefixTerm, text, number, boolean,
+        tupleOrParenthesizedTerm, blank, vector term]
+
+and = f <$> reserved "and" <*> termLeaf <*> termLeaf
+  where f kw x y = Term.and (ann kw <> ann y) x y
 
 or = undefined
 
@@ -180,6 +208,9 @@ infixApp = undefined
 
 block :: Var v => String -> TermP v
 block = undefined
+
+number :: Ord v => TermP v
+number = number' (tok Term.int64) (tok Term.uint64) (tok Term.float)
 
 number'
   :: (L.Token Int64 -> a)
@@ -193,5 +224,14 @@ number' i u f = fmap go numeric
       | take 1 p == "+" || take 1 p == "-" = i (read <$> num)
       | otherwise = u (read <$> num)
 
-tupleOrParenthesized :: P a -> (Ann -> a) -> (a -> a -> a) -> P a
-tupleOrParenthesized = undefined
+tupleOrParenthesizedTerm :: Var v => TermP v
+tupleOrParenthesizedTerm = tupleOrParenthesized term unit pair
+  where
+    pair t1 t2 =
+      Term.app (ann t1 <> ann t2)
+        (Term.app (ann t1)
+                  (Term.constructor (ann t1 <> ann t2) (R.Builtin "Pair") 0)
+                  t1)
+        t2
+    unit ann = Term.constructor ann (R.Builtin "()") 0
+

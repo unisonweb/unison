@@ -9,7 +9,6 @@ import           Data.Char (isUpper, isLower)
 import           Data.List
 import qualified Data.Text as Text
 import qualified Text.Megaparsec as P
-import           Unison.ABT (annotate)
 import qualified Unison.Lexer as L
 import           Unison.Parser2
 import           Unison.Type (AnnotatedType)
@@ -33,7 +32,7 @@ computationType = effect <|> valueType
 
 valueTypeLeaf :: Var v => TypeP v
 valueTypeLeaf =
-  tupleOrParenthesized valueType <|> typeVar
+  tupleOrParenthesizedType valueType <|> typeVar
 
 typeVar :: Var v => TypeP v
 typeVar = posMap (\pos -> Type.av' pos . Text.pack) wordyId
@@ -53,19 +52,13 @@ effect = do
   t <- valueTypeLeaf
   pure (Type.effect (Ann (L.start open) (end $ ann t)) es t)
 
-tupleOrParenthesized :: Ord v => TypeP v -> TypeP v
-tupleOrParenthesized rec = do
-    open <- reserved "("
-    es <- sepBy (reserved ",") rec
-    close <- reserved ")"
-    pure $ go es open close
+tupleOrParenthesizedType :: Ord v => TypeP v -> TypeP v
+tupleOrParenthesizedType rec = tupleOrParenthesized rec unit pair
   where
-    go [t] _ _ = t
-    go types s e = annotate (ann s <> ann e) $ foldr pair (unit e e) types
     pair t1 t2 =
       let a = ann t1 <> ann t2
       in Type.app a (Type.app (ann t1) (Type.builtin a "Pair") t1) t2
-    unit s e = Type.builtin (ann s <> ann e) "()"
+    unit a = Type.builtin a "()"
 
 -- "TypeA TypeB TypeC"
 app :: Ord v => TypeP v -> TypeP v

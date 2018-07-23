@@ -6,6 +6,7 @@ import           Control.Lens.TH (makePrisms)
 import           Data.Char
 import           Data.Set (Set)
 import qualified Data.Set as Set
+import           Unison.Hash (Hash)
 
 data Err
   = InvalidWordyId String
@@ -29,6 +30,7 @@ data Lexeme
   | WordyId String   -- a (non-infix) identifier
   | SymbolyId String -- an infix identifier
   | Numeric String   -- numeric literals, left unparsed
+  | Hash Hash        -- hash literals
   | Err Err
   deriving (Eq,Show,Ord)
 

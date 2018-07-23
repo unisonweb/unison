@@ -11,12 +11,14 @@ import           Data.Bifunctor (bimap)
 import           Data.List.NonEmpty (NonEmpty(..))
 import           Data.Maybe
 import qualified Data.Set as Set
+import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Typeable (Proxy(..))
 import           Text.Megaparsec (ParseError, runParserT)
 import qualified Text.Megaparsec as P
 import qualified Text.Megaparsec.Char as P
 import qualified Unison.ABT as ABT
+import           Unison.Hash
 import qualified Unison.Lexer as L
 import           Unison.Pattern (PatternP)
 import qualified Unison.PatternP as Pattern
@@ -181,3 +183,22 @@ prefixVar = fmap (Var.named . Text.pack) <$> P.label "symbol" prefixOp
   where
     prefixOp = wordyId <|> (reserved "(" *> symbolyId <* reserved ")")
 
+hashLiteral :: Parser Hash
+hashLiteral = queryToken getHash
+  where getHash (L.Hash s) = Just s
+        getHash _ = Nothing
+
+string :: Parser Text
+string = queryToken getString
+  where getString (L.Textual s) = Just (Text.pack s)
+        getString _ = Nothing
+
+tupleOrParenthesized :: P a -> (Ann -> a) -> (a -> a -> a) -> P a
+tupleOrParenthesized p unit pair = do
+    open <- reserved "("
+    es <- sepBy (reserved ",") p
+    close <- reserved ")"
+    pure $ go es open close
+  where
+    go [t] _ _ = t
+    go as s e = foldr pair (unit (ann s <> ann e)) as
