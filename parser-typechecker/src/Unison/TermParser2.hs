@@ -17,6 +17,7 @@ import           Data.Int (Int64)
 import           Data.List (elem)
 import qualified Data.Map as Map
 import           Data.Maybe (isJust)
+import qualified Data.Text as Text
 import           Data.Word (Word64)
 import           Prelude hiding (and, or)
 import qualified Text.Megaparsec as P
@@ -30,6 +31,7 @@ import           Unison.Term (AnnotatedTerm)
 import qualified Unison.Term as Term
 import qualified Unison.TypeParser2 as TypeParser
 import           Unison.Var (Var)
+import qualified Unison.Var as Var
 
 {-
 Precedence of language constructs is identical to Haskell, except that all
@@ -202,9 +204,24 @@ termLeaf =
 and = f <$> reserved "and" <*> termLeaf <*> termLeaf
   where f kw x y = Term.and (ann kw <> ann y) x y
 
-or = undefined
+or = f <$> reserved "or" <*> termLeaf <*> termLeaf
+  where f kw x y = Term.or (ann kw <> ann y) x y
 
-infixApp = undefined
+infixVar :: Var v => TermP v
+infixVar =
+  (\t -> Term.var (ann t) (Var.named (Text.pack $ L.payload t))) <$>
+    (symbolyId <|> backticks)
+
+term4 :: Var v => TermP v
+term4 = f <$> some termLeaf
+  where
+    f (func:args) = Term.apps func ((\a -> (ann func <> ann a, a)) <$> args)
+    f [] = error "'some' shouldn't produce an empty list"
+
+infixApp = chainl1 term4 (f <$> infixVar)
+  where
+    f op lhs rhs =
+      Term.apps op [(ann lhs, lhs),(ann rhs, rhs)]
 
 block :: Var v => String -> TermP v
 block = undefined

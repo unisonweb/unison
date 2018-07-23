@@ -157,6 +157,11 @@ symbolyId = queryToken getSymboly
   where getSymboly (L.SymbolyId s) = Just s
         getSymboly _ = Nothing
 
+backticks :: Parser String
+backticks = queryToken getBackticks
+  where getBackticks (L.Backticks s) = Just s
+        getBackticks _ = Nothing
+
 -- Parse a reserved word
 reserved :: String -> Parser String
 reserved w = queryToken getReserved
@@ -202,3 +207,7 @@ tupleOrParenthesized p unit pair = do
   where
     go [t] _ _ = t
     go as s e = foldr pair (unit (ann s <> ann e)) as
+
+chainl1 :: P a -> P (a -> a -> a) -> P a
+chainl1 p op = foldl (flip ($)) <$> p <*> P.many (flip <$> op <*> p)
+
