@@ -6,7 +6,7 @@ module Unison.Builtin where
 
 import           Control.Arrow ((&&&), second)
 import qualified Data.Map as Map
-import           Unison.DataDeclaration (DataDeclaration)
+import           Unison.DataDeclaration (DataDeclaration, EffectDeclaration)
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Parser as Parser
 import qualified Unison.Reference as R
@@ -39,14 +39,13 @@ parseDataDeclAsBuiltin s =
   in (v, (R.Builtin . Var.qualifiedName $ v, DD.bindBuiltins builtinTypes dd))
 
 bindBuiltins :: Var v => Term v -> Term v
-bindBuiltins = Term.bindBuiltins builtinTerms builtinTypes
+bindBuiltins = Term.bindBuiltins builtinDataAndEffectCtors builtinTerms builtinTypes
 
 bindTypeBuiltins :: Var v => Type v -> Type v
 bindTypeBuiltins = Type.bindBuiltins builtinTypes
 
-builtinTerms :: forall v. Var v => [(v, Term v)]
-builtinTerms = builtinTerms' ++
-    (mkConstructors =<< builtinDataDecls')
+builtinDataAndEffectCtors :: forall v. Var v => [(v, Term v)]
+builtinDataAndEffectCtors = (mkConstructors =<< builtinDataDecls')
   where
     mkConstructors :: (v, (R.Reference, DataDeclaration v)) -> [(v, Term v)]
     mkConstructors (vt, (r, dd)) =
@@ -56,20 +55,23 @@ builtinTerms = builtinTerms' ++
       (Var.named $ mconcat [Var.qualifiedName vt, ".", Var.qualifiedName v],
         Term.constructor() r i)
 
-builtinTerms' :: forall v. Var v => [(v, Term v)]
-builtinTerms' = (toSymbol &&& Term.ref()) <$> Map.keys (builtins @v)
+builtinTerms :: forall v. Var v => [(v, R.Reference)]
+builtinTerms = (\r -> (toSymbol r, r)) <$> Map.keys (builtins @v)
 
-builtinTypes :: forall v. Var v => [(v, Type v)]
+builtinTypes :: forall v. Var v => [(v, R.Reference)]
 builtinTypes = builtinTypes' ++ (f <$> Map.toList (builtinDataDecls @v))
-  where f (r@(R.Builtin s), _) = (Var.named s, Type.ref() r)
+  where f (r@(R.Builtin s), _) = (Var.named s, r)
         f (R.Derived h, _) =
-          error $ "expected builtinDataDecls to be all R.Builtins; " ++
+          error $ "expected builtin to be all R.Builtins; " ++
                   "don't know what name to assign to " ++ show h
 
-builtinTypes' :: Var v => [(v, Type v)]
-builtinTypes' = (Var.named &&& (Type.ref() . R.Builtin)) <$>
+builtinTypes' :: Var v => [(v, R.Reference)]
+builtinTypes' = (Var.named &&& R.Builtin) <$>
   ["Int64", "UInt64", "Float", "Boolean",
     "Sequence", "Text", "Stream", "Effect"]
+
+builtinEffectDecls :: forall v. Var v => Map.Map R.Reference (EffectDeclaration v)
+builtinEffectDecls = Map.empty
 
 builtinDataDecls :: forall v. (Var v) => Map.Map R.Reference (DataDeclaration v)
 builtinDataDecls = Map.fromList (snd <$> builtinDataDecls')
@@ -82,7 +84,7 @@ builtinDataDecls' = bindAllTheTypes <$> l
     bindAllTheTypes :: (v, (R.Reference, DataDeclaration v)) -> (v, (R.Reference, DataDeclaration v))
     bindAllTheTypes =
       second . second $ (DD.bindBuiltins $ builtinTypes' ++ (dd3ToType <$> l))
-    dd3ToType (v, (r, _)) = (v, Type.ref() r)
+    dd3ToType (v, (r, _)) = (v, r)
     l :: [(v, (R.Reference, DataDeclaration v))]
     l = [ (Var.named "()",
             (R.Builtin "()", DD.mkDataDecl [] [(Var.named "()", Type.builtin() "()")]))

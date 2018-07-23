@@ -5,11 +5,11 @@ module Unison.Test.Typechecker where
 
 import  EasyTest
 import  Data.Char (isSpace)
-import  Data.Either (isRight)
 import  Unison.FileParsers (parseAndSynthesizeAsFile)
 import  Unison.Symbol
 import  Unison.Test.Common
 import  Text.RawString.QQ
+import  qualified Unison.Result as Result
 
 test = scope "typechecker" . tests $
   [
@@ -47,6 +47,14 @@ test = scope "typechecker" . tests $
   , c "[1,2,3]" "Sequence UInt64"
   , c "Stream.from-int64 +0" "Stream Int64"
   , c "(+_UInt64) 1" "UInt64 -> UInt64"
+  , bombs [r|--unresolved symbol
+            |let
+            |  (|>) : forall a b . a -> (a -> WHat) -> b -- unresolved symbol
+            |  a |> f = f a
+            |
+            |  Stream.from-int64 -3
+            |    |> Stream.take 10
+            |    |> Stream.fold-left +0 (+_Int64) |]
   , c [r|let
         |  (|>) : forall a b . a -> (a -> b) -> b
         |  a |> f = f a
@@ -57,53 +65,58 @@ test = scope "typechecker" . tests $
   -- some pattern-matching tests we want to perform:
 --  Unbound
   -- , c [r|type Optional a = None | Some a
-  --        case Some 3 of
-  --          x -> 1
-  --      |] "UInt64"
-  , bombs [r|type Optional a = None | Some a
+  --       |case Some 3 of
+  --       |  x -> 1
+  --       |] "UInt64"
+  , bombs [r|--mismatched case result types
+            |type Optional a = None | Some a
             |
             |case Optional.Some 3 of
             |  x -> 1
             |  y -> "boo" |]
-  , checks [r|type Optional a = None | Some a
-             |
+  , checks [r|--r1
+             |type Optional a = None | Some a
              |r1 : UInt64
              |r1 = case Optional.Some 3 of
              |  x -> 1
-             |
+             |() |]
+  , checks [r|--r2
+             |type Optional a = None | Some a
              |r2 : UInt64
              |r2 = case Optional.Some true of
              |  Optional.Some true -> 1
              |  Optional.Some false -> 0
-             |
+             |() |]
+  , checks [r|--r3
+             |type Optional a = None | Some a
              |r3 : UInt64
              |r3 = case Optional.Some true of
              |  Optional.Some true -> 1
              |  Optional.Some false -> 0
-             |
-             |r4 : Int64 -> Int64
+             |() |]
+  , checks [r|r4 : Int64 -> Int64
              |r4 x = case x of
              |  +1 -> -1
              |  _  -> Int64.negate x
-             |
-             |r5 : Float
+             |() |]
+  , checks [r|r5 : Float
              |r5 = case 2.2 of
              |  2.2 -> 3.0
              |  _  -> 1.0
-             |
-             |r6 : ()
+             |() |]
+  , checks [r|r6 : ()
              |r6 = case () of
              |  () -> ()
-             |
-             |r7 : ()
+             |() |]
+  , checks [r|r7 : ()
              |r7 = case () of
              |  x@() -> x
-             |
-             |r8 : UInt64
+             |() |]
+  , checks [r|r8 : UInt64
              |r8 = case (1,(2,(3,(4,(5,(6,(7,8))))))) of
              |  (x,(y,(_,_))) -> 0
-             |
-             |r9 : UInt64
+             |() |]
+  , checks [r|r9 : UInt64
              |r9 = case 1 of
              |  9 -> 9
              |  8 -> 8
@@ -111,29 +124,29 @@ test = scope "typechecker" . tests $
              |  6 -> 6
              |  5 -> 5
              |  _ -> 1
-             |
-             |r10 : UInt64
+             |() |]
+  , checks [r|r10 : UInt64
              |r10 = case 1 of
              |  1 | true -> 3
              |  _ -> 4
-             |
-             |r11 : UInt64
+             |() |]
+  , checks [r|r11 : UInt64
              |r11 = case 1 of
              |  1 | 2 ==_UInt64 3 -> 4
              |  _ -> 5
-             |
-             |r12 : UInt64
+             |() |]
+  , checks [r|r12 : UInt64
              |r12 = (x -> x) 64
-             |
-             |id : forall a . a -> a
+             |() |]
+  , checks [r|id : forall a . a -> a
              |id x = x
-             |
-             |r13 : (UInt64, Text)
+             |() |]
+  , checks [r|r13 : (UInt64, Text)
              |r13 =
              |  id = ((x -> x): forall a . a -> a)
              |  (id 10, id "foo")
-             |
-             |r14 : (forall a . a -> a) -> (UInt64, Text)
+             |() |]
+  , checks [r|r14 : (forall a . a -> a) -> (UInt64, Text)
              |r14 id = (id 10, id "foo")
              |
              |() |]
@@ -401,13 +414,14 @@ test = scope "typechecker" . tests $
              |]
   ]
   where c tm typ = scope tm . expect $ check (stripMargin tm) typ
-        bombs s = scope s (expect . not . fileTypechecks $ s)
+        bombs s = scope s (crasher s)
         broken :: String -> Test ()
         broken s = scope s $ pending (checks s)
         checks :: String -> Test ()
         checks s = scope s (typer s)
         typeFile = (parseAndSynthesizeAsFile @ Symbol) "<test>" .  stripMargin
-        typer = either crash (const ok) . typeFile
-        fileTypechecks = isRight . typeFile
+        crash' e = crash $ show e -- todo: don't use show, print errors prettily
+        typer = either crash' (const ok) . Result.toEither . typeFile
+        crasher = either (const ok) crash' . Result.toEither . typeFile
         stripMargin =
           unlines . map (dropWhile (== '|'). dropWhile isSpace) . lines

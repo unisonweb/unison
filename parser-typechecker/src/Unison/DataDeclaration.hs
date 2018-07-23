@@ -32,7 +32,7 @@ data DataDeclaration' v a = DataDeclaration {
 constructors :: DataDeclaration' v a -> [(v, AnnotatedType v a)]
 constructors (DataDeclaration _ _ ctors) = [(v,t) | (_,v,t) <- ctors ]
 
-bindBuiltins :: Var v => [(v, AnnotatedType v a)] -> DataDeclaration' v a -> DataDeclaration' v a
+bindBuiltins :: Var v => [(v, Reference)] -> DataDeclaration' v a -> DataDeclaration' v a
 bindBuiltins typeEnv (DataDeclaration a bound constructors) =
   DataDeclaration a bound (third (Type.bindBuiltins typeEnv) <$> constructors)
 
@@ -133,6 +133,12 @@ fromABT (ABT.AbsN' bound (
 fromABT a = error $ "ABT not of correct form to convert to DataDeclaration: " ++ show a
 
 -- todo: generalize this to work for any annotation type
+-- | compute the hashes of these user defined types and update any free vars
+--   corresponding to these decls with the resulting hashes
+--
+--   data List a = Nil | Cons a (List a)
+--   becomes something like
+--   (List, #xyz, [forall a. #xyz a, forall a. a -> (#xyz a) -> (#xyz a)])
 hashDecls :: (Eq v, Var v)
           => Map v (DataDeclaration' v ()) -> [(v, Reference, DataDeclaration' v ())]
 hashDecls decls =

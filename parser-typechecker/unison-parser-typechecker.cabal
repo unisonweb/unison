@@ -44,7 +44,6 @@ library
     Unison.Hashable
     Unison.Kind
     Unison.Lexer
-    Unison.Note
     Unison.Parser
     Unison.Parsers
     Unison.Parser2
@@ -53,6 +52,7 @@ library
     Unison.Pattern
     Unison.PatternP
     Unison.Reference
+    Unison.Result
     Unison.Symbol
     Unison.Term
     Unison.TermParser
@@ -62,7 +62,6 @@ library
     Unison.TypeVar
     Unison.Typechecker
     Unison.Typechecker.Context
-    Unison.Typechecker.Context2
     Unison.Typechecker.Components
     Unison.UnisonFile
     Unison.Util.Logger

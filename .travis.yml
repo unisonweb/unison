@@ -34,4 +34,4 @@ install:
 
 script:
 - stack --no-terminal exec tests
-- (cd runtime-jvm; sbt benchmark/compile main/test:run)
+- (cd runtime-jvm; sbt benchmark/compile test)

@@ -99,9 +99,17 @@ type Term v = AnnotatedTerm v ()
 -- | Terms with type variables in `vt`, and term variables in `v`
 type Term' vt v = AnnotatedTerm' vt v ()
 
-bindBuiltins :: Var v => [(v, Term v)] -> [(v, Type v)] -> Term v -> Term v
-bindBuiltins termBuiltins typeBuiltins =
-   typeMap (ABT.substs typeBuiltins) . ABT.substs termBuiltins
+bindBuiltins :: Var v
+             => [(v, AnnotatedTerm v a)]
+             -> [(v, Reference)]
+             -> [(v, Reference)]
+             -> AnnotatedTerm v a -> AnnotatedTerm v a
+bindBuiltins dataAndEffectCtors termBuiltins0 typeBuiltins =
+   typeMap (Type.bindBuiltins typeBuiltins) .
+   ABT.substsInheritAnnotation termBuiltins .
+   ABT.substsInheritAnnotation dataAndEffectCtors
+   where
+   termBuiltins = [ (v, ref() r) | (v,r) <- termBuiltins0 ]
 
 vmap :: Ord v2 => (v -> v2) -> AnnotatedTerm v a -> AnnotatedTerm v2 a
 vmap f = ABT.vmap f . typeMap (ABT.vmap f)
@@ -213,6 +221,9 @@ blank a = ABT.tm' a Blank
 
 constructor :: Ord v => a -> Reference -> Int -> AnnotatedTerm2 vt at ap v a
 constructor a ref n = ABT.tm' a (Constructor ref n)
+
+request :: Ord v => a -> Reference -> Int -> AnnotatedTerm2 vt at ap v a
+request a ref n = ABT.tm' a (Request ref n)
 
 -- todo: delete and rename app' to app
 app_ :: Ord v => Term' vt v -> Term' vt v -> Term' vt v
@@ -368,6 +379,23 @@ referencedDataDeclarationsP :: Pattern loc -> Set Reference
 referencedDataDeclarationsP p = Set.fromList . Writer.execWriter $ go p where
   go (Pattern.As _ p) = go p
   go (Pattern.Constructor _ id _ args) = Writer.tell [id] *> traverse_ go args
+  go (Pattern.EffectPure _ p) = go p
+  go (Pattern.EffectBind _ _ _ args k) = traverse_ go args *> go k
+  go _ = pure ()
+
+referencedEffectDeclarations :: Ord v => AnnotatedTerm2 vt at ap v a -> Set Reference
+referencedEffectDeclarations t = Set.fromList . Writer.execWriter $ ABT.visit' f t
+  where f t@(Request r _) = Writer.tell [r] *> pure t
+        f t@(EffectBind r _ _ _) = Writer.tell [r] *> pure t
+        f t@(Match _ cases) = traverse_ g cases *> pure t where
+          g (MatchCase pat _ _) = Writer.tell (Set.toList (referencedEffectDeclarationsP pat))
+          -- todo: does this traverse the guard and body of MatchCase?
+        f t = pure t
+
+referencedEffectDeclarationsP :: Pattern loc -> Set Reference
+referencedEffectDeclarationsP p = Set.fromList . Writer.execWriter $ go p where
+  go (Pattern.As _ p) = go p
+  go (Pattern.Constructor _ _ _ args) = traverse_ go args
   go (Pattern.EffectPure _ p) = go p
   go (Pattern.EffectBind _ id _ args k) = Writer.tell [id] *> traverse_ go args *> go k
   go _ = pure ()

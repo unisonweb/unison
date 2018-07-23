@@ -37,6 +37,7 @@ lazy val testSettings = Seq(
 
 lazy val root = project.in(file(".")).
   settings(name := "unison-runtime-root").
+  settings(test := (run in Test in main toTask "").value).
   settings(commonSettings).
   aggregate(main, benchmark)
 
