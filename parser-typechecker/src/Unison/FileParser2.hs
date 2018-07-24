@@ -11,7 +11,7 @@ import           Data.List (foldl')
 import           Prelude hiding (readFile)
 -- import qualified Text.Parsec.Layout as L
 import qualified Unison.Lexer as L
-import           Unison.DataDeclaration (DataDeclaration')--, EffectDeclaration')
+import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 import qualified Unison.DataDeclaration as DD
 -- import           Unison.Parser (Parser, traced, token_, sepBy, string)
 import           Unison.Parser2
@@ -71,20 +71,26 @@ dataDeclaration = do
         in (ann ctorName, L.payload ctorName, Type.foralls ctorAnn typeArgVs ctorType)
       dataConstructor = go <$> prefixVar <*> many TypeParser.valueTypeLeaf
   constructors <- sepBy (reserved "|") dataConstructor
+  _ <- closeBlock
   let -- the annotation of the last constructor if present,
       -- otherwise ann of name
       closingAnn :: Ann
       closingAnn = last (ann eq : ((\(_,_,t) -> ann t) <$> constructors))
   pure $ (L.payload name, DD.mkDataDecl' (ann start <> closingAnn) typeArgVs constructors)
 
--- effectDeclaration :: Var v => Parser (S v) (v, EffectDeclaration v)
--- effectDeclaration = traced "effect declaration" $ do
---   token_ $ string "effect"
---   name <- TermParser.prefixVar
---   typeArgs <- many TermParser.prefixVar
---   token_ $ string "where"
---   L.vblockNextToken $ do
---     constructors <- sepBy L.vsemi constructor
---     pure $ (name, DD.mkEffectDecl typeArgs constructors)
---   where
---     constructor = (,) <$> (TermParser.prefixVar <* token_ (string ":")) <*> traced "computation type" TypeParser.computationType
+effectDeclaration :: Var v => P v (v, EffectDeclaration' v Ann)
+effectDeclaration = do
+  effectStart <- reserved "effect"
+  name <- prefixVar
+  typeArgs <- many prefixVar
+  let typeArgVs = L.payload <$> typeArgs
+  blockStart <- openBlockWith "where"
+  constructors <- sepBy semi constructor
+  _ <- closeBlock
+  let closingAnn = last $ ann blockStart : ((\(_,_,t) -> ann t) <$> constructors)
+  pure $ (L.payload name, DD.mkEffectDecl' (ann effectStart <> closingAnn) typeArgVs constructors)
+  where
+    constructor :: Var v => P v (Ann, v, AnnotatedType v Ann)
+    constructor = explodeToken <$>
+      prefixVar <* openBlockWith ":" <*> TypeParser.computationType <* closeBlock
+      where explodeToken v t = (ann v, L.payload v, t)
