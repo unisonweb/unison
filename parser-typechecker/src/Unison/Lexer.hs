@@ -2,6 +2,8 @@
 
 module Unison.Lexer where
 
+import Control.Monad (join)
+import GHC.Exts (sortWith)
 import           Control.Lens.TH (makePrisms)
 import           Data.Char
 import           Data.Set (Set)
@@ -68,6 +70,22 @@ pop = drop 1
 
 topLeftCorner :: Pos
 topLeftCorner = Pos 1 1
+
+stanzas :: [Token Lexeme] -> [[Token Lexeme]]
+stanzas ts = go [] ts where
+  go acc [] = [reverse acc]
+  go acc (c@(payload -> Semi) : t : ts) | column (start t) == 1 = (reverse $ c : acc) : go [] (t:ts)
+  go acc (t:ts) = go (t:acc) ts
+
+-- Moves type and effect declarations to the front of the token stream
+reorder :: [Token Lexeme] -> [Token Lexeme]
+reorder ts = join $ sortWith f (stanzas ts)
+  where
+    f ((payload -> Reserved "type")   : _) = 0
+    f ((payload -> Reserved "effect") : _) = 0
+    f ((payload -> Open _) : t)            = f t
+    f []                                   = 1 :: Int
+    f (_ : _)                              = 1
 
 lexer :: String -> String -> [Token Lexeme]
 lexer scope rem =
