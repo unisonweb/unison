@@ -79,13 +79,15 @@ stanzas ts = go [] ts where
 
 -- Moves type and effect declarations to the front of the token stream
 reorder :: [Token Lexeme] -> [Token Lexeme]
-reorder ts = join $ sortWith f (stanzas ts)
+reorder ts = first ++ (join . sortWith f . stanzas $ core) ++ last
   where
+    n = length ts
+    first = take 1 ts -- save `Open` token from start
+    last = drop (n - 1) ts -- and `Close` token from end
+    core = take (n - 2) . drop 1 $ ts -- middle n-2 elements
     f ((payload -> Reserved "type")   : _) = 0
     f ((payload -> Reserved "effect") : _) = 0
-    f ((payload -> Open _) : t)            = f t
-    f []                                   = 1 :: Int
-    f (_ : _)                              = 1
+    f _                                    = 1 :: Int
 
 lexer :: String -> String -> [Token Lexeme]
 lexer scope rem =
