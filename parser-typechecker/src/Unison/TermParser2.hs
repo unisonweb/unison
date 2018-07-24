@@ -43,7 +43,7 @@ operator characters (like empty? or fold-left).
 Sections / partial application of infix operators is not implemented.
 -}
 
-type TermP v = P (AnnotatedTerm v Ann)
+type TermP v = P v (AnnotatedTerm v Ann)
 
 term :: Var v => TermP v
 term = term2
@@ -74,7 +74,7 @@ match = do
   cases <- sepBy1 semi matchCase
   pure $ Term.match (ann start <> ann (last cases)) scrutinee cases
 
-matchCase :: Var v => P (Term.MatchCase Ann (AnnotatedTerm v Ann))
+matchCase :: Var v => P v (Term.MatchCase Ann (AnnotatedTerm v Ann))
 matchCase = do
   (p, boundVars) <- parsePattern
   guard <- optional $ reserved "|" *> infixApp
@@ -82,7 +82,7 @@ matchCase = do
   t <- blockTerm
   pure . Term.MatchCase p guard $ ABT.absChain' boundVars t
 
-parsePattern :: forall v. Var v => P (Pattern Ann, [(Ann, v)])
+parsePattern :: forall v. Var v => P v (Pattern Ann, [(Ann, v)])
 parsePattern = constructor <|> leaf
   where
   leaf = literal <|> varOrAs <|> unbound <|>
@@ -91,20 +91,20 @@ parsePattern = constructor <|> leaf
   true = (\t -> Pattern.Boolean (ann t) True) <$> reserved "true"
   false = (\t -> Pattern.Boolean (ann t) False) <$> reserved "false"
   number = number' (tok Pattern.Int64) (tok Pattern.UInt64) (tok Pattern.Float)
-  parenthesizedOrTuplePattern :: P (Pattern Ann, [(Ann, v)])
+  parenthesizedOrTuplePattern :: P v (Pattern Ann, [(Ann, v)])
   parenthesizedOrTuplePattern = tupleOrParenthesized parsePattern unit pair
   unit ann = (Pattern.Constructor ann (R.Builtin "()") 0 [], [])
   pair (p1, v1) (p2, v2) =
     (Pattern.Constructor (ann p1 <> ann p2) (R.Builtin "Pair") 0 [p1, p2],
      v1 ++ v2)
-  varOrAs :: P (Pattern Ann, [(Ann, v)])
+  varOrAs :: P v (Pattern Ann, [(Ann, v)])
   varOrAs = do
     v <- prefixVar
     o <- optional (reserved "@")
     if isJust o then
       (\(p, vs) -> (Pattern.As (ann v) p, tokenToPair v : vs)) <$> leaf
       else pure (Pattern.Var (ann v), [tokenToPair v])
-  unbound :: P (Pattern Ann, [(Ann, v)])
+  unbound :: P v (Pattern Ann, [(Ann, v)])
   unbound = (\tok -> (Pattern.Unbound (ann tok), [])) <$> reserved "_"
   ctorName = P.try $ do
     s <- wordyId
@@ -123,8 +123,7 @@ parsePattern = constructor <|> leaf
     env <- ask
     (ref,cid) <- case Map.lookup (L.payload name) env of
       Just (ref, cid) -> pure (ref, cid)
-      -- TODO: Fail fancily
-      Nothing -> fail $ "unknown data constructor " ++ (L.payload name)
+      Nothing -> customFailure $ UnknownEffectConstructor name
     pure $ case unzip leaves of
       (patterns, vs) ->
          (Pattern.EffectBind (ann name <> ann cont) ref cid patterns cont,
@@ -150,9 +149,7 @@ parsePattern = constructor <|> leaf
             (patterns, vs) ->
               let loc = foldl (<>) (ann t) $ map ann patterns
               in (Pattern.Constructor loc ref cid patterns, join vs)
-      -- TODO: Fail fancily
-      Nothing -> fail $ "unknown data constructor " ++ name
-
+      Nothing -> customFailure $ UnknownDataConstructor t
 
 lam :: Var v => TermP v -> TermP v
 lam p = mkLam <$> P.try (some prefixVar <* reserved "->") <*> p
@@ -183,14 +180,14 @@ prefixTerm = tok Term.var <$> prefixVar
 text :: Var v => TermP v
 text = tok Term.text <$> string
 
-boolean :: Ord v => TermP v
+boolean :: Var v => TermP v
 boolean = ((\t -> Term.boolean (ann t) True) <$> reserved "true") <|>
           ((\t -> Term.boolean (ann t) False) <$> reserved "false")
 
-blank :: Ord v => TermP v
+blank :: Var v => TermP v
 blank = (\t -> Term.blank (ann t)) <$> reserved "_"
 
-vector :: Ord v => TermP v -> TermP v
+vector :: Var v => TermP v -> TermP v
 vector p = f <$> reserved "[" <*> elements <*> reserved "]"
   where
     elements = sepBy (reserved ",") p
@@ -221,13 +218,13 @@ infixApp = chainl1 term4 (f <$> fmap var infixVar)
     f op lhs rhs =
       Term.apps op [(ann lhs, lhs), (ann rhs, rhs)]
 
-typedecl :: Var v => P (L.Token v, AnnotatedType v Ann)
+typedecl :: Var v => P v (L.Token v, AnnotatedType v Ann)
 typedecl =
   (,) <$> P.try (prefixVar <* openBlockWith ":")
       <*> TypeParser.valueType
       <*  closeBlock <* semi
 
-binding :: forall v. Var v => P ((Ann, v), AnnotatedTerm v Ann)
+binding :: forall v. Var v => P v ((Ann, v), AnnotatedTerm v Ann)
 binding = P.label "binding" $ do
   typ <- optional typedecl
   let infixLhs = do
@@ -239,7 +236,7 @@ binding = P.label "binding" $ do
         vs <- many prefixVar
         pure (ann v, L.payload v, vs)
   let
-    lhs :: P (Ann, v, [L.Token v])
+    lhs :: P v (Ann, v, [L.Token v])
     lhs = infixLhs <|> prefixLhs
   case typ of
     Nothing -> do
@@ -250,8 +247,7 @@ binding = P.label "binding" $ do
     Just (nameT, typ) -> do
       (_, name, args) <- lhs
       when (name /= L.payload nameT) $
-        -- TODO: fail fancily
-        fail ("The type signature for ‘" ++ show (var nameT) ++ "’ lacks an accompanying binding")
+        customFailure $ SignatureNeedsAccompanyingBody nameT
       body <- block "="
       pure $ fmap (\e -> Term.ann (ann nameT <> ann e) e typ)
                   (mkBinding (ann nameT) name args body)
@@ -261,38 +257,44 @@ binding = P.label "binding" $ do
     ((loc, f), Term.lam' (loc <> ann body) (L.payload <$> args) body)
 
 
+customFailure :: P.MonadParsec e s m => e -> m a
+customFailure = P.customFailure
+
+
 block :: forall v. Var v => String -> TermP v
 block s = do
-    _ <- openBlockWith s
+    open <- openBlockWith s
     statements <- sepBy semi statement
     _ <- closeBlock
-    go statements
+    go open statements
   where
     statement = (Right <$> binding) <|> (Left <$> blockTerm)
     toBinding (Right ((a, v), e)) = ((a, v), e)
     toBinding (Left e) = ((ann e, Var.named "_"), e)
-    go bs = case reverse bs of
-      -- TODO: Fail fancily
-      (Right _e : _) -> fail "block must end with an expression"
-      -- TODO: Inform the user that we're going to rewrite the block,
-      -- possibly changing the meaning of the program (which is ambiguous anyway),
-      -- or fail with a helpful error message if there's a forward reference with
-      -- effects.
-      (Left e : es) ->
-        pure $ Term.letRec ((fst . fst . toBinding $ head bs) <> ann e)
-                           (toBinding <$> reverse es)
-                           e
-      [] -> fail "empty block"
+    go :: L.Token () -> [Either (AnnotatedTerm v Ann) ((Ann, v), AnnotatedTerm v Ann)] -> P v (AnnotatedTerm v Ann)
+    go open bs =
+      let startAnnotation = (fst . fst . toBinding $ head bs)
+      in case reverse bs of
+        Right ((a, _v), annotatedTerm) : _ ->
+          customFailure $ BlockMustEndWithExpression
+                            (startAnnotation <> ann annotatedTerm)
+                            (a <> ann annotatedTerm)
+        Left e : es ->
+          pure $ Term.letRec (startAnnotation <> ann e)
+                             (toBinding <$> reverse es)
+                             e
+        [] -> customFailure $ EmptyBlock (const s <$> open)
 
 
-number :: Ord v => TermP v
+number :: Var v => TermP v
 number = number' (tok Term.int64) (tok Term.uint64) (tok Term.float)
 
 number'
-  :: (L.Token Int64 -> a)
+  :: Var v
+  => (L.Token Int64 -> a)
   -> (L.Token Word64 -> a)
   -> (L.Token Double -> a)
-  -> P a
+  -> P v a
 number' i u f = fmap go numeric
   where
     go num@(L.payload -> p)
@@ -310,4 +312,3 @@ tupleOrParenthesizedTerm = tupleOrParenthesized term unit pair
                   t1)
         t2
     unit ann = Term.constructor ann (R.Builtin "()") 0
-

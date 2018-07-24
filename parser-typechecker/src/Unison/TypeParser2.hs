@@ -17,7 +17,7 @@ import           Unison.Var (Var)
 
 -- A parsed type is annotated with its starting and ending position in the
 -- source text.
-type TypeP v = P (AnnotatedType v Ann)
+type TypeP v = P v (AnnotatedType v Ann)
 
 -- Value types cannot have effects, unless those effects appear to
 -- the right of a function arrow:
@@ -52,7 +52,7 @@ effect = do
   t <- valueTypeLeaf
   pure (Type.effect (Ann (L.start open) (end $ ann t)) es t)
 
-tupleOrParenthesizedType :: Ord v => TypeP v -> TypeP v
+tupleOrParenthesizedType :: Var v => TypeP v -> TypeP v
 tupleOrParenthesizedType rec = tupleOrParenthesized rec unit pair
   where
     pair t1 t2 =
@@ -81,29 +81,28 @@ forall rec = do
     t <- rec
     pure $ Type.forall' (ann kw <> ann t) (fmap Text.pack vars) t
 
-varName :: Parser String
+varName :: Var v => P v (L.Token String)
 varName = do
   name <- wordyId
   guard (isLower . head $ L.payload name)
   pure name
 
-typeName :: Parser String
+typeName :: Var v => P v (L.Token String)
 typeName = do
   name <- wordyId
   guard (isUpper . head $ L.payload name)
   pure name
 
--- qualifiedTypeName :: Parser String
+-- qualifiedTypeName :: P v (L.Token String
 -- qualifiedTypeName = f <$> typeName <*> optional more
 --   where
 --     f :: String -> (Maybe String) -> String
 --     f first more = maybe first (first++) more
 --     more = (:) <$> char '.' <*> qualifiedTypeName
 
-posMap :: (Ann -> a -> b) -> Parser a -> P b
+posMap :: (Ann -> a -> b) -> P v (L.Token a) -> P v b
 posMap f = fmap $ \case L.Token a start end -> f (Ann start end) a
 
 literal :: Var v => TypeP v
 literal =
   P.label "literal" . posMap (\pos -> Type.av' pos . Text.pack) $ typeName
-

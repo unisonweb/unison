@@ -29,13 +29,18 @@ import qualified Unison.Var as Var
 
 type PEnv = UnisonFile.CtorLookup
 
-type P = P.ParsecT Error Input ((->) PEnv)
+type P v = P.ParsecT (Error v) Input ((->) PEnv)
 
-type Parser a = P (L.Token a)
+data Error v
+  = SignatureNeedsAccompanyingBody (L.Token v)
+  -- we would include the last binding term if we didn't have to have an Ord instance for it
+  | BlockMustEndWithExpression { blockAnn :: Ann, lastBindingAnn :: Ann }
+  | EmptyBlock (L.Token String)
+  | UnknownEffectConstructor (L.Token String)
+  | UnknownDataConstructor (L.Token String)
+  deriving (Show, Eq, Ord)
 
-data Error = Error deriving (Show, Eq, Ord)
-
-data Ann = Ann { start :: L.Pos, end :: L.Pos } deriving (Show)
+data Ann = Ann { start :: L.Pos, end :: L.Pos } deriving (Eq, Ord, Show)
 
 instance Semigroup Ann where
   Ann s1 _ <> Ann _ e2 = Ann s1 e2
@@ -46,7 +51,8 @@ tokenToPair t = (ann t, L.payload t)
 newtype Input = Input { inputStream :: [L.Token L.Lexeme] }
   deriving (Eq, Ord, Show)
 
-type Err s = ParseError (P.Token s) Error
+-- | s is the stream
+type Err v s = ParseError (P.Token s) (Error v)
 
 instance P.Stream Input where
   type Token Input = L.Token L.Lexeme
@@ -114,101 +120,101 @@ tok f (L.Token a start end) = f (Ann start end) a
 proxy :: Proxy Input
 proxy = Proxy
 
-root :: P a -> P a
+root :: Var v => P v a -> P v a
 root p = p <* P.eof
 
-run' :: P a -> Input -> String -> PEnv -> Either (Err Input) a
+run' :: P v a -> Input -> String -> PEnv -> Either (Err v Input) a
 run' p s name = runParserT p name s
 
-run :: P a -> Input -> PEnv -> Either (Err Input) a
+run :: P v a -> Input -> PEnv -> Either (Err v Input) a
 run p s = run' p s ""
 
 -- Virtual pattern match on a lexeme.
-queryToken :: (L.Lexeme -> Maybe a) -> Parser a
+queryToken :: Var v => (L.Lexeme -> Maybe a) -> P v (L.Token a)
 queryToken f = P.token go Nothing
   where go t@((f . L.payload) -> Just s) = Right $ fmap (const s) t
         go x = Left (pure (P.Tokens (x:|[])), Set.empty)
 
 -- Consume a block opening and return the string that opens the block.
-openBlock :: Parser String
+openBlock :: Var v => P v (L.Token String)
 openBlock = queryToken getOpen
   where
     getOpen (L.Open s) = Just s
     getOpen _ = Nothing
 
-openBlockWith :: String -> Parser ()
+openBlockWith :: Var v => String -> P v (L.Token ())
 openBlockWith s = fmap (const ()) <$> P.satisfy ((L.Open s ==) . L.payload)
 
 -- Match a particular lexeme exactly, and consume it.
-matchToken :: L.Lexeme -> Parser L.Lexeme
+matchToken :: Var v => L.Lexeme -> P v (L.Token L.Lexeme)
 matchToken x = P.satisfy ((==) x . L.payload)
 
 -- Consume a virtual semicolon
-semi :: Parser ()
+semi :: Var v => P v (L.Token ())
 semi = fmap (const ()) <$> matchToken L.Semi
 
 -- Consume the end of a block
-closeBlock :: Parser ()
+closeBlock :: Var v => P v (L.Token ())
 closeBlock = fmap (const ()) <$> matchToken L.Close
 
 -- Parse an alphanumeric identifier
-wordyId :: Parser String
+wordyId :: Var v => P v (L.Token String)
 wordyId = queryToken getWordy
   where getWordy (L.WordyId s) = Just s
         getWordy _ = Nothing
 
 -- Parse a symboly ID like >>= or &&
-symbolyId :: Parser String
+symbolyId :: Var v => P v (L.Token String)
 symbolyId = queryToken getSymboly
   where getSymboly (L.SymbolyId s) = Just s
         getSymboly _ = Nothing
 
-backticks :: Parser String
+backticks :: Var v => P v (L.Token String)
 backticks = queryToken getBackticks
   where getBackticks (L.Backticks s) = Just s
         getBackticks _ = Nothing
 
 -- Parse a reserved word
-reserved :: String -> Parser String
+reserved :: Var v => String -> P v (L.Token String)
 reserved w = queryToken getReserved
   where getReserved (L.Reserved w') | w == w' = Just w
         getReserved _ = Nothing
 
-numeric :: Parser String
+numeric :: Var v => P v (L.Token String)
 numeric = queryToken getNumeric
   where getNumeric (L.Numeric s) = Just s
         getNumeric _ = Nothing
 
 -- Parse a pair of parentheses around an expression
-parenthesized :: Parser a -> Parser a
+parenthesized :: Var v => P v (L.Token a) -> P v (L.Token a)
 parenthesized = P.between (reserved "(") (reserved ")")
 
-sepBy :: P a -> P b -> P [b]
+sepBy :: Var v => P v a -> P v b -> P v [b]
 sepBy sep pb = P.sepBy pb sep
 
-sepBy1 :: P a -> P b -> P [b]
+sepBy1 :: Var v => P v a -> P v b -> P v [b]
 sepBy1 sep pb = P.sepBy pb sep
 
-prefixVar :: Var v => Parser v
+prefixVar :: Var v => P v (L.Token v)
 prefixVar = fmap (Var.named . Text.pack) <$> P.label "symbol" prefixOp
   where
     prefixOp = wordyId <|> (reserved "(" *> symbolyId <* reserved ")")
 
-infixVar :: Var v => Parser v
+infixVar :: Var v => P v (L.Token v)
 infixVar =
   fmap (Var.named . Text.pack) <$> (symbolyId <|> backticks)
 
-hashLiteral :: Parser Hash
+hashLiteral :: Var v => P v (L.Token Hash)
 hashLiteral = queryToken getHash
   where getHash (L.Hash s) = Just s
         getHash _ = Nothing
 
-string :: Parser Text
+string :: Var v => P v (L.Token Text)
 string = queryToken getString
   where getString (L.Textual s) = Just (Text.pack s)
         getString _ = Nothing
 
-tupleOrParenthesized :: P a -> (Ann -> a) -> (a -> a -> a) -> P a
+tupleOrParenthesized :: Var v => P v a -> (Ann -> a) -> (a -> a -> a) -> P v a
 tupleOrParenthesized p unit pair = do
     open <- reserved "("
     es <- sepBy (reserved ",") p
@@ -218,6 +224,5 @@ tupleOrParenthesized p unit pair = do
     go [t] _ _ = t
     go as s e = foldr pair (unit (ann s <> ann e)) as
 
-chainl1 :: P a -> P (a -> a -> a) -> P a
+chainl1 :: Var v => P v a -> P v (a -> a -> a) -> P v a
 chainl1 p op = foldl (flip ($)) <$> p <*> P.many (flip <$> op <*> p)
-
