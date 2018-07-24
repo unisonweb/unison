@@ -9,7 +9,7 @@
 module Unison.TermParser2 where
 
 import           Control.Applicative
-import           Control.Monad (guard, join, when)
+import           Control.Monad (guard, join, when, void)
 import           Control.Monad.Reader (ask)
 import           Data.Char (isUpper)
 import           Data.Foldable (asum)
@@ -260,10 +260,15 @@ binding = P.label "binding" $ do
 customFailure :: P.MonadParsec e s m => e -> m a
 customFailure = P.customFailure
 
-
 block :: forall v. Var v => String -> TermP v
-block s = do
-    open <- openBlockWith s
+block s = block' s (openBlockWith s) closeBlock
+
+topBlock :: forall v. Var v => TermP v
+topBlock = block' "top-level block" (void <$> peekAny) closeBlock
+
+block' :: forall v. Var v => String -> P v (L.Token ()) -> P v (L.Token ()) -> TermP v
+block' s openBlock closeBlock = do
+    open <- openBlock
     statements <- sepBy semi statement
     _ <- closeBlock
     go open statements

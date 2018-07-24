@@ -3,35 +3,32 @@
 module Unison.FileParser2 where
 
 import           Control.Applicative
--- import           Control.Monad.Reader
+import           Control.Monad.Reader (local)
 import           Data.Either (partitionEithers)
 import           Data.List (foldl')
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Prelude hiding (readFile)
--- import qualified Text.Parsec.Layout as L
 import qualified Unison.Lexer as L
 import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 import qualified Unison.DataDeclaration as DD
--- import           Unison.Parser (Parser, traced, token_, sepBy, string)
 import           Unison.Parser2
--- import qualified Unison.TermParser2 as TermParser
+import qualified Unison.TermParser2 as TermParser
 import qualified Unison.Type as Type
 import           Unison.Type (AnnotatedType)
--- import           Unison.TypeParser (S)
 import qualified Unison.TypeParser2 as TypeParser
--- import           Unison.UnisonFile (UnisonFile(..), environmentFor)
--- import qualified Unison.UnisonFile as UF
+import           Unison.UnisonFile (UnisonFile(..), environmentFor)
+import qualified Unison.UnisonFile as UF
 import           Unison.Var (Var)
--- import Unison.Reference (Reference)
---
--- file :: Var v => [(v, Reference)] -> [(v, Reference)] -> Parser (S v) (UnisonFile v)
--- file builtinTerms builtinTypes = traced "file" $ do
---   (dataDecls, effectDecls) <- traced "declarations" declarations
---   let env = environmentFor builtinTerms builtinTypes dataDecls effectDecls
---   local (`Map.union` UF.constructorLookup env) $ do
---     term <- TermParser.block
---     pure $ UnisonFile (UF.datas env) (UF.effects env) (UF.resolveTerm env term)
+import Unison.Reference (Reference)
+
+file :: Var v => [(v, Reference)] -> [(v, Reference)] -> P v (UnisonFile v Ann)
+file builtinTerms builtinTypes = do
+  (dataDecls, effectDecls) <- declarations
+  let env = environmentFor builtinTerms builtinTypes dataDecls effectDecls
+  local (`Map.union` UF.constructorLookup env) $ do
+    term <- TermParser.topBlock
+    pure $ UnisonFile (UF.datas env) (UF.effects env) (UF.resolveTerm env term)
 
 declarations :: Var v => P v
                          (Map v (DataDeclaration' v Ann),

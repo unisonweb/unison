@@ -117,6 +117,9 @@ mkAnn x y = ann x <> ann y
 tok :: (Ann -> a -> b) -> L.Token a -> b
 tok f (L.Token a start end) = f (Ann start end) a
 
+peekAny :: Var v => P v (L.Token L.Lexeme)
+peekAny = P.lookAhead P.anyChar
+
 proxy :: Proxy Input
 proxy = Proxy
 
