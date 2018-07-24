@@ -2,6 +2,7 @@
 {-# Language ScopedTypeVariables #-}
 {-# Language TupleSections     #-}
 {-# Language UnicodeSyntax     #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 module Unison.FileParsers where
 
@@ -24,10 +25,12 @@ import qualified Unison.Result as Result
 import           Unison.Term (Term)
 import           Unison.Type (Type)
 import qualified Unison.Typechecker as Typechecker
-import           Unison.UnisonFile (UnisonFile(..))
+import           Unison.UnisonFile (pattern UnisonFile)
 import qualified Unison.UnisonFile as UF
 import           Unison.Var (Var)
 -- import qualified Debug.Trace as Trace
+
+type UnisonFile v = UF.UnisonFile v ()
 
 parseAndSynthesizeAsFile :: Var v => FilePath -> String
                          -> Result (Note v ()) (Term v, Type v)

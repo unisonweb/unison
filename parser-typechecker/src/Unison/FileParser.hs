@@ -21,7 +21,7 @@ import qualified Unison.UnisonFile as UF
 import           Unison.Var (Var)
 import Unison.Reference (Reference)
 
-file :: Var v => [(v, Reference)] -> [(v, Reference)] -> Parser (S v) (UnisonFile v)
+file :: Var v => [(v, Reference)] -> [(v, Reference)] -> Parser (S v) (UnisonFile v ())
 file builtinTerms builtinTypes = traced "file" $ do
   (dataDecls, effectDecls) <- traced "declarations" declarations
   let env = environmentFor builtinTerms builtinTypes dataDecls effectDecls

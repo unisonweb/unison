@@ -31,7 +31,7 @@ parseTerm s = Parser.run (Parser.root TermParser.term) s s0
 parseType :: Var v => String -> PEnv -> Either String (Type v)
 parseType s = Parser.run (Parser.root TypeParser.valueType) s s0
 
-parseFile :: Var v => FilePath -> String -> PEnv -> Either String (UnisonFile v)
+parseFile :: Var v => FilePath -> String -> PEnv -> Either String (UnisonFile v ())
 parseFile filename s = Parser.run'
   (Parser.root $ FileParser.file Builtin.builtinTerms Builtin.builtinTypes) s s0 filename
 
@@ -41,16 +41,16 @@ unsafeParseTerm = fmap unsafeGetRight . parseTerm
 unsafeParseType :: Var v => String -> PEnv -> Type v
 unsafeParseType = fmap unsafeGetRight . parseType
 
-unsafeParseFile ::String -> PEnv -> UnisonFile Symbol
+unsafeParseFile ::String -> PEnv -> UnisonFile Symbol ()
 unsafeParseFile s pEnv = unsafeGetRight $ parseFile "" s pEnv
 
-unsafeParseFile' :: String -> UnisonFile Symbol
+unsafeParseFile' :: String -> UnisonFile Symbol ()
 unsafeParseFile' s = unsafeGetRight $ parseFile "" s Parser.penv0
 
-unsafeReadAndParseFile' :: String -> IO (UnisonFile Symbol)
+unsafeReadAndParseFile' :: String -> IO (UnisonFile Symbol ())
 unsafeReadAndParseFile' = unsafeReadAndParseFile Parser.penv0
 
-unsafeReadAndParseFile :: PEnv -> String -> IO (UnisonFile Symbol)
+unsafeReadAndParseFile :: PEnv -> String -> IO (UnisonFile Symbol ())
 unsafeReadAndParseFile penv filename = do
   txt <- readFile filename
   let str = Text.unpack txt

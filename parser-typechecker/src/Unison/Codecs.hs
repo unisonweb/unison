@@ -301,7 +301,7 @@ serializeConstructorArities r constructorArities = do
   serializeReference r
   serializeFoldable (putWord32be . fromIntegral) constructorArities
 
-serializeFile :: (MonadPut m, MonadState Pos m, Var v) => UnisonFile v -> m ()
+serializeFile :: (MonadPut m, MonadState Pos m, Var v) => UnisonFile v () -> m ()
 serializeFile (UnisonFile dataDecls effectDecls body) = do
   let dataDecls' = second DD.constructorArities <$> toList dataDecls
   let effectDecls' = second (DD.constructorArities . DD.toDataDecl) <$> toList effectDecls
