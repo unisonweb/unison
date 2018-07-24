@@ -9,7 +9,7 @@
 module Unison.TermParser2 where
 
 import           Control.Applicative
-import           Control.Monad (guard, join)
+import           Control.Monad (guard, join, when)
 import           Control.Monad.Reader (ask)
 import           Data.Char (isUpper)
 import           Data.Foldable (asum)
@@ -17,7 +17,6 @@ import           Data.Int (Int64)
 import           Data.List (elem)
 import qualified Data.Map as Map
 import           Data.Maybe (isJust)
-import qualified Data.Text as Text
 import           Data.Word (Word64)
 import           Prelude hiding (and, or)
 import qualified Text.Megaparsec as P
@@ -29,6 +28,7 @@ import qualified Unison.PatternP as Pattern
 import qualified Unison.Reference as R
 import           Unison.Term (AnnotatedTerm)
 import qualified Unison.Term as Term
+import           Unison.Type (AnnotatedType)
 import qualified Unison.TypeParser2 as TypeParser
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
@@ -102,8 +102,8 @@ parsePattern = constructor <|> leaf
     v <- prefixVar
     o <- optional (reserved "@")
     if isJust o then
-      (\(p, vs) -> (Pattern.As (ann v) p, (ann v, L.payload v) : vs)) <$> leaf
-      else pure (Pattern.Var (ann v), [(ann v, L.payload v)])
+      (\(p, vs) -> (Pattern.As (ann v) p, tokenToPair v : vs)) <$> leaf
+      else pure (Pattern.Var (ann v), [tokenToPair v])
   unbound :: P (Pattern Ann, [(Ann, v)])
   unbound = (\tok -> (Pattern.Unbound (ann tok), [])) <$> reserved "_"
   ctorName = P.try $ do
@@ -207,10 +207,8 @@ and = f <$> reserved "and" <*> termLeaf <*> termLeaf
 or = f <$> reserved "or" <*> termLeaf <*> termLeaf
   where f kw x y = Term.or (ann kw <> ann y) x y
 
-infixVar :: Var v => TermP v
-infixVar =
-  (\t -> Term.var (ann t) (Var.named (Text.pack $ L.payload t))) <$>
-    (symbolyId <|> backticks)
+var :: Var v => L.Token v -> AnnotatedTerm v Ann
+var t = Term.var (ann t) (L.payload t)
 
 term4 :: Var v => TermP v
 term4 = f <$> some termLeaf
@@ -218,13 +216,74 @@ term4 = f <$> some termLeaf
     f (func:args) = Term.apps func ((\a -> (ann func <> ann a, a)) <$> args)
     f [] = error "'some' shouldn't produce an empty list"
 
-infixApp = chainl1 term4 (f <$> infixVar)
+infixApp = chainl1 term4 (f <$> fmap var infixVar)
   where
     f op lhs rhs =
-      Term.apps op [(ann lhs, lhs),(ann rhs, rhs)]
+      Term.apps op [(ann lhs, lhs), (ann rhs, rhs)]
 
-block :: Var v => String -> TermP v
-block = undefined
+typedecl :: Var v => P (L.Token v, AnnotatedType v Ann)
+typedecl =
+  (,) <$> P.try (prefixVar <* openBlockWith ":")
+      <*> TypeParser.valueType
+      <*  closeBlock <* semi
+
+binding :: forall v. Var v => P ((Ann, v), AnnotatedTerm v Ann)
+binding = P.label "binding" $ do
+  typ <- optional typedecl
+  let infixLhs = do
+        (arg1, op) <- P.try ((,) <$> prefixVar <*> infixVar)
+        arg2 <- prefixVar
+        pure (ann arg1, L.payload op, [arg1, arg2])
+  let prefixLhs = do
+        v  <- prefixVar
+        vs <- many prefixVar
+        pure (ann v, L.payload v, vs)
+  let
+    lhs :: P (Ann, v, [L.Token v])
+    lhs = infixLhs <|> prefixLhs
+  case typ of
+    Nothing -> do
+      -- we haven't seen a type annotation, so lookahead to '=' before commit
+      (loc, name, args) <- P.try (lhs <* P.lookAhead (openBlockWith "="))
+      body <- block "="
+      pure $ mkBinding loc name args body
+    Just (nameT, typ) -> do
+      (_, name, args) <- lhs
+      when (name /= L.payload nameT) $
+        -- TODO: fail fancily
+        fail ("The type signature for ‘" ++ show (var nameT) ++ "’ lacks an accompanying binding")
+      body <- block "="
+      pure $ fmap (\e -> Term.ann (ann nameT <> ann e) e typ)
+                  (mkBinding (ann nameT) name args body)
+  where
+  mkBinding loc f [] body = ((loc, f), body)
+  mkBinding loc f args body =
+    ((loc, f), Term.lam' (loc <> ann body) (L.payload <$> args) body)
+
+
+block :: forall v. Var v => String -> TermP v
+block s = do
+    _ <- openBlockWith s
+    statements <- sepBy semi statement
+    _ <- closeBlock
+    go statements
+  where
+    statement = (Right <$> binding) <|> (Left <$> blockTerm)
+    toBinding (Right ((a, v), e)) = ((a, v), e)
+    toBinding (Left e) = ((ann e, Var.named "_"), e)
+    go bs = case reverse bs of
+      -- TODO: Fail fancily
+      (Right _e : _) -> fail "block must end with an expression"
+      -- TODO: Inform the user that we're going to rewrite the block,
+      -- possibly changing the meaning of the program (which is ambiguous anyway),
+      -- or fail with a helpful error message if there's a forward reference with
+      -- effects.
+      (Left e : es) ->
+        pure $ Term.letRec ((fst . fst . toBinding $ head bs) <> ann e)
+                           (toBinding <$> reverse es)
+                           e
+      [] -> fail "empty block"
+
 
 number :: Ord v => TermP v
 number = number' (tok Term.int64) (tok Term.uint64) (tok Term.float)

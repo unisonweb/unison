@@ -35,10 +35,13 @@ type Parser a = P (L.Token a)
 
 data Error = Error deriving (Show, Eq, Ord)
 
-data Ann = Ann { start :: L.Pos, end :: L.Pos }
+data Ann = Ann { start :: L.Pos, end :: L.Pos } deriving (Show)
 
 instance Semigroup Ann where
   Ann s1 _ <> Ann _ e2 = Ann s1 e2
+
+tokenToPair :: L.Token a -> (Ann, a)
+tokenToPair t = (ann t, L.payload t)
 
 newtype Input = Input { inputStream :: [L.Token L.Lexeme] }
   deriving (Eq, Ord, Show)
@@ -133,6 +136,9 @@ openBlock = queryToken getOpen
     getOpen (L.Open s) = Just s
     getOpen _ = Nothing
 
+openBlockWith :: String -> Parser ()
+openBlockWith s = fmap (const ()) <$> P.satisfy ((L.Open s ==) . L.payload)
+
 -- Match a particular lexeme exactly, and consume it.
 matchToken :: L.Lexeme -> Parser L.Lexeme
 matchToken x = P.satisfy ((==) x . L.payload)
@@ -187,6 +193,10 @@ prefixVar :: Var v => Parser v
 prefixVar = fmap (Var.named . Text.pack) <$> P.label "symbol" prefixOp
   where
     prefixOp = wordyId <|> (reserved "(" *> symbolyId <* reserved ")")
+
+infixVar :: Var v => Parser v
+infixVar =
+  fmap (Var.named . Text.pack) <$> (symbolyId <|> backticks)
 
 hashLiteral :: Parser Hash
 hashLiteral = queryToken getHash
