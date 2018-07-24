@@ -126,10 +126,10 @@ proxy = Proxy
 root :: Var v => P v a -> P v a
 root p = p <* P.eof
 
-run' :: P v a -> Input -> String -> PEnv -> Either (Err v Input) a
-run' p s name = runParserT p name s
+run' :: P v a -> String -> String -> PEnv -> Either (Err v Input) a
+run' p s name = runParserT p name (Input $ L.lexer name s) -- todo: L.reorder
 
-run :: P v a -> Input -> PEnv -> Either (Err v Input) a
+run :: P v a -> String -> PEnv -> Either (Err v Input) a
 run p s = run' p s ""
 
 -- Virtual pattern match on a lexeme.

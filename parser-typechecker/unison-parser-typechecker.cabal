@@ -47,6 +47,7 @@ library
     Unison.Lexer
     Unison.Parser
     Unison.Parsers
+    Unison.Parsers2
     Unison.Parser2
     Unison.Path
     Unison.Paths
