@@ -4,10 +4,10 @@ module Unison.FileParser2 where
 
 import           Control.Applicative
 -- import           Control.Monad.Reader
--- import           Data.Either (partitionEithers)
+import           Data.Either (partitionEithers)
 import           Data.List (foldl')
--- import           Data.Map (Map)
--- import qualified Data.Map as Map
+import           Data.Map (Map)
+import qualified Data.Map as Map
 import           Prelude hiding (readFile)
 -- import qualified Text.Parsec.Layout as L
 import qualified Unison.Lexer as L
@@ -32,14 +32,14 @@ import           Unison.Var (Var)
 --   local (`Map.union` UF.constructorLookup env) $ do
 --     term <- TermParser.block
 --     pure $ UnisonFile (UF.datas env) (UF.effects env) (UF.resolveTerm env term)
---
--- declarations :: Var v => Parser (S v)
---                          (Map v (DataDeclaration v),
---                           Map v (EffectDeclaration v))
--- declarations = do
---   declarations <- many ((Left <$> dataDeclaration) <|> Right <$> effectDeclaration)
---   let (dataDecls, effectDecls) = partitionEithers declarations
---   pure (Map.fromList dataDecls, Map.fromList effectDecls)
+
+declarations :: Var v => P v
+                         (Map v (DataDeclaration' v Ann),
+                          Map v (EffectDeclaration' v Ann))
+declarations = do
+  declarations <- many ((Left <$> dataDeclaration) <|> Right <$> effectDeclaration)
+  let (dataDecls, effectDecls) = partitionEithers declarations
+  pure (Map.fromList dataDecls, Map.fromList effectDecls)
 
 -- type Optional a = Some a | None
 --                   a -> Optional a
