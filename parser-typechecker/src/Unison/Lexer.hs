@@ -97,12 +97,14 @@ lexer scope rem =
       : pushLayout [] topLeftCorner rem
   where
     -- skip whitespace and comments
+    go1 :: [Column] -> Pos -> [Char] -> [Token Lexeme]
     go1 l pos rem = span' isSpace rem $ \case
       (spaces, '-':'-':rem) -> spanThru' (/= '\n') rem $ \(ignored, rem) ->
         go1 l (incBy ('-':'-':ignored) . incBy spaces $ pos) rem
       (spaces, rem) -> popLayout l (incBy spaces pos) rem
 
     -- pop the layout stack and emit `Semi` / `Close` tokens as needed
+    popLayout :: [Column] -> Pos -> [Char] -> [Token Lexeme]
     popLayout l p [] = replicate (length l) $ Token Close p p
     popLayout l p@(Pos _ c2) rem
       | top l == c2 = Token Semi p p : go2 l p rem
@@ -114,6 +116,7 @@ lexer scope rem =
     -- go1 (top l + 1 : l) pos rem
     -- looks for the next non whitespace, non-comment character, and
     -- pushes its column onto the layout stack
+    pushLayout :: [Column] -> Pos -> [Char] -> [Token Lexeme]
     pushLayout l pos rem = span' isSpace rem $ \case
       (spaces, '-':'-':rem) -> spanThru' (/= '\n') rem $ \(ignored, rem) ->
         pushLayout l (incBy ('-':'-':ignored) . incBy spaces $ pos) rem
@@ -121,6 +124,7 @@ lexer scope rem =
         let pos' = incBy spaces pos in go2 (column pos' : l) pos' rem
 
     -- after we've dealt with whitespace and layout, read a token
+    go2 :: [Column] -> Pos -> [Char] -> [Token Lexeme]
     go2 l pos rem = case rem of
       -- delimiters - `:`, `@`, `|`, `=`, and `->`
       ch : rem | Set.member ch delimiters ->
