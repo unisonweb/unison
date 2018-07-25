@@ -108,6 +108,7 @@ lexer scope rem =
         let end = incBy kw pos
         in Token Close pos pos
              : Token (Open kw) pos end
+             -- todo: would be nice to check that top of `l` is an Open "if" or "then"
              : pushLayout (drop 1 l) end rem
 
     -- Examine current column and pop the layout stack
@@ -131,6 +132,7 @@ lexer scope rem =
 
     -- after we've dealt with whitespace and layout, read a token
     go2 l pos rem = case rem of
+      [] -> popLayout0 l pos []
       -- delimiters - `:`, `@`, `|`, `=`, and `->`
       ch : rem | Set.member ch delimiters ->
         Token (Reserved [ch]) pos (inc pos) : go1 l (inc pos) rem

@@ -44,6 +44,11 @@ test = scope "lexer" . tests $
             , Open "if", WordyId "c", Close, Open "then", WordyId "d", Close, Open "else"
             , Open "if", WordyId "e", Close, Open "then", WordyId "f", Close, Open "else"
             , WordyId "g", Close, Close, Close ] -- close of the three `else` blocks
+
+  -- In an empty `then` clause, the `else` is interpreted as a `Reserved` token
+  , t "if x then else" [Open "if", WordyId "x", Close, Open "then", Reserved "else", Close]
+  -- Empty `else` clause
+  , t "if x then 1 else" [Open "if", WordyId "x", Close, Open "then", Numeric "1", Close, Open "else", Close]
   ]
 
 t :: String -> [Lexeme] -> Test ()
