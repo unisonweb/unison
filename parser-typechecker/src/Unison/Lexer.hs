@@ -112,6 +112,8 @@ lexer scope rem =
 
     -- todo: is there a reason we want this to be more than just:
     -- go1 (top l + 1 : l) pos rem
+    -- looks for the next non whitespace, non-comment character, and
+    -- pushes its column onto the layout stack
     pushLayout l pos rem = span' isSpace rem $ \case
       (spaces, '-':'-':rem) -> spanThru' (/= '\n') rem $ \(ignored, rem) ->
         pushLayout l (incBy ('-':'-':ignored) . incBy spaces $ pos) rem
@@ -160,10 +162,10 @@ lexer scope rem =
               case kw of
                 kw | Set.member kw layoutKeywords ->
                        Token (Open kw) pos end : pushLayout l end rem
-                   | Set.member kw layoutEndKeywords ->
+                   | Set.member kw layoutCloseAndOpenKeywords ->
                        Token Close pos pos
                          : Token (Open kw) pos end
-                         : pushLayout l end rem
+                         : pushLayout (drop 1 l) end rem
                    | otherwise -> Token (Reserved kw) pos end : go1 l end rem
 
       -- numeric literals
@@ -274,12 +276,12 @@ keywords = Set.fromList [
 layoutKeywords :: Set String
 layoutKeywords =
   Set.fromList [
-    "if", "then", "else", "in", "let", "where", "of", "namespace"
+    "if", "in", "let", "where", "of", "namespace"
   ]
 
 -- These keywords end a layout block and begin another layout block
-layoutEndKeywords :: Set String
-layoutEndKeywords = Set.fromList ["then", "else"]
+layoutCloseAndOpenKeywords :: Set String
+layoutCloseAndOpenKeywords = Set.fromList ["then", "else"]
 
 delimiters :: Set Char
 delimiters = Set.fromList "()[]{},"
