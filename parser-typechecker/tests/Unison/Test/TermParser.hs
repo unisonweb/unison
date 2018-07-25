@@ -4,11 +4,11 @@ module Unison.Test.TermParser where
 
 import qualified Data.Map as Map
 import           EasyTest
+import           Text.Megaparsec.Error (parseErrorPretty)
 import           Text.RawString.QQ
 import           Unison.Parsers2 (parseTerm)
 import qualified Unison.Reference as R
 import           Unison.Symbol (Symbol)
-
 
 test = scope "termparser" . tests . map parses $
   [ [r|1|]
@@ -86,7 +86,8 @@ test = scope "termparser" . tests . map parses $
   --
   -- Conditionals
   , "if x then y else z"
-  , "if\n" ++
+  , "-- if test 1\n" ++
+    "if\n" ++
     "  s = 0\n" ++
     "  s > 0\n" ++
     "then\n" ++
@@ -95,18 +96,19 @@ test = scope "termparser" . tests . map parses $
     "else\n" ++
     "  s = 0\n" ++
     "  s + 2\n"
-  --, "if\n" ++
-  --  "  s = 0\n" ++
-  --  "  s > 0\n" ++
-  --  "then\n" ++
-  --  "  s : Int64\n" ++
-  --  "  s = (0: Int64)\n" ++
-  --  "  s + 1\n" ++
-  --  "else\n" ++
-  --  "  s = 0\n" ++
-  --  "  s + 2\n"
-  -- , "and x y"
-  -- , "or x y"
+  , "-- if test 2\n" ++
+    "if\n" ++
+    "  s = 0\n" ++
+    "  s > 0\n" ++
+    "then\n" ++
+    "  s: Int64\n" ++
+    "  s = (0: Int64)\n" ++
+    "  s + 1\n" ++
+    "else\n" ++
+    "  s = 0\n" ++
+    "  s + 2\n"
+   , "and x y"
+   , "or x y"
   -- , [r|let
   --       increment = (+_UInt64) 1
   --
@@ -125,5 +127,5 @@ builtins = Map.fromList
 
 parses s = scope s $
   case parseTerm @ Symbol s builtins of
-    Left e -> crash $ show e
+    Left e -> crash $ parseErrorPretty e
     Right _ -> ok

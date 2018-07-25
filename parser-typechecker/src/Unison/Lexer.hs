@@ -1,14 +1,20 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# Language LambdaCase, ViewPatterns, TemplateHaskell, DeriveFunctor #-}
 
 module Unison.Lexer where
 
-import Control.Monad (join)
-import GHC.Exts (sortWith)
 import           Control.Lens.TH (makePrisms)
-import Data.List
+import           Control.Monad (join)
+import qualified Control.Monad.State as S
 import           Data.Char
+import           Data.Foldable (traverse_)
+import           Data.List
+import qualified Data.List.NonEmpty as Nel
 import           Data.Set (Set)
 import qualified Data.Set as Set
+import           GHC.Exts (sortWith)
+import           Text.Megaparsec.Error (ShowToken(..))
 import           Unison.Hash (Hash)
 
 data Err
@@ -45,6 +51,30 @@ data Token a = Token {
   start :: Pos,
   end :: Pos
 } deriving (Eq, Ord, Show, Functor)
+
+instance ShowToken (Token Lexeme) where
+  showTokens xs =
+      join . Nel.toList . S.evalState (traverse go xs) . end $ Nel.head xs
+    where
+      go :: (Token Lexeme) -> S.State Pos String
+      go tok = do
+        prev <- S.get
+        S.put $ end tok
+        pure $ pad prev (start tok) ++ pretty (payload tok)
+      pretty (Open s) = s
+      pretty (Reserved w) = w
+      pretty (Textual t) = '"' : t ++ ['"']
+      pretty (Backticks n) = '`' : n ++ ['`']
+      pretty (WordyId n) = n
+      pretty (SymbolyId n) = n
+      pretty (Numeric n) = n
+      pretty (Hash h) = show h
+      pretty (Err e) = show e
+      pretty _ = ""
+      pad (Pos line1 col1) (Pos line2 col2) =
+        if line1 == line2
+        then replicate (col2 - col1) ' '
+        else replicate (line2 - line1) '\n' ++ replicate col2 ' '
 
 instance Applicative Token where
   pure a = Token a (Pos 0 0) (Pos 0 0)
@@ -212,8 +242,7 @@ numericLit s = go s
         | isSep c -> pure $ pure (sign ++ num ++ "." ++ fractional, c:rem)
         | otherwise -> pure Nothing
       ([], _) -> Left (MissingFractional (sign ++ num ++ "."))
-    (num @ (_:_), c:rem) | isSep c   -> pure $ pure (sign ++ num, c:rem)
-                         | otherwise -> pure Nothing
+    (num @ (_:_), c:rem) -> pure $ pure (sign ++ num, c:rem)
     ([], _) -> pure Nothing
 
 isSep :: Char -> Bool
@@ -328,6 +357,18 @@ ex =
        , "else\n"
        , "  s = 0\n"
        , "  s + 2\n" ]
+
+debugLex :: String -> String -> IO ()
+debugLex scope = flip S.evalStateT [] . traverse_ f . map payload . lexer scope
+  where
+    f :: Lexeme -> S.StateT String IO ()
+    f x = do
+      pad <- S.get
+      S.lift . putStrLn $ pad ++ show x
+      case x of
+        Open _ -> S.modify (++ "  ")
+        Close -> S.modify (drop 2)
+        _ -> pure ()
 
 span' :: (a -> Bool) -> [a] -> (([a],[a]) -> r) -> r
 span' f a k = k (span f a)

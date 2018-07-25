@@ -15,6 +15,7 @@ import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Typeable (Proxy(..))
 import           Text.Megaparsec (ParseError, runParserT)
+import           Text.Megaparsec.Error (ShowErrorComponent(..))
 import qualified Text.Megaparsec as P
 import qualified Text.Megaparsec.Char as P
 import qualified Unison.ABT as ABT
@@ -39,6 +40,29 @@ data Error v
   | UnknownEffectConstructor (L.Token String)
   | UnknownDataConstructor (L.Token String)
   deriving (Show, Eq, Ord)
+
+instance Var v => ShowErrorComponent (Error v) where
+  showErrorComponent e = case e of
+    SignatureNeedsAccompanyingBody t ->
+      showLineCol t ++ ": You provided a type signature, but I " ++
+      "didn't find an accompanying definition after it."
+    BlockMustEndWithExpression bann lbann ->
+      showLineCol lbann ++
+      ": The last line of the block starting at " ++
+      showLineCol bann ++
+      " has to be an expression, not a binding or an import."
+    EmptyBlock t ->
+      showLineCol t ++
+      ": I expected a block after `" ++ L.payload t ++
+      "`, but there wasn't one. Maybe check your indentation."
+    UnknownEffectConstructor t ->
+      showLineCol t ++
+      ": I don't know about any effect constructor named `" ++ L.payload t ++
+      "`. Maybe make sure it's correctly spelled, and that you've imported it."
+    UnknownDataConstructor t ->
+      showLineCol t ++
+      ": I don't know about any data constructor named `" ++ L.payload t ++
+      "`. Maybe make sure it's correctly spelled, and that you've imported it."
 
 data Ann = Ann { start :: L.Pos, end :: L.Pos } deriving (Eq, Ord, Show)
 
@@ -113,6 +137,11 @@ instance (Annotated a, Annotated b) => Annotated (MatchCase a b) where
 
 mkAnn :: (Annotated a, Annotated b) => a -> b -> Ann
 mkAnn x y = ann x <> ann y
+
+showLineCol :: Annotated a => a -> String
+showLineCol a =
+  let L.Pos line col = start $ ann a
+  in "Line " ++ show line ++ ", column " ++ show col
 
 tok :: (Ann -> a -> b) -> L.Token a -> b
 tok f (L.Token a start end) = f (Ann start end) a
