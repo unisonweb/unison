@@ -15,10 +15,10 @@ unsafeGetRight :: Show v => Either (Parser.Err v Parser.Input) a -> a
 unsafeGetRight = either (error . show) id
 
 parseTerm :: Var v => String -> PEnv -> Either (Parser.Err v Parser.Input) (AnnotatedTerm v Ann)
-parseTerm s env = Parser.run (Parser.root TermParser.blockTerm) s env
+parseTerm s env = Parser.run (Parser.root $ Parser.withinBlock TermParser.term) s env
 
 parseType :: Var v => String -> PEnv -> Either (Parser.Err v Parser.Input) (AnnotatedType v Ann)
-parseType s = Parser.run (Parser.root TypeParser.valueType) s
+parseType s = Parser.run (Parser.root $ Parser.withinBlock TypeParser.valueType) s
 
 parseFile :: Var v => FilePath -> String -> PEnv -> Either (Parser.Err v Parser.Input) (UnisonFile v Ann)
 parseFile filename s = Parser.run'

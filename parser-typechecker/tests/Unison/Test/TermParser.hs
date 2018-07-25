@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
+{-# LANGUAGE OverloadedStrings, QuasiQuotes, TypeApplications #-}
 
 module Unison.Test.TermParser where
 
@@ -6,7 +6,7 @@ import qualified Data.Map as Map
 import           EasyTest
 import           Text.RawString.QQ
 import           Unison.Parser2 (Ann)
-import           Unison.Parsers2 (unsafeParseTerm)
+import           Unison.Parsers2 (parseTerm)
 import qualified Unison.Reference as R
 import           Unison.Symbol (Symbol)
 import           Unison.Term (AnnotatedTerm)
@@ -14,33 +14,33 @@ import           Unison.Term (AnnotatedTerm)
 
 test = scope "termparser" . tests . map parses $
   [ [r|1|]
-  -- , "1.0"
-  -- , "+1"
-  -- , "-1"
-  -- , "-1.0"
-  -- , "4th"
+  , "1.0"
+  , "+1"
+  , "-1"
+  , "-1.0"
+  , "4th"
   -- , "()"
-  -- , "forty"
-  -- , "forty two"
-  -- , "\"forty two\""
+  , "forty"
+  , "forty two"
+  , "\"forty two\""
   -- , "( one ; two )"
   -- , "( one ; two )"
   -- , "( one ; two ; three )"
   -- , "( one ; two ; 42 )"
-  -- , "[1,2,3]"
-  -- , "\"abc\""
-  -- , "x + 1"
-  -- , "1 + 1"
-  -- , "1 +_UInt64 1"
+  , "[1,2,3]"
+  , "\"abc\""
+  , "x + 1"
+  , "1 + 1"
+  , "1 UInt64.+ 1"
   -- , "( x + 1 )"
-  -- , "foo 42"
-  -- , "1 ==_UInt64 1"
-  -- , "x ==_UInt64 y"
-  -- , "if 1 ==_UInt64 1 then 1 else 1"
-  -- , "if 1 ==_UInt64 x then 1 else 1"
-  -- , "if x ==_UInt64 1 then 1 else 1"
-  -- , "if x == 1 then 1 else 1"
-  -- , "if x ==_UInt64 x then 1 else 1"
+  , "foo 42"
+  , "1 UInt64.== 1"
+  , "x UInt64.== y"
+  , "if 1 UInt64.== 1 then 1 else 1"
+  --, "if 1 UInt64.== x then 1 else 1"
+  --, "if x UInt64.== 1 then 1 else 1"
+  --, "if x == 1 then 1 else 1"
+  --, "if x UInt64.== x then 1 else 1"
   --
   -- -- Block tests
   -- , "let x = 1\n" ++
@@ -124,6 +124,7 @@ builtins = Map.fromList
   [("Pair", (R.Builtin "Pair", 0)),
    ("State.set", (R.Builtin "State", 0))]
 
-parses s = scope s $ do
-  let !p = unsafeParseTerm s builtins :: AnnotatedTerm Symbol Ann
-  pure p >> ok
+parses s = scope s $
+  case parseTerm @ Symbol s builtins of
+    Left e -> crash $ show e
+    Right _ -> ok

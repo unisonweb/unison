@@ -148,6 +148,9 @@ openBlock = queryToken getOpen
 openBlockWith :: Var v => String -> P v (L.Token ())
 openBlockWith s = fmap (const ()) <$> P.satisfy ((L.Open s ==) . L.payload)
 
+withinBlock :: Var v => P v a -> P v a
+withinBlock p = openBlock *> p <* closeBlock
+
 -- Match a particular lexeme exactly, and consume it.
 matchToken :: Var v => L.Lexeme -> P v (L.Token L.Lexeme)
 matchToken x = P.satisfy ((==) x . L.payload)
