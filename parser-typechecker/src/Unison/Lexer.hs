@@ -102,12 +102,21 @@ lexer scope rem =
         go1 l (incBy ('-':'-':ignored) . incBy spaces $ pos) rem
       (spaces, rem) -> popLayout l (incBy spaces pos) rem
 
-    -- pop the layout stack and emit `Semi` / `Close` tokens as needed
-    popLayout l p [] = replicate (length l) $ Token Close p p
-    popLayout l p@(Pos _ c2) rem
+    popLayout l pos rem = case matchKeyword' layoutCloseAndOpenKeywords rem of
+      Nothing -> popLayout0 l pos rem
+      Just (kw, rem) ->
+        let end = incBy kw pos
+        in Token Close pos pos
+             : Token (Open kw) pos end
+             : pushLayout (drop 1 l) end rem
+
+    -- Examine current column and pop the layout stack
+    -- and emit `Semi` / `Close` tokens as needed
+    popLayout0 l p [] = replicate (length l) $ Token Close p p
+    popLayout0 l p@(Pos _ c2) rem
       | top l == c2 = Token Semi p p : go2 l p rem
       | top l <  c2 = go2 l p rem
-      | top l >  c2 = Token Close p p : popLayout (pop l) p rem
+      | top l >  c2 = Token Close p p : popLayout0 (pop l) p rem
       | otherwise   = error "impossible"
 
     -- todo: is there a reason we want this to be more than just:
@@ -162,10 +171,6 @@ lexer scope rem =
               case kw of
                 kw | Set.member kw layoutKeywords ->
                        Token (Open kw) pos end : pushLayout l end rem
-                   | Set.member kw layoutCloseAndOpenKeywords ->
-                       Token Close pos pos
-                         : Token (Open kw) pos end
-                         : pushLayout (drop 1 l) end rem
                    | otherwise -> Token (Reserved kw) pos end : go1 l end rem
 
       -- numeric literals
@@ -178,7 +183,10 @@ lexer scope rem =
     recover _l _pos _rem = []
 
 matchKeyword :: String -> Maybe (String,String)
-matchKeyword s = case span (not . isSpace) s of
+matchKeyword = matchKeyword' keywords
+
+matchKeyword' :: Set String -> String -> Maybe (String,String)
+matchKeyword' keywords s = case span (not . isSpace) s of
   (kw, rem) | Set.member kw keywords -> Just (kw, rem)
   _ -> Nothing
 
@@ -304,10 +312,15 @@ incBy rem pos@(Pos line col) = case rem of
 
 ex :: String
 ex =
-  unlines
-  [ "hello -- ignored"
-  , "goodbye"
-  ]
+  join [ "if\n"
+       , "  s = 0\n"
+       , "  s > 0\n"
+       , "then\n"
+       , "  s = 0\n"
+       , "  s + 1\n"
+       , "else\n"
+       , "  s = 0\n"
+       , "  s + 2\n" ]
 
 span' :: (a -> Bool) -> [a] -> (([a],[a]) -> r) -> r
 span' f a k = k (span f a)

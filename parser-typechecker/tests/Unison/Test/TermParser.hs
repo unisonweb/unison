@@ -86,25 +86,25 @@ test = scope "termparser" . tests . map parses $
   --
   -- Conditionals
   , "if x then y else z"
+  , "if\n" ++
+    "  s = 0\n" ++
+    "  s > 0\n" ++
+    "then\n" ++
+    "  s = 0\n" ++
+    "  s + 1\n" ++
+    "else\n" ++
+    "  s = 0\n" ++
+    "  s + 2\n"
   --, "if\n" ++
   --  "  s = 0\n" ++
   --  "  s > 0\n" ++
   --  "then\n" ++
-  --  "  s = 0\n" ++
+  --  "  s : Int64\n" ++
+  --  "  s = (0: Int64)\n" ++
   --  "  s + 1\n" ++
   --  "else\n" ++
   --  "  s = 0\n" ++
   --  "  s + 2\n"
-  -- , "if\n" ++
-  --   "  s = 0\n" ++
-  --   "  s > 0\n" ++
-  --   "then\n" ++
-  --   "  s : Int64\n" ++
-  --   "  s = (0: Int64)\n" ++
-  --   "  s + 1\n" ++
-  --   "else\n" ++
-  --   "  s = 0\n" ++
-  --   "  s + 2\n"
   -- , "and x y"
   -- , "or x y"
   -- , [r|let
