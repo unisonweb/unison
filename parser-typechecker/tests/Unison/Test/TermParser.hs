@@ -5,11 +5,9 @@ module Unison.Test.TermParser where
 import qualified Data.Map as Map
 import           EasyTest
 import           Text.RawString.QQ
-import           Unison.Parser2 (Ann)
 import           Unison.Parsers2 (parseTerm)
 import qualified Unison.Reference as R
 import           Unison.Symbol (Symbol)
-import           Unison.Term (AnnotatedTerm)
 
 
 test = scope "termparser" . tests . map parses $
@@ -37,38 +35,39 @@ test = scope "termparser" . tests . map parses $
   , "1 UInt64.== 1"
   , "x UInt64.== y"
   , "if 1 UInt64.== 1 then 1 else 1"
-  --, "if 1 UInt64.== x then 1 else 1"
-  --, "if x UInt64.== 1 then 1 else 1"
-  --, "if x == 1 then 1 else 1"
-  --, "if x UInt64.== x then 1 else 1"
+  , "if 1 UInt64.== x then 1 else 1"
+  , "if x UInt64.== 1 then 1 else 1"
+  , "if x == 1 then 1 else 1"
+  , "if x UInt64.== x then 1 else 1"
   --
-  -- -- Block tests
-  -- , "let x = 1\n" ++
-  --   "    x"
-  -- , "let\n" ++
-  --   " y = 1\n" ++
-  --   " x"
-  -- , unlines [
-  --   "let y = 1  ",
-  --   "    x = 2  ",
-  --   "    x + y"]
-  -- , "(let \n" ++
-  --   "  x = 23 + 42\n" ++
-  --   "  x + 1 \n)"
+  -- Block tests
+  , "let x = 1\n" ++
+    "    x"
+  , "let\n" ++
+    " y = 1\n" ++
+    " x"
+  , unlines [
+    "let y = 1  ",
+    "    x = 2  ",
+    "    x + y"]
+  --, "(let \n" ++
+  --  "  x = 23 + 42\n" ++
+  --  "  x + 1 \n)"
   --
-  -- -- Handlers
-  -- ,"handle foo in \n" ++
-  --   "  x = 23 + 42\n" ++
-  --   "  x + foo 8 102.0 +4"
-  -- ,"handle foo in \n" ++
-  --   "  x = 1\n" ++
-  --   "  x"
-  -- , "handle foo in x"
-  --
-  -- -- Patterns
+  -- Handlers
+  ,"handle foo in \n" ++
+    "  x = 23 + 42\n" ++
+    "  x + foo 8 102.0 +4"
+  , "handle foo in \n" ++
+    "  x = 1\n" ++
+    "  x"
+  , "handle foo in x"
+
+  -- Patterns
+  -- , "case x of x -> x"
   -- , "case x of 0 -> 1"
   -- , "case x of\n" ++
-  --   "  0 -> 1"
+  --  "  0 -> 1"
   -- , "case x of\n" ++
   --   "  x -> 1\n" ++
   --   "  2 -> 7\n" ++
@@ -85,17 +84,17 @@ test = scope "termparser" . tests . map parses $
   -- , "case x of\n" ++
   --   " 0 | 1 == 2 -> 123"
   --
-  -- -- Conditionals
-  -- , "if x then y else z"
-  -- , "if\n" ++
-  --   "  s = 0\n" ++
-  --   "  s > 0\n" ++
-  --   "then\n" ++
-  --   "  s = 0\n" ++
-  --   "  s + 1\n" ++
-  --   "else\n" ++
-  --   "  s = 0\n" ++
-  --   "  s + 2\n"
+  -- Conditionals
+  , "if x then y else z"
+  --, "if\n" ++
+  --  "  s = 0\n" ++
+  --  "  s > 0\n" ++
+  --  "then\n" ++
+  --  "  s = 0\n" ++
+  --  "  s + 1\n" ++
+  --  "else\n" ++
+  --  "  s = 0\n" ++
+  --  "  s + 2\n"
   -- , "if\n" ++
   --   "  s = 0\n" ++
   --   "  s > 0\n" ++
