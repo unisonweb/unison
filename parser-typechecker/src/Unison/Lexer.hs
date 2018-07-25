@@ -5,6 +5,7 @@ module Unison.Lexer where
 import Control.Monad (join)
 import GHC.Exts (sortWith)
 import           Control.Lens.TH (makePrisms)
+import Data.List
 import           Data.Char
 import           Data.Set (Set)
 import qualified Data.Set as Set
@@ -13,6 +14,7 @@ import           Unison.Hash (Hash)
 data Err
   = InvalidWordyId String
   | InvalidSymbolyId String
+  | Both Err Err
   | MissingFractional String -- ex `1.` rather than `1.04`
   | UnknownLexeme
   | TextLiteralMissingClosingQuote String
@@ -149,10 +151,10 @@ lexer scope rem =
                 Token (Backticks id) pos end : go1 l end (pop rem)
 
       -- keywords and identifiers
-      (wordyId -> Right (id, rem)) ->
-        let end = incBy id pos in Token (WordyId id) pos end : go1 l end rem
       (symbolyId -> Right (id, rem)) ->
         let end = incBy id pos in Token (SymbolyId id) pos end : go1 l end rem
+      (wordyId -> Right (id, rem)) ->
+        let end = incBy id pos in Token (WordyId id) pos end : go1 l end rem
       (matchKeyword -> Just (kw,rem)) ->
         let end = incBy kw pos in
               case kw of
@@ -205,21 +207,51 @@ hasSep [] = True
 hasSep (ch:_) = isSep ch
 
 -- Not a keyword, has at least one letter, and with all characters matching `wordyIdChar`
-wordyId :: String -> Either Err (String, String)
-wordyId s = span' wordyIdChar s $ \case
+-- TODO: Is a '.' delimited list of wordyId0 (should not include a trailing '.')
+wordyId0 :: String -> Either Err (String, String)
+wordyId0 s = span' wordyIdChar s $ \case
   (id @ (_:_), rem) | not (Set.member id keywords)
                    && any isAlpha id || any isEmoji id -> Right (id, rem)
   (id, _rem) -> Left (InvalidWordyId id)
 
+wordyId :: String -> Either Err (String, String)
+wordyId s = qualifiedId False s wordyId0 wordyId0
+
 wordyIdChar :: Char -> Bool
 wordyIdChar ch =
-  not (isSpace ch) && not (Set.member ch delimiters) && not (Set.member ch reserved)
+  not (isSpace ch) && (ch /= '.') && not (Set.member ch delimiters) && not (Set.member ch reserved)
 
 isEmoji :: Char -> Bool
 isEmoji c = c >= '\x1F600' && c <= '\x1F64F'
 
+splitOn :: Char -> String -> [String]
+splitOn c s = unfoldr step s where
+  step [] = Nothing
+  step s = Just (case break (== c) s of (l,r) -> (l, drop 1 r))
+
+qualifiedId :: Bool
+            -> String
+            -> (String -> Either Err (String, String))
+            -> (String -> Either Err (String, String))
+            -> Either Err (String, String)
+qualifiedId requireLast s0 leadingSegments lastSegment = go0 0 s0 where
+   go0 acc s = case leadingSegments s of
+     Right (seg, '.' : rem) -> go0 (acc + length seg + 1) rem
+     Right (seg, rem) -> go1 Nothing (acc + length seg) rem
+     Left e -> go1 (Just e) acc s
+   err2 e e2 = case e of Nothing -> e2; Just e -> Both e e2
+   go1 e acc s = case lastSegment s of
+     Left e2 -> if requireLast || acc == 0 then Left (err2 e e2)
+                else Right (take acc s0, s)
+     Right (seg, s) -> Right (take (acc + length seg) s0, s)
+
+-- Is a '.' delimited list of wordyId, with a final segment of `symbolyId0`
 symbolyId :: String -> Either Err (String, String)
-symbolyId s = span' symbolyIdChar s $ \case
+symbolyId s = qualifiedId True s wordyId0 symbolyId0
+
+-- Returns either an error or an id and a remainder
+symbolyId0 :: String -> Either Err (String, String)
+symbolyId0 s = span' symbolyIdChar s $ \case
   (id @ (_:_), rem) | not (Set.member id reservedOperators) && hasSep rem -> Right (id, rem)
   (id, _rem) -> Left (InvalidSymbolyId id)
 
@@ -227,7 +259,7 @@ symbolyIdChar :: Char -> Bool
 symbolyIdChar ch = Set.member ch symbolyIdChars
 
 symbolyIdChars :: Set Char
-symbolyIdChars = Set.fromList "!$%^&*-=+<>?.~\\/|"
+symbolyIdChars = Set.fromList "!$%^&*-=+<>?.~\\/|;"
 
 keywords :: Set String
 keywords = Set.fromList [
