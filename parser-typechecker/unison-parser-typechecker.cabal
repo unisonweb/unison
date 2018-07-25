@@ -135,6 +135,7 @@ executable tests
     Unison.Test.Common
     Unison.Test.DataDeclaration
     Unison.Test.FileParser
+    Unison.Test.Lexer
     Unison.Test.TermParser
     Unison.Test.Typechecker
     Unison.Test.Typechecker.Components
