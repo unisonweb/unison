@@ -229,7 +229,7 @@ sepBy1 sep pb = P.sepBy1 pb sep
 prefixVar :: Var v => P v (L.Token v)
 prefixVar = fmap (Var.named . Text.pack) <$> P.label "symbol" prefixOp
   where
-    prefixOp = wordyId <|> (reserved "(" *> symbolyId <* reserved ")")
+    prefixOp = wordyId <|> P.label "prefix-operator" (P.try (reserved "(" *> symbolyId) <* reserved ")")
 
 infixVar :: Var v => P v (L.Token v)
 infixVar =

@@ -147,6 +147,7 @@ executable tests
     easytest,
     errors,
     filepath,
+    megaparsec,
     raw-strings-qq,
     text,
     transformers,

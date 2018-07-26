@@ -2,35 +2,41 @@
 
 module Unison.Test.TermParser where
 
+import Control.Applicative
 import qualified Data.Map as Map
 import           EasyTest
 import           Text.Megaparsec.Error (parseErrorPretty)
 import           Text.RawString.QQ
 import           Unison.Parsers2 (parseTerm)
+import qualified Unison.Parsers2 as Ps
+import qualified Text.Megaparsec as P
 import qualified Unison.Reference as R
 import           Unison.Symbol (Symbol)
+import Unison.Parser2
+import qualified Unison.TermParser2 as TP
 
-test = scope "termparser" . tests . map parses $
-  [ [r|1|]
+test1 = scope "termparser" . tests . map parses $
+  [ "1"
   , "1.0"
   , "+1"
   , "-1"
   , "-1.0"
   , "4th"
-  -- , "()"
+  , "()"
+  , "(0)"
   , "forty"
   , "forty two"
   , "\"forty two\""
-  -- , "( one ; two )"
-  -- , "( one ; two )"
-  -- , "( one ; two ; three )"
-  -- , "( one ; two ; 42 )"
+  , "( one ; two )"
+  , "( one ; two )"
+  , "( one ; two ; three )"
+  , "( one ; two ; 42 )"
   , "[1,2,3]"
   , "\"abc\""
   , "x + 1"
   , "1 + 1"
   , "1 UInt64.+ 1"
-  -- , "( x + 1 )"
+  , "( x + 1 )"
   , "foo 42"
   , "1 UInt64.== 1"
   , "x UInt64.== y"
@@ -109,17 +115,43 @@ test = scope "termparser" . tests . map parses $
     "  s + 2\n"
    , "and x y"
    , "or x y"
-  -- , [r|let
-  --       increment = (+_UInt64) 1
-  --
-  --       (|>) : forall a . a -> (a -> b) -> b
-  --       a |> f = f a
-  --
-  --       Stream.from-int64 -3
-  --         |> Stream.take 10
-  --         |> Stream.fold-left 0 increment
-  --       |]
+   , [r|let
+        increment = (+_UInt64) 1
+
+        (|>) : forall a . a -> (a -> b) -> b
+        a |> f = f a
+
+        Stream.from-int64 -3
+          |> Stream.take 10
+          |> Stream.fold-left 0 increment
+       |]
   ]
+
+test2 = (scope "fiddle" . tests $ unitTests)
+
+test = test1 <|> test2
+
+unitTests =
+ [ t w "hi"
+ , t s "foo.+"
+ , t (w <|> s) "foo.+"
+ , t (w *> w) "foo bar"
+ , t (P.try (w *> w) <|> (w *> s)) "foo +"
+ , t TP.term "x -> x"
+ , t (TP.lam TP.term) "x y z -> 1 + 1"
+ , t (sepBy s w) ""
+ , t (sepBy s w) "uno"
+ , t (sepBy s w) "uno + dos"
+ , t (sepBy s w) "uno + dos * tres"
+ , t (reserved "(" *> sepBy s w <* reserved ")") "(uno + dos + tres)"
+ , t TP.term "( 0 )"
+ ]
+ where
+   -- type TermP v = P v (AnnotatedTerm v Ann)
+   t :: P Symbol a -> String -> Test ()
+   t = parseWith
+   w = wordyId
+   s = symbolyId
 
 builtins = Map.fromList
   [("Pair", (R.Builtin "Pair", 0)),
@@ -127,5 +159,11 @@ builtins = Map.fromList
 
 parses s = scope s $
   case parseTerm @ Symbol s builtins of
+    Left e -> crash $ parseErrorPretty e
+    Right _ -> ok
+
+parseWith :: P Symbol a -> String -> Test ()
+parseWith p s = scope s $
+  case Ps.parse @ Symbol p s builtins of
     Left e -> crash $ parseErrorPretty e
     Right _ -> ok
