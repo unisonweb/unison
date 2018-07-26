@@ -152,20 +152,20 @@ parsePattern = constructor <|> leaf
       Nothing -> customFailure $ UnknownDataConstructor t
 
 lam :: Var v => TermP v -> TermP v
-lam p = mkLam <$> P.try (some prefixVar <* reserved "->") <*> p
+lam p = P.label "lambda" $ mkLam <$> P.try (some prefixVar <* reserved "->") <*> p
   where
     mkLam vs b = Term.lam' (ann (head vs) <> ann b) (map L.payload vs) b
 
 letBlock, handle, ifthen, and, or, infixApp :: Var v => TermP v
-letBlock = block "let"
+letBlock = P.label "let" $ block "let"
 
-handle = do
+handle = P.label "handle" $ do
   t <- reserved "handle"
   handler <- term
   b <- block "in"
   pure $ Term.handle (ann t <> ann b) handler b
 
-ifthen = do
+ifthen = P.label "if" $ do
   c <- block "if"
   t <- block "then"
   f <- block "else"
@@ -198,10 +198,10 @@ termLeaf =
   asum [hashLit, prefixTerm, text, number, boolean,
         tupleOrParenthesizedTerm, blank, vector term]
 
-and = f <$> reserved "and" <*> termLeaf <*> termLeaf
+and = P.label "and" $ f <$> reserved "and" <*> termLeaf <*> termLeaf
   where f kw x y = Term.and (ann kw <> ann y) x y
 
-or = f <$> reserved "or" <*> termLeaf <*> termLeaf
+or = P.label "or" $ f <$> reserved "or" <*> termLeaf <*> termLeaf
   where f kw x y = Term.or (ann kw <> ann y) x y
 
 var :: Var v => L.Token v -> AnnotatedTerm v Ann
@@ -308,7 +308,7 @@ number' i u f = fmap go numeric
       | otherwise = u (read <$> num)
 
 tupleOrParenthesizedTerm :: Var v => TermP v
-tupleOrParenthesizedTerm = tupleOrParenthesized term unit pair
+tupleOrParenthesizedTerm = P.label "tuple" $ tupleOrParenthesized term unit pair
   where
     pair t1 t2 =
       Term.app (ann t1 <> ann t2)

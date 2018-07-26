@@ -14,6 +14,9 @@ import qualified Unison.TermParser2 as TermParser
 unsafeGetRight :: Show v => Either (Parser.Err v Parser.Input) a -> a
 unsafeGetRight = either (error . show) id
 
+parse :: Var v => Parser.P v a -> String -> PEnv -> Either (Parser.Err v Parser.Input) a
+parse p s env = Parser.run (Parser.root $ Parser.withinBlock p) s env
+
 parseTerm :: Var v => String -> PEnv -> Either (Parser.Err v Parser.Input) (AnnotatedTerm v Ann)
 parseTerm s env = Parser.run (Parser.root $ Parser.withinBlock TermParser.term) s env
 
