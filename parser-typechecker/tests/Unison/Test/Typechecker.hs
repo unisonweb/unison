@@ -4,6 +4,7 @@
 module Unison.Test.Typechecker where
 
 import  EasyTest
+import  Control.Monad (join)
 import  Data.Char (isSpace)
 import  Unison.FileParsers (parseAndSynthesizeAsFile)
 import  Unison.Symbol
@@ -413,12 +414,13 @@ test = scope "typechecker" . tests $
              |[StringOrInt.S "YO", StringOrInt.I 1]
              |]
   ]
-  where c tm typ = scope tm . expect $ check (stripMargin tm) typ
-        bombs s = scope s (crasher s)
+  where c tm typ = scope1 tm . expect $ check (stripMargin tm) typ
+        scope1 s = scope (join . take 1 $ lines s)
+        bombs s = scope1 s (crasher s)
         broken :: String -> Test ()
-        broken s = scope s $ pending (checks s)
+        broken s = scope1 s $ pending (checks s)
         checks :: String -> Test ()
-        checks s = scope s (typer s)
+        checks s = scope1 s (typer s)
         typeFile = (parseAndSynthesizeAsFile @ Symbol) "<test>" .  stripMargin
         crash' e = crash $ show e -- todo: don't use show, print errors prettily
         typer = either crash' (const ok) . Result.toEither . typeFile

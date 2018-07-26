@@ -69,17 +69,17 @@ match :: Var v => TermP v
 match = do
   start <- reserved "case"
   scrutinee <- term
-  _ <- reserved "of"
+  _ <- openBlockWith "of"
   -- TODO: Produce a nice error message for empty match list
   cases <- sepBy1 semi matchCase
+  _ <- closeBlock
   pure $ Term.match (ann start <> ann (last cases)) scrutinee cases
 
 matchCase :: Var v => P v (Term.MatchCase Ann (AnnotatedTerm v Ann))
 matchCase = do
   (p, boundVars) <- parsePattern
   guard <- optional $ reserved "|" *> infixApp
-  _ <- reserved "->"
-  t <- blockTerm
+  t <- block "->"
   pure . Term.MatchCase p guard $ ABT.absChain' boundVars t
 
 parsePattern :: forall v. Var v => P v (Pattern Ann, [(Ann, v)])
@@ -133,8 +133,9 @@ parsePattern = constructor <|> leaf
     go (p, vs) = (Pattern.EffectPure (ann p) p, vs)
 
   effect = do
-    start <- reserved "{"
+    start <- openBlockWith "{"
     (inner, vs) <- effectBind <|> effectPure
+    _ <- closeBlock
     end <- reserved "}"
     pure $ (Pattern.setLoc inner (ann start <> ann end), vs)
 

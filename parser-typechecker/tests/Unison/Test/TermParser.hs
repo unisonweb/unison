@@ -72,26 +72,26 @@ test1 = scope "termparser" . tests . map parses $
   , "handle foo in x"
 
   -- Patterns
-  -- , "case x of x -> x"
-  -- , "case x of 0 -> 1"
-  -- , "case x of\n" ++
-  --  "  0 -> 1"
-  -- , "case x of\n" ++
-  --   "  x -> 1\n" ++
-  --   "  2 -> 7\n" ++
-  --   "  _ -> 3\n" ++
-  --   "  Pair x y -> x + y\n" ++
-  --   "  Pair (Pair x y) _ -> x + y \n"
-  -- , "case x of\n" ++
-  --   "  {Pair x y} -> 1\n" ++
-  --   "  {State.set 42 -> k} -> k 42\n"
-  -- , "case x of\n" ++
-  --   "  0 ->\n" ++
-  --   "    z = 0\n" ++
-  --   "    z"
-  -- , "case x of\n" ++
-  --   " 0 | 1 == 2 -> 123"
-  --
+  , "case x of x -> x"
+  , "case x of 0 -> 1"
+  , "case x of\n" ++
+    "  0 -> 1"
+  , "case x of\n" ++
+    "  x -> 1\n" ++
+    "  2 -> 7\n" ++
+    "  _ -> 3\n" ++
+    "  Pair x y -> x + y\n" ++
+    "  Pair (Pair x y) _ -> x + y \n"
+  , "case x of\n" ++
+    "  {Pair x y} -> 1\n" ++
+    "  {State.set 42 -> k} -> k 42\n"
+  , "case x of\n" ++
+    "  0 ->\n" ++
+    "    z = 0\n" ++
+    "    z"
+  , "case x of\n" ++
+    " 0 | 1 == 2 -> 123"
+
   -- Conditionals
   , "if x then y else z"
   , "-- if test 1\n" ++

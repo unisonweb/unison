@@ -92,11 +92,12 @@ line (Pos line _) = line
 column :: Pos -> Column
 column (Pos _ column) = column
 
-type Layout = [Column]
+type BlockName = String
+type Layout = [(BlockName,Column)]
 
 top :: Layout -> Column
 top []    = 1
-top (h:_) = h
+top ((_,h):_) = h
 
 pop :: [a] -> [a]
 pop = drop 1
@@ -125,28 +126,34 @@ reorder ts = first ++ (join . sortWith f . stanzas $ core) ++ last
 lexer :: String -> String -> [Token Lexeme]
 lexer scope rem =
     Token (Open scope) topLeftCorner topLeftCorner
-      : pushLayout [] topLeftCorner rem
+      : pushLayout scope [] topLeftCorner rem
   where
     -- skip whitespace and comments
-    go1 :: [Column] -> Pos -> [Char] -> [Token Lexeme]
+    go1 :: Layout -> Pos -> [Char] -> [Token Lexeme]
     go1 l pos rem = span' isSpace rem $ \case
       (spaces, '-':'-':rem) -> spanThru' (/= '\n') rem $ \(ignored, rem) ->
         go1 l (incBy ('-':'-':ignored) . incBy spaces $ pos) rem
       (spaces, rem) -> popLayout l (incBy spaces pos) rem
 
-    popLayout :: [Column] -> Pos -> [Char] -> [Token Lexeme]
+    popLayout :: Layout -> Pos -> [Char] -> [Token Lexeme]
     popLayout l pos rem = case matchKeyword' layoutCloseAndOpenKeywords rem of
-      Nothing -> popLayout0 l pos rem
+      Nothing -> case matchKeyword' layoutCloseOnlyKeywords rem of
+        Nothing -> popLayout0 l pos rem
+        Just (kw, rem) ->
+          let end = incBy kw pos
+          in Token Close pos end
+               : Token (Reserved kw) pos end
+               : go1 (drop 1 l) (incBy kw pos) rem
       Just (kw, rem) ->
         let end = incBy kw pos
         in Token Close pos pos
              : Token (Open kw) pos end
              -- todo: would be nice to check that top of `l` is an Open "if" or "then"
-             : pushLayout (drop 1 l) end rem
+             : pushLayout kw (drop 1 l) end rem
 
     -- Examine current column and pop the layout stack
     -- and emit `Semi` / `Close` tokens as needed
-    popLayout0 :: [Column] -> Pos -> [Char] -> [Token Lexeme]
+    popLayout0 :: Layout -> Pos -> [Char] -> [Token Lexeme]
     popLayout0 l p [] = replicate (length l) $ Token Close p p
     popLayout0 l p@(Pos _ c2) rem
       | top l == c2 = Token Semi p p : go2 l p rem
@@ -158,18 +165,23 @@ lexer scope rem =
     -- go1 (top l + 1 : l) pos rem
     -- looks for the next non whitespace, non-comment character, and
     -- pushes its column onto the layout stack
-    pushLayout :: [Column] -> Pos -> [Char] -> [Token Lexeme]
-    pushLayout l pos rem = span' isSpace rem $ \case
+    pushLayout :: BlockName -> Layout -> Pos -> [Char] -> [Token Lexeme]
+    pushLayout b l pos rem = span' isSpace rem $ \case
       (spaces, '-':'-':rem) -> spanThru' (/= '\n') rem $ \(ignored, rem) ->
-        pushLayout l (incBy ('-':'-':ignored) . incBy spaces $ pos) rem
+        pushLayout b l (incBy ('-':'-':ignored) . incBy spaces $ pos) rem
       (spaces, rem) ->
-        let pos' = incBy spaces pos in go2 (column pos' : l) pos' rem
+        let pos' = incBy spaces pos in go2 ((b, column pos') : l) pos' rem
 
     -- after we've dealt with whitespace and layout, read a token
-    go2 :: [Column] -> Pos -> [Char] -> [Token Lexeme]
+    go2 :: Layout -> Pos -> [Char] -> [Token Lexeme]
     go2 l pos rem = case rem of
       [] -> popLayout0 l pos []
       -- delimiters - `:`, `@`, `|`, `=`, and `->`
+      '{' : rem ->
+        Token (Open "{") pos (inc pos) : pushLayout "{" l (inc pos) rem
+      '}' : rem ->
+        Token (Close) pos (inc pos) : pushLayout "{" l (inc pos) rem
+-- ->{
       ch : rem | Set.member ch delimiters ->
         Token (Reserved [ch]) pos (inc pos) : go1 l (inc pos) rem
       ':' : c : rem | isSpace c || isAlphaNum c ->
@@ -181,11 +193,14 @@ lexer scope rem =
       '|' : c : rem | isSpace c || isAlphaNum c ->
         Token (Reserved "|") pos (inc pos) : go1 l (inc pos) (c:rem)
       '=' : c : rem | isSpace c || isAlphaNum c ->
-        Token (Open "=") pos (inc pos) : pushLayout l (inc pos) (c:rem)
+        Token (Open "=") pos (inc pos) : pushLayout "=" l (inc pos) (c:rem)
       '-' : '>' : (rem @ (c : _))
         | isSpace c || isAlphaNum c || Set.member c delimiters ->
-          let end = incBy "->" pos in Token (Reserved "->") pos end : go1 l end rem
-          -- (Open "->", pos) : pushLayout l (inc . inc $ pos) rem
+          let end = incBy "->" pos
+          in case l of
+              ("of", _) : _ -> -- `->` opens a block when pattern-matching only
+                Token (Open "->") pos end : pushLayout "->" l end rem
+              _ -> Token (Reserved "->") pos end : go1 l end rem
 
       -- string literals and backticked identifiers
       '"' : rem -> span' (/= '"') rem $ \(lit, rem) ->
@@ -208,7 +223,7 @@ lexer scope rem =
         let end = incBy kw pos in
               case kw of
                 kw | Set.member kw layoutKeywords ->
-                       Token (Open kw) pos end : pushLayout l end rem
+                       Token (Open kw) pos end : pushLayout kw l end rem
                    | otherwise -> Token (Reserved kw) pos end : go1 l end rem
 
       -- numeric literals
@@ -327,6 +342,10 @@ layoutKeywords =
 -- These keywords end a layout block and begin another layout block
 layoutCloseAndOpenKeywords :: Set String
 layoutCloseAndOpenKeywords = Set.fromList ["then", "else"]
+
+-- These keywords end a layout block
+layoutCloseOnlyKeywords :: Set String
+layoutCloseOnlyKeywords = Set.fromList ["}"]
 
 delimiters :: Set Char
 delimiters = Set.fromList "()[]{},"
