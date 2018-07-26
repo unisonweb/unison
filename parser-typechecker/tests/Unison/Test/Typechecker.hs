@@ -3,14 +3,18 @@
 
 module Unison.Test.Typechecker where
 
-import  EasyTest
-import  Control.Monad (join)
-import  Data.Char (isSpace)
-import  Unison.FileParsers (parseAndSynthesizeAsFile)
-import  Unison.Symbol
-import  Unison.Test.Common
-import  Text.RawString.QQ
-import  qualified Unison.Result as Result
+import           Control.Monad (join)
+import           Data.Char (isSpace)
+import           Data.List (intercalate)
+import qualified Data.List.NonEmpty as Nel
+import           EasyTest
+import qualified Text.Megaparsec as P
+import           Text.RawString.QQ
+import           Unison.FileParsers (parseAndSynthesizeAsFile)
+import qualified Unison.Lexer as L
+import qualified Unison.Result as Result
+import           Unison.Symbol
+import           Unison.Test.Common
 
 test = scope "typechecker" . tests $
   [
@@ -422,8 +426,24 @@ test = scope "typechecker" . tests $
         checks :: String -> Test ()
         checks s = scope1 s (typer s)
         typeFile = (parseAndSynthesizeAsFile @ Symbol) "<test>" .  stripMargin
-        crash' e = crash $ show e -- todo: don't use show, print errors prettily
-        typer = either crash' (const ok) . Result.toEither . typeFile
-        crasher = either (const ok) crash' . Result.toEither . typeFile
+        crash' s e = crash $ printError s e
+        typer s = either (crash' s) (const ok) . Result.toEither $ typeFile s
+        crasher s =
+          either (const ok) (const (crash "succeeded unexpectedly"))
+            . Result.toEither $ typeFile s
         stripMargin =
           unlines . map (dropWhile (== '|'). dropWhile isSpace) . lines
+
+printError s = intercalate "\n------\n" . map (printError0 s)
+
+printError0 s (Result.Parsing e) =
+  let errorColumn = P.unPos . P.sourceColumn . Nel.head . P.errorPos $ e
+      errorLine = P.unPos . P.sourceLine . Nel.head . P.errorPos $ e
+      lineCaret (s,i) =
+        s ++ if i == errorLine
+             then "\n" ++ errorCaret
+             else ""
+      errorCaret = replicate (errorColumn - 1) '-' ++ "^"
+      source = unlines (lineCaret <$> lines s `zip` [1..])
+  in source ++ "\nLexer output:\n" ++ L.debugLex' s
+printError0 _ e = show e
