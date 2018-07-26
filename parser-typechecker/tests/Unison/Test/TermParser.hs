@@ -13,8 +13,8 @@ import qualified Unison.Reference as R
 import           Unison.Symbol (Symbol)
 import Unison.Parser2
 import qualified Unison.TermParser2 as TP
--- import qualified Unison.Lexer as L
--- import qualified Data.List.NonEmpty as Nel
+import qualified Unison.Lexer as L
+import qualified Data.List.NonEmpty as Nel
 
 test1 = scope "termparser" . tests . map parses $
   [ "1"
@@ -180,16 +180,13 @@ parseWith p s = scope s $
       crash $ parseErrorPretty e
     Right _ -> ok
 
-printError _ e =
-  "error at " ++ show e
-
--- printError s e =
---   let errorColumn = P.unPos . P.sourceColumn . Nel.head . P.errorPos $ e
---       errorLine = P.unPos . P.sourceLine . Nel.head . P.errorPos $ e
---       lineCaret (s,i) =
---         s ++ if i == errorLine
---              then "\n" ++ errorCaret
---              else ""
---       errorCaret = replicate (errorColumn - 1) '-' ++ "^"
---       source = unlines (lineCaret <$> lines s `zip` [1..])
---   in source ++ "\nLexer output:\n" ++ L.debugLex' s
+printError s e =
+  let errorColumn = P.unPos . P.sourceColumn . Nel.head . P.errorPos $ e
+      errorLine = P.unPos . P.sourceLine . Nel.head . P.errorPos $ e
+      lineCaret (s,i) =
+        s ++ if i == errorLine
+             then "\n" ++ errorCaret
+             else ""
+      errorCaret = replicate (errorColumn - 1) '-' ++ "^"
+      source = unlines (lineCaret <$> lines s `zip` [1..])
+  in source ++ "\nLexer output:\n" ++ L.debugLex' s
