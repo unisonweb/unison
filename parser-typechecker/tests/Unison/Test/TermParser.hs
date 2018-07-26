@@ -7,7 +7,6 @@ import qualified Data.Map as Map
 import           EasyTest
 import           Text.Megaparsec.Error (parseErrorPretty)
 import           Text.RawString.QQ
-import           Unison.Parsers2 (parseTerm)
 import qualified Unison.Parsers2 as Ps
 import qualified Unison.Lexer as L
 import qualified Text.Megaparsec as P
@@ -104,14 +103,6 @@ test1 = scope "termparser" . tests . map parses $
     "else\n" ++
     "  s = 0\n" ++
     "  s + 2\n"
-
-  {-
-  FAILURE 7:9:
- unexpected :
- expecting ), ,, :, [, _, false, symbol, true, or tuple
-  CallStack (from HasCallStack):
-   crash, called at tests/Unison/Test/TermParser.hs:162:15 in main:Unison.Test.TermParser
-  -}
   , "-- if test 2\n" ++
     "if\n" ++
     "  s = 0\n" ++
