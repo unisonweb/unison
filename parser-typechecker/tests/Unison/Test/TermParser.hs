@@ -3,6 +3,7 @@
 module Unison.Test.TermParser where
 
 import Control.Applicative
+import Control.Monad (join)
 import qualified Data.Map as Map
 import           EasyTest
 import           Text.Megaparsec.Error (parseErrorPretty)
@@ -172,8 +173,7 @@ builtins = Map.fromList
 parses = parseWith TP.term
 
 parseWith :: P Symbol a -> String -> Test ()
--- parseWith p s = scope (head . lines $ s) $
-parseWith p s = scope s $
+parseWith p s = scope (join . take 1 $ lines s) $
   case Ps.parse @ Symbol p s builtins of
     Left e -> do
       note $ printError s e
