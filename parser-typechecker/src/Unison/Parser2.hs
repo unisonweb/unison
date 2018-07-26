@@ -211,7 +211,7 @@ backticks = queryToken getBackticks
 
 -- Parse a reserved word
 reserved :: Var v => String -> P v (L.Token String)
-reserved w = queryToken getReserved
+reserved w = P.label w $ queryToken getReserved
   where getReserved (L.Reserved w') | w == w' = Just w
         getReserved _ = Nothing
 
@@ -220,15 +220,11 @@ numeric = queryToken getNumeric
   where getNumeric (L.Numeric s) = Just s
         getNumeric _ = Nothing
 
--- Parse a pair of parentheses around an expression
-parenthesized :: Var v => P v (L.Token a) -> P v (L.Token a)
-parenthesized = P.between (reserved "(") (reserved ")")
-
 sepBy :: Var v => P v a -> P v b -> P v [b]
 sepBy sep pb = P.sepBy pb sep
 
 sepBy1 :: Var v => P v a -> P v b -> P v [b]
-sepBy1 sep pb = P.sepBy pb sep
+sepBy1 sep pb = P.sepBy1 pb sep
 
 prefixVar :: Var v => P v (L.Token v)
 prefixVar = fmap (Var.named . Text.pack) <$> P.label "symbol" prefixOp
