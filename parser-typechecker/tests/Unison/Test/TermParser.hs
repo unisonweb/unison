@@ -14,6 +14,7 @@ import qualified Unison.Reference as R
 import           Unison.Symbol (Symbol)
 import Unison.Parser2
 import qualified Unison.TermParser2 as TP
+import qualified Data.List.NonEmpty as Nel
 
 test1 = scope "termparser" . tests . map parses $
   [ "1"
@@ -102,6 +103,14 @@ test1 = scope "termparser" . tests . map parses $
     "else\n" ++
     "  s = 0\n" ++
     "  s + 2\n"
+
+  {-
+  FAILURE 7:9:
+ unexpected :
+ expecting ), ,, :, [, _, false, symbol, true, or tuple
+  CallStack (from HasCallStack):
+   crash, called at tests/Unison/Test/TermParser.hs:162:15 in main:Unison.Test.TermParser
+  -}
   , "-- if test 2\n" ++
     "if\n" ++
     "  s = 0\n" ++
@@ -109,6 +118,17 @@ test1 = scope "termparser" . tests . map parses $
     "then\n" ++
     "  s: Int64\n" ++
     "  s = (0: Int64)\n" ++
+    "  s + 1\n" ++
+    "else\n" ++
+    "  s = 0\n" ++
+    "  s + 2\n"
+  , "-- if test 3\n" ++
+    "if\n" ++
+    "  s = 0\n" ++
+    "  s > 0\n" ++
+    "then\n" ++
+    "  s: Int64\n" ++
+    "  s = (0 : Int64)\n" ++
     "  s + 1\n" ++
     "else\n" ++
     "  s = 0\n" ++
@@ -157,13 +177,23 @@ builtins = Map.fromList
   [("Pair", (R.Builtin "Pair", 0)),
    ("State.set", (R.Builtin "State", 0))]
 
-parses s = scope s $
-  case parseTerm @ Symbol s builtins of
-    Left e -> crash $ parseErrorPretty e
-    Right _ -> ok
+parses = parseWith TP.term
 
 parseWith :: P Symbol a -> String -> Test ()
-parseWith p s = scope s $
+parseWith p s = scope (head . lines $ s) $
   case Ps.parse @ Symbol p s builtins of
-    Left e -> crash $ parseErrorPretty e
+    Left e -> do
+      note $ printError s e
+      crash $ parseErrorPretty e
     Right _ -> ok
+
+printError s e =
+  let errorColumn = P.unPos . P.sourceColumn . Nel.head . P.errorPos $ e
+      errorLine = P.unPos . P.sourceLine . Nel.head . P.errorPos $ e
+      lineCaret (s,i) =
+        s ++ if i == errorLine
+             then "\n" ++ errorCaret
+             else ""
+      errorCaret = replicate (errorColumn - 1) '-' ++ "^"
+      source = unlines (lineCaret <$> lines s `zip` [1..])
+  in source

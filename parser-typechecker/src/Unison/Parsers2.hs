@@ -18,7 +18,7 @@ parse :: Var v => Parser.P v a -> String -> PEnv -> Either (Parser.Err v Parser.
 parse p s env = Parser.run (Parser.root $ Parser.withinBlock p) s env
 
 parseTerm :: Var v => String -> PEnv -> Either (Parser.Err v Parser.Input) (AnnotatedTerm v Ann)
-parseTerm s env = Parser.run (Parser.root $ Parser.withinBlock TermParser.term) s env
+parseTerm s env = parse TermParser.term s env
 
 parseType :: Var v => String -> PEnv -> Either (Parser.Err v Parser.Input) (AnnotatedType v Ann)
 parseType s = Parser.run (Parser.root $ Parser.withinBlock TypeParser.valueType) s
