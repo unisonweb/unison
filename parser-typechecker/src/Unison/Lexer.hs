@@ -129,10 +129,10 @@ lexer scope rem =
       : pushLayout scope [] topLeftCorner rem
   where
     -- skip whitespace and comments
-    go1 :: Layout -> Pos -> [Char] -> [Token Lexeme]
-    go1 l pos rem = span' isSpace rem $ \case
+    goWhitespace :: Layout -> Pos -> [Char] -> [Token Lexeme]
+    goWhitespace l pos rem = span' isSpace rem $ \case
       (spaces, '-':'-':rem) -> spanThru' (/= '\n') rem $ \(ignored, rem) ->
-        go1 l (incBy ('-':'-':ignored) . incBy spaces $ pos) rem
+        goWhitespace l (incBy ('-':'-':ignored) . incBy spaces $ pos) rem
       (spaces, rem) -> popLayout l (incBy spaces pos) rem
 
     popLayout :: Layout -> Pos -> [Char] -> [Token Lexeme]
@@ -143,7 +143,7 @@ lexer scope rem =
           let end = incBy kw pos
           in Token Close pos end
                : Token (Reserved kw) pos end
-               : go1 (drop 1 l) (incBy kw pos) rem
+               : goWhitespace (drop 1 l) (incBy kw pos) rem
       Just (kw, rem) ->
         let end = incBy kw pos
         in Token Close pos pos
@@ -156,8 +156,8 @@ lexer scope rem =
     popLayout0 :: Layout -> Pos -> [Char] -> [Token Lexeme]
     popLayout0 l p [] = replicate (length l) $ Token Close p p
     popLayout0 l p@(Pos _ c2) rem
-      | top l == c2 = Token Semi p p : go2 l p rem
-      | top l <  c2 = go2 l p rem
+      | top l == c2 = Token Semi p p : go l p rem
+      | top l <  c2 = go l p rem
       | top l >  c2 = Token Close p p : popLayout0 (pop l) p rem
       | otherwise   = error "impossible"
 
@@ -170,28 +170,27 @@ lexer scope rem =
       (spaces, '-':'-':rem) -> spanThru' (/= '\n') rem $ \(ignored, rem) ->
         pushLayout b l (incBy ('-':'-':ignored) . incBy spaces $ pos) rem
       (spaces, rem) ->
-        let pos' = incBy spaces pos in go2 ((b, column pos') : l) pos' rem
+        let pos' = incBy spaces pos in go ((b, column pos') : l) pos' rem
 
-    -- after we've dealt with whitespace and layout, read a token
-    go2 :: Layout -> Pos -> [Char] -> [Token Lexeme]
-    go2 l pos rem = case rem of
+    -- assuming we've dealt with whitespace and layout, read a token
+    go :: Layout -> Pos -> [Char] -> [Token Lexeme]
+    go l pos rem = case rem of
       [] -> popLayout0 l pos []
       -- delimiters - `:`, `@`, `|`, `=`, and `->`
       '{' : rem ->
         Token (Open "{") pos (inc pos) : pushLayout "{" l (inc pos) rem
       '}' : rem ->
         Token (Close) pos (inc pos) : pushLayout "{" l (inc pos) rem
--- ->{
       ch : rem | Set.member ch delimiters ->
-        Token (Reserved [ch]) pos (inc pos) : go1 l (inc pos) rem
+        Token (Reserved [ch]) pos (inc pos) : goWhitespace l (inc pos) rem
       ':' : c : rem | isSpace c || isAlphaNum c ->
-        Token (Reserved ":") pos (inc pos) : go1 l (inc pos) (c:rem)
+        Token (Reserved ":") pos (inc pos) : goWhitespace l (inc pos) (c:rem)
       '@' : rem ->
-        Token (Reserved "@") pos (inc pos) : go1 l (inc pos) rem
+        Token (Reserved "@") pos (inc pos) : goWhitespace l (inc pos) rem
       '_' : rem | hasSep rem ->
-        Token (Reserved "_") pos (inc pos) : go1 l (inc pos) rem
+        Token (Reserved "_") pos (inc pos) : goWhitespace l (inc pos) rem
       '|' : c : rem | isSpace c || isAlphaNum c ->
-        Token (Reserved "|") pos (inc pos) : go1 l (inc pos) (c:rem)
+        Token (Reserved "|") pos (inc pos) : goWhitespace l (inc pos) (c:rem)
       '=' : c : rem | isSpace c || isAlphaNum c ->
         Token (Open "=") pos (inc pos) : pushLayout "=" l (inc pos) (c:rem)
       '-' : '>' : (rem @ (c : _))
@@ -200,36 +199,36 @@ lexer scope rem =
           in case l of
               ("of", _) : _ -> -- `->` opens a block when pattern-matching only
                 Token (Open "->") pos end : pushLayout "->" l end rem
-              _ -> Token (Reserved "->") pos end : go1 l end rem
+              _ -> Token (Reserved "->") pos end : goWhitespace l end rem
 
       -- string literals and backticked identifiers
       '"' : rem -> span' (/= '"') rem $ \(lit, rem) ->
         if rem == [] then
           [Token (Err (TextLiteralMissingClosingQuote lit)) pos pos]
         else let end = inc . incBy lit . inc $ pos in
-                   Token (Textual lit) pos end : go1 l end (pop rem)
+                   Token (Textual lit) pos end : goWhitespace l end (pop rem)
       '`' : rem -> case wordyId rem of
         Left e -> Token (Err e) pos pos : recover l pos rem
         Right (id, rem) ->
           let end = inc . incBy id . inc $ pos in
-                Token (Backticks id) pos end : go1 l end (pop rem)
+                Token (Backticks id) pos end : goWhitespace l end (pop rem)
 
       -- keywords and identifiers
       (symbolyId -> Right (id, rem)) ->
-        let end = incBy id pos in Token (SymbolyId id) pos end : go1 l end rem
+        let end = incBy id pos in Token (SymbolyId id) pos end : goWhitespace l end rem
       (wordyId -> Right (id, rem)) ->
-        let end = incBy id pos in Token (WordyId id) pos end : go1 l end rem
+        let end = incBy id pos in Token (WordyId id) pos end : goWhitespace l end rem
       (matchKeyword -> Just (kw,rem)) ->
         let end = incBy kw pos in
               case kw of
                 kw | Set.member kw layoutKeywords ->
                        Token (Open kw) pos end : pushLayout kw l end rem
-                   | otherwise -> Token (Reserved kw) pos end : go1 l end rem
+                   | otherwise -> Token (Reserved kw) pos end : goWhitespace l end rem
 
       -- numeric literals
       rem -> case numericLit rem of
         Right (Just (num, rem)) ->
-          let end = incBy num pos in Token (Numeric num) pos end : go1 l end rem
+          let end = incBy num pos in Token (Numeric num) pos end : goWhitespace l end rem
         Right Nothing -> Token (Err UnknownLexeme) pos pos : recover l pos rem
         Left e -> Token (Err e) pos pos : recover l pos rem
 
@@ -296,13 +295,17 @@ qualifiedId :: Bool
             -> (String -> Either Err (String, String))
             -> (String -> Either Err (String, String))
             -> Either Err (String, String)
-qualifiedId requireLast s0 leadingSegments lastSegment = go0 0 s0 where
-   go0 acc s = case leadingSegments s of
-     Right (seg, '.' : rem) -> go0 (acc + length seg + 1) rem
-     Right (seg, rem) -> go1 Nothing (acc + length seg) rem
-     Left e -> go1 (Just e) acc s
+qualifiedId requireLast s0 leadingSegments lastSegment =
+  goLeading 0 s0 where
+   -- parsing 0 or more leading segments
+   goLeading acc s = case leadingSegments s of
+     Right (seg, '.' : rem) -> goLeading (acc + length seg + 1) rem
+     Right (seg, rem) -> goLast Nothing (acc + length seg) rem
+     Left e -> goLast (Just e) acc s
    err2 e e2 = case e of Nothing -> e2; Just e -> Both e e2
-   go1 e acc s = case lastSegment s of
+   -- leading segments produced acc before failing,
+   -- now parse lastSegment if required
+   goLast e acc s = case lastSegment s of
      Left e2 -> if requireLast || acc == 0 then Left (err2 e e2)
                 else Right (take acc s0, s)
      Right (seg, s) -> Right (take (acc + length seg) s0, s)
