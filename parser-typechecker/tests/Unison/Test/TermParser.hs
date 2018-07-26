@@ -9,6 +9,7 @@ import           Text.Megaparsec.Error (parseErrorPretty)
 import           Text.RawString.QQ
 import           Unison.Parsers2 (parseTerm)
 import qualified Unison.Parsers2 as Ps
+import qualified Unison.Lexer as L
 import qualified Text.Megaparsec as P
 import qualified Unison.Reference as R
 import           Unison.Symbol (Symbol)
@@ -196,4 +197,4 @@ printError s e =
              else ""
       errorCaret = replicate (errorColumn - 1) '-' ++ "^"
       source = unlines (lineCaret <$> lines s `zip` [1..])
-  in source
+  in source ++ "\nLexer output:\n" ++ L.debugLex' s

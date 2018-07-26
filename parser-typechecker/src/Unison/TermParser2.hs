@@ -220,9 +220,9 @@ infixApp = chainl1 term4 (f <$> fmap var infixVar)
 
 typedecl :: Var v => P v (L.Token v, AnnotatedType v Ann)
 typedecl =
-  (,) <$> P.try (prefixVar <* openBlockWith ":")
+  (,) <$> P.try (prefixVar <* reserved ":")
       <*> TypeParser.valueType
-      <*  closeBlock <* semi
+      <* semi
 
 binding :: forall v. Var v => P v ((Ann, v), AnnotatedTerm v Ann)
 binding = P.label "binding" $ do

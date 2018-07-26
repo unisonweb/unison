@@ -7,6 +7,7 @@ module Unison.Lexer where
 import           Control.Lens.TH (makePrisms)
 import           Control.Monad (join)
 import qualified Control.Monad.State as S
+import qualified Control.Monad.Writer as W
 import           Data.Char
 import           Data.Foldable (traverse_)
 import           Data.List
@@ -172,7 +173,7 @@ lexer scope rem =
       ch : rem | Set.member ch delimiters ->
         Token (Reserved [ch]) pos (inc pos) : go1 l (inc pos) rem
       ':' : c : rem | isSpace c || isAlphaNum c ->
-        Token (Open ":") pos (inc pos) : go1 (top l + 1 : l) (inc pos) (c:rem)
+        Token (Reserved ":") pos (inc pos) : go1 l (inc pos) (c:rem)
       '@' : rem ->
         Token (Reserved "@") pos (inc pos) : go1 l (inc pos) rem
       '_' : rem | hasSep rem ->
@@ -370,6 +371,18 @@ debugLex scope = flip S.evalStateT [] . traverse_ f . map payload . lexer scope
         Close -> S.modify (drop 2)
         _ -> pure ()
 
+debugLex' :: String -> String
+debugLex' = unlines . W.execWriter . flip S.evalStateT [] . traverse_ f . map payload . lexer "debugLex"
+  where
+    f :: Lexeme -> S.StateT String (W.Writer [String]) ()
+    f x = do
+      pad <- S.get
+      S.lift . W.tell $ [pad ++ show x]
+      case x of
+        Open _ -> S.modify (++ "  ")
+        Close -> S.modify (drop 2)
+        _ -> pure ()
+
 span' :: (a -> Bool) -> [a] -> (([a],[a]) -> r) -> r
 span' f a k = k (span f a)
 
@@ -377,4 +390,3 @@ spanThru' :: (a -> Bool) -> [a] -> (([a],[a]) -> r) -> r
 spanThru' f a k = case span f a of
   (l, []) -> k (l, [])
   (l, lz:r) -> k (l ++ [lz], r)
-
