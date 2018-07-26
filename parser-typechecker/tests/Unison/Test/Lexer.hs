@@ -12,8 +12,8 @@ test = scope "lexer" . tests $
   , t "+1.0" $ [Numeric "+1.0"]
   , t "-- a comment 1.0" $ []
   , t "\"woot\" -- a comment 1.0" $ [Textual "woot"]
-  , t "0:Int" $ [Numeric "0", Open ":", WordyId "Int", Close]
-  , t "0 : Int" $ [Numeric "0", Open ":", WordyId "Int", Close]
+  , t "0:Int" $ [Numeric "0", Reserved ":", WordyId "Int"]
+  , t "0 : Int" $ [Numeric "0", Reserved ":", WordyId "Int"]
 
   -- note - these are all the same, just with different spacing
   , let ex1 = "if x then y else z"
