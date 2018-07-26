@@ -30,7 +30,9 @@ import Data.Int (Int64)
 
 type Pos = Word64
 
-serializeTerm :: (MonadPut m, MonadState Pos m, Var v) => Term v -> m Pos
+serializeTerm :: (MonadPut m, MonadState Pos m, Var v)
+              => AnnotatedTerm v a
+              -> m Pos
 serializeTerm x = do
   let putTag = do putWord8 111; putWord8 0
   let incPosition = do pos <- get; modify' (+1); pure pos
@@ -255,7 +257,7 @@ serializeCase2 (MatchCase p guard body) = do
   putBackref body
 
 serializeCase1 :: (Var v, MonadPut m, MonadState Pos m)
-               => MatchCase p (Term v) -> m (MatchCase p Pos)
+               => MatchCase p (AnnotatedTerm v a) -> m (MatchCase p Pos)
 serializeCase1 (MatchCase p guard body) = do
   posg <- traverse serializeTerm guard
   posb <- serializeTerm body
@@ -301,7 +303,7 @@ serializeConstructorArities r constructorArities = do
   serializeReference r
   serializeFoldable (putWord32be . fromIntegral) constructorArities
 
-serializeFile :: (MonadPut m, MonadState Pos m, Var v) => UnisonFile v () -> m ()
+serializeFile :: (MonadPut m, MonadState Pos m, Var v) => UnisonFile v a -> m ()
 serializeFile (UnisonFile dataDecls effectDecls body) = do
   let dataDecls' = second DD.constructorArities <$> toList dataDecls
   let effectDecls' = second (DD.constructorArities . DD.toDataDecl) <$> toList effectDecls

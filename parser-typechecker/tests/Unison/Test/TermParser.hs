@@ -8,12 +8,12 @@ import qualified Data.Map as Map
 import           EasyTest
 import           Text.Megaparsec.Error (parseErrorPretty)
 import           Text.RawString.QQ
-import qualified Unison.Parsers2 as Ps
+import qualified Unison.Parsers as Ps
 import qualified Text.Megaparsec as P
 import qualified Unison.Reference as R
 import           Unison.Symbol (Symbol)
-import Unison.Parser2
-import qualified Unison.TermParser2 as TP
+import Unison.Parser
+import qualified Unison.TermParser as TP
 import qualified Unison.Lexer as L
 import qualified Data.List.NonEmpty as Nel
 

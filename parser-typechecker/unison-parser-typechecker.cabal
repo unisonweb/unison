@@ -39,7 +39,6 @@ library
     Unison.Codecs
     Unison.DataDeclaration
     Unison.FileParser
-    Unison.FileParser2
     Unison.FileParsers
     Unison.Hash
     Unison.Hashable
@@ -47,8 +46,6 @@ library
     Unison.Lexer
     Unison.Parser
     Unison.Parsers
-    Unison.Parsers2
-    Unison.Parser2
     Unison.Path
     Unison.Paths
     Unison.Pattern
@@ -58,10 +55,8 @@ library
     Unison.Symbol
     Unison.Term
     Unison.TermParser
-    Unison.TermParser2
     Unison.Type
     Unison.TypeParser
-    Unison.TypeParser2
     Unison.TypeVar
     Unison.Typechecker
     Unison.Typechecker.Context
