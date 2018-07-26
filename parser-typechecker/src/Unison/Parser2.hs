@@ -249,7 +249,7 @@ tupleOrParenthesized :: Var v => P v a -> (Ann -> a) -> (a -> a -> a) -> P v a
 tupleOrParenthesized p unit pair = do
     open <- reserved "("
     es <- sepBy (reserved ",") p
-    close <- reserved ")"
+    close <- optional semi *> reserved ")"
     pure $ go es open close
   where
     go [t] _ _ = t
