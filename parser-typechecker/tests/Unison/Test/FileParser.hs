@@ -15,8 +15,9 @@ module Unison.Test.FileParser where
   import Unison.UnisonFile (UnisonFile)
 
   test1 = scope "fileparser.test1" . tests . map parses $
-    [
-      "type Pair a b = Pair a b\n()"
+    [ "()"
+    -- , "type () = ()\n()"
+    , "type Pair a b = Pair a b\n()"
     , "type Optional a = Just a | Nothing\n()"
     , unlines
       ["type Optional2 a"

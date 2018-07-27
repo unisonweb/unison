@@ -264,10 +264,11 @@ customFailure = P.customFailure
 block :: forall v. Var v => String -> TermP v
 block s = block' s (openBlockWith s) closeBlock
 
+-- | if there's no open for us, there won't be a close either
 topBlock :: forall v. Var v => TermP v
-topBlock = block' "top-level block" (void <$> peekAny) closeBlock
+topBlock = block' "top-level block" (void <$> peekAny) (pure ())
 
-block' :: forall v. Var v => String -> P v (L.Token ()) -> P v (L.Token ()) -> TermP v
+block' :: forall v b. Var v => String -> P v (L.Token ()) -> P v b -> TermP v
 block' s openBlock closeBlock = do
     open <- openBlock
     statements <- sepBy semi statement

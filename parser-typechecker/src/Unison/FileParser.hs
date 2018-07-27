@@ -34,7 +34,8 @@ declarations :: Var v => P v
                          (Map v (DataDeclaration' v Ann),
                           Map v (EffectDeclaration' v Ann))
 declarations = do
-  declarations <- many ((Left <$> dataDeclaration) <|> Right <$> effectDeclaration)
+  declarations <- many $
+    ((Left <$> dataDeclaration) <|> Right <$> effectDeclaration) <* semi
   let (dataDecls, effectDecls) = partitionEithers declarations
   pure (Map.fromList dataDecls, Map.fromList effectDecls)
 
