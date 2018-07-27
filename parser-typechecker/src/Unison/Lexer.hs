@@ -25,6 +25,7 @@ data Err
   | MissingFractional String -- ex `1.` rather than `1.04`
   | UnknownLexeme
   | TextLiteralMissingClosingQuote String
+  | LayoutError
   deriving (Eq,Ord,Show) -- richer algebra
 
 -- Design principle:
@@ -209,7 +210,7 @@ lexer scope rem =
           -- '=' does not open a layout block if within a type declaration
           Just "type" -> Token (Reserved "=") pos end : goWhitespace l end rem
           Just _      -> Token (Open "=") pos end : pushLayout "=" l end rem
-          _ -> error "looks like we called topBlockName on an empty layout stack"
+          Nothing     -> Token (Err LayoutError) pos pos : recover l pos rem
       '-' : '>' : (rem @ (c : _))
         | isSpace c || isAlphaNum c || Set.member c delimiters ->
           let end = incBy "->" pos
@@ -217,7 +218,7 @@ lexer scope rem =
               Just "of" -> -- `->` opens a block when pattern-matching only
                 Token (Open "->") pos end : pushLayout "->" l end rem
               Just _ -> Token (Reserved "->") pos end : goWhitespace l end rem
-              _ -> error "looks like we called topBlockName on an empty layout stack"
+              Nothing -> Token (Err LayoutError) pos pos : recover l pos rem
       -- string literals and backticked identifiers
       '"' : rem -> span' (/= '"') rem $ \(lit, rem) ->
         if rem == [] then

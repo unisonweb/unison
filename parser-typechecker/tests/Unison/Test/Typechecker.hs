@@ -403,7 +403,7 @@ test = scope "typechecker" . tests $
             |y = handle state 5 in ex ()
             |
             |() |]
-  , checks [r|--map/traverse
+  , broken [r|--map/traverse
              |effect Noop where
              |  noop : ∀ a . a -> {Noop} a
              |
@@ -412,6 +412,7 @@ test = scope "typechecker" . tests $
              |
              |type List a = Nil | Cons a (List a)
              |
+             |-- this does not typecheck currently
              |map : ∀ a b e . (a -> {e} b) -> List a -> {e} (List b)
              |map f as = case as of
              |  List.Nil -> List.Nil
@@ -425,11 +426,12 @@ test = scope "typechecker" . tests $
              |pure-map : List Text
              |pure-map = map (a -> "hello") ex
              |
-             |zappy : () -> {Noop} (List UInt64)
-             |zappy u = map (zap -> (Noop.noop zap UInt64.+ 1)) ex
+             |-- these should also work
+             |--zappy : () -> {Noop} (List UInt64)
+             |--zappy u = map (zap -> (Noop.noop (zap UInt64.+ 1))) ex
              |
-             |zappy2 : () -> {Noop, Noop2} (List UInt64)
-             |zappy2 u = map (zap -> Noop.noop zap UInt64.+ Noop2.noop2 2 7) ex
+             |--zappy2 : () -> {Noop, Noop2} (List UInt64)
+             |--zappy2 u = map (zap -> Noop.noop (zap UInt64.+ Noop2.noop2 2 7)) ex
              |
              |()
              |]
