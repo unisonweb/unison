@@ -157,7 +157,7 @@ proxy :: Proxy Input
 proxy = Proxy
 
 root :: Var v => P v a -> P v a
-root p = p <* P.eof
+root p = openBlock *> p <* closeBlock <* P.eof
 
 run' :: P v a -> String -> String -> PEnv -> Either (Err v) a
 run' p s name = runParserT p name (Input $ L.lexer name s) -- todo: L.reorder
@@ -183,9 +183,6 @@ openBlock = queryToken getOpen
 
 openBlockWith :: Var v => String -> P v (L.Token ())
 openBlockWith s = fmap (const ()) <$> P.satisfy ((L.Open s ==) . L.payload)
-
-withinBlock :: Var v => P v a -> P v a
-withinBlock p = openBlock *> p <* closeBlock
 
 -- Match a particular lexeme exactly, and consume it.
 matchToken :: Var v => L.Lexeme -> P v (L.Token L.Lexeme)

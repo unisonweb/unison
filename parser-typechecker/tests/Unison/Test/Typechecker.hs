@@ -422,7 +422,7 @@ test = scope "typechecker" . tests $
         broken :: String -> Test ()
         broken s = scope1 s $ pending (checks s)
         checks :: String -> Test ()
-        checks s = scope1 s (typer s)
+        checks s = scope1 s (typer . stripMargin $ s)
         typeFile = (parseAndSynthesizeAsFile @ Symbol) "<test>" .  stripMargin
         crash' s e = crash $ printError s e
         typer s = either (crash' s) (const ok) . Result.toEither $ typeFile s
