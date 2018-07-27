@@ -419,6 +419,8 @@ test = scope "typechecker" . tests $
              |  List.Cons h t -> List.Cons (f h) (map f t)
              |
              |c = List.Cons
+             |
+             |z : ∀ a . List a
              |z = List.Nil
              |
              |ex = (c 1 (c 2 (c 3 z)))

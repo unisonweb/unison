@@ -70,8 +70,8 @@ dataDeclaration = do
         ctorReturnType = foldl' appAcc (tok Type.var name) (tok Type.var <$> typeArgs)
         -- ctorType e.g. `a -> Optional a`
         --    or just `Optional a` in the case of `None`
-        ctorType = (foldr arrowAcc ctorReturnType ctorArgs)
-        ctorAnn = (ann ctorName <> ann (last ctorArgs))
+        ctorType = foldr arrowAcc ctorReturnType ctorArgs
+        ctorAnn = ann ctorName <> ann (last ctorArgs)
         in (ann ctorName, L.payload ctorName, Type.foralls ctorAnn typeArgVs ctorType)
       dataConstructor = go <$> prefixVar <*> many TypeParser.valueTypeLeaf
   constructors <- sepBy (reserved "|") dataConstructor
