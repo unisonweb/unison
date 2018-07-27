@@ -135,7 +135,7 @@ test1 = scope "termparser" . tests . map parses $
          x -> 1
        42 |]
    , [r|let
-        increment = (+_UInt64) 1
+        increment = (UInt64.+) 1
 
         (|>) : forall a . a -> (a -> b) -> b
         a |> f = f a

@@ -287,20 +287,24 @@ hasSep :: String -> Bool
 hasSep [] = True
 hasSep (ch:_) = isSep ch
 
--- Not a keyword, has at least one letter, and with all characters matching `wordyIdChar`
--- TODO: Is a '.' delimited list of wordyId0 (should not include a trailing '.')
+-- Not a keyword, '.' delimited list of wordyId0 (should not include a trailing '.')
 wordyId0 :: String -> Either Err (String, String)
 wordyId0 s = span' wordyIdChar s $ \case
-  (id @ (_:_), rem) | not (Set.member id keywords)
-                   && any isAlpha id || any isEmoji id -> Right (id, rem)
+  (id @ (ch:_), rem) | not (Set.member id keywords)
+                    && any (\ch -> isAlpha ch || isEmoji ch) id
+                    && wordyIdStartChar ch
+                    -> Right (id, rem)
   (id, _rem) -> Left (InvalidWordyId id)
 
 wordyId :: String -> Either Err (String, String)
 wordyId s = qualifiedId False s wordyId0 wordyId0
 
+wordyIdStartChar :: Char -> Bool
+wordyIdStartChar ch = isAlphaNum ch || isEmoji ch
+
 wordyIdChar :: Char -> Bool
 wordyIdChar ch =
-  not (isSpace ch) && (ch /= '.') && not (Set.member ch delimiters) && not (Set.member ch reserved)
+  isAlphaNum ch || isEmoji ch || ch `elem` "_-?'"
 
 isEmoji :: Char -> Bool
 isEmoji c = c >= '\x1F600' && c <= '\x1F64F'

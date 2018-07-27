@@ -22,7 +22,7 @@ test = scope "typechecker" . tests $
   , c "x y -> x"
       "forall a b . a -> b -> a"
 
-  , c "(+_Int64)"
+  , c "(Int64.+)"
       "Int64 -> Int64 -> Int64"
 
   , c "3"
@@ -49,7 +49,7 @@ test = scope "typechecker" . tests $
   , c "and true false" "Boolean"
   , c "[1,2,3]" "Sequence UInt64"
   , c "Stream.from-int64 +0" "Stream Int64"
-  , c "(+_UInt64) 1" "UInt64 -> UInt64"
+  , c "(UInt64.+) 1" "UInt64 -> UInt64"
   , bombs [r|--unresolved symbol
             |let
             |  (|>) : forall a b . a -> (a -> WHat) -> b -- unresolved symbol
@@ -57,14 +57,14 @@ test = scope "typechecker" . tests $
             |
             |  Stream.from-int64 -3
             |    |> Stream.take 10
-            |    |> Stream.fold-left +0 (+_Int64) |]
+            |    |> Stream.fold-left +0 (Int64.+) |]
   , c [r|let
         |  (|>) : forall a b . a -> (a -> b) -> b
         |  a |> f = f a
         |
         |  Stream.from-int64 -3
         |    |> Stream.take 10
-        |    |> Stream.fold-left +0 (+_Int64) |] "Int64"
+        |    |> Stream.fold-left +0 (Int64.+) |] "Int64"
   -- some pattern-matching tests we want to perform:
 --  Unbound
   -- , c [r|type Optional a = None | Some a
@@ -122,7 +122,18 @@ test = scope "typechecker" . tests $
              |r6 = case () of
              |  () -> ()
              |() |]
-  , checks [r|r7 : ()
+  , checks [r|--r7.0
+             |r7 : UInt64
+             |r7 = case () of
+             |  () -> 1
+             |() |]
+  , checks [r|--r7.1
+             |r7 : UInt64
+             |r7 = case () of
+             |  x@() -> 1
+             |() |]
+  , checks [r|--r7.2
+             |r7 : ()
              |r7 = case () of
              |  x@() -> x
              |() |]
@@ -146,7 +157,7 @@ test = scope "typechecker" . tests $
              |() |]
   , checks [r|r11 : UInt64
              |r11 = case 1 of
-             |  1 | 2 ==_UInt64 3 -> 4
+             |  1 | 2 UInt64.== 3 -> 4
              |  _ -> 5
              |() |]
   , checks [r|r12 : UInt64
@@ -185,13 +196,13 @@ test = scope "typechecker" . tests $
              |  { a } -> f a
              |
              |-- heff : UInt64
-             |heff = handle eff (x -> x +_UInt64 2) 1 in Abort.Abort ()
+             |heff = handle eff (x -> x UInt64.+ 2) 1 in Abort.Abort ()
              |
              |hudy : UInt64
-             |hudy = handle eff (x -> x +_UInt64 2) 1 in 42
+             |hudy = handle eff (x -> x UInt64.+ 2) 1 in 42
              |
              |bork : () -> {Abort} UInt64
-             |bork = u -> 1 +_UInt64 (Abort.Abort ())
+             |bork = u -> 1 UInt64.+ (Abort.Abort ())
              |
              |() |]
   , checks [r|--State1 effect
@@ -218,7 +229,7 @@ test = scope "typechecker" . tests $
              |id i = i
              |
              |foo : () -> {State Int64} Int64
-             |foo unit = id (State.get +_Int64 State.get)
+             |foo unit = id (State.get Int64.+ State.get)
              |
              |()
              |]
@@ -275,7 +286,7 @@ test = scope "typechecker" . tests $
              |ex1 : {State Int64} ()
              |ex1 =
              |  y = State.get
-             |  State.put (y +_Int64 +1)
+             |  State.put (y Int64.+ +1)
              |  ()
              |
              |()
@@ -307,7 +318,7 @@ test = scope "typechecker" . tests $
              |  inc-by i =
              |    launch-missiles -- not allowed
              |    y = State.get()
-             |    State.put (y +_Int64 i)
+             |    State.put (y Int64.+ i)
              |  ()
              |
              |()
@@ -326,7 +337,7 @@ test = scope "typechecker" . tests $
              |  inc-by i =
              |    IO.launch-missiles -- OK, since declared by `inc-by` signature
              |    y = State.get
-             |    State.put (y +_Int64 i)
+             |    State.put (y Int64.+ i)
              |  ()
              |
              |()
@@ -381,7 +392,7 @@ test = scope "typechecker" . tests $
             |
             |ex : () -> {State UInt64} UInt64
             |ex blah =
-            |  State.get() +_UInt64 42
+            |  State.get() UInt64.+ 42
             |
             |-- note this currently succeeds, the handle block
             |-- gets an inferred type of ∀ a . a, it appears that
@@ -415,10 +426,10 @@ test = scope "typechecker" . tests $
              |pure-map = map (a -> "hello") ex
              |
              |zappy : () -> {Noop} (List UInt64)
-             |zappy u = map (zap -> (Noop.noop zap +_UInt64 1)) ex
+             |zappy u = map (zap -> (Noop.noop zap UInt64.+ 1)) ex
              |
              |zappy2 : () -> {Noop, Noop2} (List UInt64)
-             |zappy2 u = map (zap -> Noop.noop zap +_UInt64 Noop2.noop2 2 7) ex
+             |zappy2 u = map (zap -> Noop.noop zap UInt64.+ Noop2.noop2 2 7) ex
              |
              |()
              |]
