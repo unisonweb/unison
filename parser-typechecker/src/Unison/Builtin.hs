@@ -11,6 +11,7 @@ import qualified Unison.DataDeclaration as DD
 import qualified Unison.FileParser as FileParser
 import           Unison.Parser (Ann(..))
 import qualified Unison.Parser as Parser
+import           Unison.PrintError (prettyParseError)
 import qualified Unison.Reference as R
 import           Unison.Term (AnnotatedTerm)
 import qualified Unison.Term as Term
@@ -30,17 +31,17 @@ type EffectDeclaration v = EffectDeclaration' v Ann
 -- then merge Parsers back into Parsers (and GC and unused functions)
 -- parse a type, hard-coding the builtins defined in this file
 t :: Var v => String -> Type v
-t s = bindTypeBuiltins . either (error . show) id $
+t s = bindTypeBuiltins . either (error . prettyParseError s) id $
         Parser.run (Parser.root TypeParser.valueType) s Parser.penv0
 
 -- parse a term, hard-coding the builtins defined in this file
 tm :: Var v => String -> Term v
-tm s = bindBuiltins . either (error . show) id $
+tm s = bindBuiltins . either (error . prettyParseError s) id $
   Parser.run (Parser.root TermParser.term) s Parser.penv0
 
 parseDataDeclAsBuiltin :: Var v => String -> (v, (R.Reference, DataDeclaration v))
 parseDataDeclAsBuiltin s =
-  let (v, dd) = either (error . show) id $
+  let (v, dd) = either (error . prettyParseError s) id $
         Parser.run (Parser.root FileParser.dataDeclaration) s Parser.penv0
   in (v, (R.Builtin . Var.qualifiedName $ v, DD.bindBuiltins builtinTypes dd))
 

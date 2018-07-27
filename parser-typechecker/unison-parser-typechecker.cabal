@@ -50,6 +50,7 @@ library
     Unison.Paths
     Unison.Pattern
     Unison.PatternP
+    Unison.PrintError
     Unison.Reference
     Unison.Result
     Unison.Symbol

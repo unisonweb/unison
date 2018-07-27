@@ -8,14 +8,13 @@ import qualified Data.Map as Map
 import           EasyTest
 import           Text.Megaparsec.Error (parseErrorPretty)
 import           Text.RawString.QQ
+import           Unison.PrintError (prettyParseError)
 import qualified Unison.Parsers as Ps
 import qualified Text.Megaparsec as P
 import qualified Unison.Reference as R
 import           Unison.Symbol (Symbol)
 import Unison.Parser
 import qualified Unison.TermParser as TP
-import qualified Unison.Lexer as L
-import qualified Data.List.NonEmpty as Nel
 
 test1 = scope "termparser" . tests . map parses $
   [ "1"
@@ -176,17 +175,6 @@ parseWith :: P Symbol a -> String -> Test ()
 parseWith p s = scope (join . take 1 $ lines s) $
   case Ps.parse @ Symbol p s builtins of
     Left e -> do
-      note $ printError s e
+      note $ prettyParseError s e
       crash $ parseErrorPretty e
     Right _ -> ok
-
-printError s e =
-  let errorColumn = P.unPos . P.sourceColumn . Nel.head . P.errorPos $ e
-      errorLine = P.unPos . P.sourceLine . Nel.head . P.errorPos $ e
-      lineCaret (s,i) =
-        s ++ if i == errorLine
-             then "\n" ++ errorCaret
-             else ""
-      errorCaret = replicate (errorColumn - 1) '-' ++ "^"
-      source = unlines (lineCaret <$> lines s `zip` [1..])
-  in source ++ "\nLexer output:\n" ++ L.debugLex' s

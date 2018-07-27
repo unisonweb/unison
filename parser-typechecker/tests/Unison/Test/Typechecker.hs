@@ -6,12 +6,10 @@ module Unison.Test.Typechecker where
 import           Control.Monad (join)
 import           Data.Char (isSpace)
 import           Data.List (intercalate)
-import qualified Data.List.NonEmpty as Nel
 import           EasyTest
-import qualified Text.Megaparsec as P
 import           Text.RawString.QQ
 import           Unison.FileParsers (parseAndSynthesizeAsFile)
-import qualified Unison.Lexer as L
+import           Unison.PrintError (printNoteWithSource)
 import qualified Unison.Result as Result
 import           Unison.Symbol
 import           Unison.Test.Common
@@ -434,16 +432,4 @@ test = scope "typechecker" . tests $
         stripMargin =
           unlines . map (dropWhile (== '|'). dropWhile isSpace) . lines
 
-printError s = intercalate "\n------\n" . map (printError0 s)
-
-printError0 s (Result.Parsing e) =
-  let errorColumn = P.unPos . P.sourceColumn . Nel.head . P.errorPos $ e
-      errorLine = P.unPos . P.sourceLine . Nel.head . P.errorPos $ e
-      lineCaret (s,i) =
-        s ++ if i == errorLine
-             then "\n" ++ errorCaret
-             else ""
-      errorCaret = replicate (errorColumn - 1) '-' ++ "^"
-      source = unlines (lineCaret <$> lines s `zip` [1..])
-  in source ++ "\nLexer output:\n" ++ L.debugLex' s
-printError0 _ e = show e
+printError s = intercalate "\n------\n" . map (printNoteWithSource s)
