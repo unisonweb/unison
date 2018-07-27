@@ -305,7 +305,8 @@ number' i u f = fmap go numeric
   where
     go num@(L.payload -> p)
       | elem '.' p = f (read <$> num)
-      | take 1 p == "+" || take 1 p == "-" = i (read <$> num)
+      | take 1 p == "+" = i (read . drop 1 <$> num)
+      | take 1 p == "-" = i (read <$> num)
       | otherwise = u (read <$> num)
 
 tupleOrParenthesizedTerm :: Var v => TermP v

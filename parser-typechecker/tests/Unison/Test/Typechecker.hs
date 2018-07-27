@@ -102,7 +102,13 @@ test = scope "typechecker" . tests $
              |  Optional.Some true -> 1
              |  Optional.Some false -> 0
              |() |]
-  , checks [r|r4 : Int64 -> Int64
+  , checks [r|--r4x
+             |r4 : Int64 -> Int64
+             |r4 x = case x of
+             |  +1 -> +1
+             |() |]
+  , checks [r|--r4negate
+             |r4 : Int64 -> Int64
              |r4 x = case x of
              |  +1 -> -1
              |  _  -> Int64.negate x

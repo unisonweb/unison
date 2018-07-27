@@ -75,6 +75,8 @@ test1 = scope "termparser" . tests . map parses $
   , "case x of 0 -> 1"
   , "case x of\n" ++
     "  0 -> 1"
+  , "case +0 of\n" ++
+    "  +0 -> -1"
   , "case x of\n" ++
     "  x -> 1\n" ++
     "  2 -> 7\n" ++

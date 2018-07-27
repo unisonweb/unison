@@ -30,6 +30,9 @@ import qualified Unison.UnisonFile as UnisonFile
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 
+debug :: Bool
+debug = False
+
 type PEnv = UnisonFile.CtorLookup
 type P v = P.ParsecT (Error v) Input ((->) PEnv)
 type Token s = P.Token s
@@ -147,7 +150,7 @@ label = P.label
 traceRemainingTokens :: Var v => String -> P v ()
 traceRemainingTokens label = do
   remainingTokens <- lookAhead $ many anyToken
-  let !_ = trace ("REMAINDER " ++ label ++ ":\n" ++ L.debugLex'' remainingTokens) ()
+  let _ = trace ("REMAINDER " ++ label ++ ":\n" ++ L.debugLex'' remainingTokens) ()
   pure ()
 
 mkAnn :: (Annotated a, Annotated b) => a -> b -> Ann
@@ -182,7 +185,9 @@ rootFile p = p <* P.eof
 
 run' :: Var v => P v a -> String -> String -> PEnv -> Either (Err v) a
 run' p s name =
-  let lex = L.lexer name (trace (L.debugLex''' "lexer receives" s) s)
+  let lex = if debug
+            then L.lexer name (trace (L.debugLex''' "lexer receives" s) s)
+            else L.lexer name s
       pTraced = traceRemainingTokens "parser receives" *> p
   in runParserT pTraced name (Input lex) -- todo: L.reorder
 
