@@ -415,19 +415,13 @@ debugLex'' lexemes =
         _ -> pure ()
 
 debugLex :: String -> String -> IO ()
-debugLex scope = flip S.evalStateT [] . traverse_ f . map payload . lexer scope
-  where
-    f :: Lexeme -> S.StateT String IO ()
-    f x = do
-      pad <- S.get
-      S.lift . putStrLn $ pad ++ show x
-      case x of
-        Open _ -> S.modify (++ "  ")
-        Close -> S.modify (drop 2)
-        _ -> pure ()
+debugLex scope = putStrLn . debugLex'' . lexer scope
 
 debugLex' :: String -> String
 debugLex' =  debugLex'' . lexer "debugLex"
+
+debugLex''' :: String -> String -> String
+debugLex''' s =  debugLex'' . lexer s
 
 span' :: (a -> Bool) -> [a] -> (([a],[a]) -> r) -> r
 span' f a k = k (span f a)

@@ -421,20 +421,24 @@ test = scope "typechecker" . tests $
              |[StringOrInt.S "YO", StringOrInt.I 1]
              |]
   ]
-  where c tm typ = scope1 tm . expect $ check (stripMargin tm) typ
+  where -- test entry points `c`, `checks`, `bombs`, `broken` call stripMargin
+        -- before doing anything else; no other functions should have to.
+        c tm typ = scope1 tm . expect $ check (stripMargin tm) typ
         scope1 s = scope (join . take 1 $ lines s)
-        bombs s = scope1 s (crasher s)
+        bombs s = scope1 s (crasher $ stripMargin s)
         broken :: String -> Test ()
         broken s = scope1 s $ pending (checks s)
         checks :: String -> Test ()
         checks s = scope1 s (typer . stripMargin $ s)
-        typeFile = (parseAndSynthesizeAsFile @ Symbol) "<test>" .  stripMargin
+        typeFile = (parseAndSynthesizeAsFile @ Symbol) "<test>"
         crash' s e = crash $ printError s e
         typer s = either (crash' s) (const ok) . Result.toEither $ typeFile s
         crasher s =
           either (const ok) (const (crash "succeeded unexpectedly"))
             . Result.toEither $ typeFile s
+        drop1If _p [] = []
+        drop1If p (h:t) = if p h then t else h:t
         stripMargin =
-          unlines . map (dropWhile (== '|'). dropWhile isSpace) . lines
+          unlines . map (drop1If (== '|'). dropWhile isSpace) . lines
 
 printError s = intercalate "\n------\n" . map (printNoteWithSource s)

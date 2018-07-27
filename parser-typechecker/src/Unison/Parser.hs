@@ -147,7 +147,7 @@ label = P.label
 traceRemainingTokens :: Var v => String -> P v ()
 traceRemainingTokens label = do
   remainingTokens <- lookAhead $ many anyToken
-  let _ = trace ("REMAINDER " ++ label ++ ":\n" ++ L.debugLex'' remainingTokens) ()
+  let !_ = trace ("REMAINDER " ++ label ++ ":\n" ++ L.debugLex'' remainingTokens) ()
   pure ()
 
 mkAnn :: (Annotated a, Annotated b) => a -> b -> Ann
@@ -180,10 +180,13 @@ root p = (openBlock *> p) <* closeBlock <* P.eof
 rootFile :: Var v => P v a -> P v a
 rootFile p = p <* P.eof
 
-run' :: P v a -> String -> String -> PEnv -> Either (Err v) a
-run' p s name = runParserT p name (Input $ L.lexer name s) -- todo: L.reorder
+run' :: Var v => P v a -> String -> String -> PEnv -> Either (Err v) a
+run' p s name =
+  let lex = L.lexer name (trace (L.debugLex''' "lexer receives" s) s)
+      pTraced = traceRemainingTokens "parser receives" *> p
+  in runParserT pTraced name (Input lex) -- todo: L.reorder
 
-run :: P v a -> String -> PEnv -> Either (Err v) a
+run :: Var v => P v a -> String -> PEnv -> Either (Err v) a
 run p s = run' p s ""
 
 penv0 :: PEnv
