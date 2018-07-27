@@ -9,7 +9,7 @@ import           Data.List (intercalate)
 import           EasyTest
 import           Text.RawString.QQ
 import           Unison.FileParsers (parseAndSynthesizeAsFile)
-import           Unison.PrintError (printNoteWithSource)
+import qualified Unison.PrintError as PE
 import qualified Unison.Result as Result
 import           Unison.Symbol
 import           Unison.Test.Common
@@ -403,12 +403,12 @@ test = scope "typechecker" . tests $
             |y = handle state 5 in ex ()
             |
             |() |]
-  , broken [r|--map/traverse
-             |effect Noop where
-             |  noop : ∀ a . a -> {Noop} a
-             |
-             |effect Noop2 where
-             |  noop2 : ∀ a . a -> a -> {Noop2} a
+  , checks [r|--map/traverse
+             |--effect Noop where
+             |--  noop : ∀ a . a -> {Noop} a
+             |--
+             |--effect Noop2 where
+             |--  noop2 : ∀ a . a -> a -> {Noop2} a
              |
              |type List a = Nil | Cons a (List a)
              |
@@ -460,4 +460,4 @@ test = scope "typechecker" . tests $
         stripMargin =
           unlines . map (drop1If (== '|'). dropWhile isSpace) . lines
 
-printError s = intercalate "\n------\n" . map (printNoteWithSource s)
+printError s = intercalate "\n------\n" . map (PE.printNoteWithSource PE.env0 s)
