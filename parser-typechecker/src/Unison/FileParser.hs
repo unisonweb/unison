@@ -1,8 +1,9 @@
-{-# Language OverloadedStrings, TupleSections, ScopedTypeVariables #-}
+{-# Language BangPatterns, OverloadedStrings, TupleSections, ScopedTypeVariables #-}
 
 module Unison.FileParser where
 
 import           Control.Applicative
+import           Control.Monad (void)
 import           Control.Monad.Reader (local)
 import           Data.Either (partitionEithers)
 import           Data.List (foldl')
@@ -24,10 +25,15 @@ import Unison.Reference (Reference)
 
 file :: Var v => [(v, Reference)] -> [(v, Reference)] -> P v (UnisonFile v Ann)
 file builtinTerms builtinTypes = do
+  traceRemainingTokens "file before parsing declarations"
+  _ <- openBlock
   (dataDecls, effectDecls) <- declarations
   let env = environmentFor builtinTerms builtinTypes dataDecls effectDecls
   local (`Map.union` UF.constructorLookup env) $ do
-    term <- TermParser.topBlock
+    traceRemainingTokens "file"
+    term <- TermParser.block' "top-level block"
+              (void <$> peekAny) -- we actually opened before the declarations
+              closeBlock
     pure $ UnisonFile (UF.datas env) (UF.effects env) (UF.resolveTerm env term)
 
 declarations :: Var v => P v
@@ -45,10 +51,10 @@ declarations = do
 
 dataDeclaration :: forall v . Var v => P v (v, DataDeclaration' v Ann)
 dataDeclaration = do
-  start <- reserved "type"
+  start <- openBlockWith "type"
   (name, typeArgs) <- (,) <$> prefixVar <*> many prefixVar
   let typeArgVs = L.payload <$> typeArgs
-  eq <- openBlockWith "="
+  eq <- reserved "="
   let
       -- go gives the type of the constructor, given the types of
       -- the constructor arguments, e.g. Cons becomes forall a . a -> List a -> List a
@@ -90,5 +96,5 @@ effectDeclaration = do
   where
     constructor :: Var v => P v (Ann, v, AnnotatedType v Ann)
     constructor = explodeToken <$>
-      prefixVar <* openBlockWith ":" <*> TypeParser.computationType <* closeBlock
+      prefixVar <* reserved ":" <*> TypeParser.computationType
       where explodeToken v t = (ann v, L.payload v, t)

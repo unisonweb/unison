@@ -127,6 +127,11 @@ test1 = scope "termparser" . tests . map parses $
     "  s + 2\n"
    , "and x y"
    , "or x y"
+   , [r|--let r1
+   let r1 : UInt64
+       r1 = case Optional.Some 3 of
+         x -> 1
+       42 |]
    , [r|let
         increment = (+_UInt64) 1
 

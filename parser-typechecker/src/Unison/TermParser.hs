@@ -9,8 +9,9 @@
 module Unison.TermParser where
 
 import           Control.Applicative
-import           Control.Monad (guard, join, when, void)
+import           Control.Monad (guard, join, when)
 import           Control.Monad.Reader (ask)
+-- import           Debug.Trace
 import           Data.Char (isUpper)
 import           Data.Foldable (asum)
 import           Data.Int (Int64)
@@ -153,20 +154,20 @@ parsePattern = constructor <|> leaf
       Nothing -> customFailure $ UnknownDataConstructor t
 
 lam :: Var v => TermP v -> TermP v
-lam p = P.label "lambda" $ mkLam <$> P.try (some prefixVar <* reserved "->") <*> p
+lam p = label "lambda" $ mkLam <$> P.try (some prefixVar <* reserved "->") <*> p
   where
     mkLam vs b = Term.lam' (ann (head vs) <> ann b) (map L.payload vs) b
 
 letBlock, handle, ifthen, and, or, infixApp :: Var v => TermP v
-letBlock = P.label "let" $ block "let"
+letBlock = label "let" $ block "let"
 
-handle = P.label "handle" $ do
+handle = label "handle" $ do
   t <- reserved "handle"
   handler <- term
   b <- block "in"
   pure $ Term.handle (ann t <> ann b) handler b
 
-ifthen = P.label "if" $ do
+ifthen = label "if" $ do
   c <- block "if"
   t <- block "then"
   f <- block "else"
@@ -199,10 +200,10 @@ termLeaf =
   asum [hashLit, prefixTerm, text, number, boolean,
         tupleOrParenthesizedTerm, blank, vector term]
 
-and = P.label "and" $ f <$> reserved "and" <*> termLeaf <*> termLeaf
+and = label "and" $ f <$> reserved "and" <*> termLeaf <*> termLeaf
   where f kw x y = Term.and (ann kw <> ann y) x y
 
-or = P.label "or" $ f <$> reserved "or" <*> termLeaf <*> termLeaf
+or = label "or" $ f <$> reserved "or" <*> termLeaf <*> termLeaf
   where f kw x y = Term.or (ann kw <> ann y) x y
 
 var :: Var v => L.Token v -> AnnotatedTerm v Ann
@@ -214,10 +215,11 @@ term4 = f <$> some termLeaf
     f (func:args) = Term.apps func ((\a -> (ann func <> ann a, a)) <$> args)
     f [] = error "'some' shouldn't produce an empty list"
 
-infixApp = chainl1 term4 (f <$> fmap var infixVar)
-  where
-    f op lhs rhs =
-      Term.apps op [(ann lhs, lhs), (ann rhs, rhs)]
+infixApp = label "infixApp" $
+  chainl1 term4 (f <$> fmap var infixVar)
+    where
+      f op lhs rhs =
+        Term.apps op [(ann lhs, lhs), (ann rhs, rhs)]
 
 typedecl :: Var v => P v (L.Token v, AnnotatedType v Ann)
 typedecl =
@@ -226,7 +228,7 @@ typedecl =
       <* semi
 
 binding :: forall v. Var v => P v ((Ann, v), AnnotatedTerm v Ann)
-binding = P.label "binding" $ do
+binding = label "binding" $ do
   typ <- optional typedecl
   let infixLhs = do
         (arg1, op) <- P.try ((,) <$> prefixVar <*> infixVar)
@@ -264,10 +266,6 @@ customFailure = P.customFailure
 block :: forall v. Var v => String -> TermP v
 block s = block' s (openBlockWith s) closeBlock
 
--- | if there's no open for us, there won't be a close either
-topBlock :: forall v. Var v => TermP v
-topBlock = block' "top-level block" (void <$> peekAny) (pure ())
-
 block' :: forall v b. Var v => String -> P v (L.Token ()) -> P v b -> TermP v
 block' s openBlock closeBlock = do
     open <- openBlock
@@ -275,7 +273,8 @@ block' s openBlock closeBlock = do
     _ <- closeBlock
     go open statements
   where
-    statement = (Right <$> binding) <|> (Left <$> blockTerm)
+    statement = traceRemainingTokens "statement" *>
+                ((Right <$> binding) <|> (Left <$> blockTerm))
     toBinding (Right ((a, v), e)) = ((a, v), e)
     toBinding (Left e) = ((ann e, Var.named "_"), e)
     go :: L.Token () -> [Either (AnnotatedTerm v Ann) ((Ann, v), AnnotatedTerm v Ann)] -> P v (AnnotatedTerm v Ann)
@@ -310,7 +309,7 @@ number' i u f = fmap go numeric
       | otherwise = u (read <$> num)
 
 tupleOrParenthesizedTerm :: Var v => TermP v
-tupleOrParenthesizedTerm = P.label "tuple" $ tupleOrParenthesized term unit pair
+tupleOrParenthesizedTerm = label "tuple" $ tupleOrParenthesized term unit pair
   where
     pair t1 t2 =
       Term.app (ann t1 <> ann t2)

@@ -71,7 +71,7 @@ instance ShowToken (Token Lexeme) where
       pretty (Numeric n) = n
       pretty (Hash h) = show h
       pretty (Err e) = show e
-      pretty _ = ""
+      pretty t = show t
       pad (Pos line1 col1) (Pos line2 col2) =
         if line1 == line2
         then replicate (col2 - col1) ' '
@@ -98,6 +98,11 @@ type Layout = [(BlockName,Column)]
 top :: Layout -> Column
 top []    = 1
 top ((_,h):_) = h
+
+-- todo: make Layout a NonEmpty
+topBlockName :: Layout -> Maybe BlockName
+topBlockName [] = Nothing
+topBlockName ((name,_):_) = Just name
 
 pop :: [a] -> [a]
 pop = drop 1
@@ -176,11 +181,18 @@ lexer scope rem =
     go :: Layout -> Pos -> [Char] -> [Token Lexeme]
     go l pos rem = case rem of
       [] -> popLayout0 l pos []
-      -- delimiters - `:`, `@`, `|`, `=`, and `->`
+      -- we wanted `->` to be able to introduce a layout block
+      -- if the top block name on the layout stack is an `of`
+      -- but the effectBind pattern contains an `->`, and we
+      -- didn't want an `->` within an effectBind to introduce a block.
+      -- case blah of {State.get -> k} -> <layout block>
       '{' : rem ->
         Token (Open "{") pos (inc pos) : pushLayout "{" l (inc pos) rem
       '}' : rem ->
-        Token (Close) pos (inc pos) : pushLayout "{" l (inc pos) rem
+        Token Close pos (inc pos)
+          : Token (Reserved "}") pos (inc pos)
+          : goWhitespace (drop 1 l) (inc pos) rem
+      -- delimiters - `:`, `@`, `|`, `=`, and `->`
       ch : rem | Set.member ch delimiters ->
         Token (Reserved [ch]) pos (inc pos) : goWhitespace l (inc pos) rem
       ':' : c : rem | isSpace c || isAlphaNum c ->
@@ -191,16 +203,21 @@ lexer scope rem =
         Token (Reserved "_") pos (inc pos) : goWhitespace l (inc pos) rem
       '|' : c : rem | isSpace c || isAlphaNum c ->
         Token (Reserved "|") pos (inc pos) : goWhitespace l (inc pos) (c:rem)
-      '=' : c : rem | isSpace c || isAlphaNum c ->
-        Token (Open "=") pos (inc pos) : pushLayout "=" l (inc pos) (c:rem)
+      '=' : (rem @ (c : _)) | isSpace c || isAlphaNum c ->
+        let end = inc pos
+        in case topBlockName l of
+          -- '=' does not open a layout block if within a type declaration
+          Just "type" -> Token (Reserved "=") pos end : goWhitespace l end rem
+          Just _      -> Token (Open "=") pos end : pushLayout "=" l end rem
+          _ -> error "looks like we called topBlockName on an empty layout stack"
       '-' : '>' : (rem @ (c : _))
         | isSpace c || isAlphaNum c || Set.member c delimiters ->
           let end = incBy "->" pos
-          in case l of
-              ("of", _) : _ -> -- `->` opens a block when pattern-matching only
+          in case topBlockName l of
+              Just "of" -> -- `->` opens a block when pattern-matching only
                 Token (Open "->") pos end : pushLayout "->" l end rem
-              _ -> Token (Reserved "->") pos end : goWhitespace l end rem
-
+              Just _ -> Token (Reserved "->") pos end : goWhitespace l end rem
+              _ -> error "looks like we called topBlockName on an empty layout stack"
       -- string literals and backticked identifiers
       '"' : rem -> span' (/= '"') rem $ \(lit, rem) ->
         if rem == [] then
@@ -221,6 +238,9 @@ lexer scope rem =
       (matchKeyword -> Just (kw,rem)) ->
         let end = incBy kw pos in
               case kw of
+                kw@"type" ->
+                  Token (Open kw) pos end
+                    : goWhitespace ((kw, column $ inc pos) : l) end rem
                 kw | Set.member kw layoutKeywords ->
                        Token (Open kw) pos end : pushLayout kw l end rem
                    | otherwise -> Token (Reserved kw) pos end : goWhitespace l end rem
@@ -381,6 +401,19 @@ ex =
        , "  s = 0\n"
        , "  s + 2\n" ]
 
+debugLex'' :: [Token Lexeme] -> String
+debugLex'' lexemes =
+  unlines . W.execWriter . flip S.evalStateT [] . traverse_ f . map payload $ lexemes
+  where
+    f :: Lexeme -> S.StateT String (W.Writer [String]) ()
+    f x = do
+      pad <- S.get
+      S.lift . W.tell $ [pad ++ show x]
+      case x of
+        Open _ -> S.modify (++ "  ")
+        Close -> S.modify (drop 2)
+        _ -> pure ()
+
 debugLex :: String -> String -> IO ()
 debugLex scope = flip S.evalStateT [] . traverse_ f . map payload . lexer scope
   where
@@ -394,16 +427,7 @@ debugLex scope = flip S.evalStateT [] . traverse_ f . map payload . lexer scope
         _ -> pure ()
 
 debugLex' :: String -> String
-debugLex' = unlines . W.execWriter . flip S.evalStateT [] . traverse_ f . map payload . lexer "debugLex"
-  where
-    f :: Lexeme -> S.StateT String (W.Writer [String]) ()
-    f x = do
-      pad <- S.get
-      S.lift . W.tell $ [pad ++ show x]
-      case x of
-        Open _ -> S.modify (++ "  ")
-        Close -> S.modify (drop 2)
-        _ -> pure ()
+debugLex' =  debugLex'' . lexer "debugLex"
 
 span' :: (a -> Bool) -> [a] -> (([a],[a]) -> r) -> r
 span' f a k = k (span f a)

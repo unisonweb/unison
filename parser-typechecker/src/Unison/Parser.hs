@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE BangPatterns, RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -11,6 +11,7 @@ import           Data.Bifunctor (bimap)
 import           Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.Map as Map
 import           Data.Maybe
+import Debug.Trace
 import qualified Data.Set as Set
 import           Data.Text (Text)
 import qualified Data.Text as Text
@@ -139,6 +140,16 @@ instance Annotated a => Annotated (PatternP a) where
 instance (Annotated a, Annotated b) => Annotated (MatchCase a b) where
   ann (MatchCase p _ b) = ann p <> ann b
 
+label :: (Var v, Show a) => String -> P v a -> P v a
+label = P.label
+-- label = P.dbg
+
+traceRemainingTokens :: Var v => String -> P v ()
+traceRemainingTokens label = do
+  remainingTokens <- lookAhead $ many anyToken
+  let _ = trace ("REMAINDER " ++ label ++ ":\n" ++ L.debugLex'' remainingTokens) ()
+  pure ()
+
 mkAnn :: (Annotated a, Annotated b) => a -> b -> Ann
 mkAnn x y = ann x <> ann y
 
@@ -153,11 +164,21 @@ tok f (L.Token a start end) = f (Ann start end) a
 peekAny :: Var v => P v (L.Token L.Lexeme)
 peekAny = P.lookAhead P.anyChar
 
+lookAhead :: Var v => P v a -> P v a
+lookAhead = P.lookAhead
+
+anyToken :: Var v => P v (L.Token L.Lexeme)
+anyToken = P.anyChar
+
 proxy :: Proxy Input
 proxy = Proxy
 
 root :: Var v => P v a -> P v a
-root p = openBlock *> p <* closeBlock <* P.eof
+root p = (openBlock *> p) <* closeBlock <* P.eof
+
+-- |
+rootFile :: Var v => P v a -> P v a
+rootFile p = p <* P.eof
 
 run' :: P v a -> String -> String -> PEnv -> Either (Err v) a
 run' p s name = runParserT p name (Input $ L.lexer name s) -- todo: L.reorder
@@ -215,7 +236,7 @@ backticks = queryToken getBackticks
 
 -- Parse a reserved word
 reserved :: Var v => String -> P v (L.Token String)
-reserved w = P.label w $ queryToken getReserved
+reserved w = label w $ queryToken getReserved
   where getReserved (L.Reserved w') | w == w' = Just w
         getReserved _ = Nothing
 
@@ -231,9 +252,9 @@ sepBy1 :: Var v => P v a -> P v b -> P v [b]
 sepBy1 sep pb = P.sepBy1 pb sep
 
 prefixVar :: Var v => P v (L.Token v)
-prefixVar = fmap (Var.named . Text.pack) <$> P.label "symbol" prefixOp
+prefixVar = fmap (Var.named . Text.pack) <$> label "symbol" prefixOp
   where
-    prefixOp = wordyId <|> P.label "prefix-operator" (P.try (reserved "(" *> symbolyId) <* reserved ")")
+    prefixOp = wordyId <|> label "prefix-operator" (P.try (reserved "(" *> symbolyId) <* reserved ")")
 
 infixVar :: Var v => P v (L.Token v)
 infixVar =

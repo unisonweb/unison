@@ -60,7 +60,7 @@ module Unison.Test.FileParser where
       p :: UnisonFile Symbol Ann
       !p = unsafeGetRightFrom s $
              Unison.Parser.run
-               (Parser.root $
+               (Parser.rootFile $
                  file Builtin.builtinTerms Builtin.builtinTypes)
                  s
                  builtins

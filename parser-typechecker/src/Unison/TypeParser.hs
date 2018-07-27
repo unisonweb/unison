@@ -46,8 +46,9 @@ type2 = app valueTypeLeaf
 -- ex : {State Text, IO} (Sequence Int64)
 effect :: Var v => TypeP v
 effect = do
-  open <- reserved "{"
+  open <- openBlockWith "{"
   es <- sepBy (reserved ",") valueType
+  _ <- closeBlock
   _ <- reserved "}"
   t <- valueTypeLeaf
   pure (Type.effect (Ann (L.start open) (end $ ann t)) es t)

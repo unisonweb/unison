@@ -83,6 +83,11 @@ test = scope "typechecker" . tests $
              |r1 = case Optional.Some 3 of
              |  x -> 1
              |() |]
+  , checks [r|--r0
+             |r1 : UInt64
+             |r1 = case Optional.Some 3 of
+             |  x -> 1
+             |42|]
   , checks [r|--r2
              |type Optional a = None | Some a
              |r2 : UInt64

@@ -30,7 +30,7 @@ parseType s = Parser.run (Parser.root TypeParser.valueType) s
 
 parseFile :: Var v => FilePath -> String -> PEnv -> Either (Parser.Err v) (UnisonFile v Ann)
 parseFile filename s = Parser.run'
-  (Parser.root $ FileParser.file Builtin.builtinTerms Builtin.builtinTypes) s filename
+  (Parser.rootFile $ FileParser.file Builtin.builtinTerms Builtin.builtinTypes) s filename
 
 unsafeParseTerm :: Var v => String -> PEnv -> AnnotatedTerm v Ann
 unsafeParseTerm s = fmap (unsafeGetRightFrom s) . parseTerm $ s
