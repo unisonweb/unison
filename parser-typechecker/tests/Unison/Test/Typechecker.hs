@@ -404,15 +404,14 @@ test = scope "typechecker" . tests $
             |
             |() |]
   , checks [r|--map/traverse
-             |--effect Noop where
-             |--  noop : ∀ a . a -> {Noop} a
-             |--
-             |--effect Noop2 where
-             |--  noop2 : ∀ a . a -> a -> {Noop2} a
+             |effect Noop where
+             |  noop : ∀ a . a -> {Noop} a
+             |
+             |effect Noop2 where
+             |  noop2 : ∀ a . a -> a -> {Noop2} a
              |
              |type List a = Nil | Cons a (List a)
              |
-             |-- this does not typecheck currently
              |map : ∀ a b e . (a -> {e} b) -> List a -> {e} (List b)
              |map f as = case as of
              |  List.Nil -> List.Nil
@@ -428,12 +427,13 @@ test = scope "typechecker" . tests $
              |pure-map : List Text
              |pure-map = map (a -> "hello") ex
              |
-             |-- these should also work
-             |--zappy : () -> {Noop} (List UInt64)
-             |--zappy u = map (zap -> (Noop.noop (zap UInt64.+ 1))) ex
+             |-- `map` is effect polymorphic
+             |zappy : () -> {Noop} (List UInt64)
+             |zappy u = map (zap -> (Noop.noop (zap UInt64.+ 1))) ex
              |
-             |--zappy2 : () -> {Noop, Noop2} (List UInt64)
-             |--zappy2 u = map (zap -> Noop.noop (zap UInt64.+ Noop2.noop2 2 7)) ex
+             |-- mixing multiple effects in a call to `map` works fine
+             |zappy2 : () -> {Noop, Noop2} (List UInt64)
+             |zappy2 u = map (zap -> Noop.noop (zap UInt64.+ Noop2.noop2 2 7)) ex
              |
              |()
              |]
