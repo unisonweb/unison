@@ -22,6 +22,7 @@ import           Unison.UnisonFile (UnisonFile(..), environmentFor)
 import qualified Unison.UnisonFile as UF
 import           Unison.Var (Var)
 import Unison.Reference (Reference)
+-- import Debug.Trace
 
 file :: Var v => [(v, Reference)] -> [(v, Reference)] -> P v (UnisonFile v Ann)
 file builtinTerms builtinTypes = do
@@ -59,20 +60,17 @@ dataDeclaration = do
       -- go gives the type of the constructor, given the types of
       -- the constructor arguments, e.g. Cons becomes forall a . a -> List a -> List a
       go :: L.Token v -> [AnnotatedType v Ann] -> (Ann, v, AnnotatedType v Ann)
-      go ctorName [] =
-        (ann ctorName,
-         L.payload ctorName,
-         Type.foralls (ann ctorName) typeArgVs (tok Type.var name))
       go ctorName ctorArgs = let
-        arrowAcc i o = Type.arrow (ann i <> ann o) i o
-        appAcc f arg = Type.app (ann f <> ann arg) f arg
+        arrow i o = Type.arrow (ann i <> ann o) i o
+        app f arg = Type.app (ann f <> ann arg) f arg
         -- ctorReturnType e.g. `Optional a`
-        ctorReturnType = foldl' appAcc (tok Type.var name) (tok Type.var <$> typeArgs)
+        ctorReturnType = foldl' app (tok Type.var name) (tok Type.var <$> typeArgs)
         -- ctorType e.g. `a -> Optional a`
         --    or just `Optional a` in the case of `None`
-        ctorType = foldr arrowAcc ctorReturnType ctorArgs
+        ctorType = foldr arrow ctorReturnType ctorArgs
         ctorAnn = ann ctorName <> ann (last ctorArgs)
-        in (ann ctorName, L.payload ctorName, Type.foralls ctorAnn typeArgVs ctorType)
+        in (ann ctorName, L.payload ctorName,
+            Type.foralls ctorAnn typeArgVs ctorType)
       dataConstructor = go <$> prefixVar <*> many TypeParser.valueTypeLeaf
   constructors <- sepBy (reserved "|") dataConstructor
   _ <- closeBlock
