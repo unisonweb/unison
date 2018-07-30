@@ -1,5 +1,5 @@
 (++) = Stream.append
-sum = Stream.reduce 0 (+_UInt64)
+sum = Stream.reduce 0 (UInt64.+)
 left = Stream.take 3 (Stream.from-uint64 5)
 right = Stream.take 10 (Stream.from-uint64 100)
 

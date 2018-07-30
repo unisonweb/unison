@@ -1,6 +1,6 @@
-(+) = (+_UInt64)
+(+) = (UInt64.+)
 (-) = UInt64.drop
-(*) = (*_UInt64)
+(*) = (UInt64.*)
 
 eat-stack n = case n of
   0 -> 0

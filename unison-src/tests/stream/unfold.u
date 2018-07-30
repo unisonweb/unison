@@ -1,6 +1,6 @@
-(+) = (+_Int64)
-(/) = (/_Int64)
-(<) = (<_Int64)
+(+) = (Int64.+)
+(/) = (Int64./)
+(<) = (Int64.<)
 Stream.to-sequence
   (Stream.take 5
     (Stream.unfold

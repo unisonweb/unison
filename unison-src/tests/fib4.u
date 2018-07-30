@@ -1,7 +1,7 @@
-(+) = (+_UInt64)
-(<) = (<_UInt64)
+(+) = (UInt64.+)
+(<) = (UInt64.<)
 (-) = (UInt64.drop)
-(*) = (*_UInt64)
+(*) = (UInt64.*)
 
 fib4 n =
   loop a b c d n = case n of

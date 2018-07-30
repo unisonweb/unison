@@ -1,6 +1,6 @@
 a |> f = f a
-(*) = (*_UInt64)
-(<) = (<_UInt64)
+(*) = (UInt64.*)
+(<) = (UInt64.<)
 
 left = Stream.from-uint64 0 |> Stream.take-while (n -> n < 10)
 right = Stream.from-uint64 77 |> Stream.drop-while (n -> n < 103)

@@ -2,4 +2,4 @@ a |> f = f a
 Stream.iterate 0 UInt64.increment
   |> Stream.take 10000
   |> Stream.filter UInt64.is-even
-  |> Stream.reduce 0 (+_UInt64)
+  |> Stream.reduce 0 (UInt64.+)
