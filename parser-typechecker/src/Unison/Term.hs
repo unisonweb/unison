@@ -7,6 +7,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Unison.Term where
 
@@ -99,16 +100,21 @@ type Term v = AnnotatedTerm v ()
 -- | Terms with type variables in `vt`, and term variables in `v`
 type Term' vt v = AnnotatedTerm' vt v ()
 
-bindBuiltins :: Var v
-             => [(v, AnnotatedTerm v a)]
+bindBuiltins :: forall v a b b2. Var v
+             => [(v, AnnotatedTerm2 v b a v b2)]
              -> [(v, Reference)]
              -> [(v, Reference)]
-             -> AnnotatedTerm v a -> AnnotatedTerm v a
-bindBuiltins dataAndEffectCtors termBuiltins0 typeBuiltins =
-   typeMap (Type.bindBuiltins typeBuiltins) .
-   ABT.substsInheritAnnotation termBuiltins .
-   ABT.substsInheritAnnotation dataAndEffectCtors
+             -> AnnotatedTerm2 v b a v a
+             -> AnnotatedTerm2 v b a v a
+bindBuiltins dataAndEffectCtors termBuiltins0 typeBuiltins t =
+   f . g . h $ t
    where
+   f :: AnnotatedTerm2 v b a v a -> AnnotatedTerm2 v b a v a
+   f = typeMap (Type.bindBuiltins typeBuiltins)
+   g :: AnnotatedTerm2 v b a v a -> AnnotatedTerm2 v b a v a
+   g = ABT.substsInheritAnnotation termBuiltins
+   h :: AnnotatedTerm2 v b a v a -> AnnotatedTerm2 v b a v a
+   h = ABT.substsInheritAnnotation dataAndEffectCtors
    termBuiltins = [ (v, ref() r) | (v,r) <- termBuiltins0 ]
 
 vmap :: Ord v2 => (v -> v2) -> AnnotatedTerm v a -> AnnotatedTerm v2 a

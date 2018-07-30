@@ -3,13 +3,16 @@
 
 module Unison.Test.Typechecker where
 
-import  EasyTest
-import  Data.Char (isSpace)
-import  Unison.FileParsers (parseAndSynthesizeAsFile)
-import  Unison.Symbol
-import  Unison.Test.Common
-import  Text.RawString.QQ
-import  qualified Unison.Result as Result
+import           Control.Monad (join)
+import           Data.Char (isSpace)
+import           Data.List (intercalate)
+import           EasyTest
+import           Text.RawString.QQ
+import           Unison.FileParsers (parseAndSynthesizeAsFile)
+import qualified Unison.PrintError as PE
+import qualified Unison.Result as Result
+import           Unison.Symbol
+import           Unison.Test.Common
 
 test = scope "typechecker" . tests $
   [
@@ -19,7 +22,7 @@ test = scope "typechecker" . tests $
   , c "x y -> x"
       "forall a b . a -> b -> a"
 
-  , c "(+_Int64)"
+  , c "(Int64.+)"
       "Int64 -> Int64 -> Int64"
 
   , c "3"
@@ -46,7 +49,7 @@ test = scope "typechecker" . tests $
   , c "and true false" "Boolean"
   , c "[1,2,3]" "Sequence UInt64"
   , c "Stream.from-int64 +0" "Stream Int64"
-  , c "(+_UInt64) 1" "UInt64 -> UInt64"
+  , c "(UInt64.+) 1" "UInt64 -> UInt64"
   , bombs [r|--unresolved symbol
             |let
             |  (|>) : forall a b . a -> (a -> WHat) -> b -- unresolved symbol
@@ -54,14 +57,14 @@ test = scope "typechecker" . tests $
             |
             |  Stream.from-int64 -3
             |    |> Stream.take 10
-            |    |> Stream.fold-left +0 (+_Int64) |]
+            |    |> Stream.fold-left +0 (Int64.+) |]
   , c [r|let
         |  (|>) : forall a b . a -> (a -> b) -> b
         |  a |> f = f a
         |
         |  Stream.from-int64 -3
         |    |> Stream.take 10
-        |    |> Stream.fold-left +0 (+_Int64) |] "Int64"
+        |    |> Stream.fold-left +0 (Int64.+) |] "Int64"
   -- some pattern-matching tests we want to perform:
 --  Unbound
   -- , c [r|type Optional a = None | Some a
@@ -80,6 +83,11 @@ test = scope "typechecker" . tests $
              |r1 = case Optional.Some 3 of
              |  x -> 1
              |() |]
+  , checks [r|--r0
+             |r1 : UInt64
+             |r1 = case Optional.Some 3 of
+             |  x -> 1
+             |42|]
   , checks [r|--r2
              |type Optional a = None | Some a
              |r2 : UInt64
@@ -94,7 +102,13 @@ test = scope "typechecker" . tests $
              |  Optional.Some true -> 1
              |  Optional.Some false -> 0
              |() |]
-  , checks [r|r4 : Int64 -> Int64
+  , checks [r|--r4x
+             |r4 : Int64 -> Int64
+             |r4 x = case x of
+             |  +1 -> +1
+             |() |]
+  , checks [r|--r4negate
+             |r4 : Int64 -> Int64
              |r4 x = case x of
              |  +1 -> -1
              |  _  -> Int64.negate x
@@ -108,7 +122,18 @@ test = scope "typechecker" . tests $
              |r6 = case () of
              |  () -> ()
              |() |]
-  , checks [r|r7 : ()
+  , checks [r|--r7.0
+             |r7 : UInt64
+             |r7 = case () of
+             |  () -> 1
+             |() |]
+  , checks [r|--r7.1
+             |r7 : UInt64
+             |r7 = case () of
+             |  x@() -> 1
+             |() |]
+  , checks [r|--r7.2
+             |r7 : ()
              |r7 = case () of
              |  x@() -> x
              |() |]
@@ -132,7 +157,7 @@ test = scope "typechecker" . tests $
              |() |]
   , checks [r|r11 : UInt64
              |r11 = case 1 of
-             |  1 | 2 ==_UInt64 3 -> 4
+             |  1 | 2 UInt64.== 3 -> 4
              |  _ -> 5
              |() |]
   , checks [r|r12 : UInt64
@@ -171,13 +196,13 @@ test = scope "typechecker" . tests $
              |  { a } -> f a
              |
              |-- heff : UInt64
-             |heff = handle eff (x -> x +_UInt64 2) 1 in Abort.Abort ()
+             |heff = handle eff (x -> x UInt64.+ 2) 1 in Abort.Abort ()
              |
              |hudy : UInt64
-             |hudy = handle eff (x -> x +_UInt64 2) 1 in 42
+             |hudy = handle eff (x -> x UInt64.+ 2) 1 in 42
              |
              |bork : () -> {Abort} UInt64
-             |bork = u -> 1 +_UInt64 (Abort.Abort ())
+             |bork = u -> 1 UInt64.+ (Abort.Abort ())
              |
              |() |]
   , checks [r|--State1 effect
@@ -204,7 +229,7 @@ test = scope "typechecker" . tests $
              |id i = i
              |
              |foo : () -> {State Int64} Int64
-             |foo unit = id (State.get +_Int64 State.get)
+             |foo unit = id (State.get Int64.+ State.get)
              |
              |()
              |]
@@ -261,7 +286,7 @@ test = scope "typechecker" . tests $
              |ex1 : {State Int64} ()
              |ex1 =
              |  y = State.get
-             |  State.put (y +_Int64 +1)
+             |  State.put (y Int64.+ +1)
              |  ()
              |
              |()
@@ -293,7 +318,7 @@ test = scope "typechecker" . tests $
              |  inc-by i =
              |    launch-missiles -- not allowed
              |    y = State.get()
-             |    State.put (y +_Int64 i)
+             |    State.put (y Int64.+ i)
              |  ()
              |
              |()
@@ -312,7 +337,7 @@ test = scope "typechecker" . tests $
              |  inc-by i =
              |    IO.launch-missiles -- OK, since declared by `inc-by` signature
              |    y = State.get
-             |    State.put (y +_Int64 i)
+             |    State.put (y Int64.+ i)
              |  ()
              |
              |()
@@ -367,7 +392,7 @@ test = scope "typechecker" . tests $
             |
             |ex : () -> {State UInt64} UInt64
             |ex blah =
-            |  State.get() +_UInt64 42
+            |  State.get() UInt64.+ 42
             |
             |-- note this currently succeeds, the handle block
             |-- gets an inferred type of ∀ a . a, it appears that
@@ -393,6 +418,8 @@ test = scope "typechecker" . tests $
              |  List.Cons h t -> List.Cons (f h) (map f t)
              |
              |c = List.Cons
+             |
+             |z : ∀ a . List a
              |z = List.Nil
              |
              |ex = (c 1 (c 2 (c 3 z)))
@@ -400,11 +427,13 @@ test = scope "typechecker" . tests $
              |pure-map : List Text
              |pure-map = map (a -> "hello") ex
              |
+             |-- `map` is effect polymorphic
              |zappy : () -> {Noop} (List UInt64)
-             |zappy u = map (zap -> (Noop.noop zap +_UInt64 1)) ex
+             |zappy u = map (zap -> (Noop.noop (zap UInt64.+ 1))) ex
              |
+             |-- mixing multiple effects in a call to `map` works fine
              |zappy2 : () -> {Noop, Noop2} (List UInt64)
-             |zappy2 u = map (zap -> Noop.noop zap +_UInt64 Noop2.noop2 2 7) ex
+             |zappy2 u = map (zap -> Noop.noop (zap UInt64.+ Noop2.noop2 2 7)) ex
              |
              |()
              |]
@@ -413,15 +442,24 @@ test = scope "typechecker" . tests $
              |[StringOrInt.S "YO", StringOrInt.I 1]
              |]
   ]
-  where c tm typ = scope tm . expect $ check (stripMargin tm) typ
-        bombs s = scope s (crasher s)
+  where -- test entry points `c`, `checks`, `bombs`, `broken` call stripMargin
+        -- before doing anything else; no other functions should have to.
+        c tm typ = scope1 tm . expect $ check (stripMargin tm) typ
+        scope1 s = scope (join . take 1 $ lines s)
+        bombs s = scope1 s (crasher $ stripMargin s)
         broken :: String -> Test ()
-        broken s = scope s $ pending (checks s)
+        broken s = scope1 s $ pending (checks s)
         checks :: String -> Test ()
-        checks s = scope s (typer s)
-        typeFile = (parseAndSynthesizeAsFile @ Symbol) "<test>" .  stripMargin
-        crash' e = crash $ show e -- todo: don't use show, print errors prettily
-        typer = either crash' (const ok) . Result.toEither . typeFile
-        crasher = either (const ok) crash' . Result.toEither . typeFile
+        checks s = scope1 s (typer . stripMargin $ s)
+        typeFile = (parseAndSynthesizeAsFile @ Symbol) "<test>"
+        crash' s e = crash $ printError s e
+        typer s = either (crash' s) (const ok) . Result.toEither $ typeFile s
+        crasher s =
+          either (const ok) (const (crash "succeeded unexpectedly"))
+            . Result.toEither $ typeFile s
+        drop1If _p [] = []
+        drop1If p (h:t) = if p h then t else h:t
         stripMargin =
-          unlines . map (dropWhile (== '|'). dropWhile isSpace) . lines
+          unlines . map (drop1If (== '|'). dropWhile isSpace) . lines
+
+printError s = intercalate "\n------\n" . map (PE.printNoteWithSource PE.env0 s)

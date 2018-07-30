@@ -43,6 +43,14 @@ data PatternP loc
 loc :: PatternP loc -> loc
 loc p = head $ Foldable.toList p
 
+setLoc :: PatternP loc -> loc -> PatternP loc
+setLoc p loc = case p of
+  EffectBindP _ a b c d -> EffectBindP loc a b c d
+  EffectPureP _ a -> EffectPureP loc a
+  AsP _ a -> AsP loc a
+  ConstructorP _ a b c -> ConstructorP loc a b c
+  x -> fmap (const loc) x
+
 pattern Unbound = UnboundP ()
 pattern Var = VarP ()
 pattern Boolean b = BooleanP () b

@@ -8,16 +8,16 @@ module Unison.Test.FileParser where
   import Unison.FileParser (file)
   import Unison.Parser
   import qualified Unison.Parser as Parser
-  import qualified Unison.Parsers as Parsers
-  import Unison.Parsers (unsafeGetRight, unsafeReadAndParseFile')
+  import Unison.Parsers (unsafeGetRightFrom, unsafeReadAndParseFile')
   import qualified Data.Map as Map
   import qualified Unison.Reference as R
   import Unison.Symbol (Symbol)
   import Unison.UnisonFile (UnisonFile)
 
   test1 = scope "fileparser.test1" . tests . map parses $
-    [
-      "type Pair a b = Pair a b\n()"
+    [ "()"
+    -- , "type () = ()\n()"
+    , "type Pair a b = Pair a b\n()"
     , "type Optional a = Just a | Nothing\n()"
     , unlines
       ["type Optional2 a"
@@ -57,8 +57,11 @@ module Unison.Test.FileParser where
 
   parses s = scope s $ do
     let
-      p :: UnisonFile Symbol
-      !p = unsafeGetRight $
-        Unison.Parser.run (Parser.root $ file Builtin.builtinTerms Builtin.builtinTypes)
-                          s Parsers.s0 builtins
+      p :: UnisonFile Symbol Ann
+      !p = unsafeGetRightFrom s $
+             Unison.Parser.run
+               (Parser.rootFile $
+                 file Builtin.builtinTerms Builtin.builtinTypes)
+                 s
+                 builtins
     pure p >> ok

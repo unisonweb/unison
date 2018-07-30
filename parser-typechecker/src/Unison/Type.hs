@@ -209,6 +209,10 @@ universal' a v = ABT.annotatedVar a (TypeVar.Universal v)
 v' :: Var v => Text -> Type v
 v' s = ABT.var (ABT.v' s)
 
+-- Like `v'`, but creates an annotated variable given an annotation
+av' :: Var v => a -> Text -> AnnotatedType v a
+av' a s = ABT.annotatedVar a (ABT.v' s)
+
 forall' :: Var v => a -> [Text] -> AnnotatedType v a -> AnnotatedType v a
 forall' a vs body = foldr (forall a) body (Var.named <$> vs)
 

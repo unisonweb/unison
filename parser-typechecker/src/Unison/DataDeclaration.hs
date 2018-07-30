@@ -7,6 +7,7 @@
 module Unison.DataDeclaration where
 
 import Data.Bifunctor (second)
+import Data.Functor
 import           Data.Map (Map, intersectionWith)
 import qualified Data.Map as Map
 import           Prelude hiding (cycle)
@@ -27,7 +28,7 @@ data DataDeclaration' v a = DataDeclaration {
   annotation :: a,
   bound :: [v], -- todo: do we actually use the names? or just the length
   constructors' :: [(a, v, AnnotatedType v a)]
-} deriving (Show)
+} deriving (Show,Functor)
 
 constructors :: DataDeclaration' v a -> [(v, AnnotatedType v a)]
 constructors (DataDeclaration _ _ ctors) = [(v,t) | (_,v,t) <- ctors ]
@@ -132,16 +133,10 @@ fromABT (ABT.AbsN' bound (
     [((), v, unsafeUnwrapType t) | (v, t) <- names `zip` stuff]
 fromABT a = error $ "ABT not of correct form to convert to DataDeclaration: " ++ show a
 
--- todo: generalize this to work for any annotation type
--- | compute the hashes of these user defined types and update any free vars
---   corresponding to these decls with the resulting hashes
---
---   data List a = Nil | Cons a (List a)
---   becomes something like
---   (List, #xyz, [forall a. #xyz a, forall a. a -> (#xyz a) -> (#xyz a)])
-hashDecls :: (Eq v, Var v)
+-- Implementation detail of `hashDecls`, works with unannotated data decls
+hashDecls0 :: (Eq v, Var v)
           => Map v (DataDeclaration' v ()) -> [(v, Reference, DataDeclaration' v ())]
-hashDecls decls =
+hashDecls0 decls =
   reverse . snd . foldl f ([], []) $ components abts
   where
     f (m, newDecls) cycle =
@@ -153,3 +148,20 @@ hashDecls decls =
           [(v, r, fromABT d) | (v, (r, d)) <- Map.toList joined] ++ newDecls)
     abts = second toABT <$> Map.toList decls
     toRef = ABT.tm . Type . Type.Ref
+
+-- | compute the hashes of these user defined types and update any free vars
+--   corresponding to these decls with the resulting hashes
+--
+--   data List a = Nil | Cons a (List a)
+--   becomes something like
+--   (List, #xyz, [forall a. #xyz a, forall a. a -> (#xyz a) -> (#xyz a)])
+hashDecls :: (Eq v, Var v)
+          => Map v (DataDeclaration' v a)
+          -> [(v, Reference, DataDeclaration' v a)]
+hashDecls decls = [(v,r,dd) | (v,r,_) <- hs, Just dd <- [Map.lookup v decls']]
+  where hs = hashDecls0 (void <$> decls)
+        decls' = bindDecls decls varToRef
+        varToRef = [(v,r) | (v,r,_) <- hs ]
+
+bindDecls :: Var v => Map v (DataDeclaration' v a) -> [(v, Reference)] -> Map v (DataDeclaration' v a)
+bindDecls decls refs = bindBuiltins refs <$> decls

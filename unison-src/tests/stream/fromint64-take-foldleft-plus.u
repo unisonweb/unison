@@ -1,4 +1,4 @@
 a |> f = f a
 Stream.from-uint64 0
   |> Stream.take 10000
-  |> Stream.fold-left 0 (+_UInt64)
+  |> Stream.fold-left 0 (UInt64.+)

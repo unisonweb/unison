@@ -18,4 +18,7 @@ pattern EffectPure loc p = P.EffectPureP loc p
 pattern EffectBind loc r c args k = P.EffectBindP loc r c args k
 
 loc :: P.PatternP loc -> loc
-loc p = P.loc p
+loc = P.loc
+
+setLoc :: P.PatternP loc -> loc -> P.PatternP loc
+setLoc = P.setLoc

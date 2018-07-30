@@ -50,7 +50,7 @@ object SequenceTests {
   }
 
   def sizes(implicit T: Env) =
-    Vector.range(0,100) :+ intIn(150,200) :+ intIn(500,1000) :+ intIn(1000,4000) :+ intIn(4000,8000)
+    Vector.range(0,100) :+ intIn(150,200) :+ intIn(500,2000)
 
   def seqOf(size: Int): Test[Sequence[Int]] = test { implicit T =>
     if (size <= 0) S.empty

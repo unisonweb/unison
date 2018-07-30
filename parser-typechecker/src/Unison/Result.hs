@@ -8,13 +8,14 @@ import qualified Unison.Typechecker.Context as Context
 import Unison.Paths (Path)
 import Unison.Reference (Reference)
 import Unison.Term (AnnotatedTerm)
+import qualified Unison.Parser as Parser
 
 data Result note a = Result { notes :: Seq note, result :: Maybe a }
 
 type Term v loc = AnnotatedTerm v loc
 
 data Note v loc
-  = Parsing String
+  = Parsing (Parser.Err v)
   | InvalidPath Path (Term v loc) -- todo: move me!
   | UnknownSymbol v loc
   | UnknownReference Reference
@@ -35,7 +36,7 @@ toEither r = case result r of
   Nothing -> Left (Foldable.toList $ notes r)
   Just a -> Right a
 
-fromParsing :: Either String a -> Result (Note v loc) a
+fromParsing :: Either (Parser.Err v) a -> Result (Note v loc) a
 fromParsing (Left e) = Result (pure $ Parsing e) Nothing
 fromParsing (Right a) = pure a
 

@@ -6,36 +6,43 @@ module Unison.Builtin where
 
 import           Control.Arrow ((&&&), second)
 import qualified Data.Map as Map
-import           Unison.DataDeclaration (DataDeclaration, EffectDeclaration)
+import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 import qualified Unison.DataDeclaration as DD
-import qualified Unison.Parser as Parser
-import qualified Unison.Reference as R
-import           Unison.Term (Term)
-import qualified Unison.Term as Term
 import qualified Unison.FileParser as FileParser
+import           Unison.Parser (Ann(..))
+import qualified Unison.Parser as Parser
+import           Unison.PrintError (prettyParseError)
+import qualified Unison.Reference as R
+import           Unison.Term (AnnotatedTerm)
+import qualified Unison.Term as Term
 import qualified Unison.TermParser as TermParser
-import qualified Unison.TypeParser as TypeParser
-import           Unison.Type (Type)
+import           Unison.Type (AnnotatedType)
 import qualified Unison.Type as Type
+import qualified Unison.TypeParser as TypeParser
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 
+type Term v = AnnotatedTerm v Ann
+type Type v = AnnotatedType v Ann
+type DataDeclaration v = DataDeclaration' v Ann
+type EffectDeclaration v = EffectDeclaration' v Ann
+
 -- todo: to update these, just inline definition of Parsers.{unsafeParseType, unsafeParseTerm}
--- then merge Parsers2 back into Parsers (and GC and unused functions)
+-- then merge Parsers back into Parsers (and GC and unused functions)
 -- parse a type, hard-coding the builtins defined in this file
 t :: Var v => String -> Type v
-t s = bindTypeBuiltins . either error id $
-  Parser.run (Parser.root TypeParser.valueType) s TypeParser.s0 Parser.penv0
+t s = bindTypeBuiltins . either (error . prettyParseError s) id $
+        Parser.run (Parser.root TypeParser.valueType) s Parser.penv0
 
 -- parse a term, hard-coding the builtins defined in this file
 tm :: Var v => String -> Term v
-tm s = bindBuiltins . either error id $
-  Parser.run (Parser.root TermParser.term) s TypeParser.s0 Parser.penv0
+tm s = bindBuiltins . either (error . prettyParseError s) id $
+  Parser.run (Parser.root TermParser.term) s Parser.penv0
 
 parseDataDeclAsBuiltin :: Var v => String -> (v, (R.Reference, DataDeclaration v))
 parseDataDeclAsBuiltin s =
-  let (v, dd) = either error id $
-        Parser.run (Parser.root FileParser.dataDeclaration) s TypeParser.s0 Parser.penv0
+  let (v, dd) = either (error . prettyParseError s) id $
+        Parser.run (Parser.root FileParser.dataDeclaration) s Parser.penv0
   in (v, (R.Builtin . Var.qualifiedName $ v, DD.bindBuiltins builtinTypes dd))
 
 bindBuiltins :: Var v => Term v -> Term v
@@ -53,7 +60,7 @@ builtinDataAndEffectCtors = (mkConstructors =<< builtinDataDecls')
     mkConstructor :: v -> R.Reference -> ((v, Type v), Int) -> (v, Term v)
     mkConstructor vt r ((v, _t), i) =
       (Var.named $ mconcat [Var.qualifiedName vt, ".", Var.qualifiedName v],
-        Term.constructor() r i)
+        Term.constructor Intrinsic r i)
 
 builtinTerms :: forall v. Var v => [(v, R.Reference)]
 builtinTerms = (\r -> (toSymbol r, r)) <$> Map.keys (builtins @v)
@@ -87,7 +94,10 @@ builtinDataDecls' = bindAllTheTypes <$> l
     dd3ToType (v, (r, _)) = (v, r)
     l :: [(v, (R.Reference, DataDeclaration v))]
     l = [ (Var.named "()",
-            (R.Builtin "()", DD.mkDataDecl [] [(Var.named "()", Type.builtin() "()")]))
+            (R.Builtin "()",
+             DD.mkDataDecl' Intrinsic [] [(Intrinsic,
+                                           Var.named "()",
+                                           Type.builtin Intrinsic "()")]))
     -- todo: figure out why `type () = ()` doesn't parse:
     -- l = [ parseDataDeclAsBuiltin "type () = ()"
         -- todo: These should get replaced by hashes,

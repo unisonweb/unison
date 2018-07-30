@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Unison.Parsers where
 
 import qualified Data.Text as Text
@@ -7,51 +5,47 @@ import           Data.Text.IO (readFile)
 import           Prelude hiding (readFile)
 import qualified Unison.Builtin as Builtin
 import qualified Unison.FileParser as FileParser
-import           Unison.Parser (PEnv)
+import           Unison.Parser (PEnv, Ann)
 import qualified Unison.Parser as Parser
+import           Unison.PrintError (prettyParseError)
 import           Unison.Symbol (Symbol)
-import           Unison.Term (Term)
+import           Unison.Term (AnnotatedTerm)
 import qualified Unison.TermParser as TermParser
-import           Unison.Type (Type)
+import           Unison.Type (AnnotatedType)
 import qualified Unison.TypeParser as TypeParser
 import           Unison.UnisonFile (UnisonFile)
 import           Unison.Var (Var)
 
-type S v = TypeParser.S v
+unsafeGetRightFrom :: (Var v, Show v) => String -> Either (Parser.Err v) a -> a
+unsafeGetRightFrom s = either (error . prettyParseError s) id
 
-s0 :: S v
-s0 = TypeParser.s0
+parse :: Var v => Parser.P v a -> String -> PEnv -> Either (Parser.Err v) a
+parse p s env = Parser.run (Parser.root p) s env
 
-unsafeGetRight :: Either String a -> a
-unsafeGetRight = either error id
+parseTerm :: Var v => String -> PEnv -> Either (Parser.Err v) (AnnotatedTerm v Ann)
+parseTerm s env = parse TermParser.term s env
 
-parseTerm :: Var v => String -> PEnv -> Either String (Term v)
-parseTerm s = Parser.run (Parser.root TermParser.term) s s0
+parseType :: Var v => String -> PEnv -> Either (Parser.Err v) (AnnotatedType v Ann)
+parseType s = Parser.run (Parser.root TypeParser.valueType) s
 
-parseType :: Var v => String -> PEnv -> Either String (Type v)
-parseType s = Parser.run (Parser.root TypeParser.valueType) s s0
-
-parseFile :: Var v => FilePath -> String -> PEnv -> Either String (UnisonFile v)
+parseFile :: Var v => FilePath -> String -> PEnv -> Either (Parser.Err v) (UnisonFile v Ann)
 parseFile filename s = Parser.run'
-  (Parser.root $ FileParser.file Builtin.builtinTerms Builtin.builtinTypes) s s0 filename
+  (Parser.rootFile $ FileParser.file Builtin.builtinTerms Builtin.builtinTypes) s filename
 
-unsafeParseTerm :: Var v => String -> PEnv -> Term v
-unsafeParseTerm = fmap unsafeGetRight . parseTerm
+unsafeParseTerm :: Var v => String -> PEnv -> AnnotatedTerm v Ann
+unsafeParseTerm s = fmap (unsafeGetRightFrom s) . parseTerm $ s
 
-unsafeParseType :: Var v => String -> PEnv -> Type v
-unsafeParseType = fmap unsafeGetRight . parseType
+unsafeReadAndParseFile :: PEnv -> String -> IO (UnisonFile Symbol Ann)
+unsafeReadAndParseFile penv fileName = do
+  txt <- readFile fileName
+  let str = Text.unpack txt
+  pure . unsafeGetRightFrom str $ parseFile fileName str penv
 
-unsafeParseFile ::String -> PEnv -> UnisonFile Symbol
-unsafeParseFile s pEnv = unsafeGetRight $ parseFile "" s pEnv
-
-unsafeParseFile' :: String -> UnisonFile Symbol
-unsafeParseFile' s = unsafeGetRight $ parseFile "" s Parser.penv0
-
-unsafeReadAndParseFile' :: String -> IO (UnisonFile Symbol)
+unsafeReadAndParseFile' :: String -> IO (UnisonFile Symbol Ann)
 unsafeReadAndParseFile' = unsafeReadAndParseFile Parser.penv0
 
-unsafeReadAndParseFile :: PEnv -> String -> IO (UnisonFile Symbol)
-unsafeReadAndParseFile penv filename = do
-  txt <- readFile filename
-  let str = Text.unpack txt
-  pure $ unsafeGetRight (parseFile filename str penv)
+unsafeParseFile :: String -> PEnv -> UnisonFile Symbol Ann
+unsafeParseFile s pEnv = unsafeGetRightFrom s $ parseFile "" s pEnv
+
+unsafeParseFile' :: String -> UnisonFile Symbol Ann
+unsafeParseFile' s = unsafeParseFile s Parser.penv0

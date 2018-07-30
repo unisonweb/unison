@@ -1,5 +1,5 @@
 reduce = Stream.reduce
-(+) = (+_UInt64)
+(+) = (UInt64.+)
 take = Stream.take
 cons = Stream.cons
 from = Stream.from-uint64

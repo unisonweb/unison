@@ -1,4 +1,4 @@
-(+) = (+_Int64)
+(+) = (Int64.+)
 a |> f = f a
 Stream.iterate +0 Int64.increment
   |> Stream.take 5
