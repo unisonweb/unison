@@ -2,6 +2,8 @@
 
 module Unison.PrintError where
 
+import Data.Foldable
+import Data.Maybe (listToMaybe)
 import           Unison.Parser (Ann(..))
 import           Unison.Result (Note(..))
 import           Unison.Var (Var, qualifiedName)
@@ -21,6 +23,52 @@ import Unison.Type (AnnotatedType)
 
 data Env = Env { referenceNames :: Map R.Reference String
                , constructorNames :: Map (R.Reference, Int) String }
+
+data TypeError v loc
+  = Mismatch { overallType1 :: C.Type v loc
+             , overallType2 :: C.Type v loc
+             , leaf1 :: C.Type v loc
+             , leaf2 :: C.Type v loc
+             , mismatchSite :: loc }
+  | Other (C.Note v loc)
+
+--leafTypes :: C.Note v loc -> Maybe (C.Type v loc, C.Type v loc)
+--leafTypes n@(C.Note cause path) =
+--  case cause of
+--    C.TypeMismatch _ -> go path
+--    _ -> Nothing
+--  where
+--  go (C.InCheck term typ :<| _) =
+
+-- overallTypes :: C.Note v loc -> Maybe (C.Type v loc, C.Type v loc)
+-- overallTypes n@(C.Note cause path) =
+
+--data PathElement v loc
+--  = InSynthesize (Term v loc)
+--  | InSubtype (Type v loc) (Type v loc)
+--  | InCheck (Term v loc) (Type v loc)
+--  | InInstantiateL v (Type v loc)
+--  | InInstantiateR (Type v loc) v
+--  | InSynthesizeApp (Type v loc) (Term v loc)
+--
+typeErrorFromNote :: C.Note v loc -> TypeError v loc
+typeErrorFromNote n@(C.Note (C.TypeMismatch _) path) =
+  let
+    pathl = toList path
+    subtypes = [ (t1, t2) | C.InSubtype t1 t2 <- pathl ]
+    terms = pathl >>= \elem -> case elem of
+      C.InCheck e _ -> [e]
+      C.InSynthesizeApp _ e -> [e]
+      C.InSynthesize e -> [e]
+      _ -> []
+    firstSubtype = listToMaybe subtypes
+    lastSubtype = if null subtypes then Nothing else Just (last subtypes)
+    innermostTerm = listToMaybe terms
+  in case (firstSubtype, lastSubtype, innermostTerm) of
+       (Just (leaf1, leaf2), Just (overall1, overall2), Just mismatchSite) ->
+         Mismatch overall1 overall2 leaf1 leaf2 (ABT.annotation mismatchSite)
+       _ -> Other n
+typeErrorFromNote n@(C.Note _ _) = Other n
 
 env0 :: Env
 env0 = Env Map.empty Map.empty

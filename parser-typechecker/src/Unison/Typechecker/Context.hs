@@ -6,7 +6,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Typechecker.Context (synthesizeClosed, Note(..), Cause(..), PathElement(..)) where
+module Unison.Typechecker.Context (synthesizeClosed, Note(..), Cause(..), PathElement(..), Type, Term) where
 
 import Data.Sequence (Seq)
 
