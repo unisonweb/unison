@@ -63,10 +63,12 @@ library
     Unison.Typechecker.Context
     Unison.Typechecker.Components
     Unison.UnisonFile
+    Unison.Util.ColorText
     Unison.Util.Logger
     Unison.Var
 
   build-depends:
+    ansi-terminal,
     base,
     base58-bytestring,
     bifunctors,

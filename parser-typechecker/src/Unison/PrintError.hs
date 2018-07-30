@@ -32,24 +32,11 @@ data TypeError v loc
              , mismatchSite :: loc }
   | Other (C.Note v loc)
 
---leafTypes :: C.Note v loc -> Maybe (C.Type v loc, C.Type v loc)
---leafTypes n@(C.Note cause path) =
---  case cause of
---    C.TypeMismatch _ -> go path
---    _ -> Nothing
---  where
---  go (C.InCheck term typ :<| _) =
+renderTypeError :: Env -> TypeError v loc -> String -> String
+renderTypeError _env _e _src = error "todo"
 
--- overallTypes :: C.Note v loc -> Maybe (C.Type v loc, C.Type v loc)
--- overallTypes n@(C.Note cause path) =
+-- highlightString :: String -> [()]
 
---data PathElement v loc
---  = InSynthesize (Term v loc)
---  | InSubtype (Type v loc) (Type v loc)
---  | InCheck (Term v loc) (Type v loc)
---  | InInstantiateL v (Type v loc)
---  | InInstantiateR (Type v loc) v
---  | InSynthesizeApp (Type v loc) (Term v loc)
 --
 typeErrorFromNote :: C.Note v loc -> TypeError v loc
 typeErrorFromNote n@(C.Note (C.TypeMismatch _) path) =
