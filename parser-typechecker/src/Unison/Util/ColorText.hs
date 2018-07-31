@@ -1,10 +1,12 @@
-{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE OverloadedStrings, PatternSynonyms, FlexibleInstances #-}
 module Unison.Util.ColorText where
 
 -- import qualified System.Console.ANSI as A
 -- import Control.Monad (join)
 -- import Data.Foldable (toList)
+import Control.Arrow (first)
 import           Data.Foldable     (foldl', asum)
+import qualified Data.List         as List
 import           Data.Sequence     (Seq)
 import           Data.Set          (Set)
 import qualified Data.Set          as Set
@@ -15,8 +17,7 @@ import           Unison.Lexer      (Line, Pos (..))
 import Safe (headMay)
 import System.Console.ANSI (setSGRCode, pattern SetColor, pattern Reset, pattern Foreground, pattern Vivid, pattern Red, pattern Blue)
 
--- data Style = Normal | Highlighted Color
-
+data Style = Normal | Highlighted Color
 data Color = Color1 | Color2 deriving (Eq, Ord, Show)
 
 toANSI :: Color -> Rendered
@@ -26,11 +27,12 @@ toANSI Color2 = Rendered . pure . setSGRCode $ [SetColor Foreground Vivid Blue]
 resetANSI :: Rendered
 resetANSI = Rendered . pure . setSGRCode $ [Reset]
 
-type ColorText = AnnotatedText Color
+type StyleText = AnnotatedText Style
 type ColorExcerpt = AnnotatedExcerpt Color
 
 newtype AnnotatedText a = AnnotatedText { chunks :: Seq (a, String) }
-newtype Rendered = Rendered { chunks' :: Seq String }
+
+newtype Rendered = Rendered (Seq String)
 
 data Range = Range { start :: Pos, end :: Pos } deriving (Eq, Ord, Show)
 
@@ -52,7 +54,14 @@ deoffsetRange lineOffset (Range (Pos startLine startCol) (Pos endLine endCol)) =
   Range (Pos (startLine - lineOffset + 1) startCol)
         (Pos (endLine - lineOffset + 1) endCol)
 
--- ugly because annotation ranges
+-- | drops lines and replaces with "." if there are more than `n` unannotated
+-- | lines in a row.
+splitAndRenderWithColor :: Int -> ColorExcerpt -> Rendered
+splitAndRenderWithColor n e =
+  mconcat $ List.intersperse
+              "    .\n"
+              (renderExcerptWithColor <$> snipWithContext n e)
+
 renderExcerptWithColor :: ColorExcerpt -> Rendered
 renderExcerptWithColor e =
   track (Pos line1 1) [] (Set.toList $ annotations e)
@@ -61,8 +70,8 @@ renderExcerptWithColor e =
     line1 :: Int
     line1 = lineOffset e
     renderLineNumber n = " " ++ replicate (lineNumberWidth - length sn) ' ' ++ sn ++ " | " where sn = show n
-    lineNumberWidth = length (show maxLineIndex)
-     where maxLineIndex = line1 - 1 + length (lines (text e))
+    lineNumberWidth = 4 --length (show maxLineIndex)
+     -- where maxLineIndex = line1 - 1 + length (lines (text e))
     setupNewLine :: Rendered -> Pos -> Char -> (Rendered, Pos)
     setupNewLine openColor (Pos line col) c = case c of
       '\n' -> let r = Rendered . pure $ renderLineNumber (line + 1)
@@ -134,6 +143,12 @@ snipWithContext margin source =
             else (Just r0, taken, Set.singleton a) -- otherwise add it to the second set
           else (Just r0, taken, Set.insert a rest) -- once we've added to the second set, anything more goes there too
 
+renderStyleTextWithColor :: StyleText -> Rendered
+renderStyleTextWithColor (AnnotatedText chunks) = foldl' go mempty chunks
+  where go :: Rendered -> (Style, String) -> Rendered
+        go r (Normal, text) = r <> resetANSI <> fromString text
+        go r (Highlighted color, text) = r <> toANSI color <> fromString text
+
 {-
 
    1    | foo : Int
@@ -148,18 +163,14 @@ Highlight: Line 1, Cols 1-5
 Highlight: Line 2, Cols 1-7
 -}
 
+unhighlighted :: StyleText -> StyleText
+unhighlighted s = const Normal <$> s
 
--- color1 :: ColorText -> ColorText
--- color1 s = ColorText $ fmap (\(_,s) -> (Color1,s)) (chunks s)
---
--- color2 :: ColorText -> ColorText
--- color2 s = ColorText $ fmap (\(_,s) -> (Color2,s)) (chunks s)
+color1 :: StyleText -> StyleText
+color1 s = const (Highlighted Color1) <$> s
 
--- highlight :: [(String,Int)] -> Map (Pos,Pos) Color -> ColorText
--- highlight s regions = ColorText _ where
-
--- highlight' :: String -> RenderInColor -> Map (Pos,Pos) Color -> (StartLine, EndLine) -> String
--- highlight' source highlightsForAParticularErrorMessage [(3, 3), (6, 6), (9, 10)]
+color2 :: StyleText -> StyleText
+color2 s = const (Highlighted Color2) <$> s
 
 -- data AnnotatedText
 --   = Line { line :: String -- cannot contain newlines
@@ -176,63 +187,36 @@ Highlight: Line 2, Cols 1-7
   -- Foo
   --
 
-
--- colorAt :: ColorText -> Map Pos Color
-
--- excerpt :: [Line] -> ColorText -> ColorText
---
-
--- instance IsString ColorText where
---   fromString s = ColorText (pure (Normal, s))
-
-
--- instance Monoid ColorText where
---   mempty = ColorText mempty
---   mappend x y = ColorText $ chunks x `mappend` chunks y
-
--- instance Semigroup ColorText where
---   (<>) = mappend
-
--- instance Show ColorText where
---   show = renderAnntatedText Nothing . renderInColor
-
--- renderInColor :: ColorText -> AnnotatedText
-
--- showExcerpts :: AnnotatedText -> Maybe [(Line,Line)] -> String
--- showExcerpts t Nothing = _
--- showExcerpts _ _ = _todo
-
--- represent a String as a Map (Pos,Pos) (Char, Color)
-
--- newtype ColorText = ColorText {
--- render :: RenderInColor -> Color -> Pos -> (Seq String, Pos) }
-
--- go False _ = pure s
--- go True Normal = pure s
--- go True Color1 = setColor s A.Red
--- go True Color2 = setColor s A.Blue
--- setColor s c = Seq.fromList
---   [ A.setSGRCode [A.SetColor A.Foreground A.Dull c]
---   , s
---   , A.setSGRCode [A.Reset]
---   ]
-
 instance Semigroup Range where
   (Range start end) <> (Range start2 end2) =
     Range (min start start2) (max end end2)
 
-instance Semigroup Rendered where
-  (<>) = mappend
-
 instance Show Rendered where
   show (Rendered chunks) = asum chunks
 
+instance Semigroup Rendered where
+  (<>) = mappend
+
 instance Monoid Rendered where
   mempty = Rendered mempty
-  mappend r1@(Rendered chunks) r2@(Rendered chunks') =
-    if (null chunks) then r2
-    else if (null chunks') then r1
-    else Rendered (chunks <> chunks')
+  mappend (Rendered chunks) (Rendered chunks') = Rendered (chunks <> chunks')
+
+instance IsString Rendered where
+  fromString s = Rendered (pure s)
 
 instance Ord a => IsString (AnnotatedExcerpt a) where
   fromString s = AnnotatedExcerpt 1 s mempty
+
+instance Semigroup (AnnotatedText a) where
+  (<>) = mappend
+
+instance Monoid (AnnotatedText a) where
+  mempty = AnnotatedText mempty
+  mappend (AnnotatedText chunks) (AnnotatedText chunks') =
+    AnnotatedText (chunks <> chunks')
+
+instance IsString (AnnotatedText Style) where
+  fromString s = AnnotatedText . pure $ (Normal, s)
+
+instance Functor AnnotatedText where
+  fmap f (AnnotatedText chunks) = AnnotatedText $ (first f <$> chunks)

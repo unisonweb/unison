@@ -14,10 +14,10 @@ markup a r = a { annotations = r `union` (annotations a) }
 
 ex2 :: ColorExcerpt
 ex2 = markup ex (Set.fromList
-      [ (Range (Pos 3 1) (Pos 3 5), Color1) -- SCENE
+      [ (Range (Pos 3 1) (Pos 3 5), Color2) -- SCENE
       , (Range (Pos 5 1) (Pos 5 5), Color1) -- Enter
       , (Range (Pos 25 1) (Pos 25 6), Color2) -- ALONSO
-      , (Range (Pos 7 1) (Pos 13 44), Color1) -- Master ... bestir.
+      , (Range (Pos 12 1) (Pos 13 44), Color1) -- Good, ... bestir.
       ])
 
 ex3 :: ColorExcerpt
