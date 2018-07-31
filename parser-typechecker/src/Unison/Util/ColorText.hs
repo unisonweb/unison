@@ -10,7 +10,6 @@ import qualified Data.Set as Set
 -- import qualified Data.Sequence as Seq
 import Data.String (IsString(..))
 import Unison.Lexer (Pos(..))
-import Debug.Trace
 
 data Style = Normal | Highlighted Color
 
@@ -49,9 +48,9 @@ instance IsString AnnotatedText where
 
 snipWithContext :: Int -> AnnotatedText -> [AnnotatedText]
 snipWithContext margin source =
-  case last (traceShowId $ scanl whileWithinMargin
+  case foldl' whileWithinMargin
               (Nothing, mempty, mempty)
-              (Set.toList $ annotations source)) of
+              (Set.toList $ annotations source) of
     (Nothing, _, _) -> []
     (Just (Range (Pos startLine' _) (Pos endLine' _)), group', rest') ->
       let text', text2' :: [String]
@@ -59,8 +58,8 @@ snipWithContext margin source =
             (splitAt (endLine' - startLine' + 1)
                      (drop (startLine' - lineOffset source)
                            (lines (text source))))
-      in AnnotatedText start' (unlines text') group'
-        : snipWithContext margin (AnnotatedText end' (unlines text2') rest')
+      in AnnotatedText startLine' (unlines text') group'
+        : snipWithContext margin (AnnotatedText endLine' (unlines text2') rest')
   where
     withinMargin :: Range -> Range -> Bool
     withinMargin (Range _start1 (Pos l1 _)) (Range (Pos l2 _) _end2) =
