@@ -100,9 +100,14 @@ data Cause v loc
   | CompilerBug (CompilerBug v loc)
   | AbilityCheckFailure [Type v loc] [Type v loc] -- ambient, requested
   | EffectConstructorWrongArgCount ExpectedArgCount ActualArgCount Reference ConstructorId
+  | SolvedBlank Blank v (Type v loc)
   deriving Show
 
 data Note v loc = Note { cause :: Cause v loc, path :: Seq (PathElement v loc) } deriving Show
+
+solveBlank :: Blank -> v -> Type v loc -> M v loc ()
+solveBlank blank v typ =
+  M (\menv -> (pure $ Note (SolvedBlank blank v typ) mempty, Just ((), env menv)))
 
 -- Add `p` onto the end of the `path` of this `Note`
 scope' :: PathElement v loc -> Note v loc -> Note v loc
@@ -146,26 +151,26 @@ context xs = foldl' (flip extend) context0 xs
 
 -- | Delete from the end of this context up to and including
 -- the given `Element`. Returns `Nothing` if the element is not found.
-retract :: Var v => Element v loc -> Context v loc -> Maybe (Context v loc)
-retract e (Context ctx) =
+retract0 :: Var v => Element v loc -> Context v loc -> Maybe (Context v loc, [Element v loc])
+retract0 e (Context ctx) =
   let maybeTail [] = Nothing
       maybeTail (_:t) = pure t
-  -- note: no need to recompute used variables; any suffix of the
-  -- context snoc list is also a valid context
-  in Context <$> maybeTail (dropWhile (\(e',_) -> e' /= e) ctx)
+      (discarded, ctx2) = span (\(e',_) -> e' /= e) ctx
+      -- note: no need to recompute used variables; any suffix of the
+      -- context snoc list is also a valid context
+      go ctx2 = (Context ctx2, fst <$> discarded)
+  in go <$> maybeTail ctx2
 
 -- | Delete from the end of this context up to and including
 -- the given `Element`.
+-- Example, if input context is `[a, b, c, d, ...]`
+-- Retract `d` returns `[a, b, c]`
 doRetract :: Var v => Element v loc -> M v loc ()
 doRetract e = do
   ctx <- getContext
-  case retract e ctx of
+  case retract0 e ctx of
     Nothing -> compilerCrash (RetractFailure e ctx)
-    Just t -> setContext t
-
--- | Like `retract`, but returns the empty context if retracting would remove all elements.
-retract' :: Var v => Element v loc -> Context v loc -> Context v loc
-retract' e ctx = fromMaybe mempty $ retract e ctx
+    Just (t, _discarded) -> setContext t
 
 solved :: Context v loc -> [(v, Monotype v loc)]
 solved (Context ctx) = [(v, sa) | (Solved _ v sa, _) <- ctx]
@@ -197,6 +202,10 @@ breakAt m (Context xs) =
 -- | ordered Γ α β = True <=> Γ[α^][β^]
 ordered :: Var v => Context v loc -> v -> v -> Bool
 ordered ctx v v2 = Set.member v (existentials (retract' (existential v2) ctx))
+  where
+  -- | Like `retract`, but returns the empty context if retracting would remove all elements.
+  retract' :: Var v => Element v loc -> Context v loc -> Context v loc
+  retract' e ctx = fromMaybe mempty $ (fst <$> retract0 e ctx)
 
 -- env0 :: Env v loc
 -- env0 = Env 0 context0
