@@ -3,13 +3,13 @@ module Unison.Util.ColorText where
 -- import qualified System.Console.ANSI as A
 -- import Control.Monad (join)
 -- import Data.Foldable (toList)
-import Data.Sequence (Seq)
-import Data.Foldable (foldl')
-import Data.Set (Set)
-import qualified Data.Set as Set
+import           Data.Foldable (foldl')
+import           Data.Sequence (Seq)
+import           Data.Set      (Set)
+import qualified Data.Set      as Set
 -- import qualified Data.Sequence as Seq
-import Data.String (IsString(..))
-import Unison.Lexer (Pos(..))
+import           Data.String   (IsString (..))
+import           Unison.Lexer  (Pos (..))
 
 data Style = Normal | Highlighted Color
 
@@ -27,53 +27,51 @@ overlaps :: Range -> Range -> Bool
 overlaps (Range _ (Pos line2 col2)) (Range (Pos line3 col3) _) =
            line2 > line3 || (line2 == line3 && col2 >= col3)
 
-
-instance Semigroup Range where
-  (Range start end) <> (Range start2 end2) =
-    Range (min start start2) (max end end2)
-
 deoffsetRange :: Int -> Range -> Range
 deoffsetRange lineOffset (Range (Pos startLine startCol) (Pos endLine endCol)) =
   Range (Pos (startLine - lineOffset) startCol)
         (Pos (endLine - lineOffset) endCol)
 
-data AnnotatedText =
-  AnnotatedText { lineOffset :: Int
-                , text :: String
-                , annotations :: Set (Range, Color)
-                } deriving (Show)
+data AnnotatedExcerpt a = AnnotatedExcerpt
+  { lineOffset  :: Int
+  , text        :: String
+  , annotations :: Set (Range, a)
+  } deriving (Show)
 
-instance IsString AnnotatedText where
-  fromString s = AnnotatedText 1 s mempty
-
-snipWithContext :: Int -> AnnotatedText -> [AnnotatedText]
+snipWithContext :: Ord a => Int -> AnnotatedExcerpt a -> [AnnotatedExcerpt a]
 snipWithContext margin source =
   case foldl' whileWithinMargin
               (Nothing, mempty, mempty)
               (Set.toList $ annotations source) of
     (Nothing, _, _) -> []
     (Just (Range (Pos startLine' _) (Pos endLine' _)), group', rest') ->
-      let text', text2' :: [String]
+      let dropLineCount = startLine' - lineOffset source
+          takeLineCount = endLine' - startLine' + 1
+          text', text2' :: [String]
           (text', text2') =
-            (splitAt (endLine' - startLine' + 1)
-                     (drop (startLine' - lineOffset source)
-                           (lines (text source))))
-      in AnnotatedText startLine' (unlines text') group'
-        : snipWithContext margin (AnnotatedText endLine' (unlines text2') rest')
+            splitAt takeLineCount (drop dropLineCount (lines (text source)))
+      in AnnotatedExcerpt startLine' (unlines text') group'
+        : snipWithContext
+            margin (AnnotatedExcerpt (endLine' + 1) (unlines text2') rest')
   where
     withinMargin :: Range -> Range -> Bool
-    withinMargin (Range _start1 (Pos l1 _)) (Range (Pos l2 _) _end2) =
-      (l1 + margin >= l2)
-    whileWithinMargin :: (Maybe Range, Set (Range, Color), Set (Range, Color))
-                      -> (Range, Color)
-                      -> (Maybe Range, Set (Range, Color), Set (Range, Color))
-    whileWithinMargin (Nothing, _taken, rest) a@(r1, _) | null rest =
-      (Just r1, Set.singleton a, mempty)
-    whileWithinMargin (Just r0, taken, rest) a@(r1, _) | null rest =
-      if withinMargin r0 r1
-      then (Just $ r0 <> r1, Set.insert a taken, mempty)
-      else (Just r0, taken, Set.singleton a)
-    whileWithinMargin (r0, taken, rest) a = (r0, taken, Set.insert a rest)
+    withinMargin (Range _start1 (Pos end1 _)) (Range (Pos start2 _) _end2) =
+      end1 + margin >= start2
+
+    whileWithinMargin :: Ord a
+                      => (Maybe Range, Set (Range, a), Set (Range, a))
+                      -> (Range, a)
+                      -> (Maybe Range, Set (Range, a), Set (Range, a))
+    whileWithinMargin (r0, taken, rest) a@(r1,_) =
+      case r0 of
+        Nothing -> -- haven't processed any annotations yet
+          (Just r1, Set.singleton a, mempty)
+        Just r0 ->
+          if null rest -- if all annotations so far can be joined without .. separations
+          then if withinMargin r0 r1 -- if this one can be joined to the compare region without .. separation
+            then (Just $ r0 <> r1, Set.insert a taken, mempty) -- add it to the first set and grow the compare region
+            else (Just r0, taken, Set.singleton a) -- otherwise add it to the second set
+          else (Just r0, taken, Set.insert a rest) -- once we've added to the second set, anything more goes there too
 
 {-
 
@@ -88,38 +86,6 @@ snipWithContext margin source =
 Highlight: Line 1, Cols 1-5
 Highlight: Line 2, Cols 1-7
 -}
-
--- [(Nothing,fromList [],fromList [])
--- ,(Just (Range {start = Pos 3 1, end = Pos 3 5}),fromList [(Range {start = Pos 3 1, end = Pos 3 5},Color1)],fromList [])
--- ,(Just (Range {start = Pos 3 1, end = Pos 3 5}),fromList [(Range {start = Pos 3 1, end = Pos 3 5},Color1)],fromList [(Range {start = Pos 5 1, end = Pos 5 5},Color1)])
--- ,(Just (Range {start = Pos 3 1, end = Pos 3 5}),fromList [(Range {start = Pos 3 1, end = Pos 3 5},Color1)],fromList [(Range {start = Pos 5 1, end = Pos 5 5},Color1),(Range {start = Pos 7 1, end = Pos 13 44},Color1)])
--- ,(Just (Range {start = Pos 3 1, end = Pos 3 5}),fromList [(Range {start = Pos 3 1, end = Pos 3 5},Color1)],fromList [(Range {start = Pos 5 1, end = Pos 5 5},Color1),(Range {start = Pos 7 1, end = Pos 13 44},Color1),(Range {start = Pos 14 1, end = Pos 14 4},Color2)])]
---
--- [AnnotatedText {lineOffset = 3, text = "SCENE I. On a ship at sea: a tempestuous noise\n", annotations = fromList [(Range {start = Pos 3 1, end = Pos 3 5},Color1)]}
--- ,AnnotatedText {lineOffset = 5, text = "\n", annotations = fromList [(Range {start = Pos 5 1, end = Pos 5 5},Color1)]}
--- ,AnnotatedText {lineOffset = 7, text = "Boatswain\nHere, master: what cheer?\nMaster\nGood, speak to the mariners: fall to't, yarely,\nor we run ourselves aground: bestir, bestir.\nExit\n\nEnter Mariners\n", annotations = fromList [(Range {start = Pos 7 1, end = Pos 13 44},Color1),(Range {start = Pos 14 1, end = Pos 14 4},Color2)]}
---
--- [(Nothing,fromList [],fromList [])
--- ,(Just (Range {start = Pos 5 1, end = Pos 5 5}),fromList [(Range {start = Pos 5 1, end = Pos 5 5},Color1)],fromList [])
--- ,(Just (Range {start = Pos 5 1, end = Pos 5 5}),fromList [(Range {start = Pos 5 1, end = Pos 5 5},Color1)],fromList [(Range {start = Pos 7 1, end = Pos 13 44},Color1)])
--- ,(Just (Range {start = Pos 5 1, end = Pos 5 5}),fromList [(Range {start = Pos 5 1, end = Pos 5 5},Color1)],fromList [(Range {start = Pos 7 1, end = Pos 13 44},Color1),(Range {start = Pos 14 1, end = Pos 14 4},Color2)])]
---
--- [(Nothing,fromList [],fromList [])
--- ,(Just (Range {start = Pos 7 1, end = Pos 13 44}),fromList [(Range {start = Pos 7 1, end = Pos 13 44},Color1)],fromList [])
--- ,(Just (Range {start = Pos 7 1, end = Pos 14 4}),fromList [(Range {start = Pos 7 1, end = Pos 13 44},Color1),(Range {start = Pos 14 1, end = Pos 14 4},Color2)],fromList [])]
---
--- [(Nothing,fromList [],fromList [])]
--- ]
---
---
--- [(Nothing,fromList [],fromList [])
--- ,(Just (Range {start = Pos 3 1, end = Pos 3 5}),fromList [(Range {start = Pos 3 1, end = Pos 3 5},Color1)],fromList [])
--- ,(Just (Range {start = Pos 3 1, end = Pos 5 5}),fromList [(Range {start = Pos 3 1, end = Pos 3 5},Color1),(Range {start = Pos 5 1, end = Pos 5 5},Color1)],fromList [])
--- ,(Just (Range {start = Pos 3 1, end = Pos 13 44}),fromList [(Range {start = Pos 3 1, end = Pos 3 5},Color1),(Range {start = Pos 5 1, end = Pos 5 5},Color1),(Range {start = Pos 7 1, end = Pos 13 44},Color1)],fromList [])
--- ,(Just (Range {start = Pos 3 1, end = Pos 14 4}),fromList [(Range {start = Pos 3 1, end = Pos 3 5},Color1),(Range {start = Pos 5 1, end = Pos 5 5},Color1),(Range {start = Pos 7 1, end = Pos 13 44},Color1),(Range {start = Pos 14 1, end = Pos 14 4},Color2)],fromList [])]
--- [AnnotatedText {lineOffset = 3, text = "SCENE I. On a ship at sea: a tempestuous noise\nof thunder and lightning heard.\nEnter a Master and a Boatswain\n\nMaster\nBoatswain!\nBoatswain\nHere, master: what cheer?\nMaster\nGood, speak to the mariners: fall to't, yarely,\nor we run ourselves aground: bestir, bestir.\nExit\n", annotations = fromList [(Range {start = Pos 3 1, end = Pos 3 5},Color1),(Range {start = Pos 5 1, end = Pos 5 5},Color1),(Range {start = Pos 7 1, end = Pos 13 44},Color1),(Range {start = Pos 14 1, end = Pos 14 4},Color2)]}[(Nothing,fromList [],fromList [])]
--- ]
-
 
 
 -- color1 :: ColorText -> ColorText
@@ -144,12 +110,6 @@ Highlight: Line 2, Cols 1-7
 -- * Don't print out source that isn't related to the error
 -- * Color regions that are related to the error
 -- * Insert lines with carets in place of using colors in some cases
-
--- Approach 1:
-  -- Symbolically apply highlighting to the source
-  --  and then automatically generate excerpts.
--- Approach 2:
-  -- Manually specify excerpt ranges?
 
   -- vvvvv
   -- Foo
@@ -195,3 +155,10 @@ Highlight: Line 2, Cols 1-7
 --   , s
 --   , A.setSGRCode [A.Reset]
 --   ]
+
+instance Semigroup Range where
+  (Range start end) <> (Range start2 end2) =
+    Range (min start start2) (max end end2)
+
+instance Ord a => IsString (AnnotatedExcerpt a) where
+  fromString s = AnnotatedExcerpt 1 s mempty
