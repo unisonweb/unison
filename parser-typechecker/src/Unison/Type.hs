@@ -195,14 +195,17 @@ andor' a = arrows (f <$> [boolean a, boolean a]) $ boolean a
 var :: Ord v => a -> v -> AnnotatedType v a
 var = ABT.annotatedVar
 
-existential :: Ord v => v -> Type (TypeVar Blank v)
-existential v = ABT.var (TypeVar.Existential Placeholder v)
+existential :: Ord v => Blank -> v -> Type (TypeVar Blank v)
+existential blank v = ABT.var (TypeVar.Existential blank v)
 
 universal :: Ord v => v -> Type (TypeVar b v)
 universal v = ABT.var (TypeVar.Universal v)
 
-existential' :: Ord v => a -> v -> AnnotatedType (TypeVar Blank v) a
-existential' a v = ABT.annotatedVar a (TypeVar.Existential Placeholder v)
+existentialp :: Ord v => a -> v -> AnnotatedType (TypeVar Blank v) a
+existentialp a v = existential' a Placeholder v
+
+existential' :: Ord v => a -> Blank -> v -> AnnotatedType (TypeVar Blank v) a
+existential' a blank v = ABT.annotatedVar a (TypeVar.Existential blank v)
 
 universal' :: Ord v => a -> v -> AnnotatedType (TypeVar b v) a
 universal' a v = ABT.annotatedVar a (TypeVar.Universal v)

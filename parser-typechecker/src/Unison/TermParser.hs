@@ -106,7 +106,7 @@ parsePattern = constructor <|> leaf
       (\(p, vs) -> (Pattern.As (ann v) p, tokenToPair v : vs)) <$> leaf
       else pure (Pattern.Var (ann v), [tokenToPair v])
   unbound :: P v (Pattern Ann, [(Ann, v)])
-  unbound = (\tok -> (Pattern.Unbound (ann tok), [])) <$> reserved "_"
+  unbound = (\tok -> (Pattern.Unbound (ann tok), [])) <$> blank
   ctorName = P.try $ do
     s <- wordyId
     guard . isUpper . head . L.payload $ s
