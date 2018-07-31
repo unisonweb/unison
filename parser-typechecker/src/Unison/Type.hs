@@ -64,9 +64,9 @@ freeVars = ABT.freeVars
 bindBuiltins :: Var v => [(v, Reference)] -> AnnotatedType v a -> AnnotatedType v a
 bindBuiltins bs = ABT.substsInheritAnnotation [ (v, ref() r) | (v,r) <- bs ]
 
-data Monotype v a = Monotype { getPolytype :: AnnotatedType v a } deriving (Eq)
+data Monotype v a = Monotype { getPolytype :: AnnotatedType v a } deriving Eq
 
-instance (Show a, Var v) => Show (Monotype v a) where
+instance (Var v) => Show (Monotype v a) where
   show = show . getPolytype
 
 -- Smart constructor which checks if a `Type` has no `Forall` quantifiers.
@@ -195,16 +195,16 @@ andor' a = arrows (f <$> [boolean a, boolean a]) $ boolean a
 var :: Ord v => a -> v -> AnnotatedType v a
 var = ABT.annotatedVar
 
-existential :: Ord v => Blank -> v -> Type (TypeVar Blank v)
+existential :: Ord v => Blank loc -> v -> Type (TypeVar (Blank loc) v)
 existential blank v = ABT.var (TypeVar.Existential blank v)
 
 universal :: Ord v => v -> Type (TypeVar b v)
 universal v = ABT.var (TypeVar.Universal v)
 
-existentialp :: Ord v => a -> v -> AnnotatedType (TypeVar Blank v) a
+existentialp :: Ord v => a -> v -> AnnotatedType (TypeVar (Blank x) v) a
 existentialp a v = existential' a Placeholder v
 
-existential' :: Ord v => a -> Blank -> v -> AnnotatedType (TypeVar Blank v) a
+existential' :: Ord v => a -> Blank x -> v -> AnnotatedType (TypeVar (Blank x) v) a
 existential' a blank v = ABT.annotatedVar a (TypeVar.Existential blank v)
 
 universal' :: Ord v => a -> v -> AnnotatedType (TypeVar b v) a

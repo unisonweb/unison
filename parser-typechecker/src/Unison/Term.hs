@@ -55,7 +55,7 @@ data F typeVar typeAnn patternAnn a
   | Float Double
   | Boolean Bool
   | Text Text
-  | Blank Blank
+  | Blank (Blank typeAnn)
   | Ref Reference
   -- First argument identifies the data type,
   -- second argument identifies the constructor
@@ -228,11 +228,11 @@ text a = ABT.tm' a . Text
 placeholder :: Ord v => a -> AnnotatedTerm2 vt at ap v a
 placeholder a = ABT.tm' a (Blank Placeholder)
 
-remember :: Ord v => a -> String -> AnnotatedTerm2 vt at ap v a
-remember a s = ABT.tm' a . Blank $ Remember s
+remember :: Ord v => a -> String -> AnnotatedTerm2 vt a ap v a
+remember a s = ABT.tm' a . Blank $ Remember a s
 
-resolve :: Ord v => a -> String -> AnnotatedTerm2 vt at ap v a
-resolve a s = ABT.tm' a . Blank $ Resolve s
+resolve :: Ord v => a -> String -> AnnotatedTerm2 vt a ap v a
+resolve a s = ABT.tm' a . Blank $ Resolve a s
 
 constructor :: Ord v => a -> Reference -> Int -> AnnotatedTerm2 vt at ap v a
 constructor a ref n = ABT.tm' a (Constructor ref n)
@@ -447,8 +447,8 @@ instance Var v => Hashable1 (F v a p) where
         Blank b ->
           tag 1 : case b of
                     Placeholder -> [tag 0]
-                    Remember s -> [tag 1, Hashable.Text (Text.pack s)]
-                    Resolve s -> [tag 2, Hashable.Text (Text.pack s)]
+                    Remember _ s -> [tag 1, Hashable.Text (Text.pack s)]
+                    Resolve _ s -> [tag 2, Hashable.Text (Text.pack s)]
         Ref (Reference.Builtin name) -> [tag 2, accumulateToken name]
         Ref (Reference.Derived _) -> error "handled above, but GHC can't figure this out"
         App a a2 -> [tag 3, hashed (hash a), hashed (hash a2)]
@@ -482,7 +482,7 @@ instance Var v => Hashable1 (F v a p) where
 instance (Eq a, Var v) => Eq1 (F v a p) where (==#) = (==)
 instance (Show a, Show p, Var v) => Show1 (F v a p) where showsPrec1 = showsPrec
 
-instance (Var vt, Eq a) => Eq (F vt at p a) where
+instance (Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   Int64 x == Int64 y = x == y
   UInt64 x == UInt64 y = x == y
   Float x == Float y = x == y
@@ -524,8 +524,8 @@ instance (Var v, Show p, Show a0, Show a) => Show (F v a0 p a) where
     go _ (Blank b) =
       case b of
         Placeholder -> s"_"
-        Remember r -> s("_" ++ r)
-        Resolve r -> s r
+        Remember _ r -> s("_" ++ r)
+        Resolve _ r -> s r
     go _ (Ref r) = showsPrec 0 r
     go _ (Let b body) = showParen True (s"let " <> showsPrec 0 b <> s" in " <> showsPrec 0 body)
     go _ (LetRec bs body) = showParen True (s"let rec" <> showsPrec 0 bs <> s" in " <> showsPrec 0 body)
