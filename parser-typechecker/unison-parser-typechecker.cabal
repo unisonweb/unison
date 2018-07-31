@@ -131,6 +131,7 @@ executable tests
   hs-source-dirs: tests
   other-modules:
     Unison.Test.Common
+    Unison.Test.ColorText
     Unison.Test.DataDeclaration
     Unison.Test.FileParser
     Unison.Test.Lexer
