@@ -471,10 +471,10 @@ synthesize e = scope (InSynthesize e) $ go (minimize' e)
   go (Term.Var' v) = getContext >>= \ctx -> case lookupType ctx v of -- Var
     Nothing -> compilerCrash $ UndeclaredTermVariable v ctx
     Just t -> pure t
-  go Term.Blank' = do
-    v <- freshNamed "_"
-    appendContext $ context [Existential v]
-    pure $ Type.existential' l v -- forall (TypeVar.Universal v) (Type.universal v)
+  go (Term.Blank' _) = error "TODO"
+    -- v <- freshNamed "_"
+    -- appendContext $ context [Existential v]
+    -- pure $ Type.existential' l v -- forall (TypeVar.Universal v) (Type.universal v)
   go (Term.Ann' (Term.Ref' _) t) = case ABT.freeVars t of
     s | Set.null s ->
       -- innermost Ref annotation assumed to be correctly provided by `synthesizeClosed`
@@ -636,7 +636,7 @@ patternToTerm pat = case pat of
    (h : t) <- get
    put t
    pure $ Term.var loc h
-  Pattern.Unbound loc -> pure $ Term.blank loc
+  Pattern.Unbound loc -> pure $ Term.placeholder loc
   Pattern.As loc p -> do
    (h : t) <- get
    put t
@@ -668,7 +668,10 @@ checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) =
       patTerm :: Term v loc
       patTerm = evalState (patternToTerm (pat :: Pattern loc) :: State [v] (Term v loc)) vs
       newBody = Term.let1 [((loc rhs', Var.named "_"), Term.ann (loc scrutineeType) patTerm scrutineeType)] rhs'
-      entireCase = foldr (\locv t -> Term.let1 [(locv, Term.blank (fst locv))] t) newBody (Foldable.toList pat `zip` vs)
+      entireCase =
+        foldr (\locv t -> Term.let1 [(locv, Term.placeholder (fst locv))] t)
+              newBody
+              (Foldable.toList pat `zip` vs)
   in check entireCase outputType
 
 bindings :: Context v loc -> [(v, Type v loc)]
@@ -737,7 +740,8 @@ check e0 t = scope (InCheck e0 t) $ getContext >>= \ctx ->
   if wellformedType ctx t then
     let
       go :: Term v loc -> Type v loc -> M v loc ()
-      go Term.Blank' _ = pure () -- somewhat hacky short circuit; blank checks successfully against all types
+      go (Term.Blank' _)  _ = error "TODO"
+      --pure () -- somewhat hacky short circuit; blank checks successfully against all types
       go _ (Type.Forall' body) = do -- ForallI
         x <- extendUniversal =<< ABT.freshen body freshenTypeVar
         check e (ABT.bindInheritAnnotation body (Type.universal x))

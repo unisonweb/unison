@@ -8,10 +8,10 @@
 
 module Unison.TermParser where
 
+-- import           Debug.Trace
 import           Control.Applicative
 import           Control.Monad (guard, join, when)
 import           Control.Monad.Reader (ask)
--- import           Debug.Trace
 import           Data.Char (isUpper)
 import           Data.Foldable (asum)
 import           Data.Int (Int64)
@@ -186,8 +186,8 @@ boolean :: Var v => TermP v
 boolean = ((\t -> Term.boolean (ann t) True) <$> reserved "true") <|>
           ((\t -> Term.boolean (ann t) False) <$> reserved "false")
 
-blank :: Var v => TermP v
-blank = (\t -> Term.blank (ann t)) <$> reserved "_"
+remember :: Var v => TermP v
+remember = (\t -> Term.remember (ann t) (L.payload t)) <$> blank
 
 vector :: Var v => TermP v -> TermP v
 vector p = f <$> reserved "[" <*> elements <*> reserved "]"
@@ -198,7 +198,7 @@ vector p = f <$> reserved "[" <*> elements <*> reserved "]"
 termLeaf :: forall v. Var v => TermP v
 termLeaf =
   asum [hashLit, prefixTerm, text, number, boolean,
-        tupleOrParenthesizedTerm, blank, vector term]
+        tupleOrParenthesizedTerm, remember, vector term]
 
 and = label "and" $ f <$> reserved "and" <*> termLeaf <*> termLeaf
   where f kw x y = Term.and (ann kw <> ann y) x y
