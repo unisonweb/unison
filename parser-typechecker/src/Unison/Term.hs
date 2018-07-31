@@ -29,6 +29,7 @@ import           GHC.Generics
 import           Prelude.Extras (Eq1(..), Show1(..))
 import           Text.Show
 import qualified Unison.ABT as ABT
+import           Unison.Blank
 import           Unison.Hash (Hash)
 import qualified Unison.Hash as Hash
 import           Unison.Hashable (Hashable1, accumulateToken)
@@ -45,15 +46,6 @@ import           Unsafe.Coerce
 -- todo: add loc to MatchCase
 data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
   deriving (Show,Eq,Foldable,Functor,Generic,Generic1,Traversable)
-
-data Blank
-  -- An expression that has not been filled in, has type `forall a . a`.
-  = Placeholder
-  -- A user-provided typed hole
-  | Remember String
-  -- A name to be resolved with type-directed name resolution.
-  | Resolve String
-  deriving (Show, Eq, Ord)
 
 -- | Base functor for terms in the Unison language
 -- We need `typeVar` because the term and type variables may differ.

@@ -8,37 +8,37 @@
 
 module Unison.Typechecker.Context (synthesizeClosed, Note(..), Cause(..), PathElement(..)) where
 
-import Data.Sequence (Seq)
-
 import           Control.Monad
 import           Control.Monad.Loops (anyM, allM)
 import           Control.Monad.State (State, get, put, evalState)
 import qualified Data.Foldable as Foldable
-import Data.Maybe
 import           Data.List
 import           Data.Map (Map)
 import qualified Data.Map as Map
+import           Data.Maybe
+import           Data.Sequence (Seq)
 import           Data.Set (Set)
 import qualified Data.Set as Set
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Debug.Trace
 import qualified Unison.ABT as ABT
+import           Unison.Blank
 import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 import qualified Unison.DataDeclaration as DD
 import           Unison.PatternP (Pattern)
 import qualified Unison.PatternP as Pattern
 import           Unison.Reference (Reference)
-import qualified Unison.Term as Term
 import           Unison.Term (AnnotatedTerm')
+import qualified Unison.Term as Term
 import           Unison.Type (AnnotatedType)
 import qualified Unison.Type as Type
-import           Unison.TypeVar (TypeVar)
 import qualified Unison.TypeVar as TypeVar
 import           Unison.Typechecker.Components (minimize')
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 
+type TypeVar v = TypeVar.TypeVar Blank v
 type Type v loc = AnnotatedType (TypeVar v) loc
 type Term v loc = AnnotatedTerm' (TypeVar v) v loc
 type Monotype v loc = Type.Monotype (TypeVar v) loc
@@ -46,15 +46,14 @@ type Monotype v loc = Type.Monotype (TypeVar v) loc
 pattern Universal v <- Var (TypeVar.Universal v) where
   Universal v = Var (TypeVar.Universal v)
 
-pattern Existential v <- Var (TypeVar.Existential v) where
-  Existential v = Var (TypeVar.Existential v)
+pattern Existential b v = Var (TypeVar.Existential b v)
 
 -- | Elements of an ordered algorithmic context
 data Element v loc
-  = Var (TypeVar v)        -- A variable declaration
+  = Var (TypeVar v)      -- A variable declaration
   | Solved v (Monotype v loc)  -- `v` is solved to some monotype
   | Ann v (Type v loc)         -- `v` has type `a`, which may be quantified
-  | Marker v deriving (Eq) -- used for scoping
+  | Marker v deriving (Eq)     -- used for scoping
 
 data Env v loc = Env { freshId :: Word, ctx :: Context v loc }
 
@@ -166,7 +165,7 @@ solved :: Context v loc -> [(v, Monotype v loc)]
 solved (Context ctx) = [(v, sa) | (Solved v sa, _) <- ctx]
 
 unsolved :: Context v loc -> [v]
-unsolved (Context ctx) = [v | (Existential v, _) <- ctx]
+unsolved (Context ctx) = [v | (Existential _ v, _) <- ctx]
 
 replace :: Var v => Element v loc -> Context v loc -> Context v loc -> Context v loc
 replace e focus ctx =
@@ -179,16 +178,16 @@ breakAt m (Context xs) =
     (r, l) = break (\(e,_) -> e === m) xs
   -- l is a suffix of xs and is already a valid context;
   -- r needs to be rebuilt
-    Existential v === Existential v2 | v == v2 = True
-    Universal v   === Universal v2 | v == v2 = True
-    Marker v      === Marker v2 | v == v2 = True
+    Existential _ v === Existential _ v2 | v == v2 = True
+    Universal v     === Universal v2 | v == v2 = True
+    Marker v        === Marker v2 | v == v2 = True
     _ === _ = False
   in (Context (drop 1 l), context . map fst $ reverse r)
 
 
 -- | ordered Γ α β = True <=> Γ[α^][β^]
 ordered :: Var v => Context v loc -> v -> v -> Bool
-ordered ctx v v2 = Set.member v (existentials (retract' (Existential v2) ctx))
+ordered ctx v v2 = Set.member v (existentials (retract' (Existential Placeholder v2) ctx))
 
 -- env0 :: Env v loc
 -- env0 = Env 0 context0
@@ -265,7 +264,7 @@ wellformed ctx = isWellformed (info ctx)
 -- | Check that the type is well formed wrt the given `Context`, see Figure 7 of paper
 wellformedType :: Var v => Context v loc -> Type v loc -> Bool
 wellformedType c t = wellformed c && case t of
-  Type.Existential' v -> Set.member v (existentials c)
+  Type.Existential' _ v -> Set.member v (existentials c)
   Type.Universal' v -> Set.member v (universals c)
   Type.Ref' _ -> True
   Type.Arrow' i o -> wellformedType c i && wellformedType c o
@@ -297,7 +296,7 @@ extend e c@(Context ctx) = Context ((e,i'):ctx) where
       -- UvarCtx - ensure no duplicates
       TypeVar.Universal v -> Info es (Set.insert v us) (Set.insert v vs) (ok && Set.notMember v us)
       -- EvarCtx - ensure no duplicates, and that this existential is not solved earlier in context
-      TypeVar.Existential v -> Info (Set.insert v es) us (Set.insert v vs) (ok && Set.notMember v es)
+      TypeVar.Existential _ v -> Info (Set.insert v es) us (Set.insert v vs) (ok && Set.notMember v es)
     -- SolvedEvarCtx - ensure `v` is fresh, and the solution is well-formed wrt the context
     Solved v sa -> Info (Set.insert v es) us (Set.insert v vs) (ok && Set.notMember v es
                                                                       && wellformedType c (Type.getPolytype sa))
@@ -388,18 +387,20 @@ extendMarker :: Var v => v -> M v loc v
 extendMarker v = do
   v' <- freshenVar v
   modifyContext (\ctx -> pure $ ctx `mappend`
-    (context [Marker v', Existential v']))
+    (context [Marker v', Existential Placeholder v']))
   pure v'
 
 notMember :: Var v => v -> Set (TypeVar v) -> Bool
-notMember v s = Set.notMember (TypeVar.Universal v) s && Set.notMember (TypeVar.Existential v) s
+notMember v s =
+  Set.notMember (TypeVar.Universal v) s &&
+  Set.notMember (TypeVar.Existential Placeholder v) s
 
 -- | Replace any existentials with their solution in the context
 apply :: Var v => Context v loc -> Type v loc -> Type v loc
 apply ctx t = case t of
   Type.Universal' _ -> t
   Type.Ref' _ -> t
-  Type.Existential' v ->
+  Type.Existential' _ v ->
     maybe t (\(Type.Monotype t') -> apply ctx t') (lookup v (solved ctx))
   Type.Arrow' i o -> Type.arrow a (apply ctx i) (apply ctx o)
   Type.App' x y -> Type.app a (apply ctx x) (apply ctx y)
@@ -963,8 +964,8 @@ solve ctx v t
 solve ctx v t
   | wellformedType ctxL (Type.getPolytype t) = Just ctx'
   | otherwise                                = Nothing
-  where (ctxL,ctxR) = breakAt (Existential v) ctx
-        ctx' = ctxL `mappend` context [Solved v t] `mappend` ctxR
+  where (ctxL,ctxR) = breakAt (Existential v blah) ctx
+        ctx' = ctxL `mappend` context [Solved blah v t] `mappend` ctxR
 
 abilityCheck' :: Var v => [Type v loc] -> [Type v loc] -> M v loc ()
 abilityCheck' ambient requested = do

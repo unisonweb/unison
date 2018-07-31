@@ -9,21 +9,22 @@
 
 module Unison.Type where
 
-import Data.List
-import Data.Set (Set)
-import Data.Text (Text)
-import GHC.Generics
-import Prelude.Extras (Eq1(..),Show1(..))
-import Unison.Hashable (Hashable1)
-import Unison.Reference (Reference)
-import Unison.TypeVar (TypeVar)
-import Unison.Var (Var)
+import           Data.List
+import           Data.Set (Set)
 import qualified Data.Set as Set
+import           Data.Text (Text)
+import           GHC.Generics
+import           Prelude.Extras (Eq1(..),Show1(..))
 import qualified Unison.ABT as ABT
+import           Unison.Blank
+import           Unison.Hashable (Hashable1)
 import qualified Unison.Hashable as Hashable
 import qualified Unison.Kind as K
+import           Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
+import           Unison.TypeVar (TypeVar)
 import qualified Unison.TypeVar as TypeVar
+import           Unison.Var (Var)
 import qualified Unison.Var as Var
 
 -- | Base functor for types in the Unison language
@@ -91,7 +92,7 @@ pattern Effect'' es t <- (stripEffect -> (es, t))
 pattern Forall' subst <- ABT.Tm' (Forall (ABT.Abs' subst))
 pattern ForallNamed' v body <- ABT.Tm' (Forall (ABT.out -> ABT.Abs v body))
 pattern Var' v <- ABT.Var' v
-pattern Existential' v <- ABT.Var' (TypeVar.Existential v)
+pattern Existential' b v <- ABT.Var' (TypeVar.Existential b v)
 pattern Universal' v <- ABT.Var' (TypeVar.Universal v)
 
 unArrows :: Type v -> Maybe [Type v]
@@ -107,11 +108,11 @@ unApps t = case go t [] of [] -> Nothing; f:args -> Just (f,args)
   go (App' i o) acc = go i (o:acc)
   go fn args = fn:args
 
-matchExistential :: Eq v => v -> Type (TypeVar v) -> Bool
-matchExistential v (Existential' x) = x == v
+matchExistential :: Eq v => v -> Type (TypeVar b v) -> Bool
+matchExistential v (Existential' _ x) = x == v
 matchExistential _ _ = False
 
-matchUniversal :: Eq v => v -> Type (TypeVar v) -> Bool
+matchUniversal :: Eq v => v -> Type (TypeVar b v) -> Bool
 matchUniversal v (Universal' x) = x == v
 matchUniversal _ _ = False
 
@@ -194,16 +195,16 @@ andor' a = arrows (f <$> [boolean a, boolean a]) $ boolean a
 var :: Ord v => a -> v -> AnnotatedType v a
 var = ABT.annotatedVar
 
-existential :: Ord v => v -> Type (TypeVar v)
-existential v = ABT.var (TypeVar.Existential v)
+existential :: Ord v => v -> Type (TypeVar Blank v)
+existential v = ABT.var (TypeVar.Existential Placeholder v)
 
-universal :: Ord v => v -> Type (TypeVar v)
+universal :: Ord v => v -> Type (TypeVar b v)
 universal v = ABT.var (TypeVar.Universal v)
 
-existential' :: Ord v => a -> v -> AnnotatedType (TypeVar v) a
-existential' a v = ABT.annotatedVar a (TypeVar.Existential v)
+existential' :: Ord v => a -> v -> AnnotatedType (TypeVar Blank v) a
+existential' a v = ABT.annotatedVar a (TypeVar.Existential Placeholder v)
 
-universal' :: Ord v => a -> v -> AnnotatedType (TypeVar v) a
+universal' :: Ord v => a -> v -> AnnotatedType (TypeVar b v) a
 universal' a v = ABT.annotatedVar a (TypeVar.Universal v)
 
 v' :: Var v => Text -> Type v
