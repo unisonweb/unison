@@ -12,7 +12,7 @@ import           Unison.Util.ColorText
 markup :: Ord a => AnnotatedExcerpt a -> Set (Range, a) -> AnnotatedExcerpt a
 markup a r = a { annotations = r `union` (annotations a) }
 
-ex2 :: AnnotatedExcerpt Color
+ex2 :: ColorExcerpt
 ex2 = markup ex (Set.fromList
       [ (Range (Pos 3 1) (Pos 3 5), Color1) -- SCENE
       , (Range (Pos 5 1) (Pos 5 5), Color1) -- Enter

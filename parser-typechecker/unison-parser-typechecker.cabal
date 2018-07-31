@@ -90,6 +90,7 @@ library
     megaparsec,
     prelude-extras,
     random,
+    safe,
     stm,
     text,
     transformers,
