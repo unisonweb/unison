@@ -20,6 +20,11 @@ ex2 = markup ex (Set.fromList
       , (Range (Pos 7 1) (Pos 13 44), Color1) -- Master ... bestir.
       ])
 
+ex3 :: ColorExcerpt
+ex3 = markup "Hello, world!" $ Set.fromList [(Range (Pos 1 8) (Pos 1 12), Color1), (Range (Pos 1 1) (Pos 1 5), Color2)]
+ex4 :: ColorExcerpt
+ex4 = markup "Hello,\nworld!" $ Set.fromList [(Range (Pos 2 1) (Pos 2 5), Color1), (Range (Pos 1 1) (Pos 1 5), Color2)]
+
 ex :: Ord a => AnnotatedExcerpt a
 ex = [r|The Tempest | Act 1, Scene 1
 

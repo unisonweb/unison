@@ -4,14 +4,13 @@ module Unison.Util.ColorText where
 -- import qualified System.Console.ANSI as A
 -- import Control.Monad (join)
 -- import Data.Foldable (toList)
-import           Data.Foldable     (foldl')
+import           Data.Foldable     (foldl', asum)
 import           Data.Sequence     (Seq)
 import           Data.Set          (Set)
 import qualified Data.Set          as Set
 -- import qualified Data.Sequence as Seq
 -- import           Control.Exception (assert)
 import           Data.String       (IsString (..))
-import           Text.Printf       (printf)
 import           Unison.Lexer      (Line, Pos (..))
 import Safe (headMay)
 import System.Console.ANSI (setSGRCode, pattern SetColor, pattern Reset, pattern Foreground, pattern Vivid, pattern Red, pattern Blue)
@@ -35,13 +34,12 @@ newtype Rendered = Rendered { chunks' :: Seq String }
 
 data Range = Range { start :: Pos, end :: Pos } deriving (Eq, Ord, Show)
 
+-- | True if `_x` contains `_y`
 contains :: Range -> Range -> Bool
-contains (Range _ (Pos line2 col2)) (Range _ (Pos line4 col4)) =
-           line4 < line2 || (line4 == line2 && col4 <= col2)
+contains _x@(Range a b) _y@(Range c d) = a <= c && c <= b && a <= d && d <= b
 
 overlaps :: Range -> Range -> Bool
-overlaps (Range _ (Pos line2 col2)) (Range (Pos line3 col3) _) =
-           line2 > line3 || (line2 == line3 && col2 >= col3)
+overlaps (Range a b) (Range c d) = (a <= c && c <= b) || (c <= a && a <= d)
 
 inRange :: Pos -> Range -> Bool
 inRange p r = contains r (Range p p)
@@ -57,45 +55,43 @@ deoffsetRange lineOffset (Range (Pos startLine startCol) (Pos endLine endCol)) =
 -- ugly because annotation ranges
 renderExcerptWithColor :: ColorExcerpt -> Rendered
 renderExcerptWithColor e =
-  track (Pos 1 1) [] (Set.toList $ annotations e) mempty (text e)
+  track (Pos line1 1) [] (Set.toList $ annotations e)
+    (Rendered . pure $ renderLineNumber line1) (text e)
   where
+    line1 :: Int
+    line1 = lineOffset e
+    renderLineNumber n = " " ++ replicate (lineNumberWidth - length sn) ' ' ++ sn ++ " | " where sn = show n
     lineNumberWidth = length (show maxLineIndex)
-      where maxLineIndex = lineOffset e - 1 + length (lines (text e))
-    newColor stack = maybe mempty toANSI (fst <$> headMay stack)
-    checkNewline (Pos line col) c = if c == '\n'
-      then (Rendered . pure $ printf " % *d | " lineNumberWidth (line + 1)
-            , Pos (line + 1) 1)
-      else (mempty, Pos line (col + 1))
+     where maxLineIndex = line1 - 1 + length (lines (text e))
+    setupNewLine :: Rendered -> Pos -> Char -> (Rendered, Pos)
+    setupNewLine openColor (Pos line col) c = case c of
+      '\n' -> let r = Rendered . pure $ renderLineNumber (line + 1)
+              in (r <> openColor, Pos (line + 1) 1)
+      _ -> (mempty, Pos line (col + 1))
     track :: Pos -> [(Color, Pos)] -> [(Range, Color)] -> Rendered -> String -> Rendered
-    -- no more input, no formatting on the stack
-    track _ [] _ rendered "" = rendered
-    -- no more input, reset to clear formatting stack
-    track _ (_:_) _ rendered "" = rendered <> resetANSI
-    -- no more annotations and all open annotations are finished
-    track _ [] [] rendered input = rendered <> Rendered (pure input)
-    -- no more annotations, but need to close some annotations
-    track pos stack [] rendered (c:rest) =
-      let stack' = dropWhile ((<=pos) . snd) stack
-          (lineHeader, pos') = checkNewline pos c
+    track _pos stack _annotations rendered "" =
+      rendered <> if null stack then mempty else resetANSI
+    track pos stack annotations rendered _input@(c:rest) =
+      let -- get whichever annotations may now be open
+          (poppedAnnotations, remainingAnnotations) = span (inRange pos . fst) annotations
+          -- drop any stack entries that will be closed after this char
+          stack0 = dropWhile ((<=pos) . snd) stack
+          -- and add new stack entries
+          stack' = foldl' pushColor stack0 poppedAnnotations
+            where pushColor s (Range _ end, color) = (color, end) : s
+          resetColor =
+            if null poppedAnnotations && null stack' && not (null stack)
+            then resetANSI else mempty
+          maybeColor = fst <$> headMay stack'
+          openColor = maybe mempty toANSI maybeColor
+          (lineHeader, pos') = setupNewLine openColor pos c
           lineHeader' = if null rest then mempty else lineHeader
-      in track pos' stack' [] (lineHeader' <> rendered <> newColor stack') rest
-    -- no open annotations, but more annotations available
-    track pos stack annotations rendered (c:rest) =
-      let (poppedAnnotations, remainingAnnotations) =
-            span (inRange pos . fst) annotations
-          stack' = foldl' pushColor (dropWhile ((<=pos) . snd) stack) poppedAnnotations
-            where pushColor stack (Range _ end, color) = (color, end) : stack
-          (lineHeader, pos') = checkNewline pos c
-          lineHeader' = if null rest then mempty else lineHeader
+          newChar =
+            if c == '\n'
+              then (Rendered . pure) [c] <> resetANSI <> lineHeader'
+              else openColor <> (Rendered . pure) [c]
       in track pos' stack' remainingAnnotations
-          (lineHeader' <> rendered <> newColor stack') rest
-    -- open annotations and more annotations available, need to check what order to do stuff
-    track _pos@(Pos _line _col) _colorStack _annotations _rendered _input =
-      -- let (poppedAnnotations, remainingAnnotations) =
-            -- span (inRange pos . fst) annotations
-            error ""
-
-
+        (rendered <> newChar <> resetColor) rest
 
 data AnnotatedExcerpt a = AnnotatedExcerpt
   { lineOffset  :: Line
@@ -227,6 +223,9 @@ instance Semigroup Range where
 
 instance Semigroup Rendered where
   (<>) = mappend
+
+instance Show Rendered where
+  show (Rendered chunks) = asum chunks
 
 instance Monoid Rendered where
   mempty = Rendered mempty
