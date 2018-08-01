@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedLists   #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
@@ -10,18 +11,20 @@ import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
 import           Data.Maybe                 (catMaybes, listToMaybe)
 import           Data.Sequence              (Seq (..))
+import qualified Data.Sequence              as Seq
 import qualified Data.Set                   as Set
 import           Data.String                (fromString)
 import qualified Data.Text                  as Text
 import qualified Text.Megaparsec            as P
 import qualified Unison.ABT                 as ABT
 import qualified Unison.Lexer               as L
-import           Unison.Parser              (Ann (..))
-import           Unison.Parser              (Annotated, ann, showLineCol)
+import           Unison.Parser              (Ann (..), Annotated, ann,
+                                             showLineCol)
 import qualified Unison.Parser              as Parser
 import qualified Unison.Reference           as R
 import           Unison.Result              (Note (..))
 import           Unison.Type                (AnnotatedType)
+import qualified Unison.Type                as Type
 import qualified Unison.Typechecker.Context as C
 import qualified Unison.Util.AnnotatedText  as AT
 import           Unison.Util.ColorText      ()
@@ -40,29 +43,44 @@ data TypeError v loc
              , mismatchSite :: loc }
   | Other (C.Note v loc)
 
-renderTypeError :: (Var v, Annotated a) => Env -> TypeError v a -> String -> Color.Rendered
-renderTypeError env e src =
-  (fromString . annotatedToEnglish) (mismatchSite e)
-    <> " has a type mismatch:\n\n"
-    <> (Color.splitAndRenderWithColor 1 $ AT.markup (fromString src)
-              (Set.fromList $ catMaybes
-                [ (,Color.Color1) <$> rangeForType (overallType1 e)
-                , (,Color.Color2) <$> rangeForType (overallType2 e)
-                , (,Color.Color3) <$> rangeForAnnotated (mismatchSite e)
-                ]) :: Color.Rendered)
-    <> "\n"
-    <> "The two types involved are:\n\n"
-    <> renderTypePosColor env (leaf1 e) Color.Color1
-    <> "  and\n"
-    <> renderTypePosColor env (leaf2 e) Color.Color2
+renderTypeError :: (Var v, Annotated a)
+                => Env
+                -> TypeError v a
+                -> String
+                -> AT.AnnotatedDocument Color.Color
+renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $
+  [ (fromString . annotatedToEnglish) (mismatchSite e)
+  , " has a type mismatch:\n\n"
+  , AT.Blockquote $ AT.markup (fromString src)
+                      (Set.fromList $ catMaybes
+                        [ (,Color.Color1) <$> rangeForAnnotated (mismatchSite e)
+                        , (,Color.Color2) <$> rangeForType (overallType1 e)
+                        , (,Color.Color3) <$> rangeForType (overallType2 e)
+                        ])
+  , "\n"
+  , "The two types involved are:\n\n"
+  , AT.Text $ styleInOverallType env (overallType1 e) (leaf1 e) Color.Color1
+  , "  and\n"
+  , AT.Text $ styleInOverallType env (overallType2 e) (leaf2 e) Color.Color2
+  ]
 
 renderType :: Var v => Env -> C.Type v loc -> String
 renderType _e t = show t
 
-renderTypePosColor :: (Var v, Annotated a) => Env -> C.Type v a -> Color.Color -> Color.Rendered
-renderTypePosColor e t c =
-  (Color.renderStyleTextWithColor $ Color.color c (fromString $ renderType e t))
-  <> " (" <> (fromString . annotatedToEnglish) (ABT.annotation t) <> ")"
+styleInOverallType :: (Var v, Annotated a)
+                   => Env
+                   -> C.Type v a
+                   -> C.Type v a
+                   -> Color.Color
+                   -> Color.StyledText
+styleInOverallType e overallType leafType c =
+  if leafType == overallType
+  then Color.color c (fromString (prettyType e overallType))
+  else case overallType of
+    Type.Ref' _  -> fromString (prettyType e overallType)
+    _ -> error "todo"
+  -- (Color.color c . fromString $ renderType e leafType)
+  --   <> " (" <> (fromString . annotatedToEnglish) (ABT.annotation leafType) <> ")"
 
 posToEnglish :: L.Pos -> String
 posToEnglish (L.Pos l c) = "Line " ++ show l ++ ", column " ++ show c
@@ -89,7 +107,7 @@ typeErrorFromNote n@(C.Note (C.TypeMismatch _) path) =
   let
     pathl = toList path
     subtypes = [ (t1, t2) | C.InSubtype t1 t2 <- pathl ]
-    terms = pathl >>= \elem -> case elem of
+    terms = pathl >>= \case
       C.InCheck e _         -> [e]
       C.InSynthesizeApp _ e -> [e]
       C.InSynthesize e      -> [e]
@@ -119,7 +137,7 @@ printNoteWithSource _env s (InvalidPath path term) =
       Intrinsic     -> "  in Intrinsic " ++ show term
       Ann start end -> printPosRange s start end
 printNoteWithSource _env s (UnknownSymbol v a) =
-  "Unknown symbol `" ++ (Text.unpack $ qualifiedName v) ++
+  "Unknown symbol `" ++ Text.unpack (qualifiedName v) ++
     case ann a of
       Intrinsic -> "` (Intrinsic)"
       Ann (L.Pos startLine startCol) _end ->
@@ -166,7 +184,7 @@ findTerm = go
         go Empty                         = Nothing
 
 prettyType :: Var v => Env -> AnnotatedType v a -> String
-prettyType _env = show
+prettyType _env t = show t
 
 prettyTypecheckError :: (Var v, Show loc, Parser.Annotated loc)
                      => Env

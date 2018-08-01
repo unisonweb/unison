@@ -24,11 +24,9 @@ import           Unison.Util.AnnotatedText (AnnotatedExcerpt (..),
                                             AnnotatedText (..))
 import           Unison.Util.Range         (Range (..), inRange)
 
-
-
 data Color = Color1 | Color2 | Color3 deriving (Eq, Ord, Show)
-type StyleText = AnnotatedText (Maybe Color)
-type ColorExcerpt = AnnotatedExcerpt Color
+type StyledText = AnnotatedText (Maybe Color)
+type StyledBlockquote = AnnotatedExcerpt Color
 
 toANSI :: Color -> Rendered
 toANSI c = Rendered . pure . setSGRCode $ case c of
@@ -39,7 +37,6 @@ toANSI c = Rendered . pure . setSGRCode $ case c of
 resetANSI :: Rendered
 resetANSI = Rendered . pure . setSGRCode $ [Reset]
 
-
 newtype Rendered = Rendered (Seq String)
 
 deoffsetRange :: Line -> Range -> Range
@@ -49,13 +46,13 @@ deoffsetRange lineOffset (Range (Pos startLine startCol) (Pos endLine endCol)) =
 
 -- | drops lines and replaces with "." if there are more than `n` unannotated
 -- | lines in a row.
-splitAndRenderWithColor :: Int -> ColorExcerpt -> Rendered
+splitAndRenderWithColor :: Int -> StyledBlockquote -> Rendered
 splitAndRenderWithColor n e =
   mconcat $ List.intersperse
               "    .\n"
               (renderExcerptWithColor <$> snipWithContext n e)
 
-renderExcerptWithColor :: ColorExcerpt -> Rendered
+renderExcerptWithColor :: StyledBlockquote -> Rendered
 renderExcerptWithColor e =
   track (Pos line1 1) [] (Set.toList $ annotations e)
     (Rendered . pure $ renderLineNumber line1) (text e)
@@ -81,7 +78,7 @@ renderExcerptWithColor e =
           -- and add new stack entries
           stack' = foldl' pushColor stack0 poppedAnnotations
             where pushColor s (Range _ end, color) = (color, end) : s
-          resetColor =
+          resetColor = -- stack is newly null, and there are no newly opened annotations
             if null poppedAnnotations && null stack' && not (null stack)
             then resetANSI else mempty
           maybeColor = fst <$> headMay stack'
@@ -130,7 +127,7 @@ snipWithContext margin source =
             else (Just r0, taken, Set.singleton a) -- otherwise add it to the second set
           else (Just r0, taken, Set.insert a rest) -- once we've added to the second set, anything more goes there too
 
-renderStyleTextWithColor :: StyleText -> Rendered
+renderStyleTextWithColor :: StyledText -> Rendered
 renderStyleTextWithColor (AnnotatedText chunks) = foldl' go mempty chunks
   where go :: Rendered -> (String, Maybe Color) -> Rendered
         go r (text, Nothing)    = r <> resetANSI <> fromString text
@@ -150,19 +147,19 @@ Highlight: Line 1, Cols 1-5
 Highlight: Line 2, Cols 1-7
 -}
 
-unhighlighted :: StyleText -> StyleText
+unhighlighted :: StyledText -> StyledText
 unhighlighted s = const Nothing <$> s
 
-color :: Color -> StyleText -> StyleText
+color :: Color -> StyledText -> StyledText
 color c s = const (Just c) <$> s
 
-color1 :: StyleText -> StyleText
+color1 :: StyledText -> StyledText
 color1 s = const (Just Color1) <$> s
 
-color2 :: StyleText -> StyleText
+color2 :: StyledText -> StyledText
 color2 s = const (Just Color2) <$> s
 
-color3 :: StyleText -> StyleText
+color3 :: StyledText -> StyledText
 color3 s = const (Just Color3) <$> s
 
 -- data AnnotatedText
@@ -192,6 +189,3 @@ instance Monoid Rendered where
 
 instance IsString Rendered where
   fromString s = Rendered (pure s)
-
-instance IsString (AnnotatedText (Maybe Color)) where
-  fromString s = AnnotatedText . pure $ (s, Nothing)
