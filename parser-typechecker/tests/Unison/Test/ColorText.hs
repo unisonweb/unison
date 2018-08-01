@@ -3,7 +3,6 @@
 module Unison.Test.ColorText where
 
 -- import EasyTest
-import           Data.Set              (Set, union)
 import qualified Data.Set              as Set
 import           Text.RawString.QQ
 import           Unison.Lexer          (Pos (..))
