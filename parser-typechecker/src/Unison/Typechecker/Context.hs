@@ -1094,8 +1094,16 @@ synthesizeClosed' :: (Var v, Ord loc)
                   -> Term v loc
                   -> M v loc (Type v loc)
 synthesizeClosed' abilities term = do
+  -- save current context, for restoration when done
+  ctx0 <- getContext
+  setContext $ context []
+  v <- extendMarker $ Var.named "start"
   t <- withEffects0 abilities (synthesize term)
   ctx <- getContext
+  -- retract will cause notes to be written out for
+  -- any `Blank`-tagged existentials passing out of scope
+  doRetract (Marker v)
+  setContext ctx0 -- restore the initial context
   pure $ generalizeExistentials ctx t
 
 instance (Var v, Show loc) => Show (Element v loc) where
