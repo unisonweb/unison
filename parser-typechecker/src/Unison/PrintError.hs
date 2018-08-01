@@ -37,7 +37,7 @@ data TypeError v loc
   | Other (C.Note v loc)
 
 renderTypeError :: Var v => Env -> TypeError v Ann -> String -> Color.Rendered
-renderTypeError (Env _refNames _ctorNames) e src =
+renderTypeError env e src =
   (fromString . annToEnglish) (mismatchSite e)
     <> " has a type mismatch:\n\n"
     <> (Color.splitAndRenderWithColor 1 $ Color.markup (fromString src)
@@ -48,13 +48,16 @@ renderTypeError (Env _refNames _ctorNames) e src =
                 ]) :: Color.Rendered)
     <> "\n"
     <> "The two types involved are:\n\n"
-    <> renderTypePosColor (leaf1 e) Color.Color1
+    <> renderTypePosColor env (leaf1 e) Color.Color1
     <> "  and\n"
-    <> renderTypePosColor (leaf2 e) Color.Color2
+    <> renderTypePosColor env (leaf2 e) Color.Color2
 
-renderTypePosColor :: Var v => C.Type v Ann -> Color.Color -> Color.Rendered
-renderTypePosColor t c =
-  (Color.renderStyleTextWithColor $ Color.color c (fromString $ show t))
+renderType :: Var v => Env -> C.Type v loc -> String
+renderType _e t = show t
+
+renderTypePosColor :: Var v => Env -> C.Type v Ann -> Color.Color -> Color.Rendered
+renderTypePosColor e t c =
+  (Color.renderStyleTextWithColor $ Color.color c (fromString $ renderType e t))
   <> " (" <> (fromString . annToEnglish) (ABT.annotation t) <> ")"
 
 posToEnglish :: L.Pos -> String
