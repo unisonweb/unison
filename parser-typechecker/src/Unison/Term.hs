@@ -13,14 +13,15 @@ module Unison.Term where
 
 import qualified Control.Monad.Writer.Strict as Writer
 import           Data.Foldable (toList)
+import           Data.Foldable (traverse_)
 import           Data.Int (Int64)
 import           Data.List (foldl')
 import           Data.Map (Map)
 import qualified Data.Map as Map
-import qualified Data.Monoid as Monoid
 import           Data.Set (Set, union)
 import qualified Data.Set as Set
 import           Data.Text (Text)
+import qualified Data.Text as Text
 import           Data.Vector (Vector)
 import qualified Data.Vector as Vector
 import           Data.Word (Word64)
@@ -28,6 +29,7 @@ import           GHC.Generics
 import           Prelude.Extras (Eq1(..), Show1(..))
 import           Text.Show
 import qualified Unison.ABT as ABT
+import qualified Unison.Blank as B
 import           Unison.Hash (Hash)
 import qualified Unison.Hash as Hash
 import           Unison.Hashable (Hashable1, accumulateToken)
@@ -39,8 +41,8 @@ import qualified Unison.Reference as Reference
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import           Unison.Var (Var)
+import qualified Unison.Var as Var
 import           Unsafe.Coerce
-import Data.Foldable (traverse_)
 
 -- todo: add loc to MatchCase
 data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
@@ -54,9 +56,11 @@ data F typeVar typeAnn patternAnn a
   | Float Double
   | Boolean Bool
   | Text Text
-  | Blank -- An expression that has not been filled in, has type `forall a . a`
+  | Blank (B.Blank typeAnn)
   | Ref Reference
-  | Constructor Reference Int -- First argument identifies the data type, second argument identifies the constructor
+  -- First argument identifies the data type,
+  -- second argument identifies the constructor
+  | Constructor Reference Int
   | Request Reference Int
   | Handle a a
   | EffectPure a
@@ -117,6 +121,13 @@ bindBuiltins dataAndEffectCtors termBuiltins0 typeBuiltins t =
    h = ABT.substsInheritAnnotation dataAndEffectCtors
    termBuiltins = [ (v, ref() r) | (v,r) <- termBuiltins0 ]
 
+typeDirectedResolve :: Var v
+                    => ABT.Term (F vt b ap) v b -> ABT.Term (F vt b ap) v b
+typeDirectedResolve t = fmap fst . ABT.visitPure f $ ABT.annotateBound t
+  where f (ABT.Term _ (a, bound) (ABT.Var v)) | Set.notMember v bound =
+          Just $ resolve (a, bound) a (Text.unpack $ Var.name v)
+        f _ = Nothing
+
 vmap :: Ord v2 => (v -> v2) -> AnnotatedTerm v a -> AnnotatedTerm v2 a
 vmap f = ABT.vmap f . typeMap (ABT.vmap f)
 
@@ -159,7 +170,7 @@ pattern UInt64' n <- (ABT.out -> ABT.Tm (UInt64 n))
 pattern Float' n <- (ABT.out -> ABT.Tm (Float n))
 pattern Boolean' b <- (ABT.out -> ABT.Tm (Boolean b))
 pattern Text' s <- (ABT.out -> ABT.Tm (Text s))
-pattern Blank' <- (ABT.out -> ABT.Tm Blank)
+pattern Blank' b <- (ABT.out -> ABT.Tm (Blank b))
 pattern Ref' r <- (ABT.out -> ABT.Tm (Ref r))
 pattern Builtin' r <- (ABT.out -> ABT.Tm (Ref (Builtin r)))
 pattern App' f x <- (ABT.out -> ABT.Tm (App f x))
@@ -223,7 +234,13 @@ text :: Ord v => a -> Text -> AnnotatedTerm2 vt at ap v a
 text a = ABT.tm' a . Text
 
 blank :: Ord v => a -> AnnotatedTerm2 vt at ap v a
-blank a = ABT.tm' a Blank
+blank a = ABT.tm' a (Blank B.Blank)
+
+placeholder :: Ord v => a -> String -> AnnotatedTerm2 vt a ap v a
+placeholder a s = ABT.tm' a . Blank $ B.Recorded (B.Placeholder a s)
+
+resolve :: Ord v => at -> ab -> String -> AnnotatedTerm2 vt ab ap v at
+resolve at ab s = ABT.tm' at . Blank $ B.Recorded (B.Resolve ab s)
 
 constructor :: Ord v => a -> Reference -> Int -> AnnotatedTerm2 vt at ap v a
 constructor a ref n = ABT.tm' a (Constructor ref n)
@@ -411,11 +428,6 @@ updateDependencies u tm = ABT.rebuildUp go tm where
   go (Ref r) = Ref (Map.findWithDefault r r u)
   go f = f
 
-countBlanks :: Ord v => Term v -> Int
-countBlanks t = Monoid.getSum . Writer.execWriter $ ABT.visit' f t
-  where f Blank = Writer.tell (Monoid.Sum (1 :: Int)) *> pure Blank
-        f t = pure t
-
 -- | If the outermost term is a function application,
 -- perform substitution of the argument into the body
 betaReduce :: Var v => Term v -> Term v
@@ -440,7 +452,11 @@ instance Var v => Hashable1 (F v a p) where
         Float n -> [tag 66, Hashable.Double n]
         Boolean b -> [tag 67, accumulateToken b]
         Text t -> [tag 68, accumulateToken t]
-        Blank -> [tag 1]
+        Blank b -> tag 1 :
+          case b of
+            B.Blank -> [tag 0]
+            B.Recorded (B.Placeholder _ s) -> [tag 1, Hashable.Text (Text.pack s)]
+            B.Recorded (B.Resolve _ s)  -> [tag 2, Hashable.Text (Text.pack s)]
         Ref (Reference.Builtin name) -> [tag 2, accumulateToken name]
         Ref (Reference.Derived _) -> error "handled above, but GHC can't figure this out"
         App a a2 -> [tag 3, hashed (hash a), hashed (hash a2)]
@@ -474,13 +490,13 @@ instance Var v => Hashable1 (F v a p) where
 instance (Eq a, Var v) => Eq1 (F v a p) where (==#) = (==)
 instance (Show a, Show p, Var v) => Show1 (F v a p) where showsPrec1 = showsPrec
 
-instance (Var vt, Eq a) => Eq (F vt at p a) where
+instance (Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   Int64 x == Int64 y = x == y
   UInt64 x == UInt64 y = x == y
   Float x == Float y = x == y
   Boolean x == Boolean y = x == y
   Text x == Text y = x == y
-  Blank == Blank = True
+  Blank b == Blank q = b == q
   Ref x == Ref y = x == y
   Constructor r cid == Constructor r2 cid2 = r == r2 && cid == cid2
   Request r cid == Request r2 cid2 = r == r2 && cid == cid2
@@ -513,7 +529,11 @@ instance (Var v, Show p, Show a0, Show a) => Show (F v a0 p a) where
       showParen (p > 9) $ showsPrec 9 f <> s" " <> showsPrec 10 x
     go _ (Lam body) = showParen True (s"λ " <> showsPrec 0 body)
     go _ (Vector vs) = showListWith (showsPrec 0) (Vector.toList vs)
-    go _ Blank = s"_"
+    go _ (Blank b) =
+      case b of
+        B.Blank -> s"_"
+        B.Recorded (B.Placeholder _ r) -> s("_" ++ r)
+        B.Recorded (B.Resolve _ r) -> s r
     go _ (Ref r) = showsPrec 0 r
     go _ (Let b body) = showParen True (s"let " <> showsPrec 0 b <> s" in " <> showsPrec 0 body)
     go _ (LetRec bs body) = showParen True (s"let rec" <> showsPrec 0 bs <> s" in " <> showsPrec 0 body)

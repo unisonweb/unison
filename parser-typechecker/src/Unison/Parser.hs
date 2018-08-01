@@ -248,6 +248,12 @@ reserved w = label w $ queryToken getReserved
   where getReserved (L.Reserved w') | w == w' = Just w
         getReserved _ = Nothing
 
+-- Parse a placeholder or typed hole
+blank :: Var v => P v (L.Token String)
+blank = label "blank" $ queryToken getBlank
+  where getBlank (L.Blank s) = Just s
+        getBlank _ = Nothing
+
 numeric :: Var v => P v (L.Token String)
 numeric = queryToken getNumeric
   where getNumeric (L.Numeric s) = Just s

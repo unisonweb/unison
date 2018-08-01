@@ -41,6 +41,7 @@ data Lexeme
   | Backticks String -- an identifier in backticks
   | WordyId String   -- a (non-infix) identifier
   | SymbolyId String -- an infix identifier
+  | Blank String     -- a typed hole or placeholder
   | Numeric String   -- numeric literals, left unparsed
   | Hash Hash        -- hash literals
   | Err Err
@@ -69,6 +70,7 @@ instance ShowToken (Token Lexeme) where
       pretty (Backticks n) = '`' : n ++ ['`']
       pretty (WordyId n) = n
       pretty (SymbolyId n) = n
+      pretty (Blank s) = "_" ++ s
       pretty (Numeric n) = n
       pretty (Hash h) = show h
       pretty (Err e) = show e
@@ -201,7 +203,10 @@ lexer scope rem =
       '@' : rem ->
         Token (Reserved "@") pos (inc pos) : goWhitespace l (inc pos) rem
       '_' : rem | hasSep rem ->
-        Token (Reserved "_") pos (inc pos) : goWhitespace l (inc pos) rem
+        Token (Blank "") pos (inc pos) : goWhitespace l (inc pos) rem
+      '_' : (wordyId -> Right (id, rem)) ->
+        let pos' = incBy id $ inc pos
+        in Token (Blank id) pos pos' : goWhitespace l pos' rem
       '|' : c : rem | isSpace c || isAlphaNum c ->
         Token (Reserved "|") pos (inc pos) : goWhitespace l (inc pos) (c:rem)
       '=' : (rem @ (c : _)) | isSpace c || isAlphaNum c ->

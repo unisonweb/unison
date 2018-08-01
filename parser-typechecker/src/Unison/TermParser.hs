@@ -8,10 +8,10 @@
 
 module Unison.TermParser where
 
+-- import           Debug.Trace
 import           Control.Applicative
 import           Control.Monad (guard, join, when)
 import           Control.Monad.Reader (ask)
--- import           Debug.Trace
 import           Data.Char (isUpper)
 import           Data.Foldable (asum)
 import           Data.Int (Int64)
@@ -106,7 +106,7 @@ parsePattern = constructor <|> leaf
       (\(p, vs) -> (Pattern.As (ann v) p, tokenToPair v : vs)) <$> leaf
       else pure (Pattern.Var (ann v), [tokenToPair v])
   unbound :: P v (Pattern Ann, [(Ann, v)])
-  unbound = (\tok -> (Pattern.Unbound (ann tok), [])) <$> reserved "_"
+  unbound = (\tok -> (Pattern.Unbound (ann tok), [])) <$> blank
   ctorName = P.try $ do
     s <- wordyId
     guard . isUpper . head . L.payload $ s
@@ -186,8 +186,8 @@ boolean :: Var v => TermP v
 boolean = ((\t -> Term.boolean (ann t) True) <$> reserved "true") <|>
           ((\t -> Term.boolean (ann t) False) <$> reserved "false")
 
-blank :: Var v => TermP v
-blank = (\t -> Term.blank (ann t)) <$> reserved "_"
+placeholder :: Var v => TermP v
+placeholder = (\t -> Term.placeholder (ann t) (L.payload t)) <$> blank
 
 vector :: Var v => TermP v -> TermP v
 vector p = f <$> reserved "[" <*> elements <*> reserved "]"
@@ -198,7 +198,7 @@ vector p = f <$> reserved "[" <*> elements <*> reserved "]"
 termLeaf :: forall v. Var v => TermP v
 termLeaf =
   asum [hashLit, prefixTerm, text, number, boolean,
-        tupleOrParenthesizedTerm, blank, vector term]
+        tupleOrParenthesizedTerm, placeholder, vector term]
 
 and = label "and" $ f <$> reserved "and" <*> termLeaf <*> termLeaf
   where f kw x y = Term.and (ann kw <> ann y) x y

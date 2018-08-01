@@ -165,7 +165,7 @@ serializeTerm x = do
         putLength $ length casePositions
         traverse_ serializeCase2 casePositions
         incPosition
-      Blank -> error "cannot serialize program with blanks"
+      Blank _ -> error "cannot serialize program with blanks"
       Handle h body -> do
         hpos <- serializeTerm h
         bpos <- serializeTerm body

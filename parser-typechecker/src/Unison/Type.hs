@@ -9,21 +9,22 @@
 
 module Unison.Type where
 
-import Data.List
-import Data.Set (Set)
-import Data.Text (Text)
-import GHC.Generics
-import Prelude.Extras (Eq1(..),Show1(..))
-import Unison.Hashable (Hashable1)
-import Unison.Reference (Reference)
-import Unison.TypeVar (TypeVar)
-import Unison.Var (Var)
+import           Data.List
+import           Data.Set (Set)
 import qualified Data.Set as Set
+import           Data.Text (Text)
+import           GHC.Generics
+import           Prelude.Extras (Eq1(..),Show1(..))
 import qualified Unison.ABT as ABT
+import           Unison.Blank
+import           Unison.Hashable (Hashable1)
 import qualified Unison.Hashable as Hashable
 import qualified Unison.Kind as K
+import           Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
+import           Unison.TypeVar (TypeVar)
 import qualified Unison.TypeVar as TypeVar
+import           Unison.Var (Var)
 import qualified Unison.Var as Var
 
 -- | Base functor for types in the Unison language
@@ -63,9 +64,9 @@ freeVars = ABT.freeVars
 bindBuiltins :: Var v => [(v, Reference)] -> AnnotatedType v a -> AnnotatedType v a
 bindBuiltins bs = ABT.substsInheritAnnotation [ (v, ref() r) | (v,r) <- bs ]
 
-data Monotype v a = Monotype { getPolytype :: AnnotatedType v a } deriving (Eq)
+data Monotype v a = Monotype { getPolytype :: AnnotatedType v a } deriving Eq
 
-instance (Show a, Var v) => Show (Monotype v a) where
+instance (Var v) => Show (Monotype v a) where
   show = show . getPolytype
 
 -- Smart constructor which checks if a `Type` has no `Forall` quantifiers.
@@ -92,7 +93,7 @@ pattern Forall' subst <- ABT.Tm' (Forall (ABT.Abs' subst))
 pattern ForallsNamed' vs body <- (unForalls -> Just (vs, body))
 pattern ForallNamed' v body <- ABT.Tm' (Forall (ABT.out -> ABT.Abs v body))
 pattern Var' v <- ABT.Var' v
-pattern Existential' v <- ABT.Var' (TypeVar.Existential v)
+pattern Existential' b v <- ABT.Var' (TypeVar.Existential b v)
 pattern Universal' v <- ABT.Var' (TypeVar.Universal v)
 
 unArrows :: AnnotatedType v a -> Maybe [AnnotatedType v a]
@@ -114,11 +115,11 @@ unForalls t = go t []
         go _body [] = Nothing
         go body vs = Just(reverse vs, body)
 
-matchExistential :: Eq v => v -> Type (TypeVar v) -> Bool
-matchExistential v (Existential' x) = x == v
+matchExistential :: Eq v => v -> Type (TypeVar b v) -> Bool
+matchExistential v (Existential' _ x) = x == v
 matchExistential _ _ = False
 
-matchUniversal :: Eq v => v -> Type (TypeVar v) -> Bool
+matchUniversal :: Eq v => v -> Type (TypeVar b v) -> Bool
 matchUniversal v (Universal' x) = x == v
 matchUniversal _ _ = False
 
@@ -201,16 +202,19 @@ andor' a = arrows (f <$> [boolean a, boolean a]) $ boolean a
 var :: Ord v => a -> v -> AnnotatedType v a
 var = ABT.annotatedVar
 
-existential :: Ord v => v -> Type (TypeVar v)
-existential v = ABT.var (TypeVar.Existential v)
+existential :: Ord v => Blank loc -> v -> Type (TypeVar (Blank loc) v)
+existential blank v = ABT.var (TypeVar.Existential blank v)
 
-universal :: Ord v => v -> Type (TypeVar v)
+universal :: Ord v => v -> Type (TypeVar b v)
 universal v = ABT.var (TypeVar.Universal v)
 
-existential' :: Ord v => a -> v -> AnnotatedType (TypeVar v) a
-existential' a v = ABT.annotatedVar a (TypeVar.Existential v)
+existentialp :: Ord v => a -> v -> AnnotatedType (TypeVar (Blank x) v) a
+existentialp a v = existential' a Blank v
 
-universal' :: Ord v => a -> v -> AnnotatedType (TypeVar v) a
+existential' :: Ord v => a -> Blank x -> v -> AnnotatedType (TypeVar (Blank x) v) a
+existential' a blank v = ABT.annotatedVar a (TypeVar.Existential blank v)
+
+universal' :: Ord v => a -> v -> AnnotatedType (TypeVar b v) a
 universal' a v = ABT.annotatedVar a (TypeVar.Universal v)
 
 v' :: Var v => Text -> Type v

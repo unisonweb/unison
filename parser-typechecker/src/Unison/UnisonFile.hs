@@ -53,19 +53,21 @@ data Env v a = Env
   , resolveType :: AnnotatedType v a -> AnnotatedType v a
   -- `String` to `(Reference, ConstructorId)`
   , constructorLookup :: CtorLookup
+  , terms :: Map v (Reference, AnnotatedType v a)
 }
 
 -- This function computes hashes for data and effect declarations, and
 -- also returns a function for resolving strings to (Reference, ConstructorId)
 -- for parsing of pattern matching
 environmentFor :: forall v a . Var v
-               => [(v, Reference)]
+               => [(v, (Reference, AnnotatedType v a))]
                -> [(v, Reference)]
                -> Map v (DataDeclaration' v a)
                -> Map v (EffectDeclaration' v a)
                -> Env v a
-environmentFor termBuiltins typeBuiltins0 dataDecls0 effectDecls0 =
+environmentFor termBuiltins0 typeBuiltins0 dataDecls0 effectDecls0 =
   let -- ignore builtin types that will be shadowed by user-defined data/effects
+      termBuiltins = fmap fst <$> termBuiltins0
       typeBuiltins = [ (v, t) | (v, t) <- typeBuiltins0,
                                 Map.notMember v dataDecls0 &&
                                 Map.notMember v effectDecls0]
@@ -82,8 +84,9 @@ environmentFor termBuiltins typeBuiltins0 dataDecls0 effectDecls0 =
       typeEnv :: [(v, Reference)]
       typeEnv = Map.toList (fst <$> dataDecls') ++ Map.toList (fst <$> effectDecls')
       dataDecls'' = second (DD.bindBuiltins typeEnv) <$> dataDecls'
-      effectDecls'' = second (DD.withEffectDecl (DD.bindBuiltins typeEnv)) <$> effectDecls'
-      dataRefs = Set.fromList (fst <$> Foldable.toList dataDecls'')
+      effectDecls'' =
+        second (DD.withEffectDecl (DD.bindBuiltins typeEnv)) <$> effectDecls'
+      dataRefs = Set.fromList $ (fst <$> Foldable.toList dataDecls'')
       termFor :: Reference -> Int -> AnnotatedTerm2 v a a v ()
       termFor r cid = if Set.member r dataRefs then Term.constructor() r cid
                       else Term.request() r cid
@@ -94,12 +97,16 @@ environmentFor termBuiltins typeBuiltins0 dataDecls0 effectDecls0 =
       typesByName = Map.toList $ (fst <$> dataDecls'') `Map.union` (fst <$> effectDecls'')
       ctorLookup = Map.fromList (constructors' =<< hashDecls')
   in Env dataDecls'' effectDecls''
-         (Term.bindBuiltins dataAndEffectCtors termBuiltins typesByName)
+         (Term.typeDirectedResolve .
+           Term.bindBuiltins dataAndEffectCtors termBuiltins typesByName)
          (Type.bindBuiltins typesByName)
          ctorLookup
+         (Map.fromList termBuiltins0)
 
 constructors' :: Var v => (v, Reference, DataDeclaration' v a) -> [(String, (Reference, Int))]
 constructors' (typeSymbol, r, dd) =
   let qualCtorName ((ctor,_), i) =
-       (Text.unpack $ mconcat [Var.qualifiedName typeSymbol, ".", Var.qualifiedName ctor], (r, i))
+       ( Text.unpack $
+           mconcat [Var.qualifiedName typeSymbol, ".", Var.qualifiedName ctor]
+       , (r, i))
   in qualCtorName <$> DD.constructors dd `zip` [0..]

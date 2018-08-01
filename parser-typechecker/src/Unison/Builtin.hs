@@ -65,6 +65,10 @@ builtinDataAndEffectCtors = (mkConstructors =<< builtinDataDecls')
 builtinTerms :: forall v. Var v => [(v, R.Reference)]
 builtinTerms = (\r -> (toSymbol r, r)) <$> Map.keys (builtins @v)
 
+builtinTypedTerms :: forall v. Var v => [(v, (R.Reference, Type v))]
+builtinTypedTerms =
+  (\(r, t) -> (toSymbol r, (r, t))) <$> Map.toList (builtins @v)
+
 builtinTypes :: forall v. Var v => [(v, R.Reference)]
 builtinTypes = builtinTypes' ++ (f <$> Map.toList (builtinDataDecls @v))
   where f (r@(R.Builtin s), _) = (Var.named s, r)
