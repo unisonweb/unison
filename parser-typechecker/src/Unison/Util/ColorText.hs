@@ -138,7 +138,7 @@ renderDocInColor (AnnotatedDocument chunks) = go $ toList chunks where
   go (Blockquote exc : rest) = renderExcerptWithColor exc <> go rest
   go (Text t : rest@(Blockquote _ : _)) =
     renderStyleTextWithColor t
-      <> if trailingNewLine t then mempty else "\n"
+      <> (if trailingNewLine t then mempty else "\n")
       <> go rest
   go (Text t : rest) = renderStyleTextWithColor t <> go rest
 

@@ -67,9 +67,13 @@ renderTypeError env e src = case e of
                           ])
     , "\n"
     , "The two types involved are:\n\n"
+    , AT.Text $ "overallType1: " <> (fromString (show overallType1)) <> "\n"
+    , AT.Text $ "leaf1: " <> (fromString (show leaf1)) <> "\n"
     , AT.Text $ styleInOverallType env overallType1 leaf1 Color.Color1
-    , "  and\n"
-    , AT.Text $ styleInOverallType env overallType2 leaf2 Color.Color2
+    , " and\n"
+    , AT.Text $ "overallType2: " <> (fromString (show overallType2)) <> "\n"
+    , AT.Text $ "leaf2: " <> (fromString (show leaf2)) <> "\n"
+    , AT.Text $ styleInOverallType env overallType2 leaf2 Color.Color1
     ]
   Other note -> fromString . show $ note
 
@@ -86,6 +90,7 @@ renderType env f t = renderType0 env f (0 :: Int) t where
     Type.Arrows' ts -> paren p 2 $ arrows (go 2) ts
     Type.Ann' t k -> paren p 0 $ (go 1) t <> " : " <> renderKind k
     Type.Apps' f' args -> paren p 3 $ spaces (go 3) (f':args)
+    Type.Effect' [] t -> (go p) t
     Type.Effect' es t -> paren p 3 $
       "{" <> commas (go 0) es <> "} " <> (go 3) t
     Type.ForallsNamed' vs body -> paren p 1 $

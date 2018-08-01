@@ -1,0 +1,2 @@
+foo = if true then 3 else false
+foo

@@ -9,6 +9,7 @@ import qualified Unison.Parser as Parser
 import qualified Unison.Parsers as Parsers
 import qualified Data.ByteString as BS
 import qualified Unison.Result as Result
+import Unison.Symbol (Symbol)
 import Data.Text (unpack)
 import qualified Data.Text.IO
 import Unison.Util.Monoid
@@ -25,6 +26,13 @@ main = do
           f (_unisonFile', typ, bs) = do
             putStrLn ("typechecked as " ++ show typ)
             BS.writeFile outputFile bs
-      either (die . intercalateMap "\n\n" (printNoteWithSource env0 source)) f r
+          showNote :: [Result.Note Symbol Parser.Ann] -> String
+          showNote notes =
+            "source = \n\n" <> source
+              <> "\n\n========\n\n"
+              <> show notes
+              <> "\n\n========\n\n"
+              <> intercalateMap "\n\n" (printNoteWithSource env0 source) notes
+      either (die . showNote) f r
 
     _ -> putStrLn "usage: bootstrap <in-file.u> <out-file.ub>"
