@@ -83,7 +83,7 @@ environmentFor termBuiltins typeBuiltins0 dataDecls0 effectDecls0 =
       typeEnv = Map.toList (fst <$> dataDecls') ++ Map.toList (fst <$> effectDecls')
       dataDecls'' = second (DD.bindBuiltins typeEnv) <$> dataDecls'
       effectDecls'' = second (DD.withEffectDecl (DD.bindBuiltins typeEnv)) <$> effectDecls'
-      dataRefs = Set.fromList $ (fst <$> Foldable.toList dataDecls'')
+      dataRefs = Set.fromList (fst <$> Foldable.toList dataDecls'')
       termFor :: Reference -> Int -> AnnotatedTerm2 v a a v ()
       termFor r cid = if Set.member r dataRefs then Term.constructor() r cid
                       else Term.request() r cid

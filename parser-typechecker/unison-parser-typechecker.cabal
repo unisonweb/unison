@@ -63,8 +63,10 @@ library
     Unison.Typechecker.Context
     Unison.Typechecker.Components
     Unison.UnisonFile
+    Unison.Util.AnnotatedText
     Unison.Util.ColorText
     Unison.Util.Logger
+    Unison.Util.Range
     Unison.Var
 
   build-depends:

@@ -1,29 +1,34 @@
-{-# LANGUAGE OverloadedStrings, PatternSynonyms, FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms   #-}
 module Unison.Util.ColorText where
 
 -- import qualified System.Console.ANSI as A
 -- import Control.Monad (join)
 -- import Data.Foldable (toList)
-import Control.Arrow (first)
-import           Data.Foldable     (foldl', asum)
-import qualified Data.List         as List
-import           Data.Sequence     (Seq)
-import           Data.Set          (Set)
-import qualified Data.Set          as Set
+import           Data.Foldable             (asum, foldl')
+import qualified Data.List                 as List
+import           Data.Sequence             (Seq)
+import           Data.Set                  (Set)
+import qualified Data.Set                  as Set
 -- import qualified Data.Sequence as Seq
 -- import           Control.Exception (assert)
-import           Data.String       (IsString (..))
-import           Unison.Lexer      (Line, Pos (..))
-import Safe (headMay)
-import System.Console.ANSI (setSGRCode, pattern SetColor, pattern Reset,
-                            pattern Foreground, pattern Vivid,
-                            pattern Red, pattern Blue, pattern Green)
+import           Data.String               (IsString (..))
+import           Safe                      (headMay)
+import           System.Console.ANSI       (pattern Blue, pattern Foreground,
+                                            pattern Green, pattern Red,
+                                            pattern Reset, pattern SetColor,
+                                            pattern Vivid, setSGRCode)
+import           Unison.Lexer              (Line, Pos (..))
+import           Unison.Util.AnnotatedText (AnnotatedExcerpt (..),
+                                            AnnotatedText (..))
+import           Unison.Util.Range         (Range (..), inRange)
 
-data Section a = Prose String a | Blockquote (AnnotatedExcerpt a) deriving (Eq, Ord)
-newtype AnnotatedText' a = AnnotatedText' { chunks' :: Seq (Section a) }
 
-data Style = Normal | Highlighted Color
+
 data Color = Color1 | Color2 | Color3 deriving (Eq, Ord, Show)
+type StyleText = AnnotatedText (Maybe Color)
+type ColorExcerpt = AnnotatedExcerpt Color
 
 toANSI :: Color -> Rendered
 toANSI c = Rendered . pure . setSGRCode $ case c of
@@ -34,27 +39,8 @@ toANSI c = Rendered . pure . setSGRCode $ case c of
 resetANSI :: Rendered
 resetANSI = Rendered . pure . setSGRCode $ [Reset]
 
-type StyleText = AnnotatedText Style
-type ColorExcerpt = AnnotatedExcerpt Color
-
-newtype AnnotatedText a = AnnotatedText { chunks :: Seq (a, String) }
 
 newtype Rendered = Rendered (Seq String)
-
-data Range = Range { start :: Pos, end :: Pos } deriving (Eq, Ord, Show)
-
--- | True if `_x` contains `_y`
-contains :: Range -> Range -> Bool
-contains _x@(Range a b) _y@(Range c d) = a <= c && c <= b && a <= d && d <= b
-
-overlaps :: Range -> Range -> Bool
-overlaps (Range a b) (Range c d) = (a <= c && c <= b) || (c <= a && a <= d)
-
-inRange :: Pos -> Range -> Bool
-inRange p r = contains r (Range p p)
-
-isMultiLine :: Range -> Bool
-isMultiLine (Range (Pos startLine _) (Pos endLine _)) = startLine < endLine
 
 deoffsetRange :: Line -> Range -> Range
 deoffsetRange lineOffset (Range (Pos startLine startCol) (Pos endLine endCol)) =
@@ -109,15 +95,6 @@ renderExcerptWithColor e =
       in track pos' stack' remainingAnnotations
         (rendered <> newChar <> resetColor) rest
 
-data AnnotatedExcerpt a = AnnotatedExcerpt
-  { lineOffset  :: Line
-  , text        :: String
-  , annotations :: Set (Range, a)
-  } deriving (Eq, Ord, Show)
-
-markup :: Ord a => AnnotatedExcerpt a -> Set (Range, a) -> AnnotatedExcerpt a
-markup a r = a { annotations = r `Set.union` (annotations a) }
-
 snipWithContext :: Ord a => Int -> AnnotatedExcerpt a -> [AnnotatedExcerpt a]
 snipWithContext margin source =
   case foldl' whileWithinMargin
@@ -155,9 +132,9 @@ snipWithContext margin source =
 
 renderStyleTextWithColor :: StyleText -> Rendered
 renderStyleTextWithColor (AnnotatedText chunks) = foldl' go mempty chunks
-  where go :: Rendered -> (Style, String) -> Rendered
-        go r (Normal, text) = r <> resetANSI <> fromString text
-        go r (Highlighted color, text) = r <> toANSI color <> fromString text
+  where go :: Rendered -> (String, Maybe Color) -> Rendered
+        go r (text, Nothing)    = r <> resetANSI <> fromString text
+        go r (text, Just color) = r <> toANSI color <> fromString text
 
 {-
 
@@ -174,19 +151,19 @@ Highlight: Line 2, Cols 1-7
 -}
 
 unhighlighted :: StyleText -> StyleText
-unhighlighted s = const Normal <$> s
+unhighlighted s = const Nothing <$> s
 
 color :: Color -> StyleText -> StyleText
-color c s = const (Highlighted c) <$> s
+color c s = const (Just c) <$> s
 
 color1 :: StyleText -> StyleText
-color1 s = const (Highlighted Color1) <$> s
+color1 s = const (Just Color1) <$> s
 
 color2 :: StyleText -> StyleText
-color2 s = const (Highlighted Color2) <$> s
+color2 s = const (Just Color2) <$> s
 
 color3 :: StyleText -> StyleText
-color3 s = const (Highlighted Color3) <$> s
+color3 s = const (Just Color3) <$> s
 
 -- data AnnotatedText
 --   = Line { line :: String -- cannot contain newlines
@@ -203,10 +180,6 @@ color3 s = const (Highlighted Color3) <$> s
   -- Foo
   --
 
-instance Semigroup Range where
-  (Range start end) <> (Range start2 end2) =
-    Range (min start start2) (max end end2)
-
 instance Show Rendered where
   show (Rendered chunks) = asum chunks
 
@@ -220,19 +193,5 @@ instance Monoid Rendered where
 instance IsString Rendered where
   fromString s = Rendered (pure s)
 
-instance Ord a => IsString (AnnotatedExcerpt a) where
-  fromString s = AnnotatedExcerpt 1 s mempty
-
-instance Semigroup (AnnotatedText a) where
-  (<>) = mappend
-
-instance Monoid (AnnotatedText a) where
-  mempty = AnnotatedText mempty
-  mappend (AnnotatedText chunks) (AnnotatedText chunks') =
-    AnnotatedText (chunks <> chunks')
-
-instance IsString (AnnotatedText Style) where
-  fromString s = AnnotatedText . pure $ (Normal, s)
-
-instance Functor AnnotatedText where
-  fmap f (AnnotatedText chunks) = AnnotatedText $ (first f <$> chunks)
+instance IsString (AnnotatedText (Maybe Color)) where
+  fromString s = AnnotatedText . pure $ (s, Nothing)
