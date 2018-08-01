@@ -58,7 +58,7 @@ renderTypeError :: (Var v, Annotated a, Eq a, Show a)
 renderTypeError env e src = case e of
   Mismatch {..} -> AT.AnnotatedDocument . Seq.fromList $
     [ (fromString . annotatedToEnglish) mismatchSite
-    , " has a type mismatch:\n\n"
+    , " has a type mismatch (colored in ", AT.Text $ Color.color1 "red", " below):\n\n"
     , AT.Blockquote $ AT.markup (fromString src)
                         (Set.fromList $ catMaybes
                           [ (,Color.Color1) <$> rangeForAnnotated mismatchSite
@@ -67,15 +67,18 @@ renderTypeError env e src = case e of
                           ])
     , "\n"
     , "The two types involved are:\n\n"
-    , AT.Text $ styleInOverallType env overallType1 leaf1 Color.Color1
-    , "\n and\n"
-    , AT.Text $ styleInOverallType env overallType1 leaf1 Color.Color1
---    , AT.Text $ styleInOverallType env overallType2 leaf2 Color.Color1
-    , "\n\n"
-    , AT.Text $ "overallType1: " <> (fromString (show overallType1)) <> "\n"
-    , AT.Text $ "leaf1: " <> (fromString (show leaf1)) <> "\n"
-    , AT.Text $ "overallType2: " <> (fromString (show overallType2)) <> "\n"
-    , AT.Text $ "leaf2: " <> (fromString (show leaf2)) <> "\n"
+    , AT.Text $ styleInOverallType env overallType1 leaf1 Color.Color2
+    , " (", fromString (annotatedToEnglish overallType1), ")\n and\n"
+    , AT.Text $ styleInOverallType env overallType2 leaf2 Color.Color3
+    , " (" , fromString (annotatedToEnglish overallType2), ")\n\n"
+    , AT.Text $ "overallType1: " <> fromString (show overallType1)
+        <> " (" <> fromString (show (ABT.annotation overallType1)) <> ")\n"
+    , AT.Text $ "leaf1: " <> fromString (show leaf1)
+        <> " (" <> fromString (show (ABT.annotation leaf1)) <> ")\n"
+    , AT.Text $ "overallType2: " <> fromString (show overallType2)
+        <> " (" <> fromString (show (ABT.annotation overallType2)) <> ")\n"
+    , AT.Text $ "leaf2: " <> fromString (show leaf2)
+        <> " (" <> fromString (show (ABT.annotation leaf2))  <> ")\n"
     ]
   Other note -> fromString . show $ note
 
@@ -96,7 +99,7 @@ renderType env f t = renderType0 env f (0 :: Int) t where
     Type.Effect' es t -> paren p 3 $
       "{" <> commas (go 0) es <> "} " <> (go 3) t
     Type.ForallsNamed' vs body -> paren p 1 $
-      if (p == 0) then go 0 body
+      if p == 0 then go 0 body
       else "forall " <> spaces renderVar vs <> " . " <> go 1 body
     Type.Var' v -> renderVar v
     _ -> error "pattern match failure in PrintError.renderType"
@@ -139,11 +142,11 @@ styleInOverallType e overallType leafType c =
     where f loc s = if loc == ABT.annotation leafType then Color.color c s else s
 
 posToEnglish :: L.Pos -> String
-posToEnglish (L.Pos l c) = "Line " ++ show l ++ ", column " ++ show c
+posToEnglish (L.Pos l c) = "Line " ++ show l ++ ", Column " ++ show c
 
 annotatedToEnglish :: Annotated a => a -> String
 annotatedToEnglish a = case ann a of
-  Intrinsic      -> "An intrinsic"
+  Intrinsic      -> "an intrinsic"
   Ann start _end -> posToEnglish start
 
 rangeForType :: Annotated a => C.Type v a -> Maybe Range

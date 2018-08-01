@@ -6,9 +6,10 @@ module Unison.Test.ColorText where
 import qualified Data.Set                  as Set
 import           Text.RawString.QQ
 import           Unison.Lexer              (Pos (..))
-import           Unison.Util.ColorText     (Color(..))
 import           Unison.Util.AnnotatedText (AnnotatedExcerpt (..), markup)
-import Unison.Util.Range (Range(..))
+import           Unison.Util.ColorText     (Color (..), Rendered,
+                                            renderExcerptWithColor)
+import           Unison.Util.Range         (Range (..))
 
 ex2 :: AnnotatedExcerpt Color
 ex2 = markup ex (Set.fromList
@@ -17,6 +18,9 @@ ex2 = markup ex (Set.fromList
       , (Range (Pos 25 1) (Pos 25 6), Color2) -- ALONSO
       , (Range (Pos 12 1) (Pos 13 44), Color1) -- Good, ... bestir.
       ])
+
+renderEx2 :: Rendered
+renderEx2 = renderExcerptWithColor ex2
 
 ex3 :: AnnotatedExcerpt Color
 ex3 = markup "Hello, world!" $ Set.fromList

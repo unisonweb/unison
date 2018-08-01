@@ -1,0 +1,3 @@
+type Optional a = Some a | None
+y : (Optional Int64)
+y = 3

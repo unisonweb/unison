@@ -1,0 +1,10 @@
+effect Abort where
+  Abort : forall a . () -> {Abort} a
+
+effect Abort2 where
+  Abort2 : forall a . () -> {Abort2} a
+
+effect' : UInt64 -> { Abort } Int64
+effect' n = Abort2.Abort2 ()
+
+()
