@@ -66,6 +66,7 @@ library
     Unison.Util.AnnotatedText
     Unison.Util.ColorText
     Unison.Util.Logger
+    Unison.Util.Monoid
     Unison.Util.Range
     Unison.Var
 

@@ -89,23 +89,30 @@ pattern Apps' f args <- (unApps -> Just (f, args))
 pattern Effect' es t <- ABT.Tm' (Effect es t)
 pattern Effect'' es t <- (stripEffect -> (es, t))
 pattern Forall' subst <- ABT.Tm' (Forall (ABT.Abs' subst))
+pattern ForallsNamed' vs body <- (unForalls -> Just (vs, body))
 pattern ForallNamed' v body <- ABT.Tm' (Forall (ABT.out -> ABT.Abs v body))
 pattern Var' v <- ABT.Var' v
 pattern Existential' v <- ABT.Var' (TypeVar.Existential v)
 pattern Universal' v <- ABT.Var' (TypeVar.Universal v)
 
-unArrows :: Type v -> Maybe [Type v]
+unArrows :: AnnotatedType v a -> Maybe [AnnotatedType v a]
 unArrows t =
   case go t of [] -> Nothing; l -> Just l
   where
     go (Arrow' i o) = i : go o
     go _ = []
 
-unApps :: Type v -> Maybe (Type v, [Type v])
+unApps :: AnnotatedType v a -> Maybe (AnnotatedType v a, [AnnotatedType v a])
 unApps t = case go t [] of [] -> Nothing; f:args -> Just (f,args)
   where
   go (App' i o) acc = go i (o:acc)
   go fn args = fn:args
+
+unForalls :: AnnotatedType v a -> Maybe ([v], AnnotatedType v a)
+unForalls t = go t []
+  where go (ForallNamed' v body) vs = go body (v:vs)
+        go _body [] = Nothing
+        go body vs = Just(reverse vs, body)
 
 matchExistential :: Eq v => v -> Type (TypeVar v) -> Bool
 matchExistential v (Existential' x) = x == v

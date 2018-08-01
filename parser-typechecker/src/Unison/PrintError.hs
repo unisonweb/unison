@@ -9,7 +9,7 @@ import           Data.Foldable
 import qualified Data.List.NonEmpty         as Nel
 import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
-import           Data.Maybe                 (catMaybes, listToMaybe)
+import           Data.Maybe                 (catMaybes, listToMaybe, fromMaybe)
 import           Data.Sequence              (Seq (..))
 import qualified Data.Sequence              as Seq
 import qualified Data.Set                   as Set
@@ -17,6 +17,8 @@ import           Data.String                (fromString)
 import qualified Data.Text                  as Text
 import qualified Text.Megaparsec            as P
 import qualified Unison.ABT                 as ABT
+import qualified Unison.Kind                as Kind
+import           Unison.Kind                (Kind)
 import qualified Unison.Lexer               as L
 import           Unison.Parser              (Ann (..), Annotated, ann,
                                              showLineCol)
@@ -27,8 +29,9 @@ import           Unison.Type                (AnnotatedType)
 import qualified Unison.Type                as Type
 import qualified Unison.Typechecker.Context as C
 import qualified Unison.Util.AnnotatedText  as AT
-import           Unison.Util.ColorText      ()
+import           Unison.Util.ColorText      (StyledText)
 import qualified Unison.Util.ColorText      as Color
+import           Unison.Util.Monoid         (intercalateMap)
 import           Unison.Util.Range          (Range (..))
 import           Unison.Var                 (Var, qualifiedName)
 
@@ -43,7 +46,7 @@ data TypeError v loc
              , mismatchSite :: loc }
   | Other (C.Note v loc)
 
-renderTypeError :: (Var v, Annotated a)
+renderTypeError :: (Var v, Annotated a, Eq a)
                 => Env
                 -> TypeError v a
                 -> String
@@ -64,23 +67,63 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $
   , AT.Text $ styleInOverallType env (overallType2 e) (leaf2 e) Color.Color2
   ]
 
-renderType :: Var v => Env -> C.Type v loc -> String
-renderType _e t = show t
+renderType :: Var v
+           => Env
+           -> (loc -> StyledText -> StyledText)
+           -> C.Type v loc
+           -> StyledText
+renderType env f t = renderType0 env f (0 :: Int) t where
+  paren ambient threshold s =
+    if ambient >= threshold then "(" <> s <> ")" else mempty
+  renderType0 env f p t = f (ABT.annotation t) $ case t of
+    Type.Ref' r -> showRef' env r
+    Type.Arrows' ts -> paren p 2 $ arrows (go 2) ts
+    Type.Ann' t k -> paren p 0 $ (go 1) t <> " : " <> renderKind k
+    Type.Apps' f' args -> paren p 3 $ spaces (go 3) (f':args)
+    Type.Effect' es t -> paren p 3 $
+      "{" <> commas (go 0) es <> "} " <> (go 3) t
+    Type.ForallsNamed' vs body -> paren p 1 $
+      if (p == 0) then go 0 body
+      else "forall " <> spaces renderVar vs <> " . " <> go 1 body
+    Type.Var' v -> renderVar v
+    _ -> error "pattern match failure in PrintError.renderType"
+    where go p = renderType0 env f p
+          spaces = intercalateMap " "
+          arrows = intercalateMap " -> "
+          commas = intercalateMap ", "
 
-styleInOverallType :: (Var v, Annotated a)
+renderVar :: Var v => v -> StyledText
+renderVar = fromString . Text.unpack . qualifiedName
+
+renderKind :: Kind -> StyledText
+renderKind Kind.Star = "*"
+renderKind (Kind.Arrow k1 k2) = renderKind k1 <> " -> " <> renderKind k2
+
+showRef :: Env -> R.Reference -> String
+showRef env r = fromMaybe (show r) (Map.lookup r (referenceNames env))
+
+showRef' :: Env -> R.Reference -> StyledText
+showRef' e r = fromString $ showRef e r
+
+-- todo: do something different/better if cid not found
+showConstructor :: Env -> R.Reference -> Int -> String
+showConstructor env r cid =
+  fromMaybe (showRef env r ++ "/" ++ show cid)
+            (Map.lookup (r,cid) (constructorNames env))
+
+showConstructor' :: Env -> R.Reference -> Int -> StyledText
+showConstructor' env r cid = fromString $ showConstructor env r cid
+
+
+styleInOverallType :: (Var v, Annotated a, Eq a)
                    => Env
                    -> C.Type v a
                    -> C.Type v a
                    -> Color.Color
-                   -> Color.StyledText
+                   -> StyledText
 styleInOverallType e overallType leafType c =
-  if leafType == overallType
-  then Color.color c (fromString (prettyType e overallType))
-  else case overallType of
-    Type.Ref' _  -> fromString (prettyType e overallType)
-    _ -> error "todo"
-  -- (Color.color c . fromString $ renderType e leafType)
-  --   <> " (" <> (fromString . annotatedToEnglish) (ABT.annotation leafType) <> ")"
+  renderType e f overallType
+    where f loc s = if loc == ABT.annotation leafType then Color.color c s else s
 
 posToEnglish :: L.Pos -> String
 posToEnglish (L.Pos l c) = "Line " ++ show l ++ ", column " ++ show c

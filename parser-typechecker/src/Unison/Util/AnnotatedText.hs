@@ -25,8 +25,6 @@ data AnnotatedExcerpt a = AnnotatedExcerpt
   , annotations :: Set (Range, a)
   } deriving (Eq, Ord, Show)
 
-
-
 markup :: Ord a => AnnotatedExcerpt a -> Set (Range, a) -> AnnotatedExcerpt a
 markup a r = a { annotations = r `Set.union` annotations a }
 
@@ -49,6 +47,14 @@ instance Monoid (AnnotatedDocument a) where
   mempty = AnnotatedDocument mempty
   mappend (AnnotatedDocument chunks) (AnnotatedDocument chunks') =
     AnnotatedDocument (chunks <> chunks')
+
+instance Semigroup (AnnotatedText a) where
+  (<>) = mappend
+  
+instance Monoid (AnnotatedText a) where
+  mempty = AnnotatedText mempty
+  mappend (AnnotatedText chunks) (AnnotatedText chunks') =
+    AnnotatedText (chunks <> chunks')
 
 instance Functor AnnotatedText where
   fmap f (AnnotatedText chunks) = AnnotatedText (second f <$> chunks)
