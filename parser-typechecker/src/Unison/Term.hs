@@ -41,6 +41,7 @@ import qualified Unison.Reference as Reference
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import           Unison.Var (Var)
+import qualified Unison.Var as Var
 import           Unsafe.Coerce
 
 -- todo: add loc to MatchCase
@@ -119,6 +120,13 @@ bindBuiltins dataAndEffectCtors termBuiltins0 typeBuiltins t =
    h :: AnnotatedTerm2 v b a v a -> AnnotatedTerm2 v b a v a
    h = ABT.substsInheritAnnotation dataAndEffectCtors
    termBuiltins = [ (v, ref() r) | (v,r) <- termBuiltins0 ]
+
+typeDirectedResolve :: Var v
+                    => ABT.Term (F vt b ap) v b -> ABT.Term (F vt b ap) v b
+typeDirectedResolve t = fmap fst . ABT.visitPure f $ ABT.annotateBound t
+  where f (ABT.Term _ (a, bound) (ABT.Var v)) | Set.notMember v bound =
+          Just $ resolve (a, bound) a (Text.unpack $ Var.name v)
+        f _ = Nothing
 
 vmap :: Ord v2 => (v -> v2) -> AnnotatedTerm v a -> AnnotatedTerm v2 a
 vmap f = ABT.vmap f . typeMap (ABT.vmap f)
@@ -231,8 +239,8 @@ blank a = ABT.tm' a (Blank B.Blank)
 placeholder :: Ord v => a -> String -> AnnotatedTerm2 vt a ap v a
 placeholder a s = ABT.tm' a . Blank $ B.Recorded (B.Placeholder a s)
 
-resolve :: Ord v => a -> String -> AnnotatedTerm2 vt a ap v a
-resolve a s = ABT.tm' a . Blank $ B.Recorded (B.Resolve a s)
+resolve :: Ord v => at -> ab -> String -> AnnotatedTerm2 vt ab ap v at
+resolve at ab s = ABT.tm' at . Blank $ B.Recorded (B.Resolve ab s)
 
 constructor :: Ord v => a -> Reference -> Int -> AnnotatedTerm2 vt at ap v a
 constructor a ref n = ABT.tm' a (Constructor ref n)
