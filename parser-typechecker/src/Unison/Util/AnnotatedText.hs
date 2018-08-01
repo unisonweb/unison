@@ -6,6 +6,8 @@ import           Control.Arrow     (second)
 import           Data.Sequence     (Seq)
 import           Data.Set          (Set)
 import qualified Data.Set          as Set
+import Data.Sequence (Seq((:|>)))
+import Safe (lastMay)
 import           Data.String       (IsString(..))
 import           Unison.Lexer      (Line)
 import           Unison.Util.Range (Range)
@@ -24,6 +26,14 @@ data AnnotatedExcerpt a = AnnotatedExcerpt
   , text        :: String
   , annotations :: Set (Range, a)
   } deriving (Eq, Ord, Show)
+
+trailingNewLine :: AnnotatedText a -> Bool
+trailingNewLine (AnnotatedText (init :|> (s,_))) =
+  case lastMay s of
+         Just '\n' -> True
+         Just _ -> False
+         _ -> trailingNewLine (AnnotatedText init)
+trailingNewLine _ = False
 
 markup :: Ord a => AnnotatedExcerpt a -> Set (Range, a) -> AnnotatedExcerpt a
 markup a r = a { annotations = r `Set.union` annotations a }
@@ -50,7 +60,7 @@ instance Monoid (AnnotatedDocument a) where
 
 instance Semigroup (AnnotatedText a) where
   (<>) = mappend
-  
+
 instance Monoid (AnnotatedText a) where
   mempty = AnnotatedText mempty
   mappend (AnnotatedText chunks) (AnnotatedText chunks') =

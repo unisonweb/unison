@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedLists   #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE RecordWildCards   #-}
 
 module Unison.PrintError where
 
@@ -20,8 +21,8 @@ import qualified Unison.ABT                 as ABT
 import qualified Unison.Kind                as Kind
 import           Unison.Kind                (Kind)
 import qualified Unison.Lexer               as L
-import           Unison.Parser              (Ann (..), Annotated, ann,
-                                             showLineCol)
+import           Unison.Parser              (Ann (..), Annotated, ann)
+-- import           Unison.Parser              (showLineCol)
 import qualified Unison.Parser              as Parser
 import qualified Unison.Reference           as R
 import           Unison.Result              (Note (..))
@@ -46,26 +47,28 @@ data TypeError v loc
              , mismatchSite :: loc }
   | Other (C.Note v loc)
 
-renderTypeError :: (Var v, Annotated a, Eq a)
+renderTypeError :: (Var v, Annotated a, Eq a, Show a)
                 => Env
                 -> TypeError v a
                 -> String
                 -> AT.AnnotatedDocument Color.Color
-renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $
-  [ (fromString . annotatedToEnglish) (mismatchSite e)
-  , " has a type mismatch:\n\n"
-  , AT.Blockquote $ AT.markup (fromString src)
-                      (Set.fromList $ catMaybes
-                        [ (,Color.Color1) <$> rangeForAnnotated (mismatchSite e)
-                        , (,Color.Color2) <$> rangeForType (overallType1 e)
-                        , (,Color.Color3) <$> rangeForType (overallType2 e)
-                        ])
-  , "\n"
-  , "The two types involved are:\n\n"
-  , AT.Text $ styleInOverallType env (overallType1 e) (leaf1 e) Color.Color1
-  , "  and\n"
-  , AT.Text $ styleInOverallType env (overallType2 e) (leaf2 e) Color.Color2
-  ]
+renderTypeError env e src = case e of
+  Mismatch {..} -> AT.AnnotatedDocument . Seq.fromList $
+    [ (fromString . annotatedToEnglish) mismatchSite
+    , " has a type mismatch:\n\n"
+    , AT.Blockquote $ AT.markup (fromString src)
+                        (Set.fromList $ catMaybes
+                          [ (,Color.Color1) <$> rangeForAnnotated mismatchSite
+                          , (,Color.Color2) <$> rangeForType overallType1
+                          , (,Color.Color3) <$> rangeForType overallType2
+                          ])
+    , "\n"
+    , "The two types involved are:\n\n"
+    , AT.Text $ styleInOverallType env overallType1 leaf1 Color.Color1
+    , "  and\n"
+    , AT.Text $ styleInOverallType env overallType2 leaf2 Color.Color2
+    ]
+  Other note -> fromString . show $ note
 
 renderType :: Var v
            => Env
@@ -170,7 +173,7 @@ env0 = Env Map.empty Map.empty
 showLexerOutput :: Bool
 showLexerOutput = True
 
-printNoteWithSource :: (Var v, Annotated a, Show a)
+printNoteWithSource :: (Var v, Annotated a, Show a, Eq a)
                     => Env -> String -> Note v a -> String
 printNoteWithSource _env s (Parsing e) = prettyParseError s e
 printNoteWithSource env s (Typechecking e) = prettyTypecheckError env s e
@@ -229,28 +232,30 @@ findTerm = go
 prettyType :: Var v => Env -> AnnotatedType v a -> String
 prettyType _env t = show t
 
-prettyTypecheckError :: (Var v, Show loc, Parser.Annotated loc)
+prettyTypecheckError :: (Var v, Eq loc, Show loc, Parser.Annotated loc)
                      => Env
                      -> String
                      -> C.Note v loc -> String
-prettyTypecheckError env input n@(C.Note cause path) =
-  case cause of
-    C.TypeMismatch _ -> case path of
-      C.InCheck term typ :<| _ ->
-        let loc = ann term
-        in "\n" ++ showLineCol term ++ " had a type mismatch. " ++
-        "The highlighted term below is not of type " ++ prettyType env typ ++
-        "\n" ++ printPosRange input (Parser.start loc) (Parser.end loc)
-      C.InSubtype t1 t2 :<| p ->
-        let (loc1, loc2) = (ann t1, ann t2)
-            (pretty1, pretty2) = (prettyType env t1, prettyType env t2)
-        in case findTerm p of
-          Just t ->
-            "\n" ++ showLineCol t ++
-            " (highlighted below) had a type mismatch.\n" ++
-            "  " ++ pretty1 ++ " (which comes from " ++ showLineCol loc1 ++ ")\n"
-            ++ "  " ++ pretty2 ++ " (which comes from " ++ showLineCol loc2 ++ ")"
-            ++ printPosRange input (Parser.start (ann t)) (Parser.end (ann t))
-          Nothing -> show n
-      _ -> show n
-    _ -> show n
+prettyTypecheckError env input n =
+  show . Color.renderDocInColor $
+    (renderTypeError env (typeErrorFromNote n) input)
+  -- case cause of
+  --   C.TypeMismatch _ -> case path of
+  --     C.InCheck term typ :<| _ ->
+  --       let loc = ann term
+  --       in "\n" ++ showLineCol term ++ " had a type mismatch. " ++
+  --       "The highlighted term below is not of type " ++ prettyType env typ ++
+  --       "\n" ++ printPosRange input (Parser.start loc) (Parser.end loc)
+  --     C.InSubtype t1 t2 :<| p ->
+  --       let (loc1, loc2) = (ann t1, ann t2)
+  --           (pretty1, pretty2) = (prettyType env t1, prettyType env t2)
+  --       in case findTerm p of
+  --         Just t ->
+  --           "\n" ++ showLineCol t ++
+  --           " (highlighted below) had a type mismatch.\n" ++
+  --           "  " ++ pretty1 ++ " (which comes from " ++ showLineCol loc1 ++ ")\n"
+  --           ++ "  " ++ pretty2 ++ " (which comes from " ++ showLineCol loc2 ++ ")"
+  --           ++ printPosRange input (Parser.start (ann t)) (Parser.end (ann t))
+  --         Nothing -> show n
+  --     _ -> show n
+  --   _ -> show n

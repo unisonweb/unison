@@ -6,7 +6,7 @@ module Unison.Util.ColorText where
 -- import qualified System.Console.ANSI as A
 -- import Control.Monad (join)
 -- import Data.Foldable (toList)
-import           Data.Foldable             (asum, foldl')
+import           Data.Foldable             (asum, foldl', toList)
 import qualified Data.List                 as List
 import           Data.Sequence             (Seq)
 import           Data.Set                  (Set)
@@ -20,8 +20,7 @@ import           System.Console.ANSI       (pattern Blue, pattern Foreground,
                                             pattern Reset, pattern SetColor,
                                             pattern Vivid, setSGRCode)
 import           Unison.Lexer              (Line, Pos (..))
-import           Unison.Util.AnnotatedText (AnnotatedExcerpt (..),
-                                            AnnotatedText (..))
+import           Unison.Util.AnnotatedText
 import           Unison.Util.Range         (Range (..), inRange)
 
 data Color = Color1 | Color2 | Color3 deriving (Eq, Ord, Show)
@@ -132,6 +131,16 @@ renderStyleTextWithColor (AnnotatedText chunks) = foldl' go mempty chunks
   where go :: Rendered -> (String, Maybe Color) -> Rendered
         go r (text, Nothing)    = r <> resetANSI <> fromString text
         go r (text, Just color) = r <> toANSI color <> fromString text
+
+renderDocInColor :: AnnotatedDocument Color -> Rendered
+renderDocInColor (AnnotatedDocument chunks) = go $ toList chunks where
+  go [] = mempty
+  go (Blockquote exc : rest) = renderExcerptWithColor exc <> go rest
+  go (Text t : rest@(Blockquote _ : _)) =
+    renderStyleTextWithColor t
+      <> if trailingNewLine t then mempty else "\n"
+      <> go rest
+  go (Text t : rest) = renderStyleTextWithColor t <> go rest
 
 {-
 
