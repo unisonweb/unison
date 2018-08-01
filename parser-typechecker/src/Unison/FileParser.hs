@@ -24,7 +24,10 @@ import           Unison.Var (Var)
 import Unison.Reference (Reference)
 -- import Debug.Trace
 
-file :: Var v => [(v, Reference)] -> [(v, Reference)] -> P v (UnisonFile v Ann)
+file :: Var v
+     => [(v, (Reference, AnnotatedType v Ann))]
+     -> [(v, Reference)]
+     -> P v (UnisonFile v Ann)
 file builtinTerms builtinTypes = do
   traceRemainingTokens "file before parsing declarations"
   _ <- openBlock

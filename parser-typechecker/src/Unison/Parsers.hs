@@ -29,8 +29,12 @@ parseType :: Var v => String -> PEnv -> Either (Parser.Err v) (AnnotatedType v A
 parseType s = Parser.run (Parser.root TypeParser.valueType) s
 
 parseFile :: Var v => FilePath -> String -> PEnv -> Either (Parser.Err v) (UnisonFile v Ann)
-parseFile filename s = Parser.run'
-  (Parser.rootFile $ FileParser.file Builtin.builtinTerms Builtin.builtinTypes) s filename
+parseFile filename s =
+  Parser.run'
+    (Parser.rootFile $ FileParser.file
+                         Builtin.builtinTypedTerms
+                         Builtin.builtinTypes)
+    s filename
 
 unsafeParseTerm :: Var v => String -> PEnv -> AnnotatedTerm v Ann
 unsafeParseTerm s = fmap (unsafeGetRightFrom s) . parseTerm $ s

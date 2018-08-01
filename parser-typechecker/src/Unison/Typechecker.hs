@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TupleSections #-}
@@ -7,21 +8,22 @@
 
 module Unison.Typechecker where
 
-import Unison.Term (AnnotatedTerm)
-import Unison.Type (AnnotatedType)
-import Unison.Var (Var)
-import Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
-import Unison.Reference (Reference)
-import qualified Unison.Result as Result
-import Unison.Result (Result(..), Note)
--- import qualified Data.Map as Map
-import Data.Maybe (isJust)
+import           Data.Maybe (isJust)
 import qualified Unison.ABT as ABT
--- import qualified Unison.Paths as Paths
+import qualified Unison.Blank as B
+import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
+import           Unison.Reference (Reference)
+import           Unison.Result (Result(..), Note(..))
+import qualified Unison.Result as Result
+import           Unison.Term (AnnotatedTerm)
 import qualified Unison.Term as Term
--- import qualified Unison.Type as Type
+import           Unison.Type (AnnotatedType)
 import qualified Unison.TypeVar as TypeVar
 import qualified Unison.Typechecker.Context as Context
+import           Unison.Var (Var)
+-- import qualified Data.Map as Map
+-- import qualified Unison.Paths as Paths
+-- import qualified Unison.Type as Type
 
 -- import Debug.Trace
 -- watch msg a = trace (msg ++ show a) a
@@ -120,6 +122,22 @@ synthesize env t =
       (dataDeclaration env)
       (effectDeclaration env)
       (Term.vtmap TypeVar.Universal t)
+
+resolveAndSynthesize
+  :: (Monad f, Var v, Ord loc)
+  => Env f v loc
+  -> Term v loc
+  -> f (Result (Note v loc) (Type v loc))
+resolveAndSynthesize env t = do
+  r <- synthesize env t
+  let resolveds = notes r >>= \n ->
+        case n of
+          Typechecking
+            (Context.Note (Context.SolvedBlank (B.Resolve loc name) _ typ) _) ->
+              [(loc, name, typ)]
+          _ -> []
+  _ <- pure $ resolveds
+  pure r
 
 -- | Check whether a term matches a type, using a
 -- function to resolve the type of @Ref@ constructors

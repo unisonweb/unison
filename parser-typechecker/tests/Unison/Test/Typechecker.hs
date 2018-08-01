@@ -298,7 +298,7 @@ test = scope "typechecker" . tests $
              |-- binding is not guarded by a lambda, it only can access
              |-- ambient abilities (which will be empty)
              |ex1 : {IO} ()
-             |ex1 = launch-missiles()
+             |ex1 = IO.launch-missiles()
              |
              |()
              |]

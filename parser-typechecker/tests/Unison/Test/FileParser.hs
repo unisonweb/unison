@@ -61,7 +61,7 @@ module Unison.Test.FileParser where
       !p = unsafeGetRightFrom s $
              Unison.Parser.run
                (Parser.rootFile $
-                 file Builtin.builtinTerms Builtin.builtinTypes)
+                 file Builtin.builtinTypedTerms Builtin.builtinTypes)
                  s
                  builtins
     pure p >> ok
