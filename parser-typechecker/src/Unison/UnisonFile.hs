@@ -94,7 +94,8 @@ environmentFor termBuiltins typeBuiltins0 dataDecls0 effectDecls0 =
       typesByName = Map.toList $ (fst <$> dataDecls'') `Map.union` (fst <$> effectDecls'')
       ctorLookup = Map.fromList (constructors' =<< hashDecls')
   in Env dataDecls'' effectDecls''
-         (Term.bindBuiltins dataAndEffectCtors termBuiltins typesByName)
+         (Term.typeDirectedResolve .
+           Term.bindBuiltins dataAndEffectCtors termBuiltins typesByName)
          (Type.bindBuiltins typesByName)
          ctorLookup
 
