@@ -18,6 +18,7 @@ import           Data.String                (fromString)
 import qualified Data.Text                  as Text
 import qualified Text.Megaparsec            as P
 import qualified Unison.ABT                 as ABT
+-- import qualified Unison.Builtin             as Builtin
 import qualified Unison.Kind                as Kind
 import           Unison.Kind                (Kind)
 import qualified Unison.Lexer               as L
@@ -26,7 +27,6 @@ import           Unison.Parser              (Ann (..), Annotated, ann)
 import qualified Unison.Parser              as Parser
 import qualified Unison.Reference           as R
 import           Unison.Result              (Note (..))
-import           Unison.Type                (AnnotatedType)
 import qualified Unison.Type                as Type
 import qualified Unison.Typechecker.Context as C
 import qualified Unison.Util.AnnotatedText  as AT
@@ -38,6 +38,9 @@ import           Unison.Var                 (Var, qualifiedName)
 
 data Env = Env { referenceNames   :: Map R.Reference String
                , constructorNames :: Map (R.Reference, Int) String }
+
+env0 :: Env
+env0 = Env mempty mempty
 
 data TypeError v loc
   = Mismatch { overallType1 :: C.Type v loc
@@ -167,9 +170,6 @@ typeErrorFromNote n@(C.Note (C.TypeMismatch _) path) =
        _ -> Other n
 typeErrorFromNote n@(C.Note _ _) = Other n
 
-env0 :: Env
-env0 = Env Map.empty Map.empty
-
 showLexerOutput :: Bool
 showLexerOutput = True
 
@@ -228,9 +228,6 @@ findTerm = go
         go (C.InSynthesizeApp _ t :<| _) = Just $ ABT.annotation t
         go (_ :<| t)                     = go t
         go Empty                         = Nothing
-
-prettyType :: Var v => Env -> AnnotatedType v a -> String
-prettyType _env t = show t
 
 prettyTypecheckError :: (Var v, Eq loc, Show loc, Parser.Annotated loc)
                      => Env
