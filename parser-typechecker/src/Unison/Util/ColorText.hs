@@ -15,14 +15,21 @@ import qualified Data.Set          as Set
 import           Data.String       (IsString (..))
 import           Unison.Lexer      (Line, Pos (..))
 import Safe (headMay)
-import System.Console.ANSI (setSGRCode, pattern SetColor, pattern Reset, pattern Foreground, pattern Vivid, pattern Red, pattern Blue)
+import System.Console.ANSI (setSGRCode, pattern SetColor, pattern Reset,
+                            pattern Foreground, pattern Vivid,
+                            pattern Red, pattern Blue, pattern Green)
+
+data Section a = Prose String a | Blockquote (AnnotatedExcerpt a) deriving (Eq, Ord)
+newtype AnnotatedText' a = AnnotatedText' { chunks' :: Seq (Section a) }
 
 data Style = Normal | Highlighted Color
-data Color = Color1 | Color2 deriving (Eq, Ord, Show)
+data Color = Color1 | Color2 | Color3 deriving (Eq, Ord, Show)
 
 toANSI :: Color -> Rendered
-toANSI Color1 = Rendered . pure . setSGRCode $ [SetColor Foreground Vivid Red]
-toANSI Color2 = Rendered . pure . setSGRCode $ [SetColor Foreground Vivid Blue]
+toANSI c = Rendered . pure . setSGRCode $ case c of
+  Color1 -> [SetColor Foreground Vivid Red]
+  Color2 -> [SetColor Foreground Vivid Blue]
+  Color3 -> [SetColor Foreground Vivid Green]
 
 resetANSI :: Rendered
 resetANSI = Rendered . pure . setSGRCode $ [Reset]
@@ -106,7 +113,10 @@ data AnnotatedExcerpt a = AnnotatedExcerpt
   { lineOffset  :: Line
   , text        :: String
   , annotations :: Set (Range, a)
-  } deriving (Show)
+  } deriving (Eq, Ord, Show)
+
+markup :: Ord a => AnnotatedExcerpt a -> Set (Range, a) -> AnnotatedExcerpt a
+markup a r = a { annotations = r `Set.union` (annotations a) }
 
 snipWithContext :: Ord a => Int -> AnnotatedExcerpt a -> [AnnotatedExcerpt a]
 snipWithContext margin source =
@@ -166,11 +176,17 @@ Highlight: Line 2, Cols 1-7
 unhighlighted :: StyleText -> StyleText
 unhighlighted s = const Normal <$> s
 
+color :: Color -> StyleText -> StyleText
+color c s = const (Highlighted c) <$> s
+
 color1 :: StyleText -> StyleText
 color1 s = const (Highlighted Color1) <$> s
 
 color2 :: StyleText -> StyleText
 color2 s = const (Highlighted Color2) <$> s
+
+color3 :: StyleText -> StyleText
+color3 s = const (Highlighted Color3) <$> s
 
 -- data AnnotatedText
 --   = Line { line :: String -- cannot contain newlines

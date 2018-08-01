@@ -1,15 +1,17 @@
-{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE OverloadedLists, OverloadedStrings, TupleSections #-}
 
 module Unison.PrintError where
 
 import Data.Foldable
-import Data.Maybe (listToMaybe)
+import Data.Maybe (listToMaybe, catMaybes)
 import           Unison.Parser (Ann(..))
 import           Unison.Result (Note(..))
 import           Unison.Var (Var, qualifiedName)
 import Data.Map (Map)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Map as Map
+import qualified Data.Set as Set
+import Data.String (fromString)
 import qualified Data.Text as Text
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
@@ -18,6 +20,8 @@ import qualified Unison.Parser as Parser
 import Unison.Parser (start, end, ann, showLineCol)
 import qualified Unison.Typechecker.Context as C
 import qualified Unison.Reference as R
+import qualified Unison.Util.ColorText as Color
+import Unison.Util.ColorText ()
 import Data.Sequence (Seq(..))
 import Unison.Type (AnnotatedType)
 
@@ -32,8 +36,41 @@ data TypeError v loc
              , mismatchSite :: loc }
   | Other (C.Note v loc)
 
-renderTypeError :: Env -> TypeError v loc -> String -> String
-renderTypeError _env _e _src = error "todo"
+renderTypeError :: Var v => Env -> TypeError v Ann -> String -> Color.Rendered
+renderTypeError (Env _refNames _ctorNames) e src =
+  (fromString . annToEnglish) (mismatchSite e)
+    <> " has a type mismatch:\n\n"
+    <> (Color.splitAndRenderWithColor 1 $ Color.markup (fromString src)
+              (Set.fromList $ catMaybes
+                [ (,Color.Color1) <$> rangeForType (overallType1 e)
+                , (,Color.Color2) <$> rangeForType (overallType2 e)
+                , (,Color.Color3) <$> rangeForAnn (mismatchSite e)
+                ]) :: Color.Rendered)
+    <> "\n"
+    <> "The two types involved are:\n\n"
+    <> renderTypePosColor (leaf1 e) Color.Color1
+    <> "  and\n"
+    <> renderTypePosColor (leaf2 e) Color.Color2
+
+renderTypePosColor :: Var v => C.Type v Ann -> Color.Color -> Color.Rendered
+renderTypePosColor t c =
+  (Color.renderStyleTextWithColor $ Color.color c (fromString $ show t))
+  <> " (" <> (fromString . annToEnglish) (ABT.annotation t) <> ")"
+
+posToEnglish :: L.Pos -> String
+posToEnglish (L.Pos l c) = "Line " ++ show l ++ ", column " ++ show c
+
+annToEnglish :: Ann -> String
+annToEnglish Intrinsic = "An intrinsic"
+annToEnglish (Ann start _end) = posToEnglish start
+
+rangeForType :: C.Type v Ann -> Maybe Color.Range
+rangeForType = rangeForAnn . ABT.annotation
+
+rangeForAnn :: Ann -> Maybe Color.Range
+rangeForAnn Intrinsic = Nothing
+rangeForAnn (Ann start end) = Just $ Color.Range start end
+
 
 -- highlightString :: String -> [()]
 

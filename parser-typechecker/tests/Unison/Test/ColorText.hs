@@ -9,9 +9,6 @@ import           Text.RawString.QQ
 import           Unison.Lexer          (Pos (..))
 import           Unison.Util.ColorText
 
-markup :: Ord a => AnnotatedExcerpt a -> Set (Range, a) -> AnnotatedExcerpt a
-markup a r = a { annotations = r `union` (annotations a) }
-
 ex2 :: ColorExcerpt
 ex2 = markup ex (Set.fromList
       [ (Range (Pos 3 1) (Pos 3 5), Color2) -- SCENE
