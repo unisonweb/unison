@@ -33,7 +33,7 @@ typechecks :: String -> Bool
 typechecks = Result.isSuccess . file
 
 env :: Monad m => Typechecker.Env m Symbol Ann
-env = Typechecker.Env Intrinsic [] typeOf dd ed where
+env = Typechecker.Env Intrinsic [] typeOf dd ed B.builtins where
   typeOf r = maybe (error $ "no type for: " ++ show r) pure $ Map.lookup r B.builtins
   dd r = error $ "no data declaration for: " ++ show r
   ed r = error $ "no effect declaration for: " ++ show r

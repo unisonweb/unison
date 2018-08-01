@@ -8,6 +8,7 @@
 
 module Unison.Typechecker where
 
+import           Data.Map (Map)
 import           Data.Maybe (isJust)
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
@@ -21,7 +22,7 @@ import           Unison.Type (AnnotatedType)
 import qualified Unison.TypeVar as TypeVar
 import qualified Unison.Typechecker.Context as Context
 import           Unison.Var (Var)
--- import qualified Data.Map as Map
+
 -- import qualified Unison.Paths as Paths
 -- import qualified Unison.Type as Type
 
@@ -34,13 +35,14 @@ type Type v loc = AnnotatedType v loc
 failNote :: Note v loc -> Result (Note v loc) a
 failNote note = Result (pure note) Nothing
 
-data Env f v loc = Env {
-  builtinLoc :: loc,
-  ambientAbilities :: [Type v loc],
-  typeOf :: Reference -> f (Type v loc),
-  dataDeclaration :: Reference -> f (DataDeclaration' v loc),
-  effectDeclaration :: Reference -> f (EffectDeclaration' v loc)
-}
+data Env f v loc = Env
+  { builtinLoc :: loc
+  , ambientAbilities :: [Type v loc]
+  , typeOf :: Reference -> f (Type v loc)
+  , dataDeclaration :: Reference -> f (DataDeclaration' v loc)
+  , effectDeclaration :: Reference -> f (EffectDeclaration' v loc)
+  , terms :: Map Reference (Type v loc)
+  }
 
 -- -- | Compute the allowed type of a replacement for a given subterm.
 -- -- Example, in @\g -> map g [1,2,3]@, @g@ has an admissible type of

@@ -57,7 +57,7 @@ synthesizeFile unisonFile =
       datas = Map.union dds B.builtinDataDecls -- `Map.union` is left-biased
       effects = Map.union eds B.builtinEffectDecls
       env0 = Typechecker.Env
-               Intrinsic [] typeOf dataDeclaration effectDeclaration
+               Intrinsic [] typeOf dataDeclaration effectDeclaration B.builtins
       n = Typechecker.synthesize env0 term
       die s h = error $ "unknown " ++ s ++ " reference " ++ show h
       typeOf r = pure $ fromMaybe (die "value" r) $ Map.lookup r B.builtins
