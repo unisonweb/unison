@@ -67,13 +67,15 @@ renderTypeError env e src = case e of
                           ])
     , "\n"
     , "The two types involved are:\n\n"
+    , AT.Text $ styleInOverallType env overallType1 leaf1 Color.Color1
+    , "\n and\n"
+    , AT.Text $ styleInOverallType env overallType1 leaf1 Color.Color1
+--    , AT.Text $ styleInOverallType env overallType2 leaf2 Color.Color1
+    , "\n\n"
     , AT.Text $ "overallType1: " <> (fromString (show overallType1)) <> "\n"
     , AT.Text $ "leaf1: " <> (fromString (show leaf1)) <> "\n"
-    , AT.Text $ styleInOverallType env overallType1 leaf1 Color.Color1
-    , " and\n"
     , AT.Text $ "overallType2: " <> (fromString (show overallType2)) <> "\n"
     , AT.Text $ "leaf2: " <> (fromString (show leaf2)) <> "\n"
-    , AT.Text $ styleInOverallType env overallType2 leaf2 Color.Color1
     ]
   Other note -> fromString . show $ note
 
