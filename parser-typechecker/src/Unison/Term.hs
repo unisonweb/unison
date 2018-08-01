@@ -29,7 +29,7 @@ import           GHC.Generics
 import           Prelude.Extras (Eq1(..), Show1(..))
 import           Text.Show
 import qualified Unison.ABT as ABT
-import           Unison.Blank
+import qualified Unison.Blank as B
 import           Unison.Hash (Hash)
 import qualified Unison.Hash as Hash
 import           Unison.Hashable (Hashable1, accumulateToken)
@@ -55,7 +55,7 @@ data F typeVar typeAnn patternAnn a
   | Float Double
   | Boolean Bool
   | Text Text
-  | Blank (Blank typeAnn)
+  | Blank (B.Blank typeAnn)
   | Ref Reference
   -- First argument identifies the data type,
   -- second argument identifies the constructor
@@ -225,14 +225,14 @@ uint64 a d = ABT.tm' a (UInt64 d)
 text :: Ord v => a -> Text -> AnnotatedTerm2 vt at ap v a
 text a = ABT.tm' a . Text
 
-placeholder :: Ord v => a -> AnnotatedTerm2 vt at ap v a
-placeholder a = ABT.tm' a (Blank Placeholder)
+blank :: Ord v => a -> AnnotatedTerm2 vt at ap v a
+blank a = ABT.tm' a (Blank B.Blank)
 
-remember :: Ord v => a -> String -> AnnotatedTerm2 vt a ap v a
-remember a s = ABT.tm' a . Blank $ Remember a s
+placeholder :: Ord v => a -> String -> AnnotatedTerm2 vt a ap v a
+placeholder a s = ABT.tm' a . Blank $ B.Recorded (B.Placeholder a s)
 
 resolve :: Ord v => a -> String -> AnnotatedTerm2 vt a ap v a
-resolve a s = ABT.tm' a . Blank $ Resolve a s
+resolve a s = ABT.tm' a . Blank $ B.Recorded (B.Resolve a s)
 
 constructor :: Ord v => a -> Reference -> Int -> AnnotatedTerm2 vt at ap v a
 constructor a ref n = ABT.tm' a (Constructor ref n)
@@ -444,11 +444,11 @@ instance Var v => Hashable1 (F v a p) where
         Float n -> [tag 66, Hashable.Double n]
         Boolean b -> [tag 67, accumulateToken b]
         Text t -> [tag 68, accumulateToken t]
-        Blank b ->
-          tag 1 : case b of
-                    Placeholder -> [tag 0]
-                    Remember _ s -> [tag 1, Hashable.Text (Text.pack s)]
-                    Resolve _ s -> [tag 2, Hashable.Text (Text.pack s)]
+        Blank b -> tag 1 :
+          case b of
+            B.Blank -> [tag 0]
+            B.Recorded (B.Placeholder _ s) -> [tag 1, Hashable.Text (Text.pack s)]
+            B.Recorded (B.Resolve _ s)  -> [tag 2, Hashable.Text (Text.pack s)]
         Ref (Reference.Builtin name) -> [tag 2, accumulateToken name]
         Ref (Reference.Derived _) -> error "handled above, but GHC can't figure this out"
         App a a2 -> [tag 3, hashed (hash a), hashed (hash a2)]
@@ -523,9 +523,9 @@ instance (Var v, Show p, Show a0, Show a) => Show (F v a0 p a) where
     go _ (Vector vs) = showListWith (showsPrec 0) (Vector.toList vs)
     go _ (Blank b) =
       case b of
-        Placeholder -> s"_"
-        Remember _ r -> s("_" ++ r)
-        Resolve _ r -> s r
+        B.Blank -> s"_"
+        B.Recorded (B.Placeholder _ r) -> s("_" ++ r)
+        B.Recorded (B.Resolve _ r) -> s r
     go _ (Ref r) = showsPrec 0 r
     go _ (Let b body) = showParen True (s"let " <> showsPrec 0 b <> s" in " <> showsPrec 0 body)
     go _ (LetRec bs body) = showParen True (s"let rec" <> showsPrec 0 bs <> s" in " <> showsPrec 0 body)

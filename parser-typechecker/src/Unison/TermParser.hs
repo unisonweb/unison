@@ -186,8 +186,8 @@ boolean :: Var v => TermP v
 boolean = ((\t -> Term.boolean (ann t) True) <$> reserved "true") <|>
           ((\t -> Term.boolean (ann t) False) <$> reserved "false")
 
-remember :: Var v => TermP v
-remember = (\t -> Term.remember (ann t) (L.payload t)) <$> blank
+placeholder :: Var v => TermP v
+placeholder = (\t -> Term.placeholder (ann t) (L.payload t)) <$> blank
 
 vector :: Var v => TermP v -> TermP v
 vector p = f <$> reserved "[" <*> elements <*> reserved "]"
@@ -198,7 +198,7 @@ vector p = f <$> reserved "[" <*> elements <*> reserved "]"
 termLeaf :: forall v. Var v => TermP v
 termLeaf =
   asum [hashLit, prefixTerm, text, number, boolean,
-        tupleOrParenthesizedTerm, remember, vector term]
+        tupleOrParenthesizedTerm, placeholder, vector term]
 
 and = label "and" $ f <$> reserved "and" <*> termLeaf <*> termLeaf
   where f kw x y = Term.and (ann kw <> ann y) x y

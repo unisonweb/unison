@@ -202,7 +202,7 @@ universal :: Ord v => v -> Type (TypeVar b v)
 universal v = ABT.var (TypeVar.Universal v)
 
 existentialp :: Ord v => a -> v -> AnnotatedType (TypeVar (Blank x) v) a
-existentialp a v = existential' a Placeholder v
+existentialp a v = existential' a Blank v
 
 existential' :: Ord v => a -> Blank x -> v -> AnnotatedType (TypeVar (Blank x) v) a
 existential' a blank v = ABT.annotatedVar a (TypeVar.Existential blank v)

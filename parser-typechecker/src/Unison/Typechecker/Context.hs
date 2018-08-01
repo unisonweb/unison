@@ -23,7 +23,7 @@ import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Debug.Trace
 import qualified Unison.ABT as ABT
-import           Unison.Blank
+import qualified Unison.Blank as B
 import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 import qualified Unison.DataDeclaration as DD
 import           Unison.PatternP (Pattern)
@@ -38,7 +38,7 @@ import           Unison.Typechecker.Components (minimize')
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 
-type TypeVar v loc = TypeVar.TypeVar (Blank loc) v
+type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
 type Type v loc = AnnotatedType (TypeVar v loc) loc
 type Term v loc = AnnotatedTerm' (TypeVar v loc) v loc
 type Monotype v loc = Type.Monotype (TypeVar v loc) loc
@@ -47,12 +47,12 @@ pattern Universal v = Var (TypeVar.Universal v)
 pattern Existential b v = Var (TypeVar.Existential b v)
 
 existential :: v -> Element v loc
-existential v = Existential Placeholder v
+existential v = Existential B.Blank v
 
 -- | Elements of an ordered algorithmic context
 data Element v loc
   = Var (TypeVar v loc)                    -- A variable declaration
-  | Solved (Blank loc) v (Monotype v loc)  -- `v` is solved to some monotype
+  | Solved (B.Blank loc) v (Monotype v loc)  -- `v` is solved to some monotype
   | Ann v (Type v loc)                     -- `v` has type `a`, maybe quantified
   | Marker v                               -- used for scoping
 
@@ -107,12 +107,12 @@ data Cause v loc
   | CompilerBug (CompilerBug v loc)
   | AbilityCheckFailure [Type v loc] [Type v loc] -- ambient, requested
   | EffectConstructorWrongArgCount ExpectedArgCount ActualArgCount Reference ConstructorId
-  | SolvedBlank (Blank loc) v (Type v loc)
+  | SolvedBlank (B.Recorded loc) v (Type v loc)
   deriving Show
 
 data Note v loc = Note { cause :: Cause v loc, path :: Seq (PathElement v loc) } deriving Show
 
-solveBlank :: Blank loc -> v -> Type v loc -> M v loc ()
+solveBlank :: B.Recorded loc -> v -> Type v loc -> M v loc ()
 solveBlank blank v typ =
   M (\menv -> (pure $ Note (SolvedBlank blank v typ) mempty, Just ((), env menv)))
 
@@ -179,15 +179,12 @@ doRetract e = do
     Nothing -> compilerCrash (RetractFailure e ctx)
     Just (t, discarded) -> do
       let solved = [ (b, v, inst $ Type.getPolytype sa) |
-                     Solved b v sa <- discarded ]
-          es = [ (b, v) | Existential b v <- discarded ]
-          resolveds = [ (b, v, inst $ Type.existential' loc b v) |
-                        (b@(Resolve loc _), v) <- es ]
-          remembers = [ (b, v, inst $ Type.existential' loc b v) |
-                        (b@(Remember loc _), v) <- es ]
+                     Solved (B.Recorded b) v sa <- discarded ]
+          unsolved = [ (b, v, inst $ Type.existential' (B.loc b) b' v) |
+                       Existential b'@(B.Recorded b) v <- discarded ]
           go (b, v, sa) = solveBlank b v sa
           inst t = apply ctx t
-      Foldable.traverse_ go (solved ++ resolveds ++ remembers)
+      Foldable.traverse_ go (solved ++ unsolved)
       setContext t
 
 solved :: Context v loc -> [(v, Monotype v loc)]
@@ -433,7 +430,7 @@ extendMarker v = do
 notMember :: (Var v, Ord loc) => v -> Set (TypeVar v loc) -> Bool
 notMember v s =
   Set.notMember (TypeVar.Universal v) s &&
-  Set.notMember (TypeVar.Existential Placeholder v) s
+  Set.notMember (TypeVar.Existential B.Blank v) s
 
 -- | Replace any existentials with their solution in the context
 apply :: (Var v, Ord loc) => Context v loc -> Type v loc -> Type v loc
@@ -473,7 +470,7 @@ synthesizeApp ft arg = scope (InSynthesizeApp ft arg) $ go ft where
   go (Type.Forall' body) = do -- Forall1App
     v <- ABT.freshen body freshenTypeVar
     appendContext (context [existential v])
-    synthesizeApp (ABT.bindInheritAnnotation body (Type.existential Placeholder v)) arg
+    synthesizeApp (ABT.bindInheritAnnotation body (Type.existential B.Blank v)) arg
   go (Type.Arrow' i o) = do -- ->App
     let (es, _) = Type.stripEffect o
     abilityCheck es
@@ -483,8 +480,8 @@ synthesizeApp ft arg = scope (InSynthesizeApp ft arg) $ go ft where
     o <$ check arg (Type.effect (loc ft) ambientEs i)
   go (Type.Existential' b a) = do -- a^App
     [i,o] <- traverse freshenVar [ABT.v' "i", ABT.v' "o"]
-    let it = Type.existential' (loc ft) Placeholder i
-        ot = Type.existential' (loc ft) Placeholder o
+    let it = Type.existential' (loc ft) B.Blank i
+        ot = Type.existential' (loc ft) B.Blank o
         soln = Type.Monotype (Type.arrow (loc ft) it ot)
         ctxMid = context [existential o, existential i, Solved b a soln]
     modifyContext' $ replace (existential a) ctxMid
@@ -532,7 +529,7 @@ synthesize e = scope (InSynthesize e) $ go (minimize' e)
              ambient <- getAbilities
              let l = loc t
              -- arya: we should revisit these l's too
-             subtype t (Type.effect l ambient (Type.existential' l Placeholder a))
+             subtype t (Type.effect l ambient (Type.existential' l B.Blank a))
              -- modifyContext $ retract [Marker a]
              pure t
       else pure t
@@ -583,8 +580,8 @@ synthesize e = scope (InSynthesize e) $ go (minimize' e)
   go (Term.Lam' body) = do -- ->I=> (Full Damas Milner rule)
     -- arya: are there more meaningful locations we could put into and pull out of the abschain?)
     [arg, i, o] <- sequence [ABT.freshen body freshenVar, freshVar, freshVar]
-    let it = Type.existential' l Placeholder i
-        ot = Type.existential' l Placeholder o
+    let it = Type.existential' l B.Blank i
+        ot = Type.existential' l B.Blank o
     appendContext $
       context [Marker i, existential i, existential o, Ann arg it]
     body <- pure $ ABT.bindInheritAnnotation body (Term.var() arg)
@@ -616,7 +613,7 @@ synthesize e = scope (InSynthesize e) $ go (minimize' e)
     ([eType], iType) <-
       Type.stripEffect <$> withoutAbilityCheck (foldM synthesizeApp cType args)
     rTypev <- freshNamed "result"
-    let rType = Type.existential' l Placeholder rTypev
+    let rType = Type.existential' l B.Blank rTypev
     appendContext $ context [existential rTypev]
     check k (Type.arrow l iType (Type.effect l [eType] rType))
     ctx <- getContext
@@ -624,7 +621,7 @@ synthesize e = scope (InSynthesize e) $ go (minimize' e)
   go (Term.Match' scrutinee cases) = do
     scrutineeType <- synthesize scrutinee
     outputTypev <- freshenVar (Var.named "match-output")
-    let outputType = Type.existential' l Placeholder outputTypev
+    let outputType = Type.existential' l B.Blank outputTypev
     appendContext $ context [existential outputTypev]
     Foldable.traverse_ (checkCase scrutineeType outputType) cases
     ctx <- getContext
@@ -632,7 +629,7 @@ synthesize e = scope (InSynthesize e) $ go (minimize' e)
   go h@(Term.Handle' _ _) = do
     o <- freshNamed "o"
     appendContext $ context [existential o]
-    let ot = Type.existential' l Placeholder o
+    let ot = Type.existential' l B.Blank o
     check h ot
     ctx <- getContext
     pure (apply ctx ot)
@@ -675,7 +672,7 @@ patternToTerm pat = case pat of
    (h : t) <- get
    put t
    pure $ Term.var loc h
-  Pattern.Unbound loc -> pure $ Term.placeholder loc
+  Pattern.Unbound loc -> pure $ Term.blank loc
   Pattern.As loc p -> do
    (h : t) <- get
    put t
@@ -708,7 +705,7 @@ checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) =
       patTerm = evalState (patternToTerm (pat :: Pattern loc) :: State [v] (Term v loc)) vs
       newBody = Term.let1 [((loc rhs', Var.named "_"), Term.ann (loc scrutineeType) patTerm scrutineeType)] rhs'
       entireCase =
-        foldr (\locv t -> Term.let1 [(locv, Term.placeholder (fst locv))] t)
+        foldr (\locv t -> Term.let1 [(locv, Term.blank (fst locv))] t)
               newBody
               (Foldable.toList pat `zip` vs)
   in check entireCase outputType
@@ -742,7 +739,7 @@ annotateLetRecBindings letrec = do
         -- TODO: Think about whether `apply` here is always correct
         --       Used to have a guard that would only do this if t had no free vars
         Term.Ann' _ t -> apply ctx t
-        _ -> Type.existential' (loc binding) Placeholder e
+        _ -> Type.existential' (loc binding) B.Blank e
   let bindingTypes = zipWith f es bindings
   appendContext $ context (Marker e1 : map existential es ++ zipWith Ann vs bindingTypes)
   -- check each `bi` against `ei`; sequencing resulting contexts
@@ -752,7 +749,7 @@ annotateLetRecBindings letrec = do
   (ctx1, _, ctx2) <- breakAt (Marker e1) <$> getContext
   -- The location of the existential is just the location of the binding
   let gen (e,(_,binding)) = generalizeExistentials ctx2
-         (Type.existential' (loc binding) Placeholder e)
+         (Type.existential' (loc binding) B.Blank e)
   let annotations = zipWith Ann vs (map gen (es `zip` bindings))
   marker <- Marker <$> freshenVar (ABT.v' "let-rec-marker")
   setContext (ctx1 `mappend` context (marker : annotations))
@@ -765,14 +762,14 @@ generalizeExistentials ctx t =
   foldr gen (apply ctx t) (unsolved ctx)
   where
     gen e t =
-      if TypeVar.Existential Placeholder e `ABT.isFreeIn` t
+      if TypeVar.Existential B.Blank e `ABT.isFreeIn` t
       -- location of the forall is just the location of the input type
       -- and the location of each quantified variable is just inherited from
       -- its source location
       then Type.forall (loc t)
                        (TypeVar.Universal e)
                        (ABT.substInheritAnnotation
-                           (TypeVar.Existential Placeholder e)
+                           (TypeVar.Existential B.Blank e)
                            (Type.universal e)
                            t)
       else t -- don't bother introducing a forall if type variable is unused
@@ -864,7 +861,7 @@ subtype tx ty = scope (InSubtype tx ty) $
     doRetract (Universal v')
   go _ (Type.Forall' t) t2 = do
     v <- extendMarker =<< ABT.freshen t freshenTypeVar
-    t <- pure $ ABT.bindInheritAnnotation t (Type.existential Placeholder v)
+    t <- pure $ ABT.bindInheritAnnotation t (Type.existential B.Blank v)
     ctx' <- getContext
     subtype (apply ctx' t) t2
     doRetract (Marker v)
@@ -888,7 +885,7 @@ subtype tx ty = scope (InSubtype tx ty) $
 -- | Instantiate the given existential such that it is
 -- a subtype of the given type, updating the context
 -- in the process.
-instantiateL :: (Var v, Ord loc) => Blank loc -> v -> Type v loc -> M v loc ()
+instantiateL :: (Var v, Ord loc) => B.Blank loc -> v -> Type v loc -> M v loc ()
 instantiateL _ v t | debugEnabled && traceShow ("instantiateL"::String, v, t) False = undefined
 instantiateL blank v t = scope (InInstantiateL v t) $
   getContext >>= \ctx -> case Type.monotype t >>= (solve ctx v) of
@@ -904,9 +901,9 @@ instantiateL blank v t = scope (InInstantiateL v t) $
                                                  (Type.existentialp (loc o) o')))
         modifyContext' $ replace (existential v)
                                  (context [existential o', existential i', s])
-        instantiateR i Placeholder i' -- todo: not sure about this, could also be `blank`
+        instantiateR i B.Blank i' -- todo: not sure about this, could also be `blank`
         ctx <- getContext
-        instantiateL Placeholder o' (apply ctx o)
+        instantiateL B.Blank o' (apply ctx o)
       Type.App' x y -> do -- analogue of InstLArr
         [x', y'] <- traverse freshenVar [ABT.v' "x", ABT.v' "y"]
         let s = Solved blank v (Type.Monotype (Type.app (loc t)
@@ -915,8 +912,8 @@ instantiateL blank v t = scope (InInstantiateL v t) $
         modifyContext' $ replace (existential v)
                                  (context [existential y', existential x', s])
         ctx0 <- getContext
-        ctx' <- instantiateL Placeholder x' (apply ctx0 x) >> getContext
-        instantiateL Placeholder y' (apply ctx' y)
+        ctx' <- instantiateL B.Blank x' (apply ctx0 x) >> getContext
+        instantiateL B.Blank y' (apply ctx' y)
       Type.Effect' es vt -> do
         es' <- replicateM (length es) (freshNamed "e")
         vt' <- freshNamed "vt"
@@ -931,19 +928,19 @@ instantiateL blank v t = scope (InInstantiateL v t) $
                                             [existential vt', s])
         Foldable.for_ (es' `zip` es) $ \(e',e) -> do
           ctx <- getContext
-          instantiateL Placeholder e' (apply ctx e)
+          instantiateL B.Blank e' (apply ctx e)
         ctx <- getContext
-        instantiateL Placeholder vt' (apply ctx vt)
+        instantiateL B.Blank vt' (apply ctx vt)
       Type.Forall' body -> do -- InstLIIL
         v <- extendUniversal =<< ABT.freshen body freshenTypeVar
-        instantiateL Placeholder v (ABT.bindInheritAnnotation body (Type.universal v))
+        instantiateL B.Blank v (ABT.bindInheritAnnotation body (Type.universal v))
         doRetract (Universal v)
       _ -> failWith $ TypeMismatch ctx
 
 -- | Instantiate the given existential such that it is
 -- a supertype of the given type, updating the context
 -- in the process.
-instantiateR :: (Var v, Ord loc) => Type v loc -> Blank loc -> v -> M v loc ()
+instantiateR :: (Var v, Ord loc) => Type v loc -> B.Blank loc -> v -> M v loc ()
 instantiateR t _ v | debugEnabled && traceShow ("instantiateR"::String, t, v) False = undefined
 instantiateR t blank v = scope (InInstantiateR t v) $
   getContext >>= \ctx -> case Type.monotype t >>= solve ctx v of
@@ -960,8 +957,8 @@ instantiateR t blank v = scope (InInstantiateR t v) $
                             (Type.existentialp (loc o) o')))
         modifyContext' $ replace (existential v)
                                  (context [existential o', existential i', s])
-        ctx <- instantiateL Placeholder i' i >> getContext
-        instantiateR (apply ctx o) Placeholder o'
+        ctx <- instantiateL B.Blank i' i >> getContext
+        instantiateR (apply ctx o) B.Blank o'
       Type.App' x y -> do -- analogue of InstRArr
         -- example foo a <: v' will
         -- 1. create foo', a', add these to the context
@@ -971,9 +968,9 @@ instantiateR t blank v = scope (InInstantiateR t v) $
         let s = Solved blank v (Type.Monotype (Type.app (loc t) (Type.existentialp (loc x) x') (Type.existentialp (loc y) y')))
         modifyContext' $ replace (existential v) (context [existential y', existential x', s])
         ctx <- getContext
-        instantiateR (apply ctx x) Placeholder x'
+        instantiateR (apply ctx x) B.Blank x'
         ctx <- getContext
-        instantiateR (apply ctx y) Placeholder y'
+        instantiateR (apply ctx y) B.Blank y'
       Type.Effect' es vt -> do
         es' <- replicateM (length es) (freshNamed "e")
         vt' <- freshNamed "vt"
@@ -985,13 +982,13 @@ instantiateR t blank v = scope (InInstantiateR t v) $
         modifyContext' $ replace (existential v) (context $ (existential <$> es') ++ [existential vt', s])
         Foldable.for_ (es `zip` es') $ \(e, e') -> do
           ctx <- getContext
-          instantiateR (apply ctx e) Placeholder e'
+          instantiateR (apply ctx e) B.Blank e'
         ctx <- getContext
-        instantiateR (apply ctx vt) Placeholder vt'
+        instantiateR (apply ctx vt) B.Blank vt'
       Type.Forall' body -> do -- InstRAIIL
         x' <- ABT.freshen body freshenTypeVar
         setContext $ ctx `mappend` context [Marker x', existential x']
-        instantiateR (ABT.bindInheritAnnotation body (Type.existential Placeholder x')) Placeholder v
+        instantiateR (ABT.bindInheritAnnotation body (Type.existential B.Blank x')) B.Blank v
         doRetract (Marker x')
       _ -> failWith $ TypeMismatch ctx
 
