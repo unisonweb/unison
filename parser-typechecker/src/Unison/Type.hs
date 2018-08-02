@@ -104,7 +104,7 @@ unArrows t =
     go _ = []
 
 unApps :: AnnotatedType v a -> Maybe (AnnotatedType v a, [AnnotatedType v a])
-unApps t = case go t [] of [] -> Nothing; f:args -> Just (f,args)
+unApps t = case go t [] of [_] -> Nothing; f:args -> Just (f,args)
   where
   go (App' i o) acc = go i (o:acc)
   go fn args = fn:args

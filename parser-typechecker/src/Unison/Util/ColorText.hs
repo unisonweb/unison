@@ -15,9 +15,13 @@ import qualified Data.Set                  as Set
 -- import           Control.Exception (assert)
 import           Data.String               (IsString (..))
 import           Safe                      (headMay)
-import           System.Console.ANSI       (pattern Blue, pattern Foreground,
-                                            pattern Green, pattern Red,
-                                            pattern Reset, pattern SetColor,
+import           System.Console.ANSI       (pattern Blue, pattern BoldIntensity,
+                                            pattern SetConsoleIntensity,
+                                            pattern Foreground, pattern Green,
+                                            pattern Red, pattern Reset,
+                                            pattern SetColor,
+                                            pattern SetUnderlining,
+                                            pattern SingleUnderline,
                                             pattern Vivid, setSGRCode)
 import           Unison.Lexer              (Line, Pos (..))
 import           Unison.Util.AnnotatedText
@@ -29,9 +33,11 @@ type StyledBlockquote = AnnotatedExcerpt Color
 
 toANSI :: Color -> Rendered
 toANSI c = Rendered . pure . setSGRCode $ case c of
-  Color1 -> [SetColor Foreground Vivid Red]
-  Color2 -> [SetColor Foreground Vivid Blue]
-  Color3 -> [SetColor Foreground Vivid Green]
+  Color1 -> SetColor Foreground Vivid Red : [bold, underline]
+  Color2 -> SetColor Foreground Vivid Blue : [bold, underline]
+  Color3 -> SetColor Foreground Vivid Green : [bold, underline]
+  where bold = SetConsoleIntensity BoldIntensity
+        underline = SetUnderlining SingleUnderline
 
 resetANSI :: Rendered
 resetANSI = Rendered . pure . setSGRCode $ [Reset]
@@ -135,7 +141,7 @@ renderStyleTextWithColor (AnnotatedText chunks) = foldl' go mempty chunks
 renderDocInColor :: AnnotatedDocument Color -> Rendered
 renderDocInColor (AnnotatedDocument chunks) = go $ toList chunks where
   go [] = mempty
-  go (Blockquote exc : rest) = renderExcerptWithColor exc <> go rest
+  go (Blockquote exc : rest) = splitAndRenderWithColor 3 exc <> go rest
   go (Text t : rest@(Blockquote _ : _)) =
     renderStyleTextWithColor t
       <> (if trailingNewLine t then mempty else "\n")
