@@ -52,6 +52,9 @@ bindBuiltins = Term.bindBuiltins builtinTerms builtinTypes
 bindTypeBuiltins :: Var v => Type v -> Type v
 bindTypeBuiltins = Type.bindBuiltins builtinTypes
 
+builtinTypedTerms :: Var v => [(v, (Term v, Type v))]
+builtinTypedTerms = [(v, (e, t)) | (v, e@(Term.Ann' _ t)) <- builtinTerms ]
+
 builtinTerms :: Var v => [(v, Term v)]
 builtinTerms =
   let fns = [ (toSymbol r, Term.ann Intrinsic (Term.ref Intrinsic r) typ) |
