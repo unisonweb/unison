@@ -1,10 +1,10 @@
+{-# LANGUAGE EmptyDataDecls    #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
 module Unison.Util.ColorText where
 
 import           Data.Foldable (asum, foldl', toList)
-import qualified Data.List as List
 import           Data.Sequence (Seq)
 import           Data.Set (Set)
 import qualified Data.Set as Set
@@ -20,24 +20,26 @@ import           System.Console.ANSI (pattern Blue, pattern BoldIntensity,
                                       setSGRCode)
 import           Unison.Lexer (Line, Pos (..))
 import           Unison.Util.AnnotatedText
+import           Unison.Util.Monoid (intercalateMap)
 import           Unison.Util.Range (Range (..), inRange)
 
-data Color = Color1 | Color2 | Color3 deriving (Eq, Ord, Show)
-type StyledText = AnnotatedText (Maybe Color)
-type StyledBlockquote = AnnotatedExcerpt Color
+newtype Rendered a = Rendered (Seq String)
+data ANSI
+data ASCII
+data Style = Type1 | Type2 | ErrorSite deriving (Eq, Ord, Show)
+type StyledText = AnnotatedText (Maybe Style)
+type StyledBlockquote = AnnotatedExcerpt Style
 
-toANSI :: Color -> Rendered
+toANSI :: Style -> Rendered ANSI
 toANSI c = Rendered . pure . setSGRCode $ case c of
-  Color1 -> SetColor Foreground Vivid Red : [bold, underline]
-  Color2 -> SetColor Foreground Vivid Blue : [bold, underline]
-  Color3 -> SetColor Foreground Vivid Green : [bold, underline]
+  ErrorSite -> SetColor Foreground Vivid Red : [bold, underline]
+  Type1     -> SetColor Foreground Vivid Blue : [bold, underline]
+  Type2     -> SetColor Foreground Vivid Green : [bold, underline]
   where bold = SetConsoleIntensity BoldIntensity
         underline = SetUnderlining SingleUnderline
 
-resetANSI :: Rendered
+resetANSI :: Rendered ANSI
 resetANSI = Rendered . pure . setSGRCode $ [Reset]
-
-newtype Rendered = Rendered (Seq String)
 
 deoffsetRange :: Line -> Range -> Range
 deoffsetRange lineOffset (Range (Pos startLine startCol) (Pos endLine endCol)) =
@@ -46,13 +48,16 @@ deoffsetRange lineOffset (Range (Pos startLine startCol) (Pos endLine endCol)) =
 
 -- | drops lines and replaces with "." if there are more than `n` unannotated
 -- | lines in a row.
-splitAndRenderWithColor :: Int -> StyledBlockquote -> Rendered
-splitAndRenderWithColor n e =
-  mconcat $ List.intersperse
-              "    .\n"
-              (renderExcerptWithColor <$> snipWithContext n e)
+splitAndRenderWithColor :: Int -> StyledBlockquote -> Rendered ANSI
+splitAndRenderWithColor n e = splitAndRender n renderExcerptWithColor e
 
-renderExcerptWithColor :: StyledBlockquote -> Rendered
+splitAndRender :: Ord a
+               => Int
+               -> (AnnotatedExcerpt a -> Rendered b)
+               -> AnnotatedExcerpt a -> Rendered b
+splitAndRender n f e = intercalateMap "    .\n" f $ snipWithContext n e
+
+renderExcerptWithColor :: StyledBlockquote -> Rendered ANSI
 renderExcerptWithColor e =
   track (Pos line1 1) [] (Set.toList $ annotations e)
     (Rendered . pure $ renderLineNumber line1) (text e)
@@ -62,12 +67,12 @@ renderExcerptWithColor e =
     renderLineNumber n = " " ++ replicate (lineNumberWidth - length sn) ' ' ++ sn ++ " | " where sn = show n
     lineNumberWidth = 4 --length (show maxLineIndex)
      -- where maxLineIndex = line1 - 1 + length (lines (text e))
-    setupNewLine :: Rendered -> Pos -> Char -> (Rendered, Pos)
+    setupNewLine :: Rendered ANSI -> Pos -> Char -> (Rendered ANSI, Pos)
     setupNewLine openColor (Pos line col) c = case c of
       '\n' -> let r = Rendered . pure $ renderLineNumber (line + 1)
               in (r <> openColor, Pos (line + 1) 1)
       _ -> (mempty, Pos line (col + 1))
-    track :: Pos -> [(Color, Pos)] -> [(Range, Color)] -> Rendered -> String -> Rendered
+    track :: Pos -> [(Style, Pos)] -> [(Range, Style)] -> Rendered ANSI -> String -> Rendered ANSI
     track _pos stack _annotations rendered "" =
       rendered <> if null stack then mempty else resetANSI
     track pos stack annotations rendered _input@(c:rest) =
@@ -77,7 +82,7 @@ renderExcerptWithColor e =
           stack0 = dropWhile ((<=pos) . snd) stack
           -- and add new stack entries
           stack' = foldl' pushColor stack0 poppedAnnotations
-            where pushColor s (Range _ end, color) = (color, end) : s
+            where pushColor s (Range _ end, style) = (style, end) : s
           resetColor = -- stack is newly null, and there are no newly opened annotations
             if null poppedAnnotations && null stack' && not (null stack)
             then resetANSI else mempty
@@ -127,13 +132,13 @@ snipWithContext margin source =
             else (Just r0, taken, Set.singleton a) -- otherwise add it to the second set
           else (Just r0, taken, Set.insert a rest) -- once we've added to the second set, anything more goes there too
 
-renderStyleTextWithColor :: StyledText -> Rendered
+renderStyleTextWithColor :: StyledText -> Rendered ANSI
 renderStyleTextWithColor (AnnotatedText chunks) = foldl' go mempty chunks
-  where go :: Rendered -> (String, Maybe Color) -> Rendered
+  where go :: Rendered ANSI -> (String, Maybe Style) -> Rendered ANSI
         go r (text, Nothing)    = r <> resetANSI <> fromString text
-        go r (text, Just color) = r <> toANSI color <> fromString text
+        go r (text, Just style) = r <> toANSI style <> fromString text
 
-renderDocInColor :: AnnotatedDocument Color -> Rendered
+renderDocInColor :: AnnotatedDocument Style -> Rendered ANSI
 renderDocInColor (AnnotatedDocument chunks) = go $ toList chunks where
   go [] = mempty
   go (Blockquote exc : rest) = splitAndRenderWithColor 3 exc <> go rest
@@ -160,17 +165,17 @@ Highlight: Line 2, Cols 1-7
 unhighlighted :: StyledText -> StyledText
 unhighlighted s = const Nothing <$> s
 
-color :: Color -> StyledText -> StyledText
-color c s = const (Just c) <$> s
+style :: Style -> StyledText -> StyledText
+style c s = const (Just c) <$> s
 
-color1 :: StyledText -> StyledText
-color1 s = const (Just Color1) <$> s
+type1 :: StyledText -> StyledText
+type1 s = const (Just Type1) <$> s
 
-color2 :: StyledText -> StyledText
-color2 s = const (Just Color2) <$> s
+type2 :: StyledText -> StyledText
+type2 s = const (Just Type2) <$> s
 
-color3 :: StyledText -> StyledText
-color3 s = const (Just Color3) <$> s
+errorSite :: StyledText -> StyledText
+errorSite s = const (Just ErrorSite) <$> s
 
 -- data AnnotatedText
 --   = Line { line :: String -- cannot contain newlines
@@ -187,15 +192,15 @@ color3 s = const (Just Color3) <$> s
   -- Foo
   --
 
-instance Show Rendered where
+instance Show (Rendered a) where
   show (Rendered chunks) = asum chunks
 
-instance Semigroup Rendered where
+instance Semigroup (Rendered a) where
   (<>) = mappend
 
-instance Monoid Rendered where
+instance Monoid (Rendered a) where
   mempty = Rendered mempty
   mappend (Rendered chunks) (Rendered chunks') = Rendered (chunks <> chunks')
 
-instance IsString Rendered where
+instance IsString (Rendered a) where
   fromString s = Rendered (pure s)
