@@ -88,11 +88,13 @@ pattern Ann' t k <- ABT.Tm' (Ann t k)
 pattern App' f x <- ABT.Tm' (App f x)
 pattern Apps' f args <- (unApps -> Just (f, args))
 pattern Effect' es t <- ABT.Tm' (Effect es t)
+-- Effect'' may match zero effects
 pattern Effect'' es t <- (stripEffect -> (es, t))
 pattern Forall' subst <- ABT.Tm' (Forall (ABT.Abs' subst))
 pattern ForallsNamed' vs body <- (unForalls -> Just (vs, body))
 pattern ForallNamed' v body <- ABT.Tm' (Forall (ABT.out -> ABT.Abs v body))
 pattern Var' v <- ABT.Var' v
+pattern Tuple' ts <- (unTuple -> Just ts)
 pattern Existential' b v <- ABT.Var' (TypeVar.Existential b v)
 pattern Universal' v <- ABT.Var' (TypeVar.Universal v)
 
@@ -104,7 +106,7 @@ unArrows t =
     go _ = []
 
 unApps :: AnnotatedType v a -> Maybe (AnnotatedType v a, [AnnotatedType v a])
-unApps t = case go t [] of [_] -> Nothing; f:args -> Just (f,args)
+unApps t = case go t [] of [] -> Nothing; [_] -> Nothing; f:args -> Just (f,args)
   where
   go (App' i o) acc = go i (o:acc)
   go fn args = fn:args
@@ -114,6 +116,17 @@ unForalls t = go t []
   where go (ForallNamed' v body) vs = go body (v:vs)
         go _body [] = Nothing
         go body vs = Just(reverse vs, body)
+
+unTuple :: AnnotatedType v a -> Maybe [(AnnotatedType v a)]
+unTuple t = (case t of
+    (Apps' (Ref' (Reference.Builtin "Pair")) [_,_]) -> id
+    (Ref' (Reference.Builtin "()")) -> id
+    _ -> const Nothing) $
+    case go t of [] -> Nothing; ts -> Just ts
+    where go :: AnnotatedType v a -> [AnnotatedType v a]
+          go (Apps' (Ref' (Reference.Builtin "Pair")) (t:t':[])) = t : go t'
+          go (Ref' (Reference.Builtin "()")) = []
+          go _t = error "malformed tuple in Type.unTuple"
 
 matchExistential :: Eq v => v -> Type (TypeVar b v) -> Bool
 matchExistential v (Existential' _ x) = x == v

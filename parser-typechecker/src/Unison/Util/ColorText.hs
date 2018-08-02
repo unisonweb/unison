@@ -3,29 +3,24 @@
 {-# LANGUAGE PatternSynonyms   #-}
 module Unison.Util.ColorText where
 
--- import qualified System.Console.ANSI as A
--- import Control.Monad (join)
--- import Data.Foldable (toList)
-import           Data.Foldable             (asum, foldl', toList)
-import qualified Data.List                 as List
-import           Data.Sequence             (Seq)
-import           Data.Set                  (Set)
-import qualified Data.Set                  as Set
--- import qualified Data.Sequence as Seq
--- import           Control.Exception (assert)
-import           Data.String               (IsString (..))
-import           Safe                      (headMay)
-import           System.Console.ANSI       (pattern Blue, pattern BoldIntensity,
-                                            pattern SetConsoleIntensity,
-                                            pattern Foreground, pattern Green,
-                                            pattern Red, pattern Reset,
-                                            pattern SetColor,
-                                            pattern SetUnderlining,
-                                            pattern SingleUnderline,
-                                            pattern Vivid, setSGRCode)
-import           Unison.Lexer              (Line, Pos (..))
+import           Data.Foldable (asum, foldl', toList)
+import qualified Data.List as List
+import           Data.Sequence (Seq)
+import           Data.Set (Set)
+import qualified Data.Set as Set
+import           Data.String (IsString (..))
+import           Safe (headMay)
+import           System.Console.ANSI (pattern Blue, pattern BoldIntensity,
+                                      pattern Foreground, pattern Green,
+                                      pattern Red, pattern Reset,
+                                      pattern SetColor,
+                                      pattern SetConsoleIntensity,
+                                      pattern SetUnderlining,
+                                      pattern SingleUnderline, pattern Vivid,
+                                      setSGRCode)
+import           Unison.Lexer (Line, Pos (..))
 import           Unison.Util.AnnotatedText
-import           Unison.Util.Range         (Range (..), inRange)
+import           Unison.Util.Range (Range (..), inRange)
 
 data Color = Color1 | Color2 | Color3 deriving (Eq, Ord, Show)
 type StyledText = AnnotatedText (Maybe Color)
