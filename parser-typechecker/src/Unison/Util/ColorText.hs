@@ -9,8 +9,8 @@ import qualified Data.Set as Set
 import           Data.String (IsString (..))
 import           Safe (headMay)
 import           System.Console.ANSI (pattern Blue, pattern BoldIntensity,
-                                      pattern Foreground, pattern Green,
-                                      pattern Red, pattern Reset,
+                                      pattern Dull, pattern Foreground,
+                                      pattern Green, pattern Red, pattern Reset,
                                       pattern SetColor,
                                       pattern SetConsoleIntensity,
                                       pattern SetUnderlining,
@@ -66,11 +66,14 @@ renderDocANSI excerptCollapseWidth (AnnotatedDocument chunks) =
   describe Type2     = "colored in " <> errorSite "green"
   toANSI :: Style -> Rendered ANSI
   toANSI c = Rendered . pure . setSGRCode $ case c of
-    ErrorSite -> SetColor Foreground Vivid Red : [bold, underline]
-    Type1     -> SetColor Foreground Vivid Blue : [bold, underline]
-    Type2     -> SetColor Foreground Vivid Green : [bold, underline]
-    where bold = SetConsoleIntensity BoldIntensity
-          underline = SetUnderlining SingleUnderline
+    ErrorSite -> [red]
+    Type1     -> [blue]
+    Type2     -> [green]
+    where red = SetColor Foreground Vivid Red
+          blue = SetColor Foreground Vivid Blue
+          green = SetColor Foreground Dull Green
+          _bold = SetConsoleIntensity BoldIntensity
+          _underline = SetUnderlining SingleUnderline
 
   resetANSI :: Rendered ANSI
   resetANSI = Rendered . pure . setSGRCode $ [Reset]
