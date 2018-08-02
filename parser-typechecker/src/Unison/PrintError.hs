@@ -239,7 +239,7 @@ prettyTypecheckError :: (Var v, Eq loc, Show loc, Parser.Annotated loc)
                      -> String
                      -> C.Note v loc -> String
 prettyTypecheckError env input n =
-  show . Color.renderDocInColor $
+  show . Color.renderDocANSI 3 $
     (renderTypeError env (typeErrorFromNote n) input)
   -- case cause of
   --   C.TypeMismatch _ -> case path of

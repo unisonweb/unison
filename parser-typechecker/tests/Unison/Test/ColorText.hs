@@ -6,21 +6,22 @@ module Unison.Test.ColorText where
 import qualified Data.Set as Set
 import           Text.RawString.QQ
 import           Unison.Lexer (Pos (..))
-import           Unison.Util.AnnotatedText (AnnotatedExcerpt (..), markup)
-import           Unison.Util.ColorText (ANSI, Rendered, Style (..),
-                                        renderExcerptWithColor)
+import           Unison.Util.AnnotatedText (AnnotatedExcerpt (..), Rendered,
+                                            excerptToDoc, markup)
+import           Unison.Util.ColorText (ANSI, Style (..), renderDocANSI)
 import           Unison.Util.Range (Range (..))
 
 ex2 :: AnnotatedExcerpt Style
 ex2 = markup ex (Set.fromList
       [ (Range (Pos 3 1) (Pos 3 5), ErrorSite) -- SCENE
-      , (Range (Pos 5 1) (Pos 5 5), Type1) -- Enter
+      , (Range (Pos 5 9) (Pos 5 14), Type1) -- Master
+      , (Range (Pos 5 22) (Pos 5 30), Type1) -- Boatswain
       , (Range (Pos 25 1) (Pos 25 6), ErrorSite) -- ALONSO
-      , (Range (Pos 12 1) (Pos 13 44), Type2) -- Good, ... bestir.
+      , (Range (Pos 12 30) (Pos 13 27), Type2) -- fall ... aground.
       ])
 
 renderEx2 :: Rendered ANSI
-renderEx2 = renderExcerptWithColor ex2
+renderEx2 = renderDocANSI 3 . excerptToDoc $ ex2
 
 ex3 :: AnnotatedExcerpt Style
 ex3 = markup "Hello, world!" $ Set.fromList
