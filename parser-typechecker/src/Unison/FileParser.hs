@@ -99,5 +99,5 @@ effectDeclaration = do
   where
     constructor :: Var v => P v (Ann, v, AnnotatedType v Ann)
     constructor = explodeToken <$>
-      prefixVar <* reserved ":" <*> TypeParser.computationType
+      prefixVar <* reserved ":" <*> (Type.generalizeLowercase <$> TypeParser.computationType)
       where explodeToken v t = (ann v, L.payload v, t)
