@@ -69,10 +69,18 @@ renderTypeError env e src = case e of
     , "\n"
     , "The two types involved are:\n\n"
     , AT.Text $ styleInOverallType env overallType1 leaf1 Color.Type1
-    , " (", fromString (annotatedToEnglish overallType1), ")\n and\n"
+    , " (", fromString (Char.toLower <$> annotatedToEnglish overallType1)
+    , ")\n and\n"
     , AT.Text $ styleInOverallType env overallType2 leaf2 Color.Type2
-    , " (from " , fromString (Char.toLower <$> annotatedToEnglish overallType2)
+    , " (" , fromString (Char.toLower <$> annotatedToEnglish overallType2)
     , ")\n\n"
+    , "loc debug:"
+    , "\n  mismatchSite: ", fromString $ annotatedToEnglish mismatchSite
+    , "\n  overallType1: ", fromString $ annotatedToEnglish overallType1
+    , "\n         leaf1: ", fromString $ annotatedToEnglish leaf1
+    , "\n  overallType2: ", fromString $ annotatedToEnglish overallType2
+    , "\n         leaf2: ", fromString $ annotatedToEnglish leaf2
+    , "\n"
     ]
   Other note -> fromString . show $ note
 
@@ -136,13 +144,22 @@ styleInOverallType e overallType leafType c =
   renderType e f overallType
     where f loc s = if loc == ABT.annotation leafType then Color.style c s else s
 
-posToEnglish :: L.Pos -> String
-posToEnglish (L.Pos l c) = "Line " ++ show l ++ ", Column " ++ show c
+_posToEnglish :: L.Pos -> String
+_posToEnglish (L.Pos l c) = "Line " ++ show l ++ ", Column " ++ show c
+
+rangeToEnglish :: Range -> String
+rangeToEnglish (Range (L.Pos l c) (L.Pos l' c')) =
+  if l == l'
+    then if c == c'
+      then "Line " ++ show l ++ ", column " ++ show c
+      else "Line " ++ show l ++ ", columns " ++ show c ++ "-" ++ show c'
+    else "Line " ++ show l ++ ", column " ++ show c ++ " through " ++
+         "line " ++ show l' ++ ", column " ++ show c'
 
 annotatedToEnglish :: Annotated a => a -> String
 annotatedToEnglish a = case ann a of
   Intrinsic      -> "an intrinsic"
-  Ann start _end -> posToEnglish start
+  Ann start end -> rangeToEnglish $ Range start end
 
 rangeForType :: Annotated a => C.Type v a -> Maybe Range
 rangeForType = rangeForAnnotated . ABT.annotation
