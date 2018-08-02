@@ -135,7 +135,7 @@ renderStyleTextWithColor (AnnotatedText chunks) = foldl' go mempty chunks
 renderDocInColor :: AnnotatedDocument Color -> Rendered
 renderDocInColor (AnnotatedDocument chunks) = go $ toList chunks where
   go [] = mempty
-  go (Blockquote exc : rest) = renderExcerptWithColor exc <> go rest
+  go (Blockquote exc : rest) = splitAndRenderWithColor 3 exc <> go rest
   go (Text t : rest@(Blockquote _ : _)) =
     renderStyleTextWithColor t
       <> (if trailingNewLine t then mempty else "\n")

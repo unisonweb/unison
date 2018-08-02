@@ -96,8 +96,7 @@ renderType env f = renderType0 env f (0 :: Int) where
     Type.Ann' t k -> paren p 0 $ go 1 t <> " : " <> renderKind k
     Type.Apps' f' args -> paren p 3 $ spaces (go 3) (f':args)
     Type.Effect' [] t -> go p t
-    Type.Effect' es t -> paren p 3 $
-      "{" <> commas (go 0) es <> "} " <> go 3 t
+    Type.Effect' es t -> paren p 3 $ "{" <> commas (go 0) es <> "} " <> go 3 t
     Type.ForallsNamed' vs body -> paren p 1 $
       if p == 0 then go 0 body
       else "forall " <> spaces renderVar vs <> " . " <> go 1 body

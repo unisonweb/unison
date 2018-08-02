@@ -28,11 +28,7 @@ main = do
             BS.writeFile outputFile bs
           showNote :: [Result.Note Symbol Parser.Ann] -> String
           showNote notes =
-            "source = \n\n" <> source
-              <> "\n\n========\n\n"
-              <> show notes
-              <> "\n\n========\n\n"
-              <> intercalateMap "\n\n" (printNoteWithSource env0 source) notes
-      either (die . showNote) f r
+            intercalateMap "\n\n" (printNoteWithSource env0 source) notes
+      either (die . showNote . reverse) f r
 
     _ -> putStrLn "usage: bootstrap <in-file.u> <out-file.ub>"
