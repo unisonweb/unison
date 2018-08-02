@@ -53,12 +53,17 @@ renderDocANSI excerptCollapseWidth (AnnotatedDocument chunks) =
   go [] = mempty
   go (Blockquote exc : rest) =
     splitAndRender excerptCollapseWidth renderExcerptWithColor exc <> go rest
+  go (Describe style : rest) = go (Text (describe style) : rest)
   go (Text t : rest@(Blockquote _ : _)) =
     renderStyleTextWithColor t
       <> (if trailingNewLine t then mempty else "\n")
       <> go rest
   go (Text t : rest) = renderStyleTextWithColor t <> go rest
 
+  describe :: Style -> StyledText
+  describe ErrorSite = "colored in " <> errorSite "red"
+  describe Type1     = "colored in " <> errorSite "blue"
+  describe Type2     = "colored in " <> errorSite "green"
   toANSI :: Style -> Rendered ANSI
   toANSI c = Rendered . pure . setSGRCode $ case c of
     ErrorSite -> SetColor Foreground Vivid Red : [bold, underline]

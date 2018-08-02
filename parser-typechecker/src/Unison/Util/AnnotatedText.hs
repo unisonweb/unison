@@ -20,6 +20,7 @@ newtype AnnotatedDocument a = AnnotatedDocument (Seq (Section a))
 
 data Section a
   = Text (AnnotatedText (Maybe a))
+  | Describe a
   | Blockquote (AnnotatedExcerpt a)
   deriving (Eq, Ord)
 

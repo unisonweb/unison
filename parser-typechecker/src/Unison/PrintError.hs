@@ -59,7 +59,7 @@ renderTypeError :: (Var v, Annotated a, Eq a, Show a)
 renderTypeError env e src = case e of
   Mismatch {..} -> AT.AnnotatedDocument . Seq.fromList $
     [ (fromString . annotatedToEnglish) mismatchSite
-    , " has a type mismatch (colored in ", AT.Text $ Color.errorSite "red", " below):\n\n"
+    , " has a type mismatch (", AT.Describe Color.ErrorSite, " below):\n\n"
     , AT.Blockquote $ AT.markup (fromString src)
                         (Set.fromList $ catMaybes
                           [ (,Color.ErrorSite) <$> rangeForAnnotated mismatchSite
