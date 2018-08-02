@@ -32,7 +32,7 @@ parseFile :: Var v => FilePath -> String -> PEnv -> Either (Parser.Err v) (Uniso
 parseFile filename s =
   Parser.run'
     (Parser.rootFile $ FileParser.file
-                         Builtin.builtinTypedTerms
+                         Builtin.builtinTerms
                          Builtin.builtinTypes)
     s filename
 

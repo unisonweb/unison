@@ -107,19 +107,15 @@ type Term' vt v = AnnotatedTerm' vt v ()
 bindBuiltins :: forall v a b b2. Var v
              => [(v, AnnotatedTerm2 v b a v b2)]
              -> [(v, Reference)]
-             -> [(v, Reference)]
              -> AnnotatedTerm2 v b a v a
              -> AnnotatedTerm2 v b a v a
-bindBuiltins dataAndEffectCtors termBuiltins0 typeBuiltins t =
-   f . g . h $ t
+bindBuiltins termBuiltins typeBuiltins t =
+   f . g $ t
    where
    f :: AnnotatedTerm2 v b a v a -> AnnotatedTerm2 v b a v a
    f = typeMap (Type.bindBuiltins typeBuiltins)
    g :: AnnotatedTerm2 v b a v a -> AnnotatedTerm2 v b a v a
    g = ABT.substsInheritAnnotation termBuiltins
-   h :: AnnotatedTerm2 v b a v a -> AnnotatedTerm2 v b a v a
-   h = ABT.substsInheritAnnotation dataAndEffectCtors
-   termBuiltins = [ (v, ref() r) | (v,r) <- termBuiltins0 ]
 
 typeDirectedResolve :: Var v
                     => ABT.Term (F vt b ap) v b -> ABT.Term (F vt b ap) v b
