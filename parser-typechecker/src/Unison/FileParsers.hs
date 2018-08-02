@@ -47,20 +47,17 @@ synthesizeFile :: ∀ v . Var v
                -> Result (Note v Ann) (Term v, Type v)
 synthesizeFile unisonFile =
   let (UnisonFile dds0 eds0 term) =
-        UF.bindBuiltins B.builtinDataAndEffectCtors
-                        B.builtinTerms
-                        B.builtinTypes
-                        unisonFile
+        UF.bindBuiltins B.builtinTerms B.builtinTypes unisonFile
       dds :: Map Reference (DataDeclaration v)
       dds = Map.fromList $ Foldable.toList dds0
       eds = Map.fromList $ Foldable.toList eds0
       datas = Map.union dds B.builtinDataDecls -- `Map.union` is left-biased
       effects = Map.union eds B.builtinEffectDecls
       env0 = Typechecker.Env
-               Intrinsic [] typeOf dataDeclaration effectDeclaration B.builtins
+               Intrinsic [] typeOf dataDeclaration effectDeclaration
       n = Typechecker.synthesize env0 term
       die s h = error $ "unknown " ++ s ++ " reference " ++ show h
-      typeOf r = pure $ fromMaybe (die "value" r) $ Map.lookup r B.builtins
+      typeOf r = error $ "unknown reference " ++ show r
       dataDeclaration r = pure $ fromMaybe (die "data" r) $ Map.lookup r datas
       effectDeclaration r = pure $ fromMaybe (die "effect" r) $ Map.lookup r effects
   in (term,) <$> runIdentity n

@@ -1,7 +1,8 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ExplicitForAll #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 module Unison.Builtin where
 
 import           Control.Arrow ((&&&), second)
@@ -13,7 +14,7 @@ import           Unison.Parser (Ann(..))
 import qualified Unison.Parser as Parser
 import           Unison.PrintError (prettyParseError)
 import qualified Unison.Reference as R
-import           Unison.Term (AnnotatedTerm)
+-- import           Unison.Term (AnnotatedTerm)
 import qualified Unison.Term as Term
 import qualified Unison.TermParser as TermParser
 import           Unison.Type (AnnotatedType)
@@ -22,7 +23,7 @@ import qualified Unison.TypeParser as TypeParser
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 
-type Term v = AnnotatedTerm v Ann
+type Term v = Term.AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
 type DataDeclaration v = DataDeclaration' v Ann
 type EffectDeclaration v = EffectDeclaration' v Ann
@@ -46,12 +47,21 @@ parseDataDeclAsBuiltin s =
   in (v, (R.Builtin . Var.qualifiedName $ v, DD.bindBuiltins builtinTypes dd))
 
 bindBuiltins :: Var v => Term v -> Term v
-bindBuiltins = Term.bindBuiltins builtinDataAndEffectCtors builtinTerms builtinTypes
+bindBuiltins = Term.bindBuiltins builtinTerms builtinTypes
 
 bindTypeBuiltins :: Var v => Type v -> Type v
 bindTypeBuiltins = Type.bindBuiltins builtinTypes
 
-builtinDataAndEffectCtors :: forall v. Var v => [(v, Term v)]
+builtinTypedTerms :: Var v => [(v, (Term v, Type v))]
+builtinTypedTerms = [(v, (e, t)) | (v, e@(Term.Ann' _ t)) <- builtinTerms ]
+
+builtinTerms :: Var v => [(v, Term v)]
+builtinTerms =
+  let fns = [ (toSymbol r, Term.ann Intrinsic (Term.ref Intrinsic r) typ) |
+              (r, typ) <- Map.toList builtins0 ]
+  in (builtinDataAndEffectCtors ++ fns)
+
+builtinDataAndEffectCtors :: forall v . Var v => [(v, Term v)]
 builtinDataAndEffectCtors = (mkConstructors =<< builtinDataDecls')
   where
     mkConstructors :: (v, (R.Reference, DataDeclaration v)) -> [(v, Term v)]
@@ -61,13 +71,6 @@ builtinDataAndEffectCtors = (mkConstructors =<< builtinDataDecls')
     mkConstructor vt r ((v, _t), i) =
       (Var.named $ mconcat [Var.qualifiedName vt, ".", Var.qualifiedName v],
         Term.constructor Intrinsic r i)
-
-builtinTerms :: forall v. Var v => [(v, R.Reference)]
-builtinTerms = (\r -> (toSymbol r, r)) <$> Map.keys (builtins @v)
-
-builtinTypedTerms :: forall v. Var v => [(v, (R.Reference, Type v))]
-builtinTypedTerms =
-  (\(r, t) -> (toSymbol r, (r, t))) <$> Map.toList (builtins @v)
 
 builtinTypes :: forall v. Var v => [(v, R.Reference)]
 builtinTypes = builtinTypes' ++ (f <$> Map.toList (builtinDataDecls @v))
@@ -116,8 +119,8 @@ toSymbol :: Var v => R.Reference -> v
 toSymbol (R.Builtin txt) = Var.named txt
 toSymbol _ = error "unpossible"
 
-builtins :: Var v => Map.Map R.Reference (Type v)
-builtins = Map.fromList $
+builtins0 :: Var v => Map.Map R.Reference (Type v)
+builtins0 = Map.fromList $
   [ (R.Builtin name, t typ) |
     (name, typ) <-
       [ ("Int64.+", "Int64 -> Int64 -> Int64")

@@ -8,7 +8,6 @@
 
 module Unison.Typechecker where
 
-import           Data.Map (Map)
 import           Data.Maybe (isJust)
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
@@ -41,7 +40,7 @@ data Env f v loc = Env
   , typeOf :: Reference -> f (Type v loc)
   , dataDeclaration :: Reference -> f (DataDeclaration' v loc)
   , effectDeclaration :: Reference -> f (EffectDeclaration' v loc)
-  , terms :: Map Reference (Type v loc)
+  -- , terms :: Map Reference (Type v loc)
   }
 
 -- -- | Compute the allowed type of a replacement for a given subterm.

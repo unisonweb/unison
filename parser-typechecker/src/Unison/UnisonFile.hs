@@ -17,6 +17,7 @@ import Unison.Term (AnnotatedTerm, AnnotatedTerm2)
 import qualified Unison.Term as Term
 import Unison.Type (AnnotatedType)
 import qualified Data.Set as Set
+import Data.Set (Set)
 import Unison.Var (Var)
 import qualified Unison.Var as Var
 
@@ -31,14 +32,13 @@ type CtorLookup = Map String (Reference, Int)
 bindBuiltins :: Var v
              => [(v, AnnotatedTerm v a)]
              -> [(v, Reference)]
-             -> [(v, Reference)]
              -> UnisonFile v a
              -> UnisonFile v a
-bindBuiltins dataAndEffectCtors termBuiltins typeBuiltins (UnisonFile d e t) =
+bindBuiltins termBuiltins typeBuiltins (UnisonFile d e t) =
   UnisonFile
     (second (DD.bindBuiltins typeBuiltins) <$> d)
     (second (withEffectDecl (DD.bindBuiltins typeBuiltins)) <$> e)
-    (Term.bindBuiltins dataAndEffectCtors termBuiltins typeBuiltins t)
+    (Term.bindBuiltins termBuiltins typeBuiltins t)
 
 data Env v a = Env
   -- Data declaration name to hash and its fully resolved form
@@ -53,24 +53,24 @@ data Env v a = Env
   , resolveType :: AnnotatedType v a -> AnnotatedType v a
   -- `String` to `(Reference, ConstructorId)`
   , constructorLookup :: CtorLookup
-  , terms :: Map v (Reference, AnnotatedType v a)
+  -- All variables declarated in this environment
+  , locallyBound :: Set v
 }
 
 -- This function computes hashes for data and effect declarations, and
 -- also returns a function for resolving strings to (Reference, ConstructorId)
 -- for parsing of pattern matching
 environmentFor :: forall v a . Var v
-               => [(v, (Reference, AnnotatedType v a))]
+               => [(v, AnnotatedTerm v a)]
                -> [(v, Reference)]
                -> Map v (DataDeclaration' v a)
                -> Map v (EffectDeclaration' v a)
                -> Env v a
-environmentFor termBuiltins0 typeBuiltins0 dataDecls0 effectDecls0 =
+environmentFor termBuiltins typeBuiltins0 dataDecls0 effectDecls0 =
   let -- ignore builtin types that will be shadowed by user-defined data/effects
-      termBuiltins = fmap fst <$> termBuiltins0
       typeBuiltins = [ (v, t) | (v, t) <- typeBuiltins0,
                                 Map.notMember v dataDecls0 &&
-                                Map.notMember v effectDecls0]
+                                Map.notMember v effectDecls0 ]
       dataDecls :: Map v (DataDeclaration' v a)
       dataDecls = DD.bindBuiltins typeBuiltins <$> dataDecls0
       effectDecls :: Map v (EffectDeclaration' v a)
@@ -98,10 +98,11 @@ environmentFor termBuiltins0 typeBuiltins0 dataDecls0 effectDecls0 =
       ctorLookup = Map.fromList (constructors' =<< hashDecls')
   in Env dataDecls'' effectDecls''
          (Term.typeDirectedResolve .
-           Term.bindBuiltins dataAndEffectCtors termBuiltins typesByName)
-         (Type.bindBuiltins typesByName)
+            Term.bindBuiltins termBuiltins [] .
+            Term.bindBuiltins dataAndEffectCtors typesByName)
+         (Type.bindBuiltins $ typeBuiltins ++ typesByName)
          ctorLookup
-         (Map.fromList termBuiltins0)
+         (Set.fromList $ (fst <$> termBuiltins) ++ (fst <$> dataAndEffectCtors))
 
 constructors' :: Var v => (v, Reference, DataDeclaration' v a) -> [(String, (Reference, Int))]
 constructors' (typeSymbol, r, dd) =
