@@ -15,7 +15,7 @@ import           Data.Maybe                 (catMaybes, listToMaybe, fromMaybe)
 import           Data.Sequence              (Seq (..))
 import qualified Data.Sequence              as Seq
 import qualified Data.Set                   as Set
-import           Data.String                (fromString)
+import           Data.String                (IsString, fromString)
 import qualified Data.Text                  as Text
 import qualified Text.Megaparsec            as P
 import qualified Unison.ABT                 as ABT
@@ -82,6 +82,7 @@ renderType :: Var v
            -> C.Type v loc
            -> StyledText
 renderType env f = renderType0 env f (0 :: Int) where
+  paren :: (IsString a, Semigroup a) => Int -> Int -> a -> a
   paren ambient threshold s =
     if ambient >= threshold then "(" <> s <> ")" else s
   renderType0 env f p t = f (ABT.annotation t) $ case t of
