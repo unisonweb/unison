@@ -87,23 +87,23 @@ renderType :: Var v
            -> (loc -> StyledText -> StyledText)
            -> C.Type v loc
            -> StyledText
-renderType env f t = renderType0 env f (0 :: Int) t where
+renderType env f = renderType0 env f (0 :: Int) where
   paren ambient threshold s =
-    if ambient >= threshold then "(" <> s <> ")" else mempty
+    if ambient >= threshold then "(" <> s <> ")" else s
   renderType0 env f p t = f (ABT.annotation t) $ case t of
     Type.Ref' r -> showRef' env r
     Type.Arrows' ts -> paren p 2 $ arrows (go 2) ts
-    Type.Ann' t k -> paren p 0 $ (go 1) t <> " : " <> renderKind k
+    Type.Ann' t k -> paren p 0 $ go 1 t <> " : " <> renderKind k
     Type.Apps' f' args -> paren p 3 $ spaces (go 3) (f':args)
-    Type.Effect' [] t -> (go p) t
+    Type.Effect' [] t -> go p t
     Type.Effect' es t -> paren p 3 $
-      "{" <> commas (go 0) es <> "} " <> (go 3) t
+      "{" <> commas (go 0) es <> "} " <> go 3 t
     Type.ForallsNamed' vs body -> paren p 1 $
       if p == 0 then go 0 body
       else "forall " <> spaces renderVar vs <> " . " <> go 1 body
     Type.Var' v -> renderVar v
     _ -> error "pattern match failure in PrintError.renderType"
-    where go p = renderType0 env f p
+    where go = renderType0 env f
           spaces = intercalateMap " "
           arrows = intercalateMap " -> "
           commas = intercalateMap ", "
