@@ -6,6 +6,7 @@
 
 module Unison.PrintError where
 
+import qualified Data.Char                  as Char
 import           Data.Foldable
 import qualified Data.List.NonEmpty         as Nel
 import           Data.Map                   (Map)
@@ -70,15 +71,8 @@ renderTypeError env e src = case e of
     , AT.Text $ styleInOverallType env overallType1 leaf1 Color.Color2
     , " (", fromString (annotatedToEnglish overallType1), ")\n and\n"
     , AT.Text $ styleInOverallType env overallType2 leaf2 Color.Color3
-    , " (" , fromString (annotatedToEnglish overallType2), ")\n\n"
-    , AT.Text $ "overallType1: " <> fromString (show overallType1)
-        <> " (" <> fromString (show (ABT.annotation overallType1)) <> ")\n"
-    , AT.Text $ "leaf1: " <> fromString (show leaf1)
-        <> " (" <> fromString (show (ABT.annotation leaf1)) <> ")\n"
-    , AT.Text $ "overallType2: " <> fromString (show overallType2)
-        <> " (" <> fromString (show (ABT.annotation overallType2)) <> ")\n"
-    , AT.Text $ "leaf2: " <> fromString (show leaf2)
-        <> " (" <> fromString (show (ABT.annotation leaf2))  <> ")\n"
+    , " (from " , fromString (Char.toLower <$> annotatedToEnglish overallType2)
+    , ")\n\n"
     ]
   Other note -> fromString . show $ note
 
