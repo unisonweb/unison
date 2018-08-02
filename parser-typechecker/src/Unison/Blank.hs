@@ -4,6 +4,11 @@ loc :: Recorded loc -> loc
 loc (Placeholder loc _) = loc
 loc (Resolve loc _) = loc
 
+nameb :: Blank loc -> Maybe String
+nameb (Recorded (Placeholder _ n)) = Just n
+nameb (Recorded (Resolve _ n)) = Just n
+nameb _ = Nothing
+
 data Recorded loc
   -- A user-provided named placeholder
   = Placeholder loc String
