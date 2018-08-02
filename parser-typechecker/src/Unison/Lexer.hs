@@ -195,11 +195,14 @@ lexer scope rem =
         Token Close pos (inc pos)
           : Token (Reserved "}") pos (inc pos)
           : goWhitespace (drop 1 l) (inc pos) rem
-      -- delimiters - `:`, `@`, `|`, `=`, and `->`
       ch : rem | Set.member ch delimiters ->
         Token (Reserved [ch]) pos (inc pos) : goWhitespace l (inc pos) rem
-      ':' : c : rem | isSpace c || isAlphaNum c ->
-        Token (Reserved ":") pos (inc pos) : goWhitespace l (inc pos) (c:rem)
+      op : rem@(c : _)
+        | (op == '\'' || op == '!')
+        && (isSpace c || isAlphaNum c || Set.member c delimiters) ->
+          Token (Reserved [op]) pos (inc pos) : goWhitespace l (inc pos) rem
+      ':' : rem@(c : _) | isSpace c || isAlphaNum c ->
+        Token (Reserved ":") pos (inc pos) : goWhitespace l (inc pos) rem
       '@' : rem ->
         Token (Reserved "@") pos (inc pos) : goWhitespace l (inc pos) rem
       '_' : rem | hasSep rem ->
@@ -359,7 +362,7 @@ symbolyIdChars = Set.fromList "!$%^&*-=+<>?.~\\/|;"
 keywords :: Set String
 keywords = Set.fromList [
   "if", "then", "else", "forall", "∀",
-  "handle", "in",
+  "handle", "in", "delay",
   "where",
   "and", "or", "true", "false",
   "type", "effect", "alias",
@@ -369,7 +372,7 @@ keywords = Set.fromList [
 layoutKeywords :: Set String
 layoutKeywords =
   Set.fromList [
-    "if", "in", "let", "where", "of", "namespace"
+    "if", "in", "let", "delay", "where", "of", "namespace"
   ]
 
 -- These keywords end a layout block and begin another layout block

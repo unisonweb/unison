@@ -233,6 +233,17 @@ uint64 a d = ABT.tm' a (UInt64 d)
 text :: Ord v => a -> Text -> AnnotatedTerm2 vt at ap v a
 text a = ABT.tm' a . Text
 
+unit :: Var v => a -> AnnotatedTerm v a
+unit ann = constructor ann (Reference.Builtin "()") 0
+
+-- delayed terms are just lambdas that take a single `()` arg
+-- `force` calls the function
+force :: Var v => a -> a -> AnnotatedTerm v a -> AnnotatedTerm v a
+force a au e = app a e (unit au)
+
+delay :: Var v => a -> AnnotatedTerm v a -> AnnotatedTerm v a
+delay a e = lam a (Var.named "u") e
+
 blank :: Ord v => a -> AnnotatedTerm2 vt at ap v a
 blank a = ABT.tm' a (Blank B.Blank)
 

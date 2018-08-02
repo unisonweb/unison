@@ -38,7 +38,18 @@ typeVar :: Var v => TypeP v
 typeVar = posMap (\pos -> Type.av' pos . Text.pack) wordyId
 
 type1 :: Var v => TypeP v
-type1 = arrow type2
+type1 = arrow type2a
+
+type2a :: Var v => TypeP v
+type2a = delayed <|> type2
+
+delayed :: Var v => TypeP v
+delayed = do
+  q <- reserved "'"
+  t <- type2
+  pure $ Type.arrow (Ann (L.start q) (end $ ann t))
+                    (Type.builtin (ann q) "()")
+                    t
 
 type2 :: Var v => TypeP v
 type2 = app valueTypeLeaf

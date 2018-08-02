@@ -64,7 +64,12 @@ term3 = do
 -- just function application and operators
 blockTerm :: Var v => TermP v
 blockTerm = letBlock <|> handle <|> ifthen <|> and <|> or <|> match <|>
-            lam term <|> infixApp
+            delayBlock <|> lam term <|> infixApp
+
+delayBlock :: Var v => TermP v
+delayBlock = do
+  b <- block "delay"
+  pure $ Term.delay (ann b) b
 
 match :: Var v => TermP v
 match = do
@@ -198,7 +203,20 @@ vector p = f <$> reserved "[" <*> elements <*> reserved "]"
 termLeaf :: forall v. Var v => TermP v
 termLeaf =
   asum [hashLit, prefixTerm, text, number, boolean,
-        tupleOrParenthesizedTerm, placeholder, vector term]
+        tupleOrParenthesizedTerm, placeholder, vector term,
+        delayQuote, bang]
+
+delayQuote :: Var v => TermP v
+delayQuote = P.label "quote" $ do
+  start <- reserved "'"
+  e <- termLeaf
+  pure $ Term.delay (ann start <> ann e) e
+
+bang :: Var v => TermP v
+bang = P.label "bang" $ do
+  start <- reserved "!"
+  e <- termLeaf
+  pure $ Term.force (ann start <> ann e) (ann start) e
 
 and = label "and" $ f <$> reserved "and" <*> termLeaf <*> termLeaf
   where f kw x y = Term.and (ann kw <> ann y) x y
@@ -310,7 +328,7 @@ number' i u f = fmap go numeric
       | otherwise = u (read <$> num)
 
 tupleOrParenthesizedTerm :: Var v => TermP v
-tupleOrParenthesizedTerm = label "tuple" $ tupleOrParenthesized term unit pair
+tupleOrParenthesizedTerm = label "tuple" $ tupleOrParenthesized term Term.unit pair
   where
     pair t1 t2 =
       Term.app (ann t1 <> ann t2)
@@ -318,4 +336,3 @@ tupleOrParenthesizedTerm = label "tuple" $ tupleOrParenthesized term unit pair
                   (Term.constructor (ann t1 <> ann t2) (R.Builtin "Pair") 0)
                   t1)
         t2
-    unit ann = Term.constructor ann (R.Builtin "()") 0
