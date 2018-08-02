@@ -55,22 +55,22 @@ renderTypeError :: (Var v, Annotated a, Eq a, Show a)
                 => Env
                 -> TypeError v a
                 -> String
-                -> AT.AnnotatedDocument Color.Color
+                -> AT.AnnotatedDocument Color.Style
 renderTypeError env e src = case e of
   Mismatch {..} -> AT.AnnotatedDocument . Seq.fromList $
     [ (fromString . annotatedToEnglish) mismatchSite
-    , " has a type mismatch (colored in ", AT.Text $ Color.color1 "red", " below):\n\n"
+    , " has a type mismatch (colored in ", AT.Text $ Color.errorSite "red", " below):\n\n"
     , AT.Blockquote $ AT.markup (fromString src)
                         (Set.fromList $ catMaybes
-                          [ (,Color.Color1) <$> rangeForAnnotated mismatchSite
-                          , (,Color.Color2) <$> rangeForType overallType1
-                          , (,Color.Color3) <$> rangeForType overallType2
+                          [ (,Color.ErrorSite) <$> rangeForAnnotated mismatchSite
+                          , (,Color.Type1) <$> rangeForType overallType1
+                          , (,Color.Type2) <$> rangeForType overallType2
                           ])
     , "\n"
     , "The two types involved are:\n\n"
-    , AT.Text $ styleInOverallType env overallType1 leaf1 Color.Color2
+    , AT.Text $ styleInOverallType env overallType1 leaf1 Color.Type1
     , " (", fromString (annotatedToEnglish overallType1), ")\n and\n"
-    , AT.Text $ styleInOverallType env overallType2 leaf2 Color.Color3
+    , AT.Text $ styleInOverallType env overallType2 leaf2 Color.Type2
     , " (from " , fromString (Char.toLower <$> annotatedToEnglish overallType2)
     , ")\n\n"
     ]
@@ -130,11 +130,11 @@ styleInOverallType :: (Var v, Annotated a, Eq a)
                    => Env
                    -> C.Type v a
                    -> C.Type v a
-                   -> Color.Color
+                   -> Color.Style
                    -> StyledText
 styleInOverallType e overallType leafType c =
   renderType e f overallType
-    where f loc s = if loc == ABT.annotation leafType then Color.color c s else s
+    where f loc s = if loc == ABT.annotation leafType then Color.style c s else s
 
 posToEnglish :: L.Pos -> String
 posToEnglish (L.Pos l c) = "Line " ++ show l ++ ", Column " ++ show c
@@ -239,7 +239,7 @@ prettyTypecheckError :: (Var v, Eq loc, Show loc, Parser.Annotated loc)
                      -> String
                      -> C.Note v loc -> String
 prettyTypecheckError env input n =
-  show . Color.renderDocInColor $
+  show . Color.renderDocANSI 3 $
     (renderTypeError env (typeErrorFromNote n) input)
   -- case cause of
   --   C.TypeMismatch _ -> case path of
