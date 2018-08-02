@@ -9,6 +9,7 @@
 module Unison.TermParser where
 
 -- import           Debug.Trace
+import qualified Data.Text as Text
 import           Control.Applicative
 import           Control.Monad (guard, join, when)
 import           Control.Monad.Reader (ask)
@@ -285,6 +286,27 @@ customFailure = P.customFailure
 block :: forall v. Var v => String -> TermP v
 block s = block' s (openBlockWith s) closeBlock
 
+--module Monoid where
+--  -- we replace all the binding names with Monoid.op, and
+--  -- if `op` is free in the body of any binding, we replace it with `Monoid.op`
+--  op : Monoid a -> (a -> a -> a)
+--  op m = case m of Monoid
+
+data BlockElement v
+  = Binding ((Ann, v), AnnotatedTerm v Ann)
+  | Action (AnnotatedTerm v Ann)
+  | Namespace String [BlockElement v]
+
+namespaceBlock :: Var v => P v (BlockElement v)
+namespaceBlock = do
+  _ <- reserved "namespace"
+  name <- wordyId
+  let statement = (Binding <$> binding) <|> namespaceBlock
+  _ <- openBlockWith "where"
+  elems <- sepBy semi statement
+  _ <- closeBlock
+  pure $ Namespace (L.payload name) elems
+
 block' :: forall v b. Var v => String -> P v (L.Token ()) -> P v b -> TermP v
 block' s openBlock closeBlock = do
     open <- openBlock
@@ -293,23 +315,39 @@ block' s openBlock closeBlock = do
     go open statements
   where
     statement = traceRemainingTokens "statement" *>
-                ((Right <$> binding) <|> (Left <$> blockTerm))
-    toBinding (Right ((a, v), e)) = ((a, v), e)
-    toBinding (Left e) = ((ann e, Var.named "_"), e)
-    go :: L.Token () -> [Either (AnnotatedTerm v Ann) ((Ann, v), AnnotatedTerm v Ann)] -> P v (AnnotatedTerm v Ann)
+                ( (Binding <$> binding) <|>
+                  (Action <$> blockTerm) <|>
+                  namespaceBlock )
+    toBindings (Binding ((a, v), e)) = [((a, v), e)]
+    toBindings (Action e) = [((ann e, Var.named "_"), e)]
+    toBindings (Namespace name bs) = scope name $ (toBindings =<< bs)
+    scope :: String -> [((Ann, v), AnnotatedTerm v Ann)]
+                    -> [((Ann, v), AnnotatedTerm v Ann)]
+    scope name bs =
+      let vs = (snd . fst) <$> bs
+          prefix v = Var.named (Text.pack name `mappend` "." `mappend` Var.name v)
+          vs' = prefix <$> vs
+      in [ ((a, v'), ABT.substInheritAnnotation v (Term.var a v') e) |
+           (((a,v),e), v') <- bs `zip` vs' ]
+
+    go :: L.Token () -> [BlockElement v] -> P v (AnnotatedTerm v Ann)
     go open bs =
-      let startAnnotation = (fst . fst . toBinding $ head bs)
+      let startAnnotation = (fst . fst . head $ toBindings =<< bs)
+          endAnnotation = (fst . fst . last $ toBindings =<< bs)
       in case reverse bs of
-        Right ((a, _v), annotatedTerm) : _ ->
+        Namespace _ _ : _ ->
+          customFailure $ BlockMustEndWithExpression
+                            startAnnotation
+                            endAnnotation
+        Binding ((a, _v), annotatedTerm) : _ ->
           customFailure $ BlockMustEndWithExpression
                             (startAnnotation <> ann annotatedTerm)
                             (a <> ann annotatedTerm)
-        Left e : es ->
+        Action e : es ->
           pure $ Term.letRec (startAnnotation <> ann e)
-                             (toBinding <$> reverse es)
+                             (toBindings =<< reverse es)
                              e
         [] -> customFailure $ EmptyBlock (const s <$> open)
-
 
 number :: Var v => TermP v
 number = number' (tok Term.int64) (tok Term.uint64) (tok Term.float)
