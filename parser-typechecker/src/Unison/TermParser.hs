@@ -29,6 +29,7 @@ import qualified Unison.PatternP as Pattern
 import qualified Unison.Reference as R
 import           Unison.Term (AnnotatedTerm)
 import qualified Unison.Term as Term
+import qualified Unison.Type as Type
 import           Unison.Type (AnnotatedType)
 import qualified Unison.TypeParser as TypeParser
 import           Unison.Var (Var)
@@ -242,7 +243,7 @@ infixApp = label "infixApp" $
 typedecl :: Var v => P v (L.Token v, AnnotatedType v Ann)
 typedecl =
   (,) <$> P.try (prefixVar <* reserved ":")
-      <*> TypeParser.valueType
+      <*> (Type.generalizeLowercase <$> TypeParser.valueType)
       <* semi
 
 binding :: forall v. Var v => P v ((Ann, v), AnnotatedTerm v Ann)
