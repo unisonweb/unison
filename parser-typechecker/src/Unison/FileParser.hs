@@ -17,6 +17,8 @@ import           Unison.Parser
 import qualified Unison.TermParser as TermParser
 import qualified Unison.Type as Type
 import           Unison.Type (AnnotatedType)
+-- import Unison.Term (AnnotatedTerm2)
+import Unison.Term (AnnotatedTerm)
 import qualified Unison.TypeParser as TypeParser
 import           Unison.UnisonFile (UnisonFile(..), environmentFor)
 import qualified Unison.UnisonFile as UF
@@ -25,7 +27,7 @@ import Unison.Reference (Reference)
 -- import Debug.Trace
 
 file :: Var v
-     => [(v, (Reference, AnnotatedType v Ann))]
+     => [(v, AnnotatedTerm v Ann)]
      -> [(v, Reference)]
      -> P v (UnisonFile v Ann)
 file builtinTerms builtinTypes = do

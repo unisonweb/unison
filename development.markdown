@@ -1,5 +1,8 @@
 These are commands that will likely be useful during development.
 
+
+__General:__ `./test.sh` compiles and builds both the Haskell and Scala code and runs all tests. Recommended that you run this before pushing any code to a branch that others might be working on.
+
 ## Scala
 
 Launch `sbt` in `runtime-jvm` directory, then here are various useful commands:
@@ -32,13 +35,14 @@ For doing compilation you can do:
 
     stack repl unison-parser-typechecker
 
-From here, do `Main.main` to run the tests and `:r` for rapid recompile.
-
 You can also do:
 
-    stack build unison-parser-typechecker
+    stack build unison-parser-typechecker && stack exec tests
 
-If you want to run the tests outside the REPL.
+If you want to run the tests outside the REPL. The `stack exec tests` takes an optional command line arg specifying the test prefix. In the REPL, you can also do:
+
+    > import EasyTest as ET
+    > ET.runOnly "typechecker" Main.test
 
 What if you want a profiled build? Do:
 
