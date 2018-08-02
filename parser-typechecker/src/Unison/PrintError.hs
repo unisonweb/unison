@@ -82,17 +82,18 @@ renderType :: Var v
            -> C.Type v loc
            -> StyledText
 renderType env f = renderType0 env f (0 :: Int) where
-  paren :: (IsString a, Semigroup a) => Int -> Int -> a -> a
-  paren ambient threshold s =
-    if ambient >= threshold then "(" <> s <> ")" else s
+  paren :: (IsString a, Semigroup a) => Bool -> a -> a
+  paren test s =
+    if test then "(" <> s <> ")" else s
   renderType0 env f p t = f (ABT.annotation t) $ case t of
     Type.Ref' r -> showRef' env r
-    Type.Arrows' ts -> paren p 2 $ arrows (go 2) ts
-    Type.Ann' t k -> paren p 0 $ go 1 t <> " : " <> renderKind k
-    Type.Apps' f' args -> paren p 3 $ spaces (go 3) (f':args)
+    Type.Arrows' ts -> paren (p >= 2) $ arrows (go 2) ts
+    Type.Ann' t k -> paren True $ go 1 t <> " : " <> renderKind k
+    Type.Tuple' ts -> paren True $ commas (go 0) ts
+    Type.Apps' f' args -> paren (p >= 3) $ spaces (go 3) (f':args)
     Type.Effect' [] t -> go p t
-    Type.Effect' es t -> paren p 3 $ "{" <> commas (go 0) es <> "} " <> go 3 t
-    Type.ForallsNamed' vs body -> paren p 1 $
+    Type.Effect' es t -> paren (p >= 3) $ "{" <> commas (go 0) es <> "} " <> go 3 t
+    Type.ForallsNamed' vs body -> paren (p >= 1) $
       if p == 0 then go 0 body
       else "forall " <> spaces renderVar vs <> " . " <> go 1 body
     Type.Var' v -> renderVar v
