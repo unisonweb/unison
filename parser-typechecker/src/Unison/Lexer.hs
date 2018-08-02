@@ -372,7 +372,7 @@ keywords = Set.fromList [
 layoutKeywords :: Set String
 layoutKeywords =
   Set.fromList [
-    "if", "in", "let", "delay", "where", "of", "namespace"
+    "if", "in", "let", "delay", "where", "of"
   ]
 
 -- These keywords end a layout block and begin another layout block
