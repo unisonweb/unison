@@ -9,10 +9,12 @@
 
 module Unison.Type where
 
+import qualified Data.Char as Char
 import           Data.List
 import           Data.Set (Set)
 import qualified Data.Set as Set
 import           Data.Text (Text)
+import qualified Data.Text as Text
 import           GHC.Generics
 import           Prelude.Extras (Eq1(..),Show1(..))
 import qualified Unison.ABT as ABT
@@ -274,6 +276,12 @@ flipApply t = forall() b $ arrow() (arrow() t (var() b)) (var() b)
 -- | Bind all free variables with an outer `forall`.
 generalize :: Ord v => AnnotatedType v a -> AnnotatedType v a
 generalize t = foldr (forall (ABT.annotation t)) t $ Set.toList (ABT.freeVars t)
+
+-- | Bind all free variables that start with a lowercase letter with an outer `forall`.
+generalizeLowercase :: Var v => AnnotatedType v a -> AnnotatedType v a
+generalizeLowercase t = foldr (forall (ABT.annotation t)) t vars
+  where vars = [ v | v <- Set.toList (ABT.freeVars t), isLow v]
+        isLow v = all Char.isLower . take 1 . Text.unpack . Var.name $ v
 
 instance Hashable1 F where
   hash1 hashCycle hash e =

@@ -1,7 +1,10 @@
+{-# Language OverloadedStrings #-}
+
 module Unison.Var where
 
 import Data.Set (Set)
 import Data.Text (Text)
+import qualified Data.Text as Text
 import qualified Data.Set as Set
 
 -- | A class for variables. Variables may have auxiliary information which
@@ -32,6 +35,12 @@ class (Show v, Eq v, Ord v) => Var v where
   qualifiedName :: v -> Text
   freshIn :: Set v -> v -> v
   freshenId :: Word -> v -> v
+
+nameds :: Var v => String -> v
+nameds s = named (Text.pack s)
+
+joinDot :: Var v => v -> v -> v
+joinDot v v2 = named (shortName v `mappend` "." `mappend` shortName v2)
 
 shortName :: Var v => v -> Text
 shortName v | named (name v) == v = name v

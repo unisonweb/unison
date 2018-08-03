@@ -14,7 +14,6 @@ import           Unison.Parser (Ann(..))
 import qualified Unison.Parser as Parser
 import           Unison.PrintError (prettyParseError)
 import qualified Unison.Reference as R
--- import           Unison.Term (AnnotatedTerm)
 import qualified Unison.Term as Term
 import qualified Unison.TermParser as TermParser
 import           Unison.Type (AnnotatedType)
@@ -203,10 +202,13 @@ builtins0 = Map.fromList $
       , ("Stream.zip-with", "forall a b c . (a -> b -> c) -> Stream a -> Stream b -> Stream c")
       , ("Stream.unfold", "forall a b . (a -> Optional (b, a)) -> b -> Stream a")
 
-      , ("Sequence.empty", "forall a . Sequence a")
-      , ("Sequence.cons", "forall a . a -> Sequence a -> Sequence a")
-      , ("Sequence.snoc", "forall a . Sequence a -> a -> Sequence a")
-      , ("Sequence.take", "forall a . UInt64 -> Sequence a -> Sequence a")
-      , ("Sequence.size", "forall a . Sequence a -> UInt64")
+      , ("Sequence.empty", "forall a . [a]")
+      , ("Sequence.cons", "forall a . a -> [a] -> [a]")
+      , ("Sequence.snoc", "forall a . [a] -> a -> [a]")
+      , ("Sequence.take", "forall a . UInt64 -> [a] -> [a]")
+      , ("Sequence.drop", "forall a . UInt64 -> [a] -> [a]")
+      , ("Sequence.++", "forall a . [a] -> [a] -> [a]")
+      , ("Sequence.size", "forall a . [a] -> UInt64")
+      , ("Sequence.at", "forall a . UInt64 -> [a] -> Optional a")
       ]
   ]

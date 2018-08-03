@@ -1,0 +1,37 @@
+
+type Foo a = Foo a
+
+(+) = (UInt64.+)
+
+-- The type 'a is sugar for `() -> a`.
+-- The term 'a is sugar for `() -> a`.
+-- !a forces a delayed expression (equivalent to `a()`)
+
+woot : 'UInt64
+woot = '42
+
+-- A 'a can also be created with the `delay` layout block:
+woot2 : 'UInt64
+woot2 = delay
+  x = 1
+  y = 2
+  x + y
+
+-- ' has higher precedence than -> in type signatures
+--   and a lower precedence than type application
+woot3 : 'UInt64 -> UInt64
+woot3 x = !x + 1
+
+woot4 : ∀ a . 'Foo a -> Foo a
+woot4 foo = !foo
+
+woot4-usage = woot4 '(Foo.Foo 19)
+
+woot4-usage2 =
+  foo = delay
+    x : UInt64
+    x = 99
+    Foo.Foo (x + x)
+  woot4 foo
+
+woot4-usage2

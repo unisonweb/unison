@@ -1,4 +1,4 @@
-{-# Language BangPatterns, OverloadedStrings, TupleSections, ScopedTypeVariables #-}
+{-# Language TypeApplications, BangPatterns, OverloadedStrings, TupleSections, ScopedTypeVariables #-}
 
 module Unison.FileParser where
 
@@ -9,24 +9,26 @@ import           Data.Either (partitionEithers)
 import           Data.List (foldl')
 import           Data.Map (Map)
 import qualified Data.Map as Map
+import qualified Data.Text as Text
 import           Prelude hiding (readFile)
 import qualified Unison.Lexer as L
 import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 import qualified Unison.DataDeclaration as DD
 import           Unison.Parser
 import qualified Unison.TermParser as TermParser
+import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 import           Unison.Type (AnnotatedType)
--- import Unison.Term (AnnotatedTerm2)
 import Unison.Term (AnnotatedTerm)
 import qualified Unison.TypeParser as TypeParser
 import           Unison.UnisonFile (UnisonFile(..), environmentFor)
 import qualified Unison.UnisonFile as UF
 import           Unison.Var (Var)
+import qualified Unison.Var as Var
 import Unison.Reference (Reference)
 -- import Debug.Trace
 
-file :: Var v
+file :: forall v . Var v
      => [(v, AnnotatedTerm v Ann)]
      -> [(v, Reference)]
      -> P v (UnisonFile v Ann)
@@ -35,7 +37,11 @@ file builtinTerms builtinTypes = do
   _ <- openBlock
   (dataDecls, effectDecls) <- declarations
   let env = environmentFor builtinTerms builtinTypes dataDecls effectDecls
-  local (`Map.union` UF.constructorLookup env) $ do
+      ctorLookup0 :: Map.Map String (Reference, Int)
+      ctorLookup0 = UF.constructorLookup env `mappend` Map.fromList
+        [ (Text.unpack $ Var.name v, (r,cid)) |
+          (v, Term.RequestOrCtor' r cid) <- builtinTerms ]
+  local (PEnv ctorLookup0 `mappend`) $ do
     traceRemainingTokens "file"
     term <- TermParser.block' "top-level block"
               (void <$> peekAny) -- we actually opened before the declarations
@@ -99,5 +105,5 @@ effectDeclaration = do
   where
     constructor :: Var v => P v (Ann, v, AnnotatedType v Ann)
     constructor = explodeToken <$>
-      prefixVar <* reserved ":" <*> TypeParser.computationType
+      prefixVar <* reserved ":" <*> (Type.generalizeLowercase <$> TypeParser.computationType)
       where explodeToken v t = (ann v, L.payload v, t)

@@ -299,6 +299,19 @@ object Builtins {
   val Sequence_take =
     flp_p("Sequence.take", "n", "seq", (n, seq: Sequence[Value]) => seq take n)
 
+  val Sequence_drop =
+    flp_p("Sequence.drop", "n", "seq", (n, seq: Sequence[Value]) => seq drop n)
+
+  val Sequence_at =
+    flp_p("Sequence.at", "n", "seq",
+         (n, seq: Sequence[Value]) =>
+           if (n > 0 && n < seq.size) BuiltinTypes.Optional.Some.value(seq(n))
+           else BuiltinTypes.Optional.None.value
+         )
+
+  val Sequence_append =
+    fpp_p("Sequence.++", "n", "seq", (a: Sequence[Value], b: Sequence[Value]) => a ++ b)
+
   val Sequence_size =
     fp_p("Sequence.size", "seq", (seq: Sequence[Value]) => Unsigned(seq.size))
 
@@ -328,7 +341,10 @@ object Builtins {
     Sequence_snoc,
     Sequence_cons,
     Sequence_take,
-    Sequence_size
+    Sequence_drop,
+    Sequence_append,
+    Sequence_size,
+    Sequence_at
   )
 
   // Signed machine integers
