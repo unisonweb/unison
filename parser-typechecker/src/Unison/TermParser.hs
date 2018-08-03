@@ -180,10 +180,11 @@ handle = label "handle" $ do
   pure $ Term.handle (ann t <> ann b) handler b
 
 ifthen = label "if" $ do
+  start <- peekAny
   c <- block "if"
   t <- block "then"
   f <- block "else"
-  pure $ Term.iff (ann c <> ann f) c t f
+  pure $ Term.iff (ann start <> ann f) c t f
 
 hashLit :: Var v => TermP v
 hashLit = tok Term.derived <$> hashLiteral
