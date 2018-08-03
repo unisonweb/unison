@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 echo "Running pre-commit hook from "`pwd`
-./scripts/test.sh
+./scripts/stack-test.sh
 
 # $? stores exit value of the last command
 if [ $? -ne 0 ]; then
