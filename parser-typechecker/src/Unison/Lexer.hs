@@ -352,6 +352,12 @@ qualifiedId requireLast s0 leadingSegments lastSegment =
 symbolyId :: String -> Either Err (String, String)
 symbolyId s = qualifiedId True s wordyId0 symbolyId0
 
+-- Strips off qualified name, ex: `Int.inc -> `(Int, inc)`
+splitWordy :: String -> (String, String)
+splitWordy s =
+  let qn = reverse . drop 1 . dropWhile wordyIdChar . reverse $ s
+  in (qn, if null qn then s else drop (length qn + 1) s)
+
 -- Strips off qualified name, ex: `Int.+` -> `(Int, +)`
 splitSymboly :: String -> (String,String)
 splitSymboly s =

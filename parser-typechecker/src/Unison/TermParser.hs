@@ -331,9 +331,15 @@ block' s openBlock closeBlock = do
       e <- (Left <$> wordyId) <|> (Right <$> symbolyId)
       case e of
         Left w -> do
-          i <- (Var.nameds . L.payload $ w) <$ dot
-          names <- namesp <|> (pure <$> name)
-          pure [ (n, Var.joinDot i n) | n <- names ]
+          hasDot <- (True <$ P.try (lookAhead dot)) <|> pure False
+          case hasDot of
+            True -> do
+              i <- (Var.nameds . L.payload $ w) <$ dot
+              names <- namesp <|> (pure <$> name)
+              pure [ (n, Var.joinDot i n) | n <- names ]
+            False ->
+              let (_, n) = L.splitWordy (L.payload w)
+              in pure [ (Var.nameds n, Var.nameds $ L.payload w) ]
         Right o ->
           let (_, op) = L.splitSymboly (L.payload o)
           in pure [ (Var.nameds op, Var.nameds $ L.payload o) ]
