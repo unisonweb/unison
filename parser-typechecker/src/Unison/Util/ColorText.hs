@@ -27,7 +27,7 @@ import           Unison.Util.Range (Range (..), inRange)
 
 data ANSI
 data ASCII
-data Style = Type1 | Type2 | ErrorSite deriving (Eq, Ord, Show)
+data Style = ForceShow | Type1 | Type2 | ErrorSite deriving (Eq, Ord, Show)
 type StyledText = AnnotatedText (Maybe Style)
 type StyledBlockquote = AnnotatedExcerpt Style
 
@@ -64,11 +64,13 @@ renderDocANSI excerptCollapseWidth (AnnotatedDocument chunks) =
   describe ErrorSite = "colored in " <> errorSite "red"
   describe Type1     = "colored in " <> errorSite "blue"
   describe Type2     = "colored in " <> errorSite "green"
+  describe ForceShow = mempty
   toANSI :: Style -> Rendered ANSI
   toANSI c = Rendered . pure . setSGRCode $ case c of
     ErrorSite -> [red]
     Type1     -> [blue]
     Type2     -> [green]
+    ForceShow -> []
     where red = SetColor Foreground Vivid Red
           blue = SetColor Foreground Vivid Blue
           green = SetColor Foreground Dull Green
