@@ -10,6 +10,7 @@ import           Control.Monad (join)
 import           Data.Bifunctor (bimap)
 import           Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.Map as Map
+import Data.Map (Map)
 import           Data.Maybe
 import Debug.Trace
 import qualified Data.Set as Set
@@ -27,33 +28,38 @@ import qualified Unison.PatternP as Pattern
 import           Unison.Term (MatchCase(..))
 import qualified Unison.UnisonFile as UnisonFile
 import           Unison.Var (Var)
+import Unison.Reference (Reference)
 import qualified Unison.Var as Var
 
 debug :: Bool
 debug = False
 
-data PEnv v = PEnv { constructorLookup :: UnisonFile.CtorLookup }
+data PEnv v =
+  PEnv { constructorLookup :: UnisonFile.CtorLookup
+       , typesByName :: Map v Reference }
 
 -- Given a mapping from name to qualified name, update a `PEnv`,
 -- so for instance if the input has [(Some, Optional.Some)],
 -- and `Optional.Some` is a constructor in the input `PEnv`,
 -- the alias `Some` will map to that same constructor
 importing :: Var v => [(v,v)] -> PEnv v -> PEnv v
-importing shortToLongName (PEnv env) = let
+importing shortToLongName (PEnv ctors types) = let
   vs v = Text.unpack $ Var.name v
-  go env (qname, shortname) = case Map.lookup qname env of
-    Nothing -> env
-    Just v -> Map.insert shortname v env
-  in PEnv $ foldl go env [
-      (vs qn, vs n) |
-      (n, qn) <- shortToLongName
-     ]
+  go :: Ord k => Map k v -> (k, k) -> Map k v
+  go m (qname, shortname) = case Map.lookup qname m of
+    Nothing -> m
+    Just v -> Map.insert shortname v m
+  ctors' = foldl go ctors [ (vs qn, vs n) | (n, qn) <- shortToLongName ]
+  types' = foldl go types shortToLongName
+  in PEnv ctors' types'
 
 instance Ord v => Semigroup (PEnv v) where
   (<>) = mappend
 
 instance Ord v => Monoid (PEnv v) where
-  mappend (PEnv x) (PEnv x2) = PEnv (x2 `mappend` x)
+  -- note : Map.mappend uses left value on collision, which isn't what
+  -- we want here, so we flip the order
+  mappend (PEnv x y) (PEnv x2 y2) = PEnv (x2 `mappend` x) (y2 `mappend` y)
   mempty = penv0
 
 type P v = P.ParsecT (Error v) Input ((->) (PEnv v))
@@ -194,7 +200,7 @@ run :: Var v => P v a -> String -> PEnv v -> Either (Err v) a
 run p s = run' p s ""
 
 penv0 :: PEnv v
-penv0 = PEnv Map.empty
+penv0 = PEnv Map.empty Map.empty
 
 -- Virtual pattern match on a lexeme.
 queryToken :: Var v => (L.Lexeme -> Maybe a) -> P v (L.Token a)

@@ -12,10 +12,8 @@ import Unison.DataDeclaration (EffectDeclaration'(..))
 import Unison.DataDeclaration (hashDecls, toDataDecl, withEffectDecl)
 import qualified Unison.DataDeclaration as DD
 import qualified Data.Text as Text
-import qualified Unison.Type as Type
 import Unison.Term (AnnotatedTerm, AnnotatedTerm2)
 import qualified Unison.Term as Term
-import Unison.Type (AnnotatedType)
 import qualified Data.Set as Set
 import Data.Set (Set)
 import Unison.Var (Var)
@@ -49,8 +47,8 @@ data Env v a = Env
   --   (for instance, free type variables or free term variables that
   --    reference constructors of `datas` or `effects`)
   , resolveTerm :: AnnotatedTerm v a -> AnnotatedTerm v a
-  -- Substitutes away any free variables bound by `datas` or `effects`
-  , resolveType :: AnnotatedType v a -> AnnotatedType v a
+  -- All known types mapped to their hash, indexed by name
+  , typesByName :: Map v Reference
   -- `String` to `(Reference, ConstructorId)`
   , constructorLookup :: CtorLookup
   -- All variables declarated in this environment
@@ -100,7 +98,7 @@ environmentFor termBuiltins typeBuiltins0 dataDecls0 effectDecls0 =
          (Term.typeDirectedResolve .
             Term.bindBuiltins termBuiltins [] .
             Term.bindBuiltins dataAndEffectCtors typesByName)
-         (Type.bindBuiltins $ typeBuiltins ++ typesByName)
+         (Map.fromList $ typeBuiltins ++ typesByName)
          ctorLookup
          (Set.fromList $ (fst <$> termBuiltins) ++ (fst <$> dataAndEffectCtors))
 

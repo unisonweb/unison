@@ -6,7 +6,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Typechecker.Context (synthesizeClosed, Note(..), Cause(..), PathElement(..), Type, Term) where
+module Unison.Typechecker.Context (synthesizeClosed, Note(..), Cause(..), PathElement(..), Type, Term, errorTerms, innermostErrorTerm) where
 
 import           Control.Monad
 import           Control.Monad.Loops (anyM, allM)
@@ -109,6 +109,16 @@ data Cause v loc
   | EffectConstructorWrongArgCount ExpectedArgCount ActualArgCount Reference ConstructorId
   | SolvedBlank (B.Recorded loc) v (Type v loc)
   deriving Show
+
+errorTerms :: Note v loc -> [Term v loc]
+errorTerms n = Foldable.toList (path n) >>= \e -> case e of
+  InCheck e _         -> [e]
+  InSynthesizeApp _ e -> [e]
+  InSynthesize e      -> [e]
+  _                     -> []
+
+innermostErrorTerm :: Note v loc -> Maybe (Term v loc)
+innermostErrorTerm n = listToMaybe $ errorTerms n
 
 data Note v loc = Note { cause :: Cause v loc, path :: Seq (PathElement v loc) } deriving Show
 

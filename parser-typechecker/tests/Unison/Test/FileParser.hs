@@ -53,7 +53,7 @@ module Unison.Test.FileParser where
 
   builtins = PEnv (Map.fromList
     [("Pair", (R.Builtin "Pair", 0)),
-     ("State.set", (R.Builtin "State", 0))])
+     ("State.set", (R.Builtin "State", 0))]) mempty
 
   parses s = scope s $ do
     let
