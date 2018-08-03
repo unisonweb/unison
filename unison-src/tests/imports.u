@@ -1,0 +1,8 @@
+
+import UInt64.+
+import UInt64.[-, *, /]
+import Optional.[None, Some]
+
+case Some (100 + 200 / 3 * 2) of
+  Optional.None -> 19
+  Some 200 -> 20

@@ -352,6 +352,12 @@ qualifiedId requireLast s0 leadingSegments lastSegment =
 symbolyId :: String -> Either Err (String, String)
 symbolyId s = qualifiedId True s wordyId0 symbolyId0
 
+-- Strips off qualified name, ex: `Int.+` -> `(Int, +)`
+splitSymboly :: String -> (String,String)
+splitSymboly s =
+  let qn = reverse . dropWhile symbolyIdChar . reverse $ s
+  in (qn, if null qn then s else drop (length qn + 1) s)
+
 -- Returns either an error or an id and a remainder
 symbolyId0 :: String -> Either Err (String, String)
 symbolyId0 s = span' symbolyIdChar s $ \case
@@ -368,7 +374,7 @@ keywords :: Set String
 keywords = Set.fromList [
   "if", "then", "else", "forall", "∀",
   "handle", "in", "delay",
-  "where",
+  "where", "import",
   "and", "or", "true", "false",
   "type", "effect", "alias",
   "let", "namespace", "case", "of"]

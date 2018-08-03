@@ -172,9 +172,9 @@ unitTests =
    w = wordyId
    s = symbolyId
 
-builtins = Map.fromList
+builtins = PEnv (Map.fromList
   [("Pair", (R.Builtin "Pair", 0)),
-   ("State.set", (R.Builtin "State", 0))]
+   ("State.set", (R.Builtin "State", 0))])
 
 parses = parseWith TP.term
 

@@ -173,6 +173,7 @@ pattern App' f x <- (ABT.out -> ABT.Tm (App f x))
 pattern Match' scrutinee branches <- (ABT.out -> ABT.Tm (Match scrutinee branches))
 pattern Constructor' ref n <- (ABT.out -> ABT.Tm (Constructor ref n))
 pattern Request' ref n <- (ABT.out -> ABT.Tm (Request ref n))
+pattern RequestOrCtor' ref n <- (unReqOrCtor -> Just (ref, n))
 pattern EffectBind' id cid args k <- (ABT.out -> ABT.Tm (EffectBind id cid args k))
 pattern EffectPure' a <- (ABT.out -> ABT.Tm (EffectPure a))
 pattern If' cond t f <- (ABT.out -> ABT.Tm (If cond t f))
@@ -389,6 +390,11 @@ unLams' (LamNamed' v body) = case unLams' body of
   Nothing -> Just ([v], body)
   Just (vs, body) -> Just (v:vs, body)
 unLams' _ = Nothing
+
+unReqOrCtor :: AnnotatedTerm2 vt at ap v a -> Maybe (Reference, Int)
+unReqOrCtor (Constructor' r cid) = Just (r, cid)
+unReqOrCtor (Request' r cid)     = Just (r, cid)
+unReqOrCtor _                         = Nothing
 
 dependencies' :: Ord v => AnnotatedTerm2 vt at ap v a -> Set Reference
 dependencies' t = Set.fromList . Writer.execWriter $ ABT.visit' f t

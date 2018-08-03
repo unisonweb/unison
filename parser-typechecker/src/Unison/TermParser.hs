@@ -12,7 +12,7 @@ module Unison.TermParser where
 import qualified Data.Text as Text
 import           Control.Applicative
 import           Control.Monad (guard, join, when)
-import           Control.Monad.Reader (ask)
+import           Control.Monad.Reader (ask, local)
 import           Data.Char (isUpper)
 import           Data.Foldable (asum)
 import           Data.Int (Int64)
@@ -129,7 +129,7 @@ parsePattern = constructor <|> leaf
     (name, leaves) <- P.try effectBind0
     (cont, vsp) <- parsePattern
     env <- ask
-    (ref,cid) <- case Map.lookup (L.payload name) env of
+    (ref,cid) <- case Map.lookup (L.payload name) (constructorLookup env) of
       Just (ref, cid) -> pure (ref, cid)
       Nothing -> customFailure $ UnknownEffectConstructor name
     pure $ case unzip leaves of
@@ -151,7 +151,7 @@ parsePattern = constructor <|> leaf
     t <- ctorName
     let name = L.payload t
     env <- ask
-    case Map.lookup name env of
+    case Map.lookup name (constructorLookup env) of
       Just (ref, cid) -> go <$> many leaf
         where
           go pairs = case unzip pairs of
@@ -310,10 +310,33 @@ namespaceBlock = do
 block' :: forall v b. Var v => String -> P v (L.Token ()) -> P v b -> TermP v
 block' s openBlock closeBlock = do
     open <- openBlock
-    statements <- sepBy semi statement
+    let sem = P.try (semi <* P.lookAhead (reserved "import"))
+    imports <- mconcat . reverse <$> sepBy sem importp
+    _ <- optional semi
+    statements <- local (importing imports) $ sepBy semi statement
     _ <- closeBlock
-    go open statements
+    let
+      importTerms = [ (n, Term.var() qn) | (n,qn) <- imports ]
+      importTypes = [ (n, Type.var() qn) | (n,qn) <- imports ]
+      substImports tm =
+        ABT.substsInheritAnnotation importTerms .
+        Term.typeMap (ABT.substsInheritAnnotation importTypes) $ tm
+    substImports <$> go open statements
   where
+    name = Var.nameds . L.payload <$> (wordyId <|> symbolyId)
+    namesp = reserved "[" *> sepComma name <* reserved "]"
+    importp :: P v [(v, v)]
+    importp = do
+      _ <- reserved "import"
+      e <- (Left <$> wordyId) <|> (Right <$> symbolyId)
+      case e of
+        Left w -> do
+          i <- (Var.nameds . L.payload $ w) <$ dot
+          names <- namesp <|> (pure <$> name)
+          pure [ (n, Var.joinDot i n) | n <- names ]
+        Right o ->
+          let (_, op) = L.splitSymboly (L.payload o)
+          in pure [ (Var.nameds op, Var.nameds $ L.payload o) ]
     statement = traceRemainingTokens "statement" *>
                 ( (Binding <$> binding) <|>
                   (Action <$> blockTerm) <|>
