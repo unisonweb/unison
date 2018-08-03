@@ -1,41 +1,43 @@
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedLists   #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections     #-}
-{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE OverloadedLists     #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections       #-}
+
 
 module Unison.PrintError where
 
-import qualified Data.Char                  as Char
+import qualified Data.Char as Char
 import           Data.Foldable
-import qualified Data.List.NonEmpty         as Nel
-import           Data.Map                   (Map)
-import qualified Data.Map                   as Map
-import           Data.Maybe                 (catMaybes, listToMaybe, fromMaybe)
-import           Data.Sequence              (Seq (..))
-import qualified Data.Sequence              as Seq
-import qualified Data.Set                   as Set
-import           Data.String                (IsString, fromString)
-import qualified Data.Text                  as Text
-import qualified Text.Megaparsec            as P
-import qualified Unison.ABT                 as ABT
+import qualified Data.List.NonEmpty as Nel
+import           Data.Map (Map)
+import qualified Data.Map as Map
+import           Data.Maybe (catMaybes, fromMaybe, listToMaybe)
+import           Data.Sequence (Seq (..))
+import qualified Data.Sequence as Seq
+import qualified Data.Set as Set
+import           Data.String (IsString, fromString)
+import qualified Data.Text as Text
+import qualified Text.Megaparsec as P
+import qualified Unison.ABT as ABT
 -- import qualified Unison.Builtin             as Builtin
-import qualified Unison.Kind                as Kind
-import           Unison.Kind                (Kind)
-import qualified Unison.Lexer               as L
-import           Unison.Parser              (Ann (..), Annotated, ann)
+import           Unison.Kind (Kind)
+import qualified Unison.Kind as Kind
+import qualified Unison.Lexer as L
+import           Unison.Parser (Ann (..), Annotated, ann)
 -- import           Unison.Parser              (showLineCol)
-import qualified Unison.Parser              as Parser
-import qualified Unison.Reference           as R
-import           Unison.Result              (Note (..))
-import qualified Unison.Type                as Type
+import qualified Unison.Parser as Parser
+import qualified Unison.Reference as R
+import           Unison.Result (Note (..))
+import qualified Unison.Type as Type
 import qualified Unison.Typechecker.Context as C
-import qualified Unison.Util.AnnotatedText  as AT
-import           Unison.Util.ColorText      (StyledText)
-import qualified Unison.Util.ColorText      as Color
-import           Unison.Util.Monoid         (intercalateMap)
-import           Unison.Util.Range          (Range (..))
-import           Unison.Var                 (Var, qualifiedName)
+import qualified Unison.Util.AnnotatedText as AT
+import           Unison.Util.ColorText (StyledText)
+import qualified Unison.Util.ColorText as Color
+import           Unison.Util.Monoid (intercalateMap)
+import           Unison.Util.Range (Range (..))
+import           Unison.Var (Var, qualifiedName)
 
 data Env = Env { referenceNames   :: Map R.Reference String
                , constructorNames :: Map (R.Reference, Int) String }
@@ -120,7 +122,7 @@ renderVar :: Var v => v -> StyledText
 renderVar = fromString . Text.unpack . qualifiedName
 
 renderKind :: Kind -> StyledText
-renderKind Kind.Star = "*"
+renderKind Kind.Star          = "*"
 renderKind (Kind.Arrow k1 k2) = renderKind k1 <> " -> " <> renderKind k2
 
 showRef :: Env -> R.Reference -> String
@@ -163,7 +165,7 @@ rangeToEnglish (Range (L.Pos l c) (L.Pos l' c')) =
 
 annotatedToEnglish :: Annotated a => a -> String
 annotatedToEnglish a = case ann a of
-  Intrinsic      -> "an intrinsic"
+  Intrinsic     -> "an intrinsic"
   Ann start end -> rangeToEnglish $ Range start end
 
 rangeForType :: Annotated a => C.Type v a -> Maybe Range
@@ -201,15 +203,18 @@ showLexerOutput :: Bool
 showLexerOutput = True
 
 printNoteWithSource :: (Var v, Annotated a, Show a, Eq a)
-                    => Env -> String -> Note v a -> String
+                    => Env
+                    -> String
+                    -> Note v a
+                    -> AT.AnnotatedDocument Color.Style
 printNoteWithSource _env s (Parsing e) = prettyParseError s e
 printNoteWithSource env s (Typechecking e) = prettyTypecheckError env s e
-printNoteWithSource _env s (InvalidPath path term) =
+printNoteWithSource _env s (InvalidPath path term) = _fromString $
   "Invalid Path: " ++ show path ++ "\n" ++
     case ann $ ABT.annotation term of
       Intrinsic     -> "  in Intrinsic " ++ show term
       Ann start end -> printPosRange s start end
-printNoteWithSource _env s (UnknownSymbol v a) =
+printNoteWithSource _env s (UnknownSymbol v a) = _fromString $
   "Unknown symbol `" ++ Text.unpack (qualifiedName v) ++
     case ann a of
       Intrinsic -> "` (Intrinsic)"
@@ -217,7 +222,7 @@ printNoteWithSource _env s (UnknownSymbol v a) =
         -- todo: multi-line ranges
         -- todo: ranges
         "`:\n\n" ++ printArrowsAtPos s startLine startCol
-printNoteWithSource _env _s (UnknownReference r) =
+printNoteWithSource _env _s (UnknownReference r) = _fromString $
   "Unknown reference: " ++ show r
 
 printPosRange :: String -> L.Pos -> L.Pos -> String
@@ -235,15 +240,26 @@ printArrowsAtPos s line column =
       source = unlines (uncurry lineCaret <$> lines s `zip` [1..])
   in source
 
-prettyParseError :: Var v => String -> Parser.Err v  -> String
-prettyParseError s e =
-  let errorColumn = P.unPos . P.sourceColumn . Nel.head . P.errorPos $ e
-      errorLine = P.unPos . P.sourceLine . Nel.head . P.errorPos $ e
-  in P.parseErrorPretty e ++ "\n" ++
-     printArrowsAtPos s errorLine errorColumn ++
-     if showLexerOutput
-     then "\nLexer output:\n" ++ L.debugLex' s
-     else ""
+prettyParseError :: forall v . Var v
+                 => String
+                 -> Parser.Err v
+                 -> AT.AnnotatedDocument Color.Style
+prettyParseError s = \case
+  trivial @ (P.TrivialError _ _ _) -> _delegate
+  P.FancyError sp fancyErrors -> mconcat (fancyErrors <$> go) <> lexerOutput
+  where
+    go :: Parser.Error v -> AT.AnnotatedDocument Color.Style
+    go (Parser.SignatureNeedsAccompanyingBody tok)                 = _todo
+         -- we would include the last binding term if we didn't have to have an Ord instance for it
+    go (Parser.BlockMustEndWithExpression blockAnn lastBindingAnn) = _todo
+    go (Parser.EmptyBlock tok)                                     = _todo
+    go (Parser.UnknownEffectConstructor tok)                       = _todo
+    go (Parser.UnknownDataConstructor tok)                         = _todo
+    lexerOutput :: AT.AnnotatedDocument a
+    lexerOutput =
+      if showLexerOutput
+      then "\nLexer output:\n" <> fromString L.debugLex' s
+      else mempty
 
 debugMode :: Bool
 debugMode = True
@@ -259,27 +275,6 @@ findTerm = go
 prettyTypecheckError :: (Var v, Eq loc, Show loc, Parser.Annotated loc)
                      => Env
                      -> String
-                     -> C.Note v loc -> String
+                     -> C.Note v loc -> AT.AnnotatedDocument Color.Style
 prettyTypecheckError env input n =
-  show . Color.renderDocANSI 3 $
-    (renderTypeError env (typeErrorFromNote n) input)
-  -- case cause of
-  --   C.TypeMismatch _ -> case path of
-  --     C.InCheck term typ :<| _ ->
-  --       let loc = ann term
-  --       in "\n" ++ showLineCol term ++ " had a type mismatch. " ++
-  --       "The highlighted term below is not of type " ++ prettyType env typ ++
-  --       "\n" ++ printPosRange input (Parser.start loc) (Parser.end loc)
-  --     C.InSubtype t1 t2 :<| p ->
-  --       let (loc1, loc2) = (ann t1, ann t2)
-  --           (pretty1, pretty2) = (prettyType env t1, prettyType env t2)
-  --       in case findTerm p of
-  --         Just t ->
-  --           "\n" ++ showLineCol t ++
-  --           " (highlighted below) had a type mismatch.\n" ++
-  --           "  " ++ pretty1 ++ " (which comes from " ++ showLineCol loc1 ++ ")\n"
-  --           ++ "  " ++ pretty2 ++ " (which comes from " ++ showLineCol loc2 ++ ")"
-  --           ++ printPosRange input (Parser.start (ann t)) (Parser.end (ann t))
-  --         Nothing -> show n
-  --     _ -> show n
-  --   _ -> show n
+  renderTypeError env (typeErrorFromNote n) input
