@@ -62,17 +62,18 @@ renderTypeError env e src = case e of
     , " has a type mismatch (", AT.Describe Color.ErrorSite, " below):\n\n"
     , AT.Blockquote $ AT.markup (fromString src)
                         (Set.fromList $ catMaybes
-                          [ (,Color.ErrorSite) <$> rangeForAnnotated mismatchSite
-                          , (,Color.Type1) <$> rangeForType overallType1
-                          , (,Color.Type2) <$> rangeForType overallType2
+                          [ (,Color.Type1) <$> rangeForType leaf1
+                          , (,Color.Type2) <$> rangeForType leaf2
+                          -- , (,Color.ErrorSite) <$> rangeForAnnotated mismatchSite
                           ])
     , "\n"
     , "The two types involved are:\n\n"
-    , AT.Text $ styleInOverallType env overallType1 leaf1 Color.Type1
-    , " (", fromString (Char.toLower <$> annotatedToEnglish overallType1)
-    , ")\n and\n"
-    , AT.Text $ styleInOverallType env overallType2 leaf2 Color.Type2
-    , " (" , fromString (Char.toLower <$> annotatedToEnglish overallType2)
+    , "  ", AT.Text $ styleInOverallType env overallType1 leaf1 Color.Type1
+    , " (", fromString (Char.toLower <$> annotatedToEnglish leaf1)
+    , ")\n"
+    -- , "       and\n"
+    , "  ", AT.Text $ styleInOverallType env overallType2 leaf2 Color.Type2
+    , " (" , fromString (Char.toLower <$> annotatedToEnglish leaf2)
     , ")\n\n"
     , "loc debug:"
     , "\n  mismatchSite: ", fromString $ annotatedToEnglish mismatchSite
