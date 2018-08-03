@@ -6,7 +6,6 @@ import Data.Sequence (Seq)
 import qualified Data.Foldable as Foldable
 import qualified Unison.Typechecker.Context as Context
 import Unison.Paths (Path)
-import Unison.Reference (Reference)
 import Unison.Term (AnnotatedTerm)
 import qualified Unison.Parser as Parser
 
