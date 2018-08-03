@@ -49,6 +49,9 @@ data TypeError v loc
              , leaf1        :: C.Type v loc
              , leaf2        :: C.Type v loc
              , mismatchSite :: loc }
+  | AbilityCheckFailure { ambient :: [C.Type v loc]
+                        , requested :: [C.Type v loc]
+                        , abilityCheckFailureSite :: loc }
   | Other (C.Note v loc)
 
 renderTypeError :: (Var v, Annotated a, Eq a, Show a)
@@ -86,6 +89,18 @@ renderTypeError env e src = case e of
     , "\n  overallType2: ", fromString $ annotatedToEnglish overallType2
     , "\n         leaf2: ", fromString $ annotatedToEnglish leaf2
     , "\n"
+    ]
+  AbilityCheckFailure {..} -> AT.AnnotatedDocument . Seq.fromList $
+    [ (fromString . annotatedToEnglish) abilityCheckFailureSite
+    , " is requesting\n"
+    , "    ", fromString $ show requested
+    , " effects, but this location only has access to\n"
+    , "    ", fromString $ show ambient
+    , "\n\n"
+    , AT.Blockquote $ AT.markup (fromString src)
+            (Set.fromList . catMaybes $ [
+              (,Color.ForceShow) <$> rangeForAnnotated abilityCheckFailureSite
+              ])
     ]
   Other note -> fromString . show $ note
 
@@ -183,18 +198,16 @@ typeErrorFromNote n@(C.Note (C.TypeMismatch _) path) =
   let
     pathl = toList path
     subtypes = [ (t1, t2) | C.InSubtype t1 t2 <- pathl ]
-    terms = pathl >>= \case
-      C.InCheck e _         -> [e]
-      C.InSynthesizeApp _ e -> [e]
-      C.InSynthesize e      -> [e]
-      _                     -> []
     firstSubtype = listToMaybe subtypes
     lastSubtype = if null subtypes then Nothing else Just (last subtypes)
-    innermostTerm = listToMaybe terms
+    innermostTerm = C.innermostErrorTerm n
   in case (firstSubtype, lastSubtype, innermostTerm) of
        (Just (leaf1, leaf2), Just (overall1, overall2), Just mismatchSite) ->
          Mismatch overall1 overall2 leaf1 leaf2 (ABT.annotation mismatchSite)
        _ -> Other n
+typeErrorFromNote n@(C.Note (C.AbilityCheckFailure amb req) _) =
+  let go e = AbilityCheckFailure amb req (ABT.annotation e)
+  in fromMaybe (Other n) $ go <$> C.innermostErrorTerm n
 typeErrorFromNote n@(C.Note _ _) = Other n
 
 showLexerOutput :: Bool
@@ -263,23 +276,3 @@ prettyTypecheckError :: (Var v, Eq loc, Show loc, Parser.Annotated loc)
 prettyTypecheckError env input n =
   show . Color.renderDocANSI 3 $
     (renderTypeError env (typeErrorFromNote n) input)
-  -- case cause of
-  --   C.TypeMismatch _ -> case path of
-  --     C.InCheck term typ :<| _ ->
-  --       let loc = ann term
-  --       in "\n" ++ showLineCol term ++ " had a type mismatch. " ++
-  --       "The highlighted term below is not of type " ++ prettyType env typ ++
-  --       "\n" ++ printPosRange input (Parser.start loc) (Parser.end loc)
-  --     C.InSubtype t1 t2 :<| p ->
-  --       let (loc1, loc2) = (ann t1, ann t2)
-  --           (pretty1, pretty2) = (prettyType env t1, prettyType env t2)
-  --       in case findTerm p of
-  --         Just t ->
-  --           "\n" ++ showLineCol t ++
-  --           " (highlighted below) had a type mismatch.\n" ++
-  --           "  " ++ pretty1 ++ " (which comes from " ++ showLineCol loc1 ++ ")\n"
-  --           ++ "  " ++ pretty2 ++ " (which comes from " ++ showLineCol loc2 ++ ")"
-  --           ++ printPosRange input (Parser.start (ann t)) (Parser.end (ann t))
-  --         Nothing -> show n
-  --     _ -> show n
-  --   _ -> show n
