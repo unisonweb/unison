@@ -4,12 +4,28 @@ module Unison.Test.ColorText where
 
 -- import EasyTest
 import qualified Data.Set as Set
+import           EasyTest
 import           Text.RawString.QQ
 import           Unison.Lexer (Pos (..))
 import           Unison.Util.AnnotatedText (AnnotatedExcerpt (..), Rendered,
-                                            excerptToDoc, markup)
+                                            excerptToDoc, markup, textToDoc)
 import           Unison.Util.ColorText (ANSI, Style (..), renderDocANSI)
+import qualified Unison.Util.ColorText as ColorText
 import           Unison.Util.Range (Range (..))
+
+test = scope "colortext" . tests $ [
+    -- commented out because they don't render exactly the same escape sequences, but they're equivalent4 as of this writing
+    -- scope "inclusive-exclusive range" . expect . trace ("ex4e: " ++ show (rawRender ex4e) ++ "\n" ++ "ex4t: " ++ show (rawRender ex4t) ++ "\n")$ ex4e == ex4t
+  ]
+
+ex4e :: Rendered ANSI
+ex4e = renderDocANSI 1 . excerptToDoc $ markup "abc" m
+        where m = Set.singleton (Range (Pos 1 2) (Pos 1 3), ErrorSite)
+
+ex4t :: Rendered ANSI
+ex4t = renderDocANSI 1 . textToDoc $
+          "    1 | " <> "a" <> ColorText.errorSite "b" <> "c" <> "\n"
+
 
 ex2 :: AnnotatedExcerpt Style
 ex2 = markup ex (Set.fromList
