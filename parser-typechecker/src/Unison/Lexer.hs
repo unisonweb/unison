@@ -313,7 +313,7 @@ wordyIdStartChar ch = isAlphaNum ch || isEmoji ch
 
 wordyIdChar :: Char -> Bool
 wordyIdChar ch =
-  isAlphaNum ch || isEmoji ch || ch `elem` "_-?'"
+  isAlphaNum ch || isEmoji ch || ch `elem` "_-?!'"
 
 isEmoji :: Char -> Bool
 isEmoji c = c >= '\x1F600' && c <= '\x1F64F'
@@ -332,7 +332,12 @@ qualifiedId requireLast s0 leadingSegments lastSegment =
   goLeading 0 s0 where
    -- parsing 0 or more leading segments
    goLeading acc s = case leadingSegments s of
-     Right (seg, '.' : rem) -> goLeading (acc + length seg + 1) rem
+     Right (seg, '.' : rem)
+       | not requireLast &&
+         all (\c -> isSpace c || Set.member c delimiters) (take 1 rem)
+         -> Right (seg, '.' : rem)
+       | otherwise
+         -> goLeading (acc + length seg + 1) rem
      Right (seg, rem) -> goLast Nothing (acc + length seg) rem
      Left e -> goLast (Just e) acc s
    err2 e e2 = case e of Nothing -> e2; Just e -> Both e e2
