@@ -4,6 +4,7 @@
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE TypeApplications    #-}
 
 
 module Unison.PrintError where
@@ -19,6 +20,7 @@ import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import           Data.String (IsString, fromString)
 import qualified Data.Text as Text
+import           Data.Void (Void)
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
 -- import qualified Unison.Builtin             as Builtin
@@ -51,8 +53,8 @@ data TypeError v loc
              , leaf1        :: C.Type v loc
              , leaf2        :: C.Type v loc
              , mismatchSite :: loc }
-  | AbilityCheckFailure { ambient :: [C.Type v loc]
-                        , requested :: [C.Type v loc]
+  | AbilityCheckFailure { ambient                 :: [C.Type v loc]
+                        , requested               :: [C.Type v loc]
                         , abilityCheckFailureSite :: loc }
   | Other (C.Note v loc)
 
@@ -169,6 +171,9 @@ styleInOverallType e overallType leafType c =
 _posToEnglish :: L.Pos -> String
 _posToEnglish (L.Pos l c) = "Line " ++ show l ++ ", Column " ++ show c
 
+rangeForToken :: L.Token a -> Range
+rangeForToken t = Range (L.start t) (L.end t)
+
 rangeToEnglish :: Range -> String
 rangeToEnglish (Range (L.Pos l c) (L.Pos l' c')) =
   if l == l'
@@ -253,38 +258,73 @@ printArrowsAtPos s line column =
       source = unlines (uncurry lineCaret <$> lines s `zip` [1..])
   in source
 
-<<<<<<< HEAD
 prettyParseError :: forall v . Var v
                  => String
                  -> Parser.Err v
                  -> AT.AnnotatedDocument Color.Style
 prettyParseError s = \case
-  trivial @ (P.TrivialError _ _ _) -> _delegate
-  P.FancyError sp fancyErrors -> mconcat (fancyErrors <$> go) <> lexerOutput
+  P.TrivialError sp unexpected expected ->
+    fromString (P.parseErrorPretty @_ @Void (P.TrivialError sp unexpected expected))
+    <> lexerOutput
+
+  P.FancyError sp fancyErrors ->
+    mconcat (AT.AnnotatedDocument . Seq.fromList . go' <$>
+      Set.toList fancyErrors) <> dumpSourcePos sp <> lexerOutput
   where
-    go :: Parser.Error v -> AT.AnnotatedDocument Color.Style
-    go (Parser.SignatureNeedsAccompanyingBody tok)                 = _todo
-         -- we would include the last binding term if we didn't have to have an Ord instance for it
-    go (Parser.BlockMustEndWithExpression blockAnn lastBindingAnn) = _todo
-    go (Parser.EmptyBlock tok)                                     = _todo
-    go (Parser.UnknownEffectConstructor tok)                       = _todo
-    go (Parser.UnknownDataConstructor tok)                         = _todo
+    dumpSourcePos :: Nel.NonEmpty P.SourcePos -> AT.AnnotatedDocument a
+    dumpSourcePos sp = AT.AnnotatedDocument . Seq.fromList . Nel.toList $
+      (fromString . (\s -> "  " ++ show s ++ "\n") <$> sp)
+    go' :: P.ErrorFancy (Parser.Error v)
+        -> [AT.Section Color.Style]
+    go' (P.ErrorFail s) =
+      [ "The parser failed with this message:\n"
+      , fromString s ]
+    go' (P.ErrorIndentation ordering indent1 indent2) =
+      [ "The parser was confused by the indentation.\n"
+      , "It was expecting the reference level (", fromString (show indent1)
+      , ")\nto be ", fromString (show ordering), " than/to the actual level ("
+      , fromString (show indent2), ").\n"
+      ]
+    go' (P.ErrorCustom e) = go e
+    go :: Parser.Error v
+       -> [AT.Section Color.Style]
+    go (Parser.SignatureNeedsAccompanyingBody tok) =
+      [ "You provided a type signature, but I didn't find an accompanying\n"
+      , "binding after it.  Could it be a spelling mismatch?\n"
+      , showSource [Just (rangeForToken tok, Color.ErrorSite)]
+      ]
+     -- we would include the last binding term if we didn't have to have an Ord instance for it
+    go (Parser.BlockMustEndWithExpression blockAnn lastBindingAnn) =
+      [ "The last line of the block starting at "
+      , fromString . (fmap Char.toLower) . annotatedToEnglish $ blockAnn, "\n"
+      , "has to be an expression, not a binding/import/etc:"
+      , showSource [(,Color.ErrorSite) <$> rangeForAnnotated lastBindingAnn]
+      ]
+    go (Parser.EmptyBlock tok) =
+      [ "I expected a block after this (", AT.Describe Color.ErrorSite, "),"
+      , ", but there wasn't one.  Maybe check your indentation:\n"
+      , tokenAsErrorSite tok
+      ]
+    go (Parser.UnknownEffectConstructor tok) = unknownConstructor "effect" tok
+    go (Parser.UnknownDataConstructor tok) = unknownConstructor "data" tok
+    unknownConstructor ::
+      String -> L.Token String -> [AT.Section Color.Style]
+    unknownConstructor ctorType tok =
+      [ "I don't know about any ", fromString ctorType, " constructor named "
+      , AT.Text (Color.errorSite . fromString . show $ L.payload tok), ".\n"
+      , "Maybe make sure it's correctly spelled and that you've imported it:\n"
+      , tokenAsErrorSite tok
+      ]
+    showSource :: [Maybe (Range, Color.Style)] -> AT.Section Color.Style
+    showSource rs =
+      AT.Blockquote $ AT.markup (fromString s) (Set.fromList $ catMaybes rs)
+    tokenAsErrorSite tok =
+      showSource [Just (rangeForToken tok, Color.ErrorSite)]
     lexerOutput :: AT.AnnotatedDocument a
     lexerOutput =
       if showLexerOutput
-      then "\nLexer output:\n" <> fromString L.debugLex' s
+      then "\nLexer output:\n" <> fromString (L.debugLex' s)
       else mempty
-=======
-prettyParseError :: Var v => String -> Parser.Err v -> String
-prettyParseError s e =
-  let errorColumn = P.unPos . P.sourceColumn . Nel.head . P.errorPos $ e
-      errorLine = P.unPos . P.sourceLine . Nel.head . P.errorPos $ e
-  in P.parseErrorPretty e ++ "\n" ++
-     printArrowsAtPos s errorLine errorColumn ++
-     if showLexerOutput
-     then "\nLexer output:\n" ++ L.debugLex' s
-     else ""
->>>>>>> 027539b36fb8882ae9a835ccf19486a8cf2e0c76
 
 debugMode :: Bool
 debugMode = True
@@ -302,9 +342,4 @@ prettyTypecheckError :: (Var v, Eq loc, Show loc, Parser.Annotated loc)
                      -> String
                      -> C.Note v loc -> AT.AnnotatedDocument Color.Style
 prettyTypecheckError env input n =
-<<<<<<< HEAD
   renderTypeError env (typeErrorFromNote n) input
-=======
-  show . Color.renderDocANSI 3 $
-    (renderTypeError env (typeErrorFromNote n) input)
->>>>>>> 027539b36fb8882ae9a835ccf19486a8cf2e0c76
