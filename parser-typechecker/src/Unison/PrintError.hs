@@ -193,7 +193,7 @@ typeErrorFromNote n@(C.Note (C.TypeMismatch _) path) =
 typeErrorFromNote n@(C.Note _ _) = Other n
 
 showLexerOutput :: Bool
-showLexerOutput = True
+showLexerOutput = False
 
 printNoteWithSource :: (Var v, Annotated a, Show a, Eq a)
                     => Env -> String -> Note v a -> String
@@ -230,7 +230,7 @@ printArrowsAtPos s line column =
       source = unlines (uncurry lineCaret <$> lines s `zip` [1..])
   in source
 
-prettyParseError :: Var v => String -> Parser.Err v  -> String
+prettyParseError :: Var v => String -> Parser.Err v -> String
 prettyParseError s e =
   let errorColumn = P.unPos . P.sourceColumn . Nel.head . P.errorPos $ e
       errorLine = P.unPos . P.sourceLine . Nel.head . P.errorPos $ e

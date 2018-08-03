@@ -174,7 +174,7 @@ unitTests =
 
 builtins = PEnv (Map.fromList
   [("Pair", (R.Builtin "Pair", 0)),
-   ("State.set", (R.Builtin "State", 0))])
+   ("State.set", (R.Builtin "State", 0))]) mempty
 
 parses = parseWith TP.term
 

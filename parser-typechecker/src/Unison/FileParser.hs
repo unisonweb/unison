@@ -41,7 +41,7 @@ file builtinTerms builtinTypes = do
       ctorLookup0 = UF.constructorLookup env `mappend` Map.fromList
         [ (Text.unpack $ Var.name v, (r,cid)) |
           (v, Term.RequestOrCtor' r cid) <- builtinTerms ]
-  local (PEnv ctorLookup0 `mappend`) $ do
+  local (PEnv ctorLookup0 (Map.fromList builtinTypes) `mappend`) $ do
     traceRemainingTokens "file"
     term <- TermParser.block' "top-level block"
               (void <$> peekAny) -- we actually opened before the declarations
