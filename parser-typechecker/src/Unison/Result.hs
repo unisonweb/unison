@@ -18,7 +18,7 @@ data Note v loc
   = Parsing (Parser.Err v)
   | InvalidPath Path (Term v loc) -- todo: move me!
   | UnknownSymbol v loc
-  | UnknownReference Reference
+--  | UnknownReference Reference
   | Typechecking (Context.Note v loc) deriving Show
   -- WithinLocals (Note v loc)
 

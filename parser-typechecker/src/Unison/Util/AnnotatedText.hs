@@ -34,6 +34,9 @@ data AnnotatedExcerpt a = AnnotatedExcerpt
 
 newtype Rendered a = Rendered { rawRender :: Seq String } deriving (Eq)
 
+sectionToDoc :: Section a -> AnnotatedDocument a
+sectionToDoc = AnnotatedDocument . pure
+
 textToDoc :: AnnotatedText (Maybe a) -> AnnotatedDocument a
 textToDoc = AnnotatedDocument . pure . Text
 

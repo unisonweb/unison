@@ -220,6 +220,11 @@ typeErrorFromNote n@(C.Note _ _) = Other n
 showLexerOutput :: Bool
 showLexerOutput = False
 
+printNoteWithSourceAsAnsi :: (Var v, Annotated a, Show a, Eq a)
+                          => Env -> String -> Note v a -> String
+printNoteWithSourceAsAnsi e s n =
+  show . Color.renderDocANSI 3 $ printNoteWithSource e s n
+
 printNoteWithSource :: (Var v, Annotated a, Show a, Eq a)
                     => Env
                     -> String
@@ -227,30 +232,22 @@ printNoteWithSource :: (Var v, Annotated a, Show a, Eq a)
                     -> AT.AnnotatedDocument Color.Style
 printNoteWithSource _env s (Parsing e) = prettyParseError s e
 printNoteWithSource env s (Typechecking e) = prettyTypecheckError env s e
-printNoteWithSource _env s (InvalidPath path term) = _fromString $
-  "Invalid Path: " ++ show path ++ "\n" ++
-    case ann $ ABT.annotation term of
-      Intrinsic     -> "  in Intrinsic " ++ show term
-      Ann start end -> printPosRange s start end
-printNoteWithSource _env s (UnknownSymbol v a) = _fromString $
-  "Unknown symbol `" ++ Text.unpack (qualifiedName v) ++
-    case ann a of
-      Intrinsic -> "` (Intrinsic)"
-      Ann (L.Pos startLine startCol) _end ->
-        -- todo: multi-line ranges
-        -- todo: ranges
-        "`:\n\n" ++ printArrowsAtPos s startLine startCol
-printNoteWithSource _env _s (UnknownReference r) = _fromString $
-  "Unknown reference: " ++ show r
+printNoteWithSource _env s (InvalidPath path term) =
+  (fromString $ "Invalid Path: " ++ show path ++ "\n")
+  <> AT.sectionToDoc
+      (showSource s [(,Color.ErrorSite) <$> rangeForAnnotated term])
+printNoteWithSource _env s (UnknownSymbol v a) =
+  fromString ("Unknown symbol `" ++ Text.unpack (qualifiedName v) ++ "`\n\n")
+  <> AT.sectionToDoc (showSource s [(,Color.ErrorSite) <$> rangeForAnnotated a])
 
-printPosRange :: String -> L.Pos -> L.Pos -> String
-printPosRange s (L.Pos startLine startCol) _end =
+_printPosRange :: String -> L.Pos -> L.Pos -> String
+_printPosRange s (L.Pos startLine startCol) _end =
   -- todo: multi-line ranges
   -- todo: ranges
-  printArrowsAtPos s startLine startCol
+  _printArrowsAtPos s startLine startCol
 
-printArrowsAtPos :: String -> Int -> Int -> String
-printArrowsAtPos s line column =
+_printArrowsAtPos :: String -> Int -> Int -> String
+_printArrowsAtPos s line column =
   let lineCaret s i = s ++ if i == line
                            then "\n" ++ columnCaret
                            else ""
@@ -291,14 +288,14 @@ prettyParseError s = \case
     go (Parser.SignatureNeedsAccompanyingBody tok) =
       [ "You provided a type signature, but I didn't find an accompanying\n"
       , "binding after it.  Could it be a spelling mismatch?\n"
-      , showSource [Just (rangeForToken tok, Color.ErrorSite)]
+      , showSource s [Just (rangeForToken tok, Color.ErrorSite)]
       ]
      -- we would include the last binding term if we didn't have to have an Ord instance for it
     go (Parser.BlockMustEndWithExpression blockAnn lastBindingAnn) =
       [ "The last line of the block starting at "
       , fromString . (fmap Char.toLower) . annotatedToEnglish $ blockAnn, "\n"
       , "has to be an expression, not a binding/import/etc:"
-      , showSource [(,Color.ErrorSite) <$> rangeForAnnotated lastBindingAnn]
+      , showSource s [(,Color.ErrorSite) <$> rangeForAnnotated lastBindingAnn]
       ]
     go (Parser.EmptyBlock tok) =
       [ "I expected a block after this (", AT.Describe Color.ErrorSite, "),"
@@ -315,16 +312,18 @@ prettyParseError s = \case
       , "Maybe make sure it's correctly spelled and that you've imported it:\n"
       , tokenAsErrorSite tok
       ]
-    showSource :: [Maybe (Range, Color.Style)] -> AT.Section Color.Style
-    showSource rs =
-      AT.Blockquote $ AT.markup (fromString s) (Set.fromList $ catMaybes rs)
     tokenAsErrorSite tok =
-      showSource [Just (rangeForToken tok, Color.ErrorSite)]
+      showSource s [Just (rangeForToken tok, Color.ErrorSite)]
     lexerOutput :: AT.AnnotatedDocument a
     lexerOutput =
       if showLexerOutput
       then "\nLexer output:\n" <> fromString (L.debugLex' s)
       else mempty
+
+showSource :: String -> [Maybe (Range, Color.Style)] -> AT.Section Color.Style
+showSource source annotations =
+  AT.Blockquote $
+    AT.markup (fromString source) (Set.fromList $ catMaybes annotations)
 
 debugMode :: Bool
 debugMode = True
@@ -343,3 +342,6 @@ prettyTypecheckError :: (Var v, Eq loc, Show loc, Parser.Annotated loc)
                      -> C.Note v loc -> AT.AnnotatedDocument Color.Style
 prettyTypecheckError env input n =
   renderTypeError env (typeErrorFromNote n) input
+
+parseErrorToAnsiString :: Var v => String -> Parser.Err v -> String
+parseErrorToAnsiString s = show . Color.renderDocANSI 3 . prettyParseError s
