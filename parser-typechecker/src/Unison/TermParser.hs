@@ -310,7 +310,7 @@ namespaceBlock = do
 block' :: forall v b. Var v => String -> P v (L.Token ()) -> P v b -> TermP v
 block' s openBlock closeBlock = do
     open <- openBlock
-    let sem = P.try (semi <* P.lookAhead (reserved "import"))
+    let sem = P.try (semi <* P.lookAhead (reserved "use"))
     imports <- mconcat . reverse <$> sepBy sem importp
     _ <- optional semi
     statements <- local (importing imports) $ sepBy semi statement
@@ -324,17 +324,17 @@ block' s openBlock closeBlock = do
     substImports <$> go open statements
   where
     name = Var.nameds . L.payload <$> (wordyId <|> symbolyId)
-    namesp = reserved "[" *> sepComma name <* reserved "]"
+    namesp = many name
     importp :: P v [(v, v)]
     importp = do
-      _ <- reserved "import"
+      _ <- reserved "use"
       e <- (Left <$> wordyId) <|> (Right <$> symbolyId)
       case e of
         Left w -> do
-          hasDot <- (True <$ P.try (lookAhead dot)) <|> pure False
-          case hasDot of
+          more <- (False <$ P.try (lookAhead semi)) <|> pure True
+          case more of
             True -> do
-              i <- (Var.nameds . L.payload $ w) <$ dot
+              i <- (Var.nameds . L.payload $ w) <$ optional dot
               names <- namesp <|> (pure <$> name)
               pure [ (n, Var.joinDot i n) | n <- names ]
             False ->

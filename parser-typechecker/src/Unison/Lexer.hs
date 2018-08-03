@@ -380,7 +380,7 @@ keywords :: Set String
 keywords = Set.fromList [
   "if", "then", "else", "forall", "∀",
   "handle", "in", "delay",
-  "where", "import",
+  "where", "use",
   "and", "or", "true", "false",
   "type", "effect", "alias",
   "let", "namespace", "case", "of"]

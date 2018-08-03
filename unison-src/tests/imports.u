@@ -1,7 +1,19 @@
+-- This brings `None` into scope unqualified
+use Optional.None
 
-import UInt64.+
-import UInt64.[-, *, /]
-import Optional.[None, Some]
+-- '.' is optional, this brings `None` and `Some` into
+-- scope unqualified
+use Optional None Some
+
+-- Can import operators this way also
+-- no need to put them in parens
+use UInt64.+
+
+-- Later imports shadow earlier ones
+use UInt64 - * /
+use UInt64. drop *
+use UInt64 . drop
+-- use Int64 + -- this would cause type error below!
 
 case Some (100 + 200 / 3 * 2) of
   Optional.None -> 19
