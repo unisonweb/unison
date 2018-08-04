@@ -23,7 +23,7 @@ import qualified Data.Text as Text
 import           Data.Void (Void)
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
--- import qualified Unison.Builtin             as Builtin
+import qualified Unison.Blank as B
 import           Unison.Kind (Kind)
 import qualified Unison.Kind as Kind
 import qualified Unison.Lexer as L
@@ -58,13 +58,13 @@ data TypeError v loc
                         , abilityCheckFailureSite :: loc }
   | Other (C.Note v loc)
 
-renderTypeError :: (Var v, Annotated a, Eq a, Show a)
+renderTypeError :: forall v a. (Var v, Annotated a, Eq a, Show a)
                 => Env
                 -> TypeError v a
                 -> String
                 -> AT.AnnotatedDocument Color.Style
-renderTypeError env e src = case e of
-  Mismatch {..} -> AT.AnnotatedDocument . Seq.fromList $
+renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
+  Mismatch {..} ->
     [ (fromString . annotatedToEnglish) mismatchSite
     , " has a type mismatch:\n\n"
     -- , " has a type mismatch (", AT.Describe Color.ErrorSite, " below):\n\n"
@@ -94,7 +94,7 @@ renderTypeError env e src = case e of
     , "\n         leaf2: ", fromString $ annotatedToEnglish leaf2
     , "\n"
     ]
-  AbilityCheckFailure {..} -> AT.AnnotatedDocument . Seq.fromList $
+  AbilityCheckFailure {..} ->
     [ (fromString . annotatedToEnglish) abilityCheckFailureSite
     , " is requesting\n"
     , "    ", fromString $ show requested
@@ -106,7 +106,67 @@ renderTypeError env e src = case e of
               (,Color.ForceShow) <$> rangeForAnnotated abilityCheckFailureSite
               ])
     ]
-  Other note -> fromString . show $ note
+  Other note ->
+    [ "Uh oh, you hit an error we didn't think of!\n\n"
+    , "Here is a summary of the Note:\n"
+    , "  'simple' cause: "
+    ] ++ simpleCause (C.cause note) ++
+    [ "\n"
+    , "  path:\n"
+    ] ++ mconcat (simplePath <$> toList (C.path note)) ++
+    [ "\n" ]
+    where
+      simplePath :: C.PathElement v a -> [AT.Section Color.Style]
+      simplePath e = simplePath' e ++ ["\n"]
+      simplePath' :: C.PathElement v a -> [AT.Section Color.Style]
+      simplePath' = \case
+        C.InSynthesize _e -> ["InSynthesize e=..."]
+        C.InSubtype t1 t2 -> ["InSubtype t1="
+                             , AT.Text $ renderType env (const id) t1
+                             , ", t2="
+                             , AT.Text $ renderType env (const id) t2]
+        C.InCheck _e t -> ["InCheck e=..., t=", AT.Text $ renderType env (const id) t]
+        C.InInstantiateL v t ->
+          ["InInstantiateL v=", AT.Text $ renderVar v
+                       ,", t=", AT.Text $ renderType env (const id) t]
+        C.InInstantiateR t v ->
+          ["InInstantiateR t=", AT.Text $ renderType env (const id) t
+                        ," v=", AT.Text $ renderVar v]
+        C.InSynthesizeApp t _e -> ["InSynthesizeApp"
+          ," t=", AT.Text $ renderType env (const id) t
+          ,", e=..."]
+      simpleCause :: C.Cause v a -> [AT.Section Color.Style]
+      simpleCause = \case
+        C.TypeMismatch _ -> ["TypeMismatch"]
+        C.IllFormedType _ -> ["IllFormedType"]
+        C.UnknownSymbol loc v ->
+          [ "UnknownSymbol: ", (fromString . show) loc, " ", (fromString . show) v ]
+        C.CompilerBug c -> ["CompilerBug: ", fromString (show c)]
+        C.AbilityCheckFailure ambient requested ->
+          [ "AbilityCheckFailure:\n"
+          , "    ambient: " ] ++
+          (AT.Text . renderType env (const id) <$> ambient) ++
+          [ "\n    requested: "] ++
+          (AT.Text . renderType env (const id) <$> requested) ++
+          [ "\n"]
+        C.EffectConstructorWrongArgCount e a r cid ->
+          [ "EffectConstructorWrongArgCount:\n"
+          , "  expected: ", (fromString . show) e
+          , ", actual: ", (fromString . show) a
+          , ", reference: ", AT.Text (showConstructor' env r cid)
+          , "\n" ]
+        C.SolvedBlank recorded v t ->
+          [ "SolvedBlank: "
+          , case recorded of
+              B.Placeholder loc s ->
+                fromString ("Placeholder " ++ show s ++ annotatedToEnglish loc)
+              B.Resolve loc s ->
+                fromString ("Resolve " ++ show s ++ annotatedToEnglish loc)
+          , " v="
+          , (fromString . show) v
+          , " t="
+          , AT.Text . renderType env (const id) $ t
+          ]
 
 renderType :: Var v
            => Env
