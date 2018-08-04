@@ -107,7 +107,7 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
               ])
     ]
   Other note ->
-    [ "Uh oh, you hit an error we didn't think of!\n\n"
+    [ "Sorry, you hit an error we didn't make a nice message for yet.\n\n"
     , "Here is a summary of the Note:\n"
     , "  'simple' cause: "
     ] ++ simpleCause (C.cause note) ++
@@ -117,7 +117,7 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     [ "\n" ]
     where
       simplePath :: C.PathElement v a -> [AT.Section Color.Style]
-      simplePath e = simplePath' e ++ ["\n"]
+      simplePath e = ["  "] ++ simplePath' e ++ ["\n"]
       simplePath' :: C.PathElement v a -> [AT.Section Color.Style]
       simplePath' = \case
         C.InSynthesize _e -> ["InSynthesize e=..."]
