@@ -66,16 +66,16 @@ renderTypeError :: forall v a. (Var v, Annotated a, Eq a, Show a)
 renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
   Mismatch {..} ->
     [ (fromString . annotatedToEnglish) mismatchSite
-    , " has a type mismatch:\n\n"
-    -- , " has a type mismatch (", AT.Describe Color.ErrorSite, " below):\n\n"
+    -- , " has a type mismatch:\n\n"
+    , " has a type mismatch (", AT.Describe Color.ErrorSite, " below):\n\n"
     , AT.Blockquote $ AT.markup (fromString src)
             (Set.fromList $ catMaybes
               [ (,Color.Type1) <$> rangeForType leaf1
               , (,Color.Type2) <$> rangeForType leaf2
               , (,Color.ForceShow) <$> rangeForType overallType1
               , (,Color.ForceShow) <$> rangeForType overallType2
-              , (,Color.ForceShow) <$> rangeForAnnotated mismatchSite
-              -- , (,Color.ErrorSite) <$> rangeForAnnotated mismatchSite
+              -- , (,Color.ForceShow) <$> rangeForAnnotated mismatchSite
+              , (,Color.ErrorSite) <$> rangeForAnnotated mismatchSite
               ])
     , "\n"
     , "The two types involved are:\n\n"
@@ -95,7 +95,9 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     , "\n"
     ]
   AbilityCheckFailure {..} ->
-    [ (fromString . annotatedToEnglish) abilityCheckFailureSite
+    [ "The expression at "
+    , (fromString . annotatedToEnglish) abilityCheckFailureSite
+    , " (", AT.Describe Color.ErrorSite, " below)"
     , " is requesting\n"
     , "    ", fromString $ show requested
     , " effects, but this location only has access to\n"
@@ -103,20 +105,21 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     , "\n\n"
     , AT.Blockquote $ AT.markup (fromString src)
             (Set.fromList . catMaybes $ [
-              (,Color.ForceShow) <$> rangeForAnnotated abilityCheckFailureSite
+              (,Color.ErrorSite) <$> rangeForAnnotated abilityCheckFailureSite
               ])
     ]
   Other note ->
     [ "Sorry, you hit an error we didn't make a nice message for yet.\n\n"
     , "Here is a summary of the Note:\n"
-    , "  'simple' cause: "
+    , "  simple cause:\n"
+    , "    "
     ] ++ simpleCause (C.cause note) ++ [ "\n"
     , "  path:\n"
     ] ++ mconcat (simplePath <$> toList (C.path note)) ++
     [ "\n" ]
     where
       simplePath :: C.PathElement v a -> [AT.Section Color.Style]
-      simplePath e = ["  "] ++ simplePath' e ++ ["\n"]
+      simplePath e = ["    "] ++ simplePath' e ++ ["\n"]
       simplePath' :: C.PathElement v a -> [AT.Section Color.Style]
       simplePath' = \case
         C.InSynthesize _e -> ["InSynthesize e=..."]
@@ -136,8 +139,14 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
           ,", e=..."]
       simpleCause :: C.Cause v a -> [AT.Section Color.Style]
       simpleCause = \case
-        C.TypeMismatch _ -> ["TypeMismatch"]
-        C.IllFormedType _ -> ["IllFormedType"]
+        C.TypeMismatch c ->
+          ["TypeMismatch\n"
+          ,"  context:\n"
+          ,fromString . init . unlines . (fmap ("  "++)) . lines . show $ c]
+        C.IllFormedType c ->
+          ["IllFormedType\n"
+          ,"  context:\n"
+          ,fromString . init . unlines . (fmap ("  "++)) . lines . show $ c]
         C.UnknownSymbol loc v ->
           [ "UnknownSymbol: ", (fromString . show) loc
           , " ", (fromString . show) v
@@ -159,9 +168,9 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
           [ "SolvedBlank: "
           , case recorded of
               B.Placeholder loc s ->
-                fromString ("Placeholder " ++ show s ++ annotatedToEnglish loc)
+                fromString ("Placeholder " ++ show s ++ " " ++ annotatedToEnglish loc)
               B.Resolve loc s ->
-                fromString ("Resolve " ++ show s ++ annotatedToEnglish loc)
+                fromString ("Resolve " ++ show s ++ " "++ annotatedToEnglish loc)
           , " v="
           , (fromString . show) v
           , " t="
