@@ -110,8 +110,7 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     [ "Sorry, you hit an error we didn't make a nice message for yet.\n\n"
     , "Here is a summary of the Note:\n"
     , "  'simple' cause: "
-    ] ++ simpleCause (C.cause note) ++
-    [ "\n"
+    ] ++ simpleCause (C.cause note) ++ [ "\n"
     , "  path:\n"
     ] ++ mconcat (simplePath <$> toList (C.path note)) ++
     [ "\n" ]
@@ -140,21 +139,22 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
         C.TypeMismatch _ -> ["TypeMismatch"]
         C.IllFormedType _ -> ["IllFormedType"]
         C.UnknownSymbol loc v ->
-          [ "UnknownSymbol: ", (fromString . show) loc, " ", (fromString . show) v ]
+          [ "UnknownSymbol: ", (fromString . show) loc
+          , " ", (fromString . show) v
+          ]
         C.CompilerBug c -> ["CompilerBug: ", fromString (show c)]
         C.AbilityCheckFailure ambient requested ->
           [ "AbilityCheckFailure:\n"
           , "    ambient: " ] ++
           (AT.Text . renderType env (const id) <$> ambient) ++
           [ "\n    requested: "] ++
-          (AT.Text . renderType env (const id) <$> requested) ++
-          [ "\n"]
+          (AT.Text . renderType env (const id) <$> requested)
         C.EffectConstructorWrongArgCount e a r cid ->
-          [ "EffectConstructorWrongArgCount:\n"
-          , "  expected: ", (fromString . show) e
-          , ", actual: ", (fromString . show) a
-          , ", reference: ", AT.Text (showConstructor' env r cid)
-          , "\n" ]
+          [ "EffectConstructorWrongArgCount:"
+          , "  expected=", (fromString . show) e
+          , ", actual=", (fromString . show) a
+          , ", reference=", AT.Text (showConstructor' env r cid)
+          ]
         C.SolvedBlank recorded v t ->
           [ "SolvedBlank: "
           , case recorded of
