@@ -32,7 +32,10 @@ data AnnotatedExcerpt a = AnnotatedExcerpt
   , annotations :: Set (Range, a)
   } deriving (Eq, Ord, Show)
 
-newtype Rendered a = Rendered (Seq String)
+newtype Rendered a = Rendered { rawRender :: Seq String } deriving (Eq)
+
+textToDoc :: AnnotatedText (Maybe a) -> AnnotatedDocument a
+textToDoc = AnnotatedDocument . pure . Text
 
 excerptToDoc :: AnnotatedExcerpt a -> AnnotatedDocument a
 excerptToDoc = AnnotatedDocument . pure . Blockquote

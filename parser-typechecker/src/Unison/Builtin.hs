@@ -43,7 +43,9 @@ parseDataDeclAsBuiltin :: Var v => String -> (v, (R.Reference, DataDeclaration v
 parseDataDeclAsBuiltin s =
   let (v, dd) = either (error . prettyParseError s) id $
         Parser.run (Parser.root FileParser.dataDeclaration) s Parser.penv0
-  in (v, (R.Builtin . Var.qualifiedName $ v, DD.bindBuiltins builtinTypes dd))
+  in (v, (R.Builtin . Var.qualifiedName $ v,
+          const Intrinsic <$> 
+          DD.bindBuiltins builtinTypes dd))
 
 bindBuiltins :: Var v => Term v -> Term v
 bindBuiltins = Term.bindBuiltins builtinTerms builtinTypes

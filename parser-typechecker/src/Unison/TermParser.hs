@@ -36,6 +36,11 @@ import qualified Unison.TypeParser as TypeParser
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 
+import Debug.Trace
+
+watch :: Show a => String -> a -> a
+watch msg a = let !_ = trace (msg ++ ": " ++ show a) () in a
+
 {-
 Precedence of language constructs is identical to Haskell, except that all
 operators (like +, <*>, or any sequence of non-alphanumeric characters) are
@@ -175,10 +180,11 @@ handle = label "handle" $ do
   pure $ Term.handle (ann t <> ann b) handler b
 
 ifthen = label "if" $ do
+  start <- peekAny
   c <- block "if"
   t <- block "then"
   f <- block "else"
-  pure $ Term.iff (ann c <> ann f) c t f
+  pure $ Term.iff (ann start <> ann f) c t f
 
 hashLit :: Var v => TermP v
 hashLit = tok Term.derived <$> hashLiteral
@@ -313,14 +319,14 @@ block' s openBlock closeBlock = do
     let sem = P.try (semi <* P.lookAhead (reserved "use"))
     imports <- mconcat . reverse <$> sepBy sem importp
     _ <- optional semi
-    statements <- local (importing imports) $ sepBy semi statement
+    env <- importing imports <$> ask
+    statements <- local (const env) $ sepBy semi statement
     _ <- closeBlock
     let
       importTerms = [ (n, Term.var() qn) | (n,qn) <- imports ]
-      importTypes = [ (n, Type.var() qn) | (n,qn) <- imports ]
       substImports tm =
         ABT.substsInheritAnnotation importTerms .
-        Term.typeMap (ABT.substsInheritAnnotation importTypes) $ tm
+        Term.typeMap (Type.bindBuiltins . Map.toList $ typesByName env) $ tm
     substImports <$> go open statements
   where
     name = Var.nameds . L.payload <$> (wordyId <|> symbolyId)
@@ -356,8 +362,9 @@ block' s openBlock closeBlock = do
       let vs = (snd . fst) <$> bs
           prefix v = Var.named (Text.pack name `mappend` "." `mappend` Var.name v)
           vs' = prefix <$> vs
-      in [ ((a, v'), ABT.substInheritAnnotation v (Term.var a v') e) |
-           (((a,v),e), v') <- bs `zip` vs' ]
+          substs = [ (v, Term.var () v') | (v,v') <- vs `zip` vs' ]
+          sub e = ABT.substsInheritAnnotation substs e
+      in [ ((a, v'), sub e) | (((a,_),e), v') <- bs `zip` vs' ]
 
     go :: L.Token () -> [BlockElement v] -> P v (AnnotatedTerm v Ann)
     go open bs =

@@ -6,7 +6,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Typechecker.Context (synthesizeClosed, Note(..), Cause(..), PathElement(..), Type, Term) where
+module Unison.Typechecker.Context (synthesizeClosed, Note(..), Cause(..), PathElement(..), Type, Term, errorTerms, innermostErrorTerm) where
 
 import           Control.Monad
 import           Control.Monad.Loops (anyM, allM)
@@ -109,6 +109,16 @@ data Cause v loc
   | EffectConstructorWrongArgCount ExpectedArgCount ActualArgCount Reference ConstructorId
   | SolvedBlank (B.Recorded loc) v (Type v loc)
   deriving Show
+
+errorTerms :: Note v loc -> [Term v loc]
+errorTerms n = Foldable.toList (path n) >>= \e -> case e of
+  InCheck e _         -> [e]
+  InSynthesizeApp _ e -> [e]
+  InSynthesize e      -> [e]
+  _                     -> []
+
+innermostErrorTerm :: Note v loc -> Maybe (Term v loc)
+innermostErrorTerm n = listToMaybe $ errorTerms n
 
 data Note v loc = Note { cause :: Cause v loc, path :: Seq (PathElement v loc) } deriving Show
 
@@ -534,11 +544,11 @@ synthesize e = scope (InSynthesize e) $ go (minimize' e)
              pure t
       else pure t
   go (Term.Ann' e' t) = t <$ check e' t
-  go (Term.Float' _) = getBuiltinLocation >>= pure . Type.float -- 1I=>
-  go (Term.Int64' _) = getBuiltinLocation >>= pure . Type.int64 -- 1I=>
-  go (Term.UInt64' _) = getBuiltinLocation >>= pure . Type.uint64 -- 1I=>
-  go (Term.Boolean' _) = getBuiltinLocation >>= pure . Type.boolean
-  go (Term.Text' _) = getBuiltinLocation >>= pure . Type.text
+  go (Term.Float' _) = pure $ Type.float l -- 1I=>
+  go (Term.Int64' _) = pure $ Type.int64 l -- 1I=>
+  go (Term.UInt64' _) = pure $ Type.uint64 l -- 1I=>
+  go (Term.Boolean' _) = pure $ Type.boolean l
+  go (Term.Text' _) = pure $ Type.text l
   go (Term.App' f arg) = do -- ->E
     -- todo: might want to consider using a different location for `ft` in
     -- the event that `ft` is an existential?

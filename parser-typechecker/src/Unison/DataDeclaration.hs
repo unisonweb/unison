@@ -28,7 +28,7 @@ data DataDeclaration' v a = DataDeclaration {
   annotation :: a,
   bound :: [v], -- todo: do we actually use the names? or just the length
   constructors' :: [(a, v, AnnotatedType v a)]
-} deriving (Show,Functor)
+} deriving (Show, Functor)
 
 constructors :: DataDeclaration' v a -> [(v, AnnotatedType v a)]
 constructors (DataDeclaration _ _ ctors) = [(v,t) | (_,v,t) <- ctors ]
