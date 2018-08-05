@@ -61,22 +61,19 @@ term2 = lam term2 <|> term3
 
 term3 :: Var v => TermP v
 term3 = do
-  t <- letBlock <|> handle <|> ifthen <|> and <|> or <|> match <|> infixApp
+  t <- and <|> or <|> infixApp
   ot <- optional (reserved ":" *> TypeParser.computationType)
   pure $ case ot of
     Nothing -> t
     Just y -> Term.ann (mkAnn t y) t y
 
+keywordBlock :: Var v => TermP v
+keywordBlock = letBlock <|> handle <|> ifthen <|> match
+
 -- We disallow type annotations and lambdas,
 -- just function application and operators
 blockTerm :: Var v => TermP v
-blockTerm = letBlock <|> handle <|> ifthen <|> and <|> or <|> match <|>
-            delayBlock <|> lam term <|> infixApp
-
-delayBlock :: Var v => TermP v
-delayBlock = do
-  b <- block "delay"
-  pure $ Term.delay (ann b) b
+blockTerm = and <|> or <|> lam term <|> infixApp
 
 match :: Var v => TermP v
 match = do
@@ -211,7 +208,7 @@ vector p = f <$> reserved "[" <*> elements <*> reserved "]"
 termLeaf :: forall v. Var v => TermP v
 termLeaf =
   asum [hashLit, prefixTerm, text, number, boolean,
-        tupleOrParenthesizedTerm, placeholder, vector term,
+        tupleOrParenthesizedTerm, keywordBlock, placeholder, vector term,
         delayQuote, bang]
 
 delayQuote :: Var v => TermP v
