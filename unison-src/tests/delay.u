@@ -10,9 +10,9 @@ type Foo a = Foo a
 woot : 'UInt64
 woot = '42
 
--- A 'a can also be created with the `delay` layout block:
+-- A 'a can also be created by prefixing `let` with a '
 woot2 : 'UInt64
-woot2 = delay
+woot2 = 'let
   x = 1
   y = 2
   x + y
@@ -28,7 +28,7 @@ woot4 foo = !foo
 woot4-usage = woot4 '(Foo.Foo 19)
 
 woot4-usage2 =
-  foo = delay
+  foo = 'let
     x : UInt64
     x = 99
     Foo.Foo (x + x)
