@@ -29,7 +29,8 @@ import qualified Unison.Typechecker as Typechecker
 import           Unison.UnisonFile (pattern UnisonFile)
 import qualified Unison.UnisonFile as UF
 import           Unison.Var (Var)
--- import qualified Debug.Trace as Trace
+import qualified Unison.Var as Var
+import qualified Data.Text as Text
 
 type Term v = AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
@@ -54,12 +55,20 @@ synthesizeFile unisonFile =
       datas = Map.union dds B.builtinDataDecls -- `Map.union` is left-biased
       effects = Map.union eds B.builtinEffectDecls
       env0 = Typechecker.Env
-               Intrinsic [] typeOf dataDeclaration effectDeclaration
+               Intrinsic
+               []
+               typeOf
+               dataDeclaration
+               effectDeclaration
+               (Map.fromList $
+                 fmap (\(v, (_tm, typ)) -> (unqualified $ Var.name v, typ))
+                      B.builtinTypedTerms)
       n = Typechecker.synthesize env0 term
       die s h = error $ "unknown " ++ s ++ " reference " ++ show h
       typeOf r = error $ "unknown reference " ++ show r
       dataDeclaration r = pure $ fromMaybe (die "data" r) $ Map.lookup r datas
       effectDeclaration r = pure $ fromMaybe (die "effect" r) $ Map.lookup r effects
+      unqualified = last . Text.splitOn "."
   in (term,) <$> runIdentity n
 
 synthesizeUnisonFile :: Var v

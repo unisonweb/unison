@@ -1,5 +1,6 @@
 module Unison.Test.Common where
 
+import qualified Data.Map as Map
 import qualified Unison.Builtin as B
 import qualified Unison.FileParsers as FP
 import           Unison.Parser (Ann(..))
@@ -32,7 +33,7 @@ typechecks :: String -> Bool
 typechecks = Result.isSuccess . file
 
 env :: Monad m => Typechecker.Env m Symbol Ann
-env = Typechecker.Env Intrinsic [] typeOf dd ed where
+env = Typechecker.Env Intrinsic [] typeOf dd ed Map.empty where
   typeOf r = error $ "no type for: " ++ show r
   dd r = error $ "no data declaration for: " ++ show r
   ed r = error $ "no effect declaration for: " ++ show r

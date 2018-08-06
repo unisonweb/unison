@@ -290,7 +290,11 @@ iff a cond t f = ABT.tm' a (If cond t f)
 ann_ :: Ord v => Term' vt v -> Type vt -> Term' vt v
 ann_ e t = ABT.tm (Ann e t)
 
-ann :: Ord v => a -> AnnotatedTerm2 vt at ap v a -> Type.AnnotatedType vt at -> AnnotatedTerm2 vt at ap v a
+ann :: Ord v
+    => a
+    -> AnnotatedTerm2 vt at ap v a
+    -> Type.AnnotatedType vt at
+    -> AnnotatedTerm2 vt at ap v a
 ann a e t = ABT.tm' a (Ann e t)
 
 -- arya: are we sure we want the two annotations to be the same?

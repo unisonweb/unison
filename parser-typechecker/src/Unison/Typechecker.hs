@@ -8,7 +8,9 @@
 
 module Unison.Typechecker where
 
+import           Data.Map (Map)
 import           Data.Maybe (isJust)
+import           Data.Text (Text)
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
 import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
@@ -40,7 +42,7 @@ data Env f v loc = Env
   , typeOf :: Reference -> f (Type v loc)
   , dataDeclaration :: Reference -> f (DataDeclaration' v loc)
   , effectDeclaration :: Reference -> f (EffectDeclaration' v loc)
-  -- , terms :: Map Reference (Type v loc)
+  , terms :: Map Text (Type v loc)
   }
 
 -- -- | Compute the allowed type of a replacement for a given subterm.
@@ -124,21 +126,32 @@ synthesize env t =
       (effectDeclaration env)
       (Term.vtmap TypeVar.Universal t)
 
-resolveAndSynthesize
+-- Synthesize and do type-directed name resolution
+synthesizeAndResolve
   :: (Monad f, Var v, Ord loc)
   => Env f v loc
   -> Term v loc
   -> f (Result (Note v loc) (Type v loc))
-resolveAndSynthesize env t = do
-  r <- synthesize env t
-  let resolveds = notes r >>= \n ->
-        case n of
-          Typechecking
-            (Context.Note (Context.SolvedBlank (B.Resolve loc name) _ typ) _) ->
-              [(loc, name, typ)]
-          _ -> []
-  _ <- pure $ resolveds
-  pure r
+synthesizeAndResolve env t = do
+    r <- synthesize env t
+    let _ = notes r >>= \n ->
+          case n of
+            Typechecking
+              (Context.Note (Context.SolvedBlank (B.Resolve loc name) _ typ) _) ->
+                [(loc, name, typ)]
+            _ -> []
+    -- look in the env for references to things with:
+    -- 1. A matching name (prefixed with .+\.) and type.
+    --    Tell the user about these and suggest an import.
+    -- 2. There's more than one name that exactly matches,
+    --    but only one that typechecks. Substitute that one into the code.
+    -- 3. Matching name but incorrect type. Tell the user about this.
+    -- 4. Matching type but not by that name. Tell the user about these.
+    -- 5. No match at all. Throw an unresolved symbol at the user.
+    -- traverse resolveds
+    pure r
+  --where
+    --f (loc, name, typ) = terms env name
 
 -- | Check whether a term matches a type, using a
 -- function to resolve the type of @Ref@ constructors
