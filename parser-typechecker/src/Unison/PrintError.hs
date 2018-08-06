@@ -100,9 +100,9 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     , (fromString . annotatedToEnglish) abilityCheckFailureSite
     , " (", AT.Describe Color.ErrorSite, " below)"
     , " is requesting\n"
-    , "    {", AT.Text $ intercalateMap ", " (renderType env (const id)) requested, "}"
+    , "    {", AT.Text $ commas (renderType' env) requested, "}"
     , " effects, but this location only has access to\n"
-    , "    {", AT.Text $ intercalateMap ", " (renderType env (const id)) ambient, "}"
+    , "    {", AT.Text $ commas (renderType' env) ambient, "}"
     , "\n\n"
     , AT.Blockquote $ AT.markup (fromString src)
             (Set.fromList . catMaybes $ [
@@ -125,18 +125,18 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
       simplePath' = \case
         C.InSynthesize e -> ["InSynthesize e= ", fromString (take 10 (show e)), "..."]
         C.InSubtype t1 t2 -> ["InSubtype t1="
-                             , AT.Text $ renderType env (const id) t1
+                             , AT.Text $ renderType' env t1
                              , ", t2="
-                             , AT.Text $ renderType env (const id) t2]
-        C.InCheck _e t -> ["InCheck e=..., t=", AT.Text $ renderType env (const id) t]
+                             , AT.Text $ renderType' env t2]
+        C.InCheck _e t -> ["InCheck e=..., t=", AT.Text $ renderType' env t]
         C.InInstantiateL v t ->
           ["InInstantiateL v=", AT.Text $ renderVar v
-                       ,", t=", AT.Text $ renderType env (const id) t]
+                       ,", t=", AT.Text $ renderType' env t]
         C.InInstantiateR t v ->
-          ["InInstantiateR t=", AT.Text $ renderType env (const id) t
+          ["InInstantiateR t=", AT.Text $ renderType' env t
                         ," v=", AT.Text $ renderVar v]
         C.InSynthesizeApp t e -> ["InSynthesizeApp"
-          ," t=", AT.Text $ renderType env (const id) t
+          ," t=", AT.Text $ renderType' env t
           ,", e=", fromString (take 10 (show e)), "..."]
       simpleCause :: C.Cause v a -> [AT.Section Color.Style]
       simpleCause = \case
@@ -156,9 +156,9 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
         C.AbilityCheckFailure ambient requested ->
           [ "AbilityCheckFailure:\n"
           , "    ambient: " ] ++
-          (AT.Text . renderType env (const id) <$> ambient) ++
+          (AT.Text . renderType' env <$> ambient) ++
           [ "\n    requested: "] ++
-          (AT.Text . renderType env (const id) <$> requested)
+          (AT.Text . renderType' env <$> requested)
         C.EffectConstructorWrongArgCount e a r cid ->
           [ "EffectConstructorWrongArgCount:"
           , "  expected=", (fromString . show) e
@@ -175,9 +175,15 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
           , " v="
           , (fromString . show) v
           , " t="
-          , AT.Text . renderType env (const id) $ t
+          , AT.Text . renderType' env $ t
           ]
 
+-- | renders a type with no special styling
+renderType' :: Var v => Env -> C.Type v loc -> StyledText
+renderType' env typ = renderType env (const id) typ
+
+-- | `f` may do some styling based on `loc`.
+-- | You can pass `(const id)` if no styling is needed, or call `renderType'`.
 renderType :: Var v
            => Env
            -> (loc -> StyledText -> StyledText)
@@ -201,9 +207,15 @@ renderType env f = renderType0 env f (0 :: Int) where
     Type.Var' v -> renderVar v
     _ -> error "pattern match failure in PrintError.renderType"
     where go = renderType0 env f
-          spaces = intercalateMap " "
-          arrows = intercalateMap " -> "
-          commas = intercalateMap ", "
+
+spaces :: (IsString a, Monoid a) => (b -> a) -> [b] -> a
+spaces = intercalateMap " "
+
+arrows :: (IsString a, Monoid a) => (b -> a) -> [b] -> a
+arrows = intercalateMap " -> "
+
+commas :: (IsString a, Monoid a) => (b -> a) -> [b] -> a
+commas = intercalateMap ", "
 
 renderVar :: Var v => v -> StyledText
 renderVar = fromString . Text.unpack . Var.name
