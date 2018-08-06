@@ -123,7 +123,7 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
       simplePath e = ["    "] ++ simplePath' e ++ ["\n"]
       simplePath' :: C.PathElement v a -> [AT.Section Color.Style]
       simplePath' = \case
-        C.InSynthesize e -> ["InSynthesize e= ", fromString (take 10 (show e)), "..."]
+        C.InSynthesize e -> ["InSynthesize e= ", fromString (take 25 (show e)), "..."]
         C.InSubtype t1 t2 -> ["InSubtype t1="
                              , AT.Text $ renderType env (const id) t1
                              , ", t2="
@@ -177,6 +177,11 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
           , " t="
           , AT.Text . renderType env (const id) $ t
           ]
+        C.MalformedEffectBind ctorType ctorResult es ->
+          [ "MalformedEffectBind: "
+          , "  ctorType=", AT.Text $ renderType env (\_ s -> s) ctorType
+          , "  ctorResult=", AT.Text $ renderType env (\_ s -> s) ctorResult
+          , "  effects=", fromString $ show es ]
 
 renderType :: Var v
            => Env
