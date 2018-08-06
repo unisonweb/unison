@@ -12,6 +12,15 @@ if [ -z "$binary" ]; then
   exit 1
 fi
 
+function horizontal_line {
+  cols=`tput cols`
+  char="="
+  printf "%0.s$char" $(seq 1 $cols)
+  echo
+}
+
+horizontal_line
+
 echo "Parsing/typechecking..." &&
   stack exec bootstrap "$source" "$binary" &&
   echo "Executing..." &&
