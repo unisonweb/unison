@@ -6,7 +6,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Typechecker.Context (synthesizeClosed, Note(..), Cause(..), PathElement(..), Type, Term, errorTerms, innermostErrorTerm) where
+module Unison.Typechecker.Context (synthesizeClosed, Note(..), Cause(..), PathElement(..), Type, Term, errorTerms, innermostErrorTerm, apply) where
 
 import           Control.Monad
 import           Control.Monad.Loops (anyM, allM)
@@ -476,7 +476,7 @@ withEffects0 abilities' m =
 -- e.g. in `(f:t) x` -- finds the type of (f x) given t and x.
 synthesizeApp :: (Var v, Ord loc) => Type v loc -> Term v loc -> M v loc (Type v loc)
 -- synthesizeApp ft arg | debugEnabled && traceShow ("synthesizeApp"::String, ft, arg) False = undefined
-synthesizeApp ft arg = scope (InSynthesizeApp ft arg) $ go ft where
+synthesizeApp (Type.Effect'' _ ft) arg = scope (InSynthesizeApp ft arg) $ go ft where
   go (Type.Forall' body) = do -- Forall1App
     v <- ABT.freshen body freshenTypeVar
     appendContext (context [existential v])
@@ -497,6 +497,7 @@ synthesizeApp ft arg = scope (InSynthesizeApp ft arg) $ go ft where
     modifyContext' $ replace (existential a) ctxMid
     ot <$ check arg it
   go _ = getContext >>= \ctx -> failWith $ TypeMismatch ctx
+synthesizeApp _ _ = error "unpossible - Type.Effect'' pattern always succeeds"
 
 -- For arity 3, creates the type `∀ a . a -> a -> a -> Sequence a`
 -- For arity 2, creates the type `∀ a . a -> a -> Sequence a`

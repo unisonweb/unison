@@ -39,7 +39,8 @@ import           Unison.Util.ColorText (StyledText)
 import qualified Unison.Util.ColorText as Color
 import           Unison.Util.Monoid (intercalateMap)
 import           Unison.Util.Range (Range (..))
-import           Unison.Var (Var, qualifiedName)
+import           Unison.Var (Var)
+import qualified Unison.Var as Var
 
 data Env = Env { referenceNames   :: Map R.Reference String
                , constructorNames :: Map (R.Reference, Int) String }
@@ -122,7 +123,7 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
       simplePath e = ["    "] ++ simplePath' e ++ ["\n"]
       simplePath' :: C.PathElement v a -> [AT.Section Color.Style]
       simplePath' = \case
-        C.InSynthesize _e -> ["InSynthesize e=..."]
+        C.InSynthesize e -> ["InSynthesize e= ", fromString (take 10 (show e)), "..."]
         C.InSubtype t1 t2 -> ["InSubtype t1="
                              , AT.Text $ renderType env (const id) t1
                              , ", t2="
@@ -134,9 +135,9 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
         C.InInstantiateR t v ->
           ["InInstantiateR t=", AT.Text $ renderType env (const id) t
                         ," v=", AT.Text $ renderVar v]
-        C.InSynthesizeApp t _e -> ["InSynthesizeApp"
+        C.InSynthesizeApp t e -> ["InSynthesizeApp"
           ," t=", AT.Text $ renderType env (const id) t
-          ,", e=..."]
+          ,", e=", fromString (take 10 (show e)), "..."]
       simpleCause :: C.Cause v a -> [AT.Section Color.Style]
       simpleCause = \case
         C.TypeMismatch c ->
@@ -205,7 +206,7 @@ renderType env f = renderType0 env f (0 :: Int) where
           commas = intercalateMap ", "
 
 renderVar :: Var v => v -> StyledText
-renderVar = fromString . Text.unpack . qualifiedName
+renderVar = fromString . Text.unpack . Var.name
 
 renderKind :: Kind -> StyledText
 renderKind Kind.Star          = "*"
@@ -269,17 +270,21 @@ rangeForAnnotated a = case ann a of
 -- highlightString :: String -> [()]
 
 --
-typeErrorFromNote :: C.Note v loc -> TypeError v loc
-typeErrorFromNote n@(C.Note (C.TypeMismatch _) path) =
+typeErrorFromNote :: (Ord loc, Var v) => C.Note v loc -> TypeError v loc
+typeErrorFromNote n@(C.Note (C.TypeMismatch ctx) path) =
   let
     pathl = toList path
     subtypes = [ (t1, t2) | C.InSubtype t1 t2 <- pathl ]
     firstSubtype = listToMaybe subtypes
     lastSubtype = if null subtypes then Nothing else Just (last subtypes)
     innermostTerm = C.innermostErrorTerm n
+    -- replace any type vars with their solutions before returning
+    sub t = C.apply ctx t
   in case (firstSubtype, lastSubtype, innermostTerm) of
        (Just (leaf1, leaf2), Just (overall1, overall2), Just mismatchSite) ->
-         Mismatch overall1 overall2 leaf1 leaf2 (ABT.annotation mismatchSite)
+         Mismatch (sub overall1) (sub overall2)
+                  (sub leaf1) (sub leaf2)
+                  (ABT.annotation mismatchSite)
        _ -> Other n
 typeErrorFromNote n@(C.Note (C.AbilityCheckFailure amb req) _) =
   let go e = AbilityCheckFailure amb req (ABT.annotation e)
@@ -289,12 +294,12 @@ typeErrorFromNote n@(C.Note _ _) = Other n
 showLexerOutput :: Bool
 showLexerOutput = False
 
-printNoteWithSourceAsAnsi :: (Var v, Annotated a, Show a, Eq a)
+printNoteWithSourceAsAnsi :: (Var v, Annotated a, Show a, Ord a)
                           => Env -> String -> Note v a -> String
 printNoteWithSourceAsAnsi e s n =
   show . Color.renderDocANSI 6 $ printNoteWithSource e s n
 
-printNoteWithSource :: (Var v, Annotated a, Show a, Eq a)
+printNoteWithSource :: (Var v, Annotated a, Show a, Ord a)
                     => Env
                     -> String
                     -> Note v a
@@ -306,7 +311,7 @@ printNoteWithSource _env s (InvalidPath path term) =
   <> AT.sectionToDoc
       (showSource s [(,Color.ErrorSite) <$> rangeForAnnotated term])
 printNoteWithSource _env s (UnknownSymbol v a) =
-  fromString ("Unknown symbol `" ++ Text.unpack (qualifiedName v) ++ "`\n\n")
+  fromString ("Unknown symbol `" ++ Text.unpack (Var.name v) ++ "`\n\n")
   <> AT.sectionToDoc (showSource s [(,Color.ErrorSite) <$> rangeForAnnotated a])
 
 _printPosRange :: String -> L.Pos -> L.Pos -> String
@@ -405,7 +410,7 @@ findTerm = go
         go (_ :<| t)                     = go t
         go Empty                         = Nothing
 
-prettyTypecheckError :: (Var v, Eq loc, Show loc, Parser.Annotated loc)
+prettyTypecheckError :: (Var v, Ord loc, Show loc, Parser.Annotated loc)
                      => Env
                      -> String
                      -> C.Note v loc -> AT.AnnotatedDocument Color.Style
