@@ -39,7 +39,8 @@ import           Unison.Util.ColorText (StyledText)
 import qualified Unison.Util.ColorText as Color
 import           Unison.Util.Monoid (intercalateMap)
 import           Unison.Util.Range (Range (..))
-import           Unison.Var (Var, qualifiedName)
+import           Unison.Var (Var)
+import qualified Unison.Var as Var
 
 data Env = Env { referenceNames   :: Map R.Reference String
                , constructorNames :: Map (R.Reference, Int) String }
@@ -122,7 +123,7 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
       simplePath e = ["    "] ++ simplePath' e ++ ["\n"]
       simplePath' :: C.PathElement v a -> [AT.Section Color.Style]
       simplePath' = \case
-        C.InSynthesize _e -> ["InSynthesize e=..."]
+        C.InSynthesize e -> ["InSynthesize e= ", fromString (take 10 (show e)), "..."]
         C.InSubtype t1 t2 -> ["InSubtype t1="
                              , AT.Text $ renderType env (const id) t1
                              , ", t2="
@@ -134,9 +135,9 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
         C.InInstantiateR t v ->
           ["InInstantiateR t=", AT.Text $ renderType env (const id) t
                         ," v=", AT.Text $ renderVar v]
-        C.InSynthesizeApp t _e -> ["InSynthesizeApp"
+        C.InSynthesizeApp t e -> ["InSynthesizeApp"
           ," t=", AT.Text $ renderType env (const id) t
-          ,", e=..."]
+          ,", e=", fromString (take 10 (show e)), "..."]
       simpleCause :: C.Cause v a -> [AT.Section Color.Style]
       simpleCause = \case
         C.TypeMismatch c ->
@@ -205,7 +206,7 @@ renderType env f = renderType0 env f (0 :: Int) where
           commas = intercalateMap ", "
 
 renderVar :: Var v => v -> StyledText
-renderVar = fromString . Text.unpack . qualifiedName
+renderVar = fromString . Text.unpack . Var.name
 
 renderKind :: Kind -> StyledText
 renderKind Kind.Star          = "*"
@@ -306,7 +307,7 @@ printNoteWithSource _env s (InvalidPath path term) =
   <> AT.sectionToDoc
       (showSource s [(,Color.ErrorSite) <$> rangeForAnnotated term])
 printNoteWithSource _env s (UnknownSymbol v a) =
-  fromString ("Unknown symbol `" ++ Text.unpack (qualifiedName v) ++ "`\n\n")
+  fromString ("Unknown symbol `" ++ Text.unpack (Var.name v) ++ "`\n\n")
   <> AT.sectionToDoc (showSource s [(,Color.ErrorSite) <$> rangeForAnnotated a])
 
 _printPosRange :: String -> L.Pos -> L.Pos -> String
