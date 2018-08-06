@@ -32,13 +32,24 @@ computationType = effect <|> valueType
 
 valueTypeLeaf :: Var v => TypeP v
 valueTypeLeaf =
-  tupleOrParenthesizedType valueType <|> typeVar
+  tupleOrParenthesizedType valueType <|> typeVar <|> sequenceTyp
 
 typeVar :: Var v => TypeP v
 typeVar = posMap (\pos -> Type.av' pos . Text.pack) wordyId
 
 type1 :: Var v => TypeP v
-type1 = arrow type2
+type1 = arrow type2a
+
+type2a :: Var v => TypeP v
+type2a = delayed <|> type2
+
+delayed :: Var v => TypeP v
+delayed = do
+  q <- reserved "'"
+  t <- effect <|> type2
+  pure $ Type.arrow (Ann (L.start q) (end $ ann t))
+                    (Type.builtin (ann q) "()")
+                    t
 
 type2 :: Var v => TypeP v
 type2 = app valueTypeLeaf
@@ -52,6 +63,14 @@ effect = do
   _ <- reserved "}"
   t <- valueTypeLeaf
   pure (Type.effect (Ann (L.start open) (end $ ann t)) es t)
+
+sequenceTyp :: Var v => TypeP v
+sequenceTyp = do
+  open <- reserved "["
+  t <- valueType
+  close <- reserved "]"
+  let a = ann open <> ann close
+  pure $ Type.app a (Type.vector a) t
 
 tupleOrParenthesizedType :: Var v => TypeP v -> TypeP v
 tupleOrParenthesizedType rec = tupleOrParenthesized rec unit pair

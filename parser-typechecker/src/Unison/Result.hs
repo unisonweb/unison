@@ -6,7 +6,6 @@ import Data.Sequence (Seq)
 import qualified Data.Foldable as Foldable
 import qualified Unison.Typechecker.Context as Context
 import Unison.Paths (Path)
-import Unison.Reference (Reference)
 import Unison.Term (AnnotatedTerm)
 import qualified Unison.Parser as Parser
 
@@ -18,7 +17,7 @@ data Note v loc
   = Parsing (Parser.Err v)
   | InvalidPath Path (Term v loc) -- todo: move me!
   | UnknownSymbol v loc
-  | UnknownReference Reference
+--  | UnknownReference Reference
   | Typechecking (Context.Note v loc) deriving Show
   -- WithinLocals (Note v loc)
 

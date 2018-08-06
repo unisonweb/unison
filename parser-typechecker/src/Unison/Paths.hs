@@ -146,7 +146,7 @@ insertTerm at ctx = do
     Term (E.Vector' vs) -> do
       i <- listToMaybe [i | Index i <- [last at]]
       let v2 = E.vector'() ((E.vmap ABT.Bound <$> Vector.take (i+1) vs) `mappend`
-                          Vector.singleton (E.blank()) `mappend`
+                          Vector.singleton (E.blank ()) `mappend`
                           (E.vmap ABT.Bound <$> Vector.drop (i+1) vs))
       asTerm =<< set (Term v2)
     _ -> Nothing -- todo - allow other types of insertions, like \x -> y to \x x2 -> y

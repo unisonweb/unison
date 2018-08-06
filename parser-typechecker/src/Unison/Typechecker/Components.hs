@@ -83,7 +83,7 @@ minimize (Term.LetRecNamedAnnotated' ann bs e) = case components (first snd <$> 
       -- The outer annotation is going to be meaningful, so we make
       -- sure to preserve it, whereas the annotations at intermediate Abs nodes
       -- aren't necessarily meaningful
-      Just $ ABT.annotate ann (foldr mklet e cs) where
+      Just $ ABT.annotate ann (foldr mklet e cs)
 minimize _ = Nothing
 
 minimize' :: Var v => AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a

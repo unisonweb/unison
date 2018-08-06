@@ -10,6 +10,7 @@ import           Control.Monad (join)
 import           Data.Bifunctor (bimap)
 import           Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.Map as Map
+import Data.Map (Map)
 import           Data.Maybe
 import Debug.Trace
 import qualified Data.Set as Set
@@ -19,7 +20,6 @@ import           Data.Typeable (Proxy(..))
 import           Text.Megaparsec (runParserT)
 import qualified Text.Megaparsec as P
 import qualified Text.Megaparsec.Char as P
-import           Text.Megaparsec.Error (ShowErrorComponent(..))
 import qualified Unison.ABT as ABT
 import           Unison.Hash
 import qualified Unison.Lexer as L
@@ -28,13 +28,41 @@ import qualified Unison.PatternP as Pattern
 import           Unison.Term (MatchCase(..))
 import qualified Unison.UnisonFile as UnisonFile
 import           Unison.Var (Var)
+import Unison.Reference (Reference)
 import qualified Unison.Var as Var
 
 debug :: Bool
 debug = False
 
-type PEnv = UnisonFile.CtorLookup
-type P v = P.ParsecT (Error v) Input ((->) PEnv)
+data PEnv v =
+  PEnv { constructorLookup :: UnisonFile.CtorLookup
+       , typesByName :: Map v Reference }
+
+-- Given a mapping from name to qualified name, update a `PEnv`,
+-- so for instance if the input has [(Some, Optional.Some)],
+-- and `Optional.Some` is a constructor in the input `PEnv`,
+-- the alias `Some` will map to that same constructor
+importing :: Var v => [(v,v)] -> PEnv v -> PEnv v
+importing shortToLongName (PEnv ctors types) = let
+  vs v = Text.unpack $ Var.name v
+  go :: Ord k => Map k v -> (k, k) -> Map k v
+  go m (qname, shortname) = case Map.lookup qname m of
+    Nothing -> m
+    Just v -> Map.insert shortname v m
+  ctors' = foldl go ctors [ (vs qn, vs n) | (n, qn) <- shortToLongName ]
+  types' = foldl go types shortToLongName
+  in PEnv ctors' types'
+
+instance Ord v => Semigroup (PEnv v) where
+  (<>) = mappend
+
+instance Ord v => Monoid (PEnv v) where
+  -- note : Map.mappend uses left value on collision, which isn't what
+  -- we want here, so we flip the order
+  mappend (PEnv x y) (PEnv x2 y2) = PEnv (x2 `mappend` x) (y2 `mappend` y)
+  mempty = penv0
+
+type P v = P.ParsecT (Error v) Input ((->) (PEnv v))
 type Token s = P.Token s
 type Err v = P.ParseError (Token Input) (Error v)
 
@@ -46,29 +74,6 @@ data Error v
   | UnknownEffectConstructor (L.Token String)
   | UnknownDataConstructor (L.Token String)
   deriving (Show, Eq, Ord)
-
-instance Var v => ShowErrorComponent (Error v) where
-  showErrorComponent e = case e of
-    SignatureNeedsAccompanyingBody t ->
-      showLineCol t ++ ": You provided a type signature, but I " ++
-      "didn't find an accompanying definition after it."
-    BlockMustEndWithExpression bann lbann ->
-      showLineCol lbann ++
-      ": The last line of the block starting at " ++
-      showLineCol bann ++
-      " has to be an expression, not a binding or an import."
-    EmptyBlock t ->
-      showLineCol t ++
-      ": I expected a block after `" ++ L.payload t ++
-      "`, but there wasn't one. Maybe check your indentation."
-    UnknownEffectConstructor t ->
-      showLineCol t ++
-      ": I don't know about any effect constructor named `" ++ L.payload t ++
-      "`. Maybe make sure it's correctly spelled, and that you've imported it."
-    UnknownDataConstructor t ->
-      showLineCol t ++
-      ": I don't know about any data constructor named `" ++ L.payload t ++
-      "`. Maybe make sure it's correctly spelled, and that you've imported it."
 
 data Ann =
   Intrinsic |
@@ -183,7 +188,7 @@ root p = (openBlock *> p) <* closeBlock <* P.eof
 rootFile :: Var v => P v a -> P v a
 rootFile p = p <* P.eof
 
-run' :: Var v => P v a -> String -> String -> PEnv -> Either (Err v) a
+run' :: Var v => P v a -> String -> String -> PEnv v -> Either (Err v) a
 run' p s name =
   let lex = if debug
             then L.lexer name (trace (L.debugLex''' "lexer receives" s) s)
@@ -191,11 +196,11 @@ run' p s name =
       pTraced = traceRemainingTokens "parser receives" *> p
   in runParserT pTraced name (Input lex) -- todo: L.reorder
 
-run :: Var v => P v a -> String -> PEnv -> Either (Err v) a
+run :: Var v => P v a -> String -> PEnv v -> Either (Err v) a
 run p s = run' p s ""
 
-penv0 :: PEnv
-penv0 = Map.empty
+penv0 :: PEnv v
+penv0 = PEnv Map.empty Map.empty
 
 -- Virtual pattern match on a lexeme.
 queryToken :: Var v => (L.Lexeme -> Maybe a) -> P v (L.Token a)
@@ -216,6 +221,9 @@ openBlockWith s = fmap (const ()) <$> P.satisfy ((L.Open s ==) . L.payload)
 -- Match a particular lexeme exactly, and consume it.
 matchToken :: Var v => L.Lexeme -> P v (L.Token L.Lexeme)
 matchToken x = P.satisfy ((==) x . L.payload)
+
+dot :: Var v => P v (L.Token L.Lexeme)
+dot = matchToken (L.SymbolyId ".")
 
 -- Consume a virtual semicolon
 semi :: Var v => P v (L.Token ())
@@ -248,10 +256,19 @@ reserved w = label w $ queryToken getReserved
   where getReserved (L.Reserved w') | w == w' = Just w
         getReserved _ = Nothing
 
+-- Parse a placeholder or typed hole
+blank :: Var v => P v (L.Token String)
+blank = label "blank" $ queryToken getBlank
+  where getBlank (L.Blank s) = Just s
+        getBlank _ = Nothing
+
 numeric :: Var v => P v (L.Token String)
 numeric = queryToken getNumeric
   where getNumeric (L.Numeric s) = Just s
         getNumeric _ = Nothing
+
+sepComma :: Var v => P v a -> P v [a]
+sepComma = sepBy (reserved ",")
 
 sepBy :: Var v => P v a -> P v b -> P v [b]
 sepBy sep pb = P.sepBy pb sep

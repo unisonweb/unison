@@ -41,6 +41,7 @@ data Lexeme
   | Backticks String -- an identifier in backticks
   | WordyId String   -- a (non-infix) identifier
   | SymbolyId String -- an infix identifier
+  | Blank String     -- a typed hole or placeholder
   | Numeric String   -- numeric literals, left unparsed
   | Hash Hash        -- hash literals
   | Err Err
@@ -69,6 +70,7 @@ instance ShowToken (Token Lexeme) where
       pretty (Backticks n) = '`' : n ++ ['`']
       pretty (WordyId n) = n
       pretty (SymbolyId n) = n
+      pretty (Blank s) = "_" ++ s
       pretty (Numeric n) = n
       pretty (Hash h) = show h
       pretty (Err e) = show e
@@ -193,15 +195,21 @@ lexer scope rem =
         Token Close pos (inc pos)
           : Token (Reserved "}") pos (inc pos)
           : goWhitespace (drop 1 l) (inc pos) rem
-      -- delimiters - `:`, `@`, `|`, `=`, and `->`
       ch : rem | Set.member ch delimiters ->
         Token (Reserved [ch]) pos (inc pos) : goWhitespace l (inc pos) rem
-      ':' : c : rem | isSpace c || isAlphaNum c ->
-        Token (Reserved ":") pos (inc pos) : goWhitespace l (inc pos) (c:rem)
+      op : rem@(c : _)
+        | (op == '\'' || op == '!')
+        && (isSpace c || isAlphaNum c || Set.member c delimiters) ->
+          Token (Reserved [op]) pos (inc pos) : goWhitespace l (inc pos) rem
+      ':' : rem@(c : _) | isSpace c || isAlphaNum c ->
+        Token (Reserved ":") pos (inc pos) : goWhitespace l (inc pos) rem
       '@' : rem ->
         Token (Reserved "@") pos (inc pos) : goWhitespace l (inc pos) rem
       '_' : rem | hasSep rem ->
-        Token (Reserved "_") pos (inc pos) : goWhitespace l (inc pos) rem
+        Token (Blank "") pos (inc pos) : goWhitespace l (inc pos) rem
+      '_' : (wordyId -> Right (id, rem)) ->
+        let pos' = incBy id $ inc pos
+        in Token (Blank id) pos pos' : goWhitespace l pos' rem
       '|' : c : rem | isSpace c || isAlphaNum c ->
         Token (Reserved "|") pos (inc pos) : goWhitespace l (inc pos) (c:rem)
       '=' : (rem @ (c : _)) | isSpace c || isAlphaNum c ->
@@ -305,7 +313,7 @@ wordyIdStartChar ch = isAlphaNum ch || isEmoji ch
 
 wordyIdChar :: Char -> Bool
 wordyIdChar ch =
-  isAlphaNum ch || isEmoji ch || ch `elem` "_-?'"
+  isAlphaNum ch || isEmoji ch || ch `elem` "_-?!'"
 
 isEmoji :: Char -> Bool
 isEmoji c = c >= '\x1F600' && c <= '\x1F64F'
@@ -324,7 +332,12 @@ qualifiedId requireLast s0 leadingSegments lastSegment =
   goLeading 0 s0 where
    -- parsing 0 or more leading segments
    goLeading acc s = case leadingSegments s of
-     Right (seg, '.' : rem) -> goLeading (acc + length seg + 1) rem
+     Right (seg, '.' : rem)
+       | not requireLast &&
+         all (\c -> isSpace c || Set.member c delimiters) (take 1 rem)
+         -> Right (seg, '.' : rem)
+       | otherwise
+         -> goLeading (acc + length seg + 1) rem
      Right (seg, rem) -> goLast Nothing (acc + length seg) rem
      Left e -> goLast (Just e) acc s
    err2 e e2 = case e of Nothing -> e2; Just e -> Both e e2
@@ -338,6 +351,18 @@ qualifiedId requireLast s0 leadingSegments lastSegment =
 -- Is a '.' delimited list of wordyId, with a final segment of `symbolyId0`
 symbolyId :: String -> Either Err (String, String)
 symbolyId s = qualifiedId True s wordyId0 symbolyId0
+
+-- Strips off qualified name, ex: `Int.inc -> `(Int, inc)`
+splitWordy :: String -> (String, String)
+splitWordy s =
+  let qn = reverse . drop 1 . dropWhile wordyIdChar . reverse $ s
+  in (qn, if null qn then s else drop (length qn + 1) s)
+
+-- Strips off qualified name, ex: `Int.+` -> `(Int, +)`
+splitSymboly :: String -> (String,String)
+splitSymboly s =
+  let qn = reverse . dropWhile symbolyIdChar . reverse $ s
+  in (qn, if null qn then s else drop (length qn + 1) s)
 
 -- Returns either an error or an id and a remainder
 symbolyId0 :: String -> Either Err (String, String)
@@ -355,7 +380,7 @@ keywords :: Set String
 keywords = Set.fromList [
   "if", "then", "else", "forall", "∀",
   "handle", "in",
-  "where",
+  "where", "use",
   "and", "or", "true", "false",
   "type", "effect", "alias",
   "let", "namespace", "case", "of"]
@@ -364,7 +389,7 @@ keywords = Set.fromList [
 layoutKeywords :: Set String
 layoutKeywords =
   Set.fromList [
-    "if", "in", "let", "where", "of", "namespace"
+    "if", "in", "let", "where", "of"
   ]
 
 -- These keywords end a layout block and begin another layout block

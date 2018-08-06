@@ -14,9 +14,11 @@ import           Data.ByteString.Builder (doubleBE, int64BE, toLazyByteString)
 import qualified Data.ByteString.Lazy as BL
 import           Data.Bytes.Put
 import           Data.Foldable (toList, traverse_)
+import           Data.Maybe (fromMaybe)
 import           Data.Text.Encoding (encodeUtf8)
 import           Data.Word (Word64)
 import qualified Unison.ABT as ABT
+import qualified Unison.Blank as Blank
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Hash as Hash
 import           Unison.Reference
@@ -165,7 +167,8 @@ serializeTerm x = do
         putLength $ length casePositions
         traverse_ serializeCase2 casePositions
         incPosition
-      Blank -> error "cannot serialize program with blanks"
+      Blank b -> error $ "cannot serialize program with blank " ++
+                         (fromMaybe "" $ Blank.nameb b)
       Handle h body -> do
         hpos <- serializeTerm h
         bpos <- serializeTerm body

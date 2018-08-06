@@ -287,6 +287,7 @@ rebuildUp f (Term _ ann body) = case body of
   Abs x e -> abs' ann x (rebuildUp f e)
   Tm body -> tm' ann (f $ fmap (rebuildUp f) body)
 
+-- Annotate the tree with the set of bound variables at each node.
 annotateBound :: (Ord v, Foldable f, Functor f) => Term f v a -> Term f v (a, Set v)
 annotateBound t = go Set.empty t where
   go bound t = let a = (annotation t, bound) in case out t of
@@ -342,6 +343,11 @@ visit' f t = case out t of
   Cycle body -> cycle' (annotation t) <$> visit' f body
   Abs x e -> abs' (annotation t) x <$> visit' f e
   Tm body -> f body >>= \body -> tm' (annotation t) <$> traverse (visit' f) body
+
+-- | `visit` specialized to the `Identity` effect.
+visitPure :: (Traversable f, Ord v)
+      => (Term f v a -> Maybe (Term f v a)) -> Term f v a -> Term f v a
+visitPure f = runIdentity . visit (fmap pure . f)
 
 data Subst f v a =
   Subst { freshen :: forall m v' . Monad m => (v -> m v') -> m v'

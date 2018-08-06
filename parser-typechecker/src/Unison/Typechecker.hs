@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TupleSections #-}
@@ -7,21 +8,22 @@
 
 module Unison.Typechecker where
 
-import Unison.Term (AnnotatedTerm)
-import Unison.Type (AnnotatedType)
-import Unison.Var (Var)
-import Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
-import Unison.Reference (Reference)
-import qualified Unison.Result as Result
-import Unison.Result (Result(..), Note)
--- import qualified Data.Map as Map
-import Data.Maybe (isJust)
+import           Data.Maybe (isJust)
 import qualified Unison.ABT as ABT
--- import qualified Unison.Paths as Paths
+import qualified Unison.Blank as B
+import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
+import           Unison.Reference (Reference)
+import           Unison.Result (Result(..), Note(..))
+import qualified Unison.Result as Result
+import           Unison.Term (AnnotatedTerm)
 import qualified Unison.Term as Term
--- import qualified Unison.Type as Type
+import           Unison.Type (AnnotatedType)
 import qualified Unison.TypeVar as TypeVar
 import qualified Unison.Typechecker.Context as Context
+import           Unison.Var (Var)
+
+-- import qualified Unison.Paths as Paths
+-- import qualified Unison.Type as Type
 
 -- import Debug.Trace
 -- watch msg a = trace (msg ++ show a) a
@@ -32,13 +34,14 @@ type Type v loc = AnnotatedType v loc
 failNote :: Note v loc -> Result (Note v loc) a
 failNote note = Result (pure note) Nothing
 
-data Env f v loc = Env {
-  builtinLoc :: loc,
-  ambientAbilities :: [Type v loc],
-  typeOf :: Reference -> f (Type v loc),
-  dataDeclaration :: Reference -> f (DataDeclaration' v loc),
-  effectDeclaration :: Reference -> f (EffectDeclaration' v loc)
-}
+data Env f v loc = Env
+  { builtinLoc :: loc
+  , ambientAbilities :: [Type v loc]
+  , typeOf :: Reference -> f (Type v loc)
+  , dataDeclaration :: Reference -> f (DataDeclaration' v loc)
+  , effectDeclaration :: Reference -> f (EffectDeclaration' v loc)
+  -- , terms :: Map Reference (Type v loc)
+  }
 
 -- -- | Compute the allowed type of a replacement for a given subterm.
 -- -- Example, in @\g -> map g [1,2,3]@, @g@ has an admissible type of
@@ -107,7 +110,9 @@ data Env f v loc = Env {
 -- | Infer the type of a 'Unison.Term', using
 -- a function to resolve the type of @Ref@ constructors
 -- contained in that term.
-synthesize :: (Monad f, Var v) => Env f v loc -> Term v loc
+synthesize :: (Monad f, Var v, Ord loc)
+           => Env f v loc
+           -> Term v loc
            -> f (Result (Note v loc) (Type v loc))
 synthesize env t =
   let go (notes, ot) = Result (Result.Typechecking <$> notes) (ABT.vmap TypeVar.underlying <$> ot)
@@ -119,11 +124,27 @@ synthesize env t =
       (effectDeclaration env)
       (Term.vtmap TypeVar.Universal t)
 
+resolveAndSynthesize
+  :: (Monad f, Var v, Ord loc)
+  => Env f v loc
+  -> Term v loc
+  -> f (Result (Note v loc) (Type v loc))
+resolveAndSynthesize env t = do
+  r <- synthesize env t
+  let resolveds = notes r >>= \n ->
+        case n of
+          Typechecking
+            (Context.Note (Context.SolvedBlank (B.Resolve loc name) _ typ) _) ->
+              [(loc, name, typ)]
+          _ -> []
+  _ <- pure $ resolveds
+  pure r
+
 -- | Check whether a term matches a type, using a
 -- function to resolve the type of @Ref@ constructors
 -- contained in the term. Returns @typ@ if successful,
 -- and a note about typechecking failure otherwise.
-check :: (Monad f, Var v) => Env f v loc -> Term v loc -> Type v loc
+check :: (Monad f, Var v, Ord loc) => Env f v loc -> Term v loc -> Type v loc
       -> f (Result (Note v loc) (Type v loc))
 check env term typ = synthesize env (Term.ann (ABT.annotation term) term typ)
 
@@ -138,7 +159,7 @@ check env term typ = synthesize env (Term.ann (ABT.annotation term) term typ)
 --     tweak t = Type.arrow() t t
 
 -- | Returns `True` if the expression is well-typed, `False` otherwise
-wellTyped :: (Monad f, Var v) => Env f v loc -> Term v loc -> f Bool
+wellTyped :: (Monad f, Var v, Ord loc) => Env f v loc -> Term v loc -> f Bool
 wellTyped env term = isJust . result <$> synthesize env term
 
 -- | @subtype a b@ is @Right b@ iff @f x@ is well-typed given

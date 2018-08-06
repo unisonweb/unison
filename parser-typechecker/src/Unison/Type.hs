@@ -9,21 +9,24 @@
 
 module Unison.Type where
 
-import Data.List
-import Data.Set (Set)
-import Data.Text (Text)
-import GHC.Generics
-import Prelude.Extras (Eq1(..),Show1(..))
-import Unison.Hashable (Hashable1)
-import Unison.Reference (Reference)
-import Unison.TypeVar (TypeVar)
-import Unison.Var (Var)
+import qualified Data.Char as Char
+import           Data.List
+import           Data.Set (Set)
 import qualified Data.Set as Set
+import           Data.Text (Text)
+import qualified Data.Text as Text
+import           GHC.Generics
+import           Prelude.Extras (Eq1(..),Show1(..))
 import qualified Unison.ABT as ABT
+import           Unison.Blank
+import           Unison.Hashable (Hashable1)
 import qualified Unison.Hashable as Hashable
 import qualified Unison.Kind as K
+import           Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
+import           Unison.TypeVar (TypeVar)
 import qualified Unison.TypeVar as TypeVar
+import           Unison.Var (Var)
 import qualified Unison.Var as Var
 
 -- | Base functor for types in the Unison language
@@ -63,9 +66,9 @@ freeVars = ABT.freeVars
 bindBuiltins :: Var v => [(v, Reference)] -> AnnotatedType v a -> AnnotatedType v a
 bindBuiltins bs = ABT.substsInheritAnnotation [ (v, ref() r) | (v,r) <- bs ]
 
-data Monotype v a = Monotype { getPolytype :: AnnotatedType v a } deriving (Eq)
+data Monotype v a = Monotype { getPolytype :: AnnotatedType v a } deriving Eq
 
-instance (Show a, Var v) => Show (Monotype v a) where
+instance (Var v) => Show (Monotype v a) where
   show = show . getPolytype
 
 -- Smart constructor which checks if a `Type` has no `Forall` quantifiers.
@@ -87,31 +90,51 @@ pattern Ann' t k <- ABT.Tm' (Ann t k)
 pattern App' f x <- ABT.Tm' (App f x)
 pattern Apps' f args <- (unApps -> Just (f, args))
 pattern Effect' es t <- ABT.Tm' (Effect es t)
+-- Effect'' may match zero effects
 pattern Effect'' es t <- (stripEffect -> (es, t))
 pattern Forall' subst <- ABT.Tm' (Forall (ABT.Abs' subst))
+pattern ForallsNamed' vs body <- (unForalls -> Just (vs, body))
 pattern ForallNamed' v body <- ABT.Tm' (Forall (ABT.out -> ABT.Abs v body))
 pattern Var' v <- ABT.Var' v
-pattern Existential' v <- ABT.Var' (TypeVar.Existential v)
+pattern Tuple' ts <- (unTuple -> Just ts)
+pattern Existential' b v <- ABT.Var' (TypeVar.Existential b v)
 pattern Universal' v <- ABT.Var' (TypeVar.Universal v)
 
-unArrows :: Type v -> Maybe [Type v]
+unArrows :: AnnotatedType v a -> Maybe [AnnotatedType v a]
 unArrows t =
   case go t of [] -> Nothing; l -> Just l
   where
     go (Arrow' i o) = i : go o
     go _ = []
 
-unApps :: Type v -> Maybe (Type v, [Type v])
-unApps t = case go t [] of [] -> Nothing; f:args -> Just (f,args)
+unApps :: AnnotatedType v a -> Maybe (AnnotatedType v a, [AnnotatedType v a])
+unApps t = case go t [] of [] -> Nothing; [_] -> Nothing; f:args -> Just (f,args)
   where
   go (App' i o) acc = go i (o:acc)
   go fn args = fn:args
 
-matchExistential :: Eq v => v -> Type (TypeVar v) -> Bool
-matchExistential v (Existential' x) = x == v
+unForalls :: AnnotatedType v a -> Maybe ([v], AnnotatedType v a)
+unForalls t = go t []
+  where go (ForallNamed' v body) vs = go body (v:vs)
+        go _body [] = Nothing
+        go body vs = Just(reverse vs, body)
+
+unTuple :: AnnotatedType v a -> Maybe [(AnnotatedType v a)]
+unTuple t = (case t of
+    (Apps' (Ref' (Reference.Builtin "Pair")) [_,_]) -> id
+    (Ref' (Reference.Builtin "()")) -> id
+    _ -> const Nothing) $
+    case go t of [] -> Nothing; ts -> Just ts
+    where go :: AnnotatedType v a -> [AnnotatedType v a]
+          go (Apps' (Ref' (Reference.Builtin "Pair")) (t:t':[])) = t : go t'
+          go (Ref' (Reference.Builtin "()")) = []
+          go _t = error "malformed tuple in Type.unTuple"
+
+matchExistential :: Eq v => v -> Type (TypeVar b v) -> Bool
+matchExistential v (Existential' _ x) = x == v
 matchExistential _ _ = False
 
-matchUniversal :: Eq v => v -> Type (TypeVar v) -> Bool
+matchUniversal :: Eq v => v -> Type (TypeVar b v) -> Bool
 matchUniversal v (Universal' x) = x == v
 matchUniversal _ _ = False
 
@@ -194,16 +217,19 @@ andor' a = arrows (f <$> [boolean a, boolean a]) $ boolean a
 var :: Ord v => a -> v -> AnnotatedType v a
 var = ABT.annotatedVar
 
-existential :: Ord v => v -> Type (TypeVar v)
-existential v = ABT.var (TypeVar.Existential v)
+existential :: Ord v => Blank loc -> v -> Type (TypeVar (Blank loc) v)
+existential blank v = ABT.var (TypeVar.Existential blank v)
 
-universal :: Ord v => v -> Type (TypeVar v)
+universal :: Ord v => v -> Type (TypeVar b v)
 universal v = ABT.var (TypeVar.Universal v)
 
-existential' :: Ord v => a -> v -> AnnotatedType (TypeVar v) a
-existential' a v = ABT.annotatedVar a (TypeVar.Existential v)
+existentialp :: Ord v => a -> v -> AnnotatedType (TypeVar (Blank x) v) a
+existentialp a v = existential' a Blank v
 
-universal' :: Ord v => a -> v -> AnnotatedType (TypeVar v) a
+existential' :: Ord v => a -> Blank x -> v -> AnnotatedType (TypeVar (Blank x) v) a
+existential' a blank v = ABT.annotatedVar a (TypeVar.Existential blank v)
+
+universal' :: Ord v => a -> v -> AnnotatedType (TypeVar b v) a
 universal' a v = ABT.annotatedVar a (TypeVar.Universal v)
 
 v' :: Var v => Text -> Type v
@@ -250,6 +276,12 @@ flipApply t = forall() b $ arrow() (arrow() t (var() b)) (var() b)
 -- | Bind all free variables with an outer `forall`.
 generalize :: Ord v => AnnotatedType v a -> AnnotatedType v a
 generalize t = foldr (forall (ABT.annotation t)) t $ Set.toList (ABT.freeVars t)
+
+-- | Bind all free variables that start with a lowercase letter with an outer `forall`.
+generalizeLowercase :: Var v => AnnotatedType v a -> AnnotatedType v a
+generalizeLowercase t = foldr (forall (ABT.annotation t)) t vars
+  where vars = [ v | v <- Set.toList (ABT.freeVars t), isLow v]
+        isLow v = all Char.isLower . take 1 . Text.unpack . Var.name $ v
 
 instance Hashable1 F where
   hash1 hashCycle hash e =

@@ -1,7 +1,8 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ExplicitForAll #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 module Unison.Builtin where
 
 import           Control.Arrow ((&&&), second)
@@ -11,9 +12,8 @@ import qualified Unison.DataDeclaration as DD
 import qualified Unison.FileParser as FileParser
 import           Unison.Parser (Ann(..))
 import qualified Unison.Parser as Parser
-import           Unison.PrintError (prettyParseError)
+import           Unison.PrintError (parseErrorToAnsiString)
 import qualified Unison.Reference as R
-import           Unison.Term (AnnotatedTerm)
 import qualified Unison.Term as Term
 import qualified Unison.TermParser as TermParser
 import           Unison.Type (AnnotatedType)
@@ -22,7 +22,7 @@ import qualified Unison.TypeParser as TypeParser
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 
-type Term v = AnnotatedTerm v Ann
+type Term v = Term.AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
 type DataDeclaration v = DataDeclaration' v Ann
 type EffectDeclaration v = EffectDeclaration' v Ann
@@ -31,27 +31,38 @@ type EffectDeclaration v = EffectDeclaration' v Ann
 -- then merge Parsers back into Parsers (and GC and unused functions)
 -- parse a type, hard-coding the builtins defined in this file
 t :: Var v => String -> Type v
-t s = bindTypeBuiltins . either (error . prettyParseError s) id $
-        Parser.run (Parser.root TypeParser.valueType) s Parser.penv0
+t s = bindTypeBuiltins . either (error . parseErrorToAnsiString s) id $
+          Parser.run (Parser.root TypeParser.valueType) s Parser.penv0
 
 -- parse a term, hard-coding the builtins defined in this file
 tm :: Var v => String -> Term v
-tm s = bindBuiltins . either (error . prettyParseError s) id $
-  Parser.run (Parser.root TermParser.term) s Parser.penv0
+tm s = bindBuiltins . either (error . parseErrorToAnsiString s) id $
+          Parser.run (Parser.root TermParser.term) s Parser.penv0
 
 parseDataDeclAsBuiltin :: Var v => String -> (v, (R.Reference, DataDeclaration v))
 parseDataDeclAsBuiltin s =
-  let (v, dd) = either (error . prettyParseError s) id $
+  let (v, dd) = either (error . parseErrorToAnsiString s) id $
         Parser.run (Parser.root FileParser.dataDeclaration) s Parser.penv0
-  in (v, (R.Builtin . Var.qualifiedName $ v, DD.bindBuiltins builtinTypes dd))
+  in (v, (R.Builtin . Var.qualifiedName $ v,
+          const Intrinsic <$>
+          DD.bindBuiltins builtinTypes dd))
 
 bindBuiltins :: Var v => Term v -> Term v
-bindBuiltins = Term.bindBuiltins builtinDataAndEffectCtors builtinTerms builtinTypes
+bindBuiltins = Term.bindBuiltins builtinTerms builtinTypes
 
 bindTypeBuiltins :: Var v => Type v -> Type v
 bindTypeBuiltins = Type.bindBuiltins builtinTypes
 
-builtinDataAndEffectCtors :: forall v. Var v => [(v, Term v)]
+builtinTypedTerms :: Var v => [(v, (Term v, Type v))]
+builtinTypedTerms = [(v, (e, t)) | (v, e@(Term.Ann' _ t)) <- builtinTerms ]
+
+builtinTerms :: Var v => [(v, Term v)]
+builtinTerms =
+  let fns = [ (toSymbol r, Term.ann Intrinsic (Term.ref Intrinsic r) typ) |
+              (r, typ) <- Map.toList builtins0 ]
+  in (builtinDataAndEffectCtors ++ fns)
+
+builtinDataAndEffectCtors :: forall v . Var v => [(v, Term v)]
 builtinDataAndEffectCtors = (mkConstructors =<< builtinDataDecls')
   where
     mkConstructors :: (v, (R.Reference, DataDeclaration v)) -> [(v, Term v)]
@@ -61,9 +72,6 @@ builtinDataAndEffectCtors = (mkConstructors =<< builtinDataDecls')
     mkConstructor vt r ((v, _t), i) =
       (Var.named $ mconcat [Var.qualifiedName vt, ".", Var.qualifiedName v],
         Term.constructor Intrinsic r i)
-
-builtinTerms :: forall v. Var v => [(v, R.Reference)]
-builtinTerms = (\r -> (toSymbol r, r)) <$> Map.keys (builtins @v)
 
 builtinTypes :: forall v. Var v => [(v, R.Reference)]
 builtinTypes = builtinTypes' ++ (f <$> Map.toList (builtinDataDecls @v))
@@ -112,8 +120,8 @@ toSymbol :: Var v => R.Reference -> v
 toSymbol (R.Builtin txt) = Var.named txt
 toSymbol _ = error "unpossible"
 
-builtins :: Var v => Map.Map R.Reference (Type v)
-builtins = Map.fromList $
+builtins0 :: Var v => Map.Map R.Reference (Type v)
+builtins0 = Map.fromList $
   [ (R.Builtin name, t typ) |
     (name, typ) <-
       [ ("Int64.+", "Int64 -> Int64 -> Int64")
@@ -194,10 +202,13 @@ builtins = Map.fromList $
       , ("Stream.zip-with", "forall a b c . (a -> b -> c) -> Stream a -> Stream b -> Stream c")
       , ("Stream.unfold", "forall a b . (a -> Optional (b, a)) -> b -> Stream a")
 
-      , ("Sequence.empty", "forall a . Sequence a")
-      , ("Sequence.cons", "forall a . a -> Sequence a -> Sequence a")
-      , ("Sequence.snoc", "forall a . Sequence a -> a -> Sequence a")
-      , ("Sequence.take", "forall a . UInt64 -> Sequence a -> Sequence a")
-      , ("Sequence.size", "forall a . Sequence a -> UInt64")
+      , ("Sequence.empty", "forall a . [a]")
+      , ("Sequence.cons", "forall a . a -> [a] -> [a]")
+      , ("Sequence.snoc", "forall a . [a] -> a -> [a]")
+      , ("Sequence.take", "forall a . UInt64 -> [a] -> [a]")
+      , ("Sequence.drop", "forall a . UInt64 -> [a] -> [a]")
+      , ("Sequence.++", "forall a . [a] -> [a] -> [a]")
+      , ("Sequence.size", "forall a . [a] -> UInt64")
+      , ("Sequence.at", "forall a . UInt64 -> [a] -> Optional a")
       ]
   ]

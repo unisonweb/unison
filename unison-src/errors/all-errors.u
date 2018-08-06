@@ -1,0 +1,43 @@
+type Optional a = Some a | None
+
+effect Abort where
+  Abort : forall a . () -> {Abort} a
+
+effect Abort2 where
+  Abort2  : forall a . () -> {Abort2} a
+  Abort2' : forall a . () -> {Abort2} a
+
+app : Optional Int64
+app = Optional.Some 3
+
+app' : Optional Int64
+app' = 3
+
+arrow : Int64 -> Int64 -> Int64
+arrow a = 3
+
+effect' : UInt64 -> { Abort } Int64
+effect' n = Abort2.Abort2 ()
+
+id : forall a . a -> a
+id x = 3
+
+f2 : forall a . a -> a -> a
+f2 x = x
+
+const : forall a b . a -> b -> a
+const a b = 3
+
+y : (Optional Int64)
+y = 3
+
+z' : (Optional Int64, Optional Text, Optional Float)
+z' = (None, 3)
+
+z : (Optional Int64, Optional Text, Optional Float)
+z = 3
+
+x : ()
+x = 3
+
+()

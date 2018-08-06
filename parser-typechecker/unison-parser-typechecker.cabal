@@ -35,6 +35,7 @@ library
 
   exposed-modules:
     Unison.ABT
+    Unison.Blank
     Unison.Builtin
     Unison.Codecs
     Unison.DataDeclaration
@@ -63,10 +64,15 @@ library
     Unison.Typechecker.Context
     Unison.Typechecker.Components
     Unison.UnisonFile
+    Unison.Util.AnnotatedText
+    Unison.Util.ColorText
     Unison.Util.Logger
+    Unison.Util.Monoid
+    Unison.Util.Range
     Unison.Var
 
   build-depends:
+    ansi-terminal,
     base,
     base58-bytestring,
     bifunctors,
@@ -88,6 +94,7 @@ library
     megaparsec,
     prelude-extras,
     random,
+    safe,
     stm,
     text,
     transformers,
@@ -129,9 +136,11 @@ executable tests
   hs-source-dirs: tests
   other-modules:
     Unison.Test.Common
+    Unison.Test.ColorText
     Unison.Test.DataDeclaration
     Unison.Test.FileParser
     Unison.Test.Lexer
+    Unison.Test.Range
     Unison.Test.TermParser
     Unison.Test.Typechecker
     Unison.Test.Typechecker.Components
