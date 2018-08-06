@@ -7,7 +7,7 @@ import qualified Unison.Builtin as Builtin
 import qualified Unison.FileParser as FileParser
 import           Unison.Parser (PEnv, Ann)
 import qualified Unison.Parser as Parser
-import           Unison.PrintError (prettyParseError)
+import           Unison.PrintError (parseErrorToAnsiString)
 import           Unison.Symbol (Symbol)
 import           Unison.Term (AnnotatedTerm)
 import qualified Unison.TermParser as TermParser
@@ -17,7 +17,7 @@ import           Unison.UnisonFile (UnisonFile)
 import           Unison.Var (Var)
 
 unsafeGetRightFrom :: (Var v, Show v) => String -> Either (Parser.Err v) a -> a
-unsafeGetRightFrom s = either (error . prettyParseError s) id
+unsafeGetRightFrom s = either (error . parseErrorToAnsiString s) id
 
 parse :: Var v => Parser.P v a -> String -> PEnv v -> Either (Parser.Err v) a
 parse p s env = Parser.run (Parser.root p) s env

@@ -1,41 +1,45 @@
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedLists   #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections     #-}
-{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE OverloadedLists     #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE TypeApplications    #-}
+
 
 module Unison.PrintError where
 
-import qualified Data.Char                  as Char
+import qualified Data.Char as Char
 import           Data.Foldable
-import qualified Data.List.NonEmpty         as Nel
-import           Data.Map                   (Map)
-import qualified Data.Map                   as Map
-import           Data.Maybe                 (catMaybes, listToMaybe, fromMaybe)
-import           Data.Sequence              (Seq (..))
-import qualified Data.Sequence              as Seq
-import qualified Data.Set                   as Set
-import           Data.String                (IsString, fromString)
-import qualified Data.Text                  as Text
-import qualified Text.Megaparsec            as P
-import qualified Unison.ABT                 as ABT
--- import qualified Unison.Builtin             as Builtin
-import qualified Unison.Kind                as Kind
-import           Unison.Kind                (Kind)
-import qualified Unison.Lexer               as L
-import           Unison.Parser              (Ann (..), Annotated, ann)
+import qualified Data.List.NonEmpty as Nel
+import           Data.Map (Map)
+import qualified Data.Map as Map
+import           Data.Maybe (catMaybes, fromMaybe, listToMaybe)
+import           Data.Sequence (Seq (..))
+import qualified Data.Sequence as Seq
+import qualified Data.Set as Set
+import           Data.String (IsString, fromString)
+import qualified Data.Text as Text
+import           Data.Void (Void)
+import qualified Text.Megaparsec as P
+import qualified Unison.ABT as ABT
+import qualified Unison.Blank as B
+import           Unison.Kind (Kind)
+import qualified Unison.Kind as Kind
+import qualified Unison.Lexer as L
+import           Unison.Parser (Ann (..), Annotated, ann)
 -- import           Unison.Parser              (showLineCol)
-import qualified Unison.Parser              as Parser
-import qualified Unison.Reference           as R
-import           Unison.Result              (Note (..))
-import qualified Unison.Type                as Type
+import qualified Unison.Parser as Parser
+import qualified Unison.Reference as R
+import           Unison.Result (Note (..))
+import qualified Unison.Type as Type
 import qualified Unison.Typechecker.Context as C
-import qualified Unison.Util.AnnotatedText  as AT
-import           Unison.Util.ColorText      (StyledText)
-import qualified Unison.Util.ColorText      as Color
-import           Unison.Util.Monoid         (intercalateMap)
-import           Unison.Util.Range          (Range (..))
-import           Unison.Var                 (Var, qualifiedName)
+import qualified Unison.Util.AnnotatedText as AT
+import           Unison.Util.ColorText (StyledText)
+import qualified Unison.Util.ColorText as Color
+import           Unison.Util.Monoid (intercalateMap)
+import           Unison.Util.Range (Range (..))
+import           Unison.Var (Var, qualifiedName)
 
 data Env = Env { referenceNames   :: Map R.Reference String
                , constructorNames :: Map (R.Reference, Int) String }
@@ -49,29 +53,29 @@ data TypeError v loc
              , leaf1        :: C.Type v loc
              , leaf2        :: C.Type v loc
              , mismatchSite :: loc }
-  | AbilityCheckFailure { ambient :: [C.Type v loc]
-                        , requested :: [C.Type v loc]
+  | AbilityCheckFailure { ambient                 :: [C.Type v loc]
+                        , requested               :: [C.Type v loc]
                         , abilityCheckFailureSite :: loc }
   | Other (C.Note v loc)
 
-renderTypeError :: (Var v, Annotated a, Eq a, Show a)
+renderTypeError :: forall v a. (Var v, Annotated a, Eq a, Show a)
                 => Env
                 -> TypeError v a
                 -> String
                 -> AT.AnnotatedDocument Color.Style
-renderTypeError env e src = case e of
-  Mismatch {..} -> AT.AnnotatedDocument . Seq.fromList $
+renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
+  Mismatch {..} ->
     [ (fromString . annotatedToEnglish) mismatchSite
-    , " has a type mismatch:\n\n"
-    -- , " has a type mismatch (", AT.Describe Color.ErrorSite, " below):\n\n"
+    -- , " has a type mismatch:\n\n"
+    , " has a type mismatch (", AT.Describe Color.ErrorSite, " below):\n\n"
     , AT.Blockquote $ AT.markup (fromString src)
             (Set.fromList $ catMaybes
               [ (,Color.Type1) <$> rangeForType leaf1
               , (,Color.Type2) <$> rangeForType leaf2
               , (,Color.ForceShow) <$> rangeForType overallType1
               , (,Color.ForceShow) <$> rangeForType overallType2
-              , (,Color.ForceShow) <$> rangeForAnnotated mismatchSite
-              -- , (,Color.ErrorSite) <$> rangeForAnnotated mismatchSite
+              -- , (,Color.ForceShow) <$> rangeForAnnotated mismatchSite
+              , (,Color.ErrorSite) <$> rangeForAnnotated mismatchSite
               ])
     , "\n"
     , "The two types involved are:\n\n"
@@ -90,8 +94,10 @@ renderTypeError env e src = case e of
     , "\n         leaf2: ", fromString $ annotatedToEnglish leaf2
     , "\n"
     ]
-  AbilityCheckFailure {..} -> AT.AnnotatedDocument . Seq.fromList $
-    [ (fromString . annotatedToEnglish) abilityCheckFailureSite
+  AbilityCheckFailure {..} ->
+    [ "The expression at "
+    , (fromString . annotatedToEnglish) abilityCheckFailureSite
+    , " (", AT.Describe Color.ErrorSite, " below)"
     , " is requesting\n"
     , "    ", fromString $ show requested
     , " effects, but this location only has access to\n"
@@ -99,10 +105,77 @@ renderTypeError env e src = case e of
     , "\n\n"
     , AT.Blockquote $ AT.markup (fromString src)
             (Set.fromList . catMaybes $ [
-              (,Color.ForceShow) <$> rangeForAnnotated abilityCheckFailureSite
+              (,Color.ErrorSite) <$> rangeForAnnotated abilityCheckFailureSite
               ])
     ]
-  Other note -> fromString . show $ note
+  Other note ->
+    [ "Sorry, you hit an error we didn't make a nice message for yet.\n\n"
+    , "Here is a summary of the Note:\n"
+    , "  simple cause:\n"
+    , "    "
+    ] ++ simpleCause (C.cause note) ++ [ "\n"
+    , "  path:\n"
+    ] ++ mconcat (simplePath <$> toList (C.path note)) ++
+    [ "\n" ]
+    where
+      simplePath :: C.PathElement v a -> [AT.Section Color.Style]
+      simplePath e = ["    "] ++ simplePath' e ++ ["\n"]
+      simplePath' :: C.PathElement v a -> [AT.Section Color.Style]
+      simplePath' = \case
+        C.InSynthesize _e -> ["InSynthesize e=..."]
+        C.InSubtype t1 t2 -> ["InSubtype t1="
+                             , AT.Text $ renderType env (const id) t1
+                             , ", t2="
+                             , AT.Text $ renderType env (const id) t2]
+        C.InCheck _e t -> ["InCheck e=..., t=", AT.Text $ renderType env (const id) t]
+        C.InInstantiateL v t ->
+          ["InInstantiateL v=", AT.Text $ renderVar v
+                       ,", t=", AT.Text $ renderType env (const id) t]
+        C.InInstantiateR t v ->
+          ["InInstantiateR t=", AT.Text $ renderType env (const id) t
+                        ," v=", AT.Text $ renderVar v]
+        C.InSynthesizeApp t _e -> ["InSynthesizeApp"
+          ," t=", AT.Text $ renderType env (const id) t
+          ,", e=..."]
+      simpleCause :: C.Cause v a -> [AT.Section Color.Style]
+      simpleCause = \case
+        C.TypeMismatch c ->
+          ["TypeMismatch\n"
+          ,"  context:\n"
+          ,fromString . init . unlines . (fmap ("  "++)) . lines . show $ c]
+        C.IllFormedType c ->
+          ["IllFormedType\n"
+          ,"  context:\n"
+          ,fromString . init . unlines . (fmap ("  "++)) . lines . show $ c]
+        C.UnknownSymbol loc v ->
+          [ "UnknownSymbol: ", (fromString . show) loc
+          , " ", (fromString . show) v
+          ]
+        C.CompilerBug c -> ["CompilerBug: ", fromString (show c)]
+        C.AbilityCheckFailure ambient requested ->
+          [ "AbilityCheckFailure:\n"
+          , "    ambient: " ] ++
+          (AT.Text . renderType env (const id) <$> ambient) ++
+          [ "\n    requested: "] ++
+          (AT.Text . renderType env (const id) <$> requested)
+        C.EffectConstructorWrongArgCount e a r cid ->
+          [ "EffectConstructorWrongArgCount:"
+          , "  expected=", (fromString . show) e
+          , ", actual=", (fromString . show) a
+          , ", reference=", AT.Text (showConstructor' env r cid)
+          ]
+        C.SolvedBlank recorded v t ->
+          [ "SolvedBlank: "
+          , case recorded of
+              B.Placeholder loc s ->
+                fromString ("Placeholder " ++ show s ++ " " ++ annotatedToEnglish loc)
+              B.Resolve loc s ->
+                fromString ("Resolve " ++ show s ++ " "++ annotatedToEnglish loc)
+          , " v="
+          , (fromString . show) v
+          , " t="
+          , AT.Text . renderType env (const id) $ t
+          ]
 
 renderType :: Var v
            => Env
@@ -135,7 +208,7 @@ renderVar :: Var v => v -> StyledText
 renderVar = fromString . Text.unpack . qualifiedName
 
 renderKind :: Kind -> StyledText
-renderKind Kind.Star = "*"
+renderKind Kind.Star          = "*"
 renderKind (Kind.Arrow k1 k2) = renderKind k1 <> " -> " <> renderKind k2
 
 showRef :: Env -> R.Reference -> String
@@ -167,6 +240,9 @@ styleInOverallType e overallType leafType c =
 _posToEnglish :: L.Pos -> String
 _posToEnglish (L.Pos l c) = "Line " ++ show l ++ ", Column " ++ show c
 
+rangeForToken :: L.Token a -> Range
+rangeForToken t = Range (L.start t) (L.end t)
+
 rangeToEnglish :: Range -> String
 rangeToEnglish (Range (L.Pos l c) (L.Pos l' c')) =
   if l == l'
@@ -178,7 +254,7 @@ rangeToEnglish (Range (L.Pos l c) (L.Pos l' c')) =
 
 annotatedToEnglish :: Annotated a => a -> String
 annotatedToEnglish a = case ann a of
-  Intrinsic      -> "an intrinsic"
+  Intrinsic     -> "an intrinsic"
   Ann start end -> rangeToEnglish $ Range start end
 
 rangeForType :: Annotated a => C.Type v a -> Maybe Range
@@ -213,34 +289,34 @@ typeErrorFromNote n@(C.Note _ _) = Other n
 showLexerOutput :: Bool
 showLexerOutput = False
 
+printNoteWithSourceAsAnsi :: (Var v, Annotated a, Show a, Eq a)
+                          => Env -> String -> Note v a -> String
+printNoteWithSourceAsAnsi e s n =
+  show . Color.renderDocANSI 3 $ printNoteWithSource e s n
+
 printNoteWithSource :: (Var v, Annotated a, Show a, Eq a)
-                    => Env -> String -> Note v a -> String
+                    => Env
+                    -> String
+                    -> Note v a
+                    -> AT.AnnotatedDocument Color.Style
 printNoteWithSource _env s (Parsing e) = prettyParseError s e
 printNoteWithSource env s (Typechecking e) = prettyTypecheckError env s e
 printNoteWithSource _env s (InvalidPath path term) =
-  "Invalid Path: " ++ show path ++ "\n" ++
-    case ann $ ABT.annotation term of
-      Intrinsic     -> "  in Intrinsic " ++ show term
-      Ann start end -> printPosRange s start end
+  (fromString $ "Invalid Path: " ++ show path ++ "\n")
+  <> AT.sectionToDoc
+      (showSource s [(,Color.ErrorSite) <$> rangeForAnnotated term])
 printNoteWithSource _env s (UnknownSymbol v a) =
-  "Unknown symbol `" ++ Text.unpack (qualifiedName v) ++
-    case ann a of
-      Intrinsic -> "` (Intrinsic)"
-      Ann (L.Pos startLine startCol) _end ->
-        -- todo: multi-line ranges
-        -- todo: ranges
-        "`:\n\n" ++ printArrowsAtPos s startLine startCol
-printNoteWithSource _env _s (UnknownReference r) =
-  "Unknown reference: " ++ show r
+  fromString ("Unknown symbol `" ++ Text.unpack (qualifiedName v) ++ "`\n\n")
+  <> AT.sectionToDoc (showSource s [(,Color.ErrorSite) <$> rangeForAnnotated a])
 
-printPosRange :: String -> L.Pos -> L.Pos -> String
-printPosRange s (L.Pos startLine startCol) _end =
+_printPosRange :: String -> L.Pos -> L.Pos -> String
+_printPosRange s (L.Pos startLine startCol) _end =
   -- todo: multi-line ranges
   -- todo: ranges
-  printArrowsAtPos s startLine startCol
+  _printArrowsAtPos s startLine startCol
 
-printArrowsAtPos :: String -> Int -> Int -> String
-printArrowsAtPos s line column =
+_printArrowsAtPos :: String -> Int -> Int -> String
+_printArrowsAtPos s line column =
   let lineCaret s i = s ++ if i == line
                            then "\n" ++ columnCaret
                            else ""
@@ -248,15 +324,75 @@ printArrowsAtPos s line column =
       source = unlines (uncurry lineCaret <$> lines s `zip` [1..])
   in source
 
-prettyParseError :: Var v => String -> Parser.Err v -> String
-prettyParseError s e =
-  let errorColumn = P.unPos . P.sourceColumn . Nel.head . P.errorPos $ e
-      errorLine = P.unPos . P.sourceLine . Nel.head . P.errorPos $ e
-  in P.parseErrorPretty e ++ "\n" ++
-     printArrowsAtPos s errorLine errorColumn ++
-     if showLexerOutput
-     then "\nLexer output:\n" ++ L.debugLex' s
-     else ""
+prettyParseError :: forall v . Var v
+                 => String
+                 -> Parser.Err v
+                 -> AT.AnnotatedDocument Color.Style
+prettyParseError s = \case
+  P.TrivialError sp unexpected expected ->
+    fromString (P.parseErrorPretty @_ @Void (P.TrivialError sp unexpected expected))
+    <> lexerOutput
+
+  P.FancyError sp fancyErrors ->
+    mconcat (AT.AnnotatedDocument . Seq.fromList . go' <$>
+      Set.toList fancyErrors) <> dumpSourcePos sp <> lexerOutput
+  where
+    dumpSourcePos :: Nel.NonEmpty P.SourcePos -> AT.AnnotatedDocument a
+    dumpSourcePos sp = AT.AnnotatedDocument . Seq.fromList . Nel.toList $
+      (fromString . (\s -> "  " ++ show s ++ "\n") <$> sp)
+    go' :: P.ErrorFancy (Parser.Error v)
+        -> [AT.Section Color.Style]
+    go' (P.ErrorFail s) =
+      [ "The parser failed with this message:\n"
+      , fromString s ]
+    go' (P.ErrorIndentation ordering indent1 indent2) =
+      [ "The parser was confused by the indentation.\n"
+      , "It was expecting the reference level (", fromString (show indent1)
+      , ")\nto be ", fromString (show ordering), " than/to the actual level ("
+      , fromString (show indent2), ").\n"
+      ]
+    go' (P.ErrorCustom e) = go e
+    go :: Parser.Error v
+       -> [AT.Section Color.Style]
+    go (Parser.SignatureNeedsAccompanyingBody tok) =
+      [ "You provided a type signature, but I didn't find an accompanying\n"
+      , "binding after it.  Could it be a spelling mismatch?\n"
+      , showSource s [Just (rangeForToken tok, Color.ErrorSite)]
+      ]
+     -- we would include the last binding term if we didn't have to have an Ord instance for it
+    go (Parser.BlockMustEndWithExpression blockAnn lastBindingAnn) =
+      [ "The last line of the block starting at "
+      , fromString . (fmap Char.toLower) . annotatedToEnglish $ blockAnn, "\n"
+      , "has to be an expression, not a binding/import/etc:"
+      , showSource s [(,Color.ErrorSite) <$> rangeForAnnotated lastBindingAnn]
+      ]
+    go (Parser.EmptyBlock tok) =
+      [ "I expected a block after this (", AT.Describe Color.ErrorSite, "),"
+      , ", but there wasn't one.  Maybe check your indentation:\n"
+      , tokenAsErrorSite tok
+      ]
+    go (Parser.UnknownEffectConstructor tok) = unknownConstructor "effect" tok
+    go (Parser.UnknownDataConstructor tok) = unknownConstructor "data" tok
+    unknownConstructor ::
+      String -> L.Token String -> [AT.Section Color.Style]
+    unknownConstructor ctorType tok =
+      [ "I don't know about any ", fromString ctorType, " constructor named "
+      , AT.Text (Color.errorSite . fromString . show $ L.payload tok), ".\n"
+      , "Maybe make sure it's correctly spelled and that you've imported it:\n"
+      , tokenAsErrorSite tok
+      ]
+    tokenAsErrorSite tok =
+      showSource s [Just (rangeForToken tok, Color.ErrorSite)]
+    lexerOutput :: AT.AnnotatedDocument a
+    lexerOutput =
+      if showLexerOutput
+      then "\nLexer output:\n" <> fromString (L.debugLex' s)
+      else mempty
+
+showSource :: String -> [Maybe (Range, Color.Style)] -> AT.Section Color.Style
+showSource source annotations =
+  AT.Blockquote $
+    AT.markup (fromString source) (Set.fromList $ catMaybes annotations)
 
 debugMode :: Bool
 debugMode = True
@@ -272,7 +408,9 @@ findTerm = go
 prettyTypecheckError :: (Var v, Eq loc, Show loc, Parser.Annotated loc)
                      => Env
                      -> String
-                     -> C.Note v loc -> String
+                     -> C.Note v loc -> AT.AnnotatedDocument Color.Style
 prettyTypecheckError env input n =
-  show . Color.renderDocANSI 3 $
-    (renderTypeError env (typeErrorFromNote n) input)
+  renderTypeError env (typeErrorFromNote n) input
+
+parseErrorToAnsiString :: Var v => String -> Parser.Err v -> String
+parseErrorToAnsiString s = show . Color.renderDocANSI 3 . prettyParseError s

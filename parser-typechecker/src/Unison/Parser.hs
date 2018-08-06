@@ -20,7 +20,6 @@ import           Data.Typeable (Proxy(..))
 import           Text.Megaparsec (runParserT)
 import qualified Text.Megaparsec as P
 import qualified Text.Megaparsec.Char as P
-import           Text.Megaparsec.Error (ShowErrorComponent(..))
 import qualified Unison.ABT as ABT
 import           Unison.Hash
 import qualified Unison.Lexer as L
@@ -75,29 +74,6 @@ data Error v
   | UnknownEffectConstructor (L.Token String)
   | UnknownDataConstructor (L.Token String)
   deriving (Show, Eq, Ord)
-
-instance Var v => ShowErrorComponent (Error v) where
-  showErrorComponent e = case e of
-    SignatureNeedsAccompanyingBody t ->
-      showLineCol t ++ ": You provided a type signature, but I " ++
-      "didn't find an accompanying definition after it."
-    BlockMustEndWithExpression bann lbann ->
-      showLineCol lbann ++
-      ": The last line of the block starting at " ++
-      showLineCol bann ++
-      " has to be an expression, not a binding or an import."
-    EmptyBlock t ->
-      showLineCol t ++
-      ": I expected a block after `" ++ L.payload t ++
-      "`, but there wasn't one. Maybe check your indentation."
-    UnknownEffectConstructor t ->
-      showLineCol t ++
-      ": I don't know about any effect constructor named `" ++ L.payload t ++
-      "`. Maybe make sure it's correctly spelled, and that you've imported it."
-    UnknownDataConstructor t ->
-      showLineCol t ++
-      ": I don't know about any data constructor named `" ++ L.payload t ++
-      "`. Maybe make sure it's correctly spelled, and that you've imported it."
 
 data Ann =
   Intrinsic |

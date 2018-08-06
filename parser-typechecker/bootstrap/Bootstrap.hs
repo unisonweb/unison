@@ -13,7 +13,7 @@ import Unison.Symbol (Symbol)
 import Data.Text (unpack)
 import qualified Data.Text.IO
 import Unison.Util.Monoid
-import Unison.PrintError (printNoteWithSource, env0)
+import Unison.PrintError (printNoteWithSourceAsAnsi, env0)
 
 main :: IO ()
 main = do
@@ -28,7 +28,7 @@ main = do
             BS.writeFile outputFile bs
           showNote :: [Result.Note Symbol Parser.Ann] -> String
           showNote notes =
-            intercalateMap "\n\n" (printNoteWithSource env0 source) notes
+            intercalateMap "\n\n" (printNoteWithSourceAsAnsi env0 source) notes
       either (die . showNote . reverse) f r
 
     _ -> putStrLn "usage: bootstrap <in-file.u> <out-file.ub>"

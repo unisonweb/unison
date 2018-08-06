@@ -1,5 +1,5 @@
+{-# LANGUAGE QuasiQuotes      #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE QuasiQuotes #-}
 
 module Unison.Test.Typechecker where
 
@@ -457,9 +457,9 @@ test = scope "typechecker" . tests $
         crasher s =
           either (const ok) (const (crash "succeeded unexpectedly"))
             . Result.toEither $ typeFile s
-        drop1If _p [] = []
+        drop1If _p []   = []
         drop1If p (h:t) = if p h then t else h:t
         stripMargin =
           unlines . map (drop1If (== '|'). dropWhile isSpace) . lines
 
-printError s = intercalate "\n------\n" . map (PE.printNoteWithSource PE.env0 s)
+printError s = intercalate "\n------\n" . map (PE.printNoteWithSourceAsAnsi PE.env0 s)
