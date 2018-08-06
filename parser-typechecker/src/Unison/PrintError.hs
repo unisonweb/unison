@@ -70,23 +70,26 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     -- , " has a type mismatch:\n\n"
     , " has a type mismatch (", AT.Describe Color.ErrorSite, " below):\n\n"
     , AT.Blockquote $ AT.markup (fromString src)
+            (Set.fromList $
+              toList ((,Color.ErrorSite) <$> rangeForAnnotated mismatchSite))
+    , "\n"
+    , "The two types involved are:\n\n"
+    , "  ", AT.Text $ styleInOverallType env overallType1 leaf1 Color.Type1
+    , " (", fromString (Char.toLower <$> annotatedToEnglish leaf1)
+          , ", ", AT.Describe Color.Type1, ")\n"
+    , "  ", AT.Text $ styleInOverallType env overallType2 leaf2 Color.Type2
+    , " (", fromString (Char.toLower <$> annotatedToEnglish leaf2)
+          , ", ", AT.Describe Color.Type2, ")\n"
+    , "\n"
+    , AT.Blockquote $ AT.markup (fromString src)
             (Set.fromList $ catMaybes
               [ (,Color.Type1) <$> rangeForType leaf1
               , (,Color.Type2) <$> rangeForType leaf2
               , (,Color.ForceShow) <$> rangeForType overallType1
               , (,Color.ForceShow) <$> rangeForType overallType2
-              -- , (,Color.ForceShow) <$> rangeForAnnotated mismatchSite
-              , (,Color.ErrorSite) <$> rangeForAnnotated mismatchSite
+              , (,Color.ForceShow) <$> rangeForAnnotated mismatchSite
               ])
     , "\n"
-    , "The two types involved are:\n\n"
-    , "  ", AT.Text $ styleInOverallType env overallType1 leaf1 Color.Type1
-    , " (", fromString (Char.toLower <$> annotatedToEnglish leaf1)
-    , ")\n"
-    -- , "       and\n"
-    , "  ", AT.Text $ styleInOverallType env overallType2 leaf2 Color.Type2
-    , " (" , fromString (Char.toLower <$> annotatedToEnglish leaf2)
-    , ")\n\n"
     , "loc debug:"
     , "\n  mismatchSite: ", fromString $ annotatedToEnglish mismatchSite
     , "\n  overallType1: ", fromString $ annotatedToEnglish overallType1
