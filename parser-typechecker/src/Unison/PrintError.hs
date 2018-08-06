@@ -100,9 +100,9 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     , (fromString . annotatedToEnglish) abilityCheckFailureSite
     , " (", AT.Describe Color.ErrorSite, " below)"
     , " is requesting\n"
-    , "    ", fromString $ show requested
+    , "    {", AT.Text $ intercalateMap ", " (renderType env (const id)) requested, "}"
     , " effects, but this location only has access to\n"
-    , "    ", fromString $ show ambient
+    , "    {", AT.Text $ intercalateMap ", " (renderType env (const id)) ambient, "}"
     , "\n\n"
     , AT.Blockquote $ AT.markup (fromString src)
             (Set.fromList . catMaybes $ [
