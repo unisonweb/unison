@@ -63,6 +63,10 @@ expectRight :: HasCallStack => Either e a -> Test a
 expectRight (Left _) = crash "expected Right, got Left"
 expectRight (Right a) = ok >> pure a
 
+expectLeft :: HasCallStack => Either e a -> Test e
+expectLeft (Left e) = ok >> pure e
+expectLeft (Right _) = crash "expected Left, got Right"
+
 tests :: [Test ()] -> Test ()
 tests = msum
 
