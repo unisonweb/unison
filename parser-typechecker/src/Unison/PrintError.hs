@@ -302,7 +302,7 @@ showLexerOutput = False
 printNoteWithSourceAsAnsi :: (Var v, Annotated a, Show a, Ord a)
                           => Env -> String -> Note v a -> String
 printNoteWithSourceAsAnsi e s n =
-  show . Color.renderDocANSI 3 $ printNoteWithSource e s n
+  show . Color.renderDocANSI 6 $ printNoteWithSource e s n
 
 printNoteWithSource :: (Var v, Annotated a, Show a, Ord a)
                     => Env

@@ -26,7 +26,7 @@ test = scope "datadeclaration" $
     scope "Pong == Long'" . expect $ hashOf "Pong" == hashOf "Long'"
   ]
 
-file = flip unsafeParseFile penv0 $ [r|
+file = snd . flip unsafeParseFile penv0 $ [r|
 type Bool = True | False
 type Bool' = False | True
 
