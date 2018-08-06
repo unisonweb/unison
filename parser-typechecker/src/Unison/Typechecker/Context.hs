@@ -237,13 +237,13 @@ ordered ctx v v2 = Set.member v (existentials (retract' (existential v2) ctx))
 -- env0 = Env 0 context0
 
 debugEnabled :: Bool
-debugEnabled = False
+debugEnabled = True
 
--- logContext :: (Show loc, Var v) => String -> M v loc ()
--- logContext msg = when debugEnabled $ do
---   ctx <- getContext
---   let !_ = trace ("\n"++msg ++ ": " ++ show ctx) ()
---   setContext ctx
+logContext :: (Var v) => String -> M v loc ()
+logContext msg = when debugEnabled $ do
+  ctx <- getContext
+  let !_ = trace ("\n"++msg ++ ": " ++ show ctx) ()
+  setContext ctx
 
 usedVars :: Context v loc -> Set v
 usedVars = allVars . info
@@ -969,7 +969,9 @@ instantiateR :: (Var v, Ord loc) => Type v loc -> B.Blank loc -> v -> M v loc ()
 instantiateR t _ v | debugEnabled && traceShow ("instantiateR"::String, t, v) False = undefined
 instantiateR t blank v = scope (InInstantiateR t v) $
   getContext >>= \ctx -> case Type.monotype t >>= solve ctx v of
-    Just ctx -> setContext ctx -- InstRSolve
+    Just ctx -> do
+      logContext "solving in instantiateR"
+      setContext ctx -- InstRSolve
     Nothing -> case t of
       Type.Existential' _ v2 | ordered ctx v v2 -> -- InstRReach (both are existential, set v2 = v)
         maybe (failWith $ TypeMismatch ctx) setContext $
@@ -1130,7 +1132,7 @@ synthesizeClosed' abilities term = do
   setContext ctx0 -- restore the initial context
   pure $ generalizeExistentials ctx t
 
-instance (Var v, Show loc) => Show (Element v loc) where
+instance (Var v) => Show (Element v loc) where
   show (Var v) = case v of
     TypeVar.Universal x -> "@" <> show x
     TypeVar.Existential _ x -> "'" ++ show x
@@ -1138,7 +1140,7 @@ instance (Var v, Show loc) => Show (Element v loc) where
   show (Ann v t) = Text.unpack (Var.shortName v) ++ " : " ++ show t
   show (Marker v) = "|"++Text.unpack (Var.shortName v)++"|"
 
-instance (Var v, Show loc) => Show (Context v loc) where
+instance (Var v) => Show (Context v loc) where
   show (Context es) = "Γ\n  " ++ (intercalate "\n  " . map (show . fst)) (reverse es)
 
 -- MEnv v loc -> (Seq (Note v loc), (a, Env v loc))
