@@ -10,11 +10,13 @@ import           Data.List (foldl')
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Text as Text
+import           Data.Tuple (swap)
 import           Prelude hiding (readFile)
 import qualified Unison.Lexer as L
 import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 import qualified Unison.DataDeclaration as DD
 import           Unison.Parser
+import qualified Unison.PrintError as PrintError
 import qualified Unison.TermParser as TermParser
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
@@ -31,7 +33,7 @@ import Unison.Reference (Reference)
 file :: forall v . Var v
      => [(v, AnnotatedTerm v Ann)]
      -> [(v, Reference)]
-     -> P v (UnisonFile v Ann)
+     -> P v (PrintError.Env, UnisonFile v Ann)
 file builtinTerms builtinTypes = do
   traceRemainingTokens "file before parsing declarations"
   _ <- openBlock
@@ -46,7 +48,19 @@ file builtinTerms builtinTypes = do
     term <- TermParser.block' "top-level block"
               (void <$> peekAny) -- we actually opened before the declarations
               closeBlock
-    pure $ UnisonFile (UF.datas env) (UF.effects env) (UF.resolveTerm env term)
+    let unisonFile = UnisonFile
+                      (UF.datas env)
+                      (UF.effects env)
+                      (UF.resolveTerm env term)
+        newReferenceNames :: Map Reference String
+        newReferenceNames =
+          (Map.fromList . fmap getName . Map.toList) (UF.typesByName env)
+        newConstructorNames :: Map (Reference, Int) String
+        newConstructorNames =
+          (Map.fromList . fmap swap . Map.toList) ctorLookup0
+        getName (v,r) = (r, (Text.unpack . Var.shortName) v)
+
+    pure (PrintError.Env newReferenceNames newConstructorNames, unisonFile)
 
 declarations :: Var v => P v
                          (Map v (DataDeclaration' v Ann),
