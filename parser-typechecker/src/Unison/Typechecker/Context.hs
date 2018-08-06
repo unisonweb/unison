@@ -107,6 +107,7 @@ data Cause v loc
   | CompilerBug (CompilerBug v loc)
   | AbilityCheckFailure [Type v loc] [Type v loc] -- ambient, requested
   | EffectConstructorWrongArgCount ExpectedArgCount ActualArgCount Reference ConstructorId
+  | MalformedEffectBind [Type v loc]
   | SolvedBlank (B.Recorded loc) v (Type v loc)
   deriving Show
 
@@ -621,14 +622,17 @@ synthesize e = scope (InSynthesize e) $ go (minimize' e)
     let arity = Type.arity cType
     when (length args /= arity) .  failWith $
       EffectConstructorWrongArgCount arity (length args) r cid
-    ([eType], iType) <-
+    (eType, iType) <-
       Type.stripEffect <$> withoutAbilityCheck (foldM synthesizeApp cType args)
     rTypev <- freshNamed "result"
     let rType = Type.existential' l B.Blank rTypev
     appendContext $ context [existential rTypev]
-    check k (Type.arrow l iType (Type.effect l [eType] rType))
+    check k (Type.arrow l iType (Type.effect l eType rType))
     ctx <- getContext
-    pure $ apply ctx (Type.effectV l (l, eType) (l, rType))
+    case (apply ctx <$> eType) of
+      [] -> failWith $ MalformedEffectBind []
+      [e] -> pure $ apply ctx (Type.effectV l (l, e) (l, apply ctx rType))
+      es -> failWith $ MalformedEffectBind es
   go (Term.Match' scrutinee cases) = do
     scrutineeType <- synthesize scrutinee
     outputTypev <- freshenVar (Var.named "match-output")
