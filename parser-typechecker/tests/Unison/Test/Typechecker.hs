@@ -71,6 +71,13 @@ test = scope "typechecker" . tests $
   --       |case Some 3 of
   --       |  x -> 1
   --       |] "UInt64"
+  -- , (pending . bombs)
+  --            [r|--X array
+  --            |type X = S Text | I UInt64
+  --            |foo : a -> b -> c -> X
+  --            |foo x y z = X.S ""
+  --            |[foo +1 1 1.0, 1]
+  --            |]
   , bombs [r|--mismatched case result types
             |type Optional a = None | Some a
             |
