@@ -1,10 +1,4 @@
-
--- WAT
--- $ stack build && stack exec bootstrap unison-src/errors/X-array.u /dev/null
--- typechecked as (o17. o17)
---
-
-foo : ∀ a . a -> a -> UInt64
+foo : a -> a -> UInt64
 foo x z = 42
 
 foo +1 "hi"
