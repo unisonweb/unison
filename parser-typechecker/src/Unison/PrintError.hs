@@ -109,36 +109,34 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     , " effects, but this location only has access to\n"
     , "    {", AT.Text $ commas (renderType' env) ambient, "}"
     , "\n\n"
-    , AT.Blockquote $ AT.markup (fromString src)
-            (Set.fromList . catMaybes $ [
-              (,Color.ErrorSite) <$> rangeForAnnotated abilityCheckFailureSite
-              ])
+    , annotatedAsErrorSite src abilityCheckFailureSite
     ]
   Other note ->
     [ "Sorry, you hit an error we didn't make a nice message for yet.\n\n"
     , "Here is a summary of the Note:\n"
     ] ++ summary note
   where
+    renderTerm e = let s = show e in -- todo: pretty print
+      if length s > 10 then fromString (take 10 s <> "...") else fromString s
     summary :: C.Note v a -> [AT.Section Color.Style]
     summary note =
       [ "  simple cause:\n"
       , "    "
       ] ++ simpleCause (C.cause note) ++ [ "\n"
-      , "  path:\n"
-      ] ++ mconcat (simplePath <$> toList (C.path note)) ++
-      [ "\n" ]
+      ] ++ case toList (C.path note) of
+            [] -> ["  path: (empty)\n"]
+            l ->  "  path:\n" : mconcat (simplePath <$> l)
     simplePath :: C.PathElement v a -> [AT.Section Color.Style]
     simplePath e = ["    "] ++ simplePath' e ++ ["\n"]
     simplePath' :: C.PathElement v a -> [AT.Section Color.Style]
     simplePath' = \case
-      C.InSynthesize e -> ["InSynthesize e= ", fromString (take 10 (show e)), "..."]
+      C.InSynthesize e -> ["InSynthesize e=", renderTerm e]
       C.InSubtype t1 t2 -> ["InSubtype t1="
                            , AT.Text $ renderType' env t1
                            , ", t2="
                            , AT.Text $ renderType' env t2]
       C.InCheck e t ->
-        ["InCheck e=", fromString (take 10 (show e)),
-            if length (show e) > 10 then "..." else "", ","
+        ["InCheck e=", renderTerm e, ","
         ," t=", AT.Text $ renderType' env t]
       C.InInstantiateL v t ->
         ["InInstantiateL v=", AT.Text $ renderVar v
@@ -148,7 +146,7 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
                       ," v=", AT.Text $ renderVar v]
       C.InSynthesizeApp t e -> ["InSynthesizeApp"
         ," t=", AT.Text $ renderType' env t
-        ,", e=", fromString (take 10 (show e)), "..."]
+        ,", e=", renderTerm e]
     simpleCause :: C.Cause v a -> [AT.Section Color.Style]
     simpleCause = \case
       C.TypeMismatch c ->
@@ -161,7 +159,8 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
         ,fromString . init . unlines . (fmap ("  "++)) . lines . show $ c]
       C.UnknownSymbol loc v ->
         [ "UnknownSymbol: ", (fromString . show) loc
-        , " ", (fromString . show) v
+        , " ", (fromString . show) v, "\n\n"
+        , annotatedAsErrorSite src loc
         ]
       C.CompilerBug c -> ["CompilerBug: ", fromString (show c)]
       C.AbilityCheckFailure ambient requested ->
@@ -337,11 +336,10 @@ printNoteWithSource _env s (Parsing e) = prettyParseError s e
 printNoteWithSource env s (Typechecking e) = prettyTypecheckError env s e
 printNoteWithSource _env s (InvalidPath path term) =
   (fromString $ "Invalid Path: " ++ show path ++ "\n")
-  <> AT.sectionToDoc
-      (showSource s [(,Color.ErrorSite) <$> rangeForAnnotated term])
+  <> AT.sectionToDoc (annotatedAsErrorSite s term)
 printNoteWithSource _env s (UnknownSymbol v a) =
   fromString ("Unknown symbol `" ++ Text.unpack (Var.name v) ++ "`\n\n")
-  <> AT.sectionToDoc (showSource s [(,Color.ErrorSite) <$> rangeForAnnotated a])
+  <> AT.sectionToDoc (annotatedAsErrorSite s a)
 
 _printPosRange :: String -> L.Pos -> L.Pos -> String
 _printPosRange s (L.Pos startLine startCol) _end =
@@ -391,19 +389,19 @@ prettyParseError s = \case
     go (Parser.SignatureNeedsAccompanyingBody tok) =
       [ "You provided a type signature, but I didn't find an accompanying\n"
       , "binding after it.  Could it be a spelling mismatch?\n"
-      , showSource s [Just (rangeForToken tok, Color.ErrorSite)]
+      , tokenAsErrorSite s tok
       ]
      -- we would include the last binding term if we didn't have to have an Ord instance for it
     go (Parser.BlockMustEndWithExpression blockAnn lastBindingAnn) =
       [ "The last line of the block starting at "
       , fromString . (fmap Char.toLower) . annotatedToEnglish $ blockAnn, "\n"
       , "has to be an expression, not a binding/import/etc:"
-      , showSource s [(,Color.ErrorSite) <$> rangeForAnnotated lastBindingAnn]
+      , annotatedAsErrorSite s lastBindingAnn
       ]
     go (Parser.EmptyBlock tok) =
       [ "I expected a block after this (", AT.Describe Color.ErrorSite, "),"
       , ", but there wasn't one.  Maybe check your indentation:\n"
-      , tokenAsErrorSite tok
+      , tokenAsErrorSite s tok
       ]
     go (Parser.UnknownEffectConstructor tok) = unknownConstructor "effect" tok
     go (Parser.UnknownDataConstructor tok) = unknownConstructor "data" tok
@@ -413,20 +411,29 @@ prettyParseError s = \case
       [ "I don't know about any ", fromString ctorType, " constructor named "
       , AT.Text (Color.errorSite . fromString . show $ L.payload tok), ".\n"
       , "Maybe make sure it's correctly spelled and that you've imported it:\n"
-      , tokenAsErrorSite tok
+      , tokenAsErrorSite s tok
       ]
-    tokenAsErrorSite tok =
-      showSource s [Just (rangeForToken tok, Color.ErrorSite)]
     lexerOutput :: AT.AnnotatedDocument a
     lexerOutput =
       if showLexerOutput
       then "\nLexer output:\n" <> fromString (L.debugLex' s)
       else mempty
 
-showSource :: String -> [Maybe (Range, Color.Style)] -> AT.Section Color.Style
-showSource source annotations =
-  AT.Blockquote $
-    AT.markup (fromString source) (Set.fromList $ catMaybes annotations)
+annotatedAsErrorSite :: Annotated a => String -> a -> AT.Section Color.Style
+annotatedAsErrorSite s ann =
+  showSourceMaybes s [(,Color.ErrorSite) <$> rangeForAnnotated ann]
+
+tokenAsErrorSite :: String -> L.Token a -> AT.Section Color.Style
+tokenAsErrorSite s tok = showSource1 s (rangeForToken tok, Color.ErrorSite)
+
+showSourceMaybes :: String -> [Maybe (Range, Color.Style)] -> AT.Section Color.Style
+showSourceMaybes source annotations = showSource source $ catMaybes annotations
+
+showSource :: String -> [(Range, Color.Style)] -> AT.Section Color.Style
+showSource source annotations = AT.Blockquote $ AT.markup (fromString source) (Set.fromList annotations)
+
+showSource1 :: String -> (Range, Color.Style) -> AT.Section Color.Style
+showSource1 source annotation = showSource source [annotation]
 
 debugMode :: Bool
 debugMode = True
