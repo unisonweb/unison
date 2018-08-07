@@ -314,7 +314,8 @@ wellformedType c t = wellformed c && case t of
   Type.Arrow' i o -> wellformedType c i && wellformedType c o
   Type.Ann' t' _ -> wellformedType c t'
   Type.App' x y -> wellformedType c x && wellformedType c y
-  Type.Effect' es a -> all (wellformedType c) es && wellformedType c a
+  Type.Effect1' e a -> wellformedType c e && wellformedType c a
+  Type.Effects' es -> all (wellformedType c) es
   Type.Forall' t' ->
     let (v,ctx2) = extendUniversal c
     in wellformedType ctx2 (ABT.bind t' (Type.universal' (ABT.annotation t) v))
@@ -453,7 +454,8 @@ apply ctx t = case t of
   Type.Arrow' i o -> Type.arrow a (apply ctx i) (apply ctx o)
   Type.App' x y -> Type.app a (apply ctx x) (apply ctx y)
   Type.Ann' v k -> Type.ann a (apply ctx v) k
-  Type.Effect' es t -> Type.effect a (map (apply ctx) es) (apply ctx t)
+  Type.Effect1' e t -> Type.effect1 a (apply ctx e) (apply ctx t)
+  Type.Effects' es -> Type.effects a (map (apply ctx) es)
   Type.ForallNamed' v t' -> Type.forall a v (apply ctx t')
   _ -> error $ "Match error in Context.apply: " ++ show t
   where a = ABT.annotation t

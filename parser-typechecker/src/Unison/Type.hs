@@ -146,7 +146,6 @@ unEffect0 (Effect1' e a) = (e, a)
 unEffect0 t = (ABT.tm' (ABT.annotation t) (Effects []), t)
 
 unEffects1 :: Ord v => AnnotatedType v a -> Maybe ([AnnotatedType v a], AnnotatedType v a)
-unEffects1 (Effect1' (Effects' []) _) = Nothing
 unEffects1 (Effect1' (Effects' es) a) = Just (es, a)
 unEffects1 _ = Nothing
 

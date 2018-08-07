@@ -215,13 +215,15 @@ renderType env f = renderType0 env f (0 :: Int) where
     Type.Ann' t k -> paren True $ go 1 t <> " : " <> renderKind k
     Type.Tuple' ts -> paren True $ commas (go 0) ts
     Type.Apps' f' args -> paren (p >= 3) $ spaces (go 3) (f':args)
-    Type.Effect' [] t -> go p t
-    Type.Effect' es t -> paren (p >= 3) $ "{" <> commas (go 0) es <> "} " <> go 3 t
+    Type.Effects' es -> paren (p >= 3) $ "{" <> commas (go 0) es <> "} "
+    Type.Effect' es t -> case es of
+      [] -> go p t
+      _ -> paren (p >= 3) $ "{" <> commas (go 0) es <> "} " <> go 3 t
     Type.ForallsNamed' vs body -> paren (p >= 1) $
       if p == 0 then go 0 body
       else "forall " <> spaces renderVar vs <> " . " <> go 1 body
     Type.Var' v -> renderVar v
-    _ -> error "pattern match failure in PrintError.renderType"
+    _ -> error $ "pattern match failure in PrintError.renderType " ++ show t
     where go = renderType0 env f
 
 spaces :: (IsString a, Monoid a) => (b -> a) -> [b] -> a
