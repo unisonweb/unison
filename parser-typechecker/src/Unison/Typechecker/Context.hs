@@ -477,7 +477,9 @@ withEffects0 abilities' m =
 -- e.g. in `(f:t) x` -- finds the type of (f x) given t and x.
 synthesizeApp :: (Var v, Ord loc) => Type v loc -> Term v loc -> M v loc (Type v loc)
 -- synthesizeApp ft arg | debugEnabled && traceShow ("synthesizeApp"::String, ft, arg) False = undefined
-synthesizeApp (Type.Effect'' _ ft) arg = scope (InSynthesizeApp ft arg) $ go ft where
+synthesizeApp (Type.Effect'' es ft) arg =
+  scope (InSynthesizeApp ft arg) $ abilityCheck es >> go ft
+  where
   go (Type.Forall' body) = do -- Forall1App
     v <- ABT.freshen body freshenTypeVar
     appendContext (context [existential v])

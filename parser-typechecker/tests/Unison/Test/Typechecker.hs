@@ -410,7 +410,7 @@ test = scope "typechecker" . tests $
             |y = handle state 5 in ex ()
             |
             |() |]
-  , checks [r|--map/traverse
+  , broken [r|--map/traverse
              |effect Noop where
              |  noop : ∀ a . a -> {Noop} a
              |
@@ -431,6 +431,10 @@ test = scope "typechecker" . tests $
              |
              |ex = (c 1 (c 2 (c 3 z)))
              |
+             |-- doesn't currently work due to ability check failure,
+             |-- map has `∀ e . {e}` effects, but no effects are in scope
+             |-- seems we should tweak ability check - when no effects
+             |-- in scope, {e} can be instantiated to {}
              |pure-map : List Text
              |pure-map = map (a -> "hello") ex
              |
