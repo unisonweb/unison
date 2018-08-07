@@ -237,7 +237,7 @@ ordered ctx v v2 = Set.member v (existentials (retract' (existential v2) ctx))
 -- env0 = Env 0 context0
 
 debugEnabled :: Bool
-debugEnabled = True
+debugEnabled = False
 
 _logContext :: (Var v) => String -> M v loc ()
 _logContext msg = when debugEnabled $ do

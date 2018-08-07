@@ -383,7 +383,7 @@ test = scope "typechecker" . tests $
             |
             |()
             |]
-  ,broken [r|--handle inference
+  ,bombs  [r|--handle inference
             |effect State s where
             |  get : ∀ s . () -> {State s} s
             |  set : ∀ s . s -> {State s} ()
