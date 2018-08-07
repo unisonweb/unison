@@ -239,8 +239,8 @@ ordered ctx v v2 = Set.member v (existentials (retract' (existential v2) ctx))
 debugEnabled :: Bool
 debugEnabled = True
 
-logContext :: (Var v) => String -> M v loc ()
-logContext msg = when debugEnabled $ do
+_logContext :: (Var v) => String -> M v loc ()
+_logContext msg = when debugEnabled $ do
   ctx <- getContext
   let !_ = trace ("\n"++msg ++ ": " ++ show ctx) ()
   setContext ctx
@@ -764,10 +764,8 @@ annotateLetRecBindings letrec = do
   -- compute generalized types `gt1, gt2 ...` for each binding `b1, b2...`;
   -- add annotations `v1 : gt1, v2 : gt2 ...` to the context
   (ctx1, _, ctx2) <- breakAt (Marker e1) <$> getContext
-  -- The location of the existential is just the location of the binding
-  let gen (e,(_,binding)) = generalizeExistentials ctx2
-         (Type.existential' (loc binding) B.Blank e)
-  let annotations = zipWith Ann vs (map gen (es `zip` bindings))
+  let gen bindingType = generalizeExistentials ctx2 bindingType
+      annotations = zipWith Ann vs (map gen bindingTypes)
   marker <- Marker <$> freshenVar (ABT.v' "let-rec-marker")
   setContext (ctx1 `mappend` context (marker : annotations))
   pure $ (marker, body)
@@ -969,9 +967,7 @@ instantiateR :: (Var v, Ord loc) => Type v loc -> B.Blank loc -> v -> M v loc ()
 instantiateR t _ v | debugEnabled && traceShow ("instantiateR"::String, t, v) False = undefined
 instantiateR t blank v = scope (InInstantiateR t v) $
   getContext >>= \ctx -> case Type.monotype t >>= solve ctx v of
-    Just ctx -> do
-      logContext "solving in instantiateR"
-      setContext ctx -- InstRSolve
+    Just ctx -> setContext ctx -- InstRSolve
     Nothing -> case t of
       Type.Existential' _ v2 | ordered ctx v v2 -> -- InstRReach (both are existential, set v2 = v)
         maybe (failWith $ TypeMismatch ctx) setContext $
