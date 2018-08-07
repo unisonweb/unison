@@ -1,0 +1,6 @@
+--r1
+type Optional a = None | Some a
+r1 : UInt64
+r1 = case Optional.Some 3 of
+  x -> 1
+()
