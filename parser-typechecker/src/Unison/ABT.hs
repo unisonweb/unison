@@ -352,10 +352,11 @@ visitPure f = runIdentity . visit (fmap pure . f)
 data Subst f v a =
   Subst { freshen :: forall m v' . Monad m => (v -> m v') -> m v'
         , bind :: Term f v a -> Term f v a
-        , bindInheritAnnotation :: forall b . Term f v b -> Term f v a }
+        , bindInheritAnnotation :: forall b . Term f v b -> Term f v a
+        , variable :: v }
 
 unabs1 :: (Foldable f, Functor f, Var v) => Term f v a -> Maybe (Subst f v a)
-unabs1 (Term _ _ (Abs v body)) = Just (Subst freshen bind bindInheritAnnotation) where
+unabs1 (Term _ _ (Abs v body)) = Just (Subst freshen bind bindInheritAnnotation v) where
   freshen f = f v
   bind x = subst v x body
   bindInheritAnnotation x = substInheritAnnotation v x body

@@ -294,9 +294,6 @@ freshenTypeVar v =
 freshNamed :: (Var v, Ord loc) => Text -> M v loc v
 freshNamed = freshenVar . Var.named
 
-freshVar :: (Var v, Ord loc) => M v loc v
-freshVar = freshNamed "v"
-
 -- | Check that the context is well formed, see Figure 7 of paper
 -- Since contexts are 'monotonic', we can compute an cache this efficiently
 -- as the context is built up, see implementation of `extend`.
@@ -595,16 +592,21 @@ synthesize e = scope (InSynthesize e) $ go (minimize' e)
    -- generalizeExistentials ctx2 t <$ setContext ctx
   go (Term.Lam' body) = do -- ->I=> (Full Damas Milner rule)
     -- arya: are there more meaningful locations we could put into and pull out of the abschain?)
-    [arg, i, o] <- sequence [ABT.freshen body freshenVar, freshVar, freshVar]
+    [arg, i, e, o] <- sequence [ ABT.freshen body freshenVar
+                               , freshenVar (ABT.variable body)
+                               , freshNamed "inferred-effect"
+                               , freshNamed "inferred-output" ]
     let it = Type.existential' l B.Blank i
         ot = Type.existential' l B.Blank o
+        et = Type.existential' l B.Blank e
     appendContext $
-      context [Marker i, existential i, existential o, Ann arg it]
+      context [Marker i, existential i, existential e, existential o, Ann arg it]
     body <- pure $ ABT.bindInheritAnnotation body (Term.var() arg)
-    check body ot
-    (ctx1, _, ctx2) <- breakAt (Marker i) <$> getContext
+    withEffects0 [et] $ check body ot
+    -- withEffects0 [et] $ check body ot
+    (_, _, ctx2) <- breakAt (Marker i) <$> getContext
     -- unsolved existentials get generalized to universals
-    setContext ctx1
+    doRetract (Marker i)
     pure $ generalizeExistentials ctx2 (Type.arrow l it ot)
   go (Term.LetRecNamed' [] body) = synthesize body
   go (Term.LetRec' letrec) = do
@@ -1037,8 +1039,12 @@ solve ctx v t
 
 abilityCheck' :: (Var v, Ord loc) => [Type v loc] -> [Type v loc] -> M v loc ()
 abilityCheck' ambient requested = do
-  success <- flip allM requested $ \req ->
-    flip anyM ambient $ \amb -> (True <$ subtype amb req) `orElse` pure False
+  success <- flip allM requested $ \req -> do
+    ok <- flip anyM ambient $ \amb -> (True <$ subtype amb req) `orElse` pure False
+    case ok of
+      True -> pure True
+      -- allow a type variable to unify with the empty effect list
+      False -> (True <$ subtype (Type.effects (loc req) []) req) `orElse` pure False
   when (not success) $
     failWith $ AbilityCheckFailure ambient requested
 
