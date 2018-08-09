@@ -12,8 +12,7 @@
 module Unison.Term where
 
 import qualified Control.Monad.Writer.Strict as Writer
-import           Data.Foldable (toList)
-import           Data.Foldable (traverse_)
+import           Data.Foldable (traverse_, toList)
 import           Data.Int (Int64)
 import           Data.List (foldl')
 import           Data.Map (Map)

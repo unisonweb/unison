@@ -1,5 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE PatternSynonyms #-}
 
@@ -9,18 +9,19 @@
 module Unison.Typechecker where
 
 import           Control.Monad (join)
+import           Control.Monad.State (StateT)
+import qualified Control.Monad.State as State
+import           Data.Foldable (for_, traverse_)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Maybe (isJust, maybeToList)
 import           Data.Text (Text)
 import qualified Data.Text as Text
-import           Data.Foldable (for_, traverse_)
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
 import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
-import           Unison.Reference (Reference)
+import           Unison.Reference (Reference(..))
 import           Unison.Result (Result(..), Note(..))
-import qualified Unison.Result as Result
 import           Unison.Term (AnnotatedTerm)
 import qualified Unison.Term as Term
 import           Unison.Type (AnnotatedType)
@@ -134,47 +135,74 @@ synthesize env t =
       (effectDeclaration env)
       (Term.vtmap TypeVar.Universal t)
 
-typeDirectedNameResolution
-  :: forall v loc f. (Var v, Ord loc)
-  => Result (Note v loc) (Type v loc)
-  -> Env f v loc
-  -> Term v loc
-  -> Result (Note v loc) (Term v loc, Type v loc)
-typeDirectedNameResolution r env t = do
-  for_ (notes r) $ \n -> case n of
-    Typechecking (Context.Note (Context.SolvedBlank (B.Resolve loc name) _ inferredType) _)
-      -> let
-           resolve :: NamedReference v loc -> Result (Note v loc) ()
-           resolve (NamedReference fqn foundType) =
-             let subResult = uncurry Result
-                   $ Context.isSubtype (builtinLoc env) foundType inferredType
-             in
-               if Result.isFailure subResult
-                 then traverse_ (failNote . Typechecking) (notes subResult)
-                 else failNote . Typechecking $ Context.Note
-                   (Context.UnknownTerm loc
-                                (Var.named (Text.pack name))
-                                [fqn]
-                                inferredType
-                   )
-                   []
-         in
-           traverse_ resolve
-           . join
-           . maybeToList
-           . Map.lookup (Text.pack name)
-           $ terms env
-    _ -> pure ()
-  fmap (t, ) r
+-- Data needed to suggest type-directed name resolutions
+data TDNR v loc = TDNR {
+  tdnrLoc :: loc,
+  tdnrName :: Text,
+  tdnrType :: Type v loc,
+  tdnrSuggestions :: [Context.Suggestion v loc]
+}
 
-    -- 2. There's more than one name that exactly matches,
-    --    but only one that typechecks. Substitute that one into the code.
-    -- 3. Matching name but incorrect type. Tell the user about this.
-    -- 4. Matching type but not by that name. Tell the user about these.
-    -- 5. No match at all. Throw an unresolved symbol at the user.
-    -- traverse resolveds
-  --where
-    --f (loc, name, typ) = terms env name
+-- Resolve "solved blanks". If a solved blank's type and name matches the type
+-- and unqualified name of a symbol that isn't imported , provide a note
+-- suggesting the import. If the blank is ambiguous and only one typechecks, use
+-- that one.  Otherwise, provide a regular unknown symbol error to the user.
+-- The cases we consider are:
+-- 1. There exist names that match and their types match too. Tell the user
+--    the fully qualified names of these terms, and their types.
+-- 2. There's more than one name that matches,
+--    but only one that typechecks. Substitute that one into the code.
+-- 3. No match at all. Throw an unresolved symbol at the user.
+typeDirectedNameResolution
+  :: forall v loc f a
+   . (Var v, Ord loc)
+  => Result (Note v loc) a
+  -> Env f v loc
+  -> StateT (Term v loc) (Result (Note v loc)) a
+typeDirectedNameResolution resultSoFar env = do
+  a <- State.lift resultSoFar
+  for_ (notes resultSoFar) $ \case
+    Typechecking (Context.Note (Context.SolvedBlank (B.Resolve loc n) _ it) _)
+      -> do
+        suggestions <-
+          State.lift
+          . traverse (resolve it)
+          . join
+          . maybeToList
+          . Map.lookup (Text.pack n)
+          $ terms env
+        suggestOrReplace loc (Text.pack n) it (join suggestions)
+    _ -> pure ()
+  pure a
+ where
+  suggestOrReplace
+    :: loc
+    -> Text
+    -> Context.Type v loc
+    -> [Context.Suggestion v loc]
+    -> StateT (Term v loc) (Result (Note v loc)) ()
+  suggestOrReplace loc name inferredType ss = case ss of
+    [Context.Suggestion fqn _] ->
+      let f t = if ABT.annotation t == loc
+            then Just . Term.ref loc $ Builtin fqn
+            else Nothing
+      in  State.modify (ABT.visitPure f)
+    _ -> State.lift . failNote . Typechecking $ Context.Note
+      (Context.UnknownTerm loc (Var.named name) ss inferredType)
+      []
+  resolve
+    :: Context.Type v loc
+    -> NamedReference v loc
+    -> Result (Note v loc) [Context.Suggestion v loc]
+  resolve inferredType (NamedReference fqn foundType) =
+    -- We found a name that matches. See if the type matches too.
+    let Result subNotes subResult = uncurry Result
+          $ Context.isSubtype (builtinLoc env) foundType inferredType
+    in  case subResult of
+                          -- Something unexpected went wrong with the subtype check
+          Nothing -> const [] <$> traverse_ (failNote . Typechecking) subNotes
+          -- Suggest the import if the type matches.
+          Just b  -> pure [ Context.Suggestion fqn foundType | b ]
 
 -- | Check whether a term matches a type, using a
 -- function to resolve the type of @Ref@ constructors

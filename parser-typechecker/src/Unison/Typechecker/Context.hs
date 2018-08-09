@@ -4,7 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 
-module Unison.Typechecker.Context (synthesizeClosed, Note(..), Cause(..), PathElement(..), Type, Term, isSubtype) where
+module Unison.Typechecker.Context (synthesizeClosed, Note(..), Cause(..), PathElement(..), Type, Term, isSubtype, Suggestion(..)) where
 
 import           Control.Monad
 import           Control.Monad.Loops (anyM, allM)
@@ -98,13 +98,16 @@ data PathElement v loc
 type ExpectedArgCount = Int
 type ActualArgCount = Int
 type ConstructorId = Int
-type SuggestedImport = Text
+
+data Suggestion v loc =
+  Suggestion { suggestionName :: Text, suggestionType :: Type v loc }
+  deriving Show
 
 data Cause v loc
   = TypeMismatch (Context v loc)
   | IllFormedType (Context v loc)
   | UnknownSymbol loc v
-  | UnknownTerm loc v [SuggestedImport] (Type v loc)
+  | UnknownTerm loc v [Suggestion v loc] (Type v loc)
   | CompilerBug (CompilerBug v loc)
   | AbilityCheckFailure [Type v loc] [Type v loc] -- ambient, requested
   | EffectConstructorWrongArgCount ExpectedArgCount ActualArgCount Reference ConstructorId
