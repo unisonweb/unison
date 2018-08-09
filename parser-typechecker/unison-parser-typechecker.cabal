@@ -142,7 +142,6 @@ executable tests
     Unison.Test.Lexer
     Unison.Test.Range
     Unison.Test.TermParser
-    Unison.Test.Typechecker
     Unison.Test.Typechecker2
     Unison.Test.Type
     Unison.Test.Typechecker.Components
