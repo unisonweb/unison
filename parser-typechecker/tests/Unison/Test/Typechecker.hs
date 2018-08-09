@@ -2,7 +2,7 @@
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE RankNTypes #-}
 
-module Unison.Test.Typechecker2 where
+module Unison.Test.Typechecker where
 
 import           EasyTest
 
