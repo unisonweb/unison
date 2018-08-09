@@ -11,6 +11,7 @@ import           Data.Sequence (Seq ((:|>)))
 import           Data.Set (Set)
 import qualified Data.Set as Set
 import           Data.String (IsString (..))
+import           Data.Void (Void)
 import           Safe (lastMay)
 import           Unison.Lexer (Line, Pos (..))
 import           Unison.Util.Monoid (intercalateMap)
@@ -53,6 +54,10 @@ trailingNewLine _ = False
 
 markup :: Ord a => AnnotatedExcerpt a -> Set (Range, a) -> AnnotatedExcerpt a
 markup a r = a { annotations = r `Set.union` annotations a }
+
+renderTextUnstyled :: AnnotatedText a -> Rendered Void
+renderTextUnstyled (AnnotatedText chunks) = foldl' go mempty chunks
+  where go r (text, _) = r <> fromString text
 
 splitAndRender :: Ord a
                => Int

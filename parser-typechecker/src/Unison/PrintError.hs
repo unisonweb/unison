@@ -54,10 +54,13 @@ data TypeError v loc
              , leaf1        :: C.Type v loc
              , leaf2        :: C.Type v loc
              , mismatchSite :: loc
-             , note         :: C.Note v loc   }
+             , note         :: C.Note v loc
+             }
   | AbilityCheckFailure { ambient                 :: [C.Type v loc]
                         , requested               :: [C.Type v loc]
-                        , abilityCheckFailureSite :: loc }
+                        , abilityCheckFailureSite :: loc
+                        , note :: C.Note v loc
+                        }
   | Other (C.Note v loc)
 
 renderTypeError :: forall v a. (Var v, Annotated a, Eq a, Show a)
@@ -110,7 +113,7 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     , "    {", AT.Text $ commas (renderType' env) ambient, "}"
     , "\n\n"
     , annotatedAsErrorSite src abilityCheckFailureSite
-    ]
+    ] ++ summary note
   Other note ->
     [ "Sorry, you hit an error we didn't make a nice message for yet.\n\n"
     , "Here is a summary of the Note:\n"
@@ -164,11 +167,11 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
         ]
       C.CompilerBug c -> ["CompilerBug: ", fromString (show c)]
       C.AbilityCheckFailure ambient requested ->
-        [ "AbilityCheckFailure:\n"
-        , "    ambient: " ] ++
-        (AT.Text . renderType' env <$> ambient) ++
-        [ "\n    requested: "] ++
+        [ "AbilityCheckFailure: "
+        , "ambient={"] ++ (AT.Text . renderType' env <$> ambient) ++
+        [ "} requested={"] ++
         (AT.Text . renderType' env <$> requested)
+        ++ ["}"]
       C.EffectConstructorWrongArgCount e a r cid ->
         [ "EffectConstructorWrongArgCount:"
         , "  expected=", (fromString . show) e
@@ -194,16 +197,16 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
         ]
 
 -- | renders a type with no special styling
-renderType' :: Var v => Env -> C.Type v loc -> StyledText
+renderType' :: Var v => Env -> Type.AnnotatedType v loc -> AT.AnnotatedText (Maybe a)
 renderType' env typ = renderType env (const id) typ
 
 -- | `f` may do some styling based on `loc`.
 -- | You can pass `(const id)` if no styling is needed, or call `renderType'`.
 renderType :: Var v
            => Env
-           -> (loc -> StyledText -> StyledText)
-           -> C.Type v loc
-           -> StyledText
+           -> (loc -> AT.AnnotatedText (Maybe a) -> AT.AnnotatedText (Maybe a))
+           -> Type.AnnotatedType v loc
+           -> AT.AnnotatedText (Maybe a)
 renderType env f = renderType0 env f (0 :: Int) where
   paren :: (IsString a, Semigroup a) => Bool -> a -> a
   paren test s =
@@ -232,17 +235,17 @@ arrows = intercalateMap " -> "
 commas :: (IsString a, Monoid a) => (b -> a) -> [b] -> a
 commas = intercalateMap ", "
 
-renderVar :: Var v => v -> StyledText
+renderVar :: Var v => v -> AT.AnnotatedText (Maybe a)
 renderVar = fromString . Text.unpack . Var.name
 
-renderKind :: Kind -> StyledText
+renderKind :: Kind -> AT.AnnotatedText (Maybe a)
 renderKind Kind.Star          = "*"
 renderKind (Kind.Arrow k1 k2) = renderKind k1 <> " -> " <> renderKind k2
 
 showRef :: Env -> R.Reference -> String
 showRef env r = fromMaybe (show r) (Map.lookup r (referenceNames env))
 
-showRef' :: Env -> R.Reference -> StyledText
+showRef' :: Env -> R.Reference -> AT.AnnotatedText (Maybe a)
 showRef' e r = fromString $ showRef e r
 
 -- todo: do something different/better if cid not found
@@ -297,7 +300,7 @@ rangeForAnnotated a = case ann a of
 -- highlightString :: String -> [()]
 
 --
-typeErrorFromNote :: (Ord loc, Var v) => C.Note v loc -> TypeError v loc
+typeErrorFromNote :: forall loc v. (Ord loc, Var v) => C.Note v loc -> TypeError v loc
 typeErrorFromNote n@(C.Note (C.TypeMismatch ctx) path) =
   let
     pathl = toList path
@@ -315,7 +318,8 @@ typeErrorFromNote n@(C.Note (C.TypeMismatch ctx) path) =
                   n
        _ -> Other n
 typeErrorFromNote n@(C.Note (C.AbilityCheckFailure amb req) _) =
-  let go e = AbilityCheckFailure amb req (ABT.annotation e)
+  let go :: C.Term v loc -> TypeError v loc
+      go e = AbilityCheckFailure amb req (ABT.annotation e) n
   in fromMaybe (Other n) $ go <$> C.innermostErrorTerm n
 typeErrorFromNote n@(C.Note _ _) = Other n
 
