@@ -1,0 +1,7 @@
+type Foo = Foo
+type Bar = Bar
+
+x : Foo
+x = Bar.Bar
+
+x
