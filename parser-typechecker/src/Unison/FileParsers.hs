@@ -1,6 +1,5 @@
 {-# Language OverloadedStrings #-}
 {-# Language ScopedTypeVariables #-}
-{-# Language TupleSections     #-}
 {-# Language UnicodeSyntax     #-}
 {-# LANGUAGE PatternSynonyms #-}
 
@@ -14,6 +13,8 @@ import           Data.Functor.Identity (runIdentity)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Maybe
+import qualified Data.Text as Text
+import           Data.Tuple (swap)
 import qualified Unison.Builtin as B
 import qualified Unison.Codecs as Codecs
 import           Unison.DataDeclaration (DataDeclaration')
@@ -30,15 +31,14 @@ import           Unison.UnisonFile (pattern UnisonFile)
 import qualified Unison.UnisonFile as UF
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
-import qualified Data.Text as Text
 
 type Term v = AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
 type DataDeclaration v = DataDeclaration' v Ann
 type UnisonFile v = UF.UnisonFile v Ann
 
-parseAndSynthesizeAsFile :: Var v => FilePath -> String
-                         -> Result (Note v Ann) (Term v, Type v)
+parseAndSynthesizeAsFile
+  :: Var v => FilePath -> String -> Result (Note v Ann) (Term v, Type v)
 parseAndSynthesizeAsFile filename s = do
   file <- Result.fromParsing $ Parsers.parseFile filename s Parser.penv0
   synthesizeFile file
@@ -68,7 +68,7 @@ synthesizeFile unisonFile
           )
           B.builtinTypedTerms
         )
-      n = Typechecker.synthesize env0 term
+      n = Typechecker.synthesizeAndResolve env0 term
       die s h = error $ "unknown " ++ s ++ " reference " ++ show h
       typeOf r = error $ "unknown reference " ++ show r
       dataDeclaration r = pure $ fromMaybe (die "data" r) $ Map.lookup r datas
@@ -76,7 +76,7 @@ synthesizeFile unisonFile
         pure $ fromMaybe (die "effect" r) $ Map.lookup r effects
       unqualified = last . Text.splitOn "."
     in
-      (term, ) <$> runIdentity n
+      swap <$> runIdentity n
 
 synthesizeUnisonFile :: Var v
                      => UnisonFile v

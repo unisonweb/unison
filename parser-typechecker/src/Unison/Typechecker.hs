@@ -146,7 +146,7 @@ synthesizeAndResolve env t = do
   pure $ runStateT (typeDirectedNameResolution r env) t
 
 -- Resolve "solved blanks". If a solved blank's type and name matches the type
--- and unqualified name of a symbol that isn't imported , provide a note
+-- and unqualified name of a symbol that isn't imported, provide a note
 -- suggesting the import. If the blank is ambiguous and only one typechecks, use
 -- that one.  Otherwise, provide a regular unknown symbol error to the user.
 -- The cases we consider are:

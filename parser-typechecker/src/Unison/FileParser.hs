@@ -1,4 +1,4 @@
-{-# Language TypeApplications, BangPatterns, OverloadedStrings, TupleSections, ScopedTypeVariables #-}
+{-# Language ScopedTypeVariables #-}
 
 module Unison.FileParser where
 
@@ -10,7 +10,6 @@ import           Data.List (foldl')
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Text as Text
-import           Prelude hiding (readFile)
 import qualified Unison.Lexer as L
 import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 import qualified Unison.DataDeclaration as DD
@@ -89,7 +88,7 @@ dataDeclaration = do
       -- otherwise ann of name
       closingAnn :: Ann
       closingAnn = last (ann eq : ((\(_,_,t) -> ann t) <$> constructors))
-  pure $ (L.payload name, DD.mkDataDecl' (ann start <> closingAnn) typeArgVs constructors)
+  pure (L.payload name, DD.mkDataDecl' (ann start <> closingAnn) typeArgVs constructors)
 
 effectDeclaration :: Var v => P v (v, EffectDeclaration' v Ann)
 effectDeclaration = do
@@ -101,7 +100,7 @@ effectDeclaration = do
   constructors <- sepBy semi constructor
   _ <- closeBlock
   let closingAnn = last $ ann blockStart : ((\(_,_,t) -> ann t) <$> constructors)
-  pure $ (L.payload name, DD.mkEffectDecl' (ann effectStart <> closingAnn) typeArgVs constructors)
+  pure (L.payload name, DD.mkEffectDecl' (ann effectStart <> closingAnn) typeArgVs constructors)
   where
     constructor :: Var v => P v (Ann, v, AnnotatedType v Ann)
     constructor = explodeToken <$>

@@ -103,7 +103,7 @@ library
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
 
   if flag(optimized)
-    ghc-options: -funbox-strict-fields -O2
+    ghc-options: -funbox-strict-fields
 
   if flag(quiet)
     ghc-options: -v0
