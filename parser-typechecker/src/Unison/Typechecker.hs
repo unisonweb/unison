@@ -135,14 +135,6 @@ synthesize env t =
       (effectDeclaration env)
       (Term.vtmap TypeVar.Universal t)
 
--- Data needed to suggest type-directed name resolutions
-data TDNR v loc = TDNR {
-  tdnrLoc :: loc,
-  tdnrName :: Text,
-  tdnrType :: Type v loc,
-  tdnrSuggestions :: [Context.Suggestion v loc]
-}
-
 -- Resolve "solved blanks". If a solved blank's type and name matches the type
 -- and unqualified name of a symbol that isn't imported , provide a note
 -- suggesting the import. If the blank is ambiguous and only one typechecks, use
