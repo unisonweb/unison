@@ -1,16 +1,20 @@
-{-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 -- | This module is the primary interface to the Unison typechecker
 -- module Unison.Typechecker (admissibleTypeAt, check, check', checkAdmissible', equals, locals, subtype, isSubtype, synthesize, synthesize', typeAt, wellTyped) where
 
 module Unison.Typechecker where
 
+import           Control.Monad (join)
 import           Data.Map (Map)
-import           Data.Maybe (isJust)
+import qualified Data.Map as Map
+import           Data.Maybe (isJust, maybeToList)
 import           Data.Text (Text)
+import qualified Data.Text as Text
+import           Data.Foldable (for_, traverse_)
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
 import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
@@ -23,6 +27,7 @@ import           Unison.Type (AnnotatedType)
 import qualified Unison.TypeVar as TypeVar
 import qualified Unison.Typechecker.Context as Context
 import           Unison.Var (Var)
+import qualified Unison.Var as Var
 
 -- import qualified Unison.Paths as Paths
 -- import qualified Unison.Type as Type
@@ -36,13 +41,16 @@ type Type v loc = AnnotatedType v loc
 failNote :: Note v loc -> Result (Note v loc) a
 failNote note = Result (pure note) Nothing
 
+data NamedReference v loc =
+  NamedReference { fqn :: Text, fqnType :: Context.Type v loc }
+
 data Env f v loc = Env
   { builtinLoc :: loc
   , ambientAbilities :: [Type v loc]
   , typeOf :: Reference -> f (Type v loc)
   , dataDeclaration :: Reference -> f (DataDeclaration' v loc)
   , effectDeclaration :: Reference -> f (EffectDeclaration' v loc)
-  , terms :: Map Text (Type v loc)
+  , terms :: Map Text [NamedReference v loc]
   }
 
 -- -- | Compute the allowed type of a replacement for a given subterm.
@@ -117,7 +125,7 @@ synthesize :: (Monad f, Var v, Ord loc)
            -> Term v loc
            -> f (Result (Note v loc) (Type v loc))
 synthesize env t =
-  let go (notes, ot) = Result (Result.Typechecking <$> notes) (ABT.vmap TypeVar.underlying <$> ot)
+  let go (notes, ot) = Result (Typechecking <$> notes) (ABT.vmap TypeVar.underlying <$> ot)
   in go <$> Context.synthesizeClosed
       (builtinLoc env)
       (ABT.vmap TypeVar.Universal <$> ambientAbilities env)
@@ -126,30 +134,45 @@ synthesize env t =
       (effectDeclaration env)
       (Term.vtmap TypeVar.Universal t)
 
--- Synthesize and do type-directed name resolution
-synthesizeAndResolve
-  :: (Monad f, Var v, Ord loc)
-  => Env f v loc
+typeDirectedNameResolution
+  :: forall v loc f. (Var v, Ord loc)
+  => Result (Note v loc) (Type v loc)
+  -> Env f v loc
   -> Term v loc
-  -> f (Result (Note v loc) (Type v loc))
-synthesizeAndResolve env t = do
-    r <- synthesize env t
-    let _ = notes r >>= \n ->
-          case n of
-            Typechecking
-              (Context.Note (Context.SolvedBlank (B.Resolve loc name) _ typ) _) ->
-                [(loc, name, typ)]
-            _ -> []
-    -- look in the env for references to things with:
-    -- 1. A matching name (prefixed with .+\.) and type.
-    --    Tell the user about these and suggest an import.
+  -> Result (Note v loc) (Term v loc, Type v loc)
+typeDirectedNameResolution r env t = do
+  for_ (notes r) $ \n -> case n of
+    Typechecking (Context.Note (Context.SolvedBlank (B.Resolve loc name) _ inferredType) _)
+      -> let
+           resolve :: NamedReference v loc -> Result (Note v loc) ()
+           resolve (NamedReference fqn foundType) =
+             let subResult = uncurry Result
+                   $ Context.isSubtype (builtinLoc env) foundType inferredType
+             in
+               if Result.isFailure subResult
+                 then traverse_ (failNote . Typechecking) (notes subResult)
+                 else failNote . Typechecking $ Context.Note
+                   (Context.UnknownTerm loc
+                                (Var.named (Text.pack name))
+                                [fqn]
+                                inferredType
+                   )
+                   []
+         in
+           traverse_ resolve
+           . join
+           . maybeToList
+           . Map.lookup (Text.pack name)
+           $ terms env
+    _ -> pure ()
+  fmap (t, ) r
+
     -- 2. There's more than one name that exactly matches,
     --    but only one that typechecks. Substitute that one into the code.
     -- 3. Matching name but incorrect type. Tell the user about this.
     -- 4. Matching type but not by that name. Tell the user about these.
     -- 5. No match at all. Throw an unresolved symbol at the user.
     -- traverse resolveds
-    pure r
   --where
     --f (loc, name, typ) = terms env name
 

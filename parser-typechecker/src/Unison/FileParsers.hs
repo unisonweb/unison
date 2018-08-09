@@ -43,33 +43,40 @@ parseAndSynthesizeAsFile filename s = do
   file <- Result.fromParsing $ Parsers.parseFile filename s Parser.penv0
   synthesizeFile file
 
-synthesizeFile :: ∀ v . Var v
-               => UnisonFile v
-               -> Result (Note v Ann) (Term v, Type v)
-synthesizeFile unisonFile =
-  let (UnisonFile dds0 eds0 term) =
+synthesizeFile
+  :: forall v . Var v => UnisonFile v -> Result (Note v Ann) (Term v, Type v)
+synthesizeFile unisonFile
+  = let
+      (UnisonFile dds0 eds0 term) =
         UF.bindBuiltins B.builtinTerms B.builtinTypes unisonFile
       dds :: Map Reference (DataDeclaration v)
-      dds = Map.fromList $ Foldable.toList dds0
-      eds = Map.fromList $ Foldable.toList eds0
-      datas = Map.union dds B.builtinDataDecls -- `Map.union` is left-biased
+      dds     = Map.fromList $ Foldable.toList dds0
+      eds     = Map.fromList $ Foldable.toList eds0
+      datas   = Map.union dds B.builtinDataDecls -- `Map.union` is left-biased
       effects = Map.union eds B.builtinEffectDecls
-      env0 = Typechecker.Env
-               Intrinsic
-               []
-               typeOf
-               dataDeclaration
-               effectDeclaration
-               (Map.fromList $
-                 fmap (\(v, (_tm, typ)) -> (unqualified $ Var.name v, typ))
-                      B.builtinTypedTerms)
+      env0    = Typechecker.Env
+        Intrinsic
+        []
+        typeOf
+        dataDeclaration
+        effectDeclaration
+        (Map.fromListWith mappend $ fmap
+          (\(v, (_tm, typ)) ->
+            ( unqualified $ Var.name v
+            , [Typechecker.NamedReference (Var.name v) typ]
+            )
+          )
+          B.builtinTypedTerms
+        )
       n = Typechecker.synthesize env0 term
       die s h = error $ "unknown " ++ s ++ " reference " ++ show h
       typeOf r = error $ "unknown reference " ++ show r
       dataDeclaration r = pure $ fromMaybe (die "data" r) $ Map.lookup r datas
-      effectDeclaration r = pure $ fromMaybe (die "effect" r) $ Map.lookup r effects
+      effectDeclaration r =
+        pure $ fromMaybe (die "effect" r) $ Map.lookup r effects
       unqualified = last . Text.splitOn "."
-  in (term,) <$> runIdentity n
+    in
+      (term, ) <$> runIdentity n
 
 synthesizeUnisonFile :: Var v
                      => UnisonFile v

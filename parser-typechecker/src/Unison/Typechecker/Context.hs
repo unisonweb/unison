@@ -1,15 +1,14 @@
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
-{-# LANGUAGE ViewPatterns #-}
 
-module Unison.Typechecker.Context (synthesizeClosed, Note(..), Cause(..), PathElement(..), Type, Term) where
+module Unison.Typechecker.Context (synthesizeClosed, Note(..), Cause(..), PathElement(..), Type, Term, isSubtype) where
 
 import           Control.Monad
 import           Control.Monad.Loops (anyM, allM)
+import           Control.Monad.Reader.Class
 import           Control.Monad.State (State, get, put, evalState)
 import qualified Data.Foldable as Foldable
 import           Data.List
@@ -47,7 +46,7 @@ pattern Universal v = Var (TypeVar.Universal v)
 pattern Existential b v = Var (TypeVar.Existential b v)
 
 existential :: v -> Element v loc
-existential v = Existential B.Blank v
+existential = Existential B.Blank
 
 -- | Elements of an ordered algorithmic context
 data Element v loc
@@ -99,11 +98,13 @@ data PathElement v loc
 type ExpectedArgCount = Int
 type ActualArgCount = Int
 type ConstructorId = Int
+type SuggestedImport = Text
 
 data Cause v loc
   = TypeMismatch (Context v loc)
   | IllFormedType (Context v loc)
   | UnknownSymbol loc v
+  | UnknownTerm loc v [SuggestedImport] (Type v loc)
   | CompilerBug (CompilerBug v loc)
   | AbilityCheckFailure [Type v loc] [Type v loc] -- ambient, requested
   | EffectConstructorWrongArgCount ExpectedArgCount ActualArgCount Reference ConstructorId
@@ -154,7 +155,7 @@ context0 = Context []
 
 -- | Build a context from a list of elements.
 context :: Var v => [Element v loc] -> Context v loc
-context xs = foldl' (flip extend) context0 xs
+context = foldl' (flip extend) context0
 
 -- | Delete from the end of this context up to and including
 -- the given `Element`. Returns `Nothing` if the element is not found.
@@ -176,14 +177,18 @@ doRetract :: (Var v, Ord loc) => Element v loc -> M v loc ()
 doRetract e = do
   ctx <- getContext
   case retract0 e ctx of
-    Nothing -> compilerCrash (RetractFailure e ctx)
+    Nothing             -> compilerCrash (RetractFailure e ctx)
     Just (t, discarded) -> do
-      let solved = [ (b, v, inst $ Type.getPolytype sa) |
-                     Solved (B.Recorded b) v sa <- discarded ]
-          unsolved = [ (b, v, inst $ Type.existential' (B.loc b) b' v) |
-                       Existential b'@(B.Recorded b) v <- discarded ]
+      let solved =
+            [ (b, v, inst $ Type.getPolytype sa)
+            | Solved (B.Recorded b) v sa <- discarded
+            ]
+          unsolved =
+            [ (b, v, inst $ Type.existential' (B.loc b) b' v)
+            | Existential b'@(B.Recorded b) v <- discarded
+            ]
           go (b, v, sa) = solveBlank b v sa
-          inst t = apply ctx t
+          inst = apply ctx
       Foldable.traverse_ go (solved ++ unsolved)
       setContext t
 
@@ -220,7 +225,7 @@ ordered ctx v v2 = Set.member v (existentials (retract' (existential v2) ctx))
   where
   -- | Like `retract`, but returns the empty context if retracting would remove all elements.
   retract' :: (Var v, Ord loc) => Element v loc -> Context v loc -> Context v loc
-  retract' e ctx = fromMaybe mempty $ (fst <$> retract0 e ctx)
+  retract' e ctx = maybe mempty fst $ retract0 e ctx
 
 -- env0 :: Env v loc
 -- env0 = Env 0 context0
@@ -258,7 +263,7 @@ modifyContext' :: (Context v loc -> Context v loc) -> M v loc ()
 modifyContext' f = modifyContext (pure . f)
 
 appendContext :: (Var v, Ord loc) => Context v loc -> M v loc ()
-appendContext tl = modifyContext' (\ctx -> ctx `mappend` tl)
+appendContext tl = modifyContext' (<> tl)
 
 universals :: Context v loc -> Set v
 universals = universalVars . info
@@ -377,7 +382,7 @@ compilerCrash :: CompilerBug v loc -> M v loc a
 compilerCrash bug = failWith $ CompilerBug bug
 
 failWith :: Cause v loc -> M v loc a
-failWith cause = M (\_ -> (pure (Note cause mempty), Nothing))
+failWith cause = M (const (pure (Note cause mempty), Nothing))
 
 getDataDeclaration :: Reference -> M v loc (DataDeclaration' v loc)
 getDataDeclaration r = do
@@ -423,8 +428,7 @@ extendUniversal v = do
 extendMarker :: (Var v, Ord loc) => v -> M v loc v
 extendMarker v = do
   v' <- freshenVar v
-  modifyContext (\ctx -> pure $ ctx `mappend`
-    (context [Marker v', existential v']))
+  modifyContext (\ctx -> pure $ ctx <> context [Marker v', existential v'])
   pure v'
 
 notMember :: (Var v, Ord loc) => v -> Set (TypeVar v loc) -> Bool
@@ -517,7 +521,7 @@ synthesize e = scope (InSynthesize e) $ go (minimize' e)
     s | Set.null s ->
       -- innermost Ref annotation assumed to be correctly provided by `synthesizeClosed`
       pure t
-    s | otherwise -> compilerCrash $ FreeVarsInTypeAnnotation s
+    s -> compilerCrash $ FreeVarsInTypeAnnotation s
   go (Term.Ref' h) = compilerCrash $ UnannotatedReference h
   go (Term.Constructor' r cid) = getDataConstructorType r cid
   go (Term.Request' r cid) = do
@@ -534,11 +538,11 @@ synthesize e = scope (InSynthesize e) $ go (minimize' e)
              pure t
       else pure t
   go (Term.Ann' e' t) = t <$ check e' t
-  go (Term.Float' _) = getBuiltinLocation >>= pure . Type.float -- 1I=>
-  go (Term.Int64' _) = getBuiltinLocation >>= pure . Type.int64 -- 1I=>
-  go (Term.UInt64' _) = getBuiltinLocation >>= pure . Type.uint64 -- 1I=>
-  go (Term.Boolean' _) = getBuiltinLocation >>= pure . Type.boolean
-  go (Term.Text' _) = getBuiltinLocation >>= pure . Type.text
+  go (Term.Float' _) = Type.float <$> getBuiltinLocation -- 1I=>
+  go (Term.Int64' _) = Type.int64 <$> getBuiltinLocation -- 1I=>
+  go (Term.UInt64' _) = Type.uint64 <$> getBuiltinLocation -- 1I=>
+  go (Term.Boolean' _) = Type.boolean <$> getBuiltinLocation
+  go (Term.Text' _) = Type.text <$> getBuiltinLocation
   go (Term.App' f arg) = do -- ->E
     -- todo: might want to consider using a different location for `ft` in
     -- the event that `ft` is an existential?
@@ -750,10 +754,10 @@ annotateLetRecBindings letrec = do
   -- The location of the existential is just the location of the binding
   let gen (e,(_,binding)) = generalizeExistentials ctx2
          (Type.existential' (loc binding) B.Blank e)
-  let annotations = zipWith Ann vs (map gen (es `zip` bindings))
+  let annotations = zipWith Ann vs $ zipWith (curry gen) es bindings
   marker <- Marker <$> freshenVar (ABT.v' "let-rec-marker")
   setContext (ctx1 `mappend` context (marker : annotations))
-  pure $ (marker, body)
+  pure (marker, body)
 
 -- | Apply the context to the input type, then convert any unsolved existentials
 -- to universals.
@@ -888,7 +892,7 @@ subtype tx ty = scope (InSubtype tx ty) $
 instantiateL :: (Var v, Ord loc) => B.Blank loc -> v -> Type v loc -> M v loc ()
 instantiateL _ v t | debugEnabled && traceShow ("instantiateL"::String, v, t) False = undefined
 instantiateL blank v t = scope (InInstantiateL v t) $
-  getContext >>= \ctx -> case Type.monotype t >>= (solve ctx v) of
+  getContext >>= \ctx -> case Type.monotype t >>= solve ctx v of
     Just ctx -> setContext ctx -- InstLSolve
     Nothing -> case t of
       Type.Existential' _ v2 | ordered ctx v v2 -> -- InstLReach (both are existential, set v2 = v)
@@ -1012,7 +1016,7 @@ abilityCheck' :: (Var v, Ord loc) => [Type v loc] -> [Type v loc] -> M v loc ()
 abilityCheck' ambient requested = do
   success <- flip allM requested $ \req ->
     flip anyM ambient $ \amb -> (True <$ subtype amb req) `orElse` pure False
-  when (not success) $
+  unless success $
     failWith $ AbilityCheckFailure ambient requested
 
 abilityCheck :: (Var v, Ord loc) => [Type v loc] -> M v loc ()
@@ -1070,7 +1074,7 @@ annotateRefs :: (Applicative f, Ord v)
              => (Reference -> f (Type.AnnotatedType v loc))
              -> Term v loc
              -> f (Term v loc)
-annotateRefs synth term = ABT.visit f term where
+annotateRefs synth = ABT.visit f where
   -- already annotated; skip this subtree
   f r@(Term.Ann' (Term.Ref' _) _) = Just (pure r)
   f r@(Term.Ref' h) = Just (Term.ann ra (Term.ref ra h) <$> (ABT.vmap TypeVar.Universal <$> synth h))
@@ -1104,6 +1108,30 @@ synthesizeClosed' abilities term = do
   doRetract (Marker v)
   setContext ctx0 -- restore the initial context
   pure $ generalizeExistentials ctx t
+
+-- Check if `t1` is a subtype of `t2`. Doesn't update the typechecking context.
+isSubtype' :: (Var v, Ord loc) => Type v loc -> Type v loc -> M v loc Bool
+isSubtype' type1 type2 = do
+  let vars = Set.union (ABT.freeVars type1) (ABT.freeVars type2)
+  appendContext $ context (Var <$> Set.toList vars)
+  succeeds $ subtype type1 type2
+  where
+    succeeds :: M v loc a -> M v loc Bool
+    succeeds m = do
+      e <- ask
+      let (_, r) = runM m e
+      pure $ isJust r
+
+-- Public interface to `isSubtype`
+isSubtype
+  :: (Var v, Ord loc)
+  => loc
+  -> Type v loc
+  -> Type v loc
+  -> Result v loc Bool
+isSubtype builtinLoc t1 t2 = fmap fst <$> runM
+  (isSubtype' t1 t2)
+  (MEnv (Env 0 mempty) [] builtinLoc Map.empty Map.empty False)
 
 instance (Var v, Show loc) => Show (Element v loc) where
   show (Var v) = case v of
@@ -1144,3 +1172,7 @@ instance (Var v, Ord loc) => Monoid (Context v loc) where
 
 instance (Var v, Ord loc) => Semigroup (Context v loc) where
   (<>) = mappend
+
+instance MonadReader (MEnv v loc) (M v loc) where
+  ask = M (\e -> (mempty, Just (e, env e)))
+  local f m = M $ runM m . f
