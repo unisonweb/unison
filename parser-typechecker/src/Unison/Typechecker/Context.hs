@@ -479,7 +479,8 @@ synthesizeApp :: (Var v, Ord loc) => Type v loc -> Term v loc -> M v loc (Type v
 synthesizeApp (Type.Effect'' es ft) arg =
   scope (InSynthesizeApp ft arg) $ do
     abilityCheck es
-    Type.Effect'' es t <- go ft
+    -- todo - don't think we always want to ungeneralize here
+    Type.Effect'' es t <- ungeneralize =<< go ft
     abilityCheck es
     pure t
   where
@@ -516,16 +517,16 @@ vectorConstructorOfArity arity = do
       vt = Type.forall bl elementVar (Type.arrows args resultType)
   pure vt
 
-synthesizeEffects :: forall v loc . (Var v, Ord loc)
-                   => Term v loc
-                   -> M v loc (Type v loc, Type v loc)
-synthesizeEffects e = do
+synthesizeEffects :: forall v loc a . (Var v, Ord loc)
+                   => loc -> M v loc a -> M v loc (Type v loc, a)
+synthesizeEffects l e = do
   eff <- freshNamed "inferred-effect"
-  let et = Type.existential' (loc e) B.Blank eff
+  let et = Type.existential' l B.Blank eff
   appendContext $ context [existential eff]
-  t <- withEffects0 [et] $ synthesize e
+  t <- withEffects0 [et] e
   ctx <- getContext
-  pure (apply ctx et, t)
+  let et' = apply ctx et
+  pure (Type.effects (loc et') [et'], t)
 
 -- | Synthesize the type of the given term, updating the context in the process.
 -- | Figure 11 from the paper
@@ -550,8 +551,8 @@ synthesize e = scope (InSynthesize e) $ do
       pure t
     s | otherwise -> compilerCrash $ FreeVarsInTypeAnnotation s
   go (Term.Ref' h) = compilerCrash $ UnannotatedReference h
-  go (Term.Constructor' r cid) = getDataConstructorType r cid
-  go (Term.Request' r cid) = getEffectConstructorType r cid
+  go (Term.Constructor' r cid) = ungeneralize =<< getDataConstructorType r cid
+  go (Term.Request' r cid) = ungeneralize =<< getEffectConstructorType r cid
   go (Term.Ann' e' t) = t <$ check e' t
   go (Term.Float' _) = pure $ Type.float l -- 1I=>
   go (Term.Int64' _) = pure $ Type.int64 l -- 1I=>
@@ -634,20 +635,20 @@ synthesize e = scope (InSynthesize e) $ do
     let arity = Type.arity cType
     when (length args /= arity) .  failWith $
       EffectConstructorWrongArgCount arity (length args) r cid
-    -- TODO: need to use synthesizeEffects
-    bt <- ungeneralize =<< withoutAbilityCheck (foldM synthesizeApp cType args)
+    (eType, bt) <- synthesizeEffects (loc e) $ foldM synthesizeApp cType args
+    bt <- ungeneralize bt
     ctx <- getContext
-    let (eType, iType) = Type.stripEffect $ apply ctx bt
+    let iType = apply ctx bt
     rTypev <- freshNamed "result"
     let rType = Type.existential' l B.Blank rTypev
     appendContext $ context [existential rTypev]
-    check k (Type.arrow l iType (Type.effect l eType rType))
+    check k (Type.arrow l iType (Type.effect1 l eType rType))
     ctx <- getContext
-    case apply ctx bt of
-      Type.Effect'' [] _ -> failWith $ MalformedEffectBind (apply ctx cType) (apply ctx bt) []
-      Type.Effect'' [e] _ -> pure $ apply ctx (Type.effectV l (l, e) (l, apply ctx rType))
-      Type.Effect'' es _ -> failWith $ MalformedEffectBind (apply ctx cType) (apply ctx bt) es
-      _ -> error "pattern match failure"
+    case apply ctx eType of
+      Type.Effects' [] -> failWith $ MalformedEffectBind (apply ctx cType) (apply ctx bt) []
+      Type.Effects' [e] -> pure $ apply ctx (Type.effectV l (l, e) (l, apply ctx rType))
+      Type.Effects' es -> failWith $ MalformedEffectBind (apply ctx cType) (apply ctx bt) es
+      e -> error $ " pattern match failure " ++ show e
   go (Term.Match' scrutinee cases) = do
     scrutineeType <- synthesize scrutinee
     outputTypev <- freshenVar (Var.named "match-output")

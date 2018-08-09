@@ -96,7 +96,7 @@ pattern Effects' es <- ABT.Tm' (Effects es)
 -- Effect1' must match at least one effect
 pattern Effect1' e t <- ABT.Tm' (Effect e t)
 pattern Effect' es t <- (unEffects1 -> Just (es, t))
-pattern Effect'' es t <- (unEffect0 -> (Effects' es, t))
+pattern Effect'' es t <- (unEffect0 -> (es, t))
 -- Effect0' may match zero effects
 pattern Effect0' es t <- (unEffect0 -> (es, t))
 pattern Forall' subst <- ABT.Tm' (Forall (ABT.Abs' subst))
@@ -141,9 +141,9 @@ unTuple t = (case t of
           go (Ref' (Reference.Builtin "()")) = []
           go _t = error "malformed tuple in Type.unTuple"
 
-unEffect0 :: Ord v => AnnotatedType v a -> (AnnotatedType v a, AnnotatedType v a)
-unEffect0 (Effect1' e a) = (e, a)
-unEffect0 t = (ABT.tm' (ABT.annotation t) (Effects []), t)
+unEffect0 :: Ord v => AnnotatedType v a -> ([AnnotatedType v a], AnnotatedType v a)
+unEffect0 (Effect1' e a) = (flattenEffects e, a)
+unEffect0 t = ([], t)
 
 unEffects1 :: Ord v => AnnotatedType v a -> Maybe ([AnnotatedType v a], AnnotatedType v a)
 unEffects1 (Effect1' (Effects' es) a) = Just (es, a)
@@ -279,7 +279,7 @@ effect a es (Effect1' fs t) =
 effect a es t = ABT.tm' a (Effect (ABT.tm' a (Effects es)) t)
 
 effects :: Ord v => a -> [AnnotatedType v a] -> AnnotatedType v a
-effects a es = ABT.tm' a (Effects es)
+effects a es = ABT.tm' a (Effects $ es >>= flattenEffects)
 
 effect1 :: Ord v => a -> AnnotatedType v a -> AnnotatedType v a -> AnnotatedType v a
 effect1 a es (Effect1' fs t) =
