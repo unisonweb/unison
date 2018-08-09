@@ -9,7 +9,7 @@
 module Unison.Typechecker where
 
 import           Control.Monad (join)
-import           Control.Monad.State (StateT)
+import           Control.Monad.State (StateT, runStateT)
 import qualified Control.Monad.State as State
 import           Data.Foldable (for_, traverse_)
 import           Data.Map (Map)
@@ -134,6 +134,16 @@ synthesize env t =
       (dataDeclaration env)
       (effectDeclaration env)
       (Term.vtmap TypeVar.Universal t)
+
+-- | Infer the type of a 'Unison.Term', using type-directed name resolution
+-- to attempt to resolve unknown symbols.
+synthesizeAndResolve :: (Monad f, Var v, Ord loc) =>
+  Env f v loc
+  -> Term v loc
+  -> f (Result (Note v loc) (Type v loc, Term v loc))
+synthesizeAndResolve env t = do
+  r <- synthesize env t
+  pure $ runStateT (typeDirectedNameResolution r env) t
 
 -- Resolve "solved blanks". If a solved blank's type and name matches the type
 -- and unqualified name of a symbol that isn't imported , provide a note
