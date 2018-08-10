@@ -1,0 +1,6 @@
+let
+  (|>) : a -> (a -> WHat) -> b -- unresolved symbol
+  a |> f = f a
+  Stream.from-int64 -3
+    |> Stream.take 10
+    |> Stream.fold-left +0 (Int64.+)

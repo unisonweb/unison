@@ -1,6 +1,6 @@
 scopeName: 'source.unison'
 name: 'Unison'
-fileTypes: ['u']
+fileTypes: ['u','uu']
 limitLineLength: false
 patterns: [
   { include: '#comment' }

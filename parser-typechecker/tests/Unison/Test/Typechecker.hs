@@ -50,14 +50,6 @@ test = scope "typechecker" . tests $
   , c "[1,2,3]" "Sequence UInt64"
   , c "Stream.from-int64 +0" "Stream Int64"
   , c "(UInt64.+) 1" "UInt64 -> UInt64"
-  , bombs [r|--unresolved symbol
-            |let
-            |  (|>) : forall a b . a -> (a -> WHat) -> b -- unresolved symbol
-            |  a |> f = f a
-            |
-            |  Stream.from-int64 -3
-            |    |> Stream.take 10
-            |    |> Stream.fold-left +0 (Int64.+) |]
   , c [r|let
         |  (|>) : forall a b . a -> (a -> b) -> b
         |  a |> f = f a
@@ -78,18 +70,6 @@ test = scope "typechecker" . tests $
   --            |foo x y z = X.S ""
   --            |[foo +1 1 1.0, 1]
   --            |]
-  , bombs [r|--mismatched case result types
-            |type Optional a = None | Some a
-            |
-            |case Optional.Some 3 of
-            |  x -> 1
-            |  y -> "boo" |]
-  , checks [r|--r1
-             |type Optional a = None | Some a
-             |r1 : UInt64
-             |r1 = case Optional.Some 3 of
-             |  x -> 1
-             |() |]
   , checks [r|--r0
              |r1 : UInt64
              |r1 = case Optional.Some 3 of
