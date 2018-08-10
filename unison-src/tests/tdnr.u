@@ -1,0 +1,6 @@
+-- Should resolve + with Type-directeded name resolution
+
+x :: UInt64
+x = 4 + 2
+
+x

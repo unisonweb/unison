@@ -166,6 +166,13 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
         , annotatedAsErrorSite src loc
         ]
       C.CompilerBug c -> ["CompilerBug: ", fromString (show c)]
+      C.UnknownTerm loc v suggestions typ ->
+        ["UnknownTerm: ", (fromString . show) loc
+        , " ", (fromString . show) v, "\n\n"
+        , annotatedAsErrorSite src loc
+        , "Suggestions: ", (fromString . show) suggestions, "\n\n"
+        , "Type: ", (fromString . show) typ
+        ]
       C.AbilityCheckFailure ambient requested ->
         [ "AbilityCheckFailure: "
         , "ambient={"] ++ (AT.Text . renderType' env <$> ambient) ++
