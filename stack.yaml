@@ -8,7 +8,7 @@ packages:
 - parser-typechecker
 
 #compiler-check: match-exact
-resolver: nightly-2018-06-25
+resolver: lts-12.5
 
 extra-deps:
 - base58-bytestring-0.1.0
