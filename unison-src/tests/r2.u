@@ -1,0 +1,6 @@
+type Optional a = None | Some a
+r2 : UInt64
+r2 = case Optional.Some true of
+  Optional.Some true -> 1
+  Optional.Some false -> 0
+()
