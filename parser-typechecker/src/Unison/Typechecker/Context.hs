@@ -612,9 +612,13 @@ synthesize e = scope (InSynthesize e) $ do
     withEffects0 [et] $ check body ot
     -- withEffects0 [et] $ check body ot
     (_, _, ctx2) <- breakAt (Marker i) <$> getContext
+    ctx <- getContext
     -- unsolved existentials get generalized to universals
     doRetract (Marker i)
-    pure $ generalizeExistentials ctx2 (Type.arrow l it ot)
+    pure $ if e `elem` unsolved ctx
+      then generalizeExistentials ctx2 (Type.arrow l it ot)
+      -- when this is hit, triggers error in some tests
+      else generalizeExistentials ctx2 (Type.arrow l it (Type.effect l [apply ctx et] ot))
   go (Term.LetRecNamed' [] body) = synthesize body
   go (Term.LetRec' letrec) = do
     (marker, e) <- annotateLetRecBindings letrec
@@ -901,8 +905,11 @@ subtype tx ty = scope (InSubtype tx ty) $
     ctx' <- getContext
     subtype (apply ctx' t) t2
     doRetract (Marker v)
-  go _ (Type.Effect' [] a1) a2 = subtype a1 a2
-  go _ a1 (Type.Effect' [] a2) = subtype a1 a2
+  go _ (Type.Effect1' e1 a1) (Type.Effect1' e2 a2) = do
+    subtype e1 e2
+    ctx <- getContext
+    subtype (apply ctx a1) (apply ctx a2)
+  go _ a (Type.Effect1' _e2 a2) = subtype a a2
   go ctx (Type.Existential' b v) t -- `InstantiateL`
     | Set.member v (existentials ctx) && notMember v (Type.freeVars t) =
     instantiateL b v t
@@ -910,12 +917,6 @@ subtype tx ty = scope (InSubtype tx ty) $
     | Set.member v (existentials ctx) && notMember v (Type.freeVars t) =
     instantiateR t b v
   go _ (Type.Effects' es1) (Type.Effects' es2) = do
-     ctx <- getContext
-     let es1' = map (apply ctx) es1
-         es2' = map (apply ctx) es2
-     abilityCheck' es2' es1'
-  go _ (Type.Effect'' es1 a1) (Type.Effect' es2 a2) = do
-     subtype a1 a2
      ctx <- getContext
      let es1' = map (apply ctx) es1
          es2' = map (apply ctx) es2
