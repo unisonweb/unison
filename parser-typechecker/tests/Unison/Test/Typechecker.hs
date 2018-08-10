@@ -13,13 +13,30 @@ import           Data.Text              (unpack)
 import           Data.Text.IO           (readFile)
 import           System.FilePath        (joinPath, splitPath)
 import           System.FilePath.Find   (always, extension, find, (==?))
-import           Unison.FileParsers     (parseAndSynthesizeAsFile)
+import           Unison.FileParsers     (Type, Term, parseAndSynthesizeAsFile)
+import           Unison.Parser          as Parser
+import qualified Unison.PrintError      as PrintError
 import qualified Unison.Result          as Result
+import           Unison.Result          (Result(..))
 import           Unison.Symbol          (Symbol)
+import           Unison.Util.Monoid     (intercalateMap)
 
-good = void <$> EasyTest.expectRight
+type Note = Result.Note Symbol Parser.Ann
+
+type SynthResult = Result Note (PrintError.Env, Maybe (Term Symbol, Type Symbol))
+type EitherResult = Either String (Term Symbol, Type Symbol)
+
+expectRight' :: EitherResult -> Test (Term Symbol, Type Symbol)
+expectRight' (Left e) = crash e
+expectRight' (Right a) = ok >> pure a
+
+good :: EitherResult -> Test ()
+good = void <$> expectRight'
+
+bad :: EitherResult -> Test ()
 bad = void <$> EasyTest.expectLeft
 
+test :: Test ()
 test = scope "typechecker.2" . tests $
         [ go shouldPassNow good
         , go shouldFailNow bad
@@ -42,14 +59,26 @@ shouldPassLater = find always (extension ==? ".uu") shouldPassPath
 shouldFailLater :: IO [FilePath]
 shouldFailLater = find always (extension ==? ".uu") shouldFailPath
 
-go :: IO [FilePath] -> (forall e a. Either e a -> Test ()) -> Test ()
+go :: IO [FilePath] -> (EitherResult -> Test ()) -> Test ()
 go files how = do
   files' <- liftIO files
   traverse_ (makePassingTest how) files'
 
-makePassingTest :: (forall e a. Either e a -> Test ()) -> FilePath -> Test ()
-makePassingTest how f = join . liftIO $ do
-  let shortName = joinPath . drop 1 . splitPath $ f
-  source <- unpack <$> Data.Text.IO.readFile f
-  pure $ scope shortName . how . Result.toEither .
-    (parseAndSynthesizeAsFile @Symbol) shortName $ source
+showNotes :: Foldable f => String -> PrintError.Env -> f Note -> String
+showNotes source env notes =
+  intercalateMap "\n\n" (PrintError.printNoteWithSourceAsAnsi env source) notes
+
+decodeResult :: String -> SynthResult -> Either String (Term Symbol, Type Symbol)
+decodeResult source (Result notes Nothing) =
+  Left $ showNotes source PrintError.env0 notes
+decodeResult source (Result notes (Just (env, Nothing))) =
+  Left $ showNotes source env notes
+decodeResult _source (Result _notes (Just (_env, Just (t, typ)))) =
+  Right (t,typ)
+
+makePassingTest :: (EitherResult -> Test ()) -> FilePath -> Test ()
+makePassingTest how filepath = join . liftIO $ do
+  let shortName = joinPath . drop 1 . splitPath $ filepath
+  source <- unpack <$> Data.Text.IO.readFile filepath
+  pure $ scope shortName . how . decodeResult source .
+    parseAndSynthesizeAsFile shortName $ source

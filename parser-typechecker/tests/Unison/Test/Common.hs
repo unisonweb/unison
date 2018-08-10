@@ -3,6 +3,7 @@ module Unison.Test.Common where
 import qualified Unison.Builtin as B
 import qualified Unison.FileParsers as FP
 import           Unison.Parser (Ann(..))
+import qualified Unison.PrintError as PrintError
 import           Unison.Result (Result,Note)
 import qualified Unison.Result as Result
 import           Unison.Symbol (Symbol)
@@ -16,14 +17,8 @@ type Type v = AnnotatedType v Ann
 tm :: String -> Term Symbol
 tm = B.tm
 
-file :: String -> Result (Note Symbol Ann) (Term Symbol, Type Symbol)
+file :: String -> Result (Note Symbol Ann) (PrintError.Env, Maybe (Term Symbol, Type Symbol))
 file = FP.parseAndSynthesizeAsFile ""
-
-fileTerm :: String -> Result (Note Symbol Ann) (Term Symbol)
-fileTerm = fmap fst . FP.parseAndSynthesizeAsFile "<test>"
-
-fileTermType :: String -> Maybe (Term Symbol, Type Symbol)
-fileTermType = Result.toMaybe . FP.parseAndSynthesizeAsFile "<test>"
 
 t :: String -> Type Symbol
 t = B.t
