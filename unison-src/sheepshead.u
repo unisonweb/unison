@@ -1,0 +1,40 @@
+type Suit = Club | Spade | Heart | Diamond -- ♣ | ♠ | ♥ | ♦
+type Card = Card Rank Suit
+type Rank = A | K | Q | J | N10 | N9 | N8 | N7
+type NonEmpty a = NonEmpty a [a]
+
+use Rank A K Q J N10 N9 N8 N7
+use Suit Club Spade Heart Diamond
+use NonEmpty NonEmpty
+use UInt64 (==)
+
+namespace Suit where
+  all = [Club, Spade, Heart, Diamond]
+
+namespace Rank where
+  all = [A, N10, K, Q, J, N9, N8, N7]
+  points r = case r of
+    A -> 11
+    N10 -> 10
+    K -> 4
+    Q -> 3
+    J -> 2
+    _ -> 0
+  toText r = case r of
+    A -> "A"
+    K -> "K"
+    Q -> "Q"
+    J -> "J"
+    N10 -> "10"
+    N9 -> "9"
+    N8 -> "8"
+    N7 -> "7"
+
+namespace NonEmpty where
+  toList n = case n of
+    NonEmpty h t -> Sequence.cons h t
+  fromList : [a] -> NonEmpty a
+  fromList l =
+    if Sequence.size l == 0 then None
+    else Some (NonEmpty (Sequence.at 0 l) (Sequence.drop 1 l))
+()
