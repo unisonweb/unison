@@ -1,19 +1,20 @@
-{-# LANGUAGE OverloadedStrings, QuasiQuotes, TypeApplications #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes       #-}
+{-# LANGUAGE TypeApplications  #-}
 
 module Unison.Test.TermParser where
 
-import Control.Applicative
-import Control.Monad (join)
+import           Control.Applicative
+import           Control.Monad (join)
 import qualified Data.Map as Map
 import           EasyTest
-import           Text.Megaparsec.Error (parseErrorPretty)
-import           Text.RawString.QQ
-import           Unison.PrintError (prettyParseError)
-import qualified Unison.Parsers as Ps
 import qualified Text.Megaparsec as P
+import           Text.RawString.QQ
+import           Unison.Parser
+import qualified Unison.Parsers as Ps
+import           Unison.PrintError (parseErrorToAnsiString)
 import qualified Unison.Reference as R
 import           Unison.Symbol (Symbol)
-import Unison.Parser
 import qualified Unison.TermParser as TP
 
 test1 = scope "termparser" . tests . map parses $
@@ -182,6 +183,6 @@ parseWith :: P Symbol a -> String -> Test ()
 parseWith p s = scope (join . take 1 $ lines s) $
   case Ps.parse @ Symbol p s builtins of
     Left e -> do
-      note $ prettyParseError s e
-      crash $ parseErrorPretty e
+      note $ parseErrorToAnsiString s e
+      crash $ parseErrorToAnsiString s e
     Right _ -> ok

@@ -102,10 +102,10 @@ pattern Universal' v <- ABT.Var' (TypeVar.Universal v)
 
 unArrows :: AnnotatedType v a -> Maybe [AnnotatedType v a]
 unArrows t =
-  case go t of [] -> Nothing; l -> Just l
+  case go t of [_] -> Nothing; l -> Just l
   where
     go (Arrow' i o) = i : go o
-    go _ = []
+    go o = [o]
 
 unApps :: AnnotatedType v a -> Maybe (AnnotatedType v a, [AnnotatedType v a])
 unApps t = case go t [] of [] -> Nothing; [_] -> Nothing; f:args -> Just (f,args)

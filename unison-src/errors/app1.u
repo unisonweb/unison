@@ -1,4 +1,0 @@
-type Optional a = Some a | None
-app : Optional Int64
-app = Optional.Some 3
-()

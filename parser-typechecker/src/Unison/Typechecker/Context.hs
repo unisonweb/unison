@@ -4,7 +4,20 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 
-module Unison.Typechecker.Context (synthesizeClosed, Note(..), Cause(..), PathElement(..), Type, Term, isSubtype, Suggestion(..)) where
+module Unison.Typechecker.Context
+  ( synthesizeClosed
+  , Note(..)
+  , Cause(..)
+  , PathElement(..)
+  , Type
+  , Term
+  , errorTerms
+  , innermostErrorTerm
+  , apply
+  , isSubtype
+  , Suggestion(..)
+  )
+where
 
 import           Control.Monad
 import           Control.Monad.Loops (anyM, allM)
@@ -111,8 +124,19 @@ data Cause v loc
   | CompilerBug (CompilerBug v loc)
   | AbilityCheckFailure [Type v loc] [Type v loc] -- ambient, requested
   | EffectConstructorWrongArgCount ExpectedArgCount ActualArgCount Reference ConstructorId
+  | MalformedEffectBind (Type v loc) (Type v loc) [Type v loc] -- type of ctor, type of ctor result
   | SolvedBlank (B.Recorded loc) v (Type v loc)
   deriving Show
+
+errorTerms :: Note v loc -> [Term v loc]
+errorTerms n = Foldable.toList (path n) >>= \e -> case e of
+  InCheck e _         -> [e]
+  InSynthesizeApp _ e -> [e]
+  InSynthesize e      -> [e]
+  _                     -> []
+
+innermostErrorTerm :: Note v loc -> Maybe (Term v loc)
+innermostErrorTerm n = listToMaybe $ errorTerms n
 
 data Note v loc = Note { cause :: Cause v loc, path :: Seq (PathElement v loc) } deriving Show
 
@@ -236,11 +260,11 @@ ordered ctx v v2 = Set.member v (existentials (retract' (existential v2) ctx))
 debugEnabled :: Bool
 debugEnabled = False
 
--- logContext :: (Show loc, Var v) => String -> M v loc ()
--- logContext msg = when debugEnabled $ do
---   ctx <- getContext
---   let !_ = trace ("\n"++msg ++ ": " ++ show ctx) ()
---   setContext ctx
+_logContext :: (Var v) => String -> M v loc ()
+_logContext msg = when debugEnabled $ do
+  ctx <- getContext
+  let !_ = trace ("\n"++msg ++ ": " ++ show ctx) ()
+  setContext ctx
 
 usedVars :: Context v loc -> Set v
 usedVars = allVars . info
@@ -473,7 +497,9 @@ withEffects0 abilities' m =
 -- e.g. in `(f:t) x` -- finds the type of (f x) given t and x.
 synthesizeApp :: (Var v, Ord loc) => Type v loc -> Term v loc -> M v loc (Type v loc)
 -- synthesizeApp ft arg | debugEnabled && traceShow ("synthesizeApp"::String, ft, arg) False = undefined
-synthesizeApp ft arg = scope (InSynthesizeApp ft arg) $ go ft where
+synthesizeApp (Type.Effect'' es ft) arg =
+  scope (InSynthesizeApp ft arg) $ abilityCheck es >> go ft
+  where
   go (Type.Forall' body) = do -- Forall1App
     v <- ABT.freshen body freshenTypeVar
     appendContext (context [existential v])
@@ -494,6 +520,7 @@ synthesizeApp ft arg = scope (InSynthesizeApp ft arg) $ go ft where
     modifyContext' $ replace (existential a) ctxMid
     ot <$ check arg it
   go _ = getContext >>= \ctx -> failWith $ TypeMismatch ctx
+synthesizeApp _ _ = error "unpossible - Type.Effect'' pattern always succeeds"
 
 -- For arity 3, creates the type `∀ a . a -> a -> a -> Sequence a`
 -- For arity 2, creates the type `∀ a . a -> a -> Sequence a`
@@ -541,11 +568,11 @@ synthesize e = scope (InSynthesize e) $ go (minimize' e)
              pure t
       else pure t
   go (Term.Ann' e' t) = t <$ check e' t
-  go (Term.Float' _) = Type.float <$> getBuiltinLocation -- 1I=>
-  go (Term.Int64' _) = Type.int64 <$> getBuiltinLocation -- 1I=>
-  go (Term.UInt64' _) = Type.uint64 <$> getBuiltinLocation -- 1I=>
-  go (Term.Boolean' _) = Type.boolean <$> getBuiltinLocation
-  go (Term.Text' _) = Type.text <$> getBuiltinLocation
+  go (Term.Float' _) = pure $ Type.float l -- 1I=>
+  go (Term.Int64' _) = pure $ Type.int64 l -- 1I=>
+  go (Term.UInt64' _) = pure $ Type.uint64 l -- 1I=>
+  go (Term.Boolean' _) = pure $ Type.boolean l
+  go (Term.Text' _) = pure $ Type.text l
   go (Term.App' f arg) = do -- ->E
     -- todo: might want to consider using a different location for `ft` in
     -- the event that `ft` is an existential?
@@ -617,14 +644,19 @@ synthesize e = scope (InSynthesize e) $ go (minimize' e)
     let arity = Type.arity cType
     when (length args /= arity) .  failWith $
       EffectConstructorWrongArgCount arity (length args) r cid
-    ([eType], iType) <-
-      Type.stripEffect <$> withoutAbilityCheck (foldM synthesizeApp cType args)
+    bt <- ungeneralize =<< withoutAbilityCheck (foldM synthesizeApp cType args)
+    ctx <- getContext
+    let (eType, iType) = Type.stripEffect $ apply ctx bt
     rTypev <- freshNamed "result"
     let rType = Type.existential' l B.Blank rTypev
     appendContext $ context [existential rTypev]
-    check k (Type.arrow l iType (Type.effect l [eType] rType))
+    check k (Type.arrow l iType (Type.effect l eType rType))
     ctx <- getContext
-    pure $ apply ctx (Type.effectV l (l, eType) (l, rType))
+    case apply ctx bt of
+      Type.Effect'' [] _ -> failWith $ MalformedEffectBind (apply ctx cType) (apply ctx bt) []
+      Type.Effect'' [e] _ -> pure $ apply ctx (Type.effectV l (l, e) (l, apply ctx rType))
+      Type.Effect'' es _ -> failWith $ MalformedEffectBind (apply ctx cType) (apply ctx bt) es
+      _ -> error "pattern match failure"
   go (Term.Match' scrutinee cases) = do
     scrutineeType <- synthesize scrutinee
     outputTypev <- freshenVar (Var.named "match-output")
@@ -754,13 +786,19 @@ annotateLetRecBindings letrec = do
   -- compute generalized types `gt1, gt2 ...` for each binding `b1, b2...`;
   -- add annotations `v1 : gt1, v2 : gt2 ...` to the context
   (ctx1, _, ctx2) <- breakAt (Marker e1) <$> getContext
-  -- The location of the existential is just the location of the binding
-  let gen (e,(_,binding)) = generalizeExistentials ctx2
-         (Type.existential' (loc binding) B.Blank e)
-  let annotations = zipWith Ann vs $ zipWith (curry gen) es bindings
+  let gen bindingType = generalizeExistentials ctx2 bindingType
+      annotations = zipWith Ann vs (map gen bindingTypes)
   marker <- Marker <$> freshenVar (ABT.v' "let-rec-marker")
   setContext (ctx1 `mappend` context (marker : annotations))
   pure (marker, body)
+
+ungeneralize :: (Var v, Ord loc) => Type v loc -> M v loc (Type v loc)
+ungeneralize (Type.Forall' t) = do
+  v <- ABT.freshen t freshenTypeVar
+  appendContext $ context [existential v]
+  t <- pure $ ABT.bindInheritAnnotation t (Type.existential B.Blank v)
+  ungeneralize t
+ungeneralize t = pure t
 
 -- | Apply the context to the input type, then convert any unsolved existentials
 -- to universals.
@@ -1136,7 +1174,7 @@ isSubtype builtinLoc t1 t2 = fmap fst <$> runM
   (isSubtype' t1 t2)
   (MEnv (Env 0 mempty) [] builtinLoc Map.empty Map.empty False)
 
-instance (Var v, Show loc) => Show (Element v loc) where
+instance (Var v) => Show (Element v loc) where
   show (Var v) = case v of
     TypeVar.Universal x -> "@" <> show x
     TypeVar.Existential _ x -> "'" ++ show x
@@ -1144,7 +1182,7 @@ instance (Var v, Show loc) => Show (Element v loc) where
   show (Ann v t) = Text.unpack (Var.shortName v) ++ " : " ++ show t
   show (Marker v) = "|"++Text.unpack (Var.shortName v)++"|"
 
-instance (Var v, Show loc) => Show (Context v loc) where
+instance (Var v) => Show (Context v loc) where
   show (Context es) = "Γ\n  " ++ (intercalate "\n  " . map (show . fst)) (reverse es)
 
 -- MEnv v loc -> (Seq (Note v loc), (a, Env v loc))

@@ -140,8 +140,10 @@ executable tests
     Unison.Test.DataDeclaration
     Unison.Test.FileParser
     Unison.Test.Lexer
+    Unison.Test.Range
     Unison.Test.TermParser
     Unison.Test.Typechecker
+    Unison.Test.Type
     Unison.Test.Typechecker.Components
 
   build-depends:
@@ -151,6 +153,7 @@ executable tests
     easytest,
     errors,
     filepath,
+    filemanip,
     megaparsec,
     raw-strings-qq,
     text,

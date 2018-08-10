@@ -37,10 +37,12 @@ type Type v = AnnotatedType v Ann
 type DataDeclaration v = DataDeclaration' v Ann
 type UnisonFile v = UF.UnisonFile v Ann
 
+-- only used by tests
 parseAndSynthesizeAsFile
   :: Var v => FilePath -> String -> Result (Note v Ann) (Term v, Type v)
 parseAndSynthesizeAsFile filename s = do
-  file <- Result.fromParsing $ Parsers.parseFile filename s Parser.penv0
+  (_errorEnv, file) <- Result.fromParsing
+    $ Parsers.parseFile filename s Parser.penv0
   synthesizeFile file
 
 synthesizeFile

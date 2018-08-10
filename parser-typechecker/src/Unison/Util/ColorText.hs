@@ -27,7 +27,7 @@ import           Unison.Util.Range (Range (..), inRange)
 
 data ANSI
 data ASCII
-data Style = Type1 | Type2 | ErrorSite deriving (Eq, Ord, Show)
+data Style = ForceShow | Type1 | Type2 | ErrorSite deriving (Eq, Ord, Show)
 type StyledText = AnnotatedText (Maybe Style)
 type StyledBlockquote = AnnotatedExcerpt Style
 
@@ -52,23 +52,25 @@ renderDocANSI excerptCollapseWidth (AnnotatedDocument chunks) =
   where
   go [] = mempty
   go (Blockquote exc : rest) =
-    splitAndRender excerptCollapseWidth renderExcerptWithColor exc <> go rest
+    splitAndRender excerptCollapseWidth renderExcerpt exc <> go rest
   go (Describe style : rest) = go (Text (describe style) : rest)
   go (Text t : rest@(Blockquote _ : _)) =
-    renderStyleTextWithColor t
+    renderText t
       <> (if trailingNewLine t then mempty else "\n")
       <> go rest
-  go (Text t : rest) = renderStyleTextWithColor t <> go rest
+  go (Text t : rest) = renderText t <> go rest
 
   describe :: Style -> StyledText
   describe ErrorSite = "colored in " <> errorSite "red"
-  describe Type1     = "colored in " <> errorSite "blue"
-  describe Type2     = "colored in " <> errorSite "green"
+  describe Type1     = "colored in " <> type1 "blue"
+  describe Type2     = "colored in " <> type2 "green"
+  describe ForceShow = mempty
   toANSI :: Style -> Rendered ANSI
   toANSI c = Rendered . pure . setSGRCode $ case c of
     ErrorSite -> [red]
     Type1     -> [blue]
     Type2     -> [green]
+    ForceShow -> []
     where red = SetColor Foreground Vivid Red
           blue = SetColor Foreground Vivid Blue
           green = SetColor Foreground Dull Green
@@ -78,14 +80,14 @@ renderDocANSI excerptCollapseWidth (AnnotatedDocument chunks) =
   resetANSI :: Rendered ANSI
   resetANSI = Rendered . pure . setSGRCode $ [Reset]
 
-  renderStyleTextWithColor :: StyledText -> Rendered ANSI
-  renderStyleTextWithColor (AnnotatedText chunks) = foldl' go mempty chunks
+  renderText :: StyledText -> Rendered ANSI
+  renderText (AnnotatedText chunks) = foldl' go mempty chunks
     where go :: Rendered ANSI -> (String, Maybe Style) -> Rendered ANSI
           go r (text, Nothing)    = r <> resetANSI <> fromString text
           go r (text, Just style) = r <> toANSI style <> fromString text
 
-  renderExcerptWithColor :: StyledBlockquote -> Rendered ANSI
-  renderExcerptWithColor e =
+  renderExcerpt :: StyledBlockquote -> Rendered ANSI
+  renderExcerpt e =
     track (Pos line1 1) [] (Set.toList $ annotations e)
       (Rendered . pure $ renderLineNumber line1) (text e)
     where
@@ -126,4 +128,4 @@ renderDocANSI excerptCollapseWidth (AnnotatedDocument chunks) =
                 then (Rendered . pure) [c] <> resetANSI <> lineHeader'
                 else openColor <> (Rendered . pure) [c]
         in track pos' stack' remainingAnnotations
-          (rendered <> newChar <> resetColor) rest
+          (rendered <> resetColor <> newChar ) rest

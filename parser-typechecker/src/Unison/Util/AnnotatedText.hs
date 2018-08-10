@@ -11,6 +11,7 @@ import           Data.Sequence (Seq ((:|>)))
 import           Data.Set (Set)
 import qualified Data.Set as Set
 import           Data.String (IsString (..))
+import           Data.Void (Void)
 import           Safe (lastMay)
 import           Unison.Lexer (Line, Pos (..))
 import           Unison.Util.Monoid (intercalateMap)
@@ -32,7 +33,13 @@ data AnnotatedExcerpt a = AnnotatedExcerpt
   , annotations :: Set (Range, a)
   } deriving (Eq, Ord, Show)
 
-newtype Rendered a = Rendered (Seq String)
+newtype Rendered a = Rendered { rawRender :: Seq String } deriving (Eq)
+
+sectionToDoc :: Section a -> AnnotatedDocument a
+sectionToDoc = AnnotatedDocument . pure
+
+textToDoc :: AnnotatedText (Maybe a) -> AnnotatedDocument a
+textToDoc = AnnotatedDocument . pure . Text
 
 excerptToDoc :: AnnotatedExcerpt a -> AnnotatedDocument a
 excerptToDoc = AnnotatedDocument . pure . Blockquote
@@ -47,6 +54,10 @@ trailingNewLine _ = False
 
 markup :: Ord a => AnnotatedExcerpt a -> Set (Range, a) -> AnnotatedExcerpt a
 markup a r = a { annotations = r `Set.union` annotations a }
+
+renderTextUnstyled :: AnnotatedText a -> Rendered Void
+renderTextUnstyled (AnnotatedText chunks) = foldl' go mempty chunks
+  where go r (text, _) = r <> fromString text
 
 splitAndRender :: Ord a
                => Int

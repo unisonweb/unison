@@ -163,7 +163,7 @@ typeDirectedNameResolution
   -> StateT (Term v loc) (Result (Note v loc)) a
 typeDirectedNameResolution resultSoFar env = do
   a <- State.lift resultSoFar
-  for_ (notes resultSoFar) $ \case
+  fmap (const a) . for_ (notes resultSoFar) $ \case
     Typechecking (Context.Note (Context.SolvedBlank (B.Resolve loc n) _ it) _)
       -> do
         suggestions <-
@@ -175,7 +175,6 @@ typeDirectedNameResolution resultSoFar env = do
           $ terms env
         suggestOrReplace loc (Text.pack n) it (join suggestions)
     _ -> pure ()
-  pure a
  where
   suggestOrReplace
     :: loc
@@ -201,7 +200,7 @@ typeDirectedNameResolution resultSoFar env = do
     let Result subNotes subResult = uncurry Result
           $ Context.isSubtype (builtinLoc env) foundType inferredType
     in  case subResult of
-                          -- Something unexpected went wrong with the subtype check
+          -- Something unexpected went wrong with the subtype check
           Nothing -> const [] <$> traverse_ (failNote . Typechecking) subNotes
           -- Suggest the import if the type matches.
           Just b  -> pure [ Context.Suggestion fqn foundType | b ]
