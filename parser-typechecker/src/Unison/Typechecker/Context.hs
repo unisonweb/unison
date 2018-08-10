@@ -145,9 +145,10 @@ data MEnv v loc = MEnv {
   builtinLocation :: loc,              -- The location of builtins
   dataDecls :: DataDeclarations v loc, -- Data declarations in scope
   effectDecls :: EffectDeclarations v loc, -- Effect declarations in scope
-  abilityChecks :: Bool            -- Whether to perform ability checks.
-                                   --   It's here so we can disable it during
-                                   --   effect inference.
+
+  -- Returns `True` if ability checks should be performed on the
+  -- input type. See abilityCheck function for how this is used.
+  abilityCheckMask :: Type v loc -> M v loc Bool
 }
 
 newtype Context v loc = Context [(Element v loc, Info v)]
@@ -255,6 +256,9 @@ fromMEnv f m = (mempty, pure (f m, env m))
 
 getBuiltinLocation :: M v loc loc
 getBuiltinLocation = M . fromMEnv $ builtinLocation
+
+getAbilityCheckMask :: M v loc (Type v loc -> M v loc Bool)
+getAbilityCheckMask = M . fromMEnv $ abilityCheckMask
 
 getContext :: M v loc (Context v loc)
 getContext = M . fromMEnv $ ctx . env
@@ -376,11 +380,12 @@ getEffectDeclarations = M $ fromMEnv effectDecls
 getAbilities :: M v loc [Type v loc]
 getAbilities = M $ fromMEnv abilities
 
-abilityCheckEnabled :: M v loc Bool
-abilityCheckEnabled = M $ fromMEnv abilityChecks
-
-withoutAbilityCheck :: M v loc a -> M v loc a
-withoutAbilityCheck m = M (\menv -> runM m $ menv { abilityChecks = False })
+-- run `m` without doing ability checks on requests which match `ambient0`
+-- are a subtype of `ambient0`.
+withoutAbilityCheckFor :: (Ord loc, Var v) => Type v loc -> M v loc a -> M v loc a
+withoutAbilityCheckFor ambient0 m = M (\menv -> runM m $ menv { abilityCheckMask = go })
+  where
+    go t = (False <$ subtype ambient0 t) `orElse` pure True
 
 compilerCrash :: CompilerBug v loc -> M v loc a
 compilerCrash bug = failWith $ CompilerBug bug
@@ -479,8 +484,7 @@ synthesizeApp :: (Var v, Ord loc) => Type v loc -> Term v loc -> M v loc (Type v
 synthesizeApp (Type.Effect'' es ft) arg =
   scope (InSynthesizeApp ft arg) $ do
     abilityCheck es
-    -- todo - don't think we always want to ungeneralize here
-    Type.Effect'' es t <- ungeneralize =<< go ft
+    Type.Effect'' es t <- go ft
     abilityCheck es
     pure t
   where
@@ -551,7 +555,7 @@ synthesize e = scope (InSynthesize e) $ do
       pure t
     s | otherwise -> compilerCrash $ FreeVarsInTypeAnnotation s
   go (Term.Ref' h) = compilerCrash $ UnannotatedReference h
-  go (Term.Constructor' r cid) = ungeneralize =<< getDataConstructorType r cid
+  go (Term.Constructor' r cid) = getDataConstructorType r cid
   go (Term.Request' r cid) = ungeneralize =<< getEffectConstructorType r cid
   go (Term.Ann' e' t) = t <$ check e' t
   go (Term.Float' _) = pure $ Type.float l -- 1I=>
@@ -855,20 +859,14 @@ check e0 t0 = scope (InCheck e0 t0) $ do
     go block@(Term.Handle' h body) t = do
       -- `h` should check against `Effect e i -> t` (for new existentials `e` and `i`)
       -- `body` should check against `i`
-      builtinLoc <- getBuiltinLocation
       [e, i] <- sequence [freshNamed "e", freshNamed "i"]
       appendContext $ context [existential e, existential i]
       let l = loc block
-      check h $ Type.arrow l (Type.effectV builtinLoc (l, Type.existentialp l e) (l, Type.existentialp l i)) t
+      check h $ Type.arrow l (Type.effectV l (l, Type.existentialp l e) (l, Type.existentialp l i)) t
       ctx <- getContext
-      let Type.Effect'' requested _ = apply ctx t
-      abilityCheck requested
-      withEffects [apply ctx $ Type.existentialp l e] $ do
-        ambient <- getAbilities
-        let (_, i') = Type.stripEffect (apply ctx (Type.existentialp l i))
-        -- arya: we should revisit these `l`s once we have this up and running
-        check body (Type.effect l ambient i')
-        pure ()
+      let et = apply ctx (Type.existentialp l e)
+      withoutAbilityCheckFor et $
+        check body (apply ctx $ Type.existentialp l i)
     go e t = do -- Sub
       a <- synthesize e; ctx <- getContext
       subtype (apply ctx a) (apply ctx t)
@@ -1072,10 +1070,10 @@ abilityCheck' ambient requested = do
 
 abilityCheck :: (Var v, Ord loc) => [Type v loc] -> M v loc ()
 abilityCheck requested = do
-  enabled <- abilityCheckEnabled
-  when enabled $ do
-    ambient <- getAbilities
-    abilityCheck' ambient requested
+  enabled <- getAbilityCheckMask
+  ambient <- getAbilities
+  requested' <- filterM enabled requested
+  abilityCheck' ambient requested'
 
 verifyDataDeclarations :: (Var v, Ord loc) => DataDeclarations v loc -> M v loc ()
 verifyDataDeclarations decls = forM_ (Map.toList decls) $ \(_ref, decl) -> do
@@ -1140,7 +1138,7 @@ run :: (Var v, Ord loc)
     -> M v loc a
     -> Result v loc a
 run builtinLoc ambient datas effects m =
-  let (notes, o) = runM m (MEnv (Env 0 mempty) ambient builtinLoc datas effects True)
+  let (notes, o) = runM m (MEnv (Env 0 mempty) ambient builtinLoc datas effects (const $ pure True))
   in (notes, fst <$> o)
 
 synthesizeClosed' :: (Var v, Ord loc)
