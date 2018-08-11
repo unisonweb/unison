@@ -192,6 +192,19 @@ test = scope "typechecker" . tests $
              |bork = u -> 1 UInt64.+ (Abort.Abort ())
              |
              |() |]
+  , checks [r|--Ask inferred
+             |effect Ask a where
+             |  ask : {Ask a} a
+             |
+             |use UInt64 +
+             |
+             |x = '(Ask.ask + 1)
+             |
+             |y : '{Ask UInt64} Text
+             |y = '(!x)
+             |
+             |()
+             |]
   , checks [r|--State1 effect
              |effect State se2 where
              |  put : ∀ se . se -> {State se} ()
