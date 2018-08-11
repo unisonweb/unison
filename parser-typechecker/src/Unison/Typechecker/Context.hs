@@ -383,9 +383,10 @@ getAbilities = M $ fromMEnv abilities
 -- run `m` without doing ability checks on requests which match `ambient0`
 -- are a subtype of `ambient0`.
 withoutAbilityCheckFor :: (Ord loc, Var v) => Type v loc -> M v loc a -> M v loc a
-withoutAbilityCheckFor ambient0 m = M (\menv -> runM m $ menv { abilityCheckMask = go })
+withoutAbilityCheckFor ambient0 m =
+  M (\menv -> runM m $ menv { abilityCheckMask = go (abilityCheckMask menv) })
   where
-    go t = (False <$ subtype ambient0 t) `orElse` pure True
+    go mask t = (False <$ subtype ambient0 t) `orElse` mask t
 
 compilerCrash :: CompilerBug v loc -> M v loc a
 compilerCrash bug = failWith $ CompilerBug bug
