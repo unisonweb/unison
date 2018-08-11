@@ -200,7 +200,7 @@ test = scope "typechecker" . tests $
              |
              |x = '(Ask.ask + 1)
              |
-             |y : '{Ask UInt64} Text
+             |y : '{Ask UInt64} UInt64
              |y = '(!x)
              |
              |()
