@@ -615,7 +615,6 @@ synthesize e = scope (InSynthesize e) $ do
       context [Marker i, existential i, existential e, existential o, Ann arg it]
     body <- pure $ ABT.bindInheritAnnotation body (Term.var() arg)
     withEffects0 [et] $ check body ot
-    -- withEffects0 [et] $ check body ot
     (_, _, ctx2) <- breakAt (Marker i) <$> getContext
     ctx <- getContext
     -- unsolved existentials get generalized to universals
@@ -866,8 +865,10 @@ check e0 t0 = scope (InCheck e0 t0) $ do
       check h $ Type.arrow l (Type.effectV l (l, Type.existentialp l e) (l, Type.existentialp l i)) t
       ctx <- getContext
       let et = apply ctx (Type.existentialp l e)
-      withoutAbilityCheckFor et $
-        check body (apply ctx $ Type.existentialp l i)
+      withoutAbilityCheckFor et $ do
+        -- todo: not quite right - really just want to eliminate anything
+        -- for which `et` is a subtype, don't eliminate everything
+        withEffects0 [] $ check body (apply ctx $ Type.existentialp l i)
     go e t = do -- Sub
       a <- synthesize e; ctx <- getContext
       subtype (apply ctx a) (apply ctx t)
