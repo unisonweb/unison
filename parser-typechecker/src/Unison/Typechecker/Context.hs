@@ -105,7 +105,7 @@ data Cause v loc
   | IllFormedType (Context v loc)
   | UnknownSymbol loc v
   | CompilerBug (CompilerBug v loc)
-  | AbilityCheckFailure [Type v loc] [Type v loc] -- ambient, requested
+  | AbilityCheckFailure [Type v loc] [Type v loc] (Context v loc) -- ambient, requested
   | EffectConstructorWrongArgCount ExpectedArgCount ActualArgCount Reference ConstructorId
   | MalformedEffectBind (Type v loc) (Type v loc) [Type v loc] -- type of ctor, type of ctor result
   | SolvedBlank (B.Recorded loc) v (Type v loc)
@@ -240,7 +240,7 @@ ordered ctx v v2 = Set.member v (existentials (retract' (existential v2) ctx))
 debugEnabled :: Bool
 debugEnabled = False
 
-_logContext :: (Var v) => String -> M v loc ()
+_logContext :: (Ord loc, Var v) => String -> M v loc ()
 _logContext msg = when debugEnabled $ do
   ctx <- getContext
   let !_ = trace ("\n"++msg ++ ": " ++ show ctx) ()
@@ -1072,8 +1072,9 @@ abilityCheck' ambient requested = do
       True -> pure True
       -- allow a type variable to unify with the empty effect list
       False -> (True <$ subtype (Type.effects (loc req) []) req) `orElse` pure False
-  when (not success) $
-    failWith $ AbilityCheckFailure ambient requested
+  when (not success) $ do
+    ctx <- getContext
+    failWith $ AbilityCheckFailure ambient requested ctx
 
 abilityCheck :: (Var v, Ord loc) => [Type v loc] -> M v loc ()
 abilityCheck requested = do
@@ -1173,8 +1174,15 @@ instance (Var v) => Show (Element v loc) where
   show (Ann v t) = Text.unpack (Var.shortName v) ++ " : " ++ show t
   show (Marker v) = "|"++Text.unpack (Var.shortName v)++"|"
 
-instance (Var v) => Show (Context v loc) where
-  show (Context es) = "Γ\n  " ++ (intercalate "\n  " . map (show . fst)) (reverse es)
+instance (Ord loc, Var v) => Show (Context v loc) where
+  show ctx@(Context es) = "Γ\n  " ++ (intercalate "\n  " . map (showElem ctx . fst)) (reverse es)
+    where
+    showElem _ctx (Var v) = case v of
+      TypeVar.Universal x -> "@" <> show x
+      TypeVar.Existential _ x -> "'" ++ show x
+    showElem ctx (Solved _ v (Type.Monotype t)) = "'"++Text.unpack (Var.shortName v)++" = "++ show (apply ctx t)
+    showElem ctx (Ann v t) = Text.unpack (Var.shortName v) ++ " : " ++ show (apply ctx t)
+    showElem _ (Marker v) = "|"++Text.unpack (Var.shortName v)++"|"
 
 -- MEnv v loc -> (Seq (Note v loc), (a, Env v loc))
 instance Monad (M v loc) where

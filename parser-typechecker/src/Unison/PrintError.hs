@@ -63,7 +63,7 @@ data TypeError v loc
                         }
   | Other (C.Note v loc)
 
-renderTypeError :: forall v a. (Var v, Annotated a, Eq a, Show a)
+renderTypeError :: forall v a. (Var v, Annotated a, Ord a, Show a)
                 => Env
                 -> TypeError v a
                 -> String
@@ -166,12 +166,12 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
         , annotatedAsErrorSite src loc
         ]
       C.CompilerBug c -> ["CompilerBug: ", fromString (show c)]
-      C.AbilityCheckFailure ambient requested ->
+      C.AbilityCheckFailure ambient requested ctx ->
         [ "AbilityCheckFailure: "
         , "ambient={"] ++ (AT.Text . renderType' env <$> ambient) ++
         [ "} requested={"] ++
         (AT.Text . renderType' env <$> requested)
-        ++ ["}"]
+        ++ ["}\n"] ++ [fromString (show ctx)]
       C.EffectConstructorWrongArgCount e a r cid ->
         [ "EffectConstructorWrongArgCount:"
         , "  expected=", (fromString . show) e
@@ -319,7 +319,7 @@ typeErrorFromNote n@(C.Note (C.TypeMismatch ctx) path) =
                   (ABT.annotation mismatchSite)
                   n
        _ -> Other n
-typeErrorFromNote n@(C.Note (C.AbilityCheckFailure amb req) _) =
+typeErrorFromNote n@(C.Note (C.AbilityCheckFailure amb req _) _) =
   let go :: C.Term v loc -> TypeError v loc
       go e = AbilityCheckFailure amb req (ABT.annotation e) n
   in fromMaybe (Other n) $ go <$> C.innermostErrorTerm n
