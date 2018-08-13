@@ -12,12 +12,13 @@ module Unison.Typechecker where
 import           Control.Monad (join)
 import           Control.Monad.State (StateT, runStateT)
 import qualified Control.Monad.State as State
-import           Data.Foldable (for_, traverse_)
+import           Data.Foldable (traverse_)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Maybe (isJust, maybeToList)
 import           Data.Text (Text)
 import qualified Data.Text as Text
+import           Data.Traversable (for)
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
 import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
@@ -30,6 +31,7 @@ import qualified Unison.TypeVar as TypeVar
 import qualified Unison.Typechecker.Context as Context
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
+import qualified Data.Sequence as Seq
 
 -- import qualified Unison.Paths as Paths
 -- import qualified Unison.Type as Type
@@ -163,8 +165,8 @@ typeDirectedNameResolution
   -> Env f v loc
   -> StateT (Term v loc) (Result (Note v loc)) a
 typeDirectedNameResolution resultSoFar env = do
-  a <- State.lift resultSoFar
-  fmap (const a) . for_ (notes resultSoFar) $ \case
+  let (Result oldNotes may) = resultSoFar
+  newNotes <- fmap join . for oldNotes $ \case
     Typechecking (Context.Note (Context.SolvedBlank (B.Resolve loc n) _ it) _)
       -> do
         suggestions <-
@@ -176,7 +178,9 @@ typeDirectedNameResolution resultSoFar env = do
           . Map.lookup (Text.pack n)
           $ terms env
         suggestOrReplace loc (Text.pack n) it suggestions
-    _ -> pure ()
+        pure Seq.empty
+    x -> pure [x]
+  State.lift $ Result newNotes may
  where
   suggestOrReplace
     :: loc
