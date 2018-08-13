@@ -84,11 +84,13 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     , "\n"
     , AT.Blockquote $ AT.markup (fromString src)
             (Set.fromList $ catMaybes
-              [ (,Color.Type1) <$> rangeForType leaf1
+              [ -- these are overwriting the colored ranges for some reason?
+              --   (,Color.ForceShow) <$> rangeForAnnotated mismatchSite
+              -- , (,Color.ForceShow) <$> rangeForType overallType1
+              -- , (,Color.ForceShow) <$> rangeForType overallType2
+              -- ,
+                (,Color.Type1) <$> rangeForType leaf1
               , (,Color.Type2) <$> rangeForType leaf2
-              , (,Color.ForceShow) <$> rangeForType overallType1
-              , (,Color.ForceShow) <$> rangeForType overallType2
-              , (,Color.ForceShow) <$> rangeForAnnotated mismatchSite
               ])
     , "\n"
     , "loc debug:"
