@@ -43,6 +43,7 @@ test = scope "typechecker.2" . tests $
         , go shouldFailLater (pending . good)
         ]
 
+shouldPassPath, shouldFailPath :: String
 shouldPassPath = "unison-src/tests"
 shouldFailPath = "unison-src/errors"
 

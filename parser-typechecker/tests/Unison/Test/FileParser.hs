@@ -14,6 +14,7 @@ module Unison.Test.FileParser where
   import Unison.Symbol (Symbol)
   import Unison.UnisonFile (UnisonFile)
 
+  test1 :: Test ()
   test1 = scope "fileparser.test1" . tests . map parses $
     [ "()"
     -- , "type () = ()\n()"
@@ -45,16 +46,20 @@ module Unison.Test.FileParser where
       ,"ping"]
     ]
 
+  test2 :: Test ()
   test2 = scope "fileparser.test2" $
     (io $ unsafeReadAndParseFile' "unison-src/test1.u") *> ok
 
+  test :: Test ()
   test = --test2
     test1 <|> test2
 
+  builtins :: PEnv Symbol
   builtins = PEnv (Map.fromList
     [("Pair", (R.Builtin "Pair", 0)),
      ("State.set", (R.Builtin "State", 0))]) mempty
 
+  parses :: String -> Test ()
   parses s = scope s $ do
     let
       p :: UnisonFile Symbol Ann

@@ -17,6 +17,7 @@ import qualified Unison.Reference as R
 import           Unison.Symbol (Symbol)
 import qualified Unison.TermParser as TP
 
+test1 :: Test ()
 test1 = scope "termparser" . tests . map parses $
   [ "1"
   , "1.0"
@@ -147,10 +148,13 @@ test1 = scope "termparser" . tests . map parses $
        |]
   ]
 
+test2 :: Test ()
 test2 = (scope "fiddle" . tests $ unitTests)
 
+test :: Test ()
 test = test1 <|> test2
 
+unitTests :: [Test ()]
 unitTests =
  [ t w "hi"
  , t s "foo.+"
@@ -173,10 +177,12 @@ unitTests =
    w = wordyId
    s = symbolyId
 
+builtins :: PEnv Symbol
 builtins = PEnv (Map.fromList
   [("Pair", (R.Builtin "Pair", 0)),
    ("State.set", (R.Builtin "State", 0))]) mempty
 
+parses :: String -> Test ()
 parses = parseWith TP.term
 
 parseWith :: P Symbol a -> String -> Test ()

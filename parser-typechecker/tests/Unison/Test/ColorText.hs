@@ -13,6 +13,7 @@ import           Unison.Util.ColorText (ANSI, Style (..), renderDocANSI)
 import qualified Unison.Util.ColorText as ColorText
 import           Unison.Util.Range (Range (..))
 
+test :: Test ()
 test = scope "colortext" . tests $ [
     -- commented out because they don't render exactly the same escape sequences, but they're equivalent4 as of this writing
     -- scope "inclusive-exclusive range" . expect . trace ("ex4e: " ++ show (rawRender ex4e) ++ "\n" ++ "ex4t: " ++ show (rawRender ex4t) ++ "\n")$ ex4e == ex4t
