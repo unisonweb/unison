@@ -928,9 +928,16 @@ subtype tx ty = scope (InSubtype tx ty) $
      let es1' = map (apply ctx) es1
          es2' = map (apply ctx) es2
      abilityCheck' es2' es1'
-  go ctx t t2@(Type.Effects' _) = go ctx (Type.effects (loc t) [t]) t2
-  go ctx t@(Type.Effects' _) t2 = go ctx t (Type.effects (loc t2) [t2])
+  go ctx t t2@(Type.Effects' _) | expand t  = go ctx (Type.effects (loc t) [t]) t2
+  go ctx t@(Type.Effects' _) t2 | expand t2 = go ctx t (Type.effects (loc t2) [t2])
   go ctx _ _ = failWith $ TypeMismatch ctx
+
+  expand :: Type v loc -> Bool
+  expand t = case t of
+    Type.Existential' _ _ -> True
+    Type.App' _ _ -> True
+    Type.Ref' _ -> True
+    _ -> False
 
 
 -- | Instantiate the given existential such that it is
@@ -1070,6 +1077,7 @@ solve ctx v t
 
 abilityCheck' :: (Var v, Ord loc) => [Type v loc] -> [Type v loc] -> M v loc ()
 abilityCheck' ambient requested = do
+  let !_ = traceShow ("ambient", ambient, "requested", requested) ()
   -- if requested is an existential that is unsolved, go ahead and unify that
   -- with all of ambient
   ctx <- getContext
@@ -1085,7 +1093,10 @@ abilityCheck' ambient requested = do
         case ok of
           True -> pure True
           -- allow a type variable to unify with the empty effect list
-          False -> (True <$ subtype (Type.effects (loc req) []) req) `orElse` pure False
+          False -> case req of
+            Type.Existential' _ _ ->
+              (True <$ subtype (Type.effects (loc req) []) req) `orElse` pure False
+            _ -> pure True
       when (not success) $ do
         ctx <- getContext
         failWith $ AbilityCheckFailure ambient requested ctx
