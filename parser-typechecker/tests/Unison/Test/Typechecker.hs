@@ -403,7 +403,7 @@ test = scope "typechecker" . tests $
             |y = handle state 5 in ex ()
             |
             |() |]
-  , broken [r|--map/traverse
+  , checks [r|--map/traverse
              |effect Noop where
              |  noop : ∀ a . a -> {Noop} a
              |
@@ -412,7 +412,7 @@ test = scope "typechecker" . tests $
              |
              |type List a = Nil | Cons a (List a)
              |
-             |map : ∀ a b e . (a -> {e} b) -> List a -> {e} (List b)
+             |map : (a -> {eff!,eff2!} b) -> List a -> {eff!,eff2!} (List b)
              |map f as = case as of
              |  List.Nil -> List.Nil
              |  List.Cons h t -> List.Cons (f h) (map f t)
@@ -424,12 +424,8 @@ test = scope "typechecker" . tests $
              |
              |ex = (c 1 (c 2 (c 3 z)))
              |
-             |-- doesn't currently work due to ability check failure,
-             |-- map has `∀ e . {e}` effects, but no effects are in scope
-             |-- seems we should tweak ability check - when no effects
-             |-- in scope, {e} can be instantiated to {}
-             |pure-map : List Text
-             |pure-map = map (a -> "hello") ex
+             |-- pure-map : List Text
+             |-- pure-map = map (a -> "hello") ex
              |
              |-- `map` is effect polymorphic
              |zappy : () -> {Noop} (List UInt64)

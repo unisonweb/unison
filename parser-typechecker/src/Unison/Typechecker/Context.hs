@@ -492,9 +492,10 @@ synthesizeApp :: (Var v, Ord loc) => Type v loc -> Term v loc -> M v loc (Type v
 synthesizeApp (Type.Effect'' es ft) arg =
   scope (InSynthesizeApp ft arg) $ do
     abilityCheck es
-    Type.Effect'' es t <- go ft
-    abilityCheck es
-    pure t
+    go ft
+    --Type.Effect'' es t <- go ft
+    --abilityCheck es
+    --pure t
   where
   go (Type.Forall' body) = do -- Forall1App
     v <- ABT.freshen body freshenTypeVar
@@ -1064,7 +1065,9 @@ solve ctx v t
 abilityCheck' :: (Var v, Ord loc) => [Type v loc] -> [Type v loc] -> M v loc ()
 abilityCheck' ambient requested = do
   success <- flip allM requested $ \req -> do
-    ok <- flip anyM ambient $ \amb -> (True <$ subtype amb req) `orElse` pure False
+    -- NB - if there's an exact match, use that
+    let toCheck = maybe ambient pure $ find (== req) ambient
+    ok <- flip anyM toCheck $ \amb -> (True <$ subtype amb req) `orElse` pure False
     case ok of
       True -> pure True
       -- allow a type variable to unify with the empty effect list
