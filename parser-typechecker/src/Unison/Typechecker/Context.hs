@@ -503,10 +503,7 @@ synthesizeApp (Type.Effect'' es ft) arg =
   go (Type.Arrow' i o) = do -- ->App
     let (es, _) = Type.stripEffect o
     abilityCheck es
-    ambientEs <- getAbilities
-    -- note - the location on this Type.effect isn't really used for anything,
-    -- and won't be reported to the user
-    o <$ check arg (Type.effect (loc ft) ambientEs i)
+    o <$ check arg i
   go (Type.Existential' b a) = do -- a^App
     [i,o] <- traverse freshenVar [ABT.v' "i", ABT.v' "o"]
     let it = Type.existential' (loc ft) B.Blank i
