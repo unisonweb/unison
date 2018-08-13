@@ -1076,6 +1076,16 @@ solve ctx v t
         ctx' = ctxL `mappend` context mid `mappend` ctxR
 
 abilityCheck' :: (Var v, Ord loc) => [Type v loc] -> [Type v loc] -> M v loc ()
+abilityCheck' [] [] = pure ()
+abilityCheck' [] requested = do
+  ctx <- getContext
+  let es = [ Type.existential' (loc t) b v
+           | t@(Type.Existential' b v) <- apply ctx <$> requested ]
+  case es of
+    h : _t ->
+      subtype h (Type.effects (loc h) []) `orElse`
+        (failWith $ AbilityCheckFailure [] requested ctx)
+    [] -> failWith $ AbilityCheckFailure [] requested ctx
 abilityCheck' ambient requested = do
   let !_ = traceShow ("ambient", ambient, "requested", requested) ()
   -- if requested is an existential that is unsolved, go ahead and unify that
@@ -1084,7 +1094,7 @@ abilityCheck' ambient requested = do
   let es = [ Type.existential' (loc t) b v
            | t@(Type.Existential' b v) <- apply ctx <$> requested ]
   case es of
-    h : _t -> subtype (Type.effects (loc h) ambient) h
+    h : _t -> subtype h (Type.effects (loc h) ambient)
     [] -> do
       success <- flip allM requested $ \req -> do
         -- NB - if there's an exact match, use that
