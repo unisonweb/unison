@@ -4,20 +4,19 @@
 
 module Unison.Test.Typechecker where
 
-import           EasyTest
-
 import           Control.Monad          (join, void)
 import           Control.Monad.IO.Class (liftIO)
 import           Data.Foldable          (traverse_)
 import           Data.Text              (unpack)
 import           Data.Text.IO           (readFile)
+import           EasyTest
 import           System.FilePath        (joinPath, splitPath)
 import           System.FilePath.Find   (always, extension, find, (==?))
 import           Unison.FileParsers     (Type, Term, parseAndSynthesizeAsFile)
 import           Unison.Parser          as Parser
 import qualified Unison.PrintError      as PrintError
-import qualified Unison.Result          as Result
 import           Unison.Result          (Result(..))
+import qualified Unison.Result          as Result
 import           Unison.Symbol          (Symbol)
 import           Unison.Util.Monoid     (intercalateMap)
 

@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedLists #-}
@@ -167,13 +168,14 @@ typeDirectedNameResolution resultSoFar env = do
     Typechecking (Context.Note (Context.SolvedBlank (B.Resolve loc n) _ it) _)
       -> do
         suggestions <-
-          State.lift
+          fmap join
+          . State.lift
           . traverse (resolve it)
           . join
           . maybeToList
           . Map.lookup (Text.pack n)
           $ terms env
-        suggestOrReplace loc (Text.pack n) it (join suggestions)
+        suggestOrReplace loc (Text.pack n) it suggestions
     _ -> pure ()
  where
   suggestOrReplace
