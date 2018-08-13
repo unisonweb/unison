@@ -492,11 +492,15 @@ synthesizeApp :: (Var v, Ord loc) => Type v loc -> Term v loc -> M v loc (Type v
 synthesizeApp (Type.Effect'' es ft) arg =
   scope (InSynthesizeApp ft arg) $ do
     abilityCheck es
-    go ft
+    go1 ft
     --Type.Effect'' es t <- go ft
     --abilityCheck es
     --pure t
   where
+  go1 t@(Type.Arrows' spine) = case reverse spine of
+    Type.Effect'' es _o : _ -> abilityCheck es >> go t
+    _ -> go t
+  go1 t = go t
   go (Type.Forall' body) = do -- Forall1App
     v <- ABT.freshen body freshenTypeVar
     appendContext (context [existential v])
@@ -847,8 +851,8 @@ check e0 t0 = scope (InCheck e0 t0) $ do
     go (Term.Lam' body) (Type.Arrow' i o) = do -- =>I
       x <- ABT.freshen body freshenVar
       modifyContext' (extend (Ann x i))
-      let Type.Effect'' es _ = o
-      withEffects0 es $ check (ABT.bindInheritAnnotation body (Term.var() x)) o
+      let Type.Effect'' es ot = o
+      withEffects0 es $ check (ABT.bindInheritAnnotation body (Term.var() x)) ot
       doRetract $ Ann x i
     go (Term.Let1' binding e) t = do
       v <- ABT.freshen e freshenVar
@@ -924,6 +928,8 @@ subtype tx ty = scope (InSubtype tx ty) $
      let es1' = map (apply ctx) es1
          es2' = map (apply ctx) es2
      abilityCheck' es2' es1'
+  go ctx t t2@(Type.Effects' _) = go ctx (Type.effects (loc t) [t]) t2
+  go ctx t@(Type.Effects' _) t2 = go ctx t (Type.effects (loc t2) [t2])
   go ctx _ _ = failWith $ TypeMismatch ctx
 
 
@@ -1064,17 +1070,25 @@ solve ctx v t
 
 abilityCheck' :: (Var v, Ord loc) => [Type v loc] -> [Type v loc] -> M v loc ()
 abilityCheck' ambient requested = do
-  success <- flip allM requested $ \req -> do
-    -- NB - if there's an exact match, use that
-    let toCheck = maybe ambient pure $ find (== req) ambient
-    ok <- flip anyM toCheck $ \amb -> (True <$ subtype amb req) `orElse` pure False
-    case ok of
-      True -> pure True
-      -- allow a type variable to unify with the empty effect list
-      False -> (True <$ subtype (Type.effects (loc req) []) req) `orElse` pure False
-  when (not success) $ do
-    ctx <- getContext
-    failWith $ AbilityCheckFailure ambient requested ctx
+  -- if requested is an existential that is unsolved, go ahead and unify that
+  -- with all of ambient
+  ctx <- getContext
+  let es = [ Type.existential' (loc t) b v
+           | t@(Type.Existential' b v) <- apply ctx <$> requested ]
+  case es of
+    h : _t -> subtype (Type.effects (loc h) ambient) h
+    [] -> do
+      success <- flip allM requested $ \req -> do
+        -- NB - if there's an exact match, use that
+        let toCheck = maybe ambient pure $ find (== req) ambient
+        ok <- flip anyM toCheck $ \amb -> (True <$ subtype amb req) `orElse` pure False
+        case ok of
+          True -> pure True
+          -- allow a type variable to unify with the empty effect list
+          False -> (True <$ subtype (Type.effects (loc req) []) req) `orElse` pure False
+      when (not success) $ do
+        ctx <- getContext
+        failWith $ AbilityCheckFailure ambient requested ctx
 
 abilityCheck :: (Var v, Ord loc) => [Type v loc] -> M v loc ()
 abilityCheck requested = do
