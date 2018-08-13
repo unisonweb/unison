@@ -51,6 +51,7 @@ library
     Unison.Paths
     Unison.Pattern
     Unison.PatternP
+    Unison.PrettyPrint
     Unison.PrintError
     Unison.Reference
     Unison.Runtime.Rt0
@@ -71,6 +72,7 @@ library
     Unison.Util.ColorText
     Unison.Util.Logger
     Unison.Util.Monoid
+    Unison.Util.PrettyPrint
     Unison.Util.Range
     Unison.Util.Watch
     Unison.Var
@@ -90,6 +92,7 @@ library
     fsnotify,
     hashable,
     lens,
+    ListLike,
     memory,
     monad-loops,
     mtl,
