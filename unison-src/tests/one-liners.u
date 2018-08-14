@@ -1,0 +1,25 @@
+((x -> x) : forall a . a -> a)
+((x y -> x) : forall a b . a -> b -> a)
+((Int64.+) : Int64 -> Int64 -> Int64)
+(3 : UInt64)
+(+3 : Int64)
+(3.0 : Float)
+(Boolean.not true : Boolean)
+(Boolean.not : Boolean -> Boolean)
+("Hello, world!" : Text)
+-- ((if true then 1 else 2) : UInt64)
+-- (if true then (x -> x) else (x -> x) : forall a . a -> a)
+(or true false : Boolean)
+(and true false : Boolean)
+([1,2,3] : Sequence UInt64)
+(Stream.from-int64 +0 : Stream Int64)
+((UInt64.+) 1 : UInt64 -> UInt64)
+
+x : Int64
+x = let
+  (|>) : forall a b . a -> (a -> b) -> b
+  a |> f = f a
+  Stream.from-int64 -3
+    |> Stream.take 10
+    |> Stream.fold-left +0 (Int64.+)
+()

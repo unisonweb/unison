@@ -15,8 +15,8 @@ effect Remote n where
 
 type Monoid a = Monoid a (a -> a -> a)
 
-use UInt64 + - * / ==
-use Sequence halve map take drop size
+use UInt64 + - * / == <
+use Sequence halve map take drop size fold-left
 use Optional None Some
 use Monoid.Monoid -- import the constructor
 use Remote fork spawn at
@@ -33,27 +33,35 @@ namespace Monoid where
   fold-map f m =
     z = zero m
     op = Monoid.op m
-    go as = case halve as of
-      None -> zero m
-      Some (l, r) -> go l `op` go r
+    go as =
+      if size as < 2 then fold-left op z as
+      else case halve as of (l, r) -> go l `op` go r
     go
 
   par : Monoid a -> Monoid ('{Remote n} a)
-  par m = Monoid '(zero m) _ -- (par-apply (op m)) -- doesn't typecheck
+  par m =
+    o = op m
+    z = zero m
+    _todo
+    -- still does not typecheck, the 'z fixes the Monoid a to be pure
+    -- Monoid 'z (a1 a2 -> par-apply o a1 a2)
+
+Sequence.fold-left : (b -> a -> b) -> b -> [a] -> b
+Sequence.fold-left f z as = _todo2
 
 ex : '{Remote n} UInt64
-ex = delay
+ex = 'let
   alice = spawn
   bob = spawn
   f1 = fork '(1 + 1)
   f2 = fork '(2 + 2)
-  _ -- !f1 + !f2 -- doesn't typecheck
+  !f1 + !f2
 
-par-apply : (a -> b -> c) -> '{Remote n} a -> '{Remote n} b -> {Remote n} c
-par-apply f a b =
+par-apply : (a -> b -> c) -> '{Remote n} a -> '{Remote n} b -> '{Remote n} c
+par-apply f a b = 'let
   x = fork a
   y = fork b
-  _ -- f !x !y -- doesn't typecheck
+  f !x !y
 
 map-reduce : (a -> {Remote n} b) -> Monoid b -> [a] -> {Remote n} b
 map-reduce f m = _
@@ -80,14 +88,6 @@ dos f a a2 = f !a !a2
 (<|) : (i -> o) -> i -> o
 f <| i = f i
 i |> f = f i
-
-halve : [a] -> Optional ([a], [a])
-halve s =
-  n = size s
-  if n == 0 then Optional.None
-  else
-    m = n / 2
-    Optional.Some (take m s, drop m s)
 
 Stream.from-uint64 1
   |> Stream.take 15

@@ -1,0 +1,17 @@
+--IO/State1 effect
+effect IO where
+  launch-missiles : {IO} ()
+effect State se2 where
+  put : ∀ se . se -> {State se} ()
+  get : ∀ se . () -> {State se} se
+foo : () -> {IO} ()
+foo unit =
+-- inner binding can't access outer abilities unless it declares
+-- them explicitly
+  inc-by : Int64 -> {State Int} ()
+  inc-by i =
+    launch-missiles -- not allowed
+    y = State.get()
+    State.put (y Int64.+ i)
+  ()
+()
