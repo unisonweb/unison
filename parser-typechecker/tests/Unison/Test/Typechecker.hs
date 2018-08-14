@@ -447,8 +447,8 @@ test = scope "typechecker" . tests $
         c tm typ = scope1 tm . expect $ check (stripMargin tm) typ
         scope1 s = scope (join . take 1 $ lines s)
         bombs s = scope1 s (crasher $ stripMargin s)
-        broken :: String -> Test ()
-        broken s = scope1 s $ pending (checks s)
+        _broken :: String -> Test ()
+        _broken s = scope1 s $ pending (checks s)
         checks :: String -> Test ()
         checks s = scope1 s (typer . stripMargin $ s)
         typeFile = (parseAndSynthesizeAsFile @ Symbol) "<test>"

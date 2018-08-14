@@ -474,8 +474,8 @@ loc :: ABT.Term f v loc -> loc
 loc = ABT.annotation
 
 -- Prepends the provided abilities onto the existing ambient for duration of `m`
-withEffects :: [Type v loc] -> M v loc a -> M v loc a
-withEffects abilities' m =
+_withEffects :: [Type v loc] -> M v loc a -> M v loc a
+_withEffects abilities' m =
   M (\menv -> runM m (menv { abilities = abilities' ++ abilities menv }))
 
 -- Replaces the ambient abilities with the provided for duration of `m`
@@ -497,9 +497,11 @@ synthesizeApp (Type.Effect'' es ft) arg =
     --abilityCheck es
     --pure t
   where
-  go1 t@(Type.Arrows' spine) = case reverse spine of
-    Type.Effect'' es _o : _ -> abilityCheck es >> go t
-    _ -> go t
+  -- TODO: this isn't quite right, since it sometimes happens that es is pure
+  -- while the effect variable is used elsewhere in the signature
+  --go1 t@(Type.Arrows' spine) = case reverse spine of
+  --  Type.Effect'' es _o : _ -> abilityCheck es >> go t
+  --  _ -> go t
   go1 t = go t
   go (Type.Forall' body) = do -- Forall1App
     v <- ABT.freshen body freshenTypeVar
@@ -1087,7 +1089,7 @@ abilityCheck' [] requested = do
         (failWith $ AbilityCheckFailure [] requested ctx)
     [] -> failWith $ AbilityCheckFailure [] requested ctx
 abilityCheck' ambient requested = do
-  let !_ = traceShow ("ambient", ambient, "requested", requested) ()
+  let !_ = traceShow ("ambient" :: String, ambient, "requested" :: String, requested) ()
   -- if requested is an existential that is unsolved, go ahead and unify that
   -- with all of ambient
   ctx <- getContext
@@ -1106,7 +1108,7 @@ abilityCheck' ambient requested = do
           False -> case req of
             Type.Existential' _ _ ->
               (True <$ subtype (Type.effects (loc req) []) req) `orElse` pure False
-            _ -> pure True
+            _ -> pure False
       when (not success) $ do
         ctx <- getContext
         failWith $ AbilityCheckFailure ambient requested ctx
