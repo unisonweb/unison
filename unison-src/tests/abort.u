@@ -1,0 +1,14 @@
+--Abort
+effect Abort where
+  Abort : forall a . () -> {Abort} a
+eff : forall a b . (a -> b) -> b -> Effect Abort a -> b
+eff f z e = case e of
+  { Abort.Abort _ -> k } -> z
+  { a } -> f a
+-- heff : UInt64
+heff = handle eff (x -> x UInt64.+ 2) 1 in Abort.Abort ()
+hudy : UInt64
+hudy = handle eff (x -> x UInt64.+ 2) 1 in 42
+bork : () -> {Abort} UInt64
+bork = u -> 1 UInt64.+ (Abort.Abort ())
+()

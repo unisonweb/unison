@@ -16,7 +16,7 @@ effect Remote n where
 type Monoid a = Monoid (a -> a -> a) a
 
 use UInt64 + - * / == <
-use Sequence halve map take drop size fold-left
+use Sequence map take drop size fold-left halve
 use Optional None Some
 use Monoid.Monoid -- import the constructor
 use Remote fork spawn at
@@ -30,13 +30,13 @@ namespace Monoid where
   op m = case m of Monoid op _ -> op
 
   fold-map : (a -> {e} b) -> Monoid b -> [a] -> {e} b
-  fold-map f m =
-    z = zero m
+  fold-map f m as =
     op = Monoid.op m
-    go as =
-      if size as < 2 then fold-left op z as
-      else case halve as of (l, r) -> go l `op` go r
-    go
+    -- this line has a type error, `op` is (b -> b -> b)
+    -- and `zero m` is of type `b`, but `as` is of type `[a]`
+    --                                                 👇
+    if size as < 2 then Sequence.fold-left op (zero m) as
+    else case Sequence.halve as of (l, r) -> fold-map f m l `op` fold-map f m r
 
   par : Monoid a -> Monoid ('{Remote n} a)
   par m =
@@ -46,12 +46,20 @@ namespace Monoid where
     -- the 'z has type 'a, which fails to match the later remote thunk
     Monoid (a1 a2 -> par-apply o a1 a2) 'z
 
+force : '{e} a -> {e} a
+force a = !a
+
 map-reduce : (a -> {Remote n} b) -> Monoid b -> [a] -> {Remote n} b
 map-reduce f m a =
-  !(Monoid.fold-map (a -> fork '(f a)) (Monoid.par m) a)
+  force <| Monoid.fold-map (a -> fork '(f a)) (Monoid.par m) a
 
-Sequence.fold-left : (b -> a -> b) -> b -> [a] -> b
-Sequence.fold-left f z as = _todo2
+namespace Sequence where
+
+  fold-left : (b -> a -> b) -> b -> [a] -> b
+  fold-left f z as = _todo2
+
+  halve : [a] -> ([a], [a])
+  halve as = (take (size as / 2) as, drop (size as / 2) as)
 
 ex : '{Remote n} UInt64
 ex = 'let
@@ -92,3 +100,4 @@ i |> f = f i
 Stream.from-uint64 1
   |> Stream.take 15
   |> Stream.to-sequence
+

@@ -1,0 +1,6 @@
+r3 : UInt64
+r3 = case Optional.Some true of
+  Optional.Some true -> 1
+  Optional.Some false -> 0
+()
+

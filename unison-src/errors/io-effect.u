@@ -1,0 +1,9 @@
+--IO effect
+effect IO where
+  launch-missiles : () -> {IO} ()
+-- binding is not guarded by a lambda, it only can access
+-- ambient abilities (which will be empty)
+ex1 : {IO} ()
+ex1 = IO.launch-missiles()
+()
+

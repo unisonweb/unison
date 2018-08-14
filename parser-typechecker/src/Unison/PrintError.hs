@@ -71,11 +71,8 @@ renderTypeError :: forall v a. (Var v, Annotated a, Ord a, Show a)
 renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
   Mismatch {..} ->
     [ (fromString . annotatedToEnglish) mismatchSite
-    -- , " has a type mismatch:\n\n"
     , " has a type mismatch (", AT.Describe Color.ErrorSite, " below):\n\n"
-    , AT.Blockquote $ AT.markup (fromString src)
-            (Set.fromList $
-              toList ((,Color.ErrorSite) <$> rangeForAnnotated mismatchSite))
+    , annotatedAsErrorSite src mismatchSite
     , "\n"
     , "The two types involved are:\n\n"
     , "  ", AT.Text $ styleInOverallType env overallType1 leaf1 Color.Type1
@@ -87,11 +84,13 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     , "\n"
     , AT.Blockquote $ AT.markup (fromString src)
             (Set.fromList $ catMaybes
-              [ (,Color.Type1) <$> rangeForType leaf1
+              [ -- these are overwriting the colored ranges for some reason?
+              --   (,Color.ForceShow) <$> rangeForAnnotated mismatchSite
+              -- , (,Color.ForceShow) <$> rangeForType overallType1
+              -- , (,Color.ForceShow) <$> rangeForType overallType2
+              -- ,
+                (,Color.Type1) <$> rangeForType leaf1
               , (,Color.Type2) <$> rangeForType leaf2
-              , (,Color.ForceShow) <$> rangeForType overallType1
-              , (,Color.ForceShow) <$> rangeForType overallType2
-              , (,Color.ForceShow) <$> rangeForAnnotated mismatchSite
               ])
     , "\n"
     , "loc debug:"
@@ -119,8 +118,11 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     , "Here is a summary of the Note:\n"
     ] ++ summary note
   where
+    maxTermDisplay = 20
     renderTerm e = let s = show e in -- todo: pretty print
-      if length s > 10 then fromString (take 10 s <> "...") else fromString s
+      if length s > maxTermDisplay
+      then fromString (take maxTermDisplay s <> "...")
+      else fromString s
     summary :: C.Note v a -> [AT.Section Color.Style]
     summary note =
       [ "  simple cause:\n"
@@ -166,6 +168,13 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
         , annotatedAsErrorSite src loc
         ]
       C.CompilerBug c -> ["CompilerBug: ", fromString (show c)]
+      C.UnknownTerm loc v suggestions typ ->
+        ["UnknownTerm: ", (fromString . show) loc
+        , " ", (fromString . show) v, "\n\n"
+        , annotatedAsErrorSite src loc
+        , "Suggestions: ", (fromString . show) suggestions, "\n\n"
+        , "Type: ", (fromString . show) typ
+        ]
       C.AbilityCheckFailure ambient requested ctx ->
         [ "AbilityCheckFailure: "
         , "ambient={"] ++ (AT.Text . renderType' env <$> ambient) ++
@@ -298,10 +307,6 @@ rangeForAnnotated a = case ann a of
   Intrinsic     -> Nothing
   Ann start end -> Just $ Range start end
 
-
--- highlightString :: String -> [()]
-
---
 typeErrorFromNote :: forall loc v. (Ord loc, Var v) => C.Note v loc -> TypeError v loc
 typeErrorFromNote n@(C.Note (C.TypeMismatch ctx) path) =
   let

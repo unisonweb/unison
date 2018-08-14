@@ -342,7 +342,7 @@ visit' f t = case out t of
   Var _ -> pure t
   Cycle body -> cycle' (annotation t) <$> visit' f body
   Abs x e -> abs' (annotation t) x <$> visit' f e
-  Tm body -> f body >>= \body -> tm' (annotation t) <$> traverse (visit' f) body
+  Tm body -> f body >>= (fmap (tm' (annotation t)) . traverse (visit' f))
 
 -- | `visit` specialized to the `Identity` effect.
 visitPure :: (Traversable f, Ord v)

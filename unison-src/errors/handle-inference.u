@@ -1,0 +1,22 @@
+--handle inference
+effect State s where
+  get : ∀ s . () -> {State s} s
+  set : ∀ s . s -> {State s} ()
+state : ∀ a s . s -> Effect (State s) a -> a
+state s e = case e of
+  {a} -> a
+  {State.get _ -> k} -> handle state s in k s
+  {State.set s -> k} -> handle state s in k ()
+-- modify : ∀ s . (s -> s) -> {State s} ()
+-- modify f = State.set (f (State.get()))
+ex : () -> {State UInt64} UInt64
+ex blah =
+  State.get() UInt64.+ 42
+-- note this currently succeeds, the handle block
+-- gets an inferred type of ∀ a . a, it appears that
+-- the existential `a` which gets instantiated for the
+-- state call never gets refined, most likely due to
+-- missing a subtype check in handle
+y : Text
+y = handle state 5 in ex ()
+()

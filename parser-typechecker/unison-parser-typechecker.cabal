@@ -103,7 +103,7 @@ library
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
 
   if flag(optimized)
-    ghc-options: -funbox-strict-fields -O2
+    ghc-options: -funbox-strict-fields
 
   if flag(quiet)
     ghc-options: -v0
@@ -143,7 +143,6 @@ executable tests
     Unison.Test.Range
     Unison.Test.TermParser
     Unison.Test.Typechecker
-    Unison.Test.Typechecker2
     Unison.Test.Type
     Unison.Test.Typechecker.Components
 

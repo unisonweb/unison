@@ -10,6 +10,7 @@ import Unison.Term (AnnotatedTerm)
 import qualified Unison.Parser as Parser
 
 data Result note a = Result { notes :: Seq note, result :: Maybe a }
+  deriving Show
 
 type Term v loc = AnnotatedTerm v loc
 
