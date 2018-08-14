@@ -621,16 +621,16 @@ synthesize e = scope (InSynthesize e) $ go (minimize' e)
       context [Marker i, existential i, existential o, Ann arg it]
     body <- pure $ ABT.bindInheritAnnotation body (Term.var() arg)
     check body ot
-    (ctx1, _, ctx2) <- breakAt (Marker i) <$> getContext
+    (_, _, ctx2) <- breakAt (Marker i) <$> getContext
     -- unsolved existentials get generalized to universals
-    setContext ctx1
+    doRetract (Marker i)
     pure $ generalizeExistentials ctx2 (Type.arrow l it ot)
   go (Term.LetRecNamed' [] body) = synthesize body
   go (Term.LetRec' letrec) = do
     (marker, e) <- annotateLetRecBindings letrec
     t <- synthesize e
-    (ctx, _, ctx2) <- breakAt marker <$> getContext
-    generalizeExistentials ctx2 t <$ setContext ctx
+    (_, _, ctx2) <- breakAt marker <$> getContext
+    generalizeExistentials ctx2 t <$ doRetract marker
   go (Term.If' cond t f) = foldM synthesizeApp (Type.iff' l) [cond, t, f]
   go (Term.And' a b) = foldM synthesizeApp (Type.andor' l) [a, b]
   go (Term.Or' a b) = foldM synthesizeApp (Type.andor' l) [a, b]
@@ -786,11 +786,12 @@ annotateLetRecBindings letrec = do
   Foldable.for_ (zip bindings bindingTypes) $ \((_,b), t) -> check b t
   -- compute generalized types `gt1, gt2 ...` for each binding `b1, b2...`;
   -- add annotations `v1 : gt1, v2 : gt2 ...` to the context
-  (ctx1, _, ctx2) <- breakAt (Marker e1) <$> getContext
+  (_, _, ctx2) <- breakAt (Marker e1) <$> getContext
   let gen bindingType = generalizeExistentials ctx2 bindingType
       annotations = zipWith Ann vs (map gen bindingTypes)
   marker <- Marker <$> freshenVar (ABT.v' "let-rec-marker")
-  setContext (ctx1 `mappend` context (marker : annotations))
+  doRetract (Marker e1)
+  appendContext . context $ marker : annotations
   pure (marker, body)
 
 ungeneralize :: (Var v, Ord loc) => Type v loc -> M v loc (Type v loc)

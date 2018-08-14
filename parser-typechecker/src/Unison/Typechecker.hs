@@ -37,6 +37,8 @@ import qualified Data.Sequence as Seq
 -- import qualified Unison.Type as Type
 
 -- import Debug.Trace
+
+-- watch :: Show a => String -> a -> a
 -- watch msg a = trace (msg ++ show a) a
 
 type Term v loc = AnnotatedTerm v loc
@@ -160,7 +162,7 @@ synthesizeAndResolve env t = do
 -- 3. No match at all. Throw an unresolved symbol at the user.
 typeDirectedNameResolution
   :: forall v loc f a
-   . (Var v, Ord loc)
+   . (Var v, Ord loc, Show a)
   => Result (Note v loc) a
   -> Env f v loc
   -> StateT (Term v loc) (Result (Note v loc)) a
@@ -169,6 +171,7 @@ typeDirectedNameResolution resultSoFar env = do
   newNotes <- fmap join . for oldNotes $ \case
     Typechecking (Context.Note (Context.SolvedBlank (B.Resolve loc n) _ it) _)
       -> do
+        -- Do the TDNR and get suggested imports
         suggestions <-
           fmap join
           . State.lift
@@ -177,8 +180,12 @@ typeDirectedNameResolution resultSoFar env = do
           . maybeToList
           . Map.lookup (Text.pack n)
           $ terms env
+        -- If only one suggested import, just subst that into the term
+        -- otherwise propagate the suggestion to the user.
         suggestOrReplace loc (Text.pack n) it suggestions
+        -- Erase the note
         pure Seq.empty
+    -- Otherwise leave the note alone
     x -> pure [x]
   State.lift $ Result newNotes may
  where
