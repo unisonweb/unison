@@ -196,12 +196,19 @@ test = scope "typechecker" . tests $
              |effect Ask a where
              |  ask : {Ask a} a
              |
+             |effect AskU where
+             |  ask : {AskU} UInt64
+             |
              |use UInt64 +
              |
              |x = '(Ask.ask + 1)
+             |x2 = '(Ask.ask + AskU.ask)
              |
              |y : '{Ask UInt64} UInt64
              |y = '(!x)
+             |
+             |y2 : '{Ask UInt64, AskU} UInt64
+             |y2 = x2
              |
              |()
              |]

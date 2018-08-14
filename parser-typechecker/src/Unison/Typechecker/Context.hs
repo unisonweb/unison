@@ -614,25 +614,28 @@ synthesize e = scope (InSynthesize e) $ do
    -- generalizeExistentials ctx2 t <$ setContext ctx
   go (Term.Lam' body) = do -- ->I=> (Full Damas Milner rule)
     -- arya: are there more meaningful locations we could put into and pull out of the abschain?)
-    [arg, i, e, o] <- sequence [ ABT.freshen body freshenVar
+    -- TODO: slightly hacky, won't infer more than 2 effects
+    [arg, i, e, e2, o] <- sequence [ ABT.freshen body freshenVar
                                , freshenVar (ABT.variable body)
+                               , freshNamed "inferred-effect"
                                , freshNamed "inferred-effect"
                                , freshNamed "inferred-output" ]
     let it = Type.existential' l B.Blank i
         ot = Type.existential' l B.Blank o
         et = Type.existential' l B.Blank e
+        et2 = Type.existential' l B.Blank e2
     appendContext $
-      context [Marker i, existential i, existential e, existential o, Ann arg it]
+      context [Marker i, existential i, existential e, existential e2, existential o, Ann arg it]
     body <- pure $ ABT.bindInheritAnnotation body (Term.var() arg)
-    withEffects0 [et] $ check body ot
+    withEffects0 [et, et2] $ check body ot
     (_, _, ctx2) <- breakAt (Marker i) <$> getContext
     ctx <- getContext
     -- unsolved existentials get generalized to universals
     doRetract (Marker i)
-    pure $ if e `elem` unsolved ctx
+    let es2 = [ et | (e,et) <- [(e,et),(e2,et2)], e `notElem` unsolved ctx]
+    pure $ if null es2
       then generalizeExistentials ctx2 (Type.arrow l it ot)
-      -- when this is hit, triggers error in some tests
-      else generalizeExistentials ctx2 (Type.arrow l it (Type.effect l [apply ctx et] ot))
+      else generalizeExistentials ctx2 (Type.arrow l it (Type.effect l (apply ctx <$> es2) ot))
   go (Term.LetRecNamed' [] body) = synthesize body
   go (Term.LetRec' letrec) = do
     (marker, e) <- annotateLetRecBindings letrec
