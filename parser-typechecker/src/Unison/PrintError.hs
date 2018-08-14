@@ -63,7 +63,7 @@ data TypeError v loc
                         }
   | Other (C.Note v loc)
 
-renderTypeError :: forall v a. (Var v, Annotated a, Eq a, Show a)
+renderTypeError :: forall v a. (Var v, Annotated a, Ord a, Show a)
                 => Env
                 -> TypeError v a
                 -> String
@@ -175,12 +175,12 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
         , "Suggestions: ", (fromString . show) suggestions, "\n\n"
         , "Type: ", (fromString . show) typ
         ]
-      C.AbilityCheckFailure ambient requested ->
+      C.AbilityCheckFailure ambient requested ctx ->
         [ "AbilityCheckFailure: "
         , "ambient={"] ++ (AT.Text . renderType' env <$> ambient) ++
         [ "} requested={"] ++
         (AT.Text . renderType' env <$> requested)
-        ++ ["}"]
+        ++ ["}\n"] ++ [fromString (show ctx)]
       C.EffectConstructorWrongArgCount e a r cid ->
         [ "EffectConstructorWrongArgCount:"
         , "  expected=", (fromString . show) e
@@ -226,13 +226,15 @@ renderType env f = renderType0 env f (0 :: Int) where
     Type.Ann' t k -> paren True $ go 1 t <> " : " <> renderKind k
     Type.Tuple' ts -> paren True $ commas (go 0) ts
     Type.Apps' f' args -> paren (p >= 3) $ spaces (go 3) (f':args)
-    Type.Effect' [] t -> go p t
-    Type.Effect' es t -> paren (p >= 3) $ "{" <> commas (go 0) es <> "} " <> go 3 t
+    Type.Effects' es -> paren (p >= 3) $ "{" <> commas (go 0) es <> "} "
+    Type.Effect' es t -> case es of
+      [] -> go p t
+      _ -> paren (p >= 3) $ "{" <> commas (go 0) es <> "} " <> go 3 t
     Type.ForallsNamed' vs body -> paren (p >= 1) $
       if p == 0 then go 0 body
       else "forall " <> spaces renderVar vs <> " . " <> go 1 body
     Type.Var' v -> renderVar v
-    _ -> error "pattern match failure in PrintError.renderType"
+    _ -> error $ "pattern match failure in PrintError.renderType " ++ show t
     where go = renderType0 env f
 
 spaces :: (IsString a, Monoid a) => (b -> a) -> [b] -> a
@@ -322,7 +324,7 @@ typeErrorFromNote n@(C.Note (C.TypeMismatch ctx) path) =
                   (ABT.annotation mismatchSite)
                   n
        _ -> Other n
-typeErrorFromNote n@(C.Note (C.AbilityCheckFailure amb req) _) =
+typeErrorFromNote n@(C.Note (C.AbilityCheckFailure amb req _) _) =
   let go :: C.Term v loc -> TypeError v loc
       go e = AbilityCheckFailure amb req (ABT.annotation e) n
   in fromMaybe (Other n) $ go <$> C.innermostErrorTerm n

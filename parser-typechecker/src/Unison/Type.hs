@@ -35,7 +35,8 @@ data F a
   | Arrow a a
   | Ann a K.Kind
   | App a a
-  | Effect [a] a
+  | Effect a a
+  | Effects [a]
   | Forall a
   deriving (Foldable,Functor,Generic,Generic1,Traversable)
 
@@ -47,6 +48,7 @@ instance Eq a => Eq (F a) where
   Ann a k == Ann a2 k2 = a == a2 && k == k2
   App f a == App f2 a2 = f == f2 && a == a2
   Effect es t == Effect es2 t2 = es == es2 && t == t2
+  Effects es1 == Effects es2 = es1 == es2
   Forall a == Forall b = a == b
   _ == _ = False
 
@@ -89,9 +91,14 @@ pattern Arrows' spine <- (unArrows -> Just spine)
 pattern Ann' t k <- ABT.Tm' (Ann t k)
 pattern App' f x <- ABT.Tm' (App f x)
 pattern Apps' f args <- (unApps -> Just (f, args))
-pattern Effect' es t <- ABT.Tm' (Effect es t)
--- Effect'' may match zero effects
-pattern Effect'' es t <- (stripEffect -> (es, t))
+pattern Pure' t <- (unPure -> Just t)
+pattern Effects' es <- ABT.Tm' (Effects es)
+-- Effect1' must match at least one effect
+pattern Effect1' e t <- ABT.Tm' (Effect e t)
+pattern Effect' es t <- (unEffects1 -> Just (es, t))
+pattern Effect'' es t <- (unEffect0 -> (es, t))
+-- Effect0' may match zero effects
+pattern Effect0' es t <- (unEffect0 -> (es, t))
 pattern Forall' subst <- ABT.Tm' (Forall (ABT.Abs' subst))
 pattern ForallsNamed' vs body <- (unForalls -> Just (vs, body))
 pattern ForallNamed' v body <- ABT.Tm' (Forall (ABT.out -> ABT.Abs v body))
@@ -99,6 +106,10 @@ pattern Var' v <- ABT.Var' v
 pattern Tuple' ts <- (unTuple -> Just ts)
 pattern Existential' b v <- ABT.Var' (TypeVar.Existential b v)
 pattern Universal' v <- ABT.Var' (TypeVar.Universal v)
+
+unPure :: Ord v => AnnotatedType v a -> Maybe (AnnotatedType v a)
+unPure (Effect'' [] t) = Just t
+unPure t = Just t
 
 unArrows :: AnnotatedType v a -> Maybe [AnnotatedType v a]
 unArrows t =
@@ -129,6 +140,14 @@ unTuple t = (case t of
           go (Apps' (Ref' (Reference.Builtin "Pair")) (t:t':[])) = t : go t'
           go (Ref' (Reference.Builtin "()")) = []
           go _t = error "malformed tuple in Type.unTuple"
+
+unEffect0 :: Ord v => AnnotatedType v a -> ([AnnotatedType v a], AnnotatedType v a)
+unEffect0 (Effect1' e a) = (flattenEffects e, a)
+unEffect0 t = ([], t)
+
+unEffects1 :: Ord v => AnnotatedType v a -> Maybe ([AnnotatedType v a], AnnotatedType v a)
+unEffects1 (Effect1' (Effects' es) a) = Just (es, a)
+unEffects1 _ = Nothing
 
 matchExistential :: Eq v => v -> Type (TypeVar b v) -> Bool
 matchExistential v (Existential' _ x) = x == v
@@ -254,8 +273,23 @@ arrows ts result = foldr go result ts where
 
 -- The types of effectful computations
 effect :: Ord v => a -> [AnnotatedType v a] -> AnnotatedType v a -> AnnotatedType v a
-effect a es (Effect' fs t) = ABT.tm' a (Effect (es ++ fs) t)
-effect a es t = ABT.tm' a (Effect es t)
+effect a es (Effect1' fs t) =
+  let es' = (es >>= flattenEffects) ++ flattenEffects fs
+  in ABT.tm' a (Effect (ABT.tm' a (Effects es')) t)
+effect a es t = ABT.tm' a (Effect (ABT.tm' a (Effects es)) t)
+
+effects :: Ord v => a -> [AnnotatedType v a] -> AnnotatedType v a
+effects a es = ABT.tm' a (Effects $ es >>= flattenEffects)
+
+effect1 :: Ord v => a -> AnnotatedType v a -> AnnotatedType v a -> AnnotatedType v a
+effect1 a es (Effect1' fs t) =
+  let es' = flattenEffects es ++ flattenEffects fs
+  in ABT.tm' a (Effect (ABT.tm' a (Effects es')) t)
+effect1 a es t = ABT.tm' a (Effect es t)
+
+flattenEffects :: AnnotatedType v a -> [AnnotatedType v a]
+flattenEffects (Effects' es) = es >>= flattenEffects
+flattenEffects es = [es]
 
 -- The types of first-class effect values
 -- which get deconstructed in effect handlers.
@@ -263,10 +297,9 @@ effectV :: Ord v => a -> (a, AnnotatedType v a) -> (a, AnnotatedType v a) -> Ann
 effectV builtinA e t = apps (builtin builtinA "Effect") [e, t]
 
 -- Strips effects from a type. E.g. `{e} a` becomes `a`.
-stripEffect :: AnnotatedType v a -> ([AnnotatedType v a], AnnotatedType v a)
+stripEffect :: Ord v => AnnotatedType v a -> ([AnnotatedType v a], AnnotatedType v a)
 stripEffect (Effect' e t) = case stripEffect t of (ei, t) -> (e ++ ei, t)
 stripEffect t = ([], t)
-
 -- The type of the flipped function application operator:
 -- `(a -> (a -> b) -> b)`
 flipApply :: Var v => Type v -> Type v
@@ -298,12 +331,11 @@ instance Hashable1 F where
       --   a) {Remote, Abort} (() -> {Remote} ()) should hash the same as
       --   b) {Abort, Remote} (() -> {Remote} ()) but should hash differently from
       --   c) {Remote, Abort} (() -> {Abort} ())
-      Effect es t -> let
-        (hs, hrem) = hashCycle es
-        -- if we used `hash` here instead of `hrem`, then a) and c) would have
-        -- the same hash!
-        in [tag 4] ++ map hashed hs ++ [hashed (hrem t)]
-      Forall a -> [tag 5, hashed (hash a)]
+      Effects es -> let
+        (hs, _) = hashCycle es
+        in [tag 4] ++ map hashed hs
+      Effect e t -> [tag 5, hashed (hash e), hashed (hash t)]
+      Forall a -> [tag 6, hashed (hash a)]
 
 instance Show a => Show (F a) where
   showsPrec p fa = go p fa where
@@ -314,8 +346,10 @@ instance Show a => Show (F a) where
       showParen (p > 1) $ showsPrec 0 t <> s":" <> showsPrec 0 k
     go p (App f x) =
       showParen (p > 9) $ showsPrec 9 f <> s" " <> showsPrec 10 x
-    go p (Effect es t) = showParen (p > 0) $
-      s"{" <> showsPrec 0 es <> s"} " <> showsPrec p t
+    go p (Effects es) = showParen (p > 0) $
+      s"{" <> showsPrec 0 es <> s"}"
+    go p (Effect e t) = showParen (p > 0) $
+     showsPrec 0 e <> s" " <> showsPrec p t
     go p (Forall body) = case p of
       0 -> showsPrec p body
       _ -> showParen True $ s"∀ " <> showsPrec 0 body

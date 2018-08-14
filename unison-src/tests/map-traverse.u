@@ -1,28 +1,32 @@
 --map/traverse
 effect Noop where
   noop : ∀ a . a -> {Noop} a
+
 effect Noop2 where
   noop2 : ∀ a . a -> a -> {Noop2} a
+
 type List a = Nil | Cons a (List a)
+
 map : ∀ a b e . (a -> {e} b) -> List a -> {e} (List b)
 map f as = case as of
   List.Nil -> List.Nil
   List.Cons h t -> List.Cons (f h) (map f t)
+
 c = List.Cons
 z : ∀ a . List a
 z = List.Nil
+
 ex = (c 1 (c 2 (c 3 z)))
--- doesn't currently work due to ability check failure,
--- map has `∀ e . {e}` effects, but no effects are in scope
--- seems we should tweak ability check - when no effects
--- in scope, {e} can be instantiated to {}
+
 pure-map : List Text
 pure-map = map (a -> "hello") ex
+
 -- `map` is effect polymorphic
 zappy : () -> {Noop} (List UInt64)
 zappy u = map (zap -> (Noop.noop (zap UInt64.+ 1))) ex
+
 -- mixing multiple effects in a call to `map` works fine
 zappy2 : () -> {Noop, Noop2} (List UInt64)
 zappy2 u = map (zap -> Noop.noop (zap UInt64.+ Noop2.noop2 2 7)) ex
-()
 
+()
