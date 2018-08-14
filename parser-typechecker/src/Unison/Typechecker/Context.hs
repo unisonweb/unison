@@ -1082,14 +1082,25 @@ solve ctx v t
 abilityCheck' :: (Var v, Ord loc) => [Type v loc] -> [Type v loc] -> M v loc ()
 abilityCheck' [] [] = pure ()
 abilityCheck' ambient requested = do
-  -- let !_ = traceShow ("ambient" :: String, ambient, "requested" :: String, requested) ()
-  success <- flip allM requested $ \req -> do
-    flip anyM ambient $ \amb -> (True <$ subtype amb req) `orElse` pure False
-  when (not success) $ do
-    ctx <- getContext
-    failWith $ AbilityCheckFailure (apply ctx <$> ambient)
-                                   (apply ctx <$> requested)
-                                   ctx
+  let !_ = traceShow ("ambient" :: String, ambient, "requested" :: String, requested) ()
+  -- if requested is an existential that is unsolved, go ahead and unify that
+  -- with all of ambient
+  ctx <- getContext
+  let es = [ Type.existential' (loc t) b v
+           | t@(Type.Existential' b v) <- apply ctx <$> requested ]
+  case es of
+    h : _t -> subtype h (Type.effects (loc h) ambient)
+    [] -> do
+      success <- flip allM requested $ \req -> do
+        -- NB - if there's an exact match, use that
+        let toCheck = maybe ambient pure $ find (== req) ambient
+        ok <- flip anyM toCheck $ \amb -> (True <$ subtype amb req) `orElse` pure False
+        pure ok
+      when (not success) $ do
+        ctx <- getContext
+        failWith $ AbilityCheckFailure (apply ctx <$> ambient)
+                                       (apply ctx <$> requested)
+                                       ctx
 
 abilityCheck :: (Var v, Ord loc) => [Type v loc] -> M v loc ()
 abilityCheck requested = do
