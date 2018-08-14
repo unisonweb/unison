@@ -490,23 +490,22 @@ withEffects0 abilities' m =
 synthesizeApp :: (Var v, Ord loc) => Type v loc -> Term v loc -> M v loc (Type v loc)
 -- synthesizeApp ft arg | debugEnabled && traceShow ("synthesizeApp"::String, ft, arg) False = undefined
 synthesizeApp (Type.Effect'' es ft) arg =
-  scope (InSynthesizeApp ft arg) $ do
-    abilityCheck es
-    go1 ft
-    --Type.Effect'' es t <- go ft
-    --abilityCheck es
-    --pure t
+  scope (InSynthesizeApp ft arg) $ abilityCheck es >> go ft
   where
-  -- TODO: this isn't quite right, since it sometimes happens that es is pure
-  -- while the effect variable is used elsewhere in the signature
-  --go1 t@(Type.Arrows' spine) = case reverse spine of
-  --  Type.Effect'' es _o : _ -> abilityCheck es >> go t
-  --  _ -> go t
-  go1 t = go t
   go (Type.Forall' body) = do -- Forall1App
     v <- ABT.freshen body freshenTypeVar
     appendContext (context [existential v])
-    synthesizeApp (ABT.bindInheritAnnotation body (Type.existential B.Blank v)) arg
+    let ft2 = ABT.bindInheritAnnotation body (Type.existential B.Blank v)
+        vs es = [TypeVar.underlying v | Type.Var' v <- es ]
+    -- todo: should do something different here if underapplied
+    case Type.unArrows ft2 of
+      Nothing -> synthesizeApp ft2 arg
+      Just spine -> case reverse spine of
+        Type.Effect' es _ : _ | v `elem` vs es -> do
+          amb <- getAbilities
+          instantiateL B.Blank v (Type.effects (loc ft) amb)
+          synthesizeApp ft2 arg
+        _ -> synthesizeApp ft2 arg
   go (Type.Arrow' i o) = do -- ->App
     let (es, _) = Type.stripEffect o
     abilityCheck es
@@ -542,7 +541,7 @@ synthesizeEffects l e = do
   t <- withEffects0 [et] e
   ctx <- getContext
   let et' = apply ctx et
-  pure (Type.effects (loc et') [et'], t)
+  pure (Type.effects (loc et') (Type.flattenEffects et'), t)
 
 -- | Synthesize the type of the given term, updating the context in the process.
 -- | Figure 11 from the paper
@@ -930,8 +929,8 @@ subtype tx ty = scope (InSubtype tx ty) $
      let es1' = map (apply ctx) es1
          es2' = map (apply ctx) es2
      abilityCheck' es2' es1'
-  go ctx t t2@(Type.Effects' _) | expand t  = go ctx (Type.effects (loc t) [t]) t2
-  go ctx t@(Type.Effects' _) t2 | expand t2 = go ctx t (Type.effects (loc t2) [t2])
+  go _ t t2@(Type.Effects' _) | expand t  = subtype (Type.effects (loc t) [t]) t2
+  go _ t@(Type.Effects' _) t2 | expand t2 = subtype t (Type.effects (loc t2) [t2])
   go ctx _ _ = failWith $ TypeMismatch ctx
 
   expand :: Type v loc -> Bool
@@ -1085,9 +1084,10 @@ abilityCheck' [] requested = do
            | t@(Type.Existential' b v) <- apply ctx <$> requested ]
   case es of
     h : _t ->
-      subtype h (Type.effects (loc h) []) `orElse`
-        (failWith $ AbilityCheckFailure [] requested ctx)
-    [] -> failWith $ AbilityCheckFailure [] requested ctx
+      subtype h (Type.effects (loc h) []) `orElse` do
+        ctx <- getContext
+        failWith $ AbilityCheckFailure [] (apply ctx <$> requested) ctx
+    [] -> failWith $ AbilityCheckFailure [] (apply ctx <$> requested) ctx
 abilityCheck' ambient requested = do
   let !_ = traceShow ("ambient" :: String, ambient, "requested" :: String, requested) ()
   -- if requested is an existential that is unsolved, go ahead and unify that
@@ -1111,14 +1111,18 @@ abilityCheck' ambient requested = do
             _ -> pure False
       when (not success) $ do
         ctx <- getContext
-        failWith $ AbilityCheckFailure ambient requested ctx
+        failWith $ AbilityCheckFailure (apply ctx <$> ambient)
+                                       (apply ctx <$> requested)
+                                       ctx
 
 abilityCheck :: (Var v, Ord loc) => [Type v loc] -> M v loc ()
 abilityCheck requested = do
   enabled <- getAbilityCheckMask
   ambient <- getAbilities
   requested' <- filterM enabled requested
-  abilityCheck' ambient requested'
+  ctx <- getContext
+  abilityCheck' (apply ctx <$> ambient >>= Type.flattenEffects)
+                (apply ctx <$> requested' >>= Type.flattenEffects)
 
 verifyDataDeclarations :: (Var v, Ord loc) => DataDeclarations v loc -> M v loc ()
 verifyDataDeclarations decls = forM_ (Map.toList decls) $ \(_ref, decl) -> do
