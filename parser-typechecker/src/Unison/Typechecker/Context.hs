@@ -1082,9 +1082,8 @@ solve ctx v t
 abilityCheck' :: (Var v, Ord loc) => [Type v loc] -> [Type v loc] -> M v loc ()
 abilityCheck' [] [] = pure ()
 abilityCheck' ambient requested = do
-  let !_ = traceShow ("ambient" :: String, ambient, "requested" :: String, requested) ()
-  -- if requested is an existential that is unsolved, go ahead and unify that
-  -- with all of ambient
+  -- let !_ = traceShow ("ambient" :: String, ambient, "requested" :: String, requested) ()
+  -- if requested is an existential that is unsolved, go ahead and unify that w/ all of ambient
   ctx <- getContext
   let es = [ Type.existential' (loc t) b v
            | t@(Type.Existential' b v) <- apply ctx <$> requested ]
