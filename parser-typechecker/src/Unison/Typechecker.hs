@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -9,6 +10,7 @@
 
 module Unison.Typechecker where
 
+import           Control.Lens
 import           Control.Monad (join)
 import           Control.Monad.State (StateT, runStateT)
 import qualified Control.Monad.State as State
@@ -16,6 +18,7 @@ import           Data.Foldable (traverse_)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Maybe (isJust, maybeToList)
+import qualified Data.Sequence as Seq
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Traversable (for)
@@ -31,7 +34,6 @@ import qualified Unison.TypeVar as TypeVar
 import qualified Unison.Typechecker.Context as Context
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
-import qualified Data.Sequence as Seq
 
 -- import qualified Unison.Paths as Paths
 -- import qualified Unison.Type as Type
@@ -51,13 +53,15 @@ data NamedReference v loc =
   NamedReference { fqn :: Text, fqnType :: Context.Type v loc }
 
 data Env f v loc = Env
-  { builtinLoc :: loc
-  , ambientAbilities :: [Type v loc]
-  , typeOf :: Reference -> f (Type v loc)
-  , dataDeclaration :: Reference -> f (DataDeclaration' v loc)
-  , effectDeclaration :: Reference -> f (EffectDeclaration' v loc)
-  , terms :: Map Text [NamedReference v loc]
+  { _builtinLoc :: loc
+  , _ambientAbilities :: [Type v loc]
+  , _typeOf :: Reference -> f (Type v loc)
+  , _dataDeclaration :: Reference -> f (DataDeclaration' v loc)
+  , _effectDeclaration :: Reference -> f (EffectDeclaration' v loc)
+  , _terms :: Map Text [NamedReference v loc]
   }
+
+makeLenses ''Env
 
 -- -- | Compute the allowed type of a replacement for a given subterm.
 -- -- Example, in @\g -> map g [1,2,3]@, @g@ has an admissible type of
@@ -126,29 +130,35 @@ data Env f v loc = Env
 -- | Infer the type of a 'Unison.Term', using
 -- a function to resolve the type of @Ref@ constructors
 -- contained in that term.
-synthesize :: (Monad f, Var v, Ord loc)
-           => Env f v loc
-           -> Term v loc
-           -> f (Result (Note v loc) (Type v loc))
+synthesize
+  :: (Monad f, Var v, Ord loc)
+  => Env f v loc
+  -> Term v loc
+  -> f (Result (Note v loc) (Type v loc))
 synthesize env t =
-  let go (notes, ot) = Result (Typechecking <$> notes) (ABT.vmap TypeVar.underlying <$> ot)
-  in go <$> Context.synthesizeClosed
-      (builtinLoc env)
-      (ABT.vmap TypeVar.Universal <$> ambientAbilities env)
-      (typeOf env)
-      (dataDeclaration env)
-      (effectDeclaration env)
-      (Term.vtmap TypeVar.Universal t)
+  let go (notes, ot) =
+        Result (Typechecking <$> notes) (ABT.vmap TypeVar.underlying <$> ot)
+  in  go <$> Context.synthesizeClosed
+        (view builtinLoc env)
+        (ABT.vmap TypeVar.Universal <$> view ambientAbilities env)
+        (view typeOf env)
+        (view dataDeclaration env)
+        (view effectDeclaration env)
+        (Term.vtmap TypeVar.Universal t)
 
 -- | Infer the type of a 'Unison.Term', using type-directed name resolution
 -- to attempt to resolve unknown symbols.
-synthesizeAndResolve :: (Monad f, Var v, Ord loc) =>
-  Env f v loc
+synthesizeAndResolve
+  :: (Monad f, Var v, Ord loc)
+  => Env f v loc
   -> Term v loc
   -> f (Result (Note v loc) (Type v loc, Term v loc))
 synthesizeAndResolve env t = do
-  r <- synthesize env t
-  pure $ runStateT (typeDirectedNameResolution r env) t
+  r1 <- synthesize env t
+  let r2 = runStateT (typeDirectedNameResolution r1 env) t
+  case result r2 of
+    Just (_, newTerm) | newTerm /= t -> synthesizeAndResolve env newTerm
+    _ -> pure r2
 
 -- Resolve "solved blanks". If a solved blank's type and name matches the type
 -- and unqualified name of a symbol that isn't imported, provide a note
@@ -179,7 +189,7 @@ typeDirectedNameResolution resultSoFar env = do
           . join
           . maybeToList
           . Map.lookup (Text.pack n)
-          $ terms env
+          $ view terms env
         -- If only one suggested import, just subst that into the term
         -- otherwise propagate the suggestion to the user.
         suggestOrReplace loc (Text.pack n) it suggestions
@@ -211,7 +221,7 @@ typeDirectedNameResolution resultSoFar env = do
   resolve inferredType (NamedReference fqn foundType) =
     -- We found a name that matches. See if the type matches too.
     let Result subNotes subResult = uncurry Result
-          $ Context.isSubtype (builtinLoc env) foundType inferredType
+          $ Context.isSubtype (view builtinLoc env) foundType inferredType
     in  case subResult of
           -- Something unexpected went wrong with the subtype check
           Nothing -> const [] <$> traverse_ (failNote . Typechecking) subNotes
