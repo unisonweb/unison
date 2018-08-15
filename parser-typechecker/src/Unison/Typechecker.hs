@@ -39,11 +39,6 @@ import qualified Unison.Var as Var
 -- import qualified Unison.Paths as Paths
 -- import qualified Unison.Type as Type
 
-import Debug.Trace
-
-watch :: Show a => String -> a -> a
-watch msg a = trace (msg ++ show a) a
-
 type Term v loc = AnnotatedTerm v loc
 type Type v loc = AnnotatedType v loc
 
@@ -158,16 +153,12 @@ synthesizeAndResolve
   -> Term v loc
   -> f (Result (Note v loc) (Type v loc, Term v loc))
 synthesizeAndResolve env t = do
-  !_ <- traceM "About to synthesize..."
   r1 <- synthesize env t
   let r2 = runStateT (runStateT (typeDirectedNameResolution r1 env) False) t
   case result r2 of
     Just ((_, anyChanges), newTerm) | anyChanges ->
-      do !_ <- traceM "Here we go again..."
-         synthesizeAndResolve env newTerm
-    _ -> do
-      !_ <- traceM $ "Done synthesizing. " ++ (show . fmap fst $ result r2)
-      pure $ fmap (\((typ, _), tm) -> (typ, tm)) r2
+      synthesizeAndResolve env newTerm
+    _ -> pure $ fmap (\((typ, _), tm) -> (typ, tm)) r2
 
 -- Resolve "solved blanks". If a solved blank's type and name matches the type
 -- and unqualified name of a symbol that isn't imported, provide a note
@@ -186,7 +177,6 @@ typeDirectedNameResolution
   -> Env f v loc
   -> TDNR v loc a
 typeDirectedNameResolution resultSoFar env = do
-  traceM "TDNR..."
   let (Result oldNotes may) = resultSoFar
   newNotes <- fmap join . for oldNotes $ \case
     Typechecking (Context.Note (Context.SolvedBlank (B.Resolve loc n) _ it) _)
@@ -203,7 +193,6 @@ typeDirectedNameResolution resultSoFar env = do
           $ view terms env
         -- If only one suggested import, just subst that into the term
         -- otherwise propagate the suggestion to the user.
-        traceM ("Suggestions:" ++ (show suggestions))
         suggestOrReplace loc (Text.pack n) it suggestions
         -- Erase the note
         pure Seq.empty

@@ -9,8 +9,12 @@
 
 module Unison.PrintError where
 
+-- import           Unison.Parser              (showLineCol)
+import           Control.Lens               ((<&>))
+import           Control.Monad              (join)
 import qualified Data.Char                  as Char
 import           Data.Foldable
+import           Data.List                  (intersperse)
 import qualified Data.List.NonEmpty         as Nel
 import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
@@ -28,7 +32,6 @@ import           Unison.Kind                (Kind)
 import qualified Unison.Kind                as Kind
 import qualified Unison.Lexer               as L
 import           Unison.Parser              (Ann (..), Annotated, ann)
--- import           Unison.Parser              (showLineCol)
 import qualified Unison.Parser              as Parser
 import qualified Unison.Reference           as R
 import           Unison.Result              (Note (..))
@@ -61,62 +64,127 @@ data TypeError v loc
                         , abilityCheckFailureSite :: loc
                         , note :: C.Note v loc
                         }
+  | UnknownTerm { unknownTerm :: v
+                , termSite :: loc
+                , suggestions :: [C.Suggestion v loc]
+                , expectedType :: C.Type v loc
+                , note :: C.Note v loc
+                }
   | Other (C.Note v loc)
 
-renderTypeError :: forall v a. (Var v, Annotated a, Eq a, Show a)
-                => Env
-                -> TypeError v a
-                -> String
-                -> AT.AnnotatedDocument Color.Style
-renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
-  Mismatch {..} ->
-    [ (fromString . annotatedToEnglish) mismatchSite
-    , " has a type mismatch (", AT.Describe Color.ErrorSite, " below):\n\n"
-    , annotatedAsErrorSite src mismatchSite
-    , "\n"
-    , "The two types involved are:\n\n"
-    , "  ", AT.Text $ styleInOverallType env overallType1 leaf1 Color.Type1
-    , " (", fromString (Char.toLower <$> annotatedToEnglish leaf1)
-          , ", ", AT.Describe Color.Type1, ")\n"
-    , "  ", AT.Text $ styleInOverallType env overallType2 leaf2 Color.Type2
-    , " (", fromString (Char.toLower <$> annotatedToEnglish leaf2)
-          , ", ", AT.Describe Color.Type2, ")\n"
-    , "\n"
-    , AT.Blockquote $ AT.markup (fromString src)
-            (Set.fromList $ catMaybes
-              [ -- these are overwriting the colored ranges for some reason?
-              --   (,Color.ForceShow) <$> rangeForAnnotated mismatchSite
-              -- , (,Color.ForceShow) <$> rangeForType overallType1
-              -- , (,Color.ForceShow) <$> rangeForType overallType2
-              -- ,
-                (,Color.Type1) <$> rangeForType leaf1
-              , (,Color.Type2) <$> rangeForType leaf2
-              ])
-    , "\n"
-    , "loc debug:"
-    , "\n  mismatchSite: ", fromString $ annotatedToEnglish mismatchSite
-    , "\n  overallType1: ", fromString $ annotatedToEnglish overallType1
-    , "\n         leaf1: ", fromString $ annotatedToEnglish leaf1
-    , "\n  overallType2: ", fromString $ annotatedToEnglish overallType2
-    , "\n         leaf2: ", fromString $ annotatedToEnglish leaf2
-    , "\n"
-    , "note debug:\n"
-    ] ++ summary note
-  AbilityCheckFailure {..} ->
-    [ "The expression at "
-    , (fromString . annotatedToEnglish) abilityCheckFailureSite
-    , " (", AT.Describe Color.ErrorSite, " below)"
-    , " is requesting\n"
-    , "    {", AT.Text $ commas (renderType' env) requested, "}"
-    , " effects, but this location only has access to\n"
-    , "    {", AT.Text $ commas (renderType' env) ambient, "}"
-    , "\n\n"
-    , annotatedAsErrorSite src abilityCheckFailureSite
-    ] ++ summary note
-  Other note ->
-    [ "Sorry, you hit an error we didn't make a nice message for yet.\n\n"
-    , "Here is a summary of the Note:\n"
-    ] ++ summary note
+renderTypeError
+  :: forall v a
+   . (Var v, Annotated a, Eq a, Show a)
+  => Env
+  -> TypeError v a
+  -> String
+  -> AT.AnnotatedDocument Color.Style
+renderTypeError env e src =
+  AT.AnnotatedDocument
+    . Seq.fromList
+    $ case e of
+        Mismatch {..} ->
+          [ (fromString . annotatedToEnglish) mismatchSite
+            , " has a type mismatch ("
+            , AT.Describe Color.ErrorSite
+            , " below):\n\n"
+            , annotatedAsErrorSite src mismatchSite
+            , "\n"
+            , "The two types involved are:\n\n"
+            , "  "
+            , AT.Text $ styleInOverallType env overallType1 leaf1 Color.Type1
+            , " ("
+            , fromString (Char.toLower <$> annotatedToEnglish leaf1)
+            , ", "
+            , AT.Describe Color.Type1
+            , ")\n"
+            , "  "
+            , AT.Text $ styleInOverallType env overallType2 leaf2 Color.Type2
+            , " ("
+            , fromString (Char.toLower <$> annotatedToEnglish leaf2)
+            , ", "
+            , AT.Describe Color.Type2
+            , ")\n"
+            , "\n"
+            , AT.Blockquote $ AT.markup
+              (fromString src)
+              (Set.fromList $ catMaybes
+                [ -- these are overwriting the colored ranges for some reason?
+                    --   (,Color.ForceShow) <$> rangeForAnnotated mismatchSite
+                    -- , (,Color.ForceShow) <$> rangeForType overallType1
+                    -- , (,Color.ForceShow) <$> rangeForType overallType2
+                    -- ,
+                  (, Color.Type1) <$> rangeForType leaf1
+                , (, Color.Type2) <$> rangeForType leaf2
+                ]
+              )
+            , "\n"
+            , "loc debug:"
+            , "\n  mismatchSite: "
+            , fromString $ annotatedToEnglish mismatchSite
+            , "\n  overallType1: "
+            , fromString $ annotatedToEnglish overallType1
+            , "\n         leaf1: "
+            , fromString $ annotatedToEnglish leaf1
+            , "\n  overallType2: "
+            , fromString $ annotatedToEnglish overallType2
+            , "\n         leaf2: "
+            , fromString $ annotatedToEnglish leaf2
+            , "\n"
+            , "note debug:\n"
+            ]
+            ++ summary note
+        AbilityCheckFailure {..} ->
+          [ "The expression at "
+            , (fromString . annotatedToEnglish) abilityCheckFailureSite
+            , " ("
+            , AT.Describe Color.ErrorSite
+            , " below)"
+            , " is requesting\n"
+            , "    {"
+            , AT.Text $ commas (renderType' env) requested
+            , "}"
+            , " effects, but this location only has access to\n"
+            , "    {"
+            , AT.Text $ commas (renderType' env) ambient
+            , "}"
+            , "\n\n"
+            , annotatedAsErrorSite src abilityCheckFailureSite
+            ]
+            ++ summary note
+        UnknownTerm {..} ->
+          [ "I'm not sure what "
+            , AT.Text . Color.style Color.ErrorSite $ (fromString . show)
+              unknownTerm
+            , " means at "
+            , (fromString . annotatedToEnglish) termSite
+            , "\n\n"
+            , annotatedAsErrorSite src termSite
+            , "\nWhatever it is, it has a type that conforms to "
+            , AT.Text . Color.style Color.Type1 $ (fromString . show) expectedType
+            , "\n\n"
+            ]
+            ++ case suggestions of
+                 [] -> []
+                 suggestions ->
+                   [ "I found some terms in scope that have matching names and types. "
+                     , "Maybe you meant one of these:\n\n"
+                     ]
+                     ++  join (
+                     (   intersperse ["\n"]
+                     (   suggestions
+                     <&> \(C.Suggestion name typ) ->
+                           [ "  - "
+                           , fromString $ Text.unpack name
+                           , " : "
+                           , fromString $ show typ
+                           ])))
+        Other note ->
+          [ "Sorry, you hit an error we didn't make a nice message for yet."
+            , "\n\n"
+            , "Here is a summary of the Note:\n"
+            ]
+            ++ summary note
   where
     maxTermDisplay = 20
     renderTerm e = let s = show e in -- todo: pretty print
@@ -167,7 +235,6 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
         , " ", (fromString . show) v, "\n\n"
         , annotatedAsErrorSite src loc
         ]
-      C.CompilerBug c -> ["CompilerBug: ", fromString (show c)]
       C.UnknownTerm loc v suggestions typ ->
         ["UnknownTerm: ", (fromString . show) loc
         , " ", (fromString . show) v, "\n\n"
@@ -175,6 +242,7 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
         , "Suggestions: ", (fromString . show) suggestions, "\n\n"
         , "Type: ", (fromString . show) typ
         ]
+      C.CompilerBug c -> ["CompilerBug: ", fromString (show c)]
       C.AbilityCheckFailure ambient requested ->
         [ "AbilityCheckFailure: "
         , "ambient={"] ++ (AT.Text . renderType' env <$> ambient) ++
@@ -326,6 +394,8 @@ typeErrorFromNote n@(C.Note (C.AbilityCheckFailure amb req) _) =
   let go :: C.Term v loc -> TypeError v loc
       go e = AbilityCheckFailure amb req (ABT.annotation e) n
   in fromMaybe (Other n) $ go <$> C.innermostErrorTerm n
+typeErrorFromNote n@(C.Note (C.UnknownTerm loc v suggs typ) _) =
+  UnknownTerm v loc suggs typ n
 typeErrorFromNote n@(C.Note _ _) = Other n
 
 showLexerOutput :: Bool
