@@ -1,0 +1,30 @@
+effect State s where
+  get : {State s} s
+  set : s -> {State s} ()
+
+effect Console where
+  read : {Console} (Optional Text)
+  write : Text -> {Console} ()
+
+fst x = case x of Pair.Pair a _ -> a
+
+snd x = case x of Pair.Pair _ (Pair.Pair b _) -> b
+
+namespace Console where
+
+  simulate : Effect Console a -> {State ([Text], [Text])} a
+  simulate c = case c of
+    {Console.read -> k} ->
+      io = State.get
+      ins = fst io
+      outs = snd io
+      State.set (drop 1 ins, outs)
+      k (at 0 ins)
+    {Console.write t -> k} ->
+      io = State.get
+      ins = fst io
+      outs = snd io
+      k (State.set (ins, cons t outs))
+
+()
+

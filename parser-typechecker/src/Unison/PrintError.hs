@@ -9,6 +9,7 @@
 
 module Unison.PrintError where
 
+-- import           Unison.Parser              (showLineCol)
 import qualified Data.Char                  as Char
 import           Data.Foldable
 import qualified Data.List.NonEmpty         as Nel
@@ -28,7 +29,6 @@ import           Unison.Kind                (Kind)
 import qualified Unison.Kind                as Kind
 import qualified Unison.Lexer               as L
 import           Unison.Parser              (Ann (..), Annotated, ann)
--- import           Unison.Parser              (showLineCol)
 import qualified Unison.Parser              as Parser
 import qualified Unison.Reference           as R
 import           Unison.Result              (Note (..))
@@ -61,6 +61,12 @@ data TypeError v loc
                         , abilityCheckFailureSite :: loc
                         , note :: C.Note v loc
                         }
+  | UnknownTerm { unknownTerm :: v
+                , termSite :: loc
+                , suggestions :: [C.Suggestion v loc]
+                , expectedType :: C.Type v loc
+                , note :: C.Note v loc
+                }
   | Other (C.Note v loc)
 
 renderTypeError :: forall v a. (Var v, Annotated a, Ord a, Show a)
@@ -113,6 +119,30 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     , "\n\n"
     , annotatedAsErrorSite src abilityCheckFailureSite
     ] ++ summary note
+  UnknownTerm {..} ->
+    [ "I'm not sure what "
+    , AT.Text . Color.style Color.ErrorSite $ (fromString . show) unknownTerm
+    , " means at "
+    , (fromString . annotatedToEnglish) termSite
+    , "\n\n"
+    , annotatedAsErrorSite src termSite
+    , "\nWhatever it is, it has a type that conforms to "
+    , AT.Text . Color.style Color.Type1 $ (renderType' env) expectedType
+    , "\n\n"
+    ]
+    ++ case suggestions of
+      [] -> []
+      suggestions ->
+        [ "I found some terms in scope that have matching names and types. "
+        , "Maybe you meant one of these:\n\n"
+        ]
+        ++ intercalateMap (pure "\n") formatSuggestion suggestions
+      where
+        formatSuggestion :: C.Suggestion v loc -> [AT.Section Color.Style]
+        formatSuggestion (C.Suggestion name typ) =
+          [ "  - ", fromString $ Text.unpack name
+          , " : ", AT.Text $ renderType' env typ
+          ]
   Other note ->
     [ "Sorry, you hit an error we didn't make a nice message for yet.\n\n"
     , "Here is a summary of the Note:\n"
@@ -168,7 +198,6 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
         , " ", (fromString . show) v, "\n\n"
         , annotatedAsErrorSite src loc
         ]
-      C.CompilerBug c -> ["CompilerBug: ", fromString (show c)]
       C.UnknownTerm loc v suggestions typ ->
         ["UnknownTerm: ", (fromString . show) loc
         , " ", (fromString . show) v, "\n\n"
@@ -176,6 +205,7 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
         , "Suggestions: ", (fromString . show) suggestions, "\n\n"
         , "Type: ", (fromString . show) typ
         ]
+      C.CompilerBug c -> ["CompilerBug: ", fromString (show c)]
       C.AbilityCheckFailure ambient requested ctx ->
         [ "AbilityCheckFailure: "
         , "ambient={"] ++ (AT.Text . renderType' env <$> ambient) ++
@@ -231,6 +261,7 @@ renderType env f = renderType0 env f (0 :: Int) where
     Type.Effect' es t -> case es of
       [] -> go p t
       _ -> paren (p >= 3) $ "{" <> commas (go 0) es <> "} " <> go 3 t
+    Type.Effect1' e t -> paren (p >= 3) $ "{" <> go 0 e <> "}" <> go 3 t
     Type.ForallsNamed' vs body -> paren (p >= 1) $
       if p == 0 then go 0 body
       else "forall " <> spaces renderVar vs <> " . " <> go 1 body
@@ -248,7 +279,7 @@ commas :: (IsString a, Monoid a) => (b -> a) -> [b] -> a
 commas = intercalateMap ", "
 
 renderVar :: Var v => v -> AT.AnnotatedText (Maybe a)
-renderVar = fromString . Text.unpack . Var.name
+renderVar = fromString . Text.unpack . Var.shortName
 
 renderKind :: Kind -> AT.AnnotatedText (Maybe a)
 renderKind Kind.Star          = "*"
@@ -334,6 +365,8 @@ typeErrorFromNote n@(C.Note (C.AbilityCheckFailure amb req _) _) =
   let go :: C.Term v loc -> TypeError v loc
       go e = AbilityCheckFailure amb req (ABT.annotation e) n
   in fromMaybe (Other n) $ go <$> C.innermostErrorTerm n
+typeErrorFromNote n@(C.Note (C.UnknownTerm loc v suggs typ) _) =
+  UnknownTerm v loc suggs typ n
 typeErrorFromNote n@(C.Note _ _) = Other n
 
 showLexerOutput :: Bool

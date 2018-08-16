@@ -1,0 +1,65 @@
+-- board piece
+type P = X | O | E
+
+type Board = Board P P P P P P P P P
+
+use Board Board
+use P O X E
+use Optional Some None
+
+namespace P where
+  (/=) : P -> P -> Boolean
+  a /= b = not (a == b)
+  (==) : P -> P -> Boolean
+  a == b = case (a,b) of
+    (X,X) -> true
+    (O,O) -> true
+    _ -> false
+
+isWin : Board -> Optional P
+isWin board =
+  same : P -> P -> P -> Optional P
+  same a b c = if and (and (a P.== b) (a P.== c)) (a P./= E)
+               then Some a
+               else None
+  case board of
+    -- vertical top/center/bottom
+    -- horizontal left/center/right
+    -- diagonal rising/falling
+    Board a b c
+          _ _ _
+          _ _ _ -> same a b c
+
+    Board _ _ _
+          a b c
+          _ _ _ -> same a b c
+
+    Board _ _ _
+          _ _ _
+          a b c -> same a b c
+
+    Board a _ _
+          b _ _
+          c _ _ -> same a b c
+
+    Board _ a _
+          _ b _
+          _ c _ -> same a b c
+
+    Board _ _ a
+          _ _ b
+          _ _ c -> same a b c
+
+    Board a _ _
+          _ b _
+          _ _ c -> same a b c
+
+    Board _ _ a
+          _ b _
+          c _ _ -> same a b c
+
+isWin (Board X O X
+             O X X
+             O E X)
+
+"Okay!"

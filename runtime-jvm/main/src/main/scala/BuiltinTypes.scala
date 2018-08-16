@@ -122,10 +122,15 @@ object BuiltinTypes {
           val argsStart = top.toInt - ((arity - compilation.K) + 1)
           val argsStop = top.toInt + 1
           val args = new Array[Value](arity)
-          stackU.view(argsStart, argsStop)
-                .zip(stackB.view(argsStart,argsStop))
-                .map { case (u,b) => Value.fromParam(u,b) }
-                .copyToArray(args)
+          locally {
+            var i = argsStart
+            var j = 0
+            while (i < argsStop) {
+              args(j) = Value.fromParam(stackU(i), stackB(i))
+              i += 1
+              j += 1
+            }
+          }
           args(arity - 2) = Value.fromParam(x1,x1b)
           args(arity - 1) = Value.fromParam(x0,x0b)
           r.boxed = req(args)

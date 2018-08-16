@@ -22,7 +22,7 @@ import           Unison.Parser (Ann(..))
 import qualified Unison.Parser as Parser
 import qualified Unison.Parsers as Parsers
 import qualified Unison.PrintError as PrintError
-import           Unison.Reference (Reference)
+import           Unison.Reference (Reference(..))
 import           Unison.Result (Result(..), Note)
 import qualified Unison.Result as Result
 import           Unison.Term (AnnotatedTerm)
@@ -60,27 +60,31 @@ synthesizeFile unisonFile
       eds     = Map.fromList $ Foldable.toList eds0
       datas   = Map.union dds B.builtinDataDecls -- `Map.union` is left-biased
       effects = Map.union eds B.builtinEffectDecls
-      env0    = Typechecker.Env
-        Intrinsic
-        []
-        typeOf
-        dataDeclaration
-        effectDeclaration
-        (Map.fromListWith mappend $ fmap
-          (\(v, (_tm, typ)) ->
-            ( unqualified $ Var.name v
-            , [Typechecker.NamedReference (Var.name v) typ]
-            )
-          )
-          B.builtinTypedTerms
-        )
+      env0    = Typechecker.Env Intrinsic
+                                []
+                                typeOf
+                                dataDeclaration
+                                effectDeclaration
+                                unqualifiedLookup
       n = Typechecker.synthesizeAndResolve env0 term
       die s h = error $ "unknown " ++ s ++ " reference " ++ show h
-      typeOf r = error $ "unknown reference " ++ show r
+      typeOf r =
+        pure . fromMaybe (error $ "unknown reference " ++ show r)
+          $ Map.lookup r typeSigs
       dataDeclaration r = pure $ fromMaybe (die "data" r) $ Map.lookup r datas
       effectDeclaration r =
         pure $ fromMaybe (die "effect" r) $ Map.lookup r effects
       unqualified = last . Text.splitOn "."
+      typeSigs    = Map.fromList $ fmap
+        (\(v, (_tm, typ)) -> (Builtin (Var.name v), typ))
+        B.builtinTypedTerms
+      unqualifiedLookup = Map.fromListWith mappend $ fmap
+        (\(v, (_tm, typ)) ->
+          ( unqualified $ Var.name v
+          , [Typechecker.NamedReference (Var.name v) typ]
+          )
+        )
+        B.builtinTypedTerms
     in
       swap <$> runIdentity n
 
