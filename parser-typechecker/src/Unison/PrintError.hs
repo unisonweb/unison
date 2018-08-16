@@ -161,7 +161,7 @@ renderTypeError env e src =
             , "\n\n"
             , annotatedAsErrorSite src termSite
             , "\nWhatever it is, it has a type that conforms to "
-            , AT.Text . Color.style Color.Type1 $ (fromString . show) expectedType
+            , AT.Text . Color.style Color.Type1 $ (renderType' env) expectedType
             , "\n\n"
             ]
             ++ case suggestions of
@@ -177,7 +177,7 @@ renderTypeError env e src =
                            [ "  - "
                            , fromString $ Text.unpack name
                            , " : "
-                           , fromString $ show typ
+                           , AT.Text $ renderType' env typ
                            ])))
         Other note ->
           [ "Sorry, you hit an error we didn't make a nice message for yet."
