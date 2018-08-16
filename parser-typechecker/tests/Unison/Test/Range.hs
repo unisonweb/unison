@@ -4,6 +4,8 @@ import EasyTest
 import Unison.Lexer (Pos (..))
 import Unison.Util.Range
 
+
+test :: Test ()
 test = scope "range" . tests $
   [ scope "contains 11 11" . expect $ contains zero zero
   , antisymmetric "contains 11 12" (not . uncurry contains) $ (zero, one)
