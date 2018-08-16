@@ -117,6 +117,7 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     [ "Sorry, you hit an error we didn't make a nice message for yet.\n\n"
     , "Here is a summary of the Note:\n"
     ] ++ summary note
+
   where
     maxTermDisplay = 20
     renderTerm e = let s = show e in -- todo: pretty print
@@ -287,12 +288,17 @@ rangeForToken t = Range (L.start t) (L.end t)
 
 rangeToEnglish :: Range -> String
 rangeToEnglish (Range (L.Pos l c) (L.Pos l' c')) =
-  if l == l'
-    then if c == c'
-      then "Line " ++ show l ++ ", column " ++ show c
-      else "Line " ++ show l ++ ", columns " ++ show c ++ "-" ++ show c'
-    else "Line " ++ show l ++ ", column " ++ show c ++ " through " ++
-         "line " ++ show l' ++ ", column " ++ show c'
+  let showColumn = False in
+  if showColumn
+  then if l == l'
+       then "Line " ++ show l
+       else "Lines " ++ show l ++ "—" ++ show l'
+  else if l == l'
+       then if c == c'
+            then "Line " ++ show l ++ ", column " ++ show c
+            else "Line " ++ show l ++ ", columns " ++ show c ++ "-" ++ show c'
+       else "Line " ++ show l ++ ", column " ++ show c ++ " through " ++
+            "line " ++ show l' ++ ", column " ++ show c'
 
 annotatedToEnglish :: Annotated a => a -> String
 annotatedToEnglish a = case ann a of

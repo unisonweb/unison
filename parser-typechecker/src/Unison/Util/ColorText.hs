@@ -61,9 +61,9 @@ renderDocANSI excerptCollapseWidth (AnnotatedDocument chunks) =
   go (Text t : rest) = renderText t <> go rest
 
   describe :: Style -> StyledText
-  describe ErrorSite = "colored in " <> errorSite "red"
-  describe Type1     = "colored in " <> type1 "blue"
-  describe Type2     = "colored in " <> type2 "green"
+  describe ErrorSite = "in " <> errorSite "red"
+  describe Type1     = "in " <> type1 "blue"
+  describe Type2     = "in " <> type2 "green"
   describe ForceShow = mempty
   toANSI :: Style -> Rendered ANSI
   toANSI c = Rendered . pure . setSGRCode $ case c of
