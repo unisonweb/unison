@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -9,13 +11,15 @@
 
 module Unison.Typechecker where
 
+import           Control.Lens
 import           Control.Monad (join)
-import           Control.Monad.State (StateT, runStateT)
-import qualified Control.Monad.State as State
+import           Control.Monad.State (runStateT, StateT, modify, put, get)
+import           Control.Monad.Trans (lift)
 import           Data.Foldable (traverse_)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Maybe (isJust, maybeToList)
+import qualified Data.Sequence as Seq
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Traversable (for)
@@ -31,15 +35,9 @@ import qualified Unison.TypeVar as TypeVar
 import qualified Unison.Typechecker.Context as Context
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
-import qualified Data.Sequence as Seq
 
 -- import qualified Unison.Paths as Paths
 -- import qualified Unison.Type as Type
-
--- import Debug.Trace
-
--- watch :: Show a => String -> a -> a
--- watch msg a = trace (msg ++ show a) a
 
 type Term v loc = AnnotatedTerm v loc
 type Type v loc = AnnotatedType v loc
@@ -51,13 +49,15 @@ data NamedReference v loc =
   NamedReference { fqn :: Text, fqnType :: Context.Type v loc }
 
 data Env f v loc = Env
-  { builtinLoc :: loc
-  , ambientAbilities :: [Type v loc]
-  , typeOf :: Reference -> f (Type v loc)
-  , dataDeclaration :: Reference -> f (DataDeclaration' v loc)
-  , effectDeclaration :: Reference -> f (EffectDeclaration' v loc)
-  , terms :: Map Text [NamedReference v loc]
+  { _builtinLoc :: loc
+  , _ambientAbilities :: [Type v loc]
+  , _typeOf :: Reference -> f (Type v loc)
+  , _dataDeclaration :: Reference -> f (DataDeclaration' v loc)
+  , _effectDeclaration :: Reference -> f (EffectDeclaration' v loc)
+  , _terms :: Map Text [NamedReference v loc]
   }
+
+makeLenses ''Env
 
 -- -- | Compute the allowed type of a replacement for a given subterm.
 -- -- Example, in @\g -> map g [1,2,3]@, @g@ has an admissible type of
@@ -126,29 +126,39 @@ data Env f v loc = Env
 -- | Infer the type of a 'Unison.Term', using
 -- a function to resolve the type of @Ref@ constructors
 -- contained in that term.
-synthesize :: (Monad f, Var v, Ord loc)
-           => Env f v loc
-           -> Term v loc
-           -> f (Result (Note v loc) (Type v loc))
+synthesize
+  :: (Monad f, Var v, Ord loc)
+  => Env f v loc
+  -> Term v loc
+  -> f (Result (Note v loc) (Type v loc))
 synthesize env t =
-  let go (notes, ot) = Result (Typechecking <$> notes) (ABT.vmap TypeVar.underlying <$> ot)
-  in go <$> Context.synthesizeClosed
-      (builtinLoc env)
-      (ABT.vmap TypeVar.Universal <$> ambientAbilities env)
-      (typeOf env)
-      (dataDeclaration env)
-      (effectDeclaration env)
-      (Term.vtmap TypeVar.Universal t)
+  let go (notes, ot) =
+        Result (Typechecking <$> notes) (ABT.vmap TypeVar.underlying <$> ot)
+  in  go <$> Context.synthesizeClosed
+        (view builtinLoc env)
+        (ABT.vmap TypeVar.Universal <$> view ambientAbilities env)
+        (view typeOf env)
+        (view dataDeclaration env)
+        (view effectDeclaration env)
+        (Term.vtmap TypeVar.Universal t)
+
+type TDNR v loc a =
+  StateT Bool (StateT (Term v loc) (Result (Note v loc))) a
 
 -- | Infer the type of a 'Unison.Term', using type-directed name resolution
 -- to attempt to resolve unknown symbols.
-synthesizeAndResolve :: (Monad f, Var v, Ord loc) =>
-  Env f v loc
+synthesizeAndResolve
+  :: (Monad f, Var v, Ord loc)
+  => Env f v loc
   -> Term v loc
   -> f (Result (Note v loc) (Type v loc, Term v loc))
 synthesizeAndResolve env t = do
-  r <- synthesize env t
-  pure $ runStateT (typeDirectedNameResolution r env) t
+  r1 <- synthesize env t
+  let r2 = runStateT (runStateT (typeDirectedNameResolution r1 env) False) t
+  case result r2 of
+    Just ((_, anyChanges), newTerm) | anyChanges ->
+      synthesizeAndResolve env newTerm
+    _ -> pure $ fmap (\((typ, _), tm) -> (typ, tm)) r2
 
 -- Resolve "solved blanks". If a solved blank's type and name matches the type
 -- and unqualified name of a symbol that isn't imported, provide a note
@@ -165,7 +175,7 @@ typeDirectedNameResolution
    . (Var v, Ord loc, Show a)
   => Result (Note v loc) a
   -> Env f v loc
-  -> StateT (Term v loc) (Result (Note v loc)) a
+  -> TDNR v loc a
 typeDirectedNameResolution resultSoFar env = do
   let (Result oldNotes may) = resultSoFar
   newNotes <- fmap join . for oldNotes $ \case
@@ -174,12 +184,13 @@ typeDirectedNameResolution resultSoFar env = do
         -- Do the TDNR and get suggested imports
         suggestions <-
           fmap join
-          . State.lift
+          . lift
+          . lift
           . traverse (resolve it)
           . join
           . maybeToList
           . Map.lookup (Text.pack n)
-          $ terms env
+          $ view terms env
         -- If only one suggested import, just subst that into the term
         -- otherwise propagate the suggestion to the user.
         suggestOrReplace loc (Text.pack n) it suggestions
@@ -187,23 +198,29 @@ typeDirectedNameResolution resultSoFar env = do
         pure Seq.empty
     -- Otherwise leave the note alone
     x -> pure [x]
-  State.lift $ Result newNotes may
+  lift . lift $ Result newNotes may
  where
   suggestOrReplace
     :: loc
     -> Text
     -> Context.Type v loc
     -> [Context.Suggestion v loc]
-    -> StateT (Term v loc) (Result (Note v loc)) ()
+    -> TDNR v loc ()
   suggestOrReplace loc name inferredType ss = case ss of
     [Context.Suggestion fqn _] ->
       let f t = if ABT.annotation t == loc
             then Just . Term.ref loc $ Builtin fqn
             else Nothing
-      in  State.modify (ABT.visitPure f)
-    _ -> State.lift . failNote . Typechecking $ Context.Note
-      (Context.UnknownTerm loc (Var.named name) ss inferredType)
-      []
+      in  do
+        put True
+        lift $ modify (ABT.visitPure f)
+    _ -> do
+      anyChanges <- get
+      if anyChanges
+         then pure ()
+         else lift . lift . failNote . Typechecking $ Context.Note
+                (Context.UnknownTerm loc (Var.named name) ss inferredType)
+                []
   resolve
     :: Context.Type v loc
     -> NamedReference v loc
@@ -211,7 +228,7 @@ typeDirectedNameResolution resultSoFar env = do
   resolve inferredType (NamedReference fqn foundType) =
     -- We found a name that matches. See if the type matches too.
     let Result subNotes subResult = uncurry Result
-          $ Context.isSubtype (builtinLoc env) foundType inferredType
+          $ Context.isSubtype (view builtinLoc env) foundType inferredType
     in  case subResult of
           -- Something unexpected went wrong with the subtype check
           Nothing -> const [] <$> traverse_ (failNote . Typechecking) subNotes
