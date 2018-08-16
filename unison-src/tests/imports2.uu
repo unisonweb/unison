@@ -1,0 +1,8 @@
+use Optional Some None orElse
+
+Optional.orElse a b =
+  case a of
+    None -> b
+    a -> a
+
+orElse
