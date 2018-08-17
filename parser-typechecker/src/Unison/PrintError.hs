@@ -393,6 +393,8 @@ renderType env f = renderType0 env f (0 :: Int) where
     Type.Arrows' ts -> paren (p >= 2) $ arrows (go 2) ts
     Type.Ann' t k -> paren True $ go 1 t <> " : " <> renderKind k
     Type.Tuple' ts -> paren True $ commas (go 0) ts
+    Type.Apps' (Type.Ref' (R.Builtin "Sequence")) [arg] ->
+      "[" <> go 0 arg <> "]"
     Type.Apps' f' args -> paren (p >= 3) $ spaces (go 3) (f':args)
     Type.Effects' es -> paren (p >= 3) $ "{" <> commas (go 0) es <> "} "
     Type.Effect' es t -> case es of
