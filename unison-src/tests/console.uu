@@ -19,11 +19,15 @@ namespace Console where
       ins = fst io
       outs = snd io
       State.set (drop 1 ins, outs)
+      -- this really should typecheck but doesn't for some reason
+      -- error is that `simulate` doesn't check against `Effect Console c -> r`,
+      -- but seems like that `r` should get instantiated as `{State (..)} c`. 
       handle simulate in k (at 0 ins)
     {Console.write t -> k} ->
       io = State.get
       ins = fst io
       outs = snd io
+      -- same deal here 
       handle simulate in k (State.set (ins, cons t outs))
 
 (++) = concatenate
