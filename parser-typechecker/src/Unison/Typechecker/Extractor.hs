@@ -4,10 +4,8 @@ module Unison.Typechecker.Extractor where
 import Control.Monad
 import Control.Applicative
 import Data.Foldable (toList)
+import Data.Maybe (isJust)
 import Data.Monoid (First(..), getFirst)
--- import qualified Unison.ABT as ABT
--- import qualified Unison.Type as Type
--- import qualified Unison.TypeVar as TypeVar
 import qualified Unison.Typechecker.Context as C
 import Unison.Util.Monoid (whenM)
 
@@ -33,41 +31,54 @@ adjacent (PathExtractor a) (PathExtractor b) =
   go Nothing (h:t) = go (a h) t
   go (Just a) (h:t) = case b h of Nothing -> go Nothing t; Just b -> Just (a,b)
 
-inAndApp :: C.PathElement v loc -> Bool
+type PathPredicate v loc = C.PathElement v loc -> Bool
+
+inAndApp :: PathPredicate v loc
 inAndApp C.InAndApp = True
 inAndApp _ = False
 
-inOrApp :: C.PathElement v loc -> Bool
-inOrApp C.InOrApp = True
-inOrApp _ = False
+inOrApp' :: PathPredicate v loc
+inOrApp' C.InOrApp = True
+inOrApp' _ = False
 
-inIfCond :: C.PathElement v loc -> Bool
+inIfCond :: PathPredicate v loc
 inIfCond C.InIfCond = True
 inIfCond _ = False
 
-inIfBody :: C.PathElement v loc -> Maybe loc
-inIfBody (C.InIfBody loc) = Just loc
-inIfBody _ = Nothing
+exactly1AppBefore :: PathExtractor v loc a -> NoteExtractor v loc a
+exactly1AppBefore p = do
+  (prefix, a) <- elementsUntil p
+  case length . filter (isJust . runPath inSynthesizeApp) $ prefix of
+    1 -> pure a
+    _ -> mzero
 
--- inIfBody :: NoteExtractor v loc loc
--- inIfBody = do
---   (_, ()) <- adjacent inSynthesizeApp (fromPredicate inIfBody0)
---   NoteExtractor $ \_ ->
---     case t of
---       Type.Arrow' _i@(ABT.Var' vi) _o ->
---         Just (TypeVar.underlying vi, ABT.annotation e)
---       _ -> Nothing
+elementsUntil :: PathExtractor v loc a
+              -> NoteExtractor v loc ([C.PathElement v loc], a)
+elementsUntil p = NoteExtractor $ go [] . toList . C.path where
+  go _ [] = Nothing
+  go acc (h:t) = case runPath p h of
+    Just a -> Just (reverse acc, a)
+    Nothing -> go (h:acc) t
 
+inOrApp :: NoteExtractor v loc ()
+inOrApp = exactly1AppBefore . PathExtractor $ \case
+  C.InOrApp -> Just ()
+  _ -> Nothing
+
+inIfBody :: NoteExtractor v loc loc
+inIfBody = exactly1AppBefore . PathExtractor $ \case
+  C.InIfBody loc -> Just loc
+  _ -> Nothing
 
 inSynthesizeApp :: PathExtractor v loc (C.Type v loc, C.Term v loc)
 inSynthesizeApp = PathExtractor $ \case
   C.InSynthesizeApp t e -> Just (t,e)
   _ -> Nothing
 
-fromPredicate :: (C.PathElement v loc -> Bool) -> PathExtractor v loc ()
+fromPredicate :: (PathPredicate v loc) -> PathExtractor v loc ()
 fromPredicate e = PathExtractor (\p -> whenM (e p) (pure ()))
 
-matchAny :: (C.PathElement v loc -> Bool) -> C.Note v loc -> Bool
+matchAny :: (PathPredicate v loc) -> C.Note v loc -> Bool
 matchAny p = any p . toList . C.path
 
 matchMaybe :: (C.PathElement v loc -> Maybe a) -> C.Note v loc -> Maybe a

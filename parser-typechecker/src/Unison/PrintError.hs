@@ -504,21 +504,25 @@ typeErrorFromNote n@(C.Note (C.TypeMismatch ctx) path) =
       let mismatchLoc = ABT.annotation mismatchSite in
       if Ex.matchAny Ex.inAndApp n then
         BooleanMismatch AndMismatch (ABT.annotation mismatchSite) foundType n
-      else if Ex.matchAny Ex.inOrApp n then
-        BooleanMismatch OrMismatch (ABT.annotation mismatchSite) foundType n
-      else if Ex.matchAny Ex.inIfCond n then
-        BooleanMismatch CondMismatch (ABT.annotation mismatchSite) foundType n
+      -- else if Ex.matchAny Ex.inOrApp n then
+      --   BooleanMismatch OrMismatch (ABT.annotation mismatchSite) foundType n
+      -- else if Ex.matchAny Ex.inIfCond n then
+      --   BooleanMismatch CondMismatch (ABT.annotation mismatchSite) foundType n
       else
-        case Ex.matchMaybe Ex.inIfBody n of
-          Just expectedLoc ->
-            ExistentialMismatch IfBody expectedType expectedLoc
-                                       foundType mismatchLoc
-                                       n
-          Nothing ->
-            Mismatch (sub foundType) (sub expectedType)
-                     (sub foundLeaf) (sub expectedLeaf)
-                     (ABT.annotation mismatchSite)
-                     n
+        case Ex.run Ex.inOrApp $ n of
+          Just _ ->
+            BooleanMismatch OrMismatch (ABT.annotation mismatchSite) foundType n
+          _ ->
+            case Ex.run Ex.inIfBody $ n of
+              Just expectedLoc ->
+                ExistentialMismatch IfBody expectedType expectedLoc
+                                           foundType mismatchLoc
+                                           n
+              Nothing ->
+                Mismatch (sub foundType) (sub expectedType)
+                         (sub foundLeaf) (sub expectedLeaf)
+                         (ABT.annotation mismatchSite)
+                         n
     _ -> Other n
 typeErrorFromNote n@(C.Note (C.AbilityCheckFailure amb req _) _) =
   let go :: C.Term v loc -> TypeError v loc
