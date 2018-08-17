@@ -539,7 +539,8 @@ instance (Var v, Show p, Show a0, Show a) => Show (F v a0 p a) where
     go _ (Int64 n) = (if n >= 0 then s "+" else s "") <> showsPrec 0 n
     go _ (UInt64 n) = showsPrec 0 n
     go _ (Float n) = showsPrec 0 n
-    go _ (Boolean b) = showsPrec 0 b
+    go _ (Boolean True) = s"true"
+    go _ (Boolean False) = s"false"
     go p (Ann t k) = showParen (p > 1) $ showsPrec 0 t <> s":" <> showsPrec 0 k
     go p (App f x) =
       showParen (p > 9) $ showsPrec 9 f <> s" " <> showsPrec 10 x

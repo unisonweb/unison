@@ -110,7 +110,7 @@ data PathElement v loc
   | InInstantiateR (Type v loc) v
   | InSynthesizeApp (Type v loc) (Term v loc)
   | InIfCond
-  | InIfBody
+  | InIfBody loc
   | InAndApp
   | InOrApp
   deriving Show
@@ -671,7 +671,7 @@ synthesize e = scope (InSynthesize e) $ do
     generalizeExistentials ctx2 t <$ doRetract marker
   go (Term.If' cond t f) = do
     scope InIfCond $ check cond (Type.boolean l)
-    scope InIfBody $ foldM synthesizeApp (Type.iff2 l) [t, f]
+    scope (InIfBody $ ABT.annotation t) $ foldM synthesizeApp (Type.iff2 l) [t, f]
   go (Term.And' a b) =
     scope InAndApp $ foldM synthesizeApp (Type.andor' l) [a, b]
   go (Term.Or' a b) =

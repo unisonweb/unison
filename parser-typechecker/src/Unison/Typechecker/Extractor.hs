@@ -1,9 +1,15 @@
+{-# LANGUAGE LambdaCase #-}
 module Unison.Typechecker.Extractor where
 
 import Control.Monad
 import Control.Applicative
 import Data.Foldable (toList)
+import Data.Monoid (First(..), getFirst)
+-- import qualified Unison.ABT as ABT
+-- import qualified Unison.Type as Type
+-- import qualified Unison.TypeVar as TypeVar
 import qualified Unison.Typechecker.Context as C
+import Unison.Util.Monoid (whenM)
 
 newtype NoteExtractor v loc a =
   NoteExtractor { run :: C.Note v loc -> Maybe a }
@@ -39,8 +45,34 @@ inIfCond :: C.PathElement v loc -> Bool
 inIfCond C.InIfCond = True
 inIfCond _ = False
 
+inIfBody :: C.PathElement v loc -> Maybe loc
+inIfBody (C.InIfBody loc) = Just loc
+inIfBody _ = Nothing
+
+-- inIfBody :: NoteExtractor v loc loc
+-- inIfBody = do
+--   (_, ()) <- adjacent inSynthesizeApp (fromPredicate inIfBody0)
+--   NoteExtractor $ \_ ->
+--     case t of
+--       Type.Arrow' _i@(ABT.Var' vi) _o ->
+--         Just (TypeVar.underlying vi, ABT.annotation e)
+--       _ -> Nothing
+
+
+inSynthesizeApp :: PathExtractor v loc (C.Type v loc, C.Term v loc)
+inSynthesizeApp = PathExtractor $ \case
+  C.InSynthesizeApp t e -> Just (t,e)
+  _ -> Nothing
+
+fromPredicate :: (C.PathElement v loc -> Bool) -> PathExtractor v loc ()
+fromPredicate e = PathExtractor (\p -> whenM (e p) (pure ()))
+
 matchAny :: (C.PathElement v loc -> Bool) -> C.Note v loc -> Bool
 matchAny p = any p . toList . C.path
+
+matchMaybe :: (C.PathElement v loc -> Maybe a) -> C.Note v loc -> Maybe a
+matchMaybe p = getFirst . mconcat . fmap (First . p) . toList . C.path
+
 -- App
 -- = And
 -- | Or

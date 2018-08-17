@@ -1,0 +1,28 @@
+id a = a
+x = id 3
+y = "Hello"
+z = x
+
+--or true x
+--or true y
+--or true 3
+
+--f : Int64 -> Int64
+--f = id
+--or true (f 1)
+
+--[1,2,3]
+[x,y,3]
+
+--foo : a -> a
+--foo y = or y y
+
+--if true then x else y
+--if true then x else +3
+
+--case 1 of
+--  3 | y -> "Hi"
+--  4 -> "bye"
+
+--3 UInt64.+ 3.0
+()
