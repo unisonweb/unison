@@ -19,12 +19,12 @@ namespace Console where
       ins = fst io
       outs = snd io
       State.set (drop 1 ins, outs)
-      k (at 0 ins)
+      k (at 0 ins) -- this is missing recursive call to handle
     {Console.write t -> k} ->
       io = State.get
       ins = fst io
       outs = snd io
-      k (State.set (ins, cons t outs))
+      k (State.set (ins, cons t outs)) -- this is missing recursive call
 
 ()
 

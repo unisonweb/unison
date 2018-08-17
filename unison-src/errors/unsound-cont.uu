@@ -1,0 +1,15 @@
+
+-- if we make `Ask` monomorphic, as in `ask : {Ask} Text`,
+-- get the predicted error, which suggests we are letting the `a`
+-- just be an unbound existential
+effect Ask a where
+  ask : {Ask a} a
+
+supply : Text -> Effect (Ask Text) a -> a
+supply t e = case e of
+  {a} -> a
+  -- `k` should be of type `Text -> Effect Ask a`,
+  -- so calling it with `()` here should be a type error
+  {Ask.ask -> k} -> handle supply t in k ()
+
+()
