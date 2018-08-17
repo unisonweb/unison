@@ -9,11 +9,13 @@ module Unison.Typechecker.Context
   ( synthesizeClosed
   , Note(..)
   , Cause(..)
+  , Context(..)
   , PathElement(..)
   , Type
   , Term
   , errorTerms
   , innermostErrorTerm
+  , lookupType
   , apply
   , isSubtype
   , Suggestion(..)
@@ -107,6 +109,9 @@ data PathElement v loc
   | InInstantiateL v (Type v loc)
   | InInstantiateR (Type v loc) v
   | InSynthesizeApp (Type v loc) (Term v loc)
+  | InIfApp
+  | InAndApp
+  | InOrApp
   deriving Show
 
 type ExpectedArgCount = Int
@@ -663,9 +668,12 @@ synthesize e = scope (InSynthesize e) $ do
     t <- synthesize e
     (_, _, ctx2) <- breakAt marker <$> getContext
     generalizeExistentials ctx2 t <$ doRetract marker
-  go (Term.If' cond t f) = foldM synthesizeApp (Type.iff' l) [cond, t, f]
-  go (Term.And' a b) = foldM synthesizeApp (Type.andor' l) [a, b]
-  go (Term.Or' a b) = foldM synthesizeApp (Type.andor' l) [a, b]
+  go (Term.If' cond t f) =
+    scope InIfApp $ foldM synthesizeApp (Type.iff' l) [cond, t, f]
+  go (Term.And' a b) =
+    scope InAndApp $ foldM synthesizeApp (Type.andor' l) [a, b]
+  go (Term.Or' a b) =
+    scope InOrApp $ foldM synthesizeApp (Type.andor' l) [a, b]
   -- { 42 }
   go (Term.EffectPure' a) = do
     e <- freshenVar (Var.named "e")

@@ -34,10 +34,11 @@ import qualified Unison.Reference           as R
 import           Unison.Result              (Note (..))
 import qualified Unison.Type                as Type
 import qualified Unison.Typechecker.Context as C
+import qualified Unison.Typechecker.Extractor as Ex
 import qualified Unison.Util.AnnotatedText  as AT
 import           Unison.Util.ColorText      (StyledText)
 import qualified Unison.Util.ColorText      as Color
-import           Unison.Util.Monoid         (intercalateMap)
+import           Unison.Util.Monoid         (intercalateMap, whenM)
 import           Unison.Util.Range          (Range (..))
 import           Unison.Var                 (Var)
 import qualified Unison.Var                 as Var
@@ -56,6 +57,15 @@ data TypeError v loc
              , mismatchSite :: loc
              , note         :: C.Note v loc
              }
+  | CondMismatch { mismatchSite :: loc
+                 , mismatchedType :: C.Type v loc
+                 , note           :: C.Note v loc }
+  | OrMismatch   { mismatchSite :: loc
+                 , mismatchedType :: C.Type v loc
+                 , note           :: C.Note v loc }
+  | AndMismatch  { mismatchSite :: loc
+                 , mismatchedType :: C.Type v loc
+                 , note           :: C.Note v loc }
   | AbilityCheckFailure { ambient                 :: [C.Type v loc]
                         , requested               :: [C.Type v loc]
                         , abilityCheckFailureSite :: loc
@@ -69,12 +79,60 @@ data TypeError v loc
                 }
   | Other (C.Note v loc)
 
+mustBeBool :: (Var v, Annotated a, Eq a) =>
+              [AT.Section Color.Style]
+              -> Env
+              -> String
+              -> a
+              -> Type.AnnotatedType v a
+              -> [AT.Section Color.Style]
+mustBeBool initial env src mismatchSite mismatchedType =
+  initial ++
+  [ " ", AT.Text $ Color.type1 "Boolean", ", but this one is "
+  , AT.Text . Color.type2 . renderType' env $ mismatchedType
+  , ":\n\n"
+  , showSourceMaybes src
+      [(,Color.Type2) <$> rangeForAnnotated mismatchSite
+      ,(,Color.Type2) <$> rangeForAnnotated mismatchedType]
+  , "\n\n"
+  , annotatedAsStyle Color.Type2 src mismatchSite
+  , "\n"
+  ] ++ whenM (mismatchSite /= ABT.annotation mismatchedType) [
+    "from over here:\n\n"
+  , annotatedAsStyle Color.Type2 src (ann mismatchedType)
+  , "\n\n"
+  ]
+
 renderTypeError :: forall v a. (Var v, Annotated a, Ord a, Show a)
                 => Env
                 -> TypeError v a
                 -> String
                 -> AT.AnnotatedDocument Color.Style
 renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
+  OrMismatch {..} ->
+    mustBeBool
+      ([ "The arguments to "
+       , AT.Text . Color.errorSite $ "or"
+       , " have to be"]) env src mismatchSite mismatchedType
+    ++
+    [ "loc debug:"
+    , "\n    mismatchSite: ", fromString $ annotatedToEnglish mismatchSite
+    , "\n  mismatchedType: ", fromString $ annotatedToEnglish mismatchedType
+    , "\n"
+    ]
+    ++ summary note
+  AndMismatch {..} ->
+    mustBeBool
+      ([ "The arguments to "
+       , AT.Text . Color.errorSite $ "and"
+       , " have to be"]) env src mismatchSite mismatchedType
+    ++ summary note
+  CondMismatch {..} ->
+    mustBeBool
+      ([ "The condition to an "
+       , AT.Text . Color.errorSite $ "if"
+       , "-expression has to be"]) env src mismatchSite mismatchedType
+
   Mismatch {..} ->
     [ (fromString . annotatedToEnglish) mismatchSite
     , " has a type mismatch (", AT.Describe Color.ErrorSite, " below):\n\n"
@@ -88,16 +146,16 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     , " (", fromString (Char.toLower <$> annotatedToEnglish leaf2)
           , ", ", AT.Describe Color.Type2, ")\n"
     , "\n"
-    , AT.Blockquote $ AT.markup (fromString src)
-            (Set.fromList $ catMaybes
-              [ -- these are overwriting the colored ranges for some reason?
-              --   (,Color.ForceShow) <$> rangeForAnnotated mismatchSite
-              -- , (,Color.ForceShow) <$> rangeForType overallType1
-              -- , (,Color.ForceShow) <$> rangeForType overallType2
-              -- ,
-                (,Color.Type1) <$> rangeForType leaf1
-              , (,Color.Type2) <$> rangeForType leaf2
-              ])
+    -- , showSourceMaybes src
+    , AT.Blockquote . AT.markup (fromString src) . Set.fromList . catMaybes $
+        [ -- these are overwriting the colored ranges for some reason?
+        --   (,Color.ForceShow) <$> rangeForAnnotated mismatchSite
+        -- , (,Color.ForceShow) <$> rangeForType overallType1
+        -- , (,Color.ForceShow) <$> rangeForType overallType2
+        -- ,
+          (,Color.Type1) <$> rangeForType leaf1
+        , (,Color.Type2) <$> rangeForType leaf2
+        ]
     , "\n"
     , "loc debug:"
     , "\n  mismatchSite: ", fromString $ annotatedToEnglish mismatchSite
@@ -180,9 +238,13 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
       C.InInstantiateR t v ->
         ["InInstantiateR t=", AT.Text $ renderType' env t
                       ," v=", AT.Text $ renderVar v]
-      C.InSynthesizeApp t e -> ["InSynthesizeApp"
-        ," t=", AT.Text $ renderType' env t
-        ,", e=", renderTerm e]
+      C.InSynthesizeApp t e ->
+        ["InSynthesizeApp t=", AT.Text $ renderType' env t
+                      ,", e=", renderTerm e]
+      C.InIfApp -> ["InIfApp"]
+      C.InAndApp -> ["InAndApp"]
+      C.InOrApp -> ["InOrApp"]
+        -- ["InAndApp v=", AT.Text $ renderVar' env c v]
     simpleCause :: C.Cause v a -> [AT.Section Color.Style]
     simpleCause = \case
       C.TypeMismatch c ->
@@ -281,6 +343,13 @@ commas = intercalateMap ", "
 renderVar :: Var v => v -> AT.AnnotatedText (Maybe a)
 renderVar = fromString . Text.unpack . Var.shortName
 
+renderVar' :: (Var v, Annotated a)
+           => Env -> C.Context v a -> v -> AT.AnnotatedText (Maybe b)
+renderVar' env ctx v =
+  case C.lookupType ctx v of
+    Nothing -> "unsolved"
+    Just t -> renderType' env t
+
 renderKind :: Kind -> AT.AnnotatedText (Maybe a)
 renderKind Kind.Star          = "*"
 renderKind (Kind.Arrow k1 k2) = renderKind k1 <> " -> " <> renderKind k2
@@ -319,17 +388,17 @@ rangeForToken t = Range (L.start t) (L.end t)
 
 rangeToEnglish :: Range -> String
 rangeToEnglish (Range (L.Pos l c) (L.Pos l' c')) =
-  let showColumn = False in
+  let showColumn = True in
   if showColumn
   then if l == l'
-       then "Line " ++ show l
-       else "Lines " ++ show l ++ "—" ++ show l'
+    then if c == c'
+        then "Line " ++ show l ++ ", column " ++ show c
+        else "Line " ++ show l ++ ", columns " ++ show c ++ "-" ++ show c'
+    else "Line " ++ show l ++ ", column " ++ show c ++ " through " ++
+        "line " ++ show l' ++ ", column " ++ show c'
   else if l == l'
-       then if c == c'
-            then "Line " ++ show l ++ ", column " ++ show c
-            else "Line " ++ show l ++ ", columns " ++ show c ++ "-" ++ show c'
-       else "Line " ++ show l ++ ", column " ++ show c ++ " through " ++
-            "line " ++ show l' ++ ", column " ++ show c'
+    then "Line " ++ show l
+    else "Lines " ++ show l ++ "—" ++ show l'
 
 annotatedToEnglish :: Annotated a => a -> String
 annotatedToEnglish a = case ann a of
@@ -355,12 +424,17 @@ typeErrorFromNote n@(C.Note (C.TypeMismatch ctx) path) =
     -- replace any type vars with their solutions before returning
     sub t = C.apply ctx t
   in case (firstSubtype, lastSubtype, innermostTerm) of
-       (Just (leaf1, leaf2), Just (overall1, overall2), Just mismatchSite) ->
-         Mismatch (sub overall1) (sub overall2)
-                  (sub leaf1) (sub leaf2)
-                  (ABT.annotation mismatchSite)
-                  n
-       _ -> Other n
+    (Just (leaf1, leaf2), Just (overall1, overall2), Just mismatchSite) ->
+      if Ex.matchAny Ex.inAndApp n then
+        AndMismatch (ABT.annotation mismatchSite) overall1 n
+      else if Ex.matchAny Ex.inOrApp n then
+        OrMismatch (ABT.annotation mismatchSite) overall1 n
+      else
+        Mismatch (sub overall1) (sub overall2)
+                (sub leaf1) (sub leaf2)
+                (ABT.annotation mismatchSite)
+                n
+    _ -> Other n
 typeErrorFromNote n@(C.Note (C.AbilityCheckFailure amb req _) _) =
   let go :: C.Term v loc -> TypeError v loc
       go e = AbilityCheckFailure amb req (ABT.annotation e) n
@@ -470,19 +544,22 @@ prettyParseError s = \case
       else mempty
 
 annotatedAsErrorSite :: Annotated a => String -> a -> AT.Section Color.Style
-annotatedAsErrorSite s ann =
-  showSourceMaybes s [(,Color.ErrorSite) <$> rangeForAnnotated ann]
+annotatedAsErrorSite = annotatedAsStyle Color.ErrorSite
+
+annotatedAsStyle :: (Ord s, Annotated a) => s -> String -> a -> AT.Section s
+annotatedAsStyle style s ann =
+  showSourceMaybes s [(, style) <$> rangeForAnnotated ann]
 
 tokenAsErrorSite :: String -> L.Token a -> AT.Section Color.Style
 tokenAsErrorSite s tok = showSource1 s (rangeForToken tok, Color.ErrorSite)
 
-showSourceMaybes :: String -> [Maybe (Range, Color.Style)] -> AT.Section Color.Style
+showSourceMaybes :: Ord a => String -> [Maybe (Range, a)] -> AT.Section a
 showSourceMaybes source annotations = showSource source $ catMaybes annotations
 
-showSource :: String -> [(Range, Color.Style)] -> AT.Section Color.Style
+showSource :: Ord a => String -> [(Range, a)] -> AT.Section a
 showSource source annotations = AT.Blockquote $ AT.markup (fromString source) (Set.fromList annotations)
 
-showSource1 :: String -> (Range, Color.Style) -> AT.Section Color.Style
+showSource1 :: Ord a => String -> (Range, a) -> AT.Section a
 showSource1 source annotation = showSource source [annotation]
 
 debugMode :: Bool

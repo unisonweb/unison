@@ -27,6 +27,16 @@ adjacent (PathExtractor a) (PathExtractor b) =
   go Nothing (h:t) = go (a h) t
   go (Just a) (h:t) = case b h of Nothing -> go Nothing t; Just b -> Just (a,b)
 
+inAndApp :: C.PathElement v loc -> Bool
+inAndApp C.InAndApp = True
+inAndApp _ = False
+
+inOrApp :: C.PathElement v loc -> Bool
+inOrApp C.InOrApp = True
+inOrApp _ = False
+
+matchAny :: (C.PathElement v loc -> Bool) -> C.Note v loc -> Bool
+matchAny p = any p . toList . C.path
 -- App
 -- = And
 -- | Or

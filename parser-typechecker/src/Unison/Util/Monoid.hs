@@ -8,3 +8,7 @@ import Data.Foldable (toList)
 intercalateMap :: (Foldable t, Monoid a) => a -> (b -> a) -> t b -> a
 intercalateMap separator renderer elements =
   mconcat $ intersperse separator (renderer <$> toList elements)
+
+whenM :: Monoid a => Bool -> a -> a
+whenM True a = a
+whenM False _ = mempty
