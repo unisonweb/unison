@@ -114,6 +114,7 @@ data PathElement v loc
   | InIfCond
   | InIfBody loc
   | InVectorApp loc
+  | InMatch
   deriving Show
 
 type ExpectedArgCount = Int
@@ -705,7 +706,7 @@ synthesize e = scope (InSynthesize e) $ do
       Type.Effects' [e] -> pure $ apply ctx (Type.effectV l (l, e) (l, apply ctx rType))
       Type.Effects' es -> failWith $ MalformedEffectBind (apply ctx cType) (apply ctx bt) es
       e -> error $ " pattern match failure " ++ show e
-  go (Term.Match' scrutinee cases) = do
+  go (Term.Match' scrutinee cases) = scope InMatch $ do
     scrutineeType <- synthesize scrutinee
     outputTypev <- freshenVar (Var.named "match-output")
     let outputType = Type.existential' l B.Blank outputTypev

@@ -5,7 +5,6 @@ import Control.Monad
 import Control.Applicative
 import Data.Foldable (toList)
 import Data.Maybe (isJust)
-import Data.Monoid (First(..), getFirst)
 import qualified Unison.Typechecker.Context as C
 import Unison.Util.Monoid (whenM)
 
@@ -15,14 +14,14 @@ newtype NoteExtractor v loc a =
 newtype PathExtractor v loc a =
   PathExtractor { runPath :: C.PathElement v loc -> Maybe a}
 
-cause :: NoteExtractor v loc (C.Cause v loc)
-cause = NoteExtractor $ pure . C.cause
+_cause :: NoteExtractor v loc (C.Cause v loc)
+_cause = NoteExtractor $ pure . C.cause
 
-path :: NoteExtractor v loc [C.PathElement v loc]
-path = NoteExtractor $ pure . toList . C.path
+_path :: NoteExtractor v loc [C.PathElement v loc]
+_path = NoteExtractor $ pure . toList . C.path
 
-mismatchedTerm :: NoteExtractor v loc (Maybe (C.Term v loc))
-mismatchedTerm = NoteExtractor $ pure . C.innermostErrorTerm
+_mismatchedTerm :: NoteExtractor v loc (Maybe (C.Term v loc))
+_mismatchedTerm = NoteExtractor $ pure . C.innermostErrorTerm
 
 adjacent :: PathExtractor v loc a -> PathExtractor v loc b -> NoteExtractor v loc (a, b)
 adjacent (PathExtractor a) (PathExtractor b) =
@@ -73,6 +72,14 @@ inVectorApp = exactly1AppBefore . PathExtractor $ \case
   C.InVectorApp loc -> Just loc
   _ -> Nothing
 
+inMatchCaseGuard :: NoteExtractor v loc ()
+inMatchCaseGuard = do
+  (prefix, _) <- elementsUntil . PathExtractor $ \case
+    C.InMatch -> Just ()
+    _ -> Nothing
+  -- so brittle, but I guess it's okay!
+  if length prefix == 5 then pure () else mzero
+
 inSynthesizeApp :: PathExtractor v loc (C.Type v loc, C.Term v loc)
 inSynthesizeApp = PathExtractor $ \case
   C.InSynthesizeApp t e -> Just (t,e)
@@ -81,19 +88,7 @@ inSynthesizeApp = PathExtractor $ \case
 fromPredicate :: (PathPredicate v loc) -> PathExtractor v loc ()
 fromPredicate e = PathExtractor (\p -> whenM (e p) (pure ()))
 
-matchAny :: (PathPredicate v loc) -> C.Note v loc -> Bool
-matchAny p = any p . toList . C.path
-
-matchMaybe :: (C.PathElement v loc -> Maybe a) -> C.Note v loc -> Maybe a
-matchMaybe p = getFirst . mconcat . fmap (First . p) . toList . C.path
-
 -- App
--- = And
--- | Or
--- | IfCond
--- | Vector v
--- | Else v
--- | Match v
 -- | Handle v
 
 instance Functor (PathExtractor v loc) where

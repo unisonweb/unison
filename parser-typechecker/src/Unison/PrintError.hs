@@ -52,7 +52,7 @@ data Env = Env { referenceNames   :: Map R.Reference String
 env0 :: Env
 env0 = Env mempty mempty
 
-data BooleanMismatch = CondMismatch | AndMismatch | OrMismatch -- | GuardMismatch
+data BooleanMismatch = CondMismatch | AndMismatch | OrMismatch | GuardMismatch
 data ExistentialMismatch = IfBody | VectorBody | CaseBody
 
 data TypeError v loc
@@ -123,7 +123,7 @@ fromOverHere src spots0 removing =
   let spots = toList $ Set.fromList spots0 Set.\\ Set.fromList removing
   in case length spots of
     0 -> mempty
-    1 -> [ "  from over here:\n\n"
+    1 -> [ "  from right here:\n\n"
          , showSource src spots
          , "\n\n"]
     _ -> [ "  from these spots, respectively:\n\n"
@@ -183,6 +183,10 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
               OrMismatch ->
                 [ "The arguments to ", AT.Text . Color.errorSite $ "or"
                 , " have to be"]
+              GuardMismatch ->
+                [ "The guard expression for a ", AT.Text . Color.errorSite $ "case"
+                , " has to be"]
+
   ExistentialMismatch {..} ->
     mustBeType which env src expectedLoc mismatchSite expectedType foundType
     ++
@@ -321,6 +325,7 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
       C.InOrApp -> ["InOrApp"]
       C.InVectorApp loc ->
         ["InVectorApp firstTerm=", fromString $ annotatedToEnglish loc]
+      C.InMatch -> ["InMatch"]
     simpleCause :: C.Cause v a -> [AT.Section Color.Style]
     simpleCause = \case
       C.TypeMismatch c ->
@@ -513,16 +518,16 @@ typeErrorFromNote n@(C.Note (C.TypeMismatch ctx) path) =
                               => m loc -> ExistentialMismatch -> m (TypeError v loc)
           existentialMismatch x y = x >>= \expectedLoc -> pure $
             ExistentialMismatch y expectedType expectedLoc foundType mismatchLoc n
-          and,or,cond :: Ex.NoteExtractor v loc (TypeError v loc)
+          and,or,cond,guard :: Ex.NoteExtractor v loc (TypeError v loc)
           and = booleanMismatch Ex.inAndApp AndMismatch
           or = booleanMismatch Ex.inOrApp OrMismatch
           cond = booleanMismatch Ex.inIfCond CondMismatch
-          -- guard = tricky boolean mismatch
+          guard = booleanMismatch Ex.inMatchCaseGuard GuardMismatch
           ifBody = existentialMismatch Ex.inIfBody IfBody
           vectorBody = existentialMismatch Ex.inVectorApp VectorBody
           -- caseBody = existentialMismatch Ex.inIfBody CaseBody
           all :: Ex.NoteExtractor v loc (TypeError v loc)
-          all = and <|> or <|> cond <|> ifBody <|> vectorBody
+          all = and <|> or <|> cond <|> guard <|> ifBody <|> vectorBody
 
       in case Ex.run all n of
         Just msg -> msg
