@@ -315,11 +315,12 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
         ["InSynthesizeApp t=", AT.Text $ renderType' env t
                       ,", e=", renderTerm e]
       C.InIfCond -> ["InIfCond"]
-      C.InIfBody thenClause ->
-        ["InIfBody thenClause=", fromString $ annotatedToEnglish thenClause]
+      C.InIfBody loc ->
+        ["InIfBody thenBody=", fromString $ annotatedToEnglish loc]
       C.InAndApp -> ["InAndApp"]
       C.InOrApp -> ["InOrApp"]
-        -- ["InAndApp v=", AT.Text $ renderVar' env c v]
+      C.InVectorApp loc ->
+        ["InVectorApp firstTerm=", fromString $ annotatedToEnglish loc]
     simpleCause :: C.Cause v a -> [AT.Section Color.Style]
     simpleCause = \case
       C.TypeMismatch c ->
@@ -518,13 +519,13 @@ typeErrorFromNote n@(C.Note (C.TypeMismatch ctx) path) =
           cond = booleanMismatch Ex.inIfCond CondMismatch
           -- guard = tricky boolean mismatch
           ifBody = existentialMismatch Ex.inIfBody IfBody
-          -- vectorBody = existentialMismatch Ex.inIfBody VectorBody
+          vectorBody = existentialMismatch Ex.inVectorApp VectorBody
           -- caseBody = existentialMismatch Ex.inIfBody CaseBody
           all :: Ex.NoteExtractor v loc (TypeError v loc)
-          all = and <|> or <|> cond <|> ifBody
+          all = and <|> or <|> cond <|> ifBody <|> vectorBody
 
       in case Ex.run all n of
-        Just err -> err
+        Just msg -> msg
         Nothing ->
           Mismatch (sub foundType) (sub expectedType)
                    (sub foundLeaf) (sub expectedLeaf)

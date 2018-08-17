@@ -109,10 +109,11 @@ data PathElement v loc
   | InInstantiateL v (Type v loc)
   | InInstantiateR (Type v loc) v
   | InSynthesizeApp (Type v loc) (Term v loc)
-  | InIfCond
-  | InIfBody loc
   | InAndApp
   | InOrApp
+  | InIfCond
+  | InIfBody loc
+  | InVectorApp loc
   deriving Show
 
 type ExpectedArgCount = Int
@@ -609,7 +610,10 @@ synthesize e = scope (InSynthesize e) $ do
     synthesizeApp (apply ctx ft) arg
   go (Term.Vector' v) = do
     ft <- vectorConstructorOfArity (Foldable.length v)
-    foldM synthesizeApp ft v
+    case Foldable.toList v of
+      (v1:_:_) ->
+          scope (InVectorApp (ABT.annotation v1)) $ foldM synthesizeApp ft v
+      _ -> foldM synthesizeApp ft v
   go (Term.Let1' binding e) | Set.null (ABT.freeVars binding) = do
     -- special case when it is definitely safe to generalize - binding contains
     -- no free variables, i.e. `let id x = x in ...`

@@ -68,6 +68,11 @@ inIfBody = exactly1AppBefore . PathExtractor $ \case
   C.InIfBody loc -> Just loc
   _ -> Nothing
 
+inVectorApp :: NoteExtractor v loc loc
+inVectorApp = exactly1AppBefore . PathExtractor $ \case
+  C.InVectorApp loc -> Just loc
+  _ -> Nothing
+
 inSynthesizeApp :: PathExtractor v loc (C.Type v loc, C.Term v loc)
 inSynthesizeApp = PathExtractor $ \case
   C.InSynthesizeApp t e -> Just (t,e)
