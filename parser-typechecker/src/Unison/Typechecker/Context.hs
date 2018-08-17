@@ -114,7 +114,7 @@ data PathElement v loc
   | InIfCond
   | InIfBody loc
   | InVectorApp loc
-  | InMatch
+  | InMatch loc
   deriving Show
 
 type ExpectedArgCount = Int
@@ -706,12 +706,15 @@ synthesize e = scope (InSynthesize e) $ do
       Type.Effects' [e] -> pure $ apply ctx (Type.effectV l (l, e) (l, apply ctx rType))
       Type.Effects' es -> failWith $ MalformedEffectBind (apply ctx cType) (apply ctx bt) es
       e -> error $ " pattern match failure " ++ show e
-  go (Term.Match' scrutinee cases) = scope InMatch $ do
+  go (Term.Match' scrutinee cases) = do
     scrutineeType <- synthesize scrutinee
     outputTypev <- freshenVar (Var.named "match-output")
     let outputType = Type.existential' l B.Blank outputTypev
     appendContext $ context [existential outputTypev]
-    Foldable.traverse_ (checkCase scrutineeType outputType) cases
+    case cases of
+      Term.MatchCase _ _ t : _ -> scope (InMatch (ABT.annotation t)) $
+        Foldable.traverse_ (checkCase scrutineeType outputType) cases
+      _ -> pure ()
     ctx <- getContext
     pure $ apply ctx outputType
   go h@(Term.Handle' _ _) = do
@@ -723,7 +726,7 @@ synthesize e = scope (InSynthesize e) $ do
     pure (apply ctx ot)
   go _e = compilerCrash PatternMatchFailure
 
--- data MatchCase a = MatchCase Pattern (Maybe a) a
+-- data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
 {-
 type Optional b c = None | Some b c
 let blah : Optional Int64 Int64

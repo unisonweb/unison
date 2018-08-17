@@ -7,12 +7,12 @@ z = x
 --or true y
 --or true 3
 
---f : Int64 -> Int64
---f = id
+f : Int64 -> Int64
+f = id
 --or true (f 1)
 
 --[1,2,3]
-[x,y,3]
+--[x,y,3]
 
 --foo : a -> a
 --foo y = or y y
@@ -21,8 +21,18 @@ z = x
 --if true then x else +3
 
 --case 1 of
---  3 | y -> "Hi"
---  4 -> "bye"
+--  3 | true -> x
+--  4 -> y
+g c =
+  case 1 of
+    3 -> c
+    4 -> c + 3
+    5 -> y
 
+--(1 : Text)
+--a : Text
+--a = 1
+--a
 --3 UInt64.+ 3.0
+--[1,2,3]
 ()

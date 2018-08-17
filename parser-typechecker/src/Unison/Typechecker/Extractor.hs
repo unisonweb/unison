@@ -75,10 +75,19 @@ inVectorApp = exactly1AppBefore . PathExtractor $ \case
 inMatchCaseGuard :: NoteExtractor v loc ()
 inMatchCaseGuard = do
   (prefix, _) <- elementsUntil . PathExtractor $ \case
-    C.InMatch -> Just ()
+    C.InMatch _ -> Just ()
+    _ -> Nothing
+  -- so brittle, whee!
+  if length prefix == 5 then pure () else mzero
+
+inMatchCaseBody :: NoteExtractor v loc loc
+inMatchCaseBody = do
+  (prefix, loc) <- elementsUntil . PathExtractor $ \case
+    C.InMatch loc -> Just loc
     _ -> Nothing
   -- so brittle, but I guess it's okay!
-  if length prefix == 5 then pure () else mzero
+  if length prefix == 3 then pure loc else mzero
+
 
 inSynthesizeApp :: PathExtractor v loc (C.Type v loc, C.Term v loc)
 inSynthesizeApp = PathExtractor $ \case

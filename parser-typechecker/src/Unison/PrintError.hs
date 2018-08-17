@@ -325,7 +325,8 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
       C.InOrApp -> ["InOrApp"]
       C.InVectorApp loc ->
         ["InVectorApp firstTerm=", fromString $ annotatedToEnglish loc]
-      C.InMatch -> ["InMatch"]
+      C.InMatch loc ->
+        ["InMatch firstBody=", fromString $ annotatedToEnglish loc]
     simpleCause :: C.Cause v a -> [AT.Section Color.Style]
     simpleCause = \case
       C.TypeMismatch c ->
@@ -525,9 +526,10 @@ typeErrorFromNote n@(C.Note (C.TypeMismatch ctx) path) =
           guard = booleanMismatch Ex.inMatchCaseGuard GuardMismatch
           ifBody = existentialMismatch Ex.inIfBody IfBody
           vectorBody = existentialMismatch Ex.inVectorApp VectorBody
-          -- caseBody = existentialMismatch Ex.inIfBody CaseBody
+          caseBody = existentialMismatch Ex.inMatchCaseBody CaseBody
           all :: Ex.NoteExtractor v loc (TypeError v loc)
-          all = and <|> or <|> cond <|> guard <|> ifBody <|> vectorBody
+          all = and <|> or <|> cond <|> guard <|>
+                ifBody <|> vectorBody <|> caseBody
 
       in case Ex.run all n of
         Just msg -> msg
