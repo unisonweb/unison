@@ -33,18 +33,6 @@ adjacent (PathExtractor a) (PathExtractor b) =
 
 type PathPredicate v loc = C.PathElement v loc -> Bool
 
-inAndApp :: PathPredicate v loc
-inAndApp C.InAndApp = True
-inAndApp _ = False
-
-inOrApp' :: PathPredicate v loc
-inOrApp' C.InOrApp = True
-inOrApp' _ = False
-
-inIfCond :: PathPredicate v loc
-inIfCond C.InIfCond = True
-inIfCond _ = False
-
 exactly1AppBefore :: PathExtractor v loc a -> NoteExtractor v loc a
 exactly1AppBefore p = do
   (prefix, a) <- elementsUntil p
@@ -60,9 +48,19 @@ elementsUntil p = NoteExtractor $ go [] . toList . C.path where
     Just a -> Just (reverse acc, a)
     Nothing -> go (h:acc) t
 
+inAndApp :: NoteExtractor v loc ()
+inAndApp = exactly1AppBefore . PathExtractor $ \case
+  C.InAndApp -> Just ()
+  _ -> Nothing
+
 inOrApp :: NoteExtractor v loc ()
 inOrApp = exactly1AppBefore . PathExtractor $ \case
   C.InOrApp -> Just ()
+  _ -> Nothing
+
+inIfCond :: NoteExtractor v loc ()
+inIfCond = exactly1AppBefore . PathExtractor $ \case
+  C.InIfCond -> Just ()
   _ -> Nothing
 
 inIfBody :: NoteExtractor v loc loc
