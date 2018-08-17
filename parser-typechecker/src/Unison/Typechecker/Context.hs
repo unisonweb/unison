@@ -109,7 +109,8 @@ data PathElement v loc
   | InInstantiateL v (Type v loc)
   | InInstantiateR (Type v loc) v
   | InSynthesizeApp (Type v loc) (Term v loc)
-  | InIfApp
+  | InIfCond
+  | InIfBody
   | InAndApp
   | InOrApp
   deriving Show
@@ -668,8 +669,9 @@ synthesize e = scope (InSynthesize e) $ do
     t <- synthesize e
     (_, _, ctx2) <- breakAt marker <$> getContext
     generalizeExistentials ctx2 t <$ doRetract marker
-  go (Term.If' cond t f) =
-    scope InIfApp $ foldM synthesizeApp (Type.iff' l) [cond, t, f]
+  go (Term.If' cond t f) = do
+    scope InIfCond $ check cond (Type.boolean l)
+    scope InIfBody $ foldM synthesizeApp (Type.iff2 l) [t, f]
   go (Term.And' a b) =
     scope InAndApp $ foldM synthesizeApp (Type.andor' l) [a, b]
   go (Term.Or' a b) =

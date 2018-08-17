@@ -35,6 +35,10 @@ inOrApp :: C.PathElement v loc -> Bool
 inOrApp C.InOrApp = True
 inOrApp _ = False
 
+inIfCond :: C.PathElement v loc -> Bool
+inIfCond C.InIfCond = True
+inIfCond _ = False
+
 matchAny :: (C.PathElement v loc -> Bool) -> C.Note v loc -> Bool
 matchAny p = any p . toList . C.path
 -- App

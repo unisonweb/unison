@@ -38,7 +38,8 @@ import qualified Unison.Typechecker.Extractor as Ex
 import qualified Unison.Util.AnnotatedText  as AT
 import           Unison.Util.ColorText      (StyledText)
 import qualified Unison.Util.ColorText      as Color
-import           Unison.Util.Monoid         (intercalateMap, whenM)
+import           Unison.Util.Monoid         (intercalateMap)
+import           Unison.Util.Monoid         (whenM)
 import           Unison.Util.Range          (Range (..))
 import           Unison.Var                 (Var)
 import qualified Unison.Var                 as Var
@@ -49,6 +50,8 @@ data Env = Env { referenceNames   :: Map R.Reference String
 env0 :: Env
 env0 = Env mempty mempty
 
+data BooleanMismatch = CondMismatch | AndMismatch | OrMismatch
+
 data TypeError v loc
   = Mismatch { overallType1 :: C.Type v loc
              , overallType2 :: C.Type v loc
@@ -57,15 +60,10 @@ data TypeError v loc
              , mismatchSite :: loc
              , note         :: C.Note v loc
              }
-  | CondMismatch { mismatchSite :: loc
-                 , mismatchedType :: C.Type v loc
-                 , note           :: C.Note v loc }
-  | OrMismatch   { mismatchSite :: loc
-                 , mismatchedType :: C.Type v loc
-                 , note           :: C.Note v loc }
-  | AndMismatch  { mismatchSite :: loc
-                 , mismatchedType :: C.Type v loc
-                 , note           :: C.Note v loc }
+  | BooleanMismatch { booleanMismatch :: BooleanMismatch
+                    , mismatchSite :: loc
+                    , mismatchedType :: C.Type v loc
+                    , note           :: C.Note v loc }
   | AbilityCheckFailure { ambient                 :: [C.Type v loc]
                         , requested               :: [C.Type v loc]
                         , abilityCheckFailureSite :: loc
@@ -91,14 +89,14 @@ mustBeBool initial env src mismatchSite mismatchedType =
   [ " ", AT.Text $ Color.type1 "Boolean", ", but this one is "
   , AT.Text . Color.type2 . renderType' env $ mismatchedType
   , ":\n\n"
-  , showSourceMaybes src
-      [(,Color.Type2) <$> rangeForAnnotated mismatchSite
-      ,(,Color.Type2) <$> rangeForAnnotated mismatchedType]
-  , "\n\n"
+  -- , showSourceMaybes src
+  --     [(,Color.Type2) <$> rangeForAnnotated mismatchSite
+  --     ,(,Color.Type2) <$> rangeForAnnotated mismatchedType]
+  -- , "\n\n"
   , annotatedAsStyle Color.Type2 src mismatchSite
   , "\n"
   ] ++ whenM (mismatchSite /= ABT.annotation mismatchedType) [
-    "from over here:\n\n"
+   "from over here:\n\n"
   , annotatedAsStyle Color.Type2 src (ann mismatchedType)
   , "\n\n"
   ]
@@ -109,11 +107,8 @@ renderTypeError :: forall v a. (Var v, Annotated a, Ord a, Show a)
                 -> String
                 -> AT.AnnotatedDocument Color.Style
 renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
-  OrMismatch {..} ->
-    mustBeBool
-      ([ "The arguments to "
-       , AT.Text . Color.errorSite $ "or"
-       , " have to be"]) env src mismatchSite mismatchedType
+  BooleanMismatch {..} ->
+    mustBeBool which env src mismatchSite mismatchedType
     ++
     [ "loc debug:"
     , "\n    mismatchSite: ", fromString $ annotatedToEnglish mismatchSite
@@ -121,18 +116,17 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     , "\n"
     ]
     ++ summary note
-  AndMismatch {..} ->
-    mustBeBool
-      ([ "The arguments to "
-       , AT.Text . Color.errorSite $ "and"
-       , " have to be"]) env src mismatchSite mismatchedType
-    ++ summary note
-  CondMismatch {..} ->
-    mustBeBool
-      ([ "The condition to an "
-       , AT.Text . Color.errorSite $ "if"
-       , "-expression has to be"]) env src mismatchSite mismatchedType
-
+    where which =
+            case booleanMismatch of
+              CondMismatch ->
+                [ "The condition for an ", AT.Text . Color.errorSite $ "if"
+                , "-expression has to be"]
+              AndMismatch ->
+                [ "The arguments to ", AT.Text . Color.errorSite $ "and"
+                , " have to be"]
+              OrMismatch ->
+                [ "The arguments to ", AT.Text . Color.errorSite $ "or"
+                , " have to be"]
   Mismatch {..} ->
     [ (fromString . annotatedToEnglish) mismatchSite
     , " has a type mismatch (", AT.Describe Color.ErrorSite, " below):\n\n"
@@ -241,7 +235,8 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
       C.InSynthesizeApp t e ->
         ["InSynthesizeApp t=", AT.Text $ renderType' env t
                       ,", e=", renderTerm e]
-      C.InIfApp -> ["InIfApp"]
+      C.InIfCond -> ["InIfCond"]
+      C.InIfBody -> ["InIfBody"]
       C.InAndApp -> ["InAndApp"]
       C.InOrApp -> ["InOrApp"]
         -- ["InAndApp v=", AT.Text $ renderVar' env c v]
@@ -426,9 +421,11 @@ typeErrorFromNote n@(C.Note (C.TypeMismatch ctx) path) =
   in case (firstSubtype, lastSubtype, innermostTerm) of
     (Just (leaf1, leaf2), Just (overall1, overall2), Just mismatchSite) ->
       if Ex.matchAny Ex.inAndApp n then
-        AndMismatch (ABT.annotation mismatchSite) overall1 n
+        BooleanMismatch AndMismatch (ABT.annotation mismatchSite) overall1 n
       else if Ex.matchAny Ex.inOrApp n then
-        OrMismatch (ABT.annotation mismatchSite) overall1 n
+        BooleanMismatch OrMismatch (ABT.annotation mismatchSite) overall1 n
+      else if Ex.matchAny Ex.inIfCond n then
+        BooleanMismatch CondMismatch (ABT.annotation mismatchSite) overall1 n
       else
         Mismatch (sub overall1) (sub overall2)
                 (sub leaf1) (sub leaf2)
