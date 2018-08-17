@@ -15,17 +15,15 @@ module Unison.Typechecker where
 
 import           Control.Lens
 import           Control.Monad (join)
-import           Control.Monad.State (runStateT, StateT, modify, put, get)
+import           Control.Monad.State (StateT, modify, get)
 import           Control.Monad.Trans (lift)
 import           Control.Monad.Writer
 import           Data.Foldable (traverse_, toList)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Maybe (isJust, maybeToList, catMaybes)
-import qualified Data.Sequence as Seq
 import           Data.Text (Text)
 import qualified Data.Text as Text
-import           Data.Traversable (for)
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
 import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
@@ -142,8 +140,8 @@ synthesize env t =
         (view effectDeclaration env)
         (Term.vtmap TypeVar.Universal t)
 
-type TDNR v loc a =
-  StateT (Term v loc) (Result (Note v loc)) a
+type TDNR f v loc a =
+  StateT (Term v loc) f (Result (Note v loc) a)
 
 data Resolution v loc =
   Resolution { resolvedName :: Text
@@ -162,9 +160,9 @@ synthesizeAndResolve
   :: (Monad f, Var v, Ord loc)
   => Env f v loc
   -> Term v loc
-  -> f (TDNR v loc (Type v loc))
+  -> TDNR f v loc (Type v loc)
 synthesizeAndResolve env t = do
-  r1 <- synthesize env t
+  r1 <- lift $ synthesize env t
   typeDirectedNameResolution r1 env
 
 -- Resolve "solved blanks". If a solved blank's type and name matches the type
@@ -178,23 +176,28 @@ synthesizeAndResolve env t = do
 --    but only one that typechecks. Substitute that one into the code.
 -- 3. No match at all. Throw an unresolved symbol at the user.
 typeDirectedNameResolution
-  :: forall v loc f a
-   . (Var v, Ord loc, Show a)
-  => Result (Note v loc) a
+  :: forall v loc f
+   . (Monad f, Var v, Ord loc)
+  => Result (Note v loc) (Type v loc)
   -> Env f v loc
-  -> f (TDNR v loc a)
-typeDirectedNameResolution resultSoFar env =
+  -> TDNR f v loc (Type v loc)
+typeDirectedNameResolution resultSoFar env = do
   let (Result oldNotes may) = resultSoFar
-      x =
-        lift (for (toList oldNotes) resolveNote)
-          >>= (\resolutions ->
-                let res2    = catMaybes $ toList resolutions
-                    goAgain = any ((== 1) . length . suggestions) res2
-                in  if goAgain
-                      then traverse_ substSuggestion res2
-                      else lift $ suggest res2
-              )
-  in  undefined
+      (Result newNotes resolutions) = traverse resolveNote $ toList oldNotes
+  case resolutions of
+    Nothing -> lift $ pure $ Result newNotes may
+    Just rs ->
+      let res2 = catMaybes rs
+          goAgain = any ((== 1) . length . suggestions) res2
+      in if goAgain
+            then do
+              traverse_ substSuggestion res2
+              newTerm <- get
+              synthesizeAndResolve env newTerm
+            else
+              -- The type hasn't changed
+              let Result ns _ = suggest res2
+              in  lift . pure $ Result ns may
 
   -- if any (maybe False $ (== 1) . length . suggestions) resolutions
   --  then do
@@ -211,14 +214,14 @@ typeDirectedNameResolution resultSoFar env =
           (Context.UnknownTerm loc (Var.named name) suggestions inferredType)
           []
       )
-    substSuggestion :: Resolution v loc -> TDNR v loc ()
+    substSuggestion :: Resolution v loc -> TDNR f v loc ()
     substSuggestion
-      (Resolution name inferredType loc [Context.Suggestion fqn typ])
+      (Resolution _ _ loc [Context.Suggestion fqn _])
       = let f t = if ABT.annotation t == loc
               then Just . Term.ref loc $ Builtin fqn
               else Nothing
-        in  modify (ABT.visitPure f)
-    substSuggestion _ = pure ()
+         in pure <$> modify (ABT.visitPure f)
+    substSuggestion _ = pure $ pure ()
 
 --  newNotes <- fmap join . for oldNotes $ \case
 --    Typechecking (Context.Note (Context.SolvedBlank (B.Resolve loc n) _ it) _)

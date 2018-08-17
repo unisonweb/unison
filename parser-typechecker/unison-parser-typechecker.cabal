@@ -86,6 +86,7 @@ library
     hashable,
     lens,
     memory,
+    mmorph,
     monad-loops,
     mtl,
     murmur-hash,
