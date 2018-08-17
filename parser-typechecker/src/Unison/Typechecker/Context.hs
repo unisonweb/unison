@@ -114,7 +114,9 @@ type ActualArgCount = Int
 type ConstructorId = Int
 
 data Suggestion v loc =
-  Suggestion { suggestionName :: Text, suggestionType :: Type v loc }
+  Suggestion { suggestionName :: Text
+             , suggestionType :: Type v loc
+             }
   deriving Show
 
 data Cause v loc

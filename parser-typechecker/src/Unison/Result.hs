@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -49,7 +50,7 @@ fromParsing :: Either (Parser.Err v) a -> Result (Note v loc) a
 fromParsing (Left  e) = Result (pure $ Parsing e) Nothing
 fromParsing (Right a) = pure a
 
-failNote :: note -> Result note a
+failNote :: (MonadWriter (Seq note) m, MonadFail m) => note -> m ()
 failNote note = do
   tell $ Seq.singleton note
   Control.Monad.Fail.fail ""
