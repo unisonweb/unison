@@ -36,6 +36,7 @@ import           Unison.Result              (Note (..))
 import qualified Unison.Type                as Type
 import qualified Unison.Typechecker.Context as C
 import qualified Unison.Typechecker.Extractor as Ex
+import qualified Unison.TypeVar             as TypeVar
 import qualified Unison.Util.AnnotatedText  as AT
 import           Unison.Util.ColorText      (StyledText)
 import qualified Unison.Util.ColorText      as Color
@@ -330,13 +331,13 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     simpleCause :: C.Cause v a -> [AT.Section Color.Style]
     simpleCause = \case
       C.TypeMismatch c ->
-        ["TypeMismatch\n"
-        ,"  context:\n"
-        ,fromString . init . unlines . (fmap ("  "++)) . lines . show $ c]
+        [ "TypeMismatch\n"
+        , "  context:\n"
+        , AT.Text $ renderContext env c]
       C.IllFormedType c ->
         ["IllFormedType\n"
         ,"  context:\n"
-        ,fromString . init . unlines . (fmap ("  "++)) . lines . show $ c]
+        , AT.Text $ renderContext env c]
       C.UnknownSymbol loc v ->
         [ "UnknownSymbol: ", (fromString . show) loc
         , " ", (fromString . show) v, "\n\n"
@@ -379,6 +380,23 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
         , " t="
         , AT.Text . renderType' env $ t
         ]
+
+renderContext :: (Var v, Ord a) => Env -> C.Context v a -> AT.AnnotatedText (Maybe b)
+renderContext env ctx@(C.Context es) =
+  "  Γ\n    " <> intercalateMap "\n    " (showElem ctx . fst) (reverse es)
+  where
+    shortName :: (Var v, IsString a) => v -> a
+    shortName = fromString . Text.unpack . Var.shortName
+    showElem :: (Var v, Ord a) => C.Context v a -> C.Element v a -> AT.AnnotatedText (Maybe b)
+    showElem _ctx (C.Var v) = case v of
+      TypeVar.Universal x -> "@" <> renderVar x
+      TypeVar.Existential _ x -> "'" <> renderVar x
+    showElem ctx (C.Solved _ v (Type.Monotype t)) =
+      "'" <> shortName v <> " = " <> renderType' env (C.apply ctx t)
+    showElem ctx (C.Ann v t) =
+      shortName v <> " : " <> renderType' env (C.apply ctx t)
+    showElem _ (C.Marker v) =
+      "|" <> shortName v <> "|"
 
 -- | renders a type with no special styling
 renderType' :: Var v => Env -> Type.AnnotatedType v loc -> AT.AnnotatedText (Maybe a)

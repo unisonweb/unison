@@ -10,6 +10,7 @@ module Unison.Typechecker.Context
   , Note(..)
   , Cause(..)
   , Context(..)
+  , Element(..)
   , PathElement(..)
   , Type
   , Term
