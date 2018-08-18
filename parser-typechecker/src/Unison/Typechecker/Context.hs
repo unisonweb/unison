@@ -112,9 +112,9 @@ data PathElement v loc
   | InAndApp
   | InOrApp
   | InIfCond
-  | InIfBody loc
-  | InVectorApp loc
-  | InMatch loc
+  | InIfBody loc -- location of `then` expression
+  | InVectorApp loc -- location of 1st vector element
+  | InMatch loc -- location of 1st case body
   deriving Show
 
 type ExpectedArgCount = Int
@@ -612,9 +612,9 @@ synthesize e = scope (InSynthesize e) $ do
   go (Term.Vector' v) = do
     ft <- vectorConstructorOfArity (Foldable.length v)
     case Foldable.toList v of
-      (v1:_:_) ->
-          scope (InVectorApp (ABT.annotation v1)) $ foldM synthesizeApp ft v
-      _ -> foldM synthesizeApp ft v
+      [] -> pure ft
+      v1 : _ ->
+        scope (InVectorApp (ABT.annotation v1)) $ foldM synthesizeApp ft v
   go (Term.Let1' binding e) | Set.null (ABT.freeVars binding) = do
     -- special case when it is definitely safe to generalize - binding contains
     -- no free variables, i.e. `let id x = x in ...`
@@ -711,10 +711,10 @@ synthesize e = scope (InSynthesize e) $ do
     outputTypev <- freshenVar (Var.named "match-output")
     let outputType = Type.existential' l B.Blank outputTypev
     appendContext $ context [existential outputTypev]
-    case cases of
+    case cases of -- only relevant with 2 or more cases, but 1 is safe too.
+      [] -> pure ()
       Term.MatchCase _ _ t : _ -> scope (InMatch (ABT.annotation t)) $
         Foldable.traverse_ (checkCase scrutineeType outputType) cases
-      _ -> pure ()
     ctx <- getContext
     pure $ apply ctx outputType
   go h@(Term.Handle' _ _) = do

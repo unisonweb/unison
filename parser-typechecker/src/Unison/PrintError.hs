@@ -512,14 +512,16 @@ typeErrorFromNote n@(C.Note (C.TypeMismatch ctx) path) =
      Just (foundType, expectedType),
      Just mismatchSite) ->
       let mismatchLoc = ABT.annotation mismatchSite
-          booleanMismatch :: Monad m => m a -> BooleanMismatch -> m (TypeError v loc)
+          booleanMismatch
+            :: Monad m => m a -> BooleanMismatch -> m (TypeError v loc)
           booleanMismatch x y = x >>
             (pure $ BooleanMismatch y (ABT.annotation mismatchSite) foundType n)
-          existentialMismatch :: Monad m
-                              => m loc -> ExistentialMismatch -> m (TypeError v loc)
+          existentialMismatch
+            :: Monad m => m loc -> ExistentialMismatch -> m (TypeError v loc)
           existentialMismatch x y = x >>= \expectedLoc -> pure $
             ExistentialMismatch y expectedType expectedLoc foundType mismatchLoc n
-          and,or,cond,guard :: Ex.NoteExtractor v loc (TypeError v loc)
+          and,or,cond,guard,ifBody,vectorBody,caseBody,all
+            :: Ex.NoteExtractor v loc (TypeError v loc)
           and = booleanMismatch Ex.inAndApp AndMismatch
           or = booleanMismatch Ex.inOrApp OrMismatch
           cond = booleanMismatch Ex.inIfCond CondMismatch
@@ -527,7 +529,6 @@ typeErrorFromNote n@(C.Note (C.TypeMismatch ctx) path) =
           ifBody = existentialMismatch Ex.inIfBody IfBody
           vectorBody = existentialMismatch Ex.inVectorApp VectorBody
           caseBody = existentialMismatch Ex.inMatchCaseBody CaseBody
-          all :: Ex.NoteExtractor v loc (TypeError v loc)
           all = and <|> or <|> cond <|> guard <|>
                 ifBody <|> vectorBody <|> caseBody
 

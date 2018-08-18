@@ -23,14 +23,17 @@ _path = NoteExtractor $ pure . toList . C.path
 _mismatchedTerm :: NoteExtractor v loc (Maybe (C.Term v loc))
 _mismatchedTerm = NoteExtractor $ pure . C.innermostErrorTerm
 
-adjacent :: PathExtractor v loc a -> PathExtractor v loc b -> NoteExtractor v loc (a, b)
-adjacent (PathExtractor a) (PathExtractor b) =
+_adjacent :: PathExtractor v loc a -> PathExtractor v loc b -> NoteExtractor v loc (a, b)
+_adjacent (PathExtractor a) (PathExtractor b) =
   NoteExtractor $ go Nothing . toList . C.path where
   go _ [] = Nothing
   go Nothing (h:t) = go (a h) t
   go (Just a) (h:t) = case b h of Nothing -> go Nothing t; Just b -> Just (a,b)
 
 type PathPredicate v loc = C.PathElement v loc -> Bool
+
+_fromPredicate :: (PathPredicate v loc) -> PathExtractor v loc ()
+_fromPredicate e = PathExtractor (\p -> whenM (e p) (pure ()))
 
 exactly1AppBefore :: PathExtractor v loc a -> NoteExtractor v loc a
 exactly1AppBefore p = do
@@ -93,9 +96,6 @@ inSynthesizeApp :: PathExtractor v loc (C.Type v loc, C.Term v loc)
 inSynthesizeApp = PathExtractor $ \case
   C.InSynthesizeApp t e -> Just (t,e)
   _ -> Nothing
-
-fromPredicate :: (PathPredicate v loc) -> PathExtractor v loc ()
-fromPredicate e = PathExtractor (\p -> whenM (e p) (pure ()))
 
 -- App
 -- | Handle v
