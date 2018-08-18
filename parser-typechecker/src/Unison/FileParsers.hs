@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 {-# Language OverloadedStrings #-}
 {-# Language ScopedTypeVariables #-}
 {-# Language UnicodeSyntax     #-}
@@ -5,16 +6,15 @@
 
 module Unison.FileParsers where
 
-import           Control.Monad.State (evalStateT)
+import           Control.Monad.State (runStateT, evalStateT)
 import           Data.ByteString (ByteString)
 import           Data.Bytes.Put (runPutS)
 import qualified Data.Foldable as Foldable
-import           Data.Functor.Identity (runIdentity)
+import           Data.Functor.Identity (runIdentity, Identity(..))
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Maybe
 import qualified Data.Text as Text
-import           Data.Tuple (swap)
 import qualified Unison.Builtin as B
 import qualified Unison.Codecs as Codecs
 import           Unison.DataDeclaration (DataDeclaration')
@@ -66,7 +66,7 @@ synthesizeFile unisonFile
                                 dataDeclaration
                                 effectDeclaration
                                 unqualifiedLookup
-      n = Typechecker.synthesizeAndResolve env0 term
+      n = Typechecker.synthesizeAndResolve env0
       die s h = error $ "unknown " ++ s ++ " reference " ++ show h
       typeOf r =
         pure . fromMaybe (error $ "unknown reference " ++ show r)
@@ -85,8 +85,9 @@ synthesizeFile unisonFile
           )
         )
         B.builtinTypedTerms
+      (Result notes mayType, newTerm) = runIdentity $ runStateT n term
     in
-      swap <$> runIdentity n
+      Result notes ((newTerm,) <$> mayType)
 
 synthesizeUnisonFile :: Var v
                      => UnisonFile v
