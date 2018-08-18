@@ -159,9 +159,9 @@ resolvable _ = False
 synthesizeAndResolve
   :: (Monad f, Var v, Ord loc)
   => Env f v loc
-  -> Term v loc
   -> TDNR f v loc (Type v loc)
-synthesizeAndResolve env t = do
+synthesizeAndResolve env = do
+  t <- get
   r1 <- lift $ synthesize env t
   typeDirectedNameResolution r1 env
 
@@ -192,8 +192,7 @@ typeDirectedNameResolution resultSoFar env = do
       in if goAgain
             then do
               traverse_ substSuggestion res2
-              newTerm <- get
-              synthesizeAndResolve env newTerm
+              synthesizeAndResolve env
             else
               -- The type hasn't changed
               let Result ns _ = suggest res2
