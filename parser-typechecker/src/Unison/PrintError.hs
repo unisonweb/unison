@@ -45,7 +45,7 @@ import           Unison.Util.Monoid         (intercalateMap)
 import           Unison.Util.Range          (Range (..))
 import           Unison.Var                 (Var)
 import qualified Unison.Var                 as Var
--- import Debug.Trace
+import Debug.Trace
 
 data Env = Env { referenceNames   :: Map R.Reference String
                , constructorNames :: Map (R.Reference, Int) String }
@@ -76,6 +76,7 @@ data TypeError v loc
                         , mismatchSite        :: loc
                         , note                :: C.Note v loc
                         }
+  | NotFunctionApplication { f :: C.Term v loc, ft :: C.Type v loc , note :: C.Note v loc }
   | AbilityCheckFailure { ambient                 :: [C.Type v loc]
                         , requested               :: [C.Type v loc]
                         , abilityCheckFailureSite :: loc
@@ -211,6 +212,14 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
                 [ "Each case of a ", AT.Text . Color.errorSite $ "case"
                 , "/", AT.Text . Color.errorSite $ "of", " expression "
                 , "need to have the same type.\n"]
+  NotFunctionApplication {..} ->
+    [ "This looks like a function call, but with a "
+    , AT.Text $ Color.type1 . renderType' env $ ft
+    , " where the function should be.  Are you missing an operator?\n\n"
+    , annotatedAsStyle Color.Type1 src f
+    , "\n"
+    ] ++ summary note
+
   Mismatch {..} ->
     [ (fromString . annotatedToEnglish) mismatchSite
     , " has a type mismatch (", AT.Describe Color.ErrorSite, " below):\n\n"
@@ -515,7 +524,7 @@ rangeForAnnotated a = case ann a of
   Intrinsic     -> Nothing
   Ann start end -> Just $ Range start end
 
-typeErrorFromNote :: forall loc v. (Ord loc, Var v) => C.Note v loc -> TypeError v loc
+typeErrorFromNote :: forall loc v. (Ord loc, Show loc, Var v) => C.Note v loc -> TypeError v loc
 typeErrorFromNote n@(C.Note (C.TypeMismatch ctx) path) =
   let
     pathl = toList path
@@ -557,7 +566,22 @@ typeErrorFromNote n@(C.Note (C.TypeMismatch ctx) path) =
                    (sub foundLeaf) (sub expectedLeaf)
                    (ABT.annotation mismatchSite)
                    n
-    _ -> Other n
+    (Nothing, Nothing, Just mismatchSite) ->
+      let --mismatchLoc = ABT.annotation mismatchSite
+          appyingNonFunction = do
+            (f, ft) <- Ex.applyingNonFunction
+            pure $ NotFunctionApplication f ft n
+      in case Ex.run appyingNonFunction n of
+        Just msg -> msg
+        Nothing -> trace ("other debug:\n"
+                          ++ "  mismatchSite: " ++ show mismatchSite ++ "\n") $
+                   Other n
+    _ ->
+      trace ("other debug:\n"
+              ++ "   firstSubtype: " ++ show firstSubtype ++ "\n"
+              ++ "    lastSubtype: " ++ show lastSubtype ++ "\n"
+              ++ "  innermostTerm: " ++ show innermostTerm ++ "\n") $
+      Other n
 typeErrorFromNote n@(C.Note (C.AbilityCheckFailure amb req _) _) =
   let go :: C.Term v loc -> TypeError v loc
       go e = AbilityCheckFailure amb req (ABT.annotation e) n
