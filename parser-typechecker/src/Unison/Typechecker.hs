@@ -188,8 +188,11 @@ typeDirectedNameResolution resultSoFar env = do
               traverse_ substSuggestion res2
               synthesizeAndResolve env
             else
-           -- The type hasn't changed
-                 let Result ns _ = suggest res2 in lift . pure $ Result ns may
+              -- The type hasn't changed
+              lift . pure $ do
+                tp <- resultSoFar
+                suggest res2
+                pure tp
  where
   suggest :: [Resolution v loc] -> Result (Note v loc) ()
   suggest = traverse_
