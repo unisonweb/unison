@@ -150,18 +150,12 @@ data Resolution v loc =
              , suggestions :: [Context.Suggestion v loc]
              }
 
-resolvable :: Resolution v loc -> Bool
-resolvable (Resolution _ _ _ [_]) = True
-resolvable _ = False
-
 -- | Infer the type of a 'Unison.Term', using type-directed name resolution
 -- to attempt to resolve unknown symbols.
 synthesizeAndResolve
-  :: (Monad f, Var v, Ord loc)
-  => Env f v loc
-  -> TDNR f v loc (Type v loc)
+  :: (Monad f, Var v, Ord loc) => Env f v loc -> TDNR f v loc (Type v loc)
 synthesizeAndResolve env = do
-  t <- get
+  t  <- get
   r1 <- lift $ synthesize env t
   typeDirectedNameResolution r1 env
 
@@ -182,113 +176,58 @@ typeDirectedNameResolution
   -> Env f v loc
   -> TDNR f v loc (Type v loc)
 typeDirectedNameResolution resultSoFar env = do
-  let (Result oldNotes may) = resultSoFar
+  let (Result oldNotes may        ) = resultSoFar
       (Result newNotes resolutions) = traverse resolveNote $ toList oldNotes
   case resolutions of
     Nothing -> lift $ pure $ Result newNotes may
     Just rs ->
-      let res2 = catMaybes rs
+      let res2    = catMaybes rs
           goAgain = any ((== 1) . length . suggestions) res2
-      in if goAgain
+      in  if goAgain
             then do
               traverse_ substSuggestion res2
               synthesizeAndResolve env
             else
-              -- The type hasn't changed
-              let Result ns _ = suggest res2
-              in  lift . pure $ Result ns may
-
-  -- if any (maybe False $ (== 1) . length . suggestions) resolutions
-  --  then do
-  --    traverse (substSuggestion) . join $ fmap maybeToList resolutions
-  --    newTerm <- get
-  --    synthesizeAndResolve env newTerm
-  --  else suggest resolutions
-  --Result oldNotes may
-  where
-    suggest :: [Resolution v loc] -> Result (Note v loc) ()
-    suggest = traverse_
-      (\(Resolution name inferredType loc suggestions) ->
-        failNote . Typechecking $ Context.Note
-          (Context.UnknownTerm loc (Var.named name) suggestions inferredType)
-          []
-      )
-    substSuggestion :: Resolution v loc -> TDNR f v loc ()
-    substSuggestion
-      (Resolution _ _ loc [Context.Suggestion fqn _])
-      = let f t = if ABT.annotation t == loc
-              then Just . Term.ref loc $ Builtin fqn
-              else Nothing
-         in pure <$> modify (ABT.visitPure f)
-    substSuggestion _ = pure $ pure ()
-
---  newNotes <- fmap join . for oldNotes $ \case
---    Typechecking (Context.Note (Context.SolvedBlank (B.Resolve loc n) _ it) _)
---      -> do
---        -- Do the TDNR and get suggested imports
---        suggestions <-
---          fmap join
---          . lift
---          . lift
---          . traverse (resolve it)
---          . join
---          . maybeToList
---          . Map.lookup (Text.pack n)
---          $ view terms env
---        -- If only one suggested import, just subst that into the term
---        -- otherwise propagate the suggestion to the user.
---        suggestOrReplace loc (Text.pack n) it suggestions
---        -- Erase the note
---        pure Seq.empty
---    -- Otherwise leave the note alone
---    x -> pure [x]
---  lift . lift $ Result newNotes may
--- where
---  suggestOrReplace
---    :: loc
---    -> Text
---    -> Context.Type v loc
---    -> [Context.Suggestion v loc]
---    -> TDNR v loc ()
---  suggestOrReplace loc name inferredType ss = case ss of
---    [Context.Suggestion fqn _] ->
---      let f t = if ABT.annotation t == loc
---            then Just . Term.ref loc $ Builtin fqn
---            else Nothing
---      in  do
---        put True
---        lift $ modify (ABT.visitPure f)
---    _ -> do
---      anyChanges <- get
---      if anyChanges
---         then pure ()
---         else lift . lift . failNote . Typechecking $ Context.Note
---                (Context.UnknownTerm loc (Var.named name) ss inferredType)
---                []
+           -- The type hasn't changed
+                 let Result ns _ = suggest res2 in lift . pure $ Result ns may
+ where
+  suggest :: [Resolution v loc] -> Result (Note v loc) ()
+  suggest = traverse_
+    (\(Resolution name inferredType loc suggestions) ->
+      failNote . Typechecking $ Context.Note
+        (Context.UnknownTerm loc (Var.named name) suggestions inferredType)
+        []
+    )
+  substSuggestion :: Resolution v loc -> TDNR f v loc ()
+  substSuggestion (Resolution _ _ loc [Context.Suggestion fqn _]) =
+    let f t = if ABT.annotation t == loc
+          then Just . Term.ref loc $ Builtin fqn
+          else Nothing
+    in  pure <$> modify (ABT.visitPure f)
+  substSuggestion _ = pure $ pure ()
 --  Returns Nothing for irrelevant notes
-    resolveNote :: Note v loc -> Result (Note v loc) (Maybe (Resolution v loc))
-    resolveNote
-      (Typechecking (Context.Note (Context.SolvedBlank (B.Resolve loc n) _ it) _))
-      = fmap (Just . Resolution (Text.pack n) it loc . join)
-        . traverse (resolve it)
-        . join
-        . maybeToList
-        . Map.lookup (Text.pack n)
-        $ view terms env
-    resolveNote n = tell [n] >> pure Nothing
-    resolve
-      :: Context.Type v loc
-      -> NamedReference v loc
-      -> Result (Note v loc) [Context.Suggestion v loc]
-    resolve inferredType (NamedReference fqn foundType) =
-      -- We found a name that matches. See if the type matches too.
-      let Result subNotes subResult = uncurry Result
-            $ Context.isSubtype (view builtinLoc env) foundType inferredType
-      in  case subResult of
-            -- Something unexpected went wrong with the subtype check
-            Nothing -> const [] <$> traverse_ (failNote . Typechecking) subNotes
-            -- Suggest the import if the type matches.
-            Just b  -> pure [ Context.Suggestion fqn foundType | b ]
+  resolveNote :: Note v loc -> Result (Note v loc) (Maybe (Resolution v loc))
+  resolveNote (Typechecking (Context.Note (Context.SolvedBlank (B.Resolve loc n) _ it) _))
+    = fmap (Just . Resolution (Text.pack n) it loc . join)
+      . traverse (resolve it)
+      . join
+      . maybeToList
+      . Map.lookup (Text.pack n)
+      $ view terms env
+  resolveNote n = tell [n] >> pure Nothing
+  resolve
+    :: Context.Type v loc
+    -> NamedReference v loc
+    -> Result (Note v loc) [Context.Suggestion v loc]
+  resolve inferredType (NamedReference fqn foundType) =
+    -- We found a name that matches. See if the type matches too.
+    let Result subNotes subResult = uncurry Result
+          $ Context.isSubtype (view builtinLoc env) foundType inferredType
+    in  case subResult of
+              -- Something unexpected went wrong with the subtype check
+          Nothing -> const [] <$> traverse_ (failNote . Typechecking) subNotes
+          -- Suggest the import if the type matches.
+          Just b  -> pure [ Context.Suggestion fqn foundType | b ]
 
 -- | Check whether a term matches a type, using a
 -- function to resolve the type of @Ref@ constructors
