@@ -63,6 +63,7 @@ library
     Unison.Typechecker
     Unison.Typechecker.Context
     Unison.Typechecker.Components
+    Unison.Typechecker.Extractor
     Unison.UnisonFile
     Unison.Util.AnnotatedText
     Unison.Util.ColorText

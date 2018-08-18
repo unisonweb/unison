@@ -9,11 +9,14 @@ module Unison.Typechecker.Context
   ( synthesizeClosed
   , Note(..)
   , Cause(..)
+  , Context(..)
+  , Element(..)
   , PathElement(..)
   , Type
   , Term
   , errorTerms
   , innermostErrorTerm
+  , lookupType
   , apply
   , isSubtype
   , Suggestion(..)
@@ -107,6 +110,12 @@ data PathElement v loc
   | InInstantiateL v (Type v loc)
   | InInstantiateR (Type v loc) v
   | InSynthesizeApp (Type v loc) (Term v loc)
+  | InAndApp
+  | InOrApp
+  | InIfCond
+  | InIfBody loc -- location of `then` expression
+  | InVectorApp loc -- location of 1st vector element
+  | InMatch loc -- location of 1st case body
   deriving Show
 
 type ExpectedArgCount = Int
@@ -605,7 +614,10 @@ synthesize e = scope (InSynthesize e) $ do
     synthesizeApp (apply ctx ft) arg
   go (Term.Vector' v) = do
     ft <- vectorConstructorOfArity (Foldable.length v)
-    foldM synthesizeApp ft v
+    case Foldable.toList v of
+      [] -> pure ft
+      v1 : _ ->
+        scope (InVectorApp (ABT.annotation v1)) $ foldM synthesizeApp ft v
   go (Term.Let1' binding e) | Set.null (ABT.freeVars binding) = do
     -- special case when it is definitely safe to generalize - binding contains
     -- no free variables, i.e. `let id x = x in ...`
@@ -665,9 +677,13 @@ synthesize e = scope (InSynthesize e) $ do
     t <- synthesize e
     (_, _, ctx2) <- breakAt marker <$> getContext
     generalizeExistentials ctx2 t <$ doRetract marker
-  go (Term.If' cond t f) = foldM synthesizeApp (Type.iff' l) [cond, t, f]
-  go (Term.And' a b) = foldM synthesizeApp (Type.andor' l) [a, b]
-  go (Term.Or' a b) = foldM synthesizeApp (Type.andor' l) [a, b]
+  go (Term.If' cond t f) = do
+    scope InIfCond $ check cond (Type.boolean l)
+    scope (InIfBody $ ABT.annotation t) $ foldM synthesizeApp (Type.iff2 l) [t, f]
+  go (Term.And' a b) =
+    scope InAndApp $ foldM synthesizeApp (Type.andor' l) [a, b]
+  go (Term.Or' a b) =
+    scope InOrApp $ foldM synthesizeApp (Type.andor' l) [a, b]
   -- { 42 }
   go (Term.EffectPure' a) = do
     e <- freshenVar (Var.named "e")
@@ -698,7 +714,10 @@ synthesize e = scope (InSynthesize e) $ do
     outputTypev <- freshenVar (Var.named "match-output")
     let outputType = Type.existential' l B.Blank outputTypev
     appendContext $ context [existential outputTypev]
-    Foldable.traverse_ (checkCase scrutineeType outputType) cases
+    case cases of -- only relevant with 2 or more cases, but 1 is safe too.
+      [] -> pure ()
+      Term.MatchCase _ _ t : _ -> scope (InMatch (ABT.annotation t)) $
+        Foldable.traverse_ (checkCase scrutineeType outputType) cases
     ctx <- getContext
     pure $ apply ctx outputType
   go h@(Term.Handle' _ _) = do
@@ -710,7 +729,7 @@ synthesize e = scope (InSynthesize e) $ do
     pure (apply ctx ot)
   go _e = compilerCrash PatternMatchFailure
 
--- data MatchCase a = MatchCase Pattern (Maybe a) a
+-- data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
 {-
 type Optional b c = None | Some b c
 let blah : Optional Int64 Int64
