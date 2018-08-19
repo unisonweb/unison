@@ -22,5 +22,6 @@ echo "Building parser/typechecker..." && \
   stack build && \
   echo "Building runtime..." && \
   (cd runtime-jvm; sbt main/compile) && \
-  ("`dirname $0`/exec.sh" "$source";
-    fswatch "$source" . | xargs -n1 "`dirname $0`/exec2.sh" "$source")
+  "`dirname $0`/exec.sh" "$source"
+
+  fswatch "$source" . | xargs -n1 "`dirname $0`/exec2.sh" "$source"
