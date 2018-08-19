@@ -634,6 +634,13 @@ prettyParseError :: forall v . Var v
 prettyParseError s = \case
   P.TrivialError sp unexpected expected ->
     fromString (P.parseErrorPretty @_ @Void (P.TrivialError sp unexpected expected))
+    <> (case unexpected of
+         Just (P.Tokens ts) ->
+          traceShow ts $
+          AT.sectionToDoc $ showSource s
+                    ((\t -> (rangeForToken t, Color.ErrorSite)) <$> toList ts)
+         _ -> mempty
+       )
     <> lexerOutput
 
   P.FancyError sp fancyErrors ->
