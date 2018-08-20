@@ -692,13 +692,15 @@ synthesize e = scope (InSynthesize e) $ do
     bl <- getBuiltinLocation
     Type.Effect'' _ at <- synthesize a
     pure . Type.forall l (TypeVar.Universal e) $ Type.effectV bl (l, Type.universal' l e) (l, at)
-  go (Term.EffectBind' r cid args k) = do
+  go e@(Term.EffectBind' r cid args k) = do
     cType <- getEffectConstructorType r cid
     let arity = Type.arity cType
     when (length args /= arity) .  failWith $
       EffectConstructorWrongArgCount arity (length args) r cid
-    (eType, bt) <- synthesizeEffects (loc e) $ foldM synthesizeApp cType args
-    bt <- ungeneralize bt
+    (eType, bt) <- synthesizeEffects (loc e) $ do
+      t@(Type.Effect'' es _) <- ungeneralize =<< foldM synthesizeApp cType args
+      abilityCheck es
+      pure t
     ctx <- getContext
     let iType = apply ctx bt
     rTypev <- freshNamed "result"

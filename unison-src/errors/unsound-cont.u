@@ -1,7 +1,4 @@
 
--- if we make `Ask` monomorphic, as in `ask : {Ask} Text`,
--- get the predicted error, which suggests we are letting the `a`
--- just be an unbound existential
 effect Ask a where
   ask : {Ask a} a
 
