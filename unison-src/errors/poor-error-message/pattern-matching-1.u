@@ -20,6 +20,9 @@ z = case Foo2 1 "hi" of
 
 w = case Foo3.Foo3 1 2 "bye" of
   Foo3.Foo3 1 2 x -> Text.concatenate x "bye"
+  -- where the heck are these locations coming from?
+  -- I feel, since concatenate isn't polymorphic, that `Text`
+  -- should come from there, not from `x`.
   _ -> ()
 
 ()

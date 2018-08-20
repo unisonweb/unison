@@ -12,11 +12,13 @@ module Unison.Typechecker.Context
   , Context(..)
   , Element(..)
   , PathElement(..)
-  , Type
   , Term
+  , Type
+  , TypeVar
   , errorTerms
   , innermostErrorTerm
-  , lookupType
+  , lookupAnn
+  , lookupSolved
   , apply
   , isSubtype
   , Suggestion(..)
@@ -585,7 +587,7 @@ synthesize e = scope (InSynthesize e) $ do
   where
   l = loc e
   go :: (Var v, Ord loc) => Term v loc -> M v loc (Type v loc)
-  go (Term.Var' v) = getContext >>= \ctx -> case lookupType ctx v of -- Var
+  go (Term.Var' v) = getContext >>= \ctx -> case lookupAnn ctx v of -- Var
     Nothing -> compilerCrash $ UndeclaredTermVariable v ctx
     Just t -> pure t
   go (Term.Blank' blank) = do
@@ -807,8 +809,11 @@ checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) =
 bindings :: Context v loc -> [(v, Type v loc)]
 bindings (Context ctx) = [(v,a) | (Ann v a,_) <- ctx]
 
-lookupType :: Eq v => Context v loc -> v -> Maybe (Type v loc)
-lookupType ctx v = lookup v (bindings ctx)
+lookupAnn :: Eq v => Context v loc -> v -> Maybe (Type v loc)
+lookupAnn ctx v = lookup v (bindings ctx)
+
+lookupSolved :: Eq v => Context v loc -> v -> Maybe (Monotype v loc)
+lookupSolved ctx v = lookup v (solved ctx)
 
 -- | Synthesize and generalize the type of each binding in a let rec
 -- and return the new context in which all bindings are annotated with

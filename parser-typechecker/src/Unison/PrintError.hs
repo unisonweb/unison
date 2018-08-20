@@ -76,6 +76,14 @@ data TypeError v loc
                         , mismatchSite        :: loc
                         , note                :: C.Note v loc
                         }
+  | FunctionApplication { f            :: C.Term v loc
+                        , argNum       :: Int
+                        , expectedType :: C.Type v loc
+                        , foundType    :: C.Type v loc
+                        , arg          :: C.Term v loc
+                        , fVarInfo     :: Maybe (C.Type v loc, [(v, C.Type v loc)])
+                        , note         :: C.Note v loc
+                        }
   | NotFunctionApplication { f :: C.Term v loc, ft :: C.Type v loc , note :: C.Note v loc }
   | AbilityCheckFailure { ambient                 :: [C.Type v loc]
                         , requested               :: [C.Type v loc]
@@ -219,7 +227,43 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     , annotatedAsStyle Color.Type1 src f
     , "\n"
     ] ++ summary note
-
+  FunctionApplication {..} ->
+    [ "The ", ordinal argNum, " argument in the call below is "
+    , AT.Text $ Color.type2 . renderType' env $ foundType, ":"
+    , "\n\n"
+    , showSourceMaybes src
+      -- [ (,Color.ErrorSite) <$> rangeForAnnotated f
+      [ (,Color.Type1)     <$> rangeForAnnotated expectedType
+      , (,Color.Type2)     <$> rangeForAnnotated foundType
+      , (,Color.Type2)     <$> rangeForAnnotated arg
+      ]
+    , "\n"
+    , "but I was expecting "
+                , AT.Text $ Color.type1 . renderType' env $ expectedType
+    ]
+    -- todo: why doesn't this print
+    ++ case fVarInfo of
+      Just (_originalType, solvedVars@(_:_)) ->
+        let go :: (v, C.Type v a) -> [AT.Section Color.Style]
+            go (v,t) =
+             [ "  ", renderVar v
+             , " = ", AT.Text $ Color.type2 $ renderType' env t
+             , " from here:\n"
+             , showSourceMaybes src [(,Color.Type2) <$> rangeForAnnotated t]
+             ]
+        in
+          [ " because the function has type\n"
+          , "\n"
+          , "  ", AT.Text $ renderType' env $ _originalType
+          , "\n"
+          , "where:"
+          ] ++ (solvedVars >>= go)
+          -- ++ ["\n"]
+          -- ++ showSourceMaybes src (go solvedVars)
+          ++ ["\n\n"]
+      _other -> ["."] -- forget it
+    ++ ["\n\n"]
+    ++ summary note
   Mismatch {..} ->
     [ (fromString . annotatedToEnglish) mismatchSite
     , " has a type mismatch (", AT.Describe Color.ErrorSite, " below):\n\n"
@@ -233,15 +277,14 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     , " (", fromString (Char.toLower <$> annotatedToEnglish expectedLeaf)
           , ", ", AT.Describe Color.Type2, ")\n"
     , "\n"
-    -- , showSourceMaybes src
-    , AT.Blockquote . AT.markup (fromString src) . Set.fromList . catMaybes $
+    , showSourceMaybes src
         [ -- these are overwriting the colored ranges for some reason?
         --   (,Color.ForceShow) <$> rangeForAnnotated mismatchSite
         -- , (,Color.ForceShow) <$> rangeForType foundType
         -- , (,Color.ForceShow) <$> rangeForType expectedType
         -- ,
-          (,Color.Type1) <$> rangeForType foundLeaf
-        , (,Color.Type2) <$> rangeForType expectedLeaf
+          (,Color.Type1) <$> rangeForAnnotated foundLeaf
+        , (,Color.Type2) <$> rangeForAnnotated expectedLeaf
         ]
     , "\n"
     , "loc debug:"
@@ -295,6 +338,12 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
 
   where
     maxTermDisplay = 20
+    ordinal :: (IsString a') => Int -> a'
+    ordinal n = fromString $ show n ++ case last (show n) of
+      '1' -> "st"
+      '2' -> "nd"
+      '3' -> "rd"
+      _ -> "th"
     renderTerm e = let s = show e in -- todo: pretty print
       if length s > maxTermDisplay
       then fromString (take maxTermDisplay s <> "...")
@@ -451,15 +500,15 @@ arrows = intercalateMap " -> "
 commas :: (IsString a, Monoid a) => (b -> a) -> [b] -> a
 commas = intercalateMap ", "
 
-renderVar :: Var v => v -> AT.AnnotatedText (Maybe a)
+renderVar :: (IsString a, Var v) => v -> a
 renderVar = fromString . Text.unpack . Var.shortName
 
 renderVar' :: (Var v, Annotated a)
            => Env -> C.Context v a -> v -> AT.AnnotatedText (Maybe b)
 renderVar' env ctx v =
-  case C.lookupType ctx v of
+  case C.lookupSolved ctx v of
     Nothing -> "unsolved"
-    Just t -> renderType' env t
+    Just t -> renderType' env $ Type.getPolytype t
 
 renderKind :: Kind -> AT.AnnotatedText (Maybe a)
 renderKind Kind.Star          = "*"
@@ -516,8 +565,6 @@ annotatedToEnglish a = case ann a of
   Intrinsic     -> "an intrinsic"
   Ann start end -> rangeToEnglish $ Range start end
 
-rangeForType :: Annotated a => C.Type v a -> Maybe Range
-rangeForType = rangeForAnnotated . ABT.annotation
 
 rangeForAnnotated :: Annotated a => a -> Maybe Range
 rangeForAnnotated a = case ann a of
@@ -547,7 +594,7 @@ typeErrorFromNote n@(C.Note (C.TypeMismatch ctx) path) =
             :: Monad m => m loc -> ExistentialMismatch -> m (TypeError v loc)
           existentialMismatch x y = x >>= \expectedLoc -> pure $
             ExistentialMismatch y expectedType expectedLoc foundType mismatchLoc n
-          and,or,cond,guard,ifBody,vectorBody,caseBody,all
+          and,or,cond,guard,ifBody,vectorBody,caseBody,all,functionArg
             :: Ex.NoteExtractor v loc (TypeError v loc)
           and = booleanMismatch Ex.inAndApp AndMismatch
           or = booleanMismatch Ex.inOrApp OrMismatch
@@ -556,8 +603,12 @@ typeErrorFromNote n@(C.Note (C.TypeMismatch ctx) path) =
           ifBody = existentialMismatch Ex.inIfBody IfBody
           vectorBody = existentialMismatch Ex.inVectorApp VectorBody
           caseBody = existentialMismatch Ex.inMatchCaseBody CaseBody
+          functionArg = do
+            (f, index, expectedType, foundType, arg, fPoly) <- Ex.inApp
+            pure $ FunctionApplication f index expectedType foundType arg fPoly n
+
           all = and <|> or <|> cond <|> guard <|>
-                ifBody <|> vectorBody <|> caseBody
+                ifBody <|> vectorBody <|> caseBody <|> functionArg
 
       in case Ex.run all n of
         Just msg -> msg
