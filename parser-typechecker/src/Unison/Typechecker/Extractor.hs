@@ -6,6 +6,7 @@ import Control.Applicative
 import Data.Foldable (toList)
 import Data.Maybe (isJust)
 import qualified Unison.Typechecker.Context as C
+import qualified Unison.Term as Term
 import Unison.Util.Monoid (whenM)
 
 newtype NoteExtractor v loc a =
@@ -42,13 +43,28 @@ exactly1AppBefore p = do
     1 -> pure a
     _ -> mzero
 
-elementsUntil :: PathExtractor v loc a
-              -> NoteExtractor v loc ([C.PathElement v loc], a)
-elementsUntil p = NoteExtractor $ go [] . toList . C.path where
+applyingNonFunction :: NoteExtractor v loc (C.Term v loc, C.Type v loc)
+applyingNonFunction = do
+  (prefix, e) <- elementsUntil inSynthesize
+  case elementsUntil' inSynthesizeApp prefix of
+    Just ([], (ft, _argTerm)) ->
+      case e of
+        Term.Apps' f _args -> pure (f, ft)
+        _ -> mzero
+    _ -> mzero
+
+elementsUntil' :: PathExtractor v loc a
+               -> [C.PathElement v loc]
+               -> Maybe ([C.PathElement v loc], a)
+elementsUntil' p l = go [] l where
   go _ [] = Nothing
   go acc (h:t) = case runPath p h of
     Just a -> Just (reverse acc, a)
     Nothing -> go (h:acc) t
+
+elementsUntil :: PathExtractor v loc a
+              -> NoteExtractor v loc ([C.PathElement v loc], a)
+elementsUntil p = NoteExtractor $ elementsUntil' p . toList . C.path
 
 inAndApp :: NoteExtractor v loc ()
 inAndApp = exactly1AppBefore . PathExtractor $ \case
@@ -95,6 +111,11 @@ inMatchCaseBody = do
 inSynthesizeApp :: PathExtractor v loc (C.Type v loc, C.Term v loc)
 inSynthesizeApp = PathExtractor $ \case
   C.InSynthesizeApp t e -> Just (t,e)
+  _ -> Nothing
+
+inSynthesize :: PathExtractor v loc (C.Term v loc)
+inSynthesize = PathExtractor $ \case
+  C.InSynthesize t -> Just t
   _ -> Nothing
 
 -- App

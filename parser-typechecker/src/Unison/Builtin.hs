@@ -7,6 +7,7 @@ module Unison.Builtin where
 
 import           Control.Arrow ((&&&), second)
 import qualified Data.Map as Map
+import qualified Unison.ABT as ABT
 import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.FileParser as FileParser
@@ -31,7 +32,8 @@ type EffectDeclaration v = EffectDeclaration' v Ann
 -- then merge Parsers back into Parsers (and GC and unused functions)
 -- parse a type, hard-coding the builtins defined in this file
 t :: Var v => String -> Type v
-t s = bindTypeBuiltins . either (error . parseErrorToAnsiString s) id $
+t s = ABT.amap (const Intrinsic) .
+          bindTypeBuiltins . either (error . parseErrorToAnsiString s) id $
           Parser.run (Parser.root TypeParser.valueType) s Parser.penv0
 
 -- parse a term, hard-coding the builtins defined in this file
