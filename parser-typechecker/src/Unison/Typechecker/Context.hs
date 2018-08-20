@@ -436,6 +436,9 @@ compilerCrash bug = failWith $ CompilerBug bug
 failWith :: Cause v loc -> M v loc a
 failWith cause = M (const (pure (Note cause mempty), Nothing))
 
+failSecretlyAndDangerously :: M v loc a
+failSecretlyAndDangerously = M (const (mempty, Nothing))
+
 getDataDeclaration :: Reference -> M v loc (DataDeclaration' v loc)
 getDataDeclaration r = do
   decls <- getDataDeclarations
@@ -1189,20 +1192,23 @@ synthesizeClosed builtinLoc abilities synthRef lookupData lookupEffect term = do
 
 verifyClosedTerm :: forall v loc . Ord v => Term v loc -> M v loc ()
 verifyClosedTerm t = do
-  verifyClosed t id
-  void $ ABT.foreachSubterm go t
+  ok1 <- verifyClosed t id
+  ok2 <- all id <$> ABT.foreachSubterm go t
+  if ok1 && ok2
+     then pure ()
+     else failSecretlyAndDangerously
   where
-    go :: Term v loc -> M v loc ()
+    go :: Term v loc -> M v loc Bool
     go (Term.Ann' _ t) = verifyClosed t TypeVar.underlying
-    go _ = pure ()
+    go _ = pure True
 
-verifyClosed :: (Traversable f, Ord v) => ABT.Term f v a -> (v -> v2) -> M v2 a ()
+verifyClosed :: (Traversable f, Ord v) => ABT.Term f v a -> (v -> v2) -> M v2 a Bool
 verifyClosed t toV2 =
   let isBoundIn v t = Set.member v (snd (ABT.annotation t))
       loc t = fst (ABT.annotation t)
-      go t@(ABT.Var' v) | not (isBoundIn v t) = recover () $ failWith (UnknownSymbol (loc t) $ toV2 v)
-      go _ = pure ()
-  in void $ ABT.foreachSubterm go (ABT.annotateBound t)
+      go t@(ABT.Var' v) | not (isBoundIn v t) = recover False $ failWith (UnknownSymbol (loc t) $ toV2 v)
+      go _ = pure True
+  in all id <$> ABT.foreachSubterm go (ABT.annotateBound t)
 
 annotateRefs :: (Applicative f, Ord v)
              => (Reference -> f (Type.AnnotatedType v loc))

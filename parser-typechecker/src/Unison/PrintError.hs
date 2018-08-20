@@ -90,6 +90,10 @@ data TypeError v loc
                         , abilityCheckFailureSite :: loc
                         , note :: C.Note v loc
                         }
+  | UnknownType { unknownType :: v
+                , typeSite    :: loc
+                , note        :: C.Note v loc
+                }
   | UnknownTerm { unknownTerm :: v
                 , termSite :: loc
                 , suggestions :: [C.Suggestion v loc]
@@ -307,6 +311,12 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     , "\n\n"
     , annotatedAsErrorSite src abilityCheckFailureSite
     ] ++ summary note
+  UnknownType {..} ->
+    [ "I don't know about the type "
+    , AT.Text . Color.style Color.ErrorSite $ renderVar unknownType
+    , ".  Make sure it's imported and spelled correctly:\n\n"
+    , annotatedAsErrorSite src typeSite
+    ]
   UnknownTerm {..} ->
     [ "I'm not sure what "
     , AT.Text . Color.style Color.ErrorSite $ (fromString . show) unknownTerm
@@ -637,6 +647,8 @@ typeErrorFromNote n@(C.Note (C.AbilityCheckFailure amb req _) _) =
   let go :: C.Term v loc -> TypeError v loc
       go e = AbilityCheckFailure amb req (ABT.annotation e) n
   in fromMaybe (Other n) $ go <$> C.innermostErrorTerm n
+typeErrorFromNote n@(C.Note (C.UnknownSymbol loc v) _) =
+  UnknownType v loc n
 typeErrorFromNote n@(C.Note (C.UnknownTerm loc v suggs typ) _) =
   UnknownTerm v loc suggs typ n
 typeErrorFromNote n@(C.Note _ _) = Other n
