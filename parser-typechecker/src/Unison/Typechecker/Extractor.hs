@@ -7,15 +7,15 @@ module Unison.Typechecker.Extractor where
 import Control.Monad
 import Control.Applicative
 import Data.Foldable (toList)
-import Data.Maybe (catMaybes, isJust)
-import qualified Unison.ABT as ABT
+-- import Data.Maybe (catMaybes)
+import Data.Maybe (isJust)
+-- import qualified Unison.ABT as ABT
 import qualified Unison.Typechecker.Context as C
 import qualified Unison.Term as Term
-import qualified Unison.Type as Type
-import qualified Unison.TypeVar as TypeVar
+-- import qualified Unison.TypeVar as TypeVar
 import           Unison.Var (Var)
 import Unison.Util.Monoid (whenM)
-import Debug.Trace
+-- import Debug.Trace
 
 newtype NoteExtractor v loc a =
   NoteExtractor { run :: C.Note v loc -> Maybe a }
@@ -103,7 +103,7 @@ applyingNonFunction :: NoteExtractor v loc (C.Term v loc, C.Type v loc)
 applyingNonFunction = do
   (prefix, e) <- elementsUntil inSynthesize
   case elementsUntil' inSynthesizeApp prefix of
-    Just ([], (ft, _argTerm)) ->
+    Just ([], (ft, _argTerm, _argNum)) ->
       case e of
         Term.Apps' f _args -> pure (f, ft)
         _ -> mzero
@@ -182,31 +182,28 @@ inApp :: forall v loc. (Show loc, Var v)
                               C.Term v loc, -- arg
                               Maybe (C.Type v loc, [(v, C.Type v loc)]))
 inApp = do
-  ctx <- typeMismatch
+  _ctx <- typeMismatch
   ((foundType, expectedType),
-   (arg, expectedType'),
-   (_solvedFnType, _arg'),
-   Term.Apps' f args) <- adjacent4 inSubtype inCheck inSynthesizeApp inSynthesize
-  (trace $ "expectedType =" ++ show expectedType ++ "\n" ++
-          "expectedType'=" ++ show expectedType' ++ "\n") $ pure ()
-  let argNum = length args
-      polymorphicTypeInfo :: Maybe (C.Type v loc, [(v, C.Type v loc)])
-      polymorphicTypeInfo = case f of
-        Term.Var' v -> do
-          rawType <- C.lookupAnn ctx v
-          let go :: C.TypeVar v loc -> Maybe (v, C.Type v loc)
-              go v0 = let v = TypeVar.underlying v0 in
-                      (v,) . Type.getPolytype <$> C.lookupSolved ctx v
-              typeVars :: [C.TypeVar v loc]
-              typeVars = (toList . ABT.freeVars $ rawType)
-              solvedVars = catMaybes (go <$> typeVars)
-          pure (rawType, solvedVars)
-
-
-        -- Term.Ref' r -> lookup the type
-        -- Term.Builtin' r -> lookup the type
-
-        _ -> Nothing
+   (arg, _expectedType'),
+   (_solvedFnType, _arg', argNum),
+   (f, _ft, _args)) <- adjacent4 inSubtype inCheck inSynthesizeApp inSynthesizeApps
+  let polymorphicTypeInfo :: Maybe (C.Type v loc, [(v, C.Type v loc)])
+      polymorphicTypeInfo = Nothing
+      -- polymorphicTypeInfo = case f of
+      --   Term.Var' v -> do
+      --     rawType <- C.lookupAnn ctx v
+      --     let go :: C.TypeVar v loc -> Maybe (v, C.Type v loc)
+      --         go v0 = let v = TypeVar.underlying v0 in
+      --                 (v,) <$> C.lookupAnn ctx v
+      --         typeVars :: [C.TypeVar v loc]
+      --         typeVars = (toList . ABT.freeVars $ rawType)
+      --         solvedVars = catMaybes (go <$> typeVars)
+      --     pure (rawType, solvedVars)
+      --
+      --   -- Term.Ref' r -> lookup the type
+      --   -- Term.Builtin' r -> lookup the type
+      --
+      --   _ -> Nothing
   pure (f, argNum, expectedType, foundType, arg, polymorphicTypeInfo)
 
 
@@ -223,9 +220,14 @@ illFormedType = NoteExtractor $ \n -> case C.cause n of
   C.IllFormedType c -> Just c
   _ -> Nothing
 
-inSynthesizeApp :: PathExtractor v loc (C.Type v loc, C.Term v loc)
+inSynthesizeApps :: PathExtractor v loc (C.Term v loc, C.Type v loc, [C.Term v loc])
+inSynthesizeApps = PathExtractor $ \case
+  C.InSynthesizeApps f ft e -> Just (f, ft,e)
+  _ -> Nothing
+
+inSynthesizeApp :: PathExtractor v loc (C.Type v loc, C.Term v loc, Int)
 inSynthesizeApp = PathExtractor $ \case
-  C.InSynthesizeApp t e -> Just (t,e)
+  C.InSynthesizeApp t e n -> Just (t,e,n)
   _ -> Nothing
 
 inSynthesize :: PathExtractor v loc (C.Term v loc)

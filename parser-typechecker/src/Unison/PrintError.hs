@@ -384,9 +384,14 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
       C.InInstantiateR t v ->
         ["InInstantiateR t=", AT.Text $ renderType' env t
                       ," v=", AT.Text $ renderVar v]
-      C.InSynthesizeApp t e ->
+      C.InSynthesizeApp t e n ->
         ["InSynthesizeApp t=", AT.Text $ renderType' env t
-                      ,", e=", renderTerm e]
+                      ,", e=", renderTerm e
+                      ,", n=", fromString $ show n]
+      C.InSynthesizeApps f ft es ->
+        ["InSynthesizeApps f=", AT.Text $ renderTerm f
+                       ," ft=", AT.Text $ renderType' env ft
+                      ,", es=", "[", AT.Text $ commas renderTerm es, "]"]
       C.InIfCond -> ["InIfCond"]
       C.InIfBody loc ->
         ["InIfBody thenBody=", fromString $ annotatedToEnglish loc]
@@ -786,7 +791,7 @@ findTerm :: Seq (C.PathElement v loc) -> Maybe loc
 findTerm = go
   where go (C.InSynthesize t :<| _)      = Just $ ABT.annotation t
         go (C.InCheck t _ :<| _)         = Just $ ABT.annotation t
-        go (C.InSynthesizeApp _ t :<| _) = Just $ ABT.annotation t
+        go (C.InSynthesizeApp _ t _ :<| _) = Just $ ABT.annotation t
         go (_ :<| t)                     = go t
         go Empty                         = Nothing
 

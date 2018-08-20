@@ -111,7 +111,8 @@ data PathElement v loc
   | InCheck (Term v loc) (Type v loc)
   | InInstantiateL v (Type v loc)
   | InInstantiateR (Type v loc) v
-  | InSynthesizeApp (Type v loc) (Term v loc)
+  | InSynthesizeApp (Type v loc) (Term v loc) Int
+  | InSynthesizeApps (Term v loc) (Type v loc) [Term v loc]
   | InAndApp
   | InOrApp
   | InIfCond
@@ -144,10 +145,10 @@ data Cause v loc
 
 errorTerms :: Note v loc -> [Term v loc]
 errorTerms n = Foldable.toList (path n) >>= \e -> case e of
-  InCheck e _         -> [e]
-  InSynthesizeApp _ e -> [e]
-  InSynthesize e      -> [e]
-  _                     -> []
+  InCheck e _           -> [e]
+  InSynthesizeApp _ e _ -> [e]
+  InSynthesize e        -> [e]
+  _                     -> [ ]
 
 innermostErrorTerm :: Note v loc -> Maybe (Term v loc)
 innermostErrorTerm n = listToMaybe $ errorTerms n
@@ -520,14 +521,22 @@ withEffects0 :: [Type v loc] -> M v loc a -> M v loc a
 withEffects0 abilities' m =
   M (\menv -> runM m (menv { abilities = abilities' }))
 
+
+synthesizeApps :: (Foldable f, Var v, Ord loc) => Type v loc -> f (Term v loc) -> M v loc (Type v loc)
+synthesizeApps ft args =
+  foldM go ft $ Foldable.toList args `zip` [1..]
+  where go ft arg = do
+          ctx <- getContext
+          synthesizeApp (apply ctx ft) arg
+
 -- | Synthesize the type of the given term, `arg` given that a function of
 -- the given type `ft` is being applied to `arg`. Update the context in
 -- the process.
 -- e.g. in `(f:t) x` -- finds the type of (f x) given t and x.
-synthesizeApp :: (Var v, Ord loc) => Type v loc -> Term v loc -> M v loc (Type v loc)
+synthesizeApp :: (Var v, Ord loc) => Type v loc -> (Term v loc, Int) -> M v loc (Type v loc)
 -- synthesizeApp ft arg | debugEnabled && traceShow ("synthesizeApp"::String, ft, arg) False = undefined
-synthesizeApp (Type.Effect'' es ft) arg =
-  scope (InSynthesizeApp ft arg) $ abilityCheck es >> go ft
+synthesizeApp (Type.Effect'' es ft) argp@(arg, argNum) =
+  scope (InSynthesizeApp ft arg argNum) $ abilityCheck es >> go ft
   where
   go (Type.Forall' body) = do -- Forall1App
     v <- ABT.freshen body freshenTypeVar
@@ -536,13 +545,13 @@ synthesizeApp (Type.Effect'' es ft) arg =
         vs es = [TypeVar.underlying v | Type.Var' v <- es ]
     -- todo: should do something different here if underapplied
     case Type.unArrows ft2 of
-      Nothing -> synthesizeApp ft2 arg
+      Nothing -> synthesizeApp ft2 argp
       Just spine -> case reverse spine of
         Type.Effect' es _ : _ | v `elem` vs es -> do
           amb <- getAbilities
           instantiateL B.Blank v (Type.effects (loc ft) amb)
-          synthesizeApp ft2 arg
-        _ -> synthesizeApp ft2 arg
+          synthesizeApp ft2 argp
+        _ -> synthesizeApp ft2 argp
   go (Type.Arrow' i o) = do -- ->App
     let (es, _) = Type.stripEffect o
     abilityCheck es
@@ -611,18 +620,16 @@ synthesize e = scope (InSynthesize e) $ do
   go (Term.UInt64' _) = pure $ Type.uint64 l -- 1I=>
   go (Term.Boolean' _) = pure $ Type.boolean l
   go (Term.Text' _) = pure $ Type.text l
-  go (Term.App' f arg) = do -- ->E
-    -- todo: might want to consider using a different location for `ft` in
-    -- the event that `ft` is an existential?
+  go (Term.Apps' f args) = do -- ->EEEEE
     ft <- synthesize f
     ctx <- getContext
-    synthesizeApp (apply ctx ft) arg
+    scope (InSynthesizeApps f ft args) $ synthesizeApps (apply ctx ft) args
   go (Term.Vector' v) = do
     ft <- vectorConstructorOfArity (Foldable.length v)
     case Foldable.toList v of
       [] -> pure ft
       v1 : _ ->
-        scope (InVectorApp (ABT.annotation v1)) $ foldM synthesizeApp ft v
+        scope (InVectorApp (ABT.annotation v1)) $ synthesizeApps ft v
   go (Term.Let1' binding e) | Set.null (ABT.freeVars binding) = do
     -- special case when it is definitely safe to generalize - binding contains
     -- no free variables, i.e. `let id x = x in ...`
@@ -684,11 +691,11 @@ synthesize e = scope (InSynthesize e) $ do
     generalizeExistentials ctx2 t <$ doRetract marker
   go (Term.If' cond t f) = do
     scope InIfCond $ check cond (Type.boolean l)
-    scope (InIfBody $ ABT.annotation t) $ foldM synthesizeApp (Type.iff2 l) [t, f]
+    scope (InIfBody $ ABT.annotation t) $ synthesizeApps (Type.iff2 l) [t, f]
   go (Term.And' a b) =
-    scope InAndApp $ foldM synthesizeApp (Type.andor' l) [a, b]
+    scope InAndApp $ synthesizeApps (Type.andor' l) [a, b]
   go (Term.Or' a b) =
-    scope InOrApp $ foldM synthesizeApp (Type.andor' l) [a, b]
+    scope InOrApp $ synthesizeApps (Type.andor' l) [a, b]
   -- { 42 }
   go (Term.EffectPure' a) = do
     e <- freshenVar (Var.named "e")
@@ -701,7 +708,7 @@ synthesize e = scope (InSynthesize e) $ do
     when (length args /= arity) .  failWith $
       EffectConstructorWrongArgCount arity (length args) r cid
     (eType, bt) <- synthesizeEffects (loc e) $ do
-      t@(Type.Effect'' es _) <- ungeneralize =<< foldM synthesizeApp cType args
+      t@(Type.Effect'' es _) <- ungeneralize =<< synthesizeApps cType args
       abilityCheck es
       pure t
     ctx <- getContext
