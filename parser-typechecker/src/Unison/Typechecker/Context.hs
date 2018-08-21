@@ -30,6 +30,7 @@ import           Control.Monad.Loops (anyM, allM)
 import           Control.Monad.Reader.Class
 import           Control.Monad.State (State, get, put, evalState)
 import qualified Data.Foldable as Foldable
+import           Data.Functor
 import           Data.List
 import           Data.Map (Map)
 import qualified Data.Map as Map
@@ -102,6 +103,7 @@ data CompilerBug v loc
   | RetractFailure (Element v loc) (Context v loc)
   | EmptyLetRec (Term v loc) -- the body of the empty let rec
   | PatternMatchFailure
+  | EffectConstructorHadMultipleEffects (Type v loc)
   | FreeVarsInTypeAnnotation (Set (TypeVar v loc))
   | UnannotatedReference Reference deriving Show
 
@@ -141,6 +143,7 @@ data Cause v loc
   | EffectConstructorWrongArgCount ExpectedArgCount ActualArgCount Reference ConstructorId
   | MalformedEffectBind (Type v loc) (Type v loc) [Type v loc] -- type of ctor, type of ctor result
   | SolvedBlank (B.Recorded loc) v (Type v loc)
+  | PatternArityMismatch loc (Type v loc) Int -- Type of ctor, number of arguments we got
   deriving Show
 
 errorTerms :: Note v loc -> [Term v loc]
@@ -786,7 +789,11 @@ patternToTerm pat = case pat of
    pure $ Term.effectBind loc r cid outputTerms kTerm
   _  -> error "todo: delete me after deleting PatternP - match fail in patternToTerm"
 
-checkCase :: forall v loc . (Var v, Ord loc) => Type v loc -> Type v loc -> Term.MatchCase loc (Term v loc) -> M v loc ()
+checkCase :: forall v loc . (Var v, Ord loc)
+          => Type v loc
+          -> Type v loc
+          -> Term.MatchCase loc (Term v loc)
+          -> M v loc ()
 checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) =
   -- Get the variables bound in the pattern
   let (vs, body) = case rhs of
@@ -810,6 +817,75 @@ checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) =
               newBody
               (Foldable.toList pat `zip` vs)
   in check entireCase outputType
+
+checkPattern
+  :: (Var v, Ord loc)
+  => Type v loc
+  -> Pattern loc
+  -> Term v loc
+  -> M v loc (Term v loc)
+checkPattern scrutineeType p rhs = case (p, rhs) of
+  (Pattern.Unbound _  , _            ) -> pure rhs
+  (Pattern.Var     loc, ABT.Abs' body) -> do
+    v <- ABT.freshen body freshenVar
+    appendContext $ context [Ann v scrutineeType]
+    pure . ABT.bind body $ Term.var loc v
+  -- TODO: provide a scope here for giving a good error message
+  (Pattern.Boolean loc _, _) -> subtype scrutineeType (Type.boolean loc) $> rhs
+  (Pattern.Int64 loc _, _) -> subtype scrutineeType (Type.int64 loc) $> rhs
+  (Pattern.UInt64 loc _, _) -> subtype scrutineeType (Type.uint64 loc) $> rhs
+  (Pattern.Float loc _, _) -> subtype scrutineeType (Type.float loc) $> rhs
+  (Pattern.Constructor loc ref cid args, rhs) -> do
+    dct  <- getDataConstructorType ref cid
+    udct <- ungeneralize dct
+    unless (Type.arity udct == length args) . failWith $ PatternArityMismatch
+      loc
+      dct
+      (length args)
+    let step (Type.Arrow' i o, rhs) pat = (o, ) <$> checkPattern i pat rhs
+        step _ _ = failWith $ PatternArityMismatch loc dct (length args)
+    (overall, nrhs) <- foldM step (udct, rhs) args
+    subtype scrutineeType overall
+    pure nrhs
+  (Pattern.As loc p, ABT.Abs' body) -> do
+    v <- ABT.freshen body freshenVar
+    appendContext $ context [Ann v scrutineeType]
+    let body' = ABT.bind body (Term.var loc v)
+    checkPattern scrutineeType p body'
+  (Pattern.EffectPure loc p, rhs) -> do
+    v <- freshNamed "v"
+    e <- freshNamed "e"
+    let vt = Type.existentialp loc v
+    let et = Type.existentialp loc e
+    appendContext $ context [existential v, existential e]
+    subtype scrutineeType (Type.effectV loc (loc, et) (loc, vt))
+    ctx <- getContext
+    checkPattern (apply ctx vt) p rhs
+  (Pattern.EffectBind loc ref cid args k, rhs) -> do
+    ect  <- getEffectConstructorType ref cid
+    uect <- ungeneralize ect
+    unless (Type.arity uect == length args)
+      . failWith
+      . PatternArityMismatch loc ect
+      $ length args
+    let step (Type.Arrow' i o, rhs) pat = (o, ) <$> checkPattern i pat rhs
+        step _ _ = failWith $ PatternArityMismatch loc ect (length args)
+    (ctorOutputType, rhs) <- foldM step (uect, rhs) args
+    case ctorOutputType of
+      -- an effect ctor should have exactly 1 effect!
+      Type.Effect'' [et] it -> do
+        -- subtype scrutineeType $ Type.effectV loc (loc, et) (loc, vt)
+        st <- applyM scrutineeType
+        let Type.App' _ vt = st
+        let
+          kt =
+            Type.arrow (Pattern.loc k) it (Type.effect (Pattern.loc k) [et] vt)
+        checkPattern kt k rhs
+      _ -> compilerCrash $ EffectConstructorHadMultipleEffects ctorOutputType
+  _ -> undefined
+
+applyM :: (Var v, Ord loc) => Type v loc -> M v loc (Type v loc)
+applyM t = (`apply` t) <$> getContext
 
 bindings :: Context v loc -> [(v, Type v loc)]
 bindings (Context ctx) = [(v,a) | (Ann v a,_) <- ctx]
