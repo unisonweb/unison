@@ -563,7 +563,7 @@ synthesizeApp (Type.Effect'' es ft) argp@(arg, argNum) =
         soln = Type.Monotype (Type.arrow (loc ft) it ot)
         ctxMid = context [existential o, existential i, Solved b a soln]
     modifyContext' $ replace (existential a) ctxMid
-    ot <$ check arg it
+    synthesizeApp (Type.getPolytype soln) argp
   go _ = getContext >>= \ctx -> failWith $ TypeMismatch ctx
 synthesizeApp _ _ = error "unpossible - Type.Effect'' pattern always succeeds"
 
@@ -640,13 +640,6 @@ synthesize e = scope (InSynthesize e) $ do
     e  <- pure $ ABT.bindInheritAnnotation e (Term.ann () (Term.builtin() (Var.name v')) t)
     synthesize e
   go (Term.Let1' binding e) = do
-   -- literally just convert to a lambda application and call synthesize!
-   -- NB: this misses out on let generalization
-   -- let x = blah p q in foo y <=> (x -> foo y) (blah p q)
-   v' <- ABT.freshen e freshenVar
-   e  <- pure $ ABT.bindInheritAnnotation e (Term.var() v')
-   synthesize (Term.app l (Term.lam l v' e) binding)
-  go (Term.Let1' binding e) = do
     -- note: no need to freshen binding, it can't refer to v
     tbinding <- synthesize binding
     v' <- ABT.freshen e freshenVar
@@ -708,7 +701,7 @@ synthesize e = scope (InSynthesize e) $ do
     when (length args /= arity) .  failWith $
       EffectConstructorWrongArgCount arity (length args) r cid
     (eType, bt) <- synthesizeEffects (loc e) $ do
-      t@(Type.Effect'' es _) <- ungeneralize =<< synthesizeApps cType args
+      Type.Effect'' es t <- ungeneralize =<< synthesizeApps cType args
       abilityCheck es
       pure t
     ctx <- getContext
@@ -1037,7 +1030,7 @@ instantiateL blank v t = scope (InInstantiateL v t) $
         ctx' <- instantiateL B.Blank x' (apply ctx0 x) >> getContext
         instantiateL B.Blank y' (apply ctx' y)
       Type.Effect1' es vt -> do
-        es' <- freshNamed "e"
+        es' <- freshNamed "effect1-e"
         vt' <- freshNamed "vt"
         let t = Type.effect1 (loc t) (Type.existentialp (loc es) es')
                                      (Type.existentialp (loc vt) vt')
