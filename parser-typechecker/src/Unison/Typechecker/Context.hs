@@ -10,6 +10,9 @@ module Unison.Typechecker.Context
   , Note(..)
   , Cause(..)
   , Context(..)
+  , ActualArgCount
+  , ExpectedArgCount
+  , ConstructorId
   , Element(..)
   , PathElement(..)
   , Term
