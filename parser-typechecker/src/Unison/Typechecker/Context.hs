@@ -794,37 +794,40 @@ checkCase :: forall v loc . (Var v, Ord loc)
           -> Type v loc
           -> Term.MatchCase loc (Term v loc)
           -> M v loc ()
-checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) =
-  -- Get the variables bound in the pattern
-  let (vs, body) = case rhs of
-        ABT.AbsN' vars bod -> (vars, bod)
-        _ -> ([], rhs)
-      -- Make up a term that involves the guard if present
-      rhs' = case guard of
-        -- todo: arya: I would like the annotation to be more expressive than just a location;
-        -- e.g. noting that g is boolean because it's a pattern guard, not because it has
-        -- location (abc:xyz).  We'll see when we can run it and view output!
-        Just g ->
-          let locg = loc g in
-          Term.let1 [((locg, Var.named "_"), Term.ann locg g (Type.boolean locg))] body
-        Nothing -> body
-      -- Convert pattern to a Term
-      patTerm :: Term v loc
-      patTerm = evalState (patternToTerm (pat :: Pattern loc) :: State [v] (Term v loc)) vs
-      newBody = Term.let1 [((loc rhs', Var.named "_"), Term.ann (loc scrutineeType) patTerm scrutineeType)] rhs'
-      entireCase =
-        foldr (\locv t -> Term.let1 [(locv, Term.blank (fst locv))] t)
-              newBody
-              (Foldable.toList pat `zip` vs)
-  in check entireCase outputType
+checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) = _todo
+  --
+  -- 1. convert rhs to a version that will typecheck
+--  -- Get the variables bound in the pattern
+--  let (vs, body) = case rhs of
+--        ABT.AbsN' vars bod -> (vars, bod)
+--        _ -> ([], rhs)
+--      -- Make up a term that involves the guard if present
+--      rhs' = case guard of
+--        -- todo: arya: I would like the annotation to be more expressive than just a location;
+--        -- e.g. noting that g is boolean because it's a pattern guard, not because it has
+--        -- location (abc:xyz).  We'll see when we can run it and view output!
+--        Just g ->
+--          let locg = loc g in
+--          Term.let1 [((locg, Var.named "_"), Term.ann locg g (Type.boolean locg))] body
+--        Nothing -> body
+--      -- Convert pattern to a Term
+--      patTerm :: Term v loc
+--      patTerm = evalState (patternToTerm (pat :: Pattern loc) :: State [v] (Term v loc)) vs
+--      newBody = Term.let1 [((loc rhs', Var.named "_"), Term.ann (loc scrutineeType) patTerm scrutineeType)] rhs'
+--      entireCase =
+--        foldr (\locv t -> Term.let1 [(locv, Term.blank (fst locv))] t)
+--              newBody
+--              (Foldable.toList pat `zip` vs)
+--  in check entireCase outputType
 
 checkPattern
   :: (Var v, Ord loc)
   => Type v loc
   -> Pattern loc
-  -> Term v loc
-  -> M v loc (Term v loc)
-checkPattern scrutineeType p rhs = case (p, rhs) of
+  -> Maybe (Term v loc) -- guard
+  -> Term v loc         -- pattern rhs
+  -> M v loc (Maybe (Term v loc), Term v loc)
+checkPattern scrutineeType p rhs = case (p, guard, rhs) of
   (Pattern.Unbound _  , _            ) -> pure rhs
   (Pattern.Var     loc, ABT.Abs' body) -> do
     v <- ABT.freshen body freshenVar
@@ -845,7 +848,8 @@ checkPattern scrutineeType p rhs = case (p, rhs) of
     let step (Type.Arrow' i o, rhs) pat = (o, ) <$> checkPattern i pat rhs
         step _ _ = failWith $ PatternArityMismatch loc dct (length args)
     (overall, nrhs) <- foldM step (udct, rhs) args
-    subtype scrutineeType overall
+    st <- applyM scrutineeType
+    subtype st overall
     pure nrhs
   (Pattern.As loc p, ABT.Abs' body) -> do
     v <- ABT.freshen body freshenVar
@@ -859,8 +863,8 @@ checkPattern scrutineeType p rhs = case (p, rhs) of
     let et = Type.existentialp loc e
     appendContext $ context [existential v, existential e]
     subtype scrutineeType (Type.effectV loc (loc, et) (loc, vt))
-    ctx <- getContext
-    checkPattern (apply ctx vt) p rhs
+    vt <- applyM vt
+    checkPattern vt p rhs
   (Pattern.EffectBind loc ref cid args k, rhs) -> do
     ect  <- getEffectConstructorType ref cid
     uect <- ungeneralize ect
