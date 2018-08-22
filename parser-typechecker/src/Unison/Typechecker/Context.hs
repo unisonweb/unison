@@ -490,6 +490,12 @@ extendUniversal v = do
   modifyContext (pure . extend (Universal v'))
   pure v'
 
+extendExistential :: (Var v) => v -> M v loc v
+extendExistential v = do
+  v' <- freshenVar v
+  modifyContext (pure . extend (Existential B.Blank v'))
+  pure v'
+
 extendMarker :: (Var v, Ord loc) => v -> M v loc v
 extendMarker v = do
   v' <- freshenVar v
@@ -732,7 +738,9 @@ synthesize e = scope (InSynthesize e) $ do
     appendContext $ context [existential outputTypev]
     case cases of -- only relevant with 2 or more cases, but 1 is safe too.
       [] -> pure ()
-      Term.MatchCase _ _ t : _ -> scope (InMatch (ABT.annotation t)) $
+      Term.MatchCase _ _ t : _ -> scope (InMatch (ABT.annotation t)) $ do
+        scrutineeType <- applyM scrutineeType
+        outputType <- applyM outputType
         Foldable.traverse_ (checkCase scrutineeType outputType) cases
     ctx <- getContext
     pure $ apply ctx outputType
@@ -773,76 +781,90 @@ checkPattern
   => Type v loc
   -> Pattern loc
   -> StateT [v] (M v loc) [(v, v)]
-checkPattern scrutineeType p = case p of
-  Pattern.Unbound _   -> pure []
-  Pattern.Var     _loc -> do
-    v  <- getAdvance p
-    v' <- lift $ freshenVar v
-    lift . appendContext $ context [Ann v' scrutineeType]
-    pure [(v, v')]
-  -- TODO: provide a scope here for giving a good error message
-  Pattern.Boolean loc _ ->
-    lift $ subtype scrutineeType (Type.boolean loc) $> mempty
-  Pattern.Int64 loc _ ->
-    lift $ subtype scrutineeType (Type.int64 loc) $> mempty
-  Pattern.UInt64 loc _ ->
-    lift $ subtype scrutineeType (Type.uint64 loc) $> mempty
-  Pattern.Float loc _ ->
-    lift $ subtype scrutineeType (Type.float loc) $> mempty
-  Pattern.Constructor loc ref cid args -> do
-    dct  <- lift $ getDataConstructorType ref cid
-    udct <- lift $ ungeneralize dct
-    unless (Type.arity udct == length args)
-      . lift
-      . failWith
-      $ PatternArityMismatch loc dct (length args)
-    let step (Type.Arrow' i o, vso) pat =
-          (\vso' -> (o, vso ++ vso')) <$> checkPattern i pat
-        step _ _ = lift . failWith $ PatternArityMismatch loc dct (length args)
-    (overall, vs) <- foldM step (udct, []) args
-    st            <- lift $ applyM scrutineeType
-    lift $ subtype st overall
-    pure vs
-  Pattern.As _loc p' -> do
-    v  <- getAdvance p
-    v' <- lift $ freshenVar v
-    lift . appendContext $ context [Ann v' scrutineeType]
-    ((v, v') :) <$> checkPattern scrutineeType p'
-  Pattern.EffectPure loc p -> do
-    vt <- lift $ do
-      v <- freshNamed "v"
-      e <- freshNamed "e"
-      let vt = Type.existentialp loc v
-      let et = Type.existentialp loc e
-      appendContext $ context [existential v, existential e]
-      subtype scrutineeType (Type.effectV loc (loc, et) (loc, vt))
-      applyM vt
-    checkPattern vt p
-  Pattern.EffectBind loc ref cid args k -> do
-    ect  <- lift $ getEffectConstructorType ref cid
-    uect <- lift $ ungeneralize ect
-    unless (Type.arity uect == length args)
-      . lift
-      . failWith
-      . PatternArityMismatch loc ect
-      $ length args
-    let step (Type.Arrow' i o, vso) pat =
-          (\vso' -> (o, vso ++ vso')) <$> checkPattern i pat
-        step _ _ = lift . failWith $ PatternArityMismatch loc ect (length args)
-    (ctorOutputType, vs) <- foldM step (uect, []) args
-    case ctorOutputType of
-      -- an effect ctor should have exactly 1 effect!
-      Type.Effect'' [et] it -> do
-        -- subtype scrutineeType $ Type.effectV loc (loc, et) (loc, vt)
-        st <- lift $ applyM scrutineeType
-        let
-          Type.App' _ vt = st
-          kt =
-            Type.arrow (Pattern.loc k) it (Type.effect (Pattern.loc k) [et] vt)
-        (vs ++) <$> checkPattern kt k
-      _ -> lift . compilerCrash $ EffectConstructorHadMultipleEffects
-        ctorOutputType
-  _ -> lift . compilerCrash $ MalformedPattern p
+checkPattern scrutineeType0 p =
+  lift (ungeneralize scrutineeType0) >>= \scrutineeType -> case p of
+    Pattern.Unbound _    -> pure []
+    Pattern.Var     _loc -> do
+      v  <- getAdvance p
+      v' <- lift $ freshenVar v
+      lift . appendContext $ context [Ann v' scrutineeType]
+      pure [(v, v')]
+    -- TODO: provide a scope here for giving a good error message
+    Pattern.Boolean loc _ ->
+      lift $ subtype (Type.boolean loc) scrutineeType $> mempty
+    Pattern.Int64 loc _ ->
+      lift $ subtype (Type.int64 loc) scrutineeType $> mempty
+    Pattern.UInt64 loc _ ->
+      lift $ subtype (Type.uint64 loc) scrutineeType $> mempty
+    Pattern.Float loc _ ->
+      lift $ subtype (Type.float loc) scrutineeType $> mempty
+    Pattern.Constructor loc ref cid args -> do
+      dct  <- lift $ getDataConstructorType ref cid
+      udct <- lift $ ungeneralize dct
+      unless (Type.arity udct == length args)
+        . lift
+        . failWith
+        $ PatternArityMismatch loc dct (length args)
+      let step (Type.Arrow' i o, vso) pat =
+            (\vso' -> (o, vso ++ vso')) <$> checkPattern i pat
+          step _ _ =
+            lift . failWith $ PatternArityMismatch loc dct (length args)
+      (overall, vs) <- foldM step (udct, []) args
+      st            <- lift $ applyM scrutineeType
+      lift $ subtype overall st
+      pure vs
+    Pattern.As _loc p' -> do
+      v  <- getAdvance p
+      v' <- lift $ freshenVar v
+      lift . appendContext $ context [Ann v' scrutineeType]
+      ((v, v') :) <$> checkPattern scrutineeType p'
+    Pattern.EffectPure loc p -> do
+      vt <- lift $ do
+        v <- freshNamed "v"
+        e <- freshNamed "e"
+        let vt = Type.existentialp loc v
+        let et = Type.existentialp loc e
+        appendContext $ context [existential v, existential e]
+        subtype (Type.effectV loc (loc, et) (loc, vt)) scrutineeType
+        applyM vt
+      checkPattern vt p
+    Pattern.EffectBind loc ref cid args k -> do
+      -- scrutineeType should be a supertype of `Effect e vt`
+      -- for fresh existentials `e` and `vt`
+      e <- lift $ extendExistential (Var.named "ebind-e")
+      v <- lift $ extendExistential (Var.named "ebind-v")
+      let evt = Type.effectV loc (loc, Type.existentialp loc e)
+                                 (loc, Type.existentialp loc v)
+      lift $ subtype evt scrutineeType
+      ect  <- lift $ getEffectConstructorType ref cid
+      uect <- lift $ ungeneralize ect
+      unless (Type.arity uect == length args)
+        . lift
+        . failWith
+        . PatternArityMismatch loc ect
+        $ length args
+      let step (Type.Arrow' i o, vso) pat =
+            (\vso' -> (o, vso ++ vso')) <$> checkPattern i pat
+          step _ _ =
+            lift . failWith $ PatternArityMismatch loc ect (length args)
+      (ctorOutputType, vs) <- foldM step (uect, []) args
+      case ctorOutputType of
+        -- an effect ctor should have exactly 1 effect!
+        Type.Effect'' [et] it -> do
+          -- expecting scrutineeType to be `Effect et vt`
+          st <- lift $ applyM scrutineeType
+          case st of
+            Type.App' _ vt ->
+              let kt = Type.arrow (Pattern.loc k)
+                                  it
+                                  (Type.effect (Pattern.loc k) [et] vt)
+              in (vs ++) <$> checkPattern kt k
+            _ -> do
+              traceM $ "st = " ++ show st
+              error "WTF"
+        _ -> lift . compilerCrash $ EffectConstructorHadMultipleEffects
+          ctorOutputType
+    _ -> lift . compilerCrash $ MalformedPattern p
  where
   getAdvance p = do
     vs <- get
@@ -851,7 +873,6 @@ checkPattern scrutineeType p = case p of
       (v : vs) -> do
         put vs
         pure v
-
 
 applyM :: (Var v, Ord loc) => Type v loc -> M v loc (Type v loc)
 applyM t = (`apply` t) <$> getContext
@@ -1047,7 +1068,8 @@ subtype tx ty = scope (InSubtype tx ty) $
 -- in the process.
 instantiateL :: (Var v, Ord loc) => B.Blank loc -> v -> Type v loc -> M v loc ()
 instantiateL _ v t | debugEnabled && traceShow ("instantiateL"::String, v, t) False = undefined
-instantiateL blank v t = scope (InInstantiateL v t) $
+instantiateL blank v t = scope (InInstantiateL v t) $ do
+  traceM $ "instantiateL " ++ show v ++ " <: " ++ show t
   getContext >>= \ctx -> case Type.monotype t >>= solve ctx v of
     Just ctx -> setContext ctx -- InstLSolve
     Nothing -> case t of
@@ -1127,7 +1149,7 @@ instantiateR t blank v = scope (InInstantiateR t v) $
         -- 1. create foo', a', add these to the context
         -- 2. add v' = foo' a' to the context
         -- 3. recurse to refine the types of foo' and a'
-        [x', y'] <- traverse freshenVar [ABT.v' "x", ABT.v' "y"]
+        [x', y'] <- traverse freshenVar [ABT.v' "instR-x", ABT.v' "instR-y"]
         let s = Solved blank v (Type.Monotype (Type.app (loc t) (Type.existentialp (loc x) x') (Type.existentialp (loc y) y')))
         modifyContext' $ replace (existential v) (context [existential y', existential x', s])
         ctx <- getContext
@@ -1175,7 +1197,14 @@ solve ctx v t
   | otherwise                                = Nothing
   where (ctxL, focus, ctxR) = breakAt (existential v) ctx
         mid = [ Solved blank v t | Existential blank v <- focus ]
-        ctx' = ctxL `mappend` context mid `mappend` ctxR
+        ctx0' = ctxL `mappend` context mid `mappend` ctxR
+        ctx' = if wellformed ctx0' then ctx0'
+               else let
+                 !_ = trace "err in solve" ()
+                 !_ = traceShow v ()
+                 !_ = traceShow ctx ()
+                 !_ = traceShow ctx0'
+                 in ctx0'
 
 abilityCheck' :: (Var v, Ord loc) => [Type v loc] -> [Type v loc] -> M v loc ()
 abilityCheck' [] [] = pure ()
