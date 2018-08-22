@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# Language LambdaCase, ViewPatterns, TemplateHaskell, DeriveFunctor #-}
+{-# Language LambdaCase, ViewPatterns, TemplateHaskell, DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 
 module Unison.Lexer where
 
@@ -112,6 +112,27 @@ pop = drop 1
 
 topLeftCorner :: Pos
 topLeftCorner = Pos 1 1
+
+data T a = T a [T a] [a] | L a deriving (Functor, Foldable, Traversable)
+
+-- just do one stanza - either a single token, or an open, many stanza, close sequence
+stanzaTree :: [Token Lexeme] -> T (Token Lexeme)
+stanzaTree toks = one toks (\t _ -> t)
+  where
+  one (open@(payload -> Open _) : ts) k = many (T open) [] ts k
+  one (t@(payload -> Close) : ts) k = k (die t) ts
+  one (t : ts) k = k (L t) ts
+  one [] k = k lastErr []
+    where
+    lastErr = case drop (length toks - 1) toks of
+      [] -> L (Token (Err UnknownLexeme) topLeftCorner topLeftCorner)
+      (t : _) -> die t
+
+  many open acc [] k = k (open (reverse acc) []) []
+  many open acc (t@(payload -> Close) : ts) k = k (open (reverse acc) [t]) ts
+  many open acc ts k = one ts $ \t ts -> many open (t:acc) ts k
+
+  die t = L $ t { payload = Err UnknownLexeme }
 
 stanzas :: [Token Lexeme] -> [[Token Lexeme]]
 stanzas ts = go [] ts where
