@@ -751,6 +751,8 @@ checkCase :: forall v loc . (Var v, Ord loc)
           -> Term.MatchCase loc (Term v loc)
           -> M v loc ()
 checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) = do
+  m <- freshNamed "check-case"
+  appendContext $ context [Marker m]
   let peel t = case t of
                 ABT.AbsN' vars bod -> (vars, bod)
                 _ -> ([], t)
@@ -764,6 +766,7 @@ checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) = do
   for_ guard' $ \g -> check g (Type.boolean (loc g))
   outputType <- applyM outputType
   check rhs' outputType
+  doRetract $ Marker m
 
 checkPattern
   :: (Var v, Ord loc)
