@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -28,7 +29,10 @@ where
 import           Control.Monad
 import           Control.Monad.Loops (anyM, allM)
 import           Control.Monad.Reader.Class
-import           Control.Monad.State (State, get, put, evalState)
+import           Control.Monad.State (get, put, StateT, runStateT)
+import           Control.Monad.Trans (lift)
+import           Data.Bifunctor (second)
+import           Data.Foldable (for_)
 import qualified Data.Foldable as Foldable
 import           Data.Functor
 import           Data.List
@@ -105,7 +109,9 @@ data CompilerBug v loc
   | PatternMatchFailure
   | EffectConstructorHadMultipleEffects (Type v loc)
   | FreeVarsInTypeAnnotation (Set (TypeVar v loc))
-  | UnannotatedReference Reference deriving Show
+  | UnannotatedReference Reference
+  | MalformedPattern (Pattern loc)
+  deriving Show
 
 data PathElement v loc
   = InSynthesize (Term v loc)
@@ -739,154 +745,110 @@ synthesize e = scope (InSynthesize e) $ do
     pure (apply ctx ot)
   go _e = compilerCrash PatternMatchFailure
 
--- data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
-{-
-type Optional b c = None | Some b c
-let blah : Optional Int64 Int64
-    blah = ...
-
-    case blah of
-      Some x (Some y z) | x < 10 -> x + y + z
-
---becomes--
-
-let x = _
-    y = _
-    z = _
-    pat : Optional Int64 Int64
-    pat = Optional.Some x (Some y z)
-    -- from here on is rhs'
-    guard : Boolean
-    guard = x <_Int64 +10
-    x +_Int64 y
--}
-
--- Make up a fake term for the pattern, that we can typecheck
-patternToTerm :: (Var v, Ord loc) => Pattern loc -> State [v] (Term v loc)
-patternToTerm pat = case pat of
-  Pattern.Boolean loc b -> pure $ Term.boolean loc b
-  Pattern.Int64 loc n -> pure $ Term.int64 loc n
-  Pattern.UInt64 loc n -> pure $ Term.uint64 loc n
-  Pattern.Float loc n -> pure $ Term.float loc n
-  -- similar for other literals
-  Pattern.Constructor loc r cid pats -> do
-   outputTerms <- traverse patternToTerm pats
-   pure $ Term.apps (Term.constructor loc r cid) ((Pattern.loc pat,) <$> outputTerms)
-  Pattern.Var loc -> do
-   (h : t) <- get
-   put t
-   pure $ Term.var loc h
-  Pattern.Unbound loc -> pure $ Term.blank loc
-  Pattern.As loc p -> do
-   (h : t) <- get
-   put t
-   tm <- patternToTerm p
-   pure . Term.let1 [((Pattern.loc p, h), tm)] $ Term.var loc h
-  Pattern.EffectPure loc p -> Term.effectPure loc <$> patternToTerm p
-  Pattern.EffectBind loc r cid pats kpat -> do
-   outputTerms <- traverse patternToTerm pats
-   kTerm <- patternToTerm kpat
-   pure $ Term.effectBind loc r cid outputTerms kTerm
-  _  -> error "todo: delete me after deleting PatternP - match fail in patternToTerm"
-
 checkCase :: forall v loc . (Var v, Ord loc)
           => Type v loc
           -> Type v loc
           -> Term.MatchCase loc (Term v loc)
           -> M v loc ()
-checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) = _todo
-  --
-  -- 1. convert rhs to a version that will typecheck
---  -- Get the variables bound in the pattern
---  let (vs, body) = case rhs of
---        ABT.AbsN' vars bod -> (vars, bod)
---        _ -> ([], rhs)
---      -- Make up a term that involves the guard if present
---      rhs' = case guard of
---        -- todo: arya: I would like the annotation to be more expressive than just a location;
---        -- e.g. noting that g is boolean because it's a pattern guard, not because it has
---        -- location (abc:xyz).  We'll see when we can run it and view output!
---        Just g ->
---          let locg = loc g in
---          Term.let1 [((locg, Var.named "_"), Term.ann locg g (Type.boolean locg))] body
---        Nothing -> body
---      -- Convert pattern to a Term
---      patTerm :: Term v loc
---      patTerm = evalState (patternToTerm (pat :: Pattern loc) :: State [v] (Term v loc)) vs
---      newBody = Term.let1 [((loc rhs', Var.named "_"), Term.ann (loc scrutineeType) patTerm scrutineeType)] rhs'
---      entireCase =
---        foldr (\locv t -> Term.let1 [(locv, Term.blank (fst locv))] t)
---              newBody
---              (Foldable.toList pat `zip` vs)
---  in check entireCase outputType
+checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) = do
+  let peel t = case t of
+                ABT.AbsN' vars bod -> (vars, bod)
+                _ -> ([], t)
+      (rhsvs, rhsbod) = peel rhs
+      mayGuard = snd . peel <$> guard
+  (substs, remains) <- runStateT (checkPattern scrutineeType pat) rhsvs
+  unless (null remains) $ compilerCrash (MalformedPattern pat)
+  let subst = ABT.substsInheritAnnotation (second (Term.var ()) <$> substs)
+      rhs' = subst rhsbod
+      guard' = subst <$> mayGuard
+  for_ guard' $ \g -> check g (Type.boolean (loc g))
+  outputType <- applyM outputType
+  check rhs' outputType
 
 checkPattern
   :: (Var v, Ord loc)
   => Type v loc
   -> Pattern loc
-  -> Maybe (Term v loc) -- guard
-  -> Term v loc         -- pattern rhs
-  -> M v loc (Maybe (Term v loc), Term v loc)
-checkPattern scrutineeType p rhs = case (p, guard, rhs) of
-  (Pattern.Unbound _  , _            ) -> pure rhs
-  (Pattern.Var     loc, ABT.Abs' body) -> do
-    v <- ABT.freshen body freshenVar
-    appendContext $ context [Ann v scrutineeType]
-    pure . ABT.bind body $ Term.var loc v
+  -> StateT [v] (M v loc) [(v, v)]
+checkPattern scrutineeType p = case p of
+  Pattern.Unbound _   -> pure []
+  Pattern.Var     _loc -> do
+    v  <- getAdvance p
+    v' <- lift $ freshenVar v
+    lift . appendContext $ context [Ann v' scrutineeType]
+    pure [(v, v')]
   -- TODO: provide a scope here for giving a good error message
-  (Pattern.Boolean loc _, _) -> subtype scrutineeType (Type.boolean loc) $> rhs
-  (Pattern.Int64 loc _, _) -> subtype scrutineeType (Type.int64 loc) $> rhs
-  (Pattern.UInt64 loc _, _) -> subtype scrutineeType (Type.uint64 loc) $> rhs
-  (Pattern.Float loc _, _) -> subtype scrutineeType (Type.float loc) $> rhs
-  (Pattern.Constructor loc ref cid args, rhs) -> do
-    dct  <- getDataConstructorType ref cid
-    udct <- ungeneralize dct
-    unless (Type.arity udct == length args) . failWith $ PatternArityMismatch
-      loc
-      dct
-      (length args)
-    let step (Type.Arrow' i o, rhs) pat = (o, ) <$> checkPattern i pat rhs
-        step _ _ = failWith $ PatternArityMismatch loc dct (length args)
-    (overall, nrhs) <- foldM step (udct, rhs) args
-    st <- applyM scrutineeType
-    subtype st overall
-    pure nrhs
-  (Pattern.As loc p, ABT.Abs' body) -> do
-    v <- ABT.freshen body freshenVar
-    appendContext $ context [Ann v scrutineeType]
-    let body' = ABT.bind body (Term.var loc v)
-    checkPattern scrutineeType p body'
-  (Pattern.EffectPure loc p, rhs) -> do
-    v <- freshNamed "v"
-    e <- freshNamed "e"
-    let vt = Type.existentialp loc v
-    let et = Type.existentialp loc e
-    appendContext $ context [existential v, existential e]
-    subtype scrutineeType (Type.effectV loc (loc, et) (loc, vt))
-    vt <- applyM vt
-    checkPattern vt p rhs
-  (Pattern.EffectBind loc ref cid args k, rhs) -> do
-    ect  <- getEffectConstructorType ref cid
-    uect <- ungeneralize ect
+  Pattern.Boolean loc _ ->
+    lift $ subtype scrutineeType (Type.boolean loc) $> mempty
+  Pattern.Int64 loc _ ->
+    lift $ subtype scrutineeType (Type.int64 loc) $> mempty
+  Pattern.UInt64 loc _ ->
+    lift $ subtype scrutineeType (Type.uint64 loc) $> mempty
+  Pattern.Float loc _ ->
+    lift $ subtype scrutineeType (Type.float loc) $> mempty
+  Pattern.Constructor loc ref cid args -> do
+    dct  <- lift $ getDataConstructorType ref cid
+    udct <- lift $ ungeneralize dct
+    unless (Type.arity udct == length args)
+      . lift
+      . failWith
+      $ PatternArityMismatch loc dct (length args)
+    let step (Type.Arrow' i o, vso) pat =
+          (\vso' -> (o, vso ++ vso')) <$> checkPattern i pat
+        step _ _ = lift . failWith $ PatternArityMismatch loc dct (length args)
+    (overall, vs) <- foldM step (udct, []) args
+    st            <- lift $ applyM scrutineeType
+    lift $ subtype st overall
+    pure vs
+  Pattern.As _loc p' -> do
+    v  <- getAdvance p
+    v' <- lift $ freshenVar v
+    lift . appendContext $ context [Ann v' scrutineeType]
+    ((v, v') :) <$> checkPattern scrutineeType p'
+  Pattern.EffectPure loc p -> do
+    vt <- lift $ do
+      v <- freshNamed "v"
+      e <- freshNamed "e"
+      let vt = Type.existentialp loc v
+      let et = Type.existentialp loc e
+      appendContext $ context [existential v, existential e]
+      subtype scrutineeType (Type.effectV loc (loc, et) (loc, vt))
+      applyM vt
+    checkPattern vt p
+  Pattern.EffectBind loc ref cid args k -> do
+    ect  <- lift $ getEffectConstructorType ref cid
+    uect <- lift $ ungeneralize ect
     unless (Type.arity uect == length args)
+      . lift
       . failWith
       . PatternArityMismatch loc ect
       $ length args
-    let step (Type.Arrow' i o, rhs) pat = (o, ) <$> checkPattern i pat rhs
-        step _ _ = failWith $ PatternArityMismatch loc ect (length args)
-    (ctorOutputType, rhs) <- foldM step (uect, rhs) args
+    let step (Type.Arrow' i o, vso) pat =
+          (\vso' -> (o, vso ++ vso')) <$> checkPattern i pat
+        step _ _ = lift . failWith $ PatternArityMismatch loc ect (length args)
+    (ctorOutputType, vs) <- foldM step (uect, []) args
     case ctorOutputType of
       -- an effect ctor should have exactly 1 effect!
       Type.Effect'' [et] it -> do
         -- subtype scrutineeType $ Type.effectV loc (loc, et) (loc, vt)
-        st <- applyM scrutineeType
-        let Type.App' _ vt = st
+        st <- lift $ applyM scrutineeType
         let
+          Type.App' _ vt = st
           kt =
             Type.arrow (Pattern.loc k) it (Type.effect (Pattern.loc k) [et] vt)
-        checkPattern kt k rhs
-      _ -> compilerCrash $ EffectConstructorHadMultipleEffects ctorOutputType
-  _ -> undefined
+        (vs ++) <$> checkPattern kt k
+      _ -> lift . compilerCrash $ EffectConstructorHadMultipleEffects
+        ctorOutputType
+  _ -> lift . compilerCrash $ MalformedPattern p
+ where
+  getAdvance p = do
+    vs <- get
+    case vs of
+      []       -> lift $ compilerCrash (MalformedPattern p)
+      (v : vs) -> do
+        put vs
+        pure v
+
 
 applyM :: (Var v, Ord loc) => Type v loc -> M v loc (Type v loc)
 applyM t = (`apply` t) <$> getContext
