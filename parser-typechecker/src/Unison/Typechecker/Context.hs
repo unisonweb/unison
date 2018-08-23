@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -28,8 +29,12 @@ where
 import           Control.Monad
 import           Control.Monad.Loops (anyM, allM)
 import           Control.Monad.Reader.Class
-import           Control.Monad.State (State, get, put, evalState)
+import           Control.Monad.State (get, put, StateT, runStateT)
+import           Control.Monad.Trans (lift)
+import           Data.Bifunctor (second)
+import           Data.Foldable (for_)
 import qualified Data.Foldable as Foldable
+import           Data.Functor
 import           Data.List
 import           Data.Map (Map)
 import qualified Data.Map as Map
@@ -102,8 +107,11 @@ data CompilerBug v loc
   | RetractFailure (Element v loc) (Context v loc)
   | EmptyLetRec (Term v loc) -- the body of the empty let rec
   | PatternMatchFailure
+  | EffectConstructorHadMultipleEffects (Type v loc)
   | FreeVarsInTypeAnnotation (Set (TypeVar v loc))
-  | UnannotatedReference Reference deriving Show
+  | UnannotatedReference Reference
+  | MalformedPattern (Pattern loc)
+  deriving Show
 
 data PathElement v loc
   = InSynthesize (Term v loc)
@@ -141,6 +149,7 @@ data Cause v loc
   | EffectConstructorWrongArgCount ExpectedArgCount ActualArgCount Reference ConstructorId
   | MalformedEffectBind (Type v loc) (Type v loc) [Type v loc] -- type of ctor, type of ctor result
   | SolvedBlank (B.Recorded loc) v (Type v loc)
+  | PatternArityMismatch loc (Type v loc) Int -- Type of ctor, number of arguments we got
   deriving Show
 
 errorTerms :: Note v loc -> [Term v loc]
@@ -243,8 +252,9 @@ unsolved (Context ctx) = [v | (Existential _ v, _) <- ctx]
 
 replace :: (Var v, Ord loc) => Element v loc -> Context v loc -> Context v loc -> Context v loc
 replace e focus ctx =
-  let (l,_,r) = breakAt e ctx
-  in l `mappend` focus `mappend` r
+  let (l,mid,r) = breakAt e ctx
+  in if null mid then ctx
+     else l `mappend` focus `mappend` r
 
 breakAt :: (Var v, Ord loc)
         => Element v loc
@@ -481,6 +491,12 @@ extendUniversal v = do
   modifyContext (pure . extend (Universal v'))
   pure v'
 
+extendExistential :: (Var v) => v -> M v loc v
+extendExistential v = do
+  v' <- freshenVar v
+  modifyContext (pure . extend (Existential B.Blank v'))
+  pure v'
+
 extendMarker :: (Var v, Ord loc) => v -> M v loc v
 extendMarker v = do
   v' <- freshenVar v
@@ -578,17 +594,6 @@ vectorConstructorOfArity arity = do
       vt = Type.forall bl elementVar (Type.arrows args resultType)
   pure vt
 
-synthesizeEffects :: forall v loc a . (Var v, Ord loc)
-                   => loc -> M v loc a -> M v loc (Type v loc, a)
-synthesizeEffects l e = do
-  eff <- freshNamed "inferred-effect"
-  let et = Type.existential' l B.Blank eff
-  appendContext $ context [existential eff]
-  t <- withEffects0 [et] e
-  ctx <- getContext
-  let et' = apply ctx et
-  pure (Type.effects (loc et') (Type.flattenEffects et'), t)
-
 -- | Synthesize the type of the given term, updating the context in the process.
 -- | Figure 11 from the paper
 synthesize :: forall v loc . (Var v, Ord loc) => Term v loc -> M v loc (Type v loc)
@@ -647,11 +652,6 @@ synthesize e = scope (InSynthesize e) $ do
     t <- synthesize (ABT.bindInheritAnnotation e (Term.var() v'))
     doRetract $ Ann v' tbinding
     pure t
-   -- TODO: figure out why this retract sometimes generates invalid contexts,
-   -- (ctx, ctx2) <- breakAt (Ann v' tbinding) <$> getContext
-   -- as in (f -> let x = (let saved = f in 42) in 1)
-   -- removing the retract and generalize 'works' for this example
-   -- generalizeExistentials ctx2 t <$ setContext ctx
   go (Term.Lam' body) = do -- ->I=> (Full Damas Milner rule)
     -- arya: are there more meaningful locations we could put into and pull out of the abschain?)
     -- TODO: slightly hacky, won't infer more than 2 effects
@@ -689,33 +689,6 @@ synthesize e = scope (InSynthesize e) $ do
     scope InAndApp $ synthesizeApps (Type.andor' l) [a, b]
   go (Term.Or' a b) =
     scope InOrApp $ synthesizeApps (Type.andor' l) [a, b]
-  -- { 42 }
-  go (Term.EffectPure' a) = do
-    e <- freshenVar (Var.named "e")
-    bl <- getBuiltinLocation
-    Type.Effect'' _ at <- synthesize a
-    pure . Type.forall l (TypeVar.Universal e) $ Type.effectV bl (l, Type.universal' l e) (l, at)
-  go e@(Term.EffectBind' r cid args k) = do
-    cType <- getEffectConstructorType r cid
-    let arity = Type.arity cType
-    when (length args /= arity) .  failWith $
-      EffectConstructorWrongArgCount arity (length args) r cid
-    (eType, bt) <- synthesizeEffects (loc e) $ do
-      Type.Effect'' es t <- ungeneralize =<< synthesizeApps cType args
-      abilityCheck es
-      pure t
-    ctx <- getContext
-    let iType = apply ctx bt
-    rTypev <- freshNamed "result"
-    let rType = Type.existential' l B.Blank rTypev
-    appendContext $ context [existential rTypev]
-    check k (Type.arrow l iType (Type.effect1 l eType rType))
-    ctx <- getContext
-    case apply ctx eType of
-      Type.Effects' [] -> failWith $ MalformedEffectBind (apply ctx cType) (apply ctx bt) []
-      Type.Effects' [e] -> pure $ apply ctx (Type.effectV l (l, e) (l, apply ctx rType))
-      Type.Effects' es -> failWith $ MalformedEffectBind (apply ctx cType) (apply ctx bt) es
-      e -> error $ " pattern match failure " ++ show e
   go (Term.Match' scrutinee cases) = do
     scrutineeType <- synthesize scrutinee
     outputTypev <- freshenVar (Var.named "match-output")
@@ -736,80 +709,129 @@ synthesize e = scope (InSynthesize e) $ do
     pure (apply ctx ot)
   go _e = compilerCrash PatternMatchFailure
 
--- data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
-{-
-type Optional b c = None | Some b c
-let blah : Optional Int64 Int64
-    blah = ...
+checkCase :: forall v loc . (Var v, Ord loc)
+          => Type v loc
+          -> Type v loc
+          -> Term.MatchCase loc (Term v loc)
+          -> M v loc ()
+checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) = do
+  scrutineeType <- applyM scrutineeType
+  outputType <- applyM outputType
+  m <- freshNamed "check-case"
+  appendContext $ context [Marker m]
+  let peel t = case t of
+                ABT.AbsN' vars bod -> (vars, bod)
+                _ -> ([], t)
+      (rhsvs, rhsbod) = peel rhs
+      mayGuard = snd . peel <$> guard
+  (substs, remains) <- runStateT (checkPattern scrutineeType pat) rhsvs
+  unless (null remains) $ compilerCrash (MalformedPattern pat)
+  let subst = ABT.substsInheritAnnotation (second (Term.var ()) <$> substs)
+      rhs' = subst rhsbod
+      guard' = subst <$> mayGuard
+  for_ guard' $ \g -> check g (Type.boolean (loc g))
+  outputType <- applyM outputType
+  check rhs' outputType
+  doRetract $ Marker m
 
-    case blah of
-      Some x (Some y z) | x < 10 -> x + y + z
+checkPattern
+  :: (Var v, Ord loc)
+  => Type v loc
+  -> Pattern loc
+  -> StateT [v] (M v loc) [(v, v)]
+checkPattern scrutineeType0 p =
+  lift (ungeneralize scrutineeType0) >>= \scrutineeType -> case p of
+    Pattern.Unbound _    -> pure []
+    Pattern.Var     _loc -> do
+      v  <- getAdvance p
+      v' <- lift $ freshenVar v
+      lift . appendContext $ context [Ann v' scrutineeType]
+      pure [(v, v')]
+    -- TODO: provide a scope here for giving a good error message
+    Pattern.Boolean loc _ ->
+      lift $ subtype (Type.boolean loc) scrutineeType $> mempty
+    Pattern.Int64 loc _ ->
+      lift $ subtype (Type.int64 loc) scrutineeType $> mempty
+    Pattern.UInt64 loc _ ->
+      lift $ subtype (Type.uint64 loc) scrutineeType $> mempty
+    Pattern.Float loc _ ->
+      lift $ subtype (Type.float loc) scrutineeType $> mempty
+    Pattern.Constructor loc ref cid args -> do
+      dct  <- lift $ getDataConstructorType ref cid
+      udct <- lift $ ungeneralize dct
+      unless (Type.arity udct == length args)
+        . lift
+        . failWith
+        $ PatternArityMismatch loc dct (length args)
+      let step (Type.Arrow' i o, vso) pat =
+            (\vso' -> (o, vso ++ vso')) <$> checkPattern i pat
+          step _ _ =
+            lift . failWith $ PatternArityMismatch loc dct (length args)
+      (overall, vs) <- foldM step (udct, []) args
+      st            <- lift $ applyM scrutineeType
+      lift $ subtype overall st
+      pure vs
+    Pattern.As _loc p' -> do
+      v  <- getAdvance p
+      v' <- lift $ freshenVar v
+      lift . appendContext $ context [Ann v' scrutineeType]
+      ((v, v') :) <$> checkPattern scrutineeType p'
+    Pattern.EffectPure loc p -> do
+      vt <- lift $ do
+        v <- freshNamed "v"
+        e <- freshNamed "e"
+        let vt = Type.existentialp loc v
+        let et = Type.existentialp loc e
+        appendContext $ context [existential v, existential e]
+        subtype (Type.effectV loc (loc, et) (loc, vt)) scrutineeType
+        applyM vt
+      checkPattern vt p
+    Pattern.EffectBind loc ref cid args k -> do
+      -- scrutineeType should be a supertype of `Effect e vt`
+      -- for fresh existentials `e` and `vt`
+      e <- lift $ extendExistential (Var.named "ebind-e")
+      v <- lift $ extendExistential (Var.named "ebind-v")
+      let evt = Type.effectV loc (loc, Type.existentialp loc e)
+                                 (loc, Type.existentialp loc v)
+      lift $ subtype evt scrutineeType
+      ect  <- lift $ getEffectConstructorType ref cid
+      uect <- lift $ ungeneralize ect
+      unless (Type.arity uect == length args)
+        . lift
+        . failWith
+        . PatternArityMismatch loc ect
+        $ length args
+      let step (Type.Arrow' i o, vso) pat =
+            (\vso' -> (o, vso ++ vso')) <$> checkPattern i pat
+          step _ _ =
+            lift . failWith $ PatternArityMismatch loc ect (length args)
+      (ctorOutputType, vs) <- foldM step (uect, []) args
+      case ctorOutputType of
+        -- an effect ctor should have exactly 1 effect!
+        Type.Effect'' [et] it -> do
+          -- expecting scrutineeType to be `Effect et vt`
+          st <- lift $ applyM scrutineeType
+          case st of
+            Type.App' _ vt ->
+              let kt = Type.arrow (Pattern.loc k)
+                                  it
+                                  (Type.effect (Pattern.loc k) [et] vt)
+              in (vs ++) <$> checkPattern kt k
+            _ -> lift . compilerCrash $ PatternMatchFailure
+        _ -> lift . compilerCrash $ EffectConstructorHadMultipleEffects
+          ctorOutputType
+    _ -> lift . compilerCrash $ MalformedPattern p
+ where
+  getAdvance p = do
+    vs <- get
+    case vs of
+      []       -> lift $ compilerCrash (MalformedPattern p)
+      (v : vs) -> do
+        put vs
+        pure v
 
---becomes--
-
-let x = _
-    y = _
-    z = _
-    pat : Optional Int64 Int64
-    pat = Optional.Some x (Some y z)
-    -- from here on is rhs'
-    guard : Boolean
-    guard = x <_Int64 +10
-    x +_Int64 y
--}
-
--- Make up a fake term for the pattern, that we can typecheck
-patternToTerm :: (Var v, Ord loc) => Pattern loc -> State [v] (Term v loc)
-patternToTerm pat = case pat of
-  Pattern.Boolean loc b -> pure $ Term.boolean loc b
-  Pattern.Int64 loc n -> pure $ Term.int64 loc n
-  Pattern.UInt64 loc n -> pure $ Term.uint64 loc n
-  Pattern.Float loc n -> pure $ Term.float loc n
-  -- similar for other literals
-  Pattern.Constructor loc r cid pats -> do
-   outputTerms <- traverse patternToTerm pats
-   pure $ Term.apps (Term.constructor loc r cid) ((Pattern.loc pat,) <$> outputTerms)
-  Pattern.Var loc -> do
-   (h : t) <- get
-   put t
-   pure $ Term.var loc h
-  Pattern.Unbound loc -> pure $ Term.blank loc
-  Pattern.As loc p -> do
-   (h : t) <- get
-   put t
-   tm <- patternToTerm p
-   pure . Term.let1 [((Pattern.loc p, h), tm)] $ Term.var loc h
-  Pattern.EffectPure loc p -> Term.effectPure loc <$> patternToTerm p
-  Pattern.EffectBind loc r cid pats kpat -> do
-   outputTerms <- traverse patternToTerm pats
-   kTerm <- patternToTerm kpat
-   pure $ Term.effectBind loc r cid outputTerms kTerm
-  _  -> error "todo: delete me after deleting PatternP - match fail in patternToTerm"
-
-checkCase :: forall v loc . (Var v, Ord loc) => Type v loc -> Type v loc -> Term.MatchCase loc (Term v loc) -> M v loc ()
-checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) =
-  -- Get the variables bound in the pattern
-  let (vs, body) = case rhs of
-        ABT.AbsN' vars bod -> (vars, bod)
-        _ -> ([], rhs)
-      -- Make up a term that involves the guard if present
-      rhs' = case guard of
-        -- todo: arya: I would like the annotation to be more expressive than just a location;
-        -- e.g. noting that g is boolean because it's a pattern guard, not because it has
-        -- location (abc:xyz).  We'll see when we can run it and view output!
-        Just g ->
-          let locg = loc g in
-          Term.let1 [((locg, Var.named "_"), Term.ann locg g (Type.boolean locg))] body
-        Nothing -> body
-      -- Convert pattern to a Term
-      patTerm :: Term v loc
-      patTerm = evalState (patternToTerm (pat :: Pattern loc) :: State [v] (Term v loc)) vs
-      newBody = Term.let1 [((loc rhs', Var.named "_"), Term.ann (loc scrutineeType) patTerm scrutineeType)] rhs'
-      entireCase =
-        foldr (\locv t -> Term.let1 [(locv, Term.blank (fst locv))] t)
-              newBody
-              (Foldable.toList pat `zip` vs)
-  in check entireCase outputType
+applyM :: (Var v, Ord loc) => Type v loc -> M v loc (Type v loc)
+applyM t = (`apply` t) <$> getContext
 
 bindings :: Context v loc -> [(v, Type v loc)]
 bindings (Context ctx) = [(v,a) | (Ann v a,_) <- ctx]
@@ -1002,9 +1024,10 @@ subtype tx ty = scope (InSubtype tx ty) $
 -- in the process.
 instantiateL :: (Var v, Ord loc) => B.Blank loc -> v -> Type v loc -> M v loc ()
 instantiateL _ v t | debugEnabled && traceShow ("instantiateL"::String, v, t) False = undefined
-instantiateL blank v t = scope (InInstantiateL v t) $
+instantiateL blank v t = scope (InInstantiateL v t) $ do
   getContext >>= \ctx -> case Type.monotype t >>= solve ctx v of
     Just ctx -> setContext ctx -- InstLSolve
+    Nothing | not (v `elem` unsolved ctx) -> failWith $ TypeMismatch ctx
     Nothing -> case t of
       Type.Existential' _ v2 | ordered ctx v v2 -> -- InstLReach (both are existential, set v2 = v)
         maybe (failWith $ TypeMismatch ctx) setContext $
@@ -1063,6 +1086,7 @@ instantiateR t _ v | debugEnabled && traceShow ("instantiateR"::String, t, v) Fa
 instantiateR t blank v = scope (InInstantiateR t v) $
   getContext >>= \ctx -> case Type.monotype t >>= solve ctx v of
     Just ctx -> setContext ctx -- InstRSolve
+    Nothing | not (v `elem` unsolved ctx) -> failWith $ TypeMismatch ctx
     Nothing -> case t of
       Type.Existential' _ v2 | ordered ctx v v2 -> -- InstRReach (both are existential, set v2 = v)
         maybe (failWith $ TypeMismatch ctx) setContext $
@@ -1082,7 +1106,7 @@ instantiateR t blank v = scope (InInstantiateR t v) $
         -- 1. create foo', a', add these to the context
         -- 2. add v' = foo' a' to the context
         -- 3. recurse to refine the types of foo' and a'
-        [x', y'] <- traverse freshenVar [ABT.v' "x", ABT.v' "y"]
+        [x', y'] <- traverse freshenVar [ABT.v' "instR-x", ABT.v' "instR-y"]
         let s = Solved blank v (Type.Monotype (Type.app (loc t) (Type.existentialp (loc x) x') (Type.existentialp (loc y) y')))
         modifyContext' $ replace (existential v) (context [existential y', existential x', s])
         ctx <- getContext
