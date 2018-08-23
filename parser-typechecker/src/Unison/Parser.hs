@@ -1,7 +1,6 @@
-{-# LANGUAGE BangPatterns, RankNTypes #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Parser where
 
