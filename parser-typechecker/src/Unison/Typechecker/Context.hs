@@ -252,8 +252,9 @@ unsolved (Context ctx) = [v | (Existential _ v, _) <- ctx]
 
 replace :: (Var v, Ord loc) => Element v loc -> Context v loc -> Context v loc -> Context v loc
 replace e focus ctx =
-  let (l,_,r) = breakAt e ctx
-  in l `mappend` focus `mappend` r
+  let (l,mid,r) = breakAt e ctx
+  in if null mid then ctx
+     else l `mappend` focus `mappend` r
 
 breakAt :: (Var v, Ord loc)
         => Element v loc
@@ -593,17 +594,6 @@ vectorConstructorOfArity arity = do
       vt = Type.forall bl elementVar (Type.arrows args resultType)
   pure vt
 
-synthesizeEffects :: forall v loc a . (Var v, Ord loc)
-                   => loc -> M v loc a -> M v loc (Type v loc, a)
-synthesizeEffects l e = do
-  eff <- freshNamed "inferred-effect"
-  let et = Type.existential' l B.Blank eff
-  appendContext $ context [existential eff]
-  t <- withEffects0 [et] e
-  ctx <- getContext
-  let et' = apply ctx et
-  pure (Type.effects (loc et') (Type.flattenEffects et'), t)
-
 -- | Synthesize the type of the given term, updating the context in the process.
 -- | Figure 11 from the paper
 synthesize :: forall v loc . (Var v, Ord loc) => Term v loc -> M v loc (Type v loc)
@@ -704,33 +694,6 @@ synthesize e = scope (InSynthesize e) $ do
     scope InAndApp $ synthesizeApps (Type.andor' l) [a, b]
   go (Term.Or' a b) =
     scope InOrApp $ synthesizeApps (Type.andor' l) [a, b]
-  -- { 42 }
-  go (Term.EffectPure' a) = do
-    e <- freshenVar (Var.named "e")
-    bl <- getBuiltinLocation
-    Type.Effect'' _ at <- synthesize a
-    pure . Type.forall l (TypeVar.Universal e) $ Type.effectV bl (l, Type.universal' l e) (l, at)
-  go e@(Term.EffectBind' r cid args k) = do
-    cType <- getEffectConstructorType r cid
-    let arity = Type.arity cType
-    when (length args /= arity) .  failWith $
-      EffectConstructorWrongArgCount arity (length args) r cid
-    (eType, bt) <- synthesizeEffects (loc e) $ do
-      Type.Effect'' es t <- ungeneralize =<< synthesizeApps cType args
-      abilityCheck es
-      pure t
-    ctx <- getContext
-    let iType = apply ctx bt
-    rTypev <- freshNamed "result"
-    let rType = Type.existential' l B.Blank rTypev
-    appendContext $ context [existential rTypev]
-    check k (Type.arrow l iType (Type.effect1 l eType rType))
-    ctx <- getContext
-    case apply ctx eType of
-      Type.Effects' [] -> failWith $ MalformedEffectBind (apply ctx cType) (apply ctx bt) []
-      Type.Effects' [e] -> pure $ apply ctx (Type.effectV l (l, e) (l, apply ctx rType))
-      Type.Effects' es -> failWith $ MalformedEffectBind (apply ctx cType) (apply ctx bt) es
-      e -> error $ " pattern match failure " ++ show e
   go (Term.Match' scrutinee cases) = do
     scrutineeType <- synthesize scrutinee
     outputTypev <- freshenVar (Var.named "match-output")
@@ -738,9 +701,7 @@ synthesize e = scope (InSynthesize e) $ do
     appendContext $ context [existential outputTypev]
     case cases of -- only relevant with 2 or more cases, but 1 is safe too.
       [] -> pure ()
-      Term.MatchCase _ _ t : _ -> scope (InMatch (ABT.annotation t)) $ do
-        scrutineeType <- applyM scrutineeType
-        outputType <- applyM outputType
+      Term.MatchCase _ _ t : _ -> scope (InMatch (ABT.annotation t)) $
         Foldable.traverse_ (checkCase scrutineeType outputType) cases
     ctx <- getContext
     pure $ apply ctx outputType
@@ -759,6 +720,8 @@ checkCase :: forall v loc . (Var v, Ord loc)
           -> Term.MatchCase loc (Term v loc)
           -> M v loc ()
 checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) = do
+  scrutineeType <- applyM scrutineeType
+  outputType <- applyM outputType
   m <- freshNamed "check-case"
   appendContext $ context [Marker m]
   let peel t = case t of
@@ -859,9 +822,7 @@ checkPattern scrutineeType0 p =
                                   it
                                   (Type.effect (Pattern.loc k) [et] vt)
               in (vs ++) <$> checkPattern kt k
-            _ -> do
-              traceM $ "st = " ++ show st
-              error "WTF"
+            _ -> lift . compilerCrash $ PatternMatchFailure
         _ -> lift . compilerCrash $ EffectConstructorHadMultipleEffects
           ctorOutputType
     _ -> lift . compilerCrash $ MalformedPattern p
@@ -1069,9 +1030,9 @@ subtype tx ty = scope (InSubtype tx ty) $
 instantiateL :: (Var v, Ord loc) => B.Blank loc -> v -> Type v loc -> M v loc ()
 instantiateL _ v t | debugEnabled && traceShow ("instantiateL"::String, v, t) False = undefined
 instantiateL blank v t = scope (InInstantiateL v t) $ do
-  traceM $ "instantiateL " ++ show v ++ " <: " ++ show t
   getContext >>= \ctx -> case Type.monotype t >>= solve ctx v of
     Just ctx -> setContext ctx -- InstLSolve
+    Nothing | not (v `elem` unsolved ctx) -> failWith $ TypeMismatch ctx
     Nothing -> case t of
       Type.Existential' _ v2 | ordered ctx v v2 -> -- InstLReach (both are existential, set v2 = v)
         maybe (failWith $ TypeMismatch ctx) setContext $
@@ -1130,6 +1091,7 @@ instantiateR t _ v | debugEnabled && traceShow ("instantiateR"::String, t, v) Fa
 instantiateR t blank v = scope (InInstantiateR t v) $
   getContext >>= \ctx -> case Type.monotype t >>= solve ctx v of
     Just ctx -> setContext ctx -- InstRSolve
+    Nothing | not (v `elem` unsolved ctx) -> failWith $ TypeMismatch ctx
     Nothing -> case t of
       Type.Existential' _ v2 | ordered ctx v v2 -> -- InstRReach (both are existential, set v2 = v)
         maybe (failWith $ TypeMismatch ctx) setContext $
@@ -1197,14 +1159,7 @@ solve ctx v t
   | otherwise                                = Nothing
   where (ctxL, focus, ctxR) = breakAt (existential v) ctx
         mid = [ Solved blank v t | Existential blank v <- focus ]
-        ctx0' = ctxL `mappend` context mid `mappend` ctxR
-        ctx' = if wellformed ctx0' then ctx0'
-               else let
-                 !_ = trace "err in solve" ()
-                 !_ = traceShow v ()
-                 !_ = traceShow ctx ()
-                 !_ = traceShow ctx0'
-                 in ctx0'
+        ctx' = ctxL `mappend` context mid `mappend` ctxR
 
 abilityCheck' :: (Var v, Ord loc) => [Type v loc] -> [Type v loc] -> M v loc ()
 abilityCheck' [] [] = pure ()
