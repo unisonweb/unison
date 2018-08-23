@@ -489,7 +489,7 @@ instance Var v => Hashable1 (F v a p) where
 -- mostly boring serialization code below ...
 
 instance (Eq a, Var v) => Eq1 (F v a p) where (==#) = (==)
-instance (Show a, Show p, Var v) => Show1 (F v a p) where showsPrec1 = showsPrec
+instance (Var v) => Show1 (F v a p) where showsPrec1 = showsPrec
 
 instance (Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   Int64 x == Int64 y = x == y
@@ -515,7 +515,7 @@ instance (Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   _ == _ = False
 
 
-instance (Var v, Show p, Show a0, Show a) => Show (F v a0 p a) where
+instance (Var v, Show a) => Show (F v a0 p a) where
   showsPrec p fa = go p fa where
     showConstructor r n = showsPrec 0 r <> s"#" <> showsPrec 0 n
     go _ (Int64 n) = (if n >= 0 then s "+" else s "") <> showsPrec 0 n
