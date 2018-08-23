@@ -652,11 +652,6 @@ synthesize e = scope (InSynthesize e) $ do
     t <- synthesize (ABT.bindInheritAnnotation e (Term.var() v'))
     doRetract $ Ann v' tbinding
     pure t
-   -- TODO: figure out why this retract sometimes generates invalid contexts,
-   -- (ctx, ctx2) <- breakAt (Ann v' tbinding) <$> getContext
-   -- as in (f -> let x = (let saved = f in 42) in 1)
-   -- removing the retract and generalize 'works' for this example
-   -- generalizeExistentials ctx2 t <$ setContext ctx
   go (Term.Lam' body) = do -- ->I=> (Full Damas Milner rule)
     -- arya: are there more meaningful locations we could put into and pull out of the abschain?)
     -- TODO: slightly hacky, won't infer more than 2 effects
