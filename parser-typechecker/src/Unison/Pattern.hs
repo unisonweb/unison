@@ -2,6 +2,7 @@
 
 module Unison.Pattern where
 
+import Data.List (intercalate)
 import Data.Int (Int64)
 import Data.Word (Word64)
 import Data.Foldable as Foldable
@@ -38,7 +39,21 @@ data PatternP loc
   | AsP loc (PatternP loc)
   | EffectPureP loc (PatternP loc)
   | EffectBindP loc !Reference !Int [PatternP loc] (PatternP loc)
-    deriving (Generic,Show,Functor,Foldable,Traversable)
+    deriving (Generic,Functor,Foldable,Traversable)
+
+instance Show (PatternP loc) where
+  show (UnboundP _  ) = "Unbound"
+  show (VarP     _  ) = "Var"
+  show (BooleanP _ x) = "Boolean " <> show x
+  show (Int64P   _ x) = "Int64 " <> show x
+  show (UInt64P  _ x) = "UInt64 " <> show x
+  show (FloatP   _ x) = "Float " <> show x
+  show (ConstructorP _ r i ps) =
+    "Constructor " <> intercalate " " [show r, show i, show ps]
+  show (AsP         _ p) = "As " <> show p
+  show (EffectPureP _ k) = "EffectPure " <> show k
+  show (EffectBindP _ r i ps k) =
+    "EffectBind " <> intercalate " " [show r, show i, show ps, show k]
 
 loc :: PatternP loc -> loc
 loc p = head $ Foldable.toList p

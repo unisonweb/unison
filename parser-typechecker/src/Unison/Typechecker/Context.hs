@@ -429,6 +429,7 @@ getAbilities = M $ fromMEnv abilities
 -- run `m` without doing ability checks on requests which match `ambient0`
 -- are a subtype of `ambient0`.
 withoutAbilityCheckFor :: (Ord loc, Var v) => Type v loc -> M v loc a -> M v loc a
+withoutAbilityCheckFor ft _ | debugEnabled && traceShow ("withoutAbilityCheckFor"::String, ft) False = undefined
 withoutAbilityCheckFor ambient0 m = do
   abilities <- filterM wouldNotCollide =<< getAbilities
   withEffects0 abilities m2
@@ -528,8 +529,8 @@ loc :: ABT.Term f v loc -> loc
 loc = ABT.annotation
 
 -- Prepends the provided abilities onto the existing ambient for duration of `m`
-_withEffects :: [Type v loc] -> M v loc a -> M v loc a
-_withEffects abilities' m =
+withEffects :: [Type v loc] -> M v loc a -> M v loc a
+withEffects abilities' m =
   M (\menv -> runM m (menv { abilities = abilities' ++ abilities menv }))
 
 -- Replaces the ambient abilities with the provided for duration of `m`
@@ -597,6 +598,7 @@ vectorConstructorOfArity arity = do
 -- | Synthesize the type of the given term, updating the context in the process.
 -- | Figure 11 from the paper
 synthesize :: forall v loc . (Var v, Ord loc) => Term v loc -> M v loc (Type v loc)
+synthesize e | debugEnabled && traceShow ("synthesize"::String, e) False = undefined
 synthesize e = scope (InSynthesize e) $ do
   Type.Effect'' es t <- go (minimize' e)
   abilityCheck es
@@ -739,6 +741,7 @@ checkPattern
   => Type v loc
   -> Pattern loc
   -> StateT [v] (M v loc) [(v, v)]
+checkPattern tx ty | debugEnabled && traceShow ("checkPattern"::String, tx, ty) False = undefined
 checkPattern scrutineeType0 p =
   lift (ungeneralize scrutineeType0) >>= \scrutineeType -> case p of
     Pattern.Unbound _    -> pure []
@@ -910,54 +913,64 @@ generalizeExistentials ctx t =
 -- | Check that under the given context, `e` has type `t`,
 -- updating the context in the process.
 check :: forall v loc . (Var v, Ord loc) => Term v loc -> Type v loc -> M v loc ()
--- check e t | debugEnabled && traceShow ("check"::String, e, t) False = undefined
+check e t | debugEnabled && traceShow ("check" :: String, e, t) False = undefined
 check e0 t0 = scope (InCheck e0 t0) $ do
   ctx <- getContext
   let Type.Effect'' es t = t0
-  let e = minimize' e0
+  let e                  = minimize' e0
   if wellformedType ctx t0
     then case t of
          -- expand existentials before checking
-         t@(Type.Existential' _ _) -> abilityCheck es >> go e (apply ctx t)
-         t -> go e t
+      t@(Type.Existential' _ _) -> abilityCheck es >> go e (apply ctx t)
+      t                         -> go e t
     else failWith $ IllFormedType ctx
-  where
-    go :: Term v loc -> Type v loc -> M v loc ()
-    go e (Type.Forall' body) = do -- ForallI
-      x <- extendUniversal =<< ABT.freshen body freshenTypeVar
-      check e (ABT.bindInheritAnnotation body (Type.universal x))
-      doRetract $ Universal x
-    go (Term.Lam' body) (Type.Arrow' i o) = do -- =>I
-      x <- ABT.freshen body freshenVar
-      modifyContext' (extend (Ann x i))
-      let Type.Effect'' es ot = o
-      withEffects0 es $ check (ABT.bindInheritAnnotation body (Term.var() x)) ot
-      doRetract $ Ann x i
-    go (Term.Let1' binding e) t = do
-      v <- ABT.freshen e freshenVar
-      tbinding <- synthesize binding
-      modifyContext' (extend (Ann v tbinding))
-      check (ABT.bindInheritAnnotation e (Term.var() v)) t
-      doRetract $ Ann v tbinding
-    go (Term.LetRecNamed' [] e) t = check e t
-    go (Term.LetRec' letrec) t = do
-      (marker, e) <- annotateLetRecBindings letrec
-      check e t
-      doRetract marker
-    go block@(Term.Handle' h body) t = do
-      -- `h` should check against `Effect e i -> t` (for new existentials `e` and `i`)
-      -- `body` should check against `i`
-      [e, i] <- sequence [freshNamed "e", freshNamed "i"]
-      appendContext $ context [existential e, existential i]
-      let l = loc block
-      check h $ Type.arrow l (Type.effectV l (l, Type.existentialp l e) (l, Type.existentialp l i)) t
-      ctx <- getContext
-      let et = apply ctx (Type.existentialp l e)
-      withoutAbilityCheckFor et $
-        check body (apply ctx $ Type.existentialp l i)
-    go e t = do -- Sub
-      a <- synthesize e; ctx <- getContext
-      subtype (apply ctx a) (apply ctx t)
+ where
+  go :: Term v loc -> Type v loc -> M v loc ()
+  go e (Type.Forall' body) = do -- ForallI
+    x <- extendUniversal =<< ABT.freshen body freshenTypeVar
+    check e (ABT.bindInheritAnnotation body (Type.universal x))
+    doRetract $ Universal x
+  go (Term.Lam' body) (Type.Arrow' i o) = do -- =>I
+    x <- ABT.freshen body freshenVar
+    modifyContext' (extend (Ann x i))
+    let Type.Effect'' es ot = o
+    withEffects0 es $ check (ABT.bindInheritAnnotation body (Term.var () x)) ot
+    doRetract $ Ann x i
+  go (Term.Let1' binding e) t = do
+    v        <- ABT.freshen e freshenVar
+    tbinding <- synthesize binding
+    modifyContext' (extend (Ann v tbinding))
+    check (ABT.bindInheritAnnotation e (Term.var () v)) t
+    doRetract $ Ann v tbinding
+  go (Term.LetRecNamed' [] e) t = check e t
+  go (Term.LetRec' letrec   ) t = do
+    (marker, e) <- annotateLetRecBindings letrec
+    check e t
+    doRetract marker
+  go block@(Term.Handle' h body) t = do
+    -- `h` should check against `Effect e i -> t` (for new existentials `e` and `i`)
+    -- `body` should check against `i`
+    [e, i] <- sequence [freshNamed "e", freshNamed "i"]
+    appendContext $ context [existential e, existential i]
+    let l = loc block
+    -- t <- applyM t
+    ambient <- getAbilities
+    let t' = Type.effect l ambient t
+    check h $ Type.arrow
+      l
+      (Type.effectV l (l, Type.existentialp l e) (l, Type.existentialp l i))
+      t'
+    ctx <- getContext
+    let et = apply ctx (Type.existentialp l e)
+    withoutAbilityCheckFor et
+      . withEffects [et]
+      . check body
+      . apply ctx
+      $ Type.existentialp l i
+  go e t = do -- Sub
+    a   <- synthesize e
+    ctx <- getContext
+    subtype (apply ctx a) (apply ctx t)
 
 -- | `subtype ctx t1 t2` returns successfully if `t1` is a subtype of `t2`.
 -- This may have the effect of altering the context.
@@ -996,6 +1009,9 @@ subtype tx ty = scope (InSubtype tx ty) $
     ctx <- getContext
     subtype (apply ctx a1) (apply ctx a2)
   go _ a (Type.Effect1' _e2 a2) = subtype a a2
+  go _ (Type.Effect1' es a) a2 = do
+     subtype es (Type.effects (loc es) [])
+     subtype a a2
   go ctx (Type.Existential' b v) t -- `InstantiateL`
     | Set.member v (existentials ctx) && notMember v (Type.freeVars t) =
     instantiateL b v t
@@ -1006,7 +1022,7 @@ subtype tx ty = scope (InSubtype tx ty) $
      ctx <- getContext
      let es1' = map (apply ctx) es1
          es2' = map (apply ctx) es2
-     abilityCheck' es2' es1'
+     if all (`elem` es2') es1' then pure () else abilityCheck' es2' es1'
   go _ t t2@(Type.Effects' _) | expand t  = subtype (Type.effects (loc t) [t]) t2
   go _ t@(Type.Effects' _) t2 | expand t2 = subtype t (Type.effects (loc t2) [t2])
   go ctx _ _ = failWith $ TypeMismatch ctx
@@ -1159,7 +1175,6 @@ solve ctx v t
 abilityCheck' :: (Var v, Ord loc) => [Type v loc] -> [Type v loc] -> M v loc ()
 abilityCheck' [] [] = pure ()
 abilityCheck' ambient requested = do
-  -- let !_ = traceShow ("ambient" :: String, ambient, "requested" :: String, requested) ()
   -- if requested is an existential that is unsolved, go ahead and unify that w/ all of ambient
   ctx <- getContext
   let es = [ Type.existential' (loc t) b v
