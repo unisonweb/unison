@@ -7,9 +7,8 @@ module Unison.Lexer where
 import           Control.Lens.TH (makePrisms)
 import           Control.Monad (join)
 import qualified Control.Monad.State as S
-import qualified Control.Monad.Writer as W
 import           Data.Char
-import           Data.Foldable (traverse_, toList)
+import           Data.Foldable (toList)
 import           Data.List
 import qualified Data.List.NonEmpty as Nel
 import           Data.Set (Set)
@@ -465,30 +464,8 @@ incBy rem pos@(Pos line col) = case rem of
   '\n':rem -> incBy rem $ Pos (line + 1) 1
   _:rem    -> incBy rem $ Pos line (col + 1)
 
-ex :: String
-ex =
-  join [ "if\n"
-       , "  s = 0\n"
-       , "  s > 0\n"
-       , "then\n"
-       , "  s = 0\n"
-       , "  s + 1\n"
-       , "else\n"
-       , "  s = 0\n"
-       , "  s + 2\n" ]
-
 debugLex'' :: [Token Lexeme] -> String
-debugLex'' lexemes =
-  unlines . W.execWriter . flip S.evalStateT [] . traverse_ f . map payload $ lexemes
-  where
-    f :: Lexeme -> S.StateT String (W.Writer [String]) ()
-    f x = do
-      pad <- S.get
-      S.lift . W.tell $ [pad ++ show x]
-      case x of
-        Open _ -> S.modify (++ "  ")
-        Close -> S.modify (drop 2)
-        _ -> pure ()
+debugLex'' = show . fmap payload . tree
 
 debugLex :: String -> String -> IO ()
 debugLex scope = putStrLn . debugLex'' . lexer scope
