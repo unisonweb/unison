@@ -156,32 +156,29 @@ tree toks = one toks (\t _ -> t)
 stanzas :: [T (Token Lexeme)] -> [[T (Token Lexeme)]]
 stanzas ts = go [] ts where
   go acc [] = [reverse acc]
-  go acc (c@((payload . headToken) -> Semi) : t : ts) = (reverse $ c : acc) : go [] (t:ts)
-  go acc (t:ts) = go (t:acc) ts
+  go acc (t:ts) = case payload $ headToken t of
+    Semi   -> (reverse $ t : acc) : go [] ts
+    _      -> go (t:acc) ts
 
 -- Moves type and effect declarations to the front of the token stream
 -- and move `use` statements to the front of each block
 reorder :: [T (Token Lexeme)] -> [T (Token Lexeme)]
-reorder ts = first ++ (join . sortWith f . stanzas $ core) ++ last
+reorder ts = join . sortWith f . stanzas $ ts
   where
-    n = length ts
-    first = take 1 ts -- save `Open` token from start
-    last = drop (n - 1) ts -- and `Close` token from end
-    core = take (n - 2) . drop 1 $ ts -- middle n-2 elements
-    f [] = 2 :: Int
+    f [] = 3 :: Int
     f (t : _) = case payload $ headToken t of
-      Reserved "type" -> 0
+      Open "type" -> 0
       Reserved "effect" -> 0
       Reserved "use" -> 1
-      _ -> 2 :: Int
-
-lexer' :: String -> String -> [Token Lexeme]
-lexer' scope rem =
-  let t = tree $ lexer scope rem
-  in toList $ reorderTree reorder t
+      _ -> 3 :: Int
 
 lexer :: String -> String -> [Token Lexeme]
 lexer scope rem =
+  let t = tree $ lexer0 scope rem
+  in toList $ reorderTree reorder t
+
+lexer0 :: String -> String -> [Token Lexeme]
+lexer0 scope rem =
     Token (Open scope) topLeftCorner topLeftCorner
       : pushLayout scope [] topLeftCorner rem
   where
