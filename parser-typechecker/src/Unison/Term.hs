@@ -12,6 +12,7 @@
 
 module Unison.Term where
 
+import Prelude hiding (and,or)
 import qualified Control.Monad.Writer.Strict as Writer
 import           Data.Foldable (traverse_, toList)
 import           Data.Int (Int64)
@@ -393,7 +394,7 @@ unApps t = case go t [] of [] -> Nothing; f:args -> Just (f,args)
 
 pattern LamsNamed' vs body <- (unLams' -> Just (vs, body))
 
-unLams' :: AnnotatedTerm' vt v a -> Maybe ([v], AnnotatedTerm' vt v a)
+unLams' :: AnnotatedTerm2 vt at ap v a -> Maybe ([v], AnnotatedTerm2 vt at ap v a)
 unLams' (LamNamed' v body) = case unLams' body of
   Nothing -> Just ([v], body)
   Just (vs, body) -> Just (v:vs, body)
@@ -458,10 +459,12 @@ anf :: ∀ vt at v a . (Semigroup a, Var v)
     => AnnotatedTerm2 vt at a v a -> AnnotatedTerm2 vt at a v a
 anf t = ABT.rewriteDown go t where
   ann = ABT.annotation
+  isVar (Var' _) = True
+  isVar _ = False
   fixAp t f args =
     let
       args' = Map.fromList $ toVar =<< (args `zip` [0..])
-      toVar (b, i) | inANF b   = []
+      toVar (b, i) | isVar b   = []
                    | otherwise = [(i, ABT.fresh t (Var.named . Text.pack $ "arg" ++ show i))]
       argsANF = map toANF (args `zip` [0..])
       toANF (b,i) = maybe b (var (ann b)) $ Map.lookup i args'
@@ -469,28 +472,34 @@ anf t = ABT.rewriteDown go t where
     in foldr addLet (apps' f argsANF) (args `zip` [(0::Int)..])
   go :: AnnotatedTerm2 vt at a v a -> AnnotatedTerm2 vt at a v a
   go t@(Apps' f args)
-    | inANF f = fixAp t f args
+    | isVar f = fixAp t f args
     | otherwise = let fv' = ABT.fresh t (Var.named "f")
                   in let1' [(fv', anf f)] (fixAp t (var (ann f) fv') args)
   go e@(Handle' h body)
-    | inANF h = e
+    | isVar h = e
     | otherwise = let h' = ABT.fresh e (Var.named "handler")
                   in let1' [(h', anf h)] (handle (ann e) (var (ann h) h') body)
   go e@(If' cond t f)
-    | inANF cond = e
+    | isVar cond = e
     | otherwise = let cond' = ABT.fresh e (Var.named "cond")
                   in let1' [(cond', anf cond)] (iff (ann e) (var (ann cond) cond') t f)
   go e@(Match' scrutinee cases)
-    | inANF scrutinee = e
+    | isVar scrutinee = e
     | otherwise = let scrutinee' = ABT.fresh e (Var.named "scrutinee")
                   in let1' [(scrutinee', anf scrutinee)] (match (ann e) (var (ann scrutinee) scrutinee') cases)
+  go e@(And' x y)
+    | isVar x && isVar y = e
+    | otherwise =
+        let x' = ABT.fresh e (Var.named "argX")
+            y' = ABT.fresh e (Var.named "argY")
+        in let1' [(x', anf x), (y', anf y)] (and (ann e) (var (ann x) x') (var (ann y) y'))
+  go e@(Or' x y)
+    | isVar x && isVar y = e
+    | otherwise =
+        let x' = ABT.fresh e (Var.named "argX")
+            y' = ABT.fresh e (Var.named "argY")
+        in let1' [(x', anf x), (y', anf y)] (or (ann e) (var (ann x) x') (var (ann y) y'))
   go t = t
-
-inANF :: AnnotatedTerm2 vt at ap v a -> Bool
-inANF t = case t of
-  App' _f _arg -> False
-  Request' _ _ -> False
-  _ -> True
 
 instance Var v => Hashable1 (F v a p) where
   hash1 hashCycle hash e =
