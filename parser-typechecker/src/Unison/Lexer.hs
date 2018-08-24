@@ -135,22 +135,17 @@ reorderTree _ l@(L _) = l
 reorderTree f (T open mid close) = T open (f (reorderTree f <$> mid)) close
 
 tree :: [Token Lexeme] -> T (Token Lexeme)
-tree toks = one toks (\t _ -> t)
-  where
+tree toks = one toks (\t _ -> t) where
   one (open@(payload -> Open _) : ts) k = many (T open) [] ts k
-  one (t@(payload -> Close) : ts) k = k (die t) ts
   one (t : ts) k = k (L t) ts
-  one [] k = k lastErr []
-    where
+  one [] k = k lastErr [] where
     lastErr = case drop (length toks - 1) toks of
-      [] -> L (Token (Err UnknownLexeme) topLeftCorner topLeftCorner)
-      (t : _) -> die t
+      [] -> L (Token (Err LayoutError) topLeftCorner topLeftCorner)
+      (t : _) -> L $ t { payload = Err LayoutError }
 
   many open acc [] k = k (open (reverse acc) []) []
   many open acc (t@(payload -> Close) : ts) k = k (open (reverse acc) [t]) ts
   many open acc ts k = one ts $ \t ts -> many open (t:acc) ts k
-
-  die t = L $ t { payload = Err UnknownLexeme }
 
 stanzas :: [T (Token Lexeme)] -> [[T (Token Lexeme)]]
 stanzas ts = go [] ts where
