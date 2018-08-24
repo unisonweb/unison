@@ -9,10 +9,11 @@ import           Control.Monad (join)
 import qualified Control.Monad.State as S
 import qualified Control.Monad.Writer as W
 import           Data.Char
-import           Data.Foldable (traverse_)
+import           Data.Foldable (traverse_, toList)
 import           Data.List
 import qualified Data.List.NonEmpty as Nel
 import           Data.Set (Set)
+import Unison.Util.Monoid (intercalateMap)
 import qualified Data.Set as Set
 import           GHC.Exts (sortWith)
 import           Text.Megaparsec.Error (ShowToken(..))
@@ -115,9 +116,27 @@ topLeftCorner = Pos 1 1
 
 data T a = T a [T a] [a] | L a deriving (Functor, Foldable, Traversable)
 
--- just do one stanza - either a single token, or an open, many stanza, close sequence
-stanzaTree :: [Token Lexeme] -> T (Token Lexeme)
-stanzaTree toks = one toks (\t _ -> t)
+headToken :: T a -> a
+headToken (T a _ _) = a
+headToken (L a) = a
+
+instance Show a => Show (T a) where
+  show (L a) = show a
+  show (T open mid close) =
+    show open ++ "\n"
+              ++ indent "  " (intercalateMap "\n" show mid) ++ "\n"
+              ++ intercalateMap "" show close
+    where
+      indent by s = by ++ (s >>= go by)
+      go by '\n' = '\n' : by
+      go _ c = [c]
+
+reorderTree :: ([T a] -> [T a]) -> T a -> T a
+reorderTree _ l@(L _) = l
+reorderTree f (T open mid close) = T open (f (reorderTree f <$> mid)) close
+
+tree :: [Token Lexeme] -> T (Token Lexeme)
+tree toks = one toks (\t _ -> t)
   where
   one (open@(payload -> Open _) : ts) k = many (T open) [] ts k
   one (t@(payload -> Close) : ts) k = k (die t) ts
@@ -134,23 +153,32 @@ stanzaTree toks = one toks (\t _ -> t)
 
   die t = L $ t { payload = Err UnknownLexeme }
 
-stanzas :: [Token Lexeme] -> [[Token Lexeme]]
+stanzas :: [T (Token Lexeme)] -> [[T (Token Lexeme)]]
 stanzas ts = go [] ts where
   go acc [] = [reverse acc]
-  go acc (c@(payload -> Semi) : t : ts) | column (start t) == 1 = (reverse $ c : acc) : go [] (t:ts)
+  go acc (c@((payload . headToken) -> Semi) : t : ts) = (reverse $ c : acc) : go [] (t:ts)
   go acc (t:ts) = go (t:acc) ts
 
 -- Moves type and effect declarations to the front of the token stream
-reorder :: [Token Lexeme] -> [Token Lexeme]
+-- and move `use` statements to the front of each block
+reorder :: [T (Token Lexeme)] -> [T (Token Lexeme)]
 reorder ts = first ++ (join . sortWith f . stanzas $ core) ++ last
   where
     n = length ts
     first = take 1 ts -- save `Open` token from start
     last = drop (n - 1) ts -- and `Close` token from end
     core = take (n - 2) . drop 1 $ ts -- middle n-2 elements
-    f ((payload -> Reserved "type")   : _) = 0
-    f ((payload -> Reserved "effect") : _) = 0
-    f _                                    = 1 :: Int
+    f [] = 2 :: Int
+    f (t : _) = case payload $ headToken t of
+      Reserved "type" -> 0
+      Reserved "effect" -> 0
+      Reserved "use" -> 1
+      _ -> 2 :: Int
+
+lexer' :: String -> String -> [Token Lexeme]
+lexer' scope rem =
+  let t = tree $ lexer scope rem
+  in toList $ reorderTree reorder t
 
 lexer :: String -> String -> [Token Lexeme]
 lexer scope rem =
