@@ -3,13 +3,14 @@
 module Unison.Runtime.Rt0 where
 
 import Control.Monad.Identity (runIdentity)
+import Data.Functor
 import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Vector (Vector)
 import Data.Word (Word64)
 import Data.List
 import Unison.Symbol (Symbol)
-import Unison.Term (Term)
+import Unison.Term (AnnotatedTerm)
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Data.Vector as V
@@ -22,6 +23,8 @@ type Arity = Int
 type ConstructorId = Int
 type Pos = Int
 type ArgCount = Int
+
+type Term v = AnnotatedTerm v ()
 
 data V e
   = I Int64 | F Double | U Word64 | B Bool | T Text
@@ -81,14 +84,15 @@ call (Lam arity term body) args stack = let nargs = length args in
     _ -> {- nargs < arity -} case term of
       Term.LamsNamed' vs body -> Lam (arity - nargs) lam (compile lam)
         where
-        lam = Term.lam'' (drop nargs vs) $
+        lam = Term.lam'() (drop nargs vs) $
           ABT.substs (vs `zip` (map decompile . reverse . take nargs $ stack)) body
 
 decompile :: V e -> Term Symbol
 decompile _ = error "todo: decompile"
 
-compile :: Term Symbol -> IR R.Reference
-compile t = go (ABT.annotateBound $ Term.anf t) where
+-- compile :: AnnotatedTerm Symbol a -> IR R.Reference
+compile t = go (ABT.annotateBound' . Term.anf $ void t) where
+  -- go :: AnnotatedTerm Symbol [Symbol] -> IR R.Reference
   go t = case t of
     Term.Int64' n -> V (I n)
     Term.UInt64' n -> V (U n)

@@ -1,161 +1,258 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DoAndIfThenElse #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE PatternSynonyms #-}
 
 -- | This module is the primary interface to the Unison typechecker
-module Unison.Typechecker (admissibleTypeAt, check, check', checkAdmissible', equals, locals, subtype, isSubtype, synthesize, synthesize', typeAt, wellTyped) where
+-- module Unison.Typechecker (admissibleTypeAt, check, check', checkAdmissible', equals, locals, subtype, isSubtype, synthesize, synthesize', typeAt, wellTyped) where
 
-import Control.Monad
-import Unison.Note (Note,Noted)
-import Unison.Paths (Path)
-import Unison.Term (Term)
-import Unison.Type (Type)
-import Unison.Var (Var)
-import Unison.DataDeclaration (DataDeclaration)
-import Unison.Reference (Reference)
+module Unison.Typechecker where
+
+import           Control.Lens
+import           Control.Monad (join)
+import           Control.Monad.State (StateT, modify, get)
+import           Control.Monad.Trans (lift)
+import           Control.Monad.Writer
+import           Data.Foldable (traverse_, toList)
+import           Data.Map (Map)
 import qualified Data.Map as Map
+import           Data.Maybe (isJust, maybeToList, catMaybes)
+import           Data.Text (Text)
+import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
-import qualified Unison.Note as Note
-import qualified Unison.Paths as Paths
+import qualified Unison.Blank as B
+import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
+import           Unison.Reference (Reference(..))
+import           Unison.Result (Result(..), Note(..), failNote)
+import           Unison.Term (AnnotatedTerm)
 import qualified Unison.Term as Term
-import qualified Unison.Type as Type
+import           Unison.Type (AnnotatedType)
 import qualified Unison.TypeVar as TypeVar
 import qualified Unison.Typechecker.Context as Context
+import           Unison.Var (Var)
+import qualified Unison.Var as Var
 
--- import Debug.Trace
--- watch msg a = trace (msg ++ show a) a
+-- import qualified Unison.Paths as Paths
+-- import qualified Unison.Type as Type
 
-invalid :: (Show a1, Show a) => a -> a1 -> String
-invalid loc ctx = "invalid path " ++ show loc ++ " in:\n" ++ show ctx
+type Term v loc = AnnotatedTerm v loc
+type Type v loc = AnnotatedType v loc
 
--- | Compute the allowed type of a replacement for a given subterm.
--- Example, in @\g -> map g [1,2,3]@, @g@ has an admissible type of
--- @Int -> r@, where @r@ is an unbound universal type variable, which
--- means that an @Int -> Bool@, an @Int -> String@, etc could all be
--- substituted for @g@.
+data NamedReference v loc =
+  NamedReference { fqn :: Text, fqnType :: Context.Type v loc }
+
+data Env f v loc = Env
+  { _builtinLoc :: loc
+  , _ambientAbilities :: [Type v loc]
+  , _typeOf :: Reference -> f (Type v loc)
+  , _dataDeclaration :: Reference -> f (DataDeclaration' v loc)
+  , _effectDeclaration :: Reference -> f (EffectDeclaration' v loc)
+  , _terms :: Map Text [NamedReference v loc]
+  }
+
+makeLenses ''Env
+
+-- -- | Compute the allowed type of a replacement for a given subterm.
+-- -- Example, in @\g -> map g [1,2,3]@, @g@ has an admissible type of
+-- -- @Int -> r@, where @r@ is an unbound universal type variable, which
+-- -- means that an @Int -> Bool@, an @Int -> String@, etc could all be
+-- -- substituted for @g@.
+-- --
+-- -- Algorithm works by replacing the subterm, @e@ with
+-- -- @(f e)@, where @f@ is a fresh function parameter. We then
+-- -- read off the type of @e@ from the inferred result type of @f@.
+-- admissibleTypeAt :: (Monad f, Var v)
+--                  => (Env f v loc)
+--                  -> Path
+--                  -> Term v loc
+--                  -> f (Result v loc (Type v loc))
+-- admissibleTypeAt env path t =
+--   let
+--     f = ABT.v' "f"
+--     shake (Type.Arrow' (Type.Arrow' _ tsub) _) = Type.generalize tsub
+--     shake (Type.ForallNamed' _ t) = shake t
+--     shake _ = error "impossible, f had better be a function"
+--   in case Term.lam() f <$> Paths.modifyTerm (\t -> Term.app() (Term.var() (ABT.Free f)) (Term.wrapV t)) path t of
+--     Nothing -> pure . failNote $ InvalidPath path t
+--     Just t -> fmap shake <$> synthesize env t
+
+-- -- | Compute the type of the given subterm.
+-- typeAt :: (Monad f, Var v) => Env f v loc -> Path -> Term v loc -> f (Type v loc)
+-- typeAt env [] t = synthesize env t
+-- typeAt env path t =
+--   let
+--     f = ABT.v' "f"
+--     remember e = Term.var() (ABT.Free f) `Term.app_` Term.wrapV e
+--     shake (Type.Arrow' (Type.Arrow' tsub _) _) = Type.generalize tsub
+--     shake (Type.ForallNamed' _ t) = shake t
+--     shake _ = error "impossible, f had better be a function"
+--   in case Term.lam() f <$> Paths.modifyTerm remember path t of
+--     Nothing -> failNote $ InvalidPath path t
+--     Just t -> pure . shake <$> synthesize env t
 --
--- Algorithm works by replacing the subterm, @e@ with
--- @(f e)@, where @f@ is a fresh function parameter. We then
--- read off the type of @e@ from the inferred result type of @f@.
-admissibleTypeAt :: (Monad f, Var v)
-                 => (Reference -> Noted f (Type v))
-                 -> (Reference -> Noted f (DataDeclaration v))
-                 -> Path
-                 -> Term v
-                 -> Noted f (Type v)
-admissibleTypeAt typeOf decl loc t = Note.scoped ("admissibleTypeAt@" ++ show loc ++ " " ++ show t) $
-  let
-    f = ABT.v' "f"
-    shake (Type.Arrow' (Type.Arrow' _ tsub) _) = Type.generalize tsub
-    shake (Type.ForallNamed' _ t) = shake t
-    shake _ = error "impossible, f had better be a function"
-  in case Term.lam f <$> Paths.modifyTerm (\t -> Term.app (Term.var (ABT.Free f)) (Term.wrapV t)) loc t of
-    Nothing -> Note.failure $ invalid loc t
-    Just t -> shake <$> synthesize typeOf decl t
+-- -- | Return the type of all local variables in scope at the given location
+-- locals :: (Monad f, Var v) => Env f v loc -> Path -> Term v loc
+--        -> f [(v, Type v loc)]
+-- locals env path ctx | ABT.isClosed ctx =
+--   zip (map ABT.unvar vars) <$> types
+--   where
+--     -- replace focus, x, with `let saved = f v1 v2 v3 ... vn in x`,
+--     -- where `f` is fresh variable, then infer type of `f`, read off the
+--     -- types of `v1`, `v2`, ...
+--     vars = map ABT.Bound (Paths.inScopeAtTerm path ctx)
+--     f = ABT.v' "f"
+--     saved = ABT.v' "saved"
+--     remember e = Term.let1_ [(saved, Term.var() (ABT.Free f) `Term.apps` map (((),) . Term.var()) vars)] (Term.wrapV e)
+--     usingAllLocals = Term.lam() f (Paths.modifyTerm' remember path ctx)
+--     types = if null vars then pure []
+--             else extract <$> typeAt env [] usingAllLocals
+--     extract (Type.Arrow' i _) = extract1 i
+--     extract (Type.ForallNamed' _ t) = extract t
+--     extract t = error $ "expected function type, got: " ++ show t
+--     extract1 (Type.Arrow' i o) = i : extract1 o
+--     extract1 _ = []
+-- locals _ _ _ _ ctx =
+--   -- need to call failNote multiple times
+--   failNote <$> (uncurry UnknownSymbol <$> ABT.freeVarAnnotations ctx)
 
--- | Compute the type of the given subterm.
-typeAt :: (Monad f, Var v)
-       => (Reference -> Noted f (Type v))
-       -> (Reference -> Noted f (DataDeclaration v))
-       -> Path
-       -> Term v -> Noted f (Type v)
-typeAt typeOf decl [] t = Note.scoped ("typeAt: " ++ show t) $ synthesize typeOf decl t
-typeAt typeOf decl loc t = Note.scoped ("typeAt@"++show loc ++ " " ++ show t) $
-  let
-    f = ABT.v' "f"
-    remember e = Term.var (ABT.Free f) `Term.app` Term.wrapV e
-    shake (Type.Arrow' (Type.Arrow' tsub _) _) = Type.generalize tsub
-    shake (Type.ForallNamed' _ t) = shake t
-    shake _ = error "impossible, f had better be a function"
-  in case Term.lam f <$> Paths.modifyTerm remember loc t of
-    Nothing -> Note.failure $ invalid loc t
-    Just t -> shake <$> synthesize typeOf decl t
 
--- | Return the type of all local variables in scope at the given location
-locals :: (Show v, Monad f, Var v)
-       => (Reference -> Noted f (Type v))
-       -> (Reference -> Noted f (DataDeclaration v))
-       -> Path
-       -> Term v -> Noted f [(v, Type v)]
-locals typeOf decl path ctx | ABT.isClosed ctx =
-  Note.scoped ("locals@"++show path ++ " " ++ show ctx)
-              ((zip (map ABT.unvar vars)) <$> types)
-  where
-    -- replace focus, x, with `let saved = f v1 v2 v3 ... vn in x`,
-    -- where `f` is fresh variable, then infer type of `f`, read off the
-    -- types of `v1`, `v2`, ...
-    vars = map ABT.Bound (Paths.inScopeAtTerm path ctx)
-    f = ABT.v' "f"
-    saved = ABT.v' "saved"
-    remember e = Term.let1 [(saved, Term.var (ABT.Free f) `Term.apps` map Term.var vars)] (Term.wrapV e)
-    usingAllLocals = Term.lam f (Paths.modifyTerm' remember path ctx)
-    types = if null vars then pure []
-            else extract <$> typeAt typeOf decl [] usingAllLocals
-    extract (Type.Arrow' i _) = extract1 i
-    extract (Type.ForallNamed' _ t) = extract t
-    extract t = error $ "expected function type, got: " ++ show t
-    extract1 (Type.Arrow' i o) = i : extract1 o
-    extract1 _ = []
-locals _ _ _ ctx =
-  Note.failure $ "Term.locals: term contains free variables - " ++ show ctx
-
--- | Infer the type of a 'Unison.Syntax.Term', using
+-- | Infer the type of a 'Unison.Term', using
 -- a function to resolve the type of @Ref@ constructors
 -- contained in that term.
 synthesize
-  :: (Monad f, Var v)
-  => (Reference -> Noted f (Type v))
-  -> (Reference -> Noted f (DataDeclaration v))
-  -> Term v
-  -> Noted f (Type v)
-synthesize typeOf decl t =
-  ABT.vmap TypeVar.underlying <$> Context.synthesizeClosed typeOf decl t
+  :: (Monad f, Var v, Ord loc)
+  => Env f v loc
+  -> Term v loc
+  -> f (Result (Note v loc) (Type v loc))
+synthesize env t =
+  let go (notes, ot) =
+        Result (Typechecking <$> notes) (ABT.vmap TypeVar.underlying <$> ot)
+  in  go <$> Context.synthesizeClosed
+        (view builtinLoc env)
+        (ABT.vmap TypeVar.Universal <$> view ambientAbilities env)
+        (view typeOf env)
+        (view dataDeclaration env)
+        (view effectDeclaration env)
+        (Term.vtmap TypeVar.Universal t)
 
--- | Infer the type of a 'Unison.Syntax.Term', assumed
--- not to contain any @Ref@ constructors
-synthesize' :: Var v => Term v -> Either Note (Type v)
-synthesize' term = join . Note.unnote $ synthesize missing missingD term
-  where missing h = Note.failure $ "unexpected term ref: " ++ show h
-        missingD h = Note.failure $ "unexpected data declaration reference: " ++ show h
+type TDNR f v loc a =
+  StateT (Term v loc) f (Result (Note v loc) a)
+
+data Resolution v loc =
+  Resolution { resolvedName :: Text
+             , inferredType :: Context.Type v loc
+             , resolvedLoc :: loc
+             , suggestions :: [Context.Suggestion v loc]
+             }
+
+-- | Infer the type of a 'Unison.Term', using type-directed name resolution
+-- to attempt to resolve unknown symbols.
+synthesizeAndResolve
+  :: (Monad f, Var v, Ord loc) => Env f v loc -> TDNR f v loc (Type v loc)
+synthesizeAndResolve env = do
+  t  <- get
+  r1 <- lift $ synthesize env t
+  typeDirectedNameResolution r1 env
+
+-- Resolve "solved blanks". If a solved blank's type and name matches the type
+-- and unqualified name of a symbol that isn't imported, provide a note
+-- suggesting the import. If the blank is ambiguous and only one typechecks, use
+-- that one.  Otherwise, provide an unknown symbol error to the user.
+-- The cases we consider are:
+-- 1. There exist names that match and their types match too. Tell the user
+--    the fully qualified names of these terms, and their types.
+-- 2. There's more than one name that matches,
+--    but only one that typechecks. Substitute that one into the code.
+-- 3. No match at all. Throw an unresolved symbol at the user.
+typeDirectedNameResolution
+  :: forall v loc f
+   . (Monad f, Var v, Ord loc)
+  => Result (Note v loc) (Type v loc)
+  -> Env f v loc
+  -> TDNR f v loc (Type v loc)
+typeDirectedNameResolution resultSoFar env = do
+  let (Result oldNotes may        ) = resultSoFar
+      (Result newNotes resolutions) = traverse resolveNote $ toList oldNotes
+  case resolutions of
+    Nothing -> lift $ pure $ Result newNotes may
+    Just rs ->
+      let res2    = catMaybes rs
+          goAgain = any ((== 1) . length . suggestions) res2
+      in  if goAgain
+            then do
+              traverse_ substSuggestion res2
+              synthesizeAndResolve env
+            else
+              -- The type hasn't changed
+              lift . pure $ do
+                tp <- resultSoFar
+                suggest res2
+                pure tp
+ where
+  suggest :: [Resolution v loc] -> Result (Note v loc) ()
+  suggest = traverse_
+    (\(Resolution name inferredType loc suggestions) ->
+      failNote . Typechecking $ Context.Note
+        (Context.UnknownTerm loc (Var.named name) suggestions inferredType)
+        []
+    )
+  substSuggestion :: Resolution v loc -> TDNR f v loc ()
+  substSuggestion (Resolution _ _ loc [Context.Suggestion fqn _]) =
+    let f t = if ABT.annotation t == loc
+          then Just . Term.ref loc $ Builtin fqn
+          else Nothing
+    in  pure <$> modify (ABT.visitPure f)
+  substSuggestion _ = pure $ pure ()
+--  Returns Nothing for irrelevant notes
+  resolveNote :: Note v loc -> Result (Note v loc) (Maybe (Resolution v loc))
+  resolveNote (Typechecking (Context.Note (Context.SolvedBlank (B.Resolve loc n) _ it) _))
+    = fmap (Just . Resolution (Text.pack n) it loc . join)
+      . traverse (resolve it)
+      . join
+      . maybeToList
+      . Map.lookup (Text.pack n)
+      $ view terms env
+  resolveNote n = tell [n] >> pure Nothing
+  resolve
+    :: Context.Type v loc
+    -> NamedReference v loc
+    -> Result (Note v loc) [Context.Suggestion v loc]
+  resolve inferredType (NamedReference fqn foundType) =
+    -- We found a name that matches. See if the type matches too.
+    let Result subNotes subResult = uncurry Result
+          $ Context.isSubtype (view builtinLoc env) foundType inferredType
+    in  case subResult of
+              -- Something unexpected went wrong with the subtype check
+          Nothing -> const [] <$> traverse_ (failNote . Typechecking) subNotes
+          -- Suggest the import if the type matches.
+          Just b  -> pure [ Context.Suggestion fqn foundType | b ]
 
 -- | Check whether a term matches a type, using a
 -- function to resolve the type of @Ref@ constructors
 -- contained in the term. Returns @typ@ if successful,
 -- and a note about typechecking failure otherwise.
-check
-  :: (Monad f, Var v)
-  => (Reference -> Noted f (Type v))
-  -> (Reference -> Noted f (DataDeclaration v))
-  -> Term v
-  -> Type v -> Noted f (Type v)
-check typeOf decl term typ = synthesize typeOf decl (Term.ann term typ)
-
--- | Check whether a term, assumed to contain no @Ref@ constructors,
--- matches a given type. Return @Left@ if any references exist, or
--- if typechecking fails.
-check' :: Var v => Term v -> Type v -> Either Note (Type v)
-check' term typ = join . Note.unnote $ check missing missingD term typ
-  where missing h = Note.failure $ "unexpected term reference: " ++ show h
-        missingD h = Note.failure $ "unexpected data declaration reference: " ++ show h
+check :: (Monad f, Var v, Ord loc) => Env f v loc -> Term v loc -> Type v loc
+      -> f (Result (Note v loc) (Type v loc))
+check env term typ = synthesize env (Term.ann (ABT.annotation term) term typ)
 
 -- | `checkAdmissible' e t` tests that `(f : t -> r) e` is well-typed.
 -- If `t` has quantifiers, these are moved outside, so if `t : forall a . a`,
 -- this will check that `(f : forall a . a -> a) e` is well typed.
-checkAdmissible' :: Var v => Term v -> Type v -> Either Note (Type v)
-checkAdmissible' term typ =
-  synthesize' (Term.blank `Term.ann` tweak typ `Term.app` term)
-  where
-    tweak (Type.ForallNamed' v body) = Type.forall v (tweak body)
-    tweak t = t `Type.arrow` t
+-- checkAdmissible' :: Var v => Term v -> Type v -> Either Note (Type v)
+-- checkAdmissible' term typ =
+--   synthesize' (Term.blank() `Term.ann_` tweak typ `Term.app_` term)
+--   where
+--     tweak (Type.ForallNamed' v body) = Type.forall() v (tweak body)
+--     tweak t = Type.arrow() t t
 
 -- | Returns `True` if the expression is well-typed, `False` otherwise
-wellTyped
-  :: (Monad f, Var v)
-  => (Reference -> Noted f (Type v))
-  -> (Reference -> Noted f (DataDeclaration v))
-  -> Term v
-  -> Noted f Bool
-wellTyped typeOf decl term =
-  (const True <$> synthesize typeOf decl term) `Note.orElse` pure False
+wellTyped :: (Monad f, Var v, Ord loc) => Env f v loc -> Term v loc -> f Bool
+wellTyped env term = isJust . result <$> synthesize env term
 
 -- | @subtype a b@ is @Right b@ iff @f x@ is well-typed given
 -- @x : a@ and @f : b -> t@. That is, if a value of type `a`
@@ -164,22 +261,23 @@ wellTyped typeOf decl term =
 -- about the reason for subtyping failure otherwise.
 --
 -- Example: @subtype (forall a. a -> a) (Int -> Int)@ returns @Right (Int -> Int)@.
-subtype :: Var v => Type v -> Type v -> Either Note (Type v)
-subtype t1 t2 =
-  let (t1', t2') = (ABT.vmap TypeVar.Universal t1, ABT.vmap TypeVar.Universal t2)
-  in case Context.runM (Context.subtype t1' t2') Context.env0 Map.empty of
-    Left e -> Left e
-    Right _ -> Right t2
+-- subtype :: Var v => Type v -> Type v -> Either Note (Type v)
+-- subtype t1 t2 = error "todo"
+  -- let (t1', t2') = (ABT.vmap TypeVar.Universal t1, ABT.vmap TypeVar.Universal t2)
+  -- in case Context.runM (Context.subtype t1' t2')
+  --                      (Context.MEnv Context.env0 [] Map.empty True) of
+  --   Left e -> Left e
+  --   Right _ -> Right t2
 
 -- | Returns true if @subtype t1 t2@ returns @Right@, false otherwise
-isSubtype :: Var v => Type v -> Type v -> Bool
-isSubtype t1 t2 = case subtype t1 t2 of
-  Left _ -> False
-  Right _ -> True
+-- isSubtype :: Var v => Type v -> Type v -> Bool
+-- isSubtype t1 t2 = case subtype t1 t2 of
+--   Left _ -> False
+--   Right _ -> True
 
 -- | Returns true if the two type are equal, up to alpha equivalence and
 -- order of quantifier introduction. Note that alpha equivalence considers:
 -- `forall b a . a -> b -> a` and
 -- `forall a b . a -> b -> a` to be different types
-equals :: Var v => Type v -> Type v -> Bool
-equals t1 t2 = isSubtype t1 t2 && isSubtype t2 t1
+-- equals :: Var v => Type v -> Type v -> Bool
+-- equals t1 t2 = isSubtype t1 t2 && isSubtype t2 t1

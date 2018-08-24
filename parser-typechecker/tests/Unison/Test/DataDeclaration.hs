@@ -4,14 +4,15 @@ module Unison.Test.DataDeclaration where
 
 import EasyTest
 import Text.RawString.QQ
-import Unison.Test.Common
-import Unison.FileParser (UnisonFile(..), unsafeParseFile)
+import Unison.UnisonFile (UnisonFile(..))
+import Unison.Symbol (Symbol)
 import qualified Unison.Var as Var
-import Data.List (intercalate)
 import qualified Data.Map as Map
-import Unison.Parser (PEnv, penv0)
+import Unison.Parser (Ann, penv0)
+import Unison.Parsers (unsafeParseFile)
 import Unison.DataDeclaration (hashDecls)
 
+test :: Test ()
 test = scope "datadeclaration" $
   let hashes = hashDecls . (snd <$>) . dataDeclarations $ file
       hashMap = Map.fromList $ fmap (\(a,b,_) -> (a,b)) hashes
@@ -27,7 +28,9 @@ test = scope "datadeclaration" $
     scope "Pong == Long'" . expect $ hashOf "Pong" == hashOf "Long'"
   ]
 
-file = flip unsafeParseFile penv0 $ [r|
+file :: UnisonFile Symbol Ann
+file = snd . flip unsafeParseFile penv0 $ [r|
+
 type Bool = True | False
 type Bool' = False | True
 

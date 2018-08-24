@@ -1,0 +1,5 @@
+a |> f = f a
+Stream.from-int64 +0
+  |> Stream.take 10
+  |> Stream.map Int64.increment
+  |> Stream.to-sequence

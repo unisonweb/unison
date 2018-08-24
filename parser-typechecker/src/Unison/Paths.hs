@@ -48,13 +48,13 @@ focus1 e = ABT.Path go' where
   w = E.vmap ABT.Bound
   wt = ABT.vmap ABT.Bound
   go Fn (Term (E.App' fn arg)) =
-    Just (Term fn, \fn -> Term <$> (E.app <$> asTerm fn <*> pure (w arg)), [])
+    Just (Term fn, \fn -> Term <$> (E.app() <$> asTerm fn <*> pure (w arg)), [])
   go Fn (Type (T.App' fn arg)) =
-    Just (Type fn, \fn -> Type <$> (T.app <$> asType fn <*> pure (wt arg)), [])
+    Just (Type fn, \fn -> Type <$> (T.app() <$> asType fn <*> pure (wt arg)), [])
   go Arg (Term (E.App' fn arg)) =
-    Just (Term arg, \arg -> Term <$> (E.app (w fn) <$> asTerm arg), [])
+    Just (Term arg, \arg -> Term <$> (E.app () (w fn) <$> asTerm arg), [])
   go Arg (Type (T.App' fn arg)) =
-    Just (Type arg, \arg -> Type <$> (T.app (wt fn) <$> asType arg), [])
+    Just (Type arg, \arg -> Type <$> (T.app() (wt fn) <$> asType arg), [])
   go Body (Term (E.LamNamed' v body)) = Just (Term body, \t -> Term . set <$> asTerm t, [v]) where
     set body = ABT.tm (E.Lam (ABT.absr v body))
   go Body (Term (E.Let1Named' v b body)) = Just (Term body, \t -> Term . set <$> asTerm t, [v]) where
@@ -77,22 +77,22 @@ focus1 e = ABT.Path go' where
   go Body (Declaration v body) = Just (Term body, \body -> Declaration (ABT.Bound v) <$> asTerm body, [])
   go Bound (Declaration v body) = Just (Var v, \v -> Declaration <$> asVar v <*> pure (w body), [])
   go Bound (Term (E.LamNamed' v body)) =
-    Just (Var v, \v -> Term <$> (E.lam <$> asVar v <*> pure (w body)), [])
+    Just (Var v, \v -> Term <$> (E.lam() <$> asVar v <*> pure (w body)), [])
   go Bound (Term (E.Let1Named' v b body)) =
-    Just (Var v, \v -> (\v -> Term $ E.let1 [(v,w b)] (w body)) <$> asVar v, [])
+    Just (Var v, \v -> (\v -> Term $ E.let1 [(((),v),w b)] (w body)) <$> asVar v, [])
   go Bound (Type (T.ForallNamed' v body)) =
-    Just (Var v, \v -> Type <$> (T.forall <$> asVar v <*> pure (wt body)), [])
+    Just (Var v, \v -> Type <$> (T.forall() <$> asVar v <*> pure (wt body)), [])
   go (Index i) (Term (E.Vector' vs)) | i < Vector.length vs && i >= 0 =
     Just (Term (vs `Vector.unsafeIndex` i),
-          \e -> (\e -> Term $ E.vector' $ fmap w vs // [(i,e)]) <$> asTerm e,
+          \e -> (\e -> Term $ E.vector'() $ fmap w vs // [(i,e)]) <$> asTerm e,
           [])
   go (Binding i) (Term (E.Let1Named' v b body)) | i <= 0 = Just (Declaration v b, set, []) where
-    set (Declaration v b) = pure . Term $ E.let1 [(v, b)] (w body)
+    set (Declaration v b) = pure . Term $ E.let1 [(((),v), b)] (w body)
     set _ = Nothing
-  go Annotation (Term (E.Ann' e t)) = Just (Type t, \t -> Term . E.ann (w e) <$> asType t, [])
-  go Body (Term (E.Ann' body t)) = Just (Term body, \body -> Term . flip E.ann (wt t) <$> asTerm body, [])
-  go Input (Type (T.Arrow' i o)) = Just (Type i, \i -> Type <$> (T.arrow <$> asType i <*> pure (wt o)), [])
-  go Output (Type (T.Arrow' i o)) = Just (Type o, \o -> Type . T.arrow (wt i) <$> asType o, [])
+  go Annotation (Term (E.Ann' e t)) = Just (Type t, \t -> Term . E.ann () (w e) <$> asType t, [])
+  go Body (Term (E.Ann' body t)) = Just (Term body, \body -> Term . flip (E.ann ()) (wt t) <$> asTerm body, [])
+  go Input (Type (T.Arrow' i o)) = Just (Type i, \i -> Type <$> (T.arrow() <$> asType i <*> pure (wt o)), [])
+  go Output (Type (T.Arrow' i o)) = Just (Type o, \o -> Type . T.arrow() (wt i) <$> asType o, [])
   go _ _ = Nothing
 
 type Path = [PathElement]
@@ -145,8 +145,8 @@ insertTerm at ctx = do
   case parent of
     Term (E.Vector' vs) -> do
       i <- listToMaybe [i | Index i <- [last at]]
-      let v2 = E.vector' ((E.vmap ABT.Bound <$> Vector.take (i+1) vs) `mappend`
-                          Vector.singleton E.blank `mappend`
+      let v2 = E.vector'() ((E.vmap ABT.Bound <$> Vector.take (i+1) vs) `mappend`
+                          Vector.singleton (E.blank ()) `mappend`
                           (E.vmap ABT.Bound <$> Vector.drop (i+1) vs))
       asTerm =<< set (Term v2)
     _ -> Nothing -- todo - allow other types of insertions, like \x -> y to \x x2 -> y

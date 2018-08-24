@@ -73,8 +73,8 @@ object CompilationBenchmarks {
 
         val env = (new Array[U](20), new Array[B](20), StackPtr.empty, Result())
         profile("triangle stream .foldLeft(plusU)") {
-          Stream.fromUnison(0).take(N(triangleCount))
-            .foldLeft(Value(0))(plusU(env)) match {
+          Stream.fromInt64(0).take(N(triangleCount))
+            .foldLeft(Value(0))(plusU.tupled(env)) match {
             case Value.Unboxed(n, _) => n
           }
         }

@@ -1,46 +1,43 @@
 module Unison.Test.Common where
 
-import Unison.Parsers (unsafeParseTerm, unsafeParseType)
-import Unison.Term (Term)
-import Unison.Type (Type)
-import Unison.Symbol (Symbol)
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 import qualified Unison.Builtin as B
-import qualified Unison.Note as N
+import qualified Unison.FileParsers as FP
+import           Unison.Parser (Ann(..))
+import qualified Unison.PrintError as PrintError
+import           Unison.Result (Result,Note)
+import qualified Unison.Result as Result
+import           Unison.Symbol (Symbol)
+import           Unison.Term (AnnotatedTerm)
+import           Unison.Type (AnnotatedType)
 import qualified Unison.Typechecker as Typechecker
-import qualified Unison.ABT as ABT
-import qualified Unison.Term as Term
-import qualified Unison.Type as Type
-import qualified Unison.Var as Var
-import qualified Unison.Reference as R
+
+type Term v = AnnotatedTerm v Ann
+type Type v = AnnotatedType v Ann
 
 tm :: String -> Term Symbol
 tm = B.tm
+
+file :: String -> Result (Note Symbol Ann) (PrintError.Env, Maybe (Term Symbol, Type Symbol))
+file = FP.parseAndSynthesizeAsFile ""
 
 t :: String -> Type Symbol
 t = B.t
 
 typechecks :: String -> Bool
-typechecks terms = typechecks' (tm terms)
+typechecks = Result.isSuccess . file
+
+env :: Monad m => Typechecker.Env m Symbol Ann
+env = Typechecker.Env Intrinsic [] typeOf dd ed Map.empty where
+  typeOf r = error $ "no type for: " ++ show r
+  dd r = error $ "no data declaration for: " ++ show r
+  ed r = error $ "no effect declaration for: " ++ show r
 
 typechecks' :: Term Symbol -> Bool
-typechecks' term = let
-  typeOf r = maybe (fail $ "no type for: " ++ show r) pure $ Map.lookup r B.builtins
-  declFor r = fail $ "no data declaration for: " ++ show r
-  ok = Typechecker.synthesize typeOf declFor term
-  in case N.run ok of
-    Left e -> False
-    Right _ -> True
+typechecks' term = Result.isSuccess $ Typechecker.synthesize env term
 
 check' :: Term Symbol -> Type Symbol -> Bool
-check' term typ = let
-  typeOf r = maybe (fail $ "no type for: " ++ show r) pure $ Map.lookup r B.builtins
-  declFor r = fail $ "no data declaration for: " ++ show r
-  ok = Typechecker.check typeOf declFor term typ
-  in case N.run ok of
-    Left e -> False
-    Right _ -> True
+check' term typ = Result.isSuccess $ Typechecker.check env term typ
 
 check :: String -> String -> Bool
 check terms typs = check' (tm terms) (t typs)

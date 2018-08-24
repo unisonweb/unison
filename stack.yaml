@@ -8,17 +8,11 @@ packages:
 - parser-typechecker
 
 #compiler-check: match-exact
-resolver: lts-11.9
-compiler: ghc-8.4.2
+resolver: lts-12.5
 
 extra-deps:
 - base58-bytestring-0.1.0
 
 ghc-options:
  # All packages
- "$locals": -Werror
-
-#extra-include-dirs:
-#- /usr/local/include
-#extra-lib-dirs:
-#- /usr/local/lib
+ "$locals": -Werror -freverse-errors

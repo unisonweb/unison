@@ -1,0 +1,4 @@
+foo : a -> a -> UInt64
+foo x z = 42
+
+foo +1 "hi"

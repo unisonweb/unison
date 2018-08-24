@@ -4,14 +4,14 @@ type Optional a = None | Some a
 Optional.isEmpty : ∀ a . Optional a -> Boolean
 Optional.isEmpty o = case o of
   Optional.None -> true
-  _ -> false
+  Optional.Some _ -> false
 
 increment x = x +_UInt64 1
 
-(|>) : forall a . a -> (a -> b) -> b
+(|>) : forall a b . a -> (a -> b) -> b
 a |> f = f a
 
 Stream.from-int64 -3
   |> Stream.take 10
-  |> Stream.fold-left 0 (+_Int64)
+  |> Stream.fold-left +0 (+_Int64)
   |> Optional.Some

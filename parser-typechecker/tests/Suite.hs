@@ -1,18 +1,29 @@
+{-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
+
 module Main where
 
-import EasyTest
-import System.IO
-import System.Environment (getArgs)
-import qualified Unison.Test.Common as Common
-import qualified Unison.Test.TermParser as TermParser
-import qualified Unison.Test.FileParser as FileParser
+import           EasyTest
+import           System.Environment (getArgs)
+import           System.IO
 import qualified Unison.Test.DataDeclaration as DataDeclaration
+import qualified Unison.Test.FileParser as FileParser
+import qualified Unison.Test.Lexer as Lexer
+import qualified Unison.Test.Range as Range
+import qualified Unison.Test.TermParser as TermParser
+import qualified Unison.Test.Type as Type
+import qualified Unison.Test.Typechecker as Typechecker
+import qualified Unison.Test.ColorText as ColorText
 
 test :: Test ()
-test = tests [
-  TermParser.test,
-  FileParser.test,
-  DataDeclaration.test
+test = tests
+  [ Lexer.test
+  , TermParser.test
+  , Type.test
+  , Typechecker.test
+  , FileParser.test
+  , DataDeclaration.test
+  , Range.test
+  , ColorText.test
  ]
 
 main :: IO ()

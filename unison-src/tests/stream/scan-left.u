@@ -1,0 +1,5 @@
+a |> f = f a
+Stream.from-uint64 1
+  |> Stream.take 10000
+  |> Stream.scan-left 0 (UInt64.+)
+  |> Stream.reduce 0 (UInt64.+)

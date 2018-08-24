@@ -1,23 +1,24 @@
-{-# Language OverloadedStrings #-}
+{-# Language BangPatterns, OverloadedStrings #-}
 
 module Unison.Test.FileParser where
 
   import EasyTest
   import Control.Applicative
-  import Unison.FileParser
+  import qualified Unison.Builtin as Builtin
+  import Unison.FileParser (file)
   import Unison.Parser
-  import Unison.DataDeclaration
   import qualified Unison.Parser as Parser
-  import qualified Unison.Parsers as Parsers
-  import Unison.Parsers (unsafeGetRight)
-  import Data.Map (Map)
+  import Unison.Parsers (unsafeGetRightFrom, unsafeReadAndParseFile')
   import qualified Data.Map as Map
   import qualified Unison.Reference as R
   import Unison.Symbol (Symbol)
+  import Unison.UnisonFile (UnisonFile)
 
+  test1 :: Test ()
   test1 = scope "fileparser.test1" . tests . map parses $
-    [
-      "type Pair a b = Pair a b\n()"
+    [ "()"
+    -- , "type () = ()\n()"
+    , "type Pair a b = Pair a b\n()"
     , "type Optional a = Just a | Nothing\n()"
     , unlines
       ["type Optional2 a"
@@ -45,25 +46,27 @@ module Unison.Test.FileParser where
       ,"ping"]
     ]
 
-  test2 = scope "fileparser.test2" $ do
-    file <- io $ unsafeReadAndParseFile' "unison-src/test1.u"
-    io $ putStrLn (show (file :: UnisonFile Symbol))
-    ok
+  test2 :: Test ()
+  test2 = scope "fileparser.test2" $
+    (io $ unsafeReadAndParseFile' "unison-src/test1.u") *> ok
 
+  test :: Test ()
   test = --test2
     test1 <|> test2
 
-  builtins = Map.fromList
+  builtins :: PEnv Symbol
+  builtins = PEnv (Map.fromList
     [("Pair", (R.Builtin "Pair", 0)),
-     ("State.set", (R.Builtin "State", 0))]
+     ("State.set", (R.Builtin "State", 0))]) mempty
 
-  -- parses s = scope s $ do
-  --   let p = unsafeParseFile s builtins :: UnisonFile Symbol
-  --   noteScoped $ "parsing: " ++ s ++ "\n  " ++ show p
-  --   ok
-
+  parses :: String -> Test ()
   parses s = scope s $ do
-    let p = unsafeGetRight $ Unison.Parser.run (Parser.root file) s Parsers.s0 builtins
-        p' = p :: UnisonFile Symbol -- (Map Symbol (DataDeclaration Symbol), Map Symbol (EffectDeclaration Symbol))
-    noteScoped $ "parsing: " ++ s ++ "\n  " ++ show p
-    ok
+    let
+      p :: UnisonFile Symbol Ann
+      !p = snd . unsafeGetRightFrom s $
+             Unison.Parser.run
+               (Parser.rootFile $
+                 file Builtin.builtinTerms Builtin.builtinTypes)
+                 s
+                 builtins
+    pure p >> ok

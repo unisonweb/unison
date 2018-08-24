@@ -1,0 +1,22 @@
+--IO/State2 effect
+effect IO where
+  launch-missiles : {IO} ()
+
+foo : () -> {IO} ()
+foo unit =
+  inc-by : Int64 -> {IO, State Int64} ()
+  inc-by i =
+    IO.launch-missiles -- OK, since declared by `inc-by` signature
+    y = State.get
+    State.put (y Int64.+ i)
+  ()
+
+type Optional a =
+  Some a | None
+
+effect State se2 where
+  put : ∀ se . se -> {State se} ()
+  get : ∀ se . {State se} se
+
+()
+

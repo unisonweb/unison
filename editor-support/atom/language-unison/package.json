@@ -1,0 +1,16 @@
+{
+  "name": "language-unison",
+  "version": "0.0.0",
+  "description": "An example language grammar package",
+  "repository": "https://github.com/user/package-name",
+  "keywords": [
+    "syntax",
+    "highlighting",
+    "grammar"
+  ],
+  "license": "MIT",
+  "bugs": "https://github.com/user/package-name/issues",
+  "engines": {
+    "atom": ">=1.0.0 <2.0.0"
+  }
+}

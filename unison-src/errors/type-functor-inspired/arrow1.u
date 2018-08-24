@@ -1,0 +1,3 @@
+arrow : Int64 -> Int64 -> Int64
+arrow a = 3
+()

@@ -1,11 +1,11 @@
 module Unison.Test.Typechecker.Components where
 
-import Control.Monad
+-- import Control.Monad
 import EasyTest
-import Unison.Parsers (unsafeParseTerm)
-import qualified Unison.Note as Note
-import qualified Unison.Test.Common as Common
-import qualified Unison.Typechecker.Components as Components
+-- import Unison.Parsers (unsafeParseTerm)
+-- import qualified Unison.Note as Note
+-- import qualified Unison.Test.Common as Common
+-- import qualified Unison.Typechecker.Components as Components
 
 test :: Test ()
 test = scope "Typechecker.Components" $ ok

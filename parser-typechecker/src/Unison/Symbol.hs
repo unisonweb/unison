@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Unison.Symbol where
 
 import Data.Text (Text)
@@ -19,7 +20,7 @@ instance Var Symbol where
   named n = Symbol 0 n
   clear (Symbol id n) = Symbol id n
   qualifiedName s =
-    if freshId s /= 0 then name s `Text.append` (Text.pack (show (freshId s)))
+    if freshId s /= 0 then name s `Text.append` "" `Text.append` (Text.pack (show (freshId s)))
     else name s
   freshIn vs s | Set.null vs || Set.notMember s vs = s -- already fresh!
   freshIn vs s@(Symbol i n) = case Set.elemAt (Set.size vs - 1) vs of

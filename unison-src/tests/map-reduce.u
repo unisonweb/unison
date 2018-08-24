@@ -1,0 +1,101 @@
+
+use UInt64 + - * / == <
+use Sequence map take drop size fold-left halve
+use Optional None Some
+use Monoid.Monoid -- import the constructor
+use Remote fork spawn at
+
+-- A simple distributed computation effect
+effect Remote n where
+
+  -- Spawn a new node, of type `n`
+  spawn : {Remote n} n
+
+  -- Sequentially evaluate the given thunk on another node
+  -- then return to the current node when it completes
+  at : n -> '{Remote n} a -> {Remote n} a
+
+  -- Start a computation running, returning an `r` that can be forced to
+  -- await the result of the computation
+  fork : '{Remote n} a -> {Remote n} ('{Remote n} a)
+
+type Monoid a = Monoid (a -> a -> a) a
+
+namespace Monoid where
+
+  zero : Monoid a -> a
+  zero m = case m of Monoid _ z -> z
+
+  op : Monoid a -> a -> a -> a
+  op m = case m of Monoid op _ -> op
+
+  fold-map : (a -> {e} b) -> Monoid b -> [a] -> {e} b
+  fold-map f m as =
+    op = Monoid.op m
+    if size as < 2 then Sequence.fold-left (b a -> op b (f a)) (zero m) as
+    else case Sequence.halve as of (l, r) -> fold-map f m l `op` fold-map f m r
+
+  par : Monoid a -> Monoid ('{Remote n} a)
+  par m =
+    o = op m
+    z = zero m
+    -- note - does not typecheck if flip the order of the constructor!
+    -- the 'z has type 'a, which fails to match the later remote thunk
+    Monoid (a1 a2 -> par-apply o a1 a2) 'z
+
+force : '{e} a -> {e} a
+force a = !a
+
+map-reduce : (a -> {Remote n} b) -> Monoid b -> [a] -> {Remote n} b
+map-reduce f m a =
+  force <| Monoid.fold-map (a -> fork '(f a)) (Monoid.par m) a
+
+namespace Sequence where
+
+  fold-left : (b -> a -> {e} b) -> b -> [a] -> {e} b
+  fold-left f z as = case Sequence.at 0 as of
+    None -> z
+    Some h -> fold-left f (f z h) (drop 1 as)
+
+  halve : [a] -> ([a], [a])
+  halve as = (take (size as / 2) as, drop (size as / 2) as)
+
+ex : '{Remote n} UInt64
+ex = 'let
+  alice = spawn
+  bob = spawn
+  f1 = fork '(1 + 1)
+  f2 = fork '(2 + 2)
+  !f1 + !f2
+
+par-apply : (a -> b -> c) -> '{Remote n} a -> '{Remote n} b -> '{Remote n} c
+par-apply f a b = 'let
+  x = fork a
+  y = fork b
+  f !x !y
+
+-- this currently crashes the compiler
+Remote.run-local : '{Remote UInt64} a -> a
+Remote.run-local r =
+  step : UInt64 -> Effect (Remote UInt64) a -> a
+  step nid r = case r of
+    {a} -> a
+    {Remote.fork t -> k} -> handle (step nid) in k t
+    {Remote.spawn -> k} -> handle (step (nid + 1)) in k nid
+    {Remote.at _ t -> k} -> handle (step (nid + 1)) in k !t
+
+  handle (step 0) in !r
+
+uno : '{e} a -> '{e} a -> {e} a
+uno a a2 = !a
+
+dos : (a -> a -> a) -> '{e} a -> '{e} a -> {e} a
+dos f a a2 = f !a !a2
+
+(<|) : (i -> o) -> i -> o
+f <| i = f i
+i |> f = f i
+
+Stream.from-uint64 1
+  |> Stream.take 15
+  |> Stream.to-sequence

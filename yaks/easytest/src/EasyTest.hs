@@ -20,11 +20,13 @@ import qualified Control.Concurrent.Async as A
 import qualified Data.Map as Map
 import qualified System.Random as Random
 
-data Status = Failed | Passed !Int | Skipped
+data Status = Failed | Passed !Int | Skipped | Pending
 
 combineStatus :: Status -> Status -> Status
 combineStatus Skipped s = s
 combineStatus s Skipped = s
+combineStatus _ Pending = Pending
+combineStatus Pending _ = Pending
 combineStatus Failed _ = Failed
 combineStatus _ Failed = Failed
 combineStatus (Passed n) (Passed m) = Passed (n + m)
@@ -60,6 +62,10 @@ expectJust (Just a) = ok >> pure a
 expectRight :: HasCallStack => Either e a -> Test a
 expectRight (Left _) = crash "expected Right, got Left"
 expectRight (Right a) = ok >> pure a
+
+expectLeft :: HasCallStack => Either e a -> Test e
+expectLeft (Left e) = ok >> pure e
+expectLeft (Right _) = crash "expected Left, got Right"
 
 tests :: [Test ()] -> Test ()
 tests = msum
@@ -98,7 +104,8 @@ run' seed note allow (Test t) = do
     resultsMap <- readTVarIO results
     case Map.findWithDefault Skipped msgs resultsMap of
       Skipped -> pure ()
-      Passed n -> note $ "🐬  " ++ (if n <= 1 then msgs else "(" ++ show n ++ ") " ++ msgs)
+      Pending -> note $ "🚧  " ++ msgs
+      Passed n -> note $ "\129412  " ++ (if n <= 1 then msgs else "(" ++ show n ++ ") " ++ msgs)
       Failed -> note $ "💥  " ++ msgs
   let line = "------------------------------------------------------------"
   note "Raw test output to follow ... "
@@ -117,24 +124,29 @@ run' seed note allow (Test t) = do
     -- totalTestCases = foldl' (+) 0 succeededList
     failures = [ a | (a, Failed) <- resultsList ]
     failed = length failures
+    pendings = [ a | (a, Pending) <- resultsList ]
+    pending = length pendings
+    pendingSuffix = if pending == 0 then "👍 🎉" else ""
+    testsPlural n = show n ++ " " ++ if n == 1 then "test" else "tests"
+  note line
+  note "\n"
+  when (pending > 0) $ do
+    note $ "🚧  " ++ testsPlural pending ++ " still pending (pending scopes below):"
+    note $ "    " ++ intercalate "\n    " (map (show . takeWhile (/= '\n')) pendings)
   case failures of
-    [] -> do
-      note line
+    [] ->
       case succeeded of
         0 -> do
           note "😶  hmm ... no test results recorded"
           note "Tip: use `ok`, `expect`, or `crash` to record results"
           note "Tip: if running via `runOnly` or `rerunOnly`, check for typos"
-        1 -> note $ "✅  1 test passed, no failures! 👍 🎉"
-        _ -> note $ "✅  " ++ show succeeded ++ " tests passed, no failures! 👍 🎉"
+        n -> note $ "✅  " ++ testsPlural n ++ " passed, no failures! " ++ pendingSuffix
     (hd:_) -> do
-      note line
-      note "\n"
       note $ "  " ++ show succeeded ++ (if failed == 0 then " PASSED" else " passed")
       note $ "  " ++ show (length failures) ++ (if failed == 0 then " failed" else " FAILED (failed scopes below)")
-      note $ "    " ++ intercalate "\n    " (map show failures)
+      note $ "    " ++ intercalate "\n    " (map (show . takeWhile (/= '\n')) failures)
       note ""
-      note $ "  To rerun with same random seed:\n"
+      note "  To rerun with same random seed:\n"
       note $ "    EasyTest.rerun " ++ show seed
       note $ "    EasyTest.rerunOnly " ++ show seed ++ " " ++ "\"" ++ hd ++ "\""
       note "\n"
@@ -145,12 +157,13 @@ run' seed note allow (Test t) = do
 -- | Label a test. Can be nested. A `'.'` is placed between nested
 -- scopes, so `scope "foo" . scope "bar"` is equivalent to `scope "foo.bar"`
 scope :: String -> Test a -> Test a
-scope msg (Test t) = Test $ do
+scope msg (Test t) = wrap . Test $ do
   env <- ask
   let messages' = case messages env of [] -> msg; ms -> ms ++ ('.':msg)
   case (null (allow env) || take (length (allow env)) msg `isPrefixOf` allow env) of
     False -> putResult Skipped >> pure Nothing
-    True -> liftIO $ runReaderT t (env { messages = messages', allow = drop (length msg + 1) (allow env) })
+    True -> liftIO $
+      runReaderT t (env { messages = messages', allow = drop (length msg + 1) (allow env) })
 
 -- | Log a message
 note :: String -> Test ()
@@ -280,7 +293,7 @@ runWrap env t = do
   e <- try $ runReaderT t env
   case e of
     Left e -> do
-      note_ env (messages env ++ " EXCEPTION: " ++ show (e :: SomeException))
+      note_ env (messages env ++ " EXCEPTION!!!: " ++ show (e :: SomeException))
       runReaderT (putResult Failed) env
       pure Nothing
     Right a -> pure a
@@ -319,6 +332,10 @@ crash msg = do
   let trace = callStack
       msg' = msg ++ " " ++ prettyCallStack trace
   Test (Just <$> putResult Failed) >> noteScoped ("FAILURE " ++ msg') >> Test (pure Nothing)
+
+-- skips the test but makes a note of this fact
+pending :: Test a -> Test ()
+pending _ = Test (Nothing <$ putResult Pending)
 
 putResult :: Status -> ReaderT Env IO ()
 putResult passed = do

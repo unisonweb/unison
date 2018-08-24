@@ -35,21 +35,26 @@ library
 
   exposed-modules:
     Unison.ABT
+    Unison.Blank
     Unison.Builtin
     Unison.Codecs
     Unison.DataDeclaration
     Unison.FileParser
+    Unison.FileParsers
     Unison.Hash
     Unison.Hashable
     Unison.Kind
-    Unison.Note
+    Unison.Lexer
     Unison.Parser
     Unison.Parsers
     Unison.Path
     Unison.Paths
     Unison.Pattern
+    Unison.PatternP
+    Unison.PrintError
     Unison.Reference
     Unison.Runtime.Rt0
+    Unison.Result
     Unison.Symbol
     Unison.Term
     Unison.TermParser
@@ -59,10 +64,17 @@ library
     Unison.Typechecker
     Unison.Typechecker.Context
     Unison.Typechecker.Components
+    Unison.Typechecker.Extractor
+    Unison.UnisonFile
+    Unison.Util.AnnotatedText
+    Unison.Util.ColorText
     Unison.Util.Logger
+    Unison.Util.Monoid
+    Unison.Util.Range
     Unison.Var
 
   build-depends:
+    ansi-terminal,
     base,
     base58-bytestring,
     bifunctors,
@@ -71,15 +83,20 @@ library
     containers,
     comonad,
     cryptonite,
+    errors,
     free,
     hashable,
+    lens,
     memory,
+    monad-loops,
     mtl,
     murmur-hash,
     parsec,
     parsec-layout,
+    megaparsec,
     prelude-extras,
     random,
+    safe,
     stm,
     text,
     transformers,
@@ -88,7 +105,7 @@ library
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
 
   if flag(optimized)
-    ghc-options: -funbox-strict-fields -O2
+    ghc-options: -funbox-strict-fields
 
   if flag(quiet)
     ghc-options: -v0
@@ -96,6 +113,7 @@ library
 executable bootstrap
   main-is: Bootstrap.hs
   hs-source-dirs: bootstrap
+  ghc-options:    -Wall
   build-depends:
     base,
     base58-bytestring,
@@ -116,14 +134,18 @@ executable bootstrap
 
 executable tests
   main-is:        Suite.hs
-  ghc-options:    -w -threaded -rtsopts -with-rtsopts=-N -v0
+  ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
   hs-source-dirs: tests
   other-modules:
     Unison.Test.Common
+    Unison.Test.ColorText
     Unison.Test.DataDeclaration
     Unison.Test.FileParser
+    Unison.Test.Lexer
+    Unison.Test.Range
     Unison.Test.TermParser
     Unison.Test.Typechecker
+    Unison.Test.Type
     Unison.Test.Typechecker.Components
 
   build-depends:
@@ -131,7 +153,10 @@ executable tests
     bytestring,
     containers,
     easytest,
+    errors,
     filepath,
+    filemanip,
+    megaparsec,
     raw-strings-qq,
     text,
     transformers,

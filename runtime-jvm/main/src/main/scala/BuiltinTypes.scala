@@ -7,11 +7,11 @@ import compilation.{Computation, Return, Requested}
 object BuiltinTypes {
 
   abstract class Constructor(_cid: Int) {
-    def cid = ConstructorId(_cid)
+    val cid = ConstructorId(_cid)
   }
 
   object Unit extends Constructor(0) {
-    val Id = org.unisonweb.Id("Unit")
+    val Id = org.unisonweb.Id("()")
     val pattern: Pattern = Pattern.Data(Id, cid, Nil)
     val term: Term = Term.Constructor(Id, cid)
     val value: Value = Value.Data(Id, cid, Array())
@@ -19,7 +19,7 @@ object BuiltinTypes {
 
   /* Tuple.pattern(Unit.pattern, Optional.Some.pattern(Pattern.Wildcard)) */
   object Tuple extends Constructor(0) {
-    val Id = org.unisonweb.Id("Tuple")
+    val Id = org.unisonweb.Id("Pair")
     def consPattern(hd: Pattern, tl: Pattern): Pattern =
       Pattern.Data(Id, cid, List(hd,tl))
     def pattern(ps: Pattern*): Pattern =
@@ -122,10 +122,15 @@ object BuiltinTypes {
           val argsStart = top.toInt - ((arity - compilation.K) + 1)
           val argsStop = top.toInt + 1
           val args = new Array[Value](arity)
-          stackU.view(argsStart, argsStop)
-                .zip(stackB.view(argsStart,argsStop))
-                .map { case (u,b) => Value.fromParam(u,b) }
-                .copyToArray(args)
+          locally {
+            var i = argsStart
+            var j = 0
+            while (i < argsStop) {
+              args(j) = Value.fromParam(stackU(i), stackB(i))
+              i += 1
+              j += 1
+            }
+          }
           args(arity - 2) = Value.fromParam(x1,x1b)
           args(arity - 1) = Value.fromParam(x0,x0b)
           r.boxed = req(args)
@@ -134,7 +139,7 @@ object BuiltinTypes {
     }
     val lam: Computation =
       if (arity >= 1)
-        new Value.Lambda.ClosureForming(paramNames.toList, body, None, decompile)
+        new Value.Lambda.ClosureForming(paramNames.toList, body, decompile)
           .toComputation
       else try {
         Return(req(Array()))

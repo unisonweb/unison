@@ -1,0 +1,11 @@
+f1 : Int64 -> Int64
+f1 n = n + +1
+
+f1 (3 UInt64.+ 3)
+
+-- idea:
+  -- I was expecting Int64
+  -- vs
+  -- f1 was expecting Int64
+
+-- "In the call below" vs "In the call to `foo`"

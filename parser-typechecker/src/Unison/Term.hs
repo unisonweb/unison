@@ -6,20 +6,22 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Term where
 
 import qualified Control.Monad.Writer.Strict as Writer
-import           Data.Foldable (toList)
+import           Data.Foldable (traverse_, toList)
 import           Data.Int (Int64)
 import           Data.List (foldl')
 import           Data.Map (Map)
 import qualified Data.Map as Map
-import qualified Data.Monoid as Monoid
 import           Data.Set (Set, union)
 import qualified Data.Set as Set
 import           Data.Text (Text)
+import qualified Data.Text as Text
 import           Data.Vector (Vector)
 import qualified Data.Vector as Vector
 import           Data.Word (Word64)
@@ -27,40 +29,42 @@ import           GHC.Generics
 import           Prelude.Extras (Eq1(..), Show1(..))
 import           Text.Show
 import qualified Unison.ABT as ABT
+import qualified Unison.Blank as B
 import           Unison.Hash (Hash)
 import qualified Unison.Hash as Hash
 import           Unison.Hashable (Hashable1, accumulateToken)
 import qualified Unison.Hashable as Hashable
-import           Unison.Pattern (Pattern)
+import           Unison.PatternP (Pattern)
+import qualified Unison.PatternP as Pattern
 import           Unison.Reference (Reference(..))
 import qualified Unison.Reference as Reference
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import           Unison.Var (Var)
-import           Unsafe.Coerce
 import qualified Unison.Var as Var
-import qualified Data.Text as Text
+import           Unsafe.Coerce
 
-data MatchCase a = MatchCase Pattern (Maybe a) a
+-- todo: add loc to MatchCase
+data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
   deriving (Show,Eq,Foldable,Functor,Generic,Generic1,Traversable)
 
 -- | Base functor for terms in the Unison language
 -- We need `typeVar` because the term and type variables may differ.
-data F typeVar a
+data F typeVar typeAnn patternAnn a
   = Int64 Int64
   | UInt64 Word64
   | Float Double
   | Boolean Bool
   | Text Text
-  | Blank -- An expression that has not been filled in, has type `forall a . a`
+  | Blank (B.Blank typeAnn)
   | Ref Reference
-  | Constructor Reference Int -- First argument identifies the data type, second argument identifies the constructor
+  -- First argument identifies the data type,
+  -- second argument identifies the constructor
+  | Constructor Reference Int
   | Request Reference Int
   | Handle a a
-  | EffectPure a
-  | EffectBind Reference Int [a] a
   | App a a
-  | Ann a (Type typeVar)
+  | Ann a (Type.AnnotatedType typeVar typeAnn)
   | Vector (Vector a)
   | If a a a
   | And a a
@@ -82,23 +86,50 @@ data F typeVar a
   --   Match x
   --     [ (Constructor 0 [Var], ABT.abs n rhs1)
   --     , (Constructor 1 [], rhs2) ]
-  | Match a [MatchCase a]
-  deriving (Eq,Foldable,Functor,Generic,Generic1,Traversable)
+  | Match a [MatchCase patternAnn a]
+  deriving (Foldable,Functor,Generic,Generic1,Traversable)
 
 -- | Like `Term v`, but with an annotation of type `a` at every level in the tree
-type AnnotatedTerm v a = ABT.Term (F v) v a
+type AnnotatedTerm v a = AnnotatedTerm2 v a a v a
 -- | Allow type variables and term variables to differ
-type AnnotatedTerm' vt v a = ABT.Term (F vt) v a
+type AnnotatedTerm' vt v a = AnnotatedTerm2 vt a a v a
+-- | Allow type variables, term variables, type annotations and term annotations
+-- to all differ
+type AnnotatedTerm2 vt at ap v a = ABT.Term (F vt at ap) v a
 
 -- | Terms are represented as ABTs over the base functor F, with variables in `v`
 type Term v = AnnotatedTerm v ()
 -- | Terms with type variables in `vt`, and term variables in `v`
 type Term' vt v = AnnotatedTerm' vt v ()
 
+bindBuiltins :: forall v a b b2. Var v
+             => [(v, AnnotatedTerm2 v b a v b2)]
+             -> [(v, Reference)]
+             -> AnnotatedTerm2 v b a v a
+             -> AnnotatedTerm2 v b a v a
+bindBuiltins termBuiltins typeBuiltins t =
+   f . g $ t
+   where
+   f :: AnnotatedTerm2 v b a v a -> AnnotatedTerm2 v b a v a
+   f = typeMap (Type.bindBuiltins typeBuiltins)
+   g :: AnnotatedTerm2 v b a v a -> AnnotatedTerm2 v b a v a
+   g = ABT.substsInheritAnnotation termBuiltins
+
+typeDirectedResolve :: Var v
+                    => ABT.Term (F vt b ap) v b -> ABT.Term (F vt b ap) v b
+typeDirectedResolve t = fmap fst . ABT.visitPure f $ ABT.annotateBound t
+  where f (ABT.Term _ (a, bound) (ABT.Var v)) | Set.notMember v bound =
+          Just $ resolve (a, bound) a (Text.unpack $ Var.name v)
+        f _ = Nothing
+
 vmap :: Ord v2 => (v -> v2) -> AnnotatedTerm v a -> AnnotatedTerm v2 a
 vmap f = ABT.vmap f . typeMap (ABT.vmap f)
 
-typeMap :: Ord v2 => (Type v -> Type v2) -> AnnotatedTerm v a -> ABT.Term (F v2) v a
+vtmap :: Ord vt2 => (vt -> vt2) -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt2 v a
+vtmap f = typeMap (ABT.vmap f)
+
+typeMap :: Ord vt2 => (Type.AnnotatedType vt at -> Type.AnnotatedType vt2 at2)
+                   -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt2 at2 ap v a
 typeMap f t = go t where
   go (ABT.Term fvs a t) = ABT.Term fvs a $ case t of
     ABT.Abs v t -> ABT.Abs v (go t)
@@ -112,7 +143,7 @@ typeMap f t = go t where
 wrapV :: Ord v => AnnotatedTerm v a -> AnnotatedTerm (ABT.V v) a
 wrapV = vmap ABT.Bound
 
-freeVars :: Term v -> Set v
+freeVars :: AnnotatedTerm' vt v a -> Set v
 freeVars = ABT.freeVars
 
 freeTypeVars :: Ord vt => AnnotatedTerm' vt v a -> Set vt
@@ -133,15 +164,14 @@ pattern UInt64' n <- (ABT.out -> ABT.Tm (UInt64 n))
 pattern Float' n <- (ABT.out -> ABT.Tm (Float n))
 pattern Boolean' b <- (ABT.out -> ABT.Tm (Boolean b))
 pattern Text' s <- (ABT.out -> ABT.Tm (Text s))
-pattern Blank' <- (ABT.out -> ABT.Tm Blank)
+pattern Blank' b <- (ABT.out -> ABT.Tm (Blank b))
 pattern Ref' r <- (ABT.out -> ABT.Tm (Ref r))
 pattern Builtin' r <- (ABT.out -> ABT.Tm (Ref (Builtin r)))
 pattern App' f x <- (ABT.out -> ABT.Tm (App f x))
 pattern Match' scrutinee branches <- (ABT.out -> ABT.Tm (Match scrutinee branches))
 pattern Constructor' ref n <- (ABT.out -> ABT.Tm (Constructor ref n))
 pattern Request' ref n <- (ABT.out -> ABT.Tm (Request ref n))
-pattern EffectBind' id cid args k <- (ABT.out -> ABT.Tm (EffectBind id cid args k))
-pattern EffectPure' a <- (ABT.out -> ABT.Tm (EffectPure a))
+pattern RequestOrCtor' ref n <- (unReqOrCtor -> Just (ref, n))
 pattern If' cond t f <- (ABT.out -> ABT.Tm (If cond t f))
 pattern And' x y <- (ABT.out -> ABT.Tm (And x y))
 pattern Or' x y <- (ABT.out -> ABT.Tm (Or x y))
@@ -156,119 +186,181 @@ pattern Let1Named' v b e <- (ABT.Tm' (Let b (ABT.out -> ABT.Abs v e)))
 pattern Lets' bs e <- (unLet -> Just (bs, e))
 pattern LetRecNamed' bs e <- (unLetRecNamed -> Just (bs,e))
 pattern LetRec' subst <- (unLetRec -> Just subst)
+pattern LetRecNamedAnnotated' ann bs e <- (unLetRecNamedAnnotated -> Just (ann, bs,e))
 
 fresh :: Var v => Term v -> v -> v
 fresh = ABT.fresh
 
 -- some smart constructors
 
-var :: v -> Term v
-var = ABT.var
+var :: a -> v -> AnnotatedTerm2 vt at ap v a
+var = ABT.annotatedVar
 
-var' :: Var v => Text -> Term v
-var' = var . ABT.v'
+var' :: Var v => Text -> Term' vt v
+var' = var() . ABT.v'
 
-derived :: Ord v => Hash -> Term v
-derived = ref . Reference.Derived
+derived :: Ord v => a -> Hash -> AnnotatedTerm2 vt at ap v a
+derived a = ref a . Reference.Derived
 
-derived' :: Ord v => Text -> Maybe (Term v)
-derived' base58 = derived <$> Hash.fromBase58 base58
+derived' :: Ord v => Text -> Maybe (Term' vt v)
+derived' base58 = derived () <$> Hash.fromBase58 base58
 
-ref :: Ord v => Reference -> Term v
-ref r = ABT.tm (Ref r)
+ref :: Ord v => a -> Reference -> AnnotatedTerm2 vt at ap v a
+ref a r = ABT.tm' a (Ref r)
 
-builtin :: Ord v => Text -> Term v
-builtin n = ref (Reference.Builtin n)
+builtin :: Ord v => a -> Text -> AnnotatedTerm2 vt at ap v a
+builtin a n = ref a (Reference.Builtin n)
 
-float :: Ord v => Double -> Term v
-float d = ABT.tm (Float d)
+float :: Ord v => a -> Double -> AnnotatedTerm2 vt at ap v a
+float a d = ABT.tm' a (Float d)
 
-boolean :: Ord v => Bool -> Term v
-boolean b = ABT.tm (Boolean b)
+boolean :: Ord v => a -> Bool -> AnnotatedTerm2 vt at ap v a
+boolean a b = ABT.tm' a (Boolean b)
 
-int64 :: Ord v => Int64 -> Term v
-int64 d = ABT.tm (Int64 d)
+int64 :: Ord v => a -> Int64 -> AnnotatedTerm2 vt at ap v a
+int64 a d = ABT.tm' a (Int64 d)
 
-uint64 :: Ord v => Word64 -> Term v
-uint64 d = ABT.tm (UInt64 d)
+uint64 :: Ord v => a -> Word64 -> AnnotatedTerm2 vt at ap v a
+uint64 a d = ABT.tm' a (UInt64 d)
 
-text :: Ord v => Text -> Term v
-text = ABT.tm . Text
+text :: Ord v => a -> Text -> AnnotatedTerm2 vt at ap v a
+text a = ABT.tm' a . Text
 
-blank :: Ord v => Term v
-blank = ABT.tm Blank
+unit :: Var v => a -> AnnotatedTerm v a
+unit ann = constructor ann (Reference.Builtin "()") 0
 
-app :: Ord v => Term v -> Term v -> Term v
-app f arg = ABT.tm (App f arg)
+-- delayed terms are just lambdas that take a single `()` arg
+-- `force` calls the function
+force :: Var v => a -> a -> AnnotatedTerm v a -> AnnotatedTerm v a
+force a au e = app a e (unit au)
 
-match :: Ord v => Term v -> [MatchCase (Term v)] -> Term v
-match scrutinee branches = ABT.tm (Match scrutinee branches)
+delay :: Var v => a -> AnnotatedTerm v a -> AnnotatedTerm v a
+delay a e = lam a (Var.named "u") e
 
-handle :: Ord v => Term v -> Term v -> Term v
-handle h block = ABT.tm (Handle h block)
+blank :: Ord v => a -> AnnotatedTerm2 vt at ap v a
+blank a = ABT.tm' a (Blank B.Blank)
 
-and :: Ord v => Term v -> Term v -> Term v
-and x y = ABT.tm (And x y)
+placeholder :: Ord v => a -> String -> AnnotatedTerm2 vt a ap v a
+placeholder a s = ABT.tm' a . Blank $ B.Recorded (B.Placeholder a s)
 
-or :: Ord v => Term v -> Term v -> Term v
-or x y = ABT.tm (Or x y)
+resolve :: Ord v => at -> ab -> String -> AnnotatedTerm2 vt ab ap v at
+resolve at ab s = ABT.tm' at . Blank $ B.Recorded (B.Resolve ab s)
 
-constructor :: Ord v => Reference -> Int -> Term v
-constructor ref n = ABT.tm (Constructor ref n)
+constructor :: Ord v => a -> Reference -> Int -> AnnotatedTerm2 vt at ap v a
+constructor a ref n = ABT.tm' a (Constructor ref n)
 
-apps :: Ord v => Term v -> [Term v] -> Term v
-apps f = foldl' app f
+request :: Ord v => a -> Reference -> Int -> AnnotatedTerm2 vt at ap v a
+request a ref n = ABT.tm' a (Request ref n)
 
-iff :: Ord v => Term v -> Term v -> Term v -> Term v
-iff cond t f = ABT.tm (If cond t f)
+-- todo: delete and rename app' to app
+app_ :: Ord v => Term' vt v -> Term' vt v -> Term' vt v
+app_ f arg = ABT.tm (App f arg)
 
-ann :: Ord v => Term v -> Type v -> Term v
-ann e t = ABT.tm (Ann e t)
+app :: Ord v => a -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a
+app a f arg = ABT.tm' a (App f arg)
 
-vector :: Ord v => [Term v] -> Term v
-vector es = ABT.tm (Vector (Vector.fromList es))
+match :: Ord v => a -> AnnotatedTerm2 vt at a v a -> [MatchCase a (AnnotatedTerm2 vt at a v a)] -> AnnotatedTerm2 vt at a v a
+match a scrutinee branches = ABT.tm' a (Match scrutinee branches)
 
-vector' :: Ord v => Vector (Term v) -> Term v
-vector' es = ABT.tm (Vector es)
+handle :: Ord v => a -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a
+handle a h block = ABT.tm' a (Handle h block)
 
-lam :: Ord v => v -> Term v -> Term v
-lam v body = ABT.tm (Lam (ABT.abs v body))
+and :: Ord v => a -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a
+and a x y = ABT.tm' a (And x y)
 
-lam' :: Var v => [Text] -> Term v -> Term v
-lam' vs body = foldr lam body (map ABT.v' vs)
+or :: Ord v => a -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a
+or a x y = ABT.tm' a (Or x y)
 
-lam'' :: Ord v => [v] -> Term v -> Term v
-lam'' vs body = foldr lam body vs
+vector :: Ord v => a -> [AnnotatedTerm2 vt at ap v a] -> AnnotatedTerm2 vt at ap v a
+vector a es = vector' a (Vector.fromList es)
+
+vector' :: Ord v => a -> Vector (AnnotatedTerm2 vt at ap v a) -> AnnotatedTerm2 vt at ap v a
+vector' a es = ABT.tm' a (Vector es)
+
+apps :: Ord v => AnnotatedTerm2 vt at ap v a -> [(a, AnnotatedTerm2 vt at ap v a)] -> AnnotatedTerm2 vt at ap v a
+apps f = foldl' (\f (a,t) -> app a f t) f
+
+apps' :: (Ord v, Semigroup a)
+      => AnnotatedTerm2 vt at ap v a -> [AnnotatedTerm2 vt at ap v a] -> AnnotatedTerm2 vt at ap v a
+apps' f = foldl' (\f t -> app (ABT.annotation f <> ABT.annotation t) f t) f
+
+iff :: Ord v => a -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a
+iff a cond t f = ABT.tm' a (If cond t f)
+
+ann_ :: Ord v => Term' vt v -> Type vt -> Term' vt v
+ann_ e t = ABT.tm (Ann e t)
+
+ann :: Ord v
+    => a
+    -> AnnotatedTerm2 vt at ap v a
+    -> Type.AnnotatedType vt at
+    -> AnnotatedTerm2 vt at ap v a
+ann a e t = ABT.tm' a (Ann e t)
+
+-- arya: are we sure we want the two annotations to be the same?
+lam :: Ord v => a -> v -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a
+lam a v body = ABT.tm' a (Lam (ABT.abs' a v body))
+
+lam' :: Ord v => a -> [v] -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a
+lam' a vs body = foldr (lam a) body vs
+
+lam'' :: Ord v => [(a,v)] -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a
+lam'' vs body = foldr (uncurry lam) body vs
+
+unLetRecNamedAnnotated :: AnnotatedTerm' vt v a -> Maybe (a, [((a, v), AnnotatedTerm' vt v a)], AnnotatedTerm' vt v a)
+unLetRecNamedAnnotated (ABT.CycleA' ann avs (ABT.Tm' (LetRec bs e))) =
+  Just (ann, avs `zip` bs, e)
+unLetRecNamedAnnotated _ = Nothing
+
+letRec :: Ord v => a -> [((a,v), AnnotatedTerm' vt v a)] -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
+letRec _ [] e = e
+letRec a bindings e = ABT.cycle' a (foldr (uncurry ABT.abs') z (map fst bindings))
+  where
+    z = ABT.tm' a (LetRec (map snd bindings) e)
 
 -- | Smart constructor for let rec blocks. Each binding in the block may
 -- reference any other binding in the block in its body (including itself),
 -- and the output expression may also reference any binding in the block.
-letRec :: Ord v => [(v,Term v)] -> Term v -> Term v
-letRec [] e = e
-letRec bindings e = ABT.cycle (foldr ABT.abs z (map fst bindings))
+letRec_ :: Ord v => [(v, Term' vt v)] -> Term' vt v -> Term' vt v
+letRec_ [] e = e
+letRec_ bindings e = ABT.cycle (foldr ABT.abs z (map fst bindings))
   where
     z = ABT.tm (LetRec (map snd bindings) e)
-
-letRec' :: Var v => [(Text, Term v)] -> Term v -> Term v
-letRec' bs e = letRec [(ABT.v' name, b) | (name,b) <- bs] e
 
 -- | Smart constructor for let blocks. Each binding in the block may
 -- reference only previous bindings in the block, not including itself.
 -- The output expression may reference any binding in the block.
-let1 :: Ord v => [(v,Term v)] -> Term v -> Term v
-let1 bindings e = foldr f e bindings
+-- todo: delete me
+let1_ :: Ord v => [(v,Term' vt v)] -> Term' vt v -> Term' vt v
+let1_ bindings e = foldr f e bindings
   where
     f (v,b) body = ABT.tm (Let b (ABT.abs v body))
 
-let1' :: Var v => [(Text,Term v)] -> Term v -> Term v
-let1' bs e = let1 [(ABT.v' name, b) | (name,b) <- bs ] e
+-- | annotations are applied to each nested Let expression
+let1 :: Ord v => [((a, v), AnnotatedTerm2 vt at ap v a)] -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a
+let1 bindings e = foldr f e bindings
+  where
+    f ((ann,v),b) body = ABT.tm' ann (Let b (ABT.abs' ann v body))
 
-unLet1 :: Var v => Term v -> Maybe (Term v, ABT.Subst (F v) v ())
+let1' :: (Semigroup a, Ord v)
+      => [(v, AnnotatedTerm2 vt at ap v a)]
+      -> AnnotatedTerm2 vt at ap v a
+      -> AnnotatedTerm2 vt at ap v a
+let1' bindings e = foldr f e bindings
+  where
+    ann = ABT.annotation
+    f (v,b) body = ABT.tm' a (Let b (ABT.abs' a v body)) where
+      a = ann b <> ann body
+
+-- let1' :: Var v => [(Text, Term' vt v)] -> Term' vt v -> Term' vt v
+-- let1' bs e = let1 [(ABT.v' name, b) | (name,b) <- bs ] e
+
+unLet1 :: Var v => AnnotatedTerm' vt v a -> Maybe (AnnotatedTerm' vt v a, ABT.Subst (F vt a a) v a)
 unLet1 (ABT.Tm' (Let b (ABT.Abs' subst))) = Just (b, subst)
 unLet1 _ = Nothing
 
 -- | Satisfies `unLet (let' bs e) == Just (bs, e)`
-unLet :: Term v -> Maybe ([(v, Term v)], Term v)
+unLet :: AnnotatedTerm' vt v a -> Maybe ([(v, AnnotatedTerm' vt v a)], AnnotatedTerm' vt v a)
 unLet t = fixup (go t) where
   go (ABT.Tm' (Let b (ABT.out -> ABT.Abs v t))) =
     case go t of (env,t) -> ((v,b):env, t)
@@ -277,19 +369,22 @@ unLet t = fixup (go t) where
   fixup bst = Just bst
 
 -- | Satisfies `unLetRec (letRec bs e) == Just (bs, e)`
-unLetRecNamed :: AnnotatedTerm v a -> Maybe ([(v, AnnotatedTerm v a)], AnnotatedTerm v a)
+unLetRecNamed :: AnnotatedTerm2 vt at ap v a -> Maybe ([(v, AnnotatedTerm2 vt at ap v a)], AnnotatedTerm2 vt at ap v a)
 unLetRecNamed (ABT.Cycle' vs (ABT.Tm' (LetRec bs e)))
   | length vs == length vs = Just (zip vs bs, e)
 unLetRecNamed _ = Nothing
 
-unLetRec :: Monad m => Var v => Term v -> Maybe ((v -> m v) -> m ([(v, Term v)], Term v))
+unLetRec :: (Monad m, Var v)
+         => AnnotatedTerm2 vt at ap v a
+         -> Maybe ((v -> m v) ->
+                   m ([(v, AnnotatedTerm2 vt at ap v a)], AnnotatedTerm2 vt at ap v a))
 unLetRec (unLetRecNamed -> Just (bs, e)) = Just $ \freshen -> do
   vs <- sequence [ freshen v | (v,_) <- bs ]
-  let sub = ABT.substs (map fst bs `zip` map ABT.var vs)
+  let sub = ABT.substsInheritAnnotation (map fst bs `zip` map ABT.var vs)
   pure (vs `zip` [ sub b | (_,b) <- bs ], sub e)
 unLetRec _ = Nothing
 
-unApps :: AnnotatedTerm v a -> Maybe (AnnotatedTerm v a, [AnnotatedTerm v a])
+unApps :: AnnotatedTerm2 vt at ap v a -> Maybe (AnnotatedTerm2 vt at ap v a, [AnnotatedTerm2 vt at ap v a])
 unApps t = case go t [] of [] -> Nothing; f:args -> Just (f,args)
   where
   go (App' i o) acc = go i (o:acc)
@@ -298,33 +393,60 @@ unApps t = case go t [] of [] -> Nothing; f:args -> Just (f,args)
 
 pattern LamsNamed' vs body <- (unLams' -> Just (vs, body))
 
-unLams' :: Term v -> Maybe ([v], Term v)
+unLams' :: AnnotatedTerm' vt v a -> Maybe ([v], AnnotatedTerm' vt v a)
 unLams' (LamNamed' v body) = case unLams' body of
   Nothing -> Just ([v], body)
   Just (vs, body) -> Just (v:vs, body)
 unLams' _ = Nothing
 
-dependencies' :: Ord v => Term v -> Set Reference
+unReqOrCtor :: AnnotatedTerm2 vt at ap v a -> Maybe (Reference, Int)
+unReqOrCtor (Constructor' r cid) = Just (r, cid)
+unReqOrCtor (Request' r cid)     = Just (r, cid)
+unReqOrCtor _                         = Nothing
+
+dependencies' :: Ord v => AnnotatedTerm2 vt at ap v a -> Set Reference
 dependencies' t = Set.fromList . Writer.execWriter $ ABT.visit' f t
   where f t@(Ref r) = Writer.tell [r] *> pure t
         f t = pure t
 
-dependencies :: Ord v => Term v -> Set Hash
+dependencies :: Ord v => AnnotatedTerm2 vt at ap v a -> Set Hash
 dependencies e = Set.fromList [ h | Reference.Derived h <- Set.toList (dependencies' e) ]
 
-referencedDataDeclarations :: Term v -> Set Reference
-referencedDataDeclarations _ =
-  Set.empty -- TODO: referenced data declarations, should gather up data decl refs from pattern matching
+referencedDataDeclarations :: Ord v => AnnotatedTerm2 vt at ap v a -> Set Reference
+referencedDataDeclarations t = Set.fromList . Writer.execWriter $ ABT.visit' f t
+  where f t@(Constructor r _) = Writer.tell [r] *> pure t
+        f t@(Match _ cases) = traverse_ g cases *> pure t where
+          g (MatchCase pat _ _) = Writer.tell (Set.toList (referencedDataDeclarationsP pat))
+        f t = pure t
+
+referencedDataDeclarationsP :: Pattern loc -> Set Reference
+referencedDataDeclarationsP p = Set.fromList . Writer.execWriter $ go p where
+  go (Pattern.As _ p) = go p
+  go (Pattern.Constructor _ id _ args) = Writer.tell [id] *> traverse_ go args
+  go (Pattern.EffectPure _ p) = go p
+  go (Pattern.EffectBind _ _ _ args k) = traverse_ go args *> go k
+  go _ = pure ()
+
+referencedEffectDeclarations :: Ord v => AnnotatedTerm2 vt at ap v a -> Set Reference
+referencedEffectDeclarations t = Set.fromList . Writer.execWriter $ ABT.visit' f t
+  where f t@(Request r _) = Writer.tell [r] *> pure t
+        f t@(Match _ cases) = traverse_ g cases *> pure t where
+          g (MatchCase pat _ _) = Writer.tell (Set.toList (referencedEffectDeclarationsP pat))
+          -- todo: does this traverse the guard and body of MatchCase?
+        f t = pure t
+
+referencedEffectDeclarationsP :: Pattern loc -> Set Reference
+referencedEffectDeclarationsP p = Set.fromList . Writer.execWriter $ go p where
+  go (Pattern.As _ p) = go p
+  go (Pattern.Constructor _ _ _ args) = traverse_ go args
+  go (Pattern.EffectPure _ p) = go p
+  go (Pattern.EffectBind _ id _ args k) = Writer.tell [id] *> traverse_ go args *> go k
+  go _ = pure ()
 
 updateDependencies :: Ord v => Map Reference Reference -> Term v -> Term v
 updateDependencies u tm = ABT.rebuildUp go tm where
   go (Ref r) = Ref (Map.findWithDefault r r u)
   go f = f
-
-countBlanks :: Ord v => Term v -> Int
-countBlanks t = Monoid.getSum . Writer.execWriter $ ABT.visit' f t
-  where f Blank = Writer.tell (Monoid.Sum (1 :: Int)) *> pure Blank
-        f t = pure t
 
 -- | If the outermost term is a function application,
 -- perform substitution of the argument into the body
@@ -332,41 +454,45 @@ betaReduce :: Var v => Term v -> Term v
 betaReduce (App' (Lam' f) arg) = ABT.bind f arg
 betaReduce e = e
 
-anf :: Var v => Term v -> Term v
+anf :: ∀ vt at v a . (Semigroup a, Var v)
+    => AnnotatedTerm2 vt at a v a -> AnnotatedTerm2 vt at a v a
 anf t = ABT.rewriteDown go t where
+  ann = ABT.annotation
   fixAp t f args =
     let
       args' = Map.fromList $ toVar =<< (args `zip` [0..])
       toVar (b, i) | inANF b   = []
                    | otherwise = [(i, ABT.fresh t (Var.named . Text.pack $ "arg" ++ show i))]
       argsANF = map toANF (args `zip` [0..])
-      toANF (b,i) = maybe b var $ Map.lookup i args'
-      addLet (b,i) body = maybe body (\v -> let1 [(v,b)] body) (Map.lookup i args')
-    in foldr addLet (apps f argsANF) (args `zip` [0..])
+      toANF (b,i) = maybe b (var (ann b)) $ Map.lookup i args'
+      addLet (b,i) body = maybe body (\v -> let1' [(v,b)] body) (Map.lookup i args')
+    in foldr addLet (apps' f argsANF) (args `zip` [(0::Int)..])
+  go :: AnnotatedTerm2 vt at a v a -> AnnotatedTerm2 vt at a v a
   go t@(Apps' f args)
     | inANF f = fixAp t f args
     | otherwise = let fv' = ABT.fresh t (Var.named "f")
-                  in let1 [(fv', anf f)] (fixAp t (var fv') args)
+                  in let1' [(fv', anf f)] (fixAp t (var (ann f) fv') args)
   go e@(Handle' h body)
     | inANF h = e
     | otherwise = let h' = ABT.fresh e (Var.named "handler")
-                  in let1 [(h', anf h)] (handle (var h') body)
+                  in let1' [(h', anf h)] (handle (ann e) (var (ann h) h') body)
   go e@(If' cond t f)
     | inANF cond = e
     | otherwise = let cond' = ABT.fresh e (Var.named "cond")
-                  in let1 [(cond', anf cond)] (iff (var cond') t f)
+                  in let1' [(cond', anf cond)] (iff (ann e) (var (ann cond) cond') t f)
   go e@(Match' scrutinee cases)
     | inANF scrutinee = e
     | otherwise = let scrutinee' = ABT.fresh e (Var.named "scrutinee")
-                  in let1 [(scrutinee', anf scrutinee)] (match (var scrutinee') cases)
+                  in let1' [(scrutinee', anf scrutinee)] (match (ann e) (var (ann scrutinee) scrutinee') cases)
   go t = t
 
-inANF :: Term a -> Bool
+inANF :: AnnotatedTerm2 vt at ap v a -> Bool
 inANF t = case t of
   App' _f _arg -> False
+  Request' _ _ -> False
   _ -> True
 
-instance Var v => Hashable1 (F v) where
+instance Var v => Hashable1 (F v a p) where
   hash1 hashCycle hash e =
     let
       (tag, hashed, varint) = (Hashable.Tag, Hashable.Hashed, Hashable.UInt64 . fromIntegral)
@@ -384,7 +510,11 @@ instance Var v => Hashable1 (F v) where
         Float n -> [tag 66, Hashable.Double n]
         Boolean b -> [tag 67, accumulateToken b]
         Text t -> [tag 68, accumulateToken t]
-        Blank -> [tag 1]
+        Blank b -> tag 1 :
+          case b of
+            B.Blank -> [tag 0]
+            B.Recorded (B.Placeholder _ s) -> [tag 1, Hashable.Text (Text.pack s)]
+            B.Recorded (B.Resolve _ s)  -> [tag 2, Hashable.Text (Text.pack s)]
         Ref (Reference.Builtin name) -> [tag 2, accumulateToken name]
         Ref (Reference.Derived _) -> error "handled above, but GHC can't figure this out"
         App a a2 -> [tag 3, hashed (hash a), hashed (hash a2)]
@@ -398,10 +528,6 @@ instance Var v => Hashable1 (F v) where
         Let b a -> [tag 8, hashed $ hash b, hashed $ hash a]
         If b t f -> [tag 9, hashed $ hash b, hashed $ hash t, hashed $ hash f]
         Request r n -> [tag 10, accumulateToken r, varint n]
-        EffectPure r -> [tag 11, hashed $ hash r]
-        EffectBind r i rs k ->
-          [tag 14, accumulateToken r, varint i, varint (length rs)] ++
-          (hashed . hash <$> rs ++ [k])
         Constructor r n -> [tag 12, accumulateToken r, varint n]
         Match e branches -> tag 13 : hashed (hash e) : concatMap h branches
           where
@@ -415,35 +541,60 @@ instance Var v => Hashable1 (F v) where
 
 -- mostly boring serialization code below ...
 
-instance Var v => Eq1 (F v) where (==#) = (==)
-instance Var v => Show1 (F v) where showsPrec1 = showsPrec
+instance (Eq a, Var v) => Eq1 (F v a p) where (==#) = (==)
+instance (Var v) => Show1 (F v a p) where showsPrec1 = showsPrec
 
-instance (Var v, Show a) => Show (F v a) where
+instance (Var vt, Eq at, Eq a) => Eq (F vt at p a) where
+  Int64 x == Int64 y = x == y
+  UInt64 x == UInt64 y = x == y
+  Float x == Float y = x == y
+  Boolean x == Boolean y = x == y
+  Text x == Text y = x == y
+  Blank b == Blank q = b == q
+  Ref x == Ref y = x == y
+  Constructor r cid == Constructor r2 cid2 = r == r2 && cid == cid2
+  Request r cid == Request r2 cid2 = r == r2 && cid == cid2
+  Handle h b == Handle h2 b2 = h == h2 && b == b2
+  App f a == App f2 a2 = f == f2 && a == a2
+  Ann e t == Ann e2 t2 = e == e2 && t == t2
+  Vector v == Vector v2 = v == v2
+  If a b c == If a2 b2 c2 = a == a2 && b == b2 && c == c2
+  And a b == And a2 b2 = a == a2 && b == b2
+  Or a b == Or a2 b2 = a == a2 && b == b2
+  Lam a == Lam b = a == b
+  LetRec bs body == LetRec bs2 body2 = bs == bs2 && body == body2
+  Let binding body == Let binding2 body2 = binding == binding2 && body == body2
+  Match scrutinee cases == Match s2 cs2 = scrutinee == s2 && cases == cs2
+  _ == _ = False
+
+
+instance (Var v, Show a) => Show (F v a0 p a) where
   showsPrec p fa = go p fa where
     showConstructor r n = showsPrec 0 r <> s"#" <> showsPrec 0 n
     go _ (Int64 n) = (if n >= 0 then s "+" else s "") <> showsPrec 0 n
     go _ (UInt64 n) = showsPrec 0 n
     go _ (Float n) = showsPrec 0 n
-    go _ (Boolean b) = showsPrec 0 b
+    go _ (Boolean True) = s"true"
+    go _ (Boolean False) = s"false"
     go p (Ann t k) = showParen (p > 1) $ showsPrec 0 t <> s":" <> showsPrec 0 k
     go p (App f x) =
       showParen (p > 9) $ showsPrec 9 f <> s" " <> showsPrec 10 x
     go _ (Lam body) = showParen True (s"λ " <> showsPrec 0 body)
     go _ (Vector vs) = showListWith (showsPrec 0) (Vector.toList vs)
-    go _ Blank = s"_"
+    go _ (Blank b) =
+      case b of
+        B.Blank -> s"_"
+        B.Recorded (B.Placeholder _ r) -> s("_" ++ r)
+        B.Recorded (B.Resolve _ r) -> s r
     go _ (Ref r) = showsPrec 0 r
     go _ (Let b body) = showParen True (s"let " <> showsPrec 0 b <> s" in " <> showsPrec 0 body)
     go _ (LetRec bs body) = showParen True (s"let rec" <> showsPrec 0 bs <> s" in " <> showsPrec 0 body)
-    go _ (Handle b body) = showParen True (s"handle " <> showsPrec 0 b <> showsPrec 0 body)
+    go _ (Handle b body) = showParen True (s"handle " <> showsPrec 0 b <> s " in " <> showsPrec 0 body)
     go _ (Constructor r n) = showConstructor r n
     go _ (Match scrutinee cases) =
       showParen True (s"case " <> showsPrec 0 scrutinee <> s" of " <> showsPrec 0 cases)
     go _ (Text s) = showsPrec 0 s
     go _ (Request r n) = showConstructor r n
-    go _ (EffectPure r) = s"{ " <> showsPrec 0 r <> s" }"
-    go _ (EffectBind ref i args k) =
-      s"{ " <> showConstructor ref i <> showListWith (showsPrec 0) args <>
-      s" -> " <> showsPrec 0 k <> s" }"
     go p (If c t f) = showParen (p > 0) $
       s"if " <> showsPrec 0 c <> s" then " <> showsPrec 0 t <>
       s" else " <> showsPrec 0 f

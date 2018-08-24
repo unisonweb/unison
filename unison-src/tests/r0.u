@@ -1,0 +1,4 @@
+r0 : UInt64
+r0 = case Optional.Some 3 of
+  x -> 1
+42

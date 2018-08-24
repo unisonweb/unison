@@ -12,6 +12,8 @@
 module Unison.ABT where
 
 import Control.Applicative
+import Control.Monad
+import Data.Functor.Identity (runIdentity)
 import Data.List hiding (cycle)
 import Data.Maybe
 import Data.Ord
@@ -102,13 +104,23 @@ bound' t = case out t of
   Tm f -> Foldable.toList f >>= bound'
   _ -> []
 
-annotateBound :: (Ord v, Functor f, Foldable f) => Term f v () -> Term f v [v]
-annotateBound t = go [] t where
+annotateBound' :: (Ord v, Functor f, Foldable f) => Term f v () -> Term f v [v]
+annotateBound' t = go [] t where
   go env t = case out t of
     Abs v body -> abs' env v (go (v : env) body)
     Cycle body -> cycle' env (go env body)
     Tm f -> tm' env (go env <$> f)
     Var v -> annotatedVar env v
+
+-- Annotate the tree with the set of bound variables at each node.
+annotateBound :: (Ord v, Foldable f, Functor f) => Term f v a -> Term f v (a, Set v)
+annotateBound t = go Set.empty t where
+  go bound t = let a = (annotation t, bound) in case out t of
+    Var v -> annotatedVar a v
+    Cycle body -> cycle' a (go bound body)
+    Abs x body -> abs' a x (go (Set.insert x bound) body)
+    Tm body -> tm' a (go bound <$> body)
+
 
 -- | Return the list of all variables bound by this ABT
 bound :: (Ord v, Foldable f) => Term f v a -> Set v
@@ -133,6 +145,13 @@ vmap f (Term _ a out) = case out of
   Cycle r -> cycle' a (vmap f r)
   Abs v body -> abs' a (f v) (vmap f body)
 
+amap :: (Functor f, Foldable f, Ord v) => (a -> a2) -> Term f v a -> Term f v a2
+amap f (Term _ a out) = case out of
+  Var v -> annotatedVar (f a) v
+  Tm fa -> tm' (f a) (fmap (amap f) fa)
+  Cycle r -> cycle' (f a) (amap f r)
+  Abs v body -> abs' (f a) v (amap f body)
+
 -- | Modifies the annotations in this tree
 instance Functor f => Functor (Term f v) where
   fmap f (Term fvs a sub) = Term fvs (f a) (fmap (fmap f) sub)
@@ -143,6 +162,13 @@ pattern Cycle' vs t <- Term _ _ (Cycle (AbsN' vs t))
 pattern Abs' subst <- (unabs1 -> Just subst)
 pattern AbsN' vs body <- (unabs -> (vs, body))
 pattern Tm' f <- Term _ _ (Tm f)
+pattern CycleA' a avs t <- Term _ a (Cycle (AbsNA' avs t))
+pattern AbsNA' avs body <- (unabsA -> (avs, body))
+
+unabsA :: Term f v a -> ([(a,v)], Term f v a)
+unabsA (Term _ a (Abs hd body)) =
+  let (tl, body') = unabsA body in ((a,hd) : tl, body')
+unabsA t = ([], t)
 
 v' :: Var v => Text -> v
 v' = Var.named
@@ -171,6 +197,9 @@ absr' a v body = wrap' v body $ \v body -> abs' a v body
 
 absChain :: Ord v => [v] -> Term f v () -> Term f v ()
 absChain vs t = foldr abs t vs
+
+absChain' :: Ord v => [(a, v)] -> Term f v a -> Term f v a
+absChain' vs t = foldr (\(a,v) t -> abs' a v t) t vs
 
 tm :: (Foldable f, Ord v) => f (Term f v ()) -> Term f v ()
 tm = tm' ()
@@ -232,19 +261,39 @@ freshNamed' used n = fresh' used (v' n)
 -- | `subst v e body` substitutes `e` for `v` in `body`, avoiding capture by
 -- renaming abstractions in `body`
 subst :: (Foldable f, Functor f, Var v) => v -> Term f v a -> Term f v a -> Term f v a
-subst v r t2@(Term fvs ann body)
+subst v r t2 = subst' (const r) v (freeVars r) t2
+
+-- Slightly generalized version of `subst`, the replacement action is handled
+-- by the function `replace`, which is given the annotation `a` at the point
+-- of replacement. `r` should be the set of free variables contained in the
+-- term returned by `replace`. See `substInheritAnnotation` for an example usage.
+subst' :: (Foldable f, Functor f, Var v) => (a -> Term f v a) -> v -> Set v -> Term f v a -> Term f v a
+subst' replace v r t2@(Term fvs ann body)
   | Set.notMember v fvs = t2 -- subtrees not containing the var can be skipped
   | otherwise = case body of
-    Var v' | v == v' -> r    -- var match; perform replacement
+    Var v' | v == v' -> replace ann -- var match; perform replacement
            | otherwise -> t2 -- var did not match one being substituted; ignore
-    Cycle body -> cycle' ann (subst v r body)
+    Cycle body -> cycle' ann (subst' replace v r body)
     Abs x _ | x == v -> t2 -- x shadows v; ignore subtree
     Abs x e -> abs' ann x' e'
-      where x' = freshInBoth r t2 x
+      where x' = fresh t2 (fresh' r x)
             -- rename x to something that cannot be captured by `r`
-            e' = if x /= x' then subst v r (rename x x' e)
-                 else subst v r e
-    Tm body -> tm' ann (fmap (subst v r) body)
+            e' = if x /= x' then subst' replace v r (rename x x' e)
+                 else subst' replace v r e
+    Tm body -> tm' ann (fmap (subst' replace v r) body)
+
+-- Like `subst`, but the annotation of the replacement is inherited from
+-- the previous annotation at each replacement point.
+substInheritAnnotation :: (Foldable f, Functor f, Var v)
+                       => v -> Term f v b -> Term f v a -> Term f v a
+substInheritAnnotation v r t =
+  subst' (\ann -> const ann <$> r) v (freeVars r) t
+
+substsInheritAnnotation
+  :: (Foldable f, Functor f, Var v)
+  => [(v, Term f v b)] -> Term f v a -> Term f v a
+substsInheritAnnotation replacements body = foldr f body (reverse replacements) where
+  f (v, t) body = substInheritAnnotation v t body
 
 -- | `substs [(t1,v1), (t2,v2), ...] body` performs multiple simultaneous
 -- substitutions, avoiding capture
@@ -252,25 +301,6 @@ substs :: (Foldable f, Functor f, Var v)
        => [(v, Term f v a)] -> Term f v a -> Term f v a
 substs replacements body = foldr f body (reverse replacements) where
   f (v, t) body = subst v t body
-
--- | `replace f t body` substitutes `t` for all maximal (outermost)
--- subterms matching the predicate `f` in `body`, avoiding capture.
-replace :: (Foldable f, Functor f, Var v)
-        => (Term f v a -> Bool)
-        -> Term f v a
-        -> Term f v a
-        -> Term f v a
-replace f t body | f body = t
-replace f t t2@(Term _ ann body) = case body of
-  Var v -> annotatedVar ann v
-  Cycle body -> cycle' ann (replace f t body)
-  Abs x e | f (annotatedVar ann x) -> abs' ann x e
-  Abs x e -> abs' ann x' e'
-    where x' = freshInBoth t t2 x
-          -- rename x to something that cannot be captured by `t`
-          e' = if x /= x' then replace f t (rename x x' e)
-               else replace f t e
-  Tm body -> tm' ann (fmap (replace f t) body)
 
 rebuildUp :: (Ord v, Foldable f, Functor f)
           => (f (Term f v a) -> f (Term f v a))
@@ -281,6 +311,25 @@ rebuildUp f (Term _ ann body) = case body of
   Cycle body -> cycle' ann (rebuildUp f body)
   Abs x e -> abs' ann x (rebuildUp f e)
   Tm body -> tm' ann (f $ fmap (rebuildUp f) body)
+
+freeVarAnnotations :: (Traversable f, Ord v) => Term f v a -> [(v, a)]
+freeVarAnnotations t =
+  join . runIdentity $ foreachSubterm f (annotateBound t) where
+    f t@(Var' v)
+      | Set.notMember v (snd . annotation $ t) = pure [(v, fst . annotation $ t)]
+    f _ = pure []
+
+
+foreachSubterm
+  :: (Traversable f, Applicative g, Ord v)
+  => (Term f v a -> g b)
+  -> Term f v a
+  -> g [b]
+foreachSubterm f e = case out e of
+  Var _ -> pure <$> f e
+  Cycle body -> liftA2 (:) (f e) (foreachSubterm f body)
+  Abs _ body -> liftA2 (:) (f e) (foreachSubterm f body)
+  Tm body -> liftA2 (:) (f e) (join . Foldable.toList <$> (sequenceA $ foreachSubterm f <$> body))
 
 -- | `visit f t` applies an effectful function to each subtree of
 -- `t` and sequences the results. When `f` returns `Nothing`, `visit`
@@ -309,7 +358,12 @@ visit' f t = case out t of
   Var _ -> pure t
   Cycle body -> cycle' (annotation t) <$> visit' f body
   Abs x e -> abs' (annotation t) x <$> visit' f e
-  Tm body -> f body >>= \body -> tm' (annotation t) <$> traverse (visit' f) body
+  Tm body -> f body >>= (fmap (tm' (annotation t)) . traverse (visit' f))
+
+-- | `visit` specialized to the `Identity` effect.
+visitPure :: (Traversable f, Ord v)
+      => (Term f v a -> Maybe (Term f v a)) -> Term f v a -> Term f v a
+visitPure f = runIdentity . visit (fmap pure . f)
 
 rewriteDown :: (Traversable f, Ord v)
             => (Term f v a -> Term f v a)
@@ -323,12 +377,15 @@ rewriteDown f t = let t' = f t in case out t' of
 
 data Subst f v a =
   Subst { freshen :: forall m v' . Monad m => (v -> m v') -> m v'
-        , bind    :: Term f v a -> Term f v a }
+        , bind :: Term f v a -> Term f v a
+        , bindInheritAnnotation :: forall b . Term f v b -> Term f v a
+        , variable :: v }
 
 unabs1 :: (Foldable f, Functor f, Var v) => Term f v a -> Maybe (Subst f v a)
-unabs1 (Term _ _ (Abs v body)) = Just (Subst freshen bind) where
+unabs1 (Term _ _ (Abs v body)) = Just (Subst freshen bind bindInheritAnnotation v) where
   freshen f = f v
   bind x = subst v x body
+  bindInheritAnnotation x = substInheritAnnotation v x body
 unabs1 _ = Nothing
 
 unabs :: Term f v a -> ([v], Term f v a)
@@ -349,9 +406,9 @@ transform f tm = case (out tm) of
     in tm' (annotation tm) (f subterms')
   Cycle body -> cycle' (annotation tm) (transform f body)
 
-instance (Foldable f, Functor f, Eq1 f, Eq a, Var v) => Eq (Term f v a) where
+instance (Foldable f, Functor f, Eq1 f, Var v) => Eq (Term f v a) where
   -- alpha equivalence, works by renaming any aligned Abs ctors to use a common fresh variable
-  t1 == t2 = annotation t1 == annotation t2 && go (out t1) (out t2) where
+  t1 == t2 = go (out t1) (out t2) where
     go (Var v) (Var v2) | v == v2 = True
     go (Cycle t1) (Cycle t2) = t1 == t2
     go (Abs v1 body1) (Abs v2 body2) =
@@ -410,7 +467,7 @@ subtract _ t1s t2s =
 instance (Show1 f, Var v) => Show (Term f v a) where
   -- annotations not shown
   showsPrec p (Term _ _ out) = case out of
-    Var v -> (Text.unpack (Var.shortName v) ++)
-    Cycle body -> showsPrec p body
+    Var v -> (show v ++)
+    Cycle body -> ("Cycle " ++) . showsPrec p body
     Abs v body -> showParen True $ (Text.unpack (Var.shortName v) ++) . showString ". " . showsPrec p body
     Tm f -> showsPrec1 p f

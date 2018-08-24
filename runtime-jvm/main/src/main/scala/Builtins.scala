@@ -1,9 +1,9 @@
 package org.unisonweb
 
-import java.util.function.{LongBinaryOperator, LongPredicate, LongUnaryOperator,
-                           DoubleBinaryOperator}
+import java.util.function.{DoubleBinaryOperator, LongBinaryOperator, LongPredicate, LongUnaryOperator}
 
 import org.unisonweb.Term.{Name, Term}
+import org.unisonweb.UnisonToScala.{EnvTo, unsafeToUnboxed1, unsafeToUnboxed2}
 import org.unisonweb.Value.Lambda
 import org.unisonweb.Value.Lambda.Lambda1
 import org.unisonweb.compilation._
@@ -12,49 +12,205 @@ import org.unisonweb.util.{Sequence, Stream, Text}
 
 /* Sketch of convenience functions for constructing builtin functions. */
 object Builtins {
-  def env =
-    (new Array[U](20), new Array[B](20), StackPtr.empty, Result())
 
+  type StreamRepr = EnvTo[Stream[Value]]
   // Stream.empty : Stream a
   val Stream_empty =
-    c0z("Stream.empty", Stream.empty[Value])
+    c0z("Stream.empty",
+        (_: Array[U], _: Array[B], _: StackPtr, _: R) =>
+          Stream.empty[Value])
 
+  // Stream.single: a -> Stream a
+  val Stream_single =
+    fp_z("Stream.single", "a",
+         (a: Value) =>
+           (_: Array[U], _: Array[B], _: StackPtr, _: R) =>
+             Stream.singleton(a))
 
-  // Stream.fromInt : Integer -> Stream Integer
-  val Stream_fromInt = // Stream.iterate(unison 0)(Integer_inc)
-    fp_z("Stream.from-int64", "n", Stream.fromUnison)
+  val Stream_constant =
+    fp_z("Stream.constant", "a",
+         (a: Value) =>
+           (_: Array[U], _: Array[B], _: StackPtr, _: R) =>
+             Stream.constant(a))
+
+  // Stream.fromInt64 : Int64 -> Stream Int64
+  val Stream_fromInt64 =
+    fp_z("Stream.from-int64", "n",
+         (u: U) =>
+           (_: Array[U], _: Array[B], _: StackPtr, _: R) =>
+             Stream.fromInt64(u))
+
+  // Stream.fromUInt64 : UInt64 -> Stream UInt64
+  val Stream_fromUInt64 =
+    fp_z("Stream.from-uint64", "n",
+         (u: U) =>
+           (_: Array[U], _: Array[B], _: StackPtr, _: R) =>
+             Stream.fromUInt64(u))
 
   // Stream.cons : a -> Stream a -> Stream a
   val Stream_cons =
     fpp_z("Stream.cons", "v", "stream",
-          (v: Value, stream: Stream[Value]) => v :: stream)
+          (v: Value, stream: StreamRepr) =>
+            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+              v :: stream(stackU, stackB, top, r))
+
+  // "Stream.unfold", "forall a b . (a -> Optional (b, a)) -> b -> Stream a"
+  val Stream_unfold =
+    fpp_z("Stream.unfold", "f", "initial",
+          (f: Value, b: Value) =>
+            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+              Stream.unfold[Value,Value,Value,Value,Value](b)(
+                unsafeToUnboxed1(f)(stackU, stackB, top, r)))
+
+  // Stream.append: Stream a -> Stream a -> Stream a
+  val Stream_append =
+    fpp_z("Stream.append", "s1", "s2",
+          (s1: StreamRepr, s2: StreamRepr) =>
+            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+              s1(stackU, stackB, top, r) ++ s2(stackU, stackB, top, r))
+
+  // Stream.zip-with : forall a b c . (a -> b -> c) -> Stream a -> Stream b -> Stream c
+  val Stream_zipWith =
+    fppp_z("Stream.zip-with", "f", "s1", "s2",
+           (f: Value, s1: StreamRepr, s2: StreamRepr) =>
+             (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+               s1(stackU, stackB, top, r).
+                 zipWith(s2(stackU, stackB, top, r))
+                        (unsafeToUnboxed2(f)(stackU, stackB, top, r))
+           )
 
   val Stream_take =
     flp_z("Stream.take", "n", "stream",
-          (n, s: Stream[Value]) => s.take(n))
+          (n, s: StreamRepr) =>
+            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+              s(stackU, stackB, top, r).take(n))
 
   val Stream_drop =
     flp_z("Stream.drop", "n", "stream",
-          (n, s: Stream[Value]) => s.drop(n))
+          (n, s: StreamRepr) =>
+            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+              s(stackU, stackB, top, r).drop(n))
+
+  // Stream.take-while : forall a . (a -> Boolean) -> Stream a -> Stream a
+  val Stream_takeWhile =
+    fpp_z("Stream.take-while", "f", "stream",
+          (f: Value, s: StreamRepr) =>
+            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+              s(stackU, stackB, top, r)
+                .takeWhile(unsafeToUnboxed1(f)(stackU, stackB, top, r)))
+
+  // Stream.drop-while : forall a . (a -> Boolean) -> Stream a -> Stream a
+  val Stream_dropWhile =
+    fpp_z("Stream.drop-while", "f", "stream",
+          (f: Value, s: StreamRepr) =>
+            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+              s(stackU, stackB, top, r)
+                .dropWhile(unsafeToUnboxed1(f)(stackU, stackB, top, r)))
 
   // Stream.map : (a -> b) -> Stream a -> Stream b
   val Stream_map =
     fpp_z("Stream.map", "f", "stream",
-          (f: Value, s: Stream[Value]) =>
-            s.map(UnisonToScala.toUnboxed1(f.asInstanceOf[Lambda])(env)))
+          (f: Value, s: StreamRepr) =>
+            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+              s(stackU, stackB, top, r)
+                .map(unsafeToUnboxed1(f)(stackU, stackB, top, r)))
+
+  def unsafeValueToStream(stackU: Array[U], stackB: Array[B], top: StackPtr, r: R): util.Unboxed.F1[Value, Stream[Value]] =
+    new util.Unboxed.F1[Value, Stream[Value]] {
+      def apply[x] =
+        kvx =>
+          (u1,a1,u2,x) => {
+            val a =
+              a1.asInstanceOf[External].get
+                .asInstanceOf[StreamRepr](stackU, stackB, top, r)
+            kvx(U0, a, u2, x)
+          }
+    }
+
+  // Stream.flat-map : (a -> Stream b) -> Stream a -> Stream b)
+  val Stream_flatMap =
+    fpp_z("Stream.flat-map", "f", "stream",
+          (f: Value, s: StreamRepr) =>
+            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+              s(stackU, stackB, top, r)
+                .flatMap(unsafeToUnboxed1(f)(stackU, stackB, top, r)
+                           .map(unsafeValueToStream(stackU, stackB, top, r))))
 
   // Stream.foldLeft : b -> (b -> a -> b) -> Stream a -> b
   val Stream_foldLeft =
-    fppp_p("Stream.fold-left", "acc", "f", "stream",
-           (acc: Value, f: Value, s: Stream[Value]) =>
-             s.foldLeft(acc)(
-               UnisonToScala.toUnboxed2(f.asInstanceOf[Lambda])(env))
-           // todo: env needs to be bigger here
+    fppp_s("Stream.fold-left", "acc", "f", "stream",
+           (acc: Value, f: Value, s: StreamRepr) => {
+             (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+               s(stackU, stackB, top, r)
+                 .foldLeft(acc)(unsafeToUnboxed2(f)(stackU, stackB, top, r))
+           }
     )
 
-  abstract class FPPP_P[A,B,C,D] { def apply(a: A, b: B, c: C): D }
-  def fppp_p[A,B,C,D](name: Name, arg1: Name, arg2: Name, arg3: Name,
-                      f: FPPP_P[A,B,C,D])
+  // Stream.iterate : a -> (a -> a) -> Stream a
+  val Stream_iterate =
+    fpp_z("Stream.iterate", "start", "f",
+          (start: Value, f: Value) =>
+            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+              Stream.iterate(start)(unsafeToUnboxed1(f)(stackU, stackB, top, r))
+    )
+
+  // Stream.reduce : a -> (a -> a -> a) -> Stream a -> a
+  val Stream_reduce =
+    fppp_s("Stream.reduce", "zero", "f", "stream",
+            (zero: Value, f: Value, s: StreamRepr) =>
+              (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) => {
+                s(stackU, stackB, top, r)
+                  .reduce(zero)(unsafeToUnboxed2(f)(stackU, stackB, top, r))
+              }
+      )
+
+  // Stream.to-sequence : Stream a -> Sequence a
+  val Stream_toSequence =
+    fp_s("Stream.to-sequence", "stream",
+         (s: StreamRepr) =>
+           (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+             s(stackU, stackB, top, r).toSequence[Value])
+
+  // Stream.filter : (a -> Boolean) -> Stream a -> Stream a
+  val Stream_filter =
+    fpp_z("Stream.filter", "f", "stream",
+          (f: Value, s: StreamRepr) =>
+            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+              s(stackU, stackB, top, r)
+                .filter(unsafeToUnboxed1(f)(stackU, stackB, top, r))
+    )
+
+  // Stream.scan-left : b -> (b -> a -> b) -> Stream a -> Stream b
+  val Stream_scanLeft =
+    fppp_z("Stream.scan-left", "acc", "f", "stream",
+           (acc: Value, f: Value, s: StreamRepr) =>
+             (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+               s(stackU, stackB, top, r)
+                 .scanLeft(acc)(unsafeToUnboxed2(f)(stackU, stackB, top, r))
+    )
+
+  // Stream.sum-int64 : Stream Int64 -> Int64
+  val Stream_sumInt64 =
+    fp_s("Stream.sum-int64", "stream",
+         (s: StreamRepr) =>
+           (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+             s(stackU, stackB, top, r).unsafeSumUnboxedLong)
+
+  // Stream.sum-uint64 : Stream UInt64 -> UInt64
+  val Stream_sumUInt64 =
+    fp_s("Stream.sum-uint64", "stream",
+         (s: StreamRepr) =>
+           (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+             Unsigned(s(stackU, stackB, top, r).unsafeSumUnboxedLong))
+
+  // Stream.sum-float : Stream Float -> Float
+  val Stream_sumFloat =
+    fp_s("Stream.sum-float", "stream",
+         (s: StreamRepr) =>
+           (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
+             s(stackU, stackB, top, r).unsafeSumUnboxedFloat)
+
+  def fppp_p[A,B,C,D](name: Name, arg1: Name, arg2: Name, arg3: Name, f: (A,B,C) => D)
                      (implicit
                       A: Decode[A],
                       B: Decode[B],
@@ -72,18 +228,58 @@ object Builtins {
       }
     val decompiled = Term.Id(name)
     val lambda =
-      new Value.Lambda.ClosureForming(List(arg1, arg2, arg3), body, None, decompiled)
+      new Value.Lambda.ClosureForming(List(arg1, arg2, arg3), body, decompiled)
     name -> Return(lambda)
   }
 
+  def fppp_s[A,B,C,D](name: Name, arg1: Name, arg2: Name, arg3: Name, f: (A,B,C) => EnvTo[D])
+                     (implicit
+                      A: Decode[A],
+                      B: Decode[B],
+                      C: Decode[C],
+                      D: Encode[D]): (Name, Computation) = {
+    val body: Computation =
+      (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+        val x2 = top.u(stackU, 2)
+        val x2b = top.b(stackB, 2)
+        D.encode(r, f(
+          A.decode(x2, x2b),
+          B.decode(x1, x1b),
+          C.decode(x0, x0b)
+        )(stackU,stackB,top,r))
+      }
+    val decompiled = Term.Id(name)
+    val lambda =
+      new Value.Lambda.ClosureForming(List(arg1, arg2, arg3), body, decompiled)
+    name -> Return(lambda)
+  }
+
+
   val streamBuiltins = Map(
     Stream_empty,
-    Stream_fromInt,
+    Stream_single,
+    Stream_constant,
+    Stream_fromInt64,
+    Stream_fromUInt64,
+    Stream_append,
+    Stream_zipWith,
     Stream_cons,
     Stream_drop,
     Stream_take,
+    Stream_dropWhile,
+    Stream_takeWhile,
     Stream_map,
+    Stream_flatMap,
     Stream_foldLeft,
+    Stream_iterate,
+    Stream_reduce,
+    Stream_toSequence,
+    Stream_filter,
+    Stream_scanLeft,
+    Stream_sumInt64,
+    Stream_sumUInt64,
+    Stream_sumFloat,
+    Stream_unfold,
   )
 
   // Sequence.empty : Sequence a
@@ -103,8 +299,21 @@ object Builtins {
   val Sequence_take =
     flp_p("Sequence.take", "n", "seq", (n, seq: Sequence[Value]) => seq take n)
 
+  val Sequence_drop =
+    flp_p("Sequence.drop", "n", "seq", (n, seq: Sequence[Value]) => seq drop n)
+
+  val Sequence_at =
+    flp_p("Sequence.at", "n", "seq",
+         (n, seq: Sequence[Value]) =>
+           if (n > 0 && n < seq.size) BuiltinTypes.Optional.Some.value(seq(n))
+           else BuiltinTypes.Optional.None.value
+         )
+
+  val Sequence_append =
+    fpp_p("Sequence.++", "n", "seq", (a: Sequence[Value], b: Sequence[Value]) => a ++ b)
+
   val Sequence_size =
-    fp_p("Sequence.size", "seq", (seq: Sequence[Value]) => seq.size)
+    fp_p("Sequence.size", "seq", (seq: Sequence[Value]) => Unsigned(seq.size))
 
   def c0[A:Decompile](name: String, a: => A)
                      (implicit A: Encode[A]): (Name, Computation.C0) =
@@ -119,6 +328,8 @@ object Builtins {
   def lambdaFor(b: (Name, Computation)): Lambda =
     computationFor(b) match { case Return(lam: Lambda) => lam }
 
+  case class Unsigned(raw: Long) extends AnyVal
+
   //
   // naming convention
   //   - fb_b is a function taking 1 boxed arg, returning 1 boxed result
@@ -130,7 +341,10 @@ object Builtins {
     Sequence_snoc,
     Sequence_cons,
     Sequence_take,
-    Sequence_size
+    Sequence_drop,
+    Sequence_append,
+    Sequence_size,
+    Sequence_at
   )
 
   // Signed machine integers
@@ -138,10 +352,10 @@ object Builtins {
     fl_l("Int64.increment", "x", _ + 1)
 
   val Int64_isEven =
-    fl_b("Int64.isEven", "x", _ % 2 == 0)
+    fl_b("Int64.is-even", "x", _ % 2 == 0)
 
   val Int64_isOdd =
-    fl_b("Int64.isOdd", "x", _ % 2 != 0)
+    fl_b("Int64.is-odd", "x", _ % 2 != 0)
 
   val Int64_add =
     fll_l("Int64.+", "x", "y", _ + _)
@@ -183,16 +397,16 @@ object Builtins {
   def uint(n: Long): Term = Term.Unboxed(longToUnboxed(n), UnboxedType.UInt64)
 
   val UInt64_toInt64 =
-    fl_l("UInt64.toInt64", "x", x => x)
+    fl_l("UInt64.to-int64", "x", x => x)
 
   val UInt64_inc =
     fn_n("UInt64.increment", "x", _ + 1)
 
   val UInt64_isEven =
-    fl_b("UInt64.isEven", "x", _ % 2 == 0)
+    fl_b("UInt64.is-even", "x", _ % 2 == 0)
 
   val UInt64_isOdd =
-    fl_b("UInt64.isOdd", "x", _ % 2 != 0)
+    fl_b("UInt64.is-odd", "x", _ % 2 != 0)
 
   val UInt64_add =
     fnn_n("UInt64.+", "x", "y", _ + _)
@@ -268,6 +482,8 @@ object Builtins {
   val numericBuiltins: Map[Name, Computation] = Map(
     // arithmetic
     Int64_inc,
+    Int64_isEven,
+    Int64_isOdd,
     Int64_add,
     Int64_sub,
     Int64_mul,
@@ -333,7 +549,7 @@ object Builtins {
           (codepointCount, t: Text) => t drop codepointCount)
 
   val Text_size =
-    fp_p("Text.size", "text", (t: Text) => t.size)
+    fp_p("Text.size", "text", (t: Text) => Unsigned(t.size))
 
   val Text_eq =
     fpp_b[Text,Text]("Text.==", "t1", "t2", _ == _)
@@ -384,7 +600,17 @@ object Builtins {
                (implicit A: Decode[A], B: Encode[B]): (Name, Computation) = {
     val body: Computation.C1P = (r,x0,x0b) => B.encode(r, f(A.decode(x0, x0b)))
     val decompile = Term.Id(name)
-    name -> Return(new Lambda1(arg, body, None, decompile))
+    name -> Return(new Lambda1(arg, body, decompile))
+  }
+
+  // Polymorphic one-argument function, requiring stack to encode result
+  def fp_s[A,B](name: Name, arg: Name, f: A => EnvTo[B])
+               (implicit A: Decode[A], B: Encode[B]): (Name, Computation) = {
+    val body: Computation =
+      (r,_,top,stackU,_,x0,stackB,_,x0b) =>
+        B.encode(r, f(A.decode(x0, x0b))(stackU, stackB, top, r))
+    val decompile = Term.Id(name)
+    name -> Return(new Lambda1(arg, body, decompile))
   }
 
   // Monomorphic one-argument function on unboxed values
@@ -392,21 +618,13 @@ object Builtins {
             arg: Name,
             outputType: UnboxedType,
             f: LongUnaryOperator): (Name, Computation) = {
-    val body: Computation.C1U = (r,x0) => {
-      // Unintuitively, we store the type of the unboxed value in `boxed`
-      // since that's a field we don't use for unboxed values.
-      r.boxed = outputType
-      f.applyAsLong(x0)
+    val body: Computation.C1U = new Computation.C1U(outputType) {
+      def raw(x0: U): U = f.applyAsLong(x0)
     }
     val decompile = Term.Id(name)
-    val computation = Return(new Lambda1(arg, body, Some(outputType), decompile))
+    val computation = Return(new Lambda1(arg, body, decompile))
     name -> computation
   }
-
-//// a possibly faster model, but didn't see a clean analogue for fuu_u.
-//  def fu_u(name: Name, arg: Name, outputType: UnboxedType)
-//          (body: Computation.C1U): (Name, Computation) =
-//    name -> Return(new Lambda1(arg, body, Some(outputType), Term.Id(name)))
 
   abstract class B_B { def test(b: Boolean): Boolean }
   def fb_b(name: Name, arg: Name, f: B_B): (Name, Computation) =
@@ -431,7 +649,7 @@ object Builtins {
     val body: Computation.C1P = (r,x0,x0b) => {
       B.encodeOp(r, f(A.decode(x0, x0b)), name, Value.fromParam(x0, x0b))
     }
-    val lambda = new Lambda.Lambda1(arg, body, None, Term.Id(name))
+    val lambda = new Lambda.Lambda1(arg, body, Term.Id(name))
     name -> Return(lambda)
   }
 
@@ -443,7 +661,7 @@ object Builtins {
       (r,x1,x0,x1b,x0b) =>
         C.encode(r, f(A.decode(x1, x1b), B.decode(x0, x0b)))
     val decompiled = Term.Id(name)
-    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, None, decompiled)
+    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, decompiled)
     name -> Return(lambda)
   }
 
@@ -460,7 +678,30 @@ object Builtins {
                    Value.fromParam(x0, x0b))
       }
     val decompiled = Term.Id(name)
-    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, None, decompiled)
+    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, decompiled)
+    name -> Return(lambda)
+  }
+
+  def fppp_z[A,B,C,D](name: Name, arg1: String, arg2: String, arg3: String, f: (A,B,C) => D)
+                  (implicit
+                   A: Decode[A],
+                   B: Decode[B],
+                   C: Decode[C],
+                   D: LazyEncode[D]): (Name, Computation) = {
+    val body: Computation =
+      (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+        val x2 = top.u(stackU, 2)
+        val x2b = top.b(stackB, 2)
+        val a = A.decode(x2, x2b)
+        val b = B.decode(x1, x1b)
+        val c = C.decode(x0, x0b)
+        D.encodeOp(r, f(a, b, c), name,
+                   Value.fromParam(x2, x2b),
+                   Value.fromParam(x1, x1b),
+                   Value.fromParam(x0, x0b))
+      }
+    val decompiled = Term.Id(name)
+    val lambda = new Lambda.ClosureForming(List(arg1, arg2, arg3), body, decompiled)
     name -> Return(lambda)
   }
 
@@ -475,7 +716,7 @@ object Builtins {
     val body: Computation.C2P = (r,x1,x0,_,x0b) =>
       B.encode(r, f(x1, A.decode(x0, x0b)))
     val decompiled = Term.Id(name)
-    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, None, decompiled)
+    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, decompiled)
     name -> Return(lambda)
   }
 
@@ -487,9 +728,8 @@ object Builtins {
                  name,
                  Value.fromParam(x1,x1b),
                  Value.fromParam(x0,x0b))
-    name -> Return(new Value.Lambda.ClosureForming(List(arg1, arg2), body, None, Term.Id(name)))
+    name -> Return(new Value.Lambda.ClosureForming(List(arg1, arg2), body, Term.Id(name)))
   }
-
 
   def flp_z[A:Decode,B:LazyEncode](name: Name, arg1: Name, arg2: Name, f: FLP_P[A,B]) =
     _fup_z[A,B](name, arg1, arg2, (u, a) => f(unboxedToLong(u), a))
@@ -503,7 +743,7 @@ object Builtins {
                  Value.fromParam(x0, x0b))
 
     val decompiled = Term.Id(name)
-    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, None, decompiled)
+    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, decompiled)
     name -> Return(lambda)
   }
 
@@ -522,7 +762,7 @@ object Builtins {
         f(A.decode(x1, x1b), B.decode(x0, x0b))
       }
     val decompiled = Term.Id(name)
-    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, None, decompiled)
+    val lambda = new Lambda.ClosureForming(List(arg1, arg2), body, decompiled)
     name -> Return(lambda)
   }
 
@@ -553,65 +793,53 @@ object Builtins {
              arg2: Name,
              outputType: UnboxedType,
              f: LongBinaryOperator): (Name, Computation) = {
-    val body: Computation.C2U = (r,x1,x0) => {
-      r.boxed = outputType
-      f.applyAsLong(x1, x0)
+    val body = new Computation.C2U(outputType) {
+      def raw(x1: U, x0: U): U = f.applyAsLong(x1, x0)
     }
 
     val decompiled = Term.Id(name)
-    val lam = new Lambda(List(arg1, arg2), body, Some(outputType), decompiled) {
+    val lam = new Lambda(List(arg1, arg2), body, decompiled) {
       self =>
 
       override def saturatedNonTailCall(args: List[Computation]) = args match {
         case List(Return(Value.Unboxed(n1, _)),
                   Return(Value.Unboxed(n2, _))) =>
           val n3 = f.applyAsLong(n1,n2) // constant fold
-        val c : Computation.C0 = r => { r.boxed = outputType; n3 }
-          c
+          new Computation.C0U(outputType) {
+            def raw: U = n3
+          }
         case List(CompiledVar0,Return(Value.Unboxed(n, _))) =>
-          val c : Computation.C1U = (r,x0) => {
-            r.boxed = outputType
-            f.applyAsLong(x0, n)
+          new Computation.C1U(outputType) {
+            def raw(x0: U): U = f.applyAsLong(x0, n)
           }
-          c
         case List(CompiledVar1,Return(Value.Unboxed(n, _))) =>
-          val c : Computation.C2U = (r,x1,_) => {
-            r.boxed = outputType
-            f.applyAsLong(x1, n)
+          new Computation.C2U(outputType) {
+            def raw(x1: U, x0: U): U = f.applyAsLong(x1, n)
           }
-          c
         case List(Return(Value.Unboxed(n, _)), CompiledVar0) =>
-          val c: Computation.C1U = (r,x0) => {
-            r.boxed = outputType
-            f.applyAsLong(n,x0)
+          new Computation.C1U(outputType) {
+            def raw(x0: U): U = f.applyAsLong(n,x0)
           }
-          c
         case List(Return(Value.Unboxed(n, _)), CompiledVar1) =>
-          val c: Computation.C2U = (r,x1,_) => {
-            r.boxed = outputType
-            f.applyAsLong(n,x1)
+          new Computation.C2U(outputType) {
+            def raw(x1: U, x0: U): U = f.applyAsLong(n,x1)
           }
-          c
         case List(CompiledVar1,CompiledVar0) =>
-          val c: Computation.C2U = (r,x1,x0) => {
-            r.boxed = outputType
-            f.applyAsLong(x1,x0)
+          new Computation.C2U(outputType) {
+            def raw(x1: U, x0: U): U = f.applyAsLong(x1,x0)
           }
-          c
         case List(CompiledVar0,CompiledVar1) =>
-          val c: Computation.C2U = (r,x1,x0) => {
-            r.boxed = outputType
-            f.applyAsLong(x0,x1)
+          new Computation.C2U(outputType) {
+            def raw(x1: U, x0: U): U = f.applyAsLong(x0,x1)
           }
-          c
         case List(arg1: Computation.C2U, arg2: Computation.C2U) =>
-          val c: Computation.C2U = (r,x1,x0) => {
-            val x1v = arg1(r, x1, x0)
-            val x0v = arg2(r, x1, x0)
-            r.boxed = outputType
-            f.applyAsLong(x1v, x0v)
+          new Computation.C2U(outputType) {
+            def raw(x1: U, x0: U): U = {
+              val x1v = arg1.raw(x1, x0)
+              val x0v = arg2.raw(x1, x0)
+              f.applyAsLong(x1v, x0v)
+            }
           }
-          c
         case List(arg1,arg2) => (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
           val x1v = eval(arg1,r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
           val x0v = eval(arg2,r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
@@ -626,16 +854,14 @@ object Builtins {
             case Term.Compiled(p: Param) =>
               // cast is okay, because in `fuu_u`, args are Unboxed.
               val n = p.toValue.asInstanceOf[Value.Unboxed].n
-              val body: Computation =
-                (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
-                  r.boxed = outputType
-                  f.applyAsLong(n, x0)
-                }
-              new Lambda(self.names drop argCount, body, unboxedType,
+              val body = new Computation.C1U(outputType) {
+                def raw(x0: U): U = f.applyAsLong(n, x0)
+              }
+              new Lambda(self.names drop argCount, body,
                          Term.Apply(decompiled, term))
             case _ => sys.error("")
           }
-          case _ => sys.error("unpossible")
+          case _ => sys.error("can't underapply a function of 2 args with anything but 1 arg")
         }
     }
     name -> Return(lam)
@@ -669,6 +895,10 @@ object Builtins {
         U0
       }
 
+    implicit val encodeValue: Encode[Value] =
+      (r, a) => { r.boxed = a.toBoxed; a.toUnboxed }
+    implicit val encodeUnsigned: Encode[Unsigned] =
+      (r, a) => { r.boxed = UnboxedType.UInt64; longToUnboxed(a.raw) }
     implicit val encodeLong: Encode[Long] =
       (r, a) => { r.boxed = UnboxedType.Int64; longToUnboxed(a) }
     implicit val encodeInt: Encode[Int] =
@@ -718,5 +948,3 @@ object Builtins {
       }
   }
 }
-
-

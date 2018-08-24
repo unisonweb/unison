@@ -1,58 +1,56 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Unison.Parsers where
 
-import qualified Unison.ABT as ABT
-import           Unison.Parser (run, PEnv)
+import qualified Data.Text as Text
+import           Data.Text.IO (readFile)
+import           Prelude hiding (readFile)
+import qualified Unison.Builtin as Builtin
+import qualified Unison.FileParser as FileParser
+import           Unison.Parser (PEnv, Ann)
 import qualified Unison.Parser as Parser
-import           Unison.Term (Term)
-import qualified Unison.Term as Term
+import           Unison.PrintError (parseErrorToAnsiString)
+import qualified Unison.PrintError as PrintError
+import           Unison.Symbol (Symbol)
+import           Unison.Term (AnnotatedTerm)
 import qualified Unison.TermParser as TermParser
-import           Unison.Type (Type)
+import           Unison.Type (AnnotatedType)
 import qualified Unison.TypeParser as TypeParser
+import           Unison.UnisonFile (UnisonFile)
 import           Unison.Var (Var)
 
-type S v = TypeParser.S v
+unsafeGetRightFrom :: (Var v, Show v) => String -> Either (Parser.Err v) a -> a
+unsafeGetRightFrom s = either (error . parseErrorToAnsiString s) id
 
-s0 :: S v
-s0 = TypeParser.s0
+parse :: Var v => Parser.P v a -> String -> PEnv v -> Either (Parser.Err v) a
+parse p s env = Parser.run (Parser.root p) s env
 
-unsafeGetRight :: Either String a -> a
-unsafeGetRight (Right a) = a
-unsafeGetRight (Left err) = error err
+parseTerm :: Var v => String -> PEnv v -> Either (Parser.Err v) (AnnotatedTerm v Ann)
+parseTerm s env = parse TermParser.term s env
 
-parseTerm :: Var v => String -> PEnv -> Either String (Term v)
-parseTerm = parseTerm' [] []
+parseType :: Var v => String -> PEnv v -> Either (Parser.Err v) (AnnotatedType v Ann)
+parseType s = Parser.run (Parser.root TypeParser.valueType) s
 
-parseType :: Var v => String -> PEnv -> Either String (Type v)
-parseType = parseType' []
+parseFile :: Var v => FilePath -> String -> PEnv v -> Either (Parser.Err v) (PrintError.Env, UnisonFile v Ann)
+parseFile filename s =
+  Parser.run'
+    (Parser.rootFile $ FileParser.file
+                         Builtin.builtinTerms
+                         Builtin.builtinTypes)
+    s filename
 
-parseTerm' :: Var v
-           => [(v, Term v)]
-           -> [(v, Type v)]
-           -> String
-           -> PEnv
-           -> Either String (Term v)
-parseTerm' termBuiltins typeBuiltins s =
-  fmap (bindBuiltins termBuiltins typeBuiltins) <$>
-    run (Parser.root TermParser.term) s s0
+unsafeParseTerm :: Var v => String -> PEnv v -> AnnotatedTerm v Ann
+unsafeParseTerm s = fmap (unsafeGetRightFrom s) . parseTerm $ s
 
-bindBuiltins :: Var v => [(v, Term v)] -> [(v, Type v)] -> Term v -> Term v
-bindBuiltins termBuiltins typeBuiltins =
-   Term.typeMap (ABT.substs typeBuiltins) . ABT.substs termBuiltins
+unsafeReadAndParseFile :: PEnv Symbol -> String -> IO (PrintError.Env, UnisonFile Symbol Ann)
+unsafeReadAndParseFile penv fileName = do
+  txt <- readFile fileName
+  let str = Text.unpack txt
+  pure . unsafeGetRightFrom str $ parseFile fileName str penv
 
-parseType' :: Var v => [(v, Type v)] -> String -> PEnv -> Either String (Type v)
-parseType' typeBuiltins s =
-  fmap (ABT.substs typeBuiltins) <$> run (Parser.root TypeParser.valueType) s s0
+unsafeReadAndParseFile' :: String -> IO (PrintError.Env, UnisonFile Symbol Ann)
+unsafeReadAndParseFile' = unsafeReadAndParseFile Parser.penv0
 
-unsafeParseTerm :: Var v => String -> PEnv -> Term v
-unsafeParseTerm = fmap unsafeGetRight . parseTerm
+unsafeParseFile :: String -> PEnv Symbol -> (PrintError.Env, UnisonFile Symbol Ann)
+unsafeParseFile s pEnv = unsafeGetRightFrom s $ parseFile "" s pEnv
 
-unsafeParseType :: Var v => String -> PEnv -> Type v
-unsafeParseType = fmap unsafeGetRight . parseType
-
-unsafeParseTerm' :: Var v => [(v, Term v)] -> [(v, Type v)] -> String -> PEnv -> Term v
-unsafeParseTerm' er tr = fmap unsafeGetRight . parseTerm' er tr
-
-unsafeParseType' :: Var v => [(v, Type v)] -> String -> PEnv -> Type v
-unsafeParseType' tr = fmap unsafeGetRight . parseType' tr
+unsafeParseFile' :: String -> (PrintError.Env, UnisonFile Symbol Ann)
+unsafeParseFile' s = unsafeParseFile s Parser.penv0

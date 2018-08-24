@@ -157,7 +157,7 @@ object CompilationTests {
         }
 
       val lam = Term.Compiled(
-        new ClosureForming(List("a","b","c","d"), body, Some(UnboxedType.Int64), 42))
+        new ClosureForming(List("a","b","c","d"), body, 42))
       val p = Let('f -> lam(1))('f.v(2,3,4))
       val p2 = Let('f -> lam(1), 'g -> 'f.v(2))('g.v(3,4))
       val p3 = Let('f -> lam(1), 'g -> 'f.v(2), 'h -> 'g.v(3))('h.v(4))
@@ -354,13 +354,13 @@ object CompilationTests {
         ok
       },
       test("ex1") { implicit T =>
-        equal(eval(Sequence.size(Sequence(1,2,3))), 3: Term)
+        equal(eval(Sequence.size(Sequence(1,2,3))), 3.unsigned)
       },
       test("ex2 (underapplication)") { implicit T =>
         val t: Term =
           Let('x -> Sequence(1,2,3),
               'fn -> Sequence.take(2))(Sequence.size('fn.v('x)))
-        equal(eval(t), 2: Term)
+        equal(eval(t), 2.unsigned)
       }
     ),
     suite("text") (
@@ -635,19 +635,8 @@ object CompilationTests {
                     termFor(Builtins.Stream_cons)(1, termFor(Builtins.Stream_empty)))
       },
       test("map") { implicit T =>
-        // Stream.foldLeft 0 (+) (Stream.take 100 (Stream.map (+1) (Stream.fromInt 0)))
         equal[Term](
-          eval(
-            termFor(Builtins.Stream_foldLeft)(
-              0,
-              termFor(Builtins.Int64_add),
-              termFor(Builtins.Stream_take)(
-                100,
-                termFor(Builtins.Stream_map)(
-                  termFor(Builtins.Int64_inc),
-                  termFor(Builtins.Stream_fromInt)(0)))
-            )
-          ),
+          eval(Stream.foldLeft(0, Int64.+, Stream.take(100, Stream.map(Int64.inc, Stream.fromInt64(0))))),
           scala.Stream.from(0).map(1+).take(100).foldLeft(0)(_+_)
         )
       }
@@ -984,6 +973,12 @@ object Terms {
     }
   }
 
+  object Int64 {
+    import Builtins._
+    val + = termFor(Int64_add)
+    val inc = termFor(Int64_inc)
+  }
+
   object Sequence {
     import Builtins._
 
@@ -1010,6 +1005,18 @@ object Terms {
     val gt = termFor(Text_gt)
     val lteq = termFor(Text_lteq)
     val gteq = termFor(Text_gteq)
+  }
+  
+  object Stream {
+    import Builtins._
+    val empty = termFor(Stream_empty)
+    val fromInt64 = termFor(Stream_fromInt64)
+    val fromUInt64 = termFor(Stream_fromUInt64)
+    val cons = termFor(Stream_cons)
+    val drop = termFor(Stream_drop)
+    val take = termFor(Stream_take)
+    val map = termFor(Stream_map)
+    val foldLeft = termFor(Stream_foldLeft)
   }
 
   object Debug {

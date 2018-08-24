@@ -1,0 +1,62 @@
+-- TODO: Characters
+-- TODO: Bytes
+
+type Optional a = Some a | None
+
+type Words = Words (Sequence UInt64)
+type Integer = Integer
+
+Integer.zero : Integer
+Integer.zero = _
+
+shiftLeft : UInt64 -> Integer -> Integer
+shiftLeft x y = _
+
+(+) : Integer -> Integer -> Integer
+(+) x y = _
+
+unfoldRight : ∀ a b . (a -> Optional (a, b)) -> a -> Sequence b
+unfoldRight f z = _
+
+foldLeft : ∀ a b . a -> (a -> b -> a) -> Sequence b -> a
+foldLeft z f s = _
+
+toInteger : UInt64 -> Integer
+toInteger x = _
+
+bigEndian : Words -> Integer
+bigEndian ws = case ws of
+  Words.Words s -> 
+    foldLeft Integer.zero (acc w -> shiftLeft 8 acc + toInteger w) s
+
+-- TODO: Need some conversions between integers and machine integers
+divmod : Integer -> UInt64 -> (Integer, UInt64)
+divmod x y = _
+
+(|>) : ∀ a b c . (a -> b) -> (b -> c) -> a -> c
+(|>) g f x = f (g x)
+
+(==) : Integer -> UInt64 -> Boolean
+(==) a b = _
+
+charAt : UInt64 -> Text -> Text
+charAt n = Text.drop n |> Text.take 1
+
+codeString : Text
+codeString = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+
+base58Encode : Words -> Text
+base58Encode ws = 
+  x = bigEndian ws
+  base58 : Integer -> Optional (Integer, Text)
+  base58 a = 
+    if a == 0
+    then Optional.None
+    else case divmod a 58 of
+           (d, m) -> Optional.Some (d, charAt m codeString)
+  foldLeft "" Text.concatenate (unfoldRight base58 x)
+
+base58Decode : Text -> Words
+base58Decode txt = _
+
+()
