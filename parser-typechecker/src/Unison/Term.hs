@@ -62,8 +62,6 @@ data F typeVar typeAnn patternAnn a
   | Constructor Reference Int
   | Request Reference Int
   | Handle a a
-  | EffectPure a
-  | EffectBind Reference Int [a] a
   | App a a
   | Ann a (Type.AnnotatedType typeVar typeAnn)
   | Vector (Vector a)
@@ -173,8 +171,6 @@ pattern Match' scrutinee branches <- (ABT.out -> ABT.Tm (Match scrutinee branche
 pattern Constructor' ref n <- (ABT.out -> ABT.Tm (Constructor ref n))
 pattern Request' ref n <- (ABT.out -> ABT.Tm (Request ref n))
 pattern RequestOrCtor' ref n <- (unReqOrCtor -> Just (ref, n))
-pattern EffectBind' id cid args k <- (ABT.out -> ABT.Tm (EffectBind id cid args k))
-pattern EffectPure' a <- (ABT.out -> ABT.Tm (EffectPure a))
 pattern If' cond t f <- (ABT.out -> ABT.Tm (If cond t f))
 pattern And' x y <- (ABT.out -> ABT.Tm (And x y))
 pattern Or' x y <- (ABT.out -> ABT.Tm (Or x y))
@@ -344,12 +340,6 @@ let1 bindings e = foldr f e bindings
 -- let1' :: Var v => [(Text, Term' vt v)] -> Term' vt v -> Term' vt v
 -- let1' bs e = let1 [(ABT.v' name, b) | (name,b) <- bs ] e
 
-effectPure :: Ord v => a -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a
-effectPure a t = ABT.tm' a (EffectPure t)
-
-effectBind :: Ord v => a -> Reference -> Int -> [AnnotatedTerm2 vt at ap v a] -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a
-effectBind a r cid args k = ABT.tm' a (EffectBind r cid args k)
-
 unLet1 :: Var v => AnnotatedTerm' vt v a -> Maybe (AnnotatedTerm' vt v a, ABT.Subst (F vt a a) v a)
 unLet1 (ABT.Tm' (Let b (ABT.Abs' subst))) = Just (b, subst)
 unLet1 _ = Nothing
@@ -425,7 +415,6 @@ referencedDataDeclarationsP p = Set.fromList . Writer.execWriter $ go p where
 referencedEffectDeclarations :: Ord v => AnnotatedTerm2 vt at ap v a -> Set Reference
 referencedEffectDeclarations t = Set.fromList . Writer.execWriter $ ABT.visit' f t
   where f t@(Request r _) = Writer.tell [r] *> pure t
-        f t@(EffectBind r _ _ _) = Writer.tell [r] *> pure t
         f t@(Match _ cases) = traverse_ g cases *> pure t where
           g (MatchCase pat _ _) = Writer.tell (Set.toList (referencedEffectDeclarationsP pat))
           -- todo: does this traverse the guard and body of MatchCase?
@@ -486,10 +475,6 @@ instance Var v => Hashable1 (F v a p) where
         Let b a -> [tag 8, hashed $ hash b, hashed $ hash a]
         If b t f -> [tag 9, hashed $ hash b, hashed $ hash t, hashed $ hash f]
         Request r n -> [tag 10, accumulateToken r, varint n]
-        EffectPure r -> [tag 11, hashed $ hash r]
-        EffectBind r i rs k ->
-          [tag 14, accumulateToken r, varint i, varint (length rs)] ++
-          (hashed . hash <$> rs ++ [k])
         Constructor r n -> [tag 12, accumulateToken r, varint n]
         Match e branches -> tag 13 : hashed (hash e) : concatMap h branches
           where
@@ -504,7 +489,7 @@ instance Var v => Hashable1 (F v a p) where
 -- mostly boring serialization code below ...
 
 instance (Eq a, Var v) => Eq1 (F v a p) where (==#) = (==)
-instance (Show a, Show p, Var v) => Show1 (F v a p) where showsPrec1 = showsPrec
+instance (Var v) => Show1 (F v a p) where showsPrec1 = showsPrec
 
 instance (Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   Int64 x == Int64 y = x == y
@@ -517,9 +502,6 @@ instance (Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   Constructor r cid == Constructor r2 cid2 = r == r2 && cid == cid2
   Request r cid == Request r2 cid2 = r == r2 && cid == cid2
   Handle h b == Handle h2 b2 = h == h2 && b == b2
-  EffectPure x == EffectPure y = x == y
-  EffectBind r cid args k == EffectBind r2 cid2 args2 k2 =
-    r == r2 && cid == cid2 && args == args2 && k == k2
   App f a == App f2 a2 = f == f2 && a == a2
   Ann e t == Ann e2 t2 = e == e2 && t == t2
   Vector v == Vector v2 = v == v2
@@ -533,7 +515,7 @@ instance (Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   _ == _ = False
 
 
-instance (Var v, Show p, Show a0, Show a) => Show (F v a0 p a) where
+instance (Var v, Show a) => Show (F v a0 p a) where
   showsPrec p fa = go p fa where
     showConstructor r n = showsPrec 0 r <> s"#" <> showsPrec 0 n
     go _ (Int64 n) = (if n >= 0 then s "+" else s "") <> showsPrec 0 n
@@ -560,10 +542,6 @@ instance (Var v, Show p, Show a0, Show a) => Show (F v a0 p a) where
       showParen True (s"case " <> showsPrec 0 scrutinee <> s" of " <> showsPrec 0 cases)
     go _ (Text s) = showsPrec 0 s
     go _ (Request r n) = showConstructor r n
-    go _ (EffectPure r) = s"{ " <> showsPrec 0 r <> s" }"
-    go _ (EffectBind ref i args k) =
-      s"{ " <> showConstructor ref i <> showListWith (showsPrec 0) args <>
-      s" -> " <> showsPrec 0 k <> s" }"
     go p (If c t f) = showParen (p > 0) $
       s"if " <> showsPrec 0 c <> s" then " <> showsPrec 0 t <>
       s" else " <> showsPrec 0 f

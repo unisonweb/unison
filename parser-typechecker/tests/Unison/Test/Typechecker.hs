@@ -6,7 +6,6 @@ module Unison.Test.Typechecker where
 
 import           Control.Monad          (join, void)
 import           Control.Monad.IO.Class (liftIO)
-import           Data.Foldable          (traverse_)
 import           Data.Text              (unpack)
 import           Data.Text.IO           (readFile)
 import           EasyTest
@@ -36,7 +35,7 @@ bad :: EitherResult -> Test ()
 bad = void <$> EasyTest.expectLeft
 
 test :: Test ()
-test = scope "typechecker.2" . tests $
+test = scope "typechecker" . tests $
         [ go shouldPassNow good
         , go shouldFailNow bad
         , go shouldPassLater (pending . bad)
@@ -62,7 +61,7 @@ shouldFailLater = find always (extension ==? ".uu") shouldFailPath
 go :: IO [FilePath] -> (EitherResult -> Test ()) -> Test ()
 go files how = do
   files' <- liftIO files
-  traverse_ (makePassingTest how) files'
+  tests (makePassingTest how <$> files')
 
 showNotes :: Foldable f => String -> PrintError.Env -> f Note -> String
 showNotes source env notes =

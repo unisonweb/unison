@@ -12,7 +12,13 @@ snd x = case x of Pair.Pair _ (Pair.Pair b _) -> b
 
 namespace Console where
 
-  simulate : Effect Console c -> {State ([Text], [Text])} c
+  state : s -> Effect (State s) a -> a
+  state s c = case c of
+    {State.get -> k} -> handle state s in k s
+    {State.set s' -> k} -> handle state s' in k ()
+    {a} -> a
+
+  simulate : Effect Console d -> {State ([Text], [Text])} d
   simulate c = case c of
     {Console.read -> k} ->
       io = State.get
@@ -29,16 +35,17 @@ namespace Console where
       outs = snd io
       -- same deal here 
       handle simulate in k (State.set (ins, cons t outs))
+    {a} -> a
 
 (++) = concatenate
 
-handle Console.simulate in 
-  use Console read write
-  use Optional Some None
-  write "What's your name?"
-  case read of
-    Some name -> write ("Hello" ++ name)
-    None -> write "Fine, be that way."
-
+handle Console.state ([],[]) in
+  handle Console.simulate in 
+    use Console read write
+    use Optional Some None
+    write "What's your name?"
+    case read of
+      Some name -> write ("Hello" ++ name)
+      None -> write "Fine, be that way."
 
 ()
