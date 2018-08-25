@@ -1,0 +1,19 @@
+-- works
+a : () -> ()
+a x = ()
+
+-- fails
+b : () -> ()
+b () = ()
+
+-- works, but maybe it's parsing 'Unit' as a pattern variable rather than the () constructor
+c : () -> ()
+c Unit = ()
+
+()
+
+-- Typechecking b emits the following error:
+--
+--  typechecker.tests/match_unit.u FAILURE tests/match_unit.u:7:3:
+--  unexpected (
+--    7 | b () = ()
