@@ -1,11 +1,14 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Unison.Typechecker.TypeError where
 
-import           Control.Applicative ((<|>))
-import           Data.Foldable
-import           Data.Maybe (fromMaybe, listToMaybe)
-import           Debug.Trace
+import           Prelude hiding (all, and, or)
+-- import           Control.Applicative ((<|>))
+import           Control.Monad (mzero)
+import           Data.Foldable (asum)
+-- import           Data.Maybe (fromMaybe, listToMaybe)
+-- import           Debug.Trace
 import qualified Unison.ABT as ABT
 import qualified Unison.Typechecker.Context as C
 import qualified Unison.Typechecker.Extractor as Ex
@@ -22,17 +25,17 @@ data TypeError v loc
              , mismatchSite :: loc
              , note         :: C.Note v loc
              }
-  | BooleanMismatch { booleanMismatch :: BooleanMismatch
-                    , mismatchSite    :: loc
-                    , foundType       :: C.Type v loc
-                    , note            :: C.Note v loc
+  | BooleanMismatch { booleanMismatch' :: BooleanMismatch
+                    , mismatchSite     :: loc
+                    , foundType        :: C.Type v loc
+                    , note             :: C.Note v loc
                     }
-  | ExistentialMismatch { existentialMismatch :: ExistentialMismatch
-                        , expectedType        :: C.Type v loc
-                        , expectedLoc         :: loc
-                        , foundType           :: C.Type v loc
-                        , mismatchSite        :: loc
-                        , note                :: C.Note v loc
+  | ExistentialMismatch { existentialMismatch' :: ExistentialMismatch
+                        , expectedType         :: C.Type v loc
+                        , expectedLoc          :: loc
+                        , foundType            :: C.Type v loc
+                        , mismatchSite         :: loc
+                        , note                 :: C.Note v loc
                         }
   | FunctionApplication { f            :: C.Term v loc
                         , argNum       :: Int
@@ -42,7 +45,10 @@ data TypeError v loc
                         , fVarInfo     :: Maybe (C.Type v loc, [(v, C.Type v loc)])
                         , note         :: C.Note v loc
                         }
-  | NotFunctionApplication { f :: C.Term v loc, ft :: C.Type v loc , note :: C.Note v loc }
+  | NotFunctionApplication { f :: C.Term v loc
+                           , ft :: C.Type v loc
+                           , note :: C.Note v loc
+                           }
   | AbilityCheckFailure { ambient                 :: [C.Type v loc]
                         , requested               :: [C.Type v loc]
                         , abilityCheckFailureSite :: loc
@@ -61,7 +67,15 @@ data TypeError v loc
   | Other (C.Note v loc)
 
 typeErrorFromNote :: forall loc v. (Ord loc, Show loc, Var v) => C.Note v loc -> TypeError v loc
-typeErrorFromNote n@(C.Note (C.TypeMismatch ctx) path) =
+typeErrorFromNote n = case Ex.run all n of
+  Just msg -> msg
+  Nothing -> Other n
+
+-- all = generalMismatch <|> applyingNonFunction
+
+{-
+typeErrorFromNote n@(C.Note (C.TypeMismatch ctx) path) = do
+  (firstSubtype, lastSubtype, innermostTerm) <- mismatch
   let
     pathl = toList path
     subtypes = [ (t1, t2) | C.InSubtype t1 t2 <- pathl ]
@@ -75,30 +89,6 @@ typeErrorFromNote n@(C.Note (C.TypeMismatch ctx) path) =
      Just (foundType, expectedType),
      Just mismatchSite) ->
       let mismatchLoc = ABT.annotation mismatchSite
-          booleanMismatch
-            :: Monad m => m a -> BooleanMismatch -> m (TypeError v loc)
-          booleanMismatch x y = x >>
-            (pure $ BooleanMismatch y (ABT.annotation mismatchSite) foundType n)
-          existentialMismatch
-            :: Monad m => m loc -> ExistentialMismatch -> m (TypeError v loc)
-          existentialMismatch x y = x >>= \expectedLoc -> pure $
-            ExistentialMismatch y expectedType expectedLoc foundType mismatchLoc n
-          and,or,cond,guard,ifBody,vectorBody,caseBody,all,functionArg
-            :: Ex.NoteExtractor v loc (TypeError v loc)
-          and = booleanMismatch Ex.inAndApp AndMismatch
-          or = booleanMismatch Ex.inOrApp OrMismatch
-          cond = booleanMismatch Ex.inIfCond CondMismatch
-          guard = booleanMismatch Ex.inMatchCaseGuard GuardMismatch
-          ifBody = existentialMismatch Ex.inIfBody IfBody
-          vectorBody = existentialMismatch Ex.inVectorApp VectorBody
-          caseBody = existentialMismatch Ex.inMatchCaseBody CaseBody
-          functionArg = do
-            (f, index, expectedType, foundType, arg, fPoly) <- Ex.inApp
-            pure $ FunctionApplication f index expectedType foundType arg fPoly n
-
-          all = and <|> or <|> cond <|> guard <|>
-                ifBody <|> vectorBody <|> caseBody <|> functionArg
-
       in case Ex.run all n of
         Just msg -> msg
         Nothing ->
@@ -131,3 +121,64 @@ typeErrorFromNote n@(C.Note (C.UnknownSymbol loc v) _) =
 typeErrorFromNote n@(C.Note (C.UnknownTerm loc v suggs typ) _) =
   UnknownTerm v loc suggs typ n
 typeErrorFromNote n@(C.Note _ _) = Other n
+
+-}
+
+subtypes :: Ex.NoteExtractor v loc [(C.Type v loc, C.Type v loc)]
+subtypes = do
+  path <- Ex.path
+  pure [ (t1, t2) | C.InSubtype t1 t2 <- path ]
+
+firstLastSubtype :: Ex.NoteExtractor v loc ( (C.Type v loc, C.Type v loc)
+                                           , (C.Type v loc, C.Type v loc) )
+firstLastSubtype = subtypes >>= \case
+  [] -> mzero
+  l -> pure (head l, last l)
+
+generalMismatch :: (Var v, Ord loc) => Ex.NoteExtractor v loc (TypeError v loc)
+generalMismatch = do
+  ctx <- Ex.typeMismatch
+  let sub t = C.apply ctx t
+  n <- Ex.note
+  mismatchSite <- Ex.innermostTerm
+  ((foundLeaf, expectedLeaf), (foundType, expectedType)) <- firstLastSubtype
+  pure $ Mismatch (sub foundType) (sub expectedType)
+                  (sub foundLeaf) (sub expectedLeaf)
+                  (ABT.annotation mismatchSite)
+                  n
+
+applyingNonFunction :: Ex.NoteExtractor v loc (TypeError v loc)
+applyingNonFunction = do
+  _ <- Ex.typeMismatch
+  n <- Ex.note
+  (f, ft) <- Ex.applyingNonFunction
+  pure $ NotFunctionApplication f ft n
+
+-- booleanMismatch
+--   :: Monad m => m a -> BooleanMismatch -> m (TypeError v loc)
+-- booleanMismatch x y = do
+--   _ <- x
+--
+--   (pure $ BooleanMismatch y (ABT.annotation mismatchSite) foundType n)
+-- existentialMismatch
+--   :: Monad m => m loc -> ExistentialMismatch -> m (TypeError v loc)
+-- existentialMismatch x y = x >>= \expectedLoc -> pure $
+--   ExistentialMismatch y expectedType expectedLoc foundType mismatchLoc n
+-- and,or,cond,guard,ifBody,vectorBody,caseBody,all,functionArg
+--   :: Ex.NoteExtractor v loc (TypeError v loc)
+-- and = booleanMismatch Ex.inAndApp AndMismatch
+-- or = booleanMismatch Ex.inOrApp OrMismatch
+-- cond = booleanMismatch Ex.inIfCond CondMismatch
+-- guard = booleanMismatch Ex.inMatchCaseGuard GuardMismatch
+-- ifBody = existentialMismatch Ex.inIfBody IfBody
+-- vectorBody = existentialMismatch Ex.inVectorApp VectorBody
+-- caseBody = existentialMismatch Ex.inMatchCaseBody CaseBody
+-- functionArg = do
+--   (f, index, expectedType, foundType, arg, fPoly) <- Ex.inApp
+--   pure $ FunctionApplication f index expectedType foundType arg fPoly n
+
+-- all = and <|> or <|> cond <|> guard <|>
+--       ifBody <|> vectorBody <|> caseBody <|> functionArg
+
+all :: (Var v, Ord loc) => Ex.NoteExtractor v loc (TypeError v loc)
+all = asum [generalMismatch, applyingNonFunction]

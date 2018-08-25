@@ -51,22 +51,28 @@ function wait {
   fi
 }
 
+function go {
+  horizontal_line
+  typecheck && execute
+  wait
+}
+
 function process_batch {
   if [ -n "$unison_files_changed" ]; then
-    horizontal_line
-    typecheck && execute
-    wait
-  else
-    if [ -n "$haskell_files_changed" ]; then
-      build_haskell
-      if [ -n "$scala_files_changed" ]; then
-        build_scala
+    go
+  elif [ -n "$source" ]; then
+      if [ -n "$haskell_files_changed" ] || [ -n "$scala_files_changed" ]; then
+        go
       fi
-      wait
-    elif [ -n "$scala_files_changed" ]; then
+  elif [ -n "$haskell_files_changed" ]; then
+    build_haskell
+    if [ -n "$scala_files_changed" ]; then
       build_scala
-      wait
     fi
+    wait
+  elif [ -n "$scala_files_changed" ]; then
+    build_scala
+    wait
   fi
   haskell_files_changed=
   scala_files_changed=

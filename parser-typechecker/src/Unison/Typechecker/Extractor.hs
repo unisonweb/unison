@@ -7,17 +7,11 @@ module Unison.Typechecker.Extractor where
 import           Control.Applicative
 import           Control.Monad
 import           Data.Foldable              (toList)
--- import Data.Maybe (catMaybes)
-import           Data.Maybe                 (isJust)
--- import qualified Unison.ABT as ABT
 import qualified Unison.Blank               as B
 import           Unison.Reference           (Reference)
 import qualified Unison.Term                as Term
 import qualified Unison.Typechecker.Context as C
--- import qualified Unison.TypeVar as TypeVar
 import           Unison.Var                 (Var)
--- import Unison.Util.Monoid (whenM)
--- import Debug.Trace
 
 newtype NoteExtractor v loc a =
   NoteExtractor { run :: C.Note v loc -> Maybe a }
@@ -25,11 +19,16 @@ newtype NoteExtractor v loc a =
 newtype PathExtractor v loc a =
   PathExtractor { runPath :: C.PathElement v loc -> Maybe a}
 
-_path :: NoteExtractor v loc [C.PathElement v loc]
-_path = NoteExtractor $ pure . toList . C.path
+note :: NoteExtractor v loc (C.Note v loc)
+note = NoteExtractor $ Just . id
 
-_mismatchedTerm :: NoteExtractor v loc (Maybe (C.Term v loc))
-_mismatchedTerm = NoteExtractor $ pure . C.innermostErrorTerm
+path :: NoteExtractor v loc [C.PathElement v loc]
+path = NoteExtractor $ pure . toList . C.path
+
+innermostTerm :: NoteExtractor v loc (C.Term v loc)
+innermostTerm = NoteExtractor $ \n -> case C.innermostErrorTerm n of
+  Just e -> pure e
+  Nothing -> mzero
 
 type PathPredicate v loc = C.PathElement v loc -> Bool
 
@@ -37,11 +36,17 @@ toPathPredicate :: PathExtractor v loc a -> PathPredicate v loc
 toPathPredicate ex p = case runPath ex p of Nothing -> False; _ -> True
 
 exactly1AppBefore :: PathExtractor v loc a -> NoteExtractor v loc a
-exactly1AppBefore p = do
-  (prefix, a) <- elementsUntil p
-  case length . filter (isJust . runPath inSynthesizeApp) $ prefix of
-    1 -> pure a
-    _ -> mzero
+exactly1AppBefore p = snd <$> limitOccurrencesBefore 1 1 inSynthesizeApp p
+
+occurrencesBefore :: PathExtractor v loc a -> PathExtractor v loc b -> NoteExtractor v loc ([a],b)
+occurrencesBefore p q = do
+  (prefix, b) <- elementsUntil q
+  pure ([ a | Just a <- runPath p <$> prefix ], b)
+
+limitOccurrencesBefore :: Int -> Int -> PathExtractor v loc a -> PathExtractor v loc b-> NoteExtractor v loc ([a],b)
+limitOccurrencesBefore min max p q = do
+  result@(as, _) <- occurrencesBefore p q
+  if length as < min || length as > max then mzero else pure result
 
 -- User is applying args to not-a-function
 applyingNonFunction :: NoteExtractor v loc (C.Term v loc, C.Type v loc)

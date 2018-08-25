@@ -137,7 +137,7 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     ]
     ++ summary note
     where which =
-            case booleanMismatch of
+            case booleanMismatch' of
               CondMismatch ->
                 [ "The condition for an ", AT.Text . Color.errorSite $ "if"
                 , "-expression has to be"]
@@ -162,7 +162,7 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     ]
     ++ summary note
     where which =
-            case existentialMismatch of
+            case existentialMismatch' of
               IfBody ->
                 [ "The ", AT.Text . Color.errorSite $ "else"
                 , " clause of an ", AT.Text . Color.errorSite $ "if"
