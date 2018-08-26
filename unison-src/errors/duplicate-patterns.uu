@@ -1,0 +1,8 @@
+-- duplicate pattern
+-- should be an error, but currently compiles
+a : () -> ()
+a x = case x of
+        () -> ()
+        () -> ()
+
+()
