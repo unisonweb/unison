@@ -1,0 +1,7 @@
+
+-- typechecks OK
+a : Boolean -> ()
+a x = case x of
+        foo -> ()  -- expected to fail since 'foo' is unknown
+
+()

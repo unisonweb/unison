@@ -1,0 +1,22 @@
+effect T where
+  a : {T} UInt64
+
+-- correct code
+f : () -> {T} UInt64
+f unit = T.a
+
+-- bad code - seems like effectful code can't be in a nullary function
+-- but the error message isn't helpful - see below
+g : {T} UInt64
+g = T.a
+
+()
+
+-- error message:
+--FAILURE The expression at Line 8, columns 5-8 (in red below) is requesting
+--    {T} effects, but this location only has access to
+--    {}
+--
+--    8 | g = T.a
+--  simple cause:
+--    AbilityCheckFailure: ambient={} requested={T}
