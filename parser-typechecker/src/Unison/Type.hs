@@ -316,6 +316,22 @@ flipApply t = forall() b $ arrow() (arrow() t (var() b)) (var() b)
 generalize :: Ord v => AnnotatedType v a -> AnnotatedType v a
 generalize t = foldr (forall (ABT.annotation t)) t $ Set.toList (ABT.freeVars t)
 
+-- map : (a -> b) -> List a -> List b
+-- map : (a -> {e} b) -> List a -> {e} (List b)
+--
+-- map : (a ->{e1} b) ->{e2} List a ->{e1,} (List b)
+generalizeEffects :: Var v => AnnotatedType v a -> AnnotatedType v a
+generalizeEffects t = let
+  at = ABT.annotation t
+  e = ABT.fresh t (Var.named "e")
+  ev t = effect1 at (var at e) t
+  -- if `arg` is `{} blah` leave it alone or need some way of telling typechecker
+  -- to leave it alone
+  go t@(Arrow' f arg) = arrow (ABT.annotation t) f (ev arg)
+  go _t@(Ann' _a _) = error "todo"
+  go _ = error "todo"
+  in forall (ABT.annotation t) e (go t)
+
 -- | Bind all free variables that start with a lowercase letter with an outer `forall`.
 generalizeLowercase :: Var v => AnnotatedType v a -> AnnotatedType v a
 generalizeLowercase t = foldr (forall (ABT.annotation t)) t vars
