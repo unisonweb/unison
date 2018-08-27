@@ -1178,12 +1178,6 @@ abilityCheck' :: forall v loc . (Var v, Ord loc) => [Type v loc] -> [Type v loc]
 abilityCheck' [] [] = pure ()
 abilityCheck' ambient0 requested0 = go ambient0 requested0 where
   go _ambient [] = pure ()
-  -- If ambient is empty, all requests must be instantiated to the empty effect list
-  go [] (r:rs) = applyM r >>= \r -> case r of
-    Type.Existential' b v -> do
-      instantiateL b v (Type.effects (loc r) [])
-      go [] rs
-    _ -> die
   go ambient0 (r:rs) = do
     ambient <- traverse applyM ambient0
     r <- applyM r
@@ -1191,7 +1185,7 @@ abilityCheck' ambient0 requested0 = go ambient0 requested0 where
     case find (headMatch r) ambient of
       -- 2a. If yes for `a` in ambient, do `subtype amb r` and done.
       Just amb -> do
-        subtype amb r `orElse` die
+        subtype amb r `orElse` die r
         go ambient rs
       -- 2b. If no:
       Nothing -> do
@@ -1207,15 +1201,23 @@ abilityCheck' ambient0 requested0 = go ambient0 requested0 where
             -- introduce fresh existential 'e2 to context
             e2' <- extendExistential e'
             let et2 = Type.effects (loc r) [r, Type.existentialp (loc r) e2']
-            instantiateR et2 b e' `orElse` die
+            instantiateR et2 b e' `orElse` die r
             go ambient rs
-          _ -> die
+          _ -> die r
 
   headMatch :: Type v loc -> Type v loc -> Bool
   headMatch (Type.App' f _) (Type.App' f2 _) = headMatch f f2
   headMatch r r2 = r == r2
 
-  die = do
+  -- as a last ditch effort, if the request is an existential and there are
+  -- no remaining unbound existentials left in ambient, we try to instantiate
+  -- the request to the empty effect list
+  die r = case r of
+    Type.Existential' b v ->
+      instantiateL b v (Type.effects (loc r) []) `orElse` die1
+    _ -> die1 -- and if that doesn't work, then we're really toast
+
+  die1 = do
     ctx <- getContext
     failWith $ AbilityCheckFailure (apply ctx <$> ambient0)
                                    (apply ctx <$> requested0)
