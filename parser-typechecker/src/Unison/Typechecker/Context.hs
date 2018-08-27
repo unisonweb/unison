@@ -27,7 +27,6 @@ module Unison.Typechecker.Context
 where
 
 import           Control.Monad
-import           Control.Monad.Loops (anyM, allM)
 import           Control.Monad.Reader.Class
 import           Control.Monad.State (get, put, StateT, runStateT)
 import           Control.Monad.Trans (lift)
@@ -249,6 +248,9 @@ solved (Context ctx) = [(v, sa) | (Solved _ v sa, _) <- ctx]
 
 unsolved :: Context v loc -> [v]
 unsolved (Context ctx) = [v | (Existential _ v, _) <- ctx]
+
+unsolved' :: Context v loc -> [(B.Blank loc, v)]
+unsolved' (Context ctx) = [(b,v) | (Existential b v, _) <- ctx]
 
 replace :: (Var v, Ord loc) => Element v loc -> Context v loc -> Context v loc -> Context v loc
 replace e focus ctx =
@@ -1172,26 +1174,52 @@ solve ctx v t
         mid = [ Solved blank v t | Existential blank v <- focus ]
         ctx' = ctxL `mappend` context mid `mappend` ctxR
 
-abilityCheck' :: (Var v, Ord loc) => [Type v loc] -> [Type v loc] -> M v loc ()
+abilityCheck' :: forall v loc . (Var v, Ord loc) => [Type v loc] -> [Type v loc] -> M v loc ()
 abilityCheck' [] [] = pure ()
-abilityCheck' ambient requested = do
-  -- if requested is an existential that is unsolved, go ahead and unify that w/ all of ambient
-  ctx <- getContext
-  let es = [ Type.existential' (loc t) b v
-           | t@(Type.Existential' b v) <- apply ctx <$> requested ]
-  case es of
-    h : _t -> subtype h (Type.effects (loc h) ambient)
-    [] -> do
-      success <- flip allM requested $ \req -> do
-        -- NB - if there's an exact match, use that
-        let toCheck = maybe ambient pure $ find (== req) ambient
-        ok <- flip anyM toCheck $ \amb -> (True <$ subtype amb req) `orElse` pure False
-        pure ok
-      when (not success) $ do
+abilityCheck' ambient0 requested0 = go ambient0 requested0 where
+  go _ambient [] = pure ()
+  -- If ambient is empty, all requests must be instantiated to the empty effect list
+  go [] (r:rs) = applyM r >>= \r -> case r of
+    Type.Existential' b v -> do
+      instantiateL b v (Type.effects (loc r) [])
+      go [] rs
+    _ -> die
+  go ambient0 (r:rs) = do
+    ambient <- traverse applyM ambient0
+    r <- applyM r
+    -- 1. Look in ambient to see if `r` has an exact match in the head of `r`.
+    case find (headMatch r) ambient of
+      -- 2a. If yes for `a` in ambient, do `subtype amb r` and done.
+      Just amb -> do
+        subtype amb r `orElse` die
+        go ambient rs
+      -- 2b. If no:
+      Nothing -> do
         ctx <- getContext
-        failWith $ AbilityCheckFailure (apply ctx <$> ambient)
-                                       (apply ctx <$> requested)
-                                       ctx
+        -- find first unsolved existential, 'e, that appears in ambient
+        let unsolveds = unsolved' ctx
+            ambFlat = Set.fromList (ambient >>= Type.flattenEffects >>= vars)
+            vars (Type.Var' (TypeVar.Existential _ v)) = [v]
+            vars _ = []
+            intersection = [ (b,v) | (b,v) <- unsolveds, Set.member v ambFlat ]
+        case listToMaybe intersection of
+          Just (b, e') -> do
+            -- introduce fresh existential 'e2 to context
+            e2' <- extendExistential e'
+            let et2 = Type.effects (loc r) [r, Type.existentialp (loc r) e2']
+            instantiateR et2 b e' `orElse` die
+            go ambient rs
+          _ -> die
+
+  headMatch :: Type v loc -> Type v loc -> Bool
+  headMatch (Type.App' f _) (Type.App' f2 _) = headMatch f f2
+  headMatch r r2 = r == r2
+
+  die = do
+    ctx <- getContext
+    failWith $ AbilityCheckFailure (apply ctx <$> ambient0)
+                                   (apply ctx <$> requested0)
+                                   ctx
 
 abilityCheck :: (Var v, Ord loc) => [Type v loc] -> M v loc ()
 abilityCheck requested = do
