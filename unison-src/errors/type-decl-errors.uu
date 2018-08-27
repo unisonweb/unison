@@ -1,0 +1,23 @@
+-- duplicate data constructors - wrongly accepted
+-- GHC rejects data decls like this with "Multiple declarations of 'C1'"
+type A1 = C1 | C1
+
+-- data constructor used as data constructor type parameter - wrongly accepted
+-- GHC rejects data decls like this with "Not in scope: type constructor or
+--   class 'C2' A data constructor of that name is in scope; did you mean
+--   DataKinds?; Perhaps you meant 'A2'"
+type A2 = C2 | D2 C2
+
+-- data constructor name omitted, type parameter given instead - wrongly accepted
+-- GHC rejects data decls like this with "Not a data constructor: 'b'"
+type A3 b3 = b3
+
+-- The following compiles.  i.e. dots are allowed in data structure names, even
+-- though dots are also used for name qualification.  Is this desirable?
+type A4 = A4.C4 Text
+
+a4 : A4 -> Text
+a4 x4 = case x4 of
+          A4.A4.C4 t4 -> t4
+
+()

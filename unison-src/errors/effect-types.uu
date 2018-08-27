@@ -1,0 +1,27 @@
+effect E where
+  e : a           -- note no {E} - is it there implicitly?
+                  -- I'd be happy if this was working as intended.  frank
+                  -- also allows the 'myself' effect to be omitted in effect
+                  -- declarations, which denoises things.
+
+-- unintended effect in effect method signature - wrongly accepted?
+effect F where
+  f : {E} a       -- note the typo - wrong effect - any way to make this error?
+
+effect G where
+  g : {G, F} a    -- this is accepted, don't know if that's on purpose
+
+-- duplicate declaration of effect - wrongly accepted
+effect G where
+  g : {G, F} a
+
+effect S a where
+  get1 : {S a} a
+  get2 : a
+
+-- Note that S.get2 below is not constrained to use same the type 'a' as parameterises the effect 'S a'.
+-- Maybe that's as intended?  Might be surprising though.
+h : () -> {S Text} (Text, UInt64)
+h x = (S.get1, S.get2)
+
+()

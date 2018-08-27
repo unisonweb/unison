@@ -1,0 +1,20 @@
+-- typechecker exception
+
+--typechecker EXCEPTION!!!: unknown data reference #4quNbM49
+--CallStack (from HasCallStack):
+--  error, called at src/Unison/FileParsers.hs:70:17 in unison-parser-typechecker-0.1-RHofMa393P3NqRr3a5s5l:Unison.FileParsers
+
+-- note the error in the code, the clash between the effect and type names
+-- it compiles OK if you remove this clash
+-- it wrongly compiles OK if you remove the binding for f
+
+effect A where
+  n : {A} a
+
+type A = C
+
+f : A -> ()
+f x = case x of
+        A.C -> ()
+
+()
