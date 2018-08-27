@@ -1,4 +1,10 @@
 
+use UInt64 + - * / == <
+use Sequence map take drop size fold-left halve
+use Optional None Some
+use Monoid.Monoid -- import the constructor
+use Remote fork spawn at
+
 -- A simple distributed computation effect
 effect Remote n where
 
@@ -14,12 +20,6 @@ effect Remote n where
   fork : '{Remote n} a -> {Remote n} ('{Remote n} a)
 
 type Monoid a = Monoid (a -> a -> a) a
-
-use UInt64 + - * / == <
-use Sequence map take drop size fold-left halve
-use Optional None Some
-use Monoid.Monoid -- import the constructor
-use Remote fork spawn at
 
 namespace Monoid where
 
