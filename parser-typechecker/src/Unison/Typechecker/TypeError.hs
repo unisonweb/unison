@@ -6,8 +6,6 @@ module Unison.Typechecker.TypeError where
 import           Prelude hiding (all, and, or)
 import           Control.Applicative ((<|>))
 import           Control.Monad (mzero)
--- import           Data.Foldable (asum)
-import           Data.Functor (void)
 import qualified Unison.ABT as ABT
 import qualified Unison.Typechecker.Context as C
 import qualified Unison.Typechecker.Extractor2 as Ex
@@ -151,17 +149,27 @@ firstLastSubtype = subtypes >>= \case
 and,or,cond :: (Var v, Ord loc) => Ex.NoteExtractor v loc (TypeError v loc)
 and = booleanMismatch'' Ex.inAndApp AndMismatch
 or = booleanMismatch'' Ex.inOrApp OrMismatch
-cond = booleanMismatch'' Ex.inIfCond CondMismatch
+cond = booleanMismatch''' >>=
+  \(mismatchLoc, foundType, n) -> Ex.unique $ do
+    Ex.no Ex.inSynthesizeApp
+    Ex.inIfCond
+    pure $ BooleanMismatch CondMismatch mismatchLoc foundType n
 
 booleanMismatch'' :: (Var v, Ord loc) => Ex.SubseqExtractor v loc () -> BooleanMismatch -> Ex.NoteExtractor v loc (TypeError v loc)
-booleanMismatch'' ex b = do
+booleanMismatch'' ex b =
+  booleanMismatch''' >>=
+    \(mismatchLoc, foundType, n) -> do
+      (Ex.unique $ Ex.no Ex.inSynthesizeApp >> Ex.inSynthesizeApp >> ex) >>
+        pure (BooleanMismatch b mismatchLoc foundType n)
+
+-- | extracts a type mismatch location, the found type, and the full note
+booleanMismatch''' :: (Var v, Ord loc) => Ex.NoteExtractor v loc (loc, C.Type v loc, C.Note v loc)
+booleanMismatch''' = do
   ctx <- Ex.typeMismatch
-  let sub t = C.apply ctx t
-  n <- Ex.note
   mismatchSite <- Ex.innermostTerm
+  n <- Ex.note
   (_, (foundType, _)) <- firstLastSubtype
-  void . Ex.unique $ Ex.no Ex.inSynthesizeApp >> Ex.inSynthesizeApp >> ex
-  pure $ BooleanMismatch b (ABT.annotation mismatchSite) (sub foundType) n
+  pure $ (ABT.annotation mismatchSite, C.apply ctx foundType, n)
 
 
 -- applyingNonFunction :: Ex.NoteExtractor v loc (TypeError v loc)
