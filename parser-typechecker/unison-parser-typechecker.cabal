@@ -64,6 +64,8 @@ library
     Unison.Typechecker.Context
     Unison.Typechecker.Components
     Unison.Typechecker.Extractor
+    Unison.Typechecker.Extractor2
+    Unison.Typechecker.Extractor3
     Unison.Typechecker.TypeError
     Unison.UnisonFile
     Unison.Util.AnnotatedText
