@@ -69,8 +69,9 @@ typeErrorFromNote n = case Ex.runNote all n of
   Nothing  -> Other n
 
 all :: (Var v, Ord loc) => Ex.NoteExtractor v loc (TypeError v loc)
-all = and <|> or <|> cond <|> generalMismatch <|> applyingNonFunction <|>
-      abilityCheckFailure <|> unknownType <|> unknownTerm
+all = and <|> or <|> cond <|> applyingNonFunction <|>
+      ifBody <|> vectorBody <|>
+      generalMismatch <|> abilityCheckFailure <|> unknownType <|> unknownTerm
 
 abilityCheckFailure :: Ex.NoteExtractor v a (TypeError v a)
 abilityCheckFailure = do
@@ -115,8 +116,8 @@ firstLastSubtype = subtypes >>= \case
   l -> pure (head l, last l)
 
 and,or,cond :: (Var v, Ord loc) => Ex.NoteExtractor v loc (TypeError v loc)
-and = booleanMismatchApply Ex.inAndApp AndMismatch
-or = booleanMismatchApply Ex.inOrApp OrMismatch
+and = booleanMismatchApply AndMismatch Ex.inAndApp
+or = booleanMismatchApply OrMismatch Ex.inOrApp
 cond = booleanMismatch0 >>=
   \(mismatchLoc, foundType, n) -> Ex.unique $ do
     Ex.no Ex.inSynthesizeApp
@@ -125,10 +126,10 @@ cond = booleanMismatch0 >>=
 
 -- | helper function to support `and` / `or`
 booleanMismatchApply :: (Var v, Ord loc)
-                     => Ex.SubseqExtractor v loc ()
-                     -> BooleanMismatch
+                     => BooleanMismatch
+                     -> Ex.SubseqExtractor v loc ()
                      -> Ex.NoteExtractor v loc (TypeError v loc)
-booleanMismatchApply ex b =
+booleanMismatchApply b ex =
   booleanMismatch0 >>=
     \(mismatchLoc, foundType, n) -> do
       Ex.unique $ do
@@ -155,42 +156,35 @@ applyingNonFunction :: Ex.NoteExtractor v loc (TypeError v loc)
 applyingNonFunction = do
   _ <- Ex.typeMismatch
   n <- Ex.note
-  (f, ft) <- Ex.unique  Ex.applyingNonFunction
+  (f, ft) <- Ex.unique Ex.applyingNonFunction
   pure $ NotFunctionApplication f ft n
 
-existentialMismatch
+existentialMismatchApply
   :: (Var v, Ord loc)
-  => Ex.NoteExtractor v loc loc
-  -> ExistentialMismatch
+  => ExistentialMismatch
+  -> Ex.SubseqExtractor v loc loc
   -> Ex.NoteExtractor v loc (TypeError v loc)
-existentialMismatch getLoc em = do
+existentialMismatchApply em getExpectedLoc = do
   n <- Ex.note
   ctx <- Ex.typeMismatch
   let sub t = C.apply ctx t
   mismatchSite <- Ex.innermostTerm
   let mismatchLoc = ABT.annotation mismatchSite
   (_, (foundType, expectedType)) <- firstLastSubtype
-  expectedLoc <- getLoc
+  expectedLoc <- Ex.unique $ do
+    Ex.pathStart
+    Ex.no Ex.inSynthesizeApp
+    _ <- Ex.inSynthesizeApp
+    getExpectedLoc
   pure $ ExistentialMismatch em (sub expectedType) expectedLoc
                                 (sub foundType) mismatchLoc
                                 n
--- existentialMismatch x y = x >>= \expectedLoc -> pure $
---   ExistentialMismatch y expectedType expectedLoc foundType mismatchLoc n
--- | gets expectedType, expectedLoc, foundType, mismatchLoc, n
-existentialMismatch0 :: (Var v, Ord loc)
-                     => Ex.NoteExtractor v loc (C.Type v loc, loc,
-                                                C.Type v loc, loc,
-                                                C.Note v loc)
-existentialMismatch0 = do
-  ctx <- Ex.typeMismatch
-  let sub t = C.apply ctx t
-  mismatchSite <- Ex.innermostTerm
-  n <- Ex.note
-  (_, (foundType, expectedType)) <- firstLastSubtype
-  pure (sub expectedType, ABT.annotation expectedType,
-        sub foundType,
-        ABT.annotation mismatchSite,
-        n)
+
+ifBody, vectorBody
+  :: (Var v, Ord loc) => Ex.NoteExtractor v loc (TypeError v loc)
+ifBody = existentialMismatchApply IfBody Ex.inIfBody
+vectorBody = existentialMismatchApply VectorBody Ex.inVector
+-- casebody
 
 -- existentialMismatchApply
 

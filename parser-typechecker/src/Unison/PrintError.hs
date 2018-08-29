@@ -110,7 +110,7 @@ mustBeType initial env src expectedLoc mismatchSite expectedType mismatchedType 
   initial ++
   [ "  Here, one is "
   , AT.Text $ Color.type1 . renderType' env $ expectedType
-  , ", and the other is "
+  , ", and another is "
   , AT.Text $ Color.type2 . renderType' env $ mismatchedType, ":\n\n"
   , showSourceMaybes src [mismatchSiteS, expectedLocS]
   , "\n"
