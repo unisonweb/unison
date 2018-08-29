@@ -380,7 +380,7 @@ instance Show a => Show (F a) where
     go p (Effects es) = showParen (p > 0) $
       s"{" <> showsPrec 0 es <> s"}"
     go p (Effect e t) = showParen (p > 0) $
-     showsPrec 0 e <> s" " <> showsPrec p t
+     showParen True $ showsPrec 0 e <> s" " <> showsPrec p t
     go p (Forall body) = case p of
       0 -> showsPrec p body
       _ -> showParen True $ s"∀ " <> showsPrec 0 body

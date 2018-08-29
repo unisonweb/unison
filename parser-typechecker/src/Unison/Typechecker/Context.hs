@@ -553,7 +553,7 @@ synthesizeApps ft args =
 -- the process.
 -- e.g. in `(f:t) x` -- finds the type of (f x) given t and x.
 synthesizeApp :: (Var v, Ord loc) => Type v loc -> (Term v loc, Int) -> M v loc (Type v loc)
--- synthesizeApp ft arg | debugEnabled && traceShow ("synthesizeApp"::String, ft, arg) False = undefined
+synthesizeApp ft arg | True && traceShow ("synthesizeApp"::String, ft, arg) False = undefined
 synthesizeApp (Type.Effect'' es ft) argp@(arg, argNum) =
   scope (InSynthesizeApp ft arg argNum) $ abilityCheck es >> go ft
   where
@@ -561,16 +561,7 @@ synthesizeApp (Type.Effect'' es ft) argp@(arg, argNum) =
     v <- ABT.freshen body freshenTypeVar
     appendContext (context [existential v])
     let ft2 = ABT.bindInheritAnnotation body (Type.existential B.Blank v)
-        vs es = [TypeVar.underlying v | Type.Var' v <- es ]
-    -- todo: should do something different here if underapplied
-    case Type.unArrows ft2 of
-      Nothing -> synthesizeApp ft2 argp
-      Just spine -> case reverse spine of
-        Type.Effect' es _ : _ | v `elem` vs es -> do
-          amb <- getAbilities
-          instantiateL B.Blank v (Type.effects (loc ft) amb)
-          synthesizeApp ft2 argp
-        _ -> synthesizeApp ft2 argp
+    synthesizeApp ft2 argp
   go (Type.Arrow' i o) = do -- ->App
     let (es, _) = Type.stripEffect o
     abilityCheck es
@@ -622,7 +613,9 @@ synthesize e = scope (InSynthesize e) $ do
     s -> compilerCrash $ FreeVarsInTypeAnnotation s
   go (Term.Ref' h) = compilerCrash $ UnannotatedReference h
   go (Term.Constructor' r cid) = getDataConstructorType r cid
-  go (Term.Request' r cid) = ungeneralize =<< getEffectConstructorType r cid
+  go (Term.Request' r cid) = do
+    t <- ungeneralize =<< getEffectConstructorType r cid
+    pure $ Type.generalizeEffects t
   go (Term.Ann' e' t) = t <$ check e' t
   go (Term.Float' _) = pure $ Type.float l -- 1I=>
   go (Term.Int64' _) = pure $ Type.int64 l -- 1I=>
@@ -658,7 +651,6 @@ synthesize e = scope (InSynthesize e) $ do
     pure t
   go (Term.Lam' body) = do -- ->I=> (Full Damas Milner rule)
     -- arya: are there more meaningful locations we could put into and pull out of the abschain?)
-    -- TODO: slightly hacky, won't infer more than 2 effects
     [arg, i, e, o] <- sequence [ ABT.freshen body freshenVar
                                , freshenVar (ABT.variable body)
                                , freshNamed "inferred-effect"
@@ -667,23 +659,23 @@ synthesize e = scope (InSynthesize e) $ do
         ot = Type.existential' l B.Blank o
         et = Type.existential' l B.Blank e
     appendContext $
-      context [Marker i, existential i, existential e, existential o, Ann arg it]
+      context [existential i, existential e, existential o, Ann arg it]
     body <- pure $ ABT.bindInheritAnnotation body (Term.var() arg)
     withEffects0 [et] $ check body ot
-    (_, _, ctx2) <- breakAt (Marker i) <$> getContext
     ctx <- getContext
     -- unsolved existentials get generalized to universals
-    doRetract (Marker i)
     let es2 = [ et | (e,et) <- [(e,et)], e `notElem` unsolved ctx]
     pure $ if null es2
-      then generalizeExistentials ctx2 (Type.arrow l it ot)
-      else generalizeExistentials ctx2 (Type.arrow l it (Type.effect l (apply ctx <$> es2) ot))
+      then Type.arrow l it ot
+      else Type.arrow l it (Type.effect l (apply ctx <$> es2) ot)
+      -- then generalizeExistentials ctx2 (Type.arrow l it ot)
+      -- else generalizeExistentials ctx2 (Type.arrow l it (Type.effect l (apply ctx <$> es2) ot))
   go (Term.LetRecNamed' [] body) = synthesize body
   go (Term.LetRec' letrec) = do
     (marker, e) <- annotateLetRecBindings letrec
     t <- synthesize e
     (_, _, ctx2) <- breakAt marker <$> getContext
-    generalizeExistentials ctx2 t <$ doRetract marker
+    (Type.generalizeEffects $ generalizeExistentials ctx2 t) <$ doRetract marker
   go (Term.If' cond t f) = do
     scope InIfCond $ check cond (Type.boolean l)
     scope (InIfBody $ ABT.annotation t) $ synthesizeApps (Type.iff2 l) [t, f]
@@ -876,7 +868,7 @@ annotateLetRecBindings letrec = do
   -- compute generalized types `gt1, gt2 ...` for each binding `b1, b2...`;
   -- add annotations `v1 : gt1, v2 : gt2 ...` to the context
   (_, _, ctx2) <- breakAt (Marker e1) <$> getContext
-  let gen bindingType = generalizeExistentials ctx2 bindingType
+  let gen bindingType = Type.generalizeEffects $ generalizeExistentials ctx2 bindingType
       annotations = zipWith Ann vs (map gen bindingTypes)
   marker <- Marker <$> freshenVar (ABT.v' "let-rec-marker")
   doRetract (Marker e1)
@@ -1277,14 +1269,14 @@ verifyClosed t toV2 =
       go _ = pure True
   in all id <$> ABT.foreachSubterm go (ABT.annotateBound t)
 
-annotateRefs :: (Applicative f, Ord v)
+annotateRefs :: (Applicative f, Var v)
              => (Reference -> f (Type.AnnotatedType v loc))
              -> Term v loc
              -> f (Term v loc)
 annotateRefs synth = ABT.visit f where
   -- already annotated; skip this subtree
   f r@(Term.Ann' (Term.Ref' _) _) = Just (pure r)
-  f r@(Term.Ref' h) = Just (Term.ann ra (Term.ref ra h) <$> (ABT.vmap TypeVar.Universal <$> synth h))
+  f r@(Term.Ref' h) = Just (Term.ann ra (Term.ref ra h) <$> (ABT.vmap TypeVar.Universal . Type.generalizeEffects <$> synth h))
     where ra = ABT.annotation r
   f _ = Nothing
 
@@ -1299,6 +1291,11 @@ run builtinLoc ambient datas effects m =
   let (notes, o) = runM m (MEnv (Env 0 mempty) ambient builtinLoc datas effects (const $ pure True))
   in (notes, fst <$> o)
 
+generalizeEffectSignatures :: Var v => Term v loc -> Term v loc
+generalizeEffectSignatures t = ABT.rebuildUp go t
+  where go (Term.Ann e t) = Term.Ann e (Type.generalizeEffects t)
+        go e = e
+
 synthesizeClosed' :: (Var v, Ord loc)
                   => [Type v loc]
                   -> Term v loc
@@ -1308,7 +1305,7 @@ synthesizeClosed' abilities term = do
   ctx0 <- getContext
   setContext $ context []
   v <- extendMarker $ Var.named "start"
-  t <- withEffects0 abilities (synthesize term)
+  t <- withEffects0 abilities (synthesize $ generalizeEffectSignatures term)
   ctx <- getContext
   -- retract will cause notes to be written out for
   -- any `Blank`-tagged existentials passing out of scope
