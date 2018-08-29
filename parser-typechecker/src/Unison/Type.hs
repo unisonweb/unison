@@ -324,20 +324,21 @@ generalize t = foldr (forall (ABT.annotation t)) t $ Set.toList (ABT.freeVars t)
 generalizeEffects :: forall v a . Var v => AnnotatedType v a -> AnnotatedType v a
 generalizeEffects t = let
   at = ABT.annotation t
-  e = ABT.fresh t (Var.named "e")
+  e = ABT.freshEverywhere t (Var.named "𝛆")
   evar = var at e
   ev t = effect at [evar] t
   go :: AnnotatedType v a -> AnnotatedType v a
   go t = let at = ABT.annotation t in case t of
-    Arrow' f arg -> case arg of
+    Arrow' i o -> case o of
       Effect' _ _ -> t
-      _ -> arrow at (go f) (ev $ go arg)
+      _ -> arrow at (go i) (ev $ go o)
     Ann' t k -> ann at (go t) k
     Effect1' e e2 -> effect1 at (go e) (go e2)
     Effects' es -> effects at (go <$> es)
     ForallNamed' v body -> forall at v (go body)
     _ -> t
-  in forall at e (go t)
+  in if arity t == 0 then t
+     else forall at e (go t)
 
 -- | Bind all free variables that start with a lowercase letter with an outer `forall`.
 generalizeLowercase :: Var v => AnnotatedType v a -> AnnotatedType v a

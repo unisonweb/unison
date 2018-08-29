@@ -228,6 +228,16 @@ freshInBoth t1 t2 = fresh t2 . fresh t1
 fresh :: Var v => Term f v a -> v -> v
 fresh t = fresh' (freeVars t)
 
+freshEverywhere :: (Foldable f, Var v) => Term f v a -> v -> v
+freshEverywhere t v = fresh' (Set.fromList $ allVars t) v
+
+allVars :: Foldable f => Term f v a -> [v]
+allVars t = case out t of
+  Var v -> [v]
+  Cycle body -> allVars body
+  Abs v body -> v : allVars body
+  Tm v -> Foldable.toList v >>= allVars
+
 fresh' :: Var v => Set v -> v -> v
 fresh' used = Var.freshIn used
 
