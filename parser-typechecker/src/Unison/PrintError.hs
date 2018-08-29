@@ -183,8 +183,10 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     ] ++ summary note
   FunctionApplication {..} ->
     [ "The ", ordinal argNum, " argument in the call below is "
-    , AT.Text $ Color.type2 . renderType' env $ foundType, ":"
-    , "\n\n"
+    , AT.Text $ Color.type2 . renderType' env $ foundType, ", "
+    , "but I was expecting "
+                , AT.Text $ Color.type1 . renderType' env $ expectedType
+    , ":\n\n"
     , showSourceMaybes src
       -- [ (,Color.ErrorSite) <$> rangeForAnnotated f
       [ (,Color.Type1)     <$> rangeForAnnotated expectedType
@@ -192,8 +194,6 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
       , (,Color.Type2)     <$> rangeForAnnotated arg
       ]
     , "\n"
-    , "but I was expecting "
-                , AT.Text $ Color.type1 . renderType' env $ expectedType
     ]
     -- todo: why doesn't this print
     ++ case fVarInfo of
@@ -215,7 +215,7 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
           -- ++ ["\n"]
           -- ++ showSourceMaybes src (go solvedVars)
           ++ ["\n\n"]
-      _other -> ["."] -- forget it
+      _other -> [fromString $ "fVarInfo = " ++ show _other] -- forget it
     ++ ["\n\n"]
     ++ summary note
   Mismatch {..} ->

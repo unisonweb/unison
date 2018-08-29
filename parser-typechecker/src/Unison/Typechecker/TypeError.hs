@@ -1,15 +1,21 @@
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections       #-}
 
 module Unison.Typechecker.TypeError where
 
-import           Control.Applicative           ((<|>))
 import           Control.Monad                 (mzero)
+import           Data.Foldable                 (asum, toList)
 import           Data.Functor                  (void)
+import           Data.Maybe                    (catMaybes)
 import           Prelude                       hiding (all, and, or)
 import qualified Unison.ABT                    as ABT
+import qualified Unison.Term                   as Term
+import qualified Unison.Type                   as Type
 import qualified Unison.Typechecker.Context    as C
 import qualified Unison.Typechecker.Extractor2 as Ex
+import qualified Unison.TypeVar                as TypeVar
+import           Unison.Util.Monoid            (whenM)
 import           Unison.Var                    (Var)
 
 data BooleanMismatch = CondMismatch | AndMismatch | OrMismatch | GuardMismatch
@@ -74,10 +80,12 @@ typeErrorFromNote n = case Ex.runNote all n of
   Nothing  -> Other n
 
 all :: (Var v, Ord loc) => Ex.NoteExtractor v loc (TypeError v loc)
-all = and <|> or <|> cond <|> matchGuard <|>
-      ifBody <|> vectorBody <|>
-      generalMismatch <|>
-      applyingNonFunction <|> abilityCheckFailure <|> unknownType <|> unknownTerm
+all = asum [and, or, cond, matchGuard,
+            ifBody, vectorBody, matchBody,
+            applyingFunction, applyingNonFunction,
+            generalMismatch,
+            abilityCheckFailure, unknownType, unknownTerm
+            ]
 
 abilityCheckFailure :: Ex.NoteExtractor v a (TypeError v a)
 abilityCheckFailure = do
@@ -148,19 +156,12 @@ booleanMismatch0 b ex = do
     ex
   pure (BooleanMismatch b mismatchLoc (sub foundType) n)
 
-applyingNonFunction :: Ex.NoteExtractor v loc (TypeError v loc)
-applyingNonFunction = do
-  _ <- Ex.typeMismatch
-  n <- Ex.note
-  (f, ft) <- Ex.unique Ex.applyingNonFunction
-  pure $ NotFunctionApplication f ft n
-
-existentialMismatchApply
+existentialMismatch0
   :: (Var v, Ord loc)
   => ExistentialMismatch
   -> Ex.SubseqExtractor v loc loc
   -> Ex.NoteExtractor v loc (TypeError v loc)
-existentialMismatchApply em getExpectedLoc = do
+existentialMismatch0 em getExpectedLoc = do
   n <- Ex.note
   ctx <- Ex.typeMismatch
   let sub t = C.apply ctx t
@@ -171,33 +172,68 @@ existentialMismatchApply em getExpectedLoc = do
     Ex.pathStart
     void $ Ex.inSubtype
     void $ Ex.inCheck
-    void $ Ex.inSynthesizeApp
     getExpectedLoc
   pure $ ExistentialMismatch em (sub expectedType) expectedLoc
                                 (sub foundType) mismatchLoc
                                 n
 
-ifBody, vectorBody
+ifBody, vectorBody, matchBody
   :: (Var v, Ord loc) => Ex.NoteExtractor v loc (TypeError v loc)
-ifBody = existentialMismatchApply IfBody Ex.inIfBody
-vectorBody = existentialMismatchApply VectorBody Ex.inVector
--- casebody
+ifBody = existentialMismatch0 IfBody (Ex.inSynthesizeApp >> Ex.inIfBody)
+vectorBody = existentialMismatch0 VectorBody (Ex.inSynthesizeApp >> Ex.inVector)
+matchBody = existentialMismatch0 CaseBody (Ex.inMatchBody >> Ex.inMatch)
 
--- existentialMismatchApply
+applyingNonFunction :: Ex.NoteExtractor v loc (TypeError v loc)
+applyingNonFunction = do
+  _ <- Ex.typeMismatch
+  n <- Ex.note
+  (f, ft) <- Ex.unique $ do
+    Ex.pathStart
+    (arity0Type, _arg, _argNum) <- Ex.inSynthesizeApp
+    (f, ft, args) <- Ex.inSynthesizeApps
+    let expectedArgCount = Type.arity ft
+        foundArgCount = length args
+        -- unexpectedArgLoc = ABT.annotation arg
+    whenM (expectedArgCount < foundArgCount) $ pure (f, arity0Type)
+  pure $ NotFunctionApplication f ft n
 
--- -- and,or,cond,guard,ifBody,vectorBody,caseBody,all,functionArg
--- --   :: Ex.NoteExtractor v loc (TypeError v loc)
+-- | Want to collect this info:
+  -- The `n`th argument to `f` is `foundType`, but I was expecting `expectedType`.
+  --
+  --    30 |   asdf asdf asdf
+  --
+  -- If you're curious
+  -- `f` has type `blah`, where
+  --    `a` was chosen as `A`
+  --    `b` was chosen as `B`
+  --    `c` was chosen as `C`
+  -- (many colors / groups)
+applyingFunction :: forall v loc. Eq v => Ex.NoteExtractor v loc (TypeError v loc)
+applyingFunction = do
+  n <- Ex.note
+  (f, index, expectedType, foundType, arg, fPoly) <- do
+    ctx <- Ex.typeMismatch
+    Ex.unique $ do
+      Ex.pathStart
+      (foundType, expectedType) <- Ex.inSubtype
+      (arg, _) <- Ex.inCheck
+      (_, _, argNum) <- Ex.inSynthesizeApp
+      (f, _ft, _args) <- Ex.inSynthesizeApps
+      let polymorphicTypeInfo :: Maybe (C.Type v loc, [(v, C.Type v loc)])
+          polymorphicTypeInfo = case f of
+            Term.Var' v -> do
+              rawType <- C.lookupAnn ctx v
+              let go :: C.TypeVar v loc -> Maybe (v, C.Type v loc)
+                  go v0 = let v = TypeVar.underlying v0 in
+                          (v,) <$> C.lookupAnn ctx v
+                  typeVars :: [C.TypeVar v loc]
+                  typeVars = (toList . ABT.freeVars $ rawType)
+                  solvedVars = catMaybes (go <$> typeVars)
+              pure (rawType, solvedVars)
 
--- -- guard = booleanMismatch Ex.inMatchCaseGuard GuardMismatch
--- -- ifBody = existentialMismatch Ex.inIfBody IfBody
--- -- vectorBody = existentialMismatch Ex.inVectorApp VectorBody
--- -- caseBody = existentialMismatch Ex.inMatchCaseBody CaseBody
--- -- functionArg = do
--- --   (f, index, expectedType, foundType, arg, fPoly) <- Ex.inApp
--- --   pure $ FunctionApplication f index expectedType foundType arg fPoly n
---
--- -- all = and <|> or <|> cond <|> guard <|>
--- --       ifBody <|> vectorBody <|> caseBody <|> functionArg
---
--- all :: (Var v, Ord loc) => Ex.NoteExtractor v loc (TypeError v loc)
--- all = asum [generalMismatch, applyingNonFunction]
+            -- Term.Ref' r -> lookup the type
+            -- Term.Builtin' r -> lookup the type
+
+            _ -> Nothing
+      pure (f, argNum, expectedType, foundType, arg, polymorphicTypeInfo)
+  pure $ FunctionApplication f index expectedType foundType arg fPoly n
