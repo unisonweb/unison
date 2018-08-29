@@ -1,3 +1,1 @@
-notid : Int64 -> Boolean
-notid a = true
-or (notid 3) true
+or (3 : Boolean) true

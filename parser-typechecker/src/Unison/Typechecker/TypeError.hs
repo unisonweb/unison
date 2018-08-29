@@ -74,9 +74,10 @@ typeErrorFromNote n = case Ex.runNote all n of
   Nothing  -> Other n
 
 all :: (Var v, Ord loc) => Ex.NoteExtractor v loc (TypeError v loc)
-all = and <|> or <|> cond <|> applyingNonFunction <|>
+all = and <|> or <|> cond <|> matchGuard <|>
       ifBody <|> vectorBody <|>
-      generalMismatch <|> abilityCheckFailure <|> unknownType <|> unknownTerm
+      generalMismatch <|>
+      applyingNonFunction <|> abilityCheckFailure <|> unknownType <|> unknownTerm
 
 abilityCheckFailure :: Ex.NoteExtractor v a (TypeError v a)
 abilityCheckFailure = do
@@ -120,10 +121,13 @@ firstLastSubtype = subtypes >>= \case
   [] -> mzero
   l -> pure (head l, last l)
 
-and,or,cond :: (Var v, Ord loc) => Ex.NoteExtractor v loc (TypeError v loc)
+and,or,cond,matchGuard
+  :: (Var v, Ord loc)
+  => Ex.NoteExtractor v loc (TypeError v loc)
 and = booleanMismatch0 AndMismatch (Ex.inSynthesizeApp >> Ex.inAndApp)
 or = booleanMismatch0 OrMismatch (Ex.inSynthesizeApp >> Ex.inOrApp)
 cond = booleanMismatch0 CondMismatch Ex.inIfCond
+matchGuard = booleanMismatch0 GuardMismatch Ex.inMatchGuard
 
 -- | helper function to support `and` / `or` / `cond`
 booleanMismatch0 :: (Var v, Ord loc)
