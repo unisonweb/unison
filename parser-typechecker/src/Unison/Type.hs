@@ -337,8 +337,9 @@ generalizeEffects t = let
     Effects' es -> effects at (go <$> es)
     ForallNamed' v body -> forall at v (go body)
     _ -> t
-  in if arity t == 0 then t
-     else forall at e (go t)
+  t' = go t
+  in if Set.member e (ABT.freeVars t') then forall at e t'
+     else t'
 
 -- | Bind all free variables that start with a lowercase letter with an outer `forall`.
 generalizeLowercase :: Var v => AnnotatedType v a -> AnnotatedType v a
