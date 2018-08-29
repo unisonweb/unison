@@ -307,7 +307,7 @@ matchKeyword :: String -> Maybe (String,String)
 matchKeyword = matchKeyword' keywords
 
 matchKeyword' :: Set String -> String -> Maybe (String,String)
-matchKeyword' keywords s = case span (not . isSpace) s of
+matchKeyword' keywords s = case span (not . isSep) s of
   (kw, rem) | Set.member kw keywords -> Just (kw, rem)
   _ -> Nothing
 
