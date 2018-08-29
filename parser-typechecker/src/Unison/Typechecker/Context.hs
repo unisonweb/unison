@@ -130,6 +130,8 @@ data PathElement v loc
   | InIfBody loc -- location of `then` expression
   | InVectorApp loc -- location of 1st vector element
   | InMatch loc -- location of 1st case body
+  | InMatchGuard
+  | InMatchBody
   deriving Show
 
 type ExpectedArgCount = Int
@@ -734,9 +736,9 @@ checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) = do
   let subst = ABT.substsInheritAnnotation (second (Term.var ()) <$> substs)
       rhs' = subst rhsbod
       guard' = subst <$> mayGuard
-  for_ guard' $ \g -> check g (Type.boolean (loc g))
+  for_ guard' $ \g -> scope InMatchGuard $ check g (Type.boolean (loc g))
   outputType <- applyM outputType
-  check rhs' outputType
+  scope InMatchBody $ check rhs' outputType
   doRetract $ Marker m
 
 checkPattern

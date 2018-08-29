@@ -30,6 +30,11 @@ traceSubseq s ex = SubseqExtractor' $ \n ->
   let rs = runSubseq ex n in
   trace (if null s then show rs else s ++ ": " ++ show rs) rs
 
+traceNote :: Show a => String -> NoteExtractor v loc a -> NoteExtractor v loc a
+traceNote s ex = NoteExtractor $ \n ->
+  let result = runNote ex n in
+  trace (if null s then show result else s ++ ": " ++ show result) result
+
 unique :: SubseqExtractor v loc a -> NoteExtractor v loc a
 unique ex = NoteExtractor $ \note ->
   case runSubseq ex note of
@@ -117,7 +122,7 @@ _many xa = SubseqExtractor' $ \note ->
 -- SubseqExtractors --
 applyingNonFunction :: SubseqExtractor v loc (C.Term v loc, C.Type v loc)
 applyingNonFunction = do
-  pathStart  
+  pathStart
   (arity0Type, _arg, _argNum) <- inSynthesizeApp
   (f, ft, args) <- inSynthesizeApps
   let expectedArgCount = Type.arity ft
@@ -230,14 +235,15 @@ inSynthesizeApps = asPathExtractor $ \case
   C.InSynthesizeApps f ft e -> Just (f, ft, e)
   _ -> Nothing
 
-inAndApp, inOrApp, inIfCond :: SubseqExtractor v loc ()
+inAndApp, inOrApp, inIfCond, inMatchGuard, inMatchBody :: SubseqExtractor v loc ()
 inAndApp = asPathExtractor $ \case C.InAndApp -> Just (); _ -> Nothing
 inOrApp  = asPathExtractor $ \case C.InOrApp  -> Just (); _ -> Nothing
 inIfCond = asPathExtractor $ \case C.InIfCond -> Just (); _ -> Nothing
+inMatchGuard = asPathExtractor $ \case C.InMatchGuard -> Just (); _ -> Nothing
+inMatchBody = asPathExtractor $ \case C.InMatchBody -> Just (); _ -> Nothing
 
 inMatch, inVector, inIfBody :: SubseqExtractor v loc loc
 inMatch = asPathExtractor $ \case C.InMatch loc -> Just loc; _ -> Nothing
--- match guard, match body
 inVector = asPathExtractor $ \case C.InVectorApp loc -> Just loc; _ -> Nothing
 inIfBody = asPathExtractor $ \case C.InIfBody loc -> Just loc; _ -> Nothing
 
@@ -363,8 +369,9 @@ instance Monad (SubseqExtractor' n) where
           let rbs = runSubseq (f a) note in do
             rb <- rbs
             case rb of
-              Pure b -> pure (Pure b)
+              Pure b -> pure (Ranged b startA endA)
               Ranged b startB endB ->
+                -- trace ("(" ++ show startA ++ "," ++ show endA ++ ") -> (" ++ show startB ++ "," ++ show endB ++ ")")
                 whenM (startB == endA + 1) (pure (Ranged b startA endB))
 
 instance Alternative (SubseqExtractor' n) where

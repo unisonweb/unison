@@ -351,6 +351,8 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
         ["InVectorApp firstTerm=", fromString $ annotatedToEnglish loc]
       C.InMatch loc ->
         ["InMatch firstBody=", fromString $ annotatedToEnglish loc]
+      C.InMatchGuard -> ["InMatchGuard"]
+      C.InMatchBody -> ["InMatchBody"]
     simpleCause :: C.Cause v a -> [AT.Section Color.Style]
     simpleCause = \case
       C.TypeMismatch c ->
