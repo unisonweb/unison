@@ -16,6 +16,7 @@ import           Unison.Reference           (Reference)
 import qualified Unison.Type                as Type
 import qualified Unison.Typechecker.Context as C
 import           Unison.Util.Monoid         (whenM)
+import Debug.Trace
 
 newtype NoteExtractor v loc a = NoteExtractor { runNote :: C.Note v loc -> Maybe a }
 newtype PathExtractor v loc a = PathExtractor { runPath :: C.PathElement v loc -> Maybe a }
@@ -23,6 +24,11 @@ type SubseqExtractor v loc a = SubseqExtractor' (C.Note v loc) a
 
 subseqExtractor :: (C.Note v loc -> [Ranged a]) -> SubseqExtractor v loc a
 subseqExtractor f = SubseqExtractor' f
+
+traceSubseq :: Show a => String -> SubseqExtractor' n a -> SubseqExtractor' n a
+traceSubseq s ex = SubseqExtractor' $ \n ->
+  let rs = runSubseq ex n in
+  trace (if null s then show rs else s ++ ": " ++ show rs) rs
 
 unique :: SubseqExtractor v loc a -> NoteExtractor v loc a
 unique ex = NoteExtractor $ \note ->
@@ -38,7 +44,7 @@ data SubseqExtractor' n a =
 data Ranged a
   = Pure a
   | Ranged { get :: a, start :: Int, end :: Int }
-  deriving (Functor, Ord, Eq)
+  deriving (Functor, Ord, Eq, Show)
 
 -- | collects the regions where `xa` doesn't match / aka invert a set of intervals
 no :: SubseqExtractor' n a -> SubseqExtractor' n ()
@@ -85,8 +91,8 @@ any' getLast = SubseqExtractor' $ \note -> Pure () : do
   end <- [0..last]
   pure $ Ranged () start end
 
-start' :: SubseqExtractor' n ()
-start' = SubseqExtractor' $ \_ -> [Ranged () (-1) (-1)]
+pathStart :: SubseqExtractor' n ()
+pathStart = SubseqExtractor' $ \_ -> [Ranged () (-1) (-1)]
 
 pathLength :: C.Note v loc -> Int
 pathLength = length . toList . C.path
@@ -108,18 +114,10 @@ _many xa = SubseqExtractor' $ \note ->
       then Just (Ranged (get new : get group) (start group) (end new))
       else Nothing
 
-{-
-do
-  no InSynthesizeApp
-  a <- InSynthesizeApp
-  b <- InAndApp
-  pure (a,b)
--}
-
 -- SubseqExtractors --
 applyingNonFunction :: SubseqExtractor v loc (C.Term v loc, C.Type v loc)
 applyingNonFunction = do
-  start'
+  pathStart  
   (arity0Type, _arg, _argNum) <- inSynthesizeApp
   (f, ft, args) <- inSynthesizeApps
   let expectedArgCount = Type.arity ft
@@ -128,6 +126,70 @@ applyingNonFunction = do
   whenM (expectedArgCount < foundArgCount) $
     pure (f, arity0Type)
 
+-- -- The `n`th argument to `f` is `foundType`, but I was expecting `expectedType`.
+-- --
+-- --    30 |   asdf asdf asdf
+-- --
+-- -- If you're curious
+-- -- `f` has type `blah`, where
+-- --    `a` was chosen as `A`
+-- --    `b` was chosen as `B`
+-- --    `c` was chosen as `C`
+-- -- (many colors / groups)
+--
+-- inApp :: forall v loc. (Show loc, Var v)
+--       => NoteExtractor v loc (C.Term v loc, -- f
+--                               Int, -- n
+--                               C.Type v loc, -- expectedType
+--                               C.Type v loc, -- foundType
+--                               C.Term v loc, -- arg
+--                               Maybe (C.Type v loc, [(v, C.Type v loc)]))
+-- inApp = do
+--   _ctx <- typeMismatch
+--   ((foundType, expectedType),
+--    (arg, _expectedType'),
+--    (_solvedFnType, _arg', argNum),
+--    (f, _ft, _args)) <- adjacent4 inSubtype inCheck inSynthesizeApp inSynthesizeApps
+--   let polymorphicTypeInfo :: Maybe (C.Type v loc, [(v, C.Type v loc)])
+--       polymorphicTypeInfo = Nothing
+--       -- polymorphicTypeInfo = case f of
+--       --   Term.Var' v -> do
+--       --     rawType <- C.lookupAnn ctx v
+--       --     let go :: C.TypeVar v loc -> Maybe (v, C.Type v loc)
+--       --         go v0 = let v = TypeVar.underlying v0 in
+--       --                 (v,) <$> C.lookupAnn ctx v
+--       --         typeVars :: [C.TypeVar v loc]
+--       --         typeVars = (toList . ABT.freeVars $ rawType)
+--       --         solvedVars = catMaybes (go <$> typeVars)
+--       --     pure (rawType, solvedVars)
+--       --
+--       --   -- Term.Ref' r -> lookup the type
+--       --   -- Term.Builtin' r -> lookup the type
+--       --
+--       --   _ -> Nothing
+--   pure (f, argNum, expectedType, foundType, arg, polymorphicTypeInfo)
+--
+
+-- inVectorApp :: NoteExtractor v loc loc
+-- inVectorApp = exactly1AppBefore . PathExtractor $ \case
+--   C.InVectorApp loc -> Just loc
+--   _ -> Nothing
+--
+-- inMatchCaseGuard :: NoteExtractor v loc ()
+-- inMatchCaseGuard = do
+--   (prefix, _) <- elementsUntil . PathExtractor $ \case
+--     C.InMatch _ -> Just ()
+--     _ -> Nothing
+--   -- so brittle, whee!
+--   if length prefix == 5 then pure () else mzero
+--
+-- inMatchCaseBody :: NoteExtractor v loc loc
+-- inMatchCaseBody = do
+--   (prefix, loc) <- elementsUntil . PathExtractor $ \case
+--     C.InMatch loc -> Just loc
+--     _ -> Nothing
+--   -- so brittle, but I guess it's okay!
+--   if length prefix == 3 then pure loc else mzero
 
 -- Scopes --
 _fromPathExtractor :: PathExtractor v loc a -> SubseqExtractor v loc a
@@ -168,11 +230,37 @@ inSynthesizeApps = asPathExtractor $ \case
   C.InSynthesizeApps f ft e -> Just (f, ft, e)
   _ -> Nothing
 
-inAndApp,inOrApp,inIfCond :: SubseqExtractor v loc ()
+inAndApp, inOrApp, inIfCond :: SubseqExtractor v loc ()
 inAndApp = asPathExtractor $ \case C.InAndApp -> Just (); _ -> Nothing
 inOrApp  = asPathExtractor $ \case C.InOrApp  -> Just (); _ -> Nothing
 inIfCond = asPathExtractor $ \case C.InIfCond -> Just (); _ -> Nothing
 
+inMatch, inVector, inIfBody :: SubseqExtractor v loc loc
+inMatch = asPathExtractor $ \case C.InMatch loc -> Just loc; _ -> Nothing
+-- match guard, match body
+inVector = asPathExtractor $ \case C.InVectorApp loc -> Just loc; _ -> Nothing
+inIfBody = asPathExtractor $ \case C.InIfBody loc -> Just loc; _ -> Nothing
+
+-- inVectorApp :: NoteExtractor v loc loc
+-- inVectorApp = exactly1AppBefore . PathExtractor $ \case
+--   C.InVectorApp loc -> Just loc
+--   _ -> Nothing
+--
+-- inMatchCaseGuard :: NoteExtractor v loc ()
+-- inMatchCaseGuard = do
+--   (prefix, _) <- elementsUntil . PathExtractor $ \case
+--     C.InMatch _ -> Just ()
+--     _ -> Nothing
+--   -- so brittle, whee!
+--   if length prefix == 5 then pure () else mzero
+--
+-- inMatchCaseBody :: NoteExtractor v loc loc
+-- inMatchCaseBody = do
+--   (prefix, loc) <- elementsUntil . PathExtractor $ \case
+--     C.InMatch loc -> Just loc
+--     _ -> Nothing
+--   -- so brittle, but I guess it's okay!
+--   if length prefix == 3 then pure loc else mzero
 
 -- Causes --
 cause :: NoteExtractor v loc (C.Cause v loc)

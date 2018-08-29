@@ -137,7 +137,7 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     ]
     ++ summary note
     where which =
-            case booleanMismatch' of
+            case getBooleanMismatch of
               CondMismatch ->
                 [ "The condition for an ", AT.Text . Color.errorSite $ "if"
                 , "-expression has to be"]
@@ -162,7 +162,7 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     ]
     ++ summary note
     where which =
-            case existentialMismatch' of
+            case getExistentialMismatch of
               IfBody ->
                 [ "The ", AT.Text . Color.errorSite $ "else"
                 , " clause of an ", AT.Text . Color.errorSite $ "if"
@@ -263,13 +263,13 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     ] ++ summary note
   UnknownType {..} ->
     [ "I don't know about the type "
-    , AT.Text . Color.style Color.ErrorSite $ renderVar unknownType
+    , AT.Text . Color.style Color.ErrorSite $ renderVar unknownTypeV
     , ".  Make sure it's imported and spelled correctly:\n\n"
     , annotatedAsErrorSite src typeSite
     ]
   UnknownTerm {..} ->
     [ "I'm not sure what "
-    , AT.Text . Color.style Color.ErrorSite $ (fromString . show) unknownTerm
+    , AT.Text . Color.style Color.ErrorSite $ (fromString . show) unknownTermV
     , " means at "
     , (fromString . annotatedToEnglish) termSite
     , "\n\n"
