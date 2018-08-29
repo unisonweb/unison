@@ -4,14 +4,16 @@
 
 module Unison.Typechecker.Extractor2 where
 
-import           Control.Applicative        (Alternative, (<|>), empty)
-import           Control.Monad              (MonadPlus, ap, join, liftM, mplus, mzero)
+import           Control.Applicative        (Alternative, empty, (<|>))
+import           Control.Monad              (MonadPlus, ap, join, liftM, mplus,
+                                             mzero)
 import           Data.Foldable
 import qualified Data.List                  as List
 import           Data.Set                   (Set)
 import qualified Data.Set                   as Set
 import qualified Unison.Blank               as B
 import           Unison.Reference           (Reference)
+import qualified Unison.Type                as Type
 import qualified Unison.Typechecker.Context as C
 import           Unison.Util.Monoid         (whenM)
 
@@ -83,6 +85,9 @@ any' getLast = SubseqExtractor' $ \note -> Pure () : do
   end <- [0..last]
   pure $ Ranged () start end
 
+start' :: SubseqExtractor' n ()
+start' = SubseqExtractor' $ \_ -> [Ranged () (-1) (-1)]
+
 pathLength :: C.Note v loc -> Int
 pathLength = length . toList . C.path
 
@@ -112,8 +117,16 @@ do
 -}
 
 -- SubseqExtractors --
--- applyingNonFunction :: SubseqExtractor v loc (C.Term v loc, C.Type v loc)
--- applyingNonFunction = do
+applyingNonFunction :: SubseqExtractor v loc (C.Term v loc, C.Type v loc)
+applyingNonFunction = do
+  start'
+  (arity0Type, _arg, _argNum) <- inSynthesizeApp
+  (f, ft, args) <- inSynthesizeApps
+  let expectedArgCount = Type.arity ft
+      foundArgCount = length args
+      -- unexpectedArgLoc = ABT.annotation arg
+  whenM (expectedArgCount < foundArgCount) $
+    pure (f, arity0Type)
 
 
 -- Scopes --
@@ -121,7 +134,7 @@ _fromPathExtractor :: PathExtractor v loc a -> SubseqExtractor v loc a
 _fromPathExtractor ex = subseqExtractor $
   join . fmap go . (`zip` [0..]) . toList . C.path
   where go (e,i) = case runPath ex e of
-          Just a -> [Ranged a i i]
+          Just a  -> [Ranged a i i]
           Nothing -> []
 
 asPathExtractor :: (C.PathElement v loc -> Maybe a) -> SubseqExtractor v loc a
@@ -211,7 +224,7 @@ note = NoteExtractor $ Just . id
 
 innermostTerm :: NoteExtractor v loc (C.Term v loc)
 innermostTerm = NoteExtractor $ \n -> case C.innermostErrorTerm n of
-  Just e -> pure e
+  Just e  -> pure e
   Nothing -> mzero
 
 path :: NoteExtractor v loc [C.PathElement v loc]
@@ -251,6 +264,7 @@ instance Applicative (SubseqExtractor' n) where
   (<*>) = ap
 
 instance Monad (SubseqExtractor' n) where
+  fail _ = mzero
   return a = SubseqExtractor' $ \_ -> [Pure a]
   xa >>= f = SubseqExtractor' $ \note ->
     let as = runSubseq xa note in do
@@ -264,3 +278,19 @@ instance Monad (SubseqExtractor' n) where
               Pure b -> pure (Pure b)
               Ranged b startB endB ->
                 whenM (startB == endA + 1) (pure (Ranged b startA endB))
+
+instance Alternative (SubseqExtractor' n) where
+  empty = mzero
+  (<|>) = mplus
+
+instance MonadPlus (SubseqExtractor' n) where
+  mzero = SubseqExtractor' $ \_ -> []
+  mplus (SubseqExtractor' f1) (SubseqExtractor' f2) =
+    SubseqExtractor' (\n -> f1 n `mplus` f2 n)
+
+instance Monoid (SubseqExtractor' n a) where
+  mempty = mzero
+  mappend = mplus
+
+instance Semigroup (SubseqExtractor' n a) where
+  (<>) = mappend
