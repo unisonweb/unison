@@ -55,6 +55,10 @@ expect :: HasCallStack => Bool -> Test ()
 expect False = crash "unexpected"
 expect True = ok
 
+expectEqual :: (Eq a, Show a) => a -> a -> Test ()
+expectEqual expected actual = if expected == actual then ok
+                  else crash $ unlines ["", (show actual), "** did not equal expected value **", (show expected)]
+
 expectJust :: HasCallStack => Maybe a -> Test a
 expectJust Nothing = crash "expected Just, got Nothing"
 expectJust (Just a) = ok >> pure a
@@ -105,7 +109,7 @@ run' seed note allow (Test t) = do
     case Map.findWithDefault Skipped msgs resultsMap of
       Skipped -> pure ()
       Pending -> note $ "🚧  " ++ msgs
-      Passed n -> note $ "🐬  " ++ (if n <= 1 then msgs else "(" ++ show n ++ ") " ++ msgs)
+      Passed n -> note $ "\129412  " ++ (if n <= 1 then msgs else "(" ++ show n ++ ") " ++ msgs)
       Failed -> note $ "💥  " ++ msgs
   let line = "------------------------------------------------------------"
   note "Raw test output to follow ... "
@@ -157,12 +161,13 @@ run' seed note allow (Test t) = do
 -- | Label a test. Can be nested. A `'.'` is placed between nested
 -- scopes, so `scope "foo" . scope "bar"` is equivalent to `scope "foo.bar"`
 scope :: String -> Test a -> Test a
-scope msg (Test t) = Test $ do
+scope msg (Test t) = wrap . Test $ do
   env <- ask
   let messages' = case messages env of [] -> msg; ms -> ms ++ ('.':msg)
   case (null (allow env) || take (length (allow env)) msg `isPrefixOf` allow env) of
     False -> putResult Skipped >> pure Nothing
-    True -> liftIO $ runReaderT t (env { messages = messages', allow = drop (length msg + 1) (allow env) })
+    True -> liftIO $
+      runReaderT t (env { messages = messages', allow = drop (length msg + 1) (allow env) })
 
 -- | Log a message
 note :: String -> Test ()
@@ -292,7 +297,7 @@ runWrap env t = do
   e <- try $ runReaderT t env
   case e of
     Left e -> do
-      note_ env (messages env ++ " EXCEPTION: " ++ show (e :: SomeException))
+      note_ env (messages env ++ " EXCEPTION!!!: " ++ show (e :: SomeException))
       runReaderT (putResult Failed) env
       pure Nothing
     Right a -> pure a

@@ -177,23 +177,6 @@ serializeTerm x = do
         putBackref hpos
         putBackref bpos
         incPosition
-      EffectPure t -> do
-        pos <- serializeTerm t
-        putTag
-        putWord8 17
-        putBackref pos
-        incPosition
-      EffectBind r cid args k -> do
-        positions <- traverse serializeTerm args
-        kpos <- serializeTerm k
-        putTag
-        putWord8 18
-        serializeReference r
-        putWord32be $ fromIntegral cid
-        putLength $ length positions
-        traverse_ putBackref positions
-        putBackref kpos
-        incPosition
       LetRec bs body -> do
         positions <- traverse serializeTerm bs
         pbody <- serializeTerm body

@@ -403,6 +403,12 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
         , " t="
         , AT.Text . renderType' env $ t
         ]
+      C.PatternArityMismatch loc typ args ->
+        [ "PatternArityMismatch:"
+        , "  loc=", fromString $ annotatedToEnglish loc
+        , "  typ=", AT.Text . renderType' env $ typ
+        , "  args=", fromString $ show args
+        ]
 
 renderContext :: (Var v, Ord a) => Env -> C.Context v a -> AT.AnnotatedText (Maybe b)
 renderContext env ctx@(C.Context es) =

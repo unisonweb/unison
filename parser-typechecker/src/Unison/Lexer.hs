@@ -1,18 +1,18 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# Language LambdaCase, ViewPatterns, TemplateHaskell, DeriveFunctor #-}
+{-# Language LambdaCase, ViewPatterns, TemplateHaskell, DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 
 module Unison.Lexer where
 
 import           Control.Lens.TH (makePrisms)
 import           Control.Monad (join)
 import qualified Control.Monad.State as S
-import qualified Control.Monad.Writer as W
 import           Data.Char
-import           Data.Foldable (traverse_)
+import           Data.Foldable (toList)
 import           Data.List
 import qualified Data.List.NonEmpty as Nel
 import           Data.Set (Set)
+import Unison.Util.Monoid (intercalateMap)
 import qualified Data.Set as Set
 import           GHC.Exts (sortWith)
 import           Text.Megaparsec.Error (ShowToken(..))
@@ -113,26 +113,66 @@ pop = drop 1
 topLeftCorner :: Pos
 topLeftCorner = Pos 1 1
 
-stanzas :: [Token Lexeme] -> [[Token Lexeme]]
+data T a = T a [T a] [a] | L a deriving (Functor, Foldable, Traversable)
+
+headToken :: T a -> a
+headToken (T a _ _) = a
+headToken (L a) = a
+
+instance Show a => Show (T a) where
+  show (L a) = show a
+  show (T open mid close) =
+    show open ++ "\n"
+              ++ indent "  " (intercalateMap "\n" show mid) ++ "\n"
+              ++ intercalateMap "" show close
+    where
+      indent by s = by ++ (s >>= go by)
+      go by '\n' = '\n' : by
+      go _ c = [c]
+
+reorderTree :: ([T a] -> [T a]) -> T a -> T a
+reorderTree _ l@(L _) = l
+reorderTree f (T open mid close) = T open (f (reorderTree f <$> mid)) close
+
+tree :: [Token Lexeme] -> T (Token Lexeme)
+tree toks = one toks (\t _ -> t) where
+  one (open@(payload -> Open _) : ts) k = many (T open) [] ts k
+  one (t : ts) k = k (L t) ts
+  one [] k = k lastErr [] where
+    lastErr = case drop (length toks - 1) toks of
+      [] -> L (Token (Err LayoutError) topLeftCorner topLeftCorner)
+      (t : _) -> L $ t { payload = Err LayoutError }
+
+  many open acc [] k = k (open (reverse acc) []) []
+  many open acc (t@(payload -> Close) : ts) k = k (open (reverse acc) [t]) ts
+  many open acc ts k = one ts $ \t ts -> many open (t:acc) ts k
+
+stanzas :: [T (Token Lexeme)] -> [[T (Token Lexeme)]]
 stanzas ts = go [] ts where
   go acc [] = [reverse acc]
-  go acc (c@(payload -> Semi) : t : ts) | column (start t) == 1 = (reverse $ c : acc) : go [] (t:ts)
-  go acc (t:ts) = go (t:acc) ts
+  go acc (t:ts) = case payload $ headToken t of
+    Semi   -> (reverse $ t : acc) : go [] ts
+    _      -> go (t:acc) ts
 
 -- Moves type and effect declarations to the front of the token stream
-reorder :: [Token Lexeme] -> [Token Lexeme]
-reorder ts = first ++ (join . sortWith f . stanzas $ core) ++ last
+-- and move `use` statements to the front of each block
+reorder :: [T (Token Lexeme)] -> [T (Token Lexeme)]
+reorder ts = join . sortWith f . stanzas $ ts
   where
-    n = length ts
-    first = take 1 ts -- save `Open` token from start
-    last = drop (n - 1) ts -- and `Close` token from end
-    core = take (n - 2) . drop 1 $ ts -- middle n-2 elements
-    f ((payload -> Reserved "type")   : _) = 0
-    f ((payload -> Reserved "effect") : _) = 0
-    f _                                    = 1 :: Int
+    f [] = 3 :: Int
+    f (t : _) = case payload $ headToken t of
+      Open "type" -> 0
+      Reserved "effect" -> 0
+      Reserved "use" -> 1
+      _ -> 3 :: Int
 
 lexer :: String -> String -> [Token Lexeme]
 lexer scope rem =
+  let t = tree $ lexer0 scope rem
+  in toList $ reorderTree reorder t
+
+lexer0 :: String -> String -> [Token Lexeme]
+lexer0 scope rem =
     Token (Open scope) topLeftCorner topLeftCorner
       : pushLayout scope [] topLeftCorner rem
   where
@@ -419,30 +459,8 @@ incBy rem pos@(Pos line col) = case rem of
   '\n':rem -> incBy rem $ Pos (line + 1) 1
   _:rem    -> incBy rem $ Pos line (col + 1)
 
-ex :: String
-ex =
-  join [ "if\n"
-       , "  s = 0\n"
-       , "  s > 0\n"
-       , "then\n"
-       , "  s = 0\n"
-       , "  s + 1\n"
-       , "else\n"
-       , "  s = 0\n"
-       , "  s + 2\n" ]
-
 debugLex'' :: [Token Lexeme] -> String
-debugLex'' lexemes =
-  unlines . W.execWriter . flip S.evalStateT [] . traverse_ f . map payload $ lexemes
-  where
-    f :: Lexeme -> S.StateT String (W.Writer [String]) ()
-    f x = do
-      pad <- S.get
-      S.lift . W.tell $ [pad ++ show x]
-      case x of
-        Open _ -> S.modify (++ "  ")
-        Close -> S.modify (drop 2)
-        _ -> pure ()
+debugLex'' = show . fmap payload . tree
 
 debugLex :: String -> String -> IO ()
 debugLex scope = putStrLn . debugLex'' . lexer scope

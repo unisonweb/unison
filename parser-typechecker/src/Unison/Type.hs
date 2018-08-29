@@ -130,16 +130,16 @@ unForalls t = go t []
         go _body [] = Nothing
         go body vs = Just(reverse vs, body)
 
-unTuple :: AnnotatedType v a -> Maybe [(AnnotatedType v a)]
+unTuple :: Var v => AnnotatedType v a -> Maybe [AnnotatedType v a]
 unTuple t = (case t of
     (Apps' (Ref' (Reference.Builtin "Pair")) [_,_]) -> id
     (Ref' (Reference.Builtin "()")) -> id
     _ -> const Nothing) $
-    case go t of [] -> Nothing; ts -> Just ts
-    where go :: AnnotatedType v a -> [AnnotatedType v a]
-          go (Apps' (Ref' (Reference.Builtin "Pair")) (t:t':[])) = t : go t'
-          go (Ref' (Reference.Builtin "()")) = []
-          go _t = error "malformed tuple in Type.unTuple"
+    go t
+    where go :: Var v => AnnotatedType v a -> Maybe [AnnotatedType v a]
+          go (Apps' (Ref' (Reference.Builtin "Pair")) (t:t':[])) = (t:) <$> go t'
+          go (Ref' (Reference.Builtin "()")) = Just []
+          go _ = Nothing
 
 unEffect0 :: Ord v => AnnotatedType v a -> ([AnnotatedType v a], AnnotatedType v a)
 unEffect0 (Effect1' e a) = (flattenEffects e, a)
