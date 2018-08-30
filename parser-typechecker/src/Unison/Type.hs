@@ -329,7 +329,6 @@ generalize t = foldr (forall (ABT.annotation t)) t $ Set.toList (ABT.freeVars t)
 -- The `arity` is the number of arguments the function takes which
 -- are assumed to be pure. Applying `generalizeEffects 2` to the
 -- signature of `map` would give:
---
 -- map : (a ->{e} b) -> List a ->{e} List b
 --
 -- Notice the arrow before `List a` has no effects on it. This is
@@ -356,25 +355,37 @@ generalize t = foldr (forall (ABT.annotation t)) t $ Set.toList (ABT.freeVars t)
 -- we make any of these input functions effectful, some of the partial
 -- applications of the function type may need to become effectful in the same way.
 generalizeEffects :: forall v a . Var v => Int -> AnnotatedType v a -> AnnotatedType v a
-generalizeEffects arity t = let
-  at = ABT.annotation t
-  e = ABT.freshEverywhere t (Var.named "𝛆")
-  evar = var at e
-  ev t = effect at [evar] t
-  go :: Int -> AnnotatedType v a -> AnnotatedType v a
-  go remPure t = let at = ABT.annotation t in case t of
-    Arrow' i o -> case o of
-      Effect' _ _ -> t
-      _ | remPure <= 0 -> arrow at (go 0 i) (ev $ go 0 o)
-        | otherwise    -> arrow at (go 0 i) (go (remPure - 1) o)
-    Ann' t k -> ann at (go remPure t) k
-    Effect1' e e2 -> effect1 at (go 0 e) (go 0 e2)
-    Effects' es -> effects at (go 0 <$> es)
-    ForallNamed' v body -> forall at v (go remPure body)
-    _ -> t
-  t' = go (arity - 1) t
-  in if Set.member e (ABT.freeVars t') then forall at e t'
-     else t'
+generalizeEffects arity t = case functionResult t of
+  Nothing -> t
+  -- If the function result mentions effects, leave the signature alone as it's
+  -- unclear what transformation the user might want. The user is responsible for
+  -- using effect variables as they wish.
+  Just (Effect1' _ _) -> t
+  _ -> let
+    at = ABT.annotation t
+    e = ABT.freshEverywhere t (Var.named "𝛆")
+    evar = var at e
+    ev t = effect at [evar] t
+    go :: Int -> AnnotatedType v a -> AnnotatedType v a
+    go remPure t = let at = ABT.annotation t in case t of
+      Arrow' i o -> case o of
+        Effect' _ _ -> t
+        _ | remPure <= 0 -> arrow at (go 0 i) (ev $ go 0 o)
+          | otherwise    -> arrow at (go 0 i) (go (remPure - 1) o)
+      Ann' t k -> ann at (go remPure t) k
+      Effect1' e e2 -> effect1 at (go 0 e) (go 0 e2)
+      Effects' es -> effects at (go 0 <$> es)
+      ForallNamed' v body -> forall at v (go remPure body)
+      _ -> t
+    t' = go (arity - 1) t
+    in if Set.member e (ABT.freeVars t') then forall at e t'
+       else t'
+
+functionResult :: AnnotatedType v a -> Maybe (AnnotatedType v a)
+functionResult t = go False t where
+  go inArr (ForallNamed' _ body) = go inArr body
+  go _inArr (Arrow' _i o) = go True o
+  go inArr t = if inArr then Just t else Nothing
 
 generalizeEffects' :: Var v => AnnotatedType v a -> AnnotatedType v a
 generalizeEffects' = generalizeEffects 1

@@ -1,6 +1,5 @@
 
 use UInt64 + - * / == <
-use Sequence map take drop size fold-left halve
 use Optional None Some
 use Monoid.Monoid -- import the constructor
 use Remote fork spawn at
@@ -96,6 +95,8 @@ dos f a a2 = f !a !a2
 f <| i = f i
 i |> f = f i
 
-Stream.from-uint64 1
-  |> Stream.take 15
-  |> Stream.to-sequence
+-- TDNR FTW
+ex2 : [UInt64]
+ex2 = Stream.from-uint64 1 |> take 15 |> to-sequence
+
+ex2
