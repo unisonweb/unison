@@ -553,7 +553,7 @@ synthesizeApps ft args =
 -- the process.
 -- e.g. in `(f:t) x` -- finds the type of (f x) given t and x.
 synthesizeApp :: (Var v, Ord loc) => Type v loc -> (Term v loc, Int) -> M v loc (Type v loc)
-synthesizeApp ft arg | True && traceShow ("synthesizeApp"::String, ft, arg) False = undefined
+synthesizeApp ft arg | debugEnabled && traceShow ("synthesizeApp"::String, ft, arg) False = undefined
 synthesizeApp (Type.Effect'' es ft) argp@(arg, argNum) =
   scope (InSynthesizeApp ft arg argNum) $ abilityCheck es >> go ft
   where
@@ -612,10 +612,12 @@ synthesize e = scope (InSynthesize e) $ do
       pure t
     s -> compilerCrash $ FreeVarsInTypeAnnotation s
   go (Term.Ref' h) = compilerCrash $ UnannotatedReference h
-  go (Term.Constructor' r cid) = getDataConstructorType r cid
+  go (Term.Constructor' r cid) = do
+    t <- getDataConstructorType r cid
+    pure $ Type.generalizeEffects (Type.arity t) t
   go (Term.Request' r cid) = do
     t <- ungeneralize =<< getEffectConstructorType r cid
-    pure $ Type.generalizeEffects t
+    pure $ Type.generalizeEffects (Type.arity t) t
   go (Term.Ann' e' t) = t <$ check e' t
   go (Term.Float' _) = pure $ Type.float l -- 1I=>
   go (Term.Int64' _) = pure $ Type.int64 l -- 1I=>
@@ -675,7 +677,7 @@ synthesize e = scope (InSynthesize e) $ do
     (marker, e) <- annotateLetRecBindings letrec
     t <- synthesize e
     (_, _, ctx2) <- breakAt marker <$> getContext
-    (Type.generalizeEffects $ generalizeExistentials ctx2 t) <$ doRetract marker
+    (generalizeExistentials ctx2 t) <$ doRetract marker
   go (Term.If' cond t f) = do
     scope InIfCond $ check cond (Type.boolean l)
     scope (InIfBody $ ABT.annotation t) $ synthesizeApps (Type.iff2 l) [t, f]
@@ -862,14 +864,15 @@ annotateLetRecBindings letrec = do
         Term.Ann' _ t -> apply ctx t
         _ -> Type.existential' (loc binding) B.Blank e
   let bindingTypes = zipWith f es bindings
+      bindingArities = Term.arity . snd <$> bindings
   appendContext $ context (Marker e1 : map existential es ++ zipWith Ann vs bindingTypes)
   -- check each `bi` against `ei`; sequencing resulting contexts
   Foldable.for_ (zip bindings bindingTypes) $ \((_,b), t) -> check b t
   -- compute generalized types `gt1, gt2 ...` for each binding `b1, b2...`;
   -- add annotations `v1 : gt1, v2 : gt2 ...` to the context
   (_, _, ctx2) <- breakAt (Marker e1) <$> getContext
-  let gen bindingType = Type.generalizeEffects $ generalizeExistentials ctx2 bindingType
-      annotations = zipWith Ann vs (map gen bindingTypes)
+  let gen bindingType arity = Type.generalizeEffects arity $ generalizeExistentials ctx2 bindingType
+      annotations = zipWith Ann vs (zipWith gen bindingTypes bindingArities)
   marker <- Marker <$> freshenVar (ABT.v' "let-rec-marker")
   doRetract (Marker e1)
   appendContext . context $ marker : annotations
@@ -1276,8 +1279,9 @@ annotateRefs :: (Applicative f, Var v)
 annotateRefs synth = ABT.visit f where
   -- already annotated; skip this subtree
   f r@(Term.Ann' (Term.Ref' _) _) = Just (pure r)
-  f r@(Term.Ref' h) = Just (Term.ann ra (Term.ref ra h) <$> (ABT.vmap TypeVar.Universal . Type.generalizeEffects <$> synth h))
+  f r@(Term.Ref' h) = Just (Term.ann ra (Term.ref ra h) <$> (ge <$> synth h))
     where ra = ABT.annotation r
+          ge t = ABT.vmap TypeVar.Universal $ Type.generalizeEffects (Type.arity t) t
   f _ = Nothing
 
 run :: (Var v, Ord loc)
@@ -1293,7 +1297,7 @@ run builtinLoc ambient datas effects m =
 
 generalizeEffectSignatures :: Var v => Term v loc -> Term v loc
 generalizeEffectSignatures t = ABT.rebuildUp go t
-  where go (Term.Ann e t) = Term.Ann e (Type.generalizeEffects t)
+  where go (Term.Ann e t) = Term.Ann e (Type.generalizeEffects (Term.arity e) t)
         go e = e
 
 synthesizeClosed' :: (Var v, Ord loc)

@@ -7,7 +7,7 @@ effect Noop2 where
 
 type List a = Nil | Cons a (List a)
 
-map : (a ->{e} b) ->{e} List a ->{e} List b
+map : (a -> b) -> List a -> List b
 map f as = case as of
   List.Nil -> List.Nil
   List.Cons h t -> List.Cons (f h) (map f t)
@@ -19,8 +19,8 @@ z = List.Nil
 
 ex = (c 1 (c 2 (c 3 z)))
 
--- pure-map : List Text
--- pure-map = map (a -> "hello") ex
+pure-map : List Text
+pure-map = map (a -> "hello") ex
 
 -- `map` is effect polymorphic
 zappy : '{Noop} (List UInt64)

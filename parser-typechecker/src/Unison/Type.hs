@@ -83,6 +83,7 @@ monotype t = Monotype <$> ABT.visit isMono t where
 arity :: AnnotatedType v a -> Int
 arity (ForallNamed' _ body) = arity body
 arity (Arrow' _ o) = 1 + arity o
+arity (Ann' a _) = arity a
 arity _ = 0
 
 -- some smart patterns
@@ -317,29 +318,67 @@ flipApply t = forall() b $ arrow() (arrow() t (var() b)) (var() b)
 generalize :: Ord v => AnnotatedType v a -> AnnotatedType v a
 generalize t = foldr (forall (ABT.annotation t)) t $ Set.toList (ABT.freeVars t)
 
--- map : (a -> b) -> List a -> List b
--- map : (a -> {e} b) -> List a -> {e} (List b)
+-- Adds effect polymorphism to a type signature. That is, converts a signature like:
 --
--- map : (a ->{e1} b) ->{e2} List a ->{e1,} (List b)
-generalizeEffects :: forall v a . Var v => AnnotatedType v a -> AnnotatedType v a
-generalizeEffects t = let
+-- map : (a -> b) -> List a -> List b
+--
+-- to:
+--
+-- map : (a ->{e} b) ->{e} List a ->{e} (List b)
+--
+-- The `arity` is the number of arguments the function takes which
+-- are assumed to be pure. Applying `generalizeEffects 2` to the
+-- signature of `map` would give:
+--
+-- map : (a ->{e} b) -> List a ->{e} List b
+--
+-- Notice the arrow before `List a` has no effects on it. This is
+-- a strictly more general type, as it's equivalent to:
+--
+-- map : ∀ a b e e2 . (a ->{e} b) ->{e2} List a ->{e} List b
+--
+-- `1` is a conservative lower bound, but if you have a type formed
+-- from a lambda like `x y -> ...`, then it's safe to assume arity 2.
+-- Without `arity`, it's not safe to assume that partial applications
+-- of a function type are all pure except the last one. For instance,
+-- consider:
+--
+-- hof : (a -> a) -> a -> [a] -> [a]
+--
+-- Can we generalize this to `(a ->{e} a) -> a -> List a ->{e} List a` ?
+-- Not necessarily, since the implementation of `hof` could be:
+-- hof f a =
+--   out = [f a]
+--   as -> out
+--
+-- In general, higher order function types might apply some of their input
+-- functions before receiving all the arguments to the function, so if
+-- we make any of these input functions effectful, some of the partial
+-- applications of the function type may need to become effectful in the same way.
+generalizeEffects :: forall v a . Var v => Int -> AnnotatedType v a -> AnnotatedType v a
+generalizeEffects arity t = let
   at = ABT.annotation t
   e = ABT.freshEverywhere t (Var.named "𝛆")
   evar = var at e
   ev t = effect at [evar] t
-  go :: AnnotatedType v a -> AnnotatedType v a
-  go t = let at = ABT.annotation t in case t of
+  go :: Int -> AnnotatedType v a -> AnnotatedType v a
+  go remPure t = let at = ABT.annotation t in case t of
     Arrow' i o -> case o of
       Effect' _ _ -> t
-      _ -> arrow at (go i) (ev $ go o)
-    Ann' t k -> ann at (go t) k
-    Effect1' e e2 -> effect1 at (go e) (go e2)
-    Effects' es -> effects at (go <$> es)
-    ForallNamed' v body -> forall at v (go body)
+      _ | remPure <= 0 -> arrow at (go 0 i) (ev $ go 0 o)
+        | otherwise    -> arrow at (go 0 i) (go (remPure - 1) o)
+    Ann' t k -> ann at (go remPure t) k
+    Effect1' e e2 -> effect1 at (go 0 e) (go 0 e2)
+    Effects' es -> effects at (go 0 <$> es)
+    ForallNamed' v body -> forall at v (go remPure body)
     _ -> t
-  t' = go t
+  t' = go (arity - 1) t
   in if Set.member e (ABT.freeVars t') then forall at e t'
      else t'
+
+generalizeEffects' :: Var v => AnnotatedType v a -> AnnotatedType v a
+generalizeEffects' = generalizeEffects 1
+
 
 -- | Bind all free variables that start with a lowercase letter with an outer `forall`.
 generalizeLowercase :: Var v => AnnotatedType v a -> AnnotatedType v a
