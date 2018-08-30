@@ -378,9 +378,8 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
       C.CompilerBug c -> ["CompilerBug: ", fromString (show c)]
       C.AbilityCheckFailure ambient requested ctx ->
         [ "AbilityCheckFailure: "
-        , "ambient={"] ++ (AT.Text . renderType' env <$> ambient) ++
-        [ "} requested={"] ++
-        (AT.Text . renderType' env <$> requested)
+        , "ambient={"]     ++ [AT.Text . commas (renderType' env) $ ambient] ++
+        [ "} requested={"] ++ [AT.Text . commas (renderType' env) $ requested]
         ++ ["}\n"] ++ [fromString (show ctx)]
       C.EffectConstructorWrongArgCount e a r cid ->
         [ "EffectConstructorWrongArgCount:"

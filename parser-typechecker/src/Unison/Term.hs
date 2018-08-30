@@ -302,6 +302,11 @@ lam' a vs body = foldr (lam a) body vs
 lam'' :: Ord v => [(a,v)] -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a
 lam'' vs body = foldr (uncurry lam) body vs
 
+arity :: AnnotatedTerm2 vt at ap v a -> Int
+arity (LamNamed' _ body) = 1 + arity body
+arity (Ann' e _) = arity e
+arity _ = 0
+
 unLetRecNamedAnnotated :: AnnotatedTerm' vt v a -> Maybe (a, [((a, v), AnnotatedTerm' vt v a)], AnnotatedTerm' vt v a)
 unLetRecNamedAnnotated (ABT.CycleA' ann avs (ABT.Tm' (LetRec bs e))) =
   Just (ann, avs `zip` bs, e)
