@@ -5,7 +5,7 @@
 module Unison.Typechecker.TypeError where
 
 import           Control.Monad                 (mzero)
-import           Data.Foldable                 (asum, toList)
+import           Data.Foldable                 (asum)
 import           Data.Functor                  (void)
 import           Data.Maybe                    (catMaybes)
 import           Prelude                       hiding (all, and, or)
@@ -14,7 +14,6 @@ import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.Typechecker.Context    as C
 import qualified Unison.Typechecker.Extractor2 as Ex
-import qualified Unison.TypeVar                as TypeVar
 import           Unison.Util.Monoid            (whenM)
 import           Unison.Var                    (Var)
 
@@ -190,7 +189,7 @@ applyingNonFunction = do
   (f, ft) <- Ex.unique $ do
     Ex.pathStart
     (arity0Type, _arg, _argNum) <- Ex.inSynthesizeApp
-    (f, ft, args) <- Ex.inSynthesizeApps
+    (_, f, ft, args) <- Ex.inFunctionCall
     let expectedArgCount = Type.arity ft
         foundArgCount = length args
         -- unexpectedArgLoc = ABT.annotation arg
@@ -218,16 +217,13 @@ applyingFunction = do
       (foundType, expectedType) <- Ex.inSubtype
       (arg, _) <- Ex.inCheck
       (_, _, argNum) <- Ex.inSynthesizeApp
-      (f, _ft, _args) <- Ex.inSynthesizeApps
+      (typeVars, f, _ft, _args) <- Ex.inFunctionCall
       let polymorphicTypeInfo :: Maybe (C.Type v loc, [(v, C.Type v loc)])
           polymorphicTypeInfo = case f of
             Term.Var' v -> do
               rawType <- C.lookupAnn ctx v
-              let go :: C.TypeVar v loc -> Maybe (v, C.Type v loc)
-                  go v0 = let v = TypeVar.underlying v0 in
-                          (v,) <$> C.lookupAnn ctx v
-                  typeVars :: [C.TypeVar v loc]
-                  typeVars = (toList . ABT.freeVars $ rawType)
+              let go :: v -> Maybe (v, C.Type v loc)
+                  go v = (v,) . Type.getPolytype <$> C.lookupSolved ctx v
                   solvedVars = catMaybes (go <$> typeVars)
               pure (rawType, solvedVars)
 

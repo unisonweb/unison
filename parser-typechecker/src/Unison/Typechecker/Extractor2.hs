@@ -153,9 +153,9 @@ inSynthesizeApp = asPathExtractor $ \case
   C.InSynthesizeApp t e n -> Just (t,e,n)
   _ -> Nothing
 
-inSynthesizeApps :: SubseqExtractor v loc (C.Term v loc, C.Type v loc, [C.Term v loc])
-inSynthesizeApps = asPathExtractor $ \case
-  C.InSynthesizeApps f ft e -> Just (f, ft, e)
+inFunctionCall :: SubseqExtractor v loc ([v], C.Term v loc, C.Type v loc, [C.Term v loc])
+inFunctionCall = asPathExtractor $ \case
+  C.InFunctionCall vs f ft e -> Just (vs, f, ft, e)
   _ -> Nothing
 
 inAndApp, inOrApp, inIfCond, inMatchGuard, inMatchBody :: SubseqExtractor v loc ()

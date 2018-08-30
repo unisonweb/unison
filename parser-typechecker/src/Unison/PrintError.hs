@@ -182,41 +182,41 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     , "\n"
     ] ++ summary note
   FunctionApplication {..} ->
-    [ "The ", ordinal argNum, " argument in the call below is "
+    [ "The ", ordinal argNum, " argument to the function "
+    , AT.Text $ renderTerm f
+    , " is "
     , AT.Text $ Color.type2 . renderType' env $ foundType, ", "
     , "but I was expecting "
                 , AT.Text $ Color.type1 . renderType' env $ expectedType
     , ":\n\n"
     , showSourceMaybes src
-      -- [ (,Color.ErrorSite) <$> rangeForAnnotated f
       [ (,Color.Type1)     <$> rangeForAnnotated expectedType
       , (,Color.Type2)     <$> rangeForAnnotated foundType
       , (,Color.Type2)     <$> rangeForAnnotated arg
       ]
     , "\n"
     ]
-    -- todo: why doesn't this print
     ++ case fVarInfo of
-      Just (_originalType, solvedVars@(_:_)) ->
+      Just (originalType, solvedVars@(_:_)) ->
         let go :: (v, C.Type v a) -> [AT.Section Color.Style]
             go (v,t) =
-             [ "  ", renderVar v
-             , " = ", AT.Text $ Color.type2 $ renderType' env t
-             , " from here:\n"
-             , showSourceMaybes src [(,Color.Type2) <$> rangeForAnnotated t]
+             [ " ", renderVar v
+             , " = ", AT.Text $ Color.errorSite $ renderType' env t
+             , ", from here:\n\n"
+             , showSourceMaybes src [(,Color.ErrorSite) <$> rangeForAnnotated t]
+             , "\n"
              ]
         in
-          [ " because the function has type\n"
-          , "\n"
-          , "  ", AT.Text $ renderType' env $ _originalType
-          , "\n"
-          , "where:"
+          [ " because the function has type"
+          , "\n\n"
+          , "  "
+          , AT.Text $ renderType' env $ Type.ungeneralizeEffects originalType
+          , "\n\n"
+          , " where:"
+          , "\n\n"
           ] ++ (solvedVars >>= go)
-          -- ++ ["\n"]
-          -- ++ showSourceMaybes src (go solvedVars)
-          ++ ["\n\n"]
       _other -> [fromString $ "fVarInfo = " ++ show _other] -- forget it
-    ++ ["\n\n"]
+    ++ ["\n"]
     ++ summary note
   Mismatch {..} ->
     [ (fromString . annotatedToEnglish) mismatchSite
@@ -338,10 +338,11 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
         ["InSynthesizeApp t=", AT.Text $ renderType' env t
                       ,", e=", renderTerm e
                       ,", n=", fromString $ show n]
-      C.InSynthesizeApps f ft es ->
-        ["InSynthesizeApps f=", AT.Text $ renderTerm f
-                       ," ft=", AT.Text $ renderType' env ft
-                      ,", es=", "[", AT.Text $ commas renderTerm es, "]"]
+      C.InFunctionCall vs f ft es ->
+        ["InFunctionCall vs=[", AT.Text $ commas renderVar vs, "]"
+                       ,", f=", AT.Text $ renderTerm f
+                     ,", ft=", AT.Text $ renderType' env ft
+                    ,", es=[", AT.Text $ commas renderTerm es, "]"]
       C.InIfCond -> ["InIfCond"]
       C.InIfBody loc ->
         ["InIfBody thenBody=", fromString $ annotatedToEnglish loc]
