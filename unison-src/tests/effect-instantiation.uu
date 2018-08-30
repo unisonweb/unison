@@ -1,0 +1,14 @@
+
+blah : a -> a -> a
+blah a a2 = a2
+
+effect Foo where
+  foo : {Foo} Text
+
+-- This version works okay, instantiates `a` to '{Foo} Text
+-- blah 'Foo.foo '("hello!") 
+
+-- This version doesn't work, it instantiates `a` to 'Text,
+-- but doesn't allow that solution to `a` to be refined by later
+-- arguments - end up with an ability check failure on the second arg
+blah '("hello!") 'Foo.foo 

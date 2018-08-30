@@ -1,0 +1,14 @@
+
+blah : a -> a -> a
+blah a a2 = a2
+
+effect Foo where
+  foo : {Foo} Text
+
+blah '"hello!" '(Text.size Foo.foo)
+
+-- bootstrap: unison-src/tests/effect-instantiation.uu:8:6:
+-- unexpected UnknownLexeme
+--    8 | blah '"hello!" '(Text.size Foo.foo)
+
+-- looks like ' isn't looking for literals after
