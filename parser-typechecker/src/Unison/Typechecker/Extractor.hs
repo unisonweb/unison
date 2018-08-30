@@ -70,20 +70,6 @@ no xa = SubseqExtractor' $ \note ->
   go (rs, Just r0) (l, r) =
     (if r0 + 1 <= l - 1 then Ranged () (r0 + 1) (l - 1) : rs else rs, Just r)
 
-_isAdjacent :: Ranged a -> Ranged b -> Bool
-_isAdjacent (Ranged _ _ endA) (Ranged _ startB _) = endA + 1 == startB
-_isAdjacent _ _                                   = False
-
-_followedBy :: SubseqExtractor' n a
-            -> SubseqExtractor' n b
-            -> SubseqExtractor' n (a,b)
-_followedBy xa xb = SubseqExtractor' $ \note ->
-  let as = runSubseq xa note
-      bs = runSubseq xb note in do
-        ra <- as
-        rb <- bs
-        whenM (_isAdjacent ra rb) [Ranged (get ra, get rb) (start ra) (end rb)]
-
 any :: SubseqExtractor v loc ()
 any = any' (\n -> pathLength n - 1)
 
@@ -100,6 +86,7 @@ pathStart = SubseqExtractor' $ \_ -> [Ranged () (-1) (-1)]
 pathLength :: C.Note v loc -> Int
 pathLength = length . toList . C.path
 
+-- unused / untested
 _many :: forall n a. Ord a => SubseqExtractor' n a -> SubseqExtractor' n [a]
 _many xa = SubseqExtractor' $ \note ->
   let as = runSubseq xa note in fmap reverse <$> toList (go Set.empty as)
@@ -113,22 +100,24 @@ _many xa = SubseqExtractor' $ \note ->
     go seen (Pure _ : t) = go seen t
     go' :: Ranged a -> Ranged [a] -> Maybe (Ranged [a])
     go' new group =
-      if _isAdjacent group new
+      if isAdjacent group new
       then Just (Ranged (get new : get group) (start group) (end new))
       else Nothing
+    isAdjacent :: forall a b. Ranged a -> Ranged b -> Bool
+    isAdjacent (Ranged _ _ endA) (Ranged _ startB _) = endA + 1 == startB
+    isAdjacent _ _                                   = False
 
--- SubseqExtractors --
 
 -- Scopes --
-_fromPathExtractor :: PathExtractor v loc a -> SubseqExtractor v loc a
-_fromPathExtractor ex = subseqExtractor $
-  join . fmap go . (`zip` [0..]) . toList . C.path
-  where go (e,i) = case runPath ex e of
-          Just a  -> [Ranged a i i]
-          Nothing -> []
-
 asPathExtractor :: (C.PathElement v loc -> Maybe a) -> SubseqExtractor v loc a
-asPathExtractor = _fromPathExtractor . PathExtractor
+asPathExtractor = fromPathExtractor . PathExtractor
+  where
+    fromPathExtractor :: PathExtractor v loc a -> SubseqExtractor v loc a
+    fromPathExtractor ex = subseqExtractor $
+      join . fmap go . (`zip` [0..]) . toList . C.path
+      where go (e,i) = case runPath ex e of
+              Just a  -> [Ranged a i i]
+              Nothing -> []
 
 inSynthesize :: SubseqExtractor v loc (C.Term v loc)
 inSynthesize = asPathExtractor $ \case
