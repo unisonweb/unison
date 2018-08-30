@@ -8,8 +8,13 @@ effect AskU where
 
 use UInt64 +
 
+effect AskT where
+  ask : {AskT} Text
+
 x = '(Ask.ask + 1)
 x2 = '(Ask.ask + AskU.ask)
+
+x3 = '(Ask.ask + AskU.ask + size AskT.ask)
 
 y : '{Ask UInt64} UInt64
 y = '(!x)

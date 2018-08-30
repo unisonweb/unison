@@ -1,6 +1,5 @@
 
 use UInt64 + - * / == <
-use Sequence map take drop size fold-left halve
 use Optional None Some
 use Monoid.Monoid -- import the constructor
 use Remote fork spawn at
@@ -29,11 +28,29 @@ namespace Monoid where
   op : Monoid a -> a -> a -> a
   op m = case m of Monoid op _ -> op
 
-  fold-map : (a -> {e} b) -> Monoid b -> [a] -> {e} b
-  fold-map f m as =
+  fold-map0 : (a -> {e} b) -> Monoid b -> [a] -> {e} b
+  fold-map0 f m as =
     op = Monoid.op m
     if size as < 2 then Sequence.fold-left (b a -> op b (f a)) (zero m) as
     else case Sequence.halve as of (l, r) -> fold-map f m l `op` fold-map f m r
+
+  fold-map : (a -> b) -> Monoid b -> [a] -> b
+  fold-map f m as =
+    op = Monoid.op m
+    z = Monoid.zero m
+    go as =
+      if size as < 2 then Sequence.fold-left (b a -> op b (f a)) z as
+      else case Sequence.halve as of (l, r) -> go l `op` go r
+    go as
+
+  fold-map2 : (a -> {e} b) -> Monoid b -> [a] -> {e} b
+  fold-map2 f m as =
+    op = Monoid.op m
+    z = Monoid.zero m
+    go as =
+      if size as < 2 then Sequence.fold-left (b a -> op b (f a)) z as
+      else case Sequence.halve as of (l, r) -> go l `op` go r
+    go as
 
   par : Monoid a -> Monoid ('{Remote n} a)
   par m =
@@ -96,6 +113,8 @@ dos f a a2 = f !a !a2
 f <| i = f i
 i |> f = f i
 
-Stream.from-uint64 1
-  |> Stream.take 15
-  |> Stream.to-sequence
+-- TDNR FTW
+ex2 : [UInt64]
+ex2 = Stream.from-uint64 1 |> take 15 |> to-sequence
+
+ex2

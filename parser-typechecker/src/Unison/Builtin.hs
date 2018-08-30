@@ -33,8 +33,11 @@ type EffectDeclaration v = EffectDeclaration' v Ann
 -- parse a type, hard-coding the builtins defined in this file
 t :: Var v => String -> Type v
 t s = ABT.amap (const Intrinsic) .
-          bindTypeBuiltins . either (error . parseErrorToAnsiString s) id $
+          bindTypeBuiltins . either (error . parseErrorToAnsiString s) tweak $
           Parser.run (Parser.root TypeParser.valueType) s Parser.penv0
+  -- lowercase vars become forall'd, and we assume the function is pure up
+  -- until it returns its result.
+  where tweak = Type.generalizeEffects 100000 . Type.generalizeLowercase
 
 -- parse a term, hard-coding the builtins defined in this file
 tm :: Var v => String -> Term v
@@ -179,38 +182,38 @@ builtins0 = Map.fromList $
       , ("Text.<", "Text -> Text -> Boolean")
       , ("Text.>", "Text -> Text -> Boolean")
 
-      , ("Stream.empty", "forall a . Stream a")
-      , ("Stream.single", "forall a . a -> Stream a")
-      , ("Stream.constant", "forall a . a -> Stream a")
+      , ("Stream.empty", "Stream a")
+      , ("Stream.single", "a -> Stream a")
+      , ("Stream.constant", "a -> Stream a")
       , ("Stream.from-int64", "Int64 -> Stream Int64")
       , ("Stream.from-uint64", "UInt64 -> Stream UInt64")
-      , ("Stream.cons", "forall a . a -> Stream a -> Stream a")
-      , ("Stream.take", "forall a . UInt64 -> Stream a -> Stream a")
-      , ("Stream.drop", "forall a . UInt64 -> Stream a -> Stream a")
-      , ("Stream.take-while", "forall a . (a -> Boolean) -> Stream a -> Stream a")
-      , ("Stream.drop-while", "forall a . (a -> Boolean) -> Stream a -> Stream a")
-      , ("Stream.map", "forall a b . (a -> b) -> Stream a -> Stream b")
-      , ("Stream.flat-map", "forall a b . (a -> Stream b) -> Stream a -> Stream b")
-      , ("Stream.fold-left", "forall a b . b -> (b -> a -> b) -> Stream a -> b")
-      , ("Stream.iterate", "forall a . a -> (a -> a) -> Stream a")
-      , ("Stream.reduce", "forall a . a -> (a -> a -> a) -> Stream a -> a")
-      , ("Stream.to-sequence", "forall a . Stream a -> Sequence a")
-      , ("Stream.filter", "forall a . (a -> Boolean) -> Stream a -> Stream a")
-      , ("Stream.scan-left", "forall a b . b -> (b -> a -> b) -> Stream a -> Stream b")
+      , ("Stream.cons", "a -> Stream a -> Stream a")
+      , ("Stream.take", "UInt64 -> Stream a -> Stream a")
+      , ("Stream.drop", "UInt64 -> Stream a -> Stream a")
+      , ("Stream.take-while", "(a ->{} Boolean) -> Stream a -> Stream a")
+      , ("Stream.drop-while", "(a ->{} Boolean) -> Stream a -> Stream a")
+      , ("Stream.map", "(a ->{} b) -> Stream a -> Stream b")
+      , ("Stream.flat-map", "(a ->{} Stream b) -> Stream a -> Stream b")
+      , ("Stream.fold-left", "b -> (b ->{} a ->{} b) -> Stream a -> b")
+      , ("Stream.iterate", "a -> (a -> a) -> Stream a")
+      , ("Stream.reduce", "a -> (a ->{} a ->{} a) -> Stream a -> a")
+      , ("Stream.to-sequence", "Stream a -> Sequence a")
+      , ("Stream.filter", "(a ->{} Boolean) -> Stream a -> Stream a")
+      , ("Stream.scan-left", "b -> (b ->{} a ->{} b) -> Stream a -> Stream b")
       , ("Stream.sum-int64", "Stream Int64 -> Int64")
       , ("Stream.sum-uint64", "Stream UInt64 -> UInt64")
       , ("Stream.sum-float", "Stream Float -> Float")
-      , ("Stream.append", "forall a . Stream a -> Stream a -> Stream a")
-      , ("Stream.zip-with", "forall a b c . (a -> b -> c) -> Stream a -> Stream b -> Stream c")
-      , ("Stream.unfold", "forall a b . (a -> Optional (b, a)) -> b -> Stream a")
+      , ("Stream.append", "Stream a -> Stream a -> Stream a")
+      , ("Stream.zip-with", "(a ->{} b ->{} c) -> Stream a -> Stream b -> Stream c")
+      , ("Stream.unfold", "(a ->{} Optional (b, a)) -> b -> Stream a")
 
-      , ("Sequence.empty", "forall a . [a]")
-      , ("Sequence.cons", "forall a . a -> [a] -> [a]")
-      , ("Sequence.snoc", "forall a . [a] -> a -> [a]")
-      , ("Sequence.take", "forall a . UInt64 -> [a] -> [a]")
-      , ("Sequence.drop", "forall a . UInt64 -> [a] -> [a]")
-      , ("Sequence.++", "forall a . [a] -> [a] -> [a]")
-      , ("Sequence.size", "forall a . [a] -> UInt64")
-      , ("Sequence.at", "forall a . UInt64 -> [a] -> Optional a")
+      , ("Sequence.empty", "[a]")
+      , ("Sequence.cons", "a -> [a] -> [a]")
+      , ("Sequence.snoc", "[a] -> a -> [a]")
+      , ("Sequence.take", "UInt64 -> [a] -> [a]")
+      , ("Sequence.drop", "UInt64 -> [a] -> [a]")
+      , ("Sequence.++", "[a] -> [a] -> [a]")
+      , ("Sequence.size", "[a] -> UInt64")
+      , ("Sequence.at", "UInt64 -> [a] -> Optional a")
       ]
   ]

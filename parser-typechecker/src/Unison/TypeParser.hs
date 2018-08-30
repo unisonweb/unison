@@ -57,12 +57,17 @@ type2 = app valueTypeLeaf
 -- ex : {State Text, IO} (Sequence Int64)
 effect :: Var v => TypeP v
 effect = do
+ es <- effectList
+ t <- valueTypeLeaf
+ pure (Type.effect1 (ann es <> ann t) es t)
+
+effectList :: Var v => TypeP v
+effectList = do
   open <- openBlockWith "{"
   es <- sepBy (reserved ",") valueType
   _ <- closeBlock
-  _ <- reserved "}"
-  t <- valueTypeLeaf
-  pure (Type.effect (Ann (L.start open) (end $ ann t)) es t)
+  close <- reserved "}"
+  pure $ Type.effects (ann open <> ann close) es
 
 sequenceTyp :: Var v => TypeP v
 sequenceTyp = do
@@ -89,8 +94,10 @@ app rec = do
 --  valueType ::= ... | Arrow valueType computationType
 arrow :: Var v => TypeP v -> TypeP v
 arrow rec =
-  let p = sepBy1 (reserved "->") (effect <|> rec)
-  in foldr1 (\a b -> Type.arrow (ann a <> ann b) a b) <$> p
+  let eff = mkArr <$> optional effectList
+      mkArr Nothing a b = Type.arrow (ann a <> ann b) a b
+      mkArr (Just es) a b = Type.arrow (ann a <> ann b) a (Type.effect1 (ann es <> ann b) es b)
+  in chainr1 (effect <|> rec) (reserved "->" *> eff)
 
 -- "forall a b . List a -> List b -> Maybe Text"
 forall :: Var v => TypeP v -> TypeP v
