@@ -10,8 +10,8 @@ import           Unison.Result                (Result (..))
 import qualified Unison.Result                as Result
 import           Unison.Symbol                (Symbol)
 import qualified Unison.Typechecker.Context   as C
-import           Unison.Typechecker.Extractor2 (NoteExtractor)
-import qualified Unison.Typechecker.Extractor2 as Ex
+import           Unison.Typechecker.Extractor (NoteExtractor)
+import qualified Unison.Typechecker.Extractor as Ex
 import qualified Unison.Typechecker.TypeError as Err
 import           Unison.Var                   (Var)
 

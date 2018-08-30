@@ -13,7 +13,7 @@ import qualified Unison.ABT                    as ABT
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.Typechecker.Context    as C
-import qualified Unison.Typechecker.Extractor2 as Ex
+import qualified Unison.Typechecker.Extractor  as Ex
 import           Unison.Util.Monoid            (whenM)
 import           Unison.Var                    (Var)
 
