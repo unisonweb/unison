@@ -14,5 +14,5 @@ assert_command_exists sbt
 assert_command_exists scala
 assert_command_exists fswatch
 
-fswatch --batch . | \
+fswatch --batch "$source" . | \
   "`dirname $0`/execany.sh" "$source"
