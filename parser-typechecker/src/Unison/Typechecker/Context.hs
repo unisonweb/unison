@@ -11,6 +11,9 @@ module Unison.Typechecker.Context
   , Note(..)
   , Cause(..)
   , Context(..)
+  , ActualArgCount
+  , ExpectedArgCount
+  , ConstructorId
   , Element(..)
   , PathElement(..)
   , Term
@@ -30,7 +33,7 @@ import           Control.Monad
 import           Control.Monad.Reader.Class
 import           Control.Monad.State (get, put, StateT, runStateT)
 import           Control.Monad.Trans (lift)
-import           Data.Bifunctor (second)
+import           Data.Bifunctor (first, second)
 import           Data.Foldable (for_)
 import qualified Data.Foldable as Foldable
 import           Data.Functor
@@ -119,13 +122,15 @@ data PathElement v loc
   | InInstantiateL v (Type v loc)
   | InInstantiateR (Type v loc) v
   | InSynthesizeApp (Type v loc) (Term v loc) Int
-  | InSynthesizeApps (Term v loc) (Type v loc) [Term v loc]
+  | InFunctionCall [v] (Term v loc) (Type v loc) [Term v loc]
   | InAndApp
   | InOrApp
   | InIfCond
   | InIfBody loc -- location of `then` expression
   | InVectorApp loc -- location of 1st vector element
   | InMatch loc -- location of 1st case body
+  | InMatchGuard
+  | InMatchBody
   deriving Show
 
 type ExpectedArgCount = Int
@@ -627,7 +632,8 @@ synthesize e = scope (InSynthesize e) $ do
   go (Term.Apps' f args) = do -- ->EEEEE
     ft <- synthesize f
     ctx <- getContext
-    scope (InSynthesizeApps f ft args) $ synthesizeApps (apply ctx ft) args
+    (vs, ft) <- ungeneralize' ft
+    scope (InFunctionCall vs f ft args) $ synthesizeApps (apply ctx ft) args
   go (Term.Vector' v) = do
     ft <- vectorConstructorOfArity (Foldable.length v)
     case Foldable.toList v of
@@ -725,9 +731,9 @@ checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) = do
   let subst = ABT.substsInheritAnnotation (second (Term.var ()) <$> substs)
       rhs' = subst rhsbod
       guard' = subst <$> mayGuard
-  for_ guard' $ \g -> check g (Type.boolean (loc g))
+  for_ guard' $ \g -> scope InMatchGuard $ check g (Type.boolean (loc g))
   outputType <- applyM outputType
-  check rhs' outputType
+  scope InMatchBody $ check rhs' outputType
   doRetract $ Marker m
 
 checkPattern
@@ -879,12 +885,15 @@ annotateLetRecBindings letrec = do
   pure (marker, body)
 
 ungeneralize :: (Var v, Ord loc) => Type v loc -> M v loc (Type v loc)
-ungeneralize (Type.Forall' t) = do
+ungeneralize t = snd <$> ungeneralize' t
+
+ungeneralize' :: (Var v, Ord loc) => Type v loc -> M v loc ([v], Type v loc)
+ungeneralize' (Type.Forall' t) = do
   v <- ABT.freshen t freshenTypeVar
   appendContext $ context [existential v]
   t <- pure $ ABT.bindInheritAnnotation t (Type.existential B.Blank v)
-  ungeneralize t
-ungeneralize t = pure t
+  first (v:) <$> ungeneralize' t
+ungeneralize' t = pure ([], t)
 
 -- | Apply the context to the input type, then convert any unsolved existentials
 -- to universals.

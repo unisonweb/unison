@@ -1,0 +1,2 @@
+case 3 of
+  3 | (3 : Boolean) -> 4

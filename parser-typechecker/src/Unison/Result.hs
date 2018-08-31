@@ -29,8 +29,9 @@ data Note v loc
   | InvalidPath Path (Term v loc) -- todo: move me!
   | UnknownSymbol v loc
 --  | UnknownReference Reference
-  | Typechecking (Context.Note v loc) deriving Show
+  | Typechecking (Context.Note v loc)
   -- WithinLocals (Note v loc)
+  deriving Show
 
 isSuccess :: Result note a -> Bool
 isSuccess r = isJust $ result r

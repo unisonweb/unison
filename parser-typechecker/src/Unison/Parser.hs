@@ -1,42 +1,41 @@
-{-# LANGUAGE BangPatterns, RankNTypes #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 module Unison.Parser where
 
 import           Control.Applicative
-import           Control.Monad (join)
-import           Data.Bifunctor (bimap)
-import           Data.List.NonEmpty (NonEmpty(..))
-import qualified Data.Map as Map
-import Data.Map (Map)
+import           Control.Monad        (join)
+import           Data.Bifunctor       (bimap)
+import           Data.List.NonEmpty   (NonEmpty (..))
+import           Data.Map             (Map)
+import qualified Data.Map             as Map
 import           Data.Maybe
-import Debug.Trace
-import qualified Data.Set as Set
-import           Data.Text (Text)
-import qualified Data.Text as Text
-import           Data.Typeable (Proxy(..))
-import           Text.Megaparsec (runParserT)
-import qualified Text.Megaparsec as P
+import qualified Data.Set             as Set
+import           Data.Text            (Text)
+import qualified Data.Text            as Text
+import           Data.Typeable        (Proxy (..))
+import           Debug.Trace
+import           Text.Megaparsec      (runParserT)
+import qualified Text.Megaparsec      as P
 import qualified Text.Megaparsec.Char as P
-import qualified Unison.ABT as ABT
+import qualified Unison.ABT           as ABT
 import           Unison.Hash
-import qualified Unison.Lexer as L
-import           Unison.Pattern (PatternP)
-import qualified Unison.PatternP as Pattern
-import           Unison.Term (MatchCase(..))
-import qualified Unison.UnisonFile as UnisonFile
-import           Unison.Var (Var)
-import Unison.Reference (Reference)
-import qualified Unison.Var as Var
+import qualified Unison.Lexer         as L
+import           Unison.Pattern       (PatternP)
+import qualified Unison.PatternP      as Pattern
+import           Unison.Reference     (Reference)
+import           Unison.Term          (MatchCase (..))
+import qualified Unison.UnisonFile    as UnisonFile
+import           Unison.Var           (Var)
+import qualified Unison.Var           as Var
 
 debug :: Bool
 debug = False
 
 data PEnv v =
   PEnv { constructorLookup :: UnisonFile.CtorLookup
-       , typesByName :: Map v Reference }
+       , typesByName       :: Map v Reference }
 
 -- Given a mapping from name to qualified name, update a `PEnv`,
 -- so for instance if the input has [(Some, Optional.Some)],
@@ -48,7 +47,7 @@ importing shortToLongName (PEnv ctors types) = let
   go :: Ord k => Map k v -> (k, k) -> Map k v
   go m (qname, shortname) = case Map.lookup qname m of
     Nothing -> m
-    Just v -> Map.insert shortname v m
+    Just v  -> Map.insert shortname v m
   ctors' = foldl go ctors [ (vs qn, vs n) | (n, qn) <- shortToLongName ]
   types' = foldl go types shortToLongName
   in PEnv ctors' types'
@@ -75,13 +74,13 @@ data Error v
   | UnknownDataConstructor (L.Token String)
   deriving (Show, Eq, Ord)
 
-data Ann =
-  Intrinsic |
-  Ann { start :: L.Pos, end :: L.Pos } deriving (Eq, Ord, Show)
+data Ann
+  = Intrinsic -- { sig :: String, start :: L.Pos, end :: L.Pos }
+  | Ann { start :: L.Pos, end :: L.Pos }
+  deriving (Eq, Ord, Show)
 
 instance Semigroup Ann where
   Ann s1 _ <> Ann _ e2 = Ann s1 e2
-  Intrinsic <> Intrinsic = error "FUN SURPRISE!"
   x <> y = error $ "Compiler bug! Tried to combine terms annotated with ("
                    ++ show x ++ ") and (" ++ show y ++ ")"
 
@@ -114,9 +113,9 @@ instance P.Stream Input where
 
   advanceN _ _ cp = setPos cp . L.end . last . inputStream
 
-  take1_ (P.chunkToTokens proxy -> []) = Nothing
+  take1_ (P.chunkToTokens proxy -> [])   = Nothing
   take1_ (P.chunkToTokens proxy -> t:ts) = Just (t, P.tokensToChunk proxy ts)
-  take1_ _ = error "Unpossible"
+  take1_ _                               = error "Unpossible"
 
   takeN_ n (P.chunkToTokens proxy -> []) | n > 0 = Nothing
   takeN_ n ts =
@@ -213,7 +212,7 @@ openBlock :: Var v => P v (L.Token String)
 openBlock = queryToken getOpen
   where
     getOpen (L.Open s) = Just s
-    getOpen _ = Nothing
+    getOpen _          = Nothing
 
 openBlockWith :: Var v => String -> P v (L.Token ())
 openBlockWith s = fmap (const ()) <$> P.satisfy ((L.Open s ==) . L.payload)
@@ -237,35 +236,35 @@ closeBlock = fmap (const ()) <$> matchToken L.Close
 wordyId :: Var v => P v (L.Token String)
 wordyId = queryToken getWordy
   where getWordy (L.WordyId s) = Just s
-        getWordy _ = Nothing
+        getWordy _             = Nothing
 
 -- Parse a symboly ID like >>= or &&
 symbolyId :: Var v => P v (L.Token String)
 symbolyId = queryToken getSymboly
   where getSymboly (L.SymbolyId s) = Just s
-        getSymboly _ = Nothing
+        getSymboly _               = Nothing
 
 backticks :: Var v => P v (L.Token String)
 backticks = queryToken getBackticks
   where getBackticks (L.Backticks s) = Just s
-        getBackticks _ = Nothing
+        getBackticks _               = Nothing
 
 -- Parse a reserved word
 reserved :: Var v => String -> P v (L.Token String)
 reserved w = label w $ queryToken getReserved
   where getReserved (L.Reserved w') | w == w' = Just w
-        getReserved _ = Nothing
+        getReserved _               = Nothing
 
 -- Parse a placeholder or typed hole
 blank :: Var v => P v (L.Token String)
 blank = label "blank" $ queryToken getBlank
   where getBlank (L.Blank s) = Just s
-        getBlank _ = Nothing
+        getBlank _           = Nothing
 
 numeric :: Var v => P v (L.Token String)
 numeric = queryToken getNumeric
   where getNumeric (L.Numeric s) = Just s
-        getNumeric _ = Nothing
+        getNumeric _             = Nothing
 
 sepComma :: Var v => P v a -> P v [a]
 sepComma = sepBy (reserved ",")
@@ -288,12 +287,12 @@ infixVar =
 hashLiteral :: Var v => P v (L.Token Hash)
 hashLiteral = queryToken getHash
   where getHash (L.Hash s) = Just s
-        getHash _ = Nothing
+        getHash _          = Nothing
 
 string :: Var v => P v (L.Token Text)
 string = queryToken getString
   where getString (L.Textual s) = Just (Text.pack s)
-        getString _ = Nothing
+        getString _             = Nothing
 
 tupleOrParenthesized :: Var v => P v a -> (Ann -> a) -> (a -> a -> a) -> P v a
 tupleOrParenthesized p unit pair = do
@@ -303,7 +302,7 @@ tupleOrParenthesized p unit pair = do
     pure $ go es open close
   where
     go [t] _ _ = t
-    go as s e = foldr pair (unit (ann s <> ann e)) as
+    go as s e  = foldr pair (unit (ann s <> ann e)) as
 
 chainr1 :: Var v => P v a -> P v (a -> a -> a) -> P v a
 chainr1 p op = go1 where

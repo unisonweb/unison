@@ -381,6 +381,26 @@ generalizeEffects arity t = case functionResult t of
     in if Set.member e (ABT.freeVars t') then forall at e t'
        else t'
 
+ungeneralizeEffects :: Var v => AnnotatedType v a -> AnnotatedType v a
+ungeneralizeEffects t = case functionResult t of
+  Just (Effect' [Var' e] _)
+    | Var.name e == "𝛆" -> stripE e t
+    | otherwise -> t
+    where
+    isVar v (Var' e) = e == v
+    isVar _ _ = False
+    unE :: Var v => v -> AnnotatedType v a -> Maybe (AnnotatedType v a)
+    unE e et@(Effect' es v) = case filter (not . isVar e) es of
+      [] -> Just (ABT.visitPure (unE e) v)
+      es -> Just (effect (ABT.annotation et) es (ABT.visitPure (unE e) v))
+    unE _ _ = Nothing
+    stripE :: Var v => v -> AnnotatedType v a -> AnnotatedType v a
+    stripE e t@(ForallNamed' e0 body) | e == e0 = ABT.visitPure (unE e) body
+                                      | otherwise = t
+    stripE _e t = t
+  Just _ -> t
+  Nothing -> t
+
 functionResult :: AnnotatedType v a -> Maybe (AnnotatedType v a)
 functionResult t = go False t where
   go inArr (ForallNamed' _ body) = go inArr body
