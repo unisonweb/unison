@@ -893,7 +893,7 @@ ungeneralize' t = pure ([], t)
 -- to universals.
 generalizeExistentials :: (Var v, Ord loc) => Context v loc -> Type v loc -> Type v loc
 generalizeExistentials ctx t =
-  foldr gen (apply ctx t) (unsolved ctx)
+  foldr gen (Type.removePureEffects $ apply ctx t) (unsolved ctx)
   where
     gen e t =
       if TypeVar.Existential B.Blank e `ABT.isFreeIn` t

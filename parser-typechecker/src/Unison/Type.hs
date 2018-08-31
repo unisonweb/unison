@@ -7,9 +7,12 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
 
 module Unison.Type where
 
+import Control.Monad (join)
+import Data.Functor.Identity (runIdentity)
 import qualified Data.Char as Char
 import           Data.List
 import           Data.Set (Set)
@@ -400,6 +403,42 @@ ungeneralizeEffects t = case functionResult t of
     stripE _e t = t
   Just _ -> t
   Nothing -> t
+
+-- Returns free effect variables in the given type, for instance, in:
+--
+--   ∀ e3 . a ->{e,e2} b ->{e3} c
+--
+-- This function would return the set {e, e2}, but not `e3` since `e3`
+-- is bound by the enclosing forall.
+freeEffectVars :: Var v => AnnotatedType v a -> Set v
+freeEffectVars t =
+  Set.fromList . join . runIdentity $
+    ABT.foreachSubterm go (snd <$> ABT.annotateBound t)
+  where
+    go t@(Effect1' e _) =
+      let frees = Set.fromList [ v | Var' v <- flattenEffects e ]
+      in pure . Set.toList $ frees `Set.difference` ABT.annotation t
+    go _ = pure []
+
+-- Remove free effect variables from the type that are in the set
+removeEffectVars :: Var v => Set v -> AnnotatedType v a -> AnnotatedType v a
+removeEffectVars removals t =
+  let z = effects (ABT.annotation t) []
+      t' = ABT.substs ((,z) <$> Set.toList removals) t
+      removeEmpty t@(Effect1' e v) = case flattenEffects e of
+        [] -> Just (ABT.visitPure removeEmpty v)
+        es -> Just (effect (ABT.annotation t) es $ ABT.visitPure removeEmpty v)
+      removeEmpty _ = Nothing
+  in ABT.visitPure removeEmpty t'
+
+removePureEffects :: Var v => AnnotatedType v a -> AnnotatedType v a
+removePureEffects t =
+  removeEffectVars (Set.filter isPure (freeEffectVars t)) t
+  where
+    -- If an effect variable is mentioned only once, it is on
+    -- an arrow `a ->{e} b`. Generalizing this to
+    -- `∀ e . a ->{e} b` gives us the pure arrow `a -> b`.
+    isPure v = ABT.occurrences v t <= 1
 
 functionResult :: AnnotatedType v a -> Maybe (AnnotatedType v a)
 functionResult t = go False t where

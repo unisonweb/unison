@@ -294,6 +294,15 @@ substs :: (Foldable f, Functor f, Var v)
 substs replacements body = foldr f body (reverse replacements) where
   f (v, t) body = subst v t body
 
+-- Count the number times the given variable appears free in the term
+occurrences :: (Foldable f, Var v) => v -> Term f v a -> Int
+occurrences v t | not (v `isFreeIn` t) = 0
+occurrences v t = case out t of
+  Var v2 -> if v == v2 then 1 else 0
+  Cycle t -> occurrences v t
+  Abs v2 t -> if v == v2 then 0 else occurrences v t
+  Tm t -> foldl' (\s t -> s + occurrences v t) 0 $ Foldable.toList t
+
 rebuildUp :: (Ord v, Foldable f, Functor f)
           => (f (Term f v a) -> f (Term f v a))
           -> Term f v a
