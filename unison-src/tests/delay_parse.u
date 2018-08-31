@@ -18,11 +18,3 @@ d : () -> {T} ('())
 d = x -> (y -> ())
 
 ()
-
--- c hits the following error:
---
---  typechecker.tests/delay_parse.u FAILURE tests/delay_parse.u:13:15:
---  unexpected '
---  expecting ( or [
---    13 | c : () -> {T} '()
---

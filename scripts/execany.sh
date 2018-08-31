@@ -104,7 +104,7 @@ while IFS= read -r changed; do
       scala_needs_rebuild=x
       scala_files_changed=x
       ;;
-    *.u)
+    *.u|*.uu)
       echo "detected change in $changed"
       source="$changed"
       unison_files_changed=x
