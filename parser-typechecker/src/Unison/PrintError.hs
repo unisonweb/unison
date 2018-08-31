@@ -446,16 +446,19 @@ renderType env f = renderType0 env f (0 :: Int) where
     if test then "(" <> s <> ")" else s
   renderType0 env f p t = f (ABT.annotation t) $ case t of
     Type.Ref' r -> showRef' env r
-    Type.Arrows' ts -> paren (p >= 2) $ arrows (go 2) ts
+    Type.Arrow' i (Type.Effect1' e o) ->
+      paren (p >= 2) $ go 2 i <> " ->{" <> go 1 e <> "} " <> go 1 o
+    Type.Arrow' i o ->
+      paren (p >= 2) $ go 2 i <> " -> " <> go 1 o
     Type.Ann' t k -> paren True $ go 1 t <> " : " <> renderKind k
     Type.Tuple' ts -> paren True $ commas (go 0) ts
     Type.Apps' (Type.Ref' (R.Builtin "Sequence")) [arg] ->
       "[" <> go 0 arg <> "]"
     Type.Apps' f' args -> paren (p >= 3) $ spaces (go 3) (f':args)
-    Type.Effects' es -> paren (p >= 3) $ "{" <> commas (go 0) es <> "} "
+    Type.Effects' es -> commas (go 0) es
     Type.Effect' es t -> case es of
       [] -> go p t
-      _ -> paren (p >= 3) $ "{" <> commas (go 0) es <> "} " <> go 3 t
+      _ -> "{" <> commas (go 0) es <> "} " <> go 3 t
     Type.Effect1' e t -> paren (p >= 3) $ "{" <> go 0 e <> "}" <> go 3 t
     Type.ForallsNamed' vs body -> paren (p >= 1) $
       if p == 0 then go 0 body
@@ -468,7 +471,7 @@ spaces :: (IsString a, Monoid a) => (b -> a) -> [b] -> a
 spaces = intercalateMap " "
 
 arrows :: (IsString a, Monoid a) => (b -> a) -> [b] -> a
-arrows = intercalateMap " -> "
+arrows = intercalateMap " ->"
 
 commas :: (IsString a, Monoid a) => (b -> a) -> [b] -> a
 commas = intercalateMap ", "

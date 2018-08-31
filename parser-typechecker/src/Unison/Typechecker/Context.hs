@@ -671,13 +671,7 @@ synthesize e = scope (InSynthesize e) $ do
     body <- pure $ ABT.bindInheritAnnotation body (Term.var() arg)
     withEffects0 [et] $ check body ot
     ctx <- getContext
-    -- unsolved existentials get generalized to universals
-    let es2 = [ et | (e,et) <- [(e,et)], e `notElem` unsolved ctx]
-    pure $ if null es2
-      then Type.arrow l it ot
-      else Type.arrow l it (Type.effect l (apply ctx <$> es2) ot)
-      -- then generalizeExistentials ctx2 (Type.arrow l it ot)
-      -- else generalizeExistentials ctx2 (Type.arrow l it (Type.effect l (apply ctx <$> es2) ot))
+    pure $ Type.arrow l it (Type.effect l (apply ctx <$> [et]) ot)
   go (Term.LetRecNamed' [] body) = synthesize body
   go (Term.LetRec' letrec) = do
     (marker, e) <- annotateLetRecBindings letrec
