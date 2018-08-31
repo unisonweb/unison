@@ -1,0 +1,89 @@
+
+-- ABOUT THIS DOC: meant to give a very brief overview of the language, subject to change rapidly. Just keeping this as a regular Unison file with comments for now, so we can keep it up to date as the language changes.
+
+-- Comments start with `--` and go until the end of the line.
+-- There's no block comments yet.
+
+-- Let's start with an example, here we define a function `increment`, which adds `1` to its argument. Unison is a statically-typed language but it can infer the types of expressions from usage. Here, it will figure out that `increment` has the type `UInt64 -> UInt64`:
+
+increment x = x + 1
+
+-- Note: The type `UInt64` is an unsigned 64-bit integer. By default, literals like `1` without a decimal point that don't have a `+` or `-` in front are assumed to be `UInt64` values. If you want them to be signed, write `+1` instead, this has type `Int64`. Unison doesn't do any sort of implicit conversions between numeric types; that would be evil. 😈
+
+-- You can tell the Unison typechecker what type you're expecting for a definition with a type signature and it will warn you with a hopefully friendly error message if it it doesn't in fact have that type. Type signatures come just before the definition. Here's an example, which also introduces the syntax for _blocks_:
+
+increment2 : Int64 -> Int64
+increment2 x =
+   -- notice the `+1` literal!
+  one = +1
+  -- The last expression is the result of the block
+  x + one
+
+-- A block begins after an `=` and can contain multiple definitions. The result of a block is the result of the expression that terminates the block, in this case `x + one`.
+
+-- Note: A block's end and the start and end of each definition in the block is determined based on indentation, and within a block the definitions all start at the same indentation. More precisely, a block ends when the end of file is reached OR when there's a non-comment, non-blank line ("non-empty line") starting at a column _less_ than the starting column of the first non-empty line in the block. In this example, the `one = +1` is the first non-empty line in the block, and since it starts at column 3, every non-empty line that starts at column 3 introduces a definition of the block, and the first non-empty line with a starting column less than 3 closes the block.
+
+-- Within a block, you can give type signatures to the definitions. And you can nest blocks - each `=` introduces a new block, whose start and end are based on these same indentation rules. Here's an example, which also introduces the syntax for tuples, and a few more basic types that come with Unison:
+
+-- `ex` is a pair of a textual value, and a floating point number
+ex : (Text, Float)
+ex =
+  -- notice we can give type signatures to definitions in a block
+  msg : Text
+  msg =
+    -- Here's syntax for importing a symbol
+    use Text.concatenate
+    -- Anything inside "" becomes a `Text` value
+    part1 = "Hello"
+    part2 = ", World!!"
+    -- and here's the use of `concatenate`
+    concatenate part1 part2
+
+  number = 42.24 + 92.283
+
+  (msg, number)
+
+-- The type `(Text, Float)` is a pair of a text value and a floating point number. The type `(Text, Int64, Text)` is, yup, a triple of a text value, an `Int64` value, and another `Text`. And so on: the syntax for tuples of any size is just a comma separated list in parentheses.
+
+-- The `concatenate part1 part2` is the Unison syntax for function application. The arguments are separated by spaces. This syntax binds tighter than any infix operator, so for instance, in this program:
+
+ex3 : UInt64
+ex3 = increment 2 * 2
+
+-- ... ex3 is parsed as `(increment 2) * 2`. You can always use parentheses if you require different precedence, for instance `increment (2 * 2)`.
+
+-- Functions whose name starts with a letter are by default called using syntax like `f arg1 arg2`. For any such function, you can put its name in backticks to write the function call infix, for instance:
+
+-- TODO: note about wordyId identifier grammar
+
+ex4 : Text
+ex4 =
+  hi = "Hello "
+  world = " world!!!"
+  hi `Text.concatenate` world
+
+-- You can also define functions that are by default called with infix syntax (we call this an "operator"), for instance:
+
+(++) : Text -> Text -> Text -- TODO, no need to require parens here
+a ++ b = Text.concatenate a b
+
+-- Here's a usage:
+ex5 = "Hello" ++ " world!!"
+
+-- You can also call any operator with prefix syntax just by putting it in parentheses:
+ex6 = (++) "Good morning" " 🌞"
+
+-- Currently, all operators in Unison have the same precedence, and are parsed from left to right. One less thing to have to remember!
+
+precedence =
+  a = 1 + 2 * 3 -- parsed as (1 + 2) * 3
+
+  -- we can define infix functions inside a block, no problem
+  x ** y = x + (2 * y)
+
+  10 ** 11 + 2 * 43 -- parsed as (((10 ** 11) + 2) * 43)
+
+-- let's look at a more interesting example
+
+
+()
