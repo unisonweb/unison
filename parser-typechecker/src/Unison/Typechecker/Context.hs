@@ -1072,9 +1072,9 @@ instantiateL blank v t = scope (InInstantiateL v t) $ do
       Type.Effect1' es vt -> do
         es' <- freshNamed "effect1-e"
         vt' <- freshNamed "vt"
-        let t = Type.effect1 (loc t) (Type.existentialp (loc es) es')
-                                     (Type.existentialp (loc vt) vt')
-            s = Solved blank v (Type.Monotype t)
+        let t' = Type.effect1 (loc t) (Type.existentialp (loc es) es')
+                                      (Type.existentialp (loc vt) vt')
+            s = Solved blank v (Type.Monotype t')
         modifyContext' $ replace (existential v)
                          (context [existential es', existential vt', s])
         applyM es >>= instantiateL B.Blank es'
@@ -1082,8 +1082,9 @@ instantiateL blank v t = scope (InInstantiateL v t) $ do
       Type.Effects' es -> do
         es' <- replicateM (length es) (freshNamed "e")
         let locs = loc <$> es
-            t = Type.effects (loc t) (uncurry Type.existentialp <$> locs `zip` es')
-            s = Solved blank v $ Type.Monotype t
+            t' = Type.effects (loc t) (uncurry Type.existentialp <$> locs `zip` es')
+            -- t = Type.effects (loc t) (uncurry Type.existentialp <$> locs `zip` es')
+            s = Solved blank v $ Type.Monotype t'
         modifyContext' $ replace (existential v)
                                  (context $ (existential <$> es') ++ [s])
         Foldable.for_ (es' `zip` es) $ \(e',e) ->
@@ -1130,9 +1131,9 @@ instantiateR t blank v = scope (InInstantiateR t v) $
       Type.Effect1' es vt -> do
         es' <- freshNamed "e"
         vt' <- freshNamed "vt"
-        let t = Type.effect1 (loc t) (Type.existentialp (loc es) es')
-                                     (Type.existentialp (loc vt) vt')
-            s = Solved blank v (Type.Monotype t)
+        let t' = Type.effect1 (loc t) (Type.existentialp (loc es) es')
+                                      (Type.existentialp (loc vt) vt')
+            s = Solved blank v (Type.Monotype t')
         modifyContext' $ replace (existential v)
                          (context [existential es', existential vt', s])
         applyM es >>= \es -> instantiateR es B.Blank es'
@@ -1140,8 +1141,8 @@ instantiateR t blank v = scope (InInstantiateR t v) $
       Type.Effects' es -> do
         es' <- replicateM (length es) (freshNamed "e")
         let locs = loc <$> es
-            t = Type.effects (loc t) (uncurry Type.existentialp <$> locs `zip` es')
-            s = Solved blank v $ Type.Monotype t
+            t' = Type.effects (loc t) (uncurry Type.existentialp <$> locs `zip` es')
+            s = Solved blank v $ Type.Monotype t'
         modifyContext' $ replace (existential v)
                                  (context $ (existential <$> es') ++ [s])
         Foldable.for_ (es `zip` es') $ \(e, e') -> do
