@@ -1,0 +1,26 @@
+--map/traverse
+effect Noop where
+  noop : a -> {Noop} a
+
+type List a = Nil | Cons a (List a)
+
+map : (a ->{} b) -> List a -> List b
+map f as = case as of
+  List.Nil -> List.Nil
+  List.Cons h t -> List.Cons (f h) (map f t)
+
+c = List.Cons
+
+z : ∀ a . List a
+z = List.Nil
+
+ex = c 1 (c 2 (c 3 z))
+
+pure-map : List Text
+pure-map = map (a -> "hello") ex
+
+-- this should not typecheck because map is annotated to take a pure function
+zappy : '{Noop} (List UInt64)
+zappy = 'let map (zap -> Noop.noop (zap UInt64.+ 1)) ex
+
+pure-map

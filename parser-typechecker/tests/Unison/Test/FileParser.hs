@@ -3,7 +3,6 @@
 module Unison.Test.FileParser where
 
   import EasyTest
-  import Control.Applicative
   import qualified Unison.Builtin as Builtin
   import Unison.FileParser (file)
   import Unison.Parser
@@ -51,8 +50,7 @@ module Unison.Test.FileParser where
     (io $ unsafeReadAndParseFile' "unison-src/test1.u") *> ok
 
   test :: Test ()
-  test = --test2
-    test1 <|> test2
+  test = test1
 
   builtins :: PEnv Symbol
   builtins = PEnv (Map.fromList

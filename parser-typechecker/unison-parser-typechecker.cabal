@@ -65,6 +65,7 @@ library
     Unison.Typechecker.Context
     Unison.Typechecker.Components
     Unison.Typechecker.Extractor
+    Unison.Typechecker.TypeError
     Unison.UnisonFile
     Unison.Util.AnnotatedText
     Unison.Util.ColorText
@@ -144,9 +145,10 @@ executable tests
     Unison.Test.Lexer
     Unison.Test.Range
     Unison.Test.TermParser
-    Unison.Test.Typechecker
     Unison.Test.Type
+    Unison.Test.Typechecker
     Unison.Test.Typechecker.Components
+    Unison.Test.Typechecker.TypeError
 
   build-depends:
     base,

@@ -1,0 +1,4 @@
+foo : a -> a -> a -> a -> a -> a
+foo a b c d e = e
+
+foo 1 2 3 "ha" 5

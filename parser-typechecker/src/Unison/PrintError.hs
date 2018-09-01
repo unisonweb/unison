@@ -10,13 +10,12 @@
 module Unison.PrintError where
 
 -- import           Unison.Parser              (showLineCol)
-import           Control.Applicative        ((<|>))
 import qualified Data.Char                  as Char
 import           Data.Foldable
 import qualified Data.List.NonEmpty         as Nel
 import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
-import           Data.Maybe                 (catMaybes, fromMaybe, listToMaybe)
+import           Data.Maybe                 (catMaybes, fromMaybe)
 import           Data.Sequence              (Seq (..))
 import qualified Data.Sequence              as Seq
 import qualified Data.Set                   as Set
@@ -35,7 +34,7 @@ import qualified Unison.Reference           as R
 import           Unison.Result              (Note (..))
 import qualified Unison.Type                as Type
 import qualified Unison.Typechecker.Context as C
-import qualified Unison.Typechecker.Extractor as Ex
+import           Unison.Typechecker.TypeError
 import qualified Unison.TypeVar             as TypeVar
 import qualified Unison.Util.AnnotatedText  as AT
 import           Unison.Util.ColorText      (StyledText)
@@ -52,55 +51,6 @@ data Env = Env { referenceNames   :: Map R.Reference String
 
 env0 :: Env
 env0 = Env mempty mempty
-
-data BooleanMismatch = CondMismatch | AndMismatch | OrMismatch | GuardMismatch
-data ExistentialMismatch = IfBody | VectorBody | CaseBody
-
-data TypeError v loc
-  = Mismatch { foundType    :: C.Type v loc -- overallType1
-             , expectedType :: C.Type v loc -- overallType2
-             , foundLeaf    :: C.Type v loc -- leaf1
-             , expectedLeaf :: C.Type v loc -- leaf2
-             , mismatchSite :: loc
-             , note         :: C.Note v loc
-             }
-  | BooleanMismatch { booleanMismatch :: BooleanMismatch
-                    , mismatchSite    :: loc
-                    , foundType       :: C.Type v loc
-                    , note            :: C.Note v loc
-                    }
-  | ExistentialMismatch { existentialMismatch :: ExistentialMismatch
-                        , expectedType        :: C.Type v loc
-                        , expectedLoc         :: loc
-                        , foundType           :: C.Type v loc
-                        , mismatchSite        :: loc
-                        , note                :: C.Note v loc
-                        }
-  | FunctionApplication { f            :: C.Term v loc
-                        , argNum       :: Int
-                        , expectedType :: C.Type v loc
-                        , foundType    :: C.Type v loc
-                        , arg          :: C.Term v loc
-                        , fVarInfo     :: Maybe (C.Type v loc, [(v, C.Type v loc)])
-                        , note         :: C.Note v loc
-                        }
-  | NotFunctionApplication { f :: C.Term v loc, ft :: C.Type v loc , note :: C.Note v loc }
-  | AbilityCheckFailure { ambient                 :: [C.Type v loc]
-                        , requested               :: [C.Type v loc]
-                        , abilityCheckFailureSite :: loc
-                        , note :: C.Note v loc
-                        }
-  | UnknownType { unknownType :: v
-                , typeSite    :: loc
-                , note        :: C.Note v loc
-                }
-  | UnknownTerm { unknownTerm :: v
-                , termSite :: loc
-                , suggestions :: [C.Suggestion v loc]
-                , expectedType :: C.Type v loc
-                , note :: C.Note v loc
-                }
-  | Other (C.Note v loc)
 
 mustBeBool :: (Var v, Annotated a, Eq a) =>
               [AT.Section Color.Style]
@@ -160,7 +110,7 @@ mustBeType initial env src expectedLoc mismatchSite expectedType mismatchedType 
   initial ++
   [ "  Here, one is "
   , AT.Text $ Color.type1 . renderType' env $ expectedType
-  , ", and the other is "
+  , ", and another is "
   , AT.Text $ Color.type2 . renderType' env $ mismatchedType, ":\n\n"
   , showSourceMaybes src [mismatchSiteS, expectedLocS]
   , "\n"
@@ -187,7 +137,7 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     ]
     ++ summary note
     where which =
-            case booleanMismatch of
+            case getBooleanMismatch of
               CondMismatch ->
                 [ "The condition for an ", AT.Text . Color.errorSite $ "if"
                 , "-expression has to be"]
@@ -212,7 +162,7 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     ]
     ++ summary note
     where which =
-            case existentialMismatch of
+            case getExistentialMismatch of
               IfBody ->
                 [ "The ", AT.Text . Color.errorSite $ "else"
                 , " clause of an ", AT.Text . Color.errorSite $ "if"
@@ -232,41 +182,41 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     , "\n"
     ] ++ summary note
   FunctionApplication {..} ->
-    [ "The ", ordinal argNum, " argument in the call below is "
-    , AT.Text $ Color.type2 . renderType' env $ foundType, ":"
-    , "\n\n"
+    [ "The ", ordinal argNum, " argument to the function "
+    , AT.Text $ renderTerm f
+    , " is "
+    , AT.Text $ Color.type2 . renderType' env $ foundType, ", "
+    , "but I was expecting "
+                , AT.Text $ Color.type1 . renderType' env $ expectedType
+    , ":\n\n"
     , showSourceMaybes src
-      -- [ (,Color.ErrorSite) <$> rangeForAnnotated f
       [ (,Color.Type1)     <$> rangeForAnnotated expectedType
       , (,Color.Type2)     <$> rangeForAnnotated foundType
       , (,Color.Type2)     <$> rangeForAnnotated arg
       ]
     , "\n"
-    , "but I was expecting "
-                , AT.Text $ Color.type1 . renderType' env $ expectedType
     ]
-    -- todo: why doesn't this print
     ++ case fVarInfo of
-      Just (_originalType, solvedVars@(_:_)) ->
+      Just (originalType, solvedVars@(_:_)) ->
         let go :: (v, C.Type v a) -> [AT.Section Color.Style]
             go (v,t) =
-             [ "  ", renderVar v
-             , " = ", AT.Text $ Color.type2 $ renderType' env t
-             , " from here:\n"
-             , showSourceMaybes src [(,Color.Type2) <$> rangeForAnnotated t]
+             [ " ", renderVar v
+             , " = ", AT.Text $ Color.errorSite $ renderType' env t
+             , ", from here:\n\n"
+             , showSourceMaybes src [(,Color.ErrorSite) <$> rangeForAnnotated t]
+             , "\n"
              ]
         in
-          [ " because the function has type\n"
-          , "\n"
-          , "  ", AT.Text $ renderType' env $ _originalType
-          , "\n"
-          , "where:"
+          [ " because the function has type"
+          , "\n\n"
+          , "  "
+          , AT.Text $ renderType' env $ Type.ungeneralizeEffects originalType
+          , "\n\n"
+          , " where:"
+          , "\n\n"
           ] ++ (solvedVars >>= go)
-          -- ++ ["\n"]
-          -- ++ showSourceMaybes src (go solvedVars)
-          ++ ["\n\n"]
-      _other -> ["."] -- forget it
-    ++ ["\n\n"]
+      _other -> [fromString $ "fVarInfo = " ++ show _other] -- forget it
+    ++ ["\n"]
     ++ summary note
   Mismatch {..} ->
     [ (fromString . annotatedToEnglish) mismatchSite
@@ -313,13 +263,13 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     ] ++ summary note
   UnknownType {..} ->
     [ "I don't know about the type "
-    , AT.Text . Color.style Color.ErrorSite $ renderVar unknownType
+    , AT.Text . Color.style Color.ErrorSite $ renderVar unknownTypeV
     , ".  Make sure it's imported and spelled correctly:\n\n"
     , annotatedAsErrorSite src typeSite
     ]
   UnknownTerm {..} ->
     [ "I'm not sure what "
-    , AT.Text . Color.style Color.ErrorSite $ (fromString . show) unknownTerm
+    , AT.Text . Color.style Color.ErrorSite $ (fromString . show) unknownTermV
     , " means at "
     , (fromString . annotatedToEnglish) termSite
     , "\n\n"
@@ -388,10 +338,11 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
         ["InSynthesizeApp t=", AT.Text $ renderType' env t
                       ,", e=", renderTerm e
                       ,", n=", fromString $ show n]
-      C.InSynthesizeApps f ft es ->
-        ["InSynthesizeApps f=", AT.Text $ renderTerm f
-                       ," ft=", AT.Text $ renderType' env ft
-                      ,", es=", "[", AT.Text $ commas renderTerm es, "]"]
+      C.InFunctionCall vs f ft es ->
+        ["InFunctionCall vs=[", AT.Text $ commas renderVar vs, "]"
+                       ,", f=", AT.Text $ renderTerm f
+                     ,", ft=", AT.Text $ renderType' env ft
+                    ,", es=[", AT.Text $ commas renderTerm es, "]"]
       C.InIfCond -> ["InIfCond"]
       C.InIfBody loc ->
         ["InIfBody thenBody=", fromString $ annotatedToEnglish loc]
@@ -401,6 +352,8 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
         ["InVectorApp firstTerm=", fromString $ annotatedToEnglish loc]
       C.InMatch loc ->
         ["InMatch firstBody=", fromString $ annotatedToEnglish loc]
+      C.InMatchGuard -> ["InMatchGuard"]
+      C.InMatchBody -> ["InMatchBody"]
     simpleCause :: C.Cause v a -> [AT.Section Color.Style]
     simpleCause = \case
       C.TypeMismatch c ->
@@ -426,9 +379,8 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
       C.CompilerBug c -> ["CompilerBug: ", fromString (show c)]
       C.AbilityCheckFailure ambient requested ctx ->
         [ "AbilityCheckFailure: "
-        , "ambient={"] ++ (AT.Text . renderType' env <$> ambient) ++
-        [ "} requested={"] ++
-        (AT.Text . renderType' env <$> requested)
+        , "ambient={"]     ++ [AT.Text . commas (renderType' env) $ ambient] ++
+        [ "} requested={"] ++ [AT.Text . commas (renderType' env) $ requested]
         ++ ["}\n"] ++ [fromString (show ctx)]
       C.EffectConstructorWrongArgCount e a r cid ->
         [ "EffectConstructorWrongArgCount:"
@@ -494,16 +446,19 @@ renderType env f = renderType0 env f (0 :: Int) where
     if test then "(" <> s <> ")" else s
   renderType0 env f p t = f (ABT.annotation t) $ case t of
     Type.Ref' r -> showRef' env r
-    Type.Arrows' ts -> paren (p >= 2) $ arrows (go 2) ts
+    Type.Arrow' i (Type.Effect1' e o) ->
+      paren (p >= 2) $ go 2 i <> " ->{" <> go 1 e <> "} " <> go 1 o
+    Type.Arrow' i o ->
+      paren (p >= 2) $ go 2 i <> " -> " <> go 1 o
     Type.Ann' t k -> paren True $ go 1 t <> " : " <> renderKind k
     Type.Tuple' ts -> paren True $ commas (go 0) ts
     Type.Apps' (Type.Ref' (R.Builtin "Sequence")) [arg] ->
       "[" <> go 0 arg <> "]"
     Type.Apps' f' args -> paren (p >= 3) $ spaces (go 3) (f':args)
-    Type.Effects' es -> paren (p >= 3) $ "{" <> commas (go 0) es <> "} "
+    Type.Effects' es -> commas (go 0) es
     Type.Effect' es t -> case es of
       [] -> go p t
-      _ -> paren (p >= 3) $ "{" <> commas (go 0) es <> "} " <> go 3 t
+      _ -> "{" <> commas (go 0) es <> "} " <> go 3 t
     Type.Effect1' e t -> paren (p >= 3) $ "{" <> go 0 e <> "}" <> go 3 t
     Type.ForallsNamed' vs body -> paren (p >= 1) $
       if p == 0 then go 0 body
@@ -516,7 +471,7 @@ spaces :: (IsString a, Monoid a) => (b -> a) -> [b] -> a
 spaces = intercalateMap " "
 
 arrows :: (IsString a, Monoid a) => (b -> a) -> [b] -> a
-arrows = intercalateMap " -> "
+arrows = intercalateMap " ->"
 
 commas :: (IsString a, Monoid a) => (b -> a) -> [b] -> a
 commas = intercalateMap ", "
@@ -591,78 +546,6 @@ rangeForAnnotated :: Annotated a => a -> Maybe Range
 rangeForAnnotated a = case ann a of
   Intrinsic     -> Nothing
   Ann start end -> Just $ Range start end
-
-typeErrorFromNote :: forall loc v. (Ord loc, Show loc, Var v) => C.Note v loc -> TypeError v loc
-typeErrorFromNote n@(C.Note (C.TypeMismatch ctx) path) =
-  let
-    pathl = toList path
-    subtypes = [ (t1, t2) | C.InSubtype t1 t2 <- pathl ]
-    firstSubtype = listToMaybe subtypes
-    lastSubtype = if null subtypes then Nothing else Just (last subtypes)
-    innermostTerm = C.innermostErrorTerm n
-    -- replace any type vars with their solutions before returning
-    sub t = C.apply ctx t
-  in case (firstSubtype, lastSubtype, innermostTerm) of
-    (Just (foundLeaf, expectedLeaf),
-     Just (foundType, expectedType),
-     Just mismatchSite) ->
-      let mismatchLoc = ABT.annotation mismatchSite
-          booleanMismatch
-            :: Monad m => m a -> BooleanMismatch -> m (TypeError v loc)
-          booleanMismatch x y = x >>
-            (pure $ BooleanMismatch y (ABT.annotation mismatchSite) foundType n)
-          existentialMismatch
-            :: Monad m => m loc -> ExistentialMismatch -> m (TypeError v loc)
-          existentialMismatch x y = x >>= \expectedLoc -> pure $
-            ExistentialMismatch y expectedType expectedLoc foundType mismatchLoc n
-          and,or,cond,guard,ifBody,vectorBody,caseBody,all,functionArg
-            :: Ex.NoteExtractor v loc (TypeError v loc)
-          and = booleanMismatch Ex.inAndApp AndMismatch
-          or = booleanMismatch Ex.inOrApp OrMismatch
-          cond = booleanMismatch Ex.inIfCond CondMismatch
-          guard = booleanMismatch Ex.inMatchCaseGuard GuardMismatch
-          ifBody = existentialMismatch Ex.inIfBody IfBody
-          vectorBody = existentialMismatch Ex.inVectorApp VectorBody
-          caseBody = existentialMismatch Ex.inMatchCaseBody CaseBody
-          functionArg = do
-            (f, index, expectedType, foundType, arg, fPoly) <- Ex.inApp
-            pure $ FunctionApplication f index expectedType foundType arg fPoly n
-
-          all = and <|> or <|> cond <|> guard <|>
-                ifBody <|> vectorBody <|> caseBody <|> functionArg
-
-      in case Ex.run all n of
-        Just msg -> msg
-        Nothing ->
-          Mismatch (sub foundType) (sub expectedType)
-                   (sub foundLeaf) (sub expectedLeaf)
-                   (ABT.annotation mismatchSite)
-                   n
-    (Nothing, Nothing, Just mismatchSite) ->
-      let --mismatchLoc = ABT.annotation mismatchSite
-          appyingNonFunction = do
-            (f, ft) <- Ex.applyingNonFunction
-            pure $ NotFunctionApplication f ft n
-      in case Ex.run appyingNonFunction n of
-        Just msg -> msg
-        Nothing -> trace ("other debug:\n"
-                          ++ "  mismatchSite: " ++ show mismatchSite ++ "\n") $
-                   Other n
-    _ ->
-      trace ("other debug:\n"
-              ++ "   firstSubtype: " ++ show firstSubtype ++ "\n"
-              ++ "    lastSubtype: " ++ show lastSubtype ++ "\n"
-              ++ "  innermostTerm: " ++ show innermostTerm ++ "\n") $
-      Other n
-typeErrorFromNote n@(C.Note (C.AbilityCheckFailure amb req _) _) =
-  let go :: C.Term v loc -> TypeError v loc
-      go e = AbilityCheckFailure amb req (ABT.annotation e) n
-  in fromMaybe (Other n) $ go <$> C.innermostErrorTerm n
-typeErrorFromNote n@(C.Note (C.UnknownSymbol loc v) _) =
-  UnknownType v loc n
-typeErrorFromNote n@(C.Note (C.UnknownTerm loc v suggs typ) _) =
-  UnknownTerm v loc suggs typ n
-typeErrorFromNote n@(C.Note _ _) = Other n
 
 showLexerOutput :: Bool
 showLexerOutput = False

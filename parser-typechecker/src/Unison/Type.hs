@@ -6,9 +6,16 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
 
 module Unison.Type where
 
+-- import Debug.Trace
+import Control.Monad (join)
+import Data.Functor.Identity (runIdentity)
+import Data.Functor.Const (Const(..), getConst)
+import Data.Monoid (Any(..))
 import qualified Data.Char as Char
 import           Data.List
 import           Data.Set (Set)
@@ -82,6 +89,7 @@ monotype t = Monotype <$> ABT.visit isMono t where
 arity :: AnnotatedType v a -> Int
 arity (ForallNamed' _ body) = arity body
 arity (Arrow' _ o) = 1 + arity o
+arity (Ann' a _) = arity a
 arity _ = 0
 
 -- some smart patterns
@@ -316,6 +324,141 @@ flipApply t = forall() b $ arrow() (arrow() t (var() b)) (var() b)
 generalize :: Ord v => AnnotatedType v a -> AnnotatedType v a
 generalize t = foldr (forall (ABT.annotation t)) t $ Set.toList (ABT.freeVars t)
 
+-- Adds effect polymorphism to a type signature. That is, converts a signature like:
+--
+-- map : (a -> b) -> List a -> List b
+--
+-- to:
+--
+-- map : (a ->{e} b) ->{e} List a ->{e} (List b)
+--
+-- The `arity` is the number of arguments the function takes which
+-- are assumed to be pure. Applying `generalizeEffects 2` to the
+-- signature of `map` would give:
+-- map : (a ->{e} b) -> List a ->{e} List b
+--
+-- Notice the arrow before `List a` has no effects on it. This is
+-- a strictly more general type, as it's equivalent to:
+--
+-- map : ∀ a b e e2 . (a ->{e} b) ->{e2} List a ->{e} List b
+--
+-- `1` is a conservative lower bound, but if you have a type formed
+-- from a lambda like `x y -> ...`, then it's safe to assume arity 2.
+-- Without `arity`, it's not safe to assume that partial applications
+-- of a function type are all pure except the last one. For instance,
+-- consider:
+--
+-- hof : (a -> a) -> a -> [a] -> [a]
+--
+-- Can we generalize this to `(a ->{e} a) -> a -> List a ->{e} List a` ?
+-- Not necessarily, since the implementation of `hof` could be:
+-- hof f a =
+--   out = [f a]
+--   as -> out
+--
+-- In general, higher order function types might apply some of their input
+-- functions before receiving all the arguments to the function, so if
+-- we make any of these input functions effectful, some of the partial
+-- applications of the function type may need to become effectful in the same way.
+--
+-- If the function result mentions effects anywhere (if it contains any `{}`),
+-- we leave the signature alone as it's unclear what transformation the user might
+-- want. The user is responsible for using effect variables as they wish.
+generalizeEffects :: forall v a . Var v => Int -> AnnotatedType v a -> AnnotatedType v a
+generalizeEffects _arity t | usesEffects t = t
+generalizeEffects  arity t =
+  let
+    at = ABT.annotation t
+    e = ABT.freshEverywhere t (Var.named "𝛆")
+    evar = var at e
+    ev t = effect at [evar] t
+    go :: Int -> AnnotatedType v a -> AnnotatedType v a
+    go remPure t = let at = ABT.annotation t in case t of
+      Arrow' i o -> case o of
+        Effect' _ _ -> t
+        _ | remPure <= 0 -> arrow at (go 0 i) (ev $ go 0 o)
+          | otherwise    -> arrow at (go 0 i) (go (remPure - 1) o)
+      Ann' t k -> ann at (go remPure t) k
+      Effect1' e e2 -> effect1 at (go 0 e) (go 0 e2)
+      Effects' es -> effects at (go 0 <$> es)
+      ForallNamed' v body -> forall at v (go remPure body)
+      _ -> t
+    t' = go (arity - 1) t
+    tr = if Set.member e (ABT.freeVars t') then forall at e t'
+         else t'
+  in tr
+
+usesEffects :: Var v => AnnotatedType v a -> Bool
+usesEffects t = getAny . getConst $ ABT.visit go t where
+  go (Effect1' _ _) = Just (Const (Any True))
+  go _ = Nothing
+
+ungeneralizeEffects :: Var v => AnnotatedType v a -> AnnotatedType v a
+ungeneralizeEffects t = case functionResult t of
+  Just (Effect' [Var' e] _)
+    | Var.name e == "𝛆" -> stripE e t
+    | otherwise -> t
+    where
+    isVar v (Var' e) = e == v
+    isVar _ _ = False
+    unE :: Var v => v -> AnnotatedType v a -> Maybe (AnnotatedType v a)
+    unE e et@(Effect' es v) = case filter (not . isVar e) es of
+      [] -> Just (ABT.visitPure (unE e) v)
+      es -> Just (effect (ABT.annotation et) es (ABT.visitPure (unE e) v))
+    unE _ _ = Nothing
+    stripE :: Var v => v -> AnnotatedType v a -> AnnotatedType v a
+    stripE e t@(ForallNamed' e0 body) | e == e0 = ABT.visitPure (unE e) body
+                                      | otherwise = t
+    stripE _e t = t
+  Just _ -> t
+  Nothing -> t
+
+-- Returns free effect variables in the given type, for instance, in:
+--
+--   ∀ e3 . a ->{e,e2} b ->{e3} c
+--
+-- This function would return the set {e, e2}, but not `e3` since `e3`
+-- is bound by the enclosing forall.
+freeEffectVars :: Var v => AnnotatedType v a -> Set v
+freeEffectVars t =
+  Set.fromList . join . runIdentity $
+    ABT.foreachSubterm go (snd <$> ABT.annotateBound t)
+  where
+    go t@(Effect1' e _) =
+      let frees = Set.fromList [ v | Var' v <- flattenEffects e ]
+      in pure . Set.toList $ frees `Set.difference` ABT.annotation t
+    go _ = pure []
+
+-- Remove free effect variables from the type that are in the set
+removeEffectVars :: Var v => Set v -> AnnotatedType v a -> AnnotatedType v a
+removeEffectVars removals t =
+  let z = effects (ABT.annotation t) []
+      t' = ABT.substs ((,z) <$> Set.toList removals) t
+      removeEmpty t@(Effect1' e v) =
+        let es = flattenEffects e
+        in Just (effect (ABT.annotation t) es $ ABT.visitPure removeEmpty v)
+      removeEmpty _ = Nothing
+  in ABT.visitPure removeEmpty t'
+
+removePureEffects :: Var v => AnnotatedType v a -> AnnotatedType v a
+removePureEffects t =
+  removeEffectVars (Set.filter isPure (freeEffectVars t)) t
+  where
+    -- If an effect variable is mentioned only once, it is on
+    -- an arrow `a ->{e} b`. Generalizing this to
+    -- `∀ e . a ->{e} b` gives us the pure arrow `a -> b`.
+    isPure v = ABT.occurrences v t <= 1
+
+functionResult :: AnnotatedType v a -> Maybe (AnnotatedType v a)
+functionResult t = go False t where
+  go inArr (ForallNamed' _ body) = go inArr body
+  go _inArr (Arrow' _i o) = go True o
+  go inArr t = if inArr then Just t else Nothing
+
+generalizeEffects' :: Var v => AnnotatedType v a -> AnnotatedType v a
+generalizeEffects' = generalizeEffects 1
+
+
 -- | Bind all free variables that start with a lowercase letter with an outer `forall`.
 generalizeLowercase :: Var v => AnnotatedType v a -> AnnotatedType v a
 generalizeLowercase t = foldr (forall (ABT.annotation t)) t vars
@@ -355,7 +498,7 @@ instance Show a => Show (F a) where
     go p (Effects es) = showParen (p > 0) $
       s"{" <> showsPrec 0 es <> s"}"
     go p (Effect e t) = showParen (p > 0) $
-     showsPrec 0 e <> s" " <> showsPrec p t
+     showParen True $ showsPrec 0 e <> s" " <> showsPrec p t
     go p (Forall body) = case p of
       0 -> showsPrec p body
       _ -> showParen True $ s"∀ " <> showsPrec 0 body

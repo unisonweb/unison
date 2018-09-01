@@ -246,6 +246,16 @@ freshInBoth t1 t2 = fresh t2 . fresh t1
 fresh :: Var v => Term f v a -> v -> v
 fresh t = fresh' (freeVars t)
 
+freshEverywhere :: (Foldable f, Var v) => Term f v a -> v -> v
+freshEverywhere t v = fresh' (Set.fromList $ allVars t) v
+
+allVars :: Foldable f => Term f v a -> [v]
+allVars t = case out t of
+  Var v -> [v]
+  Cycle body -> allVars body
+  Abs v body -> v : allVars body
+  Tm v -> Foldable.toList v >>= allVars
+
 fresh' :: Var v => Set v -> v -> v
 fresh' used = Var.freshIn used
 
@@ -301,6 +311,15 @@ substs :: (Foldable f, Functor f, Var v)
        => [(v, Term f v a)] -> Term f v a -> Term f v a
 substs replacements body = foldr f body (reverse replacements) where
   f (v, t) body = subst v t body
+
+-- Count the number times the given variable appears free in the term
+occurrences :: (Foldable f, Var v) => v -> Term f v a -> Int
+occurrences v t | not (v `isFreeIn` t) = 0
+occurrences v t = case out t of
+  Var v2 -> if v == v2 then 1 else 0
+  Cycle t -> occurrences v t
+  Abs v2 t -> if v == v2 then 0 else occurrences v t
+  Tm t -> foldl' (\s t -> s + occurrences v t) 0 $ Foldable.toList t
 
 rebuildUp :: (Ord v, Foldable f, Functor f)
           => (f (Term f v a) -> f (Term f v a))
