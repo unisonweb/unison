@@ -11,8 +11,11 @@
 
 module Unison.Type where
 
+import Debug.Trace
 import Control.Monad (join)
 import Data.Functor.Identity (runIdentity)
+import Data.Functor.Const (Const(..), getConst)
+import Data.Monoid (Any(..))
 import qualified Data.Char as Char
 import           Data.List
 import           Data.Set (Set)
@@ -357,14 +360,15 @@ generalize t = foldr (forall (ABT.annotation t)) t $ Set.toList (ABT.freeVars t)
 -- functions before receiving all the arguments to the function, so if
 -- we make any of these input functions effectful, some of the partial
 -- applications of the function type may need to become effectful in the same way.
+--
+-- If the function result mentions effects anywhere (if it contains any `{}`),
+-- we leave the signature alone as it's unclear what transformation the user might
+-- want. The user is responsible for using effect variables as they wish.
 generalizeEffects :: forall v a . Var v => Int -> AnnotatedType v a -> AnnotatedType v a
-generalizeEffects arity t = case functionResult t of
-  Nothing -> t
-  -- If the function result mentions effects, leave the signature alone as it's
-  -- unclear what transformation the user might want. The user is responsible for
-  -- using effect variables as they wish.
-  Just (Effect1' _ _) -> t
-  _ -> let
+generalizeEffects  arity t | traceShow ("generalizeEffects"::String, arity, t) False = undefined
+generalizeEffects _arity t | usesEffects t = t
+generalizeEffects  arity t =
+  let
     at = ABT.annotation t
     e = ABT.freshEverywhere t (Var.named "𝛆")
     evar = var at e
@@ -381,8 +385,14 @@ generalizeEffects arity t = case functionResult t of
       ForallNamed' v body -> forall at v (go remPure body)
       _ -> t
     t' = go (arity - 1) t
-    in if Set.member e (ABT.freeVars t') then forall at e t'
-       else t'
+    tr = if Set.member e (ABT.freeVars t') then forall at e t'
+         else t'
+  in traceShow ("generalizeEffects"::String, arity, tr) tr
+
+usesEffects :: Var v => AnnotatedType v a -> Bool
+usesEffects t = getAny . getConst $ ABT.visit go t where
+  go (Effect1' _ _) = Just (Const (Any True))
+  go _ = Nothing
 
 ungeneralizeEffects :: Var v => AnnotatedType v a -> AnnotatedType v a
 ungeneralizeEffects t = case functionResult t of
@@ -425,9 +435,9 @@ removeEffectVars :: Var v => Set v -> AnnotatedType v a -> AnnotatedType v a
 removeEffectVars removals t =
   let z = effects (ABT.annotation t) []
       t' = ABT.substs ((,z) <$> Set.toList removals) t
-      removeEmpty t@(Effect1' e v) = case flattenEffects e of
-        [] -> Just (ABT.visitPure removeEmpty v)
-        es -> Just (effect (ABT.annotation t) es $ ABT.visitPure removeEmpty v)
+      removeEmpty t@(Effect1' e v) =
+        let es = flattenEffects e
+        in Just (effect (ABT.annotation t) es $ ABT.visitPure removeEmpty v)
       removeEmpty _ = Nothing
   in ABT.visitPure removeEmpty t'
 
