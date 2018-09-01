@@ -11,7 +11,7 @@
 
 module Unison.Type where
 
-import Debug.Trace
+-- import Debug.Trace
 import Control.Monad (join)
 import Data.Functor.Identity (runIdentity)
 import Data.Functor.Const (Const(..), getConst)
@@ -365,7 +365,6 @@ generalize t = foldr (forall (ABT.annotation t)) t $ Set.toList (ABT.freeVars t)
 -- we leave the signature alone as it's unclear what transformation the user might
 -- want. The user is responsible for using effect variables as they wish.
 generalizeEffects :: forall v a . Var v => Int -> AnnotatedType v a -> AnnotatedType v a
-generalizeEffects  arity t | traceShow ("generalizeEffects"::String, arity, t) False = undefined
 generalizeEffects _arity t | usesEffects t = t
 generalizeEffects  arity t =
   let
@@ -387,7 +386,7 @@ generalizeEffects  arity t =
     t' = go (arity - 1) t
     tr = if Set.member e (ABT.freeVars t') then forall at e t'
          else t'
-  in traceShow ("generalizeEffects"::String, arity, tr) tr
+  in tr
 
 usesEffects :: Var v => AnnotatedType v a -> Bool
 usesEffects t = getAny . getConst $ ABT.visit go t where

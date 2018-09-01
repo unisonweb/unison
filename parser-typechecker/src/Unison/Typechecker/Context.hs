@@ -671,7 +671,6 @@ synthesize e = scope (InSynthesize e) $ do
     body <- pure $ ABT.bindInheritAnnotation body (Term.var() arg)
     withEffects0 [et] $ check body ot
     ctx <- getContext
-    traceM $ "et = " ++ show (apply ctx et)
     pure $ Type.arrow l it (Type.effect l (apply ctx <$> [et]) ot)
   go (Term.LetRecNamed' [] body) = synthesize body
   go (Term.LetRec' letrec) = do
@@ -868,11 +867,7 @@ annotateLetRecBindings letrec = do
       bindingArities = Term.arity . snd <$> bindings
   appendContext $ context (Marker e1 : map existential es ++ zipWith Ann vs bindingTypes)
   -- check each `bi` against `ei`; sequencing resulting contexts
-  Foldable.for_ (zip bindings bindingTypes) $ \((_,b), t) -> do
-    traceM "starting binding check"
-    check b t
-    t2 <- applyM t
-    traceM $ "t = " ++ show t2
+  Foldable.for_ (zip bindings bindingTypes) $ \((_,b), t) -> check b t
   -- compute generalized types `gt1, gt2 ...` for each binding `b1, b2...`;
   -- add annotations `v1 : gt1, v2 : gt2 ...` to the context
   (_, _, ctx2) <- breakAt (Marker e1) <$> getContext
@@ -978,7 +973,7 @@ check e0 t0 = scope (InCheck e0 t0) $ do
 -- | `subtype ctx t1 t2` returns successfully if `t1` is a subtype of `t2`.
 -- This may have the effect of altering the context.
 subtype :: forall v loc . (Var v, Ord loc) => Type v loc -> Type v loc -> M v loc ()
-subtype tx ty | True && traceShow ("subtype"::String, tx, ty) False = undefined
+subtype tx ty | debugEnabled && traceShow ("subtype"::String, tx, ty) False = undefined
 subtype tx ty = scope (InSubtype tx ty) $
   do ctx <- getContext; go (ctx :: Context v loc) tx ty
   where -- Rules from figure 9
@@ -1042,7 +1037,7 @@ subtype tx ty = scope (InSubtype tx ty) $
 -- a subtype of the given type, updating the context
 -- in the process.
 instantiateL :: (Var v, Ord loc) => B.Blank loc -> v -> Type v loc -> M v loc ()
-instantiateL _ v t | True && traceShow ("instantiateL"::String, v, t) False = undefined
+instantiateL _ v t | debugEnabled && traceShow ("instantiateL"::String, v, t) False = undefined
 instantiateL blank v t = scope (InInstantiateL v t) $ do
   getContext >>= \ctx -> case Type.monotype t >>= solve ctx v of
     Just ctx -> setContext ctx -- InstLSolve
@@ -1099,7 +1094,7 @@ instantiateL blank v t = scope (InInstantiateL v t) $ do
 -- a supertype of the given type, updating the context
 -- in the process.
 instantiateR :: (Var v, Ord loc) => Type v loc -> B.Blank loc -> v -> M v loc ()
-instantiateR t _ v | True && traceShow ("instantiateR"::String, t, v) False = undefined
+instantiateR t _ v | debugEnabled && traceShow ("instantiateR"::String, t, v) False = undefined
 instantiateR t blank v = scope (InInstantiateR t v) $
   getContext >>= \ctx -> case Type.monotype t >>= solve ctx v of
     Just ctx -> setContext ctx -- InstRSolve
