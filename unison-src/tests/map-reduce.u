@@ -56,8 +56,6 @@ namespace Monoid where
   par m =
     o = op m
     z = zero m
-    -- note - does not typecheck if flip the order of the constructor!
-    -- the 'z has type 'a, which fails to match the later remote thunk
     Monoid (a1 a2 -> par-apply o a1 a2) 'z
 
 force : '{e} a -> {e} a

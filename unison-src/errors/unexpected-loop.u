@@ -2,6 +2,8 @@
 effect Abort where
   Abort : forall a . () -> {Abort} a
 
+use UInt64 +
+
 bork = u -> 1 + (Abort.Abort ())
 
 (bork : UInt64)

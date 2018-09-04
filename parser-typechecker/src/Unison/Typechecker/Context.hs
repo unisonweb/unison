@@ -1054,8 +1054,7 @@ instantiateL blank v t = scope (InInstantiateL v t) $ do
         modifyContext' $ replace (existential v)
                                  (context [existential o', existential i', s])
         instantiateR i B.Blank i' -- todo: not sure about this, could also be `blank`
-        ctx <- getContext
-        instantiateL B.Blank o' (apply ctx o)
+        applyM o >>= instantiateL B.Blank o'
       Type.App' x y -> do -- analogue of InstLArr
         [x', y'] <- traverse freshenVar [ABT.v' "x", ABT.v' "y"]
         let s = Solved blank v (Type.Monotype (Type.app (loc t)
@@ -1063,29 +1062,28 @@ instantiateL blank v t = scope (InInstantiateL v t) $ do
                                                   (Type.existentialp (loc y) y')))
         modifyContext' $ replace (existential v)
                                  (context [existential y', existential x', s])
-        ctx0 <- getContext
-        ctx' <- instantiateL B.Blank x' (apply ctx0 x) >> getContext
-        instantiateL B.Blank y' (apply ctx' y)
+        applyM x >>= instantiateL B.Blank x'
+        applyM y >>= instantiateL B.Blank y'
       Type.Effect1' es vt -> do
         es' <- freshNamed "effect1-e"
         vt' <- freshNamed "vt"
-        let t = Type.effect1 (loc t) (Type.existentialp (loc es) es')
-                                     (Type.existentialp (loc vt) vt')
-            s = Solved blank v (Type.Monotype t)
+        let t' = Type.effect1 (loc t) (Type.existentialp (loc es) es')
+                                      (Type.existentialp (loc vt) vt')
+            s = Solved blank v (Type.Monotype t')
         modifyContext' $ replace (existential v)
                          (context [existential es', existential vt', s])
-        ctx <- getContext
-        instantiateL B.Blank vt' (apply ctx vt)
+        applyM es >>= instantiateL B.Blank es'
+        applyM vt >>= instantiateL B.Blank vt'
       Type.Effects' es -> do
         es' <- replicateM (length es) (freshNamed "e")
         let locs = loc <$> es
-            t = Type.effects (loc t) (uncurry Type.existentialp <$> locs `zip` es')
-            s = Solved blank v $ Type.Monotype t
+            t' = Type.effects (loc t) (uncurry Type.existentialp <$> locs `zip` es')
+            -- t = Type.effects (loc t) (uncurry Type.existentialp <$> locs `zip` es')
+            s = Solved blank v $ Type.Monotype t'
         modifyContext' $ replace (existential v)
                                  (context $ (existential <$> es') ++ [s])
-        Foldable.for_ (es' `zip` es) $ \(e',e) -> do
-          ctx <- getContext
-          instantiateL B.Blank e' (apply ctx e)
+        Foldable.for_ (es' `zip` es) $ \(e',e) ->
+          applyM e >>= instantiateL B.Blank e'
       Type.Forall' body -> do -- InstLIIL
         v <- extendUniversal =<< ABT.freshen body freshenTypeVar
         instantiateL B.Blank v (ABT.bindInheritAnnotation body (Type.universal v))
@@ -1123,25 +1121,23 @@ instantiateR t blank v = scope (InInstantiateR t v) $
         [x', y'] <- traverse freshenVar [ABT.v' "instR-x", ABT.v' "instR-y"]
         let s = Solved blank v (Type.Monotype (Type.app (loc t) (Type.existentialp (loc x) x') (Type.existentialp (loc y) y')))
         modifyContext' $ replace (existential v) (context [existential y', existential x', s])
-        ctx <- getContext
-        instantiateR (apply ctx x) B.Blank x'
-        ctx <- getContext
-        instantiateR (apply ctx y) B.Blank y'
+        applyM x >>= \x -> instantiateR x B.Blank x'
+        applyM y >>= \y -> instantiateR y B.Blank y'
       Type.Effect1' es vt -> do
         es' <- freshNamed "e"
         vt' <- freshNamed "vt"
-        let t = Type.effect1 (loc t) (Type.existentialp (loc es) es')
-                                     (Type.existentialp (loc vt) vt')
-            s = Solved blank v (Type.Monotype t)
+        let t' = Type.effect1 (loc t) (Type.existentialp (loc es) es')
+                                      (Type.existentialp (loc vt) vt')
+            s = Solved blank v (Type.Monotype t')
         modifyContext' $ replace (existential v)
                          (context [existential es', existential vt', s])
-        ctx <- getContext
-        instantiateR (apply ctx vt) B.Blank vt'
+        applyM es >>= \es -> instantiateR es B.Blank es'
+        applyM vt >>= \vt -> instantiateR vt B.Blank vt'
       Type.Effects' es -> do
         es' <- replicateM (length es) (freshNamed "e")
         let locs = loc <$> es
-            t = Type.effects (loc t) (uncurry Type.existentialp <$> locs `zip` es')
-            s = Solved blank v $ Type.Monotype t
+            t' = Type.effects (loc t) (uncurry Type.existentialp <$> locs `zip` es')
+            s = Solved blank v $ Type.Monotype t'
         modifyContext' $ replace (existential v)
                                  (context $ (existential <$> es') ++ [s])
         Foldable.for_ (es `zip` es') $ \(e, e') -> do
@@ -1207,10 +1203,11 @@ abilityCheck' ambient0 requested0 = go ambient0 requested0 where
 
   -- as a last ditch effort, if the request is an existential and there are
   -- no remaining unbound existentials left in ambient, we try to instantiate
-  -- the request to the empty effect list
+  -- the request to the ambient effect list
   die r = case r of
     Type.Existential' b v ->
-      instantiateL b v (Type.effects (loc r) []) `orElse` die1
+      instantiateL b v (Type.effects (loc r) ambient0) `orElse` die1
+      -- instantiateL b v (Type.effects (loc r) []) `orElse` die1
     _ -> die1 -- and if that doesn't work, then we're really toast
 
   die1 = do
