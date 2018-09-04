@@ -50,8 +50,9 @@ data Ranged a
   deriving (Functor, Ord, Eq, Show)
 
 -- | collects the regions where `xa` doesn't match / aka invert a set of intervals
-no :: SubseqExtractor' n a -> SubseqExtractor' n ()
-no xa = SubseqExtractor' $ \note ->
+-- unused, but don't want to delete it yet - Aug 30, 2018
+_no :: SubseqExtractor' n a -> SubseqExtractor' n ()
+_no xa = SubseqExtractor' $ \note ->
   let as = runSubseq xa note in
     if null [ a | Pure a <- as ] then -- results are not full
       if null as then [Pure ()] -- results are empty, make them full
@@ -70,21 +71,20 @@ no xa = SubseqExtractor' $ \note ->
   go (rs, Just r0) (l, r) =
     (if r0 + 1 <= l - 1 then Ranged () (r0 + 1) (l - 1) : rs else rs, Just r)
 
-any :: SubseqExtractor v loc ()
-any = any' (\n -> pathLength n - 1)
+-- unused / untested
+_any :: SubseqExtractor v loc ()
+_any = _any' (\n -> pathLength n - 1)
+  where
+  pathLength :: C.Note v loc -> Int
+  pathLength = length . toList . C.path
 
-any' :: (n -> Int) -> SubseqExtractor' n ()
-any' getLast = SubseqExtractor' $ \note -> Pure () : do
+_any' :: (n -> Int) -> SubseqExtractor' n ()
+_any' getLast = SubseqExtractor' $ \note -> Pure () : do
   let last = getLast note
   start <- [0..last]
   end <- [0..last]
   pure $ Ranged () start end
 
-pathStart :: SubseqExtractor' n ()
-pathStart = SubseqExtractor' $ \_ -> [Ranged () (-1) (-1)]
-
-pathLength :: C.Note v loc -> Int
-pathLength = length . toList . C.path
 
 -- unused / untested
 _many :: forall n a. Ord a => SubseqExtractor' n a -> SubseqExtractor' n [a]
@@ -107,6 +107,8 @@ _many xa = SubseqExtractor' $ \note ->
     isAdjacent (Ranged _ _ endA) (Ranged _ startB _) = endA + 1 == startB
     isAdjacent _ _                                   = False
 
+pathStart :: SubseqExtractor' n ()
+pathStart = SubseqExtractor' $ \_ -> [Ranged () (-1) (-1)]
 
 -- Scopes --
 asPathExtractor :: (C.PathElement v loc -> Maybe a) -> SubseqExtractor v loc a
