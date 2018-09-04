@@ -95,7 +95,7 @@ object BuiltinTypes {
     }
   }
 
-  def dataConstructorish(req: (Array[Value]) => Value, decompile: Term,
+  def dataConstructorish(req: Array[Value] => Value, decompile: Term,
                          paramNames: Name*): Computation = {
     val arity = paramNames.length
     val body: Computation = arity match {
@@ -119,7 +119,7 @@ object BuiltinTypes {
         (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
           // arity = 3, argsStart = top.toInt,     argsStop = top.toInt + 1
           // arity = 4, argsStart = top.toInt - 1, argsStop = top.toInt + 1
-          val argsStart = top.toInt - ((arity - compilation.K) + 1)
+          val argsStart = top.toInt + 1 - (arity - compilation.K)
           val argsStop = top.toInt + 1
           val args = new Array[Value](arity)
           locally {
