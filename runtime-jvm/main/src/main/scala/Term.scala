@@ -363,6 +363,13 @@ object Term {
       if (args.isEmpty) f
       else Tm(Apply_(f, args.toList))
   }
+  object ApplyNested {
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[(AnnotatedTerm[F,A], List[AnnotatedTerm[F,A]])] = t match {
+      case Apply(ApplyNested(f, args1), args2) => Some((f, args1 ++ args2))
+      case Apply(f, args) => Some((f, args))
+      case _ => None
+    }
+  }
 
   object Var {
     def apply(n: Name): Term = ABT.Var(n)

@@ -210,9 +210,9 @@ object PrettyPrint {
         prettyTerm(arg1, 5) <> " " <> infixName(name) <> softbreak <> prettyTerm(arg2, 6).nest("  ")
     }
     case Tuple(args) => "(" <> commas(args.map(prettyTerm)) <> ")"
-    case Term.Apply(Term.Constructor(BuiltinTypes.Tuple.Id, BuiltinTypes.Tuple.cid), args) =>
+    case Term.ApplyNested(Term.Constructor(BuiltinTypes.Tuple.Id, BuiltinTypes.Tuple.cid), args) =>
       "(" <> commas(args.map(prettyTerm)) <> ")"
-    case Term.Apply(f, args) => parenthesizeGroupIf(precedence > 9) {
+    case Term.ApplyNested(f, args) => parenthesizeGroupIf(precedence > 9) {
       prettyTerm(f, 9) <> softbreak <>
         softbreaks(args.map(arg => prettyTerm(arg, 10).nest("  ")))
     }

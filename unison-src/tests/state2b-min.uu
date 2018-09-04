@@ -1,0 +1,16 @@
+--State2 effect
+effect State s where
+  put : s -> {State s} ()
+
+state : s -> Effect (State s) a -> s
+state s eff = case eff of
+  { State.put snew -> k } -> handle (state snew) in k ()
+  { a } -> s
+
+handle (state 10) in
+  State.put (11 + 1)
+  State.put (5 + 15)
+  ()
+
+-- should return `20`, but actually returns `12`
+-- seems like only one `put` is actually being run
