@@ -32,6 +32,7 @@ import           Unison.Term (AnnotatedTerm)
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 import           Unison.Type (AnnotatedType)
+import qualified Unison.Typechecker.Components as Components
 import qualified Unison.TypeParser as TypeParser
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
@@ -311,7 +312,7 @@ namespaceBlock = do
   pure $ Namespace (L.payload name) elems
 
 block' :: forall v b. Var v => String -> P v (L.Token ()) -> P v b -> TermP v
-block' s openBlock closeBlock = do
+block' s openBlock closeBlock = Components.minimize' <$> do
     open <- openBlock
     let sem = P.try (semi <* P.lookAhead (reserved "use"))
     imports <- mconcat . reverse <$> sepBy sem importp

@@ -941,7 +941,8 @@ package object compilation {
   }
 
   def normalize(builtins: Environment)(e: Term, fullyDecompile: Boolean = true): Term = {
-    val c = compileTop(builtins)(e)
+    val anf = Term.ANF(e)
+    val c = compileTop(builtins)(anf)
     val v = run(c)
     val x = Term.etaNormalForm(v.decompile)
     if (fullyDecompile) Term.fullyDecompile(x)
