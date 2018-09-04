@@ -313,6 +313,16 @@ rebuildUp f (Term _ ann body) = case body of
   Abs x e -> abs' ann x (rebuildUp f e)
   Tm body -> tm' ann (f $ fmap (rebuildUp f) body)
 
+rebuildUp' :: (Ord v, Foldable f, Functor f)
+          => (Term f v a -> Term f v a)
+          -> Term f v a
+          -> Term f v a
+rebuildUp' f (Term _ ann body) = case body of
+  Var v -> f (annotatedVar ann v)
+  Cycle body -> f $ cycle' ann (rebuildUp' f body)
+  Abs x e -> f $ abs' ann x (rebuildUp' f e)
+  Tm body -> f $ tm' ann (fmap (rebuildUp' f) body)
+
 -- Annotate the tree with the set of bound variables at each node.
 annotateBound :: (Ord v, Foldable f, Functor f) => Term f v a -> Term f v (a, Set v)
 annotateBound t = go Set.empty t where

@@ -66,7 +66,6 @@ components' freeVars bs =
 -- that `id` is suitably generalized.
 minimize :: Var v => AnnotatedTerm' vt v a -> Maybe (AnnotatedTerm' vt v a)
 minimize (Term.LetRecNamedAnnotated' ann bs e) = case components (first snd <$> bs) of
-  [_single] -> Nothing
   cs ->
     let
       varAnnotations = Map.fromList ((\((a,v),_) -> (v,a)) <$> bs)
