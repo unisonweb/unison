@@ -111,6 +111,8 @@ pattern Forall' subst <- ABT.Tm' (Forall (ABT.Abs' subst))
 pattern ForallsNamed' vs body <- (unForalls -> Just (vs, body))
 pattern ForallNamed' v body <- ABT.Tm' (Forall (ABT.out -> ABT.Abs v body))
 pattern Var' v <- ABT.Var' v
+pattern Cycle' xs t <- ABT.Cycle' xs t
+pattern Abs' subst <- ABT.Abs' subst
 pattern Tuple' ts <- (unTuple -> Just ts)
 pattern Existential' b v <- ABT.Var' (TypeVar.Existential b v)
 pattern Universal' v <- ABT.Var' (TypeVar.Universal v)
