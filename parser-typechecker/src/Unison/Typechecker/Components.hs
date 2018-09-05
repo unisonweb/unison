@@ -43,14 +43,16 @@ components = components' ABT.freeVars
 components' :: Var v => (t -> Set v) -> [(v, t)] -> [[(v, t)]]
 components' freeVars bs =
   let
-    varIds = Map.fromList (map fst bs `zip` [(0::Int)..])
+    varIds = Map.fromList (map fst bs `zip` reverse [(1::Int) .. length bs])
     varId v = fromJust $ Map.lookup v varIds -- something horribly wrong if this bombs
     -- use ints as keys for graph to preserve original source order as much as possible
     graph = [ ((v,b), varId v, deps b) | (v,b) <- bs ]
     vars = Set.fromList (map fst bs)
     deps b = varId <$> Set.toList (Set.intersection vars (freeVars b))
   in
-    Graph.flattenSCC <$> Graph.stronglyConnComp graph
+    if Map.size varIds /= length bs then
+      error $ "duplicate names in components: " ++ show (fst <$> bs)
+    else Graph.flattenSCC <$> Graph.stronglyConnComp graph
 
 -- | Algorithm for minimizing cycles of a `let rec`. This can
 -- improve generalization during typechecking and may also be more
