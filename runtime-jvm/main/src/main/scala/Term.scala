@@ -522,5 +522,8 @@ object Term {
     implicit def stringKeyToNameTerm[A <% Term](kv: (String, A)): (Name, Term) = (kv._1, kv._2)
     implicit def symbolKeyToNameTerm[A <% Term](kv: (Symbol, A)): (Name, Term) = (kv._1, kv._2)
   }
+
+  val compose = { import Syntax._; Term.Lam('f, 'g, 'x)('f.v('g.v('x))) }
+
 }
 

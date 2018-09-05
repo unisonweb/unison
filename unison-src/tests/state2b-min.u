@@ -11,3 +11,4 @@ handle (state 10) in
   State.put (11 + 1)
   State.put (5 + 15)
   ()
+  -- should be 20

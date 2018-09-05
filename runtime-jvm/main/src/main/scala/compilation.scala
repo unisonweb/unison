@@ -941,8 +941,7 @@ package object compilation {
   }
 
   def normalize(builtins: Environment)(e: Term, fullyDecompile: Boolean = true): Term = {
-    val anf = Term.ANF(e)
-    val c = compileTop(builtins)(anf)
+    val c = compileTop(builtins)(e)
     val v = run(c)
     val x = Term.etaNormalForm(v.decompile)
     if (fullyDecompile) Term.fullyDecompile(x)
@@ -963,7 +962,7 @@ package object compilation {
       sys.error("Can't compile top-level term with free variables "
                 + Term.freeVars(e).mkString(", "))
     else
-      compile(builtins)(e, Vector(), CurrentRec.none, RecursiveVars.empty, IsTail)
+      compile(builtins)(Term.ANF(e), Vector(), CurrentRec.none, RecursiveVars.empty, IsTail)
 
   def compile(builtins: Environment)(
     e: Term,
