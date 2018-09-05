@@ -260,23 +260,21 @@ object PrettyPrint {
     def unapply(term: Term): Option[Seq[Term]] = {
       val B = BuiltinTypes
 
-      def go(t: Term, elements: Seq[Term]): Seq[Term] = {
+      def go(t: Term, elements: Seq[Term]): Option[Seq[Term]] = {
         t match {
           case Term.Apply(Term.Constructor(B.Tuple.Id, B.Tuple.cid), args) =>
             args match {
               case element :: term :: Nil => go(term, elements :+ element)
-              case other => throw new Exception(s"tuple wasn't a cons, it was ${args.size} elements:\n  $other\n in $term")
+              case other => None
             }
-
-          case B.Unit.term => elements
+          case B.Unit.term => Some(elements)
+          case _ => None
         }
       }
       term match {
         case Term.Apply(Term.Constructor(B.Tuple.Id, B.Tuple.cid), args) =>
-          Some(go(term, Seq.empty))
-
+          go(term, Seq.empty)
         case _ => None
-
       }
     }
   }
