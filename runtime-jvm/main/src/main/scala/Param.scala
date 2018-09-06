@@ -92,13 +92,16 @@ object Value {
           }
         case _ =>
           (r, rec, top, stackU, x1, x0, stackB, x1b, x0b) => {
-            val v = evalLam(f,r,top,stackU,x1,x0,stackB,x1b,x0b)
+            val v =
+              try evalLam(f,r,top,stackU,x1,x0,stackB,x1b,x0b)
+              catch { case Requested(effect, ctor, args, k) =>
+                throw Requested(effect, ctor, args, self compose k)
+              }
             val vb = r.boxed
             self(r,top,stackU,U0,v,stackB,null,vb)
           }
       }
-      val compose = Term.Lam('f, 'g, 'x)('f.v('g.v('x))) // todo: intern this
-      new Lambda(f.names, k, compose(self.decompile, f.decompile))
+      new Lambda(f.names, k, Term.compose(self.decompile, f.decompile))
     }
 
     def saturatedNonTailCall(args: List[Computation]): Computation =
