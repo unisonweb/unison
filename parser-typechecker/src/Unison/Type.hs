@@ -96,6 +96,7 @@ arity _ = 0
 pattern Ref' r <- ABT.Tm' (Ref r)
 pattern Arrow' i o <- ABT.Tm' (Arrow i o)
 pattern Arrows' spine <- (unArrows -> Just spine)
+pattern EffectfulArrows' fst rest <- (unEffectfulArrows -> Just (fst, rest))
 pattern Ann' t k <- ABT.Tm' (Ann t k)
 pattern App' f x <- ABT.Tm' (App f x)
 pattern Apps' f args <- (unApps -> Just (f, args))
@@ -124,15 +125,21 @@ unPure t = Just t
 unArrows :: AnnotatedType v a -> Maybe [AnnotatedType v a]
 unArrows t =
   case go t of [_] -> Nothing; l -> Just l
-  where
-    go (Arrow' i o) = i : go o
-    go o = [o]
+  where go (Arrow' i o) = i : go o
+        go o = [o]
+
+unEffectfulArrows :: AnnotatedType v a ->
+     Maybe (AnnotatedType v a, [(Maybe [AnnotatedType v a], AnnotatedType v a)])
+unEffectfulArrows t = case t of Arrow' i o -> Just (i, go o); _ -> Nothing
+  where go (Effect1' (Effects' es) (Arrow' i o)) = (Just es, i) : go o
+        go (Effect1' (Effects' es) t) = [(Just es, t)]
+        go (Arrow' i o) = (Nothing, i) : go o
+        go t = [(Nothing, t)]
 
 unApps :: AnnotatedType v a -> Maybe (AnnotatedType v a, [AnnotatedType v a])
 unApps t = case go t [] of [] -> Nothing; [_] -> Nothing; f:args -> Just (f,args)
-  where
-  go (App' i o) acc = go i (o:acc)
-  go fn args = fn:args
+  where go (App' i o) acc = go i (o:acc)
+        go fn args = fn:args
 
 unForalls :: AnnotatedType v a -> Maybe ([v], AnnotatedType v a)
 unForalls t = go t []
