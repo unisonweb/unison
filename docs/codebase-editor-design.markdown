@@ -1,33 +1,4 @@
-
-
-###
-
-```
-terms/
-  reference-english-JasVXOEBBV8.markdown -- the reference docs ref'd below
-  license-8JSJdkVvvow92.markdown
-  ...
-  jAjGDJnsdfL.ub -- binary form of the term
-  jAjGDJnsdfL/
-    source-98asdfjKjsldfj.markdown -- source code, in markdown form
-    Runar.factorial.name -- just an empty file
-    math.factorial.name
-    reference-english-JasVXOEBBV8.hash -- reference docs, in English
-    reference-spanish-9JasdfjHNBdjj.hash -- reference docs
-    doc-english-OD03VvvsjK.hash -- other docs
-    license-8JSJdkVvvow92.hash -- reference to the license for this term
-types/ -- directory of all type declarations
-  8sdfA1baBw.ub -- binary form of the type declaration
-  8sdfA1baBw/
-    0/ -- constructor id, has a set of names
-      Nil.name -- empty file
-      Empty.name -- empty file
-    1/ -- constructor id, has a set of names
-      Cons.name
-      Prepend.name
-    reference-english-KgLfAIBw312.hash -- reference docs
-    doc-english-8AfjKBCXdkw.hash -- other docs
-```
+_About this doc:_ API and UX design for Unison codebase editor WIP
 
 `Id` is the basic type used to refer to things in a Unison codebase:
 
@@ -35,7 +6,11 @@ types/ -- directory of all type declarations
 type Id
   = One Reference
   | Cycle [Hash] Int -- Int is which Hash in the `[Hash]` is being ref'd
+
+type Reference = Builtin Text | HashRef Hash
 ```
+
+Mutually recursive definitions get a `Cycle`-based `Id`.
 
 `Scope` denotes a `Set Id`. We might build these up symbolically:
 
@@ -204,3 +179,68 @@ effect Codebase where
 
 User preferences wrt to name rendering? Id -> name preferences
 
+### Richer `Edit` type and automatic merging
+
+Observation: if we make the edits to an `Id` a bit richer, can do a lot more work for the user when reconciling concurrent edits. Here's the start of a proposal:
+
+```Haskell
+-- A substitution can preserve the old type exactly (can propagate fully),
+-- or can be a subtype of the old type (can propagate fully, but need to re-synthesize dependent's
+-- types, as they might become more general).
+type Substitution.Typing = Exact | Subtype
+
+namespace Substitution.Typing where
+
+  combine : Substitution.Typing -> Substitution.Typing -> Substitution.Typing
+  combine Exact Exact = Exact
+  combine _ _ = Subtype
+
+-- Edits have a commutative merge operation, see below
+type Edit
+  = Substitutions (Map Id (Edit.Typing, Id))
+  | Replace Id
+  | Conflict (Set Edit)
+```
+
+The `edits` / `canonical` map inside a `Transaction` instead denotes a `Map Id Edit`. To merge these maps, we just `unionWith Edit.merge`. `Edit.merge` does the obvious thing - substitution maps get merged as long as keys are disjoint, a `Replace i` and a `Substitutions m` applies the substitutions to `i` to produce `i'`, and results in a `Replace i'`, and anything else is a `Conflict` needing user intervention.
+
+This `Edit` merge operation addresses a lot of the common use cases, like if Alice upgrades `foo` in a type preserving way, propagates that change, and Bob updates `bar` in a type preserving way, then Alice and Bob can merge their work automatically. Whereas if we just have an opaque "replace this `Id` with that `Id`", we don't have enough information to be able to merge their work (except via some heuristic where we attempt some sort of tree-based merge of the ASTs... I think this should be a last resort)
+
+### Notes
+
+Paul: I wonder if we can just use Git branches as the branch concept? Use the discipline that if a transaction's scope is less than the whole Git repo, then when applied, the new names are all still prefixed with the transaction id. Only if the transaction is maximal do we remove the prefix. Or perhaps it is best to just move away from using the VCS concept of branches.
+
+### Repository format
+
+Design goal - a Unison repository can be versioned using Git (or Hg, or whatever), and there should never be merge conflicts when merging two Unison repositories. That is, Git merge conflicts are a bad UX for surfacing concurrent edits that the user may wish to reconcile.
+
+```
+terms/
+  reference-english-JasVXOEBBV8.markdown -- the reference docs ref'd below
+  license-8JSJdkVvvow92.markdown
+  ...
+  jAjGDJnsdfL.ub -- binary form of the term
+  jAjGDJnsdfL/
+    source-98asdfjKjsldfj.markdown -- source code, in markdown form
+    Runar.factorial.name -- just an empty file
+    math.factorial.name
+    reference-english-JasVXOEBBV8.hash -- reference docs, in English
+    reference-spanish-9JasdfjHNBdjj.hash -- reference docs
+    doc-english-OD03VvvsjK.hash -- other docs
+    license-8JSJdkVvvow92.hash -- reference to the license for this term
+types/ -- directory of all type declarations
+  8sdfA1baBw.ub -- binary form of the type declaration
+  8sdfA1baBw/
+    0/ -- constructor id, has a set of names
+      Nil.name -- empty file
+      Empty.name -- empty file
+    1/ -- constructor id, has a set of names
+      Cons.name
+      Prepend.name
+    reference-english-KgLfAIBw312.hash -- reference docs
+    doc-english-8AfjKBCXdkw.hash -- other docs
+```
+
+Sets are represented by directories of immutable empty files whose file names represent the elements of the set - the sets are union'd as a result of a Git merge. Deletions are handled without conflicts as well.
+
+Observation is that we'll probably want some additional indexing structure (which won't be versioned) which can be cached on disk and derived from the primary repo format. This is useful for answering different queries on the codebase more efficiently.
