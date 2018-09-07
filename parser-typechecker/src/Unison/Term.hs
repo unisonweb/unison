@@ -14,6 +14,7 @@ module Unison.Term where
 
 import Prelude hiding (and,or)
 import qualified Control.Monad.Writer.Strict as Writer
+import Data.Functor (void)
 import           Data.Foldable (traverse_, toList)
 import           Data.Int (Int64)
 import           Data.List (foldl')
@@ -140,6 +141,21 @@ typeMap f t = go t where
     -- Safe since `Ann` is only ctor that has embedded `Type v` arg
     -- otherwise we'd have to manually match on every non-`Ann` ctor
     ABT.Tm ts -> unsafeCoerce $ ABT.Tm (fmap go ts)
+
+unannotate :: ∀ vt at ap v a . Ord v => AnnotatedTerm2 vt at ap v a -> Term' vt v
+unannotate t = go t where
+  go :: AnnotatedTerm2 vt at ap v a -> Term' vt v
+  go (ABT.out -> ABT.Abs v body) = ABT.abs v (go body)
+  go (ABT.out -> ABT.Cycle body) = ABT.cycle (go body)
+  go (ABT.Var' v) = ABT.var v
+  go (ABT.Tm' f) =
+    case go <$> f of
+      Ann e t -> ABT.tm (Ann e (void t))
+      Match scrutinee branches ->
+        let unann (MatchCase pat guard body) = MatchCase (void pat) guard body
+        in ABT.tm (Match scrutinee (unann <$> branches))
+      f' -> ABT.tm (unsafeCoerce f')
+  go _ = error "unpossible"
 
 wrapV :: Ord v => AnnotatedTerm v a -> AnnotatedTerm (ABT.V v) a
 wrapV = vmap ABT.Bound

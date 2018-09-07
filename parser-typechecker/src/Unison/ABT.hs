@@ -104,7 +104,7 @@ bound' t = case out t of
   Tm f -> Foldable.toList f >>= bound'
   _ -> []
 
-annotateBound' :: (Ord v, Functor f, Foldable f) => Term f v () -> Term f v [v]
+annotateBound' :: (Ord v, Functor f, Foldable f) => Term f v a0 -> Term f v [v]
 annotateBound' t = go [] t where
   go env t = case out t of
     Abs v body -> abs' env v (go (v : env) body)

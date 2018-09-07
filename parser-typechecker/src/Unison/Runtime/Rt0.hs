@@ -1,6 +1,7 @@
 {-# Language OverloadedStrings #-}
 {-# Language ScopedTypeVariables #-}
 {-# Language StrictData #-}
+{-# Language TupleSections #-}
 {-# Language UnicodeSyntax #-}
 
 module Unison.Runtime.Rt0 where
@@ -13,6 +14,7 @@ import Data.Word (Word64)
 import Data.List
 import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
+import qualified Unison.Builtin as B
 import qualified Unison.ABT as ABT
 import qualified Unison.Reference as R
 import qualified Unison.Term as Term
@@ -28,7 +30,13 @@ data V e
   = I Int64 | F Double | U Word64 | B Bool | T Text
   | Lam Arity (Term Symbol) (IR e)
   | Data R.Reference ConstructorId [V e]
+  | Requested (Req e)
   | Ext e deriving (Eq,Show)
+--
+-- Contains the effect ref and ctor id, the args, and the continuation
+-- which expects the result at the top of the stack
+data Req e = Req e Int [V e] (IR e)
+  deriving (Eq,Show)
 
 data IR e
   = Var Pos
@@ -42,18 +50,19 @@ data IR e
   | Construct R.Reference Int [Pos]
   | Request R.Reference Int [Pos]
   | Handle Pos (IR e)
-  | If Pos (IR e) (IR e) deriving (Eq,Show)
+  | If Pos (IR e) (IR e)
+  | And Pos (IR e)
+  | Or Pos (IR e)
+  deriving (Eq,Show)
 
 type Rt = Machine -> V R.Reference
 type Machine = [V R.Reference] -- a stack of values
-
--- change `run` Rt to return `Either Req` or `V`
 
 push :: V R.Reference -> Machine -> Machine
 push = (:)
 
 pushes :: [V R.Reference] -> Machine -> Machine
-pushes s m = s <> m
+pushes s m = reverse s <> m
 
 at :: Int -> Machine -> V R.Reference
 at i m = m !! i
@@ -83,19 +92,20 @@ att i m = case at i m of
   T t -> t
   _ -> error "type error"
 
--- Contains the effect ref and ctor id, the args, and the continuation
--- which expects the result at the top of the stack
-data Req = Req R.Reference Int [V R.Reference] (IR R.Reference)
-  deriving Show
-
-appendCont :: Req -> IR R.Reference -> Req
+appendCont :: Req e -> IR e -> Req e
 appendCont (Req r cid args k) k2 = Req r cid args (Let k k2)
 
-type Result = Either Req (V R.Reference)
+type Result = Either (Req R.Reference) (V R.Reference)
 
 run :: IR R.Reference -> Machine -> Result
 run ir m = case ir of
   If c t f -> if atb c m then run t m else run f m
+  And i j -> case at i m of
+    b@(B False) -> Right b
+    _ -> run j m
+  Or i j -> case at i m of
+    b@(B True) -> Right b
+    _ -> run j m
   Let b body -> case run b m of
     Left req -> Left $ req `appendCont` body
     Right v -> run body (v : m)
@@ -107,6 +117,9 @@ run ir m = case ir of
     in run body m'
   Apply fnPos args -> call (at fnPos m) args m
   Request r cid args -> Left (Req r cid ((`at` m) <$> args) (Var 0))
+  Handle handler body -> case run body m of
+    Left req -> call (at handler m) [0] (Requested req `push` m)
+    r -> r
   ir -> pure $ case ir of
     Var i -> at i m
     V v -> v
@@ -130,7 +143,7 @@ call (Lam arity term body) args m = let nargs = length args in
   case nargs of
     _ | nargs == arity -> run body (map (`at` m) args `pushes` m)
     _ | nargs > arity ->
-      case run body (map (`at` m) args `pushes` m) of
+      case run body (map (`at` m) (take arity args) `pushes` m) of
         Left req -> Left $ req `appendCont` error "todo"
         Right fn' -> call fn' (drop arity args) m
     -- nargs < arity
@@ -151,6 +164,9 @@ decompile v = case v of
   T t -> Term.text () t
   Lam _ f _ -> f
   Data r cid args -> Term.apps' (Term.constructor() r cid) (toList $ fmap decompile args)
+  Requested (Req r cid args _) ->
+    let req = Term.apps (Term.request() r cid) (((),) . decompile <$> args)
+    in req
   Ext r -> Term.ref () r
 
 compile :: Term Symbol -> IR R.Reference
@@ -165,6 +181,9 @@ compile0 bound t = go ((++ bound) <$> ABT.annotateBound' (Term.anf t)) where
         fvs = toList $ ABT.freeVars t
         lifted = Term.lam'() (fvs ++ vs) (void body)
         in compile0 (ABT.annotation t) (Term.apps' lifted (Term.var() <$> fvs))
+    Term.And' x y -> And (ind t x) (go y)
+    Term.Or' x y -> Or (ind t x) (go y)
+    Term.If' cond ifT ifF -> If (ind t cond) (go ifT) (go ifF)
     Term.Int64' n -> V (I n)
     Term.UInt64' n -> V (U n)
     Term.Float' n -> V (F n)
@@ -179,8 +198,8 @@ compile0 bound t = go ((++ bound) <$> ABT.annotateBound' (Term.anf t)) where
       Term.Request' r cid -> Request r cid (ind t <$> args)
       Term.Constructor' r cid -> Construct r cid (ind t <$> args)
       _ -> Apply (ind t f) (map (ind t) args) where
-    Term.Handle' _h _body ->
-      error "todo - make Machine model a bit richer, push and pop stack o' handlers"
+    Term.Handle' h body -> Handle (ind t h) (go body)
+    Term.Ann' e _ -> go e
     _ -> error $ "TODO - don't know how to compile " ++ show t
     where
       unknown v = error $ "free variable during compilation: " ++ show v
@@ -188,3 +207,14 @@ compile0 bound t = go ((++ bound) <$> ABT.annotateBound' (Term.anf t)) where
         Nothing -> error $ "free variable during compilation: " ++ show v
         Just i -> i
       ind _ _ = error "ANF should eliminate any non-var arguments to apply"
+
+normalize :: AnnotatedTerm Symbol a -> Term Symbol
+normalize t =
+  let v = case run (compile $ Term.unannotate t) [] of
+        Left e -> Requested e
+        Right a -> a
+  in decompile v
+
+parseAndNormalize :: String -> Term Symbol
+parseAndNormalize s = normalize (Term.unannotate $ B.tm s)
+
