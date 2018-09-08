@@ -478,10 +478,12 @@ betaReduce e = e
 
 anf :: ∀ vt at v a . (Semigroup a, Var v)
     => AnnotatedTerm2 vt at a v a -> AnnotatedTerm2 vt at a v a
-anf t = ABT.rewriteDown go t where
+anf t = go t where
   ann = ABT.annotation
   isVar (Var' _) = True
   isVar _ = False
+  isClosedLam t@(LamNamed' _ _) | Set.null (ABT.freeVars t) = True
+  isClosedLam _ = False
   fixAp t f args =
     let
       args' = Map.fromList $ toVar =<< (args `zip` [0..])
@@ -489,38 +491,40 @@ anf t = ABT.rewriteDown go t where
                    | otherwise = [(i, ABT.fresh t (Var.named . Text.pack $ "arg" ++ show i))]
       argsANF = map toANF (args `zip` [0..])
       toANF (b,i) = maybe b (var (ann b)) $ Map.lookup i args'
-      addLet (b,i) body = maybe body (\v -> let1' [(v,b)] body) (Map.lookup i args')
+      addLet (b,i) body = maybe body (\v -> let1' [(v,go b)] body) (Map.lookup i args')
     in foldr addLet (apps' f argsANF) (args `zip` [(0::Int)..])
   go :: AnnotatedTerm2 vt at a v a -> AnnotatedTerm2 vt at a v a
   go t@(Apps' f args)
-    | isVar f = fixAp t f args
+    | isVar f || (isClosedLam f && arity f == length args) = fixAp t f args
     | otherwise = let fv' = ABT.fresh t (Var.named "f")
                   in let1' [(fv', anf f)] (fixAp t (var (ann f) fv') args)
   go e@(Handle' h body)
-    | isVar h = e
+    | isVar h = handle (ann e) h (go body)
     | otherwise = let h' = ABT.fresh e (Var.named "handler")
-                  in let1' [(h', anf h)] (handle (ann e) (var (ann h) h') body)
+                  in let1' [(h', go h)] (handle (ann e) (var (ann h) h') (go body))
   go e@(If' cond t f)
-    | isVar cond = e
+    | isVar cond = iff (ann e) cond (go t) (go f)
     | otherwise = let cond' = ABT.fresh e (Var.named "cond")
                   in let1' [(cond', anf cond)] (iff (ann e) (var (ann cond) cond') t f)
   go e@(Match' scrutinee cases)
-    | isVar scrutinee = e
+    | isVar scrutinee = match (ann e) scrutinee (fmap go <$> cases)
     | otherwise = let scrutinee' = ABT.fresh e (Var.named "scrutinee")
-                  in let1' [(scrutinee', anf scrutinee)] (match (ann e) (var (ann scrutinee) scrutinee') cases)
+                  in let1' [(scrutinee', go scrutinee)] (match (ann e) (var (ann scrutinee) scrutinee') cases)
   go e@(And' x y)
-    | isVar x && isVar y = e
+    | isVar x = and (ann e) x (go y)
     | otherwise =
         let x' = ABT.fresh e (Var.named "argX")
-            y' = ABT.fresh e (Var.named "argY")
-        in let1' [(x', anf x), (y', anf y)] (and (ann e) (var (ann x) x') (var (ann y) y'))
+        in let1' [(x', anf x)] (and (ann e) (var (ann x) x') (go y))
   go e@(Or' x y)
-    | isVar x && isVar y = e
+    | isVar x = or (ann e) x (go y)
     | otherwise =
         let x' = ABT.fresh e (Var.named "argX")
-            y' = ABT.fresh e (Var.named "argY")
-        in let1' [(x', anf x), (y', anf y)] (or (ann e) (var (ann x) x') (var (ann y) y'))
-  go t = t
+        in let1' [(x', go x)] (or (ann e) (var (ann x) x') (go y))
+  go e@(ABT.Tm' f) = ABT.tm' (ann e) (go <$> f)
+  go e@(ABT.Var' _) = e
+  go e@(ABT.out -> ABT.Cycle body) = ABT.cycle' (ann e) (go body)
+  go e@(ABT.out -> ABT.Abs v body) = ABT.abs' (ann e) v (go body)
+  go e = e
 
 instance Var v => Hashable1 (F v a p) where
   hash1 hashCycle hash e =

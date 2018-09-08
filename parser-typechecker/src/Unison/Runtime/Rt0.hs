@@ -46,7 +46,8 @@ data IR e
   | Let (IR e) (IR e)
   | LetRec [IR e] (IR e)
   | V (V e)
-  | Apply Pos [Pos]
+  | Apply (IR e) [Pos] -- fully saturated function call
+  | DynamicApply Pos [Pos] -- call to unknown function
   | Construct R.Reference Int [Pos]
   | Request R.Reference Int [Pos]
   | Handle Pos (IR e)
@@ -115,7 +116,8 @@ run ir m = case ir of
         g (Right a) = a
         bs' = map (\ir -> g $ run ir m') bs
     in run body m'
-  Apply fnPos args -> call (at fnPos m) args m
+  Apply body args -> run body (map (`at` m) args `pushes` m)
+  DynamicApply fnPos args -> call (at fnPos m) args m
   Request r cid args -> Left (Req r cid ((`at` m) <$> args) (Var 0))
   Handle handler body -> case run body m of
     Left req -> call (at handler m) [0] (Requested req `push` m)
@@ -197,7 +199,9 @@ compile0 bound t = go ((++ bound) <$> ABT.annotateBound' (Term.anf t)) where
     Term.Apps' f args -> case f of
       Term.Request' r cid -> Request r cid (ind t <$> args)
       Term.Constructor' r cid -> Construct r cid (ind t <$> args)
-      _ -> Apply (ind t f) (map (ind t) args) where
+      Term.LamsNamed' vs body | ABT.isClosed f && length args == length vs
+        -> Apply (go body) (map (ind t) args)
+      _ -> DynamicApply (ind t f) (map (ind t) args) where
     Term.Handle' h body -> Handle (ind t h) (go body)
     Term.Ann' e _ -> go e
     _ -> error $ "TODO - don't know how to compile " ++ show t
@@ -206,7 +210,7 @@ compile0 bound t = go ((++ bound) <$> ABT.annotateBound' (Term.anf t)) where
       ind t (Term.Var' v) = case elemIndex v (ABT.annotation t) of
         Nothing -> error $ "free variable during compilation: " ++ show v
         Just i -> i
-      ind _ _ = error "ANF should eliminate any non-var arguments to apply"
+      ind _ e = error $ "ANF should eliminate any non-var arguments to apply " ++ show e
 
 normalize :: AnnotatedTerm Symbol a -> Term Symbol
 normalize t =
@@ -218,3 +222,5 @@ normalize t =
 parseAndNormalize :: String -> Term Symbol
 parseAndNormalize s = normalize (Term.unannotate $ B.tm s)
 
+parseANF :: String -> Term Symbol
+parseANF s = Term.anf . Term.unannotate $ B.tm s
