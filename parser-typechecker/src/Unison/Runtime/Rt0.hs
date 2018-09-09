@@ -31,7 +31,8 @@ data V e
   | Lam Arity (Term Symbol) (IR e)
   | Data R.Reference ConstructorId [V e]
   | Requested (Req e)
-  | Ext e deriving (Eq,Show)
+  | Ext e
+  deriving (Eq,Show)
 --
 -- Contains the effect ref and ctor id, the args, and the continuation
 -- which expects the result at the top of the stack
@@ -46,6 +47,7 @@ data IR e
   | Let (IR e) (IR e)
   | LetRec [IR e] (IR e)
   | V (V e)
+  | ExtApply e [Pos] -- fully saturated builtin call
   | Apply (IR e) [Pos] -- fully saturated function call
   | DynamicApply Pos [Pos] -- call to unknown function
   | Construct R.Reference Int [Pos]
@@ -56,7 +58,6 @@ data IR e
   | Or Pos (IR e)
   deriving (Eq,Show)
 
-type Rt = Machine -> V R.Reference
 type Machine = [V R.Reference] -- a stack of values
 
 push :: V R.Reference -> Machine -> Machine
@@ -98,64 +99,66 @@ appendCont (Req r cid args k) k2 = Req r cid args (Let k k2)
 
 type Result = Either (Req R.Reference) (V R.Reference)
 
-run :: IR R.Reference -> Machine -> Result
-run ir m = case ir of
-  If c t f -> if atb c m then run t m else run f m
-  And i j -> case at i m of
-    b@(B False) -> Right b
-    _ -> run j m
-  Or i j -> case at i m of
-    b@(B True) -> Right b
-    _ -> run j m
-  Let b body -> case run b m of
-    Left req -> Left $ req `appendCont` body
-    Right v -> run body (v : m)
-  LetRec bs body ->
-    let m' = pushes bs' m
-        g (Left e) = error ("bindings in a let rec must not have effects " ++ show e)
-        g (Right a) = a
-        bs' = map (\ir -> g $ run ir m') bs
-    in run body m'
-  Apply body args -> run body (map (`at` m) args `pushes` m)
-  DynamicApply fnPos args -> call (at fnPos m) args m
-  Request r cid args -> Left (Req r cid ((`at` m) <$> args) (Var 0))
-  Handle handler body -> case run body m of
-    Left req -> call (at handler m) [0] (Requested req `push` m)
-    r -> r
-  ir -> pure $ case ir of
-    Var i -> at i m
-    V v -> v
-    Construct r cid args -> Data r cid ((`at` m) <$> args)
-    AddI i j -> I (ati i m + ati j m)
-    SubI i j -> I (ati i m - ati j m)
-    MultI i j -> I (ati i m * ati j m)
-    DivI i j -> I (ati i m `div` ati j m)
-    AddF i j -> F (atf i m + atf j m)
-    SubF i j -> F (atf i m - atf j m)
-    MultF i j -> F (atf i m * atf j m)
-    DivF i j -> F (atf i m / atf j m)
-    AddU i j -> U (atu i m + atu j m)
-    SubU i j -> U (atu i m - atu j m)
-    MultU i j -> U (atu i m * atu j m)
-    DivU i j -> U (atu i m `div` atu j m)
-    _ -> error "should be caught by above cases"
+run :: (R.Reference -> Machine -> Result) -> IR R.Reference -> Machine -> Result
+run env = go where
+  go ir m = case ir of
+    If c t f -> if atb c m then go t m else go f m
+    And i j -> case at i m of
+      b@(B False) -> Right b
+      _ -> go j m
+    Or i j -> case at i m of
+      b@(B True) -> Right b
+      _ -> go j m
+    Let b body -> case go b m of
+      Left req -> Left $ req `appendCont` body
+      Right v -> go body (v : m)
+    LetRec bs body ->
+      let m' = pushes bs' m
+          g (Left e) = error ("bindings in a let rec must not have effects " ++ show e)
+          g (Right a) = a
+          bs' = map (\ir -> g $ go ir m') bs
+      in go body m'
+    ExtApply fn args -> env fn (map (`at` m) args `pushes` m)
+    Apply body args -> go body (map (`at` m) args `pushes` m)
+    DynamicApply fnPos args -> call (at fnPos m) args m
+    Request r cid args -> Left (Req r cid ((`at` m) <$> args) (Var 0))
+    Handle handler body -> case go body m of
+      Left req -> call (at handler m) [0] (Requested req `push` m)
+      r -> r
+    ir -> pure $ case ir of
+      Var i -> at i m
+      V v -> v
+      Construct r cid args -> Data r cid ((`at` m) <$> args)
+      AddI i j -> I (ati i m + ati j m)
+      SubI i j -> I (ati i m - ati j m)
+      MultI i j -> I (ati i m * ati j m)
+      DivI i j -> I (ati i m `div` ati j m)
+      AddF i j -> F (atf i m + atf j m)
+      SubF i j -> F (atf i m - atf j m)
+      MultF i j -> F (atf i m * atf j m)
+      DivF i j -> F (atf i m / atf j m)
+      AddU i j -> U (atu i m + atu j m)
+      SubU i j -> U (atu i m - atu j m)
+      MultU i j -> U (atu i m * atu j m)
+      DivU i j -> U (atu i m `div` atu j m)
+      _ -> error "should be caught by above cases"
 
-call :: V R.Reference -> [Pos] -> Machine -> Result
-call (Lam arity term body) args m = let nargs = length args in
-  case nargs of
-    _ | nargs == arity -> run body (map (`at` m) args `pushes` m)
-    _ | nargs > arity ->
-      case run body (map (`at` m) (take arity args) `pushes` m) of
-        Left req -> Left $ req `appendCont` error "todo"
-        Right fn' -> call fn' (drop arity args) m
-    -- nargs < arity
-    _ -> case term of
-      Term.LamsNamed' vs body -> pure $ Lam (arity - nargs) lam (compile lam)
-        where
-        lam = Term.lam'() (drop nargs vs) $
-          ABT.substs (vs `zip` (map decompile . reverse . take nargs $ m)) body
-      _ -> error "type error"
-call _ _ _ = error "type error"
+  call :: V R.Reference -> [Pos] -> Machine -> Result
+  call (Lam arity term body) args m = let nargs = length args in
+    case nargs of
+      _ | nargs == arity -> go body (map (`at` m) args `pushes` m)
+      _ | nargs > arity ->
+        case go body (map (`at` m) (take arity args) `pushes` m) of
+          Left req -> Left $ req `appendCont` error "todo"
+          Right fn' -> call fn' (drop arity args) m
+      -- nargs < arity
+      _ -> case term of
+        Term.LamsNamed' vs body -> pure $ Lam (arity - nargs) lam (compile lam)
+          where
+          lam = Term.lam'() (drop nargs vs) $
+            ABT.substs (vs `zip` (map decompile . reverse . take nargs $ m)) body
+        _ -> error "type error"
+  call _ _ _ = error "type error"
 
 decompile :: V R.Reference -> Term Symbol
 decompile v = case v of
@@ -212,15 +215,15 @@ compile0 bound t = go ((++ bound) <$> ABT.annotateBound' (Term.anf t)) where
         Just i -> i
       ind _ e = error $ "ANF should eliminate any non-var arguments to apply " ++ show e
 
-normalize :: AnnotatedTerm Symbol a -> Term Symbol
-normalize t =
-  let v = case run (compile $ Term.unannotate t) [] of
+normalize :: (R.Reference -> Machine -> Result) -> AnnotatedTerm Symbol a -> Term Symbol
+normalize env t =
+  let v = case run env (compile $ Term.unannotate t) [] of
         Left e -> Requested e
         Right a -> a
   in decompile v
 
-parseAndNormalize :: String -> Term Symbol
-parseAndNormalize s = normalize (Term.unannotate $ B.tm s)
+parseAndNormalize :: (R.Reference -> Machine -> Result) -> String -> Term Symbol
+parseAndNormalize env s = normalize env (Term.unannotate $ B.tm s)
 
 parseANF :: String -> Term Symbol
 parseANF s = Term.anf . Term.unannotate $ B.tm s
