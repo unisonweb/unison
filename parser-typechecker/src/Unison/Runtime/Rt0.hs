@@ -26,47 +26,45 @@ type ArgCount = Int
 
 type Term v = AnnotatedTerm v ()
 
-data V e
+data V
   = I Int64 | F Double | U Word64 | B Bool | T Text
-  | Lam Arity (Term Symbol) (IR e)
-  | Data R.Reference ConstructorId [V e]
-  | Requested (Req e)
-  | Ext e
+  | Lam Arity (Term Symbol) IR
+  | Data R.Reference ConstructorId [V]
+  | Requested Req
   deriving (Eq,Show)
 --
 -- Contains the effect ref and ctor id, the args, and the continuation
 -- which expects the result at the top of the stack
-data Req e = Req e Int [V e] (IR e)
+data Req = Req R.Reference ConstructorId [V] IR
   deriving (Eq,Show)
 
-data IR e
+data IR
   = Var Pos
   | AddI Pos Pos | SubI Pos Pos | MultI Pos Pos | DivI Pos Pos
   | AddU Pos Pos | SubU Pos Pos | MultU Pos Pos | DivU Pos Pos
   | AddF Pos Pos | SubF Pos Pos | MultF Pos Pos | DivF Pos Pos
-  | Let (IR e) (IR e)
-  | LetRec [IR e] (IR e)
-  | V (V e)
-  | ExtApply e [Pos] -- fully saturated builtin call
-  | Apply (IR e) [Pos] -- fully saturated function call
+  | Let IR IR
+  | LetRec [IR] IR
+  | V V
+  | Apply IR [Pos] -- fully saturated function call
   | DynamicApply Pos [Pos] -- call to unknown function
   | Construct R.Reference Int [Pos]
   | Request R.Reference Int [Pos]
-  | Handle Pos (IR e)
-  | If Pos (IR e) (IR e)
-  | And Pos (IR e)
-  | Or Pos (IR e)
+  | Handle Pos IR
+  | If Pos IR IR
+  | And Pos IR
+  | Or Pos IR
   deriving (Eq,Show)
 
-type Machine = [V R.Reference] -- a stack of values
+type Machine = [V] -- a stack of values
 
-push :: V R.Reference -> Machine -> Machine
+push :: V -> Machine -> Machine
 push = (:)
 
-pushes :: [V R.Reference] -> Machine -> Machine
+pushes :: [V] -> Machine -> Machine
 pushes s m = reverse s <> m
 
-at :: Int -> Machine -> V R.Reference
+at :: Int -> Machine -> V
 at i m = m !! i
 
 ati :: Int -> Machine -> Int64
@@ -94,38 +92,41 @@ att i m = case at i m of
   T t -> t
   _ -> error "type error"
 
-appendCont :: Req e -> IR e -> Req e
+appendCont :: Req -> IR -> Req
 appendCont (Req r cid args k) k2 = Req r cid args (Let k k2)
 
-type Result = Either (Req R.Reference) (V R.Reference)
+data Result = RRequest Req | RMatchFail | RDone V deriving (Show)
 
-run :: (R.Reference -> Machine -> Result) -> IR R.Reference -> Machine -> Result
+done :: V -> Result
+done = RDone
+
+run :: (R.Reference -> IR) -> IR -> Machine -> Result
 run env = go where
   go ir m = case ir of
     If c t f -> if atb c m then go t m else go f m
     And i j -> case at i m of
-      b@(B False) -> Right b
+      b@(B False) -> done b
       _ -> go j m
     Or i j -> case at i m of
-      b@(B True) -> Right b
+      b@(B True) -> done b
       _ -> go j m
     Let b body -> case go b m of
-      Left req -> Left $ req `appendCont` body
-      Right v -> go body (v : m)
+      RRequest req -> RRequest (req `appendCont` body)
+      RDone v -> go body (v : m)
+      e -> error $ show e
     LetRec bs body ->
       let m' = pushes bs' m
-          g (Left e) = error ("bindings in a let rec must not have effects " ++ show e)
-          g (Right a) = a
+          g (RDone a) = a
+          g e = error ("bindings in a let rec must not have effects " ++ show e)
           bs' = map (\ir -> g $ go ir m') bs
       in go body m'
-    ExtApply fn args -> env fn (map (`at` m) args `pushes` m)
     Apply body args -> go body (map (`at` m) args `pushes` m)
     DynamicApply fnPos args -> call (at fnPos m) args m
-    Request r cid args -> Left (Req r cid ((`at` m) <$> args) (Var 0))
+    Request r cid args -> RRequest (Req r cid ((`at` m) <$> args) (Var 0))
     Handle handler body -> case go body m of
-      Left req -> call (at handler m) [0] (Requested req `push` m)
+      RRequest req -> call (at handler m) [0] (Requested req `push` m)
       r -> r
-    ir -> pure $ case ir of
+    ir -> done $ case ir of
       Var i -> at i m
       V v -> v
       Construct r cid args -> Data r cid ((`at` m) <$> args)
@@ -143,24 +144,25 @@ run env = go where
       DivU i j -> U (atu i m `div` atu j m)
       _ -> error "should be caught by above cases"
 
-  call :: V R.Reference -> [Pos] -> Machine -> Result
+  call :: V -> [Pos] -> Machine -> Result
   call (Lam arity term body) args m = let nargs = length args in
     case nargs of
       _ | nargs == arity -> go body (map (`at` m) args `pushes` m)
       _ | nargs > arity ->
         case go body (map (`at` m) (take arity args) `pushes` m) of
-          Left req -> Left $ req `appendCont` error "todo"
-          Right fn' -> call fn' (drop arity args) m
+          RRequest req -> RRequest $ req `appendCont` error "todo"
+          RDone fn' -> call fn' (drop arity args) m
+          e -> error $ "type error, tried to apply: " ++ show e
       -- nargs < arity
       _ -> case term of
-        Term.LamsNamed' vs body -> pure $ Lam (arity - nargs) lam (compile lam)
+        Term.LamsNamed' vs body -> done $ Lam (arity - nargs) lam (compile env lam)
           where
           lam = Term.lam'() (drop nargs vs) $
             ABT.substs (vs `zip` (map decompile . reverse . take nargs $ m)) body
         _ -> error "type error"
   call _ _ _ = error "type error"
 
-decompile :: V R.Reference -> Term Symbol
+decompile :: V -> Term Symbol
 decompile v = case v of
   I n -> Term.int64 () n
   U n -> Term.uint64 () n
@@ -172,20 +174,19 @@ decompile v = case v of
   Requested (Req r cid args _) ->
     let req = Term.apps (Term.request() r cid) (((),) . decompile <$> args)
     in req
-  Ext r -> Term.ref () r
 
-compile :: Term Symbol -> IR R.Reference
-compile = compile0 []
+compile :: (R.Reference -> IR) -> Term Symbol -> IR
+compile env = compile0 env []
 
-compile0 :: [Symbol] -> Term Symbol -> IR R.Reference
-compile0 bound t = go ((++ bound) <$> ABT.annotateBound' (Term.anf t)) where
+compile0 :: (R.Reference -> IR) -> [Symbol] -> Term Symbol -> IR
+compile0 env bound t = go ((++ bound) <$> ABT.annotateBound' (Term.anf t)) where
   go t = case t of
     Term.LamsNamed' vs body
       | ABT.isClosed t -> V (Lam (length vs) (void t) (go body))
       | otherwise -> let
         fvs = toList $ ABT.freeVars t
         lifted = Term.lam'() (fvs ++ vs) (void body)
-        in compile0 (ABT.annotation t) (Term.apps' lifted (Term.var() <$> fvs))
+        in compile0 env (ABT.annotation t) (Term.apps' lifted (Term.var() <$> fvs))
     Term.And' x y -> And (ind t x) (go y)
     Term.Or' x y -> Or (ind t x) (go y)
     Term.If' cond ifT ifF -> If (ind t cond) (go ifT) (go ifF)
@@ -194,12 +195,14 @@ compile0 bound t = go ((++ bound) <$> ABT.annotateBound' (Term.anf t)) where
     Term.Float' n -> V (F n)
     Term.Boolean' b -> V (B b)
     Term.Text' t -> V (T t)
-    Term.Ref' r -> V (Ext r)
+    Term.Ref' r -> env r
     Term.Var' v -> maybe (unknown v) Var $ elemIndex v (ABT.annotation t)
     Term.Let1Named' _ b body -> Let (go b) (go body)
     Term.LetRecNamed' bs body -> LetRec (go . snd <$> bs) (go body)
     Term.Constructor' r cid -> V (Data r cid mempty)
     Term.Apps' f args -> case f of
+      -- TODO: we need to know the arity of the function to compile this correctly
+      Term.Ref' r -> Apply (env r) (map (ind t) args)
       Term.Request' r cid -> Request r cid (ind t <$> args)
       Term.Constructor' r cid -> Construct r cid (ind t <$> args)
       Term.LamsNamed' vs body | ABT.isClosed f && length args == length vs
@@ -215,14 +218,15 @@ compile0 bound t = go ((++ bound) <$> ABT.annotateBound' (Term.anf t)) where
         Just i -> i
       ind _ e = error $ "ANF should eliminate any non-var arguments to apply " ++ show e
 
-normalize :: (R.Reference -> Machine -> Result) -> AnnotatedTerm Symbol a -> Term Symbol
+normalize :: (R.Reference -> IR) -> AnnotatedTerm Symbol a -> Term Symbol
 normalize env t =
-  let v = case run env (compile $ Term.unannotate t) [] of
-        Left e -> Requested e
-        Right a -> a
+  let v = case run env (compile env $ Term.unannotate t) [] of
+        RRequest e -> Requested e
+        RDone a -> a
+        e -> error $ show e
   in decompile v
 
-parseAndNormalize :: (R.Reference -> Machine -> Result) -> String -> Term Symbol
+parseAndNormalize :: (R.Reference -> IR) -> String -> Term Symbol
 parseAndNormalize env s = normalize env (Term.unannotate $ B.tm s)
 
 parseANF :: String -> Term Symbol
