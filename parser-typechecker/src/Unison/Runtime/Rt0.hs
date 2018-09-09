@@ -41,6 +41,9 @@ data Req e = Req e Int [V e] (IR e)
 
 data IR e
   = Var Pos
+  | AddI Pos Pos | SubI Pos Pos | MultI Pos Pos | DivI Pos Pos
+  | AddU Pos Pos | SubU Pos Pos | MultU Pos Pos | DivU Pos Pos
+  | AddF Pos Pos | SubF Pos Pos | MultF Pos Pos | DivF Pos Pos
   | Let (IR e) (IR e)
   | LetRec [IR e] (IR e)
   | V (V e)
@@ -96,22 +99,16 @@ appendCont (Req r cid args k) k2 = Req r cid args (Let k k2)
 
 type Result = Either (Req R.Reference) (V R.Reference)
 
-run :: (R.Reference -> Machine -> V R.Reference) -> IR R.Reference -> Machine -> Result
+run :: (R.Reference -> Machine -> Result) -> IR R.Reference -> Machine -> Result
 run env = go where
   go ir m = case ir of
-    Var i -> Right (at i m)
-    V v -> Right v
-    Apply body args -> go body (map (`at` m) args `pushes` m)
-    ExtApply fn args -> Right (env fn (map (`at` m) args `pushes` m))
-    DynamicApply fnPos args -> call (at fnPos m) args m
     If c t f -> if atb c m then go t m else go f m
-    And i j -> case at i m of b@(B False) -> Right b; _ -> go j m
-    Or i j -> case at i m of b@(B True) -> Right b; _ -> go j m
-    Construct r cid args -> Right (Data r cid ((`at` m) <$> args))
-    Request r cid args -> Left (Req r cid ((`at` m) <$> args) (Var 0))
-    Handle handler body -> case go body m of
-      Left req -> call (at handler m) [0] (Requested req `push` m)
-      r -> r
+    And i j -> case at i m of
+      b@(B False) -> Right b
+      _ -> go j m
+    Or i j -> case at i m of
+      b@(B True) -> Right b
+      _ -> go j m
     Let b body -> case go b m of
       Left req -> Left $ req `appendCont` body
       Right v -> go body (v : m)
@@ -121,6 +118,30 @@ run env = go where
           g (Right a) = a
           bs' = map (\ir -> g $ go ir m') bs
       in go body m'
+    ExtApply fn args -> env fn (map (`at` m) args `pushes` m)
+    Apply body args -> go body (map (`at` m) args `pushes` m)
+    DynamicApply fnPos args -> call (at fnPos m) args m
+    Request r cid args -> Left (Req r cid ((`at` m) <$> args) (Var 0))
+    Handle handler body -> case go body m of
+      Left req -> call (at handler m) [0] (Requested req `push` m)
+      r -> r
+    ir -> pure $ case ir of
+      Var i -> at i m
+      V v -> v
+      Construct r cid args -> Data r cid ((`at` m) <$> args)
+      AddI i j -> I (ati i m + ati j m)
+      SubI i j -> I (ati i m - ati j m)
+      MultI i j -> I (ati i m * ati j m)
+      DivI i j -> I (ati i m `div` ati j m)
+      AddF i j -> F (atf i m + atf j m)
+      SubF i j -> F (atf i m - atf j m)
+      MultF i j -> F (atf i m * atf j m)
+      DivF i j -> F (atf i m / atf j m)
+      AddU i j -> U (atu i m + atu j m)
+      SubU i j -> U (atu i m - atu j m)
+      MultU i j -> U (atu i m * atu j m)
+      DivU i j -> U (atu i m `div` atu j m)
+      _ -> error "should be caught by above cases"
 
   call :: V R.Reference -> [Pos] -> Machine -> Result
   call (Lam arity term body) args m = let nargs = length args in
@@ -194,18 +215,15 @@ compile0 bound t = go ((++ bound) <$> ABT.annotateBound' (Term.anf t)) where
         Just i -> i
       ind _ e = error $ "ANF should eliminate any non-var arguments to apply " ++ show e
 
-normalize :: (R.Reference -> Machine -> V R.Reference) -> AnnotatedTerm Symbol a -> Term Symbol
+normalize :: (R.Reference -> Machine -> Result) -> AnnotatedTerm Symbol a -> Term Symbol
 normalize env t =
   let v = case run env (compile $ Term.unannotate t) [] of
         Left e -> Requested e
         Right a -> a
   in decompile v
 
-parseAndNormalize :: (R.Reference -> Machine -> V R.Reference) -> String -> Term Symbol
+parseAndNormalize :: (R.Reference -> Machine -> Result) -> String -> Term Symbol
 parseAndNormalize env s = normalize env (Term.unannotate $ B.tm s)
 
 parseANF :: String -> Term Symbol
 parseANF s = Term.anf . Term.unannotate $ B.tm s
-
---env0 :: R.Reference -> Machine -> Result
---env0 r = case r of
