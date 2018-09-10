@@ -9,13 +9,16 @@ import Unison.Builtin
 import Unison.Parser (Ann(..))
 import Unison.Reference
 
-tc :: String -> String -> Test ()
-tc s expected =
+-- Test the result of the pretty-printer.  Expect the pretty-printer to
+-- produce output that differs cosmetically from the original code we parsed.
+-- Check also that re-parsing the pretty-printed code gives us the same ABT.
+tc_diff :: String -> String -> Test ()
+tc_diff s expected =
    let input_term = Unison.Builtin.t s :: Unison.Type.AnnotatedType Symbol Ann
        get_names x = case x of
                        Builtin t -> t
                        Derived _ -> Text.empty
-       actual = pretty get_names input_term
+       actual = pretty get_names 0 input_term
        actual_reparsed = Unison.Builtin.t actual
    in scope s $ tests [(
        if actual == expected then ok
@@ -30,17 +33,25 @@ tc s expected =
                crash "single parse != double parse"
        )]
 
+-- As above, but expect not even cosmetic differences between the input string
+-- and the pretty-printed version.
+tc_same s = tc_diff s s
+
 test :: Test ()
 test = scope "typeprinter" . tests $
-  [ tc "a -> b" $ "(a -> b)"
-  , tc "Pair" $ "Pair"
-  , tc "Pair a a" $ "((Pair a) a)"
-  , tc "{} (Pair a a)" $ "({} ((Pair a) a))"
-  , tc "a ->{} b" $ "(a ->{} b)"
-  , tc "a ->{e1} b" $ "(a ->{e1} b)"
-  , tc "a ->{e1, e2} b -> c ->{} d" $ "(a ->{e1, e2} b -> c ->{} d)"
-  , tc "a ->{e1, e2} b ->{} c -> d" $ "(a ->{e1, e2} b ->{} c -> d)"
-  , tc "{e1, e2} (Pair a a)" $ "({e1, e2} ((Pair a) a))"
-  , tc "[Pair a a]" $ "(Sequence ((Pair a) a))"
-  , tc "()" $ "()"
+  [ tc_same "a -> b"
+  , tc_diff "(a -> b)" $ "a -> b"
+  , tc_same "Pair"
+  , tc_same "Pair a a"
+  , tc_same "Pair (Pair a a) a"
+  , tc_same "{} (Pair a a)"
+  , tc_same "a ->{} b"
+  , tc_same "a ->{e1} b"
+  , tc_same "a ->{e1, e2} b -> c ->{} d"
+  , tc_same "a ->{e1, e2} b ->{} c -> d"
+  , tc_same "{e1, e2} (Pair a a)"
+  , tc_same "Pair (a -> b) (c -> d)"
+  , tc_same "Pair a b ->{e1, e2} Pair a b ->{} Pair (a -> b) d -> Pair c d"
+  , tc_same "[Pair a a]"
+  , tc_same "()"
   ]
