@@ -10,4 +10,4 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 
 * Paul Chiusano (@pchiusano) - I've worked on just about all aspects of Unison: overall design, typechecker, runtime, parser...
 * Arya Irani (@aryairani)
-* Rúnar Bjarnason (@runarorama)
+* Rúnar Bjarnason (@runarorama) - Typechecker, runtime, parser, code serialization
