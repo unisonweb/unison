@@ -6,6 +6,8 @@ All contributions to Unison are licensed in the same way: the MIT license. See t
 
 ### Contributors
 
+The format for this list: name, GitHub handle, and then optional blurb about what areas of Unison you've worked on.
+
 * Paul Chiusano (@pchiusano) - I've worked on just about all aspects of Unison: overall design, typechecker, runtime, parser...
 * Arya Irani (@aryairani)
 * Rúnar Bjarnason (@runarorama)
