@@ -48,25 +48,29 @@ object Term {
     // arg1 -> foo (x + 1) blah
     // arg1 -> let arg1 = x + 1; foo arg1 blah
     case ABT.Abs(name, body) => ABT.Abs(name, ANF(body))
-    case Apply(f @ (ABT.Var(_) | Lam(_,_) | Id(_) |
+    // This is the case where the function is already in ANF, but the
+    // arguments may not be yet
+    case ApplyNested(f @ (ABT.Var(_) | Lam(_,_) | Id(_) |
                     Constructor(_,_) | Request(_,_)), args) =>
       val (bindings2, args2) =
-        args.zipWithIndex.foldRight((List.empty[(Name,Term)], List.empty[Term])) { (argi, accs) =>
-          val (bindings, args) = accs
-          val (arg, i) = argi
+        args.zipWithIndex.foldRight((List.empty[(Name,Term)], List.empty[Term])) {
+          case ((arg, i), (bindings, args)) =>
           arg match {
-            case Unboxed(_,_) => (bindings, arg :: args)
-            case ABT.Var(_) => (bindings, arg :: args)
-            case lam @ Lam(_, _) /* if freeVars(lam).isEmpty */ => (bindings, arg :: args)
-            case arg =>
+            // don't need to introduce a new binding for these simple cases
+            case Unboxed(_,_) | ABT.Var(_) |
+                 Lam(_, _) | Id(_) | Constructor(_,_) => (bindings, arg :: args)
+            case arg => //
               val freshName = freshen(Name(s"arg$i"), arg)
-              ((freshName, arg) :: bindings, Var(freshName) :: args)
+              ((freshName, ANF(arg)) :: bindings, Var(freshName) :: args)
           }
         }
       Let(bindings2: _*)(Apply(f, args2: _*))
+    // If the above falls through, then the function is not yet in ANF,
+    // so we convert it to ANF and then make a recursive call to convert
+    // its args
     case Apply(f, args) =>
       val freshName = freshen(Name("f"), f)
-      Let(freshName -> f)(ANF(Apply(Var(freshName), args: _*)))
+      Let(freshName -> ANF(f))(ANF(Apply(Var(freshName), args: _*)))
     case ABT.Tm(other) => ABT.Tm(F.instance.map(other)(ANF))
   }
 
@@ -363,6 +367,13 @@ object Term {
       if (args.isEmpty) f
       else Tm(Apply_(f, args.toList))
   }
+  object ApplyNested {
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[(AnnotatedTerm[F,A], List[AnnotatedTerm[F,A]])] = t match {
+      case Apply(ApplyNested(f, args1), args2) => Some((f, args1 ++ args2))
+      case Apply(f, args) => Some((f, args))
+      case _ => None
+    }
+  }
 
   object Var {
     def apply(n: Name): Term = ABT.Var(n)
@@ -511,5 +522,8 @@ object Term {
     implicit def stringKeyToNameTerm[A <% Term](kv: (String, A)): (Name, Term) = (kv._1, kv._2)
     implicit def symbolKeyToNameTerm[A <% Term](kv: (Symbol, A)): (Name, Term) = (kv._1, kv._2)
   }
+
+  val compose = { import Syntax._; Term.Lam('f, 'g, 'x)('f.v('g.v('x))) }
+
 }
 

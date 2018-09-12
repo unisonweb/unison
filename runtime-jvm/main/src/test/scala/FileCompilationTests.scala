@@ -14,6 +14,8 @@ object FileCompilationTests {
   val checkResultTests = Map[String, Term](
     "fib4" -> 2249999.u,
     "tuple" -> ((3.u, 7.u)),
+    "state4" -> 15.u,
+    "state2b-min" -> 20.u,
     "stream-shouldnt-damage-stack" -> ((4950.u, 9999.u)),
     "stream/iterate-increment-take-drop-reduce" ->
       scala.Stream.from(0).take(5).drop(3).sum,

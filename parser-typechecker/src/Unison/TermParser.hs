@@ -18,7 +18,7 @@ import           Data.Foldable (asum)
 import           Data.Int (Int64)
 import           Data.List (elem)
 import qualified Data.Map as Map
-import           Data.Maybe (isJust)
+import           Data.Maybe (isJust, fromMaybe)
 import           Data.Word (Word64)
 import           Prelude hiding (and, or)
 import qualified Text.Megaparsec as P
@@ -350,16 +350,23 @@ block' s openBlock closeBlock = do
                 ( (Binding <$> binding) <|>
                   (Action <$> blockTerm) <|>
                   namespaceBlock )
-    toBindings (Binding ((a, v), e)) = [((a, v), e)]
-    toBindings (Action e) = [((ann e, Var.named "_"), e)]
+    toBindings (Binding ((a, v), e)) = [((a, Just v), e)]
+    toBindings (Action e) = [((ann e, Nothing), e)]
     toBindings (Namespace name bs) = scope name $ (toBindings =<< bs)
-    scope :: String -> [((Ann, v), AnnotatedTerm v Ann)]
-                    -> [((Ann, v), AnnotatedTerm v Ann)]
+    v `orBlank` i = fromMaybe (Var.nameds $ "_" ++ show i) v
+    finishBindings bs =
+      [((a, v `orBlank` i), e) | (((a,v), e), i) <- bs `zip` [(1::Int)..]]
+
+    scope :: String -> [((Ann, Maybe v), AnnotatedTerm v Ann)]
+                    -> [((Ann, Maybe v), AnnotatedTerm v Ann)]
     scope name bs =
-      let vs = (snd . fst) <$> bs
+      let vs :: [Maybe v]
+          vs = (snd . fst) <$> bs
+          prefix :: v -> v
           prefix v = Var.named (Text.pack name `mappend` "." `mappend` Var.name v)
-          vs' = prefix <$> vs
-          substs = [ (v, Term.var () v') | (v,v') <- vs `zip` vs' ]
+          vs' :: [Maybe v]
+          vs' = fmap prefix <$> vs
+          substs = [ (v, Term.var () v') | (Just v, Just v') <- vs `zip` vs' ]
           sub e = ABT.substsInheritAnnotation substs e
       in [ ((a, v'), sub e) | (((a,_),e), v') <- bs `zip` vs' ]
 
@@ -378,7 +385,7 @@ block' s openBlock closeBlock = do
                             (a <> ann annotatedTerm)
         Action e : es ->
           pure $ Term.letRec (startAnnotation <> ann e)
-                             (toBindings =<< reverse es)
+                             (finishBindings $ toBindings =<< reverse es)
                              e
         [] -> customFailure $ EmptyBlock (const s <$> open)
 

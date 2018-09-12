@@ -121,7 +121,6 @@ annotateBound t = go Set.empty t where
     Abs x body -> abs' a x (go (Set.insert x bound) body)
     Tm body -> tm' a (go bound <$> body)
 
-
 -- | Return the list of all variables bound by this ABT
 bound :: (Ord v, Foldable f) => Term f v a -> Set v
 bound t = Set.fromList (bound' t)
@@ -330,6 +329,16 @@ rebuildUp f (Term _ ann body) = case body of
   Cycle body -> cycle' ann (rebuildUp f body)
   Abs x e -> abs' ann x (rebuildUp f e)
   Tm body -> tm' ann (f $ fmap (rebuildUp f) body)
+
+rebuildUp' :: (Ord v, Foldable f, Functor f)
+          => (Term f v a -> Term f v a)
+          -> Term f v a
+          -> Term f v a
+rebuildUp' f (Term _ ann body) = case body of
+  Var v -> f (annotatedVar ann v)
+  Cycle body -> f $ cycle' ann (rebuildUp' f body)
+  Abs x e -> f $ abs' ann x (rebuildUp' f e)
+  Tm body -> f $ tm' ann (fmap (rebuildUp' f) body)
 
 freeVarAnnotations :: (Traversable f, Ord v) => Term f v a -> [(v, a)]
 freeVarAnnotations t =

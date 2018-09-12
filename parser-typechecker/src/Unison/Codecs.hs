@@ -23,6 +23,7 @@ import qualified Unison.DataDeclaration as DD
 import qualified Unison.Hash as Hash
 import           Unison.Reference
 import           Unison.Term
+import qualified Unison.Typechecker.Components as Components
 import           Unison.UnisonFile (UnisonFile(..))
 import           Unison.Var
 import qualified Unison.Var as Var
@@ -295,6 +296,8 @@ serializeFile (UnisonFile dataDecls effectDecls body) = do
   let effectDecls' = second (DD.constructorArities . DD.toDataDecl) <$> toList effectDecls
   serializeFoldable (uncurry serializeConstructorArities) dataDecls'
   serializeFoldable (uncurry serializeConstructorArities) effectDecls'
-  pos <- serializeTerm body
+  -- NB: we rewrite the term to minimize away let rec cycles, as let rec
+  -- blocks aren't allowed to have effects
+  pos <- serializeTerm (ABT.rebuildUp' Components.minimize' body)
   putWord8 0
   putBackref pos

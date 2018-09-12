@@ -962,7 +962,7 @@ package object compilation {
       sys.error("Can't compile top-level term with free variables "
                 + Term.freeVars(e).mkString(", "))
     else
-      compile(builtins)(e, Vector(), CurrentRec.none, RecursiveVars.empty, IsTail)
+      compile(builtins)(Term.ANF(e), Vector(), CurrentRec.none, RecursiveVars.empty, IsTail)
 
   def compile(builtins: Environment)(
     e: Term,
