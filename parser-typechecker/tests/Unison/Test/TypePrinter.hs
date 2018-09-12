@@ -57,6 +57,6 @@ test = scope "typeprinter" . tests $
   , tc_same "Pair (a -> b) (c -> d)"
   , tc_same "Pair a b ->{e1, e2} Pair a b ->{} Pair (a -> b) d -> Pair c d"
   , tc_same "[Pair a a]"
-  , tc_diff "a -> 'b" $ "a -> () -> b" -- TODO (probably): render using ' syntax
+  , tc_diff "a -> 'b" $ "a -> () -> b" -- TODO (probably): render using ' syntax, add more delay tests
   , tc_same "()"
   ]
