@@ -37,26 +37,39 @@ tc_diff s expected =
 
 -- As above, but expect not even cosmetic differences between the input string
 -- and the pretty-printed version.
-tc_same s = tc_diff s s
+tc s = tc_diff s s
 
 test :: Test ()
 test = scope "typeprinter" . tests $
-  [ tc_same "a -> b"
-  , tc_diff "(a -> b)" $ "a -> b"
-  , tc_same "Pair"
---, tc_same "Pair a b"  -- fails - produces "Pair a (Pair b ())"
---, tc_same "Pair a a"  -- ditto, also TODO: render as (a, a)
---, tc_diff "(a, a)" $ "Pair a a"
-  , tc_same "Pair (Pair a a) a"
-  , tc_same "{} (Pair a a)"
-  , tc_same "a ->{} b"
-  , tc_same "a ->{e1} b"
-  , tc_same "a ->{e1, e2} b -> c ->{} d"
-  , tc_same "a ->{e1, e2} b ->{} c -> d"
-  , tc_same "{e1, e2} (Pair a a)"
-  , tc_same "Pair (a -> b) (c -> d)"
-  , tc_same "Pair a b ->{e1, e2} Pair a b ->{} Pair (a -> b) d -> Pair c d"
-  , tc_same "[Pair a a]"
-  , tc_diff "a -> 'b" $ "a -> () -> b" -- TODO (probably): render using ' syntax, add more delay tests
-  , tc_same "()"
+  [ tc "a -> b"
+  , tc "()"
+  , tc "Pair"
+  , tc "Pair a b"
+  , tc "Pair a a"
+  , tc "(a, a)"
+  , tc "(a, a, a)"
+  , tc "(a, a, a, a)"
+  , tc "Pair a (Pair a a)"
+  , tc "Pair (Pair a a) a"
+  , tc "{} (Pair a a)"
+  , tc "a ->{} b"
+  , tc "a ->{e1} b"
+  , tc "a ->{e1, e2} b -> c ->{} d"
+  , tc "a ->{e1, e2} b ->{} c -> d"
+  , tc "{e1, e2} (Pair a a)"
+  , tc "Pair (a -> b) (c -> d)"
+  , tc "Pair a b ->{e1, e2} Pair a b ->{} Pair (a -> b) d -> Pair c d"
+  , tc "[Pair a a]"
+  , tc "'a"
+  , tc "'Pair a a"
+  , tc "a -> 'b"
+  , tc "'(a -> b)"
+  --, tc "'a -> b"  --BUG
+  --, tc "a -> 'b -> c" --BUG
+  , tc "a -> '(b -> c)"
+  , tc "a -> 'Pair b c"
+  , tc "a -> b -> 'c"
+  , tc "a ->{e} 'b"
+  , tc "a ->{e} '(b -> c)"
+  --, tc "'{e} a" --BUG
   ]

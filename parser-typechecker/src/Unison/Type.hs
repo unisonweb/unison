@@ -120,6 +120,7 @@ pattern Universal' v <- ABT.Var' (TypeVar.Universal v)
 
 unPure :: Ord v => AnnotatedType v a -> Maybe (AnnotatedType v a)
 unPure (Effect'' [] t) = Just t
+unPure (Effect'' _ _) = Nothing
 unPure t = Just t
 
 unArrows :: AnnotatedType v a -> Maybe [AnnotatedType v a]
