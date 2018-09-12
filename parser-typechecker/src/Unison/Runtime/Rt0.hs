@@ -28,7 +28,7 @@ type Term v = AnnotatedTerm v ()
 
 data V
   = I Int64 | F Double | U Word64 | B Bool | T Text
-  | Lam Arity (Term Symbol) IR
+  | Lam Arity (Either R.Reference (Term Symbol)) IR
   | Data R.Reference ConstructorId [V]
   | Requested Req
   deriving (Eq,Show)
@@ -46,7 +46,7 @@ data IR
   | Let IR IR
   | LetRec [IR] IR
   | V V
-  | Apply IR [Pos] -- fully saturated function call
+  -- | Apply IR [Pos] -- fully saturated function call
   | DynamicApply Pos [Pos] -- call to unknown function
   | Construct R.Reference Int [Pos]
   | Request R.Reference Int [Pos]
@@ -100,7 +100,7 @@ data Result = RRequest Req | RMatchFail | RDone V deriving (Show)
 done :: V -> Result
 done = RDone
 
-run :: (R.Reference -> IR) -> IR -> Machine -> Result
+run :: (R.Reference -> V) -> IR -> Machine -> Result
 run env = go where
   go ir m = case ir of
     If c t f -> if atb c m then go t m else go f m
@@ -120,7 +120,7 @@ run env = go where
           g e = error ("bindings in a let rec must not have effects " ++ show e)
           bs' = map (\ir -> g $ go ir m') bs
       in go body m'
-    Apply body args -> go body (map (`at` m) args `pushes` m)
+    -- Apply body args -> go body (map (`at` m) args `pushes` m)
     DynamicApply fnPos args -> call (at fnPos m) args m
     Request r cid args -> RRequest (Req r cid ((`at` m) <$> args) (Var 0))
     Handle handler body -> case go body m of
@@ -155,10 +155,11 @@ run env = go where
           e -> error $ "type error, tried to apply: " ++ show e
       -- nargs < arity
       _ -> case term of
-        Term.LamsNamed' vs body -> done $ Lam (arity - nargs) lam (compile env lam)
+        Right (Term.LamsNamed' vs body) -> done $ Lam (arity - nargs) (Right lam) (compile env lam)
           where
           lam = Term.lam'() (drop nargs vs) $
             ABT.substs (vs `zip` (map decompile . reverse . take nargs $ m)) body
+        Left _builtin -> error "todo - handle partial application of builtins by forming closure"
         _ -> error "type error"
   call _ _ _ = error "type error"
 
@@ -169,20 +170,20 @@ decompile v = case v of
   F n -> Term.float () n
   B b -> Term.boolean () b
   T t -> Term.text () t
-  Lam _ f _ -> f
+  Lam _ f _ -> case f of Left r -> Term.ref() r; Right f -> f
   Data r cid args -> Term.apps' (Term.constructor() r cid) (toList $ fmap decompile args)
   Requested (Req r cid args _) ->
     let req = Term.apps (Term.request() r cid) (((),) . decompile <$> args)
     in req
 
-compile :: (R.Reference -> IR) -> Term Symbol -> IR
+compile :: (R.Reference -> V) -> Term Symbol -> IR
 compile env = compile0 env []
 
-compile0 :: (R.Reference -> IR) -> [Symbol] -> Term Symbol -> IR
+compile0 :: (R.Reference -> V) -> [Symbol] -> Term Symbol -> IR
 compile0 env bound t = go ((++ bound) <$> ABT.annotateBound' (Term.anf t)) where
   go t = case t of
     Term.LamsNamed' vs body
-      | ABT.isClosed t -> V (Lam (length vs) (void t) (go body))
+      | ABT.isClosed t -> V (Lam (length vs) (Right $ void t) (go body))
       | otherwise -> let
         fvs = toList $ ABT.freeVars t
         lifted = Term.lam'() (fvs ++ vs) (void body)
@@ -195,18 +196,15 @@ compile0 env bound t = go ((++ bound) <$> ABT.annotateBound' (Term.anf t)) where
     Term.Float' n -> V (F n)
     Term.Boolean' b -> V (B b)
     Term.Text' t -> V (T t)
-    Term.Ref' r -> env r
+    Term.Ref' r -> V (env r)
     Term.Var' v -> maybe (unknown v) Var $ elemIndex v (ABT.annotation t)
     Term.Let1Named' _ b body -> Let (go b) (go body)
     Term.LetRecNamed' bs body -> LetRec (go . snd <$> bs) (go body)
     Term.Constructor' r cid -> V (Data r cid mempty)
     Term.Apps' f args -> case f of
-      -- TODO: we need to know the arity of the function to compile this correctly
-      Term.Ref' r -> Apply (env r) (map (ind t) args)
+      Term.Ref' r -> Let (V (env r)) (DynamicApply 0 ((+1) . ind t <$> args))
       Term.Request' r cid -> Request r cid (ind t <$> args)
       Term.Constructor' r cid -> Construct r cid (ind t <$> args)
-      Term.LamsNamed' vs body | ABT.isClosed f && length args == length vs
-        -> Apply (go body) (map (ind t) args)
       _ -> DynamicApply (ind t f) (map (ind t) args) where
     Term.Handle' h body -> Handle (ind t h) (go body)
     Term.Ann' e _ -> go e
@@ -218,7 +216,7 @@ compile0 env bound t = go ((++ bound) <$> ABT.annotateBound' (Term.anf t)) where
         Just i -> i
       ind _ e = error $ "ANF should eliminate any non-var arguments to apply " ++ show e
 
-normalize :: (R.Reference -> IR) -> AnnotatedTerm Symbol a -> Term Symbol
+normalize :: (R.Reference -> V) -> AnnotatedTerm Symbol a -> Term Symbol
 normalize env t =
   let v = case run env (compile env $ Term.unannotate t) [] of
         RRequest e -> Requested e
@@ -226,7 +224,7 @@ normalize env t =
         e -> error $ show e
   in decompile v
 
-parseAndNormalize :: (R.Reference -> IR) -> String -> Term Symbol
+parseAndNormalize :: (R.Reference -> V) -> String -> Term Symbol
 parseAndNormalize env s = normalize env (Term.unannotate $ B.tm s)
 
 parseANF :: String -> Term Symbol

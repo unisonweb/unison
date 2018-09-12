@@ -494,8 +494,12 @@ anf t = go t where
       addLet (b,i) body = maybe body (\v -> let1' [(v,go b)] body) (Map.lookup i args')
     in foldr addLet (apps' f argsANF) (args `zip` [(0::Int)..])
   go :: AnnotatedTerm2 vt at a v a -> AnnotatedTerm2 vt at a v a
+  go (Apps' f@(LamsNamed' vs body) args) | isClosedLam f = ap vs body args where
+    ap vs body [] = lam' (ann f) vs body
+    ap (v:vs) body (arg:args) = let1' [(v,arg)] $ ap vs body args
+    ap [] _body _args = error "type error"
   go t@(Apps' f args)
-    | isVar f || (isClosedLam f && arity f == length args) = fixAp t f args
+    | isVar f = fixAp t f args
     | otherwise = let fv' = ABT.fresh t (Var.named "f")
                   in let1' [(fv', anf f)] (fixAp t (var (ann f) fv') args)
   go e@(Handle' h body)
