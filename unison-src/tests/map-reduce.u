@@ -89,7 +89,6 @@ par-apply f a b = 'let
   y = fork b
   f !x !y
 
--- this currently crashes the compiler
 Remote.run-local : '{Remote UInt64} a -> a
 Remote.run-local r =
   step : UInt64 -> Effect (Remote UInt64) a -> a
