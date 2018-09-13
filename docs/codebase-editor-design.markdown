@@ -1,206 +1,100 @@
+WIP
 
+The Unison codebase
+===================
 
-###
+The Unison codebase is not just a mutable bag of text files, it's a structured object that undergoes a series of well-typed transformations over the course of development. Each well-typed transformation is called a `Changeset`. Applying a `Changeset` to a `Codebase` yields another well-typed codebase, a `Codebase` is never in a "broken" state, yet we can still make arbitrary edits to a codebase.
 
-```
-terms/
-  reference-english-JasVXOEBBV8.markdown -- the reference docs ref'd below
-  license-8JSJdkVvvow92.markdown
-  ...
-  jAjGDJnsdfL.ub -- binary form of the term
-  jAjGDJnsdfL/
-    source-98asdfjKjsldfj.markdown -- source code, in markdown form
-    Runar.factorial.name -- just an empty file
-    math.factorial.name
-    reference-english-JasVXOEBBV8.hash -- reference docs, in English
-    reference-spanish-9JasdfjHNBdjj.hash -- reference docs
-    doc-english-OD03VvvsjK.hash -- other docs
-    license-8JSJdkVvvow92.hash -- reference to the license for this term
-types/ -- directory of all type declarations
-  8sdfA1baBw.ub -- binary form of the type declaration
-  8sdfA1baBw/
-    0/ -- constructor id, has a set of names
-      Nil.name -- empty file
-      Empty.name -- empty file
-    1/ -- constructor id, has a set of names
-      Cons.name
-      Prepend.name
-    reference-english-KgLfAIBw312.hash -- reference docs
-    doc-english-8AfjKBCXdkw.hash -- other docs
-```
+This document explains what a `Codebase` and a `Changeset` are and how the programmer interacts with them. The benefits of the Unison approach which we'll see are:
 
-`Id` is the basic type used to refer to things in a Unison codebase:
+* Incremental compilation is perfectly precise and comes for free, regardless of what editor you use. You'll almost never spend time [waiting for Unison code to compile](https://xkcd.com/303/), _no matter how large your codebase_.
+* Refactoring is a controlled experience where the refactoring always typechecks and you can precisely measure your progress, meaning that arbitrary changes to a codebase can be completed without ever dealing with a depressingly long list of (often misleading) compile errors or broken tests.
+* Codebase changes can be worked on concurrently by multiple developers, and many situations that traditionally result in incidental merge conflicts or build issues can no longer occur. (e.g., Alice swapped the order of two definitions in a file, conflicting with Bob's adding an unrelated definition.)
+* Renames, even bulk renames of whole packages of definitions, are 100% accurate and fast. When it's this easy to rename things, there's less anxiety about picking names and less need to pick the perfect name at the moment you start writing something.
+* We can assign multiple names to the same definitions, and you can choose which naming you prefer and publish your naming schemes for others to use if they wish. [Bikeshedding](http://bikeshed.com/) over names can be a thing of the past (or at least vastly reduced 😀).
+* Dependency hell is also vastly reduced: many situations that contribute to dependency hell simply cannot arise with the Unison codebase model.
+* As an added bonus, it's no problem to use different versions of some library in different parts of your application when convenient, just as you might use two unrelated libraries in your application.
+* It's easy to mix and match parts of different libraries into a custom bundle, which others can use, all while retaining full compatibility with the existing libraries that the bundle draws from.
+* Publishing code is trivial; it won't require any additional steps beyond pushing to a git repository or shared filesystem. (Other filesystem-like services can be supported in the future.)
+* Import statements are first-class values which can be shared and aggregated and published for consumption by others. No more project-wide import boilerplate at the top of every file!
+* And this is all done in a backwards compatible way using existing tools: you can still use your favorite text editor, can still version your code with Git, use GitHub, etc.
 
-```Haskell
-type Id
-  = One Reference
-  | Cycle [Hash] Int -- Int is which Hash in the `[Hash]` is being ref'd
-```
+Warning: once you experience this mode of editing a codebase and the control, safety, and ease of it, the "mutable bag of text files" model of a codebase may start to seem barbaric in comparison. 😱
 
-`Scope` denotes a `Set Id`. We might build these up symbolically:
+## The big idea  🧠
 
-```Haskell
-Scope.transitiveDependencies : Id -> Scope
-Scope.transitiveDependents : Id -> Scope
+Here it is: _Unison definitions are identified by content._ In Unison, it's not possible to change a definition, only to introduce new definitions. What can change is the mapping between definition and human-friendly names. e.g. `x -> x + 1` (a definition) vs `Integer.increment` (a name we might associate with that definition for the purposes of writing and reading other code that references it). An analogy: Unison definitions are like stars in the sky. We can assign different names to the stars in the sky, we can discover new stars, but the stars themselves exist independently of their names.
 
-Scope.union : Scope -> Scope -> Scope
--- maybe other set operations?
--- Scope.intersection : Scope -> Scope -> Scope
-```
+From this simple idea, we can build a better development experience around codebase editing with all of the above benefits.
 
-Here's the codebase API:
+## The model
 
-```Haskell
-effect Codebase where
+This section gives the model of what a `Codebase` is, what a `Changeset` is, what their API is. Later we'll cover what the actual user experience is for interacting with the model, along with various concrete usage scenarios.
 
-  -- Parse an expression
-  Term.parse : Text ->{Codebase} Term
+A `Codebase` denotes two things, a `Set Code` (a set of definitions), and a `Map Code (Set Metadata)`. `Code` could be a function or value definition (a `Term`) or a `TypeDeclaration`. `Metadata` includes things like:
 
-  -- Parse one or more type declarations
-  TypeDeclarations.parse : Text ->{Codebase} TypeDeclarations
+* Human-friendly name
+* Link to documentation, which is also just a `Term`
+* Link to LICENSE, which is also just a `Term`
+* Link to author, date created, previous version, etc ..
 
-  -- Parse one or more term declarations
-  TermDeclarations.parse : Text ->{Codebase} TermDeclarations
+Each `Term` in the `Codebase` also includes its `Type`. A Unison codebase contains no ill-typed terms.
 
-  -- Get the ids in a type declarations block
-  TypeDeclarations.ids : TypeDeclarations -> Map Name Id
+At a high level, a `Changeset` denotes a function from `Codebase` to `Codebase`, but using the representation `Codebase -> Codebase` is limited. We want a representation that comes with a commutative merge operation that allows multiple developers to collaborate on building a `Changeset`:
 
-  -- Pretty-print some type declarations
-  TypeDeclarations.text : TypeDeclarations ->{Codebase} Text
+```haskell
+data Codebase = Codebase { code : Set Code, names : Map Code (Set Metadata) }
 
-  -- Pretty-print some term declarations
-  TermDeclarations.text : TermDeclarations ->{Codebase} Text
+Code.dependencies : Code -> Set Code
+Code.dependencies c = ...
 
-  -- optional : TypeDeclarations.Html : TypeDeclarations ->{Codebase} Html
+data Changeset = Changeset
+  { added      : Set Code
+  , edited     : Map Code Edit
+  , deprecated : Set Code
+  , names      : Map Code NameEdit }
 
-  -- Get the ids in a type declarations block
-  TermDeclarations.ids : TermDeclarations -> Map Name Id
+data NameEdit = NameEdit { adds : Set Name, removes : Set Name }
 
-  -- Actually add one or more type declarations to the codebase
-  TypeDeclarations.add : TypeDeclarations ->{Codebase} ()
+-- names that have been added AND removed
+NameEdit.conflicts : NameEdit -> Set Name
 
-  -- Add one or more term declarations to the codebase
-  TermDeclarations.add : TermDeclarations ->{Codebase} ()
+data Edit
+  = Replace Code Typing
+  | SwapArguments Permutation
+  ..
+  | Conflict (Set Edit)
 
-  -- Resolve a name to zero or more ids with that name
-  resolve : Name ->{Codebase} Set Id
-
-  -- idea:
-  -- search : Pattern ->{Codebase} Set Id
-
-  -- Look up the names associated with an `Id`
-  names : Id ->{Codebase} (Set Name)
-
-  -- Add a name associated with the `Id`
-  addName : Id -> Name ->{Codebase} ()
-
-  -- Remove a name from association with the `Id`
-  removeName : Id -> Name ->{Codebase} ()
-
-  -- other metadata CRUD operations
-
-  -- `addLicense id licenseId`
-  addLicense : Id -> Id ->{Codebase} ()
-
-  -- `addAuthor id authorId`
-  addAuthor : Id -> Id ->{Codebase} ()
-
-  getLicense : Id ->{Codebase} License
-  getAuthor : Id ->{Codebase} Author
-
-  -- The immediate dependencies of an `Id` (not transitive)
-  dependencies : Id ->{Codebase} Set Id
-
-  -- The immediate dependents of an `Id` (not transitive)
-  dependents : Id ->{Codebase} Set Id
-
-  -- The immediate ancestor of an `Id`
-  ancestor : Id ->{Codebase} Id
-
-  -- Evaluate a term to normal form
-  run : Term ->{Codebase} Term
-  runIO : Term ->{IO,Codebase} Term
-  ...
-
-
-  -- Create a new empty transaction, with the empty scope
-  Transaction.new : Name ->{Codebase} Transaction
-
-  -- Look up a transaction by name
-  Transaction.resolve : Name ->{Codebase} Set Transaction
-
-  -- Read the fields of a transaction
-
-  -- The `Id`s that define the scope of the transaction
-  Transaction.scope : Transaction ->{Codebase} Set Id
-
-  -- Union the given `Scope` with the existing transaction's `Scope`.
-  Transaction.addScope : Transaction -> Scope ->{Codebase} ()
-
-  -- An element of the scope needs to have been updated if one of its
-  -- dependencies has been edited or removed as part of the transaction.
-  -- `remainder` is just a count of the elements of `scope` needing updating.
-  -- Conceptually:
-  -- length [ i | i <- Transactions.scope t,
-                  Transaction.dependencies i `intersects` (
-                    Transaction.editedSet t `union` Transaction.removed t),
-                  Set.notSingleton $ Map.lookup i (Transaction.canonical t) ]
-  Transaction.remainder : Transaction ->{Codebase} Natural
-
-  -- We never delete from the `edited` set, we only accumulate.
-  Transaction.edited : Transaction ->{Codebase} Map Id (Set Id)
-
-  -- Convenience function, just pulls out keys of `edited`.
-  Transaction.editedKeySet : Transaction ->{Codebase} Set Id
-
-  -- This is always a submap of `edited` which reflects any conflict resolutions
-  Transaction.canonical : Transaction ->{Codebase} Map Id (Set Id)
-
-  -- These are definitions newly introduced as part of this transaction
-  Transaction.added : Transaction ->{Codebase} Set Id
-
-  -- These are definitions deleted as part of this transaction
-  Transaction.removed : Transaction ->{Codebase} Set Id
-
-  -- Add a definition to the `added` set of the transaction
-  Transaction.add : Transaction -> Id ->{Codebase} ()
-
-  -- Add a definition to the `removed` set of the transaction
-  Transaction.remove : Transaction -> Id ->{Codebase} ()
-
-  -- `edit t old new` adds `new` to the `edited` map for `old` and
-  -- to the `canonical` map for `old`.
-  Transaction.edit : Transaction -> Id -> Id ->{Codebase} ()
-
-  -- `resolve id selected` replaces the canonical set with the selected
-  -- `Id`, discarding any prior selections
-  -- Discarded `Id` can be computed by comparing the `edited` (which has
-  -- everything) and `canonical` (which has current selections)
-  --
-  -- What should this do if the selected `Id` is unrelated to any of the
-  -- existing ids?
-  Transaction.resolve : Transaction -> Id -> Id ->{Codebase} ()
-
-  -- Actually apply the transaction to the codebase. Idempotent.
-  -- What does this actually do???
-  -- Presumably something with names...
-  -- Arya proposal: If scope includes Id of a namespace / first-class
-  --                naming preference object, then update that ... something something something
-  -- Observation: Because you can have scopes that are smaller than "the entire
-  --              codebase" (which isn't really a thing), git branches aren't
-  --              a useful thing for tracking concurrent development (because
-  --              git branches only work at the level of the whole git repo).
-  -- Paul: seems like we need a `Branch`
-  -- `Branch` assigns zero or more names to each Id mapping.
-  -- `Transactions` are functions Branch -> Branch.
-  -- `Transaction.commit` applies that function to a branch.
-  Transaction.commit : Transaction -> Branch ->{Codebase} ()
-
-  -- Branch might just be a name prefix. `<branch-name>.List.sort.name`
-  -- You should be able to import some branch
-
-  -- no Transaction.merge for now
+-- Indicates whether the replacement is the same type, a subtype, or a different type
+-- which is useful information for knowing how far we can automatically propagate a `Changeset`.
+data Typing = Same | Subtype | Different
 ```
 
-User preferences wrt to name rendering? Id -> name preferences
+The commutative monoid for `Changeset` combines corresponding elements of the `Changeset`:
 
+```haskell
+instance Monoid Changeset where
+  mempty = Changeset mempty mempty mempty mempty
+
+  c1 `mappend` c2 =
+    Changeset (added c1 `Set.union` added c2)
+              (Map.unionWith mappend (edited c1) (edited c2))
+              (deprecated c1 `Set.union` deprecated c2)
+              (Map.unionWith mappend (names c1) (names c2))
+
+instance Monoid Edit where ...
+instance Monoid NameEdit where ...
+```
+
+To apply a `Changeset` to a `Codebase`, we interpret the `Changeset` as a `Codebase -> Codebase`. There are some interesting decisions about how to do this, but here's one implementation:
+
+```haskell
+apply : Changeset -> Codebase -> Codebase
+apply c cb = Codebase (added c `Set.union` code cb) ... todo
+```
+
+This is it for the model. The rest of this document focuses on how to expose this nice model for use by the Unison programmer.
+
+## The developer experience
+
+TODO
