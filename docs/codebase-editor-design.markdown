@@ -39,37 +39,30 @@ A `Codebase` denotes two things, a `Set Code` (a set of definitions), and a `Map
 
 Each `Term` in the `Codebase` also includes its `Type`. A Unison codebase contains no ill-typed terms.
 
-At a high level, a `Changeset` denotes a function from `Codebase` to `Codebase`, but using the representation `Codebase -> Codebase` is limited. We want a representation that comes with a commutative merge operation that allows multiple developers to collaborate on building a `Changeset`:
+At a high level, a `Changeset` denotes a function from `Codebase` to `Codebase`, but we don't literally use the representation `Codebase -> Codebase`. We want a representation that can be converted to a `Codebase -> Codebase` but which also comes equipped with a commutative merge operation that allows multiple developers to collaborate on building a `Changeset`. Here's a model for that.
+
+As mentioned, a codebase is a `Set Code` and a `Map Code (Set Metadata)`. Note that `Code` has a function, `dependencies`, which is the set of `Code` it uses in its definition:
 
 ```haskell
-data Codebase = Codebase { code : Set Code, names : Map Code (Set Metadata) }
+data Codebase = Codebase { code : Set Code, metadata : Map Code (Set Metadata) }
+
+data Metadata = Metadata { names : Set Name, links : Map Name Code }
 
 Code.dependencies : Code -> Set Code
 Code.dependencies c = ...
+```
 
+A `Changeset` denotes `Codebase -> Codebase`, but represented as a mergeable data structure that tells us how to modify the input `Codebase`:
+
+```haskell
 data Changeset = Changeset
   { added      : Set Code
   , edited     : Map Code Edit
   , deprecated : Set Code
-  , names      : Map Code NameEdit }
-
-data NameEdit = NameEdit { adds : Set Name, removes : Set Name }
-
--- names that have been added AND removed
-NameEdit.conflicts : NameEdit -> Set Name
-
-data Edit
-  = Replace Code Typing
-  | SwapArguments Permutation -- optional idea for more semantic edits
-  ..
-  | Conflict (Set Edit)
-
--- Indicates whether the replacement is the same type, a subtype, or a different type
--- which is useful information for knowing how far we can automatically propagate a `Changeset`.
-data Typing = Same | Subtype | Different
+  , editedMetadata : Map Code MetadataEdit }
 ```
 
-The commutative monoid for `Changeset` combines corresponding elements of the `Changeset`:
+Will say what `Edit` and `MetadataEdit` are momentarily, but the commutative monoid for `Changeset` combines corresponding elements of the `Changeset`:
 
 ```haskell
 instance Monoid Changeset where
@@ -82,37 +75,79 @@ instance Monoid Changeset where
               (Map.unionWith mappend (names c1) (names c2))
 
 instance Monoid Edit where ...
-instance Monoid NameEdit where ...
+instance Monoid MetadataEdit where ...
 ```
+
+A `MetadataEdit` denotes a function from `Metadata -> Metadata`.
+
+```haskell
+data MetadataEdit =
+  MetadataEdit { nameAdds    : Set Name
+               , nameRemoves : Set Name
+               , linkAdds    : Map Name (Set Code)
+               , linkRemoves : Map Name (Set Code) }
+
+-- names that have been added AND removed
+MetadataEdit.conflicts : MetadataEdit -> Set Name
+
+instance Monoid MetadataEdit where
+  mempty = MetadataEdit mempty mempty mempty mempty
+  me1 `mappend` me2 =
+    MetadataEdit (nameAdds me1 `Set.union` nameAdds me2)
+                 (nameRemoves me1 `Set.union` nameRemoves me2)
+                 (Map.unionWith Set.union (linkAdds me1) (linkAdds me2))
+                 (Map.unionWith Set.union (linkRemoves me1) (linkRemoves me2))
+```
+
+The monoid just unions the `Set Name` and for colliding keys in `linkAdds` and `linkRemoves`, unions the `Set Code` from the two maps.
+
+The `Edit` type denotes a function `Code -> Code`, though we represent it in a way that can be merged:
+
+```
+data Edit
+  = Replace Code Typing
+  | SwapArguments Permutation -- optional idea for more semantic edits
+  ..
+  | Conflict (Set Edit)
+
+data Typing = Same | Subtype | Different
+```
+
+The `Typing` indicates whether the replacement `Code` is the same type as the old `Code`, a subtype of it, or a different type. This is useful for knowing how far we can automatically propagate a `Changeset`.
 
 The `Edit` type produces a `Conflict` when merged, though with more structured edits (note the `SwapArguments` data constructor), even more could be done here.
 
-A `Changeset` is _complete_ when it either covers the entire codebase or when it can be expanded to cover the whole codebase because its "frontier" consists of only type preserving edits. We can make this idea more precise. A `Changeset`, `c`, has a _frontier_ of `Code` drawn from `altered c` which is not a dependency of any other `Code` in `altered c`. `altered` just includes everything that has been edited or deprecated:
-
 ```haskell
-altered c = deprecated c `Set.union` Map.keySet (edited c)
+instance Monoid Edit where
+  mempty = Conflict mempty
+  Conflict e `mappend` e2 | Set.null e = e2
+  e `mappend` Conflict e2 | Set.null e2 = e
+  Replace c t `mappend` Replace c2 _ | c == c2 = Replace c t
+
+  SwapArguments p1 `mappend` SwapArguments p2 | Permutation.commutes p1 p2 =
+    SwapArguments (Permutation.compose p1 p2)
+
+  e `mappend` e2 = Conflict (Set.union (flat e) (flat e2)) where
+    flat (Conflict e) = flat e
+    flat e = Set.singleton e
 ```
 
-A `Changeset`, `c`, is complete with respect to a `Codebase`, `cb`, when each `Code` in the frontier of `c` is either a type-preserving edit (a `Replace new Same` or `Replace new Subtype`) OR a type-changing edit (this includes deprecation) which has _no transitive dependents_ in `cb`.
+A `Changeset` is _complete_ when it either covers the entire codebase or when it can be expanded to cover the whole codebase because its "frontier" which the codebase depends on consists of only type preserving edits. More precisely, the a `Changeset`, `c`, is complete with respect to a `Codebase`, `cb`, when all dependents (from `cb`) of type-changing edits (this includes deprecation) also have a non-conflicted edit in `c`.
 
-If we want to measure how much work is remaining to complete a `Changeset`, we can count all the transitive dependents of type-changing edits in the frontier. This number will decrease monotonically as the `Changeset` is worked on.
+If we want to measure how much work is remaining to complete a `c : Changeset` with respect to `cb : Codebase`, we can count the transitive dependents of all _escaped dependents_ of type-changing edits in the `Changeset`. An _escaped dependent_ is in `cb` but not `c`. This number will decrease monotonically as the `Changeset` is worked on.
 
 _Related:_ There are some useful computations we can do to suggest which dependents of the frontier to upgrade next, based on what will make maximal progress in decreasing the remaining work. The idea is that it's useful to focus first on the "trunk" of a refactoring, which lots of code depend on, rather than the branches and leaves. Programmers sometimes try to do something like this when refactoring, but it can be difficult to know what's what when the main feedback you get from the compiler is just a big list of compile errors.
 
-To apply a `Changeset` to a `Codebase`, we interpret the `Changeset` as a `Codebase -> Codebase`. There are some interesting decisions about how to do this, but here's one implementation:
+We also typically want to encourage the user to work on updates by expanding outward from initial changes, such that the set of edits form a connected dependency graph. If the user "skips over" nodes in the graph, there's a chance they may need to redo their work, and we should notify the user about this. It's not something we need to prevent but we don't want the user to be unaware that it's happening.
+
+To apply a complete `Changeset` to a `Codebase`, we interpret the `Changeset` as a `Codebase -> Codebase`. There are some interesting decisions about how to do this, but here's one implementation:
 
 ```haskell
 apply : Changeset -> Codebase -> Codebase
-apply c cb = Codebase (added c `Set.union` code cb) ... todo
+apply c cb = Codebase (added c `Set.union` code cb) todo
 ```
 
 Notice that with this implementation a `Changeset` can talk about upgrades and edits to functions, without having to know what they are called! This makes changesets more portable as they can still be shared with people who might have different local names for things.
-
-There is one important invariant about `Changeset` that the public operations we expose for it will all preserve:
-
-> If two definitions, `a`, and `b` are both updated by the `Changeset`, and `a` is a transitive dependency of `b`, then all transitive dependents on the path connecting `a` to `b` must also have updates.
-
-Put another way, the `Changeset` can't "skip over" updates. It can be of limited scope (unable to cover the whole codebase yet), or it can start near the frontiers of the codebase (if it's an update of a `main` function with lots of transitive dependencies), but it can't skip over dependents: if the changeset starts an upgrade at some node in the dependency graph, it needs to expand to immediate dependents, recursively, until reaching some type-preserving frontier. If we didn't have this property, we can't really view the changeset as performing a replacement of some old definitions (as some dependents of those old definitions are still referencing the old definitions in the new codebase) and it would be unclear what we should do with the names.
 
 This is it for the model. The rest of this document focuses on how to expose this nice model for use by the Unison programmer.
 
