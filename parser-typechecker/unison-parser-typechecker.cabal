@@ -53,6 +53,7 @@ library
     Unison.PatternP
     Unison.PrintError
     Unison.Reference
+    Unison.Runtime.Rt0
     Unison.Result
     Unison.Symbol
     Unison.Term

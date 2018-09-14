@@ -6,12 +6,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE UnicodeSyntax #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Term where
 
+import Prelude hiding (and,or)
 import qualified Control.Monad.Writer.Strict as Writer
+import Data.Functor (void)
 import           Data.Foldable (traverse_, toList)
 import           Data.Int (Int64)
 import           Data.List (foldl')
@@ -138,6 +141,21 @@ typeMap f t = go t where
     -- Safe since `Ann` is only ctor that has embedded `Type v` arg
     -- otherwise we'd have to manually match on every non-`Ann` ctor
     ABT.Tm ts -> unsafeCoerce $ ABT.Tm (fmap go ts)
+
+unannotate :: ∀ vt at ap v a . Ord v => AnnotatedTerm2 vt at ap v a -> Term' vt v
+unannotate t = go t where
+  go :: AnnotatedTerm2 vt at ap v a -> Term' vt v
+  go (ABT.out -> ABT.Abs v body) = ABT.abs v (go body)
+  go (ABT.out -> ABT.Cycle body) = ABT.cycle (go body)
+  go (ABT.Var' v) = ABT.var v
+  go (ABT.Tm' f) =
+    case go <$> f of
+      Ann e t -> ABT.tm (Ann e (void t))
+      Match scrutinee branches ->
+        let unann (MatchCase pat guard body) = MatchCase (void pat) guard body
+        in ABT.tm (Match scrutinee (unann <$> branches))
+      f' -> ABT.tm (unsafeCoerce f')
+  go _ = error "unpossible"
 
 wrapV :: Ord v => AnnotatedTerm v a -> AnnotatedTerm (ABT.V v) a
 wrapV = vmap ABT.Bound
@@ -279,6 +297,10 @@ vector' a es = ABT.tm' a (Vector es)
 apps :: Ord v => AnnotatedTerm2 vt at ap v a -> [(a, AnnotatedTerm2 vt at ap v a)] -> AnnotatedTerm2 vt at ap v a
 apps f = foldl' (\f (a,t) -> app a f t) f
 
+apps' :: (Ord v, Semigroup a)
+      => AnnotatedTerm2 vt at ap v a -> [AnnotatedTerm2 vt at ap v a] -> AnnotatedTerm2 vt at ap v a
+apps' f = foldl' (\f t -> app (ABT.annotation f <> ABT.annotation t) f t) f
+
 iff :: Ord v => a -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a
 iff a cond t f = ABT.tm' a (If cond t f)
 
@@ -342,6 +364,16 @@ let1 bindings e = foldr f e bindings
   where
     f ((ann,v),b) body = ABT.tm' ann (Let b (ABT.abs' ann v body))
 
+let1' :: (Semigroup a, Ord v)
+      => [(v, AnnotatedTerm2 vt at ap v a)]
+      -> AnnotatedTerm2 vt at ap v a
+      -> AnnotatedTerm2 vt at ap v a
+let1' bindings e = foldr f e bindings
+  where
+    ann = ABT.annotation
+    f (v,b) body = ABT.tm' a (Let b (ABT.abs' a v body)) where
+      a = ann b <> ann body
+
 -- let1' :: Var v => [(Text, Term' vt v)] -> Term' vt v -> Term' vt v
 -- let1' bs e = let1 [(ABT.v' name, b) | (name,b) <- bs ] e
 
@@ -359,22 +391,22 @@ unLet t = fixup (go t) where
   fixup bst = Just bst
 
 -- | Satisfies `unLetRec (letRec bs e) == Just (bs, e)`
-unLetRecNamed :: AnnotatedTerm' vt v a -> Maybe ([(v, AnnotatedTerm' vt v a)], AnnotatedTerm' vt v a)
+unLetRecNamed :: AnnotatedTerm2 vt at ap v a -> Maybe ([(v, AnnotatedTerm2 vt at ap v a)], AnnotatedTerm2 vt at ap v a)
 unLetRecNamed (ABT.Cycle' vs (ABT.Tm' (LetRec bs e)))
   | length vs == length vs = Just (zip vs bs, e)
 unLetRecNamed _ = Nothing
 
 unLetRec :: (Monad m, Var v)
-         => AnnotatedTerm' vt v a
+         => AnnotatedTerm2 vt at ap v a
          -> Maybe ((v -> m v) ->
-                   m ([(v, AnnotatedTerm' vt v a)], AnnotatedTerm' vt v a))
+                   m ([(v, AnnotatedTerm2 vt at ap v a)], AnnotatedTerm2 vt at ap v a))
 unLetRec (unLetRecNamed -> Just (bs, e)) = Just $ \freshen -> do
   vs <- sequence [ freshen v | (v,_) <- bs ]
   let sub = ABT.substsInheritAnnotation (map fst bs `zip` map ABT.var vs)
   pure (vs `zip` [ sub b | (_,b) <- bs ], sub e)
 unLetRec _ = Nothing
 
-unApps :: AnnotatedTerm' vt v a -> Maybe (AnnotatedTerm' vt v a, [AnnotatedTerm' vt v a])
+unApps :: AnnotatedTerm2 vt at ap v a -> Maybe (AnnotatedTerm2 vt at ap v a, [AnnotatedTerm2 vt at ap v a])
 unApps t = case go t [] of [] -> Nothing; f:args -> Just (f,args)
   where
   go (App' i o) acc = go i (o:acc)
@@ -383,7 +415,7 @@ unApps t = case go t [] of [] -> Nothing; f:args -> Just (f,args)
 
 pattern LamsNamed' vs body <- (unLams' -> Just (vs, body))
 
-unLams' :: AnnotatedTerm' vt v a -> Maybe ([v], AnnotatedTerm' vt v a)
+unLams' :: AnnotatedTerm2 vt at ap v a -> Maybe ([v], AnnotatedTerm2 vt at ap v a)
 unLams' (LamNamed' v body) = case unLams' body of
   Nothing -> Just ([v], body)
   Just (vs, body) -> Just (v:vs, body)
@@ -443,6 +475,60 @@ updateDependencies u tm = ABT.rebuildUp go tm where
 betaReduce :: Var v => Term v -> Term v
 betaReduce (App' (Lam' f) arg) = ABT.bind f arg
 betaReduce e = e
+
+anf :: ∀ vt at v a . (Semigroup a, Var v)
+    => AnnotatedTerm2 vt at a v a -> AnnotatedTerm2 vt at a v a
+anf t = go t where
+  ann = ABT.annotation
+  isVar (Var' _) = True
+  isVar _ = False
+  isClosedLam t@(LamNamed' _ _) | Set.null (ABT.freeVars t) = True
+  isClosedLam _ = False
+  fixAp t f args =
+    let
+      args' = Map.fromList $ toVar =<< (args `zip` [0..])
+      toVar (b, i) | isVar b   = []
+                   | otherwise = [(i, ABT.fresh t (Var.named . Text.pack $ "arg" ++ show i))]
+      argsANF = map toANF (args `zip` [0..])
+      toANF (b,i) = maybe b (var (ann b)) $ Map.lookup i args'
+      addLet (b,i) body = maybe body (\v -> let1' [(v,go b)] body) (Map.lookup i args')
+    in foldr addLet (apps' f argsANF) (args `zip` [(0::Int)..])
+  go :: AnnotatedTerm2 vt at a v a -> AnnotatedTerm2 vt at a v a
+  go (Apps' f@(LamsNamed' vs body) args) | isClosedLam f = ap vs body args where
+    ap vs body [] = lam' (ann f) vs body
+    ap (v:vs) body (arg:args) = let1' [(v,arg)] $ ap vs body args
+    ap [] _body _args = error "type error"
+  go t@(Apps' f args)
+    | isVar f = fixAp t f args
+    | otherwise = let fv' = ABT.fresh t (Var.named "f")
+                  in let1' [(fv', anf f)] (fixAp t (var (ann f) fv') args)
+  go e@(Handle' h body)
+    | isVar h = handle (ann e) h (go body)
+    | otherwise = let h' = ABT.fresh e (Var.named "handler")
+                  in let1' [(h', go h)] (handle (ann e) (var (ann h) h') (go body))
+  go e@(If' cond t f)
+    | isVar cond = iff (ann e) cond (go t) (go f)
+    | otherwise = let cond' = ABT.fresh e (Var.named "cond")
+                  in let1' [(cond', anf cond)] (iff (ann e) (var (ann cond) cond') t f)
+  go e@(Match' scrutinee cases)
+    | isVar scrutinee = match (ann e) scrutinee (fmap go <$> cases)
+    | otherwise = let scrutinee' = ABT.fresh e (Var.named "scrutinee")
+                  in let1' [(scrutinee', go scrutinee)] (match (ann e) (var (ann scrutinee) scrutinee') cases)
+  go e@(And' x y)
+    | isVar x = and (ann e) x (go y)
+    | otherwise =
+        let x' = ABT.fresh e (Var.named "argX")
+        in let1' [(x', anf x)] (and (ann e) (var (ann x) x') (go y))
+  go e@(Or' x y)
+    | isVar x = or (ann e) x (go y)
+    | otherwise =
+        let x' = ABT.fresh e (Var.named "argX")
+        in let1' [(x', go x)] (or (ann e) (var (ann x) x') (go y))
+  go e@(ABT.Tm' f) = ABT.tm' (ann e) (go <$> f)
+  go e@(ABT.Var' _) = e
+  go e@(ABT.out -> ABT.Cycle body) = ABT.cycle' (ann e) (go body)
+  go e@(ABT.out -> ABT.Abs v body) = ABT.abs' (ann e) v (go body)
+  go e = e
 
 instance Var v => Hashable1 (F v a p) where
   hash1 hashCycle hash e =
