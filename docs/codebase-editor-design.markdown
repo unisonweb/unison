@@ -22,7 +22,10 @@ Warning: once you experience this mode of editing a codebase and the control, sa
 
 ## The big idea  🧠
 
-Here it is: _Unison definitions are identified by content._ In Unison, it's not possible to change a definition, only to introduce new definitions. What can change is the mapping between definition and human-friendly names. e.g. `x -> x + 1` (a definition) vs `Integer.increment` (a name we might associate with that definition for the purposes of writing and reading other code that references it). An analogy: Unison definitions are like stars in the sky. We can assign different names to the stars in the sky, we can discover new stars, but the stars themselves exist independently of their names.
+Here it is: _Unison definitions are identified by content._ Therefore, there's no such thing as changing a definition, there's only introducing new definitions. What can change is the mapping between definition and human-friendly names. e.g. `x -> x + 1` (a definition) vs `Integer.increment` (a name we associate with it for the purposes of writing and reading other code that references it).
+
+> Unison definitions are like stars in the sky. You can discover new ones, but the ones that are there don't change.  Names are what you write on your map of the sky. The stars themselves don't know or care :)
+> — @atacratic
 
 From this simple idea, we can build a better development experience around codebase editing with all of the above benefits.
 
@@ -41,7 +44,7 @@ Each `Term` in the `Codebase` also includes its `Type`. A Unison codebase contai
 
 At a high level, a `Changeset` denotes a function from `Codebase` to `Codebase`, but we don't literally use the representation `Codebase -> Codebase`. We want a representation that can be converted to a `Codebase -> Codebase` but which also comes equipped with a commutative merge operation that allows multiple developers to collaborate on building a `Changeset`. This section gives a model for that.
 
-As mentioned, a codebase is a `Set Code` and a `Map Code (Set Metadata)`. Note that `Code` has a function, `dependencies`, which is the set of `Code` it uses in its definition:
+As mentioned, a codebase is a `Set Code` and a `Map Code (Set Metadata)`. We'll have access to a the function `Code.dependencies`, which given a `c : Code` returns the set of other `Code` that appear in the definition of `c`.
 
 ```haskell
 data Codebase = Codebase { code : Set Code, metadata : Map Code (Set Metadata) }
@@ -62,7 +65,7 @@ data Changeset = Changeset
   , editedMetadata : Map Code MetadataEdit }
 ```
 
-Will say what `Edit` and `MetadataEdit` are momentarily, but the commutative monoid for `Changeset` combines corresponding elements of the `Changeset`:
+We'll say what `Edit` and `MetadataEdit` are momentarily, but the commutative monoid for `Changeset` combines corresponding elements of the `Changeset`:
 
 ```haskell
 instance Monoid Changeset where
@@ -88,7 +91,8 @@ data MetadataEdit =
                , linkRemoves : Map Name (Set Code) }
 
 -- names that have been added AND removed
-MetadataEdit.conflicts : MetadataEdit -> Set Name
+MetadataEdit.nameConflicts : MetadataEdit -> Set Name
+MetadataEdit.linkConflicts : MetadataEdit -> Set Name
 
 instance Monoid MetadataEdit where
   mempty = MetadataEdit mempty mempty mempty mempty
@@ -103,7 +107,7 @@ The monoid just unions the `Set Name` and for colliding keys in `linkAdds` and `
 
 The `Edit` type denotes a function `Code -> Code`, though we represent it in a way that can be merged:
 
-```
+```haskell
 data Edit
   = Replace Code Typing
   | SwapArguments Permutation -- optional idea for more semantic edits
@@ -115,7 +119,7 @@ data Typing = Same | Subtype | Different
 
 The `Typing` indicates whether the replacement `Code` is the same type as the old `Code`, a subtype of it, or a different type. This is useful for knowing how far we can automatically propagate a `Changeset`.
 
-The `Edit` type produces a `Conflict` when merged, though with more structured edits (note the `SwapArguments` data constructor), even more could be done here.
+The `Edit` type produces a `Conflict` when merged, though with more structured edits (*e.g.*, in the case of the `SwapArguments` data constructor), even more could be done here.
 
 ```haskell
 instance Monoid Edit where
@@ -132,13 +136,13 @@ instance Monoid Edit where
     flat e = Set.singleton e
 ```
 
-A `Changeset` is _complete_ when it either covers the entire codebase or when it can be expanded to cover the whole codebase because its "frontier" which the codebase depends on consists of only type preserving edits. More precisely, the a `Changeset`, `c`, is complete with respect to a `Codebase`, `cb`, when all dependents (from `cb`) of type-changing edits (this includes deprecation) also have a non-conflicted edit in `c`.
+A Changeset is complete when it either covers the entire codebase or when it has been developed to the point that the remaining updates are type-preserving and can thus be applied automatically. More precisely, a Changeset `c` is complete with respect to a Codebase `cb`, when all dependents in `cb` of type-changing edits in `c` (including deprecations) also have an edit in `c`, and none of the edits are in a conflicted state.
 
-If we want to measure how much work is remaining to complete a `c : Changeset` with respect to `cb : Codebase`, we can count the transitive dependents of all _escaped dependents_ of type-changing edits in the `Changeset`. An _escaped dependent_ is in `cb` but not `c`. This number will decrease monotonically as the `Changeset` is worked on.
+If we want to measure how much work is remaining to complete a Changeset `c` with respect to Codebase `cb`, we can count the transitive dependents of all _escaped dependents_ of type-changing edits in `c`. An _escaped dependent_ is in `cb` but not `c`. This number will decrease monotonically as the Changeset is developed.
 
 _Related:_ There are some useful computations we can do to suggest which dependents of the frontier to upgrade next, based on what will make maximal progress in decreasing the remaining work. The idea is that it's useful to focus first on the "trunk" of a refactoring, which lots of code depend on, rather than the branches and leaves. Programmers sometimes try to do something like this when refactoring, but it can be difficult to know what's what when the main feedback you get from the compiler is just a big list of compile errors.
 
-We also typically want to encourage the user to work on updates by expanding outward from initial changes, such that the set of edits form a connected dependency graph. If the user "skips over" nodes in the graph, there's a chance they'll need to redo their work, and we should notify the user about this. It's not something we need to prevent but we don't want the user to be unaware that it's happening.
+We also typically want to encourage the user to work on updates by expanding outward from initial changes, such that the set of edits form a connected dependency graph. If the user "skips over" nodes in the graph, there's a chance they'll need to redo their work, and we should notify the user about this. It's not something we need to prevent but we want the user to be aware that it's happening.
 
 To apply a complete `Changeset` to a `Codebase`, we interpret the `Changeset` as a `Codebase -> Codebase`. There are some interesting decisions about how to do this, but here's one implementation, which changes the name for old versions of the code to include a new prefix, based on a hash of the `Changeset` itself.
 
@@ -197,7 +201,7 @@ Then the following happens:
 
 A design goal of the repository format is that it can be versioned using Git (or Hg, or whatever), and there should never be merge conflicts when merging two Unison repositories. That is, Git merge conflicts are a bad UX for surfacing concurrent edits that the user may wish to reconcile.
 
-```
+```text
 terms/
   jAjGDJnsdfL/
     compiled.ub  -- compiled form of the term
@@ -252,3 +256,5 @@ type Namespace = Map Name (Set Code) -> Map Code [NameEdit]
 ```
 
 There's a nice little combinator library you can write to build up `Namespace` values in various ways, and we can imagine the Unison `use` syntax to be sugar for this library.
+
+**Arya**: I'm still thinking we'll want something like scopes to be able to apply a changeset to a prefix in a "clone package foo.x to foo.y and apply these changes" sort of wway.
