@@ -1,4 +1,4 @@
-WIP
+Note: initial draft, probably a lot of rough edges. Comments/questions/ideas are welcome!
 
 # Editing a Unison codebase
 
@@ -39,7 +39,7 @@ A `Codebase` denotes two things, a `Set Code` (a set of definitions), and a `Map
 
 Each `Term` in the `Codebase` also includes its `Type`. A Unison codebase contains no ill-typed terms.
 
-At a high level, a `Changeset` denotes a function from `Codebase` to `Codebase`, but we don't literally use the representation `Codebase -> Codebase`. We want a representation that can be converted to a `Codebase -> Codebase` but which also comes equipped with a commutative merge operation that allows multiple developers to collaborate on building a `Changeset`. Here's a model for that.
+At a high level, a `Changeset` denotes a function from `Codebase` to `Codebase`, but we don't literally use the representation `Codebase -> Codebase`. We want a representation that can be converted to a `Codebase -> Codebase` but which also comes equipped with a commutative merge operation that allows multiple developers to collaborate on building a `Changeset`. This section gives a model for that.
 
 As mentioned, a codebase is a `Set Code` and a `Map Code (Set Metadata)`. Note that `Code` has a function, `dependencies`, which is the set of `Code` it uses in its definition:
 
@@ -138,13 +138,23 @@ If we want to measure how much work is remaining to complete a `c : Changeset` w
 
 _Related:_ There are some useful computations we can do to suggest which dependents of the frontier to upgrade next, based on what will make maximal progress in decreasing the remaining work. The idea is that it's useful to focus first on the "trunk" of a refactoring, which lots of code depend on, rather than the branches and leaves. Programmers sometimes try to do something like this when refactoring, but it can be difficult to know what's what when the main feedback you get from the compiler is just a big list of compile errors.
 
-We also typically want to encourage the user to work on updates by expanding outward from initial changes, such that the set of edits form a connected dependency graph. If the user "skips over" nodes in the graph, there's a chance they may need to redo their work, and we should notify the user about this. It's not something we need to prevent but we don't want the user to be unaware that it's happening.
+We also typically want to encourage the user to work on updates by expanding outward from initial changes, such that the set of edits form a connected dependency graph. If the user "skips over" nodes in the graph, there's a chance they'll need to redo their work, and we should notify the user about this. It's not something we need to prevent but we don't want the user to be unaware that it's happening.
 
-To apply a complete `Changeset` to a `Codebase`, we interpret the `Changeset` as a `Codebase -> Codebase`. There are some interesting decisions about how to do this, but here's one implementation:
+To apply a complete `Changeset` to a `Codebase`, we interpret the `Changeset` as a `Codebase -> Codebase`. There are some interesting decisions about how to do this, but here's one implementation, which changes the name for old versions of the code to include a new prefix, based on a hash of the `Changeset` itself.
 
 ```haskell
-apply : Changeset -> Codebase -> Codebase
-apply c cb = Codebase (added c `Set.union` code cb) todo
+Changeset.hash : Changeset -> Name
+Changeset.hash c = ...
+
+Changeset.isComplete : Changeset -> Codebase -> Bool
+Changeset.isComplete c cb = -- as discussed
+
+Changeset.apply : Changeset -> Codebase -> Maybe Codebase
+Changeset.apply c cb | isComplete c cb =
+  substitutions = [(k, v) | (k, Replace v _) <- Map.toList (edited c) ]
+  nameOf k = Map.lookup k (metadata cb)
+  Codebase (added c `Set.union` code cb) todo
+Changeset.apply _ _ = Nothing
 ```
 
 Notice that with this implementation a `Changeset` can talk about upgrades and edits to functions, without having to know what they are called! This makes changesets more portable as they can still be shared with people who might have different local names for things.
@@ -153,11 +163,39 @@ This is it for the model. The rest of this document focuses on how to expose thi
 
 ## The developer experience
 
-TODO
+Alice is an employee of Acme, Inc. She comes into work with a brilliant idea for a new function. She's not sure what to call this function yet and she's terrible at naming things, so she puts the function, initially called `wrangle` in her "sandbox" namespace, `Alice.scratch`. (`Alice` may be her GitHub username or anything else that's pretty unique) The function starts its life with a fully qualified name (FQN) of `Alice.scratch.wrangle`. She commits this to her local Unison repository and then pushes to the company's central repo on GitHub.
 
-### Repository format
+Bob, meanwhile, is a fellow Acme employee. He happens to notice the commit fly by. He tells unison `> view Alice.sandbox.wrangle`, which pretty-prints the implementation along with any documentation. In awe at its brilliance, he pings Alice over work chat: "Alice, my gosh, you've done it!! You've solved the exact optimization problem I've been struggling with for the past six months! This function is... _awesome_ and I strongly suggest we move it to `Acme.awesome`. Is this cool? I'd like to start using it in the code I'm writing." Alice: "TOTALLY, Bob, go for it". High fives all around. 🙌
 
-Design goal - a Unison repository can be versioned using Git (or Hg, or whatever), and there should never be merge conflicts when merging two Unison repositories. That is, Git merge conflicts are a bad UX for surfacing concurrent edits that the user may wish to reconcile.
+Bob tells Unison: `> move Alice.sandbox.wrangle Acme.awesome`. The rename happens instantly and is 100% accurate. Bob commits and pushes, and Alice pulls, which obtains the new name.
+
+Some time passes, the `Acme.awesome` function starts getting used all over the `Acme` codebase, inspiring Alice to come up with an even nicer implementation. Unfortunately, it requires modifying the type signature slightly. She tells Bob, and they collaborate on a changeset which fully updates their repository, using the commutative merge operation discussed above. They don't need to do anything special for this merging to happen, just a regular `git pull`.
+
+They start the changeset with a simple `> edit Acme.awesome` and are guided through propagating it fully via the friendly Unison codebase editor. It's easy, controlled, and they monitor their progress just via the "remaining work" statistic that the codebase editor helpfully displays for any in-progress changeset. When they're done, they `> apply Acme.awesomeUpgrade` to update the codebase. At each point in time, they remain in full control, without a big list of compile errors.
+
+Alice and Bob later decide, after much discussion, that they prefer the name `Acme.rad` for this function and apply this renaming to their repository. Again this happens instantaneously and with 100% accuracy. Doing `> view foo` for a definition, `foo`, which references `Acme.rad` prints the updated name.
+
+__Aside:__ We can think of `apply` as really taking two arguments, the changeset itself, and some prefix for the new definitions. If we have a complete changeset with respect to a codebase and the prefix is empty, we are saying we want the names for the new versions of definitions to clobber the old definitions (perhaps the old definitions get the changeset id prefixed to them). If the changeset is incomplete, perhaps the developer is forced to pick a prefix for the new definitions, so that the new `Acme.awesome` is actually put under `v2.Acme.awesome`. And even if the changeset _is_ complete the developer may choose to still put the new definitions under a namespace like `v2`, so that they can conveniently refer to both versions just with a qualified import.
+
+### Publishing
+
+Feeling pretty good about all this, Alice and Bob decide to publish the `Acme.rad` function for use by other folks outside of `Acme, Inc`. They do so just by sharing a URL that links to their GitHub repository. There's no separate step of creating some artifact like a jar and uploading that to some third-party package repository. That URL is something like `https://acme.github.io/unison/QjdBS8sdbWdj`, where the `QjdBS8sdbWdj` is a Base 58 encoding of a particular Unison hash. The GitHub repository format for Unison doubles as a GitHub pages site so anyone can explore the repository from that point, obtaining pretty-printed and hyperlinked source code, pretty HTML documentation, and so on.
+
+Carol, an individual developer and a fan of Acme's work, tells Unison `> get https://acme.github.io/unison/QjdBS8sdbWdj`, which pulls down that definition and its transitive dependencies to her local repository. Dependencies are fetched at the most fine-grained level possible (individual definitions) rather than at the level of "whole libraries", so the size of the transfer is quite small and happens instantaneously. (Carol most definitely does NOT have to sync the entire Acme codebase of which she is just using 1 function)
+
+__Note:__ In the event of naming conflicts when doing a `get`, Unison might warn Carol or ask if she'd like to attach a prefix to all the names imported via the `get`.
+
+Carol starts using `Acme.rad` in her code, as does a development team of 10 at Dave's Global Megacorp Incorporated (DGMI). The DGMI developers don't like the `Acme.rad` name so much and rename it locally to `DGMI.Imported.Acme.widgetOptimizationRoutine`.
+
+Then the following happens:
+
+* Alice and Bob find an even more amazing implementation of their function, and it's type-preserving. They create a changeset for it and share a link to the changeset. Carol decides not to upgrade as the function was just an internal implementation detail for her library. She ignores the changeset, and perhaps decides to just rename the function to `Carol.Imported.Acme.rad`, effectively "forking" this single function, which she will maintain going forward.
+* The 10 person DGMI team decides they want to upgrade to the latest `Acme.rad`, and collaborate on a changeset to complete the upgrade in their repository. They do so by actually _extending_ the changeset published by Acme, Inc, until it is complete with respect to their codebase. Despite the differing names (`Acme.rad` vs `DGMI.Imported.Acme.widgetOptimizationRoutine`), the changeset from Acme still works fine as a starting point, as the target of edits is always based on the content of the definition being edited, _not its name_.
+* DGMI publishes this extended changeset, which users of the DGMI codebase can extend further, and so on.
+
+## Repository format
+
+A design goal of the repository format is that it can be versioned using Git (or Hg, or whatever), and there should never be merge conflicts when merging two Unison repositories. That is, Git merge conflicts are a bad UX for surfacing concurrent edits that the user may wish to reconcile.
 
 ```
 terms/
