@@ -26,6 +26,7 @@ tc_diff s expected =
        if actual == expected then ok
        else do note $ "expected: " ++ show expected
                note $ "actual  : "   ++ show actual
+               note $ "show(input)  : "   ++ show input_term
                crash "actual != expected"
        ), (
        if input_term == actual_reparsed then ok
@@ -48,7 +49,7 @@ test = scope "typeprinter" . tests $
   , tc "Pair a a"
   , tc "(a, a)"
   , tc "(a, a, a)"
-  , tc "(a, a, a, a)"
+  , tc "(a, b, c, d)"
   , tc "Pair a (Pair a a)"
   , tc "Pair (Pair a a) a"
   , tc "{} (Pair a a)"
@@ -56,6 +57,8 @@ test = scope "typeprinter" . tests $
   , tc "a ->{e1} b"
   , tc "a ->{e1, e2} b -> c ->{} d"
   , tc "a ->{e1, e2} b ->{} c -> d"
+  , tc "a -> b -> c ->{} d"
+  , tc "a -> b ->{} c -> d"
   , tc "{e1, e2} (Pair a a)"
   , tc "Pair (a -> b) (c -> d)"
   , tc "Pair a b ->{e1, e2} Pair a b ->{} Pair (a -> b) d -> Pair c d"
@@ -64,12 +67,43 @@ test = scope "typeprinter" . tests $
   , tc "'Pair a a"
   , tc "a -> 'b"
   , tc "'(a -> b)"
-  --, tc "'a -> b"  --BUG
-  --, tc "a -> 'b -> c" --BUG
+--TODO, tc "(a -> b) -> c" -- I need to strip out the effect variable added into argument for effect polymorphism.
+--TODO, tc "'a -> b" -- same as above; pretty = "'{\120518} a -> b"; show input = "(𝛆. (a. (b. (() -> (({[𝛆]} a))) -> b)))"
+--TODO, tc "a -> 'b -> c" -- ditto
   , tc "a -> '(b -> c)"
   , tc "a -> 'Pair b c"
   , tc "a -> b -> 'c"
-  , tc "a ->{e} 'b"
-  , tc "a ->{e} '(b -> c)"
-  --, tc "'{e} a" --BUG
+
+--BUG 1, tc "a ->{e} 'b"  -- show . parse is producing "(a. (b. (e. a -> ({[e]} () -> b))))"
+                          -- But I think it should be: "(a. (b. (e. ({[e]} a -> (() -> b)))))"
+                          -- i.e. I think it should mean the same as "a ->{e} (() -> b)"
+
+--BUG 2, tc "a ->'{e} b"  -- I think this is how we should render "a -> () ->{e} b" (i.e. the thing the
+                          -- parser produced in the previous case), but currently the parser chokes on it
+                          -- with "unexpected UnknownLexeme".  Observe that "'{e} b" means "() ->{e} b",
+                          -- so my proposed behaviour is consistent with that.
+--BUG 2, tc "a ->'{e} b -> c"
+--BUG 2, tc "a ->'{e} b ->{f} c"
+--BUG 2, tc "a ->'{e} (b -> c)"
+--BUG 2, tc "a ->'{e} (b ->{f} c)"
+  , tc "a -> 'b"
+  , tc "a -> 'b ->{f} c"
+  , tc "a -> '(b -> c)"
+  , tc "a -> '(b ->{f} c)"
+--BUG 2, tc "a ->'{e} (() -> b)"  -- i.e. a -> () ->{e} () -> b  QUESTION 1 - I'm guessing we don't
+                                  -- want to render this one as "a ->'{e} 'b", right?  Since a -> ''b is
+                                  -- not accepted either?
+--BUG 2, tc "a ->'{e} (() -> b -> c)"
+--BUG 2, tc_diff "a -> () ->{e} () -> b -> c" $ "a ->'{e} (() -> b -> c)" -- desugared version of the above
+--BUG 3  , tc "a ->{e} () ->{f} b"   -- QUESTION 2 - I'm pretty sure we don't want to render
+                                     -- this as "a ->{e} '{f}b", right?  Or do we?
+--BUG 3, tc "a -> () ->{e} () ->{f} b"
+--BUG 1, tc "a ->{e} '(b -> c)"
+--BUG 2, tc "a ->'{e} (b -> c)"
+--BUG 2, tc_diff "a -> () ->{e} () -> b" $ "a ->'{e} (() -> b)"
+  , tc "'{e} a"
+  , tc "'{e} (a -> b)"
+  , tc "'{e} (a ->{f} b)"
+  , tc "'(a -> 'a)"
+  , tc "'()"
   ]

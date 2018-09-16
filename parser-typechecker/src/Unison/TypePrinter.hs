@@ -10,6 +10,7 @@ import           Data.List
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Foldable (fold)
+import           Data.Maybe (isJust)
 import           Unison.Reference (Reference(..))
 import           Unison.Type
 import           Unison.Var (Var)
@@ -27,36 +28,48 @@ pretty n p = \case
   Abs' _       -> l $ "error" -- TypeParser does not currently emit Abs
   Ann' _ _     -> l $ "error" -- TypeParser does not currently emit Ann
   App' (Ref' (Builtin "Sequence")) x -> l"[" <> pretty n 0 x <> l"]"
-  Tuple' xs    -> l"(" <> commaList n xs <> l")"
+  Tuple' xs    -> l"(" <> commaList xs <> l")"
   App' f x     -> paren (p >= 10) $ pretty n 9 f <> b" " <> pretty n 10 x
   Effect1' e t -> paren (p >= 10) $ pretty n 9 e <> l" " <> pretty n 10 t
-  Effects' es  -> l"{" <> commaList n es <> l"}"
+  Effects' es  -> l"{" <> commaList es <> l"}"
   ForallNamed' v body -> case p of
     0 -> pretty n p body
     _ -> paren True $ l"∀ " <> l (Text.unpack (Var.name v)) <> l". " <> pretty n 0 body
-  Arrow' (Ref' (Builtin "()")) o -> l"'" <> pretty n 9 o  -- BUG fails to group with subsequent arrows -- BUG misrendering effects on the arrow?
-  EffectfulArrows' fst rest -> PP.Group $ paren (p > 0) $ pretty n 0 fst <> arrows 0 rest
+  EffectfulArrows' (Ref' (Builtin "()")) rest -> arrows True True rest
+  EffectfulArrows' fst rest -> PP.Group $ paren (p > 0) $ pretty n 0 fst <> arrows False False rest
   _ -> l"error"
-  where commaList n xs = fold $ intersperse (l"," <> b" ") (map (pretty n 0) xs)
-        -- pure arrow to a delayed type
-        arrows _ ((Nothing, Ref' (Builtin "()")) : (Nothing, t) : rest) =
-          b" " <> l"-> '" <> arrowArg (rest /= []) n t rest
-        -- effectful arrow to a delayed type
-        arrows _ ((Just es, Ref' (Builtin "()")) : (Nothing, t) : rest) =
-          b" " <> l"->{" <> commaList n es <> l"} '" <> arrowArg (rest /= []) n t rest
-        -- pure arrow to non-delayed type
-        arrows p ((Nothing, t) : rest) =
-          b" " <> l"-> " <> pretty n p t <> arrows p rest
-        -- effectful arrow to non-delayed type
-        arrows p ((Just es, t) : rest) =
-          b" " <> l"->{" <> commaList n es <> l"} " <> pretty n p t <> arrows p rest
-        arrows _ [] = Empty
-        arrowArg pred n t rest = let p = if pred then 0 else 9
-                                 in paren pred $ pretty n p t <> arrows p rest
+  where commaList xs = fold $ intersperse (l"," <> b" ") (map (pretty n 0) xs)
+        effects Nothing = Empty
+        effects (Just es) = l"{" <> commaList es <> l"}"
+        arrow delay first mes = (if first then Empty else b" " <> l"->" ) <>
+                                (if delay
+                                  then (if isJust mes || first then l"'" else l" '")
+                                  else Empty) <>
+                                effects mes <>
+                                if (isJust mes) || (not delay) && (not first) then l" " else Empty
+
+        arrows delay first [(mes, Ref' (Builtin "()"))] = arrow delay first mes <> l"()"
+        arrows False first ((mes, Ref' (Builtin "()")) : rest) =
+          if (isJust mes)
+          then arrow True first mes <> arrows False True rest
+          else arrows True first rest
+        arrows delay first ((mes, arg) : rest) = arrow delay first mes <>
+                                                 (paren (delay && (not $ null rest)) $
+                                                   pretty n 0 arg <> arrows False False rest)
+        arrows False False [] = Empty
+        arrows False True [] = Empty  -- not reachable
+        arrows True _ [] = Empty      -- not reachable
+
         paren True s = l"(" <> s <> l")"
         paren False s = s
         l = Literal
         b = Breakable
+
+-- TODO group pretty much everywhere parens are used
+-- TODO `parse . pretty = id` test on all types in test suite
+-- TODO some renderBroken testing
+-- TODO PR for type pretty-printer
+-- TODO terms etc, and more attention to line-breaking behaviour
 
 pretty' :: Var v => (Reference -> Text) -> AnnotatedType v a -> String
 pretty' n t = PP.renderUnbroken $ pretty n 0 t
