@@ -73,37 +73,32 @@ test = scope "typeprinter" . tests $
   , tc "a -> '(b -> c)"
   , tc "a -> 'Pair b c"
   , tc "a -> b -> 'c"
-
---BUG 1, tc "a ->{e} 'b"  -- show . parse is producing "(a. (b. (e. a -> ({[e]} () -> b))))"
-                          -- But I think it should be: "(a. (b. (e. ({[e]} a -> (() -> b)))))"
-                          -- i.e. I think it should mean the same as "a ->{e} (() -> b)"
-
---BUG 2, tc "a ->'{e} b"  -- I think this is how we should render "a -> () ->{e} b" (i.e. the thing the
-                          -- parser produced in the previous case), but currently the parser chokes on it
-                          -- with "unexpected UnknownLexeme".  Observe that "'{e} b" means "() ->{e} b",
-                          -- so my proposed behaviour is consistent with that.
---BUG 2, tc "a ->'{e} b -> c"
---BUG 2, tc "a ->'{e} b ->{f} c"
---BUG 2, tc "a ->'{e} (b -> c)"
---BUG 2, tc "a ->'{e} (b ->{f} c)"
+  , tc "a ->{e} 'b"
+  , tc "a -> '{e} b"  -- Ideally this would output "a ->'{e} b" but the lexer can't yet handle that.
+  , tc "a -> '{e} b -> c"
+  , tc "a -> '{e} b ->{f} c"
+  , tc "a -> '{e} (b -> c)"
+  , tc "a -> '{e} (b ->{f} c)"
   , tc "a -> 'b"
   , tc "a -> 'b ->{f} c"
   , tc "a -> '(b -> c)"
   , tc "a -> '(b ->{f} c)"
---BUG 2, tc "a ->'{e} (() -> b)"  -- i.e. a -> () ->{e} () -> b  QUESTION 1 - I'm guessing we don't
-                                  -- want to render this one as "a ->'{e} 'b", right?  Since a -> ''b is
-                                  -- not accepted either?
---BUG 2, tc "a ->'{e} (() -> b -> c)"
---BUG 2, tc_diff "a -> () ->{e} () -> b -> c" $ "a ->'{e} (() -> b -> c)" -- desugared version of the above
---BUG 3  , tc "a ->{e} () ->{f} b"   -- QUESTION 2 - I'm pretty sure we don't want to render
-                                     -- this as "a ->{e} '{f}b", right?  Or do we?
---BUG 3, tc "a -> () ->{e} () ->{f} b"
---BUG 1, tc "a ->{e} '(b -> c)"
---BUG 2, tc "a ->'{e} (b -> c)"
---BUG 2, tc_diff "a -> () ->{e} () -> b" $ "a ->'{e} (() -> b)"
+  , tc "a -> '{e} (() -> b)"
+  , tc_diff "a -> '{e} ('b)" $ "a -> '{e} (() -> b)"  -- parser can't handle "a -> '{e} 'b"
+    -- TODO re above, I should remove the prevention of outputting chained delays
+  , tc_diff "a -> () ->{e} () -> b -> c" $ "a -> '{e} (() -> b -> c)"
+  , tc "a -> '{e} (() -> b -> c)"
+  , tc_diff "a ->{e} () ->{f} b" $ "a ->{e} '{f} b"
+  , tc "a ->{e} '{f} b"
+  , tc_diff "a -> () ->{e} () ->{f} b" $ "a -> '{e} (() ->{f} b)"
+  , tc "a -> '{e} () ->{f} b"
+  , tc "a ->{e} '(b -> c)"
+  , tc "a -> '{e} (b -> c)"
+  , tc_diff "a -> () ->{e} () -> b" $ "a -> '{e} (() -> b)"
   , tc "'{e} a"
   , tc "'{e} (a -> b)"
   , tc "'{e} (a ->{f} b)"
   , tc "'(a -> 'a)"
   , tc "'()"
+  , tc_diff "'('a)" $ "'(() -> a)"  -- lexer can't handle "''a"
   ]

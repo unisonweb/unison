@@ -43,7 +43,10 @@ pretty n p = \case
         effects (Just es) = l"{" <> commaList es <> l"}"
         arrow delay first mes = (if first then Empty else b" " <> l"->" ) <>
                                 (if delay
-                                  then (if isJust mes || first then l"'" else l" '")
+                                  then (if first then l"'" else (if isJust mes then l" '" else l" '"))
+                                  -- really we want to drop the space in the second literal above,
+                                  -- but the lexer won't let us.  e.g. we want "a ->'{e} b"
+                                  -- rather than "a -> '{e} b"
                                   else Empty) <>
                                 effects mes <>
                                 if (isJust mes) || (not delay) && (not first) then l" " else Empty
@@ -51,7 +54,7 @@ pretty n p = \case
         arrows delay first [(mes, Ref' (Builtin "()"))] = arrow delay first mes <> l"()"
         arrows False first ((mes, Ref' (Builtin "()")) : rest) =
           if (isJust mes)
-          then arrow True first mes <> arrows False True rest
+          then arrow False first mes <> arrows True True rest
           else arrows True first rest
         arrows delay first ((mes, arg) : rest) = arrow delay first mes <>
                                                  (paren (delay && (not $ null rest)) $
