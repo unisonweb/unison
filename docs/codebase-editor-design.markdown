@@ -2,7 +2,7 @@ Note: initial draft, probably a lot of rough edges. Comments/questions/ideas are
 
 # Editing a Unison codebase
 
-The Unison codebase is not just a mutable bag of text files, it's a structured object that undergoes a series of well-typed transformations over the course of development. These well-typed transformations begin their life in a `Branch`. A `Branch` is never in a "broken" state, only incomplete, yet we can still make arbitrary edits to a codebase. This document explains what a `Codebase` and a `Branch` are and how the programmer interacts with them. The benefits of the Unison approach which we'll see are:
+The Unison codebase is not just a mutable bag of text files, it's a structured object that undergoes a series of well-typed transformations over the course of development, yet we can still make arbitrary edits to a codebase. The benefits of the Unison approach which we'll see are:
 
 * Incremental compilation is perfectly precise and comes for free, regardless of what editor you use. You'll almost never spend time [waiting for Unison code to compile](https://xkcd.com/303/), _no matter how large your codebase_.
 * Refactoring is a controlled experience where the refactoring always typechecks and you can precisely measure your progress, so arbitrary changes to a codebase can be completed without ever dealing with a depressingly long list of (often misleading) compile errors or broken tests!
@@ -20,7 +20,7 @@ Warning: once you experience this mode of editing a codebase and the control, sa
 
 ## The big idea  🧠
 
-Here it is: _Unison definitions are identified by content._ Therefore, there's no such thing as changing a definition, there's only introducing new definitions.  What can change is how we map definitions to human-friendly names. e.g. `x -> x + 1` (a definition) vs `Integer.increment` (a name we associate with it for the purposes of writing and reading other code that references it). An analogy: Unison definitions are like stars in the sky. We can discover new stars and create new star maps that pick different names to the stars, but the stars exist independently of what we choose to call them.
+Here it is: _Unison definitions are identified by content._ Therefore, there's no such thing as changing a definition, there's only introducing new definitions.  What can change is how we map definitions to human-friendly names. e.g. `x -> x + 1` (a definition) vs `Integer.increment` (a name we associate with it for the purposes of writing and reading other code that references it). An analogy: Unison definitions are like stars in the sky. We can discover new stars and create new star maps that pick different names for the stars, but the stars exist independently of what we choose to call them.
 
 With this model, we don't ever change a definition, nor do we ever change the mapping from names to definitions (we call such mappings "namespaces"). A namespace is simply another kind of definition. Like all definitions, it is immutable. When we want to "change" a namespace, we create a new one, and _change which namespace mapping we are interested in_. This might seem limited, but it isn't at all, as we'll see.
 
@@ -28,16 +28,13 @@ From this simple idea of making definitions (including definitions of namespaces
 
 ## The model
 
-This section gives the model of what a `Codebase` is and its API. Later we'll cover what the actual user experience is for interacting with the model, along with various concrete usage scenarios.
-
-The model deals with a few types, `Code`, `Codebase`, and `Release`:
+This section gives the model of what a Unison codebase is and gives its API. Later we'll cover what the actual user experience is for interacting with the model, along with various concrete usage scenarios. The model deals with a few types, `Code`, `Codebase`, `Release`, and `Branch`:
 
 * `Code` could be a function or value definition (a `Term`) or a `TypeDeclaration`. Each `Term` in the `Codebase` also includes its `Type`. A Unison codebase contains no ill-typed terms. Each `Code` also knows its `Author` and `License`, which are just terms.
-* `Namespace` denotes a `Map Name Code`.
-* `Release` denotes a `(Namespace, Code -> Maybe Code)`. It produces a new set of definitions, along with unique names for any number of these definitions. We can think of a branch as moving the codebase from one version to another.
-* `Codebase` denotes a `Set Code`, a `Map Name Branch` of named "pending" branches, and a `Map Name Branch` of named "saved" branches.
-
-At a high level, a `Branch` denotes a function from `Set Code` to `(Set Code, Namespace)`, but we use a representation that comes equipped with a commutative merge operation that allows multiple developers to collaborate on building a `Branch`. This section gives a model for that.
+* `Namespace` denotes a `Map Name Code`. It defines a subset of the universe of possible Unison definitions, along with names for these definitions. (The set of definitions is just the set of values of this `Map`.)
+* `Release` denotes a `(Namespace, Namespace -> Namespace)`. It exposes a namespace and also provides a function for "upgrading" from old definitions.
+* `Branch` denotes a function `Release -> Release`: it moves us from one release to another. Importantly, branches come with a commutative merge function, so they can be used to combine concurrent edits.
+* `Codebase` denotes a `Set Code`, a `Map Name Branch` of named branches, and a `Map Name Release` of named releases.
 
 Here's `Codebase` and `Code` types:
 
@@ -77,19 +74,10 @@ instance Eq a => Semigroup (Conflicted a) where
   Many as <> One a = Many (Set.add a as)
   Many as <> Many as2 = Many (as `Set.union` as2)
 
-lookup : Name -> Branch -> Set Code
-lookup n b = case Map.lookup n (namespace b) of
-  Nothing -> mempty
-  Just (Causal.get -> NameEdits adds removes) ->
-    upgrade b <$> (adds `Set.difference` removes)
-    where
-    upgrade b code = error "todo"
-      -- using `edited b`, apply any type preserving subsitutions to `code`
-      -- that exist in `b`           
-
-data Edit     = Replace Term Typing     | Deprecated
+data Edit     = Replace Term Typing     | Deprecated | .. -- SwapArguments Permutation, etc
 data TypeEdit = Replace TypeDeclaration | Deprecated
 data NameEdits = NameEdits { adds :: Set Code, removes :: Set Code }
+data Typing = Same | Subtype | Different
 
 merge :: Branch -> Branch -> Branch
 merge b1 b2 = let
@@ -103,9 +91,18 @@ Branch.toRelease :: Branch -> Either Conflicts Release
 Release.toBranch :: Release -> Branch
 Release.toBranch = ... -- trivial, just promoting a to `Causal (Conflicted a)`
 
--- common workflow - grabbing a release, and applying it to a branch you
+-- common workflow - grabbing a release, then applying it to a branch you
 -- have in progress
+-- todo: do you want to republish the names for releases you are merging in?
+-- I'm guessing yeah, but perhaps under a prefix, and perhaps just for the
+-- subset of functions you are actually using in your branch...
+-- or perhaps you do this pruning when you go to do a release
 ```
+
+A couple notes:
+
+* The `Typing` indicates whether the replacement `Code` is the same type as the old `Code`, a subtype of it, or a different type. This is useful for knowing how far we can automatically changes in a `Branch`.
+* The `Edit` type produces a `Conflict` when merged, though with more structured edits (*e.g.*, in the case of the `SwapArguments` data constructor), even more could be done here.
 
 Here's the `Causal` type, which is used above in `Branch`:
 
@@ -147,48 +144,28 @@ Operations on a `Branch`:
 * `deprecate oldcode newname` marks `oldcode` for deprecation, with optional `newname`, also adds this to `edited` map.
 * `empty` creates a `Branch 0 newGuid Map.empty Map.empty Map.empty`, satisfies `merge b empty ~= b` and `merge empty b ~= b`, where `~=` compares branches ignoring their `branchId`.
 * `fork b == merge new-branch b`
-A `Release` is... ?? Should have a `Namespace` (unconflicted) which is "fully propagated" as far out as the `Branch` it was created from could go.
-
-A `Branch` denotes `Set Code -> (Set Code, Namespace)`, but represented as a mergeable data structure:
-
-The `Edit` type denotes a function `Code -> Code`, though we represent it in a way that can be merged:
-
-The `Typing` indicates whether the replacement `Code` is the same type as the old `Code`, a subtype of it, or a different type. This is useful for knowing how far we can automatically propagate a `Branch`.
-
-The `Edit` type produces a `Conflict` when merged, though with more structured edits (*e.g.*, in the case of the `SwapArguments` data constructor), even more could be done here.
 
 ```haskell
-instance Monoid Edit where
-  mempty = Conflict mempty
-  Conflict e `mappend` e2 | Set.null e = e2
-  e `mappend` Conflict e2 | Set.null e2 = e
-  Replace c t `mappend` Replace c2 _ | c == c2 = Replace c t
-
-  SwapArguments p1 `mappend` SwapArguments p2 | Permutation.commutes p1 p2 =
-    SwapArguments (Permutation.compose p1 p2)
-
-  e `mappend` e2 = Conflict (Set.union (flat e) (flat e2)) where
-    flat (Conflict e) = flat e
-    flat e = Set.singleton e
+Branch.lookup : Name -> Branch -> Set Code
+Branch.lookup n b = case Map.lookup n (namespace b) of
+  Nothing -> mempty
+  Just (Causal.get -> NameEdits adds removes) ->
+    upgrade b <$> (adds `Set.difference` removes)
+    where
+    upgrade b code = error "todo"
+      -- using `edited b`, apply any type preserving subsitutions to `code`
+      -- that exist in `b`
 ```
 
-A `Namespace'` is just a `Map Name (Set Code, Clock)`, commutatively merged in the obvious way, using the `Clock` to resolve conflicts and failing that, taking the union of colliding keys. We say a `Namespace'` is conflicted if any of its sets aren't of size 1. An unconflicted `Namespace'` can be converted to a `Namespace` in the obvious way.
-
-A `Branch` goes through its life of being created based off some existing branch (which is added to its `ancestors` set), worked on (built up via edits and merges from one or more developers), and then merged to another branch and/or saved (for instance when creating a "release" branch).
-
-A branch (the "source") can be merged into another branch (the "target") as long as its `Namespace'` is unconflicted and it covers all the edits of the target branch.
-
-A branch is said to _cover_ another when it has been developed to the point that the remaining updates are type-preserving and can thus be applied automatically. More precisely, a Branch `c` covers a `cb : Codebase` when all dependents in `cb` of type-changing edits in `c` (including deprecations) also have an edit in `c`, and none of the edits are in a conflicted state.
-
-If we want to measure how much work remains for a Branch `c` to cover a `cb : Codebase`, we can count the transitive dependents of all _escaped dependents_ of type-changing edits in `c`. An _escaped dependent_ is in `cb` but not `c`. This number will decrease monotonically as the `Branch` is developed.
+A branch is said to _cover_ a `cb : Set Code` when it has been developed to the point that the remaining updates are type-preserving and can thus be applied automatically. More precisely, a Branch `c` covers a `cb : Set Code` when all dependents in `cb` of type-changing edits in `c` (including deprecations) also have an edit in `c`, and none of the edits are in a conflicted state. If we want to measure how much work remains for a Branch `c` to cover a `cb : Codebase`, we can count the transitive dependents of all _escaped dependents_ of type-changing edits in `c`. An _escaped dependent_ is in `cb` but not `c`. This number will decrease monotonically as the `Branch` is developed.
 
 _Related:_ There are some useful computations we can do to suggest which dependents of the frontier to upgrade next, based on what will make maximal progress in decreasing the remaining work. The idea is that it's useful to focus first on the "trunk" of a refactoring, which lots of code depend on, rather than the branches and leaves. Programmers sometimes try to do something like this when refactoring, but it can be difficult to know what's what when the main feedback you get from the compiler is just a big list of compile errors.
 
 We also typically want to encourage the user to work on updates by expanding outward from initial changes, such that the set of edits form a connected dependency graph. If the user "skips over" nodes in the graph, there's a chance they'll need to redo their work, and we should notify the user about this. It's not something we need to prevent but we want the user to be aware that it's happening.
 
-To apply a `Branch` to a `Codebase`, we interpret the `Branch` as a `Codebase -> Codebase`, in the obvious way. The new definitions added by the branch are added to the codebase and the branch itself is copied from the `ongoing` map to the `applied` map. The branch can publish whatever names it likes for its output codebase.
+Thought: we may want to prevent a merge of `source` into `target` unless `source` covers all the definitions in `target` (either in the `namespace` or in the values of the `edited` `Map`). The user could develop `source` until it covers `target`, then the two branches can be merged. Alternately, we could just allow the branches to exist in an inconsistent state and prompt the user to fix these inconsistencies.
 
-The `namespace` portion of a `Branch` can be built up using whatever logic the programmer wishes, including picking arbitrary new names for definitions, though very often, the names output by a `Branch` will be the same as or based on the names assigned to old versions of definitions in `ancestors`.
+The `namespace` portion of a `Branch` can be built up using whatever logic the programmer wishes, including picking arbitrary new names for definitions, though very often, the names output by a `Branch` will be the same as or based on the names assigned to old versions of definitions.
 
 This is it for the model. The rest of this document focuses on how to expose this nice model for use by the Unison programmer.
 
@@ -326,15 +303,17 @@ types/ -- directory of all type declarations
 branches/
   branchGuid7/
     myAwesomeBranch.name
-    hash.ubf -- unison branch file, deserializes to a `Branch`
+    asdf8j23jd.ubf -- unison branch file, named according to its hash (so no conflicts), deserializes to a `Branch`
 releases/
   releaseName1/
-
+    asdf8j23jd.ur -- unison release file, named according to its hash, deserializes to a `Release`
 ```
 
 Sets are represented by directories of immutable empty files whose file names represent the elements of the set - the sets are union'd as a result of a Git merge. Deletions are handled without conflicts as well.
 
 Likewise, maps are represented by directories with a subdirectory named by each key in the map. The content of each subdirectory represents the value for that key in the map.
+
+When doing a `git pull` or `git merge`, this can sometimes result in multiple `.ubf` files under a branch. We simply deserialize both `Branch` values, `merge` them, and serialize the result back to a file. The previous `.ubf` files can be deleted.
 
 Observation: we'll probably want some additional indexing structure (which won't be versioned) which can be cached on disk and derived from the primary repo format. This is useful for answering different queries on the codebase more efficiently.
 
