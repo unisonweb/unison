@@ -68,8 +68,8 @@ data Branch = Branch
   , namespace  : Namespace'
   , ancestors  : Map BranchId Clock }
 
-Invariant: immediately merging a fork of a branch with the branch is a no-op
-Invariant: current version should be the max of any of your edit clock values
+-- Invariant: immediately merging a fork of a branch with the branch is a no-op
+-- Invariant: current version should be the max of any of your edit clock values
 
 add : Code -> Branch -> Branch
 add c b = b { version = version b + 1, added = Set.add c (added b) }
@@ -98,6 +98,11 @@ data Edit
   | SwapArguments Permutation -- optional idea for more semantic edits
 
 data Typing = Same | Subtype | Different
+
+data TypeEdit
+  = Replace TypeDeclaration
+  -- Ideas: Add Constructor Type, Remove Constructor ConstructorId
+  | Deprecated
 ```
 
 The `Typing` indicates whether the replacement `Code` is the same type as the old `Code`, a subtype of it, or a different type. This is useful for knowing how far we can automatically propagate a `Branch`.
@@ -274,8 +279,6 @@ terms/
     doc-english-OD03VvvsjK.hash -- other docs
     license-8JSJdkVvvow92.hash -- reference to the license for this term
     author-38281234jf.hash -- link to
-    replace-subtype-234098234-branch1.hash
-    replace-same-sflkj234l-branch2.hash
 types/ -- directory of all type declarations
   8sdfA1baBw/
     compiled.ub -- compiled form of the type declaration
@@ -290,6 +293,14 @@ types/ -- directory of all type declarations
     1/ -- constructor id, has a set of names
       Cons.name
       Prepend.name
+
+branches/
+  myawesomeChanges/
+    afs54dhgf.branchId
+    version/
+      9
+      13
+
 branches/
   myawesomeChanges/
     description.markdown  -- docs about this branch
@@ -310,6 +321,241 @@ branches/
     coolFeature.name
     ..
 releases/
+```
+
+```text
+repository format 4
+version/
+  -- Increment a number without overwriting any files.
+  -- When merged with another directory, result should be num_a + num_b + 1
+  guid1.1
+  guid2.1
+  guid3.1
+
+version/
+  guid1.14
+  guid2.3
+
+branches/
+  branchName1/
+    guid1.branchId
+    edited/
+      oldhash1/
+        replaced-newhash1-subtype
+      oldhash2/
+        deprecated -- empty file
+      oldhash3/
+        replaced-newhash11-sametype
+        replaced-newhash12-sametype
+      oldhash4/
+        replaced-newhash28-differenttype
+      oldhash5/
+        swapargs-permutation..
+    ancestors/
+      branchId2/
+        ... a Clock directory
+      branchId3/
+        ... a Clock directory
+    namespace/
+      name1/
+        hash1.link
+        hash2.link
+      name2/
+        hash3.link
+        hash4.link
+    namespace'/
+      hash1/
+        name1.name
+        name2.name
+      hash2/
+        ...
+```
+
+Simple, correct implementation of `Branch` and `merge`:
+
+```haskell
+-- vector clock
+newtype Clock = Clock (Map BranchId Int)
+
+-- True if `c` definitely happened before `c2`. Assumes that clock values start
+-- at 0 before the first event for any BranchId.
+Clock.before : Clock -> Clock -> Bool
+Clock.before (Clock c) (Clock c2) =
+  all (\(k,v) -> fromMaybe 0 (Map.lookup k c2) >= v) (Map.toList c)
+
+instance Monoid Clock where
+  mempty = Clock mempty
+  Clock a `mappend` Clock b = Map.unionWith max a b
+
+data Branch = Branch
+  { version     : Clock
+  , branchId    : BranchId
+  , edited      : Map Term (Set Edit, Clock)
+  , editedTypes : Map TypeDeclaration (Set TypeEdit, Clock)
+  , namespace   : Map Name (Set Code, Clock) }
+
+merge :: Branch -> Branch -> Branch
+merge b1 b2 = let
+  version' = version b1 `mappend` version b2
+  branchId' = branchId b1
+  resolve :: Semigroup a => (a, Clock) -> (a, Clock) -> (a, Clock)
+  resolve a@({edits1}, clock1) b@({edits2}, clock2)
+    | Clock.before clock1 clock2 = b
+    | Clock.before clock2 clock1 = a
+    | otherwise                  = resolve0 a b
+  -- Note: this also covers if two people make exact same edit, so no conflict
+  resolve x y = resolve0 x y
+  resolve0 (edits1, clock1) (edits2, clock2) = (edits1 <> edits2, version')
+  edited' = Map.unionWith resolve (edited b1) (edited b2)
+  editedTypes' = Map.unionWith resolve (editedTypes b1) (editedTypes b2)
+  namespace' = Map.unionWith resolve (namespace b1) (namespace b2)
+  in Branch version' branchId' edited' editedTypes' namespace'
+```
+
+Repository representation for this:
+
+```
+terms/
+  jAjGDJnsdfL/
+    compiled.ub  -- compiled form of the term
+    type.ub    -- binary representation of the type of the term
+    index.html -- pretty, hyperlinked source code of the term
+    reference-english-JasVXOEBBV8.hash -- link to docs, in English
+    reference-spanish-9JasdfjHNBdjj.hash -- link to docs, in Spanish
+    doc-english-OD03VvvsjK.hash -- other docs
+    license-8JSJdkVvvow92.hash -- reference to the license for this term
+    author-38281234jf.hash -- link to
+types/ -- directory of all type declarations
+  8sdfA1baBw/
+    compiled.ub -- compiled form of the type declaration
+    index.html  -- pretty, hyperlinked source code of the type decl
+    reference-english-KgLfAIBw312.hash -- reference docs
+    doc-english-8AfjKBCXdkw.hash -- other docs
+    license-8JSJdkVvvow92.hash -- reference to the license for this term
+    author-38281234jf.hash -- link to
+    constructors/
+      0/type.ub -- the type of the first ctor
+      1/type.ub -- the type of the second ctor
+branches/
+  branchId7/
+    myAwesomeBranch.name
+    version/
+      branchId1-91.clock
+      branchId1-97.clock -- just take the max of all branchId1
+      branchId2-283.clock
+    myversion/
+      guid1.increment
+      guid2.increment
+    edited-terms/
+      8sdfA1baBw/
+        replaced-newhash1-subtype
+        clock/ -- clock format
+      oldhash2/
+        deprecated -- empty file
+        clock/
+      oldhash3/
+        replaced-newhash11-sametype
+        replaced-newhash12-sametype
+        clock/
+      oldhash4/
+        replaced-newhash28-differenttype
+        clock/
+      oldhash5/
+        swapargs-permutation..
+        clock/
+     edited-types/
+       ..
+     namespace/
+       name1/
+         hash1.link
+         hash2.link
+         clock/
+       name2/
+         8sdfA1baBw-0.link -- name for constructor 0 of data type 8sdfA1baBw
+```
+
+```haskell
+data History
+  = Zero { currentHash :: Hash }
+  | One { edit :: Edit, previous :: History, currentHash :: Hash }
+  | Merge { previous1 :: History, previous2 :: History, currentHash :: Hash }
+
+one :: Edit -> History -> History
+one e h = One e h (hash e <> previousHash h)
+
+merge :: History -> History -> History
+merge h1 h2 | h1 `before` h2 = h2
+            | h2 `before` h1 = h1
+            | otherwise      = Merge h1 h2 (currentHash h1 <> currentHash h2)
+
+-- Does `h2` incorporate all of `h1`?
+before :: History -> History -> Bool
+before h1 h2 = go (currentHash h1) h2 where
+  go lookingFor (Zero h) = h == lookingFor
+  go lookingFor (One _ history h) = h == lookingFor || go lookingFor history
+  go lookingFor (Merge left right h) = h == lookingFor || go lookingFor left || go lookingFor right
+
+data Branch = Branch
+  { edited      :: Map Term (Set Edit, Ancestors)
+    editedTypes :: Map TypeDeclaration (Set TypeEdit, Ancestors)
+    namespace   :: Map Name (Set Code, Ancestors) }
+
+merge : Branch -> Branch -> Branch
+merge b1 b2 =
+  resolve :: Semigroup a => (a, History) -> (a, History) -> (a, History)
+  resolve (a1, h1) (a2, h2) | before h1 h2 = (a2, h2)
+                            | before h2 h1 = (a1, h1)
+                            | otherwise    = (a1 <> a2, h1 `merge` h2)
+  edited' = Map.unionWith resolve (edited b1) (edited b2)
+  editedTypes' = Map.unionWith resolve (editedTypes b1) (editedTypes b2)
+  namespace' = Map.unionWith resolve (namespace b1) (namespace b2)
+  in Branch version' edited' namespace'
+```
+
+```haskell
+data Branch = Branch
+  { version    : Clock
+  , branchId   : BranchId
+  , edited     : Map Code (Set Edit, Int) // <branchid>.<int>.clock
+  , namespace  : Map Name (Set Code, Int) }
+
+-- the Int inside edited/namespace either needs originate in this branch or
+-- it needs to come from a merge, in which case it can still be considered to
+-- come from this branch
+```
+
+Operations on a `Branch`:
+
+* `add` a `Name` and associated `Code` to a `Branch`.
+* `rename name1 name2`, checks that `name2` is available, and if so does the rename.
+* `update oldcode oldnameafter newcode newname`, check that `newname` is available, if so add it to `edited` map. `oldcode` will be referred to using some fully-qualified name. `oldnameafter` will be the name for `oldcode` after the update, just like for `deprecate`.
+* `deprecate oldcode newname` marks `oldcode` for deprecation, with optional `newname`, also adds this to `edited` map.
+* `empty` creates a `Branch 0 newGuid Map.empty Map.empty Map.empty`, satisfies `merge b empty ~= b` and `merge empty b ~= b`, where `~=` compares branches ignoring their `branchId`.
+* `fork b == merge new-branch b`
+
+Let's define `merge`:
+
+```haskell
+merge : Branch -> Branch -> Branch
+merge b1 b2 = let
+  version' = version b1 `mappend` version b2 -- + 1??
+  branchId' = branchId b1
+  resolve :: Semigroup a => (a, Clock) -> (a, Clock) -> (a, Clock)
+  resolve a@({edits1}, clock1) b@({edits2}, clock2) =
+    case Map.lookup (branchId b2) (ancestors b1) of
+      -- want edit1 to win if we knew about edit2 when we created edit1
+      Just clock2' | clock2' >= clock2 -> a
+      _ -> case Map.lookup (branchId b1) (ancestors b2) of
+        Just clock1' | clock1' >= clock1 -> b
+        _ -> resolve0 a b
+  -- Note: this also covers if two people make exact same edit, so no conflict
+  resolve x y = resolve0 x y
+  resolve0 (edits1, clock1) (edits2, clock2) = (edits1 <> edits2, version')
+  edited' = Map.unionWith resolve (edited b1) (edited b2)
+  namespace' = Map.unionWith resolve (namespace b1) (namespace b2)
+  ancestors' = Map.unionWith max (ancestors b1) (ancestors b2) `Map.union`
+               Map.fromList [(branchId b2, version')] -- ??
+  in Branch version' branchId' edited' namespace' ancestors'
 ```
 
 Sets are represented by directories of immutable empty files whose file names represent the elements of the set - the sets are union'd as a result of a Git merge. Deletions are handled without conflicts as well.
