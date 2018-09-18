@@ -2,9 +2,7 @@ Note: initial draft, probably a lot of rough edges. Comments/questions/ideas are
 
 # Editing a Unison codebase
 
-The Unison codebase is not just a mutable bag of text files, it's a structured object that undergoes a series of well-typed transformations over the course of development. Each well-typed transformation is called a `Changeset`. Applying a `Changeset` to a `Codebase` yields another well-typed codebase, a `Codebase` is never in a "broken" state, yet we can still make arbitrary edits to a codebase.
-
-This document explains what a `Codebase` and a `Changeset` are and how the programmer interacts with them. The benefits of the Unison approach which we'll see are:
+The Unison codebase is not just a mutable bag of text files, it's a structured object that undergoes a series of well-typed transformations over the course of development. These well-typed transformations begin their life in a `Branch`. A `Branch` is never in a "broken" state, only incomplete, yet we can still make arbitrary edits to a codebase. This document explains what a `Codebase` and a `Branch` are and how the programmer interacts with them. The benefits of the Unison approach which we'll see are:
 
 * Incremental compilation is perfectly precise and comes for free, regardless of what editor you use. You'll almost never spend time [waiting for Unison code to compile](https://xkcd.com/303/), _no matter how large your codebase_.
 * Refactoring is a controlled experience where the refactoring always typechecks and you can precisely measure your progress, so arbitrary changes to a codebase can be completed without ever dealing with a depressingly long list of (often misleading) compile errors or broken tests!
@@ -22,102 +20,87 @@ Warning: once you experience this mode of editing a codebase and the control, sa
 
 ## The big idea  🧠
 
-Here it is: _Unison definitions are identified by content._ Therefore, there's no such thing as changing a definition, there's only introducing new definitions. What can change is the mapping between definition and human-friendly names. e.g. `x -> x + 1` (a definition) vs `Integer.increment` (a name we associate with it for the purposes of writing and reading other code that references it).
+Here it is: _Unison definitions are identified by content._ Therefore, there's no such thing as changing a definition, there's only introducing new definitions.  What can change is how we map definitions to human-friendly names. e.g. `x -> x + 1` (a definition) vs `Integer.increment` (a name we associate with it for the purposes of writing and reading other code that references it). An analogy: Unison definitions are like stars in the sky. We can discover new stars and create new star maps that pick different names to the stars, but the stars exist independently of what we choose to call them.
 
-> Unison definitions are like stars in the sky. You can discover new ones, but the ones that are there don't change.  Names are what you write on your map of the sky. The stars themselves don't know or care :)
-> — @atacratic
+With this model, we don't ever change a definition, nor do we ever change the mapping from names to definitions (we call such mappings "namespaces"). A namespace is simply another kind of definition. Like all definitions, it is immutable. When we want to "change" a namespace, we create a new one, and _change which namespace mapping we are interested in_. This might seem limited, but it isn't at all, as we'll see.
 
-From this simple idea, we can build a better development experience around codebase editing with all of the above benefits.
+From this simple idea of making definitions (including definitions of namespaces) immutable, we can build a better development experience around codebase editing with all of the above benefits.
 
 ## The model
 
-This section gives the model of what a `Codebase` is, what a `Changeset` is, what their API is. Later we'll cover what the actual user experience is for interacting with the model, along with various concrete usage scenarios.
+This section gives the model of what a `Codebase` is, what a `Branch` is, what their API is. Later we'll cover what the actual user experience is for interacting with the model, along with various concrete usage scenarios.
 
-A `Codebase` denotes two things, a `Set Code` (a set of definitions), and a `Map Code (Set Metadata)`. `Code` could be a function or value definition (a `Term`) or a `TypeDeclaration`. `Metadata` includes things like:
+The model deals with a few types, `Code`, `Codebase`, `Branch`, and `Namespace`:
 
-* Human-friendly name
-* Link to documentation, which is also just a `Term`
-* Link to LICENSE, which is also just a `Term`
-* Link to author, date created, previous version, etc ..
+* `Code` could be a function or value definition (a `Term`) or a `TypeDeclaration`. Each `Term` in the `Codebase` also includes its `Type`. A Unison codebase contains no ill-typed terms. Each `Code` also knows its `Author` and `License`, which are just terms.
+* `Namespace` denotes a `Map Code Name` which assigns a unique fully-qualified `Name` to each `Code`.
+* `Branch` denotes a function from `Set Code -> (Set Code, Namespace)`. It produces a new set of definitions, along with unique names for any number of these definitions. We can think of a branch as moving the codebase from one version to another.
+* `Codebase` denotes a `Set Code`, a `Map Name Branch` of named "pending" branches, and a `Map Name Branch` of named "saved" branches.
 
-Each `Term` in the `Codebase` also includes its `Type`. A Unison codebase contains no ill-typed terms.
+At a high level, a `Branch` denotes a function from `Set Code` to `(Set Code, Namespace)`, but we use a representation that comes equipped with a commutative merge operation that allows multiple developers to collaborate on building a `Branch`. This section gives a model for that.
 
-At a high level, a `Changeset` denotes a function from `Codebase` to `Codebase`, but we don't literally use the representation `Codebase -> Codebase`. We want a representation that can be converted to a `Codebase -> Codebase` but which also comes equipped with a commutative merge operation that allows multiple developers to collaborate on building a `Changeset`. This section gives a model for that.
-
-As mentioned, a codebase is a `Set Code` and a `Map Code (Set Metadata)`. We'll have access to a the function `Code.dependencies`, which given a `c : Code` returns the set of other `Code` that appear in the definition of `c`.
+Here's `Codebase` and `Code` types:
 
 ```haskell
-data Codebase = Codebase { code : Set Code, metadata : Map Code (Set Metadata) }
+data Codebase =
+  Codebase { code     : Set Code
+           , branches : Map Name Branch
+           , tags     : Map Name Release }
 
-data Metadata = Metadata { names : Set Name, links : Map Name Code }
-
+-- All code knows its dependencies, author, and license
 Code.dependencies : Code -> Set Code
-Code.dependencies c = ...
+Code.author : Code -> Author
+Code.license : Code -> License
 ```
 
-A `Changeset` denotes `Codebase -> Codebase`, but represented as a mergeable data structure that tells us how to modify the input `Codebase`:
+A `Release` is... ?? Should have a `Namespace` (unconflicted) which is "fully propagated" as far out as the `Branch` it was created from could go.
+
+A `Branch` denotes `Set Code -> (Set Code, Namespace)`, but represented as a mergeable data structure:
 
 ```haskell
-data Changeset = Changeset
-  { added      : Set Code
-  , edited     : Map Code Edit
-  , deprecated : Set Code
-  , editedMetadata : Map Code MetadataEdit }
+data Branch = Branch
+  { version    : Clock
+  , branchId   : BranchId
+  , added      : Set Code
+  , edited     : Map Code (Set Edit, Clock)
+
+  -- mergeable `Map Name (Set Code, Clock)` for tracking what names are bound to
+  , namespace  : Namespace'
+  , ancestors  : Map BranchId Clock }
+
+Invariant: immediately merging a fork of a branch with the branch is a no-op
+Invariant: current version should be the max of any of your edit clock values
+
+add : Code -> Branch -> Branch
+add c b = b { version = version b + 1, added = Set.add c (added b) }
+
+fork : Branch -> Branch
+fork (Branch {..}) =
+  Branch (version + 1) newBranchId added edited namespace (Map.fromList [(branchId, version)])
+
+data Release =
+  Release { namespace : Namespace
+          -- map from old code to new code
+          , edits     : Map Code Edit
+          , previous  : Release }
 ```
 
-We'll say what `Edit` and `MetadataEdit` are momentarily, but the commutative monoid for `Changeset` combines corresponding elements of the `Changeset`:
+`Clock` is just a `Nat` whose merge operation adds 1 to the sum of the two clocks, as with a [Lamport clock](https://en.wikipedia.org/wiki/Lamport_timestamps).
 
-```haskell
-instance Monoid Changeset where
-  mempty = Changeset mempty mempty mempty mempty
-
-  c1 `mappend` c2 =
-    Changeset (added c1 `Set.union` added c2)
-              (Map.unionWith mappend (edited c1) (edited c2))
-              (deprecated c1 `Set.union` deprecated c2)
-              (Map.unionWith mappend (names c1) (names c2))
-
-instance Monoid Edit where ...
-instance Monoid MetadataEdit where ...
-```
-
-A `MetadataEdit` denotes a function from `Metadata -> Metadata`.
-
-```haskell
-data MetadataEdit =
-  MetadataEdit { nameAdds    : Set Name
-               , nameRemoves : Set Name
-               , linkAdds    : Map Name (Set Code)
-               , linkRemoves : Map Name (Set Code) }
-
--- names that have been added AND removed
-MetadataEdit.nameConflicts : MetadataEdit -> Set Name
-MetadataEdit.linkConflicts : MetadataEdit -> Set Name
-
-instance Monoid MetadataEdit where
-  mempty = MetadataEdit mempty mempty mempty mempty
-  me1 `mappend` me2 =
-    MetadataEdit (nameAdds me1 `Set.union` nameAdds me2)
-                 (nameRemoves me1 `Set.union` nameRemoves me2)
-                 (Map.unionWith Set.union (linkAdds me1) (linkAdds me2))
-                 (Map.unionWith Set.union (linkRemoves me1) (linkRemoves me2))
-```
-
-The monoid just unions the `Set Name` and for colliding keys in `linkAdds` and `linkRemoves`, unions the `Set Code` from the two maps.
+We'll say what `Edit` and `Namespace'` are momentarily, but the general idea is that the commutative monoid combines corresponding elements of the `Branch`. For the `Map` components of the `Branch`, in the event that the two branches talk about the same keys, we check to see if one is a later version of the other with respect to that key, by consulting `ancestors`. If so, we use the later version. If not, the changes are concurrent and we try to merge the values that collided using some monoid.
 
 The `Edit` type denotes a function `Code -> Code`, though we represent it in a way that can be merged:
 
 ```haskell
 data Edit
   = Replace Code Typing
+  | Deprecated
   | SwapArguments Permutation -- optional idea for more semantic edits
-  ..
-  | Conflict (Set Edit)
 
 data Typing = Same | Subtype | Different
 ```
 
-The `Typing` indicates whether the replacement `Code` is the same type as the old `Code`, a subtype of it, or a different type. This is useful for knowing how far we can automatically propagate a `Changeset`.
+The `Typing` indicates whether the replacement `Code` is the same type as the old `Code`, a subtype of it, or a different type. This is useful for knowing how far we can automatically propagate a `Branch`.
 
 The `Edit` type produces a `Conflict` when merged, though with more structured edits (*e.g.*, in the case of the `SwapArguments` data constructor), even more could be done here.
 
@@ -136,72 +119,149 @@ instance Monoid Edit where
     flat e = Set.singleton e
 ```
 
-A Changeset is complete when it either covers the entire codebase or when it has been developed to the point that the remaining updates are type-preserving and can thus be applied automatically. More precisely, a Changeset `c` is complete with respect to a Codebase `cb`, when all dependents in `cb` of type-changing edits in `c` (including deprecations) also have an edit in `c`, and none of the edits are in a conflicted state.
+A `Namespace'` is just a `Map Name (Set Code, Clock)`, commutatively merged in the obvious way, using the `Clock` to resolve conflicts and failing that, taking the union of colliding keys. We say a `Namespace'` is conflicted if any of its sets aren't of size 1. An unconflicted `Namespace'` can be converted to a `Namespace` in the obvious way.
 
-If we want to measure how much work is remaining to complete a Changeset `c` with respect to Codebase `cb`, we can count the transitive dependents of all _escaped dependents_ of type-changing edits in `c`. An _escaped dependent_ is in `cb` but not `c`. This number will decrease monotonically as the Changeset is developed.
+A `Branch` goes through its life of being created based off some existing branch (which is added to its `ancestors` set), worked on (built up via edits and merges from one or more developers), and then merged to another branch and/or saved (for instance when creating a "release" branch).
+
+A branch (the "source") can be merged into another branch (the "target") as long as its `Namespace'` is unconflicted and it covers all the edits of the target branch.
+
+A branch is said to _cover_ another when it has been developed to the point that the remaining updates are type-preserving and can thus be applied automatically. More precisely, a Branch `c` covers a `cb : Codebase` when all dependents in `cb` of type-changing edits in `c` (including deprecations) also have an edit in `c`, and none of the edits are in a conflicted state.
+
+If we want to measure how much work remains for a Branch `c` to cover a `cb : Codebase`, we can count the transitive dependents of all _escaped dependents_ of type-changing edits in `c`. An _escaped dependent_ is in `cb` but not `c`. This number will decrease monotonically as the `Branch` is developed.
 
 _Related:_ There are some useful computations we can do to suggest which dependents of the frontier to upgrade next, based on what will make maximal progress in decreasing the remaining work. The idea is that it's useful to focus first on the "trunk" of a refactoring, which lots of code depend on, rather than the branches and leaves. Programmers sometimes try to do something like this when refactoring, but it can be difficult to know what's what when the main feedback you get from the compiler is just a big list of compile errors.
 
 We also typically want to encourage the user to work on updates by expanding outward from initial changes, such that the set of edits form a connected dependency graph. If the user "skips over" nodes in the graph, there's a chance they'll need to redo their work, and we should notify the user about this. It's not something we need to prevent but we want the user to be aware that it's happening.
 
-To apply a complete `Changeset` to a `Codebase`, we interpret the `Changeset` as a `Codebase -> Codebase`. There are some interesting decisions about how to do this, but here's one implementation, which changes the name for old versions of the code to include a new prefix, based on a hash of the `Changeset` itself.
+To apply a `Branch` to a `Codebase`, we interpret the `Branch` as a `Codebase -> Codebase`, in the obvious way. The new definitions added by the branch are added to the codebase and the branch itself is copied from the `ongoing` map to the `applied` map. The branch can publish whatever names it likes for its output codebase.
 
-```haskell
-Changeset.hash : Changeset -> Name
-Changeset.hash c = ...
-
-Changeset.isComplete : Changeset -> Codebase -> Bool
-Changeset.isComplete c cb = -- as discussed
-
-Changeset.apply : Changeset -> Codebase -> Maybe Codebase
-Changeset.apply c cb | isComplete c cb =
-  substitutions = [(k, v) | (k, Replace v _) <- Map.toList (edited c) ]
-  nameOf k = Map.lookup k (metadata cb)
-  Codebase (added c `Set.union` code cb) todo
-Changeset.apply _ _ = Nothing
-```
-
-Notice that with this implementation a `Changeset` can talk about upgrades and edits to functions, without having to know what they are called! This makes changesets more portable as they can still be shared with people who might have different local names for things.
+The `namespace` portion of a `Branch` can be built up using whatever logic the programmer wishes, including picking arbitrary new names for definitions, though very often, the names output by a `Branch` will be the same as or based on the names assigned to old versions of definitions in `ancestors`.
 
 This is it for the model. The rest of this document focuses on how to expose this nice model for use by the Unison programmer.
 
 ## The developer experience
 
-Alice is an employee of Acme, Inc. She comes into work with a brilliant idea for a new function. She's not sure what to call this function yet and she's terrible at naming things, so she puts the function, initially called `wrangle` in her "sandbox" namespace, `Alice.scratch`. (`Alice` may be her GitHub username or anything else that's pretty unique) The function starts its life with a fully qualified name (FQN) of `Alice.scratch.wrangle`. She commits this to her local Unison repository and then pushes to the company's central repo on GitHub.
+When writing code, a developer has full access to all code that's been written, just by using different imports.
 
-Bob, meanwhile, is a fellow Acme employee. He happens to notice the commit fly by. He tells unison `> view Alice.sandbox.wrangle`, which pretty-prints the implementation along with any documentation. In awe at its brilliance, he pings Alice over work chat: "Alice, my gosh, you've done it!! You've solved the exact optimization problem I've been struggling with for the past six months! This function is... _awesome_ and I strongly suggest we move it to `Acme.awesome`. Is this cool? I'd like to start using it in the code I'm writing." Alice: "TOTALLY, Bob, go for it". High fives all around. 🙌
+    > branch scratch
+    There's no branch named 'scratch' yet.
+    Would you like me to create it and switch to it? y/n
+    > y
+    ✅ I've created and switched to branch 'scratch'.
+       Note: `> branch` can be used to show the active branch.
+    > branch
+    'scratch' at version 0
+    > watch foo.u
+    Watching foo.u for definitions to add to 'scratch' branch...
+    Noticed a change, parsing and typechecking...
+    🛑 I've found errors in 'foo.u', here's what I know:
+    ...
+    ✅ I've parsed and typechecked definitions in foo.u: `wrangle`
+       Would you like to add this to the codebase? y/n
+    > y
+    ✅ It's done, using 'Alice' as author, Acme, Inc. as copyright holder,
+       license is BSD3 (your chosen defaults). Use `> help license` if you'd
+       like guidance on how to change any of this.
+    > branch
+    'scratch' at version 1
+    > branch series/24
+    ✅ Switched to 'series/24' branch
+    > alias scratch.wrangle Acme.Alice.utils.wrangle
+    ✅ I've marked a new definition 'Acme.Alice.utils.wrangle' for publication
+       in 'series/24' branch.
 
-Bob tells Unison: `> move Alice.sandbox.wrangle Acme.awesome`. The rename happens instantly and is 100% accurate. Bob commits and pushes, and Alice pulls, which obtains the new name.
+_Question:_ what if `Acme.Alice.utils.wrangle` already exists in the 'series/24' branch? Unison reports a conflict and forces the user to pick a unique name:
 
-Some time passes, the `Acme.awesome` function starts getting used all over the `Acme` codebase, inspiring Alice to come up with an even nicer implementation. Unfortunately, it requires modifying the type signature slightly. She tells Bob, and they collaborate on a changeset which fully updates their repository, using the commutative merge operation discussed above. They don't need to do anything special for this merging to happen, just a regular `git pull`.
+    > alias scratch.wrangle Acme.Alice.utils.wrangle
+    🛑 I'm afraid there's already a definition in this branch called 'Acme.Alice.utils.wrangle'.
+       You can either `> move Acme.Alice.utils.wrangle <new name>` or choose
+       a different local name for `scratch.wrangle`.
 
-They start the changeset with a simple `> edit Acme.awesome` and are guided through propagating it fully via the friendly Unison codebase editor. It's easy, controlled, and they monitor their progress just via the "remaining work" statistic that the codebase editor helpfully displays for any in-progress changeset. When they're done, they `> apply Acme.awesomeUpgrade` to update the codebase. At each point in time, they remain in full control, without a big list of compile errors.
+Another possibility: the name already exists locally and is coincidentally bound to the exact same `Code`, in which case we get a warning:
 
-Alice and Bob later decide, after much discussion, that they prefer the name `Acme.rad` for this function and apply this renaming to their repository. Again this happens instantaneously and with 100% accuracy. Doing `> view foo` for a definition, `foo`, which references `Acme.rad` prints the updated name.
+    > alias scratch.wrangle Acme.Alice.utils.wrangle
+    🔸 There was already a definition `Acme.Alice.utils.wrangle` which was
+       exactly equivalent to `scratch.wrangle`.
 
-__Aside:__ We can think of `apply` as really taking two arguments, the changeset itself, and some prefix for the new definitions. If we have a complete changeset with respect to a codebase and the prefix is empty, we are saying we want the names for the new versions of definitions to clobber the old definitions (perhaps the old definitions get the changeset id prefixed to them). If the changeset is incomplete, perhaps the developer is forced to pick a prefix for the new definitions, so that the new `Acme.awesome` is actually put under `v2.Acme.awesome`. And even if the changeset _is_ complete the developer may choose to still put the new definitions under a namespace like `v2`, so that they can conveniently refer to both versions just with a qualified import.
+_Question:_ what if `scratch.wrangle` also exists in this branch? If you're using `alias`, you are always referring to another branch as the first argument. You can't alias a definition in the current branch as that would mean that a `Code` in this branch no longer had a unique name. (Alternate answer: some special syntax to disambiguate referring to another branch, like `scratch:wrangle` or `scratch/wrangle`, though if we do that, we would need to disallow that separator in branch identifiers)
+
+_Question:_ How does Alice test that her changes actually work? She probably needs to propagate them out as far as her tests, assuming that's possible. But we obviously don't want to be recompiling and regenerating binaries on every edit. _Answer:_ The namespace of a branch refers to the latest version of everything, propagated as far as possible. Anything else has the prefix `old`. We achieve this just by keep a `Map Reference Reference` of type-compatible replacements which we then use in various places (such as the runtime) to do on-the-fly rewriting.
+
+_Question:_ What about "third-party" dependencies? How do those fit in here? _Answer:_ These are tracked with first-class imports.
+
+Assuming that is successful:
+
+    > delete branch scratch
+    ✅ I've deleted the 'scratch' branch.
+    > git commit push
+    ✅ I've committed and pushed 'series/24' updates (listed below)
+       to https://github.com/acme/acme
+       ...
+
+It's not generally necessary to create a new branch every time, you can also just add definitions directly to the current base branch.
+
+The `> branch blah` command creates a new branch with no ancestors. You can also create branches whose ancestor is the current branch, which is useful for a refactoring that you eventually want to merge back into the current branch.
+
+    > fork major-refactoring
+    ✅ I've created and switched to new branch 'major-refactoring'.
+       It's a child of branch 'series/24' version 29381.
+    > watch foo.u
+    ...
+    ✅ Added definition 'Acme.transmogrify'
+    > branch series/24
+    ✅ Switched to 'series/24' branch
+    > merge major-refactoring
+    ✅ Updated 182 definitions, no conflicts
+    > save release/24
+    ✅ Saved 'series/24' as branch 'release/24'
+
+Note that a `use release/24` in your Unison code can be used to access the namespace of a branch.
 
 ### Publishing
 
-Feeling pretty good about all this, Alice and Bob decide to publish the `Acme.rad` function for use by other folks outside of `Acme, Inc`. They do so just by sharing a URL that links to their GitHub repository. There's no separate step of creating some artifact like a jar and uploading that to some third-party package repository. That URL is something like `https://acme.github.io/unison/QjdBS8sdbWdj`, where the `QjdBS8sdbWdj` is a Base 58 encoding of a particular Unison hash. The GitHub repository format for Unison doubles as a GitHub pages site so anyone can explore the repository from that point, obtaining pretty-printed and hyperlinked source code, pretty HTML documentation, and so on.
+To publish something for use by others, users just share a URL that links to their GitHub repository. There's no separate step of creating some artifact like a jar and uploading that to some third-party package repository. That URL is something like `https://acme.github.io/unison/QjdBS8sdbWdj`, where the `QjdBS8sdbWdj` is a Base 58 encoding of a particular Unison hash. The GitHub repository format for Unison doubles as a GitHub pages site so anyone can explore the repository from that point, obtaining pretty-printed and hyperlinked source code, pretty HTML documentation, and so on.
 
-Carol, an individual developer and a fan of Acme's work, tells Unison `> get https://acme.github.io/unison/QjdBS8sdbWdj`, which pulls down that definition and its transitive dependencies to her local repository. Dependencies are fetched at the most fine-grained level possible (individual definitions) rather than at the level of "whole libraries", so the size of the transfer is quite small and happens instantaneously. (Carol most definitely does NOT have to sync the entire Acme codebase of which she is just using 1 function)
+To start using someone else's published code, you can do a `get`:
 
-__Note:__ In the event of naming conflicts when doing a `get`, Unison might warn Carol or ask if she'd like to attach a prefix to all the names imported via the `get`.
+    > get https://acme.github.io/unison/QjdBS8sdbWdj
+    About to fetch 'https://acme.github.io/unison/release/24'.
+    choose a name for the namespace (suggest 'acme'): acme
 
-Carol starts using `Acme.rad` in her code, as does a development team of 10 at Dave's Global Megacorp Incorporated (DGMI). The DGMI developers don't like the `Acme.rad` name so much and rename it locally to `DGMI.Imported.Acme.widgetOptimizationRoutine`.
+    Fetching...
 
-Then the following happens:
+    ✅ Loaded 1089 definitions into acme/release/24
+       Use `> docs acme/release/24`
 
-* Alice and Bob find an even more amazing implementation of their function, and it's type-preserving. They create a changeset for it and share a link to the changeset. Carol decides not to upgrade as the function was just an internal implementation detail for her library. She ignores the changeset, and perhaps decides to just rename the function to `Carol.Imported.Acme.rad`, effectively "forking" this single function, which she will maintain going forward.
-* The 10 person DGMI team decides they want to upgrade to the latest `Acme.rad`, and collaborate on a changeset to complete the upgrade in their repository. They do so by actually _extending_ the changeset published by Acme, Inc, until it is complete with respect to their codebase. Despite the differing names (`Acme.rad` vs `DGMI.Imported.Acme.widgetOptimizationRoutine`), the changeset from Acme still works fine as a starting point, as the target of edits is always based on the content of the definition being edited, _not its name_.
-* DGMI publishes this extended changeset, which users of the DGMI codebase can extend further, and so on.
+The URL here can point to a single definition, in which case it along with its transitive dependencies are added to the local codebase. In this case, it doesn't get a name, but you can refer to it by hash. Nameless code in the codebase probably records the URL where it was loaded from since that URL might have useful information about the hash. We might also by default look for `<url>/docs-**.link` or something to fetch documentation.
+
+Alternately, we can juse `use` a release URL directly, as a namespace, without a `> get` happening first. Perhaps `use <any import expression> from <long url>`.  `<long url>` includes the hash of the release, which is a Unison Term including the namespace itself and references to a bunch of code. This is downloaded, along with all of its transitive dependencies. The namespace is spliced into the current parsing environment according to the import expression of the `use` statement.
+
+Question: How do you discover new versions of hashes? (including hashes that refer to docs)
+
+__Note:__ In the event of naming conflicts when doing a `get` (if you already have a branch with that name locally), Unison will force you to pick a different name.
 
 ## Repository format
+
+TODO, update
 
 A design goal of the repository format is that it can be versioned using Git (or Hg, or whatever), and there should never be merge conflicts when merging two Unison repositories. That is, Git merge conflicts are a bad UX for surfacing concurrent edits that the user may wish to reconcile.
 
 ```text
+compiled/
+  jAjGDJnsdfL.ub
+  ...
+names/
+  jAj/
+    release1.Runar.factorial
+    branch1.math.factorial
+    release42.Google.math.factorial
+  8sdf/0/release1.Nil
+        /branch1.Empty
+      /1/release1.Cons
+        /branch1.Prepend
+links/
+  jaj/
+
 terms/
   jAjGDJnsdfL/
     compiled.ub  -- compiled form of the term
@@ -214,6 +274,8 @@ terms/
     doc-english-OD03VvvsjK.hash -- other docs
     license-8JSJdkVvvow92.hash -- reference to the license for this term
     author-38281234jf.hash -- link to
+    replace-subtype-234098234-branch1.hash
+    replace-same-sflkj234l-branch2.hash
 types/ -- directory of all type declarations
   8sdfA1baBw/
     compiled.ub -- compiled form of the type declaration
@@ -228,17 +290,26 @@ types/ -- directory of all type declarations
     1/ -- constructor id, has a set of names
       Cons.name
       Prepend.name
-changesets/
-  wfjs09df823jfasdlkfjasd9/ -- a guid
-    myAwesomeChanges.name -- the name of this changeset (can be changed)
-    description.markdown  -- docs about this changeset
-    added/
-    deprecated/
+branches/
+  myawesomeChanges/
+    description.markdown  -- docs about this branch
     edited/
+      oldhash1/
+        replaced-newhash1-subtype
+      oldhash2/
+        deprecated -- empty file
+      oldhash3/
+        replaced-newhash11-sametype
+        replaced-newhash12-sametype
+      oldhash4/
+        replaced-newhash28-differenttype
+      oldhash5/
+        swapargs-permutation..
     names/
-  bv2kfaslu72jsdf823jjfas/
+  series-22/
     coolFeature.name
     ..
+releases/
 ```
 
 Sets are represented by directories of immutable empty files whose file names represent the elements of the set - the sets are union'd as a result of a Git merge. Deletions are handled without conflicts as well.
@@ -257,4 +328,4 @@ type Namespace = Map Name (Set Code) -> Map Code [NameEdit]
 
 There's a nice little combinator library you can write to build up `Namespace` values in various ways, and we can imagine the Unison `use` syntax to be sugar for this library.
 
-**Arya**: I'm still thinking we'll want something like scopes to be able to apply a changeset to a prefix in a "clone package foo.x to foo.y and apply these changes" sort of wway.
+**Arya**: I'm still thinking we'll want something like scopes to be able to apply a branch to a prefix in a "clone package foo.x to foo.y and apply these changes" sort of wway.
