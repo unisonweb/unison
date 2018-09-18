@@ -28,13 +28,13 @@ From this simple idea of making definitions (including definitions of namespaces
 
 ## The model
 
-This section gives the model of what a `Codebase` is, what a `Branch` is, what their API is. Later we'll cover what the actual user experience is for interacting with the model, along with various concrete usage scenarios.
+This section gives the model of what a `Codebase` is and its API. Later we'll cover what the actual user experience is for interacting with the model, along with various concrete usage scenarios.
 
-The model deals with a few types, `Code`, `Codebase`, `Branch`, and `Namespace`:
+The model deals with a few types, `Code`, `Codebase`, and `Release`:
 
 * `Code` could be a function or value definition (a `Term`) or a `TypeDeclaration`. Each `Term` in the `Codebase` also includes its `Type`. A Unison codebase contains no ill-typed terms. Each `Code` also knows its `Author` and `License`, which are just terms.
-* `Namespace` denotes a `Map Code Name` which assigns a unique fully-qualified `Name` to each `Code`.
-* `Branch` denotes a function from `Set Code -> (Set Code, Namespace)`. It produces a new set of definitions, along with unique names for any number of these definitions. We can think of a branch as moving the codebase from one version to another.
+* `Namespace` denotes a `Map Name Code`.
+* `Release` denotes a `(Namespace, Code -> Maybe Code)`. It produces a new set of definitions, along with unique names for any number of these definitions. We can think of a branch as moving the codebase from one version to another.
 * `Codebase` denotes a `Set Code`, a `Map Name Branch` of named "pending" branches, and a `Map Name Branch` of named "saved" branches.
 
 At a high level, a `Branch` denotes a function from `Set Code` to `(Set Code, Namespace)`, but we use a representation that comes equipped with a commutative merge operation that allows multiple developers to collaborate on building a `Branch`. This section gives a model for that.
@@ -53,57 +53,105 @@ Code.author : Code -> Author
 Code.license : Code -> License
 ```
 
+Here's `Branch` and `Release`:
+
+```haskell
+-- A branch can have unresolved conflicts, and we maintain some
+-- history to help merge branches, respecting causality
+data Branch = Branch
+  { namespace   :: Map Name (Causal NameEdits)
+  , edited      :: Map Term (Causal (Conflicted Edit))
+  , editedTypes :: Map TypeDeclaration (Causal (Conflicted TypeEdit)) }
+
+-- A release doesn't have history or conflicts.
+data Release = Release
+  { namespace   :: Map Name Code
+  , edited      :: Map Term Edit
+  , editedTypes :: Map TypeDeclaration TypeEdit }
+
+data Conflicted a = One a | Many (Set a)
+
+instance Eq a => Semigroup (Conflicted a) where
+  One a <> One a2 = if a == a2 then One a else Many (Set.fromList [a,a2])
+  One a <> Many as = Many (Set.add a as)
+  Many as <> One a = Many (Set.add a as)
+  Many as <> Many as2 = Many (as `Set.union` as2)
+
+lookup : Name -> Branch -> Set Code
+lookup n b = case Map.lookup n (namespace b) of
+  Nothing -> mempty
+  Just (Causal.get -> NameEdits adds removes) ->
+    upgrade b <$> (adds `Set.difference` removes)
+    where
+    upgrade b code = error "todo"
+      -- using `edited b`, apply any type preserving subsitutions to `code`
+      -- that exist in `b`           
+
+data Edit     = Replace Term Typing     | Deprecated
+data TypeEdit = Replace TypeDeclaration | Deprecated
+data NameEdits = NameEdits { adds :: Set Code, removes :: Set Code }
+
+merge :: Branch -> Branch -> Branch
+merge b1 b2 = let
+  edited'      = Map.unionWith mappend (edited b1) (edited b2)
+  editedTypes' = Map.unionWith mappend (editedTypes b1) (editedTypes b2)
+  namespace'   = Map.unionWith mappend (namespace b1) (namespace b2)
+  in Branch version' edited' namespace'
+
+-- produces a release if the branch is not conflicted
+Branch.toRelease :: Branch -> Either Conflicts Release
+Release.toBranch :: Release -> Branch
+Release.toBranch = ... -- trivial, just promoting a to `Causal (Conflicted a)`
+
+-- common workflow - grabbing a release, and applying it to a branch you
+-- have in progress
+```
+
+Here's the `Causal` type, which is used above in `Branch`:
+
+```haskell
+newtype Causal e = Causal { get :: e, history :: History e }
+
+data History e
+  = Zero { currentHash :: Hash }
+  | One { edit :: e, previous :: History e, currentHash :: Hash }
+  | Merge { previous1 :: History e, previous2 :: History e, currentHash :: Hash }
+
+instance Semigroup e => Semigroup (Causal e) where
+  Causal a1 h1 <> Causal a2 h2
+    | before h1 h2 = Causal a2 h2
+    | before h2 h1 = Causal a1 h1
+    | otherwise    = Causal (a1 <> a2) (h1 `merge` h2)
+
+one :: Hashable e => e -> History e -> History e
+one e h = One e h (hash e <> previousHash h)
+
+merge :: Hashable e => History e -> History e -> History e
+merge h1 h2 | h1 `before` h2 = h2
+            | h2 `before` h1 = h1
+            | otherwise      = Merge h1 h2 (currentHash h1 <> currentHash h2)
+
+-- Does `h2` incorporate all of `h1`?
+before :: History e -> History e -> Bool
+before h1 h2 = go (currentHash h1) h2 where
+  go h1 (Zero h) = h == h1
+  go h1 (One _ history h) = h == h1 || go h1 history
+  go h1 (Merge left right h) = h == h1 || go h1 left || go h1 right
+```
+
+Operations on a `Branch`:
+
+* `add` a `Name` and associated `Code` to a `Branch`.
+* `rename name1 name2`, checks that `name2` is available, and if so does the rename.
+* `update oldcode oldnameafter newcode newname`, check that `newname` is available, if so add it to `edited` map. `oldcode` will be referred to using some fully-qualified name. `oldnameafter` will be the name for `oldcode` after the update, just like for `deprecate`.
+* `deprecate oldcode newname` marks `oldcode` for deprecation, with optional `newname`, also adds this to `edited` map.
+* `empty` creates a `Branch 0 newGuid Map.empty Map.empty Map.empty`, satisfies `merge b empty ~= b` and `merge empty b ~= b`, where `~=` compares branches ignoring their `branchId`.
+* `fork b == merge new-branch b`
 A `Release` is... ?? Should have a `Namespace` (unconflicted) which is "fully propagated" as far out as the `Branch` it was created from could go.
 
 A `Branch` denotes `Set Code -> (Set Code, Namespace)`, but represented as a mergeable data structure:
 
-```haskell
-data Branch = Branch
-  { version    : Clock
-  , branchId   : BranchId
-  , added      : Set Code
-  , edited     : Map Code (Set Edit, Clock)
-
-  -- mergeable `Map Name (Set Code, Clock)` for tracking what names are bound to
-  , namespace  : Namespace'
-  , ancestors  : Map BranchId Clock }
-
--- Invariant: immediately merging a fork of a branch with the branch is a no-op
--- Invariant: current version should be the max of any of your edit clock values
-
-add : Code -> Branch -> Branch
-add c b = b { version = version b + 1, added = Set.add c (added b) }
-
-fork : Branch -> Branch
-fork (Branch {..}) =
-  Branch (version + 1) newBranchId added edited namespace (Map.fromList [(branchId, version)])
-
-data Release =
-  Release { namespace : Namespace
-          -- map from old code to new code
-          , edits     : Map Code Edit
-          , previous  : Release }
-```
-
-`Clock` is just a `Nat` whose merge operation adds 1 to the sum of the two clocks, as with a [Lamport clock](https://en.wikipedia.org/wiki/Lamport_timestamps).
-
-We'll say what `Edit` and `Namespace'` are momentarily, but the general idea is that the commutative monoid combines corresponding elements of the `Branch`. For the `Map` components of the `Branch`, in the event that the two branches talk about the same keys, we check to see if one is a later version of the other with respect to that key, by consulting `ancestors`. If so, we use the later version. If not, the changes are concurrent and we try to merge the values that collided using some monoid.
-
 The `Edit` type denotes a function `Code -> Code`, though we represent it in a way that can be merged:
-
-```haskell
-data Edit
-  = Replace Code Typing
-  | Deprecated
-  | SwapArguments Permutation -- optional idea for more semantic edits
-
-data Typing = Same | Subtype | Different
-
-data TypeEdit
-  = Replace TypeDeclaration
-  -- Ideas: Add Constructor Type, Remove Constructor ConstructorId
-  | Deprecated
-```
 
 The `Typing` indicates whether the replacement `Code` is the same type as the old `Code`, a subtype of it, or a different type. This is useful for knowing how far we can automatically propagate a `Branch`.
 
@@ -251,311 +299,37 @@ TODO, update
 
 A design goal of the repository format is that it can be versioned using Git (or Hg, or whatever), and there should never be merge conflicts when merging two Unison repositories. That is, Git merge conflicts are a bad UX for surfacing concurrent edits that the user may wish to reconcile.
 
-```text
-compiled/
-  jAjGDJnsdfL.ub
-  ...
-names/
-  jAj/
-    release1.Runar.factorial
-    branch1.math.factorial
-    release42.Google.math.factorial
-  8sdf/0/release1.Nil
-        /branch1.Empty
-      /1/release1.Cons
-        /branch1.Prepend
-links/
-  jaj/
-
-terms/
-  jAjGDJnsdfL/
-    compiled.ub  -- compiled form of the term
-    type.ub    -- binary representation of the type of the term
-    index.html -- pretty, hyperlinked source code of the term
-    Runar.factorial.name -- just an empty file
-    math.factorial.name
-    reference-english-JasVXOEBBV8.hash -- link to docs, in English
-    reference-spanish-9JasdfjHNBdjj.hash -- link to docs, in Spanish
-    doc-english-OD03VvvsjK.hash -- other docs
-    license-8JSJdkVvvow92.hash -- reference to the license for this term
-    author-38281234jf.hash -- link to
-types/ -- directory of all type declarations
-  8sdfA1baBw/
-    compiled.ub -- compiled form of the type declaration
-    index.html  -- pretty, hyperlinked source code of the type decl
-    reference-english-KgLfAIBw312.hash -- reference docs
-    doc-english-8AfjKBCXdkw.hash -- other docs
-    license-8JSJdkVvvow92.hash -- reference to the license for this term
-    author-38281234jf.hash -- link to
-    0/ -- constructor id, has a set of names
-      Nil.name -- empty file
-      Empty.name -- empty file
-    1/ -- constructor id, has a set of names
-      Cons.name
-      Prepend.name
-
-branches/
-  myawesomeChanges/
-    afs54dhgf.branchId
-    version/
-      9
-      13
-
-branches/
-  myawesomeChanges/
-    description.markdown  -- docs about this branch
-    edited/
-      oldhash1/
-        replaced-newhash1-subtype
-      oldhash2/
-        deprecated -- empty file
-      oldhash3/
-        replaced-newhash11-sametype
-        replaced-newhash12-sametype
-      oldhash4/
-        replaced-newhash28-differenttype
-      oldhash5/
-        swapargs-permutation..
-    names/
-  series-22/
-    coolFeature.name
-    ..
-releases/
-```
-
-```text
-repository format 4
-version/
-  -- Increment a number without overwriting any files.
-  -- When merged with another directory, result should be num_a + num_b + 1
-  guid1.1
-  guid2.1
-  guid3.1
-
-version/
-  guid1.14
-  guid2.3
-
-branches/
-  branchName1/
-    guid1.branchId
-    edited/
-      oldhash1/
-        replaced-newhash1-subtype
-      oldhash2/
-        deprecated -- empty file
-      oldhash3/
-        replaced-newhash11-sametype
-        replaced-newhash12-sametype
-      oldhash4/
-        replaced-newhash28-differenttype
-      oldhash5/
-        swapargs-permutation..
-    ancestors/
-      branchId2/
-        ... a Clock directory
-      branchId3/
-        ... a Clock directory
-    namespace/
-      name1/
-        hash1.link
-        hash2.link
-      name2/
-        hash3.link
-        hash4.link
-    namespace'/
-      hash1/
-        name1.name
-        name2.name
-      hash2/
-        ...
-```
-
-Simple, correct implementation of `Branch` and `merge`:
-
-```haskell
--- vector clock
-newtype Clock = Clock (Map BranchId Int)
-
--- True if `c` definitely happened before `c2`. Assumes that clock values start
--- at 0 before the first event for any BranchId.
-Clock.before : Clock -> Clock -> Bool
-Clock.before (Clock c) (Clock c2) =
-  all (\(k,v) -> fromMaybe 0 (Map.lookup k c2) >= v) (Map.toList c)
-
-instance Monoid Clock where
-  mempty = Clock mempty
-  Clock a `mappend` Clock b = Map.unionWith max a b
-
-data Branch = Branch
-  { version     : Clock
-  , branchId    : BranchId
-  , edited      : Map Term (Set Edit, Clock)
-  , editedTypes : Map TypeDeclaration (Set TypeEdit, Clock)
-  , namespace   : Map Name (Set Code, Clock) }
-
-merge :: Branch -> Branch -> Branch
-merge b1 b2 = let
-  version' = version b1 `mappend` version b2
-  branchId' = branchId b1
-  resolve :: Semigroup a => (a, Clock) -> (a, Clock) -> (a, Clock)
-  resolve a@({edits1}, clock1) b@({edits2}, clock2)
-    | Clock.before clock1 clock2 = b
-    | Clock.before clock2 clock1 = a
-    | otherwise                  = resolve0 a b
-  -- Note: this also covers if two people make exact same edit, so no conflict
-  resolve x y = resolve0 x y
-  resolve0 (edits1, clock1) (edits2, clock2) = (edits1 <> edits2, version')
-  edited' = Map.unionWith resolve (edited b1) (edited b2)
-  editedTypes' = Map.unionWith resolve (editedTypes b1) (editedTypes b2)
-  namespace' = Map.unionWith resolve (namespace b1) (namespace b2)
-  in Branch version' branchId' edited' editedTypes' namespace'
-```
-
 Repository representation for this:
 
-```
+```good one
 terms/
   jAjGDJnsdfL/
     compiled.ub  -- compiled form of the term
     type.ub    -- binary representation of the type of the term
     index.html -- pretty, hyperlinked source code of the term
-    reference-english-JasVXOEBBV8.hash -- link to docs, in English
-    reference-spanish-9JasdfjHNBdjj.hash -- link to docs, in Spanish
-    doc-english-OD03VvvsjK.hash -- other docs
-    license-8JSJdkVvvow92.hash -- reference to the license for this term
-    author-38281234jf.hash -- link to
+    reference-english-JasVXOEBBV8.link -- link to docs, in English
+    reference-spanish-9JasdfjHNBdjj.link -- link to docs, in Spanish
+    doc-english-OD03VvvsjK.link -- other docs
+    license-8JSJdkVvvow92.link -- reference to the license for this term
+    author-38281234jf.link -- link to the hash of the authors list
 types/ -- directory of all type declarations
   8sdfA1baBw/
     compiled.ub -- compiled form of the type declaration
     index.html  -- pretty, hyperlinked source code of the type decl
-    reference-english-KgLfAIBw312.hash -- reference docs
-    doc-english-8AfjKBCXdkw.hash -- other docs
-    license-8JSJdkVvvow92.hash -- reference to the license for this term
-    author-38281234jf.hash -- link to
+    reference-english-KgLfAIBw312.link -- reference docs
+    doc-english-8AfjKBCXdkw.link -- other docs
+    license-8JSJdkVvvow92.link -- reference to the license for this term
+    author-38281234jf.link -- link to
     constructors/
       0/type.ub -- the type of the first ctor
       1/type.ub -- the type of the second ctor
 branches/
-  branchId7/
+  branchGuid7/
     myAwesomeBranch.name
-    version/
-      branchId1-91.clock
-      branchId1-97.clock -- just take the max of all branchId1
-      branchId2-283.clock
-    myversion/
-      guid1.increment
-      guid2.increment
-    edited-terms/
-      8sdfA1baBw/
-        replaced-newhash1-subtype
-        clock/ -- clock format
-      oldhash2/
-        deprecated -- empty file
-        clock/
-      oldhash3/
-        replaced-newhash11-sametype
-        replaced-newhash12-sametype
-        clock/
-      oldhash4/
-        replaced-newhash28-differenttype
-        clock/
-      oldhash5/
-        swapargs-permutation..
-        clock/
-     edited-types/
-       ..
-     namespace/
-       name1/
-         hash1.link
-         hash2.link
-         clock/
-       name2/
-         8sdfA1baBw-0.link -- name for constructor 0 of data type 8sdfA1baBw
-```
+    hash.ubf -- unison branch file, deserializes to a `Branch`
+releases/
+  releaseName1/
 
-```haskell
-data History
-  = Zero { currentHash :: Hash }
-  | One { edit :: Edit, previous :: History, currentHash :: Hash }
-  | Merge { previous1 :: History, previous2 :: History, currentHash :: Hash }
-
-one :: Edit -> History -> History
-one e h = One e h (hash e <> previousHash h)
-
-merge :: History -> History -> History
-merge h1 h2 | h1 `before` h2 = h2
-            | h2 `before` h1 = h1
-            | otherwise      = Merge h1 h2 (currentHash h1 <> currentHash h2)
-
--- Does `h2` incorporate all of `h1`?
-before :: History -> History -> Bool
-before h1 h2 = go (currentHash h1) h2 where
-  go lookingFor (Zero h) = h == lookingFor
-  go lookingFor (One _ history h) = h == lookingFor || go lookingFor history
-  go lookingFor (Merge left right h) = h == lookingFor || go lookingFor left || go lookingFor right
-
-data Branch = Branch
-  { edited      :: Map Term (Set Edit, Ancestors)
-    editedTypes :: Map TypeDeclaration (Set TypeEdit, Ancestors)
-    namespace   :: Map Name (Set Code, Ancestors) }
-
-merge : Branch -> Branch -> Branch
-merge b1 b2 =
-  resolve :: Semigroup a => (a, History) -> (a, History) -> (a, History)
-  resolve (a1, h1) (a2, h2) | before h1 h2 = (a2, h2)
-                            | before h2 h1 = (a1, h1)
-                            | otherwise    = (a1 <> a2, h1 `merge` h2)
-  edited' = Map.unionWith resolve (edited b1) (edited b2)
-  editedTypes' = Map.unionWith resolve (editedTypes b1) (editedTypes b2)
-  namespace' = Map.unionWith resolve (namespace b1) (namespace b2)
-  in Branch version' edited' namespace'
-```
-
-```haskell
-data Branch = Branch
-  { version    : Clock
-  , branchId   : BranchId
-  , edited     : Map Code (Set Edit, Int) // <branchid>.<int>.clock
-  , namespace  : Map Name (Set Code, Int) }
-
--- the Int inside edited/namespace either needs originate in this branch or
--- it needs to come from a merge, in which case it can still be considered to
--- come from this branch
-```
-
-Operations on a `Branch`:
-
-* `add` a `Name` and associated `Code` to a `Branch`.
-* `rename name1 name2`, checks that `name2` is available, and if so does the rename.
-* `update oldcode oldnameafter newcode newname`, check that `newname` is available, if so add it to `edited` map. `oldcode` will be referred to using some fully-qualified name. `oldnameafter` will be the name for `oldcode` after the update, just like for `deprecate`.
-* `deprecate oldcode newname` marks `oldcode` for deprecation, with optional `newname`, also adds this to `edited` map.
-* `empty` creates a `Branch 0 newGuid Map.empty Map.empty Map.empty`, satisfies `merge b empty ~= b` and `merge empty b ~= b`, where `~=` compares branches ignoring their `branchId`.
-* `fork b == merge new-branch b`
-
-Let's define `merge`:
-
-```haskell
-merge : Branch -> Branch -> Branch
-merge b1 b2 = let
-  version' = version b1 `mappend` version b2 -- + 1??
-  branchId' = branchId b1
-  resolve :: Semigroup a => (a, Clock) -> (a, Clock) -> (a, Clock)
-  resolve a@({edits1}, clock1) b@({edits2}, clock2) =
-    case Map.lookup (branchId b2) (ancestors b1) of
-      -- want edit1 to win if we knew about edit2 when we created edit1
-      Just clock2' | clock2' >= clock2 -> a
-      _ -> case Map.lookup (branchId b1) (ancestors b2) of
-        Just clock1' | clock1' >= clock1 -> b
-        _ -> resolve0 a b
-  -- Note: this also covers if two people make exact same edit, so no conflict
-  resolve x y = resolve0 x y
-  resolve0 (edits1, clock1) (edits2, clock2) = (edits1 <> edits2, version')
-  edited' = Map.unionWith resolve (edited b1) (edited b2)
-  namespace' = Map.unionWith resolve (namespace b1) (namespace b2)
-  ancestors' = Map.unionWith max (ancestors b1) (ancestors b2) `Map.union`
-               Map.fromList [(branchId b2, version')] -- ??
-  in Branch version' branchId' edited' namespace' ancestors'
 ```
 
 Sets are represented by directories of immutable empty files whose file names represent the elements of the set - the sets are union'd as a result of a Git merge. Deletions are handled without conflicts as well.
