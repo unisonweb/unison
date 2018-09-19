@@ -31,10 +31,49 @@ From this simple idea of making definitions (including definitions of namespaces
 This section gives the model of what a Unison codebase is and gives its API. Later we'll cover what the actual user experience is for interacting with the model, along with various concrete usage scenarios. The model deals with a few types, `Code`, `Codebase`, `Release`, and `Branch`:
 
 * `Code` could be a function or value definition (a `Term`) or a `TypeDeclaration`. Each `Term` in the `Codebase` also includes its `Type`. A Unison codebase contains no ill-typed terms. Each `Code` also knows its `Author` and `License`, which are just terms.
-* `Namespace` denotes a `Map Name Code`. It defines a subset of the universe of possible Unison definitions, along with names for these definitions. (The set of definitions is just the set of values of this `Map`.)
+* `Namespace` denotes a `Map Name Code`. It defines a subset of the universe of possible Unison definitions, along with names for these definitions. (The set of definitions it talks about is just the set of values of this `Map`.)
 * `Release` denotes a `(Namespace, Namespace -> Namespace)`. It exposes a namespace and also provides a function for "upgrading" from old definitions.
-* `Branch` denotes a function `Release -> Release`: it moves us from one release to another. Importantly, branches come with a commutative merge function, so they can be used to combine concurrent edits.
+* `Branch` denotes a `(Namespace', Namespace' -> Namespace')`, where `Namespace'` is a mergeable version of `Namespace` that can be in a conflicted state with respect to some `Name`. It's represented as a `Map Name (Causal (Conflicted Code))`. We discuss the `Causal` and `Conflicted` types later.
 * `Codebase` denotes a `Set Code`, a `Map Name Branch` of named branches, and a `Map Name Release` of named releases.
+
+A `Release` can be sequenced with another `Release`:
+
+```haskell
+sequence : Release -> Release -> Release
+sequence (ns1, up1) (ns2, up2) =
+  (ns2, up2 . up1) -- not cumulative
+  (Map.unionWith const ns2 ns1, up2 . up1) -- cumulative
+```
+
+A `Branch` has two important operations:
+
+* A commutative `merge` operation for combining concurrent edits.
+* An associative `sequence` operation for sequencing edits.
+
+Here's the denotation for these operations, expressed in terms of the `(Namespace', Namespace' -> Namespace')` denotation for `Branch`:
+
+```haskell
+merge : Branch -> Branch -> Branch
+merge (ns1, up1) (ns2, up2) =
+  (Map.unionWith Causal.merge ns1 ns2,
+   \nsi -> Map.unionWith Causal.merge (up1 nsi) (up2 nsi))
+
+sequence : Branch -> Branch -> Branch
+sequence (ns1, up1) (ns2, up2) =
+  (Map.unionWith Causal.sequence ns1 ns2, up2 . up1)
+```
+
+`Causal a` has 5 operations, specified algebraically here (we give an implementation later):
+
+* `before : Causal a -> Causal a -> Bool` defines a partial order on `Causal`.
+* `head : Causal a -> a`, which represents the "latest" `a` value in a causal chain.
+* `one : a -> Causal a`
+* `sequence : Causal a -> Causal a -> Causal a`, which is associative and satisfies:
+  * `before c1 (sequence c1 c2)`
+  * `head (sequence c1 c2) == head c2`
+* `merge : Semigroup a => Causal a -> Causal a -> Causal a`, which is associative and commutative and satisfies:
+  * `before c1 (merge c1 c2)`
+  * `before c2 (merge c1 c2)`
 
 Here's `Codebase` and `Code` types:
 
@@ -50,7 +89,9 @@ Code.author : Code -> Author
 Code.license : Code -> License
 ```
 
-Here's `Branch` and `Release`:
+### Implementation
+
+Now that we've given the denotation, here's some ideas for implementation:
 
 ```haskell
 -- A branch can have unresolved conflicts, and we maintain some
@@ -90,29 +131,24 @@ merge b1 b2 = let
 Branch.toRelease :: Branch -> Either Conflicts Release
 Release.toBranch :: Release -> Branch
 Release.toBranch = ... -- trivial, just promoting a to `Causal (Conflicted a)`
-
--- common workflow - grabbing a release, then applying it to a branch you
--- have in progress
--- todo: do you want to republish the names for releases you are merging in?
--- I'm guessing yeah, but perhaps under a prefix, and perhaps just for the
--- subset of functions you are actually using in your branch...
--- or perhaps you do this pruning when you go to do a release
 ```
 
 A couple notes:
 
 * The `Typing` indicates whether the replacement `Code` is the same type as the old `Code`, a subtype of it, or a different type. This is useful for knowing how far we can automatically changes in a `Branch`.
 * The `Edit` type produces a `Conflict` when merged, though with more structured edits (*e.g.*, in the case of the `SwapArguments` data constructor), even more could be done here.
+* A common workflow will be grabbing a release and then applying it to a branch you have in progress. There are some choices about how you do this:
+  * You can `sequence` the release into your branch, either before or after your existing changes. If you `sequence` the release _before_ your changes, then any edits to the same `Code` will keep your version. Etc.
+  * You can `merge` the release into your branch, which can result in conflicts that you can then resolve however you like.
+  * You can break apart a release `Branch` and cherry-pick elements of the release, making different `sequence` / `merge` decisions on even a per-definition basis. It would be interesting to try to come up with some UX for doing this that isn't totally overwhelming for the user.
 
 Here's the `Causal` type, which is used above in `Branch`:
 
 ```haskell
-newtype Causal e = Causal { get :: e, history :: History e }
-
-data History e
-  = Zero { currentHash :: Hash }
-  | One { edit :: e, previous :: History e, currentHash :: Hash }
-  | Merge { previous1 :: History e, previous2 :: History e, currentHash :: Hash }
+newtype Causal e
+  = One { currentHash :: Hash, head :: e }
+  | Cons { currentHash :: Hash, head :: e, tail :: Causal e }
+  | Merge { currentHash :: Hash, head :: e, tail1 :: Causal e, tail2 :: Causal e }
 
 instance Semigroup e => Semigroup (Causal e) where
   Causal a1 h1 <> Causal a2 h2
@@ -120,20 +156,29 @@ instance Semigroup e => Semigroup (Causal e) where
     | before h2 h1 = Causal a1 h1
     | otherwise    = Causal (a1 <> a2) (h1 `merge` h2)
 
-one :: Hashable e => e -> History e -> History e
-one e h = One e h (hash e <> previousHash h)
+one :: Hashable e => e -> Causal e
+one e h = One (hash e) e
 
-merge :: Hashable e => History e -> History e -> History e
+cons :: Hashable e => e -> Causal e -> Causal e
+cons e tl = Cons (hash e <> currentHash tl) e tl
+
+merge :: (Hashable e, Semigroup e) => Causal e -> Causal e -> Causal e
 merge h1 h2 | h1 `before` h2 = h2
             | h2 `before` h1 = h1
-            | otherwise      = Merge h1 h2 (currentHash h1 <> currentHash h2)
+            | otherwise      = Merge (currentHash h1 <> currentHash h2) (head h1 <> head h2) h1 h2
+
+sequence :: Hashable e => Causal e -> Causal e -> Causal e
+sequence a (One h e) = cons e a
+sequence a (Cons h e tl) = cons e (sequence a tl)
+sequence a (Merge h e l r) = merge e (sequence a l) r
+-- note: if causal had a `split` operation, we'd need to sequence on both sides
 
 -- Does `h2` incorporate all of `h1`?
-before :: History e -> History e -> Bool
+before :: Causal e -> Causal e -> Bool
 before h1 h2 = go (currentHash h1) h2 where
-  go h1 (Zero h) = h == h1
-  go h1 (One _ history h) = h == h1 || go h1 history
-  go h1 (Merge left right h) = h == h1 || go h1 left || go h1 right
+  go h1 (One h _) = h == h1
+  go h1 (Cons h _ tl) = h == h1 || go h1 tl
+  go h1 (Merge h _ left right) = h == h1 || go h1 left || go h1 right
 ```
 
 Operations on a `Branch`:
@@ -144,18 +189,6 @@ Operations on a `Branch`:
 * `deprecate oldcode newname` marks `oldcode` for deprecation, with optional `newname`, also adds this to `edited` map.
 * `empty` creates a `Branch 0 newGuid Map.empty Map.empty Map.empty`, satisfies `merge b empty ~= b` and `merge empty b ~= b`, where `~=` compares branches ignoring their `branchId`.
 * `fork b == merge new-branch b`
-
-```haskell
-Branch.lookup : Name -> Branch -> Set Code
-Branch.lookup n b = case Map.lookup n (namespace b) of
-  Nothing -> mempty
-  Just (Causal.get -> NameEdits adds removes) ->
-    upgrade b <$> (adds `Set.difference` removes)
-    where
-    upgrade b code = error "todo"
-      -- using `edited b`, apply any type preserving subsitutions to `code`
-      -- that exist in `b`
-```
 
 A branch is said to _cover_ a `cb : Set Code` when it has been developed to the point that the remaining updates are type-preserving and can thus be applied automatically. More precisely, a Branch `c` covers a `cb : Set Code` when all dependents in `cb` of type-changing edits in `c` (including deprecations) also have an edit in `c`, and none of the edits are in a conflicted state. If we want to measure how much work remains for a Branch `c` to cover a `cb : Codebase`, we can count the transitive dependents of all _escaped dependents_ of type-changing edits in `c`. An _escaped dependent_ is in `cb` but not `c`. This number will decrease monotonically as the `Branch` is developed.
 
@@ -171,7 +204,9 @@ This is it for the model. The rest of this document focuses on how to expose thi
 
 ## The developer experience
 
-When writing code, a developer has full access to all code that's been written, just by using different imports.
+This section very much a work in progress.
+
+When writing code, a developer has full access to all code that's been written, just by using different imports. Here's a sketch of developer experience:
 
     > branch scratch
     There's no branch named 'scratch' yet.
@@ -272,13 +307,15 @@ __Note:__ In the event of naming conflicts when doing a `get` (if you already ha
 
 ## Repository format
 
-TODO, update
+A design goal of the repository format is that it can be versioned using Git (or Hg, or whatever), and there should never be merge conflicts when merging two Unison repositories. That is, Git merge conflicts are a bad UX for surfacing concurrent edits that the user may wish to reconcile. We use a few tricks to achieve this property:
 
-A design goal of the repository format is that it can be versioned using Git (or Hg, or whatever), and there should never be merge conflicts when merging two Unison repositories. That is, Git merge conflicts are a bad UX for surfacing concurrent edits that the user may wish to reconcile.
+* Sets are represented by directories of immutable empty files whose file names represent the elements of the set - the sets are union'd as a result of a Git merge. Deletions are handled without conflicts as well.
+* Likewise, maps are represented by directories with a subdirectory named by each key in the map. The content of each subdirectory represents the value for that key in the map.
+* When naming files according to a hash of their content, git will never produce a conflict as a result of a `merge`.
 
-Repository representation for this:
+Here's a proposed repository representation:
 
-```good one
+```text
 terms/
   jAjGDJnsdfL/
     compiled.ub  -- compiled form of the term
@@ -309,9 +346,7 @@ releases/
     asdf8j23jd.ur -- unison release file, named according to its hash, deserializes to a `Release`
 ```
 
-Sets are represented by directories of immutable empty files whose file names represent the elements of the set - the sets are union'd as a result of a Git merge. Deletions are handled without conflicts as well.
-
-Likewise, maps are represented by directories with a subdirectory named by each key in the map. The content of each subdirectory represents the value for that key in the map.
+Thought: might want to make `Release` representation more granular, so can pull out the namespace separate from the upgrade function.
 
 When doing a `git pull` or `git merge`, this can sometimes result in multiple `.ubf` files under a branch. We simply deserialize both `Branch` values, `merge` them, and serialize the result back to a file. The previous `.ubf` files can be deleted.
 
@@ -327,4 +362,4 @@ type Namespace = Map Name (Set Code) -> Map Code [NameEdit]
 
 There's a nice little combinator library you can write to build up `Namespace` values in various ways, and we can imagine the Unison `use` syntax to be sugar for this library.
 
-**Arya**: I'm still thinking we'll want something like scopes to be able to apply a branch to a prefix in a "clone package foo.x to foo.y and apply these changes" sort of wway.
+**Arya**: I'm still thinking we'll want something like scopes to be able to apply a branch to a prefix in a "clone package foo.x to foo.y and apply these changes" sort of way.
