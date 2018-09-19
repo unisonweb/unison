@@ -41,8 +41,12 @@ A `Release` can be sequenced with another `Release`:
 ```haskell
 sequence : Release -> Release -> Release
 sequence (ns1, up1) (ns2, up2) =
-  (ns2, up2 . up1) -- not cumulative
-  (Map.unionWith const ns2 ns1, up2 . up1) -- cumulative
+  -- namespace is not cumulative, but the upgrades are cumulative
+  (ns2,
+   \nsi -> Map.unionWith const (up2 . up1 $ nsi) (up1 nsi))
+  -- Alternative implementation: both namespace and upgrades are cumulative
+  (Map.unionWith const ns2 ns1,
+   \nsi -> Map.unionWith const (up2 . up1 $ nsi) (up1 nsi)) -- cumulative
 ```
 
 A `Branch` has two important operations:

@@ -2,4 +2,5 @@ module Unison.Codebase.TypeEdit where
 
 import Unison.Reference (Reference)
 
-data TypeEdit = Replace Reference | Deprecated
+data TypeEdit = Replace Reference | Deprecate
+  deriving (Eq, Ord)
