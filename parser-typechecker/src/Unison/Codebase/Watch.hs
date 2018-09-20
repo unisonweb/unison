@@ -21,6 +21,8 @@ import           Unison.PrintError  (printNoteWithSourceAsAnsi, renderType')
 import           Unison.Result      (Result (Result))
 import           Unison.Util.Monoid
 import qualified System.IO.Streams as Streams
+import qualified System.Process as P
+import Control.Exception (finally)
 
 watchDirectory :: FilePath -> IO (IO FilePath)
 watchDirectory d = do
@@ -50,12 +52,16 @@ watcher dir port = do
 
 serverLoop :: FilePath -> Socket -> IO ()
 serverLoop dir sock = do
+  let cmd = "scala"
+      args = ["-cp", "runtime-jvm/main/target/scala-2.12/classes",
+              "org.unisonweb.Bootstrap"] -- todo: update to point to correct class
+  (_,_,_,ph) <- P.createProcess (P.proc cmd args) { P.cwd = Just "." }
   (socket, address) <- accept sock -- accept a connection and handle it
   void . forkIO $ do
     putStrLn $ "Accepted connection: " ++ show address
     (_input, output) <- N.socketToStreams socket
     d <- watchDirectory dir
-    forever $ do
+    (`finally` P.terminateProcess ph) . forever $ do
       sourceFile <- d
       when (take 2 (reverse sourceFile) == "u.") $ do
         source <- Text.unpack <$> Data.Text.IO.readFile sourceFile

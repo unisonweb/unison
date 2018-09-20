@@ -108,6 +108,7 @@ library
     network,
     parsec,
     parsec-layout,
+    process,
     megaparsec,
     prelude-extras,
     random,
