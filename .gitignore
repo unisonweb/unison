@@ -9,9 +9,6 @@ cabal-dev
 *.un~
 **/cache/**
 **/build/**
-store
-codestore
-codebase
 tags
 unison-src/.loaded
 **cabal.sandbox.config
@@ -20,6 +17,8 @@ blockstore
 blockstore.leveldb
 target
 htags
+scala-tags
+haskell-tags
 
 # Stack
 .stack-work
