@@ -48,6 +48,7 @@ library
     Unison.Codebase.Release
     Unison.Codebase.TermEdit
     Unison.Codebase.TypeEdit
+    Unison.Codebase.Watch
     Unison.DataDeclaration
     Unison.FileParser
     Unison.FileParsers
@@ -82,7 +83,6 @@ library
     Unison.Util.Logger
     Unison.Util.Monoid
     Unison.Util.Range
-    Unison.Util.Watch
     Unison.Var
 
   build-depends:
@@ -99,11 +99,13 @@ library
     free,
     fsnotify,
     hashable,
+    io-streams,
     lens,
     memory,
     monad-loops,
     mtl,
     murmur-hash,
+    network,
     parsec,
     parsec-layout,
     megaparsec,
