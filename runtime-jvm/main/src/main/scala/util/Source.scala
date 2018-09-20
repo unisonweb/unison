@@ -151,7 +151,7 @@ object Source {
 
   def fromSocketChannel(s: SocketChannel): Source = {
     val bb = ByteBuffer.allocate(64*1024)
-    bb.limit(0)
+    bb.flip()
     fromByteBuffer(bb, s.read(_) > -1)
   }
 
