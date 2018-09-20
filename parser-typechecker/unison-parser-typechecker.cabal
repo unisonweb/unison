@@ -72,6 +72,7 @@ library
     Unison.Util.Logger
     Unison.Util.Monoid
     Unison.Util.Range
+    Unison.Util.Watch
     Unison.Var
 
   build-depends:
@@ -86,6 +87,7 @@ library
     cryptonite,
     errors,
     free,
+    fsnotify,
     hashable,
     lens,
     memory,
