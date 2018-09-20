@@ -57,11 +57,6 @@ instance Monoid (Release v a) where
   mempty = Release mempty mempty mempty mempty
   mappend (Release _n1 t1 d1 e1) (Release n2 t2 d2 e2) =
     Release n2
-            (chain fromTermEdit t1 t2)
-            (chain fromTypeEdit d1 d2)
-            (chain fromTypeEdit e1 e2)
-    where
-      fromTermEdit (TermEdit.Replace r _t) = Just r
-      fromTermEdit TermEdit.Deprecate      = Nothing
-      fromTypeEdit (TypeEdit.Replace r)    = Just r
-      fromTypeEdit TypeEdit.Deprecate      = Nothing
+            (chain TermEdit.toReference t1 t2)
+            (chain TypeEdit.toReference d1 d2)
+            (chain TypeEdit.toReference e1 e2)

@@ -10,3 +10,7 @@ data TermEdit = Replace Reference Typing | Deprecate
 -- Replacements of a Different type need to be manually propagated by the programmer.
 data Typing = Same | Subtype | Different
   deriving (Eq, Ord)
+
+toReference :: TermEdit -> Maybe Reference
+toReference (Replace r _) = Just r
+toReference Deprecate     = Nothing

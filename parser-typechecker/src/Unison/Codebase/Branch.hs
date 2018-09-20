@@ -1,11 +1,18 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module Unison.Codebase.Branch where
 
-import Control.Applicative ((<|>))
+import Control.Monad (join)
+import Data.List.NonEmpty (nonEmpty)
 import Data.Map (Map)
+import Data.Semigroup (sconcat)
+import Data.Foldable
 import qualified Data.Map as Map
+import Unison.Hashable (Hashable)
 import Unison.Codebase.Causal (Causal)
---import qualified Unison.Codebase.Causal as Causal
+import qualified Unison.Codebase.Causal as Causal
 import Unison.Codebase.Conflicted (Conflicted)
+import qualified Unison.Codebase.Conflicted as Conflicted
 import Unison.Codebase.Name (Name)
 import Unison.Codebase.NameEdit (NameEdit)
 import Unison.Codebase.TermEdit (TermEdit)
@@ -51,15 +58,47 @@ merge (Branch n1 t1 d1 e1) (Branch n2 t2 d2 e2) =
 --  Branch (Map.unionWith Causal.sequence n1 n2)
 --          (chain ) _
 
-chain2' :: (v -> v -> v) -> (v -> Maybe k) -> (k -> Maybe v) -> (k -> Maybe v) -> (k -> Maybe v)
-chain2' seq toK m1 m2 k = case m1 k of
-  -- if something upgraded by m1 is further upgraded by m2, then take m2's, else take m1's
-  Just v1 -> (seq v1 <$> (m2 =<< toK v1)) <|> Just v1
-  -- if not upgraded by m1, then take m2's
-  Nothing -> m2 k
+-- example:
+-- in b1: foo is replaced with Conflicted (foo1, foo2)
+-- in b2: foo1 is replaced with foo3
+-- what do we want the output to be?
+--    foo  -> Conflicted (foo3, foo2)
+--    foo1 -> foo3
 
---chain :: Ord k => (v -> Maybe k) -> Map k v -> Map k v -> Map k v
+-- example:
+-- in b1: foo is replaced with Conflicted (foo1, foo2)
+-- in b2: foo1 is replaced with foo2
+-- what do we want the output to be?
+--    foo  -> foo2
+--    foo1 -> foo2
+
+-- example:
+-- in b1: foo is replaced with Conflicted (foo1, foo2)
+-- in b2: foo is replaced with foo2
+-- what do we want the output to be?
+--    foo -> foo2
+
+-- v = Causal (Conflicted blah)
+-- k = Reference
+
+bindMaybeCausal ::forall a. (Hashable a, Ord a) => Causal (Conflicted a) -> (a -> Maybe (Causal (Conflicted a))) -> Causal (Conflicted a)
+bindMaybeCausal cca f = case Causal.head cca of
+  Conflicted.One a -> case f a of
+    Just cca' -> Causal.sequence cca cca'
+    Nothing -> cca
+  Conflicted.Many as ->
+    Causal.sequence cca $ case nonEmpty . join $ (toList . f <$> toList as) of
+      -- Would be nice if there were a good NonEmpty.Set, but Data.NonEmpty.Set from `non-empty` doesn't seem to be it.
+      Nothing -> error "impossible, `as` was Many"
+      Just z -> sconcat z
+
+--chain :: Ord k => (v -> Maybe k) -> Map k (Causal (Conflicted v)) -> Map k (Causal (Conflicted v)) -> Map k (Causal (Conflicted v))
 --chain toK m1 m2 =
 --  Map.fromList
---    [ (k,v) | k <- Map.keys m1 ++ Map.keys m2
---            , Just v <- [chain2' Causal.sequence toK (`Map.lookup` m1) (`Map.lookup` m2) k] ]
+--    [ (k, v) | k <- Map.keys m1 ++ Map.keys m2
+--             , Just v <- [chain' toK (`Map.lookup` m1) (`Map.lookup` m2) k] ]
+--
+--chain' :: forall v k . (v -> Maybe k) -> (k -> Maybe (Causal (Conflicted v))) -> (k -> Maybe (Causal (Conflicted v))) -> (k -> Maybe (Causal (Conflicted v)))
+--chain' toK m1 m2 k = case m1 k of
+--  Just ccv1 -> Just $ bindMaybeCausal ccv1 (\k -> m2 k >>= toK)
+--  Nothing -> m2 k

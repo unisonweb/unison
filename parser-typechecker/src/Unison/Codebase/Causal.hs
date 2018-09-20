@@ -10,6 +10,7 @@ data Causal e
   = One { currentHash :: Hash, head :: e }
   | Cons { currentHash :: Hash, head :: e, tail :: Causal e }
   | Merge { currentHash :: Hash, head :: e, tail1 :: Causal e, tail2 :: Causal e }
+  deriving Eq
 
 instance Semigroup e => Semigroup (Causal e) where
   a <> b
@@ -32,6 +33,7 @@ cons :: Hashable e => e -> Causal e -> Causal e
 cons e tl = Cons (hash [hash e, currentHash tl]) e tl
 
 sequence :: (Semigroup e, Hashable e) => Causal e -> Causal e -> Causal e
+sequence a b | a `before` b = a
 sequence a (One _ e) = cons e a
 sequence a (Cons _ e tl) = cons e (sequence a tl)
 sequence a (Merge _ _ l r) = sequence a l <> r
