@@ -107,7 +107,7 @@ dataDeclaration = do
 
 effectDeclaration :: Var v => P v (v, EffectDeclaration' v Ann)
 effectDeclaration = do
-  effectStart <- reserved "effect"
+  effectStart <- reserved "effect" <|> reserved "ability"
   name <- prefixVar
   typeArgs <- many prefixVar
   let typeArgVs = L.payload <$> typeArgs
