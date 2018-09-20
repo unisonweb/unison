@@ -38,6 +38,16 @@ library
     Unison.Blank
     Unison.Builtin
     Unison.Codecs
+    Unison.Codebase
+    Unison.Codebase.Branch
+    Unison.Codebase.Causal
+    Unison.Codebase.Code
+    Unison.Codebase.Conflicted
+    Unison.Codebase.Name
+    Unison.Codebase.NameEdit
+    Unison.Codebase.Release
+    Unison.Codebase.TermEdit
+    Unison.Codebase.TypeEdit
     Unison.DataDeclaration
     Unison.FileParser
     Unison.FileParsers
