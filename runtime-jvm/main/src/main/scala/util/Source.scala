@@ -151,6 +151,7 @@ object Source {
 
   def fromSocketChannel(s: SocketChannel): Source = {
     val bb = ByteBuffer.allocate(64*1024)
+    bb.limit(0)
     fromByteBuffer(bb, s.read(_) > -1)
   }
 
@@ -161,7 +162,7 @@ object Source {
 
     def position: Long = pos + bb.position().toLong
 
-    def refill = {
+    def refill(neededBytes: Int) = {
       pos += bb.position()
       val unread =
         if (bb.remaining() > 0) {
@@ -170,9 +171,15 @@ object Source {
           unread
         }
         else Array.empty[Byte]
+      var remainingNeeded = neededBytes - unread.length
       bb.clear()
       bb.put(unread)
-      while (bb.remaining() > 0 && onEmpty(bb)) {}
+      while (bb.remaining() > 0 && remainingNeeded > 0) {
+        val oldSpace = bb.remaining()
+        onEmpty(bb)
+        val newSpace = bb.remaining()
+        remainingNeeded -= oldSpace - newSpace
+      }
       bb.flip()
     }
 
@@ -185,7 +192,7 @@ object Source {
         bb.get(arr)
         if (acc.isEmpty) arr else acc ++ arr
       }
-      else if (n > 0 && bb.remaining() == 0) { refill; getImpl(n, acc) }
+      else if (n > 0 && bb.remaining() == 0) { refill(n); getImpl(n, acc) }
       else { // n > bb.remaining()
         val hd = new Array[Byte](bb.remaining())
         bb.get(hd)
@@ -195,19 +202,19 @@ object Source {
 
     def getByte: Byte =
       try bb.get
-      catch { case BufferUnderflow() => refill; getByte }
+      catch { case BufferUnderflow() => refill(1); getByte }
 
     def getInt: Int =
       try bb.getInt
-      catch { case BufferUnderflow() => refill; getInt }
+      catch { case BufferUnderflow() => refill(4); getInt }
 
     def getLong: Long =
       try bb.getLong
-      catch { case BufferUnderflow() => refill; getLong }
+      catch { case BufferUnderflow() => refill(8); getLong }
 
     def getDouble: Double =
       try bb.getDouble
-      catch { case BufferUnderflow() => refill; getDouble }
+      catch { case BufferUnderflow() => refill(8); getDouble }
   }
 
   def readLong(bs: Array[Byte]): Long = {

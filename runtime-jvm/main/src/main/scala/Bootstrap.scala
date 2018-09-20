@@ -59,8 +59,8 @@ object BootstrapStream {
         println(s"Couldn't connect to codebase editor on port $localPort.")
         sys.exit(1)
       }
-
     while(true) {
+      println(s"Runtime waiting for input on port $localPort...")
       val t = normalizedFromBinarySource(Source.fromSocketChannel(channel))
       val wrangle = false
       if (wrangle) {
