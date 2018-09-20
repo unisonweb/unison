@@ -1,6 +1,7 @@
 package org.unisonweb.util
 
 import java.nio.ByteBuffer
+import java.nio.channels.SocketChannel
 
 import org.unisonweb.util.Text.Text
 
@@ -146,6 +147,11 @@ object Source {
     import java.nio.file.{Files, Paths}
     val byteArray = Files.readAllBytes(Paths.get(path))
     fromByteBuffer(ByteBuffer.wrap(byteArray), _ => false)
+  }
+
+  def fromSocketChannel(s: SocketChannel): Source = {
+    val bb = ByteBuffer.allocate(64*1024)
+    fromByteBuffer(bb, s.read(_) > -1)
   }
 
   // `onEmpty` should return `false` if it has no more elements

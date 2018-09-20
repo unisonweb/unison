@@ -82,7 +82,7 @@ object FileCompilationTests {
     val filename = s"$filePrefix.u"
     val file = testFiles.resolve(filename)
     test(s"$filePrefix = ${prettyTerm(result).render(100)}") { implicit T =>
-      Bootstrap.normalizedFromTextFile(file)
+      Bootstrap0.normalizedFromTextFile(file)
         .fold(fail(_), equalShow(_, result)(prettyTerm(_).render(100)))
     }
   }
@@ -91,7 +91,7 @@ object FileCompilationTests {
     val name = testFiles.relativize(p).toString.dropRight(2)
     test(name) {
       implicit T =>
-        Bootstrap.normalizedFromTextFile(p)
+        Bootstrap0.normalizedFromTextFile(p)
           .fold(fail(_), t => {
             note(s"$name (unchecked) = ${prettyTerm(t).render(100)}")
             ok
