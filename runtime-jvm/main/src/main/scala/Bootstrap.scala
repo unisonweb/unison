@@ -60,7 +60,6 @@ object BootstrapStream {
         sys.exit(1)
       }
     while(true) {
-      println(s"Runtime waiting for input on port $localPort...")
       val t = normalizedFromBinarySource(Source.fromSocketChannel(channel))
       val wrangle = false
       if (wrangle) {
