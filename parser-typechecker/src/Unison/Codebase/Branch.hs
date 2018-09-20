@@ -2,17 +2,17 @@
 
 module Unison.Codebase.Branch where
 
-import Control.Monad (join)
-import Data.List.NonEmpty (nonEmpty)
+--import Control.Monad (join)
+--import Data.List.NonEmpty (nonEmpty)
 import Data.Map (Map)
-import Data.Semigroup (sconcat)
-import Data.Foldable
+--import Data.Semigroup (sconcat)
+--import Data.Foldable
 import qualified Data.Map as Map
-import Unison.Hashable (Hashable)
+--import Unison.Hashable (Hashable)
 import Unison.Codebase.Causal (Causal)
-import qualified Unison.Codebase.Causal as Causal
+--import qualified Unison.Codebase.Causal as Causal
 import Unison.Codebase.Conflicted (Conflicted)
-import qualified Unison.Codebase.Conflicted as Conflicted
+--import qualified Unison.Codebase.Conflicted as Conflicted
 import Unison.Codebase.Name (Name)
 import Unison.Codebase.NameEdit (NameEdit)
 import Unison.Codebase.TermEdit (TermEdit)
@@ -81,24 +81,26 @@ merge (Branch n1 t1 d1 e1) (Branch n2 t2 d2 e2) =
 -- v = Causal (Conflicted blah)
 -- k = Reference
 
-bindMaybeCausal ::forall a. (Hashable a, Ord a) => Causal (Conflicted a) -> (a -> Maybe (Causal (Conflicted a))) -> Causal (Conflicted a)
-bindMaybeCausal cca f = case Causal.head cca of
-  Conflicted.One a -> case f a of
-    Just cca' -> Causal.sequence cca cca'
-    Nothing -> cca
-  Conflicted.Many as ->
-    Causal.sequence cca $ case nonEmpty . join $ (toList . f <$> toList as) of
-      -- Would be nice if there were a good NonEmpty.Set, but Data.NonEmpty.Set from `non-empty` doesn't seem to be it.
-      Nothing -> error "impossible, `as` was Many"
-      Just z -> sconcat z
-
---chain :: Ord k => (v -> Maybe k) -> Map k (Causal (Conflicted v)) -> Map k (Causal (Conflicted v)) -> Map k (Causal (Conflicted v))
---chain toK m1 m2 =
---  Map.fromList
---    [ (k, v) | k <- Map.keys m1 ++ Map.keys m2
---             , Just v <- [chain' toK (`Map.lookup` m1) (`Map.lookup` m2) k] ]
+--bindMaybeCausal ::forall a. (Hashable a, Ord a) => Causal (Conflicted a) -> (a -> Maybe (Causal (Conflicted a))) -> Causal (Conflicted a)
+--bindMaybeCausal cca f = case Causal.head cca of
+--  Conflicted.One a -> case f a of
+--    Just cca' -> Causal.sequence cca cca'
+--    Nothing -> cca
+--  Conflicted.Many as ->
+--    Causal.sequence cca $ case nonEmpty . join $ (toList . f <$> toList as) of
+--      -- Would be nice if there were a good NonEmpty.Set, but Data.NonEmpty.Set from `non-empty` doesn't seem to be it.
+--      Nothing -> error "impossible, `as` was Many"
+--      Just z -> sconcat z
 --
---chain' :: forall v k . (v -> Maybe k) -> (k -> Maybe (Causal (Conflicted v))) -> (k -> Maybe (Causal (Conflicted v))) -> (k -> Maybe (Causal (Conflicted v)))
---chain' toK m1 m2 k = case m1 k of
---  Just ccv1 -> Just $ bindMaybeCausal ccv1 (\k -> m2 k >>= toK)
---  Nothing -> m2 k
+--chain :: forall v k. Ord k => (v -> Maybe k) -> Map k (Causal (Conflicted v)) -> Map k (Causal (Conflicted v)) -> Map k (Causal (Conflicted v))
+--chain toK m1 m2 =
+--    let
+--      chain' :: forall v k . (v -> Maybe k) -> (k -> Maybe (Causal (Conflicted v))) -> (k -> Maybe (Causal (Conflicted v))) -> (k -> Maybe (Causal (Conflicted v)))
+--      chain' toK m1 m2 k = case m1 k of
+--        Just ccv1 -> Just $ bindMaybeCausal ccv1 (\k -> m2 k >>= toK)
+--        Nothing -> m2 k
+--    in
+--      Map.fromList
+--        [ (k, v) | k <- Map.keys m1 ++ Map.keys m2
+--                 , Just v <- [chain' toK (`Map.lookup` m1) (`Map.lookup` m2) k] ]
+

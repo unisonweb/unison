@@ -23,6 +23,11 @@ instance Semigroup e => Semigroup (Causal e) where
   b <> Merge _ e tls = merge0 e $ Map.insertWith (\_ old -> old) (currentHash b) b tls
   a <> b = merge0 (head a) $ Map.fromList [(currentHash a, a), (currentHash b, b)]
 
+mergePreferRight :: (Hashable e, Semigroup e) => Causal e -> Causal e -> Causal e
+mergePreferRight a b | before a b = b
+                     | before b a = a
+                     | otherwise = cons (head b) (a <> b)
+
 -- implementation detail, form a `Merge`
 merge0 :: Semigroup e => e -> Map Hash (Causal e) -> Causal e
 merge0 e0 m = let
@@ -39,11 +44,11 @@ one e = One (hash e) e
 cons :: Hashable e => e -> Causal e -> Causal e
 cons e tl = Cons (hash [hash e, currentHash tl]) e tl
 
-sequence :: (Semigroup e, Hashable e) => Causal e -> Causal e -> Causal e
-sequence a b | a `before` b = a
-sequence a b = go a b where
+rebase :: (Semigroup e, Hashable e) => Causal e -> Causal e -> Causal e
+rebase a b | a `before` b = a
+rebase a b = go a b where
   go a (One _ e) = cons e a
-  go a (Cons _ e tl) = cons e (sequence a tl)
+  go a (Cons _ e tl) = cons e (rebase a tl)
   go a (Merge _ _ tls) = case Map.toList tls of
     -- note: if causal had a `split` operation, we'd need to sequence on all branches
     (_,c) : tls -> merge0 (head c) $ Map.fromList ((h',c') : tls)
