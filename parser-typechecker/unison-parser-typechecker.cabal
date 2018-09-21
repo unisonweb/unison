@@ -148,6 +148,14 @@ executable bootstrap
     vector,
     unison-parser-typechecker
 
+executable watcher
+  main-is: Main.hs
+  hs-source-dirs: watcher
+  ghc-options: -Wall
+  build-depends:
+    base,
+    unison-parser-typechecker
+
 executable tests
   main-is:        Suite.hs
   ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
