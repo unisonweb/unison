@@ -387,12 +387,16 @@ block' s openBlock closeBlock = do
         Binding ((a, v), _) : _ ->
           pure $ Term.letRec (startAnnotation <> endAnnotation)
                              (finishBindings $ toBindings =<< reverse bs)
-                             (Term.var a (Var.named $ "comes after " `mappend` Var.name v))
+                             (Term.var a (Var.named $ (Text.pack missingResult) `mappend` Var.name v))
         Action e : bs ->
           pure $ Term.letRec (startAnnotation <> ann e)
                              (finishBindings $ toBindings =<< reverse bs)
                              e
         [] -> customFailure $ EmptyBlock (const s <$> open)
+
+-- hack: special variable name used if user gives a block with no result
+missingResult :: String
+missingResult =":missing-result"
 
 number :: Var v => TermP v
 number = number' (tok Term.int64) (tok Term.uint64) (tok Term.float)

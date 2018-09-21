@@ -13,6 +13,7 @@ module Unison.PrintError where
 import qualified Data.Char                  as Char
 import           Data.Foldable
 import qualified Data.List.NonEmpty         as Nel
+import Data.List (isPrefixOf)
 import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
 import           Data.Maybe                 (catMaybes, fromMaybe)
@@ -35,6 +36,7 @@ import           Unison.Result              (Note (..))
 import qualified Unison.Type                as Type
 import qualified Unison.Typechecker.Context as C
 import           Unison.Typechecker.TypeError
+import qualified Unison.TermParser as TermParser
 import qualified Unison.TypeVar             as TypeVar
 import qualified Unison.Util.AnnotatedText  as AT
 import           Unison.Util.ColorText      (StyledText)
@@ -267,6 +269,17 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     , ".  Make sure it's imported and spelled correctly:\n\n"
     , annotatedAsErrorSite src typeSite
     ]
+  UnknownTerm {..} | TermParser.missingResult `isPrefixOf` Text.unpack (Var.name unknownTermV) ->
+    [ "I found a block that ends with a binding instead of an expression at "
+    , (fromString . annotatedToEnglish) termSite
+    , ":\n\n"
+    , annotatedAsErrorSite src termSite, "\n" ] ++
+      case expectedType of
+        Type.Existential' _ _ ->
+          ["There aren't any constraints on the type of the expression that follows this binding.\n\n"]
+        _ -> [ "Based on the context, I'm expecting an expression of type "
+             , AT.Text . Color.style Color.Type1 $ (renderType' env) expectedType
+             , " after this binding. \n\n" ]
   UnknownTerm {..} ->
     [ "I'm not sure what "
     , AT.Text . Color.style Color.ErrorSite $ (fromString . show) unknownTermV
