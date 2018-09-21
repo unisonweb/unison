@@ -289,6 +289,27 @@ customFailure = P.customFailure
 block :: forall v. Var v => String -> TermP v
 block s = block' s (openBlockWith s) closeBlock
 
+importp :: Var v => P v [(v, v)]
+importp = do
+  let name = Var.nameds . L.payload <$> (wordyId <|> symbolyId)
+      namesp = many name
+  _ <- reserved "use"
+  e <- (Left <$> wordyId) <|> (Right <$> symbolyId)
+  case e of
+    Left w -> do
+      more <- (False <$ P.try (lookAhead semi)) <|> pure True
+      case more of
+        True -> do
+          i <- (Var.nameds . L.payload $ w) <$ optional dot
+          names <- namesp <|> (pure <$> name)
+          pure [ (n, Var.joinDot i n) | n <- names ]
+        False ->
+          let (_, n) = L.splitWordy (L.payload w)
+          in pure [ (Var.nameds n, Var.nameds $ L.payload w) ]
+    Right o ->
+      let (_, op) = L.splitSymboly (L.payload o)
+      in pure [ (Var.nameds op, Var.nameds $ L.payload o) ]
+
 --module Monoid where
 --  -- we replace all the binding names with Monoid.op, and
 --  -- if `op` is free in the body of any binding, we replace it with `Monoid.op`
@@ -310,6 +331,13 @@ namespaceBlock = do
   _ <- closeBlock
   pure $ Namespace (L.payload name) elems
 
+bindingSep :: Var v => P v ()
+bindingSep = P.try $ do
+  _ <- semi
+  op <- optional (L.payload <$> P.lookAhead symbolyId)
+  guard (op /= Just ">")
+  pure ()
+
 block' :: forall v b. Var v => String -> P v (L.Token ()) -> P v b -> TermP v
 block' s openBlock closeBlock = do
     open <- openBlock
@@ -317,7 +345,7 @@ block' s openBlock closeBlock = do
     imports <- mconcat . reverse <$> sepBy sem importp
     _ <- optional semi
     env <- importing imports <$> ask
-    statements <- local (const env) $ sepBy semi statement
+    statements <- local (const env) $ sepBy bindingSep statement
     _ <- closeBlock
     let
       importTerms = [ (n, Term.var() qn) | (n,qn) <- imports ]
@@ -326,30 +354,7 @@ block' s openBlock closeBlock = do
         Term.typeMap (Type.bindBuiltins . Map.toList $ typesByName env) $ tm
     substImports <$> go open statements
   where
-    name = Var.nameds . L.payload <$> (wordyId <|> symbolyId)
-    namesp = many name
-    importp :: P v [(v, v)]
-    importp = do
-      _ <- reserved "use"
-      e <- (Left <$> wordyId) <|> (Right <$> symbolyId)
-      case e of
-        Left w -> do
-          more <- (False <$ P.try (lookAhead semi)) <|> pure True
-          case more of
-            True -> do
-              i <- (Var.nameds . L.payload $ w) <$ optional dot
-              names <- namesp <|> (pure <$> name)
-              pure [ (n, Var.joinDot i n) | n <- names ]
-            False ->
-              let (_, n) = L.splitWordy (L.payload w)
-              in pure [ (Var.nameds n, Var.nameds $ L.payload w) ]
-        Right o ->
-          let (_, op) = L.splitSymboly (L.payload o)
-          in pure [ (Var.nameds op, Var.nameds $ L.payload o) ]
-    statement = traceRemainingTokens "statement" *>
-                ( (Binding <$> binding) <|>
-                  (Action <$> blockTerm) <|>
-                  namespaceBlock )
+    statement = asum [Binding <$> binding, Action <$> blockTerm, namespaceBlock ]
     toBindings (Binding ((a, v), e)) = [((a, Just v), e)]
     toBindings (Action e) = [((ann e, Nothing), e)]
     toBindings (Namespace name bs) = scope name $ (toBindings =<< bs)
@@ -379,13 +384,13 @@ block' s openBlock closeBlock = do
           customFailure $ BlockMustEndWithExpression
                             startAnnotation
                             endAnnotation
-        Binding ((a, _v), annotatedTerm) : _ ->
-          customFailure $ BlockMustEndWithExpression
-                            (startAnnotation <> ann annotatedTerm)
-                            (a <> ann annotatedTerm)
-        Action e : es ->
+        Binding ((a, v), _) : _ ->
+          pure $ Term.letRec (startAnnotation <> endAnnotation)
+                             (finishBindings $ toBindings =<< reverse bs)
+                             (Term.var a (Var.named $ "comes after " `mappend` Var.name v))
+        Action e : bs ->
           pure $ Term.letRec (startAnnotation <> ann e)
-                             (finishBindings $ toBindings =<< reverse es)
+                             (finishBindings $ toBindings =<< reverse bs)
                              e
         [] -> customFailure $ EmptyBlock (const s <$> open)
 
