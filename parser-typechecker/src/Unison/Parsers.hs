@@ -18,7 +18,7 @@ import           Unison.UnisonFile (UnisonFile)
 import           Unison.Var (Var)
 
 unsafeGetRightFrom :: (Var v, Show v) => String -> Either (Parser.Err v) a -> a
-unsafeGetRightFrom s = either (error . parseErrorToAnsiString s) id
+unsafeGetRightFrom src = either (error . parseErrorToAnsiString src) id
 
 parse :: Var v => Parser.P v a -> String -> PEnv v -> Either (Parser.Err v) a
 parse p s env = Parser.run (Parser.root p) s env
@@ -37,10 +37,16 @@ parseFile filename s =
                          Builtin.builtinTypes)
     s filename
 
+readAndParseFile :: Var v => PEnv v -> FilePath -> IO (Either (Parser.Err v) (PrintError.Env, UnisonFile v Ann))
+readAndParseFile penv fileName = do
+  txt <- readFile fileName
+  let src = Text.unpack txt
+  pure $ parseFile fileName src penv
+
 unsafeParseTerm :: Var v => String -> PEnv v -> AnnotatedTerm v Ann
 unsafeParseTerm s = fmap (unsafeGetRightFrom s) . parseTerm $ s
 
-unsafeReadAndParseFile :: PEnv Symbol -> String -> IO (PrintError.Env, UnisonFile Symbol Ann)
+unsafeReadAndParseFile :: PEnv Symbol -> FilePath -> IO (PrintError.Env, UnisonFile Symbol Ann)
 unsafeReadAndParseFile penv fileName = do
   txt <- readFile fileName
   let str = Text.unpack txt

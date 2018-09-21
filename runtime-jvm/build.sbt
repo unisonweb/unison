@@ -42,6 +42,7 @@ lazy val root = project.in(file(".")).
   aggregate(main, benchmark)
 
 lazy val main = project.in(file("main"))
+  .settings(test := (run in Test toTask "").value)
   .settings(commonSettings)
   .settings(name := "unison-runtime")
 

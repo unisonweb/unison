@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-} -- for FilePath literals
+{-# LANGUAGE TypeApplications  #-}
 
 module Unison.Codebase.Watch where
 
@@ -17,8 +18,9 @@ import qualified Unison.FileParsers as FileParsers
 import qualified Unison.Parser      as Parser
 import qualified Unison.Parsers     as Parsers
 import           Unison.Util.AnnotatedText (renderTextUnstyled)
-import           Unison.PrintError  (printNoteWithSourceAsAnsi, renderType')
+import           Unison.PrintError  (parseErrorToAnsiString, printNoteWithSourceAsAnsi, renderType')
 import           Unison.Result      (Result (Result))
+import           Unison.Symbol      (Symbol)
 import           Unison.Util.Monoid
 import qualified System.IO.Streams as Streams
 import qualified System.Process as P
@@ -64,18 +66,22 @@ serverLoop dir sock port = do
     sourceFile <- d
     when (take 2 (reverse sourceFile) == "u.") $ do
       source <- Text.unpack <$> Data.Text.IO.readFile sourceFile
-      (env0, unisonFile) <- Parsers.unsafeReadAndParseFile Parser.penv0 sourceFile
-      let (Result notes' r) = FileParsers.serializeUnisonFile unisonFile
-          showNote notes =
-            intercalateMap "\n\n" (printNoteWithSourceAsAnsi env0 source) notes
-      putStrLn . showNote . toList $ notes'
-      case r of
-        Nothing -> pure () -- just await next change
-        Just (_unisonFile', typ, bs) -> do
-          putStrLn . show . renderTextUnstyled $ "\129412 Your program has typechecked successfully as: " <> renderType' env0 typ
-          Streams.write (Just bs) output
-          -- todo: read from input to get the response and then show that
-          -- for this we need a deserializer for Unison terms, mirroring what is in Unison.Codecs.hs
+      parseResult <- Parsers.readAndParseFile @Symbol Parser.penv0 sourceFile
+      case parseResult of
+        Left parseError ->
+          putStrLn $ parseErrorToAnsiString source parseError
+        Right (env0, unisonFile) -> do
+          let (Result notes' r) = FileParsers.serializeUnisonFile unisonFile
+              showNote notes =
+                intercalateMap "\n\n" (printNoteWithSourceAsAnsi env0 source) notes
+          putStrLn . showNote . toList $ notes'
+          case r of
+            Nothing -> pure () -- just await next change
+            Just (_unisonFile', typ, bs) -> do
+              putStrLn . show . renderTextUnstyled $ "\129412 Your program has typechecked successfully as: " <> renderType' env0 typ
+              Streams.write (Just bs) output
+              -- todo: read from input to get the response and then show that
+              -- for this we need a deserializer for Unison terms, mirroring what is in Unison.Codecs.hs
 
 main :: IO ()
 main = do
