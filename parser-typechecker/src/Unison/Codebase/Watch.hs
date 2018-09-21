@@ -57,7 +57,7 @@ serverLoop dir sock port = do
               "org.unisonweb.BootstrapStream", show port]
   (_,_,_,ph) <- P.createProcess (P.proc cmd args) { P.cwd = Just "." }
   (socket, address) <- accept sock -- accept a connection and handle it
-  putStrLn $ "Accepted connection: " ++ show address
+  putStrLn $ "Accepted connection from " ++ show address
   (_input, output) <- N.socketToStreams socket
   d <- watchDirectory dir
   (`finally` P.terminateProcess ph) . forever $ do
