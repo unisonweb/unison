@@ -151,7 +151,7 @@ executable bootstrap
 executable watcher
   main-is: Main.hs
   hs-source-dirs: watcher
-  ghc-options: -Wall
+  ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
     base,
     unison-parser-typechecker

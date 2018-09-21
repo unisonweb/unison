@@ -692,4 +692,4 @@ prettyTypecheckError env input n =
   renderTypeError env (typeErrorFromNote n) input
 
 parseErrorToAnsiString :: Var v => String -> Parser.Err v -> String
-parseErrorToAnsiString s = show . Color.renderDocANSI 3 . prettyParseError s
+parseErrorToAnsiString src = show . Color.renderDocANSI 3 . prettyParseError src
