@@ -28,9 +28,9 @@ pretty n p = \case
   Abs' _       -> l $ "error" -- TypeParser does not currently emit Abs
   Ann' _ _     -> l $ "error" -- TypeParser does not currently emit Ann
   App' (Ref' (Builtin "Sequence")) x -> PP.Group $ l"[" <> pretty n 0 x <> l"]"
-  Tuple' xs    -> paren True $ commaList xs
-  App' f x     -> paren (p >= 10) $ pretty n 9 f <> b" " <> pretty n 10 x
-  Effect1' e t -> paren (p >= 10) $ pretty n 9 e <> l" " <> pretty n 10 t
+  Tuple' xs    -> parenNest True $ commaList xs
+  App' f x     -> parenNest (p >= 10) $ pretty n 9 f <> b" " <> pretty n 10 x
+  Effect1' e t -> parenNest (p >= 10) $ pretty n 9 e <> l" " <> pretty n 10 t
   Effects' es  -> effects (Just es)
   ForallNamed' v body ->
     if (p <= 0)
@@ -38,7 +38,7 @@ pretty n p = \case
     else paren True $ l"∀ " <> l (Text.unpack (Var.name v)) <> l". " <> pretty n 0 body
   --TODO undo generalizeEffects before printing
   EffectfulArrows' (Ref' (Builtin "()")) rest -> arrows True True rest
-  EffectfulArrows' fst rest -> paren (p >= 0) $ pretty n 0 fst <> arrows False False rest
+  EffectfulArrows' fst rest -> parenNest (p >= 0) $ pretty n 0 fst <> arrows False False rest
   _ -> l"error"
   where commaList xs = fold $ intersperse (l"," <> b" ") (map (pretty n 0) xs)
         effects Nothing = Empty
@@ -64,14 +64,10 @@ pretty n p = \case
 
         paren True s = PP.Group $ l"(" <> s <> l")"
         paren False s = PP.Group s
+        -- TODO fix bug in Nest rendering
+        parenNest useParen contents = {-PP.Nest " " $ -} paren useParen contents
         l = Literal
         b = Breakable
-
--- TODO test `Forall (uppercase)`
--- TODO `parse . pretty = id` test on all types in test suite
--- TODO some renderBroken testing
--- TODO PR for type pretty-printer
--- TODO terms etc, and more attention to line-breaking behaviour
 
 pretty' :: Var v => (Reference -> Text) -> AnnotatedType v a -> String
 pretty' n t = PP.renderUnbroken $ pretty n (-1) t

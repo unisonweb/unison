@@ -64,6 +64,7 @@ typeTest ty = if ty == reparsed
         printed = TypePrinter.pretty' get_names ty
         reparsed = t' printed
 #else
+typeTest :: Var v => Type v -> Type v
 typeTest = id
 #endif
 

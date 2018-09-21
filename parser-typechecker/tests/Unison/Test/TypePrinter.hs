@@ -15,13 +15,15 @@ import qualified Unison.Util.PrettyPrint as PP
 -- Check also that re-parsing the pretty-printed code gives us the same ABT.
 -- (Skip that latter check if rtt is false.)
 -- Note that this does not verify the position of the PrettyPrint Break elements.
-tc_diff_rtt :: Bool -> String -> String -> Test ()
-tc_diff_rtt rtt s expected =
+tc_diff_rtt :: Bool -> String -> String -> Int -> Test ()
+tc_diff_rtt rtt s expected width =
    let input_term = Unison.Builtin.t s :: Unison.Type.AnnotatedType Symbol Ann
        get_names x = case x of
                        Builtin t -> t
                        Derived _ -> Text.empty
-       actual = PP.renderUnbroken $ pretty get_names (-1) input_term
+       actual = if width == 0
+                then PP.renderUnbroken $ pretty get_names (-1) input_term
+                else PP.renderBroken width True '\n' $ pretty get_names (-1) input_term
        actual_reparsed = Unison.Builtin.t actual
    in scope s $ tests [(
        if actual == expected then ok
@@ -38,11 +40,14 @@ tc_diff_rtt rtt s expected =
        )]
 
 -- As above, but do the round-trip test unconditionally.
-tc_diff s expected = tc_diff_rtt True s expected
+tc_diff s expected = tc_diff_rtt True s expected 0
 
 -- As above, but expect not even cosmetic differences between the input string
 -- and the pretty-printed version.
 tc s = tc_diff s s
+
+-- Use renderBroken to render the output to some maximum width.
+tc_breaks s width expected = tc_diff_rtt True s expected width
 
 test :: Test ()
 test = scope "typeprinter" . tests $
@@ -71,16 +76,18 @@ test = scope "typeprinter" . tests $
   , tc "'Pair a a"
   , tc "a -> 'b"
   , tc "'(a -> b)"
-  -- The next three tests will change after the pretty-printer can reverse
+  -- The next six tests will change after the pretty-printer can reverse
   -- generalizeEffects.  Also, they currently fail the round-trip test because
   -- generalizeEffects leaves the `Forall 𝛆` on the outside of the expression,
   -- whereas the parse of the current explicit post-pretty-print version does not.
-  , tc_diff_rtt False "(a -> b) -> c" $ "(a ->{𝛆} b) -> c"
-  , tc_diff_rtt False "'a -> b" $ "'{𝛆} a -> b"
-  , tc_diff_rtt False "a -> 'b -> c" $ "a -> '{𝛆} b -> c"
-  , tc_diff_rtt False "a -> (b -> c) -> d" $ "a -> (b ->{𝛆} c) -> d"
-  , tc_diff_rtt False "(a -> b) -> c -> d" $ "(a ->{𝛆} b) -> c -> d"
-  , tc_diff_rtt False "((a -> b) -> c) -> d" $ "((a ->{𝛆} b) ->{𝛆} c) -> d"
+  , tc_diff_rtt False "(a -> b) -> c" "(a ->{𝛆} b) -> c" 0
+  , tc_diff_rtt False "'a -> b" "'{𝛆} a -> b" 0
+  , tc_diff_rtt False "a -> 'b -> c" "a -> '{𝛆} b -> c" 0
+  , tc_diff_rtt False "a -> (b -> c) -> d" "a -> (b ->{𝛆} c) -> d" 0
+  , tc_diff_rtt False "(a -> b) -> c -> d" "(a ->{𝛆} b) -> c -> d" 0
+  , tc_diff_rtt False "((a -> b) -> c) -> d" "((a ->{𝛆} b) ->{𝛆} c) -> d" 0
+  -- This test is pending for a similar reason - need to faithfully reverse generalizeLowercase.
+  , pending $ tc_diff "(∀ a . 'a) -> ()" $ "('{𝛆} a) -> ()"  -- note rank-2: pretty-printer needs to avoid suppressing the forall
   , tc "a -> '(b -> c)"
   , tc "a -> b -> c -> d"
   , tc "a -> 'Pair b c"
@@ -124,4 +131,27 @@ test = scope "typeprinter" . tests $
   , tc "'('a)"
   , pending $ tc "''a"  -- issue #249
   , pending $ tc "'''a" -- issue #249
+  , tc_diff "∀ a . a" $ "a"
+  , tc_diff "∀ a. a" $ "a"
+  , tc_diff "∀ a . 'a" $ "'a"
+  , pending $ tc_diff "∀a . a" $ "a" -- lexer doesn't accept, treats ∀a as one lexeme - feels like it should work
+  , pending $ tc_diff "∀ A . 'A" $ "'A"  -- 'unknown parse error' - should this be accepted?
+
+  , pending $ tc_breaks "a -> b -> c -> d" 10 $  -- hitting 'unexpected Semi' in the reparse
+              "a\n\
+              \-> b\n\
+              \-> c\n\
+              \-> d"
+
+  , pending $ tc_breaks "a -> Pair b c -> d" 14 $  -- ditto, and extra line breaks that seem superfluous in Pair
+              "a\n\
+              \-> Pair b c\n\
+              \-> d"
+
+  , pending $ tc_breaks "a -> Pair b c -> d" 10 $  -- as above, and missing indentation, pending fix to Nest rendering
+              "a\n\
+              \-> Pair\n\
+              \b\n\
+              \c\n\
+              \-> d"
   ]
