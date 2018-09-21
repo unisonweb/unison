@@ -246,6 +246,13 @@ text a = ABT.tm' a . Text
 unit :: Var v => a -> AnnotatedTerm v a
 unit ann = constructor ann (Reference.Builtin "()") 0
 
+tupleCons :: (Ord v, Semigroup a)
+          => AnnotatedTerm2 vt at ap v a
+          -> AnnotatedTerm2 vt at ap v a
+          -> AnnotatedTerm2 vt at ap v a
+tupleCons hd tl =
+  apps' (constructor (ABT.annotation hd) (Reference.Builtin "Pair") 0) [hd, tl]
+
 -- delayed terms are just lambdas that take a single `()` arg
 -- `force` calls the function
 force :: Var v => a -> a -> AnnotatedTerm v a -> AnnotatedTerm v a

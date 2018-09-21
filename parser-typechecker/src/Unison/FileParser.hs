@@ -1,9 +1,9 @@
-{-# Language ScopedTypeVariables #-}
+{-# Language ScopedTypeVariables, TupleSections #-}
 
 module Unison.FileParser where
 
 import           Control.Applicative
-import           Control.Monad (void)
+import           Control.Monad (void,guard)
 import           Control.Monad.Reader (local)
 import           Data.Either (partitionEithers)
 import           Data.List (foldl')
@@ -12,6 +12,7 @@ import qualified Data.Map as Map
 import qualified Data.Text as Text
 import           Data.Tuple (swap)
 import           Prelude hiding (readFile)
+import qualified Unison.ABT as ABT
 import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Lexer as L
@@ -35,7 +36,6 @@ file :: forall v . Var v
      -> [(v, Reference)]
      -> P v (PrintError.Env, UnisonFile v Ann)
 file builtinTerms builtinTypes = do
-  traceRemainingTokens "file before parsing declarations"
   _ <- openBlock
   (dataDecls, effectDecls) <- declarations
   let env = environmentFor builtinTerms builtinTypes dataDecls effectDecls
@@ -44,10 +44,11 @@ file builtinTerms builtinTypes = do
         [ (Text.unpack $ Var.name v, (r,cid)) |
           (v, Term.RequestOrCtor' r cid) <- builtinTerms ]
   local (PEnv ctorLookup0 (Map.fromList builtinTypes) `mappend`) $ do
-    traceRemainingTokens "file"
     term <- TermParser.block' "top-level block"
               (void <$> peekAny) -- we actually opened before the declarations
-              closeBlock
+              (pure ())
+    ws <- watches term
+    _ <- closeBlock
     let unisonFile = UnisonFile
                       (UF.datas env)
                       (UF.effects env)
@@ -61,6 +62,25 @@ file builtinTerms builtinTypes = do
         getName (v,r) = (r, (Text.unpack . Var.shortName) v)
 
     pure (PrintError.Env newReferenceNames newConstructorNames, unisonFile)
+
+watches :: Var v => AnnotatedTerm v Ann -> P v (AnnotatedTerm v Ann)
+watches outer = do
+  let gt = do s <- symbolyId; guard (L.payload s == ">"); pure ()
+      binding = do
+        name <- attempt (wordyId <* lookAhead (openBlockWith "="))
+        body <- TermParser.block "="
+        pure (Just name, body)
+      expr = (Nothing,) <$> TermParser.blockTerm
+  bindings <- sepBy1 semi (gt *> (binding <|> expr))
+  let ann0 = ABT.annotation $ snd (head bindings)
+      annN = ABT.annotation $ snd (last bindings)
+      nbindings = reverse . snd $ foldl' op (0 :: Int, []) bindings
+      op (n,acc) (Nothing, body) = (n+1, ((ann body, Var.nameds ("_result" ++ show n)), body) : acc)
+      op (n,acc) (Just v, body) = (n+1, ((ann body, Var.nameds (L.payload v)), body) : acc)
+      -- tuple with results of all the watched expressions
+      tup = foldr Term.tupleCons (Term.unit annN) (snd <$> nbindings)
+  pure $
+    Term.letRec (ann0 <> annN) nbindings tup
 
 declarations :: Var v => P v
                          (Map v (DataDeclaration' v Ann),
