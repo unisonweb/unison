@@ -164,9 +164,6 @@ reorder ts = join . sortWith f . stanzas $ ts
       Open "type" -> 0
       Reserved "effect" -> 0
       Reserved "use" -> 1
-      -- '>' is used to start watch expressions whose results are printed,
-      -- we stick it after any term definitions
-      SymbolyId ">" -> 4
       _ -> 3 :: Int
 
 lexer :: String -> String -> [Token Lexeme]
