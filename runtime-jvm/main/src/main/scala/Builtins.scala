@@ -847,7 +847,7 @@ object Builtins {
           f.applyAsLong(x1v, x0v)
         }
       }
-      override def underapply(builtins: Environment)
+      override def underapply(builtins: Environment2)
                              (argCount: Int, substs: Map[Name, Term]): Lambda =
         substs.toList match {
           case List((_,term)) => term match {

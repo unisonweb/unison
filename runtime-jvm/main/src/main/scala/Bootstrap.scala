@@ -60,8 +60,8 @@ object BootstrapStream {
         sys.exit(1)
       }
     while(true) {
-      val t = normalizedFromBinarySource(Source.fromSocketChannel(channel))
       val wrangle = false
+      val t = normalizedFromBinarySource(Source.fromSocketChannel(channel))
       if (wrangle) {
         // serialize term back to the channel
         val serialized = Codecs.encodeTerm(t)
@@ -79,11 +79,17 @@ object BootstrapStream {
 }
 
 object Bootstrap0 {
-  def normalizedFromBinaryFile(fileName: String): Term =
-    normalizedFromBinarySource(Source.fromFile(fileName))
 
-  def normalizedFromBinarySource(src: Source): Term = {
-    fromBinarySource(src, normalize(_)(_))
+  def watchHandler(label: String, v: Value): Unit = {
+    println(label)
+    println("> " + PrettyPrint.prettyTerm(Term.fullyDecompile(v.decompile)).render(80))
+  }
+
+  def normalizedFromBinaryFile(fileName: String, wh: (String, Value) => Unit = watchHandler): Term =
+    normalizedFromBinarySource(Source.fromFile(fileName), wh)
+
+  def normalizedFromBinarySource(src: Source, wh: (String, Value) => Unit = watchHandler): Term = {
+    fromBinarySource(src, normalize0(_, wh)(_))
   }
 
   def fromBinarySource[A](src: Source, f: (Environment, Term) => A): A = {

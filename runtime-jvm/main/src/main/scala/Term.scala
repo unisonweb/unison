@@ -485,6 +485,13 @@ object Term {
         case _ => None
       }
   }
+  object Watch {
+    def unapply[A](t: AnnotatedTerm[F,A]): Option[(String, AnnotatedTerm[F,A])] =
+      t match {
+        case Tm(Watch_(lbl, e)) => Some((lbl, e))
+        case _ => None
+      }
+  }
 
   object Syntax {
     implicit class ApplySyntax(val fn: Term) extends AnyVal {

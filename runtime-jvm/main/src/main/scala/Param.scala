@@ -107,7 +107,7 @@ object Value {
     def saturatedNonTailCall(args: List[Computation]): Computation =
       compileStaticFullySaturatedNontailCall(this, args)
 
-    def underapply(builtins: Environment)(
+    def underapply(builtins: Environment2)(
                    argCount: Int, substs: Map[Name, Term]): Value.Lambda =
       decompile match {
         case Term.Lam(names, body) =>
@@ -145,7 +145,7 @@ object Value {
     // todo: delete this and ClosureForming2 later
     case class Lambda1(arg1: Name, _body: Computation, decompiled: Term)
       extends Lambda(names = List(arg1),_body,decompiled) {
-      override def underapply(builtins: Environment)(
+      override def underapply(builtins: Environment2)(
         argCount: Arity, substs: Map[Name, Term]): Lambda =
         sys.error("a lambda with arity 1 cannot be underapplied")
     }
@@ -205,7 +205,7 @@ object Value {
       // esp when there are multiple stages of underapply for functions with
       // large arities
 
-      override def underapply(builtins: Environment)(
+      override def underapply(builtins: Environment2)(
         argCount: Int, substs: Map[Name, Term]): Value.Lambda = {
         if (argCount == 1) underapply1(substs.head._1, substs.head._2)
         else {
