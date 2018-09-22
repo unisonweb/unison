@@ -59,6 +59,7 @@ data F typeVar typeAnn patternAnn a
   | Boolean Bool
   | Text Text
   | Blank (B.Blank typeAnn)
+  | Watch String a
   | Ref Reference
   -- First argument identifies the data type,
   -- second argument identifies the constructor
@@ -182,6 +183,7 @@ pattern Float' n <- (ABT.out -> ABT.Tm (Float n))
 pattern Boolean' b <- (ABT.out -> ABT.Tm (Boolean b))
 pattern Text' s <- (ABT.out -> ABT.Tm (Text s))
 pattern Blank' b <- (ABT.out -> ABT.Tm (Blank b))
+pattern Watch' note e <- (ABT.out -> ABT.Tm (Watch note e))
 pattern Ref' r <- (ABT.out -> ABT.Tm (Ref r))
 pattern Builtin' r <- (ABT.out -> ABT.Tm (Ref (Builtin r)))
 pattern App' f x <- (ABT.out -> ABT.Tm (App f x))
@@ -259,7 +261,14 @@ force :: Var v => a -> a -> AnnotatedTerm v a -> AnnotatedTerm v a
 force a au e = app a e (unit au)
 
 delay :: Var v => a -> AnnotatedTerm v a -> AnnotatedTerm v a
-delay a e = lam a (Var.named "u") e
+delay a e = lam a (Var.named "()") e
+
+watch :: Var v => a -> String -> AnnotatedTerm v a -> AnnotatedTerm v a
+watch a note e = ABT.tm' a (Watch note e)
+
+watchMaybe :: Var v => Maybe String -> AnnotatedTerm v a -> AnnotatedTerm v a
+watchMaybe Nothing     e = e
+watchMaybe (Just note) e = ABT.tm' (ABT.annotation e) (Watch note e)
 
 blank :: Ord v => a -> AnnotatedTerm2 vt at ap v a
 blank a = ABT.tm' a (Blank B.Blank)
@@ -560,6 +569,7 @@ instance Var v => Hashable1 (F v a p) where
             B.Blank -> [tag 0]
             B.Recorded (B.Placeholder _ s) -> [tag 1, Hashable.Text (Text.pack s)]
             B.Recorded (B.Resolve _ s)  -> [tag 2, Hashable.Text (Text.pack s)]
+        Watch _ a -> [tag 69, hashed (hash a)]
         Ref (Reference.Builtin name) -> [tag 2, accumulateToken name]
         Ref (Reference.Derived _) -> error "handled above, but GHC can't figure this out"
         App a a2 -> [tag 3, hashed (hash a), hashed (hash a2)]
@@ -621,6 +631,7 @@ instance (Var v, Show a) => Show (F v a0 p a) where
     go _ (Float n) = showsPrec 0 n
     go _ (Boolean True) = s"true"
     go _ (Boolean False) = s"false"
+    go _ (Watch _ a) = showsPrec p a
     go p (Ann t k) = showParen (p > 1) $ showsPrec 0 t <> s":" <> showsPrec 0 k
     go p (App f x) =
       showParen (p > 9) $ showsPrec 9 f <> s" " <> showsPrec 10 x

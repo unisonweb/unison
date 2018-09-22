@@ -703,6 +703,7 @@ synthesize e = scope (InSynthesize e) $ do
     check h ot
     ctx <- getContext
     pure (apply ctx ot)
+  go (Term.Watch' _ e) = go e
   go _e = compilerCrash PatternMatchFailure
 
 checkCase :: forall v loc . (Var v, Ord loc)
@@ -965,6 +966,7 @@ check e0 t0 = scope (InCheck e0 t0) $ do
       . check body
       . apply ctx
       $ Type.existentialp l i
+  go (Term.Watch' _ e) t = go e t
   go e t = do -- Sub
     a   <- synthesize e
     ctx <- getContext

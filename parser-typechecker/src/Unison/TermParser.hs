@@ -317,26 +317,25 @@ importp = do
 --  op m = case m of Monoid
 
 data BlockElement v
-  = Binding ((Ann, v), AnnotatedTerm v Ann)
-  | Action (AnnotatedTerm v Ann)
+  = Binding (Maybe String) ((Ann, v), AnnotatedTerm v Ann)
+  | Action (Maybe String) (AnnotatedTerm v Ann)
   | Namespace String [BlockElement v]
 
 namespaceBlock :: Var v => P v (BlockElement v)
 namespaceBlock = do
   _ <- reserved "namespace"
   name <- wordyId
-  let statement = (Binding <$> binding) <|> namespaceBlock
+  let statement = (Binding <$> watched <*> binding) <|> namespaceBlock
   _ <- openBlockWith "where"
   elems <- sepBy semi statement
   _ <- closeBlock
   pure $ Namespace (L.payload name) elems
 
-bindingSep :: Var v => P v ()
-bindingSep = P.try $ do
-  _ <- semi
+watched :: Var v => P v (Maybe String)
+watched = (P.try $ do
   op <- optional (L.payload <$> P.lookAhead symbolyId)
-  guard (op /= Just ">")
-  pure ()
+  guard (op == Just ">")
+  pure (Just $ error "todo - get current line")) <|> pure Nothing
 
 block' :: forall v b. Var v => String -> P v (L.Token ()) -> P v b -> TermP v
 block' s openBlock closeBlock = do
@@ -345,7 +344,7 @@ block' s openBlock closeBlock = do
     imports <- mconcat . reverse <$> sepBy sem importp
     _ <- optional semi
     env <- importing imports <$> ask
-    statements <- local (const env) $ sepBy bindingSep statement
+    statements <- local (const env) $ sepBy semi statement
     _ <- closeBlock
     let
       importTerms = [ (n, Term.var() qn) | (n,qn) <- imports ]
@@ -354,9 +353,11 @@ block' s openBlock closeBlock = do
         Term.typeMap (Type.bindBuiltins . Map.toList $ typesByName env) $ tm
     substImports <$> go open statements
   where
-    statement = asum [Binding <$> binding, Action <$> blockTerm, namespaceBlock ]
-    toBindings (Binding ((a, v), e)) = [((a, Just v), e)]
-    toBindings (Action e) = [((ann e, Nothing), e)]
+    statement = asum [ Binding <$> watched <*> binding
+                     , Action <$> watched <*> blockTerm
+                     , namespaceBlock ]
+    toBindings (Binding w ((a, v), e)) = [((a, Just v), Term.watchMaybe w e)]
+    toBindings (Action w e) = [((ann e, Nothing), Term.watchMaybe w e)]
     toBindings (Namespace name bs) = scope name $ (toBindings =<< bs)
     v `orBlank` i = fromMaybe (Var.nameds $ "_" ++ show i) v
     finishBindings bs =
@@ -384,14 +385,14 @@ block' s openBlock closeBlock = do
           customFailure $ BlockMustEndWithExpression
                             startAnnotation
                             endAnnotation
-        Binding ((a, v), _) : _ ->
+        Binding _watchNote ((a, v), _) : _ ->
           pure $ Term.letRec (startAnnotation <> endAnnotation)
                              (finishBindings $ toBindings =<< reverse bs)
                              (Term.var a (Var.named $ (Text.pack missingResult) `mappend` Var.name v))
-        Action e : bs ->
+        Action watchNote e : bs ->
           pure $ Term.letRec (startAnnotation <> ann e)
                              (finishBindings $ toBindings =<< reverse bs)
-                             e
+                             (Term.watchMaybe watchNote e)
         [] -> customFailure $ EmptyBlock (const s <$> open)
 
 -- hack: special variable name used if user gives a block with no result
