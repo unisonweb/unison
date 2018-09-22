@@ -230,6 +230,7 @@ object Term {
       def foldLeft[B](b: B)(f: (B,R) => B): B =
         f(args.foldLeft(b)(f), k)
     }
+    case class Watch_[R](label: String, body: R) extends F1[R](body)
 
     implicit val instance: Traverse[F] = new Traverse[F] {
       override def map[A,B](fa: F[A])(f: A => B): F[B] = fa match {
@@ -268,6 +269,8 @@ object Term {
           EffectPure_(f(v))
         case EffectBind_(id, ctor, args, k) =>
           EffectBind_(id, ctor, args map f, f(k))
+        case Watch_(label, body) =>
+          Watch_(label, f(body))
       }
       def mapAccumulate[S,A,B](fa: F[A], s0: S)(g: (A,S) => (B,S)): (F[B], S) = {
         var s = s0
