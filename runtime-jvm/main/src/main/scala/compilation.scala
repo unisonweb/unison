@@ -986,6 +986,14 @@ package object compilation {
     isTail: IsTail): Computation = {
 
     e match {
+      case Term.Watch(note, e) =>
+        val ce = compile(builtins)(e, env, currentRec, recVars, IsNotTail)
+        (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+          val cev = ce(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
+          val cvb = r.boxed
+          builtins.watch(note, Value(cev, cvb))
+          cev
+        }
       case Term.Unboxed(n,t) => compileUnboxed(n,t)
       case Term.Text(txt) => Return(Builtins.External(txt, e))
       case Term.Id(Id.Builtin(name)) =>
