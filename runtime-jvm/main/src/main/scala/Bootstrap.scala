@@ -72,7 +72,7 @@ object BootstrapStream {
           case None => ()
         }
       }
-      else println(PrettyPrint.prettyTerm(t).render(80))
+      else () // println(PrettyPrint.prettyTerm(t).render(80))
     }
 
   }
@@ -82,7 +82,13 @@ object Bootstrap0 {
 
   def watchHandler(label: String, v: Value): Unit = {
     println(label)
-    println("> " + PrettyPrint.prettyTerm(Term.fullyDecompile(v.decompile)).render(80))
+    val lead = "      | > "
+    val tm = PrettyPrint.prettyTerm(Term.fullyDecompile(v.decompile)).render(80)
+    val tm2 = tm.flatMap {
+      case '\n' => '\n' + (" " * lead.size)
+      case ch    => ch.toString
+    }
+    println(lead + tm2)
   }
 
   def normalizedFromBinaryFile(fileName: String, wh: (String, Value) => Unit = watchHandler): Term =

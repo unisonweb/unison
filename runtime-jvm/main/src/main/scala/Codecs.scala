@@ -280,7 +280,7 @@ object Codecs {
 
     () => {
       val tag = src.getByte
-      if (tag <= 20) Node.Term(decodeTerm(tag))
+      if (tag <= 20 || tag > 50) Node.Term(decodeTerm(tag))
       else Node.Param(decodeParam(tag))
     }
   }

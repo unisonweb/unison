@@ -12,6 +12,7 @@ resolver: lts-12.5
 
 extra-deps:
 - base58-bytestring-0.1.0
+- strings-1.1
 
 ghc-options:
  # All packages

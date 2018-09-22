@@ -207,6 +207,14 @@ queryToken f = P.token go Nothing
   where go t@((f . L.payload) -> Just s) = Right $ fmap (const s) t
         go x = Left (pure (P.Tokens (x:|[])), Set.empty)
 
+currentLine :: Var v => P v (Int, String)
+currentLine = do
+  tok0 <- P.satisfy (const True)
+  let line0 = L.line (L.start tok0)
+  toks <- many $ P.satisfy (\t -> L.line (L.start t) == line0)
+  let lineToks = tok0 Data.List.NonEmpty.:|  toks
+  pure (line0, P.showTokens lineToks)
+
 -- Consume a block opening and return the string that opens the block.
 openBlock :: Var v => P v (L.Token String)
 openBlock = queryToken getOpen

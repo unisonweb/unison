@@ -9,6 +9,7 @@
 module Unison.TermParser where
 
 -- import           Debug.Trace
+import qualified Data.Strings as Strings
 import qualified Data.Text as Text
 import           Control.Applicative
 import           Control.Monad (guard, join, when)
@@ -335,9 +336,10 @@ watched :: Var v => P v (Maybe String)
 watched = (P.try $ do
   op <- optional (L.payload <$> P.lookAhead symbolyId)
   guard (op == Just ">")
-  currentLine <- pure "todo - get current line"
-  _ <- anyToken
-  pure (Just currentLine)) <|> pure Nothing
+  (curLine, lineContents) <- currentLine
+  _ <- anyToken -- consume the '>' token
+  let lineNote = Strings.strPadLeft ' ' 5 (show curLine) ++ " | " ++ lineContents
+  pure (Just lineNote)) <|> pure Nothing
 
 block' :: forall v b. Var v => String -> P v (L.Token ()) -> P v b -> TermP v
 block' s openBlock closeBlock = do
