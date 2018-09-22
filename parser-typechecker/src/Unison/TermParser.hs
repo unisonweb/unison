@@ -335,7 +335,9 @@ watched :: Var v => P v (Maybe String)
 watched = (P.try $ do
   op <- optional (L.payload <$> P.lookAhead symbolyId)
   guard (op == Just ">")
-  pure (Just $ error "todo - get current line")) <|> pure Nothing
+  currentLine <- pure "todo - get current line"
+  _ <- anyToken
+  pure (Just currentLine)) <|> pure Nothing
 
 block' :: forall v b. Var v => String -> P v (L.Token ()) -> P v b -> TermP v
 block' s openBlock closeBlock = do
@@ -353,9 +355,9 @@ block' s openBlock closeBlock = do
         Term.typeMap (Type.bindBuiltins . Map.toList $ typesByName env) $ tm
     substImports <$> go open statements
   where
-    statement = asum [ Binding <$> watched <*> binding
-                     , Action <$> watched <*> blockTerm
-                     , namespaceBlock ]
+    statement = namespaceBlock <|> do
+      w <- watched
+      asum [ Binding w <$> binding, Action w <$> blockTerm ]
     toBindings (Binding w ((a, v), e)) = [((a, Just v), Term.watchMaybe w e)]
     toBindings (Action w e) = [((ann e, Nothing), Term.watchMaybe w e)]
     toBindings (Namespace name bs) = scope name $ (toBindings =<< bs)
