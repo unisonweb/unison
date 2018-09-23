@@ -391,7 +391,7 @@ block' s openBlock closeBlock = do
                             endAnnotation
         Binding _watchNote ((a, v), _) : _ ->
           pure $ Term.letRec (startAnnotation <> endAnnotation)
-                             (finishBindings $ toBindings =<< reverse bs)
+                             (finishBindings $ toBindings =<< bs)
                              (Term.var a (Var.named $ (Text.pack missingResult) `mappend` Var.name v))
         Action watchNote e : bs ->
           pure $ Term.letRec (startAnnotation <> ann e)
