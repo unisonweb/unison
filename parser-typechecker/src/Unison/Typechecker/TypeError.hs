@@ -215,6 +215,8 @@ applyingFunction = do
     Ex.unique $ do
       Ex.pathStart
       (foundType, expectedType) <- Ex.inSubtype
+      -- todo: fix Ex.many and then use this to catch nested subtype checks:
+      -- more <- Ex.many Ex.inSubtype
       (arg, _) <- Ex.inCheck
       (_, _, argNum) <- Ex.inSynthesizeApp
       (typeVars, f, _ft, _args) <- Ex.inFunctionCall
