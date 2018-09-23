@@ -208,7 +208,7 @@ queryToken f = P.token go Nothing
         go x = Left (pure (P.Tokens (x:|[])), Set.empty)
 
 currentLine :: Var v => P v (Int, String)
-currentLine = do
+currentLine = P.lookAhead $ do
   tok0 <- P.satisfy (const True)
   let line0 = L.line (L.start tok0)
   toks <- many $ P.satisfy (\t -> L.line (L.start t) == line0)

@@ -95,6 +95,7 @@ library
     containers,
     comonad,
     cryptonite,
+    directory,
     errors,
     free,
     fsnotify,
@@ -116,6 +117,7 @@ library
     stm,
     strings,
     text,
+    time,
     transformers,
     vector
 

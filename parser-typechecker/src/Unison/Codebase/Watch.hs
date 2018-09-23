@@ -1,24 +1,31 @@
+{-# LANGUAGE DoAndIfThenElse #-}
 {-# LANGUAGE OverloadedStrings #-} -- for FilePath literals
 {-# LANGUAGE TypeApplications  #-}
 
 module Unison.Codebase.Watch where
 
+import System.Directory (canonicalizePath)
+import qualified System.Console.ANSI as Console
+import Data.IORef
+import Data.Time.Clock (UTCTime, diffUTCTime)
 import           Control.Concurrent (threadDelay, forkIO)
 import           Control.Concurrent.MVar
 import           Control.Monad (forever)
 import           System.FSNotify
 import Network.Socket
-import Control.Monad
 import Control.Applicative
 import qualified System.IO.Streams.Network as N
 import           Data.Foldable      (toList)
 import qualified Data.Text as Text
 import qualified Data.Text.IO
+import qualified Data.Map as Map
+import Data.List (isSuffixOf)
+import Data.Text (Text)
 import qualified Unison.FileParsers as FileParsers
 import qualified Unison.Parser      as Parser
 import qualified Unison.Parsers     as Parsers
-import           Unison.Util.AnnotatedText (renderTextUnstyled)
-import           Unison.PrintError  (parseErrorToAnsiString, printNoteWithSourceAsAnsi, renderType')
+-- import           Unison.Util.AnnotatedText (renderTextUnstyled)
+import           Unison.PrintError  (parseErrorToAnsiString, printNoteWithSourceAsAnsi) -- , renderType')
 import           Unison.Result      (Result (Result))
 import           Unison.Symbol      (Symbol)
 import           Unison.Util.Monoid
@@ -26,20 +33,38 @@ import qualified System.IO.Streams as Streams
 import qualified System.Process as P
 import Control.Exception (finally)
 
-watchDirectory :: FilePath -> IO (IO FilePath)
-watchDirectory d = do
+watchDirectory' :: FilePath -> IO (IO (FilePath, UTCTime))
+watchDirectory' d = do
   mvar <- newEmptyMVar
-  let doIt fp = do
+  let doIt fp t = do
         _ <- tryTakeMVar mvar
-        putMVar mvar fp
+        putMVar mvar (fp, t)
       handler e = case e of
-                Added fp _ False -> doIt fp
-                Modified fp _ False -> doIt fp
+                Added fp t False -> doIt fp t
+                Modified fp t False -> doIt fp t
                 _ -> pure ()
   _ <- forkIO $ withManager $ \mgr -> do
     _ <- watchDir mgr d (const True) handler
     forever $ threadDelay 1000000
   pure $ takeMVar mvar
+
+watchDirectory :: FilePath -> (FilePath -> Bool) -> IO (IO (FilePath, Text))
+watchDirectory dir allow = do
+  previousFiles <- newIORef Map.empty
+  watcher <- watchDirectory' dir
+  let await = do
+        (file,t) <- watcher
+        if allow file then do
+          contents <- Data.Text.IO.readFile file
+          prevs <- readIORef previousFiles
+          case Map.lookup file prevs of
+            -- if the file's content's haven't changed and less than a second has passed,
+            -- wait for the next update
+            Just (contents0, t0) | contents == contents0 && (t `diffUTCTime` t0) < 1 -> await
+            _ -> (file,contents) <$ writeIORef previousFiles (Map.insert file (contents,t) prevs)
+        else
+          await
+  pure await
 
 watcher :: FilePath -> Int -> IO ()
 watcher dir port = do
@@ -54,38 +79,50 @@ watcher dir port = do
 
 serverLoop :: FilePath -> Socket -> Int -> IO ()
 serverLoop dir sock port = do
+  Console.setTitle "Unison"
+  Console.clearScreen
+  Console.setCursorPosition 0 0
   let cmd = "scala"
       args = ["-cp", "runtime-jvm/main/target/scala-2.12/classes",
               "org.unisonweb.BootstrapStream", show port]
   (_,_,_,ph) <- P.createProcess (P.proc cmd args) { P.cwd = Just "." }
-  (socket, address) <- accept sock -- accept a connection and handle it
-  putStrLn $ "Accepted connection from " ++ show address
+  (socket, _address) <- accept sock -- accept a connection and handle it
+  cdir <- canonicalizePath dir
+  putStrLn $ "🆗  I'm awaiting changes to *.u files in " ++ cdir
+  -- putStrLn $ "   Note: I'm using the Unison runtime at " ++ show address
   (_input, output) <- N.socketToStreams socket
-  d <- watchDirectory dir
+  d <- watchDirectory dir (".u" `isSuffixOf`)
+  n <- newIORef (0 :: Int)
   (`finally` P.terminateProcess ph) . forever $ do
-    sourceFile <- d
-    when (take 2 (reverse sourceFile) == "u.") $ do
-      source <- Text.unpack <$> Data.Text.IO.readFile sourceFile
-      parseResult <- Parsers.readAndParseFile @Symbol Parser.penv0 sourceFile
-      case parseResult of
-        Left parseError ->
-          putStrLn $ parseErrorToAnsiString source parseError
-        Right (env0, unisonFile) -> do
-          let (Result notes' r) = FileParsers.serializeUnisonFile unisonFile
-              showNote notes =
-                intercalateMap "\n\n" (printNoteWithSourceAsAnsi env0 source) notes
-          putStrLn . showNote . toList $ notes'
-          case r of
-            Nothing -> pure () -- just await next change
-            Just (_unisonFile', typ, bs) -> do
-              putStrLn . show . renderTextUnstyled $ "\129412 Your program has typechecked successfully as: " <> renderType' env0 typ
-              Streams.write (Just bs) output
-              -- todo: read from input to get the response and then show that
-              -- for this we need a deserializer for Unison terms, mirroring what is in Unison.Codecs.hs
-
-main :: IO ()
-main = do
-  d <- watchDirectory "."
-  forever $ do
-    fp <- d
-    putStrLn $ show fp
+    (sourceFile, source0) <- d
+    let source = Text.unpack source0
+    Console.clearScreen
+    Console.setCursorPosition 0 0
+    marker <- do
+      n0 <- readIORef n
+      writeIORef n (n0 + 1)
+      pure ["🌻🌸🌵🌺🌴" !! (n0 `mod` 5)]
+    Console.setTitle "Unison"
+    putStrLn ""
+    putStrLn $ "I detected a change " ++ marker ++ "  of " ++ sourceFile ++ ", reloading... "
+    parseResult <- Parsers.readAndParseFile @Symbol Parser.penv0 sourceFile
+    case parseResult of
+      Left parseError -> do
+        Console.setTitle "Unison \128721"
+        putStrLn $ parseErrorToAnsiString source parseError
+      Right (env0, unisonFile) -> do
+        let (Result notes' r) = FileParsers.serializeUnisonFile unisonFile
+            showNote notes =
+              intercalateMap "\n\n" (printNoteWithSourceAsAnsi env0 source) notes
+        putStrLn . showNote . toList $ notes'
+        case r of
+          Nothing -> do
+            Console.setTitle "Unison \128721"
+            pure () -- just await next change
+          Just (_unisonFile', _typ, bs) -> do
+            Console.setTitle "Unison ✅"
+            putStrLn "✅  Your program typechecks! Any watch expressions"
+            putStrLn "   (lines starting with `>`) are shown below.\n"
+            Streams.write (Just bs) output
+            -- todo: read from input to get the response and then show that
+            -- for this we need a deserializer for Unison terms, mirroring what is in Unison.Codecs.hs

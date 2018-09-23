@@ -82,13 +82,16 @@ object Bootstrap0 {
 
   def watchHandler(label: String, v: Value): Unit = {
     println(label)
+    // val lead = "      | > "
     val lead = "      | > "
+    val arr = "          ⧩"
     val tm = PrettyPrint.prettyTerm(Term.fullyDecompile(v.decompile)).render(80)
     val tm2 = tm.flatMap {
       case '\n' => '\n' + (" " * lead.size)
       case ch    => ch.toString
     }
-    println(lead + tm2)
+    println(arr)
+    println((" " * lead.size) + tm2 + "\n")
   }
 
   def normalizedFromBinaryFile(fileName: String, wh: (String, Value) => Unit = watchHandler): Term =
