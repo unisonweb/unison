@@ -157,8 +157,6 @@ object Codecs {
           => sink putByte 19; sink.putFramedSeq1(bs)(encode); encode(b)
         case Compiled_(p)
           => sink putByte 20; encodep(p)
-        case Watch_(msg, b)
-          => sink putByte 99; sink putString msg; encode(b)
       }
     }
 
@@ -242,8 +240,6 @@ object Codecs {
         ABT.Tm(LetRec_(src.getFramedList1(decodeTerm0), decodeTerm0))
       case 20 =>
         Term.Compiled(decodeParam0)
-      case 99 =>
-        ABT.Tm(Watch_(src.getString, decodeTerm0))
     }
 
     def decodeParam(tag: Byte): Param = (tag : @switch) match {
@@ -280,7 +276,7 @@ object Codecs {
 
     () => {
       val tag = src.getByte
-      if (tag <= 20 || tag > 50) Node.Term(decodeTerm(tag))
+      if (tag <= 20) Node.Term(decodeTerm(tag))
       else Node.Param(decodeParam(tag))
     }
   }

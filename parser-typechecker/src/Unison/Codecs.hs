@@ -3,7 +3,6 @@
 module Unison.Codecs where
 
 import Data.Text (Text)
-import qualified Data.Text as Text
 import           Control.Arrow (second)
 import           Control.Monad.State
 import           Data.Bits (Bits)
@@ -187,13 +186,6 @@ serializeTerm x = do
         putLength $ length positions
         traverse_ putBackref positions
         putBackref pbody
-        incPosition
-      Watch note b -> do
-        bpos <- serializeTerm b
-        putTag
-        putWord8 99
-        lengthEncode (Text.pack note)
-        putBackref bpos
         incPosition
 
 serializePattern :: MonadPut m => Pattern a -> m ()

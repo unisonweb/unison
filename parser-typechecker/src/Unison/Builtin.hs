@@ -215,5 +215,7 @@ builtins0 = Map.fromList $
       , ("Sequence.++", "[a] -> [a] -> [a]")
       , ("Sequence.size", "[a] -> UInt64")
       , ("Sequence.at", "UInt64 -> [a] -> Optional a")
+
+      , ("Debug.watch", "Text -> a -> a")
       ]
   ]

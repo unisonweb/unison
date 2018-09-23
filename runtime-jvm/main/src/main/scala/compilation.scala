@@ -986,14 +986,6 @@ package object compilation {
     isTail: IsTail): Computation = {
 
     e match {
-      case Term.Watch(note, e) =>
-        val ce = compile(builtins)(e, env, currentRec, recVars, IsNotTail)
-        (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
-          val cev = ce(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
-          val cvb = r.boxed
-          builtins.watch(note, Value(cev, cvb))
-          cev
-        }
       case Term.Unboxed(n,t) => compileUnboxed(n,t)
       case Term.Text(txt) => Return(Builtins.External(txt, e))
       case Term.Id(Id.Builtin(name)) =>
@@ -1122,6 +1114,23 @@ package object compilation {
         compile(builtins)(Term.Apply(fn, (args ++ args2): _*), env, currentRec, recVars, isTail)
 
       case Term.Apply(fn, Nil) => sys.error("the parser isn't supposed to produce this")
+
+      case Term.Apply(Term.Id(Id.Builtin(watch)), List(note, e)) if watch.toString == "Debug.watch" =>
+        // todo: could we make this first class? issue is builtins don't
+        // currently have access to the watch environment
+        val ce = compile(builtins)(e, env, currentRec, recVars, IsNotTail)
+        val cnote = compile(builtins)(note, env, currentRec, recVars, IsNotTail)
+        (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+          val cev = ce(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
+          val cvb = r.boxed
+          val cnotev = {
+            cnote(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
+            val txt = r.boxed.asInstanceOf[Builtins.External].get.asInstanceOf[util.Text.Text]
+            util.Text.toString(txt)
+          }
+          builtins.watch(cnotev, Value(cev, cvb))
+          cev
+        }
 
       case Term.Apply(fn, args) =>
         val compiledArgs: List[Computation] =
