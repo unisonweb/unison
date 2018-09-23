@@ -86,11 +86,12 @@ _any' getLast = SubseqExtractor' $ \note -> Pure () : do
   pure $ Ranged () start end
 
 
--- unused / untested
-_many :: forall n a. Ord a => SubseqExtractor' n a -> SubseqExtractor' n [a]
-_many xa = SubseqExtractor' $ \note ->
+-- unused / untested -- almost definitely wrong
+many :: forall n a. Ord a => SubseqExtractor' n a -> SubseqExtractor' n [a]
+many xa = SubseqExtractor' $ \note ->
   let as = runSubseq xa note in fmap reverse <$> toList (go Set.empty as)
   where
+    -- why is this a set
     go :: Set (Ranged [a]) -> [Ranged a] -> Set (Ranged [a])
     go seen [] = seen
     go seen (rh@(Ranged h start end) : t) =
