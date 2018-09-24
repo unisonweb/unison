@@ -298,7 +298,7 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     , annotatedAsErrorSite src termSite, "\n" ] ++
       case expectedType of
         Type.Existential' _ _ ->
-          ["There aren't any constraints on the type of the expression that follows this binding.\n\n"]
+          ["To complete the block, add an expression after this binding.\n\n"]
         _ -> [ "Based on the context, I'm expecting an expression of type "
              , AT.Text . Color.style Color.Type1 $ (renderType' env) expectedType
              , " after this binding. \n\n" ]
