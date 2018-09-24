@@ -100,7 +100,8 @@ object PrettyPrint {
   def semicolons(docs: Seq[PrettyPrint]): PrettyPrint = docs.reduceOption(_ <> semicolon <> _).getOrElse(empty)
 
   val comma = Breakable(", ")
-  def commas(docs: Seq[PrettyPrint]): PrettyPrint = docs.reduceOption(_ <> comma <> _).getOrElse(empty)
+  def commas(docs: Seq[PrettyPrint]): PrettyPrint =
+    docs.reduceOption((d1,d2) => d1 <> comma <> d2.nest(", ")).getOrElse(empty)
 
   def prettyName(name: Name) = parenthesizeIf(isOperatorName(name.toString))(name.toString)
 
@@ -243,7 +244,7 @@ object PrettyPrint {
         Term.Var(prettyId(typeId, ctorId).renderUnbroken)(
           fields.map(_.decompile):_*), precedence)
     case Term.Text(txt) => '"' + Text.toString(txt) + '"'
-    case Term.Sequence(seq) => "[" <> commas(seq.map(prettyTerm).toList) <> "]"
+    case Term.Sequence(seq) => "[ " <> commas(seq.map(prettyTerm).toList) <> " ]"
     case t => t.toString
   }
 
