@@ -66,6 +66,7 @@ library
     Unison.Reference
     Unison.Runtime.Rt0
     Unison.Result
+    Unison.Settings
     Unison.Symbol
     Unison.Term
     Unison.TermParser
