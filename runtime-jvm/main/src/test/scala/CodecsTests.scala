@@ -21,7 +21,7 @@ object CodecsTests {
   val tests = suite("codecs") (
     test("huge tuple") { implicit T =>
       roundTrip(Tuple.value(
-        (0 until 10000 map { i => Value.Unboxed(i, UnboxedType.Int64) }): _*))
+        (0 until 10000 map { i => Value.Unboxed(i, UnboxedType.Int) }): _*))
       ok
     }
   )

@@ -8,10 +8,10 @@ foo : () -> {IO} ()
 foo unit =
 -- inner binding can't access outer abilities unless it declares
 -- them explicitly
-  inc-by : Int64 -> {State Int} ()
+  inc-by : Int -> {State Int} ()
   inc-by i =
     launch-missiles -- not allowed
     y = State.get()
-    State.put (y Int64.+ i)
+    State.put (y Int.+ i)
   ()
 ()

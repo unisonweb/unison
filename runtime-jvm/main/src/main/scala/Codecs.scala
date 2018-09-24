@@ -180,7 +180,7 @@ object Codecs {
         => sink putByte 27; encode(e.decompile)
       case UnboxedType.Boolean
         => sink putByte 28
-      case UnboxedType.Int64
+      case UnboxedType.Int
         => sink putByte 29
       case UnboxedType.Nat
         => sink putByte 30
@@ -268,7 +268,7 @@ object Codecs {
         val u = compilation.evalClosed(c,R,sp0,stackU,stackB)
         Value(u, R.boxed)
       case 28 => UnboxedType.Boolean
-      case 29 => UnboxedType.Int64
+      case 29 => UnboxedType.Int
       case 30 => UnboxedType.Nat
       case 31 => UnboxedType.Float
       case t => sys.error(s"unexpected tag byte $t during decoding")
@@ -311,14 +311,14 @@ object Codecs {
   final def decodeUnboxedType(source: Source): UnboxedType =
     (source.getByte: @switch) match {
       case 0 => UnboxedType.Boolean
-      case 1 => UnboxedType.Int64
+      case 1 => UnboxedType.Int
       case 2 => UnboxedType.Nat
       case 3 => UnboxedType.Float
     }
 
   final def encodeUnboxedType(t: UnboxedType, sink: Sink): Unit = t match {
     case UnboxedType.Boolean => sink.putByte(0)
-    case UnboxedType.Int64 => sink.putByte(1)
+    case UnboxedType.Int => sink.putByte(1)
     case UnboxedType.Nat => sink.putByte(2)
     case UnboxedType.Float => sink.putByte(3)
   }
@@ -453,7 +453,7 @@ object Codecs {
         case 27 =>
           s"External $r"
         case 28 => "Boolean"
-        case 29 => "Int64"
+        case 29 => "Int"
         case 30 => "Nat"
         case 31 => "Float"
         case 32 => s"SetRef ${bs.getVarLong} ${bs.getVarLong}"

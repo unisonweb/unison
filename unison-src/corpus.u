@@ -21,9 +21,9 @@ let
   x = [1.,2.5]
   "let case if"
     |> Text.size
-    |> Stream.from-int64
+    |> Stream.from-int
     |> Stream.take 10
-    |> Stream.fold-left -0 (+_Int64)
-    |> Stream.fold-left-0 (+_Int64)
+    |> Stream.fold-left -0 (+_Int)
+    |> Stream.fold-left-0 (+_Int)
     |> Optional.Some
   +1.0

@@ -87,7 +87,7 @@ builtinTypes = builtinTypes' ++ (f <$> Map.toList (builtinDataDecls @v))
 
 builtinTypes' :: Var v => [(v, R.Reference)]
 builtinTypes' = (Var.named &&& R.Builtin) <$>
-  ["Int64", "Nat", "Float", "Boolean",
+  ["Int", "Nat", "Float", "Boolean",
     "Sequence", "Text", "Stream", "Effect"]
 
 builtinEffectDecls :: forall v. Var v => Map.Map R.Reference (EffectDeclaration v)
@@ -129,24 +129,24 @@ builtins0 :: Var v => Map.Map R.Reference (Type v)
 builtins0 = Map.fromList $
   [ (R.Builtin name, t typ) |
     (name, typ) <-
-      [ ("Int64.+", "Int64 -> Int64 -> Int64")
-      , ("Int64.-", "Int64 -> Int64 -> Int64")
-      , ("Int64.*", "Int64 -> Int64 -> Int64")
-      , ("Int64./", "Int64 -> Int64 -> Int64")
-      , ("Int64.<", "Int64 -> Int64 -> Boolean")
-      , ("Int64.>", "Int64 -> Int64 -> Boolean")
-      , ("Int64.<=", "Int64 -> Int64 -> Boolean")
-      , ("Int64.>=", "Int64 -> Int64 -> Boolean")
-      , ("Int64.==", "Int64 -> Int64 -> Boolean")
-      , ("Int64.increment", "Int64 -> Int64")
-      , ("Int64.is-even", "Int64 -> Boolean")
-      , ("Int64.is-odd", "Int64 -> Boolean")
-      , ("Int64.signum", "Int64 -> Int64")
-      , ("Int64.negate", "Int64 -> Int64")
+      [ ("Int.+", "Int -> Int -> Int")
+      , ("Int.-", "Int -> Int -> Int")
+      , ("Int.*", "Int -> Int -> Int")
+      , ("Int./", "Int -> Int -> Int")
+      , ("Int.<", "Int -> Int -> Boolean")
+      , ("Int.>", "Int -> Int -> Boolean")
+      , ("Int.<=", "Int -> Int -> Boolean")
+      , ("Int.>=", "Int -> Int -> Boolean")
+      , ("Int.==", "Int -> Int -> Boolean")
+      , ("Int.increment", "Int -> Int")
+      , ("Int.is-even", "Int -> Boolean")
+      , ("Int.is-odd", "Int -> Boolean")
+      , ("Int.signum", "Int -> Int")
+      , ("Int.negate", "Int -> Int")
 
       , ("Nat.+", "Nat -> Nat -> Nat")
       , ("Nat.drop", "Nat -> Nat -> Nat")
-      , ("Nat.sub", "Nat -> Nat -> Int64")
+      , ("Nat.sub", "Nat -> Nat -> Int")
       , ("Nat.*", "Nat -> Nat -> Nat")
       , ("Nat./", "Nat -> Nat -> Nat")
       , ("Nat.<", "Nat -> Nat -> Boolean")
@@ -185,7 +185,7 @@ builtins0 = Map.fromList $
       , ("Stream.empty", "Stream a")
       , ("Stream.single", "a -> Stream a")
       , ("Stream.constant", "a -> Stream a")
-      , ("Stream.from-int64", "Int64 -> Stream Int64")
+      , ("Stream.from-int", "Int -> Stream Int")
       , ("Stream.from-nat", "Nat -> Stream Nat")
       , ("Stream.cons", "a -> Stream a -> Stream a")
       , ("Stream.take", "Nat -> Stream a -> Stream a")
@@ -200,7 +200,7 @@ builtins0 = Map.fromList $
       , ("Stream.to-sequence", "Stream a -> Sequence a")
       , ("Stream.filter", "(a ->{} Boolean) -> Stream a -> Stream a")
       , ("Stream.scan-left", "b -> (b ->{} a ->{} b) -> Stream a -> Stream b")
-      , ("Stream.sum-int64", "Stream Int64 -> Int64")
+      , ("Stream.sum-int", "Stream Int -> Int")
       , ("Stream.sum-nat", "Stream Nat -> Nat")
       , ("Stream.sum-float", "Stream Float -> Float")
       , ("Stream.append", "Stream a -> Stream a -> Stream a")

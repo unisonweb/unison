@@ -3,12 +3,12 @@
 -- give "the ideal error message" and a uniform, simple algorithm for producing
 -- that message.
 
-ex1 : Int64
+ex1 : Int
 ex1 = "hello"
 
 {- Ideal error:
 
-   Type mismatch in example-errors.u, line 6: `Text` vs `Int64`
+   Type mismatch in example-errors.u, line 6: `Text` vs `Int`
 
    |
  6 | ex1 = "hello"
@@ -19,9 +19,9 @@ ex1 = "hello"
  6 | ex1 = "hello"
    |       ^^^^^^^
 
-   `Int64` comes from type signature:
+   `Int` comes from type signature:
    |
- 5 | ex1 : Int64
+ 5 | ex1 : Int
    |       ^^^^^
 
   Thoughts:
@@ -58,7 +58,7 @@ ex1 = "hello"
        that the location came from an inferred type.
 -}
 
-ex2 : Int64   -- `Int64` comes from
+ex2 : Int   -- `Int` comes from
 ex2 =
   y = "hello" -- `Text` comes from "hello"
   y
@@ -71,11 +71,11 @@ example-errors.u contained errors:
    |
 42 | y
    | ^
-   was inferred to have type `Text` but was expected to have type `Int64`
+   was inferred to have type `Text` but was expected to have type `Int`
 
-   `Int64` comes from type signature:
+   `Int` comes from type signature:
    |
-39 | ex2 : Int64
+39 | ex2 : Int
    |       ^^^^^
 
    `Text` was inferred from a literal:
@@ -86,7 +86,7 @@ example-errors.u contained errors:
 
   Thoughts:
   * `y` is the body of the block, and the body of the block is expected to
-        have type `Int64`
+        have type `Int`
   * Maybe use bold or some visual indicator rather than the ^^^ nonsense
   * Do we include parent scopes?
 -}

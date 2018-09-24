@@ -13,7 +13,7 @@ use Nat.+
 use Nat - * /
 use Nat. drop *
 use Nat . drop
--- use Int64 + -- this would cause type error below!
+-- use Int + -- this would cause type error below!
 
 case Some (100 + 200 / 3 * 2) of
   Optional.None -> 19

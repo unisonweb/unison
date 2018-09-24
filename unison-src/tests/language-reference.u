@@ -8,11 +8,11 @@
 
 increment x = x + 1
 
--- Note: The type `Nat` is an unsigned 64-bit integer. By default, literals like `1` without a decimal point that don't have a `+` or `-` in front are assumed to be `Nat` values. If you want them to be signed, write `+1` instead, this has type `Int64`. Unison doesn't do any sort of implicit conversions between numeric types; that would be evil. 😈
+-- Note: The type `Nat` is an unsigned 64-bit integer. By default, literals like `1` without a decimal point that don't have a `+` or `-` in front are assumed to be `Nat` values. If you want them to be signed, write `+1` instead, this has type `Int`. Unison doesn't do any sort of implicit conversions between numeric types; that would be evil. 😈
 
 -- You can tell the Unison typechecker what type you're expecting for a definition with a type signature and it will warn you with a hopefully friendly error message if it it doesn't in fact have that type. Type signatures come just before the definition. Here's an example, which also introduces the syntax for _blocks_:
 
-increment2 : Int64 -> Int64
+increment2 : Int -> Int
 increment2 x =
    -- notice the `+1` literal!
   one = +1
@@ -43,7 +43,7 @@ ex =
 
   (msg, number)
 
--- The type `(Text, Float)` is a pair of a text value and a floating point number. The type `(Text, Int64, Text)` is, yup, a triple of a text value, an `Int64` value, and another `Text`. And so on: the syntax for tuples of any size is just a comma separated list in parentheses.
+-- The type `(Text, Float)` is a pair of a text value and a floating point number. The type `(Text, Int, Text)` is, yup, a triple of a text value, an `Int` value, and another `Text`. And so on: the syntax for tuples of any size is just a comma separated list in parentheses.
 
 -- The `concatenate part1 part2` is the Unison syntax for function application. The arguments are separated by spaces. This syntax binds tighter than any infix operator, so for instance, in this program:
 

@@ -4,10 +4,10 @@ effect State se2 where
   get : ∀ se . () -> {State se} se
 -- binding is not guarded by a lambda, it only can access
 -- ambient abilities (which will be empty)
-ex1 : {State Int64} ()
+ex1 : {State Int} ()
 ex1 =
   y = State.get
-  State.put (y Int64.+ +1)
+  State.put (y Int.+ +1)
   ()
 ()
 

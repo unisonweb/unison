@@ -185,8 +185,8 @@ ref a = ABT.tm' a . Ref
 builtin :: Ord v => a -> Text -> AnnotatedType v a
 builtin a = ref a . Reference.Builtin
 
-int64 :: Ord v => a -> AnnotatedType v a
-int64 a = builtin a "Int64"
+int :: Ord v => a -> AnnotatedType v a
+int a = builtin a "Int"
 
 nat :: Ord v => a -> AnnotatedType v a
 nat a = builtin a "Nat"

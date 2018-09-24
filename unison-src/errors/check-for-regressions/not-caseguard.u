@@ -1,4 +1,4 @@
-notid : Int64 -> Boolean
+notid : Int -> Boolean
 notid a = true
 case 3 of
   3 | notid 3 -> 4

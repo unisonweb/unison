@@ -101,7 +101,7 @@ parsePattern = constructor <|> leaf
   literal = (,[]) <$> asum [true, false, number]
   true = (\t -> Pattern.Boolean (ann t) True) <$> reserved "true"
   false = (\t -> Pattern.Boolean (ann t) False) <$> reserved "false"
-  number = number' (tok Pattern.Int64) (tok Pattern.Nat) (tok Pattern.Float)
+  number = number' (tok Pattern.Int) (tok Pattern.Nat) (tok Pattern.Float)
   parenthesizedOrTuplePattern :: P v (Pattern Ann, [(Ann, v)])
   parenthesizedOrTuplePattern = tupleOrParenthesized parsePattern unit pair
   unit ann = (Pattern.Constructor ann (R.Builtin "()") 0 [], [])
@@ -404,7 +404,7 @@ missingResult :: String
 missingResult =":missing-result"
 
 number :: Var v => TermP v
-number = number' (tok Term.int64) (tok Term.nat) (tok Term.float)
+number = number' (tok Term.int) (tok Term.nat) (tok Term.float)
 
 number'
   :: Var v

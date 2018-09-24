@@ -9,7 +9,7 @@
 --or true y
 --or true 3
 
---f : Int64 -> Int64
+--f : Int -> Int
 --f = id
 --or true (f 1)
 

@@ -19,7 +19,7 @@ object FileCompilationTests {
     "stream-shouldnt-damage-stack" -> ((4950.u, 9999.u)),
     "stream/iterate-increment-take-drop-reduce" ->
       scala.Stream.from(0).take(5).drop(3).sum,
-    "stream/fromint64-take-map-tosequence" ->
+    "stream/fromint-take-map-tosequence" ->
       Term.Sequence(Sequence(
         scala.Stream.from(0)
           .take(10)
@@ -27,7 +27,7 @@ object FileCompilationTests {
       )),
     "stream/iterate-increment-take-filter-reduce" ->
       scala.Stream.from(0).take(10000).filter(_ % 2 == 0).sum.u,
-    "stream/fromint64-take-foldleft-plus" ->
+    "stream/fromint-take-foldleft-plus" ->
       (0 until 10000).sum.u,
     "stream/scan-left" ->
       scala.Stream.from(1).take(10000).scanLeft(0l)(_+_).sum.u,

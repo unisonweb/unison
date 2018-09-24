@@ -76,7 +76,7 @@ if exists("u_highlight_boolean")
 endif
 if exists("u_highlight_types")
   " Primitive types from the standard prelude and libraries.
-  syn match uType "\<\(Float\|Nat\|Int64\|Boolean\|Remote\|Text\)\>"
+  syn match uType "\<\(Float\|Nat\|Int\|Boolean\|Remote\|Text\)\>"
 endif
 if exists("u_highlight_more_types")
   " Types from the standard prelude libraries.

@@ -112,8 +112,8 @@ test1 = scope "termparser" . tests . map parses $
     "  s = 0\n" ++
     "  s > 0\n" ++
     "then\n" ++
-    "  s: Int64\n" ++
-    "  s = (0: Int64)\n" ++
+    "  s: Int\n" ++
+    "  s = (0: Int)\n" ++
     "  s + 1\n" ++
     "else\n" ++
     "  s = 0\n" ++
@@ -123,8 +123,8 @@ test1 = scope "termparser" . tests . map parses $
     "  s = 0\n" ++
     "  s > 0\n" ++
     "then\n" ++
-    "  s: Int64\n" ++
-    "  s = (0 : Int64)\n" ++
+    "  s: Int\n" ++
+    "  s = (0 : Int)\n" ++
     "  s + 1\n" ++
     "else\n" ++
     "  s = 0\n" ++
@@ -142,7 +142,7 @@ test1 = scope "termparser" . tests . map parses $
         (|>) : forall a . a -> (a -> b) -> b
         a |> f = f a
 
-        Stream.from-int64 -3
+        Stream.from-int -3
           |> Stream.take 10
           |> Stream.fold-left 0 increment
        |]

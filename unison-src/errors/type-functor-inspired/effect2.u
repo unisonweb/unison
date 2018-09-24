@@ -5,7 +5,7 @@ effect Abort2 where
   Abort2  : forall a . () -> {Abort2} a
   Abort2' : forall a . () -> {Abort2} a
 
-effect' : Nat -> { Abort } Int64
+effect' : Nat -> { Abort } Int
 effect' n = Abort2.Abort2 ()
 
 ()

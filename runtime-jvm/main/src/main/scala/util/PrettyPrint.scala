@@ -184,7 +184,7 @@ object PrettyPrint {
   def prettyTerm(t: Term): PrettyPrint = prettyTerm(t, 0)
 
   def prettyUnboxed(value: U, t: UnboxedType): PrettyPrint = t match {
-    case UnboxedType.Int64 =>
+    case UnboxedType.Int =>
       val i = unboxedToInt(value)
       if (i > 0) "+" + i.toString else i.toString
     case UnboxedType.Float => unboxedToDouble(value).toString

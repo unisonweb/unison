@@ -10,7 +10,7 @@ import Data.Text (Text)
 data Token h
   = Tag !Word8
   | Bytes !ByteString
-  | Int64 !Int64
+  | Int !Int64
   | Text !Text
   | Double !Double
   | Hashed !h
@@ -81,7 +81,7 @@ instance Hashable Word64 where
   tokens w = [Nat w]
 
 instance Hashable Int64 where
-  tokens w = [Int64 w]
+  tokens w = [Int w]
 
 instance Hashable Bool where
   tokens b = [Tag . fromIntegral $ fromEnum b]

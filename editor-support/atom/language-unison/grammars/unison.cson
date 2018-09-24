@@ -57,7 +57,7 @@ repository:
   numeric:
     patterns: [
       {include: '#float'}
-      {include: '#int64'}
+      {include: '#int'}
       {include: '#nat'}
     ]
 
@@ -76,7 +76,7 @@ repository:
     match: 'false'
     name: 'constant.language.boolean.false.unison'
 
-  int64:
+  int:
     match: '([^\\w\\d]|^)([+-]\\d+)'
     captures:
       2: {name: 'constant.numeric.integer.signed.unison'}

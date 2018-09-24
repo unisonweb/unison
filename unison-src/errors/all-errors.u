@@ -7,16 +7,16 @@ effect Abort2 where
   Abort2  : forall a . () -> {Abort2} a
   Abort2' : forall a . () -> {Abort2} a
 
-app : Optional Int64
+app : Optional Int
 app = Optional.Some 3
 
-app' : Optional Int64
+app' : Optional Int
 app' = 3
 
-arrow : Int64 -> Int64 -> Int64
+arrow : Int -> Int -> Int
 arrow a = 3
 
-effect' : Nat -> { Abort } Int64
+effect' : Nat -> { Abort } Int
 effect' n = Abort2.Abort2 ()
 
 id : forall a . a -> a
@@ -28,13 +28,13 @@ f2 x = x
 const : forall a b . a -> b -> a
 const a b = 3
 
-y : (Optional Int64)
+y : (Optional Int)
 y = 3
 
-z' : (Optional Int64, Optional Text, Optional Float)
+z' : (Optional Int, Optional Text, Optional Float)
 z' = (None, 3)
 
-z : (Optional Int64, Optional Text, Optional Float)
+z : (Optional Int, Optional Text, Optional Float)
 z = 3
 
 x : ()

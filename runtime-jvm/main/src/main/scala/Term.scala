@@ -507,8 +507,8 @@ object Term {
       BuiltinTypes.Tuple.term(t._1, t._2, t._3)
 
     implicit def bool(b: Boolean): Term = Unboxed(boolToUnboxed(b), UnboxedType.Boolean)
-    implicit def signed(n: Long): Term = Unboxed(longToUnboxed(n), UnboxedType.Int64)
-    implicit def signed(n: Int): Term = Unboxed(intToUnboxed(n), UnboxedType.Int64)
+    implicit def signed(n: Long): Term = Unboxed(longToUnboxed(n), UnboxedType.Int)
+    implicit def signed(n: Int): Term = Unboxed(intToUnboxed(n), UnboxedType.Int)
     implicit def double(n: Double): Term = Unboxed(doubleToUnboxed(n), UnboxedType.Float)
     implicit def stringAsText(s: String): Term = Text(util.Text.fromString(s))
     implicit def nameAsVar(s: Name): Term = Var(s)

@@ -53,7 +53,7 @@ data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
 -- | Base functor for terms in the Unison language
 -- We need `typeVar` because the term and type variables may differ.
 data F typeVar typeAnn patternAnn a
-  = Int64 Int64
+  = Int Int64
   | Nat Word64
   | Float Double
   | Boolean Bool
@@ -176,7 +176,7 @@ freeTypeVars t = go t where
 -- nicer pattern syntax
 
 pattern Var' v <- ABT.Var' v
-pattern Int64' n <- (ABT.out -> ABT.Tm (Int64 n))
+pattern Int' n <- (ABT.out -> ABT.Tm (Int n))
 pattern Nat' n <- (ABT.out -> ABT.Tm (Nat n))
 pattern Float' n <- (ABT.out -> ABT.Tm (Float n))
 pattern Boolean' b <- (ABT.out -> ABT.Tm (Boolean b))
@@ -234,8 +234,8 @@ float a d = ABT.tm' a (Float d)
 boolean :: Ord v => a -> Bool -> AnnotatedTerm2 vt at ap v a
 boolean a b = ABT.tm' a (Boolean b)
 
-int64 :: Ord v => a -> Int64 -> AnnotatedTerm2 vt at ap v a
-int64 a d = ABT.tm' a (Int64 d)
+int :: Ord v => a -> Int64 -> AnnotatedTerm2 vt at ap v a
+int a d = ABT.tm' a (Int d)
 
 nat :: Ord v => a -> Word64 -> AnnotatedTerm2 vt at ap v a
 nat a d = ABT.tm' a (Nat d)
@@ -559,7 +559,7 @@ instance Var v => Hashable1 (F v a p) where
       -- types, which start each layer with leading `0`. See `Hashable1 Type.F`
       _ -> Hashable.accumulate $ tag 1 : case e of
         Nat i -> [tag 64, accumulateToken i]
-        Int64 i -> [tag 65, accumulateToken i]
+        Int i -> [tag 65, accumulateToken i]
         Float n -> [tag 66, Hashable.Double n]
         Boolean b -> [tag 67, accumulateToken b]
         Text t -> [tag 68, accumulateToken t]
@@ -598,7 +598,7 @@ instance (Eq a, Var v) => Eq1 (F v a p) where (==#) = (==)
 instance (Var v) => Show1 (F v a p) where showsPrec1 = showsPrec
 
 instance (Var vt, Eq at, Eq a) => Eq (F vt at p a) where
-  Int64 x == Int64 y = x == y
+  Int x == Int y = x == y
   Nat x == Nat y = x == y
   Float x == Float y = x == y
   Boolean x == Boolean y = x == y
@@ -624,7 +624,7 @@ instance (Var vt, Eq at, Eq a) => Eq (F vt at p a) where
 instance (Var v, Show a) => Show (F v a0 p a) where
   showsPrec p fa = go p fa where
     showConstructor r n = showsPrec 0 r <> s"#" <> showsPrec 0 n
-    go _ (Int64 n) = (if n >= 0 then s "+" else s "") <> showsPrec 0 n
+    go _ (Int n) = (if n >= 0 then s "+" else s "") <> showsPrec 0 n
     go _ (Nat n) = showsPrec 0 n
     go _ (Float n) = showsPrec 0 n
     go _ (Boolean True) = s"true"

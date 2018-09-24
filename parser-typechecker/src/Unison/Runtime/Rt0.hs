@@ -165,7 +165,7 @@ run env = go where
 
 decompile :: V -> Term Symbol
 decompile v = case v of
-  I n -> Term.int64 () n
+  I n -> Term.int () n
   U n -> Term.nat () n
   F n -> Term.float () n
   B b -> Term.boolean () b
@@ -191,7 +191,7 @@ compile0 env bound t = go ((++ bound) <$> ABT.annotateBound' (Term.anf t)) where
     Term.And' x y -> And (ind t x) (go y)
     Term.Or' x y -> Or (ind t x) (go y)
     Term.If' cond ifT ifF -> If (ind t cond) (go ifT) (go ifF)
-    Term.Int64' n -> V (I n)
+    Term.Int' n -> V (I n)
     Term.Nat' n -> V (U n)
     Term.Float' n -> V (F n)
     Term.Boolean' b -> V (B b)
