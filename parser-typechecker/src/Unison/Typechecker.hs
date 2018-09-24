@@ -190,7 +190,7 @@ typeDirectedNameResolution resultSoFar env = do
             else
               -- The type hasn't changed
               lift . pure $ do
-                tp <- resultSoFar
+                tp <- Result newNotes may
                 suggest res2
                 pure tp
  where
