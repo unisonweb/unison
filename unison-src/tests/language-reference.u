@@ -32,12 +32,12 @@ ex =
   msg : Text
   msg =
     -- Here's syntax for importing a symbol
-    use Text.concatenate
+    use Text ++
     -- Anything inside "" becomes a `Text` value
     part1 = "Hello"
     part2 = ", World!!"
-    -- and here's the use of `concatenate`
-    concatenate part1 part2
+    -- and here's the use of `++`
+    part1 ++ part2
 
   number = 42.24 + 92.283
 
@@ -60,18 +60,18 @@ ex4 : Text
 ex4 =
   hi = "Hello "
   world = " world!!!"
-  hi `Text.concatenate` world
+  hi Text.++ world
 
 -- You can also define functions that are by default called with infix syntax (we call this an "operator"), for instance:
 
-(++) : Text -> Text -> Text -- TODO, no need to require parens here
-a ++ b = Text.concatenate a b
+(+++) : Text -> Text -> Text
+a +++ b =  a Text.++ " " Text.++ b
 
 -- Here's a usage:
-ex5 = "Hello" ++ " world!!"
+ex5 = "Hello" +++ "world!!"
 
 -- You can also call any operator with prefix syntax just by putting it in parentheses:
-ex6 = (++) "Good morning" " 🌞"
+ex6 = (+++) "Good morning" "🌞"
 
 -- Currently, all operators in Unison have the same precedence, and are parsed from left to right. One less thing to have to remember!
 

@@ -171,7 +171,7 @@ builtins0 = Map.fromList $
       , ("Boolean.not", "Boolean -> Boolean")
 
       , ("Text.empty", "Text")
-      , ("Text.concatenate", "Text -> Text -> Text")
+      , ("Text.++", "Text -> Text -> Text")
       , ("Text.take", "Nat -> Text -> Text")
       , ("Text.drop", "Nat -> Text -> Text")
       , ("Text.size", "Text -> Nat")

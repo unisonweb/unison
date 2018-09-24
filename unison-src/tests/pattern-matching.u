@@ -20,12 +20,12 @@ z = case Foo2 1 "hi" of
   Foo2 1 _ -> 1
 
 w = case Foo3.Foo3 1 2 "bye" of
-  Foo3.Foo3 1 2 x -> Text.concatenate x "bye"
+  Foo3.Foo3 1 2 x -> x Text.++ "bye"
   _ -> ""
 
 w2 foo = case foo of
-  Foo3.Foo3 1 4 x -> Text.concatenate x "bye"
-  Foo3.Foo3 x y z -> Text.concatenate z z 
+  Foo3.Foo3 1 4 x -> x Text.++ "bye"
+  Foo3.Foo3 x y z -> z Text.++ z
   _ -> "hi"
 
 len : List a -> Nat

@@ -122,8 +122,8 @@ serverLoop dir sock port = do
             pure () -- just await next change
           Just (_unisonFile', _typ, bs) -> do
             Console.setTitle "Unison ✅"
-            putStrLn "✅  Your program typechecks! Any watch expressions"
-            putStrLn "   (lines starting with `>`) are shown below.\n"
+            putStrLn "✅  Your program typechecks!"
+            putStrLn "    Any watch expressions (lines starting with `>`) are shown below.\n"
             Streams.write (Just bs) output
             -- todo: read from input to get the response and then show that
             -- for this we need a deserializer for Unison terms, mirroring what is in Unison.Codecs.hs

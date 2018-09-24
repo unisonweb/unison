@@ -538,7 +538,7 @@ object Builtins {
     c0("Text.empty", util.Text.empty)
 
   val Text_concatenate =
-    fpp_p("Text.concatenate", "textL", "textR", (t1: Text, t2: Text) => t1 ++ t2)
+    fpp_p("Text.++", "textL", "textR", (t1: Text, t2: Text) => t1 ++ t2)
 
   val Text_take =
     flp_p("Text.take", "codepoint-count", "text",
