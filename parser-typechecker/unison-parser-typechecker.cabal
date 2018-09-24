@@ -51,6 +51,7 @@ library
     Unison.Paths
     Unison.Pattern
     Unison.PatternP
+    Unison.PrettyPrint
     Unison.PrintError
     Unison.Reference
     Unison.Runtime.Rt0
@@ -60,6 +61,7 @@ library
     Unison.Term
     Unison.TermParser
     Unison.Type
+    Unison.TypePrinter
     Unison.TypeParser
     Unison.TypeVar
     Unison.Typechecker
@@ -72,6 +74,7 @@ library
     Unison.Util.ColorText
     Unison.Util.Logger
     Unison.Util.Monoid
+    Unison.Util.PrettyPrint
     Unison.Util.Range
     Unison.Util.Watch
     Unison.Var
@@ -91,6 +94,7 @@ library
     fsnotify,
     hashable,
     lens,
+    ListLike,
     memory,
     monad-loops,
     mtl,
@@ -149,6 +153,7 @@ executable tests
     Unison.Test.Range
     Unison.Test.TermParser
     Unison.Test.Type
+    Unison.Test.TypePrinter
     Unison.Test.Typechecker
     Unison.Test.Typechecker.Components
     Unison.Test.Typechecker.TypeError
