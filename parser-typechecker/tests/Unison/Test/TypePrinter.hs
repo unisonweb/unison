@@ -56,6 +56,8 @@ test = scope "typeprinter" . tests $
   , tc "Pair"
   , tc "Pair a b"
   , tc "Pair a a"
+  , tc_diff "((a))" $ "a"
+  , tc "Pair a ()" -- unary tuple
   , tc "(a, a)"
   , tc "(a, a, a)"
   , tc "(a, b, c, d)"
@@ -154,4 +156,18 @@ test = scope "typeprinter" . tests $
               \b\n\
               \c\n\
               \-> d"
+
+  , pending $ tc_breaks "Pair (forall a. a -> a -> a) b" 26 $   -- as above, and more indenting would be nice
+              "Pair\n\
+              \(∀ a . (a\n\
+              \-> a\n\
+              \-> a))\n\
+              \b"
+
+  , pending $ tc_breaks "Pair (forall a. a -> a -> a) b" 18 $   -- ditto
+              "Pair (∀ a .\n\
+              \ a\n\
+              \ -> a\n\
+              \ -> a) b"
+
   ]

@@ -28,15 +28,16 @@ pretty n p = \case
   Abs' _       -> l $ "error" -- TypeParser does not currently emit Abs
   Ann' _ _     -> l $ "error" -- TypeParser does not currently emit Ann
   App' (Ref' (Builtin "Sequence")) x -> PP.Group $ l"[" <> pretty n 0 x <> l"]"
+  Tuple' [x]   -> parenNest (p >= 10) $ PP.Group $ l"Pair" <> b" " <> pretty n 10 x <> b" " <> l"()"
   Tuple' xs    -> parenNest True $ commaList xs
-  App' f x     -> parenNest (p >= 10) $ pretty n 9 f <> b" " <> pretty n 10 x
+  Apps' f xs   -> parenNest (p >= 10) $ PP.Group $ pretty n 9 f <> appArgs xs
   Effect1' e t -> parenNest (p >= 10) $ pretty n 9 e <> l" " <> pretty n 10 t
   Effects' es  -> effects (Just es)
   ForallNamed' v body ->
     if (p <= 0)
     then pretty n p body
-    else paren True $ l"∀ " <> l (Text.unpack (Var.name v)) <> l". " <> pretty n 0 body
-  --TODO undo generalizeEffects before printing
+    else paren True $ l"∀ " <> l (Text.unpack (Var.name v)) <> l". " <> PP.Nest " " (PP.Group $ pretty n 0 body)
+  --TODO undo generalizeEffects before printing - see Type.ungeneralizeEffects
   EffectfulArrows' (Ref' (Builtin "()")) rest -> arrows True True rest
   EffectfulArrows' fst rest -> parenNest (p >= 0) $ pretty n 0 fst <> arrows False False rest
   _ -> l"error"
@@ -61,6 +62,9 @@ pretty n p = \case
         arrows False False [] = Empty
         arrows False True [] = Empty  -- not reachable
         arrows True _ [] = Empty      -- not reachable
+
+        appArgs (x : xs) = b" " <> pretty n 10 x <> appArgs xs
+        appArgs [] = Empty
 
         paren True s = PP.Group $ l"(" <> s <> l")"
         paren False s = PP.Group s
