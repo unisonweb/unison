@@ -3,8 +3,6 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE CPP #-}
-
 module Unison.Builtin where
 
 import           Control.Arrow ((&&&), second)
@@ -24,11 +22,6 @@ import qualified Unison.Type as Type
 import qualified Unison.TypeParser as TypeParser
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
-#ifdef PRETTY_PRINT_ROUND_TRIP_TEST
-import qualified Data.Text as Text
-import           Debug.Trace (trace)
-import qualified Unison.TypePrinter as TypePrinter
-#endif
 
 type Term v = Term.AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
@@ -39,34 +32,12 @@ type EffectDeclaration v = EffectDeclaration' v Ann
 -- then merge Parsers back into Parsers (and GC and unused functions)
 -- parse a type, hard-coding the builtins defined in this file
 t :: Var v => String -> Type v
-t s = typeTest $ t' s
-
-t' :: Var v => String -> Type v
-t' s = ABT.amap (const Intrinsic) .
+t s = ABT.amap (const Intrinsic) .
           bindTypeBuiltins . either (error . parseErrorToAnsiString s) tweak $
           Parser.run (Parser.root TypeParser.valueType) s Parser.penv0
   -- lowercase vars become forall'd, and we assume the function is pure up
   -- until it returns its result.
   where tweak = Type.generalizeEffects 100000 . Type.generalizeLowercase
-
-#ifdef PRETTY_PRINT_ROUND_TRIP_TEST
-typeTest :: Var v => Type v -> Type v
-typeTest ty = if ty == reparsed
-              then ty
-              else trace ("\n\nTypePrinter error:\n" ++
-                         "  show(input):    " ++ show ty ++ "\n" ++
-                         "  printed = " ++ printed ++ "\n" ++
-                         "  show(reparsed): " ++ show reparsed ++ "\n" ++
-                         "  error: input /= reparsed\n\n") ty
-  where get_names x = case x of
-                        R.Builtin p -> p
-                        R.Derived _ -> Text.empty
-        printed = TypePrinter.pretty' get_names ty
-        reparsed = t' printed
-#else
-typeTest :: Var v => Type v -> Type v
-typeTest = id
-#endif
 
 -- parse a term, hard-coding the builtins defined in this file
 tm :: Var v => String -> Term v
