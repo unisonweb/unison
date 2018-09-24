@@ -502,7 +502,10 @@ commas :: (IsString a, Monoid a) => (b -> a) -> [b] -> a
 commas = intercalateMap ", "
 
 renderVar :: (IsString a, Var v) => v -> a
-renderVar = fromString . Text.unpack . Var.shortName
+renderVar = fromString . Text.unpack .
+              (if Settings.demoHideVarNumber
+                then Var.name
+                else Var.shortName)
 
 renderVar' :: (Var v, Annotated a)
            => Env -> C.Context v a -> v -> AT.AnnotatedText (Maybe b)
