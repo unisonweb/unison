@@ -1,28 +1,27 @@
 #!/usr/bin/env bash
 haskell_needs_rebuild=x
 scala_needs_rebuild=x
+sources_changed=
 haskell_pid=
 
 function maybe_build_haskell {
   if [ -n "$haskell_needs_rebuild" ]; then
     echo "Building typechecker..."
-    if stack build; then
-      haskell_needs_rebuild=""
-      echo "Typechecker built!"
-    fi
+    stack build && haskell_needs_rebuild="" && echo "Typechecker built!"
   fi
 }
 
 function maybe_build_scala {
   if [ -n "$scala_needs_rebuild" ]; then
     echo "Building runtime..."
-    (cd runtime-jvm; sbt main/compile) && scala_needs_rebuild="" && echo "Runtime built!"
+    (cd runtime-jvm; yes q | sbt main/compile) && scala_needs_rebuild="" && echo "Runtime built!"
   fi
 }
 
 function kill_watcher {
   # echo "debug: kill $haskell_pid"
-  kill $haskell_pid 2> /dev/null
+  kill $haskell_pid 2>/dev/null
+  wait $haskell_pid 2>/dev/null
   haskell_pid=
 }
 
@@ -37,8 +36,7 @@ function go {
   if [ -n "$haskell_needs_rebuild" ] || [ -n "$scala_needs_rebuild" ]; then
     kill_watcher
   fi
-  maybe_build_haskell
-  maybe_build_scala
+  maybe_build_haskell && maybe_build_scala
   # echo "debug: haskell_needs_rebuild=$haskell_needs_rebuild, scala_needs_rebuild=$scala_needs_rebuild, haskell_pid=$haskell_pid"
   if [ -z "$haskell_needs_rebuild" ] && [ -z "$scala_needs_rebuild" ] && [ -z "$haskell_pid" ]; then
     start_watcher
@@ -52,16 +50,21 @@ while IFS= read -r changed; do
   # echo "debug: $changed"
   case $changed in
     NoOp)
-      go
+      if [ -n "$sources_changed" ]; then
+        sources_changed=
+        go
+      fi
       ;;
     *.hs)
       echo "detected change in $changed"
       # hasktags -cx parser-typechecker
       haskell_needs_rebuild=x
+      sources_changed=x
       ;;
-    *.scala)
+    *.scala|*.sbt)
       echo "detected change in $changed"
       scala_needs_rebuild=x
+      sources_changed=x
       ;;
   esac
 done
