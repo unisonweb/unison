@@ -96,6 +96,12 @@ fromOverHere src spots0 removing =
          , showSource src spots
          ]
 
+showTypeWithProvenance :: (Var v, Annotated a, Ord style)
+  => Env -> String -> style -> Type.AnnotatedType v a -> [AT.Section style]
+showTypeWithProvenance env src color typ =
+  [AT.Text . Color.style color $ renderType' env typ] ++ [".\n"] ++
+  fromOverHere' src [styleAnnotated color typ] []
+
 styleAnnotated :: Annotated a => sty -> a -> Maybe (Range,sty)
 styleAnnotated sty a = (,sty) <$> rangeForAnnotated a
 
@@ -186,7 +192,7 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     ] ++ debugSummary note
   FunctionApplication {..} ->
     [ "The ", ordinal argNum, " argument to the function "
-    , AT.Text $ renderTerm f
+    , AT.Text . Color.errorSite . renderTerm $ f
     , " is "
     , AT.Text $ Color.type2 . renderType' env $ foundType, ", "
     , "but I was expecting "
@@ -196,6 +202,7 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
       [ (,Color.Type1)     <$> rangeForAnnotated expectedType
       , (,Color.Type2)     <$> rangeForAnnotated foundType
       , (,Color.Type2)     <$> rangeForAnnotated arg
+      , (,Color.ErrorSite) <$> rangeForAnnotated f
       ]
     -- , "\n"
     ]
@@ -308,11 +315,13 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     , " means at "
     , (fromString . annotatedToEnglish) termSite
     , "\n\n"
-    , annotatedAsErrorSite src termSite
-    , "\nWhatever it is, it has a type that conforms to "
-    , AT.Text . Color.style Color.Type1 $ (renderType' env) expectedType
-    , "\n\n"
-    ]
+    , annotatedAsErrorSite src termSite ] ++
+      case expectedType of
+        Type.Existential' _ _ -> ["\nThere are no constraints on its type."]
+        _ -> ["\nWhatever it is, it has a type that conforms to "
+             , AT.Text . Color.style Color.Type1 $ (renderType' env) expectedType
+             , ".\n"]
+             -- ++ showTypeWithProvenance env src Color.Type1 expectedType
     ++ case suggestions of
       [] -> []
       suggestions ->

@@ -15,6 +15,7 @@ import qualified Unison.Blank               as B
 import           Unison.Reference           (Reference)
 import qualified Unison.Typechecker.Context as C
 import           Unison.Util.Monoid         (whenM)
+import qualified Unison.Term as Term
 import           Debug.Trace
 
 newtype NoteExtractor v loc a = NoteExtractor { runNote :: C.Note v loc -> Maybe a }
@@ -147,7 +148,9 @@ inSynthesizeApp = asPathExtractor $ \case
 
 inFunctionCall :: SubseqExtractor v loc ([v], C.Term v loc, C.Type v loc, [C.Term v loc])
 inFunctionCall = asPathExtractor $ \case
-  C.InFunctionCall vs f ft e -> Just (vs, f, ft, e)
+  C.InFunctionCall vs f ft e -> case f of
+    Term.Ann' f _ -> Just (vs, f, ft, e)
+    f -> Just (vs, f, ft, e)
   _ -> Nothing
 
 inAndApp, inOrApp, inIfCond, inMatchGuard, inMatchBody :: SubseqExtractor v loc ()

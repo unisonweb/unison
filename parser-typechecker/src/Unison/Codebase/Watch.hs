@@ -88,7 +88,7 @@ serverLoop dir sock port = do
   (_,_,_,ph) <- P.createProcess (P.proc cmd args) { P.cwd = Just "." }
   (socket, _address) <- accept sock -- accept a connection and handle it
   cdir <- canonicalizePath dir
-  putStrLn $ "🆗  I'm awaiting changes to *.u files in " ++ cdir
+  putStrLn $ "\n🆗  I'm awaiting changes to *.u files in " ++ cdir
   -- putStrLn $ "   Note: I'm using the Unison runtime at " ++ show address
   (_input, output) <- N.socketToStreams socket
   d <- watchDirectory dir (".u" `isSuffixOf`)
@@ -102,9 +102,10 @@ serverLoop dir sock port = do
       n0 <- readIORef n
       writeIORef n (n0 + 1)
       pure ["🌻🌸🌵🌺🌴" !! (n0 `mod` 5)]
+      -- pure ["🕐🕑🕒🕓🕔🕕🕖🕗🕘🕙🕚🕛" !! (n0 `mod` 12)]
     Console.setTitle "Unison"
     putStrLn ""
-    putStrLn $ "I detected a change " ++ marker ++ "  of " ++ sourceFile ++ ", reloading... "
+    putStrLn $ marker ++ "  " ++ sourceFile ++ " has changed, reloading...\n"
     parseResult <- Parsers.readAndParseFile @Symbol Parser.penv0 sourceFile
     case parseResult of
       Left parseError -> do
