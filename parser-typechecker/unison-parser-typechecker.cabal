@@ -63,7 +63,9 @@ library
     Unison.PatternP
     Unison.PrintError
     Unison.Reference
+    Unison.Runtime.Rt0
     Unison.Result
+    Unison.Settings
     Unison.Symbol
     Unison.Term
     Unison.TermParser
@@ -81,6 +83,7 @@ library
     Unison.Util.Logger
     Unison.Util.Monoid
     Unison.Util.Range
+    Unison.Util.Watch
     Unison.Var
 
   build-depends:
@@ -95,6 +98,7 @@ library
     cryptonite,
     errors,
     free,
+    fsnotify,
     hashable,
     lens,
     memory,

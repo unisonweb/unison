@@ -104,6 +104,23 @@ bound' t = case out t of
   Tm f -> Foldable.toList f >>= bound'
   _ -> []
 
+annotateBound' :: (Ord v, Functor f, Foldable f) => Term f v a0 -> Term f v [v]
+annotateBound' t = go [] t where
+  go env t = case out t of
+    Abs v body -> abs' env v (go (v : env) body)
+    Cycle body -> cycle' env (go env body)
+    Tm f -> tm' env (go env <$> f)
+    Var v -> annotatedVar env v
+
+-- Annotate the tree with the set of bound variables at each node.
+annotateBound :: (Ord v, Foldable f, Functor f) => Term f v a -> Term f v (a, Set v)
+annotateBound t = go Set.empty t where
+  go bound t = let a = (annotation t, bound) in case out t of
+    Var v -> annotatedVar a v
+    Cycle body -> cycle' a (go bound body)
+    Abs x body -> abs' a x (go (Set.insert x bound) body)
+    Tm body -> tm' a (go bound <$> body)
+
 -- | Return the list of all variables bound by this ABT
 bound :: (Ord v, Foldable f) => Term f v a -> Set v
 bound t = Set.fromList (bound' t)
@@ -323,15 +340,6 @@ rebuildUp' f (Term _ ann body) = case body of
   Abs x e -> f $ abs' ann x (rebuildUp' f e)
   Tm body -> f $ tm' ann (fmap (rebuildUp' f) body)
 
--- Annotate the tree with the set of bound variables at each node.
-annotateBound :: (Ord v, Foldable f, Functor f) => Term f v a -> Term f v (a, Set v)
-annotateBound t = go Set.empty t where
-  go bound t = let a = (annotation t, bound) in case out t of
-    Var v -> annotatedVar a v
-    Cycle body -> cycle' a (go bound body)
-    Abs x body -> abs' a x (go (Set.insert x bound) body)
-    Tm body -> tm' a (go bound <$> body)
-
 freeVarAnnotations :: (Traversable f, Ord v) => Term f v a -> [(v, a)]
 freeVarAnnotations t =
   join . runIdentity $ foreachSubterm f (annotateBound t) where
@@ -384,6 +392,16 @@ visit' f t = case out t of
 visitPure :: (Traversable f, Ord v)
       => (Term f v a -> Maybe (Term f v a)) -> Term f v a -> Term f v a
 visitPure f = runIdentity . visit (fmap pure . f)
+
+rewriteDown :: (Traversable f, Ord v)
+            => (Term f v a -> Term f v a)
+            -> Term f v a
+            -> Term f v a
+rewriteDown f t = let t' = f t in case out t' of
+  Var _ -> t'
+  Cycle body -> cycle' (annotation t) (rewriteDown f body)
+  Abs x e -> abs' (annotation t) x (rewriteDown f e)
+  Tm body -> tm' (annotation t) (rewriteDown f `fmap` body)
 
 data Subst f v a =
   Subst { freshen :: forall m v' . Monad m => (v -> m v') -> m v'
