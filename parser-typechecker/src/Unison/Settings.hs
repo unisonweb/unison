@@ -1,8 +1,8 @@
 module Unison.Settings where
 
 debugNoteLoc,debugNoteSummary :: Bool
-debugNoteLoc = True
-debugNoteSummary = True
+debugNoteLoc = False
+debugNoteSummary = False
 
 demoHideVarNumber :: Bool
 demoHideVarNumber = True
