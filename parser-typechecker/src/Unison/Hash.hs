@@ -38,8 +38,8 @@ instance H.Accumulate Hash where
     go acc tokens = CH.hashUpdates acc $ (tokens >>= toBS)
     toBS (H.Tag b) = [B.singleton b]
     toBS (H.Bytes bs) = [encodeLength (B.length $ bs), bs]
-    toBS (H.Int64 i) = BL.toChunks . toLazyByteString . int64BE $ i
-    toBS (H.UInt64 i) = BL.toChunks . toLazyByteString . word64BE $ i
+    toBS (H.Int i) = BL.toChunks . toLazyByteString . int64BE $ i
+    toBS (H.Nat i) = BL.toChunks . toLazyByteString . word64BE $ i
     toBS (H.Double d) = BL.toChunks . toLazyByteString . doubleBE $ d
     toBS (H.Text txt) =
       let tbytes = encodeUtf8 txt

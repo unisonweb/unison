@@ -1,7 +1,7 @@
 id : a -> a
 id a = a
 
-f1 : Int64 -> Int64
+f1 : Int -> Int
 f1 n = n + +1
 
 f1 (id 3)

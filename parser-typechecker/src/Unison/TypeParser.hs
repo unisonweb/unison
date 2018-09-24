@@ -54,7 +54,7 @@ delayed = do
 type2 :: Var v => TypeP v
 type2 = app valueTypeLeaf
 
--- ex : {State Text, IO} (Sequence Int64)
+-- ex : {State Text, IO} (Sequence Int)
 effect :: Var v => TypeP v
 effect = do
  es <- effectList

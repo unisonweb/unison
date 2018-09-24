@@ -1,4 +1,4 @@
-r13 : (UInt64, Text)
+r13 : (Nat, Text)
 r13 =
   id = ((x -> x): forall a. a -> a)
   (id 10, id "foo")

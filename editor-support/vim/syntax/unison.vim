@@ -2,8 +2,8 @@
 "
 " Language:		unison
 " Maintainer:		Unison Computing
-" Last Change:		Aug 23, 2018	
-" Original Author:      Paul Chiusano and Rúnar Bjarnason 	
+" Last Change:		Aug 23, 2018
+" Original Author:      Paul Chiusano and Rúnar Bjarnason
 "
 " Options-assign a value to these variables to turn the option on:
 "
@@ -76,7 +76,7 @@ if exists("u_highlight_boolean")
 endif
 if exists("u_highlight_types")
   " Primitive types from the standard prelude and libraries.
-  syn match uType "\<\(Float\|UInt64\|Int64\|Boolean\|Remote\|Text\)\>"
+  syn match uType "\<\(Float\|Nat\|Int\|Boolean\|Remote\|Text\)\>"
 endif
 if exists("u_highlight_more_types")
   " Types from the standard prelude libraries.

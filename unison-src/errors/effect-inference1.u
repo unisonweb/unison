@@ -3,7 +3,7 @@ effect Abort where
 
 foo n = if n >= 1000 then n else !Abort.Abort
 
-bar : (UInt64 -> {} UInt64) -> UInt64 -> UInt64
+bar : (Nat -> {} Nat) -> Nat -> Nat
 bar f i = f i
 
 bar foo 3

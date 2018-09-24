@@ -10,7 +10,7 @@ foo a = case a of
 -- Sequence.cons has type `a -> [a] -> [a]`
 --  `a` was determined to be `Text` because "hello" had type `Text`.
 -- Therefore `foo (Some 3)` was checked against `[Text]`
--- but it actually had type `[UInt64]`. Use `> why err1` for more detail.
+-- but it actually had type `[Nat]`. Use `> why err1` for more detail.
 -- type Extractor v loc a = Note v loc -> Maybe a
 -- do
 --   e <- errorTerm
@@ -21,12 +21,12 @@ foo a = case a of
 
 -- in reply to `> why err1`:
 -- `foo` has type `Optional a -> [a]`
---   `a` was determined to be `UInt64` because
---   `Some 3` has type `Optional UInt64`. Use `> why err2` for more detail
+--   `a` was determined to be `Nat` because
+--   `Some 3` has type `Optional Nat`. Use `> why err2` for more detail
 
 -- in reply to `> why err2`:
 -- `Some` has type `a -> Optional a`
---   `a` was determinewd to be `UInt64` because `3` has type `UInt64`
+--   `a` was determinewd to be `Nat` because `3` has type `Nat`
 
 x = 3
 
@@ -35,14 +35,14 @@ and x 4
 -- `and` has type `Boolean -> Boolean -> Boolean`
 --    .. (no typevars to explain, so skip)
 -- Therefore `3` was checked against `Boolean`,
--- but it actually had type `UInt64`.
+-- but it actually had type `Nat`.
 
 ------------- specialized "and" possibility
 -- The arguments to `and` must be of type `Boolean`,
--- but `x` has type `UInt64`. Use `> why err1` for more detail.
+-- but `x` has type `Nat`. Use `> why err1` for more detail.
 
 and 3 4
--- but the literal `3` has type `UInt64`.
+-- but the literal `3` has type `Nat`.
 
 case 3 of
   3 -> "text"

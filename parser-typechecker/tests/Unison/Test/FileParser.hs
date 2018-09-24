@@ -26,14 +26,14 @@ module Unison.Test.FileParser where
     ------ -- ,unlines
     ------ --   ["type Optional a b c where"
     ------ --   ,"  Just : a -> Optional a"
-    ------ --   ,"  Nothing : Optional Int64"]
+    ------ --   ,"  Nothing : Optional Int"]
     ------ -- , unlines
     ------ --   ["type Optional"
     ------ --   ,"   a"
     ------ --   ,"   b"
     ------ --   ,"   c where"
     ------ --   ,"  Just : a -> Optional a"
-    ------ --   ,"  Nothing : Optional Int64"]
+    ------ --   ,"  Nothing : Optional Int"]
     , unlines -- NB: this currently fails because we don't have type AST or parser for effect types yet
       ["effect State s where"
       ,"  get : {State s} s"

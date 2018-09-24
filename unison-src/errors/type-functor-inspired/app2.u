@@ -1,4 +1,4 @@
 type Optional a = Some a | None
-app' : Optional Int64
+app' : Optional Int
 app' = 3
 ()

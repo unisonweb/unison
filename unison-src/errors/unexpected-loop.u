@@ -2,10 +2,10 @@
 effect Abort where
   Abort : forall a . () -> {Abort} a
 
-use UInt64 +
+use Nat +
 
 bork = u -> 1 + (Abort.Abort ())
 
-(bork : UInt64)
+(bork : Nat)
 
 -- fails with loop instead of with type mismatch in commit 2819c206acf80f926c6d970a4ffd47c961fa4502

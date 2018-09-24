@@ -1,17 +1,17 @@
 
 type Foo a = Foo a
 
-(+) = (UInt64.+)
+(+) = (Nat.+)
 
 -- The type 'a is sugar for `() -> a`.
 -- The term 'a is sugar for `() -> a`.
 -- !a forces a delayed expression (equivalent to `a()`)
 
-woot : 'UInt64
+woot : 'Nat
 woot = '42
 
 -- A 'a can also be created by prefixing `let` with a '
-woot2 : 'UInt64
+woot2 : 'Nat
 woot2 = 'let
   x = 1
   y = 2
@@ -19,7 +19,7 @@ woot2 = 'let
 
 -- ' has higher precedence than -> in type signatures
 --   and a lower precedence than type application
-woot3 : 'UInt64 -> UInt64
+woot3 : 'Nat -> Nat
 woot3 x = !x + 1
 
 woot4 : ∀ a . 'Foo a -> Foo a
@@ -29,7 +29,7 @@ woot4-usage = woot4 '(Foo.Foo 19)
 
 woot4-usage2 =
   foo = 'let
-    x : UInt64
+    x : Nat
     x = 99
     Foo.Foo (x + x)
   woot4 foo

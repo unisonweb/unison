@@ -3,4 +3,4 @@ Stream.to-sequence
     (Stream.flat-map
       (n -> Stream.cons 7
               (Stream.take 1 (Stream.constant n)))
-      (Stream.from-uint64 0)))
+      (Stream.from-nat 0)))

@@ -625,8 +625,8 @@ synthesize e = scope (InSynthesize e) $ do
     pure $ Type.generalizeEffects (Type.arity t) t
   go (Term.Ann' e' t) = t <$ check e' t
   go (Term.Float' _) = pure $ Type.float l -- 1I=>
-  go (Term.Int64' _) = pure $ Type.int64 l -- 1I=>
-  go (Term.UInt64' _) = pure $ Type.uint64 l -- 1I=>
+  go (Term.Int' _) = pure $ Type.int l -- 1I=>
+  go (Term.Nat' _) = pure $ Type.nat l -- 1I=>
   go (Term.Boolean' _) = pure $ Type.boolean l
   go (Term.Text' _) = pure $ Type.text l
   go (Term.Apps' f args) = do -- ->EEEEE
@@ -747,10 +747,10 @@ checkPattern scrutineeType0 p =
     -- TODO: provide a scope here for giving a good error message
     Pattern.Boolean loc _ ->
       lift $ subtype (Type.boolean loc) scrutineeType $> mempty
-    Pattern.Int64 loc _ ->
-      lift $ subtype (Type.int64 loc) scrutineeType $> mempty
-    Pattern.UInt64 loc _ ->
-      lift $ subtype (Type.uint64 loc) scrutineeType $> mempty
+    Pattern.Int loc _ ->
+      lift $ subtype (Type.int loc) scrutineeType $> mempty
+    Pattern.Nat loc _ ->
+      lift $ subtype (Type.nat loc) scrutineeType $> mempty
     Pattern.Float loc _ ->
       lift $ subtype (Type.float loc) scrutineeType $> mempty
     Pattern.Constructor loc ref cid args -> do
