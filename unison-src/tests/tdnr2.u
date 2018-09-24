@@ -1,4 +1,4 @@
-x : UInt64
+x : Nat
 x = 42 + 2
 
 y : Int64

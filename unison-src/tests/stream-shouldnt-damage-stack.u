@@ -1,12 +1,12 @@
-(+) = (UInt64.+)
-(-) = UInt64.drop
-(*) = (UInt64.*)
+(+) = (Nat.+)
+(-) = Nat.drop
+(*) = (Nat.*)
 
 eat-stack n = case n of
   0 -> 0
   n -> eat-stack (n - 1) + 1
 
-t = Stream.take 100 (Stream.map eat-stack (Stream.from-uint64 0))
+t = Stream.take 100 (Stream.map eat-stack (Stream.from-nat 0))
 p = 9000
 q = 900
 r = 90

@@ -4,11 +4,11 @@
 -- Comments start with `--` and go until the end of the line.
 -- There's no block comments yet.
 
--- Let's start with an example, here we define a function `increment`, which adds `1` to its argument. Unison is a statically-typed language but it can infer the types of expressions from usage. Here, it will figure out that `increment` has the type `UInt64 -> UInt64`:
+-- Let's start with an example, here we define a function `increment`, which adds `1` to its argument. Unison is a statically-typed language but it can infer the types of expressions from usage. Here, it will figure out that `increment` has the type `Nat -> Nat`:
 
 increment x = x + 1
 
--- Note: The type `UInt64` is an unsigned 64-bit integer. By default, literals like `1` without a decimal point that don't have a `+` or `-` in front are assumed to be `UInt64` values. If you want them to be signed, write `+1` instead, this has type `Int64`. Unison doesn't do any sort of implicit conversions between numeric types; that would be evil. 😈
+-- Note: The type `Nat` is an unsigned 64-bit integer. By default, literals like `1` without a decimal point that don't have a `+` or `-` in front are assumed to be `Nat` values. If you want them to be signed, write `+1` instead, this has type `Int64`. Unison doesn't do any sort of implicit conversions between numeric types; that would be evil. 😈
 
 -- You can tell the Unison typechecker what type you're expecting for a definition with a type signature and it will warn you with a hopefully friendly error message if it it doesn't in fact have that type. Type signatures come just before the definition. Here's an example, which also introduces the syntax for _blocks_:
 
@@ -47,7 +47,7 @@ ex =
 
 -- The `concatenate part1 part2` is the Unison syntax for function application. The arguments are separated by spaces. This syntax binds tighter than any infix operator, so for instance, in this program:
 
-ex3 : UInt64
+ex3 : Nat
 ex3 = increment 2 * 2
 
 -- ... ex3 is parsed as `(increment 2) * 2`. You can always use parentheses if you require different precedence, for instance `increment (2 * 2)`.

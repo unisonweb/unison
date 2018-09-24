@@ -58,7 +58,7 @@ repository:
     patterns: [
       {include: '#float'}
       {include: '#int64'}
-      {include: '#uint64'}
+      {include: '#nat'}
     ]
 
   text:
@@ -81,7 +81,7 @@ repository:
     captures:
       2: {name: 'constant.numeric.integer.signed.unison'}
 
-  uint64:
+  nat:
     match: '([^+\\-\\w\\d]|^)(\\d+)'
     captures:
       2: {name: 'constant.numeric.integer.unsigned.unison'}

@@ -14,7 +14,7 @@ data Token h
   | Text !Text
   | Double !Double
   | Hashed !h
-  | UInt64 !Word64
+  | Nat !Word64
 
 class Accumulate h where
   accumulate :: [Token h] -> h
@@ -78,7 +78,7 @@ instance Hashable ByteString where
   tokens bs = [Bytes bs]
 
 instance Hashable Word64 where
-  tokens w = [UInt64 w]
+  tokens w = [Nat w]
 
 instance Hashable Int64 where
   tokens w = [Int64 w]

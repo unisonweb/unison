@@ -105,11 +105,11 @@ example-errors.u contained 1 error:
    |
 73 | if x then 42 else -1
    |    ^
-   has type `UInt64` but was expected to have type `Boolean`
+   has type `Nat` but was expected to have type `Boolean`
 
    `Boolean` comes from `if`, whose first argument must be of type `Boolean`
 
-   `UInt64` comes from line 72:
+   `Nat` comes from line 72:
    |
 72 | x = 1 + 1
    |       ^
@@ -135,9 +135,9 @@ example-errors.u contained 1 error:
    * We don't bother reporting the other type errors in the same expression,
      but we potentially could have an algorithm that could do more fine-grained
      recovery.
-   * Not totally sure on the location of the `UInt64`, but the thought
-     is that if `+` is monomorophic in its return type (always `UInt64`),
-     then it makes sense to attribute the `UInt64` of `x` to the `+` call site.
+   * Not totally sure on the location of the `Nat`, but the thought
+     is that if `+` is monomorophic in its return type (always `Nat`),
+     then it makes sense to attribute the `Nat` of `x` to the `+` call site.
      (why not attibute that to the definition site of `+`?)
    * Is this inconsistent with treatment of `Boolean` location??
    * Since `if` is monomorphic in its first arg, we could use the same logic to
@@ -152,9 +152,9 @@ ex4 f x =
   if f x then f 42 else 50
 
 {-
-   Type mismatch on line <line>: `UInt64` vs `Boolean`.
+   Type mismatch on line <line>: `Nat` vs `Boolean`.
 
-   `UInt64` comes from the literal:
+   `Nat` comes from the literal:
    |
 42 | if f x then f 42 else 50
    |                       ^^
@@ -165,7 +165,7 @@ ex4 f x =
    Not sure what to report for the origin of the `Boolean`:
 
    `Boolean` comes from `f 42`??
-   `Boolean` comes from `f : UInt64 -> Boolean`??
+   `Boolean` comes from `f : Nat -> Boolean`??
       But then why does `f` have that type?
         Because `if` takes a `Boolean` as first arg..
    `Boolean` comes from `if`

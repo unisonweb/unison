@@ -28,7 +28,7 @@ w2 foo = case foo of
   Foo3.Foo3 x y z -> Text.concatenate z z 
   _ -> "hi"
 
-len : List a -> UInt64
+len : List a -> Nat
 len l = case l of
   List.Nil -> 0
   List.Cons _ t -> len t + 1

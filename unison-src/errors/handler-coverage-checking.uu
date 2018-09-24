@@ -8,22 +8,22 @@ state woot eff = case eff of
   { State.get () -> k } -> handle (state woot) in (k woot)
   { State.put snew -> k } -> handle (state snew) in (k ())
 
-ex1 : (UInt64, UInt64)
+ex1 : (Nat, Nat)
 ex1 = handle (state 42) in State.get ()
 
-ex1a : (UInt64, UInt64)
+ex1a : (Nat, Nat)
 ex1a = handle (state 42) in 49
 
 ex1b = handle (x -> 10) in 0
 
-ex1c : UInt64
+ex1c : Nat
 ex1c = handle (x -> 10) in 0
 
 ex1d = handle (state 42) in 49
 
 ex2 = handle (state 42) in State.get ()
 
-ex3 : (UInt64, UInt64)
+ex3 : (Nat, Nat)
 ex3 = ex2
 
 ()

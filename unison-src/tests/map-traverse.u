@@ -22,11 +22,11 @@ pure-map : List Text
 pure-map = map (a -> "hello") ex
 
 -- `map` is effect polymorphic
-zappy : () -> {Noop} (List UInt64)
-zappy u = map (zap -> (Noop.noop (zap UInt64.+ 1))) ex
+zappy : () -> {Noop} (List Nat)
+zappy u = map (zap -> (Noop.noop (zap Nat.+ 1))) ex
 
 -- mixing multiple effects in a call to `map` works fine
-zappy2 : () -> {Noop, Noop2} (List UInt64)
-zappy2 u = map (zap -> Noop.noop (zap UInt64.+ Noop2.noop2 2 7)) ex
+zappy2 : () -> {Noop, Noop2} (List Nat)
+zappy2 u = map (zap -> Noop.noop (zap Nat.+ Noop2.noop2 2 7)) ex
 
 ()

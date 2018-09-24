@@ -341,10 +341,10 @@ object Stream {
     }
 
   /** intended to be called from Unison code */
-  final def fromUInt64(u: U): Stream[UnboxedType] =
+  final def fromNat(u: U): Stream[UnboxedType] =
     k => {
       var i = unboxedToLong(u) - 1
-      () => { i += 1; k(longToUnboxed(i), UnboxedType.UInt64) }
+      () => { i += 1; k(longToUnboxed(i), UnboxedType.Nat) }
     }
 
   private final def iterate0[A](u0: U, a0: A)(f: F1[A,A]): Stream[A] = {

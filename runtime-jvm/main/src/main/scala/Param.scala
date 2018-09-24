@@ -244,7 +244,7 @@ sealed abstract class UnboxedType extends Value {
 object UnboxedType {
 
   case object Int64 extends UnboxedType
-  case object UInt64 extends UnboxedType
+  case object Nat extends UnboxedType
   case object Float extends UnboxedType
   case object Boolean extends UnboxedType
 

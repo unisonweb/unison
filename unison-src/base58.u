@@ -3,13 +3,13 @@
 
 type Optional a = Some a | None
 
-type Words = Words (Sequence UInt64)
+type Words = Words (Sequence Nat)
 type Integer = Integer
 
 Integer.zero : Integer
 Integer.zero = _
 
-shiftLeft : UInt64 -> Integer -> Integer
+shiftLeft : Nat -> Integer -> Integer
 shiftLeft x y = _
 
 (+) : Integer -> Integer -> Integer
@@ -21,7 +21,7 @@ unfoldRight f z = _
 foldLeft : ∀ a b . a -> (a -> b -> a) -> Sequence b -> a
 foldLeft z f s = _
 
-toInteger : UInt64 -> Integer
+toInteger : Nat -> Integer
 toInteger x = _
 
 bigEndian : Words -> Integer
@@ -30,16 +30,16 @@ bigEndian ws = case ws of
     foldLeft Integer.zero (acc w -> shiftLeft 8 acc + toInteger w) s
 
 -- TODO: Need some conversions between integers and machine integers
-divmod : Integer -> UInt64 -> (Integer, UInt64)
+divmod : Integer -> Nat -> (Integer, Nat)
 divmod x y = _
 
 (|>) : ∀ a b c . (a -> b) -> (b -> c) -> a -> c
 (|>) g f x = f (g x)
 
-(==) : Integer -> UInt64 -> Boolean
+(==) : Integer -> Nat -> Boolean
 (==) a b = _
 
-charAt : UInt64 -> Text -> Text
+charAt : Nat -> Text -> Text
 charAt n = Text.drop n |> Text.take 1
 
 codeString : Text

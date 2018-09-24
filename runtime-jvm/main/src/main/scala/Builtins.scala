@@ -40,12 +40,12 @@ object Builtins {
            (_: Array[U], _: Array[B], _: StackPtr, _: R) =>
              Stream.fromInt64(u))
 
-  // Stream.fromUInt64 : UInt64 -> Stream UInt64
-  val Stream_fromUInt64 =
-    fp_z("Stream.from-uint64", "n",
+  // Stream.fromNat : Nat -> Stream Nat
+  val Stream_fromNat =
+    fp_z("Stream.from-nat", "n",
          (u: U) =>
            (_: Array[U], _: Array[B], _: StackPtr, _: R) =>
-             Stream.fromUInt64(u))
+             Stream.fromNat(u))
 
   // Stream.cons : a -> Stream a -> Stream a
   val Stream_cons =
@@ -196,9 +196,9 @@ object Builtins {
            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
              s(stackU, stackB, top, r).unsafeSumUnboxedLong)
 
-  // Stream.sum-uint64 : Stream UInt64 -> UInt64
-  val Stream_sumUInt64 =
-    fp_s("Stream.sum-uint64", "stream",
+  // Stream.sum-nat : Stream Nat -> Nat
+  val Stream_sumNat =
+    fp_s("Stream.sum-nat", "stream",
          (s: StreamRepr) =>
            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
              Unsigned(s(stackU, stackB, top, r).unsafeSumUnboxedLong))
@@ -260,7 +260,7 @@ object Builtins {
     Stream_single,
     Stream_constant,
     Stream_fromInt64,
-    Stream_fromUInt64,
+    Stream_fromNat,
     Stream_append,
     Stream_zipWith,
     Stream_cons,
@@ -277,7 +277,7 @@ object Builtins {
     Stream_filter,
     Stream_scanLeft,
     Stream_sumInt64,
-    Stream_sumUInt64,
+    Stream_sumNat,
     Stream_sumFloat,
     Stream_unfold,
   )
@@ -394,28 +394,28 @@ object Builtins {
     fl_l("Int64.negate", "x", -_)
 
   // Unsigned machine integers
-  def uint(n: Long): Term = Term.Unboxed(longToUnboxed(n), UnboxedType.UInt64)
+  def uint(n: Long): Term = Term.Unboxed(longToUnboxed(n), UnboxedType.Nat)
 
-  val UInt64_toInt64 =
-    fl_l("UInt64.to-int64", "x", x => x)
+  val Nat_toInt64 =
+    fl_l("Nat.to-int64", "x", x => x)
 
-  val UInt64_inc =
-    fn_n("UInt64.increment", "x", _ + 1)
+  val Nat_inc =
+    fn_n("Nat.increment", "x", _ + 1)
 
-  val UInt64_isEven =
-    fl_b("UInt64.is-even", "x", _ % 2 == 0)
+  val Nat_isEven =
+    fl_b("Nat.is-even", "x", _ % 2 == 0)
 
-  val UInt64_isOdd =
-    fl_b("UInt64.is-odd", "x", _ % 2 != 0)
+  val Nat_isOdd =
+    fl_b("Nat.is-odd", "x", _ % 2 != 0)
 
-  val UInt64_add =
-    fnn_n("UInt64.+", "x", "y", _ + _)
+  val Nat_add =
+    fnn_n("Nat.+", "x", "y", _ + _)
 
-  val UInt64_mul =
-    fnn_n("UInt64.*", "x", "y", _ * _)
+  val Nat_mul =
+    fnn_n("Nat.*", "x", "y", _ * _)
 
-  val UInt64_drop =
-    fnn_n("UInt64.drop", "x", "y", (x, y) =>
+  val Nat_drop =
+    fnn_n("Nat.drop", "x", "y", (x, y) =>
       if (x < 0 && y < 0)
         if (x >= y) x - y else 0
       else if (x < 0 && y >= 0) x - y
@@ -423,35 +423,35 @@ object Builtins {
       else x - y max 0
   )
 
-  val UInt64_sub =
-    fnn_n("UInt64.sub", "x", "y", (x, y) => x - y)
+  val Nat_sub =
+    fnn_n("Nat.sub", "x", "y", (x, y) => x - y)
 
-  val UInt64_div =
-    fnn_n("UInt64./", "x", "y", java.lang.Long.divideUnsigned(_,_))
+  val Nat_div =
+    fnn_n("Nat./", "x", "y", java.lang.Long.divideUnsigned(_,_))
 
-  val UInt64_eq =
-    fll_b("UInt64.==", "x", "y", _ == _)
+  val Nat_eq =
+    fll_b("Nat.==", "x", "y", _ == _)
 
-  val UInt64_neq =
-    fll_b("UInt64.!=", "x", "y", _ != _)
+  val Nat_neq =
+    fll_b("Nat.!=", "x", "y", _ != _)
 
-  val UInt64_lteq =
-    fll_b("UInt64.<=", "x", "y", (x, y) =>
+  val Nat_lteq =
+    fll_b("Nat.<=", "x", "y", (x, y) =>
       java.lang.Long.compareUnsigned(x,y) <= 0
     )
 
-  val UInt64_gteq =
-    fll_b("UInt64.>=", "x", "y", (x, y) =>
+  val Nat_gteq =
+    fll_b("Nat.>=", "x", "y", (x, y) =>
       java.lang.Long.compareUnsigned(x,y) >= 0
     )
 
-  val UInt64_lt =
-    fll_b("UInt64.<", "x", "y", (x, y) =>
+  val Nat_lt =
+    fll_b("Nat.<", "x", "y", (x, y) =>
       java.lang.Long.compareUnsigned(x,y) < 0
     )
 
-  val UInt64_gt =
-    fll_b("UInt64.>", "x", "y", (x, y) =>
+  val Nat_gt =
+    fll_b("Nat.>", "x", "y", (x, y) =>
       java.lang.Long.compareUnsigned(x,y) > 0
     )
 
@@ -491,15 +491,15 @@ object Builtins {
     Int64_signum,
     Int64_negate,
 
-    UInt64_toInt64,
-    UInt64_inc,
-    UInt64_isEven,
-    UInt64_isOdd,
-    UInt64_mul,
-    UInt64_drop,
-    UInt64_add,
-    UInt64_sub,
-    UInt64_div,
+    Nat_toInt64,
+    Nat_inc,
+    Nat_isEven,
+    Nat_isOdd,
+    Nat_mul,
+    Nat_drop,
+    Nat_add,
+    Nat_sub,
+    Nat_div,
 
     Float_add,
     Float_sub,
@@ -513,12 +513,12 @@ object Builtins {
     Int64_gteq,
     Int64_lt,
     Int64_gt,
-    UInt64_eq,
-    UInt64_neq,
-    UInt64_lteq,
-    UInt64_gteq,
-    UInt64_lt,
-    UInt64_gt,
+    Nat_eq,
+    Nat_neq,
+    Nat_lteq,
+    Nat_gteq,
+    Nat_lt,
+    Nat_gt,
     Float_eq,
     Float_neq,
     Float_lteq,
@@ -639,9 +639,9 @@ object Builtins {
     _fu_u(name, arg, UnboxedType.Int64,
           u => longToUnboxed(f.applyAsLong(unboxedToLong(u))))
 
-  // UInt64 -> UInt64
+  // Nat -> Nat
   def fn_n(name: Name, arg: Name, f: LongUnaryOperator): (Name, Computation) =
-    _fu_u(name, arg, UnboxedType.UInt64,
+    _fu_u(name, arg, UnboxedType.Nat,
           u => longToUnboxed(f.applyAsLong(unboxedToLong(u))))
 
   def fp_z[A,B](name: Name, arg: Name, f: A => B)
@@ -775,7 +775,7 @@ object Builtins {
            (u1, u2) => doubleToUnboxed(f.applyAsDouble(unboxedToDouble(u1), unboxedToDouble(u2))))
 
   def fnn_n(name: Name, arg1: Name, arg2: Name, f: LongBinaryOperator) =
-    _fuu_u(name, arg1, arg2, UnboxedType.UInt64,
+    _fuu_u(name, arg1, arg2, UnboxedType.Nat,
            (u1, u2) => longToUnboxed(f.applyAsLong(unboxedToLong(u1), unboxedToLong(u2))))
 
   abstract class FLL_B { def apply(l1: Long, l2: Long): Boolean }
@@ -898,7 +898,7 @@ object Builtins {
     implicit val encodeValue: Encode[Value] =
       (r, a) => { r.boxed = a.toBoxed; a.toUnboxed }
     implicit val encodeUnsigned: Encode[Unsigned] =
-      (r, a) => { r.boxed = UnboxedType.UInt64; longToUnboxed(a.raw) }
+      (r, a) => { r.boxed = UnboxedType.Nat; longToUnboxed(a.raw) }
     implicit val encodeLong: Encode[Long] =
       (r, a) => { r.boxed = UnboxedType.Int64; longToUnboxed(a) }
     implicit val encodeInt: Encode[Int] =

@@ -54,7 +54,7 @@ data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
 -- We need `typeVar` because the term and type variables may differ.
 data F typeVar typeAnn patternAnn a
   = Int64 Int64
-  | UInt64 Word64
+  | Nat Word64
   | Float Double
   | Boolean Bool
   | Text Text
@@ -177,7 +177,7 @@ freeTypeVars t = go t where
 
 pattern Var' v <- ABT.Var' v
 pattern Int64' n <- (ABT.out -> ABT.Tm (Int64 n))
-pattern UInt64' n <- (ABT.out -> ABT.Tm (UInt64 n))
+pattern Nat' n <- (ABT.out -> ABT.Tm (Nat n))
 pattern Float' n <- (ABT.out -> ABT.Tm (Float n))
 pattern Boolean' b <- (ABT.out -> ABT.Tm (Boolean b))
 pattern Text' s <- (ABT.out -> ABT.Tm (Text s))
@@ -237,8 +237,8 @@ boolean a b = ABT.tm' a (Boolean b)
 int64 :: Ord v => a -> Int64 -> AnnotatedTerm2 vt at ap v a
 int64 a d = ABT.tm' a (Int64 d)
 
-uint64 :: Ord v => a -> Word64 -> AnnotatedTerm2 vt at ap v a
-uint64 a d = ABT.tm' a (UInt64 d)
+nat :: Ord v => a -> Word64 -> AnnotatedTerm2 vt at ap v a
+nat a d = ABT.tm' a (Nat d)
 
 text :: Ord v => a -> Text -> AnnotatedTerm2 vt at ap v a
 text a = ABT.tm' a . Text
@@ -548,7 +548,7 @@ anf t = go t where
 instance Var v => Hashable1 (F v a p) where
   hash1 hashCycle hash e =
     let
-      (tag, hashed, varint) = (Hashable.Tag, Hashable.Hashed, Hashable.UInt64 . fromIntegral)
+      (tag, hashed, varint) = (Hashable.Tag, Hashable.Hashed, Hashable.Nat . fromIntegral)
     in case e of
       -- So long as `Reference.Derived` ctors are created using the same hashing
       -- function as is used here, this case ensures that references are 'transparent'
@@ -558,7 +558,7 @@ instance Var v => Hashable1 (F v a p) where
       -- Note: start each layer with leading `1` byte, to avoid collisions with
       -- types, which start each layer with leading `0`. See `Hashable1 Type.F`
       _ -> Hashable.accumulate $ tag 1 : case e of
-        UInt64 i -> [tag 64, accumulateToken i]
+        Nat i -> [tag 64, accumulateToken i]
         Int64 i -> [tag 65, accumulateToken i]
         Float n -> [tag 66, Hashable.Double n]
         Boolean b -> [tag 67, accumulateToken b]
@@ -599,7 +599,7 @@ instance (Var v) => Show1 (F v a p) where showsPrec1 = showsPrec
 
 instance (Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   Int64 x == Int64 y = x == y
-  UInt64 x == UInt64 y = x == y
+  Nat x == Nat y = x == y
   Float x == Float y = x == y
   Boolean x == Boolean y = x == y
   Text x == Text y = x == y
@@ -625,7 +625,7 @@ instance (Var v, Show a) => Show (F v a0 p a) where
   showsPrec p fa = go p fa where
     showConstructor r n = showsPrec 0 r <> s"#" <> showsPrec 0 n
     go _ (Int64 n) = (if n >= 0 then s "+" else s "") <> showsPrec 0 n
-    go _ (UInt64 n) = showsPrec 0 n
+    go _ (Nat n) = showsPrec 0 n
     go _ (Float n) = showsPrec 0 n
     go _ (Boolean True) = s"true"
     go _ (Boolean False) = s"false"

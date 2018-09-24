@@ -182,7 +182,7 @@ object Codecs {
         => sink putByte 28
       case UnboxedType.Int64
         => sink putByte 29
-      case UnboxedType.UInt64
+      case UnboxedType.Nat
         => sink putByte 30
       case UnboxedType.Float
         => sink putByte 31
@@ -269,7 +269,7 @@ object Codecs {
         Value(u, R.boxed)
       case 28 => UnboxedType.Boolean
       case 29 => UnboxedType.Int64
-      case 30 => UnboxedType.UInt64
+      case 30 => UnboxedType.Nat
       case 31 => UnboxedType.Float
       case t => sys.error(s"unexpected tag byte $t during decoding")
     }
@@ -312,14 +312,14 @@ object Codecs {
     (source.getByte: @switch) match {
       case 0 => UnboxedType.Boolean
       case 1 => UnboxedType.Int64
-      case 2 => UnboxedType.UInt64
+      case 2 => UnboxedType.Nat
       case 3 => UnboxedType.Float
     }
 
   final def encodeUnboxedType(t: UnboxedType, sink: Sink): Unit = t match {
     case UnboxedType.Boolean => sink.putByte(0)
     case UnboxedType.Int64 => sink.putByte(1)
-    case UnboxedType.UInt64 => sink.putByte(2)
+    case UnboxedType.Nat => sink.putByte(2)
     case UnboxedType.Float => sink.putByte(3)
   }
 
@@ -454,7 +454,7 @@ object Codecs {
           s"External $r"
         case 28 => "Boolean"
         case 29 => "Int64"
-        case 30 => "UInt64"
+        case 30 => "Nat"
         case 31 => "Float"
         case 32 => s"SetRef ${bs.getVarLong} ${bs.getVarLong}"
       }

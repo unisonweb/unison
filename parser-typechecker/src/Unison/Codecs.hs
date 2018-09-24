@@ -88,10 +88,10 @@ serializeTerm x = do
         putWord8 6
         serializeInt64 n
         incPosition
-      UInt64 n -> do
+      Nat n -> do
         putTag
         putWord8 6
-        serializeUInt64 n
+        serializeNat n
         incPosition
       Float n -> do
         putTag
@@ -193,7 +193,7 @@ serializePattern p = case p of
   -- note: the putWord8 0 is the tag before any unboxed pattern
   Pattern.Boolean _ b -> putWord8 0 *> serializeBoolean b
   Pattern.Int64 _ n -> putWord8 0 *> serializeInt64 n
-  Pattern.UInt64 _ n -> putWord8 0 *> serializeUInt64 n
+  Pattern.Nat _ n -> putWord8 0 *> serializeNat n
   Pattern.Float _ n -> putWord8 0 *> serializeFloat n
   Pattern.Var _ -> putWord8 1
   Pattern.Unbound _ -> putWord8 2
@@ -223,8 +223,8 @@ serializeFloat n = do
   putByteString . BL.toStrict . toLazyByteString $ doubleBE n
   putWord8 3
 
-serializeUInt64 :: MonadPut m => Word64 -> m ()
-serializeUInt64 n = do
+serializeNat :: MonadPut m => Word64 -> m ()
+serializeNat n = do
   putWord64be n
   putWord8 2
 

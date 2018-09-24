@@ -189,7 +189,7 @@ object PrettyPrint {
       if (i > 0) "+" + i.toString else i.toString
     case UnboxedType.Float => unboxedToDouble(value).toString
     case UnboxedType.Boolean => unboxedToBool(value).toString
-    case UnboxedType.UInt64 => toUnsignedString(unboxedToLong(value))
+    case UnboxedType.Nat => toUnsignedString(unboxedToLong(value))
   }
 
   def prettyTerm(t: Term, precedence: Int): PrettyPrint = t match {

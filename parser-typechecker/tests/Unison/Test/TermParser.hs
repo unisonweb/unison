@@ -38,16 +38,16 @@ test1 = scope "termparser" . tests . map parses $
   , "\"abc\""
   , "x + 1"
   , "1 + 1"
-  , "1 UInt64.+ 1"
+  , "1 Nat.+ 1"
   , "( x + 1 )"
   , "foo 42"
-  , "1 UInt64.== 1"
-  , "x UInt64.== y"
-  , "if 1 UInt64.== 1 then 1 else 1"
-  , "if 1 UInt64.== x then 1 else 1"
-  , "if x UInt64.== 1 then 1 else 1"
+  , "1 Nat.== 1"
+  , "x Nat.== y"
+  , "if 1 Nat.== 1 then 1 else 1"
+  , "if 1 Nat.== x then 1 else 1"
+  , "if x Nat.== 1 then 1 else 1"
   , "if x == 1 then 1 else 1"
-  , "if x UInt64.== x then 1 else 1"
+  , "if x Nat.== x then 1 else 1"
   --
   -- Block tests
   , "let x = 1\n" ++
@@ -132,12 +132,12 @@ test1 = scope "termparser" . tests . map parses $
    , "and x y"
    , "or x y"
    , [r|--let r1
-   let r1 : UInt64
+   let r1 : Nat
        r1 = case Optional.Some 3 of
          x -> 1
        42 |]
    , [r|let
-        increment = (UInt64.+) 1
+        increment = (Nat.+) 1
 
         (|>) : forall a . a -> (a -> b) -> b
         a |> f = f a

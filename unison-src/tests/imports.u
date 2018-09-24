@@ -7,12 +7,12 @@ use Optional None Some
 
 -- Can import operators this way also
 -- no need to put them in parens
-use UInt64.+
+use Nat.+
 
 -- Later imports shadow earlier ones
-use UInt64 - * /
-use UInt64. drop *
-use UInt64 . drop
+use Nat - * /
+use Nat. drop *
+use Nat . drop
 -- use Int64 + -- this would cause type error below!
 
 case Some (100 + 200 / 3 * 2) of

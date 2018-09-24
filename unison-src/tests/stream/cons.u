@@ -1,8 +1,8 @@
 reduce = Stream.reduce
-(+) = (UInt64.+)
+(+) = (Nat.+)
 take = Stream.take
 cons = Stream.cons
-from = Stream.from-uint64
+from = Stream.from-nat
 sum = reduce 0 (+)
 scan = Stream.scan-left 0 (+)
 f `compose` g = a -> f (g a)

@@ -16,7 +16,7 @@ app' = 3
 arrow : Int64 -> Int64 -> Int64
 arrow a = 3
 
-effect' : UInt64 -> { Abort } Int64
+effect' : Nat -> { Abort } Int64
 effect' n = Abort2.Abort2 ()
 
 id : forall a . a -> a

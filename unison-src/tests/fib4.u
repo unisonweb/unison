@@ -1,7 +1,7 @@
-(+) = (UInt64.+)
-(<) = (UInt64.<)
-(-) = (UInt64.drop)
-(*) = (UInt64.*)
+(+) = (Nat.+)
+(<) = (Nat.<)
+(-) = (Nat.drop)
+(*) = (Nat.*)
 
 fib4 n =
   loop a b c d n = case n of
@@ -10,7 +10,7 @@ fib4 n =
     n -> loop b c d (a + b + c + d) (n - 1)
   loop 0 0 0 1 n
 
-t = Stream.take 10 (Stream.map fib4 (Stream.from-uint64 0))
+t = Stream.take 10 (Stream.map fib4 (Stream.from-nat 0))
 p = 9000
 q = 900
 r = 90

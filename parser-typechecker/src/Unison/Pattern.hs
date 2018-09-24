@@ -33,7 +33,7 @@ data PatternP loc
   | VarP loc
   | BooleanP loc !Bool
   | Int64P loc !Int64
-  | UInt64P loc !Word64
+  | NatP loc !Word64
   | FloatP loc !Double
   | ConstructorP loc !Reference !Int [PatternP loc]
   | AsP loc (PatternP loc)
@@ -46,7 +46,7 @@ instance Show (PatternP loc) where
   show (VarP     _  ) = "Var"
   show (BooleanP _ x) = "Boolean " <> show x
   show (Int64P   _ x) = "Int64 " <> show x
-  show (UInt64P  _ x) = "UInt64 " <> show x
+  show (NatP  _ x) = "Nat " <> show x
   show (FloatP   _ x) = "Float " <> show x
   show (ConstructorP _ r i ps) =
     "Constructor " <> intercalate " " [show r, show i, show ps]
@@ -70,7 +70,7 @@ pattern Unbound = UnboundP ()
 pattern Var = VarP ()
 pattern Boolean b = BooleanP () b
 pattern Int64 n = Int64P () n
-pattern UInt64 n = UInt64P () n
+pattern Nat n = NatP () n
 pattern Float n = FloatP () n
 pattern Constructor r cid ps = ConstructorP () r cid ps
 pattern As p = AsP () p
@@ -82,10 +82,10 @@ instance H.Hashable (PatternP p) where
   tokens (VarP _) = [H.Tag 1]
   tokens (BooleanP _ b) = H.Tag 2 : [H.Tag $ if b then 1 else 0]
   tokens (Int64P _ n) = H.Tag 3 : [H.Int64 n]
-  tokens (UInt64P _ n) = H.Tag 4 : [H.UInt64 n]
+  tokens (NatP _ n) = H.Tag 4 : [H.Nat n]
   tokens (FloatP _ f) = H.Tag 5 : H.tokens f
   tokens (ConstructorP _ r n args) =
-    [H.Tag 6, H.accumulateToken r, H.UInt64 $ fromIntegral n, H.accumulateToken args]
+    [H.Tag 6, H.accumulateToken r, H.Nat $ fromIntegral n, H.accumulateToken args]
   tokens (EffectPureP _ p) = H.Tag 7 : H.tokens p
   tokens (EffectBindP _ _r _ctor _ps _k) =
     H.Tag 8 : error "need fo figure out hashable"
@@ -96,7 +96,7 @@ instance Eq (PatternP loc) where
   VarP _ == VarP _ = True
   BooleanP _ b == BooleanP _ b2 = b == b2
   Int64P _ n == Int64P _ m = n == m
-  UInt64P _ n == UInt64P _ m = n == m
+  NatP _ n == NatP _ m = n == m
   FloatP _ f == FloatP _ g = f == g
   ConstructorP _ r n args == ConstructorP _ s m brgs = r == s && n == m && args == brgs
   EffectPureP _ p == EffectPureP _ q = p == q

@@ -63,11 +63,11 @@ object CompilationTests {
         ok
       }
     ),
-    test("UInt64") { implicit T =>
+    test("Nat") { implicit T =>
       // toInt64 should be monotonic, also tests <= on Int64
       0 until 100 foreach { _ =>
-        val toInt64 = Builtins.termFor(Builtins.UInt64_toInt64)
-        val add = Builtins.termFor(Builtins.UInt64_add)
+        val toInt64 = Builtins.termFor(Builtins.Nat_toInt64)
+        val add = Builtins.termFor(Builtins.Nat_add)
         val x = long; val y = long
         // toInt64 and <
         equal1[Term](
@@ -78,32 +78,32 @@ object CompilationTests {
           eval(toInt64(uint(x)) + toInt64(uint(y))),
           eval(toInt64(add(uint(x),uint(y)))))
         // inc
-        val inc = Builtins.termFor(Builtins.UInt64_inc)
+        val inc = Builtins.termFor(Builtins.Nat_inc)
         equal1[Term](eval(inc(uint(x))), uint(x + 1))
 
         // isEven and isOdd
-        val isEven = Builtins.termFor(Builtins.UInt64_isEven)
-        val isOdd = Builtins.termFor(Builtins.UInt64_isOdd)
+        val isEven = Builtins.termFor(Builtins.Nat_isEven)
+        val isOdd = Builtins.termFor(Builtins.Nat_isOdd)
         val not = Builtins.termFor(Builtins.Boolean_not)
         equal1[Term](eval(isEven(x)), x % 2 == 0)
         equal1[Term](eval(isEven(x)), eval(not(isOdd(uint(x)))))
 
         // multiply
-        val mul = Builtins.termFor(Builtins.UInt64_mul)
+        val mul = Builtins.termFor(Builtins.Nat_mul)
         equal1[Term](eval(mul(uint(x), uint(y))), uint(x * y))
 
         // drop and minus
-        val drop = Builtins.termFor(Builtins.UInt64_drop)
-        val minus = Builtins.termFor(Builtins.UInt64_sub)
+        val drop = Builtins.termFor(Builtins.Nat_drop)
+        val minus = Builtins.termFor(Builtins.Nat_sub)
         val i = int.toLong.abs; val j = int.toLong.abs
         equal1[Term](eval(drop(i,j)), uint((i - j).max(0)))
         equal1[Term](eval(minus(x,y)), uint(x - y))
       }
 
-      val lt = Builtins.termFor(Builtins.UInt64_lt)
-      val gt = Builtins.termFor(Builtins.UInt64_gt)
-      val gteq = Builtins.termFor(Builtins.UInt64_gteq)
-      val lteq = Builtins.termFor(Builtins.UInt64_lteq)
+      val lt = Builtins.termFor(Builtins.Nat_lt)
+      val gt = Builtins.termFor(Builtins.Nat_gt)
+      val gteq = Builtins.termFor(Builtins.Nat_gteq)
+      val lteq = Builtins.termFor(Builtins.Nat_lteq)
 
       equal1[Term](eval { gt(uint(-1), uint(1)) }, true)
       equal1[Term](eval { gt(uint(2), uint(1)) }, true)
@@ -1011,7 +1011,7 @@ object Terms {
     import Builtins._
     val empty = termFor(Stream_empty)
     val fromInt64 = termFor(Stream_fromInt64)
-    val fromUInt64 = termFor(Stream_fromUInt64)
+    val fromNat = termFor(Stream_fromNat)
     val cons = termFor(Stream_cons)
     val drop = termFor(Stream_drop)
     val take = termFor(Stream_take)

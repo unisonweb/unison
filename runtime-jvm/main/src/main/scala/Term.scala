@@ -489,12 +489,12 @@ object Term {
     }
 
     implicit class IntegerSyntax(val i: Int) extends AnyVal {
-      def unsigned: Term = Unboxed(intToUnboxed(i), UnboxedType.UInt64)
+      def unsigned: Term = Unboxed(intToUnboxed(i), UnboxedType.Nat)
       def u: Term = unsigned
     }
 
     implicit class LongSyntax(val l: Long) extends AnyVal {
-      def unsigned: Term = Unboxed(longToUnboxed(l), UnboxedType.UInt64)
+      def unsigned: Term = Unboxed(longToUnboxed(l), UnboxedType.Nat)
       def u: Term = unsigned
     }
 
