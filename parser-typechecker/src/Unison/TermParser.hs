@@ -9,6 +9,7 @@
 module Unison.TermParser where
 
 -- import           Debug.Trace
+import qualified Data.Strings as Strings
 import qualified Data.Text as Text
 import           Control.Applicative
 import           Control.Monad (guard, join, when)
@@ -100,7 +101,7 @@ parsePattern = constructor <|> leaf
   literal = (,[]) <$> asum [true, false, number]
   true = (\t -> Pattern.Boolean (ann t) True) <$> reserved "true"
   false = (\t -> Pattern.Boolean (ann t) False) <$> reserved "false"
-  number = number' (tok Pattern.Int64) (tok Pattern.UInt64) (tok Pattern.Float)
+  number = number' (tok Pattern.Int) (tok Pattern.Nat) (tok Pattern.Float)
   parenthesizedOrTuplePattern :: P v (Pattern Ann, [(Ann, v)])
   parenthesizedOrTuplePattern = tupleOrParenthesized parsePattern unit pair
   unit ann = (Pattern.Constructor ann (R.Builtin "()") 0 [], [])
@@ -206,10 +207,15 @@ vector p = f <$> reserved "[" <*> elements <*> reserved "]"
     f open elems close = Term.vector (ann open <> ann close) elems
 
 termLeaf :: forall v. Var v => TermP v
-termLeaf =
-  asum [hashLit, prefixTerm, text, number, boolean,
-        tupleOrParenthesizedTerm, keywordBlock, placeholder, vector term,
-        delayQuote, bang]
+termLeaf = do
+  e <- asum [hashLit, prefixTerm, text, number, boolean,
+             tupleOrParenthesizedTerm, keywordBlock, placeholder, vector term,
+             delayQuote, bang]
+  q <- optional (reserved "?")
+  case q of
+    Nothing -> pure e
+    Just q  -> pure $
+      Term.app (ann q <> ann e) (Term.var (ann e) (positionalVar q Var.askInfo)) e
 
 delayQuote :: Var v => TermP v
 delayQuote = P.label "quote" $ do
@@ -289,6 +295,27 @@ customFailure = P.customFailure
 block :: forall v. Var v => String -> TermP v
 block s = block' s (openBlockWith s) closeBlock
 
+importp :: Var v => P v [(v, v)]
+importp = do
+  let name = Var.nameds . L.payload <$> (wordyId <|> symbolyId)
+      namesp = many name
+  _ <- reserved "use"
+  e <- (Left <$> wordyId) <|> (Right <$> symbolyId)
+  case e of
+    Left w -> do
+      more <- (False <$ P.try (lookAhead semi)) <|> pure True
+      case more of
+        True -> do
+          i <- (Var.nameds . L.payload $ w) <$ optional dot
+          names <- namesp <|> (pure <$> name)
+          pure [ (n, Var.joinDot i n) | n <- names ]
+        False ->
+          let (_, n) = L.splitWordy (L.payload w)
+          in pure [ (Var.nameds n, Var.nameds $ L.payload w) ]
+    Right o ->
+      let (_, op) = L.splitSymboly (L.payload o)
+      in pure [ (Var.nameds op, Var.nameds $ L.payload o) ]
+
 --module Monoid where
 --  -- we replace all the binding names with Monoid.op, and
 --  -- if `op` is free in the body of any binding, we replace it with `Monoid.op`
@@ -296,19 +323,28 @@ block s = block' s (openBlockWith s) closeBlock
 --  op m = case m of Monoid
 
 data BlockElement v
-  = Binding ((Ann, v), AnnotatedTerm v Ann)
-  | Action (AnnotatedTerm v Ann)
+  = Binding (Maybe String) ((Ann, v), AnnotatedTerm v Ann)
+  | Action (Maybe String) (AnnotatedTerm v Ann)
   | Namespace String [BlockElement v]
 
 namespaceBlock :: Var v => P v (BlockElement v)
 namespaceBlock = do
   _ <- reserved "namespace"
   name <- wordyId
-  let statement = (Binding <$> binding) <|> namespaceBlock
+  let statement = (Binding <$> watched <*> binding) <|> namespaceBlock
   _ <- openBlockWith "where"
   elems <- sepBy semi statement
   _ <- closeBlock
   pure $ Namespace (L.payload name) elems
+
+watched :: Var v => P v (Maybe String)
+watched = (P.try $ do
+  op <- optional (L.payload <$> P.lookAhead symbolyId)
+  guard (op == Just ">")
+  (curLine, lineContents) <- currentLine
+  _ <- anyToken -- consume the '>' token
+  let lineNote = Strings.strPadLeft ' ' 5 (show curLine) ++ " | " ++ lineContents
+  pure (Just lineNote)) <|> pure Nothing
 
 block' :: forall v b. Var v => String -> P v (L.Token ()) -> P v b -> TermP v
 block' s openBlock closeBlock = do
@@ -326,32 +362,11 @@ block' s openBlock closeBlock = do
         Term.typeMap (Type.bindBuiltins . Map.toList $ typesByName env) $ tm
     substImports <$> go open statements
   where
-    name = Var.nameds . L.payload <$> (wordyId <|> symbolyId)
-    namesp = many name
-    importp :: P v [(v, v)]
-    importp = do
-      _ <- reserved "use"
-      e <- (Left <$> wordyId) <|> (Right <$> symbolyId)
-      case e of
-        Left w -> do
-          more <- (False <$ P.try (lookAhead semi)) <|> pure True
-          case more of
-            True -> do
-              i <- (Var.nameds . L.payload $ w) <$ optional dot
-              names <- namesp <|> (pure <$> name)
-              pure [ (n, Var.joinDot i n) | n <- names ]
-            False ->
-              let (_, n) = L.splitWordy (L.payload w)
-              in pure [ (Var.nameds n, Var.nameds $ L.payload w) ]
-        Right o ->
-          let (_, op) = L.splitSymboly (L.payload o)
-          in pure [ (Var.nameds op, Var.nameds $ L.payload o) ]
-    statement = traceRemainingTokens "statement" *>
-                ( (Binding <$> binding) <|>
-                  (Action <$> blockTerm) <|>
-                  namespaceBlock )
-    toBindings (Binding ((a, v), e)) = [((a, Just v), e)]
-    toBindings (Action e) = [((ann e, Nothing), e)]
+    statement = namespaceBlock <|> do
+      w <- watched
+      asum [ Binding w <$> binding, Action w <$> blockTerm ]
+    toBindings (Binding w ((a, v), e)) = [((a, Just v), Term.watchMaybe w e)]
+    toBindings (Action w e) = [((ann e, Nothing), Term.watchMaybe w e)]
     toBindings (Namespace name bs) = scope name $ (toBindings =<< bs)
     v `orBlank` i = fromMaybe (Var.nameds $ "_" ++ show i) v
     finishBindings bs =
@@ -375,22 +390,22 @@ block' s openBlock closeBlock = do
       let startAnnotation = (fst . fst . head $ toBindings =<< bs)
           endAnnotation = (fst . fst . last $ toBindings =<< bs)
       in case reverse bs of
-        Namespace _ _ : _ ->
-          customFailure $ BlockMustEndWithExpression
-                            startAnnotation
-                            endAnnotation
-        Binding ((a, _v), annotatedTerm) : _ ->
-          customFailure $ BlockMustEndWithExpression
-                            (startAnnotation <> ann annotatedTerm)
-                            (a <> ann annotatedTerm)
-        Action e : es ->
+        Namespace _v _ : _ ->
+          pure $ Term.letRec (startAnnotation <> endAnnotation)
+                             (finishBindings $ toBindings =<< bs)
+                             (Term.var endAnnotation (positionalVar endAnnotation Var.missingResult))
+        Binding _watchNote ((a, _v), _) : _ ->
+          pure $ Term.letRec (startAnnotation <> endAnnotation)
+                             (finishBindings $ toBindings =<< bs)
+                             (Term.var a (positionalVar endAnnotation Var.missingResult))
+        Action watchNote e : bs ->
           pure $ Term.letRec (startAnnotation <> ann e)
-                             (finishBindings $ toBindings =<< reverse es)
-                             e
+                             (finishBindings $ toBindings =<< reverse bs)
+                             (Term.watchMaybe watchNote e)
         [] -> customFailure $ EmptyBlock (const s <$> open)
 
 number :: Var v => TermP v
-number = number' (tok Term.int64) (tok Term.uint64) (tok Term.float)
+number = number' (tok Term.int) (tok Term.nat) (tok Term.float)
 
 number'
   :: Var v

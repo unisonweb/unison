@@ -48,6 +48,7 @@ library
     Unison.Codebase.Release
     Unison.Codebase.TermEdit
     Unison.Codebase.TypeEdit
+    Unison.Codebase.Watch
     Unison.DataDeclaration
     Unison.FileParser
     Unison.FileParsers
@@ -61,6 +62,7 @@ library
     Unison.Paths
     Unison.Pattern
     Unison.PatternP
+    Unison.PrettyPrint
     Unison.PrintError
     Unison.Reference
     Unison.Runtime.Rt0
@@ -70,6 +72,7 @@ library
     Unison.Term
     Unison.TermParser
     Unison.Type
+    Unison.TypePrinter
     Unison.TypeParser
     Unison.TypeVar
     Unison.Typechecker
@@ -82,8 +85,8 @@ library
     Unison.Util.ColorText
     Unison.Util.Logger
     Unison.Util.Monoid
+    Unison.Util.PrettyPrint
     Unison.Util.Range
-    Unison.Util.Watch
     Unison.Var
 
   build-depends:
@@ -96,23 +99,30 @@ library
     containers,
     comonad,
     cryptonite,
+    directory,
     errors,
     free,
     fsnotify,
     hashable,
+    io-streams,
     lens,
+    ListLike,
     memory,
     monad-loops,
     mtl,
     murmur-hash,
+    network,
     parsec,
     parsec-layout,
+    process,
     megaparsec,
     prelude-extras,
     random,
     safe,
     stm,
+    strings,
     text,
+    time,
     transformers,
     vector
 
@@ -146,6 +156,15 @@ executable bootstrap
     vector,
     unison-parser-typechecker
 
+executable watcher
+  main-is: Main.hs
+  hs-source-dirs: watcher
+  ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+  build-depends:
+    base,
+    safe,
+    unison-parser-typechecker
+
 executable tests
   main-is:        Suite.hs
   ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
@@ -159,6 +178,7 @@ executable tests
     Unison.Test.Range
     Unison.Test.TermParser
     Unison.Test.Type
+    Unison.Test.TypePrinter
     Unison.Test.Typechecker
     Unison.Test.Typechecker.Components
     Unison.Test.Typechecker.TypeError

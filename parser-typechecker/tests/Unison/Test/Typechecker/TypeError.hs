@@ -30,7 +30,7 @@ test = scope "extractor" . tests $
   , n "if ((x -> x + 1) true) then 1 else 2" Err.cond
   , n "case 3 of 3 | 3 -> 3" Err.matchBody
   , y "1 1" Err.applyingNonFunction
-  , y "1 Int64.+ 1" Err.applyingFunction
+  , y "1 Int.+ 1" Err.applyingFunction
   ]
   where y, n :: String -> NoteExtractor Symbol Ann a -> Test ()
         y s ex = scope s $ expect $ yieldsError s ex

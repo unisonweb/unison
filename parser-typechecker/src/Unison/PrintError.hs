@@ -94,6 +94,12 @@ fromOverHere src spots0 removing =
          , showSource src spots
          ]
 
+showTypeWithProvenance :: (Var v, Annotated a, Ord style)
+  => Env -> String -> style -> Type.AnnotatedType v a -> [AT.Section style]
+showTypeWithProvenance env src color typ =
+  [AT.Text . Color.style color $ renderType' env typ] ++ [".\n"] ++
+  fromOverHere' src [styleAnnotated color typ] []
+
 styleAnnotated :: Annotated a => sty -> a -> Maybe (Range,sty)
 styleAnnotated sty a = (,sty) <$> rangeForAnnotated a
 
@@ -184,7 +190,7 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     ] ++ debugSummary note
   FunctionApplication {..} ->
     [ "The ", ordinal argNum, " argument to the function "
-    , AT.Text $ renderTerm f
+    , AT.Text . Color.errorSite . renderTerm $ f
     , " is "
     , AT.Text $ Color.type2 . renderType' env $ foundType, ", "
     , "but I was expecting "
@@ -194,6 +200,7 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
       [ (,Color.Type1)     <$> rangeForAnnotated expectedType
       , (,Color.Type2)     <$> rangeForAnnotated foundType
       , (,Color.Type2)     <$> rangeForAnnotated arg
+      , (,Color.ErrorSite) <$> rangeForAnnotated f
       ]
     -- , "\n"
     ]
@@ -218,6 +225,13 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
           ] ++ (solvedVars >>= go)
       Nothing -> []
       _other -> [fromString $ "fVarInfo = " ++ show _other ++ "\n"] -- forget it
+    ++ (debugNoteLoc
+        [ "\nloc debug:"
+        , AT.Text $ Color.errorSite "\n             f: ", fromString $ annotatedToEnglish f
+        , AT.Text $ Color.type2     "\n     foundType: ", fromString $ annotatedToEnglish foundType
+        , AT.Text $ Color.type1     "\n  expectedType: ", fromString $ annotatedToEnglish expectedType
+        -- , "\n   expectedLoc: ", fromString $ annotatedToEnglish expectedLoc
+        ])
     ++ debugSummary note
   Mismatch {..} ->
     -- [ (fromString . annotatedToEnglish) mismatchSite
@@ -289,17 +303,47 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     , ".  Make sure it's imported and spelled correctly:\n\n"
     , annotatedAsErrorSite src typeSite
     ]
+  UnknownTerm {..} | Type.isArrow expectedType && Var.isKind Var.askInfo unknownTermV ->
+    let Type.Arrow' i o = case expectedType of
+          Type.ForallsNamed' _ body -> body
+          _ -> expectedType
+    in [ "Here's what I know about the expression at "
+       , (fromString . annotatedToEnglish) termSite
+       , ":\n\n"
+       , annotatedAsErrorSite src termSite
+       , "\n"
+       , "Its type is: ", AT.Text . Color.style Color.ErrorSite $ (renderType' env) (Type.ungeneralizeEffects i), ".\n\n" ] ++
+       case o of
+         Type.Existential' _ _ -> ["It can be replaced with a value of any type.\n"]
+         _ -> [
+           "A well-typed replacement must conform to: "
+          , AT.Text . Color.style Color.Type2 $
+              renderType' env (Type.ungeneralizeEffects o)
+          , ".\n"]
+  UnknownTerm {..} | Var.isKind Var.missingResult unknownTermV ->
+    [ "I found a block that ends with a binding instead of an expression at "
+    , (fromString . annotatedToEnglish) termSite
+    , ":\n\n"
+    , annotatedAsErrorSite src termSite, "\n" ] ++
+      case expectedType of
+        Type.Existential' _ _ ->
+          ["To complete the block, add an expression after this binding.\n\n"]
+        _ -> [ "Based on the context, I'm expecting an expression of type "
+             , AT.Text . Color.style Color.Type1 $ (renderType' env) expectedType
+             , " after this binding. \n\n" ]
   UnknownTerm {..} ->
     [ "I'm not sure what "
     , AT.Text . Color.style Color.ErrorSite $ (fromString . show) unknownTermV
     , " means at "
     , (fromString . annotatedToEnglish) termSite
     , "\n\n"
-    , annotatedAsErrorSite src termSite
-    , "\nWhatever it is, it has a type that conforms to "
-    , AT.Text . Color.style Color.Type1 $ (renderType' env) expectedType
-    , "\n\n"
-    ]
+    , annotatedAsErrorSite src termSite ] ++
+      case expectedType of
+        Type.Existential' _ _ -> ["\nThere are no constraints on its type."]
+        _ -> ["\nWhatever it is, it has a type that conforms to "
+             , AT.Text . Color.style Color.Type1 $ (renderType' env) expectedType
+             , ".\n"]
+             -- ++ showTypeWithProvenance env src Color.Type1 expectedType
     ++ case suggestions of
       [] -> []
       suggestions ->
@@ -502,7 +546,10 @@ commas :: (IsString a, Monoid a) => (b -> a) -> [b] -> a
 commas = intercalateMap ", "
 
 renderVar :: (IsString a, Var v) => v -> a
-renderVar = fromString . Text.unpack . Var.shortName
+renderVar = fromString . Text.unpack .
+              (if Settings.demoHideVarNumber
+                then Var.name
+                else Var.shortName)
 
 renderVar' :: (Var v, Annotated a)
            => Env -> C.Context v a -> v -> AT.AnnotatedText (Maybe b)
@@ -553,13 +600,13 @@ rangeToEnglish (Range (L.Pos l c) (L.Pos l' c')) =
   if showColumn
   then if l == l'
     then if c == c'
-        then "Line " ++ show l ++ ", column " ++ show c
-        else "Line " ++ show l ++ ", columns " ++ show c ++ "-" ++ show c'
-    else "Line " ++ show l ++ ", column " ++ show c ++ " through " ++
+        then "line " ++ show l ++ ", column " ++ show c
+        else "line " ++ show l ++ ", columns " ++ show c ++ "-" ++ show c'
+    else "line " ++ show l ++ ", column " ++ show c ++ " through " ++
         "line " ++ show l' ++ ", column " ++ show c'
   else if l == l'
-    then "Line " ++ show l
-    else "Lines " ++ show l ++ "—" ++ show l'
+    then "line " ++ show l
+    else "lines " ++ show l ++ "—" ++ show l'
 
 annotatedToEnglish :: Annotated a => a -> String
 annotatedToEnglish a = case ann a of
@@ -717,4 +764,4 @@ prettyTypecheckError env input n =
   renderTypeError env (typeErrorFromNote n) input
 
 parseErrorToAnsiString :: Var v => String -> Parser.Err v -> String
-parseErrorToAnsiString s = show . Color.renderDocANSI 3 . prettyParseError s
+parseErrorToAnsiString src = show . Color.renderDocANSI 3 . prettyParseError src

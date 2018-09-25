@@ -16,14 +16,14 @@ Optional.isEmpty o = case o of
 a |> f = f a
 
 let
-  foo : UInt64 -> UInt64
-  foo x = case if x >_UInt64 1 then x +_UInt64 1 else 0
+  foo : Nat -> Nat
+  foo x = case if x >_Nat 1 then x +_Nat 1 else 0
   x = [1.,2.5]
   "let case if"
     |> Text.size
-    |> Stream.from-int64
+    |> Stream.from-int
     |> Stream.take 10
-    |> Stream.fold-left -0 (+_Int64)
-    |> Stream.fold-left-0 (+_Int64)
+    |> Stream.fold-left -0 (+_Int)
+    |> Stream.fold-left-0 (+_Int)
     |> Optional.Some
   +1.0

@@ -1,8 +1,8 @@
 a |> f = f a
-(*) = (UInt64.*)
-(<) = (UInt64.<)
+(*) = (Nat.*)
+(<) = (Nat.<)
 
-left = Stream.from-uint64 0 |> Stream.take-while (n -> n < 10)
-right = Stream.from-uint64 77 |> Stream.drop-while (n -> n < 103)
+left = Stream.from-nat 0 |> Stream.take-while (n -> n < 10)
+right = Stream.from-nat 77 |> Stream.drop-while (n -> n < 103)
 
-Stream.zip-with (x y -> x * y) left right |> Stream.sum-uint64
+Stream.zip-with (x y -> x * y) left right |> Stream.sum-nat

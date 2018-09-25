@@ -214,9 +214,9 @@ applyingFunction = do
     ctx <- Ex.typeMismatch
     Ex.unique $ do
       Ex.pathStart
-      (foundType, expectedType) <- Ex.inSubtype
-      -- todo: fix Ex.many and then use this to catch nested subtype checks:
-      -- more <- Ex.many Ex.inSubtype
+      subtypes <- Ex.some Ex.inSubtype
+      -- head call is safe because Ex.some should only succeed on nonnull output
+      let (foundType, expectedType) = head subtypes
       (arg, _) <- Ex.inCheck
       (_, _, argNum) <- Ex.inSynthesizeApp
       (typeVars, f, _ft, _args) <- Ex.inFunctionCall

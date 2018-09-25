@@ -19,7 +19,7 @@ object FileCompilationTests {
     "stream-shouldnt-damage-stack" -> ((4950.u, 9999.u)),
     "stream/iterate-increment-take-drop-reduce" ->
       scala.Stream.from(0).take(5).drop(3).sum,
-    "stream/fromint64-take-map-tosequence" ->
+    "stream/fromint-take-map-tosequence" ->
       Term.Sequence(Sequence(
         scala.Stream.from(0)
           .take(10)
@@ -27,7 +27,7 @@ object FileCompilationTests {
       )),
     "stream/iterate-increment-take-filter-reduce" ->
       scala.Stream.from(0).take(10000).filter(_ % 2 == 0).sum.u,
-    "stream/fromint64-take-foldleft-plus" ->
+    "stream/fromint-take-foldleft-plus" ->
       (0 until 10000).sum.u,
     "stream/scan-left" ->
       scala.Stream.from(1).take(10000).scanLeft(0l)(_+_).sum.u,
@@ -56,7 +56,7 @@ object FileCompilationTests {
         .flatMap(n => Stream.continually(n.u))
         .take(3),
     "stream/unfold" -> List(-2/2, -1/2, 0/2),
-    "stream/foldleft-uint64" -> 45.u,
+    "stream/foldleft-nat" -> 45.u,
     "stream/foldleft-stream" -> Seq(9,8,7,6,5,4,3,2,1,0).map(_.u),
   )
 
@@ -82,7 +82,7 @@ object FileCompilationTests {
     val filename = s"$filePrefix.u"
     val file = testFiles.resolve(filename)
     test(s"$filePrefix = ${prettyTerm(result).render(100)}") { implicit T =>
-      Bootstrap.normalizedFromTextFile(file)
+      Bootstrap0.normalizedFromTextFile(file)
         .fold(fail(_), equalShow(_, result)(prettyTerm(_).render(100)))
     }
   }
@@ -91,7 +91,7 @@ object FileCompilationTests {
     val name = testFiles.relativize(p).toString.dropRight(2)
     test(name) {
       implicit T =>
-        Bootstrap.normalizedFromTextFile(p)
+        Bootstrap0.normalizedFromTextFile(p)
           .fold(fail(_), t => {
             note(s"$name (unchecked) = ${prettyTerm(t).render(100)}")
             ok

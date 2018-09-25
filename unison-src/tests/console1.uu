@@ -31,9 +31,9 @@ namespace Console where
       outs = snd io
       todo
 
-(++) = concatenate
+(++) = Text.concatenate
 
-handle simulate in 
+handle simulate in
   use Console read write
   use Optional Some None
   write "What's your name?"
@@ -43,4 +43,3 @@ handle simulate in
 
 
 ()
-

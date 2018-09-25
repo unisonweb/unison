@@ -96,6 +96,7 @@ arity _ = 0
 pattern Ref' r <- ABT.Tm' (Ref r)
 pattern Arrow' i o <- ABT.Tm' (Arrow i o)
 pattern Arrows' spine <- (unArrows -> Just spine)
+pattern EffectfulArrows' fst rest <- (unEffectfulArrows -> Just (fst, rest))
 pattern Ann' t k <- ABT.Tm' (Ann t k)
 pattern App' f x <- ABT.Tm' (App f x)
 pattern Apps' f args <- (unApps -> Just (f, args))
@@ -111,26 +112,35 @@ pattern Forall' subst <- ABT.Tm' (Forall (ABT.Abs' subst))
 pattern ForallsNamed' vs body <- (unForalls -> Just (vs, body))
 pattern ForallNamed' v body <- ABT.Tm' (Forall (ABT.out -> ABT.Abs v body))
 pattern Var' v <- ABT.Var' v
+pattern Cycle' xs t <- ABT.Cycle' xs t
+pattern Abs' subst <- ABT.Abs' subst
 pattern Tuple' ts <- (unTuple -> Just ts)
 pattern Existential' b v <- ABT.Var' (TypeVar.Existential b v)
 pattern Universal' v <- ABT.Var' (TypeVar.Universal v)
 
 unPure :: Ord v => AnnotatedType v a -> Maybe (AnnotatedType v a)
 unPure (Effect'' [] t) = Just t
+unPure (Effect'' _ _) = Nothing
 unPure t = Just t
 
 unArrows :: AnnotatedType v a -> Maybe [AnnotatedType v a]
 unArrows t =
   case go t of [_] -> Nothing; l -> Just l
-  where
-    go (Arrow' i o) = i : go o
-    go o = [o]
+  where go (Arrow' i o) = i : go o
+        go o = [o]
+
+unEffectfulArrows :: AnnotatedType v a ->
+     Maybe (AnnotatedType v a, [(Maybe [AnnotatedType v a], AnnotatedType v a)])
+unEffectfulArrows t = case t of Arrow' i o -> Just (i, go o); _ -> Nothing
+  where go (Effect1' (Effects' es) (Arrow' i o)) = (Just es, i) : go o
+        go (Effect1' (Effects' es) t) = [(Just es, t)]
+        go (Arrow' i o) = (Nothing, i) : go o
+        go t = [(Nothing, t)]
 
 unApps :: AnnotatedType v a -> Maybe (AnnotatedType v a, [AnnotatedType v a])
 unApps t = case go t [] of [] -> Nothing; [_] -> Nothing; f:args -> Just (f,args)
-  where
-  go (App' i o) acc = go i (o:acc)
-  go fn args = fn:args
+  where go (App' i o) acc = go i (o:acc)
+        go fn args = fn:args
 
 unForalls :: AnnotatedType v a -> Maybe ([v], AnnotatedType v a)
 unForalls t = go t []
@@ -166,7 +176,7 @@ matchUniversal v (Universal' x) = x == v
 matchUniversal _ _ = False
 
 -- | True if the given type is a function, possibly quantified
-isArrow :: Var v => Type v -> Bool
+isArrow :: Var v => AnnotatedType v a -> Bool
 isArrow (ForallNamed' _ t) = isArrow t
 isArrow (Arrow' _ _) = True
 isArrow _ = False
@@ -185,11 +195,11 @@ ref a = ABT.tm' a . Ref
 builtin :: Ord v => a -> Text -> AnnotatedType v a
 builtin a = ref a . Reference.Builtin
 
-int64 :: Ord v => a -> AnnotatedType v a
-int64 a = builtin a "Int64"
+int :: Ord v => a -> AnnotatedType v a
+int a = builtin a "Int"
 
-uint64 :: Ord v => a -> AnnotatedType v a
-uint64 a = builtin a "UInt64"
+nat :: Ord v => a -> AnnotatedType v a
+nat a = builtin a "Nat"
 
 float :: Ord v => a -> AnnotatedType v a
 float a = builtin a "Float"
@@ -407,9 +417,11 @@ ungeneralizeEffects t = case functionResult t of
       es -> Just (effect (ABT.annotation et) es (ABT.visitPure (unE e) v))
     unE _ _ = Nothing
     stripE :: Var v => v -> AnnotatedType v a -> AnnotatedType v a
-    stripE e t@(ForallNamed' e0 body) | e == e0 = ABT.visitPure (unE e) body
-                                      | otherwise = t
-    stripE _e t = t
+    stripE e t = ABT.visitPure (unE e) t
+    -- a bit more restrictive version which requires that the effects be forall'd
+    -- stripE e t@(ForallNamed' e0 body) | e == e0 = ABT.visitPure (unE e) body
+    --                                   | otherwise = t
+    -- stripE _e t = t
   Just _ -> t
   Nothing -> t
 

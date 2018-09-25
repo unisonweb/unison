@@ -458,7 +458,7 @@ hash t = hash' [] t where
             lookup (Right v') = v == v'
             ind = findIndex lookup env
             hashInt :: Int -> h
-            hashInt i = Hashable.accumulate [Hashable.UInt64 $ fromIntegral i]
+            hashInt i = Hashable.accumulate [Hashable.Nat $ fromIntegral i]
             die = error $ "unknown var in environment: " ++ show (Var.name v)
     Cycle (AbsN' vs t) -> hash' (Left vs : env) t
     Cycle t -> hash' env t

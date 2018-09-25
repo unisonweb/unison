@@ -19,8 +19,8 @@ object GraphCodec {
    *
    * The output is completely flat. Example, the lambda `x -> 79`:
    *
-   *   0	Unboxed(79,Int64)
-   *   1	Compiled_(Unboxed(79,Int64))
+   *   0	Unboxed(79,Int)
+   *   1	Compiled_(Unboxed(79,Int))
    *   2	Abs_(x,@1)
    *   3	Lam_(@2)
    */

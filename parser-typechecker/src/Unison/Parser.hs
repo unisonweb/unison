@@ -207,6 +207,14 @@ queryToken f = P.token go Nothing
   where go t@((f . L.payload) -> Just s) = Right $ fmap (const s) t
         go x = Left (pure (P.Tokens (x:|[])), Set.empty)
 
+currentLine :: Var v => P v (Int, String)
+currentLine = P.lookAhead $ do
+  tok0 <- P.satisfy (const True)
+  let line0 = L.line (L.start tok0)
+  toks <- many $ P.satisfy (\t -> L.line (L.start t) == line0)
+  let lineToks = tok0 Data.List.NonEmpty.:|  toks
+  pure (line0, P.showTokens lineToks)
+
 -- Consume a block opening and return the string that opens the block.
 openBlock :: Var v => P v (L.Token String)
 openBlock = queryToken getOpen
@@ -311,3 +319,12 @@ chainr1 p op = go1 where
 
 chainl1 :: Var v => P v a -> P v (a -> a -> a) -> P v a
 chainl1 p op = foldl (flip ($)) <$> p <*> P.many (flip <$> op <*> p)
+
+attempt :: Var v => P v a -> P v a
+attempt = P.try
+
+-- Gives this var an id based on its position - a useful trick to
+-- obtain a variable whose id won't match any other id in the file
+-- `positionalVar a Var.missingResult`
+positionalVar :: (Annotated a, Var v) => a -> (v -> v) -> v
+positionalVar a kind = kind (Var.nameds (show (ann a)))

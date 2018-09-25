@@ -1,4 +1,4 @@
-r4 : Int64 -> Int64
+r4 : Int -> Int
 r4 x = case x of
   +1 -> +1
 ()

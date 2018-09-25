@@ -34,7 +34,7 @@ type StyledBlockquote = AnnotatedExcerpt Style
 unhighlighted :: StyledText -> StyledText
 unhighlighted s = const Nothing <$> s
 
-style :: Style -> StyledText -> StyledText
+style :: a -> AnnotatedText (Maybe a) -> AnnotatedText (Maybe a)
 style c s = const (Just c) <$> s
 
 type1 :: StyledText -> StyledText

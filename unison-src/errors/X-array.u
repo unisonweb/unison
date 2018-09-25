@@ -1,4 +1,4 @@
-type X = S Text | I UInt64
+type X = S Text | I Nat
 
 foo : a -> b -> c -> X
 foo x y z = X.S ""

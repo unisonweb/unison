@@ -41,7 +41,7 @@ object CompilationBenchmarks {
       {
         val p = runTerm(Terms.triangle)
         profile("triangle unison tailrec function") {
-          evalLam(p, r, top, stackU, N(triangleCount), N(0), stackB, UnboxedType.Int64, UnboxedType.Int64).toLong
+          evalLam(p, r, top, stackU, N(triangleCount), N(0), stackB, UnboxedType.Int, UnboxedType.Int).toLong
         }
       },
       {
@@ -69,11 +69,11 @@ object CompilationBenchmarks {
         }
       },
       {
-        val plusU = UnisonToScala.toUnboxed2(Builtins.Int64_add)
+        val plusU = UnisonToScala.toUnboxed2(Builtins.Int_add)
 
         val env = (new Array[U](20), new Array[B](20), StackPtr.empty, Result())
         profile("triangle stream .foldLeft(plusU)") {
-          Stream.fromInt64(0).take(N(triangleCount))
+          Stream.fromInt(0).take(N(triangleCount))
             .foldLeft(Value(0))(plusU.tupled(env)) match {
             case Value.Unboxed(n, _) => n
           }
@@ -89,7 +89,7 @@ object CompilationBenchmarks {
       {
         val p = runTerm(Terms.fib)
         profile("unison-fib") {
-          evalLam(p, r, top, stackU, U0, N(21), stackB, null, UnboxedType.Int64).toLong
+          evalLam(p, r, top, stackU, U0, N(21), stackB, null, UnboxedType.Int).toLong
         }
       }
     )
@@ -104,7 +104,7 @@ object CompilationBenchmarks {
       {
         val p = runTerm(Terms.fibPrime)
         profile("unison-fibPrime") {
-          evalLam(p, r, top, stackU, U0, N(21), stackB, null, UnboxedType.Int64).toLong
+          evalLam(p, r, top, stackU, U0, N(21), stackB, null, UnboxedType.Int).toLong
         }
       }
     )
