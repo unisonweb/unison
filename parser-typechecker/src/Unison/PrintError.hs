@@ -206,8 +206,8 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
       ]
     -- , "\n"
     ]
-    ++ case fVarInfo of
-      Just (originalType, solvedVars@(_:_)) ->
+    ++ case solvedVars of
+      _ : _ ->
         let go :: (v, C.Type v a) -> [AT.Section Color.Style]
             go (v,t) =
              [ " ", renderVar v
@@ -217,16 +217,17 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
              , "\n"
              ]
         in
-          [ " because the function has type"
+          [ "\n"
+          , "because the function has type"
           , "\n\n"
           , "  "
-          , AT.Text $ renderType' env $ Type.ungeneralizeEffects originalType
+          , AT.Text $ renderType' env $ Type.ungeneralizeEffects ft
           , "\n\n"
-          , " where:"
+          , "where:"
           , "\n\n"
           ] ++ (solvedVars >>= go)
-      Nothing -> []
-      _other -> [fromString $ "fVarInfo = " ++ show _other ++ "\n"] -- forget it
+      [] -> ["Todo: what should this message say beyond that the function has type "
+            , AT.Text $ renderType' env $ Type.ungeneralizeEffects ft]
     ++ (debugNoteLoc
         [ "\nloc debug:"
         , AT.Text $ Color.errorSite "\n             f: ", fromString $ annotatedToEnglish f
