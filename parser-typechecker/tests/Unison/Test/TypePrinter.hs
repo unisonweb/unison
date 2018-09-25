@@ -40,13 +40,16 @@ tc_diff_rtt rtt s expected width =
        )]
 
 -- As above, but do the round-trip test unconditionally.
+tc_diff :: String -> String -> Test ()
 tc_diff s expected = tc_diff_rtt True s expected 0
 
 -- As above, but expect not even cosmetic differences between the input string
 -- and the pretty-printed version.
+tc :: String -> Test ()
 tc s = tc_diff s s
 
 -- Use renderBroken to render the output to some maximum width.
+tc_breaks :: String -> Int -> String -> Test ()
 tc_breaks s width expected = tc_diff_rtt True s expected width
 
 test :: Test ()
