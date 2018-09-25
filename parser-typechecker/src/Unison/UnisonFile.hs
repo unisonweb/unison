@@ -129,10 +129,14 @@ environmentFor termBuiltins typeBuiltins0 dataDecls0 effectDecls0 =
   in
     go <$> hashDecls'
 
-constructors' :: Var v => (v, Reference, DataDeclaration' v a) -> [(String, (Reference, Int))]
+constructors'
+  :: Var v
+  => (v, Reference, DataDeclaration' v a)
+  -> [(String, (Reference, Int))]
 constructors' (typeSymbol, r, dd) =
-  let qualCtorName ((ctor,_), i) =
-       ( Text.unpack $
-           mconcat [Var.qualifiedName typeSymbol, ".", Var.qualifiedName ctor]
-       , (r, i))
-  in qualCtorName <$> DD.constructors dd `zip` [0..]
+  let qualCtorName ((ctor, _), i) =
+        ( Text.unpack $ mconcat
+          [Var.qualifiedName typeSymbol, ".", Var.qualifiedName ctor]
+        , (r, i)
+        )
+  in  qualCtorName <$> DD.constructors dd `zip` [0 ..]

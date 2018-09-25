@@ -602,7 +602,7 @@ synthesize e = scope (InSynthesize e) $
   case minimize' e of
     Left es -> failWith (DuplicateDefinitions es)
     Right e -> do
-      Type.Effect'' es t <- go (minimize' e)
+      Type.Effect'' es t <- go e
       abilityCheck es
       pure t
   where

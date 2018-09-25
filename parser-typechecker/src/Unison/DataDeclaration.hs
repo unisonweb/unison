@@ -137,7 +137,7 @@ fromABT a = error $ "ABT not of correct form to convert to DataDeclaration: " ++
 hashDecls0
   :: (Eq v, Var v)
   => Map v (DataDeclaration' v ())
-  -> Either [v] [(v, Reference, DataDeclaration' v ())]
+  -> [(v, Reference, DataDeclaration' v ())]
 hashDecls0 decls =
   reverse . snd . foldl f ([], []) <$> first (fmap fst) (components abts)
  where
@@ -163,7 +163,7 @@ hashDecls0 decls =
 hashDecls
   :: (Eq v, Var v)
   => Map v (DataDeclaration' v a)
-  -> Either [v] [(v, Reference, DataDeclaration' v a)]
+  -> [(v, Reference, DataDeclaration' v a)]
 hashDecls decls = go <$> hs
  where
   go hs =
