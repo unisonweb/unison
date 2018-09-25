@@ -46,10 +46,9 @@ data TypeError v loc
                         , ft           :: C.Type v loc
                         , arg          :: C.Term v loc
                         , argNum       :: Int
-                        , expectedType :: C.Type v loc
                         , foundType    :: C.Type v loc
-                        , expectedLeaf :: C.Type v loc
-                        , foundLeaf    :: C.Type v loc
+                        , expectedType :: C.Type v loc
+                        , leafs        :: Maybe (C.Type v loc, C.Type v loc) -- found, expected
                         , solvedVars   :: [(v, C.Type v loc)]
                         , note         :: C.Note v loc
                         }
@@ -216,13 +215,16 @@ applyingFunction = do
   Ex.unique $ do
     Ex.pathStart
     subtypes <- Ex.some Ex.inSubtype
-    -- head call is safe because Ex.some should only succeed on nonnull output
-    let (foundLeaf, expectedLeaf) = head subtypes
-    let (foundType, expectedType) = last subtypes
+    let found, expected :: C.Type v loc
+        leafs :: Maybe (C.Type v loc, C.Type v loc)
+        ((found, expected), leafs) = case subtypes of
+          [] -> error "unpossible: Ex.some should only succeed on nonnull output"
+          [roots] -> (roots, Nothing)
+          _ -> (last subtypes, Just $ head subtypes)
     (arg, _) <- Ex.inCheck
     (_, _, argIndex) <- Ex.inSynthesizeApp
     (typeVars, f, ft, _args) <- Ex.inFunctionCall
     let go :: v -> Maybe (v, C.Type v loc)
         go v = (v,) . Type.getPolytype <$> C.lookupSolved ctx v
         solvedVars = catMaybes (go <$> typeVars)
-    pure $ FunctionApplication f ft arg argIndex expectedType foundType expectedLeaf foundLeaf solvedVars n
+    pure $ FunctionApplication f ft arg argIndex found expected leafs solvedVars n
