@@ -374,6 +374,7 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
       '2' -> "nd"
       '3' -> "rd"
       _ -> "th"
+    renderTerm (ABT.Var' v) | Settings.demoHideVarNumber = fromString (Text.unpack $ Var.name v)
     renderTerm e = let s = show e in -- todo: pretty print
       if length s > maxTermDisplay
       then fromString (take maxTermDisplay s <> "...")

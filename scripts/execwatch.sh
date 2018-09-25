@@ -85,9 +85,10 @@ while IFS= read -r changed; do
       last_unison_source="$changed"
       ;;
     */scripts/execwatch.sh|*/scripts/watchwatch.sh)
-      echo "restarting watchwatch"
+      echo "Restarting ./scripts/watchwatch.sh..."
       kill_watcher
       ./scripts/watchwatch.sh "$last_unison_source"
       exit
+      ;;
   esac
 done
