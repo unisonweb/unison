@@ -13,7 +13,6 @@ module Unison.PrintError where
 import qualified Data.Char                  as Char
 import           Data.Foldable
 import qualified Data.List.NonEmpty         as Nel
-import Data.List (isPrefixOf)
 import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
 import           Data.Maybe                 (catMaybes, fromMaybe)
@@ -37,7 +36,6 @@ import qualified Unison.Settings            as Settings
 import qualified Unison.Type                as Type
 import qualified Unison.Typechecker.Context as C
 import           Unison.Typechecker.TypeError
-import qualified Unison.TermParser as TermParser
 import qualified Unison.TypeVar             as TypeVar
 import qualified Unison.Util.AnnotatedText  as AT
 import           Unison.Util.ColorText      (StyledText)
@@ -298,7 +296,24 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     , ".  Make sure it's imported and spelled correctly:\n\n"
     , annotatedAsErrorSite src typeSite
     ]
-  UnknownTerm {..} | TermParser.missingResult `isPrefixOf` Text.unpack (Var.name unknownTermV) ->
+  UnknownTerm {..} | Type.isArrow expectedType && Var.isKind Var.askInfo unknownTermV ->
+    let Type.Arrow' i o = case expectedType of
+          Type.ForallsNamed' _ body -> body
+          _ -> expectedType
+    in [ "Here's what I know about the expression at "
+       , (fromString . annotatedToEnglish) termSite
+       , ":\n\n"
+       , annotatedAsErrorSite src termSite
+       , "\n"
+       , "Its type is: ", AT.Text . Color.style Color.ErrorSite $ (renderType' env) (Type.ungeneralizeEffects i), ".\n\n" ] ++
+       case o of
+         Type.Existential' _ _ -> ["It can be replaced with a value of any type.\n"]
+         _ -> [
+           "A well-typed replacement must conform to: "
+          , AT.Text . Color.style Color.Type2 $
+              renderType' env (Type.ungeneralizeEffects o)
+          , ".\n"]
+  UnknownTerm {..} | Var.isKind Var.missingResult unknownTermV ->
     [ "I found a block that ends with a binding instead of an expression at "
     , (fromString . annotatedToEnglish) termSite
     , ":\n\n"

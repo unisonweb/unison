@@ -353,7 +353,7 @@ wordyIdStartChar ch = isAlphaNum ch || isEmoji ch
 
 wordyIdChar :: Char -> Bool
 wordyIdChar ch =
-  isAlphaNum ch || isEmoji ch || ch `elem` "_-?!'"
+  isAlphaNum ch || isEmoji ch || ch `elem` "_-!'"
 
 isEmoji :: Char -> Bool
 isEmoji c = c >= '\x1F600' && c <= '\x1F64F'
@@ -414,7 +414,7 @@ symbolyIdChar :: Char -> Bool
 symbolyIdChar ch = Set.member ch symbolyIdChars
 
 symbolyIdChars :: Set Char
-symbolyIdChars = Set.fromList "!$%^&*-=+<>?.~\\/|;"
+symbolyIdChars = Set.fromList "!$%^&*-=+<>.~\\/|;"
 
 keywords :: Set String
 keywords = Set.fromList [
@@ -441,7 +441,7 @@ layoutCloseOnlyKeywords :: Set String
 layoutCloseOnlyKeywords = Set.fromList ["}"]
 
 delimiters :: Set Char
-delimiters = Set.fromList "()[]{},"
+delimiters = Set.fromList "()[]{},?"
 
 reserved :: Set Char
 reserved = Set.fromList "=:`\""

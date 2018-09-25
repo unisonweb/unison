@@ -166,7 +166,7 @@ matchUniversal v (Universal' x) = x == v
 matchUniversal _ _ = False
 
 -- | True if the given type is a function, possibly quantified
-isArrow :: Var v => Type v -> Bool
+isArrow :: Var v => AnnotatedType v a -> Bool
 isArrow (ForallNamed' _ t) = isArrow t
 isArrow (Arrow' _ _) = True
 isArrow _ = False
@@ -407,9 +407,11 @@ ungeneralizeEffects t = case functionResult t of
       es -> Just (effect (ABT.annotation et) es (ABT.visitPure (unE e) v))
     unE _ _ = Nothing
     stripE :: Var v => v -> AnnotatedType v a -> AnnotatedType v a
-    stripE e t@(ForallNamed' e0 body) | e == e0 = ABT.visitPure (unE e) body
-                                      | otherwise = t
-    stripE _e t = t
+    stripE e t = ABT.visitPure (unE e) t
+    -- a bit more restrictive version which requires that the effects be forall'd
+    -- stripE e t@(ForallNamed' e0 body) | e == e0 = ABT.visitPure (unE e) body
+    --                                   | otherwise = t
+    -- stripE _e t = t
   Just _ -> t
   Nothing -> t
 
