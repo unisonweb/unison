@@ -600,13 +600,13 @@ rangeToEnglish (Range (L.Pos l c) (L.Pos l' c')) =
   if showColumn
   then if l == l'
     then if c == c'
-        then "Line " ++ show l ++ ", column " ++ show c
-        else "Line " ++ show l ++ ", columns " ++ show c ++ "-" ++ show c'
-    else "Line " ++ show l ++ ", column " ++ show c ++ " through " ++
+        then "line " ++ show l ++ ", column " ++ show c
+        else "line " ++ show l ++ ", columns " ++ show c ++ "-" ++ show c'
+    else "line " ++ show l ++ ", column " ++ show c ++ " through " ++
         "line " ++ show l' ++ ", column " ++ show c'
   else if l == l'
-    then "Line " ++ show l
-    else "Lines " ++ show l ++ "—" ++ show l'
+    then "line " ++ show l
+    else "lines " ++ show l ++ "—" ++ show l'
 
 annotatedToEnglish :: Annotated a => a -> String
 annotatedToEnglish a = case ann a of
