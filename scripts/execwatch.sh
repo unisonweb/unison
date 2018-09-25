@@ -3,6 +3,7 @@ haskell_needs_rebuild=x
 scala_needs_rebuild=x
 sources_changed=
 haskell_pid=
+last_unison_source="$1"
 
 function maybe_build_haskell {
   if [ -n "$haskell_needs_rebuild" ]; then
@@ -26,7 +27,7 @@ function kill_watcher {
 }
 
 function start_watcher {
-  stack exec watcher &
+  stack exec watcher "$last_unison_source" &
   haskell_pid=$!
   echo "Launched haskell watcher as pid $haskell_pid."
 }
@@ -48,14 +49,14 @@ go
 
 while IFS= read -r changed; do
   # echo "debug: $changed"
-  case $changed in
+  case "$changed" in
     NoOp)
       if [ -n "$sources_changed" ]; then
         sources_changed=
         go
       fi
       ;;
-    *.hs)
+    *.hs|*.cabal)
       echo "detected change in $changed"
       # hasktags -cx parser-typechecker
       haskell_needs_rebuild=x
@@ -66,5 +67,7 @@ while IFS= read -r changed; do
       scala_needs_rebuild=x
       sources_changed=x
       ;;
+    *.u|*.uu)
+      last_unison_source="$changed"
   esac
 done
