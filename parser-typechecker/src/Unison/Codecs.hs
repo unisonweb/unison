@@ -301,3 +301,4 @@ serializeFile (UnisonFile dataDecls effectDecls body) = do
   pos <- serializeTerm (ABT.rebuildUp' Components.minimize' body)
   putWord8 0
   putBackref pos
+

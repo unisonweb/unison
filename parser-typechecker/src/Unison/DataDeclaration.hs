@@ -6,8 +6,8 @@
 
 module Unison.DataDeclaration where
 
-import Data.Bifunctor (second)
-import Data.Functor
+import           Data.Bifunctor (second, first)
+import           Data.Functor
 import           Data.Map (Map, intersectionWith)
 import qualified Data.Map as Map
 import           Prelude hiding (cycle)
@@ -134,20 +134,25 @@ fromABT (ABT.AbsN' bound (
 fromABT a = error $ "ABT not of correct form to convert to DataDeclaration: " ++ show a
 
 -- Implementation detail of `hashDecls`, works with unannotated data decls
-hashDecls0 :: (Eq v, Var v)
-          => Map v (DataDeclaration' v ()) -> [(v, Reference, DataDeclaration' v ())]
+hashDecls0
+  :: (Eq v, Var v)
+  => Map v (DataDeclaration' v ())
+  -> Either [v] [(v, Reference, DataDeclaration' v ())]
 hashDecls0 decls =
-  reverse . snd . foldl f ([], []) $ components abts
-  where
-    f (m, newDecls) cycle =
-      let substed = second (ABT.substs m) <$> cycle
-          hs = second Reference.Derived <$> hash substed
-          newM = second toRef <$> hs
-          joined = intersectionWith (,) (Map.fromList hs) (Map.fromList substed)
-      in (newM ++ m,
-          [(v, r, fromABT d) | (v, (r, d)) <- Map.toList joined] ++ newDecls)
-    abts = second toABT <$> Map.toList decls
-    toRef = ABT.tm . Type . Type.Ref
+  reverse . snd . foldl f ([], []) <$> first (fmap fst) (components abts)
+ where
+  f (m, newDecls) cycle =
+    let
+      substed = second (ABT.substs m) <$> cycle
+      hs      = second Reference.Derived <$> hash substed
+      newM    = second toRef <$> hs
+      joined  = intersectionWith (,) (Map.fromList hs) (Map.fromList substed)
+    in
+      ( newM ++ m
+      , [ (v, r, fromABT d) | (v, (r, d)) <- Map.toList joined ] ++ newDecls
+      )
+  abts  = second toABT <$> Map.toList decls
+  toRef = ABT.tm . Type . Type.Ref
 
 -- | compute the hashes of these user defined types and update any free vars
 --   corresponding to these decls with the resulting hashes
@@ -155,13 +160,17 @@ hashDecls0 decls =
 --   data List a = Nil | Cons a (List a)
 --   becomes something like
 --   (List, #xyz, [forall a. #xyz a, forall a. a -> (#xyz a) -> (#xyz a)])
-hashDecls :: (Eq v, Var v)
-          => Map v (DataDeclaration' v a)
-          -> [(v, Reference, DataDeclaration' v a)]
-hashDecls decls = [(v,r,dd) | (v,r,_) <- hs, Just dd <- [Map.lookup v decls']]
-  where hs = hashDecls0 (void <$> decls)
-        decls' = bindDecls decls varToRef
-        varToRef = [(v,r) | (v,r,_) <- hs ]
+hashDecls
+  :: (Eq v, Var v)
+  => Map v (DataDeclaration' v a)
+  -> Either [v] [(v, Reference, DataDeclaration' v a)]
+hashDecls decls = go <$> hs
+ where
+  go hs =
+    let decls'   = bindDecls decls varToRef
+        varToRef = [ (v, r) | (v, r, _) <- hs ]
+    in  [ (v, r, dd) | (v, r, _) <- hs, Just dd <- [Map.lookup v decls'] ]
+  hs = hashDecls0 (void <$> decls)
 
 bindDecls :: Var v => Map v (DataDeclaration' v a) -> [(v, Reference)] -> Map v (DataDeclaration' v a)
 bindDecls decls refs = bindBuiltins refs <$> decls
