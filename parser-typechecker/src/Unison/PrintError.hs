@@ -227,6 +227,13 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
           ] ++ (solvedVars >>= go)
       Nothing -> []
       _other -> [fromString $ "fVarInfo = " ++ show _other ++ "\n"] -- forget it
+    ++ (debugNoteLoc
+        [ "\nloc debug:"
+        , AT.Text $ Color.errorSite "\n             f: ", fromString $ annotatedToEnglish f
+        , AT.Text $ Color.type2     "\n     foundType: ", fromString $ annotatedToEnglish foundType
+        , AT.Text $ Color.type1     "\n  expectedType: ", fromString $ annotatedToEnglish expectedType
+        -- , "\n   expectedLoc: ", fromString $ annotatedToEnglish expectedLoc
+        ])
     ++ debugSummary note
   Mismatch {..} ->
     -- [ (fromString . annotatedToEnglish) mismatchSite
