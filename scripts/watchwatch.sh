@@ -10,5 +10,6 @@ assert_command_exists stack
 assert_command_exists sbt
 assert_command_exists scala
 assert_command_exists fswatch
+assert_command_exists bloop
 
 fswatch --batch . | "`dirname $0`/execwatch.sh" "$1"
