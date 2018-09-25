@@ -10,7 +10,6 @@ import           Data.Functor                  (void)
 import           Data.Maybe                    (catMaybes)
 import           Prelude                       hiding (all, and, or)
 import qualified Unison.ABT                    as ABT
-import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.Typechecker.Context    as C
 import qualified Unison.Typechecker.Extractor  as Ex
@@ -44,11 +43,13 @@ data TypeError v loc
                         , note                   :: C.Note v loc
                         }
   | FunctionApplication { f            :: C.Term v loc
-                        , argNum       :: Int
-                        , expectedType :: C.Type v loc
-                        , foundType    :: C.Type v loc
+                        , ft           :: C.Type v loc
                         , arg          :: C.Term v loc
-                        , fVarInfo     :: Maybe (C.Type v loc, [(v, C.Type v loc)])
+                        , argNum       :: Int
+                        , foundType    :: C.Type v loc
+                        , expectedType :: C.Type v loc
+                        , leafs        :: Maybe (C.Type v loc, C.Type v loc) -- found, expected
+                        , solvedVars   :: [(v, C.Type v loc)]
                         , note         :: C.Note v loc
                         }
   | NotFunctionApplication { f    :: C.Term v loc
@@ -210,28 +211,20 @@ applyingNonFunction = do
 applyingFunction :: forall v loc. Eq v => Ex.NoteExtractor v loc (TypeError v loc)
 applyingFunction = do
   n <- Ex.note
-  (f, index, expectedType, foundType, arg, fPoly) <- do
-    ctx <- Ex.typeMismatch
-    Ex.unique $ do
-      Ex.pathStart
-      subtypes <- Ex.some Ex.inSubtype
-      -- head call is safe because Ex.some should only succeed on nonnull output
-      let (foundType, expectedType) = head subtypes
-      (arg, _) <- Ex.inCheck
-      (_, _, argNum) <- Ex.inSynthesizeApp
-      (typeVars, f, _ft, _args) <- Ex.inFunctionCall
-      let polymorphicTypeInfo :: Maybe (C.Type v loc, [(v, C.Type v loc)])
-          polymorphicTypeInfo = case f of
-            Term.Var' v -> do
-              rawType <- C.lookupAnn ctx v
-              let go :: v -> Maybe (v, C.Type v loc)
-                  go v = (v,) . Type.getPolytype <$> C.lookupSolved ctx v
-                  solvedVars = catMaybes (go <$> typeVars)
-              pure (rawType, solvedVars)
-
-            -- Term.Ref' r -> lookup the type
-            -- Term.Builtin' r -> lookup the type
-
-            _ -> Nothing
-      pure (f, argNum, expectedType, foundType, arg, polymorphicTypeInfo)
-  pure $ FunctionApplication f index expectedType foundType arg fPoly n
+  ctx <- Ex.typeMismatch
+  Ex.unique $ do
+    Ex.pathStart
+    subtypes <- Ex.some Ex.inSubtype
+    let found, expected :: C.Type v loc
+        leafs :: Maybe (C.Type v loc, C.Type v loc)
+        ((found, expected), leafs) = case subtypes of
+          [] -> error "unpossible: Ex.some should only succeed on nonnull output"
+          [roots] -> (roots, Nothing)
+          _ -> (last subtypes, Just $ head subtypes)
+    (arg, _) <- Ex.inCheck
+    (_, _, argIndex) <- Ex.inSynthesizeApp
+    (typeVars, f, ft, _args) <- Ex.inFunctionCall
+    let go :: v -> Maybe (v, C.Type v loc)
+        go v = (v,) . Type.getPolytype <$> C.lookupSolved ctx v
+        solvedVars = catMaybes (go <$> typeVars)
+    pure $ FunctionApplication f ft arg argIndex found expected leafs solvedVars n
