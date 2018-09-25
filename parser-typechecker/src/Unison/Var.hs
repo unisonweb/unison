@@ -36,6 +36,32 @@ class (Show v, Eq v, Ord v) => Var v where
   freshIn :: Set v -> v -> v
   freshenId :: Word -> v -> v
 
+type Kind = String
+
+kind :: Var v => v -> Kind
+kind v = case Text.unpack (name v) of
+  ':' : tl -> takeWhile (/= ':') tl
+  _ -> ""
+
+rekind :: Var v => Kind -> v -> v
+rekind "" v = v
+rekind k v  = rename (Text.pack $ k ++ (Text.unpack $ name v)) v
+
+missingResult :: Var v => v -> v
+missingResult = rekind ":missing-result:"
+
+askInfo :: Var v => v -> v
+askInfo = rekind ":info:"
+
+unknown :: Var v => v -> v
+unknown = rekind ""
+
+unknownK :: Kind
+unknownK = ""
+
+isKind :: Var v => (v -> v) -> v -> Bool
+isKind f v = kind (f $ named "-") == kind v
+
 nameds :: Var v => String -> v
 nameds s = named (Text.pack s)
 

@@ -207,10 +207,15 @@ vector p = f <$> reserved "[" <*> elements <*> reserved "]"
     f open elems close = Term.vector (ann open <> ann close) elems
 
 termLeaf :: forall v. Var v => TermP v
-termLeaf =
-  asum [hashLit, prefixTerm, text, number, boolean,
-        tupleOrParenthesizedTerm, keywordBlock, placeholder, vector term,
-        delayQuote, bang]
+termLeaf = do
+  e <- asum [hashLit, prefixTerm, text, number, boolean,
+             tupleOrParenthesizedTerm, keywordBlock, placeholder, vector term,
+             delayQuote, bang]
+  q <- optional (reserved "?")
+  case q of
+    Nothing -> pure e
+    Just q  -> pure $
+      Term.app (ann q <> ann e) (Term.var (ann e) (positionalVar q Var.askInfo)) e
 
 delayQuote :: Var v => TermP v
 delayQuote = P.label "quote" $ do
@@ -385,23 +390,19 @@ block' s openBlock closeBlock = do
       let startAnnotation = (fst . fst . head $ toBindings =<< bs)
           endAnnotation = (fst . fst . last $ toBindings =<< bs)
       in case reverse bs of
-        Namespace _ _ : _ ->
-          customFailure $ BlockMustEndWithExpression
-                            startAnnotation
-                            endAnnotation
-        Binding _watchNote ((a, v), _) : _ ->
+        Namespace _v _ : _ ->
           pure $ Term.letRec (startAnnotation <> endAnnotation)
                              (finishBindings $ toBindings =<< bs)
-                             (Term.var a (Var.named $ (Text.pack missingResult) `mappend` Var.name v))
+                             (Term.var endAnnotation (positionalVar endAnnotation Var.missingResult))
+        Binding _watchNote ((a, _v), _) : _ ->
+          pure $ Term.letRec (startAnnotation <> endAnnotation)
+                             (finishBindings $ toBindings =<< bs)
+                             (Term.var a (positionalVar endAnnotation Var.missingResult))
         Action watchNote e : bs ->
           pure $ Term.letRec (startAnnotation <> ann e)
                              (finishBindings $ toBindings =<< reverse bs)
                              (Term.watchMaybe watchNote e)
         [] -> customFailure $ EmptyBlock (const s <$> open)
-
--- hack: special variable name used if user gives a block with no result
-missingResult :: String
-missingResult =":missing-result"
 
 number :: Var v => TermP v
 number = number' (tok Term.int) (tok Term.nat) (tok Term.float)
