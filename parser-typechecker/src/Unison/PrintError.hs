@@ -10,8 +10,10 @@
 module Unison.PrintError where
 
 -- import           Unison.Parser              (showLineCol)
+-- import           Unison.Util.Monoid         (whenM)
 import qualified Data.Char                  as Char
 import           Data.Foldable
+import           Data.List (intersperse)
 import qualified Data.List.NonEmpty         as Nel
 import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
@@ -22,6 +24,7 @@ import qualified Data.Set                   as Set
 import           Data.String                (IsString, fromString)
 import qualified Data.Text                  as Text
 import           Data.Void                  (Void)
+import           Debug.Trace
 import qualified Text.Megaparsec            as P
 import qualified Unison.ABT                 as ABT
 import qualified Unison.Blank               as B
@@ -34,18 +37,16 @@ import qualified Unison.Reference           as R
 import           Unison.Result              (Note (..))
 import qualified Unison.Settings            as Settings
 import qualified Unison.Type                as Type
+import qualified Unison.TypeVar             as TypeVar
 import qualified Unison.Typechecker.Context as C
 import           Unison.Typechecker.TypeError
-import qualified Unison.TypeVar             as TypeVar
 import qualified Unison.Util.AnnotatedText  as AT
 import           Unison.Util.ColorText      (StyledText)
 import qualified Unison.Util.ColorText      as Color
 import           Unison.Util.Monoid         (intercalateMap)
--- import           Unison.Util.Monoid         (whenM)
 import           Unison.Util.Range          (Range (..))
 import           Unison.Var                 (Var)
 import qualified Unison.Var                 as Var
-import Debug.Trace
 
 data Env = Env { referenceNames   :: Map R.Reference String
                , constructorNames :: Map (R.Reference, Int) String }
@@ -485,6 +486,11 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
         , "  typ=", AT.Text . renderType' env $ typ
         , "  args=", fromString $ show args
         ]
+      C.DuplicateDefinitions vs ->
+        ("DuplicateDefinitions:" :
+            (Nel.toList vs >>= (\(v,locs) ->
+              ["[", fromString (show v)] <>
+                (intersperse " : " $ annotatedToEnglish <$> locs) ++ ["]"])))
 
 renderContext :: (Var v, Ord a) => Env -> C.Context v a -> AT.AnnotatedText (Maybe b)
 renderContext env ctx@(C.Context es) =
@@ -697,7 +703,8 @@ prettyParseError s = \case
       , "binding after it.  Could it be a spelling mismatch?\n"
       , tokenAsErrorSite s tok
       ]
-     -- we would include the last binding term if we didn't have to have an Ord instance for it
+     -- we would include the last binding term if we didn't have to have an Ord
+     -- instance for it
     go (Parser.BlockMustEndWithExpression blockAnn lastBindingAnn) =
       [ "The last line of the block starting at "
       , fromString . (fmap Char.toLower) . annotatedToEnglish $ blockAnn, "\n"
