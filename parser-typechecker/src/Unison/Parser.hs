@@ -72,7 +72,6 @@ data Error v
   | EmptyBlock (L.Token String)
   | UnknownEffectConstructor (L.Token String)
   | UnknownDataConstructor (L.Token String)
-  | DuplicateDefinitions [L.Token String]
   deriving (Show, Eq, Ord)
 
 data Ann

@@ -13,8 +13,7 @@ module Unison.PrintError where
 -- import           Unison.Util.Monoid         (whenM)
 import qualified Data.Char                  as Char
 import           Data.Foldable
-import           Data.Function (on)
-import           Data.List (groupBy, sortBy)
+import           Data.List (intersperse)
 import qualified Data.List.NonEmpty         as Nel
 import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
@@ -488,8 +487,10 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
         , "  args=", fromString $ show args
         ]
       C.DuplicateDefinitions vs ->
-        fromString <$> [ "DuplicateDefinitions:" ] ++
-          (Nel.toList $ fmap (\(v,locs) -> show v ++ show (annotatedToEnglish =<< locs)) vs)
+        ("DuplicateDefinitions:" :
+            (Nel.toList vs >>= (\(v,locs) ->
+              ["[", fromString (show v)] <>
+                (intersperse " : " $ annotatedToEnglish <$> locs) ++ ["]"])))
 
 renderContext :: (Var v, Ord a) => Env -> C.Context v a -> AT.AnnotatedText (Maybe b)
 renderContext env ctx@(C.Context es) =
@@ -702,16 +703,6 @@ prettyParseError s = \case
       , "binding after it.  Could it be a spelling mismatch?\n"
       , tokenAsErrorSite s tok
       ]
-    go (Parser.DuplicateDefinitions toks) =
-      let m = groupBy ((==) `on` L.payload) . sortBy (on compare L.payload) $ toks
-      in  m >>= (\toks ->
-                  [ "The name "
-                    , fromString . L.payload $ head toks
-                    , " is defined in "
-                    , fromString . show $ length toks
-                    , " places in the same block:\n"
-                    ]
-                    ++ (tokenAsErrorSite s <$> toks))
      -- we would include the last binding term if we didn't have to have an Ord
      -- instance for it
     go (Parser.BlockMustEndWithExpression blockAnn lastBindingAnn) =
