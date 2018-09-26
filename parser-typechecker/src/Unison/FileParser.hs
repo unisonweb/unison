@@ -40,10 +40,9 @@ file builtinTerms builtinTypes = do
   _ <- openBlock
   (dataDecls, effectDecls) <- declarations
   let env = environmentFor builtinTerms builtinTypes dataDecls effectDecls
-      ctorLookup0 :: Map.Map String (Reference, Int)
       ctorLookup0 = UF.constructorLookup env `mappend` Map.fromList
-        [ (Text.unpack $ Var.name v, (r,cid)) |
-          (v, Term.RequestOrCtor' r cid) <- builtinTerms ]
+            [ (Text.unpack $ Var.name v, (r,cid)) |
+              (v, Term.RequestOrCtor' r cid) <- builtinTerms ]
   local (PEnv ctorLookup0 (Map.fromList builtinTypes) `mappend`) $ do
     term <- terminateTerm <$> TermParser.block' "top-level block"
               (void <$> peekAny) -- we actually opened before the declarations
@@ -59,7 +58,6 @@ file builtinTerms builtinTypes = do
         newConstructorNames =
           (Map.fromList . fmap swap . Map.toList) ctorLookup0
         getName (v,r) = (r, (Text.unpack . Var.shortName) v)
-
     pure (PrintError.Env newReferenceNames newConstructorNames, unisonFile)
 
 terminateTerm :: Var v => AnnotatedTerm v Ann -> AnnotatedTerm v Ann

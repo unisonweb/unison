@@ -290,14 +290,29 @@ serializeConstructorArities r constructorArities = do
   serializeReference r
   serializeFoldable (putWord32be . fromIntegral) constructorArities
 
-serializeFile :: (MonadPut m, MonadState Pos m, Var v) => UnisonFile v a -> m ()
+serializeFile
+  :: (MonadPut m, MonadState Pos m, Var v, Show a) => UnisonFile v a -> m ()
 serializeFile (UnisonFile dataDecls effectDecls body) = do
   let dataDecls' = second DD.constructorArities <$> toList dataDecls
-  let effectDecls' = second (DD.constructorArities . DD.toDataDecl) <$> toList effectDecls
+  let effectDecls' =
+        second (DD.constructorArities . DD.toDataDecl) <$> toList effectDecls
   serializeFoldable (uncurry serializeConstructorArities) dataDecls'
   serializeFoldable (uncurry serializeConstructorArities) effectDecls'
   -- NB: we rewrite the term to minimize away let rec cycles, as let rec
   -- blocks aren't allowed to have effects
-  pos <- serializeTerm (ABT.rebuildUp' Components.minimize' body)
+  pos <- serializeTerm
+    (ABT.rebuildUp'
+      ( either
+          (\e ->
+            error
+              (  "The Unison file is malformed. It has duplicate bindings "
+              ++ show e
+              )
+          )
+          id
+      . Components.minimize'
+      )
+      body
+    )
   putWord8 0
   putBackref pos

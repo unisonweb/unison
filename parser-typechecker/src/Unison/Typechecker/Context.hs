@@ -38,6 +38,7 @@ import           Data.Foldable (for_)
 import qualified Data.Foldable as Foldable
 import           Data.Functor
 import           Data.List
+import           Data.List.NonEmpty (NonEmpty)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Maybe
@@ -153,7 +154,10 @@ data Cause v loc
   | EffectConstructorWrongArgCount ExpectedArgCount ActualArgCount Reference ConstructorId
   | MalformedEffectBind (Type v loc) (Type v loc) [Type v loc] -- type of ctor, type of ctor result
   | SolvedBlank (B.Recorded loc) v (Type v loc)
-  | PatternArityMismatch loc (Type v loc) Int -- Type of ctor, number of arguments we got
+  -- Type of ctor, number of arguments we got
+  | PatternArityMismatch loc (Type v loc) Int
+  -- A variable is defined twice in the same block
+  | DuplicateDefinitions (NonEmpty (v, [loc]))
   deriving Show
 
 errorTerms :: Note v loc -> [Term v loc]
@@ -597,10 +601,13 @@ vectorConstructorOfArity arity = do
 -- | Figure 11 from the paper
 synthesize :: forall v loc . (Var v, Ord loc) => Term v loc -> M v loc (Type v loc)
 synthesize e | debugEnabled && traceShow ("synthesize"::String, e) False = undefined
-synthesize e = scope (InSynthesize e) $ do
-  Type.Effect'' es t <- go (minimize' e)
-  abilityCheck es
-  pure t
+synthesize e = scope (InSynthesize e) $
+  case minimize' e of
+    Left es -> failWith (DuplicateDefinitions es)
+    Right e -> do
+      Type.Effect'' es t <- go e
+      abilityCheck es
+      pure t
   where
   l = loc e
   go :: (Var v, Ord loc) => Term v loc -> M v loc (Type v loc)
@@ -916,12 +923,15 @@ check e0 t0 = scope (InCheck e0 t0) $ do
   ctx <- getContext
   let Type.Effect'' es t = t0
   let e                  = minimize' e0
-  if wellformedType ctx t0
-    then case t of
-         -- expand existentials before checking
-      t@(Type.Existential' _ _) -> abilityCheck es >> go e (apply ctx t)
-      t                         -> go e t
-    else failWith $ IllFormedType ctx
+  case e of
+    Left e -> failWith $ DuplicateDefinitions e
+    Right e ->
+      if wellformedType ctx t0
+        then case t of
+             -- expand existentials before checking
+          t@(Type.Existential' _ _) -> abilityCheck es >> go e (apply ctx t)
+          t                         -> go e t
+        else failWith $ IllFormedType ctx
  where
   go :: Term v loc -> Type v loc -> M v loc ()
   go e (Type.Forall' body) = do -- ForallI
