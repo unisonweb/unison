@@ -6,11 +6,13 @@
 
 module Unison.TermPrinter where
 
---import           Data.List
+import           Data.List
 import           Data.Text (Text)
 import qualified Data.Text as Text
---import           Data.Foldable (fold)
---import           Data.Maybe (isJust)
+import           Data.Foldable (fold, toList)
+import           Data.Maybe (fromMaybe)
+import           Data.Vector()
+import qualified Unison.Blank as Blank
 import           Unison.Reference (Reference(..))
 import           Unison.Term
 import           Unison.Var (Var)
@@ -21,26 +23,29 @@ import           Unison.Util.PrettyPrint (PrettyPrint(..))
 pretty :: Var v => (Reference -> Text) -> Int -> AnnotatedTerm v a -> PrettyPrint String
 -- p is the operator precedence of the enclosing context (a number from 0 to 11, or
 -- -1 to avoid outer parentheses unconditionally).  Function application has precedence 10.
-pretty n _ = \case
+pretty n p = \case
   Var' v       -> l $ Text.unpack (Var.name v)
   Ref' r       -> l $ Text.unpack (n r)
   Cycle' _ _   -> l"todo"
   Abs' _       -> l"todo"
   Ann' _ _     -> l"todo"
-  Int64' n     -> l $ show n   -- todo
-  UInt64' n    -> l $ show n   -- todo
-  Float' n     -> l $ show n   -- todo
-  Boolean' b   -> l $ show b   -- todo
-  Text' s      -> l $ show s   -- todo
-  Blank' _     -> l"todo"   -- todo
+  Int64' i     -> (if i >= 0 then l"+" else Empty) <> (l $ show i)
+  UInt64' u    -> l $ show u
+  Float' f     -> l $ show f   -- TODO check this will always contain a '.'
+  Boolean' b   -> if b then l"true" else l"false"
+  Text' s      -> l $ show s   -- TODO check show escapes ", in the same way as Unison
+  Blank' id    -> l"_" <> (l $ fromMaybe "" (Blank.nameb id))
   Constructor' ref n -> l $ (show ref <> show n)   -- todo
   Request' ref n -> l $ (show ref <> show n)   -- todo
   Handle' h body -> l $ (show h <> show body)   -- todo
   Apps' f args -> l $ (show f <> show args)   -- todo
-  Vector' xs   -> l $ show xs   -- todo
-  If' cond t f -> l $ (show cond <> show t <> show f)   -- todo
-  And' x y     -> l $ (show x <> show y)   -- todo
-  Or' x y      -> l $ (show x <> show y)   -- todo
+  Vector' xs   -> PP.Nest " " $ PP.Group $ l"[" <> commaList (toList xs) <> l"]"
+  If' cond t f -> parenNest (p >= 42) $ PP.Group $
+                    (PP.Group (l"if" <> b" " <> (parenNest (p >= 42) $ pretty n 42 cond)) <> b" " <>
+                     PP.Group (l"then" <> b" " <> (parenNest (p >= 42) $ pretty n 42 t)) <> b" " <>
+                     PP.Group (l"else" <> b" " <> (parenNest (p >= 42) $ pretty n 42 f)))
+  And' x y     -> parenNest (p >= 42) $ PP.Group $ l"and" <> b" " <> pretty n 42 x <> b" " <> pretty n 42 y
+  Or' x y      -> parenNest (p >= 42) $ PP.Group $ l"or" <> b" " <> pretty n 42 x <> b" " <> pretty n 42 y
   LamNamed' v body -> l $ (show v <> show body)   -- todo
   LetRecNamed' bs e -> l $ (show bs <> show e)   -- todo
   Lets' bs e -> l $ (show bs <> show e)   -- todo
@@ -61,17 +66,17 @@ pretty n _ = \case
   EffectfulArrows' (Ref' (Builtin "()")) rest -> arrows True True rest
   EffectfulArrows' fst rest -> parenNest (p >= 0) $ pretty n 0 fst <> arrows False False rest
   _ -> l"error" -}
-  where {-commaList xs = fold $ intersperse (l"," <> b" ") (map (pretty n 0) xs)
+  where commaList xs = fold $ intersperse (l"," <> b" ") (map (pretty n 0) xs)
 
-        appArgs (x : xs) = b" " <> pretty n 10 x <> appArgs xs
-        appArgs [] = Empty
+        {-appArgs (x : xs) = b" " <> pretty n 10 x <> appArgs xs
+        appArgs [] = Empty -}
 
         paren True s = PP.Group $ l"(" <> s <> l")"
         paren False s = PP.Group s
 
-        parenNest useParen contents = PP.Nest " " $ paren useParen contents -}
+        parenNest useParen contents = PP.Nest " " $ paren useParen contents
         l = Literal
-        --b = Breakable
+        b = Breakable
 
 pretty' :: Var v => (Reference -> Text) -> AnnotatedTerm v a -> String
 pretty' n t = PP.renderUnbroken $ pretty n (-1) t

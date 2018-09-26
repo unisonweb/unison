@@ -51,6 +51,11 @@ tc_breaks s width expected = tc_diff_rtt True s expected width
 
 test :: Test ()
 test = scope "termprinter" . tests $
-  [ tc "42"
-
+  [ tc "if true then +2 else -2"
+  , tc "[2, 3, 4]"
+  , tc "and true false"
+  , tc "or false false"
+  , tc "if _something then _foo else _"
+  , tc "3.14159"
+  , tc "\"some text\""
   ]
