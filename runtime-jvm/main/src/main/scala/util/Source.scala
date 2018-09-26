@@ -176,9 +176,10 @@ object Source {
       bb.put(unread)
       while (bb.remaining() > 0 && remainingNeeded > 0) {
         val oldSpace = bb.remaining()
-        onEmpty(bb)
+        val more = onEmpty(bb)
         val newSpace = bb.remaining()
         remainingNeeded -= oldSpace - newSpace
+        if (!more && remainingNeeded > 0) throw Underflow()
       }
       bb.flip()
     }

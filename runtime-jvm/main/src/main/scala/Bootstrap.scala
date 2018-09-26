@@ -61,7 +61,12 @@ object BootstrapStream {
       }
     while(true) {
       val wrangle = false
-      val t = normalizedFromBinarySource(Source.fromSocketChannel(channel))
+      val t =
+        try normalizedFromBinarySource(Source.fromSocketChannel(channel))
+        catch { case Source.Underflow() =>
+          println("Shutting down runtime.")
+          return ()
+        }
       if (wrangle) {
         // serialize term back to the channel
         val serialized = Codecs.encodeTerm(t)
