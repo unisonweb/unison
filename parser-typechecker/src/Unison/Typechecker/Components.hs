@@ -2,7 +2,6 @@ module Unison.Typechecker.Components (components, minimize, minimize') where
 
 import           Data.Bifunctor (first, second)
 import qualified Data.Graph as Graph
-import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Maybe
 import           Data.Set (Set)
@@ -13,8 +12,8 @@ import qualified Unison.Term as Term
 import           Unison.Var (Var)
 
 components
-  :: Var v => Map v (ABT.Term f v a) -> [[(v, ABT.Term f v a)]]
-components = components' ABT.freeVars
+  :: Var v => [(v, ABT.Term f v a)] -> Either [(v,a)] [[(v, ABT.Term f v a)]]
+components = first (fmap (second ABT.annotation)) . components' ABT.freeVars
 
 -- | Order bindings by dependencies and group into components.
 -- Each component consists of > 1 bindings, each of which depends
@@ -45,19 +44,22 @@ components = components' ABT.freeVars
 --
 -- Uses Tarjan's algorithm:
 --   https://en.wikipedia.org/wiki/Tarjan%27s_strongly_connected_components_algorithm
-components' :: Var v => (t -> Set v) -> Map v t -> [[(v, t)]]
+components' :: Var v => (t -> Set v) -> [(v, t)] -> Either [(v,t)] [[(v, t)]]
 components' freeVars bs =
   let varIds =
-        Map.fromList (Map.keys bs `zip` reverse [(1 :: Int) .. length bs])
+        Map.fromList (map fst bs `zip` reverse [(1 :: Int) .. length bs])
       -- something horribly wrong if this bombs
       varId v = fromJust $ Map.lookup v varIds
 
       -- use ints as keys for graph to preserve original source order as much as
       -- possible
-      graph = [ ((v, b), varId v, deps b) | (v, b) <- Map.toList bs ]
-      vars  = Map.keysSet bs
+      graph = [ ((v, b), varId v, deps b) | (v, b) <- bs ]
+      vars  = Set.fromList (map fst bs)
       deps b = varId <$> Set.toList (Set.intersection vars (freeVars b))
-  in Graph.flattenSCC <$> Graph.stronglyConnComp graph
+  in  if Map.size varIds /= length bs
+        then
+          Left $ filter (\(n,_) -> length (filter (== n) (fst <$> bs)) > 1) bs
+        else return $ Graph.flattenSCC <$> Graph.stronglyConnComp graph
 
 -- | Algorithm for minimizing cycles of a `let rec`. This can
 -- improve generalization during typechecking and may also be more
