@@ -178,6 +178,8 @@ freeTypeVars t = go t where
 -- nicer pattern syntax
 
 pattern Var' v <- ABT.Var' v
+pattern Cycle' xs t <- ABT.Cycle' xs t
+pattern Abs' subst <- ABT.Abs' subst
 pattern Int' n <- (ABT.out -> ABT.Tm (Int n))
 pattern Nat' n <- (ABT.out -> ABT.Tm (Nat n))
 pattern Float' n <- (ABT.out -> ABT.Tm (Float n))

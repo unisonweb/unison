@@ -69,9 +69,10 @@ library
     Unison.Symbol
     Unison.Term
     Unison.TermParser
+    Unison.TermPrinter
     Unison.Type
-    Unison.TypePrinter
     Unison.TypeParser
+    Unison.TypePrinter
     Unison.TypeVar
     Unison.Typechecker
     Unison.Typechecker.Context
@@ -173,6 +174,7 @@ executable tests
     Unison.Test.Lexer
     Unison.Test.Range
     Unison.Test.TermParser
+    Unison.Test.TermPrinter
     Unison.Test.Type
     Unison.Test.TypePrinter
     Unison.Test.Typechecker
