@@ -461,7 +461,7 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
         ]
       C.DuplicateDefinitions vs ->
         fromString <$> [ "DuplicateDefinitions:" ] ++
-          fmap (\(v,loc) -> show v ++ annotatedToEnglish loc) vs
+          (Nel.toList $ fmap (\(v,locs) -> show v ++ show (annotatedToEnglish =<< locs)) vs)
 
 renderContext :: (Var v, Ord a) => Env -> C.Context v a -> AT.AnnotatedText (Maybe b)
 renderContext env ctx@(C.Context es) =

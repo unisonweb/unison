@@ -6,7 +6,7 @@
 
 module Unison.DataDeclaration where
 
-import           Data.Bifunctor (second, first)
+import           Data.Bifunctor (second)
 import           Data.Functor
 import           Data.Map (Map, intersectionWith)
 import qualified Data.Map as Map
@@ -138,8 +138,7 @@ hashDecls0
   :: (Eq v, Var v)
   => Map v (DataDeclaration' v ())
   -> [(v, Reference, DataDeclaration' v ())]
-hashDecls0 decls =
-  reverse . snd . foldl f ([], []) <$> first (fmap fst) (components abts)
+hashDecls0 decls = reverse . snd . foldl f ([], []) $ components abts
  where
   f (m, newDecls) cycle =
     let
@@ -164,13 +163,11 @@ hashDecls
   :: (Eq v, Var v)
   => Map v (DataDeclaration' v a)
   -> [(v, Reference, DataDeclaration' v a)]
-hashDecls decls = go <$> hs
- where
-  go hs =
-    let decls'   = bindDecls decls varToRef
-        varToRef = [ (v, r) | (v, r, _) <- hs ]
-    in  [ (v, r, dd) | (v, r, _) <- hs, Just dd <- [Map.lookup v decls'] ]
-  hs = hashDecls0 (void <$> decls)
+hashDecls decls =
+  let hs       = hashDecls0 (void <$> decls)
+      decls'   = bindDecls decls varToRef
+      varToRef = [ (v, r) | (v, r, _) <- hs ]
+  in  [ (v, r, dd) | (v, r, _) <- hs, Just dd <- [Map.lookup v decls'] ]
 
 bindDecls :: Var v => Map v (DataDeclaration' v a) -> [(v, Reference)] -> Map v (DataDeclaration' v a)
 bindDecls decls refs = bindBuiltins refs <$> decls

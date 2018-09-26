@@ -39,29 +39,26 @@ file :: forall v . Var v
 file builtinTerms builtinTypes = do
   _ <- openBlock
   (dataDecls, effectDecls) <- declarations
-  case environmentFor builtinTerms builtinTypes dataDecls effectDecls of
-    Left es -> error $ "Duplicate bindings in builtins: " ++ show es
-    Right env -> do
-      let ctorLookup0 = UF.constructorLookup env `mappend` Map.fromList
+  let env = environmentFor builtinTerms builtinTypes dataDecls effectDecls
+      ctorLookup0 = UF.constructorLookup env `mappend` Map.fromList
             [ (Text.unpack $ Var.name v, (r,cid)) |
               (v, Term.RequestOrCtor' r cid) <- builtinTerms ]
-      local (PEnv ctorLookup0 (Map.fromList builtinTypes) `mappend`) $ do
-        term <- terminateTerm <$> TermParser.block' "top-level block"
-                  (void <$> peekAny) -- we actually opened before the declarations
-                  closeBlock
-        let unisonFile = UnisonFile
-                          (UF.datas env)
-                          (UF.effects env)
-                          (UF.resolveTerm env term)
-            newReferenceNames :: Map Reference String
-            newReferenceNames =
-              (Map.fromList . fmap getName . Map.toList) (UF.typesByName env)
-            newConstructorNames :: Map (Reference, Int) String
-            newConstructorNames =
-              (Map.fromList . fmap swap . Map.toList) ctorLookup0
-            getName (v,r) = (r, (Text.unpack . Var.shortName) v)
-
-        pure (PrintError.Env newReferenceNames newConstructorNames, unisonFile)
+  local (PEnv ctorLookup0 (Map.fromList builtinTypes) `mappend`) $ do
+    term <- terminateTerm <$> TermParser.block' "top-level block"
+              (void <$> peekAny) -- we actually opened before the declarations
+              closeBlock
+    let unisonFile = UnisonFile
+                      (UF.datas env)
+                      (UF.effects env)
+                      (UF.resolveTerm env term)
+        newReferenceNames :: Map Reference String
+        newReferenceNames =
+          (Map.fromList . fmap getName . Map.toList) (UF.typesByName env)
+        newConstructorNames :: Map (Reference, Int) String
+        newConstructorNames =
+          (Map.fromList . fmap swap . Map.toList) ctorLookup0
+        getName (v,r) = (r, (Text.unpack . Var.shortName) v)
+    pure (PrintError.Env newReferenceNames newConstructorNames, unisonFile)
 
 terminateTerm :: Var v => AnnotatedTerm v Ann -> AnnotatedTerm v Ann
 terminateTerm e@(Term.LetRecNamedAnnotated' a bs body@(Term.Var' v))

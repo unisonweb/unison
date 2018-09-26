@@ -38,6 +38,7 @@ import           Data.Foldable (for_)
 import qualified Data.Foldable as Foldable
 import           Data.Functor
 import           Data.List
+import           Data.List.NonEmpty (NonEmpty)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Maybe
@@ -153,8 +154,10 @@ data Cause v loc
   | EffectConstructorWrongArgCount ExpectedArgCount ActualArgCount Reference ConstructorId
   | MalformedEffectBind (Type v loc) (Type v loc) [Type v loc] -- type of ctor, type of ctor result
   | SolvedBlank (B.Recorded loc) v (Type v loc)
-  | PatternArityMismatch loc (Type v loc) Int -- Type of ctor, number of arguments we got
-  | DuplicateDefinitions [(v, loc)] -- A variable is defined twice in the same block
+  -- Type of ctor, number of arguments we got
+  | PatternArityMismatch loc (Type v loc) Int
+  -- A variable is defined twice in the same block
+  | DuplicateDefinitions (NonEmpty (v, [loc]))
   deriving Show
 
 errorTerms :: Note v loc -> [Term v loc]
