@@ -2,7 +2,7 @@
 -- A simple distributed computation ability
 ability Remote where
 
-  -- Spawn a new node, of type `n`
+  -- Spawn a new node
   spawn : {Remote} Node
 
   -- Sequentially evaluate the given thunk on another node
