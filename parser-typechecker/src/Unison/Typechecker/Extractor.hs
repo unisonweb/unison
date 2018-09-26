@@ -48,7 +48,7 @@ data SubseqExtractor' n a =
 data Ranged a
   = Pure a
   | Ranged { get :: a, start :: Int, end :: Int }
-  deriving (Functor, Ord, Eq, Show)
+  deriving (Functor, Show)
 
 -- | collects the regions where `xa` doesn't match / aka invert a set of intervals
 -- unused, but don't want to delete it yet - Aug 30, 2018
@@ -87,26 +87,42 @@ _any' getLast = SubseqExtractor' $ \note -> Pure () : do
   pure $ Ranged () start end
 
 
--- unused / untested -- almost definitely wrong
-many :: forall n a. Ord a => SubseqExtractor' n a -> SubseqExtractor' n [a]
-many xa = SubseqExtractor' $ \note ->
-  let as = runSubseq xa note in fmap reverse <$> toList (go Set.empty as)
+-- Kind of a newtype for Ranged.Ranged.
+-- The Eq instance ignores the embedded value
+data DistinctRanged a = DistinctRanged a Int Int
+instance Eq (DistinctRanged a) where
+  DistinctRanged _ l r == DistinctRanged _ l' r' = l == l' && r == r'
+instance Ord (DistinctRanged a) where
+  DistinctRanged _ l r <= DistinctRanged _ l' r' =
+    l < l' || (l == l' && r <= r')
+
+some :: forall n a. SubseqExtractor' n a -> SubseqExtractor' n [a]
+some xa = SubseqExtractor' $ \note ->
+  let as :: [Ranged a]
+      as = runSubseq xa note
+  -- Given a list of subseqs [Ranged a], find the adjacent groups [Ranged [a]].
+  -- `Pure`s arguably can't be adjacent; not sure what to do with them. Currently ignored.
+  in fmap reverse <$> go Set.empty as
   where
-    -- why is this a set
-    go :: Set (Ranged [a]) -> [Ranged a] -> Set (Ranged [a])
-    go seen [] = seen
+    fromDistinct (DistinctRanged a l r) = Ranged a l r
+    go :: Set (DistinctRanged [a]) -> [Ranged a] -> [Ranged [a]]
+    go seen [] = fmap fromDistinct . toList $ seen
     go seen (rh@(Ranged h start end) : t) =
-      let seen' :: Set (Ranged [a])
-          seen' = Set.fromList . join . fmap (toList . go' rh) . toList $ seen
-      in go (Set.insert (Ranged [h] start end) seen `Set.union` seen') t
+      let seen' :: Set (DistinctRanged [a])
+          seen' = Set.fromList . join . fmap (toList . consRange rh) . toList $ seen
+      in go (Set.insert (DistinctRanged [h] start end) seen `Set.union` seen') t
     go seen (Pure _ : t) = go seen t
-    go' :: Ranged a -> Ranged [a] -> Maybe (Ranged [a])
-    go' new group =
+
+    consRange :: Ranged a -> DistinctRanged [a] -> Maybe (DistinctRanged [a])
+    consRange new group@(DistinctRanged as start' _) =
       if isAdjacent group new
-      then Just (Ranged (get new : get group) (start group) (end new))
+      then Just (DistinctRanged (get new : as) start' (end new))
       else Nothing
-    isAdjacent :: forall a b. Ranged a -> Ranged b -> Bool
-    isAdjacent (Ranged _ _ endA) (Ranged _ startB _) = endA + 1 == startB
+
+    -- Returns true if inputs are adjacent Ranged regions
+    -- Question: Should a Pure be considered adjacent?
+    isAdjacent :: forall a b. DistinctRanged a -> Ranged b -> Bool
+    isAdjacent (DistinctRanged _ _ endA) (Ranged _ startB _) = endA + 1 == startB
     isAdjacent _ _                                   = False
 
 pathStart :: SubseqExtractor' n ()

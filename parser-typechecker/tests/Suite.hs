@@ -11,6 +11,7 @@ import qualified Unison.Test.Lexer as Lexer
 import qualified Unison.Test.Range as Range
 import qualified Unison.Test.TermParser as TermParser
 import qualified Unison.Test.Type as Type
+import qualified Unison.Test.TypePrinter as TypePrinter
 import qualified Unison.Test.Typechecker as Typechecker
 import qualified Unison.Test.Typechecker.TypeError as TypeError
 import qualified Unison.Test.ColorText as ColorText
@@ -22,6 +23,7 @@ test = tests
   , Type.test
   , Typechecker.test
   , TypeError.test
+  , TypePrinter.test
   , FileParser.test
   , DataDeclaration.test
   , Range.test

@@ -1057,7 +1057,7 @@ instantiateL blank v t = scope (InInstantiateL v t) $ do
         maybe (failWith $ TypeMismatch ctx) setContext $
           solve ctx v2 (Type.Monotype (Type.existentialp (loc t) v))
       Type.Arrow' i o -> do -- InstLArr
-        [i',o'] <- traverse freshenVar [ABT.v' "i", ABT.v' "o"]
+        [i',o'] <- traverse freshenVar [nameFrom "i" i, nameFrom "o" o]
         let s = Solved blank v (Type.Monotype (Type.arrow (loc t)
                                                  (Type.existentialp (loc i) i')
                                                  (Type.existentialp (loc o) o')))
@@ -1066,7 +1066,7 @@ instantiateL blank v t = scope (InInstantiateL v t) $ do
         instantiateR i B.Blank i' -- todo: not sure about this, could also be `blank`
         applyM o >>= instantiateL B.Blank o'
       Type.App' x y -> do -- analogue of InstLArr
-        [x', y'] <- traverse freshenVar [ABT.v' "x", ABT.v' "y"]
+        [x', y'] <- traverse freshenVar [nameFrom "x" x, nameFrom "y" y]
         let s = Solved blank v (Type.Monotype (Type.app (loc t)
                                                   (Type.existentialp (loc x) x')
                                                   (Type.existentialp (loc y) y')))
@@ -1085,7 +1085,7 @@ instantiateL blank v t = scope (InInstantiateL v t) $ do
         applyM es >>= instantiateL B.Blank es'
         applyM vt >>= instantiateL B.Blank vt'
       Type.Effects' es -> do
-        es' <- replicateM (length es) (freshNamed "e")
+        es' <- traverse (\e -> freshenVar (nameFrom "e" e)) es
         let locs = loc <$> es
             t' = Type.effects (loc t) (uncurry Type.existentialp <$> locs `zip` es')
             -- t = Type.effects (loc t) (uncurry Type.existentialp <$> locs `zip` es')
@@ -1099,6 +1099,10 @@ instantiateL blank v t = scope (InInstantiateL v t) $ do
         instantiateL B.Blank v (ABT.bindInheritAnnotation body (Type.universal v))
         doRetract (Universal v)
       _ -> failWith $ TypeMismatch ctx
+
+nameFrom :: Var v => Text -> Type v loc -> v
+nameFrom _ (Type.Var' v) = Var.named (Var.name v)
+nameFrom ifNotVar _ = ABT.v' (":" `mappend` ifNotVar `mappend` ":")
 
 -- | Instantiate the given existential such that it is
 -- a supertype of the given type, updating the context
@@ -1114,7 +1118,7 @@ instantiateR t blank v = scope (InInstantiateR t v) $
         maybe (failWith $ TypeMismatch ctx) setContext $
           solve ctx v2 (Type.Monotype (Type.existentialp (loc t) v))
       Type.Arrow' i o -> do -- InstRArrow
-        [i', o'] <- traverse freshenVar [ABT.v' "i", ABT.v' "o"]
+        [i', o'] <- traverse freshenVar [nameFrom "instR-i" i, nameFrom "instR-o" o]
         let s = Solved blank v (Type.Monotype
                           (Type.arrow (loc t)
                             (Type.existentialp (loc i) i')
@@ -1128,14 +1132,14 @@ instantiateR t blank v = scope (InInstantiateR t v) $
         -- 1. create foo', a', add these to the context
         -- 2. add v' = foo' a' to the context
         -- 3. recurse to refine the types of foo' and a'
-        [x', y'] <- traverse freshenVar [ABT.v' "instR-x", ABT.v' "instR-y"]
+        [x', y'] <- traverse freshenVar [nameFrom "instR-x" x, nameFrom "instR-y" y]
         let s = Solved blank v (Type.Monotype (Type.app (loc t) (Type.existentialp (loc x) x') (Type.existentialp (loc y) y')))
         modifyContext' $ replace (existential v) (context [existential y', existential x', s])
         applyM x >>= \x -> instantiateR x B.Blank x'
         applyM y >>= \y -> instantiateR y B.Blank y'
       Type.Effect1' es vt -> do
-        es' <- freshNamed "e"
-        vt' <- freshNamed "vt"
+        es' <- freshenVar (nameFrom "e" es)
+        vt' <- freshenVar (nameFrom "vt" vt)
         let t' = Type.effect1 (loc t) (Type.existentialp (loc es) es')
                                       (Type.existentialp (loc vt) vt')
             s = Solved blank v (Type.Monotype t')
@@ -1144,7 +1148,7 @@ instantiateR t blank v = scope (InInstantiateR t v) $
         applyM es >>= \es -> instantiateR es B.Blank es'
         applyM vt >>= \vt -> instantiateR vt B.Blank vt'
       Type.Effects' es -> do
-        es' <- replicateM (length es) (freshNamed "e")
+        es' <- traverse (\e -> freshenVar (nameFrom "e" e)) es
         let locs = loc <$> es
             t' = Type.effects (loc t) (uncurry Type.existentialp <$> locs `zip` es')
             s = Solved blank v $ Type.Monotype t'

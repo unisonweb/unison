@@ -1,5 +1,0 @@
-do Remote
-  Remote.fork <| Remote.sleep (Duration.seconds 10);
-  Remote.fork <| Remote.sleep (Duration.seconds 10);
-  pure 23;;
-

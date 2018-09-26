@@ -14,7 +14,7 @@ module Unison.PrintError where
 import qualified Data.Char                  as Char
 import           Data.Foldable
 import           Data.Function (on)
-import           Data.List (isPrefixOf, groupBy, sortBy)
+import           Data.List (groupBy, sortBy)
 import qualified Data.List.NonEmpty         as Nel
 import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
@@ -37,7 +37,6 @@ import qualified Unison.Parser              as Parser
 import qualified Unison.Reference           as R
 import           Unison.Result              (Note (..))
 import qualified Unison.Settings            as Settings
-import qualified Unison.TermParser as TermParser
 import qualified Unison.Type                as Type
 import qualified Unison.TypeVar             as TypeVar
 import qualified Unison.Typechecker.Context as C
@@ -140,8 +139,8 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     ++
     (debugNoteLoc
       [ "loc debug:"
-      , "\n  mismatchSite: ", fromString $ annotatedToEnglish mismatchSite
-      , "\n     foundType: ", fromString $ annotatedToEnglish foundType
+      , "\n  mismatchSite: ", annotatedToEnglish mismatchSite
+      , "\n     foundType: ", annotatedToEnglish foundType
       , "\n"
       ])
     ++ debugSummary note
@@ -164,10 +163,10 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     mustBeType which env src expectedLoc mismatchSite expectedType foundType
     ++
     (debugNoteLoc [ "\nloc debug:"
-    , "\n  mismatchSite: ", fromString $ annotatedToEnglish mismatchSite
-    , "\n     foundType: ", fromString $ annotatedToEnglish foundType
-    , "\n  expectedType: ", fromString $ annotatedToEnglish expectedType
-    , "\n   expectedLoc: ", fromString $ annotatedToEnglish expectedLoc
+    , "\n  mismatchSite: ", annotatedToEnglish mismatchSite
+    , "\n     foundType: ", annotatedToEnglish foundType
+    , "\n  expectedType: ", annotatedToEnglish expectedType
+    , "\n   expectedLoc: ", annotatedToEnglish expectedLoc
     -- , "\n      (should be the location of the first case body)"
     , "\n"
     ])
@@ -192,45 +191,56 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     , annotatedAsStyle Color.Type1 src f
     ] ++ debugSummary note
   FunctionApplication {..} ->
-    [ "The ", ordinal argNum, " argument to the function "
-    , AT.Text . Color.errorSite . renderTerm $ f
-    , " is "
-    , AT.Text $ Color.type2 . renderType' env $ foundType, ", "
-    , "but I was expecting "
-                , AT.Text $ Color.type1 . renderType' env $ expectedType
-    , ":\n\n"
-    , showSourceMaybes src
-      [ (,Color.Type1)     <$> rangeForAnnotated expectedType
-      , (,Color.Type2)     <$> rangeForAnnotated foundType
-      , (,Color.Type2)     <$> rangeForAnnotated arg
-      , (,Color.ErrorSite) <$> rangeForAnnotated f
+    let fte = Type.ungeneralizeEffects ft
+        fteFreeVars = Set.map TypeVar.underlying $ ABT.freeVars fte
+        showVar (v,_t) = Set.member v fteFreeVars
+        solvedVars' = filter showVar solvedVars
+    in
+      [ "The ", ordinal argNum, " argument to the function "
+      , AT.Text . Color.errorSite . renderTerm $ f
+      , " is "
+      , AT.Text $ Color.type2 . renderType' env $ foundType, ", "
+      , "but I was expecting "
+                  , AT.Text $ Color.type1 . renderType' env $ expectedType
+      , ":\n\n"
+      , showSourceMaybes src
+        [ (,Color.Type1)     <$> rangeForAnnotated expectedType
+        , (,Color.Type2)     <$> rangeForAnnotated foundType
+        , (,Color.Type2)     <$> rangeForAnnotated arg
+        , (,Color.ErrorSite) <$> rangeForAnnotated f
+        ]
       ]
-    -- , "\n"
-    ]
-    ++ case fVarInfo of
-      Just (originalType, solvedVars@(_:_)) ->
-        let go :: (v, C.Type v a) -> [AT.Section Color.Style]
-            go (v,t) =
-             [ " ", renderVar v
-             , " = ", AT.Text $ Color.errorSite $ renderType' env t
-             , ", from here:\n\n"
-             , showSourceMaybes src [(,Color.ErrorSite) <$> rangeForAnnotated t]
-             , "\n"
-             ]
-        in
-          [ " because the function has type"
-          , "\n\n"
-          , "  "
-          , AT.Text $ renderType' env $ Type.ungeneralizeEffects originalType
-          , "\n\n"
-          , " where:"
-          , "\n\n"
-          ] ++ (solvedVars >>= go)
-      Nothing -> []
-      _other -> [fromString $ "fVarInfo = " ++ show _other ++ "\n"] -- forget it
-    ++ debugSummary note
+      ++ case solvedVars' of
+        _ : _ ->
+          let go :: (v, C.Type v a) -> [AT.Section Color.Style]
+              go (v,t) =
+               [ " ", renderVar v
+               , " = ", AT.Text $ Color.errorSite $ renderType' env t
+               , ", from here:\n\n"
+               , showSourceMaybes src [(,Color.ErrorSite) <$> rangeForAnnotated t]
+               , "\n"
+               ]
+          in
+            [ "\n"
+            , "because the function has type"
+            , "\n\n"
+            , "  "
+            , AT.Text $ renderType' env fte
+            , "\n\n"
+            , "where:"
+            , "\n\n"
+            ] ++ (solvedVars' >>= go)
+        [] -> []
+      ++ (debugNoteLoc
+          [ "\nloc debug:"
+          , AT.Text $ Color.errorSite "\n             f: ", annotatedToEnglish f
+          , AT.Text $ Color.type2     "\n     foundType: ", annotatedToEnglish foundType
+          , AT.Text $ Color.type1     "\n  expectedType: ", annotatedToEnglish expectedType
+          -- , "\n   expectedLoc: ", annotatedToEnglish expectedLoc
+          ])
+      ++ debugSummary note
   Mismatch {..} ->
-    -- [ (fromString . annotatedToEnglish) mismatchSite
+    -- [ annotatedToEnglish mismatchSite
     -- , " has a type mismatch (", AT.Describe Color.ErrorSite, " below):\n\n"
     -- , annotatedAsErrorSite src mismatchSite
     -- , "\n"
@@ -261,11 +271,11 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
                          [styleAnnotated Color.Type1 mismatchSite]
     ++ debugNoteLoc
     [ "\nloc debug:"
-    , "\n  mismatchSite: ", fromString $ annotatedToEnglish mismatchSite
-    , "\n     foundType: ", fromString $ annotatedToEnglish foundType
-    , "\n     foundLeaf: ", fromString $ annotatedToEnglish foundLeaf
-    , "\n  expectedType: ", fromString $ annotatedToEnglish expectedType
-    , "\n  expectedLeaf: ", fromString $ annotatedToEnglish expectedLeaf
+    , "\n  mismatchSite: ", annotatedToEnglish mismatchSite
+    , "\n     foundType: ", annotatedToEnglish foundType
+    , "\n     foundLeaf: ", annotatedToEnglish foundLeaf
+    , "\n  expectedType: ", annotatedToEnglish expectedType
+    , "\n  expectedLeaf: ", annotatedToEnglish expectedLeaf
     , "\n"
     ] ++ debugSummary note
   AbilityCheckFailure {..} ->
@@ -299,9 +309,26 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     , ".  Make sure it's imported and spelled correctly:\n\n"
     , annotatedAsErrorSite src typeSite
     ]
-  UnknownTerm {..} | TermParser.missingResult `isPrefixOf` Text.unpack (Var.name unknownTermV) ->
+  UnknownTerm {..} | Type.isArrow expectedType && Var.isKind Var.askInfo unknownTermV ->
+    let Type.Arrow' i o = case expectedType of
+          Type.ForallsNamed' _ body -> body
+          _ -> expectedType
+    in [ "Here's what I know about the expression at "
+       , annotatedToEnglish termSite
+       , ":\n\n"
+       , annotatedAsErrorSite src termSite
+       , "\n"
+       , "Its type is: ", AT.Text . Color.style Color.ErrorSite $ renderType' env (Type.ungeneralizeEffects i), ".\n\n" ] ++
+       case o of
+         Type.Existential' _ _ -> ["It can be replaced with a value of any type.\n"]
+         _ -> [
+           "A well-typed replacement must conform to: "
+          , AT.Text . Color.style Color.Type2 $
+              renderType' env (Type.ungeneralizeEffects o)
+          , ".\n"]
+  UnknownTerm {..} | Var.isKind Var.missingResult unknownTermV ->
     [ "I found a block that ends with a binding instead of an expression at "
-    , (fromString . annotatedToEnglish) termSite
+    , annotatedToEnglish termSite
     , ":\n\n"
     , annotatedAsErrorSite src termSite, "\n" ] ++
       case expectedType of
@@ -314,7 +341,7 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
     [ "I'm not sure what "
     , AT.Text . Color.style Color.ErrorSite $ (fromString . show) unknownTermV
     , " means at "
-    , (fromString . annotatedToEnglish) termSite
+    , annotatedToEnglish termSite
     , "\n\n"
     , annotatedAsErrorSite src termSite ] ++
       case expectedType of
@@ -349,6 +376,7 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
       '2' -> "nd"
       '3' -> "rd"
       _ -> "th"
+    renderTerm (ABT.Var' v) | Settings.demoHideVarNumber = fromString (Text.unpack $ Var.name v)
     renderTerm e = let s = show e in -- todo: pretty print
       if length s > maxTermDisplay
       then fromString (take maxTermDisplay s <> "...")
@@ -393,13 +421,13 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
                     ,", es=[", AT.Text $ commas renderTerm es, "]"]
       C.InIfCond -> ["InIfCond"]
       C.InIfBody loc ->
-        ["InIfBody thenBody=", fromString $ annotatedToEnglish loc]
+        ["InIfBody thenBody=", annotatedToEnglish loc]
       C.InAndApp -> ["InAndApp"]
       C.InOrApp -> ["InOrApp"]
       C.InVectorApp loc ->
-        ["InVectorApp firstTerm=", fromString $ annotatedToEnglish loc]
+        ["InVectorApp firstTerm=", annotatedToEnglish loc]
       C.InMatch loc ->
-        ["InMatch firstBody=", fromString $ annotatedToEnglish loc]
+        ["InMatch firstBody=", annotatedToEnglish loc]
       C.InMatchGuard -> ["InMatchGuard"]
       C.InMatchBody -> ["InMatchBody"]
     simpleCause :: C.Cause v a -> [AT.Section Color.Style]
@@ -434,7 +462,7 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
         [ "EffectConstructorWrongArgCount:"
         , "  expected=", (fromString . show) e
         , ", actual=", (fromString . show) a
-        , ", reference=", AT.Text (showConstructor' env r cid)
+        , ", reference=", showConstructor env r cid
         ]
       C.MalformedEffectBind ctorType ctorResult es ->
         [ "MalformedEffectBind: "
@@ -455,7 +483,7 @@ renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
         ]
       C.PatternArityMismatch loc typ args ->
         [ "PatternArityMismatch:"
-        , "  loc=", fromString $ annotatedToEnglish loc
+        , "  loc=", annotatedToEnglish loc
         , "  typ=", AT.Text . renderType' env $ typ
         , "  args=", fromString $ show args
         ]
@@ -496,7 +524,7 @@ renderType env f = renderType0 env f (0 :: Int) where
   paren test s =
     if test then "(" <> s <> ")" else s
   renderType0 env f p t = f (ABT.annotation t) $ case t of
-    Type.Ref' r -> showRef' env r
+    Type.Ref' r -> showRef env r
     Type.Arrow' i (Type.Effect1' e o) ->
       paren (p >= 2) $ go 2 i <> " ->{" <> go 1 e <> "} " <> go 1 o
     Type.Arrow' i o ->
@@ -512,7 +540,8 @@ renderType env f = renderType0 env f (0 :: Int) where
       _ -> "{" <> commas (go 0) es <> "} " <> go 3 t
     Type.Effect1' e t -> paren (p >= 3) $ "{" <> go 0 e <> "}" <> go 3 t
     Type.ForallsNamed' vs body -> paren (p >= 1) $
-      if p == 0 then go 0 body
+--      if p == 0 then go 0 body
+      if not Settings.debugRevealForalls then go 0 body
       else "forall " <> spaces renderVar vs <> " . " <> go 1 body
     Type.Var' v -> renderVar v
     _ -> error $ "pattern match failure in PrintError.renderType " ++ show t
@@ -544,21 +573,14 @@ renderKind :: Kind -> AT.AnnotatedText (Maybe a)
 renderKind Kind.Star          = "*"
 renderKind (Kind.Arrow k1 k2) = renderKind k1 <> " -> " <> renderKind k2
 
-showRef :: Env -> R.Reference -> String
-showRef env r = fromMaybe (show r) (Map.lookup r (referenceNames env))
-
-showRef' :: Env -> R.Reference -> AT.AnnotatedText (Maybe a)
-showRef' e r = fromString $ showRef e r
+showRef :: IsString s => Env -> R.Reference -> s
+showRef env r = fromString $ fromMaybe (show r) (Map.lookup r (referenceNames env))
 
 -- todo: do something different/better if cid not found
-showConstructor :: Env -> R.Reference -> Int -> String
-showConstructor env r cid =
+showConstructor :: IsString s => Env -> R.Reference -> Int -> s
+showConstructor env r cid = fromString $
   fromMaybe (showRef env r ++ "/" ++ show cid)
             (Map.lookup (r,cid) (constructorNames env))
-
-showConstructor' :: Env -> R.Reference -> Int -> StyledText
-showConstructor' env r cid = fromString $ showConstructor env r cid
-
 
 styleInOverallType :: (Var v, Annotated a, Eq a)
                    => Env
@@ -570,27 +592,27 @@ styleInOverallType e overallType leafType c =
   renderType e f overallType
     where f loc s = if loc == ABT.annotation leafType then Color.style c s else s
 
-_posToEnglish :: L.Pos -> String
-_posToEnglish (L.Pos l c) = "Line " ++ show l ++ ", Column " ++ show c
+_posToEnglish :: IsString s => L.Pos -> s
+_posToEnglish (L.Pos l c) = fromString $ "Line " ++ show l ++ ", Column " ++ show c
 
 rangeForToken :: L.Token a -> Range
 rangeForToken t = Range (L.start t) (L.end t)
 
-rangeToEnglish :: Range -> String
-rangeToEnglish (Range (L.Pos l c) (L.Pos l' c')) =
+rangeToEnglish :: IsString s => Range -> s
+rangeToEnglish (Range (L.Pos l c) (L.Pos l' c')) = fromString $
   let showColumn = True in
   if showColumn
   then if l == l'
     then if c == c'
-        then "Line " ++ show l ++ ", column " ++ show c
-        else "Line " ++ show l ++ ", columns " ++ show c ++ "-" ++ show c'
-    else "Line " ++ show l ++ ", column " ++ show c ++ " through " ++
+        then "line " ++ show l ++ ", column " ++ show c
+        else "line " ++ show l ++ ", columns " ++ show c ++ "-" ++ show c'
+    else "line " ++ show l ++ ", column " ++ show c ++ " through " ++
         "line " ++ show l' ++ ", column " ++ show c'
   else if l == l'
-    then "Line " ++ show l
-    else "Lines " ++ show l ++ "—" ++ show l'
+    then "line " ++ show l
+    else "lines " ++ show l ++ "—" ++ show l'
 
-annotatedToEnglish :: Annotated a => a -> String
+annotatedToEnglish :: (Annotated a, IsString s) => a -> s
 annotatedToEnglish a = case ann a of
   Intrinsic     -> "an intrinsic"
   Ann start end -> rangeToEnglish $ Range start end
@@ -727,19 +749,16 @@ annotatedAsStyle style s ann =
   showSourceMaybes s [(, style) <$> rangeForAnnotated ann]
 
 tokenAsErrorSite :: String -> L.Token a -> AT.Section Color.Style
-tokenAsErrorSite s tok = showSource1 s (rangeForToken tok, Color.ErrorSite)
+tokenAsErrorSite src tok = showSource1 src (rangeForToken tok, Color.ErrorSite)
 
 showSourceMaybes :: Ord a => String -> [Maybe (Range, a)] -> AT.Section a
-showSourceMaybes source annotations = showSource source $ catMaybes annotations
+showSourceMaybes src annotations = showSource src $ catMaybes annotations
 
 showSource :: Ord a => String -> [(Range, a)] -> AT.Section a
-showSource source annotations = AT.Blockquote $ AT.markup (fromString source) (Set.fromList annotations)
+showSource src annotations = AT.Blockquote $ AT.markup (fromString src) (Set.fromList annotations)
 
 showSource1 :: Ord a => String -> (Range, a) -> AT.Section a
-showSource1 source annotation = showSource source [annotation]
-
-debugMode :: Bool
-debugMode = True
+showSource1 src annotation = showSource src [annotation]
 
 findTerm :: Seq (C.PathElement v loc) -> Maybe loc
 findTerm = go

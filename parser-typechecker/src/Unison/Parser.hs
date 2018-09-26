@@ -323,3 +323,9 @@ chainl1 p op = foldl (flip ($)) <$> p <*> P.many (flip <$> op <*> p)
 
 attempt :: Var v => P v a -> P v a
 attempt = P.try
+
+-- Gives this var an id based on its position - a useful trick to
+-- obtain a variable whose id won't match any other id in the file
+-- `positionalVar a Var.missingResult`
+positionalVar :: (Annotated a, Var v) => a -> (v -> v) -> v
+positionalVar a kind = kind (Var.nameds (show (ann a)))
