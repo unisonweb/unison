@@ -44,9 +44,6 @@ components = components' ABT.freeVars
 -- Notice that `id` comes before `g` and `y` in the output, since
 -- both `g` and `y` depend on `id`.
 --
--- If there are duplicate names in the components, this returns
--- the duplicated names on the left.
---
 -- Uses Tarjan's algorithm:
 --   https://en.wikipedia.org/wiki/Tarjan%27s_strongly_connected_components_algorithm
 components' :: Var v => (t -> Set v) -> [(v, t)] -> [[(v, t)]]
