@@ -58,4 +58,7 @@ test = scope "termprinter" . tests $
   , tc "if _something then _foo else _"
   , tc "3.14159"
   , tc "\"some text\""
+  , tc "2 : UInt64"
+  , tc "x -> and x false"
+  , tc "x y -> and x y"
   ]
