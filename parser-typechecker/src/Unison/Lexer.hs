@@ -163,6 +163,7 @@ reorder ts = join . sortWith f . stanzas $ ts
     f (t : _) = case payload $ headToken t of
       Open "type" -> 0
       Reserved "effect" -> 0
+      Reserved "ability" -> 0
       Reserved "use" -> 1
       _ -> 3 :: Int
 
