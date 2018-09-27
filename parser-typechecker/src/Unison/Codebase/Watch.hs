@@ -31,6 +31,7 @@ import           Unison.Symbol      (Symbol)
 import           Unison.Util.Monoid
 import qualified System.IO.Streams as Streams
 import qualified System.Process as P
+import           System.Random      (randomRIO)
 import Control.Exception (finally)
 
 watchDirectory' :: FilePath -> IO (IO (FilePath, UTCTime))
@@ -92,7 +93,9 @@ serverLoop initialFile dir sock port = do
   -- putStrLn $ "   Note: I'm using the Unison runtime at " ++ show address
   (_input, output) <- N.socketToStreams socket
   d <- watchDirectory dir (".u" `isSuffixOf`)
-  n <- newIORef (0 :: Int)
+  let nonces = "🌻🌸🌵🌺🌴"
+  nonceStart <- randomRIO (0, length nonces - 1)
+  n <- newIORef (nonceStart :: Int)
   let go sourceFile source0 = do
         let source = Text.unpack source0
         Console.clearScreen
@@ -100,7 +103,7 @@ serverLoop initialFile dir sock port = do
         marker <- do
           n0 <- readIORef n
           writeIORef n (n0 + 1)
-          pure ["🌻🌸🌵🌺🌴" !! (n0 `mod` 5)]
+          pure [nonces !! (n0 `mod` length nonces)]
           -- pure ["🕐🕑🕒🕓🕔🕕🕖🕗🕘🕙🕚🕛" !! (n0 `mod` 12)]
         Console.setTitle "Unison"
         putStrLn ""
