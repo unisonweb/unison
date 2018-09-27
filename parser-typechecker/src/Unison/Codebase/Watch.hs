@@ -11,7 +11,7 @@ import Data.Time.Clock (UTCTime, diffUTCTime)
 import           Control.Concurrent (threadDelay, forkIO)
 import           Control.Concurrent.MVar
 import           Control.Monad (forever)
-import           System.FSNotify
+import           System.FSNotify (Event(Added,Modified),withManager,watchTree)
 import Network.Socket
 import Control.Applicative
 import qualified System.IO.Streams.Network as N
@@ -44,7 +44,7 @@ watchDirectory' d = do
                 Modified fp t False -> doIt fp t
                 _ -> pure ()
   _ <- forkIO $ withManager $ \mgr -> do
-    _ <- watchDir mgr d (const True) handler
+    _ <- watchTree mgr d (const True) handler
     forever $ threadDelay 1000000
   pure $ takeMVar mvar
 

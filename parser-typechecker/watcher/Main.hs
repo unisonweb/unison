@@ -10,4 +10,4 @@ main = do
   case args of
     [""] -> go Nothing
     _ -> go (headMay args)
-  where go x = W.watcher x "unison-src" 42441
+  where go x = W.watcher x "." 42441
