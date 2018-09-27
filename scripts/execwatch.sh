@@ -69,6 +69,9 @@ while IFS= read -r changed; do
       ;;
     *.u|*.uu)
       last_unison_source="$changed"
+      if ! kill -0 $haskell_pid > /dev/null 2>&1; then
+        start_watcher
+      fi
       ;;
     */scripts/execwatch.sh|*/scripts/watchwatch.sh)
       echo "Restarting ./scripts/watchwatch.sh..."
