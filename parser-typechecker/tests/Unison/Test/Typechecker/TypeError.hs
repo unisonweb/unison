@@ -31,6 +31,15 @@ test = scope "extractor" . tests $
   , n "case 3 of 3 | 3 -> 3" Err.matchBody
   , y "1 1" Err.applyingNonFunction
   , y "1 Int.+ 1" Err.applyingFunction
+  , y ( "ability Abort where\n" ++
+        "  abort : {Abort} a\n" ++
+        "\n" ++
+        "xyz : t -> Effect Abort t -> t\n" ++
+        "xyz default abort = case abort of\n" ++
+        "  {a} -> 3\n" ++
+        "  {Abort.abort -> k} ->\n" ++
+        "    handle xyz default in k 100\n"
+      ) Err.matchBody
   ]
   where y, n :: String -> NoteExtractor Symbol Ann a -> Test ()
         y s ex = scope s $ expect $ yieldsError s ex

@@ -110,6 +110,17 @@ generalMismatch :: (Var v, Ord loc) => Ex.NoteExtractor v loc (TypeError v loc)
 generalMismatch = do
   ctx <- Ex.typeMismatch
   let sub t = C.apply ctx t
+
+      subtypes :: Ex.NoteExtractor v loc [(C.Type v loc, C.Type v loc)]
+      subtypes = do
+        path <- Ex.path
+        pure [ (t1, t2) | C.InSubtype t1 t2 <- path ]
+
+      firstLastSubtype :: Ex.NoteExtractor v loc ( (C.Type v loc, C.Type v loc)
+                                                 , (C.Type v loc, C.Type v loc) )
+      firstLastSubtype = subtypes >>= \case
+        [] -> mzero
+        l -> pure (head l, last l)
   n <- Ex.note
   mismatchSite <- Ex.innermostTerm
   ((foundLeaf, expectedLeaf), (foundType, expectedType)) <- firstLastSubtype
@@ -118,16 +129,6 @@ generalMismatch = do
                   (ABT.annotation mismatchSite)
                   n
 
-subtypes :: Ex.NoteExtractor v loc [(C.Type v loc, C.Type v loc)]
-subtypes = do
-  path <- Ex.path
-  pure [ (t1, t2) | C.InSubtype t1 t2 <- path ]
-
-firstLastSubtype :: Ex.NoteExtractor v loc ( (C.Type v loc, C.Type v loc)
-                                           , (C.Type v loc, C.Type v loc) )
-firstLastSubtype = subtypes >>= \case
-  [] -> mzero
-  l -> pure (head l, last l)
 
 and,or,cond,matchGuard
   :: (Var v, Ord loc)
@@ -148,12 +149,13 @@ booleanMismatch0 b ex = do
   let sub t = C.apply ctx t
   mismatchSite <- Ex.innermostTerm
   let mismatchLoc = ABT.annotation mismatchSite
-  (_, (foundType, _)) <- firstLastSubtype
-  Ex.unique $ do
+  foundType <- Ex.unique $ do
     Ex.pathStart
-    void $ Ex.inSubtype
-    void $ Ex.inCheck
+    subtypes <- Ex.some Ex.inSubtype
+    let foundType = fst (last subtypes)
+    void $ Ex.some Ex.inCheck
     ex
+    pure foundType
   pure (BooleanMismatch b mismatchLoc (sub foundType) n)
 
 existentialMismatch0
@@ -167,14 +169,16 @@ existentialMismatch0 em getExpectedLoc = do
   let sub t = C.apply ctx t
   mismatchSite <- Ex.innermostTerm
   let mismatchLoc = ABT.annotation mismatchSite
-  (_, (foundType, expectedType)) <- firstLastSubtype
-  expectedLoc <- Ex.unique $ do
+  (foundType, expectedType, expectedLoc) <- Ex.unique $ do
     Ex.pathStart
-    void $ Ex.inSubtype
-    void $ Ex.inCheck
-    getExpectedLoc
+    subtypes <- Ex.some Ex.inSubtype
+    let (foundType, expectedType) = last subtypes
+    void $ Ex.some Ex.inCheck
+    expectedLoc <- getExpectedLoc
+    pure (foundType, expectedType, expectedLoc)
   pure $ ExistentialMismatch em (sub expectedType) expectedLoc
                                 (sub foundType) mismatchLoc
+                                -- todo : save type leaves too
                                 n
 
 ifBody, vectorBody, matchBody
@@ -214,6 +218,7 @@ applyingFunction = do
   ctx <- Ex.typeMismatch
   Ex.unique $ do
     Ex.pathStart
+    -- todo: make a new extrator for (some inSubtype) that pulls out the head and tail and nothing in between?
     subtypes <- Ex.some Ex.inSubtype
     let found, expected :: C.Type v loc
         leafs :: Maybe (C.Type v loc, C.Type v loc)
@@ -221,7 +226,7 @@ applyingFunction = do
           [] -> error "unpossible: Ex.some should only succeed on nonnull output"
           [roots] -> (roots, Nothing)
           _ -> (last subtypes, Just $ head subtypes)
-    (arg, _) <- Ex.inCheck
+    arg <- fst . head <$> Ex.some Ex.inCheck
     (_, _, argIndex) <- Ex.inSynthesizeApp
     (typeVars, f, ft, _args) <- Ex.inFunctionCall
     let go :: v -> Maybe (v, C.Type v loc)
