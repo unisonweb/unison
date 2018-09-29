@@ -151,8 +151,7 @@ booleanMismatch0 b ex = do
   let mismatchLoc = ABT.annotation mismatchSite
   foundType <- Ex.unique $ do
     Ex.pathStart
-    subtypes <- Ex.some Ex.inSubtype
-    let foundType = fst (last subtypes)
+    (foundType, _, _) <- inSubtypes
     void $ Ex.some Ex.inCheck
     ex
     pure foundType
@@ -219,13 +218,7 @@ applyingFunction = do
   Ex.unique $ do
     Ex.pathStart
     -- todo: make a new extrator for (some inSubtype) that pulls out the head and tail and nothing in between?
-    subtypes <- Ex.some Ex.inSubtype
-    let found, expected :: C.Type v loc
-        leafs :: Maybe (C.Type v loc, C.Type v loc)
-        ((found, expected), leafs) = case subtypes of
-          [] -> error "unpossible: Ex.some should only succeed on nonnull output"
-          [roots] -> (roots, Nothing)
-          _ -> (last subtypes, Just $ head subtypes)
+    (found, expected, leafs) <- inSubtypes
     arg <- fst . head <$> Ex.some Ex.inCheck
     (_, _, argIndex) <- Ex.inSynthesizeApp
     (typeVars, f, ft, _args) <- Ex.inFunctionCall
@@ -233,3 +226,14 @@ applyingFunction = do
         go v = (v,) . Type.getPolytype <$> C.lookupSolved ctx v
         solvedVars = catMaybes (go <$> typeVars)
     pure $ FunctionApplication f ft arg argIndex found expected leafs solvedVars n
+
+inSubtypes :: Ex.SubseqExtractor v loc (C.Type v loc,
+                                        C.Type v loc,
+                                        Maybe (C.Type v loc, C.Type v loc))
+inSubtypes = do
+  subtypes <- Ex.some Ex.inSubtype
+  let ((found, expected), leaves) = case subtypes of
+        [] -> error "unpossible: Ex.some should only succeed on nonnull output"
+        [(found, expected)] -> ((found, expected), Nothing)
+        _ -> (last subtypes, Just $ head subtypes)
+  pure (found, expected, leaves)

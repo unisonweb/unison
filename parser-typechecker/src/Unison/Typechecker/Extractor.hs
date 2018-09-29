@@ -86,7 +86,6 @@ _any' getLast = SubseqExtractor' $ \note -> Pure () : do
   end <- [0..last]
   pure $ Ranged () start end
 
-
 -- Kind of a newtype for Ranged.Ranged.
 -- The Eq instance ignores the embedded value
 data DistinctRanged a = DistinctRanged a Int Int
@@ -96,6 +95,7 @@ instance Ord (DistinctRanged a) where
   DistinctRanged _ l r <= DistinctRanged _ l' r' =
     l < l' || (l == l' && r <= r')
 
+-- todo: this could return NonEmpty
 some :: forall n a. SubseqExtractor' n a -> SubseqExtractor' n [a]
 some xa = SubseqExtractor' $ \note ->
   let as :: [Ranged a]

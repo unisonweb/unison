@@ -54,22 +54,6 @@ data Env = Env { referenceNames   :: Map R.Reference String
 env0 :: Env
 env0 = Env mempty mempty
 
-mustBeBool :: (Var v, Annotated a, Eq a) =>
-              [AT.Section Color.Style]
-              -> Env
-              -> String
-              -> a
-              -> Type.AnnotatedType v a
-              -> [AT.Section Color.Style]
-mustBeBool initial env src mismatchSite mismatchedType =
-  initial ++
-  [ " ", AT.Text $ Color.type1 "Boolean", ", but this one is "
-  , AT.Text . Color.type2 . renderType' env $ mismatchedType
-  , ":\n\n"
-  , showSourceMaybes src [siteS]
-  ] ++ fromOverHere' src [typeS] [siteS]
-  where siteS = styleAnnotated Color.Type2 mismatchSite
-        typeS = styleAnnotated Color.Type2 mismatchedType
 
 fromOverHere' :: Ord a
               => String
@@ -104,29 +88,6 @@ showTypeWithProvenance env src color typ =
 styleAnnotated :: Annotated a => sty -> a -> Maybe (Range,sty)
 styleAnnotated sty a = (,sty) <$> rangeForAnnotated a
 
-mustBeType :: (Var v, Annotated a, Eq a) =>
-              [AT.Section Color.Style]
-              -> Env
-              -> String
-              -> a
-              -> a
-              -> Type.AnnotatedType v a
-              -> Type.AnnotatedType v a
-              -> [AT.Section Color.Style]
-mustBeType initial env src expectedLoc mismatchSite expectedType mismatchedType =
-  initial ++
-  [ "  Here, one is "
-  , AT.Text $ Color.type1 . renderType' env $ expectedType
-  , " and another is "
-  , AT.Text $ Color.type2 . renderType' env $ mismatchedType, ":\n\n"
-  , showSourceMaybes src [mismatchSiteS, expectedLocS]
-  ] ++ fromOverHere' src [expectedTypeS, mismatchedTypeS]
-                         [mismatchSiteS, expectedLocS]
-  where mismatchedTypeS = styleAnnotated Color.Type2 mismatchedType
-        mismatchSiteS   = styleAnnotated Color.Type2 mismatchSite
-        expectedTypeS   = styleAnnotated Color.Type1 expectedType
-        expectedLocS    = styleAnnotated Color.Type1 expectedLoc
-
 renderTypeError :: forall v a. (Var v, Annotated a, Ord a, Show a)
                 => Env
                 -> TypeError v a
@@ -134,54 +95,83 @@ renderTypeError :: forall v a. (Var v, Annotated a, Ord a, Show a)
                 -> AT.AnnotatedDocument Color.Style
 renderTypeError env e src = AT.AnnotatedDocument . Seq.fromList $ case e of
   BooleanMismatch {..} ->
-    mustBeBool which env src mismatchSite foundType
-    ++
-    (debugNoteLoc
-      [ "loc debug:"
-      , "\n  mismatchSite: ", annotatedToEnglish mismatchSite
-      , "\n     foundType: ", annotatedToEnglish foundType
-      , "\n"
-      ])
+    preamble ++
+    [ " "
+    , AT.Text $ Color.type1 "Boolean"
+    , ", but this one is "
+    , AT.Text . Color.type2 . renderType' env $ foundType
+    , ":\n\n"
+    , showSourceMaybes src [siteS]
+    ]
+    ++ fromOverHere' src [typeS] [siteS]
+    ++ (debugNoteLoc
+        [ "loc debug:"
+        , "\n  mismatchSite: ", annotatedToEnglish mismatchSite
+        , "\n     foundType: ", annotatedToEnglish foundType
+        , "\n"
+        ])
     ++ debugSummary note
-    where which =
+    where siteS = styleAnnotated Color.Type2 mismatchSite
+          typeS = styleAnnotated Color.Type2 foundType
+          preamble =
             case getBooleanMismatch of
               CondMismatch ->
-                [ "The condition for an ", AT.Text . Color.errorSite $ "if"
+                [ "The condition for an "
+                , AT.Text . Color.errorSite $ "if"
                 , "-expression has to be"]
               AndMismatch ->
-                [ "The arguments to ", AT.Text . Color.errorSite $ "and"
+                [ "The arguments to "
+                , AT.Text . Color.errorSite $ "and"
                 , " have to be"]
               OrMismatch ->
-                [ "The arguments to ", AT.Text . Color.errorSite $ "or"
+                [ "The arguments to "
+                , AT.Text . Color.errorSite $ "or"
                 , " have to be"]
               GuardMismatch ->
-                [ "The guard expression for a ", AT.Text . Color.errorSite $ "case"
+                [ "The guard expression for a "
+                , AT.Text . Color.errorSite $ "case"
                 , " has to be"]
 
   ExistentialMismatch {..} ->
-    mustBeType which env src expectedLoc mismatchSite expectedType foundType
-    ++
-    (debugNoteLoc [ "\nloc debug:"
+    preamble ++
+    [ " "
+    , "Here, one is "
+    , AT.Text $ Color.type1 . renderType' env $ expectedType
+    , " and another is "
+    , AT.Text $ Color.type2 . renderType' env $ foundType, ":\n\n"
+    , showSourceMaybes src [mismatchSiteS, expectedLocS]
+    ]
+    ++ fromOverHere' src [expectedTypeS, mismatchedTypeS]
+                         [mismatchSiteS, expectedLocS]
+    ++ (debugNoteLoc [ "\nloc debug:"
     , "\n  mismatchSite: ", annotatedToEnglish mismatchSite
     , "\n     foundType: ", annotatedToEnglish foundType
     , "\n  expectedType: ", annotatedToEnglish expectedType
     , "\n   expectedLoc: ", annotatedToEnglish expectedLoc
-    -- , "\n      (should be the location of the first case body)"
     , "\n"
     ])
     ++ debugSummary note
-    where which =
+    where mismatchedTypeS = styleAnnotated Color.Type2 foundType
+          mismatchSiteS   = styleAnnotated Color.Type2 mismatchSite
+          expectedTypeS   = styleAnnotated Color.Type1 expectedType
+          expectedLocS    = styleAnnotated Color.Type1 expectedLoc
+          preamble =
             case getExistentialMismatch of
               IfBody ->
-                [ "The ", AT.Text . Color.errorSite $ "else"
-                , " clause of an ", AT.Text . Color.errorSite $ "if"
+                [ "The "
+                , AT.Text . Color.errorSite $ "else"
+                , " clause of an "
+                , AT.Text . Color.errorSite $ "if"
                 , " expression needs to have the same type as the "
-                , AT.Text . Color.errorSite $ "then", " clause."]
+                , AT.Text . Color.errorSite $ "then"
+                , " clause."]
               VectorBody ->
                 [ "The elements of a vector all need to have the same type."]
               CaseBody ->
-                [ "Each case of a ", AT.Text . Color.errorSite $ "case"
-                , "/", AT.Text . Color.errorSite $ "of", " expression "
+                [ "Each case of a "
+                , AT.Text . Color.errorSite $ "case"
+                , "/", AT.Text . Color.errorSite $ "of"
+                , " expression "
                 , "need to have the same type."]
   NotFunctionApplication {..} ->
     [ "This looks like a function call, but with a "
