@@ -5,7 +5,7 @@
 module Unison.Util.ColorText where
 
 import           Data.Foldable (foldl', toList)
-import qualified Data.Set as Set
+import qualified Data.Map as Map
 import           Data.String (IsString (..))
 import           Safe (headMay)
 import           System.Console.ANSI (pattern Blue, pattern BoldIntensity,
@@ -88,7 +88,7 @@ renderDocANSI excerptCollapseWidth (AnnotatedDocument chunks) =
 
   renderExcerpt :: StyledBlockquote -> Rendered ANSI
   renderExcerpt e =
-    track (Pos line1 1) [] (Set.toList $ annotations e)
+    track (Pos line1 1) [] (Map.toList $ annotations e)
       (Rendered . pure $ renderLineNumber line1) (text e)
     where
       line1 :: Int

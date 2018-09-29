@@ -3,7 +3,7 @@
 module Unison.Test.ColorText where
 
 -- import EasyTest
-import qualified Data.Set as Set
+import qualified Data.Map as Map
 import           EasyTest
 import           Text.RawString.QQ
 import           Unison.Lexer (Pos (..))
@@ -21,7 +21,7 @@ test = scope "colortext" . tests $ [
 
 ex4e :: Rendered ANSI
 ex4e = renderDocANSI 1 . excerptToDoc $ markup "abc" m
-        where m = Set.singleton (Range (Pos 1 2) (Pos 1 3), ErrorSite)
+        where m = Map.singleton (Range (Pos 1 2) (Pos 1 3)) ErrorSite
 
 ex4t :: Rendered ANSI
 ex4t = renderDocANSI 1 . textToDoc $
@@ -29,7 +29,7 @@ ex4t = renderDocANSI 1 . textToDoc $
 
 
 ex2 :: AnnotatedExcerpt Style
-ex2 = markup ex (Set.fromList
+ex2 = markup ex (Map.fromList
       [ (Range (Pos 3 1) (Pos 3 5), ErrorSite) -- SCENE
       , (Range (Pos 5 9) (Pos 5 14), Type1) -- Master
       , (Range (Pos 5 22) (Pos 5 30), Type1) -- Boatswain
@@ -41,12 +41,12 @@ renderEx2 :: Rendered ANSI
 renderEx2 = renderDocANSI 3 . excerptToDoc $ ex2
 
 ex3 :: AnnotatedExcerpt Style
-ex3 = markup "Hello, world!" $ Set.fromList
+ex3 = markup "Hello, world!" $ Map.fromList
         [ (Range (Pos 1 8) (Pos 1 12), Type1)
         , (Range (Pos 1 1) (Pos 1 5), Type2) ]
 
 ex4 :: AnnotatedExcerpt Style
-ex4 = markup "Hello,\nworld!" $ Set.fromList
+ex4 = markup "Hello,\nworld!" $ Map.fromList
         [ (Range (Pos 2 1) (Pos 2 5), Type1)
         , (Range (Pos 1 1) (Pos 1 5), Type2) ]
 

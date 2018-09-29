@@ -736,7 +736,7 @@ showSourceMaybes :: Ord a => String -> [Maybe (Range, a)] -> AT.Section a
 showSourceMaybes src annotations = showSource src $ catMaybes annotations
 
 showSource :: Ord a => String -> [(Range, a)] -> AT.Section a
-showSource src annotations = AT.Blockquote $ AT.markup (fromString src) (Set.fromList annotations)
+showSource src annotations = AT.Blockquote $ AT.markup (fromString src) (Map.fromList annotations)
 
 showSource1 :: Ord a => String -> (Range, a) -> AT.Section a
 showSource1 src annotation = showSource src [annotation]
