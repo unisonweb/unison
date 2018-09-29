@@ -11,7 +11,6 @@ import           System.Exit        (exitFailure)
 import qualified Unison.FileParsers as FileParsers
 import qualified Unison.Parser      as Parser
 import qualified Unison.Parsers     as Parsers
-import           Unison.Util.AnnotatedText (renderTextUnstyled)
 import           Unison.PrintError  (printNoteWithSourceAsAnsi, renderType')
 import           Unison.Result      (Result (Result))
 import qualified Unison.Result      as Result
@@ -35,7 +34,7 @@ main = do
       (env0, unisonFile) <- Parsers.unsafeReadAndParseFile Parser.penv0 sourceFile
       let (Result notes' r) = FileParsers.serializeUnisonFile unisonFile
           f (_unisonFile', typ, bs) = do
-            putStrLn . show . renderTextUnstyled $ "typechecked as " <> renderType' env0 typ
+            putStrLn $ "typechecked as " ++ renderType' env0 typ
             traverse_ (flip BS.writeFile bs) outputFile
           showNote :: [Result.Note Symbol Parser.Ann] -> String
           showNote notes =

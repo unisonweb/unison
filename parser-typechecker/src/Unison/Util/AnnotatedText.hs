@@ -6,8 +6,8 @@
 module Unison.Util.AnnotatedText where
 
 import           Data.Foldable (asum, foldl')
-import           Data.Sequence (Seq)
 import           Data.Sequence (Seq ((:|>)))
+import qualified Data.Sequence as Seq
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.String (IsString (..))
@@ -19,6 +19,17 @@ import           Unison.Util.Range (Range (..))
 
 newtype AnnotatedDocument a = AnnotatedDocument (Seq (Section a))
 
+-- Prose with subsequences that may have an annotation.
+-- A textual reference to an annotation style.
+-- Quoted text (indented, with source line numbers) with annotated portions.
+
+-- The reason the current API deals with a bunch of different types instead of
+-- a single one is because not all of the combinators make sense on all of the
+-- types.
+
+-- Question: Should every bit of text be forced to have an annotation?
+-- Answer: No.  That doesn't make sense for the Excerpt text — especially
+--              in the context of multiple rendering options.
 data Section a
   = Text (AnnotatedText (Maybe a))
   | Describe a
@@ -39,11 +50,20 @@ newtype Rendered a = Rendered { rawRender :: Seq String } deriving (Eq)
 sectionToDoc :: Section a -> AnnotatedDocument a
 sectionToDoc = AnnotatedDocument . pure
 
+pairToDoc :: (String, Maybe a) -> AnnotatedDocument a
+pairToDoc (str, a) = textToDoc . AnnotatedText . Seq.singleton $ (str, a)
+
+pairToDoc' :: (String, a) -> AnnotatedDocument a
+pairToDoc' (str, a) = pairToDoc (str, Just a)
+
 textToDoc :: AnnotatedText (Maybe a) -> AnnotatedDocument a
 textToDoc = AnnotatedDocument . pure . Text
 
 excerptToDoc :: AnnotatedExcerpt a -> AnnotatedDocument a
 excerptToDoc = AnnotatedDocument . pure . Blockquote
+
+describeToDoc :: a -> AnnotatedDocument a
+describeToDoc = sectionToDoc . Describe
 
 trailingNewLine :: AnnotatedText a -> Bool
 trailingNewLine (AnnotatedText (init :|> (s,_))) =
@@ -64,11 +84,6 @@ splitAndRender :: Int
                -> (AnnotatedExcerpt a -> Rendered b)
                -> AnnotatedExcerpt a -> Rendered b
 splitAndRender n f e = intercalateMap "    .\n" f $ snipWithContext n e
-
-_deoffsetRange :: Line -> Range -> Range
-_deoffsetRange lineOffset (Range (Pos startLine startCol) (Pos endLine endCol)) =
-  Range (Pos (startLine - lineOffset + 1) startCol)
-        (Pos (endLine - lineOffset + 1) endCol)
 
 -- | drops lines and replaces with "." if there are more than `n` unannotated
 -- | lines in a row.
