@@ -32,21 +32,15 @@ This section gives the model of what a Unison codebase is and gives its API. Lat
 
 * `Code` could be a function or value definition (a `Term`) or a `TypeDeclaration`. Each `Term` in the `Codebase` also includes its `Type`. A Unison codebase contains no ill-typed terms. Each `Code` also knows its `Author` and `License`, which are just terms.
 * `Namespace` denotes a `Map Name Code`. It defines a subset of the universe of possible Unison definitions, along with names for these definitions. (The set of definitions it talks about is just the set of values of this `Map`.)
-* `Release` denotes a `(Namespace, Namespace -> Namespace)`. It exposes a namespace and also provides a function for "upgrading" from old definitions.
-* `Branch` denotes a `(Namespace', Namespace' -> Namespace')`, where `Namespace'` is a mergeable version of `Namespace` that can be in a conflicted state with respect to some `Name`. It's represented as a `Map Name (Causal (Conflicted Code))`. We discuss the `Causal` and `Conflicted` types later.
+* `Release` denotes a `Namespace -> Namespace`. It provides a function for "upgrading" from old definitions, and the "current" `Namespace` can be obtained by giving the `Release` the empty `Namespace`.
+* `Branch` denotes a `Causal (Map Code (Conflicted CodeEdit, Conflicted NameEdits))`, which comes equipped with a commutative `merge` operation and can be converted to a `Release` assuming no conflicts. A `Branch` represents a `Release` "in progress". We discuss the `Causal` and `Conflicted` types later.
 * `Codebase` denotes a `Set Code`, a `Map Name Branch` of named branches, and a `Map Name Release` of named releases.
 
 A `Release` can be sequenced with another `Release`:
 
 ```haskell
 sequence : Release -> Release -> Release
-sequence (ns1, up1) (ns2, up2) =
-  -- namespace is not cumulative, but the upgrades are cumulative
-  (ns2,
-   \nsi -> Map.unionWith const (up2 . up1 $ nsi) (up1 nsi))
-  -- Alternative implementation: both namespace and upgrades are cumulative
-  (Map.unionWith const ns2 ns1,
-   \nsi -> Map.unionWith const (up2 . up1 $ nsi) (up1 nsi)) -- cumulative
+sequence up1 up2 nsi = Map.unionWith const (up2 . up1 $ nsi) (up1 nsi)
 ```
 
 A `Branch` has two important operations:
@@ -54,30 +48,54 @@ A `Branch` has two important operations:
 * A commutative `merge` operation for combining concurrent edits.
 * An associative `sequence` operation for sequencing edits.
 
-Here's the denotation for these operations, expressed in terms of the `(Namespace', Namespace' -> Namespace')` denotation for `Branch`:
-
-```haskell
-merge : Branch -> Branch -> Branch
-merge (ns1, up1) (ns2, up2) =
-  (Map.unionWith Causal.merge ns1 ns2,
-   \nsi -> Map.unionWith Causal.merge (up1 nsi) (up2 nsi))
-
-sequence : Branch -> Branch -> Branch
-sequence (ns1, up1) (ns2, up2) =
-  (Map.unionWith Causal.sequence ns1 ns2, up2 . up1)
-```
-
 `Causal a` has 5 operations, specified algebraically here (we give an implementation later):
 
 * `before : Causal a -> Causal a -> Bool` defines a partial order on `Causal`.
 * `head : Causal a -> a`, which represents the "latest" `a` value in a causal chain.
-* `one : a -> Causal a`
-* `sequence : Causal a -> Causal a -> Causal a`, which is associative and satisfies:
-  * `before c1 (sequence c1 c2)`
-  * `head (sequence c1 c2) == head c2`
-* `merge : Semigroup a => Causal a -> Causal a -> Causal a`, which is associative and commutative and satisfies:
+* `one : a -> Causal a`, satisfying `head (one hd) == hd`
+* `cons : a -> Causal a -> Causal a`, satisfying `head (cons hd tl) == hd` and also `before tl (cons hd tl)`.
+* `merge : CommutativeSemigroup a => Causal a -> Causal a -> Causal a`, which is associative and commutative and satisfies:
   * `before c1 (merge c1 c2)`
   * `before c2 (merge c1 c2)`
+* `sequence : Causal a -> Causal a -> Causal a`, which is defined as `sequence c1 c2 = cons (head c2) (merge c1 c2)`.
+  * `before c1 (sequence c1 c2)`
+  * `head (sequence c1 c2) == head c2`
+
+Question: can we give a simple denotation for `Causal a`? (That doesn't mention hashes or anything)
+
+Thought: `Causal` could also be a `Comonad` (in the category of commutative semigroups), where each value has access to the past history at each point.
+
+```haskell
+merge : Branch -> Branch -> Branch
+merge = Causal.merge
+
+mergePickRight : Branch -> Branch -> Branch
+mergePickRight b1 b2 = Causal.mergePickRight
+
+data Conflicted a = Conflicted (Set a) deriving Monoid via Set
+
+-- note:
+instance (Semigroup v, Ord k) => Monoid (Map k v) where
+  mempty = Map.empty
+  m1 `mappend` m2 = Map.unionWith (<>) m1 m2
+
+-- Add a new definition; if one already exists for that name, produce a conflict
+add : Name -> Code -> Branch
+add n c = step (Map.insertWith (<>) n (Conflicted.one c))
+
+-- Add or replace a definition, clobber any existing definitions for given name
+set : Name -> Code -> Branch
+set n c = step (Map.insert n (Conflicted.one c))
+
+step : (a -> a) -> Causal a -> Causal a
+step f c = f (head c) `cons` c
+
+deleteName : Name -> Branch
+deleteName n = step (Map.delete n)
+
+deleteCode : Code -> Branch
+deleteCode c = step (Map.filterValues (/= c))
+```
 
 Here's `Codebase` and `Code` types:
 
@@ -85,7 +103,7 @@ Here's `Codebase` and `Code` types:
 data Codebase =
   Codebase { code     : Set Code
            , branches : Map Name Branch
-           , tags     : Map Name Release }
+           , releases : Map Name Release }
 
 -- All code knows its dependencies, author, and license
 Code.dependencies : Code -> Set Code
@@ -100,16 +118,20 @@ Now that we've given the denotation, here's some ideas for implementation:
 ```haskell
 -- A branch can have unresolved conflicts, and we maintain some
 -- history to help merge branches, respecting causality
-data Branch = Branch
-  { namespace   :: Map Name (Causal NameEdits)
-  , edited      :: Map Term (Causal (Conflicted Edit))
-  , editedTypes :: Map TypeDeclaration (Causal (Conflicted TypeEdit)) }
+data Branch' = Branch'
+  { namespace   :: Map Code (Conflicted NameEdits)
+  , edited      :: Map Term (Conflicted Edit)
+  , editedTypes :: Map TypeDeclaration (Conflicted TypeEdit) }
+
+data Branch = Branch (Causal Branch')
 
 -- A release doesn't have history or conflicts.
-data Release = Release
+data Release' = Release'
   { namespace   :: Map Name Code
   , edited      :: Map Term Edit
   , editedTypes :: Map TypeDeclaration TypeEdit }
+
+data Release = Release (Causal Release')
 
 data Conflicted a = One a | Many (Set a)
 
@@ -125,11 +147,7 @@ data NameEdits = NameEdits { adds :: Set Code, removes :: Set Code }
 data Typing = Same | Subtype | Different
 
 merge :: Branch -> Branch -> Branch
-merge b1 b2 = let
-  edited'      = Map.unionWith mappend (edited b1) (edited b2)
-  editedTypes' = Map.unionWith mappend (editedTypes b1) (editedTypes b2)
-  namespace'   = Map.unionWith mappend (namespace b1) (namespace b2)
-  in Branch version' edited' namespace'
+merge (Branch b1) (Branch b2) = Branch (Causal.merge b1 b2)
 
 -- produces a release if the branch is not conflicted
 Branch.toRelease :: Branch -> Either Conflicts Release
