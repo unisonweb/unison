@@ -61,4 +61,21 @@ test = scope "termprinter" . tests $
   , tc "2 : UInt64"
   , tc "x -> and x false"
   , tc "x y -> and x y"
+  , pending $ tc_diff "()" $ "()#0"  -- todo
+  , tc "Pair"
+  , tc "foo"
+  , pending $ tc_diff "Sequence.empty" $  "Sequence.empty : [a]"  -- TODO whatever is adding the annotations
+         -- is adding a second one on the reparse.  Also it's showing 'Sequence a' not '[a]'
+  , tc "None"
+  , pending $ tc_diff "Optional.None" $ "Optional#0"
+  , tc "handle foo in bar"
+  , tc "Pair 1 1"
+  , tc_diff_rtt False "let\n\
+                      \  x = 1\n\
+                      \  x"
+                      "let x = 1\n\
+                      \x" 0
+  , pending $ tc "case x of (t,0) -> foo t"  -- TODO patterns
+  , pending $ tc "case x of (t,0) | pred t -> foo t"
+  , pending $ tc "case x of (t,0) | pred t -> foo t; (t,0) -> foo' t; (t,u) -> bar;"
   ]
