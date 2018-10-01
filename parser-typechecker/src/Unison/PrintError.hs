@@ -204,6 +204,22 @@ renderTypeError env e src = case e of
         , (,Color.Type2)     <$> rangeForAnnotated arg
         , (,Color.ErrorSite) <$> rangeForAnnotated f
         ]
+      -- todo: factor this out and use in ExistentialMismatch and any other
+      --       "recursive subtypes" situations
+      , case leafs of
+          Nothing -> mempty
+          Just (foundLeaf, expectedLeaf) -> mconcat
+            [ "\n"
+            , "More specifically, I found "
+            , style Color.Type2 (renderType' env foundLeaf)
+            , " where I was expecting "
+            , style Color.Type1 (renderType' env expectedLeaf)
+            , ":\n\n"
+            , showSourceMaybes src
+              [ (,Color.Type1)     <$> rangeForAnnotated expectedLeaf
+              , (,Color.Type2)     <$> rangeForAnnotated foundLeaf
+              ]
+            ]
       , case solvedVars' of
         _ : _ ->
           let go :: (v, C.Type v loc) -> AT.AnnotatedDocument Color.Style
@@ -251,7 +267,7 @@ renderTypeError env e src = case e of
         , (,Color.Type2) <$> rangeForAnnotated expectedLeaf
         ]
     , fromOverHere' src [styleAnnotated Color.Type1 foundLeaf]
-                         [styleAnnotated Color.Type1 mismatchSite]
+                        [styleAnnotated Color.Type1 mismatchSite]
     , debugNoteLoc . mconcat $
       [ "\nloc debug:"
       , "\n  mismatchSite: ", annotatedToEnglish mismatchSite
@@ -354,7 +370,6 @@ renderTypeError env e src = case e of
     ]
 
   where
-    maxTermDisplay = 20
     ordinal :: (IsString s) => Int -> s
     ordinal n = fromString $ show n ++ case last (show n) of
       '1' -> "st"
@@ -364,8 +379,8 @@ renderTypeError env e src = case e of
     renderTerm :: IsString s => C.Term v loc -> s
     renderTerm (ABT.Var' v) | Settings.demoHideVarNumber = fromString (Text.unpack $ Var.name v)
     renderTerm e = let s = show e in -- todo: pretty print
-      if length s > maxTermDisplay
-      then fromString (take maxTermDisplay s <> "...")
+      if length s > Settings.renderTermMaxLength
+      then fromString (take Settings.renderTermMaxLength s <> "...")
       else fromString s
     debugNoteLoc a = if Settings.debugNoteLoc then a else mempty
     debugSummary :: C.Note v loc -> AT.AnnotatedDocument Color.Style
