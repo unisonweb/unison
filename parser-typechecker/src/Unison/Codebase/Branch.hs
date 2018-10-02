@@ -5,8 +5,10 @@ module Unison.Codebase.Branch where
 --import Control.Monad (join)
 --import Data.List.NonEmpty (nonEmpty)
 import Data.Map (Map)
+import Data.Set (Set)
+import qualified Data.Set as Set
 --import Data.Semigroup (sconcat)
---import Data.Foldable
+import Data.Foldable
 import qualified Data.Map as Map
 import Unison.Hashable (Hashable)
 import qualified Unison.Hashable as H
@@ -18,6 +20,7 @@ import Unison.Codebase.Name (Name)
 -- import Unison.Codebase.NameEdit (NameEdit)
 import Unison.Codebase.TermEdit (TermEdit, Typing)
 import qualified Unison.Codebase.TermEdit as TermEdit
+import qualified Unison.Codebase.TypeEdit as TypeEdit
 import Unison.Codebase.TypeEdit (TypeEdit)
 import Unison.Reference (Reference)
 
@@ -33,12 +36,46 @@ import Unison.Reference (Reference)
 -- if we are referring to a term or a type (and can prevent adding a type
 -- reference to the term namespace, say)
 
+-- A `Branch`, `b` should likely maintain that:
+--
+--  * If `r : Reference` is in `codebase b` or one of its
+--    transitive dependencies then `b` should have a `Name` for `r`.
+--
+-- This implies that if you depend on some code, you pick names for that
+-- code. The editing tool will likely pick names based on some convention.
+-- (like if you import and use `Runar.foo` in a function you write, it will
+--  republished under `dependencies.Runar`. Could also potentially put
+--  deps alongside the namespace...)
+--
+-- Thought was that basically don't need `Release`, it's just that
+-- some branches are unconflicted and we might indicate that in some way
+-- in the UI.
+--
+-- To "delete" a definition, just remove it from the map.
+--
+-- Operations around making transitive updates, resolving conflicts...
+-- determining remaining work before one branch "covers" another...
 data Branch0 =
   Branch0 { termNamespace  :: Map Name (Conflicted Reference)
           , typeNamespace  :: Map Name (Conflicted Reference)
           , edited         :: Map Reference (Conflicted TermEdit)
           , editedDatas    :: Map Reference (Conflicted TypeEdit)
           , editedEffects  :: Map Reference (Conflicted TypeEdit) }
+
+-- The set of all references exported by this branch
+codebase :: Branch -> Set Reference
+codebase (Branch (Causal.head -> Branch0 {..})) = Set.fromList $
+  (toList termNamespace >>= toList) ++
+  (toList typeNamespace >>= toList) ++
+  (toList edited >>= toList >>= TermEdit.references) ++
+  (toList editedDatas >>= toList >>= TypeEdit.references) ++
+  (toList editedEffects >>= toList >>= TypeEdit.references)
+  -- todo: make this transitive
+
+--apply :: Branch -> Map Name Reference -> Map Name (Conflicted Reference)
+--apply (Branch (Causal.head -> Branch0 {..})) ns = let
+--  nsOut = Map.unionWith (<>) termNamespace typeNamespace
+--  error "todo"
 
 -- note: this doesn't necessarily update `termNamespace`
 replaceTerm :: Reference -> Reference -> Typing -> Branch -> Branch

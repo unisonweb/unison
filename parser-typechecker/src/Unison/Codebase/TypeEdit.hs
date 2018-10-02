@@ -7,6 +7,10 @@ import qualified Unison.Hashable as H
 data TypeEdit = Replace Reference | Deprecate
   deriving (Eq, Ord)
 
+references :: TypeEdit -> [Reference]
+references (Replace r) = [r]
+references Deprecate = []
+
 instance Hashable TypeEdit where
   tokens (Replace r) = H.Tag 0 : H.tokens r
   tokens Deprecate   = [H.Tag 1]
