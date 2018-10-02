@@ -374,6 +374,118 @@ When doing a `git pull` or `git merge`, this can sometimes result in multiple `.
 
 Observation: we'll probably want some additional indexing structure (which won't be versioned) which can be cached on disk and derived from the primary repo format. This is useful for answering different queries on the codebase more efficiently.
 
+## Questions
+
+Some good questions from @atacratic:
+
+> What's a typical workflow, say for a few developers working on different topics?
+
+I think very similar to now in "masterless" development. You create `series/1` branch, branch topics off that and merge into it, cut `release/1`, then create `series/2`, etc.
+
+To cut a release:
+
+* Convert `series/1` to `release/1`.
+* Create a new branch, `series/2`, which is _empty_.
+* Start hacking on `series/2`, likely referencing things by name in `release/1` (`edit release/1/math.random` might be a thing you do to edit a definition from a prior release)
+
+Questions:
+
+* Maybe it's fine to just have an indefinitely-long running master branch and just cut releases off of that? This might be equivalent to sequencing all the releases that come before each release (maybe less flexible).
+* Let's keep in mind that we might want to expose some simplified workflow for beginners so they aren't forced to learn about all this branch management stuff before even writing "hello world!"
+* Should be easy for advanced users too, no unnecessary juggling.
+
+> Where in the old ways people would have made a commit, do they now make a `Branch`? How do things proceed as we build up several of those for a topic?
+
+Same as now. You don't create a branch for every little change necessarily, though you could. You often just make changes to a branch directly. In terms of recording history, we can "git commit" whenever is convenient.
+
+> How does it work if you're editing "your" code as well as "other" people's code?
+
+Thought: You can reference any code in any release just with imports. You can also edit any code from any release, even from a release you didn't create. I suspect you'll want to give some qualified name to a definition that you edit which comes from another user's library. (For instance, I might republish a new version of `Runar.sort` under `Paul.patches.Runar.sort` in the branch I'm working on... and then I might contact `Runar` to get that change merged "upstream", something something...)
+
+> Where can they see their version history? Presumably not in the underlying git repo, if there's a branch for every incremental change?
+
+To start, git history is probably okay (though we could probably present it nicer).
+
+> Is the typical github PR now the addition of a branch? Or an in-place update to the master release?
+
+Might be addition of a new Unison branch, a merge or commits to some Unison branch, or a new Unison release.
+
+> When is a branch B converted to a release?
+
+Whenever is convenient or you want to record a snapshot.
+
+> What are the implications of the loss of all the Causal history at that point? Will other people find it harder to merge onto that release, if they've been working concurrently with what was in B, maybe sharing changes with it?
+
+Good questions. Maybe convention is to just use a single long-running branch, with all releases cut from that branch (similar to how people use `master` today?) For efficiency, want to have branch representation such that don't have to load it all in memory.
+
+I think this is overall TBD.
+
+> I can't actually put my finger on why we need a commutative merge operation.
+
+It needs to be commutative so that Alice and Bob can apply their changes in either order and still reach the same repository state.
+
+> Ditto I can't explain why we need Causal. I guess it helps spot when one edit is a merge ancestor of another. But why do we need that?
+
+So that in merging, we have enough information to know that one edit supercedes another. Similar to Git tracking enough info to be able to do "fast-forward" merges. If we didn't have this, we'd get spurious conflicts when forking off branches and then merging them back in.
+
+> Why is Causal being applied on a per-name basis? i.e. why is it Map Name Causal (Conflicted Edit) rather than Causal (Map Name (Conflicted Edit))?
+
+No good reason! We changed this, to put the `Causal` on the outside.
+
+> You've got Edit as a forgetful thing - it knows the new term but not the old one. I've got a feeling we're going to want to be able to reverse edits (and hence branch upgrades), so we should store the old value too.
+
+Now we are keying on `Code` instead of `Name` so I think we have enough information in the current representation to be able to invert a `Branch`?
+
+> If Alice renames a term from X to Y, and Bob renames it from X to Z, what's their experience when merging?
+
+They get a conflict which is easy to merge automatically, and you can imagine different choices: a) Allow both names b) Use Alice's name c) Use Bob's name. It's fine to have multiple names for the same code, though you will have to pick one when pretty-printing the code.
+
+> How does conflict resolution interact with propagation? So, if term f has some conflicting edits, does that mean that all its transitive dependents have conflicts too? How does someone resolve that?
+
+Yes, but we'll give tooling to help resolve all these conflicts in an efficient order (probably want to resolve conflicts in dependencies of a term before resolving conflicts in the term itself).
+
+> How are you going to render a Conflicted Edit to the user doing conflict resolution? Surely they want to know which source branches/releases each version of the edit is coming from, but I can't see how you'll know that.
+
+Good point. We could include some more metadata on each `Edit` to help with this.
+
+> Is this bit still current? "The namespace of a branch refers to the latest version of everything, propagated as far as possible. Anything else has the prefix old." Is doing propagations going to add a bunch of new names to the namespace automatically?
+
+No longer current. The branch's namespace is actually minimal and doesn't include any transitive updates by default (though you could "bake" the branch to propagate updates).
+
+> Is it possible to rename a branch or a release?
+
+Sure. Might have a GUID for each branch and/or release, with a name that can be changed associated with that GUID.
+
+> I have an urge to make it turtles all the way down: to make the names of branches and releases part of the namespaces we're trying to manage. Have you explored that line of thinking?
+
+I like it. It would be cool if the codebase is something you can talk about from within Unison, so `Branch` and `Release` are types in Unison that come with some nice Unison API.
+
+Not sure if we need to do this right away though.
+
+> Trying to work out the boundary between the unison codebase editor and the underlying VCS: is there a 'git blame' of any kind, in the new world? is there a history (of a term, a name, or the codebase as a whole)?
+
+Might track this in the `Edit`, also any new `Code` will have associated metadata such as author, license, timestamp, possibly descendants / ancestors...
+
+Note: we won't very granular information about who wrote which part of each expression, though we could recover information by doing tree diffs on the history.
+
+> is there a way to rewind the clock and get access to a previous revision in Unison-land, i.e. without using the VCS?
+
+Yeah, all branches and releases are accessible to you. But if you want to access a point in time of some branch, you need to use the VCS. Could imagine doing something about that.
+
+Sketch:
+
+* Can refer a branch at particular state just by hash, which picks out some subgraph of a `Causal`. But refering to hashes is annoying (though we can view a log of changes).
+* Put timestamp and user id in `Causal`, in addition to the hash.
+* Now can do queries like "go back in time to 1 week ago".
+
+> How much of the codebase model will be internalised into Unison? Will I be able to talk about a Namespace or a Branch in Unison code, say if I'm using a Codebase ability? I have a smalltalk-ish desire for the answer to be yes: if Unison can describe its own UI domain model, and is its own domain language, then we might end up with a more consistent and composable world, in which Unison tooling can be written in Unison, and in which people can talk about Unison in the same universe as they talk in Unison.
+
+I like it. This API should be exposed to Unison so you can write tooling for Unison in Unison.
+
+> In your code for Semigroup Causal here, I can't work out if it's meant to be right-biased or left-biased - the first two lines make it seem like the former, and the next two the latter. Might have misunderstood though.
+
+Code might be wrong, but I think the `Causal` semigroup was meant to be a commutative merge operation, but we should make that more explicit (the semigroup calls `Causal.merge` for instance)
+
 ## Notes and ideas
 
 You can have first-class imports with a type like:
