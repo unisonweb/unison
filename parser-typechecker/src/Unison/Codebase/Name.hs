@@ -1,3 +1,5 @@
 module Unison.Codebase.Name where
 
-type Name = String
+import Data.Text (Text)
+
+type Name = Text

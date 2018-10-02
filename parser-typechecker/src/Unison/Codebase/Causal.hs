@@ -82,6 +82,9 @@ merge0 m = let
 hash :: Hashable e => e -> Hash
 hash = Hashable.accumulate'
 
+step :: Hashable e => (e -> e) -> Causal e -> Causal e
+step f c = f (head c) `cons` c
+
 one :: Hashable e => e -> Causal e
 one e = One (hash e) e
 

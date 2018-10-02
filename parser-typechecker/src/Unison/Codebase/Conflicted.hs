@@ -1,25 +1,36 @@
 {-# LANGUAGE DeriveFoldable #-}
 
-module Unison.Codebase.Conflicted where
+module Unison.Codebase.Conflicted (Conflicted, map, one, asOne, conflicted, delete) where
 
+import Prelude hiding (map)
 import qualified Data.Set as Set
 import Data.Set (Set)
 import Data.Foldable
-import Unison.Hashable
+import Unison.Hashable (Hashable)
+import qualified Unison.Hashable as H
 
-data Conflicted a = One a | Many (Set a)
-  deriving (Eq, Foldable)
+data Conflicted a = Conflicted (Set a) deriving (Eq, Foldable)
 
 instance Ord a => Semigroup (Conflicted a) where
-  One a <> One a2 = if a == a2 then One a else Many (Set.fromList [a,a2])
-  One a <> Many as = Many (Set.insert a as)
-  Many as <> One a = Many (Set.insert a as)
-  Many as <> Many as2 = Many (as `Set.union` as2)
+  Conflicted as <> Conflicted as2 = Conflicted (as `Set.union` as2)
 
-conflicted :: Set a -> Conflicted a
-conflicted set
-  | Set.size set == 1 = One (Set.findMin set)
-  | otherwise         = Many set
+map :: Ord b => (a -> b) -> Conflicted a -> Conflicted b
+map f (Conflicted a) = Conflicted (Set.map f a)
+
+delete :: Ord a => a -> Conflicted a -> Maybe (Conflicted a)
+delete a (Conflicted as) = conflicted (Set.delete a as)
+
+one :: a -> Conflicted a
+one = Conflicted . Set.singleton
+
+asOne :: Conflicted a -> Maybe a
+asOne (Conflicted as)
+  | Set.size as /= 1 = Nothing
+  | otherwise        = Just $ Set.findMin as
+
+conflicted :: Set a -> Maybe (Conflicted a)
+conflicted set =
+  if Set.null set then Nothing else Just (Conflicted set)
 
 instance Hashable a => Hashable (Conflicted a) where
-  tokens = tokens . toList
+  tokens = H.tokens . toList

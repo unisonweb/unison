@@ -6,6 +6,7 @@ import Data.Int (Int64)
 import Data.Word (Word8, Word64)
 import Data.ByteString (ByteString)
 import Data.Text (Text)
+import qualified Data.Map as Map
 
 data Token h
   = Tag !Word8
@@ -35,6 +36,9 @@ instance Hashable a => Hashable [a] where
 
 instance (Hashable a, Hashable b) => Hashable (a,b) where
   tokens (a,b) = [accumulateToken a, accumulateToken b]
+
+instance (Hashable k, Hashable v) => Hashable (Map.Map k v) where
+  tokens = tokens . Map.toList
 
 class Functor f => Hashable1 f where
   -- | Produce a hash for an `f a`, given a hashing function for `a`.

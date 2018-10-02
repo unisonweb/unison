@@ -15,8 +15,8 @@ data Codebase m v a =
   Codebase { getCode :: Reference -> m (Maybe (Code v a))
            , putCode :: Code v a -> m Reference
            , branches :: m [Name]
-           , getBranch :: Name -> m (Maybe (Branch v a))
-           , putBranch :: Name -> Branch v a -> m ()
+           , getBranch :: Name -> m (Maybe Branch)
+           , putBranch :: Name -> Branch -> m ()
            , releases :: m [Name]
            , getRelease :: Name -> m (Maybe (Release v a))
            , putRelease :: Name -> Release v a -> m ()

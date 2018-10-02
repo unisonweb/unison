@@ -16,6 +16,9 @@ import qualified Unison.Term as Term
 type DataDeclaration v a = DD.DataDeclaration' v a
 type Term v a = Term.AnnotatedTerm v a
 
+{- Denotation, a Release is a `Namespace -> Namespace`,
+   basically an upgrade function from prior namespaces.  -}
+
 data Release v a =
   Release { namespace     :: Map Name (Code v a)
           , edited        :: Map Reference TermEdit
@@ -38,21 +41,6 @@ chain toK m1 m2 =
 instance Semigroup (Release v a) where
   (<>) = mappend
 
-{- Denotation, a Release is a `(Namespace, Namespace -> Namespace)`,
-   basically "the current namespace" and an upgrade function from
-   prior namespaces.
-
-   (<>) is interpreted as sequencing releases:
-
-  sequence : Release -> Release -> Release
-  sequence (ns1, up1) (ns2, up2) =
-    -- namespace is not cumulative, but the upgrades are cumulative
-    (ns2,
-     \nsi -> Map.unionWith const (up2 . up1 $ nsi) (up1 nsi))
-    -- Alternative implementation: both namespace and upgrades are cumulative
-    (Map.unionWith const ns2 ns1,
-     \nsi -> Map.unionWith const (up2 . up1 $ nsi) (up1 nsi)) -- cumulative
--}
 instance Monoid (Release v a) where
   mempty = Release mempty mempty mempty mempty
   mappend (Release _n1 t1 d1 e1) (Release n2 t2 d2 e2) =

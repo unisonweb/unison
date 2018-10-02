@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE RecordWildCards, ScopedTypeVariables, ViewPatterns #-}
 
 module Unison.Codebase.Branch where
 
@@ -8,50 +8,120 @@ import Data.Map (Map)
 --import Data.Semigroup (sconcat)
 --import Data.Foldable
 import qualified Data.Map as Map
---import Unison.Hashable (Hashable)
+import Unison.Hashable (Hashable)
+import qualified Unison.Hashable as H
 import Unison.Codebase.Causal (Causal)
---import qualified Unison.Codebase.Causal as Causal
+import qualified Unison.Codebase.Causal as Causal
 import Unison.Codebase.Conflicted (Conflicted)
---import qualified Unison.Codebase.Conflicted as Conflicted
+import qualified Unison.Codebase.Conflicted as Conflicted
 import Unison.Codebase.Name (Name)
-import Unison.Codebase.NameEdit (NameEdit)
-import Unison.Codebase.TermEdit (TermEdit)
+-- import Unison.Codebase.NameEdit (NameEdit)
+import Unison.Codebase.TermEdit (TermEdit, Typing)
+import qualified Unison.Codebase.TermEdit as TermEdit
 import Unison.Codebase.TypeEdit (TypeEdit)
 import Unison.Reference (Reference)
 
-data Branch v a =
-  Branch { namespace     :: Map Name (Causal NameEdit)
-         , edited        :: Map Reference (Causal (Conflicted TermEdit))
-         , editedDatas   :: Map Reference (Causal (Conflicted TypeEdit))
-         , editedEffects :: Map Reference (Causal (Conflicted TypeEdit))
-         }
+-- todo:
+-- probably should refactor Reference to include info about whether it
+-- is a term reference, a type decl reference, or an effect decl reference
+-- (maybe combine last two)
+--
+-- While we're at it, should add a `Cycle Int [Reference]` for referring to
+-- an element of a cycle of references.
+--
+-- If we do that, can implement various operations safely since we'll know
+-- if we are referring to a term or a type (and can prevent adding a type
+-- reference to the term namespace, say)
+
+data Branch0 =
+  Branch0 { termNamespace  :: Map Name (Conflicted Reference)
+          , typeNamespace  :: Map Name (Conflicted Reference)
+          , edited         :: Map Reference (Conflicted TermEdit)
+          , editedDatas    :: Map Reference (Conflicted TypeEdit)
+          , editedEffects  :: Map Reference (Conflicted TypeEdit) }
+
+-- note: this doesn't necessarily update `termNamespace`
+replaceTerm :: Reference -> Reference -> Typing -> Branch -> Branch
+replaceTerm old new typ (Branch b) = Branch $ Causal.step go b where
+  edit = Conflicted.one (TermEdit.Replace new typ)
+  replace cs = Conflicted.map (\r -> if r == old then new else r) cs
+  go b = b { edited = Map.insertWith (<>) old edit (edited b)
+           , termNamespace = replace <$> termNamespace b }
+
+deprecateTerm :: Reference -> Branch -> Branch
+deprecateTerm old (Branch b) = Branch $ Causal.step go b where
+  edit = Conflicted.one TermEdit.Deprecate
+  delete c = Conflicted.delete old c
+  go b = b { edited = Map.insertWith (<>) old edit (edited b)
+           , termNamespace = Map.fromList
+             [ (k, v) | (k, v0) <- Map.toList (termNamespace b),
+                        Just v <- [delete v0] ] }
+
+instance Semigroup Branch0 where
+  Branch0 n1 nt1 t1 d1 e1 <> Branch0 n2 nt2 t2 d2 e2 = Branch0
+    (Map.unionWith (<>) n1 n2)
+    (Map.unionWith (<>) nt1 nt2)
+    (Map.unionWith (<>) t1 t2)
+    (Map.unionWith (<>) d1 d2)
+    (Map.unionWith (<>) e1 e2)
+
+merge :: Branch -> Branch -> Branch
+merge (Branch b) (Branch b2) = Branch (Causal.merge b b2)
+
+instance Hashable Branch0 where
+  tokens (Branch0 {..}) =
+    H.tokens termNamespace ++ H.tokens typeNamespace ++
+    H.tokens edited ++ H.tokens editedDatas ++ H.tokens editedEffects
+
+newtype Branch = Branch (Causal Branch0)
+
+resolveTerm :: Name -> Branch -> Maybe (Conflicted Reference)
+resolveTerm n (Branch (Causal.head -> b)) =
+  Map.lookup n (termNamespace b)
+
+resolveTermUniquely :: Name -> Branch -> Maybe Reference
+resolveTermUniquely n b = resolveTerm n b >>= Conflicted.asOne
 
 
-{-
-Denotation:
+-- probably not super common
+--addName :: Reference -> Name -> Branch -> Branch
+--addName r new b = Branch $ Causal.step go b where
+--  ro = Conflicted.one r
+--  go b = b { termNamespace = Map.insert n ro (termNamespace b) }
 
-`Branch` denotes a `(Namespace', Namespace' -> Namespace')`, where `Namespace'`
-is a mergeable version of `Namespace` that can be in a conflicted state with
-respect to some `Name`.
+addTerm :: Name -> Reference -> Branch -> Branch
+addTerm n r (Branch b) = Branch $ Causal.step go b where
+  ro = Conflicted.one r
+  go b = b { termNamespace = Map.insert n ro (termNamespace b) }
 
-merge : Branch -> Branch -> Branch
-merge (ns1, up1) (ns2, up2) =
-  (Map.unionWith Causal.merge ns1 ns2,
-   \nsi -> Map.unionWith Causal.merge (up1 nsi) (up2 nsi))
+addType :: Name -> Reference -> Branch -> Branch
+addType n r (Branch b) = Branch $ Causal.step go b where
+  ro = Conflicted.one r
+  go b = b { termNamespace = Map.insert n ro (typeNamespace b) }
 
-sequence : Branch -> Branch -> Branch
-sequence (ns1, up1) (ns2, up2) =
-  (Map.unionWith Causal.sequence ns1 ns2, up2 . up1)
+renameType :: Name -> Name -> Branch -> Branch
+renameType old new (Branch b) =
+  let
+    bh = Causal.head b
+    m0 = typeNamespace bh
+  in Branch $ case Map.lookup old m0 of
+    Nothing -> b
+    Just rs ->
+      let m1 = Map.insertWith (<>) new rs . Map.delete old $ m0
+      in Causal.cons (bh { typeNamespace = m1 }) b
 
--}
+renameTerm :: Name -> Name -> Branch -> Branch
+renameTerm old new (Branch b) =
+  let
+    bh = Causal.head b
+    m0 = termNamespace bh
+  in Branch $ case Map.lookup old m0 of
+    Nothing -> b
+    Just rs ->
+      let m1 = Map.insertWith (<>) new rs . Map.delete old $ m0
+      in Causal.cons (bh { termNamespace = m1 }) b
 
-merge :: Branch v a -> Branch v a -> Branch v a
-merge (Branch n1 t1 d1 e1) (Branch n2 t2 d2 e2) =
-  Branch (Map.unionWith (<>) n1 n2)
-         (Map.unionWith (<>) t1 t2)
-         (Map.unionWith (<>) d1 d2)
-         (Map.unionWith (<>) e1 e2)
-
+--
 -- What does this actually do.
 --sequence :: Branch v a -> Branch v a -> Branch v a
 --sequence (Branch n1 t1 d1 e1) (Branch n2 t2 d2 e2) =
