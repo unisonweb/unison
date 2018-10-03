@@ -85,6 +85,9 @@ hash = Hashable.accumulate'
 step :: Hashable e => (e -> e) -> Causal e -> Causal e
 step f c = f (head c) `cons` c
 
+stepIf :: Hashable e => (e -> Bool) -> (e -> e) -> Causal e -> Causal e
+stepIf cond f c = if (cond $ head c) then step f c else c
+
 stepM :: (Functor m, Hashable e) => (e -> m e) -> Causal e -> m (Causal e)
 stepM f c = (`cons` c) <$> f (head c)
 

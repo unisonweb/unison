@@ -10,7 +10,7 @@ module Unison.Codebase.Branch where
 
 import           Control.Monad              (foldM)
 import           Data.Foldable
-import           Data.Maybe                 (fromMaybe)
+import           Data.Maybe                 (fromMaybe, isJust)
 import           Data.Relation              (Relation)
 import qualified Data.Relation              as R
 import           Data.Set                   (Set)
@@ -68,7 +68,6 @@ data Branch0 =
           , editedTerms   :: Relation Reference TermEdit
           , editedTypes   :: Relation Reference TypeEdit
           , backupNames   :: Relation Reference Name
-          -- , codebase       :: Set Reference
           }
 
 instance Semigroup Branch0 where
@@ -260,23 +259,10 @@ termOrTypeOp ops r ifTerm ifType = do
 
 renameType :: Name -> Name -> Branch -> Branch
 renameType old new (Branch b) =
-  let
-    bh = Causal.head b
-    m0 = typeNamespace bh
-  in Branch $ case R.lookupDom old m0 of
-    Nothing -> b
-    Just _ ->
-      let m1 = replaceDom old new m0
-      in Causal.cons (bh { typeNamespace = m1 }) b
+  Branch $ Causal.stepIf (isJust . R.lookupDom old . typeNamespace) go b where
+    go b = b { typeNamespace = replaceDom old new (typeNamespace b)}
 
 renameTerm :: Name -> Name -> Branch -> Branch
 renameTerm old new (Branch b) =
-  let
-    bh = Causal.head b
-    m0 = termNamespace bh
-  in Branch $ case R.lookupDom old m0 of
-    Nothing -> b
-    Just _ ->
-      let m1 = replaceDom old new m0
-      in Causal.cons (bh { termNamespace = m1 }) b
-
+  Branch $ Causal.stepIf (isJust . R.lookupDom old . termNamespace) go b where
+    go b = b { termNamespace = replaceDom old new (termNamespace b)}
