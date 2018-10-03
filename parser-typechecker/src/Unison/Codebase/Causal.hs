@@ -85,6 +85,9 @@ hash = Hashable.accumulate'
 step :: Hashable e => (e -> e) -> Causal e -> Causal e
 step f c = f (head c) `cons` c
 
+stepM :: (Functor m, Hashable e) => (e -> m e) -> Causal e -> m (Causal e)
+stepM f c = (`cons` c) <$> f (head c)
+
 one :: Hashable e => e -> Causal e
 one e = One (hash e) e
 
@@ -102,4 +105,3 @@ rebase a b = go a b where
       where c' = go a c
             h' = currentHash c'
     [] -> a -- shouldn't ever occur
-

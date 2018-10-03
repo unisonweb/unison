@@ -1,12 +1,14 @@
 {-# LANGUAGE DeriveFoldable #-}
 
-module Unison.Codebase.Conflicted (Conflicted, map, one, asOne, conflicted, delete) where
+module Unison.Codebase.Conflicted (Conflicted, map, one, asOne, conflicted, delete, singletonMap) where
 
-import Prelude hiding (map)
-import qualified Data.Set as Set
-import Data.Set (Set)
-import Data.Foldable
-import Unison.Hashable (Hashable)
+import           Data.Foldable
+import           Data.Map        (Map)
+import qualified Data.Map        as Map
+import           Data.Set        (Set)
+import qualified Data.Set        as Set
+import           Prelude         hiding (map)
+import           Unison.Hashable (Hashable)
 import qualified Unison.Hashable as H
 
 data Conflicted a = Conflicted (Set a) deriving (Eq, Foldable)
@@ -31,6 +33,10 @@ asOne (Conflicted as)
 conflicted :: Set a -> Maybe (Conflicted a)
 conflicted set =
   if Set.null set then Nothing else Just (Conflicted set)
+
+singletonMap :: Ord k => k -> v -> Map k (Conflicted v)
+singletonMap k v = Map.singleton k (one v)
+
 
 instance Hashable a => Hashable (Conflicted a) where
   tokens = H.tokens . toList
