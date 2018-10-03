@@ -2,6 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns        #-}
 {-# LANGUAGE DoAndIfThenElse     #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Unison.Codebase.Branch where
 
@@ -121,17 +122,13 @@ add ops n r (Branch b) = Branch <$> Causal.stepM go b where
     -- add (n,r) to backupNames
     let backupNames'' = R.insert r n backupNames'
     -- add to appropriate namespace
-    isTerm <- isTerm ops r
-    isType <- isType ops r
-    if isTerm then
-      pure b { termNamespace = R.insert n r $ termNamespace b
-             , backupNames = backupNames''
-             }
-    else if isType then
-      pure b { typeNamespace = R.insert n r $ typeNamespace b
-             , backupNames = backupNames''
-             }
-    else error $ "Branch.add received unknown reference " ++ show r
+    termOrTypeOp ops r
+      (pure b { termNamespace = R.insert n r $ termNamespace b
+              , backupNames = backupNames''
+              })
+      (pure b { typeNamespace = R.insert n r $ typeNamespace b
+              , backupNames = backupNames''
+              })
 
 updateBackupNames :: Monad m
                   => ReferenceOps m
@@ -151,25 +148,25 @@ updateBackupNames1 :: Monad m
                    -> m (Relation Reference Name)
 updateBackupNames1 ops r b = updateBackupNames ops (Set.singleton r) b
 
-lookupRan :: b -> Relation a b -> Set a
+lookupRan :: Ord b => b -> Relation a b -> Set a
 lookupRan b r = fromMaybe Set.empty $ R.lookupRan b r
 
-lookupDom :: a -> Relation a b -> Set b
+lookupDom :: Ord a => a -> Relation a b -> Set b
 lookupDom a r = fromMaybe Set.empty $ R.lookupDom a r
 
-replaceDom :: a -> a -> Relation a b -> Relation a b
+replaceDom :: (Ord a, Ord b) => a -> a -> Relation a b -> Relation a b
 replaceDom a a' r =
   foldl' (\r b -> R.insert a' b $ R.delete a b r) r (lookupDom a r)
 
 -- Todo: fork the relation library
-replaceRan :: b -> b -> Relation a b -> Relation a b
+replaceRan :: (Ord a, Ord b) => b -> b -> Relation a b -> Relation a b
 replaceRan b b' r =
   foldl' (\r a -> R.insert a b' $ R.delete a b r) r (lookupRan b r)
 
-deleteRan :: b -> Relation a b -> Relation a b
+deleteRan :: (Ord a, Ord b) => b -> Relation a b -> Relation a b
 deleteRan b r = foldl' (\r a -> R.delete a b r) r $ lookupRan b r
 
-deleteDom :: a -> Relation a b -> Relation a b
+deleteDom :: (Ord a, Ord b) => a -> Relation a b -> Relation a b
 deleteDom a r = foldl' (\r b -> R.delete a b r) r $ lookupDom a r
 
 replaceTerm :: Monad m
@@ -190,10 +187,10 @@ replaceTerm ops old new typ (Branch b) = Branch <$> Causal.stepM go b where
 codebase :: Monad m => ReferenceOps m -> Branch -> m (Set Reference)
 codebase ops (Branch (Causal.head -> Branch0 {..})) =
   let initial = Set.fromList $
-        (toList termNamespace >>= toList) ++
-        (toList typeNamespace >>= toList) ++
-        (toList editedTerms >>= toList >>= TermEdit.references) ++
-        (toList editedTypes >>= toList >>= TypeEdit.references)
+        (snd <$> R.toList termNamespace) ++
+        (snd <$> R.toList typeNamespace) ++
+        (map snd (R.toList editedTerms) >>= TermEdit.references) ++
+        (map snd (R.toList editedTypes) >>= TypeEdit.references)
   in transitiveClosure (dependencies ops) initial
 
 transitiveClosure :: forall m a. (Monad m, Ord a)
@@ -223,14 +220,13 @@ deprecateType old (Branch b) = Branch $ Causal.step go b where
            , typeNamespace = deleteRan old (typeNamespace b)
            }
 
-
+instance (Hashable a, Hashable b) => Hashable (Relation a b) where
+  tokens r = H.tokens (R.toList r)
 
 instance Hashable Branch0 where
   tokens (Branch0 {..}) =
     H.tokens termNamespace ++ H.tokens typeNamespace ++
-    H.tokens editedTerms ++ H.tokens editedTypes ++ H.tokens editedEffects
-
-type ResolveReference = Reference -> Maybe Name
+    H.tokens editedTerms ++ H.tokens editedTypes
 
 resolveTerm :: Name -> Branch -> Set Reference
 resolveTerm n (Branch (Causal.head -> b)) = lookupDom n (termNamespace b)
@@ -238,14 +234,29 @@ resolveTerm n (Branch (Causal.head -> b)) = lookupDom n (termNamespace b)
 resolveTermUniquely :: Name -> Branch -> Maybe Reference
 resolveTermUniquely n b =
   case resolveTerm n b of
-    s | Set.size s == 1 -> lookupMin s
+    s | Set.size s == 1 -> Set.lookupMin s
     _ -> Nothing
 
--- probably not super common
---addName :: Reference -> Name -> Branch -> Branch
---addName r new b = Branch $ Causal.step go b where
---  ro = Conflicted.one r
---  go b = b { termNamespace = Map.insert n ro (termNamespace b) }
+addTermName :: Reference -> Name -> Branch -> Branch
+addTermName r new (Branch b) = Branch $ Causal.step go b where
+  go b = b { termNamespace = R.insert new r (termNamespace b) }
+
+addTypeName :: Reference -> Name -> Branch -> Branch
+addTypeName r new (Branch b) = Branch $ Causal.step go b where
+  go b = b { typeNamespace = R.insert new r (typeNamespace b) }
+
+addName :: Monad m => ReferenceOps m -> Reference -> Name -> Branch -> m Branch
+addName ops r new b =
+  termOrTypeOp ops r (pure $ addTermName r new b) (pure $ addTypeName r new b)
+
+termOrTypeOp :: Monad m => ReferenceOps m -> Reference
+             -> m b -> m b -> m b
+termOrTypeOp ops r ifTerm ifType = do
+  isTerm <- isTerm ops r
+  isType <- isType ops r
+  if isTerm then ifTerm
+  else if isType then ifType
+  else fail $ "malformed reference: " ++ show r
 
 renameType :: Name -> Name -> Branch -> Branch
 renameType old new (Branch b) =
@@ -254,7 +265,7 @@ renameType old new (Branch b) =
     m0 = typeNamespace bh
   in Branch $ case R.lookupDom old m0 of
     Nothing -> b
-    Just rs ->
+    Just _ ->
       let m1 = replaceDom old new m0
       in Causal.cons (bh { typeNamespace = m1 }) b
 
@@ -265,59 +276,7 @@ renameTerm old new (Branch b) =
     m0 = termNamespace bh
   in Branch $ case R.lookupDom old m0 of
     Nothing -> b
-    Just rs ->
+    Just _ ->
       let m1 = replaceDom old new m0
       in Causal.cons (bh { termNamespace = m1 }) b
 
---
--- What does this actually do.
---sequence :: Branch v a -> Branch v a -> Branch v a
---sequence (Branch n1 t1 d1 e1) (Branch n2 t2 d2 e2) =
---  Branch (Map.unionWith Causal.sequence n1 n2)
---          (chain ) _
-
--- example:
--- in b1: foo is replaced with Conflicted (foo1, foo2)
--- in b2: foo1 is replaced with foo3
--- what do we want the output to be?
---    foo  -> Conflicted (foo3, foo2)
---    foo1 -> foo3
-
--- example:
--- in b1: foo is replaced with Conflicted (foo1, foo2)
--- in b2: foo1 is replaced with foo2
--- what do we want the output to be?
---    foo  -> foo2
---    foo1 -> foo2
-
--- example:
--- in b1: foo is replaced with Conflicted (foo1, foo2)
--- in b2: foo is replaced with foo2
--- what do we want the output to be?
---    foo -> foo2
-
--- v = Causal (Conflicted blah)
--- k = Reference
-
---bindMaybeCausal ::forall a. (Hashable a, Ord a) => Causal (Conflicted a) -> (a -> Maybe (Causal (Conflicted a))) -> Causal (Conflicted a)
---bindMaybeCausal cca f = case Causal.head cca of
---  Conflicted.One a -> case f a of
---    Just cca' -> Causal.sequence cca cca'
---    Nothing -> cca
---  Conflicted.Many as ->
---    Causal.sequence cca $ case nonEmpty . join $ (toList . f <$> toList as) of
---      -- Would be nice if there were a good NonEmpty.Set, but Data.NonEmpty.Set from `non-empty` doesn't seem to be it.
---      Nothing -> error "impossible, `as` was Many"
---      Just z -> sconcat z
---
---chain :: forall v k. Ord k => (v -> Maybe k) -> Map k (Causal (Conflicted v)) -> Map k (Causal (Conflicted v)) -> Map k (Causal (Conflicted v))
---chain toK m1 m2 =
---    let
---      chain' :: forall v k . (v -> Maybe k) -> (k -> Maybe (Causal (Conflicted v))) -> (k -> Maybe (Causal (Conflicted v))) -> (k -> Maybe (Causal (Conflicted v)))
---      chain' toK m1 m2 k = case m1 k of
---        Just ccv1 -> Just $ bindMaybeCausal ccv1 (\k -> m2 k >>= toK)
---        Nothing -> m2 k
---    in
---      Map.fromList
---        [ (k, v) | k <- Map.keys m1 ++ Map.keys m2
---                 , Just v <- [chain' toK (`Map.lookup` m1) (`Map.lookup` m2) k] ]
