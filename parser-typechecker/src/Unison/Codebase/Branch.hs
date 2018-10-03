@@ -97,18 +97,20 @@ codebase (Branch (Causal.head -> Branch0 {..})) ops =
         (Map.keys dependencies)
   in transitiveClosure (getDependencies ops) initial
 
-transitiveClosure :: Monad m
-                  => (Reference -> m (Set Reference))
-                  -> Set Reference
-                  -> m (Set Reference)
+transitiveClosure :: forall m a. (Monad m, Ord a)
+                  => (a -> m (Set a))
+                  -> Set a
+                  -> m (Set a)
 transitiveClosure getDependencies open =
-  let go closed open =
-        if null open then pure closed
-          else do
-            directDeps <- traverse getDependencies (Set.toList open)
-            let open2 = Set.unions directDeps
-            go (closed `Set.union` open) (open2 `Set.difference` closed)
-  in go Set.empty open
+  let go :: Set a -> [a] -> m (Set a)
+      go closed [] = pure closed
+      go closed (h:t) =
+        if Set.member h closed
+          then go closed t
+        else do
+          deps <- getDependencies h
+          go (Set.insert h closed) (toList deps ++ t)
+  in go Set.empty (toList open)
 
 --apply :: Branch -> Map Name Reference -> Map Name (Conflicted Reference)
 --apply (Branch (Causal.head -> Branch0 {..})) ns = let
