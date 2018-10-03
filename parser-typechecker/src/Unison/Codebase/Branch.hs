@@ -55,22 +55,60 @@ import Unison.Reference (Reference)
 --
 -- Operations around making transitive updates, resolving conflicts...
 -- determining remaining work before one branch "covers" another...
+newtype Branch = Branch (Causal Branch0)
+
 data Branch0 =
   Branch0 { termNamespace  :: Map Name (Conflicted Reference)
           , typeNamespace  :: Map Name (Conflicted Reference)
           , edited         :: Map Reference (Conflicted TermEdit)
           , editedDatas    :: Map Reference (Conflicted TypeEdit)
-          , editedEffects  :: Map Reference (Conflicted TypeEdit) }
+          , editedEffects  :: Map Reference (Conflicted TypeEdit)
+          , dependencies   :: Map Reference (Conflicted Name)
+          }
+
+instance Semigroup Branch0 where
+  Branch0 n1 nt1 t1 d1 e1 dp1 <> Branch0 n2 nt2 t2 d2 e2 dp2 = Branch0
+    (Map.unionWith (<>) n1 n2)
+    (Map.unionWith (<>) nt1 nt2)
+    (Map.unionWith (<>) t1 t2)
+    (Map.unionWith (<>) d1 d2)
+    (Map.unionWith (<>) e1 e2)
+    (Map.unionWith (<>) dp1 dp2)
+
+merge :: Branch -> Branch -> Branch
+merge (Branch b) (Branch b2) = Branch (Causal.merge b b2)
+
+data ReferenceOps m = ReferenceOps
+  { name :: Reference -> m Name
+  , isTerm :: Reference -> m Bool
+  , isType :: Reference -> m Bool
+  , getDependencies :: Reference -> m (Set Reference)
+  }
 
 -- The set of all references exported by this branch
-codebase :: Branch -> Set Reference
-codebase (Branch (Causal.head -> Branch0 {..})) = Set.fromList $
-  (toList termNamespace >>= toList) ++
-  (toList typeNamespace >>= toList) ++
-  (toList edited >>= toList >>= TermEdit.references) ++
-  (toList editedDatas >>= toList >>= TypeEdit.references) ++
-  (toList editedEffects >>= toList >>= TypeEdit.references)
-  -- todo: make this transitive
+codebase :: Monad m => Branch -> ReferenceOps m -> m (Set Reference)
+codebase (Branch (Causal.head -> Branch0 {..})) ops =
+  let initial = Set.fromList $
+        (toList termNamespace >>= toList) ++
+        (toList typeNamespace >>= toList) ++
+        (toList edited >>= toList >>= TermEdit.references) ++
+        (toList editedDatas >>= toList >>= TypeEdit.references) ++
+        (toList editedEffects >>= toList >>= TypeEdit.references) ++
+        (Map.keys dependencies)
+  in transitiveClosure (getDependencies ops) initial
+
+transitiveClosure :: Monad m
+                  => (Reference -> m (Set Reference))
+                  -> Set Reference
+                  -> m (Set Reference)
+transitiveClosure getDependencies open =
+  let go closed open =
+        if null open then pure closed
+          else do
+            directDeps <- traverse getDependencies (Set.toList open)
+            let open2 = Set.unions directDeps
+            go (closed `Set.union` open) (open2 `Set.difference` closed)
+  in go Set.empty open
 
 --apply :: Branch -> Map Name Reference -> Map Name (Conflicted Reference)
 --apply (Branch (Causal.head -> Branch0 {..})) ns = let
@@ -94,23 +132,15 @@ deprecateTerm old (Branch b) = Branch $ Causal.step go b where
              [ (k, v) | (k, v0) <- Map.toList (termNamespace b),
                         Just v <- [delete v0] ] }
 
-instance Semigroup Branch0 where
-  Branch0 n1 nt1 t1 d1 e1 <> Branch0 n2 nt2 t2 d2 e2 = Branch0
-    (Map.unionWith (<>) n1 n2)
-    (Map.unionWith (<>) nt1 nt2)
-    (Map.unionWith (<>) t1 t2)
-    (Map.unionWith (<>) d1 d2)
-    (Map.unionWith (<>) e1 e2)
-
-merge :: Branch -> Branch -> Branch
-merge (Branch b) (Branch b2) = Branch (Causal.merge b b2)
-
 instance Hashable Branch0 where
   tokens (Branch0 {..}) =
     H.tokens termNamespace ++ H.tokens typeNamespace ++
     H.tokens edited ++ H.tokens editedDatas ++ H.tokens editedEffects
 
-newtype Branch = Branch (Causal Branch0)
+type ResolveReference = Reference -> Maybe Name
+
+-- add :: Name -> Reference -> ResolveReference -> ResolveReference -> Branch -> Branch
+-- add n r termName typeName b = ...
 
 resolveTerm :: Name -> Branch -> Maybe (Conflicted Reference)
 resolveTerm n (Branch (Causal.head -> b)) =
@@ -210,4 +240,3 @@ renameTerm old new (Branch b) =
 --      Map.fromList
 --        [ (k, v) | k <- Map.keys m1 ++ Map.keys m2
 --                 , Just v <- [chain' toK (`Map.lookup` m1) (`Map.lookup` m2) k] ]
-
