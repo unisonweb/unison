@@ -42,7 +42,6 @@ library
     Unison.Codebase.Branch
     Unison.Codebase.Causal
     Unison.Codebase.Code
-    Unison.Codebase.Conflicted
     Unison.Codebase.Name
     Unison.Codebase.NameEdit
     Unison.Codebase.Release
@@ -118,6 +117,7 @@ library
     megaparsec,
     prelude-extras,
     random,
+    relation,
     safe,
     stm,
     strings,
