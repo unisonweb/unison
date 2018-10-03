@@ -75,7 +75,21 @@ test = scope "termprinter" . tests $
                       \  x"
                       "let x = 1\n\
                       \x" 0
-  , pending $ tc "case x of (t,0) -> foo t"  -- TODO patterns
-  , pending $ tc "case x of (t,0) | pred t -> foo t"
-  , pending $ tc "case x of (t,0) | pred t -> foo t; (t,0) -> foo' t; (t,u) -> bar;"
+  , pending $ tc "case x of Pair t 0 -> foo t" -- hitting UnknownDataConstructor when parsing pattern
+  , pending $ tc "case x of Pair t 0 | pred t -> foo t" -- ditto
+  , pending $ tc "case x of Pair t 0 | pred t -> foo t; Pair t 0 -> foo' t; Pair t u -> bar;" -- ditto
+  , tc "case x of () -> foo"
+  , tc "case x of _ -> foo"
+  , tc "case x of y -> y"
+  , tc "case x of 1 -> foo"
+  , tc "case x of +1 -> foo"
+  , tc "case x of -1 -> foo"
+  , tc "case x of 3.14159 -> foo"
+  , tc "case x of true -> foo"
+  , tc "case x of false -> foo"
+  , tc "case x of y@() -> y"
+  , tc "case x of a@b@c@() -> c"
+  , tc "case e of { a } -> z"
+  --, tc "case e of { () -> k } -> z" -- doesn't parse since 'many leaf' expected before the "-> k"
+                                      -- need an actual effect constructor to test this with
   ]

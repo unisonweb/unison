@@ -15,6 +15,7 @@ import           Data.Vector()
 import           Unison.ABT (pattern AbsN')
 import qualified Unison.Blank as Blank
 import           Unison.PatternP (Pattern)
+import qualified Unison.PatternP as Pattern
 import           Unison.Reference (Reference(..))
 import           Unison.Term
 import qualified Unison.TypePrinter as TypePrinter
@@ -23,7 +24,7 @@ import qualified Unison.Var as Var
 import qualified Unison.Util.PrettyPrint as PP
 import           Unison.Util.PrettyPrint (PrettyPrint(..))
 
---TODO force, delay
+--TODO force, delay, tuples, sequence (also in patterns)
 --TODO fix precedence, nesting and grouping, throughout
 --TODO print let and case using layout even if renderBroken doesn't kick in?
 --TODO more testing, throughout
@@ -46,11 +47,9 @@ pretty n p = \case
   Blank' id    -> l"_" <> (l $ fromMaybe "" (Blank.nameb id))
   RequestOrCtor' ref i -> l (Text.unpack (n ref)) <> l"#" <> (l $ show i)  -- TODO presumably I need to take
                                         -- an argument that allows me to determine constructor names.
-                                        -- Also a bit confused since I can't see a place in the parser that
-                                        -- actually produces Constructor terms except for builtins.
   Handle' h body -> parenNest (p >= 42) $ PP.Group $
-                      (PP.Nest " " $ PP.Group $ l"handle" <> b" " <> pretty n 42 h <> b" " <> l"in" <> b" ")
-                      <> pretty n 42 body
+                      l"handle" <> b" " <> pretty n (-1) h <> b" " <> l"in" <> b" "
+                      <> PP.Nest " " (PP.Group (pretty n (-1) body))
   Apps' f args -> parenNest (p >= 10) $ PP.Group $ pretty n 9 f <> appArgs args
   Vector' xs   -> PP.Nest " " $ PP.Group $ l"[" <> commaList (toList xs) <> l"]"
   If' cond t f -> parenNest (p >= 42) $ PP.Group $
@@ -65,7 +64,7 @@ pretty n p = \case
   LetRecNamed' bs e -> printLet bs e  -- TODO really same as Lets' case?
   Lets' bs e ->   printLet bs e
   Match' scrutinee branches -> l"case" <> b" " <> pretty n 42 scrutinee <> b" " <> l"of" <>
-                               printCases branches
+                               fold (intersperse (b";") (map printCase branches))
   t -> l"error: " <> l (show t)
   where sepList sep xs = sepList' (pretty n 0) sep xs
         sepList' f sep xs = fold $ intersperse sep (map f xs)
@@ -82,25 +81,58 @@ pretty n p = \case
                                      pretty n 42 binding <> b"\n" <> lets rest
         lets [] = Empty
 
-        printCases ((MatchCase pat guard (AbsN' _ body)) : rest) =
-          b" " <> prettyPattern n 42 pat <> b" " <> printGuard guard <> l"->" <> b" " <>
-          pretty n 42 body <> b";" <> printCases rest
-        printCases [] = Empty
-        printCases _ = l"error"
+        printCase (MatchCase pat guard (AbsN' vs body)) =
+          b" " <> (fst $ prettyPattern n (-1) vs pat) <> b" " <> printGuard guard <> l"->" <> b" " <>
+          pretty n (-1) body
+        printCase _ = l"error"
 
         printGuard (Just g) = l"|" <> b" " <> pretty n 42 g <> b" "
         printGuard Nothing = Empty
 
-        paren True s = PP.Group $ l"(" <> s <> l")"
-        paren False s = PP.Group s
-
-        parenNest useParen contents = PP.Nest " " $ paren useParen contents
-        l = Literal
-        b = Breakable
-
 pretty' :: Var v => (Reference -> Text) -> AnnotatedTerm v a -> String
 pretty' n t = PP.renderUnbroken $ pretty n (-1) t
 
--- TODO rename and move to new file
-prettyPattern :: (Reference -> Text) -> Int -> Pattern loc -> PrettyPrint String
-prettyPattern _ _ p = Literal $ show p -- todo
+prettyPattern :: Var v => (Reference -> Text) -> Int -> [v] -> Pattern loc -> (PrettyPrint String, [v])
+-- vs is the list of pattern variables used by the pattern, plus possibly a tail of variables it doesn't use.
+-- This tail is the second component of the return value.
+prettyPattern n p vs = \case
+  Pattern.Unbound _  -> (l"_", vs)
+  Pattern.Var _      -> let (v : tail_vs) = vs
+                        in (l $ Text.unpack (Var.name v), tail_vs)
+  Pattern.Boolean _ b -> (if b then l"true" else l"false", vs)
+  Pattern.Int64 _ i   -> ((if i >= 0 then l"+" else Empty) <> (l $ show i), vs)
+  Pattern.UInt64 _ u  -> (l $ show u, vs)
+  Pattern.Float _ f   -> (l $ show f, vs)   -- TODO check this will always contain a '.'
+  Pattern.Constructor _ ref _ pats -> let (pats_printed, tail_vs) = patterns vs pats
+                                      in (parenNest (p >= 42) $ PP.Group $ l (Text.unpack (n ref)) <> pats_printed, tail_vs)
+                                      -- TODO use the _ argument to get actual constructor name
+  Pattern.As _ pat    -> let (v : tail_vs) = vs
+                             (printed, eventual_tail) = prettyPattern n (-1) tail_vs pat  -- TODO check -1
+                         in ((l $ Text.unpack (Var.name v)) <> l"@" <> printed, eventual_tail)
+  Pattern.EffectPure _ pat -> let (printed, eventual_tail) = prettyPattern n (-1) vs pat
+                              in (l"{" <> b" " <> printed <> b" " <> l"}", eventual_tail)
+                              -- TODO use constructor ID below
+  Pattern.EffectBind _ ref _ pats k_pat -> let (pats_printed, tail_vs) = patterns vs pats
+                                               (k_pat_printed, eventual_tail) = prettyPattern n 42 tail_vs k_pat
+                                           in (PP.Nest " " $ PP.Group $ l"{" <> b" " <>
+                                               l (Text.unpack (n ref)) <> pats_printed <> b" " <> l"->" <> b" " <>
+                                               k_pat_printed <> b" " <> l"}", eventual_tail)
+  t                   -> (l"error: " <> l (show t), vs)
+  where l = Literal
+        patterns vs (pat : pats) = let (printed, tail_vs) = prettyPattern n 42 vs pat
+                                       (rest_printed, eventual_tail) = patterns tail_vs pats
+                                   in (b" " <> printed <> rest_printed, eventual_tail)
+        patterns vs [] = (Empty, vs)
+
+paren :: Bool -> PrettyPrint String -> PrettyPrint String
+paren True s = PP.Group $ l"(" <> s <> l")"
+paren False s = PP.Group s
+
+parenNest :: Bool -> PrettyPrint String -> PrettyPrint String
+parenNest useParen contents = PP.Nest " " $ paren useParen contents
+
+l :: String -> PrettyPrint String
+l = Literal
+
+b :: String -> PrettyPrint String
+b = Breakable
