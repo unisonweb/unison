@@ -68,14 +68,29 @@ data Branch0 =
           , editedTerms   :: Relation Reference TermEdit
           , editedTypes   :: Relation Reference TypeEdit
           , backupNames   :: Relation Reference Name
+          -- doesn't need to be serialized:
+          , transitiveDependencies :: Relation Reference Reference -- dependent, dependency
           }
 
+-- When adding a Reference `r` to a namespace as `n`:
+--   * add names for all of its transitive dependencies to `backupNames`.
+--   * cache its transitive dependencies in `transitiveDependencies`
+--   * (q1) do we add r,n to backupNames? (relates to q3)
+-- When removing a Reference `r` from a namespace:
+--   * get its transitive dependencies `ds`
+--   * remove `r` from dom(transitiveDependencies)
+--   * for each `d <- ds`, if `d` isn't in ran(transitiveDependencies),
+--                         then delete `d` from backupNames
+-- (q3) When renaming, do we need to update `backupNames`?
+-- (a1, a3) don't care; no, no.
+
 instance Semigroup Branch0 where
-  Branch0 n1 nt1 t1 d1 dp1 <> Branch0 n2 nt2 t2 d2 dp2 = Branch0
+  Branch0 n1 nt1 t1 d1 bn1 dp1 <> Branch0 n2 nt2 t2 d2 bn2 dp2 = Branch0
     (R.union n1 n2)
     (R.union nt1 nt2)
     (R.union t1 t2)
     (R.union d1 d2)
+    (R.union bn1 bn2)
     (R.union dp1 dp2)
 
 merge :: Branch -> Branch -> Branch
@@ -86,7 +101,6 @@ data ReferenceOps m = ReferenceOps
   , isTerm       :: Reference -> m Bool
   , isType       :: Reference -> m Bool
   , dependencies :: Reference -> m (Set Reference)
-  -- , dependencies ::
   }
 
 -- 0. bar depends on foo
@@ -116,36 +130,40 @@ replaceType = undefined
 add :: Monad m => ReferenceOps m -> Name -> Reference -> Branch -> m Branch
 add ops n r (Branch b) = Branch <$> Causal.stepM go b where
   go b = do
-    -- add dependencies to `backupNames`
-    backupNames' <- updateBackupNames1 ops r b
-    -- add (n,r) to backupNames
-    let backupNames'' = R.insert r n backupNames'
+    -- add dependencies to `backupNames` and `transitiveDependencies`
+    deps <- transitiveClosure1 (dependencies ops) r
+    backupNames' <- addBackupNames ops deps b
+    let transitiveDependencies' = insertManyRan r deps $ transitiveDependencies b
     -- add to appropriate namespace
-    termOrTypeOp ops r
-      (pure b { termNamespace = R.insert n r $ termNamespace b
-              , backupNames = backupNames''
-              })
-      (pure b { typeNamespace = R.insert n r $ typeNamespace b
-              , backupNames = backupNames''
-              })
+    b <- termOrTypeOp ops r
+      (pure b { termNamespace = R.insert n r $ termNamespace b })
+      (pure b { typeNamespace = R.insert n r $ typeNamespace b })
+    pure b { backupNames = backupNames'
+           , transitiveDependencies = transitiveDependencies'
+           }
 
-updateBackupNames :: Monad m
-                  => ReferenceOps m
-                  -> Set Reference
-                  -> Branch0
-                  -> m (Relation Reference Name)
-updateBackupNames ops refs b = do
-  transitiveClosure <- transitiveClosure (dependencies ops) refs
-  foldM insertNames (backupNames b) transitiveClosure
-  where
-    insertNames m r = foldl' (flip $ R.insert r) m <$> name ops r
 
-updateBackupNames1 :: Monad m
-                   => ReferenceOps m
-                   -> Reference
-                   -> Branch0
-                   -> m (Relation Reference Name)
-updateBackupNames1 ops r b = updateBackupNames ops (Set.singleton r) b
+insertNames :: Monad m
+            => ReferenceOps m
+            -> Relation Reference Name
+            -> Reference -> m (Relation Reference Name)
+insertNames ops m r = foldl' (flip $ R.insert r) m <$> name ops r
+
+insertManyRan :: (Foldable f, Ord a, Ord b)
+              => a -> f b -> Relation a b -> Relation a b
+insertManyRan a bs r = foldl' (flip $ R.insert a) r bs
+
+insertManyDom :: (Foldable f, Ord a, Ord b)
+              => f a -> b -> Relation a b -> Relation a b
+insertManyDom as b r = foldl' (flip $ flip R.insert b) r as
+
+addBackupNames :: Monad m
+               => ReferenceOps m
+               -> Set Reference
+               -> Branch0
+               -> m (Relation Reference Name)
+addBackupNames ops needNames b =
+  foldM (insertNames ops) (backupNames b) needNames
 
 lookupRan :: Ord b => b -> Relation a b -> Set a
 lookupRan b r = fromMaybe Set.empty $ R.lookupRan b r
@@ -175,13 +193,23 @@ replaceTerm :: Monad m
 replaceTerm ops old new typ (Branch b) = Branch <$> Causal.stepM go b where
   edit = TermEdit.Replace new typ
   go b = do
-    backupNames <- updateBackupNames1 ops new b
+    -- add names for transitive dependencies of `new`
+    newDeps <- transitiveClosure1 (dependencies ops) new
+    backupNames <- addBackupNames ops newDeps b
+    -- stop tracking dependencies of `old` in `transitiveDependencies`
+    -- and remove orphaned dependencies of `old` from `backupNames`
+    let oldDeps = lookupDom old (transitiveDependencies b)
+        transitiveDependencies' = deleteDom old (transitiveDependencies b)
+        backupNames' = deleteOrphans oldDeps transitiveDependencies' backupNames
     pure b { editedTerms = R.insert old edit (editedTerms b)
-    -- todo: can we use backupNames to find the keys to update, instead of
-    -- fmap
            , termNamespace = replaceRan old new $ termNamespace b
-           , backupNames = backupNames
+           , backupNames = backupNames'
+           , transitiveDependencies = transitiveDependencies'
            }
+
+-- If any `as` aren't in `b`, then delete them from `c` as well.  Kind of sad.
+deleteOrphans :: (Ord a, Ord c) => Set a -> Relation a b -> Relation a c -> Relation a c
+deleteOrphans as b c = foldl' (\c a -> if R.memberDom a b then c else deleteDom a c) c as
 
 codebase :: Monad m => ReferenceOps m -> Branch -> m (Set Reference)
 codebase ops (Branch (Causal.head -> Branch0 {..})) =
@@ -207,17 +235,38 @@ transitiveClosure getDependencies open =
           go (Set.insert h closed) (toList deps ++ t)
   in go Set.empty (toList open)
 
+transitiveClosure1 :: forall m a. (Monad m, Ord a)
+                   => (a -> m (Set a)) -> a -> m (Set a)
+transitiveClosure1 f a = transitiveClosure f (Set.singleton a)
+
 deprecateTerm :: Reference -> Branch -> Branch
 deprecateTerm old (Branch b) = Branch $ Causal.step go b where
-  go b = b { editedTerms = R.insert old TermEdit.Deprecate (editedTerms b)
-           , termNamespace = deleteRan old (termNamespace b)
-           }
+  go b =
+    let oldDeps :: Set Reference
+        oldDeps = lookupDom old (transitiveDependencies b)
+        allDeps :: Relation Reference Reference
+        allDeps = deleteDom old (transitiveDependencies b)
+        backupNames' = deleteOrphans oldDeps allDeps (backupNames b)
+    in b { editedTerms = R.insert old TermEdit.Deprecate (editedTerms b)
+         , termNamespace = deleteRan old (termNamespace b)
+         , backupNames = backupNames'
+         , transitiveDependencies = allDeps
+         }
+
 
 deprecateType :: Reference -> Branch -> Branch
 deprecateType old (Branch b) = Branch $ Causal.step go b where
-  go b = b { editedTypes = R.insert old TypeEdit.Deprecate (editedTypes b)
-           , typeNamespace = deleteRan old (typeNamespace b)
-           }
+  go b =
+    let oldDeps :: Set Reference
+        oldDeps = lookupDom old (transitiveDependencies b)
+        allDeps :: Relation Reference Reference
+        allDeps = deleteDom old (transitiveDependencies b)
+        backupNames' = deleteOrphans oldDeps allDeps (backupNames b)
+    in b { editedTypes = R.insert old TypeEdit.Deprecate (editedTypes b)
+         , typeNamespace = deleteRan old (typeNamespace b)
+         , backupNames = backupNames'
+         , transitiveDependencies = allDeps
+         }
 
 instance (Hashable a, Hashable b) => Hashable (Relation a b) where
   tokens r = H.tokens (R.toList r)
