@@ -3,27 +3,33 @@
 module Unison.Codebase.Serialization.V0 where
 
 -- import qualified Data.Text as Text
+import qualified Unison.PatternP as Pattern
+import Unison.PatternP (Pattern)
 import Control.Monad (replicateM)
 import Data.Bits (Bits)
-import Data.Bytes.Get as R
-import Data.Bytes.Put as W
-import Data.Bytes.Serial (serialize, deserialize)
+import Data.Bytes.Get as Get
+import Data.Bytes.Put as Put
+import Data.Bytes.Serial (serialize, deserialize, serializeBE, deserializeBE)
 import Data.Bytes.Signed (Unsigned)
 import Data.Bytes.VarInt (VarInt(..))
 import Data.Foldable (traverse_)
+import Data.Int (Int64)
 import Data.List (elemIndex, foldl')
 import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)
+import Data.Word (Word64)
 import Unison.Hash (Hash)
 import Unison.Kind (Kind)
 import Unison.Reference (Reference)
 import Unison.Symbol (Symbol(..))
+import Unison.Term (AnnotatedTerm)
 import qualified Data.ByteString as B
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
 import qualified Unison.Hash as Hash
 import qualified Unison.Kind as Kind
 import qualified Unison.Reference as Reference
+import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 
 -- About this format:
@@ -65,6 +71,34 @@ getText = do
   bs <- getBytes len
   pure $ decodeUtf8 bs
 
+putFloat :: MonadPut m => Double -> m ()
+putFloat = serializeBE
+
+getFloat :: MonadGet m => m Double
+getFloat = deserializeBE
+
+putNat :: MonadPut m => Word64 -> m ()
+putNat = putWord64be
+
+getNat :: MonadGet m => m Word64
+getNat = Get.getWord64be
+
+putInt :: MonadPut m => Int64 -> m ()
+putInt n = serializeBE n
+
+getInt :: MonadGet m => m Int64
+getInt = deserializeBE
+
+putBoolean :: MonadPut m => Bool -> m ()
+putBoolean False = putWord8 0
+putBoolean True  = putWord8 1
+
+getBoolean :: MonadGet m => m Bool
+getBoolean = go =<< getWord8 where
+  go 0 = pure False
+  go 1 = pure True
+  go t = unknownTag "Boolean" t
+
 putHash :: MonadPut m => Hash -> m ()
 putHash h = do
   let bs = Hash.toBytes h
@@ -93,6 +127,16 @@ getReference = do
     0 -> Reference.Builtin <$> getText
     1 -> Reference.Derived <$> getHash
     _ -> unknownTag "Reference" tag
+
+putMaybe :: MonadPut m => Maybe a -> (a -> m ()) -> m ()
+putMaybe Nothing _ = putWord8 0
+putMaybe (Just a) putA = putWord8 1 *> putA a
+
+getMaybe :: MonadGet m => m a -> m (Maybe a)
+getMaybe getA = getWord8 >>= \tag -> case tag of
+  0 -> pure Nothing
+  1 -> Just <$> getA
+  _ -> unknownTag "Maybe" tag
 
 putFoldable
   :: (Foldable f, MonadPut m) => f a -> (a -> m ()) -> m ()
@@ -200,3 +244,83 @@ putSymbol (Symbol id name) = putLength id *> putText name
 
 getSymbol :: MonadGet m => m Symbol
 getSymbol = Symbol <$> getLength <*> getText
+
+putPattern :: MonadPut m => (a -> m ()) -> Pattern a -> m ()
+putPattern putA p = case p of
+  Pattern.Unbound a
+    -> putWord8 0 *> putA a
+  Pattern.Var a
+    -> putWord8 1 *> putA a
+  Pattern.Boolean a b
+    -> putWord8 2 *> putA a *> putBoolean b
+  Pattern.Int a n
+    -> putWord8 3 *> putA a *> putInt n
+  Pattern.Nat a n
+    -> putWord8 4 *> putA a *> putNat n
+  Pattern.Float a n
+    -> putWord8 5 *> putA a *> putFloat n
+  Pattern.Constructor a r cid ps
+    -> putWord8 6 *> putA a *> putReference r *> putLength cid
+                  *> putFoldable ps (putPattern putA)
+  Pattern.As a p
+    -> putWord8 7 *> putA a *> putPattern putA p
+  Pattern.EffectPure a p
+    -> putWord8 8 *> putA a *> putPattern putA p
+  Pattern.EffectBind a r cid args k
+    -> putWord8 9 *> putA a *> putReference r *> putLength cid
+                  *> putFoldable args (putPattern putA) *> putPattern putA k
+  _ -> error $ "unknown pattern: " ++ show p
+
+getPattern :: MonadGet m => m a -> m (Pattern a)
+getPattern getA = getWord8 >>= \tag -> case tag of
+  0 -> Pattern.Unbound <$> getA
+  1 -> Pattern.Var <$> getA
+  2 -> Pattern.Boolean <$> getA <*> getBoolean
+  3 -> Pattern.Int <$> getA <*> getInt
+  4 -> Pattern.Nat <$> getA <*> getNat
+  5 -> Pattern.Float <$> getA <*> getFloat
+  6 -> Pattern.Constructor <$> getA <*> getReference <*> getLength <*> getList (getPattern getA)
+  7 -> Pattern.As <$> getA <*> getPattern getA
+  8 -> Pattern.EffectPure <$> getA <*> getPattern getA
+  9 -> Pattern.EffectBind <$> getA <*> getReference <*> getLength <*> getList (getPattern getA) <*> getPattern getA
+  _ -> unknownTag "Pattern" tag
+
+putTerm :: (MonadPut m, Ord v)
+        => (v -> m ()) -> (a -> m ())
+        -> AnnotatedTerm v a
+        -> m ()
+putTerm putVar putA typ = putABT putVar putA go typ where
+  go putChild t = case t of
+    Term.Int n       -> putWord8 0 *> putInt n
+    Term.Nat n       -> putWord8 1 *> putNat n
+    Term.Float n     -> putWord8 2 *> putFloat n
+    Term.Boolean b   -> putWord8 3 *> putBoolean b
+    Term.Text t      -> putWord8 4 *> putText t
+    Term.Blank _     ->
+      error $ "can't serialize term with blanks"
+    Term.Ref r       -> putWord8 5 *> putReference r
+    Term.Constructor r cid -> putWord8 6 *> putReference r *> putLength cid
+    Term.Request r cid -> putWord8 7 *> putReference r *> putLength cid
+    Term.Handle h a -> putWord8 8 *> putChild h *> putChild a
+    Term.App f arg -> putWord8 9 *> putChild f *> putChild arg
+    Term.Ann e t  -> putWord8 10 *> putChild e *> putType putVar putA t
+    Term.Vector vs -> putWord8 11 *> putFoldable vs putChild
+    Term.If cond t f -> putWord8 12 *> putChild cond *> putChild t *> putChild f
+    Term.And x y -> putWord8 13 *> putChild x *> putChild y
+    Term.Or x y -> putWord8 14 *> putChild x *> putChild y
+    Term.Lam body -> putWord8 15 *> putChild body
+    Term.LetRec bs body -> putWord8 16 *> putFoldable bs putChild *> putChild body
+    Term.Let b body -> putWord8 17 *> putChild b *> putChild body
+    Term.Match s cases -> putWord8 18 *> putChild s *> putFoldable cases (putMatchCase putA putChild)
+
+putMatchCase :: MonadPut m => (a -> m ()) -> (x -> m ()) -> Term.MatchCase a x -> m ()
+putMatchCase putA putChild (Term.MatchCase pat guard body) =
+  putPattern putA pat *> putMaybe guard putChild *> putChild body
+
+getTerm :: (MonadGet m, Ord v)
+        => m v -> m a -> m (Term.AnnotatedTerm v a)
+getTerm getVar getA = getABT getVar getA go where
+  go getChild = getWord8 >>= \tag -> case tag of
+    0 -> Term.Ref <$> getReference
+    _ -> unknownTag "getTerm" tag
+
