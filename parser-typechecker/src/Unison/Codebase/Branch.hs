@@ -10,7 +10,7 @@ module Unison.Codebase.Branch where
 
 import           Control.Monad              (foldM)
 import           Data.Foldable
-import           Data.Maybe                 (fromMaybe, isJust)
+import           Data.Maybe                 (fromMaybe)
 import           Data.Relation              (Relation)
 import qualified Data.Relation              as R
 import           Data.Set                   (Set)
@@ -75,14 +75,13 @@ data Branch0 =
 -- When adding a Reference `r` to a namespace as `n`:
 --   * add names for all of its transitive dependencies to `backupNames`.
 --   * cache its transitive dependencies in `transitiveDependencies`
---   * (q1) do we add r,n to backupNames? (relates to q3)
+--   * (q1) do we add r,n to backupNames? no
 -- When removing a Reference `r` from a namespace:
 --   * get its transitive dependencies `ds`
 --   * remove `r` from dom(transitiveDependencies)
 --   * for each `d <- ds`, if `d` isn't in ran(transitiveDependencies),
 --                         then delete `d` from backupNames
--- (q3) When renaming, do we need to update `backupNames`?
--- (a1, a3) don't care; no, no.
+--   * (q2) When renaming, do we need to update `backupNames`? no
 
 instance Semigroup Branch0 where
   Branch0 n1 nt1 t1 d1 bn1 dp1 <> Branch0 n2 nt2 t2 d2 bn2 dp2 = Branch0
@@ -308,10 +307,10 @@ termOrTypeOp ops r ifTerm ifType = do
 
 renameType :: Name -> Name -> Branch -> Branch
 renameType old new (Branch b) =
-  Branch $ Causal.stepIf (isJust . R.lookupDom old . typeNamespace) go b where
+  Branch $ Causal.stepIf (R.memberDom old . typeNamespace) go b where
     go b = b { typeNamespace = replaceDom old new (typeNamespace b)}
 
 renameTerm :: Name -> Name -> Branch -> Branch
 renameTerm old new (Branch b) =
-  Branch $ Causal.stepIf (isJust . R.lookupDom old . termNamespace) go b where
+  Branch $ Causal.stepIf (R.memberDom old . termNamespace) go b where
     go b = b { termNamespace = replaceDom old new (termNamespace b)}
