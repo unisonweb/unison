@@ -3,6 +3,7 @@
 module Unison.Codebase.Serialization.V0 where
 
 -- import qualified Data.Text as Text
+import qualified Data.Vector as Vector
 import qualified Unison.PatternP as Pattern
 import Unison.PatternP (Pattern)
 import Control.Monad (replicateM)
@@ -32,7 +33,7 @@ import qualified Unison.Reference as Reference
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 
--- About this format:
+-- ABOUT THIS FORMAT:
 --
 -- Finalized: No
 --
@@ -40,7 +41,6 @@ import qualified Unison.Type as Type
 -- Instead, create a new file, V(n + 1).
 -- This ensures that we have a well-defined serialized form and can read
 -- and write old versions.
---
 
 unknownTag :: (MonadGet m, Show a) => String -> a -> m x
 unknownTag msg tag =
@@ -291,36 +291,73 @@ putTerm :: (MonadPut m, Ord v)
         -> m ()
 putTerm putVar putA typ = putABT putVar putA go typ where
   go putChild t = case t of
-    Term.Int n       -> putWord8 0 *> putInt n
-    Term.Nat n       -> putWord8 1 *> putNat n
-    Term.Float n     -> putWord8 2 *> putFloat n
-    Term.Boolean b   -> putWord8 3 *> putBoolean b
-    Term.Text t      -> putWord8 4 *> putText t
-    Term.Blank _     ->
-      error $ "can't serialize term with blanks"
-    Term.Ref r       -> putWord8 5 *> putReference r
-    Term.Constructor r cid -> putWord8 6 *> putReference r *> putLength cid
-    Term.Request r cid -> putWord8 7 *> putReference r *> putLength cid
-    Term.Handle h a -> putWord8 8 *> putChild h *> putChild a
-    Term.App f arg -> putWord8 9 *> putChild f *> putChild arg
-    Term.Ann e t  -> putWord8 10 *> putChild e *> putType putVar putA t
-    Term.Vector vs -> putWord8 11 *> putFoldable vs putChild
-    Term.If cond t f -> putWord8 12 *> putChild cond *> putChild t *> putChild f
-    Term.And x y -> putWord8 13 *> putChild x *> putChild y
-    Term.Or x y -> putWord8 14 *> putChild x *> putChild y
-    Term.Lam body -> putWord8 15 *> putChild body
-    Term.LetRec bs body -> putWord8 16 *> putFoldable bs putChild *> putChild body
-    Term.Let b body -> putWord8 17 *> putChild b *> putChild body
-    Term.Match s cases -> putWord8 18 *> putChild s *> putFoldable cases (putMatchCase putA putChild)
+    Term.Int n
+      -> putWord8 0 *> putInt n
+    Term.Nat n
+      -> putWord8 1 *> putNat n
+    Term.Float n
+      -> putWord8 2 *> putFloat n
+    Term.Boolean b
+      -> putWord8 3 *> putBoolean b
+    Term.Text t
+      -> putWord8 4 *> putText t
+    Term.Blank _
+      -> error $ "can't serialize term with blanks"
+    Term.Ref r
+      -> putWord8 5 *> putReference r
+    Term.Constructor r cid
+      -> putWord8 6 *> putReference r *> putLength cid
+    Term.Request r cid
+      -> putWord8 7 *> putReference r *> putLength cid
+    Term.Handle h a
+      -> putWord8 8 *> putChild h *> putChild a
+    Term.App f arg
+      -> putWord8 9 *> putChild f *> putChild arg
+    Term.Ann e t
+      -> putWord8 10 *> putChild e *> putType putVar putA t
+    Term.Vector vs
+      -> putWord8 11 *> putFoldable vs putChild
+    Term.If cond t f
+      -> putWord8 12 *> putChild cond *> putChild t *> putChild f
+    Term.And x y
+      -> putWord8 13 *> putChild x *> putChild y
+    Term.Or x y
+      -> putWord8 14 *> putChild x *> putChild y
+    Term.Lam body
+      -> putWord8 15 *> putChild body
+    Term.LetRec bs body
+      -> putWord8 16 *> putFoldable bs putChild *> putChild body
+    Term.Let b body
+      -> putWord8 17 *> putChild b *> putChild body
+    Term.Match s cases
+      -> putWord8 18 *> putChild s *> putFoldable cases (putMatchCase putA putChild)
 
-putMatchCase :: MonadPut m => (a -> m ()) -> (x -> m ()) -> Term.MatchCase a x -> m ()
-putMatchCase putA putChild (Term.MatchCase pat guard body) =
-  putPattern putA pat *> putMaybe guard putChild *> putChild body
+  putMatchCase :: MonadPut m => (a -> m ()) -> (x -> m ()) -> Term.MatchCase a x -> m ()
+  putMatchCase putA putChild (Term.MatchCase pat guard body) =
+    putPattern putA pat *> putMaybe guard putChild *> putChild body
 
 getTerm :: (MonadGet m, Ord v)
         => m v -> m a -> m (Term.AnnotatedTerm v a)
 getTerm getVar getA = getABT getVar getA go where
   go getChild = getWord8 >>= \tag -> case tag of
-    0 -> Term.Ref <$> getReference
+    0 -> Term.Int <$> getInt
+    1 -> Term.Nat <$> getNat
+    2 -> Term.Float <$> getFloat
+    3 -> Term.Boolean <$> getBoolean
+    4 -> Term.Text <$> getText
+    5 -> Term.Ref <$> getReference
+    6 -> Term.Constructor <$> getReference <*> getLength
+    7 -> Term.Request <$> getReference <*> getLength
+    8 -> Term.Handle <$> getChild <*> getChild
+    9 -> Term.App <$> getChild <*> getChild
+    10 -> Term.Ann <$> getChild <*> getType getVar getA
+    11 -> Term.Vector . Vector.fromList <$> getList getChild
+    12 -> Term.If <$> getChild <*> getChild <*> getChild
+    13 -> Term.And <$> getChild <*> getChild
+    14 -> Term.Or <$> getChild <*> getChild
+    15 -> Term.Lam <$> getChild
+    16 -> Term.LetRec <$> getList getChild <*> getChild
+    17 -> Term.Let <$> getChild <*> getChild
+    18 -> Term.Match <$> getChild
+                     <*> getList (Term.MatchCase <$> getPattern getA <*> getMaybe getChild <*> getChild)
     _ -> unknownTag "getTerm" tag
-
