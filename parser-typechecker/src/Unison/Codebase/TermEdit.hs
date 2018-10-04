@@ -5,7 +5,7 @@ import Unison.Hashable (Hashable)
 import qualified Unison.Hashable as H
 
 data TermEdit = Replace Reference Typing | Deprecate
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
 
 references :: TermEdit -> [Reference]
 references (Replace r _) = [r]
@@ -15,7 +15,7 @@ references Deprecate = []
 -- Replacements with a Subtype can be automatically propagated but may result in dependents getting more general types, so requires re-inference.
 -- Replacements of a Different type need to be manually propagated by the programmer.
 data Typing = Same | Subtype | Different
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
 
 instance Hashable Typing where
   tokens Same = [H.Tag 0]

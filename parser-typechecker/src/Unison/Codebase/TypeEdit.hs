@@ -5,7 +5,7 @@ import Unison.Hashable (Hashable)
 import qualified Unison.Hashable as H
 
 data TypeEdit = Replace Reference | Deprecate
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
 
 references :: TypeEdit -> [Reference]
 references (Replace r) = [r]

@@ -2,6 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns        #-}
 {-# LANGUAGE DoAndIfThenElse     #-}
+{-# LANGUAGE PatternSynonyms     #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Unison.Codebase.Branch where
@@ -10,6 +11,8 @@ module Unison.Codebase.Branch where
 
 import           Control.Monad              (foldM)
 import           Data.Foldable
+import           Data.Map                   (Map)
+import qualified Data.Map                   as Map
 import           Data.Maybe                 (fromMaybe)
 import           Data.Relation              (Relation)
 import qualified Data.Relation              as R
@@ -60,7 +63,7 @@ import           Unison.Reference           (Reference)
 --
 -- Operations around making transitive updates, resolving conflicts...
 -- determining remaining work before one branch "covers" another...
-newtype Branch = Branch (Causal Branch0)
+newtype Branch = Branch { unbranch :: Causal Branch0 }
 
 data Branch0 =
   Branch0 { termNamespace :: Relation Name Reference
@@ -91,6 +94,43 @@ instance Semigroup Branch0 where
     (R.union d1 d2)
     (R.union bn1 bn2)
     (R.union dp1 dp2)
+
+conflicts' :: Ord a => Relation a b -> Map a (Set b)
+conflicts' r =
+  -- iterate over the domain, looking for ranges with size > 1
+  -- build a map of those sets
+  foldl' go Map.empty (R.dom r) where
+    go m a =
+      let bs = lookupDom a r
+      in if Set.size bs > 1 then Map.insert a bs m else m
+
+-- Use e.g. by `conflicts termNamespace branch`
+conflicts :: Ord a => (Branch0 -> Relation a b) -> Branch -> Map a (Set b)
+conflicts f = conflicts' . f . Causal.head . unbranch
+
+-- count of remaining work, including:
+-- * conflicted thingies
+-- * among unconflicted thingies:
+--    * definitions depending on definitions that have been updated
+--       * terms and types depending on updated types
+--       * terms depending on updated terms
+data RemainingWork
+  = TermNameConflict Name (Set Reference)
+  | TypeNameConflict Name (Set Reference)
+  | TermEditConflict Reference (Set TermEdit)
+  | TypeEditConflict Reference (Set TypeEdit)
+  -- ObsoleteTerm r [(old,new)]: r depended on old, which has been updated to new
+  | ObsoleteTerm Reference (Set (Reference, Either TermEdit TypeEdit))
+  | ObsoleteType Reference (Set (Reference, TypeEdit))
+  deriving (Eq, Ord, Show)
+remaining :: Branch -> Set RemainingWork
+remaining b = Set.fromList $
+  (uncurry TermNameConflict <$> Map.toList (conflicts termNamespace b)) ++
+  (uncurry TypeNameConflict <$> Map.toList (conflicts typeNamespace b)) ++
+  (uncurry TermEditConflict <$> Map.toList (conflicts editedTerms b)) ++
+  (uncurry TypeEditConflict <$> Map.toList (conflicts editedTypes b)) ++ error "todo"
+
+pattern Branch' b <- (Branch (Causal.head -> b))
 
 merge :: Branch -> Branch -> Branch
 merge (Branch b) (Branch b2) = Branch (Causal.merge b b2)
@@ -276,6 +316,7 @@ instance Hashable Branch0 where
     H.tokens editedTerms ++ H.tokens editedTypes
 
 resolveTerm :: Name -> Branch -> Set Reference
+-- resolveTerm n (Branch' b) = lookupDom n (termNamespace b)
 resolveTerm n (Branch (Causal.head -> b)) = lookupDom n (termNamespace b)
 
 resolveTermUniquely :: Name -> Branch -> Maybe Reference

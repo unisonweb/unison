@@ -23,6 +23,8 @@ import qualified Data.Map as Map
   * `head (sequence c1 c2) == head c2`
 -}
 
+--newtype Causal' e = Causal' { unCausal :: Cofree (Hash, Causal :+: (Map Hash :.: Causal)) e }
+-- data Causal e = { head :: e, currentHash :: Hash, tail :: Either (Causal e) (Map Hash (Causal e)) }
 data Causal e
   = One { currentHash :: Hash, head :: e }
   | Cons { currentHash :: Hash, head :: e, tail :: Causal e }
