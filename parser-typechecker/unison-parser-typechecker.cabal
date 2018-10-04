@@ -47,6 +47,7 @@ library
     Unison.Codebase.Release
     Unison.Codebase.TermEdit
     Unison.Codebase.TypeEdit
+    Unison.Codebase.Serialization.V0
     Unison.Codebase.Watch
     Unison.DataDeclaration
     Unison.FileParser
