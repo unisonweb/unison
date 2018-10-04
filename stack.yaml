@@ -3,7 +3,6 @@ flags: {}
 allow-newer: true # async package has needlessly strict upper bound
 
 packages:
-- yaks/parsec-layout
 - yaks/easytest
 - parser-typechecker
 
