@@ -95,18 +95,28 @@ instance Semigroup Branch0 where
     (R.union bn1 bn2)
     (R.union dp1 dp2)
 
-conflicts' :: Ord a => Relation a b -> Map a (Set b)
-conflicts' r =
-  -- iterate over the domain, looking for ranges with size > 1
-  -- build a map of those sets
-  foldl' go Map.empty (R.dom r) where
-    go m a =
-      let bs = lookupDom a r
-      in if Set.size bs > 1 then Map.insert a bs m else m
 
 -- Use e.g. by `conflicts termNamespace branch`
 conflicts :: Ord a => (Branch0 -> Relation a b) -> Branch -> Map a (Set b)
-conflicts f = conflicts' . f . Causal.head . unbranch
+conflicts f = conflicts' . f . Causal.head . unbranch where
+  conflicts' :: Ord a => Relation a b -> Map a (Set b)
+  conflicts' r =
+    -- iterate over the domain, looking for ranges with size > 1
+    -- build a map of those sets
+    foldl' go Map.empty (R.dom r) where
+      go m a =
+        let bs = lookupDom a r
+        in if Set.size bs > 1 then Map.insert a bs m else m
+
+-- Use as `resolved editedTerms branch`
+resolved :: Ord a => (Branch0 -> Relation a b) -> Branch -> Map a b
+resolved f = resolved' . f . Causal.head . unbranch where
+  resolved' :: Ord a => Relation a b -> Map a b
+  resolved' r = foldl' go Map.empty (R.dom r) where
+    go m a =
+      let bs = lookupDom a r
+      in if Set.size bs == 1 then Map.insert a (Set.findMin bs) m else m
+
 
 -- count of remaining work, including:
 -- * conflicted thingies
@@ -123,14 +133,75 @@ data RemainingWork
   | ObsoleteTerm Reference (Set (Reference, Either TermEdit TypeEdit))
   | ObsoleteType Reference (Set (Reference, TypeEdit))
   deriving (Eq, Ord, Show)
-remaining :: Branch -> Set RemainingWork
-remaining b = Set.fromList $
-  (uncurry TermNameConflict <$> Map.toList (conflicts termNamespace b)) ++
-  (uncurry TypeNameConflict <$> Map.toList (conflicts typeNamespace b)) ++
-  (uncurry TermEditConflict <$> Map.toList (conflicts editedTerms b)) ++
-  (uncurry TypeEditConflict <$> Map.toList (conflicts editedTypes b)) ++ error "todo"
-
-pattern Branch' b <- (Branch (Causal.head -> b))
+remaining :: forall m. Monad m => ReferenceOps m -> Branch -> m (Set RemainingWork)
+remaining ops b@(Branch (Causal.head -> b0)) = do
+-- If any of r's dependencies have been updated, r should be updated.
+-- Alternatively: If `a` has been edited, then all of a's dependents
+-- should be edited. (Maybe a warning if they are updated to something
+-- that still uses `a`.)
+  -- map from updated term to dependent + termedit
+  (obsoleteTerms, obsoleteTypes) <- wrangleUpdatedTypes ops wrangleUpdatedTerms
+  pure . Set.fromList $
+    (uncurry TermNameConflict <$> Map.toList (conflicts termNamespace b)) ++
+    (uncurry TypeNameConflict <$> Map.toList (conflicts typeNamespace b)) ++
+    (uncurry TermEditConflict <$> Map.toList (conflicts editedTerms b)) ++
+    (uncurry TypeEditConflict <$> Map.toList (conflicts editedTypes b)) ++
+    (uncurry ObsoleteTerm <$> Map.toList obsoleteTerms) ++
+    (uncurry ObsoleteType <$> Map.toList obsoleteTypes)
+  where                    -- referent -> (oldreference, edit)
+    wrangleUpdatedTerms ::  Map Reference (Set (Reference, Either TermEdit TypeEdit))
+    wrangleUpdatedTerms =
+      -- 1. filter the edits to find the ones that are resolved (not conflicted)
+      -- 2. for each resolved (oldref,edit) pair,
+      -- 2b.  look up the referents of that oldref.
+      -- 2c.  if the referent is unedited, add it to the work:
+      -- 2c(i).  add it to the term work list if it's a term ref,
+      -- 2c(ii). only terms can depend on terms, so it's a term ref.
+      let termEdits :: Map Reference TermEdit -- oldreference, edit
+          termEdits = resolved editedTerms b
+      in Map.unionsWith (<>)
+        [ Map.singleton referent (Set.singleton (oldRef, Left edit))
+             | (oldRef, edit) <- Map.toList termEdits
+             , referent <- toList $ lookupRan oldRef (transitiveDependencies b0)
+             , not $ R.memberDom referent (editedTerms b0)
+             ]
+    wrangleUpdatedTypes ::
+      Monad m => ReferenceOps m
+              -> Map Reference (Set (Reference, Either TermEdit TypeEdit))
+              -> m (Map Reference (Set (Reference, Either TermEdit TypeEdit))
+                   ,Map Reference (Set (Reference, TypeEdit)))
+    wrangleUpdatedTypes ops initialTermEdits =
+      -- 1. filter the edits to find the ones that are resolved (not conflicted)
+      -- 2. for each resolved (oldref,edit) pair,
+      -- 2b.  look up the referents of that oldref.
+      -- 2c.  if the referent is unedited, add it to the work:
+      -- 2c(i).  add it to the term work list if it's a term ref,
+      -- 2c(ii). add it to the type work list if it's a type ref
+      foldM go (initialTermEdits, Map.empty) (Map.toList typeEdits)
+      where
+        typeEdits :: Map Reference TypeEdit -- oldreference, edit
+        typeEdits = resolved editedTypes b
+        go :: Monad m
+           => (Map Reference (Set (Reference, Either TermEdit TypeEdit))
+                ,Map Reference (Set (Reference, TypeEdit)))
+           -> (Reference, TypeEdit)
+           -> m (Map Reference (Set (Reference, Either TermEdit TypeEdit))
+                ,Map Reference (Set (Reference, TypeEdit)))
+        go (termWork, typeWork) (oldRef, edit) =
+          foldM go2 (termWork, typeWork)
+                    (lookupRan oldRef (transitiveDependencies b0)) where
+            single referent oldRef edit =
+              Map.singleton referent (Set.singleton (oldRef, edit))
+            singleRight referent oldRef edit =
+              Map.singleton referent (Set.singleton (oldRef, Right edit))
+            go2 (termWork, typeWork) referent =
+              termOrTypeOp ops referent
+                (pure $ if not $ R.memberDom referent (editedTerms b0)
+                        then (termWork <> singleRight referent oldRef edit, typeWork)
+                        else (termWork, typeWork))
+                (pure $ if not $ R.memberDom referent (editedTypes b0)
+                        then (termWork, typeWork <> single referent oldRef edit)
+                        else (termWork, typeWork))
 
 merge :: Branch -> Branch -> Branch
 merge (Branch b) (Branch b2) = Branch (Causal.merge b b2)
@@ -316,7 +387,6 @@ instance Hashable Branch0 where
     H.tokens editedTerms ++ H.tokens editedTypes
 
 resolveTerm :: Name -> Branch -> Set Reference
--- resolveTerm n (Branch' b) = lookupDom n (termNamespace b)
 resolveTerm n (Branch (Causal.head -> b)) = lookupDom n (termNamespace b)
 
 resolveTermUniquely :: Name -> Branch -> Maybe Reference
