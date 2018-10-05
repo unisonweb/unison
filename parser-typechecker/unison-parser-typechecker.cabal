@@ -66,6 +66,7 @@ library
     Unison.PrintError
     Unison.Reference
     Unison.Runtime.Rt0
+    Unison.Runtime.ANF
     Unison.Result
     Unison.Settings
     Unison.Symbol
