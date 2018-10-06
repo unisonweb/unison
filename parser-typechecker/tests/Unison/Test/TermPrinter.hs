@@ -87,9 +87,38 @@ test = scope "termprinter" . tests $
   , tc "case x of 3.14159 -> foo"
   , tc "case x of true -> foo"
   , tc "case x of false -> foo"
-  , tc "case x of y@() -> y"
-  , tc "case x of a@b@c@() -> c"
+  , tc "case x of y@(()) -> y"           -- TODO lose the brackets for `As (unary constructor)`
+  , tc "case x of a@(b@(c@(()))) -> c"
   , tc "case e of { a } -> z"
   --, tc "case e of { () -> k } -> z" -- doesn't parse since 'many leaf' expected before the "-> k"
                                       -- need an actual effect constructor to test this with
+  , pending $ tc "if a then (if b then c else d) else e"
+  , pending $ tc "(if b then c else d)"   -- TODO raise issue - parser doesn't like bracketed ifs (`unexpected )`)
+  , tc "handle Pair 1 1 in bar"
+  , tc "handle x -> foo in bar"
+  , tc_diff_rtt False "let\n\
+                      \  x = (1 : Int)\n\
+                      \  (x : Int)"
+                      "let x = (1 : Int)\n\
+                      \(x : Int)" 0
+  , tc "case x of 12 -> (y : Int)"
+  , tc "if a then (b : Int) else (c : Int)"
+  , tc "case x of 12 -> if a then b else c"
+  , tc "case x of 12 -> x -> f x"
+  , tc "if c then x -> f x else x -> g x"
+  , tc "(f x) : Int"
+  , tc "(f x) : Pair Int Int"
+  , tc_diff_rtt False "let\n\
+                      \  x = if a then b else c\n\
+                      \  if x then y else z"
+                      "let x = if a then b else c\n\
+                      \if x then y else z" 0
+  , tc "f x y"
+  , tc "f (g x) y"
+  , tc_diff "(f x) y" $ "f x y"
+  , pending $ tc "1.0e-19"         -- TODO, raise issue, parser throws UnknownLexeme
+  , pending $ tc "-1.0e19"         -- ditto
+  , tc "0.0"
+  , tc "-0.0"
+  , pending $ tc_diff "+0.0" $ "0.0"  -- parser throws "Prelude.read: no parse" - should it?
   ]

@@ -25,10 +25,56 @@ import qualified Unison.Util.PrettyPrint as PP
 import           Unison.Util.PrettyPrint (PrettyPrint(..))
 
 --TODO force, delay, tuples, sequence (also in patterns)
---TODO fix precedence, nesting and grouping, throughout
+--TODO fix nesting and grouping, throughout
 --TODO print let and case using layout even if renderBroken doesn't kick in?
 --TODO more testing, throughout
 --TODO use imports to trim fully qualified names
+--TODO precedence comment and double check in type printer
+
+{- Explanation of precedence handling
+
+   We illustrate precedence rules as follows.
+
+     >=10
+       10f 10x
+
+   This example shows that a function application f x is enclosed in parentheses
+   whenever the ambient precedence around it is >= 10, and that when printing its
+   two components, an ambient precedence of 10 is used in both places.
+
+   The pretty-printer uses the following rules for printing terms.
+
+     >=10
+       10f 10x 10y ...
+
+     >=3
+       x -> 2y
+
+     >=2
+       if 2a then 2b else 2c
+       handle 2h in 2b
+       case 2x of
+         a | 2g -> 1b
+       let x = 1y
+           1z
+
+     >=0
+       10a : 0Int
+
+
+   And the following for patterns.
+
+     >=11
+       x@11p
+
+     >=10
+       Con 10p 10q ...
+
+     -- never any external parens added around the following
+       { p }
+       { Eff 10p 10q ... -> 0k }
+
+-}
 
 pretty :: Var v => (Reference -> Text) -> Int -> AnnotatedTerm v a -> PrettyPrint String
 -- p is the operator precedence of the enclosing context (a number from 0 to 11, or
@@ -36,34 +82,40 @@ pretty :: Var v => (Reference -> Text) -> Int -> AnnotatedTerm v a -> PrettyPrin
 pretty n p = \case
   Var' v       -> l $ Text.unpack (Var.name v)
   Ref' r       -> l $ Text.unpack (n r)
-  Ann' tm t    -> parenNest (p >= 42)  $ PP.Group $
-                    pretty n 42 tm <> b" " <> l": " <> TypePrinter.pretty n (-1) t
-                    -- TODO do we actually always want to display these annotations?
+  Ann' tm t    -> parenNest (p >= 0)  $ PP.Group $
+                    pretty n 10 tm <> b" " <> l": " <> TypePrinter.pretty n 0 t
   Int64' i     -> (if i >= 0 then l"+" else Empty) <> (l $ show i)
   UInt64' u    -> l $ show u
-  Float' f     -> l $ show f   -- TODO check this will always contain a '.'
+  Float' f     -> l $ show f
+  -- TODO How to handle Infinity, -Infinity and NaN?  Parser cannot parse them.  Haskell
+  --      doesn't have literals for them either.  Is this function only required to
+  --      operate on terms produced by the parser?  In which case the code is fine as
+  --      it stands.  If it can somehow run on values produced by execution (or, one day, on
+  --      terms produced by metaprograms), then it needs to be able to print them (and
+  --      then the parser ought to be able to parse them, to maintain symmetry.)
   Boolean' b   -> if b then l"true" else l"false"
   Text' s      -> l $ show s   -- TODO check show escapes ", in the same way as Unison
   Blank' id    -> l"_" <> (l $ fromMaybe "" (Blank.nameb id))
   RequestOrCtor' ref i -> l (Text.unpack (n ref)) <> l"#" <> (l $ show i)  -- TODO presumably I need to take
                                         -- an argument that allows me to determine constructor names.
-  Handle' h body -> parenNest (p >= 42) $ PP.Group $
-                      l"handle" <> b" " <> pretty n (-1) h <> b" " <> l"in" <> b" "
-                      <> PP.Nest " " (PP.Group (pretty n (-1) body))
-  Apps' f args -> parenNest (p >= 10) $ PP.Group $ pretty n 9 f <> appArgs args
+  Handle' h body -> parenNest (p >= 2) $ PP.Group $
+                      l"handle" <> b" " <> pretty n 2 h <> b" " <> l"in" <> b" "
+                      <> PP.Nest " " (PP.Group (pretty n 2 body))
+  Apps' f args -> parenNest (p >= 10) $ PP.Group $ pretty n 10 f <> appArgs args
   Vector' xs   -> PP.Nest " " $ PP.Group $ l"[" <> commaList (toList xs) <> l"]"
-  If' cond t f -> parenNest (p >= 42) $ PP.Group $
-                    (PP.Group (l"if" <> b" " <> (parenNest (p >= 42) $ pretty n 42 cond)) <> b" " <>
-                     PP.Group (l"then" <> b" " <> (parenNest (p >= 42) $ pretty n 42 t)) <> b" " <>
-                     PP.Group (l"else" <> b" " <> (parenNest (p >= 42) $ pretty n 42 f)))
-  And' x y     -> parenNest (p >= 42) $ PP.Group $ l"and" <> b" " <> pretty n 42 x <> b" " <> pretty n 42 y
-  Or' x y      -> parenNest (p >= 42) $ PP.Group $ l"or" <> b" " <> pretty n 42 x <> b" " <> pretty n 42 y
-  LamsNamed' vs body -> parenNest (p >= 42) $ PP.Group $
+  If' cond t f -> parenNest (p >= 2) $ PP.Group $
+                    (PP.Group (l"if" <> b" " <> pretty n 2 cond) <> b" " <>
+                     PP.Group (l"then" <> b" " <> pretty n 2 t) <> b" " <>
+                     PP.Group (l"else" <> b" " <> pretty n 2 f))
+  And' x y     -> parenNest (p >= 10) $ PP.Group $ l"and" <> b" " <> pretty n 10 x <> b" " <> pretty n 10 y
+  Or' x y      -> parenNest (p >= 10) $ PP.Group $ l"or" <> b" " <> pretty n 10 x <> b" " <> pretty n 10 y
+  LamsNamed' vs body -> parenNest (p >= 3) $ PP.Group $
                           (PP.Nest " " $ PP.Group $ varList vs) <>
-                          l" ->" <> b" " <> pretty n 0 body
-  LetRecNamed' bs e -> printLet bs e  -- TODO really same as Lets' case?
+                          l" ->" <> b" " <> pretty n 2 body
+  LetRecNamed' bs e -> printLet bs e
   Lets' bs e ->   printLet bs e
-  Match' scrutinee branches -> l"case" <> b" " <> pretty n 42 scrutinee <> b" " <> l"of" <>
+  Match' scrutinee branches -> parenNest (p >= 2) $ PP.Group $
+                               l"case" <> b" " <> pretty n 2 scrutinee <> b" " <> l"of" <>
                                fold (intersperse (b";") (map printCase branches))
   t -> l"error: " <> l (show t)
   where sepList sep xs = sepList' (pretty n 0) sep xs
@@ -74,19 +126,19 @@ pretty n p = \case
         appArgs (x : xs) = b" " <> pretty n 10 x <> appArgs xs
         appArgs [] = Empty
 
-        printLet bs e = parenNest (p >= 42) $ PP.Group $
-                        l"let" <> b" " <> lets bs <> pretty n 42 e
+        printLet bs e = parenNest (p >= 2) $ PP.Group $
+                        l"let" <> b" " <> lets bs <> pretty n 0 e
 
         lets ((v, binding) : rest) = (l $ Text.unpack (Var.name v)) <> b" " <> l"=" <> b" " <>
-                                     pretty n 42 binding <> b"\n" <> lets rest
+                                     pretty n 1 binding <> b"\n" <> lets rest
         lets [] = Empty
 
         printCase (MatchCase pat guard (AbsN' vs body)) =
           b" " <> (fst $ prettyPattern n (-1) vs pat) <> b" " <> printGuard guard <> l"->" <> b" " <>
-          pretty n (-1) body
+          pretty n 0 body
         printCase _ = l"error"
 
-        printGuard (Just g) = l"|" <> b" " <> pretty n 42 g <> b" "
+        printGuard (Just g) = l"|" <> b" " <> pretty n 2 g <> b" "
         printGuard Nothing = Empty
 
 pretty' :: Var v => (Reference -> Text) -> AnnotatedTerm v a -> String
@@ -102,24 +154,24 @@ prettyPattern n p vs = \case
   Pattern.Boolean _ b -> (if b then l"true" else l"false", vs)
   Pattern.Int64 _ i   -> ((if i >= 0 then l"+" else Empty) <> (l $ show i), vs)
   Pattern.UInt64 _ u  -> (l $ show u, vs)
-  Pattern.Float _ f   -> (l $ show f, vs)   -- TODO check this will always contain a '.'
+  Pattern.Float _ f   -> (l $ show f, vs)
   Pattern.Constructor _ ref _ pats -> let (pats_printed, tail_vs) = patterns vs pats
-                                      in (parenNest (p >= 42) $ PP.Group $ l (Text.unpack (n ref)) <> pats_printed, tail_vs)
+                                      in (parenNest (p >= 10) $ PP.Group $ l (Text.unpack (n ref)) <> pats_printed, tail_vs)
                                       -- TODO use the _ argument to get actual constructor name
   Pattern.As _ pat    -> let (v : tail_vs) = vs
-                             (printed, eventual_tail) = prettyPattern n (-1) tail_vs pat  -- TODO check -1
-                         in ((l $ Text.unpack (Var.name v)) <> l"@" <> printed, eventual_tail)
+                             (printed, eventual_tail) = prettyPattern n 11 tail_vs pat
+                         in (parenNest (p >= 11) $ PP.Group $ ((l $ Text.unpack (Var.name v)) <> l"@" <> printed), eventual_tail)
   Pattern.EffectPure _ pat -> let (printed, eventual_tail) = prettyPattern n (-1) vs pat
                               in (l"{" <> b" " <> printed <> b" " <> l"}", eventual_tail)
                               -- TODO use constructor ID below
   Pattern.EffectBind _ ref _ pats k_pat -> let (pats_printed, tail_vs) = patterns vs pats
-                                               (k_pat_printed, eventual_tail) = prettyPattern n 42 tail_vs k_pat
+                                               (k_pat_printed, eventual_tail) = prettyPattern n 0 tail_vs k_pat
                                            in (PP.Nest " " $ PP.Group $ l"{" <> b" " <>
                                                l (Text.unpack (n ref)) <> pats_printed <> b" " <> l"->" <> b" " <>
                                                k_pat_printed <> b" " <> l"}", eventual_tail)
   t                   -> (l"error: " <> l (show t), vs)
   where l = Literal
-        patterns vs (pat : pats) = let (printed, tail_vs) = prettyPattern n 42 vs pat
+        patterns vs (pat : pats) = let (printed, tail_vs) = prettyPattern n 10 vs pat
                                        (rest_printed, eventual_tail) = patterns tail_vs pats
                                    in (b" " <> printed <> rest_printed, eventual_tail)
         patterns vs [] = (Empty, vs)
