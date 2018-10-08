@@ -169,8 +169,8 @@ test = scope "typeprinter" . tests $
 
   , pending $ tc_breaks "Pair (forall a. a -> a -> a) b" 18 $   -- ditto
               "Pair (∀ a .\n\
-              \ a\n\
-              \ -> a\n\
-              \ -> a) b"
+              \  a\n\
+              \  -> a\n\
+              \  -> a) b"
 
   ]

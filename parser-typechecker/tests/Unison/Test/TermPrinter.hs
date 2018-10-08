@@ -18,9 +18,9 @@ import qualified Unison.Util.PrettyPrint as PP
 tc_diff_rtt :: Bool -> String -> String -> Int -> Test ()
 tc_diff_rtt rtt s expected width =
    let input_term = Unison.Builtin.tm s :: Unison.Term.AnnotatedTerm Symbol Ann
-       get_names x = case x of
-                       Builtin t -> t
-                       Derived _ -> Text.empty
+       get_names x _ = case x of
+                         Builtin t -> t
+                         Derived _ -> Text.empty
        actual = if width == 0
                 then PP.renderUnbroken $ pretty get_names (-1) input_term
                 else PP.renderBroken width True '\n' $ pretty get_names (-1) input_term
@@ -70,11 +70,9 @@ test = scope "termprinter" . tests $
   , pending $ tc_diff "Optional.None" $ "Optional#0"
   , tc "handle foo in bar"
   , tc "Pair 1 1"
-  , tc_diff_rtt False "let\n\
-                      \  x = 1\n\
-                      \  x"
-                      "let x = 1\n\
-                      \x" 0
+  , tc "let\n\
+       \  x = 1\n\
+       \  x\n"
   , pending $ tc "case x of Pair t 0 -> foo t" -- hitting UnknownDataConstructor when parsing pattern
   , pending $ tc "case x of Pair t 0 | pred t -> foo t" -- ditto
   , pending $ tc "case x of Pair t 0 | pred t -> foo t; Pair t 0 -> foo' t; Pair t u -> bar;" -- ditto
@@ -96,11 +94,9 @@ test = scope "termprinter" . tests $
   , pending $ tc "(if b then c else d)"   -- TODO raise issue - parser doesn't like bracketed ifs (`unexpected )`)
   , tc "handle Pair 1 1 in bar"
   , tc "handle x -> foo in bar"
-  , tc_diff_rtt False "let\n\
-                      \  x = (1 : Int)\n\
-                      \  (x : Int)"
-                      "let x = (1 : Int)\n\
-                      \(x : Int)" 0
+  , tc "let\n\
+       \  x = (1 : Int)\n\
+       \  (x : Int)\n"
   , tc "case x of 12 -> (y : Int)"
   , tc "if a then (b : Int) else (c : Int)"
   , tc "case x of 12 -> if a then b else c"
@@ -108,11 +104,9 @@ test = scope "termprinter" . tests $
   , tc "if c then x -> f x else x -> g x"
   , tc "(f x) : Int"
   , tc "(f x) : Pair Int Int"
-  , tc_diff_rtt False "let\n\
-                      \  x = if a then b else c\n\
-                      \  if x then y else z"
-                      "let x = if a then b else c\n\
-                      \if x then y else z" 0
+  , tc "let\n\
+       \  x = if a then b else c\n\
+       \  if x then y else z\n"
   , tc "f x y"
   , tc "f (g x) y"
   , tc_diff "(f x) y" $ "f x y"
@@ -121,4 +115,8 @@ test = scope "termprinter" . tests $
   , tc "0.0"
   , tc "-0.0"
   , pending $ tc_diff "+0.0" $ "0.0"  -- parser throws "Prelude.read: no parse" - should it?
+
+  , pending $ tc_breaks "case x of 12 -> if a then b else c" 21 $
+              "case x of 12 -> \n\
+              \  if a then b else c"
   ]
