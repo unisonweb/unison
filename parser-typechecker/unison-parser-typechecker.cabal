@@ -44,7 +44,6 @@ library
     Unison.Codebase.Code
     Unison.Codebase.Name
     Unison.Codebase.NameEdit
-    Unison.Codebase.Release
     Unison.Codebase.TermEdit
     Unison.Codebase.TypeEdit
     Unison.Codebase.Serialization.V0
