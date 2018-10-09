@@ -16,6 +16,7 @@ import qualified Unison.DataDeclaration as DD
 import           Unison.Reference (Reference)
 import           Unison.Term (AnnotatedTerm, AnnotatedTerm2)
 import qualified Unison.Term as Term
+import           Unison.Type (AnnotatedType)
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 
@@ -24,6 +25,12 @@ data UnisonFile v a = UnisonFile {
   effectDeclarations :: Map v (Reference, EffectDeclaration' v a),
   term :: AnnotatedTerm v a
 } deriving (Show)
+
+data UnisonFile' v a = UnisonFile' {
+  dataDeclarations' :: Map v (Reference, DataDeclaration' v a),
+  effectDeclarations' :: Map v (Reference, EffectDeclaration' v a),
+  terms :: [(v, AnnotatedTerm v a, AnnotatedType v a)]
+}
 
 type CtorLookup = Map String (Reference, Int)
 
