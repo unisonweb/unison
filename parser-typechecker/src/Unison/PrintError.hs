@@ -490,10 +490,10 @@ renderTypeError env e src = case e of
         , renderType' env t
         ]
       C.PatternArityMismatch loc typ args -> mconcat
-        [ "PatternArityMismatch:"
-        , "  loc=", annotatedToEnglish loc
-        , "  typ=", renderType' env typ
-        , "  args=", fromString (show args)
+        [ "\nPatternArityMismatch:"
+        , "\n  loc=", annotatedToEnglish loc
+        , "\n  typ=", renderType' env typ
+        , "\n  args=", fromString (show args)
         ]
       C.DuplicateDefinitions vs ->
         let go :: (v, [loc]) -> AT.AnnotatedDocument a
@@ -502,6 +502,16 @@ renderTypeError env e src = case e of
               <> mconcat (intersperse " : " $ annotatedToEnglish <$> locs)
               <> "]"
         in "DuplicateDefinitions:" <> mconcat (go <$> Nel.toList vs)
+      C.TopLevelComponent tsn ntt ->
+        let go (name, term, typ) =
+              "\n  " <> renderVar name
+              <> " : " <> renderType' env typ
+              <> " = " <> renderTerm term
+        in mconcat [ "\nTopLevelComponent: "
+                   , "\n  typeSignatureNeeded="
+                   , fromString (show tsn)
+                   , foldMap go ntt
+                   ]
 
 renderContext :: (Var v, Ord loc) => Env -> C.Context v loc -> AT.AnnotatedDocument a
 renderContext env ctx@(C.Context es) =
