@@ -158,7 +158,14 @@ data Cause v loc
   | PatternArityMismatch loc (Type v loc) Int
   -- A variable is defined twice in the same block
   | DuplicateDefinitions (NonEmpty (v, [loc]))
+  -- `TypeSignaturesNeeded` indicates that the component wouldn't compile
+  -- without the explicit signature OR that the synthesized type isn't equal to
+  -- the user-provided signature. Useful so we can have redundant type signatures
+  -- not affect hashing.
+  | TopLevelComponent TypeSignaturesNeeded [(v, Term v loc, Type v loc)]
   deriving Show
+
+type TypeSignaturesNeeded = Bool
 
 errorTerms :: Note v loc -> [Term v loc]
 errorTerms n = Foldable.toList (path n) >>= \e -> case e of
@@ -194,7 +201,6 @@ data MEnv v loc = MEnv {
   builtinLocation :: loc,              -- The location of builtins
   dataDecls :: DataDeclarations v loc, -- Data declarations in scope
   effectDecls :: EffectDeclarations v loc, -- Effect declarations in scope
-
   -- Returns `True` if ability checks should be performed on the
   -- input type. See abilityCheck function for how this is used.
   abilityCheckMask :: Type v loc -> M v loc Bool
@@ -459,6 +465,11 @@ compilerCrash bug = failWith $ CompilerBug bug
 failWith :: Cause v loc -> M v loc a
 failWith cause = M (const (pure (Note cause mempty), Nothing))
 
+-- Emit a note without failing
+btw :: Cause v loc -> M v loc ()
+btw cause =
+  M (\menv -> (pure $ Note cause mempty, Just ((), env menv)))
+
 failSecretlyAndDangerously :: M v loc a
 failSecretlyAndDangerously = M (const (mempty, Nothing))
 
@@ -652,6 +663,14 @@ synthesize e = scope (InSynthesize e) $
     -- no free variables, i.e. `let id x = x in ...`
     abilities <- getAbilities
     t  <- synthesizeClosed' abilities binding
+    -- TODO: factor this out into a function
+    -- noteTopLevelType :: v -> Term v loc -> Type v loc -> M v loc ()
+    case binding of
+      Term.Ann' binding t1 -> do
+        t2 <- synthesizeClosed' abilities binding `orElse` pure t
+        if t2 == t then btw $ TopLevelComponent False [(ABT.variable e, binding, t1)]
+        else btw $ TopLevelComponent True [(ABT.variable e, binding, t1)]
+      _ -> btw $ TopLevelComponent False [(ABT.variable e, binding, t)]
     v' <- ABT.freshen e freshenVar
     -- note: `Ann' (Ref'  _) t` synthesizes to `t`
     e  <- pure $ ABT.bindInheritAnnotation e (Term.ann () (Term.builtin() (Var.name v')) t)
