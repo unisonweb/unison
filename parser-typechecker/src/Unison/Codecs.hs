@@ -125,7 +125,7 @@ serializeTerm x = do
         putLength (1 :: Int)
         putBackref posarg
         incPosition
-      Let binding body -> do
+      Let _ binding body -> do
         posbind <- serializeTerm binding
         posbod <- serializeTerm body
         putTag
@@ -178,7 +178,7 @@ serializeTerm x = do
         putBackref hpos
         putBackref bpos
         incPosition
-      LetRec bs body -> do
+      LetRec _ bs body -> do
         positions <- traverse serializeTerm bs
         pbody <- serializeTerm body
         putTag

@@ -29,7 +29,7 @@ import           Unison.Parser
 import           Unison.PatternP (Pattern)
 import qualified Unison.PatternP as Pattern
 import qualified Unison.Reference as R
-import           Unison.Term (AnnotatedTerm)
+import           Unison.Term (AnnotatedTerm, IsTop)
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 import           Unison.Type (AnnotatedType)
@@ -293,7 +293,7 @@ customFailure :: P.MonadParsec e s m => e -> m a
 customFailure = P.customFailure
 
 block :: forall v. Var v => String -> TermP v
-block s = block' s (openBlockWith s) closeBlock
+block s = block' False s (openBlockWith s) closeBlock
 
 importp :: Var v => P v [(v, v)]
 importp = do
@@ -346,8 +346,19 @@ watched = (P.try $ do
   let lineNote = Strings.strPadLeft ' ' 5 (show curLine) ++ " | " ++ lineContents
   pure (Just lineNote)) <|> pure Nothing
 
-block' :: forall v b. Var v => String -> P v (L.Token ()) -> P v b -> TermP v
-block' s openBlock closeBlock = do
+topLevelBlock
+  :: forall v b . Var v => String -> P v (L.Token ()) -> P v b -> TermP v
+topLevelBlock = block' True
+
+block'
+  :: forall v b
+   . Var v
+  => IsTop
+  -> String
+  -> P v (L.Token ())
+  -> P v b
+  -> TermP v
+block' isTop s openBlock closeBlock = do
     open <- openBlock
     let sem = P.try (semi <* P.lookAhead (reserved "use"))
     imports <- mconcat . reverse <$> sepBy sem importp
@@ -386,23 +397,30 @@ block' s openBlock closeBlock = do
       in [ ((a, v'), sub e) | (((a,_),e), v') <- bs `zip` vs' ]
 
     go :: L.Token () -> [BlockElement v] -> P v (AnnotatedTerm v Ann)
-    go open bs =
-      let startAnnotation = (fst . fst . head $ toBindings =<< bs)
-          endAnnotation = (fst . fst . last $ toBindings =<< bs)
-      in case reverse bs of
-        Namespace _v _ : _ ->
-          pure $ Term.letRec (startAnnotation <> endAnnotation)
-                             (finishBindings $ toBindings =<< bs)
-                             (Term.var endAnnotation (positionalVar endAnnotation Var.missingResult))
-        Binding _watchNote ((a, _v), _) : _ ->
-          pure $ Term.letRec (startAnnotation <> endAnnotation)
-                             (finishBindings $ toBindings =<< bs)
-                             (Term.var a (positionalVar endAnnotation Var.missingResult))
-        Action watchNote e : bs ->
-          pure $ Term.letRec (startAnnotation <> ann e)
-                             (finishBindings $ toBindings =<< reverse bs)
-                             (Term.watchMaybe watchNote e)
-        [] -> customFailure $ EmptyBlock (const s <$> open)
+    go open bs
+      = let
+          startAnnotation = (fst . fst . head $ toBindings =<< bs)
+          endAnnotation   = (fst . fst . last $ toBindings =<< bs)
+        in
+          case reverse bs of
+            Namespace _v _ : _ -> pure $ Term.letRec
+              isTop
+              (startAnnotation <> endAnnotation)
+              (finishBindings $ toBindings =<< bs)
+              (Term.var endAnnotation
+                        (positionalVar endAnnotation Var.missingResult)
+              )
+            Binding _watchNote ((a, _v), _) : _ -> pure $ Term.letRec
+              isTop
+              (startAnnotation <> endAnnotation)
+              (finishBindings $ toBindings =<< bs)
+              (Term.var a (positionalVar endAnnotation Var.missingResult))
+            Action watchNote e : bs -> pure $ Term.letRec
+              isTop
+              (startAnnotation <> ann e)
+              (finishBindings $ toBindings =<< reverse bs)
+              (Term.watchMaybe watchNote e)
+            [] -> customFailure $ EmptyBlock (const s <$> open)
 
 number :: Var v => TermP v
 number = number' (tok Term.int) (tok Term.nat) (tok Term.float)

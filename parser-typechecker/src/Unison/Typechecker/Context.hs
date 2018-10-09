@@ -609,6 +609,21 @@ vectorConstructorOfArity arity = do
       vt = Type.forall bl elementVar (Type.arrows args resultType)
   pure vt
 
+noteTopLevelType
+  :: (Ord loc, Var v)
+  => ABT.Subst f v a
+  -> Term v loc
+  -> Type v loc
+  -> [Type v loc]
+  -> M v loc ()
+noteTopLevelType e binding typ abilities = case binding of
+  Term.Ann' binding typ1 -> do
+    typ2 <- synthesizeClosed' abilities binding `orElse` pure typ
+    if typ2 == typ
+      then btw $ TopLevelComponent False [(ABT.variable e, binding, typ1)]
+      else btw $ TopLevelComponent True [(ABT.variable e, binding, typ1)]
+  _ -> btw $ TopLevelComponent False [(ABT.variable e, binding, typ)]
+
 -- | Synthesize the type of the given term, updating the context in the process.
 -- | Figure 11 from the paper
 synthesize :: forall v loc . (Var v, Ord loc) => Term v loc -> M v loc (Type v loc)
@@ -659,19 +674,12 @@ synthesize e = scope (InSynthesize e) $
       [] -> pure ft
       v1 : _ ->
         scope (InVectorApp (ABT.annotation v1)) $ synthesizeApps ft v
-  go (Term.Let1' binding e) | Set.null (ABT.freeVars binding) = do
+  go (Term.Let1Top' top binding e) | Set.null (ABT.freeVars binding) = do
     -- special case when it is definitely safe to generalize - binding contains
     -- no free variables, i.e. `let id x = x in ...`
     abilities <- getAbilities
     t  <- synthesizeClosed' abilities binding
-    -- TODO: factor this out into a function
-    -- noteTopLevelType :: v -> Term v loc -> Type v loc -> M v loc ()
-    case binding of
-      Term.Ann' binding t1 -> do
-        t2 <- synthesizeClosed' abilities binding `orElse` pure t
-        if t2 == t then btw $ TopLevelComponent False [(ABT.variable e, binding, t1)]
-        else btw $ TopLevelComponent True [(ABT.variable e, binding, t1)]
-      _ -> btw $ TopLevelComponent False [(ABT.variable e, binding, t)]
+    when top $ noteTopLevelType e binding t abilities
     v' <- ABT.freshen e freshenVar
     -- note: `Ann' (Ref'  _) t` synthesizes to `t`
     e  <- pure $ ABT.bindInheritAnnotation e (Term.ann () (Term.builtin() (Var.name v')) t)

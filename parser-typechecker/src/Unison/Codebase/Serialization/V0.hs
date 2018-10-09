@@ -325,9 +325,9 @@ putTerm putVar putA typ = putABT putVar putA go typ where
       -> putWord8 14 *> putChild x *> putChild y
     Term.Lam body
       -> putWord8 15 *> putChild body
-    Term.LetRec bs body
+    Term.LetRec _ bs body
       -> putWord8 16 *> putFoldable bs putChild *> putChild body
-    Term.Let b body
+    Term.Let _ b body
       -> putWord8 17 *> putChild b *> putChild body
     Term.Match s cases
       -> putWord8 18 *> putChild s *> putFoldable cases (putMatchCase putA putChild)
@@ -356,8 +356,8 @@ getTerm getVar getA = getABT getVar getA go where
     13 -> Term.And <$> getChild <*> getChild
     14 -> Term.Or <$> getChild <*> getChild
     15 -> Term.Lam <$> getChild
-    16 -> Term.LetRec <$> getList getChild <*> getChild
-    17 -> Term.Let <$> getChild <*> getChild
+    16 -> Term.LetRec False <$> getList getChild <*> getChild
+    17 -> Term.Let False <$> getChild <*> getChild
     18 -> Term.Match <$> getChild
                      <*> getList (Term.MatchCase <$> getPattern getA <*> getMaybe getChild <*> getChild)
     _ -> unknownTag "getTerm" tag

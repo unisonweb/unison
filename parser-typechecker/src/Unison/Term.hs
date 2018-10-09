@@ -74,10 +74,10 @@ data F typeVar typeAnn patternAnn a
   | Lam a
   -- Note: let rec blocks have an outer ABT.Cycle which introduces as many
   -- variables as there are bindings
-  | LetRec [a] a
+  | LetRec IsTop [a] a
   -- Note: first parameter is the binding, second is the expression which may refer
   -- to this let bound variable. Constructed as `Let b (abs v e)`
-  | Let a a
+  | Let IsTop a a
   -- Pattern matching / eliminating data types, example:
   --  case x of
   --    Just n -> rhs1
@@ -90,6 +90,8 @@ data F typeVar typeAnn patternAnn a
   --     , (Constructor 1 [], rhs2) ]
   | Match a [MatchCase patternAnn a]
   deriving (Foldable,Functor,Generic,Generic1,Traversable)
+
+type IsTop = Bool
 
 -- | Like `Term v`, but with an annotation of type `a` at every level in the tree
 type AnnotatedTerm v a = AnnotatedTerm2 v a a v a
@@ -198,12 +200,17 @@ pattern Ann' x t <- (ABT.out -> ABT.Tm (Ann x t))
 pattern Vector' xs <- (ABT.out -> ABT.Tm (Vector xs))
 pattern Lam' subst <- ABT.Tm' (Lam (ABT.Abs' subst))
 pattern LamNamed' v body <- (ABT.out -> ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body))))
-pattern Let1' b subst <- (unLet1 -> Just (b, subst))
-pattern Let1Named' v b e <- (ABT.Tm' (Let b (ABT.out -> ABT.Abs v e)))
+pattern Let1' b subst <- (unLet1 -> Just (_, b, subst))
+pattern Let1Top' top b subst <- (unLet1 -> Just (top, b, subst))
+pattern Let1Named' v b e <- (ABT.Tm' (Let _ b (ABT.out -> ABT.Abs v e)))
+pattern Let1NamedTop' top v b e <- (ABT.Tm' (Let top b (ABT.out -> ABT.Abs v e)))
 pattern Lets' bs e <- (unLet -> Just (bs, e))
-pattern LetRecNamed' bs e <- (unLetRecNamed -> Just (bs,e))
-pattern LetRec' subst <- (unLetRec -> Just subst)
-pattern LetRecNamedAnnotated' ann bs e <- (unLetRecNamedAnnotated -> Just (ann, bs,e))
+pattern LetRecNamed' bs e <- (unLetRecNamed -> Just (_,bs,e))
+pattern LetRec' subst <- (unLetRec -> Just (_, subst))
+pattern LetRecTop' top subst <- (unLetRec -> Just (top, subst))
+pattern LetRecNamedAnnotated' ann bs e <- (unLetRecNamedAnnotated -> Just (_, ann, bs,e))
+pattern LetRecNamedAnnotatedTop' top ann bs e <-
+          (unLetRecNamedAnnotated -> Just (top, ann, bs,e))
 
 fresh :: Var v => Term v -> v -> v
 fresh = ABT.fresh
@@ -344,81 +351,121 @@ arity (LamNamed' _ body) = 1 + arity body
 arity (Ann' e _) = arity e
 arity _ = 0
 
-unLetRecNamedAnnotated :: AnnotatedTerm' vt v a -> Maybe (a, [((a, v), AnnotatedTerm' vt v a)], AnnotatedTerm' vt v a)
-unLetRecNamedAnnotated (ABT.CycleA' ann avs (ABT.Tm' (LetRec bs e))) =
-  Just (ann, avs `zip` bs, e)
+unLetRecNamedAnnotated
+  :: AnnotatedTerm' vt v a
+  -> Maybe
+       (IsTop, a, [((a, v), AnnotatedTerm' vt v a)], AnnotatedTerm' vt v a)
+unLetRecNamedAnnotated (ABT.CycleA' ann avs (ABT.Tm' (LetRec isTop bs e))) =
+  Just (isTop, ann, avs `zip` bs, e)
 unLetRecNamedAnnotated _ = Nothing
 
-letRec :: Ord v => a -> [((a,v), AnnotatedTerm' vt v a)] -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
-letRec _ [] e = e
-letRec a bindings e = ABT.cycle' a (foldr (uncurry ABT.abs') z (map fst bindings))
-  where
-    z = ABT.tm' a (LetRec (map snd bindings) e)
+letRec
+  :: Ord v
+  => Bool
+  -> a
+  -> [((a, v), AnnotatedTerm' vt v a)]
+  -> AnnotatedTerm' vt v a
+  -> AnnotatedTerm' vt v a
+letRec _ _ []       e     = e
+letRec isTop a bindings e = ABT.cycle'
+  a
+  (foldr (uncurry ABT.abs') z (map fst bindings))
+  where z = ABT.tm' a (LetRec isTop (map snd bindings) e)
+
 
 -- | Smart constructor for let rec blocks. Each binding in the block may
 -- reference any other binding in the block in its body (including itself),
 -- and the output expression may also reference any binding in the block.
-letRec_ :: Ord v => [(v, Term' vt v)] -> Term' vt v -> Term' vt v
-letRec_ [] e = e
-letRec_ bindings e = ABT.cycle (foldr ABT.abs z (map fst bindings))
+letRec_ :: Ord v => IsTop -> [(v, Term' vt v)] -> Term' vt v -> Term' vt v
+letRec_ _ [] e = e
+letRec_ isTop bindings e = ABT.cycle (foldr ABT.abs z (map fst bindings))
   where
-    z = ABT.tm (LetRec (map snd bindings) e)
+    z = ABT.tm (LetRec isTop (map snd bindings) e)
 
 -- | Smart constructor for let blocks. Each binding in the block may
 -- reference only previous bindings in the block, not including itself.
 -- The output expression may reference any binding in the block.
 -- todo: delete me
-let1_ :: Ord v => [(v,Term' vt v)] -> Term' vt v -> Term' vt v
-let1_ bindings e = foldr f e bindings
+let1_ :: Ord v => IsTop -> [(v,Term' vt v)] -> Term' vt v -> Term' vt v
+let1_ isTop bindings e = foldr f e bindings
   where
-    f (v,b) body = ABT.tm (Let b (ABT.abs v body))
+    f (v,b) body = ABT.tm (Let isTop b (ABT.abs v body))
 
 -- | annotations are applied to each nested Let expression
-let1 :: Ord v => [((a, v), AnnotatedTerm2 vt at ap v a)] -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a
-let1 bindings e = foldr f e bindings
-  where
-    f ((ann,v),b) body = ABT.tm' ann (Let b (ABT.abs' ann v body))
+let1
+  :: Ord v
+  => IsTop
+  -> [((a, v), AnnotatedTerm2 vt at ap v a)]
+  -> AnnotatedTerm2 vt at ap v a
+  -> AnnotatedTerm2 vt at ap v a
+let1 isTop bindings e = foldr f e bindings
+  where f ((ann, v), b) body = ABT.tm' ann (Let isTop b (ABT.abs' ann v body))
 
-let1' :: (Semigroup a, Ord v)
-      => [(v, AnnotatedTerm2 vt at ap v a)]
-      -> AnnotatedTerm2 vt at ap v a
-      -> AnnotatedTerm2 vt at ap v a
-let1' bindings e = foldr f e bindings
-  where
-    ann = ABT.annotation
-    f (v,b) body = ABT.tm' a (Let b (ABT.abs' a v body)) where
-      a = ann b <> ann body
+let1'
+  :: (Semigroup a, Ord v)
+  => IsTop
+  -> [(v, AnnotatedTerm2 vt at ap v a)]
+  -> AnnotatedTerm2 vt at ap v a
+  -> AnnotatedTerm2 vt at ap v a
+let1' isTop bindings e = foldr f e bindings
+ where
+  ann = ABT.annotation
+  f (v, b) body = ABT.tm' a (Let isTop b (ABT.abs' a v body))
+    where a = ann b <> ann body
 
 -- let1' :: Var v => [(Text, Term' vt v)] -> Term' vt v -> Term' vt v
 -- let1' bs e = let1 [(ABT.v' name, b) | (name,b) <- bs ] e
 
-unLet1 :: Var v => AnnotatedTerm' vt v a -> Maybe (AnnotatedTerm' vt v a, ABT.Subst (F vt a a) v a)
-unLet1 (ABT.Tm' (Let b (ABT.Abs' subst))) = Just (b, subst)
+unLet1
+  :: Var v
+  => AnnotatedTerm' vt v a
+  -> Maybe (IsTop, AnnotatedTerm' vt v a, ABT.Subst (F vt a a) v a)
+unLet1 (ABT.Tm' (Let isTop b (ABT.Abs' subst))) = Just (isTop, b, subst)
 unLet1 _ = Nothing
 
 -- | Satisfies `unLet (let' bs e) == Just (bs, e)`
-unLet :: AnnotatedTerm' vt v a -> Maybe ([(v, AnnotatedTerm' vt v a)], AnnotatedTerm' vt v a)
-unLet t = fixup (go t) where
-  go (ABT.Tm' (Let b (ABT.out -> ABT.Abs v t))) =
-    case go t of (env,t) -> ((v,b):env, t)
+unLet
+  :: AnnotatedTerm' vt v a
+  -> Maybe ([(IsTop, v, AnnotatedTerm' vt v a)], AnnotatedTerm' vt v a)
+unLet t = fixup (go t)
+ where
+  go (ABT.Tm' (Let isTop b (ABT.out -> ABT.Abs v t))) = case go t of
+    (env, t) -> ((isTop, v, b) : env, t)
   go t = ([], t)
   fixup ([], _) = Nothing
-  fixup bst = Just bst
+  fixup bst     = Just bst
 
 -- | Satisfies `unLetRec (letRec bs e) == Just (bs, e)`
-unLetRecNamed :: AnnotatedTerm2 vt at ap v a -> Maybe ([(v, AnnotatedTerm2 vt at ap v a)], AnnotatedTerm2 vt at ap v a)
-unLetRecNamed (ABT.Cycle' vs (ABT.Tm' (LetRec bs e)))
-  | length vs == length vs = Just (zip vs bs, e)
+unLetRecNamed
+  :: AnnotatedTerm2 vt at ap v a
+  -> Maybe
+       ( IsTop
+       , [(v, AnnotatedTerm2 vt at ap v a)]
+       , AnnotatedTerm2 vt at ap v a
+       )
+unLetRecNamed (ABT.Cycle' vs (ABT.Tm' (LetRec isTop bs e)))
+  | length vs == length vs = Just (isTop, zip vs bs, e)
 unLetRecNamed _ = Nothing
 
-unLetRec :: (Monad m, Var v)
-         => AnnotatedTerm2 vt at ap v a
-         -> Maybe ((v -> m v) ->
-                   m ([(v, AnnotatedTerm2 vt at ap v a)], AnnotatedTerm2 vt at ap v a))
-unLetRec (unLetRecNamed -> Just (bs, e)) = Just $ \freshen -> do
-  vs <- sequence [ freshen v | (v,_) <- bs ]
-  let sub = ABT.substsInheritAnnotation (map fst bs `zip` map ABT.var vs)
-  pure (vs `zip` [ sub b | (_,b) <- bs ], sub e)
+unLetRec
+  :: (Monad m, Var v)
+  => AnnotatedTerm2 vt at ap v a
+  -> Maybe
+       (  IsTop
+       ,  (v -> m v)
+       -> m
+            ( [(v, AnnotatedTerm2 vt at ap v a)]
+            , AnnotatedTerm2 vt at ap v a
+            )
+       )
+unLetRec (unLetRecNamed -> Just (isTop, bs, e)) =
+  Just
+    $ ( isTop
+      , \freshen -> do
+        vs <- sequence [ freshen v | (v, _) <- bs ]
+        let sub = ABT.substsInheritAnnotation (map fst bs `zip` map ABT.var vs)
+        pure (vs `zip` [ sub b | (_, b) <- bs ], sub e)
+      )
 unLetRec _ = Nothing
 
 unApps :: AnnotatedTerm2 vt at ap v a -> Maybe (AnnotatedTerm2 vt at ap v a, [AnnotatedTerm2 vt at ap v a])
@@ -506,39 +553,39 @@ anf t = go t where
                    | otherwise = [(i, ABT.fresh t (Var.named . Text.pack $ "arg" ++ show i))]
       argsANF = map toANF (args `zip` [0..])
       toANF (b,i) = maybe b (var (ann b)) $ Map.lookup i args'
-      addLet (b,i) body = maybe body (\v -> let1' [(v,go b)] body) (Map.lookup i args')
+      addLet (b,i) body = maybe body (\v -> let1' False [(v,go b)] body) (Map.lookup i args')
     in foldr addLet (apps' f argsANF) (args `zip` [(0::Int)..])
   go :: AnnotatedTerm2 vt at a v a -> AnnotatedTerm2 vt at a v a
   go (Apps' f@(LamsNamed' vs body) args) | isClosedLam f = ap vs body args where
     ap vs body [] = lam' (ann f) vs body
-    ap (v:vs) body (arg:args) = let1' [(v,arg)] $ ap vs body args
+    ap (v:vs) body (arg:args) = let1' False [(v,arg)] $ ap vs body args
     ap [] _body _args = error "type error"
   go t@(Apps' f args)
     | isVar f = fixAp t f args
     | otherwise = let fv' = ABT.fresh t (Var.named "f")
-                  in let1' [(fv', anf f)] (fixAp t (var (ann f) fv') args)
+                  in let1' False [(fv', anf f)] (fixAp t (var (ann f) fv') args)
   go e@(Handle' h body)
     | isVar h = handle (ann e) h (go body)
     | otherwise = let h' = ABT.fresh e (Var.named "handler")
-                  in let1' [(h', go h)] (handle (ann e) (var (ann h) h') (go body))
+                  in let1' False [(h', go h)] (handle (ann e) (var (ann h) h') (go body))
   go e@(If' cond t f)
     | isVar cond = iff (ann e) cond (go t) (go f)
     | otherwise = let cond' = ABT.fresh e (Var.named "cond")
-                  in let1' [(cond', anf cond)] (iff (ann e) (var (ann cond) cond') t f)
+                  in let1' False [(cond', anf cond)] (iff (ann e) (var (ann cond) cond') t f)
   go e@(Match' scrutinee cases)
     | isVar scrutinee = match (ann e) scrutinee (fmap go <$> cases)
     | otherwise = let scrutinee' = ABT.fresh e (Var.named "scrutinee")
-                  in let1' [(scrutinee', go scrutinee)] (match (ann e) (var (ann scrutinee) scrutinee') cases)
+                  in let1' False [(scrutinee', go scrutinee)] (match (ann e) (var (ann scrutinee) scrutinee') cases)
   go e@(And' x y)
     | isVar x = and (ann e) x (go y)
     | otherwise =
         let x' = ABT.fresh e (Var.named "argX")
-        in let1' [(x', anf x)] (and (ann e) (var (ann x) x') (go y))
+        in let1' False [(x', anf x)] (and (ann e) (var (ann x) x') (go y))
   go e@(Or' x y)
     | isVar x = or (ann e) x (go y)
     | otherwise =
         let x' = ABT.fresh e (Var.named "argX")
-        in let1' [(x', go x)] (or (ann e) (var (ann x) x') (go y))
+        in let1' False [(x', go x)] (or (ann e) (var (ann x) x') (go y))
   go e@(ABT.Tm' f) = ABT.tm' (ann e) (go <$> f)
   go e@(ABT.Var' _) = e
   go e@(ABT.out -> ABT.Cycle body) = ABT.cycle' (ann e) (go body)
@@ -575,10 +622,10 @@ instance Var v => Hashable1 (F v a p) where
         Vector as -> tag 5 : varint (Vector.length as) : map (hashed . hash) (Vector.toList as)
         Lam a -> [tag 6, hashed (hash a) ]
         -- note: we use `hashCycle` to ensure result is independent of let binding order
-        LetRec as a -> case hashCycle as of
+        LetRec _ as a -> case hashCycle as of
           (hs, hash) -> tag 7 : hashed (hash a) : map hashed hs
         -- here, order is significant, so don't use hashCycle
-        Let b a -> [tag 8, hashed $ hash b, hashed $ hash a]
+        Let _ b a -> [tag 8, hashed $ hash b, hashed $ hash a]
         If b t f -> [tag 9, hashed $ hash b, hashed $ hash t, hashed $ hash f]
         Request r n -> [tag 10, accumulateToken r, varint n]
         Constructor r n -> [tag 12, accumulateToken r, varint n]
@@ -615,8 +662,8 @@ instance (Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   And a b == And a2 b2 = a == a2 && b == b2
   Or a b == Or a2 b2 = a == a2 && b == b2
   Lam a == Lam b = a == b
-  LetRec bs body == LetRec bs2 body2 = bs == bs2 && body == body2
-  Let binding body == Let binding2 body2 = binding == binding2 && body == body2
+  LetRec _ bs body == LetRec _ bs2 body2 = bs == bs2 && body == body2
+  Let _ binding body == Let _ binding2 body2 = binding == binding2 && body == body2
   Match scrutinee cases == Match s2 cs2 = scrutinee == s2 && cases == cs2
   _ == _ = False
 
@@ -640,8 +687,8 @@ instance (Var v, Show a) => Show (F v a0 p a) where
         B.Recorded (B.Placeholder _ r) -> s("_" ++ r)
         B.Recorded (B.Resolve _ r) -> s r
     go _ (Ref r) = showsPrec 0 r
-    go _ (Let b body) = showParen True (s"let " <> showsPrec 0 b <> s" in " <> showsPrec 0 body)
-    go _ (LetRec bs body) = showParen True (s"let rec" <> showsPrec 0 bs <> s" in " <> showsPrec 0 body)
+    go _ (Let _ b body) = showParen True (s"let " <> showsPrec 0 b <> s" in " <> showsPrec 0 body)
+    go _ (LetRec _ bs body) = showParen True (s"let rec" <> showsPrec 0 bs <> s" in " <> showsPrec 0 body)
     go _ (Handle b body) = showParen True (s"handle " <> showsPrec 0 b <> s " in " <> showsPrec 0 body)
     go _ (Constructor r n) = showConstructor r n
     go _ (Match scrutinee cases) =

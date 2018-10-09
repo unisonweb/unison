@@ -78,7 +78,7 @@ minimize
   :: Var v
   => AnnotatedTerm' vt v a
   -> Either (NonEmpty (v, [a])) (Maybe (AnnotatedTerm' vt v a))
-minimize (Term.LetRecNamedAnnotated' ann bs e) =
+minimize (Term.LetRecNamedAnnotatedTop' isTop ann bs e) =
   let bindings = first snd <$> bs
       group    = map (fst . head &&& map (ABT.annotation . snd)) . groupBy ((==) `on` fst) . sortBy
         (compare `on` fst)
@@ -94,12 +94,12 @@ minimize (Term.LetRecNamedAnnotated' ann bs e) =
               -- When introducing a nested let/let rec, we use the annotation
               -- of the variable that starts off that let/let rec
               mklet [(hdv, hdb)] e
-                | Set.member hdv (ABT.freeVars hdb) = Term.letRec
+                | Set.member hdv (ABT.freeVars hdb) = Term.letRec isTop
                   (annotationFor hdv)
                   [(annotatedVar hdv, hdb)]
                   e
-                | otherwise = Term.let1 [(annotatedVar hdv, hdb)] e
-              mklet cycle@((hdv, _) : _) e = Term.letRec
+                | otherwise = Term.let1 isTop [(annotatedVar hdv, hdb)] e
+              mklet cycle@((hdv, _) : _) e = Term.letRec isTop
                 (annotationFor hdv)
                 (first annotatedVar <$> cycle)
                 e
