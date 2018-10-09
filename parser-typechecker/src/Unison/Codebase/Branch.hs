@@ -94,6 +94,9 @@ instance Semigroup Branch0 where
     (R.union et1 et2)
     (Map.union d1 d2)
 
+instance Monoid Branch0 where
+  mempty = Branch0 R.empty R.empty R.empty R.empty Map.empty
+  mappend = (<>)
 
 -- Use e.g. by `conflicts termNamespace branch`
 conflicts :: Ord a => (Branch0 -> Relation a b) -> Branch -> Map a (Set b)
@@ -208,6 +211,9 @@ remaining ops b@(Branch (Causal.head -> b0)) = do
                 (pure $ if not $ R.memberDom referent (editedTypes b0)
                         then (termWork, typeWork <> single referent oldRef edit)
                         else (termWork, typeWork))
+
+empty :: Branch
+empty = Branch (Causal.one mempty)
 
 merge :: Branch -> Branch -> Branch
 merge (Branch b) (Branch b2) = Branch (Causal.merge b b2)
