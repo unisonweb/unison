@@ -6,6 +6,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Unison.Typechecker.Context
   ( synthesizeClosed
@@ -163,10 +164,8 @@ data Cause v loc
   -- without the explicit signature OR that the synthesized type isn't equal to
   -- the user-provided signature. Useful so we can have redundant type signatures
   -- not affect hashing.
-  | TopLevelComponent TypeSignaturesNeeded [(v, Term v loc, Type v loc)]
+  | TopLevelComponent [(v, Term v loc, Type v loc)]
   deriving Show
-
-type TypeSignaturesNeeded = Bool
 
 errorTerms :: Note v loc -> [Term v loc]
 errorTerms n = Foldable.toList (path n) >>= \e -> case e of
@@ -614,15 +613,14 @@ noteTopLevelType
   => ABT.Subst f v a
   -> Term v loc
   -> Type v loc
-  -> [Type v loc]
   -> M v loc ()
-noteTopLevelType e binding typ abilities = case binding of
-  Term.Ann' binding typ1 -> do
-    typ2 <- synthesizeClosed' abilities binding `orElse` pure typ
-    if typ2 == typ
-      then btw $ TopLevelComponent False [(ABT.variable e, binding, typ1)]
-      else btw $ TopLevelComponent True [(ABT.variable e, binding, typ1)]
-  _ -> btw $ TopLevelComponent False [(ABT.variable e, binding, typ)]
+noteTopLevelType e binding typ = case binding of
+  Term.Ann' strippedBinding typ1 -> do
+    typ2 <- synthesize strippedBinding `orElse` pure typ
+    btw $ TopLevelComponent [(ABT.variable e
+                             ,if typ2 == typ then strippedBinding else binding
+                             ,typ1)]
+  _ -> btw $ TopLevelComponent [(ABT.variable e, binding, typ)]
 
 -- | Synthesize the type of the given term, updating the context in the process.
 -- | Figure 11 from the paper
@@ -679,17 +677,18 @@ synthesize e = scope (InSynthesize e) $
     -- no free variables, i.e. `let id x = x in ...`
     abilities <- getAbilities
     t  <- synthesizeClosed' abilities binding
-    when top $ noteTopLevelType e binding t abilities
+    when top $ noteTopLevelType e binding t
     v' <- ABT.freshen e freshenVar
     -- note: `Ann' (Ref'  _) t` synthesizes to `t`
     e  <- pure $ ABT.bindInheritAnnotation e (Term.ann () (Term.builtin() (Var.name v')) t)
     synthesize e
-  go (Term.Let1' binding e) = do
+  go (Term.Let1Top' top binding e) = do
     -- note: no need to freshen binding, it can't refer to v
     tbinding <- synthesize binding
     v' <- ABT.freshen e freshenVar
     appendContext (context [Ann v' tbinding])
     t <- synthesize (ABT.bindInheritAnnotation e (Term.var() v'))
+    when top $ noteTopLevelType e binding t
     doRetract $ Ann v' tbinding
     pure t
   go (Term.Lam' body) = do -- ->I=> (Full Damas Milner rule)
@@ -708,8 +707,8 @@ synthesize e = scope (InSynthesize e) $
     ctx <- getContext
     pure $ Type.arrow l it (Type.effect l (apply ctx <$> [et]) ot)
   go (Term.LetRecNamed' [] body) = synthesize body
-  go (Term.LetRec' letrec) = do
-    (marker, e) <- annotateLetRecBindings letrec
+  go (Term.LetRecTop' isTop letrec) = do
+    (marker, e) <- annotateLetRecBindings isTop letrec
     t <- synthesize e
     (_, _, ctx2) <- breakAt marker <$> getContext
     (generalizeExistentials ctx2 t) <$ doRetract marker
@@ -874,6 +873,13 @@ lookupAnn ctx v = lookup v (bindings ctx)
 lookupSolved :: Eq v => Context v loc -> v -> Maybe (Monotype v loc)
 lookupSolved ctx v = lookup v (solved ctx)
 
+resetContextAfter :: a -> M v loc a -> M v loc a
+resetContextAfter x a = do
+  ctx <- getContext
+  a <- a `orElse` pure x
+  setContext ctx
+  pure a
+
 -- | Synthesize and generalize the type of each binding in a let rec
 -- and return the new context in which all bindings are annotated with
 -- their type. Also returns the freshened version of `body` and a marker
@@ -881,37 +887,67 @@ lookupSolved ctx v = lookup v (solved ctx)
 -- of `body` is complete. See usage in `synthesize` and `check` for `LetRec'` case.
 annotateLetRecBindings
   :: (Var v, Ord loc)
-  => ((v -> M v loc v) -> M v loc ([(v, Term v loc)], Term v loc))
+  => Term.IsTop
+  -> ((v -> M v loc v) -> M v loc ([(v, Term v loc)], Term v loc))
   -> M v loc (Element v loc, Term v loc)
-annotateLetRecBindings letrec = do
-  (bindings, body) <- letrec freshenVar
-  let vs = map fst bindings
-  -- generate a fresh existential variable `e1, e2 ...` for each binding
-  es <- traverse freshenVar vs
-  e1 <- freshNamed "bindings-start"
-  ctx <- getContext
-  -- Introduce these existentials into the context and
-  -- annotate each term variable w/ corresponding existential
-  -- [marker e1, 'e1, 'e2, ... v1 : 'e1, v2 : 'e2 ...]
-  let f e (_,binding) = case binding of
-        -- TODO: Think about whether `apply` here is always correct
-        --       Used to have a guard that would only do this if t had no free vars
-        Term.Ann' _ t -> apply ctx t
-        _ -> Type.existential' (loc binding) B.Blank e
-  let bindingTypes = zipWith f es bindings
-      bindingArities = Term.arity . snd <$> bindings
-  appendContext $ context (Marker e1 : map existential es ++ zipWith Ann vs bindingTypes)
-  -- check each `bi` against `ei`; sequencing resulting contexts
-  Foldable.for_ (zip bindings bindingTypes) $ \((_,b), t) -> check b t
-  -- compute generalized types `gt1, gt2 ...` for each binding `b1, b2...`;
-  -- add annotations `v1 : gt1, v2 : gt2 ...` to the context
-  (_, _, ctx2) <- breakAt (Marker e1) <$> getContext
-  let gen bindingType arity = Type.generalizeEffects arity $ generalizeExistentials ctx2 bindingType
-      annotations = zipWith Ann vs (zipWith gen bindingTypes bindingArities)
-  marker <- Marker <$> freshenVar (ABT.v' "let-rec-marker")
-  doRetract (Marker e1)
-  appendContext . context $ marker : annotations
-  pure (marker, body)
+annotateLetRecBindings isTop letrec =
+  -- If this is a top-level letrec, then emit a TopLevelComponent note,
+  -- which asks if the user-provided type annotations were needed.
+  if isTop then do
+    -- First, typecheck (using annotateLetRecBindings') the bindings with any
+    -- user-provided annotations.
+    (marker, bindings, strippedBindings, body, vts) <- annotateLetRecBindings' True
+    -- Then, try typechecking again, but ignoring any user-provided annotations.
+    -- This will infer whatever type.  If it altogether fails to typecheck here
+    -- then, ...(1)
+    withoutAnnotations <-
+      resetContextAfter Nothing $ (Just <$> annotateLetRecBindings' False)
+
+    let vbt bindings vts = [ (v, b, t) | (b, (v,t)) <- bindings `zip` vts ]
+    case withoutAnnotations of
+      -- If the types (snd vts) are the same, then we know that the annotations
+      -- were redundant, and we discard them.
+      Just (_, _, _, _, vts') | fmap snd vts == fmap snd vts' ->
+        btw $ TopLevelComponent (vbt strippedBindings vts)
+      -- ...(1) we'll assume all the user-provided annotations were needed
+      _otherwise -> btw $ TopLevelComponent (vbt bindings vts)
+    pure (marker, body)
+  -- If this isn't a top-level letrec, then we don't have to do anything special
+  else do
+    (\(marker, _, _, body, _) -> (marker, body)) <$> annotateLetRecBindings' True
+  where
+    annotateLetRecBindings' useUserAnnotations = do
+      (bindings, body) <- letrec freshenVar
+      let vs = map fst bindings
+      -- generate a fresh existential variable `e1, e2 ...` for each binding
+      es <- traverse freshenVar vs
+      e1 <- freshNamed "bindings-start"
+      ctx <- getContext
+      -- Introduce these existentials into the context and
+      -- annotate each term variable w/ corresponding existential
+      -- [marker e1, 'e1, 'e2, ... v1 : 'e1, v2 : 'e2 ...]
+      let f e (_,binding) = case binding of
+            -- TODO: Think about whether `apply` here is always correct
+            --       Used to have a guard that would only do this if t had no free vars
+            Term.Ann' _ t | useUserAnnotations -> apply ctx t
+            _ -> Type.existential' (loc binding) B.Blank e
+      let bindingTypes = zipWith f es bindings
+          bindingArities = Term.arity . snd <$> bindings
+      appendContext $ context (Marker e1 : map existential es ++ zipWith Ann vs bindingTypes)
+      -- check each `bi` against `ei`; sequencing resulting contexts
+      Foldable.for_ (zip bindings bindingTypes) $ \((_,b), t) -> check b t
+      -- compute generalized types `gt1, gt2 ...` for each binding `b1, b2...`;
+      -- add annotations `v1 : gt1, v2 : gt2 ...` to the context
+      (_, _, ctx2) <- breakAt (Marker e1) <$> getContext
+      let gen bindingType arity = Type.generalizeEffects arity $ generalizeExistentials ctx2 bindingType
+          bindingTypesGeneralized = zipWith gen bindingTypes bindingArities
+          annotations = zipWith Ann vs bindingTypesGeneralized
+      marker <- Marker <$> freshenVar (ABT.v' "let-rec-marker")
+      doRetract (Marker e1)
+      appendContext . context $ marker : annotations
+      let strippedBindings = (\case (_, Term.Ann' tm _) -> tm; (_,tm) -> tm) <$> bindings
+      pure (marker, snd <$> bindings, strippedBindings, body, vs `zip` bindingTypesGeneralized)
+
 
 ungeneralize :: (Var v, Ord loc) => Type v loc -> M v loc (Type v loc)
 ungeneralize t = snd <$> ungeneralize' t
@@ -979,8 +1015,8 @@ check e0 t0 = scope (InCheck e0 t0) $ do
     check (ABT.bindInheritAnnotation e (Term.var () v)) t
     doRetract $ Ann v tbinding
   go (Term.LetRecNamed' [] e) t = check e t
-  go (Term.LetRec' letrec   ) t = do
-    (marker, e) <- annotateLetRecBindings letrec
+  go (Term.LetRecTop' isTop letrec) t = do
+    (marker, e) <- annotateLetRecBindings isTop letrec
     check e t
     doRetract marker
   go block@(Term.Handle' h body) t = do
