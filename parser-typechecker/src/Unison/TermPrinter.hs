@@ -1,5 +1,4 @@
 {-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE LambdaCase #-}
 
 module Unison.TermPrinter where
 
@@ -21,10 +20,11 @@ import qualified Unison.Var as Var
 import qualified Unison.Util.PrettyPrint as PP
 import           Unison.Util.PrettyPrint (PrettyPrint(..))
 
---TODO force, delay, tuples, sequence (also in patterns)
---TODO more testing, throughout
---TODO use imports to trim fully qualified names
 --TODO precedence comment and double check in type printer
+--TODO more testing of line-breaking behaviour
+--TODO try it out on 'real' code (as an in-place edit pass on unison-src maybe)
+--TODO (improve code layout below)
+--TODO use imports to trim fully qualified names
 
 {- Explanation of precedence handling
 
@@ -92,7 +92,7 @@ pretty n p term = case term of
   --      terms produced by metaprograms), then it needs to be able to print them (and
   --      then the parser ought to be able to parse them, to maintain symmetry.)
   Boolean' b   -> if b then l"true" else l"false"
-  Text' s      -> l $ show s   -- TODO check show escapes ", in the same way as Unison
+  Text' s      -> l $ show s
   Blank' id    -> l"_" <> (l $ fromMaybe "" (Blank.nameb id))
   RequestOrCtor' ref i -> l (Text.unpack (n ref (Just i)))
   Handle' h body -> parenNest (p >= 2) $
@@ -166,7 +166,6 @@ prettyPattern n p vs patt = case patt of
                          in (parenNest (p >= 11) $ ((l $ Text.unpack (Var.name v)) <> l"@" <> printed), eventual_tail)
   Pattern.EffectPure _ pat -> let (printed, eventual_tail) = prettyPattern n (-1) vs pat
                               in (l"{" <> b" " <> printed <> b" " <> l"}", eventual_tail)
-                              -- TODO use constructor ID below
   Pattern.EffectBind _ ref i pats k_pat -> let (pats_printed, tail_vs) = patterns vs pats
                                                (k_pat_printed, eventual_tail) = prettyPattern n 0 tail_vs k_pat
                                            in (l"{" <> (PP.Nest "  " $ PP.Group $ b" " <>
