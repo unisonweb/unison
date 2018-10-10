@@ -1,5 +1,6 @@
 module Unison.Codebase where
 
+import Data.Text (Text)
 import qualified Unison.Term as Term
 import qualified Unison.DataDeclaration as DD
 import Unison.Reference (Reference)
@@ -20,20 +21,15 @@ data Codebase m v a =
            , putCode :: Code v a -> m Reference
            , branches :: m [Name]
            , getBranch :: Name -> m (Maybe Branch)
-           , putBranch :: Name -> Branch -> m ()
+           -- thought: this merges the given branch with the existing branch
+           -- or creates a new branch if there's no branch with that name
+           , mergeBranch :: Name -> Branch -> m ()
            }
 
--- what about concept of the 'current' branch?
--- this is a property of the tool, not the codebase itself
--- codebase is JUST the store of code
--- thought: possibly have a separate `Session` type for tracking a
--- more stateful interaction with a Codebase?
---
--- TODO: if the watch typechecks, it should returns the list of [(v, Term, Type)] tuples from the file
--- as well the data and effect declarations
--- if it doesn't parse or typecheck, it should return the errors
 data Session m v a
-  = Session { currentBranch :: m Name
+  = Session { branch :: m Name
+            , switchBranch :: Name -> m ()
             -- Await the next .u file change in the given directory,
-            -- and return the changed path and its contents
-            , watch :: FilePath -> m (FilePath, Result (Note v Ann) (UnisonFile' v Ann)) }
+            -- and return the path of the thing that changed, its contents,
+            -- and the results of parsing / typechecking.
+            , watch :: FilePath -> m (FilePath, Text, Result (Note v Ann) (UnisonFile' v Ann)) }
