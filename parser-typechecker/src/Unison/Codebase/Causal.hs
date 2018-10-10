@@ -1,3 +1,4 @@
+{-# LANGUAGE PatternSynonyms, ViewPatterns #-}
 module Unison.Codebase.Causal where
 
 import Prelude hiding (head, sequence)
@@ -30,6 +31,19 @@ data Causal e
   | Cons { currentHash :: Hash, head :: e, tail :: Causal e }
   -- The merge operation `<>` flattens and normalizes for order
   | Merge { currentHash :: Hash, head :: e, tails :: Map Hash (Causal e) }
+
+pattern ConsN conss tail <- (uncons -> Just (conss,tail))
+
+consN :: [(Hash, e)] -> Causal e -> Causal e
+consN conss tail = foldr (\(h,e) t -> Cons h e t) tail conss
+
+uncons :: Causal e -> Maybe ([(Hash,e)], Causal e)
+uncons (One _ _) = Nothing
+uncons (Merge _ _ _) = Nothing
+uncons x = Just $ go [] x where
+  go acc (Cons h e tail) = go ((h,e) : acc) tail
+  go acc x = (reverse acc,x)
+
 
 instance Eq (Causal a) where
   a == b = currentHash a == currentHash b

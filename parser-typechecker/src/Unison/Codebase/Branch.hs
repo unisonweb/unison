@@ -27,6 +27,7 @@ import           Unison.Codebase.TermEdit   (TermEdit, Typing)
 import qualified Unison.Codebase.TermEdit   as TermEdit
 import           Unison.Codebase.TypeEdit   (TypeEdit)
 import qualified Unison.Codebase.TypeEdit   as TypeEdit
+import           Unison.Hash                (Hash)
 import           Unison.Hashable            (Hashable)
 import qualified Unison.Hashable            as H
 import           Unison.Reference           (Reference)
@@ -412,3 +413,6 @@ renameTerm :: Name -> Name -> Branch -> Branch
 renameTerm old new (Branch b) =
   Branch $ Causal.stepIf (R.memberDom old . termNamespace) go b where
     go b = b { termNamespace = replaceDom old new (termNamespace b)}
+
+toHash :: Branch -> Hash
+toHash = Causal.currentHash . unbranch
