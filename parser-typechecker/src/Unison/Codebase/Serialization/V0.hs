@@ -6,7 +6,7 @@ module Unison.Codebase.Serialization.V0 where
 import qualified Data.Vector as Vector
 import qualified Unison.PatternP as Pattern
 import Unison.PatternP (Pattern)
-import Control.Applicative (liftA2)
+import Control.Applicative (liftA2,liftA3)
 import Control.Monad (replicateM)
 import Data.Bits (Bits)
 import Data.Bytes.Get as Get
@@ -25,6 +25,8 @@ import Unison.Codebase.Branch (Branch(..), Branch0(..))
 import Unison.Codebase.Causal (Causal)
 import Unison.Codebase.TermEdit (TermEdit)
 import Unison.Codebase.TypeEdit (TypeEdit)
+import qualified Unison.Codebase.Code as Code
+import Unison.Codebase.Code (Code)
 import Unison.Hash (Hash)
 import Unison.Kind (Kind)
 import Unison.Reference (Reference)
@@ -43,6 +45,8 @@ import qualified Unison.Reference as Reference
 import qualified Data.Relation as Relation
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
+import qualified Unison.DataDeclaration as DataDeclaration
+import Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 
 -- ABOUT THIS FORMAT:
 --
@@ -377,6 +381,12 @@ putPair' putA putB (a,b) = putA a *> putB b
 getPair :: MonadGet m => m a -> m b -> m (a,b)
 getPair = liftA2 (,)
 
+putTuple3' :: MonadPut m => (a -> m ()) -> (b -> m ()) -> (c -> m ()) -> (a,b,c) -> m ()
+putTuple3' putA putB putC (a,b,c) = putA a *> putB b *> putC c
+
+getTuple3 :: MonadGet m => m a -> m b -> m c -> m (a,b,c)
+getTuple3 = liftA3 (,,)
+
 putRelation :: MonadPut m => Relation a b -> (a -> m ()) -> (b -> m ()) -> m ()
 putRelation r putA putB = putFoldable (Relation.toList r) (putPair' putA putB)
 
@@ -444,3 +454,43 @@ getBranch = Branch <$> getCausal
            <*> getRelation getText getReference
            <*> getRelation getReference getTermEdit
            <*> getRelation getReference getTypeEdit)
+
+putDataDeclaration :: (MonadPut m, Ord v)
+                   => (v -> m ()) -> (a -> m ())
+                   -> DataDeclaration' v a
+                   -> m ()
+putDataDeclaration putV putA decl = do
+  putA $ DataDeclaration.annotation decl
+  putFoldable (DataDeclaration.bound decl) putV
+  putFoldable (DataDeclaration.constructors' decl) (putTuple3' putA putV (putType putV putA))
+
+getDataDeclaration :: (MonadGet m, Ord v) => m v -> m a -> m (DataDeclaration' v a)
+getDataDeclaration getV getA = DataDeclaration.DataDeclaration <$>
+  getA <*>
+  getList getV <*>
+  getList (getTuple3 getA getV (getType getV getA))
+
+putEffectDeclaration ::
+  (MonadPut m, Ord v) => (v -> m ()) -> (a -> m ()) -> EffectDeclaration' v a -> m ()
+putEffectDeclaration putV putA (DataDeclaration.EffectDeclaration d) =
+  putDataDeclaration putV putA d
+
+getEffectDeclaration :: (MonadGet f, Ord v) => f v -> f a -> f (EffectDeclaration' v a)
+getEffectDeclaration getV getA =
+  DataDeclaration.EffectDeclaration <$> getDataDeclaration getV getA
+
+putCode :: (MonadPut m, Ord v) => (v -> m ()) -> (a -> m ()) -> Code v a -> m ()
+putCode putV putA code = case code of
+  Code.Term e typ
+    -> putWord8 0 *> putTerm putV putA e *> putType putV putA typ
+  Code.DataDeclaration decl
+    -> putWord8 1 *> putDataDeclaration putV putA decl
+  Code.EffectDeclaration decl
+    -> putWord8 2 *> putEffectDeclaration putV putA decl
+
+getCode :: (MonadGet m, Ord v) => m v -> m a -> m (Code v a)
+getCode getV getA = getWord8 >>= \tag -> case tag of
+  0 -> Code.Term <$> getTerm getV getA <*> getType getV getA
+  1 -> Code.DataDeclaration <$> getDataDeclaration getV getA
+  2 -> Code.EffectDeclaration <$> getEffectDeclaration getV getA
+  _ -> unknownTag "Code" tag

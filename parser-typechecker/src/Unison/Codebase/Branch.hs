@@ -226,6 +226,13 @@ empty = Branch (Causal.one mempty)
 merge :: Branch -> Branch -> Branch
 merge (Branch b) (Branch b2) = Branch (Causal.merge b b2)
 
+instance Semigroup Branch where
+  (<>) = mappend
+
+instance Monoid Branch where
+  mempty = empty
+  mappend = merge
+
 data ReferenceOps m = ReferenceOps
   { name         :: Reference -> m (Set Name)
   , isTerm       :: Reference -> m Bool
