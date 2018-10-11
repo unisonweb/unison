@@ -11,10 +11,9 @@ case class Environment(
 )
 
 object Environment {
-
   val standard = Environment(
     Builtins.builtins,
     userDefined = Map.empty,
     BuiltinTypes.dataConstructors,
-    BuiltinTypes.effects)
+    Map.empty)
 }
