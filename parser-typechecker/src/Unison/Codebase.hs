@@ -103,6 +103,9 @@ isValidBranchDirectory :: FilePath -> IO Bool
 isValidBranchDirectory path =
   not . null <$> filesInPathMatchingSuffix path ".ubf"
 
+-- todo: builtin data decls (optional, unit, pair) should just have a regular
+-- hash-based reference, rather than being Reference.Builtin
+-- and we should verify that this doesn't break the runtime
 codebase1 :: forall v a. Ord v
           => S.Format v -> S.Format a -> FilePath -> Codebase IO v a
 codebase1 (S.Format getV putV) (S.Format getA putA) path = let
