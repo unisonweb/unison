@@ -21,7 +21,7 @@ import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)
 import Data.Relation (Relation)
 import Data.Word (Word64)
-import Unison.Codebase.Branch ({-Branch(..), -}Branch0(..))
+import Unison.Codebase.Branch (Branch(..), Branch0(..))
 import Unison.Codebase.Causal (Causal)
 import Unison.Codebase.TermEdit (TermEdit)
 import Unison.Codebase.TypeEdit (TypeEdit)
@@ -431,12 +431,16 @@ getTypeEdit = getWord8 >>= \case
   2 -> pure TypeEdit.Deprecate
   t -> unknownTag "TypeEdit" t
 
-putBranch :: MonadPut m => Causal Branch0 -> m ()
-putBranch b = putCausal b $ \Branch0 {..} -> do
+putBranch :: MonadPut m => Branch -> m ()
+putBranch (Branch b) = putCausal b $ \Branch0 {..} -> do
   putRelation termNamespace putText putReference
   putRelation typeNamespace putText putReference
   putRelation editedTerms putReference putTermEdit
   putRelation editedTypes putReference putTypeEdit
 
--- getBranch :: MonadGet m => m v -> m a -> m Branch
--- getBranch getV getA =
+getBranch :: MonadGet m => m Branch
+getBranch = Branch <$> getCausal
+  (Branch0 <$> getRelation getText getReference
+           <*> getRelation getText getReference
+           <*> getRelation getReference getTermEdit
+           <*> getRelation getReference getTypeEdit)
