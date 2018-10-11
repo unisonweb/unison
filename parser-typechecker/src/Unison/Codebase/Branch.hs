@@ -96,6 +96,9 @@ instance Monoid Branch0 where
   mempty = Branch0 R.empty R.empty R.empty R.empty
   mappend = (<>)
 
+before :: Branch -> Branch -> Bool
+before b b2 = unbranch b `Causal.before` unbranch b2
+
 -- Use e.g. by `conflicts termNamespace branch`
 conflicts :: Ord a => (Branch0 -> Relation a b) -> Branch -> Map a (Set b)
 conflicts f = conflicts' . f . Causal.head . unbranch where
