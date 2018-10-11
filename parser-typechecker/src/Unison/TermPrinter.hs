@@ -21,6 +21,7 @@ import qualified Unison.Util.PrettyPrint as PP
 import           Unison.Util.PrettyPrint (PrettyPrint(..))
 
 --TODO precedence comment and double check in type printer
+--TODO ? askInfo suffix; > watches
 --TODO more testing of line-breaking behaviour
 --TODO try it out on 'real' code (as an in-place edit pass on unison-src maybe)
 --TODO (improve code layout below)
@@ -82,8 +83,8 @@ pretty n p term = case term of
   Ann' tm t    -> let n' r = n r Nothing in
                     parenNest (p >= 0) $
                       pretty n 10 tm <> b" " <> (PP.Nest "  " $ PP.Group (l": " <> TypePrinter.pretty n' 0 t))
-  Int64' i     -> (if i >= 0 then l"+" else Empty) <> (l $ show i)
-  UInt64' u    -> l $ show u
+  Int' i       -> (if i >= 0 then l"+" else Empty) <> (l $ show i)
+  Nat' u       -> l $ show u
   Float' f     -> l $ show f
   -- TODO How to handle Infinity, -Infinity and NaN?  Parser cannot parse them.  Haskell
   --      doesn't have literals for them either.  Is this function only required to
@@ -156,8 +157,8 @@ prettyPattern n p vs patt = case patt of
   Pattern.Var _      -> let (v : tail_vs) = vs
                         in (l $ Text.unpack (Var.name v), tail_vs)
   Pattern.Boolean _ b -> (if b then l"true" else l"false", vs)
-  Pattern.Int64 _ i   -> ((if i >= 0 then l"+" else Empty) <> (l $ show i), vs)
-  Pattern.UInt64 _ u  -> (l $ show u, vs)
+  Pattern.Int _ i     -> ((if i >= 0 then l"+" else Empty) <> (l $ show i), vs)
+  Pattern.Nat _ u     -> (l $ show u, vs)
   Pattern.Float _ f   -> (l $ show f, vs)
   Pattern.Constructor _ ref i pats -> let (pats_printed, tail_vs) = patterns vs pats
                                       in (parenNest (p >= 10) $ l (Text.unpack (n ref (Just i))) <> pats_printed, tail_vs)
