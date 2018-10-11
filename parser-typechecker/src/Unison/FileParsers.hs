@@ -14,7 +14,6 @@ import           Data.Functor.Identity (runIdentity, Identity(..))
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Maybe
-import qualified Data.Text as Text
 import qualified Unison.Builtin as B
 import qualified Unison.Codecs as Codecs
 import           Unison.DataDeclaration (DataDeclaration')
@@ -74,14 +73,13 @@ synthesizeFile unisonFile
       dataDeclaration r = pure $ fromMaybe (die "data" r) $ Map.lookup r datas
       effectDeclaration r =
         pure $ fromMaybe (die "effect" r) $ Map.lookup r effects
-      unqualified = last . Text.splitOn "."
       typeSigs    = Map.fromList $ fmap
         (\(v, (_tm, typ)) -> (Builtin (Var.name v), typ))
         B.builtinTypedTerms
       unqualifiedLookup = Map.fromListWith mappend $ fmap
         (\(v, (_tm, typ)) ->
-          ( unqualified $ Var.name v
-          , [Typechecker.NamedReference (Var.name v) typ]
+          ( Var.unqualified v
+          , [Typechecker.NamedReference (Var.name v) typ True]
           )
         )
         B.builtinTypedTerms
