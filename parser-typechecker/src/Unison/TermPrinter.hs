@@ -111,7 +111,7 @@ pretty n p term = case term of
                           varList vs <> l" ->" <> b" " <>
                           (PP.Nest "  " $ PP.Group $ pretty n 2 body)
   LetRecNamed' bs e -> printLet bs e
-  Lets' bs e ->   printLet bs e
+  Lets' bs e ->   printLet' bs e
   Match' scrutinee branches -> parenNest (p >= 2) $
                                l"case" <> b" " <> pretty n 2 scrutinee <> b" " <> l"of" <>
                                (PP.Nest "  " $ PP.Group $ b" " <> fold (intersperse (b"; ") (map printCase branches)))
@@ -133,10 +133,15 @@ pretty n p term = case term of
         --      { } when breaking lines, so would still need a PrettyPrint API change.)
         printLet bs e = parenNest (p >= 2) $
                         l"let" <> l"\n  " <> lets bs <> pretty n 0 e <> l"\n"
-
+        printLet' bs e = parenNest (p >= 2) $
+                        l"let" <> l"\n  " <> lets' bs <> pretty n 0 e <> l"\n"
+        --TODO clean up this duplication
         lets ((v, binding) : rest) = (l $ Text.unpack (Var.name v)) <> b" " <> l"=" <> b" " <>
                                      pretty n 1 binding <> b"\n  " <> lets rest
         lets [] = Empty
+        lets' ((_, v, binding) : rest) = (l $ Text.unpack (Var.name v)) <> b" " <> l"=" <> b" " <>
+                                        pretty n 1 binding <> b"\n  " <> lets rest
+        lets' [] = Empty
 
         printCase (MatchCase pat guard (AbsN' vs body)) =
           (fst $ prettyPattern n (-1) vs pat) <> b" " <> printGuard guard <> l"->" <> b" " <>
