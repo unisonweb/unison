@@ -25,8 +25,6 @@ import Unison.Codebase.Branch (Branch(..), Branch0(..))
 import Unison.Codebase.Causal (Causal)
 import Unison.Codebase.TermEdit (TermEdit)
 import Unison.Codebase.TypeEdit (TypeEdit)
-import qualified Unison.Codebase.Code as Code
-import Unison.Codebase.Code (Code)
 import Unison.Hash (Hash)
 import Unison.Kind (Kind)
 import Unison.Reference (Reference)
@@ -478,19 +476,3 @@ putEffectDeclaration putV putA (DataDeclaration.EffectDeclaration d) =
 getEffectDeclaration :: (MonadGet f, Ord v) => f v -> f a -> f (EffectDeclaration' v a)
 getEffectDeclaration getV getA =
   DataDeclaration.EffectDeclaration <$> getDataDeclaration getV getA
-
-putCode :: (MonadPut m, Ord v) => (v -> m ()) -> (a -> m ()) -> Code v a -> m ()
-putCode putV putA code = case code of
-  Code.Term e typ
-    -> putWord8 0 *> putTerm putV putA e *> putType putV putA typ
-  Code.DataDeclaration decl
-    -> putWord8 1 *> putDataDeclaration putV putA decl
-  Code.EffectDeclaration decl
-    -> putWord8 2 *> putEffectDeclaration putV putA decl
-
-getCode :: (MonadGet m, Ord v) => m v -> m a -> m (Code v a)
-getCode getV getA = getWord8 >>= \tag -> case tag of
-  0 -> Code.Term <$> getTerm getV getA <*> getType getV getA
-  1 -> Code.DataDeclaration <$> getDataDeclaration getV getA
-  2 -> Code.EffectDeclaration <$> getEffectDeclaration getV getA
-  _ -> unknownTag "Code" tag

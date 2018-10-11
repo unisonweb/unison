@@ -18,7 +18,6 @@ import qualified Unison.Hash as Hash
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Reference (Reference)
 import qualified Unison.Codebase.Serialization.V0 as V0
-import Unison.Codebase.Code (Code)
 import Unison.Codebase.Name (Name)
 import Unison.Codebase.Branch (Branch)
 import System.FilePath (FilePath, (</>))
@@ -27,13 +26,22 @@ import Unison.UnisonFile (UnisonFile')
 import qualified Data.ByteString as BS
 import qualified Data.Bytes.Get as Get
 import qualified Data.Bytes.Put as Put
+import qualified Unison.Type as Type
 
 type DataDeclaration v a = DD.DataDeclaration' v a
+type EffectDeclaration v a = DD.EffectDeclaration' v a
 type Term v a = Term.AnnotatedTerm v a
+type Type v a = Type.AnnotatedType v a
+type Decl v a = Either (EffectDeclaration v a) (DataDeclaration v a)
 
 data Codebase m v a =
-  Codebase { getCode :: Reference -> m (Maybe (Code v a))
-           , putCode :: Code v a -> m Reference
+  Codebase { getTerm :: Reference -> m (Maybe (Term v a))
+           , getTypeOfTerm :: Reference -> m (Maybe (Type v a))
+           , putTerm :: Reference -> Term v a -> Type v a -> m ()
+
+           , getTypeDeclaration :: Reference -> m (Decl v a)
+           , putTypeDeclaration :: Reference -> Decl v a -> m ()
+
            , branches :: m [Name]
            , getBranch :: Name -> m (Maybe Branch)
            -- thought: this merges the given branch with the existing branch
@@ -95,8 +103,11 @@ isValidBranchDirectory path =
 
 codebase1 :: FilePath -> Codebase IO v a
 codebase1 path = let
-  getCode _r = error "todo"
-  putCode _code = error "todo"
+  getTerm _r = error "todo"
+  putTerm _r _e _typ = error "todo"
+  getTypeOfTerm _r = error "todo"
+  getDecl _r = error "todo"
+  putDecl _r _decl = error "todo"
   branches = map Text.pack <$> do
     files <- listDirectory (path </> "branches")
     filterM isValidBranchDirectory files
@@ -124,4 +135,4 @@ codebase1 path = let
         Just existing -> Branch.merge branch existing
         -- or save new branch
         Nothing -> branch
-  in Codebase getCode putCode branches getBranch mergeBranch
+  in Codebase getTerm getTypeOfTerm putTerm getDecl putDecl branches getBranch mergeBranch
