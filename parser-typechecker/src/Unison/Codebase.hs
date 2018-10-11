@@ -137,8 +137,7 @@ codebase1 (S.Format getV putV) (S.Format getA putA) path = let
     traverse_ removeFile =<< filterM (isBefore branch) nonmatch
     -- save new branch data under <base58>.ubf
     when (null match) $
-      branchToFile (path </> "branches" </> Text.unpack name
-                         </> Text.unpack newBranchHash <> ".ubf") branch
+      branchToFile (branchPath name </> Text.unpack newBranchHash <> ".ubf") branch
 
   mergeBranch name branch = do
     target <- getBranch name
