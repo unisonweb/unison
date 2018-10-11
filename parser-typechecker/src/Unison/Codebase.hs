@@ -106,8 +106,11 @@ isValidBranchDirectory path =
 codebase1 :: forall v a. Ord v
           => S.Format v -> S.Format a -> FilePath -> Codebase IO v a
 codebase1 (S.Format getV putV) (S.Format getA putA) path = let
-  termPath h = path </> "terms" </> Hash.base58s h </> "term.ub"
+  termPath h = path </> "terms" </> Hash.base58s h </> "compiled.ub"
   typePath h = path </> "terms" </> Hash.base58s h </> "type.ub"
+  declPath h = path </> "types" </> Hash.base58s h </> "compiled.ub"
+  branchesPath = path </> "branches"
+  branchPath name = branchesPath </> Text.unpack name
   getTerm h = S.getFromFile (V0.getTerm getV getA) (termPath h)
   putTerm h e typ = do
     S.putWithParentDirs (V0.putTerm putV putA) (termPath h) e
@@ -115,18 +118,18 @@ codebase1 (S.Format getV putV) (S.Format getA putA) path = let
   getTypeOfTerm r = case r of
     Builtin _name -> error "todo"
     Derived h -> S.getFromFile (V0.getType getV getA) (typePath h)
-  getDecl _h = error "todo"
+  getDecl h = error $ "todo" ++ declPath h
   putDecl _h _decl = error "todo"
   branches = map Text.pack <$> do
-    files <- listDirectory (path </> "branches")
+    files <- listDirectory branchesPath
     filterM isValidBranchDirectory files
-  getBranch name = branchFromDirectory (path </> "branches" </> Text.unpack name)
+  getBranch name = branchFromDirectory (branchPath name)
   -- given a name and a branch, serialize given branch with
   overwriteBranch name branch = do
     let newBranchHash = Hash.base58 . Branch.toHash $ branch
     (match, nonmatch) <-
       partition (Text.unpack newBranchHash `isPrefixOf`) <$>
-         filesInPathMatchingSuffix (path </> "branches" </> Text.unpack name) ".ubf"
+         filesInPathMatchingSuffix (branchPath name) ".ubf"
     let
       isBefore :: Branch -> FilePath -> IO Bool
       isBefore b ubf = maybe False (`Branch.before` b) <$> branchFromFile' ubf
