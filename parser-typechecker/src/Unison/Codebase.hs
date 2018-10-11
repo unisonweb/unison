@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts, OverloadedStrings, ScopedTypeVariables #-}
 
 module Unison.Codebase where
 
@@ -16,17 +16,19 @@ import qualified Unison.Term as Term
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Hash as Hash
 import qualified Unison.Codebase.Branch as Branch
-import Unison.Reference (Reference)
+import Unison.Reference (Reference (Builtin, Derived))
 import qualified Unison.Codebase.Serialization.V0 as V0
 import Unison.Codebase.Name (Name)
 import Unison.Codebase.Branch (Branch)
 import System.FilePath (FilePath, (</>))
 import Unison.Result (Result, Note)
 import Unison.UnisonFile (UnisonFile')
+import Unison.Hash (Hash)
 import qualified Data.ByteString as BS
 import qualified Data.Bytes.Get as Get
 import qualified Data.Bytes.Put as Put
 import qualified Unison.Type as Type
+import qualified Unison.Codebase.Serialization as S
 
 type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
@@ -35,12 +37,12 @@ type Type v a = Type.AnnotatedType v a
 type Decl v a = Either (EffectDeclaration v a) (DataDeclaration v a)
 
 data Codebase m v a =
-  Codebase { getTerm :: Reference -> m (Maybe (Term v a))
+  Codebase { getTerm :: Hash -> m (Maybe (Term v a))
            , getTypeOfTerm :: Reference -> m (Maybe (Type v a))
-           , putTerm :: Reference -> Term v a -> Type v a -> m ()
+           , putTerm :: Hash -> Term v a -> Type v a -> m ()
 
-           , getTypeDeclaration :: Reference -> m (Decl v a)
-           , putTypeDeclaration :: Reference -> Decl v a -> m ()
+           , getTypeDeclaration :: Hash -> m (Decl v a)
+           , putTypeDeclaration :: Hash -> Decl v a -> m ()
 
            , branches :: m [Name]
            , getBranch :: Name -> m (Maybe Branch)
@@ -101,13 +103,20 @@ isValidBranchDirectory :: FilePath -> IO Bool
 isValidBranchDirectory path =
   not . null <$> filesInPathMatchingSuffix path ".ubf"
 
-codebase1 :: FilePath -> Codebase IO v a
-codebase1 path = let
-  getTerm _r = error "todo"
-  putTerm _r _e _typ = error "todo"
-  getTypeOfTerm _r = error "todo"
-  getDecl _r = error "todo"
-  putDecl _r _decl = error "todo"
+codebase1 :: forall v a. Ord v
+          => S.Format v -> S.Format a -> FilePath -> Codebase IO v a
+codebase1 (S.Format getV putV) (S.Format getA putA) path = let
+  termPath h = path </> "terms" </> Hash.base58s h </> "term.ub"
+  typePath h = path </> "terms" </> Hash.base58s h </> "type.ub"
+  getTerm h = S.getFromFile (V0.getTerm getV getA) (termPath h)
+  putTerm h e typ = do
+    S.putWithParentDirs (V0.putTerm putV putA) (termPath h) e
+    S.putWithParentDirs (V0.putType putV putA) (typePath h) typ
+  getTypeOfTerm r = case r of
+    Builtin _name -> error "todo"
+    Derived h -> S.getFromFile (V0.getType getV getA) (typePath h)
+  getDecl _h = error "todo"
+  putDecl _h _decl = error "todo"
   branches = map Text.pack <$> do
     files <- listDirectory (path </> "branches")
     filterM isValidBranchDirectory files

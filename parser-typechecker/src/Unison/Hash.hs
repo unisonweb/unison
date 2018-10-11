@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 
-module Unison.Hash (Hash, toBytes, base58, fromBase58, fromBytes, unsafeFromBase58) where
+module Unison.Hash (Hash, toBytes, base58, base58s, fromBase58, fromBytes, unsafeFromBase58) where
 
 import Data.ByteString (ByteString)
 import Data.ByteString.Builder (doubleBE, word64BE, int64BE, toLazyByteString)
@@ -54,6 +54,10 @@ instance H.Accumulate Hash where
 -- | Return the base58 encoding of this 'Hash'
 base58 :: Hash -> Text
 base58 (Hash h) = decodeUtf8 (Base58.encodeBase58 Base58.bitcoinAlphabet h)
+
+base58s :: Hash -> String
+base58s = Text.unpack . base58
+
 
 -- | Produce a 'Hash' from a base58-encoded version of its binary representation
 fromBase58 :: Text -> Maybe Hash

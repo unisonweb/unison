@@ -9,8 +9,8 @@ import Unison.PatternP (Pattern)
 import Control.Applicative (liftA2,liftA3)
 import Control.Monad (replicateM)
 import Data.Bits (Bits)
-import Data.Bytes.Get as Get
-import Data.Bytes.Put as Put
+import Data.Bytes.Get
+import Data.Bytes.Put
 import Data.Bytes.Serial (serialize, deserialize, serializeBE, deserializeBE)
 import Data.Bytes.Signed (Unsigned)
 import Data.Bytes.VarInt (VarInt(..))
@@ -94,7 +94,7 @@ putNat :: MonadPut m => Word64 -> m ()
 putNat = putWord64be
 
 getNat :: MonadGet m => m Word64
-getNat = Get.getWord64be
+getNat = getWord64be
 
 putInt :: MonadPut m => Int64 -> m ()
 putInt n = serializeBE n
