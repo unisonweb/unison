@@ -140,7 +140,7 @@ pretty n p term = case term of
                                      pretty n 1 binding <> b"\n  " <> lets rest
         lets [] = Empty
         lets' ((_, v, binding) : rest) = (l $ Text.unpack (Var.name v)) <> b" " <> l"=" <> b" " <>
-                                        pretty n 1 binding <> b"\n  " <> lets rest
+                                        pretty n 1 binding <> b"\n  " <> lets' rest
         lets' [] = Empty
 
         printCase (MatchCase pat guard (AbsN' vs body)) =
