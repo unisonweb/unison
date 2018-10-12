@@ -144,7 +144,13 @@ data Suggestion v loc =
   Suggestion { suggestionName :: Text
              , suggestionType :: Type v loc
              , builtin :: Bool
-             }
+             } |
+  WrongType { suggestionName :: Text
+            , suggestionType :: Type v loc
+            } |
+  WrongName { suggestionName :: Text
+            , suggestionType :: Type v loc
+            }
   deriving Show
 
 data Cause v loc

@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedLists     #-}
 {-# LANGUAGE OverloadedStrings   #-}
@@ -11,6 +12,8 @@ module Unison.PrintError where
 
 -- import           Unison.Parser              (showLineCol)
 -- import           Unison.Util.Monoid         (whenM)
+import           Control.Lens               ((%~))
+import           Control.Lens.Tuple         (_1, _2, _3)
 import qualified Data.Char                  as Char
 import           Data.Foldable
 import           Data.List (intersperse)
@@ -23,6 +26,7 @@ import qualified Data.Sequence              as Seq
 import qualified Data.Set                   as Set
 import           Data.String                (IsString, fromString)
 import qualified Data.Text                  as Text
+import           Data.Text                  (Text)
 import           Data.Void                  (Void)
 import           Debug.Trace
 import qualified Text.Megaparsec            as P
@@ -337,39 +341,61 @@ renderTypeError env e src = case e of
              <> style Color.Type1 (renderType' env expectedType)
              <> " after this binding. \n\n"
     ]
-  UnknownTerm {..} -> mconcat
-    [ "I'm not sure what "
-    , style Color.ErrorSite (show unknownTermV)
-    , " means at "
-    , annotatedToEnglish termSite
-    , "\n\n"
-    , annotatedAsErrorSite src termSite
-    , case expectedType of
-        Type.Existential' _ _ -> "\nThere are no constraints on its type."
-        _ -> "\nWhatever it is, it has a type that conforms to "
-             <> style Color.Type1 (renderType' env $ expectedType)
-             <> ".\n"
-             -- ++ showTypeWithProvenance env src Color.Type1 expectedType
-    , case suggestions of
-        [] -> mempty
-        suggestions -> mconcat
-          [ "I found some terms in scope that have matching names and types. "
-          , "Maybe you meant one of these:\n\n"
-          , intercalateMap "\n" formatSuggestion suggestions
-          ]
-          where
-            formatSuggestion :: C.Suggestion v loc -> AT.AnnotatedDocument Color.Style
-            formatSuggestion (C.Suggestion name typ _) =
-              "  - " <> fromString (Text.unpack name)
-              <> " : " <> renderType' env typ
-    ]
+  UnknownTerm {..} ->
+    let (correct, wrongTypes, wrongNames) = foldr sep id suggestions ([],[],[])
+        sep (C.Suggestion name typ _) r = (_1 %~ ((name, typ) :)) . r
+        sep (C.WrongType name typ) r = (_2 %~ ((name, typ) :)) . r
+        sep (C.WrongName name typ) r = (_3 %~ ((name, typ) :)) . r
+     in
+        mconcat
+        [ "I'm not sure what "
+        , style Color.ErrorSite (show unknownTermV)
+        , " means at "
+        , annotatedToEnglish termSite
+        , "\n\n"
+        , annotatedAsErrorSite src termSite
+        , case expectedType of
+            Type.Existential' _ _ -> "\nThere are no constraints on its type."
+            _ -> "\nWhatever it is, it has a type that conforms to "
+                 <> style Color.Type1 (renderType' env $ expectedType)
+                 <> ".\n"
+                 -- ++ showTypeWithProvenance env src Color.Type1 expectedType
+        , case correct of
+            [] -> case wrongTypes of
+                    [] -> case wrongNames of
+                            [] -> mempty
+                            wrongs -> formatWrongs wrongNameText wrongs
+                    wrongs -> formatWrongs wrongTypeText wrongs
+            suggs -> mconcat
+              [ "I found some terms in scope that have matching names and types. "
+              , "Maybe you meant one of these:\n\n"
+              , intercalateMap "\n" formatSuggestion suggs
+              ]
+        ]
   Other note -> mconcat
     [ "Sorry, you hit an error we didn't make a nice message for yet.\n\n"
     , "Here is a summary of the Note:\n"
     , summary note
     ]
-
   where
+    wrongTypeText pl = mconcat
+      [ "I found " , pl "a term" "some terms" , " in scope with " , pl "a " ""
+      , "matching name" , pl "" "s" , " but " , "the wrong type. "
+      , "Maybe you meant " , pl "this" "one of these" , ":\n\n"
+      ]
+    wrongNameText pl = mconcat
+      [ "I found " , pl "a term" "some terms" , " in scope with " , pl "a " ""
+      , "matching type" , pl "" "s" , " but " , "the wrong name. "
+      , "Maybe you meant " , pl "this" "one of these" , ":\n\n"
+      ]
+    formatSuggestion :: (Text, C.Type v loc) -> AT.AnnotatedDocument Color.Style
+    formatSuggestion (name, typ) =
+      "  - " <> fromString (Text.unpack name)
+      <> " : " <> renderType' env typ
+    formatWrongs txt wrongs =
+      let sz = length wrongs
+          pl a b = if sz == 1 then a else b
+       in mconcat [txt pl, intercalateMap "\n" formatSuggestion wrongs]
     ordinal :: (IsString s) => Int -> s
     ordinal n = fromString $ show n ++ case last (show n) of
       '1' -> "st"
@@ -569,10 +595,12 @@ renderType env f = renderType0 env f (0 :: Int) where
     _ -> error $ "pattern match failure in PrintError.renderType " ++ show t
     where go = renderType0 env f
 
-renderSuggestion :: (IsString s, Semigroup s, Var v)
-                 => Env -> C.Suggestion v loc -> s
-renderSuggestion env (C.Suggestion name typ _) =
-  fromString (Text.unpack name) <> " : " <> renderType' env typ
+renderSuggestion
+  :: (IsString s, Semigroup s, Var v) => Env -> C.Suggestion v loc -> s
+renderSuggestion env sug =
+  fromString (Text.unpack $ C.suggestionName sug) <> " : " <> renderType'
+    env
+    (C.suggestionType sug)
 
 spaces :: (IsString a, Monoid a) => (b -> a) -> [b] -> a
 spaces = intercalateMap " "

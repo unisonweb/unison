@@ -193,7 +193,7 @@ typeDirectedNameResolution resultSoFar env = do
               traverse_ substSuggestion res2
               synthesizeAndResolve tdnrEnv
             else
-                 -- The type hasn't changed
+             -- The type hasn't changed
                  lift . pure $ do
               tp <- Result newNotes may
               suggest res2
@@ -213,19 +213,18 @@ typeDirectedNameResolution resultSoFar env = do
         (Context.UnknownTerm loc (Var.named name) suggestions inferredType)
         []
     )
+  guard x a = if x then Just a else Nothing
   substSuggestion :: Resolution v loc -> TDNR f v loc ()
-  substSuggestion (Resolution _ _ loc [Context.Suggestion fqn _ builtin])
-    = let
-        f t = if ABT.annotation t == loc
-          then
-            Just
-              $ (if builtin
-                  then Term.ref loc . Builtin
-                  else Term.var loc . Var.named
-                )
-                  fqn
-          else Nothing
-      in  pure <$> modify (ABT.visitPure f)
+  substSuggestion (Resolution _ _ loc [Context.Suggestion fqn _ builtin]) =
+    let
+      f t =
+        guard (ABT.annotation t == loc)
+          $ (if builtin
+              then Term.ref loc . Builtin
+              else Term.var loc . Var.named
+            )
+              fqn
+    in  pure <$> modify (ABT.visitPure f)
   substSuggestion _ = pure $ pure ()
   --  Returns Nothing for irrelevant notes
   resolveNote
@@ -253,7 +252,11 @@ typeDirectedNameResolution resultSoFar env = do
           -- Something unexpected went wrong with the subtype check
           Nothing -> const [] <$> traverse_ (failNote . Typechecking) subNotes
           -- Suggest the import if the type matches.
-          Just b  -> pure [ Context.Suggestion fqn foundType builtin | b ]
+          Just b  -> pure [ if b then
+                              Context.Suggestion fqn foundType builtin
+                            else
+                              Context.WrongType fqn foundType
+                          ]
 
 -- | Check whether a term matches a type, using a
 -- function to resolve the type of @Ref@ constructors
