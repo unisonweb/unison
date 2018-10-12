@@ -359,7 +359,7 @@ renderTypeError env e src = case e of
           ]
           where
             formatSuggestion :: C.Suggestion v loc -> AT.AnnotatedDocument Color.Style
-            formatSuggestion (C.Suggestion name typ) =
+            formatSuggestion (C.Suggestion name typ _) =
               "  - " <> fromString (Text.unpack name)
               <> " : " <> renderType' env typ
     ]
@@ -571,7 +571,7 @@ renderType env f = renderType0 env f (0 :: Int) where
 
 renderSuggestion :: (IsString s, Semigroup s, Var v)
                  => Env -> C.Suggestion v loc -> s
-renderSuggestion env (C.Suggestion name typ) =
+renderSuggestion env (C.Suggestion name typ _) =
   fromString (Text.unpack name) <> " : " <> renderType' env typ
 
 spaces :: (IsString a, Monoid a) => (b -> a) -> [b] -> a

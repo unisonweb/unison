@@ -143,6 +143,7 @@ type ConstructorId = Int
 data Suggestion v loc =
   Suggestion { suggestionName :: Text
              , suggestionType :: Type v loc
+             , builtin :: Bool
              }
   deriving Show
 
