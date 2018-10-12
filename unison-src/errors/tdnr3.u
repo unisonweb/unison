@@ -1,0 +1,12 @@
+-- Something goes wrong here. This program typechecks and prints 4.0!
+
+x : Nat
+x = 4 + 2
+
+Foo.y : Float
+Foo.y = 4.0
+
+a = x + y
+
+> a
+

@@ -20,6 +20,7 @@ import           Control.Monad.State (StateT, State, modify, get, execState)
 import           Control.Monad.Trans (lift)
 import           Control.Monad.Writer
 import           Data.Foldable (for_, traverse_, toList)
+import           Data.List (nub)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Maybe (isJust, maybeToList, catMaybes)
@@ -212,7 +213,7 @@ typeDirectedNameResolution resultSoFar env = do
   suggest = traverse_
     (\(Resolution name inferredType loc suggestions) ->
       failNote . Typechecking $ Context.Note
-        (Context.UnknownTerm loc (Var.named name) suggestions inferredType)
+        (Context.UnknownTerm loc (Var.named name) (nub suggestions) inferredType)
         []
     )
   guard x a = if x then Just a else Nothing
