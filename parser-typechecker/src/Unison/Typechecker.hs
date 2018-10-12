@@ -187,14 +187,15 @@ typeDirectedNameResolution resultSoFar env = do
   case resolutions of
     Nothing -> lift $ pure $ Result newNotes may
     Just rs ->
-      let res2    = catMaybes rs
-          goAgain = any ((== 1) . length . suggestions) res2
+      let res2 = catMaybes rs
+          goAgain =
+            any ((== 1) . length . filter Context.isExact . suggestions) res2
       in  if goAgain
             then do
               traverse_ substSuggestion res2
               synthesizeAndResolve tdnrEnv
             else
-             -- The type hasn't changed
+                 -- The type hasn't changed
                  lift . pure $ do
               tp <- Result newNotes may
               suggest res2
