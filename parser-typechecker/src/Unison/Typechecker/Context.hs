@@ -28,6 +28,7 @@ module Unison.Typechecker.Context
   , apply
   , isSubtype
   , Suggestion(..)
+  , isExact
   )
 where
 
@@ -152,6 +153,10 @@ data Suggestion v loc =
             , suggestionType :: Type v loc
             }
   deriving Show
+
+isExact :: Suggestion v loc -> Bool
+isExact (Suggestion _ _ _) = True
+isExact _ = False
 
 data Cause v loc
   = TypeMismatch (Context v loc)

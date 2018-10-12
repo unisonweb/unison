@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE DoAndIfThenElse #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -215,16 +216,17 @@ typeDirectedNameResolution resultSoFar env = do
     )
   guard x a = if x then Just a else Nothing
   substSuggestion :: Resolution v loc -> TDNR f v loc ()
-  substSuggestion (Resolution _ _ loc [Context.Suggestion fqn _ builtin]) =
-    let
-      f t =
-        guard (ABT.annotation t == loc)
-          $ (if builtin
-              then Term.ref loc . Builtin
-              else Term.var loc . Var.named
-            )
-              fqn
-    in  pure <$> modify (ABT.visitPure f)
+  substSuggestion (Resolution _ _ loc (filter Context.isExact ->
+                                        [Context.Suggestion fqn _ builtin]))
+    = let
+        f t =
+          guard (ABT.annotation t == loc)
+            $ (if builtin
+                then Term.ref loc . Builtin
+                else Term.var loc . Var.named
+              )
+                fqn
+      in  pure <$> modify (ABT.visitPure f)
   substSuggestion _ = pure $ pure ()
   --  Returns Nothing for irrelevant notes
   resolveNote

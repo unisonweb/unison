@@ -380,13 +380,16 @@ renderTypeError env e src = case e of
   where
     wrongTypeText pl = mconcat
       [ "I found " , pl "a term" "some terms" , " in scope with " , pl "a " ""
-      , "matching name" , pl "" "s" , " but " , "the wrong type. "
-      , "Maybe you meant " , pl "this" "one of these" , ":\n\n"
+      , "matching name" , pl "" "s" , " but " , pl "a " "", "different type"
+      , pl "" "s" , ". ", "If " , pl "this" "one of these"
+      , " is what you meant, try using the fully qualified name and I might "
+      , "be able to give you a more illuminating error message: \n\n"
       ]
     wrongNameText pl = mconcat
       [ "I found " , pl "a term" "some terms" , " in scope with " , pl "a " ""
-      , "matching type" , pl "" "s" , " but " , "the wrong name. "
-      , "Maybe you meant " , pl "this" "one of these" , ":\n\n"
+      , "matching type" , pl "" "s" , " but " , pl "a " "", "different name"
+      , pl "" "s" , ". ", "Maybe you meant " , pl "this" "one of these"
+      , ":\n\n"
       ]
     formatSuggestion :: (Text, C.Type v loc) -> AT.AnnotatedDocument Color.Style
     formatSuggestion (name, typ) =
