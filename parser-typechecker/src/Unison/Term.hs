@@ -178,6 +178,8 @@ freeTypeVars t = go t where
 -- nicer pattern syntax
 
 pattern Var' v <- ABT.Var' v
+pattern Cycle' xs t <- ABT.Cycle' xs t
+pattern Abs' subst <- ABT.Abs' subst
 pattern Int' n <- (ABT.out -> ABT.Tm (Int n))
 pattern Nat' n <- (ABT.out -> ABT.Tm (Nat n))
 pattern Float' n <- (ABT.out -> ABT.Tm (Float n))
@@ -200,6 +202,7 @@ pattern Ann' x t <- (ABT.out -> ABT.Tm (Ann x t))
 pattern Vector' xs <- (ABT.out -> ABT.Tm (Vector xs))
 pattern Lam' subst <- ABT.Tm' (Lam (ABT.Abs' subst))
 pattern LamNamed' v body <- (ABT.out -> ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body))))
+pattern LamsNamed' vs body <- (unLams' -> Just (vs, body))
 pattern Let1' b subst <- (unLet1 -> Just (_, b, subst))
 pattern Let1Top' top b subst <- (unLet1 -> Just (top, b, subst))
 pattern Let1Named' v b e <- (ABT.Tm' (Let _ b (ABT.out -> ABT.Abs v e)))
@@ -474,8 +477,6 @@ unApps t = case go t [] of [] -> Nothing; f:args -> Just (f,args)
   go (App' i o) acc = go i (o:acc)
   go _ [] = []
   go fn args = fn:args
-
-pattern LamsNamed' vs body <- (unLams' -> Just (vs, body))
 
 unLams' :: AnnotatedTerm2 vt at ap v a -> Maybe ([v], AnnotatedTerm2 vt at ap v a)
 unLams' (LamNamed' v body) = case unLams' body of
