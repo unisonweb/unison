@@ -16,8 +16,8 @@ object CompilationTests {
   val env = Environment(
     Builtins.builtins,
     userDefined = Map.empty,
-    BuiltinTypes.dataConstructors,
-    BuiltinTypes.effects)
+    BuiltinTypes.dataConstructors ++ TestBuiltins.dataConstructors,
+    TestBuiltins.effects)
 
   def eval(t0: Term, doRoundTrip: Boolean = true): Term = {
     val bytes = Codecs.encodeTerm(t0)
@@ -641,8 +641,7 @@ object CompilationTests {
         )
       }
     ),
-    { import BuiltinTypes._
-      import Effects._
+    { import TestBuiltins.Effects._
 
       suite("algebraic-effects")(
         test("ex1") { implicit T =>
@@ -809,7 +808,7 @@ object CompilationTests {
         equal[Term](eval(Term.ANF(p)), 11112)
       },
       test("mixed effects") { implicit T =>
-        import BuiltinTypes.Effects._
+        import TestBuiltins.Effects._
         import Builtins.termFor
         val env: Term = 42 // environment for reader
 

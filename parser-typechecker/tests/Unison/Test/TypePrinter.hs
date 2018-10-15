@@ -17,24 +17,24 @@ import qualified Unison.Util.PrettyPrint as PP
 -- Note that this does not verify the position of the PrettyPrint Break elements.
 tc_diff_rtt :: Bool -> String -> String -> Int -> Test ()
 tc_diff_rtt rtt s expected width =
-   let input_term = Unison.Builtin.t s :: Unison.Type.AnnotatedType Symbol Ann
+   let input_type = Unison.Builtin.t s :: Unison.Type.AnnotatedType Symbol Ann
        get_names x = case x of
                        Builtin t -> t
                        Derived _ -> Text.empty
        actual = if width == 0
-                then PP.renderUnbroken $ pretty get_names (-1) input_term
-                else PP.renderBroken width True '\n' $ pretty get_names (-1) input_term
+                then PP.renderUnbroken $ pretty get_names (-1) input_type
+                else PP.renderBroken width True '\n' $ pretty get_names (-1) input_type
        actual_reparsed = Unison.Builtin.t actual
    in scope s $ tests [(
        if actual == expected then ok
        else do note $ "expected: " ++ show expected
                note $ "actual  : "   ++ show actual
-               note $ "show(input)  : "   ++ show input_term
+               note $ "show(input)  : "   ++ show input_type
                crash "actual != expected"
        ), (
-       if (not rtt) || (input_term == actual_reparsed) then ok
+       if (not rtt) || (input_type == actual_reparsed) then ok
        else do note $ "round trip test..."
-               note $ "single parse: " ++ show input_term
+               note $ "single parse: " ++ show input_type
                note $ "double parse: " ++ show actual_reparsed
                crash "single parse != double parse"
        )]
@@ -169,8 +169,8 @@ test = scope "typeprinter" . tests $
 
   , pending $ tc_breaks "Pair (forall a. a -> a -> a) b" 18 $   -- ditto
               "Pair (∀ a .\n\
-              \ a\n\
-              \ -> a\n\
-              \ -> a) b"
+              \  a\n\
+              \  -> a\n\
+              \  -> a) b"
 
   ]

@@ -4,7 +4,7 @@ import java.math.BigInteger
 
 import scala.annotation.tailrec
 
-// From https://github.com/multiformats/scala-multihash/blob/08e1cbc/src/main/scala/io/mediachain/multihash/Base58.scala
+// MIT-licensed from https://github.com/multiformats/scala-multihash/blob/08e1cbc/src/main/scala/io/mediachain/multihash/Base58.scala
 object Base58 {
   val alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
   // char -> value

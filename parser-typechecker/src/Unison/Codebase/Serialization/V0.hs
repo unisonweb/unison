@@ -6,11 +6,11 @@ module Unison.Codebase.Serialization.V0 where
 import qualified Data.Vector as Vector
 import qualified Unison.PatternP as Pattern
 import Unison.PatternP (Pattern)
-import Control.Applicative (liftA2)
+import Control.Applicative (liftA2,liftA3)
 import Control.Monad (replicateM)
 import Data.Bits (Bits)
-import Data.Bytes.Get as Get
-import Data.Bytes.Put as Put
+import Data.Bytes.Get
+import Data.Bytes.Put
 import Data.Bytes.Serial (serialize, deserialize, serializeBE, deserializeBE)
 import Data.Bytes.Signed (Unsigned)
 import Data.Bytes.VarInt (VarInt(..))
@@ -21,7 +21,7 @@ import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)
 import Data.Relation (Relation)
 import Data.Word (Word64)
-import Unison.Codebase.Branch ({-Branch(..), -}Branch0(..))
+import Unison.Codebase.Branch (Branch(..), Branch0(..))
 import Unison.Codebase.Causal (Causal)
 import Unison.Codebase.TermEdit (TermEdit)
 import Unison.Codebase.TypeEdit (TypeEdit)
@@ -43,6 +43,8 @@ import qualified Unison.Reference as Reference
 import qualified Data.Relation as Relation
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
+import qualified Unison.DataDeclaration as DataDeclaration
+import Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 
 -- ABOUT THIS FORMAT:
 --
@@ -92,7 +94,7 @@ putNat :: MonadPut m => Word64 -> m ()
 putNat = putWord64be
 
 getNat :: MonadGet m => m Word64
-getNat = Get.getWord64be
+getNat = getWord64be
 
 putInt :: MonadPut m => Int64 -> m ()
 putInt n = serializeBE n
@@ -377,6 +379,12 @@ putPair' putA putB (a,b) = putA a *> putB b
 getPair :: MonadGet m => m a -> m b -> m (a,b)
 getPair = liftA2 (,)
 
+putTuple3' :: MonadPut m => (a -> m ()) -> (b -> m ()) -> (c -> m ()) -> (a,b,c) -> m ()
+putTuple3' putA putB putC (a,b,c) = putA a *> putB b *> putC c
+
+getTuple3 :: MonadGet m => m a -> m b -> m c -> m (a,b,c)
+getTuple3 = liftA3 (,,)
+
 putRelation :: MonadPut m => Relation a b -> (a -> m ()) -> (b -> m ()) -> m ()
 putRelation r putA putB = putFoldable (Relation.toList r) (putPair' putA putB)
 
@@ -431,12 +439,50 @@ getTypeEdit = getWord8 >>= \case
   2 -> pure TypeEdit.Deprecate
   t -> unknownTag "TypeEdit" t
 
-putBranch :: MonadPut m => Causal Branch0 -> m ()
-putBranch b = putCausal b $ \Branch0 {..} -> do
+putBranch :: MonadPut m => Branch -> m ()
+putBranch (Branch b) = putCausal b $ \Branch0 {..} -> do
   putRelation termNamespace putText putReference
   putRelation typeNamespace putText putReference
   putRelation editedTerms putReference putTermEdit
   putRelation editedTypes putReference putTypeEdit
 
--- getBranch :: MonadGet m => m v -> m a -> m Branch
--- getBranch getV getA =
+getBranch :: MonadGet m => m Branch
+getBranch = Branch <$> getCausal
+  (Branch0 <$> getRelation getText getReference
+           <*> getRelation getText getReference
+           <*> getRelation getReference getTermEdit
+           <*> getRelation getReference getTypeEdit)
+
+putDataDeclaration :: (MonadPut m, Ord v)
+                   => (v -> m ()) -> (a -> m ())
+                   -> DataDeclaration' v a
+                   -> m ()
+putDataDeclaration putV putA decl = do
+  putA $ DataDeclaration.annotation decl
+  putFoldable (DataDeclaration.bound decl) putV
+  putFoldable (DataDeclaration.constructors' decl) (putTuple3' putA putV (putType putV putA))
+
+getDataDeclaration :: (MonadGet m, Ord v) => m v -> m a -> m (DataDeclaration' v a)
+getDataDeclaration getV getA = DataDeclaration.DataDeclaration <$>
+  getA <*>
+  getList getV <*>
+  getList (getTuple3 getA getV (getType getV getA))
+
+putEffectDeclaration ::
+  (MonadPut m, Ord v) => (v -> m ()) -> (a -> m ()) -> EffectDeclaration' v a -> m ()
+putEffectDeclaration putV putA (DataDeclaration.EffectDeclaration d) =
+  putDataDeclaration putV putA d
+
+getEffectDeclaration :: (MonadGet m, Ord v) => m v -> m a -> m (EffectDeclaration' v a)
+getEffectDeclaration getV getA =
+  DataDeclaration.EffectDeclaration <$> getDataDeclaration getV getA
+
+putEither :: (MonadPut m) => (a -> m ()) -> (b -> m ()) -> Either a b -> m ()
+putEither putL _ (Left a) = putWord8 0 *> putL a
+putEither _ putR (Right b) = putWord8 1 *> putR b
+
+getEither :: MonadGet m => m a -> m b -> m (Either a b)
+getEither getL getR = getWord8 >>= \case
+  0 -> Left <$> getL
+  1 -> Right <$> getR
+  tag -> unknownTag "Either" tag

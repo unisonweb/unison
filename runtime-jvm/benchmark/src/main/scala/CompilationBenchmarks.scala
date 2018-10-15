@@ -5,6 +5,7 @@ import org.unisonweb._
 import org.unisonweb.compilation._
 import org.unisonweb.util.Unboxed.F2.{DD_D, LL_L}
 import org.unisonweb.util.{Stream, Unboxed}
+import org.unisonweb.TestBuiltins
 
 object CompilationBenchmarks {
 
@@ -14,8 +15,8 @@ object CompilationBenchmarks {
   val env = Environment(
     Builtins.builtins,
     Map.empty,
-    BuiltinTypes.dataConstructors,
-    BuiltinTypes.effects)
+    BuiltinTypes.dataConstructors ++ TestBuiltins.dataConstructors,
+    TestBuiltins.effects)
 
   val stackB = new Array[B](1024)
   val stackU = new Array[U](1024)
