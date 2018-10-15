@@ -218,18 +218,23 @@ typeDirectedNameResolution resultSoFar env = do
     )
   guard x a = if x then Just a else Nothing
   substSuggestion :: Resolution v loc -> TDNR f v loc ()
-  substSuggestion (Resolution _ _ loc (filter Context.isExact ->
-                                        [Context.Suggestion fqn _ builtin]))
-    = let
-        f t =
-          guard (ABT.annotation t == loc)
-            $ (if builtin
+  substSuggestion (Resolution name _ loc (filter Context.isExact ->
+                                        [Context.Suggestion fqn _ builtin])) =
+    pure <$> modify (substBlank (Text.unpack name) loc solved)
+      where solved =
+              (if builtin
                 then Term.ref loc . Builtin
                 else Term.var loc . Var.named
-              )
-                fqn
-      in  pure <$> modify (ABT.visitPure f)
+              ) fqn
   substSuggestion _ = pure $ pure ()
+  -- Resolve a `Blank` to a term
+  substBlank :: String -> loc -> Term v loc -> Term v loc -> Term v loc
+  substBlank s a r = ABT.visitPure go
+    where
+      go t = guard (ABT.annotation t == a) $ ABT.visitPure resolve t
+      resolve (Term.Blank' (B.Recorded (B.Resolve loc name))) | name == s =
+        Just (const loc <$> r)
+      resolve _ = Nothing
   --  Returns Nothing for irrelevant notes
   resolveNote
     :: Env f v loc

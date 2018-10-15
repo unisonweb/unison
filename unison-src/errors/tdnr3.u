@@ -1,12 +1,10 @@
--- Something goes wrong here. This program typechecks and prints 4.0!
+-- + Should get resolved to Nat.+, making this fail
 
 x : Nat
-x = 4 + 2
+x = 42
 
-Foo.y : Float
-Foo.y = 4.0
+Foo.z : Float
+Foo.z = 4.0
 
-a = x + y
-
-> a
+a = x + z
 
