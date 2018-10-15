@@ -473,6 +473,16 @@ putEffectDeclaration ::
 putEffectDeclaration putV putA (DataDeclaration.EffectDeclaration d) =
   putDataDeclaration putV putA d
 
-getEffectDeclaration :: (MonadGet f, Ord v) => f v -> f a -> f (EffectDeclaration' v a)
+getEffectDeclaration :: (MonadGet m, Ord v) => m v -> m a -> m (EffectDeclaration' v a)
 getEffectDeclaration getV getA =
   DataDeclaration.EffectDeclaration <$> getDataDeclaration getV getA
+
+putEither :: (MonadPut m) => (a -> m ()) -> (b -> m ()) -> Either a b -> m ()
+putEither putL _ (Left a) = putWord8 0 *> putL a
+putEither _ putR (Right b) = putWord8 1 *> putR b
+
+getEither :: MonadGet m => m a -> m b -> m (Either a b)
+getEither getL getR = getWord8 >>= \case
+  0 -> Left <$> getL
+  1 -> Right <$> getR
+  tag -> unknownTag "Either" tag

@@ -29,6 +29,9 @@ import qualified Data.Bytes.Get as Get
 import qualified Data.Bytes.Put as Put
 import qualified Unison.Type as Type
 import qualified Unison.Codebase.Serialization as S
+import qualified Data.Map as Map
+import qualified Unison.Builtin as Builtin
+import Unison.Var (Var)
 
 type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
@@ -41,7 +44,7 @@ data Codebase m v a =
            , getTypeOfTerm :: Reference -> m (Maybe (Type v a))
            , putTerm :: Hash -> Term v a -> Type v a -> m ()
 
-           , getTypeDeclaration :: Hash -> m (Decl v a)
+           , getTypeDeclaration :: Hash -> m (Maybe (Decl v a))
            , putTypeDeclaration :: Hash -> Decl v a -> m ()
 
            , branches :: m [Name]
@@ -106,9 +109,10 @@ isValidBranchDirectory path =
 -- todo: builtin data decls (optional, unit, pair) should just have a regular
 -- hash-based reference, rather than being Reference.Builtin
 -- and we should verify that this doesn't break the runtime
-codebase1 :: forall v a. Ord v
-          => S.Format v -> S.Format a -> FilePath -> Codebase IO v a
-codebase1 (S.Format getV putV) (S.Format getA putA) path = let
+codebase1 :: forall v a. Var v
+          => a -> S.Format v -> S.Format a -> FilePath -> Codebase IO v a
+codebase1 builtinTypeAnnotation
+          (S.Format getV putV) (S.Format getA putA) path = let
   termPath h = path </> "terms" </> Hash.base58s h </> "compiled.ub"
   typePath h = path </> "terms" </> Hash.base58s h </> "type.ub"
   declPath h = path </> "types" </> Hash.base58s h </> "compiled.ub"
@@ -119,10 +123,20 @@ codebase1 (S.Format getV putV) (S.Format getA putA) path = let
     S.putWithParentDirs (V0.putTerm putV putA) (termPath h) e
     S.putWithParentDirs (V0.putType putV putA) (typePath h) typ
   getTypeOfTerm r = case r of
-    Builtin _name -> error "todo"
-    Derived h -> S.getFromFile (V0.getType getV getA) (typePath h)
-  getDecl h = error $ "todo" ++ declPath h
-  putDecl _h _decl = error "todo"
+    (Builtin _) -> pure $
+      fmap (const builtinTypeAnnotation) <$>
+      Map.lookup r Builtin.builtins0
+    Derived h ->
+      S.getFromFile (V0.getType getV getA) (typePath h)
+  getDecl h =
+    S.getFromFile (V0.getEither (V0.getEffectDeclaration getV getA)
+                                (V0.getDataDeclaration getV getA))
+                  (declPath h)
+  putDecl h decl =
+    S.putWithParentDirs (V0.putEither (V0.putEffectDeclaration putV putA)
+                                      (V0.putDataDeclaration putV putA))
+                        (declPath h)
+                        decl
   branches = map Text.pack <$> do
     files <- listDirectory branchesPath
     filterM isValidBranchDirectory files
