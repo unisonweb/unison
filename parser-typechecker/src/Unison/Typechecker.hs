@@ -20,6 +20,7 @@ import           Control.Monad.State (StateT, State, modify, get, execState)
 import           Control.Monad.Trans (lift)
 import           Control.Monad.Writer
 import           Data.Foldable (for_, traverse_, toList)
+import           Data.List (nub)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Maybe (isJust, maybeToList, catMaybes)
@@ -212,23 +213,28 @@ typeDirectedNameResolution resultSoFar env = do
   suggest = traverse_
     (\(Resolution name inferredType loc suggestions) ->
       failNote . Typechecking $ Context.Note
-        (Context.UnknownTerm loc (Var.named name) suggestions inferredType)
+        (Context.UnknownTerm loc (Var.named name) (nub suggestions) inferredType)
         []
     )
   guard x a = if x then Just a else Nothing
   substSuggestion :: Resolution v loc -> TDNR f v loc ()
-  substSuggestion (Resolution _ _ loc (filter Context.isExact ->
-                                        [Context.Suggestion fqn _ builtin]))
-    = let
-        f t =
-          guard (ABT.annotation t == loc)
-            $ (if builtin
+  substSuggestion (Resolution name _ loc (filter Context.isExact ->
+                                        [Context.Suggestion fqn _ builtin])) =
+    pure <$> modify (substBlank (Text.unpack name) loc solved)
+      where solved =
+              (if builtin
                 then Term.ref loc . Builtin
                 else Term.var loc . Var.named
-              )
-                fqn
-      in  pure <$> modify (ABT.visitPure f)
+              ) fqn
   substSuggestion _ = pure $ pure ()
+  -- Resolve a `Blank` to a term
+  substBlank :: String -> loc -> Term v loc -> Term v loc -> Term v loc
+  substBlank s a r = ABT.visitPure go
+    where
+      go t = guard (ABT.annotation t == a) $ ABT.visitPure resolve t
+      resolve (Term.Blank' (B.Recorded (B.Resolve loc name))) | name == s =
+        Just (const loc <$> r)
+      resolve _ = Nothing
   --  Returns Nothing for irrelevant notes
   resolveNote
     :: Env f v loc

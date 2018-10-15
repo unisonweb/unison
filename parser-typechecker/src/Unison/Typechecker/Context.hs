@@ -152,7 +152,7 @@ data Suggestion v loc =
   WrongName { suggestionName :: Text
             , suggestionType :: Type v loc
             }
-  deriving Show
+  deriving (Eq, Show)
 
 isExact :: Suggestion v loc -> Bool
 isExact (Suggestion _ _ _) = True
