@@ -502,3 +502,4 @@ instance (Show1 f, Var v) => Show (Term f v a) where
     Cycle body -> ("Cycle " ++) . showsPrec p body
     Abs v body -> showParen True $ (Text.unpack (Var.shortName v) ++) . showString ". " . showsPrec p body
     Tm f -> showsPrec1 p f
+
