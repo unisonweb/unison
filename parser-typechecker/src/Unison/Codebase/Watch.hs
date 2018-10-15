@@ -10,7 +10,8 @@ import Data.IORef
 import Data.Time.Clock (UTCTime, diffUTCTime)
 import           Control.Concurrent (threadDelay, forkIO)
 import           Control.Concurrent.MVar
-import           Control.Monad (forever)
+import           Control.Concurrent.STM (atomically)
+import           Control.Monad (forever, void)
 import           System.FSNotify (Event(Added,Modified),withManager,watchTree)
 import Network.Socket
 import Control.Applicative
@@ -29,6 +30,7 @@ import           Unison.PrintError  (parseErrorToAnsiString, printNoteWithSource
 import           Unison.Result      (Result (Result))
 import           Unison.Symbol      (Symbol)
 import           Unison.Util.Monoid
+import           Unison.Util.TQueue
 import qualified System.IO.Streams as Streams
 import qualified System.Process as P
 import           System.Random      (randomIO)
@@ -48,6 +50,23 @@ watchDirectory' d = do
     _ <- watchTree mgr d (const True) handler
     forever $ threadDelay 1000000
   pure $ takeMVar mvar
+
+
+-- todo: make a new utility data structure TQueue' a for this.
+wrangle :: TQueue a -> Int -> IO [a]
+wrangle queue minSettledµsec = do
+-- 1. wait for at least one element in the queue
+  void . atomically $ peekTQueue queue
+
+  let go = do
+        before <- atomically $ writeCountTQueue queue
+        threadDelay minSettledµsec
+        after <- atomically $ writeCountTQueue queue
+        -- if nothing new is on the stack, then return the contents
+        if before == after then do
+          atomically $ flushTQueue queue
+        else go
+  go
 
 watchDirectory :: FilePath -> (FilePath -> Bool) -> IO (IO (FilePath, Text))
 watchDirectory dir allow = do
