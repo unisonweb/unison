@@ -2,24 +2,27 @@
 
 module Unison.Codebase.CommandLine where
 
-import Control.Monad (forever, forM_, void, when)
-import Control.Monad.STM (STM, atomically)
-import Unison.Util.TQueue (TQueue)
-import qualified Unison.Util.TQueue as TQueue
-import Control.Concurrent (forkIO)
-import Data.List (isSuffixOf, sort)
-import Data.Text (Text, pack, unpack)
-import Data.Set (Set)
-import qualified Data.Set as Set
-import System.FilePath (FilePath)
-import qualified System.FilePath as FilePath
-import Unison.Codebase.Name (Name)
-import Unison.Codebase.Branch (Branch)
-import Unison.Codebase (Codebase)
-import qualified Unison.Hash as Hash
+import           Control.Concurrent     (forkIO)
+import           Control.Monad          (forM_, forever, void, when)
+import           Control.Monad.STM      (STM, atomically)
+import           Data.Foldable          (toList, traverse_)
+import           Data.List              (isSuffixOf, find, sort)
+import           Data.Set               (Set)
+import qualified Data.Set               as Set
+import           Data.Text              (Text, pack, unpack)
+import           Data.Strings           (strPadLeft)
+import           System.FilePath        (FilePath)
+import qualified System.FilePath        as FilePath
+import           Unison.Codebase        (Codebase)
+import qualified Unison.Codebase        as Codebase
+import           Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.Codebase as Codebase
-import qualified Unison.Codebase.Watch as Watch
+import           Unison.Codebase.Name   (Name)
+import qualified Unison.Codebase.Watch  as Watch
+import qualified Unison.Hash            as Hash
+import           Unison.Util.TQueue     (TQueue)
+import qualified Unison.Util.TQueue     as TQueue
+import qualified Text.Read as Read
 
 data Event
   = UnisonFileChanged FilePath Text
@@ -91,23 +94,16 @@ main dir currentBranchName codebase = do
                 -- note: this will be a combination of what's in memory plus
                 -- whatever has appeared on disk since the time there was nothing
                 -- on disk :|
-                branch' <- Codebase.mergeBranch codebase name branch
+                branch' <- mergeBranchAndShowDiff name branch
                 go branch' name queue lineQueue
 
-  -- should never block
-  peekIncompleteLine :: TQueue Char -> STM String
-  peekIncompleteLine q = TQueue.tryPeekWhile (/= '\n') q
-
-  -- block until a full line is available
-  takeLine :: TQueue Char -> STM String
-  takeLine q = do
-    line <- TQueue.takeWhile (/= '\n') q
-    ch <- TQueue.dequeue q
-    if (ch /= '\n') then error "unpossibility in takeLine" else pure line
-
-  -- blocks until a line ending in '\n' is available
-  awaitCompleteLine :: TQueue Char -> STM ()
-  awaitCompleteLine ch = void $ TQueue.peekWhile (/= '\n') ch
+  mergeBranchAndShowDiff :: Name -> Branch -> IO Branch
+  mergeBranchAndShowDiff name branch = do
+    branch' <- Codebase.mergeBranch codebase name branch
+    -- when (branch' /= branch) $
+    --   putStrLn $ "Some extra stuff appeared right when you forked, "
+    --           ++ "and I went ahead and smashed it all together for you!"
+    pure branch'
 
   processLine :: Branch -> Name -> TQueue Event -> TQueue Char -> IO ()
   processLine branch name queue lineQueue = do
@@ -135,10 +131,7 @@ main dir currentBranchName codebase = do
           putStrLn $ "Sorry, a branch by that name already exists."
           go branch name queue lineQueue
         else do
-          branch' <- Codebase.mergeBranch codebase newName branch
-          when (branch' /= branch) $
-            putStrLn $ "Some extra stuff appeared right when you forked, "
-                    ++ "and I went ahead and smashed it all together for you!"
+          branch' <- mergeBranchAndShowDiff newName branch
           go branch' newName queue lineQueue
 
       ["merge", from] -> do
@@ -148,11 +141,68 @@ main dir currentBranchName codebase = do
             putStrLn $ "Sorry, I can't find a branch by that name to merge from."
             go branch name queue lineQueue
           Just branch' -> do
-            -- showBranchDiff $ diffBranch branch branch'
-            branch'' <- Codebase.mergeBranch codebase name branch'
+            branch'' <- mergeBranchAndShowDiff name branch'
             putStrLn $ "Flawless victory!"
             go branch'' name queue lineQueue
 
-      -- rename a term in the current branch
-      ["rename", _from, _to] -> error "todo"
+      -- rename a term/type/... in the current branch
+      ["rename", from, to] ->
+        let terms = Branch.termsNamed (pack from) branch
+            types = Branch.typesNamed (pack from) branch
+            renameTerm branch = do
+              let branch' = Branch.renameTerm (pack from) (pack to) branch
+              mergeBranchAndShowDiff name branch'
+            renameType branch = do
+              let branch' = Branch.renameType (pack from) (pack to) branch
+              mergeBranchAndShowDiff name branch'
+            go' b = go b name queue lineQueue
+        in case (toList terms, toList types) of
+          ([], []) -> putStrLn "I couldn't find anything by that name."
+          ([_term], []) -> renameTerm branch >>= go'
+          ([], [_typ]) -> renameType branch >>= go'
+          ([_term], [_typ]) -> do
+            putStrLn "Do you want to rename the [term], [type], [both], or [neither]?"
+            putStr ">> "
+            (atomically . fmap words . takeLine) lineQueue >>= \case
+              ["term"] -> renameTerm branch >>= go'
+              ["type"] -> renameType branch >>= go'
+              ["both"] -> renameTerm branch >>= renameType >>= go'
+              _ -> go' branch
+          (_terms, _types) -> do
+            -- idea: print out _terms and _types, so user can view them
+            putStrLn $ "There's more than one thing called " ++ from ++ "."
+            putStrLn $ "Use `> <command to resolve conflicts> unname " ++ from ++ "` to resolve conflicts, then try again."
+            go' branch
       _ -> error $ "todo" ++ "help:"
+
+-- should never block
+peekIncompleteLine :: TQueue Char -> STM String
+peekIncompleteLine q = TQueue.tryPeekWhile (/= '\n') q
+
+-- block until a full line is available
+takeLine :: TQueue Char -> STM String
+takeLine q = do
+  line <- TQueue.takeWhile (/= '\n') q
+  ch <- TQueue.dequeue q
+  if (ch /= '\n') then error "unpossibility in takeLine" else pure line
+
+-- blocks until a line ending in '\n' is available
+awaitCompleteLine :: TQueue Char -> STM ()
+awaitCompleteLine ch = void $ TQueue.peekWhile (/= '\n') ch
+
+multipleChoice :: [(String, a)] -> TQueue Char -> IO [a]
+multipleChoice as lineQueue = do
+  let render ((s, _), index) = putStrLn $ strPadLeft ' ' 5 ("[" ++ show index ++ "] ") ++ s
+  traverse_ render (as `zip` [(1::Int)..])
+  putStrLn "Please enter your selection as a space separated list of numbers."
+  putStr ">> "
+  numbers <- (atomically . fmap words . takeLine) lineQueue
+  case traverse Read.readMaybe numbers of
+    Nothing ->
+      putStrLn "Sorry, I couldn't understand at least one of those numbers."
+      >> multipleChoice as lineQueue
+    Just numbers -> case find (\i -> i < 1 || i > length as) numbers of
+      Just i ->
+        (putStrLn $ "You entered the number " ++ show i ++ " which wasn't one of the choices.")
+          >> multipleChoice as lineQueue
+      Nothing -> pure $ snd . (as !!) . (+ (-1)) <$> numbers

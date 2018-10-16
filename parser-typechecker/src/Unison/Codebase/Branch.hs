@@ -96,6 +96,12 @@ instance Monoid Branch0 where
   mempty = Branch0 R.empty R.empty R.empty R.empty
   mappend = (<>)
 
+termsNamed :: Name -> Branch -> Set Reference
+termsNamed name = lookupDom name . termNamespace . Causal.head . unbranch
+
+typesNamed :: Name -> Branch -> Set Reference
+typesNamed name = lookupDom name . typeNamespace . Causal.head . unbranch
+
 before :: Branch -> Branch -> Bool
 before b b2 = unbranch b `Causal.before` unbranch b2
 
