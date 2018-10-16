@@ -30,7 +30,8 @@ import           Unison.PrintError  (parseErrorToAnsiString, printNoteWithSource
 import           Unison.Result      (Result (Result))
 import           Unison.Symbol      (Symbol)
 import           Unison.Util.Monoid
-import           Unison.Util.TQueue
+import           Unison.Util.TQueue (TQueue)
+import qualified Unison.Util.TQueue as TQueue
 import qualified System.IO.Streams as Streams
 import qualified System.Process as P
 import           System.Random      (randomIO)
@@ -55,15 +56,15 @@ watchDirectory' d = do
 collectUntilPause :: TQueue a -> Int -> IO [a]
 collectUntilPause queue minPauseµsec = do
 -- 1. wait for at least one element in the queue
-  void . atomically $ peekTQueue queue
+  void . atomically $ TQueue.peek queue
 
   let go = do
-        before <- atomically $ writeCountTQueue queue
+        before <- atomically $ TQueue.enqueueCount queue
         threadDelay minPauseµsec
-        after <- atomically $ writeCountTQueue queue
+        after <- atomically $ TQueue.enqueueCount queue
         -- if nothing new is on the queue, then return the contents
         if before == after then do
-          atomically $ flushTQueue queue
+          atomically $ TQueue.flush queue
         else go
   go
 
