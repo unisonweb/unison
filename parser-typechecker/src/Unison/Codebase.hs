@@ -106,6 +106,15 @@ isValidBranchDirectory :: FilePath -> IO Bool
 isValidBranchDirectory path =
   not . null <$> filesInPathMatchingSuffix path ".ubf"
 
+termPath, typePath, declPath :: FilePath -> Hash -> FilePath
+termPath path h = path </> "terms" </> Hash.base58s h </> "compiled.ub"
+typePath path h = path </> "terms" </> Hash.base58s h </> "type.ub"
+declPath path h = path </> "types" </> Hash.base58s h </> "compiled.ub"
+branchesPath :: FilePath -> FilePath
+branchesPath path = path </> "branches"
+branchPath :: FilePath -> Text -> FilePath
+branchPath path name = branchesPath path </> Text.unpack name
+
 -- todo: builtin data decls (optional, unit, pair) should just have a regular
 -- hash-based reference, rather than being Reference.Builtin
 -- and we should verify that this doesn't break the runtime
@@ -113,40 +122,35 @@ codebase1 :: forall v a. Var v
           => a -> S.Format v -> S.Format a -> FilePath -> Codebase IO v a
 codebase1 builtinTypeAnnotation
           (S.Format getV putV) (S.Format getA putA) path = let
-  termPath h = path </> "terms" </> Hash.base58s h </> "compiled.ub"
-  typePath h = path </> "terms" </> Hash.base58s h </> "type.ub"
-  declPath h = path </> "types" </> Hash.base58s h </> "compiled.ub"
-  branchesPath = path </> "branches"
-  branchPath name = branchesPath </> Text.unpack name
-  getTerm h = S.getFromFile (V0.getTerm getV getA) (termPath h)
+  getTerm h = S.getFromFile (V0.getTerm getV getA) (termPath path h)
   putTerm h e typ = do
-    S.putWithParentDirs (V0.putTerm putV putA) (termPath h) e
-    S.putWithParentDirs (V0.putType putV putA) (typePath h) typ
+    S.putWithParentDirs (V0.putTerm putV putA) (termPath path h) e
+    S.putWithParentDirs (V0.putType putV putA) (typePath path h) typ
   getTypeOfTerm r = case r of
     (Builtin _) -> pure $
       fmap (const builtinTypeAnnotation) <$>
       Map.lookup r Builtin.builtins0
     Derived h ->
-      S.getFromFile (V0.getType getV getA) (typePath h)
+      S.getFromFile (V0.getType getV getA) (typePath path h)
   getDecl h =
     S.getFromFile (V0.getEither (V0.getEffectDeclaration getV getA)
                                 (V0.getDataDeclaration getV getA))
-                  (declPath h)
+                  (declPath path h)
   putDecl h decl =
     S.putWithParentDirs (V0.putEither (V0.putEffectDeclaration putV putA)
                                       (V0.putDataDeclaration putV putA))
-                        (declPath h)
+                        (declPath path h)
                         decl
   branches = map Text.pack <$> do
-    files <- listDirectory branchesPath
+    files <- listDirectory (branchesPath path)
     filterM isValidBranchDirectory files
-  getBranch name = branchFromDirectory (branchPath name)
+  getBranch name = branchFromDirectory (branchPath path name)
   -- given a name and a branch, serialize given branch with
   overwriteBranch name branch = do
     let newBranchHash = Hash.base58 . Branch.toHash $ branch
     (match, nonmatch) <-
       partition (Text.unpack newBranchHash `isPrefixOf`) <$>
-         filesInPathMatchingSuffix (branchPath name) ".ubf"
+         filesInPathMatchingSuffix (branchPath path name) ".ubf"
     let
       isBefore :: Branch -> FilePath -> IO Bool
       isBefore b ubf = maybe False (`Branch.before` b) <$> branchFromFile' ubf
@@ -154,7 +158,8 @@ codebase1 builtinTypeAnnotation
     traverse_ removeFile =<< filterM (isBefore branch) nonmatch
     -- save new branch data under <base58>.ubf
     when (null match) $
-      branchToFile (branchPath name </> Text.unpack newBranchHash <> ".ubf") branch
+      branchToFile (branchPath path name </>
+                    Text.unpack newBranchHash <> ".ubf") branch
 
   mergeBranch name branch = do
     target <- getBranch name

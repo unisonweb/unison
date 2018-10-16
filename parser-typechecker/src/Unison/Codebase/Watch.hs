@@ -52,17 +52,16 @@ watchDirectory' d = do
   pure $ takeMVar mvar
 
 
--- todo: make a new utility data structure TQueue' a for this.
-wrangle :: TQueue a -> Int -> IO [a]
-wrangle queue minSettledµsec = do
+collectUntilPause :: TQueue a -> Int -> IO [a]
+collectUntilPause queue minPauseµsec = do
 -- 1. wait for at least one element in the queue
   void . atomically $ peekTQueue queue
 
   let go = do
         before <- atomically $ writeCountTQueue queue
-        threadDelay minSettledµsec
+        threadDelay minPauseµsec
         after <- atomically $ writeCountTQueue queue
-        -- if nothing new is on the stack, then return the contents
+        -- if nothing new is on the queue, then return the contents
         if before == after then do
           atomically $ flushTQueue queue
         else go
