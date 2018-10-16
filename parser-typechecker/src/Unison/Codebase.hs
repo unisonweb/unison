@@ -8,7 +8,7 @@ import Control.Monad.Except (runExceptT)
 import Control.Monad.Error.Class (MonadError, throwError)
 import Control.Monad (when, filterM)
 import Data.Foldable (traverse_)
-import Data.List (isPrefixOf, isSuffixOf, partition)
+import Data.List (isSuffixOf, partition)
 import Data.Text (Text)
 import System.Directory (doesDirectoryExist,listDirectory,removeFile)
 import qualified Data.Text as Text
@@ -20,7 +20,7 @@ import Unison.Reference (Reference (Builtin, Derived))
 import qualified Unison.Codebase.Serialization.V0 as V0
 import Unison.Codebase.Name (Name)
 import Unison.Codebase.Branch (Branch)
-import System.FilePath (FilePath, (</>))
+import System.FilePath (FilePath, (</>), takeBaseName)
 import Unison.Result (Result, Note)
 import Unison.UnisonFile (UnisonFile')
 import Unison.Hash (Hash)
@@ -51,7 +51,7 @@ data Codebase m v a =
            , getBranch :: Name -> m (Maybe Branch)
            -- thought: this merges the given branch with the existing branch
            -- or creates a new branch if there's no branch with that name
-           , mergeBranch :: Name -> Branch -> m ()
+           , mergeBranch :: Name -> Branch -> m Branch
            }
 
 data Session m v a
@@ -97,6 +97,7 @@ branchFromDirectory dir = do
         [] -> Nothing
         bos -> Just (mconcat bos)
 
+-- todo: change this to use System.FilePath.takeExtension
 filesInPathMatchingSuffix :: FilePath -> String -> IO [FilePath]
 filesInPathMatchingSuffix path suffix = doesDirectoryExist path >>= \ok ->
   if ok then filter (suffix `isSuffixOf`) <$> listDirectory path
@@ -145,11 +146,14 @@ codebase1 builtinTypeAnnotation
     files <- listDirectory (branchesPath path)
     filterM isValidBranchDirectory files
   getBranch name = branchFromDirectory (branchPath path name)
-  -- given a name and a branch, serialize given branch with
+
+  -- delete any leftover branch files "before" this one,
+  -- and write this one if it doesn't already exist.
+  overwriteBranch :: Name -> Branch -> IO ()
   overwriteBranch name branch = do
-    let newBranchHash = Hash.base58 . Branch.toHash $ branch
+    let newBranchHash = Hash.base58s . Branch.toHash $ branch
     (match, nonmatch) <-
-      partition (Text.unpack newBranchHash `isPrefixOf`) <$>
+      partition (\s -> newBranchHash == takeBaseName s) <$>
          filesInPathMatchingSuffix (branchPath path name) ".ubf"
     let
       isBefore :: Branch -> FilePath -> IO Bool
@@ -158,14 +162,15 @@ codebase1 builtinTypeAnnotation
     traverse_ removeFile =<< filterM (isBefore branch) nonmatch
     -- save new branch data under <base58>.ubf
     when (null match) $
-      branchToFile (branchPath path name </>
-                    Text.unpack newBranchHash <> ".ubf") branch
+      branchToFile (branchPath path name </> newBranchHash <> ".ubf") branch
 
   mergeBranch name branch = do
     target <- getBranch name
-    overwriteBranch name $ case target of
-        -- merge with existing branch if present
-        Just existing -> Branch.merge branch existing
-        -- or save new branch
-        Nothing -> branch
+    let newBranch = case target of
+          -- merge with existing branch if present
+          Just existing -> Branch.merge branch existing
+          -- or save new branch
+          Nothing -> branch
+    overwriteBranch name newBranch
+    pure newBranch
   in Codebase getTerm getTypeOfTerm putTerm getDecl putDecl branches getBranch mergeBranch
