@@ -110,6 +110,7 @@ main dir currentBranchName codebase = do
     line <- atomically $ takeLine lineQueue
     case words line of
       "add" : args -> error $ show args
+
       ["branch"] -> do
         branches <- sort <$> Codebase.branches codebase
         forM_ branches $ \name' ->
@@ -117,6 +118,7 @@ main dir currentBranchName codebase = do
                            else putStrLn $ "   " ++ unpack name
         -- idea: could instead prompt user and read directly from lineQueue to handle
         go branch name queue lineQueue
+
       ["branch", name'] -> do
         branch' <- Codebase.getBranch codebase $ pack name'
         case branch' of
@@ -124,6 +126,7 @@ main dir currentBranchName codebase = do
             putStrLn $ "I couldn't find a branch named " ++ name'
             go branch name queue lineQueue
           Just branch' -> go branch' (pack name') queue lineQueue
+
       ["fork", newName0] -> do
         let newName = pack newName0
         branchExists <- Codebase.branchExists codebase newName
