@@ -44,6 +44,8 @@ library
     Unison.Codebase.CommandLine
     Unison.Codebase.Name
     Unison.Codebase.NameEdit
+    Unison.Codebase.Runtime
+    Unison.Codebase.Runtime.JVM
     Unison.Codebase.TermEdit
     Unison.Codebase.TypeEdit
     Unison.Codebase.Serialization
@@ -93,6 +95,7 @@ library
 
   build-depends:
     ansi-terminal,
+    async,
     base,
     base58-bytestring,
     bifunctors,

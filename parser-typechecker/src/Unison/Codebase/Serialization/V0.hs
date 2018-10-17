@@ -37,6 +37,7 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Codebase.TypeEdit as TypeEdit
+import qualified Unison.Codebase.Serialization as S
 import qualified Unison.Hash as Hash
 import qualified Unison.Kind as Kind
 import qualified Unison.Reference as Reference
@@ -486,3 +487,6 @@ getEither getL getR = getWord8 >>= \case
   0 -> Left <$> getL
   1 -> Right <$> getR
   tag -> unknownTag "Either" tag
+
+formatSymbol :: S.Format Symbol
+formatSymbol = S.Format getSymbol putSymbol

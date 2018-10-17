@@ -50,6 +50,7 @@ import           Data.Set (Set)
 import qualified Data.Set as Set
 import           Data.Text (Text)
 import qualified Data.Text as Text
+import           Data.Word (Word64)
 import           Debug.Trace
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
@@ -92,7 +93,7 @@ instance (Ord loc, Var v) => Eq (Element v loc) where
   Marker v == Marker v2          = v == v2
   _ == _ = False
 
-data Env v loc = Env { freshId :: Word, ctx :: Context v loc }
+data Env v loc = Env { freshId :: Word64, ctx :: Context v loc }
 
 type DataDeclarations v loc = Map Reference (DataDeclaration' v loc)
 type EffectDeclarations v loc = Map Reference (EffectDeclaration' v loc)
