@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns        #-}
@@ -9,7 +10,8 @@ module Unison.Codebase.Branch where
 
 -- import Unison.Codebase.NameEdit (NameEdit)
 
-import           Control.Monad              (foldM)
+import           Control.Monad              (foldM, join)
+import           Data.Bifunctor             (bimap)
 import           Data.Foldable
 import           Data.Functor.Identity      (runIdentity)
 import           Data.Map                   (Map)
@@ -73,6 +75,26 @@ data Branch0 =
           , editedTerms   :: Relation Reference TermEdit
           , editedTypes   :: Relation Reference TypeEdit
           }
+
+data Diff = Diff { ours :: Branch0, theirs :: Branch0 }
+
+diff :: Branch -> Branch -> Diff
+diff ours theirs =
+  let (ours', theirs') = join bimap (Causal.head . unbranch) (ours, theirs)
+      to :: (Ord a, Ord b) => Set (a,b) -> Relation a b
+      to               = R.fromList . Set.toList
+      fro :: (Ord a, Ord b) => Relation a b -> Set (a, b)
+      fro              = Set.fromList . R.toList
+      diffSet f =
+        ( to (fro (f ours') `Set.difference` fro (f theirs'))
+        , to (fro (f theirs') `Set.difference` fro (f ours'))
+        )
+      (ourTerms    , theirTerms    ) = diffSet termNamespace
+      (ourTypes    , theirTypes    ) = diffSet typeNamespace
+      (ourTermEdits, theirTermEdits) = diffSet editedTerms
+      (ourTypeEdits, theirTypeEdits) = diffSet editedTypes
+  in  Diff (Branch0 ourTerms ourTypes ourTermEdits ourTypeEdits)
+           (Branch0 theirTerms theirTypes theirTermEdits theirTypeEdits)
 
 -- When adding a Reference `r` to a namespace as `n`:
 --   * add names for all of its transitive dependencies to `backupNames`.
