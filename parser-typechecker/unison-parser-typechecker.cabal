@@ -45,6 +45,7 @@ library
     Unison.Codebase.Name
     Unison.Codebase.NameEdit
     Unison.Codebase.Runtime
+    Unison.Codebase.Runtime.JVM
     Unison.Codebase.TermEdit
     Unison.Codebase.TypeEdit
     Unison.Codebase.Serialization

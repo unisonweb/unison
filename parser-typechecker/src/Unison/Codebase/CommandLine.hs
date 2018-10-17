@@ -33,6 +33,7 @@ main dir currentBranchName codebase = do
   queue <- TQueue.newIO
   lineQueue <- TQueue.newIO
   branchFileChanges <- TQueue.newIO
+  
 
   -- enqueue stdin into lineQueue
   void . forkIO . forever $ getChar >>= atomically . TQueue.enqueue lineQueue

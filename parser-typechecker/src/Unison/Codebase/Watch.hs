@@ -1,88 +1,40 @@
-{-# LANGUAGE DoAndIfThenElse #-}
-{-# LANGUAGE OverloadedStrings #-} -- for FilePath literals
+{-# LANGUAGE DoAndIfThenElse   #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications  #-}
 
 module Unison.Codebase.Watch where
 
-import System.Directory (canonicalizePath)
-import qualified System.Console.ANSI as Console
-import Data.IORef
-import Data.Time.Clock (UTCTime, diffUTCTime)
-import           Control.Concurrent (threadDelay, forkIO)
+import           Control.Concurrent      (forkIO, threadDelay)
 import           Control.Concurrent.MVar
-import           Control.Concurrent.STM (atomically)
-import           Control.Monad (forever, void)
-import           System.FSNotify (Event(Added,Modified),withManager,watchTree)
-import Network.Socket
-import Control.Applicative
-import qualified System.IO.Streams.Network as N
-import           Data.Foldable      (toList)
-import qualified Data.Text as Text
+import           Control.Concurrent.STM  (atomically)
+import           Control.Monad           (forever, void)
+import           Data.Foldable           (toList)
+import           Data.IORef
+import           Data.List               (isSuffixOf)
+import qualified Data.Map                as Map
+import           Data.Text               (Text)
+import qualified Data.Text               as Text
 import qualified Data.Text.IO
-import qualified Data.Map as Map
-import Data.List (isSuffixOf)
-import Data.Text (Text)
-import qualified Unison.FileParsers as FileParsers
-import qualified Unison.Parser      as Parser
-import qualified Unison.Parsers     as Parsers
+import           Data.Time.Clock         (UTCTime, diffUTCTime)
+import qualified System.Console.ANSI     as Console
+import           System.Directory        (canonicalizePath)
+import           System.FSNotify         (Event (Added, Modified), watchTree,
+                                          withManager)
+import qualified Unison.FileParsers      as FileParsers
+import qualified Unison.Parser           as Parser
+import qualified Unison.Parsers          as Parsers
 -- import           Unison.Util.AnnotatedText (renderTextUnstyled)
-import           Unison.PrintError  (parseErrorToAnsiString, printNoteWithSourceAsAnsi) -- , renderType')
-import           Unison.Result      (Result (Result))
-import           Unison.Util.Monoid
-import           Unison.Util.TQueue (TQueue)
-import qualified Unison.Util.TQueue as TQueue
-import qualified System.IO.Streams as Streams
-import System.IO.Streams (InputStream, OutputStream)
-import qualified System.Process as P
-import           System.Random      (randomIO)
-import Control.Exception (finally)
-import Data.ByteString (ByteString)
-import Unison.Var (Var)
-
-import Unison.Codebase.Runtime (Runtime(..))
+import           Control.Exception       (finally)
+import           System.Random           (randomIO)
+import           Unison.Codebase.Runtime (Runtime (..))
 import qualified Unison.Codebase.Runtime as RT
-import qualified Unison.Codecs as Codecs
-import           Data.Bytes.Put (runPutS)
-import           Control.Monad.State (evalStateT)
-
-javaRuntime :: Var v => Int -> IO (Runtime v)
-javaRuntime suggestedPort = do
-  (listeningSocket, port) <- choosePortAndListen suggestedPort
-  (killme, input, output) <- connectToRuntime listeningSocket port
-  pure $ Runtime killme (feedme input output)
-  where
-    feedme :: Var v
-           => InputStream ByteString -> OutputStream ByteString
-           -> RT.UnisonFile v -> RT.Codebase v -> IO ()
-    feedme _input output unisonFile _codebase = do
-      -- todo: runtime should be able to request more terms/types/arities by hash
-      let bs = runPutS $ flip evalStateT 0 $ Codecs.serializeFile unisonFile
-      Streams.write (Just bs) output
-
-    -- open a listening socket for the runtime to connect to
-    choosePortAndListen :: Int -> IO (Socket, Int)
-    choosePortAndListen suggestedPort = do
-      sock <- socket AF_INET Stream 0
-      setSocketOption sock ReuseAddr 1
-      let bindLoop port =
-            (port <$ bind sock (SockAddrInet (fromIntegral port) iNADDR_ANY))
-            <|> bindLoop (port + 1) -- try the next port if that fails
-      chosenPort <- bindLoop suggestedPort
-      listen sock 2
-      pure (sock, chosenPort)
-
-    -- start the runtime and wait for it to connect to us
-    connectToRuntime ::
-      Socket -> Int -> IO (IO (), InputStream ByteString, OutputStream ByteString)
-    connectToRuntime listenSock port = do
-      let cmd = "scala"
-          args = ["-cp", "runtime-jvm/main/target/scala-2.12/classes",
-                  "org.unisonweb.BootstrapStream", show port]
-      (_,_,_,ph) <- P.createProcess (P.proc cmd args) { P.cwd = Just "." }
-      (socket, _address) <- accept listenSock -- accept a connection and handle it
-      (input, output) <- N.socketToStreams socket
-      pure (P.terminateProcess ph, input, output)
-
+import           Unison.PrintError       (parseErrorToAnsiString,
+                                          printNoteWithSourceAsAnsi)
+import           Unison.Result           (Result (Result))
+import           Unison.Util.Monoid
+import           Unison.Util.TQueue      (TQueue)
+import qualified Unison.Util.TQueue      as TQueue
+import           Unison.Var              (Var)
 
 watchDirectory' :: FilePath -> IO (IO (FilePath, UTCTime))
 watchDirectory' d = do
@@ -91,9 +43,9 @@ watchDirectory' d = do
         _ <- tryTakeMVar mvar
         putMVar mvar (fp, t)
       handler e = case e of
-                Added fp t False -> doIt fp t
+                Added fp t False    -> doIt fp t
                 Modified fp t False -> doIt fp t
-                _ -> pure ()
+                _                   -> pure ()
   _ <- forkIO $ withManager $ \mgr -> do
     _ <- watchTree mgr d (const True) handler
     forever $ threadDelay 1000000

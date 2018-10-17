@@ -6,11 +6,12 @@ import           System.Environment    (getArgs)
 -- import qualified Unison.Codebase       as Codebase
 import qualified Unison.Codebase.Watch as W
 import           Unison.Symbol         (Symbol)
+import           Unison.Codebase.Runtime.JVM (javaRuntime)
 
 main :: IO ()
 main = do
   args <- getArgs
-  runtime <- W.javaRuntime @Symbol 42441
+  runtime <- javaRuntime @Symbol 42441
   case args of
     [""] -> go runtime Nothing
     _    -> go runtime (headMay args)
