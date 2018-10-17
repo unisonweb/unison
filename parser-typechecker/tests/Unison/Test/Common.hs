@@ -5,12 +5,16 @@ import qualified Unison.Builtin as B
 import qualified Unison.FileParsers as FP
 import           Unison.Parser (Ann(..))
 import qualified Unison.PrintError as PrintError
-import           Unison.Result (Result,Note)
+import           Unison.Result (Result)
 import qualified Unison.Result as Result
 import           Unison.Symbol (Symbol)
 import           Unison.Term (AnnotatedTerm)
 import           Unison.Type (AnnotatedType)
 import qualified Unison.Typechecker as Typechecker
+import           Unison.Var (Var)
+import qualified Unison.Parsers as Parsers
+import qualified Unison.Parser as Parser
+import           Unison.Result (Result(..), Note)
 
 type Term v = AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
@@ -19,7 +23,7 @@ tm :: String -> Term Symbol
 tm = B.tm
 
 file :: String -> Result (Note Symbol Ann) (PrintError.Env, Maybe (Term Symbol, Type Symbol))
-file = FP.parseAndSynthesizeAsFile ""
+file = parseAndSynthesizeAsFile ""
 
 t :: String -> Type Symbol
 t = B.t
@@ -41,3 +45,14 @@ check' term typ = Result.isSuccess $ Typechecker.check env term typ
 
 check :: String -> String -> Bool
 check terms typs = check' (tm terms) (t typs)
+
+parseAndSynthesizeAsFile
+  :: Var v
+  => FilePath
+  -> String
+  -> Result (Note v Ann) (PrintError.Env, Maybe (Term v, Type v))
+parseAndSynthesizeAsFile filename s = do
+  (errorEnv, file) <- Result.fromParsing
+    $ Parsers.parseFile filename s Parser.penv0
+  let (Result notes' r) = FP.synthesizeFile file
+  Result notes' $ Just (errorEnv, r)

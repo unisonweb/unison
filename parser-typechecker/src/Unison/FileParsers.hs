@@ -18,12 +18,8 @@ import qualified Unison.Builtin as B
 import qualified Unison.Codecs as Codecs
 import           Unison.DataDeclaration (DataDeclaration')
 import           Unison.Parser (Ann(..))
-import qualified Unison.Parser as Parser
-import qualified Unison.Parsers as Parsers
-import qualified Unison.PrintError as PrintError
 import           Unison.Reference (Reference(..))
 import           Unison.Result (Result(..), Note)
-import qualified Unison.Result as Result
 import           Unison.Term (AnnotatedTerm)
 import           Unison.Type (AnnotatedType)
 import qualified Unison.Typechecker as Typechecker
@@ -36,17 +32,6 @@ type Term v = AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
 type DataDeclaration v = DataDeclaration' v Ann
 type UnisonFile v = UF.UnisonFile v Ann
-
-parseAndSynthesizeAsFile
-  :: Var v
-  => FilePath
-  -> String
-  -> Result (Note v Ann) (PrintError.Env, Maybe (Term v, Type v))
-parseAndSynthesizeAsFile filename s = do
-  (errorEnv, file) <- Result.fromParsing
-    $ Parsers.parseFile filename s Parser.penv0
-  let (Result notes' r) = synthesizeFile file
-  Result notes' $ Just (errorEnv, r)
 
 synthesizeFile
   :: forall v . Var v => UnisonFile v -> Result (Note v Ann) (Term v, Type v)

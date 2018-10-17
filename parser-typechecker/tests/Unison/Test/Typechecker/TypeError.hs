@@ -4,7 +4,6 @@ module Unison.Test.Typechecker.TypeError where
 import           Data.Foldable                (toList)
 import           Data.Maybe                   (isJust)
 import           EasyTest
-import qualified Unison.FileParsers           as FileParsers
 import           Unison.Parser                (Ann)
 import           Unison.Result                (Result (..))
 import qualified Unison.Result                as Result
@@ -14,6 +13,7 @@ import           Unison.Typechecker.Extractor (NoteExtractor)
 import qualified Unison.Typechecker.Extractor as Ex
 import qualified Unison.Typechecker.TypeError as Err
 import           Unison.Var                   (Var)
+import qualified Unison.Test.Common as Common
 
 test :: Test ()
 test = scope "extractor" . tests $
@@ -50,7 +50,7 @@ noYieldsError s ex = not $ yieldsError s ex
 
 yieldsError :: forall v a. Var v => String -> NoteExtractor v Ann a -> Bool
 yieldsError s ex = let
-  Result notes (Just _) = FileParsers.parseAndSynthesizeAsFile "test" s
+  Result notes (Just _) = Common.parseAndSynthesizeAsFile "test" s
   notes' :: [C.Note v Ann]
   notes' = [ n | Result.Typechecking n <- toList notes ]
   in any (isJust . Ex.runNote ex) notes'
