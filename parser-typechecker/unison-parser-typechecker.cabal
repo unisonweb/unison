@@ -168,6 +168,15 @@ executable watcher
     safe,
     unison-parser-typechecker
 
+executable unison
+  main-is: Main.hs
+  hs-source-dirs: unison
+  ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+  build-depends:
+    base,
+    safe,
+    unison-parser-typechecker
+
 executable tests
   main-is:        Suite.hs
   ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
