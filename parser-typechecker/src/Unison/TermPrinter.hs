@@ -17,6 +17,7 @@ import           Unison.Term
 import qualified Unison.TypePrinter as TypePrinter
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
+import           Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Util.PrettyPrint as PP
 import           Unison.Util.PrettyPrint (PrettyPrint(..))
 
@@ -99,7 +100,8 @@ pretty n p term = case term of
   Handle' h body -> parenNest (p >= 2) $
                       l"handle" <> b" " <> pretty n 2 h <> b" " <> l"in" <> b" "
                       <> PP.Nest "  " (PP.Group (pretty n 2 body))
-  Apps' f args -> parenNest (p >= 10) $ pretty n 10 f <> appArgs args
+  Apps' f args -> parenNest (p >= 10) $ 
+                    pretty n 10 f <> b" " <> PP.Nest "  " (PP.Group (intercalateMap (b" ") (pretty n 10) args))
   Vector' xs   -> PP.Nest "  " $ PP.Group $ l"[" <> commaList (toList xs) <> l"]"
   If' cond t f -> parenNest (p >= 2) $
                     (PP.Group (l"if" <> b" " <> pretty n 2 cond) <> b" " <>
@@ -121,21 +123,15 @@ pretty n p term = case term of
         varList vs = sepList' (\v -> l $ Text.unpack (Var.name v)) (b" ") vs
         commaList = sepList (l"," <> b" ")
 
-        appArgs (x : xs) = b" " <> pretty n 10 x <> appArgs xs
-        appArgs [] = Empty
-
         -- TODO let requires layout.  Here we are manually controlling
         --      line breaking instead of leaving it to PrettyPrint rendering.
-        --      Would it be better for PrettyPrint to expose a non-optional line breaking
-        --      primitive?
-        --      Or maybe the parser should accept let {a = foo; bar} so that there's always
-        --      a layout-free option for any term.  (But then we'd want to suppress the
-        --      { } when breaking lines, so would still need a PrettyPrint API change.)
+        --      It would be better for PrettyPrint to expose a non-optional line breaking
+        --      primitive.
         printLet bs e = parenNest (p >= 2) $
                         l"let" <> l"\n  " <> lets bs <> pretty n 0 e <> l"\n"
         printLet' bs e = parenNest (p >= 2) $
                         l"let" <> l"\n  " <> lets' bs <> pretty n 0 e <> l"\n"
-        --TODO clean up this duplication
+        --TODO clean up this duplication, and use intercalateMap
         lets ((v, binding) : rest) = (l $ Text.unpack (Var.name v)) <> b" " <> l"=" <> b" " <>
                                      pretty n 1 binding <> b"\n  " <> lets rest
         lets [] = Empty
