@@ -28,7 +28,6 @@ import qualified Unison.Parsers     as Parsers
 -- import           Unison.Util.AnnotatedText (renderTextUnstyled)
 import           Unison.PrintError  (parseErrorToAnsiString, printNoteWithSourceAsAnsi) -- , renderType')
 import           Unison.Result      (Result (Result))
-import           Unison.Symbol      (Symbol)
 import           Unison.Util.Monoid
 import           Unison.Util.TQueue (TQueue)
 import qualified Unison.Util.TQueue as TQueue
@@ -134,31 +133,14 @@ watchDirectory dir allow = do
           await
   pure await
 
-watcher :: Maybe FilePath -> FilePath -> Int -> IO ()
-watcher initialFile dir port = do
-  sock <- socket AF_INET Stream 0
-  setSocketOption sock ReuseAddr 1
-  let bindLoop port =
-        (port <$ bind sock (SockAddrInet (fromIntegral port) iNADDR_ANY))
-        <|> bindLoop (port + 1) -- try the next port if that fails
-  chosenPort <- bindLoop port
-  listen sock 2
-  serverLoop initialFile dir sock chosenPort
-
-serverLoop :: Maybe FilePath -> FilePath -> Socket -> Int -> IO ()
-serverLoop initialFile dir sock port = do
+watcher :: Var v => Maybe FilePath -> FilePath -> Runtime v -> RT.Codebase v -> IO ()
+watcher initialFile dir runtime codebase = do
   Console.setTitle "Unison"
   Console.clearScreen
   Console.setCursorPosition 0 0
-  let cmd = "scala"
-      args = ["-cp", "runtime-jvm/main/target/scala-2.12/classes",
-              "org.unisonweb.BootstrapStream", show port]
-  (_,_,_,ph) <- P.createProcess (P.proc cmd args) { P.cwd = Just "." }
-  (socket, _address) <- accept sock -- accept a connection and handle it
   cdir <- canonicalizePath dir
   putStrLn $ "\n🆗  I'm awaiting changes to *.u files in " ++ cdir
   -- putStrLn $ "   Note: I'm using the Unison runtime at " ++ show address
-  (_input, output) <- N.socketToStreams socket
   d <- watchDirectory dir (".u" `isSuffixOf`)
   n <- randomIO @Int >>= newIORef
   let go sourceFile source0 = do
@@ -173,13 +155,13 @@ serverLoop initialFile dir sock port = do
         Console.setTitle "Unison"
         putStrLn ""
         putStrLn $ marker ++ "  " ++ sourceFile ++ " has changed, reloading...\n"
-        parseResult <- Parsers.readAndParseFile @Symbol Parser.penv0 sourceFile
+        parseResult <- Parsers.readAndParseFile Parser.penv0 sourceFile
         case parseResult of
           Left parseError -> do
             Console.setTitle "Unison \128721"
             putStrLn $ parseErrorToAnsiString source parseError
-          Right (env0, unisonFile) -> do
-            let (Result notes' r) = FileParsers.serializeUnisonFile unisonFile
+          Right (env0, parsedUnisonFile) -> do
+            let (Result notes' r) = FileParsers.synthesizeUnisonFile parsedUnisonFile
                 showNote notes =
                   intercalateMap "\n\n" (printNoteWithSourceAsAnsi env0 source) notes
             putStrLn . showNote . toList $ notes'
@@ -187,13 +169,11 @@ serverLoop initialFile dir sock port = do
               Nothing -> do
                 Console.setTitle "Unison \128721"
                 pure () -- just await next change
-              Just (_unisonFile', _typ, bs) -> do
+              Just (typecheckedUnisonFile, _typ) -> do
                 Console.setTitle "Unison ✅"
                 putStrLn "✅  Typechecked! Any watch expressions (lines starting with `>`) are shown below.\n"
-                Streams.write (Just bs) output
-                -- todo: read from input to get the response and then show that
-                -- for this we need a deserializer for Unison terms, mirroring what is in Unison.Codecs.hs
-  (`finally` P.terminateProcess ph) $ do
+                RT.evaluate runtime typecheckedUnisonFile codebase
+  (`finally` RT.terminate runtime) $ do
     case initialFile of
       Just sourceFile -> do
         contents <- Data.Text.IO.readFile sourceFile
