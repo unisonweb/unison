@@ -8,6 +8,8 @@ module Unison.Util.PrettyPrint where
 import qualified Data.ListLike      as LL
 import           Data.String        (IsString, fromString)
 import           Unison.Util.Monoid (intercalateMap)
+import Debug.Trace
+-- !!
 
 -- A tree of `a` tokens, to be rendered to a character window by traversing the
 -- leaves depth-first left-to-right, marked up with specifiers about where to
@@ -48,7 +50,7 @@ renderUnbroken = \case
 -- Render a `PrettyPrint a` into a rectangular window of width `width` characters.
 renderBroken :: forall a b. (LL.ListLike a b, Eq b)
              => Int -> Bool -> b -> PrettyPrint a -> a
-renderBroken width beginLine lineSeparator = \case
+renderBroken width beginLine lineSeparator = trace (show width) $ \case
   Empty -> LL.empty
   Literal a -> a
   Append a b ->
@@ -71,10 +73,10 @@ renderBroken width beginLine lineSeparator = \case
   where
     replaceOneWithMany :: (LL.FoldableLL a b, Eq b) => b -> a -> a -> a
     replaceOneWithMany target replacement list =
-      LL.foldl (go target replacement) LL.empty list
-        where go :: (LL.FoldableLL a b, Eq b) => b -> a -> a -> b -> a
-              go target replacement a b =
-                if b == target then LL.append a replacement else a
+      LL.foldr (go target replacement) LL.empty list
+        where go :: (LL.FoldableLL a b, Eq b) => b -> a -> b -> a -> a
+              go target replacement b a =
+                if b == target then LL.append replacement a else LL.cons b a
 
     lengthOfLastLine :: (LL.ListLike a b, Eq b) => b -> a -> Int
     lengthOfLastLine lineSeparator ra =

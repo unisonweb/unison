@@ -185,8 +185,7 @@ paren True s = PP.Group $ l"(" <> s <> l")"
 paren False s = PP.Group s
 
 parenNest :: Bool -> PrettyPrint String -> PrettyPrint String
--- TODO fix line breaking tests
-parenNest useParen contents = {-PP.Nest "  " $ -} paren useParen contents
+parenNest useParen contents = PP.Nest "  " $ paren useParen contents
 
 l :: String -> PrettyPrint String
 l = Literal

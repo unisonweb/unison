@@ -129,19 +129,19 @@ test = scope "termprinter" . tests $
                       \  12 -> x\n\
                       \  13 -> y\n\
                       \  14 -> z"
-                      "case\nx\nof\n\
-                      \12\n->\nx\n\
-                      \13\n->\ny\n\
-                      \14\n->\nz"   -- TODO possible slightly over-zealous with the newlines
+                      "  case\n  x\n  of\n  \
+                      \12\n  ->\n  x\n  \
+                      \13\n  ->\n  y\n  \
+                      \14\n  ->\n  z"   -- TODO possible slightly over-zealous with the newlines
                       15
   , tc_diff_rtt False "case x of\n\
                       \  12 | p x -> x\n\
                       \  13 | q x -> y\n\
                       \  14 | r x y -> z"  -- TODO ditto
-                      "case\nx\nof\n\
-                      \12\n|\np\nx\n->\nx\n\
-                      \13\n|\nq\nx\n->\ny\n\
-                      \14\n|\nr\nx\ny\n->\nz"
+                      "  case\n  x\n  of\n  \
+                      \12\n  |\n  p\n  x\n  ->\n  x\n  \
+                      \13\n  |\n  q\n  x\n  ->\n  y\n  \
+                      \14\n  |\n  r\n  x\n  y\n  ->\n  z"
                       21
   , tc "if c then x -> f x else x -> g x"
   , tc "(f x) : Int"
