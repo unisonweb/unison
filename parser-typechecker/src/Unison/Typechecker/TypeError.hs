@@ -4,7 +4,7 @@
 
 module Unison.Typechecker.TypeError where
 
-import           Control.Monad                 (mzero)
+import           Control.Applicative           (empty, (<|>))
 import           Data.Foldable                 (asum)
 import           Data.Functor                  (void)
 import           Data.Maybe                    (catMaybes)
@@ -74,18 +74,44 @@ data TypeError v loc
   | Other (C.Note v loc)
   deriving (Show)
 
-typeErrorFromNote :: forall loc v. (Ord loc, Show loc, Var v) => C.Note v loc -> TypeError v loc
-typeErrorFromNote n = case Ex.runNote all n of
-  Just msg -> msg
-  Nothing  -> Other n
+data TypeInfo v loc =
+  TopLevelComponent { definitions :: [(v, C.Term v loc, C.Type v loc)]
+                    , infoNote :: C.Note v loc
+                    }
 
-all :: (Var v, Ord loc) => Ex.NoteExtractor v loc (TypeError v loc)
-all = asum [and, or, cond, matchGuard,
-            ifBody, vectorBody, matchBody,
-            applyingFunction, applyingNonFunction,
-            generalMismatch,
-            abilityCheckFailure, unknownType, unknownTerm
-            ]
+type TypeNote v loc = Either (TypeError v loc) (TypeInfo v loc)
+
+typeNoteFromNote
+  :: (Ord loc, Show loc, Var v) => C.Note v loc -> TypeNote v loc
+typeNoteFromNote n = case Ex.runNote all n of
+  Just msg -> msg
+  Nothing  -> Left $ Other n
+
+all :: (Var v, Ord loc) => Ex.NoteExtractor v loc (TypeNote v loc)
+all = (Right <$> topLevelComponent) <|> (Left <$> allErrors)
+
+allErrors :: (Var v, Ord loc) => Ex.NoteExtractor v loc (TypeError v loc)
+allErrors = asum
+  [ and
+  , or
+  , cond
+  , matchGuard
+  , ifBody
+  , vectorBody
+  , matchBody
+  , applyingFunction
+  , applyingNonFunction
+  , generalMismatch
+  , abilityCheckFailure
+  , unknownType
+  , unknownTerm
+  ]
+
+topLevelComponent :: Ex.NoteExtractor v a (TypeInfo v a)
+topLevelComponent = do
+  defs <- Ex.topLevelComponent
+  n <- Ex.note
+  pure $ TopLevelComponent defs n
 
 abilityCheckFailure :: Ex.NoteExtractor v a (TypeError v a)
 abilityCheckFailure = do
@@ -119,7 +145,7 @@ generalMismatch = do
       firstLastSubtype :: Ex.NoteExtractor v loc ( (C.Type v loc, C.Type v loc)
                                                  , (C.Type v loc, C.Type v loc) )
       firstLastSubtype = subtypes >>= \case
-        [] -> mzero
+        [] -> empty
         l -> pure (head l, last l)
   n <- Ex.note
   mismatchSite <- Ex.innermostTerm

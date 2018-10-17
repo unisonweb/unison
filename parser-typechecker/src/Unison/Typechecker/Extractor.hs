@@ -237,6 +237,12 @@ innermostTerm = NoteExtractor $ \n -> case C.innermostErrorTerm n of
 path :: NoteExtractor v loc [C.PathElement v loc]
 path = NoteExtractor $ pure . toList . C.path
 
+-- Informational notes --
+topLevelComponent :: NoteExtractor v loc [(v, C.Term v loc, C.Type v loc)]
+topLevelComponent = cause >>= \case
+  C.TopLevelComponent defs -> pure defs
+  _ -> mzero
+
 -- Instances --
 instance Functor (NoteExtractor v loc) where
   fmap = liftM
