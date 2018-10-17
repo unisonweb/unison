@@ -9,9 +9,10 @@ import           System.IO.Streams         (InputStream, OutputStream)
 import qualified System.IO.Streams         as Streams
 import qualified System.IO.Streams.Network as N
 import qualified System.Process            as P
+import           Unison.Codebase           (Codebase)
 import           Unison.Codebase.Runtime   (Runtime (..))
-import qualified Unison.Codebase.Runtime   as RT
 import qualified Unison.Codecs             as Codecs
+import           Unison.UnisonFile         (UnisonFile)
 import           Unison.Var                (Var)
 
 javaRuntime :: Var v => Int -> IO (Runtime v)
@@ -22,7 +23,7 @@ javaRuntime suggestedPort = do
   where
     feedme :: Var v
            => InputStream ByteString -> OutputStream ByteString
-           -> RT.UnisonFile v -> RT.Codebase v -> IO ()
+           -> UnisonFile v a -> Codebase IO v b -> IO ()
     feedme _input output unisonFile _codebase = do
       -- todo: runtime should be able to request more terms/types/arities by hash
       let bs = runPutS $ flip evalStateT 0 $ Codecs.serializeFile unisonFile

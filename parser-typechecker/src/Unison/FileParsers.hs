@@ -14,12 +14,16 @@ import           Data.Functor.Identity (runIdentity, Identity(..))
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Maybe
+import           Data.Text (Text, unpack)
 import qualified Unison.Builtin as B
 import qualified Unison.Codecs as Codecs
 import           Unison.DataDeclaration (DataDeclaration')
-import           Unison.Parser (Ann(..))
+import           Unison.Parser (Ann(Intrinsic), PEnv)
+import qualified Unison.Parsers as Parsers
+import qualified Unison.PrintError as PrintError
 import           Unison.Reference (Reference(..))
 import           Unison.Result (Result(..), Note)
+import qualified Unison.Result as Result
 import           Unison.Term (AnnotatedTerm)
 import           Unison.Type (AnnotatedType)
 import qualified Unison.Typechecker as Typechecker
@@ -32,6 +36,15 @@ type Term v = AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
 type DataDeclaration v = DataDeclaration' v Ann
 type UnisonFile v = UF.UnisonFile v Ann
+
+parseAndSynthesizeFile :: Var v
+  => PEnv v -> FilePath -> Text
+  -> Result (Note v Ann) (PrintError.Env, Maybe (UnisonFile v))
+parseAndSynthesizeFile penv filePath src = do
+  (errorEnv, parsedUnisonFile) <-
+      Result.fromParsing $ Parsers.parseFile filePath (unpack src) penv
+  let (Result notes' r) = synthesizeUnisonFile parsedUnisonFile
+  Result notes' $ Just (errorEnv, fst <$> r)
 
 synthesizeFile
   :: forall v . Var v => UnisonFile v -> Result (Note v Ann) (Term v, Type v)

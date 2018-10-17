@@ -19,8 +19,7 @@ import           Unison.Paths ( Path )
 import           Unison.Term ( AnnotatedTerm )
 import qualified Unison.Typechecker.Context as Context
 
-data Result note a = Result { notes :: Seq note, result :: Maybe a }
-  deriving Show
+data Result note a = Result { notes :: Seq note, result :: Maybe a } deriving Show
 
 type Term v loc = AnnotatedTerm v loc
 

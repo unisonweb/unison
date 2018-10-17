@@ -1,38 +1,50 @@
-{-# LANGUAGE DoAndIfThenElse #-}
-{-# LANGUAGE LambdaCase      #-}
+{-# LANGUAGE DoAndIfThenElse     #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Unison.Codebase.CommandLine where
 
-import           Control.Concurrent          (forkIO)
-import           Control.Exception           (finally)
-import           Control.Monad               (forM_, forever, void, when)
-import           Control.Monad.STM           (STM, atomically)
-import           Data.Foldable               (toList, traverse_)
-import           Data.List                   (find, isSuffixOf, sort)
-import           Data.Set                    (Set)
-import qualified Data.Set                    as Set
-import           Data.Strings                (strPadLeft)
-import           Data.Text                   (Text, pack, unpack)
-import           System.FilePath             (FilePath)
-import qualified System.FilePath             as FilePath
-import qualified Text.Read                   as Read
-import           Unison.Codebase             (Codebase)
-import qualified Unison.Codebase             as Codebase
-import           Unison.Codebase.Branch      (Branch)
-import qualified Unison.Codebase.Branch      as Branch
-import           Unison.Codebase.Name        (Name)
-import           Unison.Codebase.Runtime     (Runtime)
-import qualified Unison.Codebase.Runtime     as RT
-import qualified Unison.Codebase.Watch       as Watch
-import qualified Unison.Hash                 as Hash
-import           Unison.Util.TQueue          (TQueue)
-import qualified Unison.Util.TQueue          as TQueue
+import           Control.Concurrent      (forkIO)
+import           Control.Exception       (finally)
+import           Control.Monad           (forM_, forever, void, when)
+import           Control.Monad.STM       (STM, atomically)
+import           Data.Foldable           (toList, traverse_)
+import           Data.List               (find, isSuffixOf, sort)
+import           Data.Set                (Set)
+import qualified Data.Set                as Set
+import           Data.Strings            (strPadLeft)
+import           Data.Text               (Text, pack, unpack)
+import qualified System.Console.ANSI     as Console
+import           System.FilePath         (FilePath)
+import qualified System.FilePath         as FilePath
+import qualified Text.Read               as Read
+import           Unison.Codebase         (Codebase)
+import qualified Unison.Codebase         as Codebase
+import           Unison.Codebase.Branch  (Branch)
+import qualified Unison.Codebase.Branch  as Branch
+import           Unison.Codebase.Name    (Name)
+import           Unison.Codebase.Runtime (Runtime)
+import qualified Unison.Codebase.Runtime as RT
+import qualified Unison.Codebase.Watch   as Watch
+import           Unison.FileParsers      (parseAndSynthesizeFile)
+import qualified Unison.Hash             as Hash
+import           Unison.Parser           (PEnv)
+import qualified Unison.Parser           as Parser
+import           Unison.PrintError       (parseErrorToAnsiString,
+                                          printNoteWithSourceAsAnsi)
+import           Unison.Result           (Result (Result))
+import qualified Unison.Result           as Result
+import           Unison.Util.Monoid
+import           Unison.Util.TQueue      (TQueue)
+import qualified Unison.Util.TQueue      as TQueue
+import           Unison.Var              (Var)
+
 
 data Event
   = UnisonFileChanged FilePath Text
   | UnisonBranchFileChanged (Set FilePath)
 
-main :: FilePath -> Name -> IO (Runtime v) -> Codebase IO v a -> IO ()
+main :: forall v a. Var v => FilePath -> Name -> IO (Runtime v) -> Codebase IO v a -> IO ()
 main dir currentBranchName startRuntime codebase = do
   queue <- TQueue.newIO
   lineQueue <- TQueue.newIO
@@ -76,16 +88,29 @@ main dir currentBranchName startRuntime codebase = do
     incompleteLine <- atomically . peekIncompleteLine $ lineQueue
     putStr $ unpack branchName ++ "> " ++ incompleteLine
 
-  handleUnisonFile :: FilePath -> Text -> IO ()
-  handleUnisonFile _filePath _src = do
-    -- Result notes (Just (env, r)) <- parseAndSynthesizeAsFile filePath src
-    -- case r of
-    --   Just (term, typ) ->
-    --   Nothing ->
-    pure ()
+  handleUnisonFile :: Runtime v -> Codebase IO v a -> PEnv v -> FilePath -> Text -> IO ()
+  handleUnisonFile runtime codebase penv filePath src = do
+    let Result notes r = parseAndSynthesizeFile penv filePath src
+    case r of
+      Nothing -> do -- parsing failed
+        Console.setTitle "Unison \128721"
+        forM_ notes $ \case
+          Result.Parsing err ->
+            putStrLn $ parseErrorToAnsiString (unpack src) err
+          err ->
+            error $"I was expecting a parsing error here but got:\n" ++ show err
 
-
-
+      Just (errorEnv, r) -> case r of
+        Nothing -> do -- typechecking failed
+          Console.setTitle "Unison \128721"
+          let showNote notes = intercalateMap
+                "\n\n" (printNoteWithSourceAsAnsi errorEnv (unpack src)) notes
+          putStrLn . showNote . toList $ notes
+        Just typecheckedUnisonFile -> do
+          Console.setTitle "Unison ✅"
+          putStrLn "✅  Typechecked! Any watch expressions (lines starting with `>`) are shown below.\n"
+          -- todo: print out top-level bindings
+          RT.evaluate runtime typecheckedUnisonFile codebase
 
   go :: Branch -> Name -> TQueue Event -> TQueue Char -> Runtime v -> IO ()
   go branch name queue lineQueue runtime = do
@@ -95,7 +120,8 @@ main dir currentBranchName startRuntime codebase = do
     TQueue.raceIO (TQueue.peek queue) (awaitCompleteLine lineQueue) >>= \case
       Right _ -> processLine branch name queue lineQueue runtime
       Left _ -> atomically (TQueue.dequeue queue) >>= \case
-        UnisonFileChanged filePath text -> handleUnisonFile filePath text
+        UnisonFileChanged filePath text ->
+          handleUnisonFile runtime codebase Parser.penv0 filePath text -- todo: don't use penv0
         UnisonBranchFileChanged filePaths -> do
         -- make sure we can assume that `branch` is already on disk
           let bFileName = Hash.base58s . Branch.toHash $ branch
