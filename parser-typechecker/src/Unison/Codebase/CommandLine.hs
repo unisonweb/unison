@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE DoAndIfThenElse, LambdaCase #-}
 
 module Unison.Codebase.CommandLine where
 

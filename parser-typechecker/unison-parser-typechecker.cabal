@@ -93,6 +93,7 @@ library
 
   build-depends:
     ansi-terminal,
+    async,
     base,
     base58-bytestring,
     bifunctors,
