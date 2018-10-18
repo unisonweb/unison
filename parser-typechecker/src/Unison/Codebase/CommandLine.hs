@@ -4,41 +4,43 @@
 
 module Unison.Codebase.CommandLine where
 
-import           Control.Concurrent      (forkIO)
-import           Control.Exception       (finally)
-import           Control.Monad           (forM_, forever, void, when)
-import           Control.Monad.STM       (STM, atomically)
-import           Data.Foldable           (toList, traverse_)
-import           Data.List               (find, isPrefixOf, isSuffixOf, sort)
-import           Data.Set                (Set)
-import qualified Data.Set                as Set
-import           Data.Strings            (strPadLeft)
-import           Data.Text               (Text, pack, unpack)
-import           Safe                    (atMay)
-import qualified System.Console.ANSI     as Console
-import           System.FilePath         (FilePath)
-import qualified System.FilePath         as FilePath
-import qualified Text.Read               as Read
-import           Unison.Codebase         (Codebase)
-import qualified Unison.Codebase         as Codebase
-import           Unison.Codebase.Branch  (Branch)
-import qualified Unison.Codebase.Branch  as Branch
-import           Unison.Codebase.Name    (Name)
-import           Unison.Codebase.Runtime (Runtime)
-import qualified Unison.Codebase.Runtime as RT
-import qualified Unison.Codebase.Watch   as Watch
-import           Unison.FileParsers      (parseAndSynthesizeFile)
-import qualified Unison.Hash             as Hash
-import           Unison.Parser           (PEnv)
-import qualified Unison.Parser           as Parser
-import           Unison.PrintError       (parseErrorToAnsiString,
-                                          printNoteWithSourceAsAnsi)
-import           Unison.Result           (Result (Result))
-import qualified Unison.Result           as Result
+import           Control.Concurrent           (forkIO)
+import           Control.Exception            (finally)
+import           Control.Monad                (forM_, forever, void, when)
+import           Control.Monad.STM            (STM, atomically)
+import           Data.Foldable                (toList, traverse_)
+import           Data.List                    (find, isPrefixOf, isSuffixOf,
+                                               sort)
+import           Data.Set                     (Set)
+import qualified Data.Set                     as Set
+import           Data.Strings                 (strPadLeft)
+import           Data.Text                    (Text, pack, unpack)
+import           Safe                         (atMay)
+import qualified System.Console.ANSI          as Console
+import           System.FilePath              (FilePath)
+import qualified System.FilePath              as FilePath
+import qualified Text.Read                    as Read
+import           Unison.Codebase              (Codebase)
+import qualified Unison.Codebase              as Codebase
+import           Unison.Codebase.Branch       (Branch)
+import qualified Unison.Codebase.Branch       as Branch
+import qualified Unison.Codebase.FileCodebase as FileCodebase
+import           Unison.Codebase.Name         (Name)
+import           Unison.Codebase.Runtime      (Runtime)
+import qualified Unison.Codebase.Runtime      as RT
+import qualified Unison.Codebase.Watch        as Watch
+import           Unison.FileParsers           (parseAndSynthesizeFile)
+import qualified Unison.Hash                  as Hash
+import           Unison.Parser                (PEnv)
+import qualified Unison.Parser                as Parser
+import           Unison.PrintError            (parseErrorToAnsiString,
+                                               printNoteWithSourceAsAnsi)
+import           Unison.Result                (Result (Result))
+import qualified Unison.Result                as Result
 import           Unison.Util.Monoid
-import           Unison.Util.TQueue      (TQueue)
-import qualified Unison.Util.TQueue      as TQueue
-import           Unison.Var              (Var)
+import           Unison.Util.TQueue           (TQueue)
+import qualified Unison.Util.TQueue           as TQueue
+import           Unison.Var                   (Var)
 
 
 data Event
@@ -47,8 +49,9 @@ data Event
 
 main :: forall v a. Var v => FilePath -> Name -> IO (Runtime v) -> Codebase IO v a -> IO ()
 main dir currentBranchName startRuntime codebase = do
-  queue <- TQueue.newIO
   lineQueue <- TQueue.newIO
+
+  queue <- TQueue.newIO
   branchFileChanges <- TQueue.newIO
   runtime <- startRuntime
   let takeActualLine = atomically (takeLine lineQueue)
@@ -67,7 +70,7 @@ main dir currentBranchName startRuntime codebase = do
   void $ do
     -- add .ubf file changes to intermediate queue
     void . forkIO $ do
-      watcher <- Watch.watchDirectory' (Codebase.branchesPath dir)
+      watcher <- Watch.watchDirectory' (FileCodebase.branchesPath dir)
       forever $ do
         (filePath,_) <- watcher
         when (".ubf" `isSuffixOf` filePath) $
@@ -81,89 +84,11 @@ main dir currentBranchName startRuntime codebase = do
   branch <- Codebase.getBranch codebase currentBranchName
   (`finally` RT.terminate runtime) $ case branch of
     Nothing -> do
-      selectBranch currentBranchName takeActualLine >>= \case
+      selectBranch codebase currentBranchName takeActualLine >>= \case
         Just (name, branch) -> go0 branch name queue lineQueue runtime
         Nothing -> putStrLn "Exiting."
     Just b  -> go0 b currentBranchName queue lineQueue runtime
   where
-  renderChoice :: Int -> Maybe String -> String -> Int -> String
-  renderChoice width deefault choice index =
-    (if Just choice == deefault then "* " else "  ") ++
-    (strPadLeft ' ' width $ show index) ++ ". " ++ choice
-
-  renderChoices :: forall a. Maybe String -> [((String, a), Int)] -> String
-  renderChoices deefault entries =
-    intercalateMap "\n" go entries
-    where go ((s, _a), index) = renderChoice pad deefault s index
-          pad = ceiling $ logBase (10::Double)
-                                  (fromIntegral . snd . last $ entries)
-
-  mergeBranchAndShowDiff :: Name -> Branch -> IO Branch
-  mergeBranchAndShowDiff name branch = do
-    branch' <- Codebase.mergeBranch codebase name branch
-    -- when (branch' /= branch) $
-    --   putStrLn $ "Some extra stuff appeared right when you forked, "
-    --           ++ "and I went ahead and smashed it all together for you!"
-    pure branch'
-
-  selectBranch :: Name -> IO String -> IO (Maybe (Name, Branch))
-  selectBranch name takeLine = do
-    -- todo: refactor to single-choice function
-    branch <- Codebase.getBranch codebase name
-    case branch of
-      -- if branch named `name` exists, load it,
-      Just branch -> pure . Just $ (name, branch)
-      -- otherwise,
-        -- list branches that do exist, plus option to create, plus option to cancel
-      Nothing -> do
-        putStrLn $
-          "The branch " ++ show name ++ " doesn't exist. " ++
-           "Do you want to create it, or pick a different one?"
-        branches <- Codebase.branches codebase
-        choice <- singleChoice (((unpack <$> branches) `zip` (Right <$> branches)) ++
-                      [("create it", Left True)
-                      ,("cancel", Left False)]) (Just $ "create it") takeLine
-        case choice of
-          Just (Left False) -> pure Nothing
-          Just (Left True) -> do
-            branch <- mergeBranchAndShowDiff name mempty
-            pure $ Just (name, branch)
-          Just (Right name) -> selectBranch name takeLine
-          Nothing -> error "unpossible"
-
-  singleChoice :: forall a. [(String, a)] -> Maybe String -> IO String -> IO (Maybe a)
-  singleChoice entries deefault takeLine = do
-    let restart = singleChoice entries deefault takeLine
-        numberedEntries = entries `zip` [1..]
-        resume = do
-          putStr $ "Enter a number, or prefix, or a blank line " ++
-                    if null deefault
-                      then "to cancel: "
-                      else "to accept the default (*): "
-          input <- takeLine
-          case words input of
-            [] -> case deefault of
-              Nothing -> pure Nothing
-              Just deefault ->
-                pure (snd <$> find (\(s,_) -> s == deefault) entries)
-            input : _ -> case Read.readMaybe input of
-              Nothing -> -- maybe it's a prefix
-                case filter ((input `isPrefixOf`) . fst . fst) numberedEntries of
-                  [] ->
-                    putStrLn "Sorry, I couldn't understand your selection."
-                       *> restart
-                  [((_s, a), _i)] -> pure (Just a)
-                  matches -> do
-                    putStrLn "I'm not sure which one of these you meant:"
-                    putStrLn $ renderChoices deefault matches
-                    resume
-              Just i -> case atMay entries (i-1) of
-                Just (_s, a) -> pure (Just a)
-                Nothing ->
-                  putStrLn ("Please pick a number from 1 to "
-                                      ++ show (length entries) ++ ".") *> restart
-    putStrLn $ renderChoices deefault numberedEntries
-    resume
   go0 branch branchName queue lineQueue runtime = go branch branchName
     where
 
@@ -226,7 +151,7 @@ main dir currentBranchName startRuntime codebase = do
                   -- note: this will be a combination of what's in memory plus
                   -- whatever has appeared on disk since the time there was nothing
                   -- on disk :|
-                  branch' <- mergeBranchAndShowDiff name branch
+                  branch' <- mergeBranchAndShowDiff codebase name branch
                   go branch' name
 
 
@@ -262,7 +187,7 @@ main dir currentBranchName startRuntime codebase = do
             putStrLn $ "Sorry, a branch by that name already exists."
             go branch name
           else do
-            branch' <- mergeBranchAndShowDiff newName branch
+            branch' <- mergeBranchAndShowDiff codebase newName branch
             go branch' newName
 
         ["merge", from] -> do
@@ -272,7 +197,7 @@ main dir currentBranchName startRuntime codebase = do
               putStrLn $ "Sorry, I can't find a branch by that name to merge from."
               go branch name
             Just branch' -> do
-              branch'' <- mergeBranchAndShowDiff name branch'
+              branch'' <- mergeBranchAndShowDiff codebase name branch'
               putStrLn $ "Flawless victory!"
               go branch'' name
 
@@ -282,10 +207,10 @@ main dir currentBranchName startRuntime codebase = do
               types = Branch.typesNamed (pack from) branch
               renameTerm branch = do
                 let branch' = Branch.renameTerm (pack from) (pack to) branch
-                mergeBranchAndShowDiff name branch'
+                mergeBranchAndShowDiff codebase name branch'
               renameType branch = do
                 let branch' = Branch.renameType (pack from) (pack to) branch
-                mergeBranchAndShowDiff name branch'
+                mergeBranchAndShowDiff codebase name branch'
               go' b = go b name
           in case (toList terms, toList types) of
             ([], []) -> putStrLn "I couldn't find anything by that name."
@@ -306,6 +231,18 @@ main dir currentBranchName startRuntime codebase = do
               go' branch
         _ -> error $ "todo" ++ "help:"
 
+renderChoice :: Int -> Maybe String -> String -> Int -> String
+renderChoice width deefault choice index =
+  (if Just choice == deefault then "* " else "  ") ++
+  (strPadLeft ' ' width $ show index) ++ ". " ++ choice
+
+renderChoices :: forall a. Maybe String -> [((String, a), Int)] -> String
+renderChoices deefault entries =
+  intercalateMap "\n" go entries
+  where go ((s, _a), index) = renderChoice pad deefault s index
+        pad = ceiling $ logBase (10::Double)
+                                (fromIntegral . snd . last $ entries)
+
 -- should never block
 peekIncompleteLine :: TQueue Char -> STM String
 peekIncompleteLine q = TQueue.tryPeekWhile (/= '\n') q
@@ -321,6 +258,8 @@ takeLine q = do
 awaitCompleteLine :: TQueue Char -> STM ()
 awaitCompleteLine ch = void $ TQueue.peekWhile (/= '\n') ch
 
+-- let the user pick from a list of labeled `a`s
+-- todo: rewrite this to let them toggle stuff
 multipleChoice :: [(String, a)] -> TQueue Char -> IO [a]
 multipleChoice as lineQueue = do
   let render ((s, _), index) = putStrLn $ strPadLeft ' ' 5 ("[" ++ show index ++ "] ") ++ s
@@ -337,3 +276,71 @@ multipleChoice as lineQueue = do
         (putStrLn $ "You entered the number " ++ show i ++ " which wasn't one of the choices.")
           >> multipleChoice as lineQueue
       Nothing -> pure $ snd . (as !!) . (+ (-1)) <$> numbers
+
+-- Merges `branch` into any the branch `name`, creating it if necessary.
+mergeBranchAndShowDiff :: Monad m => Codebase m v a -> Name -> Branch -> m Branch
+mergeBranchAndShowDiff codebase targetName sourceBranch = do
+  branch' <- Codebase.mergeBranch codebase targetName sourceBranch
+  -- when (branch' /= branch) $
+  --   putStrLn $ "Some extra stuff appeared right when you forked, "
+  --           ++ "and I went ahead and smashed it all together for you!"
+  pure branch'
+
+selectBranch :: Codebase IO v a -> Name -> IO String -> IO (Maybe (Name, Branch))
+selectBranch codebase name takeLine = do
+  -- todo: refactor to single-choice function
+  branch <- Codebase.getBranch codebase name
+  case branch of
+    -- if branch named `name` exists, load it,
+    Just branch -> pure . Just $ (name, branch)
+    -- otherwise,
+      -- list branches that do exist, plus option to create, plus option to cancel
+    Nothing -> do
+      putStrLn $
+        "The branch " ++ show name ++ " doesn't exist. " ++
+         "Do you want to create it, or pick a different one?"
+      branches <- Codebase.branches codebase
+      choice <- singleChoice (((unpack <$> branches) `zip` (Right <$> branches)) ++
+                    [("create it", Left True)
+                    ,("cancel", Left False)]) (Just $ "create it") takeLine
+      case choice of
+        Just (Left False) -> pure Nothing
+        Just (Left True) -> do
+          branch <- mergeBranchAndShowDiff codebase name mempty
+          pure $ Just (name, branch)
+        Just (Right name) -> selectBranch codebase name takeLine
+        Nothing -> error "unpossible"
+
+singleChoice :: [(String, a)] -> Maybe String -> IO String -> IO (Maybe a)
+singleChoice entries deefault takeLine = do
+  let restart = singleChoice entries deefault takeLine
+      numberedEntries = entries `zip` [1..]
+      resume = do
+        putStr $ "Enter a number, or prefix, or a blank line " ++
+                  if null deefault
+                    then "to cancel: "
+                    else "to accept the default (*): "
+        input <- takeLine
+        case words input of
+          [] -> case deefault of
+            Nothing -> pure Nothing
+            Just deefault ->
+              pure (snd <$> find (\(s,_) -> s == deefault) entries)
+          input : _ -> case Read.readMaybe input of
+            Nothing -> -- maybe it's a prefix
+              case filter ((input `isPrefixOf`) . fst . fst) numberedEntries of
+                [] ->
+                  putStrLn "Sorry, I couldn't understand your selection."
+                     *> restart
+                [((_s, a), _i)] -> pure (Just a)
+                matches -> do
+                  putStrLn "I'm not sure which one of these you meant:"
+                  putStrLn $ renderChoices deefault matches
+                  resume
+            Just i -> case atMay entries (i-1) of
+              Just (_s, a) -> pure (Just a)
+              Nothing ->
+                putStrLn ("Please pick a number from 1 to "
+                                    ++ show (length entries) ++ ".") *> restart
+  putStrLn $ renderChoices deefault numberedEntries
+  resume
