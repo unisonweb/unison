@@ -1,3 +1,6 @@
+# Unison
+.unison/
+
 # Haskell
 dist
 cabal-dev

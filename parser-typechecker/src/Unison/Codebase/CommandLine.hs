@@ -122,7 +122,7 @@ main dir currentBranchName startRuntime codebase = do
           UnisonBranchChanged branches ->
             if Set.member name branches then do
               putStr $ "I've detected external changes to the branch; reloading..."
-              b' <- Codebase.getBranch codebase currentBranchName
+              b' <- Codebase.getBranch codebase name
               case b' of
                 Just b' -> do
                   putStrLn $ " done!"

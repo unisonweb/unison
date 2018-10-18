@@ -10,7 +10,6 @@ import           Control.Monad.Except             (runExceptT)
 import           Control.Monad.IO.Class           (MonadIO, liftIO)
 import           Control.Monad.STM                (atomically)
 import qualified Data.Bytes.Get                   as Get
-import qualified Data.Bytes.Put                   as Put
 import qualified Data.ByteString                  as BS
 import           Data.Foldable                    (traverse_)
 import           Data.List                        (isSuffixOf, partition)
@@ -20,7 +19,8 @@ import           Data.Set                         (Set)
 import qualified Data.Set                         as Set
 import           Data.Text                        (Text)
 import qualified Data.Text                        as Text
-import           System.Directory                 (doesDirectoryExist,
+import           System.Directory                 (createDirectoryIfMissing,
+                                                   doesDirectoryExist,
                                                    listDirectory, removeFile)
 import           System.FilePath                  (FilePath, takeBaseName,
                                                    takeDirectory, takeFileName,
@@ -40,8 +40,22 @@ import           Unison.Reference                 (Reference (Builtin, Derived))
 import qualified Unison.Util.TQueue               as TQueue
 import           Unison.Var                       (Var)
 
+-- checks if `path` looks like a unison codebase
+minimalCodebaseStructure :: FilePath -> [FilePath]
+minimalCodebaseStructure path =
+  [branchesPath path
+  ,path </> "terms"
+  ,path </> "types"]
+  -- todo: add data constructor paths or whatever that ends up being
 
---- File Codebase stuff ---
+exists :: FilePath -> IO Bool
+exists path =
+  all id <$> traverse doesDirectoryExist (minimalCodebaseStructure path)
+
+initialize :: FilePath -> IO ()
+initialize path =
+  traverse_ (createDirectoryIfMissing True) (minimalCodebaseStructure path)
+
 branchFromFile :: (MonadIO m, MonadError Err m) => FilePath -> m Branch
 branchFromFile ubf = do
   bytes <- liftIO $ BS.readFile ubf
@@ -50,8 +64,7 @@ branchFromFile ubf = do
     Right branch -> pure branch
 
 branchToFile :: FilePath -> Branch -> IO ()
-branchToFile ubf b =
-  BS.writeFile ubf (Put.runPutS (V0.putBranch b))
+branchToFile = S.putWithParentDirs V0.putBranch
 
 branchFromFile' :: FilePath -> IO (Maybe Branch)
 branchFromFile' ubf = go =<< runExceptT (branchFromFile ubf)
@@ -76,7 +89,7 @@ branchFromDirectory dir = do
 -- todo: change this to use System.FilePath.takeExtension
 filesInPathMatchingSuffix :: FilePath -> String -> IO [FilePath]
 filesInPathMatchingSuffix path suffix = doesDirectoryExist path >>= \ok ->
-  if ok then filter (suffix `isSuffixOf`) <$> listDirectory path
+  if ok then fmap (path </>) <$> (filter (suffix `isSuffixOf`) <$> listDirectory path)
   else pure []
 
 isValidBranchDirectory :: FilePath -> IO Bool
@@ -120,6 +133,7 @@ codebase1 builtinTypeAnnotation
   branches = map Text.pack <$> do
     files <- listDirectory (branchesPath path)
     filterM isValidBranchDirectory files
+
   getBranch name = branchFromDirectory (branchPath path name)
 
   -- delete any leftover branch files "before" this one,
