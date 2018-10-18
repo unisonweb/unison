@@ -149,8 +149,8 @@ main dir currentBranchName startRuntime codebase = do
         ["branch"] -> do
           branches <- sort <$> Codebase.branches codebase
           forM_ branches $ \name' ->
-            if name' == name then putStrLn $ " * " ++ unpack name
-                             else putStrLn $ "   " ++ unpack name
+            if name' == name then putStrLn $ " * " ++ unpack name'
+                             else putStrLn $ "   " ++ unpack name'
           -- idea: could instead prompt user and read directly from lineQueue to handle
           go branch name
 
@@ -158,7 +158,7 @@ main dir currentBranchName startRuntime codebase = do
           branch' <- Codebase.getBranch codebase $ pack name'
           case branch' of
             Nothing -> do
-              putStrLn $ "I couldn't find a branch named " ++ name'
+              putStrLn $ "I couldn't find a branch named \"" ++ name' ++ "\"."
               go branch name
             Just branch' -> go branch' (pack name')
 

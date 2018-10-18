@@ -39,6 +39,7 @@ import qualified Unison.Hash                      as Hash
 import           Unison.Reference                 (Reference (Builtin, Derived))
 import qualified Unison.Util.TQueue               as TQueue
 import           Unison.Var                       (Var)
+-- import Debug.Trace
 
 -- checks if `path` looks like a unison codebase
 minimalCodebaseStructure :: FilePath -> [FilePath]
@@ -132,7 +133,9 @@ codebase1 builtinTypeAnnotation
                         decl
   branches = map Text.pack <$> do
     files <- listDirectory (branchesPath path)
-    filterM isValidBranchDirectory files
+    let paths = (branchesPath path </>) <$> files
+    fmap takeFileName <$>
+        filterM isValidBranchDirectory paths
 
   getBranch name = branchFromDirectory (branchPath path name)
 
