@@ -4,6 +4,7 @@
 
 module Unison.Codebase where
 
+import           Data.Set               (Set)
 import           Data.Text              (Text)
 import           Unison.Codebase.Branch (Branch)
 import           Unison.Codebase.Name   (Name)
@@ -34,7 +35,7 @@ data Codebase m v a =
            -- thought: this merges the given branch with the existing branch
            -- or creates a new branch if there's no branch with that name
            , mergeBranch        :: Name -> Branch -> m Branch
-           -- , branchUpdates :: m (m (), m (Name, Branch))
+           , branchUpdates      :: m (m (), m (Set Name))
            }
 
 data Session m v a

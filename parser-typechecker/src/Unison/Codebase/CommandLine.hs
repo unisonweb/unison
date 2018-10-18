@@ -6,7 +6,7 @@ module Unison.Codebase.CommandLine where
 
 import           Control.Concurrent           (forkIO)
 import           Control.Exception            (finally)
-import           Control.Monad                (forM_, forever, void, when)
+import           Control.Monad                (forM_, forever, void)
 import           Control.Monad.STM            (STM, atomically)
 import           Data.Foldable                (toList, traverse_)
 import           Data.List                    (find, isPrefixOf, isSuffixOf,
@@ -18,19 +18,16 @@ import           Data.Text                    (Text, pack, unpack)
 import           Safe                         (atMay)
 import qualified System.Console.ANSI          as Console
 import           System.FilePath              (FilePath)
-import qualified System.FilePath              as FilePath
 import qualified Text.Read                    as Read
 import           Unison.Codebase              (Codebase)
 import qualified Unison.Codebase              as Codebase
 import           Unison.Codebase.Branch       (Branch)
 import qualified Unison.Codebase.Branch       as Branch
-import qualified Unison.Codebase.FileCodebase as FileCodebase
 import           Unison.Codebase.Name         (Name)
 import           Unison.Codebase.Runtime      (Runtime)
 import qualified Unison.Codebase.Runtime      as RT
 import qualified Unison.Codebase.Watch        as Watch
 import           Unison.FileParsers           (parseAndSynthesizeFile)
-import qualified Unison.Hash                  as Hash
 import           Unison.Parser                (PEnv)
 import qualified Unison.Parser                as Parser
 import           Unison.PrintError            (parseErrorToAnsiString,
@@ -45,14 +42,12 @@ import           Unison.Var                   (Var)
 
 data Event
   = UnisonFileChanged FilePath Text
-  | UnisonBranchFileChanged (Set FilePath)
+  | UnisonBranchChanged (Set Name)
 
 main :: forall v a. Var v => FilePath -> Name -> IO (Runtime v) -> Codebase IO v a -> IO ()
 main dir currentBranchName startRuntime codebase = do
-  lineQueue <- TQueue.newIO
-
   queue <- TQueue.newIO
-  branchFileChanges <- TQueue.newIO
+  lineQueue <- TQueue.newIO
   runtime <- startRuntime
   let takeActualLine = atomically (takeLine lineQueue)
 
@@ -66,23 +61,15 @@ main dir currentBranchName startRuntime codebase = do
       (filePath, text) <- watcher
       atomically . TQueue.enqueue queue $ UnisonFileChanged filePath text
 
-  -- watch for .ubf file changes
-  void $ do
-    -- add .ubf file changes to intermediate queue
-    void . forkIO $ do
-      watcher <- Watch.watchDirectory' (FileCodebase.branchesPath dir)
-      forever $ do
-        (filePath,_) <- watcher
-        when (".ubf" `isSuffixOf` filePath) $
-          atomically . TQueue.enqueue branchFileChanges $ filePath
-    -- smooth out intermediate queue, onto regular queue
-    void . forkIO $ do
-      stuff <- Watch.collectUntilPause branchFileChanges 400000
-      atomically . TQueue.enqueue queue . UnisonBranchFileChanged $ Set.fromList stuff
+  -- watch for external branch changes
+  (cancelExternalBranchUpdates, externalBranchUpdates) <- Codebase.branchUpdates codebase
+  void . forkIO . forever $ do
+      updatedBranches <- externalBranchUpdates
+      atomically . TQueue.enqueue queue . UnisonBranchChanged $ updatedBranches
 
   -- load current branch from disk
   branch <- Codebase.getBranch codebase currentBranchName
-  (`finally` RT.terminate runtime) $ case branch of
+  (`finally` (RT.terminate runtime *> cancelExternalBranchUpdates)) $ case branch of
     Nothing -> do
       selectBranch codebase currentBranchName takeActualLine >>= \case
         Just (name, branch) -> go0 branch name queue lineQueue runtime
@@ -132,13 +119,8 @@ main dir currentBranchName startRuntime codebase = do
         Left _ -> atomically (TQueue.dequeue queue) >>= \case
           UnisonFileChanged filePath text ->
             handleUnisonFile runtime codebase Parser.penv0 filePath text -- todo: don't use penv0
-          UnisonBranchFileChanged filePaths -> do
-          -- make sure we can assume that `branch` is already on disk
-            let bFileName = Hash.base58s . Branch.toHash $ branch
-                filePaths' = Set.filter (\s -> FilePath.takeBaseName s /= bFileName) filePaths
-            if null filePaths' then
-              go branch name
-            else do
+          UnisonBranchChanged branches ->
+            if Set.member name branches then do
               putStr $ "I've detected external changes to the branch; reloading..."
               b' <- Codebase.getBranch codebase currentBranchName
               case b' of
@@ -147,13 +129,13 @@ main dir currentBranchName startRuntime codebase = do
                   putStrLn $ "TODO: tell the user what changed as a result of the merge"
                   go b' name
                 Nothing -> do
-                  putStrLn $ "\n...that didn't work.  I'm going to write out what I have in memory."
+                  putStrLn $ "\n...that didn't work.  I'm going to save what I have in memory."
                   -- note: this will be a combination of what's in memory plus
                   -- whatever has appeared on disk since the time there was nothing
                   -- on disk :|
                   branch' <- mergeBranchAndShowDiff codebase name branch
                   go branch' name
-
+            else go branch name
 
     -- newBranch :: Name -> IO Branch
     -- newBranch name = mergeBranchAndShowDiff newName mempty

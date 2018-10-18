@@ -1,40 +1,52 @@
-{-# LANGUAGE FlexibleContexts, OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Codebase.FileCodebase where
 
-import Data.Maybe (catMaybes)
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.Except (runExceptT)
-import Control.Monad.Error.Class (MonadError, throwError)
-import Control.Monad (when, filterM)
-import Data.Foldable (traverse_)
-import Data.List (isSuffixOf, partition)
-import Unison.Codebase.Branch (Branch)
-import System.Directory (doesDirectoryExist,listDirectory,removeFile)
-import qualified Data.Text as Text
-import qualified Unison.Hash as Hash
-import Unison.Hash (Hash)
-import Data.Text (Text)
-import qualified Unison.Codebase.Branch as Branch
-import Unison.Reference (Reference (Builtin, Derived))
+import           Control.Concurrent               (forkIO, killThread)
+import           Control.Monad                    (filterM, forever, when)
+import           Control.Monad.Error.Class        (MonadError, throwError)
+import           Control.Monad.Except             (runExceptT)
+import           Control.Monad.IO.Class           (MonadIO, liftIO)
+import           Control.Monad.STM                (atomically)
+import qualified Data.Bytes.Get                   as Get
+import qualified Data.Bytes.Put                   as Put
+import qualified Data.ByteString                  as BS
+import           Data.Foldable                    (traverse_)
+import           Data.List                        (isSuffixOf, partition)
+import qualified Data.Map                         as Map
+import           Data.Maybe                       (catMaybes)
+import           Data.Set                         (Set)
+import qualified Data.Set                         as Set
+import           Data.Text                        (Text)
+import qualified Data.Text                        as Text
+import           System.Directory                 (doesDirectoryExist,
+                                                   listDirectory, removeFile)
+import           System.FilePath                  (FilePath, takeBaseName,
+                                                   takeDirectory, takeFileName,
+                                                   (</>))
+import qualified Unison.Builtin                   as Builtin
+import           Unison.Codebase                  (Codebase (Codebase),
+                                                   Err (InvalidBranchFile))
+import           Unison.Codebase.Branch           (Branch)
+import qualified Unison.Codebase.Branch           as Branch
+import           Unison.Codebase.Name             (Name)
+import qualified Unison.Codebase.Serialization    as S
 import qualified Unison.Codebase.Serialization.V0 as V0
-import System.FilePath (FilePath, (</>), takeBaseName)
-import qualified Data.ByteString as BS
-import qualified Data.Bytes.Get as Get
-import qualified Data.Bytes.Put as Put
-import qualified Unison.Codebase.Serialization as S
-import qualified Data.Map as Map
-import qualified Unison.Builtin as Builtin
-import Unison.Var (Var)
-import Unison.Codebase (Codebase(Codebase), Err(InvalidBranchFile))
-import Unison.Codebase.Name (Name)
+import qualified Unison.Codebase.Watch            as Watch
+import           Unison.Hash                      (Hash)
+import qualified Unison.Hash                      as Hash
+import           Unison.Reference                 (Reference (Builtin, Derived))
+import qualified Unison.Util.TQueue               as TQueue
+import           Unison.Var                       (Var)
+
 
 --- File Codebase stuff ---
 branchFromFile :: (MonadIO m, MonadError Err m) => FilePath -> m Branch
 branchFromFile ubf = do
   bytes <- liftIO $ BS.readFile ubf
   case Get.runGetS V0.getBranch bytes of
-    Left err -> throwError $ InvalidBranchFile ubf err
+    Left err     -> throwError $ InvalidBranchFile ubf err
     Right branch -> pure branch
 
 branchToFile :: FilePath -> Branch -> IO ()
@@ -58,7 +70,7 @@ branchFromDirectory dir = do
     True -> do
       bos <- traverse branchFromFile' =<< filesInPathMatchingSuffix dir ".ubf"
       pure $ case catMaybes bos of
-        [] -> Nothing
+        []  -> Nothing
         bos -> Just (mconcat bos)
 
 -- todo: change this to use System.FilePath.takeExtension
@@ -133,7 +145,26 @@ codebase1 builtinTypeAnnotation
           -- merge with existing branch if present
           Just existing -> Branch.merge branch existing
           -- or save new branch
-          Nothing -> branch
+          Nothing       -> branch
     overwriteBranch name newBranch
     pure newBranch
-  in Codebase getTerm getTypeOfTerm putTerm getDecl putDecl branches getBranch mergeBranch
+
+  branchUpdates :: IO (IO (), IO (Set Name))
+  branchUpdates = do
+    branchFileChanges <- TQueue.newIO
+    -- add .ubf file changes to intermediate queue
+    watcher1 <- forkIO $ do
+      watcher <- Watch.watchDirectory' (branchesPath path)
+      forever $ do
+        (filePath,_) <- watcher
+        when (".ubf" `isSuffixOf` filePath) $
+          atomically . TQueue.enqueue branchFileChanges $ filePath
+    -- smooth out intermediate queue
+    pure $ (killThread watcher1, Set.map ubfPathToName . Set.fromList <$>
+                  Watch.collectUntilPause branchFileChanges 400000)
+  in Codebase getTerm getTypeOfTerm putTerm
+              getDecl putDecl
+              branches getBranch mergeBranch branchUpdates
+
+ubfPathToName :: FilePath -> Name
+ubfPathToName = Text.pack . takeFileName . takeDirectory
