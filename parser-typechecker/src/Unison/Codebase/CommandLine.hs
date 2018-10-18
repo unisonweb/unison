@@ -117,8 +117,12 @@ main dir currentBranchName startRuntime codebase = do
       TQueue.raceIO (TQueue.peek queue) (awaitCompleteLine lineQueue) >>= \case
         Right _ -> processLine branch name
         Left _ -> atomically (TQueue.dequeue queue) >>= \case
-          UnisonFileChanged filePath text ->
+          UnisonFileChanged filePath text -> do
+            Console.setTitle "Unison"
+            Console.clearScreen
+            Console.setCursorPosition 0 0
             handleUnisonFile runtime codebase Parser.penv0 filePath text -- todo: don't use penv0
+            go branch name
           UnisonBranchChanged branches ->
             if Set.member name branches then do
               putStr $ "I've detected external changes to the branch; reloading..."
