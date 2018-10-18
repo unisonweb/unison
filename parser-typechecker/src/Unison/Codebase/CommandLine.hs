@@ -80,151 +80,174 @@ main dir currentBranchName startRuntime codebase = do
   case branch of
     Nothing -> error "force user to pick or create a valid branch"
     Just b  -> (`finally` RT.terminate runtime) $
-                  go b currentBranchName queue lineQueue runtime
+                  go0 b currentBranchName queue lineQueue runtime
   where
-  -- print prompt and whatever input was on it / at it
-  printPrompt :: Name -> TQueue Char -> IO ()
-  printPrompt branchName lineQueue = do
-    incompleteLine <- atomically . peekIncompleteLine $ lineQueue
-    putStr $ unpack branchName ++ "> " ++ incompleteLine
+  go0 branch branchName queue lineQueue runtime = go branch branchName
+    where
 
-  handleUnisonFile :: Runtime v -> Codebase IO v a -> PEnv v -> FilePath -> Text -> IO ()
-  handleUnisonFile runtime codebase penv filePath src = do
-    let Result notes r = parseAndSynthesizeFile penv filePath src
-    case r of
-      Nothing -> do -- parsing failed
-        Console.setTitle "Unison \128721"
-        forM_ notes $ \case
-          Result.Parsing err ->
-            putStrLn $ parseErrorToAnsiString (unpack src) err
-          err ->
-            error $"I was expecting a parsing error here but got:\n" ++ show err
+    -- print prompt and whatever input was on it / at it
+    printPrompt :: Name -> IO ()
+    printPrompt branchName = do
+      incompleteLine <- atomically . peekIncompleteLine $ lineQueue
+      putStr $ unpack branchName ++ "> " ++ incompleteLine
 
-      Just (errorEnv, r) -> case r of
-        Nothing -> do -- typechecking failed
+    -- singleChoice :: [(String, a)] -> Maybe String -> IO String -> IO (Maybe a)
+    -- singleChoice entries deefault =
+    --
+    -- switchBranch :: Name -> IO (Maybe (Name, Branch))
+    -- switchBranch name = do
+    --   -- todo: refactor to single-choice function
+    --   branch <- Codebase.getBranch codebase name
+    --   case branch of
+    --     -- if branch named `name` exists, load it,
+    --     Just branch -> pure . Just $ (name, branch)
+    --     -- otherwise,
+    --       -- list branches that do exist, plus option to create, plus option to cancel
+    --     Nothing -> do
+    --       branches <- Codebase.branches codebase
+    --       singleChoice (branches `zip` branches)
+
+
+
+    handleUnisonFile :: Runtime v -> Codebase IO v a -> PEnv v -> FilePath -> Text -> IO ()
+    handleUnisonFile runtime codebase penv filePath src = do
+      let Result notes r = parseAndSynthesizeFile penv filePath src
+      case r of
+        Nothing -> do -- parsing failed
           Console.setTitle "Unison \128721"
-          let showNote notes = intercalateMap
-                "\n\n" (printNoteWithSourceAsAnsi errorEnv (unpack src)) notes
-          putStrLn . showNote . toList $ notes
-        Just typecheckedUnisonFile -> do
-          Console.setTitle "Unison ✅"
-          putStrLn "✅  Typechecked! Any watch expressions (lines starting with `>`) are shown below.\n"
-          -- todo: print out top-level bindings
-          RT.evaluate runtime typecheckedUnisonFile codebase
+          forM_ notes $ \case
+            Result.Parsing err ->
+              putStrLn $ parseErrorToAnsiString (unpack src) err
+            err ->
+              error $"I was expecting a parsing error here but got:\n" ++ show err
 
-  go :: Branch -> Name -> TQueue Event -> TQueue Char -> Runtime v -> IO ()
-  go branch name queue lineQueue runtime = do
-    printPrompt name lineQueue
+        Just (errorEnv, r) -> case r of
+          Nothing -> do -- typechecking failed
+            Console.setTitle "Unison \128721"
+            let showNote notes = intercalateMap
+                  "\n\n" (printNoteWithSourceAsAnsi errorEnv (unpack src)) notes
+            putStrLn . showNote . toList $ notes
+          Just typecheckedUnisonFile -> do
+            Console.setTitle "Unison ✅"
+            putStrLn "✅  Typechecked! Any watch expressions (lines starting with `>`) are shown below.\n"
+            -- todo: print out top-level bindings
+            RT.evaluate runtime typecheckedUnisonFile codebase
 
-    -- wait for new lines from user or asynchronous events from filesystem
-    TQueue.raceIO (TQueue.peek queue) (awaitCompleteLine lineQueue) >>= \case
-      Right _ -> processLine branch name queue lineQueue runtime
-      Left _ -> atomically (TQueue.dequeue queue) >>= \case
-        UnisonFileChanged filePath text ->
-          handleUnisonFile runtime codebase Parser.penv0 filePath text -- todo: don't use penv0
-        UnisonBranchFileChanged filePaths -> do
-        -- make sure we can assume that `branch` is already on disk
-          let bFileName = Hash.base58s . Branch.toHash $ branch
-              filePaths' = Set.filter (\s -> FilePath.takeBaseName s /= bFileName) filePaths
-          if null filePaths' then
-            go branch name queue lineQueue runtime
+    go :: Branch -> Name -> IO ()
+    go branch name = do
+      printPrompt name
+
+      -- wait for new lines from user or asynchronous events from filesystem
+      TQueue.raceIO (TQueue.peek queue) (awaitCompleteLine lineQueue) >>= \case
+        Right _ -> processLine branch name
+        Left _ -> atomically (TQueue.dequeue queue) >>= \case
+          UnisonFileChanged filePath text ->
+            handleUnisonFile runtime codebase Parser.penv0 filePath text -- todo: don't use penv0
+          UnisonBranchFileChanged filePaths -> do
+          -- make sure we can assume that `branch` is already on disk
+            let bFileName = Hash.base58s . Branch.toHash $ branch
+                filePaths' = Set.filter (\s -> FilePath.takeBaseName s /= bFileName) filePaths
+            if null filePaths' then
+              go branch name
+            else do
+              putStr $ "I've detected external changes to the branch; reloading..."
+              b' <- Codebase.getBranch codebase currentBranchName
+              case b' of
+                Just b' -> do
+                  putStrLn $ " done!"
+                  putStrLn $ "TODO: tell the user what changed as a result of the merge"
+                  go b' name
+                Nothing -> do
+                  putStrLn $ "\n...that didn't work.  I'm going to write out what I have in memory."
+                  -- note: this will be a combination of what's in memory plus
+                  -- whatever has appeared on disk since the time there was nothing
+                  -- on disk :|
+                  branch' <- mergeBranchAndShowDiff name branch
+                  go branch' name
+
+    mergeBranchAndShowDiff :: Name -> Branch -> IO Branch
+    mergeBranchAndShowDiff name branch = do
+      branch' <- Codebase.mergeBranch codebase name branch
+      -- when (branch' /= branch) $
+      --   putStrLn $ "Some extra stuff appeared right when you forked, "
+      --           ++ "and I went ahead and smashed it all together for you!"
+      pure branch'
+
+    -- newBranch :: Name -> IO Branch
+    -- newBranch name = mergeBranchAndShowDiff newName mempty
+
+    processLine :: Branch -> Name -> IO ()
+    processLine branch name = do
+      line <- atomically $ takeLine lineQueue
+      case words line of
+        "add" : args -> error $ show args
+
+        ["branch"] -> do
+          branches <- sort <$> Codebase.branches codebase
+          forM_ branches $ \name' ->
+            if name' == name then putStrLn $ " * " ++ unpack name
+                             else putStrLn $ "   " ++ unpack name
+          -- idea: could instead prompt user and read directly from lineQueue to handle
+          go branch name
+
+        ["branch", name'] -> do
+          branch' <- Codebase.getBranch codebase $ pack name'
+          case branch' of
+            Nothing -> do
+              putStrLn $ "I couldn't find a branch named " ++ name'
+              go branch name
+            Just branch' -> go branch' (pack name')
+
+        ["fork", newName0] -> do
+          let newName = pack newName0
+          branchExists <- Codebase.branchExists codebase newName
+          if branchExists then do
+            putStrLn $ "Sorry, a branch by that name already exists."
+            go branch name
           else do
-            putStr $ "I've detected external changes to the branch; reloading..."
-            b' <- Codebase.getBranch codebase currentBranchName
-            case b' of
-              Just b' -> do
-                putStrLn $ " done!"
-                putStrLn $ "TODO: tell the user what changed as a result of the merge"
-                go b' name queue lineQueue runtime
-              Nothing -> do
-                putStrLn $ "\n...that didn't work.  I'm going to write out what I have in memory."
-                -- note: this will be a combination of what's in memory plus
-                -- whatever has appeared on disk since the time there was nothing
-                -- on disk :|
-                branch' <- mergeBranchAndShowDiff name branch
-                go branch' name queue lineQueue runtime
+            branch' <- mergeBranchAndShowDiff newName branch
+            go branch' newName
 
-  mergeBranchAndShowDiff :: Name -> Branch -> IO Branch
-  mergeBranchAndShowDiff name branch = do
-    branch' <- Codebase.mergeBranch codebase name branch
-    -- when (branch' /= branch) $
-    --   putStrLn $ "Some extra stuff appeared right when you forked, "
-    --           ++ "and I went ahead and smashed it all together for you!"
-    pure branch'
+        ["merge", from] -> do
+          branch' <- Codebase.getBranch codebase $ pack from
+          case branch' of
+            Nothing -> do
+              putStrLn $ "Sorry, I can't find a branch by that name to merge from."
+              go branch name
+            Just branch' -> do
+              branch'' <- mergeBranchAndShowDiff name branch'
+              putStrLn $ "Flawless victory!"
+              go branch'' name
 
-  processLine :: Branch -> Name -> TQueue Event -> TQueue Char -> Runtime v -> IO ()
-  processLine branch name queue lineQueue runtime = do
-    let go' b name = go b name queue lineQueue runtime
-    line <- atomically $ takeLine lineQueue
-    case words line of
-      "add" : args -> error $ show args
-
-      ["branch"] -> do
-        branches <- sort <$> Codebase.branches codebase
-        forM_ branches $ \name' ->
-          if name' == name then putStrLn $ " * " ++ unpack name
-                           else putStrLn $ "   " ++ unpack name
-        -- idea: could instead prompt user and read directly from lineQueue to handle
-        go' branch name
-
-      ["branch", name'] -> do
-        branch' <- Codebase.getBranch codebase $ pack name'
-        case branch' of
-          Nothing -> do
-            putStrLn $ "I couldn't find a branch named " ++ name'
-            go' branch name
-          Just branch' -> go' branch' (pack name')
-
-      ["fork", newName0] -> do
-        let newName = pack newName0
-        branchExists <- Codebase.branchExists codebase newName
-        if branchExists then do
-          putStrLn $ "Sorry, a branch by that name already exists."
-          go' branch name
-        else do
-          branch' <- mergeBranchAndShowDiff newName branch
-          go' branch' newName
-
-      ["merge", from] -> do
-        branch' <- Codebase.getBranch codebase $ pack from
-        case branch' of
-          Nothing -> do
-            putStrLn $ "Sorry, I can't find a branch by that name to merge from."
-            go' branch name
-          Just branch' -> do
-            branch'' <- mergeBranchAndShowDiff name branch'
-            putStrLn $ "Flawless victory!"
-            go' branch'' name
-
-      -- rename a term/type/... in the current branch
-      ["rename", from, to] ->
-        let terms = Branch.termsNamed (pack from) branch
-            types = Branch.typesNamed (pack from) branch
-            renameTerm branch = do
-              let branch' = Branch.renameTerm (pack from) (pack to) branch
-              mergeBranchAndShowDiff name branch'
-            renameType branch = do
-              let branch' = Branch.renameType (pack from) (pack to) branch
-              mergeBranchAndShowDiff name branch'
-            go'' b = go' b name
-        in case (toList terms, toList types) of
-          ([], []) -> putStrLn "I couldn't find anything by that name."
-          ([_term], []) -> renameTerm branch >>= go''
-          ([], [_typ]) -> renameType branch >>= go''
-          ([_term], [_typ]) -> do
-            putStrLn "Do you want to rename the [term], [type], [both], or [neither]?"
-            putStr ">> "
-            (atomically . fmap words . takeLine) lineQueue >>= \case
-              ["term"] -> renameTerm branch >>= go''
-              ["type"] -> renameType branch >>= go''
-              ["both"] -> renameTerm branch >>= renameType >>= go''
-              _ -> go'' branch
-          (_terms, _types) -> do
-            -- idea: print out _terms and _types, so user can view them
-            putStrLn $ "There's more than one thing called " ++ from ++ "."
-            putStrLn $ "Use `> <command to resolve conflicts> unname " ++ from ++ "` to resolve conflicts, then try again."
-            go'' branch
-      _ -> error $ "todo" ++ "help:"
+        -- rename a term/type/... in the current branch
+        ["rename", from, to] ->
+          let terms = Branch.termsNamed (pack from) branch
+              types = Branch.typesNamed (pack from) branch
+              renameTerm branch = do
+                let branch' = Branch.renameTerm (pack from) (pack to) branch
+                mergeBranchAndShowDiff name branch'
+              renameType branch = do
+                let branch' = Branch.renameType (pack from) (pack to) branch
+                mergeBranchAndShowDiff name branch'
+              go' b = go b name
+          in case (toList terms, toList types) of
+            ([], []) -> putStrLn "I couldn't find anything by that name."
+            ([_term], []) -> renameTerm branch >>= go'
+            ([], [_typ]) -> renameType branch >>= go'
+            ([_term], [_typ]) -> do
+              putStrLn "Do you want to rename the [term], [type], [both], or [neither]?"
+              putStr ">> "
+              (atomically . fmap words . takeLine) lineQueue >>= \case
+                ["term"] -> renameTerm branch >>= go'
+                ["type"] -> renameType branch >>= go'
+                ["both"] -> renameTerm branch >>= renameType >>= go'
+                _ -> go' branch
+            (_terms, _types) -> do
+              -- idea: print out _terms and _types, so user can view them
+              putStrLn $ "There's more than one thing called " ++ from ++ "."
+              putStrLn $ "Use `> <command to resolve conflicts> unname " ++ from ++ "` to resolve conflicts, then try again."
+              go' branch
+        _ -> error $ "todo" ++ "help:"
 
 -- should never block
 peekIncompleteLine :: TQueue Char -> STM String
